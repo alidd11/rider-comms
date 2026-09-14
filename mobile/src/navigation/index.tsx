@@ -49,7 +49,7 @@ export function AppNavigator(): React.JSX.Element {
       >
         <Stack.Screen name="Home" component={HomeScreen} options={{ title: 'Rider Comms' }} />
         <Stack.Screen name="CreateRide" component={CreateRideScreen} options={{ title: 'Start a Ride' }} />
-        <Stack.Screen name="JoinRide" component={JoinRideScreen} options={{ title: 'Join a Ride' }} />
+        <Stack.Screen name="JoinRide" component={JoinRideScreen} options={{ title: 'Group Ride' }} />
         <Stack.Screen name="PublicZone" component={PublicZoneScreen} options={{ title: 'Nearby Riders' }} />
         <Stack.Screen
           name="Ride"
