@@ -20,7 +20,6 @@
         "ACCESS_BACKGROUND_LOCATION",
         "FOREGROUND_SERVICE"
       ]
-    },
-    "_NOTE": "Background audio + location together are flagged in the spec (Section 10) as the single biggest engineering risk on iOS specifically — this config declares the right entitlements, but actually surviving background execution needs real device testing this sandbox can't do."
+    }
   }
 }
