@@ -1,12 +1,12 @@
 // Unverified scaffold — see navigation/index.tsx header note.
 import * as React from 'react';
 import { View, Text, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation';
 import { RiderCommsClient } from '../api/client';
 import { API_BASE_URL } from '../config';
-import { colors, spacing, radii, type, MIN_TOUCH_TARGET } from '../theme';
+import { colors, spacing, radii, type, elevation, MIN_TOUCH_TARGET } from '../theme';
 import { useRide } from '../ride/RideContext';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'CreateRide'>;
@@ -35,7 +35,7 @@ export function CreateRideScreen({ navigation }: Props): React.JSX.Element {
   return (
     <View style={styles.container}>
       <View style={styles.iconBadge}>
-        <Ionicons name="add-circle" size={32} color={colors.accent} />
+        <MaterialCommunityIcons name="motorbike" size={32} color={colors.accent} />
       </View>
       <Text style={styles.title}>Start a private ride</Text>
       <Text style={styles.body}>
@@ -75,6 +75,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: spacing.md,
+    ...elevation.raised,
   },
   title: { ...type.heading, marginBottom: spacing.sm },
   body: { ...type.body, marginBottom: spacing.lg },

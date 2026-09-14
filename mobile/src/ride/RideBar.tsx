@@ -7,9 +7,9 @@
 // tested logic) around where that connection would plug in.
 import * as React from 'react';
 import { View, Text, Pressable, StyleSheet, Modal } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { AudioEngine } from '../audio/audioEngine';
-import { colors, spacing, radii, type, MIN_TOUCH_TARGET } from '../theme';
+import { colors, spacing, radii, type, elevation, MIN_TOUCH_TARGET } from '../theme';
 import { useRide } from './RideContext';
 
 const CHANNELS: Array<{ key: 'nav' | 'chat' | 'music'; label: string; icon: keyof typeof Ionicons.glyphMap }> = [
@@ -53,6 +53,7 @@ export function RideBar(): React.JSX.Element | null {
     <>
       <Pressable style={({ pressed }) => [styles.bar, pressed && styles.barPressed]} onPress={() => setExpanded(true)}>
         <View style={styles.liveDot} />
+        <MaterialCommunityIcons name="motorbike" size={18} color={colors.accent} />
         <Text style={styles.barText}>In ride{activeRide.code ? ` · ${activeRide.code}` : ''}</Text>
         <Ionicons name="chevron-up" size={18} color={colors.textSecondary} />
       </Pressable>
@@ -126,6 +127,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     marginHorizontal: spacing.lg,
     marginBottom: spacing.sm,
+    ...elevation.raised,
   },
   barPressed: { opacity: 0.85 },
   barText: { ...type.body, color: colors.textPrimary, flex: 1 },
@@ -135,7 +137,13 @@ const styles = StyleSheet.create({
   closeButton: { padding: spacing.xs },
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   statusText: { ...type.caption, color: colors.success, textTransform: 'uppercase', letterSpacing: 1 },
-  codeCard: { backgroundColor: colors.surface, borderRadius: radii.lg, padding: spacing.md, alignItems: 'center' },
+  codeCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radii.lg,
+    padding: spacing.md,
+    alignItems: 'center',
+    ...elevation.raised,
+  },
   codeLabel: { ...type.caption },
   codeValue: { fontSize: 32, fontWeight: '800', letterSpacing: 6, color: colors.accent, marginTop: spacing.xs },
   rideId: { ...type.caption },

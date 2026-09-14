@@ -10,13 +10,13 @@
 // legibility, not placed at real bearings/distances. A real live map (per
 // spec section 8) needs the backend to return each rider's lat/lon too.
 import * as React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import Svg, { Rect, Circle, Line } from 'react-native-svg';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import Svg, { Rect, Circle, Line, Defs, RadialGradient, Stop } from 'react-native-svg';
 import { TIER_RADIUS_MILES } from '@rider-comms/shared';
 import { RiderCommsClient } from '../api/client';
 import { API_BASE_URL } from '../config';
-import { colors, spacing, radii, type } from '../theme';
+import { colors, spacing, radii, type, elevation } from '../theme';
 import { RideBar } from '../ride/RideBar';
 import { useSettings } from '../settings/SettingsContext';
 
@@ -30,18 +30,48 @@ async function getCurrentLocation(): Promise<{ lat: number; lon: number }> {
 }
 
 function ridersOnCircle(riders: string[]): Array<{ id: string; x: number; y: number }> {
-  const orbitRadius = CENTER * 0.62;
+  const orbitRadius = CENTER * 0.6;
   return riders.map((id, index) => {
     const angle = (index / Math.max(riders.length, 1)) * Math.PI * 2 - Math.PI / 2;
     return { id, x: CENTER + orbitRadius * Math.cos(angle), y: CENTER + orbitRadius * Math.sin(angle) };
   });
 }
 
-function MapPin({ x, y, you = false }: { x: number; y: number; you?: boolean }): React.JSX.Element {
+function MapPin({
+  x,
+  y,
+  you = false,
+  selected = false,
+  onPress,
+}: {
+  x: number;
+  y: number;
+  you?: boolean;
+  selected?: boolean;
+  onPress?: () => void;
+}): React.JSX.Element {
+  const size = you ? 34 : selected ? 32 : 26;
   return (
-    <View style={[styles.pinWrap, { left: x - 13, top: y - 30 }]}>
-      <Ionicons name="location" size={30} color={you ? colors.accent : colors.textPrimary} />
-    </View>
+    <Pressable
+      style={[styles.pinWrap, { left: x - size / 2, top: y - size / 2 }]}
+      onPress={onPress}
+      disabled={!onPress}
+    >
+      <View
+        style={[
+          styles.pinBadge,
+          { width: size, height: size, borderRadius: size / 2 },
+          you ? styles.pinBadgeYou : styles.pinBadgeRider,
+          selected && styles.pinBadgeSelected,
+        ]}
+      >
+        <MaterialCommunityIcons
+          name="motorbike"
+          size={size * 0.62}
+          color={you ? colors.accentText : colors.textPrimary}
+        />
+      </View>
+    </Pressable>
   );
 }
 
@@ -49,6 +79,7 @@ export function MapScreen(): React.JSX.Element {
   const { zoneTier: tier } = useSettings();
   const [ridersInZone, setRidersInZone] = React.useState<string[]>([]);
   const [error, setError] = React.useState<string | null>(null);
+  const [selectedRider, setSelectedRider] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     const client = new RiderCommsClient(API_BASE_URL);
@@ -80,10 +111,14 @@ export function MapScreen(): React.JSX.Element {
 
   const pins = ridersOnCircle(ridersInZone);
 
+  function toggleSelected(id: string) {
+    setSelectedRider((current) => (current === id ? null : id));
+  }
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Ionicons name="radio" size={20} color={colors.accent} />
+        <MaterialCommunityIcons name="road-variant" size={20} color={colors.accent} />
         <Text style={styles.title}>Zone radius: {TIER_RADIUS_MILES[tier]} mi</Text>
       </View>
 
@@ -94,14 +129,26 @@ export function MapScreen(): React.JSX.Element {
         </View>
       )}
 
-      <View style={styles.mapWrap}>
+      <View style={[styles.mapWrap, elevation.raised]}>
         <Svg width="100%" height="100%" viewBox={`0 0 ${MAP_SIZE} ${MAP_SIZE}`}>
-          <Rect width={MAP_SIZE} height={MAP_SIZE} fill={colors.background} />
-          <Line x1={0} y1={70} x2={MAP_SIZE} y2={55} stroke={colors.surfaceRaised} strokeWidth={10} />
-          <Line x1={0} y1={180} x2={MAP_SIZE} y2={195} stroke={colors.surfaceRaised} strokeWidth={10} />
-          <Line x1={0} y1={260} x2={MAP_SIZE} y2={275} stroke={colors.surfaceRaised} strokeWidth={10} />
-          <Line x1={60} y1={0} x2={45} y2={MAP_SIZE} stroke={colors.surfaceRaised} strokeWidth={10} />
-          <Line x1={215} y1={0} x2={230} y2={MAP_SIZE} stroke={colors.surfaceRaised} strokeWidth={10} />
+          <Defs>
+            <RadialGradient id="ground" cx="50%" cy="45%" r="75%">
+              <Stop offset="0%" stopColor={colors.surfaceRaised} />
+              <Stop offset="100%" stopColor={colors.asphalt} />
+            </RadialGradient>
+          </Defs>
+          <Rect width={MAP_SIZE} height={MAP_SIZE} fill="url(#ground)" />
+          {/* Open road, not a city grid — this is a touring app, not a taxi app. */}
+          <Line x1={-20} y1={MAP_SIZE * 0.72} x2={MAP_SIZE + 20} y2={MAP_SIZE * 0.2} stroke={colors.border} strokeWidth={46} strokeLinecap="round" />
+          <Line
+            x1={-20}
+            y1={MAP_SIZE * 0.72}
+            x2={MAP_SIZE + 20}
+            y2={MAP_SIZE * 0.2}
+            stroke={colors.laneLine}
+            strokeWidth={2}
+            strokeDasharray="10 12"
+          />
           <Circle
             cx={CENTER}
             cy={CENTER}
@@ -110,12 +157,19 @@ export function MapScreen(): React.JSX.Element {
             stroke={colors.accent}
             strokeWidth={1.5}
             strokeDasharray="5 6"
-            opacity={0.55}
+            opacity={0.5}
           />
         </Svg>
+
         <MapPin x={CENTER} y={CENTER} you />
         {pins.map((pin) => (
-          <MapPin key={pin.id} x={pin.x} y={pin.y} />
+          <MapPin
+            key={pin.id}
+            x={pin.x}
+            y={pin.y}
+            selected={selectedRider === pin.id}
+            onPress={() => toggleSelected(pin.id)}
+          />
         ))}
       </View>
 
@@ -126,12 +180,20 @@ export function MapScreen(): React.JSX.Element {
         <Text style={styles.emptyText}>No one in your zone right now.</Text>
       ) : (
         ridersInZone.map((id) => (
-          <View key={id} style={styles.riderRow}>
-            <View style={styles.riderAvatar}>
-              <Ionicons name="person" size={16} color={colors.textPrimary} />
+          <Pressable
+            key={id}
+            style={[styles.riderRow, selectedRider === id && styles.riderRowSelected]}
+            onPress={() => toggleSelected(id)}
+          >
+            <View style={[styles.riderAvatar, selectedRider === id && styles.riderAvatarSelected]}>
+              <MaterialCommunityIcons
+                name="motorbike"
+                size={16}
+                color={selectedRider === id ? colors.accentText : colors.textPrimary}
+              />
             </View>
             <Text style={styles.riderName}>{id}</Text>
-          </View>
+          </Pressable>
         ))
       )}
 
@@ -163,8 +225,18 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     marginBottom: spacing.md,
+    backgroundColor: colors.asphalt,
   },
   pinWrap: { position: 'absolute' },
+  pinBadge: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: colors.background,
+  },
+  pinBadgeYou: { backgroundColor: colors.accent },
+  pinBadgeRider: { backgroundColor: colors.surfaceRaised },
+  pinBadgeSelected: { borderColor: colors.accent, backgroundColor: colors.accentPressed },
   rosterHeader: { marginBottom: spacing.sm },
   rosterLabel: { ...type.caption },
   riderRow: {
@@ -172,9 +244,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.md,
     paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radii.md,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
+  riderRowSelected: { backgroundColor: colors.surfaceRaised, borderBottomColor: colors.surfaceRaised },
   riderAvatar: {
     width: 32,
     height: 32,
@@ -183,6 +258,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  riderAvatarSelected: { backgroundColor: colors.accent },
   riderName: { ...type.body, color: colors.textPrimary },
   emptyText: { ...type.caption, textAlign: 'center', marginTop: spacing.lg },
   rideBarSlot: { marginTop: 'auto' },
