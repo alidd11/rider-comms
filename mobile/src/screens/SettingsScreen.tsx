@@ -1,11 +1,11 @@
 // Unverified scaffold — see navigation/index.tsx header note.
 import * as React from 'react';
 import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import { TIER_RADIUS_MILES } from '@rider-comms/shared';
 import type { ZoneTier } from '@rider-comms/shared';
-import { colors, spacing, radii, type } from '../theme';
+import { colors, spacing, radii, type, elevation } from '../theme';
 import { useSettings } from '../settings/SettingsContext';
 import { RideBar } from '../ride/RideBar';
 
@@ -52,8 +52,11 @@ export function SettingsScreen(): React.JSX.Element {
           <Text style={styles.caption}>Accounts aren't built yet — riderId is hardcoded for this prototype.</Text>
         </View>
 
-        <Text style={styles.sectionLabel}>Zone Radius</Text>
-        <View style={styles.section}>
+        <View style={styles.sectionLabelRow}>
+          <MaterialCommunityIcons name="road-variant" size={14} color={colors.textMuted} />
+          <Text style={[styles.sectionLabel, styles.sectionLabelInRow]}>Zone Radius</Text>
+        </View>
+        <View style={[styles.section, elevation.raised]}>
           {loaded &&
             TIER_ORDER.map((tier) => (
               <TierRow key={tier} tier={tier} selected={zoneTier === tier} onSelect={() => setZoneTier(tier)} />
@@ -91,6 +94,8 @@ const styles = StyleSheet.create({
   },
   name: { ...type.heading },
   caption: { ...type.caption, textAlign: 'center', paddingHorizontal: spacing.lg },
+  sectionLabelRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginTop: spacing.lg, marginBottom: spacing.sm },
+  sectionLabelInRow: { marginTop: 0, marginBottom: 0 },
   sectionLabel: {
     ...type.caption,
     textTransform: 'uppercase',

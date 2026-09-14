@@ -6,7 +6,7 @@ import * as React from 'react';
 import { DarkTheme, NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { MapScreen } from '../screens/MapScreen';
 import { GroupRideScreen } from '../screens/GroupRideScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
@@ -41,10 +41,10 @@ export type RootStackParamList = {
 const Tab = createBottomTabNavigator<TabParamList>();
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
-const TAB_ICONS: Record<keyof TabParamList, keyof typeof Ionicons.glyphMap> = {
-  Map: 'radio',
-  GroupRide: 'people',
-  Settings: 'settings',
+const TAB_ICONS: Record<keyof TabParamList, (color: string, size: number) => React.ReactNode> = {
+  Map: (color, size) => <MaterialCommunityIcons name="motorbike" size={size} color={color} />,
+  GroupRide: (color, size) => <Ionicons name="people" size={size} color={color} />,
+  Settings: (color, size) => <Ionicons name="settings" size={size} color={color} />,
 };
 
 function Tabs(): React.JSX.Element {
@@ -57,7 +57,7 @@ function Tabs(): React.JSX.Element {
         tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border },
         tabBarActiveTintColor: colors.accent,
         tabBarInactiveTintColor: colors.textMuted,
-        tabBarIcon: ({ color, size }) => <Ionicons name={TAB_ICONS[route.name]} size={size} color={color} />,
+        tabBarIcon: ({ color, size }) => TAB_ICONS[route.name](color, size),
       })}
     >
       <Tab.Screen name="Map" component={MapScreen} options={{ title: 'Public' }} />

@@ -7,7 +7,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation';
 import { ApiError, RiderCommsClient } from '../api/client';
 import { API_BASE_URL } from '../config';
-import { colors, spacing, radii, type, MIN_TOUCH_TARGET } from '../theme';
+import { colors, spacing, radii, type, elevation, MIN_TOUCH_TARGET } from '../theme';
 import { useRide } from '../ride/RideContext';
 import { RideBar } from '../ride/RideBar';
 
@@ -110,6 +110,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: spacing.md,
+    ...elevation.raised,
   },
   title: { ...type.heading, marginBottom: spacing.sm },
   body: { ...type.body, marginBottom: spacing.lg },

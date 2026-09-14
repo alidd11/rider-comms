@@ -18,6 +18,8 @@ export const colors = {
   success: '#3DD68C',
   danger: '#FF5A5F',
   dangerSurface: '#2B1416',
+  asphalt: '#12151A',
+  laneLine: '#3A4048',
 } as const;
 
 export const spacing = {
@@ -46,3 +48,26 @@ export const type = {
 
 /** Minimum tap target height — comfortable with a gloved thumb at speed-zero. */
 export const MIN_TOUCH_TARGET = 56;
+
+/**
+ * Depth hierarchy: everything was the same flat surface with no signal for
+ * what matters. "raised" is for the thing the eye should land on first on a
+ * screen (a live status, a primary card); "flat" is for a quiet grouping
+ * (a settings section, a static row) that shouldn't compete with it.
+ */
+export const elevation = {
+  flat: {
+    shadowColor: '#000',
+    shadowOpacity: 0,
+    shadowRadius: 0,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 0,
+  },
+  raised: {
+    shadowColor: '#000',
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 6,
+  },
+} as const;
