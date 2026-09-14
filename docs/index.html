@@ -246,7 +246,12 @@
   .name-input:focus { outline: none; }
   .section-label { font-size: 12px; font-weight: 700; letter-spacing: 1.1px; line-height: 15px; color: var(--app-text-muted); text-transform: uppercase; margin: 20px 0 8px; }
   .section-label-row { display: flex; align-items: center; gap: 6px; margin: 20px 0 8px; }
-  .settings-section { background: var(--app-surface); border-radius: 16px; overflow: hidden; }
+  /* flex-shrink:0 matters here: .pane-scroll is a column flexbox, and this
+     element's overflow:hidden (needed to clip the border-radius) makes its
+     CSS "automatic minimum size" 0 — so once total content is taller than
+     the scroll area, the flexbox spec lets it shrink all the way to 0 height
+     instead of just scrolling, unless shrinking is disabled here. */
+  .settings-section { background: var(--app-surface); border-radius: 16px; overflow: hidden; flex-shrink: 0; }
   .tier-row {
     display: flex; align-items: flex-start; gap: 16px;
     padding: 16px; border-bottom: 1px solid var(--app-border);
@@ -265,6 +270,23 @@
   .tier-blurb { font-size: 13px; font-weight: 600; letter-spacing: 0.1px; line-height: 17px; color: var(--app-text-muted); margin-top: 4px; }
   .about-row { display: flex; justify-content: space-between; padding: 16px; }
   .about-label { font-size: 16px; font-weight: 500; color: var(--app-text); }
+
+  /* Handle: same tap-to-edit pattern as the display name, smaller/caption-sized */
+  .handle-row { display: flex; align-items: center; gap: 6px; justify-content: center; background: none; border: none; cursor: pointer; font-family: inherit; padding: 0; margin-top: 2px; }
+  .handle-input { font-size: 14px; font-weight: 600; letter-spacing: 0.1px; color: var(--app-text-secondary); background: none; border: none; border-bottom: 1px solid var(--app-accent); text-align: center; font-family: inherit; padding: 2px 0; min-width: 120px; margin-top: 2px; }
+  .handle-input:focus { outline: none; }
+
+  /* App-themed toggle switch: same shape/behavior as .toggle (the preview-chrome
+     "simulate a ride" switch) but recolored onto the fixed dark app palette so it
+     can live inside the phone screen. */
+  .app-toggle { width: 44px; height: 26px; border-radius: 999px; background: var(--app-surface-raised); border: 1px solid var(--app-border); position: relative; cursor: pointer; flex: none; }
+  .app-toggle .knob { position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 999px; background: var(--app-text-muted); transition: transform 0.15s ease, background 0.15s ease; }
+  .app-toggle[aria-pressed="true"] { border-color: var(--app-accent); }
+  .app-toggle[aria-pressed="true"] .knob { transform: translateX(18px); background: var(--app-accent); }
+
+  .settings-toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px; border-bottom: 1px solid var(--app-border); }
+  .settings-toggle-row:last-child { border-bottom: none; }
+  .settings-toggle-caption { padding: 0 16px 16px; margin-top: -8px; }
 
   /* Avatar picker sheet */
   .avatar-grid { display: flex; flex-wrap: wrap; justify-content: space-between; row-gap: 16px; margin-bottom: 8px; }
@@ -464,6 +486,13 @@
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M4 20l1-4L16 5l3 3L8 19l-4 1Z" stroke="#6B7280" stroke-width="1.8" stroke-linejoin="round"/></svg>
             </button>
             <input class="name-input" id="nameInput" style="display:none;" maxlength="24" placeholder="Rider name">
+
+            <button type="button" class="handle-row" id="handleRow">
+              <span class="app-caption" id="handleText" style="margin:0;">@rider</span>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M4 20l1-4L16 5l3 3L8 19l-4 1Z" stroke="#6B7280" stroke-width="1.8" stroke-linejoin="round"/></svg>
+            </button>
+            <input class="handle-input" id="handleInput" style="display:none;" maxlength="20" placeholder="@handle">
+
             <p class="app-caption">Accounts aren't built yet — this profile is local to this device.</p>
           </div>
 
@@ -493,6 +522,48 @@
                 <span class="tier-blurb">Widest range — for a convoy that has stretched way out.</span>
               </span>
             </button>
+          </div>
+
+          <p class="section-label">Units</p>
+          <div class="settings-section raised" id="unitsSection">
+            <button class="tier-row" data-unit="mi" data-selected="true">
+              <span class="tier-radio"><span class="tier-radio-dot"></span></span>
+              <span class="tier-info"><span class="tier-name">Miles</span></span>
+            </button>
+            <button class="tier-row" data-unit="km">
+              <span class="tier-radio"><span class="tier-radio-dot"></span></span>
+              <span class="tier-info"><span class="tier-name">Kilometers</span></span>
+            </button>
+          </div>
+
+          <p class="section-label">Notifications</p>
+          <div class="settings-section" id="notifSection">
+            <div class="settings-toggle-row">
+              <span class="about-label">Nearby riders</span>
+              <button type="button" class="app-toggle" id="toggleNearby" role="switch" aria-pressed="true"><span class="knob"></span></button>
+            </div>
+            <div class="settings-toggle-row">
+              <span class="about-label">Ride invites</span>
+              <button type="button" class="app-toggle" id="toggleRideInvites" role="switch" aria-pressed="true"><span class="knob"></span></button>
+            </div>
+            <div class="settings-toggle-row">
+              <span class="about-label">Group chat messages</span>
+              <button type="button" class="app-toggle" id="toggleGroupChat" role="switch" aria-pressed="true"><span class="knob"></span></button>
+            </div>
+          </div>
+
+          <p class="section-label">Privacy</p>
+          <div class="settings-section" id="privacySection">
+            <div class="settings-toggle-row" style="border-bottom:none;">
+              <span class="about-label">Share my location while riding</span>
+              <button type="button" class="app-toggle" id="toggleShareLocation" role="switch" aria-pressed="true"><span class="knob"></span></button>
+            </div>
+            <p class="app-caption settings-toggle-caption" style="margin:0;">Other riders in your zone can see your position on the map.</p>
+          </div>
+
+          <p class="section-label">Advanced</p>
+          <div class="settings-section" style="padding:16px;">
+            <button type="button" class="app-btn danger-outline" id="resetAppDataBtn">Reset app data</button>
           </div>
 
           <p class="section-label">About</p>
@@ -936,6 +1007,63 @@
   nameInput.addEventListener('blur', commitName);
   nameInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') commitName();
+  });
+
+  // ---- Settings: editable @handle, same tap-to-edit pattern as the name ----
+  const handleRow = document.getElementById('handleRow');
+  const handleText = document.getElementById('handleText');
+  const handleInput = document.getElementById('handleInput');
+  handleRow.addEventListener('click', () => {
+    handleInput.value = handleText.textContent;
+    handleRow.style.display = 'none';
+    handleInput.style.display = 'block';
+    handleInput.focus();
+  });
+  function commitHandle() {
+    let value = handleInput.value.trim();
+    if (!value || value === '@') value = '@rider';
+    else if (!value.startsWith('@')) value = '@' + value;
+    handleText.textContent = value;
+    handleInput.style.display = 'none';
+    handleRow.style.display = 'flex';
+  }
+  handleInput.addEventListener('blur', commitHandle);
+  handleInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') commitHandle();
+  });
+
+  // ---- Settings: Units radio group — same select-on-click pattern as Zone Radius ----
+  document.querySelectorAll('#unitsSection .tier-row').forEach((row) => {
+    row.addEventListener('click', () => {
+      document.querySelectorAll('#unitsSection .tier-row').forEach((r) => (r.dataset.selected = 'false'));
+      row.dataset.selected = 'true';
+    });
+  });
+
+  // ---- Settings: Notifications + Privacy toggles (mocked, no persistence) ----
+  function wireAppToggle(id) {
+    const el = document.getElementById(id);
+    el.addEventListener('click', () => {
+      el.setAttribute('aria-pressed', String(el.getAttribute('aria-pressed') !== 'true'));
+    });
+    return el;
+  }
+  const toggleNearby = wireAppToggle('toggleNearby');
+  const toggleRideInvites = wireAppToggle('toggleRideInvites');
+  const toggleGroupChat = wireAppToggle('toggleGroupChat');
+  const toggleShareLocation = wireAppToggle('toggleShareLocation');
+
+  // ---- Settings: Reset app data — visually restores every mocked control to
+  // its default; there's no real persistence in this static file to clear. ----
+  document.getElementById('resetAppDataBtn').addEventListener('click', () => {
+    const confirmed = confirm('Reset all app settings back to their defaults? This cannot be undone.');
+    if (!confirmed) return;
+    applyAvatar(AVATAR_PRESETS[0].id);
+    nameText.textContent = 'Rider';
+    handleText.textContent = '@rider';
+    document.querySelectorAll('#tierSection .tier-row').forEach((r) => (r.dataset.selected = String(r.dataset.tier === 'free')));
+    document.querySelectorAll('#unitsSection .tier-row').forEach((r) => (r.dataset.selected = String(r.dataset.unit === 'mi')));
+    [toggleNearby, toggleRideInvites, toggleGroupChat, toggleShareLocation].forEach((t) => t.setAttribute('aria-pressed', 'true'));
   });
 
   if ('serviceWorker' in navigator) {

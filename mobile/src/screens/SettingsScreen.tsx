@@ -1,14 +1,21 @@
 // Unverified scaffold — see navigation/index.tsx header note.
 import * as React from 'react';
-import { View, Text, Pressable, TextInput, ScrollView, Modal, StyleSheet } from 'react-native';
+import { View, Text, Pressable, TextInput, ScrollView, Modal, Switch, Alert, StyleSheet } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import { TIER_RADIUS_MILES } from '@rider-comms/shared';
 import type { ZoneTier } from '@rider-comms/shared';
 import { colors, spacing, radii, type, elevation, MIN_TOUCH_TARGET } from '../theme';
 import { useSettings } from '../settings/SettingsContext';
+import type { UnitSystem } from '../settings/SettingsContext';
 import { AVATAR_PRESETS, getAvatarPreset } from '../settings/avatars';
 import { RideBar } from '../ride/RideBar';
+
+const UNIT_LABELS: Record<UnitSystem, { name: string; blurb: string }> = {
+  mi: { name: 'Miles', blurb: 'Distances and zone radius shown in miles.' },
+  km: { name: 'Kilometers', blurb: 'Distances and zone radius shown in kilometers.' },
+};
+const UNIT_ORDER: UnitSystem[] = ['mi', 'km'];
 
 const TIER_LABELS: Record<ZoneTier, { name: string; blurb: string }> = {
   free: { name: 'Free', blurb: 'The default — good for a stoplight-to-stoplight ride.' },
@@ -35,6 +42,60 @@ function TierRow({ tier, selected, onSelect }: { tier: ZoneTier; selected: boole
         <Text style={styles.tierBlurb}>{blurb}</Text>
       </View>
     </Pressable>
+  );
+}
+
+function UnitRow({
+  unit,
+  selected,
+  onSelect,
+}: {
+  unit: UnitSystem;
+  selected: boolean;
+  onSelect: () => void;
+}): React.JSX.Element {
+  const { name, blurb } = UNIT_LABELS[unit];
+  return (
+    <Pressable
+      style={({ pressed }) => [styles.tierRow, selected && styles.tierRowSelected, pressed && styles.tierRowPressed]}
+      onPress={onSelect}
+    >
+      <View style={styles.tierRadio}>{selected && <View style={styles.tierRadioDot} />}</View>
+      <View style={styles.tierInfo}>
+        <Text style={styles.tierName}>{name}</Text>
+        <Text style={styles.tierBlurb}>{blurb}</Text>
+      </View>
+    </Pressable>
+  );
+}
+
+function ToggleRow({
+  icon,
+  label,
+  value,
+  onValueChange,
+  caption,
+}: {
+  icon: React.ComponentProps<typeof Ionicons>['name'];
+  label: string;
+  value: boolean;
+  onValueChange: (next: boolean) => void;
+  caption?: string;
+}): React.JSX.Element {
+  return (
+    <View style={styles.toggleRow}>
+      <Ionicons name={icon} size={20} color={colors.textSecondary} style={styles.toggleIcon} />
+      <View style={styles.toggleInfo}>
+        <Text style={styles.toggleLabel}>{label}</Text>
+        {caption && <Text style={styles.toggleCaption}>{caption}</Text>}
+      </View>
+      <Switch
+        value={value}
+        onValueChange={onValueChange}
+        trackColor={{ false: colors.border, true: colors.accent }}
+        thumbColor={colors.textPrimary}
+      />
+    </View>
   );
 }
 
@@ -98,21 +159,64 @@ function AvatarPickerModal({
 }
 
 export function SettingsScreen(): React.JSX.Element {
-  const { zoneTier, setZoneTier, avatarId, setAvatarId, displayName, setDisplayName, loaded } = useSettings();
+  const {
+    zoneTier,
+    setZoneTier,
+    avatarId,
+    setAvatarId,
+    displayName,
+    setDisplayName,
+    handle,
+    setHandle,
+    unitSystem,
+    setUnitSystem,
+    notifyNearby,
+    setNotifyNearby,
+    notifyInvites,
+    setNotifyInvites,
+    notifyChat,
+    setNotifyChat,
+    shareLocation,
+    setShareLocation,
+    resetAll,
+    loaded,
+  } = useSettings();
   const appVersion = Constants.expoConfig?.version ?? '0.1.0';
   const [pickerOpen, setPickerOpen] = React.useState(false);
   const [nameDraft, setNameDraft] = React.useState(displayName);
   const [editingName, setEditingName] = React.useState(false);
+  const [handleDraft, setHandleDraft] = React.useState(handle);
+  const [editingHandle, setEditingHandle] = React.useState(false);
 
   React.useEffect(() => {
     setNameDraft(displayName);
   }, [displayName]);
+
+  React.useEffect(() => {
+    setHandleDraft(handle);
+  }, [handle]);
 
   const avatar = getAvatarPreset(avatarId);
 
   function commitName() {
     setDisplayName(nameDraft);
     setEditingName(false);
+  }
+
+  function commitHandle() {
+    setHandle(handleDraft);
+    setEditingHandle(false);
+  }
+
+  function confirmReset() {
+    Alert.alert(
+      'Reset app data?',
+      'This clears your profile, avatar, and all settings on this device and puts everything back to its defaults.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Reset', style: 'destructive', onPress: () => resetAll() },
+      ]
+    );
   }
 
   return (
@@ -147,6 +251,28 @@ export function SettingsScreen(): React.JSX.Element {
               <Ionicons name="pencil" size={14} color={colors.textMuted} />
             </Pressable>
           )}
+
+          {editingHandle ? (
+            <TextInput
+              style={styles.handleInput}
+              value={handleDraft}
+              onChangeText={setHandleDraft}
+              onSubmitEditing={commitHandle}
+              onBlur={commitHandle}
+              autoFocus
+              maxLength={24}
+              autoCapitalize="none"
+              returnKeyType="done"
+              placeholder="@handle"
+              placeholderTextColor={colors.textMuted}
+            />
+          ) : (
+            <Pressable onPress={() => setEditingHandle(true)} style={styles.handleRow}>
+              <Text style={styles.handle}>{handle}</Text>
+              <Ionicons name="pencil" size={12} color={colors.textMuted} />
+            </Pressable>
+          )}
+
           <Text style={styles.caption}>Accounts aren't built yet — this profile is local to this device.</Text>
         </View>
 
@@ -159,6 +285,67 @@ export function SettingsScreen(): React.JSX.Element {
             TIER_ORDER.map((tier) => (
               <TierRow key={tier} tier={tier} selected={zoneTier === tier} onSelect={() => setZoneTier(tier)} />
             ))}
+        </View>
+
+        <View style={styles.sectionLabelRow}>
+          <MaterialCommunityIcons name="ruler" size={14} color={colors.textMuted} />
+          <Text style={[styles.sectionLabel, styles.sectionLabelInRow]}>Units</Text>
+        </View>
+        <View style={[styles.section, elevation.raised]}>
+          {loaded &&
+            UNIT_ORDER.map((unit) => (
+              <UnitRow key={unit} unit={unit} selected={unitSystem === unit} onSelect={() => setUnitSystem(unit)} />
+            ))}
+        </View>
+
+        <View style={styles.sectionLabelRow}>
+          <Ionicons name="notifications-outline" size={14} color={colors.textMuted} />
+          <Text style={[styles.sectionLabel, styles.sectionLabelInRow]}>Notifications</Text>
+        </View>
+        <View style={[styles.section, elevation.raised]}>
+          <ToggleRow
+            icon="people-outline"
+            label="Nearby riders"
+            value={notifyNearby}
+            onValueChange={setNotifyNearby}
+          />
+          <ToggleRow
+            icon="mail-open-outline"
+            label="Ride invites"
+            value={notifyInvites}
+            onValueChange={setNotifyInvites}
+          />
+          <ToggleRow
+            icon="chatbubble-ellipses-outline"
+            label="Group chat messages"
+            value={notifyChat}
+            onValueChange={setNotifyChat}
+          />
+        </View>
+
+        <View style={styles.sectionLabelRow}>
+          <Ionicons name="lock-closed-outline" size={14} color={colors.textMuted} />
+          <Text style={[styles.sectionLabel, styles.sectionLabelInRow]}>Privacy</Text>
+        </View>
+        <View style={[styles.section, elevation.raised]}>
+          <ToggleRow
+            icon="location-outline"
+            label="Share my location while riding"
+            value={shareLocation}
+            onValueChange={setShareLocation}
+            caption="Other riders in your zone can see your position on the map."
+          />
+        </View>
+
+        <Text style={styles.sectionLabel}>Advanced</Text>
+        <View style={styles.section}>
+          <Pressable
+            style={({ pressed }) => [styles.dangerButton, pressed && styles.dangerButtonPressed]}
+            onPress={confirmReset}
+          >
+            <Ionicons name="trash-outline" size={18} color={colors.danger} />
+            <Text style={styles.dangerButtonText}>Reset app data</Text>
+          </Pressable>
         </View>
 
         <Text style={styles.sectionLabel}>About</Text>
@@ -217,6 +404,17 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.accent,
     paddingVertical: spacing.xs,
   },
+  handleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  handle: { ...type.body, color: colors.textSecondary },
+  handleInput: {
+    ...type.body,
+    color: colors.textSecondary,
+    minWidth: 120,
+    textAlign: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: colors.accent,
+    paddingVertical: spacing.xs,
+  },
   caption: { ...type.caption, textAlign: 'center', paddingHorizontal: spacing.lg },
   sectionLabelRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginTop: spacing.lg, marginBottom: spacing.sm },
   sectionLabelInRow: { marginTop: 0, marginBottom: 0 },
@@ -252,6 +450,29 @@ const styles = StyleSheet.create({
   tierName: { ...type.body, color: colors.textPrimary, fontWeight: '700', fontSize: 16 },
   tierRadius: { ...type.caption, color: colors.accent, fontWeight: '700' },
   tierBlurb: { ...type.caption },
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    minHeight: MIN_TOUCH_TARGET,
+    paddingHorizontal: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  toggleIcon: { width: 20 },
+  toggleInfo: { flex: 1, gap: spacing.xs, paddingVertical: spacing.sm },
+  toggleLabel: { ...type.body, color: colors.textPrimary },
+  toggleCaption: { ...type.caption },
+  dangerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    minHeight: MIN_TOUCH_TARGET,
+    backgroundColor: colors.dangerSurface,
+  },
+  dangerButtonPressed: { opacity: 0.85 },
+  dangerButtonText: { ...type.button, color: colors.danger },
   aboutRow: { flexDirection: 'row', justifyContent: 'space-between', padding: spacing.md },
   aboutLabel: { ...type.body, color: colors.textPrimary },
   aboutValue: { ...type.caption },

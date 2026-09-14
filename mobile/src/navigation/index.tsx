@@ -10,8 +10,11 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { MapScreen } from '../screens/MapScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { CreateRideScreen } from '../screens/CreateRideScreen';
+import { FriendsScreen } from '../screens/FriendsScreen';
+import { FriendChatScreen } from '../screens/FriendChatScreen';
 import { RideProvider } from '../ride/RideContext';
 import { SettingsProvider } from '../settings/SettingsContext';
+import { FriendsProvider } from '../friends/FriendsContext';
 import { colors } from '../theme';
 
 const navigationTheme = {
@@ -33,12 +36,14 @@ export type TabParamList = {
   // wouldn't, since nothing else about the params changed).
   Map: { segment?: 'public' | 'host'; at?: number } | undefined;
   GroupRide: undefined;
+  Friends: undefined;
   Settings: undefined;
 };
 
 export type RootStackParamList = {
   Tabs: undefined;
   CreateRide: undefined;
+  FriendChat: { riderId: string; displayName: string; avatarId: string };
 };
 
 const Tab = createBottomTabNavigator<TabParamList>();
@@ -47,6 +52,9 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 const TAB_ICONS: Record<keyof TabParamList, (color: string, size: number) => React.ReactNode> = {
   Map: (color, size) => <MaterialCommunityIcons name="motorbike" size={size} color={color} />,
   GroupRide: (color, size) => <Ionicons name="people" size={size} color={color} />,
+  // Distinct from GroupRide's plain "people" glyph — this one reads as
+  // "add a person" so the two tabs aren't visually interchangeable.
+  Friends: (color, size) => <Ionicons name="person-add" size={size} color={color} />,
   Settings: (color, size) => <Ionicons name="settings" size={size} color={color} />,
 };
 
@@ -54,9 +62,13 @@ function Tabs(): React.JSX.Element {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
-        headerStyle: { backgroundColor: colors.surface },
-        headerTitleStyle: { color: colors.textPrimary },
-        headerTintColor: colors.accent,
+        // The Stack screen wrapping this tab navigator already has its own
+        // header hidden (see `Tabs` below) — but bottom-tabs renders its
+        // OWN independent header unless told not to, so leaving this unset
+        // was still showing a plain title bar above every tab's content.
+        // Every tab screen here builds its own top chrome, so none of them
+        // need it.
+        headerShown: false,
         tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border },
         tabBarActiveTintColor: colors.accent,
         tabBarInactiveTintColor: colors.textMuted,
@@ -78,6 +90,7 @@ function Tabs(): React.JSX.Element {
           },
         })}
       />
+      <Tab.Screen name="Friends" component={FriendsScreen} options={{ title: 'Friends' }} />
       <Tab.Screen name="Settings" component={SettingsScreen} options={{ title: 'Settings' }} />
     </Tab.Navigator>
   );
@@ -87,23 +100,34 @@ export function AppNavigator(): React.JSX.Element {
   return (
     <SettingsProvider>
       <RideProvider>
-        <NavigationContainer theme={navigationTheme}>
-          <Stack.Navigator
-            screenOptions={{
-              headerStyle: { backgroundColor: colors.surface },
-              headerTitleStyle: { color: colors.textPrimary },
-              headerTintColor: colors.accent,
-              contentStyle: { backgroundColor: colors.background },
-            }}
-          >
-            <Stack.Screen name="Tabs" component={Tabs} options={{ headerShown: false }} />
-            <Stack.Screen
-              name="CreateRide"
-              component={CreateRideScreen}
-              options={{ title: 'Start a Ride', presentation: 'modal' }}
-            />
-          </Stack.Navigator>
-        </NavigationContainer>
+        <FriendsProvider>
+          <NavigationContainer theme={navigationTheme}>
+            <Stack.Navigator
+              screenOptions={{
+                headerStyle: { backgroundColor: colors.surface },
+                headerTitleStyle: { color: colors.textPrimary },
+                headerTintColor: colors.accent,
+                contentStyle: { backgroundColor: colors.background },
+              }}
+            >
+              <Stack.Screen name="Tabs" component={Tabs} options={{ headerShown: false }} />
+              <Stack.Screen
+                name="CreateRide"
+                component={CreateRideScreen}
+                options={{ title: 'Start a Ride', presentation: 'modal' }}
+              />
+              {/* A normal push, not a modal — this is primary navigation from
+                  the Friends list, not a transient action sheet. This app
+                  hides nav headers everywhere, so the screen builds its own
+                  in-content back chevron instead of relying on one here. */}
+              <Stack.Screen
+                name="FriendChat"
+                component={FriendChatScreen}
+                options={{ presentation: 'card', headerShown: false }}
+              />
+            </Stack.Navigator>
+          </NavigationContainer>
+        </FriendsProvider>
       </RideProvider>
     </SettingsProvider>
   );
