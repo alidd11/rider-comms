@@ -115,19 +115,6 @@
   .header { flex: none; height: 44px; display: flex; align-items: center; padding: 0 16px; background: var(--app-surface); border-bottom: 1px solid var(--app-border); }
   .header .title { font-size: 16px; font-weight: 700; color: var(--app-text); }
 
-  /* ---- installed-as-app mode: the phone screen fills the whole viewport, chrome-free ---- */
-  @media (display-mode: standalone) {
-    body { padding: 0; gap: 0; background: var(--app-bg); }
-    .masthead, .toggle-row { display: none; }
-    .device { width: 100%; max-width: none; background: none; border-radius: 0; padding: 0; box-shadow: none; }
-    .screen { height: 100vh; border-radius: 0; }
-    .notch { display: none; }
-    .statusbar { display: none; }
-    .header { display: none; }
-    .pane-scroll { padding-top: calc(20px + env(safe-area-inset-top, 0px)); }
-    .tabbar { padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px)); }
-  }
-
   .body { flex: 1; overflow: hidden; position: relative; }
   .pane { position: absolute; inset: 0; display: none; flex-direction: column; }
   .pane[data-active="true"] { display: flex; }
@@ -225,6 +212,22 @@
   .credit { font-size: 12px; color: var(--page-text-muted); max-width: 460px; text-align: center; line-height: 1.6; }
   .credit code { font-family: 'SF Mono', ui-monospace, monospace; background: var(--page-bg-raised); padding: 1px 5px; border-radius: 5px; }
   @media (display-mode: standalone) { .credit { display: none; } }
+
+  /* ---- installed-as-app mode: the phone screen fills the whole viewport, chrome-free ----
+     Kept last in the stylesheet on purpose: at equal specificity, CSS resolves ties by
+     source order, so any override here has to come after the rules it's overriding
+     (.pane-scroll's shorthand `padding: 20px` in particular) or it silently loses. */
+  @media (display-mode: standalone) {
+    body { padding: 0; gap: 0; background: var(--app-bg); }
+    .masthead, .toggle-row { display: none; }
+    .device { width: 100%; max-width: none; background: none; border-radius: 0; padding: 0; box-shadow: none; }
+    .screen { height: 100vh; border-radius: 0; }
+    .notch { display: none; }
+    .statusbar { display: none; }
+    .header { display: none; }
+    .pane-scroll { padding-top: calc(20px + env(safe-area-inset-top, 0px)); }
+    .tabbar { padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px)); }
+  }
 </style>
 </head>
 <body>
