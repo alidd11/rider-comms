@@ -4,13 +4,26 @@
 // v6 — review against the installed version once you're on a real
 // dev machine.
 import * as React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import { DarkTheme, NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { HomeScreen } from '../screens/HomeScreen';
 import { CreateRideScreen } from '../screens/CreateRideScreen';
 import { JoinRideScreen } from '../screens/JoinRideScreen';
 import { PublicZoneScreen } from '../screens/PublicZoneScreen';
 import { RideScreen } from '../screens/RideScreen';
+import { colors } from '../theme';
+
+const navigationTheme = {
+  ...DarkTheme,
+  colors: {
+    ...DarkTheme.colors,
+    primary: colors.accent,
+    background: colors.background,
+    card: colors.surface,
+    text: colors.textPrimary,
+    border: colors.border,
+  },
+};
 
 export type RootStackParamList = {
   Home: undefined;
@@ -24,13 +37,25 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export function AppNavigator(): React.JSX.Element {
   return (
-    <NavigationContainer>
-      <Stack.Navigator initialRouteName="Home">
+    <NavigationContainer theme={navigationTheme}>
+      <Stack.Navigator
+        initialRouteName="Home"
+        screenOptions={{
+          headerStyle: { backgroundColor: colors.surface },
+          headerTitleStyle: { color: colors.textPrimary },
+          headerTintColor: colors.accent,
+          contentStyle: { backgroundColor: colors.background },
+        }}
+      >
         <Stack.Screen name="Home" component={HomeScreen} options={{ title: 'Rider Comms' }} />
         <Stack.Screen name="CreateRide" component={CreateRideScreen} options={{ title: 'Start a Ride' }} />
         <Stack.Screen name="JoinRide" component={JoinRideScreen} options={{ title: 'Join a Ride' }} />
         <Stack.Screen name="PublicZone" component={PublicZoneScreen} options={{ title: 'Nearby Riders' }} />
-        <Stack.Screen name="Ride" component={RideScreen} options={{ title: 'In Ride' }} />
+        <Stack.Screen
+          name="Ride"
+          component={RideScreen}
+          options={{ title: 'In Ride', headerBackVisible: false, gestureEnabled: false }}
+        />
       </Stack.Navigator>
     </NavigationContainer>
   );

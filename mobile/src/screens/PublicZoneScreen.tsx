@@ -6,10 +6,12 @@
 // is real and swapping in real GPS is a one-line change, not a rewrite.
 import * as React from 'react';
 import { View, Text, FlatList, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { TIER_RADIUS_MILES } from '@rider-comms/shared';
 import type { ZoneTier } from '@rider-comms/shared';
 import { RiderCommsClient } from '../api/client';
 import { API_BASE_URL } from '../config';
+import { colors, spacing, radii, type } from '../theme';
 
 const PRESENCE_UPDATE_INTERVAL_MS = 8000; // per spec Section 8: every 5-10s
 
@@ -22,6 +24,7 @@ export function PublicZoneScreen(): React.JSX.Element {
   const [tier, setTier] = React.useState<ZoneTier>('free');
   const [ridersInZone, setRidersInZone] = React.useState<string[]>([]);
   const [error, setError] = React.useState<string | null>(null);
+  const [loading, setLoading] = React.useState(true);
 
   React.useEffect(() => {
     const client = new RiderCommsClient(API_BASE_URL);
@@ -40,6 +43,8 @@ export function PublicZoneScreen(): React.JSX.Element {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : 'Could not update your zone.');
         }
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     }
 
@@ -53,28 +58,75 @@ export function PublicZoneScreen(): React.JSX.Element {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Your zone: {TIER_RADIUS_MILES[tier]} mi</Text>
+      <View style={styles.zoneHeader}>
+        <Ionicons name="radio" size={20} color={colors.accent} />
+        <Text style={styles.title}>Zone radius: {TIER_RADIUS_MILES[tier]} mi</Text>
+      </View>
 
-      {error && <Text style={styles.error}>{error}</Text>}
+      {error && (
+        <View style={styles.errorBox}>
+          <Ionicons name="alert-circle" size={18} color={colors.danger} />
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      )}
 
       <FlatList
         data={ridersInZone}
         keyExtractor={(id) => id}
+        contentContainerStyle={ridersInZone.length === 0 ? styles.listEmptyContainer : undefined}
         renderItem={({ item }) => (
           <View style={styles.riderRow}>
-            <Text>{item}</Text>
+            <View style={styles.riderAvatar}>
+              <Ionicons name="person" size={16} color={colors.textPrimary} />
+            </View>
+            <Text style={styles.riderName}>{item}</Text>
           </View>
         )}
-        ListEmptyComponent={<Text style={styles.empty}>No one in your zone right now.</Text>}
+        ListEmptyComponent={
+          !loading ? (
+            <View style={styles.empty}>
+              <Ionicons name="compass-outline" size={32} color={colors.textMuted} />
+              <Text style={styles.emptyText}>No one in your zone right now.</Text>
+            </View>
+          ) : null
+        }
       />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 24 },
-  title: { fontSize: 20, fontWeight: '700', marginBottom: 16 },
-  error: { color: '#c0392b', fontSize: 14, marginBottom: 12 },
-  riderRow: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#eee' },
-  empty: { color: '#999', textAlign: 'center', marginTop: 40 },
+  container: { flex: 1, backgroundColor: colors.background, padding: spacing.lg },
+  zoneHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.md },
+  title: { ...type.heading },
+  errorBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+    backgroundColor: colors.dangerSurface,
+    borderRadius: radii.md,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+  },
+  errorText: { ...type.body, color: colors.danger, flex: 1 },
+  riderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  riderAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: radii.pill,
+    backgroundColor: colors.surfaceRaised,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  riderName: { ...type.body, color: colors.textPrimary },
+  listEmptyContainer: { flex: 1, justifyContent: 'center' },
+  empty: { alignItems: 'center', gap: spacing.sm },
+  emptyText: { ...type.caption },
 });
