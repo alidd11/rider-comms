@@ -15,13 +15,14 @@
 // tab would mean a second mounted (and separately billed) map instance for
 // no reason, since only one is ever visible at a time anyway.
 import * as React from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Animated, PanResponder } from 'react-native';
+import type { GestureResponderEvent, PanResponderGestureState } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import Svg, { Rect, Circle, Line, Defs, RadialGradient, Stop } from 'react-native-svg';
 import { TIER_RADIUS_MILES } from '@rider-comms/shared';
 import { RiderCommsClient } from '../api/client';
 import { API_BASE_URL } from '../config';
-import { colors, spacing, radii, type, elevation } from '../theme';
+import { colors, spacing, radii, type, elevation, MIN_TOUCH_TARGET } from '../theme';
 import { RideBar } from '../ride/RideBar';
 import { HostPanel } from '../ride/HostPanel';
 import { useSettings } from '../settings/SettingsContext';
@@ -30,6 +31,10 @@ const PRESENCE_UPDATE_INTERVAL_MS = 8000; // per spec Section 8: every 5-10s
 // SVG viewBox stays a fixed square — only the on-screen pins need to track the
 // container's real (non-square, variable) size now that it's flex: 1.
 const VIEWBOX_SIZE = 320;
+
+const MIN_ZOOM = 1;
+const MAX_ZOOM = 4;
+const ZOOM_STEP = 0.75;
 
 type Segment = 'public' | 'host';
 type LayoutSize = { width: number; height: number };
@@ -116,6 +121,162 @@ function SegmentSwitcher({ segment, onChange }: { segment: Segment; onChange: (s
   );
 }
 
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
+}
+
+function touchDistance(touches: Array<{ pageX: number; pageY: number }>): number {
+  const [a, b] = touches;
+  return Math.hypot(a.pageX - b.pageX, a.pageY - b.pageY);
+}
+
+/**
+ * Pinch-to-zoom and pan for the map, plus +/- buttons for a gloved thumb
+ * that can't reliably pinch at speed-zero. No gesture-handler/reanimated
+ * dependency — this app's touch needs are simple enough that PanResponder
+ * (already in React Native core) covers it without a new native module.
+ */
+function ZoomableMap({ size, children }: { size: LayoutSize; children: React.ReactNode }): React.JSX.Element {
+  const scale = React.useRef(new Animated.Value(1)).current;
+  const translateX = React.useRef(new Animated.Value(0)).current;
+  const translateY = React.useRef(new Animated.Value(0)).current;
+
+  const scaleValue = React.useRef(1);
+  const translateValue = React.useRef({ x: 0, y: 0 });
+  const pinchStartDistance = React.useRef(0);
+  const pinchStartScale = React.useRef(1);
+  const dragStart = React.useRef({ x: 0, y: 0 });
+  const panStart = React.useRef({ x: 0, y: 0 });
+
+  const maxPan = React.useCallback(
+    (currentScale: number) => ({
+      x: ((currentScale - 1) * size.width) / 2,
+      y: ((currentScale - 1) * size.height) / 2,
+    }),
+    [size.width, size.height]
+  );
+
+  const applyPan = React.useCallback(
+    (x: number, y: number, currentScale: number) => {
+      const bounds = maxPan(currentScale);
+      const next = { x: clamp(x, -bounds.x, bounds.x), y: clamp(y, -bounds.y, bounds.y) };
+      translateValue.current = next;
+      translateX.setValue(next.x);
+      translateY.setValue(next.y);
+    },
+    [maxPan, translateX, translateY]
+  );
+
+  const setZoom = React.useCallback(
+    (nextScale: number) => {
+      const clamped = clamp(nextScale, MIN_ZOOM, MAX_ZOOM);
+      scaleValue.current = clamped;
+      Animated.timing(scale, { toValue: clamped, duration: 150, useNativeDriver: false }).start();
+      applyPan(translateValue.current.x, translateValue.current.y, clamped);
+    },
+    [applyPan, scale]
+  );
+
+  const resetZoom = React.useCallback(() => {
+    scaleValue.current = MIN_ZOOM;
+    translateValue.current = { x: 0, y: 0 };
+    Animated.parallel([
+      Animated.timing(scale, { toValue: MIN_ZOOM, duration: 200, useNativeDriver: false }),
+      Animated.timing(translateX, { toValue: 0, duration: 200, useNativeDriver: false }),
+      Animated.timing(translateY, { toValue: 0, duration: 200, useNativeDriver: false }),
+    ]).start();
+  }, [scale, translateX, translateY]);
+
+  const panResponder = React.useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: (evt: GestureResponderEvent) => evt.nativeEvent.touches.length === 2,
+      onMoveShouldSetPanResponder: (evt: GestureResponderEvent, gesture: PanResponderGestureState) =>
+        evt.nativeEvent.touches.length === 2 ||
+        (scaleValue.current > MIN_ZOOM + 0.02 && (Math.abs(gesture.dx) > 5 || Math.abs(gesture.dy) > 5)),
+      onPanResponderGrant: (evt: GestureResponderEvent) => {
+        const touches = evt.nativeEvent.touches;
+        if (touches.length === 2) {
+          pinchStartDistance.current = touchDistance(touches);
+          pinchStartScale.current = scaleValue.current;
+        } else if (touches.length === 1) {
+          dragStart.current = { x: touches[0].pageX, y: touches[0].pageY };
+          panStart.current = { ...translateValue.current };
+        }
+      },
+      onPanResponderMove: (evt: GestureResponderEvent) => {
+        const touches = evt.nativeEvent.touches;
+        if (touches.length === 2) {
+          const distance = touchDistance(touches);
+          if (pinchStartDistance.current > 0) {
+            const nextScale = clamp(
+              pinchStartScale.current * (distance / pinchStartDistance.current),
+              MIN_ZOOM,
+              MAX_ZOOM
+            );
+            scaleValue.current = nextScale;
+            scale.setValue(nextScale);
+            applyPan(translateValue.current.x, translateValue.current.y, nextScale);
+          }
+        } else if (touches.length === 1 && scaleValue.current > MIN_ZOOM) {
+          const dx = touches[0].pageX - dragStart.current.x;
+          const dy = touches[0].pageY - dragStart.current.y;
+          applyPan(panStart.current.x + dx, panStart.current.y + dy, scaleValue.current);
+        }
+      },
+      onPanResponderRelease: () => {
+        pinchStartDistance.current = 0;
+        if (scaleValue.current <= MIN_ZOOM) {
+          resetZoom();
+        }
+      },
+      onPanResponderTerminate: () => {
+        pinchStartDistance.current = 0;
+      },
+    })
+  ).current;
+
+  const [zoomedIn, setZoomedIn] = React.useState(false);
+  React.useEffect(() => {
+    const id = scale.addListener(({ value }) => setZoomedIn(value > MIN_ZOOM + 0.02));
+    return () => scale.removeListener(id);
+  }, [scale]);
+
+  return (
+    <View style={StyleSheet.absoluteFill} {...panResponder.panHandlers}>
+      <Animated.View
+        style={[
+          StyleSheet.absoluteFill,
+          { transform: [{ translateX }, { translateY }, { scale }] },
+        ]}
+      >
+        {children}
+      </Animated.View>
+
+      <View style={styles.zoomControls}>
+        <Pressable
+          style={styles.zoomButton}
+          onPress={() => setZoom(scaleValue.current + ZOOM_STEP)}
+          hitSlop={8}
+        >
+          <Ionicons name="add" size={20} color={colors.textPrimary} />
+        </Pressable>
+        <Pressable
+          style={styles.zoomButton}
+          onPress={() => setZoom(scaleValue.current - ZOOM_STEP)}
+          hitSlop={8}
+        >
+          <Ionicons name="remove" size={20} color={colors.textPrimary} />
+        </Pressable>
+        {zoomedIn && (
+          <Pressable style={styles.zoomButton} onPress={resetZoom} hitSlop={8}>
+            <MaterialCommunityIcons name="crosshairs-gps" size={18} color={colors.accent} />
+          </Pressable>
+        )}
+      </View>
+    </View>
+  );
+}
+
 export function MapScreen(): React.JSX.Element {
   const { zoneTier: tier } = useSettings();
   const [segment, setSegment] = React.useState<Segment>('public');
@@ -188,51 +349,53 @@ export function MapScreen(): React.JSX.Element {
           </View>
 
           <View style={[styles.mapWrap, elevation.raised]} onLayout={handleMapLayout}>
-            <Svg
-              width="100%"
-              height="100%"
-              viewBox={`0 0 ${VIEWBOX_SIZE} ${VIEWBOX_SIZE}`}
-              preserveAspectRatio="none"
-            >
-              <Defs>
-                <RadialGradient id="ground" cx="50%" cy="45%" r="75%">
-                  <Stop offset="0%" stopColor={colors.surfaceRaised} />
-                  <Stop offset="100%" stopColor={colors.asphalt} />
-                </RadialGradient>
-              </Defs>
-              <Rect width={VIEWBOX_SIZE} height={VIEWBOX_SIZE} fill="url(#ground)" />
-              <Line x1={-20} y1={VIEWBOX_SIZE * 0.72} x2={VIEWBOX_SIZE + 20} y2={VIEWBOX_SIZE * 0.2} stroke={colors.border} strokeWidth={46} strokeLinecap="round" />
-              <Line
-                x1={-20}
-                y1={VIEWBOX_SIZE * 0.72}
-                x2={VIEWBOX_SIZE + 20}
-                y2={VIEWBOX_SIZE * 0.2}
-                stroke={colors.laneLine}
-                strokeWidth={2}
-                strokeDasharray="10 12"
-              />
-              <Circle
-                cx={VIEWBOX_SIZE / 2}
-                cy={VIEWBOX_SIZE / 2}
-                r={VIEWBOX_SIZE * 0.425}
-                fill="none"
-                stroke={colors.accent}
-                strokeWidth={1.5}
-                strokeDasharray="5 6"
-                opacity={0.5}
-              />
-            </Svg>
+            <ZoomableMap size={mapSize}>
+              <Svg
+                width="100%"
+                height="100%"
+                viewBox={`0 0 ${VIEWBOX_SIZE} ${VIEWBOX_SIZE}`}
+                preserveAspectRatio="none"
+              >
+                <Defs>
+                  <RadialGradient id="ground" cx="50%" cy="45%" r="75%">
+                    <Stop offset="0%" stopColor={colors.surfaceRaised} />
+                    <Stop offset="100%" stopColor={colors.asphalt} />
+                  </RadialGradient>
+                </Defs>
+                <Rect width={VIEWBOX_SIZE} height={VIEWBOX_SIZE} fill="url(#ground)" />
+                <Line x1={-20} y1={VIEWBOX_SIZE * 0.72} x2={VIEWBOX_SIZE + 20} y2={VIEWBOX_SIZE * 0.2} stroke={colors.border} strokeWidth={46} strokeLinecap="round" />
+                <Line
+                  x1={-20}
+                  y1={VIEWBOX_SIZE * 0.72}
+                  x2={VIEWBOX_SIZE + 20}
+                  y2={VIEWBOX_SIZE * 0.2}
+                  stroke={colors.laneLine}
+                  strokeWidth={2}
+                  strokeDasharray="10 12"
+                />
+                <Circle
+                  cx={VIEWBOX_SIZE / 2}
+                  cy={VIEWBOX_SIZE / 2}
+                  r={VIEWBOX_SIZE * 0.425}
+                  fill="none"
+                  stroke={colors.accent}
+                  strokeWidth={1.5}
+                  strokeDasharray="5 6"
+                  opacity={0.5}
+                />
+              </Svg>
 
-            <MapPin x={centerX} y={centerY} you />
-            {pins.map((pin) => (
-              <MapPin
-                key={pin.id}
-                x={pin.x}
-                y={pin.y}
-                selected={selectedRider === pin.id}
-                onPress={() => toggleSelected(pin.id)}
-              />
-            ))}
+              <MapPin x={centerX} y={centerY} you />
+              {pins.map((pin) => (
+                <MapPin
+                  key={pin.id}
+                  x={pin.x}
+                  y={pin.y}
+                  selected={selectedRider === pin.id}
+                  onPress={() => toggleSelected(pin.id)}
+                />
+              ))}
+            </ZoomableMap>
           </View>
         </>
       ) : (
@@ -299,4 +462,20 @@ const styles = StyleSheet.create({
   pinBadgeRider: { backgroundColor: colors.surfaceRaised },
   pinBadgeSelected: { borderColor: colors.accent, backgroundColor: colors.accentPressed },
   rideBarSlot: { marginTop: 'auto' },
+  zoomControls: {
+    position: 'absolute',
+    right: spacing.sm,
+    bottom: spacing.sm,
+    gap: spacing.xs,
+  },
+  zoomButton: {
+    width: MIN_TOUCH_TARGET * 0.7,
+    height: MIN_TOUCH_TARGET * 0.7,
+    borderRadius: radii.pill,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
 });
