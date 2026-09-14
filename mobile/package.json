@@ -15,17 +15,17 @@
     "@react-navigation/native": "^6.1.0",
     "@react-navigation/native-stack": "^6.9.0",
     "@rider-comms/shared": "*",
-    "expo": "~51.0.0",
-    "expo-av": "~14.0.0",
+    "expo": "^57.0.0",
     "livekit-client": "^2.22.0",
-    "react": "18.2.0",
-    "react-native": "0.74.5",
-    "react-native-safe-area-context": "4.10.5",
-    "react-native-screens": "~3.31.0"
+    "react": "19.2.3",
+    "react-native": "0.86.3",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-screens": "~4.26.0"
   },
   "devDependencies": {
-    "@types/react": "~18.2.0",
-    "typescript": "~5.3.3"
+    "@types/node": "^26.5.1",
+    "@types/react": "~19.2.4",
+    "typescript": "~6.0.3"
   },
   "_NOTE": "React Native/Expo need real native tooling (Xcode/Android Studio, or Expo Go on a physical device) that this sandbox doesn't have. `npm install` and `npx expo start` have been verified to work; the screens/navigation/audio-engine code itself is still unverified against a real device."
 }
