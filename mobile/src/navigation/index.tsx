@@ -9,9 +9,10 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { MapScreen } from '../screens/MapScreen';
 import { GroupRideScreen } from '../screens/GroupRideScreen';
-import { ProfileScreen } from '../screens/ProfileScreen';
+import { SettingsScreen } from '../screens/SettingsScreen';
 import { CreateRideScreen } from '../screens/CreateRideScreen';
 import { RideProvider } from '../ride/RideContext';
+import { SettingsProvider } from '../settings/SettingsContext';
 import { colors } from '../theme';
 
 const navigationTheme = {
@@ -29,7 +30,7 @@ const navigationTheme = {
 export type TabParamList = {
   Map: undefined;
   GroupRide: undefined;
-  Profile: undefined;
+  Settings: undefined;
 };
 
 export type RootStackParamList = {
@@ -43,7 +44,7 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 const TAB_ICONS: Record<keyof TabParamList, keyof typeof Ionicons.glyphMap> = {
   Map: 'radio',
   GroupRide: 'people',
-  Profile: 'person',
+  Settings: 'settings',
 };
 
 function Tabs(): React.JSX.Element {
@@ -61,31 +62,33 @@ function Tabs(): React.JSX.Element {
     >
       <Tab.Screen name="Map" component={MapScreen} options={{ title: 'Public' }} />
       <Tab.Screen name="GroupRide" component={GroupRideScreen} options={{ title: 'Group Ride' }} />
-      <Tab.Screen name="Profile" component={ProfileScreen} options={{ title: 'Profile' }} />
+      <Tab.Screen name="Settings" component={SettingsScreen} options={{ title: 'Settings' }} />
     </Tab.Navigator>
   );
 }
 
 export function AppNavigator(): React.JSX.Element {
   return (
-    <RideProvider>
-      <NavigationContainer theme={navigationTheme}>
-        <Stack.Navigator
-          screenOptions={{
-            headerStyle: { backgroundColor: colors.surface },
-            headerTitleStyle: { color: colors.textPrimary },
-            headerTintColor: colors.accent,
-            contentStyle: { backgroundColor: colors.background },
-          }}
-        >
-          <Stack.Screen name="Tabs" component={Tabs} options={{ headerShown: false }} />
-          <Stack.Screen
-            name="CreateRide"
-            component={CreateRideScreen}
-            options={{ title: 'Start a Ride', presentation: 'modal' }}
-          />
-        </Stack.Navigator>
-      </NavigationContainer>
-    </RideProvider>
+    <SettingsProvider>
+      <RideProvider>
+        <NavigationContainer theme={navigationTheme}>
+          <Stack.Navigator
+            screenOptions={{
+              headerStyle: { backgroundColor: colors.surface },
+              headerTitleStyle: { color: colors.textPrimary },
+              headerTintColor: colors.accent,
+              contentStyle: { backgroundColor: colors.background },
+            }}
+          >
+            <Stack.Screen name="Tabs" component={Tabs} options={{ headerShown: false }} />
+            <Stack.Screen
+              name="CreateRide"
+              component={CreateRideScreen}
+              options={{ title: 'Start a Ride', presentation: 'modal' }}
+            />
+          </Stack.Navigator>
+        </NavigationContainer>
+      </RideProvider>
+    </SettingsProvider>
   );
 }

@@ -14,11 +14,11 @@ import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Rect, Circle, Line } from 'react-native-svg';
 import { TIER_RADIUS_MILES } from '@rider-comms/shared';
-import type { ZoneTier } from '@rider-comms/shared';
 import { RiderCommsClient } from '../api/client';
 import { API_BASE_URL } from '../config';
 import { colors, spacing, radii, type } from '../theme';
 import { RideBar } from '../ride/RideBar';
+import { useSettings } from '../settings/SettingsContext';
 
 const PRESENCE_UPDATE_INTERVAL_MS = 8000; // per spec Section 8: every 5-10s
 const MAP_SIZE = 320;
@@ -46,7 +46,7 @@ function MapPin({ x, y, you = false }: { x: number; y: number; you?: boolean }):
 }
 
 export function MapScreen(): React.JSX.Element {
-  const [tier, setTier] = React.useState<ZoneTier>('free');
+  const { zoneTier: tier } = useSettings();
   const [ridersInZone, setRidersInZone] = React.useState<string[]>([]);
   const [error, setError] = React.useState<string | null>(null);
 
