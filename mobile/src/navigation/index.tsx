@@ -8,7 +8,6 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { MapScreen } from '../screens/MapScreen';
-import { GroupRideScreen } from '../screens/GroupRideScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { CreateRideScreen } from '../screens/CreateRideScreen';
 import { RideProvider } from '../ride/RideContext';
@@ -29,7 +28,6 @@ const navigationTheme = {
 
 export type TabParamList = {
   Map: undefined;
-  GroupRide: undefined;
   Settings: undefined;
 };
 
@@ -43,7 +41,6 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 
 const TAB_ICONS: Record<keyof TabParamList, (color: string, size: number) => React.ReactNode> = {
   Map: (color, size) => <MaterialCommunityIcons name="motorbike" size={size} color={color} />,
-  GroupRide: (color, size) => <Ionicons name="people" size={size} color={color} />,
   Settings: (color, size) => <Ionicons name="settings" size={size} color={color} />,
 };
 
@@ -60,8 +57,7 @@ function Tabs(): React.JSX.Element {
         tabBarIcon: ({ color, size }) => TAB_ICONS[route.name](color, size),
       })}
     >
-      <Tab.Screen name="Map" component={MapScreen} options={{ title: 'Public' }} />
-      <Tab.Screen name="GroupRide" component={GroupRideScreen} options={{ title: 'Group Ride' }} />
+      <Tab.Screen name="Map" component={MapScreen} options={{ title: 'Map' }} />
       <Tab.Screen name="Settings" component={SettingsScreen} options={{ title: 'Settings' }} />
     </Tab.Navigator>
   );

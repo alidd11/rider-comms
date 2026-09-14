@@ -1,14 +1,22 @@
 import * as React from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { ZoneTier } from '@rider-comms/shared';
+import { DEFAULT_AVATAR_ID } from './avatars';
 
 const STORAGE_KEY = '@rider-comms/settings/zoneTier';
+const AVATAR_STORAGE_KEY = '@rider-comms/settings/avatarId';
+const NAME_STORAGE_KEY = '@rider-comms/settings/displayName';
 const DEFAULT_ZONE_TIER: ZoneTier = 'free';
+const DEFAULT_DISPLAY_NAME = 'Rider';
 
 interface SettingsContextValue {
   zoneTier: ZoneTier;
   setZoneTier: (tier: ZoneTier) => void;
-  /** False until the persisted value (or lack of one) has been read once. */
+  avatarId: string;
+  setAvatarId: (id: string) => void;
+  displayName: string;
+  setDisplayName: (name: string) => void;
+  /** False until the persisted values (or lack of them) have been read once. */
   loaded: boolean;
 }
 
@@ -20,15 +28,22 @@ function isZoneTier(value: string | null): value is ZoneTier {
 
 export function SettingsProvider({ children }: { children: React.ReactNode }): React.JSX.Element {
   const [zoneTier, setZoneTierState] = React.useState<ZoneTier>(DEFAULT_ZONE_TIER);
+  const [avatarId, setAvatarIdState] = React.useState<string>(DEFAULT_AVATAR_ID);
+  const [displayName, setDisplayNameState] = React.useState<string>(DEFAULT_DISPLAY_NAME);
   const [loaded, setLoaded] = React.useState(false);
 
   React.useEffect(() => {
     let cancelled = false;
-    AsyncStorage.getItem(STORAGE_KEY).then((stored) => {
-      if (!cancelled && isZoneTier(stored)) {
-        setZoneTierState(stored);
-      }
-      if (!cancelled) setLoaded(true);
+    Promise.all([
+      AsyncStorage.getItem(STORAGE_KEY),
+      AsyncStorage.getItem(AVATAR_STORAGE_KEY),
+      AsyncStorage.getItem(NAME_STORAGE_KEY),
+    ]).then(([storedTier, storedAvatarId, storedName]) => {
+      if (cancelled) return;
+      if (isZoneTier(storedTier)) setZoneTierState(storedTier);
+      if (storedAvatarId) setAvatarIdState(storedAvatarId);
+      if (storedName) setDisplayNameState(storedName);
+      setLoaded(true);
     });
     return () => {
       cancelled = true;
@@ -43,7 +58,25 @@ export function SettingsProvider({ children }: { children: React.ReactNode }): R
     });
   }, []);
 
-  const value = React.useMemo(() => ({ zoneTier, setZoneTier, loaded }), [zoneTier, setZoneTier, loaded]);
+  const setAvatarId = React.useCallback((id: string) => {
+    setAvatarIdState(id);
+    AsyncStorage.setItem(AVATAR_STORAGE_KEY, id).catch(() => {
+      // Best-effort persistence, same as zoneTier above.
+    });
+  }, []);
+
+  const setDisplayName = React.useCallback((name: string) => {
+    const trimmed = name.trim() || DEFAULT_DISPLAY_NAME;
+    setDisplayNameState(trimmed);
+    AsyncStorage.setItem(NAME_STORAGE_KEY, trimmed).catch(() => {
+      // Best-effort persistence, same as zoneTier above.
+    });
+  }, []);
+
+  const value = React.useMemo(
+    () => ({ zoneTier, setZoneTier, avatarId, setAvatarId, displayName, setDisplayName, loaded }),
+    [zoneTier, setZoneTier, avatarId, setAvatarId, displayName, setDisplayName, loaded]
+  );
 
   return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;
 }
