@@ -175,17 +175,25 @@
   /* Code input */
   .code-input { border: 1px solid var(--app-border); background: var(--app-surface); border-radius: 16px; min-height: 56px; font-size: 26px; font-weight: 700; letter-spacing: 8px; text-align: center; color: var(--app-text); margin-bottom: 16px; display: flex; align-items: center; justify-content: center; }
 
+  /* Map tab: one full-bleed pane behind a floating top overlay, so the
+     switcher/zone chip sit over the map instead of pushing it down. */
+  .pane-fill { position: relative; flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  .top-overlay { position: absolute; top: 0; left: 0; right: 0; padding: 20px; z-index: 5; pointer-events: none; }
+  .top-overlay > * { pointer-events: auto; }
+
   /* Segmented switcher (Public / Host) */
-  .segment-switcher { flex: none; display: flex; background: var(--app-surface); border-radius: 16px; padding: 4px; gap: 4px; margin-bottom: 16px; }
+  .segment-switcher { flex: none; display: flex; background: var(--app-surface); border-radius: 16px; padding: 4px; gap: 4px; margin-bottom: 12px; }
   .segment-btn { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 0; border-radius: 12px; background: none; border: none; cursor: pointer; font-family: inherit; font-size: 13px; font-weight: 700; color: var(--app-text-secondary); }
   .segment-btn[data-active="true"] { background: var(--app-accent); color: var(--app-accent-text); }
   .segment-pane { display: none; flex: 1; flex-direction: column; min-height: 0; }
   .segment-pane[data-active="true"] { display: flex; }
+  /* Host keeps normal padding (it's a form, not a map); the overlay floats
+     over Public only, so Host reserves room for it up top instead. */
+  #segment-host { padding: 20px; padding-top: 84px; }
 
-  /* Map */
-  .zone-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; flex: none; }
-  .zone-header .title-group { display: flex; align-items: center; gap: 8px; }
-  .map-wrap { position: relative; flex: 1; border-radius: 16px; overflow: hidden; background: var(--app-asphalt); border: 1px solid var(--app-border); margin-bottom: 16px; touch-action: none; }
+  /* Map: full-bleed, no card chrome — this is the map page, not a card on it */
+  .zone-chip { display: inline-flex; align-items: center; gap: 6px; background: var(--app-surface); border-radius: 999px; padding: 6px 12px; }
+  .map-wrap { position: relative; flex: 1; overflow: hidden; background: var(--app-asphalt); touch-action: none; }
   .map-zoom-content { position: absolute; inset: 0; transform-origin: 0 0; will-change: transform; }
   .map-zoom-content svg { position: absolute; inset: 0; width: 100%; height: 100%; }
   .map-pin { position: absolute; display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; background: none; border: none; font-family: inherit; padding: 0; transform: translate(-50%, -100%); }
@@ -305,28 +313,10 @@
 
       <!-- MAP TAB: Public/Host live inside this one screen so only one map ever mounts -->
       <div class="pane" id="pane-map" data-active="true">
-        <div class="pane-scroll" style="padding-bottom:8px;">
-          <div class="segment-switcher">
-            <button class="segment-btn" data-segment="public" data-active="true">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="2.2" stroke="currentColor" stroke-width="1.8"/><path d="M7.5 7.5a6.4 6.4 0 0 0 0 9M16.5 7.5a6.4 6.4 0 0 1 0 9M4.5 4.5a10.6 10.6 0 0 0 0 15M19.5 4.5a10.6 10.6 0 0 1 0 15" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-              Public
-            </button>
-            <button class="segment-btn" data-segment="host">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="9" cy="8" r="2.6" stroke="currentColor" stroke-width="1.6"/><path d="M3.5 18c0-3 2.5-5 5.5-5s5.5 2 5.5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="17" cy="9" r="2" stroke="currentColor" stroke-width="1.6"/><path d="M13.8 18c.3-2.3 2-4 4.2-4s3.9 1.7 4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-              Host
-            </button>
-          </div>
-
-          <!-- PUBLIC segment: a pure map view, no roster list underneath -->
+        <div class="pane-fill">
+          <!-- PUBLIC segment: a full-bleed map, no card chrome, no roster list underneath -->
           <div class="segment-pane" id="segment-public" data-active="true">
-            <div class="zone-header">
-              <div class="title-group">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M4 20l7-15h2l7 15M8 15h8" stroke="#FF8A2B" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                <span class="app-caption" style="color:var(--app-text-secondary);">Zone radius: 1 mi · 3 nearby</span>
-              </div>
-            </div>
-
-            <div class="map-wrap raised" id="mapWrap">
+            <div class="map-wrap" id="mapWrap">
               <div class="map-zoom-content" id="mapZoomContent">
                 <svg viewBox="0 0 320 320" preserveAspectRatio="none">
                   <defs>
@@ -338,7 +328,6 @@
                   <rect width="320" height="320" fill="url(#ground)"/>
                   <line x1="-20" y1="230" x2="340" y2="64" stroke="#2A3038" stroke-width="46" stroke-linecap="round"/>
                   <line x1="-20" y1="230" x2="340" y2="64" stroke="#3A4048" stroke-width="2" stroke-dasharray="10 12"/>
-                  <circle cx="160" cy="160" r="136" fill="none" stroke="#FF8A2B" stroke-width="1.5" stroke-dasharray="5 6" opacity="0.5"/>
                 </svg>
 
                 <button type="button" class="map-pin" style="left:50%; top:50%;" data-rider="you">
@@ -429,6 +418,23 @@
               </div>
               <p class="app-heading" style="margin:0 0 8px;">You're in this ride</p>
               <p class="app-body" style="margin:0;">Ride ID: rd_9f1c2e0a — only the host can add or remove riders.</p>
+            </div>
+          </div>
+
+          <div class="top-overlay">
+            <div class="segment-switcher">
+              <button class="segment-btn" data-segment="public" data-active="true">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="2.2" stroke="currentColor" stroke-width="1.8"/><path d="M7.5 7.5a6.4 6.4 0 0 0 0 9M16.5 7.5a6.4 6.4 0 0 1 0 9M4.5 4.5a10.6 10.6 0 0 0 0 15M19.5 4.5a10.6 10.6 0 0 1 0 15" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+                Public
+              </button>
+              <button class="segment-btn" data-segment="host">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="9" cy="8" r="2.6" stroke="currentColor" stroke-width="1.6"/><path d="M3.5 18c0-3 2.5-5 5.5-5s5.5 2 5.5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="17" cy="9" r="2" stroke="currentColor" stroke-width="1.6"/><path d="M13.8 18c.3-2.3 2-4 4.2-4s3.9 1.7 4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+                Host
+              </button>
+            </div>
+            <div class="zone-chip" id="zoneChip">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M4 20l7-15h2l7 15M8 15h8" stroke="#FF8A2B" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span class="app-caption" style="color:var(--app-text-secondary);">Zone radius: 1 mi · 3 nearby</span>
             </div>
           </div>
         </div>
@@ -620,9 +626,11 @@
   // ---- Public/Host segmented switcher ----
   const segmentButtons = document.querySelectorAll('.segment-btn');
   const segmentPanes = document.querySelectorAll('.segment-pane');
+  const zoneChip = document.getElementById('zoneChip');
   function showSegment(segment) {
     segmentButtons.forEach((b) => (b.dataset.active = String(b.dataset.segment === segment)));
     segmentPanes.forEach((p) => (p.dataset.active = String(p.id === 'segment-' + segment)));
+    zoneChip.style.display = segment === 'public' ? 'inline-flex' : 'none';
   }
   segmentButtons.forEach((b) => b.addEventListener('click', () => showSegment(b.dataset.segment)));
 

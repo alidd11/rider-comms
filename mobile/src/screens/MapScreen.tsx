@@ -18,7 +18,7 @@ import * as React from 'react';
 import { View, Text, Pressable, StyleSheet, Animated, PanResponder } from 'react-native';
 import type { GestureResponderEvent, PanResponderGestureState } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import Svg, { Rect, Circle, Line, Defs, RadialGradient, Stop } from 'react-native-svg';
+import Svg, { Rect, Line, Defs, RadialGradient, Stop } from 'react-native-svg';
 import { TIER_RADIUS_MILES } from '@rider-comms/shared';
 import { RiderCommsClient } from '../api/client';
 import { API_BASE_URL } from '../config';
@@ -330,79 +330,74 @@ export function MapScreen(): React.JSX.Element {
 
   return (
     <View style={styles.container}>
-      <SegmentSwitcher segment={segment} onChange={setSegment} />
-
       {segment === 'public' ? (
-        <>
-          {error && (
-            <View style={styles.errorBox}>
-              <Ionicons name="alert-circle" size={18} color={colors.danger} />
-              <Text style={styles.errorText}>{error}</Text>
-            </View>
-          )}
+        <View style={styles.mapFill} onLayout={handleMapLayout}>
+          <ZoomableMap size={mapSize}>
+            <Svg
+              width="100%"
+              height="100%"
+              viewBox={`0 0 ${VIEWBOX_SIZE} ${VIEWBOX_SIZE}`}
+              preserveAspectRatio="none"
+            >
+              <Defs>
+                <RadialGradient id="ground" cx="50%" cy="45%" r="75%">
+                  <Stop offset="0%" stopColor={colors.surfaceRaised} />
+                  <Stop offset="100%" stopColor={colors.asphalt} />
+                </RadialGradient>
+              </Defs>
+              <Rect width={VIEWBOX_SIZE} height={VIEWBOX_SIZE} fill="url(#ground)" />
+              <Line x1={-20} y1={VIEWBOX_SIZE * 0.72} x2={VIEWBOX_SIZE + 20} y2={VIEWBOX_SIZE * 0.2} stroke={colors.border} strokeWidth={46} strokeLinecap="round" />
+              <Line
+                x1={-20}
+                y1={VIEWBOX_SIZE * 0.72}
+                x2={VIEWBOX_SIZE + 20}
+                y2={VIEWBOX_SIZE * 0.2}
+                stroke={colors.laneLine}
+                strokeWidth={2}
+                strokeDasharray="10 12"
+              />
+            </Svg>
 
-          <View style={styles.zoneCaption}>
-            <MaterialCommunityIcons name="road-variant" size={16} color={colors.accent} />
-            <Text style={styles.zoneCaptionText}>
-              Zone radius: {TIER_RADIUS_MILES[tier]} mi · {ridersInZone.length} nearby
-            </Text>
-          </View>
-
-          <View style={[styles.mapWrap, elevation.raised]} onLayout={handleMapLayout}>
-            <ZoomableMap size={mapSize}>
-              <Svg
-                width="100%"
-                height="100%"
-                viewBox={`0 0 ${VIEWBOX_SIZE} ${VIEWBOX_SIZE}`}
-                preserveAspectRatio="none"
-              >
-                <Defs>
-                  <RadialGradient id="ground" cx="50%" cy="45%" r="75%">
-                    <Stop offset="0%" stopColor={colors.surfaceRaised} />
-                    <Stop offset="100%" stopColor={colors.asphalt} />
-                  </RadialGradient>
-                </Defs>
-                <Rect width={VIEWBOX_SIZE} height={VIEWBOX_SIZE} fill="url(#ground)" />
-                <Line x1={-20} y1={VIEWBOX_SIZE * 0.72} x2={VIEWBOX_SIZE + 20} y2={VIEWBOX_SIZE * 0.2} stroke={colors.border} strokeWidth={46} strokeLinecap="round" />
-                <Line
-                  x1={-20}
-                  y1={VIEWBOX_SIZE * 0.72}
-                  x2={VIEWBOX_SIZE + 20}
-                  y2={VIEWBOX_SIZE * 0.2}
-                  stroke={colors.laneLine}
-                  strokeWidth={2}
-                  strokeDasharray="10 12"
-                />
-                <Circle
-                  cx={VIEWBOX_SIZE / 2}
-                  cy={VIEWBOX_SIZE / 2}
-                  r={VIEWBOX_SIZE * 0.425}
-                  fill="none"
-                  stroke={colors.accent}
-                  strokeWidth={1.5}
-                  strokeDasharray="5 6"
-                  opacity={0.5}
-                />
-              </Svg>
-
-              <MapPin x={centerX} y={centerY} you />
-              {pins.map((pin) => (
-                <MapPin
-                  key={pin.id}
-                  x={pin.x}
-                  y={pin.y}
-                  selected={selectedRider === pin.id}
-                  onPress={() => toggleSelected(pin.id)}
-                />
-              ))}
-            </ZoomableMap>
-          </View>
-        </>
+            <MapPin x={centerX} y={centerY} you />
+            {pins.map((pin) => (
+              <MapPin
+                key={pin.id}
+                x={pin.x}
+                y={pin.y}
+                selected={selectedRider === pin.id}
+                onPress={() => toggleSelected(pin.id)}
+              />
+            ))}
+          </ZoomableMap>
+        </View>
       ) : (
-        <HostPanel />
+        <View style={styles.hostFill}>
+          <HostPanel />
+        </View>
       )}
 
-      <View style={styles.rideBarSlot}>
+      <View style={styles.topOverlay} pointerEvents="box-none">
+        <SegmentSwitcher segment={segment} onChange={setSegment} />
+
+        {segment === 'public' && (
+          <>
+            {error && (
+              <View style={styles.errorBox}>
+                <Ionicons name="alert-circle" size={18} color={colors.danger} />
+                <Text style={styles.errorText}>{error}</Text>
+              </View>
+            )}
+            <View style={styles.zoneCaption}>
+              <MaterialCommunityIcons name="road-variant" size={16} color={colors.accent} />
+              <Text style={styles.zoneCaptionText}>
+                Zone radius: {TIER_RADIUS_MILES[tier]} mi · {ridersInZone.length} nearby
+              </Text>
+            </View>
+          </>
+        )}
+      </View>
+
+      <View style={styles.rideBarSlot} pointerEvents="box-none">
         <RideBar />
       </View>
     </View>
@@ -410,7 +405,16 @@ export function MapScreen(): React.JSX.Element {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background, padding: spacing.lg },
+  container: { flex: 1, backgroundColor: colors.background },
+  mapFill: { flex: 1 },
+  hostFill: { flex: 1, padding: spacing.lg, paddingTop: spacing.xxl * 2 },
+  topOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    padding: spacing.lg,
+  },
   switcher: {
     flexDirection: 'row',
     backgroundColor: colors.surface,
@@ -418,6 +422,7 @@ const styles = StyleSheet.create({
     padding: 4,
     gap: 4,
     marginBottom: spacing.md,
+    ...elevation.raised,
   },
   switcherOption: {
     flex: 1,
@@ -441,16 +446,18 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   errorText: { ...type.body, color: colors.danger, flex: 1 },
-  zoneCaption: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginBottom: spacing.sm },
-  zoneCaptionText: { ...type.caption },
-  mapWrap: {
-    flex: 1,
-    borderRadius: radii.lg,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginBottom: spacing.md,
+  zoneCaption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: spacing.xs,
+    backgroundColor: colors.surface,
+    borderRadius: radii.pill,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    ...elevation.raised,
   },
+  zoneCaptionText: { ...type.caption },
   pinWrap: { position: 'absolute' },
   pinBadge: {
     alignItems: 'center',
@@ -461,7 +468,7 @@ const styles = StyleSheet.create({
   pinBadgeYou: { backgroundColor: colors.accent },
   pinBadgeRider: { backgroundColor: colors.surfaceRaised },
   pinBadgeSelected: { borderColor: colors.accent, backgroundColor: colors.accentPressed },
-  rideBarSlot: { marginTop: 'auto' },
+  rideBarSlot: { marginTop: 'auto', paddingHorizontal: spacing.lg, paddingBottom: spacing.lg },
   zoomControls: {
     position: 'absolute',
     right: spacing.sm,
