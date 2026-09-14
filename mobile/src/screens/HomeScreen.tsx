@@ -12,29 +12,15 @@ function HomeAction({
   icon,
   label,
   onPress,
-  variant = 'primary',
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   label: string;
   onPress: () => void;
-  variant?: 'primary' | 'secondary';
 }): React.JSX.Element {
   return (
-    <Pressable
-      style={({ pressed }) => [
-        styles.action,
-        variant === 'secondary' && styles.actionSecondary,
-        pressed && styles.actionPressed,
-      ]}
-      onPress={onPress}
-    >
-      <Ionicons
-        name={icon}
-        size={26}
-        color={variant === 'primary' ? colors.accentText : colors.textPrimary}
-        style={styles.actionIcon}
-      />
-      <Text style={[styles.actionText, variant === 'secondary' && styles.actionTextSecondary]}>{label}</Text>
+    <Pressable style={({ pressed }) => [styles.action, pressed && styles.actionPressed]} onPress={onPress}>
+      <Ionicons name={icon} size={26} color={colors.accentText} style={styles.actionIcon} />
+      <Text style={styles.actionText}>{label}</Text>
     </Pressable>
   );
 }
@@ -51,14 +37,12 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
       </View>
 
       <View style={styles.actions}>
-        <HomeAction icon="add-circle" label="Start a Private Ride" onPress={() => navigation.navigate('CreateRide')} />
-        <HomeAction icon="key" label="Join with a Code" onPress={() => navigation.navigate('JoinRide')} />
-        <HomeAction
-          icon="radio"
-          label="Open Public Zone"
-          variant="secondary"
-          onPress={() => navigation.navigate('PublicZone')}
-        />
+        <HomeAction icon="radio" label="Public" onPress={() => navigation.navigate('PublicZone')} />
+        <HomeAction icon="people" label="Group Ride" onPress={() => navigation.navigate('JoinRide')} />
+
+        <Pressable onPress={() => navigation.navigate('CreateRide')} style={styles.createLink}>
+          <Text style={styles.createLinkText}>Starting a new group ride? Create one</Text>
+        </Pressable>
       </View>
     </View>
   );
@@ -89,13 +73,9 @@ const styles = StyleSheet.create({
     borderRadius: radii.lg,
     paddingHorizontal: spacing.lg,
   },
-  actionSecondary: {
-    backgroundColor: colors.surfaceRaised,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  actionPressed: { opacity: 0.85 },
+  actionPressed: { backgroundColor: colors.accentPressed },
   actionIcon: { marginRight: spacing.md },
   actionText: { ...type.button, color: colors.accentText },
-  actionTextSecondary: { color: colors.textPrimary },
+  createLink: { alignItems: 'center', paddingVertical: spacing.sm },
+  createLinkText: { ...type.caption, color: colors.textSecondary },
 });

@@ -42,7 +42,7 @@ export function JoinRideScreen({ navigation }: Props): React.JSX.Element {
       <View style={styles.iconBadge}>
         <Ionicons name="key" size={32} color={colors.accent} />
       </View>
-      <Text style={styles.title}>Join a ride</Text>
+      <Text style={styles.title}>Group Ride</Text>
       <Text style={styles.body}>Enter the 6-character code shared by the ride's organizer.</Text>
 
       <TextInput
