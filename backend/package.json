@@ -1,0 +1,14 @@
+{
+  "name": "@rider-comms/backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/server.ts",
+  "scripts": {
+    "start": "node --experimental-strip-types src/server.ts",
+    "test": "node --experimental-strip-types --test tests/*.test.ts"
+  },
+  "dependencies": {
+    "@rider-comms/shared": "*"
+  }
+}
