@@ -241,7 +241,10 @@
     .statusbar { display: none; }
     .header { display: none; }
     .pane-scroll { padding-top: calc(20px + env(safe-area-inset-top, 0px)); }
-    .tabbar { padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px)); }
+    /* The safe-area inset already reserves room for the home indicator —
+       adding a fixed amount on top of it (rather than a small buffer)
+       was leaving a big dead gap below the tab icons. */
+    .tabbar { padding-bottom: max(8px, env(safe-area-inset-bottom, 8px)); }
   }
 </style>
 </head>
