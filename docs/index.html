@@ -115,41 +115,48 @@
   .notch { position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 120px; height: 22px; background: #050607; border-radius: 0 0 16px 16px; z-index: 5; }
   .statusbar { height: 46px; flex: none; display: flex; align-items: flex-end; justify-content: space-between; padding: 0 22px 6px; font-size: 13px; font-weight: 600; color: var(--app-text); }
   .header { flex: none; height: 44px; display: flex; align-items: center; padding: 0 16px; background: var(--app-surface); border-bottom: 1px solid var(--app-border); }
-  .header .title { font-size: 16px; font-weight: 700; color: var(--app-text); }
+  .header .title { font-size: 17px; font-weight: 700; letter-spacing: -0.1px; color: var(--app-text); }
 
   .body { flex: 1; overflow: hidden; position: relative; }
   .pane { position: absolute; inset: 0; display: none; flex-direction: column; }
   .pane[data-active="true"] { display: flex; }
   .pane-scroll { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; }
 
-  /* ---- shared app tokens as classes ---- */
-  .app-caption { font-size: 13px; font-weight: 500; color: var(--app-text-muted); }
-  .app-body { font-size: 16px; color: var(--app-text-secondary); line-height: 1.4; }
-  .app-heading { font-size: 20px; font-weight: 700; color: var(--app-text); }
+  /* ---- shared app type ramp: one consistent scale (own line-height and
+     tracking per step) instead of ad-hoc sizes per screen. Weights lean
+     heavier than a typical app's — this is read at a glance, often through
+     a helmet visor, not settled into. Mirrors mobile/src/theme.ts's `type`. ---- */
+  .app-display { font-size: 34px; font-weight: 800; letter-spacing: -0.6px; line-height: 40px; color: var(--app-text); }
+  .app-title { font-size: 28px; font-weight: 800; letter-spacing: -0.4px; line-height: 34px; color: var(--app-text); }
+  .app-heading { font-size: 21px; font-weight: 700; letter-spacing: -0.2px; line-height: 27px; color: var(--app-text); }
+  .app-subheading { font-size: 17px; font-weight: 700; letter-spacing: -0.1px; line-height: 22px; color: var(--app-text); }
+  .app-body { font-size: 16px; font-weight: 500; line-height: 22px; color: var(--app-text-secondary); }
+  .app-caption { font-size: 13px; font-weight: 600; letter-spacing: 0.1px; line-height: 17px; color: var(--app-text-muted); }
+  .app-label { font-size: 12px; font-weight: 700; letter-spacing: 1.1px; line-height: 15px; text-transform: uppercase; color: var(--app-text-muted); }
   .icon-badge { width: 56px; height: 56px; border-radius: 999px; background: var(--app-surface); display: flex; align-items: center; justify-content: center; margin-bottom: 16px; }
   /* depth hierarchy: "raised" marks the thing that matters most on a screen */
   .raised { box-shadow: 0 6px 12px -2px rgba(0,0,0,0.45); }
-  .app-btn { min-height: 56px; border-radius: 16px; display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 17px; font-weight: 700; border: none; cursor: pointer; font-family: inherit; width: 100%; }
+  .app-btn { min-height: 56px; border-radius: 16px; display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 16px; font-weight: 700; letter-spacing: 0.2px; border: none; cursor: pointer; font-family: inherit; width: 100%; }
   .app-btn.primary { background: var(--app-accent); color: var(--app-accent-text); }
   .app-btn.disabled { opacity: 0.5; }
   .app-btn.danger-outline { background: transparent; border: 1px solid var(--app-danger); color: var(--app-danger); }
   .error-box { display: flex; align-items: flex-start; gap: 8px; background: var(--app-danger-surface); border-radius: 12px; padding: 14px; margin-bottom: 24px; }
   .error-box svg { flex: none; margin-top: 2px; }
-  .error-box span { font-size: 16px; color: var(--app-danger); line-height: 1.4; }
-  .text-link { background: none; border: none; font-family: inherit; cursor: pointer; font-size: 13px; font-weight: 500; color: var(--app-text-muted); padding: 12px 0; text-align: center; }
+  .error-box span { font-size: 16px; font-weight: 500; color: var(--app-danger); line-height: 22px; }
+  .text-link { background: none; border: none; font-family: inherit; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--app-text-muted); padding: 12px 0; text-align: center; }
 
   /* ---- bottom tab bar ---- */
   .tabbar { flex: none; display: flex; background: var(--app-surface); border-top: 1px solid var(--app-border); padding: 8px 4px 14px; }
   .tabbar-btn { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; background: none; border: none; cursor: pointer; font-family: inherit; color: var(--app-text-muted); padding: 4px 0; }
   .tabbar-btn[aria-current="true"] { color: var(--app-accent); }
-  .tabbar-btn span { font-size: 11px; font-weight: 600; }
+  .tabbar-btn span { font-size: 11px; font-weight: 700; letter-spacing: 0.1px; }
 
   /* ---- floating ride bar (mini-player) ---- */
   .ride-bar-slot { flex: none; padding: 0 16px 8px; }
   .ride-bar { display: none; align-items: center; gap: 8px; min-height: 48px; background: var(--app-surface-raised); border: 1px solid var(--app-border); border-radius: 999px; padding: 0 14px; cursor: pointer; }
   .ride-bar[data-visible="true"] { display: flex; }
   .live-dot { width: 10px; height: 10px; border-radius: 999px; background: var(--app-success); box-shadow: 0 0 0 4px rgba(61,214,140,0.18); flex: none; }
-  .ride-bar-text { font-size: 15px; color: var(--app-text); flex: 1; }
+  .ride-bar-text { font-size: 16px; font-weight: 500; line-height: 22px; color: var(--app-text); flex: 1; }
 
   /* ---- modal sheet (create ride / ride mixer / avatar picker) ---- */
   .sheet-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.001); display: none; z-index: 10; }
@@ -161,13 +168,13 @@
 
   /* Ride mixer */
   .status-row { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
-  .status-text { font-size: 13px; font-weight: 500; color: var(--app-success); text-transform: uppercase; letter-spacing: 1px; }
+  .status-text { font-size: 12px; font-weight: 700; letter-spacing: 1.1px; line-height: 15px; text-transform: uppercase; color: var(--app-success); }
   .code-card { background: var(--app-surface); border-radius: 16px; padding: 16px; text-align: center; margin-bottom: 16px; }
   .code-value { font-size: 32px; font-weight: 800; letter-spacing: 6px; color: var(--app-accent); margin-top: 4px; }
   .ride-id-line { margin-bottom: 16px; }
   .mixer-card { background: var(--app-surface); padding: 16px; border-radius: 16px; display: flex; flex-direction: column; gap: 16px; margin-bottom: 16px; }
   .gain-row { display: flex; align-items: center; gap: 10px; }
-  .gain-label { font-size: 16px; color: var(--app-text); width: 92px; flex: none; }
+  .gain-label { font-size: 16px; font-weight: 500; color: var(--app-text); width: 92px; flex: none; }
   .gain-track { flex: 1; height: 8px; border-radius: 999px; background: var(--app-border); overflow: hidden; }
   .gain-fill { height: 100%; background: var(--app-accent); border-radius: 999px; }
   .app-btn.secondary { background: var(--app-surface-raised); border: 1px solid var(--app-border); color: var(--app-text); margin-bottom: 12px; }
@@ -175,29 +182,36 @@
   /* Code input */
   .code-input { border: 1px solid var(--app-border); background: var(--app-surface); border-radius: 16px; min-height: 56px; font-size: 26px; font-weight: 700; letter-spacing: 8px; text-align: center; color: var(--app-text); margin-bottom: 16px; display: flex; align-items: center; justify-content: center; }
 
-  /* Map tab: one full-bleed pane behind a floating top overlay, so the
-     switcher/zone chip sit over the map instead of pushing it down. */
+  /* Map tab: one full-bleed pane, kept clear top-to-bottom — no header bar
+     pushing it down. The Public/Host toggle floats as icon buttons on the
+     right edge instead. */
   .pane-fill { position: relative; flex: 1; display: flex; flex-direction: column; min-height: 0; }
-  .top-overlay { position: absolute; top: 0; left: 0; right: 0; padding: 20px; z-index: 5; pointer-events: none; }
-  .top-overlay > * { pointer-events: auto; }
 
-  /* Segmented switcher (Public / Host) */
-  .segment-switcher { flex: none; display: flex; background: var(--app-surface); border-radius: 16px; padding: 4px; gap: 4px; margin-bottom: 12px; }
-  .segment-btn { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 0; border-radius: 12px; background: none; border: none; cursor: pointer; font-family: inherit; font-size: 13px; font-weight: 700; color: var(--app-text-secondary); }
-  .segment-btn[data-active="true"] { background: var(--app-accent); color: var(--app-accent-text); }
+  /* Public/Host icon toggle, floated top-right (zoom controls own bottom-right) */
+  .side-toggle { position: absolute; top: 20px; right: 8px; display: flex; flex-direction: column; gap: 6px; z-index: 5; }
+  .segment-btn {
+    width: 40px; height: 40px; border-radius: 999px;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--app-surface); border: 1px solid var(--app-border); color: var(--app-text);
+    cursor: pointer; font-family: inherit;
+    box-shadow: 0 6px 12px -2px rgba(0,0,0,0.45);
+  }
+  .segment-btn[data-active="true"] { background: var(--app-accent); border-color: var(--app-accent); color: var(--app-accent-text); }
   .segment-pane { display: none; flex: 1; flex-direction: column; min-height: 0; }
   .segment-pane[data-active="true"] { display: flex; }
-  /* Host keeps normal padding (it's a form, not a map); the overlay floats
-     over Public only, so Host reserves room for it up top instead. */
-  #segment-host { padding: 20px; padding-top: 84px; }
+  /* Host keeps normal padding (it's a form, not a map); reserves a little
+     room up top so its content doesn't sit flush against the icon toggle. */
+  #segment-host { padding: 20px; padding-top: 48px; }
+
+  /* Error overlay: floats top-left, clear of the toggle on the right */
+  .error-overlay { position: absolute; top: 20px; left: 20px; right: 64px; z-index: 5; }
 
   /* Map: full-bleed, no card chrome — this is the map page, not a card on it */
-  .zone-chip { display: inline-flex; align-items: center; gap: 6px; background: var(--app-surface); border-radius: 999px; padding: 6px 12px; }
   .map-wrap { position: relative; flex: 1; overflow: hidden; background: var(--app-asphalt); touch-action: none; }
   .map-zoom-content { position: absolute; inset: 0; transform-origin: 0 0; will-change: transform; }
   .map-zoom-content svg { position: absolute; inset: 0; width: 100%; height: 100%; }
   .map-pin { position: absolute; display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; background: none; border: none; font-family: inherit; padding: 0; transform: translate(-50%, -100%); }
-  .map-pin-label { font-size: 11px; font-weight: 600; color: var(--app-text); background: rgba(11,13,16,0.85); padding: 2px 7px; border-radius: 999px; white-space: nowrap; }
+  .map-pin-label { font-size: 11px; font-weight: 700; letter-spacing: 0.1px; color: var(--app-text); background: rgba(11,13,16,0.85); padding: 2px 7px; border-radius: 999px; white-space: nowrap; }
   .map-pin-label.you { color: var(--app-accent-text); background: var(--app-accent); }
   .pin-badge {
     width: 26px; height: 26px; border-radius: 999px;
@@ -216,7 +230,7 @@
   .rider-row { display: flex; align-items: center; gap: 12px; padding: 10px 8px; border-bottom: 1px solid var(--app-border); }
   .rider-row:last-child { border-bottom: none; }
   .rider-avatar { width: 32px; height: 32px; border-radius: 999px; background: var(--app-surface-raised); display: flex; align-items: center; justify-content: center; flex: none; }
-  .rider-name { font-size: 16px; color: var(--app-text); flex: 1; }
+  .rider-name { font-size: 16px; font-weight: 500; color: var(--app-text); flex: 1; }
   .remove-rider-btn { background: none; border: none; cursor: pointer; color: var(--app-danger); display: flex; padding: 4px; }
   .roster-card { background: var(--app-surface); border-radius: 16px; overflow: hidden; }
   .empty-roster { font-size: 13px; font-weight: 500; color: var(--app-text-muted); padding: 16px; text-align: center; }
@@ -230,7 +244,7 @@
   .name-row { display: flex; align-items: center; gap: 6px; justify-content: center; background: none; border: none; cursor: pointer; font-family: inherit; padding: 0; }
   .name-input { font-size: 20px; font-weight: 700; color: var(--app-text); background: none; border: none; border-bottom: 1px solid var(--app-accent); text-align: center; font-family: inherit; padding: 4px 0; min-width: 160px; }
   .name-input:focus { outline: none; }
-  .section-label { font-size: 13px; font-weight: 500; color: var(--app-text-muted); text-transform: uppercase; letter-spacing: 1px; margin: 20px 0 8px; }
+  .section-label { font-size: 12px; font-weight: 700; letter-spacing: 1.1px; line-height: 15px; color: var(--app-text-muted); text-transform: uppercase; margin: 20px 0 8px; }
   .section-label-row { display: flex; align-items: center; gap: 6px; margin: 20px 0 8px; }
   .settings-section { background: var(--app-surface); border-radius: 16px; overflow: hidden; }
   .tier-row {
@@ -246,11 +260,11 @@
   .tier-row[data-selected="true"] .tier-radio-dot { display: block; }
   .tier-info { flex: 1; }
   .tier-name-row { display: flex; justify-content: space-between; align-items: baseline; }
-  .tier-name { font-size: 16px; font-weight: 700; color: var(--app-text); }
+  .tier-name { font-size: 16px; font-weight: 700; letter-spacing: -0.1px; color: var(--app-text); }
   .tier-radius { font-size: 13px; font-weight: 700; color: var(--app-accent); }
-  .tier-blurb { font-size: 13px; color: var(--app-text-muted); margin-top: 4px; }
+  .tier-blurb { font-size: 13px; font-weight: 600; letter-spacing: 0.1px; line-height: 17px; color: var(--app-text-muted); margin-top: 4px; }
   .about-row { display: flex; justify-content: space-between; padding: 16px; }
-  .about-label { font-size: 16px; color: var(--app-text); }
+  .about-label { font-size: 16px; font-weight: 500; color: var(--app-text); }
 
   /* Avatar picker sheet */
   .avatar-grid { display: flex; flex-wrap: wrap; justify-content: space-between; row-gap: 16px; margin-bottom: 8px; }
@@ -289,7 +303,7 @@
 <div class="masthead">
   <p class="eyebrow">Design preview — not the running app</p>
   <h1>Rider Comms, one map screen with a Public/Host switcher</h1>
-  <p>Install this to your home screen (share icon → Add to Home Screen) to see it full-screen like a real app. A persistent Map tab (switch between Public and Host in-screen, so only one map ever loads) and Settings in a bottom tab bar, with an active ride as a floating bar over any tab.</p>
+  <p>Install this to your home screen (share icon → Add to Home Screen) to see it full-screen like a real app. Map, Group Ride, and Settings in a bottom tab bar — Group Ride jumps to the same map's Host mode instead of its own screen, so only one map ever loads — with an active ride as a floating bar over any tab.</p>
 </div>
 
 <div class="toggle-row">
@@ -421,21 +435,13 @@
             </div>
           </div>
 
-          <div class="top-overlay">
-            <div class="segment-switcher">
-              <button class="segment-btn" data-segment="public" data-active="true">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="2.2" stroke="currentColor" stroke-width="1.8"/><path d="M7.5 7.5a6.4 6.4 0 0 0 0 9M16.5 7.5a6.4 6.4 0 0 1 0 9M4.5 4.5a10.6 10.6 0 0 0 0 15M19.5 4.5a10.6 10.6 0 0 1 0 15" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-                Public
-              </button>
-              <button class="segment-btn" data-segment="host">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="9" cy="8" r="2.6" stroke="currentColor" stroke-width="1.6"/><path d="M3.5 18c0-3 2.5-5 5.5-5s5.5 2 5.5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="17" cy="9" r="2" stroke="currentColor" stroke-width="1.6"/><path d="M13.8 18c.3-2.3 2-4 4.2-4s3.9 1.7 4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-                Host
-              </button>
-            </div>
-            <div class="zone-chip" id="zoneChip">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M4 20l7-15h2l7 15M8 15h8" stroke="#FF8A2B" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              <span class="app-caption" style="color:var(--app-text-secondary);">Zone radius: 1 mi · 3 nearby</span>
-            </div>
+          <div class="side-toggle">
+            <button class="segment-btn" data-segment="public" data-active="true" aria-label="Public">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="2.2" stroke="currentColor" stroke-width="1.8"/><path d="M7.5 7.5a6.4 6.4 0 0 0 0 9M16.5 7.5a6.4 6.4 0 0 1 0 9M4.5 4.5a10.6 10.6 0 0 0 0 15M19.5 4.5a10.6 10.6 0 0 1 0 15" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+            </button>
+            <button class="segment-btn" data-segment="host" aria-label="Host">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="9" cy="8" r="2.6" stroke="currentColor" stroke-width="1.6"/><path d="M3.5 18c0-3 2.5-5 5.5-5s5.5 2 5.5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="17" cy="9" r="2" stroke="currentColor" stroke-width="1.6"/><path d="M13.8 18c.3-2.3 2-4 4.2-4s3.9 1.7 4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+            </button>
           </div>
         </div>
       </div>
@@ -516,6 +522,13 @@
       <button class="tabbar-btn" data-tab="map" aria-current="true">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="5.5" cy="17" r="2.8" stroke="currentColor" stroke-width="1.7"/><circle cx="18.5" cy="17" r="2.8" stroke="currentColor" stroke-width="1.7"/><path d="M8 17h4l2.2-6.2h3.3M8 17l2.6-6.6 4 1.8M9.6 9.4h3.4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
         <span>Map</span>
+      </button>
+      <!-- Not a second pane: this redirects to the Map tab with the Host
+           segment active, same as the real app's tabPress listener, so
+           there's still only ever one map in the DOM. -->
+      <button class="tabbar-btn" data-tab="group-ride">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="9" cy="8" r="2.6" stroke="currentColor" stroke-width="1.6"/><path d="M3.5 18c0-3 2.5-5 5.5-5s5.5 2 5.5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="17" cy="9" r="2" stroke="currentColor" stroke-width="1.6"/><path d="M13.8 18c.3-2.3 2-4 4.2-4s3.9 1.7 4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        <span>Group Ride</span>
       </button>
       <button class="tabbar-btn" data-tab="settings">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.7"/><path d="M19.4 13a7.7 7.7 0 0 0 0-2l1.9-1.5-2-3.4-2.3.5a7.6 7.6 0 0 0-1.7-1l-.3-2.4H9.9l-.3 2.4a7.6 7.6 0 0 0-1.7 1l-2.3-.5-2 3.4L5.5 11a7.7 7.7 0 0 0 0 2l-1.9 1.5 2 3.4 2.3-.5a7.6 7.6 0 0 0 1.7 1l.3 2.4h4.1l.3-2.4a7.6 7.6 0 0 0 1.7-1l2.3.5 2-3.4L19.4 13Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
@@ -601,7 +614,7 @@
   </div>
 </div>
 
-<p class="credit">Static preview built to match <code>mobile/src/navigation/index.tsx</code>, <code>mobile/src/theme.ts</code>, and the screens in <code>mobile/src/screens/</code> — a persistent Map tab (with an in-screen Public/Host switcher, so only one map ever loads) and Settings in a bottom tab bar, with an active ride as a floating bar rather than its own screen. The real app also needs the backend running and the LiveKit voice connection, neither of which exist on this page.</p>
+<p class="credit">Static preview built to match <code>mobile/src/navigation/index.tsx</code>, <code>mobile/src/theme.ts</code>, and the screens in <code>mobile/src/screens/</code> — a persistent Map, Group Ride, and Settings in a bottom tab bar. Group Ride redirects to the Map tab's Host mode rather than being its own screen, so only one map ever loads; an active ride shows as a floating bar rather than its own screen. The real app also needs the backend running and the LiveKit voice connection, neither of which exist on this page.</p>
 
 <script>
   const panes = document.querySelectorAll('.pane');
@@ -623,16 +636,22 @@
     headerTitle.textContent = titles[tab];
   }
 
-  // ---- Public/Host segmented switcher ----
+  // ---- Public/Host icon toggle ----
   const segmentButtons = document.querySelectorAll('.segment-btn');
   const segmentPanes = document.querySelectorAll('.segment-pane');
-  const zoneChip = document.getElementById('zoneChip');
   function showSegment(segment) {
     segmentButtons.forEach((b) => (b.dataset.active = String(b.dataset.segment === segment)));
     segmentPanes.forEach((p) => (p.dataset.active = String(p.id === 'segment-' + segment)));
-    zoneChip.style.display = segment === 'public' ? 'inline-flex' : 'none';
   }
   segmentButtons.forEach((b) => b.addEventListener('click', () => showSegment(b.dataset.segment)));
+
+  // "Group Ride" tab bar button: jumps to the Map tab with Host active
+  // rather than being its own pane — same one-map-instance reasoning as
+  // the real app's tabPress listener (see navigation/index.tsx).
+  document.querySelector('.tabbar-btn[data-tab="group-ride"]').addEventListener('click', () => {
+    showTab('map');
+    showSegment('host');
+  });
 
   // ---- Host panel: join/host form vs roster vs read-only member card ----
   const hostJoinForm = document.getElementById('hostJoinForm');
@@ -653,7 +672,10 @@
     renderHostPanel();
   }
 
-  tabButtons.forEach((b) => b.addEventListener('click', () => showTab(b.dataset.tab)));
+  tabButtons.forEach((b) => {
+    if (b.dataset.tab === 'group-ride') return; // wired separately above — it redirects, it isn't its own pane
+    b.addEventListener('click', () => showTab(b.dataset.tab));
+  });
 
   rideToggle.addEventListener('click', () => setRideActive(!rideActive, isHost));
   document.getElementById('joinBtn').addEventListener('click', () => setRideActive(true, false));

@@ -38,12 +38,29 @@ export const radii = {
   pill: 999,
 } as const;
 
+/**
+ * One consistent type ramp instead of ad-hoc fontSize/letterSpacing per
+ * screen — each step has its own line-height and tracking so nothing
+ * feels cramped or loose next to another. Weights lean heavier than a
+ * typical app's (500+ for body, not 400) because this is read at a glance,
+ * often through a helmet visor, not settled into.
+ */
 export const type = {
-  title: { fontSize: 30, fontWeight: '800' as const, color: colors.textPrimary },
-  heading: { fontSize: 20, fontWeight: '700' as const, color: colors.textPrimary },
-  body: { fontSize: 16, fontWeight: '400' as const, color: colors.textSecondary },
-  caption: { fontSize: 13, fontWeight: '500' as const, color: colors.textMuted },
-  button: { fontSize: 17, fontWeight: '700' as const },
+  display: { fontSize: 34, fontWeight: '800' as const, letterSpacing: -0.6, lineHeight: 40, color: colors.textPrimary },
+  title: { fontSize: 28, fontWeight: '800' as const, letterSpacing: -0.4, lineHeight: 34, color: colors.textPrimary },
+  heading: { fontSize: 21, fontWeight: '700' as const, letterSpacing: -0.2, lineHeight: 27, color: colors.textPrimary },
+  subheading: { fontSize: 17, fontWeight: '700' as const, letterSpacing: -0.1, lineHeight: 22, color: colors.textPrimary },
+  body: { fontSize: 16, fontWeight: '500' as const, lineHeight: 22, color: colors.textSecondary },
+  caption: { fontSize: 13, fontWeight: '600' as const, letterSpacing: 0.1, lineHeight: 17, color: colors.textMuted },
+  label: {
+    fontSize: 12,
+    fontWeight: '700' as const,
+    letterSpacing: 1.1,
+    lineHeight: 15,
+    textTransform: 'uppercase' as const,
+    color: colors.textMuted,
+  },
+  button: { fontSize: 16, fontWeight: '700' as const, letterSpacing: 0.2 },
 } as const;
 
 /** Minimum tap target height — comfortable with a gloved thumb at speed-zero. */
