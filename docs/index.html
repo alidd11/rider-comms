@@ -57,6 +57,8 @@
     --app-success: #3DD68C;
     --app-danger: #FF5A5F;
     --app-danger-surface: #2B1416;
+    --app-asphalt: #12151A;
+    --app-lane-line: #3A4048;
   }
 
   * { box-sizing: border-box; }
@@ -125,6 +127,8 @@
   .app-body { font-size: 16px; color: var(--app-text-secondary); line-height: 1.4; }
   .app-heading { font-size: 20px; font-weight: 700; color: var(--app-text); }
   .icon-badge { width: 56px; height: 56px; border-radius: 999px; background: var(--app-surface); display: flex; align-items: center; justify-content: center; margin-bottom: 16px; }
+  /* depth hierarchy: "raised" marks the thing that matters most on a screen */
+  .raised { box-shadow: 0 6px 12px -2px rgba(0,0,0,0.45); }
   .app-btn { min-height: 56px; border-radius: 16px; display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 17px; font-weight: 700; border: none; cursor: pointer; font-family: inherit; width: 100%; }
   .app-btn.primary { background: var(--app-accent); color: var(--app-accent-text); }
   .app-btn.disabled { opacity: 0.5; }
@@ -174,14 +178,24 @@
   /* Map */
   .zone-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
   .zone-header .title-group { display: flex; align-items: center; gap: 8px; }
-  .map-wrap { position: relative; flex: none; height: 260px; border-radius: 16px; overflow: hidden; background: #0E1720; border: 1px solid var(--app-border); margin-bottom: 16px; }
+  .map-wrap { position: relative; flex: none; height: 260px; border-radius: 16px; overflow: hidden; background: var(--app-asphalt); border: 1px solid var(--app-border); margin-bottom: 16px; }
   .map-wrap svg { position: absolute; inset: 0; width: 100%; height: 100%; }
-  .map-pin { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .map-pin { display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; background: none; border: none; font-family: inherit; padding: 0; }
   .map-pin-label { font-size: 11px; font-weight: 600; color: var(--app-text); background: rgba(11,13,16,0.85); padding: 2px 7px; border-radius: 999px; white-space: nowrap; }
   .map-pin-label.you { color: var(--app-accent-text); background: var(--app-accent); }
-  .rider-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--app-border); }
+  .pin-badge {
+    width: 26px; height: 26px; border-radius: 999px;
+    background: var(--app-surface-raised); border: 2px solid var(--app-bg);
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 4px 8px -2px rgba(0,0,0,0.5);
+  }
+  .pin-badge.you { width: 34px; height: 34px; background: var(--app-accent); }
+  .map-pin[data-selected="true"] .pin-badge { background: var(--app-accent-pressed); border-color: var(--app-accent); transform: scale(1.12); }
+  .rider-row { display: flex; align-items: center; gap: 12px; padding: 10px 8px; border-bottom: 1px solid var(--app-border); border-radius: 12px; cursor: pointer; background: none; border-left: none; border-right: none; border-top: none; width: 100%; text-align: left; font-family: inherit; }
   .rider-row:last-child { border-bottom: none; }
+  .rider-row[data-selected="true"] { background: var(--app-surface-raised); }
   .rider-avatar { width: 32px; height: 32px; border-radius: 999px; background: var(--app-surface-raised); display: flex; align-items: center; justify-content: center; flex: none; }
+  .rider-row[data-selected="true"] .rider-avatar { background: var(--app-accent); }
   .rider-name { font-size: 16px; color: var(--app-text); flex: 1; }
   .rider-distance { font-size: 13px; color: var(--app-text-muted); font-variant-numeric: tabular-nums; }
 
@@ -189,6 +203,7 @@
   .settings-avatar { align-items: center; text-align: center; gap: 4px; margin-bottom: 24px; }
   .avatar-ring { width: 72px; height: 72px; border-radius: 999px; background: var(--app-surface); border: 1px solid var(--app-border); display: flex; align-items: center; justify-content: center; margin-bottom: 8px; }
   .section-label { font-size: 13px; font-weight: 500; color: var(--app-text-muted); text-transform: uppercase; letter-spacing: 1px; margin: 20px 0 8px; }
+  .section-label-row { display: flex; align-items: center; gap: 6px; margin: 20px 0 8px; }
   .settings-section { background: var(--app-surface); border-radius: 16px; overflow: hidden; }
   .tier-row {
     display: flex; align-items: flex-start; gap: 16px;
@@ -262,66 +277,74 @@
         <div class="pane-scroll">
           <div class="zone-header">
             <div class="title-group">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="2" fill="#FF8A2B"/><path d="M8 12a4 4 0 1 1 8 0M5 12a7 7 0 1 1 14 0" stroke="#FF8A2B" stroke-width="1.7" stroke-linecap="round"/></svg>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M4 20l7-15h2l7 15M8 15h8" stroke="#FF8A2B" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
               <span class="app-heading">Zone radius: 1 mi</span>
             </div>
             <span class="app-caption">3 nearby</span>
           </div>
 
-          <div class="map-wrap">
+          <div class="map-wrap raised">
             <svg viewBox="0 0 320 260" preserveAspectRatio="xMidYMid slice">
-              <rect width="320" height="260" fill="#0E1720"/>
-              <g stroke="#1C2733" stroke-width="10">
-                <line x1="0" y1="60" x2="320" y2="48"/>
-                <line x1="0" y1="150" x2="320" y2="160"/>
-                <line x1="0" y1="215" x2="320" y2="225"/>
-              </g>
-              <g stroke="#1C2733" stroke-width="10">
-                <line x1="60" y1="0" x2="45" y2="260"/>
-                <line x1="215" y1="0" x2="230" y2="260"/>
-              </g>
-              <circle cx="160" cy="130" r="105" fill="none" stroke="#FF8A2B" stroke-width="1.5" stroke-dasharray="5 6" opacity="0.55"/>
+              <defs>
+                <radialGradient id="ground" cx="50%" cy="45%" r="75%">
+                  <stop offset="0%" stop-color="#1E232B"/>
+                  <stop offset="100%" stop-color="#12151A"/>
+                </radialGradient>
+              </defs>
+              <rect width="320" height="260" fill="url(#ground)"/>
+              <line x1="-20" y1="187" x2="340" y2="52" stroke="#2A3038" stroke-width="46" stroke-linecap="round"/>
+              <line x1="-20" y1="187" x2="340" y2="52" stroke="#3A4048" stroke-width="2" stroke-dasharray="10 12"/>
+              <circle cx="160" cy="130" r="105" fill="none" stroke="#FF8A2B" stroke-width="1.5" stroke-dasharray="5 6" opacity="0.5"/>
             </svg>
-            <div style="position:absolute; left:160px; top:130px; transform:translate(-50%,-100%);" class="map-pin">
+
+            <button type="button" class="map-pin" style="position:absolute; left:160px; top:130px; transform:translate(-50%,-100%);" data-rider="you">
               <span class="map-pin-label you">You</span>
-              <svg width="26" height="32" viewBox="0 0 26 32" fill="none"><path d="M13 31C13 31 24 19.8 24 12.5C24 6.15 19.08 1 13 1C6.92 1 2 6.15 2 12.5C2 19.8 13 31 13 31Z" fill="#FF8A2B" stroke="#0B0D10" stroke-width="1.5"/><circle cx="13" cy="12.5" r="4.5" fill="#1A0E00"/></svg>
-            </div>
-            <div style="position:absolute; left:104px; top:82px; transform:translate(-50%,-100%);" class="map-pin">
+              <span class="pin-badge you">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="5.5" cy="17" r="2.8" stroke="#1A0E00" stroke-width="1.6"/><circle cx="18.5" cy="17" r="2.8" stroke="#1A0E00" stroke-width="1.6"/><path d="M8 17h4l2.2-6.2h3.3M8 17l2.6-6.6 4 1.8M9.6 9.4h3.4" stroke="#1A0E00" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </span>
+            </button>
+            <button type="button" class="map-pin" style="position:absolute; left:104px; top:82px; transform:translate(-50%,-100%);" data-rider="rider_alex82">
               <span class="map-pin-label">rider_alex82</span>
-              <svg width="22" height="27" viewBox="0 0 26 32" fill="none"><path d="M13 31C13 31 24 19.8 24 12.5C24 6.15 19.08 1 13 1C6.92 1 2 6.15 2 12.5C2 19.8 13 31 13 31Z" fill="#F5F6F7" stroke="#0B0D10" stroke-width="1.5"/><circle cx="13" cy="12.5" r="4.5" fill="#0B0D10"/></svg>
-            </div>
-            <div style="position:absolute; left:210px; top:172px; transform:translate(-50%,-100%);" class="map-pin">
+              <span class="pin-badge">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="5.5" cy="17" r="2.8" stroke="#F5F6F7" stroke-width="1.7"/><circle cx="18.5" cy="17" r="2.8" stroke="#F5F6F7" stroke-width="1.7"/><path d="M8 17h4l2.2-6.2h3.3M8 17l2.6-6.6 4 1.8M9.6 9.4h3.4" stroke="#F5F6F7" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </span>
+            </button>
+            <button type="button" class="map-pin" style="position:absolute; left:210px; top:172px; transform:translate(-50%,-100%);" data-rider="maria_ktm">
               <span class="map-pin-label">maria_ktm</span>
-              <svg width="22" height="27" viewBox="0 0 26 32" fill="none"><path d="M13 31C13 31 24 19.8 24 12.5C24 6.15 19.08 1 13 1C6.92 1 2 6.15 2 12.5C2 19.8 13 31 13 31Z" fill="#F5F6F7" stroke="#0B0D10" stroke-width="1.5"/><circle cx="13" cy="12.5" r="4.5" fill="#0B0D10"/></svg>
-            </div>
-            <div style="position:absolute; left:186px; top:198px; transform:translate(-50%,-100%);" class="map-pin">
+              <span class="pin-badge">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="5.5" cy="17" r="2.8" stroke="#F5F6F7" stroke-width="1.7"/><circle cx="18.5" cy="17" r="2.8" stroke="#F5F6F7" stroke-width="1.7"/><path d="M8 17h4l2.2-6.2h3.3M8 17l2.6-6.6 4 1.8M9.6 9.4h3.4" stroke="#F5F6F7" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </span>
+            </button>
+            <button type="button" class="map-pin" style="position:absolute; left:186px; top:198px; transform:translate(-50%,-100%);" data-rider="jc_ridesout">
               <span class="map-pin-label">jc_ridesout</span>
-              <svg width="22" height="27" viewBox="0 0 26 32" fill="none"><path d="M13 31C13 31 24 19.8 24 12.5C24 6.15 19.08 1 13 1C6.92 1 2 6.15 2 12.5C2 19.8 13 31 13 31Z" fill="#F5F6F7" stroke="#0B0D10" stroke-width="1.5"/><circle cx="13" cy="12.5" r="4.5" fill="#0B0D10"/></svg>
-            </div>
+              <span class="pin-badge">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="5.5" cy="17" r="2.8" stroke="#F5F6F7" stroke-width="1.7"/><circle cx="18.5" cy="17" r="2.8" stroke="#F5F6F7" stroke-width="1.7"/><path d="M8 17h4l2.2-6.2h3.3M8 17l2.6-6.6 4 1.8M9.6 9.4h3.4" stroke="#F5F6F7" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </span>
+            </button>
           </div>
 
-          <div class="rider-row">
-            <div class="rider-avatar"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="3.5" stroke="#F5F6F7" stroke-width="1.7"/><path d="M5 20c0-3.9 3.1-7 7-7s7 3.1 7 7" stroke="#F5F6F7" stroke-width="1.7"/></svg></div>
+          <button type="button" class="rider-row" data-rider="rider_alex82">
+            <div class="rider-avatar"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="5.5" cy="17" r="2.8" stroke="#F5F6F7" stroke-width="1.7"/><circle cx="18.5" cy="17" r="2.8" stroke="#F5F6F7" stroke-width="1.7"/><path d="M8 17h4l2.2-6.2h3.3M8 17l2.6-6.6 4 1.8M9.6 9.4h3.4" stroke="#F5F6F7" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
             <span class="rider-name">rider_alex82</span>
             <span class="rider-distance">0.4 mi</span>
-          </div>
-          <div class="rider-row">
-            <div class="rider-avatar"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="3.5" stroke="#F5F6F7" stroke-width="1.7"/><path d="M5 20c0-3.9 3.1-7 7-7s7 3.1 7 7" stroke="#F5F6F7" stroke-width="1.7"/></svg></div>
+          </button>
+          <button type="button" class="rider-row" data-rider="maria_ktm">
+            <div class="rider-avatar"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="5.5" cy="17" r="2.8" stroke="#F5F6F7" stroke-width="1.7"/><circle cx="18.5" cy="17" r="2.8" stroke="#F5F6F7" stroke-width="1.7"/><path d="M8 17h4l2.2-6.2h3.3M8 17l2.6-6.6 4 1.8M9.6 9.4h3.4" stroke="#F5F6F7" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
             <span class="rider-name">maria_ktm</span>
             <span class="rider-distance">0.6 mi</span>
-          </div>
-          <div class="rider-row">
-            <div class="rider-avatar"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="3.5" stroke="#F5F6F7" stroke-width="1.7"/><path d="M5 20c0-3.9 3.1-7 7-7s7 3.1 7 7" stroke="#F5F6F7" stroke-width="1.7"/></svg></div>
+          </button>
+          <button type="button" class="rider-row" data-rider="jc_ridesout">
+            <div class="rider-avatar"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="5.5" cy="17" r="2.8" stroke="#F5F6F7" stroke-width="1.7"/><circle cx="18.5" cy="17" r="2.8" stroke="#F5F6F7" stroke-width="1.7"/><path d="M8 17h4l2.2-6.2h3.3M8 17l2.6-6.6 4 1.8M9.6 9.4h3.4" stroke="#F5F6F7" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
             <span class="rider-name">jc_ridesout</span>
             <span class="rider-distance">0.8 mi</span>
-          </div>
+          </button>
         </div>
       </div>
 
       <!-- GROUP RIDE TAB -->
       <div class="pane" id="pane-group">
         <div class="pane-scroll" style="justify-content:center;">
-          <div class="icon-badge">
+          <div class="icon-badge raised">
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none"><circle cx="9" cy="8" r="2.6" stroke="#FF8A2B" stroke-width="1.6"/><path d="M3.5 18c0-3 2.5-5 5.5-5s5.5 2 5.5 5" stroke="#FF8A2B" stroke-width="1.6" stroke-linecap="round"/><circle cx="17" cy="9" r="2" stroke="#FF8A2B" stroke-width="1.6"/><path d="M13.8 18c.3-2.3 2-4 4.2-4s3.9 1.7 4 4" stroke="#FF8A2B" stroke-width="1.6" stroke-linecap="round"/></svg>
           </div>
           <p class="app-heading" style="margin:0 0 8px;">Group Ride</p>
@@ -347,8 +370,11 @@
             <p class="app-caption">Accounts aren't built yet — riderId is hardcoded for this prototype.</p>
           </div>
 
-          <p class="section-label">Zone Radius</p>
-          <div class="settings-section" id="tierSection">
+          <div class="section-label-row">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M4 20l7-15h2l7 15M8 15h8" stroke="#6B7280" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <p class="section-label" style="margin:0;">Zone Radius</p>
+          </div>
+          <div class="settings-section raised" id="tierSection">
             <button class="tier-row" data-tier="free" data-selected="true">
               <span class="tier-radio"><span class="tier-radio-dot"></span></span>
               <span class="tier-info">
@@ -386,8 +412,9 @@
 
     <!-- floating ride bar, visible on every tab -->
     <div class="ride-bar-slot">
-      <div class="ride-bar" id="rideBar">
+      <div class="ride-bar raised" id="rideBar">
         <div class="live-dot"></div>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="5.5" cy="17" r="2.6" stroke="#FF8A2B" stroke-width="1.6"/><circle cx="18.5" cy="17" r="2.6" stroke="#FF8A2B" stroke-width="1.6"/><path d="M8 17h4l2.2-6.2h3.3M8 17l2.6-6.6 4 1.8M9.6 9.4h3.4" stroke="#FF8A2B" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
         <span class="ride-bar-text">In ride · K4XQPZ</span>
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M6 15l6-6 6 6" stroke="#9AA3AE" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </div>
@@ -396,7 +423,7 @@
     <!-- bottom tab bar -->
     <div class="tabbar">
       <button class="tabbar-btn" data-tab="map" aria-current="true">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="2" fill="currentColor"/><path d="M8 12a4 4 0 1 1 8 0M5 12a7 7 0 1 1 14 0" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="5.5" cy="17" r="2.8" stroke="currentColor" stroke-width="1.7"/><circle cx="18.5" cy="17" r="2.8" stroke="currentColor" stroke-width="1.7"/><path d="M8 17h4l2.2-6.2h3.3M8 17l2.6-6.6 4 1.8M9.6 9.4h3.4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
         <span>Public</span>
       </button>
       <button class="tabbar-btn" data-tab="group">
@@ -419,8 +446,8 @@
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
           </button>
         </div>
-        <div class="icon-badge">
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="#FF8A2B" stroke-width="1.8"/><path d="M12 8v8M8 12h8" stroke="#FF8A2B" stroke-width="1.8" stroke-linecap="round"/></svg>
+        <div class="icon-badge raised">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none"><circle cx="7" cy="19" r="3" stroke="#FF8A2B" stroke-width="1.7"/><circle cx="20" cy="19" r="3" stroke="#FF8A2B" stroke-width="1.7"/><path d="M9.5 19h5l2.6-7.2h3.7M9.5 19l3-7.6 4.5 2M11.5 10.4h4" stroke="#FF8A2B" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </div>
         <p class="app-body" style="margin:0 0 24px;">You'll get a code to share with the riders joining you. It expires automatically after 12 hours of inactivity.</p>
         <button class="app-btn primary" id="createRideBtn">Create Ride</button>
@@ -440,7 +467,7 @@
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M6 15l6-6 6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </button>
         </div>
-        <div class="code-card">
+        <div class="code-card raised">
           <div class="app-caption">Share code</div>
           <div class="code-value">K4XQPZ</div>
         </div>
@@ -533,6 +560,21 @@
     row.addEventListener('click', () => {
       document.querySelectorAll('#tierSection .tier-row').forEach((r) => (r.dataset.selected = 'false'));
       row.dataset.selected = 'true';
+    });
+  });
+
+  // Tapping a pin or a roster row highlights the other — closing the
+  // "same rider shown twice with no visual link" gap.
+  function setSelectedRider(id) {
+    document.querySelectorAll('[data-rider]').forEach((el) => {
+      el.dataset.selected = String(el.dataset.rider === id);
+    });
+  }
+  document.querySelectorAll('.map-pin[data-rider], .rider-row[data-rider]').forEach((el) => {
+    if (el.dataset.rider === 'you') return;
+    el.addEventListener('click', () => {
+      const alreadySelected = el.dataset.selected === 'true';
+      setSelectedRider(alreadySelected ? null : el.dataset.rider);
     });
   });
 
