@@ -9,8 +9,8 @@ import { View, Text, FlatList, StyleSheet } from 'react-native';
 import { TIER_RADIUS_MILES } from '@rider-comms/shared';
 import type { ZoneTier } from '@rider-comms/shared';
 import { RiderCommsClient } from '../api/client';
+import { API_BASE_URL } from '../config';
 
-const API_BASE_URL = 'http://localhost:4000';
 const PRESENCE_UPDATE_INTERVAL_MS = 8000; // per spec Section 8: every 5-10s
 
 // TODO(native): replace with expo-location's getCurrentPositionAsync().

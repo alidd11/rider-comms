@@ -4,11 +4,9 @@ import { View, Text, Pressable, StyleSheet, ActivityIndicator } from 'react-nati
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation';
 import { RiderCommsClient } from '../api/client';
+import { API_BASE_URL } from '../config';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'CreateRide'>;
-
-// TODO: move this to app config / env once there's a real deployed backend.
-const API_BASE_URL = 'http://localhost:4000';
 
 export function CreateRideScreen({ navigation }: Props): React.JSX.Element {
   const [loading, setLoading] = React.useState(false);

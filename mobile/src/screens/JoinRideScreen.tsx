@@ -4,10 +4,9 @@ import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator } from 
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation';
 import { ApiError, RiderCommsClient } from '../api/client';
+import { API_BASE_URL } from '../config';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'JoinRide'>;
-
-const API_BASE_URL = 'http://localhost:4000';
 
 export function JoinRideScreen({ navigation }: Props): React.JSX.Element {
   const [code, setCode] = React.useState('');
