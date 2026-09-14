@@ -2,6 +2,9 @@
 import * as React from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RootStackParamList } from '../navigation';
 import { ApiError, RiderCommsClient } from '../api/client';
 import { API_BASE_URL } from '../config';
 import { colors, spacing, radii, type, MIN_TOUCH_TARGET } from '../theme';
@@ -9,6 +12,7 @@ import { useRide } from '../ride/RideContext';
 import { RideBar } from '../ride/RideBar';
 
 export function GroupRideScreen(): React.JSX.Element {
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { activeRide, startRide } = useRide();
   const [code, setCode] = React.useState('');
   const [loading, setLoading] = React.useState(false);
@@ -82,6 +86,12 @@ export function GroupRideScreen(): React.JSX.Element {
             {loading ? <ActivityIndicator color={colors.accentText} /> : <Text style={styles.buttonText}>Join</Text>}
           </Pressable>
         )}
+
+        {!activeRide && (
+          <Pressable onPress={() => navigation.navigate('CreateRide')} style={styles.createLink}>
+            <Text style={styles.createLinkText}>Starting a new group ride? Create one</Text>
+          </Pressable>
+        )}
       </View>
 
       <RideBar />
@@ -128,6 +138,8 @@ const styles = StyleSheet.create({
   },
   errorText: { ...type.body, color: colors.danger, flex: 1 },
   alreadyInRide: { ...type.caption, textAlign: 'center' },
+  createLink: { alignItems: 'center', paddingVertical: spacing.md },
+  createLinkText: { ...type.caption, color: colors.textSecondary },
   button: {
     minHeight: MIN_TOUCH_TARGET,
     backgroundColor: colors.accent,
