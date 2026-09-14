@@ -1,0 +1,26 @@
+{
+  "expo": {
+    "name": "Rider Comms",
+    "slug": "rider-comms",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "ios": {
+      "supportsTablet": false,
+      "infoPlist": {
+        "UIBackgroundModes": ["audio", "location"],
+        "NSMicrophoneUsageDescription": "Rider Comms uses your microphone for hands-free group voice chat while riding.",
+        "NSLocationWhenInUseUsageDescription": "Rider Comms uses your location to find riders in your zone and give turn-by-turn directions.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Rider Comms uses your location in the background so your zone stays accurate while riding with the screen off."
+      }
+    },
+    "android": {
+      "permissions": [
+        "RECORD_AUDIO",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE"
+      ]
+    },
+    "_NOTE": "Background audio + location together are flagged in the spec (Section 10) as the single biggest engineering risk on iOS specifically — this config declares the right entitlements, but actually surviving background execution needs real device testing this sandbox can't do."
+  }
+}

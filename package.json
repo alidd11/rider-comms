@@ -1,0 +1,15 @@
+{
+  "name": "rider-comms",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Hands-free, proximity-based group voice + navigation app for moped/motorcycle riders",
+  "workspaces": [
+    "shared",
+    "backend",
+    "mobile"
+  ],
+  "scripts": {
+    "test": "npm run test --workspace=shared && npm run test --workspace=backend && npm run test:client --workspace=mobile",
+    "dev:backend": "npm run start --workspace=backend"
+  }
+}
