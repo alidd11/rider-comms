@@ -10,16 +10,23 @@
 // legibility, not placed at real bearings/distances. A real live map (per
 // spec section 8) needs the backend to return each rider's lat/lon too.
 //
-// Public and Host share this one screen via a segmented switcher instead of
+// Public and Host share this one screen via a segmented toggle instead of
 // being separate tabs — once this has a real map SDK behind it, a second
 // tab would mean a second mounted (and separately billed) map instance for
-// no reason, since only one is ever visible at a time anyway.
+// no reason, since only one is ever visible at a time anyway. The bottom
+// tab bar's "Group Ride" button isn't a second screen either — it redirects
+// (see navigation/index.tsx's tabPress listener) to this same Map route with
+// a `segment: 'host'` param, read below, instead of navigating to its own
+// registered-but-never-actually-shown screen.
 import * as React from 'react';
 import { View, Text, Pressable, StyleSheet, Animated, PanResponder } from 'react-native';
 import type { GestureResponderEvent, PanResponderGestureState } from 'react-native';
+import { useRoute } from '@react-navigation/native';
+import type { RouteProp } from '@react-navigation/native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import Svg, { Rect, Line, Defs, RadialGradient, Stop } from 'react-native-svg';
 import { TIER_RADIUS_MILES } from '@rider-comms/shared';
+import type { TabParamList } from '../navigation';
 import { RiderCommsClient } from '../api/client';
 import { API_BASE_URL } from '../config';
 import { colors, spacing, radii, type, elevation, MIN_TOUCH_TARGET } from '../theme';
@@ -92,30 +99,35 @@ function MapPin({
   );
 }
 
-function SegmentSwitcher({ segment, onChange }: { segment: Segment; onChange: (s: Segment) => void }): React.JSX.Element {
+/**
+ * Icon-only Public/Host toggle, floated on the right edge instead of a
+ * full-width pill at the top — keeps the map clear top-to-bottom instead
+ * of pushing it down under a header bar.
+ */
+function SegmentToggle({ segment, onChange }: { segment: Segment; onChange: (s: Segment) => void }): React.JSX.Element {
   return (
-    <View style={styles.switcher}>
+    <View style={styles.sideToggle}>
       <Pressable
-        style={[styles.switcherOption, segment === 'public' && styles.switcherOptionActive]}
+        style={[styles.sideToggleButton, segment === 'public' && styles.sideToggleButtonActive]}
         onPress={() => onChange('public')}
+        hitSlop={8}
       >
         <Ionicons
           name="radio"
-          size={16}
-          color={segment === 'public' ? colors.accentText : colors.textSecondary}
+          size={20}
+          color={segment === 'public' ? colors.accentText : colors.textPrimary}
         />
-        <Text style={[styles.switcherLabel, segment === 'public' && styles.switcherLabelActive]}>Public</Text>
       </Pressable>
       <Pressable
-        style={[styles.switcherOption, segment === 'host' && styles.switcherOptionActive]}
+        style={[styles.sideToggleButton, segment === 'host' && styles.sideToggleButtonActive]}
         onPress={() => onChange('host')}
+        hitSlop={8}
       >
         <Ionicons
           name="people"
-          size={16}
-          color={segment === 'host' ? colors.accentText : colors.textSecondary}
+          size={20}
+          color={segment === 'host' ? colors.accentText : colors.textPrimary}
         />
-        <Text style={[styles.switcherLabel, segment === 'host' && styles.switcherLabelActive]}>Host</Text>
       </Pressable>
     </View>
   );
@@ -279,7 +291,8 @@ function ZoomableMap({ size, children }: { size: LayoutSize; children: React.Rea
 
 export function MapScreen(): React.JSX.Element {
   const { zoneTier: tier } = useSettings();
-  const [segment, setSegment] = React.useState<Segment>('public');
+  const route = useRoute<RouteProp<TabParamList, 'Map'>>();
+  const [segment, setSegment] = React.useState<Segment>(route.params?.segment ?? 'public');
   const [ridersInZone, setRidersInZone] = React.useState<string[]>([]);
   const [error, setError] = React.useState<string | null>(null);
   const [selectedRider, setSelectedRider] = React.useState<string | null>(null);
@@ -312,6 +325,17 @@ export function MapScreen(): React.JSX.Element {
       clearInterval(interval);
     };
   }, [tier]);
+
+  // Reacts to the "Group Ride" tab bar shortcut (see navigation/index.tsx),
+  // which navigates here with a fresh `at` nonce each press so a repeat tap
+  // back to the same segment still switches even if the user had since
+  // flipped the in-screen toggle to something else.
+  React.useEffect(() => {
+    if (route.params?.segment) {
+      setSegment(route.params.segment);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [route.params?.at]);
 
   const pins = ridersOnCircle(ridersInZone, mapSize);
   const centerX = mapSize.width / 2;
@@ -376,26 +400,16 @@ export function MapScreen(): React.JSX.Element {
         </View>
       )}
 
-      <View style={styles.topOverlay} pointerEvents="box-none">
-        <SegmentSwitcher segment={segment} onChange={setSegment} />
+      {segment === 'public' && error && (
+        <View style={styles.errorOverlay} pointerEvents="box-none">
+          <View style={styles.errorBox}>
+            <Ionicons name="alert-circle" size={18} color={colors.danger} />
+            <Text style={styles.errorText}>{error}</Text>
+          </View>
+        </View>
+      )}
 
-        {segment === 'public' && (
-          <>
-            {error && (
-              <View style={styles.errorBox}>
-                <Ionicons name="alert-circle" size={18} color={colors.danger} />
-                <Text style={styles.errorText}>{error}</Text>
-              </View>
-            )}
-            <View style={styles.zoneCaption}>
-              <MaterialCommunityIcons name="road-variant" size={16} color={colors.accent} />
-              <Text style={styles.zoneCaptionText}>
-                Zone radius: {TIER_RADIUS_MILES[tier]} mi · {ridersInZone.length} nearby
-              </Text>
-            </View>
-          </>
-        )}
-      </View>
+      <SegmentToggle segment={segment} onChange={setSegment} />
 
       <View style={styles.rideBarSlot} pointerEvents="box-none">
         <RideBar />
@@ -407,35 +421,13 @@ export function MapScreen(): React.JSX.Element {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   mapFill: { flex: 1 },
-  hostFill: { flex: 1, padding: spacing.lg, paddingTop: spacing.xxl * 2 },
-  topOverlay: {
+  hostFill: { flex: 1, padding: spacing.lg, paddingTop: spacing.xxl },
+  errorOverlay: {
     position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    padding: spacing.lg,
+    top: spacing.lg,
+    left: spacing.lg,
+    right: spacing.xxl + spacing.md,
   },
-  switcher: {
-    flexDirection: 'row',
-    backgroundColor: colors.surface,
-    borderRadius: radii.lg,
-    padding: 4,
-    gap: 4,
-    marginBottom: spacing.md,
-    ...elevation.raised,
-  },
-  switcherOption: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.xs,
-    paddingVertical: spacing.sm,
-    borderRadius: radii.md,
-  },
-  switcherOptionActive: { backgroundColor: colors.accent },
-  switcherLabel: { ...type.caption, color: colors.textSecondary, fontWeight: '700' },
-  switcherLabelActive: { color: colors.accentText },
   errorBox: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -443,21 +435,27 @@ const styles = StyleSheet.create({
     backgroundColor: colors.dangerSurface,
     borderRadius: radii.md,
     padding: spacing.md,
-    marginBottom: spacing.md,
-  },
-  errorText: { ...type.body, color: colors.danger, flex: 1 },
-  zoneCaption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    gap: spacing.xs,
-    backgroundColor: colors.surface,
-    borderRadius: radii.pill,
-    paddingVertical: spacing.xs,
-    paddingHorizontal: spacing.sm,
     ...elevation.raised,
   },
-  zoneCaptionText: { ...type.caption },
+  errorText: { ...type.body, color: colors.danger, flex: 1 },
+  sideToggle: {
+    position: 'absolute',
+    top: spacing.lg,
+    right: spacing.sm,
+    gap: spacing.xs,
+  },
+  sideToggleButton: {
+    width: MIN_TOUCH_TARGET * 0.7,
+    height: MIN_TOUCH_TARGET * 0.7,
+    borderRadius: radii.pill,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...elevation.raised,
+  },
+  sideToggleButtonActive: { backgroundColor: colors.accent, borderColor: colors.accent },
   pinWrap: { position: 'absolute' },
   pinBadge: {
     alignItems: 'center',

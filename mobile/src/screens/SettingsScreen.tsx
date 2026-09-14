@@ -221,9 +221,7 @@ const styles = StyleSheet.create({
   sectionLabelRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginTop: spacing.lg, marginBottom: spacing.sm },
   sectionLabelInRow: { marginTop: 0, marginBottom: 0 },
   sectionLabel: {
-    ...type.caption,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
+    ...type.label,
     marginBottom: spacing.sm,
     marginTop: spacing.lg,
   },

@@ -136,7 +136,7 @@ const styles = StyleSheet.create({
   sheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   closeButton: { padding: spacing.xs },
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  statusText: { ...type.caption, color: colors.success, textTransform: 'uppercase', letterSpacing: 1 },
+  statusText: { ...type.label, color: colors.success },
   codeCard: {
     backgroundColor: colors.surface,
     borderRadius: radii.lg,

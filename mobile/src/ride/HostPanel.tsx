@@ -201,9 +201,9 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
     ...elevation.raised,
   },
-  codeLabel: { ...type.caption },
+  codeLabel: { ...type.label },
   codeValue: { fontSize: 32, fontWeight: '800', letterSpacing: 6, color: colors.accent, marginTop: spacing.xs },
-  sectionLabel: { ...type.caption, textTransform: 'uppercase', letterSpacing: 1, marginBottom: spacing.sm },
+  sectionLabel: { ...type.label, marginBottom: spacing.sm },
   rosterCard: { backgroundColor: colors.surface, borderRadius: radii.lg, overflow: 'hidden' },
   emptyRoster: { ...type.caption, padding: spacing.md, textAlign: 'center' },
   rosterRow: {

@@ -27,7 +27,12 @@ const navigationTheme = {
 };
 
 export type TabParamList = {
-  Map: undefined;
+  // `at` is a change nonce, not app state — it exists only so tapping
+  // "Group Ride" again with the same target segment still re-fires the
+  // param-change effect in MapScreen (a repeated identical string value
+  // wouldn't, since nothing else about the params changed).
+  Map: { segment?: 'public' | 'host'; at?: number } | undefined;
+  GroupRide: undefined;
   Settings: undefined;
 };
 
@@ -41,6 +46,7 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 
 const TAB_ICONS: Record<keyof TabParamList, (color: string, size: number) => React.ReactNode> = {
   Map: (color, size) => <MaterialCommunityIcons name="motorbike" size={size} color={color} />,
+  GroupRide: (color, size) => <Ionicons name="people" size={size} color={color} />,
   Settings: (color, size) => <Ionicons name="settings" size={size} color={color} />,
 };
 
@@ -58,6 +64,20 @@ function Tabs(): React.JSX.Element {
       })}
     >
       <Tab.Screen name="Map" component={MapScreen} options={{ title: 'Map' }} />
+      {/* Not a second screen/mount: tapping this tab redirects straight to
+          the Map route with segment: 'host' params instead of navigating
+          here, so there's still only ever one mounted map instance. */}
+      <Tab.Screen
+        name="GroupRide"
+        component={MapScreen}
+        options={{ title: 'Group Ride' }}
+        listeners={({ navigation }) => ({
+          tabPress: (e) => {
+            e.preventDefault();
+            navigation.navigate('Map', { segment: 'host', at: Date.now() });
+          },
+        })}
+      />
       <Tab.Screen name="Settings" component={SettingsScreen} options={{ title: 'Settings' }} />
     </Tab.Navigator>
   );
