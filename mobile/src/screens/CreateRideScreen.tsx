@@ -23,7 +23,7 @@ export function CreateRideScreen({ navigation }: Props): React.JSX.Element {
       const client = new RiderCommsClient(API_BASE_URL);
       // TODO: replace 'me' with the real signed-in rider id once auth exists.
       const { rideId, code } = await client.createRide('me');
-      startRide({ rideId, code });
+      startRide({ rideId, code, isHost: true });
       navigation.goBack();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong creating the ride.');
@@ -37,10 +37,10 @@ export function CreateRideScreen({ navigation }: Props): React.JSX.Element {
       <View style={styles.iconBadge}>
         <MaterialCommunityIcons name="motorbike" size={32} color={colors.accent} />
       </View>
-      <Text style={styles.title}>Start a private ride</Text>
+      <Text style={styles.title}>Host a ride</Text>
       <Text style={styles.body}>
-        You'll get a code to share with the riders joining you. It expires automatically after 12 hours of
-        inactivity.
+        You'll get a code to share with the riders joining you, and can add or remove riders as host. It
+        expires automatically after 12 hours of inactivity.
       </Text>
 
       {error && (
