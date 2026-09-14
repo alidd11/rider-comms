@@ -11,5 +11,8 @@
   "scripts": {
     "test": "npm run test --workspace=shared && npm run test --workspace=backend && npm run test:client --workspace=mobile",
     "dev:backend": "npm run start --workspace=backend"
+  },
+  "overrides": {
+    "react": "19.2.3"
   }
 }
