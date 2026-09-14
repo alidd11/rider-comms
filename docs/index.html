@@ -151,7 +151,7 @@
   .live-dot { width: 10px; height: 10px; border-radius: 999px; background: var(--app-success); box-shadow: 0 0 0 4px rgba(61,214,140,0.18); flex: none; }
   .ride-bar-text { font-size: 15px; color: var(--app-text); flex: 1; }
 
-  /* ---- modal sheet (create ride / ride mixer) ---- */
+  /* ---- modal sheet (create ride / ride mixer / avatar picker) ---- */
   .sheet-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.001); display: none; z-index: 10; }
   .sheet-backdrop[data-open="true"] { display: block; }
   .sheet { position: absolute; left: 0; right: 0; bottom: 0; background: var(--app-bg); border-radius: 24px 24px 0 0; padding: 20px; display: flex; flex-direction: column; max-height: 100%; box-shadow: 0 -12px 30px rgba(0,0,0,0.4); }
@@ -175,12 +175,20 @@
   /* Code input */
   .code-input { border: 1px solid var(--app-border); background: var(--app-surface); border-radius: 16px; min-height: 56px; font-size: 26px; font-weight: 700; letter-spacing: 8px; text-align: center; color: var(--app-text); margin-bottom: 16px; display: flex; align-items: center; justify-content: center; }
 
+  /* Segmented switcher (Public / Host) */
+  .segment-switcher { flex: none; display: flex; background: var(--app-surface); border-radius: 16px; padding: 4px; gap: 4px; margin-bottom: 16px; }
+  .segment-btn { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 0; border-radius: 12px; background: none; border: none; cursor: pointer; font-family: inherit; font-size: 13px; font-weight: 700; color: var(--app-text-secondary); }
+  .segment-btn[data-active="true"] { background: var(--app-accent); color: var(--app-accent-text); }
+  .segment-pane { display: none; flex: 1; flex-direction: column; min-height: 0; }
+  .segment-pane[data-active="true"] { display: flex; }
+
   /* Map */
-  .zone-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
+  .zone-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; flex: none; }
   .zone-header .title-group { display: flex; align-items: center; gap: 8px; }
-  .map-wrap { position: relative; flex: none; height: 260px; border-radius: 16px; overflow: hidden; background: var(--app-asphalt); border: 1px solid var(--app-border); margin-bottom: 16px; }
-  .map-wrap svg { position: absolute; inset: 0; width: 100%; height: 100%; }
-  .map-pin { display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; background: none; border: none; font-family: inherit; padding: 0; }
+  .map-wrap { position: relative; flex: 1; border-radius: 16px; overflow: hidden; background: var(--app-asphalt); border: 1px solid var(--app-border); margin-bottom: 16px; touch-action: none; }
+  .map-zoom-content { position: absolute; inset: 0; transform-origin: 0 0; will-change: transform; }
+  .map-zoom-content svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .map-pin { position: absolute; display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; background: none; border: none; font-family: inherit; padding: 0; transform: translate(-50%, -100%); }
   .map-pin-label { font-size: 11px; font-weight: 600; color: var(--app-text); background: rgba(11,13,16,0.85); padding: 2px 7px; border-radius: 999px; white-space: nowrap; }
   .map-pin-label.you { color: var(--app-accent-text); background: var(--app-accent); }
   .pin-badge {
@@ -191,17 +199,29 @@
   }
   .pin-badge.you { width: 34px; height: 34px; background: var(--app-accent); }
   .map-pin[data-selected="true"] .pin-badge { background: var(--app-accent-pressed); border-color: var(--app-accent); transform: scale(1.12); }
-  .rider-row { display: flex; align-items: center; gap: 12px; padding: 10px 8px; border-bottom: 1px solid var(--app-border); border-radius: 12px; cursor: pointer; background: none; border-left: none; border-right: none; border-top: none; width: 100%; text-align: left; font-family: inherit; }
+  .zoom-controls { position: absolute; right: 8px; bottom: 8px; display: flex; flex-direction: column; gap: 6px; z-index: 4; }
+  .zoom-btn { width: 40px; height: 40px; border-radius: 999px; background: var(--app-surface); border: 1px solid var(--app-border); color: var(--app-text); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+  .zoom-btn.recenter { display: none; color: var(--app-accent); }
+  .zoom-btn.recenter[data-visible="true"] { display: flex; }
+
+  /* Host: join/host form, roster, member card */
+  .rider-row { display: flex; align-items: center; gap: 12px; padding: 10px 8px; border-bottom: 1px solid var(--app-border); }
   .rider-row:last-child { border-bottom: none; }
-  .rider-row[data-selected="true"] { background: var(--app-surface-raised); }
   .rider-avatar { width: 32px; height: 32px; border-radius: 999px; background: var(--app-surface-raised); display: flex; align-items: center; justify-content: center; flex: none; }
-  .rider-row[data-selected="true"] .rider-avatar { background: var(--app-accent); }
   .rider-name { font-size: 16px; color: var(--app-text); flex: 1; }
-  .rider-distance { font-size: 13px; color: var(--app-text-muted); font-variant-numeric: tabular-nums; }
+  .remove-rider-btn { background: none; border: none; cursor: pointer; color: var(--app-danger); display: flex; padding: 4px; }
+  .roster-card { background: var(--app-surface); border-radius: 16px; overflow: hidden; }
+  .empty-roster { font-size: 13px; font-weight: 500; color: var(--app-text-muted); padding: 16px; text-align: center; }
+  .host-link { align-self: center; }
 
   /* Settings */
-  .settings-avatar { align-items: center; text-align: center; gap: 4px; margin-bottom: 24px; }
-  .avatar-ring { width: 72px; height: 72px; border-radius: 999px; background: var(--app-surface); border: 1px solid var(--app-border); display: flex; align-items: center; justify-content: center; margin-bottom: 8px; }
+  .settings-avatar { align-items: center; text-align: center; gap: 4px; margin-bottom: 24px; position: relative; }
+  .avatar-tap-area { position: relative; display: inline-flex; margin-bottom: 8px; cursor: pointer; background: none; border: none; padding: 0; }
+  .avatar-ring { width: 88px; height: 88px; border-radius: 999px; display: flex; align-items: center; justify-content: center; }
+  .avatar-edit-badge { position: absolute; right: -2px; bottom: -2px; width: 26px; height: 26px; border-radius: 999px; background: var(--app-accent); border: 2px solid var(--app-bg); display: flex; align-items: center; justify-content: center; }
+  .name-row { display: flex; align-items: center; gap: 6px; justify-content: center; background: none; border: none; cursor: pointer; font-family: inherit; padding: 0; }
+  .name-input { font-size: 20px; font-weight: 700; color: var(--app-text); background: none; border: none; border-bottom: 1px solid var(--app-accent); text-align: center; font-family: inherit; padding: 4px 0; min-width: 160px; }
+  .name-input:focus { outline: none; }
   .section-label { font-size: 13px; font-weight: 500; color: var(--app-text-muted); text-transform: uppercase; letter-spacing: 1px; margin: 20px 0 8px; }
   .section-label-row { display: flex; align-items: center; gap: 6px; margin: 20px 0 8px; }
   .settings-section { background: var(--app-surface); border-radius: 16px; overflow: hidden; }
@@ -223,6 +243,14 @@
   .tier-blurb { font-size: 13px; color: var(--app-text-muted); margin-top: 4px; }
   .about-row { display: flex; justify-content: space-between; padding: 16px; }
   .about-label { font-size: 16px; color: var(--app-text); }
+
+  /* Avatar picker sheet */
+  .avatar-grid { display: flex; flex-wrap: wrap; justify-content: space-between; row-gap: 16px; margin-bottom: 8px; }
+  .avatar-grid-item { width: 22%; display: flex; justify-content: center; position: relative; background: none; border: none; cursor: pointer; padding: 0; }
+  .avatar-swatch { width: 60px; height: 60px; border-radius: 999px; display: flex; align-items: center; justify-content: center; border: 2px solid transparent; }
+  .avatar-grid-item[data-selected="true"] .avatar-swatch { border-color: var(--app-text); }
+  .avatar-check { position: absolute; right: 6px; bottom: -2px; display: none; }
+  .avatar-grid-item[data-selected="true"] .avatar-check { display: block; }
 
   .credit { font-size: 12px; color: var(--page-text-muted); max-width: 460px; text-align: center; line-height: 1.6; }
   .credit code { font-family: 'SF Mono', ui-monospace, monospace; background: var(--page-bg-raised); padding: 1px 5px; border-radius: 5px; }
@@ -252,8 +280,8 @@
 
 <div class="masthead">
   <p class="eyebrow">Design preview — not the running app</p>
-  <h1>Rider Comms, map-first with bottom tabs</h1>
-  <p>Install this to your home screen (share icon → Add to Home Screen) to see it full-screen like a real app. A persistent Map tab, Group Ride, and Settings in a bottom tab bar, with an active ride as a floating bar over any tab.</p>
+  <h1>Rider Comms, one map screen with a Public/Host switcher</h1>
+  <p>Install this to your home screen (share icon → Add to Home Screen) to see it full-screen like a real app. A persistent Map tab (switch between Public and Host in-screen, so only one map ever loads) and Settings in a bottom tab bar, with an active ride as a floating bar over any tab.</p>
 </div>
 
 <div class="toggle-row">
@@ -271,94 +299,138 @@
       <span>●●●●&nbsp;&nbsp;5G&nbsp;&nbsp;100%</span>
     </div>
 
-    <div class="header"><span class="title" id="headerTitle">Public</span></div>
+    <div class="header"><span class="title" id="headerTitle">Map</span></div>
 
     <div class="body">
 
-      <!-- MAP TAB -->
+      <!-- MAP TAB: Public/Host live inside this one screen so only one map ever mounts -->
       <div class="pane" id="pane-map" data-active="true">
-        <div class="pane-scroll">
-          <div class="zone-header">
-            <div class="title-group">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M4 20l7-15h2l7 15M8 15h8" stroke="#FF8A2B" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              <span class="app-heading">Zone radius: 1 mi</span>
+        <div class="pane-scroll" style="padding-bottom:8px;">
+          <div class="segment-switcher">
+            <button class="segment-btn" data-segment="public" data-active="true">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="2.2" stroke="currentColor" stroke-width="1.8"/><path d="M7.5 7.5a6.4 6.4 0 0 0 0 9M16.5 7.5a6.4 6.4 0 0 1 0 9M4.5 4.5a10.6 10.6 0 0 0 0 15M19.5 4.5a10.6 10.6 0 0 1 0 15" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+              Public
+            </button>
+            <button class="segment-btn" data-segment="host">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="9" cy="8" r="2.6" stroke="currentColor" stroke-width="1.6"/><path d="M3.5 18c0-3 2.5-5 5.5-5s5.5 2 5.5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="17" cy="9" r="2" stroke="currentColor" stroke-width="1.6"/><path d="M13.8 18c.3-2.3 2-4 4.2-4s3.9 1.7 4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+              Host
+            </button>
+          </div>
+
+          <!-- PUBLIC segment: a pure map view, no roster list underneath -->
+          <div class="segment-pane" id="segment-public" data-active="true">
+            <div class="zone-header">
+              <div class="title-group">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M4 20l7-15h2l7 15M8 15h8" stroke="#FF8A2B" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <span class="app-caption" style="color:var(--app-text-secondary);">Zone radius: 1 mi · 3 nearby</span>
+              </div>
             </div>
-            <span class="app-caption">3 nearby</span>
+
+            <div class="map-wrap raised" id="mapWrap">
+              <div class="map-zoom-content" id="mapZoomContent">
+                <svg viewBox="0 0 320 320" preserveAspectRatio="none">
+                  <defs>
+                    <radialGradient id="ground" cx="50%" cy="45%" r="75%">
+                      <stop offset="0%" stop-color="#1E232B"/>
+                      <stop offset="100%" stop-color="#12151A"/>
+                    </radialGradient>
+                  </defs>
+                  <rect width="320" height="320" fill="url(#ground)"/>
+                  <line x1="-20" y1="230" x2="340" y2="64" stroke="#2A3038" stroke-width="46" stroke-linecap="round"/>
+                  <line x1="-20" y1="230" x2="340" y2="64" stroke="#3A4048" stroke-width="2" stroke-dasharray="10 12"/>
+                  <circle cx="160" cy="160" r="136" fill="none" stroke="#FF8A2B" stroke-width="1.5" stroke-dasharray="5 6" opacity="0.5"/>
+                </svg>
+
+                <button type="button" class="map-pin" style="left:50%; top:50%;" data-rider="you">
+                  <span class="map-pin-label you">You</span>
+                  <span class="pin-badge you">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="5.5" cy="17" r="2.8" stroke="#1A0E00" stroke-width="1.6"/><circle cx="18.5" cy="17" r="2.8" stroke="#1A0E00" stroke-width="1.6"/><path d="M8 17h4l2.2-6.2h3.3M8 17l2.6-6.6 4 1.8M9.6 9.4h3.4" stroke="#1A0E00" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  </span>
+                </button>
+                <button type="button" class="map-pin" style="left:32.5%; top:29%;" data-rider="rider_alex82">
+                  <span class="map-pin-label">rider_alex82</span>
+                  <span class="pin-badge">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="5.5" cy="17" r="2.8" stroke="#F5F6F7" stroke-width="1.7"/><circle cx="18.5" cy="17" r="2.8" stroke="#F5F6F7" stroke-width="1.7"/><path d="M8 17h4l2.2-6.2h3.3M8 17l2.6-6.6 4 1.8M9.6 9.4h3.4" stroke="#F5F6F7" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  </span>
+                </button>
+                <button type="button" class="map-pin" style="left:65.5%; top:53.5%;" data-rider="maria_ktm">
+                  <span class="map-pin-label">maria_ktm</span>
+                  <span class="pin-badge">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="5.5" cy="17" r="2.8" stroke="#F5F6F7" stroke-width="1.7"/><circle cx="18.5" cy="17" r="2.8" stroke="#F5F6F7" stroke-width="1.7"/><path d="M8 17h4l2.2-6.2h3.3M8 17l2.6-6.6 4 1.8M9.6 9.4h3.4" stroke="#F5F6F7" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  </span>
+                </button>
+                <button type="button" class="map-pin" style="left:78%; top:68%;" data-rider="jc_ridesout">
+                  <span class="map-pin-label">jc_ridesout</span>
+                  <span class="pin-badge">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="5.5" cy="17" r="2.8" stroke="#F5F6F7" stroke-width="1.7"/><circle cx="18.5" cy="17" r="2.8" stroke="#F5F6F7" stroke-width="1.7"/><path d="M8 17h4l2.2-6.2h3.3M8 17l2.6-6.6 4 1.8M9.6 9.4h3.4" stroke="#F5F6F7" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  </span>
+                </button>
+              </div>
+
+              <div class="zoom-controls">
+                <button type="button" class="zoom-btn" id="zoomInBtn" aria-label="Zoom in">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                </button>
+                <button type="button" class="zoom-btn" id="zoomOutBtn" aria-label="Zoom out">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M5 12h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                </button>
+                <button type="button" class="zoom-btn recenter" id="recenterBtn" aria-label="Recenter map">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="2.4" stroke="currentColor" stroke-width="1.8"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                </button>
+              </div>
+            </div>
           </div>
 
-          <div class="map-wrap raised">
-            <svg viewBox="0 0 320 260" preserveAspectRatio="xMidYMid slice">
-              <defs>
-                <radialGradient id="ground" cx="50%" cy="45%" r="75%">
-                  <stop offset="0%" stop-color="#1E232B"/>
-                  <stop offset="100%" stop-color="#12151A"/>
-                </radialGradient>
-              </defs>
-              <rect width="320" height="260" fill="url(#ground)"/>
-              <line x1="-20" y1="187" x2="340" y2="52" stroke="#2A3038" stroke-width="46" stroke-linecap="round"/>
-              <line x1="-20" y1="187" x2="340" y2="52" stroke="#3A4048" stroke-width="2" stroke-dasharray="10 12"/>
-              <circle cx="160" cy="130" r="105" fill="none" stroke="#FF8A2B" stroke-width="1.5" stroke-dasharray="5 6" opacity="0.5"/>
-            </svg>
+          <!-- HOST segment: join/host form, or (if hosting) roster management, or (if joined) a read-only card -->
+          <div class="segment-pane" id="segment-host">
+            <div id="hostJoinForm" style="display:flex; flex-direction:column;">
+              <div class="icon-badge raised">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none"><path d="M14.5 9.5a3 3 0 1 0-4.2 4.2M8 16l-3.5 3.5M9.5 17.5 8 19M6.5 15 5 16.5" stroke="#FF8A2B" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+              <p class="app-heading" style="margin:0 0 8px;">Join or host a ride</p>
+              <p class="app-body" style="margin:0 0 24px;">Enter a 6-character code to join a ride, or host your own.</p>
+              <div class="code-input">736KI7</div>
+              <div class="error-box">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="#FF5A5F" stroke-width="1.8"/><path d="M12 8v5" stroke="#FF5A5F" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="16" r="1" fill="#FF5A5F"/></svg>
+                <span>That code doesn't match an active ride.</span>
+              </div>
+              <button class="app-btn primary" id="joinBtn">Join</button>
+              <button class="text-link host-link" id="createLinkBtn">Starting a new ride? Host one instead</button>
+            </div>
 
-            <button type="button" class="map-pin" style="position:absolute; left:160px; top:130px; transform:translate(-50%,-100%);" data-rider="you">
-              <span class="map-pin-label you">You</span>
-              <span class="pin-badge you">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="5.5" cy="17" r="2.8" stroke="#1A0E00" stroke-width="1.6"/><circle cx="18.5" cy="17" r="2.8" stroke="#1A0E00" stroke-width="1.6"/><path d="M8 17h4l2.2-6.2h3.3M8 17l2.6-6.6 4 1.8M9.6 9.4h3.4" stroke="#1A0E00" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              </span>
-            </button>
-            <button type="button" class="map-pin" style="position:absolute; left:104px; top:82px; transform:translate(-50%,-100%);" data-rider="rider_alex82">
-              <span class="map-pin-label">rider_alex82</span>
-              <span class="pin-badge">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="5.5" cy="17" r="2.8" stroke="#F5F6F7" stroke-width="1.7"/><circle cx="18.5" cy="17" r="2.8" stroke="#F5F6F7" stroke-width="1.7"/><path d="M8 17h4l2.2-6.2h3.3M8 17l2.6-6.6 4 1.8M9.6 9.4h3.4" stroke="#F5F6F7" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              </span>
-            </button>
-            <button type="button" class="map-pin" style="position:absolute; left:210px; top:172px; transform:translate(-50%,-100%);" data-rider="maria_ktm">
-              <span class="map-pin-label">maria_ktm</span>
-              <span class="pin-badge">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="5.5" cy="17" r="2.8" stroke="#F5F6F7" stroke-width="1.7"/><circle cx="18.5" cy="17" r="2.8" stroke="#F5F6F7" stroke-width="1.7"/><path d="M8 17h4l2.2-6.2h3.3M8 17l2.6-6.6 4 1.8M9.6 9.4h3.4" stroke="#F5F6F7" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              </span>
-            </button>
-            <button type="button" class="map-pin" style="position:absolute; left:186px; top:198px; transform:translate(-50%,-100%);" data-rider="jc_ridesout">
-              <span class="map-pin-label">jc_ridesout</span>
-              <span class="pin-badge">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="5.5" cy="17" r="2.8" stroke="#F5F6F7" stroke-width="1.7"/><circle cx="18.5" cy="17" r="2.8" stroke="#F5F6F7" stroke-width="1.7"/><path d="M8 17h4l2.2-6.2h3.3M8 17l2.6-6.6 4 1.8M9.6 9.4h3.4" stroke="#F5F6F7" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              </span>
-            </button>
-          </div>
+            <div id="hostRoster" style="display:none; flex-direction:column;">
+              <div class="code-card raised">
+                <div class="app-caption">Share code</div>
+                <div class="code-value">K4XQPZ</div>
+              </div>
+              <p class="section-label" style="margin-top:0;">Riders (<span id="rosterCount">2</span>)</p>
+              <div class="roster-card raised" id="rosterCard">
+                <div class="rider-row" data-rider-id="rider_alex82">
+                  <div class="rider-avatar"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="5.5" cy="17" r="2.8" stroke="#F5F6F7" stroke-width="1.7"/><circle cx="18.5" cy="17" r="2.8" stroke="#F5F6F7" stroke-width="1.7"/><path d="M8 17h4l2.2-6.2h3.3M8 17l2.6-6.6 4 1.8M9.6 9.4h3.4" stroke="#F5F6F7" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                  <span class="rider-name">rider_alex82</span>
+                  <button type="button" class="remove-rider-btn" aria-label="Remove rider_alex82">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="#FF5A5F" stroke-width="1.7"/><path d="M9.5 9.5l5 5m0-5-5 5" stroke="#FF5A5F" stroke-width="1.7" stroke-linecap="round"/></svg>
+                  </button>
+                </div>
+                <div class="rider-row" data-rider-id="maria_ktm">
+                  <div class="rider-avatar"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="5.5" cy="17" r="2.8" stroke="#F5F6F7" stroke-width="1.7"/><circle cx="18.5" cy="17" r="2.8" stroke="#F5F6F7" stroke-width="1.7"/><path d="M8 17h4l2.2-6.2h3.3M8 17l2.6-6.6 4 1.8M9.6 9.4h3.4" stroke="#F5F6F7" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                  <span class="rider-name">maria_ktm</span>
+                  <button type="button" class="remove-rider-btn" aria-label="Remove maria_ktm">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="#FF5A5F" stroke-width="1.7"/><path d="M9.5 9.5l5 5m0-5-5 5" stroke="#FF5A5F" stroke-width="1.7" stroke-linecap="round"/></svg>
+                  </button>
+                </div>
+                <p class="empty-roster" id="emptyRoster" style="display:none;">No one has joined yet — share the code above.</p>
+              </div>
+            </div>
 
-          <button type="button" class="rider-row" data-rider="rider_alex82">
-            <div class="rider-avatar"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="5.5" cy="17" r="2.8" stroke="#F5F6F7" stroke-width="1.7"/><circle cx="18.5" cy="17" r="2.8" stroke="#F5F6F7" stroke-width="1.7"/><path d="M8 17h4l2.2-6.2h3.3M8 17l2.6-6.6 4 1.8M9.6 9.4h3.4" stroke="#F5F6F7" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-            <span class="rider-name">rider_alex82</span>
-            <span class="rider-distance">0.4 mi</span>
-          </button>
-          <button type="button" class="rider-row" data-rider="maria_ktm">
-            <div class="rider-avatar"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="5.5" cy="17" r="2.8" stroke="#F5F6F7" stroke-width="1.7"/><circle cx="18.5" cy="17" r="2.8" stroke="#F5F6F7" stroke-width="1.7"/><path d="M8 17h4l2.2-6.2h3.3M8 17l2.6-6.6 4 1.8M9.6 9.4h3.4" stroke="#F5F6F7" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-            <span class="rider-name">maria_ktm</span>
-            <span class="rider-distance">0.6 mi</span>
-          </button>
-          <button type="button" class="rider-row" data-rider="jc_ridesout">
-            <div class="rider-avatar"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="5.5" cy="17" r="2.8" stroke="#F5F6F7" stroke-width="1.7"/><circle cx="18.5" cy="17" r="2.8" stroke="#F5F6F7" stroke-width="1.7"/><path d="M8 17h4l2.2-6.2h3.3M8 17l2.6-6.6 4 1.8M9.6 9.4h3.4" stroke="#F5F6F7" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-            <span class="rider-name">jc_ridesout</span>
-            <span class="rider-distance">0.8 mi</span>
-          </button>
-        </div>
-      </div>
-
-      <!-- GROUP RIDE TAB -->
-      <div class="pane" id="pane-group">
-        <div class="pane-scroll" style="justify-content:center;">
-          <div class="icon-badge raised">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none"><circle cx="9" cy="8" r="2.6" stroke="#FF8A2B" stroke-width="1.6"/><path d="M3.5 18c0-3 2.5-5 5.5-5s5.5 2 5.5 5" stroke="#FF8A2B" stroke-width="1.6" stroke-linecap="round"/><circle cx="17" cy="9" r="2" stroke="#FF8A2B" stroke-width="1.6"/><path d="M13.8 18c.3-2.3 2-4 4.2-4s3.9 1.7 4 4" stroke="#FF8A2B" stroke-width="1.6" stroke-linecap="round"/></svg>
+            <div id="hostMemberCard" style="display:none; flex-direction:column;">
+              <div class="icon-badge raised">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none"><circle cx="7" cy="19" r="3" stroke="#FF8A2B" stroke-width="1.7"/><circle cx="20" cy="19" r="3" stroke="#FF8A2B" stroke-width="1.7"/><path d="M9.5 19h5l2.6-7.2h3.7M9.5 19l3-7.6 4.5 2M11.5 10.4h4" stroke="#FF8A2B" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+              <p class="app-heading" style="margin:0 0 8px;">You're in this ride</p>
+              <p class="app-body" style="margin:0;">Ride ID: rd_9f1c2e0a — only the host can add or remove riders.</p>
+            </div>
           </div>
-          <p class="app-heading" style="margin:0 0 8px;">Group Ride</p>
-          <p class="app-body" style="margin:0 0 24px;">Enter the 6-character code shared by the ride's organizer.</p>
-          <div class="code-input">736KI7</div>
-          <div class="error-box">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="#FF5A5F" stroke-width="1.8"/><path d="M12 8v5" stroke="#FF5A5F" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="16" r="1" fill="#FF5A5F"/></svg>
-            <span>That code doesn't match an active ride.</span>
-          </div>
-          <button class="app-btn primary" id="joinBtn">Join</button>
-          <button class="text-link" id="createLinkBtn">Starting a new group ride? Create one</button>
         </div>
       </div>
 
@@ -366,11 +438,21 @@
       <div class="pane" id="pane-settings">
         <div class="pane-scroll">
           <div class="settings-avatar">
-            <div class="avatar-ring">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="3.5" stroke="#9AA3AE" stroke-width="1.7"/><path d="M5 20c0-3.9 3.1-7 7-7s7 3.1 7 7" stroke="#9AA3AE" stroke-width="1.7"/></svg>
-            </div>
-            <p class="app-heading" style="margin:0;">Signed in as: me</p>
-            <p class="app-caption">Accounts aren't built yet — riderId is hardcoded for this prototype.</p>
+            <button type="button" class="avatar-tap-area" id="avatarTapArea">
+              <div class="avatar-ring raised" id="settingsAvatarRing" style="background:#FF8A2B;">
+                <svg width="34" height="34" viewBox="0 0 24 24" fill="none"><circle cx="5.5" cy="17" r="2.8" stroke="#F5F6F7" stroke-width="1.7"/><circle cx="18.5" cy="17" r="2.8" stroke="#F5F6F7" stroke-width="1.7"/><path d="M8 17h4l2.2-6.2h3.3M8 17l2.6-6.6 4 1.8M9.6 9.4h3.4" stroke="#F5F6F7" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+              <span class="avatar-edit-badge">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M4 20l1-4L16 5l3 3L8 19l-4 1Z" stroke="#1A0E00" stroke-width="1.8" stroke-linejoin="round"/></svg>
+              </span>
+            </button>
+
+            <button type="button" class="name-row" id="nameRow">
+              <span class="app-heading" id="nameText" style="margin:0;">Rider</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M4 20l1-4L16 5l3 3L8 19l-4 1Z" stroke="#6B7280" stroke-width="1.8" stroke-linejoin="round"/></svg>
+            </button>
+            <input class="name-input" id="nameInput" style="display:none;" maxlength="24" placeholder="Rider name">
+            <p class="app-caption">Accounts aren't built yet — this profile is local to this device.</p>
           </div>
 
           <div class="section-label-row">
@@ -427,11 +509,7 @@
     <div class="tabbar">
       <button class="tabbar-btn" data-tab="map" aria-current="true">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="5.5" cy="17" r="2.8" stroke="currentColor" stroke-width="1.7"/><circle cx="18.5" cy="17" r="2.8" stroke="currentColor" stroke-width="1.7"/><path d="M8 17h4l2.2-6.2h3.3M8 17l2.6-6.6 4 1.8M9.6 9.4h3.4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        <span>Public</span>
-      </button>
-      <button class="tabbar-btn" data-tab="group">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="9" cy="8" r="2.6" stroke="currentColor" stroke-width="1.6"/><path d="M3.5 18c0-3 2.5-5 5.5-5s5.5 2 5.5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="17" cy="9" r="2" stroke="currentColor" stroke-width="1.6"/><path d="M13.8 18c.3-2.3 2-4 4.2-4s3.9 1.7 4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-        <span>Group Ride</span>
+        <span>Map</span>
       </button>
       <button class="tabbar-btn" data-tab="settings">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.7"/><path d="M19.4 13a7.7 7.7 0 0 0 0-2l1.9-1.5-2-3.4-2.3.5a7.6 7.6 0 0 0-1.7-1l-.3-2.4H9.9l-.3 2.4a7.6 7.6 0 0 0-1.7 1l-2.3-.5-2 3.4L5.5 11a7.7 7.7 0 0 0 0 2l-1.9 1.5 2 3.4 2.3-.5a7.6 7.6 0 0 0 1.7 1l.3 2.4h4.1l.3-2.4a7.6 7.6 0 0 0 1.7-1l2.3.5 2-3.4L19.4 13Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
@@ -439,12 +517,12 @@
       </button>
     </div>
 
-    <!-- Create Ride modal sheet -->
+    <!-- Create/Host Ride modal sheet -->
     <div class="sheet-backdrop" id="createBackdrop">
       <div class="sheet" style="height:66%;">
         <div class="sheet-grip"></div>
         <div class="sheet-header">
-          <span class="app-heading">Start a Ride</span>
+          <span class="app-heading">Host a ride</span>
           <button class="sheet-close" id="createClose">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
           </button>
@@ -452,7 +530,7 @@
         <div class="icon-badge raised">
           <svg width="28" height="28" viewBox="0 0 24 24" fill="none"><circle cx="7" cy="19" r="3" stroke="#FF8A2B" stroke-width="1.7"/><circle cx="20" cy="19" r="3" stroke="#FF8A2B" stroke-width="1.7"/><path d="M9.5 19h5l2.6-7.2h3.7M9.5 19l3-7.6 4.5 2M11.5 10.4h4" stroke="#FF8A2B" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </div>
-        <p class="app-body" style="margin:0 0 24px;">You'll get a code to share with the riders joining you. It expires automatically after 12 hours of inactivity.</p>
+        <p class="app-body" style="margin:0 0 24px;">You'll get a code to share with the riders joining you, and can add or remove riders as host. It expires automatically after 12 hours of inactivity.</p>
         <button class="app-btn primary" id="createRideBtn">Create Ride</button>
       </div>
     </div>
@@ -503,10 +581,21 @@
         </button>
       </div>
     </div>
+
+    <!-- Avatar picker modal sheet -->
+    <div class="sheet-backdrop" id="avatarBackdrop">
+      <div class="sheet" style="height:auto;">
+        <div class="sheet-grip"></div>
+        <p class="app-heading" style="margin:0 0 4px; text-align:center;">Choose an avatar</p>
+        <p class="app-caption" style="margin:0 0 20px; text-align:center;">Pick how other riders will see you on the road.</p>
+        <div class="avatar-grid" id="avatarGrid"></div>
+        <button class="app-btn primary" id="avatarDoneBtn" style="margin-top:16px;">Done</button>
+      </div>
+    </div>
   </div>
 </div>
 
-<p class="credit">Static preview built to match <code>mobile/src/navigation/index.tsx</code>, <code>mobile/src/theme.ts</code>, and the screens in <code>mobile/src/screens/</code> — a persistent Map tab, Group Ride, and Settings in a bottom tab bar, with an active ride as a floating bar rather than its own screen. The real app also needs the backend running and the LiveKit voice connection, neither of which exist on this page.</p>
+<p class="credit">Static preview built to match <code>mobile/src/navigation/index.tsx</code>, <code>mobile/src/theme.ts</code>, and the screens in <code>mobile/src/screens/</code> — a persistent Map tab (with an in-screen Public/Host switcher, so only one map ever loads) and Settings in a bottom tab bar, with an active ride as a floating bar rather than its own screen. The real app also needs the backend running and the LiveKit voice connection, neither of which exist on this page.</p>
 
 <script>
   const panes = document.querySelectorAll('.pane');
@@ -518,8 +607,9 @@
   const rideSheetBackdrop = document.getElementById('rideSheetBackdrop');
   const talkBtn = document.getElementById('talkBtn');
 
-  const titles = { map: 'Public', group: 'Group Ride', settings: 'Settings' };
+  const titles = { map: 'Map', settings: 'Settings' };
   let rideActive = false;
+  let isHost = false;
 
   function showTab(tab) {
     panes.forEach((p) => (p.dataset.active = String(p.id === 'pane-' + tab)));
@@ -527,20 +617,42 @@
     headerTitle.textContent = titles[tab];
   }
 
-  function setRideActive(value) {
+  // ---- Public/Host segmented switcher ----
+  const segmentButtons = document.querySelectorAll('.segment-btn');
+  const segmentPanes = document.querySelectorAll('.segment-pane');
+  function showSegment(segment) {
+    segmentButtons.forEach((b) => (b.dataset.active = String(b.dataset.segment === segment)));
+    segmentPanes.forEach((p) => (p.dataset.active = String(p.id === 'segment-' + segment)));
+  }
+  segmentButtons.forEach((b) => b.addEventListener('click', () => showSegment(b.dataset.segment)));
+
+  // ---- Host panel: join/host form vs roster vs read-only member card ----
+  const hostJoinForm = document.getElementById('hostJoinForm');
+  const hostRoster = document.getElementById('hostRoster');
+  const hostMemberCard = document.getElementById('hostMemberCard');
+  function renderHostPanel() {
+    const inRide = rideActive;
+    hostJoinForm.style.display = inRide ? 'none' : 'flex';
+    hostRoster.style.display = inRide && isHost ? 'flex' : 'none';
+    hostMemberCard.style.display = inRide && !isHost ? 'flex' : 'none';
+  }
+
+  function setRideActive(value, hostFlag) {
     rideActive = value;
+    if (value) isHost = !!hostFlag;
     rideBar.dataset.visible = String(value);
     rideToggle.setAttribute('aria-pressed', String(value));
+    renderHostPanel();
   }
 
   tabButtons.forEach((b) => b.addEventListener('click', () => showTab(b.dataset.tab)));
 
-  rideToggle.addEventListener('click', () => setRideActive(!rideActive));
-  document.getElementById('joinBtn').addEventListener('click', () => setRideActive(true));
+  rideToggle.addEventListener('click', () => setRideActive(!rideActive, isHost));
+  document.getElementById('joinBtn').addEventListener('click', () => setRideActive(true, false));
   document.getElementById('createLinkBtn').addEventListener('click', () => (createBackdrop.dataset.open = 'true'));
   document.getElementById('createClose').addEventListener('click', () => (createBackdrop.dataset.open = 'false'));
   document.getElementById('createRideBtn').addEventListener('click', () => {
-    setRideActive(true);
+    setRideActive(true, true);
     createBackdrop.dataset.open = 'false';
   });
 
@@ -566,19 +678,234 @@
     });
   });
 
-  // Tapping a pin or a roster row highlights the other — closing the
-  // "same rider shown twice with no visual link" gap.
+  // Removing a rider from the host roster — local/visual only, same as the
+  // real app: there's no ride-membership API yet, just host-side mock state.
+  const rosterCard = document.getElementById('rosterCard');
+  const rosterCountEl = document.getElementById('rosterCount');
+  const emptyRosterEl = document.getElementById('emptyRoster');
+  function updateRosterCount() {
+    const count = rosterCard.querySelectorAll('.rider-row').length;
+    rosterCountEl.textContent = String(count);
+    emptyRosterEl.style.display = count === 0 ? 'block' : 'none';
+  }
+  rosterCard.querySelectorAll('.remove-rider-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      btn.closest('.rider-row').remove();
+      updateRosterCount();
+    });
+  });
+
+  // Tapping a pin highlights it (no roster list to link it to anymore, but
+  // selection still shows which rider's badge you're looking at).
   function setSelectedRider(id) {
     document.querySelectorAll('[data-rider]').forEach((el) => {
       el.dataset.selected = String(el.dataset.rider === id);
     });
   }
-  document.querySelectorAll('.map-pin[data-rider], .rider-row[data-rider]').forEach((el) => {
+  document.querySelectorAll('.map-pin[data-rider]').forEach((el) => {
     if (el.dataset.rider === 'you') return;
     el.addEventListener('click', () => {
       const alreadySelected = el.dataset.selected === 'true';
       setSelectedRider(alreadySelected ? null : el.dataset.rider);
     });
+  });
+
+  // ---- Map pinch-to-zoom / pan / +- buttons ----
+  // Pointer Events fire per-touch (mouse included), so tracking active
+  // pointers by id covers pinch (2 pointers) and drag-pan (1 pointer) with
+  // no extra library — same reasoning as the plain PanResponder/Animated
+  // approach used in the real app's MapScreen.
+  (function setUpMapZoom() {
+    const wrap = document.getElementById('mapWrap');
+    const content = document.getElementById('mapZoomContent');
+    const recenterBtn = document.getElementById('recenterBtn');
+    const MIN_ZOOM = 1;
+    const MAX_ZOOM = 4;
+    const ZOOM_STEP = 0.75;
+
+    let scale = 1;
+    let tx = 0;
+    let ty = 0;
+    const pointers = new Map();
+    let pinchStartDistance = 0;
+    let pinchStartScale = 1;
+    let dragStart = { x: 0, y: 0 };
+    let panStart = { x: 0, y: 0 };
+    let dragThresholdMet = false;
+
+    function clamp(v, min, max) { return Math.min(Math.max(v, min), max); }
+
+    function maxPan(currentScale) {
+      const rect = wrap.getBoundingClientRect();
+      return { x: ((currentScale - 1) * rect.width) / 2, y: ((currentScale - 1) * rect.height) / 2 };
+    }
+
+    function applyPan(x, y, currentScale) {
+      const bounds = maxPan(currentScale);
+      tx = clamp(x, -bounds.x, bounds.x);
+      ty = clamp(y, -bounds.y, bounds.y);
+    }
+
+    function render() {
+      content.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
+      recenterBtn.dataset.visible = String(scale > MIN_ZOOM + 0.02);
+    }
+
+    function setZoom(next) {
+      scale = clamp(next, MIN_ZOOM, MAX_ZOOM);
+      applyPan(tx, ty, scale);
+      render();
+    }
+
+    function resetZoom() {
+      scale = MIN_ZOOM;
+      tx = 0;
+      ty = 0;
+      render();
+    }
+
+    function distance(pts) {
+      const [a, b] = pts;
+      return Math.hypot(a.x - b.x, a.y - b.y);
+    }
+
+    // Only claim the pointer (via setPointerCapture) once a gesture is
+    // unambiguously a pinch or an actual drag, never on pointerdown itself —
+    // otherwise a plain tap on a zoom button or a map pin never reaches its
+    // own click handler. Mirrors the RN version's onStartShouldSetPanResponder
+    // returning false for a single stationary touch.
+    wrap.addEventListener('pointerdown', (e) => {
+      if (e.target.closest('.zoom-controls')) return;
+      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pointers.size === 2) {
+        pinchStartDistance = distance([...pointers.values()]);
+        pinchStartScale = scale;
+        pointers.forEach((_, id) => wrap.setPointerCapture(id));
+      } else if (pointers.size === 1) {
+        dragStart = { x: e.clientX, y: e.clientY };
+        panStart = { x: tx, y: ty };
+        dragThresholdMet = false;
+      }
+    });
+
+    wrap.addEventListener('pointermove', (e) => {
+      if (!pointers.has(e.pointerId)) return;
+      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+      if (pointers.size === 2) {
+        const dist = distance([...pointers.values()]);
+        if (pinchStartDistance > 0) {
+          const nextScale = clamp(pinchStartScale * (dist / pinchStartDistance), MIN_ZOOM, MAX_ZOOM);
+          scale = nextScale;
+          applyPan(tx, ty, nextScale);
+          render();
+        }
+      } else if (pointers.size === 1 && scale > MIN_ZOOM) {
+        const dx = e.clientX - dragStart.x;
+        const dy = e.clientY - dragStart.y;
+        if (!dragThresholdMet) {
+          if (Math.abs(dx) < 5 && Math.abs(dy) < 5) return;
+          dragThresholdMet = true;
+          wrap.setPointerCapture(e.pointerId);
+        }
+        applyPan(panStart.x + dx, panStart.y + dy, scale);
+        render();
+      }
+    });
+
+    function endPointer(e) {
+      pointers.delete(e.pointerId);
+      pinchStartDistance = 0;
+      if (pointers.size === 1) {
+        const [remaining] = pointers.values();
+        dragStart = { x: remaining.x, y: remaining.y };
+        panStart = { x: tx, y: ty };
+      }
+      if (scale <= MIN_ZOOM) resetZoom();
+    }
+    wrap.addEventListener('pointerup', endPointer);
+    wrap.addEventListener('pointercancel', endPointer);
+
+    // Desktop convenience: wheel-to-zoom (pinch isn't available with a mouse).
+    wrap.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      setZoom(scale - e.deltaY * 0.002);
+    }, { passive: false });
+
+    document.getElementById('zoomInBtn').addEventListener('click', () => setZoom(scale + ZOOM_STEP));
+    document.getElementById('zoomOutBtn').addEventListener('click', () => setZoom(scale - ZOOM_STEP));
+    recenterBtn.addEventListener('click', resetZoom);
+
+    render();
+  })();
+
+  // ---- Settings: avatar picker + editable display name ----
+  const AVATAR_PRESETS = [
+    { id: 'ember', bg: '#FF8A2B', icon: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none"><circle cx="5.5" cy="17" r="2.8" stroke="#F5F6F7" stroke-width="1.8"/><circle cx="18.5" cy="17" r="2.8" stroke="#F5F6F7" stroke-width="1.8"/><path d="M8 17h4l2.2-6.2h3.3M8 17l2.6-6.6 4 1.8M9.6 9.4h3.4" stroke="#F5F6F7" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>' },
+    { id: 'ridge', bg: '#4C8BF5', icon: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none"><circle cx="5.5" cy="17" r="2.8" stroke="#F5F6F7" stroke-width="1.8"/><circle cx="18.5" cy="17" r="2.8" stroke="#F5F6F7" stroke-width="1.8"/><path d="M8 17h4l2.2-6.2h3.3M8 17l2.6-6.6 4 1.8" stroke="#F5F6F7" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.5 4.5 11 9h2.6L12 13" stroke="#F5F6F7" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>' },
+    { id: 'moss', bg: '#3DD68C', icon: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M4.5 12a7.5 6 0 0 1 15 0v2a2 2 0 0 1-2 2h-11a2 2 0 0 1-2-2v-2Z" stroke="#0B0D10" stroke-width="1.8"/><path d="M9 16v2M15 16v2" stroke="#0B0D10" stroke-width="1.8" stroke-linecap="round"/></svg>' },
+    { id: 'dusk', bg: '#8B5CF6', icon: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M8 4 5 20M16 4l3 16M12 4v16" stroke="#0B0D10" stroke-width="1.8" stroke-linecap="round" stroke-dasharray="1 3.5"/></svg>' },
+    { id: 'blaze', bg: '#FF5A5F', icon: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="13" r="8" stroke="#0B0D10" stroke-width="1.8"/><path d="M12 13 16 9" stroke="#0B0D10" stroke-width="1.8" stroke-linecap="round"/><path d="M12 5v1.5M6 8l1 1M18 8l-1 1" stroke="#0B0D10" stroke-width="1.8" stroke-linecap="round"/></svg>' },
+    { id: 'gold', bg: '#FBBF24', icon: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M4 20l7-15h2l7 15M8 15h8" stroke="#1A0E00" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>' },
+    { id: 'slate', bg: '#64748B', icon: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8.5" stroke="#F5F6F7" stroke-width="1.8"/><path d="M15 9l-2 6-6 2 2-6 6-2Z" stroke="#F5F6F7" stroke-width="1.6" stroke-linejoin="round"/></svg>' },
+    { id: 'rose', bg: '#EC4899', icon: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M12 21s-6.5-5.6-6.5-10.8A6.5 6.5 0 0 1 12 3.7a6.5 6.5 0 0 1 6.5 6.5C18.5 15.4 12 21 12 21Z" stroke="#0B0D10" stroke-width="1.8" stroke-linejoin="round"/><circle cx="12" cy="10.2" r="2.1" stroke="#0B0D10" stroke-width="1.6"/></svg>' },
+  ];
+
+  let currentAvatarId = 'ember';
+  const settingsAvatarRing = document.getElementById('settingsAvatarRing');
+  const avatarBackdrop = document.getElementById('avatarBackdrop');
+  const avatarGrid = document.getElementById('avatarGrid');
+
+  function applyAvatar(id) {
+    const preset = AVATAR_PRESETS.find((p) => p.id === id) || AVATAR_PRESETS[0];
+    currentAvatarId = preset.id;
+    settingsAvatarRing.style.background = preset.bg;
+    settingsAvatarRing.innerHTML = preset.icon;
+    avatarGrid.querySelectorAll('.avatar-grid-item').forEach((item) => {
+      item.dataset.selected = String(item.dataset.avatarId === preset.id);
+    });
+  }
+
+  AVATAR_PRESETS.forEach((preset) => {
+    const item = document.createElement('button');
+    item.type = 'button';
+    item.className = 'avatar-grid-item';
+    item.dataset.avatarId = preset.id;
+    item.innerHTML = `
+      <span class="avatar-swatch" style="background:${preset.bg};">${preset.icon}</span>
+      <span class="avatar-check">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" fill="#FF8A2B"/><path d="M7.5 12.5l3 3 6-6.5" stroke="#1A0E00" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </span>
+    `;
+    item.addEventListener('click', () => {
+      applyAvatar(preset.id);
+      avatarBackdrop.dataset.open = 'false';
+    });
+    avatarGrid.appendChild(item);
+  });
+  applyAvatar(currentAvatarId);
+
+  document.getElementById('avatarTapArea').addEventListener('click', () => (avatarBackdrop.dataset.open = 'true'));
+  document.getElementById('avatarDoneBtn').addEventListener('click', () => (avatarBackdrop.dataset.open = 'false'));
+
+  const nameRow = document.getElementById('nameRow');
+  const nameText = document.getElementById('nameText');
+  const nameInput = document.getElementById('nameInput');
+  nameRow.addEventListener('click', () => {
+    nameInput.value = nameText.textContent;
+    nameRow.style.display = 'none';
+    nameInput.style.display = 'block';
+    nameInput.focus();
+  });
+  function commitName() {
+    const value = nameInput.value.trim() || 'Rider';
+    nameText.textContent = value;
+    nameInput.style.display = 'none';
+    nameRow.style.display = 'flex';
+  }
+  nameInput.addEventListener('blur', commitName);
+  nameInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') commitName();
   });
 
   if ('serviceWorker' in navigator) {
