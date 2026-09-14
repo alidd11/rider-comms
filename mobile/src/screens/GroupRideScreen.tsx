@@ -2,15 +2,14 @@
 import * as React from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import type { RootStackParamList } from '../navigation';
 import { ApiError, RiderCommsClient } from '../api/client';
 import { API_BASE_URL } from '../config';
 import { colors, spacing, radii, type, MIN_TOUCH_TARGET } from '../theme';
+import { useRide } from '../ride/RideContext';
+import { RideBar } from '../ride/RideBar';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'JoinRide'>;
-
-export function JoinRideScreen({ navigation }: Props): React.JSX.Element {
+export function GroupRideScreen(): React.JSX.Element {
+  const { activeRide, startRide } = useRide();
   const [code, setCode] = React.useState('');
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -21,7 +20,7 @@ export function JoinRideScreen({ navigation }: Props): React.JSX.Element {
     try {
       const client = new RiderCommsClient(API_BASE_URL);
       const { rideId } = await client.joinRide(code.trim().toUpperCase(), 'me');
-      navigation.replace('Ride', { rideId });
+      startRide({ rideId });
     } catch (err) {
       if (err instanceof ApiError && err.status === 429) {
         setError('Too many attempts — wait a bit before trying again.');
@@ -33,56 +32,66 @@ export function JoinRideScreen({ navigation }: Props): React.JSX.Element {
     } finally {
       setLoading(false);
     }
-  }, [code, navigation]);
+  }, [code, startRide]);
 
   const canSubmit = !loading && code.length === 6;
 
   return (
     <View style={styles.container}>
-      <View style={styles.iconBadge}>
-        <Ionicons name="key" size={32} color={colors.accent} />
-      </View>
-      <Text style={styles.title}>Group Ride</Text>
-      <Text style={styles.body}>Enter the 6-character code shared by the ride's organizer.</Text>
-
-      <TextInput
-        style={[styles.input, error && styles.inputError]}
-        placeholder="ABCDEF"
-        placeholderTextColor={colors.textMuted}
-        autoCapitalize="characters"
-        autoCorrect={false}
-        maxLength={6}
-        value={code}
-        onChangeText={(text) => {
-          setCode(text);
-          if (error) setError(null);
-        }}
-      />
-
-      {error && (
-        <View style={styles.errorBox}>
-          <Ionicons name="alert-circle" size={18} color={colors.danger} />
-          <Text style={styles.errorText}>{error}</Text>
+      <View style={styles.form}>
+        <View style={styles.iconBadge}>
+          <Ionicons name="key" size={32} color={colors.accent} />
         </View>
-      )}
+        <Text style={styles.title}>Group Ride</Text>
+        <Text style={styles.body}>Enter the 6-character code shared by the ride's organizer.</Text>
 
-      <Pressable
-        style={({ pressed }) => [
-          styles.button,
-          pressed && canSubmit && styles.buttonPressed,
-          !canSubmit && styles.buttonDisabled,
-        ]}
-        onPress={handleJoin}
-        disabled={!canSubmit}
-      >
-        {loading ? <ActivityIndicator color={colors.accentText} /> : <Text style={styles.buttonText}>Join</Text>}
-      </Pressable>
+        <TextInput
+          style={[styles.input, error && styles.inputError]}
+          placeholder="ABCDEF"
+          placeholderTextColor={colors.textMuted}
+          autoCapitalize="characters"
+          autoCorrect={false}
+          maxLength={6}
+          value={code}
+          editable={!activeRide}
+          onChangeText={(text) => {
+            setCode(text);
+            if (error) setError(null);
+          }}
+        />
+
+        {error && (
+          <View style={styles.errorBox}>
+            <Ionicons name="alert-circle" size={18} color={colors.danger} />
+            <Text style={styles.errorText}>{error}</Text>
+          </View>
+        )}
+
+        {activeRide ? (
+          <Text style={styles.alreadyInRide}>You're already in a ride — leave it first to join another.</Text>
+        ) : (
+          <Pressable
+            style={({ pressed }) => [
+              styles.button,
+              pressed && canSubmit && styles.buttonPressed,
+              !canSubmit && styles.buttonDisabled,
+            ]}
+            onPress={handleJoin}
+            disabled={!canSubmit}
+          >
+            {loading ? <ActivityIndicator color={colors.accentText} /> : <Text style={styles.buttonText}>Join</Text>}
+          </Pressable>
+        )}
+      </View>
+
+      <RideBar />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background, padding: spacing.lg, justifyContent: 'center' },
+  container: { flex: 1, backgroundColor: colors.background, padding: spacing.lg, justifyContent: 'space-between' },
+  form: { justifyContent: 'center', flex: 1 },
   iconBadge: {
     width: 56,
     height: 56,
@@ -118,6 +127,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   errorText: { ...type.body, color: colors.danger, flex: 1 },
+  alreadyInRide: { ...type.caption, textAlign: 'center' },
   button: {
     minHeight: MIN_TOUCH_TARGET,
     backgroundColor: colors.accent,
