@@ -198,9 +198,29 @@
   .rider-name { font-size: 16px; color: var(--app-text); flex: 1; }
   .rider-distance { font-size: 13px; color: var(--app-text-muted); font-variant-numeric: tabular-nums; }
 
-  /* Profile */
-  .profile-pane { align-items: center; justify-content: center; text-align: center; flex: 1; gap: 6px; }
+  /* Settings */
+  .settings-avatar { align-items: center; text-align: center; gap: 4px; margin-bottom: 24px; }
   .avatar-ring { width: 72px; height: 72px; border-radius: 999px; background: var(--app-surface); border: 1px solid var(--app-border); display: flex; align-items: center; justify-content: center; margin-bottom: 8px; }
+  .section-label { font-size: 13px; font-weight: 500; color: var(--app-text-muted); text-transform: uppercase; letter-spacing: 1px; margin: 20px 0 8px; }
+  .settings-section { background: var(--app-surface); border-radius: 16px; overflow: hidden; }
+  .tier-row {
+    display: flex; align-items: flex-start; gap: 16px;
+    padding: 16px; border-bottom: 1px solid var(--app-border);
+    background: none; border-left: none; border-right: none; border-top: none;
+    width: 100%; text-align: left; cursor: pointer; font-family: inherit;
+  }
+  .tier-row:last-child { border-bottom: none; }
+  .tier-row[data-selected="true"] { background: var(--app-surface-raised); }
+  .tier-radio { width: 22px; height: 22px; border-radius: 999px; border: 2px solid var(--app-accent); display: flex; align-items: center; justify-content: center; flex: none; margin-top: 2px; }
+  .tier-radio-dot { width: 10px; height: 10px; border-radius: 999px; background: var(--app-accent); display: none; }
+  .tier-row[data-selected="true"] .tier-radio-dot { display: block; }
+  .tier-info { flex: 1; }
+  .tier-name-row { display: flex; justify-content: space-between; align-items: baseline; }
+  .tier-name { font-size: 16px; font-weight: 700; color: var(--app-text); }
+  .tier-radius { font-size: 13px; font-weight: 700; color: var(--app-accent); }
+  .tier-blurb { font-size: 13px; color: var(--app-text-muted); margin-top: 4px; }
+  .about-row { display: flex; justify-content: space-between; padding: 16px; }
+  .about-label { font-size: 16px; color: var(--app-text); }
 
   .credit { font-size: 12px; color: var(--page-text-muted); max-width: 460px; text-align: center; line-height: 1.6; }
   .credit code { font-family: 'SF Mono', ui-monospace, monospace; background: var(--page-bg-raised); padding: 1px 5px; border-radius: 5px; }
@@ -212,7 +232,7 @@
 <div class="masthead">
   <p class="eyebrow">Design preview — not the running app</p>
   <h1>Rider Comms, map-first with bottom tabs</h1>
-  <p>Install this to your home screen (share icon → Add to Home Screen) to see it full-screen like a real app. A persistent Map tab, Group Ride, and Profile in a bottom tab bar, with an active ride as a floating bar over any tab.</p>
+  <p>Install this to your home screen (share icon → Add to Home Screen) to see it full-screen like a real app. A persistent Map tab, Group Ride, and Settings in a bottom tab bar, with an active ride as a floating bar over any tab.</p>
 </div>
 
 <div class="toggle-row">
@@ -313,14 +333,49 @@
         </div>
       </div>
 
-      <!-- PROFILE TAB -->
-      <div class="pane" id="pane-profile">
-        <div class="pane-scroll profile-pane">
-          <div class="avatar-ring">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="3.5" stroke="#9AA3AE" stroke-width="1.7"/><path d="M5 20c0-3.9 3.1-7 7-7s7 3.1 7 7" stroke="#9AA3AE" stroke-width="1.7"/></svg>
+      <!-- SETTINGS TAB -->
+      <div class="pane" id="pane-settings">
+        <div class="pane-scroll">
+          <div class="settings-avatar">
+            <div class="avatar-ring">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="3.5" stroke="#9AA3AE" stroke-width="1.7"/><path d="M5 20c0-3.9 3.1-7 7-7s7 3.1 7 7" stroke="#9AA3AE" stroke-width="1.7"/></svg>
+            </div>
+            <p class="app-heading" style="margin:0;">Signed in as: me</p>
+            <p class="app-caption">Accounts aren't built yet — riderId is hardcoded for this prototype.</p>
           </div>
-          <p class="app-heading" style="margin:0;">Signed in as: me</p>
-          <p class="app-caption">Accounts aren't built yet — this is a placeholder for settings later.</p>
+
+          <p class="section-label">Zone Radius</p>
+          <div class="settings-section" id="tierSection">
+            <button class="tier-row" data-tier="free" data-selected="true">
+              <span class="tier-radio"><span class="tier-radio-dot"></span></span>
+              <span class="tier-info">
+                <span class="tier-name-row"><span class="tier-name">Free</span><span class="tier-radius">1 mi</span></span>
+                <span class="tier-blurb">The default — good for a stoplight-to-stoplight ride.</span>
+              </span>
+            </button>
+            <button class="tier-row" data-tier="premium">
+              <span class="tier-radio"><span class="tier-radio-dot"></span></span>
+              <span class="tier-info">
+                <span class="tier-name-row"><span class="tier-name">Premium</span><span class="tier-radius">6 mi</span></span>
+                <span class="tier-blurb">Wider net for group rides that spread out on the highway.</span>
+              </span>
+            </button>
+            <button class="tier-row" data-tier="premium_plus">
+              <span class="tier-radio"><span class="tier-radio-dot"></span></span>
+              <span class="tier-info">
+                <span class="tier-name-row"><span class="tier-name">Premium+</span><span class="tier-radius">20 mi</span></span>
+                <span class="tier-blurb">Widest range — for a convoy that has stretched way out.</span>
+              </span>
+            </button>
+          </div>
+
+          <p class="section-label">About</p>
+          <div class="settings-section">
+            <div class="about-row">
+              <span class="about-label">Version</span>
+              <span class="app-caption">0.1.0</span>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -345,9 +400,9 @@
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="9" cy="8" r="2.6" stroke="currentColor" stroke-width="1.6"/><path d="M3.5 18c0-3 2.5-5 5.5-5s5.5 2 5.5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="17" cy="9" r="2" stroke="currentColor" stroke-width="1.6"/><path d="M13.8 18c.3-2.3 2-4 4.2-4s3.9 1.7 4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
         <span>Group Ride</span>
       </button>
-      <button class="tabbar-btn" data-tab="profile">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="3.5" stroke="currentColor" stroke-width="1.7"/><path d="M5 20c0-3.9 3.1-7 7-7s7 3.1 7 7" stroke="currentColor" stroke-width="1.7"/></svg>
-        <span>Profile</span>
+      <button class="tabbar-btn" data-tab="settings">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.7"/><path d="M19.4 13a7.7 7.7 0 0 0 0-2l1.9-1.5-2-3.4-2.3.5a7.6 7.6 0 0 0-1.7-1l-.3-2.4H9.9l-.3 2.4a7.6 7.6 0 0 0-1.7 1l-2.3-.5-2 3.4L5.5 11a7.7 7.7 0 0 0 0 2l-1.9 1.5 2 3.4 2.3-.5a7.6 7.6 0 0 0 1.7 1l.3 2.4h4.1l.3-2.4a7.6 7.6 0 0 0 1.7-1l2.3.5 2-3.4L19.4 13Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+        <span>Settings</span>
       </button>
     </div>
 
@@ -418,7 +473,7 @@
   </div>
 </div>
 
-<p class="credit">Static preview built to match <code>mobile/src/navigation/index.tsx</code>, <code>mobile/src/theme.ts</code>, and the screens in <code>mobile/src/screens/</code> — a persistent Map tab, Group Ride, and Profile in a bottom tab bar, with an active ride as a floating bar rather than its own screen. The real app also needs the backend running and the LiveKit voice connection, neither of which exist on this page.</p>
+<p class="credit">Static preview built to match <code>mobile/src/navigation/index.tsx</code>, <code>mobile/src/theme.ts</code>, and the screens in <code>mobile/src/screens/</code> — a persistent Map tab, Group Ride, and Settings in a bottom tab bar, with an active ride as a floating bar rather than its own screen. The real app also needs the backend running and the LiveKit voice connection, neither of which exist on this page.</p>
 
 <script>
   const panes = document.querySelectorAll('.pane');
@@ -430,7 +485,7 @@
   const rideSheetBackdrop = document.getElementById('rideSheetBackdrop');
   const talkBtn = document.getElementById('talkBtn');
 
-  const titles = { map: 'Public', group: 'Group Ride', profile: 'Profile' };
+  const titles = { map: 'Public', group: 'Group Ride', settings: 'Settings' };
   let rideActive = false;
 
   function showTab(tab) {
@@ -469,6 +524,13 @@
     talkBtn.classList.toggle('primary', talking);
     talkBtn.classList.toggle('secondary', !talking);
     talkBtn.lastChild.textContent = talking ? ' Talking (test)' : ' Simulate someone talking';
+  });
+
+  document.querySelectorAll('#tierSection .tier-row').forEach((row) => {
+    row.addEventListener('click', () => {
+      document.querySelectorAll('#tierSection .tier-row').forEach((r) => (r.dataset.selected = 'false'));
+      row.dataset.selected = 'true';
+    });
   });
 
   if ('serviceWorker' in navigator) {
