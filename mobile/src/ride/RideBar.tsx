@@ -6,7 +6,7 @@
 // has. This wires up the AudioEngine's priority/ducking state (real,
 // tested logic) around where that connection would plug in.
 import * as React from 'react';
-import { View, Text, Pressable, StyleSheet, Modal } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Modal, Alert } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { AudioEngine } from '../audio/audioEngine';
 import { colors, spacing, radii, type, elevation, MIN_TOUCH_TARGET } from '../theme';
@@ -45,8 +45,21 @@ export function RideBar(): React.JSX.Element | null {
   if (!activeRide) return null;
 
   const handleLeave = () => {
-    setExpanded(false);
-    void leaveRide();
+    Alert.alert(
+      'Leave ride?',
+      "You'll stop sharing your location with this group.",
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Leave',
+          style: 'destructive',
+          onPress: () => {
+            setExpanded(false);
+            void leaveRide();
+          },
+        },
+      ]
+    );
   };
 
   return (

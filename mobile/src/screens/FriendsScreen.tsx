@@ -9,23 +9,67 @@ import type { FriendRequest, FriendSummary } from '@rider-comms/shared';
 import type { RootStackParamList } from '../navigation';
 import { colors, spacing, radii, type, elevation, MIN_TOUCH_TARGET } from '../theme';
 import { useFriends } from '../friends/FriendsContext';
+import { useAuth } from '../auth/AuthContext';
 import { getAvatarPreset } from '../settings/avatars';
 import { RideBar } from '../ride/RideBar';
+
+function YourRiderIdCard(): React.JSX.Element {
+  const { riderId } = useAuth();
+  return (
+    <View style={[styles.section, elevation.raised, styles.yourIdCard]}>
+      <View style={styles.yourIdRow}>
+        <View style={styles.yourIdBadge}>
+          <Ionicons name="person-circle-outline" size={20} color={colors.accent} />
+        </View>
+        <View style={styles.yourIdInfo}>
+          <Text style={styles.yourIdLabel}>Your rider ID</Text>
+          <Text style={styles.yourIdValue} selectable>
+            {riderId}
+          </Text>
+        </View>
+      </View>
+      <Text style={styles.addCaption}>
+        Share this with a friend so they can add you back. Long-press the ID above to select and copy it — TODO:
+        wire up a one-tap copy button once a clipboard dependency (e.g. expo-clipboard) is added to this app.
+      </Text>
+    </View>
+  );
+}
 
 function AddFriendCard(): React.JSX.Element {
   const { sendRequest } = useFriends();
   const [riderId, setRiderId] = React.useState('');
   const [sending, setSending] = React.useState(false);
+  const [inlineError, setInlineError] = React.useState<string | null>(null);
+  const [sentConfirmation, setSentConfirmation] = React.useState(false);
+  const confirmationTimeout = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  React.useEffect(() => {
+    return () => {
+      if (confirmationTimeout.current) clearTimeout(confirmationTimeout.current);
+    };
+  }, []);
 
   const canSubmit = riderId.trim().length > 0 && !sending;
+
+  const handleChangeText = React.useCallback((text: string) => {
+    setRiderId(text);
+    setInlineError(null);
+  }, []);
 
   const handleSend = React.useCallback(async () => {
     const target = riderId.trim();
     if (!target) return;
     setSending(true);
+    setInlineError(null);
+    setSentConfirmation(false);
     try {
       await sendRequest(target);
       setRiderId('');
+      setSentConfirmation(true);
+      confirmationTimeout.current = setTimeout(() => setSentConfirmation(false), 2500);
+    } catch (err) {
+      setInlineError(err instanceof Error ? err.message : 'Could not send that friend request.');
     } finally {
       setSending(false);
     }
@@ -41,7 +85,7 @@ function AddFriendCard(): React.JSX.Element {
           autoCapitalize="none"
           autoCorrect={false}
           value={riderId}
-          onChangeText={setRiderId}
+          onChangeText={handleChangeText}
           onSubmitEditing={handleSend}
           returnKeyType="send"
         />
@@ -61,10 +105,16 @@ function AddFriendCard(): React.JSX.Element {
           )}
         </Pressable>
       </View>
-      <Text style={styles.addCaption}>
-        Enter a rider's ID to send them a friend request. Handles aren't searchable yet — TODO once accounts
-        exist.
-      </Text>
+      {inlineError ? (
+        <Text style={styles.addInlineError}>{inlineError}</Text>
+      ) : sentConfirmation ? (
+        <Text style={styles.addInlineSuccess}>Request sent</Text>
+      ) : (
+        <Text style={styles.addCaption}>
+          Enter a rider's ID to send them a friend request. Handles aren't searchable yet — TODO once accounts
+          exist.
+        </Text>
+      )}
     </View>
   );
 }
@@ -139,6 +189,12 @@ export function FriendsScreen(): React.JSX.Element {
             <Text style={styles.errorText}>{error}</Text>
           </View>
         )}
+
+        <View style={styles.sectionLabelRow}>
+          <Ionicons name="person-circle-outline" size={14} color={colors.textMuted} />
+          <Text style={[styles.sectionLabel, styles.sectionLabelInRow]}>Your ID</Text>
+        </View>
+        <YourRiderIdCard />
 
         <View style={styles.sectionLabelRow}>
           <Ionicons name="person-add-outline" size={14} color={colors.textMuted} />
@@ -227,6 +283,21 @@ const styles = StyleSheet.create({
   addButtonPressed: { backgroundColor: colors.accentPressed },
   addButtonDisabled: { opacity: 0.5 },
   addCaption: { ...type.caption },
+  addInlineError: { ...type.caption, color: colors.danger },
+  addInlineSuccess: { ...type.caption, color: colors.success, fontWeight: '700' },
+  yourIdCard: { padding: spacing.md, gap: spacing.sm },
+  yourIdRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  yourIdBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: radii.pill,
+    backgroundColor: colors.surfaceRaised,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  yourIdInfo: { flex: 1, gap: spacing.xs },
+  yourIdLabel: { ...type.caption },
+  yourIdValue: { ...type.body, color: colors.textPrimary, fontWeight: '700', fontSize: 16 },
   requestRow: {
     flexDirection: 'row',
     alignItems: 'center',

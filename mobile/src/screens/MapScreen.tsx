@@ -308,6 +308,12 @@ export function MapScreen(): React.JSX.Element {
   const route = useRoute<RouteProp<TabParamList, 'Map'>>();
   const [segment, setSegment] = React.useState<Segment>(route.params?.segment ?? 'public');
   const [ridersInZone, setRidersInZone] = React.useState<string[]>([]);
+  // "No location yet" (getCurrentLocation() failing — expected pre-GPS, see
+  // the TODO on that stub above) is a normal, non-alarming state, not a
+  // genuine error — kept separate from `error` so it renders with neutral
+  // styling instead of the red/danger treatment reserved for real failures
+  // (e.g. the presence API call itself failing below).
+  const [locationUnavailable, setLocationUnavailable] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [selectedRider, setSelectedRider] = React.useState<string | null>(null);
   const [mapSize, setMapSize] = React.useState<LayoutSize>({ width: VIEWBOX_SIZE, height: VIEWBOX_SIZE });
@@ -317,16 +323,26 @@ export function MapScreen(): React.JSX.Element {
     let cancelled = false;
 
     async function tick() {
+      let lat: number, lon: number;
       try {
-        const { lat, lon } = await getCurrentLocation();
+        ({ lat, lon } = await getCurrentLocation());
+      } catch {
+        if (!cancelled) {
+          setLocationUnavailable(true);
+        }
+        return;
+      }
+      try {
         const radiusMiles = TIER_RADIUS_MILES[tier];
         const { inZoneWith } = await client.updatePresence(lat, lon);
         if (!cancelled) {
           setRidersInZone(inZoneWith);
+          setLocationUnavailable(false);
           setError(null);
         }
       } catch (err) {
         if (!cancelled) {
+          setLocationUnavailable(false);
           setError(err instanceof Error ? err.message : 'Could not update your zone.');
         }
       }
@@ -415,6 +431,15 @@ export function MapScreen(): React.JSX.Element {
         </View>
       )}
 
+      {segment === 'public' && locationUnavailable && (
+        <View style={[styles.errorOverlay, { top: insets.top + spacing.lg }]} pointerEvents="box-none">
+          <View style={styles.noticeBox}>
+            <Ionicons name="location-outline" size={18} color={colors.textMuted} />
+            <Text style={styles.noticeText}>Location unavailable — see Settings to enable it</Text>
+          </View>
+        </View>
+      )}
+
       {segment === 'public' && error && (
         <View style={[styles.errorOverlay, { top: insets.top + spacing.lg }]} pointerEvents="box-none">
           <View style={styles.errorBox}>
@@ -453,6 +478,18 @@ const styles = StyleSheet.create({
     ...elevation.raised,
   },
   errorText: { ...type.body, color: colors.danger, flex: 1 },
+  noticeBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...elevation.raised,
+  },
+  noticeText: { ...type.body, color: colors.textMuted, flex: 1 },
   sideToggle: {
     position: 'absolute',
     top: spacing.lg,

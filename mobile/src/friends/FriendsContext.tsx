@@ -8,10 +8,6 @@ import { useAuth } from '../auth/AuthContext';
 // requests are kept fresh by re-fetching on an interval.
 const FRIENDS_POLL_INTERVAL_MS = 10000;
 
-// TODO: replace 'me' with the real signed-in rider id once auth exists
-// (see CreateRideScreen.tsx for the same pattern elsewhere in this app).
-const ME = 'me';
-
 interface FriendsContextValue {
   friends: FriendSummary[];
   incomingRequests: FriendRequest[];
@@ -69,14 +65,17 @@ export function FriendsProvider({ children }: { children: React.ReactNode }): Re
     return () => clearInterval(interval);
   }, [refresh]);
 
+  // Unlike accept/decline/remove below, a failed add-friend attempt is
+  // surfaced inline next to the input it came from (see AddFriendCard in
+  // FriendsScreen.tsx) rather than in this context's shared top-of-screen
+  // `error` — so this rethrows instead of calling setError.
   const sendRequest = React.useCallback(
     async (toRiderId: string) => {
       try {
         const request = await client.sendFriendRequest(toRiderId);
         setOutgoingRequests((current) => [...current, request]);
-        setError(null);
       } catch (err) {
-        setError(messageFor(err, 'Could not send that friend request.'));
+        throw new Error(messageFor(err, 'Could not send that friend request.'));
       } finally {
         refresh();
       }

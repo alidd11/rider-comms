@@ -9,6 +9,7 @@ import {
   Modal,
   KeyboardAvoidingView,
   Platform,
+  Linking,
   ActivityIndicator,
   Alert,
   StyleSheet,
@@ -29,19 +30,52 @@ const MESSAGE_POLL_INTERVAL_MS = 10000;
 
 type Props = NativeStackScreenProps<RootStackParamList, 'FriendChat'>;
 
+/**
+ * A message as rendered locally: the optimistic echo needs a temp id and a
+ * transient send status before (and possibly instead of) the server's copy
+ * arrives — see handleSend below. Messages loaded from the backend never
+ * carry `status`, so they render as sent by default.
+ */
+type LocalMessage = DirectMessage & { status?: 'pending' | 'failed' };
+
 function formatTime(ms: number): string {
   const d = new Date(ms);
   return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
 
-function MessageBubble({ message, currentRiderId }: { message: DirectMessage; currentRiderId: string }): React.JSX.Element {
+function openHideoutInMaps(lat: number, lon: number): void {
+  const url = Platform.OS === 'ios' ? `https://maps.apple.com/?q=${lat},${lon}` : `geo:${lat},${lon}?q=${lat},${lon}`;
+  Linking.openURL(url).catch(() => {
+    // No maps app reachable in this sandbox/device — nothing else to do.
+  });
+}
+
+function MessageBubble({
+  message,
+  currentRiderId,
+  onRetry,
+}: {
+  message: LocalMessage;
+  currentRiderId: string;
+  onRetry: (id: string) => void;
+}): React.JSX.Element {
   const mine = message.fromRiderId === currentRiderId;
-  return (
-    <View style={[styles.bubbleRow, mine ? styles.bubbleRowMine : styles.bubbleRowTheirs]}>
-      <View style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleTheirs]}>
+  const failed = mine && message.status === 'failed';
+
+  const bubble = (
+    <View style={styles.bubbleColumn}>
+      <View style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleTheirs, failed && styles.bubbleFailed]}>
         <Text style={[styles.bubbleText, mine && styles.bubbleTextMine]}>{message.text}</Text>
         <Text style={[styles.bubbleTime, mine && styles.bubbleTimeMine]}>{formatTime(message.createdAt)}</Text>
       </View>
+      {mine && message.status === 'pending' && <Text style={styles.bubbleStatusCaption}>Sending…</Text>}
+      {failed && <Text style={styles.bubbleStatusCaptionFailed}>Failed — tap to retry</Text>}
+    </View>
+  );
+
+  return (
+    <View style={[styles.bubbleRow, mine ? styles.bubbleRowMine : styles.bubbleRowTheirs]}>
+      {failed ? <Pressable onPress={() => onRetry(message.id)}>{bubble}</Pressable> : bubble}
     </View>
   );
 }
@@ -61,9 +95,11 @@ function HideoutRow({
       <MaterialCommunityIcons name="map-marker-radius" size={18} color={colors.accent} />
       <View style={styles.hideoutInfo}>
         <Text style={styles.hideoutName}>{hideout.name}</Text>
-        <Text style={styles.hideoutCoords}>
-          {hideout.lat.toFixed(4)}, {hideout.lon.toFixed(4)}
-        </Text>
+        <Pressable onPress={() => openHideoutInMaps(hideout.lat, hideout.lon)} hitSlop={4}>
+          <Text style={[styles.hideoutCoords, styles.hideoutCoordsLink]}>
+            {hideout.lat.toFixed(4)}, {hideout.lon.toFixed(4)}
+          </Text>
+        </Pressable>
       </View>
       {canDelete && (
         <Pressable onPress={() => onDelete(hideout.id)} hitSlop={8} style={styles.hideoutDelete}>
@@ -96,6 +132,10 @@ function PlanHideoutModal({
     const lonNum = Number(lon);
     if (Number.isNaN(latNum) || Number.isNaN(lonNum)) {
       setError('Latitude and longitude must be numbers.');
+      return;
+    }
+    if (Math.abs(latNum) > 90 || Math.abs(lonNum) > 180) {
+      setError('Latitude must be between -90 and 90, and longitude between -180 and 180.');
       return;
     }
     setSaving(true);
@@ -183,7 +223,7 @@ export function FriendChatScreen({ route, navigation }: Props): React.JSX.Elemen
   const avatar = getAvatarPreset(avatarId);
   const insets = useSafeAreaInsets();
 
-  const [messages, setMessages] = React.useState<DirectMessage[]>([]);
+  const [messages, setMessages] = React.useState<LocalMessage[]>([]);
   const [draft, setDraft] = React.useState('');
   const [sending, setSending] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -225,21 +265,45 @@ export function FriendChatScreen({ route, navigation }: Props): React.JSX.Elemen
     }, [loadMessages, loadHideouts])
   );
 
+  // Optimistic local echo: the user's own message appears instantly with a
+  // temp id/`pending` status, then is reconciled with the server's copy (or
+  // flipped to `failed`, with tap-to-retry on that one bubble) rather than
+  // waiting on a full loadMessages() round trip before it shows up at all.
   const handleSend = React.useCallback(async () => {
     const text = draft.trim();
     if (!text) return;
+    const tempId = `local-${Date.now()}`;
+    setMessages((current) => [
+      ...current,
+      { id: tempId, fromRiderId: currentRiderId, toRiderId: riderId, text, createdAt: Date.now(), status: 'pending' },
+    ]);
+    setDraft('');
     setSending(true);
     try {
-      await client.sendMessage(riderId, text);
-      setDraft('');
-      await loadMessages();
+      const sent = await client.sendMessage(riderId, text);
+      setMessages((current) => current.map((m) => (m.id === tempId ? sent : m)));
       setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not send that message.');
+    } catch {
+      setMessages((current) => current.map((m) => (m.id === tempId ? { ...m, status: 'failed' } : m)));
     } finally {
       setSending(false);
     }
-  }, [client, draft, riderId, loadMessages]);
+  }, [client, draft, riderId, currentRiderId]);
+
+  const handleRetry = React.useCallback(
+    async (localId: string) => {
+      const target = messages.find((m) => m.id === localId);
+      if (!target) return;
+      setMessages((current) => current.map((m) => (m.id === localId ? { ...m, status: 'pending' } : m)));
+      try {
+        const sent = await client.sendMessage(riderId, target.text);
+        setMessages((current) => current.map((m) => (m.id === localId ? sent : m)));
+      } catch {
+        setMessages((current) => current.map((m) => (m.id === localId ? { ...m, status: 'failed' } : m)));
+      }
+    },
+    [client, messages, riderId]
+  );
 
   const handleCreateHideout = React.useCallback(
     async (name: string, lat: number, lon: number) => {
@@ -318,7 +382,7 @@ export function FriendChatScreen({ route, navigation }: Props): React.JSX.Elemen
       <FlatList
         data={messages}
         keyExtractor={(m) => m.id}
-        renderItem={({ item }) => <MessageBubble message={item} currentRiderId={currentRiderId} />}
+        renderItem={({ item }) => <MessageBubble message={item} currentRiderId={currentRiderId} onRetry={handleRetry} />}
         contentContainerStyle={styles.messageList}
         inverted={false}
       />
@@ -408,18 +472,29 @@ const styles = StyleSheet.create({
   hideoutInfo: { flex: 1 },
   hideoutName: { ...type.body, color: colors.textPrimary, fontWeight: '700' },
   hideoutCoords: { ...type.caption },
+  hideoutCoordsLink: { color: colors.accent, textDecorationLine: 'underline' },
   hideoutDelete: { padding: spacing.xs },
   messageList: { padding: spacing.md, gap: spacing.sm, flexGrow: 1 },
   bubbleRow: { flexDirection: 'row', marginBottom: spacing.sm },
   bubbleRowMine: { justifyContent: 'flex-end' },
   bubbleRowTheirs: { justifyContent: 'flex-start' },
-  bubble: { maxWidth: '78%', borderRadius: radii.lg, padding: spacing.md },
+  bubbleColumn: { maxWidth: '78%' },
+  bubble: { borderRadius: radii.lg, padding: spacing.md },
   bubbleMine: { backgroundColor: colors.accent },
   bubbleTheirs: { backgroundColor: colors.surface },
+  bubbleFailed: { opacity: 0.6, borderWidth: 1, borderColor: colors.danger },
   bubbleText: { ...type.body, color: colors.textPrimary },
   bubbleTextMine: { color: colors.accentText },
   bubbleTime: { ...type.caption, marginTop: spacing.xs },
   bubbleTimeMine: { color: colors.accentText, opacity: 0.7 },
+  bubbleStatusCaption: { ...type.caption, textAlign: 'right', marginTop: spacing.xs },
+  bubbleStatusCaptionFailed: {
+    ...type.caption,
+    color: colors.danger,
+    fontWeight: '700',
+    textAlign: 'right',
+    marginTop: spacing.xs,
+  },
   composer: {
     flexDirection: 'row',
     alignItems: 'flex-end',
