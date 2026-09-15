@@ -265,6 +265,7 @@
     window.scrollTo(0, 0);
     if (screen === 'map') renderMapRiders();
     if (screen === 'routes') renderRoutes();
+    if (screen === 'friends') loadFriendsData();
     nudgeBottomNavReflow();
   }
 
@@ -436,31 +437,93 @@
   function renderFriends() {
     const query = $('#friendSearch').value.trim().toLowerCase();
     const friends = state.friends.filter((friend) => [friend.displayName, friend.handle, friend.riderId].some((value) => value.toLowerCase().includes(query)));
-    $('#requestList').innerHTML = state.requests.map((person) => `<article class="request-row">${avatar(person)}<div class="identity"><strong>${escapeHtml(person.displayName)}</strong><span>${escapeHtml(person.handle)} · ${escapeHtml(person.status)}</span></div><div class="request-actions"><button class="decline" data-decline="${escapeHtml(person.riderId)}" aria-label="Decline ${escapeHtml(person.displayName)}">×</button><button class="accept" data-accept="${escapeHtml(person.riderId)}" aria-label="Accept ${escapeHtml(person.displayName)}">✓</button></div></article>`).join('');
+    $('#requestList').innerHTML = state.requests.map((person) => `<article class="request-row">${avatar(person)}<div class="identity"><strong>${escapeHtml(person.displayName)}</strong><span>${escapeHtml(person.handle)} · ${escapeHtml(person.status)}</span></div><div class="request-actions"><button class="decline" data-decline="${escapeHtml(person.id)}" aria-label="Decline ${escapeHtml(person.displayName)}">×</button><button class="accept" data-accept="${escapeHtml(person.id)}" aria-label="Accept ${escapeHtml(person.displayName)}">✓</button></div></article>`).join('');
     $('#friendList').innerHTML = friends.map((person) => `<button class="friend-row" data-friend="${escapeHtml(person.riderId)}">${avatar(person)}<span class="identity"><strong>${escapeHtml(person.displayName)}</strong><span>${escapeHtml(person.handle)} · ${escapeHtml(person.status)}</span></span><span class="chevron">${icon('chevron')}</span></button>`).join('');
     $('#friendEmpty').hidden = friends.length > 0;
     const count = $('#friendsTitle')?.parentElement?.parentElement?.querySelector('.count-badge');
     if (count) count.textContent = String(state.friends.length);
+    const requestCount = $('#requestsCountBadge');
+    if (requestCount) requestCount.textContent = String(state.requests.length);
+    const navBadge = $('#friendsNavBadge');
+    if (navBadge) { navBadge.textContent = String(state.requests.length); navBadge.hidden = state.requests.length === 0; }
     $$('[data-accept]').forEach((button) => button.addEventListener('click', () => acceptRequest(button.dataset.accept)));
     $$('[data-decline]').forEach((button) => button.addEventListener('click', () => declineRequest(button.dataset.decline)));
     $$('[data-friend]').forEach((button) => button.addEventListener('click', () => showToast('Messaging opens from the installed mobile app.')));
   }
 
-  function acceptRequest(riderId) {
-    const person = state.requests.find((request) => request.riderId === riderId);
-    if (!person) return;
-    state.requests = state.requests.filter((request) => request.riderId !== riderId);
-    state.friends.push({ ...person, status: 'Connected now' });
-    persist();
-    renderFriends();
-    showToast(`${person.displayName} added to friends.`);
+  /**
+   * Loads the rider's real friends + incoming/outgoing requests from the
+   * backend (GET /riders/:id/friends, GET /riders/:id/friend-requests).
+   * Incoming requests only carry the other rider's ID, so their display
+   * name/handle is filled in with a lightweight public-profile lookup per
+   * request — friend lists are small, so N lookups here is fine.
+   */
+  async function loadFriendsData() {
+    if (!state.profile.riderId) return;
+    try {
+      const [friendsResult, requestsResult] = await Promise.all([
+        apiFetch('GET', `/riders/${encodeURIComponent(state.profile.riderId)}/friends`),
+        apiFetch('GET', `/riders/${encodeURIComponent(state.profile.riderId)}/friend-requests`),
+      ]);
+      state.friends = friendsResult.friends.map((friend) => ({ riderId: friend.riderId, displayName: friend.displayName, handle: friend.handle, status: 'Connected' }));
+      const incoming = requestsResult.incoming.filter((request) => request.status === 'pending');
+      state.requests = await Promise.all(incoming.map(async (request) => {
+        try {
+          const profile = await apiFetch('GET', `/profiles/${encodeURIComponent(request.fromRiderId)}`);
+          return { id: request.id, riderId: request.fromRiderId, displayName: profile.displayName, handle: profile.handle, status: 'Wants to connect' };
+        } catch {
+          return { id: request.id, riderId: request.fromRiderId, displayName: request.fromRiderId, handle: request.fromRiderId, status: 'Wants to connect' };
+        }
+      }));
+      persist();
+      renderFriends();
+    } catch (error) {
+      showToast('Could not load friends. ' + authErrorMessage(error));
+    }
   }
 
-  function declineRequest(riderId) {
-    state.requests = state.requests.filter((request) => request.riderId !== riderId);
-    persist();
-    renderFriends();
-    showToast('Request declined.');
+  async function acceptRequest(requestId) {
+    try {
+      const result = await apiFetch('POST', `/friends/requests/${encodeURIComponent(requestId)}/accept`, {});
+      state.requests = state.requests.filter((request) => request.id !== requestId);
+      state.friends.push({ riderId: result.friend.riderId, displayName: result.friend.displayName, handle: result.friend.handle, status: 'Connected now' });
+      persist();
+      renderFriends();
+      showToast(`${result.friend.displayName} added to friends.`);
+    } catch {
+      showToast('Could not accept that request. Try again.');
+    }
+  }
+
+  async function declineRequest(requestId) {
+    try {
+      await apiFetch('POST', `/friends/requests/${encodeURIComponent(requestId)}/decline`, {});
+      state.requests = state.requests.filter((request) => request.id !== requestId);
+      persist();
+      renderFriends();
+      showToast('Request declined.');
+    } catch {
+      showToast('Could not decline that request. Try again.');
+    }
+  }
+
+  const FRIEND_REQUEST_ERROR_MESSAGES = {
+    cannot_friend_yourself: 'You can’t send a friend request to yourself.',
+    rider_not_found: 'No rider with that ID exists.',
+    blocked: 'You can’t send a request to this rider.',
+    already_requested: 'A request is already pending with this rider.',
+    already_friends: 'You’re already friends with this rider.',
+  };
+
+  async function sendFriendRequest(riderId) {
+    try {
+      await apiFetch('POST', '/friends/requests', { toRiderId: riderId });
+      $('#friendFeedback').textContent = 'Request sent. We’ll show it here when they respond.';
+      loadFriendsData();
+    } catch (error) {
+      const code = error instanceof ApiError ? error.body?.error : undefined;
+      $('#friendFeedback').textContent = FRIEND_REQUEST_ERROR_MESSAGES[code] || 'Could not send that request. Try again.';
+    }
   }
 
   const VEHICLE_FILTER_ORDER = ['motorcycle_small', 'motorcycle_large', 'scooter', 'car'];
@@ -586,7 +649,7 @@
     const templates = {
       profile: () => ({
         title: 'Account & profile',
-        body: `<div class="form-field"><label for="editName">Display name</label><input id="editName" maxlength="50" value="${escapeHtml(state.profile.displayName)}"></div><div class="form-field"><label for="editHandle">Handle</label><input id="editHandle" maxlength="25" value="${escapeHtml(state.profile.handle)}"></div><div class="form-field"><label for="editInstagram">Instagram username</label><input id="editInstagram" maxlength="30" value="${escapeHtml(state.profile.instagram)}" placeholder="your_username"></div><div class="form-field"><label for="editTiktok">TikTok username</label><input id="editTiktok" maxlength="30" value="${escapeHtml(state.profile.tiktok)}" placeholder="your_username"></div><div class="form-field"><label for="socialVisibility">Who can see your socials?</label><select id="socialVisibility"><option value="friends">Friends only</option><option value="public">Everyone</option><option value="private">Only me</option></select></div><button class="button primary wide" id="saveProfile">Save profile</button>`,
+        body: `<div class="form-field"><label for="editName">Display name</label><input id="editName" maxlength="50" value="${escapeHtml(state.profile.displayName)}"></div><div class="form-field"><label for="editHandle">Handle</label><input id="editHandle" maxlength="25" value="${escapeHtml(state.profile.handle)}"></div><div class="form-field"><label for="editInstagram">Instagram username</label><input id="editInstagram" maxlength="30" value="${escapeHtml(state.profile.instagram)}" placeholder="your_username"></div><div class="form-field"><label for="editTiktok">TikTok username</label><input id="editTiktok" maxlength="30" value="${escapeHtml(state.profile.tiktok)}" placeholder="your_username"></div><div class="form-field"><label for="socialVisibility">Who can see your socials?</label><select id="socialVisibility"><option value="friends">Friends only</option><option value="public">Everyone</option><option value="private">Only me</option></select></div><p id="profileFormError" class="inline-error" hidden></p><button class="button primary wide" id="saveProfile">Save profile</button>`,
         ready: () => {
           $('#socialVisibility').value = state.profile.socialsVisibility;
           $('#saveProfile').addEventListener('click', saveProfile);
@@ -597,7 +660,7 @@
         body: `<div class="plan-card current"><div class="plan-top"><strong>Free</strong><span class="plan-pill">Current</span></div><p>1-mile mutual rider radius and private Group Rides.</p><button class="button secondary wide" disabled>Current plan</button></div><div class="plan-card"><div class="plan-top"><strong>Premium</strong><span>6 mi</span></div><p>A wider radius for groups that spread out across city routes.</p><button class="button primary wide" data-purchase>Choose Premium</button></div><div class="plan-card"><div class="plan-top"><strong>Premium+</strong><span>20 mi</span></div><p>Maximum discovery range for touring and rural rides.</p><button class="button primary wide" data-purchase>Choose Premium+</button></div><button class="button tertiary wide" data-purchase>Restore purchases</button><p class="caption">Your plan is verified by Rider Comms. Purchases remain unavailable until store products and receipt validation are active.</p>`,
         ready: () => $$('[data-purchase]').forEach((button) => button.addEventListener('click', () => showToast('Purchases are temporarily unavailable.'))),
       }),
-      privacy: () => ({ title: 'Privacy & visibility', body: toggleMarkup('shareLocation', 'Share location while live', 'Nearby riders see your location only while you choose to go live.', state.profile.shareLocation) + `<div class="form-field"><label for="sheetSocialVisibility">Social links visibility</label><select id="sheetSocialVisibility"><option value="friends">Friends only</option><option value="public">Everyone</option><option value="private">Only me</option></select></div>`, ready: () => { $('#sheetSocialVisibility').value = state.profile.socialsVisibility; $('#sheetSocialVisibility').addEventListener('change', (event) => { state.profile.socialsVisibility = event.target.value; persist(); }); wireToggles(); } }),
+      privacy: () => ({ title: 'Privacy & visibility', body: toggleMarkup('shareLocation', 'Share location while live', 'Nearby riders see your location only while you choose to go live.', state.profile.shareLocation) + `<div class="form-field"><label for="sheetSocialVisibility">Social links visibility</label><select id="sheetSocialVisibility"><option value="friends">Friends only</option><option value="public">Everyone</option><option value="private">Only me</option></select></div>`, ready: () => { $('#sheetSocialVisibility').value = state.profile.socialsVisibility; $('#sheetSocialVisibility').addEventListener('change', (event) => { patchProfile({ instagramVisibility: event.target.value, tiktokVisibility: event.target.value }); }); wireToggles(); } }),
       map: () => ({ title: 'Map & location', body: toggleMarkup('shareLocation', 'Location sharing', 'Location is requested only when you activate the nearby-rider channel.', state.profile.shareLocation) + `<p class="caption">Google Maps uses a deployment-provided browser key. If the service is unavailable, Rider Comms keeps controls accessible and shows a simplified map surface.</p>`, ready: wireToggles }),
       units: () => ({ title: 'Distance units', body: `<div class="form-field"><label for="unitSelect">Preferred unit</label><select id="unitSelect"><option value="mi">Miles</option><option value="km">Kilometres</option></select></div>`, ready: () => { $('#unitSelect').value = state.unit; $('#unitSelect').addEventListener('change', (event) => { state.unit = event.target.value; persist(); showToast('Distance unit updated.'); }); } }),
       notifications: () => ({ title: 'Notifications', body: toggleMarkup('notifications', 'Ride and message alerts', 'Receive useful updates while Rider Comms is not in the foreground.', state.notifications), ready: wireToggles }),
@@ -685,34 +748,71 @@
     return `<div class="toggle-row"><span><strong>${escapeHtml(title)}</strong><span class="caption">${escapeHtml(description)}</span></span><button class="toggle" data-toggle="${escapeHtml(key)}" aria-label="${escapeHtml(title)}" aria-pressed="${active}"></button></div>`;
   }
 
+  /** Persists one profile field via PUT /riders/:id/profile immediately —
+   * used by toggles/selects that should save as soon as the rider flips
+   * them, rather than waiting for a separate "Save" button. */
+  async function patchProfile(update) {
+    try {
+      const profile = await apiFetch('PUT', `/riders/${encodeURIComponent(state.profile.riderId)}/profile`, update);
+      applyRemoteProfile(profile);
+      return true;
+    } catch {
+      showToast('Could not save that change. Try again.');
+      return false;
+    }
+  }
+
   function wireToggles() {
-    $$('[data-toggle]', $('#sheetBody')).forEach((button) => button.addEventListener('click', () => {
+    $$('[data-toggle]', $('#sheetBody')).forEach((button) => button.addEventListener('click', async () => {
       const key = button.dataset.toggle;
       const active = button.getAttribute('aria-pressed') !== 'true';
-      button.setAttribute('aria-pressed', String(active));
-      if (key === 'shareLocation') state.profile.shareLocation = active;
-      if (key === 'notifications') state.notifications = active;
-      persist();
-      renderMapStatus();
+      if (key === 'notifications') {
+        button.setAttribute('aria-pressed', String(active));
+        state.notifications = active;
+        persist();
+        return;
+      }
+      if (key === 'shareLocation') {
+        button.disabled = true;
+        const ok = await patchProfile({ shareLocation: active });
+        button.disabled = false;
+        if (ok) button.setAttribute('aria-pressed', String(active));
+      }
     }));
   }
 
-  function saveProfile() {
+  async function saveProfile() {
+    const errorEl = $('#profileFormError');
+    const button = $('#saveProfile');
+    errorEl.hidden = true;
     const displayName = $('#editName').value.trim();
     let handle = $('#editHandle').value.trim();
-    if (!displayName) return showToast('Add a display name.');
+    if (!displayName) { errorEl.textContent = 'Add a display name.'; errorEl.hidden = false; return; }
     if (!handle.startsWith('@')) handle = `@${handle}`;
-    if (!/^@[a-z0-9_]{3,24}$/i.test(handle)) return showToast('Use 3–24 letters, numbers or underscores for your handle.');
-    state.profile.displayName = displayName;
-    state.profile.handle = handle;
-    state.profile.instagram = $('#editInstagram').value.trim().replace(/^@/, '');
-    state.profile.tiktok = $('#editTiktok').value.trim().replace(/^@/, '');
-    state.profile.socialsVisibility = $('#socialVisibility').value;
-    persist();
-    renderProfile();
-    renderFallbackMarkers();
-    closeSheet();
-    showToast('Profile updated.');
+    if (!/^@[a-z0-9_]{3,24}$/i.test(handle)) { errorEl.textContent = 'Use 3–24 letters, numbers or underscores for your handle.'; errorEl.hidden = false; return; }
+    button.disabled = true;
+    button.textContent = 'Saving…';
+    try {
+      const profile = await apiFetch('PUT', `/riders/${encodeURIComponent(state.profile.riderId)}/profile`, {
+        displayName,
+        handle,
+        instagramUsername: $('#editInstagram').value.trim().replace(/^@/, ''),
+        tiktokUsername: $('#editTiktok').value.trim().replace(/^@/, ''),
+        instagramVisibility: $('#socialVisibility').value,
+        tiktokVisibility: $('#socialVisibility').value,
+      });
+      applyRemoteProfile(profile);
+      renderFallbackMarkers();
+      closeSheet();
+      showToast('Profile updated.');
+    } catch (error) {
+      const code = error instanceof ApiError ? error.body?.error : undefined;
+      errorEl.textContent = typeof code === 'string' && code ? code.replace(/_/g, ' ') : 'Could not save your profile. Try again.';
+      errorEl.hidden = false;
+    } finally {
+      button.disabled = false;
+      button.textContent = 'Save profile';
+    }
   }
 
   function closeSheet() {
@@ -971,7 +1071,9 @@
       event.preventDefault();
       const riderId = $('#friendId').value.trim().toLowerCase();
       if (!/^rider_[a-z0-9_]{4,30}$/.test(riderId)) { $('#friendFeedback').textContent = 'Enter a complete Rider ID, including rider_.'; return; }
-      $('#friendFeedback').textContent = 'Request sent. We’ll show it here when they respond.';
+      if (riderId === state.profile.riderId) { $('#friendFeedback').textContent = FRIEND_REQUEST_ERROR_MESSAGES.cannot_friend_yourself; return; }
+      $('#friendFeedback').textContent = 'Sending…';
+      sendFriendRequest(riderId);
       $('#friendId').value = '';
     });
     $$('[data-sheet]').forEach((button) => button.addEventListener('click', () => openSheet(button.dataset.sheet)));
@@ -1050,6 +1152,47 @@
     persist();
   }
 
+  function applyRemoteProfile(profile) {
+    state.profile.riderId = profile.riderId;
+    state.profile.displayName = profile.displayName;
+    state.profile.handle = profile.handle;
+    state.profile.instagram = profile.instagramUsername;
+    state.profile.tiktok = profile.tiktokUsername;
+    state.profile.socialsVisibility = profile.instagramVisibility;
+    state.profile.shareLocation = profile.shareLocation;
+    persist();
+    renderProfile();
+    renderMapStatus();
+  }
+
+  /** Loads the rider's real profile from the backend (GET /riders/:id/profile). */
+  async function loadProfile() {
+    try {
+      const profile = await apiFetch('GET', `/riders/${encodeURIComponent(state.profile.riderId)}/profile`);
+      applyRemoteProfile(profile);
+    } catch {
+      showToast('Could not load your profile from the server.');
+    }
+  }
+
+  /**
+   * Replaces the backend's generic default profile ('Rider' / '@rider')
+   * with one derived from the username just chosen at signup — the
+   * account is brand new, so there is nothing real to overwrite yet.
+   */
+  async function seedProfileFromUsername(username) {
+    try {
+      const profile = await apiFetch('PUT', `/riders/${encodeURIComponent(state.profile.riderId)}/profile`, {
+        displayName: username,
+        handle: `@${username}`,
+      });
+      applyRemoteProfile(profile);
+    } catch {
+      // Non-fatal — the account still exists and works with the backend's
+      // own default profile; the rider can fix the name later in Settings.
+    }
+  }
+
   async function doLogin(username, password) {
     const errorEl = $('#loginError');
     const button = $('#loginSubmit');
@@ -1062,6 +1205,7 @@
       applyAuthenticatedIdentity(result.riderId, username);
       hideAuthScreen();
       startApp();
+      loadProfile();
     } catch (error) {
       errorEl.textContent = authErrorMessage(error);
       errorEl.hidden = false;
@@ -1094,6 +1238,7 @@
       hideAuthScreen();
       startApp();
       showToast('Account created. Check your email to verify it.');
+      await seedProfileFromUsername(username);
     } catch (error) {
       errorEl.textContent = authErrorMessage(error);
       errorEl.hidden = false;
@@ -1141,6 +1286,7 @@
     loadGoogleMaps();
     registerServiceWorker();
     nudgeBottomNavReflow();
+    loadFriendsData();
   }
 
   function init() {
@@ -1153,6 +1299,7 @@
     applyAuthenticatedIdentity(session.riderId, state.profile.displayName || session.riderId);
     hideAuthScreen();
     startApp();
+    loadProfile();
   }
 
   init();
