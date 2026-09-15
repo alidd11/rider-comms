@@ -29,6 +29,29 @@ const MIGRATIONS: { name: string; sql: string }[] = [
       CREATE UNIQUE INDEX IF NOT EXISTS users_username_lower_idx ON users (lower(username));
     `,
   },
+  {
+    // Adds email + verification to the existing `users` table (created by
+    // 0001, which is already applied in production — so this only ever
+    // ADDs, never recreates, and every statement is idempotent). A brand
+    // new signup writes both id/username/password_hash and email in one
+    // INSERT, but the column has to allow NULL at the ALTER TABLE step so
+    // this migration doesn't fail against any pre-existing rows; the
+    // application layer (authStore.ts) is what actually requires an email
+    // for every *new* signup.
+    name: '0002_add_email_verification',
+    sql: `
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified_at TIMESTAMPTZ;
+      CREATE UNIQUE INDEX IF NOT EXISTS users_email_lower_idx ON users (lower(email));
+      CREATE TABLE IF NOT EXISTS email_verifications (
+        token_hash TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+        expires_at TIMESTAMPTZ NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS email_verifications_user_id_idx ON email_verifications (user_id);
+    `,
+  },
 ];
 
 function buildPool(): Pool {
