@@ -70,8 +70,15 @@
     return darkModeQuery ? darkModeQuery.matches : true;
   }
   function applyColorScheme() {
+    // Always black-translucent, in both themes. 'default' (which this used
+    // to switch to for light mode) makes iOS reserve a solid, opaque status
+    // bar bar instead of overlaying content — the exact "band" at the top
+    // this is here to avoid. black-translucent is the only value that's
+    // truly edge-to-edge; the cost is the status bar's own text/icons stay
+    // light-on-transparent even over a light background, which iOS gives no
+    // way around for a home-screen web app.
     const meta = $('#statusBarStyleMeta');
-    if (meta) meta.setAttribute('content', prefersDarkMode() ? 'black-translucent' : 'default');
+    if (meta) meta.setAttribute('content', 'black-translucent');
     map?.setOptions({
       styles: prefersDarkMode() ? MAP_STYLE_DARK : MAP_STYLE_LIGHT,
       backgroundColor: prefersDarkMode() ? '#101820' : '#f4f1ec',

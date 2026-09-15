@@ -13,7 +13,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="app.css?v=18">
+  <link rel="stylesheet" href="app.css?v=19">
   <title>Rider Comms</title>
 </head>
 <body>
@@ -38,7 +38,8 @@
     <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 4 21 19H3Z"/><path d="M12 10v4"/><path d="M12 16.6h.01"/></symbol>
     <symbol id="i-cone" viewBox="0 0 24 24"><path d="M12 3 8 19h8L12 3Z"/><path d="M9.4 12h5.2M8.5 15.5h7"/><path d="M6 19h12"/></symbol>
     <symbol id="i-no-entry" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M6.5 6.5l11 11"/></symbol>
-    <symbol id="i-report" viewBox="0 0 24 24"><path d="M12 3 4.5 6v5.2c0 4.8 2.9 8.2 7.5 9.8 4.6-1.6 7.5-5 7.5-9.8V6L12 3Z"/><path d="M12 8.4v3.6M12 15h.01"/></symbol>
+    <symbol id="i-report" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v6M12 16.5h.01"/></symbol>
+    <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></symbol>
   </defs></svg>
 
   <div id="app" class="app-shell">
@@ -54,7 +55,7 @@
           <div id="hazardMarkers" class="hazard-markers"></div>
           <button id="reportHazardBtn" class="icon-button glass report-button" aria-label="Report on the road"><svg><use href="#i-report"/></svg></button>
           <div class="map-actions">
-            <button id="locateBtn" class="icon-button glass" aria-label="Centre on my location"><svg><use href="#i-location"/></svg></button>
+            <button id="locateBtn" class="icon-button glass" aria-label="Centre on my location"><svg><use href="#i-target"/></svg></button>
             <button id="joinNearbyBtn" class="primary-fab" aria-label="Join nearby riders"><span class="live-dot dark"></span><span>Go live</span></button>
           </div>
           <article id="riderCard" class="rider-card glass" hidden></article>
@@ -129,7 +130,7 @@
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
   <div id="updateBanner" class="update-banner" hidden><span>A new Rider Comms version is ready.</span><button id="reloadApp">Update now</button></div>
   <noscript>Rider Comms requires JavaScript.</noscript>
-  <script src="config.js?v=18"></script>
-  <script src="app.js?v=18" defer></script>
+  <script src="config.js?v=19"></script>
+  <script src="app.js?v=19" defer></script>
 </body>
 </html>
