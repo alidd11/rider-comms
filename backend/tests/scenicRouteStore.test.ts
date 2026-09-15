@@ -2,7 +2,7 @@ import { after, before, beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { validateScenicRouteInput } from '@rider-comms/shared';
 import { ScenicRouteStore } from '../src/scenicRouteStore.ts';
-import { getPool, resetDbForTests } from '../src/db.ts';
+import { ensureMigrated, getPool, resetDbForTests } from '../src/db.ts';
 
 // ScenicRouteStore is now Postgres-backed (see db.ts) — these tests need
 // DATABASE_URL to point at a reachable Postgres instance and are skipped
@@ -36,6 +36,7 @@ describe('ScenicRouteStore', { skip: !hasDatabase && 'DATABASE_URL not set; skip
   before(async () => {
     try {
       await getPool().query('SELECT 1');
+      await ensureMigrated();
     } catch (error) {
       throw new Error(`DATABASE_URL is set but Postgres is unreachable: ${(error as Error).message}`);
     }

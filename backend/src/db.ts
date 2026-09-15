@@ -30,7 +30,30 @@ const MIGRATIONS: { name: string; sql: string }[] = [
     `,
   },
   {
-    name: '0002_create_friend_tables',
+    // Adds email + verification to the existing `users` table (created by
+    // 0001, which is already applied in production — so this only ever
+    // ADDs, never recreates, and every statement is idempotent). A brand
+    // new signup writes both id/username/password_hash and email in one
+    // INSERT, but the column has to allow NULL at the ALTER TABLE step so
+    // this migration doesn't fail against any pre-existing rows; the
+    // application layer (authStore.ts) is what actually requires an email
+    // for every *new* signup.
+    name: '0002_add_email_verification',
+    sql: `
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified_at TIMESTAMPTZ;
+      CREATE UNIQUE INDEX IF NOT EXISTS users_email_lower_idx ON users (lower(email));
+      CREATE TABLE IF NOT EXISTS email_verifications (
+        token_hash TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+        expires_at TIMESTAMPTZ NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS email_verifications_user_id_idx ON email_verifications (user_id);
+    `,
+  },
+  {
+    name: '0003_create_friend_tables',
     sql: `
       CREATE TABLE IF NOT EXISTS friend_requests (
         id TEXT PRIMARY KEY,
@@ -54,7 +77,7 @@ const MIGRATIONS: { name: string; sql: string }[] = [
     `,
   },
   {
-    name: '0003_create_hazard_reports',
+    name: '0004_create_hazard_reports',
     sql: `
       CREATE TABLE IF NOT EXISTS hazard_reports (
         id TEXT PRIMARY KEY,
@@ -78,7 +101,7 @@ const MIGRATIONS: { name: string; sql: string }[] = [
     `,
   },
   {
-    name: '0004_create_messages',
+    name: '0005_create_messages',
     sql: `
       CREATE TABLE IF NOT EXISTS direct_messages (
         id TEXT PRIMARY KEY,
@@ -96,7 +119,7 @@ const MIGRATIONS: { name: string; sql: string }[] = [
     `,
   },
   {
-    name: '0005_create_moderation_tables',
+    name: '0006_create_moderation_tables',
     sql: `
       CREATE TABLE IF NOT EXISTS rider_blocks (
         rider_id TEXT NOT NULL,
@@ -116,7 +139,7 @@ const MIGRATIONS: { name: string; sql: string }[] = [
     `,
   },
   {
-    name: '0006_create_hideouts',
+    name: '0007_create_hideouts',
     sql: `
       CREATE TABLE IF NOT EXISTS hideouts (
         id TEXT PRIMARY KEY,
@@ -136,7 +159,7 @@ const MIGRATIONS: { name: string; sql: string }[] = [
     `,
   },
   {
-    name: '0007_create_scenic_routes',
+    name: '0008_create_scenic_routes',
     sql: `
       -- User-submitted scenic routes only (see scenicRouteStore.ts) — the
       -- static motorbike-first route catalogue added in PR #48 is unrelated
@@ -189,26 +212,47 @@ export function getPool(): Pool {
   return pool;
 }
 
+// Arbitrary fixed key for the session-level advisory lock below -- any
+// int8 works, it just needs to be the same constant every time.
+const MIGRATION_LOCK_KEY = 8_218_004_211_733;
+
 async function runMigrations(client: PoolClient): Promise<void> {
-  await client.query(`
-    CREATE TABLE IF NOT EXISTS schema_migrations (
-      name TEXT PRIMARY KEY,
-      applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
-    );
-  `);
-  const { rows } = await client.query<{ name: string }>('SELECT name FROM schema_migrations');
-  const applied = new Set(rows.map((row) => row.name));
-  for (const migration of MIGRATIONS) {
-    if (applied.has(migration.name)) continue;
-    await client.query('BEGIN');
-    try {
-      await client.query(migration.sql);
-      await client.query('INSERT INTO schema_migrations (name) VALUES ($1)', [migration.name]);
-      await client.query('COMMIT');
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
+  // ensureMigrated()'s in-memory promise only serializes callers within a
+  // single process. That's not enough: multiple processes connecting to a
+  // genuinely fresh database (every backend test file runs as its own
+  // process, and this matters for the real deployed backend too if it's
+  // ever run as more than one instance) can each see "table doesn't exist
+  // yet" and race to run the same CREATE TABLE IF NOT EXISTS concurrently --
+  // which Postgres does not make safe on its own; two transactions racing
+  // to create the same relation can genuinely fail with a duplicate catalog
+  // key error despite the IF NOT EXISTS guard. A session-level advisory
+  // lock serializes every connection across every process against the same
+  // key, so only one migration run ever executes DDL at a time; everyone
+  // else waits, then finds the migrations already applied and no-ops.
+  await client.query('SELECT pg_advisory_lock($1)', [MIGRATION_LOCK_KEY]);
+  try {
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS schema_migrations (
+        name TEXT PRIMARY KEY,
+        applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+    `);
+    const { rows } = await client.query<{ name: string }>('SELECT name FROM schema_migrations');
+    const applied = new Set(rows.map((row) => row.name));
+    for (const migration of MIGRATIONS) {
+      if (applied.has(migration.name)) continue;
+      await client.query('BEGIN');
+      try {
+        await client.query(migration.sql);
+        await client.query('INSERT INTO schema_migrations (name) VALUES ($1)', [migration.name]);
+        await client.query('COMMIT');
+      } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+      }
     }
+  } finally {
+    await client.query('SELECT pg_advisory_unlock($1)', [MIGRATION_LOCK_KEY]);
   }
 }
 
