@@ -355,7 +355,7 @@ export function SettingsScreen(): React.JSX.Element {
             onPress={() => navigation.navigate('Billing')}
           >
             <Text style={styles.manageTierText}>Manage in Billing</Text>
-            <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+            <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
           </Pressable>
         </View>
 
