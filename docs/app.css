@@ -308,7 +308,7 @@ button:disabled { cursor: not-allowed; opacity: .48; }
 /* Semantic shell aliases used by the application markup. */
 .svg-defs { position: absolute; width: 0; height: 0; overflow: hidden; }
 svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-.screen-map { padding: 0; overflow: hidden; }
+.screen-map { position: relative; padding: 0; overflow: hidden; }
 .fallback-map { position: absolute; z-index: 2; inset: 0; overflow: hidden; background: radial-gradient(circle at 68% 24%, #1a2731 0, #111920 48%, #0c1217 100%); }
 .fallback-map::after { content: ""; position: absolute; inset: 0; opacity: .18; background-image: linear-gradient(#35434f 1px, transparent 1px), linear-gradient(90deg, #35434f 1px, transparent 1px); background-size: 72px 72px; }
 .road { position: absolute; height: 62px; width: 130%; left: -15%; background: #26323d; border-block: 1px solid #34424e; }
