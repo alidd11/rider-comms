@@ -127,9 +127,10 @@ function authRider(req: http.IncomingMessage, res: http.ServerResponse, auth: Au
 }
 function isCoordinate(lat: unknown, lon: unknown): boolean { return typeof lat === 'number' && Number.isFinite(lat) && lat >= -90 && lat <= 90 && typeof lon === 'number' && Number.isFinite(lon) && lon >= -180 && lon <= 180; }
 function rideBody(ride: { id: string; createdBy: string; createdAt: number; memberIds: Set<string> }) { return { rideId: ride.id, createdBy: ride.createdBy, createdAt: ride.createdAt, memberIds: [...ride.memberIds] }; }
-function publicProfile(profileStore: ProfileStore, friendStore: FriendStore, actorId: string, targetId: string) {
+async function publicProfile(profileStore: ProfileStore, friendStore: FriendStore, actorId: string, targetId: string) {
   const profile = profileStore.getOrCreate(targetId);
-  const canSee = (visibility: 'public' | 'friends' | 'private') => visibility === 'public' || (visibility === 'friends' && friendStore.isFriendOf(actorId, targetId)) || actorId === targetId;
+  const isFriend = actorId === targetId ? false : await friendStore.isFriendOf(actorId, targetId);
+  const canSee = (visibility: 'public' | 'friends' | 'private') => visibility === 'public' || (visibility === 'friends' && isFriend) || actorId === targetId;
   return { riderId: profile.riderId, displayName: profile.displayName, handle: profile.handle, avatarId: profile.avatarId, instagramUsername: canSee(profile.instagramVisibility) ? profile.instagramUsername : '', tiktokUsername: canSee(profile.tiktokVisibility) ? profile.tiktokUsername : '' };
 }
 
@@ -204,13 +205,13 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
       if (req.method === 'DELETE' && url.pathname === '/auth/me') {
         presenceStore.removeRider(actorId);
         rideStore.deleteRider(actorId);
-        friendStore.deleteRider(actorId);
-        messageStore.deleteRider(actorId);
-        hideoutStore.deleteRider(actorId);
+        await friendStore.deleteRider(actorId);
+        await messageStore.deleteRider(actorId);
+        await hideoutStore.deleteRider(actorId);
         profileStore.delete(actorId);
-        moderationStore.deleteRider(actorId);
-        hazardStore.deleteRider(actorId);
-        scenicRouteStore.deleteRider(actorId);
+        await moderationStore.deleteRider(actorId);
+        await hazardStore.deleteRider(actorId);
+        await scenicRouteStore.deleteRider(actorId);
         authStore.deleteRider(actorId);
         return sendJson(res, 200, {});
       }
@@ -258,18 +259,18 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
       }
       const s = url.pathname.split('/').filter(Boolean);
       if (req.method === 'GET' && url.pathname === '/blocks') {
-        return sendJson(res, 200, { blockedRiderIds: moderationStore.getBlocked(actorId) });
+        return sendJson(res, 200, { blockedRiderIds: await moderationStore.getBlocked(actorId) });
       }
       if (req.method === 'POST' && url.pathname === '/blocks') {
         const body = await readJsonBody(req);
         if (typeof body.riderId !== 'string' || body.riderId === actorId) return sendJson(res, 400, { error: 'valid riderId is required' });
         if (!authStore.hasRider(body.riderId)) return sendJson(res, 404, { error: 'rider_not_found' });
-        moderationStore.block(actorId, body.riderId);
-        friendStore.removeFriend(actorId, body.riderId);
+        await moderationStore.block(actorId, body.riderId);
+        await friendStore.removeFriend(actorId, body.riderId);
         return sendJson(res, 200, {});
       }
       if (req.method === 'DELETE' && s[0] === 'blocks' && s[1] && s.length === 2) {
-        moderationStore.unblock(actorId, decodeURIComponent(s[1]));
+        await moderationStore.unblock(actorId, decodeURIComponent(s[1]));
         return sendJson(res, 200, {});
       }
       if (req.method === 'POST' && url.pathname === '/reports') {
@@ -278,14 +279,14 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
         if (typeof body.reason !== 'string' || !REPORT_REASONS.includes(body.reason as ReportReason)) return sendJson(res, 400, { error: 'invalid report reason' });
         const details = typeof body.details === 'string' ? body.details.trim() : '';
         if (details.length > 1000) return sendJson(res, 400, { error: 'details must be at most 1000 characters' });
-        moderationStore.report(actorId, body.riderId, body.reason as ReportReason, details);
+        await moderationStore.report(actorId, body.riderId, body.reason as ReportReason, details);
         return sendJson(res, 201, { received: true });
       }
       if (req.method === 'GET' && s[0] === 'profiles' && s[1] && s.length === 2) {
         const targetId = decodeURIComponent(s[1]);
         if (!authStore.hasRider(targetId)) return sendJson(res, 404, { error: 'rider_not_found' });
-        if (moderationStore.isBlockedBetween(actorId, targetId)) return sendJson(res, 403, { error: 'blocked' });
-        return sendJson(res, 200, publicProfile(profileStore, friendStore, actorId, targetId));
+        if (await moderationStore.isBlockedBetween(actorId, targetId)) return sendJson(res, 403, { error: 'blocked' });
+        return sendJson(res, 200, await publicProfile(profileStore, friendStore, actorId, targetId));
       }
       if (s[0] === 'rides' && s[1]) {
         const id = decodeURIComponent(s[1]);
@@ -300,56 +301,58 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
           if (req.method === 'GET') return sendJson(res, 200, profileStore.getOrCreate(actorId));
           if (req.method === 'PUT') { const body = await readJsonBody(req); if ('zoneTier' in body) return sendJson(res, 403, { error: 'zone_tier_managed_by_billing' }); const r = profileStore.update(actorId, body); if (r.ok && body.shareLocation === false) presenceStore.removeRider(actorId); return r.ok ? sendJson(res, 200, r.profile) : sendJson(res, 400, { error: r.error }); }
         }
-        if (req.method === 'GET' && s[2] === 'friend-requests') return sendJson(res, 200, friendStore.getRequestsFor(actorId));
-        if (req.method === 'GET' && s[2] === 'friends' && s.length === 3) return sendJson(res, 200, { friends: friendStore.getFriends(actorId) });
-        if (req.method === 'DELETE' && s[2] === 'friends' && s[3]) { friendStore.removeFriend(actorId, decodeURIComponent(s[3])); return sendJson(res, 200, {}); }
-        if (req.method === 'GET' && s[2] === 'hideouts') return sendJson(res, 200, { hideouts: hideoutStore.getForRider(actorId) });
+        if (req.method === 'GET' && s[2] === 'friend-requests') return sendJson(res, 200, await friendStore.getRequestsFor(actorId));
+        if (req.method === 'GET' && s[2] === 'friends' && s.length === 3) return sendJson(res, 200, { friends: await friendStore.getFriends(actorId) });
+        if (req.method === 'DELETE' && s[2] === 'friends' && s[3]) { await friendStore.removeFriend(actorId, decodeURIComponent(s[3])); return sendJson(res, 200, {}); }
+        if (req.method === 'GET' && s[2] === 'hideouts') return sendJson(res, 200, { hideouts: await hideoutStore.getForRider(actorId) });
       }
       if (req.method === 'POST' && url.pathname === '/friends/requests') {
         const body = await readJsonBody(req); if (typeof body.toRiderId !== 'string' || !body.toRiderId.trim()) return sendJson(res, 400, { error: 'toRiderId is required' });
         if (actorId === body.toRiderId) return sendJson(res, 400, { error: 'cannot_friend_yourself' }); if (!authStore.hasRider(body.toRiderId)) return sendJson(res, 404, { error: 'rider_not_found' });
-        if (moderationStore.isBlockedBetween(actorId, body.toRiderId)) return sendJson(res, 403, { error: 'blocked' });
-        const r = friendStore.createRequest(actorId, body.toRiderId); return r.ok ? sendJson(res, 201, r.request) : sendJson(res, 409, { error: r.error });
+        if (await moderationStore.isBlockedBetween(actorId, body.toRiderId)) return sendJson(res, 403, { error: 'blocked' });
+        const r = await friendStore.createRequest(actorId, body.toRiderId); return r.ok ? sendJson(res, 201, r.request) : sendJson(res, 409, { error: r.error });
       }
       if (req.method === 'POST' && s[0] === 'friends' && s[1] === 'requests' && s[2] && s[3]) {
-        const request = friendStore.getRequest(decodeURIComponent(s[2])); if (!request || request.toRiderId !== actorId) return sendJson(res, 404, { error: 'not_found' });
-        if (moderationStore.isBlockedBetween(request.fromRiderId, request.toRiderId)) return sendJson(res, 403, { error: 'blocked' });
-        if (s[3] === 'accept') { const r = friendStore.accept(request.id); return r.ok ? sendJson(res, 200, { friend: r.friend }) : sendJson(res, 404, { error: r.error }); }
-        if (s[3] === 'decline') { const r = friendStore.decline(request.id); return r.ok ? sendJson(res, 200, {}) : sendJson(res, 404, { error: r.error }); }
+        const request = await friendStore.getRequest(decodeURIComponent(s[2])); if (!request || request.toRiderId !== actorId) return sendJson(res, 404, { error: 'not_found' });
+        if (await moderationStore.isBlockedBetween(request.fromRiderId, request.toRiderId)) return sendJson(res, 403, { error: 'blocked' });
+        if (s[3] === 'accept') { const r = await friendStore.accept(request.id); return r.ok ? sendJson(res, 200, { friend: r.friend }) : sendJson(res, 404, { error: r.error }); }
+        if (s[3] === 'decline') { const r = await friendStore.decline(request.id); return r.ok ? sendJson(res, 200, {}) : sendJson(res, 404, { error: r.error }); }
       }
       if (req.method === 'POST' && url.pathname === '/messages') {
         const body = await readJsonBody(req); if (typeof body.toRiderId !== 'string' || typeof body.text !== 'string') return sendJson(res, 400, { error: 'toRiderId and text are required' }); const text = body.text.trim();
-        if (!text || text.length > 1000) return sendJson(res, 400, { error: !text ? 'text must not be empty' : 'text must be at most 1000 characters' }); if (moderationStore.isBlockedBetween(actorId, body.toRiderId)) return sendJson(res, 403, { error: 'blocked' }); if (!friendStore.isFriendOf(actorId, body.toRiderId)) return sendJson(res, 403, { error: 'not_friends' }); return sendJson(res, 201, messageStore.create(actorId, body.toRiderId, text));
+        if (!text || text.length > 1000) return sendJson(res, 400, { error: !text ? 'text must not be empty' : 'text must be at most 1000 characters' }); if (await moderationStore.isBlockedBetween(actorId, body.toRiderId)) return sendJson(res, 403, { error: 'blocked' }); if (!(await friendStore.isFriendOf(actorId, body.toRiderId))) return sendJson(res, 403, { error: 'not_friends' }); return sendJson(res, 201, await messageStore.create(actorId, body.toRiderId, text));
       }
-      if (req.method === 'GET' && url.pathname === '/messages') { const other = url.searchParams.get('withRiderId'); if (!other) return sendJson(res, 400, { error: 'withRiderId is required' }); if (moderationStore.isBlockedBetween(actorId, other)) return sendJson(res, 403, { error: 'blocked' }); const n = Number(url.searchParams.get('limit') ?? 100); return sendJson(res, 200, { messages: messageStore.getThread(actorId, other, Number.isInteger(n) ? Math.min(Math.max(n, 1), 100) : 100) }); }
+      if (req.method === 'GET' && url.pathname === '/messages') { const other = url.searchParams.get('withRiderId'); if (!other) return sendJson(res, 400, { error: 'withRiderId is required' }); if (await moderationStore.isBlockedBetween(actorId, other)) return sendJson(res, 403, { error: 'blocked' }); const n = Number(url.searchParams.get('limit') ?? 100); return sendJson(res, 200, { messages: await messageStore.getThread(actorId, other, Number.isInteger(n) ? Math.min(Math.max(n, 1), 100) : 100) }); }
       if (req.method === 'POST' && url.pathname === '/hideouts') {
         const body = await readJsonBody(req), ids = body.participantIds; if (typeof body.name !== 'string' || !body.name.trim() || body.name.trim().length > 100 || !isCoordinate(body.lat, body.lon) || !Array.isArray(ids) || ids.length === 0 || !ids.every((id) => typeof id === 'string')) return sendJson(res, 400, { error: 'valid name, lat, lon, and participantIds are required' });
-        const participants = [...new Set(ids as string[])].filter((id) => id !== actorId); if (participants.some((id) => !friendStore.isFriendOf(actorId, id))) return sendJson(res, 403, { error: 'participants_must_be_friends' }); return sendJson(res, 201, hideoutStore.create({ name: body.name.trim(), lat: body.lat as number, lon: body.lon as number, createdBy: actorId, participantIds: participants }));
+        const participants = [...new Set(ids as string[])].filter((id) => id !== actorId);
+        for (const id of participants) { if (!(await friendStore.isFriendOf(actorId, id))) return sendJson(res, 403, { error: 'participants_must_be_friends' }); }
+        return sendJson(res, 201, await hideoutStore.create({ name: body.name.trim(), lat: body.lat as number, lon: body.lon as number, createdBy: actorId, participantIds: participants }));
       }
-      if (req.method === 'DELETE' && s[0] === 'hideouts' && s[1]) { const r = hideoutStore.delete(decodeURIComponent(s[1]), actorId); return r.ok ? sendJson(res, 200, {}) : sendJson(res, r.error === 'forbidden' ? 403 : 404, { error: r.error }); }
+      if (req.method === 'DELETE' && s[0] === 'hideouts' && s[1]) { const r = await hideoutStore.delete(decodeURIComponent(s[1]), actorId); return r.ok ? sendJson(res, 200, {}) : sendJson(res, r.error === 'forbidden' ? 403 : 404, { error: r.error }); }
       if (req.method === 'POST' && url.pathname === '/hazards') {
         if (!hazardCreateLimiter.tryConsume(actorId)) { res.setHeader('Retry-After', '60'); return sendJson(res, 429, { error: 'rate_limited' }); }
         const body = await readJsonBody(req);
         if (typeof body.type !== 'string' || !HAZARD_TYPES.includes(body.type as HazardType)) return sendJson(res, 400, { error: 'valid type is required' });
         if (!isCoordinate(body.lat, body.lon)) return sendJson(res, 400, { error: 'valid lat and lon are required' });
-        return sendJson(res, 201, hazardStore.create(body.type as HazardType, body.lat as number, body.lon as number, actorId));
+        return sendJson(res, 201, await hazardStore.create(body.type as HazardType, body.lat as number, body.lon as number, actorId));
       }
       if (req.method === 'GET' && url.pathname === '/hazards/nearby') {
         const lat = Number(url.searchParams.get('lat')), lon = Number(url.searchParams.get('lon'));
         if (!isCoordinate(lat, lon)) return sendJson(res, 400, { error: 'valid lat and lon are required' });
-        return sendJson(res, 200, { hazards: hazardStore.nearby(lat, lon, Date.now()) });
+        return sendJson(res, 200, { hazards: await hazardStore.nearby(lat, lon, Date.now()) });
       }
       if (s[0] === 'hazards' && s[1] && s.length === 3 && (s[2] === 'confirm' || s[2] === 'deny')) {
         const id = decodeURIComponent(s[1]);
-        const r = s[2] === 'confirm' ? hazardStore.confirm(id, actorId) : hazardStore.deny(id, actorId);
+        const r = s[2] === 'confirm' ? await hazardStore.confirm(id, actorId) : await hazardStore.deny(id, actorId);
         return r.ok ? sendJson(res, 200, {}) : sendJson(res, 404, { error: r.reason });
       }
       if (req.method === 'DELETE' && s[0] === 'hazards' && s[1] && s.length === 2) {
         const id = decodeURIComponent(s[1]);
-        const report = hazardStore.get(id);
+        const report = await hazardStore.get(id);
         if (!report) return sendJson(res, 404, { error: 'not_found' });
         if (report.reportedBy !== actorId) return sendJson(res, 403, { error: 'forbidden' });
-        hazardStore.remove(id, actorId);
+        await hazardStore.remove(id, actorId);
         return sendJson(res, 200, {});
       }
       // TODO(curation-policy): once the product team defines a real curation/
@@ -360,7 +363,7 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
         const body = await readJsonBody(req);
         const validated = validateScenicRouteInput(body);
         if (!validated.ok) return sendJson(res, 400, { error: validated.error });
-        return sendJson(res, 201, scenicRouteStore.create(validated.value, actorId));
+        return sendJson(res, 201, await scenicRouteStore.create(validated.value, actorId));
       }
       if (req.method === 'GET' && url.pathname === '/scenic-routes') {
         const vehicleCategoryParam = url.searchParams.get('vehicleCategory');
@@ -369,22 +372,22 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
         if (vehicleCategoryParam && !VEHICLE_CATEGORIES.includes(vehicleCategoryParam as VehicleCategory)) return sendJson(res, 400, { error: 'invalid vehicleCategory filter' });
         if (roadTypeParam && !ROAD_TYPES.includes(roadTypeParam as RoadType)) return sendJson(res, 400, { error: 'invalid roadType filter' });
         if (maxDifficultyParam && !DIFFICULTIES.includes(maxDifficultyParam as Difficulty)) return sendJson(res, 400, { error: 'invalid maxDifficulty filter' });
-        return sendJson(res, 200, { routes: scenicRouteStore.list({
+        return sendJson(res, 200, { routes: await scenicRouteStore.list({
           vehicleCategory: vehicleCategoryParam as VehicleCategory | undefined,
           roadType: roadTypeParam as RoadType | undefined,
           maxDifficulty: maxDifficultyParam as Difficulty | undefined,
         }) });
       }
       if (req.method === 'GET' && s[0] === 'scenic-routes' && s[1] && s.length === 2) {
-        const route = scenicRouteStore.get(decodeURIComponent(s[1]));
+        const route = await scenicRouteStore.get(decodeURIComponent(s[1]));
         return route ? sendJson(res, 200, route) : sendJson(res, 404, { error: 'not_found' });
       }
       if (req.method === 'DELETE' && s[0] === 'scenic-routes' && s[1] && s.length === 2) {
         const id = decodeURIComponent(s[1]);
-        const route = scenicRouteStore.get(id);
+        const route = await scenicRouteStore.get(id);
         if (!route) return sendJson(res, 404, { error: 'not_found' });
         if (route.createdBy !== actorId) return sendJson(res, 403, { error: 'forbidden' });
-        scenicRouteStore.remove(id, actorId);
+        await scenicRouteStore.remove(id, actorId);
         return sendJson(res, 200, {});
       }
       return sendJson(res, 404, { error: 'not_found' });

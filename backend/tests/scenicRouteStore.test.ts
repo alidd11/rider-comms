@@ -1,7 +1,13 @@
-import { describe, it } from 'node:test';
+import { after, before, beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { validateScenicRouteInput } from '@rider-comms/shared';
 import { ScenicRouteStore } from '../src/scenicRouteStore.ts';
+import { ensureMigrated, getPool, resetDbForTests } from '../src/db.ts';
+
+// ScenicRouteStore is now Postgres-backed (see db.ts) — these tests need
+// DATABASE_URL to point at a reachable Postgres instance and are skipped
+// otherwise, rather than failing every run in a sandbox with no database.
+const hasDatabase = Boolean(process.env.DATABASE_URL);
 
 function validInput() {
   const result = validateScenicRouteInput({
@@ -26,43 +32,60 @@ function validInput() {
   return result.value;
 }
 
-describe('ScenicRouteStore', () => {
-  it('starts empty', () => {
-    const store = new ScenicRouteStore();
-    assert.deepEqual(store.list(), []);
+describe('ScenicRouteStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping Postgres-backed ScenicRouteStore tests' }, () => {
+  before(async () => {
+    try {
+      await getPool().query('SELECT 1');
+      await ensureMigrated();
+    } catch (error) {
+      throw new Error(`DATABASE_URL is set but Postgres is unreachable: ${(error as Error).message}`);
+    }
   });
 
-  it('creates a route and lists it back', () => {
+  beforeEach(async () => {
+    await getPool().query('TRUNCATE scenic_routes');
+  });
+
+  after(async () => {
+    await resetDbForTests();
+  });
+
+  it('starts empty', async () => {
     const store = new ScenicRouteStore();
-    const route = store.create(validInput(), 'curator-1');
+    assert.deepEqual(await store.list(), []);
+  });
+
+  it('creates a route and lists it back', async () => {
+    const store = new ScenicRouteStore();
+    const route = await store.create(validInput(), 'curator-1');
     assert.equal(route.createdBy, 'curator-1');
     assert.ok(route.id);
     assert.ok(route.createdAt);
-    assert.deepEqual(store.list().map((r) => r.id), [route.id]);
-    assert.deepEqual(store.get(route.id), route);
+    assert.deepEqual((await store.list()).map((r) => r.id), [route.id]);
+    assert.deepEqual(await store.get(route.id), route);
   });
 
-  it('filters by vehicle category', () => {
+  it('filters by vehicle category', async () => {
     const store = new ScenicRouteStore();
-    const route = store.create(validInput(), 'curator-1');
-    assert.deepEqual(store.list({ vehicleCategory: 'motorcycle_small' }).map((r) => r.id), [route.id]);
-    assert.deepEqual(store.list({ vehicleCategory: 'car' }), []);
+    const route = await store.create(validInput(), 'curator-1');
+    assert.deepEqual((await store.list({ vehicleCategory: 'motorcycle_small' })).map((r) => r.id), [route.id]);
+    assert.deepEqual(await store.list({ vehicleCategory: 'car' }), []);
   });
 
-  it('filters by roadType and maxDifficulty', () => {
+  it('filters by roadType and maxDifficulty', async () => {
     const store = new ScenicRouteStore();
-    const route = store.create(validInput(), 'curator-1');
-    assert.deepEqual(store.list({ roadType: 'coastal' }).map((r) => r.id), [route.id]);
-    assert.deepEqual(store.list({ roadType: 'mountain' }), []);
-    assert.deepEqual(store.list({ maxDifficulty: 'easy' }).map((r) => r.id), [route.id]);
-    assert.deepEqual(store.list({ maxDifficulty: 'moderate' }).map((r) => r.id), [route.id]);
+    const route = await store.create(validInput(), 'curator-1');
+    assert.deepEqual((await store.list({ roadType: 'coastal' })).map((r) => r.id), [route.id]);
+    assert.deepEqual(await store.list({ roadType: 'mountain' }), []);
+    assert.deepEqual((await store.list({ maxDifficulty: 'easy' })).map((r) => r.id), [route.id]);
+    assert.deepEqual((await store.list({ maxDifficulty: 'moderate' })).map((r) => r.id), [route.id]);
   });
 
-  it('lets only the creator remove their own route', () => {
+  it('lets only the creator remove their own route', async () => {
     const store = new ScenicRouteStore();
-    const route = store.create(validInput(), 'curator-1');
-    assert.equal(store.remove(route.id, 'someone-else'), false);
-    assert.equal(store.remove(route.id, 'curator-1'), true);
-    assert.equal(store.get(route.id), undefined);
+    const route = await store.create(validInput(), 'curator-1');
+    assert.equal(await store.remove(route.id, 'someone-else'), false);
+    assert.equal(await store.remove(route.id, 'curator-1'), true);
+    assert.equal(await store.get(route.id), undefined);
   });
 });

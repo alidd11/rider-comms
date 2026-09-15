@@ -1,12 +1,36 @@
-import { describe, it } from 'node:test';
+import { after, before, beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { ProfileStore } from '../src/profileStore.ts';
 import { FriendStore } from '../src/friendStore.ts';
+import { ensureMigrated, getPool, resetDbForTests } from '../src/db.ts';
 
-describe('FriendStore', () => {
-  it('creates a pending friend request', () => {
+// FriendStore is now Postgres-backed (see db.ts) — these tests need
+// DATABASE_URL to point at a reachable Postgres instance and are skipped
+// otherwise, rather than failing every run in a sandbox with no database.
+const hasDatabase = Boolean(process.env.DATABASE_URL);
+
+describe('FriendStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping Postgres-backed FriendStore tests' }, () => {
+  before(async () => {
+    try {
+      await getPool().query('SELECT 1');
+      await ensureMigrated();
+    } catch (error) {
+      throw new Error(`DATABASE_URL is set but Postgres is unreachable: ${(error as Error).message}`);
+    }
+  });
+
+  beforeEach(async () => {
+    const pool = getPool();
+    await pool.query('TRUNCATE friend_requests, friendships');
+  });
+
+  after(async () => {
+    await resetDbForTests();
+  });
+
+  it('creates a pending friend request', async () => {
     const store = new FriendStore(new ProfileStore());
-    const result = store.createRequest('a', 'b');
+    const result = await store.createRequest('a', 'b');
     assert.equal(result.ok, true);
     if (result.ok) {
       assert.equal(result.request.fromRiderId, 'a');
@@ -16,46 +40,46 @@ describe('FriendStore', () => {
     }
   });
 
-  it('rejects a duplicate pending request in either direction', () => {
+  it('rejects a duplicate pending request in either direction', async () => {
     const store = new FriendStore(new ProfileStore());
-    store.createRequest('a', 'b');
-    const dup1 = store.createRequest('a', 'b');
-    const dup2 = store.createRequest('b', 'a');
+    await store.createRequest('a', 'b');
+    const dup1 = await store.createRequest('a', 'b');
+    const dup2 = await store.createRequest('b', 'a');
     assert.equal(dup1.ok, false);
     if (!dup1.ok) assert.equal(dup1.error, 'request_exists');
     assert.equal(dup2.ok, false);
     if (!dup2.ok) assert.equal(dup2.error, 'request_exists');
   });
 
-  it('rejects a request between already-friends riders', () => {
+  it('rejects a request between already-friends riders', async () => {
     const store = new FriendStore(new ProfileStore());
-    const req = store.createRequest('a', 'b');
+    const req = await store.createRequest('a', 'b');
     assert.equal(req.ok, true);
-    if (req.ok) store.accept(req.request.id);
-    const result = store.createRequest('a', 'b');
+    if (req.ok) await store.accept(req.request.id);
+    const result = await store.createRequest('a', 'b');
     assert.equal(result.ok, false);
     if (!result.ok) assert.equal(result.error, 'already_friends');
   });
 
-  it('splits incoming/outgoing requests correctly', () => {
+  it('splits incoming/outgoing requests correctly', async () => {
     const store = new FriendStore(new ProfileStore());
-    store.createRequest('a', 'b');
-    store.createRequest('c', 'a');
-    const { incoming, outgoing } = store.getRequestsFor('a');
+    await store.createRequest('a', 'b');
+    await store.createRequest('c', 'a');
+    const { incoming, outgoing } = await store.getRequestsFor('a');
     assert.equal(incoming.length, 1);
     assert.equal(incoming[0].fromRiderId, 'c');
     assert.equal(outgoing.length, 1);
     assert.equal(outgoing[0].toRiderId, 'b');
   });
 
-  it('accept() creates a bidirectional friendship and returns the requester summary', () => {
+  it('accept() creates a bidirectional friendship and returns the requester summary', async () => {
     const profiles = new ProfileStore();
     profiles.update('a', { displayName: 'Alice', handle: '@alice', avatarId: 'fox' });
     const store = new FriendStore(profiles);
-    const req = store.createRequest('a', 'b');
+    const req = await store.createRequest('a', 'b');
     assert.equal(req.ok, true);
     if (!req.ok) return;
-    const result = store.accept(req.request.id);
+    const result = await store.accept(req.request.id);
     assert.equal(result.ok, true);
     if (result.ok) {
       assert.deepEqual(result.friend, {
@@ -66,55 +90,55 @@ describe('FriendStore', () => {
       });
     }
     assert.deepEqual(
-      store.getFriends('b').map((f) => f.riderId),
+      (await store.getFriends('b')).map((f) => f.riderId),
       ['a']
     );
     assert.deepEqual(
-      store.getFriends('a').map((f) => f.riderId),
+      (await store.getFriends('a')).map((f) => f.riderId),
       ['b']
     );
   });
 
-  it('accept() 404s on an unknown or non-pending request', () => {
+  it('accept() 404s on an unknown or non-pending request', async () => {
     const store = new FriendStore(new ProfileStore());
-    const result = store.accept('nonexistent');
+    const result = await store.accept('nonexistent');
     assert.equal(result.ok, false);
     if (!result.ok) assert.equal(result.error, 'not_found');
   });
 
-  it('decline() marks the request declined and does not create a friendship', () => {
+  it('decline() marks the request declined and does not create a friendship', async () => {
     const store = new FriendStore(new ProfileStore());
-    const req = store.createRequest('a', 'b');
+    const req = await store.createRequest('a', 'b');
     assert.equal(req.ok, true);
     if (!req.ok) return;
-    const result = store.decline(req.request.id);
+    const result = await store.decline(req.request.id);
     assert.equal(result.ok, true);
-    assert.equal(store.getFriends('a').length, 0);
-    assert.equal(store.getFriends('b').length, 0);
+    assert.equal((await store.getFriends('a')).length, 0);
+    assert.equal((await store.getFriends('b')).length, 0);
   });
 
-  it('friend summaries reflect live profile data, not a snapshot', () => {
+  it('friend summaries reflect live profile data, not a snapshot', async () => {
     const profiles = new ProfileStore();
     const store = new FriendStore(profiles);
-    const req = store.createRequest('a', 'b');
+    const req = await store.createRequest('a', 'b');
     assert.equal(req.ok, true);
     if (!req.ok) return;
-    store.accept(req.request.id);
+    await store.accept(req.request.id);
     profiles.update('a', { displayName: 'Renamed' });
-    const friends = store.getFriends('b');
+    const friends = await store.getFriends('b');
     assert.equal(friends[0].displayName, 'Renamed');
   });
 
-  it('removeFriend is idempotent and removes both directions', () => {
+  it('removeFriend is idempotent and removes both directions', async () => {
     const store = new FriendStore(new ProfileStore());
-    const req = store.createRequest('a', 'b');
+    const req = await store.createRequest('a', 'b');
     assert.equal(req.ok, true);
     if (!req.ok) return;
-    store.accept(req.request.id);
-    store.removeFriend('a', 'b');
-    assert.equal(store.getFriends('a').length, 0);
-    assert.equal(store.getFriends('b').length, 0);
+    await store.accept(req.request.id);
+    await store.removeFriend('a', 'b');
+    assert.equal((await store.getFriends('a')).length, 0);
+    assert.equal((await store.getFriends('b')).length, 0);
     // calling again on non-friends should not throw
-    store.removeFriend('a', 'b');
+    await store.removeFriend('a', 'b');
   });
 });

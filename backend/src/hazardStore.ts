@@ -8,42 +8,63 @@ import {
   ttlMsForType,
 } from '@rider-comms/shared';
 import type { HazardReport, HazardType } from '@rider-comms/shared';
+import { ensureMigrated, getPool } from './db.ts';
 
 export type VoteResult = { ok: true } | { ok: false; reason: 'not_found' };
 
-interface VoterRecord {
-  confirmedBy: Set<string>;
-  deniedBy: Set<string>;
+interface HazardReportRow {
+  id: string;
+  type: string;
+  lat: number;
+  lon: number;
+  reported_by: string;
+  created_at: string | number;
+  expires_at: string | number;
+  confirmations: number;
+  denials: number;
+}
+
+function rowToReport(row: HazardReportRow): HazardReport {
+  return {
+    id: row.id,
+    type: row.type as HazardType,
+    lat: row.lat,
+    lon: row.lon,
+    reportedBy: row.reported_by,
+    createdAt: Number(row.created_at),
+    expiresAt: Number(row.expires_at),
+    confirmations: row.confirmations,
+    denials: row.denials,
+  };
 }
 
 /**
  * Crowdsourced hazard/road reports (Waze-style: police, accidents, hazards,
- * closures, cameras). Geo-bucketed the same way `PresenceStore` shards
- * riders, so `nearby()` never scans every report in the system — only the
- * reporting rider's bucket plus its 8 neighbors (see shared/geoBucket.ts).
+ * closures, cameras), persisted in Postgres (see db.ts). Geo-bucketed the
+ * same way `PresenceStore` shards riders, so `nearby()` never scans every
+ * report in the system — only the reporting rider's bucket plus its 8
+ * neighbors (see shared/geoBucket.ts) are fetched and filtered in memory.
  *
- * Voter tracking (`confirmedBy`/`deniedBy`) is kept in a parallel map,
- * separate from the public `HazardReport` shape, so a rider's vote history
- * is never leaked to clients — only the aggregate confirmations/denials
- * counts are.
+ * Voter tracking is kept in a separate `hazard_report_votes` table, apart
+ * from the public `HazardReport` shape, so a rider's vote history is never
+ * leaked to clients — only the aggregate confirmations/denials counts are.
  */
 export class HazardStore {
-  private reports = new Map<string, HazardReport>();
-  private voters = new Map<string, VoterRecord>();
-
-  /** Drops any report that's expired or been voted away, wherever it's
+  /** Deletes a report that's expired or been voted away, wherever it's
    * encountered — mirrors `PresenceStore.pruneStale`'s "prune as you go"
-   * pattern rather than running a separate sweep. */
-  private pruneIfDead(report: HazardReport, nowMs: number): boolean {
+   * pattern rather than running a separate sweep. Returns true if deleted. */
+  private async pruneIfDead(report: HazardReport, nowMs: number): Promise<boolean> {
     if (isExpired(report, nowMs) || shouldHide(report)) {
-      this.reports.delete(report.id);
-      this.voters.delete(report.id);
+      const pool = getPool();
+      await pool.query('DELETE FROM hazard_reports WHERE id = $1', [report.id]);
+      await pool.query('DELETE FROM hazard_report_votes WHERE report_id = $1', [report.id]);
       return true;
     }
     return false;
   }
 
-  create(type: HazardType, lat: number, lon: number, reportedBy: string): HazardReport {
+  async create(type: HazardType, lat: number, lon: number, reportedBy: string): Promise<HazardReport> {
+    await ensureMigrated();
     const now = Date.now();
     const report: HazardReport = {
       id: randomUUID(),
@@ -56,70 +77,81 @@ export class HazardStore {
       confirmations: 0,
       denials: 0,
     };
-    this.reports.set(report.id, report);
-    this.voters.set(report.id, { confirmedBy: new Set(), deniedBy: new Set() });
+    await getPool().query(
+      `INSERT INTO hazard_reports (id, type, lat, lon, reported_by, created_at, expires_at, confirmations, denials)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 0, 0)`,
+      [report.id, report.type, report.lat, report.lon, report.reportedBy, report.createdAt, report.expiresAt]
+    );
     return report;
   }
 
   /** Reports sharing this point's geo-bucket or an adjacent one, excluding
    * anything expired or hidden by crowd denial — lazily pruning those from
-   * the map as they're found, same as `PresenceStore.pruneStale`. */
-  nearby(lat: number, lon: number, nowMs: number): HazardReport[] {
+   * the table as they're found, same as `PresenceStore.pruneStale`. */
+  async nearby(lat: number, lon: number, nowMs: number): Promise<HazardReport[]> {
+    await ensureMigrated();
     const neighborIds = new Set(getNeighboringBucketIds({ lat, lon }));
+    const { rows } = await getPool().query<HazardReportRow>('SELECT * FROM hazard_reports');
     const result: HazardReport[] = [];
-    for (const report of [...this.reports.values()]) {
-      if (this.pruneIfDead(report, nowMs)) continue;
+    for (const row of rows) {
+      const report = rowToReport(row);
+      if (await this.pruneIfDead(report, nowMs)) continue;
       const reportBucket = bucketId(getBucketCoord({ lat: report.lat, lon: report.lon }));
       if (neighborIds.has(reportBucket)) result.push(report);
     }
     return result;
   }
 
-  confirm(id: string, riderId: string): VoteResult {
-    const report = this.reports.get(id);
-    const voterRecord = this.voters.get(id);
-    if (!report || !voterRecord) return { ok: false, reason: 'not_found' };
-    if (!voterRecord.confirmedBy.has(riderId)) {
-      voterRecord.confirmedBy.add(riderId);
-      report.confirmations += 1;
-    }
+  async confirm(id: string, riderId: string): Promise<VoteResult> {
+    await ensureMigrated();
+    const pool = getPool();
+    const { rows } = await pool.query<HazardReportRow>('SELECT * FROM hazard_reports WHERE id = $1', [id]);
+    if (!rows[0]) return { ok: false, reason: 'not_found' };
+    const { rowCount } = await pool.query(
+      `INSERT INTO hazard_report_votes (report_id, rider_id, vote) VALUES ($1, $2, 'confirm') ON CONFLICT DO NOTHING`,
+      [id, riderId]
+    );
+    if (rowCount) await pool.query('UPDATE hazard_reports SET confirmations = confirmations + 1 WHERE id = $1', [id]);
     return { ok: true };
   }
 
-  deny(id: string, riderId: string): VoteResult {
-    const report = this.reports.get(id);
-    const voterRecord = this.voters.get(id);
-    if (!report || !voterRecord) return { ok: false, reason: 'not_found' };
-    if (!voterRecord.deniedBy.has(riderId)) {
-      voterRecord.deniedBy.add(riderId);
-      report.denials += 1;
-    }
+  async deny(id: string, riderId: string): Promise<VoteResult> {
+    await ensureMigrated();
+    const pool = getPool();
+    const { rows } = await pool.query<HazardReportRow>('SELECT * FROM hazard_reports WHERE id = $1', [id]);
+    if (!rows[0]) return { ok: false, reason: 'not_found' };
+    const { rowCount } = await pool.query(
+      `INSERT INTO hazard_report_votes (report_id, rider_id, vote) VALUES ($1, $2, 'deny') ON CONFLICT DO NOTHING`,
+      [id, riderId]
+    );
+    if (rowCount) await pool.query('UPDATE hazard_reports SET denials = denials + 1 WHERE id = $1', [id]);
     return { ok: true };
   }
 
   /** Only the reporter may remove their own report. */
-  remove(id: string, actorId: string): boolean {
-    const report = this.reports.get(id);
-    if (!report || report.reportedBy !== actorId) return false;
-    this.reports.delete(id);
-    this.voters.delete(id);
+  async remove(id: string, actorId: string): Promise<boolean> {
+    await ensureMigrated();
+    const pool = getPool();
+    const { rowCount } = await pool.query('DELETE FROM hazard_reports WHERE id = $1 AND reported_by = $2', [id, actorId]);
+    if (!rowCount) return false;
+    await pool.query('DELETE FROM hazard_report_votes WHERE report_id = $1', [id]);
     return true;
   }
 
-  get(id: string): HazardReport | undefined {
-    return this.reports.get(id);
+  async get(id: string): Promise<HazardReport | undefined> {
+    await ensureMigrated();
+    const { rows } = await getPool().query<HazardReportRow>('SELECT * FROM hazard_reports WHERE id = $1', [id]);
+    return rows[0] ? rowToReport(rows[0]) : undefined;
   }
 
-  deleteRider(riderId: string): void {
-    for (const [id, report] of this.reports) {
-      if (report.reportedBy === riderId) {
-        this.reports.delete(id);
-        this.voters.delete(id);
-      }
+  async deleteRider(riderId: string): Promise<void> {
+    await ensureMigrated();
+    const pool = getPool();
+    const { rows } = await pool.query<{ id: string }>('SELECT id FROM hazard_reports WHERE reported_by = $1', [riderId]);
+    for (const row of rows) {
+      await pool.query('DELETE FROM hazard_reports WHERE id = $1', [row.id]);
+      await pool.query('DELETE FROM hazard_report_votes WHERE report_id = $1', [row.id]);
     }
-    for (const voterRecord of this.voters.values()) {
-      voterRecord.confirmedBy.delete(riderId);
-      voterRecord.deniedBy.delete(riderId);
-    }
+    await pool.query('DELETE FROM hazard_report_votes WHERE rider_id = $1', [riderId]);
   }
 }
