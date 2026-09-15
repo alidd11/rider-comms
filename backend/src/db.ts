@@ -36,13 +36,14 @@ function buildPool(): Pool {
   if (!connectionString) {
     throw new Error('DATABASE_URL is not set; account signup/login requires Postgres to be configured.');
   }
-  // Railway's private networking (service.railway.internal) doesn't need
-  // TLS, but be defensive for any connection string that doesn't already
-  // pin an sslmode: request TLS without validating Railway's internal cert.
-  const needsSsl = !/sslmode=/.test(connectionString);
+  // Railway's private networking (service.railway.internal) doesn't speak
+  // TLS at all -- the Postgres server rejects an SSL negotiation outright.
+  // Only request TLS when the connection string explicitly asks for it
+  // (a hosted/external Postgres with sslmode=require), never by default.
+  const wantsSsl = /sslmode=require/.test(connectionString);
   return new Pool({
     connectionString,
-    ssl: needsSsl ? { rejectUnauthorized: false } : undefined,
+    ssl: wantsSsl ? { rejectUnauthorized: false } : undefined,
   });
 }
 
