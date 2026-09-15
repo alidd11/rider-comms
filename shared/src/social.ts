@@ -1,6 +1,7 @@
 import type { ZoneTier } from './types.ts';
 
 export type UnitSystem = 'mi' | 'km';
+export type SocialVisibility = 'public' | 'friends' | 'private';
 
 /**
  * A rider's account-level settings — server-persisted (Section: this used
@@ -20,6 +21,10 @@ export interface RiderProfile {
   notifyInvites: boolean;
   notifyChat: boolean;
   shareLocation: boolean;
+  instagramUsername: string;
+  instagramVisibility: SocialVisibility;
+  tiktokUsername: string;
+  tiktokVisibility: SocialVisibility;
   updatedAt: number;
 }
 

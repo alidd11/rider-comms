@@ -12,4 +12,4 @@ const BACKEND_PORT = 4000;
  */
 const devServerHost = Constants.expoConfig?.hostUri?.split(':')[0];
 
-export const API_BASE_URL = `http://${devServerHost ?? 'localhost'}:${BACKEND_PORT}`;
+export const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? `http://${devServerHost ?? 'localhost'}:${BACKEND_PORT}`;

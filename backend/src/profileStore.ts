@@ -2,20 +2,29 @@ import type { ProfileUpdate, RiderProfile, UnitSystem, ZoneTier } from '@rider-c
 
 const ZONE_TIERS: ZoneTier[] = ['free', 'premium', 'premium_plus'];
 const UNIT_SYSTEMS: UnitSystem[] = ['mi', 'km'];
+const SOCIAL_VISIBILITIES = ['public', 'friends', 'private'];
 
 export type ProfileUpdateResult =
   | { ok: true; profile: RiderProfile }
   | { ok: false; error: string };
 
 function isNonEmptyString(value: unknown): value is string {
-  return typeof value === 'string' && value.length > 0;
+  return typeof value === 'string' && value.trim().length > 0;
 }
+
+const ALLOWED_UPDATE_FIELDS = new Set([
+  'displayName', 'handle', 'avatarId', 'zoneTier', 'unitSystem',
+  'notifyNearby', 'notifyInvites', 'notifyChat', 'shareLocation',
+  'instagramUsername', 'instagramVisibility', 'tiktokUsername', 'tiktokVisibility',
+]);
 
 /** Validates a subset of ProfileUpdate fields present on `body`. Returns an
  * error message for the first invalid field found, or null if everything
  * present is valid. Fields not present are not checked (PUT is a partial
  * merge, not a full replace). */
 export function validateProfileUpdate(body: Record<string, unknown>): string | null {
+  const unknownField = Object.keys(body).find((key) => !ALLOWED_UPDATE_FIELDS.has(key));
+  if (unknownField) return `unknown profile field: ${unknownField}`;
   if ('displayName' in body && !isNonEmptyString(body.displayName)) {
     return 'displayName must be a non-empty string';
   }
@@ -24,6 +33,21 @@ export function validateProfileUpdate(body: Record<string, unknown>): string | n
   }
   if ('avatarId' in body && !isNonEmptyString(body.avatarId)) {
     return 'avatarId must be a non-empty string';
+  }
+  if (typeof body.displayName === 'string' && body.displayName.trim().length > 50) {
+    return 'displayName must be at most 50 characters';
+  }
+  if (typeof body.handle === 'string' && !/^@[a-z0-9_]{3,24}$/i.test(body.handle)) {
+    return 'handle must start with @ and contain 3-24 letters, numbers, or underscores';
+  }
+  if (typeof body.avatarId === 'string' && body.avatarId.length > 40) {
+    return 'avatarId must be at most 40 characters';
+  }
+  for (const key of ['instagramUsername', 'tiktokUsername'] as const) {
+    if (key in body && (typeof body[key] !== 'string' || !/^[a-z0-9._]{0,30}$/i.test(body[key] as string))) return `${key} must contain at most 30 letters, numbers, dots, or underscores`;
+  }
+  for (const key of ['instagramVisibility', 'tiktokVisibility'] as const) {
+    if (key in body && !SOCIAL_VISIBILITIES.includes(body[key] as string)) return `${key} must be public, friends, or private`;
   }
   if ('zoneTier' in body && !ZONE_TIERS.includes(body.zoneTier as ZoneTier)) {
     return `zoneTier must be one of: ${ZONE_TIERS.join(', ')}`;
@@ -58,7 +82,11 @@ export class ProfileStore {
       notifyNearby: true,
       notifyInvites: true,
       notifyChat: true,
-      shareLocation: true,
+      shareLocation: false,
+      instagramUsername: '',
+      instagramVisibility: 'friends',
+      tiktokUsername: '',
+      tiktokVisibility: 'friends',
       updatedAt: Date.now(),
     };
   }

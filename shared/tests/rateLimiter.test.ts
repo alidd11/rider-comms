@@ -33,4 +33,11 @@ describe('SlidingWindowRateLimiter', () => {
     expect(limiter.tryConsume('user-2', 0)).toBe(true);
     expect(limiter.tryConsume('user-1', 5)).toBe(false);
   });
+
+  it('prunes inactive keys without changing active limits', () => {
+    const limiter = new SlidingWindowRateLimiter(1, 1000);
+    limiter.tryConsume('old', 0); limiter.tryConsume('active', 1500); limiter.prune(1600);
+    expect(limiter.tryConsume('old', 1600)).toBe(true);
+    expect(limiter.tryConsume('active', 1600)).toBe(false);
+  });
 });

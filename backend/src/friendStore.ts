@@ -60,6 +60,10 @@ export class FriendStore {
     return { ok: true, request };
   }
 
+  getRequest(requestId: string): FriendRequest | undefined {
+    return this.requests.get(requestId);
+  }
+
   getRequestsFor(riderId: string): { incoming: FriendRequest[]; outgoing: FriendRequest[] } {
     const incoming: FriendRequest[] = [];
     const outgoing: FriendRequest[] = [];

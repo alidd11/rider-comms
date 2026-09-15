@@ -18,8 +18,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { DirectMessage, Hideout } from '@rider-comms/shared';
 import type { RootStackParamList } from '../navigation';
-import { ApiError, RiderCommsClient } from '../api/client';
-import { API_BASE_URL } from '../config';
+import { ApiError } from '../api/client';
+import { useAuth } from '../auth/AuthContext';
 import { colors, spacing, radii, type, elevation, MIN_TOUCH_TARGET } from '../theme';
 import { getAvatarPreset } from '../settings/avatars';
 
@@ -179,9 +179,9 @@ function PlanHideoutModal({
 
 export function FriendChatScreen({ route, navigation }: Props): React.JSX.Element {
   const { riderId, displayName, avatarId } = route.params;
+  const { riderId: currentRiderId, client } = useAuth();
   const avatar = getAvatarPreset(avatarId);
   const insets = useSafeAreaInsets();
-  const clientRef = React.useRef(new RiderCommsClient(API_BASE_URL));
 
   const [messages, setMessages] = React.useState<DirectMessage[]>([]);
   const [draft, setDraft] = React.useState('');
@@ -193,7 +193,7 @@ export function FriendChatScreen({ route, navigation }: Props): React.JSX.Elemen
 
   const loadMessages = React.useCallback(async () => {
     try {
-      const { messages: fetched } = await clientRef.current.getMessages(ME, riderId);
+      const { messages: fetched } = await client.getMessages(riderId);
       setMessages(fetched);
       setError(null);
     } catch (err) {
@@ -203,7 +203,7 @@ export function FriendChatScreen({ route, navigation }: Props): React.JSX.Elemen
 
   const loadHideouts = React.useCallback(async () => {
     try {
-      const { hideouts: fetched } = await clientRef.current.getHideouts(ME);
+      const { hideouts: fetched } = await client.getHideouts(currentRiderId);
       setHideouts(fetched.filter((h) => h.participantIds.includes(riderId)));
     } catch {
       // Hideouts are secondary to the chat itself — a failure here doesn't
@@ -230,7 +230,7 @@ export function FriendChatScreen({ route, navigation }: Props): React.JSX.Elemen
     if (!text) return;
     setSending(true);
     try {
-      await clientRef.current.sendMessage(ME, riderId, text);
+      await client.sendMessage(riderId, text);
       setDraft('');
       await loadMessages();
       setError(null);
@@ -243,7 +243,7 @@ export function FriendChatScreen({ route, navigation }: Props): React.JSX.Elemen
 
   const handleCreateHideout = React.useCallback(
     async (name: string, lat: number, lon: number) => {
-      await clientRef.current.createHideout(name, lat, lon, ME, [riderId]);
+      await client.createHideout(name, lat, lon, [riderId]);
       await loadHideouts();
     },
     [riderId, loadHideouts]
@@ -252,7 +252,7 @@ export function FriendChatScreen({ route, navigation }: Props): React.JSX.Elemen
   const handleDeleteHideout = React.useCallback(
     async (hideoutId: string) => {
       try {
-        await clientRef.current.deleteHideout(hideoutId, ME);
+        await client.deleteHideout(hideoutId);
         await loadHideouts();
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Could not delete that hideout.');

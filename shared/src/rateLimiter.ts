@@ -25,6 +25,7 @@ export class SlidingWindowRateLimiter {
    * hit the limit within the current window.
    */
   tryConsume(key: string, now = Date.now()): boolean {
+    if (this.hits.size > 1000) this.prune(now);
     const windowStart = now - this.windowMs;
     const existing = (this.hits.get(key) ?? []).filter((t) => t > windowStart);
 
@@ -40,5 +41,14 @@ export class SlidingWindowRateLimiter {
 
   reset(key: string): void {
     this.hits.delete(key);
+  }
+
+  prune(now = Date.now()): void {
+    const windowStart = now - this.windowMs;
+    for (const [key, timestamps] of this.hits) {
+      const active = timestamps.filter((timestamp) => timestamp > windowStart);
+      if (active.length === 0) this.hits.delete(key);
+      else this.hits.set(key, active);
+    }
   }
 }

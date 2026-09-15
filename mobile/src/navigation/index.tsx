@@ -13,9 +13,11 @@ import { SettingsScreen } from '../screens/SettingsScreen';
 import { CreateRideScreen } from '../screens/CreateRideScreen';
 import { FriendsScreen } from '../screens/FriendsScreen';
 import { FriendChatScreen } from '../screens/FriendChatScreen';
+import { SubscriptionScreen } from '../screens/SubscriptionScreen';
 import { RideProvider } from '../ride/RideContext';
 import { SettingsProvider } from '../settings/SettingsContext';
 import { FriendsProvider } from '../friends/FriendsContext';
+import { AuthProvider } from '../auth/AuthContext';
 import { colors } from '../theme';
 
 const navigationTheme = {
@@ -45,6 +47,7 @@ export type RootStackParamList = {
   Tabs: undefined;
   CreateRide: undefined;
   FriendChat: { riderId: string; displayName: string; avatarId: string };
+  Subscription: undefined;
 };
 
 const Tab = createBottomTabNavigator<TabParamList>();
@@ -121,7 +124,8 @@ export function AppNavigator(): React.JSX.Element {
     // MapScreen's floating toggle/error banner, and every screen's top
     // padding) return real numbers instead of all zeros.
     <SafeAreaProvider>
-      <SettingsProvider>
+      <AuthProvider>
+       <SettingsProvider>
         <RideProvider>
           <FriendsProvider>
             <NavigationContainer theme={navigationTheme}>
@@ -148,11 +152,13 @@ export function AppNavigator(): React.JSX.Element {
                   component={FriendChatScreen}
                   options={{ presentation: 'card', headerShown: false }}
                 />
+                <Stack.Screen name="Subscription" component={SubscriptionScreen} options={{ headerShown: false }} />
               </Stack.Navigator>
             </NavigationContainer>
           </FriendsProvider>
         </RideProvider>
-      </SettingsProvider>
+       </SettingsProvider>
+      </AuthProvider>
     </SafeAreaProvider>
   );
 }
