@@ -6,6 +6,7 @@ import * as React from 'react';
 import { DarkTheme, NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { MapScreen } from '../screens/MapScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
@@ -75,7 +76,22 @@ function Tabs(): React.JSX.Element {
         tabBarIcon: ({ color, size }) => TAB_ICONS[route.name](color, size),
       })}
     >
-      <Tab.Screen name="Map" component={MapScreen} options={{ title: 'Map' }} />
+      {/* Tapping "Map" always forces the segment back to 'public', not just
+          "focus whatever the Map route was last showing" — otherwise
+          leaving it on Host (via the Group Ride tab, or the in-screen
+          toggle) makes the Map tab look permanently stuck on the host
+          form with no obvious way back. */}
+      <Tab.Screen
+        name="Map"
+        component={MapScreen}
+        options={{ title: 'Map' }}
+        listeners={({ navigation }) => ({
+          tabPress: (e) => {
+            e.preventDefault();
+            navigation.navigate('Map', { segment: 'public', at: Date.now() });
+          },
+        })}
+      />
       {/* Not a second screen/mount: tapping this tab redirects straight to
           the Map route with segment: 'host' params instead of navigating
           here, so there's still only ever one mounted map instance. */}
@@ -98,37 +114,45 @@ function Tabs(): React.JSX.Element {
 
 export function AppNavigator(): React.JSX.Element {
   return (
-    <SettingsProvider>
-      <RideProvider>
-        <FriendsProvider>
-          <NavigationContainer theme={navigationTheme}>
-            <Stack.Navigator
-              screenOptions={{
-                headerStyle: { backgroundColor: colors.surface },
-                headerTitleStyle: { color: colors.textPrimary },
-                headerTintColor: colors.accent,
-                contentStyle: { backgroundColor: colors.background },
-              }}
-            >
-              <Stack.Screen name="Tabs" component={Tabs} options={{ headerShown: false }} />
-              <Stack.Screen
-                name="CreateRide"
-                component={CreateRideScreen}
-                options={{ title: 'Start a Ride', presentation: 'modal' }}
-              />
-              {/* A normal push, not a modal — this is primary navigation from
-                  the Friends list, not a transient action sheet. This app
-                  hides nav headers everywhere, so the screen builds its own
-                  in-content back chevron instead of relying on one here. */}
-              <Stack.Screen
-                name="FriendChat"
-                component={FriendChatScreen}
-                options={{ presentation: 'card', headerShown: false }}
-              />
-            </Stack.Navigator>
-          </NavigationContainer>
-        </FriendsProvider>
-      </RideProvider>
-    </SettingsProvider>
+    // Every screen in this app hides the native nav header and builds its
+    // own top chrome instead — which means every one of them is otherwise
+    // on the hook for not rendering under the status bar/notch itself.
+    // SafeAreaProvider is what makes useSafeAreaInsets() (used by
+    // MapScreen's floating toggle/error banner, and every screen's top
+    // padding) return real numbers instead of all zeros.
+    <SafeAreaProvider>
+      <SettingsProvider>
+        <RideProvider>
+          <FriendsProvider>
+            <NavigationContainer theme={navigationTheme}>
+              <Stack.Navigator
+                screenOptions={{
+                  headerStyle: { backgroundColor: colors.surface },
+                  headerTitleStyle: { color: colors.textPrimary },
+                  headerTintColor: colors.accent,
+                  contentStyle: { backgroundColor: colors.background },
+                }}
+              >
+                <Stack.Screen name="Tabs" component={Tabs} options={{ headerShown: false }} />
+                <Stack.Screen
+                  name="CreateRide"
+                  component={CreateRideScreen}
+                  options={{ title: 'Start a Ride', presentation: 'modal' }}
+                />
+                {/* A normal push, not a modal — this is primary navigation from
+                    the Friends list, not a transient action sheet. This app
+                    hides nav headers everywhere, so the screen builds its own
+                    in-content back chevron instead of relying on one here. */}
+                <Stack.Screen
+                  name="FriendChat"
+                  component={FriendChatScreen}
+                  options={{ presentation: 'card', headerShown: false }}
+                />
+              </Stack.Navigator>
+            </NavigationContainer>
+          </FriendsProvider>
+        </RideProvider>
+      </SettingsProvider>
+    </SafeAreaProvider>
   );
 }

@@ -23,6 +23,7 @@ import { View, Text, Pressable, StyleSheet, Animated, PanResponder } from 'react
 import type { GestureResponderEvent, PanResponderGestureState } from 'react-native';
 import { useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import Svg, { Rect, Line, Defs, RadialGradient, Stop } from 'react-native-svg';
 import { TIER_RADIUS_MILES } from '@rider-comms/shared';
@@ -104,9 +105,17 @@ function MapPin({
  * full-width pill at the top — keeps the map clear top-to-bottom instead
  * of pushing it down under a header bar.
  */
-function SegmentToggle({ segment, onChange }: { segment: Segment; onChange: (s: Segment) => void }): React.JSX.Element {
+function SegmentToggle({
+  segment,
+  onChange,
+  topInset,
+}: {
+  segment: Segment;
+  onChange: (s: Segment) => void;
+  topInset: number;
+}): React.JSX.Element {
   return (
-    <View style={styles.sideToggle}>
+    <View style={[styles.sideToggle, { top: topInset + spacing.sm }]}>
       <Pressable
         style={[styles.sideToggleButton, segment === 'public' && styles.sideToggleButtonActive]}
         onPress={() => onChange('public')}
@@ -291,6 +300,7 @@ function ZoomableMap({ size, children }: { size: LayoutSize; children: React.Rea
 
 export function MapScreen(): React.JSX.Element {
   const { zoneTier: tier } = useSettings();
+  const insets = useSafeAreaInsets();
   const route = useRoute<RouteProp<TabParamList, 'Map'>>();
   const [segment, setSegment] = React.useState<Segment>(route.params?.segment ?? 'public');
   const [ridersInZone, setRidersInZone] = React.useState<string[]>([]);
@@ -395,13 +405,13 @@ export function MapScreen(): React.JSX.Element {
           </ZoomableMap>
         </View>
       ) : (
-        <View style={styles.hostFill}>
+        <View style={[styles.hostFill, { paddingTop: insets.top + spacing.xxl }]}>
           <HostPanel />
         </View>
       )}
 
       {segment === 'public' && error && (
-        <View style={styles.errorOverlay} pointerEvents="box-none">
+        <View style={[styles.errorOverlay, { top: insets.top + spacing.lg }]} pointerEvents="box-none">
           <View style={styles.errorBox}>
             <Ionicons name="alert-circle" size={18} color={colors.danger} />
             <Text style={styles.errorText}>{error}</Text>
@@ -409,7 +419,7 @@ export function MapScreen(): React.JSX.Element {
         </View>
       )}
 
-      <SegmentToggle segment={segment} onChange={setSegment} />
+      <SegmentToggle segment={segment} onChange={setSegment} topInset={insets.top} />
 
       <View style={styles.rideBarSlot} pointerEvents="box-none">
         <RideBar />
