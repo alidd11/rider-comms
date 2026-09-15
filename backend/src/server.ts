@@ -162,6 +162,9 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
       if (!applyCors(req, res, allowedOrigins)) return sendJson(res, 403, { error: 'origin_not_allowed' });
       if (req.method === 'OPTIONS') return sendEmpty(res, 204);
       if (req.method === 'GET' && (url.pathname === '/health' || url.pathname === '/ready')) return sendJson(res, 200, { ok: true });
+      if (req.method === 'GET' && url.pathname === '/config') {
+        return sendJson(res, 200, { googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY ?? '' });
+      }
       if (req.method === 'POST' && url.pathname === '/auth/guest') {
         if (!guestLimiter.tryConsume(address)) return sendJson(res, 429, { error: 'rate_limited' });
         const session = authStore.createGuest(); profileStore.getOrCreate(session.riderId); return sendJson(res, 201, session);
