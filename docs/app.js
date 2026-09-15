@@ -111,6 +111,7 @@
     if (push && location.hash !== `#${screen}`) history.pushState({ screen }, '', `#${screen}`);
     document.title = `${screen === 'ride' ? 'Group Ride' : screen[0].toUpperCase() + screen.slice(1)} · Rider Comms`;
     window.scrollTo(0, 0);
+    if (screen === 'map') renderMapRiders();
   }
 
   function renderProfile() {
@@ -136,11 +137,30 @@
     $$('[data-rider-id]', layer).forEach((button) => button.addEventListener('click', () => selectRider(button.dataset.riderId, people)));
   }
 
+  function visibleMapRiders() {
+    if (!state.activeRide) return PUBLIC_RIDERS;
+    return RIDE_MEMBERS
+      .filter((member) => member.riderId !== state.profile.riderId)
+      .map((member, index) => ({ ...member, x: 35 + index * 30, y: 43 + index * 15 }));
+  }
+
+  function renderMapRiders() {
+    const riders = visibleMapRiders();
+    if (!map || usingFallbackMap) return renderFallbackMarkers(riders);
+    mapMarkers.forEach((marker) => marker.setMap(null));
+    const centre = map.getCenter()?.toJSON() || { lat: 51.564, lng: -0.106 };
+    const offsets = [[.004, -.006], [-.003, .006], [.008, .004]];
+    mapMarkers = riders.map((person, index) => addMapMarker(person, {
+      lat: centre.lat + offsets[index % offsets.length][0],
+      lng: centre.lng + offsets[index % offsets.length][1],
+    }, false));
+  }
+
   function selectRider(riderId, people = PUBLIC_RIDERS) {
     if (riderId === state.profile.riderId) {
       state.selectedRiderId = null;
       $('#riderCard').hidden = true;
-      renderFallbackMarkers(state.activeRide && state.screen === 'map' ? RIDE_MEMBERS.filter((member) => member.riderId !== state.profile.riderId).map((member, index) => ({ ...member, x: 34 + index * 32, y: 42 + index * 16 })) : PUBLIC_RIDERS);
+      renderMapRiders();
       return;
     }
     const person = people.find((item) => item.riderId === riderId) || PUBLIC_RIDERS.find((item) => item.riderId === riderId);
@@ -197,8 +217,7 @@
     $('#memberCount').textContent = String(RIDE_MEMBERS.length);
     $('#leaveRideBtn').textContent = ride.isHost ? 'End ride' : 'Leave ride';
     $('#rideRoster').innerHTML = RIDE_MEMBERS.map((person) => `<article class="roster-row">${avatar(person, 'small')}<div class="identity"><strong>${escapeHtml(person.displayName)}${person.riderId === state.profile.riderId ? ' · You' : ''}</strong><span>${escapeHtml(person.handle)}</span></div><span class="roster-status">${escapeHtml(person.status)}</span></article>`).join('');
-    const rideRiders = RIDE_MEMBERS.filter((member) => member.riderId !== state.profile.riderId).map((member, index) => ({ ...member, x: 34 + index * 32, y: 42 + index * 16 }));
-    renderFallbackMarkers(state.screen === 'map' ? rideRiders : PUBLIC_RIDERS);
+    renderMapRiders();
   }
 
   function randomCode() {
@@ -313,10 +332,12 @@
 
   function renderMapStatus() {
     const active = state.publicLive && state.profile.shareLocation;
-    $('#mapStatusText').textContent = active
-      ? 'Visible to nearby riders'
-      : usingFallbackMap ? 'Simplified map · location off' : 'Location sharing off';
+    const privateRide = Boolean(state.activeRide);
+    $('#mapStatusText').textContent = privateRide
+      ? `${RIDE_MEMBERS.length} riders · private ride`
+      : active ? 'Visible to nearby riders' : 'Location sharing off';
     $('.map-status').classList.toggle('live', active);
+    $('#joinNearbyBtn').hidden = privateRide;
     $('#joinNearbyBtn').dataset.active = String(active);
     $('#joinNearbyBtn').lastElementChild.textContent = active ? 'Leave nearby' : 'Go live';
   }
@@ -413,7 +434,7 @@
     renderMapStatus();
     userMapMarker = addMapMarker({ ...state.profile, displayName: state.profile.displayName }, centre, true);
     const offsets = [[.004, -.006], [-.003, .006], [.008, .004]];
-    mapMarkers = PUBLIC_RIDERS.map((person, index) => addMapMarker(person, { lat: centre.lat + offsets[index][0], lng: centre.lng + offsets[index][1] }, false));
+    mapMarkers = visibleMapRiders().map((person, index) => addMapMarker(person, { lat: centre.lat + offsets[index % offsets.length][0], lng: centre.lng + offsets[index % offsets.length][1] }, false));
   }
 
   function addMapMarker(person, position, current) {
@@ -497,6 +518,7 @@
     });
     $('#locateBtn').addEventListener('click', locate);
     $('#joinNearbyBtn').addEventListener('click', toggleNearby);
+    $('[aria-label="Open profile"]').addEventListener('click', () => navigate('settings'));
   }
 
   function init() {

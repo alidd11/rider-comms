@@ -10,7 +10,7 @@
   <meta name="description" content="Rider Comms — nearby riders, private group rides and rider-first navigation.">
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="app.css?v=7">
+  <link rel="stylesheet" href="app.css?v=8">
   <title>Rider Comms</title>
 </head>
 <body>
@@ -23,6 +23,12 @@
     <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
     <symbol id="i-share" viewBox="0 0 24 24"><path d="M12 16V3m0 0L7 8m5-5 5 5M5 13v7h14v-7"/></symbol>
     <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></symbol>
+    <symbol id="i-card" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M3 10h18M7 15h4"/></symbol>
+    <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4.5 21c.5-4.4 3-6.5 7.5-6.5s7 2.1 7.5 6.5"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3 4.5 6v5.2c0 4.8 2.9 8.2 7.5 9.8 4.6-1.6 7.5-5 7.5-9.8V6L12 3Z"/><path d="m9 12 2 2 4-4"/></symbol>
+    <symbol id="i-units" viewBox="0 0 24 24"><path d="M4 7h16M7 4 4 7l3 3m10-6 3 3-3 3M4 17h16m-3-3 3 3-3 3M7 14l-3 3 3 3"/></symbol>
+    <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 16.5h12l-1.5-2.2V10a4.5 4.5 0 0 0-9 0v4.3L6 16.5Z"/><path d="M10 19h4"/></symbol>
+    <symbol id="i-reset" viewBox="0 0 24 24"><path d="M4 8V3m0 0h5M4 3l3.4 3.4A8 8 0 1 1 4.7 15"/></symbol>
   </defs></svg>
 
   <div id="app" class="app-shell">
@@ -32,8 +38,9 @@
         <div id="mapCanvas" class="map-canvas" role="application" aria-label="Rider map">
           <div id="googleMap" class="google-map" aria-hidden="true"></div>
           <div class="fallback-map" id="fallbackMap"><div class="road road-a"></div><div class="road road-b"></div><div class="road road-c"></div></div>
-          <header class="map-header glass"><div><span class="eyebrow">Nearby riders</span><h1 id="mapTitle">North London</h1></div><button class="avatar avatar-sm" data-avatar="AI" aria-label="Open profile">AI</button></header>
-          <div class="map-status glass"><span class="live-dot"></span><span id="mapStatusText">Location sharing off</span></div>
+          <h1 id="mapTitle" class="sr-only">North London rider map</h1>
+          <header class="map-header"><div class="map-context glass"><svg><use href="#i-location"/></svg><span><small>Current area</small><strong>North London</strong></span></div><button class="avatar avatar-sm" data-avatar="AI" aria-label="Open profile">AI</button></header>
+          <div class="map-status glass" aria-live="polite"><span class="live-dot"></span><span id="mapStatusText">Location sharing off</span></div>
           <div id="fallbackMarkers" class="fallback-markers"></div>
           <div class="map-actions">
             <button id="locateBtn" class="icon-button glass" aria-label="Centre on my location"><svg><use href="#i-location"/></svg></button>
@@ -46,12 +53,12 @@
 
       <section class="screen content-screen" data-screen="ride" aria-labelledby="rideTitle">
         <div class="page-width">
-          <header class="page-header"><div><span class="eyebrow">Private channel</span><h1 id="rideTitle">Group Ride</h1></div><button class="icon-button" id="rideShareTop" aria-label="Share ride" hidden><svg><use href="#i-share"/></svg></button></header>
+          <header class="page-header"><div><span class="eyebrow">Private channel</span><h1 id="rideTitle">Group Ride</h1><p class="page-subtitle">Keep your people together without mixing in the public channel.</p></div><button class="icon-button" id="rideShareTop" aria-label="Share ride" hidden><svg><use href="#i-share"/></svg></button></header>
           <div id="rideJoinState">
-            <article class="hero-card ride-hero"><div class="hero-icon"><svg><use href="#i-ride"/></svg></div><div><h2>Ride together, stay together</h2><p>Create a private ride or join friends with a six-character code.</p></div></article>
-            <div class="segmented" role="tablist"><button class="active" data-ride-mode="join">Join a ride</button><button data-ride-mode="host">Start a ride</button></div>
-            <form id="joinRideForm" class="ride-form"><label for="rideCode">Ride code</label><div class="code-field"><input id="rideCode" maxlength="6" inputmode="text" autocomplete="off" placeholder="K4XQPZ" aria-describedby="rideHelp"><button class="button primary" type="submit">Join</button></div><p id="rideHelp" class="support-copy">Codes are shared by the ride host and expire automatically.</p><p id="rideError" class="inline-error" hidden></p></form>
-            <div id="hostRideForm" class="ride-form" hidden><h2>Start a private ride</h2><p class="support-copy">You’ll become host and receive an invite code to share with your group.</p><button id="createRideBtn" class="button primary wide">Create ride</button></div>
+            <div class="ride-entry"><div class="segmented" role="tablist"><button class="active" data-ride-mode="join">Join a ride</button><button data-ride-mode="host">Start a ride</button></div>
+              <form id="joinRideForm" class="ride-form"><label for="rideCode">Enter invite code</label><div class="code-field"><input id="rideCode" maxlength="6" inputmode="text" autocomplete="off" placeholder="K4XQPZ" aria-describedby="rideHelp"><button class="button primary" type="submit">Join</button></div><p id="rideHelp" class="support-copy">Ask the host for their six-character code.</p><p id="rideError" class="inline-error" hidden></p></form>
+              <div id="hostRideForm" class="ride-form" hidden><h2>Start a private ride</h2><p class="support-copy">You’ll receive a shareable invite code and host controls.</p><button id="createRideBtn" class="button primary wide">Create private ride</button></div>
+            </div>
           </div>
           <div id="rideActiveState" hidden>
             <article class="ride-summary"><div><span class="status-chip"><span class="live-dot"></span>Ride live</span><h2>Sunday city loop</h2><p><span id="memberCount">3</span> riders · You are <span id="rideRole">host</span></p></div><button id="shareRideBtn" class="button secondary"><svg><use href="#i-share"/></svg>Invite</button></article>
@@ -79,10 +86,10 @@
       <section class="screen content-screen" data-screen="settings" aria-labelledby="settingsTitle">
         <div class="page-width"><header class="page-header"><div><span class="eyebrow">Personalise</span><h1 id="settingsTitle">Settings</h1></div></header>
           <article class="profile-row"><div class="avatar avatar-lg" data-avatar="AI">AI</div><div class="profile-copy"><strong id="profileName">Ali</strong><span id="profileHandle">@ali_rides</span><small>rider_k4xqpz82</small></div><button id="editProfileBtn" class="button tertiary">Edit</button></article>
-          <div class="settings-group"><button data-sheet="plans"><span class="setting-icon">◎</span><span><strong>Subscription & billing</strong><small>Free plan · 1 mile radius</small></span><span class="plan-pill">Free</span><svg><use href="#i-chevron"/></svg></button><button data-sheet="profile"><span class="setting-icon">◉</span><span><strong>Account & profile</strong><small>Name, handle, avatar and socials</small></span><svg><use href="#i-chevron"/></svg></button><button data-sheet="privacy"><span class="setting-icon">⌾</span><span><strong>Privacy & visibility</strong><small>Location and social profile controls</small></span><svg><use href="#i-chevron"/></svg></button></div>
-          <h2 class="group-title">Riding</h2><div class="settings-group"><button data-sheet="map"><span class="setting-icon">⌖</span><span><strong>Map & location</strong><small>Google Maps and nearby visibility</small></span><svg><use href="#i-chevron"/></svg></button><button data-sheet="units"><span class="setting-icon">↔</span><span><strong>Distance units</strong><small>Miles</small></span><svg><use href="#i-chevron"/></svg></button><button data-sheet="notifications"><span class="setting-icon">◌</span><span><strong>Notifications</strong><small>Nearby riders, rides and messages</small></span><svg><use href="#i-chevron"/></svg></button></div>
-          <h2 class="group-title">Support</h2><div class="settings-group"><button data-sheet="safety"><span class="setting-icon">✓</span><span><strong>Safety & privacy</strong><small>Community rules and data choices</small></span><svg><use href="#i-chevron"/></svg></button><button id="resetPwa"><span class="setting-icon danger-text">↺</span><span><strong class="danger-text">Reset local data</strong><small>Restore this preview to defaults</small></span><svg><use href="#i-chevron"/></svg></button></div>
-          <p class="version">Rider Comms 0.2.0 · PWA</p>
+          <h2 class="group-title">Account</h2><div class="settings-group"><button data-sheet="plans"><span class="setting-icon"><svg><use href="#i-card"/></svg></span><span><strong>Subscription & billing</strong><small>Free plan · 1 mile radius</small></span><span class="plan-pill">Free</span><svg><use href="#i-chevron"/></svg></button><button data-sheet="profile"><span class="setting-icon"><svg><use href="#i-user"/></svg></span><span><strong>Profile</strong><small>Name, handle, avatar and socials</small></span><svg><use href="#i-chevron"/></svg></button><button data-sheet="privacy"><span class="setting-icon"><svg><use href="#i-shield"/></svg></span><span><strong>Privacy & visibility</strong><small>Location and social profile controls</small></span><svg><use href="#i-chevron"/></svg></button></div>
+          <h2 class="group-title">Riding</h2><div class="settings-group"><button data-sheet="map"><span class="setting-icon"><svg><use href="#i-location"/></svg></span><span><strong>Map & location</strong><small>Maps and nearby visibility</small></span><svg><use href="#i-chevron"/></svg></button><button data-sheet="units"><span class="setting-icon"><svg><use href="#i-units"/></svg></span><span><strong>Distance units</strong><small>Miles</small></span><svg><use href="#i-chevron"/></svg></button><button data-sheet="notifications"><span class="setting-icon"><svg><use href="#i-bell"/></svg></span><span><strong>Notifications</strong><small>Nearby riders, rides and messages</small></span><svg><use href="#i-chevron"/></svg></button></div>
+          <h2 class="group-title">Support</h2><div class="settings-group"><button data-sheet="safety"><span class="setting-icon"><svg><use href="#i-shield"/></svg></span><span><strong>Safety & privacy</strong><small>Community rules and data choices</small></span><svg><use href="#i-chevron"/></svg></button><button id="resetPwa"><span class="setting-icon danger-text"><svg><use href="#i-reset"/></svg></span><span><strong class="danger-text">Reset local data</strong><small>Restore this preview to defaults</small></span><svg><use href="#i-chevron"/></svg></button></div>
+          <p class="version">Rider Comms 0.3.0 · PWA</p>
         </div>
       </section>
 
@@ -100,7 +107,7 @@
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
   <div id="updateBanner" class="update-banner" hidden><span>A new Rider Comms version is ready.</span><button id="reloadApp">Update now</button></div>
   <noscript>Rider Comms requires JavaScript.</noscript>
-  <script src="config.js?v=7"></script>
-  <script src="app.js?v=7" defer></script>
+  <script src="config.js?v=8"></script>
+  <script src="app.js?v=8" defer></script>
 </body>
 </html>
