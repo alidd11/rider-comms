@@ -38,16 +38,14 @@
     },
     friends: [],
     requests: [],
-    routes: [],
-    hazards: [],
     routeVehicleFilter: null,
   };
 
-  // Waze-style crowdsourced road reports. This is local, device-only mock
-  // state, same as the rest of this file (see the module header note on
-  // why the PWA has no backend calls) — a real deployment backs this with
-  // the same /hazards endpoints and TTL/hide-threshold rules the native
-  // app's client uses (see shared/src/hazards.ts, backend/src/hazardStore.ts).
+  // Waze-style crowdsourced road reports, backed for real by POST /hazards
+  // and GET /hazards/nearby (see backend/src/hazardStore.ts for the TTL and
+  // confirm/deny hide-threshold rules). This map is just UI metadata (icon,
+  // label, colour) for the real HazardType values the backend returns —
+  // never mock report data.
   const HAZARD_TYPES = {
     police: { label: 'Police', icon: 'i-shield', color: '#4f7cff' },
     camera: { label: 'Speed camera', icon: 'i-camera', color: '#4f7cff' },
@@ -116,6 +114,18 @@
   // persisted state the way profile/friends data does — they are always
   // re-fetched from the backend rather than trusted from localStorage.
   let nearbyRiders = [];
+
+  // Real crowdsourced hazard reports for the current area (GET
+  // /hazards/nearby), refreshed whenever the map screen is (re)opened or a
+  // new report is created — same runtime-only convention as nearbyRiders
+  // above, since a report can expire or be voted away server-side at any
+  // moment.
+  let nearbyHazards = [];
+
+  // Real user-submitted scenic routes for the current filter (GET
+  // /scenic-routes), refreshed whenever the Routes screen is opened or its
+  // vehicle filter changes — same runtime-only convention as nearbyRiders.
+  let routes = [];
 
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -218,8 +228,6 @@
         profile: { ...DEFAULT_STATE.profile, ...(stored.profile || {}) },
         friends: Array.isArray(stored.friends) ? stored.friends : structuredClone(DEFAULT_STATE.friends),
         requests: Array.isArray(stored.requests) ? stored.requests : structuredClone(DEFAULT_STATE.requests),
-        routes: Array.isArray(stored.routes) ? stored.routes : structuredClone(DEFAULT_STATE.routes),
-        hazards: Array.isArray(stored.hazards) ? stored.hazards : structuredClone(DEFAULT_STATE.hazards),
       };
     } catch {
       return structuredClone(DEFAULT_STATE);
@@ -275,7 +283,7 @@
     if (push && location.hash !== `#${screen}`) history.pushState({ screen }, '', `#${screen}`);
     document.title = `${screen === 'ride' ? 'Group Ride' : screen[0].toUpperCase() + screen.slice(1)} · Rider Comms`;
     window.scrollTo(0, 0);
-    if (screen === 'map') renderMapRiders();
+    if (screen === 'map') { renderMapRiders(); refreshNearbyHazards(); }
     if (screen === 'routes') renderRoutes();
     if (screen === 'friends') loadFriendsData();
     if (screen === 'ride') refreshActiveRide();
@@ -313,24 +321,6 @@
   // real bearing/distance.
   const HAZARD_OFFSETS = [[14, -10], [-16, 8], [10, 16], [-12, -14], [18, 4]];
 
-  // Real lat/lng deltas (same illustrative-offset convention as
-  // HAZARD_OFFSETS above) so a report also gets a genuine position on the
-  // live Google Map via addHazardMapMarker, instead of only existing in the
-  // fallback layer's page-relative percentages — which used to stay
-  // visible, floating disconnected from the real map, whenever a maps key
-  // was configured.
-  const HAZARD_GEO_OFFSETS = [[.0035, -.002], [-.004, .0025], [.002, .0042], [-.003, -.0038], [.0048, .0012]];
-
-  function hazardLatLng(hazard, index) {
-    if (typeof hazard.lat === 'number' && typeof hazard.lon === 'number') return { lat: hazard.lat, lng: hazard.lon };
-    const centre = map ? map.getCenter().toJSON() : { lat: 51.564, lng: -0.106 };
-    const [dLat, dLng] = HAZARD_GEO_OFFSETS[index % HAZARD_GEO_OFFSETS.length];
-    hazard.lat = centre.lat + dLat;
-    hazard.lon = centre.lng + dLng;
-    persist();
-    return { lat: hazard.lat, lng: hazard.lon };
-  }
-
   function pinIcon(color) {
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="30" height="40" viewBox="0 0 30 40"><path d="M15 1C7.3 1 1 7.1 1 14.6 1 23.6 15 39 15 39s14-15.4 14-24.4C29 7.1 22.7 1 15 1Z" fill="${color}" stroke="#0a0f14" stroke-width="2"/></svg>`;
     return {
@@ -340,9 +330,9 @@
     };
   }
 
-  function addHazardMapMarker(hazard, position) {
+  function addHazardMapMarker(hazard) {
     const meta = HAZARD_TYPES[hazard.type];
-    const marker = new google.maps.Marker({ map, position, title: meta.label, icon: pinIcon(meta.color), zIndex: 6 });
+    const marker = new google.maps.Marker({ map, position: { lat: hazard.lat, lng: hazard.lon }, title: meta.label, icon: pinIcon(meta.color), zIndex: 6 });
     marker.addListener('click', () => selectHazard(hazard.id));
     return marker;
   }
@@ -350,12 +340,12 @@
   function renderMapHazards() {
     if (!map || usingFallbackMap) return;
     mapHazardMarkers.forEach((marker) => marker.setMap(null));
-    mapHazardMarkers = state.hazards.map((hazard, index) => addHazardMapMarker(hazard, hazardLatLng(hazard, index)));
+    mapHazardMarkers = nearbyHazards.map((hazard) => addHazardMapMarker(hazard));
   }
 
   function renderHazardMarkers() {
     const layer = $('#hazardMarkers');
-    layer.innerHTML = state.hazards.map((hazard, index) => {
+    layer.innerHTML = nearbyHazards.map((hazard, index) => {
       const [dx, dy] = HAZARD_OFFSETS[index % HAZARD_OFFSETS.length];
       const meta = HAZARD_TYPES[hazard.type];
       return `<button class="hazard-marker" style="left:${50 + dx}%;top:${53 + dy}%;--hazard:${meta.color}" data-hazard-id="${escapeHtml(hazard.id)}" aria-label="${escapeHtml(meta.label)}"><svg><use href="#${meta.icon}"/></svg></button>`;
@@ -365,7 +355,7 @@
   }
 
   function selectHazard(hazardId) {
-    const hazard = state.hazards.find((h) => h.id === hazardId);
+    const hazard = nearbyHazards.find((h) => h.id === hazardId);
     const card = $('#hazardCard');
     if (!hazard) { card.hidden = true; return; }
     const meta = HAZARD_TYPES[hazard.type];
@@ -375,39 +365,92 @@
     $('[data-vote="deny"]', card).addEventListener('click', () => voteHazard(hazardId, 'deny'));
   }
 
-  function voteHazard(hazardId, direction) {
-    const hazard = state.hazards.find((h) => h.id === hazardId);
-    if (!hazard) return;
-    if (direction === 'confirm') hazard.confirmations += 1;
-    else hazard.denials += 1;
-    persist();
-    $('#hazardCard').hidden = true;
+  /** Real confirm/deny voting (POST /hazards/:id/confirm or /deny) — the
+   * backend only returns {} on success, so the local count is bumped
+   * optimistically rather than re-fetching the whole nearby list. A 404
+   * means the report already expired or was hidden by other riders'
+   * denials since this card was opened, so it's dropped locally too. */
+  async function voteHazard(hazardId, direction) {
+    try {
+      await apiFetch('POST', `/hazards/${encodeURIComponent(hazardId)}/${direction}`, {});
+      const hazard = nearbyHazards.find((h) => h.id === hazardId);
+      if (hazard) { if (direction === 'confirm') hazard.confirmations += 1; else hazard.denials += 1; }
+      $('#hazardCard').hidden = true;
+      renderHazardMarkers();
+    } catch (error) {
+      const code = error instanceof ApiError ? error.body?.error : undefined;
+      if (code === 'not_found') {
+        nearbyHazards = nearbyHazards.filter((h) => h.id !== hazardId);
+        $('#hazardCard').hidden = true;
+        renderHazardMarkers();
+        showToast('That report is no longer active.');
+      } else {
+        showToast('Could not record your vote. Try again.');
+      }
+    }
+  }
+
+  /** Fetches real nearby hazard reports (GET /hazards/nearby) for the given
+   * position. A transient failure leaves the previously-loaded list showing
+   * rather than clearing it. */
+  async function loadNearbyHazards(lat, lon) {
+    try {
+      const result = await apiFetch('GET', `/hazards/nearby?lat=${lat}&lon=${lon}`);
+      nearbyHazards = result.hazards;
+    } catch {
+      // keep whatever was last loaded
+    }
     renderHazardMarkers();
   }
 
-  async function createHazard(type) {
-    const hazard = { id: `hazard_${Date.now().toString(36)}`, type, confirmations: 0, denials: 0, createdAt: Date.now() };
-    // Waze anchors a report to the reporter's live GPS position, not to
-    // wherever the map happens to be centred — the fix for this being
-    // exactly the bug reported (hazards landing at an arbitrary offset from
-    // map centre, which drifts away from "where you actually are" the
-    // moment you pan the map). Reuse the same currentPosition() the
-    // locate/go-live buttons already use for a real fix.
+  /** Refreshes nearbyHazards for the rider's real current position, falling
+   * back to the map's centre (or a default London-ish coordinate on the
+   * fallback map) when location access isn't available — same fallback
+   * convention the rest of the map screen already uses. */
+  async function refreshNearbyHazards() {
+    let lat, lon;
     try {
       const position = await currentPosition();
-      hazard.lat = position.coords.latitude;
-      hazard.lon = position.coords.longitude;
-      showToast(`${HAZARD_TYPES[type].label} reported.`);
+      lat = position.coords.latitude;
+      lon = position.coords.longitude;
     } catch {
-      // No permission/no fix: fall back to hazardLatLng()'s illustrative
-      // offset-from-centre placement at render time (lat/lon left unset
-      // here) rather than blocking the report entirely, but say so — never
-      // present an approximate pin as if it were a real GPS fix.
-      showToast(`${HAZARD_TYPES[type].label} reported — enable location for an accurate pin.`);
+      const centre = map ? map.getCenter()?.toJSON() : null;
+      lat = centre?.lat ?? 51.564;
+      lon = centre?.lng ?? -0.106;
     }
-    state.hazards.push(hazard);
-    persist();
-    renderHazardMarkers();
+    await loadNearbyHazards(lat, lon);
+  }
+
+  const HAZARD_ERROR_MESSAGES = {
+    rate_limited: 'Too many reports — please wait a few minutes and try again.',
+  };
+
+  /** Reports a real hazard (POST /hazards) at the rider's live GPS
+   * position — reuses currentPosition(), the same geolocation helper the
+   * locate/go-live buttons use. The backend requires a real coordinate, so
+   * a report is never sent (or shown as if it landed) without one. */
+  async function createHazard(type, chips) {
+    const errorEl = $('#hazardFormError');
+    if (errorEl) errorEl.hidden = true;
+    let position;
+    try {
+      position = await currentPosition();
+    } catch {
+      if (errorEl) { errorEl.textContent = 'Enable location access to report a hazard.'; errorEl.hidden = false; }
+      return;
+    }
+    chips?.forEach((chip) => { chip.disabled = true; });
+    try {
+      const hazard = await apiFetch('POST', '/hazards', { type, lat: position.coords.latitude, lon: position.coords.longitude });
+      closeSheet();
+      showToast(`${HAZARD_TYPES[type].label} reported.`);
+      await loadNearbyHazards(hazard.lat, hazard.lon);
+    } catch (error) {
+      const code = error instanceof ApiError ? error.body?.error : undefined;
+      if (errorEl) { errorEl.textContent = HAZARD_ERROR_MESSAGES[code] || 'Could not report that hazard. Try again.'; errorEl.hidden = false; }
+    } finally {
+      chips?.forEach((chip) => { chip.disabled = false; });
+    }
   }
 
   function visibleMapRiders() {
@@ -562,7 +605,7 @@
 
   const VEHICLE_FILTER_ORDER = ['motorcycle_small', 'motorcycle_large', 'scooter', 'car'];
 
-  function renderRoutes() {
+  function renderRouteFilters() {
     const filtersEl = $('#routeVehicleFilters');
     filtersEl.innerHTML = ['all', ...VEHICLE_FILTER_ORDER].map((key) => {
       const active = (state.routeVehicleFilter ?? 'all') === key;
@@ -572,15 +615,14 @@
     $$('[data-vehicle-filter]', filtersEl).forEach((button) => button.addEventListener('click', () => {
       state.routeVehicleFilter = button.dataset.vehicleFilter === 'all' ? null : button.dataset.vehicleFilter;
       persist();
-      renderRoutes();
+      renderRouteFilters();
+      loadRoutes();
     }));
+  }
 
-    const filtered = state.routeVehicleFilter
-      ? state.routes.filter((route) => route.vehicleSuitability.includes(state.routeVehicleFilter))
-      : state.routes;
-
-    $('#routeEmpty').hidden = filtered.length > 0;
-    $('#routeList').innerHTML = filtered.map((route) => {
+  function renderRouteList() {
+    $('#routeEmpty').hidden = routes.length > 0;
+    $('#routeList').innerHTML = routes.map((route) => {
       const stars = Array.from({ length: 5 }, (_, i) => `<svg class="star${i < route.scenicRating ? ' filled' : ''}"><use href="#i-star"/></svg>`).join('');
       const badges = [
         ROAD_TYPE_LABELS[route.roadType],
@@ -603,23 +645,38 @@
         <a class="button tertiary" href="https://maps.google.com/?q=${route.startLat},${route.startLon}" target="_blank" rel="noopener">Open start in Maps</a>
       </article>`;
     }).join('');
-    $$('[data-delete-route-btn]', $('#routeList')).forEach((button) => button.addEventListener('click', (event) => {
+    $$('[data-delete-route-btn]', $('#routeList')).forEach((button) => button.addEventListener('click', async (event) => {
       const card = event.target.closest('[data-delete-route]');
       const routeId = card?.dataset.deleteRoute;
       if (!routeId || !window.confirm('Delete this route?')) return;
-      state.routes = state.routes.filter((route) => route.id !== routeId);
-      persist();
-      renderRoutes();
-      showToast('Route deleted.');
+      try {
+        await apiFetch('DELETE', `/scenic-routes/${encodeURIComponent(routeId)}`);
+        routes = routes.filter((route) => route.id !== routeId);
+        renderRouteList();
+        showToast('Route deleted.');
+      } catch {
+        showToast('Could not delete that route. Try again.');
+      }
     }));
   }
 
-  function createRoute(input) {
-    const route = { ...input, id: `route_${Date.now().toString(36)}`, createdBy: state.profile.riderId, createdAt: Date.now() };
-    state.routes.unshift(route);
-    persist();
-    renderRoutes();
-    showToast('Route added.');
+  /** Loads real user-submitted scenic routes (GET /scenic-routes), passing
+   * the current vehicle filter as the backend's own vehicleCategory query
+   * param rather than filtering a locally cached list. */
+  async function loadRoutes() {
+    try {
+      const query = state.routeVehicleFilter ? `?vehicleCategory=${encodeURIComponent(state.routeVehicleFilter)}` : '';
+      const result = await apiFetch('GET', `/scenic-routes${query}`);
+      routes = result.routes;
+    } catch (error) {
+      showToast('Could not load routes. ' + authErrorMessage(error));
+    }
+    renderRouteList();
+  }
+
+  function renderRoutes() {
+    renderRouteFilters();
+    loadRoutes();
   }
 
   function renderRide() {
@@ -827,8 +884,9 @@
             if (selected.has(v)) { selected.delete(v); chip.classList.remove('active'); }
             else { selected.add(v); chip.classList.add('active'); }
           }));
-          $('#saveRoute').addEventListener('click', () => {
+          $('#saveRoute').addEventListener('click', async () => {
             const errorEl = $('#routeFormError');
+            errorEl.hidden = true;
             const name = $('#routeName').value.trim();
             const description = $('#routeDescription').value.trim();
             const distanceMiles = Number($('#routeDistance').value);
@@ -845,29 +903,46 @@
             if ([startLat, endLat].some((v) => Number.isNaN(v) || Math.abs(v) > 90) || [startLon, endLon].some((v) => Number.isNaN(v) || Math.abs(v) > 180)) {
               errorEl.textContent = 'Coordinates are invalid or out of range.'; errorEl.hidden = false; return;
             }
-            createRoute({
-              name, description,
-              vehicleSuitability: [...selected],
-              roadType: $('#routeType').value,
-              distanceMiles, estimatedDurationMinutes,
-              difficulty: $('#routeDifficulty').value,
-              surfaceQuality: $('#routeSurface').value,
-              avoidsTolls: false, avoidsMotorways: false,
-              scenicRating,
-              safetyNotices: $('#routeNotices').value.split('\n').map((s) => s.trim()).filter(Boolean),
-              startLat, startLon, endLat, endLon,
-            });
-            closeSheet();
+            const button = $('#saveRoute');
+            button.disabled = true;
+            button.textContent = 'Saving…';
+            try {
+              await apiFetch('POST', '/scenic-routes', {
+                name, description,
+                vehicleSuitability: [...selected],
+                roadType: $('#routeType').value,
+                distanceMiles, estimatedDurationMinutes,
+                difficulty: $('#routeDifficulty').value,
+                surfaceQuality: $('#routeSurface').value,
+                avoidsTolls: false, avoidsMotorways: false,
+                scenicRating,
+                safetyNotices: $('#routeNotices').value.split('\n').map((s) => s.trim()).filter(Boolean),
+                startLat, startLon, endLat, endLon,
+              });
+              closeSheet();
+              showToast('Route added.');
+              if (state.screen === 'routes') loadRoutes();
+            } catch (error) {
+              // The backend's own validateScenicRouteInput error strings
+              // (e.g. "distanceMiles must be a positive number") are
+              // already rider-readable, so they're shown as-is.
+              const code = error instanceof ApiError ? error.body?.error : undefined;
+              errorEl.textContent = typeof code === 'string' && code ? code : 'Could not save that route. Try again.';
+              errorEl.hidden = false;
+            } finally {
+              button.disabled = false;
+              button.textContent = 'Save route';
+            }
           });
         },
       }),
       reportHazard: () => ({
         title: 'Report on the road',
-        body: `<p class="caption">Let nearby riders know what's ahead. Reports fade out over time.</p><div class="hazard-type-grid" id="hazardTypeChips">${HAZARD_TYPE_ORDER.map((t) => `<button type="button" class="hazard-type-tile" data-hazard-type="${t}" style="--hazard:${HAZARD_TYPES[t].color}">${icon(HAZARD_TYPES[t].icon.replace(/^i-/, ''))}<span>${escapeHtml(HAZARD_TYPES[t].label)}</span></button>`).join('')}</div>`,
-        ready: () => $$('[data-hazard-type]', $('#hazardTypeChips')).forEach((chip) => chip.addEventListener('click', () => {
-          closeSheet();
-          createHazard(chip.dataset.hazardType);
-        })),
+        body: `<p class="caption">Let nearby riders know what's ahead. Reports fade out over time.</p><div class="hazard-type-grid" id="hazardTypeChips">${HAZARD_TYPE_ORDER.map((t) => `<button type="button" class="hazard-type-tile" data-hazard-type="${t}" style="--hazard:${HAZARD_TYPES[t].color}">${icon(HAZARD_TYPES[t].icon.replace(/^i-/, ''))}<span>${escapeHtml(HAZARD_TYPES[t].label)}</span></button>`).join('')}</div><p id="hazardFormError" class="inline-error" hidden></p>`,
+        ready: () => {
+          const chips = $$('[data-hazard-type]', $('#hazardTypeChips'));
+          chips.forEach((chip) => chip.addEventListener('click', () => createHazard(chip.dataset.hazardType, chips)));
+        },
       }),
     };
     const template = templates[type]?.();
