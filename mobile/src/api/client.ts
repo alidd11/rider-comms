@@ -21,6 +21,7 @@ export interface CreateRideResponse { rideId: string; code: string; expiresAt: n
 export interface JoinRideResponse { rideId: string }
 export interface RideResponse { rideId: string; createdBy: string; createdAt: number; memberIds: string[] }
 export interface PresenceResponse { inZoneWith: string[]; transitions: Array<{ a: string; b: string; type: 'entered' | 'left' }>; radiusMiles: number }
+export interface VoiceTokenResponse { token: string; url: string }
 
 export class ApiError extends Error {
   readonly status: number;
@@ -56,6 +57,8 @@ export class RiderCommsClient {
   removeRideMember(id: string, memberId: string): Promise<RideResponse> { return this.request('DELETE', `/rides/${encodeURIComponent(id)}/members/${encodeURIComponent(memberId)}`); }
   updatePresence(lat: number, lon: number): Promise<PresenceResponse> { return this.request('POST', '/presence', { lat, lon }); }
   leavePresence(): Promise<Record<string, never>> { return this.request('DELETE', '/presence'); }
+  getRideVoiceToken(rideId: string): Promise<VoiceTokenResponse> { return this.request('POST', '/voice/token', { target: 'ride', rideId }); }
+  getChannelVoiceToken(): Promise<VoiceTokenResponse> { return this.request('POST', '/voice/token', { target: 'channel' }); }
   getProfile(id: string): Promise<RiderProfile> { return this.request('GET', `/riders/${encodeURIComponent(id)}/profile`); }
   updateProfile(id: string, update: ProfileUpdate): Promise<RiderProfile> { return this.request('PUT', `/riders/${encodeURIComponent(id)}/profile`, update); }
   sendFriendRequest(toRiderId: string): Promise<FriendRequest> { return this.request('POST', '/friends/requests', { toRiderId }); }
