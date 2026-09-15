@@ -5,7 +5,7 @@ import { AuthStore } from '../src/authStore.ts';
 import type { sendVerificationEmail } from '../src/email.ts';
 import { getPool, resetDbForTests } from '../src/db.ts';
 
-describe('AuthStore', () => { it('issues unique readable IDs and authenticates the matching token', () => { const store = new AuthStore(); const a = store.createGuest(); const b = store.createGuest(); assert.match(a.riderId, /^rider_[a-z2-9]{8}$/); assert.notEqual(a.riderId, b.riderId); assert.equal(store.riderForToken(a.token), a.riderId); assert.equal(store.riderForToken(`${a.token}x`), undefined); }); });
+describe('AuthStore', () => { it('issues unique readable IDs and authenticates the matching token', async () => { const store = new AuthStore(); const a = store.createGuest(); const b = store.createGuest(); assert.match(a.riderId, /^rider_[a-z2-9]{8}$/); assert.notEqual(a.riderId, b.riderId); assert.equal(await store.riderForToken(a.token), a.riderId); assert.equal(await store.riderForToken(`${a.token}x`), undefined); }); });
 
 // The username/password account flow is backed by real Postgres (see
 // db.ts) — these tests need DATABASE_URL to point at a reachable Postgres
@@ -66,7 +66,9 @@ describe('AuthStore account signup/login (Postgres-backed)', { skip: !hasDatabas
     assert.ok(!('error' in result), `expected success, got ${JSON.stringify(result)}`);
     if ('error' in result) return;
     assert.match(result.riderId, /^rider_[a-z2-9]{8}$/);
-    assert.equal(store.riderForToken(result.token), result.riderId);
+    assert.equal(await store.riderForToken(result.token), result.riderId);
+    assert.equal(result.emailVerified, false);
+    assert.equal(result.emailVerificationSent, true);
     assert.equal(calls.length, 1);
     assert.equal(calls[0].email, email);
     assert.ok(calls[0].token.length > 0);
@@ -125,7 +127,38 @@ describe('AuthStore account signup/login (Postgres-backed)', { skip: !hasDatabas
     if ('error' in loggedIn) return;
     assert.equal(loggedIn.riderId, signedUp.riderId);
     assert.equal(loggedIn.emailVerified, false);
-    assert.equal(store.riderForToken(loggedIn.token), signedUp.riderId);
+    assert.equal(await store.riderForToken(loggedIn.token), signedUp.riderId);
+  });
+
+  it('persists account sessions across AuthStore instances and supports revocation', async () => {
+    const { fn } = fakeSender();
+    const firstProcess = new AuthStore(fn);
+    const signedUp = await firstProcess.signUp(uniqueUsername(), uniqueEmail(), 'correct-horse-battery');
+    assert.ok(!('error' in signedUp));
+    if ('error' in signedUp) return;
+
+    const restartedProcess = new AuthStore(fn);
+    assert.equal(await restartedProcess.riderForToken(signedUp.token), signedUp.riderId);
+    await restartedProcess.revokeToken(signedUp.token);
+    assert.equal(await firstProcess.riderForToken(signedUp.token), undefined);
+    const nextProcess = new AuthStore(fn);
+    assert.equal(await nextProcess.riderForToken(signedUp.token), undefined);
+  });
+
+  it('reports when verification email delivery is unavailable without blocking signup', async () => {
+    const sender: typeof sendVerificationEmail = async () => false;
+    const store = new AuthStore(sender);
+    const signedUp = await store.signUp(uniqueUsername(), uniqueEmail(), 'correct-horse-battery');
+    assert.ok(!('error' in signedUp));
+    if ('error' in signedUp) return;
+    assert.equal(signedUp.emailVerificationSent, false);
+  });
+
+  it('rejects excessively long passwords before running scrypt', async () => {
+    const { fn } = fakeSender();
+    const store = new AuthStore(fn);
+    const result = await store.signUp(uniqueUsername(), uniqueEmail(), 'x'.repeat(129));
+    assert.deepEqual(result, { error: 'weak_password' });
   });
 
   it('rejects login with the wrong password', async () => {
@@ -230,5 +263,19 @@ describe('AuthStore account signup/login (Postgres-backed)', { skip: !hasDatabas
     const store = new AuthStore();
     const result = await store.resendVerification('rider_doesnotexist');
     assert.deepEqual(result, { error: 'not_found' });
+  });
+
+  it('deletes the persistent account and all of its sessions', async () => {
+    const { fn } = fakeSender();
+    const store = new AuthStore(fn);
+    const username = uniqueUsername();
+    const signedUp = await store.signUp(username, uniqueEmail(), 'correct-horse-battery');
+    assert.ok(!('error' in signedUp));
+    if ('error' in signedUp) return;
+    await store.deleteRider(signedUp.riderId);
+    assert.equal(await store.hasRider(signedUp.riderId), false);
+    assert.equal(await new AuthStore(fn).riderForToken(signedUp.token), undefined);
+    const { rowCount } = await getPool().query('SELECT 1 FROM users WHERE id = $1', [signedUp.riderId]);
+    assert.equal(rowCount, 0);
   });
 });

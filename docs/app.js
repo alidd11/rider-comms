@@ -140,6 +140,10 @@
   }
 
   let session = loadSession();
+  const stateStorageKey = () => session?.riderId ? `${STORAGE_KEY}:${session.riderId}` : STORAGE_KEY;
+  // v4 stored profile data in one device-global record. Account-scoped
+  // storage prevents one rider's cached identity appearing for another.
+  localStorage.removeItem(STORAGE_KEY);
 
   /**
    * Shared fetch helper for every real backend call in this file. Adds the
@@ -171,15 +175,12 @@
     const contentType = response.headers.get('content-type') || '';
     const json = contentType.includes('application/json') ? await response.json().catch(() => ({})) : {};
     if (!response.ok) {
-      // A 401 here means the session token the server issued is no longer
-      // valid (backend restarted, or the account was deleted) — sessions
-      // are only tracked in memory server-side, so this is expected to
-      // happen occasionally, not a bug. Sign the rider out for real rather
-      // than leaving the app stuck silently retrying with a dead token.
+      // A 401 means the expiring server-side session was revoked, deleted,
+      // or has reached its lifetime. Clear local credentials immediately.
       if (response.status === 401) {
+        const hadSession = Boolean(session);
         clearSession();
-        showAuthScreen();
-        showToast('Your session expired. Please sign in again.');
+        if (hadSession) location.reload();
       }
       throw new ApiError(response.status, json);
     }
@@ -197,7 +198,7 @@
 
   function loadState() {
     try {
-      const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+      const stored = JSON.parse(localStorage.getItem(stateStorageKey()) || 'null');
       if (!stored || typeof stored !== 'object') return structuredClone(DEFAULT_STATE);
       return {
         ...structuredClone(DEFAULT_STATE),
@@ -214,7 +215,7 @@
   }
 
   function persist() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    localStorage.setItem(stateStorageKey(), JSON.stringify(state));
   }
 
   function escapeHtml(value) {
@@ -1270,11 +1271,16 @@
     $('#closeSheet').addEventListener('click', closeSheet);
     $('#sheetBackdrop').addEventListener('click', (event) => { if (event.target === $('#sheetBackdrop')) closeSheet(); });
     document.addEventListener('keydown', (event) => { if (event.key === 'Escape') closeSheet(); });
-    $('#logoutBtn').addEventListener('click', () => {
+    $('#logoutBtn').addEventListener('click', async () => {
       if (!window.confirm('Log out of Rider Comms on this device?')) return;
-      clearSession();
-      localStorage.removeItem(STORAGE_KEY);
-      location.reload();
+      try {
+        await apiFetch('POST', '/auth/logout');
+      } catch {
+        // Local sign-out must still complete when the API is unavailable.
+      } finally {
+        clearSession();
+        location.reload();
+      }
     });
     $('#locateBtn').addEventListener('click', locate);
     $('#joinNearbyBtn').addEventListener('click', toggleNearby);
@@ -1385,6 +1391,7 @@
     const button = $('#loginSubmit');
     errorEl.hidden = true;
     button.disabled = true;
+    button.setAttribute('aria-busy', 'true');
     button.textContent = 'Logging in…';
     try {
       const result = await apiFetch('POST', '/auth/login', { username, password });
@@ -1398,6 +1405,7 @@
       errorEl.hidden = false;
     } finally {
       button.disabled = false;
+      button.removeAttribute('aria-busy');
       button.textContent = 'Log in';
     }
   }
@@ -1417,6 +1425,7 @@
       return;
     }
     button.disabled = true;
+    button.setAttribute('aria-busy', 'true');
     button.textContent = 'Creating account…';
     try {
       const result = await apiFetch('POST', '/auth/signup', { username, email, password });
@@ -1424,26 +1433,78 @@
       applyAuthenticatedIdentity(result.riderId, username);
       hideAuthScreen();
       startApp();
-      showToast('Account created. Check your email to verify it.');
+      showToast(result.emailVerificationSent
+        ? 'Account created. Check your email to verify it.'
+        : 'Account created. Email verification is temporarily unavailable.');
       await seedProfileFromUsername(username);
     } catch (error) {
       errorEl.textContent = authErrorMessage(error);
       errorEl.hidden = false;
     } finally {
       button.disabled = false;
+      button.removeAttribute('aria-busy');
       button.textContent = 'Create account';
     }
   }
 
+  let authFormsWired = false;
   function wireAuthForms() {
-    $$('[data-auth-mode]').forEach((button) => button.addEventListener('click', () => {
+    if (authFormsWired) return;
+    authFormsWired = true;
+    const authCopy = {
+      login: {
+        eyebrow: 'Welcome back',
+        title: 'Ready for the next ride?',
+        description: 'Sign in to find nearby riders, rejoin your group and keep your riding circle close.',
+      },
+      signup: {
+        eyebrow: 'Join the community',
+        title: 'Your ride starts here.',
+        description: 'Create your Rider Comms identity and connect with riders you choose.',
+      },
+    };
+
+    function setAuthMode(button, moveFocus = true) {
       const signup = button.dataset.authMode === 'signup';
       $$('[data-auth-mode]').forEach((item) => {
         item.classList.toggle('active', item === button);
         item.setAttribute('aria-selected', String(item === button));
+        item.tabIndex = item === button ? 0 : -1;
       });
       $('#loginForm').hidden = signup;
       $('#signupForm').hidden = !signup;
+      $('#loginForm').setAttribute('aria-hidden', String(signup));
+      $('#signupForm').setAttribute('aria-hidden', String(!signup));
+      $('#loginError').hidden = true;
+      $('#signupError').hidden = true;
+      const copy = signup ? authCopy.signup : authCopy.login;
+      $('#authEyebrow').textContent = copy.eyebrow;
+      $('#authTitle').textContent = copy.title;
+      $('#authDescription').textContent = copy.description;
+      if (moveFocus) (signup ? $('#signupUsername') : $('#loginUsername')).focus();
+    }
+
+    $$('[data-auth-mode]').forEach((button) => {
+      button.addEventListener('click', () => setAuthMode(button));
+      button.addEventListener('keydown', (event) => {
+        if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+        event.preventDefault();
+        const target = button.dataset.authMode === 'signup' ? $('#loginTab') : $('#signupTab');
+        setAuthMode(target);
+        target.focus();
+      });
+    });
+    $$('[data-password-toggle]').forEach((button) => button.addEventListener('click', () => {
+      const input = document.getElementById(button.dataset.passwordToggle);
+      if (!input) return;
+      const show = input.type === 'password';
+      input.type = show ? 'text' : 'password';
+      button.setAttribute('aria-pressed', String(show));
+      button.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+      const use = button.querySelector('use');
+      if (use) use.setAttribute('href', show ? '#i-eye-off' : '#i-eye');
+      input.focus({ preventScroll: true });
+      input.setSelectionRange(input.value.length, input.value.length);
     }));
     $('#loginForm').addEventListener('submit', (event) => {
       event.preventDefault();
@@ -1453,6 +1514,29 @@
       event.preventDefault();
       doSignup($('#signupUsername').value.trim(), $('#signupEmail').value.trim(), $('#signupPassword').value);
     });
+  }
+
+  async function consumeEmailVerificationLink() {
+    const params = new URLSearchParams(location.search);
+    const token = params.get('verifyToken');
+    if (!token) return null;
+    params.delete('verifyToken');
+    const remaining = params.toString();
+    history.replaceState({}, '', `${location.pathname}${remaining ? `?${remaining}` : ''}${location.hash}`);
+    try {
+      await apiFetch('POST', '/auth/verify-email', { token });
+      return { ok: true, message: 'Email verified. Your Rider Comms account is ready.' };
+    } catch (error) {
+      const code = error instanceof ApiError ? error.body?.error : undefined;
+      return {
+        ok: false,
+        message: code === 'expired_token'
+          ? 'That verification link has expired. Sign in and request a new one.'
+          : code === 'invalid_token'
+            ? 'That verification link is invalid or has already been used.'
+            : 'Email verification could not be completed. Check your connection and try the link again.',
+      };
+    }
   }
 
   // The app's real init, run once a session (existing or freshly created)
@@ -1476,18 +1560,43 @@
     loadFriendsData();
   }
 
-  function init() {
+  async function init() {
+    const verification = await consumeEmailVerificationLink();
     if (!session) {
       wireAuthForms();
       showAuthScreen();
-      $('#loginUsername').focus();
+      if (verification) {
+        const notice = $('#authNotice');
+        notice.textContent = verification.message;
+        notice.classList.toggle('error', !verification.ok);
+        notice.hidden = false;
+      }
+      return;
+    }
+    try {
+      const identity = await apiFetch('GET', '/auth/me');
+      if (identity.riderId !== session.riderId) {
+        clearSession();
+        location.reload();
+        return;
+      }
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 0) {
+        wireAuthForms();
+        showAuthScreen();
+        const notice = $('#authNotice');
+        notice.textContent = 'Your saved session could not be checked. Check your connection and try again.';
+        notice.classList.add('error');
+        notice.hidden = false;
+      }
       return;
     }
     applyAuthenticatedIdentity(session.riderId, state.profile.displayName || session.riderId);
     hideAuthScreen();
     startApp();
     loadProfile();
+    if (verification) showToast(verification.message);
   }
 
-  init();
+  void init();
 })();

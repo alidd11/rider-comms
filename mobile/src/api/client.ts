@@ -17,6 +17,8 @@ export type ScenicRouteInput = Omit<ScenicRoute, 'id' | 'createdBy' | 'createdAt
 export interface ScenicRouteFilters { vehicleCategory?: VehicleCategory; roadType?: RoadType; maxDifficulty?: Difficulty }
 
 export interface GuestSession { riderId: string; token: string }
+export interface LoginSession extends GuestSession { emailVerified: boolean }
+export interface SignUpSession extends LoginSession { emailVerificationSent: boolean }
 export interface CreateRideResponse { rideId: string; code: string; expiresAt: number; createdBy: string; memberIds: string[] }
 export interface JoinRideResponse { rideId: string }
 export interface RideResponse { rideId: string; createdBy: string; createdAt: number; memberIds: string[] }
@@ -40,6 +42,7 @@ export class RiderCommsClient {
     const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), 10_000);
     try {
       const res = await this.fetchImpl(`${this.baseUrl}${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body), signal: controller.signal });
+      if (res.status === 204 && res.ok) return undefined as T;
       const contentType = res.headers?.get?.('content-type') ?? '';
       const json = contentType.includes('application/json') || !res.headers ? await res.json() : { error: await res.text() };
       if (!res.ok) throw new ApiError(res.status, json);
@@ -47,6 +50,9 @@ export class RiderCommsClient {
     } finally { clearTimeout(timeout); }
   }
   registerGuest(): Promise<GuestSession> { return this.request('POST', '/auth/guest', {}); }
+  signUp(username: string, email: string, password: string): Promise<SignUpSession> { return this.request('POST', '/auth/signup', { username, email, password }); }
+  logIn(username: string, password: string): Promise<LoginSession> { return this.request('POST', '/auth/login', { username, password }); }
+  logOut(): Promise<void> { return this.request('POST', '/auth/logout', {}); }
   getMe(): Promise<{ riderId: string }> { return this.request('GET', '/auth/me'); }
   deleteAccount(): Promise<Record<string, never>> { return this.request('DELETE', '/auth/me'); }
   createRide(): Promise<CreateRideResponse> { return this.request('POST', '/rides', {}); }

@@ -8,6 +8,7 @@ const scryptAsync = promisify(scrypt);
 
 export interface GuestSession { riderId: string; token: string; }
 export interface LoginSession extends GuestSession { emailVerified: boolean; }
+export interface SignUpSession extends LoginSession { emailVerificationSent: boolean; }
 
 const USERNAME_PATTERN = /^[A-Za-z0-9_]{3,20}$/;
 // Simple, deliberately non-exhaustive email check (not full RFC 5322) —
@@ -16,11 +17,17 @@ const USERNAME_PATTERN = /^[A-Za-z0-9_]{3,20}$/;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const SCRYPT_KEYLEN = 64;
 const VERIFICATION_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
+const ACCOUNT_SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const MAX_PASSWORD_LENGTH = 128;
+// A valid, fixed scrypt record used only to equalise the cost of an unknown
+// username and a wrong password. Without it, login timing exposes whether a
+// username exists before credentials have been authenticated.
+const DUMMY_PASSWORD_HASH = `${'00'.repeat(16)}:${'00'.repeat(SCRYPT_KEYLEN)}`;
 
-export type SignUpResult = GuestSession | { error: 'username_taken' | 'email_taken' | 'invalid_username' | 'invalid_email' | 'weak_password' };
+export type SignUpResult = SignUpSession | { error: 'username_taken' | 'email_taken' | 'invalid_username' | 'invalid_email' | 'weak_password' };
 export type LogInResult = LoginSession | { error: 'invalid_credentials' };
 export type VerifyEmailResult = { riderId: string; verified: true } | { error: 'invalid_token' | 'expired_token' };
-export type ResendVerificationResult = { sent: true } | { error: 'not_found' | 'already_verified' };
+export type ResendVerificationResult = { sent: boolean } | { error: 'not_found' | 'already_verified' };
 
 function isValidUsername(username: unknown): username is string {
   return typeof username === 'string' && USERNAME_PATTERN.test(username);
@@ -31,7 +38,7 @@ function isValidEmail(email: unknown): email is string {
 }
 
 function isStrongEnoughPassword(password: unknown): password is string {
-  return typeof password === 'string' && password.length >= 8;
+  return typeof password === 'string' && password.length >= 8 && password.length <= MAX_PASSWORD_LENGTH;
 }
 
 async function hashPassword(password: string): Promise<string> {
@@ -41,16 +48,20 @@ async function hashPassword(password: string): Promise<string> {
 }
 
 async function verifyPassword(password: string, stored: string): Promise<boolean> {
-  const [saltHex, keyHex] = stored.split(':');
-  if (!saltHex || !keyHex) return false;
-  const salt = Buffer.from(saltHex, 'hex');
-  const expectedKey = Buffer.from(keyHex, 'hex');
-  const derivedKey = (await scryptAsync(password, salt, expectedKey.length)) as Buffer;
-  return derivedKey.length === expectedKey.length && timingSafeEqual(derivedKey, expectedKey);
+  try {
+    const [saltHex, keyHex] = stored.split(':');
+    if (!saltHex || !keyHex || saltHex.length !== 32 || keyHex.length !== SCRYPT_KEYLEN * 2) return false;
+    const salt = Buffer.from(saltHex, 'hex');
+    const expectedKey = Buffer.from(keyHex, 'hex');
+    const derivedKey = (await scryptAsync(password, salt, expectedKey.length)) as Buffer;
+    return derivedKey.length === expectedKey.length && timingSafeEqual(derivedKey, expectedKey);
+  } catch {
+    return false;
+  }
 }
 
 export class AuthStore {
-  private riderByTokenDigest = new Map<string, string>();
+  private riderByTokenDigest = new Map<string, { riderId: string; expiresAt: number }>();
   private issuedRiderIds = new Set<string>();
 
   /**
@@ -70,34 +81,83 @@ export class AuthStore {
     do { riderId = `rider_${generateRideCode(8).toLowerCase()}`; } while (this.issuedRiderIds.has(riderId));
     const token = randomBytes(32).toString('base64url');
     this.issuedRiderIds.add(riderId);
-    this.riderByTokenDigest.set(this.digest(token), riderId);
+    this.riderByTokenDigest.set(this.digest(token), { riderId, expiresAt: Number.POSITIVE_INFINITY });
     return { riderId, token };
   }
-  hasRider(riderId: string): boolean { return this.issuedRiderIds.has(riderId); }
-  riderForToken(token: string): string | undefined { return token ? this.riderByTokenDigest.get(this.digest(token)) : undefined; }
-  deleteRider(riderId: string): void {
-    this.issuedRiderIds.delete(riderId);
-    for (const [digest, issuedRiderId] of this.riderByTokenDigest) {
-      if (issuedRiderId === riderId) this.riderByTokenDigest.delete(digest);
+  async hasRider(riderId: string): Promise<boolean> {
+    if (this.issuedRiderIds.has(riderId)) return true;
+    if (!process.env.DATABASE_URL) return false;
+    await ensureMigrated();
+    const { rowCount } = await getPool().query('SELECT 1 FROM users WHERE id = $1', [riderId]);
+    return Boolean(rowCount);
+  }
+  async riderForToken(token: string): Promise<string | undefined> {
+    if (!token) return undefined;
+    const tokenHash = this.digest(token);
+    const cached = this.riderByTokenDigest.get(tokenHash);
+    if (cached && cached.expiresAt > Date.now()) return cached.riderId;
+    if (cached) this.riderByTokenDigest.delete(tokenHash);
+    if (!process.env.DATABASE_URL) return undefined;
+    await ensureMigrated();
+    const { rows } = await getPool().query<{ user_id: string }>(
+      'SELECT user_id FROM account_sessions WHERE token_hash = $1 AND expires_at > now()',
+      [tokenHash]
+    );
+    const row = rows[0];
+    if (!row) {
+      await getPool().query('DELETE FROM account_sessions WHERE token_hash = $1 AND expires_at <= now()', [tokenHash]);
+      return undefined;
     }
+    return row.user_id;
+  }
+  async revokeToken(token: string): Promise<void> {
+    if (!token) return;
+    const tokenHash = this.digest(token);
+    this.riderByTokenDigest.delete(tokenHash);
+    if (!process.env.DATABASE_URL) return;
+    await ensureMigrated();
+    await getPool().query('DELETE FROM account_sessions WHERE token_hash = $1', [tokenHash]);
+  }
+  async deleteRider(riderId: string): Promise<void> {
+    this.issuedRiderIds.delete(riderId);
+    for (const [digest, session] of this.riderByTokenDigest) {
+      if (session.riderId === riderId) this.riderByTokenDigest.delete(digest);
+    }
+    if (!process.env.DATABASE_URL) return;
+    await ensureMigrated();
+    // account_sessions and email_verifications cascade from users.
+    await getPool().query('DELETE FROM users WHERE id = $1', [riderId]);
   }
   createTestSession(riderId: string): GuestSession {
     const token = randomBytes(32).toString('base64url');
     this.issuedRiderIds.add(riderId);
-    this.riderByTokenDigest.set(this.digest(token), riderId);
+    this.riderByTokenDigest.set(this.digest(token), { riderId, expiresAt: Number.POSITIVE_INFINITY });
     return { riderId, token };
   }
-  private issueSession(riderId: string): GuestSession {
+  private async issueAccountSession(riderId: string): Promise<GuestSession> {
     const token = randomBytes(32).toString('base64url');
-    this.issuedRiderIds.add(riderId);
-    this.riderByTokenDigest.set(this.digest(token), riderId);
+    const tokenHash = this.digest(token);
+    const expiresAt = Date.now() + ACCOUNT_SESSION_TTL_MS;
+    await getPool().query(
+      'INSERT INTO account_sessions (token_hash, user_id, expires_at) VALUES ($1, $2, $3)',
+      [tokenHash, riderId, new Date(expiresAt)]
+    );
+    await getPool().query(`
+      DELETE FROM account_sessions
+      WHERE token_hash IN (
+        SELECT token_hash FROM account_sessions
+        WHERE user_id = $1
+        ORDER BY created_at DESC
+        OFFSET 10
+      )
+    `, [riderId]);
     return { riderId, token };
   }
   /**
    * Real, persistent account signup. Credentials live in Postgres (see
-   * db.ts); the issued session token is still tracked only in-memory, same
-   * as guest sessions — restarting the backend logs everyone out but never
-   * loses an account.
+   * db.ts). Account sessions are stored as SHA-256 token digests with an
+   * expiry so a backend restart never logs out every rider and a database
+   * leak does not expose bearer credentials.
    */
   async signUp(username: unknown, email: unknown, password: unknown): Promise<SignUpResult> {
     if (!isValidUsername(username)) return { error: 'invalid_username' };
@@ -122,12 +182,13 @@ export class AuthStore {
     // Never let a Resend hiccup (or a missing RESEND_API_KEY, in any
     // environment that hasn't configured it yet) block account creation —
     // issueVerification() already swallows send failures internally.
-    await this.issueVerification(riderId, email);
-    return this.issueSession(riderId);
+    const emailVerificationSent = await this.issueVerification(riderId, email);
+    const session = await this.issueAccountSession(riderId);
+    return { ...session, emailVerified: false, emailVerificationSent };
   }
 
   async logIn(username: unknown, password: unknown): Promise<LogInResult> {
-    if (typeof username !== 'string' || typeof password !== 'string') return { error: 'invalid_credentials' };
+    if (!isValidUsername(username) || typeof password !== 'string' || password.length < 1 || password.length > MAX_PASSWORD_LENGTH) return { error: 'invalid_credentials' };
     await ensureMigrated();
     const pool = getPool();
     const { rows } = await pool.query<{ id: string; password_hash: string; email_verified_at: Date | null }>(
@@ -135,8 +196,9 @@ export class AuthStore {
       [username]
     );
     const row = rows[0];
-    if (!row || !(await verifyPassword(password, row.password_hash))) return { error: 'invalid_credentials' };
-    const session = this.issueSession(row.id);
+    const passwordMatches = await verifyPassword(password, row?.password_hash ?? DUMMY_PASSWORD_HASH);
+    if (!row || !passwordMatches) return { error: 'invalid_credentials' };
+    const session = await this.issueAccountSession(row.id);
     // Verification is informational only — login is never gated on it, so
     // a client can nudge an unverified rider without blocking sign-in.
     return { ...session, emailVerified: row.email_verified_at !== null };
@@ -150,7 +212,7 @@ export class AuthStore {
    * is already persisted either way, so the rider can still be verified
    * later (e.g. once Resend is configured) without re-requesting.
    */
-  private async issueVerification(riderId: string, email: string): Promise<void> {
+  private async issueVerification(riderId: string, email: string): Promise<boolean> {
     const pool = getPool();
     const token = randomBytes(32).toString('base64url');
     const tokenHash = this.digest(token);
@@ -159,7 +221,7 @@ export class AuthStore {
       'INSERT INTO email_verifications (token_hash, user_id, expires_at) VALUES ($1, $2, $3)',
       [tokenHash, riderId, new Date(Date.now() + VERIFICATION_TOKEN_TTL_MS)]
     );
-    await this.sendVerificationEmailFn(email, token);
+    return this.sendVerificationEmailFn(email, token);
   }
 
   async verifyEmail(token: unknown): Promise<VerifyEmailResult> {
@@ -191,8 +253,7 @@ export class AuthStore {
     const row = rows[0];
     if (!row || !row.email) return { error: 'not_found' };
     if (row.email_verified_at) return { error: 'already_verified' };
-    await this.issueVerification(riderId, row.email);
-    return { sent: true };
+    return { sent: await this.issueVerification(riderId, row.email) };
   }
 }
 

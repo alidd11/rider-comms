@@ -119,9 +119,12 @@ function readJsonBody(req: http.IncomingMessage): Promise<Record<string, unknown
     req.on('error', reject);
   });
 }
-function authRider(req: http.IncomingMessage, res: http.ServerResponse, auth: AuthStore): string | undefined {
+function bearerToken(req: http.IncomingMessage): string {
   const header = req.headers.authorization;
-  const riderId = auth.riderForToken(header?.startsWith('Bearer ') ? header.slice(7).trim() : '');
+  return header?.startsWith('Bearer ') ? header.slice(7).trim() : '';
+}
+async function authRider(req: http.IncomingMessage, res: http.ServerResponse, auth: AuthStore): Promise<string | undefined> {
+  const riderId = await auth.riderForToken(bearerToken(req));
   if (!riderId) sendJson(res, 401, { error: 'unauthorized' });
   return riderId;
 }
@@ -193,9 +196,13 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
         if ('error' in result) return sendJson(res, result.error === 'invalid_token' ? 400 : 410, { error: result.error });
         return sendJson(res, 200, result);
       }
-      const actorId = authRider(req, res, authStore); if (!actorId) return;
+      const actorId = await authRider(req, res, authStore); if (!actorId) return;
       if (!apiLimiter.tryConsume(actorId)) return sendJson(res, 429, { error: 'rate_limited' });
       if (req.method === 'GET' && url.pathname === '/auth/me') return sendJson(res, 200, { riderId: actorId });
+      if (req.method === 'POST' && url.pathname === '/auth/logout') {
+        await authStore.revokeToken(bearerToken(req));
+        return sendEmpty(res, 204);
+      }
       if (req.method === 'POST' && url.pathname === '/auth/resend-verification') {
         if (!resendVerificationLimiter.tryConsume(actorId)) { res.setHeader('Retry-After', '600'); return sendJson(res, 429, { error: 'rate_limited' }); }
         const result = await authStore.resendVerification(actorId);
@@ -212,7 +219,7 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
         await moderationStore.deleteRider(actorId);
         await hazardStore.deleteRider(actorId);
         await scenicRouteStore.deleteRider(actorId);
-        authStore.deleteRider(actorId);
+        await authStore.deleteRider(actorId);
         return sendJson(res, 200, {});
       }
       if (req.method === 'POST' && url.pathname === '/rides') { const { ride, codeRecord } = rideStore.createRide(actorId); return sendJson(res, 201, { ...rideBody(ride), code: codeRecord.code, expiresAt: codeRecord.expiresAt }); }
@@ -264,7 +271,7 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
       if (req.method === 'POST' && url.pathname === '/blocks') {
         const body = await readJsonBody(req);
         if (typeof body.riderId !== 'string' || body.riderId === actorId) return sendJson(res, 400, { error: 'valid riderId is required' });
-        if (!authStore.hasRider(body.riderId)) return sendJson(res, 404, { error: 'rider_not_found' });
+        if (!(await authStore.hasRider(body.riderId))) return sendJson(res, 404, { error: 'rider_not_found' });
         await moderationStore.block(actorId, body.riderId);
         await friendStore.removeFriend(actorId, body.riderId);
         return sendJson(res, 200, {});
@@ -275,7 +282,7 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
       }
       if (req.method === 'POST' && url.pathname === '/reports') {
         const body = await readJsonBody(req);
-        if (typeof body.riderId !== 'string' || body.riderId === actorId || !authStore.hasRider(body.riderId)) return sendJson(res, 400, { error: 'valid riderId is required' });
+        if (typeof body.riderId !== 'string' || body.riderId === actorId || !(await authStore.hasRider(body.riderId))) return sendJson(res, 400, { error: 'valid riderId is required' });
         if (typeof body.reason !== 'string' || !REPORT_REASONS.includes(body.reason as ReportReason)) return sendJson(res, 400, { error: 'invalid report reason' });
         const details = typeof body.details === 'string' ? body.details.trim() : '';
         if (details.length > 1000) return sendJson(res, 400, { error: 'details must be at most 1000 characters' });
@@ -284,7 +291,7 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
       }
       if (req.method === 'GET' && s[0] === 'profiles' && s[1] && s.length === 2) {
         const targetId = decodeURIComponent(s[1]);
-        if (!authStore.hasRider(targetId)) return sendJson(res, 404, { error: 'rider_not_found' });
+        if (!(await authStore.hasRider(targetId))) return sendJson(res, 404, { error: 'rider_not_found' });
         if (await moderationStore.isBlockedBetween(actorId, targetId)) return sendJson(res, 403, { error: 'blocked' });
         return sendJson(res, 200, await publicProfile(profileStore, friendStore, actorId, targetId));
       }
@@ -308,7 +315,7 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
       }
       if (req.method === 'POST' && url.pathname === '/friends/requests') {
         const body = await readJsonBody(req); if (typeof body.toRiderId !== 'string' || !body.toRiderId.trim()) return sendJson(res, 400, { error: 'toRiderId is required' });
-        if (actorId === body.toRiderId) return sendJson(res, 400, { error: 'cannot_friend_yourself' }); if (!authStore.hasRider(body.toRiderId)) return sendJson(res, 404, { error: 'rider_not_found' });
+        if (actorId === body.toRiderId) return sendJson(res, 400, { error: 'cannot_friend_yourself' }); if (!(await authStore.hasRider(body.toRiderId))) return sendJson(res, 404, { error: 'rider_not_found' });
         if (await moderationStore.isBlockedBetween(actorId, body.toRiderId)) return sendJson(res, 403, { error: 'blocked' });
         const r = await friendStore.createRequest(actorId, body.toRiderId); return r.ok ? sendJson(res, 201, r.request) : sendJson(res, 409, { error: r.error });
       }

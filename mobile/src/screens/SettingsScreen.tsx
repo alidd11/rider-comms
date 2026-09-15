@@ -183,7 +183,7 @@ export function SettingsScreen(): React.JSX.Element {
     resetAll,
     loaded,
   } = useSettings();
-  const { riderId, deleteAccount } = useAuth();
+  const { riderId, emailVerified, logOut, deleteAccount } = useAuth();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const appVersion = Constants.expoConfig?.version ?? '0.1.0';
@@ -227,11 +227,24 @@ export function SettingsScreen(): React.JSX.Element {
   function confirmDeleteAccount() {
     Alert.alert(
       'Delete account?',
-      'This permanently deletes this guest identity and its prototype data. A new Rider ID will be created if you continue using the app.',
+      'This permanently deletes your Rider Comms account and associated data. This cannot be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Delete account', style: 'destructive', onPress: () => {
           void deleteAccount().catch(() => Alert.alert('Couldn’t delete account', 'Please check your connection and try again.'));
+        } },
+      ]
+    );
+  }
+
+  function confirmLogOut() {
+    Alert.alert(
+      'Log out?',
+      'You’ll need your username and password to sign in again.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Log out', onPress: () => {
+          void logOut().catch(() => Alert.alert('Logged out on this device', 'Rider Comms could not contact the server to revoke the session, but it has been removed from this device.'));
         } },
       ]
     );
@@ -291,7 +304,7 @@ export function SettingsScreen(): React.JSX.Element {
             </Pressable>
           )}
 
-          <Text style={styles.caption}>Protected by this device’s private guest session.</Text>
+          <Text style={styles.caption}>{emailVerified ? 'Email verified' : 'Email verification pending'}</Text>
           <Text selectable style={styles.riderId}>Rider ID: {riderId}</Text>
         </View>
 
@@ -416,6 +429,13 @@ export function SettingsScreen(): React.JSX.Element {
           >
             <Ionicons name="trash-outline" size={18} color={colors.danger} />
             <Text style={styles.dangerButtonText}>Reset app data</Text>
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [styles.dangerButton, styles.deleteAccountButton, pressed && styles.dangerButtonPressed]}
+            onPress={confirmLogOut}
+          >
+            <Ionicons name="log-out-outline" size={18} color={colors.danger} />
+            <Text style={styles.dangerButtonText}>Log out</Text>
           </Pressable>
           <Pressable
             style={({ pressed }) => [styles.dangerButton, styles.deleteAccountButton, pressed && styles.dangerButtonPressed]}

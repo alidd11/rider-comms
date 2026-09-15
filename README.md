@@ -6,7 +6,7 @@ Pre-alpha Expo/React Native app for proximity-based rider communication and priv
 
 Working and verified in this repository:
 
-- Secure per-device guest sessions and readable Rider IDs.
+- Postgres-backed username/password accounts with expiring, revocable bearer sessions; native tokens use SecureStore.
 - Actor-authorised profiles, rides, friendships, messages, hideouts, presence, blocks, reports, and account deletion.
 - Instagram and TikTok profile usernames with Public, Friends only, or Private visibility.
 - Private ride creation, joining, roster polling, host removal, leaving, and ending.
@@ -17,13 +17,13 @@ Working and verified in this repository:
 
 Still prototype-only:
 
-- All API data is in memory and disappears on server restart.
+- Profiles, active rides, presence and guest-only sessions remain in memory and disappear on server restart. Account credentials/sessions and several social/content stores are durable in Postgres.
 - Nearby rider placement and the map background are illustrative; no production map/navigation SDK is connected.
 - Live voice rooms, VOX, noise suppression, Bluetooth routing, and background audio are not connected.
 - Store billing products and receipt validation are not connected; the plan UI cannot unlock a tier.
-- The proposed video feed and scenic-routes tab are documented follow-ups, not shipped features.
+- The proposed stationary-only video feed remains a documented follow-up. Scenic-route discovery is available, but still needs broader route coverage and live road-condition data.
 
-Do not expose the API publicly or use real private data until durable authentication, storage, moderation, and production operations replace the prototype stores. See [COMPLIANCE.md](COMPLIANCE.md) for store-readiness requirements.
+Do not treat the API as production-ready or use real private data until the remaining in-memory stores, moderation operations, backups, monitoring and recovery controls are completed. See [COMPLIANCE.md](COMPLIANCE.md) for store-readiness requirements.
 
 ## Setup and verification
 
