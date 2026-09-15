@@ -1,6 +1,7 @@
 :root {
   color-scheme: light dark; --bg:#080c10; --system-chrome:#080c10; --bg-elevated:#0d1218; --surface:#121920; --surface-raised:#18212a; --surface-hover:#202b36; --border:#2a3642; --border-soft:#202a34; --text:#f7f9fb; --text-secondary:#b9c3ce; --text-muted:#8e9baa; --accent:#ff7a1a; --accent-soft:#3a2112; --accent-text:#160b03; --success:#39d39b; --danger:#ff6572; --warning:#ffc15a; --focus:#86bdff; --shadow-sm:0 8px 24px rgb(0 0 0/.22); --shadow-lg:0 20px 56px rgb(0 0 0/.4); --radius-sm:10px; --radius-md:14px; --radius-lg:20px; --radius-pill:999px; --touch:48px; --nav-height:64px; --content-max:680px; --safe-top:env(safe-area-inset-top,0px); --safe-right:env(safe-area-inset-right,0px); --safe-bottom:min(40px, env(safe-area-inset-bottom,0px)); --safe-left:env(safe-area-inset-left,0px); --nav-safe-bottom:var(--safe-bottom); --bottom-nav-height:calc(var(--nav-height) + var(--nav-safe-bottom)); --nav-item-justify:center; --nav-item-padding-bottom:0px; font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; font-synthesis:none;
 }
+:root{--surface:#141a21;--surface-raised:#1b232c;--surface-hover:#222d37;--border:#2b3743}
 /* Installed iOS PWAs expose the home-indicator region outside the visual
    viewport. Re-applying that inset inside the fixed tab bar reserves it
    twice and creates the large empty band below every screen. Browser tabs
@@ -90,6 +91,32 @@ img,svg{-webkit-user-drag:none}
 @media(prefers-color-scheme:light) and (min-width:1080px){
   body{background:#e6ddcf}
   .app-shell{box-shadow:0 0 80px rgb(40 30 15/.15)}
+}
+
+/* Visual-system refinement: stronger hierarchy, calmer surfaces and the
+   same active-navigation language as the native app. */
+.page-header h1{max-width:13ch;text-wrap:balance}
+.page-subtitle{text-wrap:pretty}
+.people-list,.ride-entry,.settings-group,.route-card,.profile-row{border-color:color-mix(in srgb,var(--border) 76%,transparent);box-shadow:0 12px 34px rgb(0 0 0/.16)}
+.roster-row,.friend-row,.request-row,.settings-group>button{transition:background 140ms ease,transform 140ms ease}
+.roster-row:active,.friend-row:active,.request-row:active,.settings-group>button:active{background:var(--surface-hover);transform:scale(.995)}
+.bottom-nav{border-top-color:color-mix(in srgb,var(--border) 72%,transparent);box-shadow:0 -12px 32px rgb(0 0 0/.12)}
+.bottom-nav>button:before{content:"";position:absolute;z-index:0;top:3px;width:44px;height:30px;border-radius:15px;background:transparent;transform:scale(.82);opacity:0;transition:background 150ms ease,opacity 150ms ease,transform 150ms ease}
+.bottom-nav>button.active:before{background:var(--accent-soft);transform:scale(1);opacity:1}
+.bottom-nav>button svg,.bottom-nav>button span{position:relative;z-index:1}
+.bottom-nav>button i{z-index:2}
+.bottom-nav>button.active span{font-weight:850}
+.icon-button,.button,.primary-fab,.chip{transition:background 140ms ease,border-color 140ms ease,transform 100ms ease}
+.section-heading,.group-title{letter-spacing:.12em}
+@media(min-width:1080px){
+  .auth-screen{right:auto;left:50%;width:min(100%,540px);transform:translateX(-50%);border-inline:1px solid var(--border-soft);box-shadow:0 0 80px rgb(0 0 0/.55)}
+}
+@media(prefers-color-scheme:light){
+  .people-list,.ride-entry,.settings-group,.route-card,.profile-row{box-shadow:0 12px 34px rgb(40 30 15/.09)}
+  .bottom-nav{box-shadow:0 -12px 32px rgb(40 30 15/.08)}
+}
+@media(prefers-color-scheme:light) and (min-width:1080px){
+  .auth-screen{box-shadow:0 0 80px rgb(40 30 15/.15)}
 }
 
 .auth-notice{margin:0 0 16px;padding:11px 13px;border:1px solid rgb(61 214 140/.28);border-radius:12px;background:rgb(61 214 140/.09);color:var(--success);font-size:.75rem;line-height:1.45}

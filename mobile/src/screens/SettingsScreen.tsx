@@ -16,6 +16,7 @@ import { PLAN_INFO } from '../settings/plans';
 import { RideBar } from '../ride/RideBar';
 import type { RootStackParamList } from '../navigation';
 import { useAuth } from '../auth/AuthContext';
+import { ScreenHeader } from '../components/ScreenHeader';
 
 const UNIT_LABELS: Record<UnitSystem, { name: string; blurb: string }> = {
   mi: { name: 'Miles', blurb: 'Distances and zone radius shown in miles.' },
@@ -253,59 +254,81 @@ export function SettingsScreen(): React.JSX.Element {
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={[styles.scroll, { paddingTop: insets.top + spacing.lg }]}>
-        <View style={styles.profileCard}>
-          <Pressable onPress={() => setPickerOpen(true)} style={styles.avatarTapArea}>
-            <View style={[styles.avatarRing, { backgroundColor: avatar.bg }, elevation.raised]}>
-              <MaterialCommunityIcons name={avatar.icon} size={40} color={colors.textPrimary} />
+        <ScreenHeader
+          eyebrow="Personalise"
+          title="Settings"
+          subtitle="Your profile, ride preferences, privacy and account controls."
+        />
+        <View style={[styles.profileCard, elevation.raised]}>
+          <Pressable
+            onPress={() => setPickerOpen(true)}
+            style={styles.avatarTapArea}
+            accessibilityRole="button"
+            accessibilityLabel="Change profile avatar"
+          >
+            <View style={[styles.avatarRing, { backgroundColor: avatar.bg }]}>
+              <MaterialCommunityIcons name={avatar.icon} size={30} color={colors.textPrimary} />
             </View>
             <View style={styles.avatarEditBadge}>
               <Ionicons name="pencil" size={13} color={colors.accentText} />
             </View>
           </Pressable>
 
-          {editingName ? (
-            <TextInput
-              style={styles.nameInput}
-              value={nameDraft}
-              onChangeText={setNameDraft}
-              onSubmitEditing={commitName}
-              onBlur={commitName}
-              autoFocus
-              maxLength={24}
-              returnKeyType="done"
-              placeholder="Rider name"
-              placeholderTextColor={colors.textMuted}
-            />
-          ) : (
-            <Pressable onPress={() => setEditingName(true)} style={styles.nameRow}>
-              <Text style={styles.name}>{displayName}</Text>
-              <Ionicons name="pencil" size={14} color={colors.textMuted} />
-            </Pressable>
-          )}
+          <View style={styles.profileCopy}>
+            {editingName ? (
+              <TextInput
+                style={styles.nameInput}
+                value={nameDraft}
+                onChangeText={setNameDraft}
+                onSubmitEditing={commitName}
+                onBlur={commitName}
+                autoFocus
+                maxLength={24}
+                returnKeyType="done"
+                placeholder="Rider name"
+                placeholderTextColor={colors.textMuted}
+              />
+            ) : (
+              <Pressable
+                onPress={() => setEditingName(true)}
+                style={styles.nameRow}
+                accessibilityRole="button"
+                accessibilityLabel="Edit rider name"
+              >
+                <Text numberOfLines={1} style={styles.name}>{displayName}</Text>
+                <Ionicons name="pencil" size={14} color={colors.textMuted} />
+              </Pressable>
+            )}
 
-          {editingHandle ? (
-            <TextInput
-              style={styles.handleInput}
-              value={handleDraft}
-              onChangeText={setHandleDraft}
-              onSubmitEditing={commitHandle}
-              onBlur={commitHandle}
-              autoFocus
-              maxLength={24}
-              autoCapitalize="none"
-              returnKeyType="done"
-              placeholder="@handle"
-              placeholderTextColor={colors.textMuted}
-            />
-          ) : (
-            <Pressable onPress={() => setEditingHandle(true)} style={styles.handleRow}>
-              <Text style={styles.handle}>{handle}</Text>
-              <Ionicons name="pencil" size={12} color={colors.textMuted} />
-            </Pressable>
-          )}
+            {editingHandle ? (
+              <TextInput
+                style={styles.handleInput}
+                value={handleDraft}
+                onChangeText={setHandleDraft}
+                onSubmitEditing={commitHandle}
+                onBlur={commitHandle}
+                autoFocus
+                maxLength={24}
+                autoCapitalize="none"
+                returnKeyType="done"
+                placeholder="@handle"
+                placeholderTextColor={colors.textMuted}
+              />
+            ) : (
+              <Pressable
+                onPress={() => setEditingHandle(true)}
+                style={styles.handleRow}
+                accessibilityRole="button"
+                accessibilityLabel="Edit rider handle"
+              >
+                <Text numberOfLines={1} style={styles.handle}>{handle}</Text>
+                <Ionicons name="pencil" size={12} color={colors.textMuted} />
+              </Pressable>
+            )}
 
-          <Text style={styles.caption}>{emailVerified ? 'Email verified' : 'Email verification pending'}</Text>
-          <Text selectable style={styles.riderId}>Rider ID: {riderId}</Text>
+            <Text style={styles.caption}>{emailVerified ? 'Email verified' : 'Email verification pending'}</Text>
+            <Text selectable numberOfLines={1} style={styles.riderId}>Rider ID: {riderId}</Text>
+          </View>
         </View>
 
         <View style={styles.sectionLabelRow}>
@@ -469,12 +492,23 @@ export function SettingsScreen(): React.JSX.Element {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-  scroll: { padding: spacing.lg },
-  profileCard: { alignItems: 'center', gap: spacing.xs, marginBottom: spacing.xl },
-  avatarTapArea: { marginBottom: spacing.sm },
+  scroll: { width: '100%', maxWidth: 760, alignSelf: 'center', padding: spacing.lg },
+  profileCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    marginBottom: spacing.md,
+    padding: spacing.md,
+    borderRadius: radii.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  profileCopy: { flex: 1, minWidth: 0, gap: 2 },
+  avatarTapArea: { flexShrink: 0 },
   avatarRing: {
-    width: 88,
-    height: 88,
+    width: 68,
+    height: 68,
     borderRadius: radii.pill,
     alignItems: 'center',
     justifyContent: 'center',
@@ -492,29 +526,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  nameRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-  name: { ...type.heading },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, alignSelf: 'flex-start', maxWidth: '100%' },
+  name: { ...type.heading, flexShrink: 1 },
   nameInput: {
     ...type.heading,
-    minWidth: 160,
-    textAlign: 'center',
+    width: '100%',
     borderBottomWidth: 1,
     borderBottomColor: colors.accent,
     paddingVertical: spacing.xs,
   },
-  handleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-  handle: { ...type.body, color: colors.textSecondary },
+  handleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, alignSelf: 'flex-start', maxWidth: '100%' },
+  handle: { ...type.body, color: colors.textSecondary, flexShrink: 1 },
   handleInput: {
     ...type.body,
     color: colors.textSecondary,
-    minWidth: 120,
-    textAlign: 'center',
+    width: '100%',
     borderBottomWidth: 1,
     borderBottomColor: colors.accent,
     paddingVertical: spacing.xs,
   },
-  caption: { ...type.caption, textAlign: 'center', paddingHorizontal: spacing.lg },
-  riderId: { ...type.caption, color: colors.textPrimary, marginTop: spacing.xs },
+  caption: { ...type.caption, marginTop: spacing.xs },
+  riderId: { ...type.caption, color: colors.textPrimary, marginTop: 2 },
   sectionLabelRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginTop: spacing.lg, marginBottom: spacing.sm },
   sectionLabelInRow: { marginTop: 0, marginBottom: 0 },
   sectionLabel: {
