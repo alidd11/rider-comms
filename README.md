@@ -1,68 +1,80 @@
 # Rider Comms
 
-Hands-free, proximity-based group voice + real navigation for moped/motorcycle riders. Full product spec: [`docs/spec.md`](docs/spec.md).
+Pre-alpha Expo/React Native app for proximity-based rider communication and private group rides. The monorepo contains the native client, a dependency-light Node.js prototype API, shared TypeScript logic, and a static design preview under `docs/`.
 
-This repo is a first working slice of the system, built in an environment with **no npm registry access** (network egress was blocked to `registry.npmjs.org`) and **no Mac/Android Studio/physical device**. That shaped what could actually be built and verified here — see "What's real vs. stubbed" below before assuming anything works beyond what's described.
+## Current status
 
-## Layout
+Working and verified in this repository:
 
-```
-shared/    Pure TypeScript logic shared by backend + mobile — zone matching,
-           geo-bucketing, ride codes, rate limiting, the audio priority
-           mixer. Zero runtime dependencies. Fully tested.
-backend/   Node.js HTTP service implementing ride creation/joining and the
-           public-zone presence/matching endpoints. Zero dependencies
-           beyond @rider-comms/shared and Node's standard library.
-           Fully tested, and runs as a real process (see below).
-mobile/    React Native (Expo) app scaffold — screens, navigation, an
-           API client, and the audio-engine/media-control interfaces.
-           NOT installed or run anywhere — see limitations below.
-docs/      The full product spec this code implements pieces of.
-```
+- Secure per-device guest sessions and readable Rider IDs.
+- Actor-authorised profiles, rides, friendships, messages, hideouts, presence, blocks, reports, and account deletion.
+- Instagram and TikTok profile usernames with Public, Friends only, or Private visibility.
+- Private ride creation, joining, roster polling, host removal, leaving, and ending.
+- Opt-in foreground GPS presence with server-controlled mutual radius.
+- In-app plan preview, privacy/safety information, and direct-message block/report controls.
+- Shared geo, ride-code, rate-limit, zone-transition, and audio-priority algorithms.
+- Android and iOS Metro exports plus an EAS internal Android APK profile.
 
-## What's real vs. stubbed
+Still prototype-only:
 
-**Fully real, tested, and runnable right now**, with zero external dependencies (everything uses Node 22's built-in TypeScript support and test runner — `node --experimental-strip-types --test`):
+- All API data is in memory and disappears on server restart.
+- Nearby rider placement and the map background are illustrative; no production map/navigation SDK is connected.
+- Live voice rooms, VOX, noise suppression, Bluetooth routing, and background audio are not connected.
+- Store billing products and receipt validation are not connected; the plan UI cannot unlock a tier.
+- The proposed video feed and scenic-routes tab are documented follow-ups, not shipped features.
 
-- `shared/` — the mutual-radius "zone" matching rule (Section 5 of the spec), geo-bucketing with the boundary-neighbor fix, ride-code generation/entropy/expiration, a rate limiter, and the nav/chat/music audio-priority mixer. 37 tests.
-- `backend/` — a real HTTP server (`POST /rides`, `POST /rides/join`, `POST /presence`, `GET /health`) built on `shared/` and Node's `http` module. 9 tests, including full end-to-end HTTP tests that prove two nearby riders get matched into the same zone and that ride-code brute-forcing gets rate-limited. It also runs as an actual standalone process — `npm run dev:backend` — and has been smoke-tested live with `curl`.
-- `mobile/src/api/client.ts` — the HTTP client the app would use to talk to the backend. 3 tests, using a mocked `fetch` so it needs no React Native install to verify.
+Do not expose the API publicly or use real private data until durable authentication, storage, moderation, and production operations replace the prototype stores. See [COMPLIANCE.md](COMPLIANCE.md) for store-readiness requirements.
 
-**Written but unverified — needs a real dev machine, not this sandbox:**
+## Setup and verification
 
-- Everything else under `mobile/`. React Native, Expo, React Navigation, and LiveKit can't be installed here at all (same registry block), and there's no Xcode/Android Studio/physical device to build or run on regardless. The screens, navigation, `AudioEngine`, and `NowPlayingBridge` are written to be structurally correct against those libraries' real APIs, with `TODO(native)` comments marking every place that needs an actual native module (VAD/noise suppression, LiveKit room connection, OS media-session bridging, GPS) this environment couldn't touch.
-
-Run `npm install` and `npx expo start` on a real machine to actually build the app — that's the point where the stubbed pieces get filled in.
-
-## Running the tests
+Node.js 22 or newer is required.
 
 ```bash
-npm install     # workspace linking only — no external packages to fetch
-npm test        # runs shared + backend + mobile-client suites (49 tests)
+npm install
+npm run check
+npx expo-doctor mobile
 ```
 
-Run one workspace at a time if you want to see a single suite:
-
-```bash
-npm run test --workspace=shared
-npm run test --workspace=backend
-npm run test:client --workspace=mobile
-```
-
-## Running the backend for real
+Run the API:
 
 ```bash
 npm run dev:backend
-# in another terminal:
-curl -X POST http://localhost:4000/rides -H 'Content-Type: application/json' -d '{"riderId":"ali"}'
 ```
 
-## What to build next
+Run the mobile app on the same network:
 
-In priority order, per Section 17 of the spec:
+```bash
+npm run start --workspace=mobile
+```
 
-1. **Security/reliability hardening** (spec Section 13-14) before any real users touch this — the ride-code rate limiting and mutual-radius logic here are real, but multi-region deployment, GPS-spoofing checks, and a real auth system are not built yet.
-2. **The actual voice layer.** This repo has the *decision* logic (who's in zone, what the audio mixer should do) but not a LiveKit room connection, VOX/noise-suppression pipeline, or Bluetooth headset audio routing — all native-module work that needs a real device.
-3. **Turn-by-turn navigation** (Mapbox Navigation SDK), ducked against the chat/music buses using the same `computeAudioGains` logic already built and tested in `shared/`.
+The development API host is normally derived from Expo. Override it for a deployed HTTPS API:
 
-See `docs/spec.md` for the full reasoning behind every decision above (why mutual radius, why geo-bucketing, why VOX over push-to-talk, etc).
+```bash
+EXPO_PUBLIC_API_URL=https://api.example.com npm run start --workspace=mobile
+```
+
+### PWA deployment and Google Maps
+
+Pushing `main` runs `.github/workflows/pages.yml`, verifies the repository,
+builds the static PWA, and deploys it to GitHub Pages. The service worker checks
+the network first and announces waiting updates inside the installed app, so
+testers do not need to clear browser storage between releases.
+
+To enable Google Maps in the PWA, add a GitHub Actions repository secret named
+`GOOGLE_MAPS_API_KEY`. Restrict that browser key in Google Cloud to the Maps
+JavaScript API and the exact GitHub Pages HTTPS origin. The workflow injects it
+into the deployed artifact; it is never committed to source. Without a valid
+key, the PWA uses its accessible simplified rider map instead of failing blank.
+
+The native Expo client still uses its existing illustrative map surface. A
+native Google Maps release requires platform-specific iOS and Android keys and
+an Expo development build; this PWA setup does not claim to configure those.
+
+With an authenticated Expo account, build an installable Android preview:
+
+```bash
+cd mobile
+npx eas-cli build --profile preview --platform android
+```
+
+See [docs/spec.md](docs/spec.md) for the product specification and [AUDIT.md](AUDIT.md) for the engineering assessment.

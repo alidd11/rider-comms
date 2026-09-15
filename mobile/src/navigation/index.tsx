@@ -16,10 +16,12 @@ import { CreateRideScreen } from '../screens/CreateRideScreen';
 import { FriendsScreen } from '../screens/FriendsScreen';
 import { FriendChatScreen } from '../screens/FriendChatScreen';
 import { BillingScreen } from '../screens/BillingScreen';
+import { LegalScreen } from '../screens/LegalScreen';
 import { OnboardingScreen, ONBOARDING_COMPLETED_KEY } from '../screens/OnboardingScreen';
 import { RideProvider } from '../ride/RideContext';
 import { SettingsProvider } from '../settings/SettingsContext';
 import { FriendsProvider } from '../friends/FriendsContext';
+import { AuthProvider } from '../auth/AuthContext';
 import { colors } from '../theme';
 
 const navigationTheme = {
@@ -50,6 +52,7 @@ export type RootStackParamList = {
   CreateRide: undefined;
   FriendChat: { riderId: string; displayName: string; avatarId: string };
   Billing: undefined;
+  Legal: undefined;
 };
 
 const Tab = createBottomTabNavigator<TabParamList>();
@@ -202,7 +205,8 @@ export function AppNavigator(): React.JSX.Element {
     // MapScreen's floating toggle/error banner, and every screen's top
     // padding) return real numbers instead of all zeros.
     <SafeAreaProvider>
-      <SettingsProvider>
+      <AuthProvider>
+       <SettingsProvider>
         <RideProvider>
           <FriendsProvider>
             <OnboardingGate>
@@ -237,12 +241,14 @@ export function AppNavigator(): React.JSX.Element {
                     component={BillingScreen}
                     options={{ presentation: 'card', headerShown: false }}
                   />
+                  <Stack.Screen name="Legal" component={LegalScreen} options={{ headerShown: false }} />
                 </Stack.Navigator>
               </NavigationContainer>
             </OnboardingGate>
           </FriendsProvider>
         </RideProvider>
-      </SettingsProvider>
+       </SettingsProvider>
+      </AuthProvider>
     </SafeAreaProvider>
   );
 }

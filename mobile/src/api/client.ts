@@ -1,168 +1,59 @@
-/**
- * Thin HTTP client for the rider-comms backend. Deliberately framework-free
- * (just `fetch`) so it has no dependency on React Native being installed —
- * it can be unit-tested with Node's test runner alone (see tests/client.test.ts),
- * which is more than the rest of this mobile scaffold can claim in this
- * sandbox.
- */
-import type {
-  DirectMessage,
-  FriendRequest,
-  FriendSummary,
-  Hideout,
-  ProfileUpdate,
-  RiderProfile,
-} from '@rider-comms/shared';
+import type { DirectMessage, FriendRequest, FriendSummary, Hideout, ProfileUpdate, RiderProfile } from '@rider-comms/shared';
 
-export interface CreateRideResponse {
-  rideId: string;
-  code: string;
-  expiresAt: number;
-}
-
-export interface JoinRideResponse {
-  rideId: string;
-}
-
-export interface PresenceResponse {
-  inZoneWith: string[];
-  transitions: Array<{ a: string; b: string; type: 'entered' | 'left' }>;
-}
+export interface GuestSession { riderId: string; token: string }
+export interface CreateRideResponse { rideId: string; code: string; expiresAt: number; createdBy: string; memberIds: string[] }
+export interface JoinRideResponse { rideId: string }
+export interface RideResponse { rideId: string; createdBy: string; createdAt: number; memberIds: string[] }
+export interface PresenceResponse { inZoneWith: string[]; transitions: Array<{ a: string; b: string; type: 'entered' | 'left' }>; radiusMiles: number }
 
 export class ApiError extends Error {
-  status: number;
-  body: unknown;
-
-  constructor(status: number, body: unknown) {
-    super(`API error ${status}: ${JSON.stringify(body)}`);
-    this.status = status;
-    this.body = body;
-  }
+  readonly status: number;
+  readonly body: unknown;
+  constructor(status: number, body: unknown) { super(`API error ${status}: ${JSON.stringify(body)}`); this.status = status; this.body = body; }
 }
-
 export class RiderCommsClient {
   private readonly baseUrl: string;
   private readonly fetchImpl: typeof fetch;
-
-  constructor(baseUrl: string, fetchImpl: typeof fetch = fetch) {
-    this.baseUrl = baseUrl.replace(/\/$/, '');
-    this.fetchImpl = fetchImpl;
-  }
-
+  private readonly token?: string;
+  constructor(baseUrl: string, fetchImpl: typeof fetch = fetch, token?: string) { this.baseUrl = baseUrl.replace(/\/$/, ''); this.fetchImpl = fetchImpl; this.token = token; }
   private async request<T>(method: string, path: string, body?: unknown): Promise<T> {
-    const res = await this.fetchImpl(`${this.baseUrl}${path}`, {
-      method,
-      headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
-    const json = await res.json();
-    if (!res.ok) {
-      throw new ApiError(res.status, json);
-    }
-    return json as T;
+    const headers: Record<string, string> = {};
+    if (body !== undefined) headers['Content-Type'] = 'application/json';
+    if (this.token) headers.Authorization = `Bearer ${this.token}`;
+    const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), 10_000);
+    try {
+      const res = await this.fetchImpl(`${this.baseUrl}${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body), signal: controller.signal });
+      const contentType = res.headers?.get?.('content-type') ?? '';
+      const json = contentType.includes('application/json') || !res.headers ? await res.json() : { error: await res.text() };
+      if (!res.ok) throw new ApiError(res.status, json);
+      return json as T;
+    } finally { clearTimeout(timeout); }
   }
-
-  private postJson<T>(path: string, body: unknown): Promise<T> {
-    return this.request('POST', path, body);
-  }
-
-  private getJson<T>(path: string): Promise<T> {
-    return this.request('GET', path);
-  }
-
-  createRide(riderId: string): Promise<CreateRideResponse> {
-    return this.postJson('/rides', { riderId });
-  }
-
-  joinRide(code: string, riderId: string): Promise<JoinRideResponse> {
-    return this.postJson('/rides/join', { code, riderId });
-  }
-
-  updatePresence(
-    riderId: string,
-    lat: number,
-    lon: number,
-    radiusMiles: number
-  ): Promise<PresenceResponse> {
-    return this.postJson('/presence', { riderId, lat, lon, radiusMiles });
-  }
-
-  // ---- Profile: this is the actual settings backing store now — a
-  // riderId's settings live on the backend, not just in this device's
-  // AsyncStorage (see settings/SettingsContext.tsx). ----
-
-  getProfile(riderId: string): Promise<RiderProfile> {
-    return this.getJson(`/riders/${encodeURIComponent(riderId)}/profile`);
-  }
-
-  updateProfile(riderId: string, update: ProfileUpdate): Promise<RiderProfile> {
-    return this.request('PUT', `/riders/${encodeURIComponent(riderId)}/profile`, update);
-  }
-
-  // ---- Friends ----
-
-  sendFriendRequest(fromRiderId: string, toRiderId: string): Promise<FriendRequest> {
-    return this.postJson('/friends/requests', { fromRiderId, toRiderId });
-  }
-
-  getFriendRequests(
-    riderId: string
-  ): Promise<{ incoming: FriendRequest[]; outgoing: FriendRequest[] }> {
-    return this.getJson(`/riders/${encodeURIComponent(riderId)}/friend-requests`);
-  }
-
-  acceptFriendRequest(requestId: string): Promise<{ friend: FriendSummary }> {
-    return this.postJson(`/friends/requests/${encodeURIComponent(requestId)}/accept`, {});
-  }
-
-  declineFriendRequest(requestId: string): Promise<Record<string, never>> {
-    return this.postJson(`/friends/requests/${encodeURIComponent(requestId)}/decline`, {});
-  }
-
-  getFriends(riderId: string): Promise<{ friends: FriendSummary[] }> {
-    return this.getJson(`/riders/${encodeURIComponent(riderId)}/friends`);
-  }
-
-  removeFriend(riderId: string, friendId: string): Promise<Record<string, never>> {
-    return this.request(
-      'DELETE',
-      `/riders/${encodeURIComponent(riderId)}/friends/${encodeURIComponent(friendId)}`
-    );
-  }
-
-  // ---- Direct messages (poll-based, same pattern as presence — no
-  // websocket/SFU infra exists in this sandbox to push messages instead) ----
-
-  sendMessage(fromRiderId: string, toRiderId: string, text: string): Promise<DirectMessage> {
-    return this.postJson('/messages', { fromRiderId, toRiderId, text });
-  }
-
-  getMessages(riderId: string, withRiderId: string): Promise<{ messages: DirectMessage[] }> {
-    return this.getJson(
-      `/messages?riderId=${encodeURIComponent(riderId)}&withRiderId=${encodeURIComponent(withRiderId)}`
-    );
-  }
-
-  // ---- Hideouts: saved meeting points planned with specific friends ----
-
-  createHideout(
-    name: string,
-    lat: number,
-    lon: number,
-    createdBy: string,
-    participantIds: string[]
-  ): Promise<Hideout> {
-    return this.postJson('/hideouts', { name, lat, lon, createdBy, participantIds });
-  }
-
-  getHideouts(riderId: string): Promise<{ hideouts: Hideout[] }> {
-    return this.getJson(`/riders/${encodeURIComponent(riderId)}/hideouts`);
-  }
-
-  deleteHideout(hideoutId: string, riderId: string): Promise<Record<string, never>> {
-    return this.request(
-      'DELETE',
-      `/hideouts/${encodeURIComponent(hideoutId)}?riderId=${encodeURIComponent(riderId)}`
-    );
-  }
+  registerGuest(): Promise<GuestSession> { return this.request('POST', '/auth/guest', {}); }
+  getMe(): Promise<{ riderId: string }> { return this.request('GET', '/auth/me'); }
+  deleteAccount(): Promise<Record<string, never>> { return this.request('DELETE', '/auth/me'); }
+  createRide(): Promise<CreateRideResponse> { return this.request('POST', '/rides', {}); }
+  joinRide(code: string): Promise<JoinRideResponse> { return this.request('POST', '/rides/join', { code }); }
+  getRide(id: string): Promise<RideResponse> { return this.request('GET', `/rides/${encodeURIComponent(id)}`); }
+  leaveRide(id: string): Promise<Record<string, never>> { return this.request('POST', `/rides/${encodeURIComponent(id)}/leave`, {}); }
+  endRide(id: string): Promise<Record<string, never>> { return this.request('DELETE', `/rides/${encodeURIComponent(id)}`); }
+  removeRideMember(id: string, memberId: string): Promise<RideResponse> { return this.request('DELETE', `/rides/${encodeURIComponent(id)}/members/${encodeURIComponent(memberId)}`); }
+  updatePresence(lat: number, lon: number): Promise<PresenceResponse> { return this.request('POST', '/presence', { lat, lon }); }
+  leavePresence(): Promise<Record<string, never>> { return this.request('DELETE', '/presence'); }
+  getProfile(id: string): Promise<RiderProfile> { return this.request('GET', `/riders/${encodeURIComponent(id)}/profile`); }
+  updateProfile(id: string, update: ProfileUpdate): Promise<RiderProfile> { return this.request('PUT', `/riders/${encodeURIComponent(id)}/profile`, update); }
+  sendFriendRequest(toRiderId: string): Promise<FriendRequest> { return this.request('POST', '/friends/requests', { toRiderId }); }
+  getFriendRequests(id: string): Promise<{ incoming: FriendRequest[]; outgoing: FriendRequest[] }> { return this.request('GET', `/riders/${encodeURIComponent(id)}/friend-requests`); }
+  acceptFriendRequest(id: string): Promise<{ friend: FriendSummary }> { return this.request('POST', `/friends/requests/${encodeURIComponent(id)}/accept`, {}); }
+  declineFriendRequest(id: string): Promise<Record<string, never>> { return this.request('POST', `/friends/requests/${encodeURIComponent(id)}/decline`, {}); }
+  getFriends(id: string): Promise<{ friends: FriendSummary[] }> { return this.request('GET', `/riders/${encodeURIComponent(id)}/friends`); }
+  removeFriend(id: string, friendId: string): Promise<Record<string, never>> { return this.request('DELETE', `/riders/${encodeURIComponent(id)}/friends/${encodeURIComponent(friendId)}`); }
+  sendMessage(toRiderId: string, text: string): Promise<DirectMessage> { return this.request('POST', '/messages', { toRiderId, text }); }
+  getMessages(withRiderId: string): Promise<{ messages: DirectMessage[] }> { return this.request('GET', `/messages?withRiderId=${encodeURIComponent(withRiderId)}`); }
+  blockRider(riderId: string): Promise<Record<string, never>> { return this.request('POST', '/blocks', { riderId }); }
+  unblockRider(riderId: string): Promise<Record<string, never>> { return this.request('DELETE', `/blocks/${encodeURIComponent(riderId)}`); }
+  reportRider(riderId: string, reason: 'harassment' | 'unsafe' | 'spam' | 'sexual' | 'other', details = ''): Promise<{ received: true }> { return this.request('POST', '/reports', { riderId, reason, details }); }
+  createHideout(name: string, lat: number, lon: number, participantIds: string[]): Promise<Hideout> { return this.request('POST', '/hideouts', { name, lat, lon, participantIds }); }
+  getHideouts(id: string): Promise<{ hideouts: Hideout[] }> { return this.request('GET', `/riders/${encodeURIComponent(id)}/hideouts`); }
+  deleteHideout(id: string): Promise<Record<string, never>> { return this.request('DELETE', `/hideouts/${encodeURIComponent(id)}`); }
 }

@@ -55,7 +55,7 @@ export function RideBar(): React.JSX.Element | null {
           style: 'destructive',
           onPress: () => {
             setExpanded(false);
-            leaveRide();
+            void leaveRide();
           },
         },
       ]

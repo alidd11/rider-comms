@@ -25,12 +25,12 @@ describe('RiderCommsClient.createRide', () => {
       fakeFetch((url, init) => {
         assert.equal(url, 'http://example.test/rides');
         assert.equal(init.method, 'POST');
-        assert.deepEqual(JSON.parse(init.body as string), { riderId: 'ali' });
+        assert.deepEqual(JSON.parse(init.body as string), {});
         return { status: 201, body: { rideId: 'r1', code: 'ABCDEF', expiresAt: 123 } };
       })
     );
 
-    const result = await client.createRide('ali');
+    const result = await client.createRide();
     assert.deepEqual(result, { rideId: 'r1', code: 'ABCDEF', expiresAt: 123 });
   });
 });
@@ -43,7 +43,7 @@ describe('RiderCommsClient.joinRide', () => {
     );
 
     await assert.rejects(
-      () => client.joinRide('ZZZZZZ', 'ali'),
+      () => client.joinRide('ZZZZZZ'),
       (err: unknown) => {
         assert.ok(err instanceof ApiError);
         assert.equal(err.status, 404);
@@ -60,12 +60,7 @@ describe('RiderCommsClient.updatePresence', () => {
       'http://example.test',
       fakeFetch((url, init) => {
         assert.equal(url, 'http://example.test/presence');
-        assert.deepEqual(JSON.parse(init.body as string), {
-          riderId: 'ali',
-          lat: 40.0,
-          lon: -105.0,
-          radiusMiles: 1,
-        });
+        assert.deepEqual(JSON.parse(init.body as string), { lat: 40.0, lon: -105.0 });
         return {
           status: 200,
           body: { inZoneWith: ['friend'], transitions: [{ a: 'ali', b: 'friend', type: 'entered' }] },
@@ -73,7 +68,7 @@ describe('RiderCommsClient.updatePresence', () => {
       })
     );
 
-    const result = await client.updatePresence('ali', 40.0, -105.0, 1);
+    const result = await client.updatePresence(40.0, -105.0);
     assert.deepEqual(result.inZoneWith, ['friend']);
     assert.equal(result.transitions[0].type, 'entered');
   });

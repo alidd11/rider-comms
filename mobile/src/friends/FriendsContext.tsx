@@ -1,16 +1,12 @@
 import * as React from 'react';
 import type { FriendRequest, FriendSummary } from '@rider-comms/shared';
-import { ApiError, RiderCommsClient } from '../api/client';
-import { API_BASE_URL } from '../config';
+import { ApiError } from '../api/client';
+import { useAuth } from '../auth/AuthContext';
 
 // Same poll cadence style as MapScreen.tsx's presence polling — no
 // websocket/push infra exists in this sandbox, so the friends list and
 // requests are kept fresh by re-fetching on an interval.
 const FRIENDS_POLL_INTERVAL_MS = 10000;
-
-// TODO: replace 'me' with the real signed-in rider id once auth exists
-// (see CreateRideScreen.tsx for the same pattern elsewhere in this app).
-const ME = 'me';
 
 interface FriendsContextValue {
   friends: FriendSummary[];
@@ -39,16 +35,15 @@ function messageFor(err: unknown, fallback: string): string {
 }
 
 export function FriendsProvider({ children }: { children: React.ReactNode }): React.JSX.Element {
+  const { riderId: ME, client } = useAuth();
   const [friends, setFriends] = React.useState<FriendSummary[]>([]);
   const [incomingRequests, setIncomingRequests] = React.useState<FriendRequest[]>([]);
   const [outgoingRequests, setOutgoingRequests] = React.useState<FriendRequest[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
-  const clientRef = React.useRef(new RiderCommsClient(API_BASE_URL));
 
   const refresh = React.useCallback(async () => {
     try {
-      const client = clientRef.current;
       const [friendsRes, requestsRes] = await Promise.all([
         client.getFriends(ME),
         client.getFriendRequests(ME),
@@ -77,7 +72,7 @@ export function FriendsProvider({ children }: { children: React.ReactNode }): Re
   const sendRequest = React.useCallback(
     async (toRiderId: string) => {
       try {
-        const request = await clientRef.current.sendFriendRequest(ME, toRiderId);
+        const request = await client.sendFriendRequest(toRiderId);
         setOutgoingRequests((current) => [...current, request]);
       } catch (err) {
         throw new Error(messageFor(err, 'Could not send that friend request.'));
@@ -94,7 +89,7 @@ export function FriendsProvider({ children }: { children: React.ReactNode }): Re
       // sit there waiting on the round trip.
       setIncomingRequests((current) => current.filter((r) => r.id !== requestId));
       try {
-        const { friend } = await clientRef.current.acceptFriendRequest(requestId);
+        const { friend } = await client.acceptFriendRequest(requestId);
         setFriends((current) => (current.some((f) => f.riderId === friend.riderId) ? current : [...current, friend]));
         setError(null);
       } catch (err) {
@@ -110,7 +105,7 @@ export function FriendsProvider({ children }: { children: React.ReactNode }): Re
     async (requestId: string) => {
       setIncomingRequests((current) => current.filter((r) => r.id !== requestId));
       try {
-        await clientRef.current.declineFriendRequest(requestId);
+        await client.declineFriendRequest(requestId);
         setError(null);
       } catch (err) {
         setError(messageFor(err, 'Could not decline that request.'));
@@ -125,7 +120,7 @@ export function FriendsProvider({ children }: { children: React.ReactNode }): Re
     async (friendId: string) => {
       setFriends((current) => current.filter((f) => f.riderId !== friendId));
       try {
-        await clientRef.current.removeFriend(ME, friendId);
+        await client.removeFriend(ME, friendId);
         setError(null);
       } catch (err) {
         setError(messageFor(err, 'Could not remove that friend.'));

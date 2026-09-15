@@ -9,14 +9,12 @@ import type { FriendRequest, FriendSummary } from '@rider-comms/shared';
 import type { RootStackParamList } from '../navigation';
 import { colors, spacing, radii, type, elevation, MIN_TOUCH_TARGET } from '../theme';
 import { useFriends } from '../friends/FriendsContext';
+import { useAuth } from '../auth/AuthContext';
 import { getAvatarPreset } from '../settings/avatars';
 import { RideBar } from '../ride/RideBar';
 
-// TODO: replace 'me' with the real signed-in rider id once auth exists
-// (see FriendsContext.tsx's ME constant for the same pattern elsewhere).
-const MY_RIDER_ID = 'me';
-
 function YourRiderIdCard(): React.JSX.Element {
+  const { riderId } = useAuth();
   return (
     <View style={[styles.section, elevation.raised, styles.yourIdCard]}>
       <View style={styles.yourIdRow}>
@@ -26,7 +24,7 @@ function YourRiderIdCard(): React.JSX.Element {
         <View style={styles.yourIdInfo}>
           <Text style={styles.yourIdLabel}>Your rider ID</Text>
           <Text style={styles.yourIdValue} selectable>
-            {MY_RIDER_ID}
+            {riderId}
           </Text>
         </View>
       </View>

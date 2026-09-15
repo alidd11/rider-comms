@@ -60,6 +60,10 @@ export class FriendStore {
     return { ok: true, request };
   }
 
+  getRequest(requestId: string): FriendRequest | undefined {
+    return this.requests.get(requestId);
+  }
+
   getRequestsFor(riderId: string): { incoming: FriendRequest[]; outgoing: FriendRequest[] } {
     const incoming: FriendRequest[] = [];
     const outgoing: FriendRequest[] = [];
@@ -119,6 +123,14 @@ export class FriendStore {
   removeFriend(riderId: string, friendId: string): void {
     this.friendsOf.get(riderId)?.delete(friendId);
     this.friendsOf.get(friendId)?.delete(riderId);
+  }
+
+  deleteRider(riderId: string): void {
+    this.friendsOf.delete(riderId);
+    for (const friends of this.friendsOf.values()) friends.delete(riderId);
+    for (const [id, request] of this.requests) {
+      if (request.fromRiderId === riderId || request.toRiderId === riderId) this.requests.delete(id);
+    }
   }
 
   /** Exposed for the messages endpoint's friendship check. */

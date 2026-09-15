@@ -10,14 +10,15 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation';
-import { ApiError, RiderCommsClient } from '../api/client';
-import { API_BASE_URL } from '../config';
+import { ApiError } from '../api/client';
+import { useAuth } from '../auth/AuthContext';
 import { colors, spacing, radii, type, elevation, MIN_TOUCH_TARGET } from '../theme';
 import { useRide } from './RideContext';
 
 function JoinOrHostForm(): React.JSX.Element {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { startRide } = useRide();
+  const { client } = useAuth();
   const [code, setCode] = React.useState('');
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -26,8 +27,7 @@ function JoinOrHostForm(): React.JSX.Element {
     setLoading(true);
     setError(null);
     try {
-      const client = new RiderCommsClient(API_BASE_URL);
-      const { rideId } = await client.joinRide(code.trim().toUpperCase(), 'me');
+      const { rideId } = await client.joinRide(code.trim().toUpperCase());
       startRide({ rideId, isHost: false });
     } catch (err) {
       if (err instanceof ApiError && err.status === 429) {
@@ -94,6 +94,7 @@ function JoinOrHostForm(): React.JSX.Element {
 
 function HostRoster(): React.JSX.Element {
   const { activeRide, roster, removeRider } = useRide();
+  const { riderId } = useAuth();
 
   return (
     <View style={styles.form}>
@@ -113,9 +114,9 @@ function HostRoster(): React.JSX.Element {
                 <MaterialCommunityIcons name="motorbike" size={16} color={colors.textPrimary} />
               </View>
               <Text style={styles.rosterName}>{id}</Text>
-              <Pressable onPress={() => removeRider(id)} style={styles.removeButton} hitSlop={8}>
+              {id !== riderId && <Pressable onPress={() => void removeRider(id)} style={styles.removeButton} hitSlop={8}>
                 <Ionicons name="close-circle" size={22} color={colors.danger} />
-              </Pressable>
+              </Pressable>}
             </View>
           ))
         )}

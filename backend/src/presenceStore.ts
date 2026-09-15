@@ -32,6 +32,18 @@ export interface PresenceUpdateResult {
 export class PresenceStore {
   private riders = new Map<string, Rider>();
   private previousPairs: ZonePair[] = [];
+  private readonly staleAfterMs: number;
+
+  constructor(staleAfterMs = 30_000) {
+    this.staleAfterMs = staleAfterMs;
+  }
+
+  private pruneStale(now: number): void {
+    const staleIds = [...this.riders.values()]
+      .filter((rider) => now - rider.updatedAt > this.staleAfterMs)
+      .map((rider) => rider.id);
+    for (const riderId of staleIds) this.riders.delete(riderId);
+  }
 
   /** Riders sharing this rider's geo-bucket or an adjacent one — the
    * scale-safe candidate set a production deployment would diff against,
@@ -46,6 +58,7 @@ export class PresenceStore {
   }
 
   updatePresence(rider: Rider): PresenceUpdateResult {
+    this.pruneStale(rider.updatedAt);
     this.riders.set(rider.id, rider);
 
     const currentPairs = computeZonePairs([...this.riders.values()]);
@@ -57,9 +70,7 @@ export class PresenceStore {
 
   removeRider(riderId: string): void {
     this.riders.delete(riderId);
-    this.previousPairs = this.previousPairs.filter(
-      (p) => p.a !== riderId && p.b !== riderId
-    );
+    this.previousPairs = computeZonePairs([...this.riders.values()]);
   }
 
   getRider(riderId: string): Rider | undefined {

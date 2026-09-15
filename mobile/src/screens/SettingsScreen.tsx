@@ -7,14 +7,15 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Constants from 'expo-constants';
 import { TIER_RADIUS_MILES } from '@rider-comms/shared';
-import type { ZoneTier } from '@rider-comms/shared';
-import type { RootStackParamList } from '../navigation';
+import type { SocialVisibility, ZoneTier } from '@rider-comms/shared';
 import { colors, spacing, radii, type, elevation, MIN_TOUCH_TARGET } from '../theme';
 import { useSettings } from '../settings/SettingsContext';
 import type { UnitSystem } from '../settings/SettingsContext';
 import { AVATAR_PRESETS, getAvatarPreset } from '../settings/avatars';
 import { PLAN_INFO } from '../settings/plans';
 import { RideBar } from '../ride/RideBar';
+import type { RootStackParamList } from '../navigation';
+import { useAuth } from '../auth/AuthContext';
 
 const UNIT_LABELS: Record<UnitSystem, { name: string; blurb: string }> = {
   mi: { name: 'Miles', blurb: 'Distances and zone radius shown in miles.' },
@@ -80,6 +81,17 @@ function ToggleRow({
       />
     </View>
   );
+}
+
+function SocialRow({ label, icon, username, visibility, onUsername, onVisibility }: { label: string; icon: React.ComponentProps<typeof Ionicons>['name']; username: string; visibility: SocialVisibility; onUsername: (value: string) => void; onVisibility: (value: SocialVisibility) => void }): React.JSX.Element {
+  const [draft, setDraft] = React.useState(username);
+  React.useEffect(() => setDraft(username), [username]);
+  const options: SocialVisibility[] = ['public', 'friends', 'private'];
+  return <View style={styles.socialRow}>
+    <View style={styles.socialHeading}><Ionicons name={icon} size={20} color={colors.textSecondary}/><Text style={styles.toggleLabel}>{label}</Text></View>
+    <TextInput style={styles.socialInput} value={draft} onChangeText={setDraft} onBlur={() => onUsername(draft)} onSubmitEditing={() => onUsername(draft)} autoCapitalize="none" autoCorrect={false} maxLength={31} placeholder="username" placeholderTextColor={colors.textMuted}/>
+    <View style={styles.visibilityRow}>{options.map((option) => <Pressable key={option} onPress={() => onVisibility(option)} style={[styles.visibilityChoice, visibility === option && styles.visibilityChoiceActive]}><Text style={[styles.visibilityText, visibility === option && styles.visibilityTextActive]}>{option === 'friends' ? 'Friends only' : option[0].toUpperCase() + option.slice(1)}</Text></Pressable>)}</View>
+  </View>;
 }
 
 function AvatarPickerModal({
@@ -160,9 +172,18 @@ export function SettingsScreen(): React.JSX.Element {
     setNotifyChat,
     shareLocation,
     setShareLocation,
+    instagramUsername,
+    setInstagramUsername,
+    instagramVisibility,
+    setInstagramVisibility,
+    tiktokUsername,
+    setTiktokUsername,
+    tiktokVisibility,
+    setTiktokVisibility,
     resetAll,
     loaded,
   } = useSettings();
+  const { riderId, deleteAccount } = useAuth();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const appVersion = Constants.expoConfig?.version ?? '0.1.0';
@@ -199,6 +220,19 @@ export function SettingsScreen(): React.JSX.Element {
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Reset', style: 'destructive', onPress: () => resetAll() },
+      ]
+    );
+  }
+
+  function confirmDeleteAccount() {
+    Alert.alert(
+      'Delete account?',
+      'This permanently deletes this guest identity and its prototype data. A new Rider ID will be created if you continue using the app.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete account', style: 'destructive', onPress: () => {
+          void deleteAccount().catch(() => Alert.alert('Couldn’t delete account', 'Please check your connection and try again.'));
+        } },
       ]
     );
   }
@@ -257,7 +291,8 @@ export function SettingsScreen(): React.JSX.Element {
             </Pressable>
           )}
 
-          <Text style={styles.caption}>Accounts aren't built yet — this profile is local to this device.</Text>
+          <Text style={styles.caption}>Protected by this device’s private guest session.</Text>
+          <Text selectable style={styles.riderId}>Rider ID: {riderId}</Text>
         </View>
 
         <View style={styles.sectionLabelRow}>
@@ -286,6 +321,15 @@ export function SettingsScreen(): React.JSX.Element {
             <Text style={styles.manageTierText}>Manage in Billing</Text>
             <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
           </Pressable>
+        </View>
+
+        <View style={styles.sectionLabelRow}>
+          <Ionicons name="share-social-outline" size={14} color={colors.textMuted} />
+          <Text style={[styles.sectionLabel, styles.sectionLabelInRow]}>Social profiles</Text>
+        </View>
+        <View style={[styles.section, elevation.raised]}>
+          <SocialRow label="Instagram" icon="logo-instagram" username={instagramUsername} visibility={instagramVisibility} onUsername={setInstagramUsername} onVisibility={setInstagramVisibility}/>
+          <SocialRow label="TikTok" icon="logo-tiktok" username={tiktokUsername} visibility={tiktokVisibility} onUsername={setTiktokUsername} onVisibility={setTiktokVisibility}/>
         </View>
 
         <View style={styles.sectionLabelRow}>
@@ -358,6 +402,12 @@ export function SettingsScreen(): React.JSX.Element {
           />
         </View>
 
+        <Pressable style={styles.legalRow} onPress={() => navigation.navigate('Legal')}>
+          <Ionicons name="shield-checkmark-outline" size={20} color={colors.accent}/>
+          <View style={styles.legalInfo}><Text style={styles.aboutLabel}>Privacy, safety & terms</Text><Text style={styles.aboutValue}>Data choices, community rules and riding safety</Text></View>
+          <Ionicons name="chevron-forward" size={20} color={colors.textMuted}/>
+        </Pressable>
+
         <Text style={styles.sectionLabel}>Advanced</Text>
         <View style={styles.section}>
           <Pressable
@@ -366,6 +416,13 @@ export function SettingsScreen(): React.JSX.Element {
           >
             <Ionicons name="trash-outline" size={18} color={colors.danger} />
             <Text style={styles.dangerButtonText}>Reset app data</Text>
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [styles.dangerButton, styles.deleteAccountButton, pressed && styles.dangerButtonPressed]}
+            onPress={confirmDeleteAccount}
+          >
+            <Ionicons name="person-remove-outline" size={18} color={colors.danger} />
+            <Text style={styles.dangerButtonText}>Delete account</Text>
           </Pressable>
         </View>
 
@@ -437,6 +494,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs,
   },
   caption: { ...type.caption, textAlign: 'center', paddingHorizontal: spacing.lg },
+  riderId: { ...type.caption, color: colors.textPrimary, marginTop: spacing.xs },
   sectionLabelRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginTop: spacing.lg, marginBottom: spacing.sm },
   sectionLabelInRow: { marginTop: 0, marginBottom: 0 },
   sectionLabel: {
@@ -520,6 +578,14 @@ const styles = StyleSheet.create({
   toggleInfo: { flex: 1, gap: spacing.xs, paddingVertical: spacing.sm },
   toggleLabel: { ...type.body, color: colors.textPrimary },
   toggleCaption: { ...type.caption },
+  socialRow: { padding: spacing.md, gap: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border },
+  socialHeading: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  socialInput: { ...type.body, color: colors.textPrimary, minHeight: MIN_TOUCH_TARGET, backgroundColor: colors.surfaceRaised, borderRadius: radii.md, paddingHorizontal: spacing.md },
+  visibilityRow: { flexDirection: 'row', gap: spacing.xs },
+  visibilityChoice: { flex: 1, minHeight: 36, alignItems: 'center', justifyContent: 'center', borderRadius: radii.pill, backgroundColor: colors.surfaceRaised },
+  visibilityChoiceActive: { backgroundColor: colors.accent },
+  visibilityText: { ...type.caption, fontSize: 11 },
+  visibilityTextActive: { color: colors.accentText, fontWeight: '700' },
   dangerButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -529,7 +595,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.dangerSurface,
   },
   dangerButtonPressed: { opacity: 0.85 },
+  deleteAccountButton: { borderTopWidth: 1, borderTopColor: colors.border },
   dangerButtonText: { ...type.button, color: colors.danger },
+  legalRow: { marginTop: spacing.lg, minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md, backgroundColor: colors.surface, borderRadius: radii.lg },
+  legalInfo: { flex: 1, gap: spacing.xs },
   aboutRow: { flexDirection: 'row', justifyContent: 'space-between', padding: spacing.md },
   aboutLabel: { ...type.body, color: colors.textPrimary },
   aboutValue: { ...type.caption },

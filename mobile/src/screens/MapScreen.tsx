@@ -25,11 +25,11 @@ import { useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import * as Location from 'expo-location';
 import Svg, { Rect, Line, Defs, RadialGradient, Stop } from 'react-native-svg';
 import { TIER_RADIUS_MILES } from '@rider-comms/shared';
 import type { TabParamList } from '../navigation';
-import { RiderCommsClient } from '../api/client';
-import { API_BASE_URL } from '../config';
+import { useAuth } from '../auth/AuthContext';
 import { colors, spacing, radii, type, elevation, MIN_TOUCH_TARGET } from '../theme';
 import { RideBar } from '../ride/RideBar';
 import { HostPanel } from '../ride/HostPanel';
@@ -49,7 +49,10 @@ type LayoutSize = { width: number; height: number };
 
 // TODO(native): replace with expo-location's getCurrentPositionAsync().
 async function getCurrentLocation(): Promise<{ lat: number; lon: number }> {
-  throw new Error('getCurrentLocation() requires expo-location (not available in this sandbox)');
+  const permission = await Location.requestForegroundPermissionsAsync();
+  if (!permission.granted) throw new Error('Location permission is required to join riders nearby.');
+  const result = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+  return { lat: result.coords.latitude, lon: result.coords.longitude };
 }
 
 function ridersOnCircle(riders: string[], size: LayoutSize): Array<{ id: string; x: number; y: number }> {
@@ -299,7 +302,8 @@ function ZoomableMap({ size, children }: { size: LayoutSize; children: React.Rea
 }
 
 export function MapScreen(): React.JSX.Element {
-  const { zoneTier: tier } = useSettings();
+  const { client } = useAuth();
+  const { zoneTier: tier, shareLocation } = useSettings();
   const insets = useSafeAreaInsets();
   const route = useRoute<RouteProp<TabParamList, 'Map'>>();
   const [segment, setSegment] = React.useState<Segment>(route.params?.segment ?? 'public');
@@ -315,7 +319,7 @@ export function MapScreen(): React.JSX.Element {
   const [mapSize, setMapSize] = React.useState<LayoutSize>({ width: VIEWBOX_SIZE, height: VIEWBOX_SIZE });
 
   React.useEffect(() => {
-    const client = new RiderCommsClient(API_BASE_URL);
+    if (!shareLocation) { setRidersInZone([]); return; }
     let cancelled = false;
 
     async function tick() {
@@ -330,7 +334,7 @@ export function MapScreen(): React.JSX.Element {
       }
       try {
         const radiusMiles = TIER_RADIUS_MILES[tier];
-        const { inZoneWith } = await client.updatePresence('me', lat, lon, radiusMiles);
+        const { inZoneWith } = await client.updatePresence(lat, lon);
         if (!cancelled) {
           setRidersInZone(inZoneWith);
           setLocationUnavailable(false);
@@ -349,8 +353,9 @@ export function MapScreen(): React.JSX.Element {
     return () => {
       cancelled = true;
       clearInterval(interval);
+      void client.leavePresence();
     };
-  }, [tier]);
+  }, [client, shareLocation, tier]);
 
   // Reacts to the "Group Ride" tab bar shortcut (see navigation/index.tsx),
   // which navigates here with a fresh `at` nonce each press so a repeat tap

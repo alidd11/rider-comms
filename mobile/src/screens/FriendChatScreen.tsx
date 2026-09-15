@@ -11,6 +11,7 @@ import {
   Platform,
   Linking,
   ActivityIndicator,
+  Alert,
   StyleSheet,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -19,16 +20,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { DirectMessage, Hideout } from '@rider-comms/shared';
 import type { RootStackParamList } from '../navigation';
-import { ApiError, RiderCommsClient } from '../api/client';
-import { API_BASE_URL } from '../config';
+import { ApiError } from '../api/client';
+import { useAuth } from '../auth/AuthContext';
 import { colors, spacing, radii, type, elevation, MIN_TOUCH_TARGET } from '../theme';
 import { getAvatarPreset } from '../settings/avatars';
 
 // Same poll cadence style used elsewhere (MapScreen's presence, FriendsContext).
 const MESSAGE_POLL_INTERVAL_MS = 10000;
-
-// TODO: replace 'me' with the real signed-in rider id once auth exists.
-const ME = 'me';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'FriendChat'>;
 
@@ -54,12 +52,14 @@ function openHideoutInMaps(lat: number, lon: number): void {
 
 function MessageBubble({
   message,
+  currentRiderId,
   onRetry,
 }: {
   message: LocalMessage;
+  currentRiderId: string;
   onRetry: (id: string) => void;
 }): React.JSX.Element {
-  const mine = message.fromRiderId === ME;
+  const mine = message.fromRiderId === currentRiderId;
   const failed = mine && message.status === 'failed';
 
   const bubble = (
@@ -83,11 +83,13 @@ function MessageBubble({
 function HideoutRow({
   hideout,
   onDelete,
+  currentRiderId,
 }: {
   hideout: Hideout;
   onDelete: (id: string) => void;
+  currentRiderId: string;
 }): React.JSX.Element {
-  const canDelete = hideout.createdBy === ME;
+  const canDelete = hideout.createdBy === currentRiderId;
   return (
     <View style={styles.hideoutRow}>
       <MaterialCommunityIcons name="map-marker-radius" size={18} color={colors.accent} />
@@ -217,9 +219,9 @@ function PlanHideoutModal({
 
 export function FriendChatScreen({ route, navigation }: Props): React.JSX.Element {
   const { riderId, displayName, avatarId } = route.params;
+  const { riderId: currentRiderId, client } = useAuth();
   const avatar = getAvatarPreset(avatarId);
   const insets = useSafeAreaInsets();
-  const clientRef = React.useRef(new RiderCommsClient(API_BASE_URL));
 
   const [messages, setMessages] = React.useState<LocalMessage[]>([]);
   const [draft, setDraft] = React.useState('');
@@ -231,23 +233,23 @@ export function FriendChatScreen({ route, navigation }: Props): React.JSX.Elemen
 
   const loadMessages = React.useCallback(async () => {
     try {
-      const { messages: fetched } = await clientRef.current.getMessages(ME, riderId);
+      const { messages: fetched } = await client.getMessages(riderId);
       setMessages(fetched);
       setError(null);
     } catch (err) {
       setError(err instanceof ApiError || err instanceof Error ? err.message : 'Could not load messages.');
     }
-  }, [riderId]);
+  }, [client, riderId]);
 
   const loadHideouts = React.useCallback(async () => {
     try {
-      const { hideouts: fetched } = await clientRef.current.getHideouts(ME);
+      const { hideouts: fetched } = await client.getHideouts(currentRiderId);
       setHideouts(fetched.filter((h) => h.participantIds.includes(riderId)));
     } catch {
       // Hideouts are secondary to the chat itself — a failure here doesn't
       // need its own error banner on top of the message-load one.
     }
-  }, [riderId]);
+  }, [client, currentRiderId, riderId]);
 
   React.useEffect(() => {
     loadMessages();
@@ -273,12 +275,12 @@ export function FriendChatScreen({ route, navigation }: Props): React.JSX.Elemen
     const tempId = `local-${Date.now()}`;
     setMessages((current) => [
       ...current,
-      { id: tempId, fromRiderId: ME, toRiderId: riderId, text, createdAt: Date.now(), status: 'pending' },
+      { id: tempId, fromRiderId: currentRiderId, toRiderId: riderId, text, createdAt: Date.now(), status: 'pending' },
     ]);
     setDraft('');
     setSending(true);
     try {
-      const sent = await clientRef.current.sendMessage(ME, riderId, text);
+      const sent = await client.sendMessage(riderId, text);
       setMessages((current) => current.map((m) => (m.id === tempId ? sent : m)));
       setError(null);
     } catch {
@@ -286,7 +288,7 @@ export function FriendChatScreen({ route, navigation }: Props): React.JSX.Elemen
     } finally {
       setSending(false);
     }
-  }, [draft, riderId]);
+  }, [client, draft, riderId, currentRiderId]);
 
   const handleRetry = React.useCallback(
     async (localId: string) => {
@@ -294,34 +296,51 @@ export function FriendChatScreen({ route, navigation }: Props): React.JSX.Elemen
       if (!target) return;
       setMessages((current) => current.map((m) => (m.id === localId ? { ...m, status: 'pending' } : m)));
       try {
-        const sent = await clientRef.current.sendMessage(ME, riderId, target.text);
+        const sent = await client.sendMessage(riderId, target.text);
         setMessages((current) => current.map((m) => (m.id === localId ? sent : m)));
       } catch {
         setMessages((current) => current.map((m) => (m.id === localId ? { ...m, status: 'failed' } : m)));
       }
     },
-    [messages, riderId]
+    [client, messages, riderId]
   );
 
   const handleCreateHideout = React.useCallback(
     async (name: string, lat: number, lon: number) => {
-      await clientRef.current.createHideout(name, lat, lon, ME, [riderId]);
+      await client.createHideout(name, lat, lon, [riderId]);
       await loadHideouts();
     },
-    [riderId, loadHideouts]
+    [client, riderId, loadHideouts]
   );
 
   const handleDeleteHideout = React.useCallback(
     async (hideoutId: string) => {
       try {
-        await clientRef.current.deleteHideout(hideoutId, ME);
+        await client.deleteHideout(hideoutId);
         await loadHideouts();
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Could not delete that hideout.');
       }
     },
-    [loadHideouts]
+    [client, loadHideouts]
   );
+
+  const reportRider = React.useCallback((reason: 'harassment' | 'unsafe' | 'spam' | 'sexual' | 'other') => {
+    void client.reportRider(riderId, reason, 'Reported from the direct-message screen')
+      .then(() => Alert.alert('Report received', 'Thank you. The report has been recorded for review.'))
+      .catch(() => Alert.alert('Couldn’t send report', 'Please try again when you have a connection.'));
+  }, [client, riderId]);
+
+  const openSafetyActions = React.useCallback(() => {
+    Alert.alert('Safety options', `Choose what to do about ${displayName}.`, [
+      { text: 'Report harassment', onPress: () => reportRider('harassment') },
+      { text: 'Report unsafe behaviour', onPress: () => reportRider('unsafe') },
+      { text: 'Block rider', style: 'destructive', onPress: () => {
+        void client.blockRider(riderId).then(() => navigation.goBack()).catch(() => Alert.alert('Couldn’t block rider', 'Please try again.'));
+      } },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  }, [client, displayName, navigation, reportRider, riderId]);
 
   return (
     <KeyboardAvoidingView
@@ -340,6 +359,9 @@ export function FriendChatScreen({ route, navigation }: Props): React.JSX.Elemen
           <MaterialCommunityIcons name="map-marker-plus" size={18} color={colors.accent} />
           <Text style={styles.planButtonText}>Plan a hideout</Text>
         </Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Safety options" onPress={openSafetyActions} style={styles.safetyButton} hitSlop={8}>
+          <Ionicons name="ellipsis-horizontal-circle" size={23} color={colors.textSecondary}/>
+        </Pressable>
       </View>
 
       {error && (
@@ -352,7 +374,7 @@ export function FriendChatScreen({ route, navigation }: Props): React.JSX.Elemen
       {hideouts.length > 0 && (
         <View style={styles.hideoutList}>
           {hideouts.map((h) => (
-            <HideoutRow key={h.id} hideout={h} onDelete={handleDeleteHideout} />
+            <HideoutRow key={h.id} hideout={h} onDelete={handleDeleteHideout} currentRiderId={currentRiderId} />
           ))}
         </View>
       )}
@@ -360,7 +382,7 @@ export function FriendChatScreen({ route, navigation }: Props): React.JSX.Elemen
       <FlatList
         data={messages}
         keyExtractor={(m) => m.id}
-        renderItem={({ item }) => <MessageBubble message={item} onRetry={handleRetry} />}
+        renderItem={({ item }) => <MessageBubble message={item} currentRiderId={currentRiderId} onRetry={handleRetry} />}
         contentContainerStyle={styles.messageList}
         inverted={false}
       />
@@ -423,6 +445,7 @@ const styles = StyleSheet.create({
   headerName: { ...type.subheading, flex: 1 },
   planButton: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, padding: spacing.xs },
   planButtonText: { ...type.caption, color: colors.accent },
+  safetyButton: { padding: spacing.xs },
   errorBox: {
     flexDirection: 'row',
     alignItems: 'flex-start',
