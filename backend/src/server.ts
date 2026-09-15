@@ -1,4 +1,6 @@
 import http from 'node:http';
+import { randomUUID } from 'node:crypto';
+import { isIP } from 'node:net';
 import { SlidingWindowRateLimiter, TIER_RADIUS_MILES } from '@rider-comms/shared';
 import type { Rider } from '@rider-comms/shared';
 import { AuthStore } from './authStore.ts';
@@ -12,12 +14,84 @@ import { ModerationStore, REPORT_REASONS } from './moderationStore.ts';
 import type { ReportReason } from './moderationStore.ts';
 
 const MAX_BODY_BYTES = 32 * 1024;
+const REQUEST_ID_PATTERN = /^[A-Za-z0-9._-]{8,128}$/;
+
+export interface ApiServerOptions {
+  allowedOrigins?: readonly string[];
+  trustProxy?: boolean;
+  logger?: (event: ApiRequestLog) => void;
+}
+
+export interface ApiRequestLog {
+  requestId: string;
+  method: string;
+  path: string;
+  status: number;
+  durationMs: number;
+  clientAddress: string;
+}
+
 class RequestError extends Error { readonly status: number; constructor(status: number, message: string) { super(message); this.status = status; } }
+
+function requestId(req: http.IncomingMessage): string {
+  const supplied = req.headers['x-request-id'];
+  return typeof supplied === 'string' && REQUEST_ID_PATTERN.test(supplied) ? supplied : randomUUID();
+}
+
+function clientAddress(req: http.IncomingMessage, trustProxy: boolean): string {
+  if (trustProxy) {
+    const forwarded = req.headers['x-forwarded-for'];
+    const candidate = (Array.isArray(forwarded) ? forwarded[0] : forwarded)?.split(',')[0]?.trim();
+    if (candidate && isIP(candidate)) return candidate;
+  }
+  return req.socket.remoteAddress ?? 'unknown';
+}
+
+function applyResponsePolicy(res: http.ServerResponse, id: string): void {
+  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('Content-Security-Policy', "default-src 'none'; frame-ancestors 'none'");
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-Request-ID', id);
+}
+
+function applyCors(req: http.IncomingMessage, res: http.ServerResponse, allowedOrigins: ReadonlySet<string>): boolean {
+  const origin = req.headers.origin;
+  res.setHeader('Vary', 'Origin');
+  if (!origin) return true;
+  if (!allowedOrigins.has(origin)) return false;
+  res.setHeader('Access-Control-Allow-Origin', origin);
+  res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type, X-Request-ID');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Expose-Headers', 'Retry-After, X-Request-ID');
+  res.setHeader('Access-Control-Max-Age', '600');
+  return true;
+}
+
+export function parseAllowedOrigins(raw: string | undefined): string[] {
+  if (!raw?.trim()) return [];
+  return [...new Set(raw.split(',').map((value) => value.trim()).filter(Boolean).map((value) => {
+    const parsed = new URL(value);
+    const localHttp = parsed.protocol === 'http:' && ['localhost', '127.0.0.1', '::1'].includes(parsed.hostname);
+    if (parsed.origin !== value || (parsed.protocol !== 'https:' && !localHttp)) {
+      throw new Error(`Invalid CORS origin: ${value}`);
+    }
+    return parsed.origin;
+  }))];
+}
 
 function sendJson(res: http.ServerResponse, status: number, body: unknown): void {
   const payload = JSON.stringify(body);
-  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Content-Length': Buffer.byteLength(payload), 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer' });
+  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Content-Length': Buffer.byteLength(payload) });
   res.end(payload);
+}
+
+function sendEmpty(res: http.ServerResponse, status: number): void {
+  res.writeHead(status);
+  res.end();
 }
 function readJsonBody(req: http.IncomingMessage): Promise<Record<string, unknown>> {
   return new Promise((resolve, reject) => {
@@ -46,15 +120,29 @@ function publicProfile(profileStore: ProfileStore, friendStore: FriendStore, act
   return { riderId: profile.riderId, displayName: profile.displayName, handle: profile.handle, avatarId: profile.avatarId, instagramUsername: canSee(profile.instagramVisibility) ? profile.instagramUsername : '', tiktokUsername: canSee(profile.tiktokVisibility) ? profile.tiktokUsername : '' };
 }
 
-export function createApp(rideStore = new RideStore(), presenceStore = new PresenceStore(), profileStore = new ProfileStore(), friendStore = new FriendStore(profileStore), messageStore = new MessageStore(), hideoutStore = new HideoutStore(), authStore = new AuthStore(), moderationStore = new ModerationStore()): http.Server {
+export function createApp(rideStore = new RideStore(), presenceStore = new PresenceStore(), profileStore = new ProfileStore(), friendStore = new FriendStore(profileStore), messageStore = new MessageStore(), hideoutStore = new HideoutStore(), authStore = new AuthStore(), moderationStore = new ModerationStore(), options: ApiServerOptions = {}): http.Server {
   const guestLimiter = new SlidingWindowRateLimiter(20, 60_000);
   const apiLimiter = new SlidingWindowRateLimiter(300, 60_000);
+  const allowedOrigins = new Set(options.allowedOrigins ?? []);
   return http.createServer(async (req, res) => {
+    const startedAt = Date.now();
+    const id = requestId(req);
+    const address = clientAddress(req, options.trustProxy === true);
+    applyResponsePolicy(res, id);
+    res.once('finish', () => {
+      try {
+        options.logger?.({ requestId: id, method: req.method ?? 'UNKNOWN', path: new URL(req.url ?? '/', 'http://localhost').pathname, status: res.statusCode, durationMs: Date.now() - startedAt, clientAddress: address });
+      } catch (error) {
+        console.error('request logger failed', error);
+      }
+    });
     try {
       const url = new URL(req.url ?? '/', 'http://localhost');
-      if (req.method === 'GET' && url.pathname === '/health') return sendJson(res, 200, { ok: true });
+      if (!applyCors(req, res, allowedOrigins)) return sendJson(res, 403, { error: 'origin_not_allowed' });
+      if (req.method === 'OPTIONS') return sendEmpty(res, 204);
+      if (req.method === 'GET' && (url.pathname === '/health' || url.pathname === '/ready')) return sendJson(res, 200, { ok: true });
       if (req.method === 'POST' && url.pathname === '/auth/guest') {
-        if (!guestLimiter.tryConsume(req.socket.remoteAddress ?? 'unknown')) return sendJson(res, 429, { error: 'rate_limited' });
+        if (!guestLimiter.tryConsume(address)) return sendJson(res, 429, { error: 'rate_limited' });
         const session = authStore.createGuest(); profileStore.getOrCreate(session.riderId); return sendJson(res, 201, session);
       }
       const actorId = authRider(req, res, authStore); if (!actorId) return;
@@ -75,7 +163,7 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
       if (req.method === 'POST' && url.pathname === '/rides/join') {
         const body = await readJsonBody(req);
         if (typeof body.code !== 'string' || !/^[A-Z2-9]{6}$/i.test(body.code)) return sendJson(res, 400, { error: 'a valid 6-character code is required' });
-        const result = rideStore.joinRide(body.code, actorId, req.socket.remoteAddress ?? 'unknown');
+        const result = rideStore.joinRide(body.code, actorId, address);
         if (!result.ok) { if (result.reason === 'rate_limited') res.setHeader('Retry-After', '60'); return sendJson(res, result.reason === 'rate_limited' ? 429 : 404, { error: result.reason }); }
         return sendJson(res, 200, { rideId: result.rideId });
       }
@@ -163,4 +251,40 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
   });
 }
 const isMainModule = process.argv[1] && import.meta.url === `file://${process.argv[1]}`;
-if (isMainModule) { const port = Number(process.env.PORT ?? 4000); const app = createApp(); app.requestTimeout = 15_000; app.headersTimeout = 10_000; app.listen(port, () => console.log(`rider-comms backend listening on :${port}`)); }
+if (isMainModule) {
+  const port = Number(process.env.PORT ?? 4000);
+  if (!Number.isInteger(port) || port < 1 || port > 65_535) throw new Error('PORT must be an integer from 1 to 65535');
+  const host = process.env.HOST?.trim() || '0.0.0.0';
+  const allowedOrigins = parseAllowedOrigins(process.env.CORS_ALLOWED_ORIGINS);
+  const app = createApp(undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, {
+    allowedOrigins,
+    trustProxy: process.env.TRUST_PROXY === 'true',
+    logger: (event) => console.log(JSON.stringify({ level: 'info', event: 'http_request', ...event })),
+  });
+  app.requestTimeout = 15_000;
+  app.headersTimeout = 10_000;
+  app.keepAliveTimeout = 5_000;
+  app.maxRequestsPerSocket = 1_000;
+
+  let stopping = false;
+  const shutdown = (signal: NodeJS.Signals) => {
+    if (stopping) return;
+    stopping = true;
+    console.log(JSON.stringify({ level: 'info', event: 'shutdown_started', signal }));
+    const forceExit = setTimeout(() => {
+      console.error(JSON.stringify({ level: 'error', event: 'shutdown_timeout', signal }));
+      process.exit(1);
+    }, 10_000);
+    forceExit.unref();
+    app.close((error) => {
+      clearTimeout(forceExit);
+      if (error) {
+        console.error(JSON.stringify({ level: 'error', event: 'shutdown_failed', message: error.message }));
+        process.exitCode = 1;
+      }
+    });
+  };
+  process.once('SIGTERM', shutdown);
+  process.once('SIGINT', shutdown);
+  app.listen(port, host, () => console.log(JSON.stringify({ level: 'info', event: 'server_started', host, port, allowedOrigins })));
+}
