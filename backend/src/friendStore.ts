@@ -117,8 +117,8 @@ export class FriendStore {
     );
   }
 
-  private summaryFor(riderId: string): FriendSummary {
-    const profile = this.profileStore.getOrCreate(riderId);
+  private async summaryFor(riderId: string): Promise<FriendSummary> {
+    const profile = await this.profileStore.getOrCreate(riderId);
     return {
       riderId,
       displayName: profile.displayName,
@@ -139,7 +139,7 @@ export class FriendStore {
     if (!rows[0]) return { ok: false, error: 'not_found' };
     const request = rowToRequest(rows[0]);
     await this.addFriendship(request.fromRiderId, request.toRiderId);
-    return { ok: true, request, friend: this.summaryFor(request.fromRiderId) };
+    return { ok: true, request, friend: await this.summaryFor(request.fromRiderId) };
   }
 
   async decline(requestId: string): Promise<ResolveRequestResult> {
@@ -155,7 +155,9 @@ export class FriendStore {
   async getFriends(riderId: string): Promise<FriendSummary[]> {
     await ensureMigrated();
     const { rows } = await getPool().query<{ friend_id: string }>('SELECT friend_id FROM friendships WHERE rider_id = $1', [riderId]);
-    return rows.map((row) => this.summaryFor(row.friend_id));
+    const summaries: FriendSummary[] = [];
+    for (const row of rows) summaries.push(await this.summaryFor(row.friend_id));
+    return summaries;
   }
 
   async removeFriend(riderId: string, friendId: string): Promise<void> {

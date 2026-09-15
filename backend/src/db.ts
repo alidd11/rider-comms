@@ -208,6 +208,66 @@ const MIGRATIONS: { name: string; sql: string }[] = [
       ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT false;
     `,
   },
+  {
+    name: '0011_create_rider_profiles',
+    sql: `
+      CREATE TABLE IF NOT EXISTS rider_profiles (
+        rider_id TEXT PRIMARY KEY,
+        display_name TEXT NOT NULL,
+        handle TEXT NOT NULL,
+        avatar_id TEXT NOT NULL,
+        zone_tier TEXT NOT NULL,
+        unit_system TEXT NOT NULL,
+        notify_nearby BOOLEAN NOT NULL,
+        notify_invites BOOLEAN NOT NULL,
+        notify_chat BOOLEAN NOT NULL,
+        share_location BOOLEAN NOT NULL,
+        instagram_username TEXT NOT NULL,
+        instagram_visibility TEXT NOT NULL,
+        tiktok_username TEXT NOT NULL,
+        tiktok_visibility TEXT NOT NULL,
+        updated_at BIGINT NOT NULL
+      );
+    `,
+  },
+  {
+    name: '0012_create_rides',
+    sql: `
+      CREATE TABLE IF NOT EXISTS rides (
+        id TEXT PRIMARY KEY,
+        created_by TEXT NOT NULL,
+        created_at BIGINT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS rides_created_by_idx ON rides (created_by);
+
+      CREATE TABLE IF NOT EXISTS ride_members (
+        ride_id TEXT NOT NULL REFERENCES rides (id) ON DELETE CASCADE,
+        rider_id TEXT NOT NULL,
+        PRIMARY KEY (ride_id, rider_id)
+      );
+      CREATE INDEX IF NOT EXISTS ride_members_rider_idx ON ride_members (rider_id);
+
+      CREATE TABLE IF NOT EXISTS ride_codes (
+        code TEXT PRIMARY KEY,
+        ride_id TEXT NOT NULL REFERENCES rides (id) ON DELETE CASCADE,
+        created_at BIGINT NOT NULL,
+        expires_at BIGINT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS ride_codes_ride_id_idx ON ride_codes (ride_id);
+    `,
+  },
+  {
+    name: '0013_create_rider_presence',
+    sql: `
+      CREATE TABLE IF NOT EXISTS rider_presence (
+        rider_id TEXT PRIMARY KEY,
+        lat DOUBLE PRECISION NOT NULL,
+        lon DOUBLE PRECISION NOT NULL,
+        radius_miles DOUBLE PRECISION NOT NULL,
+        updated_at BIGINT NOT NULL
+      );
+    `,
+  },
 ];
 
 /**

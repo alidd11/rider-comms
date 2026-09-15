@@ -1,30 +1,56 @@
-import { describe, it } from 'node:test';
+import { after, before, beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { RideStore } from '../src/rideStore.ts';
+import { ensureMigrated, getPool, resetDbForTests } from '../src/db.ts';
 
-describe('RideStore', () => {
-  it('caps a ride at 20 members and returns ride_full past the cap', () => {
-    const store = new RideStore(1000, 60_000); // high join-attempt limit, this test is about the size cap
-    const { ride, codeRecord } = store.createRide('host');
+// RideStore is now Postgres-backed (see db.ts) — these tests need
+// DATABASE_URL to point at a reachable Postgres instance and are skipped
+// otherwise, rather than failing every run in a sandbox with no database.
+const hasDatabase = Boolean(process.env.DATABASE_URL);
 
-    for (let i = 0; i < 19; i++) {
-      const result = store.joinRide(codeRecord.code, `rider_${i}`, `1.1.1.${i}`);
-      assert.equal(result.ok, true, `rider_${i} should have joined`);
+describe('RideStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping Postgres-backed RideStore tests' }, () => {
+  before(async () => {
+    try {
+      await getPool().query('SELECT 1');
+      await ensureMigrated();
+    } catch (error) {
+      throw new Error(`DATABASE_URL is set but Postgres is unreachable: ${(error as Error).message}`);
     }
-    assert.equal(ride.memberIds.size, 20); // host + 19 joiners
-
-    const overflow = store.joinRide(codeRecord.code, 'rider_20', '1.1.1.20');
-    assert.deepEqual(overflow, { ok: false, reason: 'ride_full' });
-    assert.equal(ride.memberIds.size, 20);
   });
 
-  it('lets an existing member re-join a full ride without being rejected', () => {
-    const store = new RideStore(1000, 60_000);
-    const { ride, codeRecord } = store.createRide('host');
-    for (let i = 0; i < 19; i++) store.joinRide(codeRecord.code, `rider_${i}`, `1.1.1.${i}`);
-    assert.equal(ride.memberIds.size, 20);
+  beforeEach(async () => {
+    await getPool().query('TRUNCATE rides, ride_members, ride_codes');
+  });
 
-    const rejoin = store.joinRide(codeRecord.code, 'rider_0', '1.1.1.0');
+  after(async () => {
+    await resetDbForTests();
+  });
+
+  it('caps a ride at 20 members and returns ride_full past the cap', async () => {
+    const store = new RideStore(1000, 60_000); // high join-attempt limit, this test is about the size cap
+    const { ride, codeRecord } = await store.createRide('host');
+
+    for (let i = 0; i < 19; i++) {
+      const result = await store.joinRide(codeRecord.code, `rider_${i}`, `1.1.1.${i}`);
+      assert.equal(result.ok, true, `rider_${i} should have joined`);
+    }
+    const afterJoins = await store.getRide(ride.id);
+    assert.equal(afterJoins?.memberIds.size, 20); // host + 19 joiners
+
+    const overflow = await store.joinRide(codeRecord.code, 'rider_20', '1.1.1.20');
+    assert.deepEqual(overflow, { ok: false, reason: 'ride_full' });
+    const stillCapped = await store.getRide(ride.id);
+    assert.equal(stillCapped?.memberIds.size, 20);
+  });
+
+  it('lets an existing member re-join a full ride without being rejected', async () => {
+    const store = new RideStore(1000, 60_000);
+    const { ride, codeRecord } = await store.createRide('host');
+    for (let i = 0; i < 19; i++) await store.joinRide(codeRecord.code, `rider_${i}`, `1.1.1.${i}`);
+    const afterJoins = await store.getRide(ride.id);
+    assert.equal(afterJoins?.memberIds.size, 20);
+
+    const rejoin = await store.joinRide(codeRecord.code, 'rider_0', '1.1.1.0');
     assert.equal(rejoin.ok, true);
   });
 });

@@ -131,7 +131,7 @@ async function authRider(req: http.IncomingMessage, res: http.ServerResponse, au
 function isCoordinate(lat: unknown, lon: unknown): boolean { return typeof lat === 'number' && Number.isFinite(lat) && lat >= -90 && lat <= 90 && typeof lon === 'number' && Number.isFinite(lon) && lon >= -180 && lon <= 180; }
 function rideBody(ride: { id: string; createdBy: string; createdAt: number; memberIds: Set<string> }) { return { rideId: ride.id, createdBy: ride.createdBy, createdAt: ride.createdAt, memberIds: [...ride.memberIds] }; }
 async function publicProfile(profileStore: ProfileStore, friendStore: FriendStore, actorId: string, targetId: string) {
-  const profile = profileStore.getOrCreate(targetId);
+  const profile = await profileStore.getOrCreate(targetId);
   const isFriend = actorId === targetId ? false : await friendStore.isFriendOf(actorId, targetId);
   const canSee = (visibility: 'public' | 'friends' | 'private') => visibility === 'public' || (visibility === 'friends' && isFriend) || actorId === targetId;
   return { riderId: profile.riderId, displayName: profile.displayName, handle: profile.handle, avatarId: profile.avatarId, instagramUsername: canSee(profile.instagramVisibility) ? profile.instagramUsername : '', tiktokUsername: canSee(profile.tiktokVisibility) ? profile.tiktokUsername : '' };
@@ -171,14 +171,14 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
       }
       if (req.method === 'POST' && url.pathname === '/auth/guest') {
         if (!guestLimiter.tryConsume(address)) return sendJson(res, 429, { error: 'rate_limited' });
-        const session = authStore.createGuest(); profileStore.getOrCreate(session.riderId); return sendJson(res, 201, session);
+        const session = authStore.createGuest(); await profileStore.getOrCreate(session.riderId); return sendJson(res, 201, session);
       }
       if (req.method === 'POST' && url.pathname === '/auth/signup') {
         if (!guestLimiter.tryConsume(address)) return sendJson(res, 429, { error: 'rate_limited' });
         const body = await readJsonBody(req);
         const result = await authStore.signUp(body.username, body.email, body.password);
         if ('error' in result) return sendJson(res, result.error === 'username_taken' || result.error === 'email_taken' ? 409 : 400, { error: result.error });
-        profileStore.getOrCreate(result.riderId);
+        await profileStore.getOrCreate(result.riderId);
         return sendJson(res, 201, result);
       }
       if (req.method === 'POST' && url.pathname === '/auth/login') {
@@ -186,7 +186,7 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
         const body = await readJsonBody(req);
         const result = await authStore.logIn(body.username, body.password);
         if ('error' in result) return sendJson(res, 401, { error: result.error });
-        profileStore.getOrCreate(result.riderId);
+        await profileStore.getOrCreate(result.riderId);
         return sendJson(res, 200, result);
       }
       if (req.method === 'POST' && url.pathname === '/auth/verify-email') {
@@ -210,23 +210,23 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
         return sendJson(res, 200, result);
       }
       if (req.method === 'DELETE' && url.pathname === '/auth/me') {
-        presenceStore.removeRider(actorId);
-        rideStore.deleteRider(actorId);
+        await presenceStore.removeRider(actorId);
+        await rideStore.deleteRider(actorId);
         await friendStore.deleteRider(actorId);
         await messageStore.deleteRider(actorId);
         await hideoutStore.deleteRider(actorId);
-        profileStore.delete(actorId);
+        await profileStore.delete(actorId);
         await moderationStore.deleteRider(actorId);
         await hazardStore.deleteRider(actorId);
         await scenicRouteStore.deleteRider(actorId);
         await authStore.deleteRider(actorId);
         return sendJson(res, 200, {});
       }
-      if (req.method === 'POST' && url.pathname === '/rides') { const { ride, codeRecord } = rideStore.createRide(actorId); return sendJson(res, 201, { ...rideBody(ride), code: codeRecord.code, expiresAt: codeRecord.expiresAt }); }
+      if (req.method === 'POST' && url.pathname === '/rides') { const { ride, codeRecord } = await rideStore.createRide(actorId); return sendJson(res, 201, { ...rideBody(ride), code: codeRecord.code, expiresAt: codeRecord.expiresAt }); }
       if (req.method === 'POST' && url.pathname === '/rides/join') {
         const body = await readJsonBody(req);
         if (typeof body.code !== 'string' || !/^[A-Z2-9]{6}$/i.test(body.code)) return sendJson(res, 400, { error: 'a valid 6-character code is required' });
-        const result = rideStore.joinRide(body.code, actorId, address);
+        const result = await rideStore.joinRide(body.code, actorId, address);
         if (!result.ok) {
           if (result.reason === 'rate_limited') res.setHeader('Retry-After', '60');
           const status = result.reason === 'rate_limited' ? 429 : result.reason === 'ride_full' ? 409 : 404;
@@ -236,18 +236,18 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
       }
       if (req.method === 'POST' && url.pathname === '/presence') {
         const body = await readJsonBody(req); if (!isCoordinate(body.lat, body.lon)) return sendJson(res, 400, { error: 'valid lat and lon are required' });
-        const profile = profileStore.getOrCreate(actorId); if (!profile.shareLocation) { presenceStore.removeRider(actorId); return sendJson(res, 403, { error: 'location_sharing_disabled' }); }
+        const profile = await profileStore.getOrCreate(actorId); if (!profile.shareLocation) { await presenceStore.removeRider(actorId); return sendJson(res, 403, { error: 'location_sharing_disabled' }); }
         const rider: Rider = { id: actorId, location: { lat: body.lat as number, lon: body.lon as number }, radiusMiles: TIER_RADIUS_MILES[profile.zoneTier], updatedAt: Date.now() };
-        const { transitions, zonePairs } = presenceStore.updatePresence(rider);
+        const { transitions, zonePairs } = await presenceStore.updatePresence(rider);
         return sendJson(res, 200, { inZoneWith: presenceStore.ridersInZoneWith(actorId, zonePairs), transitions: transitions.filter((t) => t.a === actorId || t.b === actorId), radiusMiles: rider.radiusMiles });
       }
-      if (req.method === 'DELETE' && url.pathname === '/presence') { presenceStore.removeRider(actorId); return sendJson(res, 200, {}); }
+      if (req.method === 'DELETE' && url.pathname === '/presence') { await presenceStore.removeRider(actorId); return sendJson(res, 200, {}); }
       if (req.method === 'POST' && url.pathname === '/voice/token') {
         if (!liveKitCredentials) return sendJson(res, 503, { error: 'voice_not_configured' });
         const body = await readJsonBody(req);
         if (body.target === 'ride') {
           if (typeof body.rideId !== 'string') return sendJson(res, 400, { error: 'rideId is required' });
-          const result = rideStore.getRideForMember(body.rideId, actorId);
+          const result = await rideStore.getRideForMember(body.rideId, actorId);
           if (!result.ok) return sendJson(res, result.reason === 'not_found' ? 404 : 403, { error: result.reason });
           const voiceToken = await mintVoiceToken(liveKitCredentials, actorId, rideRoomName(result.ride.id));
           return sendJson(res, 200, voiceToken);
@@ -257,7 +257,7 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
           // location, never a client-supplied bucket — otherwise anyone
           // could request a token for an arbitrary public channel room
           // regardless of where they actually are.
-          const rider = presenceStore.getRider(actorId);
+          const rider = await presenceStore.getRider(actorId);
           if (!rider) return sendJson(res, 403, { error: 'location_sharing_disabled' });
           const voiceToken = await mintVoiceToken(liveKitCredentials, actorId, channelRoomName(bucketId(getBucketCoord(rider.location))));
           return sendJson(res, 200, voiceToken);
@@ -297,16 +297,16 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
       }
       if (s[0] === 'rides' && s[1]) {
         const id = decodeURIComponent(s[1]);
-        if (req.method === 'GET' && s.length === 2) { const r = rideStore.getRideForMember(id, actorId); return r.ok ? sendJson(res, 200, rideBody(r.ride)) : sendJson(res, r.reason === 'not_found' ? 404 : 403, { error: r.reason }); }
-        if (req.method === 'POST' && s[2] === 'leave') { const r = rideStore.leaveRide(id, actorId); return r.ok ? sendJson(res, 200, {}) : sendJson(res, r.reason === 'not_found' ? 404 : 403, { error: r.reason }); }
-        if (req.method === 'DELETE' && s.length === 2) { const r = rideStore.endRide(id, actorId); return r.ok ? sendJson(res, 200, {}) : sendJson(res, r.reason === 'not_found' ? 404 : 403, { error: r.reason }); }
-        if (req.method === 'DELETE' && s[2] === 'members' && s[3]) { const r = rideStore.removeMember(id, actorId, decodeURIComponent(s[3])); return r.ok ? sendJson(res, 200, rideBody(r.ride)) : sendJson(res, r.reason === 'not_found' ? 404 : 403, { error: r.reason }); }
+        if (req.method === 'GET' && s.length === 2) { const r = await rideStore.getRideForMember(id, actorId); return r.ok ? sendJson(res, 200, rideBody(r.ride)) : sendJson(res, r.reason === 'not_found' ? 404 : 403, { error: r.reason }); }
+        if (req.method === 'POST' && s[2] === 'leave') { const r = await rideStore.leaveRide(id, actorId); return r.ok ? sendJson(res, 200, {}) : sendJson(res, r.reason === 'not_found' ? 404 : 403, { error: r.reason }); }
+        if (req.method === 'DELETE' && s.length === 2) { const r = await rideStore.endRide(id, actorId); return r.ok ? sendJson(res, 200, {}) : sendJson(res, r.reason === 'not_found' ? 404 : 403, { error: r.reason }); }
+        if (req.method === 'DELETE' && s[2] === 'members' && s[3]) { const r = await rideStore.removeMember(id, actorId, decodeURIComponent(s[3])); return r.ok ? sendJson(res, 200, rideBody(r.ride)) : sendJson(res, r.reason === 'not_found' ? 404 : 403, { error: r.reason }); }
       }
       if (s[0] === 'riders' && s[2]) {
         if (decodeURIComponent(s[1]) !== actorId) return sendJson(res, 403, { error: 'forbidden' });
         if (s[2] === 'profile') {
-          if (req.method === 'GET') return sendJson(res, 200, profileStore.getOrCreate(actorId));
-          if (req.method === 'PUT') { const body = await readJsonBody(req); if ('zoneTier' in body) return sendJson(res, 403, { error: 'zone_tier_managed_by_billing' }); const r = profileStore.update(actorId, body); if (r.ok && body.shareLocation === false) presenceStore.removeRider(actorId); return r.ok ? sendJson(res, 200, r.profile) : sendJson(res, 400, { error: r.error }); }
+          if (req.method === 'GET') return sendJson(res, 200, await profileStore.getOrCreate(actorId));
+          if (req.method === 'PUT') { const body = await readJsonBody(req); if ('zoneTier' in body) return sendJson(res, 403, { error: 'zone_tier_managed_by_billing' }); const r = await profileStore.update(actorId, body); if (r.ok && body.shareLocation === false) await presenceStore.removeRider(actorId); return r.ok ? sendJson(res, 200, r.profile) : sendJson(res, 400, { error: r.error }); }
         }
         if (req.method === 'GET' && s[2] === 'friend-requests') return sendJson(res, 200, await friendStore.getRequestsFor(actorId));
         if (req.method === 'GET' && s[2] === 'friends' && s.length === 3) return sendJson(res, 200, { friends: await friendStore.getFriends(actorId) });

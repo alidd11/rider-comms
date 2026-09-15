@@ -5,6 +5,7 @@ import {
   SlidingWindowRateLimiter,
 } from '@rider-comms/shared';
 import type { RideCodeRecord } from '@rider-comms/shared';
+import { ensureMigrated, getPool } from './db.ts';
 
 export interface Ride {
   id: string;
@@ -27,16 +28,40 @@ export type RideActionResult =
   | { ok: true; ride: Ride }
   | { ok: false; reason: 'not_found' | 'forbidden' | 'not_member' };
 
+interface RideRow {
+  id: string;
+  created_by: string;
+  created_at: string | number;
+}
+
+interface RideCodeRow {
+  code: string;
+  ride_id: string;
+  created_at: string | number;
+  expires_at: string | number;
+}
+
+function rowToCodeRecord(row: RideCodeRow): RideCodeRecord {
+  return {
+    code: row.code,
+    rideId: row.ride_id,
+    createdAt: Number(row.created_at),
+    expiresAt: Number(row.expires_at),
+  };
+}
+
 /**
  * Private ride groups (Section 5 of the spec): create a ride, get a code,
  * others join with it. Join attempts are rate-limited (Section 13 — a ride
  * code is effectively a password to a live voice room) and an invalid code
  * and an expired code return the identical response, so a guesser can't
  * use the response to tell a near-miss from a stale one.
+ *
+ * Persisted in Postgres (see db.ts): `rides` + `ride_members` (one row per
+ * member, rather than the in-memory Set) + `ride_codes`. Rate limiters stay
+ * in-process — they're a per-request-burst defense, not durable state.
  */
 export class RideStore {
-  private rides = new Map<string, Ride>();
-  private codesByValue = new Map<string, RideCodeRecord>();
   private riderJoinLimiter: SlidingWindowRateLimiter;
   private ipJoinLimiter: SlidingWindowRateLimiter;
 
@@ -45,87 +70,124 @@ export class RideStore {
     this.ipJoinLimiter = new SlidingWindowRateLimiter(maxJoinAttempts * 4, windowMs);
   }
 
-  createRide(creatorId: string): { ride: Ride; codeRecord: RideCodeRecord } {
-    const id = randomUUID();
-    const ride: Ride = {
-      id,
-      createdBy: creatorId,
-      createdAt: Date.now(),
-      memberIds: new Set([creatorId]),
+  private async loadRide(rideId: string): Promise<Ride | undefined> {
+    const pool = getPool();
+    const { rows } = await pool.query<RideRow>('SELECT * FROM rides WHERE id = $1', [rideId]);
+    if (!rows[0]) return undefined;
+    const { rows: memberRows } = await pool.query<{ rider_id: string }>(
+      'SELECT rider_id FROM ride_members WHERE ride_id = $1',
+      [rideId]
+    );
+    return {
+      id: rows[0].id,
+      createdBy: rows[0].created_by,
+      createdAt: Number(rows[0].created_at),
+      memberIds: new Set(memberRows.map((row) => row.rider_id)),
     };
-    this.rides.set(id, ride);
+  }
+
+  async createRide(creatorId: string): Promise<{ ride: Ride; codeRecord: RideCodeRecord }> {
+    await ensureMigrated();
+    const pool = getPool();
+    const id = randomUUID();
+    const createdAt = Date.now();
+    await pool.query('INSERT INTO rides (id, created_by, created_at) VALUES ($1, $2, $3)', [id, creatorId, createdAt]);
+    await pool.query('INSERT INTO ride_members (ride_id, rider_id) VALUES ($1, $2)', [id, creatorId]);
 
     let codeRecord = createRideCodeRecord(id);
-    while (this.codesByValue.has(codeRecord.code)) codeRecord = createRideCodeRecord(id);
-    this.codesByValue.set(codeRecord.code, codeRecord);
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      try {
+        await pool.query(
+          'INSERT INTO ride_codes (code, ride_id, created_at, expires_at) VALUES ($1, $2, $3, $4)',
+          [codeRecord.code, codeRecord.rideId, codeRecord.createdAt, codeRecord.expiresAt]
+        );
+        break;
+      } catch (error) {
+        // Unique-violation on `code` (astronomically rare, 30 bits of
+        // entropy) — regenerate and retry, same as the in-memory
+        // `while (this.codesByValue.has(...))` loop this replaces.
+        if ((error as { code?: string }).code !== '23505') throw error;
+        codeRecord = createRideCodeRecord(id);
+      }
+    }
+
+    const ride: Ride = { id, createdBy: creatorId, createdAt, memberIds: new Set([creatorId]) };
     return { ride, codeRecord };
   }
 
-  joinRide(code: string, riderId: string, rateLimitKey: string): JoinRideResult {
+  async joinRide(code: string, riderId: string, rateLimitKey: string): Promise<JoinRideResult> {
     if (!this.riderJoinLimiter.tryConsume(riderId) || !this.ipJoinLimiter.tryConsume(rateLimitKey)) {
       return { ok: false, reason: 'rate_limited' };
     }
 
-    const record = this.codesByValue.get(code.toUpperCase());
-    if (!record || isRideCodeExpired(record)) {
-      return { ok: false, reason: 'invalid_or_expired' };
-    }
+    await ensureMigrated();
+    const pool = getPool();
+    const { rows } = await pool.query<RideCodeRow>('SELECT * FROM ride_codes WHERE code = $1', [code.toUpperCase()]);
+    if (!rows[0]) return { ok: false, reason: 'invalid_or_expired' };
+    const record = rowToCodeRecord(rows[0]);
+    if (isRideCodeExpired(record)) return { ok: false, reason: 'invalid_or_expired' };
 
-    const ride = this.rides.get(record.rideId);
-    if (!ride) {
-      return { ok: false, reason: 'invalid_or_expired' };
-    }
+    const ride = await this.loadRide(record.rideId);
+    if (!ride) return { ok: false, reason: 'invalid_or_expired' };
 
     if (!ride.memberIds.has(riderId) && ride.memberIds.size >= MAX_RIDE_MEMBERS) {
       return { ok: false, reason: 'ride_full' };
     }
 
-    ride.memberIds.add(riderId);
+    await pool.query(
+      'INSERT INTO ride_members (ride_id, rider_id) VALUES ($1, $2) ON CONFLICT (ride_id, rider_id) DO NOTHING',
+      [ride.id, riderId]
+    );
     return { ok: true, rideId: ride.id };
   }
 
-  getRide(rideId: string): Ride | undefined {
-    return this.rides.get(rideId);
+  async getRide(rideId: string): Promise<Ride | undefined> {
+    await ensureMigrated();
+    return this.loadRide(rideId);
   }
 
-  getRideForMember(rideId: string, riderId: string): RideActionResult {
-    const ride = this.rides.get(rideId);
+  async getRideForMember(rideId: string, riderId: string): Promise<RideActionResult> {
+    await ensureMigrated();
+    const ride = await this.loadRide(rideId);
     if (!ride) return { ok: false, reason: 'not_found' };
     if (!ride.memberIds.has(riderId)) return { ok: false, reason: 'not_member' };
     return { ok: true, ride };
   }
 
-  leaveRide(rideId: string, riderId: string): RideActionResult {
-    const result = this.getRideForMember(rideId, riderId);
+  async leaveRide(rideId: string, riderId: string): Promise<RideActionResult> {
+    const result = await this.getRideForMember(rideId, riderId);
     if (!result.ok) return result;
     if (result.ride.createdBy === riderId) return { ok: false, reason: 'forbidden' };
+    await getPool().query('DELETE FROM ride_members WHERE ride_id = $1 AND rider_id = $2', [rideId, riderId]);
     result.ride.memberIds.delete(riderId);
     return result;
   }
 
-  removeMember(rideId: string, actorId: string, memberId: string): RideActionResult {
-    const ride = this.rides.get(rideId);
+  async removeMember(rideId: string, actorId: string, memberId: string): Promise<RideActionResult> {
+    await ensureMigrated();
+    const ride = await this.loadRide(rideId);
     if (!ride) return { ok: false, reason: 'not_found' };
     if (ride.createdBy !== actorId || memberId === actorId) return { ok: false, reason: 'forbidden' };
+    await getPool().query('DELETE FROM ride_members WHERE ride_id = $1 AND rider_id = $2', [rideId, memberId]);
     ride.memberIds.delete(memberId);
     return { ok: true, ride };
   }
 
-  endRide(rideId: string, actorId: string): RideActionResult {
-    const ride = this.rides.get(rideId);
+  async endRide(rideId: string, actorId: string): Promise<RideActionResult> {
+    await ensureMigrated();
+    const ride = await this.loadRide(rideId);
     if (!ride) return { ok: false, reason: 'not_found' };
     if (ride.createdBy !== actorId) return { ok: false, reason: 'forbidden' };
-    this.rides.delete(rideId);
-    for (const [code, record] of this.codesByValue) if (record.rideId === rideId) this.codesByValue.delete(code);
+    // ride_members and ride_codes cascade-delete with the ride row.
+    await getPool().query('DELETE FROM rides WHERE id = $1', [rideId]);
     return { ok: true, ride };
   }
 
-  deleteRider(riderId: string): void {
-    const hostedRideIds = [...this.rides.values()].filter((ride) => ride.createdBy === riderId).map((ride) => ride.id);
-    for (const rideId of hostedRideIds) {
-      this.rides.delete(rideId);
-      for (const [code, record] of this.codesByValue) if (record.rideId === rideId) this.codesByValue.delete(code);
-    }
-    for (const ride of this.rides.values()) ride.memberIds.delete(riderId);
+  async deleteRider(riderId: string): Promise<void> {
+    await ensureMigrated();
+    const pool = getPool();
+    await pool.query('DELETE FROM rides WHERE created_by = $1', [riderId]);
+    await pool.query('DELETE FROM ride_members WHERE rider_id = $1', [riderId]);
   }
 }
