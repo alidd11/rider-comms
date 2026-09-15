@@ -293,6 +293,9 @@
     $('#profileName').textContent = state.profile.displayName;
     $('#profileHandle').textContent = state.profile.handle;
     $('#profileRiderId').textContent = state.profile.riderId;
+    const genericProfile = state.profile.displayName.trim().toLowerCase() === 'rider'
+      || state.profile.handle.trim().toLowerCase() === '@rider';
+    $('#completeProfilePrompt').hidden = !genericProfile;
     $$('[data-avatar]').forEach((element) => {
       element.textContent = initials(state.profile.displayName);
       element.style.setProperty('--avatar', identityColor(state.profile.riderId));
@@ -495,16 +498,57 @@
     const friends = state.friends.filter((friend) => [friend.displayName, friend.handle, friend.riderId].some((value) => value.toLowerCase().includes(query)));
     $('#requestList').innerHTML = state.requests.map((person) => `<article class="request-row">${avatar(person)}<div class="identity"><strong>${escapeHtml(person.displayName)}</strong><span>${escapeHtml(person.handle)} · ${escapeHtml(person.status)}</span></div><div class="request-actions"><button class="decline" data-decline="${escapeHtml(person.id)}" aria-label="Decline ${escapeHtml(person.displayName)}">×</button><button class="accept" data-accept="${escapeHtml(person.id)}" aria-label="Accept ${escapeHtml(person.displayName)}">✓</button></div></article>`).join('');
     $('#friendList').innerHTML = friends.map((person) => `<button class="friend-row" data-friend="${escapeHtml(person.riderId)}">${avatar(person)}<span class="identity"><strong>${escapeHtml(person.displayName)}</strong><span>${escapeHtml(person.handle)} · ${escapeHtml(person.status)}</span></span><span class="chevron">${icon('chevron')}</span></button>`).join('');
-    $('#friendEmpty').hidden = friends.length > 0;
-    const count = $('#friendsTitle')?.parentElement?.parentElement?.querySelector('.count-badge');
-    if (count) count.textContent = String(state.friends.length);
+    const hasFriends = state.friends.length > 0;
+    const hasVisibleFriends = friends.length > 0;
+    const hasRequests = state.requests.length > 0;
+    const empty = $('#friendEmpty');
+    $('#requestSection').hidden = !hasRequests;
+    $('#friendSection').hidden = !hasVisibleFriends;
+    empty.hidden = hasVisibleFriends;
+    $('#friendEmptyTitle').textContent = query ? 'No matching friends' : 'Build your riding circle';
+    $('#friendEmptyCopy').textContent = query
+      ? 'Try a different name, handle or Rider ID.'
+      : 'Add someone you know using their Rider ID. Only accepted friends become part of your network.';
+    $('#friendEmptyAction').hidden = Boolean(query) || hasFriends;
+    const count = $('#friendsCountBadge');
+    if (count) {
+      count.textContent = String(state.friends.length);
+      count.hidden = !hasFriends;
+    }
     const requestCount = $('#requestsCountBadge');
     if (requestCount) requestCount.textContent = String(state.requests.length);
+    $('#networkFriendCount').textContent = String(state.friends.length);
+    $('#networkRequestCount').textContent = String(state.requests.length);
     const navBadge = $('#friendsNavBadge');
     if (navBadge) { navBadge.textContent = String(state.requests.length); navBadge.hidden = state.requests.length === 0; }
     $$('[data-accept]').forEach((button) => button.addEventListener('click', () => acceptRequest(button.dataset.accept)));
     $$('[data-decline]').forEach((button) => button.addEventListener('click', () => declineRequest(button.dataset.decline)));
-    $$('[data-friend]').forEach((button) => button.addEventListener('click', () => showToast('Messaging opens from the installed mobile app.')));
+    $$('[data-friend]').forEach((button) => button.addEventListener('click', () => openFriendProfile(button.dataset.friend)));
+  }
+
+  async function openFriendProfile(riderId) {
+    const friend = state.friends.find((person) => person.riderId === riderId);
+    if (!friend) return;
+    let profile = friend;
+    try {
+      profile = await apiFetch('GET', `/profiles/${encodeURIComponent(riderId)}`);
+    } catch {
+      // The friendship itself is still valid if optional public-profile data
+      // cannot be refreshed. Show the identity already loaded with the list.
+    }
+    const socialLinks = [
+      profile.instagramUsername ? `<a class="social-link" href="https://www.instagram.com/${encodeURIComponent(profile.instagramUsername)}/" target="_blank" rel="noopener"><span>Instagram</span><strong>@${escapeHtml(profile.instagramUsername)}</strong>${icon('chevron')}</a>` : '',
+      profile.tiktokUsername ? `<a class="social-link" href="https://www.tiktok.com/@${encodeURIComponent(profile.tiktokUsername)}" target="_blank" rel="noopener"><span>TikTok</span><strong>@${escapeHtml(profile.tiktokUsername)}</strong>${icon('chevron')}</a>` : '',
+    ].filter(Boolean).join('');
+    presentSheet(friend.displayName, `<article class="friend-profile-card">${avatar({ ...friend, avatarId: profile.avatarId || friend.avatarId })}<div><strong>${escapeHtml(friend.displayName)}</strong><span>${escapeHtml(friend.handle)}</span><small>Connected rider</small></div></article>
+      ${socialLinks ? `<div class="social-links">${socialLinks}</div>` : '<p class="friend-profile-note">This rider has not shared any social links with you.</p>'}
+      <button class="button secondary wide" id="copyFriendId">Copy Rider ID</button>
+      <p class="caption">Only connect and arrange rides with people you trust. Social links follow each rider’s privacy settings.</p>`, () => {
+      $('#copyFriendId').addEventListener('click', async () => {
+        try { await navigator.clipboard.writeText(riderId); showToast('Rider ID copied.'); }
+        catch { showToast(riderId); }
+      });
+    });
   }
 
   /**
@@ -605,6 +649,11 @@
 
   const VEHICLE_FILTER_ORDER = ['motorcycle_small', 'motorcycle_large', 'scooter', 'car'];
 
+  function isAutomatedTestRoute(route) {
+    const searchable = `${route.name || ''} ${route.description || ''}`.toLowerCase();
+    return searchable.includes('e2e test route') || searchable.includes('created end-to-end by playwright');
+  }
+
   function renderRouteFilters() {
     const filtersEl = $('#routeVehicleFilters');
     filtersEl.innerHTML = ['all', ...VEHICLE_FILTER_ORDER].map((key) => {
@@ -667,7 +716,9 @@
     try {
       const query = state.routeVehicleFilter ? `?vehicleCategory=${encodeURIComponent(state.routeVehicleFilter)}` : '';
       const result = await apiFetch('GET', `/scenic-routes${query}`);
-      routes = result.routes;
+      // Automated browser checks previously wrote a fixture to the live route
+      // store. Never present known test fixtures as rider recommendations.
+      routes = result.routes.filter((route) => !isAutomatedTestRoute(route));
     } catch (error) {
       showToast('Could not load routes. ' + authErrorMessage(error));
     }
@@ -947,11 +998,15 @@
     };
     const template = templates[type]?.();
     if (!template) return;
-    $('#sheetTitle').textContent = template.title;
-    $('#sheetBody').innerHTML = template.body;
+    presentSheet(template.title, template.body, template.ready);
+  }
+
+  function presentSheet(title, body, ready) {
+    $('#sheetTitle').textContent = title;
+    $('#sheetBody').innerHTML = body;
     $('#sheetBackdrop').hidden = false;
     document.body.style.overflow = 'hidden';
-    template.ready?.();
+    ready?.();
     $('#closeSheet').focus();
   }
 
@@ -1341,6 +1396,10 @@
     $('#ridePill').addEventListener('click', () => navigate('ride'));
     $('#friendSearch').addEventListener('input', renderFriends);
     $('#addFriendToggle').addEventListener('click', () => { $('#addFriendForm').hidden = !$('#addFriendForm').hidden; if (!$('#addFriendForm').hidden) $('#friendId').focus(); });
+    $('#friendEmptyAction').addEventListener('click', () => {
+      $('#addFriendForm').hidden = false;
+      $('#friendId').focus();
+    });
     $('#addFriendForm').addEventListener('submit', (event) => {
       event.preventDefault();
       const riderId = $('#friendId').value.trim().toLowerCase();
@@ -1351,6 +1410,7 @@
       $('#friendId').value = '';
     });
     $$('[data-sheet]').forEach((button) => button.addEventListener('click', () => openSheet(button.dataset.sheet)));
+    $('#completeProfilePrompt').addEventListener('click', () => openSheet('profile'));
     $('#editProfileBtn').addEventListener('click', () => openSheet('profile'));
     $('#addRouteBtn').addEventListener('click', () => openSheet('addRoute'));
     $('#reportHazardBtn').addEventListener('click', () => openSheet('reportHazard'));
