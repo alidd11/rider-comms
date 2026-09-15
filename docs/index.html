@@ -42,7 +42,33 @@
     <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></symbol>
   </defs></svg>
 
-  <div id="app" class="app-shell">
+  <div id="authScreen" class="auth-screen" hidden>
+    <div class="page-width auth-card">
+      <span class="eyebrow">Rider Comms</span>
+      <h1>Sign in to ride</h1>
+      <p class="page-subtitle">Sign in with your Rider Comms account to see nearby riders, join private group rides and report hazards with people you actually know.</p>
+      <div class="segmented" role="tablist">
+        <button type="button" class="active" data-auth-mode="login" role="tab" aria-selected="true">Log in</button>
+        <button type="button" data-auth-mode="signup" role="tab" aria-selected="false">Create account</button>
+      </div>
+      <form id="loginForm" class="auth-form">
+        <div class="form-field"><label for="loginUsername">Username</label><input id="loginUsername" autocomplete="username" required></div>
+        <div class="form-field"><label for="loginPassword">Password</label><input id="loginPassword" type="password" autocomplete="current-password" required></div>
+        <p id="loginError" class="inline-error" hidden></p>
+        <button class="button primary wide" type="submit" id="loginSubmit">Log in</button>
+      </form>
+      <form id="signupForm" class="auth-form" hidden>
+        <div class="form-field"><label for="signupUsername">Username</label><input id="signupUsername" autocomplete="username" required></div>
+        <div class="form-field"><label for="signupEmail">Email</label><input id="signupEmail" type="email" autocomplete="email" required></div>
+        <div class="form-field"><label for="signupPassword">Password</label><input id="signupPassword" type="password" autocomplete="new-password" required></div>
+        <p class="caption">Use 3–20 letters, numbers or underscores for your username, and at least 8 characters for your password.</p>
+        <p id="signupError" class="inline-error" hidden></p>
+        <button class="button primary wide" type="submit" id="signupSubmit">Create account</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="app" class="app-shell" hidden>
     <main class="app-main">
       <section class="screen screen-map active" data-screen="map" aria-labelledby="mapTitle">
         <div id="mapCanvas" class="map-canvas" role="application" aria-label="Rider map">
@@ -107,10 +133,10 @@
 
       <section class="screen content-screen" data-screen="settings" aria-labelledby="settingsTitle">
         <div class="page-width"><header class="page-header"><div><span class="eyebrow">Personalise</span><h1 id="settingsTitle">Settings</h1></div></header>
-          <article class="profile-row"><div class="avatar avatar-lg" data-avatar="AI">AI</div><div class="profile-copy"><strong id="profileName">Ali</strong><span id="profileHandle">@ali_rides</span><small>rider_k4xqpz82</small></div><button id="editProfileBtn" class="button tertiary">Edit</button></article>
+          <article class="profile-row"><div class="avatar avatar-lg" data-avatar="AI">AI</div><div class="profile-copy"><strong id="profileName">Ali</strong><span id="profileHandle">@ali_rides</span><small id="profileRiderId">rider_k4xqpz82</small></div><button id="editProfileBtn" class="button tertiary">Edit</button></article>
           <h2 class="group-title">Account</h2><div class="settings-group"><button data-sheet="plans"><span class="setting-icon"><svg><use href="#i-card"/></svg></span><span><strong>Subscription & billing</strong><small>Free plan · 1 mile radius</small></span><span class="plan-pill">Free</span><svg><use href="#i-chevron"/></svg></button><button data-sheet="profile"><span class="setting-icon"><svg><use href="#i-user"/></svg></span><span><strong>Profile</strong><small>Name, handle, avatar and socials</small></span><svg><use href="#i-chevron"/></svg></button><button data-sheet="privacy"><span class="setting-icon"><svg><use href="#i-shield"/></svg></span><span><strong>Privacy & visibility</strong><small>Location and social profile controls</small></span><svg><use href="#i-chevron"/></svg></button></div>
           <h2 class="group-title">Riding</h2><div class="settings-group"><button data-sheet="map"><span class="setting-icon"><svg><use href="#i-location"/></svg></span><span><strong>Map & location</strong><small>Maps and nearby visibility</small></span><svg><use href="#i-chevron"/></svg></button><button data-sheet="units"><span class="setting-icon"><svg><use href="#i-units"/></svg></span><span><strong>Distance units</strong><small>Miles</small></span><svg><use href="#i-chevron"/></svg></button><button data-sheet="notifications"><span class="setting-icon"><svg><use href="#i-bell"/></svg></span><span><strong>Notifications</strong><small>Nearby riders, rides and messages</small></span><svg><use href="#i-chevron"/></svg></button></div>
-          <h2 class="group-title">Support</h2><div class="settings-group"><button data-sheet="safety"><span class="setting-icon"><svg><use href="#i-shield"/></svg></span><span><strong>Safety & privacy</strong><small>Community rules and data choices</small></span><svg><use href="#i-chevron"/></svg></button><button id="resetPwa"><span class="setting-icon danger-text"><svg><use href="#i-reset"/></svg></span><span><strong class="danger-text">Reset local data</strong><small>Restore this preview to defaults</small></span><svg><use href="#i-chevron"/></svg></button></div>
+          <h2 class="group-title">Support</h2><div class="settings-group"><button data-sheet="safety"><span class="setting-icon"><svg><use href="#i-shield"/></svg></span><span><strong>Safety & privacy</strong><small>Community rules and data choices</small></span><svg><use href="#i-chevron"/></svg></button><button id="logoutBtn"><span class="setting-icon danger-text"><svg><use href="#i-reset"/></svg></span><span><strong class="danger-text">Log out</strong><small id="logoutRiderId">Sign out of this account</small></span><svg><use href="#i-chevron"/></svg></button></div>
           <p class="version">Rider Comms 0.3.0 · PWA</p>
         </div>
       </section>
