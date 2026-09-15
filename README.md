@@ -53,6 +53,23 @@ The development API host is normally derived from Expo. Override it for a deploy
 EXPO_PUBLIC_API_URL=https://api.example.com npm run start --workspace=mobile
 ```
 
+### PWA deployment and Google Maps
+
+Pushing `main` runs `.github/workflows/pages.yml`, verifies the repository,
+builds the static PWA, and deploys it to GitHub Pages. The service worker checks
+the network first and announces waiting updates inside the installed app, so
+testers do not need to clear browser storage between releases.
+
+To enable Google Maps in the PWA, add a GitHub Actions repository secret named
+`GOOGLE_MAPS_API_KEY`. Restrict that browser key in Google Cloud to the Maps
+JavaScript API and the exact GitHub Pages HTTPS origin. The workflow injects it
+into the deployed artifact; it is never committed to source. Without a valid
+key, the PWA uses its accessible simplified rider map instead of failing blank.
+
+The native Expo client still uses its existing illustrative map surface. A
+native Google Maps release requires platform-specific iOS and Android keys and
+an Expo development build; this PWA setup does not claim to configure those.
+
 With an authenticated Expo account, build an installable Android preview:
 
 ```bash

@@ -11,8 +11,10 @@
   ],
   "scripts": {
     "test": "npm run test --workspace=shared && npm run test --workspace=backend && npm run test:client --workspace=mobile",
+    "lint": "node --check docs/app.js && node --check docs/sw.js && node --check scripts/build-pwa.mjs",
     "typecheck": "tsc --noEmit -p shared/tsconfig.json && tsc --noEmit -p backend/tsconfig.json && tsc --noEmit -p mobile/tsconfig.json",
-    "check": "npm run typecheck && npm test",
+    "check": "npm run lint && npm run typecheck && npm test",
+    "build:web": "node scripts/build-pwa.mjs",
     "dev:backend": "npm run start --workspace=backend"
   },
   "overrides": {
