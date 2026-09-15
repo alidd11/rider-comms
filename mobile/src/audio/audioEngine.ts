@@ -5,20 +5,21 @@
  *
  * WHAT'S REAL HERE: the priority decision itself (`computeAudioGains`,
  * imported from @rider-comms/shared) is genuine, tested logic — see
- * shared/tests/audioPriority.test.ts.
+ * shared/tests/audioPriority.test.ts. `setChatActive()` is now driven by
+ * real hands-free voice detection (../audio/useVoiceActivity.ts, wired in
+ * from ride/RideBar.tsx's VoiceActivityBridge) rather than a manual test
+ * button — VAD (voice activity detection) is real, not a stub; see that
+ * file for exactly how and its own honest caveats (unverified on real
+ * hardware, threshold/hangtime not tuned against a real riding
+ * environment).
  *
- * WHAT'S STUBBED: everything below marked TODO needs native modules
- * (VAD/noise-suppression models, real audio session routing to a
- * Bluetooth helmet headset) that can't be installed or run in this
- * sandbox at all — no device, no npm registry access for
- * react-native-webrtc/livekit-react-native, no native build tooling.
- * This class is written to the shape those libraries expect so wiring
- * them in later is a matter of filling in the TODOs, not restructuring.
+ * WHAT'S STILL STUBBED: applying `currentGains` to actual audio output
+ * (ducking real nav/music volume) still needs native module wiring — see
+ * the TODO below. That's a separate gap from voice *detection*, which is
+ * done.
  */
 import { computeAudioGains } from '@rider-comms/shared';
 import type { AudioGainLevels, AudioSourceState } from '@rider-comms/shared';
-
-export type VoiceActivityListener = (isSpeaking: boolean) => void;
 
 export class AudioEngine {
   private state: AudioSourceState = {
@@ -29,19 +30,6 @@ export class AudioEngine {
 
   private currentGains: AudioGainLevels = { nav: 0, chat: 0, music: 0 };
   private gainChangeListeners = new Set<(gains: AudioGainLevels) => void>();
-
-  /**
-   * TODO(native): replace this with a real on-device VAD pipeline —
-   * mic -> acoustic echo cancellation -> wind/road noise suppression
-   * (RNNoise or Krisp SDK) -> VAD gate (Silero VAD / WebRTC VAD), per
-   * Section 4 of the spec. This method currently only exists so the rest
-   * of the app has a stable interface to call against.
-   */
-  onLocalVoiceActivity(_listener: VoiceActivityListener): () => void {
-    // No-op until native VAD is wired in. Returns an unsubscribe fn to
-    // match the shape real implementations (and tests) will expect.
-    return () => {};
-  }
 
   setNavPromptActive(active: boolean): void {
     this.state = { ...this.state, navPromptActive: active };
