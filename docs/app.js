@@ -94,17 +94,16 @@
   const DIFFICULTY_LABELS = { easy: 'Easy', moderate: 'Moderate', challenging: 'Challenging' };
   const SURFACE_LABELS = { excellent: 'Excellent', good: 'Good', fair: 'Fair', poor: 'Poor' };
 
-  const PUBLIC_RIDERS = [
-    { riderId: 'rider_alex82', displayName: 'Alex R.', handle: '@rider_alex82', status: 'Nearby', x: 24, y: 34 },
-    { riderId: 'rider_maria', displayName: 'Maria K.', handle: '@maria_ktm', status: 'In your zone', x: 67, y: 55 },
-    { riderId: 'rider_jc', displayName: 'JC', handle: '@jc_ridesout', status: 'Nearby', x: 78, y: 75 },
-  ];
-
-  const RIDE_MEMBERS = [
-    { riderId: 'rider_k4xqpz82', displayName: 'Ali', handle: '@ali_rides', status: 'Host · connected' },
-    { riderId: 'rider_maria', displayName: 'Maria K.', handle: '@maria_ktm', status: 'Connected' },
-    { riderId: 'rider_jc', displayName: 'JC', handle: '@jc_ridesout', status: 'Connected' },
-  ];
+  // Real nearby riders (from POST /presence's inZoneWith, resolved to
+  // display info via GET /profiles/:id — same lookup-per-id pattern
+  // loadFriendsData() already uses for incoming friend requests) and the
+  // current private ride's roster (from GET/POST /rides, resolved the same
+  // way). Both are runtime-only: presence is inherently transient (it goes
+  // stale server-side after ~30s of no ping) and a ride's membership can
+  // change at any moment from another rider's device, so neither belongs in
+  // persisted state the way profile/friends data does — they are always
+  // re-fetched from the backend rather than trusted from localStorage.
+  let nearbyRiders = [];
 
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -266,6 +265,7 @@
     if (screen === 'map') renderMapRiders();
     if (screen === 'routes') renderRoutes();
     if (screen === 'friends') loadFriendsData();
+    if (screen === 'ride') refreshActiveRide();
     nudgeBottomNavReflow();
   }
 
@@ -279,7 +279,7 @@
     });
   }
 
-  function renderFallbackMarkers(riders = PUBLIC_RIDERS) {
+  function renderFallbackMarkers(riders = nearbyRiders) {
     const layer = $('#fallbackMarkers');
     const people = [
       { ...state.profile, displayName: state.profile.displayName, handle: state.profile.handle, status: 'You', x: 50, y: 53, current: true },
@@ -293,11 +293,12 @@
     $$('[data-rider-id]', layer).forEach((button) => button.addEventListener('click', () => selectRider(button.dataset.riderId, people)));
   }
 
-  // Same illustrative-position convention as PUBLIC_RIDERS' fixed x/y
-  // percentages above (see the module header note on why the PWA has no
-  // real map data) — each new report is placed at a small, deterministic
-  // offset from "you" so multiple reports don't stack exactly on top of
-  // each other, not at a real bearing/distance.
+  // Illustrative-position convention: neither the backend's ride roster
+  // nor its presence response carries other riders' real lat/lon (Section
+  // 8's mutual in-zone check is a yes/no, not a position feed), so the
+  // fallback CSS map places each one at a small, deterministic offset from
+  // "you" instead — same convention used for a hazard report below, not a
+  // real bearing/distance.
   const HAZARD_OFFSETS = [[14, -10], [-16, 8], [10, 16], [-12, -14], [18, 4]];
 
   // Real lat/lng deltas (same illustrative-offset convention as
@@ -398,10 +399,10 @@
   }
 
   function visibleMapRiders() {
-    if (!state.activeRide) return PUBLIC_RIDERS;
-    return RIDE_MEMBERS
-      .filter((member) => member.riderId !== state.profile.riderId)
-      .map((member, index) => ({ ...member, x: 35 + index * 30, y: 43 + index * 15 }));
+    const list = state.activeRide
+      ? (state.activeRide.members || []).filter((member) => member.riderId !== state.profile.riderId)
+      : nearbyRiders;
+    return list.map((person, index) => ({ ...person, x: 35 + index * 30, y: 43 + index * 15 }));
   }
 
   function renderMapRiders() {
@@ -417,14 +418,14 @@
     }, false));
   }
 
-  function selectRider(riderId, people = PUBLIC_RIDERS) {
+  function selectRider(riderId, people = nearbyRiders) {
     if (riderId === state.profile.riderId) {
       state.selectedRiderId = null;
       $('#riderCard').hidden = true;
       renderMapRiders();
       return;
     }
-    const person = people.find((item) => item.riderId === riderId) || PUBLIC_RIDERS.find((item) => item.riderId === riderId);
+    const person = people.find((item) => item.riderId === riderId) || nearbyRiders.find((item) => item.riderId === riderId);
     if (!person) return;
     state.selectedRiderId = person.riderId;
     const card = $('#riderCard');
@@ -449,6 +450,27 @@
     $$('[data-accept]').forEach((button) => button.addEventListener('click', () => acceptRequest(button.dataset.accept)));
     $$('[data-decline]').forEach((button) => button.addEventListener('click', () => declineRequest(button.dataset.decline)));
     $$('[data-friend]').forEach((button) => button.addEventListener('click', () => showToast('Messaging opens from the installed mobile app.')));
+  }
+
+  /**
+   * Resolves a list of bare rider IDs (all a ride roster or a presence
+   * "in zone with" response carries) into display-ready {riderId,
+   * displayName, handle} via GET /profiles/:id — one lookup per ID, same
+   * as loadFriendsData() below does for incoming friend requests. Ride
+   * rosters and nearby-rider lists are always small, so N lookups here is
+   * fine. Falls back to showing the bare ID for a lookup that fails
+   * (blocked, or the rider vanished) rather than dropping that rider
+   * entirely.
+   */
+  async function resolveRiderProfiles(riderIds) {
+    return Promise.all(riderIds.map(async (riderId) => {
+      try {
+        const profile = await apiFetch('GET', `/profiles/${encodeURIComponent(riderId)}`);
+        return { riderId, displayName: profile.displayName, handle: profile.handle };
+      } catch {
+        return { riderId, displayName: riderId, handle: riderId };
+      }
+    }));
   }
 
   /**
@@ -596,39 +618,141 @@
     $('#ridePill').hidden = !active;
     if (!active) return;
     const ride = state.activeRide;
+    const members = ride.members || ride.memberIds.map((riderId) => ({ riderId, displayName: riderId, handle: riderId }));
     $('#activeRideCode').textContent = ride.code;
     $('#ridePillCode').textContent = ride.code;
     $('#rideRole').textContent = ride.isHost ? 'host' : 'member';
-    $('#memberCount').textContent = String(RIDE_MEMBERS.length);
+    $('#memberCount').textContent = String(members.length);
+    const pillCount = $('#ridePill .pill-count');
+    if (pillCount) pillCount.textContent = String(members.length);
     $('#leaveRideBtn').textContent = ride.isHost ? 'End ride' : 'Leave ride';
-    $('#rideRoster').innerHTML = RIDE_MEMBERS.map((person) => `<article class="roster-row">${avatar(person, 'small')}<div class="identity"><strong>${escapeHtml(person.displayName)}${person.riderId === state.profile.riderId ? ' · You' : ''}</strong><span>${escapeHtml(person.handle)}</span></div><span class="roster-status">${escapeHtml(person.status)}</span></article>`).join('');
+    $('#rideRoster').innerHTML = members.map((person) => `<article class="roster-row">${avatar(person, 'small')}<div class="identity"><strong>${escapeHtml(person.displayName)}${person.riderId === state.profile.riderId ? ' · You' : ''}</strong><span>${escapeHtml(person.handle)}</span></div><span class="roster-status">${escapeHtml(person.riderId === ride.createdBy ? 'Host · connected' : 'Connected')}</span></article>`).join('');
     renderMapRiders();
   }
 
-  function randomCode() {
-    const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    return Array.from({ length: 6 }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join('');
-  }
-
-  function startRide(isHost, code = randomCode()) {
-    state.activeRide = { code, isHost, rideId: `ride_${Date.now().toString(36)}` };
-    state.selectedRiderId = null;
-    persist();
-    renderRide();
-    navigate('ride');
-    showToast(isHost ? 'Your private ride is ready.' : 'You joined the ride.');
-  }
-
-  function endRide() {
+  /**
+   * Fetches display info for the active ride's current member IDs (GET
+   * /profiles/:id, same lookup-per-id pattern as loadFriendsData) and
+   * re-renders. Called after every real ride action below, since the
+   * roster comes straight from the backend rather than being invented
+   * client-side.
+   */
+  async function loadRideRoster() {
     if (!state.activeRide) return;
-    const message = state.activeRide.isHost ? 'End this ride for everyone?' : 'Leave this ride?';
-    if (!window.confirm(message)) return;
-    state.activeRide = null;
-    state.selectedRiderId = null;
+    state.activeRide.members = await resolveRiderProfiles(state.activeRide.memberIds);
     persist();
     renderRide();
-    renderFallbackMarkers();
-    showToast('Ride ended on this device.');
+  }
+
+  /**
+   * Re-syncs the active ride with the backend (GET /rides/:id) — used on
+   * returning to the Ride screen, since another member could have joined,
+   * left, or the host could have ended the ride while this device was
+   * elsewhere. A 404/403 means the ride is gone or this rider was removed
+   * from it, so the local "active ride" state is cleared to match reality.
+   */
+  async function refreshActiveRide() {
+    if (!state.activeRide) return;
+    try {
+      const ride = await apiFetch('GET', `/rides/${encodeURIComponent(state.activeRide.rideId)}`);
+      state.activeRide.memberIds = ride.memberIds;
+      state.activeRide.createdBy = ride.createdBy;
+      state.activeRide.isHost = ride.createdBy === state.profile.riderId;
+      persist();
+      await loadRideRoster();
+    } catch (error) {
+      if (error instanceof ApiError && (error.status === 404 || error.status === 403)) {
+        state.activeRide = null;
+        state.selectedRiderId = null;
+        persist();
+        renderRide();
+        renderMapRiders();
+        showToast('That ride is no longer active.');
+      }
+    }
+  }
+
+  const RIDE_ERROR_MESSAGES = {
+    invalid_or_expired: 'That invite code is invalid or has expired.',
+    ride_full: 'This ride is full (max 20 riders).',
+    rate_limited: 'Too many attempts — please wait a moment and try again.',
+  };
+
+  /** Creates a real private ride (POST /rides) — the backend returns the
+   * real ride ID and a fresh six-character share code. */
+  async function createRide() {
+    const button = $('#createRideBtn');
+    button.disabled = true;
+    button.textContent = 'Creating…';
+    try {
+      const result = await apiFetch('POST', '/rides', {});
+      state.activeRide = { rideId: result.rideId, code: result.code, isHost: true, createdBy: result.createdBy, memberIds: result.memberIds };
+      state.selectedRiderId = null;
+      persist();
+      renderRide();
+      navigate('ride');
+      showToast('Your private ride is ready.');
+      await loadRideRoster();
+    } catch {
+      showToast('Could not create a ride. Try again.');
+    } finally {
+      button.disabled = false;
+      button.textContent = 'Create private ride';
+    }
+  }
+
+  /** Joins a real ride by its share code (POST /rides/join), then fetches
+   * the ride's full membership (GET /rides/:id) — the join response only
+   * carries the new rideId. Surfaces the backend's real ride_full (409) and
+   * invalid/expired-code errors inline instead of guessing at them. */
+  async function joinRideByCode(code) {
+    const errorEl = $('#rideError');
+    const button = $('#joinRideForm button[type="submit"]');
+    errorEl.hidden = true;
+    button.disabled = true;
+    button.textContent = 'Joining…';
+    try {
+      const joined = await apiFetch('POST', '/rides/join', { code });
+      const ride = await apiFetch('GET', `/rides/${encodeURIComponent(joined.rideId)}`);
+      state.activeRide = { rideId: ride.rideId, code, isHost: ride.createdBy === state.profile.riderId, createdBy: ride.createdBy, memberIds: ride.memberIds };
+      state.selectedRiderId = null;
+      persist();
+      renderRide();
+      navigate('ride');
+      showToast('You joined the ride.');
+      await loadRideRoster();
+    } catch (error) {
+      const code2 = error instanceof ApiError ? error.body?.error : undefined;
+      errorEl.textContent = RIDE_ERROR_MESSAGES[code2] || 'Could not join that ride. Try again.';
+      errorEl.hidden = false;
+    } finally {
+      button.disabled = false;
+      button.textContent = 'Join';
+    }
+  }
+
+  /** Ends (host, DELETE /rides/:id) or leaves (member, POST
+   * /rides/:id/leave) the active ride for real. The backend rejects a
+   * host's own leaveRide call (a ride's host can only end it, not leave
+   * it) — see rideStore.ts — so which call to make is picked from the
+   * ride's real createdBy, not from client-side role bookkeeping. */
+  async function endRide() {
+    if (!state.activeRide) return;
+    const ride = state.activeRide;
+    const message = ride.isHost ? 'End this ride for everyone?' : 'Leave this ride?';
+    if (!window.confirm(message)) return;
+    try {
+      if (ride.isHost) await apiFetch('DELETE', `/rides/${encodeURIComponent(ride.rideId)}`);
+      else await apiFetch('POST', `/rides/${encodeURIComponent(ride.rideId)}/leave`, {});
+      state.activeRide = null;
+      state.selectedRiderId = null;
+      persist();
+      renderRide();
+      renderMapRiders();
+      showToast(ride.isHost ? 'Ride ended.' : 'You left the ride.');
+    } catch {
+      showToast(ride.isHost ? 'Could not end the ride. Try again.' : 'Could not leave the ride. Try again.');
+    }
   }
 
   async function shareRide() {
@@ -824,7 +948,7 @@
     const active = state.publicLive && state.profile.shareLocation;
     const privateRide = Boolean(state.activeRide);
     $('#mapStatusText').textContent = privateRide
-      ? `${RIDE_MEMBERS.length} riders · private ride`
+      ? `${(state.activeRide.members || state.activeRide.memberIds).length} riders · private ride`
       : active ? 'Visible to nearby riders' : 'Location sharing off';
     $('.map-status').classList.toggle('live', active);
     $('#joinNearbyBtn').hidden = privateRide;
@@ -832,27 +956,91 @@
     $('#joinNearbyBtn').lastElementChild.textContent = active ? 'Leave nearby' : 'Go live';
   }
 
+  // Presence has to be refreshed periodically while live — the backend
+  // (presenceStore.ts) drops a rider after ~30s with no ping, so a single
+  // POST /presence on "Go live" would only ever produce a mutual match for
+  // the ~30s window right after pressing the button. This mirrors what a
+  // real always-on client does: keep sending its current fix on an
+  // interval for as long as the rider stays live, well inside that
+  // staleness window.
+  const PRESENCE_REFRESH_MS = 20_000;
+  let presenceRefreshTimer;
+
+  function stopPresenceRefresh() {
+    clearInterval(presenceRefreshTimer);
+    presenceRefreshTimer = undefined;
+  }
+
+  /** Sends one real presence ping (POST /presence) with the given
+   * position and resolves the backend's real inZoneWith rider IDs to
+   * display info (same GET /profiles/:id lookup as the ride roster). */
+  async function sendPresence(position) {
+    const result = await apiFetch('POST', '/presence', { lat: position.coords.latitude, lon: position.coords.longitude });
+    nearbyRiders = await resolveRiderProfiles(result.inZoneWith);
+    if (!state.activeRide) renderMapRiders();
+    return result;
+  }
+
+  /**
+   * "Go live" / "Leave nearby": real presence, backed by POST/DELETE
+   * /presence — not a local-only flag flip. The backend requires
+   * profile.shareLocation to be true before it will accept a presence
+   * ping (see server.ts's /presence handler, which 403s with
+   * location_sharing_disabled otherwise), so going live also turns that
+   * profile setting on for real via patchProfile/PUT profile — the same
+   * request the Settings > Privacy toggle already makes — rather than
+   * silently reusing a client-side copy the backend never saw. Going
+   * offline intentionally leaves that profile setting as the rider left
+   * it; "Go live" is a per-session action, while shareLocation is a
+   * standing privacy preference the rider controls separately in
+   * Settings.
+   */
   async function toggleNearby() {
     if (state.publicLive) {
+      stopPresenceRefresh();
+      try { await apiFetch('DELETE', '/presence'); } catch { /* best effort — still go offline locally */ }
       state.publicLive = false;
+      nearbyRiders = [];
       persist();
       renderMapStatus();
+      renderMapRiders();
       showToast('You are no longer visible nearby.');
       return;
     }
+    let position;
     try {
-      const position = await currentPosition();
-      state.profile.shareLocation = true;
+      position = await currentPosition();
+    } catch {
+      $('#mapError').hidden = false;
+      $('#mapError span').textContent = 'Location permission is needed to join riders nearby. You can still browse the map.';
+      return;
+    }
+    try {
+      if (!state.profile.shareLocation) {
+        const ok = await patchProfile({ shareLocation: true });
+        if (!ok) throw new Error('could_not_enable_location_sharing');
+      }
+      await sendPresence(position);
       state.publicLive = true;
       persist();
       renderMapStatus();
       centreMap(position.coords.latitude, position.coords.longitude);
       showToast('You are visible to nearby riders.');
-    } catch {
+      presenceRefreshTimer = setInterval(async () => {
+        try {
+          const nextPosition = await currentPosition();
+          await sendPresence(nextPosition);
+        } catch { /* a transient miss is fine — the next tick retries */ }
+      }, PRESENCE_REFRESH_MS);
+    } catch (error) {
       state.publicLive = false;
+      persist();
       renderMapStatus();
       $('#mapError').hidden = false;
-      $('#mapError span').textContent = 'Location permission is needed to join riders nearby. You can still browse the map.';
+      const code = error instanceof ApiError ? error.body?.error : undefined;
+      $('#mapError span').textContent = code === 'location_sharing_disabled'
+        ? 'Enable location sharing in Settings to go live.'
+        : 'Could not go live. Try again.';
     }
   }
 
@@ -1054,11 +1242,10 @@
         $('#rideError').hidden = false;
         return;
       }
-      $('#rideError').hidden = true;
-      startRide(false, code);
+      joinRideByCode(code);
     });
     $('#rideCode').addEventListener('input', (event) => { event.target.value = event.target.value.toUpperCase().replace(/[^A-Z2-9]/g, '').slice(0, 6); });
-    $('#createRideBtn').addEventListener('click', () => startRide(true));
+    $('#createRideBtn').addEventListener('click', createRide);
     $('#leaveRideBtn').addEventListener('click', endRide);
     $('#shareRideBtn').addEventListener('click', shareRide);
     $('#rideShareTop').addEventListener('click', shareRide);
