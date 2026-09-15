@@ -19,15 +19,14 @@ export interface PresenceUpdateResult {
  * Section 8 was explicit about that, both for privacy and so two phones
  * can't disagree about the answer from slightly stale data).
  *
- * NOTE ON SCALE: `zoneCandidates()` demonstrates the real production path —
- * restricting matching to a rider's own geo-bucket plus its 8 neighbors
- * (Section 5's sharding layer), so this never becomes an O(n^2) scan across
- * every rider in the system. `updatePresence()` below currently recomputes
- * zone pairs across ALL tracked riders for simplicity in this prototype;
- * wiring it through `zoneCandidates()` per rider is the change needed
- * before this could handle rally-scale concurrent riders (see Section 14's
- * load-testing gap in the product spec) — the matching *logic* itself
- * (shared/zoneMatcher.ts) is already correct and tested either way.
+ * SCALE: `updatePresence()` only recomputes pairs touching the rider whose
+ * location just changed, against `zoneCandidates()` — their own geo-bucket
+ * plus its 8 neighbors (Section 5's sharding layer) — rather than scanning
+ * every rider in the system on every single ping. Every other rider's
+ * pairs are carried over unchanged from the previous snapshot, since
+ * nothing about them changed. This is what makes rally-scale concurrent
+ * riders (Section 14's load-testing gap in the product spec) tractable;
+ * the matching *logic* itself (shared/zoneMatcher.ts) doesn't change.
  */
 export class PresenceStore {
   private riders = new Map<string, Rider>();
@@ -38,11 +37,15 @@ export class PresenceStore {
     this.staleAfterMs = staleAfterMs;
   }
 
-  private pruneStale(now: number): void {
+  /** Returns the ids of riders it actually pruned, so callers can also drop
+   * their pairs from the previous-pairs snapshot — otherwise a rider who
+   * goes stale via someone else's ping would never leave anyone's zone. */
+  private pruneStale(now: number): string[] {
     const staleIds = [...this.riders.values()]
       .filter((rider) => now - rider.updatedAt > this.staleAfterMs)
       .map((rider) => rider.id);
     for (const riderId of staleIds) this.riders.delete(riderId);
+    return staleIds;
   }
 
   /** Riders sharing this rider's geo-bucket or an adjacent one — the
@@ -58,10 +61,19 @@ export class PresenceStore {
   }
 
   updatePresence(rider: Rider): PresenceUpdateResult {
-    this.pruneStale(rider.updatedAt);
+    const staleIds = new Set(this.pruneStale(rider.updatedAt));
+    staleIds.add(rider.id); // this rider's own pairs are also being replaced below
     this.riders.set(rider.id, rider);
 
-    const currentPairs = computeZonePairs([...this.riders.values()]);
+    // Only this rider's pairs, and any rider that just went stale, can have
+    // changed — recompute the former against bucket-scoped candidates and
+    // drop the latter outright, carrying every other pair over unchanged
+    // rather than rescanning the whole rider set.
+    const unaffectedPairs = this.previousPairs.filter((pair) => !staleIds.has(pair.a) && !staleIds.has(pair.b));
+    const refreshedPairs = computeZonePairs([rider, ...this.zoneCandidates(rider)]).filter(
+      (pair) => pair.a === rider.id || pair.b === rider.id
+    );
+    const currentPairs = [...unaffectedPairs, ...refreshedPairs];
     const transitions = diffZoneTransitions(this.previousPairs, currentPairs);
     this.previousPairs = currentPairs;
 
