@@ -680,6 +680,26 @@
     }
   }
 
+  // Fires for failures the script tag's own onerror can't see: the script
+  // loads fine, but the key is rejected at request time (bad referrer
+  // restriction, billing disabled, quota exceeded, revoked key). Without
+  // this, Google's own full-canvas "Sorry! Something went wrong" error UI
+  // silently takes over #googleMap while the rest of the app still thinks
+  // the real map is up and running (usingFallbackMap stays false, the
+  // fallback layers stay hidden) — this is the officially documented hook
+  // for exactly that case (window.gm_authFailure).
+  function handleGoogleMapsFailure() {
+    usingFallbackMap = true;
+    $('#googleMap').hidden = true;
+    $('#fallbackMap').hidden = false;
+    $('#fallbackMarkers').hidden = false;
+    $('#hazardMarkers').hidden = false;
+    $('#mapError').hidden = false;
+    disablePlaceSearch();
+    renderMapStatus();
+  }
+  window.gm_authFailure = handleGoogleMapsFailure;
+
   function loadGoogleMaps() {
     const key = window.RIDER_COMMS_CONFIG?.googleMapsApiKey;
     if (!key) {
@@ -695,7 +715,7 @@
     // RIDER_COMMS_CONFIG's own comment), no separate Places key needed.
     script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&libraries=places&callback=__riderCommsMapReady&v=weekly`;
     script.async = true;
-    script.onerror = () => { $('#mapError').hidden = false; disablePlaceSearch(); };
+    script.onerror = handleGoogleMapsFailure;
     document.head.appendChild(script);
   }
 
