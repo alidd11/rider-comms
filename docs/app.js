@@ -42,6 +42,7 @@
   const state = loadState();
   let toastTimer;
   let map;
+  let usingFallbackMap = true;
   let userMapMarker;
   let mapMarkers = [];
 
@@ -312,7 +313,9 @@
 
   function renderMapStatus() {
     const active = state.publicLive && state.profile.shareLocation;
-    $('#mapStatusText').textContent = active ? 'Visible to nearby riders' : 'Location sharing off';
+    $('#mapStatusText').textContent = active
+      ? 'Visible to nearby riders'
+      : usingFallbackMap ? 'Simplified map · location off' : 'Location sharing off';
     $('.map-status').classList.toggle('live', active);
     $('#joinNearbyBtn').dataset.active = String(active);
     $('#joinNearbyBtn').lastElementChild.textContent = active ? 'Leave nearby' : 'Go live';
@@ -371,8 +374,8 @@
   function loadGoogleMaps() {
     const key = window.RIDER_COMMS_CONFIG?.googleMapsApiKey;
     if (!key) {
-      $('#mapError').hidden = false;
-      $('#mapError span').textContent = 'Live map tiles are unavailable. Rider locations remain available in the simplified map view.';
+      $('#mapError').hidden = true;
+      renderMapStatus();
       return;
     }
     window.__riderCommsMapReady = initialiseGoogleMap;
@@ -403,9 +406,11 @@
         { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#0d2834' }] },
       ],
     });
+    usingFallbackMap = false;
     $('#fallbackMap').hidden = true;
     $('#fallbackMarkers').hidden = true;
     $('#mapError').hidden = true;
+    renderMapStatus();
     userMapMarker = addMapMarker({ ...state.profile, displayName: state.profile.displayName }, centre, true);
     const offsets = [[.004, -.006], [-.003, .006], [.008, .004]];
     mapMarkers = PUBLIC_RIDERS.map((person, index) => addMapMarker(person, { lat: centre.lat + offsets[index][0], lng: centre.lng + offsets[index][1] }, false));
