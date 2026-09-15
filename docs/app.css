@@ -71,4 +71,6 @@
    the page root behind it, and the fixed tab bar so there is no false
    edge-to-edge seam. The safe-area padding itself remains untouched. */
 .bottom-nav{background:var(--system-chrome)}
+.bottom-nav{position:fixed}
+.bottom-nav:after{content:"";position:absolute;left:0;right:0;bottom:-20px;height:20px;background:var(--system-chrome)}
 @media(prefers-color-scheme:light){:root{--system-chrome:#ffffff}}
