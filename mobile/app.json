@@ -6,7 +6,11 @@
     "orientation": "portrait",
     "scheme": "ridercomms",
     "userInterfaceStyle": "dark",
-    "plugins": ["expo-secure-store", "expo-location"],
+    "plugins": [
+      "expo-secure-store",
+      "expo-location",
+      "expo-status-bar"
+    ],
     "ios": {
       "bundleIdentifier": "com.ridercomms.app",
       "buildNumber": "1",
@@ -19,7 +23,9 @@
         "NSPrivacyAccessedAPITypes": [
           {
             "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryUserDefaults",
-            "NSPrivacyAccessedAPITypeReasons": ["CA92.1"]
+            "NSPrivacyAccessedAPITypeReasons": [
+              "CA92.1"
+            ]
           }
         ]
       }
@@ -27,6 +33,7 @@
     "android": {
       "package": "com.ridercomms.app",
       "versionCode": 1,
+      "backgroundColor": "#0B0D10",
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION"
