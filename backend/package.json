@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@rider-comms/shared": "*",
-    "livekit-server-sdk": "^2.19.0"
+    "livekit-server-sdk": "^2.19.0",
+    "pg": "^8.23.0"
   }
 }
