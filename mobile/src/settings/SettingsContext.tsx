@@ -3,6 +3,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { ProfileUpdate, RiderProfile, SocialVisibility, ZoneTier } from '@rider-comms/shared';
 import { DEFAULT_AVATAR_ID } from './avatars';
 import { useAuth } from '../auth/AuthContext';
+import { ensureNotificationPermission } from '../notifications/permissions';
+
+const NOTIFY_KEYS = new Set(['notifyNearby', 'notifyInvites', 'notifyChat']);
 
 const LEGACY_CACHE_KEY = '@rider-comms/settings/cachedProfile';
 const cacheKey = (riderId: string): string => `@rider-comms/settings/profile/${riderId}`;
@@ -28,9 +31,21 @@ export function SettingsProvider({ children }: { children: React.ReactNode }): R
   const { riderId, client } = useAuth();
   const [state, setState] = React.useState<ProfileState>(DEFAULTS); const [loaded, setLoaded] = React.useState(false);
   React.useEffect(() => { const key = cacheKey(riderId); let cancelled = false; setLoaded(false); void AsyncStorage.removeItem(LEGACY_CACHE_KEY); AsyncStorage.getItem(key).then((raw) => { if (!cancelled) { setState({ ...DEFAULTS, ...validCached(raw) }); setLoaded(true); } }).catch(() => setLoaded(true)); client.getProfile(riderId).then((profile) => { if (!cancelled) { const { riderId: _id, updatedAt: _at, ...value } = profile; setState(value); void AsyncStorage.setItem(key, JSON.stringify(value)); setLoaded(true); } }).catch(() => {}); return () => { cancelled = true; }; }, [client, riderId]);
+  // Covers riders who never touch the toggles (they default to "on" — see
+  // DEFAULTS above), not just the ones who flip a toggle from off to on.
+  React.useEffect(() => {
+    if (!loaded) return;
+    if (state.notifyNearby || state.notifyInvites || state.notifyChat) {
+      void ensureNotificationPermission().catch(() => {});
+    }
+    // Only re-check once settings finish loading, not on every toggle
+    // flip — update() above already handles the toggle-flip case.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded]);
   const update = React.useCallback(<K extends keyof ProfileState>(key: K, value: ProfileState[K]) => {
     setState((current) => { const next = { ...current, [key]: value }; void AsyncStorage.setItem(cacheKey(riderId), JSON.stringify(next)); return next; });
     void client.updateProfile(riderId, { [key]: value } as ProfileUpdate).catch(() => {});
+    if (value === true && NOTIFY_KEYS.has(key)) void ensureNotificationPermission().catch(() => {});
   }, [client, riderId]);
   const setters = React.useMemo(() => ({
     setZoneTier: (v: ZoneTier) => update('zoneTier', v), setAvatarId: (v: string) => update('avatarId', v),
