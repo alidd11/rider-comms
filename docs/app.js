@@ -8,6 +8,7 @@
   const syncStandaloneMode = () => {
     const isStandalone = standaloneMedia?.matches || window.navigator.standalone === true;
     document.documentElement.classList.toggle('pwa-standalone', Boolean(isStandalone));
+    document.documentElement.classList.toggle('pwa-ios-standalone', window.navigator.standalone === true);
   };
   syncStandaloneMode();
   standaloneMedia?.addEventListener?.('change', syncStandaloneMode);
