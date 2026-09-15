@@ -4,7 +4,8 @@ import type { ProfileUpdate, RiderProfile, SocialVisibility, ZoneTier } from '@r
 import { DEFAULT_AVATAR_ID } from './avatars';
 import { useAuth } from '../auth/AuthContext';
 
-const CACHE_KEY = '@rider-comms/settings/cachedProfile';
+const LEGACY_CACHE_KEY = '@rider-comms/settings/cachedProfile';
+const cacheKey = (riderId: string): string => `@rider-comms/settings/profile/${riderId}`;
 export type UnitSystem = 'mi' | 'km';
 const DEFAULTS: Omit<RiderProfile, 'riderId' | 'updatedAt'> = {
   zoneTier: 'free', avatarId: DEFAULT_AVATAR_ID, displayName: 'Rider', handle: '@rider', unitSystem: 'mi',
@@ -26,9 +27,9 @@ function validCached(raw: string | null): Partial<ProfileState> { try { return r
 export function SettingsProvider({ children }: { children: React.ReactNode }): React.JSX.Element {
   const { riderId, client } = useAuth();
   const [state, setState] = React.useState<ProfileState>(DEFAULTS); const [loaded, setLoaded] = React.useState(false);
-  React.useEffect(() => { let cancelled = false; AsyncStorage.getItem(CACHE_KEY).then((raw) => { if (!cancelled) { setState({ ...DEFAULTS, ...validCached(raw) }); setLoaded(true); } }).catch(() => setLoaded(true)); client.getProfile(riderId).then((profile) => { if (!cancelled) { const { riderId: _id, updatedAt: _at, ...value } = profile; setState(value); void AsyncStorage.setItem(CACHE_KEY, JSON.stringify(value)); } }).catch(() => {}); return () => { cancelled = true; }; }, [client, riderId]);
+  React.useEffect(() => { const key = cacheKey(riderId); let cancelled = false; setLoaded(false); void AsyncStorage.removeItem(LEGACY_CACHE_KEY); AsyncStorage.getItem(key).then((raw) => { if (!cancelled) { setState({ ...DEFAULTS, ...validCached(raw) }); setLoaded(true); } }).catch(() => setLoaded(true)); client.getProfile(riderId).then((profile) => { if (!cancelled) { const { riderId: _id, updatedAt: _at, ...value } = profile; setState(value); void AsyncStorage.setItem(key, JSON.stringify(value)); setLoaded(true); } }).catch(() => {}); return () => { cancelled = true; }; }, [client, riderId]);
   const update = React.useCallback(<K extends keyof ProfileState>(key: K, value: ProfileState[K]) => {
-    setState((current) => { const next = { ...current, [key]: value }; void AsyncStorage.setItem(CACHE_KEY, JSON.stringify(next)); return next; });
+    setState((current) => { const next = { ...current, [key]: value }; void AsyncStorage.setItem(cacheKey(riderId), JSON.stringify(next)); return next; });
     void client.updateProfile(riderId, { [key]: value } as ProfileUpdate).catch(() => {});
   }, [client, riderId]);
   const setters = React.useMemo(() => ({
@@ -40,7 +41,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }): R
     setInstagramVisibility: (v: SocialVisibility) => update('instagramVisibility', v), setTiktokUsername: (v: string) => update('tiktokUsername', v.replace(/^@/, '').trim()),
     setTiktokVisibility: (v: SocialVisibility) => update('tiktokVisibility', v),
   }), [update]);
-  const resetAll = React.useCallback(() => { setState(DEFAULTS); void AsyncStorage.removeItem(CACHE_KEY); void client.updateProfile(riderId, DEFAULTS).catch(() => {}); }, [client, riderId]);
+  const resetAll = React.useCallback(() => { setState(DEFAULTS); void AsyncStorage.removeItem(cacheKey(riderId)); void client.updateProfile(riderId, DEFAULTS).catch(() => {}); }, [client, riderId]);
   const value = React.useMemo(() => ({ ...state, ...setters, loaded, resetAll }), [state, setters, loaded, resetAll]);
   return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;
 }

@@ -12,14 +12,7 @@
 
 const RESEND_API_URL = 'https://api.resend.com/emails';
 
-// docs/ (the PWA) has no dedicated verify-email screen yet — it's a
-// hash-routed single-page app (see docs/app.js) with a fixed set of
-// screens (#map, #ride, #routes, #friends, #settings) and none of them is
-// this. Rather than link to a page that 404s, point at a plausible future
-// route and rely on the verification *code* printed alongside it, which
-// works with no client changes at all. Whoever builds the PWA/mobile
-// verify screen just needs to read `token` off this same query param.
-const VERIFY_URL_BASE = 'https://alidd11.github.io/rider-comms/verify-email';
+const DEFAULT_PUBLIC_APP_URL = 'https://alidd11.github.io/rider-comms/';
 
 export interface SendVerificationEmailOptions {
   fetchImpl?: typeof fetch;
@@ -50,17 +43,26 @@ export async function sendVerificationEmail(
     return false;
   }
 
-  const verifyUrl = `${VERIFY_URL_BASE}?token=${encodeURIComponent(token)}`;
+  let verifyUrlString: string;
+  try {
+    const verifyUrl = new URL(process.env.PUBLIC_APP_URL ?? DEFAULT_PUBLIC_APP_URL);
+    if (verifyUrl.protocol !== 'https:') throw new Error('PUBLIC_APP_URL must use HTTPS');
+    verifyUrl.searchParams.set('verifyToken', token);
+    verifyUrlString = verifyUrl.toString();
+  } catch (error) {
+    console.error('[rider-comms] Invalid PUBLIC_APP_URL — skipping verification email', error);
+    return false;
+  }
   const text = [
     'Welcome to Rider Comms!',
     '',
-    `Verify your email by visiting: ${verifyUrl}`,
+    `Verify your email by visiting: ${verifyUrlString}`,
     '',
     `Or enter this verification code in the app: ${token}`,
     '',
     'This link/code expires in 24 hours. If you did not create this account, you can ignore this email.',
   ].join('\n');
-  const html = `<p>Welcome to Rider Comms!</p><p>Verify your email by clicking the link below:</p><p><a href="${verifyUrl}">${verifyUrl}</a></p><p>Or enter this verification code in the app: <strong>${token}</strong></p><p>This link/code expires in 24 hours. If you did not create this account, you can ignore this email.</p>`;
+  const html = `<p>Welcome to Rider Comms!</p><p>Verify your email by clicking the link below:</p><p><a href="${verifyUrlString}">${verifyUrlString}</a></p><p>Or enter this verification code in the app: <strong>${token}</strong></p><p>This link/code expires in 24 hours. If you did not create this account, you can ignore this email.</p>`;
 
   try {
     const response = await fetchImpl(RESEND_API_URL, {

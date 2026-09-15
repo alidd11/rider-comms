@@ -189,6 +189,19 @@ const MIGRATIONS: { name: string; sql: string }[] = [
       CREATE INDEX IF NOT EXISTS scenic_routes_created_by_idx ON scenic_routes (created_by);
     `,
   },
+  {
+    name: '0009_create_account_sessions',
+    sql: `
+      CREATE TABLE IF NOT EXISTS account_sessions (
+        token_hash TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+        expires_at TIMESTAMPTZ NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS account_sessions_user_id_idx ON account_sessions (user_id);
+      CREATE INDEX IF NOT EXISTS account_sessions_expires_at_idx ON account_sessions (expires_at);
+    `,
+  },
 ];
 
 function buildPool(): Pool {

@@ -15,15 +15,18 @@ function fakeFetch(handler: (url: string, init: RequestInit) => { status: number
 describe('sendVerificationEmail', () => {
   const originalApiKey = process.env.RESEND_API_KEY;
   const originalFrom = process.env.RESEND_FROM_EMAIL;
+  const originalPublicAppUrl = process.env.PUBLIC_APP_URL;
 
   beforeEach(() => {
     delete process.env.RESEND_API_KEY;
     delete process.env.RESEND_FROM_EMAIL;
+    delete process.env.PUBLIC_APP_URL;
   });
 
   afterEach(() => {
     if (originalApiKey === undefined) delete process.env.RESEND_API_KEY; else process.env.RESEND_API_KEY = originalApiKey;
     if (originalFrom === undefined) delete process.env.RESEND_FROM_EMAIL; else process.env.RESEND_FROM_EMAIL = originalFrom;
+    if (originalPublicAppUrl === undefined) delete process.env.PUBLIC_APP_URL; else process.env.PUBLIC_APP_URL = originalPublicAppUrl;
   });
 
   it('skips sending and returns false, without calling the network, when RESEND_API_KEY is unset', async () => {
@@ -62,6 +65,7 @@ describe('sendVerificationEmail', () => {
           assert.equal(body.to, 'rider@example.com');
           assert.match(body.text, /sometoken123/);
           assert.match(body.html, /sometoken123/);
+          assert.match(body.text, /https:\/\/alidd11\.github\.io\/rider-comms\/\?verifyToken=sometoken123/);
           return { status: 200 };
         }),
       }

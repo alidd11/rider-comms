@@ -35,6 +35,41 @@ describe('RiderCommsClient.createRide', () => {
   });
 });
 
+describe('RiderCommsClient authentication', () => {
+  it('signs up and logs in without sending a client-controlled rider ID', async () => {
+    const requests: Array<{ url: string; body: unknown }> = [];
+    const client = new RiderCommsClient(
+      'http://example.test',
+      fakeFetch((url, init) => {
+        requests.push({ url, body: JSON.parse(init.body as string) });
+        if (url.endsWith('/auth/signup')) return { status: 201, body: { riderId: 'rider_abc23456', token: 'signup-token', emailVerified: false, emailVerificationSent: true } };
+        return { status: 200, body: { riderId: 'rider_abc23456', token: 'login-token', emailVerified: false } };
+      })
+    );
+
+    assert.equal((await client.signUp('alex_rides', 'alex@example.com', 'secure-password')).token, 'signup-token');
+    assert.equal((await client.logIn('alex_rides', 'secure-password')).token, 'login-token');
+    assert.deepEqual(requests, [
+      { url: 'http://example.test/auth/signup', body: { username: 'alex_rides', email: 'alex@example.com', password: 'secure-password' } },
+      { url: 'http://example.test/auth/login', body: { username: 'alex_rides', password: 'secure-password' } },
+    ]);
+  });
+
+  it('revokes the authenticated session on logout', async () => {
+    const client = new RiderCommsClient(
+      'http://example.test',
+      fakeFetch((url, init) => {
+        assert.equal(url, 'http://example.test/auth/logout');
+        assert.equal(init.method, 'POST');
+        assert.equal((init.headers as Record<string, string>).Authorization, 'Bearer session-token');
+        return { status: 204, body: {} };
+      }),
+      'session-token'
+    );
+    await client.logOut();
+  });
+});
+
 describe('RiderCommsClient.joinRide', () => {
   it('throws an ApiError with the status and body on a non-2xx response', async () => {
     const client = new RiderCommsClient(
