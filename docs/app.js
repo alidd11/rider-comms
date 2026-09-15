@@ -721,6 +721,14 @@
   function loadGoogleMaps() {
     const key = window.RIDER_COMMS_CONFIG?.googleMapsApiKey;
     if (!key) {
+      // Skip the network request entirely rather than firing one that's
+      // doomed to fail — and log loudly, since this is otherwise silent:
+      // the app just quietly sits on the CSS fallback map forever with no
+      // trace of why. This fires on every load whose deploy didn't bake in
+      // a real key (e.g. the GOOGLE_MAPS_API_KEY repo secret is unset or
+      // empty at deploy time — see .github/workflows/pages.yml), not just
+      // occasional outages, so it needs to be loud and specific.
+      console.warn('[rider-comms] Google Maps API key missing (RIDER_COMMS_CONFIG.googleMapsApiKey is empty) — falling back to the offline map. Set the GOOGLE_MAPS_API_KEY repository secret so the deploy workflow can bake in a real key.');
       $('#mapError').hidden = true;
       renderMapStatus();
       disablePlaceSearch();
