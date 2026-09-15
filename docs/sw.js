@@ -1,6 +1,6 @@
-const CACHE_NAME = 'rider-comms-pwa-v21';
+const CACHE_NAME = 'rider-comms-pwa-v22';
 const ASSETS = [
-  './', './index.html', './app.css?v=21', './app.js?v=21', './config.js?v=21',
+  './', './index.html', './app.css?v=22', './app.js?v=22', './config.js?v=22',
   './manifest.json', './icons/icon-192.png', './icons/icon-512.png',
 ];
 
