@@ -14,6 +14,7 @@
       start: [54.6641, -2.7527], end: [54.974, -2.2472], waypoints: [[54.8128, -2.4393]],
       image: commons('The A686 below Hartside - geograph.org.uk - 1073084.jpg'), alt: 'The A686 below Hartside summit',
       credit: 'Andrew Smith · CC BY-SA 2.0', source: 'https://commons.wikimedia.org/wiki/File:The_A686_below_Hartside_-_geograph.org.uk_-_1073084.jpg',
+      license: 'https://creativecommons.org/licenses/by-sa/2.0/',
       conditions: 'https://one.network/uk', routeSource: 'https://www.adventurebikerider.com/abrs-weekend-ride-crossing-the-pennines-on-the-a686/',
     },
     {
@@ -26,6 +27,7 @@
       start: [56.4343, -4.7148], end: [56.6826, -5.1023], waypoints: [[56.6466, -4.8378]],
       image: commons('A82 towards Glencoe - geograph.org.uk - 3149881.jpg'), alt: 'The A82 heading towards Glencoe',
       credit: 'N Chadwick · CC BY-SA 2.0', source: 'https://commons.wikimedia.org/wiki/File:A82_towards_Glencoe_-_geograph.org.uk_-_3149881.jpg',
+      license: 'https://creativecommons.org/licenses/by-sa/2.0/',
       conditions: 'https://www.traffic.gov.scot/', routeSource: 'https://www.seelochlomond.co.uk/discover/a82-loch-lomond-road-trip',
     },
     {
@@ -38,6 +40,7 @@
       start: [56.5916, -3.34], end: [57.3297, -3.608], waypoints: [[57.0065, -3.3962], [57.0491, -3.04], [57.252, -3.377]],
       image: commons('Cairngorms National Park road (Unsplash).jpg'), alt: 'A mountain road through Cairngorms National Park',
       credit: 'Milada Vigerova · CC0 1.0', source: 'https://commons.wikimedia.org/wiki/File:Cairngorms_National_Park_road_(Unsplash).jpg',
+      license: 'https://creativecommons.org/publicdomain/zero/1.0/',
       conditions: 'https://www.traffic.gov.scot/', routeSource: 'https://www.visitcairngorms.com/inspire-me/snowroads/',
     },
     {
@@ -50,6 +53,7 @@
       start: [51.946, -3.391], end: [52.742, -3.886], waypoints: [[52.149, -3.404], [52.299, -3.511], [52.724, -3.685]],
       image: commons('A470 at Bwlch Oerddrws.jpg'), alt: 'The A470 at Bwlch Oerddrws',
       credit: 'Martin Bodman · CC BY-SA 2.0', source: 'https://commons.wikimedia.org/wiki/File:A470_at_Bwlch_Oerddrws.jpg',
+      license: 'https://creativecommons.org/licenses/by-sa/2.0/',
       conditions: 'https://traffic.wales/', routeSource: 'https://en.wikipedia.org/wiki/A470_road',
     },
     {
@@ -62,6 +66,7 @@
       start: [54.5973, -5.9301], end: [54.9966, -7.3086], waypoints: [[54.857, -5.811], [55.205, -6.249], [55.204, -6.523]],
       image: commons('Causeway Coastal Route, Dunseverick - geograph.org.uk - 5572416.jpg'), alt: 'Causeway Coastal Route at Dunseverick',
       credit: 'David Dixon · CC BY-SA 2.0', source: 'https://commons.wikimedia.org/wiki/File:Causeway_Coastal_Route,_Dunseverick_-_geograph.org.uk_-_5572416.jpg',
+      license: 'https://creativecommons.org/licenses/by-sa/2.0/',
       conditions: 'https://www.trafficwatchni.com/', routeSource: 'https://discovernorthernireland.com/destinations/causeway-coastal-route/getting-here/',
     },
     {
@@ -74,6 +79,7 @@
       start: [51.8126, -2.7158], end: [51.6419, -2.6756], waypoints: [[51.697, -2.681]],
       image: commons('A466 Wye valley road - geograph.org.uk - 1402565.jpg'), alt: 'The A466 following the Wye Valley',
       credit: 'Jonathan Billinger · CC BY-SA 2.0', source: 'https://commons.wikimedia.org/wiki/File:A466_Wye_valley_road_-_geograph.org.uk_-_1402565.jpg',
+      license: 'https://creativecommons.org/licenses/by-sa/2.0/',
       conditions: 'https://traffic.wales/', routeSource: 'https://www.visitwales.com/destinations/south-wales/wye-valley-and-vale-usk/must-do-wye-valley-and-vale-usk',
     },
   ];
@@ -94,7 +100,8 @@
     if (!page || !header || !communityFilters || document.querySelector('#curatedRouteList')) return Boolean(document.querySelector('#curatedRouteList'));
 
     const addButton = document.querySelector('#addRouteBtn');
-    header.querySelector('.eyebrow').textContent = 'Ride somewhere memorable';
+    const eyebrow = header.querySelector('.eyebrow');
+    if (eyebrow) eyebrow.textContent = 'Ride somewhere memorable';
     header.querySelector('h1').textContent = 'Routes';
 
     const intro = document.createElement('div');
@@ -164,7 +171,7 @@
       <div><h3>Highlights</h3><div class="badge-row">${route.highlights.map((item) => `<span class="badge">${escapeHtml(item)}</span>`).join('')}</div></div>
       <div class="safety-box"><svg><use href="#i-shield"/></svg><div><strong>Before you ride</strong>${route.safety.map((item) => `<p>${escapeHtml(item)}</p>`).join('')}</div></div>
       <a class="button primary wide" href="${mapsUrl(route)}" target="_blank" rel="noopener">Open route in Maps</a>
-      <div class="route-links"><a href="${route.conditions}" target="_blank" rel="noopener">Live conditions</a><a href="${route.routeSource}" target="_blank" rel="noopener">Route source</a><a href="${route.source}" target="_blank" rel="noopener">Photo: ${escapeHtml(route.credit)}</a></div>
+      <div class="route-links"><a href="${route.conditions}" target="_blank" rel="noopener">Live conditions</a><a href="${route.routeSource}" target="_blank" rel="noopener">Route source</a><a href="${route.source}" target="_blank" rel="noopener">Photo: ${escapeHtml(route.credit)}</a><a href="${route.license}" target="_blank" rel="noopener">Photo licence</a></div>
       <p class="caption">Distance and time are planning estimates. Follow live road signs, restrictions and navigation guidance.</p></div>
     </section>`;
     document.body.append(backdrop);
