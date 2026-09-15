@@ -1,13 +1,20 @@
 // Unverified scaffold — see navigation/index.tsx header note.
 //
 // TODO(payments): there's no real payment processor wired up anywhere in
-// this app (no Stripe/App Store/Play Billing SDK reachable in this
-// sandbox). The "payment method" below is a locally-stored, masked
-// stand-in purely to make the upgrade/downgrade flow feel real — swapping
-// in a real processor means replacing `savePaymentMethod`/`clearPaymentMethod`
-// with real tokenization calls and never storing a full card number
-// client-side at all, which this screen already doesn't do (only the
-// masked brand + last 4 digits are kept).
+// this app (no App Store/Play Billing SDK reachable in this sandbox). The
+// "payment method" below is a locally-stored, masked stand-in purely to
+// make the upgrade/downgrade flow feel real.
+//
+// IMPORTANT for the real implementation: this is a subscription for a
+// native iOS/Android app, so the production path is StoreKit (iOS) and
+// Google Play Billing (Android) — NOT a generic card processor like
+// Stripe, which App Store/Play Store review will reject for this kind of
+// in-app digital subscription. That means the card-entry UI below (brand/
+// last4/expiry) is a stand-in for the *shape* of "you have a payment
+// method on file," not a preview of the real checkout UI — the real flow
+// replaces it with each store's native purchase sheet, with the backend
+// verifying the resulting receipt/token server-side (see AUDIT entries on
+// store billing) rather than ever collecting a card number client-side.
 import * as React from 'react';
 import { View, Text, Pressable, TextInput, ScrollView, Modal, Alert, StyleSheet } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';

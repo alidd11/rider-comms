@@ -446,7 +446,7 @@
       icon: { path: google.maps.SymbolPath.CIRCLE, scale: current ? 22 : 19, fillColor: identityColor(person.riderId), fillOpacity: 1, strokeColor: current ? '#ff7a1a' : '#e9eef5', strokeWeight: current ? 5 : 3 },
       zIndex: current ? 10 : 5,
     });
-    marker.addListener('click', () => selectRider(person.riderId, PUBLIC_RIDERS));
+    marker.addListener('click', () => selectRider(person.riderId, visibleMapRiders()));
     return marker;
   }
 

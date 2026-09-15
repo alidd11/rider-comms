@@ -189,8 +189,7 @@ function PlanHideoutModal({
             />
           </View>
           <Text style={styles.modalCaption}>
-            Tapping a spot on the map to set this isn't wired up yet — TODO once a real map SDK exists. For now,
-            type coordinates directly.
+            Tapping a spot on the map to set this is coming soon. For now, type coordinates directly.
           </Text>
 
           {error && (
