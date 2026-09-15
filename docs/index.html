@@ -123,7 +123,7 @@
           <div class="search-and-add"><div class="search-row"><svg><use href="#i-search"/></svg><input id="friendSearch" placeholder="Search name, handle or Rider ID" autocomplete="off"></div>
           <button id="addFriendToggle" class="icon-button add-friend-toggle" aria-label="Add a rider" title="Add a rider &#8211; connect using their Rider ID"><svg><use href="#i-friends"/></svg><span class="add-friend-badge">+</span></button></div>
           <form id="addFriendForm" class="compact-form" hidden><label for="friendId">Rider ID</label><div><input id="friendId" placeholder="rider_k4xqpz82" autocomplete="off"><button class="button primary">Send</button></div><p id="friendFeedback" class="support-copy"></p></form>
-          <div class="section-heading"><div><span class="eyebrow">Waiting for you</span><h2>Requests</h2></div><span class="count-badge">1</span></div>
+          <div class="section-heading"><div><span class="eyebrow">Waiting for you</span><h2>Requests</h2></div><span id="requestsCountBadge" class="count-badge">0</span></div>
           <div id="requestList" class="people-list"></div>
           <div class="section-heading"><div><span class="eyebrow">Connected riders</span><h2>Friends</h2></div></div>
           <div id="friendList" class="people-list"></div>
@@ -146,7 +146,7 @@
         <button class="active" data-nav="map"><svg><use href="#i-map"/></svg><span>Map</span></button>
         <button data-nav="ride"><svg><use href="#i-ride"/></svg><span>Ride</span></button>
         <button data-nav="routes"><svg><use href="#i-route"/></svg><span>Routes</span></button>
-        <button data-nav="friends"><svg><use href="#i-friends"/></svg><span>Friends</span><i>1</i></button>
+        <button data-nav="friends"><svg><use href="#i-friends"/></svg><span>Friends</span><i id="friendsNavBadge" hidden>0</i></button>
         <button data-nav="settings"><svg><use href="#i-settings"/></svg><span>Settings</span></button>
       </nav>
     </main>
