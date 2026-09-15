@@ -6,3 +6,4 @@ export * from './rideCode.ts';
 export * from './rateLimiter.ts';
 export * from './audioPriority.ts';
 export * from './social.ts';
+export * from './movementState.ts';
