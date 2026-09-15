@@ -1,10 +1,7 @@
-// Curated routes only — see shared/src/scenicRoutes.ts's header note. This
-// screen never invents a route or a suitability/safety claim; every field
-// shown here came from validated data a rider explicitly entered (there's
-// no moderation/curation policy yet — see the TODO(curation-policy) note
-// in backend/src/server.ts — so for now "curated" means "entered by a
-// verified rider account," not "reviewed by Rider Comms," and the create
-// form says so).
+// Editorial routes and unreviewed community suggestions are intentionally
+// separate. Editorial records include sources, conditions links and image
+// licences; API-backed suggestions retain the validation boundary in
+// shared/src/scenicRoutes.ts but never receive an editorial badge.
 import * as React from 'react';
 import {
   View,
@@ -30,10 +27,11 @@ import type {
 } from '@rider-comms/shared';
 import { useAuth } from '../auth/AuthContext';
 import { colors, spacing, radii, type, elevation, MIN_TOUCH_TARGET } from '../theme';
+import { CuratedRouteBrowser } from '../routes/CuratedRouteBrowser';
 
 const VEHICLE_LABELS: Record<VehicleCategory, string> = {
-  motorcycle_small: 'Small motorcycle',
-  motorcycle_large: 'Large motorcycle',
+  motorcycle_small: '125cc & small bikes',
+  motorcycle_large: 'Larger motorcycles',
   scooter: 'Scooter',
   car: 'Car',
 };
@@ -230,9 +228,9 @@ function CreateRouteModal({
         <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
           <ScrollView contentContainerStyle={{ gap: spacing.md }}>
             <View style={styles.modalHandle} />
-            <Text style={styles.modalTitle}>Add a scenic route</Text>
+            <Text style={styles.modalTitle}>Suggest a scenic route</Text>
             <Text style={styles.modalSubtitle}>
-              This isn't reviewed by Rider Comms yet — only enter routes and safety notes you can vouch for yourself.
+              Rider suggestions appear separately from editorial picks. Only submit public roads and safety notes you can vouch for yourself.
             </Text>
 
             <TextInput style={styles.input} placeholder="Route name" placeholderTextColor={colors.textMuted} value={name} onChangeText={setName} maxLength={80} />
@@ -306,7 +304,7 @@ function CreateRouteModal({
             {error && <Text style={styles.errorText}>{error}</Text>}
 
             <Pressable style={[styles.submitButton, saving && styles.submitButtonDisabled]} onPress={handleSubmit} disabled={saving}>
-              {saving ? <ActivityIndicator color={colors.accentText} /> : <Text style={styles.submitButtonText}>Save route</Text>}
+              {saving ? <ActivityIndicator color={colors.accentText} /> : <Text style={styles.submitButtonText}>Submit suggestion</Text>}
             </Pressable>
             <Pressable style={styles.cancelButton} onPress={onClose}>
               <Text style={styles.cancelButtonText}>Cancel</Text>
@@ -364,22 +362,37 @@ export function ScenicRoutesScreen(): React.JSX.Element {
 
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={[styles.scroll, { paddingTop: insets.top + spacing.lg }]}>
+      <ScrollView
+        contentContainerStyle={[styles.scroll, { paddingTop: insets.top + spacing.lg }]}
+        contentInsetAdjustmentBehavior="automatic"
+      >
         <View style={styles.headerRow}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.title}>Scenic Routes</Text>
-            <Text style={styles.subtitle}>Curated by riders — not yet reviewed by Rider Comms.</Text>
+            <Text style={styles.eyebrow}>DISCOVER</Text>
+            <Text style={styles.title}>Routes</Text>
+            <Text style={styles.subtitle}>Real UK roads, chosen for the ride.</Text>
           </View>
-          <Pressable style={styles.addButton} onPress={() => setCreateOpen(true)} accessibilityLabel="Add a route">
-            <Ionicons name="add" size={22} color={colors.accentText} />
-          </Pressable>
         </View>
 
         <View style={styles.chipRow}>
-          <Chip label="All vehicles" active={vehicleFilter === null} onPress={() => setVehicleFilter(null)} />
+          <Chip label="All road vehicles" active={vehicleFilter === null} onPress={() => setVehicleFilter(null)} />
           {VEHICLE_ORDER.map((v) => (
             <Chip key={v} label={VEHICLE_LABELS[v]} active={vehicleFilter === v} onPress={() => setVehicleFilter(v)} />
           ))}
+        </View>
+
+        <CuratedRouteBrowser vehicleFilter={vehicleFilter} />
+
+        <View style={styles.communityHeader}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.communityEyebrow}>RIDER SUGGESTIONS</Text>
+            <Text style={styles.communityTitle}>From the community</Text>
+            <Text style={styles.communityCopy}>Unreviewed suggestions are kept separate from editorial routes.</Text>
+          </View>
+          <Pressable style={styles.suggestButton} onPress={() => setCreateOpen(true)} accessibilityLabel="Suggest a route">
+            <Ionicons name="add" size={18} color={colors.accent} />
+            <Text style={styles.suggestButtonText}>Suggest</Text>
+          </Pressable>
         </View>
 
         {loading && <ActivityIndicator style={{ marginTop: spacing.xl }} color={colors.accent} />}
@@ -394,9 +407,9 @@ export function ScenicRoutesScreen(): React.JSX.Element {
         {!loading && !error && routes.length === 0 && (
           <View style={styles.emptyState}>
             <MaterialCommunityIcons name="road-variant" size={32} color={colors.textMuted} />
-            <Text style={styles.emptyTitle}>No routes yet</Text>
+            <Text style={styles.emptyTitle}>No rider suggestions yet</Text>
             <Text style={styles.emptySubtitle}>
-              Be the first to add a scenic route for other riders to discover.
+              Have a route local riders should know? Submit it for the community list.
             </Text>
           </View>
         )}
@@ -420,18 +433,11 @@ export function ScenicRoutesScreen(): React.JSX.Element {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-  scroll: { padding: spacing.lg, gap: spacing.md },
+  scroll: { width: '100%', maxWidth: 760, alignSelf: 'center', padding: spacing.lg, gap: spacing.md },
   headerRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md },
+  eyebrow: { ...type.caption, color: colors.accent, fontWeight: '800', letterSpacing: 1.4 },
   title: { ...type.title },
-  subtitle: { ...type.caption, marginTop: spacing.xs },
-  addButton: {
-    width: MIN_TOUCH_TARGET,
-    height: MIN_TOUCH_TARGET,
-    borderRadius: radii.pill,
-    backgroundColor: colors.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  subtitle: { ...type.body, color: colors.textSecondary, marginTop: spacing.xs },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
   chip: {
     minHeight: 34,
@@ -444,6 +450,12 @@ const styles = StyleSheet.create({
   chipActive: { backgroundColor: colors.accent },
   chipText: { ...type.caption, color: colors.textPrimary },
   chipTextActive: { color: colors.accentText, fontWeight: '700' },
+  communityHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginTop: spacing.lg, paddingTop: spacing.lg, borderTopWidth: 1, borderTopColor: colors.border },
+  communityEyebrow: { ...type.caption, color: colors.textMuted, fontWeight: '800', letterSpacing: 1.1 },
+  communityTitle: { ...type.subheading, color: colors.textPrimary, marginTop: 2 },
+  communityCopy: { ...type.caption, color: colors.textSecondary, marginTop: spacing.xs },
+  suggestButton: { minHeight: 40, flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: spacing.md, borderRadius: radii.pill, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+  suggestButtonText: { ...type.label, color: colors.accent },
   errorBox: { flexDirection: 'row', gap: spacing.sm, backgroundColor: colors.dangerSurface, borderRadius: radii.md, padding: spacing.md },
   errorBoxText: { ...type.body, color: colors.danger, flex: 1 },
   emptyState: { alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.xxl },
