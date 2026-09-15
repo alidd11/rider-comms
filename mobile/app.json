@@ -9,6 +9,7 @@
     "plugins": [
       "expo-secure-store",
       "expo-location",
+      "expo-notifications",
       "expo-status-bar"
     ],
     "ios": {
@@ -20,6 +21,10 @@
       ],
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Rider Comms uses your location while the app is open to find riders who are mutually within your selected zone.",
+        "NSMicrophoneUsageDescription": "Rider Comms uses your microphone for hands-free group voice chat during a ride.",
+        "UIBackgroundModes": [
+          "audio"
+        ],
         "ITSAppUsesNonExemptEncryption": false
       },
       "privacyManifests": {
@@ -56,7 +61,11 @@
       ],
       "permissions": [
         "ACCESS_FINE_LOCATION",
-        "ACCESS_COARSE_LOCATION"
+        "ACCESS_COARSE_LOCATION",
+        "RECORD_AUDIO",
+        "MODIFY_AUDIO_SETTINGS",
+        "BLUETOOTH_CONNECT",
+        "POST_NOTIFICATIONS"
       ]
     }
   }
