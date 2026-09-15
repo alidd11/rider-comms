@@ -719,17 +719,34 @@
   }
   window.gm_authFailure = handleGoogleMapsFailure;
 
-  function loadGoogleMaps() {
-    const key = window.RIDER_COMMS_CONFIG?.googleMapsApiKey;
+  // The Google Maps key used to be baked into docs/config.js at GitHub
+  // Pages deploy time from a repo secret — but that path proved unreliable
+  // (the secret didn't reliably survive/apply across deploys). The backend
+  // now serves it at runtime from a Railway env var instead, which is
+  // simpler to keep in sync since it's set directly on the running service
+  // rather than baked into a static build. docs/config.js's static value
+  // (if ever populated again) is still checked first so this still works
+  // offline-first / without a network round trip when it's present.
+  const API_BASE_URL = 'https://backend-production-7fa0.up.railway.app';
+
+  async function loadGoogleMaps() {
+    let key = window.RIDER_COMMS_CONFIG?.googleMapsApiKey;
+    if (!key) {
+      try {
+        const response = await fetch(`${API_BASE_URL}/config`);
+        if (response.ok) key = (await response.json())?.googleMapsApiKey;
+      } catch (error) {
+        console.warn('[rider-comms] Could not reach the backend for /config', error);
+      }
+    }
     if (!key) {
       // Skip the network request entirely rather than firing one that's
       // doomed to fail — and log loudly, since this is otherwise silent:
       // the app just quietly sits on the CSS fallback map forever with no
-      // trace of why. This fires on every load whose deploy didn't bake in
-      // a real key (e.g. the GOOGLE_MAPS_API_KEY repo secret is unset or
-      // empty at deploy time — see .github/workflows/pages.yml), not just
-      // occasional outages, so it needs to be loud and specific.
-      console.warn('[rider-comms] Google Maps API key missing (RIDER_COMMS_CONFIG.googleMapsApiKey is empty) — falling back to the offline map. Set the GOOGLE_MAPS_API_KEY repository secret so the deploy workflow can bake in a real key.');
+      // trace of why. This fires on every load whose backend GOOGLE_MAPS_API_KEY
+      // env var is unset, not just occasional outages, so it needs to be
+      // loud and specific.
+      console.warn('[rider-comms] Google Maps API key missing (neither RIDER_COMMS_CONFIG nor the backend /config endpoint has one) — falling back to the offline map.');
       $('#mapError').hidden = true;
       renderMapStatus();
       disablePlaceSearch();
