@@ -1,21 +1,22 @@
-// Unverified scaffold — see navigation/index.tsx header note.
-//
-// TODO(native): LiveKitRoom below establishes a real connection given a
-// real token/url and a real device — none of which this sandbox has (no
-// native build tooling, no running LiveKit deployment to point it at).
-// What IS wired up for real: fetching the token from the backend
-// (client.getRideVoiceToken, backend/src/liveKitToken.ts — that endpoint
-// is genuine and tested), and the AudioEngine priority/ducking state
-// around where the connection plugs in. `audio: true` publishes the mic
-// immediately on connect — the actual VOX gate (only transmit while
-// actually speaking) is the audioEngine.ts TODO, not something LiveKit
-// itself does; until that's wired in, connecting publishes an open mic.
+// Unverified on real hardware — see navigation/index.tsx header note. This
+// sandbox has no native build tooling and no device to actually place a
+// call from, so the LiveKit connection itself (and the exact VOX
+// threshold/hangtime tuning in useVoiceActivity.ts) have never been
+// confirmed on real hardware. What IS real and code-verified: the token
+// fetch from the backend (client.getRideVoiceToken /
+// backend/src/liveKitToken.ts, genuine and tested end-to-end against a
+// real LiveKit Cloud project), and hands-free VOX itself — see
+// ../audio/useVoiceActivity.ts, which mutes/unmutes the real published mic
+// track based on a real native on-device volume reading, not a stub.
+// `audio: true` still publishes the mic on connect, but VoiceActivityBridge
+// immediately takes over muting it until real speech is detected.
 import * as React from 'react';
 import { View, Text, Pressable, StyleSheet, Modal, Alert } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LiveKitRoom } from '@livekit/react-native';
 import { AudioEngine } from '../audio/audioEngine';
 import { startVoiceAudioSession, stopVoiceAudioSession } from '../audio/audioSession';
+import { useVoiceActivity } from '../audio/useVoiceActivity';
 import { useAuth } from '../auth/AuthContext';
 import { colors, spacing, radii, type, elevation, MIN_TOUCH_TARGET } from '../theme';
 import { useRide } from './RideContext';
@@ -72,6 +73,26 @@ function GainBar({ value }: { value: number }): React.JSX.Element {
 }
 
 /**
+ * Bridges real VOX detection (which needs LiveKit room context, so it can
+ * only run inside `<LiveKitRoom>`) out to the AudioEngine/UI state that
+ * lives in the outer RideBar component, which renders that same
+ * `<LiveKitRoom>`. Renders nothing itself.
+ */
+function VoiceActivityBridge({
+  enabled,
+  onSpeakingChange,
+}: {
+  enabled: boolean;
+  onSpeakingChange: (speaking: boolean) => void;
+}): null {
+  const isSpeaking = useVoiceActivity(enabled);
+  React.useEffect(() => {
+    onSpeakingChange(isSpeaking);
+  }, [isSpeaking, onSpeakingChange]);
+  return null;
+}
+
+/**
  * Floating "mini-player"-style bar for an active ride, visible over every
  * tab (à la a music app's now-playing bar) instead of taking over the whole
  * screen — tap it to expand the full mixer + leave-ride controls.
@@ -82,10 +103,16 @@ export function RideBar(): React.JSX.Element | null {
   const audioEngineRef = React.useRef(new AudioEngine());
   const [gains, setGains] = React.useState(audioEngineRef.current.getGains());
   const [talking, setTalking] = React.useState(false);
+  const [manuallyMuted, setManuallyMuted] = React.useState(false);
   // Hooks run unconditionally, before the `!activeRide` early return below —
   // the hook itself is a no-op (empty state) while there's no active ride.
   const voice = useRideVoiceToken(activeRide?.rideId);
   useVoiceAudioSession(Boolean(activeRide));
+  const voiceConnected = Boolean(voice.token && voice.url);
+  const handleSpeakingChange = React.useCallback((speaking: boolean) => {
+    setTalking(speaking);
+    audioEngineRef.current.setChatActive(speaking);
+  }, []);
 
   React.useEffect(() => {
     return audioEngineRef.current.onGainsChanged(setGains);
@@ -120,7 +147,8 @@ export function RideBar(): React.JSX.Element | null {
         <Ionicons name="chevron-up" size={18} color={colors.textSecondary} />
       </Pressable>
 
-      <LiveKitRoom serverUrl={voice.url} token={voice.token} audio connect={Boolean(voice.token && voice.url)}>
+      <LiveKitRoom serverUrl={voice.url} token={voice.token} audio connect={voiceConnected}>
+      <VoiceActivityBridge enabled={voiceConnected && !manuallyMuted} onSpeakingChange={handleSpeakingChange} />
       <Modal visible={expanded} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setExpanded(false)}>
         <View style={styles.sheet}>
           <View style={styles.sheetHeader}>
@@ -159,13 +187,16 @@ export function RideBar(): React.JSX.Element | null {
               talking && styles.talkButtonActive,
               pressed && styles.talkButtonPressed,
             ]}
-            onPress={() => {
-              setTalking((t) => !t);
-              audioEngineRef.current.setChatActive(!talking);
-            }}
+            onPress={() => setManuallyMuted((muted) => !muted)}
           >
-            <Ionicons name={talking ? 'mic' : 'mic-outline'} size={22} color={colors.textPrimary} />
-            <Text style={styles.talkButtonText}>{talking ? 'Talking (test)' : 'Simulate someone talking'}</Text>
+            <Ionicons
+              name={manuallyMuted ? 'mic-off' : talking ? 'mic' : 'mic-outline'}
+              size={22}
+              color={colors.textPrimary}
+            />
+            <Text style={styles.talkButtonText}>
+              {manuallyMuted ? 'Muted — tap to unmute' : talking ? 'Talking' : 'Listening — hands-free'}
+            </Text>
           </Pressable>
 
           <Pressable style={({ pressed }) => [styles.leaveButton, pressed && styles.leaveButtonPressed]} onPress={handleLeave}>
