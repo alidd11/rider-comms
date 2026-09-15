@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Alert,
   StyleSheet,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -26,9 +27,6 @@ import { getAvatarPreset } from '../settings/avatars';
 // Same poll cadence style used elsewhere (MapScreen's presence, FriendsContext).
 const MESSAGE_POLL_INTERVAL_MS = 10000;
 
-// TODO: replace 'me' with the real signed-in rider id once auth exists.
-const ME = 'me';
-
 type Props = NativeStackScreenProps<RootStackParamList, 'FriendChat'>;
 
 function formatTime(ms: number): string {
@@ -36,8 +34,8 @@ function formatTime(ms: number): string {
   return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
 
-function MessageBubble({ message }: { message: DirectMessage }): React.JSX.Element {
-  const mine = message.fromRiderId === ME;
+function MessageBubble({ message, currentRiderId }: { message: DirectMessage; currentRiderId: string }): React.JSX.Element {
+  const mine = message.fromRiderId === currentRiderId;
   return (
     <View style={[styles.bubbleRow, mine ? styles.bubbleRowMine : styles.bubbleRowTheirs]}>
       <View style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleTheirs]}>
@@ -51,11 +49,13 @@ function MessageBubble({ message }: { message: DirectMessage }): React.JSX.Eleme
 function HideoutRow({
   hideout,
   onDelete,
+  currentRiderId,
 }: {
   hideout: Hideout;
   onDelete: (id: string) => void;
+  currentRiderId: string;
 }): React.JSX.Element {
-  const canDelete = hideout.createdBy === ME;
+  const canDelete = hideout.createdBy === currentRiderId;
   return (
     <View style={styles.hideoutRow}>
       <MaterialCommunityIcons name="map-marker-radius" size={18} color={colors.accent} />
@@ -199,7 +199,7 @@ export function FriendChatScreen({ route, navigation }: Props): React.JSX.Elemen
     } catch (err) {
       setError(err instanceof ApiError || err instanceof Error ? err.message : 'Could not load messages.');
     }
-  }, [riderId]);
+  }, [client, riderId]);
 
   const loadHideouts = React.useCallback(async () => {
     try {
@@ -209,7 +209,7 @@ export function FriendChatScreen({ route, navigation }: Props): React.JSX.Elemen
       // Hideouts are secondary to the chat itself — a failure here doesn't
       // need its own error banner on top of the message-load one.
     }
-  }, [riderId]);
+  }, [client, currentRiderId, riderId]);
 
   React.useEffect(() => {
     loadMessages();
@@ -239,14 +239,14 @@ export function FriendChatScreen({ route, navigation }: Props): React.JSX.Elemen
     } finally {
       setSending(false);
     }
-  }, [draft, riderId, loadMessages]);
+  }, [client, draft, riderId, loadMessages]);
 
   const handleCreateHideout = React.useCallback(
     async (name: string, lat: number, lon: number) => {
       await client.createHideout(name, lat, lon, [riderId]);
       await loadHideouts();
     },
-    [riderId, loadHideouts]
+    [client, riderId, loadHideouts]
   );
 
   const handleDeleteHideout = React.useCallback(
@@ -258,8 +258,25 @@ export function FriendChatScreen({ route, navigation }: Props): React.JSX.Elemen
         setError(err instanceof Error ? err.message : 'Could not delete that hideout.');
       }
     },
-    [loadHideouts]
+    [client, loadHideouts]
   );
+
+  const reportRider = React.useCallback((reason: 'harassment' | 'unsafe' | 'spam' | 'sexual' | 'other') => {
+    void client.reportRider(riderId, reason, 'Reported from the direct-message screen')
+      .then(() => Alert.alert('Report received', 'Thank you. The report has been recorded for review.'))
+      .catch(() => Alert.alert('Couldn’t send report', 'Please try again when you have a connection.'));
+  }, [client, riderId]);
+
+  const openSafetyActions = React.useCallback(() => {
+    Alert.alert('Safety options', `Choose what to do about ${displayName}.`, [
+      { text: 'Report harassment', onPress: () => reportRider('harassment') },
+      { text: 'Report unsafe behaviour', onPress: () => reportRider('unsafe') },
+      { text: 'Block rider', style: 'destructive', onPress: () => {
+        void client.blockRider(riderId).then(() => navigation.goBack()).catch(() => Alert.alert('Couldn’t block rider', 'Please try again.'));
+      } },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  }, [client, displayName, navigation, reportRider, riderId]);
 
   return (
     <KeyboardAvoidingView
@@ -278,6 +295,9 @@ export function FriendChatScreen({ route, navigation }: Props): React.JSX.Elemen
           <MaterialCommunityIcons name="map-marker-plus" size={18} color={colors.accent} />
           <Text style={styles.planButtonText}>Plan a hideout</Text>
         </Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Safety options" onPress={openSafetyActions} style={styles.safetyButton} hitSlop={8}>
+          <Ionicons name="ellipsis-horizontal-circle" size={23} color={colors.textSecondary}/>
+        </Pressable>
       </View>
 
       {error && (
@@ -290,7 +310,7 @@ export function FriendChatScreen({ route, navigation }: Props): React.JSX.Elemen
       {hideouts.length > 0 && (
         <View style={styles.hideoutList}>
           {hideouts.map((h) => (
-            <HideoutRow key={h.id} hideout={h} onDelete={handleDeleteHideout} />
+            <HideoutRow key={h.id} hideout={h} onDelete={handleDeleteHideout} currentRiderId={currentRiderId} />
           ))}
         </View>
       )}
@@ -298,7 +318,7 @@ export function FriendChatScreen({ route, navigation }: Props): React.JSX.Elemen
       <FlatList
         data={messages}
         keyExtractor={(m) => m.id}
-        renderItem={({ item }) => <MessageBubble message={item} />}
+        renderItem={({ item }) => <MessageBubble message={item} currentRiderId={currentRiderId} />}
         contentContainerStyle={styles.messageList}
         inverted={false}
       />
@@ -361,6 +381,7 @@ const styles = StyleSheet.create({
   headerName: { ...type.subheading, flex: 1 },
   planButton: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, padding: spacing.xs },
   planButtonText: { ...type.caption, color: colors.accent },
+  safetyButton: { padding: spacing.xs },
   errorBox: {
     flexDirection: 'row',
     alignItems: 'flex-start',

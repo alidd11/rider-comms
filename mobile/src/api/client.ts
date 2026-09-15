@@ -31,6 +31,7 @@ export class RiderCommsClient {
   }
   registerGuest(): Promise<GuestSession> { return this.request('POST', '/auth/guest', {}); }
   getMe(): Promise<{ riderId: string }> { return this.request('GET', '/auth/me'); }
+  deleteAccount(): Promise<Record<string, never>> { return this.request('DELETE', '/auth/me'); }
   createRide(): Promise<CreateRideResponse> { return this.request('POST', '/rides', {}); }
   joinRide(code: string): Promise<JoinRideResponse> { return this.request('POST', '/rides/join', { code }); }
   getRide(id: string): Promise<RideResponse> { return this.request('GET', `/rides/${encodeURIComponent(id)}`); }
@@ -49,6 +50,9 @@ export class RiderCommsClient {
   removeFriend(id: string, friendId: string): Promise<Record<string, never>> { return this.request('DELETE', `/riders/${encodeURIComponent(id)}/friends/${encodeURIComponent(friendId)}`); }
   sendMessage(toRiderId: string, text: string): Promise<DirectMessage> { return this.request('POST', '/messages', { toRiderId, text }); }
   getMessages(withRiderId: string): Promise<{ messages: DirectMessage[] }> { return this.request('GET', `/messages?withRiderId=${encodeURIComponent(withRiderId)}`); }
+  blockRider(riderId: string): Promise<Record<string, never>> { return this.request('POST', '/blocks', { riderId }); }
+  unblockRider(riderId: string): Promise<Record<string, never>> { return this.request('DELETE', `/blocks/${encodeURIComponent(riderId)}`); }
+  reportRider(riderId: string, reason: 'harassment' | 'unsafe' | 'spam' | 'sexual' | 'other', details = ''): Promise<{ received: true }> { return this.request('POST', '/reports', { riderId, reason, details }); }
   createHideout(name: string, lat: number, lon: number, participantIds: string[]): Promise<Hideout> { return this.request('POST', '/hideouts', { name, lat, lon, participantIds }); }
   getHideouts(id: string): Promise<{ hideouts: Hideout[] }> { return this.request('GET', `/riders/${encodeURIComponent(id)}/hideouts`); }
   deleteHideout(id: string): Promise<Record<string, never>> { return this.request('DELETE', `/hideouts/${encodeURIComponent(id)}`); }

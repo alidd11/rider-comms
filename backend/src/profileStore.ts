@@ -120,4 +120,6 @@ export class ProfileStore {
     this.profiles.set(riderId, next);
     return { ok: true, profile: next };
   }
+
+  delete(riderId: string): void { this.profiles.delete(riderId); }
 }

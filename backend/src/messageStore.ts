@@ -32,4 +32,8 @@ export class MessageStore {
       .sort((a, b) => a.createdAt - b.createdAt);
     return thread.slice(-Math.max(1, limit));
   }
+
+  deleteRider(riderId: string): void {
+    this.messages = this.messages.filter((message) => message.fromRiderId !== riderId && message.toRiderId !== riderId);
+  }
 }
