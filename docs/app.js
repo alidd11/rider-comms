@@ -42,6 +42,43 @@
   };
   const HAZARD_TYPE_ORDER = ['police', 'camera', 'accident', 'hazard', 'road_closure'];
 
+  // Automatic day/night map skin — kept in sync with the CSS light-mode
+  // media block below via prefersDarkMode(), so the map tiles match the
+  // rest of the UI instead of staying stuck on the dark skin in daylight.
+  const MAP_STYLE_DARK = [
+    { elementType: 'geometry', stylers: [{ color: '#172028' }] },
+    { elementType: 'labels.text.stroke', stylers: [{ color: '#172028' }] },
+    { elementType: 'labels.text.fill', stylers: [{ color: '#8f9ba7' }] },
+    { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#293640' }] },
+    { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#34434f' }] },
+    { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+    { featureType: 'transit', stylers: [{ visibility: 'off' }] },
+    { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#0d2834' }] },
+  ];
+  const MAP_STYLE_LIGHT = [
+    { elementType: 'geometry', stylers: [{ color: '#f4f1ec' }] },
+    { elementType: 'labels.text.stroke', stylers: [{ color: '#f4f1ec' }] },
+    { elementType: 'labels.text.fill', stylers: [{ color: '#5f574c' }] },
+    { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#ffffff' }] },
+    { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#ddd3c4' }] },
+    { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+    { featureType: 'transit', stylers: [{ visibility: 'off' }] },
+    { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#cfe3ea' }] },
+  ];
+  const darkModeQuery = window.matchMedia?.('(prefers-color-scheme: dark)');
+  function prefersDarkMode() {
+    return darkModeQuery ? darkModeQuery.matches : true;
+  }
+  function applyColorScheme() {
+    const meta = $('#statusBarStyleMeta');
+    if (meta) meta.setAttribute('content', prefersDarkMode() ? 'black-translucent' : 'default');
+    map?.setOptions({
+      styles: prefersDarkMode() ? MAP_STYLE_DARK : MAP_STYLE_LIGHT,
+      backgroundColor: prefersDarkMode() ? '#101820' : '#f4f1ec',
+    });
+  }
+  darkModeQuery?.addEventListener('change', applyColorScheme);
+
   const VEHICLE_LABELS = { motorcycle_small: 'Small motorcycle', motorcycle_large: 'Large motorcycle', scooter: 'Scooter', car: 'Car' };
   const ROAD_TYPE_LABELS = { rural: 'Rural', mountain: 'Mountain', coastal: 'Coastal', urban: 'Urban', mixed: 'Mixed' };
   const DIFFICULTY_LABELS = { easy: 'Easy', moderate: 'Moderate', challenging: 'Challenging' };
@@ -697,17 +734,8 @@
       disableDefaultUI: true,
       gestureHandling: 'greedy',
       clickableIcons: false,
-      backgroundColor: '#101820',
-      styles: [
-        { elementType: 'geometry', stylers: [{ color: '#172028' }] },
-        { elementType: 'labels.text.stroke', stylers: [{ color: '#172028' }] },
-        { elementType: 'labels.text.fill', stylers: [{ color: '#8f9ba7' }] },
-        { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#293640' }] },
-        { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#34434f' }] },
-        { featureType: 'poi', stylers: [{ visibility: 'off' }] },
-        { featureType: 'transit', stylers: [{ visibility: 'off' }] },
-        { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#0d2834' }] },
-      ],
+      backgroundColor: prefersDarkMode() ? '#101820' : '#f4f1ec',
+      styles: prefersDarkMode() ? MAP_STYLE_DARK : MAP_STYLE_LIGHT,
     });
     usingFallbackMap = false;
     $('#fallbackMap').hidden = true;
@@ -808,8 +836,26 @@
     $('[aria-label="Open profile"]').addEventListener('click', () => navigate('settings'));
   }
 
+  // On a cold PWA launch (standalone, home-screen icon), iOS sometimes
+  // resolves env(safe-area-inset-bottom) from a stale metric on the very
+  // first layout pass, so the fixed bottom nav renders with extra bottom
+  // padding — sitting noticeably higher than it should — until *anything*
+  // else triggers a reflow, which is why switching tabs once and coming
+  // back always looks correct. Force that reflow ourselves right after
+  // load so it's correct from the first paint instead of only after the
+  // user's first navigation. Harmless no-op on browsers that got it right
+  // the first time (desktop, Android).
+  function nudgeBottomNavReflow() {
+    const nav = $('.bottom-nav');
+    if (!nav) return;
+    const nudge = () => { nav.style.display = 'none'; void nav.offsetHeight; nav.style.display = ''; };
+    requestAnimationFrame(() => requestAnimationFrame(nudge));
+    setTimeout(nudge, 400);
+  }
+
   function init() {
     bindEvents();
+    applyColorScheme();
     renderProfile();
     renderFriends();
     renderRide();
@@ -819,6 +865,7 @@
     navigate(location.hash.slice(1) || state.screen || 'map', false);
     loadGoogleMaps();
     registerServiceWorker();
+    nudgeBottomNavReflow();
   }
 
   init();
