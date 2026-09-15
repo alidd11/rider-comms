@@ -24,6 +24,7 @@ import { ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { colors, spacing, radii, type, elevation, MIN_TOUCH_TARGET } from '../theme';
 import { getAvatarPreset } from '../settings/avatars';
+import { buildExternalNavigationUrl } from '../navigationLinks';
 
 // Same poll cadence style used elsewhere (MapScreen's presence, FriendsContext).
 const MESSAGE_POLL_INTERVAL_MS = 10000;
@@ -43,11 +44,19 @@ function formatTime(ms: number): string {
   return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
 
-function openHideoutInMaps(lat: number, lon: number): void {
-  const url = Platform.OS === 'ios' ? `https://maps.apple.com/?q=${lat},${lon}` : `geo:${lat},${lon}?q=${lat},${lon}`;
-  Linking.openURL(url).catch(() => {
-    // No maps app reachable in this sandbox/device — nothing else to do.
-  });
+async function openHideoutInMaps(lat: number, lon: number, label: string): Promise<void> {
+  const platform = Platform.OS === 'ios' ? 'ios' : 'android';
+  const url = buildExternalNavigationUrl({ lat, lon, label }, platform);
+  if (!url) {
+    Alert.alert('Location unavailable', 'This location cannot be opened because its coordinates are invalid.');
+    return;
+  }
+
+  try {
+    await Linking.openURL(url);
+  } catch {
+    Alert.alert('Couldn’t open maps', 'No compatible maps or navigation app could open this location.');
+  }
 }
 
 function MessageBubble({
@@ -95,7 +104,12 @@ function HideoutRow({
       <MaterialCommunityIcons name="map-marker-radius" size={18} color={colors.accent} />
       <View style={styles.hideoutInfo}>
         <Text style={styles.hideoutName}>{hideout.name}</Text>
-        <Pressable onPress={() => openHideoutInMaps(hideout.lat, hideout.lon)} hitSlop={4}>
+        <Pressable
+          accessibilityRole="link"
+          accessibilityLabel={`Open directions to ${hideout.name}`}
+          onPress={() => void openHideoutInMaps(hideout.lat, hideout.lon, hideout.name)}
+          hitSlop={4}
+        >
           <Text style={[styles.hideoutCoords, styles.hideoutCoordsLink]}>
             {hideout.lat.toFixed(4)}, {hideout.lon.toFixed(4)}
           </Text>

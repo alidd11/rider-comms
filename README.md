@@ -86,6 +86,30 @@ The native Expo client still uses its existing illustrative map surface. A
 native Google Maps release requires platform-specific iOS and Android keys and
 an Expo development build; this PWA setup does not claim to configure those.
 
+### Native app links and maps handoff
+
+The native client accepts validated navigation links in these forms:
+
+```text
+https://alidd11.github.io/rider-comms/navigate?lat=51.5074&lon=-0.1278&label=Tower%20Bridge
+ridercomms://navigate?lat=51.5074&lon=-0.1278&label=Tower%20Bridge
+```
+
+Cold-start and running-app links are filtered through the same coordinate
+parser before React Navigation opens the Map tab. Hideout locations can be
+handed to the device's maps/navigation apps with an Apple Maps HTTPS URL on
+iOS or a standard `geo:` URI on Android. This is OS-level linking only; it does
+not provide or imply an Uber Eats, Deliveroo, or other partner integration.
+
+Production App Link and Universal Link verification is still required. The
+corresponding `assetlinks.json` and `apple-app-site-association` files must be
+served from `https://alidd11.github.io/.well-known/` (or, preferably, a
+controlled production domain) with the final Android signing certificate and
+Apple Team ID. A project-level GitHub Pages path cannot by itself publish those
+domain-root association files, so the configured `autoVerify` and associated
+domain are declarations rather than verified production links until that
+hosting work is completed.
+
 With an authenticated Expo account, build an installable Android preview:
 
 ```bash

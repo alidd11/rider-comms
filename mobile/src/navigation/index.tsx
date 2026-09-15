@@ -3,8 +3,9 @@
 // to be correct against @react-navigation's real v7 API — review against
 // the installed version once you're on a real dev machine.
 import * as React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { Linking, View, Text, StyleSheet } from 'react-native';
 import { DarkTheme, NavigationContainer, useNavigationState } from '@react-navigation/native';
+import type { LinkingOptions } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -22,6 +23,7 @@ import { RideProvider } from '../ride/RideContext';
 import { SettingsProvider } from '../settings/SettingsContext';
 import { FriendsProvider } from '../friends/FriendsContext';
 import { AuthProvider } from '../auth/AuthContext';
+import { parseNavigationLink } from '../navigationLinks';
 import { colors } from '../theme';
 
 const navigationTheme = {
@@ -41,7 +43,13 @@ export type TabParamList = {
   // "Group Ride" again with the same target segment still re-fires the
   // param-change effect in MapScreen (a repeated identical string value
   // wouldn't, since nothing else about the params changed).
-  Map: { segment?: 'public' | 'host'; at?: number } | undefined;
+  Map: {
+    segment?: 'public' | 'host';
+    at?: number;
+    lat?: number;
+    lon?: number;
+    label?: string;
+  } | undefined;
   GroupRide: undefined;
   Friends: undefined;
   Settings: undefined;
@@ -57,6 +65,36 @@ export type RootStackParamList = {
 
 const Tab = createBottomTabNavigator<TabParamList>();
 const Stack = createNativeStackNavigator<RootStackParamList>();
+
+const linking: LinkingOptions<RootStackParamList> = {
+  prefixes: ['ridercomms://', 'https://alidd11.github.io/rider-comms'],
+  config: {
+    screens: {
+      Tabs: {
+        screens: {
+          Map: {
+            path: 'navigate',
+            parse: {
+              lat: Number,
+              lon: Number,
+              label: String,
+            },
+          },
+        },
+      },
+    },
+  },
+  async getInitialURL() {
+    const url = await Linking.getInitialURL();
+    return parseNavigationLink(url) ? url : null;
+  },
+  subscribe(listener) {
+    const subscription = Linking.addEventListener('url', ({ url }) => {
+      if (parseNavigationLink(url)) listener(url);
+    });
+    return () => subscription.remove();
+  },
+};
 
 /**
  * Map and GroupRide share one mounted MapScreen instance (see the tabPress
@@ -139,7 +177,13 @@ function Tabs(): React.JSX.Element {
         listeners={({ navigation }) => ({
           tabPress: (e) => {
             e.preventDefault();
-            navigation.navigate('Map', { segment: 'public', at: Date.now() });
+            navigation.navigate('Map', {
+              segment: 'public',
+              at: Date.now(),
+              lat: undefined,
+              lon: undefined,
+              label: undefined,
+            });
           },
         })}
       />
@@ -160,7 +204,13 @@ function Tabs(): React.JSX.Element {
         listeners={({ navigation }) => ({
           tabPress: (e) => {
             e.preventDefault();
-            navigation.navigate('Map', { segment: 'host', at: Date.now() });
+            navigation.navigate('Map', {
+              segment: 'host',
+              at: Date.now(),
+              lat: undefined,
+              lon: undefined,
+              label: undefined,
+            });
           },
         })}
       />
@@ -210,7 +260,7 @@ export function AppNavigator(): React.JSX.Element {
         <RideProvider>
           <FriendsProvider>
             <OnboardingGate>
-              <NavigationContainer theme={navigationTheme}>
+              <NavigationContainer theme={navigationTheme} linking={linking}>
                 <Stack.Navigator
                   screenOptions={{
                     headerStyle: { backgroundColor: colors.surface },
