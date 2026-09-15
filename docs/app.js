@@ -1374,9 +1374,14 @@
         handle: `@${username}`,
       });
       applyRemoteProfile(profile);
-    } catch {
+    } catch (error) {
       // Non-fatal — the account still exists and works with the backend's
       // own default profile; the rider can fix the name later in Settings.
+      // Logged loudly (not just swallowed) since a silent failure here is
+      // exactly how an account ends up permanently stuck on the generic
+      // "Rider"/"@rider" default with no visible trace of why.
+      console.warn('[rider-comms] Could not seed a real display name after signup', error);
+      showToast('Account created — set your display name in Settings.');
     }
   }
 
