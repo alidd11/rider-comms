@@ -2,6 +2,12 @@
   'use strict';
 
   const STORAGE_KEY = 'rider-comms-pwa-v4';
+  // Real, persistent client session (Rider ID + bearer token issued by the
+  // backend at signup/login) — this is legitimate client-side storage every
+  // real app keeps, not mock data. It lives in its own key, separate from
+  // STORAGE_KEY's per-device UI preferences, so logging out never has to
+  // touch (or accidentally nuke) unrelated local settings.
+  const SESSION_KEY = 'rider-comms-session-v1';
   const DEFAULT_STATE = {
     screen: 'map',
     publicLive: false,
@@ -10,19 +16,16 @@
     unit: 'mi',
     notifications: true,
     profile: {
-      riderId: 'rider_k4xqpz82',
-      displayName: 'Ali',
-      handle: '@ali_rides',
+      riderId: '',
+      displayName: '',
+      handle: '',
       instagram: '',
       tiktok: '',
       socialsVisibility: 'friends',
       shareLocation: false,
     },
-    friends: [
-      { riderId: 'rider_maria', displayName: 'Maria K.', handle: '@maria_ktm', status: 'On a ride' },
-      { riderId: 'rider_jc', displayName: 'JC', handle: '@jc_ridesout', status: 'Active 8m ago' },
-    ],
-    requests: [{ riderId: 'rider_alex82', displayName: 'Alex R.', handle: '@rider_alex82', status: 'Wants to connect' }],
+    friends: [],
+    requests: [],
     routes: [],
     hazards: [],
     routeVehicleFilter: null,
@@ -105,6 +108,85 @@
 
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
+
+  // Real backend base URL — the same one loadGoogleMaps() already fetches
+  // /config from. Every real API call in this file (auth, profile, friends,
+  // rides, presence, hazards, scenic routes) goes through this one origin.
+  const API_BASE_URL = 'https://backend-production-7fa0.up.railway.app';
+
+  class ApiError extends Error {
+    constructor(status, body) {
+      super(`API error ${status}: ${JSON.stringify(body)}`);
+      this.status = status;
+      this.body = body;
+    }
+  }
+
+  function loadSession() {
+    try {
+      const stored = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null');
+      if (stored && typeof stored.riderId === 'string' && typeof stored.token === 'string') return stored;
+    } catch { /* fall through to null */ }
+    return null;
+  }
+
+  function saveSession(nextSession) {
+    session = nextSession;
+    localStorage.setItem(SESSION_KEY, JSON.stringify(nextSession));
+  }
+
+  function clearSession() {
+    session = null;
+    localStorage.removeItem(SESSION_KEY);
+  }
+
+  let session = loadSession();
+
+  /**
+   * Shared fetch helper for every real backend call in this file. Adds the
+   * bearer token automatically when a session is present, applies a 10s
+   * timeout the same way mobile's RiderCommsClient does, and throws
+   * ApiError on any non-2xx response so callers can branch on real error
+   * codes (username_taken, invalid_credentials, rate_limited, …) instead of
+   * failing silently the way mock-data code never had to consider.
+   */
+  async function apiFetch(method, path, body) {
+    const headers = {};
+    if (body !== undefined) headers['Content-Type'] = 'application/json';
+    if (session?.token) headers.Authorization = `Bearer ${session.token}`;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10_000);
+    let response;
+    try {
+      response = await fetch(`${API_BASE_URL}${path}`, {
+        method,
+        headers,
+        body: body === undefined ? undefined : JSON.stringify(body),
+        signal: controller.signal,
+      });
+    } catch (error) {
+      clearTimeout(timeout);
+      throw new ApiError(0, { error: error?.name === 'AbortError' ? 'timed_out' : 'network_error' });
+    }
+    clearTimeout(timeout);
+    const contentType = response.headers.get('content-type') || '';
+    const json = contentType.includes('application/json') ? await response.json().catch(() => ({})) : {};
+    if (!response.ok) {
+      // A 401 here means the session token the server issued is no longer
+      // valid (backend restarted, or the account was deleted) — sessions
+      // are only tracked in memory server-side, so this is expected to
+      // happen occasionally, not a bug. Sign the rider out for real rather
+      // than leaving the app stuck silently retrying with a dead token.
+      if (response.status === 401) {
+        clearSession();
+        showAuthScreen();
+        showToast('Your session expired. Please sign in again.');
+      }
+      throw new ApiError(response.status, json);
+    }
+    return json;
+  }
+
   const state = loadState();
   let toastTimer;
   let map;
@@ -189,6 +271,7 @@
   function renderProfile() {
     $('#profileName').textContent = state.profile.displayName;
     $('#profileHandle').textContent = state.profile.handle;
+    $('#profileRiderId').textContent = state.profile.riderId;
     $$('[data-avatar]').forEach((element) => {
       element.textContent = initials(state.profile.displayName);
       element.style.setProperty('--avatar', identityColor(state.profile.riderId));
@@ -727,8 +810,8 @@
   // rather than baked into a static build. docs/config.js's static value
   // (if ever populated again) is still checked first so this still works
   // offline-first / without a network round trip when it's present.
-  const API_BASE_URL = 'https://backend-production-7fa0.up.railway.app';
-
+  // (API_BASE_URL itself is defined once, near the top of this file, and
+  // reused by every real backend call, not just this one.)
   async function loadGoogleMaps() {
     let key = window.RIDER_COMMS_CONFIG?.googleMapsApiKey;
     if (!key) {
@@ -898,8 +981,9 @@
     $('#closeSheet').addEventListener('click', closeSheet);
     $('#sheetBackdrop').addEventListener('click', (event) => { if (event.target === $('#sheetBackdrop')) closeSheet(); });
     document.addEventListener('keydown', (event) => { if (event.key === 'Escape') closeSheet(); });
-    $('#resetPwa').addEventListener('click', () => {
-      if (!window.confirm('Reset this device’s Rider Comms preview?')) return;
+    $('#logoutBtn').addEventListener('click', () => {
+      if (!window.confirm('Log out of Rider Comms on this device?')) return;
+      clearSession();
       localStorage.removeItem(STORAGE_KEY);
       location.reload();
     });
@@ -925,7 +1009,126 @@
     setTimeout(nudge, 400);
   }
 
-  function init() {
+  // --- Auth screen -----------------------------------------------------
+  // Real signup/login against the backend's Postgres-backed accounts
+  // (POST /auth/signup, POST /auth/login) — the app has no fixed local
+  // identity anymore; every rider signs in for real before seeing the app.
+
+  const USERNAME_PATTERN = /^[A-Za-z0-9_]{3,20}$/;
+
+  function showAuthScreen() {
+    $('#app').hidden = true;
+    $('#authScreen').hidden = false;
+  }
+
+  function hideAuthScreen() {
+    $('#authScreen').hidden = true;
+    $('#app').hidden = false;
+  }
+
+  const AUTH_ERROR_MESSAGES = {
+    username_taken: 'That username is already taken.',
+    email_taken: 'That email is already registered.',
+    invalid_username: 'Usernames must be 3–20 letters, numbers or underscores.',
+    invalid_email: 'Enter a valid email address.',
+    weak_password: 'Passwords must be at least 8 characters.',
+    invalid_credentials: 'Incorrect username or password.',
+    rate_limited: 'Too many attempts — please wait a moment and try again.',
+    network_error: 'Could not reach Rider Comms. Check your connection and try again.',
+    timed_out: 'The request timed out. Please try again.',
+  };
+
+  function authErrorMessage(error) {
+    const code = error instanceof ApiError ? error.body?.error : undefined;
+    return AUTH_ERROR_MESSAGES[code] || 'Something went wrong. Please try again.';
+  }
+
+  function applyAuthenticatedIdentity(riderId, username) {
+    state.profile.riderId = riderId;
+    if (!state.profile.displayName) state.profile.displayName = username;
+    if (!state.profile.handle) state.profile.handle = `@${username}`;
+    persist();
+  }
+
+  async function doLogin(username, password) {
+    const errorEl = $('#loginError');
+    const button = $('#loginSubmit');
+    errorEl.hidden = true;
+    button.disabled = true;
+    button.textContent = 'Logging in…';
+    try {
+      const result = await apiFetch('POST', '/auth/login', { username, password });
+      saveSession({ riderId: result.riderId, token: result.token });
+      applyAuthenticatedIdentity(result.riderId, username);
+      hideAuthScreen();
+      startApp();
+    } catch (error) {
+      errorEl.textContent = authErrorMessage(error);
+      errorEl.hidden = false;
+    } finally {
+      button.disabled = false;
+      button.textContent = 'Log in';
+    }
+  }
+
+  async function doSignup(username, email, password) {
+    const errorEl = $('#signupError');
+    const button = $('#signupSubmit');
+    errorEl.hidden = true;
+    if (!USERNAME_PATTERN.test(username)) {
+      errorEl.textContent = AUTH_ERROR_MESSAGES.invalid_username;
+      errorEl.hidden = false;
+      return;
+    }
+    if (password.length < 8) {
+      errorEl.textContent = AUTH_ERROR_MESSAGES.weak_password;
+      errorEl.hidden = false;
+      return;
+    }
+    button.disabled = true;
+    button.textContent = 'Creating account…';
+    try {
+      const result = await apiFetch('POST', '/auth/signup', { username, email, password });
+      saveSession({ riderId: result.riderId, token: result.token });
+      applyAuthenticatedIdentity(result.riderId, username);
+      hideAuthScreen();
+      startApp();
+      showToast('Account created. Check your email to verify it.');
+    } catch (error) {
+      errorEl.textContent = authErrorMessage(error);
+      errorEl.hidden = false;
+    } finally {
+      button.disabled = false;
+      button.textContent = 'Create account';
+    }
+  }
+
+  function wireAuthForms() {
+    $$('[data-auth-mode]').forEach((button) => button.addEventListener('click', () => {
+      const signup = button.dataset.authMode === 'signup';
+      $$('[data-auth-mode]').forEach((item) => {
+        item.classList.toggle('active', item === button);
+        item.setAttribute('aria-selected', String(item === button));
+      });
+      $('#loginForm').hidden = signup;
+      $('#signupForm').hidden = !signup;
+    }));
+    $('#loginForm').addEventListener('submit', (event) => {
+      event.preventDefault();
+      doLogin($('#loginUsername').value.trim(), $('#loginPassword').value);
+    });
+    $('#signupForm').addEventListener('submit', (event) => {
+      event.preventDefault();
+      doSignup($('#signupUsername').value.trim(), $('#signupEmail').value.trim(), $('#signupPassword').value);
+    });
+  }
+
+  // The app's real init, run once a session (existing or freshly created)
+  // is available. Safe to call more than once per page load conceptually,
+  // but bindEvents() is only ever invoked from here so it only runs once.
+  function startApp() {
+    const label = $('#logoutRiderId');
+    if (label) label.textContent = state.profile.riderId ? `Signed in as ${state.profile.riderId}` : 'Sign out of this account';
     bindEvents();
     applyColorScheme();
     renderProfile();
@@ -938,6 +1141,18 @@
     loadGoogleMaps();
     registerServiceWorker();
     nudgeBottomNavReflow();
+  }
+
+  function init() {
+    if (!session) {
+      wireAuthForms();
+      showAuthScreen();
+      $('#loginUsername').focus();
+      return;
+    }
+    applyAuthenticatedIdentity(session.riderId, state.profile.displayName || session.riderId);
+    hideAuthScreen();
+    startApp();
   }
 
   init();
