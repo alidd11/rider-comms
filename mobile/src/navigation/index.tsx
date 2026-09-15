@@ -10,7 +10,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { MapScreen } from '../screens/MapScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { CreateRideScreen } from '../screens/CreateRideScreen';
@@ -153,14 +153,17 @@ const TAB_ICONS: Record<keyof TabParamList, (color: string, size: number, focuse
   ),
   // Distinct from GroupRide's "account-group" glyph — this one reads as
   // "add a person" so the two tabs aren't visually interchangeable.
+  // MaterialCommunityIcons (not Ionicons) to match every other tab's icon
+  // family — mixing families across the same bar read as inconsistent
+  // weight/style even though each individual glyph was fine.
   Friends: (color, size, focused) => (
     <TabIconShell active={focused}>
-      <Ionicons name="person-add" size={size} color={color} />
+      <MaterialCommunityIcons name="account-plus" size={size} color={color} />
     </TabIconShell>
   ),
   Settings: (color, size, focused) => (
     <TabIconShell active={focused}>
-      <Ionicons name="settings" size={size} color={color} />
+      <MaterialCommunityIcons name="cog" size={size} color={color} />
     </TabIconShell>
   ),
 };
