@@ -29,6 +29,143 @@ const MIGRATIONS: { name: string; sql: string }[] = [
       CREATE UNIQUE INDEX IF NOT EXISTS users_username_lower_idx ON users (lower(username));
     `,
   },
+  {
+    name: '0002_create_friend_tables',
+    sql: `
+      CREATE TABLE IF NOT EXISTS friend_requests (
+        id TEXT PRIMARY KEY,
+        from_rider_id TEXT NOT NULL,
+        to_rider_id TEXT NOT NULL,
+        status TEXT NOT NULL,
+        created_at BIGINT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS friend_requests_to_rider_idx ON friend_requests (to_rider_id, status);
+      CREATE INDEX IF NOT EXISTS friend_requests_from_rider_idx ON friend_requests (from_rider_id, status);
+
+      -- Symmetric adjacency: an accepted friendship is stored as both
+      -- (a, b) and (b, a) rows so lookups from either side are a plain
+      -- indexed equality query, same shape as the in-memory Map<Set> it replaces.
+      CREATE TABLE IF NOT EXISTS friendships (
+        rider_id TEXT NOT NULL,
+        friend_id TEXT NOT NULL,
+        created_at BIGINT NOT NULL,
+        PRIMARY KEY (rider_id, friend_id)
+      );
+    `,
+  },
+  {
+    name: '0003_create_hazard_reports',
+    sql: `
+      CREATE TABLE IF NOT EXISTS hazard_reports (
+        id TEXT PRIMARY KEY,
+        type TEXT NOT NULL,
+        lat DOUBLE PRECISION NOT NULL,
+        lon DOUBLE PRECISION NOT NULL,
+        reported_by TEXT NOT NULL,
+        created_at BIGINT NOT NULL,
+        expires_at BIGINT NOT NULL,
+        confirmations INTEGER NOT NULL DEFAULT 0,
+        denials INTEGER NOT NULL DEFAULT 0
+      );
+      CREATE INDEX IF NOT EXISTS hazard_reports_reported_by_idx ON hazard_reports (reported_by);
+
+      CREATE TABLE IF NOT EXISTS hazard_report_votes (
+        report_id TEXT NOT NULL,
+        rider_id TEXT NOT NULL,
+        vote TEXT NOT NULL,
+        PRIMARY KEY (report_id, rider_id, vote)
+      );
+    `,
+  },
+  {
+    name: '0004_create_messages',
+    sql: `
+      CREATE TABLE IF NOT EXISTS direct_messages (
+        id TEXT PRIMARY KEY,
+        from_rider_id TEXT NOT NULL,
+        to_rider_id TEXT NOT NULL,
+        text TEXT NOT NULL,
+        created_at BIGINT NOT NULL,
+        -- Surrogate insertion-order tiebreaker: createdAt is millisecond
+        -- resolution, so two messages sent in the same millisecond need a
+        -- stable secondary sort key to preserve send order (matches the
+        -- stable Array.sort the in-memory version relied on).
+        seq BIGSERIAL NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS direct_messages_thread_idx ON direct_messages (from_rider_id, to_rider_id, created_at, seq);
+    `,
+  },
+  {
+    name: '0005_create_moderation_tables',
+    sql: `
+      CREATE TABLE IF NOT EXISTS rider_blocks (
+        rider_id TEXT NOT NULL,
+        blocked_rider_id TEXT NOT NULL,
+        created_at BIGINT NOT NULL,
+        PRIMARY KEY (rider_id, blocked_rider_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS safety_reports (
+        id TEXT PRIMARY KEY,
+        reporter_id TEXT NOT NULL,
+        reported_rider_id TEXT NOT NULL,
+        reason TEXT NOT NULL,
+        details TEXT NOT NULL,
+        created_at BIGINT NOT NULL
+      );
+    `,
+  },
+  {
+    name: '0006_create_hideouts',
+    sql: `
+      CREATE TABLE IF NOT EXISTS hideouts (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        lat DOUBLE PRECISION NOT NULL,
+        lon DOUBLE PRECISION NOT NULL,
+        created_by TEXT NOT NULL,
+        created_at BIGINT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS hideout_participants (
+        hideout_id TEXT NOT NULL REFERENCES hideouts (id) ON DELETE CASCADE,
+        rider_id TEXT NOT NULL,
+        PRIMARY KEY (hideout_id, rider_id)
+      );
+      CREATE INDEX IF NOT EXISTS hideout_participants_rider_idx ON hideout_participants (rider_id);
+    `,
+  },
+  {
+    name: '0007_create_scenic_routes',
+    sql: `
+      -- User-submitted scenic routes only (see scenicRouteStore.ts) — the
+      -- static motorbike-first route catalogue added in PR #48 is unrelated
+      -- client-side reference content in mobile/src/routes/curatedRoutes.ts
+      -- and never touches this table.
+      CREATE TABLE IF NOT EXISTS scenic_routes (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT NOT NULL,
+        vehicle_suitability TEXT[] NOT NULL,
+        road_type TEXT NOT NULL,
+        distance_miles DOUBLE PRECISION NOT NULL,
+        estimated_duration_minutes DOUBLE PRECISION NOT NULL,
+        difficulty TEXT NOT NULL,
+        surface_quality TEXT NOT NULL,
+        avoids_tolls BOOLEAN NOT NULL,
+        avoids_motorways BOOLEAN NOT NULL,
+        scenic_rating INTEGER NOT NULL,
+        safety_notices TEXT[] NOT NULL,
+        start_lat DOUBLE PRECISION NOT NULL,
+        start_lon DOUBLE PRECISION NOT NULL,
+        end_lat DOUBLE PRECISION NOT NULL,
+        end_lon DOUBLE PRECISION NOT NULL,
+        created_by TEXT NOT NULL,
+        created_at BIGINT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS scenic_routes_created_by_idx ON scenic_routes (created_by);
+    `,
+  },
 ];
 
 function buildPool(): Pool {

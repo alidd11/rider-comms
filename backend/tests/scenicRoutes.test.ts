@@ -2,6 +2,12 @@ import { after, before, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { authenticatedFetch, postJson, startTestServer } from './httpTestUtils.ts';
 import type { TestServer } from './httpTestUtils.ts';
+import { getPool, resetDbForTests } from '../src/db.ts';
+
+// ScenicRouteStore is now Postgres-backed (see db.ts) — this suite needs
+// DATABASE_URL to point at a reachable Postgres instance and is skipped
+// otherwise, rather than failing every run in a sandbox with no database.
+const hasDatabase = Boolean(process.env.DATABASE_URL);
 
 function validBody(overrides: Record<string, unknown> = {}) {
   return {
@@ -25,10 +31,15 @@ function validBody(overrides: Record<string, unknown> = {}) {
   };
 }
 
-describe('scenic routes API', () => {
+describe('scenic routes API', { skip: !hasDatabase && 'DATABASE_URL not set; skipping Postgres-backed scenic routes tests' }, () => {
   let ctx: TestServer;
-  before(async () => { ctx = startTestServer(); await ctx.ready; });
-  after(() => ctx.close());
+  before(async () => {
+    await getPool().query('SELECT 1');
+    await getPool().query('TRUNCATE scenic_routes');
+    ctx = startTestServer();
+    await ctx.ready;
+  });
+  after(async () => { await ctx.close(); await resetDbForTests(); });
 
   it('requires auth', async () => {
     const res = await fetch(`${ctx.baseUrl()}/scenic-routes`, { method: 'POST' });
