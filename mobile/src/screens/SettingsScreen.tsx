@@ -2,6 +2,7 @@
 import * as React from 'react';
 import { View, Text, Pressable, TextInput, ScrollView, Modal, Switch, Alert, StyleSheet } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Constants from 'expo-constants';
 import { TIER_RADIUS_MILES } from '@rider-comms/shared';
 import type { ZoneTier } from '@rider-comms/shared';
@@ -181,6 +182,7 @@ export function SettingsScreen(): React.JSX.Element {
     resetAll,
     loaded,
   } = useSettings();
+  const insets = useSafeAreaInsets();
   const appVersion = Constants.expoConfig?.version ?? '0.1.0';
   const [pickerOpen, setPickerOpen] = React.useState(false);
   const [nameDraft, setNameDraft] = React.useState(displayName);
@@ -221,7 +223,7 @@ export function SettingsScreen(): React.JSX.Element {
 
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <ScrollView contentContainerStyle={[styles.scroll, { paddingTop: insets.top + spacing.lg }]}>
         <View style={styles.profileCard}>
           <Pressable onPress={() => setPickerOpen(true)} style={styles.avatarTapArea}>
             <View style={[styles.avatarRing, { backgroundColor: avatar.bg }, elevation.raised]}>

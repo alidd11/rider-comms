@@ -3,6 +3,7 @@ import * as React from 'react';
 import { View, Text, TextInput, Pressable, ScrollView, Alert, ActivityIndicator, StyleSheet } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { FriendRequest, FriendSummary } from '@rider-comms/shared';
 import type { RootStackParamList } from '../navigation';
@@ -125,10 +126,11 @@ function FriendRow({ friend }: { friend: FriendSummary }): React.JSX.Element {
 
 export function FriendsScreen(): React.JSX.Element {
   const { friends, incomingRequests, loading, error } = useFriends();
+  const insets = useSafeAreaInsets();
 
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <ScrollView contentContainerStyle={[styles.scroll, { paddingTop: insets.top + spacing.lg }]}>
         <Text style={styles.title}>Friends</Text>
 
         {error && (

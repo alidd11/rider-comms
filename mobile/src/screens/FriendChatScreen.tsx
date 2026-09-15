@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { DirectMessage, Hideout } from '@rider-comms/shared';
 import type { RootStackParamList } from '../navigation';
@@ -179,6 +180,7 @@ function PlanHideoutModal({
 export function FriendChatScreen({ route, navigation }: Props): React.JSX.Element {
   const { riderId, displayName, avatarId } = route.params;
   const avatar = getAvatarPreset(avatarId);
+  const insets = useSafeAreaInsets();
   const clientRef = React.useRef(new RiderCommsClient(API_BASE_URL));
 
   const [messages, setMessages] = React.useState<DirectMessage[]>([]);
@@ -264,7 +266,7 @@ export function FriendChatScreen({ route, navigation }: Props): React.JSX.Elemen
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + spacing.md }]}>
         <Pressable onPress={() => navigation.goBack()} style={styles.backButton} hitSlop={8}>
           <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
         </Pressable>
