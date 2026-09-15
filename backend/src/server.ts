@@ -1,8 +1,10 @@
 import http from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { isIP } from 'node:net';
-import { SlidingWindowRateLimiter, TIER_RADIUS_MILES, validateScenicRouteInput } from '@rider-comms/shared';
+import { SlidingWindowRateLimiter, TIER_RADIUS_MILES, validateScenicRouteInput, bucketId, getBucketCoord } from '@rider-comms/shared';
 import type { Difficulty, HazardType, RoadType, Rider, VehicleCategory } from '@rider-comms/shared';
+import { getLiveKitCredentialsFromEnv, mintVoiceToken, rideRoomName, channelRoomName } from './liveKitToken.ts';
+import type { LiveKitCredentials } from './liveKitToken.ts';
 import { AuthStore } from './authStore.ts';
 import { RideStore } from './rideStore.ts';
 import { PresenceStore } from './presenceStore.ts';
@@ -27,6 +29,10 @@ export interface ApiServerOptions {
   allowedOrigins?: readonly string[];
   trustProxy?: boolean;
   logger?: (event: ApiRequestLog) => void;
+  /** Defaults to reading LIVEKIT_API_KEY/LIVEKIT_API_SECRET/LIVEKIT_URL from
+   * the environment; pass null explicitly (e.g. in tests) to force the
+   * "voice not configured" path regardless of the real environment. */
+  liveKitCredentials?: LiveKitCredentials | null;
 }
 
 export interface ApiRequestLog {
@@ -132,6 +138,7 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
   const apiLimiter = new SlidingWindowRateLimiter(300, 60_000);
   const hazardCreateLimiter = new SlidingWindowRateLimiter(10, 10 * 60_000);
   const allowedOrigins = new Set(options.allowedOrigins ?? []);
+  const liveKitCredentials = 'liveKitCredentials' in options ? options.liveKitCredentials : getLiveKitCredentialsFromEnv();
   return http.createServer(async (req, res) => {
     const startedAt = Date.now();
     const id = requestId(req);
@@ -189,6 +196,28 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
         return sendJson(res, 200, { inZoneWith: presenceStore.ridersInZoneWith(actorId, zonePairs), transitions: transitions.filter((t) => t.a === actorId || t.b === actorId), radiusMiles: rider.radiusMiles });
       }
       if (req.method === 'DELETE' && url.pathname === '/presence') { presenceStore.removeRider(actorId); return sendJson(res, 200, {}); }
+      if (req.method === 'POST' && url.pathname === '/voice/token') {
+        if (!liveKitCredentials) return sendJson(res, 503, { error: 'voice_not_configured' });
+        const body = await readJsonBody(req);
+        if (body.target === 'ride') {
+          if (typeof body.rideId !== 'string') return sendJson(res, 400, { error: 'rideId is required' });
+          const result = rideStore.getRideForMember(body.rideId, actorId);
+          if (!result.ok) return sendJson(res, result.reason === 'not_found' ? 404 : 403, { error: result.reason });
+          const voiceToken = await mintVoiceToken(liveKitCredentials, actorId, rideRoomName(result.ride.id));
+          return sendJson(res, 200, voiceToken);
+        }
+        if (body.target === 'channel') {
+          // The room is derived from the rider's OWN last-known presence
+          // location, never a client-supplied bucket — otherwise anyone
+          // could request a token for an arbitrary public channel room
+          // regardless of where they actually are.
+          const rider = presenceStore.getRider(actorId);
+          if (!rider) return sendJson(res, 403, { error: 'location_sharing_disabled' });
+          const voiceToken = await mintVoiceToken(liveKitCredentials, actorId, channelRoomName(bucketId(getBucketCoord(rider.location))));
+          return sendJson(res, 200, voiceToken);
+        }
+        return sendJson(res, 400, { error: "target must be 'ride' or 'channel'" });
+      }
       const s = url.pathname.split('/').filter(Boolean);
       if (req.method === 'GET' && url.pathname === '/blocks') {
         return sendJson(res, 200, { blockedRiderIds: moderationStore.getBlocked(actorId) });

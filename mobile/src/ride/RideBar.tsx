@@ -1,16 +1,39 @@
 // Unverified scaffold — see navigation/index.tsx header note.
 //
-// TODO(native): the actual voice connection (LiveKit room join/publish/
-// subscribe) isn't wired in here — that needs livekit-react-native, a
-// running LiveKit server, and a real device, none of which this sandbox
-// has. This wires up the AudioEngine's priority/ducking state (real,
-// tested logic) around where that connection would plug in.
+// TODO(native): LiveKitRoom below establishes a real connection given a
+// real token/url and a real device — none of which this sandbox has (no
+// native build tooling, no running LiveKit deployment to point it at).
+// What IS wired up for real: fetching the token from the backend
+// (client.getRideVoiceToken, backend/src/liveKitToken.ts — that endpoint
+// is genuine and tested), and the AudioEngine priority/ducking state
+// around where the connection plugs in. `audio: true` publishes the mic
+// immediately on connect — the actual VOX gate (only transmit while
+// actually speaking) is the audioEngine.ts TODO, not something LiveKit
+// itself does; until that's wired in, connecting publishes an open mic.
 import * as React from 'react';
 import { View, Text, Pressable, StyleSheet, Modal, Alert } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { LiveKitRoom } from '@livekit/react-native';
 import { AudioEngine } from '../audio/audioEngine';
+import { useAuth } from '../auth/AuthContext';
 import { colors, spacing, radii, type, elevation, MIN_TOUCH_TARGET } from '../theme';
 import { useRide } from './RideContext';
+
+function useRideVoiceToken(rideId: string | undefined): { token?: string; url?: string; error?: string } {
+  const { client } = useAuth();
+  const [state, setState] = React.useState<{ token?: string; url?: string; error?: string }>({});
+
+  React.useEffect(() => {
+    if (!rideId) { setState({}); return; }
+    let cancelled = false;
+    client.getRideVoiceToken(rideId)
+      .then((res) => { if (!cancelled) setState({ token: res.token, url: res.url }); })
+      .catch((err) => { if (!cancelled) setState({ error: err instanceof Error ? err.message : 'Could not connect to voice' }); });
+    return () => { cancelled = true; };
+  }, [rideId, client]);
+
+  return state;
+}
 
 const CHANNELS: Array<{ key: 'nav' | 'chat' | 'music'; label: string; icon: keyof typeof Ionicons.glyphMap }> = [
   { key: 'nav', label: 'Navigation', icon: 'navigate' },
@@ -37,6 +60,9 @@ export function RideBar(): React.JSX.Element | null {
   const audioEngineRef = React.useRef(new AudioEngine());
   const [gains, setGains] = React.useState(audioEngineRef.current.getGains());
   const [talking, setTalking] = React.useState(false);
+  // Hooks run unconditionally, before the `!activeRide` early return below —
+  // the hook itself is a no-op (empty state) while there's no active ride.
+  const voice = useRideVoiceToken(activeRide?.rideId);
 
   React.useEffect(() => {
     return audioEngineRef.current.onGainsChanged(setGains);
@@ -71,6 +97,7 @@ export function RideBar(): React.JSX.Element | null {
         <Ionicons name="chevron-up" size={18} color={colors.textSecondary} />
       </Pressable>
 
+      <LiveKitRoom serverUrl={voice.url} token={voice.token} audio connect={Boolean(voice.token && voice.url)}>
       <Modal visible={expanded} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setExpanded(false)}>
         <View style={styles.sheet}>
           <View style={styles.sheetHeader}>
@@ -90,6 +117,7 @@ export function RideBar(): React.JSX.Element | null {
             </View>
           )}
           <Text style={styles.rideId}>Ride ID: {activeRide.rideId}</Text>
+          {voice.error && <Text style={styles.voiceError}>Voice: {voice.error}</Text>}
 
           <View style={styles.mixerCard}>
             <Text style={styles.mixerLabel}>Audio priority — nav overrides chat overrides music</Text>
@@ -123,6 +151,7 @@ export function RideBar(): React.JSX.Element | null {
           </Pressable>
         </View>
       </Modal>
+      </LiveKitRoom>
     </>
   );
 }
@@ -160,6 +189,7 @@ const styles = StyleSheet.create({
   codeLabel: { ...type.caption },
   codeValue: { fontSize: 32, fontWeight: '800', letterSpacing: 6, color: colors.accent, marginTop: spacing.xs },
   rideId: { ...type.caption },
+  voiceError: { ...type.caption, color: colors.danger },
   mixerCard: { backgroundColor: colors.surface, padding: spacing.md, borderRadius: radii.lg, gap: spacing.md },
   mixerLabel: { ...type.caption, marginBottom: spacing.xs },
   gainRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },

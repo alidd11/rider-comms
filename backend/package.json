@@ -9,6 +9,7 @@
     "test": "node --experimental-strip-types --test tests/*.test.ts"
   },
   "dependencies": {
-    "@rider-comms/shared": "*"
+    "@rider-comms/shared": "*",
+    "livekit-server-sdk": "^2.19.0"
   }
 }

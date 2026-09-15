@@ -167,3 +167,32 @@ describe('RiderCommsClient.scenicRoutes', () => {
     await client.listScenicRoutes();
   });
 });
+
+describe('RiderCommsClient.voice', () => {
+  it('getRideVoiceToken POSTs the ride target and id', async () => {
+    const client = new RiderCommsClient(
+      'http://example.test',
+      fakeFetch((url, init) => {
+        assert.equal(url, 'http://example.test/voice/token');
+        assert.deepEqual(JSON.parse(init.body as string), { target: 'ride', rideId: 'ride1' });
+        return { status: 200, body: { token: 'a.b.c', url: 'wss://example.livekit.cloud' } };
+      })
+    );
+    const result = await client.getRideVoiceToken('ride1');
+    assert.equal(result.token, 'a.b.c');
+    assert.equal(result.url, 'wss://example.livekit.cloud');
+  });
+
+  it('getChannelVoiceToken POSTs the channel target with no id', async () => {
+    const client = new RiderCommsClient(
+      'http://example.test',
+      fakeFetch((url, init) => {
+        assert.equal(url, 'http://example.test/voice/token');
+        assert.deepEqual(JSON.parse(init.body as string), { target: 'channel' });
+        return { status: 200, body: { token: 'x.y.z', url: 'wss://example.livekit.cloud' } };
+      })
+    );
+    const result = await client.getChannelVoiceToken();
+    assert.equal(result.token, 'x.y.z');
+  });
+});
