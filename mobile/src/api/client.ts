@@ -1,4 +1,20 @@
-import type { DirectMessage, FriendRequest, FriendSummary, Hideout, ProfileUpdate, RiderProfile } from '@rider-comms/shared';
+import type {
+  DirectMessage,
+  Difficulty,
+  FriendRequest,
+  FriendSummary,
+  HazardReport,
+  HazardType,
+  Hideout,
+  ProfileUpdate,
+  RiderProfile,
+  RoadType,
+  ScenicRoute,
+  VehicleCategory,
+} from '@rider-comms/shared';
+
+export type ScenicRouteInput = Omit<ScenicRoute, 'id' | 'createdBy' | 'createdAt'>;
+export interface ScenicRouteFilters { vehicleCategory?: VehicleCategory; roadType?: RoadType; maxDifficulty?: Difficulty }
 
 export interface GuestSession { riderId: string; token: string }
 export interface CreateRideResponse { rideId: string; code: string; expiresAt: number; createdBy: string; memberIds: string[] }
@@ -56,4 +72,20 @@ export class RiderCommsClient {
   createHideout(name: string, lat: number, lon: number, participantIds: string[]): Promise<Hideout> { return this.request('POST', '/hideouts', { name, lat, lon, participantIds }); }
   getHideouts(id: string): Promise<{ hideouts: Hideout[] }> { return this.request('GET', `/riders/${encodeURIComponent(id)}/hideouts`); }
   deleteHideout(id: string): Promise<Record<string, never>> { return this.request('DELETE', `/hideouts/${encodeURIComponent(id)}`); }
+  createHazard(type: HazardType, lat: number, lon: number): Promise<HazardReport> { return this.request('POST', '/hazards', { type, lat, lon }); }
+  getNearbyHazards(lat: number, lon: number): Promise<{ hazards: HazardReport[] }> { return this.request('GET', `/hazards/nearby?lat=${lat}&lon=${lon}`); }
+  confirmHazard(id: string): Promise<Record<string, never>> { return this.request('POST', `/hazards/${encodeURIComponent(id)}/confirm`, {}); }
+  denyHazard(id: string): Promise<Record<string, never>> { return this.request('POST', `/hazards/${encodeURIComponent(id)}/deny`, {}); }
+  deleteHazard(id: string): Promise<Record<string, never>> { return this.request('DELETE', `/hazards/${encodeURIComponent(id)}`); }
+  createScenicRoute(input: ScenicRouteInput): Promise<ScenicRoute> { return this.request('POST', '/scenic-routes', input); }
+  listScenicRoutes(filters: ScenicRouteFilters = {}): Promise<{ routes: ScenicRoute[] }> {
+    const params = new URLSearchParams();
+    if (filters.vehicleCategory) params.set('vehicleCategory', filters.vehicleCategory);
+    if (filters.roadType) params.set('roadType', filters.roadType);
+    if (filters.maxDifficulty) params.set('maxDifficulty', filters.maxDifficulty);
+    const query = params.toString();
+    return this.request('GET', `/scenic-routes${query ? `?${query}` : ''}`);
+  }
+  getScenicRoute(id: string): Promise<ScenicRoute> { return this.request('GET', `/scenic-routes/${encodeURIComponent(id)}`); }
+  deleteScenicRoute(id: string): Promise<Record<string, never>> { return this.request('DELETE', `/scenic-routes/${encodeURIComponent(id)}`); }
 }

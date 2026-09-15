@@ -73,3 +73,97 @@ describe('RiderCommsClient.updatePresence', () => {
     assert.equal(result.transitions[0].type, 'entered');
   });
 });
+
+describe('RiderCommsClient.hazards', () => {
+  it('createHazard POSTs the type and coordinates', async () => {
+    const client = new RiderCommsClient(
+      'http://example.test',
+      fakeFetch((url, init) => {
+        assert.equal(url, 'http://example.test/hazards');
+        assert.deepEqual(JSON.parse(init.body as string), { type: 'police', lat: 1, lon: 2 });
+        return { status: 201, body: { id: 'h1', type: 'police', lat: 1, lon: 2, reportedBy: 'me', createdAt: 0, expiresAt: 1, confirmations: 0, denials: 0 } };
+      })
+    );
+    const result = await client.createHazard('police', 1, 2);
+    assert.equal(result.id, 'h1');
+  });
+
+  it('getNearbyHazards GETs with lat/lon query params', async () => {
+    const client = new RiderCommsClient(
+      'http://example.test',
+      fakeFetch((url) => {
+        assert.equal(url, 'http://example.test/hazards/nearby?lat=1&lon=2');
+        return { status: 200, body: { hazards: [] } };
+      })
+    );
+    const result = await client.getNearbyHazards(1, 2);
+    assert.deepEqual(result.hazards, []);
+  });
+
+  it('confirmHazard and denyHazard POST to the right path', async () => {
+    const client = new RiderCommsClient(
+      'http://example.test',
+      fakeFetch((url) => {
+        assert.equal(url, 'http://example.test/hazards/h1/confirm');
+        return { status: 200, body: {} };
+      })
+    );
+    await client.confirmHazard('h1');
+  });
+});
+
+describe('RiderCommsClient.scenicRoutes', () => {
+  const routeInput = {
+    name: 'Coastal loop',
+    description: 'A scenic coastal ride.',
+    vehicleSuitability: ['motorcycle_large' as const],
+    roadType: 'coastal' as const,
+    distanceMiles: 40,
+    estimatedDurationMinutes: 90,
+    difficulty: 'moderate' as const,
+    surfaceQuality: 'good' as const,
+    avoidsTolls: true,
+    avoidsMotorways: false,
+    scenicRating: 5 as const,
+    safetyNotices: ['Narrow shoulder in places.'],
+    startLat: 1,
+    startLon: 2,
+    endLat: 3,
+    endLon: 4,
+  };
+
+  it('createScenicRoute POSTs the full input', async () => {
+    const client = new RiderCommsClient(
+      'http://example.test',
+      fakeFetch((url, init) => {
+        assert.equal(url, 'http://example.test/scenic-routes');
+        assert.deepEqual(JSON.parse(init.body as string), routeInput);
+        return { status: 201, body: { ...routeInput, id: 'r1', createdBy: 'me', createdAt: 0 } };
+      })
+    );
+    const result = await client.createScenicRoute(routeInput);
+    assert.equal(result.id, 'r1');
+  });
+
+  it('listScenicRoutes builds a query string only for provided filters', async () => {
+    const client = new RiderCommsClient(
+      'http://example.test',
+      fakeFetch((url) => {
+        assert.equal(url, 'http://example.test/scenic-routes?vehicleCategory=motorcycle_large');
+        return { status: 200, body: { routes: [] } };
+      })
+    );
+    await client.listScenicRoutes({ vehicleCategory: 'motorcycle_large' });
+  });
+
+  it('listScenicRoutes with no filters omits the query string', async () => {
+    const client = new RiderCommsClient(
+      'http://example.test',
+      fakeFetch((url) => {
+        assert.equal(url, 'http://example.test/scenic-routes');
+        return { status: 200, body: { routes: [] } };
+      })
+    );
+    await client.listScenicRoutes();
+  });
+});

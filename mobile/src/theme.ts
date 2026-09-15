@@ -18,6 +18,7 @@ export const colors = {
   success: '#3DD68C',
   danger: '#FF5A5F',
   dangerSurface: '#2B1416',
+  warning: '#FFC15A',
   asphalt: '#12151A',
   laneLine: '#3A4048',
 } as const;

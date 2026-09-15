@@ -1,0 +1,99 @@
+import { describe, it } from 'node:test';
+import assert from 'node:assert/strict';
+import { isSearchQueryValid, searchPlaces } from '../src/api/places.ts';
+
+function fakeFetch(handler: (url: string, init: RequestInit) => { status: number; body: unknown }): typeof fetch {
+  return (async (url: string, init: RequestInit) => {
+    const { status, body } = handler(url, init);
+    return { ok: status >= 200 && status < 300, status, json: async () => body } as Response;
+  }) as typeof fetch;
+}
+
+describe('isSearchQueryValid', () => {
+  it('rejects empty or whitespace-only queries', () => {
+    assert.equal(isSearchQueryValid(''), false);
+    assert.equal(isSearchQueryValid('   '), false);
+  });
+
+  it('accepts a normal query', () => {
+    assert.equal(isSearchQueryValid('gas station'), true);
+  });
+
+  it('rejects a query over the length limit', () => {
+    assert.equal(isSearchQueryValid('a'.repeat(201)), false);
+  });
+});
+
+describe('searchPlaces', () => {
+  const near = { lat: 51.5, lon: -0.1 };
+
+  it('returns an empty array without calling the network when no API key is set', async () => {
+    let called = false;
+    const fetchImpl = (async () => {
+      called = true;
+      return { ok: true, json: async () => ({}) } as Response;
+    }) as typeof fetch;
+
+    const results = await searchPlaces('coffee', near, '', fetchImpl);
+    assert.deepEqual(results, []);
+    assert.equal(called, false);
+  });
+
+  it('returns an empty array for an invalid query even with a key set', async () => {
+    const results = await searchPlaces('   ', near, 'test-key', fakeFetch(() => ({ status: 200, body: {} })));
+    assert.deepEqual(results, []);
+  });
+
+  it('sends the query, key, and location bias, and maps the response', async () => {
+    const results = await searchPlaces(
+      'coffee shop',
+      near,
+      'test-key',
+      fakeFetch((url, init) => {
+        assert.equal(url, 'https://places.googleapis.com/v1/places:searchText');
+        assert.equal((init.headers as Record<string, string>)['X-Goog-Api-Key'], 'test-key');
+        const body = JSON.parse(init.body as string);
+        assert.equal(body.textQuery, 'coffee shop');
+        assert.deepEqual(body.locationBias.circle.center, { latitude: 51.5, longitude: -0.1 });
+        return {
+          status: 200,
+          body: {
+            places: [
+              {
+                id: 'place1',
+                displayName: { text: 'Corner Coffee' },
+                formattedAddress: '1 High St',
+                location: { latitude: 51.51, longitude: -0.11 },
+              },
+            ],
+          },
+        };
+      })
+    );
+
+    assert.deepEqual(results, [{ id: 'place1', name: 'Corner Coffee', address: '1 High St', lat: 51.51, lon: -0.11 }]);
+  });
+
+  it('skips results missing a location and never throws on a bad response', async () => {
+    const results = await searchPlaces(
+      'coffee',
+      near,
+      'test-key',
+      fakeFetch(() => ({ status: 200, body: { places: [{ id: 'no-loc', displayName: { text: 'No Location' } }] } }))
+    );
+    assert.deepEqual(results, []);
+  });
+
+  it('returns an empty array on a non-2xx response instead of throwing', async () => {
+    const results = await searchPlaces('coffee', near, 'test-key', fakeFetch(() => ({ status: 403, body: {} })));
+    assert.deepEqual(results, []);
+  });
+
+  it('returns an empty array if the fetch implementation throws', async () => {
+    const throwingFetch = (async () => {
+      throw new Error('network down');
+    }) as typeof fetch;
+    const results = await searchPlaces('coffee', near, 'test-key', throwingFetch);
+    assert.deepEqual(results, []);
+  });
+});

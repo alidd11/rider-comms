@@ -11,7 +11,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="app.css?v=12">
+  <link rel="stylesheet" href="app.css?v=13">
   <title>Rider Comms</title>
 </head>
 <body>
@@ -30,6 +30,8 @@
     <symbol id="i-units" viewBox="0 0 24 24"><path d="M4 7h16M7 4 4 7l3 3m10-6 3 3-3 3M4 17h16m-3-3 3 3-3 3M7 14l-3 3 3 3"/></symbol>
     <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 16.5h12l-1.5-2.2V10a4.5 4.5 0 0 0-9 0v4.3L6 16.5Z"/><path d="M10 19h4"/></symbol>
     <symbol id="i-reset" viewBox="0 0 24 24"><path d="M4 8V3m0 0h5M4 3l3.4 3.4A8 8 0 1 1 4.7 15"/></symbol>
+    <symbol id="i-route" viewBox="0 0 24 24"><path d="M6 3v18M6 4h10l-3 4 3 4H6"/></symbol>
+    <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 3.5 14.5 9l6 .8-4.3 4.1 1 5.9L12 17l-5.2 2.8 1-5.9L3.5 9.8l6-.8Z"/></symbol>
   </defs></svg>
 
   <div id="app" class="app-shell">
@@ -40,13 +42,17 @@
           <div class="fallback-map" id="fallbackMap"><div class="road road-a"></div><div class="road road-b"></div><div class="road road-c"></div></div>
           <h1 id="mapTitle" class="sr-only">North London rider map</h1>
           <header class="map-header"><div class="map-context glass"><svg><use href="#i-location"/></svg><span><small>Current area</small><strong>North London</strong></span></div><button class="avatar avatar-sm" data-avatar="AI" aria-label="Open profile">AI</button></header>
+          <div class="search-slot glass"><svg><use href="#i-search"/></svg><input id="placeSearchInput" placeholder="Search for a place" autocomplete="off"></div>
           <div class="map-status glass" aria-live="polite"><span class="live-dot"></span><span id="mapStatusText">Location sharing off</span></div>
           <div id="fallbackMarkers" class="fallback-markers"></div>
+          <div id="hazardMarkers" class="hazard-markers"></div>
+          <button id="reportHazardBtn" class="icon-button glass report-button" aria-label="Report on the road"><svg><use href="#i-shield"/></svg></button>
           <div class="map-actions">
             <button id="locateBtn" class="icon-button glass" aria-label="Centre on my location"><svg><use href="#i-location"/></svg></button>
             <button id="joinNearbyBtn" class="primary-fab" aria-label="Join nearby riders"><span class="live-dot dark"></span><span>Go live</span></button>
           </div>
           <article id="riderCard" class="rider-card glass" hidden></article>
+          <article id="hazardCard" class="rider-card glass" hidden></article>
           <div id="mapError" class="map-error" hidden><strong>Map unavailable</strong><span>The rider view is still available. Check the map key or connection.</span></div>
         </div>
       </section>
@@ -67,6 +73,15 @@
             <div id="rideRoster" class="people-list"></div>
             <div class="ride-actions-row"><button id="openRideMap" class="button secondary">View on map</button><button id="leaveRideBtn" class="button danger">End ride</button></div>
           </div>
+        </div>
+      </section>
+
+      <section class="screen content-screen" data-screen="routes" aria-labelledby="routesTitle">
+        <div class="page-width">
+          <header class="page-header"><div><span class="eyebrow">Rider-curated</span><h1 id="routesTitle">Scenic Routes</h1><p class="page-subtitle">Not yet reviewed by Rider Comms — only ride routes you can vouch for yourself.</p></div><button class="icon-button" id="addRouteBtn" aria-label="Add a route"><svg><use href="#i-share"/></svg></button></header>
+          <div class="chip-row" id="routeVehicleFilters"></div>
+          <div id="routeEmpty" class="empty-state" hidden><div class="hero-icon"><svg><use href="#i-route"/></svg></div><h2>No routes yet</h2><p>Be the first to add a scenic route for other riders to discover.</p></div>
+          <div id="routeList" class="route-list"></div>
         </div>
       </section>
 
@@ -97,6 +112,7 @@
       <nav class="bottom-nav" aria-label="Primary navigation">
         <button class="active" data-nav="map"><svg><use href="#i-map"/></svg><span>Map</span></button>
         <button data-nav="ride"><svg><use href="#i-ride"/></svg><span>Ride</span></button>
+        <button data-nav="routes"><svg><use href="#i-route"/></svg><span>Routes</span></button>
         <button data-nav="friends"><svg><use href="#i-friends"/></svg><span>Friends</span><i>1</i></button>
         <button data-nav="settings"><svg><use href="#i-settings"/></svg><span>Settings</span></button>
       </nav>
@@ -107,7 +123,7 @@
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
   <div id="updateBanner" class="update-banner" hidden><span>A new Rider Comms version is ready.</span><button id="reloadApp">Update now</button></div>
   <noscript>Rider Comms requires JavaScript.</noscript>
-  <script src="config.js?v=12"></script>
-  <script src="app.js?v=12" defer></script>
+  <script src="config.js?v=13"></script>
+  <script src="app.js?v=13" defer></script>
 </body>
 </html>
