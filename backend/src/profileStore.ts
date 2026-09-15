@@ -1,4 +1,5 @@
 import type { ProfileUpdate, RiderProfile, UnitSystem, ZoneTier } from '@rider-comms/shared';
+import { ensureMigrated, getPool } from './db.ts';
 
 const ZONE_TIERS: ZoneTier[] = ['free', 'premium', 'premium_plus'];
 const UNIT_SYSTEMS: UnitSystem[] = ['mi', 'km'];
@@ -63,14 +64,51 @@ export function validateProfileUpdate(body: Record<string, unknown>): string | n
   return null;
 }
 
+interface RiderProfileRow {
+  rider_id: string;
+  display_name: string;
+  handle: string;
+  avatar_id: string;
+  zone_tier: string;
+  unit_system: string;
+  notify_nearby: boolean;
+  notify_invites: boolean;
+  notify_chat: boolean;
+  share_location: boolean;
+  instagram_username: string;
+  instagram_visibility: string;
+  tiktok_username: string;
+  tiktok_visibility: string;
+  updated_at: string | number;
+}
+
+function rowToProfile(row: RiderProfileRow): RiderProfile {
+  return {
+    riderId: row.rider_id,
+    displayName: row.display_name,
+    handle: row.handle,
+    avatarId: row.avatar_id,
+    zoneTier: row.zone_tier as ZoneTier,
+    unitSystem: row.unit_system as UnitSystem,
+    notifyNearby: row.notify_nearby,
+    notifyInvites: row.notify_invites,
+    notifyChat: row.notify_chat,
+    shareLocation: row.share_location,
+    instagramUsername: row.instagram_username,
+    instagramVisibility: row.instagram_visibility as RiderProfile['instagramVisibility'],
+    tiktokUsername: row.tiktok_username,
+    tiktokVisibility: row.tiktok_visibility as RiderProfile['tiktokVisibility'],
+    updatedAt: Number(row.updated_at),
+  };
+}
+
 /**
  * Rider-level account settings (there's no separate signup flow in this
  * prototype, so the first read of any riderId lazily creates a default
- * profile — that's effectively account creation).
+ * profile — that's effectively account creation), persisted in Postgres
+ * (see db.ts).
  */
 export class ProfileStore {
-  private profiles = new Map<string, RiderProfile>();
-
   private makeDefault(riderId: string): RiderProfile {
     return {
       riderId,
@@ -91,35 +129,80 @@ export class ProfileStore {
     };
   }
 
+  private async upsert(profile: RiderProfile): Promise<void> {
+    await getPool().query(
+      `INSERT INTO rider_profiles (
+         rider_id, display_name, handle, avatar_id, zone_tier, unit_system,
+         notify_nearby, notify_invites, notify_chat, share_location,
+         instagram_username, instagram_visibility, tiktok_username, tiktok_visibility, updated_at
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+       ON CONFLICT (rider_id) DO UPDATE SET
+         display_name = EXCLUDED.display_name,
+         handle = EXCLUDED.handle,
+         avatar_id = EXCLUDED.avatar_id,
+         zone_tier = EXCLUDED.zone_tier,
+         unit_system = EXCLUDED.unit_system,
+         notify_nearby = EXCLUDED.notify_nearby,
+         notify_invites = EXCLUDED.notify_invites,
+         notify_chat = EXCLUDED.notify_chat,
+         share_location = EXCLUDED.share_location,
+         instagram_username = EXCLUDED.instagram_username,
+         instagram_visibility = EXCLUDED.instagram_visibility,
+         tiktok_username = EXCLUDED.tiktok_username,
+         tiktok_visibility = EXCLUDED.tiktok_visibility,
+         updated_at = EXCLUDED.updated_at`,
+      [
+        profile.riderId,
+        profile.displayName,
+        profile.handle,
+        profile.avatarId,
+        profile.zoneTier,
+        profile.unitSystem,
+        profile.notifyNearby,
+        profile.notifyInvites,
+        profile.notifyChat,
+        profile.shareLocation,
+        profile.instagramUsername,
+        profile.instagramVisibility,
+        profile.tiktokUsername,
+        profile.tiktokVisibility,
+        profile.updatedAt,
+      ]
+    );
+  }
+
   /** Returns the rider's profile, creating a default one if this riderId
    * has never been seen before. */
-  getOrCreate(riderId: string): RiderProfile {
-    let profile = this.profiles.get(riderId);
-    if (!profile) {
-      profile = this.makeDefault(riderId);
-      this.profiles.set(riderId, profile);
-    }
+  async getOrCreate(riderId: string): Promise<RiderProfile> {
+    await ensureMigrated();
+    const { rows } = await getPool().query<RiderProfileRow>('SELECT * FROM rider_profiles WHERE rider_id = $1', [riderId]);
+    if (rows[0]) return rowToProfile(rows[0]);
+    const profile = this.makeDefault(riderId);
+    await this.upsert(profile);
     return profile;
   }
 
   /** Validates `update` and, if valid, merges it into the rider's profile
    * (creating one with defaults first if needed), bumping `updatedAt`. */
-  update(riderId: string, update: ProfileUpdate & Record<string, unknown>): ProfileUpdateResult {
+  async update(riderId: string, update: ProfileUpdate & Record<string, unknown>): Promise<ProfileUpdateResult> {
     const error = validateProfileUpdate(update);
     if (error) {
       return { ok: false, error };
     }
 
-    const current = this.getOrCreate(riderId);
+    const current = await this.getOrCreate(riderId);
     const next: RiderProfile = {
       ...current,
       ...(update as ProfileUpdate),
       riderId,
       updatedAt: Date.now(),
     };
-    this.profiles.set(riderId, next);
+    await this.upsert(next);
     return { ok: true, profile: next };
   }
 
-  delete(riderId: string): void { this.profiles.delete(riderId); }
+  async delete(riderId: string): Promise<void> {
+    await ensureMigrated();
+    await getPool().query('DELETE FROM rider_profiles WHERE rider_id = $1', [riderId]);
+  }
 }

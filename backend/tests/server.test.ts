@@ -6,19 +6,21 @@ import { parseAllowedOrigins } from '../src/server.ts';
 import type { ApiRequestLog } from '../src/server.ts';
 
 // DELETE /auth/me cascades into every Postgres-backed store's deleteRider()
-// (see db.ts) — that one test needs DATABASE_URL pointing at a reachable
-// Postgres instance and is skipped otherwise, rather than failing every run
-// in a sandbox with no database.
+// (see db.ts); profileStore/rideStore/presenceStore are now Postgres-backed
+// too — every test in this block that touches one of them needs
+// DATABASE_URL pointing at a reachable Postgres instance and is skipped
+// otherwise, rather than failing every run in a sandbox with no database.
 const hasDatabase = Boolean(process.env.DATABASE_URL);
+const needsDb = { skip: !hasDatabase && 'DATABASE_URL not set; skipping Postgres-backed test' };
 
 describe('authenticated API', () => {
   let ctx: TestServer; before(async () => { ctx = startTestServer(); await ctx.ready; }); after(() => ctx.close());
   it('keeps health public and protects product endpoints', async () => { assert.equal((await fetch(`${ctx.baseUrl()}/health`)).status, 200); assert.equal((await fetch(`${ctx.baseUrl()}/rides`, { method: 'POST' })).status, 401); });
-  it('creates guest identities', async () => { const res = await fetch(`${ctx.baseUrl()}/auth/guest`, { method: 'POST' }); assert.equal(res.status, 201); const session = await res.json() as { riderId: string; token: string }; assert.match(session.riderId, /^rider_[a-z2-9]{8}$/); const me = await fetch(`${ctx.baseUrl()}/auth/me`, { headers: { Authorization: `Bearer ${session.token}` } }); assert.deepEqual(await me.json(), { riderId: session.riderId }); });
+  it('creates guest identities', needsDb, async () => { const res = await fetch(`${ctx.baseUrl()}/auth/guest`, { method: 'POST' }); assert.equal(res.status, 201); const session = await res.json() as { riderId: string; token: string }; assert.match(session.riderId, /^rider_[a-z2-9]{8}$/); const me = await fetch(`${ctx.baseUrl()}/auth/me`, { headers: { Authorization: `Bearer ${session.token}` } }); assert.deepEqual(await me.json(), { riderId: session.riderId }); });
   it('logs out and revokes the current token', async () => { const session = ctx.authStore.createTestSession('logout-me'); const headers = { Authorization: `Bearer ${session.token}` }; assert.equal((await fetch(`${ctx.baseUrl()}/auth/logout`, { method: 'POST', headers })).status, 204); assert.equal((await fetch(`${ctx.baseUrl()}/auth/me`, { headers })).status, 401); });
-  it('deletes an account and revokes its token', { skip: !hasDatabase && 'DATABASE_URL not set; skipping Postgres-backed account deletion test' }, async () => { const session = ctx.authStore.createTestSession('delete-me'); const headers = { Authorization: `Bearer ${session.token}` }; assert.equal((await fetch(`${ctx.baseUrl()}/auth/me`, { method: 'DELETE', headers })).status, 200); assert.equal((await fetch(`${ctx.baseUrl()}/auth/me`, { headers })).status, 401); assert.equal(await ctx.authStore.hasRider('delete-me'), false); });
-  it('supports the private ride lifecycle', async () => { const made = await postJson(ctx, 'host', '/rides', {}); const ride = await made.json() as { rideId: string; code: string }; assert.equal((await postJson(ctx, 'member', '/rides/join', { code: ride.code })).status, 200); assert.equal((await authenticatedFetch(ctx, 'member', `/rides/${ride.rideId}/members/host`, { method: 'DELETE' })).status, 403); assert.equal((await authenticatedFetch(ctx, 'host', `/rides/${ride.rideId}`, { method: 'DELETE' })).status, 200); });
-  it('uses server profile radius and enforces location privacy', async () => { assert.equal((await postJson(ctx, 'private', '/presence', { lat: 51.5, lon: -0.1 })).status, 403); ctx.profileStore.update('near', { shareLocation: true }); const res = await postJson(ctx, 'near', '/presence', { lat: 51.5, lon: -0.1, radiusMiles: 999 }); assert.equal((await res.json() as { radiusMiles: number }).radiusMiles, 1); });
+  it('deletes an account and revokes its token', needsDb, async () => { const session = ctx.authStore.createTestSession('delete-me'); const headers = { Authorization: `Bearer ${session.token}` }; assert.equal((await fetch(`${ctx.baseUrl()}/auth/me`, { method: 'DELETE', headers })).status, 200); assert.equal((await fetch(`${ctx.baseUrl()}/auth/me`, { headers })).status, 401); assert.equal(await ctx.authStore.hasRider('delete-me'), false); });
+  it('supports the private ride lifecycle', needsDb, async () => { const made = await postJson(ctx, 'host', '/rides', {}); const ride = await made.json() as { rideId: string; code: string }; assert.equal((await postJson(ctx, 'member', '/rides/join', { code: ride.code })).status, 200); assert.equal((await authenticatedFetch(ctx, 'member', `/rides/${ride.rideId}/members/host`, { method: 'DELETE' })).status, 403); assert.equal((await authenticatedFetch(ctx, 'host', `/rides/${ride.rideId}`, { method: 'DELETE' })).status, 200); });
+  it('uses server profile radius and enforces location privacy', needsDb, async () => { assert.equal((await postJson(ctx, 'private', '/presence', { lat: 51.5, lon: -0.1 })).status, 403); await ctx.profileStore.update('near', { shareLocation: true }); const res = await postJson(ctx, 'near', '/presence', { lat: 51.5, lon: -0.1, radiusMiles: 999 }); assert.equal((await res.json() as { radiusMiles: number }).radiusMiles, 1); });
 });
 
 describe('production HTTP boundary', () => {

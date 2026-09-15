@@ -5,6 +5,13 @@ import type { TestServer } from './httpTestUtils.ts';
 
 const FAKE_CREDS = { apiKey: 'fake-key', apiSecret: 'fake-secret-at-least-32-bytes-long!!', url: 'wss://example.livekit.cloud' };
 
+// rideStore and presenceStore/profileStore are Postgres-backed (see db.ts)
+// — every test below that creates a ride or touches presence needs
+// DATABASE_URL pointing at a reachable Postgres instance and is skipped
+// otherwise, rather than failing every run in a sandbox with no database.
+const hasDatabase = Boolean(process.env.DATABASE_URL);
+const needsDb = { skip: !hasDatabase && 'DATABASE_URL not set; skipping Postgres-backed test' };
+
 describe('POST /voice/token', () => {
   it('returns 503 when LiveKit credentials are not configured', async () => {
     const ctx = startTestServer({ liveKitCredentials: null });
@@ -20,7 +27,7 @@ describe('POST /voice/token', () => {
     before(async () => { ctx = startTestServer({ liveKitCredentials: FAKE_CREDS }); await ctx.ready; });
     after(() => ctx.close());
 
-    it('mints a ride token only for an actual member of that ride', async () => {
+    it('mints a ride token only for an actual member of that ride', needsDb, async () => {
       const created = await (await postJson(ctx, 'host', '/rides', {})).json() as { rideId: string };
 
       const memberRes = await postJson(ctx, 'host', '/voice/token', { target: 'ride', rideId: created.rideId });
@@ -36,12 +43,12 @@ describe('POST /voice/token', () => {
       assert.equal(missingRes.status, 404);
     });
 
-    it("mints a channel token from the rider's own presence, and refuses without one", async () => {
+    it("mints a channel token from the rider's own presence, and refuses without one", needsDb, async () => {
       const noPresenceRes = await postJson(ctx, 'alice', '/voice/token', { target: 'channel' });
       assert.equal(noPresenceRes.status, 403);
       assert.deepEqual(await noPresenceRes.json(), { error: 'location_sharing_disabled' });
 
-      ctx.profileStore.update('alice', { shareLocation: true });
+      await ctx.profileStore.update('alice', { shareLocation: true });
       await postJson(ctx, 'alice', '/presence', { lat: 51.5, lon: -0.1 });
       const res = await postJson(ctx, 'alice', '/voice/token', { target: 'channel' });
       assert.equal(res.status, 200);
