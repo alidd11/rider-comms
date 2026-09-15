@@ -521,7 +521,7 @@
       safety: () => ({ title: 'Safety & privacy', body: `<h3>Designed for low distraction</h3><p class="secondary">Posting, profile editing and other visual tasks should be completed while stationary. Location sharing is off by default and can be stopped at any time.</p><h3>Emergency awareness</h3><p class="secondary">Rider Comms is not an emergency service. Always follow local road rules and use your vehicle controls safely.</p>` }),
       addRoute: () => ({
         title: 'Add a scenic route',
-        body: `<p class="caption">This isn't reviewed by Rider Comms yet — only enter routes and safety notes you can vouch for yourself.</p>
+        body: `<p class="caption">Only add routes and safety notes you can vouch for yourself.</p>
           <div class="form-field"><label for="routeName">Route name</label><input id="routeName" maxlength="80"></div>
           <div class="form-field"><label for="routeDescription">Description</label><textarea id="routeDescription" maxlength="500" rows="3"></textarea></div>
           <div class="form-field"><label>Vehicle suitability</label><div class="chip-row" id="routeVehicleChips">${VEHICLE_FILTER_ORDER.map((v) => `<button type="button" class="chip" data-vehicle="${v}">${escapeHtml(VEHICLE_LABELS[v])}</button>`).join('')}</div></div>
