@@ -8,8 +8,15 @@
       "distribution": "internal",
       "android": {
         "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://backend-production-7fa0.up.railway.app"
       }
     },
-    "production": {}
+    "production": {
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://backend-production-7fa0.up.railway.app"
+      }
+    }
   }
 }
