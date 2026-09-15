@@ -15,9 +15,31 @@ import { View, Text, Pressable, StyleSheet, Modal, Alert } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LiveKitRoom } from '@livekit/react-native';
 import { AudioEngine } from '../audio/audioEngine';
+import { startVoiceAudioSession, stopVoiceAudioSession } from '../audio/audioSession';
 import { useAuth } from '../auth/AuthContext';
 import { colors, spacing, radii, type, elevation, MIN_TOUCH_TARGET } from '../theme';
 import { useRide } from './RideContext';
+
+/**
+ * Configures + starts the native audio session (device routing — see
+ * audioSession.ts) as soon as a ride is active, and stops it on leave.
+ * Must run before LiveKitRoom's `connect` flips true, which is why this
+ * fires on `active` (the ride existing) rather than waiting on the voice
+ * token to resolve — the token fetch and the audio session setup happen
+ * in parallel, not one after the other.
+ */
+function useVoiceAudioSession(active: boolean): void {
+  React.useEffect(() => {
+    if (!active) return;
+    let stopped = false;
+    void startVoiceAudioSession().catch(() => {}); // best-effort: a session-config failure shouldn't block the rest of the ride UI
+    return () => {
+      if (stopped) return;
+      stopped = true;
+      void stopVoiceAudioSession().catch(() => {});
+    };
+  }, [active]);
+}
 
 function useRideVoiceToken(rideId: string | undefined): { token?: string; url?: string; error?: string } {
   const { client } = useAuth();
@@ -63,6 +85,7 @@ export function RideBar(): React.JSX.Element | null {
   // Hooks run unconditionally, before the `!activeRide` early return below —
   // the hook itself is a no-op (empty state) while there's no active ride.
   const voice = useRideVoiceToken(activeRide?.rideId);
+  useVoiceAudioSession(Boolean(activeRide));
 
   React.useEffect(() => {
     return audioEngineRef.current.onGainsChanged(setGains);
