@@ -137,6 +137,12 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
   const guestLimiter = new SlidingWindowRateLimiter(20, 60_000);
   const apiLimiter = new SlidingWindowRateLimiter(300, 60_000);
   const hazardCreateLimiter = new SlidingWindowRateLimiter(10, 10 * 60_000);
+  // Resending a verification email is an authenticated rider spamming
+  // themselves (or, if their account is compromised, someone else) with
+  // outbound Resend sends — keep it well below Resend's own limits and
+  // far below apiLimiter's general 300/min so it can't become a way to
+  // rack up email-sending cost/abuse.
+  const resendVerificationLimiter = new SlidingWindowRateLimiter(3, 10 * 60_000);
   const allowedOrigins = new Set(options.allowedOrigins ?? []);
   const liveKitCredentials = 'liveKitCredentials' in options ? options.liveKitCredentials : getLiveKitCredentialsFromEnv();
   return http.createServer(async (req, res) => {
@@ -163,8 +169,8 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
       if (req.method === 'POST' && url.pathname === '/auth/signup') {
         if (!guestLimiter.tryConsume(address)) return sendJson(res, 429, { error: 'rate_limited' });
         const body = await readJsonBody(req);
-        const result = await authStore.signUp(body.username, body.password);
-        if ('error' in result) return sendJson(res, result.error === 'username_taken' ? 409 : 400, { error: result.error });
+        const result = await authStore.signUp(body.username, body.email, body.password);
+        if ('error' in result) return sendJson(res, result.error === 'username_taken' || result.error === 'email_taken' ? 409 : 400, { error: result.error });
         profileStore.getOrCreate(result.riderId);
         return sendJson(res, 201, result);
       }
@@ -176,9 +182,22 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
         profileStore.getOrCreate(result.riderId);
         return sendJson(res, 200, result);
       }
+      if (req.method === 'POST' && url.pathname === '/auth/verify-email') {
+        if (!guestLimiter.tryConsume(address)) return sendJson(res, 429, { error: 'rate_limited' });
+        const body = await readJsonBody(req);
+        const result = await authStore.verifyEmail(body.token);
+        if ('error' in result) return sendJson(res, result.error === 'invalid_token' ? 400 : 410, { error: result.error });
+        return sendJson(res, 200, result);
+      }
       const actorId = authRider(req, res, authStore); if (!actorId) return;
       if (!apiLimiter.tryConsume(actorId)) return sendJson(res, 429, { error: 'rate_limited' });
       if (req.method === 'GET' && url.pathname === '/auth/me') return sendJson(res, 200, { riderId: actorId });
+      if (req.method === 'POST' && url.pathname === '/auth/resend-verification') {
+        if (!resendVerificationLimiter.tryConsume(actorId)) { res.setHeader('Retry-After', '600'); return sendJson(res, 429, { error: 'rate_limited' }); }
+        const result = await authStore.resendVerification(actorId);
+        if ('error' in result) return sendJson(res, result.error === 'not_found' ? 404 : 409, { error: result.error });
+        return sendJson(res, 200, result);
+      }
       if (req.method === 'DELETE' && url.pathname === '/auth/me') {
         presenceStore.removeRider(actorId);
         rideStore.deleteRider(actorId);
