@@ -183,6 +183,7 @@
     window.scrollTo(0, 0);
     if (screen === 'map') renderMapRiders();
     if (screen === 'routes') renderRoutes();
+    nudgeBottomNavReflow();
   }
 
   function renderProfile() {
