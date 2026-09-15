@@ -1,6 +1,17 @@
 (() => {
   'use strict';
 
+  // CSS display-mode handles first paint in standards-compliant browsers.
+  // navigator.standalone covers installed iOS PWAs that do not report the
+  // media query consistently after a cold launch.
+  const standaloneMedia = window.matchMedia?.('(display-mode: standalone)');
+  const syncStandaloneMode = () => {
+    const isStandalone = standaloneMedia?.matches || window.navigator.standalone === true;
+    document.documentElement.classList.toggle('pwa-standalone', Boolean(isStandalone));
+  };
+  syncStandaloneMode();
+  standaloneMedia?.addEventListener?.('change', syncStandaloneMode);
+
   const STORAGE_KEY = 'rider-comms-pwa-v4';
   // Real, persistent client session (Rider ID + bearer token issued by the
   // backend at signup/login) — this is legitimate client-side storage every
@@ -267,7 +278,6 @@
     if (screen === 'routes') renderRoutes();
     if (screen === 'friends') loadFriendsData();
     if (screen === 'ride') refreshActiveRide();
-    nudgeBottomNavReflow();
   }
 
   function renderProfile() {
@@ -1287,23 +1297,6 @@
     $('[aria-label="Open profile"]').addEventListener('click', () => navigate('settings'));
   }
 
-  // On a cold PWA launch (standalone, home-screen icon), iOS sometimes
-  // resolves env(safe-area-inset-bottom) from a stale metric on the very
-  // first layout pass, so the fixed bottom nav renders with extra bottom
-  // padding — sitting noticeably higher than it should — until *anything*
-  // else triggers a reflow, which is why switching tabs once and coming
-  // back always looks correct. Force that reflow ourselves right after
-  // load so it's correct from the first paint instead of only after the
-  // user's first navigation. Harmless no-op on browsers that got it right
-  // the first time (desktop, Android).
-  function nudgeBottomNavReflow() {
-    const nav = $('.bottom-nav');
-    if (!nav) return;
-    const nudge = () => { nav.style.display = 'none'; void nav.offsetHeight; nav.style.display = ''; };
-    requestAnimationFrame(() => requestAnimationFrame(nudge));
-    setTimeout(nudge, 400);
-  }
-
   // --- Auth screen -----------------------------------------------------
   // Real signup/login against the backend's Postgres-backed accounts
   // (POST /auth/signup, POST /auth/login) — the app has no fixed local
@@ -1556,7 +1549,6 @@
     navigate(location.hash.slice(1) || state.screen || 'map', false);
     loadGoogleMaps();
     registerServiceWorker();
-    nudgeBottomNavReflow();
     loadFriendsData();
   }
 
