@@ -125,6 +125,14 @@ export class FriendStore {
     this.friendsOf.get(friendId)?.delete(riderId);
   }
 
+  deleteRider(riderId: string): void {
+    this.friendsOf.delete(riderId);
+    for (const friends of this.friendsOf.values()) friends.delete(riderId);
+    for (const [id, request] of this.requests) {
+      if (request.fromRiderId === riderId || request.toRiderId === riderId) this.requests.delete(id);
+    }
+  }
+
   /** Exposed for the messages endpoint's friendship check. */
   isFriendOf(a: string, b: string): boolean {
     return this.areFriends(a, b);

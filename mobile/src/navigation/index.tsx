@@ -14,6 +14,7 @@ import { CreateRideScreen } from '../screens/CreateRideScreen';
 import { FriendsScreen } from '../screens/FriendsScreen';
 import { FriendChatScreen } from '../screens/FriendChatScreen';
 import { SubscriptionScreen } from '../screens/SubscriptionScreen';
+import { LegalScreen } from '../screens/LegalScreen';
 import { RideProvider } from '../ride/RideContext';
 import { SettingsProvider } from '../settings/SettingsContext';
 import { FriendsProvider } from '../friends/FriendsContext';
@@ -48,6 +49,7 @@ export type RootStackParamList = {
   CreateRide: undefined;
   FriendChat: { riderId: string; displayName: string; avatarId: string };
   Subscription: undefined;
+  Legal: undefined;
 };
 
 const Tab = createBottomTabNavigator<TabParamList>();
@@ -153,6 +155,7 @@ export function AppNavigator(): React.JSX.Element {
                   options={{ presentation: 'card', headerShown: false }}
                 />
                 <Stack.Screen name="Subscription" component={SubscriptionScreen} options={{ headerShown: false }} />
+                <Stack.Screen name="Legal" component={LegalScreen} options={{ headerShown: false }} />
               </Stack.Navigator>
             </NavigationContainer>
           </FriendsProvider>

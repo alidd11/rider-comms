@@ -109,4 +109,13 @@ export class RideStore {
     for (const [code, record] of this.codesByValue) if (record.rideId === rideId) this.codesByValue.delete(code);
     return { ok: true, ride };
   }
+
+  deleteRider(riderId: string): void {
+    const hostedRideIds = [...this.rides.values()].filter((ride) => ride.createdBy === riderId).map((ride) => ride.id);
+    for (const rideId of hostedRideIds) {
+      this.rides.delete(rideId);
+      for (const [code, record] of this.codesByValue) if (record.rideId === rideId) this.codesByValue.delete(code);
+    }
+    for (const ride of this.rides.values()) ride.memberIds.delete(riderId);
+  }
 }

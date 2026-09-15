@@ -46,4 +46,11 @@ export class HideoutStore {
     this.hideouts.delete(hideoutId);
     return { ok: true };
   }
+
+  deleteRider(riderId: string): void {
+    for (const [id, hideout] of this.hideouts) {
+      if (hideout.createdBy === riderId) this.hideouts.delete(id);
+      else hideout.participantIds = hideout.participantIds.filter((participantId) => participantId !== riderId);
+    }
+  }
 }

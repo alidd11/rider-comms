@@ -4,14 +4,29 @@
     "slug": "rider-comms",
     "version": "0.1.0",
     "orientation": "portrait",
+    "scheme": "ridercomms",
+    "userInterfaceStyle": "dark",
     "plugins": ["expo-secure-store", "expo-location"],
     "ios": {
+      "bundleIdentifier": "com.ridercomms.app",
+      "buildNumber": "1",
       "supportsTablet": false,
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "Rider Comms uses your location while the app is open to find riders who are mutually within your selected zone."
+        "NSLocationWhenInUseUsageDescription": "Rider Comms uses your location while the app is open to find riders who are mutually within your selected zone.",
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "privacyManifests": {
+        "NSPrivacyAccessedAPITypes": [
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryUserDefaults",
+            "NSPrivacyAccessedAPITypeReasons": ["CA92.1"]
+          }
+        ]
       }
     },
     "android": {
+      "package": "com.ridercomms.app",
+      "versionCode": 1,
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION"

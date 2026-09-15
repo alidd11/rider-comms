@@ -17,6 +17,12 @@ export class AuthStore {
   }
   hasRider(riderId: string): boolean { return this.issuedRiderIds.has(riderId); }
   riderForToken(token: string): string | undefined { return token ? this.riderByTokenDigest.get(this.digest(token)) : undefined; }
+  deleteRider(riderId: string): void {
+    this.issuedRiderIds.delete(riderId);
+    for (const [digest, issuedRiderId] of this.riderByTokenDigest) {
+      if (issuedRiderId === riderId) this.riderByTokenDigest.delete(digest);
+    }
+  }
   createTestSession(riderId: string): GuestSession {
     const token = randomBytes(32).toString('base64url');
     this.issuedRiderIds.add(riderId);
