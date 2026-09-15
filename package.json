@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "description": "Hands-free, proximity-based group voice + navigation app for moped/motorcycle riders",
+  "engines": { "node": ">=22" },
   "workspaces": [
     "shared",
     "backend",
@@ -10,6 +11,8 @@
   ],
   "scripts": {
     "test": "npm run test --workspace=shared && npm run test --workspace=backend && npm run test:client --workspace=mobile",
+    "typecheck": "tsc --noEmit -p shared/tsconfig.json && tsc --noEmit -p backend/tsconfig.json && tsc --noEmit -p mobile/tsconfig.json",
+    "check": "npm run typecheck && npm test",
     "dev:backend": "npm run start --workspace=backend"
   },
   "overrides": {

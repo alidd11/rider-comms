@@ -46,7 +46,7 @@ export function RideBar(): React.JSX.Element | null {
 
   const handleLeave = () => {
     setExpanded(false);
-    leaveRide();
+    void leaveRide();
   };
 
   return (

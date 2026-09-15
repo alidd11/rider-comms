@@ -22,13 +22,14 @@ export class MessageStore {
     return message;
   }
 
-  getThread(riderId: string, withRiderId: string): DirectMessage[] {
-    return this.messages
+  getThread(riderId: string, withRiderId: string, limit = 100): DirectMessage[] {
+    const thread = this.messages
       .filter(
         (m) =>
           (m.fromRiderId === riderId && m.toRiderId === withRiderId) ||
           (m.fromRiderId === withRiderId && m.toRiderId === riderId)
       )
       .sort((a, b) => a.createdAt - b.createdAt);
+    return thread.slice(-Math.max(1, limit));
   }
 }

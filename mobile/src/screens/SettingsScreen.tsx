@@ -3,14 +3,17 @@ import * as React from 'react';
 import { View, Text, Pressable, TextInput, ScrollView, Modal, Switch, Alert, StyleSheet } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Constants from 'expo-constants';
 import { TIER_RADIUS_MILES } from '@rider-comms/shared';
-import type { ZoneTier } from '@rider-comms/shared';
+import type { SocialVisibility, ZoneTier } from '@rider-comms/shared';
 import { colors, spacing, radii, type, elevation, MIN_TOUCH_TARGET } from '../theme';
 import { useSettings } from '../settings/SettingsContext';
 import type { UnitSystem } from '../settings/SettingsContext';
 import { AVATAR_PRESETS, getAvatarPreset } from '../settings/avatars';
 import { RideBar } from '../ride/RideBar';
+import type { RootStackParamList } from '../navigation';
 
 const UNIT_LABELS: Record<UnitSystem, { name: string; blurb: string }> = {
   mi: { name: 'Miles', blurb: 'Distances and zone radius shown in miles.' },
@@ -23,7 +26,6 @@ const TIER_LABELS: Record<ZoneTier, { name: string; blurb: string }> = {
   premium: { name: 'Premium', blurb: 'Wider net for group rides that spread out on the highway.' },
   premium_plus: { name: 'Premium+', blurb: 'Widest range — for a convoy that has stretched way out.' },
 };
-const TIER_ORDER: ZoneTier[] = ['free', 'premium', 'premium_plus'];
 
 function TierRow({ tier, selected, onSelect }: { tier: ZoneTier; selected: boolean; onSelect: () => void }): React.JSX.Element {
   const { name, blurb } = TIER_LABELS[tier];
@@ -98,6 +100,17 @@ function ToggleRow({
       />
     </View>
   );
+}
+
+function SocialRow({ label, icon, username, visibility, onUsername, onVisibility }: { label: string; icon: React.ComponentProps<typeof Ionicons>['name']; username: string; visibility: SocialVisibility; onUsername: (value: string) => void; onVisibility: (value: SocialVisibility) => void }): React.JSX.Element {
+  const [draft, setDraft] = React.useState(username);
+  React.useEffect(() => setDraft(username), [username]);
+  const options: SocialVisibility[] = ['public', 'friends', 'private'];
+  return <View style={styles.socialRow}>
+    <View style={styles.socialHeading}><Ionicons name={icon} size={20} color={colors.textSecondary}/><Text style={styles.toggleLabel}>{label}</Text></View>
+    <TextInput style={styles.socialInput} value={draft} onChangeText={setDraft} onBlur={() => onUsername(draft)} onSubmitEditing={() => onUsername(draft)} autoCapitalize="none" autoCorrect={false} maxLength={31} placeholder="username" placeholderTextColor={colors.textMuted}/>
+    <View style={styles.visibilityRow}>{options.map((option) => <Pressable key={option} onPress={() => onVisibility(option)} style={[styles.visibilityChoice, visibility === option && styles.visibilityChoiceActive]}><Text style={[styles.visibilityText, visibility === option && styles.visibilityTextActive]}>{option === 'friends' ? 'Friends only' : option[0].toUpperCase() + option.slice(1)}</Text></Pressable>)}</View>
+  </View>;
 }
 
 function AvatarPickerModal({
@@ -179,10 +192,19 @@ export function SettingsScreen(): React.JSX.Element {
     setNotifyChat,
     shareLocation,
     setShareLocation,
+    instagramUsername,
+    setInstagramUsername,
+    instagramVisibility,
+    setInstagramVisibility,
+    tiktokUsername,
+    setTiktokUsername,
+    tiktokVisibility,
+    setTiktokVisibility,
     resetAll,
     loaded,
   } = useSettings();
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const appVersion = Constants.expoConfig?.version ?? '0.1.0';
   const [pickerOpen, setPickerOpen] = React.useState(false);
   const [nameDraft, setNameDraft] = React.useState(displayName);
@@ -283,10 +305,16 @@ export function SettingsScreen(): React.JSX.Element {
           <Text style={[styles.sectionLabel, styles.sectionLabelInRow]}>Zone Radius</Text>
         </View>
         <View style={[styles.section, elevation.raised]}>
-          {loaded &&
-            TIER_ORDER.map((tier) => (
-              <TierRow key={tier} tier={tier} selected={zoneTier === tier} onSelect={() => setZoneTier(tier)} />
-            ))}
+          {loaded && <Pressable style={styles.billingRow} onPress={() => navigation.navigate('Subscription')}><View style={styles.billingIcon}><Ionicons name="card-outline" size={20} color={colors.accent}/></View><View style={styles.billingInfo}><Text style={styles.tierName}>{TIER_LABELS[zoneTier].name}</Text><Text style={styles.tierBlurb}>{TIER_RADIUS_MILES[zoneTier]} mile mutual radius · Manage plan</Text></View><Ionicons name="chevron-forward" size={20} color={colors.textMuted}/></Pressable>}
+        </View>
+
+        <View style={styles.sectionLabelRow}>
+          <Ionicons name="share-social-outline" size={14} color={colors.textMuted} />
+          <Text style={[styles.sectionLabel, styles.sectionLabelInRow]}>Social profiles</Text>
+        </View>
+        <View style={[styles.section, elevation.raised]}>
+          <SocialRow label="Instagram" icon="logo-instagram" username={instagramUsername} visibility={instagramVisibility} onUsername={setInstagramUsername} onVisibility={setInstagramVisibility}/>
+          <SocialRow label="TikTok" icon="logo-tiktok" username={tiktokUsername} visibility={tiktokVisibility} onUsername={setTiktokUsername} onVisibility={setTiktokVisibility}/>
         </View>
 
         <View style={styles.sectionLabelRow}>
@@ -426,6 +454,9 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
   },
   section: { backgroundColor: colors.surface, borderRadius: radii.lg, overflow: 'hidden' },
+  billingRow: { minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md },
+  billingIcon: { width: 40, height: 40, borderRadius: radii.pill, backgroundColor: colors.surfaceRaised, alignItems: 'center', justifyContent: 'center' },
+  billingInfo: { flex: 1, gap: spacing.xs },
   tierRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -465,6 +496,14 @@ const styles = StyleSheet.create({
   toggleInfo: { flex: 1, gap: spacing.xs, paddingVertical: spacing.sm },
   toggleLabel: { ...type.body, color: colors.textPrimary },
   toggleCaption: { ...type.caption },
+  socialRow: { padding: spacing.md, gap: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border },
+  socialHeading: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  socialInput: { ...type.body, color: colors.textPrimary, minHeight: MIN_TOUCH_TARGET, backgroundColor: colors.surfaceRaised, borderRadius: radii.md, paddingHorizontal: spacing.md },
+  visibilityRow: { flexDirection: 'row', gap: spacing.xs },
+  visibilityChoice: { flex: 1, minHeight: 36, alignItems: 'center', justifyContent: 'center', borderRadius: radii.pill, backgroundColor: colors.surfaceRaised },
+  visibilityChoiceActive: { backgroundColor: colors.accent },
+  visibilityText: { ...type.caption, fontSize: 11 },
+  visibilityTextActive: { color: colors.accentText, fontWeight: '700' },
   dangerButton: {
     flexDirection: 'row',
     alignItems: 'center',

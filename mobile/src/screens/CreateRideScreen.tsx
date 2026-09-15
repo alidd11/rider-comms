@@ -4,8 +4,7 @@ import { View, Text, Pressable, StyleSheet, ActivityIndicator } from 'react-nati
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation';
-import { RiderCommsClient } from '../api/client';
-import { API_BASE_URL } from '../config';
+import { useAuth } from '../auth/AuthContext';
 import { colors, spacing, radii, type, elevation, MIN_TOUCH_TARGET } from '../theme';
 import { useRide } from '../ride/RideContext';
 
@@ -13,6 +12,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'CreateRide'>;
 
 export function CreateRideScreen({ navigation }: Props): React.JSX.Element {
   const { startRide } = useRide();
+  const { client } = useAuth();
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -20,9 +20,7 @@ export function CreateRideScreen({ navigation }: Props): React.JSX.Element {
     setLoading(true);
     setError(null);
     try {
-      const client = new RiderCommsClient(API_BASE_URL);
-      // TODO: replace 'me' with the real signed-in rider id once auth exists.
-      const { rideId, code } = await client.createRide('me');
+      const { rideId, code } = await client.createRide();
       startRide({ rideId, code, isHost: true });
       navigation.goBack();
     } catch (err) {

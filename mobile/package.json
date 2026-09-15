@@ -2,6 +2,7 @@
   "name": "@rider-comms/mobile",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "main": "expo/AppEntry",
   "scripts": {
     "start": "expo start",
@@ -20,6 +21,8 @@
     "@rider-comms/shared": "*",
     "expo": "^57.0.0",
     "expo-constants": "~57.0.18",
+    "expo-location": "~57.0.17",
+    "expo-secure-store": "~57.0.4",
     "livekit-client": "^2.22.0",
     "react": "19.2.3",
     "react-native": "0.86.3",

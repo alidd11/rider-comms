@@ -15,7 +15,7 @@ describe('ProfileStore', () => {
     assert.equal(profile.notifyNearby, true);
     assert.equal(profile.notifyInvites, true);
     assert.equal(profile.notifyChat, true);
-    assert.equal(profile.shareLocation, true);
+    assert.equal(profile.shareLocation, false);
     assert.ok(profile.updatedAt > 0);
   });
 
