@@ -34,6 +34,8 @@ function JoinOrHostForm(): React.JSX.Element {
         setError('Too many attempts — wait a bit before trying again.');
       } else if (err instanceof ApiError && err.status === 404) {
         setError("That code doesn't match an active ride.");
+      } else if (err instanceof ApiError && err.status === 409) {
+        setError('This ride is full (20 riders max).');
       } else {
         setError('Something went wrong joining the ride.');
       }

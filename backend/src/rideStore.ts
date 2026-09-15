@@ -15,7 +15,13 @@ export interface Ride {
 
 export type JoinRideResult =
   | { ok: true; rideId: string }
-  | { ok: false; reason: 'rate_limited' | 'invalid_or_expired' };
+  | { ok: false; reason: 'rate_limited' | 'invalid_or_expired' | 'ride_full' };
+
+// Product rule: a private ride group is 2-20 riders. The lower bound isn't
+// something to reject on — a ride starts at 1 member (the creator) until
+// someone joins, that's just bootstrapping, not a violation. Only the upper
+// bound needs active enforcement.
+const MAX_RIDE_MEMBERS = 20;
 
 export type RideActionResult =
   | { ok: true; ride: Ride }
@@ -68,6 +74,10 @@ export class RideStore {
     const ride = this.rides.get(record.rideId);
     if (!ride) {
       return { ok: false, reason: 'invalid_or_expired' };
+    }
+
+    if (!ride.memberIds.has(riderId) && ride.memberIds.size >= MAX_RIDE_MEMBERS) {
+      return { ok: false, reason: 'ride_full' };
     }
 
     ride.memberIds.add(riderId);

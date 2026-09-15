@@ -174,7 +174,11 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
         const body = await readJsonBody(req);
         if (typeof body.code !== 'string' || !/^[A-Z2-9]{6}$/i.test(body.code)) return sendJson(res, 400, { error: 'a valid 6-character code is required' });
         const result = rideStore.joinRide(body.code, actorId, address);
-        if (!result.ok) { if (result.reason === 'rate_limited') res.setHeader('Retry-After', '60'); return sendJson(res, result.reason === 'rate_limited' ? 429 : 404, { error: result.reason }); }
+        if (!result.ok) {
+          if (result.reason === 'rate_limited') res.setHeader('Retry-After', '60');
+          const status = result.reason === 'rate_limited' ? 429 : result.reason === 'ride_full' ? 409 : 404;
+          return sendJson(res, status, { error: result.reason });
+        }
         return sendJson(res, 200, { rideId: result.rideId });
       }
       if (req.method === 'POST' && url.pathname === '/presence') {
