@@ -1,11 +1,19 @@
-const CACHE_NAME = 'rider-comms-pwa-v4';
+const CACHE_NAME = 'rider-comms-pwa-v5';
 const ASSETS = [
   './', './index.html', './app.css', './app.js', './config.js',
   './manifest.json', './icons/icon-192.png', './icons/icon-512.png',
 ];
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS)));
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => Promise.all(
+      ASSETS.map(async (asset) => {
+        const response = await fetch(asset, { cache: 'reload' });
+        if (!response.ok) throw new Error(`Could not cache ${asset}`);
+        await cache.put(asset, response);
+      })
+    ))
+  );
 });
 
 self.addEventListener('activate', (event) => {
@@ -21,7 +29,7 @@ self.addEventListener('fetch', (event) => {
   const requestUrl = new URL(event.request.url);
   if (event.request.method !== 'GET' || requestUrl.origin !== self.location.origin) return;
   event.respondWith(
-    fetch(event.request)
+    fetch(event.request, { cache: 'no-store' })
       .then((response) => {
         if (response.ok) {
           const copy = response.clone();
