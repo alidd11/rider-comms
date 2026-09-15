@@ -1,8 +1,8 @@
 import http from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { isIP } from 'node:net';
-import { SlidingWindowRateLimiter, TIER_RADIUS_MILES } from '@rider-comms/shared';
-import type { Rider } from '@rider-comms/shared';
+import { SlidingWindowRateLimiter, TIER_RADIUS_MILES, validateScenicRouteInput } from '@rider-comms/shared';
+import type { Difficulty, HazardType, RoadType, Rider, VehicleCategory } from '@rider-comms/shared';
 import { AuthStore } from './authStore.ts';
 import { RideStore } from './rideStore.ts';
 import { PresenceStore } from './presenceStore.ts';
@@ -12,6 +12,13 @@ import { MessageStore } from './messageStore.ts';
 import { HideoutStore } from './hideoutStore.ts';
 import { ModerationStore, REPORT_REASONS } from './moderationStore.ts';
 import type { ReportReason } from './moderationStore.ts';
+import { HazardStore } from './hazardStore.ts';
+import { ScenicRouteStore } from './scenicRouteStore.ts';
+
+const HAZARD_TYPES = ['police', 'accident', 'hazard', 'road_closure', 'camera'] as const;
+const VEHICLE_CATEGORIES = ['motorcycle_small', 'motorcycle_large', 'scooter', 'car'] as const;
+const ROAD_TYPES = ['rural', 'mountain', 'coastal', 'urban', 'mixed'] as const;
+const DIFFICULTIES = ['easy', 'moderate', 'challenging'] as const;
 
 const MAX_BODY_BYTES = 32 * 1024;
 const REQUEST_ID_PATTERN = /^[A-Za-z0-9._-]{8,128}$/;
@@ -120,9 +127,10 @@ function publicProfile(profileStore: ProfileStore, friendStore: FriendStore, act
   return { riderId: profile.riderId, displayName: profile.displayName, handle: profile.handle, avatarId: profile.avatarId, instagramUsername: canSee(profile.instagramVisibility) ? profile.instagramUsername : '', tiktokUsername: canSee(profile.tiktokVisibility) ? profile.tiktokUsername : '' };
 }
 
-export function createApp(rideStore = new RideStore(), presenceStore = new PresenceStore(), profileStore = new ProfileStore(), friendStore = new FriendStore(profileStore), messageStore = new MessageStore(), hideoutStore = new HideoutStore(), authStore = new AuthStore(), moderationStore = new ModerationStore(), options: ApiServerOptions = {}): http.Server {
+export function createApp(rideStore = new RideStore(), presenceStore = new PresenceStore(), profileStore = new ProfileStore(), friendStore = new FriendStore(profileStore), messageStore = new MessageStore(), hideoutStore = new HideoutStore(), authStore = new AuthStore(), moderationStore = new ModerationStore(), hazardStore = new HazardStore(), scenicRouteStore = new ScenicRouteStore(), options: ApiServerOptions = {}): http.Server {
   const guestLimiter = new SlidingWindowRateLimiter(20, 60_000);
   const apiLimiter = new SlidingWindowRateLimiter(300, 60_000);
+  const hazardCreateLimiter = new SlidingWindowRateLimiter(10, 10 * 60_000);
   const allowedOrigins = new Set(options.allowedOrigins ?? []);
   return http.createServer(async (req, res) => {
     const startedAt = Date.now();
@@ -156,6 +164,8 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
         hideoutStore.deleteRider(actorId);
         profileStore.delete(actorId);
         moderationStore.deleteRider(actorId);
+        hazardStore.deleteRider(actorId);
+        scenicRouteStore.deleteRider(actorId);
         authStore.deleteRider(actorId);
         return sendJson(res, 200, {});
       }
@@ -246,6 +256,66 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
         const participants = [...new Set(ids as string[])].filter((id) => id !== actorId); if (participants.some((id) => !friendStore.isFriendOf(actorId, id))) return sendJson(res, 403, { error: 'participants_must_be_friends' }); return sendJson(res, 201, hideoutStore.create({ name: body.name.trim(), lat: body.lat as number, lon: body.lon as number, createdBy: actorId, participantIds: participants }));
       }
       if (req.method === 'DELETE' && s[0] === 'hideouts' && s[1]) { const r = hideoutStore.delete(decodeURIComponent(s[1]), actorId); return r.ok ? sendJson(res, 200, {}) : sendJson(res, r.error === 'forbidden' ? 403 : 404, { error: r.error }); }
+      if (req.method === 'POST' && url.pathname === '/hazards') {
+        if (!hazardCreateLimiter.tryConsume(actorId)) { res.setHeader('Retry-After', '60'); return sendJson(res, 429, { error: 'rate_limited' }); }
+        const body = await readJsonBody(req);
+        if (typeof body.type !== 'string' || !HAZARD_TYPES.includes(body.type as HazardType)) return sendJson(res, 400, { error: 'valid type is required' });
+        if (!isCoordinate(body.lat, body.lon)) return sendJson(res, 400, { error: 'valid lat and lon are required' });
+        return sendJson(res, 201, hazardStore.create(body.type as HazardType, body.lat as number, body.lon as number, actorId));
+      }
+      if (req.method === 'GET' && url.pathname === '/hazards/nearby') {
+        const lat = Number(url.searchParams.get('lat')), lon = Number(url.searchParams.get('lon'));
+        if (!isCoordinate(lat, lon)) return sendJson(res, 400, { error: 'valid lat and lon are required' });
+        return sendJson(res, 200, { hazards: hazardStore.nearby(lat, lon, Date.now()) });
+      }
+      if (s[0] === 'hazards' && s[1] && s.length === 3 && (s[2] === 'confirm' || s[2] === 'deny')) {
+        const id = decodeURIComponent(s[1]);
+        const r = s[2] === 'confirm' ? hazardStore.confirm(id, actorId) : hazardStore.deny(id, actorId);
+        return r.ok ? sendJson(res, 200, {}) : sendJson(res, 404, { error: r.reason });
+      }
+      if (req.method === 'DELETE' && s[0] === 'hazards' && s[1] && s.length === 2) {
+        const id = decodeURIComponent(s[1]);
+        const report = hazardStore.get(id);
+        if (!report) return sendJson(res, 404, { error: 'not_found' });
+        if (report.reportedBy !== actorId) return sendJson(res, 403, { error: 'forbidden' });
+        hazardStore.remove(id, actorId);
+        return sendJson(res, 200, {});
+      }
+      // TODO(curation-policy): once the product team defines a real curation/
+      // moderation workflow for scenic routes, gate creation behind it. For
+      // now any authenticated rider can create one, matching the access
+      // level ride creation already uses elsewhere in this file.
+      if (req.method === 'POST' && url.pathname === '/scenic-routes') {
+        const body = await readJsonBody(req);
+        const validated = validateScenicRouteInput(body);
+        if (!validated.ok) return sendJson(res, 400, { error: validated.error });
+        return sendJson(res, 201, scenicRouteStore.create(validated.value, actorId));
+      }
+      if (req.method === 'GET' && url.pathname === '/scenic-routes') {
+        const vehicleCategoryParam = url.searchParams.get('vehicleCategory');
+        const roadTypeParam = url.searchParams.get('roadType');
+        const maxDifficultyParam = url.searchParams.get('maxDifficulty');
+        if (vehicleCategoryParam && !VEHICLE_CATEGORIES.includes(vehicleCategoryParam as VehicleCategory)) return sendJson(res, 400, { error: 'invalid vehicleCategory filter' });
+        if (roadTypeParam && !ROAD_TYPES.includes(roadTypeParam as RoadType)) return sendJson(res, 400, { error: 'invalid roadType filter' });
+        if (maxDifficultyParam && !DIFFICULTIES.includes(maxDifficultyParam as Difficulty)) return sendJson(res, 400, { error: 'invalid maxDifficulty filter' });
+        return sendJson(res, 200, { routes: scenicRouteStore.list({
+          vehicleCategory: vehicleCategoryParam as VehicleCategory | undefined,
+          roadType: roadTypeParam as RoadType | undefined,
+          maxDifficulty: maxDifficultyParam as Difficulty | undefined,
+        }) });
+      }
+      if (req.method === 'GET' && s[0] === 'scenic-routes' && s[1] && s.length === 2) {
+        const route = scenicRouteStore.get(decodeURIComponent(s[1]));
+        return route ? sendJson(res, 200, route) : sendJson(res, 404, { error: 'not_found' });
+      }
+      if (req.method === 'DELETE' && s[0] === 'scenic-routes' && s[1] && s.length === 2) {
+        const id = decodeURIComponent(s[1]);
+        const route = scenicRouteStore.get(id);
+        if (!route) return sendJson(res, 404, { error: 'not_found' });
+        if (route.createdBy !== actorId) return sendJson(res, 403, { error: 'forbidden' });
+        scenicRouteStore.remove(id, actorId);
+        return sendJson(res, 200, {});
+      }
       return sendJson(res, 404, { error: 'not_found' });
     } catch (error) { if (error instanceof RequestError) return sendJson(res, error.status, { error: error.message }); if (error instanceof URIError) return sendJson(res, 400, { error: 'invalid URL encoding' }); console.error('request failed', error); return sendJson(res, 500, { error: 'internal_error' }); }
   });
@@ -256,7 +326,7 @@ if (isMainModule) {
   if (!Number.isInteger(port) || port < 1 || port > 65_535) throw new Error('PORT must be an integer from 1 to 65535');
   const host = process.env.HOST?.trim() || '0.0.0.0';
   const allowedOrigins = parseAllowedOrigins(process.env.CORS_ALLOWED_ORIGINS);
-  const app = createApp(undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, {
+  const app = createApp(undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, {
     allowedOrigins,
     trustProxy: process.env.TRUST_PROXY === 'true',
     logger: (event) => console.log(JSON.stringify({ level: 'info', event: 'http_request', ...event })),
