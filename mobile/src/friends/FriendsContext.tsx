@@ -70,14 +70,17 @@ export function FriendsProvider({ children }: { children: React.ReactNode }): Re
     return () => clearInterval(interval);
   }, [refresh]);
 
+  // Unlike accept/decline/remove below, a failed add-friend attempt is
+  // surfaced inline next to the input it came from (see AddFriendCard in
+  // FriendsScreen.tsx) rather than in this context's shared top-of-screen
+  // `error` — so this rethrows instead of calling setError.
   const sendRequest = React.useCallback(
     async (toRiderId: string) => {
       try {
         const request = await clientRef.current.sendFriendRequest(ME, toRiderId);
         setOutgoingRequests((current) => [...current, request]);
-        setError(null);
       } catch (err) {
-        setError(messageFor(err, 'Could not send that friend request.'));
+        throw new Error(messageFor(err, 'Could not send that friend request.'));
       } finally {
         refresh();
       }

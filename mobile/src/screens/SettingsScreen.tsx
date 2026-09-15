@@ -3,13 +3,17 @@ import * as React from 'react';
 import { View, Text, Pressable, TextInput, ScrollView, Modal, Switch, Alert, StyleSheet } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Constants from 'expo-constants';
 import { TIER_RADIUS_MILES } from '@rider-comms/shared';
 import type { ZoneTier } from '@rider-comms/shared';
+import type { RootStackParamList } from '../navigation';
 import { colors, spacing, radii, type, elevation, MIN_TOUCH_TARGET } from '../theme';
 import { useSettings } from '../settings/SettingsContext';
 import type { UnitSystem } from '../settings/SettingsContext';
 import { AVATAR_PRESETS, getAvatarPreset } from '../settings/avatars';
+import { PLAN_INFO } from '../settings/plans';
 import { RideBar } from '../ride/RideBar';
 
 const UNIT_LABELS: Record<UnitSystem, { name: string; blurb: string }> = {
@@ -23,28 +27,6 @@ const TIER_LABELS: Record<ZoneTier, { name: string; blurb: string }> = {
   premium: { name: 'Premium', blurb: 'Wider net for group rides that spread out on the highway.' },
   premium_plus: { name: 'Premium+', blurb: 'Widest range — for a convoy that has stretched way out.' },
 };
-const TIER_ORDER: ZoneTier[] = ['free', 'premium', 'premium_plus'];
-
-function TierRow({ tier, selected, onSelect }: { tier: ZoneTier; selected: boolean; onSelect: () => void }): React.JSX.Element {
-  const { name, blurb } = TIER_LABELS[tier];
-  return (
-    <Pressable
-      style={({ pressed }) => [styles.tierRow, selected && styles.tierRowSelected, pressed && styles.tierRowPressed]}
-      onPress={onSelect}
-    >
-      <View style={styles.tierRadio}>
-        {selected && <View style={styles.tierRadioDot} />}
-      </View>
-      <View style={styles.tierInfo}>
-        <View style={styles.tierNameRow}>
-          <Text style={styles.tierName}>{name}</Text>
-          <Text style={styles.tierRadius}>{TIER_RADIUS_MILES[tier]} mi</Text>
-        </View>
-        <Text style={styles.tierBlurb}>{blurb}</Text>
-      </View>
-    </Pressable>
-  );
-}
 
 function UnitRow({
   unit,
@@ -162,7 +144,6 @@ function AvatarPickerModal({
 export function SettingsScreen(): React.JSX.Element {
   const {
     zoneTier,
-    setZoneTier,
     avatarId,
     setAvatarId,
     displayName,
@@ -183,6 +164,7 @@ export function SettingsScreen(): React.JSX.Element {
     loaded,
   } = useSettings();
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const appVersion = Constants.expoConfig?.version ?? '0.1.0';
   const [pickerOpen, setPickerOpen] = React.useState(false);
   const [nameDraft, setNameDraft] = React.useState(displayName);
@@ -283,11 +265,48 @@ export function SettingsScreen(): React.JSX.Element {
           <Text style={[styles.sectionLabel, styles.sectionLabelInRow]}>Zone Radius</Text>
         </View>
         <View style={[styles.section, elevation.raised]}>
-          {loaded &&
-            TIER_ORDER.map((tier) => (
-              <TierRow key={tier} tier={tier} selected={zoneTier === tier} onSelect={() => setZoneTier(tier)} />
-            ))}
+          {loaded && (
+            <View style={styles.currentTierRow}>
+              <View style={styles.currentTierBadge}>
+                <MaterialCommunityIcons name="road-variant" size={18} color={colors.accent} />
+              </View>
+              <View style={styles.tierInfo}>
+                <View style={styles.tierNameRow}>
+                  <Text style={styles.tierName}>{TIER_LABELS[zoneTier].name}</Text>
+                  <Text style={styles.tierRadius}>{TIER_RADIUS_MILES[zoneTier]} mi</Text>
+                </View>
+                <Text style={styles.tierBlurb}>{TIER_LABELS[zoneTier].blurb}</Text>
+              </View>
+            </View>
+          )}
+          <Pressable
+            style={({ pressed }) => [styles.manageTierRow, pressed && styles.tierRowPressed]}
+            onPress={() => navigation.navigate('Billing')}
+          >
+            <Text style={styles.manageTierText}>Manage in Billing</Text>
+            <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+          </Pressable>
         </View>
+
+        <View style={styles.sectionLabelRow}>
+          <Ionicons name="card-outline" size={14} color={colors.textMuted} />
+          <Text style={[styles.sectionLabel, styles.sectionLabelInRow]}>Billing</Text>
+        </View>
+        <Pressable
+          style={({ pressed }) => [styles.section, styles.billingRow, elevation.raised, pressed && styles.tierRowPressed]}
+          onPress={() => navigation.navigate('Billing')}
+        >
+          <View style={styles.billingPlanBadge}>
+            <MaterialCommunityIcons name="motorbike" size={18} color={colors.accent} />
+          </View>
+          <View style={styles.billingInfo}>
+            <Text style={styles.billingPlanName}>{PLAN_INFO[zoneTier].name} plan</Text>
+            <Text style={styles.billingPlanPrice}>
+              {PLAN_INFO[zoneTier].priceLabel === 'Free' ? 'No card on file' : `${PLAN_INFO[zoneTier].priceLabel}/mo`}
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+        </Pressable>
 
         <View style={styles.sectionLabelRow}>
           <MaterialCommunityIcons name="ruler" size={14} color={colors.textMuted} />
@@ -452,6 +471,42 @@ const styles = StyleSheet.create({
   tierName: { ...type.body, color: colors.textPrimary, fontWeight: '700', fontSize: 16 },
   tierRadius: { ...type.caption, color: colors.accent, fontWeight: '700' },
   tierBlurb: { ...type.caption },
+  currentTierRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.md,
+    padding: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  currentTierBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: radii.pill,
+    backgroundColor: colors.surfaceRaised,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  manageTierRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    minHeight: MIN_TOUCH_TARGET,
+    paddingHorizontal: spacing.md,
+  },
+  manageTierText: { ...type.body, color: colors.accent, fontWeight: '700' },
+  billingRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md },
+  billingPlanBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: radii.pill,
+    backgroundColor: colors.surfaceRaised,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  billingInfo: { flex: 1, gap: spacing.xs },
+  billingPlanName: { ...type.body, color: colors.textPrimary, fontWeight: '700', fontSize: 16 },
+  billingPlanPrice: { ...type.caption },
   toggleRow: {
     flexDirection: 'row',
     alignItems: 'center',

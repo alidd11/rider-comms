@@ -3,16 +3,20 @@
 // to be correct against @react-navigation's real v7 API — review against
 // the installed version once you're on a real dev machine.
 import * as React from 'react';
-import { DarkTheme, NavigationContainer } from '@react-navigation/native';
+import { View, Text, StyleSheet } from 'react-native';
+import { DarkTheme, NavigationContainer, useNavigationState } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { MapScreen } from '../screens/MapScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { CreateRideScreen } from '../screens/CreateRideScreen';
 import { FriendsScreen } from '../screens/FriendsScreen';
 import { FriendChatScreen } from '../screens/FriendChatScreen';
+import { BillingScreen } from '../screens/BillingScreen';
+import { OnboardingScreen, ONBOARDING_COMPLETED_KEY } from '../screens/OnboardingScreen';
 import { RideProvider } from '../ride/RideContext';
 import { SettingsProvider } from '../settings/SettingsContext';
 import { FriendsProvider } from '../friends/FriendsContext';
@@ -45,19 +49,63 @@ export type RootStackParamList = {
   Tabs: undefined;
   CreateRide: undefined;
   FriendChat: { riderId: string; displayName: string; avatarId: string };
+  Billing: undefined;
 };
 
 const Tab = createBottomTabNavigator<TabParamList>();
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
+/**
+ * Map and GroupRide share one mounted MapScreen instance (see the tabPress
+ * listeners below) instead of being genuinely separate routes — so React
+ * Navigation's own notion of which tab is "focused" only ever tracks Map,
+ * even while the user is looking at the host view. This reads the Map
+ * route's own `segment` param (the real source of truth for what's on
+ * screen) out of the tab navigator's state, so both tabs' icon/label colors
+ * can be driven by that instead of by the misleading built-in focus state.
+ */
+function useMapSegment(): 'public' | 'host' {
+  return useNavigationState((state) => {
+    const mapRoute = state.routes.find((r) => r.name === 'Map');
+    return (mapRoute?.params as TabParamList['Map'])?.segment ?? 'public';
+  });
+}
+
+function segmentTintColor(active: boolean): string {
+  return active ? colors.accent : colors.textMuted;
+}
+
+function MapTabIcon({ size }: { size: number }): React.JSX.Element {
+  const color = segmentTintColor(useMapSegment() === 'public');
+  return <MaterialCommunityIcons name="motorbike" size={size} color={color} />;
+}
+
+function GroupRideTabIcon({ size }: { size: number }): React.JSX.Element {
+  const color = segmentTintColor(useMapSegment() === 'host');
+  // account-group reads as "a convoy/group of riders" — distinct from both
+  // Map's motorbike glyph and Friends' person-add glyph, which the plain
+  // "people" icon this replaced was too easily confused with.
+  return <MaterialCommunityIcons name="account-group" size={size} color={color} />;
+}
+
 const TAB_ICONS: Record<keyof TabParamList, (color: string, size: number) => React.ReactNode> = {
-  Map: (color, size) => <MaterialCommunityIcons name="motorbike" size={size} color={color} />,
-  GroupRide: (color, size) => <Ionicons name="people" size={size} color={color} />,
-  // Distinct from GroupRide's plain "people" glyph — this one reads as
+  Map: (_color, size) => <MapTabIcon size={size} />,
+  GroupRide: (_color, size) => <GroupRideTabIcon size={size} />,
+  // Distinct from GroupRide's "account-group" glyph — this one reads as
   // "add a person" so the two tabs aren't visually interchangeable.
   Friends: (color, size) => <Ionicons name="person-add" size={size} color={color} />,
   Settings: (color, size) => <Ionicons name="settings" size={size} color={color} />,
 };
+
+function MapTabLabel({ children }: { children: string }): React.JSX.Element {
+  const color = segmentTintColor(useMapSegment() === 'public');
+  return <Text style={[styles.tabLabel, { color }]}>{children}</Text>;
+}
+
+function GroupRideTabLabel({ children }: { children: string }): React.JSX.Element {
+  const color = segmentTintColor(useMapSegment() === 'host');
+  return <Text style={[styles.tabLabel, { color }]}>{children}</Text>;
+}
 
 function Tabs(): React.JSX.Element {
   return (
@@ -84,7 +132,7 @@ function Tabs(): React.JSX.Element {
       <Tab.Screen
         name="Map"
         component={MapScreen}
-        options={{ title: 'Map' }}
+        options={{ title: 'Map', tabBarLabel: ({ children }) => <MapTabLabel>{children}</MapTabLabel> }}
         listeners={({ navigation }) => ({
           tabPress: (e) => {
             e.preventDefault();
@@ -94,11 +142,18 @@ function Tabs(): React.JSX.Element {
       />
       {/* Not a second screen/mount: tapping this tab redirects straight to
           the Map route with segment: 'host' params instead of navigating
-          here, so there's still only ever one mounted map instance. */}
+          here, so there's still only ever one mounted map instance. Its
+          icon/label color is driven by MapScreen's actual `segment` param
+          (via useMapSegment above), not by this tab's own (never-focused)
+          navigation state, so the tab bar correctly highlights "Group Ride"
+          while the user is looking at the host view. */}
       <Tab.Screen
         name="GroupRide"
         component={MapScreen}
-        options={{ title: 'Group Ride' }}
+        options={{
+          title: 'Group Ride',
+          tabBarLabel: ({ children }) => <GroupRideTabLabel>{children}</GroupRideTabLabel>,
+        }}
         listeners={({ navigation }) => ({
           tabPress: (e) => {
             e.preventDefault();
@@ -110,6 +165,32 @@ function Tabs(): React.JSX.Element {
       <Tab.Screen name="Settings" component={SettingsScreen} options={{ title: 'Settings' }} />
     </Tab.Navigator>
   );
+}
+
+/**
+ * Gates the real app behind the first-launch onboarding flow. Checked once
+ * on mount with a single AsyncStorage read (kept deliberately simple: no
+ * loading spinner, just a blank themed screen for the instant that read
+ * takes) so a first-time user sees onboarding instead of being dropped
+ * straight into MapScreen — whose location polling otherwise surfaces an
+ * immediate "no location yet" notice before they've done anything at all.
+ */
+function OnboardingGate({ children }: { children: React.ReactNode }): React.JSX.Element {
+  const [completed, setCompleted] = React.useState<boolean | null>(null);
+
+  React.useEffect(() => {
+    AsyncStorage.getItem(ONBOARDING_COMPLETED_KEY)
+      .then((value) => setCompleted(value === 'true'))
+      .catch(() => setCompleted(false));
+  }, []);
+
+  if (completed === null) {
+    return <View style={styles.blank} />;
+  }
+  if (!completed) {
+    return <OnboardingScreen onDone={() => setCompleted(true)} />;
+  }
+  return <>{children}</>;
 }
 
 export function AppNavigator(): React.JSX.Element {
@@ -124,35 +205,49 @@ export function AppNavigator(): React.JSX.Element {
       <SettingsProvider>
         <RideProvider>
           <FriendsProvider>
-            <NavigationContainer theme={navigationTheme}>
-              <Stack.Navigator
-                screenOptions={{
-                  headerStyle: { backgroundColor: colors.surface },
-                  headerTitleStyle: { color: colors.textPrimary },
-                  headerTintColor: colors.accent,
-                  contentStyle: { backgroundColor: colors.background },
-                }}
-              >
-                <Stack.Screen name="Tabs" component={Tabs} options={{ headerShown: false }} />
-                <Stack.Screen
-                  name="CreateRide"
-                  component={CreateRideScreen}
-                  options={{ title: 'Start a Ride', presentation: 'modal' }}
-                />
-                {/* A normal push, not a modal — this is primary navigation from
-                    the Friends list, not a transient action sheet. This app
-                    hides nav headers everywhere, so the screen builds its own
-                    in-content back chevron instead of relying on one here. */}
-                <Stack.Screen
-                  name="FriendChat"
-                  component={FriendChatScreen}
-                  options={{ presentation: 'card', headerShown: false }}
-                />
-              </Stack.Navigator>
-            </NavigationContainer>
+            <OnboardingGate>
+              <NavigationContainer theme={navigationTheme}>
+                <Stack.Navigator
+                  screenOptions={{
+                    headerStyle: { backgroundColor: colors.surface },
+                    headerTitleStyle: { color: colors.textPrimary },
+                    headerTintColor: colors.accent,
+                    contentStyle: { backgroundColor: colors.background },
+                  }}
+                >
+                  <Stack.Screen name="Tabs" component={Tabs} options={{ headerShown: false }} />
+                  <Stack.Screen
+                    name="CreateRide"
+                    component={CreateRideScreen}
+                    options={{ title: 'Start a Ride', presentation: 'modal' }}
+                  />
+                  {/* A normal push, not a modal — this is primary navigation from
+                      the Friends list, not a transient action sheet. This app
+                      hides nav headers everywhere, so the screen builds its own
+                      in-content back chevron instead of relying on one here. */}
+                  <Stack.Screen
+                    name="FriendChat"
+                    component={FriendChatScreen}
+                    options={{ presentation: 'card', headerShown: false }}
+                  />
+                  {/* Same in-content-back-chevron convention as FriendChat —
+                      reached from Settings' "Billing" row. */}
+                  <Stack.Screen
+                    name="Billing"
+                    component={BillingScreen}
+                    options={{ presentation: 'card', headerShown: false }}
+                  />
+                </Stack.Navigator>
+              </NavigationContainer>
+            </OnboardingGate>
           </FriendsProvider>
         </RideProvider>
       </SettingsProvider>
     </SafeAreaProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  blank: { flex: 1, backgroundColor: colors.background },
+  tabLabel: { fontSize: 11, fontWeight: '600', letterSpacing: 0.1 },
+});
