@@ -28,6 +28,7 @@ import type {
 import { useAuth } from '../auth/AuthContext';
 import { colors, spacing, radii, type, elevation, MIN_TOUCH_TARGET } from '../theme';
 import { CuratedRouteBrowser } from '../routes/CuratedRouteBrowser';
+import { ScreenHeader } from '../components/ScreenHeader';
 
 const VEHICLE_LABELS: Record<VehicleCategory, string> = {
   motorcycle_small: '125cc & small bikes',
@@ -366,13 +367,11 @@ export function ScenicRoutesScreen(): React.JSX.Element {
         contentContainerStyle={[styles.scroll, { paddingTop: insets.top + spacing.lg }]}
         contentInsetAdjustmentBehavior="automatic"
       >
-        <View style={styles.headerRow}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.eyebrow}>DISCOVER</Text>
-            <Text style={styles.title}>Routes</Text>
-            <Text style={styles.subtitle}>Real UK roads, chosen for the ride.</Text>
-          </View>
-        </View>
+        <ScreenHeader
+          title="Scenic routes"
+          subtitle="Real UK roads, chosen for the ride."
+          style={styles.screenHeader}
+        />
 
         <View style={styles.chipRow}>
           <Chip label="All road vehicles" active={vehicleFilter === null} onPress={() => setVehicleFilter(null)} />
@@ -434,10 +433,7 @@ export function ScenicRoutesScreen(): React.JSX.Element {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   scroll: { width: '100%', maxWidth: 760, alignSelf: 'center', padding: spacing.lg, gap: spacing.md },
-  headerRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md },
-  eyebrow: { ...type.caption, color: colors.accent, fontWeight: '800', letterSpacing: 1.4 },
-  title: { ...type.title },
-  subtitle: { ...type.body, color: colors.textSecondary, marginTop: spacing.xs },
+  screenHeader: { marginBottom: 0 },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
   chip: {
     minHeight: 34,

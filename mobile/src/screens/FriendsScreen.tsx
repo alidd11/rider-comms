@@ -12,6 +12,7 @@ import { useFriends } from '../friends/FriendsContext';
 import { useAuth } from '../auth/AuthContext';
 import { getAvatarPreset } from '../settings/avatars';
 import { RideBar } from '../ride/RideBar';
+import { ScreenHeader } from '../components/ScreenHeader';
 
 function YourRiderIdCard(): React.JSX.Element {
   const { riderId } = useAuth();
@@ -181,7 +182,10 @@ export function FriendsScreen(): React.JSX.Element {
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={[styles.scroll, { paddingTop: insets.top + spacing.lg }]}>
-        <Text style={styles.title}>Friends</Text>
+        <ScreenHeader
+          title="Friends"
+          subtitle="The riders you trust, your requests and your shareable Rider ID."
+        />
 
         {error && (
           <View style={styles.errorBox}>
@@ -243,8 +247,7 @@ export function FriendsScreen(): React.JSX.Element {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-  scroll: { padding: spacing.lg },
-  title: { ...type.title, marginBottom: spacing.lg },
+  scroll: { width: '100%', maxWidth: 760, alignSelf: 'center', padding: spacing.lg },
   errorBox: {
     flexDirection: 'row',
     alignItems: 'flex-start',

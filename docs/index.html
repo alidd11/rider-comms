@@ -13,7 +13,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="app.css?v=26">
+  <link rel="stylesheet" href="app.css?v=27">
   <title>Rider Comms</title>
 </head>
 <body>
@@ -105,7 +105,7 @@
 
       <section class="screen content-screen" data-screen="ride" aria-labelledby="rideTitle">
         <div class="page-width">
-          <header class="page-header"><div><h1 id="rideTitle">Group Ride</h1></div><button class="icon-button" id="rideShareTop" aria-label="Share ride" hidden><svg><use href="#i-share"/></svg></button></header>
+          <header class="page-header"><div><span class="eyebrow">Private channel</span><h1 id="rideTitle">Group Ride</h1></div><button class="icon-button" id="rideShareTop" aria-label="Share ride" hidden><svg><use href="#i-share"/></svg></button></header>
           <div id="rideJoinState">
             <div class="ride-entry"><div class="segmented" role="tablist"><button class="active" data-ride-mode="join">Join a ride</button><button data-ride-mode="host">Start a ride</button></div>
               <form id="joinRideForm" class="ride-form"><label for="rideCode">Enter invite code</label><div class="code-field"><input id="rideCode" maxlength="6" inputmode="text" autocomplete="off" placeholder="K4XQPZ" aria-describedby="rideHelp"><button class="button primary" type="submit">Join</button></div><p id="rideHelp" class="support-copy">Ask the host for their six-character code.</p><p id="rideError" class="inline-error" hidden></p></form>
@@ -124,7 +124,7 @@
 
       <section class="screen content-screen" data-screen="routes" aria-labelledby="routesTitle">
         <div class="page-width">
-          <header class="page-header"><div><h1 id="routesTitle">Scenic Routes</h1></div><button class="icon-button" id="addRouteBtn" aria-label="Add a route"><svg><use href="#i-share"/></svg></button></header>
+          <header class="page-header"><div><span class="eyebrow">Rider-curated</span><h1 id="routesTitle">Scenic Routes</h1></div><button class="icon-button" id="addRouteBtn" aria-label="Add a route"><svg><use href="#i-share"/></svg></button></header>
           <div class="chip-row" id="routeVehicleFilters"></div>
           <div id="routeEmpty" class="empty-state" hidden><div class="hero-icon"><svg><use href="#i-route"/></svg></div><h2>No routes yet</h2><p>Be the first to add a scenic route for other riders to discover.</p></div>
           <div id="routeList" class="route-list"></div>
@@ -132,7 +132,7 @@
       </section>
 
       <section class="screen content-screen" data-screen="friends" aria-labelledby="friendsTitle">
-        <div class="page-width"><header class="page-header"><div><h1 id="friendsTitle">Friends</h1></div><span class="count-badge">2</span></header>
+        <div class="page-width"><header class="page-header"><div><span class="eyebrow">Your circle</span><h1 id="friendsTitle">Friends</h1></div><span class="count-badge">2</span></header>
           <div class="search-and-add"><div class="search-row"><svg><use href="#i-search"/></svg><input id="friendSearch" placeholder="Search name, handle or Rider ID" autocomplete="off"></div>
           <button id="addFriendToggle" class="icon-button add-friend-toggle" aria-label="Add a rider" title="Add a rider &#8211; connect using their Rider ID"><svg><use href="#i-friends"/></svg><span class="add-friend-badge">+</span></button></div>
           <form id="addFriendForm" class="compact-form" hidden><label for="friendId">Rider ID</label><div><input id="friendId" placeholder="rider_k4xqpz82" autocomplete="off"><button class="button primary">Send</button></div><p id="friendFeedback" class="support-copy"></p></form>
@@ -145,7 +145,7 @@
       </section>
 
       <section class="screen content-screen" data-screen="settings" aria-labelledby="settingsTitle">
-        <div class="page-width"><header class="page-header"><div><h1 id="settingsTitle">Settings</h1></div></header>
+        <div class="page-width"><header class="page-header"><div><span class="eyebrow">Personalise</span><h1 id="settingsTitle">Settings</h1></div></header>
           <article class="profile-row"><div class="avatar avatar-lg" data-avatar="AI">AI</div><div class="profile-copy"><strong id="profileName">Ali</strong><span id="profileHandle">@ali_rides</span><small id="profileRiderId">rider_k4xqpz82</small></div><button id="editProfileBtn" class="button tertiary">Edit</button></article>
           <h2 class="group-title">Account</h2><div class="settings-group"><button data-sheet="plans"><span class="setting-icon"><svg><use href="#i-card"/></svg></span><span><strong>Subscription & billing</strong><small>Free plan · 1 mile radius</small></span><span class="plan-pill">Free</span><svg><use href="#i-chevron"/></svg></button><button data-sheet="profile"><span class="setting-icon"><svg><use href="#i-user"/></svg></span><span><strong>Profile</strong><small>Name, handle, avatar and socials</small></span><svg><use href="#i-chevron"/></svg></button><button data-sheet="privacy"><span class="setting-icon"><svg><use href="#i-shield"/></svg></span><span><strong>Privacy & visibility</strong><small>Location and social profile controls</small></span><svg><use href="#i-chevron"/></svg></button></div>
           <h2 class="group-title">Riding</h2><div class="settings-group"><button data-sheet="map"><span class="setting-icon"><svg><use href="#i-location"/></svg></span><span><strong>Map & location</strong><small>Maps and nearby visibility</small></span><svg><use href="#i-chevron"/></svg></button><button data-sheet="units"><span class="setting-icon"><svg><use href="#i-units"/></svg></span><span><strong>Distance units</strong><small>Miles</small></span><svg><use href="#i-chevron"/></svg></button><button data-sheet="notifications"><span class="setting-icon"><svg><use href="#i-bell"/></svg></span><span><strong>Notifications</strong><small>Nearby riders, rides and messages</small></span><svg><use href="#i-chevron"/></svg></button></div>
