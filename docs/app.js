@@ -35,10 +35,10 @@
   // app's client uses (see shared/src/hazards.ts, backend/src/hazardStore.ts).
   const HAZARD_TYPES = {
     police: { label: 'Police', icon: 'i-shield', color: '#4f7cff' },
-    camera: { label: 'Speed camera', icon: 'i-search', color: '#4f7cff' },
-    accident: { label: 'Accident', icon: 'i-shield', color: '#ff6572' },
-    hazard: { label: 'Hazard', icon: 'i-shield', color: '#ffc15a' },
-    road_closure: { label: 'Road closure', icon: 'i-shield', color: '#ff6572' },
+    camera: { label: 'Speed camera', icon: 'i-camera', color: '#4f7cff' },
+    accident: { label: 'Accident', icon: 'i-alert', color: '#ff6572' },
+    hazard: { label: 'Hazard', icon: 'i-cone', color: '#ffc15a' },
+    road_closure: { label: 'Road closure', icon: 'i-no-entry', color: '#ff6572' },
   };
   const HAZARD_TYPE_ORDER = ['police', 'camera', 'accident', 'hazard', 'road_closure'];
 
@@ -67,6 +67,8 @@
   let usingFallbackMap = true;
   let userMapMarker;
   let mapMarkers = [];
+  let mapHazardMarkers = [];
+  let destinationMarker;
 
   function loadState() {
     try {
@@ -169,6 +171,46 @@
   // each other, not at a real bearing/distance.
   const HAZARD_OFFSETS = [[14, -10], [-16, 8], [10, 16], [-12, -14], [18, 4]];
 
+  // Real lat/lng deltas (same illustrative-offset convention as
+  // HAZARD_OFFSETS above) so a report also gets a genuine position on the
+  // live Google Map via addHazardMapMarker, instead of only existing in the
+  // fallback layer's page-relative percentages — which used to stay
+  // visible, floating disconnected from the real map, whenever a maps key
+  // was configured.
+  const HAZARD_GEO_OFFSETS = [[.0035, -.002], [-.004, .0025], [.002, .0042], [-.003, -.0038], [.0048, .0012]];
+
+  function hazardLatLng(hazard, index) {
+    if (typeof hazard.lat === 'number' && typeof hazard.lon === 'number') return { lat: hazard.lat, lng: hazard.lon };
+    const centre = map ? map.getCenter().toJSON() : { lat: 51.564, lng: -0.106 };
+    const [dLat, dLng] = HAZARD_GEO_OFFSETS[index % HAZARD_GEO_OFFSETS.length];
+    hazard.lat = centre.lat + dLat;
+    hazard.lon = centre.lng + dLng;
+    persist();
+    return { lat: hazard.lat, lng: hazard.lon };
+  }
+
+  function pinIcon(color) {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="30" height="40" viewBox="0 0 30 40"><path d="M15 1C7.3 1 1 7.1 1 14.6 1 23.6 15 39 15 39s14-15.4 14-24.4C29 7.1 22.7 1 15 1Z" fill="${color}" stroke="#0a0f14" stroke-width="2"/></svg>`;
+    return {
+      url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
+      scaledSize: new google.maps.Size(30, 40),
+      anchor: new google.maps.Point(15, 38),
+    };
+  }
+
+  function addHazardMapMarker(hazard, position) {
+    const meta = HAZARD_TYPES[hazard.type];
+    const marker = new google.maps.Marker({ map, position, title: meta.label, icon: pinIcon(meta.color), zIndex: 6 });
+    marker.addListener('click', () => selectHazard(hazard.id));
+    return marker;
+  }
+
+  function renderMapHazards() {
+    if (!map || usingFallbackMap) return;
+    mapHazardMarkers.forEach((marker) => marker.setMap(null));
+    mapHazardMarkers = state.hazards.map((hazard, index) => addHazardMapMarker(hazard, hazardLatLng(hazard, index)));
+  }
+
   function renderHazardMarkers() {
     const layer = $('#hazardMarkers');
     layer.innerHTML = state.hazards.map((hazard, index) => {
@@ -177,6 +219,7 @@
       return `<button class="hazard-marker" style="left:${50 + dx}%;top:${53 + dy}%;--hazard:${meta.color}" data-hazard-id="${escapeHtml(hazard.id)}" aria-label="${escapeHtml(meta.label)}"><svg><use href="#${meta.icon}"/></svg></button>`;
     }).join('');
     $$('[data-hazard-id]', layer).forEach((button) => button.addEventListener('click', () => selectHazard(button.dataset.hazardId)));
+    renderMapHazards();
   }
 
   function selectHazard(hazardId) {
@@ -628,8 +671,21 @@
       const location = place?.geometry?.location;
       if (!location) return;
       centreMap(location.lat(), location.lng());
+      setDestinationMarker(location, place.name);
       showToast(place.name ? `Centred on ${place.name}` : 'Centred on selected place.');
       input.blur();
+    });
+  }
+
+  function setDestinationMarker(location, label) {
+    destinationMarker?.setMap(null);
+    destinationMarker = new google.maps.Marker({
+      map,
+      position: location,
+      title: label || 'Selected place',
+      icon: pinIcon('#ff7a1a'),
+      animation: google.maps.Animation.DROP,
+      zIndex: 9,
     });
   }
 
@@ -656,12 +712,14 @@
     usingFallbackMap = false;
     $('#fallbackMap').hidden = true;
     $('#fallbackMarkers').hidden = true;
+    $('#hazardMarkers').hidden = true;
     $('#mapError').hidden = true;
     renderMapStatus();
     initPlaceSearch();
     userMapMarker = addMapMarker({ ...state.profile, displayName: state.profile.displayName }, centre, true);
     const offsets = [[.004, -.006], [-.003, .006], [.008, .004]];
     mapMarkers = visibleMapRiders().map((person, index) => addMapMarker(person, { lat: centre.lat + offsets[index % offsets.length][0], lng: centre.lng + offsets[index % offsets.length][1] }, false));
+    renderMapHazards();
   }
 
   function addMapMarker(person, position, current) {

@@ -11,7 +11,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="app.css?v=13">
+  <link rel="stylesheet" href="app.css?v=15">
   <title>Rider Comms</title>
 </head>
 <body>
@@ -32,6 +32,11 @@
     <symbol id="i-reset" viewBox="0 0 24 24"><path d="M4 8V3m0 0h5M4 3l3.4 3.4A8 8 0 1 1 4.7 15"/></symbol>
     <symbol id="i-route" viewBox="0 0 24 24"><path d="M6 3v18M6 4h10l-3 4 3 4H6"/></symbol>
     <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 3.5 14.5 9l6 .8-4.3 4.1 1 5.9L12 17l-5.2 2.8 1-5.9L3.5 9.8l6-.8Z"/></symbol>
+    <symbol id="i-camera" viewBox="0 0 24 24"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13" r="3.4"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 4 21 19H3Z"/><path d="M12 10v4"/><path d="M12 16.6h.01"/></symbol>
+    <symbol id="i-cone" viewBox="0 0 24 24"><path d="M12 3 8 19h8L12 3Z"/><path d="M9.4 12h5.2M8.5 15.5h7"/><path d="M6 19h12"/></symbol>
+    <symbol id="i-no-entry" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M6.5 6.5l11 11"/></symbol>
+    <symbol id="i-report" viewBox="0 0 24 24"><path d="M12 3 4.5 6v5.2c0 4.8 2.9 8.2 7.5 9.8 4.6-1.6 7.5-5 7.5-9.8V6L12 3Z"/><path d="M12 8.4v3.6M12 15h.01"/></symbol>
   </defs></svg>
 
   <div id="app" class="app-shell">
@@ -46,7 +51,7 @@
           <div class="map-status glass" aria-live="polite"><span class="live-dot"></span><span id="mapStatusText">Location sharing off</span></div>
           <div id="fallbackMarkers" class="fallback-markers"></div>
           <div id="hazardMarkers" class="hazard-markers"></div>
-          <button id="reportHazardBtn" class="icon-button glass report-button" aria-label="Report on the road"><svg><use href="#i-shield"/></svg></button>
+          <button id="reportHazardBtn" class="icon-button glass report-button" aria-label="Report on the road"><svg><use href="#i-report"/></svg></button>
           <div class="map-actions">
             <button id="locateBtn" class="icon-button glass" aria-label="Centre on my location"><svg><use href="#i-location"/></svg></button>
             <button id="joinNearbyBtn" class="primary-fab" aria-label="Join nearby riders"><span class="live-dot dark"></span><span>Go live</span></button>
@@ -123,7 +128,7 @@
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
   <div id="updateBanner" class="update-banner" hidden><span>A new Rider Comms version is ready.</span><button id="reloadApp">Update now</button></div>
   <noscript>Rider Comms requires JavaScript.</noscript>
-  <script src="config.js?v=13"></script>
-  <script src="app.js?v=13" defer></script>
+  <script src="config.js?v=15"></script>
+  <script src="app.js?v=15" defer></script>
 </body>
 </html>
