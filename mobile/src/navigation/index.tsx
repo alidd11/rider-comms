@@ -118,27 +118,51 @@ function segmentTintColor(active: boolean): string {
   return active ? colors.accent : colors.textMuted;
 }
 
+function TabIconShell({ active, children }: { active: boolean; children: React.ReactNode }): React.JSX.Element {
+  return <View style={[styles.tabIconShell, active && styles.tabIconShellActive]}>{children}</View>;
+}
+
 function MapTabIcon({ size }: { size: number }): React.JSX.Element {
-  const color = segmentTintColor(useMapSegment() === 'public');
-  return <MaterialCommunityIcons name="motorbike" size={size} color={color} />;
+  const active = useMapSegment() === 'public';
+  return (
+    <TabIconShell active={active}>
+      <MaterialCommunityIcons name="motorbike" size={size} color={segmentTintColor(active)} />
+    </TabIconShell>
+  );
 }
 
 function GroupRideTabIcon({ size }: { size: number }): React.JSX.Element {
-  const color = segmentTintColor(useMapSegment() === 'host');
+  const active = useMapSegment() === 'host';
   // account-group reads as "a convoy/group of riders" — distinct from both
   // Map's motorbike glyph and Friends' person-add glyph, which the plain
   // "people" icon this replaced was too easily confused with.
-  return <MaterialCommunityIcons name="account-group" size={size} color={color} />;
+  return (
+    <TabIconShell active={active}>
+      <MaterialCommunityIcons name="account-group" size={size} color={segmentTintColor(active)} />
+    </TabIconShell>
+  );
 }
 
-const TAB_ICONS: Record<keyof TabParamList, (color: string, size: number) => React.ReactNode> = {
+const TAB_ICONS: Record<keyof TabParamList, (color: string, size: number, focused: boolean) => React.ReactNode> = {
   Map: (_color, size) => <MapTabIcon size={size} />,
   GroupRide: (_color, size) => <GroupRideTabIcon size={size} />,
-  Routes: (color, size) => <MaterialCommunityIcons name="road-variant" size={size} color={color} />,
+  Routes: (color, size, focused) => (
+    <TabIconShell active={focused}>
+      <MaterialCommunityIcons name="road-variant" size={size} color={color} />
+    </TabIconShell>
+  ),
   // Distinct from GroupRide's "account-group" glyph — this one reads as
   // "add a person" so the two tabs aren't visually interchangeable.
-  Friends: (color, size) => <Ionicons name="person-add" size={size} color={color} />,
-  Settings: (color, size) => <Ionicons name="settings" size={size} color={color} />,
+  Friends: (color, size, focused) => (
+    <TabIconShell active={focused}>
+      <Ionicons name="person-add" size={size} color={color} />
+    </TabIconShell>
+  ),
+  Settings: (color, size, focused) => (
+    <TabIconShell active={focused}>
+      <Ionicons name="settings" size={size} color={color} />
+    </TabIconShell>
+  ),
 };
 
 function MapTabLabel({ children }: { children: string }): React.JSX.Element {
@@ -162,10 +186,15 @@ function Tabs(): React.JSX.Element {
         // Every tab screen here builds its own top chrome, so none of them
         // need it.
         headerShown: false,
-        tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border },
+        tabBarStyle: {
+          backgroundColor: colors.surface,
+          borderTopColor: colors.border,
+          borderTopWidth: StyleSheet.hairlineWidth,
+        },
         tabBarActiveTintColor: colors.accent,
         tabBarInactiveTintColor: colors.textMuted,
-        tabBarIcon: ({ color, size }) => TAB_ICONS[route.name](color, size),
+        tabBarLabelStyle: styles.defaultTabLabel,
+        tabBarIcon: ({ color, size, focused }) => TAB_ICONS[route.name](color, size, focused),
       })}
     >
       {/* Tapping "Map" always forces the segment back to 'public', not just
@@ -310,4 +339,13 @@ export function AppNavigator(): React.JSX.Element {
 const styles = StyleSheet.create({
   blank: { flex: 1, backgroundColor: colors.background },
   tabLabel: { fontSize: 11, fontWeight: '600', letterSpacing: 0.1 },
+  defaultTabLabel: { fontSize: 11, fontWeight: '600', letterSpacing: 0.1 },
+  tabIconShell: {
+    width: 42,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tabIconShellActive: { backgroundColor: colors.accentSoft },
 });

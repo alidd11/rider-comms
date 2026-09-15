@@ -14,6 +14,7 @@ export const colors = {
   textMuted: '#6B7280',
   accent: '#FF8A2B',
   accentPressed: '#E67515',
+  accentSoft: '#3A2112',
   accentText: '#1A0E00',
   success: '#3DD68C',
   danger: '#FF5A5F',
@@ -35,7 +36,8 @@ export const spacing = {
 export const radii = {
   sm: 8,
   md: 12,
-  lg: 16,
+  lg: 20,
+  xl: 28,
   pill: 999,
 } as const;
 
@@ -83,9 +85,9 @@ export const elevation = {
   },
   raised: {
     shadowColor: '#000',
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 6,
+    shadowOpacity: 0.24,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 4,
   },
 } as const;
