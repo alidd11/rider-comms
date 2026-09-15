@@ -287,11 +287,29 @@
     renderHazardMarkers();
   }
 
-  function createHazard(type) {
-    state.hazards.push({ id: `hazard_${Date.now().toString(36)}`, type, confirmations: 0, denials: 0, createdAt: Date.now() });
+  async function createHazard(type) {
+    const hazard = { id: `hazard_${Date.now().toString(36)}`, type, confirmations: 0, denials: 0, createdAt: Date.now() };
+    // Waze anchors a report to the reporter's live GPS position, not to
+    // wherever the map happens to be centred — the fix for this being
+    // exactly the bug reported (hazards landing at an arbitrary offset from
+    // map centre, which drifts away from "where you actually are" the
+    // moment you pan the map). Reuse the same currentPosition() the
+    // locate/go-live buttons already use for a real fix.
+    try {
+      const position = await currentPosition();
+      hazard.lat = position.coords.latitude;
+      hazard.lon = position.coords.longitude;
+      showToast(`${HAZARD_TYPES[type].label} reported.`);
+    } catch {
+      // No permission/no fix: fall back to hazardLatLng()'s illustrative
+      // offset-from-centre placement at render time (lat/lon left unset
+      // here) rather than blocking the report entirely, but say so — never
+      // present an approximate pin as if it were a real GPS fix.
+      showToast(`${HAZARD_TYPES[type].label} reported — enable location for an accurate pin.`);
+    }
+    state.hazards.push(hazard);
     persist();
     renderHazardMarkers();
-    showToast(`${HAZARD_TYPES[type].label} reported.`);
   }
 
   function visibleMapRiders() {
@@ -564,8 +582,8 @@
         title: 'Report on the road',
         body: `<p class="caption">Let nearby riders know what's ahead. Reports fade out over time.</p><div class="chip-row" id="hazardTypeChips">${HAZARD_TYPE_ORDER.map((t) => `<button type="button" class="chip" data-hazard-type="${t}">${escapeHtml(HAZARD_TYPES[t].label)}</button>`).join('')}</div>`,
         ready: () => $$('[data-hazard-type]', $('#hazardTypeChips')).forEach((chip) => chip.addEventListener('click', () => {
-          createHazard(chip.dataset.hazardType);
           closeSheet();
+          createHazard(chip.dataset.hazardType);
         })),
       }),
     };
