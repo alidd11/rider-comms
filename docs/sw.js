@@ -1,6 +1,6 @@
-const CACHE_NAME = 'rider-comms-pwa-v5';
+const CACHE_NAME = 'rider-comms-pwa-v6';
 const ASSETS = [
-  './', './index.html', './app.css', './app.js', './config.js',
+  './', './index.html', './app.css?v=6', './app.js?v=6', './config.js?v=6',
   './manifest.json', './icons/icon-192.png', './icons/icon-512.png',
 ];
 
@@ -12,7 +12,7 @@ self.addEventListener('install', (event) => {
         if (!response.ok) throw new Error(`Could not cache ${asset}`);
         await cache.put(asset, response);
       })
-    ))
+    )).then(() => self.skipWaiting())
   );
 });
 
