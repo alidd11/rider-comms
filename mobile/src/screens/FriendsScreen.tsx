@@ -28,9 +28,10 @@ function YourRiderIdCard(): React.JSX.Element {
           </Text>
         </View>
       </View>
+      {/* TODO: add a one-tap copy button once a clipboard dependency (e.g.
+          expo-clipboard) is added to this app — for now, long-press to copy. */}
       <Text style={styles.addCaption}>
-        Share this with a friend so they can add you back. Long-press the ID above to select and copy it — TODO:
-        wire up a one-tap copy button once a clipboard dependency (e.g. expo-clipboard) is added to this app.
+        Share this with a friend so they can add you back. Long-press the ID above to select and copy it.
       </Text>
     </View>
   );
@@ -111,8 +112,7 @@ function AddFriendCard(): React.JSX.Element {
         <Text style={styles.addInlineSuccess}>Request sent</Text>
       ) : (
         <Text style={styles.addCaption}>
-          Enter a rider's ID to send them a friend request. Handles aren't searchable yet — TODO once accounts
-          exist.
+          Enter a rider's ID to send them a friend request. Handle search is coming once accounts support it.
         </Text>
       )}
     </View>
