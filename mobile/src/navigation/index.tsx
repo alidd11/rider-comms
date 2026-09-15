@@ -16,6 +16,7 @@ import { SettingsScreen } from '../screens/SettingsScreen';
 import { CreateRideScreen } from '../screens/CreateRideScreen';
 import { FriendsScreen } from '../screens/FriendsScreen';
 import { FriendChatScreen } from '../screens/FriendChatScreen';
+import { ScenicRoutesScreen } from '../screens/ScenicRoutesScreen';
 import { BillingScreen } from '../screens/BillingScreen';
 import { LegalScreen } from '../screens/LegalScreen';
 import { OnboardingScreen, ONBOARDING_COMPLETED_KEY } from '../screens/OnboardingScreen';
@@ -51,6 +52,7 @@ export type TabParamList = {
     label?: string;
   } | undefined;
   GroupRide: undefined;
+  Routes: undefined;
   Friends: undefined;
   Settings: undefined;
 };
@@ -132,6 +134,7 @@ function GroupRideTabIcon({ size }: { size: number }): React.JSX.Element {
 const TAB_ICONS: Record<keyof TabParamList, (color: string, size: number) => React.ReactNode> = {
   Map: (_color, size) => <MapTabIcon size={size} />,
   GroupRide: (_color, size) => <GroupRideTabIcon size={size} />,
+  Routes: (color, size) => <MaterialCommunityIcons name="road-variant" size={size} color={color} />,
   // Distinct from GroupRide's "account-group" glyph — this one reads as
   // "add a person" so the two tabs aren't visually interchangeable.
   Friends: (color, size) => <Ionicons name="person-add" size={size} color={color} />,
@@ -214,6 +217,7 @@ function Tabs(): React.JSX.Element {
           },
         })}
       />
+      <Tab.Screen name="Routes" component={ScenicRoutesScreen} options={{ title: 'Routes' }} />
       <Tab.Screen name="Friends" component={FriendsScreen} options={{ title: 'Friends' }} />
       <Tab.Screen name="Settings" component={SettingsScreen} options={{ title: 'Settings' }} />
     </Tab.Navigator>

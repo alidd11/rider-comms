@@ -27,13 +27,17 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import Svg, { Rect, Line, Defs, RadialGradient, Stop } from 'react-native-svg';
-import { TIER_RADIUS_MILES } from '@rider-comms/shared';
+import { TIER_RADIUS_MILES, haversineMiles } from '@rider-comms/shared';
+import type { HazardReport, HazardType } from '@rider-comms/shared';
 import type { TabParamList } from '../navigation';
 import { useAuth } from '../auth/AuthContext';
 import { colors, spacing, radii, type, elevation, MIN_TOUCH_TARGET } from '../theme';
 import { RideBar } from '../ride/RideBar';
 import { HostPanel } from '../ride/HostPanel';
 import { useSettings } from '../settings/SettingsContext';
+import { PlaceSearchBar } from './PlaceSearchBar';
+import type { PlaceResult } from '../api/places';
+import { HazardReportSheet, HAZARD_TYPE_META } from './HazardReportSheet';
 import { navigationTargetFromValues } from '../navigationLinks';
 import type { NavigationTarget } from '../navigationLinks';
 
@@ -65,6 +69,43 @@ function ridersOnCircle(riders: string[], size: LayoutSize): Array<{ id: string;
     const angle = (index / Math.max(riders.length, 1)) * Math.PI * 2 - Math.PI / 2;
     return { id, x: centerX + orbitRadius * Math.cos(angle), y: centerY + orbitRadius * Math.sin(angle) };
   });
+}
+
+// Same "not real bearings" illustrative layout as ridersOnCircle above (see
+// the TODO(backend) note at the top of this file) — hazards get their own,
+// wider ring so they're visually distinct from rider pins rather than
+// competing for the same positions. Each hazard's *distance* shown in its
+// info card is computed from its real lat/lon (haversineMiles), even though
+// its on-screen angle here is not — same honesty split as the rest of this
+// screen: real numbers, illustrative position, until a real map SDK exists.
+function hazardsOnCircle(hazards: HazardReport[], size: LayoutSize): Array<HazardReport & { x: number; y: number }> {
+  const centerX = size.width / 2;
+  const centerY = size.height / 2;
+  const orbitRadius = Math.min(size.width, size.height) * 0.42;
+  return hazards.map((hazard, index) => {
+    const angle = (index / Math.max(hazards.length, 1)) * Math.PI * 2 - Math.PI / 2 + Math.PI / hazards.length;
+    return { ...hazard, x: centerX + orbitRadius * Math.cos(angle), y: centerY + orbitRadius * Math.sin(angle) };
+  });
+}
+
+function HazardMarker({
+  hazard,
+  selected,
+  onPress,
+}: {
+  hazard: HazardReport & { x: number; y: number };
+  selected: boolean;
+  onPress: () => void;
+}): React.JSX.Element {
+  const meta = HAZARD_TYPE_META[hazard.type];
+  const size = selected ? 32 : 26;
+  return (
+    <Pressable style={[styles.pinWrap, { left: hazard.x - size / 2, top: hazard.y - size / 2 }]} onPress={onPress}>
+      <View style={[styles.hazardBadge, { width: size, height: size, borderRadius: size / 2, backgroundColor: meta.color }, selected && styles.pinBadgeSelected]}>
+        <MaterialCommunityIcons name={meta.icon} size={size * 0.6} color={colors.accentText} />
+      </View>
+    </Pressable>
+  );
 }
 
 function MapPin({
@@ -333,16 +374,22 @@ export function MapScreen(): React.JSX.Element {
   const [error, setError] = React.useState<string | null>(null);
   const [selectedRider, setSelectedRider] = React.useState<string | null>(null);
   const [mapSize, setMapSize] = React.useState<LayoutSize>({ width: VIEWBOX_SIZE, height: VIEWBOX_SIZE });
+  const [currentLocation, setCurrentLocation] = React.useState<{ lat: number; lon: number } | null>(null);
+  const [selectedPlace, setSelectedPlace] = React.useState<PlaceResult | null>(null);
+  const [hazards, setHazards] = React.useState<HazardReport[]>([]);
+  const [selectedHazardId, setSelectedHazardId] = React.useState<string | null>(null);
+  const [reportSheetOpen, setReportSheetOpen] = React.useState(false);
   const [navigationTarget, setNavigationTarget] = React.useState<NavigationTarget | null>(null);
 
   React.useEffect(() => {
-    if (!shareLocation) { setRidersInZone([]); return; }
+    if (!shareLocation) { setRidersInZone([]); setCurrentLocation(null); return; }
     let cancelled = false;
 
     async function tick() {
       let lat: number, lon: number;
       try {
         ({ lat, lon } = await getCurrentLocation());
+        if (!cancelled) setCurrentLocation({ lat, lon });
       } catch {
         if (!cancelled) {
           setLocationUnavailable(true);
@@ -374,6 +421,59 @@ export function MapScreen(): React.JSX.Element {
     };
   }, [client, shareLocation, tier]);
 
+  // Nearby hazard reports poll independently of the presence tick above —
+  // they're visible whether or not the rider is sharing their own location
+  // publicly (shareLocation only gates *being seen*, not *seeing others'
+  // reports*), so this only needs a location fix to exist, not shareLocation.
+  React.useEffect(() => {
+    if (!currentLocation) { setHazards([]); return; }
+    let cancelled = false;
+    async function fetchHazards() {
+      try {
+        const { hazards: fetched } = await client.getNearbyHazards(currentLocation!.lat, currentLocation!.lon);
+        if (!cancelled) setHazards(fetched);
+      } catch {
+        // Nearby hazards are a secondary layer on top of the core map —
+        // a failure here doesn't need its own error banner.
+      }
+    }
+    fetchHazards();
+    const interval = setInterval(fetchHazards, PRESENCE_UPDATE_INTERVAL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [client, currentLocation]);
+
+  async function handleReport(hazardType: HazardType) {
+    setReportSheetOpen(false);
+    if (!currentLocation) return;
+    try {
+      const created = await client.createHazard(hazardType, currentLocation.lat, currentLocation.lon);
+      setHazards((current) => [...current, created]);
+    } catch {
+      // Reporting is best-effort from the rider's point of view — a failed
+      // report simply doesn't appear, no separate error UI for this yet.
+    }
+  }
+
+  async function handleVote(hazardId: string, direction: 'confirm' | 'deny') {
+    try {
+      if (direction === 'confirm') await client.confirmHazard(hazardId);
+      else await client.denyHazard(hazardId);
+      setHazards((current) =>
+        current.map((h) =>
+          h.id === hazardId
+            ? { ...h, confirmations: h.confirmations + (direction === 'confirm' ? 1 : 0), denials: h.denials + (direction === 'deny' ? 1 : 0) }
+            : h
+        )
+      );
+    } catch {
+      // Best-effort, same as handleReport above.
+    }
+    setSelectedHazardId(null);
+  }
+
   // Reacts to the "Group Ride" tab bar shortcut (see navigation/index.tsx),
   // which navigates here with a fresh `at` nonce each press so a repeat tap
   // back to the same segment still switches even if the user had since
@@ -399,6 +499,8 @@ export function MapScreen(): React.JSX.Element {
   }, [route.params?.at, route.params?.label, route.params?.lat, route.params?.lon]);
 
   const pins = ridersOnCircle(ridersInZone, mapSize);
+  const hazardPins = hazardsOnCircle(hazards, mapSize);
+  const selectedHazard = hazards.find((h) => h.id === selectedHazardId) ?? null;
   const centerX = mapSize.width / 2;
   const centerY = mapSize.height / 2;
 
@@ -454,11 +556,45 @@ export function MapScreen(): React.JSX.Element {
                 onPress={() => toggleSelected(pin.id)}
               />
             ))}
+            {hazardPins.map((hazard) => (
+              <HazardMarker
+                key={hazard.id}
+                hazard={hazard}
+                selected={selectedHazardId === hazard.id}
+                onPress={() => setSelectedHazardId((current) => (current === hazard.id ? null : hazard.id))}
+              />
+            ))}
           </ZoomableMap>
         </View>
       ) : (
         <View style={[styles.hostFill, { paddingTop: insets.top + spacing.xxl }]}>
           <HostPanel />
+        </View>
+      )}
+
+      {segment === 'public' && (
+        <View style={[styles.searchSlot, { top: insets.top + spacing.sm }]}>
+          <PlaceSearchBar
+            near={currentLocation}
+            onSelect={(place) => setSelectedPlace(place)}
+          />
+        </View>
+      )}
+
+      {segment === 'public' && selectedPlace && (
+        <View style={[styles.errorOverlay, { top: insets.top + spacing.sm + MIN_TOUCH_TARGET * 0.8 + spacing.sm }]} pointerEvents="box-none">
+          <View style={styles.noticeBox}>
+            <Ionicons name="location" size={18} color={colors.accent} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.selectedPlaceName}>{selectedPlace.name}</Text>
+              <Text style={styles.noticeSubtext}>
+                Routing to search results isn't available until this map has a real navigation SDK behind it.
+              </Text>
+            </View>
+            <Pressable onPress={() => setSelectedPlace(null)} hitSlop={8}>
+              <Ionicons name="close" size={18} color={colors.textMuted} />
+            </Pressable>
+          </View>
         </View>
       )}
 
@@ -479,6 +615,51 @@ export function MapScreen(): React.JSX.Element {
           </View>
         </View>
       )}
+
+      {segment === 'public' && selectedHazard && (
+        <View style={[styles.errorOverlay, { top: insets.top + spacing.sm + MIN_TOUCH_TARGET * 0.8 + spacing.sm }]} pointerEvents="box-none">
+          <View style={styles.noticeBox}>
+            <MaterialCommunityIcons
+              name={HAZARD_TYPE_META[selectedHazard.type].icon}
+              size={18}
+              color={HAZARD_TYPE_META[selectedHazard.type].color}
+            />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.selectedPlaceName}>{HAZARD_TYPE_META[selectedHazard.type].label}</Text>
+              <Text style={styles.noticeSubtext}>
+                {currentLocation
+                  ? `${haversineMiles(currentLocation, { lat: selectedHazard.lat, lon: selectedHazard.lon }).toFixed(1)} mi away`
+                  : 'Reported by a nearby rider'}
+              </Text>
+              <View style={styles.hazardCardRow}>
+                <Pressable style={styles.hazardVoteButton} onPress={() => handleVote(selectedHazard.id, 'confirm')}>
+                  <Ionicons name="checkmark" size={14} color={colors.success} />
+                  <Text style={styles.hazardVoteText}>Still there ({selectedHazard.confirmations})</Text>
+                </Pressable>
+                <Pressable style={styles.hazardVoteButton} onPress={() => handleVote(selectedHazard.id, 'deny')}>
+                  <Ionicons name="close" size={14} color={colors.danger} />
+                  <Text style={styles.hazardVoteText}>Gone ({selectedHazard.denials})</Text>
+                </Pressable>
+              </View>
+            </View>
+            <Pressable onPress={() => setSelectedHazardId(null)} hitSlop={8}>
+              <Ionicons name="close" size={18} color={colors.textMuted} />
+            </Pressable>
+          </View>
+        </View>
+      )}
+
+      {segment === 'public' && (
+        <Pressable
+          style={[styles.reportButton, { bottom: insets.bottom + spacing.sm }]}
+          onPress={() => setReportSheetOpen(true)}
+          accessibilityLabel="Report on the road"
+        >
+          <MaterialCommunityIcons name="alert-plus" size={22} color={colors.textPrimary} />
+        </Pressable>
+      )}
+
+      <HazardReportSheet visible={reportSheetOpen} onClose={() => setReportSheetOpen(false)} onReport={handleReport} />
 
       {segment === 'public' && navigationTarget && (
         <View style={styles.destinationCard} accessibilityLiveRegion="polite">
@@ -545,6 +726,14 @@ const styles = StyleSheet.create({
     ...elevation.raised,
   },
   noticeText: { ...type.body, color: colors.textMuted, flex: 1 },
+  selectedPlaceName: { ...type.body, color: colors.textPrimary, fontWeight: '700' },
+  noticeSubtext: { ...type.caption, marginTop: spacing.xs },
+  searchSlot: {
+    position: 'absolute',
+    left: spacing.lg,
+    right: spacing.xxl + spacing.md,
+    zIndex: 9,
+  },
   sideToggle: {
     position: 'absolute',
     top: spacing.lg,
@@ -573,6 +762,31 @@ const styles = StyleSheet.create({
   pinBadgeYou: { backgroundColor: colors.accent },
   pinBadgeRider: { backgroundColor: colors.surfaceRaised },
   pinBadgeSelected: { borderColor: colors.accent, backgroundColor: colors.accentPressed },
+  hazardBadge: { alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: colors.background },
+  reportButton: {
+    position: 'absolute',
+    left: spacing.sm,
+    bottom: spacing.sm,
+    width: MIN_TOUCH_TARGET * 0.7,
+    height: MIN_TOUCH_TARGET * 0.7,
+    borderRadius: radii.pill,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  hazardCardRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.sm },
+  hazardVoteButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: radii.pill,
+    backgroundColor: colors.surfaceRaised,
+  },
+  hazardVoteText: { ...type.caption, color: colors.textPrimary, fontWeight: '700' },
   destinationPinWrap: { position: 'absolute', width: 44, height: 52, alignItems: 'center' },
   destinationPin: {
     width: 40,

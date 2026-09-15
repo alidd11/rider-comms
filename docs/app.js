@@ -23,7 +23,29 @@
       { riderId: 'rider_jc', displayName: 'JC', handle: '@jc_ridesout', status: 'Active 8m ago' },
     ],
     requests: [{ riderId: 'rider_alex82', displayName: 'Alex R.', handle: '@rider_alex82', status: 'Wants to connect' }],
+    routes: [],
+    hazards: [],
+    routeVehicleFilter: null,
   };
+
+  // Waze-style crowdsourced road reports. This is local, device-only mock
+  // state, same as the rest of this file (see the module header note on
+  // why the PWA has no backend calls) — a real deployment backs this with
+  // the same /hazards endpoints and TTL/hide-threshold rules the native
+  // app's client uses (see shared/src/hazards.ts, backend/src/hazardStore.ts).
+  const HAZARD_TYPES = {
+    police: { label: 'Police', icon: 'i-shield', color: '#4f7cff' },
+    camera: { label: 'Speed camera', icon: 'i-search', color: '#4f7cff' },
+    accident: { label: 'Accident', icon: 'i-shield', color: '#ff6572' },
+    hazard: { label: 'Hazard', icon: 'i-shield', color: '#ffc15a' },
+    road_closure: { label: 'Road closure', icon: 'i-shield', color: '#ff6572' },
+  };
+  const HAZARD_TYPE_ORDER = ['police', 'camera', 'accident', 'hazard', 'road_closure'];
+
+  const VEHICLE_LABELS = { motorcycle_small: 'Small motorcycle', motorcycle_large: 'Large motorcycle', scooter: 'Scooter', car: 'Car' };
+  const ROAD_TYPE_LABELS = { rural: 'Rural', mountain: 'Mountain', coastal: 'Coastal', urban: 'Urban', mixed: 'Mixed' };
+  const DIFFICULTY_LABELS = { easy: 'Easy', moderate: 'Moderate', challenging: 'Challenging' };
+  const SURFACE_LABELS = { excellent: 'Excellent', good: 'Good', fair: 'Fair', poor: 'Poor' };
 
   const PUBLIC_RIDERS = [
     { riderId: 'rider_alex82', displayName: 'Alex R.', handle: '@rider_alex82', status: 'Nearby', x: 24, y: 34 },
@@ -56,6 +78,8 @@
         profile: { ...DEFAULT_STATE.profile, ...(stored.profile || {}) },
         friends: Array.isArray(stored.friends) ? stored.friends : structuredClone(DEFAULT_STATE.friends),
         requests: Array.isArray(stored.requests) ? stored.requests : structuredClone(DEFAULT_STATE.requests),
+        routes: Array.isArray(stored.routes) ? stored.routes : structuredClone(DEFAULT_STATE.routes),
+        hazards: Array.isArray(stored.hazards) ? stored.hazards : structuredClone(DEFAULT_STATE.hazards),
       };
     } catch {
       return structuredClone(DEFAULT_STATE);
@@ -99,7 +123,7 @@
   }
 
   function navigate(screen, push = true) {
-    if (!['map', 'ride', 'friends', 'settings'].includes(screen)) screen = 'map';
+    if (!['map', 'ride', 'routes', 'friends', 'settings'].includes(screen)) screen = 'map';
     state.screen = screen;
     persist();
     $$('.screen').forEach((item) => item.classList.toggle('active', item.dataset.screen === screen));
@@ -112,6 +136,7 @@
     document.title = `${screen === 'ride' ? 'Group Ride' : screen[0].toUpperCase() + screen.slice(1)} · Rider Comms`;
     window.scrollTo(0, 0);
     if (screen === 'map') renderMapRiders();
+    if (screen === 'routes') renderRoutes();
   }
 
   function renderProfile() {
@@ -137,6 +162,51 @@
     $$('[data-rider-id]', layer).forEach((button) => button.addEventListener('click', () => selectRider(button.dataset.riderId, people)));
   }
 
+  // Same illustrative-position convention as PUBLIC_RIDERS' fixed x/y
+  // percentages above (see the module header note on why the PWA has no
+  // real map data) — each new report is placed at a small, deterministic
+  // offset from "you" so multiple reports don't stack exactly on top of
+  // each other, not at a real bearing/distance.
+  const HAZARD_OFFSETS = [[14, -10], [-16, 8], [10, 16], [-12, -14], [18, 4]];
+
+  function renderHazardMarkers() {
+    const layer = $('#hazardMarkers');
+    layer.innerHTML = state.hazards.map((hazard, index) => {
+      const [dx, dy] = HAZARD_OFFSETS[index % HAZARD_OFFSETS.length];
+      const meta = HAZARD_TYPES[hazard.type];
+      return `<button class="hazard-marker" style="left:${50 + dx}%;top:${53 + dy}%;--hazard:${meta.color}" data-hazard-id="${escapeHtml(hazard.id)}" aria-label="${escapeHtml(meta.label)}"><svg><use href="#${meta.icon}"/></svg></button>`;
+    }).join('');
+    $$('[data-hazard-id]', layer).forEach((button) => button.addEventListener('click', () => selectHazard(button.dataset.hazardId)));
+  }
+
+  function selectHazard(hazardId) {
+    const hazard = state.hazards.find((h) => h.id === hazardId);
+    const card = $('#hazardCard');
+    if (!hazard) { card.hidden = true; return; }
+    const meta = HAZARD_TYPES[hazard.type];
+    card.innerHTML = `<span class="avatar" style="--avatar:${meta.color}" aria-hidden="true"><svg><use href="#${meta.icon}"/></svg></span><div class="rider-card-copy"><strong>${escapeHtml(meta.label)}</strong><span>Reported by a nearby rider</span><div class="hazard-vote-row"><button class="compact-button" data-vote="confirm">Still there (${hazard.confirmations})</button><button class="compact-button" data-vote="deny">Gone (${hazard.denials})</button></div></div>`;
+    card.hidden = false;
+    $('[data-vote="confirm"]', card).addEventListener('click', () => voteHazard(hazardId, 'confirm'));
+    $('[data-vote="deny"]', card).addEventListener('click', () => voteHazard(hazardId, 'deny'));
+  }
+
+  function voteHazard(hazardId, direction) {
+    const hazard = state.hazards.find((h) => h.id === hazardId);
+    if (!hazard) return;
+    if (direction === 'confirm') hazard.confirmations += 1;
+    else hazard.denials += 1;
+    persist();
+    $('#hazardCard').hidden = true;
+    renderHazardMarkers();
+  }
+
+  function createHazard(type) {
+    state.hazards.push({ id: `hazard_${Date.now().toString(36)}`, type, confirmations: 0, denials: 0, createdAt: Date.now() });
+    persist();
+    renderHazardMarkers();
+    showToast(`${HAZARD_TYPES[type].label} reported.`);
+  }
+
   function visibleMapRiders() {
     if (!state.activeRide) return PUBLIC_RIDERS;
     return RIDE_MEMBERS
@@ -145,6 +215,7 @@
   }
 
   function renderMapRiders() {
+    renderHazardMarkers();
     const riders = visibleMapRiders();
     if (!map || usingFallbackMap) return renderFallbackMarkers(riders);
     mapMarkers.forEach((marker) => marker.setMap(null));
@@ -201,6 +272,68 @@
     persist();
     renderFriends();
     showToast('Request declined.');
+  }
+
+  const VEHICLE_FILTER_ORDER = ['motorcycle_small', 'motorcycle_large', 'scooter', 'car'];
+
+  function renderRoutes() {
+    const filtersEl = $('#routeVehicleFilters');
+    filtersEl.innerHTML = ['all', ...VEHICLE_FILTER_ORDER].map((key) => {
+      const active = (state.routeVehicleFilter ?? 'all') === key;
+      const label = key === 'all' ? 'All vehicles' : VEHICLE_LABELS[key];
+      return `<button class="chip${active ? ' active' : ''}" data-vehicle-filter="${key}">${escapeHtml(label)}</button>`;
+    }).join('');
+    $$('[data-vehicle-filter]', filtersEl).forEach((button) => button.addEventListener('click', () => {
+      state.routeVehicleFilter = button.dataset.vehicleFilter === 'all' ? null : button.dataset.vehicleFilter;
+      persist();
+      renderRoutes();
+    }));
+
+    const filtered = state.routeVehicleFilter
+      ? state.routes.filter((route) => route.vehicleSuitability.includes(state.routeVehicleFilter))
+      : state.routes;
+
+    $('#routeEmpty').hidden = filtered.length > 0;
+    $('#routeList').innerHTML = filtered.map((route) => {
+      const stars = Array.from({ length: 5 }, (_, i) => `<svg class="star${i < route.scenicRating ? ' filled' : ''}"><use href="#i-star"/></svg>`).join('');
+      const badges = [
+        ROAD_TYPE_LABELS[route.roadType],
+        DIFFICULTY_LABELS[route.difficulty],
+        `${route.distanceMiles} mi`,
+        `${Math.round(route.estimatedDurationMinutes)} min`,
+        `${SURFACE_LABELS[route.surfaceQuality]} surface`,
+        route.avoidsTolls ? 'No tolls' : null,
+        route.avoidsMotorways ? 'No motorways' : null,
+      ].filter(Boolean).map((label) => `<span class="badge">${escapeHtml(label)}</span>`).join('');
+      const notices = route.safetyNotices.length
+        ? `<div class="safety-box"><svg><use href="#i-shield"/></svg><div>${route.safetyNotices.map((n) => `<p>${escapeHtml(n)}</p>`).join('')}</div></div>`
+        : '';
+      return `<article class="route-card" data-delete-route="${escapeHtml(route.id)}">
+        <div class="route-card-head"><div><strong>${escapeHtml(route.name)}</strong><div class="star-row">${stars}</div></div>${route.createdBy === state.profile.riderId ? '<button class="icon-button" data-delete-route-btn aria-label="Delete route"><svg><use href="#i-reset"/></svg></button>' : ''}</div>
+        <p class="secondary">${escapeHtml(route.description)}</p>
+        <div class="badge-row">${badges}</div>
+        <p class="caption">Suited for: ${route.vehicleSuitability.map((v) => VEHICLE_LABELS[v]).join(', ')}</p>
+        ${notices}
+        <a class="button tertiary" href="https://maps.google.com/?q=${route.startLat},${route.startLon}" target="_blank" rel="noopener">Open start in Maps</a>
+      </article>`;
+    }).join('');
+    $$('[data-delete-route-btn]', $('#routeList')).forEach((button) => button.addEventListener('click', (event) => {
+      const card = event.target.closest('[data-delete-route]');
+      const routeId = card?.dataset.deleteRoute;
+      if (!routeId || !window.confirm('Delete this route?')) return;
+      state.routes = state.routes.filter((route) => route.id !== routeId);
+      persist();
+      renderRoutes();
+      showToast('Route deleted.');
+    }));
+  }
+
+  function createRoute(input) {
+    const route = { ...input, id: `route_${Date.now().toString(36)}`, createdBy: state.profile.riderId, createdAt: Date.now() };
+    state.routes.unshift(route);
+    persist();
+    renderRoutes();
+    showToast('Route added.');
   }
 
   function renderRide() {
@@ -280,6 +413,74 @@
       units: () => ({ title: 'Distance units', body: `<div class="form-field"><label for="unitSelect">Preferred unit</label><select id="unitSelect"><option value="mi">Miles</option><option value="km">Kilometres</option></select></div>`, ready: () => { $('#unitSelect').value = state.unit; $('#unitSelect').addEventListener('change', (event) => { state.unit = event.target.value; persist(); showToast('Distance unit updated.'); }); } }),
       notifications: () => ({ title: 'Notifications', body: toggleMarkup('notifications', 'Ride and message alerts', 'Receive useful updates while Rider Comms is not in the foreground.', state.notifications), ready: wireToggles }),
       safety: () => ({ title: 'Safety & privacy', body: `<h3>Designed for low distraction</h3><p class="secondary">Posting, profile editing and other visual tasks should be completed while stationary. Location sharing is off by default and can be stopped at any time.</p><h3>Emergency awareness</h3><p class="secondary">Rider Comms is not an emergency service. Always follow local road rules and use your vehicle controls safely.</p>` }),
+      addRoute: () => ({
+        title: 'Add a scenic route',
+        body: `<p class="caption">This isn't reviewed by Rider Comms yet — only enter routes and safety notes you can vouch for yourself.</p>
+          <div class="form-field"><label for="routeName">Route name</label><input id="routeName" maxlength="80"></div>
+          <div class="form-field"><label for="routeDescription">Description</label><textarea id="routeDescription" maxlength="500" rows="3"></textarea></div>
+          <div class="form-field"><label>Vehicle suitability</label><div class="chip-row" id="routeVehicleChips">${VEHICLE_FILTER_ORDER.map((v) => `<button type="button" class="chip" data-vehicle="${v}">${escapeHtml(VEHICLE_LABELS[v])}</button>`).join('')}</div></div>
+          <div class="form-field"><label for="routeType">Road type</label><select id="routeType">${Object.entries(ROAD_TYPE_LABELS).map(([k, v]) => `<option value="${k}">${escapeHtml(v)}</option>`).join('')}</select></div>
+          <div class="form-field"><label for="routeDistance">Distance (mi)</label><input id="routeDistance" type="number" min="0.1" step="0.1"></div>
+          <div class="form-field"><label for="routeDuration">Duration (min)</label><input id="routeDuration" type="number" min="1" step="1"></div>
+          <div class="form-field"><label for="routeDifficulty">Difficulty</label><select id="routeDifficulty">${Object.entries(DIFFICULTY_LABELS).map(([k, v]) => `<option value="${k}">${escapeHtml(v)}</option>`).join('')}</select></div>
+          <div class="form-field"><label for="routeSurface">Surface quality</label><select id="routeSurface">${Object.entries(SURFACE_LABELS).map(([k, v]) => `<option value="${k}">${escapeHtml(v)}</option>`).join('')}</select></div>
+          <div class="form-field"><label for="routeRating">Scenic rating (1-5)</label><input id="routeRating" type="number" min="1" max="5" step="1" value="3"></div>
+          <div class="form-field"><label for="routeNotices">Safety notices (one per line, optional)</label><textarea id="routeNotices" rows="2"></textarea></div>
+          <div class="form-field"><label for="routeStartLat">Start latitude</label><input id="routeStartLat" type="number" step="any"></div>
+          <div class="form-field"><label for="routeStartLon">Start longitude</label><input id="routeStartLon" type="number" step="any"></div>
+          <div class="form-field"><label for="routeEndLat">End latitude</label><input id="routeEndLat" type="number" step="any"></div>
+          <div class="form-field"><label for="routeEndLon">End longitude</label><input id="routeEndLon" type="number" step="any"></div>
+          <p id="routeFormError" class="inline-error" hidden></p>
+          <button class="button primary wide" id="saveRoute">Save route</button>`,
+        ready: () => {
+          const selected = new Set();
+          $$('[data-vehicle]', $('#routeVehicleChips')).forEach((chip) => chip.addEventListener('click', () => {
+            const v = chip.dataset.vehicle;
+            if (selected.has(v)) { selected.delete(v); chip.classList.remove('active'); }
+            else { selected.add(v); chip.classList.add('active'); }
+          }));
+          $('#saveRoute').addEventListener('click', () => {
+            const errorEl = $('#routeFormError');
+            const name = $('#routeName').value.trim();
+            const description = $('#routeDescription').value.trim();
+            const distanceMiles = Number($('#routeDistance').value);
+            const estimatedDurationMinutes = Number($('#routeDuration').value);
+            const scenicRating = Number($('#routeRating').value);
+            const startLat = Number($('#routeStartLat').value);
+            const startLon = Number($('#routeStartLon').value);
+            const endLat = Number($('#routeEndLat').value);
+            const endLon = Number($('#routeEndLon').value);
+            if (!name || !description) { errorEl.textContent = 'Add a name and description.'; errorEl.hidden = false; return; }
+            if (selected.size === 0) { errorEl.textContent = 'Choose at least one vehicle type.'; errorEl.hidden = false; return; }
+            if (!(distanceMiles > 0) || !(estimatedDurationMinutes > 0)) { errorEl.textContent = 'Distance and duration must be positive numbers.'; errorEl.hidden = false; return; }
+            if (!(scenicRating >= 1 && scenicRating <= 5)) { errorEl.textContent = 'Scenic rating must be 1-5.'; errorEl.hidden = false; return; }
+            if ([startLat, endLat].some((v) => Number.isNaN(v) || Math.abs(v) > 90) || [startLon, endLon].some((v) => Number.isNaN(v) || Math.abs(v) > 180)) {
+              errorEl.textContent = 'Coordinates are invalid or out of range.'; errorEl.hidden = false; return;
+            }
+            createRoute({
+              name, description,
+              vehicleSuitability: [...selected],
+              roadType: $('#routeType').value,
+              distanceMiles, estimatedDurationMinutes,
+              difficulty: $('#routeDifficulty').value,
+              surfaceQuality: $('#routeSurface').value,
+              avoidsTolls: false, avoidsMotorways: false,
+              scenicRating,
+              safetyNotices: $('#routeNotices').value.split('\n').map((s) => s.trim()).filter(Boolean),
+              startLat, startLon, endLat, endLon,
+            });
+            closeSheet();
+          });
+        },
+      }),
+      reportHazard: () => ({
+        title: 'Report on the road',
+        body: `<p class="caption">Let nearby riders know what's ahead. Reports fade out over time.</p><div class="chip-row" id="hazardTypeChips">${HAZARD_TYPE_ORDER.map((t) => `<button type="button" class="chip" data-hazard-type="${t}">${escapeHtml(HAZARD_TYPES[t].label)}</button>`).join('')}</div>`,
+        ready: () => $$('[data-hazard-type]', $('#hazardTypeChips')).forEach((chip) => chip.addEventListener('click', () => {
+          createHazard(chip.dataset.hazardType);
+          closeSheet();
+        })),
+      }),
     };
     const template = templates[type]?.();
     if (!template) return;
@@ -397,14 +598,39 @@
     if (!key) {
       $('#mapError').hidden = true;
       renderMapStatus();
+      disablePlaceSearch();
       return;
     }
     window.__riderCommsMapReady = initialiseGoogleMap;
     const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&callback=__riderCommsMapReady&v=weekly`;
+    // `libraries=places` is required for the search bar's Autocomplete
+    // below — it shares this same browser-restricted key (see
+    // RIDER_COMMS_CONFIG's own comment), no separate Places key needed.
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&libraries=places&callback=__riderCommsMapReady&v=weekly`;
     script.async = true;
-    script.onerror = () => { $('#mapError').hidden = false; };
+    script.onerror = () => { $('#mapError').hidden = false; disablePlaceSearch(); };
     document.head.appendChild(script);
+  }
+
+  function disablePlaceSearch() {
+    const input = $('#placeSearchInput');
+    input.disabled = true;
+    input.placeholder = 'Search unavailable';
+  }
+
+  function initPlaceSearch() {
+    const input = $('#placeSearchInput');
+    const autocomplete = new google.maps.places.Autocomplete(input, {
+      fields: ['name', 'formatted_address', 'geometry'],
+    });
+    autocomplete.addListener('place_changed', () => {
+      const place = autocomplete.getPlace();
+      const location = place?.geometry?.location;
+      if (!location) return;
+      centreMap(location.lat(), location.lng());
+      showToast(place.name ? `Centred on ${place.name}` : 'Centred on selected place.');
+      input.blur();
+    });
   }
 
   function initialiseGoogleMap() {
@@ -432,6 +658,7 @@
     $('#fallbackMarkers').hidden = true;
     $('#mapError').hidden = true;
     renderMapStatus();
+    initPlaceSearch();
     userMapMarker = addMapMarker({ ...state.profile, displayName: state.profile.displayName }, centre, true);
     const offsets = [[.004, -.006], [-.003, .006], [.008, .004]];
     mapMarkers = visibleMapRiders().map((person, index) => addMapMarker(person, { lat: centre.lat + offsets[index % offsets.length][0], lng: centre.lng + offsets[index % offsets.length][1] }, false));
@@ -508,6 +735,8 @@
     });
     $$('[data-sheet]').forEach((button) => button.addEventListener('click', () => openSheet(button.dataset.sheet)));
     $('#editProfileBtn').addEventListener('click', () => openSheet('profile'));
+    $('#addRouteBtn').addEventListener('click', () => openSheet('addRoute'));
+    $('#reportHazardBtn').addEventListener('click', () => openSheet('reportHazard'));
     $('#closeSheet').addEventListener('click', closeSheet);
     $('#sheetBackdrop').addEventListener('click', (event) => { if (event.target === $('#sheetBackdrop')) closeSheet(); });
     document.addEventListener('keydown', (event) => { if (event.key === 'Escape') closeSheet(); });
@@ -528,6 +757,7 @@
     renderRide();
     renderMapStatus();
     renderFallbackMarkers();
+    renderHazardMarkers();
     navigate(location.hash.slice(1) || state.screen || 'map', false);
     loadGoogleMaps();
     registerServiceWorker();

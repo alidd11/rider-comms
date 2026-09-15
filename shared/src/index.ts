@@ -7,3 +7,5 @@ export * from './rateLimiter.ts';
 export * from './audioPriority.ts';
 export * from './social.ts';
 export * from './movementState.ts';
+export * from './hazards.ts';
+export * from './scenicRoutes.ts';
