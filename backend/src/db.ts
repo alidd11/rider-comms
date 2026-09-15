@@ -202,7 +202,30 @@ const MIGRATIONS: { name: string; sql: string }[] = [
       CREATE INDEX IF NOT EXISTS account_sessions_expires_at_idx ON account_sessions (expires_at);
     `,
   },
+  {
+    name: '0010_add_is_admin',
+    sql: `
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT false;
+    `,
+  },
 ];
+
+/**
+ * Grants admin on whatever rider IDs are listed in the ADMIN_RIDER_IDS env
+ * var (comma-separated). Runs once per process, right after migrations, and
+ * is safe to run on every boot: it only ever sets is_admin true for those
+ * IDs, never revokes it from anyone else, so removing an ID from the env
+ * var later doesn't silently demote them -- that's a deliberate manual
+ * step, not something a redeploy should do automatically.
+ */
+async function bootstrapAdmins(client: PoolClient): Promise<void> {
+  const riderIds = (process.env.ADMIN_RIDER_IDS ?? '')
+    .split(',')
+    .map((id) => id.trim())
+    .filter(Boolean);
+  if (riderIds.length === 0) return;
+  await client.query('UPDATE users SET is_admin = true WHERE id = ANY($1::text[])', [riderIds]);
+}
 
 function buildPool(): Pool {
   const connectionString = process.env.DATABASE_URL;
@@ -276,6 +299,7 @@ export function ensureMigrated(): Promise<void> {
       const client = await getPool().connect();
       try {
         await runMigrations(client);
+        await bootstrapAdmins(client);
       } finally {
         client.release();
       }
