@@ -1270,11 +1270,17 @@
     $('#closeSheet').addEventListener('click', closeSheet);
     $('#sheetBackdrop').addEventListener('click', (event) => { if (event.target === $('#sheetBackdrop')) closeSheet(); });
     document.addEventListener('keydown', (event) => { if (event.key === 'Escape') closeSheet(); });
-    $('#logoutBtn').addEventListener('click', () => {
+    $('#logoutBtn').addEventListener('click', async () => {
       if (!window.confirm('Log out of Rider Comms on this device?')) return;
-      clearSession();
-      localStorage.removeItem(STORAGE_KEY);
-      location.reload();
+      try {
+        await apiFetch('POST', '/auth/logout');
+      } catch {
+        // Local sign-out must still complete when the API is unavailable.
+      } finally {
+        clearSession();
+        localStorage.removeItem(STORAGE_KEY);
+        location.reload();
+      }
     });
     $('#locateBtn').addEventListener('click', locate);
     $('#joinNearbyBtn').addEventListener('click', toggleNearby);
@@ -1385,6 +1391,7 @@
     const button = $('#loginSubmit');
     errorEl.hidden = true;
     button.disabled = true;
+    button.setAttribute('aria-busy', 'true');
     button.textContent = 'Logging in…';
     try {
       const result = await apiFetch('POST', '/auth/login', { username, password });
@@ -1398,6 +1405,7 @@
       errorEl.hidden = false;
     } finally {
       button.disabled = false;
+      button.removeAttribute('aria-busy');
       button.textContent = 'Log in';
     }
   }
@@ -1417,6 +1425,7 @@
       return;
     }
     button.disabled = true;
+    button.setAttribute('aria-busy', 'true');
     button.textContent = 'Creating account…';
     try {
       const result = await apiFetch('POST', '/auth/signup', { username, email, password });
@@ -1424,26 +1433,75 @@
       applyAuthenticatedIdentity(result.riderId, username);
       hideAuthScreen();
       startApp();
-      showToast('Account created. Check your email to verify it.');
+      showToast(result.emailVerificationSent
+        ? 'Account created. Check your email to verify it.'
+        : 'Account created. Email verification is temporarily unavailable.');
       await seedProfileFromUsername(username);
     } catch (error) {
       errorEl.textContent = authErrorMessage(error);
       errorEl.hidden = false;
     } finally {
       button.disabled = false;
+      button.removeAttribute('aria-busy');
       button.textContent = 'Create account';
     }
   }
 
   function wireAuthForms() {
-    $$('[data-auth-mode]').forEach((button) => button.addEventListener('click', () => {
+    const authCopy = {
+      login: {
+        eyebrow: 'Welcome back',
+        title: 'Ready for the next ride?',
+        description: 'Sign in to find nearby riders, rejoin your group and keep your riding circle close.',
+      },
+      signup: {
+        eyebrow: 'Join the community',
+        title: 'Your ride starts here.',
+        description: 'Create your Rider Comms identity and connect with riders you choose.',
+      },
+    };
+
+    function setAuthMode(button, moveFocus = true) {
       const signup = button.dataset.authMode === 'signup';
       $$('[data-auth-mode]').forEach((item) => {
         item.classList.toggle('active', item === button);
         item.setAttribute('aria-selected', String(item === button));
+        item.tabIndex = item === button ? 0 : -1;
       });
       $('#loginForm').hidden = signup;
       $('#signupForm').hidden = !signup;
+      $('#loginForm').setAttribute('aria-hidden', String(signup));
+      $('#signupForm').setAttribute('aria-hidden', String(!signup));
+      $('#loginError').hidden = true;
+      $('#signupError').hidden = true;
+      const copy = signup ? authCopy.signup : authCopy.login;
+      $('#authEyebrow').textContent = copy.eyebrow;
+      $('#authTitle').textContent = copy.title;
+      $('#authDescription').textContent = copy.description;
+      if (moveFocus) (signup ? $('#signupUsername') : $('#loginUsername')).focus();
+    }
+
+    $$('[data-auth-mode]').forEach((button) => {
+      button.addEventListener('click', () => setAuthMode(button));
+      button.addEventListener('keydown', (event) => {
+        if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+        event.preventDefault();
+        const target = button.dataset.authMode === 'signup' ? $('#loginTab') : $('#signupTab');
+        setAuthMode(target);
+        target.focus();
+      });
+    });
+    $$('[data-password-toggle]').forEach((button) => button.addEventListener('click', () => {
+      const input = document.getElementById(button.dataset.passwordToggle);
+      if (!input) return;
+      const show = input.type === 'password';
+      input.type = show ? 'text' : 'password';
+      button.setAttribute('aria-pressed', String(show));
+      button.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+      const use = button.querySelector('use');
+      if (use) use.setAttribute('href', show ? '#i-eye-off' : '#i-eye');
+      input.focus({ preventScroll: true });
+      input.setSelectionRange(input.value.length, input.value.length);
     }));
     $('#loginForm').addEventListener('submit', (event) => {
       event.preventDefault();
@@ -1480,7 +1538,6 @@
     if (!session) {
       wireAuthForms();
       showAuthScreen();
-      $('#loginUsername').focus();
       return;
     }
     applyAuthenticatedIdentity(session.riderId, state.profile.displayName || session.riderId);
