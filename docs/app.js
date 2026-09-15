@@ -581,7 +581,7 @@
       }),
       reportHazard: () => ({
         title: 'Report on the road',
-        body: `<p class="caption">Let nearby riders know what's ahead. Reports fade out over time.</p><div class="chip-row" id="hazardTypeChips">${HAZARD_TYPE_ORDER.map((t) => `<button type="button" class="chip" data-hazard-type="${t}">${escapeHtml(HAZARD_TYPES[t].label)}</button>`).join('')}</div>`,
+        body: `<p class="caption">Let nearby riders know what's ahead. Reports fade out over time.</p><div class="hazard-type-grid" id="hazardTypeChips">${HAZARD_TYPE_ORDER.map((t) => `<button type="button" class="hazard-type-tile" data-hazard-type="${t}" style="--hazard:${HAZARD_TYPES[t].color}">${icon(HAZARD_TYPES[t].icon.replace(/^i-/, ''))}<span>${escapeHtml(HAZARD_TYPES[t].label)}</span></button>`).join('')}</div>`,
         ready: () => $$('[data-hazard-type]', $('#hazardTypeChips')).forEach((chip) => chip.addEventListener('click', () => {
           closeSheet();
           createHazard(chip.dataset.hazardType);
@@ -766,7 +766,8 @@
   function disablePlaceSearch() {
     const input = $('#placeSearchInput');
     input.disabled = true;
-    input.placeholder = 'Search unavailable';
+    input.placeholder = 'Search offline for now';
+    $('.search-slot')?.classList.add('offline');
   }
 
   function initPlaceSearch() {
