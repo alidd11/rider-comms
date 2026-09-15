@@ -94,8 +94,8 @@
 
       <section class="screen content-screen" data-screen="friends" aria-labelledby="friendsTitle">
         <div class="page-width"><header class="page-header"><div><span class="eyebrow">Your circle</span><h1 id="friendsTitle">Friends</h1></div><span class="count-badge">2</span></header>
-          <div class="search-row"><svg><use href="#i-search"/></svg><input id="friendSearch" placeholder="Search name, handle or Rider ID" autocomplete="off"></div>
-          <button id="addFriendToggle" class="add-friend-button"><span>+</span><div><strong>Add a rider</strong><small>Connect using their Rider ID</small></div><svg><use href="#i-chevron"/></svg></button>
+          <div class="search-and-add"><div class="search-row"><svg><use href="#i-search"/></svg><input id="friendSearch" placeholder="Search name, handle or Rider ID" autocomplete="off"></div>
+          <button id="addFriendToggle" class="icon-button add-friend-toggle" aria-label="Add a rider" title="Add a rider &#8211; connect using their Rider ID"><svg><use href="#i-friends"/></svg><span class="add-friend-badge">+</span></button></div>
           <form id="addFriendForm" class="compact-form" hidden><label for="friendId">Rider ID</label><div><input id="friendId" placeholder="rider_k4xqpz82" autocomplete="off"><button class="button primary">Send</button></div><p id="friendFeedback" class="support-copy"></p></form>
           <div class="section-heading"><div><span class="eyebrow">Waiting for you</span><h2>Requests</h2></div><span class="count-badge">1</span></div>
           <div id="requestList" class="people-list"></div>
