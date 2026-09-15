@@ -38,6 +38,8 @@ import { useSettings } from '../settings/SettingsContext';
 import { PlaceSearchBar } from './PlaceSearchBar';
 import type { PlaceResult } from '../api/places';
 import { HazardReportSheet, HAZARD_TYPE_META } from './HazardReportSheet';
+import { navigationTargetFromValues } from '../navigationLinks';
+import type { NavigationTarget } from '../navigationLinks';
 
 const PRESENCE_UPDATE_INTERVAL_MS = 8000; // per spec Section 8: every 5-10s
 // SVG viewBox stays a fixed square — only the on-screen pins need to track the
@@ -141,6 +143,20 @@ function MapPin({
         />
       </View>
     </Pressable>
+  );
+}
+
+function DestinationPin({ x, y, label }: { x: number; y: number; label?: string }): React.JSX.Element {
+  return (
+    <View
+      accessibilityLabel={label ? `Destination: ${label}` : 'Shared destination'}
+      style={[styles.destinationPinWrap, { left: x - 22, top: y - 44 }]}
+    >
+      <View style={styles.destinationPin}>
+        <Ionicons name="flag" size={20} color={colors.accentText} />
+      </View>
+      <View style={styles.destinationPinPoint} />
+    </View>
   );
 }
 
@@ -363,6 +379,7 @@ export function MapScreen(): React.JSX.Element {
   const [hazards, setHazards] = React.useState<HazardReport[]>([]);
   const [selectedHazardId, setSelectedHazardId] = React.useState<string | null>(null);
   const [reportSheetOpen, setReportSheetOpen] = React.useState(false);
+  const [navigationTarget, setNavigationTarget] = React.useState<NavigationTarget | null>(null);
 
   React.useEffect(() => {
     if (!shareLocation) { setRidersInZone([]); setCurrentLocation(null); return; }
@@ -468,6 +485,19 @@ export function MapScreen(): React.JSX.Element {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [route.params?.at]);
 
+  React.useEffect(() => {
+    const target = navigationTargetFromValues(
+      route.params?.lat,
+      route.params?.lon,
+      route.params?.label
+    );
+    setNavigationTarget(target);
+    if (target) {
+      setSegment('public');
+      setSelectedRider(null);
+    }
+  }, [route.params?.at, route.params?.label, route.params?.lat, route.params?.lon]);
+
   const pins = ridersOnCircle(ridersInZone, mapSize);
   const hazardPins = hazardsOnCircle(hazards, mapSize);
   const selectedHazard = hazards.find((h) => h.id === selectedHazardId) ?? null;
@@ -515,7 +545,8 @@ export function MapScreen(): React.JSX.Element {
               />
             </Svg>
 
-            <MapPin x={centerX} y={centerY} you />
+            <MapPin x={centerX} y={navigationTarget ? Math.min(centerY + 72, mapSize.height - 40) : centerY} you />
+            {navigationTarget && <DestinationPin x={centerX} y={centerY} label={navigationTarget.label} />}
             {pins.map((pin) => (
               <MapPin
                 key={pin.id}
@@ -630,6 +661,30 @@ export function MapScreen(): React.JSX.Element {
 
       <HazardReportSheet visible={reportSheetOpen} onClose={() => setReportSheetOpen(false)} onReport={handleReport} />
 
+      {segment === 'public' && navigationTarget && (
+        <View style={styles.destinationCard} accessibilityLiveRegion="polite">
+          <View style={styles.destinationCardIcon}>
+            <Ionicons name="navigate" size={18} color={colors.accent} />
+          </View>
+          <View style={styles.destinationCardCopy}>
+            <Text numberOfLines={1} style={styles.destinationCardTitle}>
+              {navigationTarget.label ?? 'Shared destination'}
+            </Text>
+            <Text style={styles.destinationCardCoords}>
+              {navigationTarget.lat.toFixed(5)}, {navigationTarget.lon.toFixed(5)}
+            </Text>
+          </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Dismiss shared destination"
+            hitSlop={8}
+            onPress={() => setNavigationTarget(null)}
+          >
+            <Ionicons name="close" size={20} color={colors.textSecondary} />
+          </Pressable>
+        </View>
+      )}
+
       <SegmentToggle segment={segment} onChange={setSegment} topInset={insets.top} />
 
       <View style={styles.rideBarSlot} pointerEvents="box-none">
@@ -732,6 +787,57 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceRaised,
   },
   hazardVoteText: { ...type.caption, color: colors.textPrimary, fontWeight: '700' },
+  destinationPinWrap: { position: 'absolute', width: 44, height: 52, alignItems: 'center' },
+  destinationPin: {
+    width: 40,
+    height: 40,
+    borderRadius: radii.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.accent,
+    borderWidth: 3,
+    borderColor: colors.background,
+    ...elevation.raised,
+  },
+  destinationPinPoint: {
+    width: 0,
+    height: 0,
+    marginTop: -3,
+    borderLeftWidth: 6,
+    borderRightWidth: 6,
+    borderTopWidth: 10,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderTopColor: colors.accent,
+  },
+  destinationCard: {
+    position: 'absolute',
+    left: spacing.lg,
+    right: spacing.lg,
+    bottom: spacing.lg,
+    minHeight: MIN_TOUCH_TARGET,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    ...elevation.raised,
+  },
+  destinationCardIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: radii.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surfaceRaised,
+  },
+  destinationCardCopy: { minWidth: 0, flex: 1 },
+  destinationCardTitle: { ...type.label, color: colors.textPrimary },
+  destinationCardCoords: { ...type.caption, color: colors.textSecondary, marginTop: 2 },
   rideBarSlot: { marginTop: 'auto', paddingHorizontal: spacing.lg, paddingBottom: spacing.lg },
   zoomControls: {
     position: 'absolute',

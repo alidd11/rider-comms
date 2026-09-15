@@ -15,6 +15,9 @@
       "bundleIdentifier": "com.ridercomms.app",
       "buildNumber": "1",
       "supportsTablet": false,
+      "associatedDomains": [
+        "applinks:alidd11.github.io"
+      ],
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Rider Comms uses your location while the app is open to find riders who are mutually within your selected zone.",
         "ITSAppUsesNonExemptEncryption": false
@@ -34,6 +37,23 @@
       "package": "com.ridercomms.app",
       "versionCode": 1,
       "backgroundColor": "#0B0D10",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "alidd11.github.io",
+              "pathPrefix": "/rider-comms/navigate"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ],
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION"
