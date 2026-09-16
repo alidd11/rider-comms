@@ -48,7 +48,7 @@ describe('navigation handoff URLs', () => {
     const target = { lat: 51.5, lon: -0.1, label: 'Ace Café & meet' };
     assert.equal(
       buildExternalNavigationUrl(target, 'ios'),
-      'https://maps.apple.com/?ll=51.5%2C-0.1&q=Ace%20Caf%C3%A9%20%26%20meet'
+      'https://maps.apple.com/?daddr=51.5%2C-0.1&q=Ace%20Caf%C3%A9%20%26%20meet&dirflg=d'
     );
     assert.equal(
       buildExternalNavigationUrl(target, 'android'),
