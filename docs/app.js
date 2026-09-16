@@ -1197,13 +1197,24 @@
     return liveKitLoadPromise;
   }
 
+  /**
+   * The rider's own avatar in the map header glows while they're actually
+   * transmitting — same idea as a Discord/FaceTime speaking ring, and a
+   * more legible "who's live" signal than a separate icon button off to
+   * the side. A small badge on the avatar's corner (not the avatar itself,
+   * so tapping the avatar still opens the profile sheet) is the only
+   * manual override control, shown only once actually connected.
+   */
   function renderVoiceStatus() {
-    const btn = $('#voiceStatusBtn');
+    const avatar = $('#mapAvatarButton');
+    const badge = $('#voiceStatusBtn');
     const connected = Boolean(voiceRoom);
-    btn.hidden = !connected;
-    btn.classList.toggle('talking', connected && voiceIsSpeaking);
-    btn.classList.toggle('muted', connected && voiceManuallyMuted);
-    btn.setAttribute('aria-label', voiceManuallyMuted ? 'Proximity voice muted — tap to unmute' : voiceIsSpeaking ? 'Talking' : 'Listening — hands-free');
+    avatar.classList.toggle('voice-talking', connected && voiceIsSpeaking);
+    avatar.classList.toggle('voice-muted', connected && voiceManuallyMuted);
+    badge.hidden = !connected;
+    badge.classList.toggle('talking', voiceIsSpeaking);
+    badge.classList.toggle('muted', voiceManuallyMuted);
+    badge.setAttribute('aria-label', voiceManuallyMuted ? 'Proximity voice muted — tap to unmute' : voiceIsSpeaking ? 'Talking' : 'Listening — hands-free');
   }
 
   function setVoiceSpeaking(speaking) {
@@ -1603,8 +1614,20 @@
       map,
       position,
       title: current ? 'Your location' : person.displayName,
-      label: { text: initials(person.displayName), color: '#ffffff', fontWeight: '700', fontSize: '12px' },
-      icon: { path: google.maps.SymbolPath.CIRCLE, scale: current ? 22 : 19, fillColor: identityColor(person.riderId), fillOpacity: 1, strokeColor: current ? '#ff7a1a' : '#e9eef5', strokeWeight: current ? 5 : 3 },
+      // "You" gets a small, unlabelled dot — the same convention every
+      // real map app (Google Maps, Waze, Uber) uses for the rider's own
+      // position: precise, not a beach-ball with initials on it. Other
+      // riders keep a (smaller than before) labelled dot, since telling
+      // several nearby riders apart at a glance is the point there.
+      ...(current ? {} : { label: { text: initials(person.displayName), color: '#ffffff', fontWeight: '700', fontSize: '9px' } }),
+      icon: {
+        path: google.maps.SymbolPath.CIRCLE,
+        scale: current ? 7 : 9,
+        fillColor: identityColor(person.riderId),
+        fillOpacity: 1,
+        strokeColor: current ? '#ffffff' : '#e9eef5',
+        strokeWeight: current ? 2 : 2,
+      },
       zIndex: current ? 10 : 5,
     });
     marker.addListener('click', () => selectRider(person.riderId, visibleMapRiders()));

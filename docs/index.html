@@ -13,7 +13,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="app.css?v=31">
+  <link rel="stylesheet" href="app.css?v=32">
   <title>Rider Comms</title>
 </head>
 <body>
@@ -89,12 +89,11 @@
           <div id="googleMap" class="google-map" aria-hidden="true"></div>
           <div class="fallback-map" id="fallbackMap"><div class="road road-a"></div><div class="road road-b"></div><div class="road road-c"></div></div>
           <h1 id="mapTitle" class="sr-only">North London rider map</h1>
-          <header class="map-header"><div class="search-slot glass"><svg><use href="#i-search"/></svg><input id="placeSearchInput" placeholder="Search for a place" autocomplete="off"></div><button class="avatar avatar-sm" data-avatar="AI" aria-label="Open profile">AI</button></header>
+          <header class="map-header"><div class="search-slot glass"><svg><use href="#i-search"/></svg><input id="placeSearchInput" placeholder="Search for a place" autocomplete="off"></div><div class="map-avatar-wrap"><button class="avatar avatar-sm" id="mapAvatarButton" data-avatar="AI" aria-label="Open profile">AI</button><button id="voiceStatusBtn" class="voice-mute-badge" aria-label="Listening — hands-free" hidden><svg><use href="#i-mic"/></svg></button></div></header>
           <div id="fallbackMarkers" class="fallback-markers"></div>
           <div id="hazardMarkers" class="hazard-markers"></div>
           <button id="reportHazardBtn" class="icon-button glass report-button" aria-label="Report on the road"><svg><use href="#i-report"/></svg></button>
           <div class="map-actions">
-            <button id="voiceStatusBtn" class="icon-button glass voice-status" aria-label="Listening — hands-free" hidden><svg><use href="#i-mic"/></svg></button>
             <button id="locateBtn" class="icon-button glass" aria-label="Centre on my location"><svg><use href="#i-target"/></svg></button>
             <button id="joinNearbyBtn" class="primary-fab" aria-label="Join nearby riders"><span class="live-dot dark"></span><span>Go live</span></button>
           </div>
@@ -177,6 +176,6 @@
   <div id="updateBanner" class="update-banner" hidden><span>A new Rider Comms version is ready.</span><button id="reloadApp">Update now</button></div>
   <noscript>Rider Comms requires JavaScript.</noscript>
   <script src="config.js?v=28"></script>
-  <script src="app.js?v=31" defer></script>
+  <script src="app.js?v=32" defer></script>
 </body>
 </html>
