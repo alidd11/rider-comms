@@ -18,13 +18,15 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import type { DirectMessage, Hideout } from '@rider-comms/shared';
+import type { Hideout } from '@rider-comms/shared';
 import type { RootStackParamList } from '../navigation';
 import { ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { colors, spacing, radii, type, elevation, MIN_TOUCH_TARGET } from '../theme';
 import { getAvatarPreset } from '../settings/avatars';
 import { buildExternalNavigationUrl } from '../navigationLinks';
+import { reconcileMessageThread, type LocalDirectMessage } from '../friends/messageState';
+import { useFriends } from '../friends/FriendsContext';
 
 // Same poll cadence style used elsewhere (MapScreen's presence, FriendsContext).
 const MESSAGE_POLL_INTERVAL_MS = 10000;
@@ -37,7 +39,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'FriendChat'>;
  * arrives — see handleSend below. Messages loaded from the backend never
  * carry `status`, so they render as sent by default.
  */
-type LocalMessage = DirectMessage & { status?: 'pending' | 'failed' };
+type LocalMessage = LocalDirectMessage;
 
 function formatTime(ms: number): string {
   const d = new Date(ms);
@@ -233,24 +235,31 @@ function PlanHideoutModal({
 export function FriendChatScreen({ route, navigation }: Props): React.JSX.Element {
   const { riderId, displayName, avatarId } = route.params;
   const { riderId: currentRiderId, client } = useAuth();
+  const { refresh: refreshFriends } = useFriends();
   const avatar = getAvatarPreset(avatarId);
   const insets = useSafeAreaInsets();
 
   const [messages, setMessages] = React.useState<LocalMessage[]>([]);
   const [draft, setDraft] = React.useState('');
   const [sending, setSending] = React.useState(false);
+  const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+  const listRef = React.useRef<FlatList<LocalMessage>>(null);
 
   const [hideouts, setHideouts] = React.useState<Hideout[]>([]);
   const [planOpen, setPlanOpen] = React.useState(false);
 
-  const loadMessages = React.useCallback(async () => {
+  const loadMessages = React.useCallback(async (showLoading = false) => {
+    if (showLoading) setLoading(true);
     try {
       const { messages: fetched } = await client.getMessages(riderId);
-      setMessages(fetched);
+      setMessages((current) => reconcileMessageThread(current, fetched));
       setError(null);
     } catch (err) {
-      setError(err instanceof ApiError || err instanceof Error ? err.message : 'Could not load messages.');
+      if (err instanceof ApiError && err.status === 403) setError('This conversation is no longer available.');
+      else setError('Could not refresh messages. Check your connection and try again.');
+    } finally {
+      setLoading(false);
     }
   }, [client, riderId]);
 
@@ -264,17 +273,12 @@ export function FriendChatScreen({ route, navigation }: Props): React.JSX.Elemen
     }
   }, [client, currentRiderId, riderId]);
 
-  React.useEffect(() => {
-    loadMessages();
-    loadHideouts();
-    const interval = setInterval(loadMessages, MESSAGE_POLL_INTERVAL_MS);
-    return () => clearInterval(interval);
-  }, [loadMessages, loadHideouts]);
-
   useFocusEffect(
     React.useCallback(() => {
-      loadMessages();
-      loadHideouts();
+      void loadMessages(true);
+      void loadHideouts();
+      const interval = setInterval(() => void loadMessages(), MESSAGE_POLL_INTERVAL_MS);
+      return () => clearInterval(interval);
     }, [loadMessages, loadHideouts])
   );
 
@@ -285,7 +289,7 @@ export function FriendChatScreen({ route, navigation }: Props): React.JSX.Elemen
   const handleSend = React.useCallback(async () => {
     const text = draft.trim();
     if (!text) return;
-    const tempId = `local-${Date.now()}`;
+    const tempId = `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     setMessages((current) => [
       ...current,
       { id: tempId, fromRiderId: currentRiderId, toRiderId: riderId, text, createdAt: Date.now(), status: 'pending' },
@@ -349,11 +353,13 @@ export function FriendChatScreen({ route, navigation }: Props): React.JSX.Elemen
       { text: 'Report harassment', onPress: () => reportRider('harassment') },
       { text: 'Report unsafe behaviour', onPress: () => reportRider('unsafe') },
       { text: 'Block rider', style: 'destructive', onPress: () => {
-        void client.blockRider(riderId).then(() => navigation.goBack()).catch(() => Alert.alert('Couldn’t block rider', 'Please try again.'));
+        void client.blockRider(riderId)
+          .then(async () => { await refreshFriends(); navigation.goBack(); })
+          .catch(() => Alert.alert('Couldn’t block rider', 'Please try again.'));
       } },
       { text: 'Cancel', style: 'cancel' },
     ]);
-  }, [client, displayName, navigation, reportRider, riderId]);
+  }, [client, displayName, navigation, refreshFriends, reportRider, riderId]);
 
   return (
     <KeyboardAvoidingView
@@ -381,6 +387,9 @@ export function FriendChatScreen({ route, navigation }: Props): React.JSX.Elemen
         <View style={styles.errorBox}>
           <Ionicons name="alert-circle" size={18} color={colors.danger} />
           <Text style={styles.errorText}>{error}</Text>
+          <Pressable onPress={() => void loadMessages(true)} hitSlop={8}>
+            <Text style={styles.retryText}>Retry</Text>
+          </Pressable>
         </View>
       )}
 
@@ -393,11 +402,22 @@ export function FriendChatScreen({ route, navigation }: Props): React.JSX.Elemen
       )}
 
       <FlatList
+        ref={listRef}
         data={messages}
         keyExtractor={(m) => m.id}
         renderItem={({ item }) => <MessageBubble message={item} currentRiderId={currentRiderId} onRetry={handleRetry} />}
-        contentContainerStyle={styles.messageList}
+        contentContainerStyle={[styles.messageList, messages.length === 0 && styles.messageListEmpty]}
         inverted={false}
+        onContentSizeChange={() => { if (messages.length > 0) listRef.current?.scrollToEnd({ animated: true }); }}
+        ListEmptyComponent={loading ? (
+          <View style={styles.chatEmpty}><ActivityIndicator color={colors.accent} /><Text style={styles.chatEmptyText}>Loading conversation…</Text></View>
+        ) : (
+          <View style={styles.chatEmpty}>
+            <Ionicons name="chatbubble-ellipses-outline" size={34} color={colors.textMuted} />
+            <Text style={styles.chatEmptyTitle}>Start a private conversation</Text>
+            <Text style={styles.chatEmptyText}>Messages in this thread are only available to you and {displayName}.</Text>
+          </View>
+        )}
       />
 
       <View style={styles.composer}>
@@ -408,6 +428,8 @@ export function FriendChatScreen({ route, navigation }: Props): React.JSX.Elemen
           value={draft}
           onChangeText={setDraft}
           multiline
+          maxLength={1000}
+          accessibilityLabel={`Message ${displayName}`}
         />
         <Pressable
           style={({ pressed }) => [
@@ -469,6 +491,7 @@ const styles = StyleSheet.create({
     margin: spacing.md,
   },
   errorText: { ...type.body, color: colors.danger, flex: 1 },
+  retryText: { ...type.button, color: colors.danger },
   hideoutList: {
     paddingHorizontal: spacing.md,
     paddingTop: spacing.sm,
@@ -488,6 +511,10 @@ const styles = StyleSheet.create({
   hideoutCoordsLink: { color: colors.accent, textDecorationLine: 'underline' },
   hideoutDelete: { padding: spacing.xs },
   messageList: { padding: spacing.md, gap: spacing.sm, flexGrow: 1 },
+  messageListEmpty: { justifyContent: 'center' },
+  chatEmpty: { alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.xl, paddingVertical: spacing.xl },
+  chatEmptyTitle: { ...type.subheading, color: colors.textPrimary, textAlign: 'center' },
+  chatEmptyText: { ...type.caption, textAlign: 'center' },
   bubbleRow: { flexDirection: 'row', marginBottom: spacing.sm },
   bubbleRowMine: { justifyContent: 'flex-end' },
   bubbleRowTheirs: { justifyContent: 'flex-start' },
