@@ -8,7 +8,7 @@ import { DarkTheme, DefaultTheme, NavigationContainer, useNavigationState } from
 import type { LinkingOptions } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { MapScreen } from '../screens/MapScreen';
@@ -161,14 +161,6 @@ function GroupRideTabLabel({ children }: { children: string }): React.JSX.Elemen
 }
 
 function Tabs(): React.JSX.Element {
-  // Own the bottom safe-area inset explicitly. Relying on React Navigation's
-  // default tab-bar sizing was leaving an oversized empty gap between the tab
-  // labels and the home indicator (the inset was effectively being reserved
-  // twice). Pinning height = content + inset, with paddingBottom = the single
-  // inset, keeps the labels tight to the bar and the background flush to the
-  // physical bottom edge.
-  const insets = useSafeAreaInsets();
-  const TAB_BAR_CONTENT_HEIGHT = 52;
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -188,14 +180,6 @@ function Tabs(): React.JSX.Element {
         // panel with a seam under the home indicator.
         tabBarStyle: {
           backgroundColor: colors.background,
-          borderTopWidth: 0,
-          height: TAB_BAR_CONTENT_HEIGHT + insets.bottom,
-          paddingBottom: insets.bottom,
-          paddingTop: 6,
-        },
-        tabBarItemStyle: {
-          paddingTop: 0,
-          paddingBottom: 0,
         },
         tabBarActiveTintColor: colors.accent,
         tabBarInactiveTintColor: colors.textMuted,
