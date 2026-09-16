@@ -13,7 +13,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="app.css?v=32">
+  <link rel="stylesheet" href="app.css?v=33">
   <title>Rider Comms</title>
 </head>
 <body>
@@ -119,7 +119,7 @@
             </div>
           </div>
           <div id="rideActiveState" hidden>
-            <article class="ride-summary"><div><span class="status-chip"><span class="live-dot"></span>Ride live</span><h2>Sunday city loop</h2><p><span id="memberCount">3</span> riders · You are <span id="rideRole">host</span></p></div><button id="shareRideBtn" class="button secondary"><svg><use href="#i-share"/></svg>Invite</button></article>
+            <article class="ride-summary"><div><span class="status-chip"><span class="live-dot"></span>Ride live</span><p><span id="memberCount">3</span> riders · You are <span id="rideRole">host</span></p><button id="rideVoiceStatus" class="status-chip neutral" hidden><svg><use href="#i-mic"/></svg><span id="rideVoiceStatusText">Listening — hands-free</span></button></div><button id="shareRideBtn" class="button secondary"><svg><use href="#i-share"/></svg>Invite</button></article>
             <div class="ride-code-card"><span>Invite code</span><button id="copyRideCode" aria-label="Copy ride code"><strong id="activeRideCode">K4XQPZ</strong><small>Tap to copy</small></button></div>
             <div class="section-heading"><div><span class="eyebrow">Live roster</span><h2>Riders</h2></div><span class="status-chip neutral">3 connected</span></div>
             <div id="rideRoster" class="people-list"></div>
@@ -176,6 +176,6 @@
   <div id="updateBanner" class="update-banner" hidden><span>A new Rider Comms version is ready.</span><button id="reloadApp">Update now</button></div>
   <noscript>Rider Comms requires JavaScript.</noscript>
   <script src="config.js?v=28"></script>
-  <script src="app.js?v=32" defer></script>
+  <script src="app.js?v=33" defer></script>
 </body>
 </html>
