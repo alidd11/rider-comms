@@ -38,7 +38,6 @@
     },
     friends: [],
     requests: [],
-    routeVehicleFilter: null,
   };
 
   // Waze-style crowdsourced road reports, backed for real by POST /hazards
@@ -99,10 +98,6 @@
   }
   darkModeQuery?.addEventListener('change', applyColorScheme);
 
-  const VEHICLE_LABELS = { motorcycle_small: 'Small motorcycle', motorcycle_large: 'Large motorcycle', scooter: 'Scooter', car: 'Car' };
-  const ROAD_TYPE_LABELS = { rural: 'Rural', mountain: 'Mountain', coastal: 'Coastal', urban: 'Urban', mixed: 'Mixed' };
-  const DIFFICULTY_LABELS = { easy: 'Easy', moderate: 'Moderate', challenging: 'Challenging' };
-  const SURFACE_LABELS = { excellent: 'Excellent', good: 'Good', fair: 'Fair', poor: 'Poor' };
 
   // Real nearby riders (from POST /presence's inZoneWith, resolved to
   // display info via GET /profiles/:id — same lookup-per-id pattern
@@ -130,11 +125,6 @@
   // above, since a report can expire or be voted away server-side at any
   // moment.
   let nearbyHazards = [];
-
-  // Real user-submitted scenic routes for the current filter (GET
-  // /scenic-routes), refreshed whenever the Routes screen is opened or its
-  // vehicle filter changes — same runtime-only convention as nearbyRiders.
-  let routes = [];
 
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -294,7 +284,6 @@
     window.scrollTo(0, 0);
     if (screen === 'map') { renderMapRiders(); refreshNearbyHazards(); }
     syncHazardRefresh(screen === 'map');
-    if (screen === 'routes') renderRoutes();
     if (screen === 'friends') loadFriendsData();
     if (screen === 'ride') refreshActiveRide();
   }
@@ -303,6 +292,7 @@
     $('#profileName').textContent = state.profile.displayName;
     $('#profileHandle').textContent = state.profile.handle;
     $('#profileRiderId').textContent = state.profile.riderId;
+    $('#distanceUnitsSummary').textContent = state.unit === 'km' ? 'Kilometres' : 'Miles';
     const genericProfile = state.profile.displayName.trim().toLowerCase() === 'rider'
       || state.profile.handle.trim().toLowerCase() === '@rider';
     $('#completeProfilePrompt').hidden = !genericProfile;
@@ -703,89 +693,6 @@
     }
   }
 
-  const VEHICLE_FILTER_ORDER = ['motorcycle_small', 'motorcycle_large', 'scooter', 'car'];
-
-  function isAutomatedTestRoute(route) {
-    const searchable = `${route.name || ''} ${route.description || ''}`.toLowerCase();
-    return searchable.includes('e2e test route') || searchable.includes('created end-to-end by playwright');
-  }
-
-  function renderRouteFilters() {
-    const filtersEl = $('#routeVehicleFilters');
-    filtersEl.innerHTML = ['all', ...VEHICLE_FILTER_ORDER].map((key) => {
-      const active = (state.routeVehicleFilter ?? 'all') === key;
-      const label = key === 'all' ? 'All vehicles' : VEHICLE_LABELS[key];
-      return `<button class="chip${active ? ' active' : ''}" data-vehicle-filter="${key}">${escapeHtml(label)}</button>`;
-    }).join('');
-    $$('[data-vehicle-filter]', filtersEl).forEach((button) => button.addEventListener('click', () => {
-      state.routeVehicleFilter = button.dataset.vehicleFilter === 'all' ? null : button.dataset.vehicleFilter;
-      persist();
-      renderRouteFilters();
-      loadRoutes();
-    }));
-  }
-
-  function renderRouteList() {
-    $('#routeEmpty').hidden = routes.length > 0;
-    $('#routeList').innerHTML = routes.map((route) => {
-      const stars = Array.from({ length: 5 }, (_, i) => `<svg class="star${i < route.scenicRating ? ' filled' : ''}"><use href="#i-star"/></svg>`).join('');
-      const badges = [
-        ROAD_TYPE_LABELS[route.roadType],
-        DIFFICULTY_LABELS[route.difficulty],
-        `${route.distanceMiles} mi`,
-        `${Math.round(route.estimatedDurationMinutes)} min`,
-        `${SURFACE_LABELS[route.surfaceQuality]} surface`,
-        route.avoidsTolls ? 'No tolls' : null,
-        route.avoidsMotorways ? 'No motorways' : null,
-      ].filter(Boolean).map((label) => `<span class="badge">${escapeHtml(label)}</span>`).join('');
-      const notices = route.safetyNotices.length
-        ? `<div class="safety-box"><svg><use href="#i-shield"/></svg><div>${route.safetyNotices.map((n) => `<p>${escapeHtml(n)}</p>`).join('')}</div></div>`
-        : '';
-      return `<article class="route-card" data-delete-route="${escapeHtml(route.id)}">
-        <div class="route-card-head"><div><strong>${escapeHtml(route.name)}</strong><div class="star-row">${stars}</div></div>${route.createdBy === state.profile.riderId ? '<button class="icon-button" data-delete-route-btn aria-label="Delete route"><svg><use href="#i-reset"/></svg></button>' : ''}</div>
-        <p class="secondary">${escapeHtml(route.description)}</p>
-        <div class="badge-row">${badges}</div>
-        <p class="caption">Suited for: ${route.vehicleSuitability.map((v) => VEHICLE_LABELS[v]).join(', ')}</p>
-        ${notices}
-        <a class="button tertiary" href="https://maps.google.com/?q=${route.startLat},${route.startLon}" target="_blank" rel="noopener">Open start in Maps</a>
-      </article>`;
-    }).join('');
-    $$('[data-delete-route-btn]', $('#routeList')).forEach((button) => button.addEventListener('click', async (event) => {
-      const card = event.target.closest('[data-delete-route]');
-      const routeId = card?.dataset.deleteRoute;
-      if (!routeId || !window.confirm('Delete this route?')) return;
-      try {
-        await apiFetch('DELETE', `/scenic-routes/${encodeURIComponent(routeId)}`);
-        routes = routes.filter((route) => route.id !== routeId);
-        renderRouteList();
-        showToast('Route deleted.');
-      } catch {
-        showToast('Could not delete that route. Try again.');
-      }
-    }));
-  }
-
-  /** Loads real user-submitted scenic routes (GET /scenic-routes), passing
-   * the current vehicle filter as the backend's own vehicleCategory query
-   * param rather than filtering a locally cached list. */
-  async function loadRoutes() {
-    try {
-      const query = state.routeVehicleFilter ? `?vehicleCategory=${encodeURIComponent(state.routeVehicleFilter)}` : '';
-      const result = await apiFetch('GET', `/scenic-routes${query}`);
-      // Automated browser checks previously wrote a fixture to the live route
-      // store. Never present known test fixtures as rider recommendations.
-      routes = result.routes.filter((route) => !isAutomatedTestRoute(route));
-    } catch (error) {
-      showToast('Could not load routes. ' + authErrorMessage(error));
-    }
-    renderRouteList();
-  }
-
-  function renderRoutes() {
-    renderRouteFilters();
-    loadRoutes();
-  }
-
   function renderRide() {
     const active = Boolean(state.activeRide);
     $('#rideJoinState').hidden = active;
@@ -950,101 +857,23 @@
   function openSheet(type) {
     const templates = {
       profile: () => ({
-        title: 'Account & profile',
-        body: `<div class="form-field"><label for="editName">Display name</label><input id="editName" maxlength="50" value="${escapeHtml(state.profile.displayName)}"></div><div class="form-field"><label for="editHandle">Handle</label><input id="editHandle" maxlength="25" value="${escapeHtml(state.profile.handle)}"></div><div class="form-field"><label for="editInstagram">Instagram username</label><input id="editInstagram" maxlength="30" value="${escapeHtml(state.profile.instagram)}" placeholder="your_username"></div><div class="form-field"><label for="editTiktok">TikTok username</label><input id="editTiktok" maxlength="30" value="${escapeHtml(state.profile.tiktok)}" placeholder="your_username"></div><div class="form-field"><label for="socialVisibility">Who can see your socials?</label><select id="socialVisibility"><option value="friends">Friends only</option><option value="public">Everyone</option><option value="private">Only me</option></select></div><p id="profileFormError" class="inline-error" hidden></p><button class="button primary wide" id="saveProfile">Save profile</button>`,
+        title: 'Edit profile',
+        body: `<div class="settings-sheet-section"><span class="settings-sheet-label">Identity</span><div class="form-field"><label for="editName">Display name</label><input id="editName" maxlength="50" value="${escapeHtml(state.profile.displayName)}"></div><div class="form-field"><label for="editHandle">Rider handle</label><input id="editHandle" maxlength="25" value="${escapeHtml(state.profile.handle)}"></div></div><div class="settings-sheet-section"><span class="settings-sheet-label">Connected profiles</span><div class="form-field"><label for="editInstagram">Instagram</label><input id="editInstagram" maxlength="30" value="${escapeHtml(state.profile.instagram)}" placeholder="Username"></div><div class="form-field"><label for="editTiktok">TikTok</label><input id="editTiktok" maxlength="30" value="${escapeHtml(state.profile.tiktok)}" placeholder="Username"></div><div class="form-field"><label for="socialVisibility">Profile visibility</label><select id="socialVisibility"><option value="friends">Friends only</option><option value="public">Everyone</option><option value="private">Only me</option></select></div></div><p id="profileFormError" class="inline-error" hidden></p><button class="button primary wide" id="saveProfile">Save changes</button>`,
         ready: () => {
           $('#socialVisibility').value = state.profile.socialsVisibility;
           $('#saveProfile').addEventListener('click', saveProfile);
         },
       }),
       plans: () => ({
-        title: 'Subscription & billing',
+        title: 'Plan and billing',
         body: `<div class="plan-card current"><div class="plan-top"><strong>Free</strong><span class="plan-pill">Current</span></div><p>1-mile mutual rider radius and private Group Rides.</p><button class="button secondary wide" disabled>Current plan</button></div><div class="plan-card"><div class="plan-top"><strong>Premium</strong><span>6 mi</span></div><p>A wider radius for groups that spread out across city routes.</p><button class="button primary wide" data-purchase>Choose Premium</button></div><div class="plan-card"><div class="plan-top"><strong>Premium+</strong><span>20 mi</span></div><p>Maximum discovery range for touring and rural rides.</p><button class="button primary wide" data-purchase>Choose Premium+</button></div><button class="button tertiary wide" data-purchase>Restore purchases</button><p class="caption">Your plan is verified by Rider Comms. Purchases remain unavailable until store products and receipt validation are active.</p>`,
         ready: () => $$('[data-purchase]').forEach((button) => button.addEventListener('click', () => showToast('Purchases are temporarily unavailable.'))),
       }),
-      privacy: () => ({ title: 'Privacy & visibility', body: toggleMarkup('shareLocation', 'Share location while live', 'Nearby riders see your location only while you choose to go live.', state.profile.shareLocation) + `<div class="form-field"><label for="sheetSocialVisibility">Social links visibility</label><select id="sheetSocialVisibility"><option value="friends">Friends only</option><option value="public">Everyone</option><option value="private">Only me</option></select></div>`, ready: () => { $('#sheetSocialVisibility').value = state.profile.socialsVisibility; $('#sheetSocialVisibility').addEventListener('change', (event) => { patchProfile({ instagramVisibility: event.target.value, tiktokVisibility: event.target.value }); }); wireToggles(); } }),
-      map: () => ({ title: 'Map & location', body: toggleMarkup('shareLocation', 'Location sharing', 'Location is requested only when you activate the nearby-rider channel.', state.profile.shareLocation) + `<p class="caption">Google Maps uses a deployment-provided browser key. If the service is unavailable, Rider Comms keeps controls accessible and shows a simplified map surface.</p>`, ready: wireToggles }),
-      units: () => ({ title: 'Distance units', body: `<div class="form-field"><label for="unitSelect">Preferred unit</label><select id="unitSelect"><option value="mi">Miles</option><option value="km">Kilometres</option></select></div>`, ready: () => { $('#unitSelect').value = state.unit; $('#unitSelect').addEventListener('change', (event) => { state.unit = event.target.value; persist(); showToast('Distance unit updated.'); }); } }),
-      notifications: () => ({ title: 'Notifications', body: toggleMarkup('notifications', 'Ride and message alerts', 'Receive useful updates while Rider Comms is not in the foreground.', state.notifications), ready: wireToggles }),
-      safety: () => ({ title: 'Safety & privacy', body: `<h3>Designed for low distraction</h3><p class="secondary">Posting, profile editing and other visual tasks should be completed while stationary. Location sharing is off by default and can be stopped at any time.</p><h3>Emergency awareness</h3><p class="secondary">Rider Comms is not an emergency service. Always follow local road rules and use your vehicle controls safely.</p>` }),
-      addRoute: () => ({
-        title: 'Add a scenic route',
-        body: `<p class="caption">Only add routes and safety notes you can vouch for yourself.</p>
-          <div class="form-field"><label for="routeName">Route name</label><input id="routeName" maxlength="80"></div>
-          <div class="form-field"><label for="routeDescription">Description</label><textarea id="routeDescription" maxlength="500" rows="3"></textarea></div>
-          <div class="form-field"><label>Vehicle suitability</label><div class="chip-row" id="routeVehicleChips">${VEHICLE_FILTER_ORDER.map((v) => `<button type="button" class="chip" data-vehicle="${v}">${escapeHtml(VEHICLE_LABELS[v])}</button>`).join('')}</div></div>
-          <div class="form-field"><label for="routeType">Road type</label><select id="routeType">${Object.entries(ROAD_TYPE_LABELS).map(([k, v]) => `<option value="${k}">${escapeHtml(v)}</option>`).join('')}</select></div>
-          <div class="form-field"><label for="routeDistance">Distance (mi)</label><input id="routeDistance" type="number" min="0.1" step="0.1"></div>
-          <div class="form-field"><label for="routeDuration">Duration (min)</label><input id="routeDuration" type="number" min="1" step="1"></div>
-          <div class="form-field"><label for="routeDifficulty">Difficulty</label><select id="routeDifficulty">${Object.entries(DIFFICULTY_LABELS).map(([k, v]) => `<option value="${k}">${escapeHtml(v)}</option>`).join('')}</select></div>
-          <div class="form-field"><label for="routeSurface">Surface quality</label><select id="routeSurface">${Object.entries(SURFACE_LABELS).map(([k, v]) => `<option value="${k}">${escapeHtml(v)}</option>`).join('')}</select></div>
-          <div class="form-field"><label for="routeRating">Scenic rating (1-5)</label><input id="routeRating" type="number" min="1" max="5" step="1" value="3"></div>
-          <div class="form-field"><label for="routeNotices">Safety notices (one per line, optional)</label><textarea id="routeNotices" rows="2"></textarea></div>
-          <div class="form-field"><label for="routeStartLat">Start latitude</label><input id="routeStartLat" type="number" step="any"></div>
-          <div class="form-field"><label for="routeStartLon">Start longitude</label><input id="routeStartLon" type="number" step="any"></div>
-          <div class="form-field"><label for="routeEndLat">End latitude</label><input id="routeEndLat" type="number" step="any"></div>
-          <div class="form-field"><label for="routeEndLon">End longitude</label><input id="routeEndLon" type="number" step="any"></div>
-          <p id="routeFormError" class="inline-error" hidden></p>
-          <button class="button primary wide" id="saveRoute">Save route</button>`,
-        ready: () => {
-          const selected = new Set();
-          $$('[data-vehicle]', $('#routeVehicleChips')).forEach((chip) => chip.addEventListener('click', () => {
-            const v = chip.dataset.vehicle;
-            if (selected.has(v)) { selected.delete(v); chip.classList.remove('active'); }
-            else { selected.add(v); chip.classList.add('active'); }
-          }));
-          $('#saveRoute').addEventListener('click', async () => {
-            const errorEl = $('#routeFormError');
-            errorEl.hidden = true;
-            const name = $('#routeName').value.trim();
-            const description = $('#routeDescription').value.trim();
-            const distanceMiles = Number($('#routeDistance').value);
-            const estimatedDurationMinutes = Number($('#routeDuration').value);
-            const scenicRating = Number($('#routeRating').value);
-            const startLat = Number($('#routeStartLat').value);
-            const startLon = Number($('#routeStartLon').value);
-            const endLat = Number($('#routeEndLat').value);
-            const endLon = Number($('#routeEndLon').value);
-            if (!name || !description) { errorEl.textContent = 'Add a name and description.'; errorEl.hidden = false; return; }
-            if (selected.size === 0) { errorEl.textContent = 'Choose at least one vehicle type.'; errorEl.hidden = false; return; }
-            if (!(distanceMiles > 0) || !(estimatedDurationMinutes > 0)) { errorEl.textContent = 'Distance and duration must be positive numbers.'; errorEl.hidden = false; return; }
-            if (!(scenicRating >= 1 && scenicRating <= 5)) { errorEl.textContent = 'Scenic rating must be 1-5.'; errorEl.hidden = false; return; }
-            if ([startLat, endLat].some((v) => Number.isNaN(v) || Math.abs(v) > 90) || [startLon, endLon].some((v) => Number.isNaN(v) || Math.abs(v) > 180)) {
-              errorEl.textContent = 'Coordinates are invalid or out of range.'; errorEl.hidden = false; return;
-            }
-            const button = $('#saveRoute');
-            button.disabled = true;
-            button.textContent = 'Saving…';
-            try {
-              await apiFetch('POST', '/scenic-routes', {
-                name, description,
-                vehicleSuitability: [...selected],
-                roadType: $('#routeType').value,
-                distanceMiles, estimatedDurationMinutes,
-                difficulty: $('#routeDifficulty').value,
-                surfaceQuality: $('#routeSurface').value,
-                avoidsTolls: false, avoidsMotorways: false,
-                scenicRating,
-                safetyNotices: $('#routeNotices').value.split('\n').map((s) => s.trim()).filter(Boolean),
-                startLat, startLon, endLat, endLon,
-              });
-              closeSheet();
-              showToast('Route added.');
-              if (state.screen === 'routes') loadRoutes();
-            } catch (error) {
-              // The backend's own validateScenicRouteInput error strings
-              // (e.g. "distanceMiles must be a positive number") are
-              // already rider-readable, so they're shown as-is.
-              const code = error instanceof ApiError ? error.body?.error : undefined;
-              errorEl.textContent = typeof code === 'string' && code ? code : 'Could not save that route. Try again.';
-              errorEl.hidden = false;
-            } finally {
-              button.disabled = false;
-              button.textContent = 'Save route';
-            }
-          });
-        },
-      }),
+      privacy: () => ({ title: 'Privacy controls', body: `<div class="settings-sheet-section">${toggleMarkup('shareLocation', 'Live location', 'Visible to nearby riders only while you are live.', state.profile.shareLocation)}</div><div class="settings-sheet-section"><div class="form-field"><label for="sheetSocialVisibility">Connected profile visibility</label><select id="sheetSocialVisibility"><option value="friends">Friends only</option><option value="public">Everyone</option><option value="private">Only me</option></select></div><p class="caption">This applies to the Instagram and TikTok usernames on your profile.</p></div>`, ready: () => { $('#sheetSocialVisibility').value = state.profile.socialsVisibility; $('#sheetSocialVisibility').addEventListener('change', (event) => { patchProfile({ instagramVisibility: event.target.value, tiktokVisibility: event.target.value }); }); wireToggles(); } }),
+      map: () => ({ title: 'Location and map', body: `<div class="settings-sheet-section">${toggleMarkup('shareLocation', 'Nearby rider visibility', 'Share your position only after you choose to go live.', state.profile.shareLocation)}</div><div class="settings-note"><strong>Location stays in your control</strong><p>Turning this off stops nearby-rider visibility. Private Group Ride members can still share ride locations while that ride is active.</p></div>`, ready: wireToggles }),
+      units: () => ({ title: 'Distance units', body: `<div class="choice-list" role="radiogroup" aria-label="Distance units"><button data-unit-option="mi" role="radio"><span><strong>Miles</strong><small>Use miles and mph</small></span><i></i></button><button data-unit-option="km" role="radio"><span><strong>Kilometres</strong><small>Use kilometres and km/h</small></span><i></i></button></div>`, ready: () => { $$('[data-unit-option]', $('#sheetBody')).forEach((button) => { const active = button.dataset.unitOption === state.unit; button.setAttribute('aria-checked', String(active)); button.addEventListener('click', () => { state.unit = button.dataset.unitOption; persist(); openSheet('units'); showToast('Distance unit updated.'); }); }); } }),
+      notifications: () => ({ title: 'Notifications', body: `<div class="settings-sheet-section">${toggleMarkup('notifications', 'Ride and message alerts', 'Receive useful updates when Rider Comms is in the background.', state.notifications)}</div><div class="settings-note"><strong>Device permission required</strong><p>Your browser or operating system can still block notifications. Rider Comms never sends marketing alerts from this setting.</p></div>`, ready: wireToggles }),
+      safety: () => ({ title: 'Safety', body: `<div class="safety-guidance"><div><span class="setting-icon"><svg><use href="#i-ride"/></svg></span><span><strong>Set up while stationary</strong><small>Complete profile, route and group controls before moving.</small></span></div><div><span class="setting-icon"><svg><use href="#i-location"/></svg></span><span><strong>Control your location</strong><small>Nearby visibility can be stopped at any time.</small></span></div><div><span class="setting-icon"><svg><use href="#i-info"/></svg></span><span><strong>Not an emergency service</strong><small>Call the appropriate emergency service if you need urgent help.</small></span></div></div>` }),
       reportHazard: () => ({
         title: 'Report on the road',
         body: `<p class="caption">Let nearby riders know what's ahead. Reports fade out over time.</p><div class="hazard-type-grid" id="hazardTypeChips">${HAZARD_TYPE_ORDER.map((t) => `<button type="button" class="hazard-type-tile" data-hazard-type="${t}" style="--hazard:${HAZARD_TYPES[t].color}">${icon(HAZARD_TYPES[t].icon.replace(/^i-/, ''))}<span>${escapeHtml(HAZARD_TYPES[t].label)}</span></button>`).join('')}</div><p id="hazardFormError" class="inline-error" hidden></p>`,
@@ -2384,8 +2213,6 @@
     $$('[data-sheet]').forEach((button) => button.addEventListener('click', () => openSheet(button.dataset.sheet)));
     $('#completeProfilePrompt').addEventListener('click', () => openSheet('profile'));
     $('#editProfileBtn').addEventListener('click', () => openSheet('profile'));
-    $('#addRouteBtn').addEventListener('click', () => openSheet('addRoute'));
-    $('#routeEmptyAction').addEventListener('click', () => openSheet('addRoute'));
     $('#reportHazardBtn').addEventListener('click', () => openSheet('reportHazard'));
     $('#closeSheet').addEventListener('click', closeSheet);
     $('#sheetBackdrop').addEventListener('click', (event) => { if (event.target === $('#sheetBackdrop')) closeSheet(); });

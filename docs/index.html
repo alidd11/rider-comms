@@ -51,6 +51,7 @@
     <symbol id="i-wrench" viewBox="0 0 24 24"><path d="M14.7 6.3a4 4 0 1 0-4.4 6.4L4 19l1 1 6.3-6.3a4 4 0 0 0 6.4-4.4l-1.4 1.4-2-2Z"/></symbol>
     <symbol id="i-nav-arrow" viewBox="0 0 24 24"><path d="M12 2 5 21l7-4.5L19 21Z"/></symbol>
     <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></symbol>
   </defs></svg>
 
   <div id="authScreen" class="auth-screen" hidden>
@@ -170,10 +171,8 @@
 
       <section class="screen content-screen" data-screen="routes" aria-labelledby="routesTitle">
         <div class="page-width">
-          <header class="page-header"><div><h1 id="routesTitle">Routes</h1><p class="page-subtitle">Motorbike-first roads and rider suggestions.</p></div><button class="icon-button" id="addRouteBtn" aria-label="Suggest a route"><svg><use href="#i-plus"/></svg></button></header>
-          <div class="chip-row" id="routeVehicleFilters"></div>
-          <div id="routeEmpty" class="empty-state route-empty" hidden><div class="hero-icon"><svg><use href="#i-route"/></svg></div><h2>No rider suggestions yet</h2><p>Know a road worth riding? Share it with the community.</p><button id="routeEmptyAction" class="button secondary">Suggest a route</button></div>
-          <div id="routeList" class="route-list"></div>
+          <header class="page-header"><div><h1 id="routesTitle">Routes</h1><p class="page-subtitle">Curated motorbike-first roads across the UK.</p></div></header>
+          <div id="curatedRoutesMount"></div>
         </div>
       </section>
 
@@ -190,12 +189,13 @@
       </section>
 
       <section class="screen content-screen" data-screen="settings" aria-labelledby="settingsTitle">
-        <div class="page-width"><header class="page-header"><div><h1 id="settingsTitle">Settings and privacy</h1></div></header>
+        <div class="page-width settings-page"><header class="page-header"><div><h1 id="settingsTitle">Settings</h1><p class="page-subtitle">Manage your account and riding preferences.</p></div></header>
           <article class="profile-row"><div class="avatar avatar-lg" data-avatar="AI">AI</div><div class="profile-copy"><strong id="profileName">Ali</strong><span id="profileHandle">@ali_rides</span><small id="profileRiderId">rider_k4xqpz82</small></div><button id="editProfileBtn" class="button tertiary">Edit</button></article>
           <button id="completeProfilePrompt" class="profile-completion" hidden><span class="setting-icon"><svg><use href="#i-user"/></svg></span><span><strong>Make this profile yours</strong><small>Add your rider name, handle and optional social links.</small></span><svg><use href="#i-chevron"/></svg></button>
-          <h2 class="group-title">Account</h2><div class="settings-group"><button data-sheet="plans"><span class="setting-icon"><svg><use href="#i-card"/></svg></span><span><strong>Subscription & billing</strong><small>Free plan · 1 mile radius</small></span><span class="plan-pill">Free</span><svg><use href="#i-chevron"/></svg></button><button data-sheet="profile"><span class="setting-icon"><svg><use href="#i-user"/></svg></span><span><strong>Profile</strong><small>Name, handle, avatar and socials</small></span><svg><use href="#i-chevron"/></svg></button><button data-sheet="privacy"><span class="setting-icon"><svg><use href="#i-shield"/></svg></span><span><strong>Privacy & visibility</strong><small>Location and social profile controls</small></span><svg><use href="#i-chevron"/></svg></button></div>
-          <h2 class="group-title">Riding</h2><div class="settings-group"><button data-sheet="map"><span class="setting-icon"><svg><use href="#i-location"/></svg></span><span><strong>Map & location</strong><small>Maps and nearby visibility</small></span><svg><use href="#i-chevron"/></svg></button><button data-sheet="units"><span class="setting-icon"><svg><use href="#i-units"/></svg></span><span><strong>Distance units</strong><small>Miles</small></span><svg><use href="#i-chevron"/></svg></button><button data-sheet="notifications"><span class="setting-icon"><svg><use href="#i-bell"/></svg></span><span><strong>Notifications</strong><small>Nearby riders, rides and messages</small></span><svg><use href="#i-chevron"/></svg></button></div>
-          <h2 class="group-title">Support</h2><div class="settings-group"><button data-sheet="safety"><span class="setting-icon"><svg><use href="#i-shield"/></svg></span><span><strong>Safety & privacy</strong><small>Community rules and data choices</small></span><svg><use href="#i-chevron"/></svg></button><button id="logoutBtn"><span class="setting-icon danger-text"><svg><use href="#i-reset"/></svg></span><span><strong class="danger-text">Log out</strong><small id="logoutRiderId">Sign out of this account</small></span><svg><use href="#i-chevron"/></svg></button></div>
+          <h2 class="group-title">Account</h2><div class="settings-group"><button data-sheet="profile"><span class="setting-icon"><svg><use href="#i-user"/></svg></span><span><strong>Profile</strong><small>Name, handle and connected profiles</small></span><svg><use href="#i-chevron"/></svg></button><button data-sheet="plans"><span class="setting-icon"><svg><use href="#i-card"/></svg></span><span><strong>Plan and billing</strong><small>Free plan · 1 mile radius</small></span><span class="plan-pill">Free</span><svg><use href="#i-chevron"/></svg></button></div>
+          <h2 class="group-title">Preferences</h2><div class="settings-group"><button data-sheet="map"><span class="setting-icon"><svg><use href="#i-location"/></svg></span><span><strong>Location and map</strong><small>Location sharing and nearby riders</small></span><svg><use href="#i-chevron"/></svg></button><button data-sheet="units"><span class="setting-icon"><svg><use href="#i-units"/></svg></span><span><strong>Distance units</strong><small id="distanceUnitsSummary">Miles</small></span><svg><use href="#i-chevron"/></svg></button><button data-sheet="notifications"><span class="setting-icon"><svg><use href="#i-bell"/></svg></span><span><strong>Notifications</strong><small>Ride and message alerts</small></span><svg><use href="#i-chevron"/></svg></button></div>
+          <h2 class="group-title">Privacy and safety</h2><div class="settings-group"><button data-sheet="privacy"><span class="setting-icon"><svg><use href="#i-shield"/></svg></span><span><strong>Privacy controls</strong><small>Visibility and social profiles</small></span><svg><use href="#i-chevron"/></svg></button><button data-sheet="safety"><span class="setting-icon"><svg><use href="#i-info"/></svg></span><span><strong>Safety</strong><small>Low-distraction and emergency guidance</small></span><svg><use href="#i-chevron"/></svg></button></div>
+          <div class="settings-group settings-signout"><button id="logoutBtn"><span class="setting-icon danger-text"><svg><use href="#i-reset"/></svg></span><span><strong class="danger-text">Log out</strong><small id="logoutRiderId">Sign out of this account</small></span><svg><use href="#i-chevron"/></svg></button></div>
           <p class="version">Rider Comms 0.3.0 · PWA</p>
         </div>
       </section>
@@ -215,7 +215,7 @@
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
   <div id="updateBanner" class="update-banner" hidden><span>A new Rider Comms version is ready.</span><button id="reloadApp">Update now</button></div>
   <noscript>Rider Comms requires JavaScript.</noscript>
-  <script src="config.js?v=30"></script>
+  <script src="config.js?v=31"></script>
   <script src="app.js?v=57" defer></script>
 </body>
 </html>
