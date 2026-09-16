@@ -1,18 +1,10 @@
-// Runtime configuration. The deployment workflow replaces this file using
-// repository secrets; the committed fallback intentionally contains no key.
+// Runtime configuration. The deployment workflow replaces this file
+// wholesale using repository secrets (see .github/workflows/pages.yml) --
+// anything else defined here would be silently deleted on every real
+// deploy, which is exactly what happened to the routes.js/routes.css
+// loader that used to live here (see index.html for where that now
+// lives as static tags instead). Keep this file to only the config
+// assignment.
 window.RIDER_COMMS_CONFIG = window.RIDER_COMMS_CONFIG || {
   googleMapsApiKey: '',
 };
-
-// The curated catalogue is deliberately isolated from account/session state.
-// Loading it here keeps the mobile PWA feature independently deployable while
-// the authenticated app shell continues to evolve.
-const routesScript = document.createElement('script');
-routesScript.src = 'routes.js?v=31';
-routesScript.defer = true;
-document.head.append(routesScript);
-
-const routesStyles = document.createElement('link');
-routesStyles.rel = 'stylesheet';
-routesStyles.href = 'routes.css?v=31';
-document.head.append(routesStyles);

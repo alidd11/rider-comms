@@ -7,6 +7,7 @@
   <meta name="theme-color" content="#f4f1ec" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#0e0e0f">
   <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" id="statusBarStyleMeta">
   <meta name="apple-mobile-web-app-title" content="Rider Comms">
   <meta name="description" content="Rider Comms — nearby riders, private group rides and rider-first navigation.">
@@ -14,6 +15,7 @@
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
   <link rel="stylesheet" href="app.css?v=57">
+  <link rel="stylesheet" href="routes.css?v=31">
   <title>Rider Comms</title>
 </head>
 <body>
@@ -103,16 +105,14 @@
       </div>
     </header>
     <div class="poi-chip-row" id="poiChipRow">
-      <button class="chip poi-chip" data-poi-type="gas_station"><svg><use href="#i-fuel"/></svg><span>Petrol</span></button>
-      <button class="chip poi-chip" data-poi-type="parking"><svg><use href="#i-parking"/></svg><span>Parking</span></button>
-      <button class="chip poi-chip" data-poi-type="restaurant"><svg><use href="#i-food"/></svg><span>Food</span></button>
-      <button class="chip poi-chip" data-poi-type="cafe"><svg><use href="#i-coffee"/></svg><span>Coffee</span></button>
-      <button class="chip poi-chip" data-poi-type="car_repair"><svg><use href="#i-wrench"/></svg><span>Repair</span></button>
+      <button class="chip poi-chip" data-poi-type="gas_station" aria-pressed="false"><svg><use href="#i-fuel"/></svg><span>Petrol</span></button>
+      <button class="chip poi-chip" data-poi-type="parking" aria-pressed="false"><svg><use href="#i-parking"/></svg><span>Parking</span></button>
+      <button class="chip poi-chip" data-poi-type="restaurant" aria-pressed="false"><svg><use href="#i-food"/></svg><span>Food</span></button>
+      <button class="chip poi-chip" data-poi-type="cafe" aria-pressed="false"><svg><use href="#i-coffee"/></svg><span>Coffee</span></button>
+      <button class="chip poi-chip" data-poi-type="car_repair" aria-pressed="false"><svg><use href="#i-wrench"/></svg><span>Repair</span></button>
     </div>
-    <div id="searchScreenResults" class="search-screen-results">
-      <p class="search-screen-hint">Search for an address, town or place — try "petrol station" or a name.</p>
-    </div>
-    <p class="search-screen-attribution">Powered by Google</p>
+    <div id="searchScreenResults" class="search-screen-results" role="region" aria-label="Place search results" aria-live="polite"></div>
+    <p class="search-screen-attribution">Place data from Google Maps</p>
   </div>
 
   <div id="app" class="app-shell" hidden>
@@ -219,6 +219,7 @@
   <div id="updateBanner" class="update-banner" hidden><span>A new Rider Comms version is ready.</span><button id="reloadApp">Update now</button></div>
   <noscript>Rider Comms requires JavaScript.</noscript>
   <script src="config.js?v=31"></script>
+  <script src="routes.js?v=31" defer></script>
   <script src="app.js?v=59" defer></script>
 </body>
 </html>

@@ -19,6 +19,7 @@ export interface PlaceResult {
   address: string;
   lat: number;
   lon: number;
+  distanceMeters: number;
 }
 
 /** Query validation only — no network call — so this is unit-testable
@@ -37,6 +38,25 @@ interface PlacesApiPlace {
 
 interface PlacesApiResponse {
   places?: PlacesApiPlace[];
+}
+
+export function distanceBetweenMeters(
+  from: { lat: number; lon: number },
+  to: { lat: number; lon: number }
+): number {
+  const radians = Math.PI / 180;
+  const lat1 = from.lat * radians;
+  const lat2 = to.lat * radians;
+  const deltaLat = (to.lat - from.lat) * radians;
+  const deltaLon = (to.lon - from.lon) * radians;
+  const a = Math.sin(deltaLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(deltaLon / 2) ** 2;
+  return 6_371_000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+export function formatPlaceDistance(meters: number): string {
+  if (!Number.isFinite(meters) || meters < 0) return '';
+  if (meters < 1_000) return `${Math.max(50, Math.round(meters / 50) * 50)} m`;
+  return `${(meters / 1_000).toFixed(meters < 10_000 ? 1 : 0)} km`;
 }
 
 /**
@@ -79,13 +99,17 @@ export async function searchPlaces(
         (place): place is PlacesApiPlace & { location: { latitude: number; longitude: number } } =>
           typeof place.location?.latitude === 'number' && typeof place.location?.longitude === 'number'
       )
-      .map((place) => ({
-        id: place.id ?? `${place.location.latitude},${place.location.longitude}`,
-        name: place.displayName?.text ?? 'Unnamed place',
-        address: place.formattedAddress ?? '',
-        lat: place.location.latitude,
-        lon: place.location.longitude,
-      }));
+      .map((place) => {
+        const result = {
+          id: place.id ?? `${place.location.latitude},${place.location.longitude}`,
+          name: place.displayName?.text ?? 'Unnamed place',
+          address: place.formattedAddress ?? '',
+          lat: place.location.latitude,
+          lon: place.location.longitude,
+        };
+        return { ...result, distanceMeters: distanceBetweenMeters(near, result) };
+      })
+      .sort((a, b) => a.distanceMeters - b.distanceMeters);
   } catch {
     return [];
   }
