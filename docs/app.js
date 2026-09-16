@@ -1610,6 +1610,10 @@
     input.disabled = true;
     input.placeholder = 'Search offline for now';
     $('.search-slot')?.classList.add('offline');
+    // The POI chips call the real Places JS API directly (nearbySearch) —
+    // with no Google Maps loaded there's no Places library either, so
+    // they'd just be dead buttons rather than a working offline feature.
+    $('#poiChipRow').hidden = true;
   }
 
   function initPlaceSearch() {
@@ -1617,6 +1621,12 @@
     const autocomplete = new google.maps.places.Autocomplete(input, {
       fields: ['name', 'formatted_address', 'geometry'],
     });
+    // Without this, predictions aren't biased to where the rider actually
+    // is — free-text search for something generic like "petrol station"
+    // could come back with results nowhere near them. bindTo('bounds', map)
+    // is the Places API's own documented way to bias Autocomplete to a
+    // map's current viewport, and it stays live as the map pans/zooms.
+    autocomplete.bindTo('bounds', map);
     autocomplete.addListener('place_changed', () => {
       const place = autocomplete.getPlace();
       const location = place?.geometry?.location;
@@ -1626,6 +1636,78 @@
       showToast(place.name ? `Centred on ${place.name}` : 'Centred on selected place.');
       input.blur();
     });
+    initPoiChips();
+  }
+
+  const POI_CATEGORIES = {
+    gas_station: { label: 'petrol stations', color: '#ff7a1a' },
+    parking: { label: 'parking', color: '#4f7cff' },
+    restaurant: { label: 'food', color: '#e45d8c' },
+    cafe: { label: 'coffee', color: '#b96c22' },
+    car_repair: { label: 'repair shops', color: '#3d7f92' },
+  };
+  let placesService;
+  let poiMarkers = [];
+
+  function clearPoiMarkers() {
+    poiMarkers.forEach((marker) => marker.setMap(null));
+    poiMarkers = [];
+  }
+
+  /**
+   * "Petrol"/"Parking"/"Food"/"Coffee"/"Repair" chips below the search bar
+   * — real POI lookup via the classic Places JS API's nearbySearch (the
+   * same `libraries=places` script already loaded for Autocomplete covers
+   * this; no separate key or library needed). Free-text search alone
+   * technically could already find e.g. "petrol station near me", but a
+   * rider glancing at their phone mid-ride shouldn't have to type — one
+   * tap for the categories that actually matter on a ride.
+   */
+  async function searchNearbyPois(type) {
+    if (!map) return;
+    if (!placesService) placesService = new google.maps.places.PlacesService(map);
+    let lat, lng;
+    try {
+      const position = await currentPosition();
+      lat = position.coords.latitude;
+      lng = position.coords.longitude;
+    } catch {
+      const centre = map.getCenter()?.toJSON();
+      lat = centre?.lat ?? 51.564;
+      lng = centre?.lng ?? -0.106;
+    }
+    placesService.nearbySearch({ location: { lat, lng }, radius: 5000, type }, (results, status) => {
+      clearPoiMarkers();
+      if (status !== google.maps.places.PlacesServiceStatus.OK || !results?.length) {
+        showToast(`No ${POI_CATEGORIES[type].label} found nearby.`);
+        return;
+      }
+      results.slice(0, 20).forEach((place) => {
+        const location = place.geometry?.location;
+        if (!location) return;
+        const marker = new google.maps.Marker({
+          map,
+          position: location,
+          title: place.name,
+          icon: pinIcon(POI_CATEGORIES[type].color),
+          zIndex: 7,
+        });
+        marker.addListener('click', () => showDestinationCard(location, place.name));
+        poiMarkers.push(marker);
+      });
+    });
+  }
+
+  function initPoiChips() {
+    $$('.poi-chip').forEach((button) => button.addEventListener('click', () => {
+      const type = button.dataset.poiType;
+      const wasActive = button.classList.contains('active');
+      $$('.poi-chip').forEach((b) => b.classList.remove('active'));
+      clearPoiMarkers();
+      if (wasActive) return; // tapping the already-active chip just clears results
+      button.classList.add('active');
+      void searchNearbyPois(type);
+    }));
   }
 
   /**
