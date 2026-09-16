@@ -1743,7 +1743,11 @@
   function selectRecentSearch(item) {
     if (!item) return;
     panToPlace(item.lat, item.lng);
-    setDestinationMarker({ lat: item.lat, lng: item.lng }, item.name);
+    // showDestinationCard/setDestinationMarker call location.lat()/.lng()
+    // as methods (matching the real google.maps.LatLng that
+    // selectSearchResult below gets from Places) -- a plain {lat,lng}
+    // literal here would throw when a recent result is tapped.
+    setDestinationMarker(new google.maps.LatLng(item.lat, item.lng), item.name, item.secondary);
     showToast(`Centred on ${item.name}`);
     closeSearchScreen();
   }
@@ -1778,7 +1782,7 @@
       const lat = location.lat();
       const lng = location.lng();
       panToPlace(lat, lng);
-      setDestinationMarker(location, place.name);
+      setDestinationMarker(location, place.name, place.formatted_address);
       showToast(place.name ? `Centred on ${place.name}` : 'Centred on selected place.');
       saveRecentSearch({ placeId, name: place.name || 'Selected place', secondary: place.formatted_address || '', lat, lng });
       closeSearchScreen();
@@ -2043,13 +2047,14 @@
     $('#destinationCard').hidden = true;
   }
 
-  function showDestinationCard(location, label) {
+  function showDestinationCard(location, label, address) {
     $('#riderCard').hidden = true;
     $('#hazardCard').hidden = true;
     const lat = location.lat();
     const lng = location.lng();
     const card = $('#destinationCard');
-    card.innerHTML = `<span class="avatar" style="--avatar:#ff2d5a" aria-hidden="true"><svg><use href="#i-location"/></svg></span><div class="rider-card-copy"><strong>${escapeHtml(label || 'Selected place')}</strong><span>${lat.toFixed(5)}, ${lng.toFixed(5)}</span></div><button class="compact-button" data-start-nav>Start</button><a class="icon-button" href="${navigationHref(lat, lng)}" target="_blank" rel="noopener noreferrer" aria-label="Open in Maps app"><svg><use href="#i-share"/></svg></a><button class="icon-button" aria-label="Dismiss destination" data-dismiss-destination>×</button>`;
+    const secondary = address || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+    card.innerHTML = `<div class="destination-card-top"><span class="avatar" style="--avatar:#ff2d5a" aria-hidden="true"><svg><use href="#i-location"/></svg></span><div class="rider-card-copy"><strong>${escapeHtml(label || 'Selected place')}</strong><span>${escapeHtml(secondary)}</span></div></div><div class="destination-card-actions"><button class="compact-button" data-start-nav>Start</button><a class="icon-button" href="${navigationHref(lat, lng)}" target="_blank" rel="noopener noreferrer" aria-label="Open in Maps app"><svg><use href="#i-share"/></svg></a><button class="icon-button" aria-label="Dismiss destination" data-dismiss-destination>×</button></div>`;
     card.hidden = false;
     $('[data-start-nav]', card).addEventListener('click', () => void startInAppNavigation(location, label));
     $('[data-dismiss-destination]', card).addEventListener('click', () => {
@@ -2059,7 +2064,7 @@
     });
   }
 
-  function setDestinationMarker(location, label) {
+  function setDestinationMarker(location, label, address) {
     destinationMarker?.setMap(null);
     destinationMarker = new google.maps.Marker({
       map,
@@ -2069,8 +2074,8 @@
       animation: google.maps.Animation.DROP,
       zIndex: 9,
     });
-    destinationMarker.addListener('click', () => showDestinationCard(location, label));
-    showDestinationCard(location, label);
+    destinationMarker.addListener('click', () => showDestinationCard(location, label, address));
+    showDestinationCard(location, label, address);
   }
 
   // Real in-app turn-by-turn navigation — the point of an "all in one
