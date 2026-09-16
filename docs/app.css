@@ -364,7 +364,8 @@ h1,h2,.eyebrow,.auth-brand span,.nav-banner-copy strong,.nav-summary-eta strong,
 .nav-summary-stat strong,.bottom-nav>button span,.button,.ride-code-card strong,
 .code-field input,.settings-group strong,.profile-copy strong,.identity strong,
 .section-heading h2,.group-title,.route-region,.curated-route-overlay strong,
-.search-results-heading strong,.nav-next-preview span:first-of-type{
+.search-results-heading strong,.nav-next-preview span:first-of-type,
+.search-empty-state>strong,.hero-icon+h2,.network-empty h2,.route-empty h2{
   font-family:var(--font-display);
 }
 h1,.auth-intro h1{letter-spacing:-.02em}
@@ -388,6 +389,8 @@ h1,.auth-intro h1{letter-spacing:-.02em}
 .nav-maneuver-icon{box-shadow:var(--glow-accent)}
 #joinNearbyBtn[data-active=true]{box-shadow:var(--glow-accent)}
 .auth-mark{background:var(--gradient-neon);box-shadow:var(--glow-accent),inset 0 1px rgb(255 255 255/.25)}
+.search-empty-icon,.hero-icon{box-shadow:inset 0 0 0 1px rgb(255 255 255/.06),0 0 0 3px color-mix(in srgb,var(--accent) 12%,transparent)}
+.search-error-state .search-empty-icon{box-shadow:inset 0 0 0 1px rgb(255 255 255/.06),0 0 0 3px color-mix(in srgb,var(--accent) 22%,transparent)}
 .auth-mark svg{color:#fff}
 
 /* Angular "instrument panel" cut on the chrome-only surfaces (never on
