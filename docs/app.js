@@ -1496,6 +1496,16 @@
     }
   }
 
+  // Same camera move as centreMap, but for panning to a searched
+  // destination rather than the rider's own GPS fix — must not drag the
+  // "you are here" marker onto the place being looked up.
+  function panToPlace(lat, lng) {
+    if (map) {
+      map.panTo({ lat, lng });
+      map.setZoom(15);
+    }
+  }
+
   // Fires for failures the script tag's own onerror can't see: the script
   // loads fine, but the key is rejected at request time (bad referrer
   // restriction, billing disabled, quota exceeded, revoked key). Without
@@ -1581,14 +1591,52 @@
   let autocompleteService;
   let searchSessionToken;
   let searchDebounceTimer;
+  let searchRequestToken = 0;
+  let searchScreenPosition;
+
+  // Recent-place shortcuts (Google Maps/Waze pattern: the empty search
+  // screen shows where you've been, not a blank page) — kept client-side
+  // only, newest first, deduped by placeId, capped so the list stays a
+  // quick glance rather than a scrollable history.
+  const RECENT_SEARCHES_KEY = 'riderComms.recentSearches';
+  const RECENT_SEARCHES_MAX = 6;
+
+  function loadRecentSearches() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(RECENT_SEARCHES_KEY) || '[]');
+      return Array.isArray(raw) ? raw : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function saveRecentSearch(entry) {
+    try {
+      const existing = loadRecentSearches().filter((item) => item.placeId !== entry.placeId);
+      localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify([entry, ...existing].slice(0, RECENT_SEARCHES_MAX)));
+    } catch {
+      // Private-mode/quota storage failures just mean no recent list — not fatal.
+    }
+  }
+
+  function clearRecentSearches() {
+    try { localStorage.removeItem(RECENT_SEARCHES_KEY); } catch { /* ignore */ }
+    renderRecentOrHint();
+  }
 
   function openSearchScreen() {
     if ($('#mapSearchSlot')?.classList.contains('offline')) return;
     $('#searchScreen').hidden = false;
     const input = $('#searchScreenInput');
     input.value = '';
-    renderSearchResultsHint();
+    $('#searchScreenClear').hidden = true;
+    renderRecentOrHint();
     input.focus();
+    searchScreenPosition = undefined;
+    currentPosition().then((position) => {
+      searchScreenPosition = { lat: position.coords.latitude, lng: position.coords.longitude };
+      if (!input.value.trim()) renderRecentOrHint();
+    }).catch(() => {});
   }
 
   function closeSearchScreen() {
@@ -1596,8 +1644,51 @@
     $('#searchScreenInput').blur();
   }
 
-  function renderSearchResultsHint() {
-    $('#searchScreenResults').innerHTML = '<p class="search-screen-hint">Search for an address, town or place — try "petrol station" or a name.</p>';
+  function placeDistanceLabel(lat, lng) {
+    if (!searchScreenPosition || typeof lat !== 'number' || typeof lng !== 'number') return '';
+    return formatNavDistance(metersBetween(searchScreenPosition, { lat, lng }));
+  }
+
+  function renderRecentOrHint() {
+    const recent = loadRecentSearches();
+    const results = $('#searchScreenResults');
+    if (!recent.length) {
+      results.innerHTML = '<p class="search-screen-hint">Search for an address, town or place — try "petrol station" or a name.</p>';
+      return;
+    }
+    results.innerHTML = `
+      <div class="search-recent-header"><span>Recent</span><button class="search-recent-clear" id="searchRecentClearBtn" type="button">Clear</button></div>
+      ${recent.map((item, index) => `
+        <button class="search-result-row" data-recent-index="${index}">
+          <span class="search-result-icon"><svg><use href="#i-history"/></svg></span>
+          <span class="search-result-copy">
+            <strong>${escapeHtml(item.name)}</strong>
+            <span>${escapeHtml(item.secondary || '')}</span>
+          </span>
+          <span class="search-result-distance">${escapeHtml(placeDistanceLabel(item.lat, item.lng))}</span>
+        </button>`).join('')}`;
+    $('#searchRecentClearBtn').addEventListener('click', clearRecentSearches);
+    $$('.search-result-row[data-recent-index]', results).forEach((row) => {
+      row.addEventListener('click', () => selectRecentSearch(recent[Number(row.dataset.recentIndex)]));
+    });
+  }
+
+  function renderSearchLoading() {
+    $('#searchScreenResults').innerHTML = '<p class="search-screen-loading">Searching…</p>';
+  }
+
+  const PLACE_TYPE_ICONS = {
+    gas_station: 'i-fuel',
+    parking: 'i-parking',
+    restaurant: 'i-food',
+    meal_takeaway: 'i-food',
+    cafe: 'i-coffee',
+    car_repair: 'i-wrench',
+  };
+
+  function predictionIcon(prediction) {
+    const match = (prediction.types || []).find((type) => PLACE_TYPE_ICONS[type]);
+    return match ? PLACE_TYPE_ICONS[match] : 'i-location';
   }
 
   function renderSearchResults(predictions) {
@@ -1608,7 +1699,7 @@
     }
     results.innerHTML = predictions.map((prediction, index) => `
       <button class="search-result-row" data-place-id="${escapeHtml(prediction.place_id)}" data-result-index="${index}">
-        <span class="search-result-icon"><svg><use href="#i-location"/></svg></span>
+        <span class="search-result-icon"><svg><use href="#${predictionIcon(prediction)}"/></svg></span>
         <span class="search-result-copy">
           <strong>${escapeHtml(prediction.structured_formatting?.main_text || prediction.description)}</strong>
           <span>${escapeHtml(prediction.structured_formatting?.secondary_text || '')}</span>
@@ -1617,32 +1708,46 @@
     $$('.search-result-row', results).forEach((row) => row.addEventListener('click', () => void selectSearchResult(row.dataset.placeId)));
   }
 
+  function selectRecentSearch(item) {
+    if (!item) return;
+    panToPlace(item.lat, item.lng);
+    setDestinationMarker({ lat: item.lat, lng: item.lng }, item.name);
+    showToast(`Centred on ${item.name}`);
+    closeSearchScreen();
+  }
+
   function selectSearchResult(placeId) {
     if (!placesService) placesService = new google.maps.places.PlacesService(map);
-    placesService.getDetails({ placeId, fields: ['name', 'geometry'], sessionToken: searchSessionToken }, (place, status) => {
+    placesService.getDetails({ placeId, fields: ['name', 'geometry', 'formatted_address'], sessionToken: searchSessionToken }, (place, status) => {
       searchSessionToken = new google.maps.places.AutocompleteSessionToken();
       const location = place?.geometry?.location;
       if (status !== google.maps.places.PlacesServiceStatus.OK || !location) {
         showToast('Could not open that place. Try again.');
         return;
       }
-      centreMap(location.lat(), location.lng());
+      const lat = location.lat();
+      const lng = location.lng();
+      panToPlace(lat, lng);
       setDestinationMarker(location, place.name);
       showToast(place.name ? `Centred on ${place.name}` : 'Centred on selected place.');
+      saveRecentSearch({ placeId, name: place.name || 'Selected place', secondary: place.formatted_address || '', lat, lng });
       closeSearchScreen();
     });
   }
 
   function searchPlaces(query) {
     if (!query) {
-      renderSearchResultsHint();
+      renderRecentOrHint();
       return;
     }
+    renderSearchLoading();
+    const requestToken = ++searchRequestToken;
     if (!autocompleteService) autocompleteService = new google.maps.places.AutocompleteService();
     if (!searchSessionToken) searchSessionToken = new google.maps.places.AutocompleteSessionToken();
     autocompleteService.getPlacePredictions(
       { input: query, sessionToken: searchSessionToken, bounds: map?.getBounds() },
       (predictions, status) => {
+        if (requestToken !== searchRequestToken) return; // a newer keystroke's request already landed
         if (status !== google.maps.places.PlacesServiceStatus.OK || !predictions) {
           renderSearchResults([]);
           return;
@@ -1656,10 +1761,23 @@
     $('#mapSearchSlot').addEventListener('click', openSearchScreen);
     $('#searchScreenBack').addEventListener('click', closeSearchScreen);
     $('#searchScreenInput').addEventListener('input', (event) => {
+      const query = event.target.value.trim();
+      $('#searchScreenClear').hidden = !query;
       clearTimeout(searchDebounceTimer);
-      searchDebounceTimer = setTimeout(() => searchPlaces(event.target.value.trim()), 220);
+      searchDebounceTimer = setTimeout(() => searchPlaces(query), 220);
     });
-    $('#searchScreenInput').addEventListener('keydown', (event) => { if (event.key === 'Escape') closeSearchScreen(); });
+    $('#searchScreenInput').addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') { closeSearchScreen(); return; }
+      if (event.key === 'Enter') { event.preventDefault(); $('.search-result-row', $('#searchScreenResults'))?.click(); }
+    });
+    $('#searchScreenClear').addEventListener('click', () => {
+      const input = $('#searchScreenInput');
+      input.value = '';
+      $('#searchScreenClear').hidden = true;
+      clearTimeout(searchDebounceTimer);
+      renderRecentOrHint();
+      input.focus();
+    });
     initPoiChips();
   }
 
