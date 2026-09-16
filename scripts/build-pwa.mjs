@@ -54,8 +54,15 @@ if (!html.includes(`<meta name="theme-color" content="${darkChrome}"`)) {
 if (!css.includes(`--bg:${darkChrome}`) || !css.includes(`--system-chrome:${darkChrome}`)) {
   throw new Error(`PWA CSS dark page and system-chrome colours must remain ${darkChrome}`);
 }
-if (!html.includes('<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">') ||
-    !css.includes('@media(prefers-color-scheme:light){:root{--system-chrome:#ffffff}}')) {
-  throw new Error('PWA light theme colour and system-chrome surface must remain #ffffff');
+// Must match --bg's own light-theme value, not an independent "light
+// mode is white" assumption — that mismatch (chrome white, page content
+// cream) is exactly what left a visible seam in any native browser-chrome
+// gap around the page (status bar, the strip below the safe area) in
+// light mode, on every screen, not just the ones that happened to expose
+// it. See the same reasoning for darkChrome above.
+const lightChrome = '#f4f1ec';
+if (!html.includes(`<meta name="theme-color" content="${lightChrome}" media="(prefers-color-scheme: light)">`) ||
+    !css.includes(`@media(prefers-color-scheme:light){:root{--system-chrome:${lightChrome}}}`)) {
+  throw new Error(`PWA light theme colour and system-chrome surface must remain ${lightChrome}`);
 }
 console.log(`Built PWA at ${destination}`);
