@@ -1,17 +1,24 @@
 /**
  * Device-level audio routing for the voice channel — separate from
  * audioEngine.ts's priority mixer (nav > chat > music), which decides WHAT
- * gets heard; this decides WHERE it's heard. Riders connect any Bluetooth
- * device their OS already pairs as a call/headset audio device — a helmet
- * intercom, a standard Bluetooth headset, AirPods — and this configures the
- * native audio session so that device's mic and speaker are actually used
- * for the voice room, rather than the phone's own mic/speaker.
+ * gets heard; this decides WHERE it's heard AND whether other apps' audio
+ * survives the call at all. Riders connect any Bluetooth device their OS
+ * already pairs as a call/headset audio device — a helmet intercom, a
+ * standard Bluetooth headset, AirPods — and this configures the native
+ * audio session so that device's mic and speaker are actually used for
+ * the voice room, rather than the phone's own mic/speaker. It also asks
+ * iOS to keep the rider's music/nav app playing (unducked) alongside the
+ * call — see setAppleAudioConfiguration below — instead of the default
+ * category, which silences other apps outright for the whole ride. There
+ * is no equivalent web API for this (see docs/app.js's voice module for
+ * why the PWA can't do the same), so this real coexistence is native-only.
  *
  * This is real, typed configuration against @livekit/react-native's actual
  * AudioSession API (see node_modules/@livekit/react-native's audio module)
  * — not a guess at its shape. What's unverified is everything downstream:
  * whether a specific real helmet intercom's Bluetooth profile behaves as
- * expected, which only real hardware can confirm.
+ * expected, and whether iOS/Android actually keep music/nav audible at the
+ * volume this asks for, both of which only real hardware can confirm.
  */
 import { AudioSession } from '@livekit/react-native';
 import type { AudioConfiguration } from '@livekit/react-native';
@@ -36,6 +43,14 @@ const VOICE_AUDIO_CONFIG: AudioConfiguration = {
       // it, a paired helmet intercom's speaker can work while its mic
       // silently doesn't.
       forceHandleAudioRouting: true,
+      // Android's audio focus model has no true "mix at full volume"
+      // option the way iOS does below — 'gain' (the library's own
+      // default) tells other apps to stop outright, which would pause a
+      // rider's music/nav app entirely for the whole ride. 'gainTransientMayDuck'
+      // is the closest real equivalent: well-behaved apps (Spotify, Google/
+      // Apple Maps) lower their own volume instead of stopping, so nav
+      // prompts and music both keep playing, just quieter under the call.
+      audioFocusMode: 'gainTransientMayDuck',
     },
   },
 };
@@ -48,6 +63,23 @@ const VOICE_AUDIO_CONFIG: AudioConfiguration = {
  */
 export async function startVoiceAudioSession(): Promise<void> {
   await AudioSession.configureAudio(VOICE_AUDIO_CONFIG);
+  // configureAudio()'s own `ios` option only covers output routing (see
+  // AudioConfiguration above) — the actual AVAudioSession category/mode
+  // is a separate call. Without this, iOS defaults to a category that
+  // silences the rider's music/nav app entirely for the whole ride, the
+  // same "why did it mute my music" behaviour the PWA has no fix for
+  // (there's no web API for this — see docs/app.js's voice module). The
+  // native app can ask for real coexistence instead: `mixWithOthers`
+  // keeps other apps' audio playing (unducked) alongside the call,
+  // `allowBluetooth(A2DP)`/`allowAirPlay` keep the earlier Bluetooth
+  // routing config actually reachable under a play-and-record category,
+  // and `voiceChat` audio mode applies the same echo-cancellation/
+  // gain tuning iOS uses for real phone/FaceTime calls.
+  await AudioSession.setAppleAudioConfiguration({
+    audioCategory: 'playAndRecord',
+    audioCategoryOptions: ['mixWithOthers', 'allowBluetooth', 'allowBluetoothA2DP', 'allowAirPlay', 'defaultToSpeaker'],
+    audioMode: 'voiceChat',
+  });
   await AudioSession.startAudioSession();
 }
 
