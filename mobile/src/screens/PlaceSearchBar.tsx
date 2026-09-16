@@ -35,9 +35,11 @@ const CATEGORIES = [
 export function PlaceSearchBar({
   near,
   onSelect,
+  onRequestLocation,
 }: {
   near: { lat: number; lon: number } | null;
   onSelect: (place: PlaceResult) => void;
+  onRequestLocation: () => Promise<void>;
 }): React.JSX.Element {
   const insets = useSafeAreaInsets();
   const [open, setOpen] = React.useState(false);
@@ -104,7 +106,10 @@ export function PlaceSearchBar({
     <>
       <Pressable
         style={({ pressed }) => [styles.collapsed, elevation.raised, pressed && styles.pressed]}
-        onPress={() => setOpen(true)}
+        onPress={() => {
+          setOpen(true);
+          if (!near) void onRequestLocation();
+        }}
         accessibilityLabel="Search for a place"
       >
         <Ionicons name="search" size={19} color={colors.textMuted} />
@@ -168,7 +173,13 @@ export function PlaceSearchBar({
           {searchUnavailable ? (
             <SearchState icon="cloud-offline-outline" title="Search unavailable" copy="Place search is not configured for this build yet." />
           ) : !near ? (
-            <SearchState icon="location-outline" title="Location needed" copy="Turn on location to search for useful places nearby." />
+            <SearchState
+              icon="location-outline"
+              title="Location needed"
+              copy="Allow location to search nearby. Your position is not shared with other riders unless you turn sharing on."
+              actionLabel="Try location again"
+              onAction={() => void onRequestLocation()}
+            />
           ) : !query ? (
             <SearchState icon="navigate-outline" title="Where do you want to go?" copy="Search by place or address, or choose a nearby category above." />
           ) : (
@@ -223,17 +234,29 @@ export function PlaceSearchBar({
   );
 }
 
-function SearchState({ icon, title, copy, compact = false }: {
+function SearchState({ icon, title, copy, compact = false, actionLabel, onAction }: {
   icon: React.ComponentProps<typeof Ionicons>['name'];
   title: string;
   copy: string;
   compact?: boolean;
+  actionLabel?: string;
+  onAction?: () => void;
 }): React.JSX.Element {
   return (
     <View style={[styles.state, compact && styles.stateCompact]}>
       <View style={styles.stateIcon}><Ionicons name={icon} size={23} color={colors.textSecondary} /></View>
       <Text style={styles.stateTitle}>{title}</Text>
       <Text style={styles.stateCopy}>{copy}</Text>
+      {actionLabel && onAction ? (
+        <Pressable
+          style={styles.stateAction}
+          onPress={onAction}
+          accessibilityRole="button"
+          accessibilityLabel={actionLabel}
+        >
+          <Text style={styles.stateActionText}>{actionLabel}</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -290,5 +313,10 @@ const styles = StyleSheet.create({
   stateIcon: { width: 52, height: 52, alignItems: 'center', justifyContent: 'center', borderRadius: 17, backgroundColor: colors.surfaceRaised, marginBottom: spacing.md },
   stateTitle: { ...type.subheading, textAlign: 'center' },
   stateCopy: { ...type.caption, maxWidth: 310, marginTop: spacing.sm, textAlign: 'center', lineHeight: 20 },
+  stateAction: {
+    minHeight: 42, justifyContent: 'center', marginTop: spacing.md, paddingHorizontal: spacing.lg,
+    borderRadius: radii.pill, backgroundColor: colors.accent,
+  },
+  stateActionText: { ...type.caption, color: '#FFFFFF', fontWeight: '800' },
   attribution: { ...type.caption, paddingHorizontal: 20, paddingTop: 9, borderTopWidth: 1, borderTopColor: colors.border, textAlign: 'right', fontSize: 11 },
 });
