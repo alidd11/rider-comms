@@ -109,6 +109,59 @@ describe('RiderCommsClient.updatePresence', () => {
   });
 });
 
+describe('RiderCommsClient social profiles and messages', () => {
+  it('loads a privacy-filtered public profile from the public profile route', async () => {
+    const client = new RiderCommsClient(
+      'http://example.test',
+      fakeFetch((url, init) => {
+        assert.equal(url, 'http://example.test/profiles/rider%2Ffriend');
+        assert.equal(init.method, 'GET');
+        return {
+          status: 200,
+          body: {
+            riderId: 'rider/friend',
+            displayName: 'Sam',
+            handle: '@sam',
+            avatarId: 'roadster',
+            instagramUsername: '',
+            tiktokUsername: '',
+          },
+        };
+      })
+    );
+
+    assert.equal((await client.getPublicProfile('rider/friend')).handle, '@sam');
+  });
+
+  it('sends a private message only to the requested rider', async () => {
+    const client = new RiderCommsClient(
+      'http://example.test',
+      fakeFetch((url, init) => {
+        assert.equal(url, 'http://example.test/messages');
+        assert.equal(init.method, 'POST');
+        assert.deepEqual(JSON.parse(init.body as string), { toRiderId: 'friend-1', text: 'Meet at seven?' });
+        return { status: 201, body: { id: 'm1', fromRiderId: 'me', toRiderId: 'friend-1', text: 'Meet at seven?', createdAt: 1 } };
+      })
+    );
+
+    assert.equal((await client.sendMessage('friend-1', 'Meet at seven?')).id, 'm1');
+  });
+
+  it('persists an editable profile field through the authenticated rider route', async () => {
+    const client = new RiderCommsClient(
+      'http://example.test',
+      fakeFetch((url, init) => {
+        assert.equal(url, 'http://example.test/riders/rider%2Fme/profile');
+        assert.equal(init.method, 'PUT');
+        assert.deepEqual(JSON.parse(init.body as string), { handle: '@night_rider' });
+        return { status: 200, body: { riderId: 'rider/me', handle: '@night_rider' } };
+      })
+    );
+
+    assert.equal((await client.updateProfile('rider/me', { handle: '@night_rider' })).handle, '@night_rider');
+  });
+});
+
 describe('RiderCommsClient.hazards', () => {
   it('createHazard POSTs the type and coordinates', async () => {
     const client = new RiderCommsClient(
