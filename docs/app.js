@@ -293,6 +293,7 @@
     document.title = `${screen === 'ride' ? 'Group Ride' : screen[0].toUpperCase() + screen.slice(1)} · Rider Comms`;
     window.scrollTo(0, 0);
     if (screen === 'map') { renderMapRiders(); refreshNearbyHazards(); }
+    syncHazardRefresh(screen === 'map');
     if (screen === 'routes') renderRoutes();
     if (screen === 'friends') loadFriendsData();
     if (screen === 'ride') refreshActiveRide();
@@ -366,16 +367,28 @@
     renderMapHazards();
   }
 
+  /** "5m ago" / "2h ago" — Waze shows a report's age so riders can judge
+   * for themselves whether it's likely still current, on top of the real
+   * TTL/crowd-hiding that removes it server-side regardless (see
+   * ttlMsForType/shouldHide in shared/src/hazards.ts). */
+  function timeAgo(timestampMs) {
+    const minutes = Math.max(0, Math.round((Date.now() - timestampMs) / 60_000));
+    if (minutes < 1) return 'just now';
+    if (minutes < 60) return `${minutes}m ago`;
+    return `${Math.round(minutes / 60)}h ago`;
+  }
+
   function selectHazard(hazardId) {
     const hazard = nearbyHazards.find((h) => h.id === hazardId);
     const card = $('#hazardCard');
     if (!hazard) { card.hidden = true; return; }
     const meta = HAZARD_TYPES[hazard.type];
     hideDestinationCard();
-    card.innerHTML = `<span class="avatar" style="--avatar:${meta.color}" aria-hidden="true"><svg><use href="#${meta.icon}"/></svg></span><div class="rider-card-copy"><strong>${escapeHtml(meta.label)}</strong><span>Reported by a nearby rider</span><div class="hazard-vote-row"><button class="compact-button" data-vote="confirm">Still there (${hazard.confirmations})</button><button class="compact-button" data-vote="deny">Gone (${hazard.denials})</button></div></div>`;
+    card.innerHTML = `<span class="avatar" style="--avatar:${meta.color}" aria-hidden="true"><svg><use href="#${meta.icon}"/></svg></span><div class="rider-card-copy"><strong>${escapeHtml(meta.label)}</strong><span>Reported ${timeAgo(hazard.createdAt)}</span><div class="hazard-vote-row"><button class="compact-button" data-vote="confirm">Still there (${hazard.confirmations})</button><button class="compact-button" data-vote="deny">Gone (${hazard.denials})</button></div></div><button class="icon-button" aria-label="Dismiss" data-dismiss-hazard>×</button>`;
     card.hidden = false;
     $('[data-vote="confirm"]', card).addEventListener('click', () => voteHazard(hazardId, 'confirm'));
     $('[data-vote="deny"]', card).addEventListener('click', () => voteHazard(hazardId, 'deny'));
+    $('[data-dismiss-hazard]', card).addEventListener('click', () => { card.hidden = true; });
   }
 
   /** Real confirm/deny voting (POST /hazards/:id/confirm or /deny) — the
@@ -390,6 +403,7 @@
       if (hazard) { if (direction === 'confirm') hazard.confirmations += 1; else hazard.denials += 1; }
       $('#hazardCard').hidden = true;
       renderHazardMarkers();
+      showToast(direction === 'confirm' ? 'Thanks — marked as still there.' : 'Thanks — we’ll clear it once a few riders agree.');
     } catch (error) {
       const code = error instanceof ApiError ? error.body?.error : undefined;
       if (code === 'not_found') {
@@ -432,6 +446,27 @@
       lon = centre?.lng ?? -0.106;
     }
     await loadNearbyHazards(lat, lon);
+  }
+
+  const HAZARD_REFRESH_MS = 60_000; // hazards live 1-8h (ttlMsForType) or get crowd-hidden — no need for presence's 8-10s cadence, just a periodic notice that one's gone
+  let hazardRefreshTimer;
+
+  /**
+   * Without this, a hazard that expired or got crowd-denied server-side
+   * kept showing on the map indefinitely — nearbyHazards was only ever
+   * (re)fetched on first opening the Map tab, never again while parked on
+   * it, so a report could never visibly "disappear" no matter what
+   * happened server-side. Started/stopped alongside the Map screen the
+   * same way syncRideLocationSharing tracks state.activeRide.
+   */
+  function syncHazardRefresh(active) {
+    if (active) {
+      if (hazardRefreshTimer) return;
+      hazardRefreshTimer = setInterval(refreshNearbyHazards, HAZARD_REFRESH_MS);
+    } else if (hazardRefreshTimer) {
+      clearInterval(hazardRefreshTimer);
+      hazardRefreshTimer = undefined;
+    }
   }
 
   const HAZARD_ERROR_MESSAGES = {
@@ -1691,11 +1726,16 @@
       ...(current ? {} : { label: { text: initials(person.displayName), color: '#ffffff', fontWeight: '700', fontSize: '9px' } }),
       icon: {
         path: google.maps.SymbolPath.CIRCLE,
-        scale: current ? 7 : 9,
+        // A precise dot, not a beach-ball (see the earlier size pass) —
+        // but 7 turned out to undershoot the other way and got hard to
+        // spot at a glance. 10 with a slightly thicker ring keeps it
+        // clearly the smallest/simplest shape on the map (still no
+        // label, unlike other riders) while actually being visible.
+        scale: current ? 10 : 9,
         fillColor: identityColor(person.riderId),
         fillOpacity: 1,
         strokeColor: current ? '#ffffff' : '#e9eef5',
-        strokeWeight: current ? 2 : 2,
+        strokeWeight: current ? 3 : 2,
       },
       zIndex: current ? 10 : 5,
     });
