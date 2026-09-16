@@ -2134,10 +2134,20 @@
     return Math.hypot(p.x - closest.x, p.y - closest.y);
   }
 
+  // Google's Directions "instructions" field sometimes nests an advisory
+  // note (a road restriction, a seasonal closure) in a child element
+  // directly after the visible turn text, with no whitespace between
+  // them in the source, e.g. `Turn left onto Yerbury Rd<div>May be
+  // closed at certain times of day or year</div>`. Plain textContent
+  // concatenates the two into one run-on word ("...RdMay be closed...")
+  // -- both on screen and read aloud by the voice guidance below. Join
+  // each direct child's text with a space instead of relying on
+  // textContent's own (non-existent) whitespace handling.
   function stripHtml(html) {
     const div = document.createElement('div');
     div.innerHTML = html;
-    return div.textContent || '';
+    const text = Array.from(div.childNodes).map((node) => node.textContent || '').join(' ');
+    return text.replace(/\s+/g, ' ').trim();
   }
 
   /** Best-effort voice guidance — SpeechSynthesis isn't universally
@@ -2742,14 +2752,14 @@
     authFormsWired = true;
     const authCopy = {
       login: {
-        eyebrow: 'Welcome back',
-        title: 'Ready for the next ride?',
-        description: 'Sign in to find nearby riders, rejoin your group and keep your riding circle close.',
+        eyebrow: 'Back on the road',
+        title: 'The pack’s waiting.',
+        description: 'Log in to find your riders, rejoin the group, and pick up where the ride left off.',
       },
       signup: {
-        eyebrow: 'Create your profile',
-        title: 'Your ride starts here.',
-        description: 'Create your Rider Comms identity and connect with riders you choose.',
+        eyebrow: 'New rider',
+        title: 'Suit up. Roll out.',
+        description: 'Set up your Rider Comms identity and link up with the riders you trust.',
       },
     };
 

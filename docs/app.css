@@ -1,5 +1,5 @@
 :root {
-  color-scheme: light dark; --bg:#0e0e0f; --system-chrome:#0e0e0f; --bg-elevated:#141415; --surface:#181819; --surface-raised:#242426; --surface-hover:#29292c; --border:#303034; --border-soft:#252528; --text:#f5f4f2; --text-secondary:#b8b3ac; --text-muted:#827d76; --accent:#ff2d5a; --accent-soft:#3a1720; --accent-text:#24050c; --success:#39d39b; --danger:#ff6572; --warning:#ffc15a; --focus:#91a7ff; --shadow-sm:0 4px 16px rgb(0 0 0/.18); --shadow-lg:0 14px 40px rgb(0 0 0/.3); --radius-sm:8px; --radius-md:10px; --radius-lg:12px; --radius-pill:999px; --touch:48px; --nav-height:58px; --content-max:680px; --safe-top:env(safe-area-inset-top,0px); --safe-right:env(safe-area-inset-right,0px); --safe-bottom:min(40px, env(safe-area-inset-bottom,0px)); --safe-left:env(safe-area-inset-left,0px); --nav-safe-bottom:var(--safe-bottom); --bottom-nav-height:calc(var(--nav-height) + var(--nav-safe-bottom)); font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; font-synthesis:none;
+  color-scheme: light dark; --bg:#0e0e0f; --system-chrome:#0e0e0f; --bg-elevated:#141415; --surface:#181819; --surface-raised:#242426; --surface-hover:#29292c; --border:#303034; --border-soft:#252528; --text:#f5f4f2; --text-secondary:#b8b3ac; --text-muted:#827d76; --accent:#ff2d5a; --accent-soft:#3a1720; --accent-text:#24050c; --success:#39d39b; --danger:#ff6572; --warning:#ffc15a; --focus:#91a7ff; --accent-2:#00e6ff; --accent-2-soft:#062b33; --glow-accent:0 0 1px rgb(255 45 90/.9), 0 0 18px rgb(255 45 90/.55); --glow-accent-2:0 0 1px rgb(0 230 255/.9), 0 0 18px rgb(0 230 255/.5); --gradient-neon:linear-gradient(135deg,var(--accent),var(--accent-2)); --font-display:'Chakra Petch',Inter,ui-sans-serif,system-ui,sans-serif; --shadow-sm:0 4px 16px rgb(0 0 0/.18); --shadow-lg:0 14px 40px rgb(0 0 0/.3); --radius-sm:8px; --radius-md:10px; --radius-lg:12px; --radius-pill:999px; --touch:48px; --nav-height:58px; --content-max:680px; --safe-top:env(safe-area-inset-top,0px); --safe-right:env(safe-area-inset-right,0px); --safe-bottom:min(40px, env(safe-area-inset-bottom,0px)); --safe-left:env(safe-area-inset-left,0px); --nav-safe-bottom:var(--safe-bottom); --bottom-nav-height:calc(var(--nav-height) + var(--nav-safe-bottom)); font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; font-synthesis:none;
 }
 :root{--surface:#181819;--surface-raised:#242426;--surface-hover:#29292c;--border:#303034}
 /* Keep controls in a stable rail. Installed iOS PWAs already reserve the
@@ -105,7 +105,7 @@ img,svg{-webkit-user-drag:none}
    canvas, glass chips, gradients, nav bar) and need their own light-mode
    value alongside them. */
 @media(prefers-color-scheme:light){
-  :root{--bg:#f4f1ec;--bg-elevated:#ffffff;--surface:#ffffff;--surface-raised:#eee8df;--surface-hover:#e7e0d7;--border:#ded6cb;--border-soft:#ebe5dc;--text:#1c1712;--text-secondary:#625a50;--text-muted:#81786c;--accent-soft:#ffe0e6;--accent-text:#24050c;--success:#188f66;--danger:#d43a47;--warning:#9a6500;--focus:#2f6fdb;--shadow-sm:0 3px 14px rgb(40 30 15/.08);--shadow-lg:0 12px 34px rgb(40 30 15/.13)}
+  :root{--bg:#f4f1ec;--bg-elevated:#ffffff;--surface:#ffffff;--surface-raised:#eee8df;--surface-hover:#e7e0d7;--border:#ded6cb;--border-soft:#ebe5dc;--text:#1c1712;--text-secondary:#625a50;--text-muted:#81786c;--accent-soft:#ffe0e6;--accent-text:#24050c;--accent-2:#0098ac;--accent-2-soft:#dcf3f5;--glow-accent:0 0 0 1px rgb(255 45 90/.25);--glow-accent-2:0 0 0 1px rgb(0 152 172/.25);--success:#188f66;--danger:#d43a47;--warning:#9a6500;--focus:#2f6fdb;--shadow-sm:0 3px 14px rgb(40 30 15/.08);--shadow-lg:0 12px 34px rgb(40 30 15/.13)}
   .glass{background:rgb(255 255 255/.88);border-color:rgb(30 20 10/.1)}
   .content-screen{background:radial-gradient(circle at 50% -10%,#fff 0,var(--bg) 34%)}
   .map-canvas{background:#dde6e9}
@@ -343,3 +343,121 @@ img,svg{-webkit-user-drag:none}
 .nav-mode .map-actions .icon-button{background:#181819}
 .nav-banner,.nav-summary{background:#101011}.nav-next-preview{background:#0b0b0c}
 :root:has(#app.nav-mode){--system-chrome:#101011}
+
+/* ---------------------------------------------------------------------
+   Signature pass: this file had drifted, across several successive
+   "flatten it / simplify it" edits above, into the generic dark-app
+   look -- one borrowed sans-serif (declared but never actually loaded,
+   so every device was silently falling back to its own system font),
+   one flat accent colour, uniform rounded rectangles everywhere, and no
+   glow/texture/gradient left anywhere. This section is a deliberate,
+   final "night ride" identity layered on top: a loaded display face for
+   headings and loud numbers, a second neon (cyan) alongside the existing
+   magenta for contrast, glow where light sources make sense (active
+   controls, the current-position marker, in-drive HUD), and an angular
+   cut-corner "instrument panel" treatment on the chrome-only cards so
+   not everything reads as the same rounded rectangle. Deliberately
+   layered last so it wins the cascade over the earlier flattening rules
+   without having to hunt down and delete each one. */
+
+h1,h2,.eyebrow,.auth-brand span,.nav-banner-copy strong,.nav-summary-eta strong,
+.nav-summary-stat strong,.bottom-nav>button span,.button,.ride-code-card strong,
+.code-field input,.settings-group strong,.profile-copy strong,.identity strong,
+.section-heading h2,.group-title,.route-region,.curated-route-overlay strong,
+.search-results-heading strong,.nav-next-preview span:first-of-type,
+.search-empty-state>strong,.hero-icon+h2,.network-empty h2,.route-empty h2{
+  font-family:var(--font-display);
+}
+h1,.auth-intro h1{letter-spacing:-.02em}
+
+/* A second neon for contrast and to tell "you" apart from everyone else
+   on the map -- your own marker and the search focus ring get cyan,
+   destinations/hazards/other riders keep their existing colours. */
+.rider-marker.current{border-color:var(--accent-2);box-shadow:0 8px 22px rgb(0 0 0/.56),0 0 0 4px rgb(0 230 255/.28),var(--glow-accent-2)}
+.rider-marker.current:before{background:rgb(0 230 255/.22);animation:rider-pulse 2400ms ease-out infinite}
+.search-slot:focus-within{box-shadow:0 0 0 2px var(--accent),0 0 16px rgb(0 230 255/.35)}
+.auth-field>input:focus,.password-field:focus-within{box-shadow:0 0 0 3px rgb(255 45 90/.14),0 0 14px rgb(0 230 255/.18)}
+
+/* Glow where something is actually "on": the primary action, an active
+   tab, a live channel, the in-drive turn icon -- not sprinkled
+   everywhere, which would just read as a different flavour of generic. */
+.button.primary{box-shadow:0 6px 20px rgb(255 45 90/.28)}
+.button.primary:active{box-shadow:0 2px 10px rgb(255 45 90/.35)}
+.auth-submit{box-shadow:0 10px 26px rgb(255 45 90/.3),0 0 30px rgb(255 45 90/.12)}
+.bottom-nav>button.active svg{filter:drop-shadow(0 0 6px rgb(255 45 90/.65))}
+.live-dot{box-shadow:0 0 0 4px rgb(57 211 155/.13),0 0 10px rgb(57 211 155/.65)}
+.nav-maneuver-icon{box-shadow:var(--glow-accent)}
+#joinNearbyBtn[data-active=true]{box-shadow:var(--glow-accent)}
+.auth-mark{background:var(--gradient-neon);box-shadow:var(--glow-accent),inset 0 1px rgb(255 255 255/.25)}
+.search-empty-icon,.hero-icon{box-shadow:inset 0 0 0 1px rgb(255 255 255/.06),0 0 0 3px color-mix(in srgb,var(--accent) 12%,transparent)}
+.search-error-state .search-empty-icon{box-shadow:inset 0 0 0 1px rgb(255 255 255/.06),0 0 0 3px color-mix(in srgb,var(--accent) 22%,transparent)}
+.auth-mark svg{color:#fff}
+
+/* Angular "instrument panel" cut on the chrome-only surfaces (never on
+   cards holding a photo, like the route cards, where a diagonal bite
+   out of someone's photograph would just look broken, and not on
+   .nav-banner/.nav-summary -- checked in a real render and the cut is
+   invisible there since both the panel and the map behind it paint the
+   same near-black tone, so it's not worth the added complexity). One
+   consistent 16px cut, top-right, is the single biggest tell that this
+   was drawn on purpose instead of generated as a stack of identical
+   rounded rectangles. */
+.auth-card,.ride-summary{
+  border-radius:0 0 0 var(--radius-lg);
+  clip-path:polygon(0 0,calc(100% - 16px) 0,100% 16px,100% 100%,0 100%);
+  position:relative;
+}
+.auth-card:before,.ride-summary:before{
+  content:"";position:absolute;top:0;left:0;right:16px;height:3px;
+  background:var(--gradient-neon);
+}
+.ride-summary{padding-top:19px}
+
+/* Faint HUD grid, not a photograph or a stock texture -- cheap, CSS-only,
+   and the one thing every screen so far had none of. Layered behind the
+   existing gradients rather than replacing them. */
+.auth-screen{
+  background:
+    repeating-linear-gradient(0deg,rgb(255 255 255/.025) 0 1px,transparent 1px 28px),
+    repeating-linear-gradient(90deg,rgb(255 255 255/.025) 0 1px,transparent 1px 28px),
+    radial-gradient(circle at 85% 8%,rgb(255 45 90/.14),transparent 25%),
+    radial-gradient(circle at 8% 38%,rgb(0 230 255/.1),transparent 32%),
+    var(--bg);
+}
+.content-screen{
+  background:
+    repeating-linear-gradient(0deg,rgb(255 255 255/.018) 0 1px,transparent 1px 32px),
+    repeating-linear-gradient(90deg,rgb(255 255 255/.018) 0 1px,transparent 1px 32px),
+    radial-gradient(circle at 50% -10%,#141d25 0,var(--bg) 34%);
+}
+@media(prefers-color-scheme:light){
+  .auth-screen{
+    background:
+      repeating-linear-gradient(0deg,rgb(28 23 18/.02) 0 1px,transparent 1px 28px),
+      repeating-linear-gradient(90deg,rgb(28 23 18/.02) 0 1px,transparent 1px 28px),
+      radial-gradient(circle at 85% 8%,rgb(255 45 90/.12),transparent 25%),
+      radial-gradient(circle at 8% 38%,rgb(0 152 172/.14),transparent 32%),
+      var(--bg);
+  }
+  .content-screen{
+    background:
+      repeating-linear-gradient(0deg,rgb(28 23 18/.015) 0 1px,transparent 1px 32px),
+      repeating-linear-gradient(90deg,rgb(28 23 18/.015) 0 1px,transparent 1px 32px),
+      radial-gradient(circle at 50% -10%,#fff 0,var(--bg) 34%);
+  }
+  .auth-mark{box-shadow:var(--glow-accent),inset 0 1px rgb(255 255 255/.5)}
+  .rider-marker.current{box-shadow:0 8px 22px rgb(0 0 0/.2),0 0 0 4px rgb(0 152 172/.22)}
+}
+
+/* Signature pass, part 2: sheets (edit profile, friend detail, settings
+   drill-downs) and every avatar were still the flat, characterless
+   surfaces from before this pass -- caught from real device screenshots
+   of the currently-deployed app, not just the four screens checked
+   above. */
+.sheet{position:relative;border-top:2px solid transparent;background-image:linear-gradient(var(--bg),var(--bg)),var(--gradient-neon);background-origin:border-box;background-clip:padding-box,border-box}
+.sheet>header .icon-button{transition:color 140ms ease,border-color 140ms ease}
+.sheet>header .icon-button:active{color:var(--accent)}
+/* A soft halo in the avatar's own colour -- costs nothing, shows up
+   everywhere (rosters, friend rows, profile headers, sheets) and is the
+   cheapest possible fix for "every avatar is an identical flat circle". */
+.avatar{box-shadow:inset 0 0 0 1px rgb(255 255 255/.22),0 0 0 3px color-mix(in srgb,var(--avatar,#4f7cff) 30%,transparent),0 0 14px -4px color-mix(in srgb,var(--avatar,#4f7cff) 70%,transparent)}

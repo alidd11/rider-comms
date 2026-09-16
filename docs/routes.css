@@ -6,6 +6,12 @@
 .route-detail-photo>img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}.route-detail-photo:after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgb(0 0 0/.18),rgb(0 0 0/.86))}.route-detail-photo>div{position:absolute;z-index:1;right:18px;bottom:18px;left:18px;color:#fff}.route-detail-photo span{color:#ff9c52;font-size:.66rem;font-weight:900;letter-spacing:.12em;text-transform:uppercase}.route-detail-photo h2{margin:4px 0;font-size:1.75rem}.route-detail-photo p{margin:0;color:rgb(255 255 255/.78);font-size:.78rem}.route-detail-close{position:absolute;z-index:2;top:14px;right:14px;background:rgb(8 12 16/.74);color:#fff}
 .route-detail-body{display:grid;gap:16px;padding:18px 18px calc(22px + var(--safe-bottom))}.route-detail-body>p{margin:0;color:var(--text-secondary);font-size:.84rem;line-height:1.55}.route-detail-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.route-detail-stats span{display:grid;gap:2px;padding:10px;border-radius:var(--radius-md);background:var(--surface-hover);color:var(--text-muted);font-size:.66rem;text-align:center}.route-detail-stats b{color:var(--text);font-size:.84rem}.rider-note{padding:13px;border-left:3px solid var(--accent);border-radius:0 var(--radius-md) var(--radius-md) 0;background:var(--surface-hover)}.rider-note p{margin:5px 0 0;color:var(--text-secondary);font-size:.78rem;line-height:1.5}.route-detail-body h3{margin:0 0 8px;font-size:.85rem}.route-detail-body .safety-box{padding:13px}.route-detail-body .safety-box strong{font-size:.78rem}.route-detail-body .safety-box p+p{margin-top:5px}.route-links{display:flex;flex-wrap:wrap;gap:12px}.route-links a{color:var(--accent);font-size:.72rem;font-weight:750;text-decoration:none}
 @media(min-width:700px){.curated-route-list{grid-template-columns:repeat(2,minmax(0,1fr))}}
+/* Signature touch: a thin neon top edge instead of a plain border, and a
+   glow on the ring around the difficulty/distance stats -- ties the
+   photo cards to the rest of the app's night-ride identity without
+   cutting into anyone's photograph. */
+.curated-route-card{border-top:2px solid transparent;background-image:linear-gradient(var(--surface),var(--surface)),var(--gradient-neon);background-origin:border-box;background-clip:padding-box,border-box}
+.route-quick-stats b{font-family:var(--font-display);box-shadow:0 0 0 1px rgb(255 255 255/.06)}
 
 /* Content-led route discovery: compact controls let the photography carry
    the hierarchy instead of surrounding every section with another card. */

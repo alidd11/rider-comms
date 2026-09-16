@@ -14,6 +14,9 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Inter:wght@400;500;600;700;800&display=swap">
   <link rel="stylesheet" href="app.css?v=57">
   <link rel="stylesheet" href="routes.css?v=31">
   <title>Rider Comms</title>
@@ -62,13 +65,13 @@
     <div class="auth-layout">
       <header class="auth-hero">
         <div class="auth-mark" aria-hidden="true"><svg><use href="#i-route"/></svg><span></span></div>
-        <div class="auth-brand"><span>Rider Comms</span><small>Stay connected. Ride together.</small></div>
+        <div class="auth-brand"><span>Rider Comms</span><small>Eyes up. Comms on.</small></div>
       </header>
       <main class="auth-card">
         <div class="auth-intro">
-          <span class="eyebrow" id="authEyebrow">Welcome back</span>
-          <h1 id="authTitle">Ready for the next ride?</h1>
-          <p id="authDescription">Sign in to find nearby riders, rejoin your group and keep your riding circle close.</p>
+          <span class="eyebrow" id="authEyebrow">Back on the road</span>
+          <h1 id="authTitle">The pack&rsquo;s waiting.</h1>
+          <p id="authDescription">Log in to find your riders, rejoin the group, and pick up where the ride left off.</p>
         </div>
         <div class="auth-segmented" role="tablist" aria-label="Account access">
           <button type="button" class="active" id="loginTab" data-auth-mode="login" role="tab" aria-selected="true" aria-controls="loginForm">Log in</button>
@@ -155,7 +158,7 @@
 
       <section class="screen content-screen" data-screen="ride" aria-labelledby="rideTitle">
         <div class="page-width">
-          <header class="page-header"><div><h1 id="rideTitle">Group Ride</h1><p class="page-subtitle">Private rides with people you trust.</p></div><button class="icon-button" id="rideShareTop" aria-label="Share ride" hidden><svg><use href="#i-share"/></svg></button></header>
+          <header class="page-header"><div><h1 id="rideTitle">Group Ride</h1><p class="page-subtitle">Your crew, your channel — nobody else listens in.</p></div><button class="icon-button" id="rideShareTop" aria-label="Share ride" hidden><svg><use href="#i-share"/></svg></button></header>
           <div id="rideJoinState">
             <div class="ride-entry"><div class="segmented" role="tablist"><button class="active" data-ride-mode="join">Join a ride</button><button data-ride-mode="host">Start a ride</button></div>
               <form id="joinRideForm" class="ride-form"><label for="rideCode">Enter invite code</label><div class="code-field"><input id="rideCode" maxlength="6" inputmode="text" autocomplete="off" placeholder="K4XQPZ" aria-describedby="rideHelp"><button class="button primary" type="submit">Join</button></div><p id="rideHelp" class="support-copy">Ask the host for their six-character code.</p><p id="rideError" class="inline-error" hidden></p></form>
@@ -174,13 +177,13 @@
 
       <section class="screen content-screen" data-screen="routes" aria-labelledby="routesTitle">
         <div class="page-width">
-          <header class="page-header"><div><h1 id="routesTitle">Routes</h1><p class="page-subtitle">Curated motorbike-first roads across the UK.</p></div></header>
+          <header class="page-header"><div><h1 id="routesTitle">Routes</h1><p class="page-subtitle">Real roads, worth the detour.</p></div></header>
           <div id="curatedRoutesMount"></div>
         </div>
       </section>
 
       <section class="screen content-screen" data-screen="friends" aria-labelledby="friendsTitle">
-        <div class="page-width"><header class="page-header"><div><h1 id="friendsTitle">Friends</h1><p class="page-subtitle">Your private rider network.</p></div><span id="friendsCountBadge" class="count-badge" hidden>0</span></header>
+        <div class="page-width"><header class="page-header"><div><h1 id="friendsTitle">Friends</h1><p class="page-subtitle">Your riding circle — no public friend-finder noise.</p></div><span id="friendsCountBadge" class="count-badge" hidden>0</span></header>
           <div class="network-summary" aria-label="Network summary"><span><b id="networkFriendCount">0</b> friends</span><span><b id="networkRequestCount">0</b> requests</span></div>
           <div class="search-and-add"><div class="search-row"><svg><use href="#i-search"/></svg><input id="friendSearch" placeholder="Search your friends" autocomplete="off"></div>
           <button id="addFriendToggle" class="icon-button add-friend-toggle" aria-label="Add a rider" title="Add a rider &#8211; connect using their handle or Rider ID"><svg><use href="#i-friends"/></svg></button></div>
