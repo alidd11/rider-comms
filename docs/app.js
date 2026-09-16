@@ -1175,6 +1175,7 @@
   // the two are picked between.
   let voiceRoom;
   let voiceTargetKey; // 'channel' or `ride:${rideId}` — identifies what voiceRoom is currently for, so re-syncs are idempotent
+  let voiceMeterStream;
   let voiceAudioContext;
   let voiceAnalyser;
   let voiceLevelFrame;
@@ -1254,9 +1255,27 @@
     }
   }
 
-  function startVoiceLevelLoop(mediaStreamTrack) {
+  /**
+   * Opens a SECOND, independent getUserMedia stream purely to measure
+   * real speech volume — deliberately not the same MediaStreamTrack
+   * LiveKit publishes and mutes. livekit-client's LocalTrack.mute() sets
+   * `this._mediaStreamTrack.enabled = !muted` on the track it owns (see
+   * node_modules/livekit-client's LocalTrack class) — and a browser zeros
+   * out a MediaStreamTrack's samples for every consumer, Web Audio
+   * included, the instant `.enabled` goes false. Analysing that published
+   * track directly meant the very first time VOX muted it after an
+   * utterance, the meter went silent forever and could never detect
+   * speech again to unmute — exactly the "doesn't pick up my speech"
+   * failure this replaces. A second stream from the same physical mic is
+   * a completely separate MediaStreamTrack with its own `enabled` flag,
+   * so muting LiveKit's copy never touches this one — same independence
+   * mobile's native volume analyzer has from the RTC mute flag, just a
+   * second real capture instead of a native module bypassing it.
+   */
+  async function startVoiceLevelLoop() {
+    voiceMeterStream = await navigator.mediaDevices.getUserMedia({ audio: true });
     voiceAudioContext = new (window.AudioContext || window.webkitAudioContext)();
-    const source = voiceAudioContext.createMediaStreamSource(new MediaStream([mediaStreamTrack]));
+    const source = voiceAudioContext.createMediaStreamSource(voiceMeterStream);
     voiceAnalyser = voiceAudioContext.createAnalyser();
     voiceAnalyser.fftSize = 512;
     source.connect(voiceAnalyser);
@@ -1285,21 +1304,26 @@
    * as a blocking error over the action that triggered this. */
   async function connectVoice(kind, rideId) {
     if (voiceRoom) return;
+    let room;
     try {
       await loadLiveKitClient();
       const body = kind === 'ride' ? { target: 'ride', rideId } : { target: 'channel' };
       const { token, url } = await apiFetch('POST', '/voice/token', body);
-      const room = new window.LivekitClient.Room();
+      room = new window.LivekitClient.Room();
       await room.connect(url, token);
       voiceManuallyMuted = false;
-      const publication = await room.localParticipant.setMicrophoneEnabled(true);
+      await room.localParticipant.setMicrophoneEnabled(true);
       voiceRoom = room;
       voiceTargetKey = kind === 'ride' ? `ride:${rideId}` : 'channel';
-      const mediaStreamTrack = publication?.track?.mediaStreamTrack;
-      if (mediaStreamTrack) startVoiceLevelLoop(mediaStreamTrack);
+      await startVoiceLevelLoop();
       renderVoiceStatus();
     } catch (error) {
       console.warn('[rider-comms] Could not connect voice chat', error);
+      // Tear down anything that did connect before the failure (e.g. the
+      // room connected fine but the second meter-stream getUserMedia call
+      // failed) rather than leaking a live, published connection nothing
+      // still references.
+      if (room) void room.disconnect();
       voiceRoom = undefined;
       voiceTargetKey = undefined;
       renderVoiceStatus();
@@ -1311,6 +1335,7 @@
     if (voiceReleaseTimer) { clearTimeout(voiceReleaseTimer); voiceReleaseTimer = undefined; }
     voiceAnalyser = undefined;
     if (voiceAudioContext) { void voiceAudioContext.close().catch(() => {}); voiceAudioContext = undefined; }
+    if (voiceMeterStream) { voiceMeterStream.getTracks().forEach((track) => track.stop()); voiceMeterStream = undefined; }
     if (voiceRoom) { void voiceRoom.disconnect(); voiceRoom = undefined; }
     voiceTargetKey = undefined;
     voiceIsSpeaking = false;
