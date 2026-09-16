@@ -44,15 +44,15 @@ for (const asset of ['app.css', 'config.js', 'app.js', 'manifest.json']) {
 // desktop browser screenshot cannot reproduce it.
 const css = await readFile(resolve(destination, 'app.css'), 'utf8');
 const manifest = JSON.parse(await readFile(resolve(destination, 'manifest.json'), 'utf8'));
-const darkChrome = '#080c10';
+const darkChrome = '#0a0a18';
 if (manifest.background_color !== darkChrome || manifest.theme_color !== darkChrome) {
-  throw new Error('PWA manifest background_color and theme_color must remain #080c10');
+  throw new Error(`PWA manifest background_color and theme_color must remain ${darkChrome}`);
 }
 if (!html.includes(`<meta name="theme-color" content="${darkChrome}"`)) {
-  throw new Error('PWA HTML must include the #080c10 dark theme colour');
+  throw new Error(`PWA HTML must include the ${darkChrome} dark theme colour`);
 }
 if (!css.includes(`--bg:${darkChrome}`) || !css.includes(`--system-chrome:${darkChrome}`)) {
-  throw new Error('PWA CSS dark page and system-chrome colours must remain #080c10');
+  throw new Error(`PWA CSS dark page and system-chrome colours must remain ${darkChrome}`);
 }
 if (!html.includes('<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">') ||
     !css.includes('@media(prefers-color-scheme:light){:root{--system-chrome:#ffffff}}')) {
