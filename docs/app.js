@@ -1852,7 +1852,7 @@
   const POI_CATEGORIES = {
     gas_station: { label: 'Petrol', plural: 'petrol stations', icon: 'i-fuel' },
     parking: { label: 'Parking', plural: 'parking places', icon: 'i-parking' },
-    restaurant: { label: 'Food', plural: 'food places', icon: 'i-food' },
+    restaurant: { label: 'Restaurants', plural: 'restaurants', icon: 'i-food' },
     cafe: { label: 'Coffee', plural: 'coffee shops', icon: 'i-coffee' },
     car_repair: { label: 'Repair', plural: 'repair shops', icon: 'i-wrench' },
   };
@@ -1928,10 +1928,15 @@
       const position = await currentPosition();
       lat = position.coords.latitude;
       lng = position.coords.longitude;
-    } catch {
-      const centre = map.getCenter()?.toJSON();
-      lat = centre?.lat ?? 51.564;
-      lng = centre?.lng ?? -0.106;
+    } catch (error) {
+      if (requestToken !== searchRequestToken || activePoiType !== type) return;
+      renderSearchMessage(
+        category.icon,
+        'Location needed',
+        locationAccessMessage(error, `find ${category.plural} nearby`),
+        'search-error-state'
+      );
+      return;
     }
     if (requestToken !== searchRequestToken || activePoiType !== type) return;
     searchScreenPosition = { lat, lng };
@@ -1942,7 +1947,11 @@
       return;
     }
     if (!placesService) placesService = new google.maps.places.PlacesService(map);
-    placesService.nearbySearch({ location: { lat, lng }, radius: 5000, type }, (results, status) => {
+    placesService.nearbySearch({
+      location: { lat, lng },
+      rankBy: google.maps.places.RankBy.DISTANCE,
+      type,
+    }, (results, status) => {
       if (requestToken !== searchRequestToken || activePoiType !== type) return;
       if (status !== google.maps.places.PlacesServiceStatus.OK && status !== google.maps.places.PlacesServiceStatus.ZERO_RESULTS) {
         renderSearchMessage(category.icon, 'Nearby search is unavailable', 'Google Maps could not complete that search. Try again in a moment.', 'search-error-state');
@@ -1951,6 +1960,7 @@
       const places = status === google.maps.places.PlacesServiceStatus.OK && results?.length
         ? results
           .map((place) => {
+            if (place.business_status === google.maps.places.BusinessStatus.CLOSED_PERMANENTLY) return null;
             const location = place.geometry?.location;
             if (!location) return null;
             const point = { lat: location.lat(), lng: location.lng() };
@@ -1967,6 +1977,7 @@
             };
           })
           .filter(Boolean)
+          .filter((place) => place.distance <= 5000)
           .sort((a, b) => a.distance - b.distance)
           .slice(0, 8)
         : [];
