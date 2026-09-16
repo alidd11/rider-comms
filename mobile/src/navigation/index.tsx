@@ -180,6 +180,15 @@ function Tabs(): React.JSX.Element {
         // panel with a seam under the home indicator.
         tabBarStyle: {
           backgroundColor: colors.background,
+          borderTopWidth: 0,
+          // Sit the bar tight to the bottom edge. React Navigation otherwise
+          // reserves the full home-indicator inset (~34px) below the labels,
+          // which reads as a large empty gap. Override paddingBottom to a small
+          // fixed value so the labels sit just above the home indicator, and
+          // pin the height so nothing re-adds the inset on top.
+          height: 58,
+          paddingBottom: 10,
+          paddingTop: 6,
         },
         tabBarActiveTintColor: colors.accent,
         tabBarInactiveTintColor: colors.textMuted,
