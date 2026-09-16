@@ -1408,7 +1408,15 @@
   function locationAccessMessage(error, purpose = 'use your location') {
     if (!navigator.geolocation) return 'Location is not supported by this browser.';
     if (error?.code === 1 || error?.name === 'NotAllowedError') {
-      return `Location access is blocked. Allow it in this site’s device settings to ${purpose}.`;
+      // An installed iOS PWA holds its OWN location permission, separate
+      // from Safari's -- granting it in one never carries over to the
+      // other. Pointing a standalone user at "Safari > Location" sends
+      // them to a setting that can't fix this, so the two modes need
+      // different instructions here.
+      const isStandalone = document.documentElement.classList.contains('pwa-standalone');
+      return isStandalone
+        ? `Location access is blocked for the installed app. To ${purpose}, allow it in Settings → Rider Comms → Location (or Settings → Privacy & Security → Location Services if it's off entirely).`
+        : `Location access is blocked. To ${purpose}, allow it in Settings → Safari → Location, or tap the "AA" icon in the address bar → Website Settings → Location.`;
     }
     if (error?.code === 2) return 'Your location is unavailable right now. Check location services and try again.';
     if (error?.code === 3) return 'Finding your location took too long. Try again in a clearer area.';
