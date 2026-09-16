@@ -149,6 +149,14 @@ img,svg{-webkit-user-drag:none}
    edge-to-edge seam. The safe-area padding itself remains untouched. */
 .bottom-nav{background:var(--system-chrome)}
 @media(prefers-color-scheme:light){:root{--system-chrome:#ffffff}}
+/* Driving mode forces a dark HUD regardless of system theme (see the
+   .nav-mode rules above), but html/body's own background — the colour
+   that shows through in any native browser-chrome gap around the page,
+   like the strip below the safe area on iOS — still followed the system
+   theme. In light mode that left a plain white band directly under the
+   dark turn card/ETA bar. :has() lets the page root pick up nav-mode's
+   dark colour even though the class itself lives on a descendant. */
+:root:has(#app.nav-mode){--system-chrome:#0a0a18}
 
 /* Purposeful inactive states for the ride and social areas. These surfaces
    use real account/ride state and avoid filling an empty screen with sample
