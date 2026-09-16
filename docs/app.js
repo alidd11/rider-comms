@@ -1641,10 +1641,7 @@
     renderRecentOrHint();
     input.focus();
     searchScreenPosition = undefined;
-    currentPosition().then((position) => {
-      searchScreenPosition = { lat: position.coords.latitude, lng: position.coords.longitude };
-      if (!input.value.trim()) renderRecentOrHint();
-    }).catch(() => {});
+    void acquireSearchPosition();
   }
 
   function closeSearchScreen() {
@@ -1703,6 +1700,39 @@
         <strong>${escapeHtml(title)}</strong>
         <p>${escapeHtml(copy)}</p>
       </div>`;
+  }
+
+  function renderSearchLocationError(error, purpose = 'search nearby') {
+    renderSearchMessage(
+      'i-location',
+      'Location needed',
+      locationAccessMessage(error, purpose),
+      'search-error-state'
+    );
+    const state = $('#searchScreenResults .search-empty-state');
+    if (!state) return;
+    const retry = document.createElement('button');
+    retry.type = 'button';
+    retry.className = 'button primary search-location-retry';
+    retry.textContent = 'Try location again';
+    retry.addEventListener('click', () => {
+      if (activePoiType) void searchNearbyPois(activePoiType);
+      else void acquireSearchPosition(true);
+    });
+    state.append(retry);
+  }
+
+  async function acquireSearchPosition(showLoading = false) {
+    if (showLoading) renderSearchLoading('Finding your location', 'Nearby');
+    try {
+      const position = await currentPosition();
+      searchScreenPosition = { lat: position.coords.latitude, lng: position.coords.longitude };
+      if (!$('#searchScreenInput').value.trim() && !activePoiType) renderRecentOrHint();
+    } catch (error) {
+      if (!$('#searchScreenInput').value.trim() && !activePoiType) {
+        renderSearchLocationError(error, 'search nearby');
+      }
+    }
   }
 
   const PLACE_TYPE_ICONS = {
@@ -1930,12 +1960,7 @@
       lng = position.coords.longitude;
     } catch (error) {
       if (requestToken !== searchRequestToken || activePoiType !== type) return;
-      renderSearchMessage(
-        category.icon,
-        'Location needed',
-        locationAccessMessage(error, `find ${category.plural} nearby`),
-        'search-error-state'
-      );
+      renderSearchLocationError(error, `find ${category.plural} nearby`);
       return;
     }
     if (requestToken !== searchRequestToken || activePoiType !== type) return;
