@@ -13,7 +13,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="app.css?v=29">
+  <link rel="stylesheet" href="app.css?v=30">
   <title>Rider Comms</title>
 </head>
 <body>
@@ -89,7 +89,6 @@
           <div class="fallback-map" id="fallbackMap"><div class="road road-a"></div><div class="road road-b"></div><div class="road road-c"></div></div>
           <h1 id="mapTitle" class="sr-only">North London rider map</h1>
           <header class="map-header"><div class="search-slot glass"><svg><use href="#i-search"/></svg><input id="placeSearchInput" placeholder="Search for a place" autocomplete="off"></div><button class="avatar avatar-sm" data-avatar="AI" aria-label="Open profile">AI</button></header>
-          <div class="map-status glass" aria-live="polite"><span class="live-dot"></span><span id="mapStatusText">Location sharing off</span></div>
           <div id="fallbackMarkers" class="fallback-markers"></div>
           <div id="hazardMarkers" class="hazard-markers"></div>
           <button id="reportHazardBtn" class="icon-button glass report-button" aria-label="Report on the road"><svg><use href="#i-report"/></svg></button>
@@ -99,6 +98,7 @@
           </div>
           <article id="riderCard" class="rider-card glass" hidden></article>
           <article id="hazardCard" class="rider-card glass" hidden></article>
+          <article id="destinationCard" class="rider-card glass" hidden></article>
           <div id="mapError" class="map-error" hidden><strong>Map unavailable</strong><span>The rider view is still available. Check the map key or connection.</span></div>
         </div>
       </section>
@@ -175,6 +175,6 @@
   <div id="updateBanner" class="update-banner" hidden><span>A new Rider Comms version is ready.</span><button id="reloadApp">Update now</button></div>
   <noscript>Rider Comms requires JavaScript.</noscript>
   <script src="config.js?v=28"></script>
-  <script src="app.js?v=29" defer></script>
+  <script src="app.js?v=30" defer></script>
 </body>
 </html>

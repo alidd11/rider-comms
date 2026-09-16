@@ -371,6 +371,7 @@
     const card = $('#hazardCard');
     if (!hazard) { card.hidden = true; return; }
     const meta = HAZARD_TYPES[hazard.type];
+    hideDestinationCard();
     card.innerHTML = `<span class="avatar" style="--avatar:${meta.color}" aria-hidden="true"><svg><use href="#${meta.icon}"/></svg></span><div class="rider-card-copy"><strong>${escapeHtml(meta.label)}</strong><span>Reported by a nearby rider</span><div class="hazard-vote-row"><button class="compact-button" data-vote="confirm">Still there (${hazard.confirmations})</button><button class="compact-button" data-vote="deny">Gone (${hazard.denials})</button></div></div>`;
     card.hidden = false;
     $('[data-vote="confirm"]', card).addEventListener('click', () => voteHazard(hazardId, 'confirm'));
@@ -505,6 +506,7 @@
     const person = people.find((item) => item.riderId === riderId) || nearbyRiders.find((item) => item.riderId === riderId);
     if (!person) return;
     state.selectedRiderId = person.riderId;
+    hideDestinationCard();
     const card = $('#riderCard');
     card.innerHTML = `${avatar(person)}<div class="rider-card-copy"><strong>${escapeHtml(person.displayName)}</strong><span>${escapeHtml(person.handle)} · ${escapeHtml(person.status || 'Connected')}</span></div><button class="compact-button" data-view-friend>View</button>`;
     card.hidden = false;
@@ -1048,6 +1050,21 @@
     }
   }
 
+  /**
+   * Turning the "Notifications" toggle on used to just flip a local flag
+   * with nothing behind it at the OS/browser level — no real permission
+   * was ever requested, so the browser's own notification-permission
+   * prompt (what a rider actually expects to see) never appeared. This is
+   * the web equivalent of ensureNotificationPermission() in the mobile app
+   * (mobile/src/notifications/permissions.ts) — same reasoning, same
+   * caveat: there's still no push-delivery backend, so this only makes
+   * the toggle correspond to a real permission grant.
+   */
+  function ensureWebNotificationPermission() {
+    if (!('Notification' in window) || Notification.permission !== 'default') return;
+    void Notification.requestPermission();
+  }
+
   function wireToggles() {
     $$('[data-toggle]', $('#sheetBody')).forEach((button) => button.addEventListener('click', async () => {
       const key = button.dataset.toggle;
@@ -1056,6 +1073,7 @@
         button.setAttribute('aria-pressed', String(active));
         state.notifications = active;
         persist();
+        if (active) ensureWebNotificationPermission();
         return;
       }
       if (key === 'shareLocation') {
@@ -1109,10 +1127,6 @@
   function renderMapStatus() {
     const active = state.publicLive && state.profile.shareLocation;
     const privateRide = Boolean(state.activeRide);
-    $('#mapStatusText').textContent = privateRide
-      ? `${(state.activeRide.members || state.activeRide.memberIds).length} riders · private ride`
-      : active ? 'Visible to nearby riders' : 'Location sharing off';
-    $('.map-status').classList.toggle('live', active);
     $('#joinNearbyBtn').hidden = privateRide;
     $('#joinNearbyBtn').dataset.active = String(active);
     $('#joinNearbyBtn').lastElementChild.textContent = active ? 'Leave nearby' : 'Go live';
@@ -1365,6 +1379,38 @@
     });
   }
 
+  /**
+   * "Navigate" hands off to the device's own maps app via Google's
+   * universal cross-platform link (opens the native Google Maps app if
+   * installed, Apple Maps' own equivalent isn't needed since this link
+   * still opens fine in a browser tab otherwise) — turn-by-turn routing
+   * itself isn't something this app owns or renders; that's a real,
+   * working "start navigating there" action without pretending to be a
+   * navigation SDK this app doesn't have.
+   */
+  function navigationHref(lat, lng) {
+    return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
+  }
+
+  function hideDestinationCard() {
+    $('#destinationCard').hidden = true;
+  }
+
+  function showDestinationCard(location, label) {
+    $('#riderCard').hidden = true;
+    $('#hazardCard').hidden = true;
+    const lat = location.lat();
+    const lng = location.lng();
+    const card = $('#destinationCard');
+    card.innerHTML = `<span class="avatar" style="--avatar:#ff7a1a" aria-hidden="true"><svg><use href="#i-location"/></svg></span><div class="rider-card-copy"><strong>${escapeHtml(label || 'Selected place')}</strong><span>${lat.toFixed(5)}, ${lng.toFixed(5)}</span></div><a class="compact-button" href="${navigationHref(lat, lng)}" target="_blank" rel="noopener noreferrer">Navigate</a><button class="icon-button" aria-label="Dismiss destination" data-dismiss-destination>×</button>`;
+    card.hidden = false;
+    $('[data-dismiss-destination]', card).addEventListener('click', () => {
+      hideDestinationCard();
+      destinationMarker?.setMap(null);
+      destinationMarker = undefined;
+    });
+  }
+
   function setDestinationMarker(location, label) {
     destinationMarker?.setMap(null);
     destinationMarker = new google.maps.Marker({
@@ -1375,6 +1421,8 @@
       animation: google.maps.Animation.DROP,
       zIndex: 9,
     });
+    destinationMarker.addListener('click', () => showDestinationCard(location, label));
+    showDestinationCard(location, label);
   }
 
   function initialiseGoogleMap() {
@@ -1772,6 +1820,10 @@
     loadGoogleMaps();
     registerServiceWorker();
     loadFriendsData();
+    // Covers riders who never touch the toggle (it defaults to "on" — see
+    // the state object's `notifications: true` default), not just the
+    // ones who flip it from off to on via wireToggles above.
+    if (state.notifications) ensureWebNotificationPermission();
   }
 
   async function init() {
