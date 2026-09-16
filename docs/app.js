@@ -1593,6 +1593,8 @@
   let searchDebounceTimer;
   let searchRequestToken = 0;
   let searchScreenPosition;
+  let activePoiType;
+  let nearbySearchResults = [];
 
   // Recent-place shortcuts (Google Maps/Waze pattern: the empty search
   // screen shows where you've been, not a blank page) — kept client-side
@@ -1626,10 +1628,17 @@
 
   function openSearchScreen() {
     if ($('#mapSearchSlot')?.classList.contains('offline')) return;
+    clearPoiMarkers();
     $('#searchScreen').hidden = false;
     const input = $('#searchScreenInput');
     input.value = '';
     $('#searchScreenClear').hidden = true;
+    activePoiType = undefined;
+    nearbySearchResults = [];
+    $$('.poi-chip').forEach((button) => {
+      button.classList.remove('active');
+      button.setAttribute('aria-pressed', 'false');
+    });
     renderRecentOrHint();
     input.focus();
     searchScreenPosition = undefined;
@@ -1640,6 +1649,8 @@
   }
 
   function closeSearchScreen() {
+    searchRequestToken += 1;
+    clearTimeout(searchDebounceTimer);
     $('#searchScreen').hidden = true;
     $('#searchScreenInput').blur();
   }
@@ -1653,11 +1664,16 @@
     const recent = loadRecentSearches();
     const results = $('#searchScreenResults');
     if (!recent.length) {
-      results.innerHTML = '<p class="search-screen-hint">Search for an address, town or place — try "petrol station" or a name.</p>';
+      results.innerHTML = `
+        <div class="search-empty-state">
+          <span class="search-empty-icon"><svg><use href="#i-location"/></svg></span>
+          <strong>Where do you want to go?</strong>
+          <p>Search by place or address, or choose a nearby category above.</p>
+        </div>`;
       return;
     }
     results.innerHTML = `
-      <div class="search-recent-header"><span>Recent</span><button class="search-recent-clear" id="searchRecentClearBtn" type="button">Clear</button></div>
+      <div class="search-results-heading"><div><span>History</span><strong>Recent places</strong></div><button class="search-recent-clear" id="searchRecentClearBtn" type="button">Clear</button></div>
       ${recent.map((item, index) => `
         <button class="search-result-row" data-recent-index="${index}">
           <span class="search-result-icon"><svg><use href="#i-history"/></svg></span>
@@ -1665,7 +1681,7 @@
             <strong>${escapeHtml(item.name)}</strong>
             <span>${escapeHtml(item.secondary || '')}</span>
           </span>
-          <span class="search-result-distance">${escapeHtml(placeDistanceLabel(item.lat, item.lng))}</span>
+          <span class="search-result-trailing"><small>${escapeHtml(placeDistanceLabel(item.lat, item.lng))}</small><svg><use href="#i-chevron"/></svg></span>
         </button>`).join('')}`;
     $('#searchRecentClearBtn').addEventListener('click', clearRecentSearches);
     $$('.search-result-row[data-recent-index]', results).forEach((row) => {
@@ -1673,8 +1689,21 @@
     });
   }
 
-  function renderSearchLoading() {
-    $('#searchScreenResults').innerHTML = '<p class="search-screen-loading">Searching…</p>';
+  function renderSearchLoading(title = 'Searching places', eyebrow = 'Search') {
+    $('#searchScreenResults').innerHTML = `
+      <div class="search-results-heading"><div><span>${escapeHtml(eyebrow)}</span><strong>${escapeHtml(title)}</strong></div></div>
+      <div class="search-skeleton" aria-label="Searching">
+        ${Array.from({ length: 4 }, () => '<div><i></i><span><b></b><small></small></span></div>').join('')}
+      </div>`;
+  }
+
+  function renderSearchMessage(icon, title, copy, className = '') {
+    $('#searchScreenResults').innerHTML = `
+      <div class="search-empty-state ${className}">
+        <span class="search-empty-icon"><svg><use href="#${icon}"/></svg></span>
+        <strong>${escapeHtml(title)}</strong>
+        <p>${escapeHtml(copy)}</p>
+      </div>`;
   }
 
   const PLACE_TYPE_ICONS = {
@@ -1694,17 +1723,20 @@
   function renderSearchResults(predictions) {
     const results = $('#searchScreenResults');
     if (!predictions.length) {
-      results.innerHTML = '<p class="search-screen-error">No places found. Try a different search.</p>';
+      renderSearchMessage('i-search', 'No matching places', 'Check the spelling or try a broader place name.', 'search-error-state');
       return;
     }
-    results.innerHTML = predictions.map((prediction, index) => `
+    results.innerHTML = `
+      <div class="search-results-heading"><div><span>Suggestions</span><strong>Places and addresses</strong></div><small>${predictions.length} results</small></div>
+      ${predictions.map((prediction, index) => `
       <button class="search-result-row" data-place-id="${escapeHtml(prediction.place_id)}" data-result-index="${index}">
         <span class="search-result-icon"><svg><use href="#${predictionIcon(prediction)}"/></svg></span>
         <span class="search-result-copy">
           <strong>${escapeHtml(prediction.structured_formatting?.main_text || prediction.description)}</strong>
           <span>${escapeHtml(prediction.structured_formatting?.secondary_text || '')}</span>
         </span>
-      </button>`).join('');
+        <span class="search-result-trailing"><svg><use href="#i-chevron"/></svg></span>
+      </button>`).join('')}`;
     $$('.search-result-row', results).forEach((row) => row.addEventListener('click', () => void selectSearchResult(row.dataset.placeId)));
   }
 
@@ -1713,6 +1745,24 @@
     panToPlace(item.lat, item.lng);
     setDestinationMarker({ lat: item.lat, lng: item.lng }, item.name);
     showToast(`Centred on ${item.name}`);
+    closeSearchScreen();
+  }
+
+  function openNearbyPlace(place) {
+    if (!place) return;
+    const location = new google.maps.LatLng(place.location.lat, place.location.lng);
+    clearPoiMarkers();
+    panToPlace(place.location.lat, place.location.lng);
+    setDestinationMarker(location, place.name);
+    if (place.placeId) {
+      saveRecentSearch({
+        placeId: place.placeId,
+        name: place.name,
+        secondary: place.address || '',
+        lat: place.location.lat,
+        lng: place.location.lng,
+      });
+    }
     closeSearchScreen();
   }
 
@@ -1745,11 +1795,15 @@
     if (!autocompleteService) autocompleteService = new google.maps.places.AutocompleteService();
     if (!searchSessionToken) searchSessionToken = new google.maps.places.AutocompleteSessionToken();
     autocompleteService.getPlacePredictions(
-      { input: query, sessionToken: searchSessionToken, bounds: map?.getBounds() },
+      { input: query, sessionToken: searchSessionToken, locationBias: map?.getBounds() },
       (predictions, status) => {
         if (requestToken !== searchRequestToken) return; // a newer keystroke's request already landed
-        if (status !== google.maps.places.PlacesServiceStatus.OK || !predictions) {
+        if (status === google.maps.places.PlacesServiceStatus.ZERO_RESULTS) {
           renderSearchResults([]);
+          return;
+        }
+        if (status !== google.maps.places.PlacesServiceStatus.OK || !predictions) {
+          renderSearchMessage('i-search', 'Search is unavailable', 'Google Maps could not complete that search. Try again in a moment.', 'search-error-state');
           return;
         }
         renderSearchResults(predictions);
@@ -1763,6 +1817,12 @@
     $('#searchScreenInput').addEventListener('input', (event) => {
       const query = event.target.value.trim();
       $('#searchScreenClear').hidden = !query;
+      searchRequestToken += 1;
+      activePoiType = undefined;
+      $$('.poi-chip').forEach((button) => {
+        button.classList.remove('active');
+        button.setAttribute('aria-pressed', 'false');
+      });
       clearTimeout(searchDebounceTimer);
       searchDebounceTimer = setTimeout(() => searchPlaces(query), 220);
     });
@@ -1775,6 +1835,11 @@
       input.value = '';
       $('#searchScreenClear').hidden = true;
       clearTimeout(searchDebounceTimer);
+      activePoiType = undefined;
+      $$('.poi-chip').forEach((button) => {
+        button.classList.remove('active');
+        button.setAttribute('aria-pressed', 'false');
+      });
       renderRecentOrHint();
       input.focus();
     });
@@ -1782,11 +1847,11 @@
   }
 
   const POI_CATEGORIES = {
-    gas_station: { label: 'petrol stations', color: '#ff7a1a' },
-    parking: { label: 'parking', color: '#4f7cff' },
-    restaurant: { label: 'food', color: '#e45d8c' },
-    cafe: { label: 'coffee', color: '#b96c22' },
-    car_repair: { label: 'repair shops', color: '#3d7f92' },
+    gas_station: { label: 'Petrol', plural: 'petrol stations', icon: 'i-fuel' },
+    parking: { label: 'Parking', plural: 'parking places', icon: 'i-parking' },
+    restaurant: { label: 'Food', plural: 'food places', icon: 'i-food' },
+    cafe: { label: 'Coffee', plural: 'coffee shops', icon: 'i-coffee' },
+    car_repair: { label: 'Repair', plural: 'repair shops', icon: 'i-wrench' },
   };
   let placesService;
   let poiMarkers = [];
@@ -1814,23 +1879,30 @@
     return `${type}:${lat.toFixed(3)}:${lng.toFixed(3)}`;
   }
 
-  function renderPoiMarkers(type, places) {
-    clearPoiMarkers();
+  function renderNearbyResults(type, places) {
+    const category = POI_CATEGORIES[type];
+    const results = $('#searchScreenResults');
     if (!places.length) {
-      showToast(`No ${POI_CATEGORIES[type].label} found nearby.`);
+      renderSearchMessage(category.icon, `No ${category.plural} nearby`, 'Try another category or search by name.');
       return;
     }
-    places.forEach((place) => {
-      const location = new google.maps.LatLng(place.location.lat, place.location.lng);
-      const marker = new google.maps.Marker({
-        map,
-        position: location,
-        title: place.name,
-        icon: pinIcon(POI_CATEGORIES[type].color),
-        zIndex: 7,
-      });
-      marker.addListener('click', () => showDestinationCard(location, place.name));
-      poiMarkers.push(marker);
+    nearbySearchResults = places;
+    results.innerHTML = `
+      <div class="search-results-heading"><div><span>Nearby</span><strong>${escapeHtml(category.label)}</strong></div><small>${places.length} closest</small></div>
+      ${places.map((place, index) => {
+        const meta = [place.openNow === true ? 'Open' : place.openNow === false ? 'Closed' : '', place.rating ? `${place.rating.toFixed(1)} ★` : ''].filter(Boolean);
+        return `<button class="search-result-row nearby-result-row" data-nearby-index="${index}">
+          <span class="search-result-icon category-icon"><svg><use href="#${category.icon}"/></svg></span>
+          <span class="search-result-copy">
+            <strong>${escapeHtml(place.name)}</strong>
+            <span>${escapeHtml(place.address || 'Address unavailable')}</span>
+            ${meta.length ? `<small class="search-result-meta ${place.openNow === true ? 'is-open' : ''}">${escapeHtml(meta.join(' · '))}</small>` : ''}
+          </span>
+          <span class="search-result-trailing"><small>${escapeHtml(place.distanceLabel)}</small><svg><use href="#i-chevron"/></svg></span>
+        </button>`;
+      }).join('')}`;
+    $$('.nearby-result-row', results).forEach((row) => {
+      row.addEventListener('click', () => openNearbyPlace(nearbySearchResults[Number(row.dataset.nearbyIndex)]));
     });
   }
 
@@ -1845,6 +1917,9 @@
    */
   async function searchNearbyPois(type) {
     if (!map) return;
+    const category = POI_CATEGORIES[type];
+    const requestToken = ++searchRequestToken;
+    renderSearchLoading(`Finding ${category.plural}`, 'Nearby');
     let lat, lng;
     try {
       const position = await currentPosition();
@@ -1855,27 +1930,48 @@
       lat = centre?.lat ?? 51.564;
       lng = centre?.lng ?? -0.106;
     }
+    if (requestToken !== searchRequestToken || activePoiType !== type) return;
+    searchScreenPosition = { lat, lng };
     const cacheKey = poiCacheKey(type, lat, lng);
     const cached = poiResultCache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < POI_CACHE_TTL_MS) {
-      renderPoiMarkers(type, cached.places);
+      renderNearbyResults(type, cached.places);
       return;
     }
     if (!placesService) placesService = new google.maps.places.PlacesService(map);
     placesService.nearbySearch({ location: { lat, lng }, radius: 5000, type }, (results, status) => {
+      if (requestToken !== searchRequestToken || activePoiType !== type) return;
+      if (status !== google.maps.places.PlacesServiceStatus.OK && status !== google.maps.places.PlacesServiceStatus.ZERO_RESULTS) {
+        renderSearchMessage(category.icon, 'Nearby search is unavailable', 'Google Maps could not complete that search. Try again in a moment.', 'search-error-state');
+        return;
+      }
       const places = status === google.maps.places.PlacesServiceStatus.OK && results?.length
-        ? results.slice(0, 20)
+        ? results
           .map((place) => {
             const location = place.geometry?.location;
-            return location ? { location: { lat: location.lat(), lng: location.lng() }, name: place.name } : null;
+            if (!location) return null;
+            const point = { lat: location.lat(), lng: location.lng() };
+            const distance = metersBetween({ lat, lng }, point);
+            return {
+              placeId: place.place_id,
+              location: point,
+              name: place.name || category.label,
+              address: place.vicinity || place.formatted_address || '',
+              rating: typeof place.rating === 'number' ? place.rating : undefined,
+              openNow: typeof place.opening_hours?.open_now === 'boolean' ? place.opening_hours.open_now : undefined,
+              distance,
+              distanceLabel: formatNavDistance(distance),
+            };
           })
           .filter(Boolean)
+          .sort((a, b) => a.distance - b.distance)
+          .slice(0, 8)
         : [];
       if (poiResultCache.size >= POI_CACHE_MAX_ENTRIES) {
         poiResultCache.delete(poiResultCache.keys().next().value);
       }
       poiResultCache.set(cacheKey, { timestamp: Date.now(), places });
-      renderPoiMarkers(type, places);
+      renderNearbyResults(type, places);
     });
   }
 
@@ -1884,13 +1980,18 @@
       const type = button.dataset.poiType;
       const wasActive = button.classList.contains('active');
       $$('.poi-chip').forEach((b) => b.classList.remove('active'));
-      clearPoiMarkers();
-      // The chips live on the search page now, but the results themselves
-      // are map pins — tapping one should take the rider straight back to
-      // the map to see them, the same way selecting a search result does.
-      closeSearchScreen();
-      if (wasActive) return; // tapping the already-active chip just clears results
+      $$('.poi-chip').forEach((b) => b.setAttribute('aria-pressed', 'false'));
+      searchRequestToken += 1;
+      if (wasActive) {
+        activePoiType = undefined;
+        renderRecentOrHint();
+        return;
+      }
+      activePoiType = type;
       button.classList.add('active');
+      button.setAttribute('aria-pressed', 'true');
+      $('#searchScreenInput').value = '';
+      $('#searchScreenClear').hidden = true;
       void searchNearbyPois(type);
     }));
     initPoiChipScrollFade();

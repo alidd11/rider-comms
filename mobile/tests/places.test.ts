@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { isSearchQueryValid, searchPlaces } from '../src/api/places.ts';
+import { distanceBetweenMeters, formatPlaceDistance, isSearchQueryValid, searchPlaces } from '../src/api/places.ts';
 
 function fakeFetch(handler: (url: string, init: RequestInit) => { status: number; body: unknown }): typeof fetch {
   return (async (url: string, init: RequestInit) => {
@@ -71,7 +71,12 @@ describe('searchPlaces', () => {
       })
     );
 
-    assert.deepEqual(results, [{ id: 'place1', name: 'Corner Coffee', address: '1 High St', lat: 51.51, lon: -0.11 }]);
+    assert.equal(results.length, 1);
+    assert.deepEqual(
+      { ...results[0], distanceMeters: undefined },
+      { id: 'place1', name: 'Corner Coffee', address: '1 High St', lat: 51.51, lon: -0.11, distanceMeters: undefined }
+    );
+    assert.ok(results[0].distanceMeters > 1_000);
   });
 
   it('skips results missing a location and never throws on a bad response', async () => {
@@ -95,5 +100,19 @@ describe('searchPlaces', () => {
     }) as typeof fetch;
     const results = await searchPlaces('coffee', near, 'test-key', throwingFetch);
     assert.deepEqual(results, []);
+  });
+});
+
+describe('place distance helpers', () => {
+  it('calculates and formats useful nearby distances', () => {
+    const metres = distanceBetweenMeters({ lat: 51.5, lon: -0.1 }, { lat: 51.501, lon: -0.1 });
+    assert.ok(metres > 100 && metres < 120);
+    assert.equal(formatPlaceDistance(metres), '100 m');
+    assert.equal(formatPlaceDistance(1_450), '1.4 km');
+  });
+
+  it('rejects invalid display distances safely', () => {
+    assert.equal(formatPlaceDistance(Number.NaN), '');
+    assert.equal(formatPlaceDistance(-1), '');
   });
 });
