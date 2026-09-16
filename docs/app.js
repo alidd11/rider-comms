@@ -371,6 +371,7 @@
     const card = $('#hazardCard');
     if (!hazard) { card.hidden = true; return; }
     const meta = HAZARD_TYPES[hazard.type];
+    hideDestinationCard();
     card.innerHTML = `<span class="avatar" style="--avatar:${meta.color}" aria-hidden="true"><svg><use href="#${meta.icon}"/></svg></span><div class="rider-card-copy"><strong>${escapeHtml(meta.label)}</strong><span>Reported by a nearby rider</span><div class="hazard-vote-row"><button class="compact-button" data-vote="confirm">Still there (${hazard.confirmations})</button><button class="compact-button" data-vote="deny">Gone (${hazard.denials})</button></div></div>`;
     card.hidden = false;
     $('[data-vote="confirm"]', card).addEventListener('click', () => voteHazard(hazardId, 'confirm'));
@@ -505,6 +506,7 @@
     const person = people.find((item) => item.riderId === riderId) || nearbyRiders.find((item) => item.riderId === riderId);
     if (!person) return;
     state.selectedRiderId = person.riderId;
+    hideDestinationCard();
     const card = $('#riderCard');
     card.innerHTML = `${avatar(person)}<div class="rider-card-copy"><strong>${escapeHtml(person.displayName)}</strong><span>${escapeHtml(person.handle)} · ${escapeHtml(person.status || 'Connected')}</span></div><button class="compact-button" data-view-friend>View</button>`;
     card.hidden = false;
@@ -1048,6 +1050,21 @@
     }
   }
 
+  /**
+   * Turning the "Notifications" toggle on used to just flip a local flag
+   * with nothing behind it at the OS/browser level — no real permission
+   * was ever requested, so the browser's own notification-permission
+   * prompt (what a rider actually expects to see) never appeared. This is
+   * the web equivalent of ensureNotificationPermission() in the mobile app
+   * (mobile/src/notifications/permissions.ts) — same reasoning, same
+   * caveat: there's still no push-delivery backend, so this only makes
+   * the toggle correspond to a real permission grant.
+   */
+  function ensureWebNotificationPermission() {
+    if (!('Notification' in window) || Notification.permission !== 'default') return;
+    void Notification.requestPermission();
+  }
+
   function wireToggles() {
     $$('[data-toggle]', $('#sheetBody')).forEach((button) => button.addEventListener('click', async () => {
       const key = button.dataset.toggle;
@@ -1056,6 +1073,7 @@
         button.setAttribute('aria-pressed', String(active));
         state.notifications = active;
         persist();
+        if (active) ensureWebNotificationPermission();
         return;
       }
       if (key === 'shareLocation') {
@@ -1109,10 +1127,6 @@
   function renderMapStatus() {
     const active = state.publicLive && state.profile.shareLocation;
     const privateRide = Boolean(state.activeRide);
-    $('#mapStatusText').textContent = privateRide
-      ? `${(state.activeRide.members || state.activeRide.memberIds).length} riders · private ride`
-      : active ? 'Visible to nearby riders' : 'Location sharing off';
-    $('.map-status').classList.toggle('live', active);
     $('#joinNearbyBtn').hidden = privateRide;
     $('#joinNearbyBtn').dataset.active = String(active);
     $('#joinNearbyBtn').lastElementChild.textContent = active ? 'Leave nearby' : 'Go live';
@@ -1143,6 +1157,136 @@
     return result;
   }
 
+  // Real hands-free proximity voice chat — the same mechanism the mobile
+  // app's useVoiceActivity.ts uses (stay muted, keep measuring real mic
+  // volume, unmute on real speech, re-mute after a short hangtime), ported
+  // to the browser: livekit-client's browser build ships the same
+  // stopMicTrackOnMute:false default the mobile app's research confirmed
+  // (muting only stops sending, never stops hardware capture), so the same
+  // loop works here. The one genuine difference from mobile: there's no
+  // native on-device volume analyzer in a browser, so the level comes from
+  // a real Web Audio AnalyserNode reading the actual mic MediaStreamTrack
+  // instead — same real signal, different (also real) source.
+  let voiceRoom;
+  let voiceAudioContext;
+  let voiceAnalyser;
+  let voiceLevelFrame;
+  let voiceReleaseTimer;
+  let voiceManuallyMuted = false;
+  let voiceIsSpeaking = false;
+  let liveKitLoadPromise;
+
+  const VOICE_SPEAKING_THRESHOLD = 0.06; // same starting point as mobile's SPEAKING_VOLUME_THRESHOLD — unverified against real riding noise
+  const VOICE_RELEASE_HANGTIME_MS = 500;
+
+  function loadLiveKitClient() {
+    if (window.LivekitClient) return Promise.resolve();
+    if (liveKitLoadPromise) return liveKitLoadPromise;
+    liveKitLoadPromise = new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      // Pinned to the exact version this app's backend token-minting was
+      // built and tested against (see backend/src/liveKitToken.ts) — lazy
+      // loaded, like Google Maps above, so riders who never go live don't
+      // pay for it.
+      script.src = 'https://cdn.jsdelivr.net/npm/livekit-client@2.22.3/dist/livekit-client.umd.js';
+      script.async = true;
+      script.onload = () => resolve();
+      script.onerror = () => { liveKitLoadPromise = undefined; reject(new Error('voice_library_unavailable')); };
+      document.head.appendChild(script);
+    });
+    return liveKitLoadPromise;
+  }
+
+  function renderVoiceStatus() {
+    const btn = $('#voiceStatusBtn');
+    const connected = Boolean(voiceRoom);
+    btn.hidden = !connected;
+    btn.classList.toggle('talking', connected && voiceIsSpeaking);
+    btn.classList.toggle('muted', connected && voiceManuallyMuted);
+    btn.setAttribute('aria-label', voiceManuallyMuted ? 'Proximity voice muted — tap to unmute' : voiceIsSpeaking ? 'Talking' : 'Listening — hands-free');
+  }
+
+  function setVoiceSpeaking(speaking) {
+    if (voiceIsSpeaking === speaking) return;
+    voiceIsSpeaking = speaking;
+    void voiceRoom?.localParticipant.setMicrophoneEnabled(speaking).catch(() => {});
+    renderVoiceStatus();
+  }
+
+  function handleVoiceVolume(rms) {
+    if (voiceManuallyMuted) { setVoiceSpeaking(false); return; }
+    if (rms > VOICE_SPEAKING_THRESHOLD) {
+      if (voiceReleaseTimer) { clearTimeout(voiceReleaseTimer); voiceReleaseTimer = undefined; }
+      setVoiceSpeaking(true);
+    } else if (!voiceReleaseTimer) {
+      voiceReleaseTimer = setTimeout(() => { voiceReleaseTimer = undefined; setVoiceSpeaking(false); }, VOICE_RELEASE_HANGTIME_MS);
+    }
+  }
+
+  function startVoiceLevelLoop(mediaStreamTrack) {
+    voiceAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const source = voiceAudioContext.createMediaStreamSource(new MediaStream([mediaStreamTrack]));
+    voiceAnalyser = voiceAudioContext.createAnalyser();
+    voiceAnalyser.fftSize = 512;
+    source.connect(voiceAnalyser);
+    const data = new Uint8Array(voiceAnalyser.frequencyBinCount);
+    const tick = () => {
+      if (!voiceAnalyser) return;
+      voiceAnalyser.getByteTimeDomainData(data);
+      let sumSquares = 0;
+      for (let i = 0; i < data.length; i++) { const v = (data[i] - 128) / 128; sumSquares += v * v; }
+      handleVoiceVolume(Math.sqrt(sumSquares / data.length));
+      voiceLevelFrame = requestAnimationFrame(tick);
+    };
+    tick();
+  }
+
+  /** Called right after "Go live" actually succeeds (see toggleNearby
+   * below) — mints a real token scoped to the rider's own current
+   * presence bucket (POST /voice/token {target:'channel'}, see
+   * server.ts, which derives the room from the rider's own last-known
+   * presence rather than trusting a client-supplied one) and connects for
+   * real. Best-effort: a rider should still be visible nearby even if
+   * voice fails to connect (no LiveKit configured on the backend, mic
+   * permission denied, etc.), so failures here are logged, not surfaced
+   * as a blocking error over the whole "go live" action. */
+  async function startProximityVoice() {
+    if (voiceRoom) return;
+    try {
+      await loadLiveKitClient();
+      const { token, url } = await apiFetch('POST', '/voice/token', { target: 'channel' });
+      const room = new window.LivekitClient.Room();
+      await room.connect(url, token);
+      voiceManuallyMuted = false;
+      const publication = await room.localParticipant.setMicrophoneEnabled(true);
+      voiceRoom = room;
+      const mediaStreamTrack = publication?.track?.mediaStreamTrack;
+      if (mediaStreamTrack) startVoiceLevelLoop(mediaStreamTrack);
+      renderVoiceStatus();
+    } catch (error) {
+      console.warn('[rider-comms] Could not connect proximity voice chat', error);
+      voiceRoom = undefined;
+      renderVoiceStatus();
+    }
+  }
+
+  function stopProximityVoice() {
+    if (voiceLevelFrame) { cancelAnimationFrame(voiceLevelFrame); voiceLevelFrame = undefined; }
+    if (voiceReleaseTimer) { clearTimeout(voiceReleaseTimer); voiceReleaseTimer = undefined; }
+    voiceAnalyser = undefined;
+    if (voiceAudioContext) { void voiceAudioContext.close().catch(() => {}); voiceAudioContext = undefined; }
+    if (voiceRoom) { void voiceRoom.disconnect(); voiceRoom = undefined; }
+    voiceIsSpeaking = false;
+    renderVoiceStatus();
+  }
+
+  function toggleVoiceMute() {
+    if (!voiceRoom) return;
+    voiceManuallyMuted = !voiceManuallyMuted;
+    if (voiceManuallyMuted) setVoiceSpeaking(false);
+    renderVoiceStatus();
+  }
+
   /**
    * "Go live" / "Leave nearby": real presence, backed by POST/DELETE
    * /presence — not a local-only flag flip. The backend requires
@@ -1155,11 +1299,14 @@
    * offline intentionally leaves that profile setting as the rider left
    * it; "Go live" is a per-session action, while shareLocation is a
    * standing privacy preference the rider controls separately in
-   * Settings.
+   * Settings. Real hands-free proximity voice chat (see startProximityVoice
+   * above) is tied to the same on/off action — going live for presence and
+   * being reachable by voice are the same moment, not two separate steps.
    */
   async function toggleNearby() {
     if (state.publicLive) {
       stopPresenceRefresh();
+      stopProximityVoice();
       try { await apiFetch('DELETE', '/presence'); } catch { /* best effort — still go offline locally */ }
       state.publicLive = false;
       nearbyRiders = [];
@@ -1188,6 +1335,7 @@
       renderMapStatus();
       centreMap(position.coords.latitude, position.coords.longitude);
       showToast('You are visible to nearby riders.');
+      void startProximityVoice();
       presenceRefreshTimer = setInterval(async () => {
         try {
           const nextPosition = await currentPosition();
@@ -1365,6 +1513,38 @@
     });
   }
 
+  /**
+   * "Navigate" hands off to the device's own maps app via Google's
+   * universal cross-platform link (opens the native Google Maps app if
+   * installed, Apple Maps' own equivalent isn't needed since this link
+   * still opens fine in a browser tab otherwise) — turn-by-turn routing
+   * itself isn't something this app owns or renders; that's a real,
+   * working "start navigating there" action without pretending to be a
+   * navigation SDK this app doesn't have.
+   */
+  function navigationHref(lat, lng) {
+    return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
+  }
+
+  function hideDestinationCard() {
+    $('#destinationCard').hidden = true;
+  }
+
+  function showDestinationCard(location, label) {
+    $('#riderCard').hidden = true;
+    $('#hazardCard').hidden = true;
+    const lat = location.lat();
+    const lng = location.lng();
+    const card = $('#destinationCard');
+    card.innerHTML = `<span class="avatar" style="--avatar:#ff7a1a" aria-hidden="true"><svg><use href="#i-location"/></svg></span><div class="rider-card-copy"><strong>${escapeHtml(label || 'Selected place')}</strong><span>${lat.toFixed(5)}, ${lng.toFixed(5)}</span></div><a class="compact-button" href="${navigationHref(lat, lng)}" target="_blank" rel="noopener noreferrer">Navigate</a><button class="icon-button" aria-label="Dismiss destination" data-dismiss-destination>×</button>`;
+    card.hidden = false;
+    $('[data-dismiss-destination]', card).addEventListener('click', () => {
+      hideDestinationCard();
+      destinationMarker?.setMap(null);
+      destinationMarker = undefined;
+    });
+  }
+
   function setDestinationMarker(location, label) {
     destinationMarker?.setMap(null);
     destinationMarker = new google.maps.Marker({
@@ -1375,6 +1555,8 @@
       animation: google.maps.Animation.DROP,
       zIndex: 9,
     });
+    destinationMarker.addListener('click', () => showDestinationCard(location, label));
+    showDestinationCard(location, label);
   }
 
   function initialiseGoogleMap() {
@@ -1511,6 +1693,7 @@
     });
     $('#locateBtn').addEventListener('click', locate);
     $('#joinNearbyBtn').addEventListener('click', toggleNearby);
+    $('#voiceStatusBtn').addEventListener('click', toggleVoiceMute);
     $('[aria-label="Open profile"]').addEventListener('click', () => navigate('settings'));
   }
 
@@ -1772,6 +1955,10 @@
     loadGoogleMaps();
     registerServiceWorker();
     loadFriendsData();
+    // Covers riders who never touch the toggle (it defaults to "on" — see
+    // the state object's `notifications: true` default), not just the
+    // ones who flip it from off to on via wireToggles above.
+    if (state.notifications) ensureWebNotificationPermission();
   }
 
   async function init() {
