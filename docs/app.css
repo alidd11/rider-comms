@@ -445,3 +445,16 @@ h1,.auth-intro h1{letter-spacing:-.02em}
   .auth-mark{box-shadow:var(--glow-accent),inset 0 1px rgb(255 255 255/.5)}
   .rider-marker.current{box-shadow:0 8px 22px rgb(0 0 0/.2),0 0 0 4px rgb(0 152 172/.22)}
 }
+
+/* Signature pass, part 2: sheets (edit profile, friend detail, settings
+   drill-downs) and every avatar were still the flat, characterless
+   surfaces from before this pass -- caught from real device screenshots
+   of the currently-deployed app, not just the four screens checked
+   above. */
+.sheet{position:relative;border-top:2px solid transparent;background-image:linear-gradient(var(--bg),var(--bg)),var(--gradient-neon);background-origin:border-box;background-clip:padding-box,border-box}
+.sheet>header .icon-button{transition:color 140ms ease,border-color 140ms ease}
+.sheet>header .icon-button:active{color:var(--accent)}
+/* A soft halo in the avatar's own colour -- costs nothing, shows up
+   everywhere (rosters, friend rows, profile headers, sheets) and is the
+   cheapest possible fix for "every avatar is an identical flat circle". */
+.avatar{box-shadow:inset 0 0 0 1px rgb(255 255 255/.22),0 0 0 3px color-mix(in srgb,var(--avatar,#4f7cff) 30%,transparent),0 0 14px -4px color-mix(in srgb,var(--avatar,#4f7cff) 70%,transparent)}
