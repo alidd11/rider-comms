@@ -2101,7 +2101,11 @@
       // a later reroute, which would otherwise leave it stuck dark forever.
       metas.forEach((meta) => {
         if (meta.dataset.preNavContent === undefined) meta.dataset.preNavContent = meta.getAttribute('content');
-        meta.setAttribute('content', '#0a0a18');
+        // Must match the turn card/ETA bar's actual background (#14152c),
+        // not just "some dark colour" — the app's general --bg (#0a0a18)
+        // is close but visibly different, which read as a seam rather
+        // than a flush edge between the OS chrome and the app's own UI.
+        meta.setAttribute('content', '#14152c');
       });
     } else {
       metas.forEach((meta) => {
