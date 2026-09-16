@@ -100,13 +100,11 @@
     if (!page || !header || !communityFilters || document.querySelector('#curatedRouteList')) return Boolean(document.querySelector('#curatedRouteList'));
 
     const addButton = document.querySelector('#addRouteBtn');
-    const eyebrow = header.querySelector('.eyebrow');
-    if (eyebrow) eyebrow.textContent = 'Ride somewhere memorable';
     header.querySelector('h1').textContent = 'Routes';
 
-    const intro = document.createElement('div');
-    intro.className = 'routes-intro';
-    intro.innerHTML = '<div><strong>Motorbike-first UK rides</strong><p>Real roads, useful rider notes and current-condition links. Always check weather and closures before leaving.</p></div><span>6 picks</span>';
+    const featuredHeading = document.createElement('div');
+    featuredHeading.className = 'section-heading routes-featured-heading';
+    featuredHeading.innerHTML = '<div><span class="eyebrow">Curated for riders</span><h2>Featured rides</h2></div><span class="routes-count">6 UK routes</span>';
     const filters = document.createElement('div');
     filters.id = 'curatedRouteFilters';
     filters.className = 'chip-row';
@@ -131,7 +129,7 @@
       if (title) title.textContent = 'No suggestions yet';
       if (copy) copy.textContent = 'Share a route you know well for other riders to review.';
     }
-    header.after(intro, filters, list, communityHeading);
+    header.after(featuredHeading, filters, list, communityHeading);
     return true;
   }
 

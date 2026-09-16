@@ -8,11 +8,11 @@ window.RIDER_COMMS_CONFIG = window.RIDER_COMMS_CONFIG || {
 // Loading it here keeps the mobile PWA feature independently deployable while
 // the authenticated app shell continues to evolve.
 const routesScript = document.createElement('script');
-routesScript.src = 'routes.js?v=28';
+routesScript.src = 'routes.js?v=29';
 routesScript.defer = true;
 document.head.append(routesScript);
 
 const routesStyles = document.createElement('link');
 routesStyles.rel = 'stylesheet';
-routesStyles.href = 'routes.css?v=28';
+routesStyles.href = 'routes.css?v=29';
 document.head.append(routesStyles);
