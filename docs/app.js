@@ -1733,7 +1733,7 @@
     const lat = location.lat();
     const lng = location.lng();
     const card = $('#destinationCard');
-    card.innerHTML = `<span class="avatar" style="--avatar:#ff7a1a" aria-hidden="true"><svg><use href="#i-location"/></svg></span><div class="rider-card-copy"><strong>${escapeHtml(label || 'Selected place')}</strong><span>${lat.toFixed(5)}, ${lng.toFixed(5)}</span></div><button class="compact-button" data-start-nav>Start</button><a class="icon-button" href="${navigationHref(lat, lng)}" target="_blank" rel="noopener noreferrer" aria-label="Open in Maps app"><svg><use href="#i-share"/></svg></a><button class="icon-button" aria-label="Dismiss destination" data-dismiss-destination>×</button>`;
+    card.innerHTML = `<span class="avatar" style="--avatar:#ff2d5a" aria-hidden="true"><svg><use href="#i-location"/></svg></span><div class="rider-card-copy"><strong>${escapeHtml(label || 'Selected place')}</strong><span>${lat.toFixed(5)}, ${lng.toFixed(5)}</span></div><button class="compact-button" data-start-nav>Start</button><a class="icon-button" href="${navigationHref(lat, lng)}" target="_blank" rel="noopener noreferrer" aria-label="Open in Maps app"><svg><use href="#i-share"/></svg></a><button class="icon-button" aria-label="Dismiss destination" data-dismiss-destination>×</button>`;
     card.hidden = false;
     $('[data-start-nav]', card).addEventListener('click', () => void startInAppNavigation(location, label));
     $('[data-dismiss-destination]', card).addEventListener('click', () => {
@@ -1749,7 +1749,7 @@
       map,
       position: location,
       title: label || 'Selected place',
-      icon: pinIcon('#ff7a1a'),
+      icon: pinIcon('#ff2d5a'),
       animation: google.maps.Animation.DROP,
       zIndex: 9,
     });
@@ -1842,6 +1842,42 @@
     return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
   }
 
+  function formatArrivalTime(remainingSeconds) {
+    return new Date(Date.now() + remainingSeconds * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  }
+
+  // Google's DirectionsResult steps carry a `maneuver` field (turn-left,
+  // roundabout-right, uturn-left, merge, fork-right, …) — real nav apps
+  // (Google Maps, Waze) show a direction-specific arrow for this rather
+  // than one generic "go" icon for every step, so a rider can tell a
+  // sharp turn from a gentle one at a glance without reading the text.
+  // There's no full icon set here, so this reuses the existing arrow (and
+  // the existing loop-shaped reset icon for roundabouts) and rotates it —
+  // close enough to convey direction without shipping ~15 new SVGs.
+  const MANEUVER_PRESENTATIONS = {
+    'turn-slight-left': { icon: 'i-nav-arrow', rotate: -30 },
+    'turn-left': { icon: 'i-nav-arrow', rotate: -90 },
+    'turn-sharp-left': { icon: 'i-nav-arrow', rotate: -135 },
+    'uturn-left': { icon: 'i-nav-arrow', rotate: 180 },
+    'turn-slight-right': { icon: 'i-nav-arrow', rotate: 30 },
+    'turn-right': { icon: 'i-nav-arrow', rotate: 90 },
+    'turn-sharp-right': { icon: 'i-nav-arrow', rotate: 135 },
+    'uturn-right': { icon: 'i-nav-arrow', rotate: 180 },
+    'roundabout-left': { icon: 'i-reset', rotate: -90 },
+    'roundabout-right': { icon: 'i-reset', rotate: 90 },
+    'fork-left': { icon: 'i-nav-arrow', rotate: -30 },
+    'fork-right': { icon: 'i-nav-arrow', rotate: 30 },
+    'ramp-left': { icon: 'i-nav-arrow', rotate: -30 },
+    'ramp-right': { icon: 'i-nav-arrow', rotate: 30 },
+    merge: { icon: 'i-nav-arrow', rotate: -20 },
+  };
+
+  function applyManeuverIcon(maneuver) {
+    const presentation = MANEUVER_PRESENTATIONS[maneuver] || { icon: 'i-nav-arrow', rotate: 0 };
+    $('#navManeuverSvg use').setAttribute('href', `#${presentation.icon}`);
+    $('#navManeuverSvg').style.transform = `rotate(${presentation.rotate}deg)`;
+  }
+
   function getDirectionsService() {
     if (!directionsService) directionsService = new google.maps.DirectionsService();
     return directionsService;
@@ -1852,7 +1888,7 @@
       directionsRenderer = new google.maps.DirectionsRenderer({
         suppressMarkers: true,
         preserveViewport: true,
-        polylineOptions: { strokeColor: '#ff7a1a', strokeWeight: 6, strokeOpacity: 0.9 },
+        polylineOptions: { strokeColor: '#ff2d5a', strokeWeight: 6, strokeOpacity: 0.9 },
       });
     }
     directionsRenderer.setMap(map);
@@ -1862,8 +1898,15 @@
   function renderNavStep() {
     const step = navSteps[navStepIndex];
     if (!step) return;
+    applyManeuverIcon(step.maneuver);
+    $('#navDistanceNext').textContent = formatNavDistance(step.distance.value);
     $('#navInstruction').textContent = stripHtml(step.instructions);
-    $('#navSubtext').textContent = `${formatNavDistance(step.distance.value)} · then continue`;
+    // Google's own guidance is to surface the *next* maneuver ahead of
+    // time rather than only at the moment it's due — a rider glancing at
+    // the screen mid-turn should already know what's coming after it.
+    const nextStep = navSteps[navStepIndex + 1];
+    $('#navNextPreview').hidden = !nextStep;
+    if (nextStep) $('#navNextInstruction').textContent = stripHtml(nextStep.instructions);
     let remainingMeters = 0;
     let remainingSeconds = 0;
     for (let i = navStepIndex; i < navSteps.length; i++) {
@@ -1872,6 +1915,7 @@
     }
     $('#navDistance').textContent = formatNavDistance(remainingMeters);
     $('#navEta').textContent = formatNavDuration(remainingSeconds);
+    $('#navArrival').textContent = formatArrivalTime(remainingSeconds);
     if (navLastAnnouncedStep !== navStepIndex) {
       navLastAnnouncedStep = navStepIndex;
       speak(stripHtml(step.instructions));
@@ -1918,8 +1962,12 @@
     destinationMarker = undefined;
     $('#hazardCard').hidden = true;
     $('#riderCard').hidden = true;
-    $('.map-header').hidden = true;
-    $('#poiChipRow').hidden = true;
+    // A dedicated driving mode, not a banner bolted onto the browsing map:
+    // the search bar, POI chips, bottom tab bar and "go live" control all
+    // disappear (see the .nav-mode rules in app.css) so the only things on
+    // screen are the route, the turn card, the ETA bar, and the controls a
+    // rider actually needs mid-drive (report hazard, re-centre, end nav).
+    $('#app').classList.add('nav-mode');
     $('#navBanner').hidden = false;
     $('#navSummary').hidden = false;
     renderNavStep();
@@ -2007,8 +2055,7 @@
     navRerouting = false;
     $('#navBanner').hidden = true;
     $('#navSummary').hidden = true;
-    $('.map-header').hidden = false;
-    $('#poiChipRow').hidden = false;
+    $('#app').classList.remove('nav-mode');
     if (arrived) {
       showToast('You have arrived.');
       speak('You have arrived at your destination.');
