@@ -1128,9 +1128,10 @@
   function renderMapStatus() {
     const active = state.publicLive && state.profile.shareLocation;
     const privateRide = Boolean(state.activeRide);
-    $('#joinNearbyBtn').hidden = privateRide;
-    $('#joinNearbyBtn').dataset.active = String(active);
-    $('#joinNearbyBtn').lastElementChild.textContent = active ? 'Leave nearby' : 'Go live';
+    const joinBtn = $('#joinNearbyBtn');
+    joinBtn.hidden = privateRide;
+    joinBtn.dataset.active = String(active);
+    joinBtn.setAttribute('aria-label', active ? 'Leave nearby' : 'Go live nearby');
   }
 
   // Presence has to be refreshed periodically while live — the backend
