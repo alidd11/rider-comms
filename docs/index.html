@@ -13,7 +13,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="app.css?v=35">
+  <link rel="stylesheet" href="app.css?v=36">
   <title>Rider Comms</title>
 </head>
 <body>
@@ -49,6 +49,7 @@
     <symbol id="i-food" viewBox="0 0 24 24"><path d="M6 2v8a2 2 0 0 0 4 0V2M8 10v12"/><path d="M17 2c-1.5 2.3-1.5 4.7 0 7s1.5 4.7 0 7v6"/></symbol>
     <symbol id="i-coffee" viewBox="0 0 24 24"><path d="M4 8h13v6a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4V8Z"/><path d="M17 9h1.5a2 2 0 0 1 0 4H17"/><path d="M7 3c0 1-1 1-1 2M11 3c0 1-1 1-1 2"/></symbol>
     <symbol id="i-wrench" viewBox="0 0 24 24"><path d="M14.7 6.3a4 4 0 1 0-4.4 6.4L4 19l1 1 6.3-6.3a4 4 0 0 0 6.4-4.4l-1.4 1.4-2-2Z"/></symbol>
+    <symbol id="i-nav-arrow" viewBox="0 0 24 24"><path d="M12 2 5 21l7-4.5L19 21Z"/></symbol>
   </defs></svg>
 
   <div id="authScreen" class="auth-screen" hidden>
@@ -113,6 +114,15 @@
           <article id="riderCard" class="rider-card glass" hidden></article>
           <article id="hazardCard" class="rider-card glass" hidden></article>
           <article id="destinationCard" class="rider-card glass" hidden></article>
+          <div id="navBanner" class="nav-banner" hidden>
+            <span class="nav-banner-icon"><svg><use href="#i-nav-arrow"/></svg></span>
+            <div class="nav-banner-copy">
+              <strong id="navInstruction">Calculating route…</strong>
+              <span id="navSubtext"></span>
+            </div>
+            <button id="endNavBtn" class="icon-button" aria-label="End navigation"><svg><use href="#i-eye-off"/></svg></button>
+          </div>
+          <div id="navSummary" class="nav-summary" hidden><span id="navDistance"></span><span id="navEta"></span></div>
           <div id="mapError" class="map-error" hidden><strong>Map unavailable</strong><span>The rider view is still available. Check the map key or connection.</span></div>
         </div>
       </section>
@@ -189,6 +199,6 @@
   <div id="updateBanner" class="update-banner" hidden><span>A new Rider Comms version is ready.</span><button id="reloadApp">Update now</button></div>
   <noscript>Rider Comms requires JavaScript.</noscript>
   <script src="config.js?v=28"></script>
-  <script src="app.js?v=37" defer></script>
+  <script src="app.js?v=38" defer></script>
 </body>
 </html>
