@@ -758,6 +758,7 @@
     $('#rideShareTop').hidden = !active;
     $('#ridePill').hidden = !active;
     syncRideLocationSharing();
+    syncVoiceConnection();
     if (!active) return;
     const ride = state.activeRide;
     const members = ride.members || ride.memberIds.map((riderId) => ({ riderId, displayName: riderId, handle: riderId }));
@@ -1127,9 +1128,10 @@
   function renderMapStatus() {
     const active = state.publicLive && state.profile.shareLocation;
     const privateRide = Boolean(state.activeRide);
-    $('#joinNearbyBtn').hidden = privateRide;
-    $('#joinNearbyBtn').dataset.active = String(active);
-    $('#joinNearbyBtn').lastElementChild.textContent = active ? 'Leave nearby' : 'Go live';
+    const joinBtn = $('#joinNearbyBtn');
+    joinBtn.hidden = privateRide;
+    joinBtn.dataset.active = String(active);
+    joinBtn.setAttribute('aria-label', active ? 'Leave nearby' : 'Go live nearby');
   }
 
   // Presence has to be refreshed periodically while live — the backend
@@ -1166,8 +1168,13 @@
   // loop works here. The one genuine difference from mobile: there's no
   // native on-device volume analyzer in a browser, so the level comes from
   // a real Web Audio AnalyserNode reading the actual mic MediaStreamTrack
-  // instead — same real signal, different (also real) source.
+  // instead — same real signal, different (also real) source. Covers both
+  // voice contexts the mobile app has: the public presence channel
+  // ("Go live") and a private ride's own room (RideBar.tsx's equivalent),
+  // via connectVoice(kind, rideId) below — see syncVoiceConnection for how
+  // the two are picked between.
   let voiceRoom;
+  let voiceTargetKey; // 'channel' or `ride:${rideId}` — identifies what voiceRoom is currently for, so re-syncs are idempotent
   let voiceAudioContext;
   let voiceAnalyser;
   let voiceLevelFrame;
@@ -1197,13 +1204,37 @@
     return liveKitLoadPromise;
   }
 
+  /**
+   * The rider's own avatar in the map header glows while they're actually
+   * transmitting — same idea as a Discord/FaceTime speaking ring, and a
+   * more legible "who's live" signal than a separate icon button off to
+   * the side. A small badge on the avatar's corner (not the avatar itself,
+   * so tapping the avatar still opens the profile sheet) is the only
+   * manual override control, shown only once actually connected.
+   */
   function renderVoiceStatus() {
-    const btn = $('#voiceStatusBtn');
+    const avatar = $('#mapAvatarButton');
+    const badge = $('#voiceStatusBtn');
     const connected = Boolean(voiceRoom);
-    btn.hidden = !connected;
-    btn.classList.toggle('talking', connected && voiceIsSpeaking);
-    btn.classList.toggle('muted', connected && voiceManuallyMuted);
-    btn.setAttribute('aria-label', voiceManuallyMuted ? 'Proximity voice muted — tap to unmute' : voiceIsSpeaking ? 'Talking' : 'Listening — hands-free');
+    avatar.classList.toggle('voice-talking', connected && voiceIsSpeaking);
+    avatar.classList.toggle('voice-muted', connected && voiceManuallyMuted);
+    badge.hidden = !connected;
+    badge.classList.toggle('talking', voiceIsSpeaking);
+    badge.classList.toggle('muted', voiceManuallyMuted);
+    const label = voiceManuallyMuted ? 'Muted — tap to unmute' : voiceIsSpeaking ? 'Talking' : 'Listening — hands-free';
+    badge.setAttribute('aria-label', voiceManuallyMuted ? 'Proximity voice muted — tap to unmute' : voiceIsSpeaking ? 'Talking' : 'Listening — hands-free');
+    // The Ride tab has no map header of its own (the glowing avatar above
+    // only exists on the Map screen), so a rider parked on Ride while
+    // talking needs this same status somewhere too — same real state,
+    // same toggleVoiceMute control, just a text chip instead of a glow.
+    const rideChip = $('#rideVoiceStatus');
+    if (rideChip) {
+      rideChip.hidden = !connected;
+      rideChip.classList.toggle('talking', voiceIsSpeaking);
+      rideChip.classList.toggle('muted', voiceManuallyMuted);
+      const rideChipText = $('#rideVoiceStatusText', rideChip);
+      if (rideChipText) rideChipText.textContent = label;
+    }
   }
 
   function setVoiceSpeaking(speaking) {
@@ -1241,43 +1272,67 @@
     tick();
   }
 
-  /** Called right after "Go live" actually succeeds (see toggleNearby
-   * below) — mints a real token scoped to the rider's own current
-   * presence bucket (POST /voice/token {target:'channel'}, see
-   * server.ts, which derives the room from the rider's own last-known
-   * presence rather than trusting a client-supplied one) and connects for
-   * real. Best-effort: a rider should still be visible nearby even if
-   * voice fails to connect (no LiveKit configured on the backend, mic
+  /**
+   * Mints a real voice token for either the public presence channel
+   * (POST /voice/token {target:'channel'} — the room is derived from the
+   * rider's own last-known presence, see server.ts, never a client-
+   * supplied one) or a private ride ({target:'ride', rideId} — the same
+   * ride-voice endpoint the mobile app's RideBar.tsx already uses, see
+   * backend/src/liveKitToken.ts) and connects for real. Best-effort in
+   * both cases: a rider should still be visible nearby / still be in the
+   * ride even if voice fails to connect (no LiveKit configured, mic
    * permission denied, etc.), so failures here are logged, not surfaced
-   * as a blocking error over the whole "go live" action. */
-  async function startProximityVoice() {
+   * as a blocking error over the action that triggered this. */
+  async function connectVoice(kind, rideId) {
     if (voiceRoom) return;
     try {
       await loadLiveKitClient();
-      const { token, url } = await apiFetch('POST', '/voice/token', { target: 'channel' });
+      const body = kind === 'ride' ? { target: 'ride', rideId } : { target: 'channel' };
+      const { token, url } = await apiFetch('POST', '/voice/token', body);
       const room = new window.LivekitClient.Room();
       await room.connect(url, token);
       voiceManuallyMuted = false;
       const publication = await room.localParticipant.setMicrophoneEnabled(true);
       voiceRoom = room;
+      voiceTargetKey = kind === 'ride' ? `ride:${rideId}` : 'channel';
       const mediaStreamTrack = publication?.track?.mediaStreamTrack;
       if (mediaStreamTrack) startVoiceLevelLoop(mediaStreamTrack);
       renderVoiceStatus();
     } catch (error) {
-      console.warn('[rider-comms] Could not connect proximity voice chat', error);
+      console.warn('[rider-comms] Could not connect voice chat', error);
       voiceRoom = undefined;
+      voiceTargetKey = undefined;
       renderVoiceStatus();
     }
   }
 
-  function stopProximityVoice() {
+  function disconnectVoice() {
     if (voiceLevelFrame) { cancelAnimationFrame(voiceLevelFrame); voiceLevelFrame = undefined; }
     if (voiceReleaseTimer) { clearTimeout(voiceReleaseTimer); voiceReleaseTimer = undefined; }
     voiceAnalyser = undefined;
     if (voiceAudioContext) { void voiceAudioContext.close().catch(() => {}); voiceAudioContext = undefined; }
     if (voiceRoom) { void voiceRoom.disconnect(); voiceRoom = undefined; }
+    voiceTargetKey = undefined;
     voiceIsSpeaking = false;
     renderVoiceStatus();
+  }
+
+  /**
+   * A private ride's voice takes priority over the public channel — you
+   * can't be "live" on the public channel while in a ride anyway (see
+   * renderMapStatus hiding #joinNearbyBtn during a ride), so this just
+   * picks whichever applies and reconnects only when what should be
+   * connected has actually changed (a same-ride/channel re-call is a
+   * no-op, not a reconnect-and-drop-audio blip). Call this after any
+   * change to state.activeRide or state.publicLive rather than calling
+   * connectVoice/disconnectVoice directly at each call site.
+   */
+  function syncVoiceConnection() {
+    const desired = state.activeRide ? `ride:${state.activeRide.rideId}` : state.publicLive ? 'channel' : undefined;
+    if (desired === voiceTargetKey) return;
+    if (voiceRoom) disconnectVoice();
+    if (state.activeRide) void connectVoice('ride', state.activeRide.rideId);
+    else if (state.publicLive) void connectVoice('channel');
   }
 
   function toggleVoiceMute() {
@@ -1299,16 +1354,16 @@
    * offline intentionally leaves that profile setting as the rider left
    * it; "Go live" is a per-session action, while shareLocation is a
    * standing privacy preference the rider controls separately in
-   * Settings. Real hands-free proximity voice chat (see startProximityVoice
+   * Settings. Real hands-free proximity voice chat (see connectVoice
    * above) is tied to the same on/off action — going live for presence and
    * being reachable by voice are the same moment, not two separate steps.
    */
   async function toggleNearby() {
     if (state.publicLive) {
       stopPresenceRefresh();
-      stopProximityVoice();
-      try { await apiFetch('DELETE', '/presence'); } catch { /* best effort — still go offline locally */ }
       state.publicLive = false;
+      syncVoiceConnection();
+      try { await apiFetch('DELETE', '/presence'); } catch { /* best effort — still go offline locally */ }
       nearbyRiders = [];
       persist();
       renderMapStatus();
@@ -1335,7 +1390,7 @@
       renderMapStatus();
       centreMap(position.coords.latitude, position.coords.longitude);
       showToast('You are visible to nearby riders.');
-      void startProximityVoice();
+      syncVoiceConnection();
       presenceRefreshTimer = setInterval(async () => {
         try {
           const nextPosition = await currentPosition();
@@ -1603,8 +1658,20 @@
       map,
       position,
       title: current ? 'Your location' : person.displayName,
-      label: { text: initials(person.displayName), color: '#ffffff', fontWeight: '700', fontSize: '12px' },
-      icon: { path: google.maps.SymbolPath.CIRCLE, scale: current ? 22 : 19, fillColor: identityColor(person.riderId), fillOpacity: 1, strokeColor: current ? '#ff7a1a' : '#e9eef5', strokeWeight: current ? 5 : 3 },
+      // "You" gets a small, unlabelled dot — the same convention every
+      // real map app (Google Maps, Waze, Uber) uses for the rider's own
+      // position: precise, not a beach-ball with initials on it. Other
+      // riders keep a (smaller than before) labelled dot, since telling
+      // several nearby riders apart at a glance is the point there.
+      ...(current ? {} : { label: { text: initials(person.displayName), color: '#ffffff', fontWeight: '700', fontSize: '9px' } }),
+      icon: {
+        path: google.maps.SymbolPath.CIRCLE,
+        scale: current ? 7 : 9,
+        fillColor: identityColor(person.riderId),
+        fillOpacity: 1,
+        strokeColor: current ? '#ffffff' : '#e9eef5',
+        strokeWeight: current ? 2 : 2,
+      },
       zIndex: current ? 10 : 5,
     });
     marker.addListener('click', () => selectRider(person.riderId, visibleMapRiders()));
@@ -1694,6 +1761,7 @@
     $('#locateBtn').addEventListener('click', locate);
     $('#joinNearbyBtn').addEventListener('click', toggleNearby);
     $('#voiceStatusBtn').addEventListener('click', toggleVoiceMute);
+    $('#rideVoiceStatus').addEventListener('click', toggleVoiceMute);
     $('[aria-label="Open profile"]').addEventListener('click', () => navigate('settings'));
   }
 

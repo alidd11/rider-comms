@@ -13,7 +13,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="app.css?v=31">
+  <link rel="stylesheet" href="app.css?v=34">
   <title>Rider Comms</title>
 </head>
 <body>
@@ -43,6 +43,7 @@
     <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.8"/></symbol>
     <symbol id="i-eye-off" viewBox="0 0 24 24"><path d="M3 3l18 18M10.6 6.1A9.8 9.8 0 0 1 12 6c6 0 9.5 6 9.5 6a16 16 0 0 1-2.1 2.8M6.2 7.1C3.8 8.8 2.5 12 2.5 12s3.5 6 9.5 6c1.4 0 2.7-.3 3.8-.8M9.9 9.9a3 3 0 0 0 4.2 4.2"/></symbol>
     <symbol id="i-mic" viewBox="0 0 24 24"><path d="M12 14a3.5 3.5 0 0 0 3.5-3.5v-4a3.5 3.5 0 0 0-7 0v4A3.5 3.5 0 0 0 12 14Z"/><path d="M6 10.5a6 6 0 0 0 12 0M12 16.5V20M9 20h6"/></symbol>
+    <symbol id="i-broadcast" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2.2"/><path d="M8.6 8.6a4.8 4.8 0 0 1 6.8 0"/><path d="M5.8 5.8a8.8 8.8 0 0 1 12.4 0"/></symbol>
   </defs></svg>
 
   <div id="authScreen" class="auth-screen" hidden>
@@ -89,14 +90,13 @@
           <div id="googleMap" class="google-map" aria-hidden="true"></div>
           <div class="fallback-map" id="fallbackMap"><div class="road road-a"></div><div class="road road-b"></div><div class="road road-c"></div></div>
           <h1 id="mapTitle" class="sr-only">North London rider map</h1>
-          <header class="map-header"><div class="search-slot glass"><svg><use href="#i-search"/></svg><input id="placeSearchInput" placeholder="Search for a place" autocomplete="off"></div><button class="avatar avatar-sm" data-avatar="AI" aria-label="Open profile">AI</button></header>
+          <header class="map-header"><div class="search-slot glass"><svg><use href="#i-search"/></svg><input id="placeSearchInput" placeholder="Search for a place" autocomplete="off"></div><div class="map-avatar-wrap"><button class="avatar avatar-sm" id="mapAvatarButton" data-avatar="AI" aria-label="Open profile">AI</button><button id="voiceStatusBtn" class="voice-mute-badge" aria-label="Listening — hands-free" hidden><svg><use href="#i-mic"/></svg></button></div></header>
           <div id="fallbackMarkers" class="fallback-markers"></div>
           <div id="hazardMarkers" class="hazard-markers"></div>
-          <button id="reportHazardBtn" class="icon-button glass report-button" aria-label="Report on the road"><svg><use href="#i-report"/></svg></button>
           <div class="map-actions">
-            <button id="voiceStatusBtn" class="icon-button glass voice-status" aria-label="Listening — hands-free" hidden><svg><use href="#i-mic"/></svg></button>
+            <button id="reportHazardBtn" class="icon-button glass" aria-label="Report on the road"><svg><use href="#i-report"/></svg></button>
             <button id="locateBtn" class="icon-button glass" aria-label="Centre on my location"><svg><use href="#i-target"/></svg></button>
-            <button id="joinNearbyBtn" class="primary-fab" aria-label="Join nearby riders"><span class="live-dot dark"></span><span>Go live</span></button>
+            <button id="joinNearbyBtn" class="icon-button glass" aria-label="Go live nearby"><svg><use href="#i-broadcast"/></svg></button>
           </div>
           <article id="riderCard" class="rider-card glass" hidden></article>
           <article id="hazardCard" class="rider-card glass" hidden></article>
@@ -120,7 +120,7 @@
             </div>
           </div>
           <div id="rideActiveState" hidden>
-            <article class="ride-summary"><div><span class="status-chip"><span class="live-dot"></span>Ride live</span><h2>Sunday city loop</h2><p><span id="memberCount">3</span> riders · You are <span id="rideRole">host</span></p></div><button id="shareRideBtn" class="button secondary"><svg><use href="#i-share"/></svg>Invite</button></article>
+            <article class="ride-summary"><div><span class="status-chip"><span class="live-dot"></span>Ride live</span><p><span id="memberCount">3</span> riders · You are <span id="rideRole">host</span></p><button id="rideVoiceStatus" class="status-chip neutral" hidden><svg><use href="#i-mic"/></svg><span id="rideVoiceStatusText">Listening — hands-free</span></button></div><button id="shareRideBtn" class="button secondary"><svg><use href="#i-share"/></svg>Invite</button></article>
             <div class="ride-code-card"><span>Invite code</span><button id="copyRideCode" aria-label="Copy ride code"><strong id="activeRideCode">K4XQPZ</strong><small>Tap to copy</small></button></div>
             <div class="section-heading"><div><span class="eyebrow">Live roster</span><h2>Riders</h2></div><span class="status-chip neutral">3 connected</span></div>
             <div id="rideRoster" class="people-list"></div>
@@ -177,6 +177,6 @@
   <div id="updateBanner" class="update-banner" hidden><span>A new Rider Comms version is ready.</span><button id="reloadApp">Update now</button></div>
   <noscript>Rider Comms requires JavaScript.</noscript>
   <script src="config.js?v=28"></script>
-  <script src="app.js?v=31" defer></script>
+  <script src="app.js?v=34" defer></script>
 </body>
 </html>
