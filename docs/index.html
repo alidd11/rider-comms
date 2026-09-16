@@ -13,7 +13,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="app.css?v=34">
+  <link rel="stylesheet" href="app.css?v=35">
   <title>Rider Comms</title>
 </head>
 <body>
@@ -44,6 +44,11 @@
     <symbol id="i-eye-off" viewBox="0 0 24 24"><path d="M3 3l18 18M10.6 6.1A9.8 9.8 0 0 1 12 6c6 0 9.5 6 9.5 6a16 16 0 0 1-2.1 2.8M6.2 7.1C3.8 8.8 2.5 12 2.5 12s3.5 6 9.5 6c1.4 0 2.7-.3 3.8-.8M9.9 9.9a3 3 0 0 0 4.2 4.2"/></symbol>
     <symbol id="i-mic" viewBox="0 0 24 24"><path d="M12 14a3.5 3.5 0 0 0 3.5-3.5v-4a3.5 3.5 0 0 0-7 0v4A3.5 3.5 0 0 0 12 14Z"/><path d="M6 10.5a6 6 0 0 0 12 0M12 16.5V20M9 20h6"/></symbol>
     <symbol id="i-broadcast" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2.2"/><path d="M8.6 8.6a4.8 4.8 0 0 1 6.8 0"/><path d="M5.8 5.8a8.8 8.8 0 0 1 12.4 0"/></symbol>
+    <symbol id="i-fuel" viewBox="0 0 24 24"><path d="M5 21V6a2 2 0 0 1 2-2h5a2 2 0 0 1 2 2v15"/><path d="M4 21h11"/><path d="M14 10h2.5a2 2 0 0 1 2 2v3.2a1.5 1.5 0 0 0 3 0V8.5L18.5 5.5"/><path d="M7 6.5h4"/></symbol>
+    <symbol id="i-parking" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M10 8v8M10 8h2.6a2.4 2.4 0 0 1 0 4.8H10"/></symbol>
+    <symbol id="i-food" viewBox="0 0 24 24"><path d="M6 2v8a2 2 0 0 0 4 0V2M8 10v12"/><path d="M17 2c-1.5 2.3-1.5 4.7 0 7s1.5 4.7 0 7v6"/></symbol>
+    <symbol id="i-coffee" viewBox="0 0 24 24"><path d="M4 8h13v6a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4V8Z"/><path d="M17 9h1.5a2 2 0 0 1 0 4H17"/><path d="M7 3c0 1-1 1-1 2M11 3c0 1-1 1-1 2"/></symbol>
+    <symbol id="i-wrench" viewBox="0 0 24 24"><path d="M14.7 6.3a4 4 0 1 0-4.4 6.4L4 19l1 1 6.3-6.3a4 4 0 0 0 6.4-4.4l-1.4 1.4-2-2Z"/></symbol>
   </defs></svg>
 
   <div id="authScreen" class="auth-screen" hidden>
@@ -91,6 +96,13 @@
           <div class="fallback-map" id="fallbackMap"><div class="road road-a"></div><div class="road road-b"></div><div class="road road-c"></div></div>
           <h1 id="mapTitle" class="sr-only">North London rider map</h1>
           <header class="map-header"><div class="search-slot glass"><svg><use href="#i-search"/></svg><input id="placeSearchInput" placeholder="Search for a place" autocomplete="off"></div><div class="map-avatar-wrap"><button class="avatar avatar-sm" id="mapAvatarButton" data-avatar="AI" aria-label="Open profile">AI</button><button id="voiceStatusBtn" class="voice-mute-badge" aria-label="Listening — hands-free" hidden><svg><use href="#i-mic"/></svg></button></div></header>
+          <div class="poi-chip-row" id="poiChipRow">
+            <button class="chip poi-chip" data-poi-type="gas_station"><svg><use href="#i-fuel"/></svg><span>Petrol</span></button>
+            <button class="chip poi-chip" data-poi-type="parking"><svg><use href="#i-parking"/></svg><span>Parking</span></button>
+            <button class="chip poi-chip" data-poi-type="restaurant"><svg><use href="#i-food"/></svg><span>Food</span></button>
+            <button class="chip poi-chip" data-poi-type="cafe"><svg><use href="#i-coffee"/></svg><span>Coffee</span></button>
+            <button class="chip poi-chip" data-poi-type="car_repair"><svg><use href="#i-wrench"/></svg><span>Repair</span></button>
+          </div>
           <div id="fallbackMarkers" class="fallback-markers"></div>
           <div id="hazardMarkers" class="hazard-markers"></div>
           <div class="map-actions">
@@ -177,6 +189,6 @@
   <div id="updateBanner" class="update-banner" hidden><span>A new Rider Comms version is ready.</span><button id="reloadApp">Update now</button></div>
   <noscript>Rider Comms requires JavaScript.</noscript>
   <script src="config.js?v=28"></script>
-  <script src="app.js?v=36" defer></script>
+  <script src="app.js?v=37" defer></script>
 </body>
 </html>
