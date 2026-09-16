@@ -53,14 +53,6 @@ const ZOOM_STEP = 0.75;
 type Segment = 'public' | 'host';
 type LayoutSize = { width: number; height: number };
 
-// TODO(native): replace with expo-location's getCurrentPositionAsync().
-async function getCurrentLocation(): Promise<{ lat: number; lon: number }> {
-  const permission = await Location.requestForegroundPermissionsAsync();
-  if (!permission.granted) throw new Error('Location permission is required to join riders nearby.');
-  const result = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-  return { lat: result.coords.latitude, lon: result.coords.longitude };
-}
-
 function ridersOnCircle(riders: string[], size: LayoutSize): Array<{ id: string; x: number; y: number }> {
   const centerX = size.width / 2;
   const centerY = size.height / 2;
@@ -381,21 +373,46 @@ export function MapScreen(): React.JSX.Element {
   const [reportSheetOpen, setReportSheetOpen] = React.useState(false);
   const [navigationTarget, setNavigationTarget] = React.useState<NavigationTarget | null>(null);
 
+  const requestCurrentLocation = React.useCallback(async (showSettingsPrompt = true): Promise<{ lat: number; lon: number } | null> => {
+    try {
+      const permission = await Location.requestForegroundPermissionsAsync();
+      if (!permission.granted) {
+        setLocationUnavailable(true);
+        if (!permission.canAskAgain && showSettingsPrompt) {
+          Alert.alert(
+            'Location is blocked',
+            'Allow location in your device settings to search nearby and use location-based map tools. Your position stays private unless sharing is enabled.',
+            [
+              { text: 'Not now', style: 'cancel' },
+              { text: 'Open settings', onPress: () => void Linking.openSettings() },
+            ]
+          );
+        }
+        return null;
+      }
+      const result = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const next = { lat: result.coords.latitude, lon: result.coords.longitude };
+      setCurrentLocation(next);
+      setLocationUnavailable(false);
+      return next;
+    } catch {
+      setLocationUnavailable(true);
+      return null;
+    }
+  }, []);
+
   React.useEffect(() => {
-    if (!shareLocation) { setRidersInZone([]); setCurrentLocation(null); return; }
+    if (!shareLocation) {
+      setRidersInZone([]);
+      void client.leavePresence();
+      return;
+    }
     let cancelled = false;
 
     async function tick() {
-      let lat: number, lon: number;
-      try {
-        ({ lat, lon } = await getCurrentLocation());
-        if (!cancelled) setCurrentLocation({ lat, lon });
-      } catch {
-        if (!cancelled) {
-          setLocationUnavailable(true);
-        }
-        return;
-      }
+      const location = await requestCurrentLocation(false);
+      if (!location || cancelled) return;
+      const { lat, lon } = location;
       try {
         const radiusMiles = TIER_RADIUS_MILES[tier];
         const { inZoneWith } = await client.updatePresence(lat, lon);
@@ -419,7 +436,7 @@ export function MapScreen(): React.JSX.Element {
       clearInterval(interval);
       void client.leavePresence();
     };
-  }, [client, shareLocation, tier]);
+  }, [client, requestCurrentLocation, shareLocation, tier]);
 
   // Nearby hazard reports poll independently of the presence tick above —
   // they're visible whether or not the rider is sharing their own location
@@ -589,6 +606,7 @@ export function MapScreen(): React.JSX.Element {
         <View style={[styles.searchSlot, { top: insets.top + spacing.sm }]}>
           <PlaceSearchBar
             near={currentLocation}
+            onRequestLocation={async () => { await requestCurrentLocation(true); }}
             onSelect={(place) => setSelectedPlace(place)}
           />
         </View>
