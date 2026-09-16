@@ -1747,6 +1747,36 @@
       button.classList.add('active');
       void searchNearbyPois(type);
     }));
+    initPoiChipScrollFade();
+  }
+
+  /**
+   * The chip row overflows on purpose (five chips don't fit on a phone
+   * width) — but a row that just gets clipped at the screen edge with no
+   * signal reads as broken, not scrollable. This toggles a CSS mask-image
+   * fade on whichever edge still has more chips to reveal (both edges
+   * once scrolled partway, right-only at the start, left-only at the end,
+   * and no fade at all if the row happens to fit without scrolling, e.g.
+   * a wide viewport) so a partially-visible chip reads as "swipe for
+   * more" the way Google Maps/Waze's own category rows do.
+   */
+  function initPoiChipScrollFade() {
+    const row = $('#poiChipRow');
+    if (!row) return;
+    const update = () => {
+      const max = row.scrollWidth - row.clientWidth;
+      if (max <= 1) {
+        row.classList.remove('scrolled', 'at-end');
+        row.classList.add('no-scroll');
+        return;
+      }
+      row.classList.remove('no-scroll');
+      row.classList.toggle('scrolled', row.scrollLeft > 4);
+      row.classList.toggle('at-end', row.scrollLeft >= max - 4);
+    };
+    row.addEventListener('scroll', update, { passive: true });
+    window.addEventListener('resize', update);
+    update();
   }
 
   /**
