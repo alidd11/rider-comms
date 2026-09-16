@@ -44,7 +44,7 @@ for (const asset of ['app.css', 'config.js', 'app.js', 'manifest.json']) {
 // desktop browser screenshot cannot reproduce it.
 const css = await readFile(resolve(destination, 'app.css'), 'utf8');
 const manifest = JSON.parse(await readFile(resolve(destination, 'manifest.json'), 'utf8'));
-const darkChrome = '#0a0a18';
+const darkChrome = '#0e0e0f';
 if (manifest.background_color !== darkChrome || manifest.theme_color !== darkChrome) {
   throw new Error(`PWA manifest background_color and theme_color must remain ${darkChrome}`);
 }

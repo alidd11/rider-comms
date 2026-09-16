@@ -11,8 +11,8 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Legal'>;
 const sections = [
   { title: 'Privacy', text: 'Rider Comms uses a random Rider ID and stores its private session token in your device secure store. Profile settings, friendships, messages, rides, hideouts and optional social usernames are sent to the prototype API. Foreground location is sent only after you enable location sharing and join the local channel; leaving removes your active presence.' },
   { title: 'Your choices', text: 'Location sharing starts off. Instagram and TikTok usernames each have Public, Friends only or Private visibility. You can delete your account and prototype data from Settings.' },
-  { title: 'Community safety', text: 'Harassment, threats, sexual exploitation, dangerous content, spam and impersonation are not allowed. Direct-message screens include Report and Block controls. Blocking removes the friendship and prevents further messages or requests.' },
-  { title: 'Riding safety', text: 'Do not operate messaging, profile, billing or future video features while moving. Stop somewhere safe before using visual or touch controls. The planned video feed must lock interaction whenever movement is detected.' },
+  { title: 'Rider safety and conduct', text: 'Harassment, threats, sexual exploitation, dangerous content, spam and impersonation are not allowed. Direct-message screens include Report and Block controls. Blocking removes the friendship and prevents further messages or requests.' },
+  { title: 'Riding safety', text: 'Do not operate messaging, profile or billing controls while moving. Stop somewhere safe before using visual or touch controls.' },
   { title: 'Test-build notice', text: 'This is a pre-alpha test build. Server data is currently held in memory and can disappear on restart. A published privacy-policy URL, support contact, durable storage and staffed moderation process are required before public store release.' },
 ];
 

@@ -113,7 +113,7 @@ function AddFriendCard(): React.JSX.Element {
         <Text style={styles.addInlineSuccess}>Request sent</Text>
       ) : (
         <Text style={styles.addCaption}>
-          Enter a rider's ID to send them a friend request. Handle search is coming once accounts support it.
+          Enter a complete Rider ID to send a private friend request.
         </Text>
       )}
     </View>
@@ -183,9 +183,8 @@ export function FriendsScreen(): React.JSX.Element {
     <View style={styles.container}>
       <ScrollView contentContainerStyle={[styles.scroll, { paddingTop: insets.top + spacing.lg }]}>
         <ScreenHeader
-          eyebrow="Your circle"
           title="Friends"
-          subtitle="The riders you trust, your requests and your shareable Rider ID."
+          subtitle="Your private rider network."
         />
 
         {error && (
@@ -233,7 +232,8 @@ export function FriendsScreen(): React.JSX.Element {
           ) : friends.length === 0 ? (
             <View style={styles.emptyState}>
               <Ionicons name="people-outline" size={28} color={colors.textMuted} />
-              <Text style={styles.emptyText}>No friends yet — add someone by rider ID above.</Text>
+              <Text style={styles.emptyTitle}>Build your riding circle</Text>
+              <Text style={styles.emptyText}>Add someone you know using their Rider ID.</Text>
             </View>
           ) : (
             friends.map((friend) => <FriendRow key={friend.riderId} friend={friend} />)
@@ -267,7 +267,7 @@ const styles = StyleSheet.create({
   addRow: { flexDirection: 'row', gap: spacing.sm },
   addInput: {
     flex: 1,
-    minHeight: MIN_TOUCH_TARGET * 0.7,
+    minHeight: MIN_TOUCH_TARGET,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surfaceRaised,
@@ -277,8 +277,8 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
   },
   addButton: {
-    width: MIN_TOUCH_TARGET * 0.7,
-    height: MIN_TOUCH_TARGET * 0.7,
+    width: MIN_TOUCH_TARGET,
+    height: MIN_TOUCH_TARGET,
     borderRadius: radii.md,
     backgroundColor: colors.accent,
     alignItems: 'center',
@@ -311,8 +311,8 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   requestAvatar: {
-    width: 32,
-    height: 32,
+    width: 44,
+    height: 44,
     borderRadius: radii.pill,
     backgroundColor: colors.surfaceRaised,
     alignItems: 'center',
@@ -320,8 +320,8 @@ const styles = StyleSheet.create({
   },
   requestName: { ...type.body, color: colors.textPrimary, flex: 1 },
   requestDecline: {
-    width: 32,
-    height: 32,
+    width: 44,
+    height: 44,
     borderRadius: radii.pill,
     borderWidth: 1,
     borderColor: colors.danger,
@@ -329,8 +329,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   requestAccept: {
-    width: 32,
-    height: 32,
+    width: 44,
+    height: 44,
     borderRadius: radii.pill,
     backgroundColor: colors.accent,
     alignItems: 'center',
@@ -357,5 +357,6 @@ const styles = StyleSheet.create({
   friendHandle: { ...type.caption },
   friendRemove: { padding: spacing.xs },
   emptyState: { padding: spacing.xl, alignItems: 'center', gap: spacing.sm },
+  emptyTitle: { ...type.subheading, color: colors.textPrimary },
   emptyText: { ...type.caption, textAlign: 'center' },
 });

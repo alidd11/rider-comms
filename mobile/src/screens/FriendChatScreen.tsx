@@ -518,7 +518,7 @@ const styles = StyleSheet.create({
   },
   composerInput: {
     flex: 1,
-    minHeight: MIN_TOUCH_TARGET * 0.7,
+    minHeight: MIN_TOUCH_TARGET,
     maxHeight: 120,
     borderWidth: 1,
     borderColor: colors.border,
@@ -530,8 +530,8 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
   },
   sendButton: {
-    width: MIN_TOUCH_TARGET * 0.7,
-    height: MIN_TOUCH_TARGET * 0.7,
+    width: MIN_TOUCH_TARGET,
+    height: MIN_TOUCH_TARGET,
     borderRadius: radii.pill,
     backgroundColor: colors.accent,
     alignItems: 'center',
@@ -558,7 +558,7 @@ const styles = StyleSheet.create({
   modalTitle: { ...type.heading, textAlign: 'center', marginBottom: spacing.xs },
   modalSubtitle: { ...type.caption, textAlign: 'center', marginBottom: spacing.lg },
   modalInput: {
-    minHeight: MIN_TOUCH_TARGET * 0.7,
+    minHeight: MIN_TOUCH_TARGET,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surfaceRaised,

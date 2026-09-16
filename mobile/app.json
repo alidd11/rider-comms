@@ -5,7 +5,7 @@
     "version": "0.1.0",
     "orientation": "portrait",
     "scheme": "ridercomms",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "automatic",
     "plugins": [
       "expo-secure-store",
       "expo-location",
@@ -41,7 +41,7 @@
     "android": {
       "package": "com.ridercomms.app",
       "versionCode": 1,
-      "backgroundColor": "#0B0D10",
+      "backgroundColor": "#0E0E0F",
       "intentFilters": [
         {
           "action": "VIEW",

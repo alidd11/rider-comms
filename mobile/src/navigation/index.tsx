@@ -3,8 +3,8 @@
 // to be correct against @react-navigation's real v7 API — review against
 // the installed version once you're on a real dev machine.
 import * as React from 'react';
-import { Linking, View, Text, StyleSheet } from 'react-native';
-import { DarkTheme, NavigationContainer, useNavigationState } from '@react-navigation/native';
+import { Linking, View, Text, StyleSheet, useColorScheme } from 'react-native';
+import { DarkTheme, DefaultTheme, NavigationContainer, useNavigationState } from '@react-navigation/native';
 import type { LinkingOptions } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -25,19 +25,7 @@ import { SettingsProvider } from '../settings/SettingsContext';
 import { FriendsProvider } from '../friends/FriendsContext';
 import { AuthProvider } from '../auth/AuthContext';
 import { parseNavigationLink } from '../navigationLinks';
-import { colors } from '../theme';
-
-const navigationTheme = {
-  ...DarkTheme,
-  colors: {
-    ...DarkTheme.colors,
-    primary: colors.accent,
-    background: colors.background,
-    card: colors.surface,
-    text: colors.textPrimary,
-    border: colors.border,
-  },
-};
+import { colors, useConcreteThemeColors } from '../theme';
 
 export type TabParamList = {
   // `at` is a change nonce, not app state — it exists only so tapping
@@ -126,19 +114,16 @@ function MapTabIcon({ size }: { size: number }): React.JSX.Element {
   const active = useMapSegment() === 'public';
   return (
     <TabIconShell active={active}>
-      <MaterialCommunityIcons name="motorbike" size={size} color={segmentTintColor(active)} />
+      <MaterialCommunityIcons name="map-outline" size={size} color={segmentTintColor(active)} />
     </TabIconShell>
   );
 }
 
 function GroupRideTabIcon({ size }: { size: number }): React.JSX.Element {
   const active = useMapSegment() === 'host';
-  // account-group reads as "a convoy/group of riders" — distinct from both
-  // Map's motorbike glyph and Friends' person-add glyph, which the plain
-  // "people" icon this replaced was too easily confused with.
   return (
     <TabIconShell active={active}>
-      <MaterialCommunityIcons name="account-group" size={size} color={segmentTintColor(active)} />
+      <MaterialCommunityIcons name="account-group-outline" size={size} color={segmentTintColor(active)} />
     </TabIconShell>
   );
 }
@@ -148,22 +133,19 @@ const TAB_ICONS: Record<keyof TabParamList, (color: string, size: number, focuse
   GroupRide: (_color, size) => <GroupRideTabIcon size={size} />,
   Routes: (color, size, focused) => (
     <TabIconShell active={focused}>
-      <MaterialCommunityIcons name="road-variant" size={size} color={color} />
+      <MaterialCommunityIcons name="routes" size={size} color={color} />
     </TabIconShell>
   ),
-  // Distinct from GroupRide's "account-group" glyph — this one reads as
-  // "add a person" so the two tabs aren't visually interchangeable.
-  // MaterialCommunityIcons (not Ionicons) to match every other tab's icon
-  // family — mixing families across the same bar read as inconsistent
-  // weight/style even though each individual glyph was fine.
+  // Keep the entire tab bar in one icon family and distinguish the private
+  // friend network from the active group-ride view.
   Friends: (color, size, focused) => (
     <TabIconShell active={focused}>
-      <MaterialCommunityIcons name="account-plus" size={size} color={color} />
+      <MaterialCommunityIcons name="account-multiple-outline" size={size} color={color} />
     </TabIconShell>
   ),
   Settings: (color, size, focused) => (
     <TabIconShell active={focused}>
-      <MaterialCommunityIcons name="cog" size={size} color={color} />
+      <MaterialCommunityIcons name="cog-outline" size={size} color={color} />
     </TabIconShell>
   ),
 };
@@ -283,6 +265,21 @@ function OnboardingGate({ children }: { children: React.ReactNode }): React.JSX.
 }
 
 export function AppNavigator(): React.JSX.Element {
+  const scheme = useColorScheme();
+  const concreteColors = useConcreteThemeColors();
+  const baseTheme = scheme === 'light' ? DefaultTheme : DarkTheme;
+  const navigationTheme = React.useMemo(() => ({
+    ...baseTheme,
+    colors: {
+      ...baseTheme.colors,
+      primary: concreteColors.accent,
+      background: concreteColors.background,
+      card: concreteColors.surface,
+      text: concreteColors.textPrimary,
+      border: concreteColors.border,
+    },
+  }), [baseTheme, concreteColors]);
+
   return (
     // Every screen in this app hides the native nav header and builds its
     // own top chrome instead — which means every one of them is otherwise
@@ -341,8 +338,8 @@ export function AppNavigator(): React.JSX.Element {
 
 const styles = StyleSheet.create({
   blank: { flex: 1, backgroundColor: colors.background },
-  tabLabel: { fontSize: 11, fontWeight: '600', letterSpacing: 0.1 },
-  defaultTabLabel: { fontSize: 11, fontWeight: '600', letterSpacing: 0.1 },
+  tabLabel: { fontSize: 12, fontWeight: '600', letterSpacing: 0 },
+  defaultTabLabel: { fontSize: 12, fontWeight: '600', letterSpacing: 0 },
   tabIconShell: {
     width: 42,
     height: 30,
@@ -350,5 +347,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  tabIconShellActive: { backgroundColor: colors.accentSoft },
+  tabIconShellActive: { backgroundColor: 'transparent' },
 });

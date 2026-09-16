@@ -2,10 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1,user-scalable=no">
-  <meta name="theme-color" content="#0a0a18" media="(prefers-color-scheme: dark)">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0e0e0f" media="(prefers-color-scheme: dark)">
   <meta name="theme-color" content="#f4f1ec" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#0a0a18">
+  <meta name="theme-color" content="#0e0e0f">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" id="statusBarStyleMeta">
   <meta name="apple-mobile-web-app-title" content="Rider Comms">
@@ -13,7 +13,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="app.css?v=53">
+  <link rel="stylesheet" href="app.css?v=54">
   <title>Rider Comms</title>
 </head>
 <body>
@@ -180,11 +180,11 @@
         <div class="page-width"><header class="page-header"><div><h1 id="friendsTitle">Friends</h1><p class="page-subtitle">Your private rider network.</p></div><span id="friendsCountBadge" class="count-badge" hidden>0</span></header>
           <div class="network-summary" aria-label="Network summary"><span><b id="networkFriendCount">0</b> friends</span><span><b id="networkRequestCount">0</b> requests</span></div>
           <div class="search-and-add"><div class="search-row"><svg><use href="#i-search"/></svg><input id="friendSearch" placeholder="Search your friends" autocomplete="off"></div>
-          <button id="addFriendToggle" class="icon-button add-friend-toggle" aria-label="Add a rider" title="Add a rider &#8211; connect using their handle or Rider ID"><svg><use href="#i-friends"/></svg><span class="add-friend-badge">+</span></button></div>
+          <button id="addFriendToggle" class="icon-button add-friend-toggle" aria-label="Add a rider" title="Add a rider &#8211; connect using their handle or Rider ID"><svg><use href="#i-friends"/></svg></button></div>
           <form id="addFriendForm" class="compact-form" hidden><label for="friendId">Handle or Rider ID</label><div><input id="friendId" placeholder="@their_handle" autocomplete="off"><button class="button primary">Send</button></div><p id="friendFeedback" class="support-copy"></p></form>
           <section id="requestSection" hidden><div class="section-heading"><h2>Requests</h2><span id="requestsCountBadge" class="count-badge">0</span></div><div id="requestList" class="people-list"></div></section>
           <section id="friendSection" hidden><div class="section-heading"><h2>Your friends</h2></div><div id="friendList" class="people-list"></div></section>
-          <div id="friendEmpty" class="empty-state network-empty" hidden><div class="hero-icon"><svg><use href="#i-friends"/></svg></div><h2 id="friendEmptyTitle">Build your riding circle</h2><p id="friendEmptyCopy">Add someone you know using their handle or Rider ID. Only accepted friends become part of your network.</p><button id="friendEmptyAction" class="button secondary">Add a rider</button></div>
+          <div id="friendEmpty" class="empty-state network-empty" hidden><div class="hero-icon"><svg><use href="#i-friends"/></svg></div><h2 id="friendEmptyTitle">Build your riding circle</h2><p id="friendEmptyCopy">Use the add button above to connect by handle or Rider ID.</p></div>
         </div>
       </section>
 
@@ -216,6 +216,6 @@
   <div id="updateBanner" class="update-banner" hidden><span>A new Rider Comms version is ready.</span><button id="reloadApp">Update now</button></div>
   <noscript>Rider Comms requires JavaScript.</noscript>
   <script src="config.js?v=31"></script>
-  <script src="app.js?v=57" defer></script>
+  <script src="app.js?v=58" defer></script>
 </body>
 </html>

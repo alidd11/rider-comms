@@ -58,14 +58,14 @@
   // media block below via prefersDarkMode(), so the map tiles match the
   // rest of the UI instead of staying stuck on the dark skin in daylight.
   const MAP_STYLE_DARK = [
-    { elementType: 'geometry', stylers: [{ color: '#172028' }] },
-    { elementType: 'labels.text.stroke', stylers: [{ color: '#172028' }] },
-    { elementType: 'labels.text.fill', stylers: [{ color: '#8f9ba7' }] },
-    { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#293640' }] },
-    { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#34434f' }] },
+    { elementType: 'geometry', stylers: [{ color: '#19191b' }] },
+    { elementType: 'labels.text.stroke', stylers: [{ color: '#19191b' }] },
+    { elementType: 'labels.text.fill', stylers: [{ color: '#9b9893' }] },
+    { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#2a2a2d' }] },
+    { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#353539' }] },
     { featureType: 'poi', stylers: [{ visibility: 'off' }] },
     { featureType: 'transit', stylers: [{ visibility: 'off' }] },
-    { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#0d2834' }] },
+    { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#10252b' }] },
   ];
   const MAP_STYLE_LIGHT = [
     { elementType: 'geometry', stylers: [{ color: '#f4f1ec' }] },
@@ -93,7 +93,7 @@
     if (meta) meta.setAttribute('content', 'black-translucent');
     map?.setOptions({
       styles: prefersDarkMode() ? MAP_STYLE_DARK : MAP_STYLE_LIGHT,
-      backgroundColor: prefersDarkMode() ? '#101820' : '#f4f1ec',
+      backgroundColor: prefersDarkMode() ? '#0e0e0f' : '#f4f1ec',
     });
   }
   darkModeQuery?.addEventListener('change', applyColorScheme);
@@ -210,6 +210,7 @@
 
   const state = loadState();
   let toastTimer;
+  let lastSheetTrigger = null;
   let map;
   let usingFallbackMap = true;
   let userMapMarker;
@@ -554,8 +555,7 @@
     $('#friendEmptyTitle').textContent = query ? 'No matching friends' : 'Build your riding circle';
     $('#friendEmptyCopy').textContent = query
       ? 'Try a different name, handle or Rider ID.'
-      : 'Add someone you know using their Rider ID. Only accepted friends become part of your network.';
-    $('#friendEmptyAction').hidden = Boolean(query) || hasFriends;
+      : 'Use the add button above to connect by handle or Rider ID.';
     const count = $('#friendsCountBadge');
     if (count) {
       count.textContent = String(state.friends.length);
@@ -858,16 +858,14 @@
     const templates = {
       profile: () => ({
         title: 'Edit profile',
-        body: `<div class="settings-sheet-section"><span class="settings-sheet-label">Identity</span><div class="form-field"><label for="editName">Display name</label><input id="editName" maxlength="50" value="${escapeHtml(state.profile.displayName)}"></div><div class="form-field"><label for="editHandle">Rider handle</label><input id="editHandle" maxlength="25" value="${escapeHtml(state.profile.handle)}"></div></div><div class="settings-sheet-section"><span class="settings-sheet-label">Connected profiles</span><div class="form-field"><label for="editInstagram">Instagram</label><input id="editInstagram" maxlength="30" value="${escapeHtml(state.profile.instagram)}" placeholder="Username"></div><div class="form-field"><label for="editTiktok">TikTok</label><input id="editTiktok" maxlength="30" value="${escapeHtml(state.profile.tiktok)}" placeholder="Username"></div><div class="form-field"><label for="socialVisibility">Profile visibility</label><select id="socialVisibility"><option value="friends">Friends only</option><option value="public">Everyone</option><option value="private">Only me</option></select></div></div><p id="profileFormError" class="inline-error" hidden></p><button class="button primary wide" id="saveProfile">Save changes</button>`,
+        body: `<div class="settings-sheet-section"><span class="settings-sheet-label">Identity</span><div class="form-field"><label for="editName">Display name</label><input id="editName" maxlength="50" value="${escapeHtml(state.profile.displayName)}"></div><div class="form-field"><label for="editHandle">Rider handle</label><input id="editHandle" maxlength="25" value="${escapeHtml(state.profile.handle)}"></div></div><div class="settings-sheet-section"><span class="settings-sheet-label">Connected profiles</span><div class="form-field"><label for="editInstagram">Instagram</label><input id="editInstagram" maxlength="30" value="${escapeHtml(state.profile.instagram)}" placeholder="Username"></div><div class="form-field"><label for="editTiktok">TikTok</label><input id="editTiktok" maxlength="30" value="${escapeHtml(state.profile.tiktok)}" placeholder="Username"></div><p class="caption">Control who can see these in Privacy controls.</p></div><p id="profileFormError" class="inline-error" hidden></p><button class="button primary wide" id="saveProfile">Save changes</button>`,
         ready: () => {
-          $('#socialVisibility').value = state.profile.socialsVisibility;
           $('#saveProfile').addEventListener('click', saveProfile);
         },
       }),
       plans: () => ({
         title: 'Plan and billing',
-        body: `<div class="plan-card current"><div class="plan-top"><strong>Free</strong><span class="plan-pill">Current</span></div><p>1-mile mutual rider radius and private Group Rides.</p><button class="button secondary wide" disabled>Current plan</button></div><div class="plan-card"><div class="plan-top"><strong>Premium</strong><span>6 mi</span></div><p>A wider radius for groups that spread out across city routes.</p><button class="button primary wide" data-purchase>Choose Premium</button></div><div class="plan-card"><div class="plan-top"><strong>Premium+</strong><span>20 mi</span></div><p>Maximum discovery range for touring and rural rides.</p><button class="button primary wide" data-purchase>Choose Premium+</button></div><button class="button tertiary wide" data-purchase>Restore purchases</button><p class="caption">Your plan is verified by Rider Comms. Purchases remain unavailable until store products and receipt validation are active.</p>`,
-        ready: () => $$('[data-purchase]').forEach((button) => button.addEventListener('click', () => showToast('Purchases are temporarily unavailable.'))),
+        body: `<div class="plan-card current"><div class="plan-top"><strong>Free</strong><span class="plan-pill">Current</span></div><p>1-mile mutual rider radius and private Group Rides.</p></div><div class="plan-card"><div class="plan-top"><strong>Premium</strong><span>6 mi</span></div><p>A wider radius for groups that spread out across city routes.</p><span class="caption">Not available yet</span></div><div class="plan-card"><div class="plan-top"><strong>Premium+</strong><span>20 mi</span></div><p>Maximum discovery range for touring and rural rides.</p><span class="caption">Not available yet</span></div><p class="caption">No payment details are requested until verified store billing is available.</p>`,
       }),
       privacy: () => ({ title: 'Privacy controls', body: `<div class="settings-sheet-section">${toggleMarkup('shareLocation', 'Live location', 'Visible to nearby riders only while you are live.', state.profile.shareLocation)}</div><div class="settings-sheet-section"><div class="form-field"><label for="sheetSocialVisibility">Connected profile visibility</label><select id="sheetSocialVisibility"><option value="friends">Friends only</option><option value="public">Everyone</option><option value="private">Only me</option></select></div><p class="caption">This applies to the Instagram and TikTok usernames on your profile.</p></div>`, ready: () => { $('#sheetSocialVisibility').value = state.profile.socialsVisibility; $('#sheetSocialVisibility').addEventListener('change', (event) => { patchProfile({ instagramVisibility: event.target.value, tiktokVisibility: event.target.value }); }); wireToggles(); } }),
       map: () => ({ title: 'Location and map', body: `<div class="settings-sheet-section">${toggleMarkup('shareLocation', 'Nearby rider visibility', 'Share your position only after you choose to go live.', state.profile.shareLocation)}</div><div class="settings-note"><strong>Location stays in your control</strong><p>Turning this off stops nearby-rider visibility. Private Group Ride members can still share ride locations while that ride is active.</p></div>`, ready: wireToggles }),
@@ -889,6 +887,7 @@
   }
 
   function presentSheet(title, body, ready) {
+    if ($('#sheetBackdrop').hidden) lastSheetTrigger = document.activeElement;
     $('#sheetTitle').textContent = title;
     $('#sheetBody').innerHTML = body;
     $('#sheetBackdrop').hidden = false;
@@ -967,8 +966,8 @@
         handle,
         instagramUsername: $('#editInstagram').value.trim().replace(/^@/, ''),
         tiktokUsername: $('#editTiktok').value.trim().replace(/^@/, ''),
-        instagramVisibility: $('#socialVisibility').value,
-        tiktokVisibility: $('#socialVisibility').value,
+        instagramVisibility: state.profile.socialsVisibility,
+        tiktokVisibility: state.profile.socialsVisibility,
       });
       applyRemoteProfile(profile);
       renderFallbackMarkers();
@@ -985,8 +984,11 @@
   }
 
   function closeSheet() {
+    const trigger = lastSheetTrigger;
     $('#sheetBackdrop').hidden = true;
     document.body.style.overflow = '';
+    lastSheetTrigger = null;
+    trigger?.focus?.();
   }
 
   function renderMapStatus() {
@@ -1938,11 +1940,11 @@
       // a later reroute, which would otherwise leave it stuck dark forever.
       metas.forEach((meta) => {
         if (meta.dataset.preNavContent === undefined) meta.dataset.preNavContent = meta.getAttribute('content');
-        // Must match the turn card/ETA bar's actual background (#14152c),
-        // not just "some dark colour" — the app's general --bg (#0a0a18)
+        // Must match the turn card/ETA bar's actual background,
+        // not just the app's general background
         // is close but visibly different, which read as a seam rather
         // than a flush edge between the OS chrome and the app's own UI.
-        meta.setAttribute('content', '#14152c');
+        meta.setAttribute('content', '#101011');
       });
     } else {
       metas.forEach((meta) => {
@@ -2192,10 +2194,6 @@
     $('#ridePill').addEventListener('click', () => navigate('ride'));
     $('#friendSearch').addEventListener('input', renderFriends);
     $('#addFriendToggle').addEventListener('click', () => { $('#addFriendForm').hidden = !$('#addFriendForm').hidden; if (!$('#addFriendForm').hidden) $('#friendId').focus(); });
-    $('#friendEmptyAction').addEventListener('click', () => {
-      $('#addFriendForm').hidden = false;
-      $('#friendId').focus();
-    });
     $('#addFriendForm').addEventListener('submit', (event) => {
       event.preventDefault();
       // A rider's handle (what they'd actually share, e.g. "@ali_rides")
@@ -2216,7 +2214,26 @@
     $('#reportHazardBtn').addEventListener('click', () => openSheet('reportHazard'));
     $('#closeSheet').addEventListener('click', closeSheet);
     $('#sheetBackdrop').addEventListener('click', (event) => { if (event.target === $('#sheetBackdrop')) closeSheet(); });
-    document.addEventListener('keydown', (event) => { if (event.key === 'Escape') closeSheet(); });
+    document.addEventListener('keydown', (event) => {
+      if ($('#sheetBackdrop').hidden) return;
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeSheet();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const focusable = $$('button:not([disabled]),input:not([disabled]),select:not([disabled]),a[href]', $('.sheet'));
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    });
     $('#logoutBtn').addEventListener('click', async () => {
       if (!window.confirm('Log out of Rider Comms on this device?')) return;
       try {
@@ -2395,7 +2412,7 @@
         description: 'Sign in to find nearby riders, rejoin your group and keep your riding circle close.',
       },
       signup: {
-        eyebrow: 'Join the community',
+        eyebrow: 'Create your profile',
         title: 'Your ride starts here.',
         description: 'Create your Rider Comms identity and connect with riders you choose.',
       },

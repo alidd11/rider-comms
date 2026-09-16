@@ -6,8 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Constants from 'expo-constants';
-import { TIER_RADIUS_MILES } from '@rider-comms/shared';
-import type { SocialVisibility, ZoneTier } from '@rider-comms/shared';
+import type { SocialVisibility } from '@rider-comms/shared';
 import { colors, spacing, radii, type, elevation, MIN_TOUCH_TARGET } from '../theme';
 import { useSettings } from '../settings/SettingsContext';
 import type { UnitSystem } from '../settings/SettingsContext';
@@ -23,12 +22,6 @@ const UNIT_LABELS: Record<UnitSystem, { name: string; blurb: string }> = {
   km: { name: 'Kilometers', blurb: 'Distances and zone radius shown in kilometers.' },
 };
 const UNIT_ORDER: UnitSystem[] = ['mi', 'km'];
-
-const TIER_LABELS: Record<ZoneTier, { name: string; blurb: string }> = {
-  free: { name: 'Free', blurb: 'The default — good for a stoplight-to-stoplight ride.' },
-  premium: { name: 'Premium', blurb: 'Wider net for group rides that spread out on the highway.' },
-  premium_plus: { name: 'Premium+', blurb: 'Widest range — for a convoy that has stretched way out.' },
-};
 
 function UnitRow({
   unit,
@@ -255,9 +248,8 @@ export function SettingsScreen(): React.JSX.Element {
     <View style={styles.container}>
       <ScrollView contentContainerStyle={[styles.scroll, { paddingTop: insets.top + spacing.lg }]}>
         <ScreenHeader
-          eyebrow="Personalise"
           title="Settings"
-          subtitle="Your profile, ride preferences, privacy and account controls."
+          subtitle="Manage your account and riding preferences."
         />
         <View style={[styles.profileCard, elevation.raised]}>
           <Pressable
@@ -329,34 +321,6 @@ export function SettingsScreen(): React.JSX.Element {
             <Text style={styles.caption}>{emailVerified ? 'Email verified' : 'Email verification pending'}</Text>
             <Text selectable numberOfLines={1} style={styles.riderId}>Rider ID: {riderId}</Text>
           </View>
-        </View>
-
-        <View style={styles.sectionLabelRow}>
-          <MaterialCommunityIcons name="road-variant" size={14} color={colors.textMuted} />
-          <Text style={[styles.sectionLabel, styles.sectionLabelInRow]}>Zone Radius</Text>
-        </View>
-        <View style={[styles.section, elevation.raised]}>
-          {loaded && (
-            <View style={styles.currentTierRow}>
-              <View style={styles.currentTierBadge}>
-                <MaterialCommunityIcons name="road-variant" size={18} color={colors.accent} />
-              </View>
-              <View style={styles.tierInfo}>
-                <View style={styles.tierNameRow}>
-                  <Text style={styles.tierName}>{TIER_LABELS[zoneTier].name}</Text>
-                  <Text style={styles.tierRadius}>{TIER_RADIUS_MILES[zoneTier]} mi</Text>
-                </View>
-                <Text style={styles.tierBlurb}>{TIER_LABELS[zoneTier].blurb}</Text>
-              </View>
-            </View>
-          )}
-          <Pressable
-            style={({ pressed }) => [styles.manageTierRow, pressed && styles.tierRowPressed]}
-            onPress={() => navigation.navigate('Billing')}
-          >
-            <Text style={styles.manageTierText}>Manage in Billing</Text>
-            <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
-          </Pressable>
         </View>
 
         <View style={styles.sectionLabelRow}>
@@ -440,7 +404,7 @@ export function SettingsScreen(): React.JSX.Element {
 
         <Pressable style={styles.legalRow} onPress={() => navigation.navigate('Legal')}>
           <Ionicons name="shield-checkmark-outline" size={20} color={colors.accent}/>
-          <View style={styles.legalInfo}><Text style={styles.aboutLabel}>Privacy, safety & terms</Text><Text style={styles.aboutValue}>Data choices, community rules and riding safety</Text></View>
+          <View style={styles.legalInfo}><Text style={styles.aboutLabel}>Privacy, safety & terms</Text><Text style={styles.aboutValue}>Data choices, rider conduct and riding safety</Text></View>
           <Ionicons name="chevron-forward" size={20} color={colors.textMuted}/>
         </Pressable>
 
@@ -577,34 +541,8 @@ const styles = StyleSheet.create({
   },
   tierRadioDot: { width: 10, height: 10, borderRadius: radii.pill, backgroundColor: colors.accent },
   tierInfo: { flex: 1, gap: spacing.xs },
-  tierNameRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
   tierName: { ...type.body, color: colors.textPrimary, fontWeight: '700', fontSize: 16 },
-  tierRadius: { ...type.caption, color: colors.accent, fontWeight: '700' },
   tierBlurb: { ...type.caption },
-  currentTierRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: spacing.md,
-    padding: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  currentTierBadge: {
-    width: 36,
-    height: 36,
-    borderRadius: radii.pill,
-    backgroundColor: colors.surfaceRaised,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  manageTierRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    minHeight: MIN_TOUCH_TARGET,
-    paddingHorizontal: spacing.md,
-  },
-  manageTierText: { ...type.body, color: colors.accent, fontWeight: '700' },
   billingRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md },
   billingPlanBadge: {
     width: 36,
@@ -634,7 +572,7 @@ const styles = StyleSheet.create({
   socialHeading: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   socialInput: { ...type.body, color: colors.textPrimary, minHeight: MIN_TOUCH_TARGET, backgroundColor: colors.surfaceRaised, borderRadius: radii.md, paddingHorizontal: spacing.md },
   visibilityRow: { flexDirection: 'row', gap: spacing.xs },
-  visibilityChoice: { flex: 1, minHeight: 36, alignItems: 'center', justifyContent: 'center', borderRadius: radii.pill, backgroundColor: colors.surfaceRaised },
+  visibilityChoice: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: radii.pill, backgroundColor: colors.surfaceRaised },
   visibilityChoiceActive: { backgroundColor: colors.accent },
   visibilityText: { ...type.caption, fontSize: 11 },
   visibilityTextActive: { color: colors.accentText, fontWeight: '700' },
