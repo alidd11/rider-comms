@@ -1816,6 +1816,10 @@
       const wasActive = button.classList.contains('active');
       $$('.poi-chip').forEach((b) => b.classList.remove('active'));
       clearPoiMarkers();
+      // The chips live on the search page now, but the results themselves
+      // are map pins — tapping one should take the rider straight back to
+      // the map to see them, the same way selecting a search result does.
+      closeSearchScreen();
       if (wasActive) return; // tapping the already-active chip just clears results
       button.classList.add('active');
       void searchNearbyPois(type);
