@@ -1,6 +1,6 @@
 // Unverified scaffold — see navigation/index.tsx header note.
 import * as React from 'react';
-import { View, Text, Pressable, TextInput, ScrollView, Modal, Switch, Alert, StyleSheet } from 'react-native';
+import { View, Text, Pressable, TextInput, ScrollView, Modal, Switch, Alert, ActivityIndicator, StyleSheet } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -176,6 +176,9 @@ export function SettingsScreen(): React.JSX.Element {
     setTiktokVisibility,
     resetAll,
     loaded,
+    saving,
+    profileError,
+    clearProfileError,
   } = useSettings();
   const { riderId, emailVerified, logOut, deleteAccount } = useAuth();
   const insets = useSafeAreaInsets();
@@ -321,6 +324,10 @@ export function SettingsScreen(): React.JSX.Element {
             <Text style={styles.caption}>{emailVerified ? 'Email verified' : 'Email verification pending'}</Text>
             <Text selectable numberOfLines={1} style={styles.riderId}>Rider ID: {riderId}</Text>
           </View>
+        </View>
+        <View style={styles.profileSaveStatus} accessibilityLiveRegion="polite">
+          {saving ? <><ActivityIndicator color={colors.accent} size="small" /><Text style={styles.profileSavingText}>Saving profile…</Text></> : null}
+          {profileError ? <><Ionicons name="alert-circle" size={17} color={colors.danger} /><Text style={styles.profileSaveError}>{profileError}</Text><Pressable onPress={clearProfileError} hitSlop={8}><Ionicons name="close" size={18} color={colors.textMuted} /></Pressable></> : null}
         </View>
 
         <View style={styles.sectionLabelRow}>
@@ -468,6 +475,9 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     backgroundColor: colors.surface,
   },
+  profileSaveStatus: { minHeight: 24, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: -spacing.sm, marginBottom: spacing.sm, paddingHorizontal: spacing.xs },
+  profileSavingText: { ...type.caption, color: colors.textSecondary },
+  profileSaveError: { ...type.caption, color: colors.danger, flex: 1 },
   profileCopy: { flex: 1, minWidth: 0, gap: 2 },
   avatarTapArea: { flexShrink: 0 },
   avatarRing: {
