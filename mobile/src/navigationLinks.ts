@@ -63,7 +63,7 @@ export function buildExternalNavigationUrl(
   const coordinate = `${validated.lat},${validated.lon}`;
   const label = validated.label ?? coordinate;
   if (platform === 'ios') {
-    return `https://maps.apple.com/?ll=${encodeURIComponent(coordinate)}&q=${encodeURIComponent(label)}`;
+    return `https://maps.apple.com/?daddr=${encodeURIComponent(coordinate)}&q=${encodeURIComponent(label)}&dirflg=d`;
   }
   return `geo:${coordinate}?q=${encodeURIComponent(`${coordinate}(${label})`)}`;
 }

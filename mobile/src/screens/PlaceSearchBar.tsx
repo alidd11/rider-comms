@@ -19,17 +19,17 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, spacing, radii, type, elevation, MIN_TOUCH_TARGET } from '../theme';
 import { GOOGLE_PLACES_API_KEY } from '../config';
-import { formatPlaceDistance, isSearchQueryValid, searchPlaces } from '../api/places';
+import { formatPlaceDistance, isSearchQueryValid, searchNearbyPlaces, searchPlaces } from '../api/places';
 import type { PlaceResult } from '../api/places';
 
 const SEARCH_DEBOUNCE_MS = 300;
 
 const CATEGORIES = [
-  { label: 'Petrol', query: 'petrol station', icon: 'gas-station-outline' },
-  { label: 'Parking', query: 'parking', icon: 'parking' },
-  { label: 'Food', query: 'restaurant', icon: 'silverware-fork-knife' },
-  { label: 'Coffee', query: 'coffee shop', icon: 'coffee-outline' },
-  { label: 'Repair', query: 'motorcycle repair', icon: 'wrench-outline' },
+  { label: 'Petrol', types: ['gas_station'], icon: 'gas-station-outline' },
+  { label: 'Parking', types: ['parking'], icon: 'parking' },
+  { label: 'Restaurants', types: ['restaurant'], icon: 'silverware-fork-knife' },
+  { label: 'Coffee', types: ['cafe', 'coffee_shop'], icon: 'coffee-outline' },
+  { label: 'Repair', types: ['car_repair'], icon: 'wrench-outline' },
 ] as const;
 
 export function PlaceSearchBar({
@@ -52,14 +52,18 @@ export function PlaceSearchBar({
   React.useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     const requestId = ++requestRef.current;
-    if (!isSearchQueryValid(query) || !near || searchUnavailable) {
+    if ((!activeCategory && !isSearchQueryValid(query)) || !near || searchUnavailable) {
       setResults([]);
       setLoading(false);
       return;
     }
     setLoading(true);
     debounceRef.current = setTimeout(() => {
-      searchPlaces(query, near, GOOGLE_PLACES_API_KEY)
+      const category = CATEGORIES.find((item) => item.label === activeCategory);
+      const request = category
+        ? searchNearbyPlaces({ includedTypes: category.types }, near, GOOGLE_PLACES_API_KEY)
+        : searchPlaces(query, near, GOOGLE_PLACES_API_KEY);
+      request
         .then((places) => {
           if (requestId === requestRef.current) setResults(places);
         })
@@ -70,7 +74,7 @@ export function PlaceSearchBar({
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [query, near, searchUnavailable]);
+  }, [query, activeCategory, near, searchUnavailable]);
 
   function close(): void {
     requestRef.current += 1;
@@ -88,7 +92,7 @@ export function PlaceSearchBar({
       return;
     }
     setActiveCategory(category.label);
-    setQuery(category.query);
+    setQuery(category.label);
   }
 
   function updateQuery(value: string): void {

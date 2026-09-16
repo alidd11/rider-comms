@@ -19,7 +19,7 @@
 // a `segment: 'host'` param, read below, instead of navigating to its own
 // registered-but-never-actually-shown screen.
 import * as React from 'react';
-import { View, Text, Pressable, StyleSheet, Animated, PanResponder } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Animated, PanResponder, Alert, Linking, Platform } from 'react-native';
 import type { GestureResponderEvent, PanResponderGestureState } from 'react-native';
 import { useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
@@ -38,7 +38,7 @@ import { useSettings } from '../settings/SettingsContext';
 import { PlaceSearchBar } from './PlaceSearchBar';
 import type { PlaceResult } from '../api/places';
 import { HazardReportSheet, HAZARD_TYPE_META } from './HazardReportSheet';
-import { navigationTargetFromValues } from '../navigationLinks';
+import { buildExternalNavigationUrl, navigationTargetFromValues } from '../navigationLinks';
 import type { NavigationTarget } from '../navigationLinks';
 
 const PRESENCE_UPDATE_INTERVAL_MS = 8000; // per spec Section 8: every 5-10s
@@ -515,6 +515,19 @@ export function MapScreen(): React.JSX.Element {
     }
   }
 
+  async function openDirections(target: NavigationTarget): Promise<void> {
+    const url = buildExternalNavigationUrl(target, Platform.OS === 'ios' ? 'ios' : 'android');
+    if (!url) {
+      Alert.alert('Location unavailable', 'This destination has invalid coordinates.');
+      return;
+    }
+    try {
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert('Couldn’t open directions', 'No compatible maps or navigation app could open this destination.');
+    }
+  }
+
   return (
     <View style={styles.container}>
       {segment === 'public' ? (
@@ -587,9 +600,16 @@ export function MapScreen(): React.JSX.Element {
             <Ionicons name="location" size={18} color={colors.accent} />
             <View style={{ flex: 1 }}>
               <Text style={styles.selectedPlaceName}>{selectedPlace.name}</Text>
-              <Text style={styles.noticeSubtext}>
-                Routing to search results isn't available until this map has a real navigation SDK behind it.
-              </Text>
+              <Text numberOfLines={1} style={styles.noticeSubtext}>{selectedPlace.address}</Text>
+              <Pressable
+                style={styles.directionsButton}
+                onPress={() => void openDirections({ lat: selectedPlace.lat, lon: selectedPlace.lon, label: selectedPlace.name })}
+                accessibilityRole="button"
+                accessibilityLabel={`Get directions to ${selectedPlace.name}`}
+              >
+                <Ionicons name="navigate" size={15} color="#FFFFFF" />
+                <Text style={styles.directionsButtonText}>Open directions</Text>
+              </Pressable>
             </View>
             <Pressable onPress={() => setSelectedPlace(null)} hitSlop={8}>
               <Ionicons name="close" size={18} color={colors.textMuted} />
@@ -675,6 +695,15 @@ export function MapScreen(): React.JSX.Element {
             </Text>
           </View>
           <Pressable
+            style={styles.destinationStartButton}
+            accessibilityRole="button"
+            accessibilityLabel={`Get directions to ${navigationTarget.label ?? 'shared destination'}`}
+            onPress={() => void openDirections(navigationTarget)}
+          >
+            <Ionicons name="navigate" size={16} color="#FFFFFF" />
+            <Text style={styles.destinationStartText}>Directions</Text>
+          </Pressable>
+          <Pressable
             accessibilityRole="button"
             accessibilityLabel="Dismiss shared destination"
             hitSlop={8}
@@ -728,6 +757,12 @@ const styles = StyleSheet.create({
   noticeText: { ...type.body, color: colors.textMuted, flex: 1 },
   selectedPlaceName: { ...type.body, color: colors.textPrimary, fontWeight: '700' },
   noticeSubtext: { ...type.caption, marginTop: spacing.xs },
+  directionsButton: {
+    alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: spacing.xs,
+    minHeight: 36, marginTop: spacing.sm, paddingHorizontal: spacing.md,
+    borderRadius: radii.pill, backgroundColor: colors.accent,
+  },
+  directionsButtonText: { ...type.caption, color: '#FFFFFF', fontWeight: '800' },
   searchSlot: {
     position: 'absolute',
     left: spacing.lg,
@@ -838,6 +873,11 @@ const styles = StyleSheet.create({
   destinationCardCopy: { minWidth: 0, flex: 1 },
   destinationCardTitle: { ...type.label, color: colors.textPrimary },
   destinationCardCoords: { ...type.caption, color: colors.textSecondary, marginTop: 2 },
+  destinationStartButton: {
+    minHeight: 38, flexDirection: 'row', alignItems: 'center', gap: spacing.xs,
+    paddingHorizontal: spacing.md, borderRadius: radii.pill, backgroundColor: colors.accent,
+  },
+  destinationStartText: { ...type.caption, color: '#FFFFFF', fontWeight: '800' },
   rideBarSlot: { marginTop: 'auto', paddingHorizontal: spacing.lg, paddingBottom: spacing.lg },
   zoomControls: {
     position: 'absolute',

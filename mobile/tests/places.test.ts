@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { distanceBetweenMeters, formatPlaceDistance, isSearchQueryValid, searchPlaces } from '../src/api/places.ts';
+import { distanceBetweenMeters, formatPlaceDistance, isSearchQueryValid, searchNearbyPlaces, searchPlaces } from '../src/api/places.ts';
 
 function fakeFetch(handler: (url: string, init: RequestInit) => { status: number; body: unknown }): typeof fetch {
   return (async (url: string, init: RequestInit) => {
@@ -55,6 +55,7 @@ describe('searchPlaces', () => {
         const body = JSON.parse(init.body as string);
         assert.equal(body.textQuery, 'coffee shop');
         assert.deepEqual(body.locationBias.circle.center, { latitude: 51.5, longitude: -0.1 });
+        assert.equal(body.locationBias.circle.radius, 15_000);
         return {
           status: 200,
           body: {
@@ -99,6 +100,66 @@ describe('searchPlaces', () => {
       throw new Error('network down');
     }) as typeof fetch;
     const results = await searchPlaces('coffee', near, 'test-key', throwingFetch);
+    assert.deepEqual(results, []);
+  });
+});
+
+describe('searchNearbyPlaces', () => {
+  const near = { lat: 51.5, lon: -0.1 };
+
+  it('uses strict category types, a 5 km restriction, and distance ranking', async () => {
+    const results = await searchNearbyPlaces(
+      { includedTypes: ['restaurant'] },
+      near,
+      'test-key',
+      fakeFetch((url, init) => {
+        assert.equal(url, 'https://places.googleapis.com/v1/places:searchNearby');
+        const body = JSON.parse(init.body as string);
+        assert.deepEqual(body.includedTypes, ['restaurant']);
+        assert.equal(body.rankPreference, 'DISTANCE');
+        assert.equal(body.locationRestriction.circle.radius, 5_000);
+        assert.deepEqual(body.locationRestriction.circle.center, { latitude: 51.5, longitude: -0.1 });
+        return {
+          status: 200,
+          body: {
+            places: [{
+              id: 'restaurant-1',
+              displayName: { text: 'Nearby Restaurant' },
+              formattedAddress: '1 High St',
+              location: { latitude: 51.501, longitude: -0.1 },
+              businessStatus: 'OPERATIONAL',
+            }],
+          },
+        };
+      })
+    );
+
+    assert.equal(results.length, 1);
+    assert.equal(results[0].name, 'Nearby Restaurant');
+  });
+
+  it('removes permanently closed and out-of-radius places defensively', async () => {
+    const results = await searchNearbyPlaces(
+      { includedTypes: ['restaurant'] },
+      near,
+      'test-key',
+      fakeFetch(() => ({
+        status: 200,
+        body: {
+          places: [
+            {
+              id: 'closed', displayName: { text: 'Closed' }, businessStatus: 'CLOSED_PERMANENTLY',
+              location: { latitude: 51.501, longitude: -0.1 },
+            },
+            {
+              id: 'far', displayName: { text: 'Too Far' }, businessStatus: 'OPERATIONAL',
+              location: { latitude: 51.6, longitude: -0.1 },
+            },
+          ],
+        },
+      }))
+    );
+
     assert.deepEqual(results, []);
   });
 });
