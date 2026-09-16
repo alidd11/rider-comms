@@ -2086,6 +2086,32 @@
     );
   }
 
+  // The CSS `.nav-mode` rules force a dark turn card/ETA bar regardless of
+  // system theme, but the actual OS/browser chrome around the page — the
+  // iOS status bar colour and the strip below the safe area — is driven by
+  // these <meta name="theme-color"> tags, which still follow the system's
+  // light/dark preference. In light mode that left a plain white band
+  // directly under the dark nav UI. Force them dark while navigating and
+  // restore whatever they were (light-mode "#ffffff" included) once it ends.
+  function setNavChromeColor(active) {
+    const metas = $$('meta[name="theme-color"]');
+    if (active) {
+      // applyRoute() re-runs on every reroute, not just the initial start —
+      // guard against re-capturing the already-dark value as "original" on
+      // a later reroute, which would otherwise leave it stuck dark forever.
+      metas.forEach((meta) => {
+        if (meta.dataset.preNavContent === undefined) meta.dataset.preNavContent = meta.getAttribute('content');
+        meta.setAttribute('content', '#0a0a18');
+      });
+    } else {
+      metas.forEach((meta) => {
+        if (meta.dataset.preNavContent === undefined) return;
+        meta.setAttribute('content', meta.dataset.preNavContent);
+        delete meta.dataset.preNavContent;
+      });
+    }
+  }
+
   function applyRoute(result, destination, label) {
     const leg = result.routes[0]?.legs[0];
     if (!leg) { showToast('Could not calculate a route. Try again.'); return; }
@@ -2112,6 +2138,7 @@
     // screen are the route, the turn card, the ETA bar, and the controls a
     // rider actually needs mid-drive (report hazard, re-centre, end nav).
     $('#app').classList.add('nav-mode');
+    setNavChromeColor(true);
     $('#navBanner').hidden = false;
     $('#navSummary').hidden = false;
     renderNavStep();
@@ -2200,6 +2227,7 @@
     $('#navBanner').hidden = true;
     $('#navSummary').hidden = true;
     $('#app').classList.remove('nav-mode');
+    setNavChromeColor(false);
     if (arrived) {
       showToast('You have arrived.');
       speak('You have arrived at your destination.');
