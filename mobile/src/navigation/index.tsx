@@ -171,10 +171,15 @@ function Tabs(): React.JSX.Element {
         // Every tab screen here builds its own top chrome, so none of them
         // need it.
         headerShown: false,
+        // backgroundColor is the app background, not the surface color: the
+        // tab bar's own background fills the bottom safe-area inset (React
+        // Navigation + react-native-safe-area-context do this automatically
+        // as long as nothing above the navigator already consumes that
+        // inset), so it needs to match the screens above it for one
+        // continuous edge-to-edge surface instead of reading as a raised
+        // panel with a seam under the home indicator.
         tabBarStyle: {
-          backgroundColor: colors.surface,
-          borderTopColor: colors.border,
-          borderTopWidth: StyleSheet.hairlineWidth,
+          backgroundColor: colors.background,
         },
         tabBarActiveTintColor: colors.accent,
         tabBarInactiveTintColor: colors.textMuted,
