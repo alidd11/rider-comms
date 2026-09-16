@@ -2742,14 +2742,14 @@
     authFormsWired = true;
     const authCopy = {
       login: {
-        eyebrow: 'Welcome back',
-        title: 'Ready for the next ride?',
-        description: 'Sign in to find nearby riders, rejoin your group and keep your riding circle close.',
+        eyebrow: 'Back on the road',
+        title: 'The pack’s waiting.',
+        description: 'Log in to find your riders, rejoin the group, and pick up where the ride left off.',
       },
       signup: {
-        eyebrow: 'Create your profile',
-        title: 'Your ride starts here.',
-        description: 'Create your Rider Comms identity and connect with riders you choose.',
+        eyebrow: 'New rider',
+        title: 'Suit up. Roll out.',
+        description: 'Set up your Rider Comms identity and link up with the riders you trust.',
       },
     };
 
