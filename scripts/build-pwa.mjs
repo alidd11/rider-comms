@@ -35,7 +35,7 @@ for (const file of ['index.html', 'sw.js']) {
 }
 
 const html = await readFile(resolve(destination, 'index.html'), 'utf8');
-for (const asset of ['app.css', 'config.js', 'app.js', 'manifest.json']) {
+for (const asset of ['app.css', 'config.js', 'app.js', 'manifest.json', 'routes.css', 'routes.js']) {
   if (!html.includes(asset)) throw new Error(`PWA shell does not reference ${asset}`);
 }
 
