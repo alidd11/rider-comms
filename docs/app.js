@@ -1654,6 +1654,44 @@
     poiMarkers = [];
   }
 
+  // nearbySearch is one of the pricier Places SKUs, and a rider commonly
+  // re-taps the same chip within a few minutes without having moved far
+  // (toggling it off/on, or re-checking after glancing at the map) — none
+  // of that needs a fresh billed request. Cache results per category,
+  // keyed to a coarse (~110m) position bucket so ordinary GPS jitter
+  // still lands on the same entry, and expire them after a few minutes
+  // since a rider actually riding toward a new area should get a fresh
+  // lookup, not a stale one. Deliberately in-memory/per-session only —
+  // never persisted — since Places' terms don't allow caching results
+  // beyond the session that fetched them.
+  const POI_CACHE_TTL_MS = 3 * 60 * 1000;
+  const POI_CACHE_MAX_ENTRIES = 30;
+  const poiResultCache = new Map();
+
+  function poiCacheKey(type, lat, lng) {
+    return `${type}:${lat.toFixed(3)}:${lng.toFixed(3)}`;
+  }
+
+  function renderPoiMarkers(type, places) {
+    clearPoiMarkers();
+    if (!places.length) {
+      showToast(`No ${POI_CATEGORIES[type].label} found nearby.`);
+      return;
+    }
+    places.forEach((place) => {
+      const location = new google.maps.LatLng(place.location.lat, place.location.lng);
+      const marker = new google.maps.Marker({
+        map,
+        position: location,
+        title: place.name,
+        icon: pinIcon(POI_CATEGORIES[type].color),
+        zIndex: 7,
+      });
+      marker.addListener('click', () => showDestinationCard(location, place.name));
+      poiMarkers.push(marker);
+    });
+  }
+
   /**
    * "Petrol"/"Parking"/"Food"/"Coffee"/"Repair" chips below the search bar
    * — real POI lookup via the classic Places JS API's nearbySearch (the
@@ -1665,7 +1703,6 @@
    */
   async function searchNearbyPois(type) {
     if (!map) return;
-    if (!placesService) placesService = new google.maps.places.PlacesService(map);
     let lat, lng;
     try {
       const position = await currentPosition();
@@ -1676,25 +1713,27 @@
       lat = centre?.lat ?? 51.564;
       lng = centre?.lng ?? -0.106;
     }
+    const cacheKey = poiCacheKey(type, lat, lng);
+    const cached = poiResultCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < POI_CACHE_TTL_MS) {
+      renderPoiMarkers(type, cached.places);
+      return;
+    }
+    if (!placesService) placesService = new google.maps.places.PlacesService(map);
     placesService.nearbySearch({ location: { lat, lng }, radius: 5000, type }, (results, status) => {
-      clearPoiMarkers();
-      if (status !== google.maps.places.PlacesServiceStatus.OK || !results?.length) {
-        showToast(`No ${POI_CATEGORIES[type].label} found nearby.`);
-        return;
+      const places = status === google.maps.places.PlacesServiceStatus.OK && results?.length
+        ? results.slice(0, 20)
+          .map((place) => {
+            const location = place.geometry?.location;
+            return location ? { location: { lat: location.lat(), lng: location.lng() }, name: place.name } : null;
+          })
+          .filter(Boolean)
+        : [];
+      if (poiResultCache.size >= POI_CACHE_MAX_ENTRIES) {
+        poiResultCache.delete(poiResultCache.keys().next().value);
       }
-      results.slice(0, 20).forEach((place) => {
-        const location = place.geometry?.location;
-        if (!location) return;
-        const marker = new google.maps.Marker({
-          map,
-          position: location,
-          title: place.name,
-          icon: pinIcon(POI_CATEGORIES[type].color),
-          zIndex: 7,
-        });
-        marker.addListener('click', () => showDestinationCard(location, place.name));
-        poiMarkers.push(marker);
-      });
+      poiResultCache.set(cacheKey, { timestamp: Date.now(), places });
+      renderPoiMarkers(type, places);
     });
   }
 
