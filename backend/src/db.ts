@@ -268,6 +268,28 @@ const MIGRATIONS: { name: string; sql: string }[] = [
       );
     `,
   },
+  {
+    // Deliberately separate from rider_presence above: that table is the
+    // *public* nearby-riders channel, gated on profile.share_location and
+    // matched by anonymous zone buckets (see presenceStore.ts) — it never
+    // exposes a raw coordinate to anyone. A ride is different: its members
+    // already know exactly who else is in it (they typed/shared a join
+    // code), so sharing real coordinates within that small, explicit group
+    // is the whole point, and it has to work regardless of whether the
+    // rider has the public toggle on. Reusing rider_presence for this would
+    // leak a ride member into public zone-matching even with sharing off.
+    name: '0014_create_ride_locations',
+    sql: `
+      CREATE TABLE IF NOT EXISTS ride_locations (
+        ride_id TEXT NOT NULL REFERENCES rides (id) ON DELETE CASCADE,
+        rider_id TEXT NOT NULL,
+        lat DOUBLE PRECISION NOT NULL,
+        lon DOUBLE PRECISION NOT NULL,
+        updated_at BIGINT NOT NULL,
+        PRIMARY KEY (ride_id, rider_id)
+      );
+    `,
+  },
 ];
 
 /**

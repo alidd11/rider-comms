@@ -19,7 +19,7 @@ describe('RideStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping Po
   });
 
   beforeEach(async () => {
-    await getPool().query('TRUNCATE rides, ride_members, ride_codes');
+    await getPool().query('TRUNCATE rides, ride_members, ride_codes, ride_locations');
   });
 
   after(async () => {
@@ -52,5 +52,34 @@ describe('RideStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping Po
 
     const rejoin = await store.joinRide(codeRecord.code, 'rider_0', '1.1.1.0');
     assert.equal(rejoin.ok, true);
+  });
+
+  it('lets a ride member always update and read real member locations', async () => {
+    const store = new RideStore();
+    const { ride, codeRecord } = await store.createRide('host');
+    await store.joinRide(codeRecord.code, 'guest', '1.1.1.1');
+
+    const update = await store.updateMemberLocation(ride.id, 'guest', 51.5, -0.1);
+    assert.equal(update.ok, true);
+
+    const read = await store.getMemberLocations(ride.id, 'host');
+    assert.equal(read.ok, true);
+    if (read.ok) {
+      assert.deepEqual(
+        read.locations.map((l) => ({ riderId: l.riderId, lat: l.lat, lon: l.lon })),
+        [{ riderId: 'guest', lat: 51.5, lon: -0.1 }]
+      );
+    }
+  });
+
+  it('rejects updating or reading ride locations for a non-member', async () => {
+    const store = new RideStore();
+    const { ride } = await store.createRide('host');
+
+    const update = await store.updateMemberLocation(ride.id, 'stranger', 51.5, -0.1);
+    assert.deepEqual(update, { ok: false, reason: 'not_member' });
+
+    const read = await store.getMemberLocations(ride.id, 'stranger');
+    assert.deepEqual(read, { ok: false, reason: 'not_member' });
   });
 });

@@ -28,6 +28,17 @@ export type RideActionResult =
   | { ok: true; ride: Ride }
   | { ok: false; reason: 'not_found' | 'forbidden' | 'not_member' };
 
+export interface RideMemberLocation {
+  riderId: string;
+  lat: number;
+  lon: number;
+  updatedAt: number;
+}
+
+export type RideLocationsResult =
+  | { ok: true; locations: RideMemberLocation[] }
+  | { ok: false; reason: 'not_found' | 'forbidden' | 'not_member' };
+
 interface RideRow {
   id: string;
   created_by: string;
@@ -189,5 +200,35 @@ export class RideStore {
     const pool = getPool();
     await pool.query('DELETE FROM rides WHERE created_by = $1', [riderId]);
     await pool.query('DELETE FROM ride_members WHERE rider_id = $1', [riderId]);
+  }
+
+  /**
+   * Real-time location within a ride is always-on for its members — unlike
+   * the public nearby-riders channel (rider_presence, gated on
+   * profile.shareLocation), a ride is an explicit, already-consented-to
+   * group, so this never checks that flag. It only checks ride membership.
+   */
+  async updateMemberLocation(rideId: string, riderId: string, lat: number, lon: number): Promise<RideActionResult> {
+    const result = await this.getRideForMember(rideId, riderId);
+    if (!result.ok) return result;
+    await getPool().query(
+      `INSERT INTO ride_locations (ride_id, rider_id, lat, lon, updated_at) VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (ride_id, rider_id) DO UPDATE SET lat = $3, lon = $4, updated_at = $5`,
+      [rideId, riderId, lat, lon, Date.now()]
+    );
+    return result;
+  }
+
+  async getMemberLocations(rideId: string, actorId: string): Promise<RideLocationsResult> {
+    const result = await this.getRideForMember(rideId, actorId);
+    if (!result.ok) return result;
+    const { rows } = await getPool().query<{ rider_id: string; lat: number; lon: number; updated_at: string | number }>(
+      'SELECT rider_id, lat, lon, updated_at FROM ride_locations WHERE ride_id = $1',
+      [rideId]
+    );
+    return {
+      ok: true,
+      locations: rows.map((row) => ({ riderId: row.rider_id, lat: row.lat, lon: row.lon, updatedAt: Number(row.updated_at) })),
+    };
   }
 }
