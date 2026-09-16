@@ -2334,6 +2334,7 @@
     $('#completeProfilePrompt').addEventListener('click', () => openSheet('profile'));
     $('#editProfileBtn').addEventListener('click', () => openSheet('profile'));
     $('#addRouteBtn').addEventListener('click', () => openSheet('addRoute'));
+    $('#routeEmptyAction').addEventListener('click', () => openSheet('addRoute'));
     $('#reportHazardBtn').addEventListener('click', () => openSheet('reportHazard'));
     $('#closeSheet').addEventListener('click', closeSheet);
     $('#sheetBackdrop').addEventListener('click', (event) => { if (event.target === $('#sheetBackdrop')) closeSheet(); });
