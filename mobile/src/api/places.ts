@@ -11,7 +11,9 @@
 // standard approach for native (see .env.example).
 
 const PLACES_TEXT_SEARCH_URL = 'https://places.googleapis.com/v1/places:searchText';
+const PLACES_NEARBY_SEARCH_URL = 'https://places.googleapis.com/v1/places:searchNearby';
 const MAX_QUERY_LENGTH = 200;
+const NEARBY_RADIUS_METERS = 5_000;
 
 export interface PlaceResult {
   id: string;
@@ -34,10 +36,15 @@ interface PlacesApiPlace {
   displayName?: { text?: string };
   formattedAddress?: string;
   location?: { latitude?: number; longitude?: number };
+  businessStatus?: string;
 }
 
 interface PlacesApiResponse {
   places?: PlacesApiPlace[];
+}
+
+export interface PlaceCategory {
+  includedTypes: readonly string[];
 }
 
 export function distanceBetweenMeters(
@@ -81,12 +88,12 @@ export async function searchPlaces(
       headers: {
         'Content-Type': 'application/json',
         'X-Goog-Api-Key': apiKey,
-        'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.location',
+        'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.location,places.businessStatus',
       },
       body: JSON.stringify({
         textQuery: query.trim(),
         locationBias: {
-          circle: { center: { latitude: near.lat, longitude: near.lon }, radius: 50_000 },
+          circle: { center: { latitude: near.lat, longitude: near.lon }, radius: 15_000 },
         },
         maxResultCount: 8,
       }),
@@ -94,7 +101,52 @@ export async function searchPlaces(
     if (!response.ok) return [];
 
     const data = (await response.json()) as PlacesApiResponse;
-    return (data.places ?? [])
+    return mapPlaces(data, near);
+  } catch {
+    return [];
+  }
+}
+
+/** Category chips use Nearby Search rather than a text query. This makes
+ * the category an actual type filter, keeps every result inside the rider's
+ * local search radius, and asks Google to rank by distance. */
+export async function searchNearbyPlaces(
+  category: PlaceCategory,
+  near: { lat: number; lon: number },
+  apiKey: string,
+  fetchImpl: typeof fetch = fetch
+): Promise<PlaceResult[]> {
+  if (!apiKey || category.includedTypes.length === 0) return [];
+
+  try {
+    const response = await fetchImpl(PLACES_NEARBY_SEARCH_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': apiKey,
+        'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.location,places.businessStatus',
+      },
+      body: JSON.stringify({
+        includedTypes: category.includedTypes,
+        maxResultCount: 8,
+        rankPreference: 'DISTANCE',
+        locationRestriction: {
+          circle: { center: { latitude: near.lat, longitude: near.lon }, radius: NEARBY_RADIUS_METERS },
+        },
+      }),
+    });
+    if (!response.ok) return [];
+
+    return mapPlaces((await response.json()) as PlacesApiResponse, near)
+      .filter((place) => place.distanceMeters <= NEARBY_RADIUS_METERS);
+  } catch {
+    return [];
+  }
+}
+
+function mapPlaces(data: PlacesApiResponse, near: { lat: number; lon: number }): PlaceResult[] {
+  return (data.places ?? [])
+      .filter((place) => place.businessStatus !== 'CLOSED_PERMANENTLY')
       .filter(
         (place): place is PlacesApiPlace & { location: { latitude: number; longitude: number } } =>
           typeof place.location?.latitude === 'number' && typeof place.location?.longitude === 'number'
@@ -110,7 +162,4 @@ export async function searchPlaces(
         return { ...result, distanceMeters: distanceBetweenMeters(near, result) };
       })
       .sort((a, b) => a.distanceMeters - b.distanceMeters);
-  } catch {
-    return [];
-  }
 }
