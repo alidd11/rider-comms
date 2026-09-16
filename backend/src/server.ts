@@ -301,6 +301,15 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
         if (req.method === 'POST' && s[2] === 'leave') { const r = await rideStore.leaveRide(id, actorId); return r.ok ? sendJson(res, 200, {}) : sendJson(res, r.reason === 'not_found' ? 404 : 403, { error: r.reason }); }
         if (req.method === 'DELETE' && s.length === 2) { const r = await rideStore.endRide(id, actorId); return r.ok ? sendJson(res, 200, {}) : sendJson(res, r.reason === 'not_found' ? 404 : 403, { error: r.reason }); }
         if (req.method === 'DELETE' && s[2] === 'members' && s[3]) { const r = await rideStore.removeMember(id, actorId, decodeURIComponent(s[3])); return r.ok ? sendJson(res, 200, rideBody(r.ride)) : sendJson(res, r.reason === 'not_found' ? 404 : 403, { error: r.reason }); }
+        if (req.method === 'POST' && s[2] === 'location') {
+          const body = await readJsonBody(req); if (!isCoordinate(body.lat, body.lon)) return sendJson(res, 400, { error: 'valid lat and lon are required' });
+          const r = await rideStore.updateMemberLocation(id, actorId, body.lat as number, body.lon as number);
+          return r.ok ? sendJson(res, 200, {}) : sendJson(res, r.reason === 'not_found' ? 404 : 403, { error: r.reason });
+        }
+        if (req.method === 'GET' && s[2] === 'locations') {
+          const r = await rideStore.getMemberLocations(id, actorId);
+          return r.ok ? sendJson(res, 200, { locations: r.locations }) : sendJson(res, r.reason === 'not_found' ? 404 : 403, { error: r.reason });
+        }
       }
       if (s[0] === 'riders' && s[2]) {
         if (decodeURIComponent(s[1]) !== actorId) return sendJson(res, 403, { error: 'forbidden' });

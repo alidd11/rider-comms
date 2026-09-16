@@ -115,6 +115,15 @@
   // re-fetched from the backend rather than trusted from localStorage.
   let nearbyRiders = [];
 
+  // Real per-rider coordinates for the active ride's members (GET
+  // /rides/:id/locations) — same runtime-only convention as nearbyRiders
+  // above. Separate mechanism from nearbyRiders/public presence entirely:
+  // see the 0014_create_ride_locations migration note in backend/src/db.ts
+  // for why a ride's location sharing is always-on for its members and
+  // never gated on profile.shareLocation. Keyed by riderId for easy lookup
+  // when placing markers.
+  let rideMemberLocations = new Map();
+
   // Real crowdsourced hazard reports for the current area (GET
   // /hazards/nearby), refreshed whenever the map screen is (re)opened or a
   // new report is created — same runtime-only convention as nearbyRiders
@@ -470,10 +479,20 @@
     mapMarkers.forEach((marker) => marker.setMap(null));
     const centre = map.getCenter()?.toJSON() || { lat: 51.564, lng: -0.106 };
     const offsets = [[.004, -.006], [-.003, .006], [.008, .004]];
-    mapMarkers = riders.map((person, index) => addMapMarker(person, {
-      lat: centre.lat + offsets[index % offsets.length][0],
-      lng: centre.lng + offsets[index % offsets.length][1],
-    }, false));
+    mapMarkers = riders.map((person, index) => {
+      // In a ride, real coordinates come from GET /rides/:id/locations
+      // (see syncRideLocationSharing) — plot those once they've arrived,
+      // and only fall back to an illustrative offset for a member who
+      // just joined and hasn't sent their first location ping yet. The
+      // public nearby-riders case never has a real coordinate to plot (by
+      // design — see the comment above HAZARD_OFFSETS), so it always uses
+      // the illustrative offset.
+      const real = state.activeRide && rideMemberLocations.get(person.riderId);
+      const position = real
+        ? { lat: real.lat, lng: real.lon }
+        : { lat: centre.lat + offsets[index % offsets.length][0], lng: centre.lng + offsets[index % offsets.length][1] };
+      return addMapMarker(person, position, false);
+    });
   }
 
   function selectRider(riderId, people = nearbyRiders) {
@@ -736,6 +755,7 @@
     $('#rideActiveState').hidden = !active;
     $('#rideShareTop').hidden = !active;
     $('#ridePill').hidden = !active;
+    syncRideLocationSharing();
     if (!active) return;
     const ride = state.activeRide;
     const members = ride.members || ride.memberIds.map((riderId) => ({ riderId, displayName: riderId, handle: riderId }));
@@ -1193,6 +1213,52 @@
     });
   }
 
+  const RIDE_LOCATION_REFRESH_MS = 10_000; // same 5-10s cadence as public presence (see PRESENCE_REFRESH_MS)
+  let rideLocationTimer;
+
+  /**
+   * Keeps this rider's own location POST-ed to the active ride
+   * (POST /rides/:id/location) and every member's real location fetched
+   * (GET /rides/:id/locations) for as long as a ride is active — this is
+   * always-on for ride members, unlike public presence, which stays gated
+   * on profile.shareLocation (see the 0014_create_ride_locations migration
+   * note in backend/src/db.ts for why they're separate mechanisms). Called
+   * from renderRide(), which already runs after every ride-state change
+   * (create, join, end, refreshActiveRide, and once on app start), so
+   * there's one place that starts/stops this rather than a call at every
+   * site that sets or clears state.activeRide.
+   */
+  function syncRideLocationSharing() {
+    if (state.activeRide) {
+      if (rideLocationTimer) return;
+      const tick = async () => {
+        const ride = state.activeRide;
+        if (!ride) return;
+        try {
+          const position = await currentPosition();
+          await apiFetch('POST', `/rides/${encodeURIComponent(ride.rideId)}/location`, {
+            lat: position.coords.latitude,
+            lon: position.coords.longitude,
+          });
+          const { locations } = await apiFetch('GET', `/rides/${encodeURIComponent(ride.rideId)}/locations`);
+          rideMemberLocations = new Map(locations.map((entry) => [entry.riderId, entry]));
+          if (state.activeRide) renderMapRiders();
+        } catch {
+          // Best-effort, same as the public presence refresh above — a
+          // missed tick (denied permission, a transient network blip)
+          // just tries again next interval rather than surfacing an error
+          // banner over the whole ride.
+        }
+      };
+      void tick();
+      rideLocationTimer = setInterval(tick, RIDE_LOCATION_REFRESH_MS);
+    } else if (rideLocationTimer) {
+      clearInterval(rideLocationTimer);
+      rideLocationTimer = undefined;
+      rideMemberLocations = new Map();
+    }
+  }
+
   async function locate() {
     try {
       const position = await currentPosition();
@@ -1312,6 +1378,11 @@
   }
 
   function initialiseGoogleMap() {
+    // London fallback — used only until a real GPS fix resolves below. The
+    // map has to render with *some* centre immediately rather than block
+    // on geolocation (which can take a few seconds, or never resolve if
+    // permission is denied), but a rider should never be left looking at
+    // this as if it were their real position.
     const centre = { lat: 51.564, lng: -0.106 };
     map = new google.maps.Map($('#googleMap'), {
       center: centre,
@@ -1333,6 +1404,16 @@
     const offsets = [[.004, -.006], [-.003, .006], [.008, .004]];
     mapMarkers = visibleMapRiders().map((person, index) => addMapMarker(person, { lat: centre.lat + offsets[index % offsets.length][0], lng: centre.lng + offsets[index % offsets.length][1] }, false));
     renderMapHazards();
+
+    // As soon as a real fix comes back, silently recentre on it and move
+    // "you" there — the same real coordinate locate()/"Go live" already
+    // use, just fetched proactively on load instead of waiting for the
+    // rider to tap something. A denied/unavailable permission just leaves
+    // the London fallback in place; locate() and "Go live" both prompt
+    // again if the rider tries either.
+    currentPosition().then((position) => {
+      centreMap(position.coords.latitude, position.coords.longitude);
+    }).catch(() => {});
   }
 
   function addMapMarker(person, position, current) {
