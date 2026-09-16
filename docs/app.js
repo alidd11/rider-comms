@@ -2098,6 +2098,12 @@
     hideDestinationCard();
     destinationMarker?.setMap(null);
     destinationMarker = undefined;
+    // Any POI category the rider had tapped before starting nav (fuel,
+    // parking, food…) leaves its markers on the map otherwise — clutter
+    // that has nothing to do with the route and makes driving mode look
+    // like the ordinary browsing map with a banner stuck on top of it,
+    // not a dedicated turn-by-turn view.
+    clearPoiMarkers();
     $('#hazardCard').hidden = true;
     $('#riderCard').hidden = true;
     // A dedicated driving mode, not a banner bolted onto the browsing map:
