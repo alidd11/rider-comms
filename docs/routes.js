@@ -94,13 +94,8 @@
   };
 
   function prepareLayout() {
-    const page = document.querySelector('[data-screen="routes"] .page-width');
-    const header = page?.querySelector('.page-header');
-    const communityFilters = document.querySelector('#routeVehicleFilters');
-    if (!page || !header || !communityFilters || document.querySelector('#curatedRouteList')) return Boolean(document.querySelector('#curatedRouteList'));
-
-    const addButton = document.querySelector('#addRouteBtn');
-    header.querySelector('h1').textContent = 'Routes';
+    const mount = document.querySelector('#curatedRoutesMount');
+    if (!mount || document.querySelector('#curatedRouteList')) return Boolean(document.querySelector('#curatedRouteList'));
 
     const featuredHeading = document.createElement('div');
     featuredHeading.className = 'section-heading routes-featured-heading';
@@ -113,23 +108,7 @@
     list.id = 'curatedRouteList';
     list.className = 'curated-route-list';
     list.setAttribute('aria-live', 'polite');
-    const communityHeading = document.createElement('div');
-    communityHeading.className = 'section-heading routes-community-heading';
-    communityHeading.innerHTML = '<div><span class="eyebrow">From the community</span><h2>Rider suggestions</h2></div>';
-    if (addButton) {
-      addButton.setAttribute('aria-label', 'Suggest a route');
-      communityHeading.append(addButton);
-    }
-    communityFilters.classList.add('community-route-filters');
-    const empty = document.querySelector('#routeEmpty');
-    if (empty) {
-      empty.classList.add('route-empty-compact');
-      const title = empty.querySelector('h2');
-      const copy = empty.querySelector('p');
-      if (title) title.textContent = 'No suggestions yet';
-      if (copy) copy.textContent = 'Share a route you know well for other riders to review.';
-    }
-    header.after(featuredHeading, filters, list, communityHeading);
+    mount.append(featuredHeading, filters, list);
     return true;
   }
 
