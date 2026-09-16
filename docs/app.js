@@ -1435,8 +1435,14 @@
     try {
       position = await currentPosition();
     } catch {
-      $('#mapError').hidden = false;
-      $('#mapError span').textContent = 'Location permission is needed to join riders nearby. You can still browse the map.';
+      // Denied/unavailable location is a transient, recoverable thing —
+      // the real Google Map is still up and fine. #mapError's "Map
+      // unavailable" heading is for when the map itself has actually
+      // failed to load (see handleGoogleMapsFailure below), and it never
+      // auto-dismisses, so reusing it here left a permanent, misleading
+      // "Map unavailable" banner sitting over a perfectly working map for
+      // the rest of the session.
+      showToast('Location permission is needed to join riders nearby. You can still browse the map.');
       return;
     }
     try {
@@ -1461,11 +1467,10 @@
       state.publicLive = false;
       persist();
       renderMapStatus();
-      $('#mapError').hidden = false;
       const code = error instanceof ApiError ? error.body?.error : undefined;
-      $('#mapError span').textContent = code === 'location_sharing_disabled'
+      showToast(code === 'location_sharing_disabled'
         ? 'Enable location sharing in Settings to go live.'
-        : 'Could not go live. Try again.';
+        : 'Could not go live. Try again.');
     }
   }
 
@@ -1528,8 +1533,7 @@
       centreMap(position.coords.latitude, position.coords.longitude);
       showToast('Map centred on your location.');
     } catch {
-      $('#mapError').hidden = false;
-      $('#mapError span').textContent = 'Allow location access to centre the map on your position.';
+      showToast('Allow location access to centre the map on your position.');
     }
   }
 
