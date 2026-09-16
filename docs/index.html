@@ -3,9 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1,user-scalable=no">
-  <meta name="theme-color" content="#080c10" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#0a0a18" media="(prefers-color-scheme: dark)">
   <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#080c10">
+  <meta name="theme-color" content="#0a0a18">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" id="statusBarStyleMeta">
   <meta name="apple-mobile-web-app-title" content="Rider Comms">
@@ -13,7 +13,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="app.css?v=40">
+  <link rel="stylesheet" href="app.css?v=46">
   <title>Rider Comms</title>
 </head>
 <body>
@@ -129,14 +129,21 @@
           <article id="hazardCard" class="rider-card glass" hidden></article>
           <article id="destinationCard" class="rider-card glass" hidden></article>
           <div id="navBanner" class="nav-banner" hidden>
-            <span class="nav-banner-icon"><svg><use href="#i-nav-arrow"/></svg></span>
-            <div class="nav-banner-copy">
-              <strong id="navInstruction">Calculating route…</strong>
-              <span id="navSubtext"></span>
+            <div class="nav-banner-main">
+              <span class="nav-maneuver-icon" id="navManeuverIcon"><svg id="navManeuverSvg"><use href="#i-nav-arrow"/></svg></span>
+              <div class="nav-banner-copy">
+                <strong id="navDistanceNext"></strong>
+                <span id="navInstruction">Calculating route…</span>
+              </div>
+              <button id="endNavBtn" class="icon-button" aria-label="End navigation">×</button>
             </div>
-            <button id="endNavBtn" class="icon-button" aria-label="End navigation"><svg><use href="#i-eye-off"/></svg></button>
+            <div id="navNextPreview" class="nav-next-preview" hidden><svg><use href="#i-chevron"/></svg><span>Then</span><span id="navNextInstruction"></span></div>
           </div>
-          <div id="navSummary" class="nav-summary" hidden><span id="navDistance"></span><span id="navEta"></span></div>
+          <div id="navSummary" class="nav-summary" hidden>
+            <div class="nav-summary-eta"><strong id="navArrival"></strong><span>arrival</span></div>
+            <div class="nav-summary-stat"><strong id="navEta"></strong><span>left</span></div>
+            <div class="nav-summary-stat"><strong id="navDistance"></strong><span>away</span></div>
+          </div>
           <div id="mapError" class="map-error" hidden><strong>Map unavailable</strong><span>The rider view is still available. Check the map key or connection.</span></div>
         </div>
       </section>
@@ -213,6 +220,6 @@
   <div id="updateBanner" class="update-banner" hidden><span>A new Rider Comms version is ready.</span><button id="reloadApp">Update now</button></div>
   <noscript>Rider Comms requires JavaScript.</noscript>
   <script src="config.js?v=28"></script>
-  <script src="app.js?v=43" defer></script>
+  <script src="app.js?v=46" defer></script>
 </body>
 </html>
