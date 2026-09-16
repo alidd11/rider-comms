@@ -156,7 +156,7 @@ img,svg{-webkit-user-drag:none}
    theme. In light mode that left a plain white band directly under the
    dark turn card/ETA bar. :has() lets the page root pick up nav-mode's
    dark colour even though the class itself lives on a descendant. */
-:root:has(#app.nav-mode){--system-chrome:#0a0a18}
+:root:has(#app.nav-mode){--system-chrome:#14152c}
 
 /* Purposeful inactive states for the ride and social areas. These surfaces
    use real account/ride state and avoid filling an empty screen with sample
