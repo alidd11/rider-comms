@@ -26,7 +26,7 @@
     selectedRiderId: null,
     activeRide: null,
     unit: 'mi',
-    notifications: true,
+    notifications: false,
     profile: {
       riderId: '',
       displayName: '',
@@ -474,8 +474,8 @@
     let position;
     try {
       position = await currentPosition();
-    } catch {
-      if (errorEl) { errorEl.textContent = 'Enable location access to report a hazard.'; errorEl.hidden = false; }
+    } catch (error) {
+      if (errorEl) { errorEl.textContent = locationAccessMessage(error, 'report a hazard'); errorEl.hidden = false; }
       return;
     }
     chips?.forEach((chip) => { chip.disabled = true; });
@@ -770,6 +770,8 @@
     button.disabled = true;
     button.textContent = 'Creating…';
     try {
+      await preflightMicrophoneAccess();
+      await preflightRideLocationAccess();
       const result = await apiFetch('POST', '/rides', {});
       state.activeRide = { rideId: result.rideId, code: result.code, isHost: true, createdBy: result.createdBy, memberIds: result.memberIds };
       state.selectedRiderId = null;
@@ -797,6 +799,8 @@
     button.disabled = true;
     button.textContent = 'Joining…';
     try {
+      await preflightMicrophoneAccess();
+      await preflightRideLocationAccess();
       const joined = await apiFetch('POST', '/rides/join', { code });
       const ride = await apiFetch('GET', `/rides/${encodeURIComponent(joined.rideId)}`);
       state.activeRide = { rideId: ride.rideId, code, isHost: ride.createdBy === state.profile.riderId, createdBy: ride.createdBy, memberIds: ride.memberIds };
@@ -870,7 +874,7 @@
       privacy: () => ({ title: 'Privacy controls', body: `<div class="settings-sheet-section">${toggleMarkup('shareLocation', 'Live location', 'Visible to nearby riders only while you are live.', state.profile.shareLocation)}</div><div class="settings-sheet-section"><div class="form-field"><label for="sheetSocialVisibility">Connected profile visibility</label><select id="sheetSocialVisibility"><option value="friends">Friends only</option><option value="public">Everyone</option><option value="private">Only me</option></select></div><p class="caption">This applies to the Instagram and TikTok usernames on your profile.</p></div>`, ready: () => { $('#sheetSocialVisibility').value = state.profile.socialsVisibility; $('#sheetSocialVisibility').addEventListener('change', (event) => { patchProfile({ instagramVisibility: event.target.value, tiktokVisibility: event.target.value }); }); wireToggles(); } }),
       map: () => ({ title: 'Location and map', body: `<div class="settings-sheet-section">${toggleMarkup('shareLocation', 'Nearby rider visibility', 'Share your position only after you choose to go live.', state.profile.shareLocation)}</div><div class="settings-note"><strong>Location stays in your control</strong><p>Turning this off stops nearby-rider visibility. Private Group Ride members can still share ride locations while that ride is active.</p></div>`, ready: wireToggles }),
       units: () => ({ title: 'Distance units', body: `<div class="choice-list" role="radiogroup" aria-label="Distance units"><button data-unit-option="mi" role="radio"><span><strong>Miles</strong><small>Use miles and mph</small></span><i></i></button><button data-unit-option="km" role="radio"><span><strong>Kilometres</strong><small>Use kilometres and km/h</small></span><i></i></button></div>`, ready: () => { $$('[data-unit-option]', $('#sheetBody')).forEach((button) => { const active = button.dataset.unitOption === state.unit; button.setAttribute('aria-checked', String(active)); button.addEventListener('click', () => { state.unit = button.dataset.unitOption; persist(); openSheet('units'); showToast('Distance unit updated.'); }); }); } }),
-      notifications: () => ({ title: 'Notifications', body: `<div class="settings-sheet-section">${toggleMarkup('notifications', 'Ride and message alerts', 'Receive useful updates when Rider Comms is in the background.', state.notifications)}</div><div class="settings-note"><strong>Device permission required</strong><p>Your browser or operating system can still block notifications. Rider Comms never sends marketing alerts from this setting.</p></div>`, ready: wireToggles }),
+      notifications: () => ({ title: 'Notifications', body: `<div class="settings-sheet-section">${toggleMarkup('notifications', 'Notification permission', 'Allow Rider Comms to use device notifications.', notificationSettingActive())}</div><div class="settings-note"><strong>Permission only</strong><p>Background ride and message delivery is not active yet. This control only manages browser permission.</p></div>`, ready: wireToggles }),
       safety: () => ({ title: 'Safety', body: `<div class="safety-guidance"><div><span class="setting-icon"><svg><use href="#i-ride"/></svg></span><span><strong>Set up while stationary</strong><small>Complete profile, route and group controls before moving.</small></span></div><div><span class="setting-icon"><svg><use href="#i-location"/></svg></span><span><strong>Control your location</strong><small>Nearby visibility can be stopped at any time.</small></span></div><div><span class="setting-icon"><svg><use href="#i-info"/></svg></span><span><strong>Not an emergency service</strong><small>Call the appropriate emergency service if you need urgent help.</small></span></div></div>` }),
       reportHazard: () => ({
         title: 'Report on the road',
@@ -914,19 +918,43 @@
     }
   }
 
-  /**
-   * Turning the "Notifications" toggle on used to just flip a local flag
-   * with nothing behind it at the OS/browser level — no real permission
-   * was ever requested, so the browser's own notification-permission
-   * prompt (what a rider actually expects to see) never appeared. This is
-   * the web equivalent of ensureNotificationPermission() in the mobile app
-   * (mobile/src/notifications/permissions.ts) — same reasoning, same
-   * caveat: there's still no push-delivery backend, so this only makes
-   * the toggle correspond to a real permission grant.
-   */
-  function ensureWebNotificationPermission() {
-    if (!('Notification' in window) || Notification.permission !== 'default') return;
-    void Notification.requestPermission();
+  function notificationPermission() {
+    return 'Notification' in window ? Notification.permission : 'unsupported';
+  }
+
+  function notificationSettingActive() {
+    return state.notifications && notificationPermission() === 'granted';
+  }
+
+  function syncNotificationPreference() {
+    if (state.notifications && notificationPermission() !== 'granted') {
+      state.notifications = false;
+      persist();
+    }
+  }
+
+  /** Notification permission must be requested directly from the Settings
+   * tap. Installed iOS PWAs and other mobile browsers may suppress a prompt
+   * started during app boot or after unrelated asynchronous work. */
+  async function requestNotificationPermission() {
+    const permission = notificationPermission();
+    if (permission === 'unsupported') {
+      showToast('Notifications are not supported by this browser.');
+      return false;
+    }
+    if (permission === 'denied') {
+      showToast('Notifications are blocked. Allow them in this site’s device settings.');
+      return false;
+    }
+    if (permission === 'granted') return true;
+    try {
+      const granted = await Notification.requestPermission() === 'granted';
+      if (!granted) showToast('Notification permission was not enabled.');
+      return granted;
+    } catch {
+      showToast('Could not request notification permission.');
+      return false;
+    }
   }
 
   function wireToggles() {
@@ -934,17 +962,31 @@
       const key = button.dataset.toggle;
       const active = button.getAttribute('aria-pressed') !== 'true';
       if (key === 'notifications') {
-        button.setAttribute('aria-pressed', String(active));
-        state.notifications = active;
+        button.disabled = true;
+        const granted = !active || await requestNotificationPermission();
+        state.notifications = active && granted;
         persist();
-        if (active) ensureWebNotificationPermission();
+        button.setAttribute('aria-pressed', String(state.notifications));
+        button.disabled = false;
         return;
       }
       if (key === 'shareLocation') {
         button.disabled = true;
+        if (active) {
+          try {
+            await currentPosition();
+          } catch (error) {
+            button.disabled = false;
+            showToast(locationAccessMessage(error, 'share your location'));
+            return;
+          }
+        }
         const ok = await patchProfile({ shareLocation: active });
         button.disabled = false;
-        if (ok) button.setAttribute('aria-pressed', String(active));
+        if (ok) {
+          button.setAttribute('aria-pressed', String(active));
+          if (active) syncRideLocationSharing();
+        }
       }
     }));
   }
@@ -1049,9 +1091,44 @@
   let voiceManuallyMuted = false;
   let voiceIsSpeaking = false;
   let liveKitLoadPromise;
+  let microphonePermissionReady = false;
+  let voiceFailureNotified = false;
 
   const VOICE_SPEAKING_THRESHOLD = 0.06; // same starting point as mobile's SPEAKING_VOLUME_THRESHOLD — unverified against real riding noise
   const VOICE_RELEASE_HANGTIME_MS = 500;
+
+  function microphoneAccessMessage(error) {
+    if (!navigator.mediaDevices?.getUserMedia) return 'Microphone access is not supported by this browser.';
+    if (error?.name === 'NotAllowedError' || error?.name === 'SecurityError') {
+      return 'Microphone access is blocked. Allow it in this site’s device settings.';
+    }
+    if (error?.name === 'NotFoundError' || error?.name === 'DevicesNotFoundError') {
+      return 'No microphone is available on this device.';
+    }
+    return 'Microphone access is unavailable right now.';
+  }
+
+  /** Ask while the rider is still inside the original Create, Join or Go
+   * live tap. Waiting for API calls first loses the browser's user-gesture
+   * allowance and can suppress the installed-PWA permission prompt. */
+  async function preflightMicrophoneAccess() {
+    if (microphonePermissionReady) return true;
+    if (!navigator.mediaDevices?.getUserMedia) {
+      showToast(microphoneAccessMessage());
+      return false;
+    }
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      microphonePermissionReady = true;
+      return true;
+    } catch (error) {
+      showToast(microphoneAccessMessage(error));
+      return false;
+    } finally {
+      stream?.getTracks().forEach((track) => track.stop());
+    }
+  }
 
   function loadLiveKitClient() {
     if (window.LivekitClient) return Promise.resolve();
@@ -1179,12 +1256,20 @@
       await room.connect(url, token);
       voiceManuallyMuted = false;
       await room.localParticipant.setMicrophoneEnabled(true);
+      microphonePermissionReady = true;
       voiceRoom = room;
       voiceTargetKey = kind === 'ride' ? `ride:${rideId}` : 'channel';
       await startVoiceLevelLoop();
+      voiceFailureNotified = false;
       renderVoiceStatus();
     } catch (error) {
       console.warn('[rider-comms] Could not connect voice chat', error);
+      if (!voiceFailureNotified) {
+        showToast(error?.name === 'NotAllowedError' || error?.name === 'SecurityError'
+          ? microphoneAccessMessage(error)
+          : 'Voice chat is unavailable right now. Your ride and map still work.');
+        voiceFailureNotified = true;
+      }
       // Tear down anything that did connect before the failure (e.g. the
       // room connected fine but the second meter-stream getUserMedia call
       // failed) rather than leaking a live, published connection nothing
@@ -1222,6 +1307,9 @@
     const desired = state.activeRide ? `ride:${state.activeRide.rideId}` : state.publicLive ? 'channel' : undefined;
     if (desired === voiceTargetKey) return;
     if (voiceRoom) disconnectVoice();
+    // A restored session must not make getUserMedia prompt during boot.
+    // Create, Join and Go live set this only from their direct tap.
+    if (desired && !microphonePermissionReady) return;
     if (state.activeRide) void connectVoice('ride', state.activeRide.rideId);
     else if (state.publicLive) void connectVoice('channel');
   }
@@ -1262,10 +1350,11 @@
       showToast('You are no longer visible nearby.');
       return;
     }
+    await preflightMicrophoneAccess();
     let position;
     try {
       position = await currentPosition();
-    } catch {
+    } catch (error) {
       // Denied/unavailable location is a transient, recoverable thing —
       // the real Google Map is still up and fine. #mapError's "Map
       // unavailable" heading is for when the map itself has actually
@@ -1273,7 +1362,7 @@
       // auto-dismisses, so reusing it here left a permanent, misleading
       // "Map unavailable" banner sitting over a perfectly working map for
       // the rest of the session.
-      showToast('Location permission is needed to join riders nearby. You can still browse the map.');
+      showToast(locationAccessMessage(error, 'join riders nearby'));
       return;
     }
     try {
@@ -1308,8 +1397,34 @@
   function currentPosition() {
     return new Promise((resolve, reject) => {
       if (!navigator.geolocation) return reject(new Error('Geolocation unavailable'));
-      navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000, maximumAge: 15000 });
+      navigator.geolocation.getCurrentPosition((position) => {
+        locationPermissionReady = true;
+        resolve(position);
+      }, reject, { enableHighAccuracy: true, timeout: 10000, maximumAge: 15000 });
     });
+  }
+
+  let locationPermissionReady = false;
+
+  function locationAccessMessage(error, purpose = 'use your location') {
+    if (!navigator.geolocation) return 'Location is not supported by this browser.';
+    if (error?.code === 1 || error?.name === 'NotAllowedError') {
+      return `Location access is blocked. Allow it in this site’s device settings to ${purpose}.`;
+    }
+    if (error?.code === 2) return 'Your location is unavailable right now. Check location services and try again.';
+    if (error?.code === 3) return 'Finding your location took too long. Try again in a clearer area.';
+    return `Could not access your location to ${purpose}.`;
+  }
+
+  async function preflightRideLocationAccess() {
+    if (locationPermissionReady) return true;
+    try {
+      await currentPosition();
+      return true;
+    } catch (error) {
+      showToast(locationAccessMessage(error, 'share your position with your private ride'));
+      return false;
+    }
   }
 
   const RIDE_LOCATION_REFRESH_MS = 10_000; // same 5-10s cadence as public presence (see PRESENCE_REFRESH_MS)
@@ -1329,6 +1444,10 @@
    */
   function syncRideLocationSharing() {
     if (state.activeRide) {
+      // Never trigger a permission prompt during app boot or a restored
+      // session. Existing Create/Join and map actions establish consent;
+      // background refresh only continues an approved location flow.
+      if (!locationPermissionReady) return;
       if (rideLocationTimer) return;
       const tick = async () => {
         const ride = state.activeRide;
@@ -1362,9 +1481,10 @@
     try {
       const position = await currentPosition();
       centreMap(position.coords.latitude, position.coords.longitude);
+      syncRideLocationSharing();
       showToast('Map centred on your location.');
-    } catch {
-      showToast('Allow location access to centre the map on your position.');
+    } catch (error) {
+      showToast(locationAccessMessage(error, 'centre the map'));
     }
   }
 
@@ -2105,15 +2225,6 @@
     mapMarkers = visibleMapRiders().map((person, index) => addMapMarker(person, { lat: centre.lat + offsets[index % offsets.length][0], lng: centre.lng + offsets[index % offsets.length][1] }, false));
     renderMapHazards();
 
-    // As soon as a real fix comes back, silently recentre on it and move
-    // "you" there — the same real coordinate locate()/"Go live" already
-    // use, just fetched proactively on load instead of waiting for the
-    // rider to tap something. A denied/unavailable permission just leaves
-    // the London fallback in place; locate() and "Go live" both prompt
-    // again if the rider tries either.
-    currentPosition().then((position) => {
-      centreMap(position.coords.latitude, position.coords.longitude);
-    }).catch(() => {});
   }
 
   function addMapMarker(person, position, current) {
@@ -2511,10 +2622,9 @@
     loadGoogleMaps();
     registerServiceWorker();
     loadFriendsData();
-    // Covers riders who never touch the toggle (it defaults to "on" — see
-    // the state object's `notifications: true` default), not just the
-    // ones who flip it from off to on via wireToggles above.
-    if (state.notifications) ensureWebNotificationPermission();
+    // Startup only reconciles saved UI state with the browser. Permission
+    // prompts belong to deliberate taps in Settings, never cold launch.
+    syncNotificationPreference();
   }
 
   async function init() {
