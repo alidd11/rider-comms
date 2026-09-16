@@ -13,7 +13,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="app.css?v=45">
+  <link rel="stylesheet" href="app.css?v=46">
   <title>Rider Comms</title>
 </head>
 <body>
@@ -89,6 +89,20 @@
     </div>
   </div>
 
+  <div id="searchScreen" class="search-screen" hidden>
+    <header class="search-screen-header">
+      <button id="searchScreenBack" class="icon-button" aria-label="Back to map"><svg class="icon-back"><use href="#i-chevron"/></svg></button>
+      <div class="search-slot glass">
+        <svg><use href="#i-search"/></svg>
+        <input id="searchScreenInput" placeholder="Search for a place" autocomplete="off">
+      </div>
+    </header>
+    <div id="searchScreenResults" class="search-screen-results">
+      <p class="search-screen-hint">Search for an address, town or place — try "petrol station" or a name.</p>
+    </div>
+    <p class="search-screen-attribution">Powered by Google</p>
+  </div>
+
   <div id="app" class="app-shell" hidden>
     <main class="app-main">
       <section class="screen screen-map active" data-screen="map" aria-labelledby="mapTitle">
@@ -96,7 +110,7 @@
           <div id="googleMap" class="google-map" aria-hidden="true"></div>
           <div class="fallback-map" id="fallbackMap"><div class="road road-a"></div><div class="road road-b"></div><div class="road road-c"></div></div>
           <h1 id="mapTitle" class="sr-only">North London rider map</h1>
-          <header class="map-header"><div class="search-slot glass"><svg><use href="#i-search"/></svg><input id="placeSearchInput" placeholder="Search for a place" autocomplete="off"></div><div class="map-avatar-wrap"><button class="avatar avatar-sm" id="mapAvatarButton" data-avatar="AI" aria-label="Open profile">AI</button><button id="voiceStatusBtn" class="voice-mute-badge" aria-label="Listening — hands-free" hidden><svg><use href="#i-mic"/></svg></button></div></header>
+          <header class="map-header"><div class="search-slot glass" id="mapSearchSlot"><svg><use href="#i-search"/></svg><input id="placeSearchInput" placeholder="Search for a place" autocomplete="off" readonly></div><div class="map-avatar-wrap"><button class="avatar avatar-sm" id="mapAvatarButton" data-avatar="AI" aria-label="Open profile">AI</button><button id="voiceStatusBtn" class="voice-mute-badge" aria-label="Listening — hands-free" hidden><svg><use href="#i-mic"/></svg></button></div></header>
           <div class="poi-chip-row" id="poiChipRow">
             <button class="chip poi-chip" data-poi-type="gas_station"><svg><use href="#i-fuel"/></svg><span>Petrol</span></button>
             <button class="chip poi-chip" data-poi-type="parking"><svg><use href="#i-parking"/></svg><span>Parking</span></button>
@@ -206,6 +220,6 @@
   <div id="updateBanner" class="update-banner" hidden><span>A new Rider Comms version is ready.</span><button id="reloadApp">Update now</button></div>
   <noscript>Rider Comms requires JavaScript.</noscript>
   <script src="config.js?v=28"></script>
-  <script src="app.js?v=45" defer></script>
+  <script src="app.js?v=46" defer></script>
 </body>
 </html>

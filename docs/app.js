@@ -1609,33 +1609,102 @@
     const input = $('#placeSearchInput');
     input.disabled = true;
     input.placeholder = 'Search offline for now';
-    $('.search-slot')?.classList.add('offline');
+    $('#mapSearchSlot')?.classList.add('offline');
     // The POI chips call the real Places JS API directly (nearbySearch) —
     // with no Google Maps loaded there's no Places library either, so
     // they'd just be dead buttons rather than a working offline feature.
     $('#poiChipRow').hidden = true;
   }
 
-  function initPlaceSearch() {
-    const input = $('#placeSearchInput');
-    const autocomplete = new google.maps.places.Autocomplete(input, {
-      fields: ['name', 'formatted_address', 'geometry'],
-    });
-    // Without this, predictions aren't biased to where the rider actually
-    // is — free-text search for something generic like "petrol station"
-    // could come back with results nowhere near them. bindTo('bounds', map)
-    // is the Places API's own documented way to bias Autocomplete to a
-    // map's current viewport, and it stays live as the map pans/zooms.
-    autocomplete.bindTo('bounds', map);
-    autocomplete.addListener('place_changed', () => {
-      const place = autocomplete.getPlace();
+  // Google's own Autocomplete widget renders as an unstyled white dropdown
+  // that can't be themed — it just gets bolted onto the page over whatever
+  // it's anchored to. This full-screen search page instead drives the same
+  // Places data (AutocompleteService for predictions, PlacesService for the
+  // chosen place's coordinates) but renders every row itself, so it matches
+  // the rest of the app instead of looking like a different product bolted
+  // onto this one.
+  let autocompleteService;
+  let searchSessionToken;
+  let searchDebounceTimer;
+
+  function openSearchScreen() {
+    if ($('#mapSearchSlot')?.classList.contains('offline')) return;
+    $('#searchScreen').hidden = false;
+    const input = $('#searchScreenInput');
+    input.value = '';
+    renderSearchResultsHint();
+    input.focus();
+  }
+
+  function closeSearchScreen() {
+    $('#searchScreen').hidden = true;
+    $('#searchScreenInput').blur();
+  }
+
+  function renderSearchResultsHint() {
+    $('#searchScreenResults').innerHTML = '<p class="search-screen-hint">Search for an address, town or place — try "petrol station" or a name.</p>';
+  }
+
+  function renderSearchResults(predictions) {
+    const results = $('#searchScreenResults');
+    if (!predictions.length) {
+      results.innerHTML = '<p class="search-screen-error">No places found. Try a different search.</p>';
+      return;
+    }
+    results.innerHTML = predictions.map((prediction, index) => `
+      <button class="search-result-row" data-place-id="${escapeHtml(prediction.place_id)}" data-result-index="${index}">
+        <span class="search-result-icon"><svg><use href="#i-location"/></svg></span>
+        <span class="search-result-copy">
+          <strong>${escapeHtml(prediction.structured_formatting?.main_text || prediction.description)}</strong>
+          <span>${escapeHtml(prediction.structured_formatting?.secondary_text || '')}</span>
+        </span>
+      </button>`).join('');
+    $$('.search-result-row', results).forEach((row) => row.addEventListener('click', () => void selectSearchResult(row.dataset.placeId)));
+  }
+
+  function selectSearchResult(placeId) {
+    if (!placesService) placesService = new google.maps.places.PlacesService(map);
+    placesService.getDetails({ placeId, fields: ['name', 'geometry'], sessionToken: searchSessionToken }, (place, status) => {
+      searchSessionToken = new google.maps.places.AutocompleteSessionToken();
       const location = place?.geometry?.location;
-      if (!location) return;
+      if (status !== google.maps.places.PlacesServiceStatus.OK || !location) {
+        showToast('Could not open that place. Try again.');
+        return;
+      }
       centreMap(location.lat(), location.lng());
       setDestinationMarker(location, place.name);
       showToast(place.name ? `Centred on ${place.name}` : 'Centred on selected place.');
-      input.blur();
+      closeSearchScreen();
     });
+  }
+
+  function searchPlaces(query) {
+    if (!query) {
+      renderSearchResultsHint();
+      return;
+    }
+    if (!autocompleteService) autocompleteService = new google.maps.places.AutocompleteService();
+    if (!searchSessionToken) searchSessionToken = new google.maps.places.AutocompleteSessionToken();
+    autocompleteService.getPlacePredictions(
+      { input: query, sessionToken: searchSessionToken, bounds: map?.getBounds() },
+      (predictions, status) => {
+        if (status !== google.maps.places.PlacesServiceStatus.OK || !predictions) {
+          renderSearchResults([]);
+          return;
+        }
+        renderSearchResults(predictions);
+      }
+    );
+  }
+
+  function initPlaceSearch() {
+    $('#mapSearchSlot').addEventListener('click', openSearchScreen);
+    $('#searchScreenBack').addEventListener('click', closeSearchScreen);
+    $('#searchScreenInput').addEventListener('input', (event) => {
+      clearTimeout(searchDebounceTimer);
+      searchDebounceTimer = setTimeout(() => searchPlaces(event.target.value.trim()), 220);
+    });
+    $('#searchScreenInput').addEventListener('keydown', (event) => { if (event.key === 'Escape') closeSearchScreen(); });
     initPoiChips();
   }
 
