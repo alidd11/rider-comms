@@ -1,7 +1,7 @@
 :root {
-  color-scheme: light dark; --bg:#0a0a18; --system-chrome:#0a0a18; --bg-elevated:#111229; --surface:#15162e; --surface-raised:#1c1d3d; --surface-hover:#24254a; --border:#2c2d55; --border-soft:#202142; --text:#f5f4fb; --text-secondary:#b7b6d6; --text-muted:#7d7c9f; --accent:#ff2d5a; --accent-soft:#3a1524; --accent-text:#1a0509; --success:#39d39b; --danger:#ff5a4d; --warning:#ffc15a; --focus:#7c8dff; --shadow-sm:0 8px 24px rgb(0 0 0/.22); --shadow-lg:0 20px 56px rgb(0 0 0/.4); --radius-sm:10px; --radius-md:14px; --radius-lg:20px; --radius-pill:999px; --touch:48px; --nav-height:64px; --content-max:680px; --safe-top:env(safe-area-inset-top,0px); --safe-right:env(safe-area-inset-right,0px); --safe-bottom:min(40px, env(safe-area-inset-bottom,0px)); --safe-left:env(safe-area-inset-left,0px); --nav-safe-bottom:var(--safe-bottom); --bottom-nav-height:calc(var(--nav-height) + var(--nav-safe-bottom)); --nav-item-justify:center; --nav-item-padding-bottom:0px; font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; font-synthesis:none;
+  color-scheme: light dark; --bg:#0e0e0f; --system-chrome:#0e0e0f; --bg-elevated:#141415; --surface:#181819; --surface-raised:#242426; --surface-hover:#29292c; --border:#303034; --border-soft:#252528; --text:#f5f4f2; --text-secondary:#b8b3ac; --text-muted:#827d76; --accent:#ff2d5a; --accent-soft:#3a1720; --accent-text:#24050c; --success:#39d39b; --danger:#ff6572; --warning:#ffc15a; --focus:#91a7ff; --shadow-sm:0 4px 16px rgb(0 0 0/.18); --shadow-lg:0 14px 40px rgb(0 0 0/.3); --radius-sm:8px; --radius-md:10px; --radius-lg:12px; --radius-pill:999px; --touch:48px; --nav-height:64px; --content-max:680px; --safe-top:env(safe-area-inset-top,0px); --safe-right:env(safe-area-inset-right,0px); --safe-bottom:min(40px, env(safe-area-inset-bottom,0px)); --safe-left:env(safe-area-inset-left,0px); --nav-safe-bottom:var(--safe-bottom); --bottom-nav-height:calc(var(--nav-height) + var(--nav-safe-bottom)); --nav-item-justify:center; --nav-item-padding-bottom:0px; font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; font-synthesis:none;
 }
-:root{--surface:#191a3a;--surface-raised:#20213f;--surface-hover:#292a4e;--border:#32335c}
+:root{--surface:#181819;--surface-raised:#242426;--surface-hover:#29292c;--border:#303034}
 /* Installed iOS PWAs expose the home-indicator region outside the visual
    viewport. Re-applying that inset inside the fixed tab bar reserves it
    twice and creates the large empty band below every screen. Browser tabs
@@ -98,7 +98,7 @@ img,svg{-webkit-user-drag:none}
    canvas, glass chips, gradients, nav bar) and need their own light-mode
    value alongside them. */
 @media(prefers-color-scheme:light){
-  :root{--bg:#f4f1ec;--bg-elevated:#ffffff;--surface:#ffffff;--surface-raised:#efe9e1;--surface-hover:#e6dfd5;--border:#ddd3c4;--border-soft:#e8e1d6;--text:#1c1712;--text-secondary:#5f574c;--text-muted:#8c8375;--accent-soft:#ffd9df;--accent-text:#3a0810;--success:#188f66;--danger:#d43a47;--warning:#a9700c;--focus:#2f6fdb;--shadow-sm:0 8px 24px rgb(40 30 15/.12);--shadow-lg:0 20px 56px rgb(40 30 15/.18)}
+  :root{--bg:#f4f1ec;--bg-elevated:#ffffff;--surface:#ffffff;--surface-raised:#eee8df;--surface-hover:#e7e0d7;--border:#ded6cb;--border-soft:#ebe5dc;--text:#1c1712;--text-secondary:#625a50;--text-muted:#81786c;--accent-soft:#ffe0e6;--accent-text:#24050c;--success:#188f66;--danger:#d43a47;--warning:#9a6500;--focus:#2f6fdb;--shadow-sm:0 3px 14px rgb(40 30 15/.08);--shadow-lg:0 12px 34px rgb(40 30 15/.13)}
   .glass{background:rgb(255 255 255/.88);border-color:rgb(30 20 10/.1)}
   .content-screen{background:radial-gradient(circle at 50% -10%,#fff 0,var(--bg) 34%)}
   .map-canvas{background:#dde6e9}
@@ -163,7 +163,7 @@ img,svg{-webkit-user-drag:none}
    theme. In light mode that left a plain white band directly under the
    dark turn card/ETA bar. :has() lets the page root pick up nav-mode's
    dark colour even though the class itself lives on a descendant. */
-:root:has(#app.nav-mode){--system-chrome:#14152c}
+:root:has(#app.nav-mode){--system-chrome:#101011}
 
 /* Purposeful inactive states for the ride and social areas. These surfaces
    use real account/ride state and avoid filling an empty screen with sample
@@ -281,3 +281,47 @@ img,svg{-webkit-user-drag:none}
 .safety-guidance>div{min-height:66px;display:flex;align-items:center;gap:11px;padding:10px 13px;border-bottom:1px solid var(--border-soft)}.safety-guidance>div:last-child{border-bottom:0}.safety-guidance>div>span:nth-child(2){min-width:0;flex:1}.safety-guidance strong,.safety-guidance small{display:block}.safety-guidance strong{font-size:.82rem}.safety-guidance small{margin-top:3px;color:var(--text-secondary);font-size:.7rem;line-height:1.35}
 .plan-card{border-radius:12px;box-shadow:none}
 @media(prefers-color-scheme:light){.settings-page .profile-row,.settings-page .settings-group,.settings-sheet-section,.settings-note,.choice-list,.safety-guidance{background:#fff}}
+
+/* Final shared utility-screen language. Day and night retain identical
+   geometry and hierarchy; only semantic colour tokens change. */
+.content-screen{background:var(--bg)}
+.content-screen .page-header{margin-bottom:20px}
+.content-screen .page-header h1{font-size:clamp(1.9rem,7vw,2.15rem);line-height:1.05;letter-spacing:-.04em}
+.content-screen .page-subtitle{margin-top:7px;font-size:.875rem;line-height:1.42}
+.ride-entry,.settings-page .profile-row,.settings-page .settings-group,.settings-sheet-section,.settings-note,.choice-list,.safety-guidance{border-color:var(--border-soft);border-radius:12px;box-shadow:none}
+.ride-form>label,.form-field label{font-size:.8125rem}
+.support-copy,.caption{font-size:.75rem;line-height:1.45}
+.network-summary{font-size:.8rem}.network-summary b{font-size:.95rem}
+.search-row input{font-size:1rem}
+.network-empty{margin-top:22px}.network-empty h2{font-size:1.05rem}.network-empty p{font-size:.875rem;line-height:1.5}
+.group-title{margin-top:22px;font-size:.72rem;letter-spacing:.12em}
+.settings-group strong{font-size:.94rem}.settings-group small{font-size:.78rem;line-height:1.35}
+.settings-page .settings-group>button{min-height:62px;padding:9px 12px}
+.profile-copy strong{font-size:1rem}.profile-copy span{font-size:.875rem}.profile-copy small{font-size:.75rem}
+.settings-sheet-label{font-size:.7rem}.settings-note strong{font-size:.875rem}.settings-note p{font-size:.78rem}
+.choice-list strong{font-size:.9rem}.choice-list small{font-size:.78rem}
+.safety-guidance strong{font-size:.9rem}.safety-guidance small{font-size:.78rem}
+.version{font-size:.72rem}
+.bottom-nav>button span{font-size:.7rem;letter-spacing:0}.bottom-nav>button svg{width:22px;height:22px}
+.bottom-nav{box-shadow:none;background:color-mix(in srgb,var(--surface) 96%,transparent)}
+.auth-screen{background:var(--bg)}
+.auth-card{border-radius:18px;background:var(--surface);box-shadow:var(--shadow-sm)}
+.auth-mark{border-radius:12px;background:var(--accent-soft);box-shadow:none}
+.auth-intro .eyebrow{display:none}
+.curated-route-card{border-color:var(--border-soft);box-shadow:none}
+.route-detail{border-radius:18px 18px 0 0;background:var(--bg)}
+.route-detail-photo{border-radius:17px 17px 0 0}
+.plan-card{background:var(--surface)}
+@media(prefers-color-scheme:dark){
+  .glass{background:rgb(24 24 25/.9);border-color:rgb(255 255 255/.09)}
+  .content-screen,.auth-screen{background:#0e0e0f}
+  .bottom-nav{background:rgb(24 24 25/.96)}
+  .profile-row,.ride-entry,.settings-group,.settings-sheet-section,.settings-note,.choice-list,.safety-guidance,.plan-card{background:#181819}
+  .map-canvas{background:#101011}
+  .fallback-map{background:radial-gradient(circle at 68% 22%,#242426 0,#181819 52%,#101011 100%)}
+  .fallback-map:after{background-image:linear-gradient(#343438 1px,transparent 1px),linear-gradient(90deg,#343438 1px,transparent 1px)}
+  .road{background:#29292c;border-block-color:#36363a}.road:after{border-top-color:#4a4a50}
+}
+.nav-mode .map-actions .icon-button{background:#181819}
+.nav-banner,.nav-summary{background:#101011}.nav-next-preview{background:#0b0b0c}
+:root:has(#app.nav-mode){--system-chrome:#101011}

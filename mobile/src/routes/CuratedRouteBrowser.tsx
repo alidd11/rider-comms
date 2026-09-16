@@ -15,7 +15,7 @@ import {
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { VehicleCategory } from '@rider-comms/shared';
-import { colors, elevation, MIN_TOUCH_TARGET, radii, spacing, type } from '../theme';
+import { colors, MIN_TOUCH_TARGET, radii, spacing, type } from '../theme';
 import {
   CURATED_ROUTES,
   googleMapsDirectionsUrl,
@@ -177,27 +177,18 @@ function CuratedRouteCard({ route, width, onPress }: { route: CuratedRoute; widt
           onError={() => setImageFailed(true)}
         >
           <View style={styles.cardImageShade} />
-          <View style={styles.curatedBadge}><Ionicons name="checkmark-circle" size={14} color={colors.success} /><Text style={styles.curatedBadgeText}>Editorial pick</Text></View>
           <View style={styles.cardImageCopy}>
             <Text style={styles.cardRegion}>{route.region}</Text>
             <Text style={styles.cardTitle} numberOfLines={2}>{route.name}</Text>
+            <Text style={styles.cardRoad} numberOfLines={1}>{route.road}</Text>
+            <View style={styles.cardStats}>
+              <Text style={styles.cardStat}>{route.distanceMiles} mi</Text>
+              <Text style={styles.cardStat}>{route.estimatedDurationMinutes} min</Text>
+              <Text style={styles.cardStat}>{route.difficulty}</Text>
+            </View>
           </View>
         </ImageBackground>
       )}
-      <View style={styles.cardBody}>
-        <Text style={styles.cardRoad} numberOfLines={1}>{route.road}</Text>
-        <View style={styles.cardStats}>
-          <Text style={styles.cardStat}>{route.distanceMiles} mi</Text>
-          <View style={styles.statDot} />
-          <Text style={styles.cardStat}>{route.estimatedDurationMinutes} min</Text>
-          <View style={styles.statDot} />
-          <Text style={styles.cardStat}>{route.difficulty}</Text>
-        </View>
-        <View style={styles.cardFooter}>
-          <View style={styles.bikeFit}><MaterialCommunityIcons name="motorbike" size={17} color={colors.accent} /><Text style={styles.bikeFitText}>Motorbike-first</Text></View>
-          <Ionicons name="arrow-forward" size={18} color={colors.textSecondary} />
-        </View>
-      </View>
     </Pressable>
   );
 }
@@ -240,28 +231,21 @@ const styles = StyleSheet.create({
   routeCount: { minWidth: 34, height: 34, paddingHorizontal: spacing.sm, borderRadius: radii.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceRaised },
   routeCountText: { ...type.label, color: colors.textSecondary },
   cardGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
-  curatedCard: { overflow: 'hidden', borderRadius: radii.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, ...elevation.raised },
+  curatedCard: { aspectRatio: 1, overflow: 'hidden', borderRadius: radii.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
   cardPressed: { opacity: 0.88, transform: [{ scale: 0.99 }] },
-  cardImage: { height: 180, justifyContent: 'space-between', padding: spacing.md, backgroundColor: colors.surfaceRaised },
-  cardImageRadius: { borderTopLeftRadius: radii.lg, borderTopRightRadius: radii.lg },
-  cardImageShade: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(5,8,11,0.26)', borderTopLeftRadius: radii.lg, borderTopRightRadius: radii.lg },
+  cardImage: { flex: 1, justifyContent: 'flex-end', padding: spacing.lg, backgroundColor: colors.surfaceRaised },
+  cardImageRadius: { borderRadius: radii.lg },
+  cardImageShade: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(5,8,11,0.34)', borderRadius: radii.lg },
   imageFallback: { alignItems: 'center', justifyContent: 'center', gap: spacing.sm },
   fallbackCopy: { alignItems: 'center', gap: 2, paddingHorizontal: spacing.md },
   fallbackRegion: { ...type.caption, color: colors.textSecondary, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.8, textAlign: 'center' },
   fallbackTitle: { ...type.heading, color: colors.textPrimary, textAlign: 'center' },
-  curatedBadge: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: spacing.sm, minHeight: 28, borderRadius: radii.pill, backgroundColor: 'rgba(11,15,20,0.84)' },
-  curatedBadgeText: { ...type.caption, color: '#FFFFFF', fontWeight: '800' },
-  cardImageCopy: { gap: 2 },
-  cardRegion: { ...type.caption, color: '#FFFFFF', fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.8 },
-  cardTitle: { ...type.heading, color: '#FFFFFF', textShadowColor: 'rgba(0,0,0,0.5)', textShadowRadius: 8 },
-  cardBody: { padding: spacing.md, gap: spacing.sm },
-  cardRoad: { ...type.body, color: colors.textPrimary, fontWeight: '700' },
-  cardStats: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing.xs },
-  cardStat: { ...type.caption, color: colors.textSecondary, textTransform: 'capitalize' },
-  statDot: { width: 3, height: 3, borderRadius: 2, backgroundColor: colors.textMuted },
-  cardFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  bikeFit: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-  bikeFitText: { ...type.caption, color: colors.accent, fontWeight: '800' },
+  cardImageCopy: { gap: 3 },
+  cardRegion: { ...type.caption, color: '#FF9C52', fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1 },
+  cardTitle: { ...type.heading, color: '#FFFFFF', fontSize: 25, lineHeight: 29, textShadowColor: 'rgba(0,0,0,0.5)', textShadowRadius: 8 },
+  cardRoad: { ...type.body, color: 'rgba(255,255,255,0.82)' },
+  cardStats: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing.xs, marginTop: spacing.sm },
+  cardStat: { ...type.caption, color: '#FFFFFF', textTransform: 'capitalize', paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, borderRadius: radii.sm, backgroundColor: 'rgba(8,12,16,0.58)', borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(255,255,255,0.2)' },
   overviewRoot: { flex: 1, backgroundColor: colors.background },
   overviewScroll: { backgroundColor: colors.background },
   overviewHero: { height: 340, justifyContent: 'flex-end' },
