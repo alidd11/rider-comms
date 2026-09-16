@@ -290,6 +290,31 @@ const MIGRATIONS: { name: string; sql: string }[] = [
       );
     `,
   },
+  {
+    // Handles were never unique — every profile defaulted to the literal
+    // string "@rider" until someone customized it in Settings, so most
+    // accounts still collide on it today. Adding a friend by handle (see
+    // profileStore.findRiderIdByHandle) needs a handle to resolve to
+    // exactly one rider, so this first renames every duplicate but the
+    // oldest to `<handle>_<last 4 chars of riderId>` (riderId is already
+    // globally unique, so this is guaranteed to be too) before adding the
+    // real constraint — a plain CREATE UNIQUE INDEX would just fail
+    // outright against the existing duplicate "@rider" rows.
+    name: '0015_unique_rider_profile_handles',
+    sql: `
+      WITH ranked AS (
+        SELECT rider_id, ROW_NUMBER() OVER (
+          PARTITION BY lower(handle) ORDER BY updated_at ASC, rider_id ASC
+        ) AS rn
+        FROM rider_profiles
+      )
+      UPDATE rider_profiles rp
+      SET handle = rp.handle || '_' || right(rp.rider_id, 4)
+      FROM ranked
+      WHERE rp.rider_id = ranked.rider_id AND ranked.rn > 1;
+      CREATE UNIQUE INDEX IF NOT EXISTS rider_profiles_handle_lower_idx ON rider_profiles (lower(handle));
+    `,
+  },
 ];
 
 /**

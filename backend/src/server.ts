@@ -324,9 +324,18 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
       }
       if (req.method === 'POST' && url.pathname === '/friends/requests') {
         const body = await readJsonBody(req); if (typeof body.toRiderId !== 'string' || !body.toRiderId.trim()) return sendJson(res, 400, { error: 'toRiderId is required' });
-        if (actorId === body.toRiderId) return sendJson(res, 400, { error: 'cannot_friend_yourself' }); if (!(await authStore.hasRider(body.toRiderId))) return sendJson(res, 404, { error: 'rider_not_found' });
-        if (await moderationStore.isBlockedBetween(actorId, body.toRiderId)) return sendJson(res, 403, { error: 'blocked' });
-        const r = await friendStore.createRequest(actorId, body.toRiderId); return r.ok ? sendJson(res, 201, r.request) : sendJson(res, 409, { error: r.error });
+        // A rider's handle (e.g. "@ali_rides") is what they'd actually
+        // share with someone — their riderId is an internal identifier
+        // nobody reads out loud. Resolve it to a riderId first so
+        // everything downstream (self-check, block check, the request
+        // itself) works exactly as it already does for a raw riderId.
+        const target = body.toRiderId.trim().startsWith('@')
+          ? await profileStore.findRiderIdByHandle(body.toRiderId.trim())
+          : body.toRiderId;
+        if (!target) return sendJson(res, 404, { error: 'rider_not_found' });
+        if (actorId === target) return sendJson(res, 400, { error: 'cannot_friend_yourself' }); if (!(await authStore.hasRider(target))) return sendJson(res, 404, { error: 'rider_not_found' });
+        if (await moderationStore.isBlockedBetween(actorId, target)) return sendJson(res, 403, { error: 'blocked' });
+        const r = await friendStore.createRequest(actorId, target); return r.ok ? sendJson(res, 201, r.request) : sendJson(res, 409, { error: r.error });
       }
       if (req.method === 'POST' && s[0] === 'friends' && s[1] === 'requests' && s[2] && s[3]) {
         const request = await friendStore.getRequest(decodeURIComponent(s[2])); if (!request || request.toRiderId !== actorId) return sendJson(res, 404, { error: 'not_found' });
