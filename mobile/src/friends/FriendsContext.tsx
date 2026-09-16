@@ -12,6 +12,7 @@ interface FriendsContextValue {
   friends: FriendSummary[];
   incomingRequests: FriendRequest[];
   outgoingRequests: FriendRequest[];
+  requestProfiles: Readonly<Record<string, FriendSummary>>;
   loading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
@@ -27,9 +28,19 @@ function messageFor(err: unknown, fallback: string): string {
   if (err instanceof ApiError) {
     // The backend's error bodies are always `{ error: '<reason>' }` (see
     // backend/src/server.ts's sendJson calls) — never `message`.
-    return typeof err.body === 'object' && err.body && 'error' in (err.body as Record<string, unknown>)
+    const code = typeof err.body === 'object' && err.body && 'error' in (err.body as Record<string, unknown>)
       ? String((err.body as Record<string, unknown>).error)
-      : fallback;
+      : '';
+    const messages: Record<string, string> = {
+      rider_not_found: 'No rider with that handle or Rider ID was found.',
+      cannot_friend_yourself: 'You cannot send a friend request to yourself.',
+      already_friends: 'You are already friends with this rider.',
+      request_exists: 'A friend request is already pending between you.',
+      blocked: 'This connection is unavailable.',
+      rate_limited: 'Too many requests. Wait a moment and try again.',
+      unauthorized: 'Your session has expired. Sign in again.',
+    };
+    return messages[code] ?? fallback;
   }
   return err instanceof Error ? err.message : fallback;
 }
@@ -39,6 +50,7 @@ export function FriendsProvider({ children }: { children: React.ReactNode }): Re
   const [friends, setFriends] = React.useState<FriendSummary[]>([]);
   const [incomingRequests, setIncomingRequests] = React.useState<FriendRequest[]>([]);
   const [outgoingRequests, setOutgoingRequests] = React.useState<FriendRequest[]>([]);
+  const [requestProfiles, setRequestProfiles] = React.useState<Record<string, FriendSummary>>({});
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -51,13 +63,31 @@ export function FriendsProvider({ children }: { children: React.ReactNode }): Re
       setFriends(friendsRes.friends);
       setIncomingRequests(requestsRes.incoming);
       setOutgoingRequests(requestsRes.outgoing);
+      const requestRiderIds = [...new Set([
+        ...requestsRes.incoming.map((request) => request.fromRiderId),
+        ...requestsRes.outgoing.map((request) => request.toRiderId),
+      ])];
+      const profiles = await Promise.all(requestRiderIds.map(async (id) => {
+        try {
+          const profile = await client.getPublicProfile(id);
+          return [id, {
+            riderId: profile.riderId,
+            displayName: profile.displayName,
+            handle: profile.handle,
+            avatarId: profile.avatarId,
+          }] as const;
+        } catch {
+          return null;
+        }
+      }));
+      setRequestProfiles(Object.fromEntries(profiles.filter((entry): entry is NonNullable<typeof entry> => entry !== null)));
       setError(null);
     } catch (err) {
       setError(messageFor(err, 'Could not load friends.'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [ME, client]);
 
   React.useEffect(() => {
     refresh();
@@ -136,6 +166,7 @@ export function FriendsProvider({ children }: { children: React.ReactNode }): Re
       friends,
       incomingRequests,
       outgoingRequests,
+      requestProfiles,
       loading,
       error,
       refresh,
@@ -144,7 +175,7 @@ export function FriendsProvider({ children }: { children: React.ReactNode }): Re
       decline,
       remove,
     }),
-    [friends, incomingRequests, outgoingRequests, loading, error, refresh, sendRequest, accept, decline, remove]
+    [friends, incomingRequests, outgoingRequests, requestProfiles, loading, error, refresh, sendRequest, accept, decline, remove]
   );
 
   return <FriendsContext.Provider value={value}>{children}</FriendsContext.Provider>;
