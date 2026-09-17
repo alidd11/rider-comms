@@ -1443,16 +1443,17 @@
   function applyMovementState(nextState) {
     movementState = nextState;
     const locked = window.RiderMovementSafety.isLockedForSafety(nextState);
+    const warning = nextState === 'unknown';
     $('#app')?.classList.toggle('safety-locked', locked);
     const banner = $('#movementSafetyBanner');
-    if (banner) banner.hidden = !locked;
+    if (banner) banner.hidden = !(locked || warning);
     const message = $('#movementSafetyMessage');
     if (message) message.textContent = nextState === 'moving'
-      ? 'Distracting controls are locked until you have safely stopped.'
-      : 'Waiting for a reliable stationary location fix.';
+      ? 'Distracting controls are locked until you are safely below 8 mph.'
+      : 'Waiting for a reliable speed fix. Controls stay available.';
     const enableButton = $('#enableLocationBtn');
     if (enableButton) {
-      enableButton.hidden = !locked || nextState === 'moving';
+      enableButton.hidden = !warning;
       enableButton.textContent = movementPermissionStatus?.state === 'denied' ? 'Location help' : 'Enable location';
     }
     $$('[data-nav="routes"], [data-nav="friends"], [data-nav="settings"]').forEach((item) => {
