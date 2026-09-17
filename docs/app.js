@@ -112,10 +112,9 @@
   // Real per-rider coordinates for the active ride's members (GET
   // /rides/:id/locations) — same runtime-only convention as nearbyRiders
   // above. Separate mechanism from nearbyRiders/public presence entirely:
-  // see the 0014_create_ride_locations migration note in backend/src/db.ts
-  // for why a ride's location sharing is always-on for its members and
-  // never gated on profile.shareLocation. Keyed by riderId for easy lookup
-  // when placing markers.
+  // see the 0016_private_ride_location_consent migration in backend/src/db.ts.
+  // Upload is opt-in for each ride and the backend excludes stale or former
+  // members. Keyed by riderId for easy lookup when placing markers.
   let rideMemberLocations = new Map();
 
   // Real crowdsourced hazard reports for the current area (GET
@@ -302,27 +301,10 @@
     });
   }
 
-  function renderFallbackMarkers(riders = nearbyRiders) {
+  function renderFallbackMarkers() {
     const layer = $('#fallbackMarkers');
-    const people = [
-      { ...state.profile, displayName: state.profile.displayName, handle: state.profile.handle, status: 'You', x: 50, y: 53, current: true },
-      ...riders,
-    ];
-    layer.innerHTML = people.map((person) => {
-      const selected = state.selectedRiderId === person.riderId;
-      const label = person.current || selected ? `<span class="marker-label">${escapeHtml(person.current ? 'You' : person.displayName)}</span>` : '';
-      return `<button class="rider-marker${person.current ? ' current' : ''}${selected ? ' selected' : ''}" style="left:${person.x}%;top:${person.y}%;--marker:${identityColor(person.riderId)}" data-rider-id="${escapeHtml(person.riderId)}" aria-label="${escapeHtml(person.current ? 'Your location' : person.displayName)}">${escapeHtml(initials(person.displayName))}${label}</button>`;
-    }).join('');
-    $$('[data-rider-id]', layer).forEach((button) => button.addEventListener('click', () => selectRider(button.dataset.riderId, people)));
+    layer.innerHTML = '';
   }
-
-  // Illustrative-position convention: neither the backend's ride roster
-  // nor its presence response carries other riders' real lat/lon (Section
-  // 8's mutual in-zone check is a yes/no, not a position feed), so the
-  // fallback CSS map places each one at a small, deterministic offset from
-  // "you" instead — same convention used for a hazard report below, not a
-  // real bearing/distance.
-  const HAZARD_OFFSETS = [[14, -10], [-16, 8], [10, 16], [-12, -14], [18, 4]];
 
   function pinIcon(color) {
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="30" height="40" viewBox="0 0 30 40"><path d="M15 1C7.3 1 1 7.1 1 14.6 1 23.6 15 39 15 39s14-15.4 14-24.4C29 7.1 22.7 1 15 1Z" fill="${color}" stroke="#0a0f14" stroke-width="2"/></svg>`;
@@ -348,12 +330,10 @@
 
   function renderHazardMarkers() {
     const layer = $('#hazardMarkers');
-    layer.innerHTML = nearbyHazards.map((hazard, index) => {
-      const [dx, dy] = HAZARD_OFFSETS[index % HAZARD_OFFSETS.length];
-      const meta = HAZARD_TYPES[hazard.type];
-      return `<button class="hazard-marker" style="left:${50 + dx}%;top:${53 + dy}%;--hazard:${meta.color}" data-hazard-id="${escapeHtml(hazard.id)}" aria-label="${escapeHtml(meta.label)}"><svg><use href="#${meta.icon}"/></svg></button>`;
-    }).join('');
-    $$('[data-hazard-id]', layer).forEach((button) => button.addEventListener('click', () => selectHazard(button.dataset.hazardId)));
+    // The static fallback cannot project coordinates accurately. Showing
+    // decorative offsets would misrepresent a report's real direction, so
+    // only the real Google map renders hazards and rider positions.
+    layer.innerHTML = '';
     renderMapHazards();
   }
 
@@ -492,32 +472,19 @@
   }
 
   function visibleMapRiders() {
-    const list = state.activeRide
-      ? (state.activeRide.members || []).filter((member) => member.riderId !== state.profile.riderId)
-      : nearbyRiders;
-    return list.map((person, index) => ({ ...person, x: 35 + index * 30, y: 43 + index * 15 }));
+    if (!state.activeRide) return [];
+    return (state.activeRide.members || [])
+      .filter((member) => member.riderId !== state.profile.riderId && rideMemberLocations.has(member.riderId));
   }
 
   function renderMapRiders() {
     renderHazardMarkers();
     const riders = visibleMapRiders();
-    if (!map || usingFallbackMap) return renderFallbackMarkers(riders);
+    if (!map || usingFallbackMap) return renderFallbackMarkers([]);
     mapMarkers.forEach((marker) => marker.setMap(null));
-    const centre = map.getCenter()?.toJSON() || { lat: 51.564, lng: -0.106 };
-    const offsets = [[.004, -.006], [-.003, .006], [.008, .004]];
-    mapMarkers = riders.map((person, index) => {
-      // In a ride, real coordinates come from GET /rides/:id/locations
-      // (see syncRideLocationSharing) — plot those once they've arrived,
-      // and only fall back to an illustrative offset for a member who
-      // just joined and hasn't sent their first location ping yet. The
-      // public nearby-riders case never has a real coordinate to plot (by
-      // design — see the comment above HAZARD_OFFSETS), so it always uses
-      // the illustrative offset.
-      const real = state.activeRide && rideMemberLocations.get(person.riderId);
-      const position = real
-        ? { lat: real.lat, lng: real.lon }
-        : { lat: centre.lat + offsets[index % offsets.length][0], lng: centre.lng + offsets[index % offsets.length][1] };
-      return addMapMarker(person, position, false);
+    mapMarkers = riders.map((person) => {
+      const real = rideMemberLocations.get(person.riderId);
+      return addMapMarker(person, { lat: real.lat, lng: real.lon }, false);
     });
   }
 
@@ -536,7 +503,7 @@
     card.innerHTML = `${avatar(person)}<div class="rider-card-copy"><strong>${escapeHtml(person.displayName)}</strong><span>${escapeHtml(person.handle)} · ${escapeHtml(person.status || 'Connected')}</span></div><button class="compact-button" data-view-friend>View</button>`;
     card.hidden = false;
     $('[data-view-friend]', card).addEventListener('click', () => { navigate('friends'); card.hidden = true; });
-    renderFallbackMarkers(people.filter((item) => item.riderId !== state.profile.riderId));
+    renderFallbackMarkers();
   }
 
   function renderFriends() {
@@ -702,6 +669,11 @@
     syncVoiceConnection();
     if (!active) return;
     const ride = state.activeRide;
+    const locationToggle = $('#activeRideLocationConsent');
+    locationToggle.checked = ride.shareRideLocation === true;
+    $('#activeRideLocationStatus').textContent = ride.shareRideLocation
+      ? 'On — current ride members can see your recent position.'
+      : 'Off — your position is not being uploaded to this ride.';
     const members = ride.members || ride.memberIds.map((riderId) => ({ riderId, displayName: riderId, handle: riderId }));
     $('#activeRideCode').textContent = ride.code;
     $('#ridePillCode').textContent = ride.code;
@@ -770,15 +742,16 @@
     button.textContent = 'Creating…';
     try {
       await preflightMicrophoneAccess();
-      await preflightRideLocationAccess();
+      const shareRideLocation = $('#hostRideLocationConsent').checked;
       const result = await apiFetch('POST', '/rides', {});
-      state.activeRide = { rideId: result.rideId, code: result.code, isHost: true, createdBy: result.createdBy, memberIds: result.memberIds };
+      state.activeRide = { rideId: result.rideId, code: result.code, isHost: true, createdBy: result.createdBy, memberIds: result.memberIds, shareRideLocation: false };
       state.selectedRiderId = null;
       persist();
       renderRide();
       navigate('ride');
       showToast('Your private ride is ready.');
       await loadRideRoster();
+      if (shareRideLocation) await setRideLocationSharing(true);
     } catch {
       showToast('Could not create a ride. Try again.');
     } finally {
@@ -799,16 +772,17 @@
     button.textContent = 'Joining…';
     try {
       await preflightMicrophoneAccess();
-      await preflightRideLocationAccess();
+      const shareRideLocation = $('#joinRideLocationConsent').checked;
       const joined = await apiFetch('POST', '/rides/join', { code });
       const ride = await apiFetch('GET', `/rides/${encodeURIComponent(joined.rideId)}`);
-      state.activeRide = { rideId: ride.rideId, code, isHost: ride.createdBy === state.profile.riderId, createdBy: ride.createdBy, memberIds: ride.memberIds };
+      state.activeRide = { rideId: ride.rideId, code, isHost: ride.createdBy === state.profile.riderId, createdBy: ride.createdBy, memberIds: ride.memberIds, shareRideLocation: false };
       state.selectedRiderId = null;
       persist();
       renderRide();
       navigate('ride');
       showToast('You joined the ride.');
       await loadRideRoster();
+      if (shareRideLocation) await setRideLocationSharing(true);
     } catch (error) {
       const code2 = error instanceof ApiError ? error.body?.error : undefined;
       errorEl.textContent = RIDE_ERROR_MESSAGES[code2] || 'Could not join that ride. Try again.';
@@ -871,7 +845,7 @@
         body: `<div class="plan-card current"><div class="plan-top"><strong>Free</strong><span class="plan-pill">Current</span></div><p>1-mile mutual rider radius and private Group Rides.</p></div><div class="plan-card"><div class="plan-top"><strong>Premium</strong><span>6 mi</span></div><p>A wider radius for groups that spread out across city routes.</p><span class="caption">Not available yet</span></div><div class="plan-card"><div class="plan-top"><strong>Premium+</strong><span>20 mi</span></div><p>Maximum discovery range for touring and rural rides.</p><span class="caption">Not available yet</span></div><p class="caption">No payment details are requested until verified store billing is available.</p>`,
       }),
       privacy: () => ({ title: 'Privacy controls', body: `<div class="settings-sheet-section">${toggleMarkup('shareLocation', 'Live location', 'Visible to nearby riders only while you are live.', state.profile.shareLocation)}</div><div class="settings-sheet-section"><div class="form-field"><label for="sheetSocialVisibility">Connected profile visibility</label><select id="sheetSocialVisibility"><option value="friends">Friends only</option><option value="public">Everyone</option><option value="private">Only me</option></select></div><p class="caption">This applies to the Instagram and TikTok usernames on your profile.</p></div>`, ready: () => { $('#sheetSocialVisibility').value = state.profile.socialsVisibility; $('#sheetSocialVisibility').addEventListener('change', (event) => { patchProfile({ instagramVisibility: event.target.value, tiktokVisibility: event.target.value }); }); wireToggles(); } }),
-      map: () => ({ title: 'Location and map', body: `<div class="settings-sheet-section">${toggleMarkup('shareLocation', 'Nearby rider visibility', 'Share your position only after you choose to go live.', state.profile.shareLocation)}</div><div class="settings-note"><strong>Location stays in your control</strong><p>Turning this off stops nearby-rider visibility. Private Group Ride members can still share ride locations while that ride is active.</p></div>`, ready: wireToggles }),
+      map: () => ({ title: 'Location and map', body: `<div class="settings-sheet-section">${toggleMarkup('shareLocation', 'Nearby rider visibility', 'Share your position only after you choose to go live.', state.profile.shareLocation)}</div><div class="settings-note"><strong>Location stays in your control</strong><p>Turning this off stops nearby-rider visibility. Private-ride location is controlled separately inside each ride and remains off unless you explicitly enable it.</p></div>`, ready: wireToggles }),
       units: () => ({ title: 'Distance units', body: `<div class="choice-list" role="radiogroup" aria-label="Distance units"><button data-unit-option="mi" role="radio"><span><strong>Miles</strong><small>Use miles and mph</small></span><i></i></button><button data-unit-option="km" role="radio"><span><strong>Kilometres</strong><small>Use kilometres and km/h</small></span><i></i></button></div>`, ready: () => { $$('[data-unit-option]', $('#sheetBody')).forEach((button) => { const active = button.dataset.unitOption === state.unit; button.setAttribute('aria-checked', String(active)); button.addEventListener('click', () => { state.unit = button.dataset.unitOption; persist(); openSheet('units'); showToast('Distance unit updated.'); }); }); } }),
       notifications: () => ({ title: 'Notifications', body: `<div class="settings-sheet-section">${toggleMarkup('notifications', 'Notification permission', 'Allow Rider Comms to use device notifications.', notificationSettingActive())}</div><div class="settings-note"><strong>Permission only</strong><p>Background ride and message delivery is not active yet. This control only manages browser permission.</p></div>`, ready: wireToggles }),
       safety: () => ({ title: 'Safety', body: `<div class="safety-guidance"><div><span class="setting-icon"><svg><use href="#i-ride"/></svg></span><span><strong>Set up while stationary</strong><small>Complete profile, route and group controls before moving.</small></span></div><div><span class="setting-icon"><svg><use href="#i-location"/></svg></span><span><strong>Control your location</strong><small>Nearby visibility can be stopped at any time.</small></span></div><div><span class="setting-icon"><svg><use href="#i-info"/></svg></span><span><strong>Not an emergency service</strong><small>Call the appropriate emergency service if you need urgent help.</small></span></div></div>` }),
@@ -1303,14 +1277,15 @@
    * connectVoice/disconnectVoice directly at each call site.
    */
   function syncVoiceConnection() {
-    const desired = state.activeRide ? `ride:${state.activeRide.rideId}` : state.publicLive ? 'channel' : undefined;
+    // Private rides have membership-isolated rooms. Public bucket voice is
+    // disabled until server/SFU permissions enforce the allowed listeners.
+    const desired = state.activeRide ? `ride:${state.activeRide.rideId}` : undefined;
     if (desired === voiceTargetKey) return;
     if (voiceRoom) disconnectVoice();
     // A restored session must not make getUserMedia prompt during boot.
     // Create, Join and Go live set this only from their direct tap.
     if (desired && !microphonePermissionReady) return;
     if (state.activeRide) void connectVoice('ride', state.activeRide.rideId);
-    else if (state.publicLive) void connectVoice('channel');
   }
 
   function toggleVoiceMute() {
@@ -1349,7 +1324,6 @@
       showToast('You are no longer visible nearby.');
       return;
     }
-    await preflightMicrophoneAccess();
     let position;
     try {
       position = await currentPosition();
@@ -1437,20 +1411,46 @@
   const RIDE_LOCATION_REFRESH_MS = 10_000; // same 5-10s cadence as public presence (see PRESENCE_REFRESH_MS)
   let rideLocationTimer;
 
+  async function setRideLocationSharing(enabled) {
+    const ride = state.activeRide;
+    if (!ride) return false;
+    const toggle = $('#activeRideLocationConsent');
+    toggle.disabled = true;
+    try {
+      if (enabled && !(await preflightRideLocationAccess())) {
+        renderRide();
+        return false;
+      }
+      await apiFetch('PUT', `/rides/${encodeURIComponent(ride.rideId)}/location-sharing`, { enabled });
+      if (!state.activeRide || state.activeRide.rideId !== ride.rideId) return false;
+      state.activeRide.shareRideLocation = enabled;
+      if (!enabled) rideMemberLocations.delete(state.profile.riderId);
+      persist();
+      renderRide();
+      showToast(enabled ? 'Live location is shared with this ride.' : 'Ride location sharing is off and your saved position was removed.');
+      return true;
+    } catch {
+      renderRide();
+      showToast('Could not update ride location sharing. Try again.');
+      return false;
+    } finally {
+      toggle.disabled = false;
+    }
+  }
+
   /**
    * Keeps this rider's own location POST-ed to the active ride
    * (POST /rides/:id/location) and every member's real location fetched
    * (GET /rides/:id/locations) for as long as a ride is active — this is
-   * always-on for ride members, unlike public presence, which stays gated
-   * on profile.shareLocation (see the 0014_create_ride_locations migration
-   * note in backend/src/db.ts for why they're separate mechanisms). Called
+   * only after explicit per-ride consent, unlike public presence, which is
+   * gated on profile.shareLocation. Called
    * from renderRide(), which already runs after every ride-state change
    * (create, join, end, refreshActiveRide, and once on app start), so
    * there's one place that starts/stops this rather than a call at every
    * site that sets or clears state.activeRide.
    */
   function syncRideLocationSharing() {
-    if (state.activeRide) {
+    if (state.activeRide?.shareRideLocation === true) {
       // Never trigger a permission prompt during app boot or a restored
       // session. Existing Create/Join and map actions establish consent;
       // background refresh only continues an approved location flow.
@@ -1477,10 +1477,10 @@
       };
       void tick();
       rideLocationTimer = setInterval(tick, RIDE_LOCATION_REFRESH_MS);
-    } else if (rideLocationTimer) {
-      clearInterval(rideLocationTimer);
+    } else {
+      if (rideLocationTimer) clearInterval(rideLocationTimer);
       rideLocationTimer = undefined;
-      rideMemberLocations = new Map();
+      if (!state.activeRide) rideMemberLocations = new Map();
     }
   }
 
@@ -2097,9 +2097,8 @@
     const lng = location.lng();
     const card = $('#destinationCard');
     const secondary = address || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-    card.innerHTML = `<div class="destination-card-top"><span class="avatar" style="--avatar:#ff2d5a" aria-hidden="true"><svg><use href="#i-location"/></svg></span><div class="rider-card-copy"><strong>${escapeHtml(label || 'Selected place')}</strong><span>${escapeHtml(secondary)}</span></div></div><div class="destination-card-actions"><button class="compact-button" data-start-nav>Start</button><a class="icon-button" href="${navigationHref(lat, lng)}" target="_blank" rel="noopener noreferrer" aria-label="Open in Maps app"><svg><use href="#i-share"/></svg></a><button class="icon-button" aria-label="Dismiss destination" data-dismiss-destination>×</button></div>`;
+    card.innerHTML = `<div class="destination-card-top"><span class="avatar" style="--avatar:#ff2d5a" aria-hidden="true"><svg><use href="#i-location"/></svg></span><div class="rider-card-copy"><strong>${escapeHtml(label || 'Selected place')}</strong><span>${escapeHtml(secondary)}</span></div></div><div class="destination-card-actions"><a class="compact-button" href="${navigationHref(lat, lng)}" target="_blank" rel="noopener noreferrer" aria-label="Open directions in your maps app">Open in Maps</a><button class="icon-button" aria-label="Dismiss destination" data-dismiss-destination>×</button></div>`;
     card.hidden = false;
-    $('[data-start-nav]', card).addEventListener('click', () => void startInAppNavigation(location, label));
     $('[data-dismiss-destination]', card).addEventListener('click', () => {
       hideDestinationCard();
       destinationMarker?.setMap(null);
@@ -2121,18 +2120,9 @@
     showDestinationCard(location, label, address);
   }
 
-  // Real in-app turn-by-turn navigation — the point of an "all in one
-  // biker app" is not having to bounce out to a separate maps app mid-
-  // ride. Uses the real Google Directions API (google.maps.DirectionsService/
-  // DirectionsRenderer — part of the same `libraries=places` Maps JS
-  // script already loaded, no extra key or library needed) for the actual
-  // route/steps, real watchPosition() GPS tracking to advance through
-  // them, a real off-route distance check that triggers a real reroute,
-  // and the browser's real SpeechSynthesis API for voice prompts — no
-  // fake/simulated turn data anywhere in this. What's unverified: this
-  // sandbox has no live Google Maps key or a real device to actually
-  // drive a route with, so the exact arrival/off-route radii below are a
-  // reasonable starting point, not tuned against a real ride.
+  // Experimental in-app guidance remains unreachable from the production
+  // UI until physical-route, backgrounding and reroute validation exists.
+  // Destination actions above deliberately use OS-level Maps handoff.
   let directionsService;
   let directionsRenderer;
   let navSteps = [];
@@ -2575,6 +2565,9 @@
     $('#rideCode').addEventListener('input', (event) => { event.target.value = event.target.value.toUpperCase().replace(/[^A-Z2-9]/g, '').slice(0, 6); });
     $('#createRideBtn').addEventListener('click', createRide);
     $('#leaveRideBtn').addEventListener('click', endRide);
+    $('#activeRideLocationConsent').addEventListener('change', (event) => {
+      void setRideLocationSharing(event.target.checked);
+    });
     $('#shareRideBtn').addEventListener('click', shareRide);
     $('#rideShareTop').addEventListener('click', shareRide);
     $('#copyRideCode').addEventListener('click', async () => { try { await navigator.clipboard.writeText(state.activeRide.code); showToast('Ride code copied.'); } catch { shareRide(); } });
