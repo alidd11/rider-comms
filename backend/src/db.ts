@@ -4,8 +4,9 @@ import type { PoolClient } from 'pg';
 /**
  * Lazily-initialized Postgres pool. Nothing connects at import time — the
  * pool (and the one-time migration run) is created on first use, so a
- * backend without DATABASE_URL set keeps working for every route that
- * doesn't touch persistent storage (guest auth, all the in-memory stores).
+ * backend without DATABASE_URL set keeps working for routes that do not
+ * touch persistent storage (currently anonymous guest-session issuance).
+ * Product data stores require Postgres.
  */
 let pool: Pool | undefined;
 let migrationsRun: Promise<void> | undefined;
