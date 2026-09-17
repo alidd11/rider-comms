@@ -18,6 +18,7 @@ export default defineConfig({
   projects: [
     { name: 'phone-small', use: { ...devices['iPhone SE'], browserName: 'chromium' } },
     { name: 'phone-modern', use: { ...devices['iPhone 15 Pro'], browserName: 'chromium' } },
+    { name: 'iphone-webkit', use: { ...devices['iPhone 15 Pro'], browserName: 'webkit' } },
     { name: 'tablet-portrait', use: { browserName: 'chromium', viewport: { width: 768, height: 1024 }, isMobile: true, hasTouch: true } },
     { name: 'phone-landscape', use: { browserName: 'chromium', viewport: { width: 844, height: 390 }, isMobile: true, hasTouch: true } },
   ],
