@@ -59,6 +59,8 @@ function authErrorMessage(error: unknown): string {
     invalid_email: 'Enter a valid email address.',
     weak_password: 'Use a password between 8 and 128 characters.',
     invalid_credentials: 'The username or password is incorrect.',
+    invalid_token: 'That reset code is invalid or has already been used.',
+    expired_token: 'That reset code has expired. Request a new one.',
     rate_limited: 'Too many attempts. Wait a moment and try again.',
   };
   return code ? messages[code] ?? 'The account request could not be completed.' : 'The account request could not be completed.';
@@ -70,35 +72,53 @@ function AuthScreen({ onAuthenticated, restoreError, onRetryRestore }: {
   onRetryRestore: () => void;
 }): React.JSX.Element {
   const insets = useSafeAreaInsets();
-  const [mode, setMode] = React.useState<'login' | 'signup'>('login');
+  const [mode, setMode] = React.useState<'login' | 'signup' | 'recover' | 'reset'>('login');
   const [username, setUsername] = React.useState('');
   const [email, setEmail] = React.useState('');
   const [password, setPassword] = React.useState('');
+  const [resetToken, setResetToken] = React.useState('');
+  const [notice, setNotice] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const isSignup = mode === 'signup';
+  const isRecovery = mode === 'recover' || mode === 'reset';
 
   async function submit(): Promise<void> {
     const normalizedUsername = username.trim();
     const normalizedEmail = email.trim();
     setError(null);
-    if (!USERNAME_PATTERN.test(normalizedUsername)) {
+    setNotice(null);
+    if (!isRecovery && !USERNAME_PATTERN.test(normalizedUsername)) {
       setError('Use 3–20 letters, numbers, or underscores for your username.');
       return;
     }
-    if (isSignup && !EMAIL_PATTERN.test(normalizedEmail)) {
+    if ((isSignup || mode === 'recover') && !EMAIL_PATTERN.test(normalizedEmail)) {
       setError('Enter a valid email address.');
       return;
     }
-    if (password.length < 8 || password.length > 128) {
+    if (mode !== 'recover' && (password.length < 8 || password.length > 128)) {
       setError('Use a password between 8 and 128 characters.');
+      return;
+    }
+    if (mode === 'reset' && !resetToken.trim()) {
+      setError('Enter the reset code from your email.');
       return;
     }
 
     setBusy(true);
     try {
       const publicClient = new RiderCommsClient(API_BASE_URL);
-      if (isSignup) {
+      if (mode === 'recover') {
+        await publicClient.requestPasswordReset(normalizedEmail);
+        setMode('reset');
+        setNotice('If that address belongs to an account, a one-hour reset link and code has been sent.');
+      } else if (mode === 'reset') {
+        await publicClient.resetPassword(resetToken.trim(), password);
+        setMode('login');
+        setPassword('');
+        setResetToken('');
+        setNotice('Password updated. Sign in again on each device.');
+      } else if (isSignup) {
         const result = await publicClient.signUp(normalizedUsername, normalizedEmail, password);
         try {
           await new RiderCommsClient(API_BASE_URL, fetch, result.token).updateProfile(result.riderId, {
@@ -126,9 +146,10 @@ function AuthScreen({ onAuthenticated, restoreError, onRetryRestore }: {
     }
   }
 
-  function switchMode(nextMode: 'login' | 'signup'): void {
+  function switchMode(nextMode: 'login' | 'signup' | 'recover' | 'reset'): void {
     setMode(nextMode);
     setError(null);
+    setNotice(null);
     setPassword('');
   }
 
@@ -140,21 +161,31 @@ function AuthScreen({ onAuthenticated, restoreError, onRetryRestore }: {
       >
         <View style={styles.brandMark}><Text style={styles.brandLetter}>R</Text></View>
         <Text style={styles.eyebrow}>RIDER COMMS</Text>
-        <Text style={styles.title}>{isSignup ? 'Create your rider account' : 'Welcome back'}</Text>
+        <Text style={styles.title}>{isSignup ? 'Create your rider account' : mode === 'recover' ? 'Recover your account' : mode === 'reset' ? 'Choose a new password' : 'Welcome back'}</Text>
         <Text style={styles.subtitle}>
           {isSignup
             ? 'Keep your rides, friends, and identity available across your devices.'
-            : 'Sign in to reconnect with your rides and rider circle.'}
+            : mode === 'recover'
+              ? 'Enter your account email. The response never reveals whether an account exists.'
+              : mode === 'reset'
+                ? 'Paste the one-hour code from your email and set a new password.'
+                : 'Sign in to reconnect with your rides and rider circle.'}
         </Text>
 
-        <View accessibilityRole="tablist" style={styles.tabs}>
+        {!isRecovery ? <View accessibilityRole="tablist" style={styles.tabs}>
           <Pressable accessibilityRole="tab" accessibilityState={{ selected: !isSignup }} onPress={() => switchMode('login')} style={[styles.tab, !isSignup && styles.tabActive]}>
             <Text style={[styles.tabText, !isSignup && styles.tabTextActive]}>Log in</Text>
           </Pressable>
           <Pressable accessibilityRole="tab" accessibilityState={{ selected: isSignup }} onPress={() => switchMode('signup')} style={[styles.tab, isSignup && styles.tabActive]}>
             <Text style={[styles.tabText, isSignup && styles.tabTextActive]}>Create account</Text>
           </Pressable>
-        </View>
+        </View> : null}
+
+        {isRecovery ? (
+          <Pressable accessibilityRole="button" onPress={() => switchMode('login')} style={styles.backToLogin}>
+            <Text style={styles.backToLoginText}>Back to log in</Text>
+          </Pressable>
+        ) : null}
 
         {restoreError ? (
           <View style={styles.notice}>
@@ -163,8 +194,10 @@ function AuthScreen({ onAuthenticated, restoreError, onRetryRestore }: {
           </View>
         ) : null}
 
+        {notice ? <View style={styles.notice}><Text style={styles.noticeText}>{notice}</Text></View> : null}
+
         <View style={styles.form}>
-          <View style={styles.field}>
+          {!isRecovery ? <View style={styles.field}>
             <Text style={styles.fieldLabel}>Username</Text>
             <TextInput
               accessibilityLabel="Username"
@@ -180,8 +213,8 @@ function AuthScreen({ onAuthenticated, restoreError, onRetryRestore }: {
               placeholderTextColor={colors.textMuted}
               style={styles.input}
             />
-          </View>
-          {isSignup ? (
+          </View> : null}
+          {isSignup || mode === 'recover' ? (
             <View style={styles.field}>
               <Text style={styles.fieldLabel}>Email</Text>
               <TextInput
@@ -201,14 +234,29 @@ function AuthScreen({ onAuthenticated, restoreError, onRetryRestore }: {
               />
             </View>
           ) : null}
-          <View style={styles.field}>
+          {mode === 'reset' ? (
+            <View style={styles.field}>
+              <Text style={styles.fieldLabel}>Reset code</Text>
+              <TextInput
+                accessibilityLabel="Password reset code"
+                autoCapitalize="none"
+                autoCorrect={false}
+                value={resetToken}
+                onChangeText={setResetToken}
+                placeholder="Code from your email"
+                placeholderTextColor={colors.textMuted}
+                style={styles.input}
+              />
+            </View>
+          ) : null}
+          {mode !== 'recover' ? <View style={styles.field}>
             <Text style={styles.fieldLabel}>Password</Text>
             <TextInput
               accessibilityLabel="Password"
               autoCapitalize="none"
               autoCorrect={false}
-              autoComplete={isSignup ? 'new-password' : 'current-password'}
-              textContentType={isSignup ? 'newPassword' : 'password'}
+              autoComplete={isSignup || mode === 'reset' ? 'new-password' : 'current-password'}
+              textContentType={isSignup || mode === 'reset' ? 'newPassword' : 'password'}
               secureTextEntry
               maxLength={128}
               returnKeyType="go"
@@ -219,7 +267,12 @@ function AuthScreen({ onAuthenticated, restoreError, onRetryRestore }: {
               placeholderTextColor={colors.textMuted}
               style={styles.input}
             />
-          </View>
+          </View> : null}
+          {mode === 'login' ? (
+            <Pressable accessibilityRole="button" onPress={() => switchMode('recover')} style={styles.forgotButton}>
+              <Text style={styles.forgotText}>Forgot password?</Text>
+            </Pressable>
+          ) : null}
           {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
           <Pressable
             accessibilityRole="button"
@@ -227,7 +280,7 @@ function AuthScreen({ onAuthenticated, restoreError, onRetryRestore }: {
             onPress={() => void submit()}
             style={({ pressed }) => [styles.primaryButton, pressed && !busy && styles.primaryButtonPressed, busy && styles.buttonDisabled]}
           >
-            {busy ? <ActivityIndicator color={colors.accentText} /> : <Text style={styles.primaryButtonText}>{isSignup ? 'Create account' : 'Log in'}</Text>}
+            {busy ? <ActivityIndicator color={colors.accentText} /> : <Text style={styles.primaryButtonText}>{isSignup ? 'Create account' : mode === 'recover' ? 'Send reset link' : mode === 'reset' ? 'Reset password' : 'Log in'}</Text>}
           </Pressable>
         </View>
 
@@ -326,6 +379,8 @@ const styles = StyleSheet.create({
   tabActive: { backgroundColor: colors.surfaceRaised },
   tabText: { ...type.button, color: colors.textSecondary },
   tabTextActive: { color: colors.textPrimary },
+  backToLogin: { minHeight: MIN_TOUCH_TARGET, alignSelf: 'flex-start', justifyContent: 'center', marginBottom: spacing.sm },
+  backToLoginText: { ...type.button, color: colors.accent },
   notice: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, backgroundColor: colors.dangerSurface, borderRadius: radii.md, padding: spacing.md, marginBottom: spacing.md },
   noticeText: { ...type.caption, color: colors.textSecondary, flex: 1 },
   noticeAction: { ...type.button, color: colors.accent },
@@ -334,6 +389,8 @@ const styles = StyleSheet.create({
   fieldLabel: { ...type.caption, color: colors.textSecondary },
   input: { minHeight: MIN_TOUCH_TARGET, borderWidth: 1, borderColor: colors.border, borderRadius: radii.md, backgroundColor: colors.surface, color: colors.textPrimary, fontSize: 17, paddingHorizontal: spacing.md },
   error: { ...type.caption, color: colors.danger },
+  forgotButton: { minHeight: MIN_TOUCH_TARGET, alignSelf: 'flex-end', justifyContent: 'center', marginTop: -spacing.sm },
+  forgotText: { ...type.button, color: colors.accent },
   primaryButton: { minHeight: MIN_TOUCH_TARGET, borderRadius: radii.md, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center', marginTop: spacing.sm },
   primaryButtonPressed: { backgroundColor: colors.accentPressed },
   primaryButtonText: { ...type.button, color: colors.accentText },

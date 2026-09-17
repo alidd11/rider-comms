@@ -165,3 +165,29 @@ test('PWA fails locked when movement cannot be verified', async ({ page }) => {
   await enableLocation.click();
   await expect(page.locator('#toast')).toContainText('Location access is blocked');
 });
+
+test('PWA password recovery is discoverable and enumeration-safe', async ({ page }) => {
+  await page.route('https://backend-production-7fa0.up.railway.app/**', async (route) => {
+    const pathname = new URL(route.request().url()).pathname;
+    if (pathname === '/auth/password-reset/request') {
+      return route.fulfill({ status: 202, contentType: 'application/json', body: JSON.stringify({ accepted: true }) });
+    }
+    if (pathname === '/auth/password-reset/confirm') {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ reset: true }) });
+    }
+    return route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ error: 'not_found' }) });
+  });
+  await page.goto('/');
+  await expect(page.locator('#authScreen')).toBeVisible();
+  await page.locator('#forgotPasswordBtn').click();
+  await expect(page.locator('#recoverForm')).toBeVisible();
+  await page.locator('#recoverEmail').fill('unknown@example.com');
+  await page.locator('#recoverSubmit').click();
+  await expect(page.locator('#resetForm')).toBeVisible();
+  await expect(page.locator('#authNotice')).toContainText('If that address belongs to an account');
+  await page.locator('#resetToken').fill('one-time-reset-token');
+  await page.locator('#resetPassword').fill('new-secure-password');
+  await page.locator('#resetSubmit').click();
+  await expect(page.locator('#loginForm')).toBeVisible();
+  await expect(page.locator('#authNotice')).toContainText('Password updated');
+});

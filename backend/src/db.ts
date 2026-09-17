@@ -458,6 +458,19 @@ const MIGRATIONS: { name: string; sql: string }[] = [
         ADD CONSTRAINT account_sessions_device_name_check CHECK (char_length(device_name) BETWEEN 1 AND 120);
     `,
   },
+  {
+    name: '0020_password_recovery',
+    sql: `
+      CREATE TABLE IF NOT EXISTS password_resets (
+        token_hash TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+        expires_at TIMESTAMPTZ NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS password_resets_user_id_idx ON password_resets (user_id);
+      CREATE INDEX IF NOT EXISTS password_resets_expires_at_idx ON password_resets (expires_at);
+    `,
+  },
 ];
 
 /**

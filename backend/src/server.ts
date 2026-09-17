@@ -152,6 +152,7 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
   // far below apiLimiter's general 300/min so it can't become a way to
   // rack up email-sending cost/abuse.
   const resendVerificationLimiter = new SlidingWindowRateLimiter(3, 10 * 60_000);
+  const passwordResetLimiter = new SlidingWindowRateLimiter(3, 10 * 60_000);
   const allowedOrigins = new Set(options.allowedOrigins ?? []);
   const liveKitCredentials = 'liveKitCredentials' in options ? options.liveKitCredentials : getLiveKitCredentialsFromEnv();
   const accountDeletionStore = options.accountDeletionStore ?? new AccountDeletionStore();
@@ -200,6 +201,19 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
         const body = await readJsonBody(req);
         const result = await authStore.verifyEmail(body.token);
         if ('error' in result) return sendJson(res, result.error === 'invalid_token' ? 400 : 410, { error: result.error });
+        return sendJson(res, 200, result);
+      }
+      if (req.method === 'POST' && url.pathname === '/auth/password-reset/request') {
+        if (!passwordResetLimiter.tryConsume(address)) { res.setHeader('Retry-After', '600'); return sendJson(res, 429, { error: 'rate_limited' }); }
+        const body = await readJsonBody(req);
+        await authStore.requestPasswordReset(body.email);
+        return sendJson(res, 202, { accepted: true });
+      }
+      if (req.method === 'POST' && url.pathname === '/auth/password-reset/confirm') {
+        if (!guestLimiter.tryConsume(address)) return sendJson(res, 429, { error: 'rate_limited' });
+        const body = await readJsonBody(req);
+        const result = await authStore.resetPassword(body.token, body.password);
+        if ('error' in result) return sendJson(res, result.error === 'expired_token' ? 410 : 400, { error: result.error });
         return sendJson(res, 200, result);
       }
       const actorId = await authRider(req, res, authStore); if (!actorId) return;

@@ -2752,6 +2752,8 @@
     invalid_email: 'Enter a valid email address.',
     weak_password: 'Passwords must be at least 8 characters.',
     invalid_credentials: 'Incorrect username or password.',
+    invalid_token: 'That reset code is invalid or has already been used.',
+    expired_token: 'That reset code has expired. Request a new one.',
     rate_limited: 'Too many attempts — please wait a moment and try again.',
     network_error: 'Could not reach Rider Comms. Check your connection and try again.',
     timed_out: 'The request timed out. Please try again.',
@@ -2876,9 +2878,64 @@
     }
   }
 
+  async function requestPasswordReset(email) {
+    const errorEl = $('#recoverError');
+    const button = $('#recoverSubmit');
+    errorEl.hidden = true;
+    button.disabled = true;
+    button.textContent = 'Sending…';
+    try {
+      await apiFetch('POST', '/auth/password-reset/request', { email });
+      $('#resetToken').value = '';
+      setAuthMode('reset');
+      const notice = $('#authNotice');
+      notice.textContent = 'If that address belongs to an account, a one-hour reset link and code has been sent.';
+      notice.classList.remove('error');
+      notice.hidden = false;
+    } catch (error) {
+      errorEl.textContent = authErrorMessage(error);
+      errorEl.hidden = false;
+    } finally {
+      button.disabled = false;
+      button.textContent = 'Send reset link';
+    }
+  }
+
+  async function resetPassword(token, password) {
+    const errorEl = $('#resetError');
+    const button = $('#resetSubmit');
+    errorEl.hidden = true;
+    if (password.length < 8 || password.length > 128) {
+      errorEl.textContent = AUTH_ERROR_MESSAGES.weak_password;
+      errorEl.hidden = false;
+      return;
+    }
+    button.disabled = true;
+    button.textContent = 'Resetting…';
+    try {
+      await apiFetch('POST', '/auth/password-reset/confirm', { token, password });
+      clearSession();
+      setAuthMode('login');
+      const notice = $('#authNotice');
+      notice.textContent = 'Password updated. Sign in again on each device.';
+      notice.classList.remove('error');
+      notice.hidden = false;
+    } catch (error) {
+      errorEl.textContent = authErrorMessage(error);
+      errorEl.hidden = false;
+    } finally {
+      button.disabled = false;
+      button.textContent = 'Reset password';
+    }
+  }
+
   let authFormsWired = false;
-  function wireAuthForms() {
-    if (authFormsWired) return;
+  let setAuthMode = () => {};
+  function wireAuthForms(initialResetToken = '') {
+    if (authFormsWired) {
+      if (initialResetToken) { $('#resetToken').value = initialResetToken; setAuthMode('reset', false); }
+      return;
+    }
     authFormsWired = true;
     const authCopy = {
       login: {
@@ -2891,27 +2948,37 @@
         title: 'Suit up. Roll out.',
         description: 'Set up your Rider Comms identity and link up with the riders you trust.',
       },
+      recover: {
+        eyebrow: 'Account recovery',
+        title: 'Get back on the road.',
+        description: 'Request a one-hour password reset link without revealing whether an account exists.',
+      },
+      reset: {
+        eyebrow: 'Secure reset',
+        title: 'Choose a new password.',
+        description: 'Enter the one-hour code from your email. Every existing session will be signed out.',
+      },
     };
 
-    function setAuthMode(button, moveFocus = true) {
-      const signup = button.dataset.authMode === 'signup';
+    setAuthMode = (target, moveFocus = true) => {
+      const mode = typeof target === 'string' ? target : target.dataset.authMode;
       $$('[data-auth-mode]').forEach((item) => {
-        item.classList.toggle('active', item === button);
-        item.setAttribute('aria-selected', String(item === button));
-        item.tabIndex = item === button ? 0 : -1;
+        const selected = item.dataset.authMode === mode;
+        item.classList.toggle('active', selected);
+        item.setAttribute('aria-selected', String(selected));
+        item.tabIndex = selected ? 0 : -1;
       });
-      $('#loginForm').hidden = signup;
-      $('#signupForm').hidden = !signup;
-      $('#loginForm').setAttribute('aria-hidden', String(signup));
-      $('#signupForm').setAttribute('aria-hidden', String(!signup));
-      $('#loginError').hidden = true;
-      $('#signupError').hidden = true;
-      const copy = signup ? authCopy.signup : authCopy.login;
+      const forms = { login: $('#loginForm'), signup: $('#signupForm'), recover: $('#recoverForm'), reset: $('#resetForm') };
+      Object.entries(forms).forEach(([name, form]) => { form.hidden = name !== mode; form.setAttribute('aria-hidden', String(name !== mode)); });
+      $$('.auth-error').forEach((item) => { item.hidden = true; });
+      $('#authNotice').hidden = true;
+      const copy = authCopy[mode];
       $('#authEyebrow').textContent = copy.eyebrow;
       $('#authTitle').textContent = copy.title;
       $('#authDescription').textContent = copy.description;
-      if (moveFocus) (signup ? $('#signupUsername') : $('#loginUsername')).focus();
-    }
+      const focusTarget = { login: $('#loginUsername'), signup: $('#signupUsername'), recover: $('#recoverEmail'), reset: $('#resetToken') }[mode];
+      if (moveFocus) focusTarget.focus();
+    };
 
     $$('[data-auth-mode]').forEach((button) => {
       button.addEventListener('click', () => setAuthMode(button));
@@ -2943,6 +3010,27 @@
       event.preventDefault();
       doSignup($('#signupUsername').value.trim(), $('#signupEmail').value.trim(), $('#signupPassword').value);
     });
+    $('#forgotPasswordBtn').addEventListener('click', () => setAuthMode('recover'));
+    $$('.auth-back-login').forEach((button) => button.addEventListener('click', () => setAuthMode('login')));
+    $('#recoverForm').addEventListener('submit', (event) => {
+      event.preventDefault();
+      void requestPasswordReset($('#recoverEmail').value.trim());
+    });
+    $('#resetForm').addEventListener('submit', (event) => {
+      event.preventDefault();
+      void resetPassword($('#resetToken').value.trim(), $('#resetPassword').value);
+    });
+    if (initialResetToken) { $('#resetToken').value = initialResetToken; setAuthMode('reset', false); }
+  }
+
+  function consumePasswordResetLink() {
+    const params = new URLSearchParams(location.search);
+    const token = params.get('resetToken') || '';
+    if (!token) return '';
+    params.delete('resetToken');
+    const remaining = params.toString();
+    history.replaceState({}, '', `${location.pathname}${remaining ? `?${remaining}` : ''}${location.hash}`);
+    return token;
   }
 
   async function consumeEmailVerificationLink() {
@@ -2997,6 +3085,12 @@
   }
 
   async function init() {
+    const passwordResetToken = consumePasswordResetLink();
+    if (passwordResetToken) {
+      wireAuthForms(passwordResetToken);
+      showAuthScreen();
+      return;
+    }
     const verification = await consumeEmailVerificationLink();
     if (!session) {
       wireAuthForms();
