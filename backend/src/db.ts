@@ -315,6 +315,32 @@ const MIGRATIONS: { name: string; sql: string }[] = [
       CREATE UNIQUE INDEX IF NOT EXISTS rider_profiles_handle_lower_idx ON rider_profiles (lower(handle));
     `,
   },
+  {
+    name: '0016_private_ride_location_consent',
+    sql: `
+      ALTER TABLE ride_members
+        ADD COLUMN IF NOT EXISTS location_sharing_enabled BOOLEAN NOT NULL DEFAULT FALSE;
+
+      -- Existing rows were collected before per-ride consent existed. Do
+      -- not grandfather them into the new model: every member starts with
+      -- sharing off and must opt in again.
+      DELETE FROM ride_locations;
+
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint
+          WHERE conname = 'ride_locations_current_member_fk'
+        ) THEN
+          ALTER TABLE ride_locations
+            ADD CONSTRAINT ride_locations_current_member_fk
+            FOREIGN KEY (ride_id, rider_id)
+            REFERENCES ride_members (ride_id, rider_id)
+            ON DELETE CASCADE;
+        END IF;
+      END $$;
+    `,
+  },
 ];
 
 /**
