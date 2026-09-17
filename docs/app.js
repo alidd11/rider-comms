@@ -1414,6 +1414,14 @@
     if (message) message.textContent = nextState === 'moving'
       ? 'Distracting controls are locked until you have safely stopped.'
       : 'Waiting for a reliable stationary location fix.';
+    $$('[data-nav="routes"], [data-nav="friends"], [data-nav="settings"]').forEach((item) => {
+      item.setAttribute('aria-disabled', String(locked));
+      item.classList.toggle('safety-unavailable', locked);
+    });
+    $$('.map-header, #poiChipRow, #reportHazardBtn, #joinNearbyBtn, #riderCard, #hazardCard, #rideJoinState, #shareRideBtn, .ride-code-card, #rideRoster, #openRideMap').forEach((item) => {
+      item.toggleAttribute('inert', locked);
+      item.setAttribute('aria-disabled', String(locked));
+    });
     if (locked && !['map', 'ride'].includes(state.screen)) navigate(state.activeRide ? 'ride' : 'map', false);
   }
 
