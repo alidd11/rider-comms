@@ -10,7 +10,8 @@
       "expo-secure-store",
       "expo-location",
       "expo-notifications",
-      "expo-status-bar"
+      "expo-status-bar",
+      "react-native-maps"
     ],
     "ios": {
       "bundleIdentifier": "com.ridercomms.app",
