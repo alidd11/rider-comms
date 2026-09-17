@@ -12,6 +12,7 @@ This repository is a pre-alpha test build. Store review compliance is an ongoing
 - In-app privacy, safety, test-build and community-rule disclosures.
 - iOS privacy-manifest declaration for app preferences, explicit application identifiers, Android versioning, and an EAS internal APK profile.
 - No advertising SDK, tracking permission, background location, microphone permission, billing unlock, or unimplemented video feed exposed in the native build.
+- Movement-aware ride-safe surfaces in both clients fail locked on cold start, stale/unusable GPS, permission loss and app backgrounding. Distracting social, setup, billing, messaging, settings and route-discovery controls unlock only after sustained stationary evidence; map/navigation and active-ride exit controls remain available.
 
 ## Required before public App Store or Play Store submission
 
@@ -20,7 +21,7 @@ This repository is a pre-alpha test build. Store review compliance is an ongoing
 3. Staff a moderation queue with response targets and appeal/escalation procedures; persist reports and audit actions.
 4. Complete Apple privacy nutrition labels, Google Play Data safety, content-rating, target-audience, account-deletion URL, and testing-access declarations accurately.
 5. Add acceptance of Terms and Community Guidelines before any future user-generated video upload. The video feature must include proactive filtering, report/block tools, moderation, age controls, per-post Public/Friends/Private visibility, and a movement lock covering playback, posting, comments, likes, and feed scrolling.
-6. Complete physical-device accessibility and motorcycle distraction testing. Visual-manual social, billing, messaging, settings, route-discovery, and ride-admin interactions must be disabled while movement is detected.
+6. Complete physical-device accessibility and motorcycle distraction testing of the implemented movement lock, including permission denial, tunnels/GPS loss, passenger use, background/foreground transitions, false positives and the delayed unlock after stopping.
 7. Configure Apple and Google developer accounts, signing credentials, unique production identifiers, store listings, screenshots, reviewer notes, and TestFlight/Play internal testing groups.
 8. Verify every production third-party integration, including maps/navigation, voice, billing receipt validation, abuse tooling, and the deployed HTTPS API.
 

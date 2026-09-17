@@ -159,6 +159,11 @@
   }
 
   let session = loadSession();
+  const movementTracker = new window.RiderMovementSafety.MovementStateTracker();
+  let movementState = 'unknown';
+  let movementWatchId;
+  let movementFreshnessTimer;
+  let movementPermissionStatus;
   const stateStorageKey = () => session?.riderId ? `${STORAGE_KEY}:${session.riderId}` : STORAGE_KEY;
   // v4 stored profile data in one device-global record. Account-scoped
   // storage prevents one rider's cached identity appearing for another.
@@ -270,6 +275,10 @@
 
   function navigate(screen, push = true) {
     if (!['map', 'ride', 'routes', 'friends', 'settings'].includes(screen)) screen = 'map';
+    if (window.RiderMovementSafety.isLockedForSafety(movementState) && !['map', 'ride'].includes(screen)) {
+      screen = state.activeRide ? 'ride' : 'map';
+      showToast('Controls stay locked until Rider Comms confirms you are stationary.');
+    }
     state.screen = screen;
     persist();
     $$('.screen').forEach((item) => item.classList.toggle('active', item.dataset.screen === screen));
@@ -1372,12 +1381,67 @@
       if (!navigator.geolocation) return reject(new Error('Geolocation unavailable'));
       navigator.geolocation.getCurrentPosition((position) => {
         locationPermissionReady = true;
+        startMovementSafetyTracking();
         resolve(position);
       }, reject, { enableHighAccuracy: true, timeout: 10000, maximumAge: 15000 });
     });
   }
 
   let locationPermissionReady = false;
+
+  function movementFix(position) {
+    return {
+      lat: position.coords.latitude,
+      lon: position.coords.longitude,
+      timestampMs: position.timestamp || Date.now(),
+      accuracyMeters: position.coords.accuracy ?? Number.POSITIVE_INFINITY,
+      ...(position.coords.speed == null ? {} : { speedMps: position.coords.speed }),
+    };
+  }
+
+  function applyMovementState(nextState) {
+    movementState = nextState;
+    const locked = window.RiderMovementSafety.isLockedForSafety(nextState);
+    $('#app')?.classList.toggle('safety-locked', locked);
+    const banner = $('#movementSafetyBanner');
+    if (banner) banner.hidden = !locked;
+    const message = $('#movementSafetyMessage');
+    if (message) message.textContent = nextState === 'moving'
+      ? 'Distracting controls are locked until you have safely stopped.'
+      : 'Waiting for a reliable stationary location fix.';
+    if (locked && !['map', 'ride'].includes(state.screen)) navigate(state.activeRide ? 'ride' : 'map', false);
+  }
+
+  function stopMovementSafetyTracking() {
+    if (movementWatchId !== undefined) navigator.geolocation?.clearWatch(movementWatchId);
+    movementWatchId = undefined;
+    clearInterval(movementFreshnessTimer);
+    movementFreshnessTimer = undefined;
+    applyMovementState(movementTracker.markUnavailable());
+  }
+
+  function startMovementSafetyTracking() {
+    if (!navigator.geolocation || movementWatchId !== undefined || document.visibilityState !== 'visible') return;
+    movementWatchId = navigator.geolocation.watchPosition(
+      (position) => applyMovementState(movementTracker.addFix(movementFix(position))),
+      () => stopMovementSafetyTracking(),
+      { enableHighAccuracy: true, maximumAge: 2000, timeout: 15000 }
+    );
+    movementFreshnessTimer = setInterval(() => applyMovementState(movementTracker.stateAt(Date.now())), 2000);
+  }
+
+  async function initialiseMovementSafety() {
+    applyMovementState('unknown');
+    try {
+      const permission = await navigator.permissions?.query?.({ name: 'geolocation' });
+      if (permission?.state === 'granted') startMovementSafetyTracking();
+      if (permission && permission !== movementPermissionStatus) permission.addEventListener('change', () => {
+        if (permission.state === 'granted') startMovementSafetyTracking();
+        else stopMovementSafetyTracking();
+      });
+      movementPermissionStatus = permission;
+    } catch { /* permission state is unavailable; a deliberate location action can start tracking */ }
+  }
 
   function locationAccessMessage(error, purpose = 'use your location') {
     if (!navigator.geolocation) return 'Location is not supported by this browser.';
@@ -2895,6 +2959,11 @@
     // Startup only reconciles saved UI state with the browser. Permission
     // prompts belong to deliberate taps in Settings, never cold launch.
     syncNotificationPreference();
+    void initialiseMovementSafety();
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') void initialiseMovementSafety();
+      else stopMovementSafetyTracking();
+    });
   }
 
   async function init() {

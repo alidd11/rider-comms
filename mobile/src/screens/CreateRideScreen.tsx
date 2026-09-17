@@ -7,10 +7,17 @@ import type { RootStackParamList } from '../navigation';
 import { useAuth } from '../auth/AuthContext';
 import { colors, spacing, radii, type, elevation, MIN_TOUCH_TARGET } from '../theme';
 import { useRide } from '../ride/RideContext';
+import { useMovementSafety } from '../safety/MovementSafetyContext';
+import { RideSafeSurface } from '../safety/RideSafeSurface';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'CreateRide'>;
 
-export function CreateRideScreen({ navigation }: Props): React.JSX.Element {
+export function CreateRideScreen(props: Props): React.JSX.Element {
+  const { lockedForSafety } = useMovementSafety();
+  return lockedForSafety ? <RideSafeSurface /> : <CreateRideScreenContent {...props} />;
+}
+
+function CreateRideScreenContent({ navigation }: Props): React.JSX.Element {
   const { startRide } = useRide();
   const { client } = useAuth();
   const [loading, setLoading] = React.useState(false);

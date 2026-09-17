@@ -1,15 +1,14 @@
 // First-launch, 2-screen onboarding flow — gated on a persisted AsyncStorage
 // flag (see navigation/index.tsx) so it's shown once, before the user is
-// ever dropped straight into MapScreen. Screen 2 deliberately does NOT call
-// any location API: there's no real expo-location wired up yet (see the
-// TODO on MapScreen's getCurrentLocation() stub), so this is plain-language
-// priming copy only, not an actual permission request.
+// ever dropped straight into MapScreen. Screen 2 makes the foreground
+// location request only after the rider taps the explicit enable action.
 import * as React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, spacing, radii, type, elevation, MIN_TOUCH_TARGET } from '../theme';
+import * as Location from 'expo-location';
 
 export const ONBOARDING_COMPLETED_KEY = '@rider-comms/onboarding/completed';
 
@@ -43,7 +42,7 @@ function ValuePropStep({ onNext }: { onNext: () => void }): React.JSX.Element {
   );
 }
 
-function LocationPrimingStep({ onContinue }: { onContinue: () => void }): React.JSX.Element {
+function LocationPrimingStep({ onContinue }: { onContinue: () => Promise<void> }): React.JSX.Element {
   const insets = useSafeAreaInsets();
   return (
     <View style={[styles.step, { paddingTop: insets.top + spacing.xxl, paddingBottom: insets.bottom + spacing.lg }]}>
@@ -57,7 +56,7 @@ function LocationPrimingStep({ onContinue }: { onContinue: () => void }): React.
           ride.
         </Text>
       </View>
-      <PrimaryButton label="Continue" onPress={onContinue} />
+      <PrimaryButton label="Enable location" onPress={() => { void onContinue(); }} />
     </View>
   );
 }
@@ -65,7 +64,8 @@ function LocationPrimingStep({ onContinue }: { onContinue: () => void }): React.
 export function OnboardingScreen({ onDone }: { onDone: () => void }): React.JSX.Element {
   const [step, setStep] = React.useState<0 | 1>(0);
 
-  const handleContinue = React.useCallback(() => {
+  const handleContinue = React.useCallback(async () => {
+    await Location.requestForegroundPermissionsAsync().catch(() => undefined);
     AsyncStorage.setItem(ONBOARDING_COMPLETED_KEY, 'true').catch(() => {
       // Best-effort — if this write fails, onboarding just shows again next
       // launch, which is a minor annoyance, not a broken app.
