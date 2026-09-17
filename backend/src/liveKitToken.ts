@@ -28,12 +28,10 @@ export function rideRoomName(rideId: string): string {
 }
 
 /**
- * Public local channels (Section 5) share one LiveKit room per geo-bucket —
- * the bucket is the SFU-room sharding layer from geoBucket.ts, sized larger
- * than the biggest radius tier. Riders never see the bucket id; each client
- * only subscribes to the participants currently in its own zone within
- * whatever room they land in (per-participant selective subscription,
- * which LiveKit supports natively).
+ * Reserved public-channel room naming. The API currently refuses public
+ * voice tokens because client-selected subscriptions are not an
+ * authorization boundary. This helper remains for the future server/SFU
+ * implementation that will enforce participant permissions.
  */
 export function channelRoomName(bucketId: string): string {
   return `channel:${bucketId}`;

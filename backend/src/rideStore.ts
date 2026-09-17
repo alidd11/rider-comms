@@ -26,7 +26,7 @@ const MAX_RIDE_MEMBERS = 20;
 
 export type RideActionResult =
   | { ok: true; ride: Ride }
-  | { ok: false; reason: 'not_found' | 'forbidden' | 'not_member' };
+  | { ok: false; reason: 'not_found' | 'forbidden' | 'not_member' | 'location_sharing_disabled' };
 
 export interface RideMemberLocation {
   riderId: string;
@@ -37,7 +37,9 @@ export interface RideMemberLocation {
 
 export type RideLocationsResult =
   | { ok: true; locations: RideMemberLocation[] }
-  | { ok: false; reason: 'not_found' | 'forbidden' | 'not_member' };
+  | { ok: false; reason: 'not_found' | 'forbidden' | 'not_member' | 'location_sharing_disabled' };
+
+const RIDE_LOCATION_MAX_AGE_MS = 30_000;
 
 interface RideRow {
   id: string;
@@ -185,6 +187,37 @@ export class RideStore {
     return { ok: true, ride };
   }
 
+  async setMemberLocationSharing(
+    rideId: string,
+    riderId: string,
+    enabled: boolean
+  ): Promise<RideActionResult> {
+    const result = await this.getRideForMember(rideId, riderId);
+    if (!result.ok) return result;
+    const client = await getPool().connect();
+    try {
+      await client.query('BEGIN');
+      const updated = await client.query(
+        'UPDATE ride_members SET location_sharing_enabled = $3 WHERE ride_id = $1 AND rider_id = $2 RETURNING rider_id',
+        [rideId, riderId, enabled]
+      );
+      if (updated.rowCount === 0) {
+        await client.query('ROLLBACK');
+        return { ok: false, reason: 'not_member' };
+      }
+      if (!enabled) {
+        await client.query('DELETE FROM ride_locations WHERE ride_id = $1 AND rider_id = $2', [rideId, riderId]);
+      }
+      await client.query('COMMIT');
+      return result;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
   async endRide(rideId: string, actorId: string): Promise<RideActionResult> {
     await ensureMigrated();
     const ride = await this.loadRide(rideId);
@@ -202,29 +235,43 @@ export class RideStore {
     await pool.query('DELETE FROM ride_members WHERE rider_id = $1', [riderId]);
   }
 
-  /**
-   * Real-time location within a ride is always-on for its members — unlike
-   * the public nearby-riders channel (rider_presence, gated on
-   * profile.shareLocation), a ride is an explicit, already-consented-to
-   * group, so this never checks that flag. It only checks ride membership.
-   */
+  /** Private-ride location is separate from public presence and requires
+   * explicit, per-ride consent. Membership alone never enables upload. */
   async updateMemberLocation(rideId: string, riderId: string, lat: number, lon: number): Promise<RideActionResult> {
     const result = await this.getRideForMember(rideId, riderId);
     if (!result.ok) return result;
-    await getPool().query(
-      `INSERT INTO ride_locations (ride_id, rider_id, lat, lon, updated_at) VALUES ($1, $2, $3, $4, $5)
-       ON CONFLICT (ride_id, rider_id) DO UPDATE SET lat = $3, lon = $4, updated_at = $5`,
+    const pool = getPool();
+    const updated = await pool.query(
+      `INSERT INTO ride_locations (ride_id, rider_id, lat, lon, updated_at)
+       SELECT $1, $2, $3, $4, $5
+       FROM ride_members
+       WHERE ride_id = $1 AND rider_id = $2 AND location_sharing_enabled = TRUE
+       ON CONFLICT (ride_id, rider_id)
+       DO UPDATE SET lat = $3, lon = $4, updated_at = $5
+       RETURNING rider_id`,
       [rideId, riderId, lat, lon, Date.now()]
     );
+    if (updated.rowCount === 0) return { ok: false, reason: 'location_sharing_disabled' };
     return result;
   }
 
   async getMemberLocations(rideId: string, actorId: string): Promise<RideLocationsResult> {
     const result = await this.getRideForMember(rideId, actorId);
     if (!result.ok) return result;
-    const { rows } = await getPool().query<{ rider_id: string; lat: number; lon: number; updated_at: string | number }>(
-      'SELECT rider_id, lat, lon, updated_at FROM ride_locations WHERE ride_id = $1',
-      [rideId]
+    const pool = getPool();
+    const freshSince = Date.now() - RIDE_LOCATION_MAX_AGE_MS;
+    await pool.query('DELETE FROM ride_locations WHERE ride_id = $1 AND updated_at < $2', [rideId, freshSince]);
+    const { rows } = await pool.query<{ rider_id: string; lat: number; lon: number; updated_at: string | number }>(
+      `SELECT location.rider_id, location.lat, location.lon, location.updated_at
+       FROM ride_locations location
+       INNER JOIN ride_members member
+         ON member.ride_id = location.ride_id
+        AND member.rider_id = location.rider_id
+       WHERE location.ride_id = $1
+         AND member.location_sharing_enabled = TRUE
+         AND location.updated_at >= $2
+       ORDER BY location.rider_id ASC`,
+      [rideId, freshSince]
     );
     return {
       ok: true,
