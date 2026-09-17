@@ -69,7 +69,9 @@ export class RiderCommsClient {
   leaveRide(id: string): Promise<Record<string, never>> { return this.request('POST', `/rides/${encodeURIComponent(id)}/leave`, {}); }
   endRide(id: string): Promise<Record<string, never>> { return this.request('DELETE', `/rides/${encodeURIComponent(id)}`); }
   removeRideMember(id: string, memberId: string): Promise<RideResponse> { return this.request('DELETE', `/rides/${encodeURIComponent(id)}/members/${encodeURIComponent(memberId)}`); }
-  updatePresence(lat: number, lon: number): Promise<PresenceResponse> { return this.request('POST', '/presence', { lat, lon }); }
+  updatePresence(lat: number, lon: number, accuracyMeters: number, recordedAt: number): Promise<PresenceResponse> {
+    return this.request('POST', '/presence', { lat, lon, accuracyMeters, recordedAt });
+  }
   leavePresence(): Promise<Record<string, never>> { return this.request('DELETE', '/presence'); }
   getRideVoiceToken(rideId: string): Promise<VoiceTokenResponse> { return this.request('POST', '/voice/token', { target: 'ride', rideId }); }
   getChannelVoiceToken(): Promise<VoiceTokenResponse> { return this.request('POST', '/voice/token', { target: 'channel' }); }

@@ -35,7 +35,7 @@ describe('PresenceStore', { skip: !hasDatabase && 'DATABASE_URL not set; skippin
   });
 
   beforeEach(async () => {
-    await getPool().query('TRUNCATE rider_presence');
+    await getPool().query('TRUNCATE presence_zone_pairs, rider_presence');
   });
 
   after(async () => {
@@ -85,12 +85,31 @@ describe('PresenceStore', { skip: !hasDatabase && 'DATABASE_URL not set; skippin
     assert.deepEqual(zonePairs, []);
   });
 
-  it('zoneCandidates only returns riders in the same or a neighboring geo-bucket', async () => {
+  it('zoneCandidates returns only fresh riders in the indexed geographic window', async () => {
     const store = new PresenceStore();
     await store.updatePresence(rider('near', 51.501, -0.1, 5, 1000));
     await store.updatePresence(rider('far', -10, 100, 5, 1001));
 
     const candidates = (await store.zoneCandidates(rider('me', 51.5, -0.1, 5, 1002))).map((r) => r.id);
     assert.deepEqual(candidates, ['near']);
+  });
+
+  it('persists pair state across store instances without emitting duplicate enters', async () => {
+    const first = new PresenceStore();
+    await first.updatePresence(rider('a', 51.5, -0.1, 5, 1000));
+    const entered = await first.updatePresence(rider('b', 51.501, -0.1, 5, 1001));
+    assertHasTransition(entered.transitions, 'a', 'b', 'entered');
+
+    const afterRestart = new PresenceStore();
+    const repeated = await afterRestart.updatePresence(rider('a', 51.5, -0.1, 5, 1002));
+    assert.deepEqual(repeated.transitions, []);
+    assert.deepEqual(afterRestart.ridersInZoneWith('a', repeated.zonePairs), ['b']);
+  });
+
+  it('rejects an out-of-order fix instead of moving a rider backwards', async () => {
+    const store = new PresenceStore();
+    await store.updatePresence(rider('a', 51.5, -0.1, 5, 2000));
+    await assert.rejects(() => store.updatePresence(rider('a', 52, -0.1, 5, 1999)), /older than/);
+    assert.equal((await store.getRider('a'))?.location.lat, 51.5);
   });
 });

@@ -90,12 +90,17 @@ describe('RiderCommsClient.joinRide', () => {
 });
 
 describe('RiderCommsClient.updatePresence', () => {
-  it('sends lat/lon/radiusMiles and returns inZoneWith + transitions', async () => {
+  it('sends coordinate evidence and returns inZoneWith + transitions', async () => {
     const client = new RiderCommsClient(
       'http://example.test',
       fakeFetch((url, init) => {
         assert.equal(url, 'http://example.test/presence');
-        assert.deepEqual(JSON.parse(init.body as string), { lat: 40.0, lon: -105.0 });
+        assert.deepEqual(JSON.parse(init.body as string), {
+          lat: 40.0,
+          lon: -105.0,
+          accuracyMeters: 8,
+          recordedAt: 1_700_000_000_000,
+        });
         return {
           status: 200,
           body: { inZoneWith: ['friend'], transitions: [{ a: 'ali', b: 'friend', type: 'entered' }] },
@@ -103,7 +108,7 @@ describe('RiderCommsClient.updatePresence', () => {
       })
     );
 
-    const result = await client.updatePresence(40.0, -105.0);
+    const result = await client.updatePresence(40.0, -105.0, 8, 1_700_000_000_000);
     assert.deepEqual(result.inZoneWith, ['friend']);
     assert.equal(result.transitions[0].type, 'entered');
   });

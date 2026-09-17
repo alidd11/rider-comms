@@ -1,11 +1,6 @@
-import {
-  bucketId,
-  computeZonePairs,
-  diffZoneTransitions,
-  getBucketCoord,
-  getNeighboringBucketIds,
-} from '@rider-comms/shared';
+import { computeZonePairs } from '@rider-comms/shared';
 import type { Rider, ZonePair, ZoneTransition } from '@rider-comms/shared';
+import type { PoolClient } from 'pg';
 import { ensureMigrated, getPool } from './db.ts';
 
 export interface PresenceUpdateResult {
@@ -13,128 +8,210 @@ export interface PresenceUpdateResult {
   zonePairs: ZonePair[];
 }
 
+export class StaleLocationFixError extends Error {
+  constructor() {
+    super('location fix is older than the last accepted fix');
+    this.name = 'StaleLocationFixError';
+  }
+}
+
+interface PresenceFix extends Rider {
+  accuracyMeters?: number;
+}
+
 interface RiderPresenceRow {
   rider_id: string;
   lat: number;
   lon: number;
   radius_miles: number;
+  accuracy_meters: number;
   updated_at: string | number;
 }
+
+interface PairRow {
+  rider_a: string;
+  rider_b: string;
+}
+
+const MAX_ZONE_RADIUS_MILES = 20;
+const MILES_PER_DEGREE_LAT = 69;
 
 function rowToRider(row: RiderPresenceRow): Rider {
   return {
     id: row.rider_id,
-    location: { lat: row.lat, lon: row.lon },
-    radiusMiles: row.radius_miles,
+    location: { lat: Number(row.lat), lon: Number(row.lon) },
+    radiusMiles: Number(row.radius_miles),
     updatedAt: Number(row.updated_at),
   };
 }
 
+function canonicalPair(pair: ZonePair): ZonePair {
+  return pair.a < pair.b ? pair : { a: pair.b, b: pair.a, distanceMiles: pair.distanceMiles };
+}
+
+function pairKey(pair: ZonePair): string {
+  return `${pair.a}\u0000${pair.b}`;
+}
+
+function pairToZonePair(row: PairRow): ZonePair {
+  return { a: row.rider_a, b: row.rider_b, distanceMiles: 0 };
+}
+
 /**
- * Public local channel presence (Section 5/8 of the spec): tracks each
- * rider's last-known location and radius, and is the thing that owns the
- * mutual in-zone/out-of-zone decision server-side (never client-side —
- * Section 8 was explicit about that, both for privacy and so two phones
- * can't disagree about the answer from slightly stale data). Riders are
- * persisted in Postgres (see db.ts) as a single `rider_presence` row per
- * rider, written with one UPSERT per location ping rather than a
- * delete+insert, since this table is written far more often than any
- * other store's.
- *
- * SCALE: `updatePresence()` only recomputes pairs touching the rider whose
- * location just changed, against `zoneCandidates()` — their own geo-bucket
- * plus its 8 neighbors (Section 5's sharding layer) — rather than scanning
- * every rider in the system on every single ping. Every other rider's
- * pairs are carried over unchanged from the previous snapshot, since
- * nothing about them changed. This is what makes rally-scale concurrent
- * riders (Section 14's load-testing gap in the product spec) tractable;
- * the matching *logic* itself (shared/zoneMatcher.ts) doesn't change.
- *
- * `previousPairs` is kept in-process rather than in Postgres — it's a
- * derived diff cache (last-computed zone pairs, used only to work out
- * "entered"/"left" transitions on the next ping), not durable state a
- * client or another process ever needs to read back.
+ * Public nearby-rider presence. Candidate selection is performed by an
+ * indexed latitude/longitude bounding query and then verified with the
+ * shared great-circle matcher. The database stores the current pair set,
+ * so enter/leave transitions survive restarts and behave consistently
+ * across replicas.
  */
 export class PresenceStore {
-  private previousPairs: ZonePair[] = [];
   private readonly staleAfterMs: number;
 
   constructor(staleAfterMs = 30_000) {
     this.staleAfterMs = staleAfterMs;
   }
 
-  private async loadAllRiders(): Promise<Rider[]> {
-    const { rows } = await getPool().query<RiderPresenceRow>('SELECT * FROM rider_presence');
+  private async loadCandidates(client: PoolClient, rider: Rider, cutoff: number): Promise<Rider[]> {
+    const latDelta = MAX_ZONE_RADIUS_MILES / MILES_PER_DEGREE_LAT;
+    const minLat = Math.max(-90, rider.location.lat - latDelta);
+    const maxLat = Math.min(90, rider.location.lat + latDelta);
+    const longitudeScale = MILES_PER_DEGREE_LAT * Math.abs(Math.cos(rider.location.lat * Math.PI / 180));
+    const lonDelta = longitudeScale < 0.000001
+      ? 180
+      : Math.min(180, MAX_ZONE_RADIUS_MILES / longitudeScale);
+
+    const values: unknown[] = [rider.id, cutoff, minLat, maxLat];
+    let longitudeClause = '';
+    if (lonDelta < 180) {
+      const minLon = rider.location.lon - lonDelta;
+      const maxLon = rider.location.lon + lonDelta;
+      if (minLon < -180) {
+        values.push(minLon + 360, maxLon);
+        longitudeClause = 'AND (lon >= $5 OR lon <= $6)';
+      } else if (maxLon > 180) {
+        values.push(minLon, maxLon - 360);
+        longitudeClause = 'AND (lon >= $5 OR lon <= $6)';
+      } else {
+        values.push(minLon, maxLon);
+        longitudeClause = 'AND lon BETWEEN $5 AND $6';
+      }
+    }
+
+    const { rows } = await client.query<RiderPresenceRow>(
+      `SELECT rider_id, lat, lon, radius_miles, accuracy_meters, updated_at
+       FROM rider_presence
+       WHERE rider_id <> $1
+         AND updated_at >= $2
+         AND lat BETWEEN $3 AND $4
+         ${longitudeClause}`,
+      values
+    );
     return rows.map(rowToRider);
   }
 
-  /** Returns the ids of riders it actually pruned, so callers can also drop
-   * their pairs from the previous-pairs snapshot — otherwise a rider who
-   * goes stale via someone else's ping would never leave anyone's zone. */
-  private async pruneStale(now: number): Promise<string[]> {
-    const riders = await this.loadAllRiders();
-    const staleIds = riders.filter((rider) => now - rider.updatedAt > this.staleAfterMs).map((rider) => rider.id);
-    if (staleIds.length > 0) {
-      await getPool().query('DELETE FROM rider_presence WHERE rider_id = ANY($1::text[])', [staleIds]);
-    }
-    return staleIds;
-  }
-
-  /** Riders sharing this rider's geo-bucket or an adjacent one — the
-   * scale-safe candidate set a production deployment would diff against,
-   * instead of every rider in the system. */
   async zoneCandidates(rider: Rider): Promise<Rider[]> {
     await ensureMigrated();
-    const neighborIds = new Set(getNeighboringBucketIds(rider.location));
-    const riders = await this.loadAllRiders();
-    return riders.filter((other) => {
-      if (other.id === rider.id) return false;
-      const otherBucket = bucketId(getBucketCoord(other.location));
-      return neighborIds.has(otherBucket);
-    });
+    const client = await getPool().connect();
+    try {
+      return await this.loadCandidates(client, rider, rider.updatedAt - this.staleAfterMs);
+    } finally {
+      client.release();
+    }
   }
 
-  async updatePresence(rider: Rider): Promise<PresenceUpdateResult> {
+  async updatePresence(rider: PresenceFix): Promise<PresenceUpdateResult> {
     await ensureMigrated();
-    const staleIds = new Set(await this.pruneStale(rider.updatedAt));
-    staleIds.add(rider.id); // this rider's own pairs are also being replaced below
+    const client = await getPool().connect();
+    const cutoff = rider.updatedAt - this.staleAfterMs;
+    try {
+      await client.query('BEGIN');
 
-    await getPool().query(
-      `INSERT INTO rider_presence (rider_id, lat, lon, radius_miles, updated_at)
-       VALUES ($1, $2, $3, $4, $5)
-       ON CONFLICT (rider_id) DO UPDATE SET
-         lat = EXCLUDED.lat,
-         lon = EXCLUDED.lon,
-         radius_miles = EXCLUDED.radius_miles,
-         updated_at = EXCLUDED.updated_at`,
-      [rider.id, rider.location.lat, rider.location.lon, rider.radiusMiles, rider.updatedAt]
-    );
+      const stalePairs = await client.query<PairRow>(
+        `SELECT DISTINCT pair.rider_a, pair.rider_b
+         FROM presence_zone_pairs pair
+         JOIN rider_presence presence
+           ON presence.rider_id = pair.rider_a OR presence.rider_id = pair.rider_b
+         WHERE presence.updated_at < $1`,
+        [cutoff]
+      );
+      await client.query('DELETE FROM rider_presence WHERE updated_at < $1', [cutoff]);
 
-    // Only this rider's pairs, and any rider that just went stale, can have
-    // changed — recompute the former against bucket-scoped candidates and
-    // drop the latter outright, carrying every other pair over unchanged
-    // rather than rescanning the whole rider set.
-    const unaffectedPairs = this.previousPairs.filter((pair) => !staleIds.has(pair.a) && !staleIds.has(pair.b));
-    const refreshedPairs = computeZonePairs([rider, ...(await this.zoneCandidates(rider))]).filter(
-      (pair) => pair.a === rider.id || pair.b === rider.id
-    );
-    const currentPairs = [...unaffectedPairs, ...refreshedPairs];
-    const transitions = diffZoneTransitions(this.previousPairs, currentPairs);
-    this.previousPairs = currentPairs;
+      const accepted = await client.query(
+        `INSERT INTO rider_presence
+           (rider_id, lat, lon, radius_miles, accuracy_meters, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (rider_id) DO UPDATE SET
+           lat = EXCLUDED.lat,
+           lon = EXCLUDED.lon,
+           radius_miles = EXCLUDED.radius_miles,
+           accuracy_meters = EXCLUDED.accuracy_meters,
+           updated_at = EXCLUDED.updated_at
+         WHERE rider_presence.updated_at < EXCLUDED.updated_at
+         RETURNING rider_id`,
+        [rider.id, rider.location.lat, rider.location.lon, rider.radiusMiles, rider.accuracyMeters ?? 0, rider.updatedAt]
+      );
+      if (accepted.rowCount !== 1) throw new StaleLocationFixError();
 
-    return { transitions, zonePairs: currentPairs };
+      const candidates = await this.loadCandidates(client, rider, cutoff);
+      const desiredPairs = computeZonePairs([rider, ...candidates])
+        .filter((pair) => pair.a === rider.id || pair.b === rider.id)
+        .map(canonicalPair);
+      const desiredKeys = new Set(desiredPairs.map(pairKey));
+
+      const existing = await client.query<PairRow>(
+        `SELECT rider_a, rider_b FROM presence_zone_pairs
+         WHERE rider_a = $1 OR rider_b = $1`,
+        [rider.id]
+      );
+      const transitions: ZoneTransition[] = stalePairs.rows
+        .filter((pair) => pair.rider_a === rider.id || pair.rider_b === rider.id)
+        .map((pair) => ({ ...pairToZonePair(pair), type: 'left' as const }));
+
+      for (const row of existing.rows) {
+        const pair = pairToZonePair(row);
+        if (desiredKeys.has(pairKey(pair))) continue;
+        const removed = await client.query(
+          `DELETE FROM presence_zone_pairs
+           WHERE rider_a = $1 AND rider_b = $2
+           RETURNING rider_a`,
+          [pair.a, pair.b]
+        );
+        if (removed.rowCount === 1) transitions.push({ ...pair, type: 'left' });
+      }
+
+      for (const pair of desiredPairs) {
+        const inserted = await client.query(
+          `INSERT INTO presence_zone_pairs (rider_a, rider_b, created_at)
+           VALUES ($1, $2, $3)
+           ON CONFLICT (rider_a, rider_b) DO NOTHING
+           RETURNING rider_a`,
+          [pair.a, pair.b, rider.updatedAt]
+        );
+        if (inserted.rowCount === 1) transitions.push({ ...pair, type: 'entered' });
+      }
+
+      await client.query('COMMIT');
+      return { transitions, zonePairs: desiredPairs };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async removeRider(riderId: string): Promise<void> {
     await ensureMigrated();
     await getPool().query('DELETE FROM rider_presence WHERE rider_id = $1', [riderId]);
-    const remaining = await this.loadAllRiders();
-    this.previousPairs = computeZonePairs(remaining);
   }
 
   async getRider(riderId: string): Promise<Rider | undefined> {
     await ensureMigrated();
-    const { rows } = await getPool().query<RiderPresenceRow>('SELECT * FROM rider_presence WHERE rider_id = $1', [riderId]);
+    const { rows } = await getPool().query<RiderPresenceRow>(
+      `SELECT rider_id, lat, lon, radius_miles, accuracy_meters, updated_at
+       FROM rider_presence WHERE rider_id = $1`,
+      [riderId]
+    );
     return rows[0] ? rowToRider(rows[0]) : undefined;
   }
 

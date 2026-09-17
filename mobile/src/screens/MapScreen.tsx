@@ -148,7 +148,7 @@ export function MapScreen(): React.JSX.Element {
     }, 450);
   }, []);
 
-  const requestCurrentLocation = React.useCallback(async (showSettingsPrompt = true): Promise<{ lat: number; lon: number } | null> => {
+  const requestCurrentLocation = React.useCallback(async (showSettingsPrompt = true): Promise<{ lat: number; lon: number; accuracyMeters: number; recordedAt: number } | null> => {
     try {
       const permission = await Location.requestForegroundPermissionsAsync();
       if (!permission.granted) {
@@ -166,7 +166,12 @@ export function MapScreen(): React.JSX.Element {
         return null;
       }
       const result = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      const next = { lat: result.coords.latitude, lon: result.coords.longitude };
+      const next = {
+        lat: result.coords.latitude,
+        lon: result.coords.longitude,
+        accuracyMeters: result.coords.accuracy ?? Number.POSITIVE_INFINITY,
+        recordedAt: result.timestamp,
+      };
       setCurrentLocation(next);
       await refreshTracking();
       setLocationUnavailable(false);
@@ -202,9 +207,9 @@ export function MapScreen(): React.JSX.Element {
     async function tick() {
       const location = await requestCurrentLocation(false);
       if (!location || cancelled) return;
-      const { lat, lon } = location;
+      const { lat, lon, accuracyMeters, recordedAt } = location;
       try {
-        const { inZoneWith } = await client.updatePresence(lat, lon);
+        const { inZoneWith } = await client.updatePresence(lat, lon, accuracyMeters, recordedAt);
         if (!cancelled) {
           setRidersInZone(inZoneWith);
           setLocationUnavailable(false);

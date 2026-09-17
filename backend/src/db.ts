@@ -404,6 +404,41 @@ const MIGRATIONS: { name: string; sql: string }[] = [
         WHERE status = 'pending';
     `,
   },
+  {
+    name: '0018_presence_evidence_and_pairs',
+    sql: `
+      ALTER TABLE rider_presence
+        ADD COLUMN IF NOT EXISTS accuracy_meters DOUBLE PRECISION NOT NULL DEFAULT 0;
+
+      ALTER TABLE rider_presence DROP CONSTRAINT IF EXISTS rider_presence_lat_check;
+      ALTER TABLE rider_presence
+        ADD CONSTRAINT rider_presence_lat_check CHECK (lat BETWEEN -90 AND 90);
+      ALTER TABLE rider_presence DROP CONSTRAINT IF EXISTS rider_presence_lon_check;
+      ALTER TABLE rider_presence
+        ADD CONSTRAINT rider_presence_lon_check CHECK (lon BETWEEN -180 AND 180);
+      ALTER TABLE rider_presence DROP CONSTRAINT IF EXISTS rider_presence_accuracy_check;
+      ALTER TABLE rider_presence
+        ADD CONSTRAINT rider_presence_accuracy_check CHECK (accuracy_meters BETWEEN 0 AND 100);
+      ALTER TABLE rider_presence DROP CONSTRAINT IF EXISTS rider_presence_radius_check;
+      ALTER TABLE rider_presence
+        ADD CONSTRAINT rider_presence_radius_check CHECK (radius_miles > 0 AND radius_miles <= 20);
+
+      CREATE INDEX IF NOT EXISTS rider_presence_lat_lon_idx
+        ON rider_presence (lat, lon);
+      CREATE INDEX IF NOT EXISTS rider_presence_updated_at_idx
+        ON rider_presence (updated_at);
+
+      CREATE TABLE IF NOT EXISTS presence_zone_pairs (
+        rider_a TEXT NOT NULL REFERENCES rider_presence (rider_id) ON DELETE CASCADE,
+        rider_b TEXT NOT NULL REFERENCES rider_presence (rider_id) ON DELETE CASCADE,
+        created_at BIGINT NOT NULL,
+        PRIMARY KEY (rider_a, rider_b),
+        CONSTRAINT presence_zone_pairs_order_check CHECK (rider_a < rider_b)
+      );
+      CREATE INDEX IF NOT EXISTS presence_zone_pairs_rider_b_idx
+        ON presence_zone_pairs (rider_b);
+    `,
+  },
 ];
 
 /**

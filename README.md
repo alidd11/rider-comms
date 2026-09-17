@@ -10,7 +10,7 @@ Working and verified in this repository:
 - Actor-authorised profiles, rides, friendships, messages, hideouts, presence, blocks, reports, and account deletion.
 - Instagram and TikTok profile usernames with Public, Friends only, or Private visibility.
 - Private ride creation, joining, roster polling, host removal, leaving, and ending.
-- Opt-in foreground GPS presence with server-controlled mutual radius.
+- Opt-in foreground GPS presence with server-controlled mutual radius, fresh/accurate fix validation, indexed geographic candidate queries and durable cross-replica transition state.
 - In-app plan preview, privacy/safety information, and direct-message block/report controls.
 - Shared geo, ride-code, rate-limit, zone-transition, and audio-priority algorithms.
 - Fail-locked movement safety in native and PWA: social, setup, billing, messaging, settings and route-discovery controls stay unavailable until sustained stationary GPS evidence exists; map/navigation and active-ride exit controls remain accessible.
