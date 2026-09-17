@@ -84,6 +84,6 @@
 
   root.RiderMovementSafety = {
     MovementStateTracker,
-    isLockedForSafety: (state) => state !== 'stationary',
+    isLockedForSafety: (state) => state === 'moving',
   };
 })(typeof window === 'undefined' ? globalThis : window);
