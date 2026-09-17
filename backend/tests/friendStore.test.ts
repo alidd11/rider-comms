@@ -144,6 +144,39 @@ describe('FriendStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping 
     assert.equal(friends[0].displayName, 'Renamed');
   });
 
+  it('returns joined profile summaries in bounded cursor pages', async () => {
+    const profiles = new ProfileStore();
+    const store = new FriendStore(profiles);
+    for (const [id, name] of [['a', 'Alice'], ['b', 'Bob'], ['c', 'Charlie']] as const) {
+      const updated = await profiles.update(id, { displayName: name, handle: `@friend_${id}` });
+      assert.equal(updated.ok, true);
+      const request = await store.createRequest(id, 'me');
+      assert.equal(request.ok, true);
+      if (request.ok) await store.accept(request.request.id);
+    }
+
+    const first = await store.getFriendPage('me', 2);
+    assert.equal(first.friends.length, 2);
+    assert.ok(first.nextCursor);
+    const second = await store.getFriendPage('me', 2, first.nextCursor ?? undefined);
+    assert.equal(second.friends.length, 1);
+    assert.equal(second.nextCursor, null);
+    assert.deepEqual(new Set([...first.friends, ...second.friends].map((friend) => friend.displayName)), new Set(['Alice', 'Bob', 'Charlie']));
+  });
+
+  it('joins request profile summaries without per-rider lookups', async () => {
+    const profiles = new ProfileStore();
+    await profiles.update('requester', { displayName: 'Requester', handle: '@requester' });
+    const store = new FriendStore(profiles);
+    await store.createRequest('requester', 'me');
+    const page = await store.getRequestsFor('me', 10);
+    assert.equal(page.incoming.length, 1);
+    assert.deepEqual(page.profiles.requester, {
+      riderId: 'requester', displayName: 'Requester', handle: '@requester', avatarId: 'ember',
+    });
+    assert.equal(page.nextCursor, null);
+  });
+
   it('removeFriend is idempotent and removes both directions', async () => {
     const store = new FriendStore(new ProfileStore());
     const req = await store.createRequest('a', 'b');

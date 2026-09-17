@@ -596,27 +596,22 @@
   /**
    * Loads the rider's real friends + incoming/outgoing requests from the
    * backend (GET /riders/:id/friends, GET /riders/:id/friend-requests).
-   * Incoming requests only carry the other rider's ID, so their display
-   * name/handle is filled in with a lightweight public-profile lookup per
-   * request — friend lists are small, so N lookups here is fine.
+   * Request responses include joined profile summaries, so this remains two
+   * bounded SQL-backed requests regardless of how many riders are listed.
    */
   async function loadFriendsData() {
     if (!state.profile.riderId) return;
     try {
       const [friendsResult, requestsResult] = await Promise.all([
-        apiFetch('GET', `/riders/${encodeURIComponent(state.profile.riderId)}/friends`),
-        apiFetch('GET', `/riders/${encodeURIComponent(state.profile.riderId)}/friend-requests`),
+        apiFetch('GET', `/riders/${encodeURIComponent(state.profile.riderId)}/friends?limit=100`),
+        apiFetch('GET', `/riders/${encodeURIComponent(state.profile.riderId)}/friend-requests?limit=100`),
       ]);
       state.friends = friendsResult.friends.map((friend) => ({ riderId: friend.riderId, displayName: friend.displayName, handle: friend.handle, status: 'Connected' }));
       const incoming = requestsResult.incoming.filter((request) => request.status === 'pending');
-      state.requests = await Promise.all(incoming.map(async (request) => {
-        try {
-          const profile = await apiFetch('GET', `/profiles/${encodeURIComponent(request.fromRiderId)}`);
-          return { id: request.id, riderId: request.fromRiderId, displayName: profile.displayName, handle: profile.handle, status: 'Wants to connect' };
-        } catch {
-          return { id: request.id, riderId: request.fromRiderId, displayName: request.fromRiderId, handle: request.fromRiderId, status: 'Wants to connect' };
-        }
-      }));
+      state.requests = incoming.map((request) => {
+        const profile = requestsResult.profiles?.[request.fromRiderId];
+        return { id: request.id, riderId: request.fromRiderId, displayName: profile?.displayName ?? request.fromRiderId, handle: profile?.handle ?? request.fromRiderId, status: 'Wants to connect' };
+      });
       persist();
       renderFriends();
     } catch (error) {
