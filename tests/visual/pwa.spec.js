@@ -145,23 +145,21 @@ test('core PWA screens render without runtime errors or viewport overflow', asyn
   expect(runtimeErrors).toEqual([]);
 });
 
-test('PWA fails locked when movement cannot be verified', async ({ page }) => {
+test('PWA warns without hiding controls when movement cannot be verified', async ({ page }) => {
   await mockAuthenticatedApi(page, 'unknown');
   await page.goto('/');
   await expect(page.locator('#app')).toBeVisible();
   await expect(page.locator('#movementSafetyBanner')).toBeVisible();
   const routesTab = page.locator('.bottom-nav [data-nav="routes"]');
   await expect(routesTab).toBeVisible();
-  await expect(routesTab).toHaveAttribute('aria-disabled', 'true');
+  await expect(routesTab).toHaveAttribute('aria-disabled', 'false');
   await expect(page.locator('#mapSearchSlot')).toBeVisible();
-  await expect(page.locator('.map-header')).toHaveAttribute('inert', '');
-  await expect(page.locator('#locateBtn')).toBeVisible();
+  await expect(page.locator('.map-header')).not.toHaveAttribute('inert', '');
   const enableLocation = page.locator('#enableLocationBtn');
   await expect(enableLocation).toBeVisible();
   await expect(enableLocation).toHaveText('Location help');
-  await routesTab.click({ force: true });
-  await expect(page.locator('[data-screen="routes"]')).not.toHaveClass(/active/);
-  await expect(page.locator('#toast')).toContainText('Controls stay locked');
+  await routesTab.click();
+  await expect(page.locator('[data-screen="routes"]')).toHaveClass(/active/);
   await enableLocation.click();
   await expect(page.locator('#toast')).toContainText('Location access is blocked');
 });
