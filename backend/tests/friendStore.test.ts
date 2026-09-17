@@ -51,6 +51,21 @@ describe('FriendStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping 
     if (!dup2.ok) assert.equal(dup2.error, 'request_exists');
   });
 
+  it('creates only one pending request when opposite-direction requests race', async () => {
+    const store = new FriendStore(new ProfileStore());
+    const results = await Promise.all([
+      store.createRequest('a', 'b'),
+      store.createRequest('b', 'a'),
+    ]);
+    assert.equal(results.filter((result) => result.ok).length, 1);
+    assert.equal(results.filter((result) => !result.ok && result.error === 'request_exists').length, 1);
+    const { rows } = await getPool().query<{ count: string }>(
+      `SELECT COUNT(*)::text AS count FROM friend_requests
+       WHERE status = 'pending' AND ((from_rider_id = 'a' AND to_rider_id = 'b') OR (from_rider_id = 'b' AND to_rider_id = 'a'))`,
+    );
+    assert.equal(Number(rows[0]?.count), 1);
+  });
+
   it('rejects a request between already-friends riders', async () => {
     const store = new FriendStore(new ProfileStore());
     const req = await store.createRequest('a', 'b');
