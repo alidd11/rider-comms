@@ -20,6 +20,57 @@ interface FriendRequestRow {
   created_at: string | number;
 }
 
+interface FriendSummaryRow {
+  rider_id: string;
+  display_name: string | null;
+  handle: string | null;
+  avatar_id: string | null;
+  created_at: string | number;
+}
+
+interface FriendRequestProfileRow extends FriendRequestRow {
+  other_rider_id: string;
+  display_name: string | null;
+  handle: string | null;
+  avatar_id: string | null;
+}
+
+interface ListCursor { createdAt: number; id: string }
+export class InvalidFriendCursorError extends Error {
+  constructor() { super('invalid friend cursor'); this.name = 'InvalidFriendCursorError'; }
+}
+
+function encodeCursor(cursor: ListCursor): string {
+  return Buffer.from(JSON.stringify(cursor), 'utf8').toString('base64url');
+}
+
+function decodeCursor(value: string | undefined): ListCursor | undefined {
+  if (value === undefined) return undefined;
+  try {
+    const parsed = JSON.parse(Buffer.from(value, 'base64url').toString('utf8')) as Partial<ListCursor>;
+    if (!Number.isSafeInteger(parsed.createdAt) || (parsed.createdAt ?? -1) < 0 || typeof parsed.id !== 'string' || !parsed.id) throw new Error();
+    if (encodeCursor(parsed as ListCursor) !== value) throw new Error();
+    return parsed as ListCursor;
+  } catch { throw new InvalidFriendCursorError(); }
+}
+
+function summaryFromRow(row: FriendSummaryRow): FriendSummary {
+  return {
+    riderId: row.rider_id,
+    displayName: row.display_name ?? 'Rider',
+    handle: row.handle ?? `@${row.rider_id.replace(/^rider_/, '')}`,
+    avatarId: row.avatar_id ?? 'ember',
+  };
+}
+
+export interface FriendPage { friends: FriendSummary[]; nextCursor: string | null }
+export interface FriendRequestPage {
+  incoming: FriendRequest[];
+  outgoing: FriendRequest[];
+  profiles: Record<string, FriendSummary>;
+  nextCursor: string | null;
+}
+
 function rowToRequest(row: FriendRequestRow): FriendRequest {
   return {
     id: row.id,
@@ -118,20 +169,36 @@ export class FriendStore {
     return rows[0] ? rowToRequest(rows[0]) : undefined;
   }
 
-  async getRequestsFor(riderId: string): Promise<{ incoming: FriendRequest[]; outgoing: FriendRequest[] }> {
+  async getRequestsFor(riderId: string, limit = 100, before?: string): Promise<FriendRequestPage> {
     await ensureMigrated();
-    const { rows } = await getPool().query<FriendRequestRow>(
-      `SELECT * FROM friend_requests WHERE status = 'pending' AND (to_rider_id = $1 OR from_rider_id = $1)`,
-      [riderId]
+    const cursor = decodeCursor(before);
+    const boundedLimit = Math.min(Math.max(Math.trunc(limit), 1), 100);
+    const { rows } = await getPool().query<FriendRequestProfileRow>(
+      `SELECT request.*,
+              CASE WHEN request.from_rider_id = $1 THEN request.to_rider_id ELSE request.from_rider_id END AS other_rider_id,
+              profile.display_name, profile.handle, profile.avatar_id
+       FROM friend_requests request
+       LEFT JOIN rider_profiles profile
+         ON profile.rider_id = CASE WHEN request.from_rider_id = $1 THEN request.to_rider_id ELSE request.from_rider_id END
+       WHERE request.status = 'pending'
+         AND (request.to_rider_id = $1 OR request.from_rider_id = $1)
+         AND ($2::bigint IS NULL OR (request.created_at, request.id) < ($2::bigint, $3::text))
+       ORDER BY request.created_at DESC, request.id DESC
+       LIMIT $4`,
+      [riderId, cursor?.createdAt ?? null, cursor?.id ?? null, boundedLimit + 1]
     );
     const incoming: FriendRequest[] = [];
     const outgoing: FriendRequest[] = [];
-    for (const row of rows) {
+    const profiles: Record<string, FriendSummary> = {};
+    const selected = rows.slice(0, boundedLimit);
+    for (const row of selected) {
       const request = rowToRequest(row);
       if (request.toRiderId === riderId) incoming.push(request);
       else if (request.fromRiderId === riderId) outgoing.push(request);
+      profiles[row.other_rider_id] = summaryFromRow({ ...row, rider_id: row.other_rider_id });
     }
-    return { incoming, outgoing };
+    const last = selected.at(-1);
+    return { incoming, outgoing, profiles, nextCursor: rows.length > boundedLimit && last ? encodeCursor({ createdAt: Number(last.created_at), id: last.id }) : null };
   }
 
   private async addFriendship(client: PoolClient, a: string, b: string): Promise<void> {
@@ -205,11 +272,30 @@ export class FriendStore {
   }
 
   async getFriends(riderId: string): Promise<FriendSummary[]> {
+    return (await this.getFriendPage(riderId)).friends;
+  }
+
+  async getFriendPage(riderId: string, limit = 100, before?: string): Promise<FriendPage> {
     await ensureMigrated();
-    const { rows } = await getPool().query<{ friend_id: string }>('SELECT friend_id FROM friendships WHERE rider_id = $1', [riderId]);
-    const summaries: FriendSummary[] = [];
-    for (const row of rows) summaries.push(await this.summaryFor(row.friend_id));
-    return summaries;
+    const cursor = decodeCursor(before);
+    const boundedLimit = Math.min(Math.max(Math.trunc(limit), 1), 100);
+    const { rows } = await getPool().query<FriendSummaryRow>(
+      `SELECT friendship.friend_id AS rider_id, friendship.created_at,
+              profile.display_name, profile.handle, profile.avatar_id
+       FROM friendships friendship
+       LEFT JOIN rider_profiles profile ON profile.rider_id = friendship.friend_id
+       WHERE friendship.rider_id = $1
+         AND ($2::bigint IS NULL OR (friendship.created_at, friendship.friend_id) < ($2::bigint, $3::text))
+       ORDER BY friendship.created_at DESC, friendship.friend_id DESC
+       LIMIT $4`,
+      [riderId, cursor?.createdAt ?? null, cursor?.id ?? null, boundedLimit + 1]
+    );
+    const selected = rows.slice(0, boundedLimit);
+    const last = selected.at(-1);
+    return {
+      friends: selected.map(summaryFromRow),
+      nextCursor: rows.length > boundedLimit && last ? encodeCursor({ createdAt: Number(last.created_at), id: last.rider_id }) : null,
+    };
   }
 
   async removeFriend(riderId: string, friendId: string): Promise<void> {

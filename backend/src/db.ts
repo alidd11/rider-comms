@@ -504,6 +504,16 @@ const MIGRATIONS: { name: string; sql: string }[] = [
         ON direct_messages (conversation_key, seq DESC);
     `,
   },
+  {
+    name: '0023_friend_cursor_pagination',
+    sql: `
+      CREATE INDEX IF NOT EXISTS friendships_rider_cursor_idx
+        ON friendships (rider_id, created_at DESC, friend_id DESC);
+      CREATE INDEX IF NOT EXISTS friend_requests_rider_cursor_idx
+        ON friend_requests (created_at DESC, id DESC)
+        WHERE status = 'pending';
+    `,
+  },
 ];
 
 /**

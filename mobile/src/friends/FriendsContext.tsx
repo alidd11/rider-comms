@@ -63,24 +63,7 @@ export function FriendsProvider({ children }: { children: React.ReactNode }): Re
       setFriends(friendsRes.friends);
       setIncomingRequests(requestsRes.incoming);
       setOutgoingRequests(requestsRes.outgoing);
-      const requestRiderIds = [...new Set([
-        ...requestsRes.incoming.map((request) => request.fromRiderId),
-        ...requestsRes.outgoing.map((request) => request.toRiderId),
-      ])];
-      const profiles = await Promise.all(requestRiderIds.map(async (id) => {
-        try {
-          const profile = await client.getPublicProfile(id);
-          return [id, {
-            riderId: profile.riderId,
-            displayName: profile.displayName,
-            handle: profile.handle,
-            avatarId: profile.avatarId,
-          }] as const;
-        } catch {
-          return null;
-        }
-      }));
-      setRequestProfiles(Object.fromEntries(profiles.filter((entry): entry is NonNullable<typeof entry> => entry !== null)));
+      setRequestProfiles(requestsRes.profiles);
       setError(null);
     } catch (err) {
       setError(messageFor(err, 'Could not load friends.'));

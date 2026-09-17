@@ -86,10 +86,18 @@ export class RiderCommsClient {
   getPublicProfile(id: string): Promise<PublicRiderProfile> { return this.request('GET', `/profiles/${encodeURIComponent(id)}`); }
   updateProfile(id: string, update: ProfileUpdate): Promise<RiderProfile> { return this.request('PUT', `/riders/${encodeURIComponent(id)}/profile`, update); }
   sendFriendRequest(toRiderId: string): Promise<FriendRequest> { return this.request('POST', '/friends/requests', { toRiderId }); }
-  getFriendRequests(id: string): Promise<{ incoming: FriendRequest[]; outgoing: FriendRequest[] }> { return this.request('GET', `/riders/${encodeURIComponent(id)}/friend-requests`); }
+  getFriendRequests(id: string, options: { before?: string; limit?: number } = {}): Promise<{ incoming: FriendRequest[]; outgoing: FriendRequest[]; profiles: Record<string, FriendSummary>; nextCursor: string | null }> {
+    const query = new URLSearchParams({ limit: String(options.limit ?? 100) });
+    if (options.before) query.set('before', options.before);
+    return this.request('GET', `/riders/${encodeURIComponent(id)}/friend-requests?${query}`);
+  }
   acceptFriendRequest(id: string): Promise<{ friend: FriendSummary }> { return this.request('POST', `/friends/requests/${encodeURIComponent(id)}/accept`, {}); }
   declineFriendRequest(id: string): Promise<Record<string, never>> { return this.request('POST', `/friends/requests/${encodeURIComponent(id)}/decline`, {}); }
-  getFriends(id: string): Promise<{ friends: FriendSummary[] }> { return this.request('GET', `/riders/${encodeURIComponent(id)}/friends`); }
+  getFriends(id: string, options: { before?: string; limit?: number } = {}): Promise<{ friends: FriendSummary[]; nextCursor: string | null }> {
+    const query = new URLSearchParams({ limit: String(options.limit ?? 100) });
+    if (options.before) query.set('before', options.before);
+    return this.request('GET', `/riders/${encodeURIComponent(id)}/friends?${query}`);
+  }
   removeFriend(id: string, friendId: string): Promise<Record<string, never>> { return this.request('DELETE', `/riders/${encodeURIComponent(id)}/friends/${encodeURIComponent(friendId)}`); }
   sendMessage(toRiderId: string, text: string): Promise<DirectMessage> { return this.request('POST', '/messages', { toRiderId, text }); }
   getMessages(withRiderId: string, options: { before?: string; limit?: number } = {}): Promise<{ messages: DirectMessage[]; nextCursor: string | null }> {
