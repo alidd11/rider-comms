@@ -90,7 +90,12 @@ export class RiderCommsClient {
   getFriends(id: string): Promise<{ friends: FriendSummary[] }> { return this.request('GET', `/riders/${encodeURIComponent(id)}/friends`); }
   removeFriend(id: string, friendId: string): Promise<Record<string, never>> { return this.request('DELETE', `/riders/${encodeURIComponent(id)}/friends/${encodeURIComponent(friendId)}`); }
   sendMessage(toRiderId: string, text: string): Promise<DirectMessage> { return this.request('POST', '/messages', { toRiderId, text }); }
-  getMessages(withRiderId: string): Promise<{ messages: DirectMessage[] }> { return this.request('GET', `/messages?withRiderId=${encodeURIComponent(withRiderId)}`); }
+  getMessages(withRiderId: string, options: { before?: string; limit?: number } = {}): Promise<{ messages: DirectMessage[]; nextCursor: string | null }> {
+    const query = new URLSearchParams({ withRiderId });
+    if (options.before) query.set('before', options.before);
+    if (options.limit !== undefined) query.set('limit', String(options.limit));
+    return this.request('GET', `/messages?${query.toString()}`);
+  }
   blockRider(riderId: string): Promise<Record<string, never>> { return this.request('POST', '/blocks', { riderId }); }
   unblockRider(riderId: string): Promise<Record<string, never>> { return this.request('DELETE', `/blocks/${encodeURIComponent(riderId)}`); }
   reportRider(riderId: string, reason: 'harassment' | 'unsafe' | 'spam' | 'sexual' | 'other', details = ''): Promise<{ received: true }> { return this.request('POST', '/reports', { riderId, reason, details }); }
