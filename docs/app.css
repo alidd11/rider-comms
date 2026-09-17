@@ -294,6 +294,11 @@ img,svg{-webkit-user-drag:none}
 @media(min-width:430px){.content-screen{padding-inline:max(17px,var(--safe-left))}.content-screen .page-header h1{font-size:1.82rem}}
 @media(max-width:390px){.content-screen{padding-top:calc(var(--safe-top) + 12px)}.content-screen .page-header h1{font-size:1.58rem}.code-field{display:flex}.code-field .button{width:auto}.settings-group small{max-width:205px}}
 
+/* Keep scrolling utility pages behind opaque system chrome so iOS status-bar
+   text never collides with rows after the page has been scrolled. The map
+   deliberately remains edge-to-edge under the status bar. */
+.content-screen.active::before{content:"";position:fixed;z-index:18;top:0;left:0;right:0;height:var(--safe-top);background:var(--system-chrome);pointer-events:none}
+
 /* Settings use compact grouped surfaces with restrained corners. This keeps
    the information scannable without turning every row into a floating card. */
 .settings-page .page-header{margin-bottom:16px}
@@ -499,16 +504,9 @@ h1,.auth-intro h1{letter-spacing:-.02em}
 /* Movement safety blocks distracting interaction without making product
    areas disappear. Keeping the full navigation visible prevents an unknown
    GPS state from looking like a destructive feature rollback. */
-.movement-safety-banner{position:fixed;z-index:80;top:calc(env(safe-area-inset-top) + 12px);left:16px;right:16px;display:flex;align-items:center;gap:10px;padding:12px 14px;border:1px solid var(--border);border-radius:16px;background:var(--surface);box-shadow:var(--shadow);color:var(--text)}
+.movement-safety-banner{position:fixed;z-index:80;top:calc(env(safe-area-inset-top) + 10px);left:16px;right:16px;display:flex;align-items:center;gap:9px;padding:9px 11px;border:1px solid var(--border);border-radius:14px;background:var(--surface);box-shadow:var(--shadow);color:var(--text)}
 .movement-safety-banner[hidden]{display:none}.movement-safety-banner svg{width:22px;height:22px;stroke:var(--accent);fill:none;stroke-width:1.8}.movement-safety-banner span{display:grid;gap:2px}.movement-safety-banner small{color:var(--muted)}
-.movement-safety-banner span{flex:1;min-width:0}.movement-safety-banner button{min-height:40px;padding:0 13px;border:0;border-radius:999px;background:var(--accent);color:#fff;font:700 12px/1 Inter,sans-serif;white-space:nowrap}
+.movement-safety-banner span{flex:1;min-width:0}.movement-safety-banner button{min-height:34px;padding:0 11px;border:0;border-radius:999px;background:var(--accent);color:#fff;font:700 11px/1 Inter,sans-serif;white-space:nowrap}
 .safety-locked [aria-disabled="true"]{opacity:.48}
 .safety-locked .bottom-nav [aria-disabled="true"]{filter:saturate(.35)}
-@media(max-width:420px){.movement-safety-banner{align-items:flex-start;flex-wrap:wrap}.movement-safety-banner button{margin-left:32px}}
-/* Hide Google Maps attribution on mobile — it's a desktop feature */
-.gm-style-cc,
-.gmnoprint.gm-style-cc,
-div[aria-label="Keyboard shortcuts"],
-div[aria-label="Map data ©2026 Google"] {
-  display: none !important;
-}
+@media(max-width:420px){.movement-safety-banner{left:12px;right:12px}.movement-safety-banner small{font-size:.7rem}.movement-safety-banner button{flex:none}}
