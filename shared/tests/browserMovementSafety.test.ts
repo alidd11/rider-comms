@@ -13,7 +13,7 @@ const browserSafety = (globalThis as typeof globalThis & {
 }).RiderMovementSafety;
 
 describe('browser movement safety adapter', () => {
-  it('unlocks only after stationary confirmation and fails locked on GPS loss', () => {
+  it('unlocks after stationary confirmation and warns without locking on GPS loss', () => {
     const tracker = new browserSafety.MovementStateTracker();
     const start = 1_800_000_000_000;
     for (let index = 0; index <= 7; index += 1) {
@@ -21,7 +21,7 @@ describe('browser movement safety adapter', () => {
     }
     assert.equal(browserSafety.isLockedForSafety('stationary'), false);
     assert.equal(tracker.stateAt(start + 28_000), 'unknown');
-    assert.equal(browserSafety.isLockedForSafety('unknown'), true);
+    assert.equal(browserSafety.isLockedForSafety('unknown'), false);
   });
 
   it('locks after sustained movement and rejects impossible fixes', () => {
