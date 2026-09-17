@@ -1,9 +1,9 @@
 import http from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { isIP } from 'node:net';
-import { SlidingWindowRateLimiter, TIER_RADIUS_MILES, validateScenicRouteInput, bucketId, getBucketCoord } from '@rider-comms/shared';
+import { SlidingWindowRateLimiter, TIER_RADIUS_MILES, validateScenicRouteInput } from '@rider-comms/shared';
 import type { Difficulty, HazardType, RoadType, Rider, VehicleCategory } from '@rider-comms/shared';
-import { getLiveKitCredentialsFromEnv, mintVoiceToken, rideRoomName, channelRoomName } from './liveKitToken.ts';
+import { getLiveKitCredentialsFromEnv, mintVoiceToken, rideRoomName } from './liveKitToken.ts';
 import type { LiveKitCredentials } from './liveKitToken.ts';
 import { AuthStore } from './authStore.ts';
 import { RideStore } from './rideStore.ts';
@@ -253,14 +253,11 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
           return sendJson(res, 200, voiceToken);
         }
         if (body.target === 'channel') {
-          // The room is derived from the rider's OWN last-known presence
-          // location, never a client-supplied bucket — otherwise anyone
-          // could request a token for an arbitrary public channel room
-          // regardless of where they actually are.
-          const rider = await presenceStore.getRider(actorId);
-          if (!rider) return sendJson(res, 403, { error: 'location_sharing_disabled' });
-          const voiceToken = await mintVoiceToken(liveKitCredentials, actorId, channelRoomName(bucketId(getBucketCoord(rider.location))));
-          return sendJson(res, 200, voiceToken);
+          // A room-wide canSubscribe grant would let a modified client hear
+          // riders outside its mutually-authorised proximity set. Keep this
+          // fail-closed until trusted server/SFU participant permissions are
+          // implemented. Private ride rooms remain available above.
+          return sendJson(res, 503, { error: 'public_voice_unavailable' });
         }
         return sendJson(res, 400, { error: "target must be 'ride' or 'channel'" });
       }
@@ -301,6 +298,12 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
         if (req.method === 'POST' && s[2] === 'leave') { const r = await rideStore.leaveRide(id, actorId); return r.ok ? sendJson(res, 200, {}) : sendJson(res, r.reason === 'not_found' ? 404 : 403, { error: r.reason }); }
         if (req.method === 'DELETE' && s.length === 2) { const r = await rideStore.endRide(id, actorId); return r.ok ? sendJson(res, 200, {}) : sendJson(res, r.reason === 'not_found' ? 404 : 403, { error: r.reason }); }
         if (req.method === 'DELETE' && s[2] === 'members' && s[3]) { const r = await rideStore.removeMember(id, actorId, decodeURIComponent(s[3])); return r.ok ? sendJson(res, 200, rideBody(r.ride)) : sendJson(res, r.reason === 'not_found' ? 404 : 403, { error: r.reason }); }
+        if (req.method === 'PUT' && s[2] === 'location-sharing') {
+          const body = await readJsonBody(req);
+          if (typeof body.enabled !== 'boolean') return sendJson(res, 400, { error: 'enabled must be a boolean' });
+          const r = await rideStore.setMemberLocationSharing(id, actorId, body.enabled);
+          return r.ok ? sendJson(res, 200, { enabled: body.enabled }) : sendJson(res, r.reason === 'not_found' ? 404 : 403, { error: r.reason });
+        }
         if (req.method === 'POST' && s[2] === 'location') {
           const body = await readJsonBody(req); if (!isCoordinate(body.lat, body.lon)) return sendJson(res, 400, { error: 'valid lat and lon are required' });
           const r = await rideStore.updateMemberLocation(id, actorId, body.lat as number, body.lon as number);
