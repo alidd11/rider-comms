@@ -495,12 +495,10 @@ h1,.auth-intro h1{letter-spacing:-.02em}
    also a small fixed value rather than the full raw inset, at the
    user's explicit request that the reserved space be smaller, not the
    theoretically-correct-but-larger full safe-area amount. */
-/* Movement safety is fail-locked: only a confirmed stationary state exposes
-   visual/manual controls. Map, navigation, ride location pause and end-ride
-   remain available while the device is moving or its state is unknown. */
+/* Movement safety blocks distracting interaction without making product
+   areas disappear. Keeping the full navigation visible prevents an unknown
+   GPS state from looking like a destructive feature rollback. */
 .movement-safety-banner{position:fixed;z-index:80;top:calc(env(safe-area-inset-top) + 12px);left:16px;right:16px;display:flex;align-items:center;gap:10px;padding:12px 14px;border:1px solid var(--border);border-radius:16px;background:var(--surface);box-shadow:var(--shadow);color:var(--text)}
 .movement-safety-banner[hidden]{display:none}.movement-safety-banner svg{width:22px;height:22px;stroke:var(--accent);fill:none;stroke-width:1.8}.movement-safety-banner span{display:grid;gap:2px}.movement-safety-banner small{color:var(--muted)}
-.safety-locked .map-header,.safety-locked #poiChipRow,.safety-locked #reportHazardBtn,.safety-locked #joinNearbyBtn,.safety-locked #riderCard,.safety-locked #hazardCard{display:none!important}
-.safety-locked .bottom-nav [data-nav="routes"],.safety-locked .bottom-nav [data-nav="friends"],.safety-locked .bottom-nav [data-nav="settings"]{display:none!important}
-.safety-locked .bottom-nav{grid-template-columns:repeat(2,minmax(0,1fr))}
-.safety-locked #rideJoinState,.safety-locked #shareRideBtn,.safety-locked .ride-code-card,.safety-locked #rideRoster,.safety-locked #openRideMap{display:none!important}
+.safety-locked [aria-disabled="true"]{opacity:.48}
+.safety-locked .bottom-nav [aria-disabled="true"]{filter:saturate(.35)}

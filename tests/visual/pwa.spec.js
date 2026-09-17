@@ -21,7 +21,11 @@ async function mockAuthenticatedApi(page, movement = 'stationary') {
     Object.defineProperty(navigator, 'permissions', { value: { query: async () => ({ state: movementState === 'stationary' ? 'granted' : 'denied', addEventListener() {} }) } });
     let watchId = 0;
     Object.defineProperty(navigator, 'geolocation', { value: {
-      watchPosition(success) {
+      watchPosition(success, error) {
+        if (movementState !== 'stationary') {
+          error?.({ code: 1, name: 'NotAllowedError' });
+          return ++watchId;
+        }
         const base = Date.now() - 7000;
         for (let index = 0; index <= 7; index += 1) success({
           timestamp: base + index * 1000,
@@ -30,7 +34,10 @@ async function mockAuthenticatedApi(page, movement = 'stationary') {
         return ++watchId;
       },
       clearWatch() {},
-      getCurrentPosition(success) { success({ timestamp: Date.now(), coords: { latitude: 51.5074, longitude: -0.1278, accuracy: 5, speed: 0 } }); },
+      getCurrentPosition(success, error) {
+        if (movementState !== 'stationary') return error?.({ code: 1, name: 'NotAllowedError' });
+        success({ timestamp: Date.now(), coords: { latitude: 51.5074, longitude: -0.1278, accuracy: 5, speed: 0 } });
+      },
     } });
   }, { riderId: RIDER_ID, movementState: movement });
 
@@ -143,7 +150,13 @@ test('PWA fails locked when movement cannot be verified', async ({ page }) => {
   await page.goto('/');
   await expect(page.locator('#app')).toBeVisible();
   await expect(page.locator('#movementSafetyBanner')).toBeVisible();
-  await expect(page.locator('.bottom-nav [data-nav="routes"]')).toBeHidden();
-  await expect(page.locator('#mapSearchSlot')).toBeHidden();
+  const routesTab = page.locator('.bottom-nav [data-nav="routes"]');
+  await expect(routesTab).toBeVisible();
+  await expect(routesTab).toHaveAttribute('aria-disabled', 'true');
+  await expect(page.locator('#mapSearchSlot')).toBeVisible();
+  await expect(page.locator('.map-header')).toHaveAttribute('inert', '');
   await expect(page.locator('#locateBtn')).toBeVisible();
+  await routesTab.click({ force: true });
+  await expect(page.locator('[data-screen="routes"]')).not.toHaveClass(/active/);
+  await expect(page.locator('#toast')).toContainText('Controls stay locked');
 });
