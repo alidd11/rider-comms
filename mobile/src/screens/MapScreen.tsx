@@ -1,8 +1,9 @@
 // The public presence response intentionally returns rider IDs, not other
 // riders' exact coordinates. The map therefore plots only coordinates the
-// current rider is allowed to know: their own fix, selected destinations and
-// aggregate hazard reports. Nearby riders remain a count rather than being
-// placed at invented bearings.
+// current rider is allowed to know: their own fix, selected destinations,
+// aggregate hazard reports, and fresh private-ride coordinates explicitly
+// shared by current ride members. Public nearby riders remain a count rather
+// than being placed at invented bearings.
 //
 // Public and Host share this one screen via a segmented toggle instead of
 // being separate tabs — once this has a real map SDK behind it, a second
