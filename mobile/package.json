@@ -29,6 +29,7 @@
     "livekit-client": "^2.22.0",
     "react": "19.2.3",
     "react-native": "0.86.3",
+    "react-native-maps": "^1.27.2",
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "~4.26.0",
     "react-native-svg": "15.15.4"
@@ -38,5 +39,5 @@
     "@types/react": "~19.2.4",
     "typescript": "~6.0.3"
   },
-  "_NOTE": "React Native/Expo need real native tooling (Xcode/Android Studio, or Expo Go on a physical device) that this sandbox doesn't have. `npm install` and `npx expo start` have been verified to work; the screens/navigation/audio-engine code itself is still unverified against a real device."
+  "_NOTE": "Use Expo Go for device-level UI and map testing without local Xcode/Android Studio. Standalone Android map tiles still require a restricted Maps SDK key and a rebuilt binary."
 }
