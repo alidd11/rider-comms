@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import { expect } from './testUtils.ts';
-import { MovementStateTracker, isLockedForSafety } from '../src/movementState.ts';
+import { MovementStateTracker, RIDE_SAFE_LOCK_SPEED_MPS, isLockedForSafety } from '../src/movementState.ts';
 import type { LocationFix } from '../src/movementState.ts';
 
 const BASE_LAT = 51.5074;
@@ -18,7 +18,7 @@ function stationaryFix(index: number, atMs: number, accuracyMeters = 8): Locatio
 /** A fix consistent with riding in a straight line at ~10 m/s (~22mph). */
 function ridingFix(index: number, atMs: number, accuracyMeters = 8): LocationFix {
   // ~10m of northward travel per fix, at 1s cadence -> ~10 m/s.
-  return { lat: BASE_LAT + 0.00009 * index, lon: BASE_LON, timestampMs: atMs, accuracyMeters };
+  return { lat: BASE_LAT + 0.00009 * index, lon: BASE_LON, timestampMs: atMs, accuracyMeters, speedMps: 10 };
 }
 
 describe('MovementStateTracker', () => {
@@ -57,6 +57,25 @@ describe('MovementStateTracker', () => {
       state = tracker.addFix(ridingFix(i, START_MS + i * 1000));
     }
     expect(state).toBe('moving');
+  });
+
+  it('keeps controls usable below 8 mph and locks at the 8 mph threshold', () => {
+    const tracker = new MovementStateTracker();
+    let atMs = START_MS;
+    for (let i = 0; i <= 7; i += 1) {
+      tracker.addFix({ ...stationaryFix(i, atMs), speedMps: 3.3 });
+      atMs += 1000;
+    }
+    expect(tracker.currentState).toBe('stationary');
+    expect(isLockedForSafety(tracker.currentState)).toBe(false);
+
+    let state = tracker.currentState;
+    for (let i = 0; i <= 3; i += 1) {
+      state = tracker.addFix({ ...stationaryFix(i, atMs), speedMps: RIDE_SAFE_LOCK_SPEED_MPS });
+      atMs += 1000;
+    }
+    expect(state).toBe('moving');
+    expect(isLockedForSafety(state)).toBe(true);
   });
 
   it('locks quickly (fails toward moving/locked) but unlocks only after a delay once stopped', () => {
@@ -131,11 +150,11 @@ describe('MovementStateTracker', () => {
     }
     expect(tracker.currentState).toBe('moving');
 
-    // A speed between stationarySpeedMps (0.5) and movingSpeedMps (1.4) is
+    // A speed between stationarySpeedMps (~7.5mph) and movingSpeedMps (8mph) is
     // ambiguous — it should not immediately flip the state either way.
     atMs += 1000;
-    const ambiguousLat = BASE_LAT + 0.00009 * 5 + 0.000009; // ~1 m/s worth of drift
-    tracker.addFix({ lat: ambiguousLat, lon: BASE_LON, timestampMs: atMs, accuracyMeters: 8 });
+    const ambiguousLat = BASE_LAT + 0.00009 * 5;
+    tracker.addFix({ lat: ambiguousLat, lon: BASE_LON, timestampMs: atMs, accuracyMeters: 8, speedMps: 3.45 });
     expect(tracker.currentState).toBe('moving');
   });
 
