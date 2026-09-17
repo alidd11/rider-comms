@@ -54,11 +54,14 @@ describe('RideStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping Po
     assert.equal(rejoin.ok, true);
   });
 
-  it('lets a ride member always update and read real member locations', async () => {
+  it('requires explicit per-ride consent before sharing a member location', async () => {
     const store = new RideStore();
     const { ride, codeRecord } = await store.createRide('host');
     await store.joinRide(codeRecord.code, 'guest', '1.1.1.1');
 
+    const denied = await store.updateMemberLocation(ride.id, 'guest', 51.5, -0.1);
+    assert.deepEqual(denied, { ok: false, reason: 'location_sharing_disabled' });
+    assert.equal((await store.setMemberLocationSharing(ride.id, 'guest', true)).ok, true);
     const update = await store.updateMemberLocation(ride.id, 'guest', 51.5, -0.1);
     assert.equal(update.ok, true);
 
@@ -70,6 +73,49 @@ describe('RideStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping Po
         [{ riderId: 'guest', lat: 51.5, lon: -0.1 }]
       );
     }
+  });
+
+  it('purges location when consent is withdrawn or membership ends', async () => {
+    const store = new RideStore();
+    const { ride, codeRecord } = await store.createRide('host');
+    await store.joinRide(codeRecord.code, 'guest', '1.1.1.1');
+    await store.setMemberLocationSharing(ride.id, 'guest', true);
+    await store.updateMemberLocation(ride.id, 'guest', 51.5, -0.1);
+
+    await store.setMemberLocationSharing(ride.id, 'guest', false);
+    const afterWithdrawal = await store.getMemberLocations(ride.id, 'host');
+    assert.equal(afterWithdrawal.ok, true);
+    if (afterWithdrawal.ok) assert.deepEqual(afterWithdrawal.locations, []);
+
+    await store.setMemberLocationSharing(ride.id, 'guest', true);
+    await store.updateMemberLocation(ride.id, 'guest', 51.5, -0.1);
+    await store.leaveRide(ride.id, 'guest');
+    const count = await getPool().query<{ count: string }>(
+      'SELECT COUNT(*)::text AS count FROM ride_locations WHERE ride_id = $1 AND rider_id = $2',
+      [ride.id, 'guest']
+    );
+    assert.equal(count.rows[0]?.count, '0');
+  });
+
+  it('does not return or retain stale ride locations', async () => {
+    const store = new RideStore();
+    const { ride, codeRecord } = await store.createRide('host');
+    await store.joinRide(codeRecord.code, 'guest', '1.1.1.1');
+    await store.setMemberLocationSharing(ride.id, 'guest', true);
+    await store.updateMemberLocation(ride.id, 'guest', 51.5, -0.1);
+    await getPool().query(
+      'UPDATE ride_locations SET updated_at = $3 WHERE ride_id = $1 AND rider_id = $2',
+      [ride.id, 'guest', Date.now() - 60_000]
+    );
+
+    const read = await store.getMemberLocations(ride.id, 'host');
+    assert.equal(read.ok, true);
+    if (read.ok) assert.deepEqual(read.locations, []);
+    const count = await getPool().query<{ count: string }>(
+      'SELECT COUNT(*)::text AS count FROM ride_locations WHERE ride_id = $1 AND rider_id = $2',
+      [ride.id, 'guest']
+    );
+    assert.equal(count.rows[0]?.count, '0');
   });
 
   it('rejects updating or reading ride locations for a non-member', async () => {
