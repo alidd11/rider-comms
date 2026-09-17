@@ -505,3 +505,10 @@ h1,.auth-intro h1{letter-spacing:-.02em}
 .safety-locked [aria-disabled="true"]{opacity:.48}
 .safety-locked .bottom-nav [aria-disabled="true"]{filter:saturate(.35)}
 @media(max-width:420px){.movement-safety-banner{align-items:flex-start;flex-wrap:wrap}.movement-safety-banner button{margin-left:32px}}
+/* Hide Google Maps attribution on mobile — it's a desktop feature */
+.gm-style-cc,
+.gmnoprint.gm-style-cc,
+div[aria-label="Keyboard shortcuts"],
+div[aria-label="Map data ©2026 Google"] {
+  display: none !important;
+}
