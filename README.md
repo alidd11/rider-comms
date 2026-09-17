@@ -18,7 +18,7 @@ Working and verified in this repository:
 Still prototype-only:
 
 - Profiles, active rides, presence and guest-only sessions remain in memory and disappear on server restart. Account credentials/sessions and several social/content stores are durable in Postgres.
-- Nearby rider placement and the map background are illustrative; no production map/navigation SDK is connected.
+- The native client uses a real Apple Maps/Google Maps surface for the rider's own location, selected places, shared destinations and hazard coordinates. Nearby riders are deliberately shown as a privacy-preserving count because the public presence API does not expose their exact coordinates. A production Android build still needs a restricted Maps SDK key.
 - Live voice rooms, VOX, noise suppression, Bluetooth routing, and background audio are not connected.
 - Store billing products and receipt validation are not connected; the plan UI cannot unlock a tier.
 - The proposed stationary-only video feed remains a documented follow-up. Scenic-route discovery is available, but still needs broader route coverage and live road-condition data.
@@ -82,9 +82,12 @@ JavaScript API and the exact GitHub Pages HTTPS origin. The workflow injects it
 into the deployed artifact; it is never committed to source. Without a valid
 key, the PWA uses its accessible simplified rider map instead of failing blank.
 
-The native Expo client still uses its existing illustrative map surface. A
-native Google Maps release requires platform-specific iOS and Android keys and
-an Expo development build; this PWA setup does not claim to configure those.
+The native Expo client uses `react-native-maps`, which can be tested in Expo Go
+without additional native setup. iOS uses Apple Maps by default. A standalone
+Android release still requires the Maps SDK for Android to be enabled and a
+restricted key tied to `com.ridercomms.app` plus the signing certificate SHA-1;
+configure that key through the `react-native-maps` Expo plugin for the release
+build. The Google Places search key remains a separate build-time setting.
 
 ### Native app links and maps handoff
 
