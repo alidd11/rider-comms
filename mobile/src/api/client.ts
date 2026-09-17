@@ -19,6 +19,7 @@ export interface ScenicRouteFilters { vehicleCategory?: VehicleCategory; roadTyp
 export interface GuestSession { riderId: string; token: string }
 export interface LoginSession extends GuestSession { emailVerified: boolean }
 export interface SignUpSession extends LoginSession { emailVerificationSent: boolean }
+export interface AccountSessionSummary { id: string; deviceName: string; createdAt: string; lastSeenAt: string; expiresAt: string; current: boolean }
 export interface CreateRideResponse { rideId: string; code: string; expiresAt: number; createdBy: string; memberIds: string[] }
 export interface JoinRideResponse { rideId: string }
 export interface RideResponse { rideId: string; createdBy: string; createdAt: number; memberIds: string[] }
@@ -58,10 +59,12 @@ export class RiderCommsClient {
     } finally { clearTimeout(timeout); }
   }
   registerGuest(): Promise<GuestSession> { return this.request('POST', '/auth/guest', {}); }
-  signUp(username: string, email: string, password: string): Promise<SignUpSession> { return this.request('POST', '/auth/signup', { username, email, password }); }
-  logIn(username: string, password: string): Promise<LoginSession> { return this.request('POST', '/auth/login', { username, password }); }
+  signUp(username: string, email: string, password: string, deviceName = 'Rider Comms mobile'): Promise<SignUpSession> { return this.request('POST', '/auth/signup', { username, email, password, deviceName }); }
+  logIn(username: string, password: string, deviceName = 'Rider Comms mobile'): Promise<LoginSession> { return this.request('POST', '/auth/login', { username, password, deviceName }); }
   logOut(): Promise<void> { return this.request('POST', '/auth/logout', {}); }
-  getMe(): Promise<{ riderId: string }> { return this.request('GET', '/auth/me'); }
+  getMe(): Promise<{ riderId: string; username: string | null; emailVerified: boolean }> { return this.request('GET', '/auth/me'); }
+  getSessions(): Promise<{ sessions: AccountSessionSummary[] }> { return this.request('GET', '/auth/sessions'); }
+  revokeSession(id: string): Promise<void> { return this.request('DELETE', `/auth/sessions/${encodeURIComponent(id)}`); }
   deleteAccount(): Promise<Record<string, never>> { return this.request('DELETE', '/auth/me'); }
   createRide(): Promise<CreateRideResponse> { return this.request('POST', '/rides', {}); }
   joinRide(code: string): Promise<JoinRideResponse> { return this.request('POST', '/rides/join', { code }); }

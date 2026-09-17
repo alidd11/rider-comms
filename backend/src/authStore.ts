@@ -1,4 +1,4 @@
-import { createHash, randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes, randomUUID, scrypt, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 import { generateRideCode } from '@rider-comms/shared';
 import { getPool, ensureMigrated } from './db.ts';
@@ -9,6 +9,8 @@ const scryptAsync = promisify(scrypt);
 export interface GuestSession { riderId: string; token: string; }
 export interface LoginSession extends GuestSession { emailVerified: boolean; }
 export interface SignUpSession extends LoginSession { emailVerificationSent: boolean; }
+export interface AccountIdentity { riderId: string; username: string; emailVerified: boolean; }
+export interface AccountSessionSummary { id: string; deviceName: string; createdAt: string; lastSeenAt: string; expiresAt: string; current: boolean; }
 
 const USERNAME_PATTERN = /^[A-Za-z0-9_]{3,20}$/;
 // Simple, deliberately non-exhaustive email check (not full RFC 5322) —
@@ -23,6 +25,7 @@ const MAX_PASSWORD_LENGTH = 128;
 // username and a wrong password. Without it, login timing exposes whether a
 // username exists before credentials have been authenticated.
 const DUMMY_PASSWORD_HASH = `${'00'.repeat(16)}:${'00'.repeat(SCRYPT_KEYLEN)}`;
+const PASSWORD_ALGORITHM = 'scrypt-v1';
 
 export type SignUpResult = SignUpSession | { error: 'username_taken' | 'email_taken' | 'invalid_username' | 'invalid_email' | 'weak_password' };
 export type LogInResult = LoginSession | { error: 'invalid_credentials' };
@@ -76,6 +79,11 @@ export class AuthStore {
   }
 
   private digest(token: string): string { return createHash('sha256').update(token).digest('hex'); }
+  private deviceName(value: unknown): string {
+    if (typeof value !== 'string') return 'Unknown device';
+    const normalized = value.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim();
+    return normalized.slice(0, 120) || 'Unknown device';
+  }
   createGuest(): GuestSession {
     let riderId: string;
     do { riderId = `rider_${generateRideCode(8).toLowerCase()}`; } while (this.issuedRiderIds.has(riderId));
@@ -108,6 +116,11 @@ export class AuthStore {
       await getPool().query('DELETE FROM account_sessions WHERE token_hash = $1 AND expires_at <= now()', [tokenHash]);
       return undefined;
     }
+    await getPool().query(
+      `UPDATE account_sessions SET last_seen_at = now()
+       WHERE token_hash = $1 AND last_seen_at < now() - interval '5 minutes'`,
+      [tokenHash]
+    );
     return row.user_id;
   }
   async revokeToken(token: string): Promise<void> {
@@ -131,13 +144,14 @@ export class AuthStore {
     this.riderByTokenDigest.set(this.digest(token), { riderId, expiresAt: Number.POSITIVE_INFINITY });
     return { riderId, token };
   }
-  private async issueAccountSession(riderId: string): Promise<GuestSession> {
+  private async issueAccountSession(riderId: string, deviceName?: unknown): Promise<GuestSession> {
     const token = randomBytes(32).toString('base64url');
     const tokenHash = this.digest(token);
     const expiresAt = Date.now() + ACCOUNT_SESSION_TTL_MS;
     await getPool().query(
-      'INSERT INTO account_sessions (token_hash, user_id, expires_at) VALUES ($1, $2, $3)',
-      [tokenHash, riderId, new Date(expiresAt)]
+      `INSERT INTO account_sessions (id, token_hash, user_id, expires_at, device_name)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [randomUUID(), tokenHash, riderId, new Date(expiresAt), this.deviceName(deviceName)]
     );
     await getPool().query(`
       DELETE FROM account_sessions
@@ -156,7 +170,7 @@ export class AuthStore {
    * expiry so a backend restart never logs out every rider and a database
    * leak does not expose bearer credentials.
    */
-  async signUp(username: unknown, email: unknown, password: unknown): Promise<SignUpResult> {
+  async signUp(username: unknown, email: unknown, password: unknown, deviceName?: unknown): Promise<SignUpResult> {
     if (!isValidUsername(username)) return { error: 'invalid_username' };
     if (!isValidEmail(email)) return { error: 'invalid_email' };
     if (!isStrongEnoughPassword(password)) return { error: 'weak_password' };
@@ -167,8 +181,8 @@ export class AuthStore {
     const pool = getPool();
     try {
       await pool.query(
-        'INSERT INTO users (id, username, email, password_hash) VALUES ($1, $2, $3, $4)',
-        [riderId, username, email, passwordHash]
+        'INSERT INTO users (id, username, email, password_hash, password_algorithm) VALUES ($1, $2, $3, $4, $5)',
+        [riderId, username, email, passwordHash, PASSWORD_ALGORITHM]
       );
     } catch (error) {
       const constraint = uniqueViolationConstraint(error);
@@ -180,22 +194,28 @@ export class AuthStore {
     // environment that hasn't configured it yet) block account creation —
     // issueVerification() already swallows send failures internally.
     const emailVerificationSent = await this.issueVerification(riderId, email);
-    const session = await this.issueAccountSession(riderId);
+    const session = await this.issueAccountSession(riderId, deviceName);
     return { ...session, emailVerified: false, emailVerificationSent };
   }
 
-  async logIn(username: unknown, password: unknown): Promise<LogInResult> {
+  async logIn(username: unknown, password: unknown, deviceName?: unknown): Promise<LogInResult> {
     if (!isValidUsername(username) || typeof password !== 'string' || password.length < 1 || password.length > MAX_PASSWORD_LENGTH) return { error: 'invalid_credentials' };
     await ensureMigrated();
     const pool = getPool();
-    const { rows } = await pool.query<{ id: string; password_hash: string; email_verified_at: Date | null }>(
-      'SELECT id, password_hash, email_verified_at FROM users WHERE lower(username) = lower($1)',
+    const { rows } = await pool.query<{ id: string; password_hash: string; password_algorithm: string; email_verified_at: Date | null }>(
+      'SELECT id, password_hash, password_algorithm, email_verified_at FROM users WHERE lower(username) = lower($1)',
       [username]
     );
     const row = rows[0];
     const passwordMatches = await verifyPassword(password, row?.password_hash ?? DUMMY_PASSWORD_HASH);
     if (!row || !passwordMatches) return { error: 'invalid_credentials' };
-    const session = await this.issueAccountSession(row.id);
+    if (row.password_algorithm !== PASSWORD_ALGORITHM) {
+      await pool.query(
+        'UPDATE users SET password_hash = $1, password_algorithm = $2 WHERE id = $3',
+        [await hashPassword(password), PASSWORD_ALGORITHM, row.id]
+      );
+    }
+    const session = await this.issueAccountSession(row.id, deviceName);
     // Verification is informational only — login is never gated on it, so
     // a client can nudge an unverified rider without blocking sign-in.
     return { ...session, emailVerified: row.email_verified_at !== null };
@@ -251,6 +271,45 @@ export class AuthStore {
     if (!row || !row.email) return { error: 'not_found' };
     if (row.email_verified_at) return { error: 'already_verified' };
     return { sent: await this.issueVerification(riderId, row.email) };
+  }
+
+  async getIdentity(riderId: string): Promise<AccountIdentity | undefined> {
+    if (!process.env.DATABASE_URL) return undefined;
+    await ensureMigrated();
+    const { rows } = await getPool().query<{ username: string; email_verified_at: Date | null }>(
+      'SELECT username, email_verified_at FROM users WHERE id = $1',
+      [riderId]
+    );
+    return rows[0] ? { riderId, username: rows[0].username, emailVerified: rows[0].email_verified_at !== null } : undefined;
+  }
+
+  async listSessions(riderId: string, currentToken: string): Promise<AccountSessionSummary[]> {
+    await ensureMigrated();
+    const currentHash = this.digest(currentToken);
+    await getPool().query('DELETE FROM account_sessions WHERE expires_at <= now()');
+    const { rows } = await getPool().query<{
+      id: string; token_hash: string; device_name: string; created_at: Date; last_seen_at: Date; expires_at: Date;
+    }>(
+      `SELECT id, token_hash, device_name, created_at, last_seen_at, expires_at
+       FROM account_sessions
+       WHERE user_id = $1 AND expires_at > now()
+       ORDER BY created_at DESC`,
+      [riderId]
+    );
+    return rows.map((row) => ({
+      id: row.id,
+      deviceName: row.device_name,
+      createdAt: row.created_at.toISOString(),
+      lastSeenAt: row.last_seen_at.toISOString(),
+      expiresAt: row.expires_at.toISOString(),
+      current: row.token_hash === currentHash,
+    }));
+  }
+
+  async revokeSession(riderId: string, sessionId: string): Promise<boolean> {
+    await ensureMigrated();
+    const result = await getPool().query('DELETE FROM account_sessions WHERE id = $1 AND user_id = $2', [sessionId, riderId]);
+    return result.rowCount === 1;
   }
 }
 

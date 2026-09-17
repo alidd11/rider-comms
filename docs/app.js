@@ -2806,7 +2806,7 @@
     button.setAttribute('aria-busy', 'true');
     button.textContent = 'Logging in…';
     try {
-      const result = await apiFetch('POST', '/auth/login', { username, password });
+      const result = await apiFetch('POST', '/auth/login', { username, password, deviceName: 'Rider Comms PWA' });
       saveSession({ riderId: result.riderId, token: result.token });
       applyAuthenticatedIdentity(result.riderId, username);
       hideAuthScreen();
@@ -2840,7 +2840,7 @@
     button.setAttribute('aria-busy', 'true');
     button.textContent = 'Creating account…';
     try {
-      const result = await apiFetch('POST', '/auth/signup', { username, email, password });
+      const result = await apiFetch('POST', '/auth/signup', { username, email, password, deviceName: 'Rider Comms PWA' });
       saveSession({ riderId: result.riderId, token: result.token });
       applyAuthenticatedIdentity(result.riderId, username);
       hideAuthScreen();

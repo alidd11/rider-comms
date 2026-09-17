@@ -182,7 +182,7 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
       if (req.method === 'POST' && url.pathname === '/auth/signup') {
         if (!guestLimiter.tryConsume(address)) return sendJson(res, 429, { error: 'rate_limited' });
         const body = await readJsonBody(req);
-        const result = await authStore.signUp(body.username, body.email, body.password);
+        const result = await authStore.signUp(body.username, body.email, body.password, body.deviceName);
         if ('error' in result) return sendJson(res, result.error === 'username_taken' || result.error === 'email_taken' ? 409 : 400, { error: result.error });
         await profileStore.getOrCreate(result.riderId);
         return sendJson(res, 201, result);
@@ -190,7 +190,7 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
       if (req.method === 'POST' && url.pathname === '/auth/login') {
         if (!guestLimiter.tryConsume(address)) return sendJson(res, 429, { error: 'rate_limited' });
         const body = await readJsonBody(req);
-        const result = await authStore.logIn(body.username, body.password);
+        const result = await authStore.logIn(body.username, body.password, body.deviceName);
         if ('error' in result) return sendJson(res, 401, { error: result.error });
         await profileStore.getOrCreate(result.riderId);
         return sendJson(res, 200, result);
@@ -204,7 +204,18 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
       }
       const actorId = await authRider(req, res, authStore); if (!actorId) return;
       if (!apiLimiter.tryConsume(actorId)) return sendJson(res, 429, { error: 'rate_limited' });
-      if (req.method === 'GET' && url.pathname === '/auth/me') return sendJson(res, 200, { riderId: actorId });
+      if (req.method === 'GET' && url.pathname === '/auth/me') {
+        const identity = await authStore.getIdentity(actorId);
+        return sendJson(res, 200, { riderId: actorId, username: identity?.username ?? null, emailVerified: identity?.emailVerified ?? false });
+      }
+      if (req.method === 'GET' && url.pathname === '/auth/sessions') {
+        return sendJson(res, 200, { sessions: await authStore.listSessions(actorId, bearerToken(req)) });
+      }
+      const sessionMatch = url.pathname.match(/^\/auth\/sessions\/([^/]+)$/);
+      if (req.method === 'DELETE' && sessionMatch) {
+        const removed = await authStore.revokeSession(actorId, decodeURIComponent(sessionMatch[1]));
+        return removed ? sendEmpty(res, 204) : sendJson(res, 404, { error: 'session_not_found' });
+      }
       if (req.method === 'POST' && url.pathname === '/auth/logout') {
         await authStore.revokeToken(bearerToken(req));
         return sendEmpty(res, 204);
