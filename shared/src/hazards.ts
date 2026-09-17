@@ -53,7 +53,7 @@ export function isExpired(report: HazardReport, nowMs: number): boolean {
  * chosen to require a real signal (not a single troll denial) while still
  * reacting well before the TTL for a report that's clearly stale.
  */
-const HIDE_NET_DENIAL_THRESHOLD = 3;
+export const HIDE_NET_DENIAL_THRESHOLD = 3;
 
 export function shouldHide(report: HazardReport): boolean {
   return report.denials - report.confirmations >= HIDE_NET_DENIAL_THRESHOLD;

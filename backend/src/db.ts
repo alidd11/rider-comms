@@ -468,6 +468,30 @@ const MIGRATIONS: { name: string; sql: string }[] = [
       CREATE INDEX IF NOT EXISTS password_resets_expires_at_idx ON password_resets (expires_at);
     `,
   },
+  {
+    name: '0021_hazard_spatial_integrity',
+    sql: `
+      DELETE FROM hazard_reports
+      WHERE NOT (lat BETWEEN -90 AND 90)
+         OR NOT (lon BETWEEN -180 AND 180)
+         OR type NOT IN ('police', 'accident', 'hazard', 'road_closure', 'camera')
+         OR confirmations < 0 OR denials < 0;
+
+      ALTER TABLE hazard_reports DROP CONSTRAINT IF EXISTS hazard_reports_lat_check;
+      ALTER TABLE hazard_reports ADD CONSTRAINT hazard_reports_lat_check CHECK (lat BETWEEN -90 AND 90);
+      ALTER TABLE hazard_reports DROP CONSTRAINT IF EXISTS hazard_reports_lon_check;
+      ALTER TABLE hazard_reports ADD CONSTRAINT hazard_reports_lon_check CHECK (lon BETWEEN -180 AND 180);
+      ALTER TABLE hazard_reports DROP CONSTRAINT IF EXISTS hazard_reports_type_check;
+      ALTER TABLE hazard_reports ADD CONSTRAINT hazard_reports_type_check
+        CHECK (type IN ('police', 'accident', 'hazard', 'road_closure', 'camera'));
+      ALTER TABLE hazard_reports DROP CONSTRAINT IF EXISTS hazard_reports_vote_counts_check;
+      ALTER TABLE hazard_reports ADD CONSTRAINT hazard_reports_vote_counts_check
+        CHECK (confirmations >= 0 AND denials >= 0);
+
+      CREATE INDEX IF NOT EXISTS hazard_reports_lat_lon_idx ON hazard_reports (lat, lon);
+      CREATE INDEX IF NOT EXISTS hazard_reports_expires_at_idx ON hazard_reports (expires_at);
+    `,
+  },
 ];
 
 /**

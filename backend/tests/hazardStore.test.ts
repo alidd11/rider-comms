@@ -1,6 +1,6 @@
 import { after, before, beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { HazardStore } from '../src/hazardStore.ts';
+import { HAZARD_SEARCH_RADIUS_MILES, HazardStore } from '../src/hazardStore.ts';
 import { ensureMigrated, getPool, resetDbForTests } from '../src/db.ts';
 
 // HazardStore is now Postgres-backed (see db.ts) — these tests need
@@ -44,6 +44,24 @@ describe('HazardStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping 
     await store.create('hazard', 40.0, -74.0, 'rider-1');
     const found = await store.nearby(10.0, 100.0, Date.now());
     assert.equal(found.length, 0);
+  });
+
+  it('applies an exact 40-mile radius after the indexed bounding query', async () => {
+    const store = new HazardStore();
+    await store.create('hazard', 40.0, -74.0, 'near');
+    // Inside the latitude/longitude rectangle, but just beyond 40 miles on
+    // the diagonal, proving the final great-circle filter is not optional.
+    await store.create('hazard', 40.5, -73.6, 'outside');
+    const found = await store.nearby(40.0, -74.0, Date.now());
+    assert.equal(HAZARD_SEARCH_RADIUS_MILES, 40);
+    assert.deepEqual(found.map((report) => report.reportedBy), ['near']);
+  });
+
+  it('finds nearby reports across the antimeridian', async () => {
+    const store = new HazardStore();
+    const report = await store.create('hazard', 0, -179.9, 'across-date-line');
+    const found = await store.nearby(0, 179.9, Date.now());
+    assert.ok(found.some((candidate) => candidate.id === report.id));
   });
 
   it('confirm and deny move the vote counts, ignoring a repeat vote from the same rider', async () => {
@@ -94,6 +112,7 @@ describe('HazardStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping 
     const report = await store.create('camera', 40.0, -74.0, 'rider-1');
     const found = await store.nearby(40.0, -74.0, report.expiresAt + 1);
     assert.equal(found.length, 0);
+    assert.equal(await store.get(report.id), undefined);
   });
 
   it('lets only the reporter remove their own report', async () => {

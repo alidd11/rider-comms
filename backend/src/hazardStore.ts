@@ -1,16 +1,16 @@
 import { randomUUID } from 'node:crypto';
 import {
-  bucketId,
-  getBucketCoord,
-  getNeighboringBucketIds,
-  isExpired,
-  shouldHide,
+  HIDE_NET_DENIAL_THRESHOLD,
   ttlMsForType,
 } from '@rider-comms/shared';
 import type { HazardReport, HazardType } from '@rider-comms/shared';
 import { ensureMigrated, getPool } from './db.ts';
 
 export type VoteResult = { ok: true } | { ok: false; reason: 'not_found' };
+
+export const HAZARD_SEARCH_RADIUS_MILES = 40;
+const MILES_PER_DEGREE_LAT = 69;
+const MAX_NEARBY_RESULTS = 500;
 
 interface HazardReportRow {
   id: string;
@@ -40,29 +40,15 @@ function rowToReport(row: HazardReportRow): HazardReport {
 
 /**
  * Crowdsourced hazard/road reports (Waze-style: police, accidents, hazards,
- * closures, cameras), persisted in Postgres (see db.ts). Geo-bucketed the
- * same way `PresenceStore` shards riders, so `nearby()` never scans every
- * report in the system — only the reporting rider's bucket plus its 8
- * neighbors (see shared/geoBucket.ts) are fetched and filtered in memory.
+ * closures, cameras), persisted in Postgres (see db.ts). `nearby()` uses an
+ * indexed latitude/longitude bounding query, then verifies the exact
+ * great-circle distance. It never loads the full report table.
  *
  * Voter tracking is kept in a separate `hazard_report_votes` table, apart
  * from the public `HazardReport` shape, so a rider's vote history is never
  * leaked to clients — only the aggregate confirmations/denials counts are.
  */
 export class HazardStore {
-  /** Deletes a report that's expired or been voted away, wherever it's
-   * encountered — mirrors `PresenceStore.pruneStale`'s "prune as you go"
-   * pattern rather than running a separate sweep. Returns true if deleted. */
-  private async pruneIfDead(report: HazardReport, nowMs: number): Promise<boolean> {
-    if (isExpired(report, nowMs) || shouldHide(report)) {
-      const pool = getPool();
-      await pool.query('DELETE FROM hazard_reports WHERE id = $1', [report.id]);
-      await pool.query('DELETE FROM hazard_report_votes WHERE report_id = $1', [report.id]);
-      return true;
-    }
-    return false;
-  }
-
   async create(type: HazardType, lat: number, lon: number, reportedBy: string): Promise<HazardReport> {
     await ensureMigrated();
     const now = Date.now();
@@ -85,21 +71,54 @@ export class HazardStore {
     return report;
   }
 
-  /** Reports sharing this point's geo-bucket or an adjacent one, excluding
-   * anything expired or hidden by crowd denial — lazily pruning those from
-   * the table as they're found, same as `PresenceStore.pruneStale`. */
+  /** Return active reports within 40 miles. Expiry is cleaned with one
+   * indexed DELETE in the same statement; crowd-hidden reports remain out of
+   * results and are removed when their normal TTL expires. */
   async nearby(lat: number, lon: number, nowMs: number): Promise<HazardReport[]> {
     await ensureMigrated();
-    const neighborIds = new Set(getNeighboringBucketIds({ lat, lon }));
-    const { rows } = await getPool().query<HazardReportRow>('SELECT * FROM hazard_reports');
-    const result: HazardReport[] = [];
-    for (const row of rows) {
-      const report = rowToReport(row);
-      if (await this.pruneIfDead(report, nowMs)) continue;
-      const reportBucket = bucketId(getBucketCoord({ lat: report.lat, lon: report.lon }));
-      if (neighborIds.has(reportBucket)) result.push(report);
+    const latDelta = HAZARD_SEARCH_RADIUS_MILES / MILES_PER_DEGREE_LAT;
+    const minLat = Math.max(-90, lat - latDelta);
+    const maxLat = Math.min(90, lat + latDelta);
+    const longitudeScale = MILES_PER_DEGREE_LAT * Math.abs(Math.cos(lat * Math.PI / 180));
+    const lonDelta = longitudeScale < 0.000001
+      ? 180
+      : Math.min(180, HAZARD_SEARCH_RADIUS_MILES / longitudeScale);
+    const values: unknown[] = [nowMs, minLat, maxLat, HIDE_NET_DENIAL_THRESHOLD, lat, lon];
+    let longitudeClause = '';
+    if (lonDelta < 180) {
+      const minLon = lon - lonDelta;
+      const maxLon = lon + lonDelta;
+      if (minLon < -180) {
+        values.push(minLon + 360, maxLon);
+        longitudeClause = 'AND (lon >= $7 OR lon <= $8)';
+      } else if (maxLon > 180) {
+        values.push(minLon, maxLon - 360);
+        longitudeClause = 'AND (lon >= $7 OR lon <= $8)';
+      } else {
+        values.push(minLon, maxLon);
+        longitudeClause = 'AND lon BETWEEN $7 AND $8';
+      }
     }
-    return result;
+    const { rows } = await getPool().query<HazardReportRow>(
+      `WITH expired AS (
+         DELETE FROM hazard_reports WHERE expires_at <= $1
+       )
+       SELECT id, type, lat, lon, reported_by, created_at, expires_at, confirmations, denials
+       FROM hazard_reports
+       WHERE expires_at > $1
+         AND denials - confirmations < $4
+         AND lat BETWEEN $2 AND $3
+         ${longitudeClause}
+         AND 2 * 3958.7613 * ASIN(LEAST(1, SQRT(
+           POWER(SIN(RADIANS(lat - $5) / 2), 2)
+           + COS(RADIANS($5)) * COS(RADIANS(lat))
+             * POWER(SIN(RADIANS(lon - $6) / 2), 2)
+         ))) <= ${HAZARD_SEARCH_RADIUS_MILES}
+       ORDER BY created_at DESC
+       LIMIT ${MAX_NEARBY_RESULTS}`,
+      values,
+    );
+    return rows.map(rowToReport);
   }
 
   async confirm(id: string, riderId: string): Promise<VoteResult> {
@@ -136,11 +155,8 @@ export class HazardStore {
   /** Only the reporter may remove their own report. */
   async remove(id: string, actorId: string): Promise<boolean> {
     await ensureMigrated();
-    const pool = getPool();
-    const { rowCount } = await pool.query('DELETE FROM hazard_reports WHERE id = $1 AND reported_by = $2', [id, actorId]);
-    if (!rowCount) return false;
-    await pool.query('DELETE FROM hazard_report_votes WHERE report_id = $1', [id]);
-    return true;
+    const { rowCount } = await getPool().query('DELETE FROM hazard_reports WHERE id = $1 AND reported_by = $2', [id, actorId]);
+    return Boolean(rowCount);
   }
 
   async get(id: string): Promise<HazardReport | undefined> {
@@ -152,11 +168,7 @@ export class HazardStore {
   async deleteRider(riderId: string): Promise<void> {
     await ensureMigrated();
     const pool = getPool();
-    const { rows } = await pool.query<{ id: string }>('SELECT id FROM hazard_reports WHERE reported_by = $1', [riderId]);
-    for (const row of rows) {
-      await pool.query('DELETE FROM hazard_reports WHERE id = $1', [row.id]);
-      await pool.query('DELETE FROM hazard_report_votes WHERE report_id = $1', [row.id]);
-    }
+    await pool.query('DELETE FROM hazard_reports WHERE reported_by = $1', [riderId]);
     await pool.query('DELETE FROM hazard_report_votes WHERE rider_id = $1', [riderId]);
   }
 }
