@@ -103,29 +103,34 @@ export class HazardStore {
   }
 
   async confirm(id: string, riderId: string): Promise<VoteResult> {
-    await ensureMigrated();
-    const pool = getPool();
-    const { rows } = await pool.query<HazardReportRow>('SELECT * FROM hazard_reports WHERE id = $1', [id]);
-    if (!rows[0]) return { ok: false, reason: 'not_found' };
-    const { rowCount } = await pool.query(
-      `INSERT INTO hazard_report_votes (report_id, rider_id, vote) VALUES ($1, $2, 'confirm') ON CONFLICT DO NOTHING`,
-      [id, riderId]
-    );
-    if (rowCount) await pool.query('UPDATE hazard_reports SET confirmations = confirmations + 1 WHERE id = $1', [id]);
-    return { ok: true };
+    return this.vote(id, riderId, 'confirm');
   }
 
   async deny(id: string, riderId: string): Promise<VoteResult> {
+    return this.vote(id, riderId, 'deny');
+  }
+
+  private async vote(id: string, riderId: string, vote: 'confirm' | 'deny'): Promise<VoteResult> {
     await ensureMigrated();
-    const pool = getPool();
-    const { rows } = await pool.query<HazardReportRow>('SELECT * FROM hazard_reports WHERE id = $1', [id]);
-    if (!rows[0]) return { ok: false, reason: 'not_found' };
-    const { rowCount } = await pool.query(
-      `INSERT INTO hazard_report_votes (report_id, rider_id, vote) VALUES ($1, $2, 'deny') ON CONFLICT DO NOTHING`,
-      [id, riderId]
+    const counter = vote === 'confirm' ? 'confirmations' : 'denials';
+    const { rows } = await getPool().query<{ report_exists: boolean }>(
+      `WITH report AS (
+         SELECT id FROM hazard_reports WHERE id = $1
+       ), inserted AS (
+         INSERT INTO hazard_report_votes (report_id, rider_id, vote)
+         SELECT id, $2, $3 FROM report
+         ON CONFLICT (report_id, rider_id) DO NOTHING
+         RETURNING report_id
+       ), updated AS (
+         UPDATE hazard_reports
+         SET ${counter} = ${counter} + 1
+         WHERE id = $1 AND EXISTS (SELECT 1 FROM inserted)
+         RETURNING id
+       )
+       SELECT EXISTS (SELECT 1 FROM report) AS report_exists`,
+      [id, riderId, vote]
     );
-    if (rowCount) await pool.query('UPDATE hazard_reports SET denials = denials + 1 WHERE id = $1', [id]);
-    return { ok: true };
+    return rows[0]?.report_exists ? { ok: true } : { ok: false, reason: 'not_found' };
   }
 
   /** Only the reporter may remove their own report. */
