@@ -13,7 +13,7 @@ Working and verified in this repository:
 - Opt-in foreground GPS presence with server-controlled mutual radius, fresh/accurate fix validation, indexed geographic candidate queries and durable cross-replica transition state.
 - In-app plan preview, privacy/safety information, and direct-message block/report controls.
 - Shared geo, ride-code, rate-limit, zone-transition, and audio-priority algorithms.
-- Fail-locked movement safety in native and PWA: social, setup, billing, messaging, settings and route-discovery controls stay unavailable until sustained stationary GPS evidence exists; map/navigation and active-ride exit controls remain accessible.
+- Shared 8 mph Ride Safe behavior in native and PWA: sustained movement at/above the threshold locks distracting controls; unknown/stale GPS shows a warning without making product areas disappear, and confirmed below-threshold movement unlocks after the shared hysteresis delay.
 - Active-ride voice surfaces report token, LiveKit and native audio-routing failures explicitly. While movement-locked, voice remains hands-free and the ride bar exposes only the essential leave action. Unsupported media-session controls are feature-detected and disabled instead of throwing.
 - Android and iOS Metro exports plus an EAS internal Android APK profile.
 
@@ -21,7 +21,7 @@ Still prototype-only:
 
 - Account credentials, expiring sessions, profiles, rides, friendships, messages, hideouts, presence, hazards, moderation records and scenic-route submissions are durable in Postgres. Anonymous guest sessions are process-local and disappear on restart by design; they are not recoverable accounts.
 - The native client uses a real Apple Maps/Google Maps surface for the rider's own location, selected places, shared destinations and hazard coordinates. Nearby riders are deliberately shown as a privacy-preserving count because the public presence API does not expose their exact coordinates. A production Android build still needs a restricted Maps SDK key.
-- Live voice rooms, VOX, noise suppression, Bluetooth routing, and background audio are not connected.
+- LiveKit ride/public proximity voice, VOX gating, and native audio-session/Bluetooth routing are wired for testing. Physical helmet/noise tuning, production-grade noise suppression, and real nav/chat/music gain application still require device validation and native mixer work.
 - Store billing products and receipt validation are not connected; the plan UI cannot unlock a tier.
 - The proposed stationary-only video feed remains a documented follow-up. Scenic-route discovery is available, but still needs broader route coverage and live road-condition data.
 
@@ -39,8 +39,8 @@ npx expo-doctor mobile
 ```
 
 The PWA visual smoke audit captures Map, Group Ride, Routes, Friends,
-Settings and Search, plus the fail-locked ride-safe state, at small-phone,
-modern-phone, tablet and landscape viewports. It fails on application runtime
+Settings and Search, plus Ride Safe warning behavior, at small-phone,
+modern-phone, WebKit iPhone, tablet and landscape viewports. It fails on application runtime
 errors or horizontal viewport overflow. CI publishes the resulting screenshots
 and HTML report in the `pwa-visual-audit` artifact.
 
@@ -137,4 +137,4 @@ cd mobile
 npx eas-cli build --profile preview --platform android
 ```
 
-See [docs/spec.md](docs/spec.md) for the product specification and [AUDIT.md](AUDIT.md) for the engineering assessment.
+See [docs/spec.md](docs/spec.md) for the product specification, [CLIENT_PARITY.md](CLIENT_PARITY.md) for the PWA/native parity contract, and [AUDIT.md](AUDIT.md) for the engineering assessment.
