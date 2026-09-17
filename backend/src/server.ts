@@ -7,7 +7,7 @@ import { getLiveKitCredentialsFromEnv, mintVoiceToken, rideRoomName } from './li
 import type { LiveKitCredentials } from './liveKitToken.ts';
 import { AuthStore } from './authStore.ts';
 import { RideStore } from './rideStore.ts';
-import { PresenceStore } from './presenceStore.ts';
+import { PresenceStore, StaleLocationFixError } from './presenceStore.ts';
 import { ProfileStore } from './profileStore.ts';
 import { FriendStore } from './friendStore.ts';
 import { MessageStore } from './messageStore.ts';
@@ -25,6 +25,9 @@ const DIFFICULTIES = ['easy', 'moderate', 'challenging'] as const;
 
 const MAX_BODY_BYTES = 32 * 1024;
 const REQUEST_ID_PATTERN = /^[A-Za-z0-9._-]{8,128}$/;
+const MAX_PRESENCE_ACCURACY_METERS = 100;
+const MAX_PRESENCE_FIX_AGE_MS = 30_000;
+const MAX_PRESENCE_FUTURE_SKEW_MS = 5_000;
 
 export interface ApiServerOptions {
   allowedOrigins?: readonly string[];
@@ -233,11 +236,25 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
         return sendJson(res, 200, { rideId: result.rideId });
       }
       if (req.method === 'POST' && url.pathname === '/presence') {
-        const body = await readJsonBody(req); if (!isCoordinate(body.lat, body.lon)) return sendJson(res, 400, { error: 'valid lat and lon are required' });
+        const body = await readJsonBody(req);
+        if (!isCoordinate(body.lat, body.lon)) return sendJson(res, 400, { error: 'valid lat and lon are required' });
+        if (typeof body.accuracyMeters !== 'number' || !Number.isFinite(body.accuracyMeters) || body.accuracyMeters < 0 || body.accuracyMeters > MAX_PRESENCE_ACCURACY_METERS) {
+          return sendJson(res, 400, { error: 'location accuracy must be between 0 and 100 metres' });
+        }
+        const now = Date.now();
+        if (typeof body.recordedAt !== 'number' || !Number.isFinite(body.recordedAt) || body.recordedAt < now - MAX_PRESENCE_FIX_AGE_MS || body.recordedAt > now + MAX_PRESENCE_FUTURE_SKEW_MS) {
+          return sendJson(res, 400, { error: 'location fix timestamp is stale or invalid' });
+        }
         const profile = await profileStore.getOrCreate(actorId); if (!profile.shareLocation) { await presenceStore.removeRider(actorId); return sendJson(res, 403, { error: 'location_sharing_disabled' }); }
-        const rider: Rider = { id: actorId, location: { lat: body.lat as number, lon: body.lon as number }, radiusMiles: TIER_RADIUS_MILES[profile.zoneTier], updatedAt: Date.now() };
-        const { transitions, zonePairs } = await presenceStore.updatePresence(rider);
-        return sendJson(res, 200, { inZoneWith: presenceStore.ridersInZoneWith(actorId, zonePairs), transitions: transitions.filter((t) => t.a === actorId || t.b === actorId), radiusMiles: rider.radiusMiles });
+        const rider: Rider = { id: actorId, location: { lat: body.lat as number, lon: body.lon as number }, radiusMiles: TIER_RADIUS_MILES[profile.zoneTier], updatedAt: body.recordedAt };
+        let presenceResult: Awaited<ReturnType<PresenceStore['updatePresence']>>;
+        try {
+          presenceResult = await presenceStore.updatePresence({ ...rider, accuracyMeters: body.accuracyMeters });
+        } catch (error) {
+          if (error instanceof StaleLocationFixError) return sendJson(res, 409, { error: 'out_of_order_location_fix' });
+          throw error;
+        }
+        return sendJson(res, 200, { inZoneWith: presenceStore.ridersInZoneWith(actorId, presenceResult.zonePairs), transitions: presenceResult.transitions.filter((t) => t.a === actorId || t.b === actorId), radiusMiles: rider.radiusMiles });
       }
       if (req.method === 'DELETE' && url.pathname === '/presence') { await presenceStore.removeRider(actorId); return sendJson(res, 200, {}); }
       if (req.method === 'POST' && url.pathname === '/voice/token') {

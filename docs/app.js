@@ -1043,7 +1043,12 @@
    * position and resolves the backend's real inZoneWith rider IDs to
    * display info (same GET /profiles/:id lookup as the ride roster). */
   async function sendPresence(position) {
-    const result = await apiFetch('POST', '/presence', { lat: position.coords.latitude, lon: position.coords.longitude });
+    const result = await apiFetch('POST', '/presence', {
+      lat: position.coords.latitude,
+      lon: position.coords.longitude,
+      accuracyMeters: position.coords.accuracy,
+      recordedAt: position.timestamp,
+    });
     nearbyRiders = await resolveRiderProfiles(result.inZoneWith);
     if (!state.activeRide) renderMapRiders();
     return result;

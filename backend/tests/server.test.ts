@@ -51,7 +51,13 @@ describe('authenticated API', () => {
     const afterWithdrawal = await authenticatedFetch(ctx, 'host', `/rides/${ride.rideId}/locations`);
     assert.deepEqual((await afterWithdrawal.json() as { locations: unknown[] }).locations, []);
   });
-  it('uses server profile radius and enforces location privacy', needsDb, async () => { assert.equal((await postJson(ctx, 'private', '/presence', { lat: 51.5, lon: -0.1 })).status, 403); await ctx.profileStore.update('near', { shareLocation: true }); const res = await postJson(ctx, 'near', '/presence', { lat: 51.5, lon: -0.1, radiusMiles: 999 }); assert.equal((await res.json() as { radiusMiles: number }).radiusMiles, 1); });
+  it('uses server profile radius and enforces location privacy', needsDb, async () => {
+    const fix = { lat: 51.5, lon: -0.1, accuracyMeters: 8, recordedAt: Date.now() };
+    assert.equal((await postJson(ctx, 'private', '/presence', fix)).status, 403);
+    await ctx.profileStore.update('near', { shareLocation: true });
+    const res = await postJson(ctx, 'near', '/presence', { ...fix, radiusMiles: 999, recordedAt: Date.now() });
+    assert.equal((await res.json() as { radiusMiles: number }).radiusMiles, 1);
+  });
 });
 
 describe('production HTTP boundary', () => {
