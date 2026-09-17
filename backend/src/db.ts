@@ -1,13 +1,10 @@
 import { Pool } from 'pg';
 import type { PoolClient } from 'pg';
+import type { ConnectionOptions } from 'node:tls';
 
-/**
- * Lazily-initialized Postgres pool. Nothing connects at import time — the
- * pool (and the one-time migration run) is created on first use, so a
- * backend without DATABASE_URL set keeps working for routes that do not
- * touch persistent storage (currently anonymous guest-session issuance).
- * Product data stores require Postgres.
- */
+/** Lazily-initialized Postgres pool. Production startup calls
+ * `ensureMigrated()` before accepting traffic; lazy initialization remains
+ * useful for isolated tests and imported store modules. */
 let pool: Pool | undefined;
 let migrationsRun: Promise<void> | undefined;
 
@@ -490,19 +487,28 @@ async function bootstrapAdmins(client: PoolClient): Promise<void> {
   await client.query('UPDATE users SET is_admin = true WHERE id = ANY($1::text[])', [riderIds]);
 }
 
+export function databaseSslOptions(connectionString: string, caCertificate = process.env.DATABASE_CA_CERT): ConnectionOptions | undefined {
+  const mode = new URL(connectionString).searchParams.get('sslmode');
+  if (!mode || mode === 'disable') return undefined;
+  if (!['require', 'verify-ca', 'verify-full'].includes(mode)) {
+    throw new Error(`Unsupported database sslmode: ${mode}`);
+  }
+  const ca = caCertificate?.replace(/\\n/g, '\n').trim();
+  return { rejectUnauthorized: true, ...(ca ? { ca } : {}) };
+}
+
 function buildPool(): Pool {
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) {
     throw new Error('DATABASE_URL is not set; account signup/login requires Postgres to be configured.');
   }
-  // Railway's private networking (service.railway.internal) doesn't speak
-  // TLS at all -- the Postgres server rejects an SSL negotiation outright.
-  // Only request TLS when the connection string explicitly asks for it
-  // (a hosted/external Postgres with sslmode=require), never by default.
-  const wantsSsl = /sslmode=require/.test(connectionString);
   return new Pool({
     connectionString,
-    ssl: wantsSsl ? { rejectUnauthorized: false } : undefined,
+    // Private Railway networking is plaintext and omits sslmode. External
+    // TLS connections verify the server certificate against either the
+    // system trust store or DATABASE_CA_CERT; unverified TLS is forbidden.
+    ssl: databaseSslOptions(connectionString),
+    connectionTimeoutMillis: 5_000,
   });
 }
 
@@ -571,9 +577,22 @@ export function ensureMigrated(): Promise<void> {
   return migrationsRun;
 }
 
-/** Test-only: drop the cached pool/migration state so a fresh DATABASE_URL takes effect. */
-export async function resetDbForTests(): Promise<void> {
-  if (pool) await pool.end();
+/** Readiness means both schema compatibility and a live database query. */
+export async function checkDatabaseReady(): Promise<void> {
+  await ensureMigrated();
+  await getPool().query('SELECT 1');
+}
+
+/** Drain every database connection during graceful process shutdown. */
+export async function closeDatabase(): Promise<void> {
+  if (!pool) return;
+  const currentPool = pool;
   pool = undefined;
   migrationsRun = undefined;
+  await currentPool.end();
+}
+
+/** Test-only: drop the cached pool/migration state so a fresh DATABASE_URL takes effect. */
+export async function resetDbForTests(): Promise<void> {
+  await closeDatabase();
 }
