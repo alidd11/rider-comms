@@ -35,6 +35,19 @@ jobs:
       - run: npm install
       - run: npm run check
       - run: npm run build:web
+      - name: Install visual-test browser
+        run: npx playwright install --with-deps chromium
+      - name: Run PWA visual smoke audit
+        run: npm run test:pwa:visual
       - name: Verify Android bundle
         working-directory: mobile
         run: npx expo export --platform android --output-dir /tmp/rider-comms-android
+      - name: Upload PWA visual audit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pwa-visual-audit
+          path: |
+            test-results/playwright
+            playwright-report
+          if-no-files-found: warn
