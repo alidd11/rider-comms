@@ -2,6 +2,7 @@ import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { AuthStore } from '../src/authStore.ts';
+import { AccountDeletionStore } from '../src/accountDeletionStore.ts';
 import type { sendVerificationEmail } from '../src/email.ts';
 import { getPool, resetDbForTests } from '../src/db.ts';
 
@@ -272,7 +273,8 @@ describe('AuthStore account signup/login (Postgres-backed)', { skip: !hasDatabas
     const signedUp = await store.signUp(username, uniqueEmail(), 'correct-horse-battery');
     assert.ok(!('error' in signedUp));
     if ('error' in signedUp) return;
-    await store.deleteRider(signedUp.riderId);
+    await new AccountDeletionStore().deleteRider(signedUp.riderId);
+    store.forgetRider(signedUp.riderId);
     assert.equal(await store.hasRider(signedUp.riderId), false);
     assert.equal(await new AuthStore(fn).riderForToken(signedUp.token), undefined);
     const { rowCount } = await getPool().query('SELECT 1 FROM users WHERE id = $1', [signedUp.riderId]);
