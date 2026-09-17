@@ -321,10 +321,12 @@ describe('RiderCommsClient.voice', () => {
       fakeFetch((url, init) => {
         assert.equal(url, 'http://example.test/voice/token');
         assert.deepEqual(JSON.parse(init.body as string), { target: 'channel' });
-        return { status: 200, body: { token: 'x.y.z', url: 'wss://example.livekit.cloud' } };
+        return { status: 200, body: { connections: [{ peerId: 'bob', token: 'x.y.z', url: 'wss://example.livekit.cloud' }], refreshAfterMs: 20_000 } };
       })
     );
     const result = await client.getChannelVoiceToken();
-    assert.equal(result.token, 'x.y.z');
+    assert.equal(result.connections[0].peerId, 'bob');
+    assert.equal(result.connections[0].token, 'x.y.z');
+    assert.equal(result.refreshAfterMs, 20_000);
   });
 });

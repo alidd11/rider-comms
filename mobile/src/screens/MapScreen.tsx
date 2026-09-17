@@ -26,6 +26,7 @@ import type { TabParamList } from '../navigation';
 import { useAuth } from '../auth/AuthContext';
 import { colors, spacing, radii, type, elevation, MIN_TOUCH_TARGET } from '../theme';
 import { RideBar } from '../ride/RideBar';
+import { ProximityVoice } from '../voice/ProximityVoice';
 import { HostPanel } from '../ride/HostPanel';
 import { useSettings } from '../settings/SettingsContext';
 import { PlaceSearchBar } from './PlaceSearchBar';
@@ -584,6 +585,7 @@ export function MapScreen(): React.JSX.Element {
       <View style={styles.rideBarSlot} pointerEvents="box-none">
         <RideBar />
       </View>
+      <ProximityVoice enabled={shareLocation && ridersInZone.length > 0} />
     </View>
   );
 }

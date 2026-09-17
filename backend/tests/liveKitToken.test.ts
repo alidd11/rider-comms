@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { getLiveKitCredentialsFromEnv, mintVoiceToken, rideRoomName, channelRoomName } from '../src/liveKitToken.ts';
+import { getLiveKitCredentialsFromEnv, mintVoiceToken, proximityRoomName, rideRoomName } from '../src/liveKitToken.ts';
 
 const FAKE_CREDS = { apiKey: 'fake-key', apiSecret: 'fake-secret-at-least-32-bytes-long!!', url: 'wss://example.livekit.cloud' };
 
@@ -14,9 +14,13 @@ describe('liveKitToken', () => {
     );
   });
 
-  it('room naming keeps rides and channels in clearly separate namespaces', () => {
+  it('uses a stable opaque room for exactly one proximity pair', () => {
     assert.equal(rideRoomName('abc123'), 'ride:abc123');
-    assert.equal(channelRoomName('4:7'), 'channel:4:7');
+    const room = proximityRoomName('alice', 'bob');
+    assert.equal(room, proximityRoomName('bob', 'alice'));
+    assert.match(room, /^proximity:[a-f0-9]{32}$/);
+    assert.equal(room.includes('alice'), false);
+    assert.notEqual(room, proximityRoomName('alice', 'charlie'));
   });
 
   it('mints a real, well-formed JWT carrying the requested room and identity', async () => {
