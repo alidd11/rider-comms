@@ -16,6 +16,7 @@ import { ModerationStore, REPORT_REASONS } from './moderationStore.ts';
 import type { ReportReason } from './moderationStore.ts';
 import { HazardStore } from './hazardStore.ts';
 import { ScenicRouteStore } from './scenicRouteStore.ts';
+import { AccountDeletionStore } from './accountDeletionStore.ts';
 
 const HAZARD_TYPES = ['police', 'accident', 'hazard', 'road_closure', 'camera'] as const;
 const VEHICLE_CATEGORIES = ['motorcycle_small', 'motorcycle_large', 'scooter', 'car'] as const;
@@ -33,6 +34,7 @@ export interface ApiServerOptions {
    * the environment; pass null explicitly (e.g. in tests) to force the
    * "voice not configured" path regardless of the real environment. */
   liveKitCredentials?: LiveKitCredentials | null;
+  accountDeletionStore?: Pick<AccountDeletionStore, 'deleteRider'>;
 }
 
 export interface ApiRequestLog {
@@ -149,6 +151,7 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
   const resendVerificationLimiter = new SlidingWindowRateLimiter(3, 10 * 60_000);
   const allowedOrigins = new Set(options.allowedOrigins ?? []);
   const liveKitCredentials = 'liveKitCredentials' in options ? options.liveKitCredentials : getLiveKitCredentialsFromEnv();
+  const accountDeletionStore = options.accountDeletionStore ?? new AccountDeletionStore();
   return http.createServer(async (req, res) => {
     const startedAt = Date.now();
     const id = requestId(req);
@@ -210,16 +213,11 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
         return sendJson(res, 200, result);
       }
       if (req.method === 'DELETE' && url.pathname === '/auth/me') {
-        await presenceStore.removeRider(actorId);
-        await rideStore.deleteRider(actorId);
-        await friendStore.deleteRider(actorId);
-        await messageStore.deleteRider(actorId);
-        await hideoutStore.deleteRider(actorId);
-        await profileStore.delete(actorId);
-        await moderationStore.deleteRider(actorId);
-        await hazardStore.deleteRider(actorId);
-        await scenicRouteStore.deleteRider(actorId);
-        await authStore.deleteRider(actorId);
+        await accountDeletionStore.deleteRider(actorId);
+        // Do not revoke the in-process token until the database transaction
+        // commits. If deletion fails, the rider can retry instead of being
+        // logged out while their durable account and data still exist.
+        authStore.forgetRider(actorId);
         return sendJson(res, 200, {});
       }
       if (req.method === 'POST' && url.pathname === '/rides') { const { ride, codeRecord } = await rideStore.createRide(actorId); return sendJson(res, 201, { ...rideBody(ride), code: codeRecord.code, expiresAt: codeRecord.expiresAt }); }

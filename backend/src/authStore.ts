@@ -118,15 +118,12 @@ export class AuthStore {
     await ensureMigrated();
     await getPool().query('DELETE FROM account_sessions WHERE token_hash = $1', [tokenHash]);
   }
-  async deleteRider(riderId: string): Promise<void> {
+  /** Removes process-local guest/session state after durable deletion commits. */
+  forgetRider(riderId: string): void {
     this.issuedRiderIds.delete(riderId);
     for (const [digest, session] of this.riderByTokenDigest) {
       if (session.riderId === riderId) this.riderByTokenDigest.delete(digest);
     }
-    if (!process.env.DATABASE_URL) return;
-    await ensureMigrated();
-    // account_sessions and email_verifications cascade from users.
-    await getPool().query('DELETE FROM users WHERE id = $1', [riderId]);
   }
   createTestSession(riderId: string): GuestSession {
     const token = randomBytes(32).toString('base64url');

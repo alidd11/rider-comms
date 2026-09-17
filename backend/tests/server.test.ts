@@ -19,6 +19,18 @@ describe('authenticated API', () => {
   it('creates guest identities', needsDb, async () => { const res = await fetch(`${ctx.baseUrl()}/auth/guest`, { method: 'POST' }); assert.equal(res.status, 201); const session = await res.json() as { riderId: string; token: string }; assert.match(session.riderId, /^rider_[a-z2-9]{8}$/); const me = await fetch(`${ctx.baseUrl()}/auth/me`, { headers: { Authorization: `Bearer ${session.token}` } }); assert.deepEqual(await me.json(), { riderId: session.riderId }); });
   it('logs out and revokes the current token', async () => { const session = ctx.authStore.createTestSession('logout-me'); const headers = { Authorization: `Bearer ${session.token}` }; assert.equal((await fetch(`${ctx.baseUrl()}/auth/logout`, { method: 'POST', headers })).status, 204); assert.equal((await fetch(`${ctx.baseUrl()}/auth/me`, { headers })).status, 401); });
   it('deletes an account and revokes its token', needsDb, async () => { const session = ctx.authStore.createTestSession('delete-me'); const headers = { Authorization: `Bearer ${session.token}` }; assert.equal((await fetch(`${ctx.baseUrl()}/auth/me`, { method: 'DELETE', headers })).status, 200); assert.equal((await fetch(`${ctx.baseUrl()}/auth/me`, { headers })).status, 401); assert.equal(await ctx.authStore.hasRider('delete-me'), false); });
+  it('keeps the session usable when atomic account deletion fails', async () => {
+    const failed = startTestServer({ accountDeletionStore: { deleteRider: async () => { throw new Error('database unavailable'); } } });
+    await failed.ready;
+    try {
+      const session = failed.authStore.createTestSession('retry-delete');
+      const headers = { Authorization: `Bearer ${session.token}` };
+      assert.equal((await fetch(`${failed.baseUrl()}/auth/me`, { method: 'DELETE', headers })).status, 500);
+      assert.equal((await fetch(`${failed.baseUrl()}/auth/me`, { headers })).status, 200);
+    } finally {
+      await failed.close();
+    }
+  });
   it('supports the private ride lifecycle', needsDb, async () => { const made = await postJson(ctx, 'host', '/rides', {}); const ride = await made.json() as { rideId: string; code: string }; assert.equal((await postJson(ctx, 'member', '/rides/join', { code: ride.code })).status, 200); assert.equal((await authenticatedFetch(ctx, 'member', `/rides/${ride.rideId}/members/host`, { method: 'DELETE' })).status, 403); assert.equal((await authenticatedFetch(ctx, 'host', `/rides/${ride.rideId}`, { method: 'DELETE' })).status, 200); });
   it('shares ride-member locations only after explicit ride consent and only with fellow members', needsDb, async () => {
     const made = await postJson(ctx, 'host', '/rides', {}); const ride = await made.json() as { rideId: string; code: string };
