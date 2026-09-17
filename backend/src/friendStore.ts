@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import type { Pool, PoolClient } from 'pg';
 import type { FriendRequest, FriendRequestStatus, FriendSummary } from '@rider-comms/shared';
 import type { ProfileStore } from './profileStore.ts';
 import { ensureMigrated, getPool } from './db.ts';
@@ -43,15 +44,24 @@ export class FriendStore {
     this.profileStore = profileStore;
   }
 
-  private async areFriends(a: string, b: string): Promise<boolean> {
+  private async lockPair(client: PoolClient, a: string, b: string): Promise<void> {
+    await client.query(
+      `SELECT pg_advisory_xact_lock(
+         hashtextextended(LEAST($1::text, $2::text) || ':' || GREATEST($1::text, $2::text), 0)
+       )`,
+      [a, b],
+    );
+  }
+
+  private async areFriends(a: string, b: string, database: Pick<Pool, 'query'> = getPool()): Promise<boolean> {
     await ensureMigrated();
-    const { rows } = await getPool().query('SELECT 1 FROM friendships WHERE rider_id = $1 AND friend_id = $2', [a, b]);
+    const { rows } = await database.query('SELECT 1 FROM friendships WHERE rider_id = $1 AND friend_id = $2', [a, b]);
     return rows.length > 0;
   }
 
-  private async findPendingBetween(a: string, b: string): Promise<FriendRequest | undefined> {
+  private async findPendingBetween(a: string, b: string, database: Pick<Pool, 'query'> = getPool()): Promise<FriendRequest | undefined> {
     await ensureMigrated();
-    const { rows } = await getPool().query<FriendRequestRow>(
+    const { rows } = await database.query<FriendRequestRow>(
       `SELECT * FROM friend_requests
        WHERE status = 'pending' AND ((from_rider_id = $1 AND to_rider_id = $2) OR (from_rider_id = $2 AND to_rider_id = $1))
        LIMIT 1`,
@@ -61,13 +71,7 @@ export class FriendStore {
   }
 
   async createRequest(fromRiderId: string, toRiderId: string): Promise<CreateFriendRequestResult> {
-    if (await this.areFriends(fromRiderId, toRiderId)) {
-      return { ok: false, error: 'already_friends' };
-    }
-    if (await this.findPendingBetween(fromRiderId, toRiderId)) {
-      return { ok: false, error: 'request_exists' };
-    }
-
+    await ensureMigrated();
     const request: FriendRequest = {
       id: randomUUID(),
       fromRiderId,
@@ -75,11 +79,37 @@ export class FriendStore {
       status: 'pending',
       createdAt: Date.now(),
     };
-    await getPool().query(
-      'INSERT INTO friend_requests (id, from_rider_id, to_rider_id, status, created_at) VALUES ($1, $2, $3, $4, $5)',
-      [request.id, request.fromRiderId, request.toRiderId, request.status, request.createdAt]
-    );
-    return { ok: true, request };
+    const client = await getPool().connect();
+    try {
+      await client.query('BEGIN');
+      await this.lockPair(client, fromRiderId, toRiderId);
+      if (await this.areFriends(fromRiderId, toRiderId, client)) {
+        await client.query('ROLLBACK');
+        return { ok: false, error: 'already_friends' };
+      }
+      if (await this.findPendingBetween(fromRiderId, toRiderId, client)) {
+        await client.query('ROLLBACK');
+        return { ok: false, error: 'request_exists' };
+      }
+      const inserted = await client.query(
+        `INSERT INTO friend_requests (id, from_rider_id, to_rider_id, status, created_at)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT DO NOTHING
+         RETURNING id`,
+        [request.id, request.fromRiderId, request.toRiderId, request.status, request.createdAt]
+      );
+      if (!inserted.rowCount) {
+        await client.query('ROLLBACK');
+        return { ok: false, error: 'request_exists' };
+      }
+      await client.query('COMMIT');
+      return { ok: true, request };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async getRequest(requestId: string): Promise<FriendRequest | undefined> {
@@ -104,14 +134,13 @@ export class FriendStore {
     return { incoming, outgoing };
   }
 
-  private async addFriendship(a: string, b: string): Promise<void> {
-    const pool = getPool();
+  private async addFriendship(client: PoolClient, a: string, b: string): Promise<void> {
     const now = Date.now();
-    await pool.query(
+    await client.query(
       'INSERT INTO friendships (rider_id, friend_id, created_at) VALUES ($1, $2, $3) ON CONFLICT (rider_id, friend_id) DO NOTHING',
       [a, b, now]
     );
-    await pool.query(
+    await client.query(
       'INSERT INTO friendships (rider_id, friend_id, created_at) VALUES ($1, $2, $3) ON CONFLICT (rider_id, friend_id) DO NOTHING',
       [b, a, now]
     );
@@ -132,14 +161,37 @@ export class FriendStore {
    * request's fromRiderId, since toRiderId is the one accepting. */
   async accept(requestId: string): Promise<ResolveRequestResult & { friend?: FriendSummary }> {
     await ensureMigrated();
-    const { rows } = await getPool().query<FriendRequestRow>(
-      `UPDATE friend_requests SET status = 'accepted' WHERE id = $1 AND status = 'pending' RETURNING *`,
-      [requestId]
-    );
-    if (!rows[0]) return { ok: false, error: 'not_found' };
-    const request = rowToRequest(rows[0]);
-    await this.addFriendship(request.fromRiderId, request.toRiderId);
-    return { ok: true, request, friend: await this.summaryFor(request.fromRiderId) };
+    const client = await getPool().connect();
+    try {
+      await client.query('BEGIN');
+      const pending = await client.query<FriendRequestRow>(
+        `SELECT * FROM friend_requests WHERE id = $1 AND status = 'pending'`,
+        [requestId],
+      );
+      if (!pending.rows[0]) {
+        await client.query('ROLLBACK');
+        return { ok: false, error: 'not_found' };
+      }
+      await this.lockPair(client, pending.rows[0].from_rider_id, pending.rows[0].to_rider_id);
+      const { rows } = await client.query<FriendRequestRow>(
+        `UPDATE friend_requests SET status = 'accepted' WHERE id = $1 AND status = 'pending' RETURNING *`,
+        [requestId]
+      );
+      if (!rows[0]) {
+        await client.query('ROLLBACK');
+        return { ok: false, error: 'not_found' };
+      }
+      const request = rowToRequest(rows[0]);
+      await this.addFriendship(client, request.fromRiderId, request.toRiderId);
+      const friend = await this.summaryFor(request.fromRiderId);
+      await client.query('COMMIT');
+      return { ok: true, request, friend };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async decline(requestId: string): Promise<ResolveRequestResult> {
@@ -162,9 +214,19 @@ export class FriendStore {
 
   async removeFriend(riderId: string, friendId: string): Promise<void> {
     await ensureMigrated();
-    const pool = getPool();
-    await pool.query('DELETE FROM friendships WHERE rider_id = $1 AND friend_id = $2', [riderId, friendId]);
-    await pool.query('DELETE FROM friendships WHERE rider_id = $1 AND friend_id = $2', [friendId, riderId]);
+    const client = await getPool().connect();
+    try {
+      await client.query('BEGIN');
+      await this.lockPair(client, riderId, friendId);
+      await client.query('DELETE FROM friendships WHERE rider_id = $1 AND friend_id = $2', [riderId, friendId]);
+      await client.query('DELETE FROM friendships WHERE rider_id = $1 AND friend_id = $2', [friendId, riderId]);
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async deleteRider(riderId: string): Promise<void> {

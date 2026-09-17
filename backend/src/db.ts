@@ -341,6 +341,68 @@ const MIGRATIONS: { name: string; sql: string }[] = [
       END $$;
     `,
   },
+  {
+    name: '0017_transactional_integrity',
+    sql: `
+      -- Older builds allowed the same rider to cast one confirmation and one
+      -- denial because vote was part of the primary key. Keep one
+      -- deterministic vote per rider/report, then rebuild the aggregates so
+      -- existing counts match the surviving source-of-truth rows.
+      DELETE FROM hazard_report_votes kept
+      USING hazard_report_votes duplicate
+      WHERE kept.report_id = duplicate.report_id
+        AND kept.rider_id = duplicate.rider_id
+        AND kept.vote = 'deny'
+        AND duplicate.vote = 'confirm';
+
+      ALTER TABLE hazard_report_votes DROP CONSTRAINT IF EXISTS hazard_report_votes_pkey;
+      ALTER TABLE hazard_report_votes
+        ADD CONSTRAINT hazard_report_votes_pkey PRIMARY KEY (report_id, rider_id);
+      ALTER TABLE hazard_report_votes DROP CONSTRAINT IF EXISTS hazard_report_votes_vote_check;
+      ALTER TABLE hazard_report_votes
+        ADD CONSTRAINT hazard_report_votes_vote_check CHECK (vote IN ('confirm', 'deny'));
+
+      DELETE FROM hazard_report_votes votes
+      WHERE NOT EXISTS (SELECT 1 FROM hazard_reports report WHERE report.id = votes.report_id);
+
+      ALTER TABLE hazard_report_votes DROP CONSTRAINT IF EXISTS hazard_report_votes_report_fk;
+      ALTER TABLE hazard_report_votes
+        ADD CONSTRAINT hazard_report_votes_report_fk
+        FOREIGN KEY (report_id) REFERENCES hazard_reports (id) ON DELETE CASCADE;
+
+      UPDATE hazard_reports report
+      SET confirmations = (
+            SELECT COUNT(*)::integer FROM hazard_report_votes vote
+            WHERE vote.report_id = report.id AND vote.vote = 'confirm'
+          ),
+          denials = (
+            SELECT COUNT(*)::integer FROM hazard_report_votes vote
+            WHERE vote.report_id = report.id AND vote.vote = 'deny'
+          );
+
+      -- Collapse any pre-existing duplicate pending requests before adding
+      -- an undirected uniqueness rule for future concurrent inserts.
+      WITH ranked AS (
+        SELECT id, ROW_NUMBER() OVER (
+          PARTITION BY LEAST(from_rider_id, to_rider_id), GREATEST(from_rider_id, to_rider_id)
+          ORDER BY created_at ASC, id ASC
+        ) AS position
+        FROM friend_requests
+        WHERE status = 'pending'
+      )
+      UPDATE friend_requests request
+      SET status = 'declined'
+      FROM ranked
+      WHERE request.id = ranked.id AND ranked.position > 1;
+
+      CREATE UNIQUE INDEX IF NOT EXISTS friend_requests_pending_pair_idx
+        ON friend_requests (
+          LEAST(from_rider_id, to_rider_id),
+          GREATEST(from_rider_id, to_rider_id)
+        )
+        WHERE status = 'pending';
+    `,
+  },
 ];
 
 /**

@@ -101,28 +101,35 @@ export class RideStore {
 
   async createRide(creatorId: string): Promise<{ ride: Ride; codeRecord: RideCodeRecord }> {
     await ensureMigrated();
-    const pool = getPool();
+    const client = await getPool().connect();
     const id = randomUUID();
     const createdAt = Date.now();
-    await pool.query('INSERT INTO rides (id, created_by, created_at) VALUES ($1, $2, $3)', [id, creatorId, createdAt]);
-    await pool.query('INSERT INTO ride_members (ride_id, rider_id) VALUES ($1, $2)', [id, creatorId]);
-
     let codeRecord = createRideCodeRecord(id);
-    // eslint-disable-next-line no-constant-condition
-    while (true) {
-      try {
-        await pool.query(
-          'INSERT INTO ride_codes (code, ride_id, created_at, expires_at) VALUES ($1, $2, $3, $4)',
+    try {
+      await client.query('BEGIN');
+      await client.query('INSERT INTO rides (id, created_by, created_at) VALUES ($1, $2, $3)', [id, creatorId, createdAt]);
+      await client.query('INSERT INTO ride_members (ride_id, rider_id) VALUES ($1, $2)', [id, creatorId]);
+
+      // A conflict does not abort the transaction, unlike catching a unique
+      // violation after a plain INSERT. Regenerate until a code is reserved.
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        const inserted = await client.query(
+          `INSERT INTO ride_codes (code, ride_id, created_at, expires_at)
+           VALUES ($1, $2, $3, $4)
+           ON CONFLICT (code) DO NOTHING
+           RETURNING code`,
           [codeRecord.code, codeRecord.rideId, codeRecord.createdAt, codeRecord.expiresAt]
         );
-        break;
-      } catch (error) {
-        // Unique-violation on `code` (astronomically rare, 30 bits of
-        // entropy) — regenerate and retry, same as the in-memory
-        // `while (this.codesByValue.has(...))` loop this replaces.
-        if ((error as { code?: string }).code !== '23505') throw error;
+        if (inserted.rowCount) break;
         codeRecord = createRideCodeRecord(id);
       }
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
     }
 
     const ride: Ride = { id, createdBy: creatorId, createdAt, memberIds: new Set([creatorId]) };
@@ -135,24 +142,44 @@ export class RideStore {
     }
 
     await ensureMigrated();
-    const pool = getPool();
-    const { rows } = await pool.query<RideCodeRow>('SELECT * FROM ride_codes WHERE code = $1', [code.toUpperCase()]);
-    if (!rows[0]) return { ok: false, reason: 'invalid_or_expired' };
-    const record = rowToCodeRecord(rows[0]);
-    if (isRideCodeExpired(record)) return { ok: false, reason: 'invalid_or_expired' };
-
-    const ride = await this.loadRide(record.rideId);
-    if (!ride) return { ok: false, reason: 'invalid_or_expired' };
-
-    if (!ride.memberIds.has(riderId) && ride.memberIds.size >= MAX_RIDE_MEMBERS) {
-      return { ok: false, reason: 'ride_full' };
+    const client = await getPool().connect();
+    try {
+      await client.query('BEGIN');
+      const { rows } = await client.query<RideCodeRow>(
+        `SELECT code.* FROM ride_codes code
+         INNER JOIN rides ride ON ride.id = code.ride_id
+         WHERE code.code = $1
+         FOR UPDATE OF ride`,
+        [code.toUpperCase()]
+      );
+      if (!rows[0] || isRideCodeExpired(rowToCodeRecord(rows[0]))) {
+        await client.query('ROLLBACK');
+        return { ok: false, reason: 'invalid_or_expired' };
+      }
+      const rideId = rows[0].ride_id;
+      const existing = await client.query(
+        'SELECT 1 FROM ride_members WHERE ride_id = $1 AND rider_id = $2',
+        [rideId, riderId]
+      );
+      if (!existing.rowCount) {
+        const count = await client.query<{ count: string }>(
+          'SELECT COUNT(*)::text AS count FROM ride_members WHERE ride_id = $1',
+          [rideId]
+        );
+        if (Number(count.rows[0]?.count ?? 0) >= MAX_RIDE_MEMBERS) {
+          await client.query('ROLLBACK');
+          return { ok: false, reason: 'ride_full' };
+        }
+        await client.query('INSERT INTO ride_members (ride_id, rider_id) VALUES ($1, $2)', [rideId, riderId]);
+      }
+      await client.query('COMMIT');
+      return { ok: true, rideId };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
     }
-
-    await pool.query(
-      'INSERT INTO ride_members (ride_id, rider_id) VALUES ($1, $2) ON CONFLICT (ride_id, rider_id) DO NOTHING',
-      [ride.id, riderId]
-    );
-    return { ok: true, rideId: ride.id };
   }
 
   async getRide(rideId: string): Promise<Ride | undefined> {

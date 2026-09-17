@@ -43,6 +43,17 @@ describe('RideStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping Po
     assert.equal(stillCapped?.memberIds.size, 20);
   });
 
+  it('never exceeds the member cap when join requests race', async () => {
+    const store = new RideStore(1000, 60_000);
+    const { ride, codeRecord } = await store.createRide('host');
+    const results = await Promise.all(
+      Array.from({ length: 30 }, (_, index) => store.joinRide(codeRecord.code, `racer_${index}`, `2.2.2.${index}`)),
+    );
+    assert.equal(results.filter((result) => result.ok).length, 19);
+    assert.equal(results.filter((result) => !result.ok && result.reason === 'ride_full').length, 11);
+    assert.equal((await store.getRide(ride.id))?.memberIds.size, 20);
+  });
+
   it('lets an existing member re-join a full ride without being rejected', async () => {
     const store = new RideStore(1000, 60_000);
     const { ride, codeRecord } = await store.createRide('host');
