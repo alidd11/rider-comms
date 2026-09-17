@@ -32,8 +32,15 @@ Node.js 22 or newer is required.
 ```bash
 npm install
 npm run check
+npm run test:pwa:visual
 npx expo-doctor mobile
 ```
+
+The PWA visual smoke audit captures Map, Group Ride, Routes, Friends,
+Settings and Search at small-phone, modern-phone, tablet and landscape
+viewports. It fails on application runtime errors or horizontal viewport
+overflow. CI publishes the resulting screenshots and HTML report in the
+`pwa-visual-audit` artifact.
 
 Run the API:
 
