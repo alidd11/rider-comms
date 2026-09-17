@@ -57,12 +57,15 @@ export const DEFAULT_MOVEMENT_CONFIG: MovementStateConfig = {
 };
 
 /**
- * Whether a consumer (e.g. the social video feed) should treat this state
- * as locked. 'unknown' is locked, same as 'moving' — never fail open on an
- * unclear reading. Only a confidently-confirmed 'stationary' state unlocks.
+ * Whether distracting controls should be locked.
+ *
+ * Product rule for the current test phase: lock only after sustained
+ * movement at/above 8 mph has been confirmed. An unknown/stale GPS state
+ * remains visible as a warning, but must not make product areas disappear
+ * while the rider is stationary or location permission is still settling.
  */
 export function isLockedForSafety(state: MovementState): boolean {
-  return state !== 'stationary';
+  return state === 'moving';
 }
 
 /**
@@ -70,9 +73,9 @@ export function isLockedForSafety(state: MovementState): boolean {
  * fixes, for gating any interaction that must be unavailable while riding.
  * Deliberately never a single-GPS-reading decision: it debounces with
  * hysteresis (separate moving/stationary thresholds) and delayed
- * unlocking (a much longer confirmation window to declare stationary than
- * to declare moving), and fails toward 'moving'/locked whenever it can't
- * be confident, never toward 'stationary'/unlocked.
+ * unlocking (a much longer confirmation window to declare below-threshold
+ * movement than to declare moving). Unknown GPS remains a visible warning,
+ * while only confirmed sustained movement locks distracting controls.
  *
  * KNOWN LIMITATION (passenger/accessibility): GPS motion alone cannot
  * distinguish the person riding from a passenger, or a rider using
@@ -130,7 +133,7 @@ export class MovementStateTracker {
     return this.state;
   }
 
-  /** Immediately fail locked when tracking is interrupted or unavailable. */
+  /** Reset to unknown when tracking is interrupted or unavailable. */
   markUnavailable(): MovementState {
     this.resetToUnknown();
     return this.state;

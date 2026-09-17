@@ -1,0 +1,37 @@
+{
+  "policy": {
+    "product": "Rider Comms",
+    "rule": "PWA and native are two delivery shells for one product. Any user-facing capability available in one client must exist in the other unless a platform API makes exact parity impossible.",
+    "allowedPlatformDifferences": [
+      "credential storage mechanism",
+      "OS-level Bluetooth/audio routing",
+      "notification permission implementation",
+      "map SDK implementation",
+      "native deep-link plumbing"
+    ]
+  },
+  "capabilities": [
+    { "id": "auth", "pwa": true, "native": true, "status": "parity" },
+    { "id": "password-recovery", "pwa": true, "native": true, "status": "parity" },
+    { "id": "profile", "pwa": true, "native": true, "status": "parity" },
+    { "id": "avatar-selection", "pwa": false, "native": true, "status": "gap" },
+    { "id": "friends", "pwa": true, "native": true, "status": "parity" },
+    { "id": "direct-messages", "pwa": false, "native": true, "status": "gap" },
+    { "id": "hideouts", "pwa": false, "native": true, "status": "gap" },
+    { "id": "block-report", "pwa": false, "native": true, "status": "gap" },
+    { "id": "public-proximity", "pwa": true, "native": true, "status": "parity" },
+    { "id": "proximity-voice", "pwa": true, "native": true, "status": "parity" },
+    { "id": "group-ride", "pwa": true, "native": true, "status": "parity" },
+    { "id": "host-remove-rider", "pwa": false, "native": true, "status": "gap" },
+    { "id": "private-ride-location", "pwa": true, "native": false, "status": "gap" },
+    { "id": "hazards", "pwa": true, "native": true, "status": "parity" },
+    { "id": "place-search", "pwa": true, "native": true, "status": "parity" },
+    { "id": "recent-places", "pwa": true, "native": false, "status": "gap" },
+    { "id": "navigation", "pwa": true, "native": true, "status": "behavior-gap" },
+    { "id": "routes", "pwa": true, "native": true, "status": "parity" },
+    { "id": "ride-safe", "pwa": true, "native": true, "status": "parity" },
+    { "id": "session-management", "pwa": false, "native": true, "status": "gap" },
+    { "id": "account-deletion", "pwa": false, "native": true, "status": "gap" },
+    { "id": "billing-preview", "pwa": true, "native": true, "status": "content-gap" }
+  ]
+}

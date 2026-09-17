@@ -11,8 +11,8 @@ This repository is a pre-alpha test build. Store review compliance is an ongoing
 - Instagram and TikTok usernames with independent Public, Friends only, and Private visibility.
 - In-app privacy, safety, test-build and community-rule disclosures.
 - iOS privacy-manifest declaration for app preferences, explicit application identifiers, Android versioning, and an EAS internal APK profile.
-- No advertising SDK, tracking permission, background location, microphone permission, billing unlock, or unimplemented video feed exposed in the native build.
-- Movement-aware ride-safe surfaces in both clients fail locked on cold start, stale/unusable GPS, permission loss and app backgrounding. Distracting social, setup, billing, messaging, settings and route-discovery controls unlock only after sustained stationary evidence; map/navigation and active-ride exit controls remain available.
+- No advertising SDK, tracking permission, background-location permission, billing unlock, or unimplemented video feed is exposed in the native build. Microphone permission is declared only for the explicit rider voice features.
+- Movement-aware Ride Safe surfaces in both clients use the same 8 mph threshold. Confirmed sustained movement locks distracting controls; unknown/stale GPS remains a visible warning state without hiding product areas, and below-threshold evidence must be sustained before an existing movement lock clears.
 
 ## Required before public App Store or Play Store submission
 

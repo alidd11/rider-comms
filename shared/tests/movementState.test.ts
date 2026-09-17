@@ -158,18 +158,18 @@ describe('MovementStateTracker', () => {
     expect(tracker.currentState).toBe('moving');
   });
 
-  it('isLockedForSafety treats unknown the same as moving', () => {
-    expect(isLockedForSafety('unknown')).toBe(true);
+  it('isLockedForSafety locks only confirmed movement', () => {
+    expect(isLockedForSafety('unknown')).toBe(false);
     expect(isLockedForSafety('moving')).toBe(true);
     expect(isLockedForSafety('stationary')).toBe(false);
   });
 
-  it('fails locked when a previously stationary fix becomes stale without a new fix', () => {
+  it('returns to warning-only unknown when a previously stationary fix becomes stale', () => {
     const tracker = new MovementStateTracker();
     for (let i = 0; i <= 7; i += 1) tracker.addFix(stationaryFix(i, START_MS + i * 1000));
     expect(tracker.currentState).toBe('stationary');
     expect(tracker.stateAt(START_MS + 28_000)).toBe('unknown');
-    expect(isLockedForSafety(tracker.currentState)).toBe(true);
+    expect(isLockedForSafety(tracker.currentState)).toBe(false);
   });
 
   it('rejects malformed, impossible and out-of-order fixes', () => {

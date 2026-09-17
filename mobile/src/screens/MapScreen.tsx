@@ -560,13 +560,15 @@ export function MapScreen(): React.JSX.Element {
 
       {!lockedForSafety && <SegmentToggle segment={segment} onChange={setSegment} topInset={insets.top} />}
 
-      {lockedForSafety && (
+      {(lockedForSafety || movementState === 'unknown') && (
         <View style={[styles.safetyBanner, { top: insets.top + spacing.sm }]} accessibilityLiveRegion="polite">
           <MaterialCommunityIcons name="motorbike" size={20} color={colors.accent} />
           <View style={styles.safetyBannerCopy}>
             <Text style={styles.safetyBannerTitle}>Ride-safe mode</Text>
             <Text style={styles.safetyBannerText}>
-              {movementState === 'moving' ? 'Distracting controls are locked until you stop.' : 'Waiting for a reliable stationary location fix.'}
+              {movementState === 'moving'
+                ? 'Distracting controls are locked until you are safely below 8 mph.'
+                : 'Waiting for a reliable speed fix. Controls stay available.'}
             </Text>
           </View>
           {movementState !== 'moving' && (
