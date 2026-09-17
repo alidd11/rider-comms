@@ -148,7 +148,8 @@ describe('FriendStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping 
     const profiles = new ProfileStore();
     const store = new FriendStore(profiles);
     for (const [id, name] of [['a', 'Alice'], ['b', 'Bob'], ['c', 'Charlie']] as const) {
-      await profiles.update(id, { displayName: name, handle: `@${id}` });
+      const updated = await profiles.update(id, { displayName: name, handle: `@friend_${id}` });
+      assert.equal(updated.ok, true);
       const request = await store.createRequest(id, 'me');
       assert.equal(request.ok, true);
       if (request.ok) await store.accept(request.request.id);
