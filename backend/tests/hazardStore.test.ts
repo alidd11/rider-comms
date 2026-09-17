@@ -57,6 +57,22 @@ describe('HazardStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping 
     assert.equal(current.denials, 1);
   });
 
+  it('counts only one vote when the same rider confirms and denies concurrently', async () => {
+    const store = new HazardStore();
+    const report = await store.create('accident', 40.0, -74.0, 'rider-1');
+    await Promise.all([
+      store.confirm(report.id, 'rider-2'),
+      store.deny(report.id, 'rider-2'),
+    ]);
+    const [current] = await store.nearby(40.0, -74.0, report.createdAt);
+    assert.equal(current.confirmations + current.denials, 1);
+    const { rows } = await getPool().query<{ count: string }>(
+      'SELECT COUNT(*)::text AS count FROM hazard_report_votes WHERE report_id = $1 AND rider_id = $2',
+      [report.id, 'rider-2'],
+    );
+    assert.equal(Number(rows[0]?.count), 1);
+  });
+
   it('returns not_found when voting on a nonexistent report', async () => {
     const store = new HazardStore();
     assert.deepEqual(await store.confirm('missing', 'rider-1'), { ok: false, reason: 'not_found' });
