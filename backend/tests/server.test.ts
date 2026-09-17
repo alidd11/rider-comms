@@ -20,15 +20,24 @@ describe('authenticated API', () => {
   it('logs out and revokes the current token', async () => { const session = ctx.authStore.createTestSession('logout-me'); const headers = { Authorization: `Bearer ${session.token}` }; assert.equal((await fetch(`${ctx.baseUrl()}/auth/logout`, { method: 'POST', headers })).status, 204); assert.equal((await fetch(`${ctx.baseUrl()}/auth/me`, { headers })).status, 401); });
   it('deletes an account and revokes its token', needsDb, async () => { const session = ctx.authStore.createTestSession('delete-me'); const headers = { Authorization: `Bearer ${session.token}` }; assert.equal((await fetch(`${ctx.baseUrl()}/auth/me`, { method: 'DELETE', headers })).status, 200); assert.equal((await fetch(`${ctx.baseUrl()}/auth/me`, { headers })).status, 401); assert.equal(await ctx.authStore.hasRider('delete-me'), false); });
   it('supports the private ride lifecycle', needsDb, async () => { const made = await postJson(ctx, 'host', '/rides', {}); const ride = await made.json() as { rideId: string; code: string }; assert.equal((await postJson(ctx, 'member', '/rides/join', { code: ride.code })).status, 200); assert.equal((await authenticatedFetch(ctx, 'member', `/rides/${ride.rideId}/members/host`, { method: 'DELETE' })).status, 403); assert.equal((await authenticatedFetch(ctx, 'host', `/rides/${ride.rideId}`, { method: 'DELETE' })).status, 200); });
-  it('shares real ride-member locations regardless of the public shareLocation flag, and only with fellow members', needsDb, async () => {
+  it('shares ride-member locations only after explicit ride consent and only with fellow members', needsDb, async () => {
     const made = await postJson(ctx, 'host', '/rides', {}); const ride = await made.json() as { rideId: string; code: string };
     await postJson(ctx, 'member', '/rides/join', { code: ride.code });
     assert.equal(await ctx.profileStore.getOrCreate('member').then((p) => p.shareLocation), false);
+    assert.equal((await postJson(ctx, 'member', `/rides/${ride.rideId}/location`, { lat: 51.5, lon: -0.1 })).status, 403);
+    assert.equal((await authenticatedFetch(ctx, 'member', `/rides/${ride.rideId}/location-sharing`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: true }),
+    })).status, 200);
     assert.equal((await postJson(ctx, 'member', `/rides/${ride.rideId}/location`, { lat: 51.5, lon: -0.1 })).status, 200);
     const seenByHost = await authenticatedFetch(ctx, 'host', `/rides/${ride.rideId}/locations`);
     assert.deepEqual((await seenByHost.json() as { locations: Array<{ riderId: string; lat: number; lon: number }> }).locations.map((l) => ({ riderId: l.riderId, lat: l.lat, lon: l.lon })), [{ riderId: 'member', lat: 51.5, lon: -0.1 }]);
     assert.equal((await postJson(ctx, 'outsider', `/rides/${ride.rideId}/location`, { lat: 0, lon: 0 })).status, 403);
     assert.equal((await authenticatedFetch(ctx, 'outsider', `/rides/${ride.rideId}/locations`)).status, 403);
+    assert.equal((await authenticatedFetch(ctx, 'member', `/rides/${ride.rideId}/location-sharing`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: false }),
+    })).status, 200);
+    const afterWithdrawal = await authenticatedFetch(ctx, 'host', `/rides/${ride.rideId}/locations`);
+    assert.deepEqual((await afterWithdrawal.json() as { locations: unknown[] }).locations, []);
   });
   it('uses server profile radius and enforces location privacy', needsDb, async () => { assert.equal((await postJson(ctx, 'private', '/presence', { lat: 51.5, lon: -0.1 })).status, 403); await ctx.profileStore.update('near', { shareLocation: true }); const res = await postJson(ctx, 'near', '/presence', { lat: 51.5, lon: -0.1, radiusMiles: 999 }); assert.equal((await res.json() as { radiusMiles: number }).radiusMiles, 1); });
 });
