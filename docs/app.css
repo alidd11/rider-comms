@@ -500,5 +500,7 @@ h1,.auth-intro h1{letter-spacing:-.02em}
    GPS state from looking like a destructive feature rollback. */
 .movement-safety-banner{position:fixed;z-index:80;top:calc(env(safe-area-inset-top) + 12px);left:16px;right:16px;display:flex;align-items:center;gap:10px;padding:12px 14px;border:1px solid var(--border);border-radius:16px;background:var(--surface);box-shadow:var(--shadow);color:var(--text)}
 .movement-safety-banner[hidden]{display:none}.movement-safety-banner svg{width:22px;height:22px;stroke:var(--accent);fill:none;stroke-width:1.8}.movement-safety-banner span{display:grid;gap:2px}.movement-safety-banner small{color:var(--muted)}
+.movement-safety-banner span{flex:1;min-width:0}.movement-safety-banner button{min-height:40px;padding:0 13px;border:0;border-radius:999px;background:var(--accent);color:#fff;font:700 12px/1 Inter,sans-serif;white-space:nowrap}
 .safety-locked [aria-disabled="true"]{opacity:.48}
 .safety-locked .bottom-nav [aria-disabled="true"]{filter:saturate(.35)}
+@media(max-width:420px){.movement-safety-banner{align-items:flex-start;flex-wrap:wrap}.movement-safety-banner button{margin-left:32px}}

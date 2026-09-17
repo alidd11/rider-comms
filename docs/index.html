@@ -17,7 +17,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Inter:wght@400;500;600;700;800&display=swap">
-  <link rel="stylesheet" href="app.css?v=60">
+  <link rel="stylesheet" href="app.css?v=61">
   <link rel="stylesheet" href="routes.css?v=31">
   <title>Rider Comms</title>
 </head>
@@ -223,12 +223,13 @@
   <div id="movementSafetyBanner" class="movement-safety-banner" role="status" aria-live="polite" hidden>
     <svg aria-hidden="true"><use href="#i-ride"></use></svg>
     <span><strong>Ride-safe mode</strong><small id="movementSafetyMessage">Waiting for a reliable stationary location fix.</small></span>
+    <button id="enableLocationBtn" type="button">Enable location</button>
   </div>
   <div id="updateBanner" class="update-banner" hidden><span>A new Rider Comms version is ready.</span><button id="reloadApp">Update now</button></div>
   <noscript>Rider Comms requires JavaScript.</noscript>
   <script src="config.js?v=31"></script>
   <script src="routes.js?v=32" defer></script>
   <script src="movement-safety.js?v=1" defer></script>
-  <script src="app.js?v=62" defer></script>
+  <script src="app.js?v=63" defer></script>
 </body>
 </html>

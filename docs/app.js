@@ -1414,6 +1414,11 @@
     if (message) message.textContent = nextState === 'moving'
       ? 'Distracting controls are locked until you have safely stopped.'
       : 'Waiting for a reliable stationary location fix.';
+    const enableButton = $('#enableLocationBtn');
+    if (enableButton) {
+      enableButton.hidden = !locked || nextState === 'moving';
+      enableButton.textContent = movementPermissionStatus?.state === 'denied' ? 'Location help' : 'Enable location';
+    }
     $$('[data-nav="routes"], [data-nav="friends"], [data-nav="settings"]').forEach((item) => {
       item.setAttribute('aria-disabled', String(locked));
       item.classList.toggle('safety-unavailable', locked);
@@ -1453,7 +1458,18 @@
         else stopMovementSafetyTracking();
       });
       movementPermissionStatus = permission;
+      applyMovementState(movementState);
     } catch { /* permission state is unavailable; a deliberate location action can start tracking */ }
+  }
+
+  async function requestMovementLocationAccess() {
+    try {
+      const position = await currentPosition();
+      applyMovementState(movementTracker.addFix(movementFix(position)));
+      showToast('Location enabled. Keep still briefly while Rider Comms confirms you are stationary.');
+    } catch (error) {
+      showToast(locationAccessMessage(error, 'enable ride-safe controls'));
+    }
   }
 
   function locationAccessMessage(error, purpose = 'use your location') {
@@ -2622,6 +2638,7 @@
 
   function bindEvents() {
     $$('[data-nav]').forEach((button) => button.addEventListener('click', () => navigate(button.dataset.nav)));
+    $('#enableLocationBtn').addEventListener('click', () => void requestMovementLocationAccess());
     window.addEventListener('popstate', () => navigate(location.hash.slice(1) || 'map', false));
     $$('[data-ride-mode]').forEach((button) => button.addEventListener('click', () => {
       $$('[data-ride-mode]').forEach((item) => item.classList.toggle('active', item === button));

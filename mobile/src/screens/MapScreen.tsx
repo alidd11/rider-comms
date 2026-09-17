@@ -117,7 +117,7 @@ function SegmentToggle({
 export function MapScreen(): React.JSX.Element {
   const { client } = useAuth();
   const { shareLocation } = useSettings();
-  const { lockedForSafety, movementState, refreshTracking } = useMovementSafety();
+  const { lockedForSafety, movementState, locationAccess, requestLocationAccess, openLocationSettings, refreshTracking } = useMovementSafety();
   const insets = useSafeAreaInsets();
   const route = useRoute<RouteProp<TabParamList, 'Map'>>();
   const [segment, setSegment] = React.useState<Segment>(route.params?.segment ?? 'public');
@@ -568,6 +568,16 @@ export function MapScreen(): React.JSX.Element {
               {movementState === 'moving' ? 'Distracting controls are locked until you stop.' : 'Waiting for a reliable stationary location fix.'}
             </Text>
           </View>
+          {movementState !== 'moving' && (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={locationAccess === 'blocked' || locationAccess === 'services_disabled' ? 'Open location settings' : 'Enable location'}
+              style={styles.safetyEnableButton}
+              onPress={() => void (locationAccess === 'blocked' || locationAccess === 'services_disabled' ? openLocationSettings() : requestLocationAccess())}
+            >
+              <Text style={styles.safetyEnableText}>{locationAccess === 'blocked' || locationAccess === 'services_disabled' ? 'Settings' : 'Enable'}</Text>
+            </Pressable>
+          )}
         </View>
       )}
 
@@ -733,4 +743,6 @@ const styles = StyleSheet.create({
   safetyBannerCopy: { flex: 1 },
   safetyBannerTitle: { ...type.label, color: colors.textPrimary },
   safetyBannerText: { ...type.caption, color: colors.textSecondary, marginTop: 2 },
+  safetyEnableButton: { minHeight: 40, justifyContent: 'center', paddingHorizontal: spacing.md, borderRadius: radii.pill, backgroundColor: colors.accent },
+  safetyEnableText: { ...type.caption, color: colors.accentText, fontWeight: '800' },
 });

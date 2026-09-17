@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { AppState } from 'react-native';
+import { AppState, Linking } from 'react-native';
 import * as Location from 'expo-location';
 import {
   MovementStateTracker,
@@ -11,19 +11,30 @@ import { toMovementFix } from './movementAdapter';
 type MovementSafetyValue = {
   movementState: MovementState;
   lockedForSafety: boolean;
+  locationAccess: 'checking' | 'promptable' | 'granted' | 'blocked' | 'services_disabled' | 'unavailable';
+  trackingError: string | null;
   refreshTracking: () => Promise<void>;
+  requestLocationAccess: () => Promise<void>;
+  openLocationSettings: () => Promise<void>;
 };
 
 const MovementSafetyContext = React.createContext<MovementSafetyValue>({
   movementState: 'unknown',
   lockedForSafety: true,
+  locationAccess: 'checking',
+  trackingError: null,
   refreshTracking: async () => {},
+  requestLocationAccess: async () => {},
+  openLocationSettings: async () => {},
 });
 
 export function MovementSafetyProvider({ children }: { children: React.ReactNode }): React.JSX.Element {
   const tracker = React.useRef(new MovementStateTracker()).current;
   const [movementState, setMovementState] = React.useState<MovementState>('unknown');
+  const [locationAccess, setLocationAccess] = React.useState<MovementSafetyValue['locationAccess']>('checking');
+  const [trackingError, setTrackingError] = React.useState<string | null>(null);
   const startRef = React.useRef<() => Promise<void>>(async () => {});
+  const requestRef = React.useRef<() => Promise<void>>(async () => {});
 
   React.useEffect(() => {
     let mounted = true;
@@ -36,25 +47,63 @@ export function MovementSafetyProvider({ children }: { children: React.ReactNode
 
     const start = async () => {
       stop();
-      const permission = await Location.getForegroundPermissionsAsync();
-      if (!mounted || !permission.granted) {
-        if (mounted) setMovementState(tracker.markUnavailable());
-        return;
-      }
-      subscription = await Location.watchPositionAsync(
-        {
-          accuracy: Location.Accuracy.Balanced,
-          timeInterval: 1_000,
-          distanceInterval: 0,
-        },
-        (position) => {
-          if (!mounted) return;
-          const next = tracker.addFix(toMovementFix(position));
-          setMovementState(next);
+      try {
+        const servicesEnabled = await Location.hasServicesEnabledAsync();
+        if (!mounted) return;
+        if (!servicesEnabled) {
+          setLocationAccess('services_disabled');
+          setTrackingError('Location Services are turned off.');
+          setMovementState(tracker.markUnavailable());
+          return;
         }
-      );
+        const permission = await Location.getForegroundPermissionsAsync();
+        if (!mounted) return;
+        if (!permission.granted) {
+          setLocationAccess(permission.canAskAgain ? 'promptable' : 'blocked');
+          setTrackingError(null);
+          setMovementState(tracker.markUnavailable());
+          return;
+        }
+        setLocationAccess('granted');
+        setTrackingError(null);
+        subscription = await Location.watchPositionAsync(
+          {
+            accuracy: Location.Accuracy.Balanced,
+            timeInterval: 1_000,
+            distanceInterval: 0,
+          },
+          (position) => {
+            if (!mounted) return;
+            const next = tracker.addFix(toMovementFix(position));
+            setMovementState(next);
+          }
+        );
+      } catch {
+        if (!mounted) return;
+        setLocationAccess('unavailable');
+        setTrackingError('Location tracking could not start. Try again or check device settings.');
+        setMovementState(tracker.markUnavailable());
+      }
     };
     startRef.current = start;
+    requestRef.current = async () => {
+      try {
+        const permission = await Location.requestForegroundPermissionsAsync();
+        if (!mounted) return;
+        if (!permission.granted) {
+          setLocationAccess(permission.canAskAgain ? 'promptable' : 'blocked');
+          setTrackingError(permission.canAskAgain ? 'Location access was not granted.' : 'Location access is blocked in device settings.');
+          setMovementState(tracker.markUnavailable());
+          return;
+        }
+        await start();
+      } catch {
+        if (!mounted) return;
+        setLocationAccess('unavailable');
+        setTrackingError('Location permission could not be requested.');
+        setMovementState(tracker.markUnavailable());
+      }
+    };
 
     void start();
     const staleTimer = setInterval(() => {
@@ -79,8 +128,12 @@ export function MovementSafetyProvider({ children }: { children: React.ReactNode
   const value = React.useMemo(() => ({
     movementState,
     lockedForSafety: isLockedForSafety(movementState),
+    locationAccess,
+    trackingError,
     refreshTracking: () => startRef.current(),
-  }), [movementState]);
+    requestLocationAccess: () => requestRef.current(),
+    openLocationSettings: () => Linking.openSettings(),
+  }), [locationAccess, movementState, trackingError]);
 
   return <MovementSafetyContext.Provider value={value}>{children}</MovementSafetyContext.Provider>;
 }
