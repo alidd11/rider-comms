@@ -1,12 +1,20 @@
 import { after, before, beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { MessageStore } from '../src/messageStore.ts';
+import { InvalidMessageCursorError, MessageStore, decodeMessageCursor, encodeMessageCursor } from '../src/messageStore.ts';
 import { ensureMigrated, getPool, resetDbForTests } from '../src/db.ts';
 
 // MessageStore is now Postgres-backed (see db.ts) — these tests need
 // DATABASE_URL to point at a reachable Postgres instance and are skipped
 // otherwise, rather than failing every run in a sandbox with no database.
 const hasDatabase = Boolean(process.env.DATABASE_URL);
+
+describe('message cursors', () => {
+  it('round-trips opaque sequence cursors and rejects malformed input', () => {
+    const cursor = encodeMessageCursor('123456789');
+    assert.equal(decodeMessageCursor(cursor), '123456789');
+    assert.throws(() => decodeMessageCursor('not-a-sequence'), InvalidMessageCursorError);
+  });
+});
 
 describe('MessageStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping Postgres-backed MessageStore tests' }, () => {
   before(async () => {
@@ -55,5 +63,19 @@ describe('MessageStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping
   it('returns an empty array for a thread with no messages', async () => {
     const store = new MessageStore();
     assert.deepEqual(await store.getThread('x', 'y'), []);
+  });
+
+  it('paginates newest-first in SQL without gaps or duplicates', async () => {
+    const store = new MessageStore();
+    for (const text of ['one', 'two', 'three', 'four', 'five']) await store.create('a', 'b', text);
+    const latest = await store.getThreadPage('a', 'b', 2);
+    assert.deepEqual(latest.messages.map((message) => message.text), ['four', 'five']);
+    assert.ok(latest.nextCursor);
+    const middle = await store.getThreadPage('b', 'a', 2, latest.nextCursor ?? undefined);
+    assert.deepEqual(middle.messages.map((message) => message.text), ['two', 'three']);
+    assert.ok(middle.nextCursor);
+    const oldest = await store.getThreadPage('a', 'b', 2, middle.nextCursor ?? undefined);
+    assert.deepEqual(oldest.messages.map((message) => message.text), ['one']);
+    assert.equal(oldest.nextCursor, null);
   });
 });

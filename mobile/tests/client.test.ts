@@ -183,6 +183,14 @@ describe('RiderCommsClient social profiles and messages', () => {
     assert.equal((await client.sendMessage('friend-1', 'Meet at seven?')).id, 'm1');
   });
 
+  it('requests older message pages with an opaque cursor and bounded limit', async () => {
+    const client = new RiderCommsClient('http://example.test', fakeFetch((url) => {
+      assert.equal(url, 'http://example.test/messages?withRiderId=bob&before=cursor_123&limit=25');
+      return { status: 200, body: { messages: [], nextCursor: null } };
+    }), 'token');
+    assert.deepEqual(await client.getMessages('bob', { before: 'cursor_123', limit: 25 }), { messages: [], nextCursor: null });
+  });
+
   it('persists an editable profile field through the authenticated rider route', async () => {
     const client = new RiderCommsClient(
       'http://example.test',

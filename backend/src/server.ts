@@ -10,7 +10,7 @@ import { RideStore } from './rideStore.ts';
 import { PresenceStore, StaleLocationFixError } from './presenceStore.ts';
 import { ProfileStore } from './profileStore.ts';
 import { FriendStore } from './friendStore.ts';
-import { MessageStore } from './messageStore.ts';
+import { InvalidMessageCursorError, MessageStore } from './messageStore.ts';
 import { HideoutStore } from './hideoutStore.ts';
 import { ModerationStore, REPORT_REASONS } from './moderationStore.ts';
 import type { ReportReason } from './moderationStore.ts';
@@ -402,7 +402,19 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
         const body = await readJsonBody(req); if (typeof body.toRiderId !== 'string' || typeof body.text !== 'string') return sendJson(res, 400, { error: 'toRiderId and text are required' }); const text = body.text.trim();
         if (!text || text.length > 1000) return sendJson(res, 400, { error: !text ? 'text must not be empty' : 'text must be at most 1000 characters' }); if (await moderationStore.isBlockedBetween(actorId, body.toRiderId)) return sendJson(res, 403, { error: 'blocked' }); if (!(await friendStore.isFriendOf(actorId, body.toRiderId))) return sendJson(res, 403, { error: 'not_friends' }); return sendJson(res, 201, await messageStore.create(actorId, body.toRiderId, text));
       }
-      if (req.method === 'GET' && url.pathname === '/messages') { const other = url.searchParams.get('withRiderId'); if (!other) return sendJson(res, 400, { error: 'withRiderId is required' }); if (await moderationStore.isBlockedBetween(actorId, other)) return sendJson(res, 403, { error: 'blocked' }); const n = Number(url.searchParams.get('limit') ?? 100); return sendJson(res, 200, { messages: await messageStore.getThread(actorId, other, Number.isInteger(n) ? Math.min(Math.max(n, 1), 100) : 100) }); }
+      if (req.method === 'GET' && url.pathname === '/messages') {
+        const other = url.searchParams.get('withRiderId');
+        if (!other) return sendJson(res, 400, { error: 'withRiderId is required' });
+        if (await moderationStore.isBlockedBetween(actorId, other)) return sendJson(res, 403, { error: 'blocked' });
+        const n = Number(url.searchParams.get('limit') ?? 100);
+        if (!Number.isInteger(n) || n < 1 || n > 100) return sendJson(res, 400, { error: 'limit must be an integer from 1 to 100' });
+        try {
+          return sendJson(res, 200, await messageStore.getThreadPage(actorId, other, n, url.searchParams.get('before') ?? undefined));
+        } catch (error) {
+          if (error instanceof InvalidMessageCursorError) return sendJson(res, 400, { error: 'invalid_cursor' });
+          throw error;
+        }
+      }
       if (req.method === 'POST' && url.pathname === '/hideouts') {
         const body = await readJsonBody(req), ids = body.participantIds; if (typeof body.name !== 'string' || !body.name.trim() || body.name.trim().length > 100 || !isCoordinate(body.lat, body.lon) || !Array.isArray(ids) || ids.length === 0 || !ids.every((id) => typeof id === 'string')) return sendJson(res, 400, { error: 'valid name, lat, lon, and participantIds are required' });
         const participants = [...new Set(ids as string[])].filter((id) => id !== actorId);

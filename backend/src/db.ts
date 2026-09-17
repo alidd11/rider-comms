@@ -492,6 +492,18 @@ const MIGRATIONS: { name: string; sql: string }[] = [
       CREATE INDEX IF NOT EXISTS hazard_reports_expires_at_idx ON hazard_reports (expires_at);
     `,
   },
+  {
+    name: '0022_message_cursor_pagination',
+    sql: `
+      ALTER TABLE direct_messages ADD COLUMN IF NOT EXISTS conversation_key TEXT;
+      UPDATE direct_messages
+      SET conversation_key = LEAST(from_rider_id, to_rider_id) || ':' || GREATEST(from_rider_id, to_rider_id)
+      WHERE conversation_key IS NULL;
+      ALTER TABLE direct_messages ALTER COLUMN conversation_key SET NOT NULL;
+      CREATE INDEX IF NOT EXISTS direct_messages_conversation_cursor_idx
+        ON direct_messages (conversation_key, seq DESC);
+    `,
+  },
 ];
 
 /**
