@@ -3,8 +3,8 @@
 
   const defaults = {
     maxUsableAccuracyMeters: 50,
-    movingSpeedMps: 1.4,
-    stationarySpeedMps: 0.5,
+    movingSpeedMps: 3.57632,
+    stationarySpeedMps: 3.35,
     confirmMovingMs: 2000,
     confirmStationaryMs: 6000,
     staleAfterMs: 20000,

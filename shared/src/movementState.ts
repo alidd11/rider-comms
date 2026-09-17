@@ -1,6 +1,8 @@
 import { haversineMiles } from './distance.ts';
 
 const METERS_PER_MILE = 1609.344;
+export const RIDE_SAFE_LOCK_SPEED_MPH = 8;
+export const RIDE_SAFE_LOCK_SPEED_MPS = RIDE_SAFE_LOCK_SPEED_MPH * METERS_PER_MILE / 3600;
 
 export type MovementState = 'stationary' | 'moving' | 'unknown';
 
@@ -41,14 +43,14 @@ export interface MovementStateConfig {
 
 export const DEFAULT_MOVEMENT_CONFIG: MovementStateConfig = {
   maxUsableAccuracyMeters: 50,
-  // ~3.1 mph: a brisk walk. A moving bicycle/motorcycle/car clears this
-  // almost immediately, while GPS jitter on a stationary device very
-  // rarely produces a sustained apparent speed this high.
-  movingSpeedMps: 1.4,
-  // ~1.1 mph: comfortably below the apparent speed GPS jitter alone tends
-  // to produce for a genuinely stopped device, leaving a real gap between
-  // this and movingSpeedMps for the hysteresis band.
-  stationarySpeedMps: 0.5,
+  // Lock distracting controls at 8 mph. Walking and slow manoeuvring below
+  // this threshold remain usable; a narrow hysteresis band prevents GPS
+  // readings hovering around 8 mph from rapidly locking/unlocking the UI.
+  movingSpeedMps: RIDE_SAFE_LOCK_SPEED_MPS,
+  // ~7.5 mph: readings at/below this count as safe-speed evidence. The
+  // existing state name remains `stationary` for API compatibility, but in
+  // Ride-safe terms it means "confirmed below the interaction threshold".
+  stationarySpeedMps: 3.35,
   confirmMovingMs: 2_000,
   confirmStationaryMs: 6_000,
   staleAfterMs: 20_000,

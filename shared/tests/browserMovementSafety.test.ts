@@ -35,4 +35,19 @@ describe('browser movement safety adapter', () => {
     assert.equal(state, 'moving');
     assert.equal(tracker.markUnavailable(), 'unknown');
   });
+
+  it('stays unlocked below 8 mph and locks at 8 mph', () => {
+    const tracker = new browserSafety.MovementStateTracker();
+    const start = 1_800_000_000_000;
+    let state = 'unknown';
+    for (let index = 0; index <= 7; index += 1) {
+      state = tracker.addFix({ lat: 51.5, lon: -0.12, timestampMs: start + index * 1000, accuracyMeters: 5, speedMps: 3.3 });
+    }
+    assert.equal(state, 'stationary');
+    assert.equal(browserSafety.isLockedForSafety(state), false);
+    for (let index = 8; index <= 11; index += 1) {
+      state = tracker.addFix({ lat: 51.5, lon: -0.12, timestampMs: start + index * 1000, accuracyMeters: 5, speedMps: 3.57632 });
+    }
+    assert.equal(state, 'moving');
+  });
 });
