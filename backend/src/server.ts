@@ -17,6 +17,7 @@ import type { ReportReason } from './moderationStore.ts';
 import { HazardStore } from './hazardStore.ts';
 import { ScenicRouteStore } from './scenicRouteStore.ts';
 import { AccountDeletionStore } from './accountDeletionStore.ts';
+import { checkDatabaseReady, closeDatabase, ensureMigrated } from './db.ts';
 
 const HAZARD_TYPES = ['police', 'accident', 'hazard', 'road_closure', 'camera'] as const;
 const VEHICLE_CATEGORIES = ['motorcycle_small', 'motorcycle_large', 'scooter', 'car'] as const;
@@ -38,6 +39,7 @@ export interface ApiServerOptions {
    * "voice not configured" path regardless of the real environment. */
   liveKitCredentials?: LiveKitCredentials | null;
   accountDeletionStore?: Pick<AccountDeletionStore, 'deleteRider'>;
+  readinessCheck?: () => Promise<void>;
 }
 
 export interface ApiRequestLog {
@@ -156,6 +158,7 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
   const allowedOrigins = new Set(options.allowedOrigins ?? []);
   const liveKitCredentials = 'liveKitCredentials' in options ? options.liveKitCredentials : getLiveKitCredentialsFromEnv();
   const accountDeletionStore = options.accountDeletionStore ?? new AccountDeletionStore();
+  const readinessCheck = options.readinessCheck ?? checkDatabaseReady;
   return http.createServer(async (req, res) => {
     const startedAt = Date.now();
     const id = requestId(req);
@@ -172,7 +175,16 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
       const url = new URL(req.url ?? '/', 'http://localhost');
       if (!applyCors(req, res, allowedOrigins)) return sendJson(res, 403, { error: 'origin_not_allowed' });
       if (req.method === 'OPTIONS') return sendEmpty(res, 204);
-      if (req.method === 'GET' && (url.pathname === '/health' || url.pathname === '/ready')) return sendJson(res, 200, { ok: true });
+      if (req.method === 'GET' && url.pathname === '/health') return sendJson(res, 200, { ok: true });
+      if (req.method === 'GET' && url.pathname === '/ready') {
+        try {
+          await readinessCheck();
+          return sendJson(res, 200, { ok: true });
+        } catch (error) {
+          console.error(JSON.stringify({ level: 'error', event: 'readiness_failed', message: error instanceof Error ? error.message : String(error) }));
+          return sendJson(res, 503, { ok: false, error: 'not_ready' });
+        }
+      }
       if (req.method === 'GET' && url.pathname === '/config') {
         return sendJson(res, 200, { googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY ?? '' });
       }
@@ -463,11 +475,15 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
   });
 }
 const isMainModule = process.argv[1] && import.meta.url === `file://${process.argv[1]}`;
-if (isMainModule) {
+async function startProductionServer(): Promise<void> {
   const port = Number(process.env.PORT ?? 4000);
   if (!Number.isInteger(port) || port < 1 || port > 65_535) throw new Error('PORT must be an integer from 1 to 65535');
   const host = process.env.HOST?.trim() || '0.0.0.0';
   const allowedOrigins = parseAllowedOrigins(process.env.CORS_ALLOWED_ORIGINS);
+  // Apply and verify every required migration before the listening socket is
+  // opened. A deployment with an incompatible/unreachable database therefore
+  // never advertises itself as ready or receives product traffic.
+  await ensureMigrated();
   const app = createApp(undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, {
     allowedOrigins,
     trustProxy: process.env.TRUST_PROXY === 'true',
@@ -488,15 +504,31 @@ if (isMainModule) {
       process.exit(1);
     }, 10_000);
     forceExit.unref();
-    app.close((error) => {
-      clearTimeout(forceExit);
+    app.close(async (error) => {
       if (error) {
         console.error(JSON.stringify({ level: 'error', event: 'shutdown_failed', message: error.message }));
         process.exitCode = 1;
+      }
+      try {
+        await closeDatabase();
+        console.log(JSON.stringify({ level: 'info', event: 'shutdown_complete', signal }));
+      } catch (databaseError) {
+        console.error(JSON.stringify({ level: 'error', event: 'database_shutdown_failed', message: databaseError instanceof Error ? databaseError.message : String(databaseError) }));
+        process.exitCode = 1;
+      } finally {
+        clearTimeout(forceExit);
       }
     });
   };
   process.once('SIGTERM', shutdown);
   process.once('SIGINT', shutdown);
   app.listen(port, host, () => console.log(JSON.stringify({ level: 'info', event: 'server_started', host, port, allowedOrigins })));
+}
+
+if (isMainModule) {
+  void startProductionServer().catch(async (error) => {
+    console.error(JSON.stringify({ level: 'error', event: 'startup_failed', message: error instanceof Error ? error.message : String(error) }));
+    process.exitCode = 1;
+    try { await closeDatabase(); } catch { /* startup failure is already logged */ }
+  });
 }

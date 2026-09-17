@@ -66,7 +66,7 @@ describe('production HTTP boundary', () => {
   let ctx: TestServer;
 
   before(async () => {
-    ctx = startTestServer({ allowedOrigins: [allowedOrigin], trustProxy: true, logger: (event) => logs.push(event) });
+    ctx = startTestServer({ allowedOrigins: [allowedOrigin], trustProxy: true, logger: (event) => logs.push(event), readinessCheck: async () => undefined });
     await ctx.ready;
   });
   after(() => ctx.close());
@@ -130,5 +130,18 @@ describe('production HTTP boundary', () => {
     assert.equal(event.clientAddress, '203.0.113.8');
     assert.equal(event.path, '/ready');
     assert.equal(event.status, 200);
+  });
+
+  it('keeps liveness healthy but fails readiness when PostgreSQL is unavailable', async () => {
+    const unavailable = startTestServer({ readinessCheck: async () => { throw new Error('database unavailable'); } });
+    await unavailable.ready;
+    try {
+      assert.equal((await fetch(`${unavailable.baseUrl()}/health`)).status, 200);
+      const response = await fetch(`${unavailable.baseUrl()}/ready`);
+      assert.equal(response.status, 503);
+      assert.deepEqual(await response.json(), { ok: false, error: 'not_ready' });
+    } finally {
+      await unavailable.close();
+    }
   });
 });

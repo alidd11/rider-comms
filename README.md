@@ -71,12 +71,20 @@ HOST=0.0.0.0
 PORT=4000
 ```
 
+Private Railway PostgreSQL URLs can omit `sslmode`. External PostgreSQL URLs
+must use `sslmode=require`, `verify-ca`, or `verify-full`; certificates are
+always verified. If the provider uses a private CA, set `DATABASE_CA_CERT` to
+its PEM chain (literal newlines or escaped `\n` are accepted).
+
 `CORS_ALLOWED_ORIGINS` is a comma-separated allowlist. Production origins must
 use HTTPS and must not include a path. Set `TRUST_PROXY=true` only when the API
 is behind a trusted reverse proxy that replaces `X-Forwarded-For`; otherwise
 leave it false. The API exposes `/health` and `/ready`, emits structured JSON
 request logs, carries a safe `X-Request-ID`, and shuts down gracefully on
-`SIGTERM`/`SIGINT`.
+`SIGTERM`/`SIGINT`. `/health` is process liveness only; `/ready` verifies the
+PostgreSQL connection and migration state. Production startup applies all
+pending migrations before opening the HTTP listening socket, and graceful
+shutdown drains both HTTP traffic and the PostgreSQL pool.
 
 ### PWA deployment and Google Maps
 
