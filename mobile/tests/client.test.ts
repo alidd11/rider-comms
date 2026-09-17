@@ -120,6 +120,47 @@ describe('RiderCommsClient.joinRide', () => {
   });
 });
 
+describe('RiderCommsClient private ride location', () => {
+  it('uses the consent, upload and read endpoints for a private ride', async () => {
+    const requests: Array<{ url: string; method: string; body?: unknown }> = [];
+    const client = new RiderCommsClient('http://example.test', fakeFetch((url, init) => {
+      requests.push({
+        url,
+        method: init.method ?? 'GET',
+        body: init.body ? JSON.parse(init.body as string) : undefined,
+      });
+      if (url.endsWith('/locations')) {
+        return { status: 200, body: { locations: [{ riderId: 'friend', lat: 51.5, lon: -0.1, updatedAt: 123 }] } };
+      }
+      if (url.endsWith('/location-sharing')) return { status: 200, body: { enabled: true } };
+      return { status: 200, body: {} };
+    }), 'token');
+
+    assert.deepEqual(await client.setRideLocationSharing('ride/1', true), { enabled: true });
+    await client.updateRideLocation('ride/1', 51.5, -0.1);
+    const locations = await client.getRideLocations('ride/1');
+
+    assert.equal(locations.locations[0].riderId, 'friend');
+    assert.deepEqual(requests, [
+      {
+        url: 'http://example.test/rides/ride%2F1/location-sharing',
+        method: 'PUT',
+        body: { enabled: true },
+      },
+      {
+        url: 'http://example.test/rides/ride%2F1/location',
+        method: 'POST',
+        body: { lat: 51.5, lon: -0.1 },
+      },
+      {
+        url: 'http://example.test/rides/ride%2F1/locations',
+        method: 'GET',
+        body: undefined,
+      },
+    ]);
+  });
+});
+
 describe('RiderCommsClient.updatePresence', () => {
   it('sends coordinate evidence and returns inZoneWith + transitions', async () => {
     const client = new RiderCommsClient(
