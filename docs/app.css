@@ -7,7 +7,7 @@
    re-introduce a false gap, so keep --nav-safe-bottom:0 there and only fill the
    strip with the nav's own background once standalone. app.js toggles the
    .pwa-standalone class (display-mode: standalone + iOS navigator.standalone). */
-html.pwa-standalone{--nav-safe-bottom:min(0px, env(safe-area-inset-bottom,0px))}
+html.pwa-standalone{--nav-safe-bottom:min(-36px, env(safe-area-inset-bottom,0px))}
 /* History, so this doesn't get re-litigated from CSS-purity first
    principles again: --nav-safe-bottom was originally forced to 0 in
    standalone mode on a theory about how iOS reserves the home-indicator
