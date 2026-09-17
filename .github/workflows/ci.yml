@@ -36,7 +36,7 @@ jobs:
       - run: npm run check
       - run: npm run build:web
       - name: Install visual-test browser
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps chromium webkit
       - name: Run PWA visual smoke audit
         run: npm run test:pwa:visual
       - name: Verify Android bundle
