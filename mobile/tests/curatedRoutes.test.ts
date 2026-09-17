@@ -16,7 +16,8 @@ describe('curated route catalogue', () => {
       assert.ok(route.vehicleSuitability.includes('motorcycle_large'));
       assert.match(route.routeSourceUrl, /^https:\/\//);
       assert.match(route.conditionsUrl, /^https:\/\//);
-      assert.match(route.image.uri, /^https:\/\/commons\.wikimedia\.org\//);
+      assert.match(route.image.uri, /^https:\/\/(?:upload|thumb)\.wikimedia\.org\/wikipedia\/commons\//);
+      assert.equal(route.image.uri.includes('Special:FilePath'), false);
       assert.match(route.image.sourceUrl, /^https:\/\/commons\.wikimedia\.org\/wiki\/File:/);
       assert.match(route.image.licenseUrl, /^https:\/\/creativecommons\.org\//);
       assert.ok(route.image.author.length > 0);

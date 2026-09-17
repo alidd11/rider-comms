@@ -1,7 +1,14 @@
 (() => {
   'use strict';
 
-  const commons = (file) => `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(file)}?width=1280`;
+  const routeImages = Object.freeze({
+    hartside: 'https://upload.wikimedia.org/wikipedia/commons/5/5c/The_A686_below_Hartside_-_geograph.org.uk_-_1073084.jpg',
+    glencoe: 'https://upload.wikimedia.org/wikipedia/commons/0/0d/A82_towards_Glencoe_-_geograph.org.uk_-_3149881.jpg',
+    snowroads: 'https://thumb.wikimedia.org/wikipedia/commons/thumb/3/32/Cairngorms_National_Park_road_%28Unsplash%29.jpg/1280px-Cairngorms_National_Park_road_%28Unsplash%29.jpg',
+    cambrianSpine: 'https://upload.wikimedia.org/wikipedia/commons/d/dd/A470_at_Bwlch_Oerddrws.jpg',
+    causewayCoast: 'https://upload.wikimedia.org/wikipedia/commons/e/e1/Causeway_Coastal_Route%2C_Dunseverick_-_geograph.org.uk_-_5572416.jpg',
+    wyeValley: 'https://upload.wikimedia.org/wikipedia/commons/9/9a/A466_Wye_valley_road_-_geograph.org.uk_-_1402565.jpg',
+  });
   const vehicles = ['motorcycle_small', 'motorcycle_large', 'scooter', 'car'];
   const routes = [
     {
@@ -12,7 +19,7 @@
       highlights: ['Hartside summit', 'Alston', 'South Tyne valley'],
       safety: ['Exposed summit weather changes quickly.', 'Ice and winter closures can affect the Alston section.'],
       start: [54.6641, -2.7527], end: [54.974, -2.2472], waypoints: [[54.8128, -2.4393]],
-      image: commons('The A686 below Hartside - geograph.org.uk - 1073084.jpg'), alt: 'The A686 below Hartside summit',
+      image: routeImages.hartside, alt: 'The A686 below Hartside summit',
       credit: 'Andrew Smith · CC BY-SA 2.0', source: 'https://commons.wikimedia.org/wiki/File:The_A686_below_Hartside_-_geograph.org.uk_-_1073084.jpg',
       license: 'https://creativecommons.org/licenses/by-sa/2.0/',
       conditions: 'https://one.network/uk', routeSource: 'https://www.adventurebikerider.com/abrs-weekend-ride-crossing-the-pennines-on-the-a686/',
@@ -25,7 +32,7 @@
       highlights: ['Rannoch Moor', 'Buachaille Etive Mòr', 'Glencoe'],
       safety: ['Expect fast weather changes and crosswinds.', 'Viewpoint traffic can be heavy in peak season.'],
       start: [56.4343, -4.7148], end: [56.6826, -5.1023], waypoints: [[56.6466, -4.8378]],
-      image: commons('A82 towards Glencoe - geograph.org.uk - 3149881.jpg'), alt: 'The A82 heading towards Glencoe',
+      image: routeImages.glencoe, alt: 'The A82 heading towards Glencoe',
       credit: 'N Chadwick · CC BY-SA 2.0', source: 'https://commons.wikimedia.org/wiki/File:A82_towards_Glencoe_-_geograph.org.uk_-_3149881.jpg',
       license: 'https://creativecommons.org/licenses/by-sa/2.0/',
       conditions: 'https://www.traffic.gov.scot/', routeSource: 'https://www.seelochlomond.co.uk/discover/a82-loch-lomond-road-trip',
@@ -38,7 +45,7 @@
       highlights: ['Glenshee', 'Braemar', 'Lecht Road', 'Tomintoul'],
       safety: ['Snow gates and winter closures are possible.', 'Fuel stops are widely spaced.'],
       start: [56.5916, -3.34], end: [57.3297, -3.608], waypoints: [[57.0065, -3.3962], [57.0491, -3.04], [57.252, -3.377]],
-      image: commons('Cairngorms National Park road (Unsplash).jpg'), alt: 'A mountain road through Cairngorms National Park',
+      image: routeImages.snowroads, alt: 'A mountain road through Cairngorms National Park',
       credit: 'Milada Vigerova · CC0 1.0', source: 'https://commons.wikimedia.org/wiki/File:Cairngorms_National_Park_road_(Unsplash).jpg',
       license: 'https://creativecommons.org/publicdomain/zero/1.0/',
       conditions: 'https://www.traffic.gov.scot/', routeSource: 'https://www.visitcairngorms.com/inspire-me/snowroads/',
@@ -51,7 +58,7 @@
       highlights: ['Bannau Brycheiniog', 'Rhayader', 'Bwlch Oerddrws'],
       safety: ['Watch for livestock, damp bends and changing visibility.', 'Times are planning estimates.'],
       start: [51.946, -3.391], end: [52.742, -3.886], waypoints: [[52.149, -3.404], [52.299, -3.511], [52.724, -3.685]],
-      image: commons('A470 at Bwlch Oerddrws.jpg'), alt: 'The A470 at Bwlch Oerddrws',
+      image: routeImages.cambrianSpine, alt: 'The A470 at Bwlch Oerddrws',
       credit: 'Martin Bodman · CC BY-SA 2.0', source: 'https://commons.wikimedia.org/wiki/File:A470_at_Bwlch_Oerddrws.jpg',
       license: 'https://creativecommons.org/licenses/by-sa/2.0/',
       conditions: 'https://traffic.wales/', routeSource: 'https://en.wikipedia.org/wiki/A470_road',
@@ -64,7 +71,7 @@
       highlights: ['Glens of Antrim', 'Ballycastle', 'Giant’s Causeway'],
       safety: ['Coastal wind, spray and tourist traffic can slow progress.', 'Plan this as a full-day ride.'],
       start: [54.5973, -5.9301], end: [54.9966, -7.3086], waypoints: [[54.857, -5.811], [55.205, -6.249], [55.204, -6.523]],
-      image: commons('Causeway Coastal Route, Dunseverick - geograph.org.uk - 5572416.jpg'), alt: 'Causeway Coastal Route at Dunseverick',
+      image: routeImages.causewayCoast, alt: 'Causeway Coastal Route at Dunseverick',
       credit: 'David Dixon · CC BY-SA 2.0', source: 'https://commons.wikimedia.org/wiki/File:Causeway_Coastal_Route,_Dunseverick_-_geograph.org.uk_-_5572416.jpg',
       license: 'https://creativecommons.org/licenses/by-sa/2.0/',
       conditions: 'https://www.trafficwatchni.com/', routeSource: 'https://discovernorthernireland.com/destinations/causeway-coastal-route/getting-here/',
@@ -77,7 +84,7 @@
       highlights: ['Wye gorge', 'Tintern Abbey', 'Chepstow'],
       safety: ['Expect cyclists and slow traffic near Tintern.', 'Wooded bends can remain damp after rain.'],
       start: [51.8126, -2.7158], end: [51.6419, -2.6756], waypoints: [[51.697, -2.681]],
-      image: commons('A466 Wye valley road - geograph.org.uk - 1402565.jpg'), alt: 'The A466 following the Wye Valley',
+      image: routeImages.wyeValley, alt: 'The A466 following the Wye Valley',
       credit: 'Jonathan Billinger · CC BY-SA 2.0', source: 'https://commons.wikimedia.org/wiki/File:A466_Wye_valley_road_-_geograph.org.uk_-_1402565.jpg',
       license: 'https://creativecommons.org/licenses/by-sa/2.0/',
       conditions: 'https://traffic.wales/', routeSource: 'https://www.visitwales.com/destinations/south-wales/wye-valley-and-vale-usk/must-do-wye-valley-and-vale-usk',

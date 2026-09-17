@@ -4,7 +4,7 @@ Last reviewed: 2026-09-15
 
 The Routes catalogue uses photographs whose Wikimedia Commons file pages record a reusable Creative Commons licence. This register is the project’s attribution and provenance record. It is not legal advice and no third-party asset can be represented as having literally zero legal risk; release owners should re-check each linked file page before redistribution.
 
-The app loads responsive images through Wikimedia Commons `Special:FilePath`. It does not remove watermarks or embedded metadata. Cards and overviews use responsive display cropping; the underlying files are otherwise unmodified. Every route overview links to the source file and licence.
+The app loads the exact Wikimedia-hosted image or 1280-pixel thumbnail URL recorded for each route. This avoids the rate-limited `Special:FilePath` redirect service while preserving the original Commons source and licence links. It does not remove watermarks or embedded metadata. Cards and overviews use responsive display cropping; the underlying files are otherwise unmodified.
 
 | Route | Photograph | Creator | Licence | Source |
 | --- | --- | --- | --- | --- |

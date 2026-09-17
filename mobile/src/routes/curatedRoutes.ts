@@ -38,8 +38,14 @@ export interface CuratedRoute {
   image: RouteImageCredit;
 }
 
-const commonsImage = (filename: string): string =>
-  `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(filename)}?width=1280`;
+const routeImages = {
+  hartside: 'https://upload.wikimedia.org/wikipedia/commons/5/5c/The_A686_below_Hartside_-_geograph.org.uk_-_1073084.jpg',
+  glencoe: 'https://upload.wikimedia.org/wikipedia/commons/0/0d/A82_towards_Glencoe_-_geograph.org.uk_-_3149881.jpg',
+  snowroads: 'https://thumb.wikimedia.org/wikipedia/commons/thumb/3/32/Cairngorms_National_Park_road_%28Unsplash%29.jpg/1280px-Cairngorms_National_Park_road_%28Unsplash%29.jpg',
+  cambrianSpine: 'https://upload.wikimedia.org/wikipedia/commons/d/dd/A470_at_Bwlch_Oerddrws.jpg',
+  causewayCoast: 'https://upload.wikimedia.org/wikipedia/commons/e/e1/Causeway_Coastal_Route%2C_Dunseverick_-_geograph.org.uk_-_5572416.jpg',
+  wyeValley: 'https://upload.wikimedia.org/wikipedia/commons/9/9a/A466_Wye_valley_road_-_geograph.org.uk_-_1402565.jpg',
+} as const;
 
 const allRoadVehicles: VehicleCategory[] = ['motorcycle_small', 'motorcycle_large', 'scooter', 'car'];
 
@@ -70,7 +76,7 @@ export const CURATED_ROUTES: readonly CuratedRoute[] = [
     conditionsUrl: 'https://one.network/uk',
     reviewedAt: '2026-09-15',
     image: {
-      uri: commonsImage('The A686 below Hartside - geograph.org.uk - 1073084.jpg'),
+      uri: routeImages.hartside,
       alt: 'The A686 descending below Hartside summit',
       author: 'Andrew Smith',
       licenseName: 'CC BY-SA 2.0',
@@ -99,7 +105,7 @@ export const CURATED_ROUTES: readonly CuratedRoute[] = [
     conditionsUrl: 'https://www.traffic.gov.scot/',
     reviewedAt: '2026-09-15',
     image: {
-      uri: commonsImage('A82 towards Glencoe - geograph.org.uk - 3149881.jpg'),
+      uri: routeImages.glencoe,
       alt: 'The A82 heading towards Glencoe',
       author: 'N Chadwick',
       licenseName: 'CC BY-SA 2.0',
@@ -132,7 +138,7 @@ export const CURATED_ROUTES: readonly CuratedRoute[] = [
     conditionsUrl: 'https://www.traffic.gov.scot/',
     reviewedAt: '2026-09-15',
     image: {
-      uri: commonsImage('Cairngorms National Park road (Unsplash).jpg'),
+      uri: routeImages.snowroads,
       alt: 'A mountain road through Cairngorms National Park',
       author: 'Milada Vigerova',
       licenseName: 'CC0 1.0',
@@ -165,7 +171,7 @@ export const CURATED_ROUTES: readonly CuratedRoute[] = [
     conditionsUrl: 'https://traffic.wales/',
     reviewedAt: '2026-09-15',
     image: {
-      uri: commonsImage('A470 at Bwlch Oerddrws.jpg'),
+      uri: routeImages.cambrianSpine,
       alt: 'The A470 at Bwlch Oerddrws looking towards Dolgellau',
       author: 'Martin Bodman',
       licenseName: 'CC BY-SA 2.0',
@@ -198,7 +204,7 @@ export const CURATED_ROUTES: readonly CuratedRoute[] = [
     conditionsUrl: 'https://www.trafficwatchni.com/',
     reviewedAt: '2026-09-15',
     image: {
-      uri: commonsImage('Causeway Coastal Route, Dunseverick - geograph.org.uk - 5572416.jpg'),
+      uri: routeImages.causewayCoast,
       alt: 'The Causeway Coastal Route at Dunseverick',
       author: 'David Dixon',
       licenseName: 'CC BY-SA 2.0',
@@ -227,7 +233,7 @@ export const CURATED_ROUTES: readonly CuratedRoute[] = [
     conditionsUrl: 'https://traffic.wales/',
     reviewedAt: '2026-09-15',
     image: {
-      uri: commonsImage('A466 Wye valley road - geograph.org.uk - 1402565.jpg'),
+      uri: routeImages.wyeValley,
       alt: 'The A466 following the Wye Valley towards Chepstow',
       author: 'Jonathan Billinger',
       licenseName: 'CC BY-SA 2.0',
