@@ -215,6 +215,26 @@ export class PresenceStore {
     return rows[0] ? rowToRider(rows[0]) : undefined;
   }
 
+  /** Returns only current, mutually matched proximity peers. The pair table
+   * is the durable authorisation source and both endpoints must still have a
+   * fresh presence fix before voice credentials can be minted. */
+  async getCurrentPeerIds(riderId: string, now = Date.now()): Promise<string[]> {
+    await ensureMigrated();
+    const cutoff = now - this.staleAfterMs;
+    const { rows } = await getPool().query<{ peer_id: string }>(
+      `SELECT CASE WHEN pair.rider_a = $1 THEN pair.rider_b ELSE pair.rider_a END AS peer_id
+       FROM presence_zone_pairs pair
+       JOIN rider_presence actor ON actor.rider_id = $1 AND actor.updated_at >= $2
+       JOIN rider_presence peer
+         ON peer.rider_id = CASE WHEN pair.rider_a = $1 THEN pair.rider_b ELSE pair.rider_a END
+        AND peer.updated_at >= $2
+       WHERE pair.rider_a = $1 OR pair.rider_b = $1
+       ORDER BY peer_id`,
+      [riderId, cutoff]
+    );
+    return rows.map((row) => row.peer_id);
+  }
+
   ridersInZoneWith(riderId: string, zonePairs: ZonePair[]): string[] {
     const partners: string[] = [];
     for (const pair of zonePairs) {

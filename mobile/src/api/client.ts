@@ -25,6 +25,8 @@ export interface JoinRideResponse { rideId: string }
 export interface RideResponse { rideId: string; createdBy: string; createdAt: number; memberIds: string[] }
 export interface PresenceResponse { inZoneWith: string[]; transitions: Array<{ a: string; b: string; type: 'entered' | 'left' }>; radiusMiles: number }
 export interface VoiceTokenResponse { token: string; url: string }
+export interface ProximityVoiceConnection extends VoiceTokenResponse { peerId: string }
+export interface ProximityVoiceResponse { connections: ProximityVoiceConnection[]; refreshAfterMs: number }
 export interface PublicRiderProfile {
   riderId: string;
   displayName: string;
@@ -79,7 +81,7 @@ export class RiderCommsClient {
   }
   leavePresence(): Promise<Record<string, never>> { return this.request('DELETE', '/presence'); }
   getRideVoiceToken(rideId: string): Promise<VoiceTokenResponse> { return this.request('POST', '/voice/token', { target: 'ride', rideId }); }
-  getChannelVoiceToken(): Promise<VoiceTokenResponse> { return this.request('POST', '/voice/token', { target: 'channel' }); }
+  getChannelVoiceToken(): Promise<ProximityVoiceResponse> { return this.request('POST', '/voice/token', { target: 'channel' }); }
   getProfile(id: string): Promise<RiderProfile> { return this.request('GET', `/riders/${encodeURIComponent(id)}/profile`); }
   getPublicProfile(id: string): Promise<PublicRiderProfile> { return this.request('GET', `/profiles/${encodeURIComponent(id)}`); }
   updateProfile(id: string, update: ProfileUpdate): Promise<RiderProfile> { return this.request('PUT', `/riders/${encodeURIComponent(id)}/profile`, update); }

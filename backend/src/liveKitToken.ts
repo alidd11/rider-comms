@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { AccessToken } from 'livekit-server-sdk';
 
 /**
@@ -28,13 +29,16 @@ export function rideRoomName(rideId: string): string {
 }
 
 /**
- * Reserved public-channel room naming. The API currently refuses public
- * voice tokens because client-selected subscriptions are not an
- * authorization boundary. This helper remains for the future server/SFU
- * implementation that will enforce participant permissions.
+ * A public proximity conversation is isolated to exactly two authorised
+ * riders. The opaque digest avoids exposing either rider ID through the
+ * LiveKit room name while the canonical ordering gives both clients the
+ * same room. This makes LiveKit's room boundary the privacy boundary: a
+ * modified client cannot subscribe to a third rider because that rider is
+ * never in this room.
  */
-export function channelRoomName(bucketId: string): string {
-  return `channel:${bucketId}`;
+export function proximityRoomName(riderA: string, riderB: string): string {
+  const pair = [riderA, riderB].sort().join('\u0000');
+  return `proximity:${createHash('sha256').update(pair).digest('hex').slice(0, 32)}`;
 }
 
 export interface VoiceToken {
@@ -45,11 +49,12 @@ export interface VoiceToken {
 export async function mintVoiceToken(
   credentials: LiveKitCredentials,
   identity: string,
-  roomName: string
+  roomName: string,
+  ttl: string | number = '6h'
 ): Promise<VoiceToken> {
   const accessToken = new AccessToken(credentials.apiKey, credentials.apiSecret, {
     identity,
-    ttl: '6h', // longer than any single ride is likely to run; rejoining mints a fresh one anyway
+    ttl,
   });
   accessToken.addGrant({ room: roomName, roomJoin: true, canPublish: true, canSubscribe: true });
   const token = await accessToken.toJwt();

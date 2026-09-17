@@ -1051,6 +1051,7 @@
     });
     nearbyRiders = await resolveRiderProfiles(result.inZoneWith);
     if (!state.activeRide) renderMapRiders();
+    if (state.publicLive && !state.activeRide && microphonePermissionReady) syncVoiceConnection();
     return result;
   }
 
@@ -1069,7 +1070,8 @@
   // via connectVoice(kind, rideId) below — see syncVoiceConnection for how
   // the two are picked between.
   let voiceRoom;
-  let voiceTargetKey; // 'channel' or `ride:${rideId}` — identifies what voiceRoom is currently for, so re-syncs are idempotent
+  const proximityVoiceRooms = new Map(); // peerId -> pair-isolated LiveKit room
+  let voiceTargetKey; // 'channel' or `ride:${rideId}`
   let voiceMeterStream;
   let voiceAudioContext;
   let voiceAnalyser;
@@ -1146,7 +1148,7 @@
   function renderVoiceStatus() {
     const avatar = $('#mapAvatarButton');
     const badge = $('#voiceStatusBtn');
-    const connected = Boolean(voiceRoom);
+    const connected = Boolean(voiceRoom || proximityVoiceRooms.size);
     avatar.classList.toggle('voice-talking', connected && voiceIsSpeaking);
     avatar.classList.toggle('voice-muted', connected && voiceManuallyMuted);
     badge.hidden = !connected;
@@ -1172,6 +1174,9 @@
     if (voiceIsSpeaking === speaking) return;
     voiceIsSpeaking = speaking;
     void voiceRoom?.localParticipant.setMicrophoneEnabled(speaking).catch(() => {});
+    for (const room of proximityVoiceRooms.values()) {
+      void room.localParticipant.setMicrophoneEnabled(speaking).catch(() => {});
+    }
     renderVoiceStatus();
   }
 
@@ -1233,20 +1238,45 @@
    * permission denied, etc.), so failures here are logged, not surfaced
    * as a blocking error over the action that triggered this. */
   async function connectVoice(kind, rideId) {
-    if (voiceRoom) return;
+    if (kind === 'ride' && voiceRoom) return;
     let room;
     try {
       await loadLiveKitClient();
       const body = kind === 'ride' ? { target: 'ride', rideId } : { target: 'channel' };
-      const { token, url } = await apiFetch('POST', '/voice/token', body);
-      room = new window.LivekitClient.Room();
-      await room.connect(url, token);
-      voiceManuallyMuted = false;
-      await room.localParticipant.setMicrophoneEnabled(true);
+      const response = await apiFetch('POST', '/voice/token', body);
+      if (kind === 'channel') {
+        const enteringChannel = voiceTargetKey !== 'channel';
+        const desiredPeers = new Set(response.connections.map((connection) => connection.peerId));
+        for (const [peerId, existingRoom] of proximityVoiceRooms) {
+          if (desiredPeers.has(peerId)) continue;
+          void existingRoom.disconnect();
+          proximityVoiceRooms.delete(peerId);
+        }
+        for (const connection of response.connections) {
+          if (proximityVoiceRooms.has(connection.peerId)) continue;
+          const pairRoom = new window.LivekitClient.Room();
+          try {
+            await pairRoom.connect(connection.url, connection.token);
+            await pairRoom.localParticipant.setMicrophoneEnabled(voiceIsSpeaking && !voiceManuallyMuted);
+            proximityVoiceRooms.set(connection.peerId, pairRoom);
+          } catch (error) {
+            void pairRoom.disconnect();
+            throw error;
+          }
+        }
+        voiceTargetKey = 'channel';
+        if (enteringChannel) voiceManuallyMuted = false;
+      } else {
+        room = new window.LivekitClient.Room();
+        await room.connect(response.url, response.token);
+        await room.localParticipant.setMicrophoneEnabled(false);
+        voiceRoom = room;
+        voiceTargetKey = `ride:${rideId}`;
+        voiceManuallyMuted = false;
+      }
       microphonePermissionReady = true;
-      voiceRoom = room;
-      voiceTargetKey = kind === 'ride' ? `ride:${rideId}` : 'channel';
-      await startVoiceLevelLoop();
+      if ((voiceRoom || proximityVoiceRooms.size) && !voiceMeterStream) await startVoiceLevelLoop();
+      if (!voiceRoom && !proximityVoiceRooms.size && voiceMeterStream) stopVoiceLevelLoop();
       voiceFailureNotified = false;
       renderVoiceStatus();
     } catch (error) {
@@ -1262,21 +1292,29 @@
       // failed) rather than leaking a live, published connection nothing
       // still references.
       if (room) void room.disconnect();
-      voiceRoom = undefined;
-      voiceTargetKey = undefined;
+      if (kind === 'ride') {
+        voiceRoom = undefined;
+        voiceTargetKey = undefined;
+      }
       renderVoiceStatus();
     }
   }
 
-  function disconnectVoice() {
+  function stopVoiceLevelLoop() {
     if (voiceLevelFrame) { cancelAnimationFrame(voiceLevelFrame); voiceLevelFrame = undefined; }
     if (voiceReleaseTimer) { clearTimeout(voiceReleaseTimer); voiceReleaseTimer = undefined; }
     voiceAnalyser = undefined;
     if (voiceAudioContext) { void voiceAudioContext.close().catch(() => {}); voiceAudioContext = undefined; }
     if (voiceMeterStream) { voiceMeterStream.getTracks().forEach((track) => track.stop()); voiceMeterStream = undefined; }
-    if (voiceRoom) { void voiceRoom.disconnect(); voiceRoom = undefined; }
-    voiceTargetKey = undefined;
     voiceIsSpeaking = false;
+  }
+
+  function disconnectVoice() {
+    stopVoiceLevelLoop();
+    if (voiceRoom) { void voiceRoom.disconnect(); voiceRoom = undefined; }
+    for (const room of proximityVoiceRooms.values()) void room.disconnect();
+    proximityVoiceRooms.clear();
+    voiceTargetKey = undefined;
     renderVoiceStatus();
   }
 
@@ -1291,19 +1329,22 @@
    * connectVoice/disconnectVoice directly at each call site.
    */
   function syncVoiceConnection() {
-    // Private rides have membership-isolated rooms. Public bucket voice is
-    // disabled until server/SFU permissions enforce the allowed listeners.
-    const desired = state.activeRide ? `ride:${state.activeRide.rideId}` : undefined;
-    if (desired === voiceTargetKey) return;
-    if (voiceRoom) disconnectVoice();
+    const desired = state.activeRide ? `ride:${state.activeRide.rideId}` : state.publicLive ? 'channel' : undefined;
+    // Public proximity is refreshed even while already on `channel`: the
+    // server returns the current authorised pair roster, and this call
+    // disconnects rooms immediately when riders leave range or block one
+    // another. Private ride membership is stable for this connection.
+    if (desired === voiceTargetKey && desired !== 'channel') return;
+    if (desired !== voiceTargetKey && (voiceRoom || proximityVoiceRooms.size)) disconnectVoice();
     // A restored session must not make getUserMedia prompt during boot.
     // Create, Join and Go live set this only from their direct tap.
     if (desired && !microphonePermissionReady) return;
     if (state.activeRide) void connectVoice('ride', state.activeRide.rideId);
+    else if (state.publicLive) void connectVoice('channel');
   }
 
   function toggleVoiceMute() {
-    if (!voiceRoom) return;
+    if (!voiceRoom && !proximityVoiceRooms.size) return;
     voiceManuallyMuted = !voiceManuallyMuted;
     if (voiceManuallyMuted) setVoiceSpeaking(false);
     renderVoiceStatus();

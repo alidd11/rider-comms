@@ -104,6 +104,17 @@ describe('PresenceStore', { skip: !hasDatabase && 'DATABASE_URL not set; skippin
     const repeated = await afterRestart.updatePresence(rider('a', 51.5, -0.1, 5, 1002));
     assert.deepEqual(repeated.transitions, []);
     assert.deepEqual(afterRestart.ridersInZoneWith('a', repeated.zonePairs), ['b']);
+    assert.deepEqual(await afterRestart.getCurrentPeerIds('a', 1002), ['b']);
+  });
+
+  it('does not authorise proximity voice from stale or removed presence', async () => {
+    const store = new PresenceStore(10);
+    await store.updatePresence(rider('a', 51.5, -0.1, 5, 1000));
+    await store.updatePresence(rider('b', 51.501, -0.1, 5, 1001));
+    assert.deepEqual(await store.getCurrentPeerIds('a', 1002), ['b']);
+    assert.deepEqual(await store.getCurrentPeerIds('a', 1012), []);
+    await store.removeRider('b');
+    assert.deepEqual(await store.getCurrentPeerIds('a', 1002), []);
   });
 
   it('rejects an out-of-order fix instead of moving a rider backwards', async () => {

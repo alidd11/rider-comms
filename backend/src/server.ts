@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { isIP } from 'node:net';
 import { SlidingWindowRateLimiter, TIER_RADIUS_MILES, validateScenicRouteInput } from '@rider-comms/shared';
 import type { Difficulty, HazardType, RoadType, Rider, VehicleCategory } from '@rider-comms/shared';
-import { getLiveKitCredentialsFromEnv, mintVoiceToken, rideRoomName } from './liveKitToken.ts';
+import { getLiveKitCredentialsFromEnv, mintVoiceToken, proximityRoomName, rideRoomName } from './liveKitToken.ts';
 import type { LiveKitCredentials } from './liveKitToken.ts';
 import { AuthStore } from './authStore.ts';
 import { RideStore } from './rideStore.ts';
@@ -29,6 +29,7 @@ const REQUEST_ID_PATTERN = /^[A-Za-z0-9._-]{8,128}$/;
 const MAX_PRESENCE_ACCURACY_METERS = 100;
 const MAX_PRESENCE_FIX_AGE_MS = 30_000;
 const MAX_PRESENCE_FUTURE_SKEW_MS = 5_000;
+const PROXIMITY_VOICE_TOKEN_TTL_SECONDS = 60;
 
 export interface ApiServerOptions {
   allowedOrigins?: readonly string[];
@@ -305,11 +306,20 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
           return sendJson(res, 200, voiceToken);
         }
         if (body.target === 'channel') {
-          // A room-wide canSubscribe grant would let a modified client hear
-          // riders outside its mutually-authorised proximity set. Keep this
-          // fail-closed until trusted server/SFU participant permissions are
-          // implemented. Private ride rooms remain available above.
-          return sendJson(res, 503, { error: 'public_voice_unavailable' });
+          const peerIds = await presenceStore.getCurrentPeerIds(actorId);
+          const authorisedPeerIds = (await Promise.all(peerIds.map(async (peerId) =>
+            await moderationStore.isBlockedBetween(actorId, peerId) ? null : peerId
+          ))).filter((peerId): peerId is string => peerId !== null);
+          const connections = await Promise.all(authorisedPeerIds.map(async (peerId) => ({
+            peerId,
+            ...(await mintVoiceToken(
+              liveKitCredentials,
+              actorId,
+              proximityRoomName(actorId, peerId),
+              PROXIMITY_VOICE_TOKEN_TTL_SECONDS
+            )),
+          })));
+          return sendJson(res, 200, { connections, refreshAfterMs: 20_000 });
         }
         return sendJson(res, 400, { error: "target must be 'ride' or 'channel'" });
       }
