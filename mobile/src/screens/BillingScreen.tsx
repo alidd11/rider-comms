@@ -6,6 +6,8 @@ import type { ZoneTier } from '@rider-comms/shared';
 import { colors, MIN_TOUCH_TARGET, radii, spacing, type } from '../theme';
 import { useSettings } from '../settings/SettingsContext';
 import { PLAN_INFO, PLAN_ORDER, isPaidTier } from '../settings/plans';
+import { useMovementSafety } from '../safety/MovementSafetyContext';
+import { RideSafeSurface } from '../safety/RideSafeSurface';
 
 function PlanRow({ tier, current, onReturnToFree }: { tier: ZoneTier; current: boolean; onReturnToFree?: () => void }) {
   const plan = PLAN_INFO[tier];
@@ -38,7 +40,14 @@ function PlanRow({ tier, current, onReturnToFree }: { tier: ZoneTier; current: b
   );
 }
 
-export function BillingScreen({ navigation }: { navigation: { goBack: () => void } }): React.JSX.Element {
+type BillingProps = { navigation: { goBack: () => void } };
+
+export function BillingScreen(props: BillingProps): React.JSX.Element {
+  const { lockedForSafety } = useMovementSafety();
+  return lockedForSafety ? <RideSafeSurface /> : <BillingScreenContent {...props} />;
+}
+
+function BillingScreenContent({ navigation }: BillingProps): React.JSX.Element {
   const { zoneTier, setZoneTier } = useSettings();
   const insets = useSafeAreaInsets();
 

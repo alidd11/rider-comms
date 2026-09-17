@@ -5,6 +5,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation';
 import { colors, MIN_TOUCH_TARGET, spacing, type } from '../theme';
+import { useMovementSafety } from '../safety/MovementSafetyContext';
+import { RideSafeSurface } from '../safety/RideSafeSurface';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Legal'>;
 
@@ -16,7 +18,12 @@ const sections = [
   { title: 'Test-build notice', text: 'This is a pre-alpha test build backed by a test API and database. A published privacy policy, support contact, documented retention schedule, tested deletion process and staffed moderation operation are still required before public store release.' },
 ];
 
-export function LegalScreen({ navigation }: Props): React.JSX.Element {
+export function LegalScreen(props: Props): React.JSX.Element {
+  const { lockedForSafety } = useMovementSafety();
+  return lockedForSafety ? <RideSafeSurface /> : <LegalScreenContent {...props} />;
+}
+
+function LegalScreenContent({ navigation }: Props): React.JSX.Element {
   const insets = useSafeAreaInsets();
   return <View style={styles.container}>
     <View style={[styles.header, { paddingTop: insets.top + spacing.md }]}>

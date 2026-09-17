@@ -26,6 +26,8 @@ import { FriendsProvider } from '../friends/FriendsContext';
 import { AuthProvider } from '../auth/AuthContext';
 import { parseNavigationLink } from '../navigationLinks';
 import { colors, useConcreteThemeColors } from '../theme';
+import { MovementSafetyProvider, useMovementSafety } from '../safety/MovementSafetyContext';
+import { RideSafeSurface } from '../safety/RideSafeSurface';
 
 export type TabParamList = {
   // `at` is a change nonce, not app state — it exists only so tapping
@@ -160,7 +162,12 @@ function GroupRideTabLabel({ children }: { children: string }): React.JSX.Elemen
   return <Text style={[styles.tabLabel, { color }]}>{children}</Text>;
 }
 
+function LockedTabScreen(): React.JSX.Element {
+  return <RideSafeSurface />;
+}
+
 function Tabs(): React.JSX.Element {
+  const { lockedForSafety } = useMovementSafety();
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -236,9 +243,9 @@ function Tabs(): React.JSX.Element {
           },
         })}
       />
-      <Tab.Screen name="Routes" component={ScenicRoutesScreen} options={{ title: 'Routes' }} />
-      <Tab.Screen name="Friends" component={FriendsScreen} options={{ title: 'Friends' }} />
-      <Tab.Screen name="Settings" component={SettingsScreen} options={{ title: 'Settings' }} />
+      <Tab.Screen name="Routes" component={lockedForSafety ? LockedTabScreen : ScenicRoutesScreen} options={{ title: 'Routes' }} />
+      <Tab.Screen name="Friends" component={lockedForSafety ? LockedTabScreen : FriendsScreen} options={{ title: 'Friends' }} />
+      <Tab.Screen name="Settings" component={lockedForSafety ? LockedTabScreen : SettingsScreen} options={{ title: 'Settings' }} />
     </Tab.Navigator>
   );
 }
@@ -298,6 +305,7 @@ export function AppNavigator(): React.JSX.Element {
         <RideProvider>
           <FriendsProvider>
             <OnboardingGate>
+              <MovementSafetyProvider>
               <NavigationContainer theme={navigationTheme} linking={linking}>
                 <Stack.Navigator
                   screenOptions={{
@@ -332,6 +340,7 @@ export function AppNavigator(): React.JSX.Element {
                   <Stack.Screen name="Legal" component={LegalScreen} options={{ headerShown: false }} />
                 </Stack.Navigator>
               </NavigationContainer>
+              </MovementSafetyProvider>
             </OnboardingGate>
           </FriendsProvider>
         </RideProvider>

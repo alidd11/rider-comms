@@ -15,10 +15,24 @@ const PROFILE = {
   tiktokVisibility: 'friends',
 };
 
-async function mockAuthenticatedApi(page) {
-  await page.addInitScript(({ riderId }) => {
+async function mockAuthenticatedApi(page, movement = 'stationary') {
+  await page.addInitScript(({ riderId, movementState }) => {
     localStorage.setItem('rider-comms-session-v1', JSON.stringify({ riderId, token: 'visual-test-token' }));
-  }, { riderId: RIDER_ID });
+    Object.defineProperty(navigator, 'permissions', { value: { query: async () => ({ state: movementState === 'stationary' ? 'granted' : 'denied', addEventListener() {} }) } });
+    let watchId = 0;
+    Object.defineProperty(navigator, 'geolocation', { value: {
+      watchPosition(success) {
+        const base = Date.now() - 7000;
+        for (let index = 0; index <= 7; index += 1) success({
+          timestamp: base + index * 1000,
+          coords: { latitude: 51.5074, longitude: -0.1278, accuracy: 5, speed: 0 },
+        });
+        return ++watchId;
+      },
+      clearWatch() {},
+      getCurrentPosition(success) { success({ timestamp: Date.now(), coords: { latitude: 51.5074, longitude: -0.1278, accuracy: 5, speed: 0 } }); },
+    } });
+  }, { riderId: RIDER_ID, movementState: movement });
 
   await page.route('https://backend-production-7fa0.up.railway.app/**', async (route) => {
     const url = new URL(route.request().url());
@@ -122,4 +136,14 @@ test('core PWA screens render without runtime errors or viewport overflow', asyn
   });
 
   expect(runtimeErrors).toEqual([]);
+});
+
+test('PWA fails locked when movement cannot be verified', async ({ page }) => {
+  await mockAuthenticatedApi(page, 'unknown');
+  await page.goto('/');
+  await expect(page.locator('#app')).toBeVisible();
+  await expect(page.locator('#movementSafetyBanner')).toBeVisible();
+  await expect(page.locator('.bottom-nav [data-nav="routes"]')).toBeHidden();
+  await expect(page.locator('#mapSearchSlot')).toBeHidden();
+  await expect(page.locator('#locateBtn')).toBeVisible();
 });

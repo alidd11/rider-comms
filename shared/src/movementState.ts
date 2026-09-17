@@ -99,6 +99,9 @@ export class MovementStateTracker {
 
   /** Feed one location fix. Returns the (possibly updated) state. */
   addFix(fix: LocationFix): MovementState {
+    if (!isValidFix(fix) || (this.lastGoodFix && fix.timestampMs <= this.lastGoodFix.timestampMs)) {
+      return this.state;
+    }
     if (this.lastGoodFix && fix.timestampMs - this.lastGoodFix.timestampMs > this.config.staleAfterMs) {
       this.resetToUnknown();
     }
@@ -110,6 +113,24 @@ export class MovementStateTracker {
     const speedMps = this.deriveSpeed(fix);
     this.lastGoodFix = fix;
     this.applyEvidence(fix.timestampMs, speedMps);
+    return this.state;
+  }
+
+  /**
+   * Re-evaluate freshness without requiring a new fix. Clients call this
+   * from a small timer so GPS loss cannot leave an old stationary decision
+   * unlocked forever.
+   */
+  stateAt(nowMs: number): MovementState {
+    if (!Number.isFinite(nowMs) || !this.lastGoodFix || nowMs - this.lastGoodFix.timestampMs > this.config.staleAfterMs) {
+      this.resetToUnknown();
+    }
+    return this.state;
+  }
+
+  /** Immediately fail locked when tracking is interrupted or unavailable. */
+  markUnavailable(): MovementState {
+    this.resetToUnknown();
     return this.state;
   }
 
@@ -160,4 +181,18 @@ export class MovementStateTracker {
     this.movingSinceMs = null;
     this.stationarySinceMs = null;
   }
+}
+
+function isValidFix(fix: LocationFix): boolean {
+  return Number.isFinite(fix.lat)
+    && fix.lat >= -90
+    && fix.lat <= 90
+    && Number.isFinite(fix.lon)
+    && fix.lon >= -180
+    && fix.lon <= 180
+    && Number.isFinite(fix.timestampMs)
+    && fix.timestampMs > 0
+    && Number.isFinite(fix.accuracyMeters)
+    && fix.accuracyMeters >= 0
+    && (fix.speedMps === undefined || (Number.isFinite(fix.speedMps) && fix.speedMps >= 0));
 }

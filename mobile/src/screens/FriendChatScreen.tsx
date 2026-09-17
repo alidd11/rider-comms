@@ -26,6 +26,8 @@ import { colors, spacing, radii, type, elevation, MIN_TOUCH_TARGET } from '../th
 import { getAvatarPreset } from '../settings/avatars';
 import { buildExternalNavigationUrl } from '../navigationLinks';
 import { reconcileMessageThread, type LocalDirectMessage } from '../friends/messageState';
+import { useMovementSafety } from '../safety/MovementSafetyContext';
+import { RideSafeSurface } from '../safety/RideSafeSurface';
 import { useFriends } from '../friends/FriendsContext';
 
 // Same poll cadence style used elsewhere (MapScreen's presence, FriendsContext).
@@ -232,7 +234,12 @@ function PlanHideoutModal({
   );
 }
 
-export function FriendChatScreen({ route, navigation }: Props): React.JSX.Element {
+export function FriendChatScreen(props: Props): React.JSX.Element {
+  const { lockedForSafety } = useMovementSafety();
+  return lockedForSafety ? <RideSafeSurface /> : <FriendChatScreenContent {...props} />;
+}
+
+function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Element {
   const { riderId, displayName, avatarId } = route.params;
   const { riderId: currentRiderId, client } = useAuth();
   const { refresh: refreshFriends } = useFriends();

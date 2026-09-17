@@ -33,6 +33,7 @@ import type { PlaceResult } from '../api/places';
 import { HazardReportSheet, HAZARD_TYPE_META } from './HazardReportSheet';
 import { buildExternalNavigationUrl, navigationTargetFromValues } from '../navigationLinks';
 import type { NavigationTarget } from '../navigationLinks';
+import { useMovementSafety } from '../safety/MovementSafetyContext';
 
 const PRESENCE_UPDATE_INTERVAL_MS = 8000; // per spec Section 8: every 5-10s
 const DEFAULT_REGION = {
@@ -116,6 +117,7 @@ function SegmentToggle({
 export function MapScreen(): React.JSX.Element {
   const { client } = useAuth();
   const { shareLocation } = useSettings();
+  const { lockedForSafety, movementState, refreshTracking } = useMovementSafety();
   const insets = useSafeAreaInsets();
   const route = useRoute<RouteProp<TabParamList, 'Map'>>();
   const [segment, setSegment] = React.useState<Segment>(route.params?.segment ?? 'public');
@@ -166,6 +168,7 @@ export function MapScreen(): React.JSX.Element {
       const result = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
       const next = { lat: result.coords.latitude, lon: result.coords.longitude };
       setCurrentLocation(next);
+      await refreshTracking();
       setLocationUnavailable(false);
       return next;
     } catch {
@@ -345,7 +348,7 @@ export function MapScreen(): React.JSX.Element {
 
   return (
     <View style={styles.container}>
-      {segment === 'public' ? (
+      {segment === 'public' || lockedForSafety ? (
         <View style={styles.mapFill}>
           <MapView
             ref={mapRef}
@@ -399,7 +402,7 @@ export function MapScreen(): React.JSX.Element {
         </View>
       )}
 
-      {segment === 'public' && (
+      {segment === 'public' && !lockedForSafety && (
         <View style={[styles.searchSlot, { top: insets.top + spacing.sm }]}>
           <PlaceSearchBar
             near={currentLocation}
@@ -460,7 +463,7 @@ export function MapScreen(): React.JSX.Element {
         </View>
       )}
 
-      {segment === 'public' && selectedHazard && (
+      {segment === 'public' && selectedHazard && !lockedForSafety && (
         <View style={[styles.errorOverlay, { top: insets.top + spacing.sm + MIN_TOUCH_TARGET * 0.8 + spacing.sm }]} pointerEvents="box-none">
           <View style={styles.noticeBox}>
             <MaterialCommunityIcons
@@ -503,14 +506,14 @@ export function MapScreen(): React.JSX.Element {
           >
             <MaterialCommunityIcons name="crosshairs-gps" size={22} color={colors.accent} />
           </Pressable>
-          <Pressable
+          {!lockedForSafety && <Pressable
             style={styles.mapActionButton}
             onPress={() => void openReportSheet()}
             accessibilityRole="button"
             accessibilityLabel="Report on the road"
           >
             <MaterialCommunityIcons name="alert-plus" size={22} color={colors.textPrimary} />
-          </Pressable>
+          </Pressable>}
         </View>
       )}
 
@@ -549,7 +552,19 @@ export function MapScreen(): React.JSX.Element {
         </View>
       )}
 
-      <SegmentToggle segment={segment} onChange={setSegment} topInset={insets.top} />
+      {!lockedForSafety && <SegmentToggle segment={segment} onChange={setSegment} topInset={insets.top} />}
+
+      {lockedForSafety && (
+        <View style={[styles.safetyBanner, { top: insets.top + spacing.sm }]} accessibilityLiveRegion="polite">
+          <MaterialCommunityIcons name="motorbike" size={20} color={colors.accent} />
+          <View style={styles.safetyBannerCopy}>
+            <Text style={styles.safetyBannerTitle}>Ride-safe mode</Text>
+            <Text style={styles.safetyBannerText}>
+              {movementState === 'moving' ? 'Distracting controls are locked until you stop.' : 'Waiting for a reliable stationary location fix.'}
+            </Text>
+          </View>
+        </View>
+      )}
 
       <View style={styles.rideBarSlot} pointerEvents="box-none">
         <RideBar />
@@ -703,4 +718,14 @@ const styles = StyleSheet.create({
   },
   destinationStartText: { ...type.caption, color: '#FFFFFF', fontWeight: '800' },
   rideBarSlot: { marginTop: 'auto', paddingHorizontal: spacing.lg, paddingBottom: spacing.lg },
+  safetyBanner: {
+    position: 'absolute', left: spacing.lg, right: spacing.lg,
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+    padding: spacing.md, borderRadius: radii.lg,
+    borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface,
+    ...elevation.raised,
+  },
+  safetyBannerCopy: { flex: 1 },
+  safetyBannerTitle: { ...type.label, color: colors.textPrimary },
+  safetyBannerText: { ...type.caption, color: colors.textSecondary, marginTop: 2 },
 });

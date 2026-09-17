@@ -1,6 +1,6 @@
 # Rider Comms
 
-Pre-alpha Expo/React Native app for proximity-based rider communication and private group rides. The monorepo contains the native client, a dependency-light Node.js prototype API, shared TypeScript logic, and a static design preview under `docs/`.
+Pre-alpha Expo/React Native and installable PWA for proximity-based rider communication and private group rides. The monorepo contains both clients, a dependency-light Node.js API, PostgreSQL persistence, and shared TypeScript logic.
 
 ## Current status
 
@@ -13,6 +13,7 @@ Working and verified in this repository:
 - Opt-in foreground GPS presence with server-controlled mutual radius.
 - In-app plan preview, privacy/safety information, and direct-message block/report controls.
 - Shared geo, ride-code, rate-limit, zone-transition, and audio-priority algorithms.
+- Fail-locked movement safety in native and PWA: social, setup, billing, messaging, settings and route-discovery controls stay unavailable until sustained stationary GPS evidence exists; map/navigation and active-ride exit controls remain accessible.
 - Android and iOS Metro exports plus an EAS internal Android APK profile.
 
 Still prototype-only:
@@ -37,10 +38,10 @@ npx expo-doctor mobile
 ```
 
 The PWA visual smoke audit captures Map, Group Ride, Routes, Friends,
-Settings and Search at small-phone, modern-phone, tablet and landscape
-viewports. It fails on application runtime errors or horizontal viewport
-overflow. CI publishes the resulting screenshots and HTML report in the
-`pwa-visual-audit` artifact.
+Settings and Search, plus the fail-locked ride-safe state, at small-phone,
+modern-phone, tablet and landscape viewports. It fails on application runtime
+errors or horizontal viewport overflow. CI publishes the resulting screenshots
+and HTML report in the `pwa-visual-audit` artifact.
 
 Run the API:
 

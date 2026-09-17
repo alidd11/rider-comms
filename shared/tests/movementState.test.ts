@@ -144,4 +144,31 @@ describe('MovementStateTracker', () => {
     expect(isLockedForSafety('moving')).toBe(true);
     expect(isLockedForSafety('stationary')).toBe(false);
   });
+
+  it('fails locked when a previously stationary fix becomes stale without a new fix', () => {
+    const tracker = new MovementStateTracker();
+    for (let i = 0; i <= 7; i += 1) tracker.addFix(stationaryFix(i, START_MS + i * 1000));
+    expect(tracker.currentState).toBe('stationary');
+    expect(tracker.stateAt(START_MS + 28_000)).toBe('unknown');
+    expect(isLockedForSafety(tracker.currentState)).toBe(true);
+  });
+
+  it('rejects malformed, impossible and out-of-order fixes', () => {
+    const tracker = new MovementStateTracker();
+    tracker.addFix(stationaryFix(0, START_MS));
+    const invalid = [
+      { ...stationaryFix(1, START_MS + 1000), lat: Number.NaN },
+      { ...stationaryFix(1, START_MS + 1000), lon: 181 },
+      { ...stationaryFix(1, START_MS + 1000), accuracyMeters: -1 },
+      { ...stationaryFix(1, START_MS + 1000), speedMps: Number.POSITIVE_INFINITY },
+      stationaryFix(1, START_MS - 1),
+    ];
+    for (const fix of invalid) expect(tracker.addFix(fix)).toBe('unknown');
+  });
+
+  it('can be failed locked immediately when platform tracking stops', () => {
+    const tracker = new MovementStateTracker();
+    for (let i = 0; i <= 7; i += 1) tracker.addFix(stationaryFix(i, START_MS + i * 1000));
+    expect(tracker.markUnavailable()).toBe('unknown');
+  });
 });

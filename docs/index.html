@@ -220,10 +220,15 @@
 
   <div id="sheetBackdrop" class="sheet-backdrop" hidden><section class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle"><div class="sheet-handle"></div><header><h2 id="sheetTitle"></h2><button id="closeSheet" class="icon-button" aria-label="Close">×</button></header><div id="sheetBody" class="sheet-body"></div></section></div>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  <div id="movementSafetyBanner" class="movement-safety-banner" role="status" aria-live="polite" hidden>
+    <svg aria-hidden="true"><use href="#i-ride"></use></svg>
+    <span><strong>Ride-safe mode</strong><small id="movementSafetyMessage">Waiting for a reliable stationary location fix.</small></span>
+  </div>
   <div id="updateBanner" class="update-banner" hidden><span>A new Rider Comms version is ready.</span><button id="reloadApp">Update now</button></div>
   <noscript>Rider Comms requires JavaScript.</noscript>
   <script src="config.js?v=31"></script>
   <script src="routes.js?v=32" defer></script>
+  <script src="movement-safety.js?v=1" defer></script>
   <script src="app.js?v=61" defer></script>
 </body>
 </html>
