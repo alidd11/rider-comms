@@ -17,13 +17,13 @@ Working and verified in this repository:
 
 Still prototype-only:
 
-- Profiles, active rides, presence and guest-only sessions remain in memory and disappear on server restart. Account credentials/sessions and several social/content stores are durable in Postgres.
+- Account credentials, expiring sessions, profiles, rides, friendships, messages, hideouts, presence, hazards, moderation records and scenic-route submissions are durable in Postgres. Anonymous guest sessions are process-local and disappear on restart by design; they are not recoverable accounts.
 - The native client uses a real Apple Maps/Google Maps surface for the rider's own location, selected places, shared destinations and hazard coordinates. Nearby riders are deliberately shown as a privacy-preserving count because the public presence API does not expose their exact coordinates. A production Android build still needs a restricted Maps SDK key.
 - Live voice rooms, VOX, noise suppression, Bluetooth routing, and background audio are not connected.
 - Store billing products and receipt validation are not connected; the plan UI cannot unlock a tier.
 - The proposed stationary-only video feed remains a documented follow-up. Scenic-route discovery is available, but still needs broader route coverage and live road-condition data.
 
-Do not treat the API as production-ready or use real private data until the remaining in-memory stores, moderation operations, backups, monitoring and recovery controls are completed. See [COMPLIANCE.md](COMPLIANCE.md) for store-readiness requirements.
+Do not treat the API as production-ready or use real private data until account recovery, documented retention, moderation operations, backups, monitoring and recovery controls are completed. See [COMPLIANCE.md](COMPLIANCE.md) for store-readiness requirements.
 
 ## Setup and verification
 

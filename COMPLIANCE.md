@@ -6,7 +6,7 @@ This repository is a pre-alpha test build. Store review compliance is an ongoing
 
 - Foreground-only location permission with an in-context prompt, opt-in sharing, explicit leave, and no background-location declaration.
 - Secure device storage for the guest bearer token and server-derived actor identity.
-- In-app account deletion that revokes sessions and removes prototype profile, social, message, ride, friendship, hideout, and presence data.
+- Atomic in-app account deletion that revokes sessions and removes the rider's durable profile, social, message, ride, friendship, hideout, presence, hazard, moderation and submitted-route data.
 - In-app report and block controls for direct messages. Blocking removes the friendship and prevents messages and friend requests in either direction.
 - Instagram and TikTok usernames with independent Public, Friends only, and Private visibility.
 - In-app privacy, safety, test-build and community-rule disclosures.
@@ -15,7 +15,7 @@ This repository is a pre-alpha test build. Store review compliance is an ongoing
 
 ## Required before public App Store or Play Store submission
 
-1. Replace every in-memory store with durable encrypted storage, real account recovery/deletion, documented retention, backup, and deletion jobs.
+1. Add account recovery, a documented retention schedule, encrypted production storage and backups, tested restore procedures, and scheduled retention/deletion jobs. Postgres persistence and atomic in-app deletion exist, but those operational controls do not.
 2. Publish a complete privacy policy and terms at stable HTTPS URLs, configure a monitored support address, and link them in store metadata and the app.
 3. Staff a moderation queue with response targets and appeal/escalation procedures; persist reports and audit actions.
 4. Complete Apple privacy nutrition labels, Google Play Data safety, content-rating, target-audience, account-deletion URL, and testing-access declarations accurately.
