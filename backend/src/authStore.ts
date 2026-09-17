@@ -387,6 +387,31 @@ export class AuthStore {
     const result = await getPool().query('DELETE FROM account_sessions WHERE id = $1 AND user_id = $2', [sessionId, riderId]);
     return result.rowCount === 1;
   }
+
+  /** Removes abandoned authentication artefacts without waiting for their
+   * exact bearer/reset/verification token to be presented again. Safe to run
+   * repeatedly from every replica because each delete is idempotent. */
+  async cleanupExpiredRecords(now = new Date()): Promise<{ sessions: number; verifications: number; passwordResets: number }> {
+    await ensureMigrated();
+    const client = await getPool().connect();
+    try {
+      await client.query('BEGIN');
+      const sessions = await client.query('DELETE FROM account_sessions WHERE expires_at <= $1', [now]);
+      const verifications = await client.query('DELETE FROM email_verifications WHERE expires_at <= $1', [now]);
+      const passwordResets = await client.query('DELETE FROM password_resets WHERE expires_at <= $1', [now]);
+      await client.query('COMMIT');
+      return {
+        sessions: sessions.rowCount ?? 0,
+        verifications: verifications.rowCount ?? 0,
+        passwordResets: passwordResets.rowCount ?? 0,
+      };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
 }
 
 function isUniqueViolation(error: unknown): boolean {

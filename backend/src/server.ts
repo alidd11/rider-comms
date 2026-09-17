@@ -30,6 +30,7 @@ const MAX_PRESENCE_ACCURACY_METERS = 100;
 const MAX_PRESENCE_FIX_AGE_MS = 30_000;
 const MAX_PRESENCE_FUTURE_SKEW_MS = 5_000;
 const PROXIMITY_VOICE_TOKEN_TTL_SECONDS = 60;
+const AUTH_CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
 
 export interface ApiServerOptions {
   allowedOrigins?: readonly string[];
@@ -517,7 +518,10 @@ async function startProductionServer(): Promise<void> {
   // opened. A deployment with an incompatible/unreachable database therefore
   // never advertises itself as ready or receives product traffic.
   await ensureMigrated();
-  const app = createApp(undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, {
+  const productionAuthStore = new AuthStore();
+  const initialCleanup = await productionAuthStore.cleanupExpiredRecords();
+  console.log(JSON.stringify({ level: 'info', event: 'auth_records_cleaned', ...initialCleanup }));
+  const app = createApp(undefined, undefined, undefined, undefined, undefined, undefined, productionAuthStore, undefined, undefined, undefined, {
     allowedOrigins,
     trustProxy: process.env.TRUST_PROXY === 'true',
     logger: (event) => console.log(JSON.stringify({ level: 'info', event: 'http_request', ...event })),
@@ -526,11 +530,18 @@ async function startProductionServer(): Promise<void> {
   app.headersTimeout = 10_000;
   app.keepAliveTimeout = 5_000;
   app.maxRequestsPerSocket = 1_000;
+  const authCleanupTimer = setInterval(() => {
+    void productionAuthStore.cleanupExpiredRecords()
+      .then((counts) => console.log(JSON.stringify({ level: 'info', event: 'auth_records_cleaned', ...counts })))
+      .catch((error) => console.error(JSON.stringify({ level: 'error', event: 'auth_record_cleanup_failed', message: error instanceof Error ? error.message : String(error) })));
+  }, AUTH_CLEANUP_INTERVAL_MS);
+  authCleanupTimer.unref();
 
   let stopping = false;
   const shutdown = (signal: NodeJS.Signals) => {
     if (stopping) return;
     stopping = true;
+    clearInterval(authCleanupTimer);
     console.log(JSON.stringify({ level: 'info', event: 'shutdown_started', signal }));
     const forceExit = setTimeout(() => {
       console.error(JSON.stringify({ level: 'error', event: 'shutdown_timeout', signal }));

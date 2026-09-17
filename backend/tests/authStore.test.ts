@@ -337,6 +337,34 @@ describe('AuthStore account signup/login (Postgres-backed)', { skip: !hasDatabas
     assert.deepEqual(await store.resetPassword(token, 'valid-new-password'), { error: 'invalid_token' });
   });
 
+  it('periodically removes every class of abandoned expired auth record', async () => {
+    const verification = fakeSender();
+    const reset = fakeResetSender();
+    const store = new AuthStore(verification.fn, reset.fn);
+    const email = uniqueEmail();
+    const signedUp = await store.signUp(uniqueUsername(), email, 'correct-horse-battery');
+    assert.ok(!('error' in signedUp));
+    if ('error' in signedUp) return;
+    await store.requestPasswordReset(email);
+    await getPool().query('UPDATE account_sessions SET expires_at = now() - interval \'1 hour\' WHERE user_id = $1', [signedUp.riderId]);
+    await getPool().query('UPDATE email_verifications SET expires_at = now() - interval \'1 hour\' WHERE user_id = $1', [signedUp.riderId]);
+    await getPool().query('UPDATE password_resets SET expires_at = now() - interval \'1 hour\' WHERE user_id = $1', [signedUp.riderId]);
+
+    const removed = await store.cleanupExpiredRecords();
+    assert.ok(removed.sessions >= 1);
+    assert.ok(removed.verifications >= 1);
+    assert.ok(removed.passwordResets >= 1);
+    const { rows } = await getPool().query<{ count: string }>(
+      `SELECT (
+         (SELECT COUNT(*) FROM account_sessions WHERE user_id = $1) +
+         (SELECT COUNT(*) FROM email_verifications WHERE user_id = $1) +
+         (SELECT COUNT(*) FROM password_resets WHERE user_id = $1)
+       )::text AS count`,
+      [signedUp.riderId]
+    );
+    assert.equal(Number(rows[0].count), 0);
+  });
+
   it('deletes the persistent account and all of its sessions', async () => {
     const { fn } = fakeSender();
     const store = new AuthStore(fn);
