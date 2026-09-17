@@ -156,7 +156,12 @@ test('PWA fails locked when movement cannot be verified', async ({ page }) => {
   await expect(page.locator('#mapSearchSlot')).toBeVisible();
   await expect(page.locator('.map-header')).toHaveAttribute('inert', '');
   await expect(page.locator('#locateBtn')).toBeVisible();
+  const enableLocation = page.locator('#enableLocationBtn');
+  await expect(enableLocation).toBeVisible();
+  await expect(enableLocation).toHaveText('Location help');
   await routesTab.click({ force: true });
   await expect(page.locator('[data-screen="routes"]')).not.toHaveClass(/active/);
   await expect(page.locator('#toast')).toContainText('Controls stay locked');
+  await enableLocation.click();
+  await expect(page.locator('#toast')).toContainText('Location access is blocked');
 });

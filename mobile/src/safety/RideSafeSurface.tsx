@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, spacing, radii, type } from '../theme';
@@ -7,7 +7,8 @@ import { useMovementSafety } from './MovementSafetyContext';
 
 export function RideSafeSurface(): React.JSX.Element {
   const insets = useSafeAreaInsets();
-  const { movementState } = useMovementSafety();
+  const { movementState, locationAccess, trackingError, requestLocationAccess, openLocationSettings } = useMovementSafety();
+  const needsSettings = locationAccess === 'blocked' || locationAccess === 'services_disabled';
   return (
     <View style={[styles.container, { paddingTop: insets.top + spacing.xxl, paddingBottom: insets.bottom + spacing.xl }]}>
       <View style={styles.icon}>
@@ -23,6 +24,18 @@ export function RideSafeSurface(): React.JSX.Element {
         <View style={styles.statusDot} />
         <Text style={styles.statusText}>{movementState === 'moving' ? 'Movement detected' : 'Movement status unavailable'}</Text>
       </View>
+      {movementState !== 'moving' && (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={needsSettings ? 'Open location settings' : 'Enable location'}
+          style={({ pressed }) => [styles.enableButton, pressed && styles.enableButtonPressed]}
+          onPress={() => void (needsSettings ? openLocationSettings() : requestLocationAccess())}
+        >
+          <MaterialCommunityIcons name={needsSettings ? 'cog-outline' : 'crosshairs-gps'} size={20} color={colors.accentText} />
+          <Text style={styles.enableButtonText}>{needsSettings ? 'Open location settings' : 'Enable location'}</Text>
+        </Pressable>
+      )}
+      {trackingError && <Text style={styles.errorText} accessibilityLiveRegion="polite">{trackingError}</Text>}
     </View>
   );
 }
@@ -60,4 +73,8 @@ const styles = StyleSheet.create({
   },
   statusDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.danger },
   statusText: { ...type.caption, color: colors.textPrimary, fontWeight: '700' },
+  enableButton: { minHeight: 48, marginTop: spacing.lg, paddingHorizontal: spacing.lg, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, borderRadius: radii.pill, backgroundColor: colors.accent },
+  enableButtonPressed: { opacity: 0.82 },
+  enableButtonText: { ...type.button, color: colors.accentText },
+  errorText: { ...type.caption, color: colors.danger, textAlign: 'center', marginTop: spacing.sm, maxWidth: 420 },
 });
