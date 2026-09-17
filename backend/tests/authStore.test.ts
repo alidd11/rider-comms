@@ -146,6 +146,25 @@ describe('AuthStore account signup/login (Postgres-backed)', { skip: !hasDatabas
     assert.equal(await nextProcess.riderForToken(signedUp.token), undefined);
   });
 
+  it('lists named sessions, identifies the current token, and revokes another device', async () => {
+    const { fn } = fakeSender();
+    const store = new AuthStore(fn);
+    const signedUp = await store.signUp(uniqueUsername(), uniqueEmail(), 'correct-horse-battery', 'iPhone');
+    assert.ok(!('error' in signedUp));
+    if ('error' in signedUp) return;
+    const second = await store.logIn((await store.getIdentity(signedUp.riderId))!.username, 'correct-horse-battery', 'Web app');
+    assert.ok(!('error' in second));
+    if ('error' in second) return;
+
+    const sessions = await store.listSessions(signedUp.riderId, signedUp.token);
+    assert.equal(sessions.length, 2);
+    assert.equal(sessions.find((session) => session.current)?.deviceName, 'iPhone');
+    const other = sessions.find((session) => !session.current)!;
+    assert.equal(other.deviceName, 'Web app');
+    assert.equal(await store.revokeSession(signedUp.riderId, other.id), true);
+    assert.equal(await store.riderForToken(second.token), undefined);
+  });
+
   it('reports when verification email delivery is unavailable without blocking signup', async () => {
     const sender: typeof sendVerificationEmail = async () => false;
     const store = new AuthStore(sender);

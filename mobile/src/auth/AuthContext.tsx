@@ -257,7 +257,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
         const client = new RiderCommsClient(API_BASE_URL, fetch, cached.token);
         const me = await client.getMe();
         if (me.riderId !== cached.riderId) throw new Error('Stored account identity did not match the server.');
-        if (!cancelled) setSession(cached);
+        const refreshed = { ...cached, emailVerified: me.emailVerified };
+        await SecureStore.setItemAsync(KEY, JSON.stringify(refreshed));
+        if (!cancelled) setSession(refreshed);
       } catch (error) {
         if (error instanceof ApiError && error.status === 401) {
           await SecureStore.deleteItemAsync(KEY);

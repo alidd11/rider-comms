@@ -50,8 +50,23 @@ describe('RiderCommsClient authentication', () => {
     assert.equal((await client.signUp('alex_rides', 'alex@example.com', 'secure-password')).token, 'signup-token');
     assert.equal((await client.logIn('alex_rides', 'secure-password')).token, 'login-token');
     assert.deepEqual(requests, [
-      { url: 'http://example.test/auth/signup', body: { username: 'alex_rides', email: 'alex@example.com', password: 'secure-password' } },
-      { url: 'http://example.test/auth/login', body: { username: 'alex_rides', password: 'secure-password' } },
+      { url: 'http://example.test/auth/signup', body: { username: 'alex_rides', email: 'alex@example.com', password: 'secure-password', deviceName: 'Rider Comms mobile' } },
+      { url: 'http://example.test/auth/login', body: { username: 'alex_rides', password: 'secure-password', deviceName: 'Rider Comms mobile' } },
+    ]);
+  });
+
+  it('lists and revokes account sessions', async () => {
+    const requests: Array<{ url: string; method: string }> = [];
+    const client = new RiderCommsClient('http://example.test', fakeFetch((url, init) => {
+      requests.push({ url, method: init.method ?? 'GET' });
+      if (init.method === 'DELETE') return { status: 204, body: {} };
+      return { status: 200, body: { sessions: [{ id: 'session-1', deviceName: 'Phone', current: true }] } };
+    }), 'token');
+    assert.equal((await client.getSessions()).sessions[0].current, true);
+    await client.revokeSession('session/2');
+    assert.deepEqual(requests, [
+      { url: 'http://example.test/auth/sessions', method: 'GET' },
+      { url: 'http://example.test/auth/sessions/session%2F2', method: 'DELETE' },
     ]);
   });
 

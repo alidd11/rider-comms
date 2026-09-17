@@ -439,6 +439,25 @@ const MIGRATIONS: { name: string; sql: string }[] = [
         ON presence_zone_pairs (rider_b);
     `,
   },
+  {
+    name: '0019_account_session_management',
+    sql: `
+      ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS password_algorithm TEXT NOT NULL DEFAULT 'scrypt-v1';
+
+      ALTER TABLE account_sessions ADD COLUMN IF NOT EXISTS id TEXT;
+      ALTER TABLE account_sessions
+        ADD COLUMN IF NOT EXISTS device_name TEXT NOT NULL DEFAULT 'Unknown device';
+      ALTER TABLE account_sessions
+        ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now();
+      UPDATE account_sessions SET id = md5(token_hash) WHERE id IS NULL;
+      ALTER TABLE account_sessions ALTER COLUMN id SET NOT NULL;
+      CREATE UNIQUE INDEX IF NOT EXISTS account_sessions_id_idx ON account_sessions (id);
+      ALTER TABLE account_sessions DROP CONSTRAINT IF EXISTS account_sessions_device_name_check;
+      ALTER TABLE account_sessions
+        ADD CONSTRAINT account_sessions_device_name_check CHECK (char_length(device_name) BETWEEN 1 AND 120);
+    `,
+  },
 ];
 
 /**

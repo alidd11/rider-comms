@@ -16,6 +16,7 @@ import { RideBar } from '../ride/RideBar';
 import type { RootStackParamList } from '../navigation';
 import { useAuth } from '../auth/AuthContext';
 import { ScreenHeader } from '../components/ScreenHeader';
+import type { AccountSessionSummary } from '../api/client';
 
 const UNIT_LABELS: Record<UnitSystem, { name: string; blurb: string }> = {
   mi: { name: 'Miles', blurb: 'Distances and zone radius shown in miles.' },
@@ -180,7 +181,7 @@ export function SettingsScreen(): React.JSX.Element {
     profileError,
     clearProfileError,
   } = useSettings();
-  const { riderId, emailVerified, logOut, deleteAccount } = useAuth();
+  const { riderId, emailVerified, client, logOut, deleteAccount } = useAuth();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const appVersion = Constants.expoConfig?.version ?? '0.1.0';
@@ -189,6 +190,29 @@ export function SettingsScreen(): React.JSX.Element {
   const [editingName, setEditingName] = React.useState(false);
   const [handleDraft, setHandleDraft] = React.useState(handle);
   const [editingHandle, setEditingHandle] = React.useState(false);
+  const [sessions, setSessions] = React.useState<AccountSessionSummary[]>([]);
+  const [sessionsError, setSessionsError] = React.useState<string | null>(null);
+
+  const loadSessions = React.useCallback(async () => {
+    try {
+      const result = await client.getSessions();
+      setSessions(result.sessions);
+      setSessionsError(null);
+    } catch {
+      setSessionsError('Could not load signed-in devices.');
+    }
+  }, [client]);
+
+  React.useEffect(() => { void loadSessions(); }, [loadSessions]);
+
+  async function revokeSession(id: string) {
+    try {
+      await client.revokeSession(id);
+      setSessions((current) => current.filter((session) => session.id !== id));
+    } catch {
+      Alert.alert('Couldn’t revoke session', 'Please check your connection and try again.');
+    }
+  }
 
   React.useEffect(() => {
     setNameDraft(displayName);
@@ -415,6 +439,28 @@ export function SettingsScreen(): React.JSX.Element {
           <Ionicons name="chevron-forward" size={20} color={colors.textMuted}/>
         </Pressable>
 
+        <View style={styles.sectionLabelRow}>
+          <Ionicons name="phone-portrait-outline" size={14} color={colors.textMuted} />
+          <Text style={[styles.sectionLabel, styles.sectionLabelInRow]}>Signed-in devices</Text>
+        </View>
+        <View style={[styles.section, elevation.raised]}>
+          {sessions.map((session) => (
+            <View key={session.id} style={styles.sessionRow}>
+              <View style={styles.sessionInfo}>
+                <Text style={styles.aboutLabel}>{session.deviceName}</Text>
+                <Text style={styles.aboutValue}>{session.current ? 'This device' : `Active ${new Date(session.lastSeenAt).toLocaleDateString()}`}</Text>
+              </View>
+              {!session.current && (
+                <Pressable accessibilityRole="button" accessibilityLabel={`Sign out ${session.deviceName}`} onPress={() => void revokeSession(session.id)} style={styles.sessionRevoke}>
+                  <Text style={styles.sessionRevokeText}>Sign out</Text>
+                </Pressable>
+              )}
+            </View>
+          ))}
+          {sessions.length === 0 && <Text style={styles.sessionEmpty}>{sessionsError ?? 'No account sessions found.'}</Text>}
+          {sessionsError && sessions.length > 0 && <Text style={styles.sessionEmpty}>{sessionsError}</Text>}
+        </View>
+
         <Text style={styles.sectionLabel}>Advanced</Text>
         <View style={styles.section}>
           <Pressable
@@ -602,6 +648,11 @@ const styles = StyleSheet.create({
   aboutRow: { flexDirection: 'row', justifyContent: 'space-between', padding: spacing.md },
   aboutLabel: { ...type.body, color: colors.textPrimary },
   aboutValue: { ...type.caption },
+  sessionRow: { minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border },
+  sessionInfo: { flex: 1, gap: spacing.xs },
+  sessionRevoke: { minHeight: MIN_TOUCH_TARGET, justifyContent: 'center', paddingHorizontal: spacing.sm },
+  sessionRevokeText: { ...type.button, color: colors.danger },
+  sessionEmpty: { ...type.caption, padding: spacing.md },
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
   modalSheet: {
     backgroundColor: colors.surface,
