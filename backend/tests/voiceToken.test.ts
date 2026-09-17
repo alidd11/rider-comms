@@ -43,17 +43,10 @@ describe('POST /voice/token', () => {
       assert.equal(missingRes.status, 404);
     });
 
-    it("mints a channel token from the rider's own presence, and refuses without one", needsDb, async () => {
-      const noPresenceRes = await postJson(ctx, 'alice', '/voice/token', { target: 'channel' });
-      assert.equal(noPresenceRes.status, 403);
-      assert.deepEqual(await noPresenceRes.json(), { error: 'location_sharing_disabled' });
-
-      await ctx.profileStore.update('alice', { shareLocation: true });
-      await postJson(ctx, 'alice', '/presence', { lat: 51.5, lon: -0.1 });
+    it('fails closed for public voice until subscriptions are authorised server-side', async () => {
       const res = await postJson(ctx, 'alice', '/voice/token', { target: 'channel' });
-      assert.equal(res.status, 200);
-      const body = await res.json() as { token: string };
-      assert.equal(body.token.split('.').length, 3);
+      assert.equal(res.status, 503);
+      assert.deepEqual(await res.json(), { error: 'public_voice_unavailable' });
     });
 
     it('rejects an unknown target', async () => {
