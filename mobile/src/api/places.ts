@@ -1,8 +1,6 @@
-// TODO(native): full POI search on the map needs the native map SDK work
-// tracked separately (react-native-maps is not installed — see MapScreen.tsx's
-// header note on the illustrative SVG map) before a selected result can be
-// panned to on a real map. This module is the search half only: it queries
-// Google's Places API (Text Search, New) directly, the same way the PWA
+// Native results are rendered list-first, then the selected place is focused
+// on the react-native-maps surface. This module queries Google's Places API
+// (Text Search, New) directly, the same way the PWA
 // loads the Maps JavaScript API directly client-side with a deployment-
 // injected browser key (see docs/app.js's loadGoogleMaps()) — no backend
 // proxy is needed for this, Places keys are restricted by app
