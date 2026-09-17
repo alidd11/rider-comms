@@ -83,6 +83,22 @@ describe('RiderCommsClient authentication', () => {
     );
     await client.logOut();
   });
+
+  it('requests and confirms password recovery without authentication', async () => {
+    const requests: Array<{ url: string; body: unknown }> = [];
+    const client = new RiderCommsClient('http://example.test', fakeFetch((url, init) => {
+      requests.push({ url, body: JSON.parse(init.body as string) });
+      return url.endsWith('/request')
+        ? { status: 202, body: { accepted: true } }
+        : { status: 200, body: { reset: true } };
+    }));
+    assert.deepEqual(await client.requestPasswordReset('rider@example.com'), { accepted: true });
+    assert.deepEqual(await client.resetPassword('reset-token', 'new-password'), { reset: true });
+    assert.deepEqual(requests, [
+      { url: 'http://example.test/auth/password-reset/request', body: { email: 'rider@example.com' } },
+      { url: 'http://example.test/auth/password-reset/confirm', body: { token: 'reset-token', password: 'new-password' } },
+    ]);
+  });
 });
 
 describe('RiderCommsClient.joinRide', () => {

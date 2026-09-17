@@ -61,6 +61,8 @@ export class RiderCommsClient {
   registerGuest(): Promise<GuestSession> { return this.request('POST', '/auth/guest', {}); }
   signUp(username: string, email: string, password: string, deviceName = 'Rider Comms mobile'): Promise<SignUpSession> { return this.request('POST', '/auth/signup', { username, email, password, deviceName }); }
   logIn(username: string, password: string, deviceName = 'Rider Comms mobile'): Promise<LoginSession> { return this.request('POST', '/auth/login', { username, password, deviceName }); }
+  requestPasswordReset(email: string): Promise<{ accepted: true }> { return this.request('POST', '/auth/password-reset/request', { email }); }
+  resetPassword(token: string, password: string): Promise<{ reset: true }> { return this.request('POST', '/auth/password-reset/confirm', { token, password }); }
   logOut(): Promise<void> { return this.request('POST', '/auth/logout', {}); }
   getMe(): Promise<{ riderId: string; username: string | null; emailVerified: boolean }> { return this.request('GET', '/auth/me'); }
   getSessions(): Promise<{ sessions: AccountSessionSummary[] }> { return this.request('GET', '/auth/sessions'); }

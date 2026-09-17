@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { AuthStore } from '../src/authStore.ts';
 import { AccountDeletionStore } from '../src/accountDeletionStore.ts';
-import type { sendVerificationEmail } from '../src/email.ts';
+import type { sendPasswordResetEmail, sendVerificationEmail } from '../src/email.ts';
 import { getPool, resetDbForTests } from '../src/db.ts';
 
 describe('AuthStore', () => { it('issues unique readable IDs and authenticates the matching token', async () => { const store = new AuthStore(); const a = store.createGuest(); const b = store.createGuest(); assert.match(a.riderId, /^rider_[a-z2-9]{8}$/); assert.notEqual(a.riderId, b.riderId); assert.equal(await store.riderForToken(a.token), a.riderId); assert.equal(await store.riderForToken(`${a.token}x`), undefined); }); });
@@ -52,6 +52,15 @@ describe('AuthStore account signup/login (Postgres-backed)', { skip: !hasDatabas
   function fakeSender(): { fn: typeof sendVerificationEmail; calls: { email: string; token: string }[] } {
     const calls: { email: string; token: string }[] = [];
     const fn: typeof sendVerificationEmail = async (email, token) => {
+      calls.push({ email, token });
+      return true;
+    };
+    return { fn, calls };
+  }
+
+  function fakeResetSender(): { fn: typeof sendPasswordResetEmail; calls: { email: string; token: string }[] } {
+    const calls: { email: string; token: string }[] = [];
+    const fn: typeof sendPasswordResetEmail = async (email, token) => {
       calls.push({ email, token });
       return true;
     };
@@ -283,6 +292,49 @@ describe('AuthStore account signup/login (Postgres-backed)', { skip: !hasDatabas
     const store = new AuthStore();
     const result = await store.resendVerification('rider_doesnotexist');
     assert.deepEqual(result, { error: 'not_found' });
+  });
+
+  it('resets a password with a single-use token and revokes every existing session', async () => {
+    const verification = fakeSender();
+    const reset = fakeResetSender();
+    const store = new AuthStore(verification.fn, reset.fn);
+    const username = uniqueUsername();
+    const email = uniqueEmail();
+    const signedUp = await store.signUp(username, email, 'old-password-value');
+    assert.ok(!('error' in signedUp));
+    if ('error' in signedUp) return;
+    const secondSession = await store.logIn(username, 'old-password-value');
+    assert.ok(!('error' in secondSession));
+    if ('error' in secondSession) return;
+
+    assert.deepEqual(await store.requestPasswordReset(email.toUpperCase()), { accepted: true });
+    assert.equal(reset.calls.length, 1);
+    assert.equal(reset.calls[0].email, email);
+    const token = reset.calls[0].token;
+    assert.deepEqual(await store.resetPassword(token, 'new-password-value'), { reset: true });
+    assert.equal(await store.riderForToken(signedUp.token), undefined);
+    assert.equal(await store.riderForToken(secondSession.token), undefined);
+    assert.deepEqual(await store.logIn(username, 'old-password-value'), { error: 'invalid_credentials' });
+    assert.ok(!('error' in await store.logIn(username, 'new-password-value')));
+    assert.deepEqual(await store.resetPassword(token, 'another-password'), { error: 'invalid_token' });
+  });
+
+  it('does not reveal unknown reset emails and rejects weak or expired resets', async () => {
+    const verification = fakeSender();
+    const reset = fakeResetSender();
+    const store = new AuthStore(verification.fn, reset.fn);
+    const email = uniqueEmail();
+    const signedUp = await store.signUp(uniqueUsername(), email, 'old-password-value');
+    assert.ok(!('error' in signedUp));
+    assert.deepEqual(await store.requestPasswordReset('missing@example.com'), { accepted: true });
+    assert.equal(reset.calls.length, 0);
+    assert.deepEqual(await store.requestPasswordReset(email), { accepted: true });
+    const token = reset.calls[0].token;
+    assert.deepEqual(await store.resetPassword(token, 'short'), { error: 'weak_password' });
+    const tokenHash = createHash('sha256').update(token).digest('hex');
+    await getPool().query("UPDATE password_resets SET expires_at = now() - interval '1 hour' WHERE token_hash = $1", [tokenHash]);
+    assert.deepEqual(await store.resetPassword(token, 'valid-new-password'), { error: 'expired_token' });
+    assert.deepEqual(await store.resetPassword(token, 'valid-new-password'), { error: 'invalid_token' });
   });
 
   it('deletes the persistent account and all of its sessions', async () => {

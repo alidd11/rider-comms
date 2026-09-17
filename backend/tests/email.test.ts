@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { sendVerificationEmail } from '../src/email.ts';
+import { sendPasswordResetEmail, sendVerificationEmail } from '../src/email.ts';
 
 // Same fake-fetch shape as mobile/tests/places.test.ts's fakeFetch: never
 // touches the network, and hands the handler the URL + init so it can
@@ -90,5 +90,34 @@ describe('sendVerificationEmail', () => {
 
     const sent = await sendVerificationEmail('rider@example.com', 'sometoken', { fetchImpl: throwingFetch });
     assert.equal(sent, false);
+  });
+
+  it('builds a one-hour password reset link and code', async () => {
+    process.env.RESEND_API_KEY = 'test-key';
+    process.env.RESEND_FROM_EMAIL = 'noreply@example.com';
+    const sent = await sendPasswordResetEmail('rider@example.com', 'reset-token-123', {
+      fetchImpl: fakeFetch((_url, init) => {
+        const body = JSON.parse(init.body as string);
+        assert.equal(body.subject, 'Reset your Rider Comms password');
+        assert.match(body.text, /reset-token-123/);
+        assert.match(body.text, /resetToken=reset-token-123/);
+        assert.match(body.text, /one hour/);
+        return { status: 200 };
+      }),
+    });
+    assert.equal(sent, true);
+  });
+
+  it('never includes the full recipient email in delivery diagnostics', async () => {
+    const messages: string[] = [];
+    const originalWarn = console.warn;
+    console.warn = (...values: unknown[]) => { messages.push(values.join(' ')); };
+    try {
+      await sendPasswordResetEmail('private.rider@example.com', 'token');
+    } finally {
+      console.warn = originalWarn;
+    }
+    assert.equal(messages.some((message) => message.includes('private.rider@example.com')), false);
+    assert.equal(messages.length, 1);
   });
 });

@@ -2,7 +2,7 @@ import { createHash, randomBytes, randomUUID, scrypt, timingSafeEqual } from 'no
 import { promisify } from 'node:util';
 import { generateRideCode } from '@rider-comms/shared';
 import { getPool, ensureMigrated } from './db.ts';
-import { sendVerificationEmail } from './email.ts';
+import { sendPasswordResetEmail, sendVerificationEmail } from './email.ts';
 
 const scryptAsync = promisify(scrypt);
 
@@ -19,6 +19,7 @@ const USERNAME_PATTERN = /^[A-Za-z0-9_]{3,20}$/;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const SCRYPT_KEYLEN = 64;
 const VERIFICATION_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
+const PASSWORD_RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
 const ACCOUNT_SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const MAX_PASSWORD_LENGTH = 128;
 // A valid, fixed scrypt record used only to equalise the cost of an unknown
@@ -31,6 +32,7 @@ export type SignUpResult = SignUpSession | { error: 'username_taken' | 'email_ta
 export type LogInResult = LoginSession | { error: 'invalid_credentials' };
 export type VerifyEmailResult = { riderId: string; verified: true } | { error: 'invalid_token' | 'expired_token' };
 export type ResendVerificationResult = { sent: boolean } | { error: 'not_found' | 'already_verified' };
+export type ResetPasswordResult = { reset: true } | { error: 'invalid_token' | 'expired_token' | 'weak_password' };
 
 function isValidUsername(username: unknown): username is string {
   return typeof username === 'string' && USERNAME_PATTERN.test(username);
@@ -74,8 +76,13 @@ export class AuthStore {
    * RESEND_API_KEY isn't configured.
    */
   private readonly sendVerificationEmailFn: typeof sendVerificationEmail;
-  constructor(sendVerificationEmailFn: typeof sendVerificationEmail = sendVerificationEmail) {
+  private readonly sendPasswordResetEmailFn: typeof sendPasswordResetEmail;
+  constructor(
+    sendVerificationEmailFn: typeof sendVerificationEmail = sendVerificationEmail,
+    sendPasswordResetEmailFn: typeof sendPasswordResetEmail = sendPasswordResetEmail
+  ) {
     this.sendVerificationEmailFn = sendVerificationEmailFn;
+    this.sendPasswordResetEmailFn = sendPasswordResetEmailFn;
   }
 
   private digest(token: string): string { return createHash('sha256').update(token).digest('hex'); }
@@ -271,6 +278,75 @@ export class AuthStore {
     if (!row || !row.email) return { error: 'not_found' };
     if (row.email_verified_at) return { error: 'already_verified' };
     return { sent: await this.issueVerification(riderId, row.email) };
+  }
+
+  async requestPasswordReset(email: unknown): Promise<{ accepted: true }> {
+    await ensureMigrated();
+    const pool = getPool();
+    await pool.query('DELETE FROM password_resets WHERE expires_at <= now()');
+    if (!isValidEmail(email)) return { accepted: true };
+    const { rows } = await pool.query<{ id: string; email: string }>(
+      'SELECT id, email FROM users WHERE lower(email) = lower($1)',
+      [email]
+    );
+    const user = rows[0];
+    if (!user) return { accepted: true };
+    const token = randomBytes(32).toString('base64url');
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('DELETE FROM password_resets WHERE user_id = $1', [user.id]);
+      await client.query(
+        'INSERT INTO password_resets (token_hash, user_id, expires_at) VALUES ($1, $2, $3)',
+        [this.digest(token), user.id, new Date(Date.now() + PASSWORD_RESET_TOKEN_TTL_MS)]
+      );
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+    await this.sendPasswordResetEmailFn(user.email, token);
+    return { accepted: true };
+  }
+
+  async resetPassword(token: unknown, password: unknown): Promise<ResetPasswordResult> {
+    if (!isStrongEnoughPassword(password)) return { error: 'weak_password' };
+    if (typeof token !== 'string' || !token) return { error: 'invalid_token' };
+    await ensureMigrated();
+    const passwordHash = await hashPassword(password);
+    const pool = getPool();
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const { rows } = await client.query<{ user_id: string; expires_at: Date }>(
+        'SELECT user_id, expires_at FROM password_resets WHERE token_hash = $1 FOR UPDATE',
+        [this.digest(token)]
+      );
+      const row = rows[0];
+      if (!row) {
+        await client.query('ROLLBACK');
+        return { error: 'invalid_token' };
+      }
+      await client.query('DELETE FROM password_resets WHERE user_id = $1', [row.user_id]);
+      if (new Date(row.expires_at).getTime() < Date.now()) {
+        await client.query('COMMIT');
+        return { error: 'expired_token' };
+      }
+      await client.query(
+        'UPDATE users SET password_hash = $1, password_algorithm = $2 WHERE id = $3',
+        [passwordHash, PASSWORD_ALGORITHM, row.user_id]
+      );
+      await client.query('DELETE FROM account_sessions WHERE user_id = $1', [row.user_id]);
+      await client.query('COMMIT');
+      return { reset: true };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async getIdentity(riderId: string): Promise<AccountIdentity | undefined> {
