@@ -14,6 +14,7 @@ Working and verified in this repository:
 - In-app plan preview, privacy/safety information, and direct-message block/report controls.
 - Shared geo, ride-code, rate-limit, zone-transition, and audio-priority algorithms.
 - Fail-locked movement safety in native and PWA: social, setup, billing, messaging, settings and route-discovery controls stay unavailable until sustained stationary GPS evidence exists; map/navigation and active-ride exit controls remain accessible.
+- Active-ride voice surfaces report token, LiveKit and native audio-routing failures explicitly. While movement-locked, voice remains hands-free and the ride bar exposes only the essential leave action. Unsupported media-session controls are feature-detected and disabled instead of throwing.
 - Android and iOS Metro exports plus an EAS internal Android APK profile.
 
 Still prototype-only:

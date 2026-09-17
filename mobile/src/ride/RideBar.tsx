@@ -20,6 +20,7 @@ import { useVoiceActivity } from '../audio/useVoiceActivity';
 import { useAuth } from '../auth/AuthContext';
 import { colors, spacing, radii, type, elevation, MIN_TOUCH_TARGET } from '../theme';
 import { useRide } from './RideContext';
+import { useMovementSafety } from '../safety/MovementSafetyContext';
 
 /**
  * Configures + starts the native audio session (device routing — see
@@ -29,17 +30,22 @@ import { useRide } from './RideContext';
  * token to resolve — the token fetch and the audio session setup happen
  * in parallel, not one after the other.
  */
-function useVoiceAudioSession(active: boolean): void {
+function useVoiceAudioSession(active: boolean): string | null {
+  const [error, setError] = React.useState<string | null>(null);
   React.useEffect(() => {
-    if (!active) return;
+    if (!active) { setError(null); return; }
     let stopped = false;
-    void startVoiceAudioSession().catch(() => {}); // best-effort: a session-config failure shouldn't block the rest of the ride UI
+    setError(null);
+    void startVoiceAudioSession().catch(() => {
+      if (!stopped) setError('Audio routing is unavailable. Check microphone permission and your Bluetooth connection.');
+    });
     return () => {
       if (stopped) return;
       stopped = true;
       void stopVoiceAudioSession().catch(() => {});
     };
   }, [active]);
+  return error;
 }
 
 function useRideVoiceToken(rideId: string | undefined): { token?: string; url?: string; error?: string } {
@@ -99,6 +105,7 @@ function VoiceActivityBridge({
  */
 export function RideBar(): React.JSX.Element | null {
   const { activeRide, leaveRide } = useRide();
+  const { lockedForSafety } = useMovementSafety();
   const [expanded, setExpanded] = React.useState(false);
   const audioEngineRef = React.useRef(new AudioEngine());
   const [gains, setGains] = React.useState(audioEngineRef.current.getGains());
@@ -107,7 +114,9 @@ export function RideBar(): React.JSX.Element | null {
   // Hooks run unconditionally, before the `!activeRide` early return below —
   // the hook itself is a no-op (empty state) while there's no active ride.
   const voice = useRideVoiceToken(activeRide?.rideId);
-  useVoiceAudioSession(Boolean(activeRide));
+  const audioSessionError = useVoiceAudioSession(Boolean(activeRide));
+  const [roomStatus, setRoomStatus] = React.useState<'connecting' | 'connected' | 'disconnected' | 'error'>('connecting');
+  const [roomError, setRoomError] = React.useState<string | null>(null);
   const voiceConnected = Boolean(voice.token && voice.url);
   const handleSpeakingChange = React.useCallback((speaking: boolean) => {
     setTalking(speaking);
@@ -117,6 +126,11 @@ export function RideBar(): React.JSX.Element | null {
   React.useEffect(() => {
     return audioEngineRef.current.onGainsChanged(setGains);
   }, []);
+
+  React.useEffect(() => {
+    setRoomStatus('connecting');
+    setRoomError(null);
+  }, [activeRide?.rideId]);
 
   if (!activeRide) return null;
 
@@ -138,6 +152,50 @@ export function RideBar(): React.JSX.Element | null {
     );
   };
 
+  const voiceFailure = audioSessionError ?? voice.error ?? roomError;
+  const voiceLabel = voiceFailure
+    ? 'Voice unavailable'
+    : roomStatus === 'connected'
+      ? 'Voice connected'
+      : roomStatus === 'disconnected'
+        ? 'Voice disconnected'
+        : 'Connecting voice';
+
+  if (lockedForSafety) {
+    return (
+      <View style={styles.lockedBar} accessibilityLiveRegion="polite">
+        <View style={[styles.liveDot, voiceFailure && styles.errorDot]} />
+        <MaterialCommunityIcons name="motorbike" size={18} color={colors.accent} />
+        <View style={styles.lockedBarCopy}>
+          <Text style={styles.barText}>In ride{activeRide.code ? ` · ${activeRide.code}` : ''}</Text>
+          <Text style={[styles.voiceStatusText, voiceFailure && styles.voiceError]}>{voiceLabel}</Text>
+        </View>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Leave active ride"
+          style={styles.compactLeaveButton}
+          onPress={handleLeave}
+        >
+          <Ionicons name="exit-outline" size={20} color={colors.danger} />
+          <Text style={styles.compactLeaveText}>Leave</Text>
+        </Pressable>
+        {voiceConnected && (
+          <LiveKitRoom
+            serverUrl={voice.url}
+            token={voice.token}
+            audio
+            connect
+            onConnected={() => setRoomStatus('connected')}
+            onDisconnected={() => setRoomStatus('disconnected')}
+            onError={(error) => { setRoomStatus('error'); setRoomError(error.message || 'Could not connect to voice.'); }}
+          >
+            <VoiceActivityBridge enabled={!manuallyMuted} onSpeakingChange={handleSpeakingChange} />
+          </LiveKitRoom>
+        )}
+      </View>
+    );
+  }
+
   return (
     <>
       <Pressable style={({ pressed }) => [styles.bar, pressed && styles.barPressed]} onPress={() => setExpanded(true)}>
@@ -147,7 +205,15 @@ export function RideBar(): React.JSX.Element | null {
         <Ionicons name="chevron-up" size={18} color={colors.textSecondary} />
       </Pressable>
 
-      <LiveKitRoom serverUrl={voice.url} token={voice.token} audio connect={voiceConnected}>
+      <LiveKitRoom
+        serverUrl={voice.url}
+        token={voice.token}
+        audio
+        connect={voiceConnected}
+        onConnected={() => setRoomStatus('connected')}
+        onDisconnected={() => setRoomStatus('disconnected')}
+        onError={(error) => { setRoomStatus('error'); setRoomError(error.message || 'Could not connect to voice.'); }}
+      >
       <VoiceActivityBridge enabled={voiceConnected && !manuallyMuted} onSpeakingChange={handleSpeakingChange} />
       <Modal visible={expanded} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setExpanded(false)}>
         <View style={styles.sheet}>
@@ -168,7 +234,8 @@ export function RideBar(): React.JSX.Element | null {
             </View>
           )}
           <Text style={styles.rideId}>Ride ID: {activeRide.rideId}</Text>
-          {voice.error && <Text style={styles.voiceError}>Voice: {voice.error}</Text>}
+          <Text style={[styles.voiceStatusText, voiceFailure && styles.voiceError]}>{voiceLabel}</Text>
+          {voiceFailure && <Text style={styles.voiceError}>{voiceFailure}</Text>}
 
           <View style={styles.mixerCard}>
             <Text style={styles.mixerLabel}>Audio priority — nav overrides chat overrides music</Text>
@@ -228,6 +295,22 @@ const styles = StyleSheet.create({
   barPressed: { opacity: 0.85 },
   barText: { ...type.body, color: colors.textPrimary, flex: 1 },
   liveDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.success },
+  errorDot: { backgroundColor: colors.danger },
+  voiceStatusText: { ...type.caption, color: colors.textSecondary },
+  lockedBar: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+    minHeight: 58, backgroundColor: colors.surfaceRaised,
+    borderWidth: 1, borderColor: colors.border, borderRadius: radii.lg,
+    paddingHorizontal: spacing.md, marginHorizontal: spacing.lg, marginBottom: spacing.sm,
+    ...elevation.raised,
+  },
+  lockedBarCopy: { flex: 1, minWidth: 0 },
+  compactLeaveButton: {
+    minHeight: MIN_TOUCH_TARGET, flexDirection: 'row', alignItems: 'center', gap: spacing.xs,
+    paddingHorizontal: spacing.sm, borderRadius: radii.md,
+    borderWidth: 1, borderColor: colors.danger,
+  },
+  compactLeaveText: { ...type.caption, color: colors.danger, fontWeight: '800' },
   sheet: { flex: 1, backgroundColor: colors.background, padding: spacing.lg, gap: spacing.md },
   sheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   closeButton: { padding: spacing.xs },
