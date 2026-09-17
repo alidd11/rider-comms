@@ -9,6 +9,9 @@ export default defineConfig({
     colorScheme: 'light',
     screenshot: 'only-on-failure',
     trace: 'retain-on-failure',
+    // Keep UI tests deterministic: service-worker-originated cross-origin
+    // fetches bypass page.route in WebKit and would hit the real backend.
+    serviceWorkers: 'block',
   },
   webServer: {
     command: 'python3 -m http.server 4173 --bind 127.0.0.1 --directory dist/pwa',
