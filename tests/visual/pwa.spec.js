@@ -308,6 +308,8 @@ test('PWA utility viewport paints safe areas as one edge-to-edge canvas', async 
     return {
       screenBackground: screenStyle.backgroundImage,
       shieldBackground: shieldStyle.backgroundImage,
+      screenBackgroundColor: screenStyle.backgroundColor,
+      shieldBackgroundColor: shieldStyle.backgroundColor,
       shieldHeight: shieldStyle.height,
       paddingTop: screenStyle.paddingTop,
       paddingLeft: screenStyle.paddingLeft,
@@ -316,8 +318,9 @@ test('PWA utility viewport paints safe areas as one edge-to-edge canvas', async 
   });
 
   expect(viewport.shieldHeight).toBe('59px');
-  expect(viewport.shieldBackground).toBe(viewport.screenBackground);
-  expect(viewport.shieldBackground).toContain('repeating-linear-gradient');
+  expect(viewport.screenBackground).toBe('none');
+  expect(viewport.shieldBackground).toBe('none');
+  expect(viewport.shieldBackgroundColor).toBe(viewport.screenBackgroundColor);
   expect(parseFloat(viewport.paddingTop)).toBeGreaterThan(59);
   expect(parseFloat(viewport.paddingLeft)).toBeGreaterThanOrEqual(47);
   expect(parseFloat(viewport.navPaddingLeft)).toBeGreaterThanOrEqual(47);
