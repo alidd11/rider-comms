@@ -229,7 +229,7 @@ test('PWA exposes session management and account deletion', async ({ page }) => 
   let remoteRevoked = false;
   let accountDeleted = false;
 
-  await page.route('https://backend-production-7fa0.up.railway.app/auth/sessions**', async (route) => {
+  await page.route('**/auth/sessions**', async (route) => {
     const request = route.request();
     const pathname = new URL(request.url()).pathname;
     if (request.method() === 'DELETE' && pathname === '/auth/sessions/session-remote') {
@@ -253,7 +253,7 @@ test('PWA exposes session management and account deletion', async ({ page }) => 
     return route.fallback();
   });
 
-  await page.route('https://backend-production-7fa0.up.railway.app/auth/me', async (route) => {
+  await page.route('**/auth/me', async (route) => {
     if (route.request().method() === 'DELETE') {
       accountDeleted = true;
       return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
