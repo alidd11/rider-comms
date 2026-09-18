@@ -204,6 +204,9 @@ export class SocialEventStore {
     timer = setTimeout(onWake, boundedWaitMs);
     timer.unref();
     signal?.addEventListener('abort', onWake, { once: true });
+    // addEventListener does not replay an abort that happened just before the
+    // listener was attached, so close that disconnect race explicitly.
+    if (signal?.aborted) onWake();
 
     // Re-query after the waiter is registered. This closes the race between
     // the initial SELECT and LISTEN/waiter registration.
