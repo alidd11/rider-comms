@@ -377,8 +377,14 @@ export class FriendStore {
     try {
       await client.query('BEGIN');
       await this.lockPair(client, riderId, friendId);
-      await client.query('DELETE FROM friendships WHERE rider_id = $1 AND friend_id = $2', [riderId, friendId]);
-      await client.query('DELETE FROM friendships WHERE rider_id = $1 AND friend_id = $2', [friendId, riderId]);
+      const removedForward = await client.query(
+        'DELETE FROM friendships WHERE rider_id = $1 AND friend_id = $2',
+        [riderId, friendId],
+      );
+      const removedReverse = await client.query(
+        'DELETE FROM friendships WHERE rider_id = $1 AND friend_id = $2',
+        [friendId, riderId],
+      );
       await client.query(
         `DELETE FROM friend_requests
          WHERE status = 'pending'
@@ -386,7 +392,9 @@ export class FriendStore {
              OR (from_rider_id = $2 AND to_rider_id = $1))`,
         [riderId, friendId],
       );
-      await appendSocialEvent(client, friendId, 'friend_removed', riderId, riderId);
+      if ((removedForward.rowCount ?? 0) > 0 || (removedReverse.rowCount ?? 0) > 0) {
+        await appendSocialEvent(client, friendId, 'friend_removed', riderId, riderId);
+      }
       await client.query('COMMIT');
     } catch (error) {
       await client.query('ROLLBACK');
