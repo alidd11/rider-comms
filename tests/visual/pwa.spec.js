@@ -185,18 +185,34 @@ test('PWA host can remove another rider from a private ride', async ({ page }) =
     }));
   }, { riderId: RIDER_ID, profile: PROFILE });
 
-  await page.route('https://backend-production-7fa0.up.railway.app/rides/ride-visual-1/members/rider_guest01', async (route) => {
-    expect(route.request().method()).toBe('DELETE');
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        rideId: 'ride-visual-1',
-        createdBy: RIDER_ID,
-        createdAt: Date.now(),
-        memberIds: [RIDER_ID],
-      }),
-    });
+  await page.route('https://backend-production-7fa0.up.railway.app/rides/ride-visual-1**', async (route) => {
+    const request = route.request();
+    const pathname = new URL(request.url()).pathname;
+    if (request.method() === 'DELETE' && pathname.endsWith('/members/rider_guest01')) {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          rideId: 'ride-visual-1',
+          createdBy: RIDER_ID,
+          createdAt: Date.now(),
+          memberIds: [RIDER_ID],
+        }),
+      });
+    }
+    if (request.method() === 'GET' && pathname === '/rides/ride-visual-1') {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          rideId: 'ride-visual-1',
+          createdBy: RIDER_ID,
+          createdAt: Date.now(),
+          memberIds: [RIDER_ID, 'rider_guest01'],
+        }),
+      });
+    }
+    return route.fallback();
   });
 
   page.on('dialog', (dialog) => void dialog.accept());
