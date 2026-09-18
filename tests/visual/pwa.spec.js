@@ -15,7 +15,7 @@ const PROFILE = {
   tiktokVisibility: 'friends',
 };
 
-async function mockAuthenticatedApi(page, movement = 'stationary') {
+async function mockAuthenticatedApi(page, movement = 'stationary', backendOverride = null) {
   await page.addInitScript(({ riderId, movementState }) => {
     localStorage.setItem('rider-comms-session-v1', JSON.stringify({ riderId, token: 'visual-test-token' }));
     Object.defineProperty(navigator, 'permissions', { value: { query: async () => ({ state: movementState === 'stationary' ? 'granted' : 'denied', addEventListener() {} }) } });
@@ -42,7 +42,39 @@ async function mockAuthenticatedApi(page, movement = 'stationary') {
   }, { riderId: RIDER_ID, movementState: movement });
 
   await page.route('https://backend-production-7fa0.up.railway.app/**', async (route) => {
-    const url = new URL(route.request().url());
+    const request = route.request();
+    const url = new URL(request.url());
+    const corsHeaders = {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+      'Access-Control-Allow-Headers': 'Authorization,Content-Type',
+      'Access-Control-Max-Age': '600',
+    };
+
+    // The installed-PWA tests run from the local Playwright web server while
+    // the application is configured for the deployed API origin. Authenticated
+    // JSON requests therefore preflight in real browsers. Mock OPTIONS
+    // explicitly so Chromium and WebKit exercise the actual fetch path instead
+    // of failing before the endpoint-specific fixture is reached.
+    if (request.method() === 'OPTIONS') {
+      return route.fulfill({ status: 204, headers: corsHeaders, body: '' });
+    }
+
+    if (backendOverride) {
+      const override = await backendOverride({ request, url });
+      if (override) {
+        return route.fulfill({
+          status: override.status ?? 200,
+          contentType: override.contentType ?? 'application/json',
+          headers: { ...corsHeaders, ...(override.headers ?? {}) },
+          body: override.body === undefined
+            ? ''
+            : typeof override.body === 'string'
+              ? override.body
+              : JSON.stringify(override.body),
+        });
+      }
+    }
     let body = {};
     if (url.pathname === '/auth/me') body = { riderId: RIDER_ID };
     else if (url.pathname === `/riders/${RIDER_ID}/profile`) body = PROFILE;
@@ -55,7 +87,12 @@ async function mockAuthenticatedApi(page, movement = 'stationary') {
     else if (url.pathname === `/riders/${RIDER_ID}/friend-requests`) body = { incoming: [], outgoing: [] };
     else if (url.pathname === '/hazards/nearby') body = { hazards: [] };
     else if (url.pathname === '/config') body = { googleMapsApiKey: 'visual-test-key' };
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      headers: corsHeaders,
+      body: JSON.stringify(body),
+    });
   });
 
   await page.route('https://maps.googleapis.com/maps/api/js**', (route) => route.fulfill({
@@ -222,6 +259,51 @@ test('PWA host can remove another rider from a private ride', async ({ page }) =
   await expect(page.locator('[data-remove-ride-member="rider_guest01"]')).toHaveCount(0);
   await expect(page.locator('#rideRoster')).not.toContainText('Guest Rider');
   await expect(page.locator('#toast')).toContainText('removed from the ride');
+});
+
+test('PWA exposes session management and account deletion', async ({ page }) => {
+  let remoteRevoked = false;
+  let accountDeleted = false;
+
+  await mockAuthenticatedApi(page, 'stationary', async ({ request, url }) => {
+    const pathname = url.pathname;
+    if (request.method() === 'DELETE' && pathname === '/auth/sessions/session-remote') {
+      remoteRevoked = true;
+      return { status: 204 };
+    }
+    if (request.method() === 'GET' && pathname === '/auth/sessions') {
+      return {
+        body: {
+          sessions: remoteRevoked
+            ? [{ id: 'session-current', deviceName: 'This iPhone', lastSeenAt: new Date().toISOString(), current: true }]
+            : [
+                { id: 'session-current', deviceName: 'This iPhone', lastSeenAt: new Date().toISOString(), current: true },
+                { id: 'session-remote', deviceName: 'Other phone', lastSeenAt: new Date().toISOString(), current: false },
+              ],
+        },
+      };
+    }
+    if (request.method() === 'DELETE' && pathname === '/auth/me') {
+      accountDeleted = true;
+      return { body: {} };
+    }
+    return null;
+  });
+
+  await page.goto('/#settings');
+  await page.locator('[data-sheet="sessions"]').click();
+  await expect(page.locator('#sessionList')).toContainText('Other phone');
+  await page.locator('[data-revoke-session="session-remote"]').click();
+  await expect(page.locator('#sessionList')).not.toContainText('Other phone');
+  expect(remoteRevoked).toBe(true);
+
+  await page.locator('#closeSheet').click();
+  await page.locator('[data-sheet="account"]').click();
+  page.on('dialog', (dialog) => void dialog.accept());
+  await page.evaluate(() => {
+    document.querySelector('#deleteAccountBtn')?.click();
+  });
+  await expect.poll(() => accountDeleted).toBe(true);
 });
 
 test('PWA password recovery is discoverable and enumeration-safe', async ({ page }) => {

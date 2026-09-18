@@ -871,6 +871,21 @@
           $('#saveProfile').addEventListener('click', saveProfile);
         },
       }),
+      sessions: () => ({
+        title: 'Signed-in devices',
+        body: '<div id="sessionList" class="session-list"><p class="caption">Loading signed-in devices…</p></div><button class="button secondary wide" id="refreshSessions">Refresh devices</button>',
+        ready: () => {
+          $('#refreshSessions').addEventListener('click', () => void loadAccountSessions());
+          void loadAccountSessions();
+        },
+      }),
+      account: () => ({
+        title: 'Account and data',
+        body: `<div class="settings-note"><strong>Delete Rider Comms account</strong><p>This permanently removes your account and associated test data. This cannot be undone.</p></div><button class="button danger wide" id="deleteAccountBtn">Delete account</button><p id="deleteAccountError" class="inline-error" hidden></p>`,
+        ready: () => {
+          $('#deleteAccountBtn').addEventListener('click', () => void deleteCurrentAccount());
+        },
+      }),
       plans: () => ({
         title: 'Plan and billing',
         body: `<div class="plan-card current"><div class="plan-top"><strong>Free</strong><span class="plan-pill">Current</span></div><p>1-mile mutual rider radius and private Group Rides.</p></div><div class="plan-card"><div class="plan-top"><strong>Premium</strong><span>6 mi</span></div><p>A wider radius for groups that spread out across city routes.</p><span class="caption">Not available yet</span></div><div class="plan-card"><div class="plan-top"><strong>Premium+</strong><span>20 mi</span></div><p>Maximum discovery range for touring and rural rides.</p><span class="caption">Not available yet</span></div><p class="caption">No payment details are requested until verified store billing is available.</p>`,
@@ -906,6 +921,65 @@
 
   function toggleMarkup(key, title, description, active) {
     return `<div class="toggle-row"><span><strong>${escapeHtml(title)}</strong><span class="caption">${escapeHtml(description)}</span></span><button class="toggle" data-toggle="${escapeHtml(key)}" aria-label="${escapeHtml(title)}" aria-pressed="${active}"></button></div>`;
+  }
+
+  function sessionDateLabel(value) {
+    const date = new Date(value);
+    return Number.isFinite(date.getTime()) ? date.toLocaleDateString() : 'Recently active';
+  }
+
+  async function loadAccountSessions() {
+    const list = $('#sessionList');
+    const refresh = $('#refreshSessions');
+    if (!list) return;
+    if (refresh) refresh.disabled = true;
+    list.innerHTML = '<p class="caption">Loading signed-in devices…</p>';
+    try {
+      const { sessions } = await apiFetch('GET', '/auth/sessions');
+      if (!Array.isArray(sessions) || sessions.length === 0) {
+        list.innerHTML = '<p class="caption">No account sessions found.</p>';
+        return;
+      }
+      list.innerHTML = sessions.map((accountSession) => {
+        const current = accountSession.current === true;
+        return `<article class="session-row"><span class="setting-icon">${icon('settings')}</span><span class="session-copy"><strong>${escapeHtml(accountSession.deviceName || 'Rider Comms device')}</strong><small>${current ? 'This device' : `Active ${escapeHtml(sessionDateLabel(accountSession.lastSeenAt))}`}</small></span>${current ? '<span class="plan-pill">Current</span>' : `<button class="button tertiary session-revoke" data-revoke-session="${escapeHtml(accountSession.id)}">Sign out</button>`}</article>`;
+      }).join('');
+      $$('[data-revoke-session]', list).forEach((button) => button.addEventListener('click', async () => {
+        button.disabled = true;
+        try {
+          await apiFetch('DELETE', `/auth/sessions/${encodeURIComponent(button.dataset.revokeSession)}`);
+          await loadAccountSessions();
+          showToast('That device was signed out.');
+        } catch {
+          button.disabled = false;
+          showToast('Could not sign out that device. Try again.');
+        }
+      }));
+    } catch {
+      list.innerHTML = '<p class="inline-error">Could not load signed-in devices. Check your connection and try again.</p>';
+    } finally {
+      if (refresh) refresh.disabled = false;
+    }
+  }
+
+  async function deleteCurrentAccount() {
+    if (!window.confirm('Permanently delete your Rider Comms account and associated data?')) return;
+    if (!window.confirm('This cannot be undone. Delete the account?')) return;
+    const button = $('#deleteAccountBtn');
+    const errorEl = $('#deleteAccountError');
+    button.disabled = true;
+    errorEl.hidden = true;
+    try {
+      const localStateKey = stateStorageKey();
+      await apiFetch('DELETE', '/auth/me');
+      localStorage.removeItem(localStateKey);
+      clearSession();
+      location.reload();
+    } catch {
+      errorEl.textContent = 'Could not delete your account. Check your connection and try again.';
+      errorEl.hidden = false;
+      button.disabled = false;
+    }
   }
 
   /** Persists one profile field via PUT /riders/:id/profile immediately —
