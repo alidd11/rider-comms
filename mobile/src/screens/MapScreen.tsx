@@ -20,7 +20,7 @@ import type { RouteProp } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
-import MapView, { Marker } from 'react-native-maps';
+import MapView, { Marker, Polyline } from 'react-native-maps';
 import { haversineMiles } from '@rider-comms/shared';
 import type { HazardReport, HazardType } from '@rider-comms/shared';
 import type { TabParamList } from '../navigation';
@@ -34,9 +34,17 @@ import { useSettings } from '../settings/SettingsContext';
 import { PlaceSearchBar } from './PlaceSearchBar';
 import type { PlaceResult } from '../api/places';
 import { HazardReportSheet, HAZARD_TYPE_META } from './HazardReportSheet';
-import { buildExternalNavigationUrl, navigationTargetFromValues } from '../navigationLinks';
+import { buildNavigationProviderUrl, navigationTargetFromValues } from '../navigationLinks';
 import type { NavigationTarget } from '../navigationLinks';
 import { useMovementSafety } from '../safety/MovementSafetyContext';
+import { GOOGLE_DIRECTIONS_API_KEY } from '../config';
+import {
+  distanceToSegmentMeters,
+  fetchDrivingRoute,
+  metersBetween,
+  type InAppNavigationRoute,
+} from '../api/directions';
+import { navigationProviderLabel } from '../navigationPreference';
 
 const PRESENCE_UPDATE_INTERVAL_MS = 8000; // per spec Section 8: every 5-10s
 const DEFAULT_REGION = {
@@ -46,6 +54,27 @@ const DEFAULT_REGION = {
   longitudeDelta: 0.16,
 };
 const FOCUSED_REGION_DELTA = 0.025;
+const NAV_STEP_ARRIVAL_RADIUS_M = 30;
+const NAV_OFF_ROUTE_RADIUS_M = 60;
+const NAV_OFF_ROUTE_GRACE_MS = 10_000;
+
+function formatNavigationDistance(metres: number, unit: 'mi' | 'km'): string {
+  if (unit === 'km') {
+    if (metres < 1000) return `${Math.max(10, Math.round(metres / 10) * 10)} m`;
+    return `${(metres / 1000).toFixed(metres < 10_000 ? 1 : 0)} km`;
+  }
+  const miles = metres / 1609.344;
+  if (miles < 0.1) return `${Math.max(10, Math.round(metres / 10) * 10)} m`;
+  return `${miles.toFixed(miles < 10 ? 1 : 0)} mi`;
+}
+
+function formatNavigationDuration(seconds: number): string {
+  const minutes = Math.max(1, Math.round(seconds / 60));
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+  return remainder ? `${hours} hr ${remainder} min` : `${hours} hr`;
+}
 
 type Segment = 'public' | 'host';
 
@@ -120,7 +149,7 @@ function SegmentToggle({
 export function MapScreen(): React.JSX.Element {
   const { client, riderId } = useAuth();
   const { rideLocations } = useRide();
-  const { shareLocation } = useSettings();
+  const { shareLocation, unitSystem, navigationProvider } = useSettings();
   const { lockedForSafety, movementState, locationAccess, requestLocationAccess, openLocationSettings, refreshTracking } = useMovementSafety();
   const insets = useSafeAreaInsets();
   const route = useRoute<RouteProp<TabParamList, 'Map'>>();
@@ -139,6 +168,13 @@ export function MapScreen(): React.JSX.Element {
   const [selectedHazardId, setSelectedHazardId] = React.useState<string | null>(null);
   const [reportSheetOpen, setReportSheetOpen] = React.useState(false);
   const [navigationTarget, setNavigationTarget] = React.useState<NavigationTarget | null>(null);
+  const [activeRoute, setActiveRoute] = React.useState<InAppNavigationRoute | null>(null);
+  const [navigationDestination, setNavigationDestination] = React.useState<NavigationTarget | null>(null);
+  const [navigationStepIndex, setNavigationStepIndex] = React.useState(0);
+  const [navigationLoading, setNavigationLoading] = React.useState(false);
+  const [navigationNotice, setNavigationNotice] = React.useState<string | null>(null);
+  const navOffRouteSince = React.useRef<number | null>(null);
+  const navRerouting = React.useRef(false);
   const [mapReady, setMapReady] = React.useState(false);
   const mapRef = React.useRef<MapView | null>(null);
   const centredOnFirstFix = React.useRef(false);
@@ -320,6 +356,119 @@ export function MapScreen(): React.JSX.Element {
   }, [focusCoordinate, mapReady, navigationTarget, segment, selectedPlace]);
 
   const selectedHazard = hazards.find((h) => h.id === selectedHazardId) ?? null;
+  const currentNavigationStep = activeRoute?.steps[navigationStepIndex] ?? null;
+  const remainingNavigationMeters = activeRoute
+    ? activeRoute.steps.slice(navigationStepIndex).reduce((sum, step) => sum + step.distanceMeters, 0)
+    : 0;
+  const remainingNavigationSeconds = activeRoute
+    ? activeRoute.steps.slice(navigationStepIndex).reduce((sum, step) => sum + step.durationSeconds, 0)
+    : 0;
+
+  const fitRoute = React.useCallback((nextRoute: InAppNavigationRoute) => {
+    if (!mapReady || nextRoute.coordinates.length < 2) return;
+    mapRef.current?.fitToCoordinates(
+      nextRoute.coordinates.map((coordinate) => ({ latitude: coordinate.lat, longitude: coordinate.lon })),
+      { edgePadding: { top: 150, right: 56, bottom: 180, left: 56 }, animated: true }
+    );
+  }, [mapReady]);
+
+  const finishInAppNavigation = React.useCallback((arrived = false) => {
+    setActiveRoute(null);
+    setNavigationDestination(null);
+    setNavigationStepIndex(0);
+    navOffRouteSince.current = null;
+    navRerouting.current = false;
+    setNavigationNotice(arrived ? 'You have arrived.' : null);
+  }, []);
+
+  const requestInAppRoute = React.useCallback(async (origin: { lat: number; lon: number }, target: NavigationTarget, rerouting = false) => {
+    if (!GOOGLE_DIRECTIONS_API_KEY) throw new Error('directions_not_configured');
+    if (rerouting) navRerouting.current = true;
+    try {
+      const nextRoute = await fetchDrivingRoute(origin, target, GOOGLE_DIRECTIONS_API_KEY);
+      setActiveRoute(nextRoute);
+      setNavigationDestination(target);
+      setNavigationStepIndex(0);
+      setNavigationNotice(rerouting ? 'Route updated.' : null);
+      navOffRouteSince.current = null;
+      fitRoute(nextRoute);
+    } finally {
+      if (rerouting) navRerouting.current = false;
+    }
+  }, [fitRoute]);
+
+  async function startInAppNavigation(target: NavigationTarget): Promise<void> {
+    const origin = currentLocation ?? await requestCurrentLocation(true);
+    if (!origin) return;
+    setNavigationLoading(true);
+    setNavigationNotice(null);
+    try {
+      await requestInAppRoute({ lat: origin.lat, lon: origin.lon }, target);
+      setSelectedPlace(null);
+      setNavigationTarget(null);
+      setSelectedHazardId(null);
+    } catch (routeError) {
+      const message = routeError instanceof Error && routeError.message === 'directions_not_configured'
+        ? 'In-app navigation is not configured for this build yet. Choose Google Maps, Waze or Apple Maps in Settings.'
+        : routeError instanceof Error && routeError.message === 'directions_no_route'
+          ? 'No driving route was found for that destination.'
+          : 'Rider Comms could not calculate that route. Try again or choose another navigation app.';
+      Alert.alert('Couldn’t start navigation', message);
+    } finally {
+      setNavigationLoading(false);
+    }
+  }
+
+  React.useEffect(() => {
+    if (!activeRoute || !navigationDestination || !currentNavigationStep) return;
+    let cancelled = false;
+    let subscription: Location.LocationSubscription | null = null;
+
+    void Location.watchPositionAsync(
+      { accuracy: Location.Accuracy.High, timeInterval: 2000, distanceInterval: 5 },
+      (position) => {
+        if (cancelled) return;
+        const here = { lat: position.coords.latitude, lon: position.coords.longitude };
+        setCurrentLocation(here);
+        focusCoordinate(here, 0.012);
+
+        if (metersBetween(here, currentNavigationStep.end) <= NAV_STEP_ARRIVAL_RADIUS_M) {
+          if (navigationStepIndex < activeRoute.steps.length - 1) {
+            setNavigationStepIndex((current) => Math.min(current + 1, activeRoute.steps.length - 1));
+          } else {
+            finishInAppNavigation(true);
+            return;
+          }
+        }
+
+        const distanceOffRoute = distanceToSegmentMeters(here, currentNavigationStep.start, currentNavigationStep.end);
+        if (distanceOffRoute <= NAV_OFF_ROUTE_RADIUS_M) {
+          navOffRouteSince.current = null;
+          return;
+        }
+
+        if (!navOffRouteSince.current) {
+          navOffRouteSince.current = Date.now();
+          return;
+        }
+        if (Date.now() - navOffRouteSince.current < NAV_OFF_ROUTE_GRACE_MS || navRerouting.current) return;
+
+        navOffRouteSince.current = null;
+        setNavigationNotice('Rerouting…');
+        void requestInAppRoute(here, navigationDestination, true).catch(() => {
+          setNavigationNotice('Could not reroute. Continue with caution.');
+        });
+      }
+    ).then((value) => {
+      if (cancelled) value.remove();
+      else subscription = value;
+    }).catch(() => setNavigationNotice('Live GPS tracking is unavailable.'));
+
+    return () => {
+      cancelled = true;
+      subscription?.remove();
+    };
+  }, [activeRoute, currentNavigationStep, finishInAppNavigation, focusCoordinate, navigationDestination, navigationStepIndex, requestInAppRoute]);
 
   async function centreOnCurrentLocation(): Promise<void> {
     const location = currentLocation ?? await requestCurrentLocation(true);
@@ -343,7 +492,11 @@ export function MapScreen(): React.JSX.Element {
   }
 
   async function openDirections(target: NavigationTarget): Promise<void> {
-    const url = buildExternalNavigationUrl(target, Platform.OS === 'ios' ? 'ios' : 'android');
+    if (navigationProvider === 'in_app') {
+      await startInAppNavigation(target);
+      return;
+    }
+    const url = buildNavigationProviderUrl(target, navigationProvider);
     if (!url) {
       Alert.alert('Location unavailable', 'This destination has invalid coordinates.');
       return;
@@ -351,7 +504,7 @@ export function MapScreen(): React.JSX.Element {
     try {
       await Linking.openURL(url);
     } catch {
-      Alert.alert('Couldn’t open directions', 'No compatible maps or navigation app could open this destination.');
+      Alert.alert('Couldn’t open directions', `Rider Comms could not open ${navigationProviderLabel(navigationProvider)} on this device.`);
     }
   }
 
@@ -406,6 +559,13 @@ export function MapScreen(): React.JSX.Element {
                 pinColor={colors.accent}
               />
             )}
+            {activeRoute && (
+              <Polyline
+                coordinates={activeRoute.coordinates.map((coordinate) => ({ latitude: coordinate.lat, longitude: coordinate.lon }))}
+                strokeColor={colors.accent}
+                strokeWidth={6}
+              />
+            )}
             {hazards.map((hazard) => (
               <HazardMarker
                 key={hazard.id}
@@ -422,7 +582,7 @@ export function MapScreen(): React.JSX.Element {
         </View>
       )}
 
-      {segment === 'public' && !lockedForSafety && (
+      {segment === 'public' && !lockedForSafety && !activeRoute && (
         <View style={[styles.searchSlot, { top: insets.top + spacing.sm }]}>
           <PlaceSearchBar
             near={currentLocation}
@@ -432,7 +592,7 @@ export function MapScreen(): React.JSX.Element {
         </View>
       )}
 
-      {segment === 'public' && ridersInZone.length > 0 && !selectedPlace && !selectedHazard && !locationUnavailable && !error && (
+      {segment === 'public' && !activeRoute && ridersInZone.length > 0 && !selectedPlace && !selectedHazard && !locationUnavailable && !error && (
         <View style={[styles.nearbyCount, { top: insets.top + spacing.sm + MIN_TOUCH_TARGET + spacing.sm }]}>
           <MaterialCommunityIcons name="account-multiple" size={16} color={colors.accent} />
           <Text style={styles.nearbyCountText}>
@@ -441,7 +601,7 @@ export function MapScreen(): React.JSX.Element {
         </View>
       )}
 
-      {segment === 'public' && selectedPlace && (
+      {segment === 'public' && !activeRoute && selectedPlace && (
         <View style={[styles.errorOverlay, { top: insets.top + spacing.sm + MIN_TOUCH_TARGET * 0.8 + spacing.sm }]} pointerEvents="box-none">
           <View style={styles.noticeBox}>
             <Ionicons name="location" size={18} color={colors.accent} />
@@ -455,7 +615,7 @@ export function MapScreen(): React.JSX.Element {
                 accessibilityLabel={`Get directions to ${selectedPlace.name}`}
               >
                 <Ionicons name="navigate" size={15} color="#FFFFFF" />
-                <Text style={styles.directionsButtonText}>Open directions</Text>
+                <Text style={styles.directionsButtonText}>{navigationLoading ? 'Starting…' : navigationProvider === 'in_app' ? 'Start in Rider Comms' : navigationProviderLabel(navigationProvider)}</Text>
               </Pressable>
             </View>
             <Pressable onPress={() => setSelectedPlace(null)} hitSlop={8}>
@@ -465,7 +625,7 @@ export function MapScreen(): React.JSX.Element {
         </View>
       )}
 
-      {segment === 'public' && locationUnavailable && (
+      {segment === 'public' && !activeRoute && locationUnavailable && (
         <View style={[styles.errorOverlay, { top: insets.top + spacing.lg }]} pointerEvents="box-none">
           <View style={styles.noticeBox}>
             <Ionicons name="location-outline" size={18} color={colors.textMuted} />
@@ -474,7 +634,7 @@ export function MapScreen(): React.JSX.Element {
         </View>
       )}
 
-      {segment === 'public' && error && (
+      {segment === 'public' && !activeRoute && error && (
         <View style={[styles.errorOverlay, { top: insets.top + spacing.lg }]} pointerEvents="box-none">
           <View style={styles.errorBox}>
             <Ionicons name="alert-circle" size={18} color={colors.danger} />
@@ -483,7 +643,7 @@ export function MapScreen(): React.JSX.Element {
         </View>
       )}
 
-      {segment === 'public' && selectedHazard && !lockedForSafety && (
+      {segment === 'public' && !activeRoute && selectedHazard && !lockedForSafety && (
         <View style={[styles.errorOverlay, { top: insets.top + spacing.sm + MIN_TOUCH_TARGET * 0.8 + spacing.sm }]} pointerEvents="box-none">
           <View style={styles.noticeBox}>
             <MaterialCommunityIcons
@@ -559,7 +719,7 @@ export function MapScreen(): React.JSX.Element {
             onPress={() => void openDirections(navigationTarget)}
           >
             <Ionicons name="navigate" size={16} color="#FFFFFF" />
-            <Text style={styles.destinationStartText}>Directions</Text>
+            <Text style={styles.destinationStartText}>{navigationLoading ? 'Starting…' : navigationProvider === 'in_app' ? 'Start' : navigationProviderLabel(navigationProvider)}</Text>
           </Pressable>
           <Pressable
             accessibilityRole="button"
@@ -572,9 +732,41 @@ export function MapScreen(): React.JSX.Element {
         </View>
       )}
 
-      {!lockedForSafety && <SegmentToggle segment={segment} onChange={setSegment} topInset={insets.top} />}
+      {activeRoute && currentNavigationStep && (
+        <>
+          <View style={[styles.navigationBanner, { top: insets.top + spacing.sm }]} accessibilityLiveRegion="polite">
+            <View style={styles.navigationManeuver}>
+              <Ionicons name="navigate" size={24} color={colors.accentText} />
+            </View>
+            <View style={styles.navigationBannerCopy}>
+              <Text style={styles.navigationDistance}>{formatNavigationDistance(currentNavigationStep.distanceMeters, unitSystem)}</Text>
+              <Text numberOfLines={2} style={styles.navigationInstruction}>{currentNavigationStep.instruction}</Text>
+              {navigationNotice ? <Text style={styles.navigationNotice}>{navigationNotice}</Text> : null}
+            </View>
+            <Pressable accessibilityRole="button" accessibilityLabel="End navigation" onPress={() => finishInAppNavigation(false)} style={styles.navigationEndButton}>
+              <Ionicons name="close" size={20} color={colors.textPrimary} />
+            </Pressable>
+          </View>
+          <View style={[styles.navigationSummary, { bottom: insets.bottom + spacing.sm }]}>
+            <View style={styles.navigationSummaryPrimary}>
+              <Text style={styles.navigationArrival}>{new Date(Date.now() + remainingNavigationSeconds * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</Text>
+              <Text style={styles.navigationSummaryLabel}>arrival</Text>
+            </View>
+            <View>
+              <Text style={styles.navigationSummaryValue}>{formatNavigationDuration(remainingNavigationSeconds)}</Text>
+              <Text style={styles.navigationSummaryLabel}>left</Text>
+            </View>
+            <View>
+              <Text style={styles.navigationSummaryValue}>{formatNavigationDistance(remainingNavigationMeters, unitSystem)}</Text>
+              <Text style={styles.navigationSummaryLabel}>away</Text>
+            </View>
+          </View>
+        </>
+      )}
 
-      {(lockedForSafety || movementState === 'unknown') && (
+      {!lockedForSafety && !activeRoute && <SegmentToggle segment={segment} onChange={setSegment} topInset={insets.top} />}
+
+      {!activeRoute && (lockedForSafety || movementState === 'unknown') && (
         <View style={[styles.safetyBanner, { top: insets.top + spacing.sm }]} accessibilityLiveRegion="polite">
           <MaterialCommunityIcons name="motorbike" size={20} color={colors.accent} />
           <View style={styles.safetyBannerCopy}>
@@ -598,9 +790,9 @@ export function MapScreen(): React.JSX.Element {
         </View>
       )}
 
-      <View style={styles.rideBarSlot} pointerEvents="box-none">
+      {!activeRoute && <View style={styles.rideBarSlot} pointerEvents="box-none">
         <RideBar />
-      </View>
+      </View>}
       <ProximityVoice enabled={shareLocation && ridersInZone.length > 0} />
     </View>
   );
@@ -750,6 +942,36 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md, borderRadius: radii.pill, backgroundColor: colors.accent,
   },
   destinationStartText: { ...type.caption, color: '#FFFFFF', fontWeight: '800' },
+  navigationBanner: {
+    position: 'absolute', left: spacing.md, right: spacing.md,
+    flexDirection: 'row', alignItems: 'center', gap: spacing.md,
+    padding: spacing.md, borderRadius: radii.lg,
+    backgroundColor: '#101011', borderWidth: 1, borderColor: colors.border,
+    ...elevation.raised,
+  },
+  navigationManeuver: {
+    width: 48, height: 48, borderRadius: radii.md,
+    alignItems: 'center', justifyContent: 'center', backgroundColor: colors.accent,
+  },
+  navigationBannerCopy: { flex: 1, minWidth: 0 },
+  navigationDistance: { ...type.subheading, color: colors.textPrimary },
+  navigationInstruction: { ...type.body, color: colors.textPrimary, marginTop: 2, fontWeight: '700' },
+  navigationNotice: { ...type.caption, color: colors.textSecondary, marginTop: spacing.xs },
+  navigationEndButton: {
+    width: MIN_TOUCH_TARGET, height: MIN_TOUCH_TARGET, borderRadius: radii.pill,
+    alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceRaised,
+  },
+  navigationSummary: {
+    position: 'absolute', left: spacing.md, right: spacing.md,
+    minHeight: 72, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around',
+    gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm,
+    borderRadius: radii.lg, backgroundColor: '#101011', borderWidth: 1, borderColor: colors.border,
+    ...elevation.raised,
+  },
+  navigationSummaryPrimary: { minWidth: 84 },
+  navigationArrival: { ...type.heading, color: colors.textPrimary, fontSize: 24 },
+  navigationSummaryValue: { ...type.subheading, color: colors.textPrimary, textAlign: 'center' },
+  navigationSummaryLabel: { ...type.caption, color: colors.textMuted, textAlign: 'center' },
   rideBarSlot: { marginTop: 'auto', paddingHorizontal: spacing.lg, paddingBottom: spacing.lg },
   safetyBanner: {
     position: 'absolute', left: spacing.lg, right: spacing.lg,
