@@ -2,6 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   buildExternalNavigationUrl,
+  buildNavigationProviderUrl,
   navigationTargetFromValues,
   parseNavigationLink,
 } from '../src/navigationLinks.ts';
@@ -42,6 +43,22 @@ describe('navigation handoff URLs', () => {
   it('validates raw coordinate values', () => {
     assert.deepEqual(navigationTargetFromValues(51.5, -0.1, '  Cafe  '), { lat: 51.5, lon: -0.1, label: 'Cafe' });
     assert.equal(navigationTargetFromValues(Number.NaN, 0), null);
+  });
+
+  it('builds explicit Google Maps, Waze and Apple Maps provider URLs', () => {
+    const target = { lat: 51.5, lon: -0.1, label: 'Ace Café & meet' };
+    assert.equal(
+      buildNavigationProviderUrl(target, 'google_maps'),
+      'https://www.google.com/maps/dir/?api=1&destination=51.5%2C-0.1&travelmode=driving'
+    );
+    assert.equal(
+      buildNavigationProviderUrl(target, 'waze'),
+      'https://www.waze.com/ul?ll=51.5%2C-0.1&navigate=yes'
+    );
+    assert.equal(
+      buildNavigationProviderUrl(target, 'apple_maps'),
+      'https://maps.apple.com/?daddr=51.5%2C-0.1&q=Ace%20Caf%C3%A9%20%26%20meet&dirflg=d'
+    );
   });
 
   it('builds encoded iOS and Android handoff URLs', () => {
