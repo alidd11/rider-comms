@@ -337,7 +337,7 @@ test('PWA settings sheets own the bottom edge without competing with app chrome'
   await expect(banner).toBeVisible();
 });
 
-test('installed PWA tab bar owns the iOS home-indicator inset without moving controls into it', async ({ page }) => {
+test('installed PWA tab bar stays compact even with a 34px iOS safe area', async ({ page }) => {
   await mockAuthenticatedApi(page);
   await page.goto('/#settings');
   await page.evaluate(() => {
@@ -361,18 +361,15 @@ test('installed PWA tab bar owns the iOS home-indicator inset without moving con
   const chrome = await page.evaluate(() => {
     const root = document.documentElement;
     const nav = document.querySelector('.bottom-nav');
-    const pseudo = getComputedStyle(nav, '::after');
     return {
       navSafeBottom: getComputedStyle(root).getPropertyValue('--nav-safe-bottom').trim(),
       navHeight: getComputedStyle(nav).height,
       navBackground: getComputedStyle(nav).backgroundColor,
-      continuationBackground: pseudo.backgroundColor,
     };
   });
 
-  expect(chrome.navSafeBottom).toBe('34px');
-  expect(parseFloat(chrome.navHeight)).toBe(58 + 34 + 1); // rail + safe area + top border
-  expect(chrome.continuationBackground).toBe(chrome.navBackground);
+  expect(chrome.navSafeBottom).toBe('0px');
+  expect(parseFloat(chrome.navHeight)).toBe(58 + 1); // compact rail + top border only
 
   expect(navBox).not.toBeNull();
   expect(buttonBox).not.toBeNull();
@@ -380,12 +377,12 @@ test('installed PWA tab bar owns the iOS home-indicator inset without moving con
   expect(viewport).not.toBeNull();
   expect(Math.abs((navBox.y + navBox.height) - viewport.height)).toBeLessThanOrEqual(1);
 
-  // Controls stay in the 58px rail above the safe area. The 34px gesture
-  // inset belongs to the nav surface but is not interactive control space.
+  // The 34px device inset must not inflate the visible navigation container.
+  // Controls remain inside the compact 58px rail and the label stays near the
+  // actual bottom edge instead of floating above a second empty band.
   expect(buttonBox.y).toBeGreaterThanOrEqual(navBox.y - 1);
-  expect(buttonBox.y + buttonBox.height).toBeLessThanOrEqual(navBox.y + 59);
-  const railBottom = navBox.y + 58;
-  const labelBottomGap = railBottom - (labelBox.y + labelBox.height);
+  expect(buttonBox.y + buttonBox.height).toBeLessThanOrEqual(navBox.y + navBox.height + 1);
+  const labelBottomGap = (navBox.y + navBox.height) - (labelBox.y + labelBox.height);
   expect(labelBottomGap).toBeGreaterThanOrEqual(0);
   expect(labelBottomGap).toBeLessThanOrEqual(12);
 });
