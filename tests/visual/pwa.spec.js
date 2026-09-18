@@ -337,7 +337,7 @@ test('PWA settings sheets own the bottom edge without competing with app chrome'
   await expect(banner).toBeVisible();
 });
 
-test('installed PWA tab bar owns the iOS home-indicator inset without moving controls into it', async ({ page }) => {
+test('installed PWA tab bar paints the iOS inset without double-reserving it', async ({ page }) => {
   await mockAuthenticatedApi(page);
   await page.goto('/#settings');
   await page.evaluate(() => {
@@ -370,8 +370,8 @@ test('installed PWA tab bar owns the iOS home-indicator inset without moving con
     };
   });
 
-  expect(chrome.navSafeBottom).toBe('34px');
-  expect(parseFloat(chrome.navHeight)).toBe(58 + 34 + 1); // rail + safe area + top border
+  expect(chrome.navSafeBottom).toBe('0px');
+  expect(parseFloat(chrome.navHeight)).toBe(58 + 1); // interactive rail + top border only
   expect(chrome.continuationBackground).toBe(chrome.navBackground);
 
   expect(navBox).not.toBeNull();
@@ -380,8 +380,8 @@ test('installed PWA tab bar owns the iOS home-indicator inset without moving con
   expect(viewport).not.toBeNull();
   expect(Math.abs((navBox.y + navBox.height) - viewport.height)).toBeLessThanOrEqual(1);
 
-  // Controls stay in the 58px rail above the safe area. The 34px gesture
-  // inset belongs to the nav surface but is not interactive control space.
+  // Controls stay in the 58px rail. The 34px gesture inset is a visual
+  // continuation only, preventing the extra-safe-area-height seen on device.
   expect(buttonBox.y).toBeGreaterThanOrEqual(navBox.y - 1);
   expect(buttonBox.y + buttonBox.height).toBeLessThanOrEqual(navBox.y + 59);
   const railBottom = navBox.y + 58;
