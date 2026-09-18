@@ -1,10 +1,12 @@
 (() => {
   'use strict';
 
-  // Keep the installed-PWA viewport model aligned with iOS itself. This is
-  // the same pattern used by EclipseRBLX: the app tracks visualViewport height
-  // and lets the fixed bottom chrome own safe-area-inset-bottom instead of
-  // trying to translate controls into the gesture area with negative offsets.
+  // Installed iOS PWAs can cold-start with WebKit's dynamic viewport sized
+  // as though browser chrome still exists, then suddenly correct after a
+  // portrait/landscape round-trip. In standalone mode use the stable 100vh
+  // canvas (WebKit bug 254868's documented workaround) and reserve the real
+  // safe area *inside* app chrome. VisualViewport remains separate for the
+  // keyboard-sensitive chat surface.
   const standaloneMedia = window.matchMedia?.('(display-mode: standalone)');
   const visualViewport = window.visualViewport;
   const syncViewportEnvironment = () => {
@@ -20,31 +22,38 @@
 
     root.classList.toggle('pwa-standalone', Boolean(isStandalone));
     root.classList.toggle('keyboard-open', keyboardOpen);
-    // Let CSS size the installed app against the edge-to-edge viewport.
-    // Freezing innerHeight into pixels can retain a shorter WebKit viewport
-    // after launch/keyboard transitions, leaving absolute map chrome above
-    // the home indicator. Safe-area padding belongs INSIDE the bottom bar.
-    // VisualViewport remains separate for keyboard-sensitive chat surfaces.
-    const appHeight = isStandalone && window.CSS?.supports('height', '100dvh')
-      ? '100dvh'
-      : `${layoutViewportHeight}px`;
+    // Do not use 100dvh for the standalone app shell. On affected iOS builds
+    // its cold-start value can be roughly one browser-toolbar shorter than the
+    // Home Screen window until rotation forces WebKit to recompute it.
+    const appHeight = isStandalone ? '100vh' : `${layoutViewportHeight}px`;
     root.style.setProperty('--app-vh', appHeight);
     root.style.setProperty('--visual-vh', `${visualViewportHeight}px`);
     root.style.setProperty('--visual-viewport-top', `${visualViewportTop}px`);
     // Installed iOS can pan the document itself when a textarea receives
     // focus while reporting visualViewport.offsetTop as zero. Compensate that
     // root pan only for keyboard-open chat; every other screen keeps the
-    // normal viewport model.
+    // stable app-shell viewport model.
     root.style.setProperty('--chat-root-pan', `${chatRootPan}px`);
     root.style.setProperty('--bottom-safe-area', isStandalone ? 'env(safe-area-inset-bottom, 0px)' : '0px');
   };
-  syncViewportEnvironment();
+  const settleViewportEnvironment = () => {
+    syncViewportEnvironment();
+    requestAnimationFrame(() => {
+      syncViewportEnvironment();
+      requestAnimationFrame(syncViewportEnvironment);
+    });
+  };
+  settleViewportEnvironment();
   window.addEventListener('resize', syncViewportEnvironment);
-  window.addEventListener('orientationchange', syncViewportEnvironment);
+  window.addEventListener('orientationchange', settleViewportEnvironment);
+  window.addEventListener('pageshow', settleViewportEnvironment);
   window.addEventListener('scroll', syncViewportEnvironment, { passive: true });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') settleViewportEnvironment();
+  });
   visualViewport?.addEventListener?.('resize', syncViewportEnvironment);
   visualViewport?.addEventListener?.('scroll', syncViewportEnvironment);
-  standaloneMedia?.addEventListener?.('change', syncViewportEnvironment);
+  standaloneMedia?.addEventListener?.('change', settleViewportEnvironment);
 
   const STORAGE_KEY = 'rider-comms-pwa-v4';
   // Real, persistent client session (Rider ID + bearer token issued by the
@@ -3578,6 +3587,10 @@
     $('#authScreen').hidden = true;
     $('#app').hidden = false;
     document.documentElement.classList.remove('auth-open');
+    // Auth is a fixed full-screen surface; once the real app shell becomes
+    // visible, resample after paint so a cold-start standalone launch does not
+    // keep the shorter pre-auth WebKit viewport until the user rotates.
+    settleViewportEnvironment();
   }
 
   const AUTH_ERROR_MESSAGES = {
