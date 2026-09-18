@@ -1,7 +1,7 @@
 :root {
-  color-scheme: light dark; --bg:#0e0e0f; --system-chrome:#0e0e0f; --nav-chrome:#0e0e0f; --bg-elevated:#141415; --surface:#181819; --surface-raised:#242426; --surface-hover:#29292c; --border:#303034; --border-soft:#252528; --text:#f5f4f2; --text-secondary:#b8b3ac; --text-muted:#827d76; --accent:#ff2d5a; --accent-soft:#3a1720; --accent-text:#24050c; --success:#39d39b; --danger:#ff6572; --warning:#ffc15a; --focus:#91a7ff; --accent-2:#00e6ff; --accent-2-soft:#062b33; --glow-accent:0 0 1px rgb(255 45 90/.9), 0 0 18px rgb(255 45 90/.55); --glow-accent-2:0 0 1px rgb(0 230 255/.9), 0 0 18px rgb(0 230 255/.5); --gradient-neon:linear-gradient(135deg,var(--accent),var(--accent-2)); --font-display:'Chakra Petch',Inter,ui-sans-serif,system-ui,sans-serif; --shadow-sm:0 4px 16px rgb(0 0 0/.18); --shadow-lg:0 14px 40px rgb(0 0 0/.3); --radius-sm:8px; --radius-md:10px; --radius-lg:12px; --radius-pill:999px; --touch:48px; --nav-height:58px; --content-max:680px; --safe-top:env(safe-area-inset-top,0px); --safe-right:env(safe-area-inset-right,0px); --safe-bottom:env(safe-area-inset-bottom,0px); --safe-left:env(safe-area-inset-left,0px); --app-vh:100dvh; --visual-vh:100dvh; --visual-viewport-top:0px; --bottom-safe-area:0px; --nav-safe-bottom:0px; --bottom-control-inset:0px; --navigation-control-inset:0px; --bottom-nav-height:calc(var(--nav-height) + var(--bottom-control-inset) + 1px); font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; font-synthesis:none;
+  color-scheme: light dark; --bg:#080d10; --system-chrome:#080d10; --nav-chrome:#080d10; --bg-elevated:#0d1317; --surface:#11171b; --surface-raised:#182127; --surface-hover:#1d282f; --border:#27323a; --border-soft:#202a30; --text:#f3f6f7; --text-secondary:#aab5ba; --text-muted:#748188; --accent:#2fa8d3; --accent-soft:#102d38; --accent-text:#041318; --success:#42c58a; --danger:#f0646b; --warning:#d39a42; --focus:#64bde0; --accent-2:#64bde0; --accent-2-soft:#102d38; --glow-accent:none; --glow-accent-2:none; --gradient-neon:linear-gradient(90deg,var(--accent),#5ab8d6); --font-display:Inter,ui-sans-serif,system-ui,sans-serif; --shadow-sm:0 3px 12px rgb(0 0 0/.2); --shadow-lg:0 12px 34px rgb(0 0 0/.36); --radius-sm:3px; --radius-md:4px; --radius-lg:6px; --radius-pill:999px; --touch:48px; --nav-height:58px; --content-max:680px; --safe-top:env(safe-area-inset-top,0px); --safe-right:env(safe-area-inset-right,0px); --safe-bottom:env(safe-area-inset-bottom,0px); --safe-left:env(safe-area-inset-left,0px); --app-vh:100dvh; --visual-vh:100dvh; --visual-viewport-top:0px; --bottom-safe-area:0px; --nav-safe-bottom:0px; --bottom-control-inset:0px; --navigation-control-inset:0px; --bottom-nav-height:calc(var(--nav-height) + var(--bottom-control-inset) + 1px); font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; font-synthesis:none;
 }
-:root{--surface:#181819;--surface-raised:#242426;--surface-hover:#29292c;--border:#303034}
+:root{--surface:#11171b;--surface-raised:#182127;--surface-hover:#1d282f;--border:#27323a}
 /* Installed iOS PWA viewport model.
    Safari standalone can cold-start with a dynamic viewport that is shorter
    than the actual Home Screen window and only correct it after rotation.
@@ -151,7 +151,7 @@ img,svg{-webkit-user-drag:none}
    canvas, glass chips, gradients, nav bar) and need their own light-mode
    value alongside them. */
 @media(prefers-color-scheme:light){
-  :root{--bg:#f4f1ec;--bg-elevated:#ffffff;--surface:#ffffff;--surface-raised:#eee8df;--surface-hover:#e7e0d7;--border:#ded6cb;--border-soft:#ebe5dc;--text:#1c1712;--text-secondary:#625a50;--text-muted:#81786c;--accent-soft:#ffe0e6;--accent-text:#24050c;--accent-2:#0098ac;--accent-2-soft:#dcf3f5;--glow-accent:0 0 0 1px rgb(255 45 90/.25);--glow-accent-2:0 0 0 1px rgb(0 152 172/.25);--success:#188f66;--danger:#d43a47;--warning:#9a6500;--focus:#2f6fdb;--shadow-sm:0 3px 14px rgb(40 30 15/.08);--shadow-lg:0 12px 34px rgb(40 30 15/.13)}
+  :root{--bg:#f2f5f6;--bg-elevated:#ffffff;--surface:#ffffff;--surface-raised:#e8eef1;--surface-hover:#e1e9ed;--border:#cdd8dd;--border-soft:#dce4e8;--text:#11181c;--text-secondary:#4f5e66;--text-muted:#7a8a92;--accent:#2a9fc7;--accent-soft:#d9eef5;--accent-text:#031217;--accent-2:#2a9fc7;--accent-2-soft:#d9eef5;--glow-accent:none;--glow-accent-2:none;--success:#2e9d72;--danger:#c84e57;--warning:#a76f13;--focus:#2a9fc7;--shadow-sm:0 3px 12px rgb(30 45 52/.08);--shadow-lg:0 12px 30px rgb(30 45 52/.12)}
   .glass{background:rgb(255 255 255/.88);border-color:rgb(30 20 10/.1)}
   .content-screen{background:radial-gradient(circle at 50% -10%,#fff 0,var(--bg) 34%)}
   .map-canvas{background:#dde6e9}
@@ -204,8 +204,8 @@ img,svg{-webkit-user-drag:none}
    viewport on iOS. Use the same opaque colour for that system-owned region,
    the page root behind it, and the fixed tab bar so there is no false
    edge-to-edge seam. The safe-area padding itself remains untouched. */
-@media(prefers-color-scheme:light){:root{--system-chrome:#f4f1ec}}
-@media(prefers-color-scheme:light){:root{--nav-chrome:#f4f1ec}}
+@media(prefers-color-scheme:light){:root{--system-chrome:#f2f5f6}}
+@media(prefers-color-scheme:light){:root{--nav-chrome:#f2f5f6}}
 /* Purposeful inactive states for the ride and social areas. These surfaces
    use real account/ride state and avoid filling an empty screen with sample
    riders or fabricated activity. */
@@ -680,3 +680,78 @@ html.keyboard-open .chat-composer{padding-bottom:10px}
 .chat-composer textarea{min-height:44px;max-height:112px;resize:none;padding:11px 14px;border:1px solid var(--border);border-radius:20px;background:var(--surface);color:var(--text);font:inherit;user-select:text}.chat-composer textarea:focus{outline:2px solid color-mix(in srgb,var(--accent) 40%,transparent);border-color:var(--accent)}.chat-composer button{background:var(--accent);color:#fff}.chat-composer button:disabled,.chat-composer textarea:disabled{opacity:.45}
 html.chat-open .bottom-nav,html.chat-open .ride-pill,html.chat-open .movement-safety-banner,html.chat-open .update-banner{opacity:0;visibility:hidden;pointer-events:none}
 @media(orientation:landscape) and (max-height:520px){.chat-header{min-height:calc(var(--safe-top) + 50px);padding-bottom:4px}.chat-hideout-list{max-height:82px}.chat-thread{padding-block:8px}.chat-composer{padding-top:6px}}
+
+
+/* Final production mockup parity
+   ------------------------------
+   Visual-only layer. Keep the verified viewport/safe-area ownership above
+   intact: this pass changes hierarchy, colour and geometry, not who owns the
+   physical canvas. */
+.content-screen{background:var(--bg)}
+.content-screen .page-subtitle{display:none}
+.content-screen .page-header{align-items:center;min-height:38px;margin-bottom:18px}
+.content-screen .page-header h1{max-width:100%;overflow:hidden;font-family:Inter,ui-sans-serif,system-ui,sans-serif;font-size:clamp(1.85rem,7vw,2.1rem);font-weight:780;letter-spacing:-.045em;line-height:1;white-space:nowrap;text-overflow:ellipsis}
+.content-screen .page-header .icon-button{border-radius:var(--radius-md)}
+.button,.icon-button,.search-row,.add-friend-toggle,.compact-form,.profile-completion,.ride-entry,.ride-summary,.ride-code-card,.ride-location-consent,.settings-group,.settings-page .profile-row,.plan-card,.settings-sheet-section,.settings-note,.choice-list,.safety-guidance,.friend-profile-card,.social-links,.friend-profile-note{border-radius:var(--radius-lg)}
+.button.primary{background:var(--accent);color:var(--accent-text);box-shadow:none}
+.button.secondary{background:var(--surface-raised);border-color:var(--border)}
+.button.tertiary{color:var(--accent)}
+.glass{background:rgb(8 13 16/.9);border-color:rgb(255 255 255/.1);box-shadow:0 8px 24px rgb(0 0 0/.28);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
+.auth-screen{background:var(--bg)}
+.auth-card,.auth-segmented,.auth-field>input,.password-field,.auth-submit{border-radius:var(--radius-lg)}
+.auth-mark{box-shadow:none}
+.map-canvas{background:#080d10}
+.fallback-map{background:radial-gradient(circle at 64% 28%,#10262f 0,#0a151b 44%,#071014 100%)}
+.fallback-map:after{opacity:.08;background-image:linear-gradient(#36505d 1px,transparent 1px),linear-gradient(90deg,#36505d 1px,transparent 1px)}
+.road{background:#16242b;border-block-color:#21353f}.road:after{border-top-color:#4e6b77;opacity:.3}
+.map-header{top:calc(var(--safe-top) + 10px);left:max(14px,var(--safe-left));right:max(14px,var(--safe-right));gap:9px}
+.search-slot{min-height:46px;border-radius:var(--radius-lg);background:rgb(10 17 21/.92)}
+.map-actions{right:max(14px,var(--safe-right));gap:8px}
+.map-actions .icon-button{border-radius:var(--radius-lg);background:rgb(10 17 21/.92);border-color:rgb(255 255 255/.1)}
+.rider-card,#destinationCard,.map-error,.nav-banner{border-radius:var(--radius-lg)}
+.nav-maneuver-icon,#endNavBtn{border-radius:var(--radius-lg)}
+.nav-banner,.nav-summary{background:#0d151a}
+.nav-next-preview{background:#091116}
+.nav-banner-copy strong,.nav-summary-eta strong{color:var(--accent)}
+.rider-marker.current{border-color:var(--accent);box-shadow:0 8px 22px rgb(0 0 0/.5),0 0 0 3px rgb(47 168 211/.2)}
+.rider-marker.current:before{background:rgb(47 168 211/.16)}
+.avatar.voice-talking{box-shadow:inset 0 0 0 1px rgb(255 255 255/.18),0 0 0 3px rgb(47 168 211/.3),0 0 14px 2px rgb(47 168 211/.22)}
+.ride-entry{border-color:var(--border);box-shadow:none}
+.segmented{gap:1px;padding:0;border-color:var(--border);background:var(--surface)}
+.segmented button{min-height:46px;border-radius:0;border-right:1px solid var(--border)}
+.segmented button:last-child{border-right:0}
+.segmented button.active{background:var(--surface-raised)}
+.ride-form{padding:16px}
+.code-field input{border-radius:var(--radius-lg);background:var(--bg-elevated)}
+.ride-location-consent{border-radius:var(--radius-lg);background:var(--bg-elevated)}
+.ride-summary{background:var(--surface)}
+.status-chip,.count-badge,.plan-pill,.pill-count{border-radius:var(--radius-md)}
+.network-summary{margin-top:0}
+.search-row,.add-friend-toggle{border-radius:var(--radius-lg)}
+.people-list{background:transparent}
+.friend-row,.request-row{min-height:64px}
+.settings-page .profile-row{padding:12px;border:1px solid var(--border);background:var(--surface)}
+.settings-page .settings-group{border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--surface)}
+.settings-page .settings-group>button{padding-inline:11px}
+.setting-icon{border-radius:var(--radius-md);background:transparent}
+.sheet{border-top:1px solid var(--border);border-radius:10px 10px 0 0;background:var(--bg);background-image:none;box-shadow:0 -18px 48px rgb(0 0 0/.44)}
+.sheet>header .icon-button{border-radius:var(--radius-lg)}
+.settings-sheet-section,.settings-note,.choice-list,.safety-guidance,.plan-card{border-radius:var(--radius-lg)}
+.avatar-picker-option{border-radius:var(--radius-lg)}
+.movement-safety-banner{border-radius:var(--radius-lg);background:rgb(17 23 27/.96)}
+.movement-safety-banner button{border-radius:var(--radius-md);background:var(--accent);color:var(--accent-text)}
+.bottom-nav{border-top-color:var(--border-soft);background:var(--nav-chrome);backdrop-filter:none}
+.bottom-nav>button{border-radius:0}
+.bottom-nav>button:before{display:none}
+.bottom-nav>button.active{color:var(--accent)}
+.bottom-nav>button.active svg{filter:none}
+.bottom-nav>button.active span{font-weight:760}
+.avatar{box-shadow:inset 0 0 0 1px rgb(255 255 255/.16),0 0 0 2px color-mix(in srgb,var(--avatar,#4f7cff) 18%,transparent)}
+.search-screen .search-shell,.search-result-icon,.search-empty-icon{border-radius:var(--radius-lg)}
+.search-screen .poi-chip,.chip{border-radius:var(--radius-md)}
+.update-banner,.toast{border-radius:var(--radius-lg)}
+@media(prefers-color-scheme:light){
+  .content-screen,.auth-screen{background:var(--bg)}
+  .glass{background:rgb(255 255 255/.92);border-color:var(--border)}
+  .map-actions .icon-button,.search-slot{background:rgb(255 255 255/.92);border-color:var(--border)}
+}
