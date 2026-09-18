@@ -367,14 +367,12 @@ test('PWA navigation preference offers Rider Comms, Google Maps, Waze and Apple 
   await expect(page.locator('#navigationProviderSummary')).toHaveText('Waze');
 });
 
-test('installed PWA tab bar owns the iOS home-indicator inset without moving controls into it', async ({ page }) => {
+test('installed PWA tab bar itself owns the iOS home-indicator inset', async ({ page }) => {
   await mockAuthenticatedApi(page);
   await page.goto('/#settings');
   await page.evaluate(() => {
     const root = document.documentElement;
     root.classList.add('pwa-standalone');
-    // Desktop Playwright resolves env(safe-area-inset-bottom) to 0, so model
-    // the real iPhone geometry that produced the black band in device testing.
     root.style.setProperty('--bottom-safe-area', '34px');
   });
 
@@ -391,18 +389,16 @@ test('installed PWA tab bar owns the iOS home-indicator inset without moving con
   const chrome = await page.evaluate(() => {
     const root = document.documentElement;
     const nav = document.querySelector('.bottom-nav');
-    const pseudo = getComputedStyle(nav, '::after');
     return {
       navSafeBottom: getComputedStyle(root).getPropertyValue('--nav-safe-bottom').trim(),
       navHeight: getComputedStyle(nav).height,
-      navBackground: getComputedStyle(nav).backgroundColor,
-      continuationBackground: pseudo.backgroundColor,
+      navPaddingBottom: getComputedStyle(nav).paddingBottom,
     };
   });
 
   expect(chrome.navSafeBottom).toBe('34px');
-  expect(parseFloat(chrome.navHeight)).toBe(58 + 34 + 1); // rail + safe area + top border
-  expect(chrome.continuationBackground).toBe(chrome.navBackground);
+  expect(parseFloat(chrome.navHeight)).toBe(58 + 34 + 1);
+  expect(parseFloat(chrome.navPaddingBottom)).toBe(34);
 
   expect(navBox).not.toBeNull();
   expect(buttonBox).not.toBeNull();
@@ -410,14 +406,48 @@ test('installed PWA tab bar owns the iOS home-indicator inset without moving con
   expect(viewport).not.toBeNull();
   expect(Math.abs((navBox.y + navBox.height) - viewport.height)).toBeLessThanOrEqual(1);
 
-  // Controls stay in the 58px rail above the safe area. The 34px gesture
-  // inset belongs to the nav surface but is not interactive control space.
+  // The real nav box reaches the physical viewport edge; controls remain in
+  // the 58px interaction rail above the home-indicator safe area.
   expect(buttonBox.y).toBeGreaterThanOrEqual(navBox.y - 1);
   expect(buttonBox.y + buttonBox.height).toBeLessThanOrEqual(navBox.y + 59);
   const railBottom = navBox.y + 58;
   const labelBottomGap = railBottom - (labelBox.y + labelBox.height);
   expect(labelBottomGap).toBeGreaterThanOrEqual(0);
   expect(labelBottomGap).toBeLessThanOrEqual(12);
+});
+
+test('PWA navigation summary extends through the installed iPhone bottom safe area', async ({ page }) => {
+  await mockAuthenticatedApi(page);
+  await page.goto('/#map');
+  await page.evaluate(() => {
+    const root = document.documentElement;
+    root.classList.add('pwa-standalone');
+    root.style.setProperty('--bottom-safe-area', '34px');
+    document.querySelector('#app').classList.add('nav-mode');
+    document.querySelector('#navSummary').hidden = false;
+  });
+
+  const summary = page.locator('#navSummary');
+  const [summaryBox, viewport] = await Promise.all([
+    summary.boundingBox(),
+    Promise.resolve(page.viewportSize()),
+  ]);
+  const metrics = await summary.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return {
+      height: parseFloat(style.height),
+      paddingBottom: parseFloat(style.paddingBottom),
+    };
+  });
+
+  expect(summaryBox).not.toBeNull();
+  expect(viewport).not.toBeNull();
+  expect(metrics.height).toBe(88 + 34);
+  expect(metrics.paddingBottom).toBe(34);
+  // Fractional device-scale rounding can land the CSS edge just over one
+  // logical pixel from the Playwright viewport. This still verifies the real
+  // summary box reaches the physical edge rather than stopping above it.
+  expect(Math.abs((summaryBox.y + summaryBox.height) - viewport.height)).toBeLessThanOrEqual(2);
 });
 
 test('PWA preserves backend avatar presets on friend surfaces', async ({ page }) => {
@@ -495,8 +525,8 @@ test('PWA chat stays pinned to the visible viewport when the iPhone keyboard cha
   await expect(page.locator('#chatInput')).not.toBeFocused();
 
   await page.evaluate(() => document.documentElement.style.setProperty('--bottom-safe-area', '34px'));
-  const composerPaddingBottom = await page.locator('#chatComposer').evaluate((element) => getComputedStyle(element).paddingBottom);
-  expect(composerPaddingBottom).toBe('10px');
+  const closedComposerPaddingBottom = await page.locator('#chatComposer').evaluate((element) => getComputedStyle(element).paddingBottom);
+  expect(parseFloat(closedComposerPaddingBottom)).toBe(44);
 
   const initialViewportHeight = await page.evaluate(() => window.innerHeight);
   const keyboardViewportHeight = Math.max(220, Math.round(initialViewportHeight * 0.58));
@@ -505,6 +535,7 @@ test('PWA chat stays pinned to the visible viewport when the iPhone keyboard cha
     window.__setRiderTestVisualViewport(height, offsetTop);
   }, { height: keyboardViewportHeight, offsetTop: keyboardOffsetTop });
 
+  await expect(page.locator('html')).toHaveClass(/keyboard-open/);
   await expect.poll(async () => {
     const box = await page.locator('#chatScreen').boundingBox();
     return box ? Math.round(box.y) : -1;
@@ -520,11 +551,14 @@ test('PWA chat stays pinned to the visible viewport when the iPhone keyboard cha
   expect(composerBox).not.toBeNull();
   expect(Math.abs(chatBox.height - keyboardViewportHeight)).toBeLessThanOrEqual(1);
   expect(headerBox.y).toBeGreaterThanOrEqual(chatBox.y - 1);
-  // WebKit can preserve a small platform safe-area remainder even when the
-  // visual viewport is being simulated. The regression was the full tab bar /
-  // duplicated safe-area band (58px+), not this system-sized remainder.
   const composerBottomGap = (chatBox.y + chatBox.height) - (composerBox.y + composerBox.height);
-  expect(Math.abs(composerBottomGap)).toBeLessThanOrEqual(24);
+  // A keyboard-open WebKit viewport may let the composer extend into the
+  // system-owned home-indicator remainder. It must never leave a positive
+  // blank band, and any overlap must stay within the modelled 34px safe area.
+  expect(composerBottomGap).toBeLessThanOrEqual(1);
+  expect(composerBottomGap).toBeGreaterThanOrEqual(-34);
+  const openComposerPaddingBottom = await page.locator('#chatComposer').evaluate((element) => parseFloat(getComputedStyle(element).paddingBottom));
+  expect(openComposerPaddingBottom).toBe(10);
   await expect(page.locator('.bottom-nav')).toHaveCSS('visibility', 'hidden');
 
   await page.screenshot({
@@ -536,6 +570,7 @@ test('PWA chat stays pinned to the visible viewport when the iPhone keyboard cha
     window.__setRiderTestVisualViewport(height, 0);
   }, { height: initialViewportHeight });
 
+  await expect(page.locator('html')).not.toHaveClass(/keyboard-open/);
   await expect.poll(async () => {
     const box = await page.locator('#chatScreen').boundingBox();
     return box ? Math.round(box.y + box.height) : -1;
