@@ -19,6 +19,8 @@ import { ScenicRouteStore } from './scenicRouteStore.ts';
 import { AccountDeletionStore } from './accountDeletionStore.ts';
 import { SocialRateLimitStore } from './socialRateLimitStore.ts';
 import type { SocialRateAction } from './socialRateLimitStore.ts';
+import { SocialActivityStore } from './socialActivityStore.ts';
+import { InvalidSocialEventCursorError, MAX_SOCIAL_EVENT_WAIT_MS, SocialEventStore } from './socialEventStore.ts';
 import { checkDatabaseReady, closeDatabase, ensureMigrated } from './db.ts';
 
 const HAZARD_TYPES = ['police', 'accident', 'hazard', 'road_closure', 'camera'] as const;
@@ -34,6 +36,7 @@ const MAX_PRESENCE_FUTURE_SKEW_MS = 5_000;
 const PROXIMITY_VOICE_TOKEN_TTL_SECONDS = 60;
 const AUTH_CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
 const SOCIAL_RATE_CLEANUP_INTERVAL_MS = 15 * 60 * 1000;
+const SOCIAL_STATE_CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
 
 export interface ApiServerOptions {
   allowedOrigins?: readonly string[];
@@ -45,6 +48,8 @@ export interface ApiServerOptions {
   liveKitCredentials?: LiveKitCredentials | null;
   accountDeletionStore?: Pick<AccountDeletionStore, 'deleteRider'>;
   socialRateLimitStore?: Pick<SocialRateLimitStore, 'consume'>;
+  socialActivityStore?: Pick<SocialActivityStore, 'touch' | 'getFriendActivity'>;
+  socialEventStore?: Pick<SocialEventStore, 'waitForEvents'> & Partial<Pick<SocialEventStore, 'close'>>;
   readinessCheck?: () => Promise<void>;
 }
 
@@ -178,8 +183,10 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
   const liveKitCredentials = 'liveKitCredentials' in options ? options.liveKitCredentials : getLiveKitCredentialsFromEnv();
   const accountDeletionStore = options.accountDeletionStore ?? new AccountDeletionStore();
   const socialRateLimitStore = options.socialRateLimitStore ?? new SocialRateLimitStore();
+  const socialActivityStore = options.socialActivityStore ?? new SocialActivityStore();
+  const socialEventStore = options.socialEventStore ?? new SocialEventStore();
   const readinessCheck = options.readinessCheck ?? checkDatabaseReady;
-  return http.createServer(async (req, res) => {
+  const app = http.createServer(async (req, res) => {
     const startedAt = Date.now();
     const id = requestId(req);
     const address = clientAddress(req, options.trustProxy === true);
@@ -210,7 +217,7 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
       }
       if (req.method === 'POST' && url.pathname === '/auth/guest') {
         if (!guestLimiter.tryConsume(address)) return sendJson(res, 429, { error: 'rate_limited' });
-        const session = authStore.createGuest(); await profileStore.getOrCreate(session.riderId); return sendJson(res, 201, session);
+        const session = authStore.createGuest(); await profileStore.getOrCreate(session.riderId); await socialActivityStore.touch(session.riderId); return sendJson(res, 201, session);
       }
       if (req.method === 'POST' && url.pathname === '/auth/signup') {
         if (!guestLimiter.tryConsume(address)) return sendJson(res, 429, { error: 'rate_limited' });
@@ -218,6 +225,7 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
         const result = await authStore.signUp(body.username, body.email, body.password, body.deviceName);
         if ('error' in result) return sendJson(res, result.error === 'username_taken' || result.error === 'email_taken' ? 409 : 400, { error: result.error });
         await profileStore.getOrCreate(result.riderId);
+        await socialActivityStore.touch(result.riderId);
         return sendJson(res, 201, result);
       }
       if (req.method === 'POST' && url.pathname === '/auth/login') {
@@ -226,6 +234,7 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
         const result = await authStore.logIn(body.username, body.password, body.deviceName);
         if ('error' in result) return sendJson(res, 401, { error: result.error });
         await profileStore.getOrCreate(result.riderId);
+        await socialActivityStore.touch(result.riderId);
         return sendJson(res, 200, result);
       }
       if (req.method === 'POST' && url.pathname === '/auth/verify-email') {
@@ -249,6 +258,7 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
         return sendJson(res, 200, result);
       }
       const actorId = await authRider(req, res, authStore); if (!actorId) return;
+      await socialActivityStore.touch(actorId);
       if (!apiLimiter.tryConsume(actorId)) return sendJson(res, 429, { error: 'rate_limited' });
       if (req.method === 'GET' && url.pathname === '/auth/me') {
         const identity = await authStore.getIdentity(actorId);
@@ -434,6 +444,28 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
           });
         }
       }
+      if (req.method === 'GET' && url.pathname === '/friends/activity') {
+        return sendJson(res, 200, { activity: await socialActivityStore.getFriendActivity(actorId) });
+      }
+      if (req.method === 'GET' && url.pathname === '/social/events') {
+        const limit = Number(url.searchParams.get('limit') ?? 100);
+        const waitMs = Number(url.searchParams.get('waitMs') ?? MAX_SOCIAL_EVENT_WAIT_MS);
+        if (!Number.isInteger(limit) || limit < 1 || limit > 100) return sendJson(res, 400, { error: 'limit must be an integer from 1 to 100' });
+        if (!Number.isInteger(waitMs) || waitMs < 0 || waitMs > MAX_SOCIAL_EVENT_WAIT_MS) return sendJson(res, 400, { error: `waitMs must be an integer from 0 to ${MAX_SOCIAL_EVENT_WAIT_MS}` });
+        const controller = new AbortController();
+        const abortOnDisconnect = () => { if (!res.writableEnded) controller.abort(); };
+        res.once('close', abortOnDisconnect);
+        try {
+          const page = await socialEventStore.waitForEvents(actorId, url.searchParams.get('after') ?? undefined, limit, waitMs, controller.signal);
+          if (!res.destroyed) return sendJson(res, 200, page);
+          return;
+        } catch (error) {
+          if (error instanceof InvalidSocialEventCursorError) return sendJson(res, 400, { error: 'invalid_cursor' });
+          throw error;
+        } finally {
+          res.removeListener('close', abortOnDisconnect);
+        }
+      }
       if (req.method === 'POST' && url.pathname === '/friends/requests') {
         const body = await readJsonBody(req); if (typeof body.toRiderId !== 'string' || !body.toRiderId.trim()) return sendJson(res, 400, { error: 'toRiderId is required' });
         // A rider's handle (e.g. "@ali_rides") is what they'd actually
@@ -576,6 +608,8 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
       return sendJson(res, 404, { error: 'not_found' });
     } catch (error) { if (error instanceof RequestError) return sendJson(res, error.status, { error: error.message }); if (error instanceof URIError) return sendJson(res, 400, { error: 'invalid URL encoding' }); console.error('request failed', error); return sendJson(res, 500, { error: 'internal_error' }); }
   });
+  app.once('close', () => { void socialEventStore.close?.(); });
+  return app;
 }
 const isMainModule = process.argv[1] && import.meta.url === `file://${process.argv[1]}`;
 async function startProductionServer(): Promise<void> {
@@ -589,15 +623,23 @@ async function startProductionServer(): Promise<void> {
   await ensureMigrated();
   const productionAuthStore = new AuthStore();
   const productionSocialRateLimitStore = new SocialRateLimitStore();
+  const productionSocialActivityStore = new SocialActivityStore();
+  const productionSocialEventStore = new SocialEventStore();
   const initialCleanup = await productionAuthStore.cleanupExpiredRecords();
   const initialSocialRateCleanup = await productionSocialRateLimitStore.cleanupExpired();
+  const initialSocialActivityCleanup = await productionSocialActivityStore.cleanupExpired();
+  const initialSocialEventCleanup = await productionSocialEventStore.cleanupExpired();
   console.log(JSON.stringify({ level: 'info', event: 'auth_records_cleaned', ...initialCleanup }));
   console.log(JSON.stringify({ level: 'info', event: 'social_rate_events_cleaned', deleted: initialSocialRateCleanup }));
+  console.log(JSON.stringify({ level: 'info', event: 'social_activity_cleaned', deleted: initialSocialActivityCleanup }));
+  console.log(JSON.stringify({ level: 'info', event: 'social_events_cleaned', deleted: initialSocialEventCleanup }));
   const app = createApp(undefined, undefined, undefined, undefined, undefined, undefined, productionAuthStore, undefined, undefined, undefined, {
     allowedOrigins,
     trustProxy: process.env.TRUST_PROXY === 'true',
     logger: (event) => console.log(JSON.stringify({ level: 'info', event: 'http_request', ...event })),
     socialRateLimitStore: productionSocialRateLimitStore,
+    socialActivityStore: productionSocialActivityStore,
+    socialEventStore: productionSocialEventStore,
   });
   app.requestTimeout = 15_000;
   app.headersTimeout = 10_000;
@@ -615,6 +657,15 @@ async function startProductionServer(): Promise<void> {
       .catch((error) => console.error(JSON.stringify({ level: 'error', event: 'social_rate_cleanup_failed', message: error instanceof Error ? error.message : String(error) })));
   }, SOCIAL_RATE_CLEANUP_INTERVAL_MS);
   socialRateCleanupTimer.unref();
+  const socialStateCleanupTimer = setInterval(() => {
+    void Promise.all([
+      productionSocialActivityStore.cleanupExpired(),
+      productionSocialEventStore.cleanupExpired(),
+    ])
+      .then(([activity, events]) => console.log(JSON.stringify({ level: 'info', event: 'social_state_cleaned', activity, events })))
+      .catch((error) => console.error(JSON.stringify({ level: 'error', event: 'social_state_cleanup_failed', message: error instanceof Error ? error.message : String(error) })));
+  }, SOCIAL_STATE_CLEANUP_INTERVAL_MS);
+  socialStateCleanupTimer.unref();
 
   let stopping = false;
   const shutdown = (signal: NodeJS.Signals) => {
@@ -622,6 +673,8 @@ async function startProductionServer(): Promise<void> {
     stopping = true;
     clearInterval(authCleanupTimer);
     clearInterval(socialRateCleanupTimer);
+    clearInterval(socialStateCleanupTimer);
+    void productionSocialEventStore.close().catch((error) => console.error(JSON.stringify({ level: 'error', event: 'social_event_listener_shutdown_failed', message: error instanceof Error ? error.message : String(error) })));
     console.log(JSON.stringify({ level: 'info', event: 'shutdown_started', signal }));
     const forceExit = setTimeout(() => {
       console.error(JSON.stringify({ level: 'error', event: 'shutdown_timeout', signal }));
