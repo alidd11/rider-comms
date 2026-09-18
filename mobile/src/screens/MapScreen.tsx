@@ -363,6 +363,9 @@ export function MapScreen(): React.JSX.Element {
   const remainingNavigationSeconds = activeRoute
     ? activeRoute.steps.slice(navigationStepIndex).reduce((sum, step) => sum + step.durationSeconds, 0)
     : 0;
+  const distanceToCurrentStepEnd = currentNavigationStep && currentLocation
+    ? metersBetween(currentLocation, currentNavigationStep.end)
+    : currentNavigationStep?.distanceMeters ?? 0;
 
   const fitRoute = React.useCallback((nextRoute: InAppNavigationRoute) => {
     if (!mapReady || nextRoute.coordinates.length < 2) return;
@@ -432,16 +435,29 @@ export function MapScreen(): React.JSX.Element {
         setCurrentLocation(here);
         focusCoordinate(here, 0.012);
 
-        if (metersBetween(here, currentNavigationStep.end) <= NAV_STEP_ARRIVAL_RADIUS_M) {
-          if (navigationStepIndex < activeRoute.steps.length - 1) {
-            setNavigationStepIndex((current) => Math.min(current + 1, activeRoute.steps.length - 1));
-          } else {
-            finishInAppNavigation(true);
-            return;
-          }
+        if (
+          navigationStepIndex === activeRoute.steps.length - 1 &&
+          metersBetween(here, currentNavigationStep.end) <= NAV_STEP_ARRIVAL_RADIUS_M
+        ) {
+          finishInAppNavigation(true);
+          return;
         }
 
-        const distanceOffRoute = distanceToSegmentMeters(here, currentNavigationStep.start, currentNavigationStep.end);
+        let effectiveIndex = navigationStepIndex;
+        while (effectiveIndex < activeRoute.steps.length - 1) {
+          const step = activeRoute.steps[effectiveIndex]!;
+          const nextStep = activeRoute.steps[effectiveIndex + 1]!;
+          const reachedStepEnd = metersBetween(here, step.end) <= NAV_STEP_ARRIVAL_RADIUS_M;
+          const alreadyOnNextStep = distanceToSegmentMeters(here, nextStep.start, nextStep.end) <= NAV_STEP_ARRIVAL_RADIUS_M * 1.5;
+          if (!reachedStepEnd && !alreadyOnNextStep) break;
+          effectiveIndex += 1;
+        }
+        if (effectiveIndex !== navigationStepIndex) {
+          setNavigationStepIndex(effectiveIndex);
+        }
+
+        const effectiveStep = activeRoute.steps[effectiveIndex]!;
+        const distanceOffRoute = distanceToSegmentMeters(here, effectiveStep.start, effectiveStep.end);
         if (distanceOffRoute <= NAV_OFF_ROUTE_RADIUS_M) {
           navOffRouteSince.current = null;
           return;
@@ -611,6 +627,7 @@ export function MapScreen(): React.JSX.Element {
               <Pressable
                 style={styles.directionsButton}
                 onPress={() => void openDirections({ lat: selectedPlace.lat, lon: selectedPlace.lon, label: selectedPlace.name })}
+                disabled={navigationLoading}
                 accessibilityRole="button"
                 accessibilityLabel={`Get directions to ${selectedPlace.name}`}
               >
@@ -717,6 +734,7 @@ export function MapScreen(): React.JSX.Element {
             accessibilityRole="button"
             accessibilityLabel={`Get directions to ${navigationTarget.label ?? 'shared destination'}`}
             onPress={() => void openDirections(navigationTarget)}
+            disabled={navigationLoading}
           >
             <Ionicons name="navigate" size={16} color="#FFFFFF" />
             <Text style={styles.destinationStartText}>{navigationLoading ? 'Starting…' : navigationProvider === 'in_app' ? 'Start' : navigationProviderLabel(navigationProvider)}</Text>
@@ -739,7 +757,7 @@ export function MapScreen(): React.JSX.Element {
               <Ionicons name="navigate" size={24} color={colors.accentText} />
             </View>
             <View style={styles.navigationBannerCopy}>
-              <Text style={styles.navigationDistance}>{formatNavigationDistance(currentNavigationStep.distanceMeters, unitSystem)}</Text>
+              <Text style={styles.navigationDistance}>{formatNavigationDistance(distanceToCurrentStepEnd, unitSystem)}</Text>
               <Text numberOfLines={2} style={styles.navigationInstruction}>{currentNavigationStep.instruction}</Text>
               {navigationNotice ? <Text style={styles.navigationNotice}>{navigationNotice}</Text> : null}
             </View>
