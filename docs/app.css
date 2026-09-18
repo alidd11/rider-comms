@@ -191,7 +191,8 @@ img,svg{-webkit-user-drag:none}
    the page root behind it, and the fixed tab bar so there is no false
    edge-to-edge seam. The safe-area padding itself remains untouched. */
 .bottom-nav{background:var(--nav-chrome)}
-@media(prefers-color-scheme:light){:root{--system-chrome:#f4f1ec;--nav-chrome:#f4f1ec}}
+@media(prefers-color-scheme:light){:root{--system-chrome:#f4f1ec}}
+@media(prefers-color-scheme:light){:root{--nav-chrome:#f4f1ec}}
 /* Driving mode forces a dark HUD regardless of system theme (see the
    .nav-mode rules above), but html/body's own background — the colour
    that shows through in any native browser-chrome gap around the page,
