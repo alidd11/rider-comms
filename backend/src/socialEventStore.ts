@@ -89,6 +89,7 @@ export class SocialEventStore {
   private listenerStart?: Promise<PoolClient>;
   private readonly waiters = new Map<string, Set<() => void>>();
   private closed = false;
+  private closePromise?: Promise<void>;
 
   private wake(riderId: string): void {
     const riderWaiters = this.waiters.get(riderId);
@@ -234,16 +235,20 @@ export class SocialEventStore {
     );
   }
 
-  async close(): Promise<void> {
+  close(): Promise<void> {
+    if (this.closePromise) return this.closePromise;
     this.closed = true;
     this.wakeAll();
-    const client = this.listenerClient ?? (this.listenerStart ? await this.listenerStart.catch(() => undefined) : undefined);
-    this.listenerClient = undefined;
-    if (!client) return;
-    try {
-      await client.query(`UNLISTEN ${SOCIAL_EVENT_CHANNEL}`);
-    } finally {
-      client.release();
-    }
+    this.closePromise = (async () => {
+      const client = this.listenerClient ?? (this.listenerStart ? await this.listenerStart.catch(() => undefined) : undefined);
+      this.listenerClient = undefined;
+      if (!client) return;
+      try {
+        await client.query(`UNLISTEN ${SOCIAL_EVENT_CHANNEL}`);
+      } finally {
+        client.release();
+      }
+    })();
+    return this.closePromise;
   }
 }
