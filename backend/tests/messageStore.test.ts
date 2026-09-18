@@ -27,7 +27,7 @@ describe('MessageStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping
   });
 
   beforeEach(async () => {
-    await getPool().query('TRUNCATE direct_messages');
+    await getPool().query('TRUNCATE direct_message_reads, direct_messages');
   });
 
   after(async () => {
@@ -63,6 +63,28 @@ describe('MessageStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping
   it('returns an empty array for a thread with no messages', async () => {
     const store = new MessageStore();
     assert.deepEqual(await store.getThread('x', 'y'), []);
+  });
+
+  it('advances a per-rider read cursor monotonically', async () => {
+    const store = new MessageStore();
+    await store.create('b', 'a', 'first incoming');
+    await store.create('a', 'b', 'outgoing');
+    await store.create('b', 'a', 'second incoming');
+
+    const firstRead = await store.markThreadRead('a', 'b');
+    assert.ok(firstRead > 0);
+    const stored = await getPool().query<{ last_read_seq: string }>(
+      'SELECT last_read_seq FROM direct_message_reads WHERE rider_id = $1',
+      ['a'],
+    );
+    assert.equal(Number(stored.rows[0].last_read_seq), firstRead);
+
+    await store.create('b', 'a', 'third incoming');
+    const secondRead = await store.markThreadRead('a', 'b');
+    assert.ok(secondRead > firstRead);
+
+    // Repeating the call cannot move the cursor backwards.
+    assert.equal(await store.markThreadRead('a', 'b'), secondRead);
   });
 
   it('paginates newest-first in SQL without gaps or duplicates', async () => {
