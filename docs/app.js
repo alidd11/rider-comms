@@ -41,6 +41,7 @@
       riderId: '',
       displayName: '',
       handle: '',
+      avatarId: 'ember',
       instagram: '',
       tiktok: '',
       socialsVisibility: 'friends',
@@ -63,6 +64,23 @@
     road_closure: { label: 'Road closure', icon: 'i-no-entry', color: '#ff6572' },
   };
   const HAZARD_TYPE_ORDER = ['police', 'camera', 'accident', 'hazard', 'road_closure'];
+
+  // Mirrors the native avatar IDs and colours. The PWA maps those presets to
+  // its existing SVG sprite so the same rider identity survives both shells.
+  const AVATAR_PRESETS = [
+    { id: 'ember', icon: 'ride', bg: '#FF8A2B' },
+    { id: 'ridge', icon: 'ride', bg: '#4C8BF5' },
+    { id: 'moss', icon: 'shield', bg: '#3DD68C' },
+    { id: 'dusk', icon: 'route', bg: '#8B5CF6' },
+    { id: 'blaze', icon: 'target', bg: '#FF5A5F' },
+    { id: 'gold', icon: 'route', bg: '#FBBF24' },
+    { id: 'slate', icon: 'nav-arrow', bg: '#64748B' },
+    { id: 'rose', icon: 'location', bg: '#EC4899' },
+  ];
+  const AVATAR_PRESET_BY_ID = Object.fromEntries(AVATAR_PRESETS.map((preset) => [preset.id, preset]));
+  function avatarPreset(id) {
+    return AVATAR_PRESET_BY_ID[id] || AVATAR_PRESETS[0];
+  }
 
   // Automatic day/night map skin — kept in sync with the CSS light-mode
   // media block below via prefersDarkMode(), so the map tiles match the
@@ -269,7 +287,23 @@
   }
 
   function avatar(person, className = '') {
-    return `<span class="avatar ${className}" style="--avatar:${identityColor(person.riderId)}" aria-hidden="true">${escapeHtml(initials(person.displayName))}</span>`;
+    const preset = avatarPreset(person.avatarId);
+    return `<span class="avatar ${className}" style="--avatar:${preset.bg}" aria-hidden="true">${icon(preset.icon)}</span>`;
+  }
+
+  function avatarOptionsMarkup(selectedId) {
+    return `<div class="avatar-picker-grid" role="radiogroup" aria-label="Profile avatar">${AVATAR_PRESETS.map((preset) => {
+      const selected = preset.id === selectedId;
+      return `<button type="button" class="avatar-picker-option${selected ? ' selected' : ''}" data-avatar-option="${preset.id}" role="radio" aria-checked="${selected}" aria-label="${preset.id} avatar"><span class="avatar avatar-lg" style="--avatar:${preset.bg}">${icon(preset.icon)}</span>${selected ? '<span class="avatar-picker-check">✓</span>' : ''}</button>`;
+    }).join('')}</div>`;
+  }
+
+  async function selectProfileAvatar(avatarId) {
+    if (!AVATAR_PRESET_BY_ID[avatarId] || avatarId === state.profile.avatarId) return;
+    const saved = await patchProfile({ avatarId });
+    if (!saved) return;
+    showToast('Avatar updated.');
+    openSheet('profile');
   }
 
   function icon(name) {
@@ -316,8 +350,9 @@
       || state.profile.handle.trim().toLowerCase() === '@rider';
     $('#completeProfilePrompt').hidden = !genericProfile;
     $$('[data-avatar]').forEach((element) => {
-      element.textContent = initials(state.profile.displayName);
-      element.style.setProperty('--avatar', identityColor(state.profile.riderId));
+      const preset = avatarPreset(state.profile.avatarId);
+      element.innerHTML = icon(preset.icon);
+      element.style.setProperty('--avatar', preset.bg);
     });
   }
 
@@ -877,9 +912,12 @@
     const templates = {
       profile: () => ({
         title: 'Edit profile',
-        body: `<div class="settings-sheet-section"><span class="settings-sheet-label">Identity</span><div class="form-field"><label for="editName">Display name</label><input id="editName" maxlength="50" value="${escapeHtml(state.profile.displayName)}"></div><div class="form-field"><label for="editHandle">Rider handle</label><input id="editHandle" maxlength="25" value="${escapeHtml(state.profile.handle)}"></div></div><div class="settings-sheet-section"><span class="settings-sheet-label">Connected profiles</span><div class="form-field"><label for="editInstagram">Instagram</label><input id="editInstagram" maxlength="30" value="${escapeHtml(state.profile.instagram)}" placeholder="Username"></div><div class="form-field"><label for="editTiktok">TikTok</label><input id="editTiktok" maxlength="30" value="${escapeHtml(state.profile.tiktok)}" placeholder="Username"></div><p class="caption">Control who can see these in Privacy controls.</p></div><p id="profileFormError" class="inline-error" hidden></p><button class="button primary wide" id="saveProfile">Save changes</button>`,
+        body: `<div class="settings-sheet-section"><span class="settings-sheet-label">Identity</span><div class="form-field"><label>Avatar</label>${avatarOptionsMarkup(state.profile.avatarId)}</div><div class="form-field"><label for="editName">Display name</label><input id="editName" maxlength="50" value="${escapeHtml(state.profile.displayName)}"></div><div class="form-field"><label for="editHandle">Rider handle</label><input id="editHandle" maxlength="25" value="${escapeHtml(state.profile.handle)}"></div></div><div class="settings-sheet-section"><span class="settings-sheet-label">Connected profiles</span><div class="form-field"><label for="editInstagram">Instagram</label><input id="editInstagram" maxlength="30" value="${escapeHtml(state.profile.instagram)}" placeholder="Username"></div><div class="form-field"><label for="editTiktok">TikTok</label><input id="editTiktok" maxlength="30" value="${escapeHtml(state.profile.tiktok)}" placeholder="Username"></div><p class="caption">Control who can see these in Privacy controls.</p></div><p id="profileFormError" class="inline-error" hidden></p><button class="button primary wide" id="saveProfile">Save changes</button>`,
         ready: () => {
           $('#saveProfile').addEventListener('click', saveProfile);
+          $$('[data-avatar-option]', $('#sheetBody')).forEach((button) => {
+            button.addEventListener('click', () => void selectProfileAvatar(button.dataset.avatarOption));
+          });
         },
       }),
       sessions: () => ({
@@ -2946,6 +2984,7 @@
     state.profile.riderId = profile.riderId;
     state.profile.displayName = profile.displayName;
     state.profile.handle = profile.handle;
+    state.profile.avatarId = profile.avatarId || 'ember';
     state.profile.instagram = profile.instagramUsername;
     state.profile.tiktok = profile.tiktokUsername;
     state.profile.socialsVisibility = profile.instagramVisibility;
