@@ -316,6 +316,9 @@ test('PWA settings sheets own the bottom edge without competing with app chrome'
   await expect(nav).toBeHidden();
   await expect(banner).toBeHidden();
   await expect(settingsScreen).toHaveCSS('overflow', 'hidden');
+  await page.locator('.sheet').evaluate(async (element) => {
+    await Promise.all(element.getAnimations().map((animation) => animation.finished));
+  });
 
   const sheetBox = await page.locator('.sheet').boundingBox();
   const viewport = page.viewportSize();
