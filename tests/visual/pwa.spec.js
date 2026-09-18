@@ -371,7 +371,7 @@ test('installed PWA tab bar owns the iOS home-indicator inset without moving con
   });
 
   expect(chrome.navSafeBottom).toBe('34px');
-  expect(chrome.navHeight).toBe('92px');
+  expect(parseFloat(chrome.navHeight)).toBe(58 + 34 + 1); // rail + safe area + top border
   expect(chrome.continuationBackground).toBe(chrome.navBackground);
 
   expect(navBox).not.toBeNull();
