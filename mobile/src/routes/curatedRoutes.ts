@@ -726,6 +726,144 @@ export const CURATED_ROUTES: readonly CuratedRoute[] = [
     }
   },
   {
+    "id": "yorkshire-ribblehead-buttertubs",
+    "name": "Ribblehead & Buttertubs",
+    "region": "Yorkshire Dales",
+    "road": "B6255 & Buttertubs Pass · Ingleton to Muker",
+    "description": "A compact Dales route that pairs the flowing B6255 past Ribblehead with the steep, exposed Buttertubs crossing from Hawes into Swaledale.",
+    "riderNote": "This combines two roads that are stronger together than as separate novelty cards: the B6255 provides the flowing approach and Buttertubs adds the technical high-moor finish.",
+    "vehicleSuitability": [
+      "motorcycle_small",
+      "motorcycle_large",
+      "car"
+    ],
+    "roadType": "mountain",
+    "distanceMiles": 23,
+    "estimatedDurationMinutes": 50,
+    "difficulty": "challenging",
+    "highlights": [
+      "Ribblehead",
+      "Wensleydale",
+      "Buttertubs Pass",
+      "Swaledale"
+    ],
+    "safetyNotices": [
+      "Buttertubs is narrow and exposed, with livestock, cattle grids and steep pitches.",
+      "Drystone walls leave little verge or run-off on parts of the Dales road network.",
+      "Summer weekends can be busy around Hawes and Ribblehead; allow substantially longer if stopping."
+    ],
+    "start": {
+      "lat": 54.1535,
+      "lon": -2.468,
+      "label": "Ingleton"
+    },
+    "end": {
+      "lat": 54.3839,
+      "lon": -2.1469,
+      "label": "Muker"
+    },
+    "waypoints": [
+      {
+        "lat": 54.2068,
+        "lon": -2.3638,
+        "label": "Ribblehead"
+      },
+      {
+        "lat": 54.3042,
+        "lon": -2.1964,
+        "label": "Hawes"
+      },
+      {
+        "lat": 54.3602,
+        "lon": -2.1961,
+        "label": "Buttertubs Pass"
+      }
+    ],
+    "routeSourceUrl": "https://www.rapidtraining.co.uk/blog/2023/02/21/2023-2-21-rapid-roads-b6255",
+    "conditionsUrl": "https://one.network/uk",
+    "reviewedAt": "2026-09-18",
+    "image": {
+      "uri": "https://upload.wikimedia.org/wikipedia/commons/8/8c/The_B6255_road_near_Ribblehead_-_geograph.org.uk_-_8295984.jpg",
+      "alt": "The B6255 road running across open moorland near Ribblehead",
+      "author": "Thomas Nugent",
+      "licenseName": "CC BY-SA 2.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/2.0/",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:The_B6255_road_near_Ribblehead_-_geograph.org.uk_-_8295984.jpg"
+    }
+  },
+  {
+    "id": "a708-three-lochs",
+    "name": "Three Lochs Run",
+    "region": "Scottish Borders",
+    "road": "A708 & reservoir roads · Moffat loop",
+    "description": "A forty-three-mile Borders loop from Moffat along the A708 beside St Mary's Loch, then back through the Talla and Megget reservoir country and the Devil's Beef Tub.",
+    "riderNote": "A strong crossover route for bikes and cars: the A708 provides flowing road and scenery, while the reservoir leg slows the pace and gives the loop a distinct touring character.",
+    "vehicleSuitability": [
+      "motorcycle_small",
+      "motorcycle_large",
+      "scooter",
+      "car"
+    ],
+    "roadType": "mixed",
+    "distanceMiles": 43,
+    "estimatedDurationMinutes": 75,
+    "difficulty": "moderate",
+    "highlights": [
+      "Grey Mare's Tail",
+      "St Mary's Loch",
+      "Talla Reservoir",
+      "Devil's Beef Tub"
+    ],
+    "safetyNotices": [
+      "The reservoir roads are narrower than the A708 and can have limited sightlines and passing room.",
+      "Weather changes quickly on the exposed Borders uplands.",
+      "Ride time is a route-only planning estimate and excludes scenic or café stops."
+    ],
+    "start": {
+      "lat": 55.3333,
+      "lon": -3.4443,
+      "label": "Moffat"
+    },
+    "end": {
+      "lat": 55.3333,
+      "lon": -3.4443,
+      "label": "Moffat"
+    },
+    "waypoints": [
+      {
+        "lat": 55.4923,
+        "lon": -3.1914,
+        "label": "St Mary's Loch"
+      },
+      {
+        "lat": 55.4935,
+        "lon": -3.4158,
+        "label": "Talla Reservoir"
+      },
+      {
+        "lat": 55.5042,
+        "lon": -3.4291,
+        "label": "Tweedsmuir"
+      },
+      {
+        "lat": 55.4015,
+        "lon": -3.4862,
+        "label": "Devil's Beef Tub"
+      }
+    ],
+    "routeSourceUrl": "https://www.motorcyclescotland.com/routes/three-lochs-run/",
+    "conditionsUrl": "https://www.traffic.gov.scot/",
+    "reviewedAt": "2026-09-18",
+    "image": {
+      "uri": "https://upload.wikimedia.org/wikipedia/commons/4/45/A708_beside_St_Mary%27s_Loch_-_geograph.org.uk_-_7249278.jpg",
+      "alt": "The A708 beside St Mary's Loch in the Scottish Borders",
+      "author": "Sandy Gerrard",
+      "licenseName": "CC BY-SA 2.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/2.0/",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:A708_beside_St_Mary's_Loch_-_geograph.org.uk_-_7249278.jpg"
+    }
+  },
+  {
     "id": "a821-dukes-pass",
     "name": "Duke’s Pass",
     "region": "Loch Lomond & The Trossachs",
