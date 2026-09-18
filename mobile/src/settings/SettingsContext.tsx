@@ -13,7 +13,7 @@ const cacheKey = (riderId: string): string => `@rider-comms/settings/profile/${r
 export type UnitSystem = 'mi' | 'km';
 const DEFAULTS: Omit<RiderProfile, 'riderId' | 'updatedAt'> = {
   zoneTier: 'free', avatarId: DEFAULT_AVATAR_ID, displayName: 'Rider', handle: '@rider', unitSystem: 'mi',
-  notifyNearby: true, notifyInvites: true, notifyChat: true, shareLocation: false,
+  notifyNearby: false, notifyInvites: false, notifyChat: false, shareLocation: false,
   instagramUsername: '', instagramVisibility: 'friends', tiktokUsername: '', tiktokVisibility: 'friends',
 };
 type ProfileState = typeof DEFAULTS;
@@ -41,17 +41,6 @@ export function SettingsProvider({ children }: { children: React.ReactNode }): R
   const stateRef = React.useRef<ProfileState>(DEFAULTS);
   React.useEffect(() => { stateRef.current = state; }, [state]);
   React.useEffect(() => { const key = cacheKey(riderId); let cancelled = false; setLoaded(false); void AsyncStorage.removeItem(LEGACY_CACHE_KEY); AsyncStorage.getItem(key).then((raw) => { if (!cancelled) { setState({ ...DEFAULTS, ...validCached(raw) }); setLoaded(true); } }).catch(() => setLoaded(true)); client.getProfile(riderId).then((profile) => { if (!cancelled) { const { riderId: _id, updatedAt: _at, ...value } = profile; setState(value); void AsyncStorage.setItem(key, JSON.stringify(value)); setLoaded(true); } }).catch(() => {}); return () => { cancelled = true; }; }, [client, riderId]);
-  // Covers riders who never touch the toggles (they default to "on" — see
-  // DEFAULTS above), not just the ones who flip a toggle from off to on.
-  React.useEffect(() => {
-    if (!loaded) return;
-    if (state.notifyNearby || state.notifyInvites || state.notifyChat) {
-      void ensureNotificationPermission().catch(() => {});
-    }
-    // Only re-check once settings finish loading, not on every toggle
-    // flip — update() above already handles the toggle-flip case.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loaded]);
   const update = React.useCallback(<K extends keyof ProfileState>(key: K, value: ProfileState[K]) => {
     const previousValue = stateRef.current[key];
     const optimistic = { ...stateRef.current, [key]: value };
