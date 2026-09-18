@@ -2,32 +2,12 @@
   color-scheme: light dark; --bg:#0e0e0f; --system-chrome:#0e0e0f; --nav-chrome:#0e0e0f; --bg-elevated:#141415; --surface:#181819; --surface-raised:#242426; --surface-hover:#29292c; --border:#303034; --border-soft:#252528; --text:#f5f4f2; --text-secondary:#b8b3ac; --text-muted:#827d76; --accent:#ff2d5a; --accent-soft:#3a1720; --accent-text:#24050c; --success:#39d39b; --danger:#ff6572; --warning:#ffc15a; --focus:#91a7ff; --accent-2:#00e6ff; --accent-2-soft:#062b33; --glow-accent:0 0 1px rgb(255 45 90/.9), 0 0 18px rgb(255 45 90/.55); --glow-accent-2:0 0 1px rgb(0 230 255/.9), 0 0 18px rgb(0 230 255/.5); --gradient-neon:linear-gradient(135deg,var(--accent),var(--accent-2)); --font-display:'Chakra Petch',Inter,ui-sans-serif,system-ui,sans-serif; --shadow-sm:0 4px 16px rgb(0 0 0/.18); --shadow-lg:0 14px 40px rgb(0 0 0/.3); --radius-sm:8px; --radius-md:10px; --radius-lg:12px; --radius-pill:999px; --touch:48px; --nav-height:58px; --content-max:680px; --safe-top:env(safe-area-inset-top,0px); --safe-right:env(safe-area-inset-right,0px); --safe-bottom:min(40px, env(safe-area-inset-bottom,0px)); --safe-left:env(safe-area-inset-left,0px); --nav-safe-bottom:0px; --bottom-nav-height:calc(var(--nav-height) + var(--nav-safe-bottom)); font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; font-synthesis:none;
 }
 :root{--surface:#181819;--surface-raised:#242426;--surface-hover:#29292c;--border:#303034}
-/* Home-indicator inset is gated to the INSTALLED PWA only. In a browser tab
-   env(safe-area-inset-bottom) can resolve non-zero (collapsed toolbar) and would
-   re-introduce a false gap, so keep --nav-safe-bottom:0 there and only fill the
-   strip with the nav's own background once standalone. app.js toggles the
-   .pwa-standalone class (display-mode: standalone + iOS navigator.standalone). */
+/* Installed iOS PWA home-indicator handling.
+   The final ~34px gesture strip behaves as system-owned chrome on the target
+   iPhone. Giving the tab bar that inset again duplicates the clearance and
+   makes the controls look too high. Keep the nav rail itself at 58px and
+   paint the root strip to match it; normal browser tabs also remain at 0. */
 html.pwa-standalone{--nav-safe-bottom:0px}
-/* History, so this doesn't get re-litigated from CSS-purity first
-   principles again: --nav-safe-bottom was originally forced to 0 in
-   standalone mode on a theory about how iOS reserves the home-indicator
-   region (backwards -- see earlier revisions of this comment in git
-   history). That was "fixed" to use the real env(safe-area-inset-
-   bottom), then reduced to a small fixed value, based on live device
-   feedback at each step that the reserved space still looked like a
-   gap. Pixel-sampled an unmarked real-device screenshot at that point:
-   the app's own background was confirmed perfectly flat/uniform away
-   from the home-indicator pill (no CSS seam), and the colour gradient
-   near the pill is iOS's own glow/bloom around it, not this app's
-   background -- i.e. there was never a colour bug here, only a sizing
-   preference. Explicit, repeated feedback across every value tried
-   (full inset, then 14px) was that the space needed to keep shrinking,
-   so it's 0 now: the nav sits flush, matching how this app looked
-   before any of this safe-area work started. If iOS's own reserved
-   gesture area still shows *any* visible strip beneath the nav after
-   this, that strip is drawn by the OS around the home indicator itself
-   and is not something page-level CSS can add, remove, or recolour --
-   don't re-attempt a padding/clearance value to fix it. */
 /* Native-feeling PWA interactions: app chrome should not select, drag or
    flash like a document, while form fields retain normal editing behavior. */
 html,body{-webkit-text-size-adjust:100%;overscroll-behavior:none}
