@@ -26,10 +26,12 @@ const requiredCssMarkers = [
   '--app-vh:100dvh',
   '--visual-vh:100dvh',
   '--bottom-control-inset:0px',
-  '--tab-rail-physical-shift:0px',
   '--navigation-control-inset:0px',
   '--bottom-nav-height:calc(var(--nav-height) + var(--bottom-control-inset) + 1px)',
-  'html.pwa-standalone{--nav-safe-bottom:var(--bottom-safe-area);--bottom-control-inset:0px;--tab-rail-physical-shift:min(16px,var(--bottom-safe-area));--navigation-control-inset:min(18px,var(--bottom-safe-area))}',
+  '@media(display-mode:standalone){:root{--app-vh:100vh}}',
+  'html.pwa-standalone{--app-vh:100vh;--nav-safe-bottom:var(--bottom-safe-area);--bottom-control-inset:var(--bottom-safe-area);--navigation-control-inset:min(18px,var(--bottom-safe-area))}',
+  '.pwa-standalone .app-shell{',
+  '.pwa-standalone .bottom-nav{',
 ];
 
 for (const marker of requiredCssMarkers) {
@@ -39,6 +41,8 @@ for (const marker of requiredCssMarkers) {
 }
 
 const requiredJsMarkers = [
+  "const appHeight = isStandalone ? '100vh'",
+  "settleViewportEnvironment",
   "root.style.setProperty('--app-vh'",
   "root.style.setProperty('--visual-vh'",
   "root.style.setProperty('--visual-viewport-top'",
