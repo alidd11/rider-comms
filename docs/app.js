@@ -745,7 +745,6 @@
       return;
     }
 
-    const location = { lat: () => hideout.lat, lng: () => hideout.lon };
     closeChat({ restoreFocus: false });
     navigate('map');
     requestAnimationFrame(() => {
@@ -753,6 +752,7 @@
         showToast('Rider Comms navigation needs the live map.');
         return;
       }
+      const location = new google.maps.LatLng(hideout.lat, hideout.lon);
       setDestinationMarker(location, hideout.name, `${hideout.lat.toFixed(5)}, ${hideout.lon.toFixed(5)}`);
     });
   }
