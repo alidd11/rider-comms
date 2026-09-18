@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { distanceBetweenMeters, formatPlaceDistance, isSearchQueryValid, searchNearbyPlaces, searchPlaces } from '../src/api/places.ts';
+import { addRecentPlace, parseRecentPlaces, recentPlacesStorageKey } from '../src/search/recentPlaces.ts';
 
 function fakeFetch(handler: (url: string, init: RequestInit) => { status: number; body: unknown }): typeof fetch {
   return (async (url: string, init: RequestInit) => {
@@ -175,5 +176,34 @@ describe('place distance helpers', () => {
   it('rejects invalid display distances safely', () => {
     assert.equal(formatPlaceDistance(Number.NaN), '');
     assert.equal(formatPlaceDistance(-1), '');
+  });
+});
+
+
+describe('recent place history', () => {
+  const a = { id: 'a', name: 'A', address: 'A road', lat: 51.5, lon: -0.1, distanceMeters: 100 };
+  const b = { id: 'b', name: 'B', address: 'B road', lat: 51.6, lon: -0.2, distanceMeters: 200 };
+
+  it('scopes storage to the signed-in rider', () => {
+    assert.equal(recentPlacesStorageKey('rider_a'), '@rider-comms/search-recents/rider_a');
+    assert.notEqual(recentPlacesStorageKey('rider_a'), recentPlacesStorageKey('rider_b'));
+  });
+
+  it('keeps newest places first and deduplicates by place id', () => {
+    assert.deepEqual(addRecentPlace([a, b], b).map((place) => place.id), ['b', 'a']);
+  });
+
+  it('caps history at six entries', () => {
+    const current = Array.from({ length: 6 }, (_, index) => ({ ...a, id: `p${index}` }));
+    assert.equal(addRecentPlace(current, b).length, 6);
+    assert.equal(addRecentPlace(current, b)[0].id, 'b');
+  });
+
+  it('rejects malformed cached history instead of trusting arbitrary JSON', () => {
+    assert.deepEqual(
+      parseRecentPlaces(JSON.stringify([a, { id: 'bad', name: 'Bad', address: '', lat: 999, lon: 0 }])),
+      [a]
+    );
+    assert.deepEqual(parseRecentPlaces('{broken'), []);
   });
 });
