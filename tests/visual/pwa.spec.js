@@ -153,6 +153,15 @@ async function assertNoViewportOverflow(page) {
   expect(overflow.width, `document width ${overflow.width}px exceeds ${overflow.viewport}px viewport`).toBeLessThanOrEqual(overflow.viewport + 1);
 }
 
+async function waitForViewportSettled(page) {
+  // app.js intentionally resamples the standalone viewport across two paint
+  // frames after launch/pageshow. Wait one additional frame before overriding
+  // the safe-area test fixture so the production resync cannot race the test.
+  await page.evaluate(() => new Promise((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  }));
+}
+
 test('core PWA screens render without runtime errors or viewport overflow', async ({ page }, testInfo) => {
   const runtimeErrors = [];
   page.on('pageerror', (error) => runtimeErrors.push(`pageerror: ${error.stack || error.message}`));
@@ -483,6 +492,7 @@ test('installed PWA cold start uses the full Home Screen canvas before any rotat
   });
   await mockAuthenticatedApi(page);
   await page.goto('/#map');
+  await waitForViewportSettled(page);
   await page.evaluate(() => {
     document.documentElement.style.setProperty('--bottom-safe-area', '34px');
   });
@@ -520,12 +530,14 @@ test('installed PWA cold start uses the full Home Screen canvas before any rotat
 });
 
 test('installed PWA tab rail keeps controls above the home indicator', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'standalone', { configurable: true, value: true });
+  });
   await mockAuthenticatedApi(page);
   await page.goto('/#settings');
+  await waitForViewportSettled(page);
   await page.evaluate(() => {
-    const root = document.documentElement;
-    root.classList.add('pwa-standalone');
-    root.style.setProperty('--bottom-safe-area', '34px');
+    document.documentElement.style.setProperty('--bottom-safe-area', '34px');
   });
 
   const nav = page.locator('.bottom-nav');
@@ -586,9 +598,9 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
   });
   await mockAuthenticatedApi(page);
   await page.goto('/#map');
+  await waitForViewportSettled(page);
   await page.evaluate(() => {
     const root = document.documentElement;
-    root.classList.add('pwa-standalone');
     root.style.setProperty('--bottom-safe-area', '34px');
     document.querySelector('#app').classList.add('nav-mode');
     document.querySelector('#navSummary').hidden = false;
