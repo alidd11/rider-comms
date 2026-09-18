@@ -8,6 +8,11 @@ export interface NavigationTarget {
 
 const MAX_LABEL_LENGTH = 120;
 
+export interface NavigationUrlOpener {
+  canOpenURL: (url: string) => Promise<boolean>;
+  openURL: (url: string) => Promise<unknown>;
+}
+
 export function isValidNavigationCoordinate(lat: unknown, lon: unknown): lat is number {
   return typeof lat === 'number' && Number.isFinite(lat) && lat >= -90 && lat <= 90 &&
     typeof lon === 'number' && Number.isFinite(lon) && lon >= -180 && lon <= 180;
@@ -89,4 +94,17 @@ export function buildExternalNavigationUrl(
     return `https://maps.apple.com/?daddr=${encodeURIComponent(coordinate)}&q=${encodeURIComponent(label)}&dirflg=d`;
   }
   return `geo:${coordinate}?q=${encodeURIComponent(`${coordinate}(${label})`)}`;
+}
+
+/** Feature-detects the destination URL before handing control to the OS.
+ * Unsupported schemes and platform failures share the same safe false result
+ * so screens can retain context and offer a retry/provider change. */
+export async function openNavigationUrl(url: string, opener: NavigationUrlOpener): Promise<boolean> {
+  try {
+    if (!(await opener.canOpenURL(url))) return false;
+    await opener.openURL(url);
+    return true;
+  } catch {
+    return false;
+  }
 }

@@ -24,7 +24,7 @@ import { ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { colors, spacing, radii, type, elevation, MIN_TOUCH_TARGET } from '../theme';
 import { getAvatarPreset } from '../settings/avatars';
-import { buildNavigationProviderUrl } from '../navigationLinks';
+import { buildNavigationProviderUrl, openNavigationUrl } from '../navigationLinks';
 import { reconcileMessageThread, type LocalDirectMessage } from '../friends/messageState';
 import { useMovementSafety } from '../safety/MovementSafetyContext';
 import { RideSafeSurface } from '../safety/RideSafeSurface';
@@ -343,9 +343,7 @@ function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Elemen
       return;
     }
 
-    try {
-      await Linking.openURL(url);
-    } catch {
+    if (!(await openNavigationUrl(url, Linking))) {
       Alert.alert('Couldn’t open directions', `Rider Comms could not open ${navigationProviderLabel(navigationProvider)} on this device.`);
     }
   }, [navigation, navigationProvider]);
