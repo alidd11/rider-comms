@@ -293,7 +293,15 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
           if (error instanceof StaleLocationFixError) return sendJson(res, 409, { error: 'out_of_order_location_fix' });
           throw error;
         }
-        return sendJson(res, 200, { inZoneWith: presenceStore.ridersInZoneWith(actorId, presenceResult.zonePairs), transitions: presenceResult.transitions.filter((t) => t.a === actorId || t.b === actorId), radiusMiles: rider.radiusMiles });
+        const inZonePeerIds = presenceStore.ridersInZoneWith(actorId, presenceResult.zonePairs);
+        const actorTransitions = presenceResult.transitions.filter((transition) => transition.a === actorId || transition.b === actorId);
+        const transitionPeerIds = actorTransitions.map((transition) => transition.a === actorId ? transition.b : transition.a);
+        const allowedPeerIds = new Set(await moderationStore.filterAllowedPeerIds(actorId, [...inZonePeerIds, ...transitionPeerIds]));
+        return sendJson(res, 200, {
+          inZoneWith: inZonePeerIds.filter((peerId) => allowedPeerIds.has(peerId)),
+          transitions: actorTransitions.filter((transition) => allowedPeerIds.has(transition.a === actorId ? transition.b : transition.a)),
+          radiusMiles: rider.radiusMiles,
+        });
       }
       if (req.method === 'DELETE' && url.pathname === '/presence') { await presenceStore.removeRider(actorId); return sendJson(res, 200, {}); }
       if (req.method === 'POST' && url.pathname === '/voice/token') {
@@ -308,9 +316,7 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
         }
         if (body.target === 'channel') {
           const peerIds = await presenceStore.getCurrentPeerIds(actorId);
-          const authorisedPeerIds = (await Promise.all(peerIds.map(async (peerId) =>
-            await moderationStore.isBlockedBetween(actorId, peerId) ? null : peerId
-          ))).filter((peerId): peerId is string => peerId !== null);
+          const authorisedPeerIds = await moderationStore.filterAllowedPeerIds(actorId, peerIds);
           const connections = await Promise.all(authorisedPeerIds.map(async (peerId) => ({
             peerId,
             ...(await mintVoiceToken(
@@ -333,7 +339,6 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
         if (typeof body.riderId !== 'string' || body.riderId === actorId) return sendJson(res, 400, { error: 'valid riderId is required' });
         if (!(await authStore.hasRider(body.riderId))) return sendJson(res, 404, { error: 'rider_not_found' });
         await moderationStore.block(actorId, body.riderId);
-        await friendStore.removeFriend(actorId, body.riderId);
         return sendJson(res, 200, {});
       }
       if (req.method === 'DELETE' && s[0] === 'blocks' && s[1] && s.length === 2) {
@@ -397,7 +402,18 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
           }
         }
         if (req.method === 'DELETE' && s[2] === 'friends' && s[3]) { await friendStore.removeFriend(actorId, decodeURIComponent(s[3])); return sendJson(res, 200, {}); }
-        if (req.method === 'GET' && s[2] === 'hideouts') return sendJson(res, 200, { hideouts: await hideoutStore.getForRider(actorId) });
+        if (req.method === 'GET' && s[2] === 'hideouts') {
+          const hideouts = await hideoutStore.getForRider(actorId);
+          const participantIds = hideouts.flatMap((hideout) => hideout.participantIds);
+          const allowedParticipantIds = new Set(await moderationStore.filterAllowedPeerIds(actorId, participantIds));
+          return sendJson(res, 200, {
+            hideouts: hideouts.map((hideout) => ({
+              ...hideout,
+              participantIds: hideout.participantIds.filter((participantId) =>
+                participantId === actorId || allowedParticipantIds.has(participantId)),
+            })),
+          });
+        }
       }
       if (req.method === 'POST' && url.pathname === '/friends/requests') {
         const body = await readJsonBody(req); if (typeof body.toRiderId !== 'string' || !body.toRiderId.trim()) return sendJson(res, 400, { error: 'toRiderId is required' });
@@ -412,7 +428,10 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
         if (!target) return sendJson(res, 404, { error: 'rider_not_found' });
         if (actorId === target) return sendJson(res, 400, { error: 'cannot_friend_yourself' }); if (!(await authStore.hasRider(target))) return sendJson(res, 404, { error: 'rider_not_found' });
         if (await moderationStore.isBlockedBetween(actorId, target)) return sendJson(res, 403, { error: 'blocked' });
-        const r = await friendStore.createRequest(actorId, target); return r.ok ? sendJson(res, 201, r.request) : sendJson(res, 409, { error: r.error });
+        const r = await friendStore.createRequest(actorId, target);
+        return r.ok
+          ? sendJson(res, 201, r.request)
+          : sendJson(res, r.error === 'blocked' ? 403 : 409, { error: r.error });
       }
       if (req.method === 'DELETE' && s[0] === 'friends' && s[1] === 'requests' && s[2] && s.length === 3) {
         const r = await friendStore.cancelRequest(decodeURIComponent(s[2]), actorId);
