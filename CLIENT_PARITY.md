@@ -24,7 +24,6 @@ The current intentional gap list is:
 - hideouts: native only
 - block/report flows: native only
 - host rider removal: native only
-- private ride location sharing: PWA only
 - recent places: PWA only
 - navigation: both clients exist but behavior differs
 - signed-in device/session management: native only

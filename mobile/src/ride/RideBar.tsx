@@ -104,13 +104,15 @@ function VoiceActivityBridge({
  * screen — tap it to expand the full mixer + leave-ride controls.
  */
 export function RideBar(): React.JSX.Element | null {
-  const { activeRide, leaveRide } = useRide();
+  const { activeRide, leaveRide, shareRideLocation, setRideLocationSharing } = useRide();
   const { lockedForSafety } = useMovementSafety();
   const [expanded, setExpanded] = React.useState(false);
   const audioEngineRef = React.useRef(new AudioEngine());
   const [gains, setGains] = React.useState(audioEngineRef.current.getGains());
   const [talking, setTalking] = React.useState(false);
   const [manuallyMuted, setManuallyMuted] = React.useState(false);
+  const [locationShareBusy, setLocationShareBusy] = React.useState(false);
+  const [locationShareError, setLocationShareError] = React.useState<string | null>(null);
   // Hooks run unconditionally, before the `!activeRide` early return below —
   // the hook itself is a no-op (empty state) while there's no active ride.
   const voice = useRideVoiceToken(activeRide?.rideId);
@@ -150,6 +152,14 @@ export function RideBar(): React.JSX.Element | null {
         },
       ]
     );
+  };
+
+  const toggleRideLocation = async () => {
+    setLocationShareBusy(true);
+    setLocationShareError(null);
+    const ok = await setRideLocationSharing(!shareRideLocation);
+    if (!ok) setLocationShareError('Could not update ride location sharing. Check location permission and try again.');
+    setLocationShareBusy(false);
   };
 
   const voiceFailure = audioSessionError ?? voice.error ?? roomError;
@@ -202,6 +212,12 @@ export function RideBar(): React.JSX.Element | null {
         <View style={styles.liveDot} />
         <MaterialCommunityIcons name="motorbike" size={18} color={colors.accent} />
         <Text style={styles.barText}>In ride{activeRide.code ? ` · ${activeRide.code}` : ''}</Text>
+        {shareRideLocation && (
+          <View style={styles.locationLivePill}>
+            <Ionicons name="location" size={13} color={colors.success} />
+            <Text style={styles.locationLiveText}>Live</Text>
+          </View>
+        )}
         <Ionicons name="chevron-up" size={18} color={colors.textSecondary} />
       </Pressable>
 
@@ -236,6 +252,28 @@ export function RideBar(): React.JSX.Element | null {
           <Text style={styles.rideId}>Ride ID: {activeRide.rideId}</Text>
           <Text style={[styles.voiceStatusText, voiceFailure && styles.voiceError]}>{voiceLabel}</Text>
           {voiceFailure && <Text style={styles.voiceError}>{voiceFailure}</Text>}
+
+          <View style={styles.locationCard}>
+            <View style={styles.locationCardCopy}>
+              <Text style={styles.locationCardTitle}>Share my live location</Text>
+              <Text style={styles.locationCardBody}>
+                {shareRideLocation
+                  ? 'On — current ride members can see your recent position.'
+                  : 'Off — your position is not being uploaded to this ride.'}
+              </Text>
+            </View>
+            <Pressable
+              accessibilityRole="switch"
+              accessibilityState={{ checked: shareRideLocation, disabled: locationShareBusy }}
+              accessibilityLabel="Share my live location with this ride"
+              disabled={locationShareBusy}
+              onPress={() => void toggleRideLocation()}
+              style={[styles.locationSwitch, shareRideLocation && styles.locationSwitchOn]}
+            >
+              <View style={[styles.locationSwitchKnob, shareRideLocation && styles.locationSwitchKnobOn]} />
+            </Pressable>
+          </View>
+          {locationShareError && <Text style={styles.voiceError}>{locationShareError}</Text>}
 
           <View style={styles.mixerCard}>
             <Text style={styles.mixerLabel}>Audio priority — nav overrides chat overrides music</Text>
@@ -294,6 +332,12 @@ const styles = StyleSheet.create({
   },
   barPressed: { opacity: 0.85 },
   barText: { ...type.body, color: colors.textPrimary, flex: 1 },
+  locationLivePill: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    paddingHorizontal: 7, paddingVertical: 4, borderRadius: radii.pill,
+    backgroundColor: colors.surface,
+  },
+  locationLiveText: { ...type.caption, color: colors.success, fontWeight: '800' },
   liveDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.success },
   errorDot: { backgroundColor: colors.danger },
   voiceStatusText: { ...type.caption, color: colors.textSecondary },
@@ -327,6 +371,22 @@ const styles = StyleSheet.create({
   codeValue: { fontSize: 32, fontWeight: '800', letterSpacing: 6, color: colors.accent, marginTop: spacing.xs },
   rideId: { ...type.caption },
   voiceError: { ...type.caption, color: colors.danger },
+  locationCard: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.md,
+    backgroundColor: colors.surface, padding: spacing.md, borderRadius: radii.lg,
+    borderWidth: 1, borderColor: colors.border,
+  },
+  locationCardCopy: { flex: 1 },
+  locationCardTitle: { ...type.label, color: colors.textPrimary },
+  locationCardBody: { ...type.caption, color: colors.textSecondary, marginTop: 3, lineHeight: 18 },
+  locationSwitch: {
+    width: 50, height: 30, borderRadius: 15, padding: 3,
+    justifyContent: 'center', backgroundColor: colors.surfaceRaised,
+    borderWidth: 1, borderColor: colors.border,
+  },
+  locationSwitchOn: { backgroundColor: colors.accent, borderColor: colors.accent },
+  locationSwitchKnob: { width: 22, height: 22, borderRadius: 11, backgroundColor: colors.textMuted },
+  locationSwitchKnobOn: { alignSelf: 'flex-end', backgroundColor: colors.accentText },
   mixerCard: { backgroundColor: colors.surface, padding: spacing.md, borderRadius: radii.lg, gap: spacing.md },
   mixerLabel: { ...type.caption, marginBottom: spacing.xs },
   gainRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },

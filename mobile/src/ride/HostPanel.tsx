@@ -21,14 +21,16 @@ function JoinOrHostForm(): React.JSX.Element {
   const { client } = useAuth();
   const [code, setCode] = React.useState('');
   const [loading, setLoading] = React.useState(false);
+  const [shareRideLocation, setShareRideLocation] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
   const handleJoin = React.useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const { rideId } = await client.joinRide(code.trim().toUpperCase());
-      startRide({ rideId, isHost: false });
+      const normalizedCode = code.trim().toUpperCase();
+      const { rideId } = await client.joinRide(normalizedCode);
+      await startRide({ rideId, code: normalizedCode, isHost: false }, shareRideLocation);
     } catch (err) {
       if (err instanceof ApiError && err.status === 429) {
         setError('Too many attempts — wait a bit before trying again.');
@@ -42,7 +44,7 @@ function JoinOrHostForm(): React.JSX.Element {
     } finally {
       setLoading(false);
     }
-  }, [code, startRide]);
+  }, [client, code, shareRideLocation, startRide]);
 
   const canSubmit = !loading && code.length === 6;
 
@@ -67,6 +69,23 @@ function JoinOrHostForm(): React.JSX.Element {
           if (error) setError(null);
         }}
       />
+
+      <Pressable
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: shareRideLocation }}
+        onPress={() => setShareRideLocation((value) => !value)}
+        style={styles.consentRow}
+      >
+        <View style={[styles.checkbox, shareRideLocation && styles.checkboxChecked]}>
+          {shareRideLocation && <Ionicons name="checkmark" size={16} color={colors.accentText} />}
+        </View>
+        <View style={styles.consentCopy}>
+          <Text style={styles.consentTitle}>Share my live location</Text>
+          <Text style={styles.consentBody}>
+            Optional. Only current ride members can see it, and it is removed when you leave or switch this off.
+          </Text>
+        </View>
+      </Pressable>
 
       {error && (
         <View style={styles.errorBox}>
@@ -174,6 +193,31 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   inputError: { borderColor: colors.danger },
+  consentRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.md,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.lg,
+    backgroundColor: colors.surface,
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 7,
+    borderWidth: 2,
+    borderColor: colors.textMuted,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 1,
+  },
+  checkboxChecked: { backgroundColor: colors.accent, borderColor: colors.accent },
+  consentCopy: { flex: 1 },
+  consentTitle: { ...type.label, color: colors.textPrimary },
+  consentBody: { ...type.caption, color: colors.textSecondary, marginTop: 3, lineHeight: 18 },
   errorBox: {
     flexDirection: 'row',
     alignItems: 'flex-start',

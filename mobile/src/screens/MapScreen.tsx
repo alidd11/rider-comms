@@ -1,8 +1,9 @@
 // The public presence response intentionally returns rider IDs, not other
 // riders' exact coordinates. The map therefore plots only coordinates the
-// current rider is allowed to know: their own fix, selected destinations and
-// aggregate hazard reports. Nearby riders remain a count rather than being
-// placed at invented bearings.
+// current rider is allowed to know: their own fix, selected destinations,
+// aggregate hazard reports, and fresh private-ride coordinates explicitly
+// shared by current ride members. Public nearby riders remain a count rather
+// than being placed at invented bearings.
 //
 // Public and Host share this one screen via a segmented toggle instead of
 // being separate tabs — once this has a real map SDK behind it, a second
@@ -26,6 +27,7 @@ import type { TabParamList } from '../navigation';
 import { useAuth } from '../auth/AuthContext';
 import { colors, spacing, radii, type, elevation, MIN_TOUCH_TARGET } from '../theme';
 import { RideBar } from '../ride/RideBar';
+import { useRide } from '../ride/RideContext';
 import { ProximityVoice } from '../voice/ProximityVoice';
 import { HostPanel } from '../ride/HostPanel';
 import { useSettings } from '../settings/SettingsContext';
@@ -116,7 +118,8 @@ function SegmentToggle({
 }
 
 export function MapScreen(): React.JSX.Element {
-  const { client } = useAuth();
+  const { client, riderId } = useAuth();
+  const { rideLocations } = useRide();
   const { shareLocation } = useSettings();
   const { lockedForSafety, movementState, locationAccess, requestLocationAccess, openLocationSettings, refreshTracking } = useMovementSafety();
   const insets = useSafeAreaInsets();
@@ -377,6 +380,17 @@ export function MapScreen(): React.JSX.Element {
                 pinColor={colors.accent}
               />
             )}
+            {rideLocations
+              .filter((location) => location.riderId !== riderId)
+              .map((location) => (
+                <Marker
+                  key={`ride-location-${location.riderId}`}
+                  coordinate={{ latitude: location.lat, longitude: location.lon }}
+                  title={location.riderId}
+                  description="Private ride member · live location"
+                  pinColor={colors.success}
+                />
+              ))}
             {navigationTarget && (
               <Marker
                 coordinate={{ latitude: navigationTarget.lat, longitude: navigationTarget.lon }}

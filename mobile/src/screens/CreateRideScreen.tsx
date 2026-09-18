@@ -1,4 +1,3 @@
-// Unverified scaffold — see navigation/index.tsx header note.
 import * as React from 'react';
 import { View, Text, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -20,6 +19,7 @@ export function CreateRideScreen(props: Props): React.JSX.Element {
 function CreateRideScreenContent({ navigation }: Props): React.JSX.Element {
   const { startRide } = useRide();
   const { client } = useAuth();
+  const [shareRideLocation, setShareRideLocation] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -28,14 +28,14 @@ function CreateRideScreenContent({ navigation }: Props): React.JSX.Element {
     setError(null);
     try {
       const { rideId, code } = await client.createRide();
-      startRide({ rideId, code, isHost: true });
+      await startRide({ rideId, code, isHost: true }, shareRideLocation);
       navigation.goBack();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong creating the ride.');
     } finally {
       setLoading(false);
     }
-  }, [navigation, startRide]);
+  }, [client, navigation, shareRideLocation, startRide]);
 
   return (
     <View style={styles.container}>
@@ -47,6 +47,23 @@ function CreateRideScreenContent({ navigation }: Props): React.JSX.Element {
         You'll get a code to share with the riders joining you, and can add or remove riders as host. It
         expires automatically after 12 hours of inactivity.
       </Text>
+
+      <Pressable
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: shareRideLocation }}
+        onPress={() => setShareRideLocation((value) => !value)}
+        style={styles.consentRow}
+      >
+        <View style={[styles.checkbox, shareRideLocation && styles.checkboxChecked]}>
+          {shareRideLocation && <Ionicons name="checkmark" size={16} color={colors.accentText} />}
+        </View>
+        <View style={styles.consentCopy}>
+          <Text style={styles.consentTitle}>Share my live location</Text>
+          <Text style={styles.consentBody}>
+            Optional. Only riders in this private ride can see your recent position. You can pause it at any time.
+          </Text>
+        </View>
+      </Pressable>
 
       {error && (
         <View style={styles.errorBox}>
@@ -60,11 +77,7 @@ function CreateRideScreenContent({ navigation }: Props): React.JSX.Element {
         onPress={handleCreate}
         disabled={loading}
       >
-        {loading ? (
-          <ActivityIndicator color={colors.accentText} />
-        ) : (
-          <Text style={styles.buttonText}>Create Ride</Text>
-        )}
+        {loading ? <ActivityIndicator color={colors.accentText} /> : <Text style={styles.buttonText}>Create Ride</Text>}
       </Pressable>
     </View>
   );
@@ -84,6 +97,31 @@ const styles = StyleSheet.create({
   },
   title: { ...type.heading, marginBottom: spacing.sm },
   body: { ...type.body, marginBottom: spacing.lg },
+  consentRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.md,
+    padding: spacing.md,
+    marginBottom: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.lg,
+    backgroundColor: colors.surface,
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 7,
+    borderWidth: 2,
+    borderColor: colors.textMuted,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 1,
+  },
+  checkboxChecked: { backgroundColor: colors.accent, borderColor: colors.accent },
+  consentCopy: { flex: 1 },
+  consentTitle: { ...type.label, color: colors.textPrimary },
+  consentBody: { ...type.caption, color: colors.textSecondary, marginTop: 3, lineHeight: 18 },
   errorBox: {
     flexDirection: 'row',
     alignItems: 'flex-start',

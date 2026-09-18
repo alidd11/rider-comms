@@ -23,6 +23,7 @@ export interface AccountSessionSummary { id: string; deviceName: string; created
 export interface CreateRideResponse { rideId: string; code: string; expiresAt: number; createdBy: string; memberIds: string[] }
 export interface JoinRideResponse { rideId: string }
 export interface RideResponse { rideId: string; createdBy: string; createdAt: number; memberIds: string[] }
+export interface RideMemberLocation { riderId: string; lat: number; lon: number; updatedAt: number }
 export interface PresenceResponse { inZoneWith: string[]; transitions: Array<{ a: string; b: string; type: 'entered' | 'left' }>; radiusMiles: number }
 export interface VoiceTokenResponse { token: string; url: string }
 export interface ProximityVoiceConnection extends VoiceTokenResponse { peerId: string }
@@ -76,6 +77,9 @@ export class RiderCommsClient {
   leaveRide(id: string): Promise<Record<string, never>> { return this.request('POST', `/rides/${encodeURIComponent(id)}/leave`, {}); }
   endRide(id: string): Promise<Record<string, never>> { return this.request('DELETE', `/rides/${encodeURIComponent(id)}`); }
   removeRideMember(id: string, memberId: string): Promise<RideResponse> { return this.request('DELETE', `/rides/${encodeURIComponent(id)}/members/${encodeURIComponent(memberId)}`); }
+  setRideLocationSharing(id: string, enabled: boolean): Promise<{ enabled: boolean }> { return this.request('PUT', `/rides/${encodeURIComponent(id)}/location-sharing`, { enabled }); }
+  updateRideLocation(id: string, lat: number, lon: number): Promise<Record<string, never>> { return this.request('POST', `/rides/${encodeURIComponent(id)}/location`, { lat, lon }); }
+  getRideLocations(id: string): Promise<{ locations: RideMemberLocation[] }> { return this.request('GET', `/rides/${encodeURIComponent(id)}/locations`); }
   updatePresence(lat: number, lon: number, accuracyMeters: number, recordedAt: number): Promise<PresenceResponse> {
     return this.request('POST', '/presence', { lat, lon, accuracyMeters, recordedAt });
   }
