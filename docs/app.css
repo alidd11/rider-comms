@@ -603,8 +603,9 @@ html.pwa-standalone:not(.auth-open) body{
 /* Direct-message surface. Closed-keyboard chat owns the full app viewport.
    When iOS opens the keyboard, only this surface switches to VisualViewport
    geometry so the header stays visible and the composer follows the keyboard. */
+html.chat-open body{position:fixed;inset:0;width:100%;height:var(--app-vh,100dvh);overflow:hidden}
 .chat-screen{position:fixed;z-index:45;top:0;right:0;bottom:auto;left:0;width:min(100%,760px);height:var(--app-vh);margin-inline:auto;display:grid;grid-template-rows:auto auto auto minmax(0,1fr) auto;overflow:hidden;background:var(--bg);color:var(--text)}
-html.keyboard-open .chat-screen{top:var(--visual-viewport-top,0px);height:var(--visual-vh,var(--app-vh))}
+html.keyboard-open .chat-screen{top:calc(var(--visual-viewport-top,0px) + var(--chat-root-pan,0px));height:var(--visual-vh,var(--app-vh))}
 .chat-screen[hidden]{display:none}
 .chat-header{grid-row:1;min-height:calc(var(--safe-top) + 62px);padding:var(--safe-top) max(14px,var(--safe-right)) 8px max(14px,var(--safe-left));display:grid;grid-template-columns:44px 40px minmax(0,1fr) 44px 44px;align-items:center;gap:8px;border-bottom:1px solid var(--border-soft);background:var(--surface)}
 .chat-header .icon-back{transform:rotate(180deg)}
