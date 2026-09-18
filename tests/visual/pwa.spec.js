@@ -306,6 +306,25 @@ test('PWA exposes session management and account deletion', async ({ page }) => 
   await expect.poll(() => accountDeleted).toBe(true);
 });
 
+test('PWA recent place history is scoped to the signed-in rider', async ({ page }) => {
+  await mockAuthenticatedApi(page);
+  await page.addInitScript(({ riderId }) => {
+    localStorage.setItem('riderComms.recentSearches', JSON.stringify([
+      { placeId: 'legacy', name: 'Other account place', secondary: 'Should not appear', lat: 51.4, lng: -0.2 },
+    ]));
+    localStorage.setItem(`riderComms.recentSearches:${riderId}`, JSON.stringify([
+      { placeId: 'mine', name: 'My recent place', secondary: 'Account scoped', lat: 51.5, lng: -0.1 },
+    ]));
+  }, { riderId: RIDER_ID });
+
+  await page.goto('/');
+  await page.locator('#mapSearchSlot').click();
+  await expect(page.locator('#searchScreenResults')).toContainText('My recent place');
+  await expect(page.locator('#searchScreenResults')).not.toContainText('Other account place');
+  await page.locator('#searchRecentClearBtn').click();
+  await expect(page.locator('#searchScreenResults')).not.toContainText('My recent place');
+});
+
 test('PWA password recovery is discoverable and enumeration-safe', async ({ page }) => {
   await page.route('https://backend-production-7fa0.up.railway.app/**', async (route) => {
     const pathname = new URL(route.request().url()).pathname;
