@@ -20,14 +20,12 @@
 
     root.classList.toggle('pwa-standalone', Boolean(isStandalone));
     root.classList.toggle('keyboard-open', keyboardOpen);
-    // Let CSS size the installed app against the edge-to-edge viewport.
-    // Freezing innerHeight into pixels can retain a shorter WebKit viewport
-    // after launch/keyboard transitions, leaving absolute map chrome above
-    // the home indicator. Safe-area padding belongs INSIDE the bottom bar.
-    // VisualViewport remains separate for keyboard-sensitive chat surfaces.
-    const appHeight = isStandalone && window.CSS?.supports('height', '100dvh')
-      ? '100dvh'
-      : `${layoutViewportHeight}px`;
+    // iOS standalone WebKit can initialise 100dvh/innerHeight to a viewport
+    // that is shorter than the physical Home Screen web-app surface, then
+    // correct itself only after an orientation change. Traditional 100vh is
+    // the stable large viewport in standalone mode; VisualViewport remains
+    // separate for keyboard-sensitive chat surfaces.
+    const appHeight = isStandalone ? '100vh' : `${layoutViewportHeight}px`;
     root.style.setProperty('--app-vh', appHeight);
     root.style.setProperty('--visual-vh', `${visualViewportHeight}px`);
     root.style.setProperty('--visual-viewport-top', `${visualViewportTop}px`);
@@ -39,6 +37,33 @@
     root.style.setProperty('--bottom-safe-area', isStandalone ? 'env(safe-area-inset-bottom, 0px)' : '0px');
   };
   syncViewportEnvironment();
+
+  // Cold-start workaround for standalone iOS WebKit. A portrait launch can
+  // cache stale viewport-fit / safe-area geometry until the device rotates.
+  // Toggle only the viewport-fit token for two animation frames while every
+  // app surface is still hidden, then re-sync. This asks WebKit for the same
+  // geometry recomputation that a rotation would otherwise trigger.
+  const refreshStandaloneViewportGeometry = () => {
+    const isStandalone = standaloneMedia?.matches || window.navigator.standalone === true;
+    if (!isStandalone) return;
+    const meta = document.querySelector('meta[name="viewport"]');
+    const original = meta?.getAttribute('content') || '';
+    if (!meta || !original.includes('viewport-fit=cover')) return;
+
+    meta.setAttribute('content', original.replace('viewport-fit=cover', 'viewport-fit=auto'));
+    requestAnimationFrame(() => {
+      meta.setAttribute('content', original);
+      requestAnimationFrame(syncViewportEnvironment);
+    });
+
+    // WebKit can publish safe-area values a little later than viewport units.
+    // Re-read them without changing layout ownership or using a fake band.
+    setTimeout(syncViewportEnvironment, 100);
+    setTimeout(syncViewportEnvironment, 500);
+    setTimeout(syncViewportEnvironment, 1000);
+  };
+  refreshStandaloneViewportGeometry();
+
   window.addEventListener('resize', syncViewportEnvironment);
   window.addEventListener('orientationchange', syncViewportEnvironment);
   window.addEventListener('scroll', syncViewportEnvironment, { passive: true });
@@ -3575,9 +3600,14 @@
   }
 
   function hideAuthScreen() {
+    // Re-read the standalone viewport immediately before the authenticated
+    // shell becomes visible. This keeps cold-start geometry identical to the
+    // already-correct auth surface instead of waiting for a device rotation.
+    syncViewportEnvironment();
     $('#authScreen').hidden = true;
     $('#app').hidden = false;
     document.documentElement.classList.remove('auth-open');
+    requestAnimationFrame(syncViewportEnvironment);
   }
 
   const AUTH_ERROR_MESSAGES = {
