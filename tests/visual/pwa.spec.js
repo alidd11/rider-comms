@@ -470,13 +470,14 @@ test('PWA navigation preference offers Rider Comms, Google Maps, Waze and Apple 
   await expect(page.locator('#navigationProviderSummary')).toHaveText('Waze');
 });
 
-test('installed PWA tab rail stays bottom-flush without duplicating the iOS safe area', async ({ page }) => {
+test('installed PWA cold start keeps the tab rail bottom-flush without a second band', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'standalone', { configurable: true, value: true });
+  });
   await mockAuthenticatedApi(page);
   await page.goto('/#settings');
   await page.evaluate(() => {
-    const root = document.documentElement;
-    root.classList.add('pwa-standalone');
-    root.style.setProperty('--bottom-safe-area', '34px');
+    document.documentElement.style.setProperty('--bottom-safe-area', '34px');
   });
 
   const nav = page.locator('.bottom-nav');
@@ -494,18 +495,21 @@ test('installed PWA tab rail stays bottom-flush without duplicating the iOS safe
     const nav = document.querySelector('.bottom-nav');
     return {
       navSafeBottom: getComputedStyle(root).getPropertyValue('--nav-safe-bottom').trim(),
+      appVh: root.style.getPropertyValue('--app-vh').trim(),
       bottomControlInset: getComputedStyle(root).getPropertyValue('--bottom-control-inset').trim(),
-      tabRailPhysicalShift: getComputedStyle(root).getPropertyValue('--tab-rail-physical-shift').trim(),
       navigationControlInset: getComputedStyle(root).getPropertyValue('--navigation-control-inset').trim(),
       navHeight: getComputedStyle(nav).height,
       navPaddingBottom: getComputedStyle(nav).paddingBottom,
+      viewportContent: document.querySelector('meta[name="viewport"]')?.getAttribute('content') || '',
     };
   });
 
   expect(chrome.navSafeBottom).toBe('34px');
+  expect(chrome.appVh).toBe('100vh');
   expect(chrome.bottomControlInset).toBe('0px');
-  expect(chrome.tabRailPhysicalShift).toBe('min(16px,34px)');
   expect(chrome.navigationControlInset).toBe('min(18px,34px)');
+  expect(chrome.viewportContent).toContain('viewport-fit=cover');
+  expect(chrome.viewportContent).not.toContain('viewport-fit=auto');
   expect(parseFloat(chrome.navHeight)).toBe(58 + 1);
   expect(parseFloat(chrome.navPaddingBottom)).toBe(0);
 
@@ -515,14 +519,14 @@ test('installed PWA tab rail stays bottom-flush without duplicating the iOS safe
   expect(viewport).not.toBeNull();
   expect(Math.abs((navBox.y + navBox.height) - viewport.height)).toBeLessThanOrEqual(1);
 
-  // Real installed iOS 26 PWAs expose a system-owned gesture strip below the
-  // CSS viewport. Move the controls 16px into that physical safe area instead
-  // of merely painting it. The nav surface remains anchored at bottom:0.
-  expect(buttonBox.y).toBeGreaterThanOrEqual(navBox.y + 15);
-  expect(buttonBox.y + buttonBox.height).toBeGreaterThan(viewport.height);
-  expect(buttonBox.y + buttonBox.height - viewport.height).toBeGreaterThanOrEqual(15);
-  expect(buttonBox.y + buttonBox.height - viewport.height).toBeLessThanOrEqual(17);
-  const railBottom = navBox.y + 58 + 16;
+  // The fix belongs to the viewport, not to individual controls. Once cold
+  // start geometry is refreshed, the 58px tab rail itself ends at the viewport
+  // edge and its controls need no compensating translation.
+  expect(buttonBox.y).toBeGreaterThanOrEqual(navBox.y - 1);
+  expect(buttonBox.y + buttonBox.height).toBeLessThanOrEqual(navBox.y + 59);
+  expect(viewport.height - (buttonBox.y + buttonBox.height)).toBeGreaterThanOrEqual(0);
+  expect(viewport.height - (buttonBox.y + buttonBox.height)).toBeLessThanOrEqual(2);
+  const railBottom = navBox.y + 58;
   const labelBottomGap = railBottom - (labelBox.y + labelBox.height);
   expect(labelBottomGap).toBeGreaterThanOrEqual(0);
   expect(labelBottomGap).toBeLessThanOrEqual(12);
@@ -571,7 +575,7 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
   // Three pixels still rejects any meaningful safe-area gap while avoiding
   // false failures from sub-pixel viewport quantisation.
   expect(Math.abs((summaryBox.y + summaryBox.height) - viewport.height)).toBeLessThanOrEqual(3);
-  expect(await page.evaluate(() => document.documentElement.style.getPropertyValue('--app-vh'))).toBe('100dvh');
+  expect(await page.evaluate(() => document.documentElement.style.getPropertyValue('--app-vh'))).toBe('100vh');
 });
 
 test('PWA preserves backend avatar presets on friend surfaces', async ({ page }) => {
