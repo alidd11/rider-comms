@@ -187,6 +187,8 @@ function Tabs(): React.JSX.Element {
         // panel with a seam under the home indicator.
         tabBarStyle: {
           backgroundColor: colors.background,
+          borderTopColor: colors.border,
+          borderTopWidth: StyleSheet.hairlineWidth,
         },
         tabBarActiveTintColor: colors.accent,
         tabBarInactiveTintColor: colors.textMuted,
@@ -352,12 +354,12 @@ export function AppNavigator(): React.JSX.Element {
 
 const styles = StyleSheet.create({
   blank: { flex: 1, backgroundColor: colors.background },
-  tabLabel: { fontSize: 12, fontWeight: '600', letterSpacing: 0 },
-  defaultTabLabel: { fontSize: 12, fontWeight: '600', letterSpacing: 0 },
+  tabLabel: { fontSize: 11, fontWeight: '650', letterSpacing: 0 },
+  defaultTabLabel: { fontSize: 11, fontWeight: '650', letterSpacing: 0 },
   tabIconShell: {
-    width: 42,
-    height: 30,
-    borderRadius: 15,
+    width: 38,
+    height: 28,
+    borderRadius: 4,
     alignItems: 'center',
     justifyContent: 'center',
   },
