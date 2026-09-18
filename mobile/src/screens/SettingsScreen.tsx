@@ -618,7 +618,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
     marginTop: spacing.lg,
   },
-  section: { backgroundColor: colors.surface, borderRadius: radii.lg, overflow: 'hidden' },
+  section: { backgroundColor: colors.surface, borderRadius: radii.lg, overflow: 'hidden', borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
   tierRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -700,8 +700,8 @@ const styles = StyleSheet.create({
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
   modalSheet: {
     backgroundColor: colors.surface,
-    borderTopLeftRadius: radii.lg,
-    borderTopRightRadius: radii.lg,
+    borderTopLeftRadius: radii.xl,
+    borderTopRightRadius: radii.xl,
     padding: spacing.lg,
     paddingBottom: spacing.xl,
   },
