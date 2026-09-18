@@ -459,6 +459,89 @@ test('PWA direct messages load and send within a friend-only thread', async ({ p
   await assertNoViewportOverflow(page);
 });
 
+test('PWA chat stays pinned to the visible viewport when the iPhone keyboard changes geometry', async ({ page }, testInfo) => {
+  await page.addInitScript(() => {
+    const listeners = { resize: new Set(), scroll: new Set() };
+    const viewport = {
+      height: window.innerHeight,
+      offsetTop: 0,
+      addEventListener(type, listener) { listeners[type]?.add(listener); },
+      removeEventListener(type, listener) { listeners[type]?.delete(listener); },
+    };
+    Object.defineProperty(window, 'visualViewport', { configurable: true, value: viewport });
+    Object.defineProperty(window.navigator, 'standalone', { configurable: true, value: true });
+    window.__setRiderTestVisualViewport = (height, offsetTop = 0) => {
+      viewport.height = height;
+      viewport.offsetTop = offsetTop;
+      listeners.resize.forEach((listener) => listener(new Event('resize')));
+      listeners.scroll.forEach((listener) => listener(new Event('scroll')));
+    };
+  });
+
+  await mockAuthenticatedApi(page, 'stationary', async ({ request, url }) => {
+    if (url.pathname === '/messages' && request.method() === 'GET') {
+      return { body: { messages: [], nextCursor: null } };
+    }
+    if (url.pathname === '/profiles/rider_friend01') {
+      return { body: { riderId: 'rider_friend01', displayName: 'Maya', handle: '@maya_moto', avatarId: 'ridge' } };
+    }
+    return null;
+  });
+
+  await page.goto('/#friends');
+  await page.locator('[data-friend="rider_friend01"]').click();
+  await page.locator('#messageFriend').click();
+  await expect(page.locator('#chatScreen')).toBeVisible();
+  await expect(page.locator('#chatInput')).not.toBeFocused();
+
+  await page.evaluate(() => document.documentElement.style.setProperty('--bottom-safe-area', '34px'));
+  const composerPaddingBottom = await page.locator('#chatComposer').evaluate((element) => getComputedStyle(element).paddingBottom);
+  expect(composerPaddingBottom).toBe('10px');
+
+  const initialViewportHeight = await page.evaluate(() => window.innerHeight);
+  const keyboardViewportHeight = Math.max(220, Math.round(initialViewportHeight * 0.58));
+  const keyboardOffsetTop = Math.min(64, Math.round(initialViewportHeight * 0.08));
+  await page.evaluate(({ height, offsetTop }) => {
+    window.__setRiderTestVisualViewport(height, offsetTop);
+  }, { height: keyboardViewportHeight, offsetTop: keyboardOffsetTop });
+
+  await expect.poll(async () => {
+    const box = await page.locator('#chatScreen').boundingBox();
+    return box ? Math.round(box.y) : -1;
+  }).toBe(keyboardOffsetTop);
+
+  const [chatBox, headerBox, composerBox] = await Promise.all([
+    page.locator('#chatScreen').boundingBox(),
+    page.locator('.chat-header').boundingBox(),
+    page.locator('#chatComposer').boundingBox(),
+  ]);
+  expect(chatBox).not.toBeNull();
+  expect(headerBox).not.toBeNull();
+  expect(composerBox).not.toBeNull();
+  expect(Math.abs(chatBox.height - keyboardViewportHeight)).toBeLessThanOrEqual(1);
+  expect(headerBox.y).toBeGreaterThanOrEqual(chatBox.y - 1);
+  // WebKit can preserve a small platform safe-area remainder even when the
+  // visual viewport is being simulated. The regression was the full tab bar /
+  // duplicated safe-area band (58px+), not this system-sized remainder.
+  const composerBottomGap = (chatBox.y + chatBox.height) - (composerBox.y + composerBox.height);
+  expect(Math.abs(composerBottomGap)).toBeLessThanOrEqual(24);
+  await expect(page.locator('.bottom-nav')).toHaveCSS('visibility', 'hidden');
+
+  await page.screenshot({
+    path: testInfo.outputPath(`${testInfo.project.name}-chat-keyboard-viewport.png`),
+    fullPage: true,
+  });
+
+  await page.evaluate(({ height }) => {
+    window.__setRiderTestVisualViewport(height, 0);
+  }, { height: initialViewportHeight });
+
+  await expect.poll(async () => {
+    const box = await page.locator('#chatScreen').boundingBox();
+    return box ? Math.round(box.y + box.height) : -1;
+  }).toBe(initialViewportHeight);
+});
+
 test('PWA profile avatar selection persists and updates visible avatars', async ({ page }) => {
   let savedAvatar = 'ember';
   await mockAuthenticatedApi(page, 'stationary', async ({ request, url }) => {
