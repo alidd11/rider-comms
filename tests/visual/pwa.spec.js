@@ -495,6 +495,7 @@ test('installed PWA tab rail stays bottom-flush without duplicating the iOS safe
     return {
       navSafeBottom: getComputedStyle(root).getPropertyValue('--nav-safe-bottom').trim(),
       bottomControlInset: getComputedStyle(root).getPropertyValue('--bottom-control-inset').trim(),
+      tabRailPhysicalShift: getComputedStyle(root).getPropertyValue('--tab-rail-physical-shift').trim(),
       navigationControlInset: getComputedStyle(root).getPropertyValue('--navigation-control-inset').trim(),
       navHeight: getComputedStyle(nav).height,
       navPaddingBottom: getComputedStyle(nav).paddingBottom,
@@ -503,6 +504,7 @@ test('installed PWA tab rail stays bottom-flush without duplicating the iOS safe
 
   expect(chrome.navSafeBottom).toBe('34px');
   expect(chrome.bottomControlInset).toBe('0px');
+  expect(chrome.tabRailPhysicalShift).toBe('min(16px,34px)');
   expect(chrome.navigationControlInset).toBe('min(18px,34px)');
   expect(parseFloat(chrome.navHeight)).toBe(58 + 1);
   expect(parseFloat(chrome.navPaddingBottom)).toBe(0);
@@ -513,13 +515,14 @@ test('installed PWA tab rail stays bottom-flush without duplicating the iOS safe
   expect(viewport).not.toBeNull();
   expect(Math.abs((navBox.y + navBox.height) - viewport.height)).toBeLessThanOrEqual(1);
 
-  // The tab rail itself is bottom-flush. Do not reserve a second gesture-area
-  // inset beneath the controls: iOS already owns the home-indicator chrome.
-  expect(buttonBox.y).toBeGreaterThanOrEqual(navBox.y - 1);
-  expect(buttonBox.y + buttonBox.height).toBeLessThanOrEqual(navBox.y + 59);
-  expect(viewport.height - (buttonBox.y + buttonBox.height)).toBeGreaterThanOrEqual(0);
-  expect(viewport.height - (buttonBox.y + buttonBox.height)).toBeLessThanOrEqual(2);
-  const railBottom = navBox.y + 58;
+  // Real installed iOS 26 PWAs expose a system-owned gesture strip below the
+  // CSS viewport. Move the controls 16px into that physical safe area instead
+  // of merely painting it. The nav surface remains anchored at bottom:0.
+  expect(buttonBox.y).toBeGreaterThanOrEqual(navBox.y + 15);
+  expect(buttonBox.y + buttonBox.height).toBeGreaterThan(viewport.height);
+  expect(buttonBox.y + buttonBox.height - viewport.height).toBeGreaterThanOrEqual(15);
+  expect(buttonBox.y + buttonBox.height - viewport.height).toBeLessThanOrEqual(17);
+  const railBottom = navBox.y + 58 + 16;
   const labelBottomGap = railBottom - (labelBox.y + labelBox.height);
   expect(labelBottomGap).toBeGreaterThanOrEqual(0);
   expect(labelBottomGap).toBeLessThanOrEqual(12);
