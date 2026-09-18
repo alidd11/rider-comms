@@ -632,8 +632,10 @@ test('installed PWA tab rail keeps controls above the home indicator', async ({ 
   expect(viewport.height - (buttonBox.y + buttonBox.height)).toBeLessThanOrEqual(36);
   const railBottom = navBox.y + 58;
   const labelBottomGap = railBottom - (labelBox.y + labelBox.height);
-  expect(labelBottomGap).toBeGreaterThanOrEqual(0);
-  expect(labelBottomGap).toBeLessThanOrEqual(12);
+  // Visible controls sit near the safe boundary while the 58px button itself
+  // remains entirely outside the home-indicator region.
+  expect(labelBottomGap).toBeGreaterThanOrEqual(3);
+  expect(labelBottomGap).toBeLessThanOrEqual(7);
 });
 
 test('PWA navigation summary extends through the installed iPhone bottom safe area', async ({ page }) => {
