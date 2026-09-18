@@ -131,25 +131,47 @@ export class HazardStore {
 
   private async vote(id: string, riderId: string, vote: 'confirm' | 'deny'): Promise<VoteResult> {
     await ensureMigrated();
-    const counter = vote === 'confirm' ? 'confirmations' : 'denials';
-    const { rows } = await getPool().query<{ report_exists: boolean }>(
-      `WITH report AS (
-         SELECT id FROM hazard_reports WHERE id = $1
-       ), inserted AS (
-         INSERT INTO hazard_report_votes (report_id, rider_id, vote)
-         SELECT id, $2, $3 FROM report
-         ON CONFLICT (report_id, rider_id) DO NOTHING
-         RETURNING report_id
-       ), updated AS (
-         UPDATE hazard_reports
-         SET ${counter} = ${counter} + 1
-         WHERE id = $1 AND EXISTS (SELECT 1 FROM inserted)
-         RETURNING id
-       )
-       SELECT EXISTS (SELECT 1 FROM report) AS report_exists`,
-      [id, riderId, vote]
-    );
-    return rows[0]?.report_exists ? { ok: true } : { ok: false, reason: 'not_found' };
+    const client = await getPool().connect();
+    try {
+      await client.query('BEGIN');
+      const report = await client.query('SELECT id FROM hazard_reports WHERE id = $1 FOR UPDATE', [id]);
+      if (!report.rowCount) {
+        await client.query('ROLLBACK');
+        return { ok: false, reason: 'not_found' };
+      }
+
+      const existing = await client.query<{ vote: 'confirm' | 'deny' }>(
+        'SELECT vote FROM hazard_report_votes WHERE report_id = $1 AND rider_id = $2',
+        [id, riderId],
+      );
+      const previousVote = existing.rows[0]?.vote;
+      if (previousVote === vote) {
+        await client.query('COMMIT');
+        return { ok: true };
+      }
+
+      await client.query(
+        `INSERT INTO hazard_report_votes (report_id, rider_id, vote)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (report_id, rider_id) DO UPDATE SET vote = EXCLUDED.vote`,
+        [id, riderId, vote],
+      );
+      const confirmationDelta = vote === 'confirm' ? 1 : previousVote === 'confirm' ? -1 : 0;
+      const denialDelta = vote === 'deny' ? 1 : previousVote === 'deny' ? -1 : 0;
+      await client.query(
+        `UPDATE hazard_reports
+         SET confirmations = confirmations + $2, denials = denials + $3
+         WHERE id = $1`,
+        [id, confirmationDelta, denialDelta],
+      );
+      await client.query('COMMIT');
+      return { ok: true };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   /** Only the reporter may remove their own report. */
