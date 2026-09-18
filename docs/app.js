@@ -14,6 +14,7 @@
 
     root.classList.toggle('pwa-standalone', Boolean(isStandalone));
     root.style.setProperty('--app-vh', `${viewportHeight}px`);
+    root.style.setProperty('--visual-viewport-top', `${Math.max(0, visualViewport?.offsetTop ?? 0)}px`);
     root.style.setProperty('--bottom-safe-area', isStandalone ? 'env(safe-area-inset-bottom, 0px)' : '0px');
   };
   syncViewportEnvironment();
@@ -737,7 +738,6 @@
     history.pushState({ screen: 'friends', chat: friend.riderId }, '', '#friends/chat');
     document.title = `${friend.displayName} · Rider Comms`;
     void loadChatMessages({ showLoading: true });
-    $('#chatInput').focus();
   }
 
   function closeChat({ restoreFocus = true } = {}) {
