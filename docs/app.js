@@ -9,12 +9,20 @@
   const visualViewport = window.visualViewport;
   const syncViewportEnvironment = () => {
     const isStandalone = standaloneMedia?.matches || window.navigator.standalone === true;
-    const viewportHeight = visualViewport?.height ?? window.innerHeight;
+    const layoutViewportHeight = window.innerHeight;
+    const visualViewportHeight = visualViewport?.height ?? layoutViewportHeight;
+    const visualViewportTop = Math.max(0, visualViewport?.offsetTop ?? 0);
+    const keyboardInset = Math.max(0, layoutViewportHeight - visualViewportHeight - visualViewportTop);
+    const keyboardOpen = keyboardInset > 80;
     const root = document.documentElement;
 
     root.classList.toggle('pwa-standalone', Boolean(isStandalone));
-    root.style.setProperty('--app-vh', `${viewportHeight}px`);
-    root.style.setProperty('--visual-viewport-top', `${Math.max(0, visualViewport?.offsetTop ?? 0)}px`);
+    root.classList.toggle('keyboard-open', keyboardOpen);
+    // The app shell owns the full layout viewport. VisualViewport is tracked
+    // separately only for keyboard-sensitive surfaces such as direct chat.
+    root.style.setProperty('--app-vh', `${layoutViewportHeight}px`);
+    root.style.setProperty('--visual-vh', `${visualViewportHeight}px`);
+    root.style.setProperty('--visual-viewport-top', `${visualViewportTop}px`);
     root.style.setProperty('--bottom-safe-area', isStandalone ? 'env(safe-area-inset-bottom, 0px)' : '0px');
   };
   syncViewportEnvironment();
@@ -2878,36 +2886,8 @@
     );
   }
 
-  // The CSS `.nav-mode` rules force a dark turn card/ETA bar regardless of
-  // system theme, but the actual OS/browser chrome around the page — the
-  // iOS status bar colour and the strip below the safe area — is driven by
-  // these <meta name="theme-color"> tags, which still follow the system's
-  // light/dark preference. In light mode that left a plain white band
-  // directly under the dark nav UI. Force them dark while navigating and
-  // restore whatever they were (light-mode "#ffffff" included) once it ends.
-  function setNavChromeColor(active) {
-    const metas = $$('meta[name="theme-color"]');
-    if (active) {
-      // applyRoute() re-runs on every reroute, not just the initial start —
-      // guard against re-capturing the already-dark value as "original" on
-      // a later reroute, which would otherwise leave it stuck dark forever.
-      metas.forEach((meta) => {
-        if (meta.dataset.preNavContent === undefined) meta.dataset.preNavContent = meta.getAttribute('content');
-        // Must match the turn card/ETA bar's actual background,
-        // not just the app's general background
-        // is close but visibly different, which read as a seam rather
-        // than a flush edge between the OS chrome and the app's own UI.
-        meta.setAttribute('content', '#101011');
-      });
-    } else {
-      metas.forEach((meta) => {
-        if (meta.dataset.preNavContent === undefined) return;
-        meta.setAttribute('content', meta.dataset.preNavContent);
-        delete meta.dataset.preNavContent;
-      });
-    }
-  }
-
+  // Navigation now extends the real app surface through the installed-iPhone
+  // bottom safe area. Do not recolour browser/system chrome to hide a gap.
   function applyRoute(result, destination, label) {
     const leg = result.routes[0]?.legs[0];
     if (!leg) { showToast('Could not calculate a route. Try again.'); return; }
@@ -2934,7 +2914,6 @@
     // screen are the route, the turn card, the ETA bar, and the controls a
     // rider actually needs mid-drive (report hazard, re-centre, end nav).
     $('#app').classList.add('nav-mode');
-    setNavChromeColor(true);
     $('#navBanner').hidden = false;
     $('#navSummary').hidden = false;
     renderNavStep();
@@ -3023,7 +3002,6 @@
     $('#navBanner').hidden = true;
     $('#navSummary').hidden = true;
     $('#app').classList.remove('nav-mode');
-    setNavChromeColor(false);
     if (arrived) {
       showToast('You have arrived.');
       speak('You have arrived at your destination.');
