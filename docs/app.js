@@ -158,14 +158,16 @@
   // media block below via prefersDarkMode(), so the map tiles match the
   // rest of the UI instead of staying stuck on the dark skin in daylight.
   const MAP_STYLE_DARK = [
-    { elementType: 'geometry', stylers: [{ color: '#19191b' }] },
-    { elementType: 'labels.text.stroke', stylers: [{ color: '#19191b' }] },
-    { elementType: 'labels.text.fill', stylers: [{ color: '#9b9893' }] },
-    { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#2a2a2d' }] },
-    { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#353539' }] },
+    { elementType: 'geometry', stylers: [{ color: '#0a1115' }] },
+    { elementType: 'labels.text.stroke', stylers: [{ color: '#0a1115' }] },
+    { elementType: 'labels.text.fill', stylers: [{ color: '#7d8c94' }] },
+    { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#a9b7bd' }] },
+    { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#172229' }] },
+    { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#25333b' }] },
+    { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#20313a' }] },
     { featureType: 'poi', stylers: [{ visibility: 'off' }] },
     { featureType: 'transit', stylers: [{ visibility: 'off' }] },
-    { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#10252b' }] },
+    { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#071c25' }] },
   ];
   const MAP_STYLE_LIGHT = [
     { elementType: 'geometry', stylers: [{ color: '#f4f1ec' }] },
@@ -193,7 +195,7 @@
     if (meta) meta.setAttribute('content', 'black-translucent');
     map?.setOptions({
       styles: prefersDarkMode() ? MAP_STYLE_DARK : MAP_STYLE_LIGHT,
-      backgroundColor: prefersDarkMode() ? '#0e0e0f' : '#f4f1ec',
+      backgroundColor: prefersDarkMode() ? '#080d10' : '#f2f5f6',
     });
   }
   darkModeQuery?.addEventListener('change', applyColorScheme);
@@ -3388,7 +3390,7 @@
       disableDefaultUI: true,
       gestureHandling: 'greedy',
       clickableIcons: false,
-      backgroundColor: prefersDarkMode() ? '#101820' : '#f4f1ec',
+      backgroundColor: prefersDarkMode() ? '#080d10' : '#f2f5f6',
       styles: prefersDarkMode() ? MAP_STYLE_DARK : MAP_STYLE_LIGHT,
     });
     usingFallbackMap = false;
