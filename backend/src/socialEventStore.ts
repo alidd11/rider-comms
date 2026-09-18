@@ -29,9 +29,15 @@ export function encodeSocialEventCursor(seq: string | number): string {
 
 export function decodeSocialEventCursor(cursor: string | undefined): string | undefined {
   if (cursor === undefined) return undefined;
-  if (!cursor || !/^[A-Za-z0-9_-]+$/.test(cursor)) throw new InvalidSocialEventCursorError();
+  if (!cursor || cursor.length > 32 || !/^[A-Za-z0-9_-]+$/.test(cursor)) throw new InvalidSocialEventCursorError();
   const decoded = Buffer.from(cursor, 'base64url').toString('utf8');
   if (!/^(0|[1-9]\d*)$/.test(decoded) || encodeSocialEventCursor(decoded) !== cursor) {
+    throw new InvalidSocialEventCursorError();
+  }
+  try {
+    if (BigInt(decoded) > 9_223_372_036_854_775_807n) throw new InvalidSocialEventCursorError();
+  } catch (error) {
+    if (error instanceof InvalidSocialEventCursorError) throw error;
     throw new InvalidSocialEventCursorError();
   }
   return decoded;
