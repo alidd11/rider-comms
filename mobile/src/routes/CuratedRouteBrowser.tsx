@@ -304,9 +304,9 @@ export function CuratedRouteBrowser({
 
 const styles = StyleSheet.create({
   cardGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
-  curatedCard: { height: 164, overflow: 'hidden', borderRadius: radii.md, backgroundColor: colors.surface, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
+  curatedCard: { height: 142, overflow: 'hidden', borderRadius: radii.md, backgroundColor: colors.surface, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
   cardPressed: { opacity: 0.88, transform: [{ scale: 0.99 }] },
-  cardMedia: { position: 'relative', height: 94, backgroundColor: colors.surfaceRaised },
+  cardMedia: { position: 'relative', height: 80, backgroundColor: colors.surfaceRaised },
   cardImage: { width: '100%', height: '100%' },
   cardImageShade: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(5,8,11,0.10)' },
   imageFallback: { alignItems: 'center', justifyContent: 'center' },
