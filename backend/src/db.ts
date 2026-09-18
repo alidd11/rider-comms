@@ -537,6 +537,21 @@ const MIGRATIONS: { name: string; sql: string }[] = [
         ON rider_blocks (blocked_rider_id, rider_id);
     `,
   },
+  {
+    name: '0026_social_rate_events',
+    sql: `
+      CREATE TABLE IF NOT EXISTS social_rate_events (
+        id BIGSERIAL PRIMARY KEY,
+        actor_id TEXT NOT NULL,
+        action TEXT NOT NULL CHECK (action IN ('friend_request', 'direct_message', 'safety_report')),
+        created_at BIGINT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS social_rate_events_actor_action_idx
+        ON social_rate_events (actor_id, action, created_at);
+      CREATE INDEX IF NOT EXISTS social_rate_events_created_at_idx
+        ON social_rate_events (created_at);
+    `,
+  },
 ];
 
 /**
