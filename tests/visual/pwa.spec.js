@@ -298,7 +298,7 @@ test('PWA host can remove another rider from a private ride', async ({ page }) =
   await expect(page.locator('#toast')).toContainText('removed from the ride');
 });
 
-test('PWA settings sheets own the bottom edge without competing with app chrome', async ({ page }) => {
+test('PWA settings sheets own the bottom edge without competing with app chrome', async ({ page }, testInfo) => {
   await mockAuthenticatedApi(page, 'unknown');
   await page.goto('/#settings');
 
@@ -322,6 +322,10 @@ test('PWA settings sheets own the bottom edge without competing with app chrome'
   expect(sheetBox).not.toBeNull();
   expect(viewport).not.toBeNull();
   expect(Math.abs((sheetBox.y + sheetBox.height) - viewport.height)).toBeLessThanOrEqual(1);
+  await page.screenshot({
+    path: testInfo.outputPath(`${testInfo.project.name}-settings-privacy-sheet.png`),
+    fullPage: true,
+  });
 
   await page.locator('#closeSheet').click();
   await expect(page.locator('html')).not.toHaveClass(/sheet-open/);
