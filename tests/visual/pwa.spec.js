@@ -430,6 +430,35 @@ test('PWA preserves backend avatar presets on friend surfaces', async ({ page })
   await expect(avatars.nth(1)).toHaveCSS('--avatar', '#3DD68C');
 });
 
+test('PWA direct messages load and send within a friend-only thread', async ({ page }) => {
+  const sent = [];
+  await mockAuthenticatedApi(page, 'stationary', async ({ request, url }) => {
+    if (url.pathname === '/messages' && request.method() === 'GET') {
+      expect(url.searchParams.get('withRiderId')).toBe('rider_friend01');
+      return { body: { messages: [{ id: 'message-1', fromRiderId: 'rider_friend01', toRiderId: RIDER_ID, text: 'Meet at the petrol station?', createdAt: 1_700_000_000_000 }], nextCursor: null } };
+    }
+    if (url.pathname === '/messages' && request.method() === 'POST') {
+      const body = JSON.parse(request.postData() || '{}');
+      sent.push(body);
+      return { status: 201, body: { id: 'message-2', fromRiderId: RIDER_ID, toRiderId: body.toRiderId, text: body.text, createdAt: 1_700_000_001_000 } };
+    }
+    if (url.pathname === '/profiles/rider_friend01') return { body: { riderId: 'rider_friend01', displayName: 'Maya', handle: '@maya_moto', avatarId: 'ridge' } };
+    return null;
+  });
+
+  await page.goto('/#friends');
+  await page.locator('[data-friend="rider_friend01"]').click();
+  await page.locator('#messageFriend').click();
+  await expect(page.locator('#chatScreen')).toBeVisible();
+  await expect(page.locator('#chatMessages')).toContainText('Meet at the petrol station?');
+  await page.locator('#chatInput').fill('On my way');
+  await page.locator('#chatSend').click();
+  await expect.poll(() => sent).toEqual([{ toRiderId: 'rider_friend01', text: 'On my way' }]);
+  await expect(page.locator('#chatMessages')).toContainText('On my way');
+  await expect(page.locator('#chatSafety')).toHaveAccessibleName('Report or block rider');
+  await assertNoViewportOverflow(page);
+});
+
 test('PWA profile avatar selection persists and updates visible avatars', async ({ page }) => {
   let savedAvatar = 'ember';
   await mockAuthenticatedApi(page, 'stationary', async ({ request, url }) => {
