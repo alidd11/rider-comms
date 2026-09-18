@@ -3015,8 +3015,17 @@
   }
 
   function formatNavDistance(meters) {
-    if (meters >= 1609.34) return `${(meters / 1609.34).toFixed(1)} mi`;
-    return `${Math.round(meters * 3.28084 / 10) * 10} ft`;
+    if (state.unit === 'km') {
+      if (meters < 1000) return `${Math.max(10, Math.round(meters / 10) * 10)} m`;
+      const kilometres = meters / 1000;
+      return `${kilometres.toFixed(kilometres < 10 ? 1 : 0)} km`;
+    }
+    const miles = meters / 1609.344;
+    if (miles < 0.1) {
+      const feet = meters * 3.28084;
+      return `${Math.max(10, Math.round(feet / 10) * 10)} ft`;
+    }
+    return `${miles.toFixed(miles < 10 ? 1 : 0)} mi`;
   }
 
   function formatNavDuration(seconds) {
