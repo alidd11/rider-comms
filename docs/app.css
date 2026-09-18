@@ -321,7 +321,7 @@ img,svg{-webkit-user-drag:none}
 .settings-page .settings-signout{margin-top:18px}
 .settings-page .version{margin-bottom:2px}
 .sheet{border-radius:18px 18px 0 0;background:var(--bg)}
-.sheet>header{margin-bottom:16px}.sheet>header h2{font-size:1.14rem}.sheet>header .icon-button{width:38px;min-width:38px;height:38px;border:0;background:var(--surface-raised)}
+.sheet.sheet>header{margin-bottom:16px}.sheet>header h2{font-size:1.14rem}.sheet>header .icon-button{width:38px;min-width:38px;height:38px;border:0;background:var(--surface-raised)}
 .sheet-body{gap:14px}
 .settings-sheet-section{display:grid;gap:12px;padding:14px;border:1px solid var(--border-soft);border-radius:12px;background:var(--surface)}
 .settings-sheet-label{color:var(--text-muted);font-size:.64rem;font-weight:850;letter-spacing:.13em;text-transform:uppercase}
@@ -768,7 +768,6 @@ html.chat-open .bottom-nav,html.chat-open .ride-pill,html.chat-open .movement-sa
 .form-field input,.form-field select{border-radius:4px;background:var(--bg-elevated)}
 .toggle-row{min-height:54px}
 .toggle{background:var(--surface-raised)}
-.toggle[aria-pressed=true]{background:var(--accent)}
 .hazard-type-grid{grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
 .hazard-type-tile{min-height:94px;padding:15px 7px 12px;border:1px solid var(--border);border-radius:4px;background:var(--surface);box-shadow:none}
 .hazard-type-tile svg{width:24px;height:24px}
