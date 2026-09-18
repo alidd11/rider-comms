@@ -33,6 +33,10 @@ describe('social event cursors', () => {
     assert.equal(decodeSocialEventCursor(undefined), undefined);
     assert.throws(() => decodeSocialEventCursor('not+base64url'), InvalidSocialEventCursorError);
     assert.throws(() => decodeSocialEventCursor(Buffer.from('01').toString('base64url')), InvalidSocialEventCursorError);
+    assert.throws(
+      () => decodeSocialEventCursor(Buffer.from('9223372036854775808').toString('base64url')),
+      InvalidSocialEventCursorError,
+    );
   });
 });
 
