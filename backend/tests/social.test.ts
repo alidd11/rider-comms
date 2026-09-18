@@ -81,5 +81,15 @@ describe('reporting and blocking', { skip: !hasDatabase && 'DATABASE_URL not set
   let ctx: TestServer; before(async () => { ctx = startTestServer(); await ctx.ready; }); after(() => ctx.close());
   async function makeFriends(a: string, b: string) { ctx.authStore.createTestSession(b); const request = await postJson(ctx, a, '/friends/requests', { toRiderId: b }); const { id } = await request.json() as { id: string }; await postJson(ctx, b, `/friends/requests/${id}/accept`, {}); }
   it('records reports and blocks all further contact', async () => { await makeFriends('reporter', 'reported'); const report = await postJson(ctx, 'reporter', '/reports', { riderId: 'reported', reason: 'harassment', details: 'Repeated abuse' }); assert.equal(report.status, 201); assert.deepEqual(await report.json(), { received: true }); assert.equal((await postJson(ctx, 'reporter', '/blocks', { riderId: 'reported' })).status, 200); assert.equal((await postJson(ctx, 'reported', '/messages', { toRiderId: 'reporter', text: 'hello' })).status, 403); assert.equal((await postJson(ctx, 'reported', '/friends/requests', { toRiderId: 'reporter' })).status, 403); const blocks = await authenticatedFetch(ctx, 'reporter', '/blocks'); assert.deepEqual(await blocks.json(), { blockedRiderIds: ['reported'] }); });
+  it('clears pending friend requests when either rider blocks the other', async () => {
+    ctx.authStore.createTestSession('pending-target');
+    const made = await postJson(ctx, 'pending-requester', '/friends/requests', { toRiderId: 'pending-target' });
+    const request = await made.json() as { id: string };
+
+    assert.equal((await postJson(ctx, 'pending-target', '/blocks', { riderId: 'pending-requester' })).status, 200);
+    const requests = await authenticatedFetch(ctx, 'pending-target', '/riders/pending-target/friend-requests');
+    assert.deepEqual(await requests.json(), { incoming: [], outgoing: [], profiles: {}, nextCursor: null });
+    assert.equal((await postJson(ctx, 'pending-target', `/friends/requests/${request.id}/accept`, {})).status, 404);
+  });
   it('rejects an unknown report reason', async () => { ctx.authStore.createTestSession('target'); assert.equal((await postJson(ctx, 'reporter', '/reports', { riderId: 'target', reason: 'anything' })).status, 400); });
 });
