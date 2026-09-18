@@ -4,6 +4,7 @@ import {
   buildExternalNavigationUrl,
   buildNavigationProviderUrl,
   navigationTargetFromValues,
+  openNavigationUrl,
   parseNavigationLink,
 } from '../src/navigationLinks.ts';
 
@@ -71,5 +72,32 @@ describe('navigation handoff URLs', () => {
       buildExternalNavigationUrl(target, 'android'),
       'geo:51.5,-0.1?q=51.5%2C-0.1(Ace%20Caf%C3%A9%20%26%20meet)'
     );
+  });
+
+  it('checks URL support before asking the OS to open directions', async () => {
+    const opened: string[] = [];
+    const supported = await openNavigationUrl('https://maps.example/destination', {
+      canOpenURL: async () => true,
+      openURL: async (url) => { opened.push(url); },
+    });
+    assert.equal(supported, true);
+    assert.deepEqual(opened, ['https://maps.example/destination']);
+
+    const unsupported = await openNavigationUrl('geo:51.5,-0.1', {
+      canOpenURL: async () => false,
+      openURL: async () => { throw new Error('must not open'); },
+    });
+    assert.equal(unsupported, false);
+  });
+
+  it('fails safely when support checks or OS handoff throw', async () => {
+    assert.equal(await openNavigationUrl('geo:51.5,-0.1', {
+      canOpenURL: async () => { throw new Error('query unavailable'); },
+      openURL: async () => undefined,
+    }), false);
+    assert.equal(await openNavigationUrl('geo:51.5,-0.1', {
+      canOpenURL: async () => true,
+      openURL: async () => { throw new Error('handoff failed'); },
+    }), false);
   });
 });

@@ -34,7 +34,7 @@ import { useSettings } from '../settings/SettingsContext';
 import { PlaceSearchBar } from './PlaceSearchBar';
 import type { PlaceResult } from '../api/places';
 import { HazardReportSheet, HAZARD_TYPE_META } from './HazardReportSheet';
-import { buildNavigationProviderUrl, navigationTargetFromValues } from '../navigationLinks';
+import { buildNavigationProviderUrl, navigationTargetFromValues, openNavigationUrl } from '../navigationLinks';
 import type { NavigationTarget } from '../navigationLinks';
 import { useMovementSafety } from '../safety/MovementSafetyContext';
 import { GOOGLE_DIRECTIONS_API_KEY } from '../config';
@@ -517,9 +517,7 @@ export function MapScreen(): React.JSX.Element {
       Alert.alert('Location unavailable', 'This destination has invalid coordinates.');
       return;
     }
-    try {
-      await Linking.openURL(url);
-    } catch {
+    if (!(await openNavigationUrl(url, Linking))) {
       Alert.alert('Couldn’t open directions', `Rider Comms could not open ${navigationProviderLabel(navigationProvider)} on this device.`);
     }
   }
