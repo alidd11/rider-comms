@@ -16,11 +16,14 @@ import {
   View,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, spacing, radii, type, elevation, MIN_TOUCH_TARGET } from '../theme';
 import { GOOGLE_PLACES_API_KEY } from '../config';
-import { formatPlaceDistance, isSearchQueryValid, searchNearbyPlaces, searchPlaces } from '../api/places';
+import { distanceBetweenMeters, formatPlaceDistance, isSearchQueryValid, searchNearbyPlaces, searchPlaces } from '../api/places';
 import type { PlaceResult } from '../api/places';
+import { useAuth } from '../auth/AuthContext';
+import { addRecentPlace, parseRecentPlaces, recentPlacesStorageKey } from '../search/recentPlaces';
 
 const SEARCH_DEBOUNCE_MS = 300;
 
@@ -42,14 +45,49 @@ export function PlaceSearchBar({
   onRequestLocation: () => Promise<void>;
 }): React.JSX.Element {
   const insets = useSafeAreaInsets();
+  const { riderId } = useAuth();
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState('');
   const [activeCategory, setActiveCategory] = React.useState<string | null>(null);
   const [results, setResults] = React.useState<PlaceResult[]>([]);
+  const [recentPlaces, setRecentPlaces] = React.useState<PlaceResult[]>([]);
   const [loading, setLoading] = React.useState(false);
   const debounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const requestRef = React.useRef(0);
   const searchUnavailable = !GOOGLE_PLACES_API_KEY;
+
+  React.useEffect(() => {
+    let cancelled = false;
+    setRecentPlaces([]);
+    AsyncStorage.getItem(recentPlacesStorageKey(riderId))
+      .then((raw) => {
+        if (!cancelled) setRecentPlaces(parseRecentPlaces(raw));
+      })
+      .catch(() => {
+        if (!cancelled) setRecentPlaces([]);
+      });
+    return () => { cancelled = true; };
+  }, [riderId]);
+
+  async function rememberPlace(place: PlaceResult): Promise<void> {
+    const next = addRecentPlace(recentPlaces, place);
+    setRecentPlaces(next);
+    try {
+      await AsyncStorage.setItem(recentPlacesStorageKey(riderId), JSON.stringify(next));
+    } catch {
+      // Recent places are a convenience; selection must still work if local
+      // storage is temporarily unavailable.
+    }
+  }
+
+  async function clearRecentPlaces(): Promise<void> {
+    setRecentPlaces([]);
+    try {
+      await AsyncStorage.removeItem(recentPlacesStorageKey(riderId));
+    } catch {
+      // In-memory history is already cleared for this session.
+    }
+  }
 
   React.useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -170,7 +208,53 @@ export function PlaceSearchBar({
             })}
           </ScrollView>
 
-          {searchUnavailable ? (
+          {!query && recentPlaces.length > 0 ? (
+            <FlatList
+              data={recentPlaces.map((place) => near
+                ? { ...place, distanceMeters: distanceBetweenMeters(near, place) }
+                : place)}
+              keyExtractor={(item) => `recent-${item.id}`}
+              contentContainerStyle={styles.resultsContent}
+              ListHeaderComponent={
+                <View style={styles.resultsHeader}>
+                  <View>
+                    <Text style={styles.resultsEyebrow}>History</Text>
+                    <Text style={styles.resultsTitle}>Recent places</Text>
+                  </View>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Clear recent places"
+                    onPress={() => void clearRecentPlaces()}
+                  >
+                    <Text style={styles.clearRecent}>Clear</Text>
+                  </Pressable>
+                </View>
+              }
+              renderItem={({ item }) => (
+                <Pressable
+                  style={({ pressed }) => [styles.resultRow, pressed && styles.resultRowPressed]}
+                  onPress={() => {
+                    onSelect(item);
+                    void rememberPlace(item);
+                    close();
+                  }}
+                  accessibilityLabel={`Recent place: ${item.name}, ${item.address}`}
+                >
+                  <View style={styles.resultIcon}>
+                    <Ionicons name="time-outline" size={19} color={colors.accent} />
+                  </View>
+                  <View style={styles.resultInfo}>
+                    <Text style={styles.resultName} numberOfLines={1}>{item.name}</Text>
+                    {item.address ? <Text style={styles.resultAddress} numberOfLines={1}>{item.address}</Text> : null}
+                  </View>
+                  <View style={styles.resultTrailing}>
+                    {near ? <Text style={styles.resultDistance}>{formatPlaceDistance(item.distanceMeters)}</Text> : null}
+                    <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
+                  </View>
+                </Pressable>
+              )}
+            />
+          ) : searchUnavailable ? (
             <SearchState icon="cloud-offline-outline" title="Search unavailable" copy="Place search is not configured for this build yet." />
           ) : !near ? (
             <SearchState
@@ -207,6 +291,7 @@ export function PlaceSearchBar({
                   style={({ pressed }) => [styles.resultRow, pressed && styles.resultRowPressed]}
                   onPress={() => {
                     onSelect(item);
+                    void rememberPlace(item);
                     close();
                   }}
                   accessibilityLabel={`${item.name}, ${item.address}`}
@@ -297,6 +382,7 @@ const styles = StyleSheet.create({
   resultsEyebrow: { ...type.label, fontSize: 10 },
   resultsTitle: { ...type.subheading, fontSize: 16, marginTop: 2 },
   resultsCount: { ...type.caption, fontSize: 11 },
+  clearRecent: { ...type.caption, color: colors.accent, fontWeight: '800', paddingVertical: spacing.sm },
   resultRow: {
     minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 5,
     paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: colors.border,

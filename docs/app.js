@@ -1840,10 +1840,14 @@
   // quick glance rather than a scrollable history.
   const RECENT_SEARCHES_KEY = 'riderComms.recentSearches';
   const RECENT_SEARCHES_MAX = 6;
+  const recentSearchesStorageKey = () => session?.riderId ? `${RECENT_SEARCHES_KEY}:${session.riderId}` : null;
 
   function loadRecentSearches() {
     try {
-      const raw = JSON.parse(localStorage.getItem(RECENT_SEARCHES_KEY) || '[]');
+      localStorage.removeItem(RECENT_SEARCHES_KEY);
+      const key = recentSearchesStorageKey();
+      if (!key) return [];
+      const raw = JSON.parse(localStorage.getItem(key) || '[]');
       return Array.isArray(raw) ? raw : [];
     } catch {
       return [];
@@ -1852,15 +1856,21 @@
 
   function saveRecentSearch(entry) {
     try {
+      const key = recentSearchesStorageKey();
+      if (!key) return;
       const existing = loadRecentSearches().filter((item) => item.placeId !== entry.placeId);
-      localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify([entry, ...existing].slice(0, RECENT_SEARCHES_MAX)));
+      localStorage.setItem(key, JSON.stringify([entry, ...existing].slice(0, RECENT_SEARCHES_MAX)));
     } catch {
       // Private-mode/quota storage failures just mean no recent list — not fatal.
     }
   }
 
   function clearRecentSearches() {
-    try { localStorage.removeItem(RECENT_SEARCHES_KEY); } catch { /* ignore */ }
+    try {
+      const key = recentSearchesStorageKey();
+      if (key) localStorage.removeItem(key);
+      localStorage.removeItem(RECENT_SEARCHES_KEY);
+    } catch { /* ignore */ }
     renderRecentOrHint();
   }
 
@@ -2010,6 +2020,7 @@
 
   function selectRecentSearch(item) {
     if (!item) return;
+    saveRecentSearch(item);
     panToPlace(item.lat, item.lng);
     // showDestinationCard/setDestinationMarker call location.lat()/.lng()
     // as methods (matching the real google.maps.LatLng that
