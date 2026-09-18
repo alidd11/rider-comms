@@ -543,8 +543,7 @@ h1,.auth-intro h1{letter-spacing:-.02em}
     --content-top-glow:#fff;
   }
 }
-.content-screen,
-.content-screen.active::before{
+.content-screen:not(.screen-map){
   background-color:var(--bg);
   background-image:
     repeating-linear-gradient(0deg,var(--content-grid-line) 0 1px,transparent 1px 32px),
