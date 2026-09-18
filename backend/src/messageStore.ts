@@ -171,6 +171,12 @@ export class MessageStore {
        ) latest ON TRUE
        LEFT JOIN rider_profiles profile ON profile.rider_id = friendship.friend_id
        WHERE friendship.rider_id = $1
+         AND NOT EXISTS (
+           SELECT 1
+           FROM rider_blocks block
+           WHERE (block.rider_id = $1 AND block.blocked_rider_id = friendship.friend_id)
+              OR (block.rider_id = friendship.friend_id AND block.blocked_rider_id = $1)
+         )
          AND ($2::bigint IS NULL OR latest.seq < $2::bigint)
        ORDER BY latest.seq DESC
        LIMIT $3`,
@@ -217,6 +223,12 @@ export class MessageStore {
            FROM friendships friendship
            WHERE friendship.rider_id = $1
              AND friendship.friend_id = message.from_rider_id
+         )
+         AND NOT EXISTS (
+           SELECT 1
+           FROM rider_blocks block
+           WHERE (block.rider_id = $1 AND block.blocked_rider_id = message.from_rider_id)
+              OR (block.rider_id = message.from_rider_id AND block.blocked_rider_id = $1)
          )
          AND message.seq > COALESCE((
            SELECT read_state.last_read_seq
