@@ -172,7 +172,7 @@ const styles = StyleSheet.create({
   rootTitle: { ...type.title, color: colors.textPrimary, fontSize: 28, lineHeight: 32, letterSpacing: -0.8 },
   hero: { height: 188, justifyContent: 'flex-end', overflow: 'hidden', borderRadius: radii.lg, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, backgroundColor: colors.surface },
   heroImage: { borderRadius: radii.lg },
-  heroShade: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(5,9,12,0.32)' },
+  heroShade: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(5,9,12,0.32)' },
   heroTitle: { color: '#FFFFFF', fontSize: 26, lineHeight: 25, fontWeight: '800', letterSpacing: -0.8, padding: spacing.md, textShadowColor: 'rgba(0,0,0,0.55)', textShadowRadius: 8 },
   joinCard: { gap: spacing.sm, padding: spacing.md, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: radii.lg, backgroundColor: colors.surface },
   joinTitle: { ...type.subheading, color: colors.textPrimary, fontWeight: '800' },
