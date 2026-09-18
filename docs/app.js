@@ -686,7 +686,13 @@
     const pillCount = $('#ridePill .pill-count');
     if (pillCount) pillCount.textContent = String(members.length);
     $('#leaveRideBtn').textContent = ride.isHost ? 'End ride' : 'Leave ride';
-    $('#rideRoster').innerHTML = members.map((person) => `<article class="roster-row">${avatar(person, 'small')}<div class="identity"><strong>${escapeHtml(person.displayName)}${person.riderId === state.profile.riderId ? ' · You' : ''}</strong><span>${escapeHtml(person.handle)}</span></div><span class="roster-status">${escapeHtml(person.riderId === ride.createdBy ? 'Host · connected' : 'Connected')}</span></article>`).join('');
+    $('#rideRoster').innerHTML = members.map((person) => {
+      const canRemove = ride.isHost && person.riderId !== state.profile.riderId;
+      const removeButton = canRemove
+        ? `<button type="button" class="roster-remove" data-remove-ride-member="${escapeHtml(person.riderId)}" aria-label="Remove ${escapeHtml(person.displayName)} from this ride">${icon('close')}</button>`
+        : '';
+      return `<article class="roster-row">${avatar(person, 'small')}<div class="identity"><strong>${escapeHtml(person.displayName)}${person.riderId === state.profile.riderId ? ' · You' : ''}</strong><span>${escapeHtml(person.handle)}</span></div><span class="roster-status">${escapeHtml(person.riderId === ride.createdBy ? 'Host · connected' : 'Connected')}</span>${removeButton}</article>`;
+    }).join('');
     renderMapRiders();
   }
 
@@ -818,6 +824,27 @@
       showToast(ride.isHost ? 'Ride ended.' : 'You left the ride.');
     } catch {
       showToast(ride.isHost ? 'Could not end the ride. Try again.' : 'Could not leave the ride. Try again.');
+    }
+  }
+
+  async function removeRideMemberFromActiveRide(riderId) {
+    const ride = state.activeRide;
+    if (!ride?.isHost || riderId === state.profile.riderId) return;
+    const person = ride.members?.find((member) => member.riderId === riderId);
+    const label = person?.displayName || riderId;
+    if (!window.confirm(`Remove ${label} from this ride?`)) return;
+    try {
+      const updated = await apiFetch('DELETE', `/rides/${encodeURIComponent(ride.rideId)}/members/${encodeURIComponent(riderId)}`);
+      if (!state.activeRide || state.activeRide.rideId !== ride.rideId) return;
+      state.activeRide.memberIds = updated.memberIds;
+      state.activeRide.members = (state.activeRide.members || []).filter((member) => member.riderId !== riderId);
+      rideMemberLocations.delete(riderId);
+      persist();
+      renderRide();
+      renderMapRiders();
+      showToast(`${label} was removed from the ride.`);
+    } catch {
+      showToast('Could not remove that rider. Try again.');
     }
   }
 
@@ -2698,6 +2725,11 @@
     $('#leaveRideBtn').addEventListener('click', endRide);
     $('#activeRideLocationConsent').addEventListener('change', (event) => {
       void setRideLocationSharing(event.target.checked);
+    });
+    $('#rideRoster').addEventListener('click', (event) => {
+      const button = event.target.closest?.('[data-remove-ride-member]');
+      if (!button) return;
+      void removeRideMemberFromActiveRide(button.dataset.removeRideMember);
     });
     $('#shareRideBtn').addEventListener('click', shareRide);
     $('#rideShareTop').addEventListener('click', shareRide);

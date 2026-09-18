@@ -510,3 +510,10 @@ h1,.auth-intro h1{letter-spacing:-.02em}
 .safety-locked [aria-disabled="true"]{opacity:.48}
 .safety-locked .bottom-nav [aria-disabled="true"]{filter:saturate(.35)}
 @media(max-width:420px){.movement-safety-banner{left:12px;right:12px}.movement-safety-banner small{font-size:.7rem}.movement-safety-banner button{flex:none}}
+
+
+/* Host-only private ride roster control. Kept compact so the connected
+   status remains readable on narrow installed-PWA screens. */
+.roster-remove{width:36px;min-width:36px;height:36px;display:grid;place-items:center;border:1px solid color-mix(in srgb,var(--danger) 38%,var(--border));border-radius:50%;background:transparent;color:var(--danger)}
+.roster-remove svg{width:17px;height:17px}
+.roster-remove:active{background:rgb(255 90 77/.12)}
