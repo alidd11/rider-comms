@@ -271,6 +271,18 @@ export class FriendStore {
     return { ok: true, request: rowToRequest(rows[0]) };
   }
 
+  async cancelRequest(requestId: string, riderId: string): Promise<ResolveRequestResult> {
+    await ensureMigrated();
+    const { rows } = await getPool().query<FriendRequestRow>(
+      `DELETE FROM friend_requests
+       WHERE id = $1 AND from_rider_id = $2 AND status = 'pending'
+       RETURNING *`,
+      [requestId, riderId]
+    );
+    if (!rows[0]) return { ok: false, error: 'not_found' };
+    return { ok: true, request: rowToRequest(rows[0]) };
+  }
+
   async getFriends(riderId: string): Promise<FriendSummary[]> {
     return (await this.getFriendPage(riderId)).friends;
   }
