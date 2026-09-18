@@ -413,8 +413,8 @@
     }
     state.screen = screen;
     persist();
-    $$('.screen').forEach((item) => item.classList.toggle('active', item.dataset.screen === screen));
-    $$('[data-nav]').forEach((item) => {
+    [...document.querySelectorAll('.screen')].forEach((item) => item.classList.toggle('active', item.dataset.screen === screen));
+    [...document.querySelectorAll('[data-nav]')].forEach((item) => {
       const active = item.dataset.nav === screen;
       item.classList.toggle('active', active);
       if (active) item.setAttribute('aria-current', 'page'); else item.removeAttribute('aria-current');
@@ -427,6 +427,36 @@
     if (screen === 'friends') loadFriendsData();
     if (screen === 'ride') refreshActiveRide();
   }
+
+  window.addEventListener('rider-comms:navigate-to', (event) => {
+    const detail = event.detail;
+    const lat = Number(detail?.lat);
+    const lng = Number(detail?.lng);
+    if (!Number.isFinite(lat) || lat < -90 || lat > 90 || !Number.isFinite(lng) || lng < -180 || lng > 180) {
+      showToast('That route start is unavailable.');
+      return;
+    }
+    const label = typeof detail?.label === 'string' && detail.label.trim() ? detail.label.trim().slice(0, 120) : 'Route start';
+    navigate('map');
+
+    // Keep the destination actionable even when the Google map is still
+    // loading or the app has fallen back to its non-map surface. The card
+    // itself only needs the LatLng interface; once Maps becomes available,
+    // upgrade the same destination to a real marker without changing intent.
+    const fallbackLocation = { lat: () => lat, lng: () => lng };
+    showDestinationCard(fallbackLocation, label, 'Curated route start');
+
+    const openOnMap = () => {
+      if (!map || !window.google?.maps) return false;
+      const location = new google.maps.LatLng(lat, lng);
+      setDestinationMarker(location, label, 'Curated route start');
+      map.panTo(location);
+      map.setZoom(Math.max(map.getZoom() || 14, 14));
+      return true;
+    };
+
+    if (!openOnMap()) setTimeout(openOnMap, 500);
+  });
 
   function renderProfile() {
     $('#profileName').textContent = state.profile.displayName;

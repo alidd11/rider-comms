@@ -725,6 +725,6 @@ html.chat-open .bottom-nav,html.chat-open .ride-pill,html.chat-open .movement-sa
 .search-screen .poi-chip,.chip{border-radius:var(--radius-md)}
 .update-banner,.toast{border-radius:var(--radius-lg)}
 @media(prefers-color-scheme:light){
-  .content-screen,  .glass{background:rgb(255 255 255/.92);border-color:var(--border)}
+  .content-screen{background:var(--bg);border-color:var(--border)}.glass{background:rgb(255 255 255/.92);border-color:var(--border)}
   .map-actions .icon-button,.search-slot{background:rgb(255 255 255/.92);border-color:var(--border)}
 }
