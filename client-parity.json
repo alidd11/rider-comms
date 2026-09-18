@@ -17,7 +17,7 @@
     { "id": "avatar-selection", "pwa": true, "native": true, "status": "parity" },
     { "id": "friends", "pwa": true, "native": true, "status": "parity" },
     { "id": "direct-messages", "pwa": true, "native": true, "status": "parity" },
-    { "id": "hideouts", "pwa": false, "native": true, "status": "gap" },
+    { "id": "hideouts", "pwa": true, "native": true, "status": "parity" },
     { "id": "block-report", "pwa": true, "native": true, "status": "parity" },
     { "id": "public-proximity", "pwa": true, "native": true, "status": "parity" },
     { "id": "proximity-voice", "pwa": true, "native": true, "status": "parity" },
