@@ -8,6 +8,55 @@ import { ensureMigrated, getPool, resetDbForTests } from '../src/db.ts';
 // otherwise, rather than failing every run in a sandbox with no database.
 const hasDatabase = Boolean(process.env.DATABASE_URL);
 
+interface RecordedQuery { text: string; values?: unknown[] }
+
+function fakeDependencies(failOn?: string) {
+  const queries: RecordedQuery[] = [];
+  let released = false;
+  const query = async (text: string, values?: unknown[]) => {
+    queries.push({ text, values });
+    if (failOn && text.includes(failOn)) throw new Error('injected hideout failure');
+    return { rows: [], rowCount: 0 };
+  };
+  const dependencies = {
+    ensureMigrated: async () => undefined,
+    getPool: () => ({ query, connect: async () => ({ query, release: () => { released = true; } }) }),
+  } as unknown as ConstructorParameters<typeof HideoutStore>[0];
+  return { dependencies, queries, wasReleased: () => released };
+}
+
+describe('HideoutStore transaction boundary', () => {
+  it('commits the hideout and every participant as one write', async () => {
+    const fake = fakeDependencies();
+    const store = new HideoutStore(fake.dependencies);
+
+    const hideout = await store.create({
+      name: 'Base Camp', lat: 40, lon: -105, createdBy: 'a', participantIds: ['b', 'c'],
+    });
+
+    assert.ok(hideout.id);
+    assert.equal(fake.queries[0].text, 'BEGIN');
+    assert.equal(fake.queries.at(-1)?.text, 'COMMIT');
+    assert.equal(fake.queries.filter(({ text }) => text.includes('INSERT INTO hideout_participants')).length, 2);
+    assert.equal(fake.queries.some(({ text }) => text === 'ROLLBACK'), false);
+    assert.equal(fake.wasReleased(), true);
+  });
+
+  it('rolls back and releases the connection when a participant insert fails', async () => {
+    const fake = fakeDependencies('INSERT INTO hideout_participants');
+    const store = new HideoutStore(fake.dependencies);
+
+    await assert.rejects(
+      store.create({ name: 'Base Camp', lat: 40, lon: -105, createdBy: 'a', participantIds: ['b'] }),
+      /injected hideout failure/
+    );
+
+    assert.equal(fake.queries.some(({ text }) => text === 'COMMIT'), false);
+    assert.equal(fake.queries.at(-1)?.text, 'ROLLBACK');
+    assert.equal(fake.wasReleased(), true);
+  });
+});
+
 describe('HideoutStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping Postgres-backed HideoutStore tests' }, () => {
   before(async () => {
     try {
