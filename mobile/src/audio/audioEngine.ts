@@ -65,3 +65,11 @@ export class AudioEngine {
     }
   }
 }
+
+
+/**
+ * One process-wide mixer state shared by ride voice and navigation prompts.
+ * Keeping separate AudioEngine instances would make nav speech invisible to
+ * the ride mixer even though both are part of the same audio bus.
+ */
+export const audioEngine = new AudioEngine();
