@@ -528,3 +528,35 @@ h1,.auth-intro h1{letter-spacing:-.02em}
 .session-copy strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.9rem}
 .session-copy small{color:var(--text-secondary);font-size:.76rem}
 .session-revoke{min-height:36px;padding-inline:10px}
+
+
+/* Viewport continuity: keep the iOS safe-top shield visually identical to
+   the utility-screen canvas so the installed PWA remains edge-to-edge while
+   still preventing scrolled rows from passing behind status-bar text. */
+:root{
+  --content-grid-line:rgb(255 255 255/.018);
+  --content-top-glow:#141d25;
+}
+@media(prefers-color-scheme:light){
+  :root{
+    --content-grid-line:rgb(28 23 18/.015);
+    --content-top-glow:#fff;
+  }
+}
+.content-screen,
+.content-screen.active::before{
+  background-color:var(--bg);
+  background-image:
+    repeating-linear-gradient(0deg,var(--content-grid-line) 0 1px,transparent 1px 32px),
+    repeating-linear-gradient(90deg,var(--content-grid-line) 0 1px,transparent 1px 32px),
+    radial-gradient(circle at 50% -10%,var(--content-top-glow) 0,var(--bg) 34%);
+  background-size:auto,auto,100vw 100dvh;
+  background-position:0 0,0 0,0 0;
+  background-repeat:repeat,repeat,no-repeat;
+}
+.content-screen.active::before{height:var(--safe-top)}
+.movement-safety-banner{
+  top:calc(var(--safe-top) + 10px);
+  left:max(12px,var(--safe-left));
+  right:max(12px,var(--safe-right));
+}

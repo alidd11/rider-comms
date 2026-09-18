@@ -182,6 +182,43 @@ test('core PWA screens render without runtime errors or viewport overflow', asyn
   expect(runtimeErrors).toEqual([]);
 });
 
+test('PWA utility viewport paints safe areas as one edge-to-edge canvas', async ({ page }) => {
+  await mockAuthenticatedApi(page);
+  await page.goto('/');
+
+  const viewportMeta = await page.locator('meta[name="viewport"]').getAttribute('content');
+  expect(viewportMeta).toContain('viewport-fit=cover');
+
+  await page.locator('.bottom-nav [data-nav="ride"]').click();
+  await page.evaluate(() => {
+    document.documentElement.style.setProperty('--safe-top', '59px');
+    document.documentElement.style.setProperty('--safe-left', '47px');
+    document.documentElement.style.setProperty('--safe-right', '47px');
+  });
+
+  const viewport = await page.locator('[data-screen="ride"]').evaluate((screen) => {
+    const screenStyle = getComputedStyle(screen);
+    const shieldStyle = getComputedStyle(screen, '::before');
+    const navStyle = getComputedStyle(document.querySelector('.bottom-nav'));
+    return {
+      screenBackground: screenStyle.backgroundImage,
+      shieldBackground: shieldStyle.backgroundImage,
+      shieldHeight: shieldStyle.height,
+      paddingTop: screenStyle.paddingTop,
+      paddingLeft: screenStyle.paddingLeft,
+      navPaddingLeft: navStyle.paddingLeft,
+    };
+  });
+
+  expect(viewport.shieldHeight).toBe('59px');
+  expect(viewport.shieldBackground).toBe(viewport.screenBackground);
+  expect(viewport.shieldBackground).toContain('repeating-linear-gradient');
+  expect(parseFloat(viewport.paddingTop)).toBeGreaterThan(59);
+  expect(parseFloat(viewport.paddingLeft)).toBeGreaterThanOrEqual(47);
+  expect(parseFloat(viewport.navPaddingLeft)).toBeGreaterThanOrEqual(47);
+  await assertNoViewportOverflow(page);
+});
+
 test('PWA warns without hiding controls when movement cannot be verified', async ({ page }) => {
   await mockAuthenticatedApi(page, 'unknown');
   await page.goto('/');
