@@ -229,7 +229,7 @@ function Tabs(): React.JSX.Element {
         name="GroupRide"
         component={MapScreen}
         options={{
-          title: 'Group Ride',
+          title: 'Ride',
           tabBarLabel: ({ children }) => <GroupRideTabLabel>{children}</GroupRideTabLabel>,
         }}
         listeners={({ navigation }) => ({
