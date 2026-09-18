@@ -349,6 +349,63 @@ test('PWA settings sheets own the bottom edge without competing with app chrome'
   await expect(banner).toBeVisible();
 });
 
+test('PWA billing preview matches native plan content and account tier', async ({ page }) => {
+  let profile = { ...PROFILE, zoneTier: 'premium' };
+  const updates = [];
+
+  await mockAuthenticatedApi(page, 'stationary', async ({ request, url }) => {
+    if (url.pathname === `/riders/${RIDER_ID}/profile`) {
+      if (request.method() === 'GET') return { body: profile };
+      if (request.method() === 'PUT') {
+        const update = JSON.parse(request.postData() || '{}');
+        updates.push(update);
+        profile = { ...profile, ...update };
+        return { body: profile };
+      }
+    }
+    return null;
+  });
+
+  page.on('dialog', (dialog) => void dialog.accept());
+  await page.goto('/#settings');
+
+  await expect(page.locator('#planSummary')).toHaveText('Premium plan · $4.99/mo');
+  await expect(page.locator('#planPill')).toHaveText('Premium');
+
+  await page.locator('[data-sheet="plans"]').click();
+  await expect(page.locator('#sheetTitle')).toHaveText('Plan and billing');
+  await expect(page.locator('.billing-notice')).toContainText('cannot be purchased until verified App Store and Google Play billing is connected');
+  await expect(page.locator('.billing-notice')).toContainText('does not collect card details');
+
+  const free = page.locator('[data-plan-tier="free"]');
+  const premium = page.locator('[data-plan-tier="premium"]');
+  const premiumPlus = page.locator('[data-plan-tier="premium_plus"]');
+
+  await expect(free).toContainText('Free');
+  await expect(free).toContainText('1 mi zone radius');
+  await expect(free.locator('.plan-pill')).toHaveText('Unavailable');
+
+  await expect(premium).toContainText('$4.99/month');
+  await expect(premium).toContainText('Wider net for group rides that spread out on the highway.');
+  await expect(premium).toContainText('Everything in Free');
+  await expect(premium).toContainText('Priority support');
+  await expect(premium.locator('.plan-pill')).toHaveText('Current');
+
+  await expect(premiumPlus).toContainText('$9.99/month');
+  await expect(premiumPlus).toContainText('Widest range — for a convoy that has stretched way out.');
+  await expect(premiumPlus).toContainText('Everything in Premium');
+  await expect(premiumPlus).toContainText('Early access to new features');
+  await expect(premiumPlus.locator('.plan-pill')).toHaveText('Unavailable');
+
+  await page.locator('#returnToFreePlan').click();
+  await expect.poll(() => updates).toEqual([{ zoneTier: 'free' }]);
+  await expect(page.locator('#planSummary')).toHaveText('Free plan · No card on file');
+  await expect(page.locator('#planPill')).toHaveText('Free');
+  await expect(page.locator('[data-plan-tier="free"] .plan-pill')).toHaveText('Current');
+  await expect(page.locator('#returnToFreePlan')).toHaveCount(0);
+  await assertNoViewportOverflow(page);
+});
+
 test('PWA navigation preference offers Rider Comms, Google Maps, Waze and Apple Maps', async ({ page }) => {
   await mockAuthenticatedApi(page);
   await page.goto('/#settings');

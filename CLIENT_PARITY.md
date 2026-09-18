@@ -20,9 +20,8 @@ The machine-readable source of truth is `client-parity.json`. Any new user-facin
 The current intentional gap list is:
 
 - navigation: both clients exist but behavior differs
-- billing preview content: both clients exist but content differs
 
-Direct messages, Hideouts and block/report flows are now available in both clients.
+Direct messages, Hideouts, block/report flows and the billing preview are now available with matching user-facing content in both clients.
 
 These are defects to close during the parity programme, not deferred product ideas.
 

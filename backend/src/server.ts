@@ -381,7 +381,7 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
         if (decodeURIComponent(s[1]) !== actorId) return sendJson(res, 403, { error: 'forbidden' });
         if (s[2] === 'profile') {
           if (req.method === 'GET') return sendJson(res, 200, await profileStore.getOrCreate(actorId));
-          if (req.method === 'PUT') { const body = await readJsonBody(req); if ('zoneTier' in body) return sendJson(res, 403, { error: 'zone_tier_managed_by_billing' }); const r = await profileStore.update(actorId, body); if (r.ok && body.shareLocation === false) await presenceStore.removeRider(actorId); return r.ok ? sendJson(res, 200, r.profile) : sendJson(res, 400, { error: r.error }); }
+          if (req.method === 'PUT') { const body = await readJsonBody(req); if ('zoneTier' in body && body.zoneTier !== 'free') return sendJson(res, 403, { error: 'zone_tier_managed_by_billing' }); const r = await profileStore.update(actorId, body); if (r.ok && body.shareLocation === false) await presenceStore.removeRider(actorId); return r.ok ? sendJson(res, 200, r.profile) : sendJson(res, 400, { error: r.error }); }
         }
         if (req.method === 'GET' && (s[2] === 'friend-requests' || (s[2] === 'friends' && s.length === 3))) {
           const limit = Number(url.searchParams.get('limit') ?? 100);
