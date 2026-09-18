@@ -334,10 +334,16 @@ test('PWA settings sheets own the bottom edge without competing with app chrome'
   await expect(banner).toBeVisible();
 });
 
-test('installed PWA tab controls stay low but contained inside the bottom bar', async ({ page }) => {
+test('installed PWA tab bar owns the iOS home-indicator inset without moving controls into it', async ({ page }) => {
   await mockAuthenticatedApi(page);
   await page.goto('/#settings');
-  await page.evaluate(() => document.documentElement.classList.add('pwa-standalone'));
+  await page.evaluate(() => {
+    const root = document.documentElement;
+    root.classList.add('pwa-standalone');
+    // Desktop Playwright resolves env(safe-area-inset-bottom) to 0, so model
+    // the real iPhone geometry that produced the black band in device testing.
+    root.style.setProperty('--bottom-safe-area', '34px');
+  });
 
   const nav = page.locator('.bottom-nav');
   const activeButton = page.locator('.bottom-nav [data-nav="settings"]');
@@ -349,27 +355,36 @@ test('installed PWA tab controls stay low but contained inside the bottom bar', 
     activeLabel.boundingBox(),
   ]);
   const viewport = page.viewportSize();
-  const chrome = await page.evaluate(() => ({
-    navSafeBottom: getComputedStyle(document.documentElement).getPropertyValue('--nav-safe-bottom').trim(),
-    navHeight: getComputedStyle(document.querySelector('.bottom-nav')).height,
-    navBackground: getComputedStyle(document.querySelector('.bottom-nav')).backgroundColor,
-    rootBackground: getComputedStyle(document.documentElement).backgroundColor,
-  }));
+  const chrome = await page.evaluate(() => {
+    const root = document.documentElement;
+    const nav = document.querySelector('.bottom-nav');
+    const pseudo = getComputedStyle(nav, '::after');
+    return {
+      navSafeBottom: getComputedStyle(root).getPropertyValue('--nav-safe-bottom').trim(),
+      navHeight: getComputedStyle(nav).height,
+      navBackground: getComputedStyle(nav).backgroundColor,
+      continuationBackground: pseudo.backgroundColor,
+    };
+  });
 
-  expect(chrome.navSafeBottom).toBe('0px');
-  expect(chrome.navHeight).toBe('58px');
-  expect(chrome.rootBackground).toBe(chrome.navBackground);
+  expect(chrome.navSafeBottom).toBe('34px');
+  expect(chrome.navHeight).toBe('92px');
+  expect(chrome.continuationBackground).toBe(chrome.navBackground);
 
   expect(navBox).not.toBeNull();
   expect(buttonBox).not.toBeNull();
   expect(labelBox).not.toBeNull();
   expect(viewport).not.toBeNull();
   expect(Math.abs((navBox.y + navBox.height) - viewport.height)).toBeLessThanOrEqual(1);
+
+  // Controls stay in the 58px rail above the safe area. The 34px gesture
+  // inset belongs to the nav surface but is not interactive control space.
   expect(buttonBox.y).toBeGreaterThanOrEqual(navBox.y - 1);
-  expect(buttonBox.y + buttonBox.height).toBeLessThanOrEqual(navBox.y + navBox.height + 1);
-  const labelBottomGap = (navBox.y + navBox.height) - (labelBox.y + labelBox.height);
+  expect(buttonBox.y + buttonBox.height).toBeLessThanOrEqual(navBox.y + 59);
+  const railBottom = navBox.y + 58;
+  const labelBottomGap = railBottom - (labelBox.y + labelBox.height);
   expect(labelBottomGap).toBeGreaterThanOrEqual(0);
-  expect(labelBottomGap).toBeLessThanOrEqual(4);
+  expect(labelBottomGap).toBeLessThanOrEqual(12);
 });
 
 test('PWA exposes session management and account deletion', async ({ page }) => {
