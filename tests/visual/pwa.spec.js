@@ -44,12 +44,29 @@ async function mockAuthenticatedApi(page, movement = 'stationary', backendOverri
   await page.route('https://backend-production-7fa0.up.railway.app/**', async (route) => {
     const request = route.request();
     const url = new URL(request.url());
+    const corsHeaders = {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+      'Access-Control-Allow-Headers': 'Authorization,Content-Type',
+      'Access-Control-Max-Age': '600',
+    };
+
+    // The installed-PWA tests run from the local Playwright web server while
+    // the application is configured for the deployed API origin. Authenticated
+    // JSON requests therefore preflight in real browsers. Mock OPTIONS
+    // explicitly so Chromium and WebKit exercise the actual fetch path instead
+    // of failing before the endpoint-specific fixture is reached.
+    if (request.method() === 'OPTIONS') {
+      return route.fulfill({ status: 204, headers: corsHeaders, body: '' });
+    }
+
     if (backendOverride) {
       const override = await backendOverride({ request, url });
       if (override) {
         return route.fulfill({
           status: override.status ?? 200,
           contentType: override.contentType ?? 'application/json',
+          headers: { ...corsHeaders, ...(override.headers ?? {}) },
           body: override.body === undefined
             ? ''
             : typeof override.body === 'string'
@@ -70,7 +87,12 @@ async function mockAuthenticatedApi(page, movement = 'stationary', backendOverri
     else if (url.pathname === `/riders/${RIDER_ID}/friend-requests`) body = { incoming: [], outgoing: [] };
     else if (url.pathname === '/hazards/nearby') body = { hazards: [] };
     else if (url.pathname === '/config') body = { googleMapsApiKey: 'visual-test-key' };
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      headers: corsHeaders,
+      body: JSON.stringify(body),
+    });
   });
 
   await page.route('https://maps.googleapis.com/maps/api/js**', (route) => route.fulfill({
