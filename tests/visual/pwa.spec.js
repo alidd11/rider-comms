@@ -100,9 +100,13 @@ async function mockAuthenticatedApi(page, movement = 'stationary', backendOverri
     contentType: 'application/javascript',
     body: `
       class MapMock {
-        constructor(_element, options) { this.centre = options.center; }
+        constructor(_element, options) {
+          this.centre = options.center;
+          this.zoom = options.zoom;
+          window.__riderCommsTestMap = this;
+        }
         panTo(centre) { this.centre = centre; }
-        setZoom() {}
+        setZoom(zoom) { this.zoom = zoom; }
         setOptions() {}
         getCenter() {
           return {
@@ -112,7 +116,17 @@ async function mockAuthenticatedApi(page, movement = 'stationary', backendOverri
           };
         }
       }
-      class MarkerMock { addListener() {} setMap() {} setPosition() {} }
+      class MarkerMock {
+        constructor(options) {
+          this.position = options.position;
+          this.title = options.title;
+          window.__riderCommsTestMarkers = window.__riderCommsTestMarkers || [];
+          window.__riderCommsTestMarkers.push(this);
+        }
+        addListener() {}
+        setMap() {}
+        setPosition(position) { this.position = position; }
+      }
       class PlacesServiceMock {}
       class AutocompleteServiceMock {}
       class AutocompleteSessionTokenMock {}
@@ -180,6 +194,38 @@ test('core PWA screens render without runtime errors or viewport overflow', asyn
   });
 
   expect(runtimeErrors).toEqual([]);
+});
+
+test('PWA map uses an already-granted live location instead of showing the London fallback as the rider', async ({ page }) => {
+  await mockAuthenticatedApi(page, 'stationary');
+  await page.goto('/');
+
+  await expect.poll(async () => page.evaluate(() => {
+    const centre = window.__riderCommsTestMap?.centre;
+    return centre ? [centre.lat, centre.lng] : null;
+  })).toEqual([51.5074, -0.1278]);
+
+  const mapState = await page.evaluate(() => {
+    const markers = window.__riderCommsTestMarkers || [];
+    const own = markers.find((marker) => marker.title === 'Your location');
+    return {
+      centre: window.__riderCommsTestMap?.centre,
+      zoom: window.__riderCommsTestMap?.zoom,
+      ownPosition: own?.position ?? null,
+      ownMarkerCount: markers.filter((marker) => marker.title === 'Your location').length,
+      ownMarkerEverUsedFallback: markers.some((marker) =>
+        marker.title === 'Your location'
+        && marker.position?.lat === 51.564
+        && marker.position?.lng === -0.106
+      ),
+    };
+  });
+
+  expect(mapState.centre).toEqual({ lat: 51.5074, lng: -0.1278 });
+  expect(mapState.zoom).toBe(15);
+  expect(mapState.ownPosition).toEqual({ lat: 51.5074, lng: -0.1278 });
+  expect(mapState.ownMarkerCount).toBe(1);
+  expect(mapState.ownMarkerEverUsedFallback).toBe(false);
 });
 
 test('PWA utility viewport paints safe areas as one edge-to-edge canvas', async ({ page }) => {
