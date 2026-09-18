@@ -51,6 +51,28 @@ describe('authenticated API', () => {
     const afterWithdrawal = await authenticatedFetch(ctx, 'host', `/rides/${ride.rideId}/locations`);
     assert.deepEqual((await afterWithdrawal.json() as { locations: unknown[] }).locations, []);
   });
+  it('blocks client paid-tier elevation but allows returning an existing paid test tier to Free', needsDb, async () => {
+    await ctx.profileStore.update('billing-rider', { zoneTier: 'premium' });
+
+    const elevate = await authenticatedFetch(ctx, 'billing-rider', '/riders/billing-rider/profile', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ zoneTier: 'premium_plus' }),
+    });
+    assert.equal(elevate.status, 403);
+    assert.deepEqual(await elevate.json(), { error: 'zone_tier_managed_by_billing' });
+    assert.equal((await ctx.profileStore.getOrCreate('billing-rider')).zoneTier, 'premium');
+
+    const downgrade = await authenticatedFetch(ctx, 'billing-rider', '/riders/billing-rider/profile', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ zoneTier: 'free' }),
+    });
+    assert.equal(downgrade.status, 200);
+    assert.equal((await downgrade.json() as { zoneTier: string }).zoneTier, 'free');
+    assert.equal((await ctx.profileStore.getOrCreate('billing-rider')).zoneTier, 'free');
+  });
+
   it('uses server profile radius and enforces location privacy', needsDb, async () => {
     const fix = { lat: 51.5, lon: -0.1, accuracyMeters: 8, recordedAt: Date.now() };
     assert.equal((await postJson(ctx, 'private', '/presence', fix)).status, 403);
