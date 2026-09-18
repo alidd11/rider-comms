@@ -5,7 +5,7 @@ const PROFILE = {
   riderId: RIDER_ID,
   displayName: 'Alex Rider',
   handle: '@alex_rides',
-  avatarId: 'AR',
+  avatarId: 'ember',
   zoneTier: 'free',
   unitSystem: 'miles',
   shareLocation: false,
@@ -80,8 +80,8 @@ async function mockAuthenticatedApi(page, movement = 'stationary', backendOverri
     else if (url.pathname === `/riders/${RIDER_ID}/profile`) body = PROFILE;
     else if (url.pathname === `/riders/${RIDER_ID}/friends`) body = {
       friends: [
-        { riderId: 'rider_friend01', displayName: 'Maya', handle: '@maya_moto' },
-        { riderId: 'rider_friend02', displayName: 'Jay', handle: '@jay125' },
+        { riderId: 'rider_friend01', displayName: 'Maya', handle: '@maya_moto', avatarId: 'ridge' },
+        { riderId: 'rider_friend02', displayName: 'Jay', handle: '@jay125', avatarId: 'moss' },
       ],
     };
     else if (url.pathname === `/riders/${RIDER_ID}/friend-requests`) body = { incoming: [], outgoing: [] };
@@ -388,6 +388,37 @@ test('installed PWA tab bar owns the iOS home-indicator inset without moving con
   const labelBottomGap = railBottom - (labelBox.y + labelBox.height);
   expect(labelBottomGap).toBeGreaterThanOrEqual(0);
   expect(labelBottomGap).toBeLessThanOrEqual(12);
+});
+
+test('PWA preserves backend avatar presets on friend surfaces', async ({ page }) => {
+  await mockAuthenticatedApi(page);
+  await page.goto('/#friends');
+
+  const avatars = page.locator('#friendList .avatar');
+  await expect(avatars).toHaveCount(2);
+  await expect(avatars.nth(0)).toHaveCSS('--avatar', '#4C8BF5');
+  await expect(avatars.nth(1)).toHaveCSS('--avatar', '#3DD68C');
+});
+
+test('PWA profile avatar selection persists and updates visible avatars', async ({ page }) => {
+  let savedAvatar = 'ember';
+  await mockAuthenticatedApi(page, 'stationary', async ({ request, url }) => {
+    if (request.method() === 'PUT' && url.pathname === `/riders/${RIDER_ID}/profile`) {
+      const body = JSON.parse(request.postData() || '{}');
+      if (typeof body.avatarId === 'string') savedAvatar = body.avatarId;
+      return { body: { ...PROFILE, avatarId: savedAvatar } };
+    }
+    return null;
+  });
+
+  await page.goto('/#settings');
+  await page.locator('#editProfileBtn').click();
+  await expect(page.locator('[data-avatar-option="ember"]')).toHaveAttribute('aria-checked', 'true');
+
+  await page.locator('[data-avatar-option="rose"]').click();
+  await expect.poll(() => savedAvatar).toBe('rose');
+  await expect(page.locator('[data-avatar-option="rose"]')).toHaveAttribute('aria-checked', 'true');
+  await expect(page.locator('[data-avatar]').first()).toHaveCSS('--avatar', '#EC4899');
 });
 
 test('PWA exposes session management and account deletion', async ({ page }) => {

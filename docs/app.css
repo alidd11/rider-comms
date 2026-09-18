@@ -619,3 +619,14 @@ html.pwa-standalone:not(.auth-open),
 html.pwa-standalone:not(.auth-open) body{
   background:var(--nav-chrome);
 }
+
+
+/* Shared avatar preset presentation — same ids/colours as native, using the
+   PWA's SVG sprite for the glyphs. */
+.avatar svg{width:56%;height:56%;color:#fff}
+.avatar-picker-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.avatar-picker-option{position:relative;min-height:72px;display:grid;place-items:center;padding:6px;border:1px solid var(--border-soft);border-radius:12px;background:var(--bg-elevated)}
+.avatar-picker-option.selected{border-color:var(--accent);box-shadow:0 0 0 2px rgb(255 45 90/.12)}
+.avatar-picker-option .avatar{width:54px;height:54px}
+.avatar-picker-check{position:absolute;right:5px;bottom:5px;width:20px;height:20px;display:grid;place-items:center;border-radius:50%;background:var(--accent);color:#fff;font-size:.7rem;font-weight:900}
+@media(max-width:390px){.avatar-picker-grid{gap:9px}.avatar-picker-option{min-height:66px}.avatar-picker-option .avatar{width:48px;height:48px}}

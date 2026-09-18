@@ -19,7 +19,6 @@ The machine-readable source of truth is `client-parity.json`. Any new user-facin
 
 The current intentional gap list is:
 
-- avatar selection: native only
 - direct messages: native only
 - hideouts: native only
 - block/report flows: native only
