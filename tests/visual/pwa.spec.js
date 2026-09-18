@@ -328,6 +328,15 @@ test('PWA settings sheets own the bottom edge without competing with app chrome'
   expect(Math.abs((sheetBox.y + sheetBox.height) - viewport.height)).toBeLessThanOrEqual(1);
   const sheetPaddingBottom = await page.locator('.sheet').evaluate((element) => parseFloat(getComputedStyle(element).paddingBottom));
   expect(sheetPaddingBottom).toBeGreaterThanOrEqual(34);
+  const firstToggle = page.locator('.toggle-row').first();
+  const toggleTitle = firstToggle.locator('strong');
+  const toggleCaption = firstToggle.locator('.caption');
+  await expect(toggleTitle).toHaveCSS('display', 'block');
+  await expect(toggleCaption).toHaveCSS('display', 'block');
+  const [toggleTitleBox, toggleCaptionBox] = await Promise.all([toggleTitle.boundingBox(), toggleCaption.boundingBox()]);
+  expect(toggleTitleBox).not.toBeNull();
+  expect(toggleCaptionBox).not.toBeNull();
+  expect(toggleCaptionBox.y).toBeGreaterThanOrEqual(toggleTitleBox.y + toggleTitleBox.height);
   await page.screenshot({
     path: testInfo.outputPath(`${testInfo.project.name}-settings-privacy-sheet.png`),
     fullPage: true,
