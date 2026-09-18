@@ -58,6 +58,7 @@
       displayName: '',
       handle: '',
       avatarId: 'ember',
+      zoneTier: 'free',
       instagram: '',
       tiktok: '',
       socialsVisibility: 'friends',
@@ -96,6 +97,34 @@
   const AVATAR_PRESET_BY_ID = Object.fromEntries(AVATAR_PRESETS.map((preset) => [preset.id, preset]));
   function avatarPreset(id) {
     return AVATAR_PRESET_BY_ID[id] || AVATAR_PRESETS[0];
+  }
+
+  const PLAN_ORDER = ['free', 'premium', 'premium_plus'];
+  const PLAN_INFO = {
+    free: {
+      name: 'Free',
+      priceLabel: 'Free',
+      blurb: 'The default — good for a stoplight-to-stoplight ride.',
+      radiusMiles: 1,
+      features: ['1 mi zone radius', 'Group rides with a host code', 'Voice chat while riding'],
+    },
+    premium: {
+      name: 'Premium',
+      priceLabel: '$4.99',
+      blurb: 'Wider net for group rides that spread out on the highway.',
+      radiusMiles: 6,
+      features: ['6 mi zone radius', 'Everything in Free', 'Priority support'],
+    },
+    premium_plus: {
+      name: 'Premium+',
+      priceLabel: '$9.99',
+      blurb: 'Widest range — for a convoy that has stretched way out.',
+      radiusMiles: 20,
+      features: ['20 mi zone radius', 'Everything in Premium', 'Early access to new features'],
+    },
+  };
+  function planTier(value) {
+    return Object.hasOwn(PLAN_INFO, value) ? value : 'free';
   }
 
   const NAVIGATION_PROVIDERS = {
@@ -383,6 +412,12 @@
     $('#profileHandle').textContent = state.profile.handle;
     $('#profileRiderId').textContent = state.profile.riderId;
     $('#distanceUnitsSummary').textContent = state.unit === 'km' ? 'Kilometres' : 'Miles';
+    const tier = planTier(state.profile.zoneTier);
+    const plan = PLAN_INFO[tier];
+    const planSummary = $('#planSummary');
+    if (planSummary) planSummary.textContent = plan.priceLabel === 'Free' ? 'No card on file' : `${plan.priceLabel}/mo`;
+    const planPill = $('#planPill');
+    if (planPill) planPill.textContent = plan.name;
     const navigationSummary = $('#navigationProviderSummary');
     if (navigationSummary) navigationSummary.textContent = NAVIGATION_PROVIDERS[navigationProvider(state.navigationProvider)].label;
     const genericProfile = state.profile.displayName.trim().toLowerCase() === 'rider'
@@ -1356,10 +1391,41 @@
           $('#deleteAccountBtn').addEventListener('click', () => void deleteCurrentAccount());
         },
       }),
-      plans: () => ({
-        title: 'Plan and billing',
-        body: `<div class="plan-card current"><div class="plan-top"><strong>Free</strong><span class="plan-pill">Current</span></div><p>1-mile mutual rider radius and private Group Rides.</p></div><div class="plan-card"><div class="plan-top"><strong>Premium</strong><span>6 mi</span></div><p>A wider radius for groups that spread out across city routes.</p><span class="caption">Not available yet</span></div><div class="plan-card"><div class="plan-top"><strong>Premium+</strong><span>20 mi</span></div><p>Maximum discovery range for touring and rural rides.</p><span class="caption">Not available yet</span></div><p class="caption">No payment details are requested until verified store billing is available.</p>`,
-      }),
+      plans: () => {
+        const currentTier = planTier(state.profile.zoneTier);
+        return {
+          title: 'Plan and billing',
+          body: `<p class="billing-intro">Your plan controls the mutual nearby-rider radius. Private Group Rides remain available on every plan.</p>
+            <div class="settings-note billing-notice"><strong>Store billing is not connected yet</strong><p>Paid plans are shown for transparency but cannot be purchased until verified App Store and Google Play billing is connected. Rider Comms does not collect card details.</p></div>
+            <div class="plan-list">${PLAN_ORDER.map((tier) => {
+              const plan = PLAN_INFO[tier];
+              const current = tier === currentTier;
+              const price = plan.priceLabel === 'Free' ? 'Free' : `${plan.priceLabel}/month`;
+              return `<article class="plan-card${current ? ' current' : ''}" data-plan-tier="${tier}">
+                <div class="plan-top"><span><strong>${escapeHtml(plan.name)}</strong><small>${escapeHtml(price)}</small></span><span class="plan-pill">${current ? 'Current' : 'Unavailable'}</span></div>
+                <p>${escapeHtml(plan.blurb)}</p>
+                <ul class="plan-features">${plan.features.map((feature) => `<li>${icon('plus')}<span>${escapeHtml(feature)}</span></li>`).join('')}</ul>
+                ${current && tier !== 'free' ? '<button class="button danger wide plan-return-free" id="returnToFreePlan">Return to Free</button>' : ''}
+              </article>`;
+            }).join('')}</div>`,
+          ready: () => {
+            const returnButton = $('#returnToFreePlan');
+            if (!returnButton) return;
+            returnButton.addEventListener('click', async () => {
+              if (!window.confirm('Return to the Free plan? Your nearby radius will change to 1 mile.')) return;
+              returnButton.disabled = true;
+              const ok = await patchProfile({ zoneTier: 'free' });
+              if (!ok) {
+                returnButton.disabled = false;
+                return;
+              }
+              renderProfile();
+              openSheet('plans');
+              showToast('Returned to the Free plan.');
+            });
+          },
+        };
+      },
       privacy: () => ({ title: 'Privacy controls', body: `<div class="settings-sheet-section">${toggleMarkup('shareLocation', 'Live location', 'Visible to nearby riders only while you are live.', state.profile.shareLocation)}</div><div class="settings-sheet-section"><div class="form-field"><label for="sheetSocialVisibility">Connected profile visibility</label><select id="sheetSocialVisibility"><option value="friends">Friends only</option><option value="public">Everyone</option><option value="private">Only me</option></select></div><p class="caption">This applies to the Instagram and TikTok usernames on your profile.</p></div>`, ready: () => { $('#sheetSocialVisibility').value = state.profile.socialsVisibility; $('#sheetSocialVisibility').addEventListener('change', (event) => { patchProfile({ instagramVisibility: event.target.value, tiktokVisibility: event.target.value }); }); wireToggles(); } }),
       navigation: () => ({
         title: 'Navigation',
@@ -3429,6 +3495,7 @@
     state.profile.displayName = profile.displayName;
     state.profile.handle = profile.handle;
     state.profile.avatarId = profile.avatarId || 'ember';
+    state.profile.zoneTier = planTier(profile.zoneTier);
     state.profile.instagram = profile.instagramUsername;
     state.profile.tiktok = profile.tiktokUsername;
     state.profile.socialsVisibility = profile.instagramVisibility;
