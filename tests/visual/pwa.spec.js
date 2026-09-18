@@ -417,6 +417,15 @@ test('installed PWA tab bar itself owns the iOS home-indicator inset', async ({ 
 });
 
 test('PWA navigation summary extends through the installed iPhone bottom safe area', async ({ page }) => {
+  await page.addInitScript(() => {
+    // Model an installed WebKit launch with an innerHeight measurement that
+    // excludes the gesture area. CSS viewport geometry must remain authoritative.
+    Object.defineProperty(navigator, 'standalone', { configurable: true, value: true });
+    Object.defineProperty(window, 'innerHeight', {
+      configurable: true,
+      get: () => document.documentElement.clientHeight - 34,
+    });
+  });
   await mockAuthenticatedApi(page);
   await page.goto('/#map');
   await page.evaluate(() => {
@@ -444,10 +453,12 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
   expect(viewport).not.toBeNull();
   expect(metrics.height).toBe(88 + 34);
   expect(metrics.paddingBottom).toBe(34);
+  await expect(page.locator('html')).toHaveClass(/pwa-standalone/);
   // Fractional device-scale rounding can land the CSS edge just over one
   // logical pixel from the Playwright viewport. This still verifies the real
   // summary box reaches the physical edge rather than stopping above it.
   expect(Math.abs((summaryBox.y + summaryBox.height) - viewport.height)).toBeLessThanOrEqual(2);
+  expect(await page.evaluate(() => document.documentElement.style.getPropertyValue('--app-vh'))).toBe('100dvh');
 });
 
 test('PWA preserves backend avatar presets on friend surfaces', async ({ page }) => {

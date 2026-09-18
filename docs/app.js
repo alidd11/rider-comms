@@ -18,9 +18,15 @@
 
     root.classList.toggle('pwa-standalone', Boolean(isStandalone));
     root.classList.toggle('keyboard-open', keyboardOpen);
-    // The app shell owns the full layout viewport. VisualViewport is tracked
-    // separately only for keyboard-sensitive surfaces such as direct chat.
-    root.style.setProperty('--app-vh', `${layoutViewportHeight}px`);
+    // Let CSS size the installed app against the edge-to-edge viewport.
+    // Freezing innerHeight into pixels can retain a shorter WebKit viewport
+    // after launch/keyboard transitions, leaving absolute map chrome above
+    // the home indicator. Safe-area padding belongs INSIDE the bottom bar.
+    // VisualViewport remains separate for keyboard-sensitive chat surfaces.
+    const appHeight = isStandalone && window.CSS?.supports('height', '100dvh')
+      ? '100dvh'
+      : `${layoutViewportHeight}px`;
+    root.style.setProperty('--app-vh', appHeight);
     root.style.setProperty('--visual-vh', `${visualViewportHeight}px`);
     root.style.setProperty('--visual-viewport-top', `${visualViewportTop}px`);
     root.style.setProperty('--bottom-safe-area', isStandalone ? 'env(safe-area-inset-bottom, 0px)' : '0px');
