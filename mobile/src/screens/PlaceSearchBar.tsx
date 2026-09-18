@@ -210,7 +210,7 @@ export function PlaceSearchBar({
                   accessibilityRole="button"
                   accessibilityState={{ selected: active }}
                 >
-                  <MaterialCommunityIcons name={category.icon} size={17} color={active ? '#FFFFFF' : colors.textSecondary} />
+                  <MaterialCommunityIcons name={category.icon} size={17} color={active ? colors.accentText : colors.textSecondary} />
                   <Text style={[styles.categoryText, active && styles.categoryTextActive]}>{category.label}</Text>
                 </Pressable>
               );
@@ -404,7 +404,7 @@ const styles = StyleSheet.create({
   },
   categoryActive: { backgroundColor: colors.accent, borderColor: colors.accent },
   categoryText: { ...type.caption, fontSize: 14, color: colors.textSecondary },
-  categoryTextActive: { color: '#FFFFFF' },
+  categoryTextActive: { color: colors.accentText },
   resultsContent: { paddingHorizontal: spacing.md, paddingBottom: spacing.lg },
   resultsHeader: {
     minHeight: 58, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between',
@@ -432,8 +432,8 @@ const styles = StyleSheet.create({
   stateCopy: { ...type.caption, maxWidth: 310, marginTop: spacing.sm, textAlign: 'center', lineHeight: 20 },
   stateAction: {
     minHeight: 42, justifyContent: 'center', marginTop: spacing.md, paddingHorizontal: spacing.lg,
-    borderRadius: radii.pill, backgroundColor: colors.accent,
+    borderRadius: radii.md, backgroundColor: colors.accent,
   },
-  stateActionText: { ...type.caption, color: '#FFFFFF', fontWeight: '800' },
+  stateActionText: { ...type.caption, color: colors.accentText, fontWeight: '800' },
   attribution: { ...type.caption, paddingHorizontal: 20, paddingTop: 9, borderTopWidth: 1, borderTopColor: colors.border, textAlign: 'right', fontSize: 11 },
 });
