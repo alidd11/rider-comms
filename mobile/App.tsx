@@ -13,7 +13,7 @@ export default function App(): React.JSX.Element {
 
   return (
     <>
-      <StatusBar style={scheme === 'light' ? 'dark' : 'light'} />
+      <StatusBar barStyle={scheme === 'light' ? 'dark-content' : 'light-content'} translucent backgroundColor="transparent" />
       <AppNavigator />
     </>
   );
