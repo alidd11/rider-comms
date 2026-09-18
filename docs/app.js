@@ -15,6 +15,8 @@
     const keyboardInset = Math.max(0, layoutViewportHeight - visualViewportHeight - visualViewportTop);
     const keyboardOpen = keyboardInset > 80;
     const root = document.documentElement;
+    const rootScrollY = Math.max(0, window.scrollY || root.scrollTop || 0);
+    const chatRootPan = root.classList.contains('chat-open') && keyboardOpen ? rootScrollY : 0;
 
     root.classList.toggle('pwa-standalone', Boolean(isStandalone));
     root.classList.toggle('keyboard-open', keyboardOpen);
@@ -29,11 +31,17 @@
     root.style.setProperty('--app-vh', appHeight);
     root.style.setProperty('--visual-vh', `${visualViewportHeight}px`);
     root.style.setProperty('--visual-viewport-top', `${visualViewportTop}px`);
+    // Installed iOS can pan the document itself when a textarea receives
+    // focus while reporting visualViewport.offsetTop as zero. Compensate that
+    // root pan only for keyboard-open chat; every other screen keeps the
+    // normal viewport model.
+    root.style.setProperty('--chat-root-pan', `${chatRootPan}px`);
     root.style.setProperty('--bottom-safe-area', isStandalone ? 'env(safe-area-inset-bottom, 0px)' : '0px');
   };
   syncViewportEnvironment();
   window.addEventListener('resize', syncViewportEnvironment);
   window.addEventListener('orientationchange', syncViewportEnvironment);
+  window.addEventListener('scroll', syncViewportEnvironment, { passive: true });
   visualViewport?.addEventListener?.('resize', syncViewportEnvironment);
   visualViewport?.addEventListener?.('scroll', syncViewportEnvironment);
   standaloneMedia?.addEventListener?.('change', syncViewportEnvironment);
@@ -951,7 +959,12 @@
     $('#chatScreen').hidden = false;
     $('#app').setAttribute('inert', '');
     document.documentElement.classList.add('chat-open');
-    document.body.style.overflow = 'hidden';
+    // Friends screens scroll internally, so the document itself should always
+    // be at zero here. Explicitly reset any stale iOS focus pan before the
+    // composer can receive focus, then let the chat-open body lock prevent a
+    // second document-level shift.
+    window.scrollTo(0, 0);
+    syncViewportEnvironment();
     setChatError('');
     renderChat();
     syncChatPolling();
@@ -975,7 +988,7 @@
     $('#chatScreen').hidden = true;
     $('#app').removeAttribute('inert');
     document.documentElement.classList.remove('chat-open');
-    document.body.style.overflow = '';
+    syncViewportEnvironment();
     document.title = 'Friends · Rider Comms';
     if (restoreFocus) chatReturnFocus?.focus?.();
     chatReturnFocus = null;
