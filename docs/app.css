@@ -687,7 +687,6 @@ html.chat-open .bottom-nav,html.chat-open .ride-pill,html.chat-open .movement-sa
    Visual-only layer. Keep the verified viewport/safe-area ownership above
    intact: this pass changes hierarchy, colour and geometry, not who owns the
    physical canvas. */
-.content-screen{background:var(--bg)}
 .content-screen .page-subtitle{display:none}
 .content-screen .page-header{align-items:center;min-height:38px;margin-bottom:18px}
 .content-screen .page-header h1{max-width:100%;overflow:hidden;font-family:Inter,ui-sans-serif,system-ui,sans-serif;font-size:clamp(1.85rem,7vw,2.1rem);font-weight:780;letter-spacing:-.045em;line-height:1;white-space:nowrap;text-overflow:ellipsis}
@@ -720,8 +719,6 @@ html.chat-open .bottom-nav,html.chat-open .ride-pill,html.chat-open .movement-sa
 .segmented{gap:1px;padding:0;border-color:var(--border);background:var(--surface)}
 .segmented button{min-height:46px;border-radius:0;border-right:1px solid var(--border)}
 .segmented button:last-child{border-right:0}
-.segmented button.active{background:var(--surface-raised)}
-.ride-form{padding:16px}
 .code-field input{border-radius:var(--radius-lg);background:var(--bg-elevated)}
 .ride-location-consent{border-radius:var(--radius-lg);background:var(--bg-elevated)}
 .ride-summary{background:var(--surface)}
@@ -742,8 +739,6 @@ html.chat-open .bottom-nav,html.chat-open .ride-pill,html.chat-open .movement-sa
 .movement-safety-banner button{border-radius:var(--radius-md);background:var(--accent);color:var(--accent-text)}
 .bottom-nav{border-top-color:var(--border-soft);background:var(--nav-chrome);backdrop-filter:none}
 .bottom-nav>button{border-radius:0}
-.bottom-nav>button:before{display:none}
-.bottom-nav>button.active{color:var(--accent)}
 .bottom-nav>button.active svg{filter:none}
 .bottom-nav>button.active span{font-weight:760}
 .avatar{box-shadow:inset 0 0 0 1px rgb(255 255 255/.16),0 0 0 2px color-mix(in srgb,var(--avatar,#4f7cff) 18%,transparent)}
@@ -751,7 +746,6 @@ html.chat-open .bottom-nav,html.chat-open .ride-pill,html.chat-open .movement-sa
 .search-screen .poi-chip,.chip{border-radius:var(--radius-md)}
 .update-banner,.toast{border-radius:var(--radius-lg)}
 @media(prefers-color-scheme:light){
-  .content-screen,.auth-screen{background:var(--bg)}
-  .glass{background:rgb(255 255 255/.92);border-color:var(--border)}
+  .content-screen,  .glass{background:rgb(255 255 255/.92);border-color:var(--border)}
   .map-actions .icon-button,.search-slot{background:rgb(255 255 255/.92);border-color:var(--border)}
 }
