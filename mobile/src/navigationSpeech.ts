@@ -52,13 +52,21 @@ export class NavigationSpeechController {
   stop(): void {
     this.generation += 1;
     this.audio.setNavPromptActive(false);
-    void Promise.resolve(this.speech.stop()).catch(() => {});
+    try {
+      void Promise.resolve(this.speech.stop()).catch(() => {});
+    } catch {
+      // Speech is best-effort; navigation must keep running if TTS teardown fails.
+    }
   }
 
   private speak(text: string): void {
     const generation = ++this.generation;
     this.audio.setNavPromptActive(false);
-    void Promise.resolve(this.speech.stop()).catch(() => {});
+    try {
+      void Promise.resolve(this.speech.stop()).catch(() => {});
+    } catch {
+      // A failed cancellation must not block the next prompt.
+    }
 
     const finish = () => {
       if (generation !== this.generation) return;
