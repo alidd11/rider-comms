@@ -489,6 +489,90 @@ test('PWA direct messages load and send within a friend-only thread', async ({ p
   await assertNoViewportOverflow(page);
 });
 
+test('PWA Hideouts can be loaded, created and deleted from a friend chat', async ({ page }) => {
+  let hideouts = [
+    {
+      id: 'hideout-1',
+      name: 'Petrol stop',
+      lat: 51.5074,
+      lon: -0.1278,
+      createdBy: RIDER_ID,
+      participantIds: ['rider_friend01'],
+      createdAt: 1_700_000_000_000,
+    },
+    {
+      id: 'hideout-unrelated',
+      name: 'Other rider meeting point',
+      lat: 51.52,
+      lon: -0.11,
+      createdBy: RIDER_ID,
+      participantIds: ['rider_friend02'],
+      createdAt: 1_700_000_000_500,
+    },
+  ];
+  const created = [];
+
+  await mockAuthenticatedApi(page, 'stationary', async ({ request, url }) => {
+    if (url.pathname === '/messages' && request.method() === 'GET') {
+      return { body: { messages: [], nextCursor: null } };
+    }
+    if (url.pathname === `/riders/${RIDER_ID}/hideouts` && request.method() === 'GET') {
+      return { body: { hideouts } };
+    }
+    if (url.pathname === '/hideouts' && request.method() === 'POST') {
+      const body = JSON.parse(request.postData() || '{}');
+      created.push(body);
+      const saved = {
+        id: 'hideout-new',
+        name: body.name,
+        lat: body.lat,
+        lon: body.lon,
+        createdBy: RIDER_ID,
+        participantIds: body.participantIds,
+        createdAt: 1_700_000_001_000,
+      };
+      hideouts = [...hideouts, saved];
+      return { status: 201, body: saved };
+    }
+    if (url.pathname === '/hideouts/hideout-1' && request.method() === 'DELETE') {
+      hideouts = hideouts.filter((hideout) => hideout.id !== 'hideout-1');
+      return { body: {} };
+    }
+    if (url.pathname === '/profiles/rider_friend01') {
+      return { body: { riderId: 'rider_friend01', displayName: 'Maya', handle: '@maya_moto', avatarId: 'ridge' } };
+    }
+    return null;
+  });
+
+  await page.goto('/#friends');
+  await page.locator('[data-friend="rider_friend01"]').click();
+  await page.locator('#messageFriend').click();
+
+  await expect(page.locator('#chatHideouts')).toBeVisible();
+  await expect(page.locator('#chatHideoutList')).toContainText('Petrol stop');
+  await expect(page.locator('#chatHideoutList')).not.toContainText('Other rider meeting point');
+  await expect(page.locator('[data-open-hideout="hideout-1"]')).toHaveText('Google Maps');
+
+  await page.locator('#chatHideoutPlan').click();
+  await expect(page.locator('#sheetTitle')).toHaveText('Plan a hideout');
+  await page.locator('#hideoutName').fill('Cafe meetup');
+  await page.locator('#hideoutLat').fill('51.515');
+  await page.locator('#hideoutLon').fill('-0.101');
+  await page.locator('#saveHideoutBtn').click();
+
+  await expect.poll(() => created).toEqual([{
+    name: 'Cafe meetup',
+    lat: 51.515,
+    lon: -0.101,
+    participantIds: ['rider_friend01'],
+  }]);
+  await expect(page.locator('#chatHideoutList')).toContainText('Cafe meetup');
+
+  await page.locator('[data-delete-hideout="hideout-1"]').click();
+  await expect(page.locator('#chatHideoutList')).not.toContainText('Petrol stop');
+  await assertNoViewportOverflow(page);
+});
+
 test('PWA chat stays pinned to the visible viewport when the iPhone keyboard changes geometry', async ({ page }, testInfo) => {
   await page.addInitScript(() => {
     const listeners = { resize: new Set(), scroll: new Set() };
