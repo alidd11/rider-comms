@@ -23,7 +23,6 @@ The current intentional gap list is:
 - direct messages: native only
 - hideouts: native only
 - block/report flows: native only
-- host rider removal: native only
 - recent places: PWA only
 - navigation: both clients exist but behavior differs
 - signed-in device/session management: native only

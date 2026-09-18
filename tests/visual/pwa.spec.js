@@ -164,6 +164,66 @@ test('PWA warns without hiding controls when movement cannot be verified', async
   await expect(page.locator('#toast')).toContainText('Location access is blocked');
 });
 
+test('PWA host can remove another rider from a private ride', async ({ page }) => {
+  await mockAuthenticatedApi(page);
+  await page.addInitScript(({ riderId, profile }) => {
+    localStorage.setItem(`rider-comms-pwa-v4:${riderId}`, JSON.stringify({
+      screen: 'ride',
+      profile,
+      activeRide: {
+        rideId: 'ride-visual-1',
+        code: 'ABCDEF',
+        isHost: true,
+        createdBy: riderId,
+        memberIds: [riderId, 'rider_guest01'],
+        members: [
+          { riderId, displayName: profile.displayName, handle: profile.handle },
+          { riderId: 'rider_guest01', displayName: 'Guest Rider', handle: '@guest_rider' },
+        ],
+        shareRideLocation: false,
+      },
+    }));
+  }, { riderId: RIDER_ID, profile: PROFILE });
+
+  await page.route('https://backend-production-7fa0.up.railway.app/rides/ride-visual-1**', async (route) => {
+    const request = route.request();
+    const pathname = new URL(request.url()).pathname;
+    if (request.method() === 'DELETE' && pathname.endsWith('/members/rider_guest01')) {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          rideId: 'ride-visual-1',
+          createdBy: RIDER_ID,
+          createdAt: Date.now(),
+          memberIds: [RIDER_ID],
+        }),
+      });
+    }
+    if (request.method() === 'GET' && pathname === '/rides/ride-visual-1') {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          rideId: 'ride-visual-1',
+          createdBy: RIDER_ID,
+          createdAt: Date.now(),
+          memberIds: [RIDER_ID, 'rider_guest01'],
+        }),
+      });
+    }
+    return route.fallback();
+  });
+
+  page.on('dialog', (dialog) => void dialog.accept());
+  await page.goto('/#ride');
+  await expect(page.locator('[data-remove-ride-member="rider_guest01"]')).toBeVisible();
+  await page.locator('[data-remove-ride-member="rider_guest01"]').click();
+  await expect(page.locator('[data-remove-ride-member="rider_guest01"]')).toHaveCount(0);
+  await expect(page.locator('#rideRoster')).not.toContainText('Guest Rider');
+  await expect(page.locator('#toast')).toContainText('removed from the ride');
+});
+
 test('PWA password recovery is discoverable and enumeration-safe', async ({ page }) => {
   await page.route('https://backend-production-7fa0.up.railway.app/**', async (route) => {
     const pathname = new URL(route.request().url()).pathname;
