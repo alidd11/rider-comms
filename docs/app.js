@@ -632,9 +632,9 @@
     return Promise.all(riderIds.map(async (riderId) => {
       try {
         const profile = await apiFetch('GET', `/profiles/${encodeURIComponent(riderId)}`);
-        return { riderId, displayName: profile.displayName, handle: profile.handle };
+        return { riderId, displayName: profile.displayName, handle: profile.handle, avatarId: profile.avatarId || 'ember' };
       } catch {
-        return { riderId, displayName: riderId, handle: riderId };
+        return { riderId, displayName: riderId, handle: riderId, avatarId: 'ember' };
       }
     }));
   }
@@ -652,11 +652,11 @@
         apiFetch('GET', `/riders/${encodeURIComponent(state.profile.riderId)}/friends?limit=100`),
         apiFetch('GET', `/riders/${encodeURIComponent(state.profile.riderId)}/friend-requests?limit=100`),
       ]);
-      state.friends = friendsResult.friends.map((friend) => ({ riderId: friend.riderId, displayName: friend.displayName, handle: friend.handle, status: 'Connected' }));
+      state.friends = friendsResult.friends.map((friend) => ({ riderId: friend.riderId, displayName: friend.displayName, handle: friend.handle, avatarId: friend.avatarId || 'ember', status: 'Connected' }));
       const incoming = requestsResult.incoming.filter((request) => request.status === 'pending');
       state.requests = incoming.map((request) => {
         const profile = requestsResult.profiles?.[request.fromRiderId];
-        return { id: request.id, riderId: request.fromRiderId, displayName: profile?.displayName ?? request.fromRiderId, handle: profile?.handle ?? request.fromRiderId, status: 'Wants to connect' };
+        return { id: request.id, riderId: request.fromRiderId, displayName: profile?.displayName ?? request.fromRiderId, handle: profile?.handle ?? request.fromRiderId, avatarId: profile?.avatarId || 'ember', status: 'Wants to connect' };
       });
       persist();
       renderFriends();
@@ -669,7 +669,7 @@
     try {
       const result = await apiFetch('POST', `/friends/requests/${encodeURIComponent(requestId)}/accept`, {});
       state.requests = state.requests.filter((request) => request.id !== requestId);
-      state.friends.push({ riderId: result.friend.riderId, displayName: result.friend.displayName, handle: result.friend.handle, status: 'Connected now' });
+      state.friends.push({ riderId: result.friend.riderId, displayName: result.friend.displayName, handle: result.friend.handle, avatarId: result.friend.avatarId || 'ember', status: 'Connected now' });
       persist();
       renderFriends();
       showToast(`${result.friend.displayName} added to friends.`);
