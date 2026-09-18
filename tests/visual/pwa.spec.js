@@ -1079,7 +1079,7 @@ test('@viewport standalone canvas, navigation and scroll geometry remain coheren
   }
 
   await setSyntheticSafeArea(page, 34);
-  const captureEvidence = /iphone-modern|pixel-chromium|iphone-landscape|ipad-webkit/.test(testInfo.project.name);
+  const captureEvidence = /iphone-17-pro-max|pixel-chromium|iphone-landscape|ipad-webkit/.test(testInfo.project.name);
   const screens = [
     ['map', '#mapCanvas'],
     ['ride', '#joinRideForm .ride-location-consent'],
@@ -1142,7 +1142,7 @@ test('@viewport standalone canvas, navigation and scroll geometry remain coheren
   expectNear(resumed.navBottom, baseline.navBottom);
   expectNear(resumed.mapBottom, resumed.navTop);
 
-  if (testInfo.project.name === 'viewport-iphone-modern-webkit-dark') {
+  if (testInfo.project.name === 'viewport-iphone-17-pro-max-webkit-dark') {
     const original = page.viewportSize();
     await page.setViewportSize({ width: original.height, height: original.width });
     await page.evaluate(() => window.dispatchEvent(new Event('orientationchange')));
@@ -1169,7 +1169,7 @@ test('@viewport full-screen overlays and sheets share the stable standalone bott
   const nav = page.locator('.bottom-nav');
   const appBottom = (await app.boundingBox()).y + (await app.boundingBox()).height;
   const baselineNavBottom = (await nav.boundingBox()).y + (await nav.boundingBox()).height;
-  const captureEvidence = /iphone-modern|pixel-chromium|iphone-landscape|ipad-webkit/.test(testInfo.project.name);
+  const captureEvidence = /iphone-17-pro-max|pixel-chromium|iphone-landscape|ipad-webkit/.test(testInfo.project.name);
 
   const assertSheet = async (screenshotName) => {
     const backdrop = page.locator('#sheetBackdrop');
