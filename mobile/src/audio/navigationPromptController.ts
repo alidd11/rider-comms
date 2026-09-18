@@ -22,18 +22,27 @@ export interface NavigationSpeechAdapter {
  */
 export class NavigationPromptController {
   private generation = 0;
+  private readonly speech: NavigationSpeechAdapter;
+  private readonly audioEngine: Pick<AudioEngine, 'setNavPromptActive'>;
 
   constructor(
-    private readonly speech: NavigationSpeechAdapter,
-    private readonly audioEngine: Pick<AudioEngine, 'setNavPromptActive'>
-  ) {}
+    speech: NavigationSpeechAdapter,
+    audioEngine: Pick<AudioEngine, 'setNavPromptActive'>
+  ) {
+    this.speech = speech;
+    this.audioEngine = audioEngine;
+  }
 
   speak(text: string): void {
     const cleaned = text.replace(/\s+/g, ' ').trim();
     if (!cleaned) return;
 
     const token = ++this.generation;
-    void Promise.resolve(this.speech.stop()).catch(() => undefined);
+    try {
+      void Promise.resolve(this.speech.stop()).catch(() => undefined);
+    } catch {
+      // A failed cancellation must not block the next spoken instruction.
+    }
     this.audioEngine.setNavPromptActive(true);
 
     const finish = () => {
