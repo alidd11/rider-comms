@@ -45,6 +45,7 @@ import {
   type InAppNavigationRoute,
 } from '../api/directions';
 import { navigationProviderLabel } from '../navigationPreference';
+import { formatNavigationDistance, maneuverIcon } from '../navigationGuidance';
 
 const PRESENCE_UPDATE_INTERVAL_MS = 8000; // per spec Section 8: every 5-10s
 const DEFAULT_REGION = {
@@ -57,16 +58,6 @@ const FOCUSED_REGION_DELTA = 0.025;
 const NAV_STEP_ARRIVAL_RADIUS_M = 30;
 const NAV_OFF_ROUTE_RADIUS_M = 60;
 const NAV_OFF_ROUTE_GRACE_MS = 10_000;
-
-function formatNavigationDistance(metres: number, unit: 'mi' | 'km'): string {
-  if (unit === 'km') {
-    if (metres < 1000) return `${Math.max(10, Math.round(metres / 10) * 10)} m`;
-    return `${(metres / 1000).toFixed(metres < 10_000 ? 1 : 0)} km`;
-  }
-  const miles = metres / 1609.344;
-  if (miles < 0.1) return `${Math.max(10, Math.round(metres / 10) * 10)} m`;
-  return `${miles.toFixed(miles < 10 ? 1 : 0)} mi`;
-}
 
 function formatNavigationDuration(seconds: number): string {
   const minutes = Math.max(1, Math.round(seconds / 60));
@@ -357,6 +348,7 @@ export function MapScreen(): React.JSX.Element {
 
   const selectedHazard = hazards.find((h) => h.id === selectedHazardId) ?? null;
   const currentNavigationStep = activeRoute?.steps[navigationStepIndex] ?? null;
+  const nextNavigationStep = activeRoute?.steps[navigationStepIndex + 1] ?? null;
   const remainingNavigationMeters = activeRoute
     ? activeRoute.steps.slice(navigationStepIndex).reduce((sum, step) => sum + step.distanceMeters, 0)
     : 0;
@@ -752,11 +744,21 @@ export function MapScreen(): React.JSX.Element {
         <>
           <View style={[styles.navigationBanner, { top: insets.top + spacing.sm }]} accessibilityLiveRegion="polite">
             <View style={styles.navigationManeuver}>
-              <Ionicons name="navigate" size={24} color={colors.accentText} />
+              <Ionicons
+                name={maneuverIcon(currentNavigationStep.maneuver) as keyof typeof Ionicons.glyphMap}
+                size={24}
+                color={colors.accentText}
+              />
             </View>
             <View style={styles.navigationBannerCopy}>
               <Text style={styles.navigationDistance}>{formatNavigationDistance(distanceToCurrentStepEnd, unitSystem)}</Text>
               <Text numberOfLines={2} style={styles.navigationInstruction}>{currentNavigationStep.instruction}</Text>
+              {nextNavigationStep ? (
+                <View style={styles.navigationNextRow}>
+                  <Text style={styles.navigationNextLabel}>THEN</Text>
+                  <Text numberOfLines={1} style={styles.navigationNextInstruction}>{nextNavigationStep.instruction}</Text>
+                </View>
+              ) : null}
               {navigationNotice ? <Text style={styles.navigationNotice}>{navigationNotice}</Text> : null}
             </View>
             <Pressable accessibilityRole="button" accessibilityLabel="End navigation" onPress={() => finishInAppNavigation(false)} style={styles.navigationEndButton}>
@@ -972,6 +974,9 @@ const styles = StyleSheet.create({
   navigationBannerCopy: { flex: 1, minWidth: 0 },
   navigationDistance: { ...type.subheading, color: colors.textPrimary },
   navigationInstruction: { ...type.body, color: colors.textPrimary, marginTop: 2, fontWeight: '700' },
+  navigationNextRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginTop: spacing.xs },
+  navigationNextLabel: { ...type.caption, color: colors.textMuted, fontWeight: '800' },
+  navigationNextInstruction: { ...type.caption, color: colors.textSecondary, flex: 1 },
   navigationNotice: { ...type.caption, color: colors.textSecondary, marginTop: spacing.xs },
   navigationEndButton: {
     width: MIN_TOUCH_TARGET, height: MIN_TOUCH_TARGET, borderRadius: radii.pill,
