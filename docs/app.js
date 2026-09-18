@@ -248,6 +248,8 @@
   let movementWatchId;
   let movementFreshnessTimer;
   let movementPermissionStatus;
+  let latestDevicePosition;
+  let mapCentredOnLiveLocation = false;
   let activeChat = null;
   let chatMessages = [];
   let chatNextCursor = null;
@@ -2080,6 +2082,7 @@
       if (!navigator.geolocation) return reject(new Error('Geolocation unavailable'));
       navigator.geolocation.getCurrentPosition((position) => {
         locationPermissionReady = true;
+        applyDevicePosition(position);
         startMovementSafetyTracking();
         resolve(position);
       }, reject, { enableHighAccuracy: true, timeout: 10000, maximumAge: 15000 });
@@ -2087,6 +2090,28 @@
   }
 
   let locationPermissionReady = false;
+
+  function applyDevicePosition(position) {
+    const lat = position?.coords?.latitude;
+    const lng = position?.coords?.longitude;
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    latestDevicePosition = position;
+    locationPermissionReady = true;
+
+    if (!map || usingFallbackMap) return;
+    const point = { lat, lng };
+    if (!userMapMarker) {
+      userMapMarker = addMapMarker({ ...state.profile, displayName: state.profile.displayName }, point, true);
+    } else {
+      userMapMarker.setPosition(point);
+    }
+
+    if (!mapCentredOnLiveLocation) {
+      map.panTo(point);
+      map.setZoom(15);
+      mapCentredOnLiveLocation = true;
+    }
+  }
 
   function movementFix(position) {
     return {
@@ -2137,7 +2162,10 @@
   function startMovementSafetyTracking() {
     if (!navigator.geolocation || movementWatchId !== undefined || document.visibilityState !== 'visible') return;
     movementWatchId = navigator.geolocation.watchPosition(
-      (position) => applyMovementState(movementTracker.addFix(movementFix(position))),
+      (position) => {
+        applyDevicePosition(position);
+        applyMovementState(movementTracker.addFix(movementFix(position)));
+      },
       () => stopMovementSafetyTracking(),
       { enableHighAccuracy: true, maximumAge: 2000, timeout: 15000 }
     );
@@ -3254,15 +3282,18 @@
   }
 
   function initialiseGoogleMap() {
-    // London fallback — used only until a real GPS fix resolves below. The
-    // map has to render with *some* centre immediately rather than block
-    // on geolocation (which can take a few seconds, or never resolve if
-    // permission is denied), but a rider should never be left looking at
-    // this as if it were their real position.
-    const centre = { lat: 51.564, lng: -0.106 };
+    // Render immediately even when GPS is unavailable, but never present the
+    // London fallback as the rider's own position. If the already-granted
+    // location watcher resolved before Maps finished loading, start directly
+    // from that real fix instead.
+    const fallbackCentre = { lat: 51.564, lng: -0.106 };
+    const liveCentre = latestDevicePosition
+      ? { lat: latestDevicePosition.coords.latitude, lng: latestDevicePosition.coords.longitude }
+      : null;
+    const centre = liveCentre || fallbackCentre;
     map = new google.maps.Map($('#googleMap'), {
       center: centre,
-      zoom: 14,
+      zoom: liveCentre ? 15 : 14,
       disableDefaultUI: true,
       gestureHandling: 'greedy',
       clickableIcons: false,
@@ -3276,7 +3307,10 @@
     $('#mapError').hidden = true;
     renderMapStatus();
     initPlaceSearch();
-    userMapMarker = addMapMarker({ ...state.profile, displayName: state.profile.displayName }, centre, true);
+    if (liveCentre) {
+      userMapMarker = addMapMarker({ ...state.profile, displayName: state.profile.displayName }, liveCentre, true);
+      mapCentredOnLiveLocation = true;
+    }
     const offsets = [[.004, -.006], [-.003, .006], [.008, .004]];
     mapMarkers = visibleMapRiders().map((person, index) => addMapMarker(person, { lat: centre.lat + offsets[index % offsets.length][0], lng: centre.lng + offsets[index % offsets.length][1] }, false));
     renderMapHazards();
