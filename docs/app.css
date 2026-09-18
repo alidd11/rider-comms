@@ -75,7 +75,7 @@ img,svg{-webkit-user-drag:none}
 /* Settings */
 .profile-row{display:flex;align-items:center;gap:13px;padding:14px;border:1px solid var(--border-soft);border-radius:var(--radius-lg);background:linear-gradient(130deg,#172028,var(--surface))}.profile-copy{min-width:0;flex:1}.profile-copy strong,.profile-copy span,.profile-copy small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.profile-copy span{margin-top:3px;color:var(--text-secondary)}.profile-copy small{margin-top:4px;color:var(--text-muted);font-size:.72rem}.group-title{margin:22px 2px 8px;color:var(--text-secondary);font-size:.71rem;letter-spacing:.11em;text-transform:uppercase}.settings-group{overflow:hidden;border:1px solid var(--border-soft);border-radius:var(--radius-lg);background:var(--surface);box-shadow:var(--shadow-sm)}.settings-group>button{width:100%;min-height:62px;display:flex;align-items:center;gap:11px;padding:8px 12px;border:0;border-bottom:1px solid var(--border-soft);background:transparent;text-align:left;transition:background 120ms ease}@media(hover:hover){.settings-group>button:hover{background:var(--surface-hover)}}.settings-group>button:last-child{border-bottom:0}.settings-group button>span:nth-child(2){min-width:0;flex:1}.settings-group strong,.settings-group small{display:block}.settings-group strong{font-size:.91rem}.settings-group small{margin-top:3px;overflow:hidden;color:var(--text-secondary);font-size:.75rem;text-overflow:ellipsis;white-space:nowrap}.setting-icon{width:36px;height:36px;display:grid;place-items:center;flex:none;border-radius:var(--radius-sm);border:1px solid var(--border-soft);background:var(--surface-raised);color:var(--text-secondary)}.setting-icon svg{width:19px;height:19px}.danger-text{color:var(--danger)!important}.version{margin:20px 0 0;text-align:center;color:var(--text-muted);font-size:.7rem}
 /* Navigation */
-.bottom-nav{position:fixed;z-index:20;right:0;bottom:0;left:0;height:var(--bottom-nav-height);display:flex;align-items:flex-start;padding:0 max(7px,var(--safe-right)) var(--bottom-control-inset) max(7px,var(--safe-left));border-top:1px solid var(--border-soft);background:rgb(12 17 23/.96);backdrop-filter:blur(20px)}.bottom-nav>button{position:relative;height:var(--nav-height);flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:3px 0 2px;border:0;border-radius:var(--radius-md);background:transparent;color:var(--text-secondary)}.bottom-nav>button.active{color:var(--accent)}.bottom-nav>button span{display:block;line-height:1.15;font-size:.66rem;font-weight:780}.bottom-nav>button i{position:absolute;top:5px;left:calc(50% + 7px);width:16px;height:16px;display:grid;place-items:center;border-radius:50%;background:var(--accent);color:var(--accent-text);font-size:.56rem;font-style:normal;font-weight:900}.ride-pill{position:fixed;z-index:21;left:50%;bottom:calc(var(--bottom-nav-height) + 7px);width:min(calc(100% - 28px),480px);min-height:46px;display:flex;align-items:center;gap:10px;padding:5px 7px 5px 13px;transform:translateX(-50%);border:1px solid var(--border);border-radius:var(--radius-pill);background:rgb(24 32 41/.95);box-shadow:var(--shadow-lg)}.ride-pill>span:nth-child(2){min-width:0;flex:1;text-align:left}.ride-pill small,.ride-pill strong{display:block}.ride-pill small{color:var(--text-secondary);font-size:.62rem}.ride-pill strong{font-size:.79rem;letter-spacing:.08em}
+.bottom-nav{position:fixed;z-index:20;right:0;bottom:0;left:0;height:var(--bottom-nav-height);display:flex;align-items:flex-start;padding:0 max(7px,var(--safe-right)) var(--bottom-control-inset) max(7px,var(--safe-left));border-top:1px solid var(--border-soft);background:var(--system-chrome);box-shadow:none;backdrop-filter:blur(20px)}.bottom-nav>button{position:relative;height:var(--nav-height);flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:3px 0 2px;border:0;border-radius:var(--radius-md);background:transparent;color:var(--text-secondary)}.bottom-nav>button.active{color:var(--accent)}.bottom-nav>button span{display:block;line-height:1.15;font-size:.66rem;font-weight:780}.bottom-nav>button i{position:absolute;top:5px;left:calc(50% + 7px);width:16px;height:16px;display:grid;place-items:center;border-radius:50%;background:var(--accent);color:var(--accent-text);font-size:.56rem;font-style:normal;font-weight:900}.ride-pill{position:fixed;z-index:21;left:50%;bottom:calc(var(--bottom-nav-height) + 7px);width:min(calc(100% - 28px),480px);min-height:46px;display:flex;align-items:center;gap:10px;padding:5px 7px 5px 13px;transform:translateX(-50%);border:1px solid var(--border);border-radius:var(--radius-pill);background:rgb(24 32 41/.95);box-shadow:var(--shadow-lg)}.ride-pill>span:nth-child(2){min-width:0;flex:1;text-align:left}.ride-pill small,.ride-pill strong{display:block}.ride-pill small{color:var(--text-secondary);font-size:.62rem}.ride-pill strong{font-size:.79rem;letter-spacing:.08em}
 /* Installed iOS PWA: the nav element itself includes the safe-area height.
    No ::after strip is used; its actual box reaches the physical bottom edge. */
 .pwa-standalone .bottom-nav{
@@ -103,8 +103,8 @@ img,svg{-webkit-user-drag:none}
   .app-shell{display:block;width:min(100%,540px);min-height:100dvh;margin:0 auto;border-inline:1px solid var(--border-soft);background:var(--bg);box-shadow:0 0 80px rgb(0 0 0/.55)}
   .app-main{display:block}
   .screen{padding-bottom:calc(var(--bottom-nav-height) + 28px)}
-  .map-canvas{inset-bottom:var(--bottom-nav-height)}
-  .bottom-nav{top:auto;right:auto;bottom:0;left:50%;width:min(100%,540px);height:var(--bottom-nav-height);display:flex;align-items:flex-start;padding:0 max(7px,var(--safe-right)) var(--bottom-control-inset) max(7px,var(--safe-left));transform:translateX(-50%);border-top:1px solid var(--border-soft);background:rgb(12 17 23/.96);backdrop-filter:blur(20px)}
+  .map-canvas{bottom:var(--bottom-nav-height)}
+  .bottom-nav{top:auto;right:auto;bottom:0;left:50%;width:min(100%,540px);height:var(--bottom-nav-height);display:flex;align-items:flex-start;padding:0 max(7px,var(--safe-right)) var(--bottom-control-inset) max(7px,var(--safe-left));transform:translateX(-50%);border-top:1px solid var(--border-soft);backdrop-filter:blur(20px)}
   .bottom-nav>button{flex:1;align-self:stretch;flex-direction:column;justify-content:center;gap:3px;padding:0}
   .bottom-nav>button.active{background:transparent}
   .bottom-nav>button span{font-size:.66rem}
@@ -128,7 +128,6 @@ img,svg{-webkit-user-drag:none}
   .fallback-map:after{opacity:.16;background-image:linear-gradient(#b7c2c7 1px,transparent 1px),linear-gradient(90deg,#b7c2c7 1px,transparent 1px)}
   .road{background:#ccd7db;border-block-color:#b3bfc4}
   .road:after{border-top-color:#98a5aa}
-  .bottom-nav{background:rgb(255 255 255/.92)}
   .ride-summary{background:linear-gradient(135deg,#e2f2e9,var(--surface))}
   .profile-row{background:linear-gradient(130deg,#f1e9dd,var(--surface))}
   .ride-pill{background:rgb(255 255 255/.95)}
@@ -150,7 +149,6 @@ img,svg{-webkit-user-drag:none}
 .people-list,.ride-entry,.settings-group,.route-card,.profile-row{border-color:color-mix(in srgb,var(--border) 76%,transparent);box-shadow:0 12px 34px rgb(0 0 0/.16)}
 .roster-row,.friend-row,.request-row,.settings-group>button{transition:background 140ms ease,transform 140ms ease}
 .roster-row:active,.friend-row:active,.request-row:active,.settings-group>button:active{background:var(--surface-hover);transform:scale(.995)}
-.bottom-nav{border-top-color:color-mix(in srgb,var(--border) 72%,transparent);box-shadow:0 -12px 32px rgb(0 0 0/.12)}
 .bottom-nav>button:before{content:"";position:absolute;z-index:0;top:3px;width:44px;height:30px;border-radius:15px;background:transparent;transform:scale(.82);opacity:0;transition:background 150ms ease,opacity 150ms ease,transform 150ms ease}
 .bottom-nav>button.active:before{background:var(--accent-soft);transform:scale(1);opacity:1}
 .bottom-nav>button svg,.bottom-nav>button span{position:relative;z-index:1}
@@ -163,7 +161,6 @@ img,svg{-webkit-user-drag:none}
 }
 @media(prefers-color-scheme:light){
   .people-list,.ride-entry,.settings-group,.route-card,.profile-row{box-shadow:0 12px 34px rgb(40 30 15/.09)}
-  .bottom-nav{box-shadow:0 -12px 32px rgb(40 30 15/.08)}
 }
 @media(prefers-color-scheme:light) and (min-width:1080px){
   .auth-screen{box-shadow:0 0 80px rgb(40 30 15/.15)}
@@ -176,7 +173,6 @@ img,svg{-webkit-user-drag:none}
    viewport on iOS. Use the same opaque colour for that system-owned region,
    the page root behind it, and the fixed tab bar so there is no false
    edge-to-edge seam. The safe-area padding itself remains untouched. */
-.bottom-nav{background:var(--nav-chrome)}
 @media(prefers-color-scheme:light){:root{--system-chrome:#f4f1ec}}
 @media(prefers-color-scheme:light){:root{--nav-chrome:#f4f1ec}}
 /* Purposeful inactive states for the ride and social areas. These surfaces
@@ -226,7 +222,6 @@ img,svg{-webkit-user-drag:none}
 /* Product UI refinement. Utility screens use a flatter, denser hierarchy
    inspired by mature social apps: content and labels lead, borders recede,
    and empty states offer one clear next action. */
-.content-screen{background:var(--bg)}
 .content-screen .page-header{align-items:center;margin-bottom:18px}
 .content-screen .page-header h1{max-width:none;font-size:clamp(1.75rem,7.2vw,2rem);letter-spacing:-.045em}
 .content-screen .page-subtitle{margin-top:6px;color:var(--text-muted);font-size:.78rem}
@@ -236,14 +231,14 @@ img,svg{-webkit-user-drag:none}
 .ride-form{padding:16px}.ride-form>label{margin-bottom:8px}.code-field input{height:48px}.support-copy{font-size:.74rem}
 .network-summary{display:flex;gap:18px;margin:-5px 2px 14px;color:var(--text-muted);font-size:.72rem}.network-summary span{display:flex;align-items:baseline;gap:4px}.network-summary b{color:var(--text);font-size:.86rem}
 .search-and-add{gap:8px}.search-row{height:46px;border-color:var(--border-soft);border-radius:12px;background:var(--surface)}.add-friend-toggle{width:46px;min-width:46px;height:46px;border-color:var(--border-soft);border-radius:12px;background:var(--surface)}
-.network-empty{margin-top:18px;padding:30px 18px;border:0;border-radius:0;background:transparent}.network-empty .hero-icon{border:0;background:var(--surface-raised)}.network-empty h2{font-size:1rem}.network-empty p{max-width:300px;font-size:.78rem}.network-empty .button{margin-top:15px}
+.network-empty{margin-top:18px;padding:30px 18px;border:0;border-radius:0;background:transparent}.network-empty .hero-icon{border:0;background:var(--surface-raised)}.network-empty p{max-width:300px;font-size:.78rem}.network-empty .button{margin-top:15px}
 .people-list{border-inline:0;border-radius:0;background:transparent;box-shadow:none}.friend-row,.request-row{padding-inline:2px}
 .profile-row{padding:4px 2px 17px;border:0;border-bottom:1px solid var(--border-soft);border-radius:0;background:transparent;box-shadow:none}.profile-row .avatar-lg{width:52px;height:52px}.profile-row .button{padding-right:2px}
 .profile-completion{border-radius:14px;box-shadow:none}
 .group-title{margin:22px 2px 7px;color:var(--text-muted);font-size:.65rem;font-weight:800;letter-spacing:.14em}
 .settings-group{border:0;border-radius:0;background:transparent;box-shadow:none}.settings-group>button{min-height:58px;padding:7px 2px;border-bottom-color:var(--border-soft)}.settings-group strong{font-size:.88rem}.settings-group small{margin-top:2px;font-size:.72rem}.setting-icon{width:32px;height:32px;border:0;background:transparent}.setting-icon svg{width:20px;height:20px}.settings-group>button>svg{width:16px;height:16px;color:var(--text-muted)}.plan-pill{min-width:auto;min-height:24px;padding-inline:8px;background:var(--surface-raised);font-size:.66rem}
 .version{margin-top:18px}
-.bottom-nav{box-shadow:none}.bottom-nav>button:before{display:none}.bottom-nav>button svg{width:21px;height:21px}.bottom-nav>button span{font-size:.63rem}.bottom-nav>button.active span{font-weight:800}
+.bottom-nav>button:before{display:none}.bottom-nav>button svg{width:21px;height:21px}.bottom-nav>button span{font-size:.63rem}.bottom-nav>button.active span{font-weight:800}
 @media(max-width:390px){.content-screen .page-header{margin-bottom:16px}.network-summary{margin-top:-4px}.settings-group small{max-width:220px}}
 @media(prefers-color-scheme:light){.content-screen{background:var(--bg)}.profile-row{background:transparent}.settings-group,.profile-row,.ride-entry,.people-list{box-shadow:none}}
 
@@ -274,7 +269,7 @@ img,svg{-webkit-user-drag:none}
 .settings-group>button{min-height:54px;gap:9px;padding:6px 2px}.settings-group strong{font-size:.82rem}.settings-group small{font-size:.68rem;line-height:1.3}
 .setting-icon{width:30px;height:30px}.setting-icon svg{width:18px;height:18px}.settings-group>button>svg{width:15px;height:15px}
 .plan-pill{min-height:22px;padding-inline:7px;font-size:.62rem}.version{margin-top:15px;font-size:.65rem}
-.bottom-nav{padding-top:0;border-top-color:var(--border-soft)}.bottom-nav>button{gap:2px;border-radius:0}.bottom-nav>button svg{width:20px;height:20px}.bottom-nav>button span{font-size:.61rem;letter-spacing:-.01em}
+.bottom-nav>button{gap:2px;border-radius:0}.bottom-nav>button svg{width:20px;height:20px}.bottom-nav>button span{font-size:.61rem;letter-spacing:-.01em}
 @media(min-width:430px){.content-screen{padding-inline:max(17px,var(--safe-left))}.content-screen .page-header h1{font-size:1.82rem}}
 @media(max-width:390px){.content-screen{padding-top:calc(var(--safe-top) + 12px)}.content-screen .page-header h1{font-size:1.58rem}.code-field{display:flex}.code-field .button{width:auto}.settings-group small{max-width:205px}}
 
@@ -333,7 +328,6 @@ img,svg{-webkit-user-drag:none}
 .safety-guidance strong{font-size:.9rem}.safety-guidance small{font-size:.78rem}
 .version{font-size:.72rem}
 .bottom-nav>button span{font-size:.7rem;letter-spacing:0}.bottom-nav>button svg{width:22px;height:22px}
-.bottom-nav{box-shadow:none;background:var(--system-chrome)}
 .auth-screen{background:var(--bg)}
 .auth-card{border-radius:18px;background:var(--surface);box-shadow:var(--shadow-sm)}
 .auth-mark{border-radius:12px;background:var(--accent-soft);box-shadow:none}
@@ -345,7 +339,6 @@ img,svg{-webkit-user-drag:none}
 @media(prefers-color-scheme:dark){
   .glass{background:rgb(24 24 25/.9);border-color:rgb(255 255 255/.09)}
   .content-screen,.auth-screen{background:#0e0e0f}
-  .bottom-nav{background:var(--system-chrome)}
   .profile-row,.ride-entry,.settings-group,.settings-sheet-section,.settings-note,.choice-list,.safety-guidance,.plan-card{background:#181819}
   .map-canvas{background:#101011}
   .fallback-map{background:radial-gradient(circle at 68% 22%,#242426 0,#181819 52%,#101011 100%)}
@@ -530,7 +523,6 @@ h1,.auth-intro h1{letter-spacing:-.02em}
   background-position:0 0,0 0,0 0;
   background-repeat:repeat,repeat,no-repeat;
 }
-.content-screen.active::before{height:var(--safe-top)}
 .movement-safety-banner{
   top:calc(var(--safe-top) + 10px);
   left:max(12px,var(--safe-left));
