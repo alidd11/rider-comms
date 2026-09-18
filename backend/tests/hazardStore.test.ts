@@ -75,6 +75,21 @@ describe('HazardStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping 
     assert.equal(current.denials, 1);
   });
 
+  it('moves the aggregate when a rider changes their vote', async () => {
+    const store = new HazardStore();
+    const report = await store.create('accident', 40.0, -74.0, 'rider-1');
+    assert.deepEqual(await store.confirm(report.id, 'rider-2'), { ok: true });
+    assert.deepEqual(await store.deny(report.id, 'rider-2'), { ok: true });
+    let [current] = await store.nearby(40.0, -74.0, report.createdAt);
+    assert.equal(current.confirmations, 0);
+    assert.equal(current.denials, 1);
+
+    assert.deepEqual(await store.confirm(report.id, 'rider-2'), { ok: true });
+    [current] = await store.nearby(40.0, -74.0, report.createdAt);
+    assert.equal(current.confirmations, 1);
+    assert.equal(current.denials, 0);
+  });
+
   it('counts only one vote when the same rider confirms and denies concurrently', async () => {
     const store = new HazardStore();
     const report = await store.create('accident', 40.0, -74.0, 'rider-1');
