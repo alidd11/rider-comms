@@ -18,7 +18,7 @@ describe('social activity and realtime API', { skip: !hasDatabase && 'DATABASE_U
 
   beforeEach(async () => {
     await getPool().query(
-      'TRUNCATE social_events RESTART IDENTITY, rider_activity, friend_requests, friendships, direct_message_reads, direct_messages, rider_blocks, safety_reports, social_rate_events',
+      'TRUNCATE social_events, rider_activity, friend_requests, friendships, direct_message_reads, direct_messages, rider_blocks, safety_reports, social_rate_events RESTART IDENTITY',
     );
   });
 
@@ -135,17 +135,14 @@ describe('social activity and realtime API', { skip: !hasDatabase && 'DATABASE_U
       `/social/events?after=${encodeURIComponent(baseline.cursor)}&waitMs=0`,
     );
     const page = await eventsResponse.json() as {
-      events: Array<{ type: string; actorRiderId: string; entityId: string }>;
+      events: Array<{ cursor: string; type: string; actorRiderId: string; entityId: string; createdAt: number }>;
     };
-    assert.deepEqual(page.events, [
-      {
-        cursor: (page.events[0] as { cursor?: string })?.cursor,
-        type: 'friend_request',
-        actorRiderId: 'request-sender',
-        entityId: request.id,
-        createdAt: (page.events[0] as { createdAt?: number })?.createdAt,
-      },
-    ]);
+    assert.equal(page.events.length, 1);
+    assert.equal(page.events[0]?.type, 'friend_request');
+    assert.equal(page.events[0]?.actorRiderId, 'request-sender');
+    assert.equal(page.events[0]?.entityId, request.id);
+    assert.ok(page.events[0]?.cursor);
+    assert.equal(typeof page.events[0]?.createdAt, 'number');
   });
 
   it('rejects malformed cursors and excessive long-poll windows', async () => {
