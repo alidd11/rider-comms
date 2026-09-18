@@ -80,8 +80,8 @@ async function mockAuthenticatedApi(page, movement = 'stationary', backendOverri
     else if (url.pathname === `/riders/${RIDER_ID}/profile`) body = PROFILE;
     else if (url.pathname === `/riders/${RIDER_ID}/friends`) body = {
       friends: [
-        { riderId: 'rider_friend01', displayName: 'Maya', handle: '@maya_moto' },
-        { riderId: 'rider_friend02', displayName: 'Jay', handle: '@jay125' },
+        { riderId: 'rider_friend01', displayName: 'Maya', handle: '@maya_moto', avatarId: 'ridge' },
+        { riderId: 'rider_friend02', displayName: 'Jay', handle: '@jay125', avatarId: 'moss' },
       ],
     };
     else if (url.pathname === `/riders/${RIDER_ID}/friend-requests`) body = { incoming: [], outgoing: [] };
@@ -388,6 +388,16 @@ test('installed PWA tab bar owns the iOS home-indicator inset without moving con
   const labelBottomGap = railBottom - (labelBox.y + labelBox.height);
   expect(labelBottomGap).toBeGreaterThanOrEqual(0);
   expect(labelBottomGap).toBeLessThanOrEqual(12);
+});
+
+test('PWA preserves backend avatar presets on friend surfaces', async ({ page }) => {
+  await mockAuthenticatedApi(page);
+  await page.goto('/#friends');
+
+  const avatars = page.locator('#friendList .avatar');
+  await expect(avatars).toHaveCount(2);
+  await expect(avatars.nth(0)).toHaveCSS('--avatar', '#4C8BF5');
+  await expect(avatars.nth(1)).toHaveCSS('--avatar', '#3DD68C');
 });
 
 test('PWA profile avatar selection persists and updates visible avatars', async ({ page }) => {
