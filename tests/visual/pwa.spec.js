@@ -470,7 +470,56 @@ test('PWA navigation preference offers Rider Comms, Google Maps, Waze and Apple 
   await expect(page.locator('#navigationProviderSummary')).toHaveText('Waze');
 });
 
-test('installed PWA tab rail stays bottom-flush without duplicating the iOS safe area', async ({ page }) => {
+test('installed PWA cold start uses the full Home Screen canvas before any rotation', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'standalone', { configurable: true, value: true });
+    // Reproduce the important part of the real-device failure: WebKit/JS can
+    // initially report a layout height roughly one browser-toolbar shorter
+    // than the actual standalone window. The app shell must not inherit it.
+    Object.defineProperty(window, 'innerHeight', {
+      configurable: true,
+      get: () => Math.max(1, (document.documentElement?.clientHeight ?? 844) - 118),
+    });
+  });
+  await mockAuthenticatedApi(page);
+  await page.goto('/#map');
+  await page.evaluate(() => {
+    document.documentElement.style.setProperty('--bottom-safe-area', '34px');
+  });
+  await expect(page.locator('#app')).toBeVisible();
+  await expect(page.locator('html')).toHaveClass(/pwa-standalone/);
+
+  const metrics = await page.evaluate(() => {
+    const root = document.documentElement;
+    const app = document.querySelector('#app');
+    const nav = document.querySelector('.bottom-nav');
+    const appBox = app.getBoundingClientRect();
+    const navBox = nav.getBoundingClientRect();
+    const navStyle = getComputedStyle(nav);
+    return {
+      appVh: root.style.getPropertyValue('--app-vh'),
+      clientHeight: root.clientHeight,
+      innerHeight: window.innerHeight,
+      appPosition: getComputedStyle(app).position,
+      appBottom: appBox.bottom,
+      navPosition: navStyle.position,
+      navBottom: navBox.bottom,
+      navHeight: navBox.height,
+      navPaddingBottom: parseFloat(navStyle.paddingBottom),
+    };
+  });
+
+  expect(metrics.appVh).toBe('100vh');
+  expect(metrics.innerHeight).toBeLessThan(metrics.clientHeight);
+  expect(metrics.appPosition).toBe('fixed');
+  expect(metrics.navPosition).toBe('absolute');
+  expect(Math.abs(metrics.appBottom - metrics.clientHeight)).toBeLessThanOrEqual(1);
+  expect(Math.abs(metrics.navBottom - metrics.clientHeight)).toBeLessThanOrEqual(1);
+  expect(metrics.navHeight).toBe(58 + 34 + 1);
+  expect(metrics.navPaddingBottom).toBe(34);
+});
+
+test('installed PWA tab rail keeps controls above the home indicator', async ({ page }) => {
   await mockAuthenticatedApi(page);
   await page.goto('/#settings');
   await page.evaluate(() => {
@@ -495,7 +544,6 @@ test('installed PWA tab rail stays bottom-flush without duplicating the iOS safe
     return {
       navSafeBottom: getComputedStyle(root).getPropertyValue('--nav-safe-bottom').trim(),
       bottomControlInset: getComputedStyle(root).getPropertyValue('--bottom-control-inset').trim(),
-      tabRailPhysicalShift: getComputedStyle(root).getPropertyValue('--tab-rail-physical-shift').trim(),
       navigationControlInset: getComputedStyle(root).getPropertyValue('--navigation-control-inset').trim(),
       navHeight: getComputedStyle(nav).height,
       navPaddingBottom: getComputedStyle(nav).paddingBottom,
@@ -503,11 +551,10 @@ test('installed PWA tab rail stays bottom-flush without duplicating the iOS safe
   });
 
   expect(chrome.navSafeBottom).toBe('34px');
-  expect(chrome.bottomControlInset).toBe('0px');
-  expect(chrome.tabRailPhysicalShift).toBe('min(16px,34px)');
+  expect(chrome.bottomControlInset).toBe('34px');
   expect(chrome.navigationControlInset).toBe('min(18px,34px)');
-  expect(parseFloat(chrome.navHeight)).toBe(58 + 1);
-  expect(parseFloat(chrome.navPaddingBottom)).toBe(0);
+  expect(parseFloat(chrome.navHeight)).toBe(58 + 34 + 1);
+  expect(parseFloat(chrome.navPaddingBottom)).toBe(34);
 
   expect(navBox).not.toBeNull();
   expect(buttonBox).not.toBeNull();
@@ -515,14 +562,13 @@ test('installed PWA tab rail stays bottom-flush without duplicating the iOS safe
   expect(viewport).not.toBeNull();
   expect(Math.abs((navBox.y + navBox.height) - viewport.height)).toBeLessThanOrEqual(1);
 
-  // Real installed iOS 26 PWAs expose a system-owned gesture strip below the
-  // CSS viewport. Move the controls 16px into that physical safe area instead
-  // of merely painting it. The nav surface remains anchored at bottom:0.
-  expect(buttonBox.y).toBeGreaterThanOrEqual(navBox.y + 15);
-  expect(buttonBox.y + buttonBox.height).toBeGreaterThan(viewport.height);
-  expect(buttonBox.y + buttonBox.height - viewport.height).toBeGreaterThanOrEqual(15);
-  expect(buttonBox.y + buttonBox.height - viewport.height).toBeLessThanOrEqual(17);
-  const railBottom = navBox.y + 58 + 16;
+  // The full-height app shell reaches the physical bottom immediately. Keep
+  // the 58px interaction rail above the real 34px home-indicator safe area.
+  expect(buttonBox.y).toBeGreaterThanOrEqual(navBox.y - 1);
+  expect(buttonBox.y + buttonBox.height).toBeLessThanOrEqual(navBox.y + 59);
+  expect(viewport.height - (buttonBox.y + buttonBox.height)).toBeGreaterThanOrEqual(34);
+  expect(viewport.height - (buttonBox.y + buttonBox.height)).toBeLessThanOrEqual(36);
+  const railBottom = navBox.y + 58;
   const labelBottomGap = railBottom - (labelBox.y + labelBox.height);
   expect(labelBottomGap).toBeGreaterThanOrEqual(0);
   expect(labelBottomGap).toBeLessThanOrEqual(12);
@@ -571,7 +617,7 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
   // Three pixels still rejects any meaningful safe-area gap while avoiding
   // false failures from sub-pixel viewport quantisation.
   expect(Math.abs((summaryBox.y + summaryBox.height) - viewport.height)).toBeLessThanOrEqual(3);
-  expect(await page.evaluate(() => document.documentElement.style.getPropertyValue('--app-vh'))).toBe('100dvh');
+  expect(await page.evaluate(() => document.documentElement.style.getPropertyValue('--app-vh'))).toBe('100vh');
 });
 
 test('PWA preserves backend avatar presets on friend surfaces', async ({ page }) => {
