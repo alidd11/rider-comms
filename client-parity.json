@@ -26,7 +26,7 @@
     { "id": "private-ride-location", "pwa": true, "native": true, "status": "parity" },
     { "id": "hazards", "pwa": true, "native": true, "status": "parity" },
     { "id": "place-search", "pwa": true, "native": true, "status": "parity" },
-    { "id": "recent-places", "pwa": true, "native": false, "status": "gap" },
+    { "id": "recent-places", "pwa": true, "native": true, "status": "parity" },
     { "id": "navigation", "pwa": true, "native": true, "status": "behavior-gap" },
     { "id": "routes", "pwa": true, "native": true, "status": "parity" },
     { "id": "ride-safe", "pwa": true, "native": true, "status": "parity" },
