@@ -298,20 +298,23 @@ test('PWA host can remove another rider from a private ride', async ({ page }) =
   await expect(page.locator('#toast')).toContainText('removed from the ride');
 });
 
-test('PWA settings sheets own the bottom edge without competing with the tab bar', async ({ page }) => {
-  await mockAuthenticatedApi(page);
+test('PWA settings sheets own the bottom edge without competing with app chrome', async ({ page }) => {
+  await mockAuthenticatedApi(page, 'unknown');
   await page.goto('/#settings');
 
   const nav = page.locator('.bottom-nav');
+  const banner = page.locator('#movementSafetyBanner');
   const app = page.locator('#app');
   const settingsScreen = page.locator('[data-screen="settings"]');
   await expect(nav).toBeVisible();
+  await expect(banner).toBeVisible();
 
   await page.locator('[data-sheet="privacy"]').click();
   await expect(page.locator('#sheetBackdrop')).toBeVisible();
   await expect(page.locator('html')).toHaveClass(/sheet-open/);
   await expect(app).toHaveAttribute('inert', '');
   await expect(nav).toBeHidden();
+  await expect(banner).toBeHidden();
   await expect(settingsScreen).toHaveCSS('overflow', 'hidden');
 
   const sheetBox = await page.locator('.sheet').boundingBox();
@@ -324,6 +327,35 @@ test('PWA settings sheets own the bottom edge without competing with the tab bar
   await expect(page.locator('html')).not.toHaveClass(/sheet-open/);
   await expect(app).not.toHaveAttribute('inert', '');
   await expect(nav).toBeVisible();
+  await expect(banner).toBeVisible();
+});
+
+test('installed PWA tab controls stay low but contained inside the bottom bar', async ({ page }) => {
+  await mockAuthenticatedApi(page);
+  await page.goto('/#settings');
+  await page.evaluate(() => document.documentElement.classList.add('pwa-standalone'));
+
+  const nav = page.locator('.bottom-nav');
+  const activeButton = page.locator('.bottom-nav [data-nav="settings"]');
+  const activeLabel = activeButton.locator('span');
+
+  const [navBox, buttonBox, labelBox] = await Promise.all([
+    nav.boundingBox(),
+    activeButton.boundingBox(),
+    activeLabel.boundingBox(),
+  ]);
+  const viewport = page.viewportSize();
+
+  expect(navBox).not.toBeNull();
+  expect(buttonBox).not.toBeNull();
+  expect(labelBox).not.toBeNull();
+  expect(viewport).not.toBeNull();
+  expect(Math.abs((navBox.y + navBox.height) - viewport.height)).toBeLessThanOrEqual(1);
+  expect(buttonBox.y).toBeGreaterThanOrEqual(navBox.y - 1);
+  expect(buttonBox.y + buttonBox.height).toBeLessThanOrEqual(navBox.y + navBox.height + 1);
+  const labelBottomGap = (navBox.y + navBox.height) - (labelBox.y + labelBox.height);
+  expect(labelBottomGap).toBeGreaterThanOrEqual(0);
+  expect(labelBottomGap).toBeLessThanOrEqual(9);
 });
 
 test('PWA exposes session management and account deletion', async ({ page }) => {
