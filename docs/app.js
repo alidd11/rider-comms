@@ -204,6 +204,13 @@
   let movementWatchId;
   let movementFreshnessTimer;
   let movementPermissionStatus;
+  let activeChat = null;
+  let chatMessages = [];
+  let chatNextCursor = null;
+  let chatHasLoadedOlder = false;
+  let chatPollTimer;
+  let chatLoading = false;
+  let chatReturnFocus = null;
   const stateStorageKey = () => session?.riderId ? `${STORAGE_KEY}:${session.riderId}` : STORAGE_KEY;
   // v4 stored profile data in one device-global record. Account-scoped
   // storage prevents one rider's cached identity appearing for another.
@@ -623,6 +630,7 @@
     ].filter(Boolean).join('');
     presentSheet(friend.displayName, `<article class="friend-profile-card">${avatar({ ...friend, avatarId: profile.avatarId || friend.avatarId })}<div><strong>${escapeHtml(friend.displayName)}</strong><span>${escapeHtml(friend.handle)}</span><small>Connected rider</small></div></article>
       ${socialLinks ? `<div class="social-links">${socialLinks}</div>` : '<p class="friend-profile-note">This rider has not shared any social links with you.</p>'}
+      <button class="button primary wide" id="messageFriend">Message</button>
       <button class="button secondary wide" id="copyFriendId">Copy Rider ID</button>
       <button class="button danger wide" id="friendSafetyActions">Report or block rider</button>
       <p class="caption">Only connect and arrange rides with people you trust. Social links follow each rider’s privacy settings.</p>`, () => {
@@ -630,8 +638,158 @@
         try { await navigator.clipboard.writeText(riderId); showToast('Rider ID copied.'); }
         catch { showToast(riderId); }
       });
+      $('#messageFriend').addEventListener('click', () => openChat(friend));
       $('#friendSafetyActions').addEventListener('click', () => openFriendSafetyActions(friend));
     });
+  }
+
+  const MESSAGE_POLL_INTERVAL_MS = 10000;
+
+  function formatMessageTime(value) {
+    const date = new Date(value);
+    return Number.isFinite(date.getTime()) ? date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
+  }
+
+  function renderChat() {
+    if (!activeChat) return;
+    const messages = $('#chatMessages');
+    messages.innerHTML = chatMessages.map((message) => {
+      const mine = message.fromRiderId === state.profile.riderId;
+      const failed = mine && message.status === 'failed';
+      const status = message.status === 'pending' ? '<small>Sending…</small>' : failed ? '<small>Failed — tap to retry</small>' : '';
+      const body = `<span>${escapeHtml(message.text)}</span><time>${escapeHtml(formatMessageTime(message.createdAt))}</time>${status}`;
+      return failed
+        ? `<button class="chat-bubble-row mine" data-retry-message="${escapeHtml(message.id)}" aria-label="Message failed. Retry sending."><span class="chat-bubble failed">${body}</span></button>`
+        : `<div class="chat-bubble-row${mine ? ' mine' : ''}"><div class="chat-bubble">${body}</div></div>`;
+    }).join('');
+    $('#chatEmpty').hidden = chatLoading || chatMessages.length > 0;
+    $('#chatLoadOlder').hidden = !chatNextCursor;
+    $$('[data-retry-message]', messages).forEach((button) => button.addEventListener('click', () => void retryChatMessage(button.dataset.retryMessage)));
+  }
+
+  function setChatError(message, unavailable = false) {
+    const error = $('#chatError');
+    error.querySelector('span').textContent = message || '';
+    error.hidden = !message;
+    $('#chatRetry').hidden = unavailable;
+    $('#chatInput').disabled = unavailable;
+    $('#chatSend').disabled = unavailable;
+  }
+
+  async function loadChatMessages({ older = false, showLoading = false } = {}) {
+    if (!activeChat || chatLoading || (older && !chatNextCursor)) return;
+    const riderId = activeChat.riderId;
+    chatLoading = true;
+    if (showLoading) {
+      setChatError('Loading messages…');
+      $('#chatRetry').hidden = true;
+    }
+    try {
+      const query = new URLSearchParams({ withRiderId: riderId, limit: '100' });
+      if (older) query.set('before', chatNextCursor);
+      const page = await apiFetch('GET', `/messages?${query.toString()}`);
+      if (!activeChat || activeChat.riderId !== riderId) return;
+      chatMessages = older || chatHasLoadedOlder
+        ? window.RiderMessageState.dedupe([...page.messages, ...chatMessages])
+        : window.RiderMessageState.reconcile(chatMessages, page.messages);
+      if (older) chatHasLoadedOlder = true;
+      if (!chatHasLoadedOlder || older) chatNextCursor = page.nextCursor;
+      setChatError('');
+      renderChat();
+      if (!older) requestAnimationFrame(() => { $('#chatThread').scrollTop = $('#chatThread').scrollHeight; });
+    } catch (error) {
+      const unavailable = error instanceof ApiError && error.status === 403;
+      setChatError(unavailable ? 'This conversation is no longer available.' : 'Could not refresh messages. Check your connection and try again.', unavailable);
+    } finally {
+      chatLoading = false;
+      renderChat();
+    }
+  }
+
+  function syncChatPolling() {
+    clearInterval(chatPollTimer);
+    chatPollTimer = undefined;
+    if (!activeChat || document.visibilityState !== 'visible') return;
+    chatPollTimer = setInterval(() => void loadChatMessages(), MESSAGE_POLL_INTERVAL_MS);
+  }
+
+  function openChat(friend) {
+    if (window.RiderMovementSafety.isLockedForSafety(movementState)) {
+      showToast('Messages stay locked until Rider Comms confirms you are stationary.');
+      return;
+    }
+    chatReturnFocus = lastSheetTrigger || document.activeElement;
+    closeSheet();
+    activeChat = friend;
+    chatMessages = [];
+    chatNextCursor = null;
+    chatHasLoadedOlder = false;
+    $('#chatTitle').textContent = friend.displayName;
+    $('#chatHandle').textContent = friend.handle;
+    $('#chatAvatar').outerHTML = avatar(friend, 'avatar-sm').replace('<span ', '<span id="chatAvatar" ');
+    $('#chatScreen').hidden = false;
+    $('#app').setAttribute('inert', '');
+    document.documentElement.classList.add('chat-open');
+    document.body.style.overflow = 'hidden';
+    setChatError('');
+    renderChat();
+    syncChatPolling();
+    history.pushState({ screen: 'friends', chat: friend.riderId }, '', '#friends/chat');
+    document.title = `${friend.displayName} · Rider Comms`;
+    void loadChatMessages({ showLoading: true });
+    $('#chatInput').focus();
+  }
+
+  function closeChat({ restoreFocus = true } = {}) {
+    if (!activeChat) return;
+    clearInterval(chatPollTimer);
+    chatPollTimer = undefined;
+    activeChat = null;
+    chatMessages = [];
+    chatNextCursor = null;
+    chatHasLoadedOlder = false;
+    $('#chatScreen').hidden = true;
+    $('#app').removeAttribute('inert');
+    document.documentElement.classList.remove('chat-open');
+    document.body.style.overflow = '';
+    document.title = 'Friends · Rider Comms';
+    if (restoreFocus) chatReturnFocus?.focus?.();
+    chatReturnFocus = null;
+  }
+
+  async function sendChatText(text, localId) {
+    if (!activeChat) return;
+    const riderId = activeChat.riderId;
+    try {
+      const sent = await apiFetch('POST', '/messages', { toRiderId: riderId, text });
+      if (activeChat?.riderId !== riderId) return;
+      chatMessages = chatMessages.map((message) => message.id === localId ? sent : message);
+      renderChat();
+    } catch {
+      if (activeChat?.riderId !== riderId) return;
+      chatMessages = chatMessages.map((message) => message.id === localId ? { ...message, status: 'failed' } : message);
+      renderChat();
+    }
+  }
+
+  function submitChatMessage() {
+    const input = $('#chatInput');
+    const text = input.value.trim();
+    if (!activeChat || !text) return;
+    const localId = `local-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    chatMessages.push({ id: localId, fromRiderId: state.profile.riderId, toRiderId: activeChat.riderId, text, createdAt: Date.now(), status: 'pending' });
+    input.value = '';
+    renderChat();
+    requestAnimationFrame(() => { $('#chatThread').scrollTop = $('#chatThread').scrollHeight; });
+    void sendChatText(text, localId);
+  }
+
+  async function retryChatMessage(localId) {
+    const target = chatMessages.find((message) => message.id === localId && message.status === 'failed');
+    if (!target) return;
+    chatMessages = chatMessages.map((message) => message.id === localId ? { ...message, status: 'pending' } : message);
+    renderChat();
+    await sendChatText(target.text, localId);
   }
 
   function openFriendSafetyActions(friend) {
@@ -684,6 +842,7 @@
       persist();
       renderFriends();
       renderMapRiders();
+      if (activeChat?.riderId === friend.riderId) closeChat({ restoreFocus: false });
       closeSheet();
       showToast(`${friend.displayName} blocked.`);
     } catch {
@@ -1055,6 +1214,7 @@
     $('#sheetBackdrop').hidden = false;
     document.documentElement.classList.add('sheet-open');
     $('#app')?.setAttribute('inert', '');
+    $('#chatScreen')?.setAttribute('inert', '');
     document.body.style.overflow = 'hidden';
     ready?.();
     $('#closeSheet').focus();
@@ -1249,6 +1409,7 @@
     $('#sheetBackdrop').hidden = true;
     document.documentElement.classList.remove('sheet-open');
     $('#app')?.removeAttribute('inert');
+    $('#chatScreen')?.removeAttribute('inert');
     document.body.style.overflow = '';
     lastSheetTrigger = null;
     trigger?.focus?.();
@@ -1709,6 +1870,7 @@
       item.setAttribute('aria-disabled', String(locked));
     });
     if (locked && !['map', 'ride'].includes(state.screen)) navigate(state.activeRide ? 'ride' : 'map', false);
+    if (locked && activeChat) closeChat({ restoreFocus: false });
   }
 
   function stopMovementSafetyTracking() {
@@ -2951,7 +3113,10 @@
   function bindEvents() {
     $$('[data-nav]').forEach((button) => button.addEventListener('click', () => navigate(button.dataset.nav)));
     $('#enableLocationBtn').addEventListener('click', () => void requestMovementLocationAccess());
-    window.addEventListener('popstate', () => navigate(location.hash.slice(1) || 'map', false));
+    window.addEventListener('popstate', () => {
+      if (activeChat) closeChat();
+      navigate(location.hash.split('/')[0].slice(1) || 'map', false);
+    });
     $$('[data-ride-mode]').forEach((button) => button.addEventListener('click', () => {
       $$('[data-ride-mode]').forEach((item) => item.classList.toggle('active', item === button));
       const host = button.dataset.rideMode === 'host';
@@ -2985,6 +3150,17 @@
     $('#openRideMap').addEventListener('click', () => navigate('map'));
     $('#ridePill').addEventListener('click', () => navigate('ride'));
     $('#friendSearch').addEventListener('input', renderFriends);
+    $('#chatBack').addEventListener('click', () => {
+      if (location.hash === '#friends/chat') history.back();
+      else closeChat();
+    });
+    $('#chatSafety').addEventListener('click', () => { if (activeChat) openFriendSafetyActions(activeChat); });
+    $('#chatRetry').addEventListener('click', () => void loadChatMessages({ showLoading: true }));
+    $('#chatLoadOlder').addEventListener('click', () => void loadChatMessages({ older: true }));
+    $('#chatComposer').addEventListener('submit', (event) => { event.preventDefault(); submitChatMessage(); });
+    $('#chatInput').addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); submitChatMessage(); }
+    });
     $('#addFriendToggle').addEventListener('click', () => { $('#addFriendForm').hidden = !$('#addFriendForm').hidden; if (!$('#addFriendForm').hidden) $('#friendId').focus(); });
     $('#addFriendForm').addEventListener('submit', (event) => {
       event.preventDefault();
@@ -3399,6 +3575,7 @@
     syncNotificationPreference();
     void initialiseMovementSafety();
     document.addEventListener('visibilitychange', () => {
+      syncChatPolling();
       if (document.visibilityState === 'visible') void initialiseMovementSafety();
       else stopMovementSafetyTracking();
     });
