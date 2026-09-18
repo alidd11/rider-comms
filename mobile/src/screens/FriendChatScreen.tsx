@@ -24,11 +24,13 @@ import { ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { colors, spacing, radii, type, elevation, MIN_TOUCH_TARGET } from '../theme';
 import { getAvatarPreset } from '../settings/avatars';
-import { buildExternalNavigationUrl } from '../navigationLinks';
+import { buildNavigationProviderUrl } from '../navigationLinks';
 import { reconcileMessageThread, type LocalDirectMessage } from '../friends/messageState';
 import { useMovementSafety } from '../safety/MovementSafetyContext';
 import { RideSafeSurface } from '../safety/RideSafeSurface';
 import { useFriends } from '../friends/FriendsContext';
+import { useSettings } from '../settings/SettingsContext';
+import { navigationProviderLabel } from '../navigationPreference';
 
 // Same poll cadence style used elsewhere (MapScreen's presence, FriendsContext).
 const MESSAGE_POLL_INTERVAL_MS = 10000;
@@ -46,21 +48,6 @@ type LocalMessage = LocalDirectMessage;
 function formatTime(ms: number): string {
   const d = new Date(ms);
   return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-}
-
-async function openHideoutInMaps(lat: number, lon: number, label: string): Promise<void> {
-  const platform = Platform.OS === 'ios' ? 'ios' : 'android';
-  const url = buildExternalNavigationUrl({ lat, lon, label }, platform);
-  if (!url) {
-    Alert.alert('Location unavailable', 'This location cannot be opened because its coordinates are invalid.');
-    return;
-  }
-
-  try {
-    await Linking.openURL(url);
-  } catch {
-    Alert.alert('Couldn’t open maps', 'No compatible maps or navigation app could open this location.');
-  }
 }
 
 function MessageBubble({
@@ -96,10 +83,12 @@ function MessageBubble({
 function HideoutRow({
   hideout,
   onDelete,
+  onOpen,
   currentRiderId,
 }: {
   hideout: Hideout;
   onDelete: (id: string) => void;
+  onOpen: (hideout: Hideout) => void;
   currentRiderId: string;
 }): React.JSX.Element {
   const canDelete = hideout.createdBy === currentRiderId;
@@ -111,7 +100,7 @@ function HideoutRow({
         <Pressable
           accessibilityRole="link"
           accessibilityLabel={`Open directions to ${hideout.name}`}
-          onPress={() => void openHideoutInMaps(hideout.lat, hideout.lon, hideout.name)}
+          onPress={() => onOpen(hideout)}
           hitSlop={4}
         >
           <Text style={[styles.hideoutCoords, styles.hideoutCoordsLink]}>
@@ -243,6 +232,7 @@ function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Elemen
   const { riderId, displayName, avatarId } = route.params;
   const { riderId: currentRiderId, client } = useAuth();
   const { refresh: refreshFriends } = useFriends();
+  const { navigationProvider } = useSettings();
   const avatar = getAvatarPreset(avatarId);
   const insets = useSafeAreaInsets();
 
@@ -329,6 +319,37 @@ function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Elemen
     [client, messages, riderId]
   );
 
+  const handleOpenHideout = React.useCallback(async (hideout: Hideout) => {
+    if (navigationProvider === 'in_app') {
+      navigation.navigate('Tabs', {
+        screen: 'Map',
+        params: {
+          segment: 'public',
+          at: Date.now(),
+          lat: hideout.lat,
+          lon: hideout.lon,
+          label: hideout.name,
+        },
+      });
+      return;
+    }
+
+    const url = buildNavigationProviderUrl(
+      { lat: hideout.lat, lon: hideout.lon, label: hideout.name },
+      navigationProvider
+    );
+    if (!url) {
+      Alert.alert('Location unavailable', 'This location cannot be opened because its coordinates are invalid.');
+      return;
+    }
+
+    try {
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert('Couldn’t open directions', `Rider Comms could not open ${navigationProviderLabel(navigationProvider)} on this device.`);
+    }
+  }, [navigation, navigationProvider]);
+
   const handleCreateHideout = React.useCallback(
     async (name: string, lat: number, lon: number) => {
       await client.createHideout(name, lat, lon, [riderId]);
@@ -403,7 +424,7 @@ function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Elemen
       {hideouts.length > 0 && (
         <View style={styles.hideoutList}>
           {hideouts.map((h) => (
-            <HideoutRow key={h.id} hideout={h} onDelete={handleDeleteHideout} currentRiderId={currentRiderId} />
+            <HideoutRow key={h.id} hideout={h} onDelete={handleDeleteHideout} onOpen={handleOpenHideout} currentRiderId={currentRiderId} />
           ))}
         </View>
       )}

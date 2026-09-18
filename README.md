@@ -20,7 +20,7 @@ Working and verified in this repository:
 Still prototype-only:
 
 - Account credentials, expiring sessions, profiles, rides, friendships, messages, hideouts, presence, hazards, moderation records and scenic-route submissions are durable in Postgres. Anonymous guest sessions are process-local and disappear on restart by design; they are not recoverable accounts.
-- The native client uses a real Apple Maps/Google Maps surface for the rider's own location, selected places, shared destinations and hazard coordinates. Nearby riders are deliberately shown as a privacy-preserving count because the public presence API does not expose their exact coordinates. A production Android build still needs a restricted Maps SDK key.
+- The native client uses a real Apple Maps/Google Maps surface for the rider's own location, selected places, shared destinations and hazard coordinates. Nearby riders are deliberately shown as a privacy-preserving count because the public presence API does not expose their exact coordinates. Riders can choose Rider Comms in-app guidance or explicit Google Maps, Waze, or Apple Maps handoff in Settings; the native in-app route client remains a pre-release development path until physical riding/background/voice validation is complete. A production Android build still needs a restricted Maps SDK key.
 - LiveKit ride/public proximity voice, VOX gating, and native audio-session/Bluetooth routing are wired for testing. Physical helmet/noise tuning, production-grade noise suppression, and real nav/chat/music gain application still require device validation and native mixer work.
 - Store billing products and receipt validation are not connected; the plan UI cannot unlock a tier.
 - The proposed stationary-only video feed remains a documented follow-up. Scenic-route discovery is available, but still needs broader route coverage and live road-condition data.
@@ -104,7 +104,11 @@ without additional native setup. iOS uses Apple Maps by default. A standalone
 Android release still requires the Maps SDK for Android to be enabled and a
 restricted key tied to `com.ridercomms.app` plus the signing certificate SHA-1;
 configure that key through the `react-native-maps` Expo plugin for the release
-build. The Google Places search key remains a separate build-time setting.
+build. The Google Places search key remains a separate build-time setting. Native
+in-app guidance also requires `EXPO_PUBLIC_GOOGLE_DIRECTIONS_API_KEY` during
+pre-release testing. Keep it separate from Places and do not treat the
+client-side web-service key as a production credential; public release should
+use an approved navigation SDK or a server-side route service.
 
 ### Native app links and maps handoff
 
@@ -116,10 +120,12 @@ ridercomms://navigate?lat=51.5074&lon=-0.1278&label=Tower%20Bridge
 ```
 
 Cold-start and running-app links are filtered through the same coordinate
-parser before React Navigation opens the Map tab. Hideout locations can be
-handed to the device's maps/navigation apps with an Apple Maps HTTPS URL on
-iOS or a standard `geo:` URI on Android. This is OS-level linking only; it does
-not provide or imply an Uber Eats, Deliveroo, or other partner integration.
+parser before React Navigation opens the Map tab. The Navigation preference in
+Settings is device-local and account-scoped. Destination actions can stay
+inside Rider Comms or hand off explicitly to Google Maps, Waze, or Apple Maps;
+hideout destinations use the same preference. External navigation is OS/web
+linking only; it does not provide or imply an Uber Eats, Deliveroo, or other
+partner integration.
 
 Production App Link and Universal Link verification is still required. The
 corresponding `assetlinks.json` and `apple-app-site-association` files must be

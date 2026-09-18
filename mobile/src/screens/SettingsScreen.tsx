@@ -17,6 +17,7 @@ import type { RootStackParamList } from '../navigation';
 import { useAuth } from '../auth/AuthContext';
 import { ScreenHeader } from '../components/ScreenHeader';
 import type { AccountSessionSummary } from '../api/client';
+import { NAVIGATION_PROVIDER_OPTIONS, type NavigationProvider } from '../navigationPreference';
 
 const UNIT_LABELS: Record<UnitSystem, { name: string; blurb: string }> = {
   mi: { name: 'Miles', blurb: 'Distances and zone radius shown in miles.' },
@@ -43,6 +44,32 @@ function UnitRow({
       <View style={styles.tierInfo}>
         <Text style={styles.tierName}>{name}</Text>
         <Text style={styles.tierBlurb}>{blurb}</Text>
+      </View>
+    </Pressable>
+  );
+}
+
+function NavigationProviderRow({
+  provider,
+  selected,
+  onSelect,
+}: {
+  provider: NavigationProvider;
+  selected: boolean;
+  onSelect: () => void;
+}): React.JSX.Element {
+  const option = NAVIGATION_PROVIDER_OPTIONS.find((item) => item.id === provider)!;
+  return (
+    <Pressable
+      accessibilityRole="radio"
+      accessibilityState={{ selected }}
+      style={({ pressed }) => [styles.tierRow, selected && styles.tierRowSelected, pressed && styles.tierRowPressed]}
+      onPress={onSelect}
+    >
+      <View style={styles.tierRadio}>{selected && <View style={styles.tierRadioDot} />}</View>
+      <View style={styles.tierInfo}>
+        <Text style={styles.tierName}>{option.label}</Text>
+        <Text style={styles.tierBlurb}>{option.description}</Text>
       </View>
     </Pressable>
   );
@@ -167,6 +194,8 @@ export function SettingsScreen(): React.JSX.Element {
     setNotifyChat,
     shareLocation,
     setShareLocation,
+    navigationProvider,
+    setNavigationProvider,
     instagramUsername,
     setInstagramUsername,
     instagramVisibility,
@@ -382,6 +411,21 @@ export function SettingsScreen(): React.JSX.Element {
           </View>
           <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
         </Pressable>
+
+        <View style={styles.sectionLabelRow}>
+          <Ionicons name="navigate-outline" size={14} color={colors.textMuted} />
+          <Text style={[styles.sectionLabel, styles.sectionLabelInRow]}>Navigation</Text>
+        </View>
+        <View accessibilityRole="radiogroup" style={[styles.section, elevation.raised]}>
+          {NAVIGATION_PROVIDER_OPTIONS.map((option) => (
+            <NavigationProviderRow
+              key={option.id}
+              provider={option.id}
+              selected={navigationProvider === option.id}
+              onSelect={() => setNavigationProvider(option.id)}
+            />
+          ))}
+        </View>
 
         <View style={styles.sectionLabelRow}>
           <MaterialCommunityIcons name="ruler" size={14} color={colors.textMuted} />

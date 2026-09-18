@@ -36,6 +36,7 @@
     selectedRiderId: null,
     activeRide: null,
     unit: 'mi',
+    navigationProvider: 'google_maps',
     notifications: false,
     profile: {
       riderId: '',
@@ -80,6 +81,16 @@
   const AVATAR_PRESET_BY_ID = Object.fromEntries(AVATAR_PRESETS.map((preset) => [preset.id, preset]));
   function avatarPreset(id) {
     return AVATAR_PRESET_BY_ID[id] || AVATAR_PRESETS[0];
+  }
+
+  const NAVIGATION_PROVIDERS = {
+    in_app: { label: 'Rider Comms', description: 'Keep turn-by-turn guidance inside Rider Comms.' },
+    google_maps: { label: 'Google Maps', description: 'Hand the destination to Google Maps.' },
+    waze: { label: 'Waze', description: 'Hand the destination to Waze.' },
+    apple_maps: { label: 'Apple Maps', description: 'Hand the destination to Apple Maps.' },
+  };
+  function navigationProvider(value) {
+    return Object.hasOwn(NAVIGATION_PROVIDERS, value) ? value : 'google_maps';
   }
 
   // Automatic day/night map skin — kept in sync with the CSS light-mode
@@ -257,6 +268,7 @@
       return {
         ...structuredClone(DEFAULT_STATE),
         ...stored,
+        navigationProvider: navigationProvider(stored.navigationProvider),
         profile: { ...DEFAULT_STATE.profile, ...(stored.profile || {}) },
         friends: Array.isArray(stored.friends) ? stored.friends : structuredClone(DEFAULT_STATE.friends),
         requests: Array.isArray(stored.requests) ? stored.requests : structuredClone(DEFAULT_STATE.requests),
@@ -346,6 +358,8 @@
     $('#profileHandle').textContent = state.profile.handle;
     $('#profileRiderId').textContent = state.profile.riderId;
     $('#distanceUnitsSummary').textContent = state.unit === 'km' ? 'Kilometres' : 'Miles';
+    const navigationSummary = $('#navigationProviderSummary');
+    if (navigationSummary) navigationSummary.textContent = NAVIGATION_PROVIDERS[navigationProvider(state.navigationProvider)].label;
     const genericProfile = state.profile.displayName.trim().toLowerCase() === 'rider'
       || state.profile.handle.trim().toLowerCase() === '@rider';
     $('#completeProfilePrompt').hidden = !genericProfile;
@@ -940,6 +954,21 @@
         body: `<div class="plan-card current"><div class="plan-top"><strong>Free</strong><span class="plan-pill">Current</span></div><p>1-mile mutual rider radius and private Group Rides.</p></div><div class="plan-card"><div class="plan-top"><strong>Premium</strong><span>6 mi</span></div><p>A wider radius for groups that spread out across city routes.</p><span class="caption">Not available yet</span></div><div class="plan-card"><div class="plan-top"><strong>Premium+</strong><span>20 mi</span></div><p>Maximum discovery range for touring and rural rides.</p><span class="caption">Not available yet</span></div><p class="caption">No payment details are requested until verified store billing is available.</p>`,
       }),
       privacy: () => ({ title: 'Privacy controls', body: `<div class="settings-sheet-section">${toggleMarkup('shareLocation', 'Live location', 'Visible to nearby riders only while you are live.', state.profile.shareLocation)}</div><div class="settings-sheet-section"><div class="form-field"><label for="sheetSocialVisibility">Connected profile visibility</label><select id="sheetSocialVisibility"><option value="friends">Friends only</option><option value="public">Everyone</option><option value="private">Only me</option></select></div><p class="caption">This applies to the Instagram and TikTok usernames on your profile.</p></div>`, ready: () => { $('#sheetSocialVisibility').value = state.profile.socialsVisibility; $('#sheetSocialVisibility').addEventListener('change', (event) => { patchProfile({ instagramVisibility: event.target.value, tiktokVisibility: event.target.value }); }); wireToggles(); } }),
+      navigation: () => ({
+        title: 'Navigation',
+        body: `<div class="choice-list" role="radiogroup" aria-label="Navigation preference">${Object.entries(NAVIGATION_PROVIDERS).map(([id, option]) => `<button data-navigation-option="${id}" role="radio" aria-checked="${navigationProvider(state.navigationProvider) === id}"><span><strong>${escapeHtml(option.label)}</strong><small>${escapeHtml(option.description)}</small></span><i></i></button>`).join('')}</div><div class="settings-note"><strong>Your choice applies to destination buttons</strong><p>Rider Comms navigation stays in the app. Google Maps, Waze and Apple Maps hand the destination to that provider.</p></div>`,
+        ready: () => {
+          $$('[data-navigation-option]', $('#sheetBody')).forEach((button) => {
+            button.addEventListener('click', () => {
+              state.navigationProvider = navigationProvider(button.dataset.navigationOption);
+              persist();
+              renderProfile();
+              openSheet('navigation');
+              showToast(`Navigation set to ${NAVIGATION_PROVIDERS[state.navigationProvider].label}.`);
+            });
+          });
+        },
+      }),
       map: () => ({ title: 'Location and map', body: `<div class="settings-sheet-section">${toggleMarkup('shareLocation', 'Nearby rider visibility', 'Share your position only after you choose to go live.', state.profile.shareLocation)}</div><div class="settings-note"><strong>Location stays in your control</strong><p>Turning this off stops nearby-rider visibility. Private-ride location is controlled separately inside each ride and remains off unless you explicitly enable it.</p></div>`, ready: wireToggles }),
       units: () => ({ title: 'Distance units', body: `<div class="choice-list" role="radiogroup" aria-label="Distance units"><button data-unit-option="mi" role="radio"><span><strong>Miles</strong><small>Use miles and mph</small></span><i></i></button><button data-unit-option="km" role="radio"><span><strong>Kilometres</strong><small>Use kilometres and km/h</small></span><i></i></button></div>`, ready: () => { $$('[data-unit-option]', $('#sheetBody')).forEach((button) => { const active = button.dataset.unitOption === state.unit; button.setAttribute('aria-checked', String(active)); button.addEventListener('click', () => { state.unit = button.dataset.unitOption; persist(); openSheet('units'); showToast('Distance unit updated.'); }); }); } }),
       notifications: () => ({ title: 'Notifications', body: `<div class="settings-sheet-section">${toggleMarkup('notifications', 'Notification permission', 'Allow Rider Comms to use device notifications.', notificationSettingActive())}</div><div class="settings-note"><strong>Permission only</strong><p>Background ride and message delivery is not active yet. This control only manages browser permission.</p></div>`, ready: wireToggles }),
@@ -2377,8 +2406,21 @@
    * working "start navigating there" action without pretending to be a
    * navigation SDK this app doesn't have.
    */
-  function navigationHref(lat, lng) {
-    return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
+  function navigationHref(provider, lat, lng, label) {
+    const coordinate = `${lat},${lng}`;
+    if (provider === 'google_maps') {
+      const params = new URLSearchParams({ api: '1', destination: coordinate, travelmode: 'driving' });
+      return `https://www.google.com/maps/dir/?${params}`;
+    }
+    if (provider === 'waze') {
+      const params = new URLSearchParams({ ll: coordinate, navigate: 'yes' });
+      return `https://www.waze.com/ul?${params}`;
+    }
+    if (provider === 'apple_maps') {
+      const params = new URLSearchParams({ daddr: coordinate, q: label || coordinate, dirflg: 'd' });
+      return `https://maps.apple.com/?${params}`;
+    }
+    return null;
   }
 
   function hideDestinationCard() {
@@ -2392,8 +2434,14 @@
     const lng = location.lng();
     const card = $('#destinationCard');
     const secondary = address || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-    card.innerHTML = `<div class="destination-card-top"><span class="avatar" style="--avatar:#ff2d5a" aria-hidden="true"><svg><use href="#i-location"/></svg></span><div class="rider-card-copy"><strong>${escapeHtml(label || 'Selected place')}</strong><span>${escapeHtml(secondary)}</span></div></div><div class="destination-card-actions"><a class="compact-button" href="${navigationHref(lat, lng)}" target="_blank" rel="noopener noreferrer" aria-label="Open directions in your maps app">Open in Maps</a><button class="icon-button" aria-label="Dismiss destination" data-dismiss-destination>×</button></div>`;
+    const provider = navigationProvider(state.navigationProvider);
+    const providerInfo = NAVIGATION_PROVIDERS[provider];
+    const action = provider === 'in_app'
+      ? `<button class="compact-button" data-start-in-app-navigation aria-label="Start navigation in Rider Comms">Start in Rider Comms</button>`
+      : `<a class="compact-button" href="${navigationHref(provider, lat, lng, label)}" target="_blank" rel="noopener noreferrer" aria-label="Open directions in ${escapeHtml(providerInfo.label)}">${escapeHtml(providerInfo.label)}</a>`;
+    card.innerHTML = `<div class="destination-card-top"><span class="avatar" style="--avatar:#ff2d5a" aria-hidden="true"><svg><use href="#i-location"/></svg></span><div class="rider-card-copy"><strong>${escapeHtml(label || 'Selected place')}</strong><span>${escapeHtml(secondary)}</span></div></div><div class="destination-card-actions">${action}<button class="icon-button" aria-label="Dismiss destination" data-dismiss-destination>×</button></div>`;
     card.hidden = false;
+    $('[data-start-in-app-navigation]', card)?.addEventListener('click', () => void startInAppNavigation(location, label));
     $('[data-dismiss-destination]', card).addEventListener('click', () => {
       hideDestinationCard();
       destinationMarker?.setMap(null);
@@ -2415,9 +2463,9 @@
     showDestinationCard(location, label, address);
   }
 
-  // Experimental in-app guidance remains unreachable from the production
-  // UI until physical-route, backgrounding and reroute validation exists.
-  // Destination actions above deliberately use OS-level Maps handoff.
+  // Rider Comms guidance is opt-in through Settings. It remains a development
+  // navigation surface until physical-route, backgrounding and reroute tuning
+  // are validated, while riders can always choose an external provider.
   let directionsService;
   let directionsRenderer;
   let navSteps = [];
