@@ -55,6 +55,7 @@ export class AccountDeletionStore {
       await client.query('DELETE FROM hideout_participants WHERE rider_id = $1', [riderId]);
       await client.query('DELETE FROM hideouts WHERE created_by = $1', [riderId]);
       await client.query('DELETE FROM rider_presence WHERE rider_id = $1', [riderId]);
+      await client.query('DELETE FROM social_rate_events WHERE actor_id = $1', [riderId]);
       await client.query('DELETE FROM rider_profiles WHERE rider_id = $1', [riderId]);
       await client.query('DELETE FROM rider_blocks WHERE rider_id = $1 OR blocked_rider_id = $1', [riderId]);
       await client.query('DELETE FROM safety_reports WHERE reporter_id = $1 OR reported_rider_id = $1', [riderId]);
