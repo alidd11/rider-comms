@@ -26,8 +26,9 @@ const requiredCssMarkers = [
   '--app-vh:100dvh',
   '--visual-vh:100dvh',
   '--bottom-control-inset:0px',
+  '--navigation-control-inset:0px',
   '--bottom-nav-height:calc(var(--nav-height) + var(--bottom-control-inset) + 1px)',
-  'html.pwa-standalone{--nav-safe-bottom:var(--bottom-safe-area);--bottom-control-inset:min(18px,var(--bottom-safe-area))}',
+  'html.pwa-standalone{--nav-safe-bottom:var(--bottom-safe-area);--bottom-control-inset:0px;--navigation-control-inset:min(18px,var(--bottom-safe-area))}',
 ];
 
 for (const marker of requiredCssMarkers) {

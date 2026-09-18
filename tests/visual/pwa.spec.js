@@ -470,7 +470,7 @@ test('PWA navigation preference offers Rider Comms, Google Maps, Waze and Apple 
   await expect(page.locator('#navigationProviderSummary')).toHaveText('Waze');
 });
 
-test('installed PWA tab bar itself owns the iOS home-indicator inset', async ({ page }) => {
+test('installed PWA tab rail stays bottom-flush without duplicating the iOS safe area', async ({ page }) => {
   await mockAuthenticatedApi(page);
   await page.goto('/#settings');
   await page.evaluate(() => {
@@ -495,15 +495,17 @@ test('installed PWA tab bar itself owns the iOS home-indicator inset', async ({ 
     return {
       navSafeBottom: getComputedStyle(root).getPropertyValue('--nav-safe-bottom').trim(),
       bottomControlInset: getComputedStyle(root).getPropertyValue('--bottom-control-inset').trim(),
+      navigationControlInset: getComputedStyle(root).getPropertyValue('--navigation-control-inset').trim(),
       navHeight: getComputedStyle(nav).height,
       navPaddingBottom: getComputedStyle(nav).paddingBottom,
     };
   });
 
   expect(chrome.navSafeBottom).toBe('34px');
-  expect(chrome.bottomControlInset).toBe('min(18px,34px)');
-  expect(parseFloat(chrome.navHeight)).toBe(58 + 18 + 1);
-  expect(parseFloat(chrome.navPaddingBottom)).toBe(18);
+  expect(chrome.bottomControlInset).toBe('0px');
+  expect(chrome.navigationControlInset).toBe('min(18px,34px)');
+  expect(parseFloat(chrome.navHeight)).toBe(58 + 1);
+  expect(parseFloat(chrome.navPaddingBottom)).toBe(0);
 
   expect(navBox).not.toBeNull();
   expect(buttonBox).not.toBeNull();
@@ -511,12 +513,12 @@ test('installed PWA tab bar itself owns the iOS home-indicator inset', async ({ 
   expect(viewport).not.toBeNull();
   expect(Math.abs((navBox.y + navBox.height) - viewport.height)).toBeLessThanOrEqual(1);
 
-  // The real nav box reaches the physical viewport edge; controls remain in
-  // the 58px interaction rail above the home-indicator safe area.
+  // The tab rail itself is bottom-flush. Do not reserve a second gesture-area
+  // inset beneath the controls: iOS already owns the home-indicator chrome.
   expect(buttonBox.y).toBeGreaterThanOrEqual(navBox.y - 1);
   expect(buttonBox.y + buttonBox.height).toBeLessThanOrEqual(navBox.y + 59);
-  expect(viewport.height - (buttonBox.y + buttonBox.height)).toBeGreaterThanOrEqual(18);
-  expect(viewport.height - (buttonBox.y + buttonBox.height)).toBeLessThanOrEqual(20);
+  expect(viewport.height - (buttonBox.y + buttonBox.height)).toBeGreaterThanOrEqual(0);
+  expect(viewport.height - (buttonBox.y + buttonBox.height)).toBeLessThanOrEqual(2);
   const railBottom = navBox.y + 58;
   const labelBottomGap = railBottom - (labelBox.y + labelBox.height);
   expect(labelBottomGap).toBeGreaterThanOrEqual(0);
