@@ -624,12 +624,73 @@
     presentSheet(friend.displayName, `<article class="friend-profile-card">${avatar({ ...friend, avatarId: profile.avatarId || friend.avatarId })}<div><strong>${escapeHtml(friend.displayName)}</strong><span>${escapeHtml(friend.handle)}</span><small>Connected rider</small></div></article>
       ${socialLinks ? `<div class="social-links">${socialLinks}</div>` : '<p class="friend-profile-note">This rider has not shared any social links with you.</p>'}
       <button class="button secondary wide" id="copyFriendId">Copy Rider ID</button>
+      <button class="button danger wide" id="friendSafetyActions">Report or block rider</button>
       <p class="caption">Only connect and arrange rides with people you trust. Social links follow each rider’s privacy settings.</p>`, () => {
       $('#copyFriendId').addEventListener('click', async () => {
         try { await navigator.clipboard.writeText(riderId); showToast('Rider ID copied.'); }
         catch { showToast(riderId); }
       });
+      $('#friendSafetyActions').addEventListener('click', () => openFriendSafetyActions(friend));
     });
+  }
+
+  function openFriendSafetyActions(friend) {
+    presentSheet('Safety options', `<div class="settings-note"><strong>${escapeHtml(friend.displayName)}</strong><p>Reports are sent to Rider Comms for review. Blocking immediately removes this friendship and prevents messages or new requests.</p></div>
+      <div class="choice-list" aria-label="Report reason">
+        <button data-report-rider="harassment"><span><strong>Report harassment</strong><small>Threats, abuse or repeated unwanted contact</small></span>${icon('chevron')}</button>
+        <button data-report-rider="unsafe"><span><strong>Report unsafe behaviour</strong><small>Dangerous conduct affecting rider safety</small></span>${icon('chevron')}</button>
+        <button data-report-rider="spam"><span><strong>Report spam</strong><small>Scams, advertising or repeated unwanted messages</small></span>${icon('chevron')}</button>
+      </div>
+      <button class="button danger wide" id="blockFriendBtn">Block rider</button>
+      <p id="friendSafetyError" class="inline-error" role="alert" hidden></p>`, () => {
+      $$('[data-report-rider]', $('#sheetBody')).forEach((button) => {
+        button.addEventListener('click', () => void reportFriend(friend, button.dataset.reportRider));
+      });
+      $('#blockFriendBtn').addEventListener('click', () => void blockFriend(friend));
+    });
+  }
+
+  async function reportFriend(friend, reason) {
+    const error = $('#friendSafetyError');
+    error.hidden = true;
+    $$('[data-report-rider]', $('#sheetBody')).forEach((button) => { button.disabled = true; });
+    try {
+      await apiFetch('POST', '/reports', {
+        riderId: friend.riderId,
+        reason,
+        details: 'Reported from the PWA friend profile',
+      });
+      closeSheet();
+      showToast('Report received. Thank you.');
+    } catch {
+      error.textContent = 'Could not send that report. Check your connection and try again.';
+      error.hidden = false;
+      $$('[data-report-rider]', $('#sheetBody')).forEach((button) => { button.disabled = false; });
+    }
+  }
+
+  async function blockFriend(friend) {
+    if (!window.confirm(`Block ${friend.displayName}? This removes them from your friends and prevents further contact.`)) return;
+    const button = $('#blockFriendBtn');
+    const error = $('#friendSafetyError');
+    button.disabled = true;
+    error.hidden = true;
+    try {
+      await apiFetch('POST', '/blocks', { riderId: friend.riderId });
+      state.friends = state.friends.filter((candidate) => candidate.riderId !== friend.riderId);
+      state.requests = state.requests.filter((request) => request.riderId !== friend.riderId);
+      nearbyRiders = nearbyRiders.filter((candidate) => candidate.riderId !== friend.riderId);
+      if (state.selectedRiderId === friend.riderId) state.selectedRiderId = null;
+      persist();
+      renderFriends();
+      renderMapRiders();
+      closeSheet();
+      showToast(`${friend.displayName} blocked.`);
+    } catch {
+      button.disabled = false;
+      error.textContent = 'Could not block that rider. Check your connection and try again.';
+      error.hidden = false;
+    }
   }
 
   /**
