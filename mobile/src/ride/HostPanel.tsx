@@ -178,7 +178,7 @@ const styles = StyleSheet.create({
   iconBadge: {
     width: 56,
     height: 56,
-    borderRadius: radii.pill,
+    borderRadius: radii.lg,
     backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',

@@ -16,9 +16,9 @@
   <link rel="apple-touch-icon" href="icons/icon-192.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Inter:wght@400;500;600;700;800&display=swap">
-  <link rel="stylesheet" href="app.css?v=71">
-  <link rel="stylesheet" href="routes.css?v=32">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+  <link rel="stylesheet" href="app.css?v=72">
+  <link rel="stylesheet" href="routes.css?v=33">
   <title>Rider Comms</title>
 </head>
 <body>
@@ -174,7 +174,7 @@
 
       <section class="screen content-screen" data-screen="ride" aria-labelledby="rideTitle">
         <div class="page-width">
-          <header class="page-header"><div><h1 id="rideTitle">Ride</h1><p class="page-subtitle">Your crew, your channel — nobody else listens in.</p></div><button class="icon-button" id="rideShareTop" aria-label="Share ride" hidden><svg><use href="#i-share"/></svg></button></header>
+          <header class="page-header"><div><h1 id="rideTitle">Ride</h1></div><button class="icon-button" id="rideShareTop" aria-label="Share ride" hidden><svg><use href="#i-share"/></svg></button></header>
           <div id="rideJoinState">
             <div class="ride-entry"><div class="segmented" role="tablist"><button class="active" data-ride-mode="join">Join a ride</button><button data-ride-mode="host">Start a ride</button></div>
               <form id="joinRideForm" class="ride-form"><label for="rideCode">Enter invite code</label><div class="code-field"><input id="rideCode" maxlength="6" inputmode="text" autocomplete="off" placeholder="K4XQPZ" aria-describedby="rideHelp"><button class="button primary" type="submit">Join</button></div><p id="rideHelp" class="support-copy">Ask the host for their six-character code.</p><label class="ride-location-consent"><input id="joinRideLocationConsent" type="checkbox"><span><strong>Share my live location</strong><small>Optional. Only current ride members can see it, and it is removed when you leave or switch this off.</small></span></label><p id="rideError" class="inline-error" hidden></p></form>
@@ -194,13 +194,13 @@
 
       <section class="screen content-screen" data-screen="routes" aria-labelledby="routesTitle">
         <div class="page-width">
-          <header class="page-header"><div><h1 id="routesTitle">Routes</h1><p class="page-subtitle">Pick a ride that fits the time you have.</p></div></header>
+          <header class="page-header"><div><h1 id="routesTitle">Routes</h1></div></header>
           <div id="curatedRoutesMount"></div>
         </div>
       </section>
 
       <section class="screen content-screen" data-screen="friends" aria-labelledby="friendsTitle">
-        <div class="page-width"><header class="page-header"><div><h1 id="friendsTitle">Friends</h1><p class="page-subtitle">Your riding circle — no public friend-finder noise.</p></div><span id="friendsCountBadge" class="count-badge" hidden>0</span></header>
+        <div class="page-width"><header class="page-header"><div><h1 id="friendsTitle">Friends</h1></div><span id="friendsCountBadge" class="count-badge" hidden>0</span></header>
           <div class="network-summary" aria-label="Network summary"><span><b id="networkFriendCount">0</b> friends</span><span><b id="networkRequestCount">0</b> requests</span></div>
           <div class="search-and-add"><div class="search-row"><svg><use href="#i-search"/></svg><input id="friendSearch" placeholder="Search your friends" autocomplete="off"></div>
           <button id="addFriendToggle" class="icon-button add-friend-toggle" aria-label="Add a rider" title="Add a rider &#8211; connect using their handle or Rider ID"><svg><use href="#i-friends"/></svg></button></div>
@@ -212,7 +212,7 @@
       </section>
 
       <section class="screen content-screen" data-screen="settings" aria-labelledby="settingsTitle">
-        <div class="page-width settings-page"><header class="page-header"><div><h1 id="settingsTitle">Settings</h1><p class="page-subtitle">Manage your account and riding preferences.</p></div></header>
+        <div class="page-width settings-page"><header class="page-header"><div><h1 id="settingsTitle">Settings</h1></div></header>
           <article class="profile-row"><div class="avatar avatar-lg" data-avatar="AI">AI</div><div class="profile-copy"><strong id="profileName">Ali</strong><span id="profileHandle">@ali_rides</span><small id="profileRiderId">rider_k4xqpz82</small></div><button id="editProfileBtn" class="button tertiary">Edit</button></article>
           <button id="completeProfilePrompt" class="profile-completion" hidden><span class="setting-icon"><svg><use href="#i-user"/></svg></span><span><strong>Make this profile yours</strong><small>Add your rider name, handle and optional social links.</small></span><svg><use href="#i-chevron"/></svg></button>
           <h2 class="group-title">Account</h2><div class="settings-group"><button data-sheet="profile"><span class="setting-icon"><svg><use href="#i-user"/></svg></span><span><strong>Profile</strong><small>Name, handle and connected profiles</small></span><svg><use href="#i-chevron"/></svg></button><button data-sheet="plans"><span class="setting-icon"><svg><use href="#i-card"/></svg></span><span><strong>Plan and billing</strong><small id="planSummary">Free plan · No card on file</small></span><span id="planPill" class="plan-pill">Free</span><svg><use href="#i-chevron"/></svg></button><button data-sheet="sessions"><span class="setting-icon"><svg><use href="#i-settings"/></svg></span><span><strong>Signed-in devices</strong><small>Review and revoke account sessions</small></span><svg><use href="#i-chevron"/></svg></button><button data-sheet="account"><span class="setting-icon"><svg><use href="#i-shield"/></svg></span><span><strong>Account and data</strong><small>Account deletion and local data</small></span><svg><use href="#i-chevron"/></svg></button></div>
@@ -272,6 +272,6 @@
   <script src="routes.js?v=33" defer></script>
   <script src="movement-safety.js?v=2" defer></script>
   <script src="message-state.js?v=1" defer></script>
-  <script src="app.js?v=77" defer></script>
+  <script src="app.js?v=78" defer></script>
 </body>
 </html>

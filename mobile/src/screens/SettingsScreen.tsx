@@ -127,13 +127,21 @@ function AvatarPickerModal({
   onSelect: (id: string) => void;
   onClose: () => void;
 }): React.JSX.Element {
+  const insets = useSafeAreaInsets();
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <Pressable style={styles.modalBackdrop} onPress={onClose}>
-        <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
+        <Pressable style={[styles.modalSheet, { paddingBottom: insets.bottom + spacing.md }]} onPress={(e) => e.stopPropagation()}>
           <View style={styles.modalHandle} />
-          <Text style={styles.modalTitle}>Choose an avatar</Text>
-          <Text style={styles.modalSubtitle}>Pick how other riders will see you on the road.</Text>
+          <View style={styles.modalHeader}>
+            <View style={styles.modalHeaderCopy}>
+              <Text style={styles.modalTitle}>Choose an avatar</Text>
+              <Text style={styles.modalSubtitle}>Pick how other riders will see you on the road.</Text>
+            </View>
+            <Pressable style={styles.modalClose} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close avatar picker">
+              <Ionicons name="close" size={20} color={colors.textPrimary} />
+            </Pressable>
+          </View>
 
           <View style={styles.avatarGrid}>
             {AVATAR_PRESETS.map((preset) => {
@@ -303,10 +311,7 @@ export function SettingsScreen(): React.JSX.Element {
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={[styles.scroll, { paddingTop: insets.top + spacing.lg }]}>
-        <ScreenHeader
-          title="Settings"
-          subtitle="Manage your account and riding preferences."
-        />
+        <ScreenHeader title="Settings" />
         <View style={[styles.profileCard, elevation.raised]}>
           <Pressable
             onPress={() => setPickerOpen(true)}
@@ -672,7 +677,7 @@ const styles = StyleSheet.create({
   socialHeading: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   socialInput: { ...type.body, color: colors.textPrimary, minHeight: MIN_TOUCH_TARGET, backgroundColor: colors.surfaceRaised, borderRadius: radii.md, paddingHorizontal: spacing.md },
   visibilityRow: { flexDirection: 'row', gap: spacing.xs },
-  visibilityChoice: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: radii.pill, backgroundColor: colors.surfaceRaised },
+  visibilityChoice: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: radii.md, backgroundColor: colors.surfaceRaised },
   visibilityChoiceActive: { backgroundColor: colors.accent },
   visibilityText: { ...type.caption, fontSize: 11 },
   visibilityTextActive: { color: colors.accentText, fontWeight: '700' },
@@ -699,11 +704,14 @@ const styles = StyleSheet.create({
   sessionEmpty: { ...type.caption, padding: spacing.md },
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
   modalSheet: {
-    backgroundColor: colors.surface,
+    backgroundColor: colors.background,
     borderTopLeftRadius: radii.xl,
     borderTopRightRadius: radii.xl,
-    padding: spacing.lg,
+    padding: spacing.md,
     paddingBottom: spacing.xl,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: 0,
+    borderColor: colors.border,
   },
   modalHandle: {
     width: 40,
@@ -713,8 +721,20 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     marginBottom: spacing.md,
   },
-  modalTitle: { ...type.heading, textAlign: 'center', marginBottom: spacing.xs },
-  modalSubtitle: { ...type.caption, textAlign: 'center', marginBottom: spacing.lg },
+  modalHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md, marginBottom: spacing.lg },
+  modalHeaderCopy: { flex: 1, minWidth: 0 },
+  modalTitle: { ...type.heading, textAlign: 'left', marginBottom: spacing.xs },
+  modalSubtitle: { ...type.caption, textAlign: 'left', lineHeight: 19 },
+  modalClose: {
+    width: 40,
+    height: 40,
+    borderRadius: radii.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surfaceRaised,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+  },
   avatarGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: spacing.md },
   avatarGridItem: { width: '22%', alignItems: 'center' },
   avatarSwatch: {
@@ -726,12 +746,12 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: 'transparent',
   },
-  avatarSwatchSelected: { borderColor: colors.textPrimary },
+  avatarSwatchSelected: { borderColor: colors.accent },
   avatarCheck: { position: 'absolute', right: -2, bottom: -2 },
   modalDone: {
     minHeight: MIN_TOUCH_TARGET,
     backgroundColor: colors.accent,
-    borderRadius: radii.lg,
+    borderRadius: radii.md,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: spacing.lg,

@@ -126,6 +126,7 @@ function PlanHideoutModal({
   onClose: () => void;
   onCreate: (name: string, lat: number, lon: number) => Promise<void>;
 }): React.JSX.Element {
+  const insets = useSafeAreaInsets();
   const [name, setName] = React.useState('');
   const [lat, setLat] = React.useState('');
   const [lon, setLon] = React.useState('');
@@ -163,10 +164,17 @@ function PlanHideoutModal({
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <Pressable style={styles.modalBackdrop} onPress={onClose}>
-        <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
+        <Pressable style={[styles.modalSheet, { paddingBottom: insets.bottom + spacing.md }]} onPress={(e) => e.stopPropagation()}>
           <View style={styles.modalHandle} />
-          <Text style={styles.modalTitle}>Plan a hideout</Text>
-          <Text style={styles.modalSubtitle}>Save a meeting point to plan around together.</Text>
+          <View style={styles.modalHeader}>
+            <View style={styles.modalHeaderCopy}>
+              <Text style={styles.modalTitle}>Plan a hideout</Text>
+              <Text style={styles.modalSubtitle}>Save a meeting point to plan around together.</Text>
+            </View>
+            <Pressable style={styles.modalClose} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close hideout planner">
+              <Ionicons name="close" size={20} color={colors.textPrimary} />
+            </Pressable>
+          </View>
 
           <TextInput
             style={styles.modalInput}
@@ -594,9 +602,12 @@ const styles = StyleSheet.create({
   sendButtonDisabled: { opacity: 0.5 },
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
   modalSheet: {
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: radii.lg,
-    borderTopRightRadius: radii.lg,
+    backgroundColor: colors.background,
+    borderTopLeftRadius: radii.xl,
+    borderTopRightRadius: radii.xl,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: 0,
+    borderColor: colors.border,
     padding: spacing.lg,
     paddingBottom: spacing.xl,
   },
@@ -608,8 +619,20 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     marginBottom: spacing.md,
   },
-  modalTitle: { ...type.heading, textAlign: 'center', marginBottom: spacing.xs },
-  modalSubtitle: { ...type.caption, textAlign: 'center', marginBottom: spacing.lg },
+  modalHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md, marginBottom: spacing.lg },
+  modalHeaderCopy: { flex: 1, minWidth: 0 },
+  modalTitle: { ...type.heading, textAlign: 'left', marginBottom: spacing.xs },
+  modalSubtitle: { ...type.caption, textAlign: 'left', lineHeight: 19 },
+  modalClose: {
+    width: 40,
+    height: 40,
+    borderRadius: radii.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surfaceRaised,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+  },
   modalInput: {
     minHeight: MIN_TOUCH_TARGET,
     borderWidth: 1,
@@ -638,7 +661,7 @@ const styles = StyleSheet.create({
   modalDone: {
     minHeight: MIN_TOUCH_TARGET,
     backgroundColor: colors.accent,
-    borderRadius: radii.lg,
+    borderRadius: radii.md,
     alignItems: 'center',
     justifyContent: 'center',
   },

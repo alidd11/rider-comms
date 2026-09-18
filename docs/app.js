@@ -3171,7 +3171,7 @@
       directionsRenderer = new google.maps.DirectionsRenderer({
         suppressMarkers: true,
         preserveViewport: true,
-        polylineOptions: { strokeColor: '#ff2d5a', strokeWeight: 6, strokeOpacity: 0.9 },
+        polylineOptions: { strokeColor: '#2fa8d3', strokeWeight: 6, strokeOpacity: 0.9 },
       });
     }
     directionsRenderer.setMap(map);

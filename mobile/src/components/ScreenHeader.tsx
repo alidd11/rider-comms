@@ -5,7 +5,6 @@ import { colors, spacing, type } from '../theme';
 
 type ScreenHeaderProps = {
   title: string;
-  subtitle?: string;
   action?: React.ReactNode;
   style?: StyleProp<ViewStyle>;
 };
@@ -31,6 +30,5 @@ const styles = StyleSheet.create({
   },
   copy: { flex: 1, minWidth: 0 },
   title: { ...type.title, fontSize: 30, lineHeight: 35 },
-  subtitle: { display: 'none' },
   action: { paddingTop: spacing.xs },
 });

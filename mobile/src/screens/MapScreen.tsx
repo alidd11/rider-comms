@@ -159,7 +159,7 @@ function SegmentToggle({
 export function MapScreen(): React.JSX.Element {
   const { client, riderId } = useAuth();
   const { rideLocations } = useRide();
-  const { shareLocation, unitSystem, navigationProvider } = useSettings();
+  const { shareLocation, setShareLocation, unitSystem, navigationProvider } = useSettings();
   const { lockedForSafety, movementState, locationAccess, requestLocationAccess, openLocationSettings, refreshTracking } = useMovementSafety();
   const insets = useSafeAreaInsets();
   const route = useRoute<RouteProp<TabParamList, 'Map'>>();
@@ -687,16 +687,8 @@ export function MapScreen(): React.JSX.Element {
       )}
 
 
-      {segment === 'public' && !navigationTarget && (
+      {segment === 'public' && !selectedDestination && (
         <View style={[styles.mapActions, { bottom: insets.bottom + spacing.sm }]}>
-          <Pressable
-            style={styles.mapActionButton}
-            onPress={() => void centreOnCurrentLocation()}
-            accessibilityRole="button"
-            accessibilityLabel="Centre map on my location"
-          >
-            <MaterialCommunityIcons name="crosshairs-gps" size={22} color={colors.accent} />
-          </Pressable>
           {!lockedForSafety && <Pressable
             style={styles.mapActionButton}
             onPress={() => void openReportSheet()}
@@ -705,6 +697,23 @@ export function MapScreen(): React.JSX.Element {
           >
             <MaterialCommunityIcons name="alert-plus" size={22} color={colors.textPrimary} />
           </Pressable>}
+          <Pressable
+            style={styles.mapActionButton}
+            onPress={() => void centreOnCurrentLocation()}
+            accessibilityRole="button"
+            accessibilityLabel="Centre map on my location"
+          >
+            <MaterialCommunityIcons name="crosshairs-gps" size={22} color={colors.accent} />
+          </Pressable>
+          <Pressable
+            style={[styles.mapActionButton, shareLocation && styles.mapActionButtonActive]}
+            onPress={() => setShareLocation(!shareLocation)}
+            accessibilityRole="button"
+            accessibilityState={{ selected: shareLocation }}
+            accessibilityLabel={shareLocation ? 'Stop live location and proximity voice' : 'Go live nearby and enable proximity voice'}
+          >
+            <Ionicons name="radio" size={21} color={shareLocation ? colors.accent : colors.textPrimary} />
+          </Pressable>
         </View>
       )}
 
@@ -895,20 +904,24 @@ const styles = StyleSheet.create({
   hazardBadge: { alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: colors.background },
   mapActions: {
     position: 'absolute',
-    left: spacing.sm,
+    right: spacing.sm,
     bottom: spacing.sm,
     gap: spacing.sm,
   },
   mapActionButton: {
     width: MIN_TOUCH_TARGET,
     height: MIN_TOUCH_TARGET,
-    borderRadius: radii.pill,
+    borderRadius: radii.lg,
     backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: colors.border,
     ...elevation.raised,
+  },
+  mapActionButtonActive: {
+    borderColor: colors.accent,
+    backgroundColor: colors.accentSoft,
   },
   nearbyCount: {
     position: 'absolute',
