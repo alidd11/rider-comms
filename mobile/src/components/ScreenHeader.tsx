@@ -11,7 +11,7 @@ type ScreenHeaderProps = {
 };
 
 /** Shared hierarchy for every non-map root screen. */
-export function ScreenHeader({ title, subtitle, action, style }: ScreenHeaderProps): React.JSX.Element {
+export function ScreenHeader({ title, action, style }: ScreenHeaderProps): React.JSX.Element {
   return (
     <View style={[styles.header, style]}>
       <View style={styles.copy}>
