@@ -104,6 +104,25 @@ describe('SocialEventStore', { skip: !hasDatabase && 'DATABASE_URL not set; skip
     }
   });
 
+  it('releases a pending long poll when its request is aborted', async () => {
+    const store = new SocialEventStore();
+    try {
+      const baseline = await store.establishCursor('abort-rider');
+      const controller = new AbortController();
+      const waiting = store.waitForEvents('abort-rider', baseline.cursor, 10, 2_000, controller.signal);
+      setTimeout(() => controller.abort(), 25);
+
+      const page = await Promise.race([
+        waiting,
+        new Promise<never>((_resolve, reject) => setTimeout(() => reject(new Error('abort did not release wait')), 500)),
+      ]);
+      assert.deepEqual(page.events, []);
+      assert.equal(page.cursor, baseline.cursor);
+    } finally {
+      await store.close();
+    }
+  });
+
   it('cleans events after the replay retention window', async () => {
     const store = new SocialEventStore();
     const now = 10_000_000_000;
