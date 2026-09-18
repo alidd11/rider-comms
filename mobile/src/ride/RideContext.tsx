@@ -1,7 +1,7 @@
 import * as React from 'react';
 import * as Location from 'expo-location';
 import { useAuth } from '../auth/AuthContext';
-import type { RideMemberLocation } from '../api/client';
+import { ApiError, type RideMemberLocation } from '../api/client';
 
 const RIDE_LOCATION_REFRESH_MS = 10_000;
 
@@ -92,8 +92,14 @@ export function RideProvider({ children }: { children: React.ReactNode }): React
       try {
         const ride = await client.getRide(activeRide.rideId);
         if (!cancelled) setRoster(ride.memberIds);
-      } catch {
-        // A later pass will surface explicit retry/error UI for ride refresh.
+      } catch (error) {
+        if (!cancelled && error instanceof ApiError && (error.status === 403 || error.status === 404)) {
+          setActiveRide(null);
+          setRoster([]);
+          setRideLocations([]);
+        }
+        // Transient refresh failures leave the last authoritative state intact
+        // and are retried on the next poll.
       }
     };
     void refresh();
