@@ -428,6 +428,7 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
         const other = url.searchParams.get('withRiderId');
         if (!other) return sendJson(res, 400, { error: 'withRiderId is required' });
         if (await moderationStore.isBlockedBetween(actorId, other)) return sendJson(res, 403, { error: 'blocked' });
+        if (!(await friendStore.isFriendOf(actorId, other))) return sendJson(res, 403, { error: 'not_friends' });
         const n = Number(url.searchParams.get('limit') ?? 100);
         if (!Number.isInteger(n) || n < 1 || n > 100) return sendJson(res, 400, { error: 'limit must be an integer from 1 to 100' });
         try {
