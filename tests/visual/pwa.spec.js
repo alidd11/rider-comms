@@ -596,6 +596,9 @@ test('PWA chat stays pinned to the visible viewport when the iPhone keyboard cha
     if (url.pathname === '/messages' && request.method() === 'GET') {
       return { body: { messages: [], nextCursor: null } };
     }
+    if (url.pathname === `/riders/${RIDER_ID}/hideouts` && request.method() === 'GET') {
+      return { body: { hideouts: [] } };
+    }
     if (url.pathname === '/profiles/rider_friend01') {
       return { body: { riderId: 'rider_friend01', displayName: 'Maya', handle: '@maya_moto', avatarId: 'ridge' } };
     }
@@ -620,6 +623,7 @@ test('PWA chat stays pinned to the visible viewport when the iPhone keyboard cha
   }, { height: keyboardViewportHeight, offsetTop: keyboardOffsetTop });
 
   await expect(page.locator('html')).toHaveClass(/keyboard-open/);
+  await expect(page.locator('#chatHideouts')).toBeHidden();
   await expect.poll(async () => {
     const box = await page.locator('#chatScreen').boundingBox();
     return box ? Math.round(box.y) : -1;
