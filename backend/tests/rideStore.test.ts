@@ -108,6 +108,22 @@ describe('RideStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping Po
     assert.equal(count.rows[0]?.count, '0');
   });
 
+  it('purges a rider location when the host removes that member', async () => {
+    const store = new RideStore();
+    const { ride, codeRecord } = await store.createRide('host');
+    await store.joinRide(codeRecord.code, 'guest', '1.1.1.1');
+    await store.setMemberLocationSharing(ride.id, 'guest', true);
+    await store.updateMemberLocation(ride.id, 'guest', 51.5, -0.1);
+
+    const removed = await store.removeMember(ride.id, 'host', 'guest');
+    assert.equal(removed.ok, true);
+    const count = await getPool().query<{ count: string }>(
+      'SELECT COUNT(*)::text AS count FROM ride_locations WHERE ride_id = $1 AND rider_id = $2',
+      [ride.id, 'guest']
+    );
+    assert.equal(count.rows[0]?.count, '0');
+  });
+
   it('does not return or retain stale ride locations', async () => {
     const store = new RideStore();
     const { ride, codeRecord } = await store.createRide('host');
