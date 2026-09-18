@@ -27,8 +27,9 @@ export const GOOGLE_PLACES_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_PLACES_API_K
 
 /**
  * Web-service key used by the lightweight native in-app directions client.
- * A dedicated restricted key can be supplied for production builds; during
- * development the existing native Google key is reused when Directions API
- * access is enabled for it.
+ * Keep this separate from the Places key so development cannot silently
+ * widen an existing key's permissions. This client-side route fetch is for
+ * pre-release testing; production should move to an approved navigation SDK
+ * or a server-side route service before shipping.
  */
-export const GOOGLE_DIRECTIONS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_DIRECTIONS_API_KEY ?? GOOGLE_PLACES_API_KEY;
+export const GOOGLE_DIRECTIONS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_DIRECTIONS_API_KEY ?? '';
