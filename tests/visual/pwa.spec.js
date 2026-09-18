@@ -349,6 +349,24 @@ test('PWA settings sheets own the bottom edge without competing with app chrome'
   await expect(banner).toBeVisible();
 });
 
+test('PWA navigation preference offers Rider Comms, Google Maps, Waze and Apple Maps', async ({ page }) => {
+  await mockAuthenticatedApi(page);
+  await page.goto('/#settings');
+
+  await page.locator('[data-sheet="navigation"]').click();
+  const options = page.locator('[data-navigation-option]');
+  await expect(options).toHaveCount(4);
+  await expect(page.locator('[data-navigation-option="google_maps"]')).toHaveAttribute('aria-checked', 'true');
+
+  await page.locator('[data-navigation-option="waze"]').click();
+  await expect(page.locator('[data-navigation-option="waze"]')).toHaveAttribute('aria-checked', 'true');
+  await page.locator('#closeSheet').click();
+  await expect(page.locator('#navigationProviderSummary')).toHaveText('Waze');
+
+  await page.reload();
+  await expect(page.locator('#navigationProviderSummary')).toHaveText('Waze');
+});
+
 test('installed PWA tab bar owns the iOS home-indicator inset without moving controls into it', async ({ page }) => {
   await mockAuthenticatedApi(page);
   await page.goto('/#settings');
