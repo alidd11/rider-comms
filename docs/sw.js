@@ -1,8 +1,9 @@
-const CACHE_NAME = 'rider-comms-pwa-v70';
+const CACHE_NAME = 'rider-comms-pwa-v71';
 const ASSETS = [
   './', './index.html', './app.css?v=62', './app.js?v=65', './routes.css?v=31', './routes.js?v=32', './movement-safety.js?v=2', './config.js?v=31',
   './manifest.json', './icons/icon-192.png', './icons/icon-512.png',
 ];
+const SHELL_URLS = new Set(ASSETS.map((asset) => new URL(asset, self.location.href).href));
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -12,7 +13,7 @@ self.addEventListener('install', (event) => {
         if (!response.ok) throw new Error(`Could not cache ${asset}`);
         await cache.put(asset, response);
       })
-    )).then(() => self.skipWaiting())
+    ))
   );
 });
 
@@ -28,19 +29,26 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const requestUrl = new URL(event.request.url);
   if (event.request.method !== 'GET' || requestUrl.origin !== self.location.origin) return;
+  const isNavigation = event.request.mode === 'navigate';
+  const isShellAsset = SHELL_URLS.has(requestUrl.href);
+  // Never put arbitrary same-origin GETs in the offline cache. In particular,
+  // future authenticated/API routes must pass through untouched.
+  if (!isShellAsset && !isNavigation) return;
   event.respondWith(
     fetch(event.request, { cache: 'no-store' })
       .then((response) => {
-        if (response.ok) {
+        if (response.ok && isShellAsset) {
           const copy = response.clone();
           event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy)));
         }
         return response;
       })
       .catch(async () => {
-        const cached = await caches.match(event.request);
-        if (cached) return cached;
-        if (event.request.mode === 'navigate') return caches.match('./index.html');
+        if (isShellAsset) {
+          const cached = await caches.match(event.request);
+          if (cached) return cached;
+        }
+        if (isNavigation) return caches.match('./index.html');
         return Response.error();
       })
   );
