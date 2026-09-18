@@ -20,8 +20,9 @@ describe('navigation GPS health', () => {
     assert.equal(navigationGpsNotice(tracker.stateAt()), NAV_GPS_STALE_NOTICE);
 
     assert.equal(tracker.recordFix(20_000), true);
-    assert.equal(tracker.stateAt(20_001), 'healthy');
-    assert.equal(navigationGpsNotice(tracker.stateAt()), null);
+    const recoveredHealth = tracker.stateAt(20_001);
+    assert.equal(recoveredHealth, 'healthy');
+    assert.equal(navigationGpsNotice(recoveredHealth), null);
   });
 
   it('distinguishes unavailable GPS from revoked location permission', () => {
