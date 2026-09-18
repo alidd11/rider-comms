@@ -220,6 +220,9 @@
   let chatPollTimer;
   let chatLoading = false;
   let chatReturnFocus = null;
+  let chatHideouts = [];
+  let chatHideoutsLoading = false;
+  let chatHideoutError = '';
   const stateStorageKey = () => session?.riderId ? `${STORAGE_KEY}:${session.riderId}` : STORAGE_KEY;
   // v4 stored profile data in one device-global record. Account-scoped
   // storage prevents one rider's cached identity appearing for another.
@@ -659,6 +662,165 @@
     return Number.isFinite(date.getTime()) ? date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
   }
 
+  function renderChatHideouts() {
+    const section = $('#chatHideouts');
+    const list = $('#chatHideoutList');
+    const status = $('#chatHideoutStatus');
+    if (!section || !list || !status || !activeChat) {
+      if (section) section.hidden = true;
+      return;
+    }
+
+    const provider = navigationProvider(state.navigationProvider);
+    const providerLabel = NAVIGATION_PROVIDERS[provider].label;
+    status.textContent = chatHideoutsLoading
+      ? 'Loading…'
+      : chatHideoutError
+        ? chatHideoutError
+        : chatHideouts.length === 1
+          ? '1 saved'
+          : `${chatHideouts.length} saved`;
+
+    section.hidden = !chatHideoutsLoading && !chatHideoutError && chatHideouts.length === 0;
+    list.innerHTML = chatHideouts.map((hideout) => {
+      const mine = hideout.createdBy === state.profile.riderId;
+      const coords = `${Number(hideout.lat).toFixed(4)}, ${Number(hideout.lon).toFixed(4)}`;
+      return `<article class="chat-hideout-row">
+        <span class="chat-hideout-icon" aria-hidden="true">${icon('location')}</span>
+        <span class="chat-hideout-copy"><strong>${escapeHtml(hideout.name)}</strong><small>${escapeHtml(coords)}</small></span>
+        <span class="chat-hideout-actions">
+          <button type="button" data-open-hideout="${escapeHtml(hideout.id)}" aria-label="Open directions to ${escapeHtml(hideout.name)} in ${escapeHtml(providerLabel)}">${escapeHtml(providerLabel)}</button>
+          ${mine ? `<button type="button" data-delete-hideout="${escapeHtml(hideout.id)}" aria-label="Delete hideout ${escapeHtml(hideout.name)}">×</button>` : ''}
+        </span>
+      </article>`;
+    }).join('');
+
+    $$('[data-open-hideout]', list).forEach((button) => {
+      button.addEventListener('click', () => openChatHideout(button.dataset.openHideout));
+    });
+    $$('[data-delete-hideout]', list).forEach((button) => {
+      button.addEventListener('click', () => void deleteChatHideout(button.dataset.deleteHideout));
+    });
+  }
+
+  async function loadChatHideouts() {
+    if (!activeChat || chatHideoutsLoading) return;
+    const riderId = activeChat.riderId;
+    chatHideoutsLoading = true;
+    chatHideoutError = '';
+    renderChatHideouts();
+    try {
+      const result = await apiFetch('GET', `/riders/${encodeURIComponent(state.profile.riderId)}/hideouts`);
+      if (!activeChat || activeChat.riderId !== riderId) return;
+      const hideouts = Array.isArray(result.hideouts) ? result.hideouts : [];
+      chatHideouts = hideouts.filter((hideout) =>
+        hideout
+        && typeof hideout.id === 'string'
+        && typeof hideout.name === 'string'
+        && Number.isFinite(hideout.lat)
+        && Number.isFinite(hideout.lon)
+        && Array.isArray(hideout.participantIds)
+        && hideout.participantIds.includes(riderId)
+      );
+    } catch {
+      if (activeChat?.riderId === riderId) chatHideoutError = 'Could not load hideouts';
+    } finally {
+      chatHideoutsLoading = false;
+      renderChatHideouts();
+    }
+  }
+
+  function openChatHideout(hideoutId) {
+    const hideout = chatHideouts.find((item) => item.id === hideoutId);
+    if (!hideout) return;
+    const provider = navigationProvider(state.navigationProvider);
+    if (provider !== 'in_app') {
+      const href = navigationHref(provider, hideout.lat, hideout.lon, hideout.name);
+      if (!href) {
+        showToast('Could not open directions.');
+        return;
+      }
+      const opened = window.open(href, '_blank', 'noopener,noreferrer');
+      if (!opened) window.location.href = href;
+      return;
+    }
+
+    const location = { lat: () => hideout.lat, lng: () => hideout.lon };
+    closeChat({ restoreFocus: false });
+    navigate('map');
+    requestAnimationFrame(() => {
+      if (typeof google === 'undefined' || !map || usingFallbackMap) {
+        showToast('Rider Comms navigation needs the live map.');
+        return;
+      }
+      setDestinationMarker(location, hideout.name, `${hideout.lat.toFixed(5)}, ${hideout.lon.toFixed(5)}`);
+    });
+  }
+
+  async function deleteChatHideout(hideoutId) {
+    const hideout = chatHideouts.find((item) => item.id === hideoutId);
+    if (!hideout || hideout.createdBy !== state.profile.riderId) return;
+    try {
+      await apiFetch('DELETE', `/hideouts/${encodeURIComponent(hideoutId)}`);
+      chatHideouts = chatHideouts.filter((item) => item.id !== hideoutId);
+      renderChatHideouts();
+      showToast('Hideout deleted.');
+    } catch {
+      chatHideoutError = 'Could not delete hideout';
+      renderChatHideouts();
+    }
+  }
+
+  function openPlanHideoutSheet() {
+    if (!activeChat) return;
+    const friend = activeChat;
+    presentSheet('Plan a hideout', `
+      <form id="planHideoutForm" class="form-field">
+        <label for="hideoutName">Name</label>
+        <input id="hideoutName" maxlength="100" autocomplete="off" placeholder="e.g. Petrol station meeting point">
+        <div class="hideout-coordinate-grid">
+          <label>Latitude<input id="hideoutLat" inputmode="decimal" autocomplete="off" placeholder="51.5074"></label>
+          <label>Longitude<input id="hideoutLon" inputmode="decimal" autocomplete="off" placeholder="-0.1278"></label>
+        </div>
+        <p class="caption">Save a meeting point shared with ${escapeHtml(friend.displayName)}. Enter coordinates directly.</p>
+        <p id="planHideoutError" class="inline-error" role="alert" hidden></p>
+        <button id="saveHideoutBtn" class="button primary wide" type="submit">Save hideout</button>
+      </form>`, () => {
+      $('#planHideoutForm').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const name = $('#hideoutName').value.trim();
+        const lat = Number($('#hideoutLat').value.trim());
+        const lon = Number($('#hideoutLon').value.trim());
+        const errorEl = $('#planHideoutError');
+        const save = $('#saveHideoutBtn');
+        errorEl.hidden = true;
+
+        if (!name || !Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) {
+          errorEl.textContent = 'Enter a name plus valid latitude and longitude coordinates.';
+          errorEl.hidden = false;
+          return;
+        }
+
+        save.disabled = true;
+        save.textContent = 'Saving…';
+        try {
+          await apiFetch('POST', '/hideouts', { name, lat, lon, participantIds: [friend.riderId] });
+          closeSheet();
+          await loadChatHideouts();
+          showToast('Hideout saved.');
+        } catch (error) {
+          const code = error instanceof ApiError ? error.body?.error : '';
+          errorEl.textContent = code === 'participants_must_be_friends'
+            ? 'Hideouts can only be shared with current friends.'
+            : 'Could not save that hideout. Try again.';
+          errorEl.hidden = false;
+          save.disabled = false;
+          save.textContent = 'Save hideout';
+        }
+      });
+    });
+  }
+
   function renderChat() {
     if (!activeChat) return;
     const messages = $('#chatMessages');
@@ -674,6 +836,7 @@
     $('#chatEmpty').hidden = chatLoading || chatMessages.length > 0;
     $('#chatLoadOlder').hidden = !chatNextCursor;
     $$('[data-retry-message]', messages).forEach((button) => button.addEventListener('click', () => void retryChatMessage(button.dataset.retryMessage)));
+    renderChatHideouts();
   }
 
   function setChatError(message, unavailable = false) {
@@ -733,6 +896,9 @@
     chatMessages = [];
     chatNextCursor = null;
     chatHasLoadedOlder = false;
+    chatHideouts = [];
+    chatHideoutsLoading = false;
+    chatHideoutError = '';
     $('#chatTitle').textContent = friend.displayName;
     $('#chatHandle').textContent = friend.handle;
     $('#chatAvatar').outerHTML = avatar(friend, 'avatar-sm').replace('<span ', '<span id="chatAvatar" ');
@@ -746,6 +912,7 @@
     history.pushState({ screen: 'friends', chat: friend.riderId }, '', '#friends/chat');
     document.title = `${friend.displayName} · Rider Comms`;
     void loadChatMessages({ showLoading: true });
+    void loadChatHideouts();
   }
 
   function closeChat({ restoreFocus = true } = {}) {
@@ -756,6 +923,9 @@
     chatMessages = [];
     chatNextCursor = null;
     chatHasLoadedOlder = false;
+    chatHideouts = [];
+    chatHideoutsLoading = false;
+    chatHideoutError = '';
     $('#chatScreen').hidden = true;
     $('#app').removeAttribute('inert');
     document.documentElement.classList.remove('chat-open');
@@ -3132,6 +3302,7 @@
       if (location.hash === '#friends/chat') history.back();
       else closeChat();
     });
+    $('#chatHideoutPlan').addEventListener('click', openPlanHideoutSheet);
     $('#chatSafety').addEventListener('click', () => { if (activeChat) openFriendSafetyActions(activeChat); });
     $('#chatRetry').addEventListener('click', () => void loadChatMessages({ showLoading: true }));
     $('#chatLoadOlder').addEventListener('click', () => void loadChatMessages({ older: true }));
