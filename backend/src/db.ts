@@ -526,6 +526,8 @@ const MIGRATIONS: { name: string; sql: string }[] = [
       );
       CREATE INDEX IF NOT EXISTS direct_messages_incoming_unread_idx
         ON direct_messages (conversation_key, to_rider_id, seq DESC);
+      CREATE INDEX IF NOT EXISTS direct_messages_recipient_unread_idx
+        ON direct_messages (to_rider_id, seq DESC);
     `,
   },
 ];
