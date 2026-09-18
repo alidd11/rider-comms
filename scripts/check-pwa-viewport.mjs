@@ -1,9 +1,10 @@
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
-const [html, css, appJs] = await Promise.all([
+const [html, css, routesCss, appJs] = await Promise.all([
   readFile(resolve('docs/index.html'), 'utf8'),
   readFile(resolve('docs/app.css'), 'utf8'),
+  readFile(resolve('docs/routes.css'), 'utf8'),
   readFile(resolve('docs/app.js'), 'utf8'),
 ]);
 
@@ -22,6 +23,33 @@ if (/\binset-bottom\s*:/.test(css)) {
   throw new Error('Invalid CSS property "inset-bottom" found; use bottom or the inset shorthand');
 }
 
+const forbiddenGeometry = [
+  {
+    pattern: /--safe-bottom\s*:\s*min\s*\(/i,
+    message: 'The environment bottom safe area must not be capped to a device-specific value',
+  },
+  {
+    pattern: /\.bottom-nav\s*>\s*button[^{}]*\{[^{}]*\btransform\s*:\s*translateY\s*\(/i,
+    message: 'Bottom-nav buttons must not be translated into the home-indicator area',
+  },
+  {
+    pattern: /\.bottom-nav\s*\{[^{}]*\bbottom\s*:\s*-/i,
+    message: 'Bottom navigation must not use a negative bottom offset to conceal a viewport gap',
+  },
+  {
+    pattern: /\.bottom-nav\s*::?(?:before|after)\s*\{/i,
+    message: 'Bottom navigation must not use a pseudo-element as a second bottom chrome surface',
+  },
+  {
+    pattern: /\.pwa-standalone\s+\.app-shell\s*\{[^{}]*\bheight\s*:\s*(?:var\([^)]*,\s*)?100dvh/i,
+    message: 'The installed standalone shell must retain its stable 100vh canvas',
+  },
+];
+
+for (const guard of forbiddenGeometry) {
+  if (guard.pattern.test(css)) throw new Error(guard.message);
+}
+
 const requiredCssMarkers = [
   '--app-vh:100dvh',
   '--visual-vh:100dvh',
@@ -32,11 +60,25 @@ const requiredCssMarkers = [
   'html.pwa-standalone{--app-vh:100vh;--nav-safe-bottom:var(--bottom-safe-area);--bottom-control-inset:var(--bottom-safe-area);--navigation-control-inset:min(18px,var(--bottom-safe-area))}',
   '.pwa-standalone .app-shell{',
   '.pwa-standalone .bottom-nav{',
+  'html.pwa-standalone .sheet-backdrop{',
+  'height:var(--app-vh,100vh)',
+  'html.keyboard-open .chat-screen{',
+  'height:var(--visual-vh,var(--app-vh))',
 ];
 
 for (const marker of requiredCssMarkers) {
   if (!css.includes(marker)) {
     throw new Error(`Required viewport CSS marker is missing: ${marker}`);
+  }
+}
+
+for (const marker of [
+  'html.pwa-standalone .route-detail-backdrop{',
+  'height:var(--app-vh,100vh)',
+  'html.pwa-standalone .route-detail{max-height:92%}',
+]) {
+  if (!routesCss.includes(marker)) {
+    throw new Error(`Required route-overlay viewport marker is missing: ${marker}`);
   }
 }
 
