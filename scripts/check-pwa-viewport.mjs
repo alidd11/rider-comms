@@ -25,6 +25,7 @@ if (/\binset-bottom\s*:/.test(css)) {
 const requiredCssMarkers = [
   '--app-vh:100dvh',
   '--visual-vh:100dvh',
+  'html{height:var(--app-vh,100dvh);min-height:-webkit-fill-available}',
   '--bottom-control-inset:0px',
   '--navigation-control-inset:0px',
   '--bottom-nav-height:calc(var(--nav-height) + var(--bottom-control-inset) + 1px)',
