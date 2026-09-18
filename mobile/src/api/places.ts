@@ -90,8 +90,9 @@ export async function searchPlaces(
   if (!apiKey) return { status: 'unavailable', places: [] };
   if (!isSearchQueryValid(query)) return { status: 'ok', places: [] };
 
+  let response: Response;
   try {
-    const response = await fetchImpl(PLACES_TEXT_SEARCH_URL, {
+    response = await fetchImpl(PLACES_TEXT_SEARCH_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -106,15 +107,15 @@ export async function searchPlaces(
         maxResultCount: 8,
       }),
     });
-    if (response.status === 429) return { status: 'rate-limited', places: [] };
-    if (!response.ok) return { status: 'provider-error', places: [] };
-
-    const data = (await response.json()) as PlacesApiResponse;
-    if (!isPlacesApiResponse(data)) return { status: 'provider-error', places: [] };
-    return { status: 'ok', places: mapPlaces(data, near) };
   } catch {
     return { status: 'network-error', places: [] };
   }
+  if (response.status === 429) return { status: 'rate-limited', places: [] };
+  if (!response.ok) return { status: 'provider-error', places: [] };
+
+  const data = await readPlacesResponse(response);
+  if (!data) return { status: 'provider-error', places: [] };
+  return { status: 'ok', places: mapPlaces(data, near) };
 }
 
 /** Category chips use Nearby Search rather than a text query. This makes
@@ -129,8 +130,9 @@ export async function searchNearbyPlaces(
   if (!apiKey) return { status: 'unavailable', places: [] };
   if (category.includedTypes.length === 0) return { status: 'ok', places: [] };
 
+  let response: Response;
   try {
-    const response = await fetchImpl(PLACES_NEARBY_SEARCH_URL, {
+    response = await fetchImpl(PLACES_NEARBY_SEARCH_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -146,19 +148,28 @@ export async function searchNearbyPlaces(
         },
       }),
     });
-    if (response.status === 429) return { status: 'rate-limited', places: [] };
-    if (!response.ok) return { status: 'provider-error', places: [] };
-
-    const data = (await response.json()) as PlacesApiResponse;
-    if (!isPlacesApiResponse(data)) return { status: 'provider-error', places: [] };
-    return {
-      status: 'ok',
-      places: mapPlaces(data, near)
-        .filter((place) => place.distanceMeters <= NEARBY_RADIUS_METERS)
-        .sort((a, b) => a.distanceMeters - b.distanceMeters),
-    };
   } catch {
     return { status: 'network-error', places: [] };
+  }
+  if (response.status === 429) return { status: 'rate-limited', places: [] };
+  if (!response.ok) return { status: 'provider-error', places: [] };
+
+  const data = await readPlacesResponse(response);
+  if (!data) return { status: 'provider-error', places: [] };
+  return {
+    status: 'ok',
+    places: mapPlaces(data, near)
+      .filter((place) => place.distanceMeters <= NEARBY_RADIUS_METERS)
+      .sort((a, b) => a.distanceMeters - b.distanceMeters),
+  };
+}
+
+async function readPlacesResponse(response: Response): Promise<PlacesApiResponse | null> {
+  try {
+    const data: unknown = await response.json();
+    return isPlacesApiResponse(data) ? data : null;
+  } catch {
+    return null;
   }
 }
 
@@ -170,10 +181,14 @@ function isPlacesApiResponse(value: unknown): value is PlacesApiResponse {
 
 function mapPlaces(data: PlacesApiResponse, near: { lat: number; lon: number }): PlaceResult[] {
   return (data.places ?? [])
+      .filter((place): place is PlacesApiPlace => Boolean(place) && typeof place === 'object')
       .filter((place) => place.businessStatus !== 'CLOSED_PERMANENTLY')
       .filter(
         (place): place is PlacesApiPlace & { location: { latitude: number; longitude: number } } =>
-          typeof place.location?.latitude === 'number' && typeof place.location?.longitude === 'number'
+          typeof place.location?.latitude === 'number' && Number.isFinite(place.location.latitude)
+          && place.location.latitude >= -90 && place.location.latitude <= 90
+          && typeof place.location?.longitude === 'number' && Number.isFinite(place.location.longitude)
+          && place.location.longitude >= -180 && place.location.longitude <= 180
       )
       .map((place) => {
         const result = {

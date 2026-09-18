@@ -134,6 +134,33 @@ describe('searchPlaces', () => {
       fakeFetch(() => ({ status: 200, body: { places: 'not-an-array' } }))
     );
     assert.deepEqual(results, { status: 'provider-error', places: [] });
+
+    const invalidJson = (async () => ({
+      ok: true,
+      status: 200,
+      json: async () => { throw new SyntaxError('invalid JSON'); },
+    } as unknown as Response)) as typeof fetch;
+    const invalidJsonResult = await searchPlaces('coffee', near, 'test-key', invalidJson);
+    assert.deepEqual(invalidJsonResult, { status: 'provider-error', places: [] });
+  });
+
+  it('drops malformed and out-of-range provider places safely', async () => {
+    const results = await searchPlaces(
+      'coffee',
+      near,
+      'test-key',
+      fakeFetch(() => ({
+        status: 200,
+        body: {
+          places: [
+            null,
+            { id: 'nan', location: { latitude: Number.NaN, longitude: -0.1 } },
+            { id: 'outside', location: { latitude: 91, longitude: -0.1 } },
+          ],
+        },
+      }))
+    );
+    assert.deepEqual(results, { status: 'ok', places: [] });
   });
 });
 
