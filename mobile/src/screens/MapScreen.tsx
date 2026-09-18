@@ -20,6 +20,7 @@ import type { RouteProp } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
+import * as Speech from 'expo-speech';
 import MapView, { Marker, Polyline } from 'react-native-maps';
 import { haversineMiles } from '@rider-comms/shared';
 import type { HazardReport, HazardType } from '@rider-comms/shared';
@@ -46,6 +47,8 @@ import {
 } from '../api/directions';
 import { navigationProviderLabel } from '../navigationPreference';
 import { formatNavigationDistance, maneuverIcon } from '../navigationGuidance';
+import { audioEngine } from '../audio/audioEngine';
+import { NavigationSpeechController } from '../navigationSpeech';
 
 const PRESENCE_UPDATE_INTERVAL_MS = 8000; // per spec Section 8: every 5-10s
 const DEFAULT_REGION = {
@@ -169,6 +172,23 @@ export function MapScreen(): React.JSX.Element {
   const [mapReady, setMapReady] = React.useState(false);
   const mapRef = React.useRef<MapView | null>(null);
   const centredOnFirstFix = React.useRef(false);
+  const navigationSpeechRef = React.useRef<NavigationSpeechController | null>(null);
+  if (!navigationSpeechRef.current) {
+    navigationSpeechRef.current = new NavigationSpeechController(
+      {
+        speak: (text, callbacks) => {
+          Speech.speak(text, {
+            onStart: callbacks.onStart,
+            onDone: callbacks.onDone,
+            onStopped: callbacks.onStopped,
+            onError: callbacks.onError,
+          });
+        },
+        stop: () => Speech.stop(),
+      },
+      audioEngine
+    );
+  }
 
   const focusCoordinate = React.useCallback((target: { lat: number; lon: number }, delta = FOCUSED_REGION_DELTA) => {
     mapRef.current?.animateToRegion({
@@ -368,6 +388,10 @@ export function MapScreen(): React.JSX.Element {
   }, [mapReady]);
 
   const finishInAppNavigation = React.useCallback((arrived = false) => {
+    const speech = navigationSpeechRef.current;
+    speech?.stop();
+    speech?.resetRoute();
+    if (arrived) speech?.speakStatus('You have arrived at your destination.');
     setActiveRoute(null);
     setNavigationDestination(null);
     setNavigationStepIndex(0);
@@ -378,9 +402,13 @@ export function MapScreen(): React.JSX.Element {
 
   const requestInAppRoute = React.useCallback(async (origin: { lat: number; lon: number }, target: NavigationTarget, rerouting = false) => {
     if (!GOOGLE_DIRECTIONS_API_KEY) throw new Error('directions_not_configured');
-    if (rerouting) navRerouting.current = true;
+    if (rerouting) {
+      navRerouting.current = true;
+      navigationSpeechRef.current?.speakStatus('Rerouting.');
+    }
     try {
       const nextRoute = await fetchDrivingRoute(origin, target, GOOGLE_DIRECTIONS_API_KEY);
+      navigationSpeechRef.current?.resetRoute();
       setActiveRoute(nextRoute);
       setNavigationDestination(target);
       setNavigationStepIndex(0);
@@ -391,6 +419,15 @@ export function MapScreen(): React.JSX.Element {
       if (rerouting) navRerouting.current = false;
     }
   }, [fitRoute]);
+
+  React.useEffect(() => {
+    if (!activeRoute || !currentNavigationStep) return;
+    navigationSpeechRef.current?.speakStep(navigationStepIndex, currentNavigationStep.instruction);
+  }, [activeRoute, currentNavigationStep, navigationStepIndex]);
+
+  React.useEffect(() => {
+    return () => navigationSpeechRef.current?.stop();
+  }, []);
 
   async function startInAppNavigation(target: NavigationTarget): Promise<void> {
     const origin = currentLocation ?? await requestCurrentLocation(true);
