@@ -53,8 +53,8 @@ function JoinOrHostForm(): React.JSX.Element {
       <View style={[styles.iconBadge, elevation.raised]}>
         <Ionicons name="key" size={32} color={colors.accent} />
       </View>
-      <Text style={styles.title}>Join or host a ride</Text>
-      <Text style={styles.body}>Enter a 6-character code to join a ride, or host your own.</Text>
+      <Text style={styles.title}>Ride</Text>
+      <Text style={styles.body}>Join with an invite code or start a private ride.</Text>
 
       <TextInput
         style={[styles.input, error && styles.inputError]}
@@ -103,11 +103,18 @@ function JoinOrHostForm(): React.JSX.Element {
         onPress={handleJoin}
         disabled={!canSubmit}
       >
-        {loading ? <ActivityIndicator color={colors.accentText} /> : <Text style={styles.buttonText}>Join</Text>}
+        {loading ? <ActivityIndicator color={colors.accentText} /> : <Text style={styles.buttonText}>Join Ride</Text>}
       </Pressable>
 
       <Pressable onPress={() => navigation.navigate('CreateRide')} style={styles.hostLink}>
-        <Text style={styles.hostLinkText}>Starting a new ride? Host one instead</Text>
+        <View style={styles.hostLinkIcon}>
+          <Ionicons name="add" size={20} color={colors.accent} />
+        </View>
+        <View style={styles.hostLinkCopy}>
+          <Text style={styles.hostLinkTitle}>Start a ride</Text>
+          <Text style={styles.hostLinkText}>Create a private ride and invite your friends.</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
       </Pressable>
     </View>
   );
@@ -228,8 +235,29 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   errorText: { ...type.body, color: colors.danger, flex: 1 },
-  hostLink: { alignItems: 'center', paddingVertical: spacing.md },
-  hostLinkText: { ...type.caption, color: colors.textSecondary },
+  hostLink: {
+    minHeight: 72,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    marginTop: spacing.md,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.lg,
+    backgroundColor: colors.surface,
+  },
+  hostLinkIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: radii.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.accentSoft,
+  },
+  hostLinkCopy: { flex: 1, minWidth: 0 },
+  hostLinkTitle: { ...type.body, color: colors.textPrimary, fontWeight: '700' },
+  hostLinkText: { ...type.caption, color: colors.textSecondary, marginTop: 2 },
   button: {
     minHeight: MIN_TOUCH_TARGET,
     backgroundColor: colors.accent,
