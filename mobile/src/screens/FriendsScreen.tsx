@@ -336,7 +336,6 @@ export function FriendsScreen(): React.JSX.Element {
       >
         <ScreenHeader
           title="Friends"
-          subtitle="Your private rider network."
         />
 
         {error && (
@@ -452,7 +451,7 @@ const styles = StyleSheet.create({
   sectionLabelRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginBottom: spacing.sm },
   sectionLabel: { ...type.label, marginTop: spacing.lg, marginBottom: spacing.sm },
   sectionLabelInRow: { marginTop: 0, marginBottom: 0 },
-  section: { backgroundColor: colors.surface, borderRadius: radii.lg, overflow: 'hidden', marginBottom: spacing.md },
+  section: { backgroundColor: colors.surface, borderRadius: radii.lg, overflow: 'hidden', marginBottom: spacing.md, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
   addCard: { padding: spacing.md, gap: spacing.sm },
   addRow: { flexDirection: 'row', gap: spacing.sm },
   addInput: {
@@ -547,7 +546,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
-    padding: spacing.md,
+    minHeight: 66,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
