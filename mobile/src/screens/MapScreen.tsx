@@ -804,7 +804,10 @@ export function MapScreen(): React.JSX.Element {
       {!lockedForSafety && !activeRoute && <SegmentToggle segment={segment} onChange={setSegment} topInset={insets.top} />}
 
       {!activeRoute && (lockedForSafety || movementState === 'unknown') && (
-        <View style={[styles.safetyBanner, { top: insets.top + spacing.sm }]} accessibilityLiveRegion="polite">
+        <View
+          style={[styles.safetyBanner, { top: insets.top + spacing.sm + (segment === 'public' ? MIN_TOUCH_TARGET + spacing.sm : 0) }]}
+          accessibilityLiveRegion="polite"
+        >
           <MaterialCommunityIcons name="motorbike" size={20} color={colors.accent} />
           <View style={styles.safetyBannerCopy}>
             <Text style={styles.safetyBannerTitle}>Ride-safe mode</Text>
@@ -920,7 +923,7 @@ const styles = StyleSheet.create({
     right: spacing.md,
     gap: spacing.sm,
     padding: spacing.md,
-    borderRadius: radii.xl,
+    borderRadius: radii.lg,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     backgroundColor: colors.background,

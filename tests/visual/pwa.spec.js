@@ -285,6 +285,8 @@ test('final mockup parity is sharp, map-first and iPhone 17 Pro Max safe', async
   expect(mapGeometry.searchRadius).toBeLessThanOrEqual(4);
   expect(mapGeometry.actionRadius).toBeLessThanOrEqual(4);
   await expect(page.locator('[data-screen="map"] .page-header')).toHaveCount(0);
+  await expect(page.locator('#mapSearchSlot')).toBeVisible();
+  await expect(page.locator('#movementSafetyBanner')).toBeHidden();
   await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-map-final.png'), fullPage: true });
 
   await page.locator('#reportHazardBtn').click();
@@ -302,6 +304,21 @@ test('final mockup parity is sharp, map-first and iPhone 17 Pro Max safe', async
   expect(reportShape.tileRadius).toBeLessThanOrEqual(4);
   await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-report-final.png'), fullPage: true });
   await page.locator('#closeSheet').click();
+
+  await page.locator('.bottom-nav [data-nav="ride"]').click();
+  await expect(page.locator('.ride-hero')).toBeVisible();
+  const rideHeroRadius = await page.locator('.ride-hero').evaluate((element) => parseFloat(getComputedStyle(element).borderTopLeftRadius));
+  expect(rideHeroRadius).toBeLessThanOrEqual(4);
+  await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-ride-final.png'), fullPage: true });
+
+  await page.locator('.bottom-nav [data-nav="routes"]').click();
+  const finalRouteCard = page.locator('.curated-route-card').first();
+  await expect(finalRouteCard).toBeVisible();
+  await expect(finalRouteCard.locator('.route-trace-card')).toBeHidden();
+  const finalRouteBox = await finalRouteCard.boundingBox();
+  expect(finalRouteBox).not.toBeNull();
+  expect(finalRouteBox.width / finalRouteBox.height).toBeGreaterThan(2);
+  await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-routes-final.png'), fullPage: true });
 
   await page.locator('.bottom-nav [data-nav="settings"]').click();
   await expect(page.locator('.settings-page')).toBeVisible();
@@ -322,7 +339,10 @@ test('PWA route discovery previews route shape and hands the start back to the m
   await page.locator('.bottom-nav [data-nav="routes"]').click();
   const firstRoute = page.locator('.curated-route-card').first();
   await expect(firstRoute).toBeVisible();
-  await expect(firstRoute.locator('.route-trace-card')).toBeVisible();
+  await expect(firstRoute.locator('.route-trace-card')).toBeHidden();
+  const routeCardBox = await firstRoute.boundingBox();
+  expect(routeCardBox).not.toBeNull();
+  expect(routeCardBox.width / routeCardBox.height).toBeGreaterThan(2);
 
   await firstRoute.click();
   await expect(page.locator('.route-detail')).toBeVisible();

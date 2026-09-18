@@ -3500,11 +3500,14 @@
       if (activeChat) closeChat();
       navigate(location.hash.split('/')[0].slice(1) || 'map', false);
     });
-    $$('[data-ride-mode]').forEach((button) => button.addEventListener('click', () => {
-      $$('[data-ride-mode]').forEach((item) => item.classList.toggle('active', item === button));
+    $('[data-ride-mode]').forEach((button) => button.addEventListener('click', () => {
+      $('[data-ride-mode]').forEach((item) => item.classList.toggle('active', item === button));
       const host = button.dataset.rideMode === 'host';
       $('#joinRideForm').hidden = host;
       $('#hostRideForm').hidden = !host;
+      $('#rideHostMode').hidden = host;
+      $('#rideJoinMode').hidden = !host;
+      $('#rideEntryTitle').textContent = host ? 'Start a ride' : 'Join a ride';
     }));
     $('#joinRideForm').addEventListener('submit', (event) => {
       event.preventDefault();

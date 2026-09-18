@@ -29,3 +29,25 @@ html.pwa-standalone .route-detail{max-height:92%}
 .route-discovery-empty svg{width:30px;height:30px;color:var(--text-muted)}.route-discovery-empty strong{color:var(--text);font-size:.9rem}.route-discovery-empty span{max-width:360px;font-size:.76rem;line-height:1.45}
 .routes-featured-heading+.chip-row .chip{border-radius:8px}
 @media(max-width:420px){.route-trace-card{width:104px;height:60px}.route-trace-detail{width:132px;height:76px}.route-trace-panel{align-items:flex-start}}
+
+
+/* Approved mockup route cards: photography leads, but cards stay deliberately
+   shallow with metadata on a calm graphite strip instead of a tall poster. */
+.routes-featured-heading,.routes-discovery-copy{display:none}
+#curatedRouteFilters{margin:0 0 8px!important;padding:0 0 2px!important}
+#curatedRouteFilters .chip{border-radius:4px}
+.curated-route-list{gap:10px;margin-top:0}
+.curated-route-card{height:164px;aspect-ratio:auto;border-radius:4px;background:var(--surface)}
+.curated-route-card>img{top:0;right:0;bottom:auto;left:0;height:94px;object-fit:cover}
+.curated-route-card:after{top:0;right:0;bottom:auto;left:0;height:94px;background:linear-gradient(180deg,rgb(4 8 12/.04),rgb(4 8 12/.25))}
+.route-photo-fallback{top:0;right:0;bottom:auto;left:0;height:94px;background:var(--surface-raised)}
+.route-trace-card{display:none}
+.curated-route-overlay{top:94px;right:0;bottom:0;left:0;display:grid;align-content:center;gap:1px;padding:7px 10px;background:var(--surface)}
+.curated-route-overlay strong{order:1;color:var(--text);font-size:.88rem;line-height:1.15}
+.curated-route-overlay .route-region{order:2;width:auto;color:var(--text-secondary);font-size:.65rem;font-weight:600;letter-spacing:0;text-transform:none}
+.curated-route-overlay>small{display:none}
+.route-quick-stats{order:3;display:flex;flex-wrap:nowrap;gap:7px;margin-top:4px;overflow:hidden}
+.route-quick-stats b{min-width:0;padding:0;border:0;border-radius:0;background:transparent;color:var(--text-muted);font-size:.62rem;font-weight:650;white-space:nowrap}
+.route-quick-stats b+b:before{content:"·";margin-right:7px;color:var(--text-muted)}
+.route-quick-stats .route-approach{display:none!important}
+@media(min-width:700px){.curated-route-card{height:170px}.curated-route-card>img,.curated-route-card:after,.route-photo-fallback{height:98px}.curated-route-overlay{top:98px}}

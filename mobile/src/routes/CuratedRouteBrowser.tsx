@@ -2,7 +2,6 @@ import * as React from 'react';
 import {
   Alert,
   Image,
-  ImageBackground,
   Linking,
   Modal,
   Pressable,
@@ -223,17 +222,7 @@ function RouteOverview({
   );
 }
 
-function CuratedRouteCard({
-  route,
-  width,
-  approach,
-  onPress,
-}: {
-  route: CuratedRoute;
-  width: number;
-  approach: string | null;
-  onPress: () => void;
-}) {
+function CuratedRouteCard({ route, width, onPress }: { route: CuratedRoute; width: number; onPress: () => void }) {
   const [imageFailed, setImageFailed] = React.useState(false);
   return (
     <Pressable
@@ -242,37 +231,30 @@ function CuratedRouteCard({
       onPress={onPress}
       style={({ pressed }) => [styles.curatedCard, { width }, pressed && styles.cardPressed]}
     >
-      {imageFailed ? (
-        <View style={[styles.cardImage, styles.imageFallback]}>
-          <MaterialCommunityIcons name="image-off-outline" size={28} color={colors.textMuted} />
-          <View style={styles.fallbackCopy}>
-            <Text style={styles.fallbackRegion}>{route.region}</Text>
-            <Text style={styles.fallbackTitle}>{route.name}</Text>
+      <View style={styles.cardMedia}>
+        {imageFailed ? (
+          <View style={[styles.cardImage, styles.imageFallback]}>
+            <MaterialCommunityIcons name="image-off-outline" size={26} color={colors.textMuted} />
           </View>
+        ) : (
+          <Image
+            source={{ uri: route.image.uri }}
+            style={styles.cardImage}
+            accessibilityLabel={route.image.alt}
+            onError={() => setImageFailed(true)}
+          />
+        )}
+        <View style={styles.cardImageShade} />
+      </View>
+      <View style={styles.cardBody}>
+        <Text style={styles.cardTitle} numberOfLines={1}>{route.name}</Text>
+        <Text style={styles.cardRegion} numberOfLines={1}>{route.region}</Text>
+        <View style={styles.cardStats}>
+          <Text style={styles.cardStat}>{route.distanceMiles} mi</Text>
+          <Text style={styles.cardStat}>{route.roadType}</Text>
+          <Text style={styles.cardStat}>{route.estimatedDurationMinutes} min</Text>
         </View>
-      ) : (
-        <ImageBackground
-          source={{ uri: route.image.uri }}
-          style={styles.cardImage}
-          imageStyle={styles.cardImageRadius}
-          accessibilityLabel={route.image.alt}
-          onError={() => setImageFailed(true)}
-        >
-          <View style={styles.cardImageShade} />
-          <View style={styles.cardTraceWrap}><RouteTrace route={route} width={112} height={66} /></View>
-          <View style={styles.cardImageCopy}>
-            <Text style={styles.cardRegion}>{route.region}</Text>
-            <Text style={styles.cardTitle} numberOfLines={2}>{route.name}</Text>
-            <Text style={styles.cardRoad} numberOfLines={1}>{route.road}</Text>
-            <View style={styles.cardStats}>
-              {approach ? <Text style={[styles.cardStat, styles.cardStatPrimary]}>{approach}</Text> : null}
-              <Text style={styles.cardStat}>{route.distanceMiles} mi</Text>
-              <Text style={styles.cardStat}>{route.estimatedDurationMinutes} min</Text>
-              <Text style={styles.cardStat}>{route.roadType}</Text>
-            </View>
-          </View>
-        </ImageBackground>
-      )}
+      </View>
     </Pressable>
   );
 }
@@ -297,22 +279,9 @@ export function CuratedRouteBrowser({
 
   return (
     <>
-      <View style={styles.catalogueIntro}>
-        <View>
-          <Text style={styles.catalogueEyebrow}>{riderLocation ? 'NEAREST FIRST' : 'RIDER COMMS PICKS'}</Text>
-          <Text style={styles.catalogueTitle}>{riderLocation ? 'Closest rides worth the trip' : 'Roads worth the ride'}</Text>
-        </View>
-        <View style={styles.routeCount}><Text style={styles.routeCountText}>{routes.length}</Text></View>
-      </View>
-      <Text style={styles.catalogueCopy}>
-        {riderLocation
-          ? 'Sorted by distance to each route start using your existing location permission. Ride times describe the route itself, not the trip to reach it.'
-          : 'Curated UK rides with route shape, road character and planning notes. Allow location on the Map to sort this list by distance to the start.'}
-      </Text>
       <View style={styles.cardGrid}>
         {routes.map((route) => {
-          const approach = riderLocation ? formatApproachDistance(distanceMilesToRouteStart(route, riderLocation)) : null;
-          return <CuratedRouteCard key={route.id} route={route} width={cardWidth} approach={approach} onPress={() => setSelectedRoute(route)} />;
+          return <CuratedRouteCard key={route.id} route={route} width={cardWidth} onPress={() => setSelectedRoute(route)} />;
         })}
       </View>
       {routes.length === 0 ? (
@@ -334,31 +303,18 @@ export function CuratedRouteBrowser({
 }
 
 const styles = StyleSheet.create({
-  catalogueIntro: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md, marginTop: spacing.sm },
-  catalogueEyebrow: { ...type.caption, color: colors.accent, fontWeight: '800', letterSpacing: 1.2 },
-  catalogueTitle: { ...type.heading, color: colors.textPrimary, marginTop: 2 },
-  catalogueCopy: { ...type.body, color: colors.textSecondary, maxWidth: 620 },
-  routeCount: { minWidth: 34, height: 34, paddingHorizontal: spacing.sm, borderRadius: radii.sm, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceRaised },
-  routeCountText: { ...type.label, color: colors.textSecondary },
   cardGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
-  curatedCard: { aspectRatio: 1.72, overflow: 'hidden', borderRadius: radii.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
+  curatedCard: { height: 164, overflow: 'hidden', borderRadius: radii.md, backgroundColor: colors.surface, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
   cardPressed: { opacity: 0.88, transform: [{ scale: 0.99 }] },
-  cardImage: { flex: 1, justifyContent: 'flex-end', padding: spacing.md, backgroundColor: colors.surfaceRaised },
-  cardImageRadius: { borderRadius: radii.md },
-  cardImageShade: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(5,8,11,0.42)', borderRadius: radii.md },
-  imageFallback: { alignItems: 'center', justifyContent: 'center', gap: spacing.sm },
-  fallbackCopy: { alignItems: 'center', gap: 2, paddingHorizontal: spacing.md },
-  fallbackRegion: { ...type.caption, color: colors.textSecondary, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.8, textAlign: 'center' },
-  fallbackTitle: { ...type.heading, color: colors.textPrimary, textAlign: 'center' },
-  cardImageCopy: { gap: 3 },
-  cardTraceWrap: { position: 'absolute', top: spacing.md, right: spacing.md },
-  routeTrace: { borderRadius: radii.sm, backgroundColor: 'rgba(8,10,16,0.72)', overflow: 'hidden' },
-  cardRegion: { ...type.caption, color: colors.accent, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1 },
-  cardTitle: { ...type.heading, color: '#FFFFFF', fontSize: 20, lineHeight: 23, textShadowColor: 'rgba(0,0,0,0.5)', textShadowRadius: 8 },
-  cardRoad: { ...type.body, color: 'rgba(255,255,255,0.82)' },
-  cardStats: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing.xs, marginTop: spacing.sm },
-  cardStat: { ...type.caption, color: '#FFFFFF', textTransform: 'capitalize', paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, borderRadius: radii.sm, backgroundColor: 'rgba(8,12,16,0.68)', borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(255,255,255,0.2)' },
-  cardStatPrimary: { borderColor: colors.accent, color: '#FFFFFF' },
+  cardMedia: { position: 'relative', height: 94, backgroundColor: colors.surfaceRaised },
+  cardImage: { width: '100%', height: '100%' },
+  cardImageShade: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(5,8,11,0.10)' },
+  imageFallback: { alignItems: 'center', justifyContent: 'center' },
+  cardBody: { flex: 1, justifyContent: 'center', paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, backgroundColor: colors.surface },
+  cardTitle: { ...type.subheading, color: colors.textPrimary, fontSize: 15, lineHeight: 18, fontWeight: '800' },
+  cardRegion: { ...type.caption, color: colors.textSecondary, marginTop: 1 },
+  cardStats: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginTop: spacing.xs },
+  cardStat: { ...type.caption, color: colors.textMuted, fontSize: 11, fontWeight: '700', textTransform: 'capitalize' },
   overviewRoot: { flex: 1, backgroundColor: colors.background },
   overviewScroll: { backgroundColor: colors.background },
   overviewHero: { height: 300, justifyContent: 'flex-end' },

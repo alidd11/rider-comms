@@ -640,3 +640,39 @@ html.chat-open .bottom-nav,html.chat-open .ride-pill,html.chat-open .movement-sa
 .button.primary,.button.primary:active,.auth-submit{box-shadow:none}
 .session-list{border-radius:var(--radius-lg)}
 .search-screen-header>.icon-button,.search-screen-header .search-slot,.search-result-icon,.search-empty-icon,.ride-intro-icon,.network-intro-icon,.profile-completion{border-radius:var(--radius-lg)}
+
+
+/* Approved mockup composition — iPhone 17 Pro Max is the flagship visual
+   target, while existing safe-area and viewport ownership remains untouched. */
+@media(max-width:699px){
+  .content-screen .page-header{margin-bottom:14px}
+  .content-screen .page-header h1{font-size:clamp(1.55rem,6vw,1.72rem);line-height:1.04}
+}
+#rideJoinState{display:grid;gap:10px}
+.ride-hero{
+  position:relative;height:184px;overflow:hidden;border:1px solid var(--border);
+  border-radius:var(--radius-lg);background-color:var(--surface);
+  background-image:linear-gradient(180deg,rgb(4 8 11/.06) 30%,rgb(4 8 11/.78) 100%),url("https://images.unsplash.com/photo-1770614956862-a143fb5e4921?auto=format&fit=crop&q=80&w=1200");
+  background-size:cover;background-position:center 56%;
+}
+.ride-hero-copy{position:absolute;z-index:1;left:15px;bottom:14px;color:#fff}
+.ride-hero-copy strong{display:block;font-size:1.58rem;font-weight:800;letter-spacing:-.045em;line-height:.98;text-shadow:0 2px 12px rgb(0 0 0/.5)}
+.ride-entry{overflow:hidden;border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--surface)}
+.ride-entry-heading{padding:12px 14px 0}.ride-entry-heading h2{margin:0;font-size:.88rem;letter-spacing:-.01em}
+.ride-entry .ride-form{padding:10px 14px 13px}
+.ride-entry .ride-form>label:not(.ride-location-consent){margin-bottom:7px;color:var(--text-secondary);font-size:.7rem}
+.ride-entry .code-field{gap:8px}.ride-entry .code-field input{height:44px;font-size:.88rem;letter-spacing:.12em}
+.ride-entry .code-field .button{min-width:92px;min-height:44px;padding-inline:14px}
+.ride-entry .support-copy{margin-top:7px;font-size:.68rem}
+.ride-entry .ride-location-consent{margin:10px 0 0!important;padding:9px 0 0;border:0;border-top:1px solid var(--border-soft);background:transparent}
+.ride-entry .ride-location-consent input{width:18px;height:18px}.ride-entry .ride-location-consent strong{font-size:.72rem}.ride-entry .ride-location-consent small{font-size:.66rem;line-height:1.35}
+.ride-start-row{width:100%;min-height:68px;display:flex;align-items:center;gap:11px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--surface);text-align:left}
+.ride-start-icon{width:40px;height:40px;display:grid;place-items:center;flex:none;border-radius:50%;background:var(--surface-raised);color:var(--text-secondary)}
+.ride-start-icon svg{width:21px;height:21px}.ride-start-copy{min-width:0;flex:1}.ride-start-copy strong,.ride-start-copy small{display:block}.ride-start-copy strong{font-size:.82rem}.ride-start-copy small{margin-top:2px;color:var(--text-secondary);font-size:.68rem}
+.ride-start-chevron{width:16px;height:16px;flex:none;color:var(--text-muted)}
+.ride-mode-return{min-height:44px;justify-self:start;padding:0 4px;border:0;background:transparent;color:var(--accent);font-size:.75rem;font-weight:760}
+#friendsCountBadge{display:none}.network-summary{display:none}
+.settings-page .group-title{margin-top:16px}.settings-page .settings-group>button{min-height:52px}.settings-page .profile-row{padding:10px}
+.movement-safety-banner{top:calc(var(--safe-top) + 66px);left:auto;right:max(14px,var(--safe-right));width:min(320px,calc(100% - 28px - var(--safe-left) - var(--safe-right)));padding:8px 10px;box-shadow:0 8px 24px rgb(0 0 0/.28)}
+.movement-safety-banner svg{width:19px;height:19px}.movement-safety-banner strong{font-size:.76rem}.movement-safety-banner small{font-size:.66rem;line-height:1.3}.movement-safety-banner button{min-height:32px;padding-inline:9px}
+@media(max-width:390px){.movement-safety-banner{left:max(12px,var(--safe-left));right:max(12px,var(--safe-right));width:auto}}

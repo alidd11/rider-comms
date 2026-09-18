@@ -17,8 +17,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
-  <link rel="stylesheet" href="app.css?v=76">
-  <link rel="stylesheet" href="routes.css?v=35">
+  <link rel="stylesheet" href="app.css?v=77">
+  <link rel="stylesheet" href="routes.css?v=36">
   <title>Rider Comms</title>
 </head>
 <body>
@@ -176,10 +176,20 @@
         <div class="page-width">
           <header class="page-header"><div><h1 id="rideTitle">Ride</h1></div><button class="icon-button" id="rideShareTop" aria-label="Share ride" hidden><svg><use href="#i-share"/></svg></button></header>
           <div id="rideJoinState">
-            <div class="ride-entry"><div class="segmented" role="tablist"><button class="active" data-ride-mode="join">Join a ride</button><button data-ride-mode="host">Start a ride</button></div>
-              <form id="joinRideForm" class="ride-form"><label for="rideCode">Enter invite code</label><div class="code-field"><input id="rideCode" maxlength="6" inputmode="text" autocomplete="off" placeholder="K4XQPZ" aria-describedby="rideHelp"><button class="button primary" type="submit">Join</button></div><p id="rideHelp" class="support-copy">Ask the host for their six-character code.</p><label class="ride-location-consent"><input id="joinRideLocationConsent" type="checkbox"><span><strong>Share my live location</strong><small>Optional. Only current ride members can see it, and it is removed when you leave or switch this off.</small></span></label><p id="rideError" class="inline-error" hidden></p></form>
-              <div id="hostRideForm" class="ride-form" hidden><h2>Start a private ride</h2><p class="support-copy">You’ll receive a shareable invite code and host controls.</p><label class="ride-location-consent"><input id="hostRideLocationConsent" type="checkbox"><span><strong>Share my live location</strong><small>Optional. Only current ride members can see it, and it is removed when the ride ends or you switch this off.</small></span></label><button id="createRideBtn" class="button primary wide">Create private ride</button></div>
+            <div class="ride-hero" role="img" aria-label="Motorcyclists riding together on a winding mountain road">
+              <div class="ride-hero-copy"><strong>Ride further.<br>together.</strong></div>
             </div>
+            <div class="ride-entry">
+              <div class="ride-entry-heading"><h2 id="rideEntryTitle">Join a ride</h2></div>
+              <form id="joinRideForm" class="ride-form"><label for="rideCode">Enter invite code</label><div class="code-field"><input id="rideCode" maxlength="6" inputmode="text" autocomplete="off" placeholder="K4XQPZ" aria-describedby="rideHelp"><button class="button primary" type="submit">Join</button></div><p id="rideHelp" class="support-copy">Ask the host for their six-character code.</p><label class="ride-location-consent"><input id="joinRideLocationConsent" type="checkbox"><span><strong>Share my live location</strong><small>Optional. Only current ride members can see it, and it is removed when you leave or switch this off.</small></span></label><p id="rideError" class="inline-error" hidden></p></form>
+              <div id="hostRideForm" class="ride-form" hidden><p class="support-copy">Create a private ride, get an invite code and manage the riders who join you.</p><label class="ride-location-consent"><input id="hostRideLocationConsent" type="checkbox"><span><strong>Share my live location</strong><small>Optional. Only current ride members can see it, and it is removed when the ride ends or you switch this off.</small></span></label><button id="createRideBtn" class="button primary wide">Create private ride</button></div>
+            </div>
+            <button id="rideHostMode" class="ride-start-row" type="button" data-ride-mode="host">
+              <span class="ride-start-icon"><svg><use href="#i-ride"/></svg></span>
+              <span class="ride-start-copy"><strong>Start a ride</strong><small>Create a new ride and invite your friends.</small></span>
+              <svg class="ride-start-chevron"><use href="#i-chevron"/></svg>
+            </button>
+            <button id="rideJoinMode" class="ride-mode-return" type="button" data-ride-mode="join" hidden>Back to join</button>
           </div>
           <div id="rideActiveState" hidden>
             <article class="ride-summary"><div><span class="status-chip"><span class="live-dot"></span>Ride live</span><p><span id="memberCount">3</span> riders · You are <span id="rideRole">host</span></p><button id="rideVoiceStatus" class="status-chip neutral" hidden><svg><use href="#i-mic"/></svg><span id="rideVoiceStatusText">Listening — hands-free</span></button></div><button id="shareRideBtn" class="button secondary"><svg><use href="#i-share"/></svg>Invite</button></article>
@@ -272,6 +282,6 @@
   <script src="routes.js?v=33" defer></script>
   <script src="movement-safety.js?v=2" defer></script>
   <script src="message-state.js?v=1" defer></script>
-  <script src="app.js?v=79" defer></script>
+  <script src="app.js?v=80" defer></script>
 </body>
 </html>
