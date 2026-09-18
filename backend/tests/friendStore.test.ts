@@ -89,7 +89,7 @@ describe('FriendStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping 
 
   it('accept() creates a bidirectional friendship and returns the requester summary', async () => {
     const profiles = new ProfileStore();
-    await profiles.update('a', { displayName: 'Alice', handle: '@alice', avatarId: 'fox' });
+    await profiles.update('a', { displayName: 'Alice', handle: '@alice', avatarId: 'ridge' });
     const store = new FriendStore(profiles);
     const req = await store.createRequest('a', 'b');
     assert.equal(req.ok, true);
@@ -101,7 +101,7 @@ describe('FriendStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping 
         riderId: 'a',
         displayName: 'Alice',
         handle: '@alice',
-        avatarId: 'fox',
+        avatarId: 'ridge',
       });
     }
     assert.deepEqual(
