@@ -31,7 +31,7 @@ export function decodeSocialEventCursor(cursor: string | undefined): string | un
   if (cursor === undefined) return undefined;
   if (!cursor || !/^[A-Za-z0-9_-]+$/.test(cursor)) throw new InvalidSocialEventCursorError();
   const decoded = Buffer.from(cursor, 'base64url').toString('utf8');
-  if (!/^\d+$/.test(decoded) || encodeSocialEventCursor(decoded) !== cursor) {
+  if (!/^(0|[1-9]\d*)$/.test(decoded) || encodeSocialEventCursor(decoded) !== cursor) {
     throw new InvalidSocialEventCursorError();
   }
   return decoded;
