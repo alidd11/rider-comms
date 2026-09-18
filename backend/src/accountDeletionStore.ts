@@ -41,6 +41,16 @@ export class AccountDeletionStore {
       await client.query('DELETE FROM rides WHERE created_by = $1', [riderId]);
       await client.query('DELETE FROM friendships WHERE rider_id = $1 OR friend_id = $1', [riderId]);
       await client.query('DELETE FROM friend_requests WHERE from_rider_id = $1 OR to_rider_id = $1', [riderId]);
+      await client.query(
+        `DELETE FROM direct_message_reads
+         WHERE rider_id = $1
+            OR conversation_key IN (
+              SELECT DISTINCT conversation_key
+              FROM direct_messages
+              WHERE from_rider_id = $1 OR to_rider_id = $1
+            )`,
+        [riderId],
+      );
       await client.query('DELETE FROM direct_messages WHERE from_rider_id = $1 OR to_rider_id = $1', [riderId]);
       await client.query('DELETE FROM hideout_participants WHERE rider_id = $1', [riderId]);
       await client.query('DELETE FROM hideouts WHERE created_by = $1', [riderId]);
