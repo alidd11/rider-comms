@@ -414,11 +414,36 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
         if (await moderationStore.isBlockedBetween(actorId, target)) return sendJson(res, 403, { error: 'blocked' });
         const r = await friendStore.createRequest(actorId, target); return r.ok ? sendJson(res, 201, r.request) : sendJson(res, 409, { error: r.error });
       }
+      if (req.method === 'DELETE' && s[0] === 'friends' && s[1] === 'requests' && s[2] && s.length === 3) {
+        const r = await friendStore.cancelRequest(decodeURIComponent(s[2]), actorId);
+        return r.ok ? sendJson(res, 200, {}) : sendJson(res, 404, { error: r.error });
+      }
       if (req.method === 'POST' && s[0] === 'friends' && s[1] === 'requests' && s[2] && s[3]) {
         const request = await friendStore.getRequest(decodeURIComponent(s[2])); if (!request || request.toRiderId !== actorId) return sendJson(res, 404, { error: 'not_found' });
         if (await moderationStore.isBlockedBetween(request.fromRiderId, request.toRiderId)) return sendJson(res, 403, { error: 'blocked' });
         if (s[3] === 'accept') { const r = await friendStore.accept(request.id); return r.ok ? sendJson(res, 200, { friend: r.friend }) : sendJson(res, 404, { error: r.error }); }
         if (s[3] === 'decline') { const r = await friendStore.decline(request.id); return r.ok ? sendJson(res, 200, {}) : sendJson(res, 404, { error: r.error }); }
+      }
+      if (req.method === 'GET' && url.pathname === '/conversations') {
+        const n = Number(url.searchParams.get('limit') ?? 50);
+        if (!Number.isInteger(n) || n < 1 || n > 100) return sendJson(res, 400, { error: 'limit must be an integer from 1 to 100' });
+        try {
+          return sendJson(res, 200, await messageStore.getConversationPage(actorId, n, url.searchParams.get('before') ?? undefined));
+        } catch (error) {
+          if (error instanceof InvalidMessageCursorError) return sendJson(res, 400, { error: 'invalid_cursor' });
+          throw error;
+        }
+      }
+      if (req.method === 'GET' && url.pathname === '/messages/unread-count') {
+        return sendJson(res, 200, { unreadCount: await messageStore.getUnreadCount(actorId) });
+      }
+      if (req.method === 'POST' && url.pathname === '/messages/read') {
+        const body = await readJsonBody(req);
+        if (typeof body.withRiderId !== 'string' || !body.withRiderId.trim()) return sendJson(res, 400, { error: 'withRiderId is required' });
+        const other = body.withRiderId.trim();
+        if (await moderationStore.isBlockedBetween(actorId, other)) return sendJson(res, 403, { error: 'blocked' });
+        if (!(await friendStore.isFriendOf(actorId, other))) return sendJson(res, 403, { error: 'not_friends' });
+        return sendJson(res, 200, { readThroughSeq: await messageStore.markThreadRead(actorId, other) });
       }
       if (req.method === 'POST' && url.pathname === '/messages') {
         const body = await readJsonBody(req); if (typeof body.toRiderId !== 'string' || typeof body.text !== 'string') return sendJson(res, 400, { error: 'toRiderId and text are required' }); const text = body.text.trim();
