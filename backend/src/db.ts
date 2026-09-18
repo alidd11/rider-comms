@@ -552,6 +552,32 @@ const MIGRATIONS: { name: string; sql: string }[] = [
         ON social_rate_events (created_at);
     `,
   },
+  {
+    name: '0027_social_activity_realtime',
+    sql: `
+      CREATE TABLE IF NOT EXISTS rider_activity (
+        rider_id TEXT PRIMARY KEY,
+        last_seen_at BIGINT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS rider_activity_last_seen_idx
+        ON rider_activity (last_seen_at);
+
+      CREATE TABLE IF NOT EXISTS social_events (
+        seq BIGSERIAL PRIMARY KEY,
+        rider_id TEXT NOT NULL,
+        event_type TEXT NOT NULL CHECK (
+          event_type IN ('message', 'message_read', 'friend_request', 'friend_request_resolved', 'friend_removed')
+        ),
+        actor_id TEXT NOT NULL,
+        entity_id TEXT NOT NULL,
+        created_at BIGINT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS social_events_rider_seq_idx
+        ON social_events (rider_id, seq);
+      CREATE INDEX IF NOT EXISTS social_events_created_at_idx
+        ON social_events (created_at);
+    `,
+  },
 ];
 
 /**
