@@ -17,7 +17,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Inter:wght@400;500;600;700;800&display=swap">
-  <link rel="stylesheet" href="app.css?v=68">
+  <link rel="stylesheet" href="app.css?v=69">
   <link rel="stylesheet" href="routes.css?v=31">
   <title>Rider Comms</title>
 </head>
@@ -161,6 +161,7 @@
               <button id="endNavBtn" class="icon-button" aria-label="End navigation">×</button>
             </div>
             <div id="navNextPreview" class="nav-next-preview" hidden><svg><use href="#i-chevron"/></svg><span>Then</span><span id="navNextInstruction"></span></div>
+            <div id="navGpsNotice" class="nav-gps-notice" role="status" aria-live="polite" hidden></div>
           </div>
           <div id="navSummary" class="nav-summary" hidden>
             <div class="nav-summary-eta"><strong id="navArrival"></strong><span>arrival</span></div>
@@ -271,6 +272,6 @@
   <script src="routes.js?v=32" defer></script>
   <script src="movement-safety.js?v=2" defer></script>
   <script src="message-state.js?v=1" defer></script>
-  <script src="app.js?v=74" defer></script>
+  <script src="app.js?v=75" defer></script>
 </body>
 </html>
