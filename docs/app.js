@@ -411,8 +411,8 @@
     }
     state.screen = screen;
     persist();
-    $('.screen').forEach((item) => item.classList.toggle('active', item.dataset.screen === screen));
-    $('[data-nav]').forEach((item) => {
+    [...document.querySelectorAll('.screen')].forEach((item) => item.classList.toggle('active', item.dataset.screen === screen));
+    [...document.querySelectorAll('[data-nav]')].forEach((item) => {
       const active = item.dataset.nav === screen;
       item.classList.toggle('active', active);
       if (active) item.setAttribute('aria-current', 'page'); else item.removeAttribute('aria-current');
