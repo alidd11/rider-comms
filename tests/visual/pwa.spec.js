@@ -476,6 +476,10 @@ test('installed PWA cold start keeps the tab rail bottom-flush without a second 
   });
   await mockAuthenticatedApi(page);
   await page.goto('/#settings');
+  // The production cold-start workaround deliberately re-syncs at 100/500/1000ms.
+  // Apply this synthetic safe-area value only after those real startup reads have
+  // completed; otherwise the test races the code it is meant to verify.
+  await page.waitForTimeout(1100);
   await page.evaluate(() => {
     document.documentElement.style.setProperty('--bottom-safe-area', '34px');
   });
@@ -544,6 +548,9 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
   });
   await mockAuthenticatedApi(page);
   await page.goto('/#map');
+  // Let the standalone cold-start resync sequence finish before injecting the
+  // synthetic 34px iPhone safe area used by this geometry-only regression.
+  await page.waitForTimeout(1100);
   await page.evaluate(() => {
     const root = document.documentElement;
     root.classList.add('pwa-standalone');
