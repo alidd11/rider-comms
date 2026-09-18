@@ -914,6 +914,8 @@
     $('#sheetTitle').textContent = title;
     $('#sheetBody').innerHTML = body;
     $('#sheetBackdrop').hidden = false;
+    document.documentElement.classList.add('sheet-open');
+    $('#app')?.setAttribute('inert', '');
     document.body.style.overflow = 'hidden';
     ready?.();
     $('#closeSheet').focus();
@@ -1106,6 +1108,8 @@
   function closeSheet() {
     const trigger = lastSheetTrigger;
     $('#sheetBackdrop').hidden = true;
+    document.documentElement.classList.remove('sheet-open');
+    $('#app')?.removeAttribute('inert');
     document.body.style.overflow = '';
     lastSheetTrigger = null;
     trigger?.focus?.();
