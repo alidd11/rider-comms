@@ -41,6 +41,22 @@ describe('profiles, social links, friends, and messages', { skip: !hasDatabase &
     assert.equal(older.nextCursor, null);
     assert.equal((await authenticatedFetch(ctx, 'page-alice', '/messages?withRiderId=page-bob&before=not-a-sequence')).status, 400);
   });
+  it('limits message history to current friends', async () => {
+    ctx.authStore.createTestSession('history-bob');
+    const made = await postJson(ctx, 'history-alice', '/friends/requests', { toRiderId: 'history-bob' });
+    const request = await made.json() as { id: string };
+    await postJson(ctx, 'history-bob', `/friends/requests/${request.id}/accept`, {});
+    await postJson(ctx, 'history-alice', '/messages', { toRiderId: 'history-bob', text: 'private history' });
+
+    assert.equal((await authenticatedFetch(ctx, 'history-alice', '/messages?withRiderId=history-bob')).status, 200);
+    assert.equal((await authenticatedFetch(ctx, 'history-alice', '/riders/history-alice/friends/history-bob', { method: 'DELETE' })).status, 200);
+
+    const formerFriend = await authenticatedFetch(ctx, 'history-alice', '/messages?withRiderId=history-bob');
+    assert.equal(formerFriend.status, 403);
+    assert.deepEqual(await formerFriend.json(), { error: 'not_friends' });
+    assert.equal((await authenticatedFetch(ctx, 'history-bob', '/messages?withRiderId=history-alice')).status, 403);
+    assert.equal((await authenticatedFetch(ctx, 'history-alice', '/messages?withRiderId=history-stranger')).status, 403);
+  });
   it('resolves a friend request sent by handle to the matching riderId', async () => {
     ctx.authStore.createTestSession('carol');
     await ctx.profileStore.update('carol', { handle: '@carol_rides' });
