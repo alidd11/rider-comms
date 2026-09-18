@@ -1,16 +1,27 @@
 (() => {
   'use strict';
 
-  // CSS display-mode handles first paint in standards-compliant browsers.
-  // navigator.standalone covers installed iOS PWAs that do not report the
-  // media query consistently after a cold launch.
+  // Keep the installed-PWA viewport model aligned with iOS itself. This is
+  // the same pattern used by EclipseRBLX: the app tracks visualViewport height
+  // and lets the fixed bottom chrome own safe-area-inset-bottom instead of
+  // trying to translate controls into the gesture area with negative offsets.
   const standaloneMedia = window.matchMedia?.('(display-mode: standalone)');
-  const syncStandaloneMode = () => {
+  const visualViewport = window.visualViewport;
+  const syncViewportEnvironment = () => {
     const isStandalone = standaloneMedia?.matches || window.navigator.standalone === true;
-    document.documentElement.classList.toggle('pwa-standalone', Boolean(isStandalone));
+    const viewportHeight = visualViewport?.height ?? window.innerHeight;
+    const root = document.documentElement;
+
+    root.classList.toggle('pwa-standalone', Boolean(isStandalone));
+    root.style.setProperty('--app-vh', `${viewportHeight}px`);
+    root.style.setProperty('--bottom-safe-area', isStandalone ? 'env(safe-area-inset-bottom, 0px)' : '0px');
   };
-  syncStandaloneMode();
-  standaloneMedia?.addEventListener?.('change', syncStandaloneMode);
+  syncViewportEnvironment();
+  window.addEventListener('resize', syncViewportEnvironment);
+  window.addEventListener('orientationchange', syncViewportEnvironment);
+  visualViewport?.addEventListener?.('resize', syncViewportEnvironment);
+  visualViewport?.addEventListener?.('scroll', syncViewportEnvironment);
+  standaloneMedia?.addEventListener?.('change', syncViewportEnvironment);
 
   const STORAGE_KEY = 'rider-comms-pwa-v4';
   // Real, persistent client session (Rider ID + bearer token issued by the
