@@ -2896,11 +2896,13 @@
   function showAuthScreen() {
     $('#app').hidden = true;
     $('#authScreen').hidden = false;
+    document.documentElement.classList.add('auth-open');
   }
 
   function hideAuthScreen() {
     $('#authScreen').hidden = true;
     $('#app').hidden = false;
+    document.documentElement.classList.remove('auth-open');
   }
 
   const AUTH_ERROR_MESSAGES = {
