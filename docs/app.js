@@ -2876,6 +2876,7 @@
       location.reload();
     });
     navigator.serviceWorker.register('./sw.js').then((registration) => {
+      if (registration.waiting && navigator.serviceWorker.controller) $('#updateBanner').hidden = false;
       const watch = (worker) => worker?.addEventListener('statechange', () => {
         if (worker.state === 'installed' && navigator.serviceWorker.controller) $('#updateBanner').hidden = false;
       });
