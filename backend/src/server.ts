@@ -17,6 +17,8 @@ import type { ReportReason } from './moderationStore.ts';
 import { HazardStore } from './hazardStore.ts';
 import { ScenicRouteStore } from './scenicRouteStore.ts';
 import { AccountDeletionStore } from './accountDeletionStore.ts';
+import { SocialRateLimitStore } from './socialRateLimitStore.ts';
+import type { SocialRateAction } from './socialRateLimitStore.ts';
 import { checkDatabaseReady, closeDatabase, ensureMigrated } from './db.ts';
 
 const HAZARD_TYPES = ['police', 'accident', 'hazard', 'road_closure', 'camera'] as const;
@@ -31,6 +33,7 @@ const MAX_PRESENCE_FIX_AGE_MS = 30_000;
 const MAX_PRESENCE_FUTURE_SKEW_MS = 5_000;
 const PROXIMITY_VOICE_TOKEN_TTL_SECONDS = 60;
 const AUTH_CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
+const SOCIAL_RATE_CLEANUP_INTERVAL_MS = 15 * 60 * 1000;
 
 export interface ApiServerOptions {
   allowedOrigins?: readonly string[];
@@ -41,6 +44,7 @@ export interface ApiServerOptions {
    * "voice not configured" path regardless of the real environment. */
   liveKitCredentials?: LiveKitCredentials | null;
   accountDeletionStore?: Pick<AccountDeletionStore, 'deleteRider'>;
+  socialRateLimitStore?: Pick<SocialRateLimitStore, 'consume'>;
   readinessCheck?: () => Promise<void>;
 }
 
@@ -146,6 +150,19 @@ async function publicProfile(profileStore: ProfileStore, friendStore: FriendStor
   return { riderId: profile.riderId, displayName: profile.displayName, handle: profile.handle, avatarId: profile.avatarId, instagramUsername: canSee(profile.instagramVisibility) ? profile.instagramUsername : '', tiktokUsername: canSee(profile.tiktokVisibility) ? profile.tiktokUsername : '' };
 }
 
+async function consumeSocialWrite(
+  res: http.ServerResponse,
+  store: Pick<SocialRateLimitStore, 'consume'>,
+  actorId: string,
+  action: SocialRateAction,
+): Promise<boolean> {
+  const result = await store.consume(actorId, action);
+  if (result.allowed) return true;
+  res.setHeader('Retry-After', String(result.retryAfterSeconds));
+  sendJson(res, 429, { error: 'rate_limited' });
+  return false;
+}
+
 export function createApp(rideStore = new RideStore(), presenceStore = new PresenceStore(), profileStore = new ProfileStore(), friendStore = new FriendStore(profileStore), messageStore = new MessageStore(), hideoutStore = new HideoutStore(), authStore = new AuthStore(), moderationStore = new ModerationStore(), hazardStore = new HazardStore(), scenicRouteStore = new ScenicRouteStore(), options: ApiServerOptions = {}): http.Server {
   const guestLimiter = new SlidingWindowRateLimiter(20, 60_000);
   const apiLimiter = new SlidingWindowRateLimiter(300, 60_000);
@@ -160,6 +177,7 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
   const allowedOrigins = new Set(options.allowedOrigins ?? []);
   const liveKitCredentials = 'liveKitCredentials' in options ? options.liveKitCredentials : getLiveKitCredentialsFromEnv();
   const accountDeletionStore = options.accountDeletionStore ?? new AccountDeletionStore();
+  const socialRateLimitStore = options.socialRateLimitStore ?? new SocialRateLimitStore();
   const readinessCheck = options.readinessCheck ?? checkDatabaseReady;
   return http.createServer(async (req, res) => {
     const startedAt = Date.now();
@@ -351,6 +369,7 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
         if (typeof body.reason !== 'string' || !REPORT_REASONS.includes(body.reason as ReportReason)) return sendJson(res, 400, { error: 'invalid report reason' });
         const details = typeof body.details === 'string' ? body.details.trim() : '';
         if (details.length > 1000) return sendJson(res, 400, { error: 'details must be at most 1000 characters' });
+        if (!(await consumeSocialWrite(res, socialRateLimitStore, actorId, 'safety_report'))) return;
         await moderationStore.report(actorId, body.riderId, body.reason as ReportReason, details);
         return sendJson(res, 201, { received: true });
       }
@@ -428,6 +447,7 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
         if (!target) return sendJson(res, 404, { error: 'rider_not_found' });
         if (actorId === target) return sendJson(res, 400, { error: 'cannot_friend_yourself' }); if (!(await authStore.hasRider(target))) return sendJson(res, 404, { error: 'rider_not_found' });
         if (await moderationStore.isBlockedBetween(actorId, target)) return sendJson(res, 403, { error: 'blocked' });
+        if (!(await consumeSocialWrite(res, socialRateLimitStore, actorId, 'friend_request'))) return;
         const r = await friendStore.createRequest(actorId, target);
         return r.ok
           ? sendJson(res, 201, r.request)
@@ -466,7 +486,11 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
       }
       if (req.method === 'POST' && url.pathname === '/messages') {
         const body = await readJsonBody(req); if (typeof body.toRiderId !== 'string' || typeof body.text !== 'string') return sendJson(res, 400, { error: 'toRiderId and text are required' }); const text = body.text.trim();
-        if (!text || text.length > 1000) return sendJson(res, 400, { error: !text ? 'text must not be empty' : 'text must be at most 1000 characters' }); if (await moderationStore.isBlockedBetween(actorId, body.toRiderId)) return sendJson(res, 403, { error: 'blocked' }); if (!(await friendStore.isFriendOf(actorId, body.toRiderId))) return sendJson(res, 403, { error: 'not_friends' }); return sendJson(res, 201, await messageStore.create(actorId, body.toRiderId, text));
+        if (!text || text.length > 1000) return sendJson(res, 400, { error: !text ? 'text must not be empty' : 'text must be at most 1000 characters' });
+        if (await moderationStore.isBlockedBetween(actorId, body.toRiderId)) return sendJson(res, 403, { error: 'blocked' });
+        if (!(await friendStore.isFriendOf(actorId, body.toRiderId))) return sendJson(res, 403, { error: 'not_friends' });
+        if (!(await consumeSocialWrite(res, socialRateLimitStore, actorId, 'direct_message'))) return;
+        return sendJson(res, 201, await messageStore.create(actorId, body.toRiderId, text));
       }
       if (req.method === 'GET' && url.pathname === '/messages') {
         const other = url.searchParams.get('withRiderId');
