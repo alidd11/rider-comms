@@ -106,7 +106,7 @@ function RouteOverview({
   const approach = riderLocation ? formatApproachDistance(distanceMilesToRouteStart(route, riderLocation)) : null;
 
   return (
-    <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+    <Modal visible animationType="slide" presentationStyle="fullScreen" onRequestClose={onClose}>
       <View style={styles.overviewRoot}>
         <ScrollView
           contentContainerStyle={[styles.overviewScroll, { paddingBottom: insets.bottom + spacing.xxl }]}
@@ -353,7 +353,7 @@ const styles = StyleSheet.create({
   cardImageCopy: { gap: 3 },
   cardTraceWrap: { position: 'absolute', top: spacing.md, right: spacing.md },
   routeTrace: { borderRadius: radii.sm, backgroundColor: 'rgba(8,10,16,0.72)', overflow: 'hidden' },
-  cardRegion: { ...type.caption, color: '#FF9C52', fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1 },
+  cardRegion: { ...type.caption, color: colors.accent, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1 },
   cardTitle: { ...type.heading, color: '#FFFFFF', fontSize: 20, lineHeight: 23, textShadowColor: 'rgba(0,0,0,0.5)', textShadowRadius: 8 },
   cardRoad: { ...type.body, color: 'rgba(255,255,255,0.82)' },
   cardStats: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing.xs, marginTop: spacing.sm },

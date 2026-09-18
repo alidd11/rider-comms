@@ -21,7 +21,11 @@ export default defineConfig({
   projects: [
     { name: 'phone-small', grepInvert: /@viewport/, use: { ...devices['iPhone SE'], browserName: 'chromium' } },
     { name: 'phone-modern', grepInvert: /@viewport/, use: { ...devices['iPhone 15 Pro'], browserName: 'chromium' } },
-    { name: 'iphone-webkit', grepInvert: /@viewport/, use: { ...devices['iPhone 15 Pro'], browserName: 'webkit' } },
+    // iPhone 17 Pro Max: 440 × 956 CSS px at 3×. Reuse the nearest
+    // Playwright iPhone UA/touch profile, but override the physical viewport
+    // so implementation screenshots and visual contracts target the device
+    // used by the approved Rider Comms mockups.
+    { name: 'iphone-17-pro-max-webkit', grepInvert: /@viewport/, use: { ...devices['iPhone 15 Pro'], browserName: 'webkit', viewport: { width: 440, height: 956 }, screen: { width: 440, height: 956 }, colorScheme: 'dark' } },
     { name: 'tablet-portrait', grepInvert: /@viewport/, use: { browserName: 'chromium', viewport: { width: 768, height: 1024 }, isMobile: true, hasTouch: true } },
     { name: 'phone-landscape', grepInvert: /@viewport/, use: { browserName: 'chromium', viewport: { width: 844, height: 390 }, isMobile: true, hasTouch: true } },
 
@@ -30,7 +34,7 @@ export default defineConfig({
     // remain explicit synthetic fixtures because Playwright cannot launch an
     // actual Home Screen-installed iOS PWA.
     { name: 'viewport-iphone-se-webkit', grep: /@viewport/, use: { ...devices['iPhone SE'], browserName: 'webkit' } },
-    { name: 'viewport-iphone-modern-webkit-dark', grep: /@viewport/, use: { ...devices['iPhone 15 Pro'], browserName: 'webkit', colorScheme: 'dark' } },
+    { name: 'viewport-iphone-17-pro-max-webkit-dark', grep: /@viewport/, use: { ...devices['iPhone 15 Pro'], browserName: 'webkit', viewport: { width: 440, height: 956 }, screen: { width: 440, height: 956 }, colorScheme: 'dark' } },
     { name: 'viewport-iphone-landscape-webkit', grep: /@viewport/, use: { ...devices['iPhone 15 Pro landscape'], browserName: 'webkit' } },
     { name: 'viewport-ipad-webkit', grep: /@viewport/, use: { ...devices['iPad (gen 11)'], browserName: 'webkit' } },
     { name: 'viewport-ipad-landscape-webkit', grep: /@viewport/, use: { ...devices['iPad (gen 11) landscape'], browserName: 'webkit' } },

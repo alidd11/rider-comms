@@ -255,6 +255,65 @@ test('core PWA screens render without runtime errors or viewport overflow', asyn
   expect(runtimeErrors).toEqual([]);
 });
 
+test('final mockup parity is sharp, map-first and iPhone 17 Pro Max safe', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'iphone-17-pro-max-webkit', 'Final mockup screenshots target iPhone 17 Pro Max geometry.');
+
+  await mockAuthenticatedApi(page, 'stationary');
+  await page.goto('/');
+  await expect(page.locator('#app')).toBeVisible();
+
+  const mapGeometry = await page.evaluate(() => {
+    const screen = document.querySelector('[data-screen="map"]');
+    const canvas = document.querySelector('#mapCanvas');
+    const search = document.querySelector('#mapSearchSlot');
+    const action = document.querySelector('.map-actions .icon-button');
+    const screenBox = screen?.getBoundingClientRect();
+    const canvasBox = canvas?.getBoundingClientRect();
+    return {
+      screenTop: screenBox?.top ?? null,
+      canvasTop: canvasBox?.top ?? null,
+      canvasLeft: canvasBox?.left ?? null,
+      canvasRight: canvasBox?.right ?? null,
+      viewportWidth: document.documentElement.clientWidth,
+      searchRadius: search ? parseFloat(getComputedStyle(search).borderTopLeftRadius) : NaN,
+      actionRadius: action ? parseFloat(getComputedStyle(action).borderTopLeftRadius) : NaN,
+    };
+  });
+  expectNear(mapGeometry.canvasTop, mapGeometry.screenTop);
+  expectNear(mapGeometry.canvasLeft, 0);
+  expectNear(mapGeometry.canvasRight, mapGeometry.viewportWidth);
+  expect(mapGeometry.searchRadius).toBeLessThanOrEqual(4);
+  expect(mapGeometry.actionRadius).toBeLessThanOrEqual(4);
+  await expect(page.locator('[data-screen="map"] .page-header')).toHaveCount(0);
+  await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-map-final.png'), fullPage: true });
+
+  await page.locator('#reportHazardBtn').click();
+  await expect(page.locator('#sheetBackdrop')).toBeVisible();
+  await expect(page.locator('#sheetTitle')).toHaveText('Report on the road');
+  const reportShape = await page.evaluate(() => {
+    const sheet = document.querySelector('.sheet');
+    const tile = document.querySelector('.hazard-type-tile');
+    return {
+      sheetRadius: sheet ? parseFloat(getComputedStyle(sheet).borderTopLeftRadius) : NaN,
+      tileRadius: tile ? parseFloat(getComputedStyle(tile).borderTopLeftRadius) : NaN,
+    };
+  });
+  expect(reportShape.sheetRadius).toBeLessThanOrEqual(8);
+  expect(reportShape.tileRadius).toBeLessThanOrEqual(4);
+  await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-report-final.png'), fullPage: true });
+  await page.locator('#closeSheet').click();
+
+  await page.locator('.bottom-nav [data-nav="settings"]').click();
+  await expect(page.locator('.settings-page')).toBeVisible();
+  await expect(page.locator('[data-screen="settings"] .page-subtitle')).toHaveCount(0);
+  const settingsRadius = await page.locator('.settings-page .settings-group').first().evaluate((element) =>
+    parseFloat(getComputedStyle(element).borderTopLeftRadius)
+  );
+  expect(settingsRadius).toBeLessThanOrEqual(4);
+  await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-settings-final.png'), fullPage: true });
+  await assertNoViewportOverflow(page);
+});
+
 test('PWA route discovery previews route shape and hands the start back to the map', async ({ page }) => {
   await mockAuthenticatedApi(page);
   await page.goto('/');

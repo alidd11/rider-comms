@@ -91,11 +91,11 @@
   // label, colour) for the real HazardType values the backend returns —
   // never mock report data.
   const HAZARD_TYPES = {
-    police: { label: 'Police', icon: 'i-shield', color: '#4f7cff' },
-    camera: { label: 'Speed camera', icon: 'i-camera', color: '#4f7cff' },
-    accident: { label: 'Accident', icon: 'i-alert', color: '#ff6572' },
-    hazard: { label: 'Hazard', icon: 'i-cone', color: '#ffc15a' },
-    road_closure: { label: 'Road closure', icon: 'i-no-entry', color: '#ff6572' },
+    police: { label: 'Police', icon: 'i-shield', color: '#2fa8d3' },
+    camera: { label: 'Speed camera', icon: 'i-camera', color: '#2fa8d3' },
+    accident: { label: 'Accident', icon: 'i-alert', color: '#f0646b' },
+    hazard: { label: 'Hazard', icon: 'i-cone', color: '#d39a42' },
+    road_closure: { label: 'Road closure', icon: 'i-no-entry', color: '#f0646b' },
   };
   const HAZARD_TYPE_ORDER = ['police', 'camera', 'accident', 'hazard', 'road_closure'];
 
@@ -170,14 +170,16 @@
     { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#071c25' }] },
   ];
   const MAP_STYLE_LIGHT = [
-    { elementType: 'geometry', stylers: [{ color: '#f4f1ec' }] },
-    { elementType: 'labels.text.stroke', stylers: [{ color: '#f4f1ec' }] },
-    { elementType: 'labels.text.fill', stylers: [{ color: '#5f574c' }] },
+    { elementType: 'geometry', stylers: [{ color: '#eef3f5' }] },
+    { elementType: 'labels.text.stroke', stylers: [{ color: '#eef3f5' }] },
+    { elementType: 'labels.text.fill', stylers: [{ color: '#4f5e66' }] },
+    { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#33434b' }] },
     { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#ffffff' }] },
-    { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#ddd3c4' }] },
+    { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#cdd8dd' }] },
+    { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#dbe7eb' }] },
     { featureType: 'poi', stylers: [{ visibility: 'off' }] },
     { featureType: 'transit', stylers: [{ visibility: 'off' }] },
-    { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#cfe3ea' }] },
+    { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#d7eaf0' }] },
   ];
   const darkModeQuery = window.matchMedia?.('(prefers-color-scheme: dark)');
   function prefersDarkMode() {
