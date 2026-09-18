@@ -103,6 +103,15 @@ describe('ProfileStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping
     assert.equal((await store.update('rider-1', { avatarId: '' })).ok, false);
   });
 
+  it('rejects an avatar id that neither client can render', async () => {
+    const store = new ProfileStore();
+    const result = await store.update('rider-1', { avatarId: 'not-a-real-preset' });
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.match(result.error, /avatarId must be one of/);
+    const profile = await store.getOrCreate('rider-1');
+    assert.equal(profile.avatarId, 'ember');
+  });
+
   it('does not partially apply an update that fails validation', async () => {
     const store = new ProfileStore();
     const result = await store.update('rider-1', {

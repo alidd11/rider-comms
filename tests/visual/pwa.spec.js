@@ -301,6 +301,7 @@ test('PWA host can remove another rider from a private ride', async ({ page }) =
 test('PWA settings sheets own the bottom edge without competing with app chrome', async ({ page }, testInfo) => {
   await mockAuthenticatedApi(page, 'unknown');
   await page.goto('/#settings');
+  await page.evaluate(() => document.documentElement.style.setProperty('--safe-bottom', '34px'));
 
   const nav = page.locator('.bottom-nav');
   const banner = page.locator('#movementSafetyBanner');
@@ -325,6 +326,17 @@ test('PWA settings sheets own the bottom edge without competing with app chrome'
   expect(sheetBox).not.toBeNull();
   expect(viewport).not.toBeNull();
   expect(Math.abs((sheetBox.y + sheetBox.height) - viewport.height)).toBeLessThanOrEqual(1);
+  const sheetPaddingBottom = await page.locator('.sheet').evaluate((element) => parseFloat(getComputedStyle(element).paddingBottom));
+  expect(sheetPaddingBottom).toBeGreaterThanOrEqual(34);
+  const firstToggle = page.locator('.toggle-row').first();
+  const toggleTitle = firstToggle.locator('strong');
+  const toggleCaption = firstToggle.locator('.caption');
+  await expect(toggleTitle).toHaveCSS('display', 'block');
+  await expect(toggleCaption).toHaveCSS('display', 'block');
+  const [toggleTitleBox, toggleCaptionBox] = await Promise.all([toggleTitle.boundingBox(), toggleCaption.boundingBox()]);
+  expect(toggleTitleBox).not.toBeNull();
+  expect(toggleCaptionBox).not.toBeNull();
+  expect(toggleCaptionBox.y).toBeGreaterThanOrEqual(toggleTitleBox.y + toggleTitleBox.height);
   await page.screenshot({
     path: testInfo.outputPath(`${testInfo.project.name}-settings-privacy-sheet.png`),
     fullPage: true,

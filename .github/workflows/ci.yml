@@ -37,7 +37,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm install
+      - run: npm ci
       - run: npm run check
       - run: npm run build:web
       - name: Install visual-test browser
@@ -47,6 +47,9 @@ jobs:
       - name: Verify Android bundle
         working-directory: mobile
         run: npx expo export --platform android --output-dir /tmp/rider-comms-android
+      - name: Verify iOS bundle
+        working-directory: mobile
+        run: npx expo export --platform ios --output-dir /tmp/rider-comms-ios
       - name: Upload PWA visual audit
         if: always()
         uses: actions/upload-artifact@v4
