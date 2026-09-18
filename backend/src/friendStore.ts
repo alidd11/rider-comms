@@ -306,6 +306,13 @@ export class FriendStore {
       await this.lockPair(client, riderId, friendId);
       await client.query('DELETE FROM friendships WHERE rider_id = $1 AND friend_id = $2', [riderId, friendId]);
       await client.query('DELETE FROM friendships WHERE rider_id = $1 AND friend_id = $2', [friendId, riderId]);
+      await client.query(
+        `DELETE FROM friend_requests
+         WHERE status = 'pending'
+           AND ((from_rider_id = $1 AND to_rider_id = $2)
+             OR (from_rider_id = $2 AND to_rider_id = $1))`,
+        [riderId, friendId],
+      );
       await client.query('COMMIT');
     } catch (error) {
       await client.query('ROLLBACK');

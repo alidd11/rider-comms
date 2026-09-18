@@ -189,4 +189,17 @@ describe('FriendStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping 
     // calling again on non-friends should not throw
     await store.removeFriend('a', 'b');
   });
+
+  it('removeFriend also clears pending requests in either direction', async () => {
+    const store = new FriendStore(new ProfileStore());
+    const request = await store.createRequest('pending-a', 'pending-b');
+    assert.equal(request.ok, true);
+
+    await store.removeFriend('pending-b', 'pending-a');
+
+    const pageA = await store.getRequestsFor('pending-a');
+    const pageB = await store.getRequestsFor('pending-b');
+    assert.deepEqual({ incoming: pageA.incoming, outgoing: pageA.outgoing }, { incoming: [], outgoing: [] });
+    assert.deepEqual({ incoming: pageB.incoming, outgoing: pageB.outgoing }, { incoming: [], outgoing: [] });
+  });
 });
