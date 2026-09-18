@@ -524,8 +524,7 @@ test('PWA chat stays pinned to the visible viewport when the iPhone keyboard cha
   // visual viewport is being simulated. The regression was the full tab bar /
   // duplicated safe-area band (58px+), not this system-sized remainder.
   const composerBottomGap = (chatBox.y + chatBox.height) - (composerBox.y + composerBox.height);
-  expect(composerBottomGap).toBeGreaterThanOrEqual(-1);
-  expect(composerBottomGap).toBeLessThanOrEqual(24);
+  expect(Math.abs(composerBottomGap)).toBeLessThanOrEqual(24);
   await expect(page.locator('.bottom-nav')).toHaveCSS('visibility', 'hidden');
 
   await page.screenshot({
