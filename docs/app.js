@@ -944,7 +944,7 @@
         const current = accountSession.current === true;
         return `<article class="session-row"><span class="setting-icon">${icon('settings')}</span><span class="session-copy"><strong>${escapeHtml(accountSession.deviceName || 'Rider Comms device')}</strong><small>${current ? 'This device' : `Active ${escapeHtml(sessionDateLabel(accountSession.lastSeenAt))}`}</small></span>${current ? '<span class="plan-pill">Current</span>' : `<button class="button tertiary session-revoke" data-revoke-session="${escapeHtml(accountSession.id)}">Sign out</button>`}</article>`;
       }).join('');
-      $('[data-revoke-session]', list).forEach((button) => button.addEventListener('click', async () => {
+      $$('[data-revoke-session]', list).forEach((button) => button.addEventListener('click', async () => {
         button.disabled = true;
         try {
           await apiFetch('DELETE', `/auth/sessions/${encodeURIComponent(button.dataset.revokeSession)}`);
