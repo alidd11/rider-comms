@@ -2,7 +2,7 @@ import { after, before, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { authenticatedFetch, postJson, startTestServer } from './httpTestUtils.ts';
 import type { TestServer } from './httpTestUtils.ts';
-import { getPool, resetDbForTests } from '../src/db.ts';
+import { ensureMigrated, getPool, resetDbForTests } from '../src/db.ts';
 
 // Friends, messages, blocks, and reports are now Postgres-backed (see
 // db.ts) — these tests need DATABASE_URL to point at a reachable Postgres
@@ -12,6 +12,7 @@ const hasDatabase = Boolean(process.env.DATABASE_URL);
 
 before({ skip: !hasDatabase && 'DATABASE_URL not set; skipping Postgres-backed social tests' }, async () => {
   await getPool().query('SELECT 1');
+  await ensureMigrated();
   await getPool().query('TRUNCATE direct_message_reads, friend_requests, friendships, direct_messages, rider_blocks, safety_reports');
 });
 
