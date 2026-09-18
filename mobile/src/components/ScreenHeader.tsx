@@ -15,8 +15,7 @@ export function ScreenHeader({ title, subtitle, action, style }: ScreenHeaderPro
   return (
     <View style={[styles.header, style]}>
       <View style={styles.copy}>
-        <Text style={styles.title}>{title}</Text>
-        {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+        <Text numberOfLines={1} style={styles.title}>{title}</Text>
       </View>
       {action ? <View style={styles.action}>{action}</View> : null}
     </View>
@@ -32,11 +31,6 @@ const styles = StyleSheet.create({
   },
   copy: { flex: 1, minWidth: 0 },
   title: { ...type.title, fontSize: 30, lineHeight: 35 },
-  subtitle: {
-    ...type.body,
-    color: colors.textSecondary,
-    marginTop: spacing.sm,
-    maxWidth: 420,
-  },
+  subtitle: { display: 'none' },
   action: { paddingTop: spacing.xs },
 });
