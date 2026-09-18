@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { LiveKitRoom } from '@livekit/react-native';
 import type { ProximityVoiceConnection } from '../api/client';
 import { startVoiceAudioSession, stopVoiceAudioSession } from '../audio/audioSession';
+import { LiveKitAudioPriorityBridge } from '../audio/LiveKitAudioPriorityBridge';
 import { useVoiceActivity } from '../audio/useVoiceActivity';
 import { useAuth } from '../auth/AuthContext';
 import { useRide } from '../ride/RideContext';
@@ -103,6 +104,7 @@ export function ProximityVoice({ enabled }: { enabled: boolean }): React.JSX.Ele
           onError={() => setError('Could not connect to proximity voice.')}
         >
           <VoiceActivityBridge />
+          <LiveKitAudioPriorityBridge sourceId={`proximity:${connection.peerId}`} />
         </LiveKitRoom>
       ))}
     </View>
