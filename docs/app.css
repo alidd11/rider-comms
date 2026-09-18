@@ -1,5 +1,5 @@
 :root {
-  color-scheme: light dark; --bg:#0e0e0f; --system-chrome:#0e0e0f; --nav-chrome:#0e0e0f; --bg-elevated:#141415; --surface:#181819; --surface-raised:#242426; --surface-hover:#29292c; --border:#303034; --border-soft:#252528; --text:#f5f4f2; --text-secondary:#b8b3ac; --text-muted:#827d76; --accent:#ff2d5a; --accent-soft:#3a1720; --accent-text:#24050c; --success:#39d39b; --danger:#ff6572; --warning:#ffc15a; --focus:#91a7ff; --accent-2:#00e6ff; --accent-2-soft:#062b33; --glow-accent:0 0 1px rgb(255 45 90/.9), 0 0 18px rgb(255 45 90/.55); --glow-accent-2:0 0 1px rgb(0 230 255/.9), 0 0 18px rgb(0 230 255/.5); --gradient-neon:linear-gradient(135deg,var(--accent),var(--accent-2)); --font-display:'Chakra Petch',Inter,ui-sans-serif,system-ui,sans-serif; --shadow-sm:0 4px 16px rgb(0 0 0/.18); --shadow-lg:0 14px 40px rgb(0 0 0/.3); --radius-sm:8px; --radius-md:10px; --radius-lg:12px; --radius-pill:999px; --touch:48px; --nav-height:58px; --content-max:680px; --safe-top:env(safe-area-inset-top,0px); --safe-right:env(safe-area-inset-right,0px); --safe-bottom:min(40px, env(safe-area-inset-bottom,0px)); --safe-left:env(safe-area-inset-left,0px); --app-vh:100dvh; --visual-vh:100dvh; --visual-viewport-top:0px; --bottom-safe-area:0px; --nav-safe-bottom:0px; --bottom-control-inset:0px; --navigation-control-inset:0px; --bottom-nav-height:calc(var(--nav-height) + var(--bottom-control-inset) + 1px); font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; font-synthesis:none;
+  color-scheme: light dark; --bg:#0e0e0f; --system-chrome:#0e0e0f; --nav-chrome:#0e0e0f; --bg-elevated:#141415; --surface:#181819; --surface-raised:#242426; --surface-hover:#29292c; --border:#303034; --border-soft:#252528; --text:#f5f4f2; --text-secondary:#b8b3ac; --text-muted:#827d76; --accent:#ff2d5a; --accent-soft:#3a1720; --accent-text:#24050c; --success:#39d39b; --danger:#ff6572; --warning:#ffc15a; --focus:#91a7ff; --accent-2:#00e6ff; --accent-2-soft:#062b33; --glow-accent:0 0 1px rgb(255 45 90/.9), 0 0 18px rgb(255 45 90/.55); --glow-accent-2:0 0 1px rgb(0 230 255/.9), 0 0 18px rgb(0 230 255/.5); --gradient-neon:linear-gradient(135deg,var(--accent),var(--accent-2)); --font-display:'Chakra Petch',Inter,ui-sans-serif,system-ui,sans-serif; --shadow-sm:0 4px 16px rgb(0 0 0/.18); --shadow-lg:0 14px 40px rgb(0 0 0/.3); --radius-sm:8px; --radius-md:10px; --radius-lg:12px; --radius-pill:999px; --touch:48px; --nav-height:58px; --content-max:680px; --safe-top:env(safe-area-inset-top,0px); --safe-right:env(safe-area-inset-right,0px); --safe-bottom:env(safe-area-inset-bottom,0px); --safe-left:env(safe-area-inset-left,0px); --app-vh:100dvh; --visual-vh:100dvh; --visual-viewport-top:0px; --bottom-safe-area:0px; --nav-safe-bottom:0px; --bottom-control-inset:0px; --navigation-control-inset:0px; --bottom-nav-height:calc(var(--nav-height) + var(--bottom-control-inset) + 1px); font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; font-synthesis:none;
 }
 :root{--surface:#181819;--surface-raised:#242426;--surface-hover:#29292c;--border:#303034}
 /* Installed iOS PWA viewport model.
@@ -607,6 +607,36 @@ html.pwa-standalone.auth-open body{
 html.pwa-standalone:not(.auth-open),
 html.pwa-standalone:not(.auth-open) body{
   background:var(--nav-chrome);
+}
+
+/* Stable standalone overlay ownership
+   -----------------------------------
+   These surfaces live beside (not inside) #app, so position:fixed cannot
+   inherit the app shell's containing block. Give every physical-canvas
+   overlay the same explicit stable height as the shell instead of allowing
+   a cold-start WebKit fixed viewport or an independent dvh measurement to
+   decide where its bottom edge lands. Chat is intentionally excluded: it
+   switches to --visual-vh while the software keyboard is open. */
+html.pwa-standalone .auth-screen,
+html.pwa-standalone .search-screen,
+html.pwa-standalone .sheet-backdrop{
+  top:0;
+  right:0;
+  bottom:auto;
+  left:0;
+  height:var(--app-vh,100vh);
+  min-height:0;
+}
+html.pwa-standalone .auth-layout{
+  min-height:calc(100% - max(calc(var(--safe-top) + 18px),28px) - 28px);
+}
+html.pwa-standalone .sheet{
+  max-height:min(88%,760px);
+}
+html.pwa-standalone .toast,
+html.pwa-standalone .movement-safety-banner,
+html.pwa-standalone .update-banner{
+  position:absolute;
 }
 
 
