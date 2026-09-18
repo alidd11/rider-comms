@@ -300,7 +300,7 @@ test('PWA exposes session management and account deletion', async ({ page }) => 
   await page.locator('#closeSheet').click();
   await page.locator('[data-sheet="account"]').click();
   page.on('dialog', (dialog) => void dialog.accept());
-  await page.locator('#deleteAccountBtn').click();
+  await page.locator('#deleteAccountBtn').click({ noWaitAfter: true });
   await expect.poll(() => accountDeleted).toBe(true);
 });
 
