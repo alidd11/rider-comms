@@ -5,7 +5,7 @@ const PROFILE = {
   riderId: RIDER_ID,
   displayName: 'Alex Rider',
   handle: '@alex_rides',
-  avatarId: 'AR',
+  avatarId: 'ember',
   zoneTier: 'free',
   unitSystem: 'miles',
   shareLocation: false,
@@ -388,6 +388,27 @@ test('installed PWA tab bar owns the iOS home-indicator inset without moving con
   const labelBottomGap = railBottom - (labelBox.y + labelBox.height);
   expect(labelBottomGap).toBeGreaterThanOrEqual(0);
   expect(labelBottomGap).toBeLessThanOrEqual(12);
+});
+
+test('PWA profile avatar selection persists and updates visible avatars', async ({ page }) => {
+  let savedAvatar = 'ember';
+  await mockAuthenticatedApi(page, 'stationary', async ({ request, url }) => {
+    if (request.method() === 'PUT' && url.pathname === `/riders/${RIDER_ID}/profile`) {
+      const body = JSON.parse(request.postData() || '{}');
+      if (typeof body.avatarId === 'string') savedAvatar = body.avatarId;
+      return { body: { ...PROFILE, avatarId: savedAvatar } };
+    }
+    return null;
+  });
+
+  await page.goto('/#settings');
+  await page.locator('#editProfileBtn').click();
+  await expect(page.locator('[data-avatar-option="ember"]')).toHaveAttribute('aria-checked', 'true');
+
+  await page.locator('[data-avatar-option="rose"]').click();
+  await expect.poll(() => savedAvatar).toBe('rose');
+  await expect(page.locator('[data-avatar-option="rose"]')).toHaveAttribute('aria-checked', 'true');
+  await expect(page.locator('[data-avatar]').first()).toHaveCSS('--avatar', '#EC4899');
 });
 
 test('PWA exposes session management and account deletion', async ({ page }) => {
