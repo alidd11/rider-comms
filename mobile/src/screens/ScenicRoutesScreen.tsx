@@ -1,17 +1,15 @@
 import * as React from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import * as Location from 'expo-location';
+import { useNavigation } from '@react-navigation/native';
+import type { NavigationProp } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import type { VehicleCategory } from '@rider-comms/shared';
 import { colors, radii, spacing, type } from '../theme';
 import { CuratedRouteBrowser } from '../routes/CuratedRouteBrowser';
 import { ScreenHeader } from '../components/ScreenHeader';
-
-const VEHICLE_FILTERS: Array<{ value: VehicleCategory | null; label: string }> = [
-  { value: null, label: 'All bikes' },
-  { value: 'motorcycle_small', label: '125cc & small' },
-  { value: 'motorcycle_large', label: 'Larger bikes' },
-  { value: 'scooter', label: 'Scooters' },
-];
+import { RIDE_WINDOWS, type RideWindow, type RiderCoordinate } from '../routes/routeDiscovery';
+import type { CuratedRoute } from '../routes/curatedRoutes';
+import type { TabParamList } from '../navigation';
 
 function FilterChip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
   return (
@@ -28,7 +26,35 @@ function FilterChip({ label, active, onPress }: { label: string; active: boolean
 
 export function ScenicRoutesScreen(): React.JSX.Element {
   const insets = useSafeAreaInsets();
-  const [vehicleFilter, setVehicleFilter] = React.useState<VehicleCategory | null>(null);
+  const navigation = useNavigation<NavigationProp<TabParamList>>();
+  const [rideWindow, setRideWindow] = React.useState<RideWindow>('all');
+  const [riderLocation, setRiderLocation] = React.useState<RiderCoordinate | null>(null);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    void Location.getForegroundPermissionsAsync().then(async (permission) => {
+      if (!permission.granted || cancelled) return;
+      try {
+        const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        if (!cancelled) {
+          setRiderLocation({ lat: position.coords.latitude, lon: position.coords.longitude });
+        }
+      } catch {
+        // Discovery remains useful in editorial order when a location fix is unavailable.
+      }
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  const guideToStart = React.useCallback((route: CuratedRoute) => {
+    navigation.navigate('Map', {
+      segment: 'public',
+      at: Date.now(),
+      lat: route.start.lat,
+      lon: route.start.lon,
+      label: `${route.name} start`,
+    });
+  }, [navigation]);
 
   return (
     <View style={styles.container}>
@@ -37,7 +63,7 @@ export function ScenicRoutesScreen(): React.JSX.Element {
         contentInsetAdjustmentBehavior="automatic"
         showsVerticalScrollIndicator={false}
       >
-        <ScreenHeader title="Routes" subtitle="Curated motorbike-first roads across the UK." />
+        <ScreenHeader title="Routes" subtitle="Pick a ride that fits the time you have." />
 
         <ScrollView
           horizontal
@@ -45,17 +71,21 @@ export function ScenicRoutesScreen(): React.JSX.Element {
           contentContainerStyle={styles.filterRow}
           accessibilityRole="tablist"
         >
-          {VEHICLE_FILTERS.map((filter) => (
+          {RIDE_WINDOWS.map((filter) => (
             <FilterChip
-              key={filter.label}
+              key={filter.value}
               label={filter.label}
-              active={vehicleFilter === filter.value}
-              onPress={() => setVehicleFilter(filter.value)}
+              active={rideWindow === filter.value}
+              onPress={() => setRideWindow(filter.value)}
             />
           ))}
         </ScrollView>
 
-        <CuratedRouteBrowser vehicleFilter={vehicleFilter} />
+        <CuratedRouteBrowser
+          rideWindow={rideWindow}
+          riderLocation={riderLocation}
+          onGuideToStart={guideToStart}
+        />
       </ScrollView>
     </View>
   );
@@ -75,7 +105,7 @@ const styles = StyleSheet.create({
   chip: {
     minHeight: 44,
     paddingHorizontal: spacing.md,
-    borderRadius: radii.pill,
+    borderRadius: radii.sm,
     backgroundColor: colors.surfaceRaised,
     alignItems: 'center',
     justifyContent: 'center',
