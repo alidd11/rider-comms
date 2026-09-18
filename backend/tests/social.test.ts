@@ -2,7 +2,7 @@ import { after, before, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { authenticatedFetch, postJson, startTestServer } from './httpTestUtils.ts';
 import type { TestServer } from './httpTestUtils.ts';
-import { getPool, resetDbForTests } from '../src/db.ts';
+import { ensureMigrated, getPool, resetDbForTests } from '../src/db.ts';
 
 // Friends, messages, blocks, and reports are now Postgres-backed (see
 // db.ts) — these tests need DATABASE_URL to point at a reachable Postgres
@@ -12,7 +12,8 @@ const hasDatabase = Boolean(process.env.DATABASE_URL);
 
 before({ skip: !hasDatabase && 'DATABASE_URL not set; skipping Postgres-backed social tests' }, async () => {
   await getPool().query('SELECT 1');
-  await getPool().query('TRUNCATE friend_requests, friendships, direct_messages, rider_blocks, safety_reports');
+  await ensureMigrated();
+  await getPool().query('TRUNCATE direct_message_reads, friend_requests, friendships, direct_messages, rider_blocks, safety_reports');
 });
 
 after({ skip: !hasDatabase }, async () => {
@@ -57,6 +58,91 @@ describe('profiles, social links, friends, and messages', { skip: !hasDatabase &
     assert.equal((await authenticatedFetch(ctx, 'history-bob', '/messages?withRiderId=history-alice')).status, 403);
     assert.equal((await authenticatedFetch(ctx, 'history-alice', '/messages?withRiderId=history-stranger')).status, 403);
   });
+  it('lets only the sender cancel a pending friend request', async () => {
+    ctx.authStore.createTestSession('cancel-target');
+    const made = await postJson(ctx, 'cancel-sender', '/friends/requests', { toRiderId: 'cancel-target' });
+    assert.equal(made.status, 201);
+    const request = await made.json() as { id: string };
+
+    assert.equal((await authenticatedFetch(ctx, 'cancel-target', `/friends/requests/${request.id}`, { method: 'DELETE' })).status, 404);
+    assert.equal((await authenticatedFetch(ctx, 'cancel-sender', `/friends/requests/${request.id}`, { method: 'DELETE' })).status, 200);
+
+    const senderRequests = await authenticatedFetch(ctx, 'cancel-sender', '/riders/cancel-sender/friend-requests');
+    const targetRequests = await authenticatedFetch(ctx, 'cancel-target', '/riders/cancel-target/friend-requests');
+    assert.deepEqual(await senderRequests.json(), { incoming: [], outgoing: [], profiles: {}, nextCursor: null });
+    assert.deepEqual(await targetRequests.json(), { incoming: [], outgoing: [], profiles: {}, nextCursor: null });
+  });
+
+  it('serves current-friend conversation summaries with unread and read state', async () => {
+    ctx.authStore.createTestSession('conv-bob');
+    ctx.authStore.createTestSession('conv-charlie');
+    await ctx.profileStore.update('conv-bob', { displayName: 'Bob Rider', handle: '@conv_bob' });
+    await ctx.profileStore.update('conv-charlie', { displayName: 'Charlie Rider', handle: '@conv_charlie' });
+
+    const bobRequest = await postJson(ctx, 'conv-alice', '/friends/requests', { toRiderId: 'conv-bob' });
+    const bobRequestBody = await bobRequest.json() as { id: string };
+    await postJson(ctx, 'conv-bob', `/friends/requests/${bobRequestBody.id}/accept`, {});
+
+    const charlieRequest = await postJson(ctx, 'conv-alice', '/friends/requests', { toRiderId: 'conv-charlie' });
+    const charlieRequestBody = await charlieRequest.json() as { id: string };
+    await postJson(ctx, 'conv-charlie', `/friends/requests/${charlieRequestBody.id}/accept`, {});
+
+    await postJson(ctx, 'conv-bob', '/messages', { toRiderId: 'conv-alice', text: 'Bob incoming' });
+    await postJson(ctx, 'conv-alice', '/messages', { toRiderId: 'conv-bob', text: 'Alice reply' });
+    await postJson(ctx, 'conv-charlie', '/messages', { toRiderId: 'conv-alice', text: 'Charlie incoming' });
+
+    const firstPageResponse = await authenticatedFetch(ctx, 'conv-alice', '/conversations?limit=1');
+    assert.equal(firstPageResponse.status, 200);
+    const firstPage = await firstPageResponse.json() as {
+      conversations: Array<{ friend: { riderId: string; displayName: string }; lastMessage: { text: string }; unreadCount: number }>;
+      nextCursor: string | null;
+    };
+    assert.equal(firstPage.conversations.length, 1);
+    assert.equal(firstPage.conversations[0].friend.riderId, 'conv-charlie');
+    assert.equal(firstPage.conversations[0].friend.displayName, 'Charlie Rider');
+    assert.equal(firstPage.conversations[0].lastMessage.text, 'Charlie incoming');
+    assert.equal(firstPage.conversations[0].unreadCount, 1);
+    assert.ok(firstPage.nextCursor);
+
+    const secondPageResponse = await authenticatedFetch(
+      ctx,
+      'conv-alice',
+      `/conversations?limit=1&before=${encodeURIComponent(firstPage.nextCursor ?? '')}`,
+    );
+    const secondPage = await secondPageResponse.json() as {
+      conversations: Array<{ friend: { riderId: string }; unreadCount: number }>;
+      nextCursor: string | null;
+    };
+    assert.equal(secondPage.conversations[0].friend.riderId, 'conv-bob');
+    assert.equal(secondPage.conversations[0].unreadCount, 1);
+    assert.equal(secondPage.nextCursor, null);
+
+    const unreadBefore = await authenticatedFetch(ctx, 'conv-alice', '/messages/unread-count');
+    assert.deepEqual(await unreadBefore.json(), { unreadCount: 2 });
+
+    const marked = await postJson(ctx, 'conv-alice', '/messages/read', { withRiderId: 'conv-charlie' });
+    assert.equal(marked.status, 200);
+    const markedBody = await marked.json() as { readThroughSeq: number };
+    assert.ok(markedBody.readThroughSeq > 0);
+
+    const unreadAfter = await authenticatedFetch(ctx, 'conv-alice', '/messages/unread-count');
+    assert.deepEqual(await unreadAfter.json(), { unreadCount: 1 });
+
+    const refreshed = await authenticatedFetch(ctx, 'conv-alice', '/conversations');
+    const refreshedBody = await refreshed.json() as {
+      conversations: Array<{ friend: { riderId: string }; unreadCount: number }>;
+    };
+    assert.equal(refreshedBody.conversations.find(({ friend }) => friend.riderId === 'conv-charlie')?.unreadCount, 0);
+
+    assert.equal((await authenticatedFetch(ctx, 'conv-alice', '/conversations?before=not-a-sequence')).status, 400);
+    assert.equal((await authenticatedFetch(ctx, 'conv-alice', '/riders/conv-alice/friends/conv-bob', { method: 'DELETE' })).status, 200);
+
+    const afterRemoval = await authenticatedFetch(ctx, 'conv-alice', '/conversations');
+    const afterRemovalBody = await afterRemoval.json() as { conversations: Array<{ friend: { riderId: string } }> };
+    assert.equal(afterRemovalBody.conversations.some(({ friend }) => friend.riderId === 'conv-bob'), false);
+    assert.equal((await postJson(ctx, 'conv-alice', '/messages/read', { withRiderId: 'conv-bob' })).status, 403);
+  });
+
   it('resolves a friend request sent by handle to the matching riderId', async () => {
     ctx.authStore.createTestSession('carol');
     await ctx.profileStore.update('carol', { handle: '@carol_rides' });
