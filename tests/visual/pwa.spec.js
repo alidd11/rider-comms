@@ -700,8 +700,14 @@ test('PWA chat stays pinned to the visible viewport when the iPhone keyboard cha
       addEventListener(type, listener) { listeners[type]?.add(listener); },
       removeEventListener(type, listener) { listeners[type]?.delete(listener); },
     };
+    let rootScrollY = 0;
     Object.defineProperty(window, 'visualViewport', { configurable: true, value: viewport });
     Object.defineProperty(window.navigator, 'standalone', { configurable: true, value: true });
+    Object.defineProperty(window, 'scrollY', { configurable: true, get: () => rootScrollY });
+    window.__setRiderTestRootScrollY = (value) => {
+      rootScrollY = value;
+      window.dispatchEvent(new Event('scroll'));
+    };
     window.__setRiderTestVisualViewport = (height, offsetTop = 0) => {
       viewport.height = height;
       viewport.offsetTop = offsetTop;
@@ -728,6 +734,7 @@ test('PWA chat stays pinned to the visible viewport when the iPhone keyboard cha
   await page.locator('#messageFriend').click();
   await expect(page.locator('#chatScreen')).toBeVisible();
   await expect(page.locator('#chatInput')).not.toBeFocused();
+  await expect(page.locator('body')).toHaveCSS('position', 'fixed');
 
   await page.evaluate(() => document.documentElement.style.setProperty('--bottom-safe-area', '34px'));
   const closedComposerPaddingBottom = await page.locator('#chatComposer').evaluate((element) => getComputedStyle(element).paddingBottom);
@@ -742,6 +749,20 @@ test('PWA chat stays pinned to the visible viewport when the iPhone keyboard cha
 
   await expect(page.locator('html')).toHaveClass(/keyboard-open/);
   await expect(page.locator('#chatHideouts')).toBeHidden();
+
+  // Model the installed-iOS failure seen on-device: WebKit pans the document
+  // itself while leaving visualViewport.offsetTop at zero. The app must
+  // detect that root pan and compensate the chat surface instead of letting
+  // the header disappear above the status bar and leaving a gap by keyboard.
+  await page.evaluate(() => window.__setRiderTestRootScrollY(84));
+  await expect.poll(async () => page.evaluate(() =>
+    document.documentElement.style.getPropertyValue('--chat-root-pan')
+  )).toBe('84px');
+  await page.evaluate(() => window.__setRiderTestRootScrollY(0));
+  await expect.poll(async () => page.evaluate(() =>
+    document.documentElement.style.getPropertyValue('--chat-root-pan')
+  )).toBe('0px');
+
   await expect.poll(async () => {
     const box = await page.locator('#chatScreen').boundingBox();
     return box ? Math.round(box.y) : -1;
@@ -777,6 +798,7 @@ test('PWA chat stays pinned to the visible viewport when the iPhone keyboard cha
   }, { height: initialViewportHeight });
 
   await expect(page.locator('html')).not.toHaveClass(/keyboard-open/);
+  await expect(page.locator('body')).toHaveCSS('position', 'fixed');
   await expect.poll(async () => {
     const box = await page.locator('#chatScreen').boundingBox();
     return box ? Math.round(box.y + box.height) : -1;
