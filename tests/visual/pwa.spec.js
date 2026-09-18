@@ -162,6 +162,56 @@ async function waitForViewportSettled(page) {
   }));
 }
 
+async function installStandaloneFixture(page) {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'standalone', { configurable: true, value: true });
+  });
+}
+
+async function setSyntheticSafeArea(page, bottom) {
+  await page.evaluate((value) => {
+    const root = document.documentElement;
+    root.style.setProperty('--safe-bottom', `${value}px`);
+    root.style.setProperty('--bottom-safe-area', `${value}px`);
+  }, bottom);
+}
+
+async function standaloneGeometry(page) {
+  return page.evaluate(() => {
+    const root = document.documentElement;
+    const app = document.querySelector('#app');
+    const screen = document.querySelector('.screen.active');
+    const nav = document.querySelector('.bottom-nav');
+    const rail = nav?.querySelector('button');
+    const map = document.querySelector('#mapCanvas');
+    const box = (element) => element?.getBoundingClientRect();
+    const appBox = box(app);
+    const screenBox = box(screen);
+    const navBox = box(nav);
+    const railBox = box(rail);
+    const mapBox = box(map);
+    const navStyle = getComputedStyle(nav);
+    return {
+      viewportHeight: root.clientHeight,
+      viewportWidth: root.clientWidth,
+      appTop: appBox?.top,
+      appBottom: appBox?.bottom,
+      screenBottom: screenBox?.bottom,
+      navTop: navBox?.top,
+      navBottom: navBox?.bottom,
+      navHeight: navBox?.height,
+      navPaddingBottom: parseFloat(navStyle.paddingBottom),
+      railBottom: railBox?.bottom,
+      mapBottom: mapBox?.bottom,
+      documentWidth: root.scrollWidth,
+    };
+  });
+}
+
+function expectNear(actual, expected, tolerance = 1.5) {
+  expect(Math.abs(actual - expected)).toBeLessThanOrEqual(tolerance);
+}
+
 test('core PWA screens render without runtime errors or viewport overflow', async ({ page }, testInfo) => {
   const runtimeErrors = [];
   page.on('pageerror', (error) => runtimeErrors.push(`pageerror: ${error.stack || error.message}`));
@@ -755,7 +805,7 @@ test('PWA Hideouts can be loaded, created and deleted from a friend chat', async
   await assertNoViewportOverflow(page);
 });
 
-test('PWA chat stays pinned to the visible viewport when the iPhone keyboard changes geometry', async ({ page }, testInfo) => {
+test('@viewport PWA chat stays pinned to the visible viewport when the keyboard changes geometry', async ({ page }, testInfo) => {
   await page.addInitScript(() => {
     const listeners = { resize: new Set(), scroll: new Set() };
     const viewport = {
@@ -794,6 +844,7 @@ test('PWA chat stays pinned to the visible viewport when the iPhone keyboard cha
   });
 
   await page.goto('/#friends');
+  const baselineNavBox = await page.locator('.bottom-nav').boundingBox();
   await page.locator('[data-friend="rider_friend01"]').click();
   await page.locator('#messageFriend').click();
   await expect(page.locator('#chatScreen')).toBeVisible();
@@ -854,7 +905,12 @@ test('PWA chat stays pinned to the visible viewport when the iPhone keyboard cha
 
   await page.screenshot({
     path: testInfo.outputPath(`${testInfo.project.name}-chat-keyboard-viewport.png`),
-    fullPage: true,
+    clip: {
+      x: Math.max(0, chatBox.x),
+      y: Math.max(0, chatBox.y),
+      width: chatBox.width,
+      height: chatBox.height,
+    },
   });
 
   await page.evaluate(({ height }) => {
@@ -867,6 +923,28 @@ test('PWA chat stays pinned to the visible viewport when the iPhone keyboard cha
     const box = await page.locator('#chatScreen').boundingBox();
     return box ? Math.round(box.y + box.height) : -1;
   }).toBe(initialViewportHeight);
+
+  // Repeat the same open/dismiss transition in one page session. WebKit has
+  // historically retained a shrunken viewport after the first keyboard, so a
+  // single cycle is not a sufficient regression check.
+  await page.evaluate(({ height, offsetTop }) => {
+    window.__setRiderTestVisualViewport(height, offsetTop);
+  }, { height: keyboardViewportHeight, offsetTop: keyboardOffsetTop });
+  await expect(page.locator('html')).toHaveClass(/keyboard-open/);
+  await page.evaluate(({ height }) => {
+    window.__setRiderTestVisualViewport(height, 0);
+  }, { height: initialViewportHeight });
+  await expect(page.locator('html')).not.toHaveClass(/keyboard-open/);
+  await expect.poll(async () => {
+    const box = await page.locator('#chatScreen').boundingBox();
+    return box ? Math.round(box.y + box.height) : -1;
+  }).toBe(initialViewportHeight);
+
+  await page.locator('#chatBack').click();
+  await expect(page.locator('#chatScreen')).toBeHidden();
+  await expect(page.locator('.bottom-nav')).toBeVisible();
+  const restoredNavBox = await page.locator('.bottom-nav').boundingBox();
+  expectNear(restoredNavBox.y + restoredNavBox.height, baselineNavBox.y + baselineNavBox.height);
 });
 
 test('PWA profile avatar selection persists and updates visible avatars', async ({ page }) => {
@@ -888,6 +966,179 @@ test('PWA profile avatar selection persists and updates visible avatars', async 
   await expect.poll(() => savedAvatar).toBe('rose');
   await expect(page.locator('[data-avatar-option="rose"]')).toHaveAttribute('aria-checked', 'true');
   await expect(page.locator('[data-avatar]').first()).toHaveCSS('--avatar', '#EC4899');
+});
+
+test('@viewport standalone canvas, navigation and scroll geometry remain coherent', async ({ page }, testInfo) => {
+  test.setTimeout(90_000);
+  await installStandaloneFixture(page);
+  await mockAuthenticatedApi(page);
+  await page.goto('/#map');
+  await waitForViewportSettled(page);
+  await expect(page.locator('html')).toHaveClass(/pwa-standalone/);
+
+  for (const safeBottom of [0, 20, 34, 50]) {
+    await setSyntheticSafeArea(page, safeBottom);
+    const geometry = await standaloneGeometry(page);
+    expectNear(geometry.appTop, 0);
+    expectNear(geometry.appBottom, geometry.viewportHeight);
+    expectNear(geometry.screenBottom, geometry.appBottom);
+    expectNear(geometry.navBottom, geometry.appBottom);
+    expectNear(geometry.navHeight, 58 + safeBottom + 1);
+    expect(geometry.navPaddingBottom).toBeGreaterThanOrEqual(safeBottom);
+    expect(geometry.railBottom).toBeLessThanOrEqual(geometry.appBottom - safeBottom + 1);
+    expectNear(geometry.mapBottom, geometry.navTop);
+    expect(geometry.documentWidth).toBeLessThanOrEqual(geometry.viewportWidth + 1);
+  }
+
+  await setSyntheticSafeArea(page, 34);
+  const captureEvidence = /iphone-modern|pixel-chromium|iphone-landscape|ipad-webkit/.test(testInfo.project.name);
+  const screens = [
+    ['map', '#mapCanvas'],
+    ['ride', '#joinRideForm .ride-location-consent'],
+    ['routes', '#curatedRouteList'],
+    ['friends', '#friendList'],
+    ['settings', '.version'],
+  ];
+
+  for (const [name, finalSelector] of screens) {
+    await page.locator(`.bottom-nav [data-nav="${name}"]`).click();
+    const screen = page.locator(`.screen[data-screen="${name}"]`);
+    await expect(screen).toBeVisible();
+
+    if (name === 'friends') {
+      await page.evaluate(() => {
+        const list = document.querySelector('#friendList');
+        const source = list?.firstElementChild;
+        if (!list || !source) return;
+        for (let index = 0; index < 16; index += 1) {
+          const clone = source.cloneNode(true);
+          clone.dataset.friend = `viewport-friend-${index}`;
+          list.append(clone);
+        }
+      });
+    }
+
+    const final = name === 'routes'
+      ? page.locator('[data-curated-route]').last()
+      : name === 'friends'
+        ? page.locator('#friendList > *').last()
+        : page.locator(finalSelector).last();
+    if (name === 'map') {
+      const mapGeometry = await standaloneGeometry(page);
+      expectNear(mapGeometry.mapBottom, mapGeometry.navTop);
+    } else {
+      await final.scrollIntoViewIfNeeded();
+      await screen.evaluate((element) => { element.scrollTop = element.scrollHeight; });
+      const [finalBox, navBox] = await Promise.all([final.boundingBox(), page.locator('.bottom-nav').boundingBox()]);
+      expect(finalBox, `${name} final element has no geometry`).not.toBeNull();
+      expect(navBox).not.toBeNull();
+      expect(finalBox.y + finalBox.height, `${name} final element must clear persistent navigation`).toBeLessThanOrEqual(navBox.y + 1);
+    }
+    await assertNoViewportOverflow(page);
+
+    if (captureEvidence) {
+      await page.screenshot({ path: testInfo.outputPath(`${testInfo.project.name}-${name}-viewport.png`) });
+    }
+  }
+
+  await page.locator('.bottom-nav [data-nav="map"]').click();
+  const baseline = await standaloneGeometry(page);
+  await page.evaluate(() => {
+    document.querySelector('#movementSafetyBanner').hidden = false;
+    window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await waitForViewportSettled(page);
+  const resumed = await standaloneGeometry(page);
+  expectNear(resumed.appBottom, baseline.appBottom);
+  expectNear(resumed.navBottom, baseline.navBottom);
+  expectNear(resumed.mapBottom, resumed.navTop);
+
+  if (testInfo.project.name === 'viewport-iphone-modern-webkit-dark') {
+    const original = page.viewportSize();
+    await page.setViewportSize({ width: original.height, height: original.width });
+    await page.evaluate(() => window.dispatchEvent(new Event('orientationchange')));
+    await waitForViewportSettled(page);
+    await page.setViewportSize(original);
+    await page.evaluate(() => window.dispatchEvent(new Event('orientationchange')));
+    await waitForViewportSettled(page);
+    const roundTrip = await standaloneGeometry(page);
+    expectNear(roundTrip.appBottom, baseline.appBottom);
+    expectNear(roundTrip.navBottom, baseline.navBottom);
+    expectNear(roundTrip.mapBottom, roundTrip.navTop);
+  }
+});
+
+test('@viewport full-screen overlays and sheets share the stable standalone bottom edge', async ({ page }, testInfo) => {
+  test.setTimeout(90_000);
+  await installStandaloneFixture(page);
+  await mockAuthenticatedApi(page, 'unknown');
+  await page.goto('/#settings');
+  await waitForViewportSettled(page);
+  await setSyntheticSafeArea(page, 50);
+
+  const app = page.locator('#app');
+  const nav = page.locator('.bottom-nav');
+  const appBottom = (await app.boundingBox()).y + (await app.boundingBox()).height;
+  const baselineNavBottom = (await nav.boundingBox()).y + (await nav.boundingBox()).height;
+  const captureEvidence = /iphone-modern|pixel-chromium|iphone-landscape|ipad-webkit/.test(testInfo.project.name);
+
+  const assertSheet = async (screenshotName) => {
+    const backdrop = page.locator('#sheetBackdrop');
+    const sheet = page.locator('.sheet');
+    await expect(page.locator('html')).toHaveClass(/sheet-open/);
+    await expect(app).toHaveAttribute('inert', '');
+    await expect(nav).toBeHidden();
+    await expect(page.locator('#ridePill')).toBeHidden();
+    await expect(page.locator('#movementSafetyBanner')).toBeHidden();
+    await expect(page.locator('#updateBanner')).toBeHidden();
+    await sheet.evaluate(async (element) => Promise.all(element.getAnimations().map((animation) => animation.finished)));
+    const [backdropBox, sheetBox] = await Promise.all([backdrop.boundingBox(), sheet.boundingBox()]);
+    expectNear(backdropBox.y + backdropBox.height, appBottom);
+    expectNear(sheetBox.y + sheetBox.height, appBottom);
+    const paddingBottom = await sheet.evaluate((element) => parseFloat(getComputedStyle(element).paddingBottom));
+    expect(paddingBottom).toBeGreaterThanOrEqual(50);
+    await sheet.evaluate((element) => { element.scrollTop = element.scrollHeight; });
+    expectNear((await sheet.boundingBox()).y + (await sheet.boundingBox()).height, appBottom);
+    if (captureEvidence) await page.screenshot({ path: testInfo.outputPath(`${testInfo.project.name}-${screenshotName}.png`) });
+    await page.locator('#closeSheet').click();
+    await expect(page.locator('html')).not.toHaveClass(/sheet-open/);
+    await expect(app).not.toHaveAttribute('inert', '');
+    await expect(nav).toBeVisible();
+    const restoredNav = await nav.boundingBox();
+    expectNear(restoredNav.y + restoredNav.height, baselineNavBottom);
+  };
+
+  await page.locator('#editProfileBtn').click();
+  await assertSheet('edit-profile-sheet');
+  for (const [type, name] of [['map', 'location-map-sheet'], ['navigation', 'navigation-sheet'], ['plans', 'plan-sheet']]) {
+    await page.locator(`[data-sheet="${type}"]`).click();
+    await assertSheet(name);
+  }
+  // Repeat a sheet transition to catch accumulated bottom offsets.
+  await page.locator('[data-sheet="map"]').click();
+  await assertSheet('location-map-sheet-repeat');
+
+  await page.locator('.bottom-nav [data-nav="friends"]').click();
+  await page.locator('[data-friend="rider_friend01"]').click();
+  await assertSheet('friend-detail-sheet');
+
+  await page.locator('.bottom-nav [data-nav="map"]').click();
+  await page.locator('#movementSafetyBanner').evaluate((element) => { element.hidden = true; });
+  await page.locator('#mapSearchSlot').click();
+  const searchBox = await page.locator('#searchScreen').boundingBox();
+  expectNear(searchBox.y + searchBox.height, appBottom);
+  await page.locator('#searchScreenBack').click();
+
+  await page.locator('.bottom-nav [data-nav="routes"]').click();
+  await page.locator('[data-curated-route]').first().click();
+  const routeBackdrop = page.locator('.route-detail-backdrop');
+  const routeBox = await routeBackdrop.boundingBox();
+  expectNear(routeBox.y + routeBox.height, appBottom);
+  const routePadding = await page.locator('.route-detail-body').evaluate((element) => parseFloat(getComputedStyle(element).paddingBottom));
+  expect(routePadding).toBeGreaterThanOrEqual(50);
+  await page.locator('.route-detail-close').click();
+  await assertNoViewportOverflow(page);
 });
 
 test('PWA exposes session management and account deletion', async ({ page }) => {
