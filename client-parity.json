@@ -32,6 +32,6 @@
     { "id": "ride-safe", "pwa": true, "native": true, "status": "parity" },
     { "id": "session-management", "pwa": true, "native": true, "status": "parity" },
     { "id": "account-deletion", "pwa": true, "native": true, "status": "parity" },
-    { "id": "billing-preview", "pwa": true, "native": true, "status": "content-gap" }
+    { "id": "billing-preview", "pwa": true, "native": true, "status": "parity" }
   ]
 }
