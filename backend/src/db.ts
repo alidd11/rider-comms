@@ -514,6 +514,20 @@ const MIGRATIONS: { name: string; sql: string }[] = [
         WHERE status = 'pending';
     `,
   },
+  {
+    name: '0024_direct_message_read_state',
+    sql: `
+      CREATE TABLE IF NOT EXISTS direct_message_reads (
+        rider_id TEXT NOT NULL,
+        conversation_key TEXT NOT NULL,
+        last_read_seq BIGINT NOT NULL DEFAULT 0 CHECK (last_read_seq >= 0),
+        updated_at BIGINT NOT NULL,
+        PRIMARY KEY (rider_id, conversation_key)
+      );
+      CREATE INDEX IF NOT EXISTS direct_messages_incoming_unread_idx
+        ON direct_messages (conversation_key, to_rider_id, seq DESC);
+    `,
+  },
 ];
 
 /**
