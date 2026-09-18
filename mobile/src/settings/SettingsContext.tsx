@@ -4,9 +4,8 @@ import type { ProfileUpdate, RiderProfile, SocialVisibility, ZoneTier } from '@r
 import { DEFAULT_AVATAR_ID } from './avatars';
 import { useAuth } from '../auth/AuthContext';
 import { ensureNotificationPermission } from '../notifications/permissions';
+import { resolveNotificationPreference } from '../notifications/preference';
 import { ApiError } from '../api/client';
-
-const NOTIFY_KEYS = new Set(['notifyNearby', 'notifyInvites', 'notifyChat']);
 
 const LEGACY_CACHE_KEY = '@rider-comms/settings/cachedProfile';
 const cacheKey = (riderId: string): string => `@rider-comms/settings/profile/${riderId}`;
@@ -77,17 +76,35 @@ export function SettingsProvider({ children }: { children: React.ReactNode }): R
         pendingSaves.current -= 1;
         setSaving(pendingSaves.current > 0);
       });
-    if (value === true && NOTIFY_KEYS.has(key)) void ensureNotificationPermission().catch(() => {});
   }, [client, riderId]);
+
+  const updateNotification = React.useCallback((key: 'notifyNearby' | 'notifyInvites' | 'notifyChat', value: boolean) => {
+    if (!value) {
+      update(key, false);
+      return;
+    }
+    setProfileError(null);
+    void resolveNotificationPreference(true, ensureNotificationPermission)
+      .then((granted) => {
+        if (!granted) {
+          setProfileError('Notifications are blocked by the operating system. Allow them in device settings, then try again.');
+          return;
+        }
+        update(key, true);
+      })
+      .catch(() => {
+        setProfileError('Rider Comms could not request notification permission. Try again from device settings.');
+      });
+  }, [update]);
   const setters = React.useMemo(() => ({
     setZoneTier: (v: ZoneTier) => update('zoneTier', v), setAvatarId: (v: string) => update('avatarId', v),
     setDisplayName: (v: string) => update('displayName', v.trim() || 'Rider'), setHandle: (v: string) => update('handle', v.trim() || '@rider'),
-    setUnitSystem: (v: UnitSystem) => update('unitSystem', v), setNotifyNearby: (v: boolean) => update('notifyNearby', v),
-    setNotifyInvites: (v: boolean) => update('notifyInvites', v), setNotifyChat: (v: boolean) => update('notifyChat', v),
+    setUnitSystem: (v: UnitSystem) => update('unitSystem', v), setNotifyNearby: (v: boolean) => updateNotification('notifyNearby', v),
+    setNotifyInvites: (v: boolean) => updateNotification('notifyInvites', v), setNotifyChat: (v: boolean) => updateNotification('notifyChat', v),
     setShareLocation: (v: boolean) => update('shareLocation', v), setInstagramUsername: (v: string) => update('instagramUsername', v.replace(/^@/, '').trim()),
     setInstagramVisibility: (v: SocialVisibility) => update('instagramVisibility', v), setTiktokUsername: (v: string) => update('tiktokUsername', v.replace(/^@/, '').trim()),
     setTiktokVisibility: (v: SocialVisibility) => update('tiktokVisibility', v),
-  }), [update]);
+  }), [update, updateNotification]);
   const resetAll = React.useCallback(() => { stateRef.current = DEFAULTS; setState(DEFAULTS); void AsyncStorage.removeItem(cacheKey(riderId)); void client.updateProfile(riderId, DEFAULTS).catch(() => setProfileError('Your settings could not be reset on the server.')); }, [client, riderId]);
   const clearProfileError = React.useCallback(() => setProfileError(null), []);
   const value = React.useMemo(() => ({ ...state, ...setters, loaded, saving, profileError, clearProfileError, resetAll }), [state, setters, loaded, saving, profileError, clearProfileError, resetAll]);
