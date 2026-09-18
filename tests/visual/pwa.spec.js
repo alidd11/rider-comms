@@ -255,6 +255,28 @@ test('core PWA screens render without runtime errors or viewport overflow', asyn
   expect(runtimeErrors).toEqual([]);
 });
 
+test('PWA route discovery previews route shape and hands the start back to the map', async ({ page }) => {
+  await mockAuthenticatedApi(page);
+  await page.goto('/');
+  await expect(page.locator('#app')).toBeVisible();
+
+  await page.locator('.bottom-nav [data-nav="routes"]').click();
+  const firstRoute = page.locator('.curated-route-card').first();
+  await expect(firstRoute).toBeVisible();
+  await expect(firstRoute.locator('.route-trace-card')).toBeVisible();
+
+  await firstRoute.click();
+  await expect(page.locator('.route-detail')).toBeVisible();
+  await expect(page.locator('.route-trace-detail')).toBeVisible();
+  await expect(page.locator('[data-guide-route-start]')).toBeVisible();
+
+  await page.locator('[data-guide-route-start]').click();
+  await expect(page.locator('[data-screen="map"]')).toHaveClass(/active/);
+  await expect(page.locator('#destinationCard')).toBeVisible();
+  await expect(page.locator('#destinationCard')).toContainText('start');
+  await assertNoViewportOverflow(page);
+});
+
 test('PWA map uses an already-granted live location instead of showing the London fallback as the rider', async ({ page }) => {
   await mockAuthenticatedApi(page, 'stationary');
   await page.goto('/');
