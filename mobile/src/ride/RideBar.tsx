@@ -14,7 +14,7 @@ import * as React from 'react';
 import { View, Text, Pressable, StyleSheet, Modal, Alert } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LiveKitRoom } from '@livekit/react-native';
-import { AudioEngine } from '../audio/audioEngine';
+import { audioEngine } from '../audio/audioEngine';
 import { startVoiceAudioSession, stopVoiceAudioSession } from '../audio/audioSession';
 import { useVoiceActivity } from '../audio/useVoiceActivity';
 import { useAuth } from '../auth/AuthContext';
@@ -107,7 +107,7 @@ export function RideBar(): React.JSX.Element | null {
   const { activeRide, leaveRide, shareRideLocation, setRideLocationSharing } = useRide();
   const { lockedForSafety } = useMovementSafety();
   const [expanded, setExpanded] = React.useState(false);
-  const audioEngineRef = React.useRef(new AudioEngine());
+  const audioEngineRef = React.useRef(audioEngine);
   const [gains, setGains] = React.useState(audioEngineRef.current.getGains());
   const [talking, setTalking] = React.useState(false);
   const [manuallyMuted, setManuallyMuted] = React.useState(false);
