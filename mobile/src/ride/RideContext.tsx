@@ -1,5 +1,6 @@
 import * as React from 'react';
 import * as Location from 'expo-location';
+import { AppState } from 'react-native';
 import { useAuth } from '../auth/AuthContext';
 import { ApiError, type RideMemberLocation } from '../api/client';
 
@@ -89,6 +90,7 @@ export function RideProvider({ children }: { children: React.ReactNode }): React
     if (!activeRide) return;
     let cancelled = false;
     const refresh = async () => {
+      if (cancelled || AppState.currentState !== 'active') return;
       try {
         const ride = await client.getRide(activeRide.rideId);
         if (!cancelled) setRoster(ride.memberIds);
@@ -104,9 +106,13 @@ export function RideProvider({ children }: { children: React.ReactNode }): React
     };
     void refresh();
     const timer = setInterval(refresh, 5_000);
+    const appStateSubscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') void refresh();
+    });
     return () => {
       cancelled = true;
       clearInterval(timer);
+      appStateSubscription.remove();
     };
   }, [activeRide?.rideId, client]);
 
@@ -118,6 +124,7 @@ export function RideProvider({ children }: { children: React.ReactNode }): React
     let cancelled = false;
 
     const tick = async () => {
+      if (cancelled || AppState.currentState !== 'active') return;
       try {
         const permission = await Location.getForegroundPermissionsAsync();
         if (!permission.granted || cancelled) return;
@@ -134,9 +141,13 @@ export function RideProvider({ children }: { children: React.ReactNode }): React
 
     void tick();
     const timer = setInterval(tick, RIDE_LOCATION_REFRESH_MS);
+    const appStateSubscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') void tick();
+    });
     return () => {
       cancelled = true;
       clearInterval(timer);
+      appStateSubscription.remove();
     };
   }, [activeRide?.rideId, activeRide?.shareRideLocation, client]);
 
