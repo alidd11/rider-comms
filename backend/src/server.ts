@@ -588,12 +588,16 @@ async function startProductionServer(): Promise<void> {
   // never advertises itself as ready or receives product traffic.
   await ensureMigrated();
   const productionAuthStore = new AuthStore();
+  const productionSocialRateLimitStore = new SocialRateLimitStore();
   const initialCleanup = await productionAuthStore.cleanupExpiredRecords();
+  const initialSocialRateCleanup = await productionSocialRateLimitStore.cleanupExpired();
   console.log(JSON.stringify({ level: 'info', event: 'auth_records_cleaned', ...initialCleanup }));
+  console.log(JSON.stringify({ level: 'info', event: 'social_rate_events_cleaned', deleted: initialSocialRateCleanup }));
   const app = createApp(undefined, undefined, undefined, undefined, undefined, undefined, productionAuthStore, undefined, undefined, undefined, {
     allowedOrigins,
     trustProxy: process.env.TRUST_PROXY === 'true',
     logger: (event) => console.log(JSON.stringify({ level: 'info', event: 'http_request', ...event })),
+    socialRateLimitStore: productionSocialRateLimitStore,
   });
   app.requestTimeout = 15_000;
   app.headersTimeout = 10_000;
@@ -605,12 +609,19 @@ async function startProductionServer(): Promise<void> {
       .catch((error) => console.error(JSON.stringify({ level: 'error', event: 'auth_record_cleanup_failed', message: error instanceof Error ? error.message : String(error) })));
   }, AUTH_CLEANUP_INTERVAL_MS);
   authCleanupTimer.unref();
+  const socialRateCleanupTimer = setInterval(() => {
+    void productionSocialRateLimitStore.cleanupExpired()
+      .then((deleted) => console.log(JSON.stringify({ level: 'info', event: 'social_rate_events_cleaned', deleted })))
+      .catch((error) => console.error(JSON.stringify({ level: 'error', event: 'social_rate_cleanup_failed', message: error instanceof Error ? error.message : String(error) })));
+  }, SOCIAL_RATE_CLEANUP_INTERVAL_MS);
+  socialRateCleanupTimer.unref();
 
   let stopping = false;
   const shutdown = (signal: NodeJS.Signals) => {
     if (stopping) return;
     stopping = true;
     clearInterval(authCleanupTimer);
+    clearInterval(socialRateCleanupTimer);
     console.log(JSON.stringify({ level: 'info', event: 'shutdown_started', signal }));
     const forceExit = setTimeout(() => {
       console.error(JSON.stringify({ level: 'error', event: 'shutdown_timeout', signal }));
