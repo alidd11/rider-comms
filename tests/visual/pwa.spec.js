@@ -224,6 +224,57 @@ test('PWA host can remove another rider from a private ride', async ({ page }) =
   await expect(page.locator('#toast')).toContainText('removed from the ride');
 });
 
+test('PWA exposes session management and account deletion', async ({ page }) => {
+  await mockAuthenticatedApi(page);
+  let remoteRevoked = false;
+  let accountDeleted = false;
+
+  await page.route('https://backend-production-7fa0.up.railway.app/auth/sessions**', async (route) => {
+    const request = route.request();
+    const pathname = new URL(request.url()).pathname;
+    if (request.method() === 'DELETE' && pathname === '/auth/sessions/session-remote') {
+      remoteRevoked = true;
+      return route.fulfill({ status: 204, body: '' });
+    }
+    if (request.method() === 'GET' && pathname === '/auth/sessions') {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          sessions: remoteRevoked
+            ? [{ id: 'session-current', deviceName: 'This iPhone', lastSeenAt: new Date().toISOString(), current: true }]
+            : [
+                { id: 'session-current', deviceName: 'This iPhone', lastSeenAt: new Date().toISOString(), current: true },
+                { id: 'session-remote', deviceName: 'Other phone', lastSeenAt: new Date().toISOString(), current: false },
+              ],
+        }),
+      });
+    }
+    return route.fallback();
+  });
+
+  await page.route('https://backend-production-7fa0.up.railway.app/auth/me', async (route) => {
+    if (route.request().method() === 'DELETE') {
+      accountDeleted = true;
+      return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
+    }
+    return route.fallback();
+  });
+
+  await page.goto('/#settings');
+  await page.locator('[data-sheet="sessions"]').click();
+  await expect(page.locator('#sessionList')).toContainText('Other phone');
+  await page.locator('[data-revoke-session="session-remote"]').click();
+  await expect(page.locator('#sessionList')).not.toContainText('Other phone');
+  expect(remoteRevoked).toBe(true);
+
+  await page.locator('#closeSheet').click();
+  await page.locator('[data-sheet="account"]').click();
+  page.on('dialog', (dialog) => void dialog.accept());
+  await page.locator('#deleteAccountBtn').click();
+  await expect.poll(() => accountDeleted).toBe(true);
+});
+
 test('PWA password recovery is discoverable and enumeration-safe', async ({ page }) => {
   await page.route('https://backend-production-7fa0.up.railway.app/**', async (route) => {
     const pathname = new URL(route.request().url()).pathname;

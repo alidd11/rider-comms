@@ -517,3 +517,14 @@ h1,.auth-intro h1{letter-spacing:-.02em}
 .roster-remove{width:36px;min-width:36px;height:36px;display:grid;place-items:center;border:1px solid color-mix(in srgb,var(--danger) 38%,var(--border));border-radius:50%;background:transparent;color:var(--danger)}
 .roster-remove svg{width:17px;height:17px}
 .roster-remove:active{background:rgb(255 90 77/.12)}
+
+
+/* Account/session parity with the native Settings screen. */
+.session-list{display:grid;gap:0;overflow:hidden;border:1px solid var(--border-soft);border-radius:12px;background:var(--surface)}
+.session-list>.caption,.session-list>.inline-error{margin:0;padding:16px}
+.session-row{min-height:62px;display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid var(--border-soft)}
+.session-row:last-child{border-bottom:0}
+.session-copy{min-width:0;flex:1;display:grid;gap:2px}
+.session-copy strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.9rem}
+.session-copy small{color:var(--text-secondary);font-size:.76rem}
+.session-revoke{min-height:36px;padding-inline:10px}

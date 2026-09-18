@@ -30,8 +30,8 @@
     { "id": "navigation", "pwa": true, "native": true, "status": "behavior-gap" },
     { "id": "routes", "pwa": true, "native": true, "status": "parity" },
     { "id": "ride-safe", "pwa": true, "native": true, "status": "parity" },
-    { "id": "session-management", "pwa": false, "native": true, "status": "gap" },
-    { "id": "account-deletion", "pwa": false, "native": true, "status": "gap" },
+    { "id": "session-management", "pwa": true, "native": true, "status": "parity" },
+    { "id": "account-deletion", "pwa": true, "native": true, "status": "parity" },
     { "id": "billing-preview", "pwa": true, "native": true, "status": "content-gap" }
   ]
 }

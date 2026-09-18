@@ -25,8 +25,6 @@ The current intentional gap list is:
 - block/report flows: native only
 - recent places: PWA only
 - navigation: both clients exist but behavior differs
-- signed-in device/session management: native only
-- account deletion UI: native only
 - billing preview content: both clients exist but content differs
 
 These are defects to close during the parity programme, not deferred product ideas.
