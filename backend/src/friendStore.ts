@@ -3,6 +3,7 @@ import type { Pool, PoolClient } from 'pg';
 import type { FriendRequest, FriendRequestStatus, FriendSummary } from '@rider-comms/shared';
 import type { ProfileStore } from './profileStore.ts';
 import { ensureMigrated, getPool } from './db.ts';
+import { appendSocialEvent } from './socialEventStore.ts';
 
 export type CreateFriendRequestResult =
   | { ok: true; request: FriendRequest }
@@ -169,6 +170,7 @@ export class FriendStore {
         await client.query('ROLLBACK');
         return { ok: false, error: 'request_exists' };
       }
+      await appendSocialEvent(client, toRiderId, 'friend_request', fromRiderId, request.id, request.createdAt);
       await client.query('COMMIT');
       return { ok: true, request };
     } catch (error) {
@@ -272,6 +274,7 @@ export class FriendStore {
       }
       const request = rowToRequest(rows[0]);
       await this.addFriendship(client, request.fromRiderId, request.toRiderId);
+      await appendSocialEvent(client, request.fromRiderId, 'friend_request_resolved', request.toRiderId, request.id);
       const friend = await this.summaryFor(request.fromRiderId);
       await client.query('COMMIT');
       return { ok: true, request, friend };
@@ -285,24 +288,54 @@ export class FriendStore {
 
   async decline(requestId: string): Promise<ResolveRequestResult> {
     await ensureMigrated();
-    const { rows } = await getPool().query<FriendRequestRow>(
-      `UPDATE friend_requests SET status = 'declined' WHERE id = $1 AND status = 'pending' RETURNING *`,
-      [requestId]
-    );
-    if (!rows[0]) return { ok: false, error: 'not_found' };
-    return { ok: true, request: rowToRequest(rows[0]) };
+    const client = await getPool().connect();
+    try {
+      await client.query('BEGIN');
+      const { rows } = await client.query<FriendRequestRow>(
+        `UPDATE friend_requests SET status = 'declined' WHERE id = $1 AND status = 'pending' RETURNING *`,
+        [requestId]
+      );
+      if (!rows[0]) {
+        await client.query('ROLLBACK');
+        return { ok: false, error: 'not_found' };
+      }
+      const request = rowToRequest(rows[0]);
+      await appendSocialEvent(client, request.fromRiderId, 'friend_request_resolved', request.toRiderId, request.id);
+      await client.query('COMMIT');
+      return { ok: true, request };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async cancelRequest(requestId: string, riderId: string): Promise<ResolveRequestResult> {
     await ensureMigrated();
-    const { rows } = await getPool().query<FriendRequestRow>(
-      `DELETE FROM friend_requests
-       WHERE id = $1 AND from_rider_id = $2 AND status = 'pending'
-       RETURNING *`,
-      [requestId, riderId]
-    );
-    if (!rows[0]) return { ok: false, error: 'not_found' };
-    return { ok: true, request: rowToRequest(rows[0]) };
+    const client = await getPool().connect();
+    try {
+      await client.query('BEGIN');
+      const { rows } = await client.query<FriendRequestRow>(
+        `DELETE FROM friend_requests
+         WHERE id = $1 AND from_rider_id = $2 AND status = 'pending'
+         RETURNING *`,
+        [requestId, riderId]
+      );
+      if (!rows[0]) {
+        await client.query('ROLLBACK');
+        return { ok: false, error: 'not_found' };
+      }
+      const request = rowToRequest(rows[0]);
+      await appendSocialEvent(client, request.toRiderId, 'friend_request_resolved', riderId, request.id);
+      await client.query('COMMIT');
+      return { ok: true, request };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async getFriends(riderId: string): Promise<FriendSummary[]> {
@@ -353,6 +386,7 @@ export class FriendStore {
              OR (from_rider_id = $2 AND to_rider_id = $1))`,
         [riderId, friendId],
       );
+      await appendSocialEvent(client, friendId, 'friend_removed', riderId, riderId);
       await client.query('COMMIT');
     } catch (error) {
       await client.query('ROLLBACK');
