@@ -687,6 +687,7 @@ html.chat-open .bottom-nav,html.chat-open .ride-pill,html.chat-open .movement-sa
    intact: this pass changes hierarchy, colour and geometry, not who owns the
    physical canvas. */
 .content-screen .page-subtitle{display:none}
+.content-screen.active::before{background:var(--bg);background-image:none}
 .content-screen .page-header{align-items:center;min-height:38px;margin-bottom:18px}
 .content-screen .page-header h1{max-width:100%;overflow:hidden;font-family:Inter,ui-sans-serif,system-ui,sans-serif;font-size:clamp(1.85rem,7vw,2.1rem);font-weight:780;letter-spacing:-.045em;line-height:1;white-space:nowrap;text-overflow:ellipsis}
 .content-screen .page-header .icon-button{border-radius:var(--radius-md)}
