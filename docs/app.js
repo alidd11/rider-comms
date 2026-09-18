@@ -958,7 +958,7 @@
         title: 'Navigation',
         body: `<div class="choice-list" role="radiogroup" aria-label="Navigation preference">${Object.entries(NAVIGATION_PROVIDERS).map(([id, option]) => `<button data-navigation-option="${id}" role="radio" aria-checked="${navigationProvider(state.navigationProvider) === id}"><span><strong>${escapeHtml(option.label)}</strong><small>${escapeHtml(option.description)}</small></span><i></i></button>`).join('')}</div><div class="settings-note"><strong>Your choice applies to destination buttons</strong><p>Rider Comms navigation stays in the app. Google Maps, Waze and Apple Maps hand the destination to that provider.</p></div>`,
         ready: () => {
-          $('[data-navigation-option]', $('#sheetBody')).forEach((button) => {
+          $$('[data-navigation-option]', $('#sheetBody')).forEach((button) => {
             button.addEventListener('click', () => {
               state.navigationProvider = navigationProvider(button.dataset.navigationOption);
               persist();
