@@ -4,6 +4,8 @@ import { ensureMigrated, getPool } from './db.ts';
 const ZONE_TIERS: ZoneTier[] = ['free', 'premium', 'premium_plus'];
 const UNIT_SYSTEMS: UnitSystem[] = ['mi', 'km'];
 const SOCIAL_VISIBILITIES = ['public', 'friends', 'private'];
+const AVATAR_IDS = ['ember', 'ridge', 'moss', 'dusk', 'blaze', 'gold', 'slate', 'rose'] as const;
+const AVATAR_ID_SET = new Set<string>(AVATAR_IDS);
 
 export type ProfileUpdateResult =
   | { ok: true; profile: RiderProfile }
@@ -41,8 +43,8 @@ export function validateProfileUpdate(body: Record<string, unknown>): string | n
   if (typeof body.handle === 'string' && !/^@[a-z0-9_]{3,24}$/i.test(body.handle)) {
     return 'handle must start with @ and contain 3-24 letters, numbers, or underscores';
   }
-  if (typeof body.avatarId === 'string' && body.avatarId.length > 40) {
-    return 'avatarId must be at most 40 characters';
+  if (typeof body.avatarId === 'string' && !AVATAR_ID_SET.has(body.avatarId)) {
+    return `avatarId must be one of: ${AVATAR_IDS.join(', ')}`;
   }
   for (const key of ['instagramUsername', 'tiktokUsername'] as const) {
     if (key in body && (typeof body[key] !== 'string' || !/^[a-z0-9._]{0,30}$/i.test(body[key] as string))) return `${key} must contain at most 30 letters, numbers, dots, or underscores`;
