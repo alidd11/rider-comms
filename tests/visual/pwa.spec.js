@@ -274,6 +274,8 @@ test('PWA route discovery previews route shape and hands the start back to the m
   await expect(page.locator('[data-screen="map"]')).toHaveClass(/active/);
   await expect(page.locator('#destinationCard')).toBeVisible();
   await expect(page.locator('#destinationCard')).toContainText('start');
+  await expect(page.locator('#destinationCard .destination-primary-action')).toBeVisible();
+  await expect(page.locator('#destinationCard .destination-primary-action')).toContainText('Start route');
   await assertNoViewportOverflow(page);
 });
 

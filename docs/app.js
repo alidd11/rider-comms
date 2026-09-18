@@ -2994,10 +2994,11 @@
     const secondary = address || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
     const provider = navigationProvider(state.navigationProvider);
     const providerInfo = NAVIGATION_PROVIDERS[provider];
+    const providerCaption = provider === 'in_app' ? 'In Rider Comms' : `Open in ${providerInfo.label}`;
     const action = provider === 'in_app'
-      ? `<button class="compact-button" data-start-in-app-navigation aria-label="Start navigation in Rider Comms">Start in Rider Comms</button>`
-      : `<a class="compact-button" href="${navigationHref(provider, lat, lng, label)}" target="_blank" rel="noopener noreferrer" aria-label="Open directions in ${escapeHtml(providerInfo.label)}">${escapeHtml(providerInfo.label)}</a>`;
-    card.innerHTML = `<div class="destination-card-top"><span class="avatar" style="--avatar:#ff2d5a" aria-hidden="true"><svg><use href="#i-location"/></svg></span><div class="rider-card-copy"><strong>${escapeHtml(label || 'Selected place')}</strong><span>${escapeHtml(secondary)}</span></div></div><div class="destination-card-actions">${action}<button class="icon-button" aria-label="Dismiss destination" data-dismiss-destination>×</button></div>`;
+      ? `<button class="destination-primary-action" data-start-in-app-navigation aria-label="Start route in Rider Comms"><svg><use href="#i-nav-arrow"/></svg><span><strong>Start route</strong><small>In Rider Comms</small></span></button>`
+      : `<a class="destination-primary-action" href="${navigationHref(provider, lat, lng, label)}" target="_blank" rel="noopener noreferrer" aria-label="Start route in ${escapeHtml(providerInfo.label)}"><svg><use href="#i-nav-arrow"/></svg><span><strong>Start route</strong><small>${escapeHtml(providerCaption)}</small></span></a>`;
+    card.innerHTML = `<div class="destination-card-head"><span class="destination-card-icon" aria-hidden="true"><svg><use href="#i-location"/></svg></span><div class="rider-card-copy"><strong>${escapeHtml(label || 'Selected place')}</strong><span>${escapeHtml(secondary)}</span></div><button class="destination-card-dismiss" aria-label="Dismiss destination" data-dismiss-destination>×</button></div><div class="destination-card-actions">${action}</div>`;
     card.hidden = false;
     $('[data-start-in-app-navigation]', card)?.addEventListener('click', () => void startInAppNavigation(location, label));
     $('[data-dismiss-destination]', card).addEventListener('click', () => {
@@ -3013,7 +3014,7 @@
       map,
       position: location,
       title: label || 'Selected place',
-      icon: pinIcon('#ff2d5a'),
+      icon: pinIcon('#2fa8d3'),
       animation: google.maps.Animation.DROP,
       zIndex: 9,
     });

@@ -728,3 +728,52 @@ html.chat-open .bottom-nav,html.chat-open .ride-pill,html.chat-open .movement-sa
   .content-screen{background:var(--bg);border-color:var(--border)}.glass{background:rgb(255 255 255/.92);border-color:var(--border)}
   .map-actions .icon-button,.search-slot{background:rgb(255 255 255/.92);border-color:var(--border)}
 }
+
+/* Map destination, report and settings states: production mockup parity. */
+#destinationCard{
+  left:max(12px,var(--safe-left));
+  right:max(12px,var(--safe-right));
+  bottom:12px;
+  width:auto;
+  transform:none;
+  display:block;
+  padding:12px;
+  border:1px solid var(--border);
+  border-radius:8px;
+  background:rgb(8 13 16/.97);
+  box-shadow:0 14px 36px rgb(0 0 0/.42);
+  backdrop-filter:blur(20px);
+  -webkit-backdrop-filter:blur(20px)
+}
+#destinationCard .destination-card-head{display:grid;grid-template-columns:42px minmax(0,1fr) 40px;align-items:center;gap:11px}
+#destinationCard .destination-card-icon{width:42px;height:42px;display:grid;place-items:center;border:1px solid color-mix(in srgb,var(--accent) 35%,var(--border));border-radius:4px;background:var(--accent-soft);color:var(--accent)}
+#destinationCard .destination-card-icon svg{width:20px;height:20px}
+#destinationCard .rider-card-copy strong{font-size:.98rem;font-weight:780;line-height:1.2}
+#destinationCard .rider-card-copy span{margin-top:3px;color:var(--text-muted);font-size:.76rem;line-height:1.3}
+#destinationCard .destination-card-dismiss{width:40px;height:40px;display:grid;place-items:center;border:1px solid var(--border);border-radius:4px;background:var(--surface-raised);color:var(--text-secondary);font-size:1.15rem}
+#destinationCard .destination-card-actions{display:block;margin-top:11px}
+#destinationCard .destination-primary-action{width:100%;min-height:52px;display:flex;align-items:center;justify-content:center;gap:10px;padding:0 15px;border:0;border-radius:4px;background:var(--accent);color:var(--accent-text);text-decoration:none;box-shadow:none}
+#destinationCard .destination-primary-action svg{width:19px;height:19px;flex:none}
+#destinationCard .destination-primary-action span{display:grid;gap:1px;text-align:left}
+#destinationCard .destination-primary-action strong{font-size:.88rem;line-height:1.15}
+#destinationCard .destination-primary-action small{color:color-mix(in srgb,var(--accent-text) 78%,transparent);font-size:.67rem;font-weight:650}
+.sheet{border-radius:8px 8px 0 0;padding:8px 16px max(18px,var(--safe-bottom))}
+.sheet>header{margin-bottom:16px}
+.sheet>header h2{font-size:1.22rem;font-weight:780;letter-spacing:-.025em}
+.sheet>header .icon-button{width:40px;min-width:40px;height:40px;border-radius:4px;background:var(--surface-raised)}
+.sheet-body{gap:12px}
+.settings-sheet-section,.settings-note,.choice-list,.safety-guidance,.plan-card{border-radius:4px;border-color:var(--border);box-shadow:none}
+.settings-sheet-section{padding:13px;background:var(--surface)}
+.settings-sheet-section .form-field+.form-field{padding-top:11px}
+.form-field input,.form-field select{border-radius:4px;background:var(--bg-elevated)}
+.toggle-row{min-height:54px}
+.toggle{background:var(--surface-raised)}
+.toggle[aria-pressed=true]{background:var(--accent)}
+.hazard-type-grid{grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+.hazard-type-tile{min-height:94px;padding:15px 7px 12px;border:1px solid var(--border);border-radius:4px;background:var(--surface);box-shadow:none}
+.hazard-type-tile svg{width:24px;height:24px}
+.hazard-type-tile span{color:var(--text-secondary);font-size:.72rem;font-weight:760}
+@media(prefers-color-scheme:light){
+  #destinationCard{background:rgb(255 255 255/.97)}
+  .settings-sheet-section,.hazard-type-tile{background:var(--surface)}
+}
