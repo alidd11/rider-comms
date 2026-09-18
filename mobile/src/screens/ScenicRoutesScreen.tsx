@@ -37,7 +37,7 @@ export function ScenicRoutesScreen(): React.JSX.Element {
         contentInsetAdjustmentBehavior="automatic"
         showsVerticalScrollIndicator={false}
       >
-        <ScreenHeader title="Routes" subtitle="Curated motorbike-first roads across the UK." />
+        <ScreenHeader title="Routes" />
 
         <ScrollView
           horizontal
@@ -75,7 +75,7 @@ const styles = StyleSheet.create({
   chip: {
     minHeight: 44,
     paddingHorizontal: spacing.md,
-    borderRadius: radii.pill,
+    borderRadius: radii.md,
     backgroundColor: colors.surfaceRaised,
     alignItems: 'center',
     justifyContent: 'center',
