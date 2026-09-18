@@ -1,7 +1,12 @@
 name: CI
 
 on:
+  # Feature branches are verified by their PR. Running the same workflow on
+  # both the branch push and the pull_request event produced duplicate checks
+  # for every commit. Re-run on main after merge as the deployment baseline.
   push:
+    branches:
+      - main
   pull_request:
 
 permissions:
