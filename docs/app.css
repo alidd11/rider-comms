@@ -530,29 +530,9 @@ h1,.auth-intro h1{letter-spacing:-.02em}
 .session-revoke{min-height:36px;padding-inline:10px}
 
 
-/* Viewport continuity: keep the iOS safe-top shield visually identical to
-   the utility-screen canvas so the installed PWA remains edge-to-edge while
-   still preventing scrolled rows from passing behind status-bar text. */
-:root{
-  --content-grid-line:rgb(255 255 255/.018);
-  --content-top-glow:#141d25;
-}
-@media(prefers-color-scheme:light){
-  :root{
-    --content-grid-line:rgb(28 23 18/.015);
-    --content-top-glow:#fff;
-  }
-}
-.content-screen:not(.screen-map){
-  background-color:var(--bg);
-  background-image:
-    repeating-linear-gradient(0deg,var(--content-grid-line) 0 1px,transparent 1px 32px),
-    repeating-linear-gradient(90deg,var(--content-grid-line) 0 1px,transparent 1px 32px),
-    radial-gradient(circle at 50% -10%,var(--content-top-glow) 0,var(--bg) 34%);
-  background-size:auto,auto,100vw 100dvh;
-  background-position:0 0,0 0,0 0;
-  background-repeat:repeat,repeat,no-repeat;
-}
+/* Utility screens use the same semantic canvas colour as the fixed safe-top
+   shield. No decorative filler layer is needed: viewport geometry remains
+   owned by the existing screen and safe-area rules. */
 .movement-safety-banner{
   top:calc(var(--safe-top) + 10px);
   left:max(12px,var(--safe-left));
