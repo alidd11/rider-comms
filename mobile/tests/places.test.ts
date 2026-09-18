@@ -28,7 +28,7 @@ describe('isSearchQueryValid', () => {
 describe('searchPlaces', () => {
   const near = { lat: 51.5, lon: -0.1 };
 
-  it('returns an empty array without calling the network when no API key is set', async () => {
+  it('returns an unavailable failure without calling the network when no API key is set', async () => {
     let called = false;
     const fetchImpl = (async () => {
       called = true;
@@ -36,13 +36,13 @@ describe('searchPlaces', () => {
     }) as typeof fetch;
 
     const results = await searchPlaces('coffee', near, '', fetchImpl);
-    assert.deepEqual(results, []);
+    assert.deepEqual(results, { status: 'unavailable', places: [] });
     assert.equal(called, false);
   });
 
-  it('returns an empty array for an invalid query even with a key set', async () => {
+  it('returns an empty successful result for an invalid query even with a key set', async () => {
     const results = await searchPlaces('   ', near, 'test-key', fakeFetch(() => ({ status: 200, body: {} })));
-    assert.deepEqual(results, []);
+    assert.deepEqual(results, { status: 'ok', places: [] });
   });
 
   it('sends the query, key, and location bias, and maps the response', async () => {
@@ -73,12 +73,13 @@ describe('searchPlaces', () => {
       })
     );
 
-    assert.equal(results.length, 1);
+    assert.equal(results.status, 'ok');
+    assert.equal(results.places.length, 1);
     assert.deepEqual(
-      { ...results[0], distanceMeters: undefined },
+      { ...results.places[0], distanceMeters: undefined },
       { id: 'place1', name: 'Corner Coffee', address: '1 High St', lat: 51.51, lon: -0.11, distanceMeters: undefined }
     );
-    assert.ok(results[0].distanceMeters > 1_000);
+    assert.ok(results.places[0].distanceMeters > 1_000);
   });
 
   it('skips results missing a location and never throws on a bad response', async () => {
@@ -88,20 +89,51 @@ describe('searchPlaces', () => {
       'test-key',
       fakeFetch(() => ({ status: 200, body: { places: [{ id: 'no-loc', displayName: { text: 'No Location' } }] } }))
     );
-    assert.deepEqual(results, []);
+    assert.deepEqual(results, { status: 'ok', places: [] });
   });
 
-  it('returns an empty array on a non-2xx response instead of throwing', async () => {
+  it('distinguishes provider and quota failures from zero results', async () => {
     const results = await searchPlaces('coffee', near, 'test-key', fakeFetch(() => ({ status: 403, body: {} })));
-    assert.deepEqual(results, []);
+    assert.deepEqual(results, { status: 'provider-error', places: [] });
+    const limited = await searchPlaces('coffee', near, 'test-key', fakeFetch(() => ({ status: 429, body: {} })));
+    assert.deepEqual(limited, { status: 'rate-limited', places: [] });
   });
 
-  it('returns an empty array if the fetch implementation throws', async () => {
+  it('distinguishes network failures from zero results', async () => {
     const throwingFetch = (async () => {
       throw new Error('network down');
     }) as typeof fetch;
     const results = await searchPlaces('coffee', near, 'test-key', throwingFetch);
-    assert.deepEqual(results, []);
+    assert.deepEqual(results, { status: 'network-error', places: [] });
+  });
+
+  it('preserves provider relevance order for text results', async () => {
+    const results = await searchPlaces(
+      'museum',
+      near,
+      'test-key',
+      fakeFetch(() => ({
+        status: 200,
+        body: {
+          places: [
+            { id: 'relevant', displayName: { text: 'Relevant' }, location: { latitude: 51.55, longitude: -0.1 } },
+            { id: 'closer', displayName: { text: 'Closer' }, location: { latitude: 51.501, longitude: -0.1 } },
+          ],
+        },
+      }))
+    );
+    assert.equal(results.status, 'ok');
+    assert.deepEqual(results.places.map((place) => place.id), ['relevant', 'closer']);
+  });
+
+  it('reports a malformed provider response', async () => {
+    const results = await searchPlaces(
+      'coffee',
+      near,
+      'test-key',
+      fakeFetch(() => ({ status: 200, body: { places: 'not-an-array' } }))
+    );
+    assert.deepEqual(results, { status: 'provider-error', places: [] });
   });
 });
 
@@ -135,8 +167,9 @@ describe('searchNearbyPlaces', () => {
       })
     );
 
-    assert.equal(results.length, 1);
-    assert.equal(results[0].name, 'Nearby Restaurant');
+    assert.equal(results.status, 'ok');
+    assert.equal(results.places.length, 1);
+    assert.equal(results.places[0].name, 'Nearby Restaurant');
   });
 
   it('removes permanently closed and out-of-radius places defensively', async () => {
@@ -161,7 +194,7 @@ describe('searchNearbyPlaces', () => {
       }))
     );
 
-    assert.deepEqual(results, []);
+    assert.deepEqual(results, { status: 'ok', places: [] });
   });
 });
 
@@ -171,6 +204,8 @@ describe('place distance helpers', () => {
     assert.ok(metres > 100 && metres < 120);
     assert.equal(formatPlaceDistance(metres), '100 m');
     assert.equal(formatPlaceDistance(1_450), '1.4 km');
+    assert.equal(formatPlaceDistance(100, 'mi'), '350 ft');
+    assert.equal(formatPlaceDistance(1_609.344, 'mi'), '1.0 mi');
   });
 
   it('rejects invalid display distances safely', () => {
