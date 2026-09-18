@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { DirectMessage } from '@rider-comms/shared';
 import { ensureMigrated, getPool } from './db.ts';
+import { appendSocialEvent } from './socialEventStore.ts';
 
 interface DirectMessageRow {
   id: string;
@@ -102,11 +103,22 @@ export class MessageStore {
       text,
       createdAt: Date.now(),
     };
-    await getPool().query(
-      'INSERT INTO direct_messages (id, from_rider_id, to_rider_id, text, created_at, conversation_key) VALUES ($1, $2, $3, $4, $5, $6)',
-      [message.id, message.fromRiderId, message.toRiderId, message.text, message.createdAt, conversationKey(message.fromRiderId, message.toRiderId)]
-    );
-    return message;
+    const client = await getPool().connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(
+        'INSERT INTO direct_messages (id, from_rider_id, to_rider_id, text, created_at, conversation_key) VALUES ($1, $2, $3, $4, $5, $6)',
+        [message.id, message.fromRiderId, message.toRiderId, message.text, message.createdAt, conversationKey(message.fromRiderId, message.toRiderId)]
+      );
+      await appendSocialEvent(client, toRiderId, 'message', fromRiderId, message.id, message.createdAt);
+      await client.query('COMMIT');
+      return message;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async getThread(riderId: string, withRiderId: string, limit = 100): Promise<DirectMessage[]> {
