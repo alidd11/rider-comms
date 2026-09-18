@@ -373,7 +373,6 @@ img,svg{-webkit-user-drag:none}
   .road{background:#16242b;border-block-color:#21353f}.road:after{border-top-color:#4e6b77}
 }
 .nav-mode .map-actions .icon-button{background:var(--surface)}
-.nav-banner,.nav-summary{background:#0d151a}.nav-next-preview{background:#091116}
 
 /* Production visual language: graphite canvas, restrained cyan accent,
    sharp surfaces and no decorative neon/HUD treatment. */
