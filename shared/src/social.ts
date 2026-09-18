@@ -66,3 +66,36 @@ export interface Hideout {
   participantIds: string[];
   createdAt: number;
 }
+
+export type SocialEventType =
+  | 'message'
+  | 'message_read'
+  | 'friend_request'
+  | 'friend_request_resolved'
+  | 'friend_removed';
+
+/**
+ * A lightweight invalidation event for authenticated social state.
+ * Event payloads intentionally contain no message text or profile secrets:
+ * clients use the event to refresh the authoritative resource.
+ */
+export interface SocialEvent {
+  cursor: string;
+  type: SocialEventType;
+  actorRiderId: string;
+  entityId: string;
+  createdAt: number;
+}
+
+export interface SocialEventPage {
+  events: SocialEvent[];
+  cursor: string;
+  hasMore: boolean;
+}
+
+export interface FriendActivity {
+  riderId: string;
+  online: boolean;
+  lastSeenAt: number | null;
+}
+

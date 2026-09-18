@@ -21,7 +21,7 @@ describe('FriendStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping 
 
   beforeEach(async () => {
     const pool = getPool();
-    await pool.query('TRUNCATE friend_requests, friendships, rider_profiles');
+    await pool.query('TRUNCATE social_events, friend_requests, friendships, rider_profiles RESTART IDENTITY');
   });
 
   after(async () => {
@@ -186,8 +186,14 @@ describe('FriendStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping 
     await store.removeFriend('a', 'b');
     assert.equal((await store.getFriends('a')).length, 0);
     assert.equal((await store.getFriends('b')).length, 0);
-    // calling again on non-friends should not throw
+    // calling again on non-friends should not throw or emit another event
     await store.removeFriend('a', 'b');
+    const { rows } = await getPool().query<{ count: string }>(
+      `SELECT COUNT(*)::text AS count
+       FROM social_events
+       WHERE rider_id = 'b' AND event_type = 'friend_removed'`,
+    );
+    assert.equal(Number(rows[0]?.count), 1);
   });
 
   it('removeFriend also clears pending requests in either direction', async () => {
