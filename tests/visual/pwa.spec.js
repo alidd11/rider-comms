@@ -15,7 +15,7 @@ const PROFILE = {
   tiktokVisibility: 'friends',
 };
 
-async function mockAuthenticatedApi(page, movement = 'stationary') {
+async function mockAuthenticatedApi(page, movement = 'stationary', backendOverride = null) {
   await page.addInitScript(({ riderId, movementState }) => {
     localStorage.setItem('rider-comms-session-v1', JSON.stringify({ riderId, token: 'visual-test-token' }));
     Object.defineProperty(navigator, 'permissions', { value: { query: async () => ({ state: movementState === 'stationary' ? 'granted' : 'denied', addEventListener() {} }) } });
@@ -42,7 +42,22 @@ async function mockAuthenticatedApi(page, movement = 'stationary') {
   }, { riderId: RIDER_ID, movementState: movement });
 
   await page.route('https://backend-production-7fa0.up.railway.app/**', async (route) => {
-    const url = new URL(route.request().url());
+    const request = route.request();
+    const url = new URL(request.url());
+    if (backendOverride) {
+      const override = await backendOverride({ request, url });
+      if (override) {
+        return route.fulfill({
+          status: override.status ?? 200,
+          contentType: override.contentType ?? 'application/json',
+          body: override.body === undefined
+            ? ''
+            : typeof override.body === 'string'
+              ? override.body
+              : JSON.stringify(override.body),
+        });
+      }
+    }
     let body = {};
     if (url.pathname === '/auth/me') body = { riderId: RIDER_ID };
     else if (url.pathname === `/riders/${RIDER_ID}/profile`) body = PROFILE;
@@ -225,58 +240,32 @@ test('PWA host can remove another rider from a private ride', async ({ page }) =
 });
 
 test('PWA exposes session management and account deletion', async ({ page }) => {
-  await mockAuthenticatedApi(page);
   let remoteRevoked = false;
   let accountDeleted = false;
 
-  // Replace the shared catch-all backend stub for this test so account
-  // endpoints cannot be swallowed by the generic "{}" response.
-  await page.unroute('https://backend-production-7fa0.up.railway.app/**');
-  await page.route('https://backend-production-7fa0.up.railway.app/**', async (route) => {
-    const request = route.request();
-    const pathname = new URL(request.url()).pathname;
-
+  await mockAuthenticatedApi(page, 'stationary', async ({ request, url }) => {
+    const pathname = url.pathname;
     if (request.method() === 'DELETE' && pathname === '/auth/sessions/session-remote') {
       remoteRevoked = true;
-      return route.fulfill({ status: 204, body: '' });
+      return { status: 204 };
     }
     if (request.method() === 'GET' && pathname === '/auth/sessions') {
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
+      return {
+        body: {
           sessions: remoteRevoked
             ? [{ id: 'session-current', deviceName: 'This iPhone', lastSeenAt: new Date().toISOString(), current: true }]
             : [
                 { id: 'session-current', deviceName: 'This iPhone', lastSeenAt: new Date().toISOString(), current: true },
                 { id: 'session-remote', deviceName: 'Other phone', lastSeenAt: new Date().toISOString(), current: false },
               ],
-        }),
-      });
+        },
+      };
     }
-    if (pathname === '/auth/me') {
-      if (request.method() === 'DELETE') {
-        accountDeleted = true;
-        return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
-      }
-      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ riderId: RIDER_ID }) });
+    if (request.method() === 'DELETE' && pathname === '/auth/me') {
+      accountDeleted = true;
+      return { body: {} };
     }
-    if (pathname === `/riders/${RIDER_ID}/profile`) {
-      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(PROFILE) });
-    }
-    if (pathname === `/riders/${RIDER_ID}/friends`) {
-      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ friends: [] }) });
-    }
-    if (pathname === `/riders/${RIDER_ID}/friend-requests`) {
-      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ incoming: [], outgoing: [] }) });
-    }
-    if (pathname === '/hazards/nearby') {
-      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ hazards: [] }) });
-    }
-    if (pathname === '/config') {
-      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ googleMapsApiKey: 'visual-test-key' }) });
-    }
-    return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
+    return null;
   });
 
   await page.goto('/#settings');
