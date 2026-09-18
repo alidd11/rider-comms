@@ -453,7 +453,7 @@ export function MapScreen(): React.JSX.Element {
       const notice = navigationGpsNotice(navGpsTracker.current.stateAt());
       if (!notice) return;
       navOffRouteSince.current = null;
-      setNavigationNotice((current) => isNavigationGpsNotice(current) || current === null ? notice : notice);
+      setNavigationNotice(notice);
     }, NAV_GPS_CHECK_INTERVAL_MS);
 
     return () => clearInterval(timer);
