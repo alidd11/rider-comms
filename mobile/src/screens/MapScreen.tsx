@@ -46,6 +46,12 @@ import {
 } from '../api/directions';
 import { navigationProviderLabel } from '../navigationPreference';
 import { formatNavigationDistance, maneuverIcon } from '../navigationGuidance';
+import {
+  NAV_GPS_CHECK_INTERVAL_MS,
+  NavigationGpsTracker,
+  isNavigationGpsNotice,
+  navigationGpsNotice,
+} from '../navigationGpsHealth';
 import { speakNavigationPrompt, stopNavigationPrompt } from '../audio/navigationSpeech';
 
 const PRESENCE_UPDATE_INTERVAL_MS = 8000; // per spec Section 8: every 5-10s
@@ -167,6 +173,7 @@ export function MapScreen(): React.JSX.Element {
   const [navigationNotice, setNavigationNotice] = React.useState<string | null>(null);
   const navOffRouteSince = React.useRef<number | null>(null);
   const navRerouting = React.useRef(false);
+  const navGpsTracker = React.useRef(new NavigationGpsTracker());
   const announcedNavigationStep = React.useRef<{ route: InAppNavigationRoute; index: number } | null>(null);
   const [mapReady, setMapReady] = React.useState(false);
   const mapRef = React.useRef<MapView | null>(null);
@@ -376,6 +383,7 @@ export function MapScreen(): React.JSX.Element {
     announcedNavigationStep.current = null;
     navOffRouteSince.current = null;
     navRerouting.current = false;
+    navGpsTracker.current.reset();
     setNavigationNotice(arrived ? 'You have arrived.' : null);
     void stopNavigationPrompt().finally(() => {
       if (arrived) speakNavigationPrompt('You have arrived at your destination.');
@@ -435,6 +443,23 @@ export function MapScreen(): React.JSX.Element {
   }, []);
 
   React.useEffect(() => {
+    if (!activeRoute) {
+      navGpsTracker.current.reset();
+      return;
+    }
+
+    navGpsTracker.current.begin();
+    const timer = setInterval(() => {
+      const notice = navigationGpsNotice(navGpsTracker.current.stateAt());
+      if (!notice) return;
+      navOffRouteSince.current = null;
+      setNavigationNotice(notice);
+    }, NAV_GPS_CHECK_INTERVAL_MS);
+
+    return () => clearInterval(timer);
+  }, [activeRoute]);
+
+  React.useEffect(() => {
     if (!activeRoute || !navigationDestination || !currentNavigationStep) return;
     let cancelled = false;
     let subscription: Location.LocationSubscription | null = null;
@@ -443,6 +468,10 @@ export function MapScreen(): React.JSX.Element {
       { accuracy: Location.Accuracy.High, timeInterval: 2000, distanceInterval: 5 },
       (position) => {
         if (cancelled) return;
+        const recovered = navGpsTracker.current.recordFix();
+        if (recovered) {
+          setNavigationNotice((current) => isNavigationGpsNotice(current) ? null : current);
+        }
         const here = { lat: position.coords.latitude, lon: position.coords.longitude };
         setCurrentLocation(here);
         focusCoordinate(here, 0.012);
@@ -491,7 +520,13 @@ export function MapScreen(): React.JSX.Element {
     ).then((value) => {
       if (cancelled) value.remove();
       else subscription = value;
-    }).catch(() => setNavigationNotice('Live GPS tracking is unavailable.'));
+    }).catch(async () => {
+      if (cancelled) return;
+      const permission = await Location.getForegroundPermissionsAsync().catch(() => null);
+      const health = navGpsTracker.current.markUnavailable(permission?.granted === false);
+      navOffRouteSince.current = null;
+      setNavigationNotice(navigationGpsNotice(health));
+    });
 
     return () => {
       cancelled = true;

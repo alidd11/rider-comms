@@ -42,6 +42,8 @@ img,svg{-webkit-user-drag:none}
 .nav-next-preview svg{width:14px;height:14px;flex:none;transform:rotate(90deg)}
 .nav-next-preview span:first-of-type{flex:none;font-weight:760;text-transform:uppercase;letter-spacing:.06em;font-size:.66rem}
 .nav-next-preview span:last-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#d8d7ea}
+.nav-gps-notice{padding:9px 14px;border-top:1px solid rgb(255 255 255/.08);background:#23151b;color:#ffb7c5;font-size:.76rem;font-weight:700;line-height:1.35}
+.nav-gps-notice[hidden]{display:none}
 .nav-summary{--nav-summary-height:88px;position:absolute;z-index:12;left:0;right:0;bottom:0;height:calc(var(--nav-summary-height) + var(--bottom-control-inset));display:grid;grid-template-columns:1.2fr 1fr 1fr;align-items:center;padding:0 max(20px,var(--safe-right)) var(--bottom-control-inset) max(20px,var(--safe-left));background:#14152c;color:#f5f4fb;box-shadow:0 -16px 40px rgb(0 0 0/.45)}
 .nav-summary-eta,.nav-summary-stat{display:flex;flex-direction:column;gap:2px}
 .nav-summary-eta strong{color:var(--accent);font-size:1.3rem;font-weight:840}

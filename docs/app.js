@@ -2992,10 +2992,18 @@
   let navLastAnnouncedStep = -1;
   let navOffRouteSince = null;
   let navRerouting = false;
+  let navGpsWatchdog;
+  let navLastFixAt = 0;
+  let navGpsIssue = null;
 
   const NAV_STEP_ARRIVAL_RADIUS_M = 30;
   const NAV_OFF_ROUTE_RADIUS_M = 60;
   const NAV_OFF_ROUTE_GRACE_MS = 10_000;
+  const NAV_GPS_STALE_MS = 12_000;
+  const NAV_GPS_CHECK_MS = 2_000;
+  const NAV_GPS_STALE_NOTICE = 'GPS signal lost. Keep following the route with caution.';
+  const NAV_GPS_UNAVAILABLE_NOTICE = 'Live GPS tracking is unavailable. Keep following the route with caution.';
+  const NAV_GPS_PERMISSION_NOTICE = 'Location access was removed. Navigation is paused until location access is restored.';
 
   /** Plain equirectangular-projection distance — accurate enough over the
    * short (metres-to-low-kilometres) spans between a rider's real position
@@ -3215,23 +3223,75 @@
     startNavTracking();
   }
 
+  function setNavGpsIssue(message) {
+    if (navGpsIssue === message) return;
+    navGpsIssue = message;
+    navOffRouteSince = null;
+    const notice = $('#navGpsNotice');
+    if (notice) {
+      notice.textContent = message;
+      notice.hidden = false;
+    }
+  }
+
+  function clearNavGpsIssue() {
+    if (!navGpsIssue) return;
+    navGpsIssue = null;
+    const notice = $('#navGpsNotice');
+    if (notice) {
+      notice.textContent = '';
+      notice.hidden = true;
+    }
+    if (navSteps.length) showToast('GPS signal restored.');
+  }
+
+  function handleNavPositionError(error) {
+    if (!navSteps.length) return;
+    setNavGpsIssue(error?.code === 1 ? NAV_GPS_PERMISSION_NOTICE : NAV_GPS_UNAVAILABLE_NOTICE);
+  }
+
   function startNavTracking() {
     stopNavTracking();
-    navWatchId = navigator.geolocation.watchPosition(handleNavPosition, () => {}, {
+    navLastFixAt = Date.now();
+    const notice = $('#navGpsNotice');
+    if (notice) {
+      notice.textContent = '';
+      notice.hidden = true;
+    }
+    if (!navigator.geolocation) {
+      setNavGpsIssue(NAV_GPS_UNAVAILABLE_NOTICE);
+      return;
+    }
+    navWatchId = navigator.geolocation.watchPosition(handleNavPosition, handleNavPositionError, {
       enableHighAccuracy: true,
       maximumAge: 5000,
       timeout: 15000,
     });
+    navGpsWatchdog = setInterval(() => {
+      if (!navSteps.length || navGpsIssue || !navLastFixAt) return;
+      if (Date.now() - navLastFixAt > NAV_GPS_STALE_MS) setNavGpsIssue(NAV_GPS_STALE_NOTICE);
+    }, NAV_GPS_CHECK_MS);
   }
 
   function stopNavTracking() {
     if (navWatchId !== undefined) {
-      navigator.geolocation.clearWatch(navWatchId);
+      navigator.geolocation?.clearWatch(navWatchId);
       navWatchId = undefined;
+    }
+    clearInterval(navGpsWatchdog);
+    navGpsWatchdog = undefined;
+    navLastFixAt = 0;
+    navGpsIssue = null;
+    const notice = $('#navGpsNotice');
+    if (notice) {
+      notice.textContent = '';
+      notice.hidden = true;
     }
   }
 
   function handleNavPosition(position) {
+    navLastFixAt = Date.now();
+    clearNavGpsIssue();
     if (navRerouting || !navSteps.length) return;
     const here = { lat: position.coords.latitude, lng: position.coords.longitude };
     centreMap(here.lat, here.lng);
