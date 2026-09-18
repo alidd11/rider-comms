@@ -689,6 +689,7 @@ async function startProductionServer(): Promise<void> {
         process.exitCode = 1;
       }
       try {
+        await productionSocialEventStore.close();
         await closeDatabase();
         console.log(JSON.stringify({ level: 'info', event: 'shutdown_complete', signal }));
       } catch (databaseError) {
