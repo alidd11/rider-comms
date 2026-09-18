@@ -448,14 +448,16 @@ test('installed PWA tab bar itself owns the iOS home-indicator inset', async ({ 
     const nav = document.querySelector('.bottom-nav');
     return {
       navSafeBottom: getComputedStyle(root).getPropertyValue('--nav-safe-bottom').trim(),
+      bottomControlInset: getComputedStyle(root).getPropertyValue('--bottom-control-inset').trim(),
       navHeight: getComputedStyle(nav).height,
       navPaddingBottom: getComputedStyle(nav).paddingBottom,
     };
   });
 
   expect(chrome.navSafeBottom).toBe('34px');
-  expect(parseFloat(chrome.navHeight)).toBe(58 + 34 + 1);
-  expect(parseFloat(chrome.navPaddingBottom)).toBe(34);
+  expect(chrome.bottomControlInset).toBe('min(18px,34px)');
+  expect(parseFloat(chrome.navHeight)).toBe(58 + 18 + 1);
+  expect(parseFloat(chrome.navPaddingBottom)).toBe(18);
 
   expect(navBox).not.toBeNull();
   expect(buttonBox).not.toBeNull();
@@ -467,6 +469,8 @@ test('installed PWA tab bar itself owns the iOS home-indicator inset', async ({ 
   // the 58px interaction rail above the home-indicator safe area.
   expect(buttonBox.y).toBeGreaterThanOrEqual(navBox.y - 1);
   expect(buttonBox.y + buttonBox.height).toBeLessThanOrEqual(navBox.y + 59);
+  expect(viewport.height - (buttonBox.y + buttonBox.height)).toBeGreaterThanOrEqual(18);
+  expect(viewport.height - (buttonBox.y + buttonBox.height)).toBeLessThanOrEqual(20);
   const railBottom = navBox.y + 58;
   const labelBottomGap = railBottom - (labelBox.y + labelBox.height);
   expect(labelBottomGap).toBeGreaterThanOrEqual(0);
@@ -508,8 +512,8 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
 
   expect(summaryBox).not.toBeNull();
   expect(viewport).not.toBeNull();
-  expect(metrics.height).toBe(88 + 34);
-  expect(metrics.paddingBottom).toBe(34);
+  expect(metrics.height).toBe(88 + 18);
+  expect(metrics.paddingBottom).toBe(18);
   await expect(page.locator('html')).toHaveClass(/pwa-standalone/);
   // Fractional device-scale rounding can land the CSS edge just over one
   // logical pixel from the Playwright viewport. This still verifies the real
