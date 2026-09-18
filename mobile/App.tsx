@@ -1,7 +1,6 @@
 // Unverified scaffold — see src/navigation/index.tsx header note.
 import * as React from 'react';
-import { Platform, useColorScheme } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
+import { Platform, StatusBar, useColorScheme } from 'react-native';
 import * as NavigationBar from 'expo-navigation-bar';
 import { AppNavigator } from './src/navigation';
 
