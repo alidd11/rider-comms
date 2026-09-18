@@ -62,6 +62,18 @@ const DEFAULT_REGION = {
   longitudeDelta: 0.16,
 };
 const FOCUSED_REGION_DELTA = 0.025;
+const DARK_MAP_STYLE = [
+  { elementType: 'geometry', stylers: [{ color: '#0A1115' }] },
+  { elementType: 'labels.text.stroke', stylers: [{ color: '#0A1115' }] },
+  { elementType: 'labels.text.fill', stylers: [{ color: '#7D8C94' }] },
+  { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#A9B7BD' }] },
+  { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+  { featureType: 'transit', stylers: [{ visibility: 'off' }] },
+  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#172229' }] },
+  { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#25333B' }] },
+  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#20313A' }] },
+  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#071C25' }] },
+];
 const NAV_STEP_ARRIVAL_RADIUS_M = 30;
 const NAV_OFF_ROUTE_RADIUS_M = 60;
 const NAV_OFF_ROUTE_GRACE_MS = 10_000;
@@ -581,6 +593,7 @@ export function MapScreen(): React.JSX.Element {
             loadingEnabled
             loadingBackgroundColor={colors.background}
             loadingIndicatorColor={colors.accent}
+            customMapStyle={DARK_MAP_STYLE}
             showsCompass={false}
             showsMyLocationButton={false}
             toolbarEnabled={false}
@@ -928,7 +941,7 @@ const styles = StyleSheet.create({
   sideToggleButton: {
     width: MIN_TOUCH_TARGET,
     height: MIN_TOUCH_TARGET,
-    borderRadius: radii.pill,
+    borderRadius: radii.lg,
     backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
@@ -965,7 +978,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.xs,
     paddingHorizontal: spacing.sm,
-    borderRadius: radii.pill,
+    borderRadius: radii.lg,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
@@ -979,7 +992,7 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
-    borderRadius: radii.pill,
+    borderRadius: radii.md,
     backgroundColor: colors.surfaceRaised,
   },
   hazardVoteText: { ...type.caption, color: colors.textPrimary, fontWeight: '700' },
@@ -1013,7 +1026,7 @@ const styles = StyleSheet.create({
   destinationCardCoords: { ...type.caption, color: colors.textSecondary, marginTop: 2 },
   destinationStartButton: {
     minHeight: 38, flexDirection: 'row', alignItems: 'center', gap: spacing.xs,
-    paddingHorizontal: spacing.md, borderRadius: radii.pill, backgroundColor: colors.accent,
+    paddingHorizontal: spacing.md, borderRadius: radii.md, backgroundColor: colors.accent,
   },
   destinationStartText: { ...type.caption, color: '#FFFFFF', fontWeight: '800' },
   navigationBanner: {
@@ -1035,7 +1048,7 @@ const styles = StyleSheet.create({
   navigationNextInstruction: { ...type.caption, color: colors.textSecondary, flex: 1 },
   navigationNotice: { ...type.caption, color: colors.textSecondary, marginTop: spacing.xs },
   navigationEndButton: {
-    width: MIN_TOUCH_TARGET, height: MIN_TOUCH_TARGET, borderRadius: radii.pill,
+    width: MIN_TOUCH_TARGET, height: MIN_TOUCH_TARGET, borderRadius: radii.lg,
     alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceRaised,
   },
   navigationSummary: {
@@ -1060,6 +1073,6 @@ const styles = StyleSheet.create({
   safetyBannerCopy: { flex: 1 },
   safetyBannerTitle: { ...type.label, color: colors.textPrimary },
   safetyBannerText: { ...type.caption, color: colors.textSecondary, marginTop: 2 },
-  safetyEnableButton: { minHeight: 40, justifyContent: 'center', paddingHorizontal: spacing.md, borderRadius: radii.pill, backgroundColor: colors.accent },
+  safetyEnableButton: { minHeight: 40, justifyContent: 'center', paddingHorizontal: spacing.md, borderRadius: radii.md, backgroundColor: colors.accent },
   safetyEnableText: { ...type.caption, color: colors.accentText, fontWeight: '800' },
 });
