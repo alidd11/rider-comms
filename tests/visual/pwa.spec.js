@@ -229,9 +229,13 @@ test('PWA exposes session management and account deletion', async ({ page }) => 
   let remoteRevoked = false;
   let accountDeleted = false;
 
-  await page.route('**/auth/sessions**', async (route) => {
+  // Replace the shared catch-all backend stub for this test so account
+  // endpoints cannot be swallowed by the generic "{}" response.
+  await page.unroute('https://backend-production-7fa0.up.railway.app/**');
+  await page.route('https://backend-production-7fa0.up.railway.app/**', async (route) => {
     const request = route.request();
     const pathname = new URL(request.url()).pathname;
+
     if (request.method() === 'DELETE' && pathname === '/auth/sessions/session-remote') {
       remoteRevoked = true;
       return route.fulfill({ status: 204, body: '' });
@@ -250,15 +254,29 @@ test('PWA exposes session management and account deletion', async ({ page }) => 
         }),
       });
     }
-    return route.fallback();
-  });
-
-  await page.route('**/auth/me', async (route) => {
-    if (route.request().method() === 'DELETE') {
-      accountDeleted = true;
-      return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
+    if (pathname === '/auth/me') {
+      if (request.method() === 'DELETE') {
+        accountDeleted = true;
+        return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
+      }
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ riderId: RIDER_ID }) });
     }
-    return route.fallback();
+    if (pathname === `/riders/${RIDER_ID}/profile`) {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(PROFILE) });
+    }
+    if (pathname === `/riders/${RIDER_ID}/friends`) {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ friends: [] }) });
+    }
+    if (pathname === `/riders/${RIDER_ID}/friend-requests`) {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ incoming: [], outgoing: [] }) });
+    }
+    if (pathname === '/hazards/nearby') {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ hazards: [] }) });
+    }
+    if (pathname === '/config') {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ googleMapsApiKey: 'visual-test-key' }) });
+    }
+    return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
   });
 
   await page.goto('/#settings');
