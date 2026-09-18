@@ -19,7 +19,7 @@ The machine-readable source of truth is `client-parity.json`. Any new user-facin
 
 The current intentional gap list is:
 
-- navigation: both clients now align on provider choice, route/step UI, distance units, next-turn preview, ETA/arrival, spoken turn/reroute/arrival prompts, arrival handling and automatic rerouting. Real chat ducking/audio mixing, background/locked-screen guidance and physical ride/Bluetooth validation remain outstanding.
+- navigation: both clients now align on provider choice, route/step UI, distance units, next-turn preview, ETA/arrival, spoken turn/reroute/arrival prompts, arrival handling and automatic rerouting. Native navigation now keeps private/public LiveKit voice connected and ducks real incoming chat while a navigation prompt speaks. External-music ducking remains OS-managed rather than app-controlled, and background/locked-screen guidance plus physical ride/Bluetooth validation remain outstanding.
 
 Direct messages, Hideouts, block/report flows and the billing preview are now available with matching user-facing content in both clients.
 

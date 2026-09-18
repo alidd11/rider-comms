@@ -829,9 +829,9 @@ export function MapScreen(): React.JSX.Element {
         </View>
       )}
 
-      {!activeRoute && <View style={styles.rideBarSlot} pointerEvents="box-none">
-        <RideBar />
-      </View>}
+      <View style={styles.rideBarSlot} pointerEvents="box-none">
+        <RideBar controlsVisible={!activeRoute} />
+      </View>
       <ProximityVoice enabled={shareLocation && ridersInZone.length > 0} />
     </View>
   );
