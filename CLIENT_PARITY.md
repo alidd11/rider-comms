@@ -19,7 +19,7 @@ The machine-readable source of truth is `client-parity.json`. Any new user-facin
 
 The current intentional gap list is:
 
-- navigation: both clients exist but behavior differs
+- navigation: both clients now align on provider choice, route/step UI, distance units, next-turn preview, ETA/arrival, arrival handling and automatic rerouting. Native spoken turn prompts, real chat ducking/audio mixing, background/locked-screen guidance and physical ride validation remain outstanding.
 
 Direct messages, Hideouts, block/report flows and the billing preview are now available with matching user-facing content in both clients.
 
