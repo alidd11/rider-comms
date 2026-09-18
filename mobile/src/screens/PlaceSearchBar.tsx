@@ -21,9 +21,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, spacing, radii, type, elevation, MIN_TOUCH_TARGET } from '../theme';
 import { GOOGLE_PLACES_API_KEY } from '../config';
 import { distanceBetweenMeters, formatPlaceDistance, isSearchQueryValid, searchNearbyPlaces, searchPlaces } from '../api/places';
-import type { PlaceResult } from '../api/places';
+import type { PlaceResult, PlaceSearchFailure } from '../api/places';
 import { useAuth } from '../auth/AuthContext';
 import { addRecentPlace, parseRecentPlaces, recentPlacesStorageKey } from '../search/recentPlaces';
+import { useSettings } from '../settings/SettingsContext';
 
 const SEARCH_DEBOUNCE_MS = 300;
 
@@ -46,12 +47,15 @@ export function PlaceSearchBar({
 }): React.JSX.Element {
   const insets = useSafeAreaInsets();
   const { riderId } = useAuth();
+  const { unitSystem } = useSettings();
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState('');
   const [activeCategory, setActiveCategory] = React.useState<string | null>(null);
   const [results, setResults] = React.useState<PlaceResult[]>([]);
   const [recentPlaces, setRecentPlaces] = React.useState<PlaceResult[]>([]);
   const [loading, setLoading] = React.useState(false);
+  const [searchError, setSearchError] = React.useState<PlaceSearchFailure | null>(null);
+  const [retryToken, setRetryToken] = React.useState(0);
   const debounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const requestRef = React.useRef(0);
   const searchUnavailable = !GOOGLE_PLACES_API_KEY;
@@ -94,9 +98,11 @@ export function PlaceSearchBar({
     const requestId = ++requestRef.current;
     if ((!activeCategory && !isSearchQueryValid(query)) || !near || searchUnavailable) {
       setResults([]);
+      setSearchError(null);
       setLoading(false);
       return;
     }
+    setSearchError(null);
     setLoading(true);
     debounceRef.current = setTimeout(() => {
       const category = CATEGORIES.find((item) => item.label === activeCategory);
@@ -104,8 +110,10 @@ export function PlaceSearchBar({
         ? searchNearbyPlaces({ includedTypes: category.types }, near, GOOGLE_PLACES_API_KEY)
         : searchPlaces(query, near, GOOGLE_PLACES_API_KEY);
       request
-        .then((places) => {
-          if (requestId === requestRef.current) setResults(places);
+        .then((result) => {
+          if (requestId !== requestRef.current) return;
+          setResults(result.places);
+          setSearchError(result.status === 'ok' ? null : result.status);
         })
         .finally(() => {
           if (requestId === requestRef.current) setLoading(false);
@@ -114,7 +122,7 @@ export function PlaceSearchBar({
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [query, activeCategory, near, searchUnavailable]);
+  }, [query, activeCategory, near, searchUnavailable, retryToken]);
 
   function close(): void {
     requestRef.current += 1;
@@ -122,6 +130,7 @@ export function PlaceSearchBar({
     setQuery('');
     setActiveCategory(null);
     setResults([]);
+    setSearchError(null);
     setLoading(false);
   }
 
@@ -248,7 +257,7 @@ export function PlaceSearchBar({
                     {item.address ? <Text style={styles.resultAddress} numberOfLines={1}>{item.address}</Text> : null}
                   </View>
                   <View style={styles.resultTrailing}>
-                    {near ? <Text style={styles.resultDistance}>{formatPlaceDistance(item.distanceMeters)}</Text> : null}
+                    {near ? <Text style={styles.resultDistance}>{formatPlaceDistance(item.distanceMeters, unitSystem)}</Text> : null}
                     <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
                   </View>
                 </Pressable>
@@ -282,7 +291,16 @@ export function PlaceSearchBar({
                 </View>
               }
               ListEmptyComponent={
-                !loading && isSearchQueryValid(query) ? (
+                !loading && searchError ? (
+                  <SearchState
+                    compact
+                    icon={searchError === 'network-error' ? 'cloud-offline-outline' : 'alert-circle-outline'}
+                    title={searchFailureCopy(searchError).title}
+                    copy={searchFailureCopy(searchError).copy}
+                    actionLabel="Try again"
+                    onAction={() => setRetryToken((current) => current + 1)}
+                  />
+                ) : !loading && isSearchQueryValid(query) ? (
                   <SearchState compact icon="search-outline" title="No matching places" copy="Check the spelling or try a broader place name." />
                 ) : null
               }
@@ -304,7 +322,7 @@ export function PlaceSearchBar({
                     {item.address ? <Text style={styles.resultAddress} numberOfLines={1}>{item.address}</Text> : null}
                   </View>
                   <View style={styles.resultTrailing}>
-                    <Text style={styles.resultDistance}>{formatPlaceDistance(item.distanceMeters)}</Text>
+                    <Text style={styles.resultDistance}>{formatPlaceDistance(item.distanceMeters, unitSystem)}</Text>
                     <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
                   </View>
                 </Pressable>
@@ -317,6 +335,19 @@ export function PlaceSearchBar({
       </Modal>
     </>
   );
+}
+
+function searchFailureCopy(failure: PlaceSearchFailure): { title: string; copy: string } {
+  if (failure === 'rate-limited') {
+    return { title: 'Search is busy', copy: 'The place service is receiving too many requests. Wait a moment and try again.' };
+  }
+  if (failure === 'network-error') {
+    return { title: 'Can’t reach place search', copy: 'Check your connection and try again.' };
+  }
+  if (failure === 'unavailable') {
+    return { title: 'Search unavailable', copy: 'Place search is not configured for this build yet.' };
+  }
+  return { title: 'Place search failed', copy: 'The place service could not complete this search. Try again shortly.' };
 }
 
 function SearchState({ icon, title, copy, compact = false, actionLabel, onAction }: {
