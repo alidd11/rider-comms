@@ -298,6 +298,98 @@ test('PWA host can remove another rider from a private ride', async ({ page }) =
   await expect(page.locator('#toast')).toContainText('removed from the ride');
 });
 
+test('PWA settings sheets own the bottom edge without competing with app chrome', async ({ page }, testInfo) => {
+  await mockAuthenticatedApi(page, 'unknown');
+  await page.goto('/#settings');
+
+  const nav = page.locator('.bottom-nav');
+  const banner = page.locator('#movementSafetyBanner');
+  const app = page.locator('#app');
+  const settingsScreen = page.locator('[data-screen="settings"]');
+  await expect(nav).toBeVisible();
+  await expect(banner).toBeVisible();
+
+  await page.locator('[data-sheet="privacy"]').click();
+  await expect(page.locator('#sheetBackdrop')).toBeVisible();
+  await expect(page.locator('html')).toHaveClass(/sheet-open/);
+  await expect(app).toHaveAttribute('inert', '');
+  await expect(nav).toBeHidden();
+  await expect(banner).toBeHidden();
+  await expect(settingsScreen).toHaveCSS('overflow', 'hidden');
+  await page.locator('.sheet').evaluate(async (element) => {
+    await Promise.all(element.getAnimations().map((animation) => animation.finished));
+  });
+
+  const sheetBox = await page.locator('.sheet').boundingBox();
+  const viewport = page.viewportSize();
+  expect(sheetBox).not.toBeNull();
+  expect(viewport).not.toBeNull();
+  expect(Math.abs((sheetBox.y + sheetBox.height) - viewport.height)).toBeLessThanOrEqual(1);
+  await page.screenshot({
+    path: testInfo.outputPath(`${testInfo.project.name}-settings-privacy-sheet.png`),
+    fullPage: true,
+  });
+
+  await page.locator('#closeSheet').click();
+  await expect(page.locator('html')).not.toHaveClass(/sheet-open/);
+  await expect(app).not.toHaveAttribute('inert', '');
+  await expect(nav).toBeVisible();
+  await expect(banner).toBeVisible();
+});
+
+test('installed PWA tab bar owns the iOS home-indicator inset without moving controls into it', async ({ page }) => {
+  await mockAuthenticatedApi(page);
+  await page.goto('/#settings');
+  await page.evaluate(() => {
+    const root = document.documentElement;
+    root.classList.add('pwa-standalone');
+    // Desktop Playwright resolves env(safe-area-inset-bottom) to 0, so model
+    // the real iPhone geometry that produced the black band in device testing.
+    root.style.setProperty('--bottom-safe-area', '34px');
+  });
+
+  const nav = page.locator('.bottom-nav');
+  const activeButton = page.locator('.bottom-nav [data-nav="settings"]');
+  const activeLabel = activeButton.locator('span');
+
+  const [navBox, buttonBox, labelBox] = await Promise.all([
+    nav.boundingBox(),
+    activeButton.boundingBox(),
+    activeLabel.boundingBox(),
+  ]);
+  const viewport = page.viewportSize();
+  const chrome = await page.evaluate(() => {
+    const root = document.documentElement;
+    const nav = document.querySelector('.bottom-nav');
+    const pseudo = getComputedStyle(nav, '::after');
+    return {
+      navSafeBottom: getComputedStyle(root).getPropertyValue('--nav-safe-bottom').trim(),
+      navHeight: getComputedStyle(nav).height,
+      navBackground: getComputedStyle(nav).backgroundColor,
+      continuationBackground: pseudo.backgroundColor,
+    };
+  });
+
+  expect(chrome.navSafeBottom).toBe('34px');
+  expect(parseFloat(chrome.navHeight)).toBe(58 + 34 + 1); // rail + safe area + top border
+  expect(chrome.continuationBackground).toBe(chrome.navBackground);
+
+  expect(navBox).not.toBeNull();
+  expect(buttonBox).not.toBeNull();
+  expect(labelBox).not.toBeNull();
+  expect(viewport).not.toBeNull();
+  expect(Math.abs((navBox.y + navBox.height) - viewport.height)).toBeLessThanOrEqual(1);
+
+  // Controls stay in the 58px rail above the safe area. The 34px gesture
+  // inset belongs to the nav surface but is not interactive control space.
+  expect(buttonBox.y).toBeGreaterThanOrEqual(navBox.y - 1);
+  expect(buttonBox.y + buttonBox.height).toBeLessThanOrEqual(navBox.y + 59);
+  const railBottom = navBox.y + 58;
+  const labelBottomGap = railBottom - (labelBox.y + labelBox.height);
+  expect(labelBottomGap).toBeGreaterThanOrEqual(0);
+  expect(labelBottomGap).toBeLessThanOrEqual(12);
+});
+
 test('PWA exposes session management and account deletion', async ({ page }) => {
   let remoteRevoked = false;
   let accountDeleted = false;
