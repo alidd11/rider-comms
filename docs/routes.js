@@ -90,7 +90,7 @@
     },
   ];
 
-  const labels = { all: 'All rides', quick: 'Under 90 min', half_day: '1–3 hr', day_trip: '3+ hr' };
+  const labels = { all: 'All rides', quick: 'Under 90 min', half_day: '90 min–3 hr', day_trip: '3+ hr' };
   let filter = 'all';
   let riderLocation = null;
   const escapeHtml = (value) => String(value).replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
