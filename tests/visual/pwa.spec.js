@@ -349,6 +349,16 @@ test('installed PWA tab controls stay low but contained inside the bottom bar', 
     activeLabel.boundingBox(),
   ]);
   const viewport = page.viewportSize();
+  const chrome = await page.evaluate(() => ({
+    navSafeBottom: getComputedStyle(document.documentElement).getPropertyValue('--nav-safe-bottom').trim(),
+    navHeight: getComputedStyle(document.querySelector('.bottom-nav')).height,
+    navBackground: getComputedStyle(document.querySelector('.bottom-nav')).backgroundColor,
+    rootBackground: getComputedStyle(document.documentElement).backgroundColor,
+  }));
+
+  expect(chrome.navSafeBottom).toBe('0px');
+  expect(chrome.navHeight).toBe('58px');
+  expect(chrome.rootBackground).toBe(chrome.navBackground);
 
   expect(navBox).not.toBeNull();
   expect(buttonBox).not.toBeNull();
@@ -359,7 +369,7 @@ test('installed PWA tab controls stay low but contained inside the bottom bar', 
   expect(buttonBox.y + buttonBox.height).toBeLessThanOrEqual(navBox.y + navBox.height + 1);
   const labelBottomGap = (navBox.y + navBox.height) - (labelBox.y + labelBox.height);
   expect(labelBottomGap).toBeGreaterThanOrEqual(0);
-  expect(labelBottomGap).toBeLessThanOrEqual(9);
+  expect(labelBottomGap).toBeLessThanOrEqual(4);
 });
 
 test('PWA exposes session management and account deletion', async ({ page }) => {
