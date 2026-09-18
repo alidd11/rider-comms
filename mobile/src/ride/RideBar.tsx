@@ -15,6 +15,7 @@ import { View, Text, Pressable, StyleSheet, Modal, Alert } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LiveKitRoom } from '@livekit/react-native';
 import { audioEngine } from '../audio/audioEngine';
+import { LiveKitAudioPriorityBridge } from '../audio/LiveKitAudioPriorityBridge';
 import { startVoiceAudioSession, stopVoiceAudioSession } from '../audio/audioSession';
 import { useVoiceActivity } from '../audio/useVoiceActivity';
 import { useAuth } from '../auth/AuthContext';
@@ -103,7 +104,7 @@ function VoiceActivityBridge({
  * tab (à la a music app's now-playing bar) instead of taking over the whole
  * screen — tap it to expand the full mixer + leave-ride controls.
  */
-export function RideBar(): React.JSX.Element | null {
+export function RideBar({ controlsVisible = true }: { controlsVisible?: boolean } = {}): React.JSX.Element | null {
   const { activeRide, leaveRide, shareRideLocation, setRideLocationSharing } = useRide();
   const { lockedForSafety } = useMovementSafety();
   const [expanded, setExpanded] = React.useState(false);
@@ -112,16 +113,16 @@ export function RideBar(): React.JSX.Element | null {
   const [manuallyMuted, setManuallyMuted] = React.useState(false);
   const [locationShareBusy, setLocationShareBusy] = React.useState(false);
   const [locationShareError, setLocationShareError] = React.useState<string | null>(null);
-  // Hooks run unconditionally, before the `!activeRide` early return below —
-  // the hook itself is a no-op (empty state) while there's no active ride.
+  // Hooks run unconditionally, before the !activeRide early return below.
   const voice = useRideVoiceToken(activeRide?.rideId);
   const audioSessionError = useVoiceAudioSession(Boolean(activeRide));
   const [roomStatus, setRoomStatus] = React.useState<'connecting' | 'connected' | 'disconnected' | 'error'>('connecting');
   const [roomError, setRoomError] = React.useState<string | null>(null);
   const voiceConnected = Boolean(voice.token && voice.url);
   const handleSpeakingChange = React.useCallback((speaking: boolean) => {
+    // This is the local rider's VOX state for the UI only. Incoming remote
+    // speaker state is tracked by LiveKitAudioPriorityBridge.
     setTalking(speaking);
-    audioEngine.setChatActive(speaking);
   }, []);
 
   React.useEffect(() => {
@@ -132,6 +133,10 @@ export function RideBar(): React.JSX.Element | null {
     setRoomStatus('connecting');
     setRoomError(null);
   }, [activeRide?.rideId]);
+
+  React.useEffect(() => {
+    if (!controlsVisible) setExpanded(false);
+  }, [controlsVisible]);
 
   if (!activeRide) return null;
 
@@ -170,147 +175,134 @@ export function RideBar(): React.JSX.Element | null {
         ? 'Voice disconnected'
         : 'Connecting voice';
 
-  if (lockedForSafety) {
-    return (
-      <View style={styles.lockedBar} accessibilityLiveRegion="polite">
-        <View style={[styles.liveDot, voiceFailure && styles.errorDot]} />
-        <MaterialCommunityIcons name="motorbike" size={18} color={colors.accent} />
-        <View style={styles.lockedBarCopy}>
-          <Text style={styles.barText}>In ride{activeRide.code ? ` · ${activeRide.code}` : ''}</Text>
-          <Text style={[styles.voiceStatusText, voiceFailure && styles.voiceError]}>{voiceLabel}</Text>
-        </View>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Leave active ride"
-          style={styles.compactLeaveButton}
-          onPress={handleLeave}
-        >
-          <Ionicons name="exit-outline" size={20} color={colors.danger} />
-          <Text style={styles.compactLeaveText}>Leave</Text>
-        </Pressable>
-        {voiceConnected && (
-          <LiveKitRoom
-            serverUrl={voice.url}
-            token={voice.token}
-            audio
-            connect
-            onConnected={() => setRoomStatus('connected')}
-            onDisconnected={() => setRoomStatus('disconnected')}
-            onError={(error) => { setRoomStatus('error'); setRoomError(error.message || 'Could not connect to voice.'); }}
-          >
-            <VoiceActivityBridge enabled={!manuallyMuted} onSpeakingChange={handleSpeakingChange} />
-          </LiveKitRoom>
-        )}
-      </View>
-    );
-  }
-
   return (
-    <>
-      <Pressable style={({ pressed }) => [styles.bar, pressed && styles.barPressed]} onPress={() => setExpanded(true)}>
-        <View style={styles.liveDot} />
-        <MaterialCommunityIcons name="motorbike" size={18} color={colors.accent} />
-        <Text style={styles.barText}>In ride{activeRide.code ? ` · ${activeRide.code}` : ''}</Text>
-        {shareRideLocation && (
-          <View style={styles.locationLivePill}>
-            <Ionicons name="location" size={13} color={colors.success} />
-            <Text style={styles.locationLiveText}>Live</Text>
-          </View>
-        )}
-        <Ionicons name="chevron-up" size={18} color={colors.textSecondary} />
-      </Pressable>
-
-      <LiveKitRoom
-        serverUrl={voice.url}
-        token={voice.token}
-        audio
-        connect={voiceConnected}
-        onConnected={() => setRoomStatus('connected')}
-        onDisconnected={() => setRoomStatus('disconnected')}
-        onError={(error) => { setRoomStatus('error'); setRoomError(error.message || 'Could not connect to voice.'); }}
-      >
+    <LiveKitRoom
+      serverUrl={voice.url}
+      token={voice.token}
+      audio
+      connect={voiceConnected}
+      onConnected={() => setRoomStatus('connected')}
+      onDisconnected={() => setRoomStatus('disconnected')}
+      onError={(error) => { setRoomStatus('error'); setRoomError(error.message || 'Could not connect to voice.'); }}
+    >
       <VoiceActivityBridge enabled={voiceConnected && !manuallyMuted} onSpeakingChange={handleSpeakingChange} />
-      <Modal visible={expanded} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setExpanded(false)}>
-        <View style={styles.sheet}>
-          <View style={styles.sheetHeader}>
-            <View style={styles.statusRow}>
-              <View style={styles.liveDot} />
-              <Text style={styles.statusText}>In ride</Text>
-            </View>
-            <Pressable onPress={() => setExpanded(false)} style={styles.closeButton}>
-              <Ionicons name="chevron-down" size={22} color={colors.textSecondary} />
-            </Pressable>
+      <LiveKitAudioPriorityBridge sourceId={`ride:${activeRide.rideId}`} />
+
+      {controlsVisible && lockedForSafety ? (
+        <View style={styles.lockedBar} accessibilityLiveRegion="polite">
+          <View style={[styles.liveDot, voiceFailure && styles.errorDot]} />
+          <MaterialCommunityIcons name="motorbike" size={18} color={colors.accent} />
+          <View style={styles.lockedBarCopy}>
+            <Text style={styles.barText}>In ride{activeRide.code ? ` · ${activeRide.code}` : ''}</Text>
+            <Text style={[styles.voiceStatusText, voiceFailure && styles.voiceError]}>{voiceLabel}</Text>
           </View>
-
-          {activeRide.code && (
-            <View style={styles.codeCard}>
-              <Text style={styles.codeLabel}>Share code</Text>
-              <Text style={styles.codeValue}>{activeRide.code}</Text>
-            </View>
-          )}
-          <Text style={styles.rideId}>Ride ID: {activeRide.rideId}</Text>
-          <Text style={[styles.voiceStatusText, voiceFailure && styles.voiceError]}>{voiceLabel}</Text>
-          {voiceFailure && <Text style={styles.voiceError}>{voiceFailure}</Text>}
-
-          <View style={styles.locationCard}>
-            <View style={styles.locationCardCopy}>
-              <Text style={styles.locationCardTitle}>Share my live location</Text>
-              <Text style={styles.locationCardBody}>
-                {shareRideLocation
-                  ? 'On — current ride members can see your recent position.'
-                  : 'Off — your position is not being uploaded to this ride.'}
-              </Text>
-            </View>
-            <Pressable
-              accessibilityRole="switch"
-              accessibilityState={{ checked: shareRideLocation, disabled: locationShareBusy }}
-              accessibilityLabel="Share my live location with this ride"
-              disabled={locationShareBusy}
-              onPress={() => void toggleRideLocation()}
-              style={[styles.locationSwitch, shareRideLocation && styles.locationSwitchOn]}
-            >
-              <View style={[styles.locationSwitchKnob, shareRideLocation && styles.locationSwitchKnobOn]} />
-            </Pressable>
-          </View>
-          {locationShareError && <Text style={styles.voiceError}>{locationShareError}</Text>}
-
-          <View style={styles.mixerCard}>
-            <Text style={styles.mixerLabel}>Audio priority — nav overrides chat overrides music</Text>
-            {CHANNELS.map(({ key, label, icon }) => (
-              <View key={key} style={styles.gainRow}>
-                <Ionicons name={icon} size={18} color={colors.textSecondary} style={styles.gainIcon} />
-                <Text style={styles.gainLabel}>{label}</Text>
-                <GainBar value={gains[key]} />
-              </View>
-            ))}
-          </View>
-
           <Pressable
-            style={({ pressed }) => [
-              styles.talkButton,
-              talking && styles.talkButtonActive,
-              pressed && styles.talkButtonPressed,
-            ]}
-            onPress={() => setManuallyMuted((muted) => !muted)}
+            accessibilityRole="button"
+            accessibilityLabel="Leave active ride"
+            style={styles.compactLeaveButton}
+            onPress={handleLeave}
           >
-            <Ionicons
-              name={manuallyMuted ? 'mic-off' : talking ? 'mic' : 'mic-outline'}
-              size={22}
-              color={colors.textPrimary}
-            />
-            <Text style={styles.talkButtonText}>
-              {manuallyMuted ? 'Muted — tap to unmute' : talking ? 'Talking' : 'Listening — hands-free'}
-            </Text>
-          </Pressable>
-
-          <Pressable style={({ pressed }) => [styles.leaveButton, pressed && styles.leaveButtonPressed]} onPress={handleLeave}>
             <Ionicons name="exit-outline" size={20} color={colors.danger} />
-            <Text style={styles.leaveButtonText}>Leave Ride</Text>
+            <Text style={styles.compactLeaveText}>Leave</Text>
           </Pressable>
         </View>
-      </Modal>
-      </LiveKitRoom>
-    </>
+      ) : controlsVisible ? (
+        <>
+          <Pressable style={({ pressed }) => [styles.bar, pressed && styles.barPressed]} onPress={() => setExpanded(true)}>
+            <View style={styles.liveDot} />
+            <MaterialCommunityIcons name="motorbike" size={18} color={colors.accent} />
+            <Text style={styles.barText}>In ride{activeRide.code ? ` · ${activeRide.code}` : ''}</Text>
+            {shareRideLocation && (
+              <View style={styles.locationLivePill}>
+                <Ionicons name="location" size={13} color={colors.success} />
+                <Text style={styles.locationLiveText}>Live</Text>
+              </View>
+            )}
+            <Ionicons name="chevron-up" size={18} color={colors.textSecondary} />
+          </Pressable>
+
+          <Modal visible={expanded} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setExpanded(false)}>
+            <View style={styles.sheet}>
+              <View style={styles.sheetHeader}>
+                <View style={styles.statusRow}>
+                  <View style={styles.liveDot} />
+                  <Text style={styles.statusText}>In ride</Text>
+                </View>
+                <Pressable onPress={() => setExpanded(false)} style={styles.closeButton}>
+                  <Ionicons name="chevron-down" size={22} color={colors.textSecondary} />
+                </Pressable>
+              </View>
+
+              {activeRide.code && (
+                <View style={styles.codeCard}>
+                  <Text style={styles.codeLabel}>Share code</Text>
+                  <Text style={styles.codeValue}>{activeRide.code}</Text>
+                </View>
+              )}
+              <Text style={styles.rideId}>Ride ID: {activeRide.rideId}</Text>
+              <Text style={[styles.voiceStatusText, voiceFailure && styles.voiceError]}>{voiceLabel}</Text>
+              {voiceFailure && <Text style={styles.voiceError}>{voiceFailure}</Text>}
+
+              <View style={styles.locationCard}>
+                <View style={styles.locationCardCopy}>
+                  <Text style={styles.locationCardTitle}>Share my live location</Text>
+                  <Text style={styles.locationCardBody}>
+                    {shareRideLocation
+                      ? 'On — current ride members can see your recent position.'
+                      : 'Off — your position is not being uploaded to this ride.'}
+                  </Text>
+                </View>
+                <Pressable
+                  accessibilityRole="switch"
+                  accessibilityState={{ checked: shareRideLocation, disabled: locationShareBusy }}
+                  accessibilityLabel="Share my live location with this ride"
+                  disabled={locationShareBusy}
+                  onPress={() => void toggleRideLocation()}
+                  style={[styles.locationSwitch, shareRideLocation && styles.locationSwitchOn]}
+                >
+                  <View style={[styles.locationSwitchKnob, shareRideLocation && styles.locationSwitchKnobOn]} />
+                </Pressable>
+              </View>
+              {locationShareError && <Text style={styles.voiceError}>{locationShareError}</Text>}
+
+              <View style={styles.mixerCard}>
+                <Text style={styles.mixerLabel}>Audio priority — nav overrides chat overrides music</Text>
+                {CHANNELS.map(({ key, label, icon }) => (
+                  <View key={key} style={styles.gainRow}>
+                    <Ionicons name={icon} size={18} color={colors.textSecondary} style={styles.gainIcon} />
+                    <Text style={styles.gainLabel}>{label}</Text>
+                    <GainBar value={gains[key]} />
+                  </View>
+                ))}
+              </View>
+
+              <Pressable
+                style={({ pressed }) => [
+                  styles.talkButton,
+                  talking && styles.talkButtonActive,
+                  pressed && styles.talkButtonPressed,
+                ]}
+                onPress={() => setManuallyMuted((muted) => !muted)}
+              >
+                <Ionicons
+                  name={manuallyMuted ? 'mic-off' : talking ? 'mic' : 'mic-outline'}
+                  size={22}
+                  color={colors.textPrimary}
+                />
+                <Text style={styles.talkButtonText}>
+                  {manuallyMuted ? 'Muted — tap to unmute' : talking ? 'Talking' : 'Listening — hands-free'}
+                </Text>
+              </Pressable>
+
+              <Pressable style={({ pressed }) => [styles.leaveButton, pressed && styles.leaveButtonPressed]} onPress={handleLeave}>
+                <Ionicons name="exit-outline" size={20} color={colors.danger} />
+                <Text style={styles.leaveButtonText}>Leave Ride</Text>
+              </Pressable>
+            </View>
+          </Modal>
+        </>
+      ) : null}
+    </LiveKitRoom>
   );
 }
 
