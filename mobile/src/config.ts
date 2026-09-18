@@ -24,3 +24,11 @@ export const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? `http://${devServ
  * search gracefully reports "unavailable" rather than erroring when unset.
  */
 export const GOOGLE_PLACES_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_PLACES_API_KEY ?? '';
+
+/**
+ * Web-service key used by the lightweight native in-app directions client.
+ * A dedicated restricted key can be supplied for production builds; during
+ * development the existing native Google key is reused when Directions API
+ * access is enabled for it.
+ */
+export const GOOGLE_DIRECTIONS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_DIRECTIONS_API_KEY ?? GOOGLE_PLACES_API_KEY;
