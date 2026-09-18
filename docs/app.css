@@ -560,3 +560,21 @@ h1,.auth-intro h1{letter-spacing:-.02em}
   left:max(12px,var(--safe-left));
   right:max(12px,var(--safe-right));
 }
+
+
+/* Bottom-sheet ownership
+   ----------------------
+   Settings and detail sheets own the viewport bottom edge while open. This
+   prevents the persistent tab bar and ride pill from competing with the
+   modal on installed iOS PWAs, and freezes the active scroll surface behind
+   the sheet so rows cannot move under the modal or status chrome. */
+html.sheet-open .bottom-nav,
+html.sheet-open .ride-pill{
+  opacity:0;
+  pointer-events:none;
+}
+html.sheet-open .bottom-nav{visibility:hidden}
+html.sheet-open .screen.active{
+  overflow:hidden;
+  overscroll-behavior:none;
+}
