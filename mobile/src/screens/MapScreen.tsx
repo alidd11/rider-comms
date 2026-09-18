@@ -46,6 +46,7 @@ import {
 } from '../api/directions';
 import { navigationProviderLabel } from '../navigationPreference';
 import { formatNavigationDistance, maneuverIcon } from '../navigationGuidance';
+import { speakNavigationPrompt, stopNavigationPrompt } from '../audio/navigationSpeech';
 
 const PRESENCE_UPDATE_INTERVAL_MS = 8000; // per spec Section 8: every 5-10s
 const DEFAULT_REGION = {
@@ -166,6 +167,7 @@ export function MapScreen(): React.JSX.Element {
   const [navigationNotice, setNavigationNotice] = React.useState<string | null>(null);
   const navOffRouteSince = React.useRef<number | null>(null);
   const navRerouting = React.useRef(false);
+  const announcedNavigationStep = React.useRef<{ route: InAppNavigationRoute; index: number } | null>(null);
   const [mapReady, setMapReady] = React.useState(false);
   const mapRef = React.useRef<MapView | null>(null);
   const centredOnFirstFix = React.useRef(false);
@@ -371,9 +373,13 @@ export function MapScreen(): React.JSX.Element {
     setActiveRoute(null);
     setNavigationDestination(null);
     setNavigationStepIndex(0);
+    announcedNavigationStep.current = null;
     navOffRouteSince.current = null;
     navRerouting.current = false;
     setNavigationNotice(arrived ? 'You have arrived.' : null);
+    void stopNavigationPrompt().finally(() => {
+      if (arrived) speakNavigationPrompt('You have arrived at your destination.');
+    });
   }, []);
 
   const requestInAppRoute = React.useCallback(async (origin: { lat: number; lon: number }, target: NavigationTarget, rerouting = false) => {
@@ -413,6 +419,20 @@ export function MapScreen(): React.JSX.Element {
       setNavigationLoading(false);
     }
   }
+
+  React.useEffect(() => {
+    if (!activeRoute || !currentNavigationStep) return;
+    const last = announcedNavigationStep.current;
+    if (last?.route === activeRoute && last.index === navigationStepIndex) return;
+    announcedNavigationStep.current = { route: activeRoute, index: navigationStepIndex };
+    speakNavigationPrompt(currentNavigationStep.instruction);
+  }, [activeRoute, currentNavigationStep, navigationStepIndex]);
+
+  React.useEffect(() => {
+    return () => {
+      void stopNavigationPrompt();
+    };
+  }, []);
 
   React.useEffect(() => {
     if (!activeRoute || !navigationDestination || !currentNavigationStep) return;
@@ -463,6 +483,7 @@ export function MapScreen(): React.JSX.Element {
 
         navOffRouteSince.current = null;
         setNavigationNotice('Rerouting…');
+        speakNavigationPrompt('Rerouting.');
         void requestInAppRoute(here, navigationDestination, true).catch(() => {
           setNavigationNotice('Could not reroute. Continue with caution.');
         });
