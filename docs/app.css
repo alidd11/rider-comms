@@ -624,9 +624,10 @@ html.pwa-standalone:not(.auth-open) body{
 .avatar-picker-check{position:absolute;right:5px;bottom:5px;width:20px;height:20px;display:grid;place-items:center;border-radius:50%;background:var(--accent);color:#fff;font-size:.7rem;font-weight:900}
 @media(max-width:390px){.avatar-picker-grid{gap:9px}.avatar-picker-option{min-height:66px}.avatar-picker-option .avatar{width:48px;height:48px}}
 
-/* Direct-message surface. It owns the full visual viewport, including the
-   installed-iPhone safe areas, so the persistent tab bar never competes
-   with the composer. */
+/* Direct-message surface. Follow VisualViewport while the keyboard is open
+   so iOS cannot pan the header off-screen. The composer itself does not add
+   the installed-iPhone bottom inset a second time; the safe-area continuation
+   is painted below the surface, matching the proven bottom-nav model. */
 .chat-screen{position:fixed;z-index:45;top:var(--visual-viewport-top,0px);right:0;bottom:auto;left:0;width:min(100%,760px);height:var(--app-vh);margin-inline:auto;display:grid;grid-template-rows:auto auto minmax(0,1fr) auto;overflow:visible;background:var(--bg);color:var(--text)}
 .chat-screen[hidden]{display:none}
 .chat-header{min-height:calc(var(--safe-top) + 62px);padding:var(--safe-top) max(14px,var(--safe-right)) 8px max(14px,var(--safe-left));display:grid;grid-template-columns:44px 40px minmax(0,1fr) 44px;align-items:center;gap:8px;border-bottom:1px solid var(--border-soft);background:var(--surface)}
