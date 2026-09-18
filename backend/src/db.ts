@@ -530,6 +530,13 @@ const MIGRATIONS: { name: string; sql: string }[] = [
         ON direct_messages (to_rider_id, seq DESC);
     `,
   },
+  {
+    name: '0025_rider_blocks_reverse_lookup',
+    sql: `
+      CREATE INDEX IF NOT EXISTS rider_blocks_blocked_rider_idx
+        ON rider_blocks (blocked_rider_id, rider_id);
+    `,
+  },
 ];
 
 /**

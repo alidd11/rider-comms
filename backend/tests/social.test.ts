@@ -177,5 +177,114 @@ describe('reporting and blocking', { skip: !hasDatabase && 'DATABASE_URL not set
     assert.deepEqual(await requests.json(), { incoming: [], outgoing: [], profiles: {}, nextCursor: null });
     assert.equal((await postJson(ctx, 'pending-target', `/friends/requests/${request.id}/accept`, {})).status, 404);
   });
+  it('makes blocking a durable relationship teardown without restoring access on unblock', async () => {
+    await makeFriends('block-owner', 'block-peer');
+
+    const hideoutResponse = await postJson(ctx, 'block-owner', '/hideouts', {
+      name: 'Private meetup',
+      lat: 51.5074,
+      lon: -0.1278,
+      participantIds: ['block-peer'],
+    });
+    assert.equal(hideoutResponse.status, 201);
+    const hideout = await hideoutResponse.json() as { id: string };
+
+    assert.equal((await postJson(ctx, 'block-owner', '/blocks', { riderId: 'block-peer' })).status, 200);
+
+    const ownerFriends = await authenticatedFetch(ctx, 'block-owner', '/riders/block-owner/friends');
+    const peerFriends = await authenticatedFetch(ctx, 'block-peer', '/riders/block-peer/friends');
+    assert.deepEqual((await ownerFriends.json() as { friends: unknown[] }).friends, []);
+    assert.deepEqual((await peerFriends.json() as { friends: unknown[] }).friends, []);
+
+    const peerHideouts = await authenticatedFetch(ctx, 'block-peer', '/riders/block-peer/hideouts');
+    assert.equal((await peerHideouts.json() as { hideouts: Array<{ id: string }> }).hideouts.some(({ id }) => id === hideout.id), false);
+
+    const ownerHideouts = await authenticatedFetch(ctx, 'block-owner', '/riders/block-owner/hideouts');
+    const ownerHideout = (await ownerHideouts.json() as { hideouts: Array<{ id: string; participantIds: string[] }> })
+      .hideouts.find(({ id }) => id === hideout.id);
+    assert.deepEqual(ownerHideout?.participantIds, []);
+
+    assert.equal((await authenticatedFetch(ctx, 'block-owner', '/blocks/block-peer', { method: 'DELETE' })).status, 200);
+    assert.equal((await postJson(ctx, 'block-owner', '/messages', { toRiderId: 'block-peer', text: 'still connected?' })).status, 403);
+
+    const reconnect = await postJson(ctx, 'block-owner', '/friends/requests', { toRiderId: 'block-peer' });
+    assert.equal(reconnect.status, 201);
+  });
+
+  it('hides blocked riders even if stale friendship and request rows exist', async () => {
+    ctx.authStore.createTestSession('stale-block-a');
+    ctx.authStore.createTestSession('stale-block-b');
+    assert.equal((await postJson(ctx, 'stale-block-a', '/blocks', { riderId: 'stale-block-b' })).status, 200);
+
+    const now = Date.now();
+    await getPool().query(
+      `INSERT INTO friendships (rider_id, friend_id, created_at)
+       VALUES ($1, $2, $3), ($2, $1, $3)
+       ON CONFLICT (rider_id, friend_id) DO NOTHING`,
+      ['stale-block-a', 'stale-block-b', now],
+    );
+    await getPool().query(
+      `INSERT INTO friend_requests (id, from_rider_id, to_rider_id, status, created_at)
+       VALUES ($1, $2, $3, 'pending', $4)`,
+      ['stale-block-request', 'stale-block-b', 'stale-block-a', now],
+    );
+
+    assert.equal(await ctx.friendStore.isFriendOf('stale-block-a', 'stale-block-b'), false);
+    assert.deepEqual(await ctx.friendStore.createRequest('stale-block-a', 'stale-block-b'), { ok: false, error: 'blocked' });
+
+    const friends = await authenticatedFetch(ctx, 'stale-block-a', '/riders/stale-block-a/friends');
+    const requests = await authenticatedFetch(ctx, 'stale-block-a', '/riders/stale-block-a/friend-requests');
+    assert.deepEqual((await friends.json() as { friends: unknown[] }).friends, []);
+    assert.deepEqual(await requests.json(), { incoming: [], outgoing: [], profiles: {}, nextCursor: null });
+  });
+
+  it('filters blocked participants from third-party group hideouts', async () => {
+    await makeFriends('hideout-host', 'hideout-a');
+    await makeFriends('hideout-host', 'hideout-b');
+
+    const created = await postJson(ctx, 'hideout-host', '/hideouts', {
+      name: 'Group meeting point',
+      lat: 51.51,
+      lon: -0.12,
+      participantIds: ['hideout-a', 'hideout-b'],
+    });
+    assert.equal(created.status, 201);
+    const hideout = await created.json() as { id: string };
+
+    assert.equal((await postJson(ctx, 'hideout-a', '/blocks', { riderId: 'hideout-b' })).status, 200);
+    const response = await authenticatedFetch(ctx, 'hideout-a', '/riders/hideout-a/hideouts');
+    const visible = (await response.json() as { hideouts: Array<{ id: string; participantIds: string[] }> })
+      .hideouts.find(({ id }) => id === hideout.id);
+    assert.ok(visible);
+    assert.equal(visible?.participantIds.includes('hideout-a'), true);
+    assert.equal(visible?.participantIds.includes('hideout-b'), false);
+  });
+
+  it('does not surface blocked nearby riders through presence responses', async () => {
+    ctx.authStore.createTestSession('presence-block-a');
+    ctx.authStore.createTestSession('presence-block-b');
+    await ctx.profileStore.update('presence-block-a', { shareLocation: true });
+    await ctx.profileStore.update('presence-block-b', { shareLocation: true });
+
+    const recordedAt = Date.now();
+    const location = { lat: 51.5074, lon: -0.1278, accuracyMeters: 5 };
+    assert.equal((await postJson(ctx, 'presence-block-b', '/presence', { ...location, recordedAt })).status, 200);
+
+    const beforeBlock = await postJson(ctx, 'presence-block-a', '/presence', { ...location, recordedAt: recordedAt + 1 });
+    assert.equal(beforeBlock.status, 200);
+    assert.equal((await beforeBlock.json() as { inZoneWith: string[] }).inZoneWith.includes('presence-block-b'), true);
+
+    assert.equal((await postJson(ctx, 'presence-block-a', '/blocks', { riderId: 'presence-block-b' })).status, 200);
+
+    const afterBlock = await postJson(ctx, 'presence-block-a', '/presence', { ...location, recordedAt: recordedAt + 2 });
+    assert.equal(afterBlock.status, 200);
+    const body = await afterBlock.json() as {
+      inZoneWith: string[];
+      transitions: Array<{ a: string; b: string }>;
+    };
+    assert.equal(body.inZoneWith.includes('presence-block-b'), false);
+    assert.equal(body.transitions.some(({ a, b }) => a === 'presence-block-b' || b === 'presence-block-b'), false);
+  });
+
   it('rejects an unknown report reason', async () => { ctx.authStore.createTestSession('target'); assert.equal((await postJson(ctx, 'reporter', '/reports', { riderId: 'target', reason: 'anything' })).status, 400); });
 });

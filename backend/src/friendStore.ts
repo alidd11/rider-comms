@@ -6,7 +6,7 @@ import { ensureMigrated, getPool } from './db.ts';
 
 export type CreateFriendRequestResult =
   | { ok: true; request: FriendRequest }
-  | { ok: false; error: 'invalid' | 'already_friends' | 'request_exists'; message?: string };
+  | { ok: false; error: 'invalid' | 'already_friends' | 'request_exists' | 'blocked'; message?: string };
 
 export type ResolveRequestResult =
   | { ok: true; request: FriendRequest }
@@ -110,6 +110,18 @@ export class FriendStore {
     return rows.length > 0;
   }
 
+  private async isBlockedBetween(a: string, b: string, database: Pick<Pool, 'query'> = getPool()): Promise<boolean> {
+    await ensureMigrated();
+    const { rows } = await database.query(
+      `SELECT 1 FROM rider_blocks
+       WHERE (rider_id = $1 AND blocked_rider_id = $2)
+          OR (rider_id = $2 AND blocked_rider_id = $1)
+       LIMIT 1`,
+      [a, b],
+    );
+    return rows.length > 0;
+  }
+
   private async findPendingBetween(a: string, b: string, database: Pick<Pool, 'query'> = getPool()): Promise<FriendRequest | undefined> {
     await ensureMigrated();
     const { rows } = await database.query<FriendRequestRow>(
@@ -134,6 +146,10 @@ export class FriendStore {
     try {
       await client.query('BEGIN');
       await this.lockPair(client, fromRiderId, toRiderId);
+      if (await this.isBlockedBetween(fromRiderId, toRiderId, client)) {
+        await client.query('ROLLBACK');
+        return { ok: false, error: 'blocked' };
+      }
       if (await this.areFriends(fromRiderId, toRiderId, client)) {
         await client.query('ROLLBACK');
         return { ok: false, error: 'already_friends' };
@@ -182,6 +198,12 @@ export class FriendStore {
          ON profile.rider_id = CASE WHEN request.from_rider_id = $1 THEN request.to_rider_id ELSE request.from_rider_id END
        WHERE request.status = 'pending'
          AND (request.to_rider_id = $1 OR request.from_rider_id = $1)
+         AND NOT EXISTS (
+           SELECT 1
+           FROM rider_blocks block
+           WHERE (block.rider_id = $1 AND block.blocked_rider_id = CASE WHEN request.from_rider_id = $1 THEN request.to_rider_id ELSE request.from_rider_id END)
+              OR (block.blocked_rider_id = $1 AND block.rider_id = CASE WHEN request.from_rider_id = $1 THEN request.to_rider_id ELSE request.from_rider_id END)
+         )
          AND ($2::bigint IS NULL OR (request.created_at, request.id) < ($2::bigint, $3::text))
        ORDER BY request.created_at DESC, request.id DESC
        LIMIT $4`,
@@ -297,6 +319,12 @@ export class FriendStore {
        FROM friendships friendship
        LEFT JOIN rider_profiles profile ON profile.rider_id = friendship.friend_id
        WHERE friendship.rider_id = $1
+         AND NOT EXISTS (
+           SELECT 1
+           FROM rider_blocks block
+           WHERE (block.rider_id = $1 AND block.blocked_rider_id = friendship.friend_id)
+              OR (block.blocked_rider_id = $1 AND block.rider_id = friendship.friend_id)
+         )
          AND ($2::bigint IS NULL OR (friendship.created_at, friendship.friend_id) < ($2::bigint, $3::text))
        ORDER BY friendship.created_at DESC, friendship.friend_id DESC
        LIMIT $4`,
@@ -341,8 +369,23 @@ export class FriendStore {
     await pool.query('DELETE FROM friend_requests WHERE from_rider_id = $1 OR to_rider_id = $1', [riderId]);
   }
 
-  /** Exposed for the messages endpoint's friendship check. */
+  /** Social authorisation treats a block as stronger than a stale friendship row. */
   async isFriendOf(a: string, b: string): Promise<boolean> {
-    return this.areFriends(a, b);
+    await ensureMigrated();
+    const { rows } = await getPool().query(
+      `SELECT 1
+       FROM friendships friendship
+       WHERE friendship.rider_id = $1
+         AND friendship.friend_id = $2
+         AND NOT EXISTS (
+           SELECT 1
+           FROM rider_blocks block
+           WHERE (block.rider_id = $1 AND block.blocked_rider_id = $2)
+              OR (block.rider_id = $2 AND block.blocked_rider_id = $1)
+         )
+       LIMIT 1`,
+      [a, b],
+    );
+    return rows.length > 0;
   }
 }
