@@ -65,3 +65,7 @@ export class AudioEngine {
     }
   }
 }
+
+/** Shared process-wide engine so ride chat and navigation prompts update the
+ * same priority state/UI. Actual gain application remains native-wiring work. */
+export const audioEngine = new AudioEngine();
