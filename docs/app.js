@@ -740,8 +740,9 @@
         showToast('Could not open directions.');
         return;
       }
-      const opened = window.open(href, '_blank', 'noopener,noreferrer');
-      if (!opened) window.location.href = href;
+      const opened = window.open(href, '_blank');
+      if (opened) opened.opener = null;
+      else window.location.href = href;
       return;
     }
 
@@ -789,13 +790,15 @@
       $('#planHideoutForm').addEventListener('submit', async (event) => {
         event.preventDefault();
         const name = $('#hideoutName').value.trim();
-        const lat = Number($('#hideoutLat').value.trim());
-        const lon = Number($('#hideoutLon').value.trim());
+        const latInput = $('#hideoutLat').value.trim();
+        const lonInput = $('#hideoutLon').value.trim();
+        const lat = Number(latInput);
+        const lon = Number(lonInput);
         const errorEl = $('#planHideoutError');
         const save = $('#saveHideoutBtn');
         errorEl.hidden = true;
 
-        if (!name || !Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) {
+        if (!name || !latInput || !lonInput || !Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) {
           errorEl.textContent = 'Enter a name plus valid latitude and longitude coordinates.';
           errorEl.hidden = false;
           return;
