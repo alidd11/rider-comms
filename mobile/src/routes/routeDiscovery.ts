@@ -6,7 +6,7 @@ export type RideWindow = 'all' | 'quick' | 'half_day' | 'day_trip';
 export const RIDE_WINDOWS: ReadonlyArray<{ value: RideWindow; label: string }> = [
   { value: 'all', label: 'All rides' },
   { value: 'quick', label: 'Under 90 min' },
-  { value: 'half_day', label: '1–3 hr' },
+  { value: 'half_day', label: '90 min–3 hr' },
   { value: 'day_trip', label: '3+ hr' },
 ];
 
