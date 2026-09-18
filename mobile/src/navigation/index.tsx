@@ -5,7 +5,7 @@
 import * as React from 'react';
 import { Linking, View, Text, StyleSheet, useColorScheme } from 'react-native';
 import { DarkTheme, DefaultTheme, NavigationContainer, useNavigationState } from '@react-navigation/native';
-import type { LinkingOptions } from '@react-navigation/native';
+import type { LinkingOptions, NavigatorScreenParams } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -48,7 +48,7 @@ export type TabParamList = {
 };
 
 export type RootStackParamList = {
-  Tabs: undefined;
+  Tabs: NavigatorScreenParams<TabParamList> | undefined;
   CreateRide: undefined;
   FriendChat: { riderId: string; displayName: string; avatarId: string };
   Billing: undefined;
