@@ -608,7 +608,9 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
       return sendJson(res, 404, { error: 'not_found' });
     } catch (error) { if (error instanceof RequestError) return sendJson(res, error.status, { error: error.message }); if (error instanceof URIError) return sendJson(res, 400, { error: 'invalid URL encoding' }); console.error('request failed', error); return sendJson(res, 500, { error: 'internal_error' }); }
   });
-  app.once('close', () => { void socialEventStore.close?.(); });
+  app.once('close', () => {
+    void socialEventStore.close?.().catch((error) => console.error('social event listener close failed', error));
+  });
   return app;
 }
 const isMainModule = process.argv[1] && import.meta.url === `file://${process.argv[1]}`;
