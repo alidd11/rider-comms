@@ -23,7 +23,6 @@ The current intentional gap list is:
 - direct messages: native only
 - hideouts: native only
 - block/report flows: native only
-- recent places: PWA only
 - navigation: both clients exist but behavior differs
 - billing preview content: both clients exist but content differs
 
