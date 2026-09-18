@@ -13,7 +13,7 @@ const hasDatabase = Boolean(process.env.DATABASE_URL);
 before({ skip: !hasDatabase && 'DATABASE_URL not set; skipping Postgres-backed social tests' }, async () => {
   await getPool().query('SELECT 1');
   await ensureMigrated();
-  await getPool().query('TRUNCATE direct_message_reads, friend_requests, friendships, direct_messages, rider_blocks, safety_reports');
+  await getPool().query('TRUNCATE social_rate_events, direct_message_reads, friend_requests, friendships, direct_messages, rider_blocks, safety_reports');
 });
 
 after({ skip: !hasDatabase }, async () => {
