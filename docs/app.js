@@ -437,6 +437,13 @@
     const label = typeof detail?.label === 'string' && detail.label.trim() ? detail.label.trim().slice(0, 120) : 'Route start';
     navigate('map');
 
+    // Keep the destination actionable even when the Google map is still
+    // loading or the app has fallen back to its non-map surface. The card
+    // itself only needs the LatLng interface; once Maps becomes available,
+    // upgrade the same destination to a real marker without changing intent.
+    const fallbackLocation = { lat: () => lat, lng: () => lng };
+    showDestinationCard(fallbackLocation, label, 'Curated route start');
+
     const openOnMap = () => {
       if (!map || !window.google?.maps) return false;
       const location = new google.maps.LatLng(lat, lng);
@@ -446,11 +453,7 @@
       return true;
     };
 
-    if (!openOnMap()) {
-      setTimeout(() => {
-        if (!openOnMap()) showToast('Map is still loading. Try again in a moment.');
-      }, 500);
-    }
+    if (!openOnMap()) setTimeout(openOnMap, 500);
   });
 
   function renderProfile() {
