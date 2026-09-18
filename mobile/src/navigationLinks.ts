@@ -1,3 +1,5 @@
+import type { NavigationProvider } from './navigationPreference.ts';
+
 export interface NavigationTarget {
   lat: number;
   lon: number;
@@ -51,6 +53,27 @@ export function parseNavigationLink(rawUrl: string | null | undefined): Navigati
   } catch {
     return null;
   }
+}
+
+export function buildNavigationProviderUrl(
+  target: NavigationTarget,
+  provider: Exclude<NavigationProvider, 'in_app'>
+): string | null {
+  const validated = navigationTargetFromValues(target.lat, target.lon, target.label);
+  if (!validated) return null;
+
+  const coordinate = `${validated.lat},${validated.lon}`;
+  const label = validated.label ?? coordinate;
+
+  if (provider === 'google_maps') {
+    const params = new URLSearchParams({ api: '1', destination: coordinate, travelmode: 'driving' });
+    return `https://www.google.com/maps/dir/?${params.toString()}`;
+  }
+  if (provider === 'waze') {
+    const params = new URLSearchParams({ ll: coordinate, navigate: 'yes' });
+    return `https://www.waze.com/ul?${params.toString()}`;
+  }
+  return `https://maps.apple.com/?daddr=${encodeURIComponent(coordinate)}&q=${encodeURIComponent(label)}&dirflg=d`;
 }
 
 export function buildExternalNavigationUrl(
