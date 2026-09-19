@@ -274,6 +274,7 @@
   let movementFreshnessTimer;
   let movementPermissionStatus;
   let movementAccessDenied = false;
+  let rideRefreshVersion = 0;
   let latestDevicePosition;
   let mapCentredOnLiveLocation = false;
   let activeChat = null;
@@ -713,8 +714,6 @@
         const aOnline = friendActivity.get(a.riderId)?.online === true;
         const bOnline = friendActivity.get(b.riderId)?.online === true;
         if (aOnline !== bOnline) return aOnline ? -1 : 1;
-        // Match native: promote live friends, but preserve the backend order
-        // within each presence group so identity/avatar associations stay stable.
         return 0;
       });
     const onlineCount = friends.filter((friend) => friendActivity.get(friend.riderId)?.online === true).length;
@@ -736,7 +735,6 @@
         <span class="friend-more" aria-hidden="true">•••</span>
       </button>`;
     }).join('');
-
     const hasFriends = state.friends.length > 0;
     const hasVisibleFriends = friends.length > 0;
     const hasRequests = state.requests.length > 0;
@@ -771,8 +769,8 @@
     try {
       profile = await apiFetch('GET', `/profiles/${encodeURIComponent(riderId)}`);
     } catch {
-      // Keep the friendship identity available when optional public-profile
-      // data cannot be refreshed.
+      // Keep the friendship identity available when optional public-profile data
+      // cannot be refreshed.
     }
     const activity = friendActivity.get(riderId);
     const socialLinks = [
@@ -1296,8 +1294,10 @@
       ? 'On — current ride members can see your recent position.'
       : 'Off — your position is not being uploaded to this ride.';
     const members = ride.members || ride.memberIds.map((riderId) => ({ riderId, displayName: riderId, handle: riderId }));
-    $('#activeRideCode').textContent = ride.code;
-    $('#ridePillCode').textContent = ride.code;
+    $('#activeRideCode').textContent = ride.code || 'Invite expired';
+    $('#ridePillCode').textContent = ride.code || 'Invite expired';
+    $('#copyRideCode').disabled = !ride.code;
+    $('#rideShareTop').disabled = !ride.code;
     $('#rideRole').textContent = ride.isHost ? 'host' : 'member';
     $('#memberCount').textContent = String(members.length);
     const pillCount = $('#ridePill .pill-count');
@@ -1322,36 +1322,40 @@
    */
   async function loadRideRoster() {
     if (!state.activeRide) return;
-    state.activeRide.members = await resolveRiderProfiles(state.activeRide.memberIds);
+    const rideId = state.activeRide.rideId;
+    const members = await resolveRiderProfiles(state.activeRide.memberIds);
+    if (state.activeRide?.rideId !== rideId) return;
+    state.activeRide.members = members;
     persist();
     renderRide();
   }
 
-  /**
-   * Re-syncs the active ride with the backend (GET /rides/:id) — used on
-   * returning to the Ride screen, since another member could have joined,
-   * left, or the host could have ended the ride while this device was
-   * elsewhere. A 404/403 means the ride is gone or this rider was removed
-   * from it, so the local "active ride" state is cleared to match reality.
-   */
+  // Reconcile membership, invite validity and private location consent from
+  // the server. Cached ride details are never enough to resume sharing.
   async function refreshActiveRide() {
-    if (!state.activeRide) return;
+    const version = rideRefreshVersion;
     try {
-      const ride = await apiFetch('GET', `/rides/${encodeURIComponent(state.activeRide.rideId)}`);
-      state.activeRide.memberIds = ride.memberIds;
-      state.activeRide.createdBy = ride.createdBy;
-      state.activeRide.isHost = ride.createdBy === state.profile.riderId;
-      persist();
-      await loadRideRoster();
-    } catch (error) {
-      if (error instanceof ApiError && (error.status === 404 || error.status === 403)) {
-        state.activeRide = null;
+      const previous = state.activeRide;
+      const { ride } = await apiFetch('GET', '/rides/current');
+      if (version !== rideRefreshVersion) return;
+      state.activeRide = ride ? {
+        rideId: ride.rideId, code: ride.code, isHost: ride.createdBy === state.profile.riderId,
+        createdBy: ride.createdBy, memberIds: ride.memberIds,
+        shareRideLocation: ride.shareRideLocation === true,
+        members: previous?.rideId === ride.rideId ? previous.members : undefined,
+      } : null;
+      if (ride) await stopPublicPresenceForRide();
+      if (!ride) {
         state.selectedRiderId = null;
-        persist();
-        renderRide();
-        renderMapRiders();
-        showToast('That ride is no longer active.');
+        rideMemberLocations = new Map();
       }
+      persist();
+      renderRide();
+      if (ride) await loadRideRoster();
+      else if (previous) showToast('That ride is no longer active.');
+    } catch (error) {
+      // Transient failures leave the last verified state intact. A fresh
+      // login starts with no verified ride and can retry from the Ride tab.
     }
   }
 
@@ -1371,7 +1375,9 @@
       if (!(await preflightMicrophoneAccess())) return;
       const shareRideLocation = $('#hostRideLocationConsent').checked;
       const result = await apiFetch('POST', '/rides', {});
+      rideRefreshVersion += 1;
       state.activeRide = { rideId: result.rideId, code: result.code, isHost: true, createdBy: result.createdBy, memberIds: result.memberIds, shareRideLocation: false };
+      await stopPublicPresenceForRide();
       state.selectedRiderId = null;
       persist();
       renderRide();
@@ -1402,7 +1408,9 @@
       const shareRideLocation = $('#joinRideLocationConsent').checked;
       const joined = await apiFetch('POST', '/rides/join', { code });
       const ride = await apiFetch('GET', `/rides/${encodeURIComponent(joined.rideId)}`);
+      rideRefreshVersion += 1;
       state.activeRide = { rideId: ride.rideId, code, isHost: ride.createdBy === state.profile.riderId, createdBy: ride.createdBy, memberIds: ride.memberIds, shareRideLocation: false };
+      await stopPublicPresenceForRide();
       state.selectedRiderId = null;
       persist();
       renderRide();
@@ -1433,6 +1441,7 @@
     try {
       if (ride.isHost) await apiFetch('DELETE', `/rides/${encodeURIComponent(ride.rideId)}`);
       else await apiFetch('POST', `/rides/${encodeURIComponent(ride.rideId)}/leave`, {});
+      rideRefreshVersion += 1;
       state.activeRide = null;
       state.selectedRiderId = null;
       persist();
@@ -1467,6 +1476,7 @@
 
   async function shareRide() {
     if (!state.activeRide) return;
+    if (!state.activeRide.code) return showToast('This invite has expired. Your ride remains active.');
     const text = `Join my Rider Comms group ride with code ${state.activeRide.code}`;
     try {
       if (navigator.share) await navigator.share({ title: 'Rider Comms invite', text });
@@ -1790,6 +1800,10 @@
     joinBtn.hidden = privateRide;
     joinBtn.dataset.active = String(active);
     joinBtn.setAttribute('aria-label', active ? 'Leave nearby' : 'Go live nearby');
+    const joiningLocked = window.RiderMovementSafety.isLockedForSafety(movementState) && !state.publicLive;
+    joinBtn.toggleAttribute('inert', joiningLocked);
+    joinBtn.setAttribute('aria-disabled', String(joiningLocked));
+    renderVoiceStatus();
   }
 
   // Presence has to be refreshed periodically while live — the backend
@@ -1805,6 +1819,59 @@
   function stopPresenceRefresh() {
     clearInterval(presenceRefreshTimer);
     presenceRefreshTimer = undefined;
+  }
+
+  function startPresenceRefresh() {
+    stopPresenceRefresh();
+    presenceRefreshTimer = setInterval(async () => {
+      if (!state.publicLive || state.activeRide || document.visibilityState !== 'visible') return;
+      try {
+        const position = await currentPosition();
+        if (state.publicLive && !state.activeRide) await sendPresence(position);
+      } catch { /* A transient miss is retried on the next tick. */ }
+    }, PRESENCE_REFRESH_MS);
+  }
+
+  async function stopPublicPresenceForRide() {
+    if (!state.publicLive) return;
+    stopPresenceRefresh();
+    state.publicLive = false;
+    nearbyRiders = [];
+    disconnectVoice();
+    persist();
+    renderMapStatus();
+    renderMapRiders();
+    try { await apiFetch('DELETE', '/presence'); } catch { /* Presence also expires server-side. */ }
+  }
+
+  // Stored public-live intent is not proof of current server consent or an
+  // active presence lease. Check both consent and existing OS permission before
+  // rejoining after a restart; never trigger an unsolicited location prompt.
+  async function resumePublicPresence() {
+    if (!state.publicLive || state.activeRide) return;
+    if (!state.profile.shareLocation) {
+      state.publicLive = false;
+      persist();
+      renderMapStatus();
+      return;
+    }
+    try {
+      const permission = await navigator.permissions?.query({ name: 'geolocation' });
+      if (permission?.state !== 'granted') throw new Error('location_permission_needed');
+      const position = await currentPosition();
+      if (!state.publicLive || state.activeRide || !session) return;
+      await sendPresence(position);
+      startPresenceRefresh();
+      await resumePreviouslyAllowedVoice();
+    } catch {
+      state.publicLive = false;
+      nearbyRiders = [];
+      try { await apiFetch('DELETE', '/presence'); } catch { /* Lease expires even if offline. */ }
+      persist();
+      renderMapStatus();
+      renderMapRiders();
+      showToast('Nearby paused. Tap Go live to resume when location is available.');
+    }
   }
 
   /** Sends one real presence ping (POST /presence) with the given
@@ -1889,6 +1956,18 @@
     }
   }
 
+  async function resumePreviouslyAllowedVoice() {
+    if (!state.activeRide && !state.publicLive) return;
+    try {
+      const permission = await navigator.permissions?.query({ name: 'microphone' });
+      if (permission?.state === 'granted') {
+        microphonePermissionReady = true;
+        syncVoiceConnection();
+      }
+    } catch { /* Unsupported Permissions API: wait for a direct rider tap. */ }
+    renderVoiceStatus();
+  }
+
   function loadLiveKitClient() {
     if (window.LivekitClient) return Promise.resolve();
     if (liveKitLoadPromise) return liveKitLoadPromise;
@@ -1962,24 +2041,32 @@
     const avatar = $('#mapAvatarButton');
     const badge = $('#voiceStatusBtn');
     const connected = Boolean(voiceRoom || proximityVoiceRooms.size);
+    const wantsVoice = Boolean(state.activeRide || state.publicLive);
+    const needsResume = wantsVoice && !connected && (!microphonePermissionReady || voiceFailureNotified);
+    const resumeLocked = needsResume && window.RiderMovementSafety.isLockedForSafety(movementState);
     avatar.classList.toggle('voice-talking', connected && voiceIsSpeaking);
     avatar.classList.toggle('voice-muted', connected && voiceManuallyMuted);
-    badge.hidden = !connected;
+    badge.hidden = !connected && !needsResume;
+    badge.toggleAttribute('inert', resumeLocked);
+    badge.setAttribute('aria-disabled', String(resumeLocked));
     badge.classList.toggle('talking', voiceIsSpeaking);
     badge.classList.toggle('muted', voiceManuallyMuted);
     const label = voiceManuallyMuted ? 'Muted — tap to unmute' : voiceIsSpeaking ? 'Talking' : 'Listening — hands-free';
-    badge.setAttribute('aria-label', voiceManuallyMuted ? 'Proximity voice muted — tap to unmute' : voiceIsSpeaking ? 'Talking' : 'Listening — hands-free');
+    badge.setAttribute('aria-label', needsResume ? 'Resume voice' : voiceManuallyMuted ? 'Proximity voice muted — tap to unmute' : voiceIsSpeaking ? 'Talking' : 'Listening — hands-free');
     // The Ride tab has no map header of its own (the glowing avatar above
     // only exists on the Map screen), so a rider parked on Ride while
     // talking needs this same status somewhere too — same real state,
     // same toggleVoiceMute control, just a text chip instead of a glow.
     const rideChip = $('#rideVoiceStatus');
     if (rideChip) {
-      rideChip.hidden = !connected;
+      rideChip.hidden = !connected && !needsResume;
+      rideChip.toggleAttribute('inert', resumeLocked);
+      rideChip.setAttribute('aria-disabled', String(resumeLocked));
       rideChip.classList.toggle('talking', voiceIsSpeaking);
       rideChip.classList.toggle('muted', voiceManuallyMuted);
       const rideChipText = $('#rideVoiceStatusText', rideChip);
-      if (rideChipText) rideChipText.textContent = label;
+      if (rideChipText) rideChipText.textContent = needsResume ? 'Resume voice' : label;
+      rideChip.setAttribute('aria-label', needsResume ? 'Resume voice' : label);
     }
   }
 
@@ -2162,8 +2249,14 @@
     else if (state.publicLive) void connectVoice('channel');
   }
 
-  function toggleVoiceMute() {
-    if (!voiceRoom && !proximityVoiceRooms.size) return;
+  async function toggleVoiceMute() {
+    if (!voiceRoom && !proximityVoiceRooms.size) {
+      if (!state.activeRide && !state.publicLive) return;
+      if (window.RiderMovementSafety.isLockedForSafety(movementState)) return;
+      if (!(await preflightMicrophoneAccess())) return;
+      syncVoiceConnection();
+      return;
+    }
     voiceManuallyMuted = !voiceManuallyMuted;
     if (voiceManuallyMuted) setVoiceSpeaking(false);
     renderVoiceStatus();
@@ -2225,12 +2318,7 @@
       centreMap(position.coords.latitude, position.coords.longitude);
       showToast('You are visible to nearby riders.');
       syncVoiceConnection();
-      presenceRefreshTimer = setInterval(async () => {
-        try {
-          const nextPosition = await currentPosition();
-          await sendPresence(nextPosition);
-        } catch { /* a transient miss is fine — the next tick retries */ }
-      }, PRESENCE_REFRESH_MS);
+      startPresenceRefresh();
     } catch (error) {
       state.publicLive = false;
       persist();
@@ -2310,10 +2398,11 @@
       item.setAttribute('aria-disabled', String(locked));
       item.classList.toggle('safety-unavailable', locked);
     });
-    $$('.map-header, #poiChipRow, #reportHazardBtn, #joinNearbyBtn, #riderCard, #hazardCard, #rideJoinState, #shareRideBtn, .ride-code-card, #rideRoster, #openRideMap').forEach((item) => {
+    $$('#mapSearchSlot, #mapAvatarButton, #poiChipRow, #reportHazardBtn, #riderCard, #hazardCard, #rideJoinState, #shareRideBtn, .ride-code-card, #rideRoster, #openRideMap').forEach((item) => {
       item.toggleAttribute('inert', locked);
       item.setAttribute('aria-disabled', String(locked));
     });
+    renderMapStatus();
     if (locked && !['map', 'ride'].includes(state.screen)) navigate(state.activeRide ? 'ride' : 'map', false);
     if (locked && activeChat) closeChat({ restoreFocus: false });
   }
@@ -3820,8 +3909,10 @@
     try {
       const profile = await apiFetch('GET', `/riders/${encodeURIComponent(state.profile.riderId)}/profile`);
       applyRemoteProfile(profile);
+      return true;
     } catch {
       showToast('Could not load your profile from the server.');
+      return false;
     }
   }
 
@@ -3859,6 +3950,10 @@
       const result = await apiFetch('POST', '/auth/login', { username, password, deviceName: 'Rider Comms PWA' });
       saveSession({ riderId: result.riderId, token: result.token });
       applyAuthenticatedIdentity(result.riderId, username);
+      // A newly authenticated rider may already belong to a ride on another
+      // device. Reconcile before enabling ride location or voice in the UI.
+      state.activeRide = null;
+      await refreshActiveRide();
       hideAuthScreen();
       startApp();
       loadProfile();
@@ -4099,6 +4194,7 @@
     renderFriends();
     renderRide();
     renderMapStatus();
+    void resumePreviouslyAllowedVoice();
     renderFallbackMarkers();
     renderHazardMarkers();
     navigate(location.hash.slice(1) || state.screen || 'map', false);
@@ -4113,6 +4209,13 @@
       syncChatPolling();
       if (document.visibilityState === 'visible') void initialiseMovementSafety();
       else stopMovementSafetyTracking();
+      if (document.visibilityState === 'visible') {
+        void (async () => {
+          await refreshActiveRide();
+          if (state.publicLive && !presenceRefreshTimer) await resumePublicPresence();
+          else await resumePreviouslyAllowedVoice();
+        })();
+      } else stopPresenceRefresh();
     });
   }
 
@@ -4154,9 +4257,20 @@
       return;
     }
     applyAuthenticatedIdentity(session.riderId, state.profile.displayName || session.riderId);
+    // Do not publish private location or join a room from persisted UI state.
+    const restorePublicLive = state.publicLive === true;
+    state.publicLive = false;
+    state.activeRide = null;
+    await refreshActiveRide();
+    if (restorePublicLive && state.activeRide) {
+      try { await apiFetch('DELETE', '/presence'); } catch { /* Lease expires server-side. */ }
+    }
     hideAuthScreen();
     startApp();
-    loadProfile();
+    if (await loadProfile() && restorePublicLive && !state.activeRide) {
+      state.publicLive = true;
+      await resumePublicPresence();
+    }
     if (verification) showToast(verification.message);
   }
 

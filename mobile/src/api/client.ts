@@ -23,7 +23,7 @@ export interface SignUpSession extends LoginSession { emailVerificationSent: boo
 export interface AccountSessionSummary { id: string; deviceName: string; createdAt: string; lastSeenAt: string; expiresAt: string; current: boolean }
 export interface CreateRideResponse { rideId: string; code: string; expiresAt: number; createdBy: string; memberIds: string[] }
 export interface JoinRideResponse { rideId: string }
-export interface RideResponse { rideId: string; createdBy: string; createdAt: number; memberIds: string[] }
+export interface RideResponse { rideId: string; createdBy: string; createdAt: number; memberIds: string[]; shareRideLocation: boolean; code: string | null }
 export interface RideMemberLocation { riderId: string; lat: number; lon: number; updatedAt: number }
 export interface PresenceResponse { inZoneWith: string[]; transitions: Array<{ a: string; b: string; type: 'entered' | 'left' }>; radiusMiles: number }
 export interface VoiceTokenResponse { token: string; url: string }
@@ -75,6 +75,7 @@ export class RiderCommsClient {
   createRide(): Promise<CreateRideResponse> { return this.request('POST', '/rides', {}); }
   joinRide(code: string): Promise<JoinRideResponse> { return this.request('POST', '/rides/join', { code }); }
   getRide(id: string): Promise<RideResponse> { return this.request('GET', `/rides/${encodeURIComponent(id)}`); }
+  getCurrentRide(): Promise<{ ride: RideResponse | null }> { return this.request('GET', '/rides/current'); }
   leaveRide(id: string): Promise<Record<string, never>> { return this.request('POST', `/rides/${encodeURIComponent(id)}/leave`, {}); }
   endRide(id: string): Promise<Record<string, never>> { return this.request('DELETE', `/rides/${encodeURIComponent(id)}`); }
   removeRideMember(id: string, memberId: string): Promise<RideResponse> { return this.request('DELETE', `/rides/${encodeURIComponent(id)}/members/${encodeURIComponent(memberId)}`); }

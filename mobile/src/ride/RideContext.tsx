@@ -31,6 +31,42 @@ export function RideProvider({ children }: { children: React.ReactNode }): React
   const [activeRide, setActiveRide] = React.useState<ActiveRide | null>(null);
   const [roster, setRoster] = React.useState<string[]>([]);
   const [rideLocations, setRideLocations] = React.useState<RideMemberLocation[]>([]);
+  const localRideChange = React.useRef(0);
+  const activeRideId = React.useRef<string | null>(null);
+  activeRideId.current = activeRide?.rideId ?? null;
+
+  React.useEffect(() => {
+    let cancelled = false;
+    // The database owns membership and consent. Refresh when a session opens
+    // or the app resumes; a transient network failure is retried in 10s.
+    setActiveRide(null);
+    setRoster([]);
+    setRideLocations([]);
+    const restore = async () => {
+      const change = localRideChange.current;
+      try {
+        const { ride } = await client.getCurrentRide();
+        if (cancelled || change !== localRideChange.current) return;
+        setActiveRide(ride ? {
+          rideId: ride.rideId,
+          code: ride.code || undefined,
+          isHost: ride.createdBy === riderId,
+          shareRideLocation: ride.shareRideLocation === true,
+        } : null);
+        setRoster(ride?.memberIds ?? []);
+        if (!ride?.shareRideLocation) setRideLocations([]);
+      } catch {
+        // Do not resume a cached ride or its private location sharing from
+        // an unverified membership. The next retry can reconnect it.
+      }
+    };
+    void restore();
+    const timer = setInterval(() => { if (!activeRideId.current && AppState.currentState === 'active') void restore(); }, 10_000);
+    const listener = AppState.addEventListener('change', (status) => {
+      if (status === 'active' && !activeRideId.current) void restore();
+    });
+    return () => { cancelled = true; clearInterval(timer); listener.remove(); };
+  }, [client, riderId]);
 
   const setSharingForRide = React.useCallback(async (rideId: string, enabled: boolean): Promise<boolean> => {
     if (enabled) {
@@ -39,6 +75,7 @@ export function RideProvider({ children }: { children: React.ReactNode }): React
     }
     try {
       await client.setRideLocationSharing(rideId, enabled);
+      localRideChange.current += 1;
       setActiveRide((current) => current?.rideId === rideId ? { ...current, shareRideLocation: enabled } : current);
       if (!enabled) setRideLocations([]);
       return true;
@@ -48,6 +85,7 @@ export function RideProvider({ children }: { children: React.ReactNode }): React
   }, [client]);
 
   const startRide = React.useCallback(async (ride: ActiveRide, shareRideLocation = false) => {
+    localRideChange.current += 1;
     const initial = { ...ride, shareRideLocation: false };
     setActiveRide(initial);
     setRoster([riderId]);
@@ -66,6 +104,7 @@ export function RideProvider({ children }: { children: React.ReactNode }): React
     try {
       if (ride.isHost) await client.endRide(ride.rideId);
       else await client.leaveRide(ride.rideId);
+      localRideChange.current += 1;
       setActiveRide(null);
       setRoster([]);
       setRideLocations([]);
@@ -91,9 +130,17 @@ export function RideProvider({ children }: { children: React.ReactNode }): React
     let cancelled = false;
     const refresh = async () => {
       if (cancelled || AppState.currentState !== 'active') return;
+      const change = localRideChange.current;
       try {
         const ride = await client.getRide(activeRide.rideId);
-        if (!cancelled) setRoster(ride.memberIds);
+        if (!cancelled && change === localRideChange.current) {
+          setRoster(ride.memberIds);
+          setActiveRide((current) => current?.rideId === ride.rideId ? {
+            ...current, isHost: ride.createdBy === riderId,
+            shareRideLocation: ride.shareRideLocation === true,
+            code: ride.code || undefined,
+          } : current);
+        }
       } catch (error) {
         if (!cancelled && error instanceof ApiError && (error.status === 403 || error.status === 404)) {
           setActiveRide(null);
@@ -114,7 +161,7 @@ export function RideProvider({ children }: { children: React.ReactNode }): React
       clearInterval(timer);
       appStateSubscription.remove();
     };
-  }, [activeRide?.rideId, client]);
+  }, [activeRide?.rideId, client, riderId]);
 
   React.useEffect(() => {
     if (!activeRide?.shareRideLocation) {
