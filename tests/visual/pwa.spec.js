@@ -847,6 +847,8 @@ test('PWA Nearby control switches public visibility and proximity voice off toge
   await expect(nearby).toHaveAttribute('aria-label', 'Leave nearby');
   await expect(nearby).toHaveAttribute('aria-pressed', 'true');
   await expect(nearby).toHaveAttribute('aria-busy', 'false');
+  await expect(page.locator('#voiceStatusBtn')).toBeVisible();
+  await expect(page.locator('#voiceStatusBtn')).toHaveAttribute('aria-label', 'Nearby Voice · waiting for riders');
 
   await nearby.click();
   await expect.poll(() => presenceDeletes).toBeGreaterThan(0);
@@ -860,6 +862,107 @@ test('PWA Nearby control switches public visibility and proximity voice off toge
     JSON.parse(localStorage.getItem(`rider-comms-pwa-v4:${riderId}`) || '{}'), RIDER_ID);
   expect(cached.publicLive).toBe(false);
   expect(cached.profile.shareLocation).toBe(false);
+});
+
+test('PWA Nearby Voice waits without holding the mic, then connects when a rider enters range', async ({ page }) => {
+  let shareLocation = false;
+  let presenceUpdates = 0;
+
+  await mockAuthenticatedApi(page, 'stationary', ({ url, request }) => {
+    if (url.pathname === `/riders/${RIDER_ID}/profile`) {
+      if (request.method() === 'PUT') {
+        const update = request.postDataJSON();
+        if (typeof update.shareLocation === 'boolean') shareLocation = update.shareLocation;
+      }
+      return { body: { ...PROFILE, shareLocation } };
+    }
+    if (url.pathname === '/presence' && request.method() === 'POST') {
+      presenceUpdates += 1;
+      const peerVisible = presenceUpdates >= 2;
+      return {
+        body: {
+          inZoneWith: peerVisible ? ['rider_peer01'] : [],
+          transitions: peerVisible ? [{ a: RIDER_ID, b: 'rider_peer01', type: 'entered' }] : [],
+          radiusMiles: 1,
+        },
+      };
+    }
+    if (url.pathname === '/profiles/rider_peer01') {
+      return { body: { riderId: 'rider_peer01', displayName: 'Peer Rider', handle: '@peer', avatarId: 'ridge' } };
+    }
+    if (url.pathname === '/voice/token' && request.method() === 'POST') {
+      const peerVisible = presenceUpdates >= 2;
+      return {
+        body: {
+          connections: peerVisible
+            ? [{ peerId: 'rider_peer01', token: 'peer-token', url: 'wss://voice.example.test' }]
+            : [],
+          refreshAfterMs: 20_000,
+        },
+      };
+    }
+    return null;
+  });
+
+  await page.addInitScript(() => {
+    // Keep the production cadence unchanged while making the second public
+    // presence refresh deterministic and fast enough for this browser test.
+    const realSetInterval = window.setInterval.bind(window);
+    window.setInterval = (handler, timeout = 0, ...args) =>
+      realSetInterval(handler, timeout === 20_000 ? 300 : timeout, ...args);
+
+    window.__nearbyVoiceRoomsCreated = 0;
+    const fakeStream = { getTracks: () => [{ stop() {} }] };
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: { getUserMedia: async () => fakeStream },
+    });
+    class FakeAudioContext {
+      createMediaStreamSource() { return { connect() {} }; }
+      createAnalyser() {
+        return {
+          fftSize: 512,
+          frequencyBinCount: 32,
+          getByteTimeDomainData(data) { data.fill(128); },
+        };
+      }
+      close() { return Promise.resolve(); }
+    }
+    Object.defineProperty(window, 'AudioContext', { configurable: true, value: FakeAudioContext });
+    window.LivekitClient = {
+      Room: class {
+        constructor() {
+          window.__nearbyVoiceRoomsCreated += 1;
+          this.localParticipant = { setMicrophoneEnabled: async () => {} };
+        }
+        on() { return this; }
+        async connect() {}
+        async startAudio() {}
+        async disconnect() {}
+      },
+      RoomEvent: {
+        TrackSubscribed: 'trackSubscribed',
+        TrackUnsubscribed: 'trackUnsubscribed',
+        ActiveSpeakersChanged: 'activeSpeakersChanged',
+        Reconnected: 'reconnected',
+        Disconnected: 'disconnected',
+      },
+      Track: { Kind: { Audio: 'audio' } },
+    };
+  });
+
+  await page.goto('/');
+  const nearby = page.locator('#joinNearbyBtn');
+  const voice = page.locator('#voiceStatusBtn');
+
+  await nearby.click();
+  await expect(nearby).toHaveAttribute('data-active', 'true');
+  await expect(voice).toBeVisible();
+  await expect(voice).toHaveAttribute('aria-label', 'Nearby Voice · waiting for riders');
+
+  await expect.poll(() => presenceUpdates).toBeGreaterThanOrEqual(2);
+  await expect.poll(() => page.evaluate(() => window.__nearbyVoiceRoomsCreated)).toBe(1);
+  await expect(voice).toHaveAttribute('aria-label', 'Listening — hands-free');
 });
 
 test('PWA cancels a delayed Nearby Voice connect after the rider turns Nearby off', async ({ page }) => {
