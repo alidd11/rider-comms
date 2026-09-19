@@ -280,7 +280,7 @@ export const CURATED_ROUTES: readonly CuratedRoute[] = [
     ],
     "routeSourceUrl": "https://www.visitwales.com/destinations/south-wales/wye-valley-and-vale-usk/must-do-wye-valley-and-vale-usk",
     "conditionsUrl": "https://traffic.wales/",
-    "reviewedAt": "2026-09-15",
+    "reviewedAt": "2026-09-19",
     "image": {
       "uri": "https://upload.wikimedia.org/wikipedia/commons/9/9a/A466_Wye_valley_road_-_geograph.org.uk_-_1402565.jpg",
       "alt": "The A466 following the Wye Valley towards Chepstow",
@@ -645,7 +645,7 @@ export const CURATED_ROUTES: readonly CuratedRoute[] = [
     ],
     "routeSourceUrl": "https://www.adventurebikerider.com/abrs-weekend-ride-crossing-the-pennines-on-the-a686/",
     "conditionsUrl": "https://one.network/uk",
-    "reviewedAt": "2026-09-15",
+    "reviewedAt": "2026-09-19",
     "image": {
       "uri": "https://upload.wikimedia.org/wikipedia/commons/5/5c/The_A686_below_Hartside_-_geograph.org.uk_-_1073084.jpg",
       "alt": "The A686 descending below Hartside summit",
@@ -701,7 +701,7 @@ export const CURATED_ROUTES: readonly CuratedRoute[] = [
     ],
     "routeSourceUrl": "https://www.adventurebikerider.com/article/uk-roads-to-ride-in-2021/",
     "conditionsUrl": "https://one.network/uk",
-    "reviewedAt": "2026-09-18",
+    "reviewedAt": "2026-09-19",
     "image": {
       "uri": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/0b/Middleton-in-Teesdale_%2C_Alston_Road_B6277_-_geograph.org.uk_-_6687638.jpg/1280px-Middleton-in-Teesdale_%2C_Alston_Road_B6277_-_geograph.org.uk_-_6687638.jpg",
       "alt": "The B6277 Alston road near Middleton-in-Teesdale",
@@ -777,7 +777,7 @@ export const CURATED_ROUTES: readonly CuratedRoute[] = [
     ],
     "routeSourceUrl": "https://lakedistrict.gov.uk/blog/top-10-locations-to-visit-in-the-lake-district/",
     "conditionsUrl": "https://one.network/uk",
-    "reviewedAt": "2026-09-18",
+    "reviewedAt": "2026-09-19",
     "image": {
       "uri": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/17/Honister_pass_near_the_slate_mine_-_geograph.org.uk_-_6186484.jpg/1280px-Honister_pass_near_the_slate_mine_-_geograph.org.uk_-_6186484.jpg",
       "alt": "Honister Pass near the slate mine",
@@ -811,6 +811,7 @@ export const CURATED_ROUTES: readonly CuratedRoute[] = [
     ],
     "safetyNotices": [
       "Buttertubs is narrow and exposed, with livestock, cattle grids and steep pitches.",
+      "The high pass is weather-sensitive and can become unreliable in severe conditions; check current road status before setting off.",
       "Drystone walls leave little verge or run-off on parts of the Dales road network.",
       "Summer weekends can be busy around Hawes and Ribblehead; allow substantially longer if stopping."
     ],
@@ -843,7 +844,7 @@ export const CURATED_ROUTES: readonly CuratedRoute[] = [
     ],
     "routeSourceUrl": "https://www.rapidtraining.co.uk/blog/2023/02/21/2023-2-21-rapid-roads-b6255",
     "conditionsUrl": "https://one.network/uk",
-    "reviewedAt": "2026-09-18",
+    "reviewedAt": "2026-09-19",
     "image": {
       "uri": "https://upload.wikimedia.org/wikipedia/commons/8/8c/The_B6255_road_near_Ribblehead_-_geograph.org.uk_-_8295984.jpg",
       "alt": "The B6255 road running across open moorland near Ribblehead",
