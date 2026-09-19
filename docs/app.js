@@ -2509,6 +2509,9 @@
     latestDevicePosition = position;
     locationPermissionReady = true;
     movementAccessDenied = false;
+    // A restored ride may have rendered before the first already-authorised
+    // GPS fix. Resume its consented sharing as soon as that fix arrives.
+    if (state.activeRide?.shareRideLocation && !rideLocationTimer) syncRideLocationSharing();
 
     if (!map || usingFallbackMap) return;
     const point = { lat, lng };
@@ -2711,11 +2714,13 @@
         if (!ride) return;
         try {
           const position = await currentPosition();
+          if (state.activeRide?.rideId !== ride.rideId || !state.activeRide.shareRideLocation || !session) return;
           await apiFetch('POST', `/rides/${encodeURIComponent(ride.rideId)}/location`, {
             lat: position.coords.latitude,
             lon: position.coords.longitude,
           });
           const { locations } = await apiFetch('GET', `/rides/${encodeURIComponent(ride.rideId)}/locations`);
+          if (state.activeRide?.rideId !== ride.rideId || !state.activeRide.shareRideLocation || !session) return;
           rideMemberLocations = new Map(locations.map((entry) => [entry.riderId, entry]));
           if (state.activeRide) renderMapRiders();
         } catch {
@@ -2725,8 +2730,8 @@
           // banner over the whole ride.
         }
       };
-      void tick();
       rideLocationTimer = setInterval(tick, RIDE_LOCATION_REFRESH_MS);
+      void tick();
     } else {
       if (rideLocationTimer) clearInterval(rideLocationTimer);
       rideLocationTimer = undefined;
@@ -3814,8 +3819,7 @@
       userMapMarker = addMapMarker({ ...state.profile, displayName: state.profile.displayName }, liveCentre, true);
       mapCentredOnLiveLocation = true;
     }
-    const offsets = [[.004, -.006], [-.003, .006], [.008, .004]];
-    mapMarkers = visibleMapRiders().map((person, index) => addMapMarker(person, { lat: centre.lat + offsets[index % offsets.length][0], lng: centre.lng + offsets[index % offsets.length][1] }, false));
+    renderMapRiders();
     renderMapHazards();
 
   }
