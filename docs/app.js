@@ -1995,6 +1995,7 @@
     avatar.classList.toggle('voice-muted', connected && voiceManuallyMuted);
     badge.hidden = !connected && !needsResume;
     badge.toggleAttribute('inert', resumeLocked);
+    badge.setAttribute('aria-disabled', String(resumeLocked));
     badge.classList.toggle('talking', voiceIsSpeaking);
     badge.classList.toggle('muted', voiceManuallyMuted);
     const label = voiceManuallyMuted ? 'Muted — tap to unmute' : voiceIsSpeaking ? 'Talking' : 'Listening — hands-free';
@@ -2007,6 +2008,7 @@
     if (rideChip) {
       rideChip.hidden = !connected && !needsResume;
       rideChip.toggleAttribute('inert', resumeLocked);
+      rideChip.setAttribute('aria-disabled', String(resumeLocked));
       rideChip.classList.toggle('talking', voiceIsSpeaking);
       rideChip.classList.toggle('muted', voiceManuallyMuted);
       const rideChipText = $('#rideVoiceStatusText', rideChip);
@@ -2197,6 +2199,7 @@
   async function toggleVoiceMute() {
     if (!voiceRoom && !proximityVoiceRooms.size) {
       if (!state.activeRide && !state.publicLive) return;
+      if (window.RiderMovementSafety.isLockedForSafety(movementState)) return;
       if (!(await preflightMicrophoneAccess())) return;
       syncVoiceConnection();
       return;
@@ -4141,9 +4144,11 @@
       if (document.visibilityState === 'visible') void initialiseMovementSafety();
       else stopMovementSafetyTracking();
       if (document.visibilityState === 'visible') {
-        void refreshActiveRide();
-        void resumePreviouslyAllowedVoice();
-        if (state.publicLive && !presenceRefreshTimer) void resumePublicPresence();
+        void (async () => {
+          await refreshActiveRide();
+          if (state.publicLive && !presenceRefreshTimer) await resumePublicPresence();
+          else await resumePreviouslyAllowedVoice();
+        })();
       } else stopPresenceRefresh();
     });
   }
