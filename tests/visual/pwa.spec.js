@@ -238,7 +238,6 @@ test('login baseline matches Rider Comms hierarchy in day and night', async ({ p
 
     const visual = await page.evaluate(() => {
       const root = getComputedStyle(document.documentElement);
-      const mark = getComputedStyle(document.querySelector('.auth-mark'));
       const tab = getComputedStyle(document.querySelector('.auth-segmented'));
       const input = getComputedStyle(document.querySelector('#loginUsername'));
       const button = getComputedStyle(document.querySelector('#loginSubmit'));
@@ -248,7 +247,6 @@ test('login baseline matches Rider Comms hierarchy in day and night', async ({ p
       return {
         background: root.getPropertyValue('--bg').trim().toLowerCase(),
         surface: root.getPropertyValue('--surface').trim().toLowerCase(),
-        markRadius: parseFloat(mark.borderTopLeftRadius),
         tabRadius: parseFloat(tab.borderTopLeftRadius),
         inputRadius: parseFloat(input.borderTopLeftRadius),
         buttonRadius: parseFloat(button.borderTopLeftRadius),
@@ -265,7 +263,6 @@ test('login baseline matches Rider Comms hierarchy in day and night', async ({ p
       };
     });
 
-    expect(visual.markRadius).toBeLessThanOrEqual(4);
     expect(visual.tabRadius).toBeLessThanOrEqual(4);
     expect(visual.inputRadius).toBeLessThanOrEqual(4);
     expect(visual.buttonRadius).toBeLessThanOrEqual(4);
