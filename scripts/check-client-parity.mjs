@@ -32,7 +32,7 @@ for (const capability of manifest.capabilities) {
   }
 }
 
-for (const required of ['auth', 'group-ride', 'ride-safe', 'place-search', 'friends']) {
+for (const required of ['auth', 'group-ride', 'ride-safe', 'place-search', 'friends', 'direct-messages', 'social-realtime', 'message-read-state']) {
   if (!ids.has(required)) throw new Error(`Missing required parity capability: ${required}`);
 }
 
