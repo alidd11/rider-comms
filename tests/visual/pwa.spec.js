@@ -736,6 +736,116 @@ test('PWA attaches subscribed Nearby Voice audio after Go Live', async ({ page }
   await expect(page.locator('#joinNearbyBtn')).toHaveAttribute('data-active', 'true');
 });
 
+test('PWA keeps private-ride speaker identity visible across tabs', async ({ page }) => {
+  let currentRide = null;
+  await mockAuthenticatedApi(page, 'stationary', ({ url, request }) => {
+    if (url.pathname === '/rides/current' && request.method() === 'GET') {
+      return { body: { ride: currentRide } };
+    }
+    if (url.pathname === '/rides' && request.method() === 'POST') {
+      currentRide = {
+        rideId: 'ride-speaker-1',
+        code: 'VOICE1',
+        createdBy: RIDER_ID,
+        memberIds: [RIDER_ID, 'rider_friend01'],
+        shareRideLocation: false,
+      };
+      return { body: currentRide };
+    }
+    if (url.pathname === `/profiles/${RIDER_ID}`) {
+      return { body: PROFILE };
+    }
+    if (url.pathname === '/profiles/rider_friend01') {
+      return { body: { riderId: 'rider_friend01', displayName: 'Maya', handle: '@maya_moto', avatarId: 'ridge' } };
+    }
+    if (url.pathname === '/voice/token' && request.method() === 'POST') {
+      return { body: { token: 'private-ride-token', url: 'wss://voice.example.test' } };
+    }
+    return null;
+  });
+
+  await page.addInitScript(() => {
+    const fakeStream = { getTracks: () => [{ stop() {} }] };
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: { getUserMedia: async () => fakeStream },
+    });
+    class FakeAudioContext {
+      createMediaStreamSource() { return { connect() {} }; }
+      createAnalyser() {
+        return {
+          fftSize: 512,
+          frequencyBinCount: 32,
+          getByteTimeDomainData(data) { data.fill(128); },
+        };
+      }
+      close() { return Promise.resolve(); }
+    }
+    Object.defineProperty(window, 'AudioContext', { configurable: true, value: FakeAudioContext });
+  });
+
+  await page.route('https://cdn.jsdelivr.net/npm/livekit-client@2.22.3/dist/livekit-client.umd.js', (route) => route.fulfill({
+    status: 200,
+    contentType: 'application/javascript',
+    body: `
+      (() => {
+        const RoomEvent = {
+          TrackSubscribed: 'trackSubscribed',
+          TrackUnsubscribed: 'trackUnsubscribed',
+          ActiveSpeakersChanged: 'activeSpeakersChanged',
+          Reconnected: 'reconnected',
+          Disconnected: 'disconnected',
+        };
+        const Track = { Kind: { Audio: 'audio' } };
+        class Room {
+          constructor() {
+            this.handlers = new Map();
+            this.canPlaybackAudio = true;
+            this.localParticipant = { setMicrophoneEnabled: async () => {} };
+          }
+          on(event, handler) {
+            const handlers = this.handlers.get(event) || [];
+            handlers.push(handler);
+            this.handlers.set(event, handlers);
+            return this;
+          }
+          emit(event, ...args) {
+            for (const handler of this.handlers.get(event) || []) handler(...args);
+          }
+          async connect() {
+            setTimeout(() => this.emit(RoomEvent.ActiveSpeakersChanged, [{ identity: 'rider_friend01' }]), 0);
+          }
+          async startAudio() { this.canPlaybackAudio = true; }
+          async disconnect() { this.emit(RoomEvent.Disconnected); }
+        }
+        window.LivekitClient = { Room, RoomEvent, Track };
+      })();
+    `,
+  }));
+
+  const initialRideRestore = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return url.pathname === '/rides/current' && response.request().method() === 'GET';
+  });
+  await page.goto('/');
+  await initialRideRestore;
+  await page.locator('.bottom-nav [data-nav="ride"]').click();
+  // "Create private ride" lives inside the host form; enter host mode first.
+  await page.locator('#rideHostMode').click();
+  await expect(page.locator('#createRideBtn')).toBeVisible();
+  await page.locator('#createRideBtn').click();
+
+  await expect(page.locator('#ridePill')).toBeVisible();
+  await expect(page.locator('#ridePill small')).toHaveText('Maya speaking');
+  await expect(page.locator('#ridePill')).toHaveAttribute('aria-label', 'Active ride · Maya speaking');
+
+  await page.locator('.bottom-nav [data-nav="friends"]').click();
+  await expect(page.locator('[data-screen="friends"]')).toHaveClass(/active/);
+  await expect(page.locator('#ridePill')).toBeVisible();
+  await expect(page.locator('#ridePill small')).toHaveText('Maya speaking');
+});
+
+
 test('PWA pauses saved public presence when current server consent is off', async ({ page }) => {
   let presenceUpdates = 0;
   await mockAuthenticatedApi(page, 'stationary', ({ url, request }) => {
