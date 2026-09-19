@@ -91,7 +91,7 @@ describe('curated route catalogue', () => {
 
   it('keeps the PWA and native curated route data in 1:1 parity', () => {
     const pwaSource = readFileSync(new URL('../../docs/routes.js', import.meta.url), 'utf8');
-    const match = pwaSource.match(/const routes = (\[[\s\S]*?\]);\n\n  const labels/);
+    const match = pwaSource.match(/const routes = (\[[\s\S]*?\]);/);
     assert.ok(match, 'PWA curated route data block was not found');
     const pwaRoutes = JSON.parse(match[1]);
 
