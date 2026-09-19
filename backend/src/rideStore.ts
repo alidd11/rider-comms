@@ -14,6 +14,12 @@ export interface Ride {
   memberIds: Set<string>;
 }
 
+export interface RideSession {
+  ride: Ride;
+  shareRideLocation: boolean;
+  code: string | null;
+}
+
 export type JoinRideResult =
   | { ok: true; rideId: string }
   | { ok: false; reason: 'rate_limited' | 'invalid_or_expired' | 'ride_full' };
@@ -193,6 +199,37 @@ export class RideStore {
     if (!ride) return { ok: false, reason: 'not_found' };
     if (!ride.memberIds.has(riderId)) return { ok: false, reason: 'not_member' };
     return { ok: true, ride };
+  }
+
+  /** Reconcile foreground clients from membership and consent stored in the
+   * database. Never infer private location consent from cached UI state. */
+  async getMemberRideSession(rideId: string, riderId: string): Promise<RideSession | null> {
+    await ensureMigrated();
+    const { rows } = await getPool().query<{ location_sharing_enabled: boolean; code: string | null }>(
+      `SELECT member.location_sharing_enabled, (
+         SELECT code.code FROM ride_codes code
+         WHERE code.ride_id = member.ride_id AND code.expires_at > $3
+         ORDER BY code.expires_at DESC LIMIT 1
+       ) AS code
+       FROM ride_members member WHERE member.ride_id = $1 AND member.rider_id = $2`,
+      [rideId, riderId, Date.now()]
+    );
+    if (!rows[0]) return null;
+    const ride = await this.loadRide(rideId);
+    return ride?.memberIds.has(riderId) ? {
+      ride, shareRideLocation: rows[0].location_sharing_enabled, code: rows[0].code,
+    } : null;
+  }
+
+  async getCurrentRideForMember(riderId: string): Promise<RideSession | null> {
+    await ensureMigrated();
+    const { rows } = await getPool().query<{ ride_id: string }>(
+      `SELECT member.ride_id FROM ride_members member
+       INNER JOIN rides ride ON ride.id = member.ride_id
+       WHERE member.rider_id = $1 ORDER BY ride.created_at DESC, ride.id DESC LIMIT 1`,
+      [riderId]
+    );
+    return rows[0] ? this.getMemberRideSession(rows[0].ride_id, riderId) : null;
   }
 
   async leaveRide(rideId: string, riderId: string): Promise<RideActionResult> {
