@@ -354,8 +354,8 @@ export function AppNavigator(): React.JSX.Element {
 
 const styles = StyleSheet.create({
   blank: { flex: 1, backgroundColor: colors.background },
-  tabLabel: { fontSize: 11, fontWeight: '600', letterSpacing: 0 },
-  defaultTabLabel: { fontSize: 11, fontWeight: '600', letterSpacing: 0 },
+  tabLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 0 },
+  defaultTabLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 0 },
   tabIconShell: {
     width: 38,
     height: 28,
