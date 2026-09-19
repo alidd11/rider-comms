@@ -24,7 +24,7 @@ for (const expected of [
   'loadAllConversationPages()',
   'chatPeerReadThroughMessageId',
   "window.RiderMovementSafety.isLockedForSafety(movementState)",
-  "$('[data-retry-message]', messages)",
+  "$$('[data-retry-message]', messages)",
   'openFriendSafetyActions(activeChat)',
 ]) assert.ok(app.includes(expected), `PWA chat implementation missing ${expected}`);
 assert.equal(app.includes('MESSAGE_POLL_INTERVAL_MS'), false, 'PWA DMs must not fall back to fixed-interval message polling');
