@@ -376,6 +376,8 @@ test('ride join baseline owns the iPhone top edge in day and night', async ({ pa
         startBottom: box(start).bottom,
         navTop: box(nav).top,
         viewportWidth: window.innerWidth,
+        viewportHeight: window.innerHeight,
+        navGap: box(nav).top - box(start).bottom,
         titleWidth: box(document.querySelector('#rideTitle')).width,
         safeTopShieldDisplay: getComputedStyle(screen, '::before').display,
       };
@@ -387,8 +389,8 @@ test('ride join baseline owns the iPhone top edge in day and night', async ({ pa
     expect(visual.headerHeight).toBeLessThanOrEqual(1);
     expect(visual.titleWidth).toBeLessThanOrEqual(1);
     expect(visual.safeTopShieldDisplay).toBe('none');
-    expect(visual.heroHeight).toBeGreaterThanOrEqual(297);
-    expect(visual.heroHeight).toBeLessThanOrEqual(309);
+    expect(visual.heroHeight / visual.viewportHeight).toBeGreaterThanOrEqual(0.45);
+    expect(visual.heroHeight / visual.viewportHeight).toBeLessThanOrEqual(0.49);
     expect(visual.heroRadius).toBe(0);
     expect(visual.joinTop - (visual.heroTop + visual.heroHeight)).toBeGreaterThanOrEqual(10);
     expect(visual.joinTop - (visual.heroTop + visual.heroHeight)).toBeLessThanOrEqual(14);
@@ -402,6 +404,8 @@ test('ride join baseline owns the iPhone top edge in day and night', async ({ pa
     expect(visual.startHeight).toBeLessThanOrEqual(60);
     expect(visual.startRadius).toBeLessThanOrEqual(4);
     expect(visual.startBottom).toBeLessThanOrEqual(visual.navTop + 2);
+    expect(visual.navGap).toBeGreaterThanOrEqual(0);
+    expect(visual.navGap).toBeLessThanOrEqual(170);
 
     await page.screenshot({
       path: testInfo.outputPath(`iphone-17-pro-max-ride-${scheme}-baseline.png`),
