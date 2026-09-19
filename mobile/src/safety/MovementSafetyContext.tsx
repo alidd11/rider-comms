@@ -20,7 +20,7 @@ type MovementSafetyValue = {
 
 const MovementSafetyContext = React.createContext<MovementSafetyValue>({
   movementState: 'unknown',
-  lockedForSafety: true,
+  lockedForSafety: false,
   locationAccess: 'checking',
   trackingError: null,
   refreshTracking: async () => {},
@@ -38,18 +38,22 @@ export function MovementSafetyProvider({ children }: { children: React.ReactNode
 
   React.useEffect(() => {
     let mounted = true;
+    let generation = 0;
     let subscription: Location.LocationSubscription | null = null;
 
     const stop = () => {
+      generation += 1;
       subscription?.remove();
       subscription = null;
     };
 
     const start = async () => {
       stop();
+      const requestGeneration = generation;
+      const isCurrent = () => mounted && requestGeneration === generation;
       try {
         const servicesEnabled = await Location.hasServicesEnabledAsync();
-        if (!mounted) return;
+        if (!isCurrent()) return;
         if (!servicesEnabled) {
           setLocationAccess('services_disabled');
           setTrackingError('Location Services are turned off.');
@@ -57,7 +61,7 @@ export function MovementSafetyProvider({ children }: { children: React.ReactNode
           return;
         }
         const permission = await Location.getForegroundPermissionsAsync();
-        if (!mounted) return;
+        if (!isCurrent()) return;
         if (!permission.granted) {
           setLocationAccess(permission.canAskAgain ? 'promptable' : 'blocked');
           setTrackingError(null);
@@ -66,20 +70,22 @@ export function MovementSafetyProvider({ children }: { children: React.ReactNode
         }
         setLocationAccess('granted');
         setTrackingError(null);
-        subscription = await Location.watchPositionAsync(
+        const nextSubscription = await Location.watchPositionAsync(
           {
             accuracy: Location.Accuracy.Balanced,
             timeInterval: 1_000,
             distanceInterval: 0,
           },
           (position) => {
-            if (!mounted) return;
+            if (!isCurrent()) return;
             const next = tracker.addFix(toMovementFix(position));
             setMovementState(next);
           }
         );
+        if (isCurrent()) subscription = nextSubscription;
+        else nextSubscription.remove();
       } catch {
-        if (!mounted) return;
+        if (!isCurrent()) return;
         setLocationAccess('unavailable');
         setTrackingError('Location tracking could not start. Try again or check device settings.');
         setMovementState(tracker.markUnavailable());
