@@ -272,6 +272,13 @@
   }
 
   function clearSession() {
+    stopSocialEvents();
+    clearInterval(friendActivityTimer);
+    friendActivityTimer = undefined;
+    socialEventCursor = undefined;
+    outgoingFriendRequests = [];
+    conversationSummaries = new Map();
+    unreadMessageCount = 0;
     session = null;
     localStorage.removeItem(SESSION_KEY);
   }
