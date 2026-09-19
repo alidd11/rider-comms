@@ -204,6 +204,7 @@ export function MapScreen(): React.JSX.Element {
   const requestCurrentLocation = React.useCallback(async (
     showSettingsPrompt = true,
     accuracy: Location.Accuracy = Location.Accuracy.Balanced,
+    refreshMovementTracking = true,
   ): Promise<{ lat: number; lon: number; accuracyMeters: number; recordedAt: number } | null> => {
     try {
       const permission = await Location.requestForegroundPermissionsAsync();
@@ -229,7 +230,7 @@ export function MapScreen(): React.JSX.Element {
         recordedAt: result.timestamp,
       };
       setCurrentLocation(next);
-      await refreshTracking();
+      if (refreshMovementTracking) await refreshTracking();
       setLocationUnavailable(false);
       return next;
     } catch {
@@ -265,7 +266,7 @@ export function MapScreen(): React.JSX.Element {
       // backend. Ask for a high-accuracy fix while live so an otherwise valid
       // two-rider test is not rejected just because the generic map fix used
       // the lower-power Balanced mode.
-      const location = await requestCurrentLocation(false, Location.Accuracy.High);
+      const location = await requestCurrentLocation(false, Location.Accuracy.High, false);
       if (!location || cancelled) return;
       const { lat, lon, accuracyMeters, recordedAt } = location;
       try {
