@@ -5,14 +5,10 @@
 // shared by current ride members. Public nearby riders remain a count rather
 // than being placed at invented bearings.
 //
-// Public and Host share this one screen via a segmented toggle instead of
-// being separate tabs — once this has a real map SDK behind it, a second
-// tab would mean a second mounted (and separately billed) map instance for
-// no reason, since only one is ever visible at a time anyway. The bottom
-// tab bar's "Group Ride" button isn't a second screen either — it redirects
-// (see navigation/index.tsx's tabPress listener) to this same Map route with
-// a `segment: 'host'` param, read below, instead of navigating to its own
-// registered-but-never-actually-shown screen.
+// Public map and private ride hosting share this one mounted screen. The
+// bottom Map and Ride tabs switch the route's segment parameter rather than
+// mounting a second map instance, which keeps map billing/state predictable
+// and matches the PWA's tab-owned interaction model.
 import * as React from 'react';
 import { View, Text, Pressable, StyleSheet, Alert, Linking, Platform } from 'react-native';
 import { useRoute } from '@react-navigation/native';
