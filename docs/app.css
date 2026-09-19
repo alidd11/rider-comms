@@ -1028,6 +1028,161 @@ body:has(#sheetBackdrop:not([hidden])) #joinNearbyBtn{opacity:0;pointer-events:n
   .auth-screen .auth-field>input,.auth-screen .password-field{background:var(--surface)}
 }
 
+/* Ride mockup parity.
+   Mobile Ride is image-first just like the supplied board: photography owns
+   the status-bar/Dynamic-Island edge, while ride controls sit in a compact
+   rider-specific composition below it. */
+@media(max-width:699px){
+  [data-screen="ride"]{
+    padding:0 0 calc(var(--bottom-nav-height) + 18px);
+    background:var(--bg);
+  }
+  [data-screen="ride"] .page-width{
+    width:100%;
+    max-width:none;
+    margin:0;
+  }
+  [data-screen="ride"]>.page-width>.page-header{
+    display:none;
+  }
+  #rideJoinState{
+    display:grid;
+    gap:10px;
+    width:100%;
+  }
+  #rideJoinState .ride-hero{
+    width:100%;
+    height:calc(244px + var(--safe-top));
+    margin:0;
+    border:0;
+    border-radius:0;
+    background-image:
+      linear-gradient(180deg,rgb(3 7 9/.04) 24%,rgb(3 7 9/.20) 56%,rgb(3 7 9/.80) 100%),
+      url("https://images.unsplash.com/photo-1770614956862-a143fb5e4921?auto=format&fit=crop&q=82&w=1400");
+    background-position:center 50%;
+  }
+  #rideJoinState .ride-hero-copy{
+    left:max(22px,var(--safe-left));
+    right:max(22px,var(--safe-right));
+    bottom:18px;
+  }
+  #rideJoinState .ride-hero-copy strong{
+    max-width:270px;
+    font-size:1.9rem;
+    line-height:.94;
+    letter-spacing:-.052em;
+  }
+  #rideJoinState .ride-entry,
+  #rideJoinState .ride-start-row,
+  #rideJoinState .ride-mode-return{
+    margin-inline:max(18px,var(--safe-left));
+    width:auto;
+  }
+  #rideJoinState .ride-entry{
+    border-color:var(--border-soft);
+    border-radius:var(--radius-lg);
+    background:var(--surface);
+    box-shadow:none;
+  }
+  #rideJoinState .ride-entry-heading{
+    padding:12px 13px 0;
+  }
+  #rideJoinState .ride-entry-heading h2{
+    font-size:.86rem;
+    font-weight:800;
+    letter-spacing:-.015em;
+  }
+  #rideJoinState .ride-entry .ride-form{
+    padding:9px 13px 12px;
+  }
+  #rideJoinState .ride-entry .ride-form>label:not(.ride-location-consent){
+    margin-bottom:6px;
+    font-size:.68rem;
+    font-weight:700;
+  }
+  #rideJoinState .ride-code-slots{
+    gap:5px;
+  }
+  #rideJoinState .ride-code-slots span{
+    height:40px;
+    border-color:var(--border-soft);
+    border-radius:var(--radius-sm);
+    background:var(--bg-elevated);
+    font-size:.82rem;
+  }
+  #rideJoinState .ride-join-button{
+    min-height:44px;
+    margin-top:7px;
+    border-radius:var(--radius-lg);
+    font-size:.82rem;
+  }
+  #rideJoinState .support-copy{
+    margin:6px 0 0;
+    color:var(--text-muted);
+    font-size:.64rem;
+    line-height:1.35;
+  }
+  #rideJoinState .ride-location-consent{
+    display:grid;
+    grid-template-columns:18px minmax(0,1fr);
+    gap:9px;
+    margin:9px 0 0!important;
+    padding:9px 0 0;
+    border:0;
+    border-top:1px solid var(--border-soft);
+    background:transparent;
+  }
+  #rideJoinState .ride-location-consent input{
+    width:18px;
+    height:18px;
+    margin:1px 0 0;
+  }
+  #rideJoinState .ride-location-consent strong{
+    font-size:.7rem;
+    line-height:1.25;
+  }
+  #rideJoinState .ride-location-consent small{
+    margin-top:2px;
+    color:var(--text-muted);
+    font-size:.62rem;
+    line-height:1.34;
+  }
+  #rideJoinState .ride-start-row{
+    min-height:64px;
+    gap:10px;
+    padding:9px 11px;
+    border-color:var(--border-soft);
+    border-radius:var(--radius-lg);
+    background:var(--surface);
+  }
+  #rideJoinState .ride-start-icon{
+    width:38px;
+    height:38px;
+    background:var(--surface-raised);
+  }
+  #rideJoinState .ride-start-icon svg{
+    width:20px;
+    height:20px;
+  }
+  #rideJoinState .ride-start-copy strong{
+    font-size:.8rem;
+  }
+  #rideJoinState .ride-start-copy small{
+    margin-top:2px;
+    font-size:.64rem;
+    line-height:1.35;
+  }
+  #rideJoinState .ride-mode-return{
+    min-height:38px;
+    padding:0;
+    font-size:.68rem;
+  }
+  #rideActiveState{
+    margin:calc(var(--safe-top) + 18px) max(18px,var(--safe-right)) 0 max(18px,var(--safe-left));
+  }
+}
+
+
 
 /* Ride mockup parity.
    On phone layouts the rider photograph owns the physical top edge, including
