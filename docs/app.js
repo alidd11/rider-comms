@@ -2414,18 +2414,38 @@
     const connected = Boolean(voiceRoom || proximityVoiceRooms.size);
     const wantsVoice = Boolean(state.activeRide || state.publicLive);
     const needsResume = wantsVoice && !connected && (!microphonePermissionReady || voiceFailureNotified);
+    // Public Nearby intentionally releases microphone capture when there are
+    // no authorised proximity peers. Keep the feature visibly "armed" instead
+    // of making that privacy/battery optimisation look like voice crashed.
+    const waitingForPublicPeer = state.publicLive
+      && !state.activeRide
+      && !connected
+      && microphonePermissionReady
+      && !voiceFailureNotified;
     const resumeLocked = needsResume && window.RiderMovementSafety.isLockedForSafety(movementState);
     const remoteSpeakerSummary = connected ? voiceSpeakerSummary() : '';
     renderMapVoiceSpeakerChip(remoteSpeakerSummary);
     avatar.classList.toggle('voice-talking', connected && voiceIsSpeaking);
     avatar.classList.toggle('voice-muted', connected && voiceManuallyMuted);
-    badge.hidden = !connected && !needsResume;
+    badge.hidden = !connected && !needsResume && !waitingForPublicPeer;
     badge.toggleAttribute('inert', resumeLocked);
     badge.setAttribute('aria-disabled', String(resumeLocked));
     badge.classList.toggle('talking', voiceIsSpeaking);
     badge.classList.toggle('muted', voiceManuallyMuted);
+    badge.classList.toggle('waiting', waitingForPublicPeer);
     const label = voiceManuallyMuted ? 'Muted — tap to unmute' : voiceIsSpeaking ? 'Talking' : 'Listening — hands-free';
-    badge.setAttribute('aria-label', needsResume ? 'Resume voice' : voiceManuallyMuted ? 'Proximity voice muted — tap to unmute' : voiceIsSpeaking ? 'Talking' : 'Listening — hands-free');
+    badge.setAttribute(
+      'aria-label',
+      needsResume
+        ? 'Resume voice'
+        : waitingForPublicPeer
+          ? 'Nearby Voice · waiting for riders'
+          : voiceManuallyMuted
+            ? 'Proximity voice muted — tap to unmute'
+            : voiceIsSpeaking
+              ? 'Talking'
+              : 'Listening — hands-free',
+    );
     // The Ride tab has no map header of its own (the glowing avatar above
     // only exists on the Map screen), so a rider parked on Ride while
     // talking needs this same status somewhere too — same real state,
@@ -2800,7 +2820,11 @@
         persist();
         renderMapStatus();
         centreMap(position.coords.latitude, position.coords.longitude);
-        showToast('You are visible to nearby riders.');
+        showToast(
+          nearbyRiders.length
+            ? 'Location visible. Connecting Nearby Voice…'
+            : 'Location visible. Nearby Voice is waiting for riders in range.',
+        );
         syncVoiceConnection();
         startPresenceRefresh();
       } catch (error) {
