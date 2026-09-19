@@ -20,6 +20,7 @@ async function mockAuthenticatedApi(page, movement = 'stationary', backendOverri
     localStorage.setItem('rider-comms-session-v1', JSON.stringify({ riderId, token: 'visual-test-token' }));
     Object.defineProperty(navigator, 'permissions', { value: { query: async ({ name } = {}) => ({ state: name === 'microphone' ? 'prompt' : ['stationary', 'recovering'].includes(movementState) ? 'granted' : 'denied', addEventListener() {} }) } });
     let watchId = 0;
+    window.__riderCommsGetCurrentPositionCalls = 0;
     Object.defineProperty(navigator, 'geolocation', { value: {
       watchPosition(success, error) {
         if (movementState === 'recovering') {
@@ -39,6 +40,7 @@ async function mockAuthenticatedApi(page, movement = 'stationary', backendOverri
       },
       clearWatch() { if (window.gpsTest) window.gpsTest.cleared = true; },
       getCurrentPosition(success, error) {
+        window.__riderCommsGetCurrentPositionCalls += 1;
         if (movementState !== 'stationary') return error?.({ code: 1, name: 'NotAllowedError' });
         success({ timestamp: Date.now(), coords: { latitude: 51.5074, longitude: -0.1278, accuracy: 5, speed: 0 } });
       },
@@ -786,6 +788,159 @@ test('PWA resumes public presence only after server consent and granted location
   await expect.poll(() => presenceUpdates).toBe(1);
   await expect(page.locator('#joinNearbyBtn')).toHaveAttribute('data-active', 'true');
   await expect(page.locator('#voiceStatusBtn')).toHaveAttribute('aria-label', 'Resume voice');
+});
+
+test('PWA Nearby control switches public visibility and proximity voice off together', async ({ page }) => {
+  let shareLocation = false;
+  let presenceUpdates = 0;
+  let presenceDeletes = 0;
+  const profileSharingUpdates = [];
+
+  await mockAuthenticatedApi(page, 'stationary', ({ url, request }) => {
+    if (url.pathname === `/riders/${RIDER_ID}/profile`) {
+      if (request.method() === 'PUT') {
+        const update = request.postDataJSON();
+        if (typeof update.shareLocation === 'boolean') {
+          shareLocation = update.shareLocation;
+          profileSharingUpdates.push(update.shareLocation);
+        }
+      }
+      return { body: { ...PROFILE, shareLocation } };
+    }
+    if (url.pathname === '/presence' && request.method() === 'POST') {
+      presenceUpdates += 1;
+      return { body: { inZoneWith: [], transitions: [], radiusMiles: 1 } };
+    }
+    if (url.pathname === '/presence' && request.method() === 'DELETE') {
+      presenceDeletes += 1;
+      return { body: {} };
+    }
+    if (url.pathname === '/voice/token' && request.method() === 'POST') {
+      return { body: { connections: [], refreshAfterMs: 20_000 } };
+    }
+    return null;
+  });
+
+  await page.addInitScript(() => {
+    const fakeStream = { getTracks: () => [{ stop() {} }] };
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: { getUserMedia: async () => fakeStream },
+    });
+    window.LivekitClient = {};
+  });
+
+  await page.goto('/');
+  const nearby = page.locator('#joinNearbyBtn');
+
+  await expect(nearby).toHaveAttribute('data-active', 'false');
+  await expect(nearby).toHaveAttribute('aria-label', 'Go live nearby');
+  await expect(nearby).toHaveAttribute('aria-pressed', 'false');
+  await expect(nearby).toHaveAttribute('aria-busy', 'false');
+  const locationCallsBeforeNearby = await page.evaluate(() => window.__riderCommsGetCurrentPositionCalls);
+
+  await nearby.click();
+  await expect.poll(() => presenceUpdates).toBe(1);
+  await expect.poll(() => profileSharingUpdates.at(-1)).toBe(true);
+  await expect.poll(() => page.evaluate(() => window.__riderCommsGetCurrentPositionCalls)).toBe(locationCallsBeforeNearby);
+  await expect(nearby).toHaveAttribute('data-active', 'true');
+  await expect(nearby).toHaveAttribute('aria-label', 'Leave nearby');
+  await expect(nearby).toHaveAttribute('aria-pressed', 'true');
+  await expect(nearby).toHaveAttribute('aria-busy', 'false');
+
+  await nearby.click();
+  await expect.poll(() => presenceDeletes).toBeGreaterThan(0);
+  await expect.poll(() => profileSharingUpdates.at(-1)).toBe(false);
+  await expect(nearby).toHaveAttribute('data-active', 'false');
+  await expect(nearby).toHaveAttribute('aria-label', 'Go live nearby');
+  await expect(nearby).toHaveAttribute('aria-pressed', 'false');
+  await expect(nearby).toHaveAttribute('aria-busy', 'false');
+
+  const cached = await page.evaluate((riderId) =>
+    JSON.parse(localStorage.getItem(`rider-comms-pwa-v4:${riderId}`) || '{}'), RIDER_ID);
+  expect(cached.publicLive).toBe(false);
+  expect(cached.profile.shareLocation).toBe(false);
+});
+
+test('PWA cancels a delayed Nearby Voice connect after the rider turns Nearby off', async ({ page }) => {
+  let shareLocation = false;
+  let voiceTokenRequested = false;
+  let releaseVoiceToken;
+  const voiceTokenGate = new Promise((resolve) => { releaseVoiceToken = resolve; });
+
+  await mockAuthenticatedApi(page, 'stationary', async ({ url, request }) => {
+    if (url.pathname === `/riders/${RIDER_ID}/profile`) {
+      if (request.method() === 'PUT') {
+        const update = request.postDataJSON();
+        if (typeof update.shareLocation === 'boolean') shareLocation = update.shareLocation;
+      }
+      return { body: { ...PROFILE, shareLocation } };
+    }
+    if (url.pathname === '/presence' && request.method() === 'POST') {
+      return {
+        body: {
+          inZoneWith: ['rider_peer01'],
+          transitions: [{ a: RIDER_ID, b: 'rider_peer01', type: 'entered' }],
+          radiusMiles: 1,
+        },
+      };
+    }
+    if (url.pathname === '/presence' && request.method() === 'DELETE') return { body: {} };
+    if (url.pathname === '/profiles/rider_peer01') {
+      return { body: { riderId: 'rider_peer01', displayName: 'Peer Rider', handle: '@peer', avatarId: 'ridge' } };
+    }
+    if (url.pathname === '/voice/token' && request.method() === 'POST') {
+      voiceTokenRequested = true;
+      await voiceTokenGate;
+      return {
+        body: {
+          connections: [{ peerId: 'rider_peer01', token: 'delayed-token', url: 'wss://voice.example.test' }],
+          refreshAfterMs: 20_000,
+        },
+      };
+    }
+    return null;
+  });
+
+  await page.addInitScript(() => {
+    const fakeStream = { getTracks: () => [{ stop() {} }] };
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: { getUserMedia: async () => fakeStream },
+    });
+    window.__nearbyVoiceRoomsCreated = 0;
+    window.LivekitClient = {
+      Room: class {
+        constructor() {
+          window.__nearbyVoiceRoomsCreated += 1;
+          this.localParticipant = { setMicrophoneEnabled: async () => {} };
+        }
+        on() { return this; }
+        async connect() {}
+        async startAudio() {}
+        async disconnect() {}
+      },
+      RoomEvent: { Disconnected: 'disconnected' },
+      Track: { Kind: { Audio: 'audio' } },
+    };
+  });
+
+  await page.goto('/');
+  const nearby = page.locator('#joinNearbyBtn');
+
+  await nearby.click();
+  await expect(nearby).toHaveAttribute('data-active', 'true');
+  await expect.poll(() => voiceTokenRequested).toBe(true);
+
+  // The token request is deliberately still in flight. Turning Nearby off
+  // invalidates it before it can construct/publish a proximity room.
+  await nearby.click();
+  await expect(nearby).toHaveAttribute('data-active', 'false');
+  await expect(nearby).toHaveAttribute('aria-pressed', 'false');
+
+  releaseVoiceToken();
+  await expect.poll(() => page.evaluate(() => window.__nearbyVoiceRoomsCreated)).toBe(0);
+  await expect(page.locator('#voiceStatusBtn')).toBeHidden();
 });
 
 test('PWA attaches subscribed Nearby Voice audio after Go Live', async ({ page }) => {

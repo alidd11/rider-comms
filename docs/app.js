@@ -1937,20 +1937,25 @@
       }
       if (key === 'shareLocation') {
         button.disabled = true;
-        if (active) {
-          try {
-            await currentPosition();
-          } catch (error) {
-            button.disabled = false;
-            showToast(locationAccessMessage(error, 'share your location'));
-            return;
-          }
+        if (!active) {
+          const ok = await stopPublicNearby({ disableLocationSharing: true });
+          button.disabled = false;
+          button.setAttribute('aria-pressed', String(state.profile.shareLocation));
+          if (ok) showToast('Nearby visibility and proximity voice are off.');
+          return;
         }
-        const ok = await patchProfile({ shareLocation: active });
+        try {
+          await currentPosition();
+        } catch (error) {
+          button.disabled = false;
+          showToast(locationAccessMessage(error, 'share your location'));
+          return;
+        }
+        const ok = await patchProfile({ shareLocation: true });
         button.disabled = false;
         if (ok) {
-          button.setAttribute('aria-pressed', String(active));
-          if (active) syncRideLocationSharing();
+          button.setAttribute('aria-pressed', 'true');
+          syncRideLocationSharing();
         }
       }
     }));
@@ -2001,6 +2006,8 @@
     trigger?.focus?.();
   }
 
+  let nearbyTogglePending = false;
+
   function renderMapStatus() {
     const active = state.publicLive && state.profile.shareLocation;
     const privateRide = Boolean(state.activeRide);
@@ -2008,9 +2015,13 @@
     joinBtn.hidden = privateRide;
     joinBtn.dataset.active = String(active);
     joinBtn.setAttribute('aria-label', active ? 'Leave nearby' : 'Go live nearby');
+    joinBtn.setAttribute('aria-pressed', String(active));
     const joiningLocked = window.RiderMovementSafety.isLockedForSafety(movementState) && !state.publicLive;
-    joinBtn.toggleAttribute('inert', joiningLocked);
-    joinBtn.setAttribute('aria-disabled', String(joiningLocked));
+    const unavailable = joiningLocked || nearbyTogglePending;
+    joinBtn.toggleAttribute('inert', unavailable);
+    joinBtn.toggleAttribute('disabled', nearbyTogglePending);
+    joinBtn.setAttribute('aria-disabled', String(unavailable));
+    joinBtn.setAttribute('aria-busy', String(nearbyTogglePending));
     renderVoiceStatus();
   }
 
@@ -2034,22 +2045,39 @@
     presenceRefreshTimer = setInterval(async () => {
       if (!state.publicLive || state.activeRide || document.visibilityState !== 'visible') return;
       try {
-        const position = await currentPosition();
+        const position = await currentPublicPresencePosition();
         if (state.publicLive && !state.activeRide) await sendPresence(position);
       } catch { /* A transient miss is retried on the next tick. */ }
     }, PRESENCE_REFRESH_MS);
   }
 
-  async function stopPublicPresenceForRide() {
-    if (!state.publicLive) return;
+  async function stopPublicNearby({ disableLocationSharing = false } = {}) {
     stopPresenceRefresh();
     state.publicLive = false;
     nearbyRiders = [];
-    disconnectVoice();
+    // Only tear down the public proximity transport. This helper is also
+    // called from Settings, which remains reachable during a private ride;
+    // changing public visibility must never drop that ride's private voice.
+    disconnectPublicVoice();
     persist();
     renderMapStatus();
     renderMapRiders();
+
+    // Remove the current public presence lease immediately. The backend also
+    // expires stale leases, but a deliberate "off" action should not wait for
+    // that timeout before disappearing from Nearby.
     try { await apiFetch('DELETE', '/presence'); } catch { /* Presence also expires server-side. */ }
+
+    if (!disableLocationSharing || !state.profile.shareLocation) return true;
+    return patchProfile({ shareLocation: false });
+  }
+
+  async function stopPublicPresenceForRide() {
+    if (!state.publicLive) return;
+    // Entering a private ride ends the public session but does not rewrite the
+    // rider's standing public-location preference. The map button itself does
+    // revoke that preference, matching native's one-switch behaviour.
+    await stopPublicNearby();
   }
 
   // Stored public-live intent is not proof of current server consent or an
@@ -2531,11 +2559,19 @@
    * as a blocking error over the action that triggered this. */
   async function connectVoice(kind, rideId) {
     if (kind === 'ride' && voiceRoom) return;
+    const requestedTarget = kind === 'ride' ? `ride:${rideId}` : 'channel';
     let room;
     try {
       await loadLiveKitClient();
+      if (currentVoiceTarget() !== requestedTarget) return;
+
       const body = kind === 'ride' ? { target: 'ride', rideId } : { target: 'channel' };
       const response = await apiFetch('POST', '/voice/token', body);
+      // Token minting and room connection are asynchronous. Nearby may be
+      // switched off (or a private ride may replace it) while either request
+      // is in flight. Never let stale work resurrect an audio room afterward.
+      if (currentVoiceTarget() !== requestedTarget) return;
+
       if (kind === 'channel') {
         const enteringChannel = voiceTargetKey !== 'channel';
         const desiredPeers = new Set(response.connections.map((connection) => connection.peerId));
@@ -2546,13 +2582,26 @@
         }
         let lastPairError;
         for (const connection of response.connections) {
+          if (currentVoiceTarget() !== requestedTarget) return;
           if (proximityVoiceRooms.has(connection.peerId)) continue;
           const pairRoom = new window.LivekitClient.Room();
-          wireVoiceRoomLifecycle(pairRoom, 'channel', connection.peerId);
+          wireVoiceRoomLifecycle(pairRoom, requestedTarget, connection.peerId);
           try {
             await pairRoom.connect(connection.url, connection.token);
+            if (currentVoiceTarget() !== requestedTarget) {
+              disconnectManagedVoiceRoom(pairRoom);
+              return;
+            }
             await pairRoom.startAudio?.().catch(() => {});
+            if (currentVoiceTarget() !== requestedTarget) {
+              disconnectManagedVoiceRoom(pairRoom);
+              return;
+            }
             await pairRoom.localParticipant.setMicrophoneEnabled(voiceIsSpeaking && !voiceManuallyMuted);
+            if (currentVoiceTarget() !== requestedTarget) {
+              disconnectManagedVoiceRoom(pairRoom);
+              return;
+            }
             proximityVoiceRooms.set(connection.peerId, pairRoom);
           } catch (error) {
             lastPairError = error;
@@ -2560,26 +2609,50 @@
             console.warn('[rider-comms] Could not connect proximity peer', connection.peerId, error);
           }
         }
+        if (currentVoiceTarget() !== requestedTarget) return;
         if (response.connections.length > 0 && proximityVoiceRooms.size === 0 && lastPairError) throw lastPairError;
-        voiceTargetKey = 'channel';
+        voiceTargetKey = requestedTarget;
         if (enteringChannel) voiceManuallyMuted = false;
       } else {
         room = new window.LivekitClient.Room();
-        const targetKey = `ride:${rideId}`;
-        wireVoiceRoomLifecycle(room, targetKey);
+        wireVoiceRoomLifecycle(room, requestedTarget);
         await room.connect(response.url, response.token);
+        if (currentVoiceTarget() !== requestedTarget) {
+          disconnectManagedVoiceRoom(room);
+          return;
+        }
         await room.startAudio?.().catch(() => {});
+        if (currentVoiceTarget() !== requestedTarget) {
+          disconnectManagedVoiceRoom(room);
+          return;
+        }
         await room.localParticipant.setMicrophoneEnabled(false);
+        if (currentVoiceTarget() !== requestedTarget) {
+          disconnectManagedVoiceRoom(room);
+          return;
+        }
         voiceRoom = room;
-        voiceTargetKey = targetKey;
+        voiceTargetKey = requestedTarget;
         voiceManuallyMuted = false;
       }
+
       microphonePermissionReady = true;
       if ((voiceRoom || proximityVoiceRooms.size) && !voiceMeterStream) await startVoiceLevelLoop();
+      if (currentVoiceTarget() !== requestedTarget) {
+        if (kind === 'channel') disconnectPublicVoice();
+        else if (room) disconnectManagedVoiceRoom(room);
+        return;
+      }
       if (!voiceRoom && !proximityVoiceRooms.size && voiceMeterStream) stopVoiceLevelLoop();
       voiceFailureNotified = false;
       renderVoiceStatus();
     } catch (error) {
+      // A state change while connecting is an intentional cancellation rather
+      // than a voice error; do not flash an unavailable warning after "off".
+      if (currentVoiceTarget() !== requestedTarget) {
+        if (room) disconnectManagedVoiceRoom(room);
+        return;
+      }
       console.warn('[rider-comms] Could not connect voice chat', error);
       if (!voiceFailureNotified) {
         showToast(error?.name === 'NotAllowedError' || error?.name === 'SecurityError'
@@ -2587,10 +2660,6 @@
           : 'Voice chat is unavailable right now. Your ride and map still work.');
         voiceFailureNotified = true;
       }
-      // Tear down anything that did connect before the failure (e.g. the
-      // room connected fine but the second meter-stream getUserMedia call
-      // failed) rather than leaking a live, published connection nothing
-      // still references.
       if (room) disconnectManagedVoiceRoom(room);
       if (kind === 'ride') {
         voiceRoom = undefined;
@@ -2619,6 +2688,22 @@
     proximityVoiceRooms.clear();
     voiceRemoteSpeakersByRoom.clear();
     voiceTargetKey = undefined;
+    renderVoiceStatus();
+  }
+
+  function disconnectPublicVoice() {
+    // disconnectManagedVoiceRoom() removes each public room's remote-audio
+    // elements and active-speaker entry. Do not clear the process-wide speaker
+    // map here: a private ride may be using it at the same time from Settings.
+    for (const room of proximityVoiceRooms.values()) disconnectManagedVoiceRoom(room);
+    proximityVoiceRooms.clear();
+    if (voiceTargetKey === 'channel') {
+      voiceTargetKey = undefined;
+      if (voiceReconnectTimer) { clearTimeout(voiceReconnectTimer); voiceReconnectTimer = undefined; }
+    }
+    // The meter is process-wide for PWA voice. Keep it alive when a private
+    // ride owns voice; otherwise release microphone/WebAudio resources now.
+    if (!voiceRoom && !proximityVoiceRooms.size) stopVoiceLevelLoop();
     renderVoiceStatus();
   }
 
@@ -2669,63 +2754,116 @@
    * profile setting on for real via patchProfile/PUT profile — the same
    * request the Settings > Privacy toggle already makes — rather than
    * silently reusing a client-side copy the backend never saw. Going
-   * offline intentionally leaves that profile setting as the rider left
-   * it; "Go live" is a per-session action, while shareLocation is a
-   * standing privacy preference the rider controls separately in
-   * Settings. Real hands-free proximity voice chat (see connectVoice
-   * above) is tied to the same on/off action — going live for presence and
-   * being reachable by voice are the same moment, not two separate steps.
+   * offline from the map also revokes that profile visibility preference,
+   * matching native's one-switch behaviour. Entering a private ride is the
+   * exception: it pauses public Nearby without silently rewriting the rider's
+   * standing privacy choice. Real hands-free proximity voice chat (see
+   * connectVoice above) is tied to the same on/off action — going live for
+   * presence and being reachable by voice are the same moment, not two
+   * separate steps.
    */
   async function toggleNearby() {
-    if (state.publicLive) {
-      stopPresenceRefresh();
-      state.publicLive = false;
-      syncVoiceConnection();
-      try { await apiFetch('DELETE', '/presence'); } catch { /* best effort — still go offline locally */ }
-      nearbyRiders = [];
-      persist();
-      renderMapStatus();
-      renderMapRiders();
-      showToast('You are no longer visible nearby.');
-      return;
-    }
-    if (!(await preflightMicrophoneAccess())) return;
-    let position;
+    if (nearbyTogglePending) return;
+    nearbyTogglePending = true;
+    renderMapStatus();
+
     try {
-      position = await currentPosition();
-    } catch (error) {
-      // Denied/unavailable location is a transient, recoverable thing —
-      // the real Google Map is still up and fine. #mapError's "Map
-      // unavailable" heading is for when the map itself has actually
-      // failed to load (see handleGoogleMapsFailure below), and it never
-      // auto-dismisses, so reusing it here left a permanent, misleading
-      // "Map unavailable" banner sitting over a perfectly working map for
-      // the rest of the session.
-      showToast(locationAccessMessage(error, 'join riders nearby'));
-      return;
-    }
-    try {
-      if (!state.profile.shareLocation) {
-        const ok = await patchProfile({ shareLocation: true });
-        if (!ok) throw new Error('could_not_enable_location_sharing');
+      if (state.publicLive) {
+        const saved = await stopPublicNearby({ disableLocationSharing: true });
+        showToast(saved
+          ? 'Nearby visibility and proximity voice are off.'
+          : 'Nearby is off, but the location-sharing preference could not be saved.');
+        return;
       }
-      await sendPresence(position);
-      state.publicLive = true;
-      persist();
+
+      if (!(await preflightMicrophoneAccess())) return;
+
+      let position;
+      try {
+        position = await currentPublicPresencePosition();
+      } catch (error) {
+        showToast(locationAccessMessage(error, 'join riders nearby'));
+        return;
+      }
+
+      const sharingWasAlreadyEnabled = state.profile.shareLocation;
+      let enabledSharingForNearby = false;
+      try {
+        if (!sharingWasAlreadyEnabled) {
+          const ok = await patchProfile({ shareLocation: true });
+          if (!ok) throw new Error('could_not_enable_location_sharing');
+          enabledSharingForNearby = true;
+        }
+
+        await sendPresence(position);
+        state.publicLive = true;
+        persist();
+        renderMapStatus();
+        centreMap(position.coords.latitude, position.coords.longitude);
+        showToast('You are visible to nearby riders.');
+        syncVoiceConnection();
+        startPresenceRefresh();
+      } catch (error) {
+        state.publicLive = false;
+        nearbyRiders = [];
+        stopPresenceRefresh();
+        syncVoiceConnection();
+        persist();
+        renderMapStatus();
+        renderMapRiders();
+        try { await apiFetch('DELETE', '/presence'); } catch { /* Presence also expires server-side. */ }
+
+        // If this tap enabled durable sharing but never established Nearby,
+        // undo that change so the inactive map control cannot leave a hidden
+        // privacy preference switched on.
+        if (enabledSharingForNearby) {
+          try {
+            const profile = await apiFetch(
+              'PUT',
+              `/riders/${encodeURIComponent(state.profile.riderId)}/profile`,
+              { shareLocation: false },
+            );
+            applyRemoteProfile(profile);
+          } catch { /* The failed Nearby session remains locally off. */ }
+        }
+
+        const code = error instanceof ApiError ? error.body?.error : undefined;
+        showToast(code === 'location_sharing_disabled'
+          ? 'Enable location sharing in Settings to go live.'
+          : code === 'location accuracy must be between 0 and 100 metres'
+            ? 'Waiting for a more accurate GPS fix. Try Nearby again in a moment.'
+            : 'Could not go live. Try again.');
+      }
+    } finally {
+      nearbyTogglePending = false;
       renderMapStatus();
-      centreMap(position.coords.latitude, position.coords.longitude);
-      showToast('You are visible to nearby riders.');
-      syncVoiceConnection();
-      startPresenceRefresh();
-    } catch (error) {
-      state.publicLive = false;
-      persist();
-      renderMapStatus();
-      const code = error instanceof ApiError ? error.body?.error : undefined;
-      showToast(code === 'location_sharing_disabled'
-        ? 'Enable location sharing in Settings to go live.'
-        : 'Could not go live. Try again.');
     }
+  }
+
+  const MAX_PUBLIC_PRESENCE_ACCURACY_METERS = 100;
+  const MAX_REUSED_PRESENCE_FIX_AGE_MS = 15_000;
+
+  function usablePublicPresencePosition(position, now = Date.now()) {
+    if (!position?.coords) return false;
+    const timestamp = Number(position.timestamp);
+    const ageMs = now - timestamp;
+    const accuracyMeters = Number(position.coords.accuracy);
+    return Number.isFinite(position.coords.latitude)
+      && Number.isFinite(position.coords.longitude)
+      && Number.isFinite(timestamp)
+      && Number.isFinite(accuracyMeters)
+      && accuracyMeters >= 0
+      && accuracyMeters <= MAX_PUBLIC_PRESENCE_ACCURACY_METERS
+      && ageMs >= 0
+      && ageMs <= MAX_REUSED_PRESENCE_FIX_AGE_MS;
+  }
+
+  async function currentPublicPresencePosition() {
+    // The high-accuracy movement watcher already owns the map's current fix.
+    // Reuse it when it still satisfies the backend's public-presence privacy
+    // bounds instead of starting a second iOS geolocation request from the tap.
+    if (usablePublicPresencePosition(latestDevicePosition)) return latestDevicePosition;
+    return currentPosition();
   }
 
   function currentPosition() {
