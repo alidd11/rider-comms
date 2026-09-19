@@ -815,7 +815,8 @@ export const CURATED_ROUTES: readonly CuratedRoute[] = [
       "Devil's Beef Tub"
     ],
     "safetyNotices": [
-      "The reservoir roads are narrower than the A708 and can have limited sightlines and passing room.",
+      "The Megget and Talla reservoir leg is narrow, uses passing places and has some uneven sections, so it needs a lower pace than the A708.",
+      "There are no fuel stations on the 43-mile loop; fill up in Moffat before leaving.",
       "Weather changes quickly on the exposed Borders uplands.",
       "Ride time is a route-only planning estimate and excludes scenic or café stops."
     ],
@@ -853,7 +854,7 @@ export const CURATED_ROUTES: readonly CuratedRoute[] = [
     ],
     "routeSourceUrl": "https://www.motorcyclescotland.com/routes/three-lochs-run/",
     "conditionsUrl": "https://www.traffic.gov.scot/",
-    "reviewedAt": "2026-09-18",
+    "reviewedAt": "2026-09-19",
     "image": {
       "uri": "https://upload.wikimedia.org/wikipedia/commons/4/45/A708_beside_St_Mary%27s_Loch_-_geograph.org.uk_-_7249278.jpg",
       "alt": "The A708 beside St Mary's Loch in the Scottish Borders",
@@ -1204,6 +1205,11 @@ export const CURATED_ROUTES: readonly CuratedRoute[] = [
     },
     "waypoints": [
       {
+        "lat": 54.100079,
+        "lon": -6.25128,
+        "label": "Warrenpoint"
+      },
+      {
         "lat": 54.1,
         "lon": -6.202,
         "label": "Rostrevor"
@@ -1221,7 +1227,7 @@ export const CURATED_ROUTES: readonly CuratedRoute[] = [
     ],
     "routeSourceUrl": "https://www.visitmournegullionstrangford.com/things-to-do/mourne-coastal-route-from-newcastle-p847801",
     "conditionsUrl": "https://www.trafficwatchni.com/",
-    "reviewedAt": "2026-09-18",
+    "reviewedAt": "2026-09-19",
     "image": {
       "uri": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/1c/The_cliff_top_Annalong_Road_on_the_north-eastern_outskirts_of_Ballymartin_-_geograph.org.uk_-_5927104.jpg/1280px-The_cliff_top_Annalong_Road_on_the_north-eastern_outskirts_of_Ballymartin_-_geograph.org.uk_-_5927104.jpg",
       "alt": "The Annalong Road on the Mourne coast",
