@@ -210,7 +210,7 @@ export function PlaceSearchBar({
                   accessibilityRole="button"
                   accessibilityState={{ selected: active }}
                 >
-                  <MaterialCommunityIcons name={category.icon} size={17} color={active ? '#FFFFFF' : colors.textSecondary} />
+                  <MaterialCommunityIcons name={category.icon} size={17} color={active ? colors.accentText : colors.textSecondary} />
                   <Text style={[styles.categoryText, active && styles.categoryTextActive]}>{category.label}</Text>
                 </Pressable>
               );
@@ -380,7 +380,7 @@ function SearchState({ icon, title, copy, compact = false, actionLabel, onAction
 const styles = StyleSheet.create({
   collapsed: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: MIN_TOUCH_TARGET,
-    paddingHorizontal: spacing.md, borderRadius: radii.pill, backgroundColor: colors.surface,
+    paddingHorizontal: spacing.md, borderRadius: radii.lg, backgroundColor: colors.surface,
     borderWidth: 1, borderColor: colors.border,
   },
   collapsedText: { ...type.body, color: colors.textMuted },
@@ -388,12 +388,12 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   header: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.md, paddingVertical: 10 },
   backButton: {
-    width: 46, height: 46, alignItems: 'center', justifyContent: 'center', borderRadius: 14,
+    width: 46, height: 46, alignItems: 'center', justifyContent: 'center', borderRadius: radii.lg,
     backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
   },
   inputShell: {
     flex: 1, minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
-    paddingHorizontal: 14, borderRadius: 16, backgroundColor: colors.surface,
+    paddingHorizontal: 14, borderRadius: radii.lg, backgroundColor: colors.surface,
     borderWidth: 1, borderColor: colors.border, ...elevation.raised,
   },
   input: { flex: 1, ...type.body, color: colors.textPrimary, paddingVertical: 0 },
@@ -404,7 +404,7 @@ const styles = StyleSheet.create({
   },
   categoryActive: { backgroundColor: colors.accent, borderColor: colors.accent },
   categoryText: { ...type.caption, fontSize: 14, color: colors.textSecondary },
-  categoryTextActive: { color: '#FFFFFF' },
+  categoryTextActive: { color: colors.accentText },
   resultsContent: { paddingHorizontal: spacing.md, paddingBottom: spacing.lg },
   resultsHeader: {
     minHeight: 58, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between',
@@ -419,7 +419,7 @@ const styles = StyleSheet.create({
     paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: colors.border,
   },
   resultRowPressed: { backgroundColor: colors.surfaceRaised },
-  resultIcon: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: colors.accentSoft },
+  resultIcon: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: radii.md, backgroundColor: colors.accentSoft },
   resultInfo: { flex: 1, minWidth: 0 },
   resultName: { ...type.body, color: colors.textPrimary, fontWeight: '700', fontSize: 15 },
   resultAddress: { ...type.caption, marginTop: 3 },
@@ -427,13 +427,13 @@ const styles = StyleSheet.create({
   resultDistance: { ...type.caption, fontSize: 11 },
   state: { flex: 1, minHeight: 280, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.xl },
   stateCompact: { flex: 0, minHeight: 210 },
-  stateIcon: { width: 52, height: 52, alignItems: 'center', justifyContent: 'center', borderRadius: 17, backgroundColor: colors.surfaceRaised, marginBottom: spacing.md },
+  stateIcon: { width: 52, height: 52, alignItems: 'center', justifyContent: 'center', borderRadius: radii.lg, backgroundColor: colors.surfaceRaised, marginBottom: spacing.md },
   stateTitle: { ...type.subheading, textAlign: 'center' },
   stateCopy: { ...type.caption, maxWidth: 310, marginTop: spacing.sm, textAlign: 'center', lineHeight: 20 },
   stateAction: {
     minHeight: 42, justifyContent: 'center', marginTop: spacing.md, paddingHorizontal: spacing.lg,
-    borderRadius: radii.pill, backgroundColor: colors.accent,
+    borderRadius: radii.md, backgroundColor: colors.accent,
   },
-  stateActionText: { ...type.caption, color: '#FFFFFF', fontWeight: '800' },
+  stateActionText: { ...type.caption, color: colors.accentText, fontWeight: '800' },
   attribution: { ...type.caption, paddingHorizontal: 20, paddingTop: 9, borderTopWidth: 1, borderTopColor: colors.border, textAlign: 'right', fontSize: 11 },
 });

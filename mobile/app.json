@@ -42,7 +42,7 @@
     "android": {
       "package": "com.ridercomms.app",
       "versionCode": 1,
-      "backgroundColor": "#0E0E0F",
+      "backgroundColor": "#080D10",
       "intentFilters": [
         {
           "action": "VIEW",

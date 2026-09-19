@@ -255,6 +255,82 @@ test('core PWA screens render without runtime errors or viewport overflow', asyn
   expect(runtimeErrors).toEqual([]);
 });
 
+test('final mockup parity is sharp, map-first and iPhone 17 Pro Max safe', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'iphone-17-pro-max-webkit', 'Final mockup screenshots target iPhone 17 Pro Max geometry.');
+
+  await mockAuthenticatedApi(page, 'stationary');
+  await page.goto('/');
+  await expect(page.locator('#app')).toBeVisible();
+
+  const mapGeometry = await page.evaluate(() => {
+    const screen = document.querySelector('[data-screen="map"]');
+    const canvas = document.querySelector('#mapCanvas');
+    const search = document.querySelector('#mapSearchSlot');
+    const action = document.querySelector('.map-actions .icon-button');
+    const screenBox = screen?.getBoundingClientRect();
+    const canvasBox = canvas?.getBoundingClientRect();
+    return {
+      screenTop: screenBox?.top ?? null,
+      canvasTop: canvasBox?.top ?? null,
+      canvasLeft: canvasBox?.left ?? null,
+      canvasRight: canvasBox?.right ?? null,
+      viewportWidth: document.documentElement.clientWidth,
+      searchRadius: search ? parseFloat(getComputedStyle(search).borderTopLeftRadius) : NaN,
+      actionRadius: action ? parseFloat(getComputedStyle(action).borderTopLeftRadius) : NaN,
+    };
+  });
+  expectNear(mapGeometry.canvasTop, mapGeometry.screenTop);
+  expectNear(mapGeometry.canvasLeft, 0);
+  expectNear(mapGeometry.canvasRight, mapGeometry.viewportWidth);
+  expect(mapGeometry.searchRadius).toBeLessThanOrEqual(4);
+  expect(mapGeometry.actionRadius).toBeLessThanOrEqual(4);
+  await expect(page.locator('[data-screen="map"] .page-header')).toHaveCount(0);
+  await expect(page.locator('#mapSearchSlot')).toBeVisible();
+  await expect(page.locator('#movementSafetyBanner')).toBeHidden();
+  await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-map-final.png'), fullPage: true });
+
+  await page.locator('#reportHazardBtn').click();
+  await expect(page.locator('#sheetBackdrop')).toBeVisible();
+  await expect(page.locator('#sheetTitle')).toHaveText('Report on the road');
+  const reportShape = await page.evaluate(() => {
+    const sheet = document.querySelector('.sheet');
+    const tile = document.querySelector('.hazard-type-tile');
+    return {
+      sheetRadius: sheet ? parseFloat(getComputedStyle(sheet).borderTopLeftRadius) : NaN,
+      tileRadius: tile ? parseFloat(getComputedStyle(tile).borderTopLeftRadius) : NaN,
+    };
+  });
+  expect(reportShape.sheetRadius).toBeLessThanOrEqual(8);
+  expect(reportShape.tileRadius).toBeLessThanOrEqual(4);
+  await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-report-final.png'), fullPage: true });
+  await page.locator('#closeSheet').click();
+
+  await page.locator('.bottom-nav [data-nav="ride"]').click();
+  await expect(page.locator('.ride-hero')).toBeVisible();
+  const rideHeroRadius = await page.locator('.ride-hero').evaluate((element) => parseFloat(getComputedStyle(element).borderTopLeftRadius));
+  expect(rideHeroRadius).toBeLessThanOrEqual(4);
+  await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-ride-final.png'), fullPage: true });
+
+  await page.locator('.bottom-nav [data-nav="routes"]').click();
+  const finalRouteCard = page.locator('.curated-route-card').first();
+  await expect(finalRouteCard).toBeVisible();
+  await expect(finalRouteCard.locator('.route-trace-card')).toBeHidden();
+  const finalRouteBox = await finalRouteCard.boundingBox();
+  expect(finalRouteBox).not.toBeNull();
+  expect(finalRouteBox.width / finalRouteBox.height).toBeGreaterThan(2);
+  await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-routes-final.png'), fullPage: true });
+
+  await page.locator('.bottom-nav [data-nav="settings"]').click();
+  await expect(page.locator('.settings-page')).toBeVisible();
+  await expect(page.locator('[data-screen="settings"] .page-subtitle')).toHaveCount(0);
+  const settingsRadius = await page.locator('.settings-page .settings-group').first().evaluate((element) =>
+    parseFloat(getComputedStyle(element).borderTopLeftRadius)
+  );
+  expect(settingsRadius).toBeLessThanOrEqual(4);
+  await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-settings-final.png'), fullPage: true });
+  await assertNoViewportOverflow(page);
+});
+
 test('PWA route discovery previews route shape and hands the start back to the map', async ({ page }) => {
   await mockAuthenticatedApi(page);
   await page.goto('/');
@@ -263,7 +339,10 @@ test('PWA route discovery previews route shape and hands the start back to the m
   await page.locator('.bottom-nav [data-nav="routes"]').click();
   const firstRoute = page.locator('.curated-route-card').first();
   await expect(firstRoute).toBeVisible();
-  await expect(firstRoute.locator('.route-trace-card')).toBeVisible();
+  await expect(firstRoute.locator('.route-trace-card')).toBeHidden();
+  const routeCardBox = await firstRoute.boundingBox();
+  expect(routeCardBox).not.toBeNull();
+  expect(routeCardBox.width / routeCardBox.height).toBeGreaterThan(2);
 
   await firstRoute.click();
   await expect(page.locator('.route-detail')).toBeVisible();
@@ -274,6 +353,8 @@ test('PWA route discovery previews route shape and hands the start back to the m
   await expect(page.locator('[data-screen="map"]')).toHaveClass(/active/);
   await expect(page.locator('#destinationCard')).toBeVisible();
   await expect(page.locator('#destinationCard')).toContainText('start');
+  await expect(page.locator('#destinationCard .destination-primary-action')).toBeVisible();
+  await expect(page.locator('#destinationCard .destination-primary-action')).toContainText('Start route');
   await assertNoViewportOverflow(page);
 });
 
@@ -330,6 +411,8 @@ test('PWA utility viewport paints safe areas as one edge-to-edge canvas', async 
     return {
       screenBackground: screenStyle.backgroundImage,
       shieldBackground: shieldStyle.backgroundImage,
+      screenBackgroundColor: screenStyle.backgroundColor,
+      shieldBackgroundColor: shieldStyle.backgroundColor,
       shieldHeight: shieldStyle.height,
       paddingTop: screenStyle.paddingTop,
       paddingLeft: screenStyle.paddingLeft,
@@ -338,8 +421,9 @@ test('PWA utility viewport paints safe areas as one edge-to-edge canvas', async 
   });
 
   expect(viewport.shieldHeight).toBe('59px');
-  expect(viewport.shieldBackground).toBe(viewport.screenBackground);
-  expect(viewport.shieldBackground).toContain('repeating-linear-gradient');
+  expect(viewport.screenBackground).toBe('none');
+  expect(viewport.shieldBackground).toBe('none');
+  expect(viewport.shieldBackgroundColor).toBe(viewport.screenBackgroundColor);
   expect(parseFloat(viewport.paddingTop)).toBeGreaterThan(59);
   expect(parseFloat(viewport.paddingLeft)).toBeGreaterThanOrEqual(47);
   expect(parseFloat(viewport.navPaddingLeft)).toBeGreaterThanOrEqual(47);
@@ -1015,7 +1099,7 @@ test('@viewport standalone canvas, navigation and scroll geometry remain coheren
   }
 
   await setSyntheticSafeArea(page, 34);
-  const captureEvidence = /iphone-modern|pixel-chromium|iphone-landscape|ipad-webkit/.test(testInfo.project.name);
+  const captureEvidence = /iphone-17-pro-max|pixel-chromium|iphone-landscape|ipad-webkit/.test(testInfo.project.name);
   const screens = [
     ['map', '#mapCanvas'],
     ['ride', '#joinRideForm .ride-location-consent'],
@@ -1076,9 +1160,9 @@ test('@viewport standalone canvas, navigation and scroll geometry remain coheren
   const resumed = await standaloneGeometry(page);
   expectNear(resumed.appBottom, baseline.appBottom);
   expectNear(resumed.navBottom, baseline.navBottom);
-  expectNear(resumed.mapBottom, resumed.navTop);
+  // Chromium on fractional-DPR Android devices can round the fixed nav and\n  // map inset to adjacent device pixels. Keep this seam within 2 CSS px while\n  // the stricter app/nav bottom assertions above remain unchanged.\n  expectNear(resumed.mapBottom, resumed.navTop, 2);
 
-  if (testInfo.project.name === 'viewport-iphone-modern-webkit-dark') {
+  if (testInfo.project.name === 'viewport-iphone-17-pro-max-webkit-dark') {
     const original = page.viewportSize();
     await page.setViewportSize({ width: original.height, height: original.width });
     await page.evaluate(() => window.dispatchEvent(new Event('orientationchange')));
@@ -1105,7 +1189,7 @@ test('@viewport full-screen overlays and sheets share the stable standalone bott
   const nav = page.locator('.bottom-nav');
   const appBottom = (await app.boundingBox()).y + (await app.boundingBox()).height;
   const baselineNavBottom = (await nav.boundingBox()).y + (await nav.boundingBox()).height;
-  const captureEvidence = /iphone-modern|pixel-chromium|iphone-landscape|ipad-webkit/.test(testInfo.project.name);
+  const captureEvidence = /iphone-17-pro-max|pixel-chromium|iphone-landscape|ipad-webkit/.test(testInfo.project.name);
 
   const assertSheet = async (screenshotName) => {
     const backdrop = page.locator('#sheetBackdrop');
