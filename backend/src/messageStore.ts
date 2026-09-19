@@ -23,6 +23,7 @@ interface ConversationRow extends DirectMessageRow {
 export interface MessagePage {
   messages: DirectMessage[];
   nextCursor: string | null;
+  peerReadThroughMessageId: string | null;
 }
 
 export interface ConversationSummary {
@@ -140,9 +141,21 @@ export class MessageStore {
     );
     const hasMore = rows.length > boundedLimit;
     const selected = rows.slice(0, boundedLimit);
+    const readState = await getPool().query<{ id: string }>(
+      `SELECT message.id
+       FROM direct_message_reads read_state
+       JOIN direct_messages message
+         ON message.conversation_key = read_state.conversation_key
+        AND message.seq = read_state.last_read_seq
+       WHERE read_state.rider_id = $1
+         AND read_state.conversation_key = $2
+       LIMIT 1`,
+      [withRiderId, conversationKey(riderId, withRiderId)],
+    );
     return {
       messages: selected.map(rowToMessage).reverse(),
       nextCursor: hasMore && selected.length > 0 ? encodeMessageCursor(selected[selected.length - 1].seq) : null,
+      peerReadThroughMessageId: readState.rows[0]?.id ?? null,
     };
   }
 
@@ -203,25 +216,52 @@ export class MessageStore {
   }
 
   /**
-   * Marks every currently received message in one thread as read. The
-   * monotonic GREATEST guard prevents an older/racing request from moving a
-   * rider's read cursor backwards.
+   * Marks every currently received message in one thread as read. A durable
+   * receipt event is emitted to the sender only when the cursor actually
+   * advances, keeping repeated foreground refreshes idempotent.
    */
   async markThreadRead(riderId: string, withRiderId: string): Promise<number> {
     await ensureMigrated();
     const key = conversationKey(riderId, withRiderId);
-    const { rows } = await getPool().query<{ last_read_seq: string | number }>(
-      `INSERT INTO direct_message_reads (rider_id, conversation_key, last_read_seq, updated_at)
-       SELECT $1, $2, COALESCE(MAX(seq), 0), $3
-       FROM direct_messages
-       WHERE conversation_key = $2 AND to_rider_id = $1
-       ON CONFLICT (rider_id, conversation_key) DO UPDATE SET
-         last_read_seq = GREATEST(direct_message_reads.last_read_seq, EXCLUDED.last_read_seq),
-         updated_at = EXCLUDED.updated_at
-       RETURNING last_read_seq`,
-      [riderId, key, Date.now()]
-    );
-    return Number(rows[0]?.last_read_seq ?? 0);
+    const client = await getPool().connect();
+    try {
+      await client.query('BEGIN');
+      const latest = await client.query<{ id: string; seq: string | number }>(
+        `SELECT id, seq
+         FROM direct_messages
+         WHERE conversation_key = $1
+           AND to_rider_id = $2
+         ORDER BY seq DESC
+         LIMIT 1`,
+        [key, riderId],
+      );
+      const message = latest.rows[0];
+      if (!message) {
+        await client.query('COMMIT');
+        return 0;
+      }
+
+      const advanced = await client.query<{ last_read_seq: string | number }>(
+        `INSERT INTO direct_message_reads (rider_id, conversation_key, last_read_seq, updated_at)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (rider_id, conversation_key) DO UPDATE SET
+           last_read_seq = EXCLUDED.last_read_seq,
+           updated_at = EXCLUDED.updated_at
+         WHERE direct_message_reads.last_read_seq < EXCLUDED.last_read_seq
+         RETURNING last_read_seq`,
+        [riderId, key, message.seq, Date.now()],
+      );
+      if (advanced.rows[0]) {
+        await appendSocialEvent(client, withRiderId, 'message_read', riderId, message.id);
+      }
+      await client.query('COMMIT');
+      return Number(message.seq);
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async getUnreadCount(riderId: string): Promise<number> {
