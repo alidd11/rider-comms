@@ -87,8 +87,18 @@ async function mockAuthenticatedApi(page, movement = 'stationary', backendOverri
         { riderId: 'rider_friend01', displayName: 'Maya', handle: '@maya_moto', avatarId: 'ridge' },
         { riderId: 'rider_friend02', displayName: 'Jay', handle: '@jay125', avatarId: 'moss' },
       ],
+      nextCursor: null,
     };
-    else if (url.pathname === `/riders/${RIDER_ID}/friend-requests`) body = { incoming: [], outgoing: [] };
+    else if (url.pathname === `/riders/${RIDER_ID}/friend-requests`) body = { incoming: [], outgoing: [], profiles: {}, nextCursor: null };
+    else if (url.pathname === '/friends/activity') body = { activity: [] };
+    else if (url.pathname === '/conversations') body = { conversations: [], nextCursor: null };
+    else if (url.pathname === '/messages/unread-count') body = { unreadCount: 0 };
+    else if (url.pathname === '/messages/read') body = { readThroughSeq: 0 };
+    else if (url.pathname === '/messages' && request.method() === 'GET') body = { messages: [], nextCursor: null, peerReadThroughMessageId: null };
+    else if (url.pathname === '/social/events') {
+      if (url.searchParams.get('waitMs') !== '0') await new Promise((resolve) => setTimeout(resolve, 250));
+      body = { events: [], cursor: url.searchParams.get('after') || 'MA', hasMore: false };
+    }
     else if (url.pathname === '/hazards/nearby') body = { hazards: [] };
     else if (url.pathname === '/rides/current') body = { ride: null };
     else if (url.pathname === '/config') body = { googleMapsApiKey: 'visual-test-key' };
