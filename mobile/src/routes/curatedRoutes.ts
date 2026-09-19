@@ -534,7 +534,7 @@ export const CURATED_ROUTES: readonly CuratedRoute[] = [
     ],
     "routeSourceUrl": "https://www.adventurebikerider.com/article/great-britain-glyndwrs-way/",
     "conditionsUrl": "https://traffic.wales/",
-    "reviewedAt": "2026-09-18",
+    "reviewedAt": "2026-09-19",
     "image": {
       "uri": "https://upload.wikimedia.org/wikipedia/commons/8/80/The_road_down_into_Cwmystwyth_-_geograph.org.uk_-_6304586.jpg",
       "alt": "A mountain road descending into Cwmystwyth in Mid Wales",
@@ -589,7 +589,7 @@ export const CURATED_ROUTES: readonly CuratedRoute[] = [
     ],
     "routeSourceUrl": "https://www.adventurebikerider.com/article/uk-roads-to-ride-in-2021/",
     "conditionsUrl": "https://traffic.wales/",
-    "reviewedAt": "2026-09-18",
+    "reviewedAt": "2026-09-19",
     "image": {
       "uri": "https://upload.wikimedia.org/wikipedia/commons/e/e1/B4560_Llangynidr_mountain_road_-_geograph.org.uk_-_4380999.jpg",
       "alt": "The B4560 Llangynidr mountain road",
@@ -972,7 +972,7 @@ export const CURATED_ROUTES: readonly CuratedRoute[] = [
     ],
     "routeSourceUrl": "https://www.adventurebikerider.com/article/uk-roads-to-ride-in-2021/",
     "conditionsUrl": "https://www.traffic.gov.scot/",
-    "reviewedAt": "2026-09-18",
+    "reviewedAt": "2026-09-19",
     "image": {
       "uri": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/77/Duke%27s_Pass_-_geograph.org.uk_-_4767591.jpg/1280px-Duke%27s_Pass_-_geograph.org.uk_-_4767591.jpg",
       "alt": "Duke’s Pass in the Trossachs",
@@ -1028,7 +1028,7 @@ export const CURATED_ROUTES: readonly CuratedRoute[] = [
     ],
     "routeSourceUrl": "https://www.seelochlomond.co.uk/discover/a82-loch-lomond-road-trip",
     "conditionsUrl": "https://www.traffic.gov.scot/",
-    "reviewedAt": "2026-09-15",
+    "reviewedAt": "2026-09-19",
     "image": {
       "uri": "https://upload.wikimedia.org/wikipedia/commons/0/0d/A82_towards_Glencoe_-_geograph.org.uk_-_3149881.jpg",
       "alt": "The A82 heading towards Glencoe",
@@ -1095,7 +1095,7 @@ export const CURATED_ROUTES: readonly CuratedRoute[] = [
     ],
     "routeSourceUrl": "https://www.visitcairngorms.com/inspire-me/snowroads/",
     "conditionsUrl": "https://www.traffic.gov.scot/",
-    "reviewedAt": "2026-09-15",
+    "reviewedAt": "2026-09-19",
     "image": {
       "uri": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/32/Cairngorms_National_Park_road_%28Unsplash%29.jpg/1280px-Cairngorms_National_Park_road_%28Unsplash%29.jpg",
       "alt": "A mountain road through Cairngorms National Park",
@@ -1151,7 +1151,7 @@ export const CURATED_ROUTES: readonly CuratedRoute[] = [
     ],
     "routeSourceUrl": "https://www.adventurebikerider.com/article/8-of-britains-most-scenic-rides/",
     "conditionsUrl": "https://www.traffic.gov.scot/",
-    "reviewedAt": "2026-09-18",
+    "reviewedAt": "2026-09-19",
     "image": {
       "uri": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d0/A838_towards_Durness_-_geograph.org.uk_-_8260507.jpg/1280px-A838_towards_Durness_-_geograph.org.uk_-_8260507.jpg",
       "alt": "The A838 in Sutherland near Durness",
@@ -1167,7 +1167,7 @@ export const CURATED_ROUTES: readonly CuratedRoute[] = [
     "region": "County Antrim, Northern Ireland",
     "road": "A2 · Belfast to Derry/Londonderry",
     "description": "A full coastal journey through glens, cliff-backed beaches and the basalt landscape around the Giant’s Causeway.",
-    "riderNote": "The main signed A2 corridor suits road motorcycles and scooters; this overview intentionally excludes the tighter Torr Head detour.",
+    "riderNote": "The main signed coastal corridor suits road motorcycles and scooters. The official route varies with optional loops; this curated line intentionally excludes the tighter Torr Head detour and keeps the principal coast road.",
     "vehicleSuitability": [
       "motorcycle_small",
       "motorcycle_large",
@@ -1175,7 +1175,7 @@ export const CURATED_ROUTES: readonly CuratedRoute[] = [
       "car"
     ],
     "roadType": "coastal",
-    "distanceMiles": 120,
+    "distanceMiles": 115,
     "estimatedDurationMinutes": 210,
     "difficulty": "moderate",
     "highlights": [
@@ -1213,11 +1213,21 @@ export const CURATED_ROUTES: readonly CuratedRoute[] = [
         "lat": 55.204,
         "lon": -6.523,
         "label": "Bushmills"
+      },
+      {
+        "lat": 55.2045,
+        "lon": -6.6529,
+        "label": "Portrush"
+      },
+      {
+        "lat": 55.1656,
+        "lon": -6.7868,
+        "label": "Castlerock"
       }
     ],
     "routeSourceUrl": "https://discovernorthernireland.com/destinations/causeway-coastal-route/getting-here/",
     "conditionsUrl": "https://www.trafficwatchni.com/",
-    "reviewedAt": "2026-09-15",
+    "reviewedAt": "2026-09-19",
     "image": {
       "uri": "https://upload.wikimedia.org/wikipedia/commons/e/e1/Causeway_Coastal_Route%2C_Dunseverick_-_geograph.org.uk_-_5572416.jpg",
       "alt": "The Causeway Coastal Route at Dunseverick",
