@@ -14,7 +14,7 @@
 // a `segment: 'host'` param, read below, instead of navigating to its own
 // registered-but-never-actually-shown screen.
 import * as React from 'react';
-import { View, Text, Pressable, StyleSheet, Alert, Linking, Platform } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Alert, Linking, Platform, useColorScheme } from 'react-native';
 import { useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -74,6 +74,20 @@ const DARK_MAP_STYLE = [
   { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#25333B' }] },
   { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#20313A' }] },
   { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#071C25' }] },
+];
+const LIGHT_MAP_STYLE = [
+  { elementType: 'geometry', stylers: [{ color: '#E6EDEF' }] },
+  { elementType: 'labels.text.stroke', stylers: [{ color: '#EEF3F4' }] },
+  { elementType: 'labels.text.fill', stylers: [{ color: '#526169' }] },
+  { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#2F4048' }] },
+  { featureType: 'landscape.natural', elementType: 'geometry', stylers: [{ color: '#E1E9E7' }] },
+  { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+  { featureType: 'transit', stylers: [{ visibility: 'off' }] },
+  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#F7F9FA' }] },
+  { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#BDC9CE' }] },
+  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#D4E1E5' }] },
+  { featureType: 'road.highway', elementType: 'geometry.stroke', stylers: [{ color: '#AEBDC3' }] },
+  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#C9E0E7' }] },
 ];
 const NAV_STEP_ARRIVAL_RADIUS_M = 30;
 const NAV_OFF_ROUTE_RADIUS_M = 60;
@@ -158,6 +172,7 @@ function SegmentToggle({
 }
 
 export function MapScreen(): React.JSX.Element {
+  const colorScheme = useColorScheme();
   const { client, riderId } = useAuth();
   const { rideLocations } = useRide();
   const { shareLocation, setShareLocation, unitSystem, navigationProvider } = useSettings();
@@ -643,7 +658,7 @@ export function MapScreen(): React.JSX.Element {
             loadingEnabled
             loadingBackgroundColor={colors.background}
             loadingIndicatorColor={colors.accent}
-            customMapStyle={DARK_MAP_STYLE}
+            customMapStyle={colorScheme === 'light' ? LIGHT_MAP_STYLE : DARK_MAP_STYLE}
             showsCompass={false}
             showsMyLocationButton={false}
             toolbarEnabled={false}

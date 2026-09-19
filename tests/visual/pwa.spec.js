@@ -217,6 +217,112 @@ function expectNear(actual, expected, tolerance = 1.5) {
   expect(Math.abs(actual - expected)).toBeLessThanOrEqual(tolerance);
 }
 
+test('login baseline matches Rider Comms hierarchy in day and night', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'iphone-17-pro-max-webkit', 'Login baseline screenshots target iPhone 17 Pro Max geometry.');
+
+  for (const scheme of ['dark', 'light']) {
+    await page.emulateMedia({ colorScheme: scheme });
+    await page.goto('/');
+
+    await expect(page.locator('#authScreen')).toBeVisible();
+    await expect(page.locator('#app')).toBeHidden();
+    await expect(page.locator('.auth-visual')).toBeVisible();
+    await expect(page.locator('.auth-hero')).toHaveCount(0);
+    await expect(page.locator('#authEyebrow')).toBeVisible();
+    await expect(page.locator('#authEyebrow')).toHaveText('Welcome back');
+    await expect(page.locator('#authTitle')).toHaveText('Ready to ride?');
+    await expect(page.locator('#authDescription')).toHaveText('Sign in to reconnect with your rides, friends and rider circle.');
+    await expect(page.locator('#loginForm')).toBeVisible();
+    await expect(page.locator('#signupForm')).toBeHidden();
+    await assertNoViewportOverflow(page);
+
+    const visual = await page.evaluate(() => {
+      const root = getComputedStyle(document.documentElement);
+      const tab = getComputedStyle(document.querySelector('.auth-segmented'));
+      const input = getComputedStyle(document.querySelector('#loginUsername'));
+      const button = getComputedStyle(document.querySelector('#loginSubmit'));
+      const card = getComputedStyle(document.querySelector('.auth-card'));
+      const heroElement = document.querySelector('.auth-visual');
+      const hero = getComputedStyle(heroElement);
+      const heroRect = heroElement.getBoundingClientRect();
+      const title = getComputedStyle(document.querySelector('#authTitle'));
+      return {
+        background: root.getPropertyValue('--bg').trim().toLowerCase(),
+        surface: root.getPropertyValue('--surface').trim().toLowerCase(),
+        tabRadius: parseFloat(tab.borderTopLeftRadius),
+        inputRadius: parseFloat(input.borderTopLeftRadius),
+        buttonRadius: parseFloat(button.borderTopLeftRadius),
+        cardBackground: card.backgroundColor,
+        cardBorderWidth: parseFloat(card.borderTopWidth),
+        heroHeight: parseFloat(hero.height),
+        heroRadius: parseFloat(hero.borderTopLeftRadius),
+        heroBackground: hero.backgroundImage,
+        heroTop: heroRect.top,
+        heroLeft: heroRect.left,
+        heroWidth: heroRect.width,
+        viewportWidth: window.innerWidth,
+        titleSize: parseFloat(title.fontSize),
+      };
+    });
+
+    expect(visual.tabRadius).toBeLessThanOrEqual(4);
+    expect(visual.inputRadius).toBeLessThanOrEqual(4);
+    expect(visual.buttonRadius).toBeLessThanOrEqual(4);
+    expect(visual.cardBackground).toBe('rgba(0, 0, 0, 0)');
+    expect(visual.cardBorderWidth).toBe(0);
+    expect(visual.heroHeight).toBeGreaterThanOrEqual(215);
+    expect(visual.heroHeight).toBeLessThanOrEqual(225);
+    expect(visual.heroRadius).toBe(0);
+    expect(Math.abs(visual.heroTop)).toBeLessThanOrEqual(1);
+    expect(Math.abs(visual.heroLeft)).toBeLessThanOrEqual(1);
+    expect(Math.abs(visual.heroWidth - visual.viewportWidth)).toBeLessThanOrEqual(1);
+    expect(visual.heroBackground).toContain('photo-1770614956862-a143fb5e4921');
+    expect(visual.titleSize).toBeLessThanOrEqual(35);
+    expect(visual.background).toBe(scheme === 'dark' ? '#080d10' : '#e9eef0');
+    expect(visual.surface).toBe(scheme === 'dark' ? '#11171b' : '#f7f9fa');
+
+    await page.screenshot({
+      path: testInfo.outputPath(`iphone-17-pro-max-login-${scheme}-baseline.png`),
+      fullPage: true,
+    });
+  }
+});
+
+test('Rider Comms follows device day/night appearance with branded palettes', async ({ page }) => {
+  await mockAuthenticatedApi(page);
+
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await page.goto('/');
+  await expect(page.locator('#app')).toBeVisible();
+  const night = await page.evaluate(() => {
+    const root = getComputedStyle(document.documentElement);
+    return {
+      background: root.getPropertyValue('--bg').trim().toLowerCase(),
+      surface: root.getPropertyValue('--surface').trim().toLowerCase(),
+      text: root.getPropertyValue('--text').trim().toLowerCase(),
+    };
+  });
+  expect(night).toEqual({ background: '#080d10', surface: '#11171b', text: '#f3f6f7' });
+
+  await page.emulateMedia({ colorScheme: 'light' });
+  const day = await page.evaluate(() => {
+    const root = getComputedStyle(document.documentElement);
+    const banner = getComputedStyle(document.querySelector('#movementSafetyBanner'));
+    return {
+      background: root.getPropertyValue('--bg').trim().toLowerCase(),
+      surface: root.getPropertyValue('--surface').trim().toLowerCase(),
+      text: root.getPropertyValue('--text').trim().toLowerCase(),
+      bannerBackground: banner.backgroundColor,
+      bannerText: banner.color,
+    };
+  });
+  expect(day.background).toBe('#e9eef0');
+  expect(day.surface).toBe('#f7f9fa');
+  expect(day.text).toBe('#0b1216');
+  expect(day.bannerBackground).not.toBe('rgb(17, 23, 27)');
+  expect(day.bannerText).toBe('rgb(11, 18, 22)');
+});
+
 test('core PWA screens render without runtime errors or viewport overflow', async ({ page }, testInfo) => {
   const runtimeErrors = [];
   page.on('pageerror', (error) => runtimeErrors.push(`pageerror: ${error.stack || error.message}`));
@@ -738,6 +844,7 @@ test('PWA keeps private-ride speaker identity visible across tabs', async ({ pag
   await expect(page.locator('#ridePill')).toBeVisible();
   await expect(page.locator('#ridePill small')).toHaveText('Maya speaking');
 });
+
 
 test('PWA pauses saved public presence when current server consent is off', async ({ page }) => {
   let presenceUpdates = 0;
