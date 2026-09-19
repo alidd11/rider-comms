@@ -268,9 +268,12 @@ test('login baseline matches Rider Comms hierarchy in day and night', async ({ p
         surface: root.getPropertyValue('--surface').trim().toLowerCase(),
         tabRadius: parseFloat(tab.borderTopLeftRadius),
         tabHeight: parseFloat(tab.height),
+        tabWidth: parseFloat(tab.width),
         tabTopBorder: parseFloat(tab.borderTopWidth),
         tabBottomBorder: parseFloat(tab.borderBottomWidth),
         activeTabBottomBorder: parseFloat(activeTab.borderBottomWidth),
+        activeTabBackground: activeTab.backgroundColor,
+        activeTabShadow: activeTab.boxShadow,
         inputRadius: parseFloat(input.borderTopLeftRadius),
         inputHeight: parseFloat(input.height),
         buttonRadius: parseFloat(button.borderTopLeftRadius),
@@ -291,13 +294,16 @@ test('login baseline matches Rider Comms hierarchy in day and night', async ({ p
       };
     });
 
-    expect(visual.tabRadius).toBe(0);
+    expect(visual.tabRadius).toBeLessThanOrEqual(4);
     expect(visual.tabHeight).toBeLessThanOrEqual(40);
+    expect(visual.tabWidth).toBeLessThanOrEqual(250);
     expect(visual.tabTopBorder).toBe(0);
-    expect(visual.tabBottomBorder).toBeGreaterThanOrEqual(1);
-    expect(visual.activeTabBottomBorder).toBeGreaterThanOrEqual(2);
+    expect(visual.tabBottomBorder).toBe(0);
+    expect(visual.activeTabBottomBorder).toBe(0);
+    expect(visual.activeTabBackground).not.toBe('rgba(0, 0, 0, 0)');
+    expect(visual.activeTabShadow).not.toBe('none');
     expect(visual.inputRadius).toBeLessThanOrEqual(4);
-    expect(visual.inputHeight).toBeLessThanOrEqual(46);
+    expect(visual.inputHeight).toBeLessThanOrEqual(44);
     expect(visual.buttonRadius).toBeLessThanOrEqual(4);
     expect(visual.buttonHeight).toBeLessThanOrEqual(50);
     expect(visual.cardBackground).toBe('rgba(0, 0, 0, 0)');
@@ -559,6 +565,44 @@ test('final mockup parity is sharp, map-first and iPhone 17 Pro Max safe', async
   expect(finalRouteBox).not.toBeNull();
   expect(finalRouteBox.width / finalRouteBox.height).toBeGreaterThan(2);
   await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-routes-final.png'), fullPage: true });
+
+  await page.locator('.bottom-nav [data-nav="friends"]').click();
+  await expect(page.locator('#friendList [data-friend]').first()).toBeVisible();
+  const friendsGeometry = await page.evaluate(() => {
+    const search = document.querySelector('[data-screen="friends"] .search-row');
+    const row = document.querySelector('#friendList [data-friend]');
+    const avatar = row?.querySelector('.avatar');
+    const box = (element) => element?.getBoundingClientRect();
+    return {
+      searchHeight: box(search)?.height ?? NaN,
+      rowHeight: box(row)?.height ?? NaN,
+      avatarWidth: box(avatar)?.width ?? NaN,
+    };
+  });
+  expect(friendsGeometry.searchHeight).toBeLessThanOrEqual(46);
+  expect(friendsGeometry.rowHeight).toBeLessThanOrEqual(60);
+  expect(friendsGeometry.avatarWidth).toBeLessThanOrEqual(42);
+  await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-friends-final.png'), fullPage: true });
+
+  await page.locator('#friendList [data-friend]').first().click();
+  await expect(page.locator('#sheetBackdrop')).toBeVisible();
+  await expect(page.locator('.friend-profile-card')).toBeVisible();
+  const friendDetailGeometry = await page.evaluate(() => {
+    const avatar = document.querySelector('.friend-profile-card .avatar');
+    const action = document.querySelector('.friend-profile-actions button');
+    const listRow = document.querySelector('.friend-detail-list > div');
+    const box = (element) => element?.getBoundingClientRect();
+    return {
+      avatarWidth: box(avatar)?.width ?? NaN,
+      actionHeight: box(action)?.height ?? NaN,
+      listRowHeight: box(listRow)?.height ?? NaN,
+    };
+  });
+  expect(friendDetailGeometry.avatarWidth).toBeLessThanOrEqual(54);
+  expect(friendDetailGeometry.actionHeight).toBeLessThanOrEqual(58);
+  expect(friendDetailGeometry.listRowHeight).toBeLessThanOrEqual(52);
+  await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-friend-detail-final.png'), fullPage: true });
+  await page.locator('#closeSheet').click();
 
   await page.locator('.bottom-nav [data-nav="settings"]').click();
   await expect(page.locator('.settings-page')).toBeVisible();
