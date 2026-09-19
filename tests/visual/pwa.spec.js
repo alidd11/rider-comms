@@ -18,7 +18,7 @@ const PROFILE = {
 async function mockAuthenticatedApi(page, movement = 'stationary', backendOverride = null) {
   await page.addInitScript(({ riderId, movementState }) => {
     localStorage.setItem('rider-comms-session-v1', JSON.stringify({ riderId, token: 'visual-test-token' }));
-    Object.defineProperty(navigator, 'permissions', { value: { query: async () => ({ state: ['stationary', 'recovering'].includes(movementState) ? 'granted' : 'denied', addEventListener() {} }) } });
+    Object.defineProperty(navigator, 'permissions', { value: { query: async ({ name } = {}) => ({ state: name === 'microphone' ? 'prompt' : ['stationary', 'recovering'].includes(movementState) ? 'granted' : 'denied', addEventListener() {} }) } });
     let watchId = 0;
     Object.defineProperty(navigator, 'geolocation', { value: {
       watchPosition(success, error) {
@@ -495,12 +495,63 @@ test('PWA restores server ride consent and clears a removed cached ride on reope
   await expect(page.locator('#rideActiveState')).toBeVisible();
   await expect(page.locator('#activeRideCode')).toHaveText('ABCDEF');
   await expect(page.locator('#activeRideLocationConsent')).toBeChecked();
+  await expect(page.locator('#rideVoiceStatus')).toContainText('Resume voice');
   currentRide = null;
   await page.reload();
   await expect(page.locator('#rideJoinState')).toBeVisible();
   await expect(page.locator('#rideActiveState')).toBeHidden();
   const cached = await page.evaluate((id) => JSON.parse(localStorage.getItem(`rider-comms-pwa-v4:${id}`)), RIDER_ID);
   expect(cached.activeRide).toBeNull();
+});
+
+test('PWA resumes public presence only after server consent and granted location permission', async ({ page }) => {
+  let presenceUpdates = 0;
+  await mockAuthenticatedApi(page, 'stationary', ({ url, request }) => {
+    if (url.pathname === `/riders/${RIDER_ID}/profile`) return { body: { ...PROFILE, shareLocation: true } };
+    if (url.pathname === '/presence' && request.method() === 'POST') {
+      presenceUpdates += 1;
+      return { body: { inZoneWith: [] } };
+    }
+    return null;
+  });
+  await page.addInitScript(({ riderId, profile }) => {
+    localStorage.setItem(`rider-comms-pwa-v4:${riderId}`, JSON.stringify({ screen: 'map', profile, publicLive: true }));
+  }, { riderId: RIDER_ID, profile: { ...PROFILE, shareLocation: true } });
+  await page.goto('/');
+  await expect.poll(() => presenceUpdates).toBe(1);
+  await expect(page.locator('#joinNearbyBtn')).toHaveAttribute('data-active', 'true');
+  await expect(page.locator('#voiceStatusBtn')).toHaveAttribute('aria-label', 'Resume voice');
+});
+
+test('PWA pauses saved public presence when current server consent is off', async ({ page }) => {
+  let presenceUpdates = 0;
+  await mockAuthenticatedApi(page, 'stationary', ({ url, request }) => {
+    if (url.pathname === '/presence' && request.method() === 'POST') presenceUpdates += 1;
+    return null;
+  });
+  await page.addInitScript(({ riderId, profile }) => {
+    localStorage.setItem(`rider-comms-pwa-v4:${riderId}`, JSON.stringify({ screen: 'map', profile, publicLive: true }));
+  }, { riderId: RIDER_ID, profile: { ...PROFILE, shareLocation: true } });
+  await page.goto('/');
+  await expect.poll(() => page.evaluate((id) => JSON.parse(localStorage.getItem(`rider-comms-pwa-v4:${id}`)).profile.shareLocation, RIDER_ID)).toBe(false);
+  await expect(page.locator('#joinNearbyBtn')).toHaveAttribute('data-active', 'false');
+  expect(presenceUpdates).toBe(0);
+});
+
+test('PWA does not prompt for location when restoring nearby without permission', async ({ page }) => {
+  let presenceUpdates = 0;
+  await mockAuthenticatedApi(page, 'denied', ({ url, request }) => {
+    if (url.pathname === `/riders/${RIDER_ID}/profile`) return { body: { ...PROFILE, shareLocation: true } };
+    if (url.pathname === '/presence' && request.method() === 'POST') presenceUpdates += 1;
+    return null;
+  });
+  await page.addInitScript(({ riderId, profile }) => {
+    localStorage.setItem(`rider-comms-pwa-v4:${riderId}`, JSON.stringify({ screen: 'map', profile, publicLive: true }));
+  }, { riderId: RIDER_ID, profile: { ...PROFILE, shareLocation: true } });
+  await page.goto('/');
+  await expect(page.locator('#toast')).toContainText('Nearby paused.');
+  await expect(page.locator('#joinNearbyBtn')).toHaveAttribute('data-active', 'false');
+  expect(presenceUpdates).toBe(0);
 });
 
 test('PWA host can remove another rider from a private ride', async ({ page }) => {
