@@ -2692,9 +2692,11 @@
   }
 
   function disconnectPublicVoice() {
+    // disconnectManagedVoiceRoom() removes each public room's remote-audio
+    // elements and active-speaker entry. Do not clear the process-wide speaker
+    // map here: a private ride may be using it at the same time from Settings.
     for (const room of proximityVoiceRooms.values()) disconnectManagedVoiceRoom(room);
     proximityVoiceRooms.clear();
-    voiceRemoteSpeakersByRoom.clear();
     if (voiceTargetKey === 'channel') {
       voiceTargetKey = undefined;
       if (voiceReconnectTimer) { clearTimeout(voiceReconnectTimer); voiceReconnectTimer = undefined; }
