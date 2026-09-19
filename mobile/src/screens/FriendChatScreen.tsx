@@ -32,9 +32,6 @@ import { useFriends } from '../friends/FriendsContext';
 import { useSettings } from '../settings/SettingsContext';
 import { navigationProviderLabel } from '../navigationPreference';
 
-// Same poll cadence style used elsewhere (MapScreen's presence, FriendsContext).
-const MESSAGE_POLL_INTERVAL_MS = 10000;
-
 type Props = NativeStackScreenProps<RootStackParamList, 'FriendChat'>;
 
 /**
@@ -54,10 +51,12 @@ function MessageBubble({
   message,
   currentRiderId,
   onRetry,
+  readByPeer,
 }: {
   message: LocalMessage;
   currentRiderId: string;
   onRetry: (id: string) => void;
+  readByPeer: boolean;
 }): React.JSX.Element {
   const mine = message.fromRiderId === currentRiderId;
   const failed = mine && message.status === 'failed';
@@ -69,6 +68,7 @@ function MessageBubble({
         <Text style={[styles.bubbleTime, mine && styles.bubbleTimeMine]}>{formatTime(message.createdAt)}</Text>
       </View>
       {mine && message.status === 'pending' && <Text style={styles.bubbleStatusCaption}>Sending…</Text>}
+      {mine && !message.status && readByPeer && <Text style={styles.bubbleStatusCaption}>Read</Text>}
       {failed && <Text style={styles.bubbleStatusCaptionFailed}>Failed — tap to retry</Text>}
     </View>
   );
@@ -239,7 +239,7 @@ export function FriendChatScreen(props: Props): React.JSX.Element {
 function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Element {
   const { riderId, displayName, avatarId } = route.params;
   const { riderId: currentRiderId, client } = useAuth();
-  const { refresh: refreshFriends } = useFriends();
+  const { refresh: refreshFriends, refreshMessages, socialRevision } = useFriends();
   const { navigationProvider } = useSettings();
   const avatar = getAvatarPreset(avatarId);
   const insets = useSafeAreaInsets();
@@ -248,8 +248,12 @@ function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Elemen
   const [draft, setDraft] = React.useState('');
   const [sending, setSending] = React.useState(false);
   const [loading, setLoading] = React.useState(true);
+  const [loadingOlder, setLoadingOlder] = React.useState(false);
+  const [nextCursor, setNextCursor] = React.useState<string | null>(null);
+  const [peerReadThroughMessageId, setPeerReadThroughMessageId] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const listRef = React.useRef<FlatList<LocalMessage>>(null);
+  const focusedRef = React.useRef(false);
 
   const [hideouts, setHideouts] = React.useState<Hideout[]>([]);
   const [planOpen, setPlanOpen] = React.useState(false);
@@ -257,8 +261,12 @@ function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Elemen
   const loadMessages = React.useCallback(async (showLoading = false) => {
     if (showLoading) setLoading(true);
     try {
-      const { messages: fetched } = await client.getMessages(riderId);
-      setMessages((current) => reconcileMessageThread(current, fetched));
+      const page = await client.getMessages(riderId, { limit: 100 });
+      setMessages((current) => reconcileMessageThread(current, page.messages));
+      setNextCursor(page.nextCursor);
+      setPeerReadThroughMessageId(page.peerReadThroughMessageId);
+      await client.markMessagesRead(riderId);
+      await refreshMessages();
       setError(null);
     } catch (err) {
       if (err instanceof ApiError && err.status === 403) setError('This conversation is no longer available.');
@@ -266,7 +274,28 @@ function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Elemen
     } finally {
       setLoading(false);
     }
-  }, [client, riderId]);
+  }, [client, refreshMessages, riderId]);
+
+  const loadOlderMessages = React.useCallback(async () => {
+    if (!nextCursor || loadingOlder) return;
+    setLoadingOlder(true);
+    try {
+      const page = await client.getMessages(riderId, { before: nextCursor, limit: 100 });
+      setMessages((current) => {
+        const merged = new Map<string, LocalMessage>();
+        for (const message of [...page.messages, ...current]) merged.set(message.id, message);
+        return [...merged.values()].sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id));
+      });
+      setNextCursor(page.nextCursor);
+      setPeerReadThroughMessageId(page.peerReadThroughMessageId);
+      setError(null);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 403) setError('This conversation is no longer available.');
+      else setError('Could not load older messages. Check your connection and try again.');
+    } finally {
+      setLoadingOlder(false);
+    }
+  }, [client, loadingOlder, nextCursor, riderId]);
 
   const loadHideouts = React.useCallback(async () => {
     try {
@@ -280,12 +309,17 @@ function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Elemen
 
   useFocusEffect(
     React.useCallback(() => {
+      focusedRef.current = true;
       void loadMessages(true);
       void loadHideouts();
-      const interval = setInterval(() => void loadMessages(), MESSAGE_POLL_INTERVAL_MS);
-      return () => clearInterval(interval);
+      return () => { focusedRef.current = false; };
     }, [loadMessages, loadHideouts])
   );
+
+  React.useEffect(() => {
+    if (socialRevision === 0 || !focusedRef.current) return;
+    void loadMessages();
+  }, [loadMessages, socialRevision]);
 
   // Optimistic local echo: the user's own message appears instantly with a
   // temp id/`pending` status, then is reconciled with the server's copy (or
@@ -439,7 +473,12 @@ function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Elemen
         ref={listRef}
         data={messages}
         keyExtractor={(m) => m.id}
-        renderItem={({ item }) => <MessageBubble message={item} currentRiderId={currentRiderId} onRetry={handleRetry} />}
+        renderItem={({ item }) => <MessageBubble message={item} currentRiderId={currentRiderId} onRetry={handleRetry} readByPeer={item.id === peerReadThroughMessageId} />}
+        ListHeaderComponent={nextCursor ? (
+          <Pressable style={styles.loadOlderButton} onPress={() => void loadOlderMessages()} disabled={loadingOlder}>
+            {loadingOlder ? <ActivityIndicator color={colors.accent} size="small" /> : <Text style={styles.loadOlderText}>Load older messages</Text>}
+          </Pressable>
+        ) : null}
         contentContainerStyle={[styles.messageList, messages.length === 0 && styles.messageListEmpty]}
         inverted={false}
         onContentSizeChange={() => { if (messages.length > 0) listRef.current?.scrollToEnd({ animated: true }); }}
@@ -546,6 +585,8 @@ const styles = StyleSheet.create({
   hideoutDelete: { padding: spacing.xs },
   messageList: { padding: spacing.md, gap: spacing.sm, flexGrow: 1 },
   messageListEmpty: { justifyContent: 'center' },
+  loadOlderButton: { alignSelf: 'center', minHeight: MIN_TOUCH_TARGET, justifyContent: 'center', paddingHorizontal: spacing.md },
+  loadOlderText: { ...type.caption, color: colors.accent, fontWeight: '700' },
   chatEmpty: { alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.xl, paddingVertical: spacing.xl },
   chatEmptyTitle: { ...type.subheading, color: colors.textPrimary, textAlign: 'center' },
   chatEmptyText: { ...type.caption, textAlign: 'center' },
