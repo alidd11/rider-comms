@@ -61,7 +61,17 @@ const VOICE_AUDIO_CONFIG: AudioConfiguration = {
  * to apply correctly. Idempotent-ish: calling it again just re-applies the
  * same configuration, which is harmless.
  */
-export async function startVoiceAudioSession(): Promise<void> {
+let sessionStarted = false;
+const sessionOwners = new Set<string>();
+let sessionOperation: Promise<void> = Promise.resolve();
+
+function serializeSessionOperation(operation: () => Promise<void>): Promise<void> {
+  const next = sessionOperation.then(operation, operation);
+  sessionOperation = next.catch(() => {});
+  return next;
+}
+
+async function startVoiceAudioSession(): Promise<void> {
   await AudioSession.configureAudio(VOICE_AUDIO_CONFIG);
   // configureAudio()'s own `ios` option only covers output routing (see
   // AudioConfiguration above) — the actual AVAudioSession category/mode
@@ -83,6 +93,41 @@ export async function startVoiceAudioSession(): Promise<void> {
   await AudioSession.startAudioSession();
 }
 
-export async function stopVoiceAudioSession(): Promise<void> {
+async function stopVoiceAudioSession(): Promise<void> {
   await AudioSession.stopAudioSession();
+}
+
+/**
+ * The device audio session is process-global, while Rider Comms has more than
+ * one component that can own voice (private RideBar and public ProximityVoice).
+ * Lease it by a stable owner id so one component cleaning up can never stop
+ * Bluetooth/call audio that the other component has already acquired.
+ */
+export function acquireVoiceAudioSession(ownerId: string): Promise<void> {
+  const owner = ownerId.trim();
+  if (!owner) return Promise.reject(new Error('Voice audio session owner is required.'));
+  if (sessionOwners.has(owner)) return sessionOperation;
+  sessionOwners.add(owner);
+
+  return serializeSessionOperation(async () => {
+    if (sessionStarted || sessionOwners.size === 0) return;
+    try {
+      await startVoiceAudioSession();
+      sessionStarted = true;
+    } catch (error) {
+      sessionOwners.delete(owner);
+      throw error;
+    }
+  });
+}
+
+export function releaseVoiceAudioSession(ownerId: string): Promise<void> {
+  const owner = ownerId.trim();
+  if (!owner || !sessionOwners.delete(owner)) return sessionOperation;
+
+  return serializeSessionOperation(async () => {
+    if (!sessionStarted || sessionOwners.size > 0) return;
+    await stopVoiceAudioSession();
+    sessionStarted = false;
+  });
 }

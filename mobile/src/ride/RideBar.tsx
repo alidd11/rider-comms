@@ -8,15 +8,15 @@
 // real LiveKit Cloud project), and hands-free VOX itself — see
 // ../audio/useVoiceActivity.ts, which mutes/unmutes the real published mic
 // track based on a real native on-device volume reading, not a stub.
-// `audio: true` still publishes the mic on connect, but VoiceActivityBridge
-// immediately takes over muting it until real speech is detected.
+// The microphone is created and muted before publication by
+// useVoiceActivity.ts; LiveKitRoom never auto-publishes an open mic.
 import * as React from 'react';
 import { View, Text, Pressable, StyleSheet, Modal, Alert } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LiveKitRoom } from '@livekit/react-native';
 import { audioEngine } from '../audio/audioEngine';
 import { LiveKitAudioPriorityBridge } from '../audio/LiveKitAudioPriorityBridge';
-import { startVoiceAudioSession, stopVoiceAudioSession } from '../audio/audioSession';
+import { acquireVoiceAudioSession, releaseVoiceAudioSession } from '../audio/audioSession';
 import { useVoiceActivity } from '../audio/useVoiceActivity';
 import { useAuth } from '../auth/AuthContext';
 import { colors, spacing, radii, type, elevation, MIN_TOUCH_TARGET } from '../theme';
@@ -37,30 +37,34 @@ function useVoiceAudioSession(active: boolean): string | null {
     if (!active) { setError(null); return; }
     let stopped = false;
     setError(null);
-    void startVoiceAudioSession().catch(() => {
+    void acquireVoiceAudioSession('private-ride').catch(() => {
       if (!stopped) setError('Audio routing is unavailable. Check microphone permission and your Bluetooth connection.');
     });
     return () => {
       if (stopped) return;
       stopped = true;
-      void stopVoiceAudioSession().catch(() => {});
+      void releaseVoiceAudioSession('private-ride').catch(() => {});
     };
   }, [active]);
   return error;
 }
 
-function useRideVoiceToken(rideId: string | undefined): { token?: string; url?: string; error?: string } {
+function useRideVoiceToken(rideId: string | undefined, refreshKey: number): { token?: string; url?: string; error?: string } {
   const { client } = useAuth();
   const [state, setState] = React.useState<{ token?: string; url?: string; error?: string }>({});
 
   React.useEffect(() => {
     if (!rideId) { setState({}); return; }
     let cancelled = false;
+    // Drop stale credentials before a terminal-reconnect attempt. A fresh
+    // token must be re-authorised by Rider Comms before a new media room
+    // instance can be created.
+    setState({});
     client.getRideVoiceToken(rideId)
       .then((res) => { if (!cancelled) setState({ token: res.token, url: res.url }); })
       .catch((err) => { if (!cancelled) setState({ error: err instanceof Error ? err.message : 'Could not connect to voice' }); });
     return () => { cancelled = true; };
-  }, [rideId, client]);
+  }, [rideId, client, refreshKey]);
 
   return state;
 }
@@ -88,11 +92,13 @@ function GainBar({ value }: { value: number }): React.JSX.Element {
 function VoiceActivityBridge({
   enabled,
   onSpeakingChange,
+  onError,
 }: {
   enabled: boolean;
   onSpeakingChange: (speaking: boolean) => void;
+  onError: (message: string) => void;
 }): null {
-  const isSpeaking = useVoiceActivity(enabled);
+  const isSpeaking = useVoiceActivity(enabled, onError);
   React.useEffect(() => {
     onSpeakingChange(isSpeaking);
   }, [isSpeaking, onSpeakingChange]);
@@ -113,8 +119,10 @@ export function RideBar({ controlsVisible = true }: { controlsVisible?: boolean 
   const [manuallyMuted, setManuallyMuted] = React.useState(false);
   const [locationShareBusy, setLocationShareBusy] = React.useState(false);
   const [locationShareError, setLocationShareError] = React.useState<string | null>(null);
+  const [voiceRetryVersion, setVoiceRetryVersion] = React.useState(0);
+  const voiceRetryTimer = React.useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   // Hooks run unconditionally, before the !activeRide early return below.
-  const voice = useRideVoiceToken(activeRide?.rideId);
+  const voice = useRideVoiceToken(activeRide?.rideId, voiceRetryVersion);
   const audioSessionError = useVoiceAudioSession(Boolean(activeRide));
   const [roomStatus, setRoomStatus] = React.useState<'connecting' | 'connected' | 'disconnected' | 'error'>('connecting');
   const [roomError, setRoomError] = React.useState<string | null>(null);
@@ -123,6 +131,22 @@ export function RideBar({ controlsVisible = true }: { controlsVisible?: boolean 
     // This is the local rider's VOX state for the UI only. Incoming remote
     // speaker state is tracked by LiveKitAudioPriorityBridge.
     setTalking(speaking);
+  }, []);
+  const scheduleVoiceRetry = React.useCallback(() => {
+    if (voiceRetryTimer.current) return;
+    voiceRetryTimer.current = setTimeout(() => {
+      voiceRetryTimer.current = undefined;
+      setVoiceRetryVersion((version) => version + 1);
+    }, 2_000);
+  }, []);
+
+  const handleVoiceRuntimeError = React.useCallback((message: string) => {
+    setRoomStatus('error');
+    setRoomError(message || 'Microphone is unavailable.');
+  }, []);
+
+  React.useEffect(() => () => {
+    if (voiceRetryTimer.current) clearTimeout(voiceRetryTimer.current);
   }, []);
 
   React.useEffect(() => {
@@ -177,15 +201,26 @@ export function RideBar({ controlsVisible = true }: { controlsVisible?: boolean 
 
   return (
     <LiveKitRoom
+      key={`${activeRide.rideId}:${voice.token ?? 'pending'}`}
       serverUrl={voice.url}
       token={voice.token}
-      audio
       connect={voiceConnected}
-      onConnected={() => setRoomStatus('connected')}
-      onDisconnected={() => setRoomStatus('disconnected')}
-      onError={(error) => { setRoomStatus('error'); setRoomError(error.message || 'Could not connect to voice.'); }}
+      onConnected={() => { setRoomStatus('connected'); setRoomError(null); }}
+      onDisconnected={() => {
+        setRoomStatus('disconnected');
+        scheduleVoiceRetry();
+      }}
+      onError={(error) => {
+        handleVoiceRuntimeError(error.message || 'Could not connect to voice.');
+        scheduleVoiceRetry();
+      }}
+      onMediaDeviceFailure={() => handleVoiceRuntimeError('Microphone or audio device became unavailable.')}
     >
-      <VoiceActivityBridge enabled={voiceConnected && !manuallyMuted} onSpeakingChange={handleSpeakingChange} />
+      <VoiceActivityBridge
+        enabled={voiceConnected && !manuallyMuted}
+        onSpeakingChange={handleSpeakingChange}
+        onError={handleVoiceRuntimeError}
+      />
       <LiveKitAudioPriorityBridge sourceId={`ride:${activeRide.rideId}`} />
 
       {controlsVisible && lockedForSafety ? (

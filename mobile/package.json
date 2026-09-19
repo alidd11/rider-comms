@@ -11,8 +11,10 @@
     "test:client": "node --experimental-strip-types --test tests/*.test.ts"
   },
   "dependencies": {
+    "@config-plugins/react-native-webrtc": "15.0.2",
     "@expo/vector-icons": "^15.0.2",
     "@livekit/react-native": "2.12.0",
+    "@livekit/react-native-expo-plugin": "1.0.2",
     "@livekit/react-native-webrtc": "144.2.0",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-navigation/bottom-tabs": "^7.18.18",
@@ -40,5 +42,5 @@
     "@types/react": "~19.2.4",
     "typescript": "~6.0.3"
   },
-  "_NOTE": "Use Expo Go for device-level UI and map testing without local Xcode/Android Studio. Standalone Android map tiles still require a restricted Maps SDK key and a rebuilt binary."
+  "_NOTE": "Expo Go is suitable for UI/map testing only. LiveKit voice requires a native development/preview build because its WebRTC modules are not available in Expo Go. Standalone Android map tiles still require a restricted Maps SDK key and a rebuilt binary."
 }

@@ -14,6 +14,7 @@ import { ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { colors, spacing, radii, type, elevation, MIN_TOUCH_TARGET } from '../theme';
 import { useRide } from './RideContext';
+import { microphoneErrorMessage, preflightVoiceMicrophone } from '../audio/microphone';
 
 const RIDE_HERO_IMAGE = 'https://images.unsplash.com/photo-1770614956862-a143fb5e4921?auto=format&fit=crop&q=80&w=1200';
 
@@ -31,6 +32,12 @@ function JoinOrHostForm(): React.JSX.Element {
     setError(null);
     try {
       const normalizedCode = code.trim().toUpperCase();
+      try {
+        await preflightVoiceMicrophone();
+      } catch (microphoneError) {
+        setError(microphoneErrorMessage(microphoneError));
+        return;
+      }
       const { rideId } = await client.joinRide(normalizedCode);
       await startRide({ rideId, code: normalizedCode, isHost: false }, shareRideLocation);
     } catch (err) {

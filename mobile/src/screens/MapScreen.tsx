@@ -53,6 +53,7 @@ import {
   navigationGpsNotice,
 } from '../navigationGpsHealth';
 import { speakNavigationPrompt, stopNavigationPrompt } from '../audio/navigationSpeech';
+import { microphoneErrorMessage, preflightVoiceMicrophone } from '../audio/microphone';
 
 const PRESENCE_UPDATE_INTERVAL_MS = 8000; // per spec Section 8: every 5-10s
 const DEFAULT_REGION = {
@@ -307,6 +308,23 @@ export function MapScreen(): React.JSX.Element {
       clearInterval(interval);
     };
   }, [client, currentLocation]);
+
+  const handleNearbyToggle = React.useCallback(async () => {
+    if (shareLocation) {
+      setShareLocation(false);
+      return;
+    }
+    if (lockedForSafety) {
+      Alert.alert('Nearby Voice unavailable while moving', 'Stop safely before joining Nearby Voice. You can always leave or mute an active voice session while riding.');
+      return;
+    }
+    try {
+      await preflightVoiceMicrophone();
+      setShareLocation(true);
+    } catch (microphoneError) {
+      Alert.alert('Microphone unavailable', microphoneErrorMessage(microphoneError));
+    }
+  }, [lockedForSafety, setShareLocation, shareLocation]);
 
   async function handleReport(hazardType: HazardType) {
     setReportSheetOpen(false);
@@ -707,7 +725,7 @@ export function MapScreen(): React.JSX.Element {
           </Pressable>
           <Pressable
             style={[styles.mapActionButton, shareLocation && styles.mapActionButtonActive]}
-            onPress={() => setShareLocation(!shareLocation)}
+            onPress={() => void handleNearbyToggle()}
             accessibilityRole="button"
             accessibilityState={{ selected: shareLocation }}
             accessibilityLabel={shareLocation ? 'Stop live location and proximity voice' : 'Go live nearby and enable proximity voice'}
