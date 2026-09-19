@@ -160,14 +160,17 @@ export function FriendsProvider({ children }: { children: React.ReactNode }): Re
     let stopped = false;
     let cursor: string | undefined;
 
-    void refresh();
-
     const run = async () => {
       while (!stopped) {
         try {
           if (!cursor) {
             const baseline = await client.getSocialEvents({ waitMs: 0, limit: 100 });
+            if (stopped) return;
             cursor = baseline.cursor;
+            // Establish the durable tail first, then load authoritative state.
+            // An event committed after this cursor is guaranteed to replay on
+            // the next long poll; one committed before it is included here.
+            await refresh();
             continue;
           }
 
