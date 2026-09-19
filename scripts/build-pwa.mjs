@@ -54,7 +54,7 @@ for (const asset of ['app.css', 'config.js', 'app.js', 'movement-safety.js', 'me
 // desktop browser screenshot cannot reproduce it.
 const css = await readFile(resolve(destination, 'app.css'), 'utf8');
 const manifest = JSON.parse(await readFile(resolve(destination, 'manifest.json'), 'utf8'));
-const darkChrome = '#0e0e0f';
+const darkChrome = '#080d10';
 if (manifest.background_color !== darkChrome || manifest.theme_color !== darkChrome) {
   throw new Error(`PWA manifest background_color and theme_color must remain ${darkChrome}`);
 }
@@ -70,7 +70,7 @@ if (!css.includes(`--bg:${darkChrome}`) || !css.includes(`--system-chrome:${dark
 // gap around the page (status bar, the strip below the safe area) in
 // light mode, on every screen, not just the ones that happened to expose
 // it. See the same reasoning for darkChrome above.
-const lightChrome = '#f4f1ec';
+const lightChrome = '#f2f5f6';
 if (!html.includes(`<meta name="theme-color" content="${lightChrome}" media="(prefers-color-scheme: light)">`) ||
     !css.includes(`@media(prefers-color-scheme:light){:root{--system-chrome:${lightChrome}}}`)) {
   throw new Error(`PWA light theme colour and system-chrome surface must remain ${lightChrome}`);

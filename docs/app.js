@@ -91,11 +91,11 @@
   // label, colour) for the real HazardType values the backend returns —
   // never mock report data.
   const HAZARD_TYPES = {
-    police: { label: 'Police', icon: 'i-shield', color: '#4f7cff' },
-    camera: { label: 'Speed camera', icon: 'i-camera', color: '#4f7cff' },
-    accident: { label: 'Accident', icon: 'i-alert', color: '#ff6572' },
-    hazard: { label: 'Hazard', icon: 'i-cone', color: '#ffc15a' },
-    road_closure: { label: 'Road closure', icon: 'i-no-entry', color: '#ff6572' },
+    police: { label: 'Police', icon: 'i-shield', color: '#2fa8d3' },
+    camera: { label: 'Speed camera', icon: 'i-camera', color: '#2fa8d3' },
+    accident: { label: 'Accident', icon: 'i-alert', color: '#f0646b' },
+    hazard: { label: 'Hazard', icon: 'i-cone', color: '#d39a42' },
+    road_closure: { label: 'Road closure', icon: 'i-no-entry', color: '#f0646b' },
   };
   const HAZARD_TYPE_ORDER = ['police', 'camera', 'accident', 'hazard', 'road_closure'];
 
@@ -158,24 +158,28 @@
   // media block below via prefersDarkMode(), so the map tiles match the
   // rest of the UI instead of staying stuck on the dark skin in daylight.
   const MAP_STYLE_DARK = [
-    { elementType: 'geometry', stylers: [{ color: '#19191b' }] },
-    { elementType: 'labels.text.stroke', stylers: [{ color: '#19191b' }] },
-    { elementType: 'labels.text.fill', stylers: [{ color: '#9b9893' }] },
-    { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#2a2a2d' }] },
-    { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#353539' }] },
+    { elementType: 'geometry', stylers: [{ color: '#0a1115' }] },
+    { elementType: 'labels.text.stroke', stylers: [{ color: '#0a1115' }] },
+    { elementType: 'labels.text.fill', stylers: [{ color: '#7d8c94' }] },
+    { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#a9b7bd' }] },
+    { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#172229' }] },
+    { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#25333b' }] },
+    { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#20313a' }] },
     { featureType: 'poi', stylers: [{ visibility: 'off' }] },
     { featureType: 'transit', stylers: [{ visibility: 'off' }] },
-    { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#10252b' }] },
+    { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#071c25' }] },
   ];
   const MAP_STYLE_LIGHT = [
-    { elementType: 'geometry', stylers: [{ color: '#f4f1ec' }] },
-    { elementType: 'labels.text.stroke', stylers: [{ color: '#f4f1ec' }] },
-    { elementType: 'labels.text.fill', stylers: [{ color: '#5f574c' }] },
+    { elementType: 'geometry', stylers: [{ color: '#eef3f5' }] },
+    { elementType: 'labels.text.stroke', stylers: [{ color: '#eef3f5' }] },
+    { elementType: 'labels.text.fill', stylers: [{ color: '#4f5e66' }] },
+    { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#33434b' }] },
     { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#ffffff' }] },
-    { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#ddd3c4' }] },
+    { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#cdd8dd' }] },
+    { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#dbe7eb' }] },
     { featureType: 'poi', stylers: [{ visibility: 'off' }] },
     { featureType: 'transit', stylers: [{ visibility: 'off' }] },
-    { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#cfe3ea' }] },
+    { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#d7eaf0' }] },
   ];
   const darkModeQuery = window.matchMedia?.('(prefers-color-scheme: dark)');
   function prefersDarkMode() {
@@ -193,7 +197,7 @@
     if (meta) meta.setAttribute('content', 'black-translucent');
     map?.setOptions({
       styles: prefersDarkMode() ? MAP_STYLE_DARK : MAP_STYLE_LIGHT,
-      backgroundColor: prefersDarkMode() ? '#0e0e0f' : '#f4f1ec',
+      backgroundColor: prefersDarkMode() ? '#080d10' : '#f2f5f6',
     });
   }
   darkModeQuery?.addEventListener('change', applyColorScheme);
@@ -2992,10 +2996,11 @@
     const secondary = address || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
     const provider = navigationProvider(state.navigationProvider);
     const providerInfo = NAVIGATION_PROVIDERS[provider];
+    const providerCaption = provider === 'in_app' ? 'In Rider Comms' : `Open in ${providerInfo.label}`;
     const action = provider === 'in_app'
-      ? `<button class="compact-button" data-start-in-app-navigation aria-label="Start navigation in Rider Comms">Start in Rider Comms</button>`
-      : `<a class="compact-button" href="${navigationHref(provider, lat, lng, label)}" target="_blank" rel="noopener noreferrer" aria-label="Open directions in ${escapeHtml(providerInfo.label)}">${escapeHtml(providerInfo.label)}</a>`;
-    card.innerHTML = `<div class="destination-card-top"><span class="avatar" style="--avatar:#ff2d5a" aria-hidden="true"><svg><use href="#i-location"/></svg></span><div class="rider-card-copy"><strong>${escapeHtml(label || 'Selected place')}</strong><span>${escapeHtml(secondary)}</span></div></div><div class="destination-card-actions">${action}<button class="icon-button" aria-label="Dismiss destination" data-dismiss-destination>×</button></div>`;
+      ? `<button class="destination-primary-action" data-start-in-app-navigation aria-label="Start route in Rider Comms"><svg><use href="#i-nav-arrow"/></svg><span><strong>Start route</strong><small>In Rider Comms</small></span></button>`
+      : `<a class="destination-primary-action" href="${navigationHref(provider, lat, lng, label)}" target="_blank" rel="noopener noreferrer" aria-label="Start route in ${escapeHtml(providerInfo.label)}"><svg><use href="#i-nav-arrow"/></svg><span><strong>Start route</strong><small>${escapeHtml(providerCaption)}</small></span></a>`;
+    card.innerHTML = `<div class="destination-card-head"><span class="destination-card-icon" aria-hidden="true"><svg><use href="#i-location"/></svg></span><div class="rider-card-copy"><strong>${escapeHtml(label || 'Selected place')}</strong><span>${escapeHtml(secondary)}</span></div><button class="destination-card-dismiss" aria-label="Dismiss destination" data-dismiss-destination>×</button></div><div class="destination-card-actions">${action}</div>`;
     card.hidden = false;
     $('[data-start-in-app-navigation]', card)?.addEventListener('click', () => void startInAppNavigation(location, label));
     $('[data-dismiss-destination]', card).addEventListener('click', () => {
@@ -3011,7 +3016,7 @@
       map,
       position: location,
       title: label || 'Selected place',
-      icon: pinIcon('#ff2d5a'),
+      icon: pinIcon('#2fa8d3'),
       animation: google.maps.Animation.DROP,
       zIndex: 9,
     });
@@ -3168,7 +3173,7 @@
       directionsRenderer = new google.maps.DirectionsRenderer({
         suppressMarkers: true,
         preserveViewport: true,
-        polylineOptions: { strokeColor: '#ff2d5a', strokeWeight: 6, strokeOpacity: 0.9 },
+        polylineOptions: { strokeColor: '#2fa8d3', strokeWeight: 6, strokeOpacity: 0.9 },
       });
     }
     directionsRenderer.setMap(map);
@@ -3418,7 +3423,7 @@
       disableDefaultUI: true,
       gestureHandling: 'greedy',
       clickableIcons: false,
-      backgroundColor: prefersDarkMode() ? '#101820' : '#f4f1ec',
+      backgroundColor: prefersDarkMode() ? '#080d10' : '#f2f5f6',
       styles: prefersDarkMode() ? MAP_STYLE_DARK : MAP_STYLE_LIGHT,
     });
     usingFallbackMap = false;
@@ -3500,6 +3505,9 @@
       const host = button.dataset.rideMode === 'host';
       $('#joinRideForm').hidden = host;
       $('#hostRideForm').hidden = !host;
+      $('#rideHostMode').hidden = host;
+      $('#rideJoinMode').hidden = !host;
+      $('#rideEntryTitle').textContent = host ? 'Start a ride' : 'Join a ride';
     }));
     $('#joinRideForm').addEventListener('submit', (event) => {
       event.preventDefault();

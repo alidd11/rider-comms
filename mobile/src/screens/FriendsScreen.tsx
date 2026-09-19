@@ -222,6 +222,7 @@ function FriendProfileModal({
   friend: FriendSummary | null;
   onClose: () => void;
 }): React.JSX.Element {
+  const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { client } = useAuth();
   const { refresh } = useFriends();
@@ -269,7 +270,7 @@ function FriendProfileModal({
   return (
     <Modal visible animationType="slide" transparent onRequestClose={onClose}>
       <Pressable style={styles.modalBackdrop} onPress={onClose}>
-        <Pressable style={styles.profileModal} onPress={(event) => event.stopPropagation()}>
+        <Pressable style={[styles.profileModal, { paddingBottom: insets.bottom + spacing.md }]} onPress={(event) => event.stopPropagation()}>
           <View style={styles.modalHandle} />
           <Pressable style={styles.modalClose} onPress={onClose} accessibilityLabel="Close profile">
             <Ionicons name="close" size={22} color={colors.textPrimary} />
@@ -336,7 +337,6 @@ export function FriendsScreen(): React.JSX.Element {
       >
         <ScreenHeader
           title="Friends"
-          subtitle="Your private rider network."
         />
 
         {error && (
@@ -452,7 +452,7 @@ const styles = StyleSheet.create({
   sectionLabelRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginBottom: spacing.sm },
   sectionLabel: { ...type.label, marginTop: spacing.lg, marginBottom: spacing.sm },
   sectionLabelInRow: { marginTop: 0, marginBottom: 0 },
-  section: { backgroundColor: colors.surface, borderRadius: radii.lg, overflow: 'hidden', marginBottom: spacing.md },
+  section: { backgroundColor: colors.surface, borderRadius: radii.lg, overflow: 'hidden', marginBottom: spacing.md, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
   addCard: { padding: spacing.md, gap: spacing.sm },
   addRow: { flexDirection: 'row', gap: spacing.sm },
   addInput: {
@@ -484,7 +484,7 @@ const styles = StyleSheet.create({
   yourIdBadge: {
     width: 36,
     height: 36,
-    borderRadius: radii.pill,
+    borderRadius: radii.md,
     backgroundColor: colors.surfaceRaised,
     alignItems: 'center',
     justifyContent: 'center',
@@ -514,7 +514,7 @@ const styles = StyleSheet.create({
   requestDecline: {
     width: 44,
     height: 44,
-    borderRadius: radii.pill,
+    borderRadius: radii.md,
     borderWidth: 1,
     borderColor: colors.danger,
     alignItems: 'center',
@@ -523,7 +523,7 @@ const styles = StyleSheet.create({
   requestAccept: {
     width: 44,
     height: 44,
-    borderRadius: radii.pill,
+    borderRadius: radii.md,
     backgroundColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
@@ -547,7 +547,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
-    padding: spacing.md,
+    minHeight: 66,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
@@ -569,15 +571,18 @@ const styles = StyleSheet.create({
   emptyText: { ...type.caption, textAlign: 'center' },
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
   profileModal: {
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: radii.lg,
-    borderTopRightRadius: radii.lg,
+    backgroundColor: colors.background,
+    borderTopLeftRadius: radii.xl,
+    borderTopRightRadius: radii.xl,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: 0,
+    borderColor: colors.border,
     padding: spacing.lg,
     paddingBottom: spacing.xl,
     alignItems: 'center',
   },
   modalHandle: { width: 40, height: 4, borderRadius: radii.pill, backgroundColor: colors.border, marginBottom: spacing.md },
-  modalClose: { position: 'absolute', right: spacing.md, top: spacing.md, width: MIN_TOUCH_TARGET, height: MIN_TOUCH_TARGET, alignItems: 'center', justifyContent: 'center' },
+  modalClose: { position: 'absolute', right: spacing.md, top: spacing.md, width: MIN_TOUCH_TARGET, height: MIN_TOUCH_TARGET, borderRadius: radii.md, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceRaised, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
   profileModalAvatar: { width: 68, height: 68, borderRadius: radii.pill, alignItems: 'center', justifyContent: 'center', marginTop: spacing.md },
   profileModalName: { ...type.heading, marginTop: spacing.md },
   profileModalHandle: { ...type.body, color: colors.textSecondary, marginTop: spacing.xs },

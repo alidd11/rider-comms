@@ -62,6 +62,18 @@ const DEFAULT_REGION = {
   longitudeDelta: 0.16,
 };
 const FOCUSED_REGION_DELTA = 0.025;
+const DARK_MAP_STYLE = [
+  { elementType: 'geometry', stylers: [{ color: '#0A1115' }] },
+  { elementType: 'labels.text.stroke', stylers: [{ color: '#0A1115' }] },
+  { elementType: 'labels.text.fill', stylers: [{ color: '#7D8C94' }] },
+  { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#A9B7BD' }] },
+  { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+  { featureType: 'transit', stylers: [{ visibility: 'off' }] },
+  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#172229' }] },
+  { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#25333B' }] },
+  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#20313A' }] },
+  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#071C25' }] },
+];
 const NAV_STEP_ARRIVAL_RADIUS_M = 30;
 const NAV_OFF_ROUTE_RADIUS_M = 60;
 const NAV_OFF_ROUTE_GRACE_MS = 10_000;
@@ -147,7 +159,7 @@ function SegmentToggle({
 export function MapScreen(): React.JSX.Element {
   const { client, riderId } = useAuth();
   const { rideLocations } = useRide();
-  const { shareLocation, unitSystem, navigationProvider } = useSettings();
+  const { shareLocation, setShareLocation, unitSystem, navigationProvider } = useSettings();
   const { lockedForSafety, movementState, locationAccess, requestLocationAccess, openLocationSettings, refreshTracking } = useMovementSafety();
   const insets = useSafeAreaInsets();
   const route = useRoute<RouteProp<TabParamList, 'Map'>>();
@@ -368,6 +380,16 @@ export function MapScreen(): React.JSX.Element {
     ? metersBetween(currentLocation, currentNavigationStep.end)
     : currentNavigationStep?.distanceMeters ?? 0;
 
+  const selectedDestination: NavigationTarget | null = navigationTarget ?? (selectedPlace
+    ? { lat: selectedPlace.lat, lon: selectedPlace.lon, label: selectedPlace.name }
+    : null);
+  const selectedDestinationSubtitle = navigationTarget
+    ? `${navigationTarget.lat.toFixed(5)}, ${navigationTarget.lon.toFixed(5)}`
+    : selectedPlace?.address ?? '';
+  const selectedDestinationProvider = navigationProvider === 'in_app'
+    ? 'In Rider Comms'
+    : `Open in ${navigationProviderLabel(navigationProvider)}`;
+
   const fitRoute = React.useCallback((nextRoute: InAppNavigationRoute) => {
     if (!mapReady || nextRoute.coordinates.length < 2) return;
     mapRef.current?.fitToCoordinates(
@@ -581,6 +603,7 @@ export function MapScreen(): React.JSX.Element {
             loadingEnabled
             loadingBackgroundColor={colors.background}
             loadingIndicatorColor={colors.accent}
+            customMapStyle={DARK_MAP_STYLE}
             showsCompass={false}
             showsMyLocationButton={false}
             toolbarEnabled={false}
@@ -663,92 +686,9 @@ export function MapScreen(): React.JSX.Element {
         </View>
       )}
 
-      {segment === 'public' && !activeRoute && selectedPlace && (
-        <View style={[styles.errorOverlay, { top: insets.top + spacing.sm + MIN_TOUCH_TARGET * 0.8 + spacing.sm }]} pointerEvents="box-none">
-          <View style={styles.noticeBox}>
-            <Ionicons name="location" size={18} color={colors.accent} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.selectedPlaceName}>{selectedPlace.name}</Text>
-              <Text numberOfLines={1} style={styles.noticeSubtext}>{selectedPlace.address}</Text>
-              <Pressable
-                style={styles.directionsButton}
-                onPress={() => void openDirections({ lat: selectedPlace.lat, lon: selectedPlace.lon, label: selectedPlace.name })}
-                disabled={navigationLoading}
-                accessibilityRole="button"
-                accessibilityLabel={`Get directions to ${selectedPlace.name}`}
-              >
-                <Ionicons name="navigate" size={15} color="#FFFFFF" />
-                <Text style={styles.directionsButtonText}>{navigationLoading ? 'Starting…' : navigationProvider === 'in_app' ? 'Start in Rider Comms' : navigationProviderLabel(navigationProvider)}</Text>
-              </Pressable>
-            </View>
-            <Pressable onPress={() => setSelectedPlace(null)} hitSlop={8}>
-              <Ionicons name="close" size={18} color={colors.textMuted} />
-            </Pressable>
-          </View>
-        </View>
-      )}
 
-      {segment === 'public' && !activeRoute && locationUnavailable && (
-        <View style={[styles.errorOverlay, { top: insets.top + spacing.lg }]} pointerEvents="box-none">
-          <View style={styles.noticeBox}>
-            <Ionicons name="location-outline" size={18} color={colors.textMuted} />
-            <Text style={styles.noticeText}>Location unavailable — see Settings to enable it</Text>
-          </View>
-        </View>
-      )}
-
-      {segment === 'public' && !activeRoute && error && (
-        <View style={[styles.errorOverlay, { top: insets.top + spacing.lg }]} pointerEvents="box-none">
-          <View style={styles.errorBox}>
-            <Ionicons name="alert-circle" size={18} color={colors.danger} />
-            <Text style={styles.errorText}>{error}</Text>
-          </View>
-        </View>
-      )}
-
-      {segment === 'public' && !activeRoute && selectedHazard && !lockedForSafety && (
-        <View style={[styles.errorOverlay, { top: insets.top + spacing.sm + MIN_TOUCH_TARGET * 0.8 + spacing.sm }]} pointerEvents="box-none">
-          <View style={styles.noticeBox}>
-            <MaterialCommunityIcons
-              name={HAZARD_TYPE_META[selectedHazard.type].icon}
-              size={18}
-              color={HAZARD_TYPE_META[selectedHazard.type].color}
-            />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.selectedPlaceName}>{HAZARD_TYPE_META[selectedHazard.type].label}</Text>
-              <Text style={styles.noticeSubtext}>
-                {currentLocation
-                  ? `${haversineMiles(currentLocation, { lat: selectedHazard.lat, lon: selectedHazard.lon }).toFixed(1)} mi away`
-                  : 'Reported by a nearby rider'}
-              </Text>
-              <View style={styles.hazardCardRow}>
-                <Pressable style={styles.hazardVoteButton} onPress={() => handleVote(selectedHazard.id, 'confirm')}>
-                  <Ionicons name="checkmark" size={14} color={colors.success} />
-                  <Text style={styles.hazardVoteText}>Still there ({selectedHazard.confirmations})</Text>
-                </Pressable>
-                <Pressable style={styles.hazardVoteButton} onPress={() => handleVote(selectedHazard.id, 'deny')}>
-                  <Ionicons name="close" size={14} color={colors.danger} />
-                  <Text style={styles.hazardVoteText}>Gone ({selectedHazard.denials})</Text>
-                </Pressable>
-              </View>
-            </View>
-            <Pressable onPress={() => setSelectedHazardId(null)} hitSlop={8}>
-              <Ionicons name="close" size={18} color={colors.textMuted} />
-            </Pressable>
-          </View>
-        </View>
-      )}
-
-      {segment === 'public' && !navigationTarget && (
+      {segment === 'public' && !selectedDestination && (
         <View style={[styles.mapActions, { bottom: insets.bottom + spacing.sm }]}>
-          <Pressable
-            style={styles.mapActionButton}
-            onPress={() => void centreOnCurrentLocation()}
-            accessibilityRole="button"
-            accessibilityLabel="Centre map on my location"
-          >
-            <MaterialCommunityIcons name="crosshairs-gps" size={22} color={colors.accent} />
-          </Pressable>
           {!lockedForSafety && <Pressable
             style={styles.mapActionButton}
             onPress={() => void openReportSheet()}
@@ -757,41 +697,64 @@ export function MapScreen(): React.JSX.Element {
           >
             <MaterialCommunityIcons name="alert-plus" size={22} color={colors.textPrimary} />
           </Pressable>}
+          <Pressable
+            style={styles.mapActionButton}
+            onPress={() => void centreOnCurrentLocation()}
+            accessibilityRole="button"
+            accessibilityLabel="Centre map on my location"
+          >
+            <MaterialCommunityIcons name="crosshairs-gps" size={22} color={colors.accent} />
+          </Pressable>
+          <Pressable
+            style={[styles.mapActionButton, shareLocation && styles.mapActionButtonActive]}
+            onPress={() => setShareLocation(!shareLocation)}
+            accessibilityRole="button"
+            accessibilityState={{ selected: shareLocation }}
+            accessibilityLabel={shareLocation ? 'Stop live location and proximity voice' : 'Go live nearby and enable proximity voice'}
+          >
+            <Ionicons name="radio" size={21} color={shareLocation ? colors.accent : colors.textPrimary} />
+          </Pressable>
         </View>
       )}
 
       <HazardReportSheet visible={reportSheetOpen} onClose={() => setReportSheetOpen(false)} onReport={handleReport} />
 
-      {segment === 'public' && navigationTarget && (
-        <View style={styles.destinationCard} accessibilityLiveRegion="polite">
-          <View style={styles.destinationCardIcon}>
-            <Ionicons name="navigate" size={18} color={colors.accent} />
-          </View>
-          <View style={styles.destinationCardCopy}>
-            <Text numberOfLines={1} style={styles.destinationCardTitle}>
-              {navigationTarget.label ?? 'Shared destination'}
-            </Text>
-            <Text style={styles.destinationCardCoords}>
-              {navigationTarget.lat.toFixed(5)}, {navigationTarget.lon.toFixed(5)}
-            </Text>
+      {segment === 'public' && !activeRoute && selectedDestination && (
+        <View style={[styles.destinationCard, { bottom: insets.bottom + spacing.sm }]} accessibilityLiveRegion="polite">
+          <View style={styles.destinationCardHead}>
+            <View style={styles.destinationCardIcon}>
+              <Ionicons name="location" size={20} color={colors.accent} />
+            </View>
+            <View style={styles.destinationCardCopy}>
+              <Text numberOfLines={2} style={styles.destinationCardTitle}>
+                {selectedDestination.label ?? 'Selected place'}
+              </Text>
+              <Text numberOfLines={2} style={styles.destinationCardCoords}>{selectedDestinationSubtitle}</Text>
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Dismiss destination"
+              style={styles.destinationCardDismiss}
+              onPress={() => {
+                setNavigationTarget(null);
+                setSelectedPlace(null);
+              }}
+            >
+              <Ionicons name="close" size={20} color={colors.textSecondary} />
+            </Pressable>
           </View>
           <Pressable
-            style={styles.destinationStartButton}
+            style={styles.destinationPrimaryAction}
             accessibilityRole="button"
-            accessibilityLabel={`Get directions to ${navigationTarget.label ?? 'shared destination'}`}
-            onPress={() => void openDirections(navigationTarget)}
+            accessibilityLabel={`Start route to ${selectedDestination.label ?? 'selected place'}`}
+            onPress={() => void openDirections(selectedDestination)}
             disabled={navigationLoading}
           >
-            <Ionicons name="navigate" size={16} color="#FFFFFF" />
-            <Text style={styles.destinationStartText}>{navigationLoading ? 'Starting…' : navigationProvider === 'in_app' ? 'Start' : navigationProviderLabel(navigationProvider)}</Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Dismiss shared destination"
-            hitSlop={8}
-            onPress={() => setNavigationTarget(null)}
-          >
-            <Ionicons name="close" size={20} color={colors.textSecondary} />
+            <Ionicons name="navigate" size={18} color={colors.accentText} />
+            <View>
+              <Text style={styles.destinationPrimaryTitle}>{navigationLoading ? 'Starting…' : 'Start route'}</Text>
+              <Text style={styles.destinationPrimarySubtitle}>{selectedDestinationProvider}</Text>
+            </View>
           </Pressable>
         </View>
       )}
@@ -841,7 +804,10 @@ export function MapScreen(): React.JSX.Element {
       {!lockedForSafety && !activeRoute && <SegmentToggle segment={segment} onChange={setSegment} topInset={insets.top} />}
 
       {!activeRoute && (lockedForSafety || movementState === 'unknown') && (
-        <View style={[styles.safetyBanner, { top: insets.top + spacing.sm }]} accessibilityLiveRegion="polite">
+        <View
+          style={[styles.safetyBanner, { top: insets.top + spacing.sm + (segment === 'public' ? MIN_TOUCH_TARGET + spacing.sm : 0) }]}
+          accessibilityLiveRegion="polite"
+        >
           <MaterialCommunityIcons name="motorbike" size={20} color={colors.accent} />
           <View style={styles.safetyBannerCopy}>
             <Text style={styles.safetyBannerTitle}>Ride-safe mode</Text>
@@ -877,42 +843,6 @@ const styles = StyleSheet.create({
   mapFill: { flex: 1 },
   map: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
   hostFill: { flex: 1, padding: spacing.lg, paddingTop: spacing.xxl },
-  errorOverlay: {
-    position: 'absolute',
-    top: spacing.lg,
-    left: spacing.lg,
-    right: spacing.xxl + spacing.md,
-  },
-  errorBox: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: spacing.sm,
-    backgroundColor: colors.dangerSurface,
-    borderRadius: radii.md,
-    padding: spacing.md,
-    ...elevation.raised,
-  },
-  errorText: { ...type.body, color: colors.danger, flex: 1 },
-  noticeBox: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: spacing.sm,
-    backgroundColor: colors.surface,
-    borderRadius: radii.md,
-    padding: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    ...elevation.raised,
-  },
-  noticeText: { ...type.body, color: colors.textMuted, flex: 1 },
-  selectedPlaceName: { ...type.body, color: colors.textPrimary, fontWeight: '700' },
-  noticeSubtext: { ...type.caption, marginTop: spacing.xs },
-  directionsButton: {
-    alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: spacing.xs,
-    minHeight: 36, marginTop: spacing.sm, paddingHorizontal: spacing.md,
-    borderRadius: radii.pill, backgroundColor: colors.accent,
-  },
-  directionsButtonText: { ...type.caption, color: '#FFFFFF', fontWeight: '800' },
   searchSlot: {
     position: 'absolute',
     left: spacing.lg,
@@ -928,7 +858,7 @@ const styles = StyleSheet.create({
   sideToggleButton: {
     width: MIN_TOUCH_TARGET,
     height: MIN_TOUCH_TARGET,
-    borderRadius: radii.pill,
+    borderRadius: radii.lg,
     backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
@@ -941,20 +871,24 @@ const styles = StyleSheet.create({
   hazardBadge: { alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: colors.background },
   mapActions: {
     position: 'absolute',
-    left: spacing.sm,
+    right: spacing.sm,
     bottom: spacing.sm,
     gap: spacing.sm,
   },
   mapActionButton: {
     width: MIN_TOUCH_TARGET,
     height: MIN_TOUCH_TARGET,
-    borderRadius: radii.pill,
+    borderRadius: radii.lg,
     backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: colors.border,
     ...elevation.raised,
+  },
+  mapActionButtonActive: {
+    borderColor: colors.accent,
+    backgroundColor: colors.accentSoft,
   },
   nearbyCount: {
     position: 'absolute',
@@ -965,7 +899,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.xs,
     paddingHorizontal: spacing.sm,
-    borderRadius: radii.pill,
+    borderRadius: radii.lg,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
@@ -979,48 +913,62 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
-    borderRadius: radii.pill,
+    borderRadius: radii.md,
     backgroundColor: colors.surfaceRaised,
   },
   hazardVoteText: { ...type.caption, color: colors.textPrimary, fontWeight: '700' },
   destinationCard: {
     position: 'absolute',
-    left: spacing.lg,
-    right: spacing.lg,
-    bottom: spacing.lg,
-    minHeight: MIN_TOUCH_TARGET,
-    flexDirection: 'row',
-    alignItems: 'center',
+    left: spacing.md,
+    right: spacing.md,
     gap: spacing.sm,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+    padding: spacing.md,
     borderRadius: radii.lg,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.background,
     ...elevation.raised,
   },
+  destinationCardHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   destinationCardIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: radii.pill,
+    width: 42,
+    height: 42,
+    borderRadius: radii.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.accentSoft,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+  },
+  destinationCardCopy: { minWidth: 0, flex: 1 },
+  destinationCardTitle: { ...type.subheading, color: colors.textPrimary, fontWeight: '800' },
+  destinationCardCoords: { ...type.caption, color: colors.textMuted, marginTop: 2 },
+  destinationCardDismiss: {
+    width: 40,
+    height: 40,
+    borderRadius: radii.md,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.surfaceRaised,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
   },
-  destinationCardCopy: { minWidth: 0, flex: 1 },
-  destinationCardTitle: { ...type.label, color: colors.textPrimary },
-  destinationCardCoords: { ...type.caption, color: colors.textSecondary, marginTop: 2 },
-  destinationStartButton: {
-    minHeight: 38, flexDirection: 'row', alignItems: 'center', gap: spacing.xs,
-    paddingHorizontal: spacing.md, borderRadius: radii.pill, backgroundColor: colors.accent,
+  destinationPrimaryAction: {
+    minHeight: 54,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    borderRadius: radii.md,
+    backgroundColor: colors.accent,
   },
-  destinationStartText: { ...type.caption, color: '#FFFFFF', fontWeight: '800' },
+  destinationPrimaryTitle: { ...type.button, color: colors.accentText, lineHeight: 19 },
+  destinationPrimarySubtitle: { ...type.caption, color: colors.accentText, opacity: 0.72, marginTop: 1 },
   navigationBanner: {
     position: 'absolute', left: spacing.md, right: spacing.md,
     flexDirection: 'row', alignItems: 'center', gap: spacing.md,
     padding: spacing.md, borderRadius: radii.lg,
-    backgroundColor: '#101011', borderWidth: 1, borderColor: colors.border,
+    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
     ...elevation.raised,
   },
   navigationManeuver: {
@@ -1035,14 +983,14 @@ const styles = StyleSheet.create({
   navigationNextInstruction: { ...type.caption, color: colors.textSecondary, flex: 1 },
   navigationNotice: { ...type.caption, color: colors.textSecondary, marginTop: spacing.xs },
   navigationEndButton: {
-    width: MIN_TOUCH_TARGET, height: MIN_TOUCH_TARGET, borderRadius: radii.pill,
+    width: MIN_TOUCH_TARGET, height: MIN_TOUCH_TARGET, borderRadius: radii.lg,
     alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceRaised,
   },
   navigationSummary: {
     position: 'absolute', left: spacing.md, right: spacing.md,
     minHeight: 72, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around',
     gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm,
-    borderRadius: radii.lg, backgroundColor: '#101011', borderWidth: 1, borderColor: colors.border,
+    borderRadius: radii.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
     ...elevation.raised,
   },
   navigationSummaryPrimary: { minWidth: 84 },
@@ -1060,6 +1008,6 @@ const styles = StyleSheet.create({
   safetyBannerCopy: { flex: 1 },
   safetyBannerTitle: { ...type.label, color: colors.textPrimary },
   safetyBannerText: { ...type.caption, color: colors.textSecondary, marginTop: 2 },
-  safetyEnableButton: { minHeight: 40, justifyContent: 'center', paddingHorizontal: spacing.md, borderRadius: radii.pill, backgroundColor: colors.accent },
+  safetyEnableButton: { minHeight: 40, justifyContent: 'center', paddingHorizontal: spacing.md, borderRadius: radii.md, backgroundColor: colors.accent },
   safetyEnableText: { ...type.caption, color: colors.accentText, fontWeight: '800' },
 });

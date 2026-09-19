@@ -73,7 +73,7 @@ const styles = StyleSheet.create({
   },
   statusDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.danger },
   statusText: { ...type.caption, color: colors.textPrimary, fontWeight: '700' },
-  enableButton: { minHeight: 48, marginTop: spacing.lg, paddingHorizontal: spacing.lg, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, borderRadius: radii.pill, backgroundColor: colors.accent },
+  enableButton: { minHeight: 48, marginTop: spacing.lg, paddingHorizontal: spacing.lg, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, borderRadius: radii.md, backgroundColor: colors.accent },
   enableButtonPressed: { opacity: 0.82 },
   enableButtonText: { ...type.button, color: colors.accentText },
   errorText: { ...type.caption, color: colors.danger, textAlign: 'center', marginTop: spacing.sm, maxWidth: 420 },
