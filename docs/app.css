@@ -814,7 +814,7 @@ body:has(#sheetBackdrop:not([hidden])) #joinNearbyBtn{opacity:0;pointer-events:n
 .auth-visual{
   position:relative;
   width:100vw;
-  height:calc(244px + var(--safe-top));
+  height:calc(290px + var(--safe-top));
   overflow:hidden;
   margin:0 0 0 calc(50% - 50vw);
   border:0;
