@@ -1,6 +1,6 @@
 # UK route catalogue research
 
-Last reviewed: 2026-09-18
+Last reviewed: 2026-09-19
 
 This document is the editorial evidence register for Rider Comms' curated UK route catalogue for motorcyclists and driving enthusiasts. It deliberately contains no UI or design direction. Route presentation is owned separately; this file records why a road is admitted, what was rejected or deferred, and where the route facts came from.
 
@@ -32,7 +32,7 @@ A famous road is not automatically a good Rider Comms recommendation. The catalo
 
 ## Coverage gaps still being researched
 
-The current draft is deliberately not considered complete. Before publication, the catalogue still needs strong representation in Yorkshire, the Midlands/Peak District and the Scottish Borders, plus additional South-East options for users who do not want to travel several hours before the ride starts.
+The current draft is deliberately not considered complete. Yorkshire and the Scottish Borders now have draft coverage, and East Anglia has gained a verified B1145 route. The largest remaining editorial gaps are the Midlands/Peak District and additional South-East options for users who do not want to travel several hours before the ride starts.
 
 | Candidate | Current research decision | Reason |
 | --- | --- | --- |
@@ -44,7 +44,7 @@ The current draft is deliberately not considered complete. Before publication, t
 | A32 Meon Valley / A339 Alton–Basingstoke | **Continue researching** | These are repeatedly recommended by South-East riders and would materially improve London/South-East coverage, but current collision, enforcement and temporary-work context deserves a stronger authority check before promotion. |
 | Cat and Fiddle / A54-A537 area | **Defer in 2026** | Derbyshire County Council has a 14-week full closure on the A54 Macclesfield Main Road from 27 July to 30 October 2026, with another construction phase planned for spring 2027. Do not publish a flagship Peak District route through active major works. |
 | A272 South Downs / Sussex | **Promote to research shortlist** | The road gives an unusually long rural east-west corridor through the South Downs/Weald and is repeatedly recommended by riders; its value is flow, villages and access to Loomies/West Sussex rather than outright speed. Needs a final chosen segment rather than dumping the entire 80+ mile road into one card. |
-| B1145 Norfolk | **Promote to draft** | A recent advanced-rider club report specifically praises roughly 20 miles of flowing bends, open countryside and good surface, while historic car-enthusiast reports also rate the road highly. This materially fixes East Anglia coverage and has genuine bike/car crossover. |
+| B1145 Norfolk | **Admitted: Bawdeswell–Gayton** | Motorcycle Sport & Leisure gives a reproducible 17-mile B1145 section from Bawdeswell to Gayton; a July 2026 advanced-rider club report independently praises roughly 20 miles of flowing bends and good surface, while PistonHeads provides independent car-enthusiast corroboration. The selected image is on the B1145 west of Gayton inside the curated corridor. |
 | B1135 Hethel | **Continue researching** | Car enthusiasts repeatedly praise the short Wymondham/Hethel section and its proximity to Lotus, but evidence is currently too enthusiast-forum-heavy for first-party publication without a stronger current road/safety check. |
 | B4391 Ffestiniog–A4212 | **Strong car-enthusiast draft; motorcycle corroboration still required** | Supercar Driver calls this an outstanding legal-speed flow road, highlighting smooth tarmac, technical sections, visibility and involvement without needing extreme speeds. It is a strong candidate for the car side of Rider Comms, but I want independent motorcycle/current-condition evidence before admitting it. |
 
@@ -57,6 +57,7 @@ The current draft is deliberately not considered complete. Before publication, t
 | SnowRoads | Keep | A named, established Cairngorms touring route rather than an invented road string; good full-day anchor for Scotland. | [Visit Cairngorms](https://www.visitcairngorms.com/inspire-me/snowroads/) |
 | Cambrian Spine, A470 | **Replace** | Too close to "follow a trunk road between two towns"; it lacks the deliberate motorcycle-route character of the alternatives below. | Existing catalogue review |
 | Glyndŵr's Way, Mid Wales | Add | ABR describes a deliberate 114-mile one-day motorcycle route from Knighton through Rhayader, Llanidloes, Machynlleth and the Lake Vyrnwy area to Welshpool, with the mountain-road section called out as a highlight. | [Adventure Bike Rider](https://www.adventurebikerider.com/article/great-britain-glyndwrs-way/) |
+| Norfolk B1145 | Add | Strong bike/car crossover and useful East Anglia coverage. MSL explicitly routes 17 miles from Bawdeswell to Gayton; PECAM independently praised the B1145 in July 2026, and PistonHeads has long identified the same road as an enthusiast drive. | [Motorcycle Sport & Leisure](https://www.mslmagazine.co.uk/day-ride-norfolk-loop/) |
 | Wye Valley Sweep, A466 | Keep | Shorter, lower-speed scenic ride that broadens the catalogue beyond high passes and works as an approachable option. | [Visit Wales](https://www.visitwales.com/destinations/south-wales/wye-valley-and-vale-usk/must-do-wye-valley-and-vale-usk) |
 | Surrey Hills Circuit | Add | Official scenic itinerary with an explicit 38.8-mile sequence: Guildford, Newlands Corner, Shere, Box Hill, Leith Hill, Guildford. Provides a genuinely useful ride near London. | [Visit Surrey](https://www.visitsurrey.com/ideas-and-inspiration/itineraries/a-drive-through-the-surrey-hills/) |
 | A507 Baldock–Buntingford | Add | Motorcycle-specific local recommendation: open sweepers, tighter turns around Cottered and a compact 10–15 minute run. Adds a short South-East ride rather than another destination epic. | [Bike Stop](https://www.bikestop.co.uk/blog/great-biking-roads-near-bike-stop) |
@@ -74,6 +75,12 @@ The current draft is deliberately not considered complete. Before publication, t
 
 ## Geometry verification notes
 
+- **Surrey Hills Circuit:** Visit Surrey publishes the exact loop and leg lengths: Guildford → Newlands Corner (4 mi) → Shere (3 mi) → Box Hill (9.8 mi) → Leith Hill (10 mi) → Guildford (12 mi), totalling 38.8 miles. The catalogue's 39-mile loop and waypoint order match the official itinerary.
+- **Norfolk B1145:** Motorcycle Sport & Leisure explicitly identifies the Bawdeswell → Gayton stretch as 17 miles. North Elmham and Litcham sit on that B1145 corridor and are retained as waypoints to prevent routing drift. Current advanced-rider reporting also flags agricultural mud/gravel as a realistic Norfolk-road hazard after wet weather.
+- **A507 Hertfordshire Sweep:** Bike Stop defines the road as Baldock → Buntingford, passing Cottered with the Cumberlow Green junction on the same A507. The existing intermediate point east of Cottered is sufficient to keep routing on the intended road; no extra detour is needed.
+- **Dartmoor Crossing:** Dartmoor National Park confirms the B3212 is one of the principal east–west roads across the park, and its current visitor guidance warns that ponies, sheep and cattle roam freely and asks drivers to keep below 40 mph on moorland roads. This independently supports the catalogue's livestock and speed-limit safety copy.
+- **West Cornwall Coast Road:** Adventure Bike Rider gives St Ives → St Just as a 13-mile B3306 ride, and current Visit Cornwall guidance independently identifies the B3306 from St Ives west through Zennor and St Just as one of Cornwall's scenic drives. The app now uses the current official tourism page as its primary route URL while retaining the motorcycle-source corroboration here.
+- **Exmoor Coast:** the route source was changed away from ABR's 2021 article because that article recommends the private toll-road fork. ABR's scenic-road coverage instead describes the public A39 from Porlock across 25% Porlock Hill to Countisbury/Lynmouth, which matches the curated line. Exmoor National Park independently confirms the A39 connects Porlock with Lynton/Lynmouth and highlights the exceptional Porlock/Countisbury gradients.
 - **Three Lochs Run:** verified against Motorcycle Scotland's published 42.9-mile / 1h14m route description. The intended order is Moffat → A708 / St Mary's Loch → Megget and Talla reservoir roads → A701 / Devil's Beef Tub → Moffat. The catalogue's 43-mile / 75-minute planning values match the published route closely. The source also confirms the reservoir leg is narrow with passing places and that there are no fuel stations on the loop.
 - **Mourne Coast:** verified against the official Mourne Gullion Strangford road directions. The signed coastal element runs Newcastle → Annalong → Kilkeel → Rostrevor / Warrenpoint → Newry on the A2 corridor. The Rider Comms route uses the reverse direction, and Warrenpoint is now an explicit waypoint so external routing cannot shortcut the intended coastal section between Newry and Rostrevor.
 - **Glyndŵr’s Way:** the motorcycle source confirms the 114-mile Knighton-to-Welshpool concept via Mid Wales, including the B4518 / Clywedog section, Machynlleth and the A487. Keep this route under additional waypoint scrutiny because it is the longest and most manually specified catalogue entry.
