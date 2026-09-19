@@ -2058,8 +2058,7 @@
     // Only tear down the public proximity transport. This helper is also
     // called from Settings, which remains reachable during a private ride;
     // changing public visibility must never drop that ride's private voice.
-    if (voiceTargetKey === 'channel' || proximityVoiceRooms.size) disconnectVoice();
-    else renderVoiceStatus();
+    disconnectPublicVoice();
     persist();
     renderMapStatus();
     renderMapRiders();
@@ -2640,7 +2639,8 @@
       microphonePermissionReady = true;
       if ((voiceRoom || proximityVoiceRooms.size) && !voiceMeterStream) await startVoiceLevelLoop();
       if (currentVoiceTarget() !== requestedTarget) {
-        disconnectVoice();
+        if (kind === 'channel') disconnectPublicVoice();
+        else if (room) disconnectManagedVoiceRoom(room);
         return;
       }
       if (!voiceRoom && !proximityVoiceRooms.size && voiceMeterStream) stopVoiceLevelLoop();
@@ -2691,6 +2691,20 @@
     renderVoiceStatus();
   }
 
+  function disconnectPublicVoice() {
+    for (const room of proximityVoiceRooms.values()) disconnectManagedVoiceRoom(room);
+    proximityVoiceRooms.clear();
+    voiceRemoteSpeakersByRoom.clear();
+    if (voiceTargetKey === 'channel') {
+      voiceTargetKey = undefined;
+      if (voiceReconnectTimer) { clearTimeout(voiceReconnectTimer); voiceReconnectTimer = undefined; }
+    }
+    // The meter is process-wide for PWA voice. Keep it alive when a private
+    // ride owns voice; otherwise release microphone/WebAudio resources now.
+    if (!voiceRoom && !proximityVoiceRooms.size) stopVoiceLevelLoop();
+    renderVoiceStatus();
+  }
+
   /**
    * A private ride's voice takes priority over the public channel — you
    * can't be "live" on the public channel while in a ride anyway (see
@@ -2738,12 +2752,13 @@
    * profile setting on for real via patchProfile/PUT profile — the same
    * request the Settings > Privacy toggle already makes — rather than
    * silently reusing a client-side copy the backend never saw. Going
-   * offline intentionally leaves that profile setting as the rider left
-   * it; "Go live" is a per-session action, while shareLocation is a
-   * standing privacy preference the rider controls separately in
-   * Settings. Real hands-free proximity voice chat (see connectVoice
-   * above) is tied to the same on/off action — going live for presence and
-   * being reachable by voice are the same moment, not two separate steps.
+   * offline from the map also revokes that profile visibility preference,
+   * matching native's one-switch behaviour. Entering a private ride is the
+   * exception: it pauses public Nearby without silently rewriting the rider's
+   * standing privacy choice. Real hands-free proximity voice chat (see
+   * connectVoice above) is tied to the same on/off action — going live for
+   * presence and being reachable by voice are the same moment, not two
+   * separate steps.
    */
   async function toggleNearby() {
     if (nearbyTogglePending) return;
