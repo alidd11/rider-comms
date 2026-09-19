@@ -1163,8 +1163,11 @@
     }
   ];
 
-  const labels = { all: 'All rides', quick: 'Under 90 min', half_day: '90 min–3 hr', day_trip: '3+ hr' };
-  let filter = 'all';
+  const categoryLabels = { all: 'All', scenic: 'Scenic', mountain: 'Mountain', coastal: 'Coastal', near: 'Near me' };
+  const durationLabels = { all: 'All durations', quick: 'Under 90 min', half_day: '90 min–3 hr', day_trip: '3+ hr' };
+  let category = 'all';
+  let durationFilter = 'all';
+  let searchQuery = '';
   let riderLocation = null;
   const escapeHtml = (value) => String(value).replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
 
@@ -1174,11 +1177,21 @@
     return `https://www.google.com/maps/dir/?${params}`;
   };
 
-  const matchesWindow = (route) => {
-    if (filter === 'quick') return route.minutes < 90;
-    if (filter === 'half_day') return route.minutes >= 90 && route.minutes <= 180;
-    if (filter === 'day_trip') return route.minutes > 180;
+  const routeDiscoveryText = (route) => [route.name, route.region, route.road, route.description, route.riderNote, ...(route.highlights || [])].join(' ').toLowerCase();
+
+  const matchesDuration = (route) => {
+    if (durationFilter === 'quick') return route.minutes < 90;
+    if (durationFilter === 'half_day') return route.minutes >= 90 && route.minutes <= 180;
+    if (durationFilter === 'day_trip') return route.minutes > 180;
     return true;
+  };
+
+  const matchesCategory = (route) => {
+    if (category === 'all' || category === 'near') return true;
+    const text = routeDiscoveryText(route);
+    if (category === 'coastal') return /(coast|coastal|sea|shore|isle|island|ocean|causeway)/.test(text);
+    if (category === 'mountain') return /(mountain|pass|highland|cairngorm|snowdon|eryri|glencoe|hartside|hardknott|wrynose|buttertubs|moor|peak|bealach|black mountain)/.test(text);
+    return route.roadType === 'rural' || /(scenic|valley|forest|dale|loch|lake|moor|views|countryside)/.test(text);
   };
 
   const haversineMiles = (a, b) => {
@@ -1199,9 +1212,22 @@
   };
 
   const visibleRoutes = () => {
-    const filtered = routes.filter(matchesWindow);
-    if (!riderLocation) return filtered;
+    const normalizedQuery = searchQuery.trim().toLowerCase();
+    const filtered = routes
+      .filter(matchesDuration)
+      .filter(matchesCategory)
+      .filter((route) => !normalizedQuery || routeDiscoveryText(route).includes(normalizedQuery));
+    if (category !== 'near' || !riderLocation) return filtered;
     return filtered.slice().sort((a, b) => haversineMiles(riderLocation, a.start) - haversineMiles(riderLocation, b.start));
+  };
+
+  const requestLocationForNearMe = () => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition((position) => {
+      riderLocation = [position.coords.latitude, position.coords.longitude];
+      renderHeading();
+      renderRoutes();
+    }, () => {}, { enableHighAccuracy: false, maximumAge: 120000, timeout: 7000 });
   };
 
   const routeTraceSvg = (route, width = 118, height = 68) => {
@@ -1247,10 +1273,18 @@
     const featuredHeading = document.createElement('div');
     featuredHeading.id = 'routesFeaturedHeading';
     featuredHeading.className = 'section-heading routes-featured-heading';
+
     const filters = document.createElement('div');
     filters.id = 'curatedRouteFilters';
     filters.className = 'chip-row';
-    filters.setAttribute('aria-label', 'Filter curated routes by ride time');
+    filters.setAttribute('aria-label', 'Filter curated routes by type');
+
+    const tools = document.createElement('div');
+    tools.id = 'routeTools';
+    tools.className = 'route-tools';
+    tools.hidden = true;
+    tools.innerHTML = `<label class="route-search"><svg><use href="#i-search"/></svg><input id="routeSearchInput" type="search" placeholder="Search routes or regions" autocomplete="off"></label><div id="routeDurationFilters" class="chip-row compact" aria-label="Filter curated routes by ride time"></div>`;
+
     const intro = document.createElement('p');
     intro.id = 'routesDiscoveryCopy';
     intro.className = 'routes-discovery-copy';
@@ -1258,7 +1292,17 @@
     list.id = 'curatedRouteList';
     list.className = 'curated-route-list';
     list.setAttribute('aria-live', 'polite');
-    mount.append(featuredHeading, filters, intro, list);
+    mount.append(featuredHeading, filters, tools, intro, list);
+
+    document.querySelector('#routeSearchToggle')?.addEventListener('click', () => {
+      tools.hidden = !tools.hidden;
+      document.querySelector('#routeSearchToggle')?.classList.toggle('active', !tools.hidden);
+      if (!tools.hidden) document.querySelector('#routeSearchInput')?.focus();
+    });
+    document.querySelector('#routeSearchInput')?.addEventListener('input', (event) => {
+      searchQuery = event.target.value;
+      renderRoutes();
+    });
     return true;
   }
 
@@ -1267,18 +1311,26 @@
     const copy = document.querySelector('#routesDiscoveryCopy');
     if (!root || !copy) return;
     const count = visibleRoutes().length;
-    root.innerHTML = `<div><span class="eyebrow">${riderLocation ? 'Nearest first' : 'Rider Comms picks'}</span><h2>${riderLocation ? 'Closest rides worth the trip' : 'Roads worth the ride'}</h2></div><span class="routes-count">${count} ${count === 1 ? 'ride' : 'rides'}</span>`;
-    copy.textContent = riderLocation
-      ? 'Sorted by distance to each route start using your existing location permission. Ride time describes the route itself, not the journey to reach it.'
-      : 'Curated UK rides with route shape, road character and planning notes. Allow location on the Map to sort these by distance to the start.';
+    root.innerHTML = `<div><span class="eyebrow">${category === 'near' ? 'Nearest first' : 'Rider Comms picks'}</span><h2>Roads worth the ride</h2></div><span class="routes-count">${count} ${count === 1 ? 'ride' : 'rides'}</span>`;
+    copy.textContent = 'Verified UK routes with real photography, route shape, road character and planning notes.';
   }
 
   function renderFilters() {
     const root = document.querySelector('#curatedRouteFilters');
-    if (!root) return;
-    root.innerHTML = Object.entries(labels).map(([key, label]) => `<button class="chip${filter === key ? ' active' : ''}" data-curated-filter="${key}">${label}</button>`).join('');
-    root.querySelectorAll('[data-curated-filter]').forEach((button) => button.addEventListener('click', () => {
-      filter = button.dataset.curatedFilter;
+    const durationRoot = document.querySelector('#routeDurationFilters');
+    if (!root || !durationRoot) return;
+    root.innerHTML = Object.entries(categoryLabels).map(([key, label]) => `<button class="chip${category === key ? ' active' : ''}" data-curated-category="${key}">${label}</button>`).join('');
+    durationRoot.innerHTML = Object.entries(durationLabels).map(([key, label]) => `<button class="chip${durationFilter === key ? ' active' : ''}" data-curated-duration="${key}">${label}</button>`).join('');
+
+    root.querySelectorAll('[data-curated-category]').forEach((button) => button.addEventListener('click', () => {
+      category = button.dataset.curatedCategory;
+      if (category === 'near' && !riderLocation) requestLocationForNearMe();
+      renderFilters();
+      renderHeading();
+      renderRoutes();
+    }));
+    durationRoot.querySelectorAll('[data-curated-duration]').forEach((button) => button.addEventListener('click', () => {
+      durationFilter = button.dataset.curatedDuration;
       renderFilters();
       renderHeading();
       renderRoutes();
@@ -1290,7 +1342,7 @@
     if (!root) return;
     const visible = visibleRoutes();
     if (!visible.length) {
-      root.innerHTML = '<div class="route-discovery-empty"><svg><use href="#i-route"/></svg><strong>No curated rides in that time window yet</strong><span>Try another duration. We will not fabricate routes we have not reviewed.</span></div>';
+      root.innerHTML = '<div class="route-discovery-empty"><svg><use href="#i-route"/></svg><strong>No curated rides match</strong><span>Try another category, duration or search. Rider Comms only shows routes we have actually reviewed.</span></div>';
       return;
     }
     root.innerHTML = visible.map((route) => {
@@ -1299,7 +1351,7 @@
         <img src="${route.image}" alt="${escapeHtml(route.alt)}" loading="lazy" referrerpolicy="no-referrer">
         <span class="route-photo-fallback" aria-hidden="true"><svg><use href="#i-route"/></svg></span>
         <span class="route-trace-card">${routeTraceSvg(route)}</span>
-        <span class="curated-route-overlay"><span class="route-region">${escapeHtml(route.region)}</span><strong>${escapeHtml(route.name)}</strong><small>${escapeHtml(route.road)}</small><span class="route-quick-stats">${approach ? `<b class="route-approach">${escapeHtml(approach)}</b>` : ''}<b>${route.distance} mi</b><b>${route.minutes} min</b><b>${escapeHtml(route.roadType)}</b></span></span>
+        <span class="curated-route-overlay"><span class="route-region">${escapeHtml(route.region)}</span><strong>${escapeHtml(route.name)}</strong><small>${escapeHtml(route.road)}</small><span class="route-quick-stats">${category === 'near' && approach ? `<b class="route-approach">${escapeHtml(approach)}</b>` : ''}<b>${route.distance} mi</b><b>${route.minutes} min</b><b>${escapeHtml(route.roadType)}</b></span></span>
       </button>`;
     }).join('');
     root.querySelectorAll('img').forEach((image) => image.addEventListener('error', () => image.closest('.curated-route-card')?.classList.add('image-failed'), { once: true }));

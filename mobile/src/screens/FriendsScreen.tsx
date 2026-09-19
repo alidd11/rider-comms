@@ -1,11 +1,11 @@
 // Unverified scaffold — see navigation/index.tsx header note.
 import * as React from 'react';
-import { View, Text, TextInput, Pressable, ScrollView, Alert, ActivityIndicator, Modal, Linking, RefreshControl, StyleSheet } from 'react-native';
+import { View, Text, TextInput, Pressable, ScrollView, Alert, ActivityIndicator, Modal, Linking, RefreshControl, Share, StyleSheet } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import type { FriendRequest, FriendSummary } from '@rider-comms/shared';
+import type { FriendActivity, FriendRequest, FriendSummary } from '@rider-comms/shared';
 import type { RootStackParamList } from '../navigation';
 import { colors, spacing, radii, type, elevation, MIN_TOUCH_TARGET } from '../theme';
 import { useFriends } from '../friends/FriendsContext';
@@ -169,63 +169,64 @@ function OutgoingRequestRow({ request, profile }: { request: FriendRequest; prof
   );
 }
 
-function FriendRow({ friend, onProfile }: { friend: FriendSummary; onProfile: (friend: FriendSummary) => void }): React.JSX.Element {
-  const { remove } = useFriends();
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+function activityLabel(activity?: FriendActivity): string {
+  if (!activity) return 'Connected';
+  if (activity.online) return 'Online now';
+  if (!activity.lastSeenAt) return 'Offline';
+  const elapsed = Math.max(0, Date.now() - activity.lastSeenAt);
+  const minutes = Math.floor(elapsed / 60_000);
+  if (minutes < 60) return `Last seen ${Math.max(1, minutes)}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `Last seen ${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `Last seen ${days}d ago`;
+}
+
+function FriendRow({
+  friend,
+  activity,
+  onProfile,
+}: {
+  friend: FriendSummary;
+  activity?: FriendActivity;
+  onProfile: (friend: FriendSummary) => void;
+}): React.JSX.Element {
   const avatar = getAvatarPreset(friend.avatarId);
-
-  const confirmRemove = () => {
-    Alert.alert('Remove friend?', `${friend.displayName} will be removed from your friends list.`, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Remove', style: 'destructive', onPress: () => remove(friend.riderId) },
-    ]);
-  };
-
   return (
     <Pressable
       style={({ pressed }) => [styles.friendRow, pressed && styles.friendRowPressed]}
-      onPress={() =>
-        navigation.navigate('FriendChat', {
-          riderId: friend.riderId,
-          displayName: friend.displayName,
-          avatarId: friend.avatarId,
-        })
-      }
+      onPress={() => onProfile(friend)}
+      accessibilityRole="button"
+      accessibilityLabel={`Open ${friend.displayName}'s rider profile`}
     >
-      <View style={[styles.friendAvatar, { backgroundColor: avatar.bg }]}>
-        <MaterialCommunityIcons name={avatar.icon} size={22} color={colors.textPrimary} />
+      <View style={styles.friendAvatarWrap}>
+        <View style={[styles.friendAvatar, { backgroundColor: avatar.bg }]}>
+          <MaterialCommunityIcons name={avatar.icon} size={22} color={colors.textPrimary} />
+        </View>
+        <View style={[styles.friendPresence, activity?.online ? styles.friendPresenceOnline : styles.friendPresenceOffline]} />
       </View>
       <View style={styles.friendInfo}>
         <Text style={styles.friendName}>{friend.displayName}</Text>
-        <Text style={styles.friendHandle}>{friend.handle}</Text>
+        <Text style={[styles.friendHandle, activity?.online && styles.friendHandleOnline]}>{activityLabel(activity)}</Text>
       </View>
-      <Pressable
-        style={styles.friendProfileButton}
-        onPress={() => onProfile(friend)}
-        accessibilityRole="button"
-        accessibilityLabel={`View ${friend.displayName}'s profile`}
-        hitSlop={8}
-      >
-        <Ionicons name="information-circle-outline" size={22} color={colors.textSecondary} />
-      </Pressable>
-      <Pressable style={styles.friendRemove} onPress={confirmRemove} accessibilityLabel={`Remove ${friend.displayName}`} hitSlop={8}>
-        <Ionicons name="person-remove-outline" size={20} color={colors.textMuted} />
-      </Pressable>
+      <Ionicons name="ellipsis-horizontal" size={21} color={colors.textMuted} />
     </Pressable>
   );
 }
 
 function FriendProfileModal({
   friend,
+  activity,
   onClose,
 }: {
   friend: FriendSummary | null;
+  activity?: FriendActivity;
   onClose: () => void;
 }): React.JSX.Element {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { client } = useAuth();
-  const { refresh } = useFriends();
+  const { refresh, remove } = useFriends();
   const [profile, setProfile] = React.useState<PublicRiderProfile | null>(null);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -256,9 +257,16 @@ function FriendProfileModal({
       .then(() => Alert.alert('Report received', 'Thank you. The report has been recorded for review.'))
       .catch(() => Alert.alert('Couldn’t send report', 'Please try again when you have a connection.'));
   };
-  const safetyActions = () => Alert.alert('Safety options', `Choose what to do about ${friend.displayName}.`, [
+  const confirmRemove = () => Alert.alert('Remove friend?', `${friend.displayName} will be removed from your friends list.`, [
+    { text: 'Cancel', style: 'cancel' },
+    { text: 'Remove', style: 'destructive', onPress: () => {
+      void remove(friend.riderId).then(onClose);
+    } },
+  ]);
+  const safetyActions = () => Alert.alert('More actions', `Choose what to do about ${friend.displayName}.`, [
+    { text: 'Remove friend', onPress: confirmRemove },
     { text: 'Report harassment', onPress: () => report('harassment') },
-    { text: 'Report spam', onPress: () => report('spam') },
+    { text: 'Report unsafe behaviour', onPress: () => report('unsafe') },
     { text: 'Block rider', style: 'destructive', onPress: () => {
       void client.blockRider(friend.riderId)
         .then(async () => { await refresh(); onClose(); })
@@ -275,13 +283,44 @@ function FriendProfileModal({
           <Pressable style={styles.modalClose} onPress={onClose} accessibilityLabel="Close profile">
             <Ionicons name="close" size={22} color={colors.textPrimary} />
           </Pressable>
-          <View style={[styles.profileModalAvatar, { backgroundColor: avatar.bg }]}>
-            <MaterialCommunityIcons name={avatar.icon} size={32} color={colors.textPrimary} />
+
+          <View style={styles.profileIdentity}>
+            <View style={styles.profileAvatarWrap}>
+              <View style={[styles.profileModalAvatar, { backgroundColor: avatar.bg }]}>
+                <MaterialCommunityIcons name={avatar.icon} size={31} color={colors.textPrimary} />
+              </View>
+              <View style={[styles.profilePresence, activity?.online ? styles.friendPresenceOnline : styles.friendPresenceOffline]} />
+            </View>
+            <View style={styles.profileIdentityCopy}>
+              <Text style={styles.profileModalName}>{profile?.displayName ?? friend.displayName}</Text>
+              <Text style={styles.profileModalHandle}>{profile?.handle ?? friend.handle}</Text>
+              <Text style={[styles.profileActivity, activity?.online && styles.profileActivityOnline]}>{activityLabel(activity)}</Text>
+            </View>
           </View>
-          <Text style={styles.profileModalName}>{profile?.displayName ?? friend.displayName}</Text>
-          <Text style={styles.profileModalHandle}>{profile?.handle ?? friend.handle}</Text>
+
           {loading && <ActivityIndicator style={styles.profileLoader} color={colors.accent} />}
           {error && <Text style={styles.profileError}>{error}</Text>}
+
+          <View style={styles.profileActions}>
+            <Pressable style={styles.profileAction} onPress={() => {
+              onClose();
+              navigation.navigate('FriendChat', { riderId: friend.riderId, displayName: friend.displayName, avatarId: friend.avatarId });
+            }}>
+              <Ionicons name="chatbubble" size={20} color={colors.accent} />
+              <Text style={styles.profileActionText}>Message</Text>
+            </Pressable>
+            <Pressable style={styles.profileAction} onPress={() => {
+              void Share.share({ message: `${profile?.displayName ?? friend.displayName} on Rider Comms: ${friend.riderId}` });
+            }}>
+              <Ionicons name="share-outline" size={21} color={colors.accent} />
+              <Text style={styles.profileActionText}>Share ID</Text>
+            </Pressable>
+            <Pressable style={styles.profileAction} onPress={safetyActions}>
+              <Ionicons name="ellipsis-horizontal" size={22} color={colors.textSecondary} />
+              <Text style={styles.profileActionText}>More</Text>
+            </Pressable>
+          </View>
+
           {(profile?.instagramUsername || profile?.tiktokUsername) ? (
             <View style={styles.socialList}>
               {profile.instagramUsername ? (
@@ -300,17 +339,6 @@ function FriendProfileModal({
               ) : null}
             </View>
           ) : !loading ? <Text style={styles.profilePrivacyNote}>No connected profiles are shared with you.</Text> : null}
-          <Pressable style={styles.profileMessageButton} onPress={() => {
-            onClose();
-            navigation.navigate('FriendChat', { riderId: friend.riderId, displayName: friend.displayName, avatarId: friend.avatarId });
-          }}>
-            <Ionicons name="chatbubble-outline" size={19} color={colors.accentText} />
-            <Text style={styles.profileMessageButtonText}>Message</Text>
-          </Pressable>
-          <Pressable style={styles.profileSafetyButton} onPress={safetyActions}>
-            <Ionicons name="shield-outline" size={18} color={colors.danger} />
-            <Text style={styles.profileSafetyText}>Safety options</Text>
-          </Pressable>
         </Pressable>
       </Pressable>
     </Modal>
@@ -318,16 +346,19 @@ function FriendProfileModal({
 }
 
 export function FriendsScreen(): React.JSX.Element {
-  const { friends, incomingRequests, outgoingRequests, requestProfiles, loading, error, refresh } = useFriends();
+  const { friends, incomingRequests, outgoingRequests, requestProfiles, activityByRider, loading, error, refresh } = useFriends();
   const insets = useSafeAreaInsets();
   const [query, setQuery] = React.useState('');
   const [selectedProfile, setSelectedProfile] = React.useState<FriendSummary | null>(null);
+  const [addOpen, setAddOpen] = React.useState(false);
   const filteredFriends = React.useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase();
     if (!normalized) return friends;
     return friends.filter((friend) => [friend.displayName, friend.handle, friend.riderId]
       .some((value) => value.toLocaleLowerCase().includes(normalized)));
   }, [friends, query]);
+  const onlineFriends = filteredFriends.filter((friend) => activityByRider[friend.riderId]?.online);
+  const offlineFriends = filteredFriends.filter((friend) => !activityByRider[friend.riderId]?.online);
 
   return (
     <View style={styles.container}>
@@ -337,7 +368,38 @@ export function FriendsScreen(): React.JSX.Element {
       >
         <ScreenHeader
           title="Friends"
+          action={(
+            <Pressable
+              style={({ pressed }) => [styles.headerAdd, addOpen && styles.headerAddActive, pressed && styles.headerAddPressed]}
+              onPress={() => setAddOpen((value) => !value)}
+              accessibilityRole="button"
+              accessibilityLabel={addOpen ? 'Close add friend' : 'Add friend'}
+            >
+              <Ionicons name={addOpen ? 'close' : 'person-add-outline'} size={21} color={addOpen ? colors.accentText : colors.accent} />
+            </Pressable>
+          )}
         />
+
+        <View style={styles.friendSearchRow}>
+          <Ionicons name="search" size={19} color={colors.textMuted} />
+          <TextInput
+            style={styles.friendSearchInput}
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Search friends"
+            placeholderTextColor={colors.textMuted}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          {query ? <Pressable onPress={() => setQuery('')} hitSlop={8}><Ionicons name="close-circle" size={19} color={colors.textMuted} /></Pressable> : null}
+        </View>
+
+        {addOpen ? (
+          <View style={styles.addPanel}>
+            <AddFriendCard />
+            <YourRiderIdCard />
+          </View>
+        ) : null}
 
         {error && (
           <View style={styles.errorBox}>
@@ -347,25 +409,10 @@ export function FriendsScreen(): React.JSX.Element {
           </View>
         )}
 
-        <View style={styles.sectionLabelRow}>
-          <Ionicons name="person-circle-outline" size={14} color={colors.textMuted} />
-          <Text style={[styles.sectionLabel, styles.sectionLabelInRow]}>Your ID</Text>
-        </View>
-        <YourRiderIdCard />
-
-        <View style={styles.sectionLabelRow}>
-          <Ionicons name="person-add-outline" size={14} color={colors.textMuted} />
-          <Text style={[styles.sectionLabel, styles.sectionLabelInRow]}>Add friend</Text>
-        </View>
-        <AddFriendCard />
-
         {incomingRequests.length > 0 && (
           <>
-            <View style={styles.sectionLabelRow}>
-              <Ionicons name="mail-open-outline" size={14} color={colors.textMuted} />
-              <Text style={[styles.sectionLabel, styles.sectionLabelInRow]}>Requests</Text>
-            </View>
-            <View style={[styles.section, elevation.raised]}>
+            <Text style={styles.networkSectionLabel}>Requests ({incomingRequests.length})</Text>
+            <View style={styles.section}>
               {incomingRequests.map((request) => (
                 <RequestRow key={request.id} request={request} profile={requestProfiles[request.fromRiderId]} />
               ))}
@@ -375,11 +422,8 @@ export function FriendsScreen(): React.JSX.Element {
 
         {outgoingRequests.length > 0 && (
           <>
-            <View style={styles.sectionLabelRow}>
-              <Ionicons name="paper-plane-outline" size={14} color={colors.textMuted} />
-              <Text style={[styles.sectionLabel, styles.sectionLabelInRow]}>Sent requests</Text>
-            </View>
-            <View style={[styles.section, elevation.raised]}>
+            <Text style={styles.networkSectionLabel}>Sent ({outgoingRequests.length})</Text>
+            <View style={styles.section}>
               {outgoingRequests.map((request) => (
                 <OutgoingRequestRow key={request.id} request={request} profile={requestProfiles[request.toRiderId]} />
               ))}
@@ -387,93 +431,67 @@ export function FriendsScreen(): React.JSX.Element {
           </>
         )}
 
-        <View style={styles.sectionLabelRow}>
-          <Ionicons name="people-outline" size={14} color={colors.textMuted} />
-          <Text style={[styles.sectionLabel, styles.sectionLabelInRow]}>Friends</Text>
-        </View>
-        {friends.length > 0 && (
-          <View style={styles.friendSearchRow}>
-            <Ionicons name="search" size={19} color={colors.textMuted} />
-            <TextInput
-              style={styles.friendSearchInput}
-              value={query}
-              onChangeText={setQuery}
-              placeholder="Search your friends"
-              placeholderTextColor={colors.textMuted}
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-            {query ? <Pressable onPress={() => setQuery('')} hitSlop={8}><Ionicons name="close-circle" size={19} color={colors.textMuted} /></Pressable> : null}
+        {loading && friends.length === 0 ? (
+          <View style={styles.emptyState}><ActivityIndicator color={colors.accent} /></View>
+        ) : friends.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Ionicons name="people-outline" size={28} color={colors.textMuted} />
+            <Text style={styles.emptyTitle}>Build your riding circle</Text>
+            <Text style={styles.emptyText}>Use the add button above to connect by handle or Rider ID.</Text>
+          </View>
+        ) : filteredFriends.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Ionicons name="search-outline" size={28} color={colors.textMuted} />
+            <Text style={styles.emptyTitle}>No matching friends</Text>
+            <Text style={styles.emptyText}>Try a different name, handle, or Rider ID.</Text>
+          </View>
+        ) : (
+          <View style={styles.networkList}>
+            {onlineFriends.length > 0 ? (
+              <>
+                <Text style={styles.networkSectionLabel}>Online ({onlineFriends.length})</Text>
+                {onlineFriends.map((friend) => (
+                  <FriendRow key={friend.riderId} friend={friend} activity={activityByRider[friend.riderId]} onProfile={setSelectedProfile} />
+                ))}
+              </>
+            ) : null}
+            {offlineFriends.length > 0 ? (
+              <>
+                <Text style={styles.networkSectionLabel}>Offline ({offlineFriends.length})</Text>
+                {offlineFriends.map((friend) => (
+                  <FriendRow key={friend.riderId} friend={friend} activity={activityByRider[friend.riderId]} onProfile={setSelectedProfile} />
+                ))}
+              </>
+            ) : null}
           </View>
         )}
-        <View style={[styles.section, elevation.raised]}>
-          {loading && friends.length === 0 ? (
-            <View style={styles.emptyState}>
-              <ActivityIndicator color={colors.accent} />
-            </View>
-          ) : friends.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Ionicons name="people-outline" size={28} color={colors.textMuted} />
-              <Text style={styles.emptyTitle}>Build your riding circle</Text>
-              <Text style={styles.emptyText}>Add someone you know using their handle or Rider ID.</Text>
-            </View>
-          ) : filteredFriends.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Ionicons name="search-outline" size={28} color={colors.textMuted} />
-              <Text style={styles.emptyTitle}>No matching friends</Text>
-              <Text style={styles.emptyText}>Try a different name, handle, or Rider ID.</Text>
-            </View>
-          ) : (
-            filteredFriends.map((friend) => <FriendRow key={friend.riderId} friend={friend} onProfile={setSelectedProfile} />)
-          )}
-        </View>
       </ScrollView>
 
       <RideBar />
-      <FriendProfileModal friend={selectedProfile} onClose={() => setSelectedProfile(null)} />
+      <FriendProfileModal
+        friend={selectedProfile}
+        activity={selectedProfile ? activityByRider[selectedProfile.riderId] : undefined}
+        onClose={() => setSelectedProfile(null)}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-  scroll: { width: '100%', maxWidth: 760, alignSelf: 'center', padding: spacing.lg },
-  errorBox: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: spacing.sm,
-    backgroundColor: colors.dangerSurface,
-    borderRadius: radii.md,
-    padding: spacing.md,
-    marginBottom: spacing.lg,
-  },
+  scroll: { width: '100%', maxWidth: 760, alignSelf: 'center', padding: spacing.lg, paddingBottom: spacing.xxl },
+  errorBox: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm, backgroundColor: colors.dangerSurface, borderRadius: radii.md, padding: spacing.md, marginBottom: spacing.md },
   errorText: { ...type.body, color: colors.danger, flex: 1 },
   retryText: { ...type.button, color: colors.danger },
-  sectionLabelRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginBottom: spacing.sm },
-  sectionLabel: { ...type.label, marginTop: spacing.lg, marginBottom: spacing.sm },
-  sectionLabelInRow: { marginTop: 0, marginBottom: 0 },
-  section: { backgroundColor: colors.surface, borderRadius: radii.lg, overflow: 'hidden', marginBottom: spacing.md, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
+  section: { backgroundColor: colors.surface, borderRadius: radii.md, overflow: 'hidden', marginBottom: spacing.md, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
+  headerAdd: { width: MIN_TOUCH_TARGET, height: MIN_TOUCH_TARGET, borderRadius: radii.md, alignItems: 'center', justifyContent: 'center', borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, backgroundColor: colors.surface },
+  headerAddActive: { backgroundColor: colors.accent, borderColor: colors.accent },
+  headerAddPressed: { opacity: 0.78 },
+  addPanel: { gap: spacing.sm, marginBottom: spacing.md },
   addCard: { padding: spacing.md, gap: spacing.sm },
   addRow: { flexDirection: 'row', gap: spacing.sm },
-  addInput: {
-    flex: 1,
-    minHeight: MIN_TOUCH_TARGET,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surfaceRaised,
-    borderRadius: radii.md,
-    paddingHorizontal: spacing.md,
-    ...type.body,
-    color: colors.textPrimary,
-  },
-  addButton: {
-    width: MIN_TOUCH_TARGET,
-    height: MIN_TOUCH_TARGET,
-    borderRadius: radii.md,
-    backgroundColor: colors.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  addInput: { flex: 1, minHeight: MIN_TOUCH_TARGET, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background, borderRadius: radii.md, paddingHorizontal: spacing.md, ...type.body, color: colors.textPrimary },
+  addButton: { width: MIN_TOUCH_TARGET, height: MIN_TOUCH_TARGET, borderRadius: radii.md, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
   addButtonPressed: { backgroundColor: colors.accentPressed },
   addButtonDisabled: { opacity: 0.5 },
   addCaption: { ...type.caption },
@@ -481,119 +499,57 @@ const styles = StyleSheet.create({
   addInlineSuccess: { ...type.caption, color: colors.success, fontWeight: '700' },
   yourIdCard: { padding: spacing.md, gap: spacing.sm },
   yourIdRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  yourIdBadge: {
-    width: 36,
-    height: 36,
-    borderRadius: radii.md,
-    backgroundColor: colors.surfaceRaised,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  yourIdBadge: { width: 36, height: 36, borderRadius: radii.md, backgroundColor: colors.surfaceRaised, alignItems: 'center', justifyContent: 'center' },
   yourIdInfo: { flex: 1, gap: spacing.xs },
   yourIdLabel: { ...type.caption },
   yourIdValue: { ...type.body, color: colors.textPrimary, fontWeight: '700', fontSize: 16 },
-  requestRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    padding: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  requestAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: radii.pill,
-    backgroundColor: colors.surfaceRaised,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  requestRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+  requestAvatar: { width: 44, height: 44, borderRadius: radii.pill, backgroundColor: colors.surfaceRaised, alignItems: 'center', justifyContent: 'center' },
   requestIdentity: { flex: 1, minWidth: 0, gap: 2 },
   requestName: { ...type.body, color: colors.textPrimary, fontWeight: '700' },
   requestHandle: { ...type.caption },
-  requestDecline: {
-    width: 44,
-    height: 44,
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.danger,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  requestAccept: {
-    width: 44,
-    height: 44,
-    borderRadius: radii.md,
-    backgroundColor: colors.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  requestDecline: { width: 44, height: 44, borderRadius: radii.md, borderWidth: 1, borderColor: colors.danger, alignItems: 'center', justifyContent: 'center' },
+  requestAccept: { width: 44, height: 44, borderRadius: radii.md, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
   pendingPill: { paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, backgroundColor: colors.surfaceRaised, borderRadius: radii.pill },
   pendingPillText: { ...type.caption, fontWeight: '700' },
-  friendSearchRow: {
-    minHeight: MIN_TOUCH_TARGET,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    borderRadius: radii.md,
-    paddingHorizontal: spacing.md,
-    marginBottom: spacing.sm,
-  },
+  friendSearchRow: { minHeight: MIN_TOUCH_TARGET, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, backgroundColor: colors.surface, borderRadius: radii.md, paddingHorizontal: spacing.md, marginBottom: spacing.md },
   friendSearchInput: { ...type.body, color: colors.textPrimary, flex: 1, minHeight: MIN_TOUCH_TARGET },
-  friendRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    minHeight: 66,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  friendRowPressed: { backgroundColor: colors.surfaceRaised },
-  friendAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: radii.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  friendInfo: { flex: 1, gap: spacing.xs },
+  networkList: { marginTop: spacing.xs },
+  networkSectionLabel: { ...type.label, color: colors.textSecondary, marginTop: spacing.md, marginBottom: spacing.sm, textTransform: 'uppercase', letterSpacing: 1.1 },
+  friendRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 64, paddingVertical: spacing.sm, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+  friendRowPressed: { opacity: 0.72 },
+  friendAvatarWrap: { position: 'relative' },
+  friendAvatar: { width: 44, height: 44, borderRadius: radii.pill, alignItems: 'center', justifyContent: 'center' },
+  friendPresence: { position: 'absolute', right: -1, bottom: -1, width: 12, height: 12, borderRadius: 6, borderWidth: 2, borderColor: colors.background },
+  friendPresenceOnline: { backgroundColor: colors.success },
+  friendPresenceOffline: { backgroundColor: colors.textMuted },
+  friendInfo: { flex: 1, gap: 2 },
   friendName: { ...type.body, color: colors.textPrimary, fontWeight: '700', fontSize: 16 },
-  friendHandle: { ...type.caption },
-  friendProfileButton: { padding: spacing.xs },
-  friendRemove: { padding: spacing.xs },
+  friendHandle: { ...type.caption, color: colors.textSecondary },
+  friendHandleOnline: { color: colors.success },
   emptyState: { padding: spacing.xl, alignItems: 'center', gap: spacing.sm },
   emptyTitle: { ...type.subheading, color: colors.textPrimary },
   emptyText: { ...type.caption, textAlign: 'center' },
-  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
-  profileModal: {
-    backgroundColor: colors.background,
-    borderTopLeftRadius: radii.xl,
-    borderTopRightRadius: radii.xl,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderBottomWidth: 0,
-    borderColor: colors.border,
-    padding: spacing.lg,
-    paddingBottom: spacing.xl,
-    alignItems: 'center',
-  },
-  modalHandle: { width: 40, height: 4, borderRadius: radii.pill, backgroundColor: colors.border, marginBottom: spacing.md },
-  modalClose: { position: 'absolute', right: spacing.md, top: spacing.md, width: MIN_TOUCH_TARGET, height: MIN_TOUCH_TARGET, borderRadius: radii.md, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceRaised, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
-  profileModalAvatar: { width: 68, height: 68, borderRadius: radii.pill, alignItems: 'center', justifyContent: 'center', marginTop: spacing.md },
-  profileModalName: { ...type.heading, marginTop: spacing.md },
-  profileModalHandle: { ...type.body, color: colors.textSecondary, marginTop: spacing.xs },
+  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.58)', justifyContent: 'flex-end' },
+  profileModal: { backgroundColor: colors.background, borderTopLeftRadius: radii.xl, borderTopRightRadius: radii.xl, borderWidth: StyleSheet.hairlineWidth, borderBottomWidth: 0, borderColor: colors.border, padding: spacing.lg, paddingBottom: spacing.xl },
+  modalHandle: { alignSelf: 'center', width: 40, height: 4, borderRadius: radii.pill, backgroundColor: colors.border, marginBottom: spacing.md },
+  modalClose: { position: 'absolute', right: spacing.md, top: spacing.md, width: MIN_TOUCH_TARGET, height: MIN_TOUCH_TARGET, borderRadius: radii.md, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceRaised },
+  profileIdentity: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingRight: MIN_TOUCH_TARGET + spacing.sm, marginTop: spacing.sm },
+  profileAvatarWrap: { position: 'relative' },
+  profileModalAvatar: { width: 68, height: 68, borderRadius: radii.pill, alignItems: 'center', justifyContent: 'center' },
+  profilePresence: { position: 'absolute', right: 1, bottom: 1, width: 14, height: 14, borderRadius: 7, borderWidth: 2, borderColor: colors.background },
+  profileIdentityCopy: { flex: 1, minWidth: 0 },
+  profileModalName: { ...type.heading, color: colors.textPrimary },
+  profileModalHandle: { ...type.body, color: colors.textSecondary, marginTop: 1 },
+  profileActivity: { ...type.caption, color: colors.textSecondary, marginTop: spacing.xs },
+  profileActivityOnline: { color: colors.success, fontWeight: '700' },
   profileLoader: { marginTop: spacing.md },
   profileError: { ...type.caption, color: colors.danger, marginTop: spacing.md },
-  profilePrivacyNote: { ...type.caption, textAlign: 'center', marginVertical: spacing.lg },
-  socialList: { width: '100%', marginVertical: spacing.lg, borderWidth: 1, borderColor: colors.border, borderRadius: radii.md, overflow: 'hidden' },
-  socialRow: { minHeight: MIN_TOUCH_TARGET, flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border },
+  profileActions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.lg },
+  profileAction: { flex: 1, minHeight: 64, alignItems: 'center', justifyContent: 'center', gap: spacing.xs, backgroundColor: colors.surface, borderRadius: radii.md, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
+  profileActionText: { ...type.caption, color: colors.textPrimary, fontWeight: '700' },
+  profilePrivacyNote: { ...type.caption, color: colors.textSecondary, marginTop: spacing.lg, padding: spacing.md, backgroundColor: colors.surface, borderRadius: radii.md },
+  socialList: { marginTop: spacing.lg, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: radii.md, overflow: 'hidden' },
+  socialRow: { minHeight: MIN_TOUCH_TARGET, flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.md, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   socialText: { ...type.body, color: colors.textPrimary, flex: 1 },
-  profileMessageButton: { width: '100%', minHeight: MIN_TOUCH_TARGET, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, borderRadius: radii.md, backgroundColor: colors.accent, marginTop: spacing.md },
-  profileMessageButtonText: { ...type.button, color: colors.accentText },
-  profileSafetyButton: { minHeight: MIN_TOUCH_TARGET, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, paddingHorizontal: spacing.md, marginTop: spacing.sm },
-  profileSafetyText: { ...type.button, color: colors.danger },
 });
