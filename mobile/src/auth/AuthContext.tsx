@@ -447,7 +447,7 @@ const styles = StyleSheet.create({
   brandTagline: { fontSize: 11, lineHeight: 14, fontWeight: '600' },
   visual: { height: 180, justifyContent: 'flex-end', overflow: 'hidden', borderRadius: radii.lg, borderWidth: 1, marginBottom: 18 },
   visualImage: { borderRadius: radii.lg },
-  visualShade: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(4,8,11,0.24)' },
+  visualShade: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(4,8,11,0.24)' },
   visualCopy: { paddingHorizontal: 14, paddingBottom: 13 },
   visualTitle: { color: '#FFFFFF', fontSize: 25, lineHeight: 25, fontWeight: '800', letterSpacing: -0.9, textShadowColor: 'rgba(0,0,0,0.55)', textShadowRadius: 8 },
   intro: { marginBottom: 14 },
