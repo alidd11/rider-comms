@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { AccessToken } from 'livekit-server-sdk';
+import { AccessToken, TrackSource } from 'livekit-server-sdk';
 
 /**
  * Voice transport (spec Sections 4/5/7): mints a short-lived LiveKit room
@@ -56,7 +56,14 @@ export async function mintVoiceToken(
     identity,
     ttl,
   });
-  accessToken.addGrant({ room: roomName, roomJoin: true, canPublish: true, canSubscribe: true });
+  accessToken.addGrant({
+    room: roomName,
+    roomJoin: true,
+    canPublish: true,
+    canPublishSources: [TrackSource.MICROPHONE],
+    canPublishData: false,
+    canSubscribe: true,
+  });
   const token = await accessToken.toJwt();
   return { token, url: credentials.url };
 }

@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import { ensureMigrated, getPool } from './db.ts';
+import { appendSocialEvent } from './socialEventStore.ts';
 
 export const REPORT_REASONS = ['harassment', 'unsafe', 'spam', 'sexual', 'other'] as const;
 export type ReportReason = (typeof REPORT_REASONS)[number];
@@ -41,19 +42,30 @@ export class ModerationStore {
         'INSERT INTO rider_blocks (rider_id, blocked_rider_id, created_at) VALUES ($1, $2, $3) ON CONFLICT (rider_id, blocked_rider_id) DO NOTHING',
         [riderId, blockedRiderId, Date.now()]
       );
-      await client.query(
+      const removedFriendships = await client.query(
         `DELETE FROM friendships
          WHERE (rider_id = $1 AND friend_id = $2)
-            OR (rider_id = $2 AND friend_id = $1)`,
+            OR (rider_id = $2 AND friend_id = $1)
+         RETURNING rider_id, friend_id`,
         [riderId, blockedRiderId],
       );
-      await client.query(
+      const removedRequests = await client.query<{ id: string }>(
         `DELETE FROM friend_requests
          WHERE status = 'pending'
            AND ((from_rider_id = $1 AND to_rider_id = $2)
-             OR (from_rider_id = $2 AND to_rider_id = $1))`,
+             OR (from_rider_id = $2 AND to_rider_id = $1))
+         RETURNING id`,
         [riderId, blockedRiderId],
       );
+      // Realtime invalidation deliberately stays generic: the affected peer
+      // learns only that the relationship/request disappeared, never that a
+      // block was the reason.
+      if ((removedFriendships.rowCount ?? 0) > 0) {
+        await appendSocialEvent(client, blockedRiderId, 'friend_removed', riderId, riderId);
+      }
+      for (const request of removedRequests.rows) {
+        await appendSocialEvent(client, blockedRiderId, 'friend_request_resolved', riderId, request.id);
+      }
       // A direct hideout share is effectively a location-sharing link
       // between its creator and participant. Remove that direct link when
       // either side blocks the other; third-party group hideouts remain

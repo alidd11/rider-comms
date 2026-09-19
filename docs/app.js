@@ -273,6 +273,7 @@
   let movementWatchId;
   let movementFreshnessTimer;
   let movementPermissionStatus;
+  let movementAccessDenied = false;
   let latestDevicePosition;
   let mapCentredOnLiveLocation = false;
   let activeChat = null;
@@ -1365,7 +1366,7 @@
     button.disabled = true;
     button.textContent = 'Creating…';
     try {
-      await preflightMicrophoneAccess();
+      if (!(await preflightMicrophoneAccess())) return;
       const shareRideLocation = $('#hostRideLocationConsent').checked;
       const result = await apiFetch('POST', '/rides', {});
       state.activeRide = { rideId: result.rideId, code: result.code, isHost: true, createdBy: result.createdBy, memberIds: result.memberIds, shareRideLocation: false };
@@ -1395,7 +1396,7 @@
     button.disabled = true;
     button.textContent = 'Joining…';
     try {
-      await preflightMicrophoneAccess();
+      if (!(await preflightMicrophoneAccess())) return;
       const shareRideLocation = $('#joinRideLocationConsent').checked;
       const joined = await apiFetch('POST', '/rides/join', { code });
       const ride = await apiFetch('GET', `/rides/${encodeURIComponent(joined.rideId)}`);
@@ -1847,6 +1848,8 @@
   let liveKitLoadPromise;
   let microphonePermissionReady = false;
   let voiceFailureNotified = false;
+  let voiceReconnectTimer;
+  const intentionalVoiceDisconnects = new WeakSet();
 
   const VOICE_SPEAKING_THRESHOLD = 0.06; // same starting point as mobile's SPEAKING_VOLUME_THRESHOLD — unverified against real riding noise
   const VOICE_RELEASE_HANGTIME_MS = 500;
@@ -1900,6 +1903,49 @@
       document.head.appendChild(script);
     });
     return liveKitLoadPromise;
+  }
+
+  function currentVoiceTarget() {
+    return state.activeRide ? `ride:${state.activeRide.rideId}` : state.publicLive ? 'channel' : undefined;
+  }
+
+  function disconnectManagedVoiceRoom(room) {
+    if (!room) return;
+    intentionalVoiceDisconnects.add(room);
+    void room.disconnect().catch(() => {});
+  }
+
+  function scheduleVoiceReconnect(targetKey) {
+    if (!targetKey || voiceReconnectTimer || !microphonePermissionReady) return;
+    voiceReconnectTimer = setTimeout(() => {
+      voiceReconnectTimer = undefined;
+      if (currentVoiceTarget() !== targetKey) return;
+      syncVoiceConnection();
+    }, 2000);
+  }
+
+  function wireVoiceRoomLifecycle(room, targetKey, peerId) {
+    const events = window.LivekitClient?.RoomEvent;
+    if (!events?.Disconnected) return;
+
+    room.on(events.Reconnected, () => {
+      voiceFailureNotified = false;
+      renderVoiceStatus();
+    });
+    room.on(events.Disconnected, () => {
+      if (intentionalVoiceDisconnects.has(room)) return;
+
+      if (peerId) {
+        if (proximityVoiceRooms.get(peerId) === room) proximityVoiceRooms.delete(peerId);
+      } else if (voiceRoom === room) {
+        voiceRoom = undefined;
+        if (voiceTargetKey === targetKey) voiceTargetKey = undefined;
+      }
+
+      if (!voiceRoom && !proximityVoiceRooms.size) stopVoiceLevelLoop();
+      renderVoiceStatus();
+      scheduleVoiceReconnect(targetKey);
+    });
   }
 
   /**
@@ -2014,9 +2060,10 @@
         const desiredPeers = new Set(response.connections.map((connection) => connection.peerId));
         for (const [peerId, existingRoom] of proximityVoiceRooms) {
           if (desiredPeers.has(peerId)) continue;
-          void existingRoom.disconnect();
+          disconnectManagedVoiceRoom(existingRoom);
           proximityVoiceRooms.delete(peerId);
         }
+        let lastPairError;
         for (const connection of response.connections) {
           if (proximityVoiceRooms.has(connection.peerId)) continue;
           const pairRoom = new window.LivekitClient.Room();
@@ -2024,11 +2071,14 @@
             await pairRoom.connect(connection.url, connection.token);
             await pairRoom.localParticipant.setMicrophoneEnabled(voiceIsSpeaking && !voiceManuallyMuted);
             proximityVoiceRooms.set(connection.peerId, pairRoom);
+            wireVoiceRoomLifecycle(pairRoom, 'channel', connection.peerId);
           } catch (error) {
-            void pairRoom.disconnect();
-            throw error;
+            lastPairError = error;
+            disconnectManagedVoiceRoom(pairRoom);
+            console.warn('[rider-comms] Could not connect proximity peer', connection.peerId, error);
           }
         }
+        if (response.connections.length > 0 && proximityVoiceRooms.size === 0 && lastPairError) throw lastPairError;
         voiceTargetKey = 'channel';
         if (enteringChannel) voiceManuallyMuted = false;
       } else {
@@ -2037,6 +2087,7 @@
         await room.localParticipant.setMicrophoneEnabled(false);
         voiceRoom = room;
         voiceTargetKey = `ride:${rideId}`;
+        wireVoiceRoomLifecycle(room, voiceTargetKey);
         voiceManuallyMuted = false;
       }
       microphonePermissionReady = true;
@@ -2056,7 +2107,7 @@
       // room connected fine but the second meter-stream getUserMedia call
       // failed) rather than leaking a live, published connection nothing
       // still references.
-      if (room) void room.disconnect();
+      if (room) disconnectManagedVoiceRoom(room);
       if (kind === 'ride') {
         voiceRoom = undefined;
         voiceTargetKey = undefined;
@@ -2076,8 +2127,9 @@
 
   function disconnectVoice() {
     stopVoiceLevelLoop();
-    if (voiceRoom) { void voiceRoom.disconnect(); voiceRoom = undefined; }
-    for (const room of proximityVoiceRooms.values()) void room.disconnect();
+    if (voiceReconnectTimer) { clearTimeout(voiceReconnectTimer); voiceReconnectTimer = undefined; }
+    if (voiceRoom) { disconnectManagedVoiceRoom(voiceRoom); voiceRoom = undefined; }
+    for (const room of proximityVoiceRooms.values()) disconnectManagedVoiceRoom(room);
     proximityVoiceRooms.clear();
     voiceTargetKey = undefined;
     renderVoiceStatus();
@@ -2144,6 +2196,7 @@
       showToast('You are no longer visible nearby.');
       return;
     }
+    if (!(await preflightMicrophoneAccess())) return;
     let position;
     try {
       position = await currentPosition();
@@ -2207,6 +2260,7 @@
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
     latestDevicePosition = position;
     locationPermissionReady = true;
+    movementAccessDenied = false;
 
     if (!map || usingFallbackMap) return;
     const point = { lat, lng };
@@ -2246,8 +2300,9 @@
       : 'Waiting for a reliable speed fix. Controls stay available.';
     const enableButton = $('#enableLocationBtn');
     if (enableButton) {
-      enableButton.hidden = !warning;
-      enableButton.textContent = movementPermissionStatus?.state === 'denied' ? 'Location help' : 'Enable location';
+      // A missing speed fix does not mean location permission is missing.
+      enableButton.hidden = !warning || (!movementAccessDenied && (locationPermissionReady || movementPermissionStatus?.state === 'granted'));
+      enableButton.textContent = movementAccessDenied || movementPermissionStatus?.state === 'denied' ? 'Location help' : 'Enable location';
     }
     $$('[data-nav="routes"], [data-nav="friends"], [data-nav="settings"]').forEach((item) => {
       item.setAttribute('aria-disabled', String(locked));
@@ -2276,31 +2331,50 @@
         applyDevicePosition(position);
         applyMovementState(movementTracker.addFix(movementFix(position)));
       },
-      () => stopMovementSafetyTracking(),
+      (error) => {
+        if (error.code === 1) {
+          movementAccessDenied = true;
+          locationPermissionReady = false;
+          stopMovementSafetyTracking();
+        } else {
+          // TIMEOUT/POSITION_UNAVAILABLE are recoverable watch errors. Keep
+          // the subscription so the next valid fix can recover without a tap.
+          applyMovementState(movementTracker.stateAt(Date.now()));
+        }
+      },
       { enableHighAccuracy: true, maximumAge: 2000, timeout: 15000 }
     );
     movementFreshnessTimer = setInterval(() => applyMovementState(movementTracker.stateAt(Date.now())), 2000);
   }
 
   async function initialiseMovementSafety() {
-    applyMovementState('unknown');
+    applyMovementState(movementTracker.stateAt(Date.now()));
     try {
       const permission = await navigator.permissions?.query?.({ name: 'geolocation' });
-      if (permission?.state === 'granted') startMovementSafetyTracking();
+      if (permission?.state === 'granted' || (!permission && locationPermissionReady)) startMovementSafetyTracking();
       if (permission && permission !== movementPermissionStatus) permission.addEventListener('change', () => {
+        movementAccessDenied = permission.state === 'denied';
         if (permission.state === 'granted') startMovementSafetyTracking();
-        else stopMovementSafetyTracking();
+        else {
+          locationPermissionReady = false;
+          stopMovementSafetyTracking();
+        }
       });
       movementPermissionStatus = permission;
+      movementAccessDenied = permission?.state === 'denied';
       applyMovementState(movementState);
-    } catch { /* permission state is unavailable; a deliberate location action can start tracking */ }
+    } catch {
+      // Some browsers expose geolocation without the Permissions API.
+      // Resume only after an actual successful location request in this session.
+      if (locationPermissionReady) startMovementSafetyTracking();
+    }
   }
 
   async function requestMovementLocationAccess() {
     try {
       const position = await currentPosition();
       applyMovementState(movementTracker.addFix(movementFix(position)));
-      showToast('Location enabled. Keep still briefly while Rider Comms confirms you are stationary.');
+      showToast('Location enabled. Controls stay available until sustained movement at 8 mph.');
     } catch (error) {
       showToast(locationAccessMessage(error, 'enable ride-safe controls'));
     }

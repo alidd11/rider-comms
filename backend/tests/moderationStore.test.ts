@@ -20,7 +20,7 @@ describe('ModerationStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipp
 
   beforeEach(async () => {
     const pool = getPool();
-    await pool.query('TRUNCATE rider_blocks, safety_reports');
+    await pool.query('TRUNCATE social_events, friend_requests, friendships, rider_blocks, safety_reports RESTART IDENTITY');
   });
 
   after(async () => {
@@ -35,6 +35,47 @@ describe('ModerationStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipp
     assert.deepEqual(await store.getBlocked('alice'), ['bob']);
     await store.unblock('alice', 'bob');
     assert.equal(await store.isBlockedBetween('alice', 'bob'), false);
+  });
+
+  it('emits only generic relationship invalidations when blocking', async () => {
+    const store = new ModerationStore();
+    await getPool().query(
+      `INSERT INTO friendships (rider_id, friend_id, created_at)
+       VALUES ('alice', 'bob', 1), ('bob', 'alice', 1)`,
+    );
+
+    await store.block('alice', 'bob');
+    await store.block('alice', 'bob');
+
+    const { rows } = await getPool().query<{ event_type: string; actor_id: string; entity_id: string }>(
+      `SELECT event_type, actor_id, entity_id
+       FROM social_events
+       WHERE rider_id = 'bob'
+       ORDER BY seq`,
+    );
+    assert.deepEqual(rows, [
+      { event_type: 'friend_removed', actor_id: 'alice', entity_id: 'alice' },
+    ]);
+  });
+
+  it('resolves pending requests generically when a block removes them', async () => {
+    const store = new ModerationStore();
+    await getPool().query(
+      `INSERT INTO friend_requests (id, from_rider_id, to_rider_id, status, created_at)
+       VALUES ('request-1', 'bob', 'alice', 'pending', 1)`,
+    );
+
+    await store.block('alice', 'bob');
+
+    const { rows } = await getPool().query<{ event_type: string; actor_id: string; entity_id: string }>(
+      `SELECT event_type, actor_id, entity_id
+       FROM social_events
+       WHERE rider_id = 'bob'
+       ORDER BY seq`,
+    );
+    assert.deepEqual(rows, [
+      { event_type: 'friend_request_resolved', actor_id: 'alice', entity_id: 'request-1' },
+    ]);
   });
 
   it('accepts a validated safety report', async () => {
