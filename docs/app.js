@@ -270,6 +270,7 @@
   let movementFreshnessTimer;
   let movementPermissionStatus;
   let movementAccessDenied = false;
+  let rideRefreshVersion = 0;
   let latestDevicePosition;
   let mapCentredOnLiveLocation = false;
   let activeChat = null;
@@ -1240,8 +1241,10 @@
       ? 'On — current ride members can see your recent position.'
       : 'Off — your position is not being uploaded to this ride.';
     const members = ride.members || ride.memberIds.map((riderId) => ({ riderId, displayName: riderId, handle: riderId }));
-    $('#activeRideCode').textContent = ride.code;
-    $('#ridePillCode').textContent = ride.code;
+    $('#activeRideCode').textContent = ride.code || 'Invite expired';
+    $('#ridePillCode').textContent = ride.code || 'Invite expired';
+    $('#copyRideCode').disabled = !ride.code;
+    $('#rideShareTop').disabled = !ride.code;
     $('#rideRole').textContent = ride.isHost ? 'host' : 'member';
     $('#memberCount').textContent = String(members.length);
     const pillCount = $('#ridePill .pill-count');
@@ -1266,36 +1269,39 @@
    */
   async function loadRideRoster() {
     if (!state.activeRide) return;
-    state.activeRide.members = await resolveRiderProfiles(state.activeRide.memberIds);
+    const rideId = state.activeRide.rideId;
+    const members = await resolveRiderProfiles(state.activeRide.memberIds);
+    if (state.activeRide?.rideId !== rideId) return;
+    state.activeRide.members = members;
     persist();
     renderRide();
   }
 
-  /**
-   * Re-syncs the active ride with the backend (GET /rides/:id) — used on
-   * returning to the Ride screen, since another member could have joined,
-   * left, or the host could have ended the ride while this device was
-   * elsewhere. A 404/403 means the ride is gone or this rider was removed
-   * from it, so the local "active ride" state is cleared to match reality.
-   */
+  // Reconcile membership, invite validity and private location consent from
+  // the server. Cached ride details are never enough to resume sharing.
   async function refreshActiveRide() {
-    if (!state.activeRide) return;
+    const version = rideRefreshVersion;
     try {
-      const ride = await apiFetch('GET', `/rides/${encodeURIComponent(state.activeRide.rideId)}`);
-      state.activeRide.memberIds = ride.memberIds;
-      state.activeRide.createdBy = ride.createdBy;
-      state.activeRide.isHost = ride.createdBy === state.profile.riderId;
-      persist();
-      await loadRideRoster();
-    } catch (error) {
-      if (error instanceof ApiError && (error.status === 404 || error.status === 403)) {
-        state.activeRide = null;
+      const previous = state.activeRide;
+      const { ride } = await apiFetch('GET', '/rides/current');
+      if (version !== rideRefreshVersion) return;
+      state.activeRide = ride ? {
+        rideId: ride.rideId, code: ride.code, isHost: ride.createdBy === state.profile.riderId,
+        createdBy: ride.createdBy, memberIds: ride.memberIds,
+        shareRideLocation: ride.shareRideLocation === true,
+        members: previous?.rideId === ride.rideId ? previous.members : undefined,
+      } : null;
+      if (!ride) {
         state.selectedRiderId = null;
-        persist();
-        renderRide();
-        renderMapRiders();
-        showToast('That ride is no longer active.');
+        rideMemberLocations = new Map();
       }
+      persist();
+      renderRide();
+      if (ride) await loadRideRoster();
+      else if (previous) showToast('That ride is no longer active.');
+    } catch (error) {
+      // Transient failures leave the last verified state intact. A fresh
+      // login starts with no verified ride and can retry from the Ride tab.
     }
   }
 
@@ -1315,6 +1321,7 @@
       if (!(await preflightMicrophoneAccess())) return;
       const shareRideLocation = $('#hostRideLocationConsent').checked;
       const result = await apiFetch('POST', '/rides', {});
+      rideRefreshVersion += 1;
       state.activeRide = { rideId: result.rideId, code: result.code, isHost: true, createdBy: result.createdBy, memberIds: result.memberIds, shareRideLocation: false };
       state.selectedRiderId = null;
       persist();
@@ -1346,6 +1353,7 @@
       const shareRideLocation = $('#joinRideLocationConsent').checked;
       const joined = await apiFetch('POST', '/rides/join', { code });
       const ride = await apiFetch('GET', `/rides/${encodeURIComponent(joined.rideId)}`);
+      rideRefreshVersion += 1;
       state.activeRide = { rideId: ride.rideId, code, isHost: ride.createdBy === state.profile.riderId, createdBy: ride.createdBy, memberIds: ride.memberIds, shareRideLocation: false };
       state.selectedRiderId = null;
       persist();
@@ -1377,6 +1385,7 @@
     try {
       if (ride.isHost) await apiFetch('DELETE', `/rides/${encodeURIComponent(ride.rideId)}`);
       else await apiFetch('POST', `/rides/${encodeURIComponent(ride.rideId)}/leave`, {});
+      rideRefreshVersion += 1;
       state.activeRide = null;
       state.selectedRiderId = null;
       persist();
@@ -1411,6 +1420,7 @@
 
   async function shareRide() {
     if (!state.activeRide) return;
+    if (!state.activeRide.code) return showToast('This invite has expired. Your ride remains active.');
     const text = `Join my Rider Comms group ride with code ${state.activeRide.code}`;
     try {
       if (navigator.share) await navigator.share({ title: 'Rider Comms invite', text });
@@ -3790,6 +3800,10 @@
       const result = await apiFetch('POST', '/auth/login', { username, password, deviceName: 'Rider Comms PWA' });
       saveSession({ riderId: result.riderId, token: result.token });
       applyAuthenticatedIdentity(result.riderId, username);
+      // A newly authenticated rider may already belong to a ride on another
+      // device. Reconcile before enabling ride location or voice in the UI.
+      state.activeRide = null;
+      await refreshActiveRide();
       hideAuthScreen();
       startApp();
       loadProfile();
@@ -4044,6 +4058,7 @@
       syncChatPolling();
       if (document.visibilityState === 'visible') void initialiseMovementSafety();
       else stopMovementSafetyTracking();
+      if (document.visibilityState === 'visible') void refreshActiveRide();
     });
   }
 
@@ -4085,6 +4100,9 @@
       return;
     }
     applyAuthenticatedIdentity(session.riderId, state.profile.displayName || session.riderId);
+    // Do not publish private location or join a room from persisted UI state.
+    state.activeRide = null;
+    await refreshActiveRide();
     hideAuthScreen();
     startApp();
     loadProfile();
