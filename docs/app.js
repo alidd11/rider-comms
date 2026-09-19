@@ -1310,7 +1310,9 @@
       const removeButton = canRemove
         ? `<button type="button" class="roster-remove" data-remove-ride-member="${escapeHtml(person.riderId)}" aria-label="Remove ${escapeHtml(person.displayName)} from this ride">${icon('close')}</button>`
         : '';
-      return `<article class="roster-row">${avatar(person, 'small')}<div class="identity"><strong>${escapeHtml(person.displayName)}${person.riderId === state.profile.riderId ? ' · You' : ''}</strong><span>${escapeHtml(person.handle)}</span></div><span class="roster-status">${escapeHtml(person.riderId === ride.createdBy ? 'Host · connected' : 'Connected')}</span>${removeButton}</article>`;
+      const defaultStatus = person.riderId === ride.createdBy ? 'Host · connected' : 'Connected';
+      const speaking = voiceRemoteSpeakingIds.has(person.riderId);
+      return `<article class="roster-row${speaking ? ' voice-speaking' : ''}" data-rider-id="${escapeHtml(person.riderId)}">${avatar(person, 'small')}<div class="identity"><strong>${escapeHtml(person.displayName)}${person.riderId === state.profile.riderId ? ' · You' : ''}</strong><span>${escapeHtml(person.handle)}</span></div><span class="roster-status" data-default-status="${escapeHtml(defaultStatus)}">${escapeHtml(speaking ? 'Speaking' : defaultStatus)}</span>${removeButton}</article>`;
     }).join('');
     renderMapRiders();
   }
@@ -1888,6 +1890,7 @@
     });
     nearbyRiders = await resolveRiderProfiles(result.inZoneWith);
     if (!state.activeRide) renderMapRiders();
+    renderVoiceStatus();
     if (state.publicLive && !state.activeRide && microphonePermissionReady) syncVoiceConnection();
     return result;
   }
@@ -1916,6 +1919,7 @@
   let voiceReleaseTimer;
   let voiceManuallyMuted = false;
   let voiceIsSpeaking = false;
+  let voiceRemoteSpeakingIds = new Set();
   let liveKitLoadPromise;
   let microphonePermissionReady = false;
   let voiceFailureNotified = false;
@@ -2054,6 +2058,20 @@
       });
     }
 
+    if (events.ActiveSpeakersChanged) {
+      room.on(events.ActiveSpeakersChanged, (speakers = []) => {
+        if (peerId) {
+          setRemoteVoicePeerSpeaking(peerId, speakers.some((speaker) => speaker.identity === peerId));
+        } else {
+          setRideRemoteVoiceSpeakers(
+            speakers
+              .map((speaker) => speaker.identity)
+              .filter((identity) => identity && identity !== state.profile.riderId),
+          );
+        }
+      });
+    }
+
     room.on(events.Reconnected, () => {
       voiceFailureNotified = false;
       void room.startAudio?.().catch(() => {});
@@ -2061,6 +2079,8 @@
     });
     room.on(events.Disconnected, () => {
       cleanupRemoteVoiceAudio(room);
+      if (peerId) setRemoteVoicePeerSpeaking(peerId, false);
+      else setRideRemoteVoiceSpeakers([]);
       if (intentionalVoiceDisconnects.has(room)) return;
 
       if (peerId) {
@@ -2073,6 +2093,50 @@
       if (!voiceRoom && !proximityVoiceRooms.size) stopVoiceLevelLoop();
       renderVoiceStatus();
       scheduleVoiceReconnect(targetKey);
+    });
+  }
+
+  function setRemoteVoicePeerSpeaking(peerId, speaking) {
+    const next = new Set(voiceRemoteSpeakingIds);
+    if (speaking) next.add(peerId);
+    else next.delete(peerId);
+    if (next.size === voiceRemoteSpeakingIds.size
+      && [...next].every((id) => voiceRemoteSpeakingIds.has(id))) return;
+    voiceRemoteSpeakingIds = next;
+    renderVoiceStatus();
+  }
+
+  function setRideRemoteVoiceSpeakers(riderIds) {
+    const next = new Set(riderIds);
+    if (next.size === voiceRemoteSpeakingIds.size
+      && [...next].every((id) => voiceRemoteSpeakingIds.has(id))) return;
+    voiceRemoteSpeakingIds = next;
+    renderVoiceStatus();
+  }
+
+  function remoteVoiceSpeakerName(riderId) {
+    const candidates = [
+      ...(state.activeRide?.members || []),
+      ...nearbyRiders,
+      ...state.friends,
+    ];
+    return candidates.find((person) => person.riderId === riderId)?.displayName || 'Nearby rider';
+  }
+
+  function remoteVoiceSpeakerLabel() {
+    const names = [...voiceRemoteSpeakingIds].map(remoteVoiceSpeakerName);
+    if (names.length === 1) return `${names[0]} speaking`;
+    if (names.length === 2) return `${names[0]} + ${names[1]} speaking`;
+    if (names.length > 2) return `${names[0]}, ${names[1]} + ${names.length - 2} speaking`;
+    return '';
+  }
+
+  function renderRideSpeakerStates() {
+    document.querySelectorAll('#rideRoster [data-rider-id]').forEach((row) => {
+      const speaking = voiceRemoteSpeakingIds.has(row.dataset.riderId);
+      row.classList.toggle('voice-speaking', speaking);
+      const status = $('.roster-status', row);
+      if (status) status.textContent = speaking ? 'Speaking' : (status.dataset.defaultStatus || 'Connected');
     });
   }
 
@@ -2089,6 +2153,7 @@
     const badge = $('#voiceStatusBtn');
     const connected = Boolean(voiceRoom || proximityVoiceRooms.size);
     const wantsVoice = Boolean(state.activeRide || state.publicLive);
+    const remoteSpeakerLabel = remoteVoiceSpeakerLabel();
     const needsResume = wantsVoice && !connected && (!microphonePermissionReady || voiceFailureNotified);
     const resumeLocked = needsResume && window.RiderMovementSafety.isLockedForSafety(movementState);
     avatar.classList.toggle('voice-talking', connected && voiceIsSpeaking);
@@ -2098,7 +2163,16 @@
     badge.setAttribute('aria-disabled', String(resumeLocked));
     badge.classList.toggle('talking', voiceIsSpeaking);
     badge.classList.toggle('muted', voiceManuallyMuted);
-    const label = voiceManuallyMuted ? 'Muted — tap to unmute' : voiceIsSpeaking ? 'Talking' : 'Listening — hands-free';
+    const speakerStatus = $('#voiceSpeakerStatus');
+    if (speakerStatus) {
+      speakerStatus.hidden = !connected || !remoteSpeakerLabel;
+      speakerStatus.textContent = remoteSpeakerLabel;
+    }
+    const label = voiceManuallyMuted
+      ? 'Muted — tap to unmute'
+      : voiceIsSpeaking
+        ? 'Talking'
+        : remoteSpeakerLabel || 'Listening — hands-free';
     badge.setAttribute('aria-label', needsResume ? 'Resume voice' : voiceManuallyMuted ? 'Proximity voice muted — tap to unmute' : voiceIsSpeaking ? 'Talking' : 'Listening — hands-free');
     // The Ride tab has no map header of its own (the glowing avatar above
     // only exists on the Map screen), so a rider parked on Ride while
@@ -2115,6 +2189,7 @@
       if (rideChipText) rideChipText.textContent = needsResume ? 'Resume voice' : label;
       rideChip.setAttribute('aria-label', needsResume ? 'Resume voice' : label);
     }
+    renderRideSpeakerStates();
   }
 
   function setVoiceSpeaking(speaking) {
@@ -2196,6 +2271,7 @@
         const desiredPeers = new Set(response.connections.map((connection) => connection.peerId));
         for (const [peerId, existingRoom] of proximityVoiceRooms) {
           if (desiredPeers.has(peerId)) continue;
+          setRemoteVoicePeerSpeaking(peerId, false);
           disconnectManagedVoiceRoom(existingRoom);
           proximityVoiceRooms.delete(peerId);
         }
@@ -2270,6 +2346,7 @@
     if (voiceRoom) { disconnectManagedVoiceRoom(voiceRoom); voiceRoom = undefined; }
     for (const room of proximityVoiceRooms.values()) disconnectManagedVoiceRoom(room);
     proximityVoiceRooms.clear();
+    voiceRemoteSpeakingIds = new Set();
     voiceTargetKey = undefined;
     renderVoiceStatus();
   }

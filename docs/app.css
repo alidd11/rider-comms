@@ -794,3 +794,11 @@ body:has(#sheetBackdrop:not([hidden])) #joinNearbyBtn{opacity:0;pointer-events:n
 @media(prefers-color-scheme:light){
   .auth-mark,.auth-segmented,.auth-field>input,.password-field{background:var(--surface)}
 }
+
+/* LiveKit active-speaker visibility. Remote speaker identity is deliberately
+   shown without exposing public nearby coordinates. */
+.voice-speaker-status{position:absolute;z-index:9;top:calc(var(--safe-top) + 64px);right:max(16px,var(--safe-right));max-width:min(72vw,260px);min-height:32px;display:flex;align-items:center;padding:6px 10px;border-radius:var(--radius-pill);color:var(--accent);font-size:.72rem;font-weight:820;line-height:1.2;box-shadow:var(--shadow-sm)}
+.voice-speaker-status[hidden]{display:none}
+.roster-row.voice-speaking{background:color-mix(in srgb,var(--accent) 8%,transparent)}
+.roster-row.voice-speaking .avatar{box-shadow:inset 0 0 0 1px rgb(255 255 255/.22),0 0 0 3px color-mix(in srgb,var(--accent) 48%,transparent)}
+.roster-row.voice-speaking .roster-status{color:var(--accent)}

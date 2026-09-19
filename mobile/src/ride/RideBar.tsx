@@ -13,7 +13,7 @@
 import * as React from 'react';
 import { View, Text, Pressable, StyleSheet, Modal, Alert } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { LiveKitRoom } from '@livekit/react-native';
+import { LiveKitRoom, useSpeakingParticipants } from '@livekit/react-native';
 import { audioEngine } from '../audio/audioEngine';
 import { LiveKitAudioPriorityBridge } from '../audio/LiveKitAudioPriorityBridge';
 import { acquireVoiceAudioSession, releaseVoiceAudioSession } from '../audio/audioSession';
@@ -121,6 +121,28 @@ function VoiceActivityBridge({
   return null;
 }
 
+function RemoteSpeakerBridge({
+  localRiderId,
+  onSpeakersChange,
+}: {
+  localRiderId: string;
+  onSpeakersChange: (riderIds: string[]) => void;
+}): null {
+  const speakers = useSpeakingParticipants();
+  const remoteSpeakerKey = speakers
+    .map((speaker) => speaker.identity)
+    .filter((identity) => identity && identity !== localRiderId)
+    .join('\u0000');
+
+  React.useEffect(() => {
+    onSpeakersChange(remoteSpeakerKey ? remoteSpeakerKey.split('\u0000') : []);
+  }, [onSpeakersChange, remoteSpeakerKey]);
+
+  React.useEffect(() => () => onSpeakersChange([]), [onSpeakersChange]);
+
+  return null;
+}
+
 /**
  * Floating "mini-player"-style bar for an active ride, visible over every
  * tab (à la a music app's now-playing bar) instead of taking over the whole
@@ -128,10 +150,13 @@ function VoiceActivityBridge({
  */
 export function RideBar({ controlsVisible = true }: { controlsVisible?: boolean } = {}): React.JSX.Element | null {
   const { activeRide, leaveRide, shareRideLocation, setRideLocationSharing } = useRide();
+  const { client, riderId } = useAuth();
   const { lockedForSafety } = useMovementSafety();
   const [expanded, setExpanded] = React.useState(false);
   const [gains, setGains] = React.useState(audioEngine.getGains());
   const [talking, setTalking] = React.useState(false);
+  const [remoteSpeakerIds, setRemoteSpeakerIds] = React.useState<string[]>([]);
+  const [remoteSpeakerNames, setRemoteSpeakerNames] = React.useState<Map<string, string>>(new Map());
   const [manuallyMuted, setManuallyMuted] = React.useState(false);
   const [locationShareBusy, setLocationShareBusy] = React.useState(false);
   const [locationShareError, setLocationShareError] = React.useState<string | null>(null);
@@ -145,10 +170,37 @@ export function RideBar({ controlsVisible = true }: { controlsVisible?: boolean 
   const [roomError, setRoomError] = React.useState<string | null>(null);
   const voiceConnected = Boolean(voice.token && voice.url && audioSession.ready);
   const handleSpeakingChange = React.useCallback((speaking: boolean) => {
-    // This is the local rider's VOX state for the UI only. Incoming remote
-    // speaker state is tracked by LiveKitAudioPriorityBridge.
+    // This is the local rider's VOX state for the UI only.
     setTalking(speaking);
   }, []);
+  const handleRemoteSpeakersChange = React.useCallback((riderIds: string[]) => {
+    setRemoteSpeakerIds((current) => (
+      current.join('\u0000') === riderIds.join('\u0000') ? current : riderIds
+    ));
+  }, []);
+  const remoteSpeakerKey = remoteSpeakerIds.join('\u0000');
+
+  React.useEffect(() => {
+    const ids = remoteSpeakerKey ? remoteSpeakerKey.split('\u0000') : [];
+    if (ids.length === 0) {
+      setRemoteSpeakerNames(new Map());
+      return;
+    }
+
+    let cancelled = false;
+    void Promise.all(ids.map(async (id) => {
+      try {
+        const profile = await client.getPublicProfile(id);
+        return [id, profile.displayName] as const;
+      } catch {
+        return [id, 'Rider'] as const;
+      }
+    })).then((entries) => {
+      if (!cancelled) setRemoteSpeakerNames(new Map(entries));
+    });
+
+    return () => { cancelled = true; };
+  }, [client, remoteSpeakerKey]);
   const scheduleVoiceRetry = React.useCallback(() => {
     if (voiceRetryTimer.current) return;
     voiceRetryTimer.current = setTimeout(() => {
@@ -208,13 +260,23 @@ export function RideBar({ controlsVisible = true }: { controlsVisible?: boolean 
   };
 
   const voiceFailure = audioSessionError ?? voice.error ?? roomError;
+  const remoteNames = remoteSpeakerIds.map((id) => remoteSpeakerNames.get(id) ?? 'Rider');
+  const remoteSpeakerLabel = remoteNames.length === 1
+    ? `${remoteNames[0]} speaking`
+    : remoteNames.length === 2
+      ? `${remoteNames[0]} + ${remoteNames[1]} speaking`
+      : remoteNames.length > 2
+        ? `${remoteNames[0]}, ${remoteNames[1]} + ${remoteNames.length - 2} speaking`
+        : null;
   const voiceLabel = voiceFailure
     ? 'Voice unavailable'
-    : roomStatus === 'connected'
-      ? 'Voice connected'
-      : roomStatus === 'disconnected'
-        ? 'Voice disconnected'
-        : 'Connecting voice';
+    : remoteSpeakerLabel
+      ? remoteSpeakerLabel
+      : roomStatus === 'connected'
+        ? 'Voice connected'
+        : roomStatus === 'disconnected'
+          ? 'Voice disconnected'
+          : 'Connecting voice';
 
   return (
     <LiveKitRoom
@@ -238,6 +300,7 @@ export function RideBar({ controlsVisible = true }: { controlsVisible?: boolean 
         onSpeakingChange={handleSpeakingChange}
         onError={handleVoiceRuntimeError}
       />
+      <RemoteSpeakerBridge localRiderId={riderId} onSpeakersChange={handleRemoteSpeakersChange} />
       <LiveKitAudioPriorityBridge sourceId={`ride:${activeRide.rideId}`} />
 
       {controlsVisible && lockedForSafety ? (
@@ -264,6 +327,12 @@ export function RideBar({ controlsVisible = true }: { controlsVisible?: boolean 
             <View style={styles.liveDot} />
             <MaterialCommunityIcons name="motorbike" size={18} color={colors.accent} />
             <Text style={styles.barText}>In ride{activeRide.code ? ` · ${activeRide.code}` : ''}</Text>
+            {remoteSpeakerLabel && (
+              <View style={styles.speakerPill} accessibilityLiveRegion="polite">
+                <Ionicons name="mic" size={12} color={colors.accent} />
+                <Text numberOfLines={1} style={styles.speakerPillText}>{remoteSpeakerLabel}</Text>
+              </View>
+            )}
             {shareRideLocation && (
               <View style={styles.locationLivePill}>
                 <Ionicons name="location" size={13} color={colors.success} />
@@ -381,6 +450,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   locationLiveText: { ...type.caption, color: colors.success, fontWeight: '800' },
+  speakerPill: {
+    maxWidth: 150, flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 7, paddingVertical: 4, borderRadius: radii.pill,
+    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.accent,
+  },
+  speakerPillText: { ...type.caption, color: colors.accent, fontWeight: '800', flexShrink: 1 },
   liveDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.success },
   errorDot: { backgroundColor: colors.danger },
   voiceStatusText: { ...type.caption, color: colors.textSecondary },
