@@ -20,6 +20,7 @@ async function mockAuthenticatedApi(page, movement = 'stationary', backendOverri
     localStorage.setItem('rider-comms-session-v1', JSON.stringify({ riderId, token: 'visual-test-token' }));
     Object.defineProperty(navigator, 'permissions', { value: { query: async ({ name } = {}) => ({ state: name === 'microphone' ? 'prompt' : ['stationary', 'recovering'].includes(movementState) ? 'granted' : 'denied', addEventListener() {} }) } });
     let watchId = 0;
+    window.__riderCommsGetCurrentPositionCalls = 0;
     Object.defineProperty(navigator, 'geolocation', { value: {
       watchPosition(success, error) {
         if (movementState === 'recovering') {
@@ -39,6 +40,7 @@ async function mockAuthenticatedApi(page, movement = 'stationary', backendOverri
       },
       clearWatch() { if (window.gpsTest) window.gpsTest.cleared = true; },
       getCurrentPosition(success, error) {
+        window.__riderCommsGetCurrentPositionCalls += 1;
         if (movementState !== 'stationary') return error?.({ code: 1, name: 'NotAllowedError' });
         success({ timestamp: Date.now(), coords: { latitude: 51.5074, longitude: -0.1278, accuracy: 5, speed: 0 } });
       },
@@ -839,6 +841,7 @@ test('PWA Nearby control switches public visibility and proximity voice off toge
   await nearby.click();
   await expect.poll(() => presenceUpdates).toBe(1);
   await expect.poll(() => profileSharingUpdates.at(-1)).toBe(true);
+  await expect.poll(() => page.evaluate(() => window.__riderCommsGetCurrentPositionCalls)).toBe(0);
   await expect(nearby).toHaveAttribute('data-active', 'true');
   await expect(nearby).toHaveAttribute('aria-label', 'Leave nearby');
   await expect(nearby).toHaveAttribute('aria-pressed', 'true');
