@@ -207,5 +207,15 @@ describe('FriendStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping 
     const pageB = await store.getRequestsFor('pending-b');
     assert.deepEqual({ incoming: pageA.incoming, outgoing: pageA.outgoing }, { incoming: [], outgoing: [] });
     assert.deepEqual({ incoming: pageB.incoming, outgoing: pageB.outgoing }, { incoming: [], outgoing: [] });
+
+    const { rows } = await getPool().query<{ event_type: string; actor_id: string; entity_id: string }>(
+      `SELECT event_type, actor_id, entity_id
+       FROM social_events
+       WHERE rider_id = 'pending-a' AND event_type = 'friend_request_resolved'
+       ORDER BY seq`,
+    );
+    assert.deepEqual(rows, [
+      { event_type: 'friend_request_resolved', actor_id: 'pending-b', entity_id: request.ok ? request.request.id : '' },
+    ]);
   });
 });
