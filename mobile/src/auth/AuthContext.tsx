@@ -10,6 +10,7 @@ import {
   Text,
   TextInput,
   View,
+  ImageBackground,
 } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -23,6 +24,8 @@ const KEY = '@rider-comms/auth-v2';
 const LEGACY_GUEST_KEY = '@rider-comms/auth-v1';
 const USERNAME_PATTERN = /^[A-Za-z0-9_]{3,20}$/;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const AUTH_HERO_IMAGE = 'https://images.unsplash.com/photo-1770614956862-a143fb5e4921?auto=format&fit=crop&q=80&w=1200';
 
 const AUTH_COPY = {
   login: {
@@ -197,6 +200,19 @@ function AuthScreen({ onAuthenticated, restoreError, onRetryRestore }: {
             <Text style={[styles.brandTagline, { color: palette.textMuted }]}>Eyes up. Comms on.</Text>
           </View>
         </View>
+
+        <ImageBackground
+          source={{ uri: AUTH_HERO_IMAGE }}
+          style={[styles.visual, { backgroundColor: palette.surface, borderColor: palette.border }]}
+          imageStyle={styles.visualImage}
+          accessibilityRole="image"
+          accessibilityLabel="Motorcyclists riding together on a winding mountain road"
+        >
+          <View style={styles.visualShade} />
+          <View style={styles.visualCopy}>
+            <Text style={styles.visualTitle}>{'Ride further.\ntogether.'}</Text>
+          </View>
+        </ImageBackground>
 
         <View style={styles.intro}>
           <Text style={[styles.modeEyebrow, { color: palette.accent }]}>{copy.eyebrow}</Text>
@@ -422,18 +438,23 @@ const styles = StyleSheet.create({
   screen: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.md, backgroundColor: colors.background, padding: spacing.lg },
   loadingLabel: { ...type.body },
-  authScroll: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 20, width: '100%', maxWidth: 440, alignSelf: 'center' },
-  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 28 },
+  authScroll: { flexGrow: 1, justifyContent: 'flex-start', paddingHorizontal: 20, width: '100%', maxWidth: 440, alignSelf: 'center' },
+  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 },
   brandMark: { position: 'relative', width: 42, height: 42, borderRadius: radii.lg, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   brandStatusDot: { position: 'absolute', right: 5, bottom: 5, width: 8, height: 8, borderRadius: radii.pill, borderWidth: 2 },
   brandCopy: { gap: 3 },
   brandName: { fontSize: 12, lineHeight: 15, fontWeight: '800', letterSpacing: 2.1 },
   brandTagline: { fontSize: 11, lineHeight: 14, fontWeight: '600' },
-  intro: { marginBottom: 22 },
-  modeEyebrow: { fontSize: 11, lineHeight: 14, fontWeight: '800', letterSpacing: 1.5, marginBottom: 10 },
-  title: { fontSize: 38, lineHeight: 40, fontWeight: '800', letterSpacing: -1.4 },
-  subtitle: { fontSize: 15, lineHeight: 22, fontWeight: '500', maxWidth: 370, marginTop: 10 },
-  tabs: { flexDirection: 'row', gap: 2, padding: 3, borderRadius: radii.lg, borderWidth: 1, marginBottom: 18 },
+  visual: { height: 180, justifyContent: 'flex-end', overflow: 'hidden', borderRadius: radii.lg, borderWidth: 1, marginBottom: 18 },
+  visualImage: { borderRadius: radii.lg },
+  visualShade: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(4,8,11,0.24)' },
+  visualCopy: { paddingHorizontal: 14, paddingBottom: 13 },
+  visualTitle: { color: '#FFFFFF', fontSize: 25, lineHeight: 25, fontWeight: '800', letterSpacing: -0.9, textShadowColor: 'rgba(0,0,0,0.55)', textShadowRadius: 8 },
+  intro: { marginBottom: 14 },
+  modeEyebrow: { fontSize: 10, lineHeight: 13, fontWeight: '800', letterSpacing: 1.4, marginBottom: 6 },
+  title: { fontSize: 32, lineHeight: 34, fontWeight: '800', letterSpacing: -1.05 },
+  subtitle: { fontSize: 13, lineHeight: 19, fontWeight: '500', maxWidth: 370, marginTop: 7 },
+  tabs: { flexDirection: 'row', gap: 2, padding: 3, borderRadius: radii.lg, borderWidth: 1, marginBottom: 14 },
   tab: { minHeight: 44, flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: radii.sm },
   tabActive: {},
   tabText: { fontSize: 13, lineHeight: 17, fontWeight: '700' },
@@ -442,21 +463,21 @@ const styles = StyleSheet.create({
   notice: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, borderWidth: 1, borderRadius: radii.lg, padding: spacing.md, marginBottom: spacing.md },
   noticeText: { ...type.caption, flex: 1 },
   noticeAction: { ...type.button },
-  form: { gap: 14 },
-  field: { gap: 7 },
+  form: { gap: 11 },
+  field: { gap: 6 },
   fieldLabel: { fontSize: 12, lineHeight: 16, fontWeight: '700' },
-  input: { minHeight: 52, borderWidth: 1, borderRadius: radii.lg, fontSize: 16, paddingHorizontal: 14 },
-  passwordField: { minHeight: 52, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: radii.lg, overflow: 'hidden' },
-  passwordInput: { minHeight: 50, flex: 1, fontSize: 16, paddingLeft: 14, paddingRight: 8 },
-  passwordToggle: { width: 48, height: 50, alignItems: 'center', justifyContent: 'center' },
+  input: { minHeight: 48, borderWidth: 1, borderRadius: radii.lg, fontSize: 16, paddingHorizontal: 14 },
+  passwordField: { minHeight: 48, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: radii.lg, overflow: 'hidden' },
+  passwordInput: { minHeight: 46, flex: 1, fontSize: 16, paddingLeft: 14, paddingRight: 8 },
+  passwordToggle: { width: 48, height: 46, alignItems: 'center', justifyContent: 'center' },
   error: { ...type.caption, lineHeight: 18 },
-  forgotButton: { minHeight: 40, alignSelf: 'flex-end', justifyContent: 'center', marginTop: -4 },
+  forgotButton: { minHeight: 36, alignSelf: 'flex-end', justifyContent: 'center', marginTop: -3 },
   forgotText: { fontSize: 13, lineHeight: 17, fontWeight: '700' },
-  primaryButton: { minHeight: 52, borderRadius: radii.lg, alignItems: 'center', justifyContent: 'center', marginTop: 2 },
+  primaryButton: { minHeight: 48, borderRadius: radii.lg, alignItems: 'center', justifyContent: 'center', marginTop: 2 },
   primaryButtonText: { ...type.button },
   buttonDisabled: { opacity: 0.6 },
-  featureRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: 8, marginTop: 28 },
+  featureRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: 8, marginTop: 16 },
   featureText: { fontSize: 11, lineHeight: 14, fontWeight: '600' },
   featureDot: { width: 3, height: 3, borderRadius: radii.pill },
-  securityNote: { fontSize: 11, lineHeight: 16, textAlign: 'center', maxWidth: 330, alignSelf: 'center', marginTop: 14 },
+  securityNote: { fontSize: 10.5, lineHeight: 15, textAlign: 'center', maxWidth: 330, alignSelf: 'center', marginTop: 11 },
 });

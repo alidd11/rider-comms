@@ -794,3 +794,55 @@ body:has(#sheetBackdrop:not([hidden])) #joinNearbyBtn{opacity:0;pointer-events:n
 @media(prefers-color-scheme:light){
   .auth-mark,.auth-segmented,.auth-field>input,.password-field{background:var(--surface)}
 }
+
+
+/* Login visual baseline v2.
+   The approved product board is image-led: the auth screen now carries the
+   same rider photography and compact hierarchy as Ride/Routes instead of
+   reading like a generic SaaS form. PWA/native keep the same geometry. */
+.auth-screen{
+  padding:max(calc(var(--safe-top) + 18px),24px) max(20px,var(--safe-right)) max(calc(var(--safe-bottom) + 18px),24px) max(20px,var(--safe-left));
+}
+.auth-layout{padding-top:8px}
+.auth-hero{padding:0 0 14px}
+.auth-visual{
+  position:relative;
+  height:180px;
+  overflow:hidden;
+  margin:0 0 18px;
+  border:1px solid var(--border);
+  border-radius:var(--radius-lg);
+  background:
+    linear-gradient(180deg,rgb(4 8 11/.05) 28%,rgb(4 8 11/.82) 100%),
+    url("https://images.unsplash.com/photo-1770614956862-a143fb5e4921?auto=format&fit=crop&q=80&w=1200");
+  background-position:center 48%;
+  background-size:cover;
+}
+.auth-visual-copy{position:absolute;z-index:1;left:14px;right:14px;bottom:13px;color:#fff}
+.auth-visual-copy strong{display:block;font-size:1.55rem;font-weight:800;letter-spacing:-.045em;line-height:.98;text-shadow:0 2px 12px rgb(0 0 0/.5)}
+.auth-intro{padding:0 0 14px}
+.auth-intro .eyebrow{margin-bottom:6px;font-size:.63rem}
+.auth-intro h1{font-size:clamp(1.9rem,7.7vw,2.15rem);line-height:1.03;letter-spacing:-.045em}
+.auth-intro p{margin-top:7px;font-size:.82rem;line-height:1.42}
+.auth-segmented{margin-bottom:14px}
+.auth-segmented button{min-height:42px}
+.auth-form{gap:11px}
+.auth-field{gap:6px}
+.auth-field>input,.password-field{min-height:48px}
+.password-field input{min-height:46px}
+.password-toggle{height:46px}
+.auth-text-action{min-height:36px}
+.auth-submit{min-height:48px}
+.auth-terms{margin-top:12px;font-size:.63rem}
+.auth-assurance{padding-top:15px;font-size:.61rem}
+@media(max-height:760px) and (orientation:portrait){
+  .auth-screen{padding-top:max(calc(var(--safe-top) + 12px),18px)}
+  .auth-layout{padding-top:0}
+  .auth-hero{padding-bottom:10px}
+  .auth-visual{height:150px;margin-bottom:14px}
+  .auth-intro{padding-bottom:11px}
+  .auth-intro p{margin-top:5px}
+  .auth-segmented{margin-bottom:11px}
+  .auth-form{gap:9px}
+  .auth-assurance{padding-top:10px}
+}
