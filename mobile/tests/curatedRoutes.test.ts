@@ -10,6 +10,7 @@ import {
 const CONDITIONS_HOSTS = new Set([
   'one.network',
   'traffic.wales',
+  'www.gwynedd.llyw.cymru',
   'www.traffic.gov.scot',
   'www.trafficwatchni.com',
 ]);
