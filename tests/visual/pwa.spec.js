@@ -217,6 +217,56 @@ function expectNear(actual, expected, tolerance = 1.5) {
   expect(Math.abs(actual - expected)).toBeLessThanOrEqual(tolerance);
 }
 
+test('login baseline matches Rider Comms hierarchy in day and night', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'iphone-17-pro-max-webkit', 'Login baseline screenshots target iPhone 17 Pro Max geometry.');
+
+  for (const scheme of ['dark', 'light']) {
+    await page.emulateMedia({ colorScheme: scheme });
+    await page.goto('/');
+
+    await expect(page.locator('#authScreen')).toBeVisible();
+    await expect(page.locator('#app')).toBeHidden();
+    await expect(page.locator('#authTitle')).toHaveText('Ready to ride?');
+    await expect(page.locator('#authDescription')).toHaveText('Sign in to reconnect with your rides, friends and rider circle.');
+    await expect(page.locator('#loginForm')).toBeVisible();
+    await expect(page.locator('#signupForm')).toBeHidden();
+    await assertNoViewportOverflow(page);
+
+    const visual = await page.evaluate(() => {
+      const root = getComputedStyle(document.documentElement);
+      const mark = getComputedStyle(document.querySelector('.auth-mark'));
+      const tab = getComputedStyle(document.querySelector('.auth-segmented'));
+      const input = getComputedStyle(document.querySelector('#loginUsername'));
+      const button = getComputedStyle(document.querySelector('#loginSubmit'));
+      const card = getComputedStyle(document.querySelector('.auth-card'));
+      return {
+        background: root.getPropertyValue('--bg').trim().toLowerCase(),
+        surface: root.getPropertyValue('--surface').trim().toLowerCase(),
+        markRadius: parseFloat(mark.borderTopLeftRadius),
+        tabRadius: parseFloat(tab.borderTopLeftRadius),
+        inputRadius: parseFloat(input.borderTopLeftRadius),
+        buttonRadius: parseFloat(button.borderTopLeftRadius),
+        cardBackground: card.backgroundColor,
+        cardBorderWidth: parseFloat(card.borderTopWidth),
+      };
+    });
+
+    expect(visual.markRadius).toBeLessThanOrEqual(4);
+    expect(visual.tabRadius).toBeLessThanOrEqual(4);
+    expect(visual.inputRadius).toBeLessThanOrEqual(4);
+    expect(visual.buttonRadius).toBeLessThanOrEqual(4);
+    expect(visual.cardBackground).toBe('rgba(0, 0, 0, 0)');
+    expect(visual.cardBorderWidth).toBe(0);
+    expect(visual.background).toBe(scheme === 'dark' ? '#080d10' : '#e9eef0');
+    expect(visual.surface).toBe(scheme === 'dark' ? '#11171b' : '#f7f9fa');
+
+    await page.screenshot({
+      path: testInfo.outputPath(`iphone-17-pro-max-login-${scheme}-baseline.png`),
+      fullPage: true,
+    });
+  }
+});
+
 test('Rider Comms follows device day/night appearance with branded palettes', async ({ page }) => {
   await mockAuthenticatedApi(page);
 
