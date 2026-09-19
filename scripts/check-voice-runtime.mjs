@@ -1,13 +1,14 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const [appConfigSource, appSource, rideBarSource, proximitySource, voiceActivitySource, mapScreenSource] = await Promise.all([
+const [appConfigSource, appSource, rideBarSource, proximitySource, voiceActivitySource, mapScreenSource, pwaSource] = await Promise.all([
   readFile(new URL('../mobile/app.json', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/App.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/ride/RideBar.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/voice/ProximityVoice.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/audio/useVoiceActivity.ts', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/screens/MapScreen.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../docs/app.js', import.meta.url), 'utf8'),
 ]);
 
 const appConfig = JSON.parse(appConfigSource);
@@ -61,5 +62,15 @@ assert.match(
   /<ProximityVoice enabled=\{shareLocation\} peerIds=\{ridersInZone\} \/>/,
   'Nearby Voice transport must remain mounted for the live session while the peer roster changes',
 );
+assert.match(
+  pwaSource,
+  /events\.TrackSubscribed[\s\S]*track\.attach\(\)/,
+  'PWA voice must attach subscribed remote audio tracks for playback',
+);
+assert.match(
+  pwaSource,
+  /events\.TrackUnsubscribed[\s\S]*track\.detach\(\)/,
+  'PWA voice must detach remote audio tracks during teardown',
+);
 
-console.log('Native LiveKit bootstrap and safe microphone invariants valid');
+console.log('Native/PWA LiveKit bootstrap and safe microphone invariants valid');
