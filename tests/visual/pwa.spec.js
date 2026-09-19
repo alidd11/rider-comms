@@ -242,7 +242,9 @@ test('login baseline matches Rider Comms hierarchy in day and night', async ({ p
       const input = getComputedStyle(document.querySelector('#loginUsername'));
       const button = getComputedStyle(document.querySelector('#loginSubmit'));
       const card = getComputedStyle(document.querySelector('.auth-card'));
-      const hero = getComputedStyle(document.querySelector('.auth-visual'));
+      const heroElement = document.querySelector('.auth-visual');
+      const hero = getComputedStyle(heroElement);
+      const heroRect = heroElement.getBoundingClientRect();
       const title = getComputedStyle(document.querySelector('#authTitle'));
       return {
         background: root.getPropertyValue('--bg').trim().toLowerCase(),
@@ -255,9 +257,9 @@ test('login baseline matches Rider Comms hierarchy in day and night', async ({ p
         heroHeight: parseFloat(hero.height),
         heroRadius: parseFloat(hero.borderTopLeftRadius),
         heroBackground: hero.backgroundImage,
-        heroTop: hero.getBoundingClientRect().top,
-        heroLeft: hero.getBoundingClientRect().left,
-        heroWidth: hero.getBoundingClientRect().width,
+        heroTop: heroRect.top,
+        heroLeft: heroRect.left,
+        heroWidth: heroRect.width,
         viewportWidth: window.innerWidth,
         titleSize: parseFloat(title.fontSize),
       };
