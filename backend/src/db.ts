@@ -578,6 +578,15 @@ const MIGRATIONS: { name: string; sql: string }[] = [
         ON social_events (created_at);
     `,
   },
+  {
+    name: '0028_social_refresh_events',
+    sql: `
+      ALTER TABLE social_events DROP CONSTRAINT IF EXISTS social_events_event_type_check;
+      ALTER TABLE social_events ADD CONSTRAINT social_events_event_type_check CHECK (
+        event_type IN ('message', 'message_read', 'friend_request', 'friend_request_resolved', 'friend_removed', 'social_refresh')
+      );
+    `,
+  },
 ];
 
 /**

@@ -3,7 +3,7 @@ import type { Pool, PoolClient } from 'pg';
 import type { FriendRequest, FriendRequestStatus, FriendSummary } from '@rider-comms/shared';
 import type { ProfileStore } from './profileStore.ts';
 import { ensureMigrated, getPool } from './db.ts';
-import { appendSocialEvent } from './socialEventStore.ts';
+import { appendSocialEventForRiders } from './socialEventStore.ts';
 
 export type CreateFriendRequestResult =
   | { ok: true; request: FriendRequest }
@@ -170,7 +170,7 @@ export class FriendStore {
         await client.query('ROLLBACK');
         return { ok: false, error: 'request_exists' };
       }
-      await appendSocialEvent(client, toRiderId, 'friend_request', fromRiderId, request.id, request.createdAt);
+      await appendSocialEventForRiders(client, [fromRiderId, toRiderId], 'friend_request', fromRiderId, request.id, request.createdAt);
       await client.query('COMMIT');
       return { ok: true, request };
     } catch (error) {
@@ -274,7 +274,7 @@ export class FriendStore {
       }
       const request = rowToRequest(rows[0]);
       await this.addFriendship(client, request.fromRiderId, request.toRiderId);
-      await appendSocialEvent(client, request.fromRiderId, 'friend_request_resolved', request.toRiderId, request.id);
+      await appendSocialEventForRiders(client, [request.fromRiderId, request.toRiderId], 'friend_request_resolved', request.toRiderId, request.id);
       const friend = await this.summaryFor(request.fromRiderId);
       await client.query('COMMIT');
       return { ok: true, request, friend };
@@ -300,7 +300,7 @@ export class FriendStore {
         return { ok: false, error: 'not_found' };
       }
       const request = rowToRequest(rows[0]);
-      await appendSocialEvent(client, request.fromRiderId, 'friend_request_resolved', request.toRiderId, request.id);
+      await appendSocialEventForRiders(client, [request.fromRiderId, request.toRiderId], 'friend_request_resolved', request.toRiderId, request.id);
       await client.query('COMMIT');
       return { ok: true, request };
     } catch (error) {
@@ -327,7 +327,7 @@ export class FriendStore {
         return { ok: false, error: 'not_found' };
       }
       const request = rowToRequest(rows[0]);
-      await appendSocialEvent(client, request.toRiderId, 'friend_request_resolved', riderId, request.id);
+      await appendSocialEventForRiders(client, [request.fromRiderId, request.toRiderId], 'friend_request_resolved', riderId, request.id);
       await client.query('COMMIT');
       return { ok: true, request };
     } catch (error) {
@@ -394,10 +394,10 @@ export class FriendStore {
         [riderId, friendId],
       );
       if ((removedForward.rowCount ?? 0) > 0 || (removedReverse.rowCount ?? 0) > 0) {
-        await appendSocialEvent(client, friendId, 'friend_removed', riderId, riderId);
+        await appendSocialEventForRiders(client, [riderId, friendId], 'friend_removed', riderId, riderId);
       }
       for (const request of removedRequests.rows) {
-        await appendSocialEvent(client, friendId, 'friend_request_resolved', riderId, request.id);
+        await appendSocialEventForRiders(client, [riderId, friendId], 'friend_request_resolved', riderId, request.id);
       }
       await client.query('COMMIT');
     } catch (error) {

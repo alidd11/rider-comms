@@ -37,6 +37,14 @@ describe('FriendStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping 
       assert.equal(result.request.toRiderId, 'b');
       assert.equal(result.request.status, 'pending');
       assert.ok(result.request.id);
+      const fanout = await getPool().query<{ rider_id: string }>(
+        `SELECT rider_id
+         FROM social_events
+         WHERE event_type = 'friend_request' AND entity_id = $1
+         ORDER BY rider_id`,
+        [result.request.id],
+      );
+      assert.deepEqual(fanout.rows.map(({ rider_id }) => rider_id), ['a', 'b']);
     }
   });
 
@@ -64,6 +72,18 @@ describe('FriendStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping 
        WHERE status = 'pending' AND ((from_rider_id = 'a' AND to_rider_id = 'b') OR (from_rider_id = 'b' AND to_rider_id = 'a'))`,
     );
     assert.equal(Number(rows[0]?.count), 1);
+    const successful = results.find((result) => result.ok);
+    assert.ok(successful?.ok);
+    if (successful?.ok) {
+      const fanout = await getPool().query<{ rider_id: string }>(
+        `SELECT rider_id
+         FROM social_events
+         WHERE event_type = 'friend_request' AND entity_id = $1
+         ORDER BY rider_id`,
+        [successful.request.id],
+      );
+      assert.deepEqual(fanout.rows.map(({ rider_id }) => rider_id), ['a', 'b']);
+    }
   });
 
   it('rejects a request between already-friends riders', async () => {
@@ -194,6 +214,13 @@ describe('FriendStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping 
        WHERE rider_id = 'b' AND event_type = 'friend_removed'`,
     );
     assert.equal(Number(rows[0]?.count), 1);
+    const mirrored = await getPool().query<{ rider_id: string }>(
+      `SELECT rider_id
+       FROM social_events
+       WHERE event_type = 'friend_removed'
+       ORDER BY rider_id`,
+    );
+    assert.deepEqual(mirrored.rows.map(({ rider_id }) => rider_id), ['a', 'b']);
   });
 
   it('removeFriend also clears pending requests in either direction', async () => {
@@ -217,5 +244,14 @@ describe('FriendStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping 
     assert.deepEqual(rows, [
       { event_type: 'friend_request_resolved', actor_id: 'pending-b', entity_id: request.ok ? request.request.id : '' },
     ]);
+    const mirrored = await getPool().query<{ rider_id: string }>(
+      `SELECT rider_id
+       FROM social_events
+       WHERE event_type = 'friend_request_resolved'
+         AND entity_id = $1
+       ORDER BY rider_id`,
+      [request.ok ? request.request.id : ''],
+    );
+    assert.deepEqual(mirrored.rows.map(({ rider_id }) => rider_id), ['pending-a', 'pending-b']);
   });
 });
