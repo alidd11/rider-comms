@@ -4115,23 +4115,23 @@
     authFormsWired = true;
     const authCopy = {
       login: {
-        eyebrow: 'Back on the road',
-        title: 'The pack’s waiting.',
-        description: 'Log in to find your riders, rejoin the group, and pick up where the ride left off.',
+        eyebrow: 'Welcome back',
+        title: 'Ready to ride?',
+        description: 'Sign in to reconnect with your rides, friends and rider circle.',
       },
       signup: {
         eyebrow: 'New rider',
-        title: 'Suit up. Roll out.',
-        description: 'Set up your Rider Comms identity and link up with the riders you trust.',
+        title: 'Create your account',
+        description: 'Set up your Rider Comms identity and keep your rides and rider circle across devices.',
       },
       recover: {
         eyebrow: 'Account recovery',
-        title: 'Get back on the road.',
-        description: 'Request a one-hour password reset link without revealing whether an account exists.',
+        title: 'Get back in',
+        description: 'Request a one-hour reset link without revealing whether an account exists.',
       },
       reset: {
         eyebrow: 'Secure reset',
-        title: 'Choose a new password.',
+        title: 'Choose a new password',
         description: 'Enter the one-hour code from your email. Every existing session will be signed out.',
       },
     };
@@ -4197,6 +4197,7 @@
       void resetPassword($('#resetToken').value.trim(), $('#resetPassword').value);
     });
     if (initialResetToken) { $('#resetToken').value = initialResetToken; setAuthMode('reset', false); }
+    else setAuthMode('login', false);
   }
 
   function consumePasswordResetLink() {
