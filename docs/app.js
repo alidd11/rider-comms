@@ -1126,11 +1126,16 @@
       if (older) chatHasLoadedOlder = true;
       if (!chatHasLoadedOlder || older) chatNextCursor = page.nextCursor;
       chatPeerReadThroughMessageId = page.peerReadThroughMessageId || null;
-      if (!older) {
-        await apiFetch('POST', '/messages/read', { withRiderId: riderId });
-        await refreshMessageSummaries();
-      }
       setChatError('');
+      if (!older) {
+        try {
+          await apiFetch('POST', '/messages/read', { withRiderId: riderId });
+          await refreshMessageSummaries();
+        } catch {
+          // The conversation loaded successfully. Read-state reconciliation
+          // can recover independently without turning the thread into an error.
+        }
+      }
       renderChat();
       if (!older) requestAnimationFrame(() => { $('#chatThread').scrollTop = $('#chatThread').scrollHeight; });
     } catch (error) {
