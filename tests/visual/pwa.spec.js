@@ -303,6 +303,79 @@ test('login baseline matches Rider Comms hierarchy in day and night', async ({ p
   }
 });
 
+test('ride join baseline owns the iPhone top edge in day and night', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'iphone-17-pro-max-webkit', 'Ride baseline screenshots target iPhone 17 Pro Max geometry.');
+
+  await mockAuthenticatedApi(page, 'stationary');
+
+  for (const scheme of ['dark', 'light']) {
+    await page.emulateMedia({ colorScheme: scheme });
+    await page.goto('/');
+    await expect(page.locator('#app')).toBeVisible();
+    await page.locator('.bottom-nav [data-nav="ride"]').click();
+    await expect(page.locator('#rideJoinState')).toBeVisible();
+    await expect(page.locator('.ride-hero')).toBeVisible();
+    await expect(page.locator('#joinRideForm')).toBeVisible();
+    await expect(page.locator('#rideHostMode')).toBeVisible();
+    await assertNoViewportOverflow(page);
+
+    const visual = await page.evaluate(() => {
+      const screen = document.querySelector('[data-screen="ride"]');
+      const header = screen.querySelector('.page-header');
+      const heroElement = screen.querySelector('.ride-hero');
+      const join = screen.querySelector('.ride-entry');
+      const slot = screen.querySelector('.ride-code-slots span');
+      const button = screen.querySelector('.ride-join-button');
+      const start = screen.querySelector('.ride-start-row');
+      const nav = document.querySelector('.bottom-nav');
+      const box = (element) => element.getBoundingClientRect();
+      const hero = getComputedStyle(heroElement);
+      return {
+        screenTop: box(screen).top,
+        headerHeight: box(header).height,
+        heroTop: box(heroElement).top,
+        heroLeft: box(heroElement).left,
+        heroWidth: box(heroElement).width,
+        heroHeight: box(heroElement).height,
+        heroRadius: parseFloat(hero.borderTopLeftRadius),
+        joinTop: box(join).top,
+        joinRadius: parseFloat(getComputedStyle(join).borderTopLeftRadius),
+        slotHeight: box(slot).height,
+        slotRadius: parseFloat(getComputedStyle(slot).borderTopLeftRadius),
+        buttonHeight: box(button).height,
+        startHeight: box(start).height,
+        startRadius: parseFloat(getComputedStyle(start).borderTopLeftRadius),
+        startBottom: box(start).bottom,
+        navTop: box(nav).top,
+        viewportWidth: window.innerWidth,
+        titleWidth: box(document.querySelector('#rideTitle')).width,
+      };
+    });
+
+    expectNear(visual.heroTop, visual.screenTop);
+    expectNear(visual.heroLeft, 0);
+    expectNear(visual.heroWidth, visual.viewportWidth);
+    expect(visual.headerHeight).toBeLessThanOrEqual(1);
+    expect(visual.titleWidth).toBeLessThanOrEqual(1);
+    expect(visual.heroHeight).toBeGreaterThanOrEqual(238);
+    expect(visual.heroRadius).toBe(0);
+    expect(visual.joinTop - (visual.heroTop + visual.heroHeight)).toBeGreaterThanOrEqual(10);
+    expect(visual.joinTop - (visual.heroTop + visual.heroHeight)).toBeLessThanOrEqual(14);
+    expect(visual.joinRadius).toBeLessThanOrEqual(4);
+    expect(visual.slotHeight).toBeLessThanOrEqual(42);
+    expect(visual.slotRadius).toBeLessThanOrEqual(4);
+    expect(visual.buttonHeight).toBeLessThanOrEqual(46);
+    expect(visual.startHeight).toBeLessThanOrEqual(66);
+    expect(visual.startRadius).toBeLessThanOrEqual(4);
+    expect(visual.startBottom).toBeLessThanOrEqual(visual.navTop + 2);
+
+    await page.screenshot({
+      path: testInfo.outputPath(`iphone-17-pro-max-ride-${scheme}-baseline.png`),
+      fullPage: true,
+    });
+  }
+});
+
 test('Rider Comms follows device day/night appearance with branded palettes', async ({ page }) => {
   await mockAuthenticatedApi(page);
 

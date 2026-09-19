@@ -1027,3 +1027,198 @@ body:has(#sheetBackdrop:not([hidden])) #joinNearbyBtn{opacity:0;pointer-events:n
   .auth-segmented{background:var(--surface-raised)}
   .auth-screen .auth-field>input,.auth-screen .password-field{background:var(--surface)}
 }
+
+
+/* Ride mockup parity.
+   On phone layouts the rider photograph owns the physical top edge, including
+   the safe-top/Dynamic-Island region. The legacy title remains accessible but
+   consumes no visual space above the hero. */
+@media(max-width:699px){
+  .ride-screen{
+    padding:0 0 calc(var(--bottom-nav-height) + 20px);
+    background:var(--bg);
+  }
+  .ride-screen>.page-width{
+    width:100%;
+    max-width:none;
+    margin:0;
+  }
+  .ride-screen .page-header{
+    position:absolute;
+    z-index:5;
+    top:calc(var(--safe-top) + 8px);
+    left:max(20px,var(--safe-left));
+    right:max(20px,var(--safe-right));
+    height:0;
+    min-height:0;
+    margin:0;
+    overflow:visible;
+    pointer-events:none;
+  }
+  .ride-screen .page-header h1{
+    position:absolute!important;
+    width:1px!important;
+    height:1px!important;
+    padding:0!important;
+    margin:-1px!important;
+    overflow:hidden!important;
+    clip:rect(0,0,0,0)!important;
+    white-space:nowrap!important;
+    border:0!important;
+  }
+  .ride-screen .page-header .icon-button{
+    position:absolute;
+    top:0;
+    right:0;
+    pointer-events:auto;
+  }
+  #rideJoinState{display:block}
+  #rideJoinState .ride-hero{
+    position:relative;
+    width:100vw;
+    height:calc(244px + var(--safe-top));
+    margin:0;
+    overflow:hidden;
+    border:0;
+    border-radius:0;
+    background-image:
+      linear-gradient(180deg,rgb(3 7 9/.03) 28%,rgb(3 7 9/.18) 58%,rgb(3 7 9/.82) 100%),
+      url("https://images.unsplash.com/photo-1770614956862-a143fb5e4921?auto=format&fit=crop&q=82&w=1400");
+    background-position:center 52%;
+    background-size:cover;
+  }
+  #rideJoinState .ride-hero::after{
+    content:"";
+    position:absolute;
+    inset:auto 0 0;
+    height:36px;
+    pointer-events:none;
+    background:linear-gradient(180deg,transparent,color-mix(in srgb,var(--bg) 36%,transparent));
+  }
+  #rideJoinState .ride-hero-copy{
+    left:max(22px,var(--safe-left));
+    right:max(22px,var(--safe-right));
+    bottom:18px;
+  }
+  #rideJoinState .ride-hero-copy strong{
+    max-width:265px;
+    font-size:1.9rem;
+    line-height:.94;
+    letter-spacing:-.052em;
+    text-shadow:0 2px 14px rgb(0 0 0/.48);
+  }
+  #rideJoinState .ride-entry{
+    width:calc(100% - 40px);
+    margin:12px 20px 0;
+    overflow:hidden;
+    border:1px solid var(--border-soft);
+    border-radius:var(--radius-lg);
+    background:var(--surface);
+    box-shadow:none;
+  }
+  #rideJoinState .ride-entry-heading{padding:11px 12px 0}
+  #rideJoinState .ride-entry-heading h2{
+    margin:0;
+    font-size:.82rem;
+    font-weight:800;
+    line-height:1.15;
+    letter-spacing:-.015em;
+  }
+  #rideJoinState .ride-entry .ride-form{padding:8px 12px 11px}
+  #rideJoinState .ride-entry .ride-form>label:not(.ride-location-consent){
+    margin-bottom:6px;
+    color:var(--text-secondary);
+    font-size:.67rem;
+    font-weight:700;
+  }
+  #rideJoinState .ride-code-slots{gap:5px}
+  #rideJoinState .ride-code-slots span{
+    height:40px;
+    border-color:var(--border-soft);
+    border-radius:var(--radius-lg);
+    background:var(--surface-raised);
+    font-size:.84rem;
+  }
+  #rideJoinState .ride-code-slots span.active{border-color:var(--accent)}
+  #rideJoinState .ride-join-button{
+    min-height:44px;
+    margin-top:7px;
+    border-radius:var(--radius-lg);
+    font-size:.8rem;
+  }
+  #rideJoinState .support-copy{
+    margin:6px 0 0;
+    color:var(--text-muted);
+    font-size:.64rem;
+    line-height:1.35;
+  }
+  #rideJoinState .ride-location-consent{
+    min-height:44px;
+    margin:8px 0 0!important;
+    padding:8px 0 0;
+    gap:8px;
+    border:0;
+    border-top:1px solid var(--border-soft);
+    background:transparent;
+  }
+  #rideJoinState .ride-location-consent input{
+    width:18px;
+    height:18px;
+    margin-top:1px;
+  }
+  #rideJoinState .ride-location-consent strong{
+    font-size:.69rem;
+    line-height:1.2;
+  }
+  #rideJoinState .ride-location-consent small{
+    margin-top:2px;
+    color:var(--text-muted);
+    font-size:.62rem;
+    line-height:1.34;
+  }
+  #rideJoinState .ride-start-row{
+    width:calc(100% - 40px);
+    min-height:62px;
+    margin:9px 20px 0;
+    padding:9px 11px;
+    gap:10px;
+    border:1px solid var(--border-soft);
+    border-radius:var(--radius-lg);
+    background:var(--surface);
+    box-shadow:none;
+  }
+  #rideJoinState .ride-start-icon{
+    width:38px;
+    height:38px;
+    background:var(--surface-raised);
+    color:var(--text-secondary);
+  }
+  #rideJoinState .ride-start-icon svg{width:20px;height:20px}
+  #rideJoinState .ride-start-copy strong{
+    font-size:.77rem;
+    line-height:1.2;
+  }
+  #rideJoinState .ride-start-copy small{
+    margin-top:3px;
+    color:var(--text-muted);
+    font-size:.63rem;
+    line-height:1.34;
+  }
+  #rideJoinState .ride-start-chevron{width:15px;height:15px}
+  #rideJoinState .ride-mode-return{
+    min-height:38px;
+    margin:4px 20px 0;
+    padding:0;
+    font-size:.69rem;
+  }
+  #rideActiveState{
+    width:min(calc(100% - 40px),680px);
+    margin:calc(var(--safe-top) + 68px) auto 0;
+  }
+}
+@media(max-width:699px) and (max-height:760px) and (orientation:portrait){
+  #rideJoinState .ride-hero{height:calc(214px + var(--safe-top))}
+  #rideJoinState .ride-entry{margin-top:10px}
+  #rideJoinState .ride-entry .ride-form{padding-top:7px;padding-bottom:9px}
+  #rideJoinState .ride-start-row{margin-top:8px}
+}
