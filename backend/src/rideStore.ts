@@ -203,6 +203,25 @@ export class RideStore {
     return this.loadRide(rideId);
   }
 
+  async getVoiceCleanupTargetsForRider(riderId: string): Promise<{ hostedRideIds: string[]; memberRideIds: string[] }> {
+    await ensureMigrated();
+    const { rows } = await getPool().query<{ id: string; created_by: string }>(
+      `SELECT ride.id, ride.created_by
+       FROM rides ride
+       LEFT JOIN ride_members member
+         ON member.ride_id = ride.id
+        AND member.rider_id = $1
+       WHERE ride.created_by = $1
+          OR member.rider_id = $1
+       ORDER BY ride.id`,
+      [riderId],
+    );
+    return {
+      hostedRideIds: rows.filter((row) => row.created_by === riderId).map((row) => row.id),
+      memberRideIds: rows.filter((row) => row.created_by !== riderId).map((row) => row.id),
+    };
+  }
+
   async getCurrentCode(rideId: string): Promise<RideCodeRecord | undefined> {
     await ensureMigrated();
     const { rows } = await getPool().query<RideCodeRow>(
