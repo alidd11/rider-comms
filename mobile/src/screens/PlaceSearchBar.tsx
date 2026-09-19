@@ -161,6 +161,7 @@ export function PlaceSearchBar({
       >
         <Ionicons name="search" size={19} color={colors.textMuted} />
         <Text style={styles.collapsedText}>Search for a place</Text>
+        <Ionicons name="options-outline" size={18} color={colors.textSecondary} />
       </Pressable>
 
       <Modal visible={open} animationType="slide" presentationStyle="fullScreen" onRequestClose={close}>
@@ -379,11 +380,11 @@ function SearchState({ icon, title, copy, compact = false, actionLabel, onAction
 
 const styles = StyleSheet.create({
   collapsed: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: MIN_TOUCH_TARGET,
-    paddingHorizontal: spacing.md, borderRadius: radii.lg, backgroundColor: colors.surface,
-    borderWidth: 1, borderColor: colors.border,
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 46,
+    paddingHorizontal: 12, borderRadius: radii.sm, backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border,
   },
-  collapsedText: { ...type.body, color: colors.textMuted },
+  collapsedText: { ...type.body, color: colors.textMuted, flex: 1, fontSize: 13 },
   pressed: { opacity: 0.76 },
   screen: { flex: 1, backgroundColor: colors.background },
   header: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.md, paddingVertical: 10 },
