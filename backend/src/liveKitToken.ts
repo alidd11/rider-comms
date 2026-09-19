@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { AccessToken, TrackSource } from 'livekit-server-sdk';
+import { AccessToken, RoomServiceClient, TrackSource } from 'livekit-server-sdk';
 
 /**
  * Voice transport (spec Sections 4/5/7): mints a short-lived LiveKit room
@@ -13,6 +13,36 @@ export interface LiveKitCredentials {
   apiKey: string;
   apiSecret: string;
   url: string;
+}
+
+export interface VoiceRoomAdmin {
+  removeParticipant(roomName: string, identity: string): Promise<void>;
+  deleteRoom(roomName: string): Promise<void>;
+}
+
+export function liveKitServiceUrl(url: string): string {
+  const parsed = new URL(url);
+  if (parsed.protocol === 'wss:') parsed.protocol = 'https:';
+  else if (parsed.protocol === 'ws:') parsed.protocol = 'http:';
+  else if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+    throw new Error('LIVEKIT_URL must use ws, wss, http, or https');
+  }
+  return parsed.toString().replace(/\/$/, '');
+}
+
+export function createVoiceRoomAdmin(credentials: LiveKitCredentials): VoiceRoomAdmin {
+  const client = new RoomServiceClient(
+    liveKitServiceUrl(credentials.url),
+    credentials.apiKey,
+    credentials.apiSecret,
+  );
+  return {
+    // LiveKit's RemoveParticipant RPC also revokes previously issued tokens
+    // for this identity. When revokeTokenTs is omitted the protocol defaults
+    // to server-now plus one minute of clock-skew leeway.
+    removeParticipant: (roomName, identity) => client.removeParticipant(roomName, identity),
+    deleteRoom: (roomName) => client.deleteRoom(roomName),
+  };
 }
 
 export function getLiveKitCredentialsFromEnv(env: NodeJS.ProcessEnv = process.env): LiveKitCredentials | null {
