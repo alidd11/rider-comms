@@ -37,10 +37,10 @@ describe('AccountDeletionStore', () => {
     assert.equal(fake.queries.some(({ text }) => text === 'ROLLBACK'), false);
     assert.deepEqual(
       fake.queries.filter(({ values }) => values).map(({ values }) => values),
-      Array.from({ length: 19 }, () => ['rider-delete']),
+      Array.from({ length: 20 }, () => ['rider-delete']),
     );
     for (const table of [
-      'ride_members', 'rides', 'friendships', 'friend_requests',
+      'ride_exclusions', 'ride_members', 'rides', 'friendships', 'friend_requests',
       'direct_message_reads', 'direct_messages', 'hideout_participants', 'hideouts',
       'rider_presence', 'rider_activity', 'social_events', 'social_rate_events', 'rider_profiles', 'rider_blocks', 'safety_reports',
       'hazard_report_votes', 'hazard_reports', 'scenic_routes', 'users',
