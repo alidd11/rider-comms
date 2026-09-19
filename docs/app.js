@@ -767,9 +767,13 @@
 
   async function refreshFriendActivity() {
     if (!state.profile.riderId) return;
-    const result = await apiFetch('GET', '/friends/activity').catch(() => ({ activity: [] }));
-    friendActivity = new Map((Array.isArray(result.activity) ? result.activity : []).map((item) => [item.riderId, item]));
-    renderFriends();
+    try {
+      const result = await apiFetch('GET', '/friends/activity');
+      friendActivity = new Map((Array.isArray(result.activity) ? result.activity : []).map((item) => [item.riderId, item]));
+      renderFriends();
+    } catch {
+      // Preserve the last known activity state on transient network errors.
+    }
   }
 
   async function refreshMessageSummaries() {
@@ -1386,12 +1390,14 @@
       const [friendsResult, requestsResult, activityResult, conversations, unread] = await Promise.all([
         loadAllFriendPages(),
         loadAllFriendRequestPages(),
-        apiFetch('GET', '/friends/activity').catch(() => ({ activity: [] })),
+        apiFetch('GET', '/friends/activity').catch(() => null),
         loadAllConversationPages(),
         apiFetch('GET', '/messages/unread-count'),
       ]);
       state.friends = friendsResult.map((friend) => ({ riderId: friend.riderId, displayName: friend.displayName, handle: friend.handle, avatarId: friend.avatarId || 'ember', status: 'Connected' }));
-      friendActivity = new Map((Array.isArray(activityResult.activity) ? activityResult.activity : []).map((item) => [item.riderId, item]));
+      if (activityResult) {
+        friendActivity = new Map((Array.isArray(activityResult.activity) ? activityResult.activity : []).map((item) => [item.riderId, item]));
+      }
       conversationSummaries = new Map(conversations.map((conversation) => [conversation.friend.riderId, conversation]));
       unreadMessageCount = Number.isFinite(unread.unreadCount) ? unread.unreadCount : 0;
 
