@@ -5,7 +5,7 @@
 // once this app has a real map SDK behind it, which costs real money per
 // load. One persistent map, switched by a segment, keeps that to one.
 import * as React from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, ImageBackground, ScrollView, StatusBar } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, ImageBackground, ScrollView, StatusBar, useWindowDimensions } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -22,6 +22,12 @@ const RIDE_HERO_IMAGE = 'https://images.unsplash.com/photo-1770614956862-a143fb5
 function JoinOrHostForm(): React.JSX.Element {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const insets = useSafeAreaInsets();
+  const { height: viewportHeight } = useWindowDimensions();
+  const heroHeight = viewportHeight <= 760
+    ? 214 + insets.top
+    : viewportHeight >= 820
+      ? Math.max(244 + insets.top, Math.min(viewportHeight * 0.47, 400 + insets.top))
+      : 244 + insets.top;
   const { startRide } = useRide();
   const { client } = useAuth();
   const [code, setCode] = React.useState('');
@@ -67,7 +73,7 @@ function JoinOrHostForm(): React.JSX.Element {
       >
         <ImageBackground
           source={{ uri: RIDE_HERO_IMAGE }}
-          style={[styles.hero, { height: 244 + insets.top }]}
+          style={[styles.hero, { height: heroHeight }]}
           imageStyle={styles.heroImage}
           accessibilityRole="image"
           accessibilityLabel="Motorcyclists riding together on a winding mountain road"
