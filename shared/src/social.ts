@@ -72,7 +72,8 @@ export type SocialEventType =
   | 'message_read'
   | 'friend_request'
   | 'friend_request_resolved'
-  | 'friend_removed';
+  | 'friend_removed'
+  | 'social_refresh';
 
 /**
  * A lightweight invalidation event for authenticated social state.
