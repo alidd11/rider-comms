@@ -796,83 +796,234 @@ body:has(#sheetBackdrop:not([hidden])) #joinNearbyBtn{opacity:0;pointer-events:n
 }
 
 
-/* Login visual baseline v2.
-   The approved product board is image-led: the auth screen now carries the
-   same rider photography and compact hierarchy as Ride/Routes instead of
-   reading like a generic SaaS form. PWA/native keep the same geometry. */
+/* Login mockup parity.
+   Image-first, edge-to-edge iPhone composition shared with native. Geometry is
+   intentionally identical in light and dark; semantic colour tokens do the
+   appearance work. */
 .auth-screen{
-  padding:max(calc(var(--safe-top) + 18px),24px) max(20px,var(--safe-right)) max(calc(var(--safe-bottom) + 18px),24px) max(20px,var(--safe-left));
-}
-.auth-layout{padding-top:8px}
-.auth-hero{padding:0 0 14px}
-.auth-visual{
-  position:relative;
-  height:180px;
-  overflow:hidden;
-  margin:0 0 18px;
-  border:1px solid var(--border);
-  border-radius:var(--radius-lg);
-  background:
-    linear-gradient(180deg,rgb(4 8 11/.05) 28%,rgb(4 8 11/.82) 100%),
-    url("https://images.unsplash.com/photo-1770614956862-a143fb5e4921?auto=format&fit=crop&q=80&w=1200");
-  background-position:center 48%;
-  background-size:cover;
-}
-.auth-visual-copy{position:absolute;z-index:1;left:14px;right:14px;bottom:13px;color:#fff}
-.auth-visual-copy strong{display:block;font-size:1.55rem;font-weight:800;letter-spacing:-.045em;line-height:.98;text-shadow:0 2px 12px rgb(0 0 0/.5)}
-.auth-intro{padding:0 0 14px}
-.auth-intro .eyebrow{margin-bottom:6px;font-size:.63rem}
-.auth-intro h1{font-size:clamp(1.9rem,7.7vw,2.15rem);line-height:1.03;letter-spacing:-.045em}
-.auth-intro p{margin-top:7px;font-size:.82rem;line-height:1.42}
-.auth-segmented{margin-bottom:14px}
-.auth-segmented button{min-height:42px}
-.auth-form{gap:11px}
-.auth-field{gap:6px}
-.auth-field>input,.password-field{min-height:48px}
-.password-field input{min-height:46px}
-.password-toggle{height:46px}
-.auth-text-action{min-height:36px}
-.auth-submit{min-height:48px}
-.auth-terms{margin-top:12px;font-size:.63rem}
-.auth-assurance{padding-top:15px;font-size:.61rem}
-@media(max-height:760px) and (orientation:portrait){
-  .auth-screen{padding-top:max(calc(var(--safe-top) + 12px),18px)}
-  .auth-layout{padding-top:0}
-  .auth-hero{padding-bottom:10px}
-  .auth-visual{height:150px;margin-bottom:14px}
-  .auth-intro{padding-bottom:11px}
-  .auth-intro p{margin-top:5px}
-  .auth-segmented{margin-bottom:11px}
-  .auth-form{gap:9px}
-  .auth-assurance{padding-top:10px}
-}
-
-
-/* Login visual baseline v3.
-   The rider image owns the system-status-bar/Dynamic-Island edge. The
-   standalone brand row above it is intentionally removed so auth opens with
-   the same image-first composition as the approved Rider Comms board. */
-.auth-screen{
-  padding-top:0;
+  padding:0 max(20px,var(--safe-right)) max(calc(var(--safe-bottom) + 16px),22px) max(20px,var(--safe-left));
+  background:var(--bg);
 }
 .auth-layout{
-  min-height:calc(100dvh - max(calc(var(--safe-bottom) + 18px),24px));
-  padding-top:0;
+  width:min(100%,440px);
+  min-height:calc(100dvh - max(calc(var(--safe-bottom) + 16px),22px));
+  margin:0 auto;
+  padding:0;
+  justify-content:flex-start;
 }
 .auth-visual{
+  position:relative;
   width:100vw;
-  height:calc(220px + var(--safe-top));
-  margin:0 0 18px calc(50% - 50vw);
+  height:calc(244px + var(--safe-top));
+  overflow:hidden;
+  margin:0 0 0 calc(50% - 50vw);
   border:0;
   border-radius:0;
-  background-position:center 48%;
+  background:
+    linear-gradient(180deg,rgb(3 7 9/.04) 28%,rgb(3 7 9/.22) 58%,rgb(3 7 9/.78) 100%),
+    url("https://images.unsplash.com/photo-1770614956862-a143fb5e4921?auto=format&fit=crop&q=82&w=1400");
+  background-position:center 50%;
+  background-size:cover;
+}
+.auth-visual::after{
+  content:"";
+  position:absolute;
+  inset:auto 0 0;
+  height:34px;
+  pointer-events:none;
+  background:linear-gradient(180deg,transparent,color-mix(in srgb,var(--bg) 32%,transparent));
+}
+.auth-visual-copy{
+  position:absolute;
+  z-index:1;
+  left:max(22px,var(--safe-left));
+  right:max(22px,var(--safe-right));
+  bottom:18px;
+  color:#fff;
+}
+.auth-visual-copy strong{
+  display:block;
+  max-width:260px;
+  font-size:1.9rem;
+  font-weight:800;
+  letter-spacing:-.052em;
+  line-height:.94;
+  text-shadow:0 2px 14px rgb(0 0 0/.48);
+}
+.auth-card{
+  width:100%;
+  margin:0;
+  padding:17px 0 0;
+  border:0;
+  border-radius:0;
+  background:transparent;
+  box-shadow:none;
+}
+.auth-intro{padding:0 2px 13px}
+.auth-intro .eyebrow{
+  display:block;
+  margin:0 0 6px;
+  color:var(--accent);
+  font-size:.61rem;
+  font-weight:820;
+  letter-spacing:.16em;
+}
+.auth-intro h1{
+  max-width:none;
+  margin:0;
+  font-size:clamp(1.95rem,8.1vw,2.18rem);
+  font-weight:800;
+  line-height:1;
+  letter-spacing:-.052em;
+}
+.auth-intro p{
+  max-width:370px;
+  margin:7px 0 0;
+  color:var(--text-secondary);
+  font-size:.8rem;
+  line-height:1.38;
+}
+.auth-segmented{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:2px;
+  margin:0 0 12px;
+  padding:3px;
+  min-height:42px;
+  border:1px solid var(--border-soft);
+  border-radius:var(--radius-lg);
+  background:var(--surface-raised);
+}
+.auth-segmented button{
+  position:relative;
+  min-height:36px;
+  border:0;
+  border-radius:var(--radius-sm);
+  background:transparent;
+  color:var(--text-muted);
+  font-size:.76rem;
+  font-weight:760;
+  transition:background 140ms ease,color 140ms ease;
+}
+.auth-segmented button.active{
+  background:var(--surface);
+  color:var(--text);
+  box-shadow:inset 0 0 0 1px var(--border-soft);
+}
+.auth-segmented button:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
+.auth-form{display:grid;gap:10px}
+.auth-form[hidden]{display:none}
+.auth-field{display:grid;gap:5px}
+.auth-field label{
+  color:var(--text-secondary);
+  font-size:.69rem;
+  font-weight:730;
+  letter-spacing:.005em;
+}
+.auth-field>input,.password-field{
+  width:100%;
+  min-height:46px;
+  border:1px solid var(--border-soft);
+  border-radius:var(--radius-lg);
+  background:var(--surface);
+  box-shadow:inset 3px 0 0 transparent;
+  transition:border-color 140ms ease,background 140ms ease,box-shadow 140ms ease;
+}
+.auth-field>input{padding:0 13px;color:var(--text);font-size:.91rem}
+.password-field{display:flex;align-items:center;overflow:hidden}
+.password-field input{
+  min-width:0;
+  min-height:44px;
+  flex:1;
+  padding:0 7px 0 13px;
+  border:0;
+  outline:0;
+  background:transparent;
+  color:var(--text);
+  font-size:.91rem;
+}
+.password-toggle{
+  width:44px;
+  height:44px;
+  display:grid;
+  place-items:center;
+  flex:none;
+  border:0;
+  background:transparent;
+  color:var(--text-muted);
+}
+.password-toggle svg{width:19px;height:19px}
+.auth-field>input:focus,.password-field:focus-within{
+  border-color:color-mix(in srgb,var(--accent) 72%,var(--border));
+  background:var(--surface);
+  box-shadow:inset 3px 0 0 var(--accent);
+}
+.password-toggle:focus-visible{border-radius:var(--radius-lg)}
+.auth-text-action{
+  min-height:32px;
+  justify-self:end;
+  padding:0 1px;
+  border:0;
+  background:transparent;
+  color:var(--accent);
+  font-size:.7rem;
+  font-weight:760;
+}
+.auth-submit{
+  min-height:48px;
+  margin-top:1px;
+  border-radius:var(--radius-lg);
+  font-size:.86rem;
+  box-shadow:none;
+}
+.auth-requirements{margin:0;color:var(--text-muted);font-size:.66rem;line-height:1.38}
+.auth-error,.auth-notice{border-radius:var(--radius-lg)}
+.auth-notice{margin-bottom:10px}
+.auth-terms{
+  max-width:326px;
+  margin:11px auto 0;
+  color:var(--text-muted);
+  font-size:.61rem;
+  line-height:1.42;
+  text-align:center;
+}
+.auth-assurance{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  margin:0;
+  padding:10px 2px 0;
+  color:var(--text-secondary);
+  font-size:.6rem;
+  font-weight:720;
+  letter-spacing:.02em;
+}
+.auth-assurance i{
+  width:3px;
+  height:3px;
+  flex:none;
+  border-radius:50%;
+  background:var(--accent);
+  opacity:.72;
 }
 @media(max-height:760px) and (orientation:portrait){
-  .auth-screen{padding-top:0}
-  .auth-visual{height:calc(190px + var(--safe-top));margin-bottom:14px}
+  .auth-visual{height:calc(214px + var(--safe-top))}
+  .auth-card{padding-top:13px}
+  .auth-intro{padding-bottom:10px}
+  .auth-intro p{margin-top:5px}
+  .auth-segmented{margin-bottom:10px}
+  .auth-form{gap:8px}
+  .auth-terms{margin-top:9px}
+  .auth-assurance{padding-top:8px}
 }
 @media(min-width:700px){
-  .auth-screen{padding-top:max(calc(var(--safe-top) + 18px),24px)}
-  .auth-layout{min-height:calc(100dvh - max(calc(var(--safe-top) + 18px),24px) - max(calc(var(--safe-bottom) + 18px),24px));padding-top:8px}
-  .auth-visual{width:100%;height:220px;margin:0 0 18px;border:1px solid var(--border);border-radius:var(--radius-lg)}
+  .auth-screen{padding:max(calc(var(--safe-top) + 18px),24px) max(20px,var(--safe-right)) max(calc(var(--safe-bottom) + 18px),24px) max(20px,var(--safe-left))}
+  .auth-layout{min-height:calc(100dvh - max(calc(var(--safe-top) + 18px),24px) - max(calc(var(--safe-bottom) + 18px),24px))}
+  .auth-visual{width:100%;height:244px;margin:0;border:1px solid var(--border);border-radius:var(--radius-lg)}
+  .auth-card{padding-top:18px}
+}
+@media(prefers-color-scheme:light){
+  .auth-segmented{background:var(--surface-raised)}
+  .auth-field>input,.password-field{background:var(--surface)}
 }
