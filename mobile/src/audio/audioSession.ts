@@ -127,7 +127,10 @@ export function releaseVoiceAudioSession(ownerId: string): Promise<void> {
 
   return serializeSessionOperation(async () => {
     if (!sessionStarted || sessionOwners.size > 0) return;
-    await stopVoiceAudioSession();
+    // Clear our ownership state even if the platform throws while tearing
+    // the old route down. A later voice join must attempt a fresh start
+    // rather than trusting a stale in-memory "started" flag.
     sessionStarted = false;
+    await stopVoiceAudioSession();
   });
 }
