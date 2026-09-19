@@ -1,5 +1,7 @@
+import type { Pool } from 'pg';
 import type { ProfileUpdate, RiderProfile, UnitSystem, ZoneTier } from '@rider-comms/shared';
 import { ensureMigrated, getPool } from './db.ts';
+import { appendSocialEventForRiders } from './socialEventStore.ts';
 
 const ZONE_TIERS: ZoneTier[] = ['free', 'premium', 'premium_plus'];
 const UNIT_SYSTEMS: UnitSystem[] = ['mi', 'km'];
@@ -20,6 +22,13 @@ const ALLOWED_UPDATE_FIELDS = new Set([
   'notifyNearby', 'notifyInvites', 'notifyChat', 'shareLocation',
   'instagramUsername', 'instagramVisibility', 'tiktokUsername', 'tiktokVisibility',
 ]);
+
+const FRIEND_VISIBLE_PROFILE_FIELDS = new Set<keyof ProfileUpdate>([
+  'displayName', 'handle', 'avatarId',
+  'instagramUsername', 'instagramVisibility', 'tiktokUsername', 'tiktokVisibility',
+]);
+
+type ProfileQueryClient = Pick<Pool, 'query'>;
 
 /** Validates a subset of ProfileUpdate fields present on `body`. Returns an
  * error message for the first invalid field found, or null if everything
@@ -115,10 +124,6 @@ export class ProfileStore {
     return {
       riderId,
       displayName: 'Rider',
-      // riderId's own random suffix (see authStore's generateRideCode) is
-      // already globally unique, so reusing it here means a brand new
-      // profile has something friends can actually add them by right
-      // away, with no risk of colliding with another rider's default.
       handle: `@${riderId.replace(/^rider_/, '')}`,
       avatarId: 'ember',
       zoneTier: 'free',
@@ -135,8 +140,8 @@ export class ProfileStore {
     };
   }
 
-  private async upsert(profile: RiderProfile): Promise<void> {
-    await getPool().query(
+  private async upsert(profile: RiderProfile, database: ProfileQueryClient = getPool()): Promise<void> {
+    await database.query(
       `INSERT INTO rider_profiles (
          rider_id, display_name, handle, avatar_id, zone_tier, unit_system,
          notify_nearby, notify_invites, notify_chat, share_location,
@@ -177,50 +182,81 @@ export class ProfileStore {
     );
   }
 
-  /** Returns the rider's profile, creating a default one if this riderId
-   * has never been seen before. */
-  async getOrCreate(riderId: string): Promise<RiderProfile> {
-    await ensureMigrated();
-    const { rows } = await getPool().query<RiderProfileRow>('SELECT * FROM rider_profiles WHERE rider_id = $1', [riderId]);
+  private async getOrCreateWithDatabase(riderId: string, database: ProfileQueryClient): Promise<RiderProfile> {
+    const { rows } = await database.query<RiderProfileRow>('SELECT * FROM rider_profiles WHERE rider_id = $1', [riderId]);
     if (rows[0]) return rowToProfile(rows[0]);
     const profile = this.makeDefault(riderId);
-    await this.upsert(profile);
+    await this.upsert(profile, database);
     return profile;
   }
 
-  /** Validates `update` and, if valid, merges it into the rider's profile
-   * (creating one with defaults first if needed), bumping `updatedAt`. */
+  async getOrCreate(riderId: string): Promise<RiderProfile> {
+    await ensureMigrated();
+    return this.getOrCreateWithDatabase(riderId, getPool());
+  }
+
   async update(riderId: string, update: ProfileUpdate & Record<string, unknown>): Promise<ProfileUpdateResult> {
     const error = validateProfileUpdate(update);
     if (error) {
       return { ok: false, error };
     }
 
-    const current = await this.getOrCreate(riderId);
-    const next: RiderProfile = {
-      ...current,
-      ...(update as ProfileUpdate),
-      riderId,
-      updatedAt: Date.now(),
-    };
+    await ensureMigrated();
+    const client = await getPool().connect();
     try {
-      await this.upsert(next);
+      await client.query('BEGIN');
+      const current = await this.getOrCreateWithDatabase(riderId, client);
+      const next: RiderProfile = {
+        ...current,
+        ...(update as ProfileUpdate),
+        riderId,
+        updatedAt: Date.now(),
+      };
+      const changedFields = Object.keys(update).filter((key) => {
+        const field = key as keyof ProfileUpdate;
+        return current[field] !== next[field];
+      });
+
+      try {
+        await this.upsert(next, client);
+      } catch (err) {
+        if ((err as { code?: string }).code === '23505') {
+          await client.query('ROLLBACK');
+          return { ok: false, error: 'handle_taken' };
+        }
+        throw err;
+      }
+
+      if (changedFields.length > 0) {
+        const recipients = [riderId];
+        if (changedFields.some((field) => FRIEND_VISIBLE_PROFILE_FIELDS.has(field as keyof ProfileUpdate))) {
+          const { rows } = await client.query<{ friend_id: string }>(
+            `SELECT friendship.friend_id
+             FROM friendships friendship
+             WHERE friendship.rider_id = $1
+               AND NOT EXISTS (
+                 SELECT 1
+                 FROM rider_blocks block
+                 WHERE (block.rider_id = $1 AND block.blocked_rider_id = friendship.friend_id)
+                    OR (block.rider_id = friendship.friend_id AND block.blocked_rider_id = $1)
+               )`,
+            [riderId],
+          );
+          recipients.push(...rows.map(({ friend_id }) => friend_id));
+        }
+        await appendSocialEventForRiders(client, recipients, 'social_refresh', riderId, 'profile', next.updatedAt);
+      }
+
+      await client.query('COMMIT');
+      return { ok: true, profile: next };
     } catch (err) {
-      // rider_profiles_handle_lower_idx (see db.ts) — someone else already
-      // has this handle. A clean "pick another" error beats the raw 500 a
-      // constraint violation would otherwise surface as.
-      if ((err as { code?: string }).code === '23505') return { ok: false, error: 'handle_taken' };
+      await client.query('ROLLBACK');
       throw err;
+    } finally {
+      client.release();
     }
-    return { ok: true, profile: next };
   }
 
-  /** Case-insensitive handle -> riderId lookup, for adding a friend by the
-   * handle they'd actually share rather than their internal riderId (see
-   * server.ts's /friends/requests handler). Handles are stored with
-   * whatever case their owner set; the unique index is on lower(handle),
-   * so this matches it exactly. Returns undefined for no match, same as a
-   * riderId that doesn't exist — callers don't need to tell those apart. */
   async findRiderIdByHandle(handle: string): Promise<string | undefined> {
     await ensureMigrated();
     const { rows } = await getPool().query<{ rider_id: string }>(
