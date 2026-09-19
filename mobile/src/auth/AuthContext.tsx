@@ -212,11 +212,11 @@ function AuthScreen({ onAuthenticated, restoreError, onRetryRestore }: {
           <Text style={[styles.subtitle, { color: palette.textSecondary }]}>{copy.description}</Text>
         </View>
 
-        {!isRecovery ? <View accessibilityRole="tablist" style={[styles.tabs, { backgroundColor: palette.surface, borderColor: palette.border }]}>
-          <Pressable accessibilityRole="tab" accessibilityState={{ selected: !isSignup }} onPress={() => switchMode('login')} style={[styles.tab, !isSignup && [styles.tabActive, { backgroundColor: palette.surfaceRaised }]]}>
+        {!isRecovery ? <View accessibilityRole="tablist" style={[styles.tabs, { backgroundColor: palette.surfaceRaised, borderColor: palette.border }]}>
+          <Pressable accessibilityRole="tab" accessibilityState={{ selected: !isSignup }} onPress={() => switchMode('login')} style={[styles.tab, !isSignup && [styles.tabActive, { backgroundColor: palette.surface }]]}>
             <Text style={[styles.tabText, { color: !isSignup ? palette.textPrimary : palette.textMuted }]}>Log in</Text>
           </Pressable>
-          <Pressable accessibilityRole="tab" accessibilityState={{ selected: isSignup }} onPress={() => switchMode('signup')} style={[styles.tab, isSignup && [styles.tabActive, { backgroundColor: palette.surfaceRaised }]]}>
+          <Pressable accessibilityRole="tab" accessibilityState={{ selected: isSignup }} onPress={() => switchMode('signup')} style={[styles.tab, isSignup && [styles.tabActive, { backgroundColor: palette.surface }]]}>
             <Text style={[styles.tabText, { color: isSignup ? palette.textPrimary : palette.textMuted }]}>Create account</Text>
           </Pressable>
         </View> : null}
@@ -448,7 +448,7 @@ const styles = StyleSheet.create({
   subtitle: { fontSize: 13, lineHeight: 18, fontWeight: '500', maxWidth: 370, marginTop: 7 },
   tabs: { flexDirection: 'row', gap: 2, padding: 3, minHeight: 42, borderRadius: radii.lg, borderWidth: 1, marginBottom: 12 },
   tab: { minHeight: 36, flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: radii.sm },
-  tabActive: { borderWidth: StyleSheet.hairlineWidth },
+  tabActive: {},
   tabText: { fontSize: 12, lineHeight: 16, fontWeight: '700' },
   backToLogin: { minHeight: 36, alignSelf: 'flex-start', justifyContent: 'center', marginBottom: spacing.sm },
   backToLoginText: { fontSize: 12, fontWeight: '700' },
