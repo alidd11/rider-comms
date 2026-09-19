@@ -18,10 +18,14 @@ const PROFILE = {
 async function mockAuthenticatedApi(page, movement = 'stationary', backendOverride = null) {
   await page.addInitScript(({ riderId, movementState }) => {
     localStorage.setItem('rider-comms-session-v1', JSON.stringify({ riderId, token: 'visual-test-token' }));
-    Object.defineProperty(navigator, 'permissions', { value: { query: async () => ({ state: movementState === 'stationary' ? 'granted' : 'denied', addEventListener() {} }) } });
+    Object.defineProperty(navigator, 'permissions', { value: { query: async () => ({ state: ['stationary', 'recovering'].includes(movementState) ? 'granted' : 'denied', addEventListener() {} }) } });
     let watchId = 0;
     Object.defineProperty(navigator, 'geolocation', { value: {
       watchPosition(success, error) {
+        if (movementState === 'recovering') {
+          window.gpsTest = { success, error, cleared: false };
+          return ++watchId;
+        }
         if (movementState !== 'stationary') {
           error?.({ code: 1, name: 'NotAllowedError' });
           return ++watchId;
@@ -33,7 +37,7 @@ async function mockAuthenticatedApi(page, movement = 'stationary', backendOverri
         });
         return ++watchId;
       },
-      clearWatch() {},
+      clearWatch() { if (window.gpsTest) window.gpsTest.cleared = true; },
       getCurrentPosition(success, error) {
         if (movementState !== 'stationary') return error?.({ code: 1, name: 'NotAllowedError' });
         success({ timestamp: Date.now(), coords: { latitude: 51.5074, longitude: -0.1278, accuracy: 5, speed: 0 } });
@@ -447,6 +451,30 @@ test('PWA warns without hiding controls when movement cannot be verified', async
   await expect(page.locator('[data-screen="routes"]')).toHaveClass(/active/);
   await enableLocation.click();
   await expect(page.locator('#toast')).toContainText('Location access is blocked');
+});
+
+test('PWA GPS timeout recovers without another permission request or startup lock', async ({ page }) => {
+  await mockAuthenticatedApi(page, 'recovering');
+  await page.goto('/');
+  await expect(page.locator('#app')).toBeVisible();
+  await expect(page.locator('#movementSafetyBanner')).toBeVisible();
+  await expect(page.locator('#enableLocationBtn')).toBeHidden();
+  await expect(page.locator('.bottom-nav [data-nav="friends"]')).toHaveAttribute('aria-disabled', 'false');
+  await page.evaluate(() => {
+    window.gpsTest.error({ code: 3 });
+    window.gpsTest.error({ code: 2 });
+  });
+  expect(await page.evaluate(() => window.gpsTest.cleared)).toBe(false);
+  await page.evaluate(() => {
+    const base = Date.now() - 7000;
+    for (let i = 0; i <= 7; i++) window.gpsTest.success({
+      timestamp: base + i * 1000,
+      coords: { latitude: 51.5074, longitude: -0.1278, accuracy: 5, speed: 0 },
+    });
+  });
+  await expect(page.locator('#movementSafetyBanner')).toBeHidden();
+  await page.locator('.bottom-nav [data-nav="friends"]').click();
+  await expect(page.locator('[data-screen="friends"]')).toHaveClass(/active/);
 });
 
 test('PWA host can remove another rider from a private ride', async ({ page }) => {
