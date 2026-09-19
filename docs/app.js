@@ -713,7 +713,9 @@
         const aOnline = friendActivity.get(a.riderId)?.online === true;
         const bOnline = friendActivity.get(b.riderId)?.online === true;
         if (aOnline !== bOnline) return aOnline ? -1 : 1;
-        return a.displayName.localeCompare(b.displayName);
+        // Match native: promote live friends, but preserve the backend order
+        // within each presence group so identity/avatar associations stay stable.
+        return 0;
       });
     const onlineCount = friends.filter((friend) => friendActivity.get(friend.riderId)?.online === true).length;
     const firstOfflineIndex = friends.findIndex((friend) => friendActivity.get(friend.riderId)?.online !== true);
