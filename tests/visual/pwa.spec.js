@@ -1305,7 +1305,11 @@ test('@viewport standalone canvas, navigation and scroll geometry remain coheren
     const geometry = await standaloneGeometry(page);
     expectNear(geometry.appTop, 0);
     expectNear(geometry.appBottom, geometry.viewportHeight);
-    expectNear(geometry.screenBottom, geometry.appBottom);
+    // Fractional-DPR Chromium can place the scrollable screen edge on an
+    // adjacent device pixel even when the fixed app/nav geometry is exact.
+    // Keep this seam within 2 CSS px; app/nav bottom remain at the stricter
+    // default tolerance immediately above/below.
+    expectNear(geometry.screenBottom, geometry.appBottom, 2);
     expectNear(geometry.navBottom, geometry.appBottom);
     expectNear(geometry.navHeight, 58 + safeBottom + 1);
     expect(geometry.navPaddingBottom).toBeGreaterThanOrEqual(safeBottom);
