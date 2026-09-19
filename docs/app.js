@@ -78,7 +78,8 @@
       zoneTier: 'free',
       instagram: '',
       tiktok: '',
-      socialsVisibility: 'friends',
+      instagramVisibility: 'friends',
+      tiktokVisibility: 'friends',
       shareLocation: false,
     },
     friends: [],
@@ -227,6 +228,12 @@
   // Social online/last-seen is deliberately separate from location presence.
   // It is loaded only for current friends and never persisted to localStorage.
   let friendActivity = new Map();
+  let outgoingFriendRequests = [];
+  let conversationSummaries = new Map();
+  let unreadMessageCount = 0;
+  let socialEventCursor;
+  let socialEventGeneration = 0;
+  let friendActivityTimer;
 
   // Real crowdsourced hazard reports for the current area (GET
   // /hazards/nearby), refreshed whenever the map screen is (re)opened or a
@@ -283,7 +290,7 @@
   let chatMessages = [];
   let chatNextCursor = null;
   let chatHasLoadedOlder = false;
-  let chatPollTimer;
+  let chatPeerReadThroughMessageId = null;
   let chatLoading = false;
   let chatReturnFocus = null;
   let chatHideouts = [];
@@ -302,12 +309,12 @@
    * codes (username_taken, invalid_credentials, rate_limited, …) instead of
    * failing silently the way mock-data code never had to consider.
    */
-  async function apiFetch(method, path, body) {
+  async function apiFetch(method, path, body, timeoutMs = 10_000) {
     const headers = {};
     if (body !== undefined) headers['Content-Type'] = 'application/json';
     if (session?.token) headers.Authorization = `Bearer ${session.token}`;
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 10_000);
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
     let response;
     try {
       response = await fetch(`${API_BASE_URL}${path}`, {
@@ -350,11 +357,18 @@
     try {
       const stored = JSON.parse(localStorage.getItem(stateStorageKey()) || 'null');
       if (!stored || typeof stored !== 'object') return structuredClone(DEFAULT_STATE);
+      const storedProfile = stored.profile && typeof stored.profile === 'object' ? stored.profile : {};
+      const legacySocialVisibility = storedProfile.socialsVisibility || 'friends';
       return {
         ...structuredClone(DEFAULT_STATE),
         ...stored,
         navigationProvider: navigationProvider(stored.navigationProvider),
-        profile: { ...DEFAULT_STATE.profile, ...(stored.profile || {}) },
+        profile: {
+          ...DEFAULT_STATE.profile,
+          ...storedProfile,
+          instagramVisibility: storedProfile.instagramVisibility || legacySocialVisibility,
+          tiktokVisibility: storedProfile.tiktokVisibility || legacySocialVisibility,
+        },
         friends: Array.isArray(stored.friends) ? stored.friends : structuredClone(DEFAULT_STATE.friends),
         requests: Array.isArray(stored.requests) ? stored.requests : structuredClone(DEFAULT_STATE.requests),
       };
