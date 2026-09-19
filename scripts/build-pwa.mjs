@@ -70,7 +70,7 @@ if (!css.includes(`--bg:${darkChrome}`) || !css.includes(`--system-chrome:${dark
 // gap around the page (status bar, the strip below the safe area) in
 // light mode, on every screen, not just the ones that happened to expose
 // it. See the same reasoning for darkChrome above.
-const lightChrome = '#f2f5f6';
+const lightChrome = '#e9eef0';
 if (!html.includes(`<meta name="theme-color" content="${lightChrome}" media="(prefers-color-scheme: light)">`) ||
     !css.includes(`@media(prefers-color-scheme:light){:root{--system-chrome:${lightChrome}}}`)) {
   throw new Error(`PWA light theme colour and system-chrome surface must remain ${lightChrome}`);
