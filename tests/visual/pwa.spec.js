@@ -286,8 +286,8 @@ test('login baseline matches Rider Comms hierarchy in day and night', async ({ p
     expect(visual.cardBorderWidth).toBe(0);
     expectNear(visual.cardTop, visual.heroBottom);
     expect(visual.assuranceAfterTerms).toBe(true);
-    expect(visual.heroHeight).toBeGreaterThanOrEqual(297);
-    expect(visual.heroHeight).toBeLessThanOrEqual(309);
+    expect(visual.heroHeight).toBeGreaterThanOrEqual(343);
+    expect(visual.heroHeight).toBeLessThanOrEqual(355);
     expect(visual.heroRadius).toBe(0);
     expect(Math.abs(visual.heroTop)).toBeLessThanOrEqual(1);
     expect(Math.abs(visual.heroLeft)).toBeLessThanOrEqual(1);

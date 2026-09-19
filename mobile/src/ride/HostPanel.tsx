@@ -67,7 +67,7 @@ function JoinOrHostForm(): React.JSX.Element {
       >
         <ImageBackground
           source={{ uri: RIDE_HERO_IMAGE }}
-          style={[styles.hero, { height: 244 + insets.top }]}
+          style={[styles.hero, { height: 290 + insets.top }]}
           imageStyle={styles.heroImage}
           accessibilityRole="image"
           accessibilityLabel="Motorcyclists riding together on a winding mountain road"
