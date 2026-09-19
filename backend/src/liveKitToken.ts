@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { AccessToken, RoomServiceClient, TrackSource } from 'livekit-server-sdk';
+import { AccessToken, RoomServiceClient, ServerError, TrackSource } from 'livekit-server-sdk';
 
 /**
  * Voice transport (spec Sections 4/5/7): mints a short-lived LiveKit room
@@ -16,8 +16,7 @@ export interface LiveKitCredentials {
 }
 
 export interface VoiceRoomAdmin {
-  removeParticipant(roomName: string, identity: string): Promise<void>;
-  deleteRoom(roomName: string): Promise<void>;
+  retireRoom(roomName: string): Promise<void>;
 }
 
 export function liveKitServiceUrl(url: string): string {
@@ -37,13 +36,18 @@ export function createVoiceRoomAdmin(credentials: LiveKitCredentials): VoiceRoom
     credentials.apiSecret,
   );
   return {
-    // LiveKit's RemoveParticipant RPC also revokes previously issued tokens
-    // for this identity. Use an explicit server-compatible millisecond cutoff
-    // one minute ahead to absorb client/server clock skew deterministically.
-    removeParticipant: (roomName, identity) => client.removeParticipant(roomName, identity, {
-      revokeTokenTs: BigInt(Date.now() + 60_000),
-    }),
-    deleteRoom: (roomName) => client.deleteRoom(roomName),
+    async retireRoom(roomName) {
+      try {
+        await client.deleteRoom(roomName);
+      } catch (error) {
+        // A room that has never been joined, or has already emptied and been
+        // removed by LiveKit, is already retired for our purposes. Any other
+        // RoomService failure is material: do not advance Rider Comms'
+        // authoritative generation if we cannot disconnect an active room.
+        if (error instanceof ServerError && (error.status === 404 || error.code === 'not_found')) return;
+        throw error;
+      }
+    },
   };
 }
 
@@ -55,9 +59,17 @@ export function getLiveKitCredentialsFromEnv(env: NodeJS.ProcessEnv = process.en
   return { apiKey, apiSecret, url };
 }
 
-/** Private ride groups (Section 5) each get their own room, one per ride. */
-export function rideRoomName(rideId: string): string {
-  return `ride:${rideId}`;
+/**
+ * Private ride media is generation-scoped. Every security-sensitive
+ * membership change retires the old generation and advances this value.
+ * A stale token can therefore only ever recreate an obsolete room; it
+ * cannot reach authorised riders after they move to the new generation.
+ */
+export function rideRoomName(rideId: string, voiceGeneration: number): string {
+  if (!Number.isSafeInteger(voiceGeneration) || voiceGeneration < 1) {
+    throw new Error('voiceGeneration must be a positive safe integer');
+  }
+  return `ride:${rideId}:v${voiceGeneration}`;
 }
 
 /**
