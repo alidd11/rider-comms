@@ -1285,6 +1285,7 @@
       state.activeRide.memberIds = ride.memberIds;
       state.activeRide.createdBy = ride.createdBy;
       state.activeRide.isHost = ride.createdBy === state.profile.riderId;
+      if (ride.code) state.activeRide.code = ride.code;
       persist();
       await loadRideRoster();
     } catch (error) {
@@ -1398,6 +1399,7 @@
       const updated = await apiFetch('DELETE', `/rides/${encodeURIComponent(ride.rideId)}/members/${encodeURIComponent(riderId)}`);
       if (!state.activeRide || state.activeRide.rideId !== ride.rideId) return;
       state.activeRide.memberIds = updated.memberIds;
+      if (updated.code) state.activeRide.code = updated.code;
       state.activeRide.members = (state.activeRide.members || []).filter((member) => member.riderId !== riderId);
       rideMemberLocations.delete(riderId);
       persist();
