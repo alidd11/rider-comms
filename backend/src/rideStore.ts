@@ -16,6 +16,12 @@ export interface Ride {
   memberIds: Set<string>;
 }
 
+export interface RideSession {
+  ride: Ride;
+  shareRideLocation: boolean;
+  code: string | null;
+}
+
 export type JoinRideResult =
   | { ok: true; rideId: string }
   | { ok: false; reason: 'rate_limited' | 'invalid_or_expired' | 'ride_full' | 'excluded' };
@@ -77,8 +83,8 @@ function rowToCodeRecord(row: RideCodeRow): RideCodeRecord {
 }
 
 async function reserveRideCode(client: Pick<PoolClient, 'query'>, rideId: string): Promise<RideCodeRecord> {
-  // A conflict does not abort the transaction, unlike catching a unique
-  // violation after a plain INSERT. Regenerate until a code is reserved.
+  // ON CONFLICT keeps a rare code collision from aborting the surrounding
+  // transaction. Keep generating until this ride owns a fresh share secret.
   // eslint-disable-next-line no-constant-condition
   while (true) {
     const codeRecord = createRideCodeRecord(rideId);
@@ -212,36 +218,6 @@ export class RideStore {
     return this.loadRide(rideId);
   }
 
-  async getVoiceCleanupTargetsForRider(riderId: string): Promise<{ hostedRideIds: string[]; memberRideIds: string[] }> {
-    await ensureMigrated();
-    const { rows } = await getPool().query<{ id: string; created_by: string }>(
-      `SELECT ride.id, ride.created_by
-       FROM rides ride
-       LEFT JOIN ride_members member
-         ON member.ride_id = ride.id
-        AND member.rider_id = $1
-       WHERE ride.created_by = $1
-          OR member.rider_id = $1
-       ORDER BY ride.id`,
-      [riderId],
-    );
-    return {
-      hostedRideIds: rows.filter((row) => row.created_by === riderId).map((row) => row.id),
-      memberRideIds: rows.filter((row) => row.created_by !== riderId).map((row) => row.id),
-    };
-  }
-
-  async getCurrentCode(rideId: string): Promise<RideCodeRecord | undefined> {
-    await ensureMigrated();
-    const { rows } = await getPool().query<RideCodeRow>(
-      'SELECT * FROM ride_codes WHERE ride_id = $1 ORDER BY created_at DESC LIMIT 1',
-      [rideId],
-    );
-    if (!rows[0]) return undefined;
-    const record = rowToCodeRecord(rows[0]);
-    return isRideCodeExpired(record) ? undefined : record;
-  }
-
   async getRideForMember(rideId: string, riderId: string): Promise<RideActionResult> {
     await ensureMigrated();
     const ride = await this.loadRide(rideId);
@@ -251,10 +227,9 @@ export class RideStore {
   }
 
   /**
-   * Authorises and mints a private-ride voice credential while holding a
-   * shared lock on the ride row. Membership-changing voice transitions take
-   * an exclusive lock on the same row, so Rider Comms cannot issue a token
-   * for the retiring generation concurrently with remove/leave/end.
+   * Mint against a generation while holding a shared row lock. Membership
+   * transitions take an exclusive lock on the same ride row, so Rider Comms
+   * cannot issue a token for a generation while it is being retired.
    */
   async withVoiceAuthorization<T>(
     rideId: string,
@@ -293,6 +268,37 @@ export class RideStore {
     }
   }
 
+  /** Reconcile foreground clients from membership and consent stored in the
+   * database. Never infer private location consent from cached UI state. */
+  async getMemberRideSession(rideId: string, riderId: string): Promise<RideSession | null> {
+    await ensureMigrated();
+    const { rows } = await getPool().query<{ location_sharing_enabled: boolean; code: string | null }>(
+      `SELECT member.location_sharing_enabled, (
+         SELECT code.code FROM ride_codes code
+         WHERE code.ride_id = member.ride_id AND code.expires_at > $3
+         ORDER BY code.expires_at DESC LIMIT 1
+       ) AS code
+       FROM ride_members member WHERE member.ride_id = $1 AND member.rider_id = $2`,
+      [rideId, riderId, Date.now()]
+    );
+    if (!rows[0]) return null;
+    const ride = await this.loadRide(rideId);
+    return ride?.memberIds.has(riderId) ? {
+      ride, shareRideLocation: rows[0].location_sharing_enabled, code: rows[0].code,
+    } : null;
+  }
+
+  async getCurrentRideForMember(riderId: string): Promise<RideSession | null> {
+    await ensureMigrated();
+    const { rows } = await getPool().query<{ ride_id: string }>(
+      `SELECT member.ride_id FROM ride_members member
+       INNER JOIN rides ride ON ride.id = member.ride_id
+       WHERE member.rider_id = $1 ORDER BY ride.created_at DESC, ride.id DESC LIMIT 1`,
+      [riderId]
+    );
+    return rows[0] ? this.getMemberRideSession(rows[0].ride_id, riderId) : null;
+  }
+
   async leaveRide(
     rideId: string,
     riderId: string,
@@ -302,10 +308,7 @@ export class RideStore {
     const client = await getPool().connect();
     try {
       await client.query('BEGIN');
-      const { rows } = await client.query<RideRow>(
-        'SELECT * FROM rides WHERE id = $1 FOR UPDATE',
-        [rideId],
-      );
+      const { rows } = await client.query<RideRow>('SELECT * FROM rides WHERE id = $1 FOR UPDATE', [rideId]);
       const row = rows[0];
       if (!row) {
         await client.query('ROLLBACK');
@@ -363,10 +366,7 @@ export class RideStore {
     const client = await getPool().connect();
     try {
       await client.query('BEGIN');
-      const { rows } = await client.query<RideRow>(
-        'SELECT * FROM rides WHERE id = $1 FOR UPDATE',
-        [rideId],
-      );
+      const { rows } = await client.query<RideRow>('SELECT * FROM rides WHERE id = $1 FOR UPDATE', [rideId]);
       const row = rows[0];
       if (!row) {
         await client.query('ROLLBACK');
@@ -376,7 +376,6 @@ export class RideStore {
         await client.query('ROLLBACK');
         return { ok: false, reason: 'forbidden' };
       }
-
       const member = await client.query(
         'SELECT 1 FROM ride_members WHERE ride_id = $1 AND rider_id = $2',
         [rideId, memberId],
@@ -387,7 +386,6 @@ export class RideStore {
       }
 
       await retireVoiceRoom?.(Number(row.voice_generation));
-
       await client.query(
         `INSERT INTO ride_exclusions (ride_id, rider_id, removed_at)
          VALUES ($1, $2, $3)
@@ -396,17 +394,12 @@ export class RideStore {
         [rideId, memberId, Date.now()],
       );
       await client.query('DELETE FROM ride_members WHERE ride_id = $1 AND rider_id = $2', [rideId, memberId]);
-
-      // A removed rider knows the old invitation code. Rotate it in the same
-      // transaction as exclusion/membership teardown so a successful remove
-      // can never leave a reusable shared secret behind.
       await client.query('DELETE FROM ride_codes WHERE ride_id = $1', [rideId]);
       const codeRecord = await reserveRideCode(client, rideId);
       const generation = await client.query<{ voice_generation: string | number }>(
         'UPDATE rides SET voice_generation = voice_generation + 1 WHERE id = $1 RETURNING voice_generation',
         [rideId],
       );
-
       const { rows: memberRows } = await client.query<{ rider_id: string }>(
         'SELECT rider_id FROM ride_members WHERE ride_id = $1 ORDER BY rider_id',
         [rideId],
@@ -471,10 +464,7 @@ export class RideStore {
     const client = await getPool().connect();
     try {
       await client.query('BEGIN');
-      const { rows } = await client.query<RideRow>(
-        'SELECT * FROM rides WHERE id = $1 FOR UPDATE',
-        [rideId],
-      );
+      const { rows } = await client.query<RideRow>('SELECT * FROM rides WHERE id = $1 FOR UPDATE', [rideId]);
       const row = rows[0];
       if (!row) {
         await client.query('ROLLBACK');
