@@ -1371,12 +1371,18 @@ test('PWA preserves backend avatar presets on friend surfaces', async ({ page })
   await expect(avatars.nth(1)).toHaveCSS('--avatar', '#3DD68C');
 });
 
-test('PWA direct messages load and send within a friend-only thread', async ({ page }) => {
+test('PWA direct messages load, mark read and send within a friend-only thread', async ({ page }) => {
   const sent = [];
+  const readMarks = [];
   await mockAuthenticatedApi(page, 'stationary', async ({ request, url }) => {
     if (url.pathname === '/messages' && request.method() === 'GET') {
       expect(url.searchParams.get('withRiderId')).toBe('rider_friend01');
-      return { body: { messages: [{ id: 'message-1', fromRiderId: 'rider_friend01', toRiderId: RIDER_ID, text: 'Meet at the petrol station?', createdAt: 1_700_000_000_000 }], nextCursor: null } };
+      return { body: { messages: [{ id: 'message-1', fromRiderId: 'rider_friend01', toRiderId: RIDER_ID, text: 'Meet at the petrol station?', createdAt: 1_700_000_000_000 }], nextCursor: null, peerReadThroughMessageId: null } };
+    }
+    if (url.pathname === '/messages/read' && request.method() === 'POST') {
+      const body = JSON.parse(request.postData() || '{}');
+      readMarks.push(body);
+      return { body: { readThroughSeq: 1 } };
     }
     if (url.pathname === '/messages' && request.method() === 'POST') {
       const body = JSON.parse(request.postData() || '{}');
@@ -1392,6 +1398,7 @@ test('PWA direct messages load and send within a friend-only thread', async ({ p
   await page.locator('#messageFriend').click();
   await expect(page.locator('#chatScreen')).toBeVisible();
   await expect(page.locator('#chatMessages')).toContainText('Meet at the petrol station?');
+  await expect.poll(() => readMarks).toContainEqual({ withRiderId: 'rider_friend01' });
   await page.locator('#chatInput').fill('On my way');
   await page.locator('#chatSend').click();
   await expect.poll(() => sent).toEqual([{ toRiderId: 'rider_friend01', text: 'On my way' }]);
