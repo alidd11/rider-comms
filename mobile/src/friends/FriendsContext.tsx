@@ -115,8 +115,14 @@ export function FriendsProvider({ children }: { children: React.ReactNode }): Re
   const [error, setError] = React.useState<string | null>(null);
 
   const refreshActivity = React.useCallback(async () => {
-    const activityRes = await client.getFriendActivity().catch(() => ({ activity: [] }));
-    setActivityByRider(Object.fromEntries(activityRes.activity.map((item) => [item.riderId, item])));
+    try {
+      const activityRes = await client.getFriendActivity();
+      setActivityByRider(Object.fromEntries(activityRes.activity.map((item) => [item.riderId, item])));
+    } catch {
+      // Keep the last authoritative state on a transient failure. Treating a
+      // network error as an empty activity list falsely marks every friend
+      // offline until the next successful request.
+    }
   }, [client]);
 
   const refreshNetwork = React.useCallback(async () => {
@@ -195,7 +201,9 @@ export function FriendsProvider({ children }: { children: React.ReactNode }): Re
           if (networkDirty) await refreshNetwork();
           if (messagesDirty) await refreshMessages();
           if (revisionDirty) setSocialRevision((value) => value + 1);
-          if (networkDirty || messagesDirty) setError(null);
+          // A completed long-poll proves the realtime transport recovered,
+          // even when there were no state-changing events in this page.
+          setError(null);
         } catch (err) {
           if (stopped) return;
           setError(messageFor(err, 'Live social updates paused. Reconnecting…'));
