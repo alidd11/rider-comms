@@ -22,7 +22,13 @@ function VoiceActivityBridge({ onError }: { onError: (message: string) => void }
  * only subscribe to the other rider in that room. A private ride takes
  * priority, so the public rooms are torn down while RideBar owns voice.
  */
-export function ProximityVoice({ enabled }: { enabled: boolean }): React.JSX.Element | null {
+export function ProximityVoice({
+  enabled,
+  peerIds = [],
+}: {
+  enabled: boolean;
+  peerIds?: string[];
+}): React.JSX.Element | null {
   const { client } = useAuth();
   const { activeRide } = useRide();
   const active = enabled && !activeRide;
@@ -31,6 +37,10 @@ export function ProximityVoice({ enabled }: { enabled: boolean }): React.JSX.Ele
   const [error, setError] = React.useState<string | null>(null);
   const [refreshVersion, setRefreshVersion] = React.useState(0);
   const [audioSessionReady, setAudioSessionReady] = React.useState(false);
+  const peerRosterKey = React.useMemo(
+    () => [...peerIds].sort().join('\u0000'),
+    [peerIds],
+  );
 
   React.useEffect(() => {
     if (!active) {
@@ -60,7 +70,7 @@ export function ProximityVoice({ enabled }: { enabled: boolean }): React.JSX.Ele
     void refresh();
     const timer = setInterval(() => void refresh(), ROSTER_REFRESH_MS);
     return () => { cancelled = true; clearInterval(timer); };
-  }, [active, client, refreshVersion]);
+  }, [active, client, peerRosterKey, refreshVersion]);
 
   const needsAudioSession = active && connections.length > 0;
   React.useEffect(() => {
@@ -92,18 +102,18 @@ export function ProximityVoice({ enabled }: { enabled: boolean }): React.JSX.Ele
 
   return (
     <View pointerEvents="none" style={styles.host} accessibilityLiveRegion="polite">
-      {(connections.length > 0 || error) && (
-        <View style={[styles.status, error && styles.statusError]}>
+      <View style={[styles.status, error && styles.statusError]}>
           <View style={[styles.dot, error && styles.dotError]} />
           <Text style={[styles.text, error && styles.textError]}>
             {error
-              ? 'Proximity voice unavailable'
+              ? 'Nearby Voice unavailable'
               : connectedPeers.size > 0
-                ? `Proximity voice · ${connectedPeers.size} connected`
-                : 'Connecting proximity voice'}
+                ? `Nearby Voice · ${connectedPeers.size} connected`
+                : connections.length > 0
+                  ? 'Connecting Nearby Voice'
+                  : 'Nearby Voice · waiting for riders'}
           </Text>
         </View>
-      )}
       {connections.map((connection) => {
         const retryPeer = () => {
           setConnectedPeers((current) => {
