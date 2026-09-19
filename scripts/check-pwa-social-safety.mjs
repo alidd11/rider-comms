@@ -9,6 +9,9 @@ for (const required of [
   "$$('[data-report-rider]', $('#sheetBody'))",
   'state.friends = state.friends.filter',
   'nearbyRiders = nearbyRiders.filter',
+  "apiFetch('DELETE', `/friends/requests/${encodeURIComponent(requestId)}`)",
+  "id=\"sheetInstagramVisibility\"",
+  "id=\"sheetTiktokVisibility\"",
 ]) {
   assert.ok(app.includes(required), `PWA social safety contract missing: ${required}`);
 }

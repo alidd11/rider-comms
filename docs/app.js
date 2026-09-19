@@ -78,7 +78,8 @@
       zoneTier: 'free',
       instagram: '',
       tiktok: '',
-      socialsVisibility: 'friends',
+      instagramVisibility: 'friends',
+      tiktokVisibility: 'friends',
       shareLocation: false,
     },
     friends: [],
@@ -227,6 +228,12 @@
   // Social online/last-seen is deliberately separate from location presence.
   // It is loaded only for current friends and never persisted to localStorage.
   let friendActivity = new Map();
+  let outgoingFriendRequests = [];
+  let conversationSummaries = new Map();
+  let unreadMessageCount = 0;
+  let socialEventCursor;
+  let socialEventGeneration = 0;
+  let friendActivityTimer;
 
   // Real crowdsourced hazard reports for the current area (GET
   // /hazards/nearby), refreshed whenever the map screen is (re)opened or a
@@ -265,6 +272,13 @@
   }
 
   function clearSession() {
+    stopSocialEvents();
+    clearInterval(friendActivityTimer);
+    friendActivityTimer = undefined;
+    socialEventCursor = undefined;
+    outgoingFriendRequests = [];
+    conversationSummaries = new Map();
+    unreadMessageCount = 0;
     session = null;
     localStorage.removeItem(SESSION_KEY);
   }
@@ -283,7 +297,7 @@
   let chatMessages = [];
   let chatNextCursor = null;
   let chatHasLoadedOlder = false;
-  let chatPollTimer;
+  let chatPeerReadThroughMessageId = null;
   let chatLoading = false;
   let chatReturnFocus = null;
   let chatHideouts = [];
@@ -302,12 +316,12 @@
    * codes (username_taken, invalid_credentials, rate_limited, …) instead of
    * failing silently the way mock-data code never had to consider.
    */
-  async function apiFetch(method, path, body) {
+  async function apiFetch(method, path, body, timeoutMs = 10_000) {
     const headers = {};
     if (body !== undefined) headers['Content-Type'] = 'application/json';
     if (session?.token) headers.Authorization = `Bearer ${session.token}`;
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 10_000);
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
     let response;
     try {
       response = await fetch(`${API_BASE_URL}${path}`, {
@@ -350,11 +364,18 @@
     try {
       const stored = JSON.parse(localStorage.getItem(stateStorageKey()) || 'null');
       if (!stored || typeof stored !== 'object') return structuredClone(DEFAULT_STATE);
+      const storedProfile = stored.profile && typeof stored.profile === 'object' ? stored.profile : {};
+      const legacySocialVisibility = storedProfile.socialsVisibility || 'friends';
       return {
         ...structuredClone(DEFAULT_STATE),
         ...stored,
         navigationProvider: navigationProvider(stored.navigationProvider),
-        profile: { ...DEFAULT_STATE.profile, ...(stored.profile || {}) },
+        profile: {
+          ...DEFAULT_STATE.profile,
+          ...storedProfile,
+          instagramVisibility: storedProfile.instagramVisibility || legacySocialVisibility,
+          tiktokVisibility: storedProfile.tiktokVisibility || legacySocialVisibility,
+        },
         friends: Array.isArray(stored.friends) ? stored.friends : structuredClone(DEFAULT_STATE.friends),
         requests: Array.isArray(stored.requests) ? stored.requests : structuredClone(DEFAULT_STATE.requests),
       };
@@ -708,6 +729,78 @@
     return `Last seen ${Math.floor(hours / 24)}d ago`;
   }
 
+  async function loadAllFriendPages() {
+    const friends = [];
+    let before;
+    do {
+      const query = new URLSearchParams({ limit: '100' });
+      if (before) query.set('before', before);
+      const page = await apiFetch('GET', `/riders/${encodeURIComponent(state.profile.riderId)}/friends?${query.toString()}`);
+      friends.push(...(Array.isArray(page.friends) ? page.friends : []));
+      before = page.nextCursor || undefined;
+    } while (before);
+    return friends;
+  }
+
+  async function loadAllFriendRequestPages() {
+    const incoming = [];
+    const outgoing = [];
+    const profiles = {};
+    let before;
+    do {
+      const query = new URLSearchParams({ limit: '100' });
+      if (before) query.set('before', before);
+      const page = await apiFetch('GET', `/riders/${encodeURIComponent(state.profile.riderId)}/friend-requests?${query.toString()}`);
+      incoming.push(...(Array.isArray(page.incoming) ? page.incoming : []));
+      outgoing.push(...(Array.isArray(page.outgoing) ? page.outgoing : []));
+      Object.assign(profiles, page.profiles || {});
+      before = page.nextCursor || undefined;
+    } while (before);
+    return { incoming, outgoing, profiles };
+  }
+
+  async function loadAllConversationPages() {
+    const conversations = [];
+    let before;
+    do {
+      const query = new URLSearchParams({ limit: '100' });
+      if (before) query.set('before', before);
+      const page = await apiFetch('GET', `/conversations?${query.toString()}`);
+      conversations.push(...(Array.isArray(page.conversations) ? page.conversations : []));
+      before = page.nextCursor || undefined;
+    } while (before);
+    return conversations;
+  }
+
+  async function refreshFriendActivity() {
+    if (!state.profile.riderId) return;
+    try {
+      const result = await apiFetch('GET', '/friends/activity');
+      friendActivity = new Map((Array.isArray(result.activity) ? result.activity : []).map((item) => [item.riderId, item]));
+      renderFriends();
+    } catch {
+      // Preserve the last known activity state on transient network errors.
+    }
+  }
+
+  async function refreshMessageSummaries() {
+    if (!state.profile.riderId) return;
+    const [conversations, unread] = await Promise.all([
+      loadAllConversationPages(),
+      apiFetch('GET', '/messages/unread-count'),
+    ]);
+    conversationSummaries = new Map(conversations.map((conversation) => [conversation.friend.riderId, conversation]));
+    unreadMessageCount = Number.isFinite(unread.unreadCount) ? unread.unreadCount : 0;
+    renderFriends();
+  }
+
+  function syncFriendActivityPolling() {
+    clearInterval(friendActivityTimer);
+    friendActivityTimer = undefined;
+    if (!session) return;
+    friendActivityTimer = setInterval(() => { void refreshFriendActivity(); }, 30_000);
+  }
+
   function renderFriends() {
     const query = $('#friendSearch').value.trim().toLowerCase();
     const friends = state.friends
@@ -721,11 +814,14 @@
     const onlineCount = friends.filter((friend) => friendActivity.get(friend.riderId)?.online === true).length;
     const firstOfflineIndex = friends.findIndex((friend) => friendActivity.get(friend.riderId)?.online !== true);
 
-    $('#requestList').innerHTML = state.requests.map((person) => `<article class="request-row">${avatar(person)}<div class="identity"><strong>${escapeHtml(person.displayName)}</strong><span>${escapeHtml(person.handle)} · ${escapeHtml(person.status)}</span></div><div class="request-actions"><button class="decline" data-decline="${escapeHtml(person.id)}" aria-label="Decline ${escapeHtml(person.displayName)}">×</button><button class="accept" data-accept="${escapeHtml(person.id)}" aria-label="Accept ${escapeHtml(person.displayName)}">✓</button></div></article>`).join('');
+    const incomingRows = state.requests.map((person) => `<article class="request-row">${avatar(person)}<div class="identity"><strong>${escapeHtml(person.displayName)}</strong><span>${escapeHtml(person.handle)} · ${escapeHtml(person.status)}</span></div><div class="request-actions"><button class="decline" data-decline="${escapeHtml(person.id)}" aria-label="Decline ${escapeHtml(person.displayName)}">×</button><button class="accept" data-accept="${escapeHtml(person.id)}" aria-label="Accept ${escapeHtml(person.displayName)}">✓</button></div></article>`).join('');
+    const outgoingRows = outgoingFriendRequests.map((person) => `<article class="request-row">${avatar(person)}<div class="identity"><strong>${escapeHtml(person.displayName)}</strong><span>${escapeHtml(person.handle)} · Pending</span></div><div class="request-actions"><button data-cancel-request="${escapeHtml(person.id)}" aria-label="Cancel request to ${escapeHtml(person.displayName)}">Cancel</button></div></article>`).join('');
+    $('#requestList').innerHTML = incomingRows + outgoingRows;
 
     $('#friendList').innerHTML = friends.map((person, index) => {
       const activity = friendActivity.get(person.riderId);
       const online = activity?.online === true;
+      const unread = conversationSummaries.get(person.riderId)?.unreadCount || 0;
       const groupLabel = index === 0
         ? (online ? `Online (${onlineCount})` : `Offline (${friends.length})`)
         : index === firstOfflineIndex
@@ -734,12 +830,14 @@
       return `<button class="friend-row${online ? ' is-online' : ''}" data-friend="${escapeHtml(person.riderId)}"${groupLabel ? ` data-group-label="${escapeHtml(groupLabel)}"` : ''}>
         <span class="friend-avatar-wrap">${avatar(person)}<i class="friend-presence-dot ${online ? 'online' : 'offline'}" aria-hidden="true"></i></span>
         <span class="identity"><strong>${escapeHtml(person.displayName)}</strong><span class="friend-activity">${escapeHtml(friendActivityLabel(activity))}</span></span>
+        ${unread > 0 ? `<span class="count-badge friend-unread-badge" aria-label="${unread} unread messages">${unread > 99 ? '99+' : unread}</span>` : ''}
         <span class="friend-more" aria-hidden="true">•••</span>
       </button>`;
     }).join('');
     const hasFriends = state.friends.length > 0;
     const hasVisibleFriends = friends.length > 0;
-    const hasRequests = state.requests.length > 0;
+    const requestTotal = state.requests.length + outgoingFriendRequests.length;
+    const hasRequests = requestTotal > 0;
     const empty = $('#friendEmpty');
     $('#requestSection').hidden = !hasRequests;
     $('#friendSection').hidden = !hasVisibleFriends;
@@ -754,13 +852,18 @@
       count.hidden = !hasFriends;
     }
     const requestCount = $('#requestsCountBadge');
-    if (requestCount) requestCount.textContent = String(state.requests.length);
+    if (requestCount) requestCount.textContent = String(requestTotal);
     $('#networkFriendCount').textContent = String(state.friends.length);
-    $('#networkRequestCount').textContent = String(state.requests.length);
+    $('#networkRequestCount').textContent = String(requestTotal);
     const navBadge = $('#friendsNavBadge');
-    if (navBadge) { navBadge.textContent = String(state.requests.length); navBadge.hidden = state.requests.length === 0; }
+    const attentionCount = state.requests.length + unreadMessageCount;
+    if (navBadge) {
+      navBadge.textContent = attentionCount > 99 ? '99+' : String(attentionCount);
+      navBadge.hidden = attentionCount === 0;
+    }
     $$('[data-accept]').forEach((button) => button.addEventListener('click', () => acceptRequest(button.dataset.accept)));
     $$('[data-decline]').forEach((button) => button.addEventListener('click', () => declineRequest(button.dataset.decline)));
+    $$('[data-cancel-request]').forEach((button) => button.addEventListener('click', () => cancelRequest(button.dataset.cancelRequest)));
     $$('[data-friend]').forEach((button) => button.addEventListener('click', () => openFriendProfile(button.dataset.friend)));
   }
 
@@ -803,8 +906,6 @@
       $('#friendSafetyActions').addEventListener('click', () => openFriendSafetyActions(friend));
     });
   }
-
-  const MESSAGE_POLL_INTERVAL_MS = 10000;
 
   function formatMessageTime(value) {
     const date = new Date(value);
@@ -979,7 +1080,13 @@
     messages.innerHTML = chatMessages.map((message) => {
       const mine = message.fromRiderId === state.profile.riderId;
       const failed = mine && message.status === 'failed';
-      const status = message.status === 'pending' ? '<small>Sending…</small>' : failed ? '<small>Failed — tap to retry</small>' : '';
+      const status = message.status === 'pending'
+        ? '<small>Sending…</small>'
+        : failed
+          ? '<small>Failed — tap to retry</small>'
+          : mine && message.id === chatPeerReadThroughMessageId
+            ? '<small>Read</small>'
+            : '';
       const body = `<span>${escapeHtml(message.text)}</span><time>${escapeHtml(formatMessageTime(message.createdAt))}</time>${status}`;
       return failed
         ? `<button class="chat-bubble-row mine" data-retry-message="${escapeHtml(message.id)}" aria-label="Message failed. Retry sending."><span class="chat-bubble failed">${body}</span></button>`
@@ -1018,7 +1125,17 @@
         : window.RiderMessageState.reconcile(chatMessages, page.messages);
       if (older) chatHasLoadedOlder = true;
       if (!chatHasLoadedOlder || older) chatNextCursor = page.nextCursor;
+      chatPeerReadThroughMessageId = page.peerReadThroughMessageId || null;
       setChatError('');
+      if (!older) {
+        try {
+          await apiFetch('POST', '/messages/read', { withRiderId: riderId });
+          await refreshMessageSummaries();
+        } catch {
+          // The conversation loaded successfully. Read-state reconciliation
+          // can recover independently without turning the thread into an error.
+        }
+      }
       renderChat();
       if (!older) requestAnimationFrame(() => { $('#chatThread').scrollTop = $('#chatThread').scrollHeight; });
     } catch (error) {
@@ -1028,13 +1145,6 @@
       chatLoading = false;
       renderChat();
     }
-  }
-
-  function syncChatPolling() {
-    clearInterval(chatPollTimer);
-    chatPollTimer = undefined;
-    if (!activeChat || document.visibilityState !== 'visible') return;
-    chatPollTimer = setInterval(() => void loadChatMessages(), MESSAGE_POLL_INTERVAL_MS);
   }
 
   function openChat(friend) {
@@ -1048,6 +1158,7 @@
     chatMessages = [];
     chatNextCursor = null;
     chatHasLoadedOlder = false;
+    chatPeerReadThroughMessageId = null;
     chatHideouts = [];
     chatHideoutsLoading = false;
     chatHideoutError = '';
@@ -1065,7 +1176,6 @@
     syncViewportEnvironment();
     setChatError('');
     renderChat();
-    syncChatPolling();
     history.pushState({ screen: 'friends', chat: friend.riderId }, '', '#friends/chat');
     document.title = `${friend.displayName} · Rider Comms`;
     void loadChatMessages({ showLoading: true });
@@ -1074,12 +1184,11 @@
 
   function closeChat({ restoreFocus = true } = {}) {
     if (!activeChat) return;
-    clearInterval(chatPollTimer);
-    chatPollTimer = undefined;
     activeChat = null;
     chatMessages = [];
     chatNextCursor = null;
     chatHasLoadedOlder = false;
+    chatPeerReadThroughMessageId = null;
     chatHideouts = [];
     chatHideoutsLoading = false;
     chatHideoutError = '';
@@ -1187,6 +1296,80 @@
     }
   }
 
+  const SOCIAL_EVENT_RETRY_MS = 2000;
+
+  function waitForSocialRetry(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  async function runSocialEventLoop(generation) {
+    while (session && generation === socialEventGeneration) {
+      try {
+        if (!socialEventCursor) {
+          const baseline = await apiFetch('GET', '/social/events?limit=100&waitMs=0');
+          if (generation !== socialEventGeneration) return;
+          socialEventCursor = baseline.cursor;
+          await loadFriendsData();
+        }
+
+        let page = await apiFetch(
+          'GET',
+          `/social/events?after=${encodeURIComponent(socialEventCursor)}&limit=100&waitMs=25000`,
+          undefined,
+          30_000,
+        );
+        if (generation !== socialEventGeneration) return;
+
+        let networkDirty = false;
+        let messageDirty = false;
+        let chatDirty = false;
+        let selfProfileDirty = false;
+
+        while (true) {
+          for (const event of Array.isArray(page.events) ? page.events : []) {
+            if (event.type === 'friend_request' || event.type === 'friend_request_resolved' || event.type === 'friend_removed' || event.type === 'social_refresh') {
+              networkDirty = true;
+            }
+            if (event.type === 'message' || event.type === 'message_read' || event.type === 'friend_removed' || event.type === 'social_refresh') {
+              messageDirty = true;
+            }
+            if (event.type === 'message' || event.type === 'message_read' || event.type === 'friend_removed') chatDirty = true;
+            if (event.type === 'social_refresh' && event.entityId === 'profile' && event.actorRiderId === state.profile.riderId) {
+              selfProfileDirty = true;
+            }
+          }
+          socialEventCursor = page.cursor || socialEventCursor;
+          if (!page.hasMore || generation !== socialEventGeneration) break;
+          page = await apiFetch(
+            'GET',
+            `/social/events?after=${encodeURIComponent(socialEventCursor)}&limit=100&waitMs=0`,
+          );
+        }
+
+        if (generation !== socialEventGeneration) return;
+        if (selfProfileDirty) await loadProfile();
+        if (networkDirty) await loadFriendsData();
+        else if (messageDirty) await refreshMessageSummaries();
+        if (chatDirty && activeChat) await loadChatMessages();
+      } catch {
+        if (generation !== socialEventGeneration || !session) return;
+        socialEventCursor = undefined;
+        await waitForSocialRetry(SOCIAL_EVENT_RETRY_MS);
+      }
+    }
+  }
+
+  function startSocialEvents() {
+    socialEventGeneration += 1;
+    socialEventCursor = undefined;
+    void runSocialEventLoop(socialEventGeneration);
+  }
+
+  function stopSocialEvents() {
+    socialEventGeneration += 1;
+    socialEventCursor = undefined;
+  }
+
   /**
    * Resolves a list of bare rider IDs (all a ride roster or a presence
    * "in zone with" response carries) into display-ready {riderId,
@@ -1217,17 +1400,29 @@
   async function loadFriendsData() {
     if (!state.profile.riderId) return;
     try {
-      const [friendsResult, requestsResult, activityResult] = await Promise.all([
-        apiFetch('GET', `/riders/${encodeURIComponent(state.profile.riderId)}/friends?limit=100`),
-        apiFetch('GET', `/riders/${encodeURIComponent(state.profile.riderId)}/friend-requests?limit=100`),
-        apiFetch('GET', '/friends/activity').catch(() => ({ activity: [] })),
+      const [friendsResult, requestsResult, activityResult, conversations, unread] = await Promise.all([
+        loadAllFriendPages(),
+        loadAllFriendRequestPages(),
+        apiFetch('GET', '/friends/activity').catch(() => null),
+        loadAllConversationPages(),
+        apiFetch('GET', '/messages/unread-count'),
       ]);
-      state.friends = friendsResult.friends.map((friend) => ({ riderId: friend.riderId, displayName: friend.displayName, handle: friend.handle, avatarId: friend.avatarId || 'ember', status: 'Connected' }));
-      friendActivity = new Map((Array.isArray(activityResult.activity) ? activityResult.activity : []).map((item) => [item.riderId, item]));
+      state.friends = friendsResult.map((friend) => ({ riderId: friend.riderId, displayName: friend.displayName, handle: friend.handle, avatarId: friend.avatarId || 'ember', status: 'Connected' }));
+      if (activityResult) {
+        friendActivity = new Map((Array.isArray(activityResult.activity) ? activityResult.activity : []).map((item) => [item.riderId, item]));
+      }
+      conversationSummaries = new Map(conversations.map((conversation) => [conversation.friend.riderId, conversation]));
+      unreadMessageCount = Number.isFinite(unread.unreadCount) ? unread.unreadCount : 0;
+
       const incoming = requestsResult.incoming.filter((request) => request.status === 'pending');
       state.requests = incoming.map((request) => {
         const profile = requestsResult.profiles?.[request.fromRiderId];
         return { id: request.id, riderId: request.fromRiderId, displayName: profile?.displayName ?? request.fromRiderId, handle: profile?.handle ?? request.fromRiderId, avatarId: profile?.avatarId || 'ember', status: 'Wants to connect' };
+      });
+      const outgoing = requestsResult.outgoing.filter((request) => request.status === 'pending');
+      outgoingFriendRequests = outgoing.map((request) => {
+        const profile = requestsResult.profiles?.[request.toRiderId];
+        return { id: request.id, riderId: request.toRiderId, displayName: profile?.displayName ?? request.toRiderId, handle: profile?.handle ?? request.toRiderId, avatarId: profile?.avatarId || 'ember' };
       });
       persist();
       renderFriends();
@@ -1258,6 +1453,17 @@
       showToast('Request declined.');
     } catch {
       showToast('Could not decline that request. Try again.');
+    }
+  }
+
+  async function cancelRequest(requestId) {
+    try {
+      await apiFetch('DELETE', `/friends/requests/${encodeURIComponent(requestId)}`);
+      outgoingFriendRequests = outgoingFriendRequests.filter((request) => request.id !== requestId);
+      renderFriends();
+      showToast('Request cancelled.');
+    } catch {
+      showToast('Could not cancel that request. Try again.');
     }
   }
 
@@ -1553,7 +1759,7 @@
           },
         };
       },
-      privacy: () => ({ title: 'Privacy controls', body: `<div class="settings-sheet-section">${toggleMarkup('shareLocation', 'Live location', 'Visible to nearby riders only while you are live.', state.profile.shareLocation)}</div><div class="settings-sheet-section"><div class="form-field"><label for="sheetSocialVisibility">Connected profile visibility</label><select id="sheetSocialVisibility"><option value="friends">Friends only</option><option value="public">Everyone</option><option value="private">Only me</option></select></div><p class="caption">This applies to the Instagram and TikTok usernames on your profile.</p></div>`, ready: () => { $('#sheetSocialVisibility').value = state.profile.socialsVisibility; $('#sheetSocialVisibility').addEventListener('change', (event) => { patchProfile({ instagramVisibility: event.target.value, tiktokVisibility: event.target.value }); }); wireToggles(); } }),
+      privacy: () => ({ title: 'Privacy controls', body: `<div class="settings-sheet-section">${toggleMarkup('shareLocation', 'Live location', 'Visible to nearby riders only while you are live.', state.profile.shareLocation)}</div><div class="settings-sheet-section"><div class="form-field"><label for="sheetInstagramVisibility">Instagram visibility</label><select id="sheetInstagramVisibility"><option value="friends">Friends only</option><option value="public">Everyone</option><option value="private">Only me</option></select></div><div class="form-field"><label for="sheetTiktokVisibility">TikTok visibility</label><select id="sheetTiktokVisibility"><option value="friends">Friends only</option><option value="public">Everyone</option><option value="private">Only me</option></select></div><p class="caption">Choose who can see each connected profile independently.</p></div>`, ready: () => { const instagram = $('#sheetInstagramVisibility'); const tiktok = $('#sheetTiktokVisibility'); instagram.value = state.profile.instagramVisibility; tiktok.value = state.profile.tiktokVisibility; instagram.addEventListener('change', (event) => { void patchProfile({ instagramVisibility: event.target.value }); }); tiktok.addEventListener('change', (event) => { void patchProfile({ tiktokVisibility: event.target.value }); }); wireToggles(); } }),
       navigation: () => ({
         title: 'Navigation',
         body: `<div class="choice-list" role="radiogroup" aria-label="Navigation preference">${Object.entries(NAVIGATION_PROVIDERS).map(([id, option]) => `<button data-navigation-option="${id}" role="radio" aria-checked="${navigationProvider(state.navigationProvider) === id}"><span><strong>${escapeHtml(option.label)}</strong><small>${escapeHtml(option.description)}</small></span><i></i></button>`).join('')}</div><div class="settings-note"><strong>Your choice applies to destination buttons</strong><p>Rider Comms navigation stays in the app. Google Maps, Waze and Apple Maps hand the destination to that provider.</p></div>`,
@@ -1767,8 +1973,8 @@
         handle,
         instagramUsername: $('#editInstagram').value.trim().replace(/^@/, ''),
         tiktokUsername: $('#editTiktok').value.trim().replace(/^@/, ''),
-        instagramVisibility: state.profile.socialsVisibility,
-        tiktokVisibility: state.profile.socialsVisibility,
+        instagramVisibility: state.profile.instagramVisibility,
+        tiktokVisibility: state.profile.tiktokVisibility,
       });
       applyRemoteProfile(profile);
       renderFallbackMarkers();
@@ -4059,7 +4265,8 @@
     state.profile.zoneTier = planTier(profile.zoneTier);
     state.profile.instagram = profile.instagramUsername;
     state.profile.tiktok = profile.tiktokUsername;
-    state.profile.socialsVisibility = profile.instagramVisibility;
+    state.profile.instagramVisibility = profile.instagramVisibility;
+    state.profile.tiktokVisibility = profile.tiktokVisibility;
     state.profile.shareLocation = profile.shareLocation;
     persist();
     renderProfile();
@@ -4363,13 +4570,14 @@
     navigate(location.hash.slice(1) || state.screen || 'map', false);
     loadGoogleMaps();
     registerServiceWorker();
-    loadFriendsData();
+    void loadFriendsData();
+    startSocialEvents();
+    syncFriendActivityPolling();
     // Startup only reconciles saved UI state with the browser. Permission
     // prompts belong to deliberate taps in Settings, never cold launch.
     syncNotificationPreference();
     void initialiseMovementSafety();
     document.addEventListener('visibilitychange', () => {
-      syncChatPolling();
       if (document.visibilityState === 'visible') void initialiseMovementSafety();
       else stopMovementSafetyTracking();
       if (document.visibilityState === 'visible') {

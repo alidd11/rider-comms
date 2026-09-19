@@ -87,8 +87,18 @@ async function mockAuthenticatedApi(page, movement = 'stationary', backendOverri
         { riderId: 'rider_friend01', displayName: 'Maya', handle: '@maya_moto', avatarId: 'ridge' },
         { riderId: 'rider_friend02', displayName: 'Jay', handle: '@jay125', avatarId: 'moss' },
       ],
+      nextCursor: null,
     };
-    else if (url.pathname === `/riders/${RIDER_ID}/friend-requests`) body = { incoming: [], outgoing: [] };
+    else if (url.pathname === `/riders/${RIDER_ID}/friend-requests`) body = { incoming: [], outgoing: [], profiles: {}, nextCursor: null };
+    else if (url.pathname === '/friends/activity') body = { activity: [] };
+    else if (url.pathname === '/conversations') body = { conversations: [], nextCursor: null };
+    else if (url.pathname === '/messages/unread-count') body = { unreadCount: 0 };
+    else if (url.pathname === '/messages/read') body = { readThroughSeq: 0 };
+    else if (url.pathname === '/messages' && request.method() === 'GET') body = { messages: [], nextCursor: null, peerReadThroughMessageId: null };
+    else if (url.pathname === '/social/events') {
+      if (url.searchParams.get('waitMs') !== '0') await new Promise((resolve) => setTimeout(resolve, 250));
+      body = { events: [], cursor: url.searchParams.get('after') || 'MA', hasMore: false };
+    }
     else if (url.pathname === '/hazards/nearby') body = { hazards: [] };
     else if (url.pathname === '/rides/current') body = { ride: null };
     else if (url.pathname === '/config') body = { googleMapsApiKey: 'visual-test-key' };
@@ -1359,6 +1369,17 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
   expect(await page.evaluate(() => document.documentElement.style.getPropertyValue('--app-vh'))).toBe('100vh');
 });
 
+test('PWA Friends remains usable when realtime transport is temporarily unavailable', async ({ page }) => {
+  await mockAuthenticatedApi(page, 'stationary', ({ url }) => {
+    if (url.pathname === '/social/events') return { status: 503, body: { error: 'temporarily_unavailable' } };
+    return null;
+  });
+  await page.goto('/#friends');
+  await expect(page.locator('#friendList [data-friend]')).toHaveCount(2);
+  await expect(page.locator('#friendList')).toContainText('Maya');
+  await expect(page.locator('#friendList')).toContainText('Jay');
+});
+
 test('PWA preserves backend avatar presets on friend surfaces', async ({ page }) => {
   await mockAuthenticatedApi(page);
   await page.goto('/#friends');
@@ -1369,12 +1390,18 @@ test('PWA preserves backend avatar presets on friend surfaces', async ({ page })
   await expect(avatars.nth(1)).toHaveCSS('--avatar', '#3DD68C');
 });
 
-test('PWA direct messages load and send within a friend-only thread', async ({ page }) => {
+test('PWA direct messages load, mark read and send within a friend-only thread', async ({ page }) => {
   const sent = [];
+  const readMarks = [];
   await mockAuthenticatedApi(page, 'stationary', async ({ request, url }) => {
     if (url.pathname === '/messages' && request.method() === 'GET') {
       expect(url.searchParams.get('withRiderId')).toBe('rider_friend01');
-      return { body: { messages: [{ id: 'message-1', fromRiderId: 'rider_friend01', toRiderId: RIDER_ID, text: 'Meet at the petrol station?', createdAt: 1_700_000_000_000 }], nextCursor: null } };
+      return { body: { messages: [{ id: 'message-1', fromRiderId: 'rider_friend01', toRiderId: RIDER_ID, text: 'Meet at the petrol station?', createdAt: 1_700_000_000_000 }], nextCursor: null, peerReadThroughMessageId: null } };
+    }
+    if (url.pathname === '/messages/read' && request.method() === 'POST') {
+      const body = JSON.parse(request.postData() || '{}');
+      readMarks.push(body);
+      return { body: { readThroughSeq: 1 } };
     }
     if (url.pathname === '/messages' && request.method() === 'POST') {
       const body = JSON.parse(request.postData() || '{}');
@@ -1390,6 +1417,7 @@ test('PWA direct messages load and send within a friend-only thread', async ({ p
   await page.locator('#messageFriend').click();
   await expect(page.locator('#chatScreen')).toBeVisible();
   await expect(page.locator('#chatMessages')).toContainText('Meet at the petrol station?');
+  await expect.poll(() => readMarks).toContainEqual({ withRiderId: 'rider_friend01' });
   await page.locator('#chatInput').fill('On my way');
   await page.locator('#chatSend').click();
   await expect.poll(() => sent).toEqual([{ toRiderId: 'rider_friend01', text: 'On my way' }]);

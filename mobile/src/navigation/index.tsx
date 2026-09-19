@@ -22,7 +22,7 @@ import { LegalScreen } from '../screens/LegalScreen';
 import { OnboardingScreen, ONBOARDING_COMPLETED_KEY } from '../screens/OnboardingScreen';
 import { RideProvider } from '../ride/RideContext';
 import { SettingsProvider } from '../settings/SettingsContext';
-import { FriendsProvider } from '../friends/FriendsContext';
+import { FriendsProvider, useFriends } from '../friends/FriendsContext';
 import { AuthProvider } from '../auth/AuthContext';
 import { parseNavigationLink } from '../navigationLinks';
 import { colors, useConcreteThemeColors } from '../theme';
@@ -168,6 +168,8 @@ function LockedTabScreen(): React.JSX.Element {
 
 function Tabs(): React.JSX.Element {
   const { lockedForSafety } = useMovementSafety();
+  const { incomingRequests, unreadMessageCount } = useFriends();
+  const socialAttentionCount = incomingRequests.length + unreadMessageCount;
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -246,7 +248,15 @@ function Tabs(): React.JSX.Element {
         })}
       />
       <Tab.Screen name="Routes" component={lockedForSafety ? LockedTabScreen : ScenicRoutesScreen} options={{ title: 'Routes' }} />
-      <Tab.Screen name="Friends" component={lockedForSafety ? LockedTabScreen : FriendsScreen} options={{ title: 'Friends' }} />
+      <Tab.Screen
+        name="Friends"
+        component={lockedForSafety ? LockedTabScreen : FriendsScreen}
+        options={{
+          title: 'Friends',
+          tabBarBadge: socialAttentionCount > 0 ? (socialAttentionCount > 99 ? '99+' : socialAttentionCount) : undefined,
+          tabBarBadgeStyle: { backgroundColor: colors.accent, color: colors.accentText, fontSize: 10, fontWeight: '800' },
+        }}
+      />
       <Tab.Screen name="Settings" component={lockedForSafety ? LockedTabScreen : SettingsScreen} options={{ title: 'Settings' }} />
     </Tab.Navigator>
   );

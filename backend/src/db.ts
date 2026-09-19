@@ -587,6 +587,13 @@ const MIGRATIONS: { name: string; sql: string }[] = [
       );
     `,
   },
+  {
+    name: '0029_social_event_actor_index',
+    sql: `
+      CREATE INDEX IF NOT EXISTS social_events_actor_idx
+        ON social_events (actor_id);
+    `,
+  },
 ];
 
 /**

@@ -232,6 +232,38 @@ describe('RiderCommsClient social profiles and messages', () => {
     assert.deepEqual(await client.getMessages('bob', { before: 'cursor_123', limit: 25 }), { messages: [], nextCursor: null });
   });
 
+  it('uses the durable social event feed and message read-state endpoints', async () => {
+    const requests: Array<{ url: string; method: string; body?: unknown }> = [];
+    const client = new RiderCommsClient('http://example.test', fakeFetch((url, init) => {
+      requests.push({ url, method: init.method ?? 'GET', body: init.body ? JSON.parse(init.body as string) : undefined });
+      if (url.includes('/social/events')) return { status: 200, body: { events: [], cursor: 'MQ', hasMore: false } };
+      if (url.endsWith('/messages/unread-count')) return { status: 200, body: { unreadCount: 3 } };
+      if (url.endsWith('/messages/read')) return { status: 200, body: { readThroughSeq: 42 } };
+      if (url.includes('/conversations')) return { status: 200, body: { conversations: [], nextCursor: null } };
+      return { status: 200, body: {} };
+    }), 'token');
+
+    assert.equal((await client.getSocialEvents({ after: 'MA', waitMs: 0, limit: 25 })).cursor, 'MQ');
+    assert.equal((await client.getUnreadMessageCount()).unreadCount, 3);
+    assert.equal((await client.markMessagesRead('friend/1')).readThroughSeq, 42);
+    assert.deepEqual(await client.getConversations({ before: 'cursor_1', limit: 20 }), { conversations: [], nextCursor: null });
+    assert.deepEqual(requests, [
+      { url: 'http://example.test/social/events?limit=25&waitMs=0&after=MA', method: 'GET', body: undefined },
+      { url: 'http://example.test/messages/unread-count', method: 'GET', body: undefined },
+      { url: 'http://example.test/messages/read', method: 'POST', body: { withRiderId: 'friend/1' } },
+      { url: 'http://example.test/conversations?limit=20&before=cursor_1', method: 'GET', body: undefined },
+    ]);
+  });
+
+  it('can cancel an outgoing friend request', async () => {
+    const client = new RiderCommsClient('http://example.test', fakeFetch((url, init) => {
+      assert.equal(url, 'http://example.test/friends/requests/request%2F1');
+      assert.equal(init.method, 'DELETE');
+      return { status: 200, body: {} };
+    }), 'token');
+    await client.cancelFriendRequest('request/1');
+  });
+
   it('persists an editable profile field through the authenticated rider route', async () => {
     const client = new RiderCommsClient(
       'http://example.test',

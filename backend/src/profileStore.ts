@@ -205,6 +205,10 @@ export class ProfileStore {
     const client = await getPool().connect();
     try {
       await client.query('BEGIN');
+      // Partial profile writes from two devices must not both read the same
+      // old row and then overwrite each other's unrelated fields. A
+      // transaction-scoped rider lock also covers the first-write/no-row case.
+      await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))', [riderId]);
       const current = await this.getOrCreateWithDatabase(riderId, client);
       const next: RiderProfile = {
         ...current,
