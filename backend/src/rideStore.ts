@@ -12,6 +12,7 @@ export interface Ride {
   id: string;
   createdBy: string;
   createdAt: number;
+  voiceGeneration: number;
   memberIds: Set<string>;
 }
 
@@ -33,6 +34,12 @@ export type RemoveRideMemberResult =
   | { ok: true; ride: Ride; codeRecord: RideCodeRecord }
   | { ok: false; reason: 'not_found' | 'forbidden' | 'not_member' };
 
+export type RideVoiceTransition = (voiceGeneration: number) => Promise<void>;
+
+export type RideVoiceAuthorizationResult<T> =
+  | { ok: true; value: T }
+  | { ok: false; reason: 'not_found' | 'not_member' };
+
 export interface RideMemberLocation {
   riderId: string;
   lat: number;
@@ -50,6 +57,7 @@ interface RideRow {
   id: string;
   created_by: string;
   created_at: string | number;
+  voice_generation: string | number;
 }
 
 interface RideCodeRow {
@@ -117,6 +125,7 @@ export class RideStore {
       id: rows[0].id,
       createdBy: rows[0].created_by,
       createdAt: Number(rows[0].created_at),
+      voiceGeneration: Number(rows[0].voice_generation),
       memberIds: new Set(memberRows.map((row) => row.rider_id)),
     };
   }
@@ -140,7 +149,7 @@ export class RideStore {
       client.release();
     }
 
-    const ride: Ride = { id, createdBy: creatorId, createdAt, memberIds: new Set([creatorId]) };
+    const ride: Ride = { id, createdBy: creatorId, createdAt, voiceGeneration: 1, memberIds: new Set([creatorId]) };
     return { ride, codeRecord };
   }
 
@@ -241,16 +250,115 @@ export class RideStore {
     return { ok: true, ride };
   }
 
-  async leaveRide(rideId: string, riderId: string): Promise<RideActionResult> {
-    const result = await this.getRideForMember(rideId, riderId);
-    if (!result.ok) return result;
-    if (result.ride.createdBy === riderId) return { ok: false, reason: 'forbidden' };
-    await getPool().query('DELETE FROM ride_members WHERE ride_id = $1 AND rider_id = $2', [rideId, riderId]);
-    result.ride.memberIds.delete(riderId);
-    return result;
+  /**
+   * Authorises and mints a private-ride voice credential while holding a
+   * shared lock on the ride row. Membership-changing voice transitions take
+   * an exclusive lock on the same row, so Rider Comms cannot issue a token
+   * for the retiring generation concurrently with remove/leave/end.
+   */
+  async withVoiceAuthorization<T>(
+    rideId: string,
+    riderId: string,
+    authorise: (voiceGeneration: number) => Promise<T>,
+  ): Promise<RideVoiceAuthorizationResult<T>> {
+    await ensureMigrated();
+    const client = await getPool().connect();
+    try {
+      await client.query('BEGIN');
+      const { rows } = await client.query<RideRow>(
+        'SELECT * FROM rides WHERE id = $1 FOR SHARE',
+        [rideId],
+      );
+      const row = rows[0];
+      if (!row) {
+        await client.query('ROLLBACK');
+        return { ok: false, reason: 'not_found' };
+      }
+      const member = await client.query(
+        'SELECT 1 FROM ride_members WHERE ride_id = $1 AND rider_id = $2',
+        [rideId, riderId],
+      );
+      if (!member.rowCount) {
+        await client.query('ROLLBACK');
+        return { ok: false, reason: 'not_member' };
+      }
+      const value = await authorise(Number(row.voice_generation));
+      await client.query('COMMIT');
+      return { ok: true, value };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
-  async removeMember(rideId: string, actorId: string, memberId: string): Promise<RemoveRideMemberResult> {
+  async leaveRide(
+    rideId: string,
+    riderId: string,
+    retireVoiceRoom?: RideVoiceTransition,
+  ): Promise<RideActionResult> {
+    await ensureMigrated();
+    const client = await getPool().connect();
+    try {
+      await client.query('BEGIN');
+      const { rows } = await client.query<RideRow>(
+        'SELECT * FROM rides WHERE id = $1 FOR UPDATE',
+        [rideId],
+      );
+      const row = rows[0];
+      if (!row) {
+        await client.query('ROLLBACK');
+        return { ok: false, reason: 'not_found' };
+      }
+      if (row.created_by === riderId) {
+        await client.query('ROLLBACK');
+        return { ok: false, reason: 'forbidden' };
+      }
+      const member = await client.query(
+        'SELECT 1 FROM ride_members WHERE ride_id = $1 AND rider_id = $2',
+        [rideId, riderId],
+      );
+      if (!member.rowCount) {
+        await client.query('ROLLBACK');
+        return { ok: false, reason: 'not_member' };
+      }
+
+      await retireVoiceRoom?.(Number(row.voice_generation));
+      await client.query('DELETE FROM ride_members WHERE ride_id = $1 AND rider_id = $2', [rideId, riderId]);
+      const generation = await client.query<{ voice_generation: string | number }>(
+        'UPDATE rides SET voice_generation = voice_generation + 1 WHERE id = $1 RETURNING voice_generation',
+        [rideId],
+      );
+      const { rows: memberRows } = await client.query<{ rider_id: string }>(
+        'SELECT rider_id FROM ride_members WHERE ride_id = $1 ORDER BY rider_id',
+        [rideId],
+      );
+      await client.query('COMMIT');
+      return {
+        ok: true,
+        ride: {
+          id: row.id,
+          createdBy: row.created_by,
+          createdAt: Number(row.created_at),
+          voiceGeneration: Number(generation.rows[0]?.voice_generation),
+          memberIds: new Set(memberRows.map((entry) => entry.rider_id)),
+        },
+      };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async removeMember(
+    rideId: string,
+    actorId: string,
+    memberId: string,
+    retireVoiceRoom?: RideVoiceTransition,
+  ): Promise<RemoveRideMemberResult> {
     await ensureMigrated();
     const client = await getPool().connect();
     try {
@@ -278,6 +386,8 @@ export class RideStore {
         return { ok: false, reason: 'not_member' };
       }
 
+      await retireVoiceRoom?.(Number(row.voice_generation));
+
       await client.query(
         `INSERT INTO ride_exclusions (ride_id, rider_id, removed_at)
          VALUES ($1, $2, $3)
@@ -292,6 +402,10 @@ export class RideStore {
       // can never leave a reusable shared secret behind.
       await client.query('DELETE FROM ride_codes WHERE ride_id = $1', [rideId]);
       const codeRecord = await reserveRideCode(client, rideId);
+      const generation = await client.query<{ voice_generation: string | number }>(
+        'UPDATE rides SET voice_generation = voice_generation + 1 WHERE id = $1 RETURNING voice_generation',
+        [rideId],
+      );
 
       const { rows: memberRows } = await client.query<{ rider_id: string }>(
         'SELECT rider_id FROM ride_members WHERE ride_id = $1 ORDER BY rider_id',
@@ -304,6 +418,7 @@ export class RideStore {
           id: row.id,
           createdBy: row.created_by,
           createdAt: Number(row.created_at),
+          voiceGeneration: Number(generation.rows[0]?.voice_generation),
           memberIds: new Set(memberRows.map((entry) => entry.rider_id)),
         },
         codeRecord,
@@ -347,14 +462,51 @@ export class RideStore {
     }
   }
 
-  async endRide(rideId: string, actorId: string): Promise<RideActionResult> {
+  async endRide(
+    rideId: string,
+    actorId: string,
+    retireVoiceRoom?: RideVoiceTransition,
+  ): Promise<RideActionResult> {
     await ensureMigrated();
-    const ride = await this.loadRide(rideId);
-    if (!ride) return { ok: false, reason: 'not_found' };
-    if (ride.createdBy !== actorId) return { ok: false, reason: 'forbidden' };
-    // ride_members and ride_codes cascade-delete with the ride row.
-    await getPool().query('DELETE FROM rides WHERE id = $1', [rideId]);
-    return { ok: true, ride };
+    const client = await getPool().connect();
+    try {
+      await client.query('BEGIN');
+      const { rows } = await client.query<RideRow>(
+        'SELECT * FROM rides WHERE id = $1 FOR UPDATE',
+        [rideId],
+      );
+      const row = rows[0];
+      if (!row) {
+        await client.query('ROLLBACK');
+        return { ok: false, reason: 'not_found' };
+      }
+      if (row.created_by !== actorId) {
+        await client.query('ROLLBACK');
+        return { ok: false, reason: 'forbidden' };
+      }
+      const { rows: memberRows } = await client.query<{ rider_id: string }>(
+        'SELECT rider_id FROM ride_members WHERE ride_id = $1',
+        [rideId],
+      );
+      await retireVoiceRoom?.(Number(row.voice_generation));
+      await client.query('DELETE FROM rides WHERE id = $1', [rideId]);
+      await client.query('COMMIT');
+      return {
+        ok: true,
+        ride: {
+          id: row.id,
+          createdBy: row.created_by,
+          createdAt: Number(row.created_at),
+          voiceGeneration: Number(row.voice_generation),
+          memberIds: new Set(memberRows.map((entry) => entry.rider_id)),
+        },
+      };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async deleteRider(riderId: string): Promise<void> {
