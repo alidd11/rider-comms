@@ -64,15 +64,14 @@ if (!html.includes(`<meta name="theme-color" content="${darkChrome}"`)) {
 if (!css.includes(`--bg:${darkChrome}`) || !css.includes(`--system-chrome:${darkChrome}`)) {
   throw new Error(`PWA CSS dark page and system-chrome colours must remain ${darkChrome}`);
 }
-// Must match --bg's own light-theme value, not an independent "light
-// mode is white" assumption — that mismatch (chrome white, page content
-// cream) is exactly what left a visible seam in any native browser-chrome
-// gap around the page (status bar, the strip below the safe area) in
-// light mode, on every screen, not just the ones that happened to expose
-// it. See the same reasoning for darkChrome above.
-const lightChrome = '#f2f5f6';
-if (!html.includes(`<meta name="theme-color" content="${lightChrome}" media="(prefers-color-scheme: light)">`) ||
-    !css.includes(`@media(prefers-color-scheme:light){:root{--system-chrome:${lightChrome}}}`)) {
-  throw new Error(`PWA light theme colour and system-chrome surface must remain ${lightChrome}`);
+// The approved production mockup is a single graphite appearance across
+// PWA and native. Device/browser light mode must never invert the app shell,
+// system chrome, map, sheets or cards back to the retired light palette.
+if (!css.includes('color-scheme: dark')) {
+  throw new Error('PWA must advertise the approved dark-only colour scheme');
+}
+if (/prefers-color-scheme\s*:\s*light/i.test(css) ||
+    /theme-color[^>]+prefers-color-scheme:\s*light/i.test(html)) {
+  throw new Error('PWA must not contain a device-light-mode visual override');
 }
 console.log(`Built PWA at ${destination}`);
