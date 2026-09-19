@@ -32,7 +32,7 @@ describe('curated route catalogue', () => {
   it('has unique, fully attributed records suitable for road motorcycles', () => {
     assert.equal(new Set(CURATED_ROUTES.map((route) => route.id)).size, CURATED_ROUTES.length);
     assert.equal(new Set(CURATED_ROUTES.map((route) => route.name)).size, CURATED_ROUTES.length);
-    assert.ok(CURATED_ROUTES.length >= 19);
+    assert.ok(CURATED_ROUTES.length >= 20);
 
     for (const route of CURATED_ROUTES) {
       assert.ok(route.vehicleSuitability.includes('motorcycle_small'));
