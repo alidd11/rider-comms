@@ -578,6 +578,18 @@ const MIGRATIONS: { name: string; sql: string }[] = [
         ON social_events (created_at);
     `,
   },
+  {
+    name: '0028_private_ride_exclusions',
+    sql: `
+      CREATE TABLE IF NOT EXISTS ride_exclusions (
+        ride_id TEXT NOT NULL REFERENCES rides (id) ON DELETE CASCADE,
+        rider_id TEXT NOT NULL,
+        removed_at BIGINT NOT NULL,
+        PRIMARY KEY (ride_id, rider_id)
+      );
+      CREATE INDEX IF NOT EXISTS ride_exclusions_rider_idx
+        ON ride_exclusions (rider_id, ride_id);
+    `,
 ];
 
 /**
