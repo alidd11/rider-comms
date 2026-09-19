@@ -74,6 +74,18 @@ describe('POST /voice/token', () => {
       assert.deepEqual(payload.video.canPublishSources, ['microphone']);
       assert.equal(payload.video.canPublishData, false);
 
+      // Both real devices must be authorised into the exact same pair room.
+      // A one-sided token test can pass while the reverse token accidentally
+      // targets a different room, which would look connected but stay silent.
+      const reverseRes = await postJson(ctx, 'bob', '/voice/token', { target: 'channel' });
+      assert.equal(reverseRes.status, 200);
+      const reverseBody = await reverseRes.json() as { connections: Array<{ peerId: string; token: string; url: string }> };
+      assert.equal(reverseBody.connections.length, 1);
+      assert.equal(reverseBody.connections[0].peerId, 'alice');
+      assert.equal(reverseBody.connections[0].url, FAKE_CREDS.url);
+      const reversePayload = JSON.parse(Buffer.from(reverseBody.connections[0].token.split('.')[1], 'base64url').toString('utf8'));
+      assert.equal(reversePayload.video.room, payload.video.room);
+
       assert.equal((await postJson(ctx, 'alice', '/blocks', { riderId: 'bob' })).status, 200);
       const blocked = await postJson(ctx, 'alice', '/voice/token', { target: 'channel' });
       assert.deepEqual(await blocked.json(), { connections: [], refreshAfterMs: 20_000 });
