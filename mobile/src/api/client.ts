@@ -22,7 +22,7 @@ export interface SignUpSession extends LoginSession { emailVerificationSent: boo
 export interface AccountSessionSummary { id: string; deviceName: string; createdAt: string; lastSeenAt: string; expiresAt: string; current: boolean }
 export interface CreateRideResponse { rideId: string; code: string; expiresAt: number; createdBy: string; memberIds: string[] }
 export interface JoinRideResponse { rideId: string }
-export interface RideResponse { rideId: string; createdBy: string; createdAt: number; memberIds: string[] }
+export interface RideResponse { rideId: string; createdBy: string; createdAt: number; memberIds: string[]; code?: string; expiresAt?: number }
 export interface RideMemberLocation { riderId: string; lat: number; lon: number; updatedAt: number }
 export interface PresenceResponse { inZoneWith: string[]; transitions: Array<{ a: string; b: string; type: 'entered' | 'left' }>; radiusMiles: number }
 export interface VoiceTokenResponse { token: string; url: string }
