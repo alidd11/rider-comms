@@ -30,6 +30,7 @@ export function ProximityVoice({ enabled }: { enabled: boolean }): React.JSX.Ele
   const [connectedPeers, setConnectedPeers] = React.useState<Set<string>>(new Set());
   const [error, setError] = React.useState<string | null>(null);
   const [refreshVersion, setRefreshVersion] = React.useState(0);
+  const [audioSessionReady, setAudioSessionReady] = React.useState(false);
 
   React.useEffect(() => {
     if (!active) {
@@ -63,11 +64,24 @@ export function ProximityVoice({ enabled }: { enabled: boolean }): React.JSX.Ele
 
   const needsAudioSession = active && connections.length > 0;
   React.useEffect(() => {
-    if (!needsAudioSession) return;
+    if (!needsAudioSession) {
+      setAudioSessionReady(false);
+      return;
+    }
+
     let stopped = false;
-    void acquireVoiceAudioSession('proximity').catch(() => {
-      if (!stopped) setError('Microphone or Bluetooth audio is unavailable.');
-    });
+    setAudioSessionReady(false);
+    void acquireVoiceAudioSession('proximity')
+      .then(() => {
+        if (!stopped) setAudioSessionReady(true);
+      })
+      .catch(() => {
+        if (!stopped) {
+          setAudioSessionReady(false);
+          setError('Microphone or Bluetooth audio is unavailable.');
+        }
+      });
+
     return () => {
       stopped = true;
       void releaseVoiceAudioSession('proximity').catch(() => {});
@@ -107,7 +121,7 @@ export function ProximityVoice({ enabled }: { enabled: boolean }): React.JSX.Ele
           key={`${connection.peerId}:${connection.token}`}
           serverUrl={connection.url}
           token={connection.token}
-          connect
+          connect={audioSessionReady}
           onConnected={() => {
             setError(null);
             setConnectedPeers((current) => new Set(current).add(connection.peerId));
