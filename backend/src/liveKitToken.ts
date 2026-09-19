@@ -38,9 +38,11 @@ export function createVoiceRoomAdmin(credentials: LiveKitCredentials): VoiceRoom
   );
   return {
     // LiveKit's RemoveParticipant RPC also revokes previously issued tokens
-    // for this identity. When revokeTokenTs is omitted the protocol defaults
-    // to server-now plus one minute of clock-skew leeway.
-    removeParticipant: (roomName, identity) => client.removeParticipant(roomName, identity),
+    // for this identity. Use an explicit server-compatible millisecond cutoff
+    // one minute ahead to absorb client/server clock skew deterministically.
+    removeParticipant: (roomName, identity) => client.removeParticipant(roomName, identity, {
+      revokeTokenTs: BigInt(Date.now() + 60_000),
+    }),
     deleteRoom: (roomName) => client.deleteRoom(roomName),
   };
 }
