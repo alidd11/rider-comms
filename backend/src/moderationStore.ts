@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import { ensureMigrated, getPool } from './db.ts';
-import { appendSocialEvent } from './socialEventStore.ts';
+import { appendSocialEventForRiders } from './socialEventStore.ts';
 
 export const REPORT_REASONS = ['harassment', 'unsafe', 'spam', 'sexual', 'other'] as const;
 export type ReportReason = (typeof REPORT_REASONS)[number];
@@ -38,7 +38,7 @@ export class ModerationStore {
     try {
       await client.query('BEGIN');
       await this.lockPair(client, riderId, blockedRiderId);
-      await client.query(
+      const blockInserted = await client.query(
         'INSERT INTO rider_blocks (rider_id, blocked_rider_id, created_at) VALUES ($1, $2, $3) ON CONFLICT (rider_id, blocked_rider_id) DO NOTHING',
         [riderId, blockedRiderId, Date.now()]
       );
@@ -61,10 +61,10 @@ export class ModerationStore {
       // learns only that the relationship/request disappeared, never that a
       // block was the reason.
       if ((removedFriendships.rowCount ?? 0) > 0) {
-        await appendSocialEvent(client, blockedRiderId, 'friend_removed', riderId, riderId);
+        await appendSocialEventForRiders(client, [riderId, blockedRiderId], 'friend_removed', riderId, riderId);
       }
       for (const request of removedRequests.rows) {
-        await appendSocialEvent(client, blockedRiderId, 'friend_request_resolved', riderId, request.id);
+        await appendSocialEventForRiders(client, [riderId, blockedRiderId], 'friend_request_resolved', riderId, request.id);
       }
       // A direct hideout share is effectively a location-sharing link
       // between its creator and participant. Remove that direct link when
@@ -78,6 +78,9 @@ export class ModerationStore {
              OR (hideout.created_by = $2 AND participant.rider_id = $1))`,
         [riderId, blockedRiderId],
       );
+      if ((blockInserted.rowCount ?? 0) > 0) {
+        await appendSocialEventForRiders(client, [riderId], 'social_refresh', riderId, 'blocks');
+      }
       await client.query('COMMIT');
     } catch (error) {
       await client.query('ROLLBACK');
@@ -89,7 +92,23 @@ export class ModerationStore {
 
   async unblock(riderId: string, blockedRiderId: string): Promise<void> {
     await ensureMigrated();
-    await getPool().query('DELETE FROM rider_blocks WHERE rider_id = $1 AND blocked_rider_id = $2', [riderId, blockedRiderId]);
+    const client = await getPool().connect();
+    try {
+      await client.query('BEGIN');
+      const removed = await client.query(
+        'DELETE FROM rider_blocks WHERE rider_id = $1 AND blocked_rider_id = $2',
+        [riderId, blockedRiderId],
+      );
+      if ((removed.rowCount ?? 0) > 0) {
+        await appendSocialEventForRiders(client, [riderId], 'social_refresh', riderId, 'blocks');
+      }
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async getBlocked(riderId: string): Promise<string[]> {

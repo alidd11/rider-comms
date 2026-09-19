@@ -545,6 +545,67 @@ export const CURATED_ROUTES: readonly CuratedRoute[] = [
     }
   },
   {
+    "id": "b4391-ffestiniog-arenig",
+    "name": "B4391 Ffestiniog–Arenig",
+    "region": "Eryri / North Wales",
+    "road": "B4391 · Llan Ffestiniog to A4212",
+    "description": "Eight miles of high moorland road linking Llan Ffestiniog with the A4212, climbing past Cwm Cynfal before opening into exposed Eryri countryside.",
+    "riderNote": "Short, exposed and memorable: a proper North Wales connector that suits bikes, scooters and nimble cars without turning the catalogue into another all-day mountain route.",
+    "vehicleSuitability": [
+      "motorcycle_small",
+      "motorcycle_large",
+      "scooter",
+      "car"
+    ],
+    "roadType": "mountain",
+    "distanceMiles": 8,
+    "estimatedDurationMinutes": 20,
+    "difficulty": "moderate",
+    "highlights": [
+      "Cwm Cynfal",
+      "Open Eryri moorland",
+      "Arenig approach"
+    ],
+    "safetyNotices": [
+      "The route includes blind, tightening corners; keep enough margin to stop within the distance you can see to be clear.",
+      "The upland section is exposed to fast-changing rain, wind and low cloud, and includes cattle grids.",
+      "Check Cyngor Gwynedd's current roadworks map before departure; the map is updated weekly but short-notice works may not appear immediately."
+    ],
+    "start": {
+      "lat": 52.95789,
+      "lon": -3.92927,
+      "label": "Llan Ffestiniog (A470 junction)"
+    },
+    "end": {
+      "lat": 52.9396,
+      "lon": -3.76416,
+      "label": "A4212 junction near Arenig"
+    },
+    "waypoints": [
+      {
+        "lat": 52.95814,
+        "lon": -3.88551,
+        "label": "Cwm Cynfal Viewpoint"
+      },
+      {
+        "lat": 52.95949,
+        "lon": -3.86889,
+        "label": "B4407 junction"
+      }
+    ],
+    "routeSourceUrl": "https://www.supercar-driver.com/blog/our-favourite-driving-roads-b4391-north-wales",
+    "conditionsUrl": "https://www.gwynedd.llyw.cymru/en-gb/parking-roads-and-travel/traffic-road-improvements-and-roadworks/roadworks",
+    "reviewedAt": "2026-09-19",
+    "image": {
+      "uri": "https://upload.wikimedia.org/wikipedia/commons/d/d2/B4391_approx_3km_from_Llan_Ffestiniog_-_geograph.org.uk_-_101596.jpg",
+      "alt": "The B4391 about 3 km east of Llan Ffestiniog",
+      "author": "Ian Warburton",
+      "licenseName": "CC BY-SA 2.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/2.0/",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:B4391_approx_3km_from_Llan_Ffestiniog_-_geograph.org.uk_-_101596.jpg"
+    }
+  },
+  {
     "id": "b4560-llangynidr",
     "name": "Llangynidr Mountain Road",
     "region": "Bannau Brycheiniog",
