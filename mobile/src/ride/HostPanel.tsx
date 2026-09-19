@@ -88,7 +88,7 @@ function JoinOrHostForm(): React.JSX.Element {
               accessibilityLabel="Enter six character ride code"
             >
               {Array.from({ length: 6 }, (_, index) => (
-                <View key={index} style={[styles.codeSlot, index === code.length && code.length < 6 && styles.codeSlotActive]}>
+                <View key={index} style={[styles.codeSlot, index > 0 && styles.codeSlotDivider, index === code.length && code.length < 6 && styles.codeSlotActive]}>
                   <Text style={[styles.codeSlotText, !code[index] && styles.codeSlotEmpty]}>{code[index] ?? '—'}</Text>
                 </View>
               ))}
@@ -125,7 +125,7 @@ function JoinOrHostForm(): React.JSX.Element {
               </View>
               <View style={styles.consentCopy}>
                 <Text style={styles.consentTitle}>Share my live location</Text>
-                <Text style={styles.consentBody}>Optional. Only current ride members can see it, and it is removed when you leave or switch this off.</Text>
+                <Text style={styles.consentBody}>Ride members only · cleared when you leave or switch this off.</Text>
               </View>
             </Pressable>
             {error ? (
@@ -216,7 +216,7 @@ export function HostPanel(): React.JSX.Element {
 const styles = StyleSheet.create({
   joinScreen: { flex: 1, backgroundColor: colors.background },
   joinScroll: { flexGrow: 1, backgroundColor: colors.background },
-  joinBody: { gap: 10, paddingHorizontal: 20, paddingTop: 12 },
+  joinBody: { gap: 8, paddingHorizontal: 20, paddingTop: 11 },
   activePanel: { flex: 1, paddingHorizontal: spacing.lg, backgroundColor: colors.background },
   form: { flexGrow: 1, gap: spacing.md },
   rootTitle: { ...type.title, color: colors.textPrimary, fontSize: 28, lineHeight: 32, letterSpacing: -0.8 },
@@ -225,38 +225,39 @@ const styles = StyleSheet.create({
   heroShade: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(3,7,9,0.18)' },
   heroFade: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 76, backgroundColor: 'rgba(3,7,9,0.22)' },
   heroTitle: { color: '#FFFFFF', fontSize: 30, lineHeight: 28, fontWeight: '800', letterSpacing: -1.2, paddingHorizontal: 22, paddingBottom: 18, textShadowColor: 'rgba(0,0,0,0.48)', textShadowRadius: 10 },
-  joinCard: { gap: 8, padding: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: radii.lg, backgroundColor: colors.surface },
-  joinTitle: { ...type.subheading, color: colors.textPrimary, fontSize: 15, lineHeight: 18, fontWeight: '800', marginBottom: 1 },
-  fieldLabel: { ...type.caption, color: colors.textSecondary, fontSize: 11, lineHeight: 14, fontWeight: '700' },
+  joinCard: { gap: 7, padding: 11, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: radii.lg, backgroundColor: colors.surface },
+  joinTitle: { ...type.subheading, color: colors.textPrimary, fontSize: 14, lineHeight: 17, fontWeight: '800', marginBottom: 0 },
+  fieldLabel: { ...type.caption, color: colors.textSecondary, fontSize: 10, lineHeight: 13, fontWeight: '700' },
   iconBadge: { width: 48, height: 48, borderRadius: radii.lg, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
   title: { ...type.heading, marginBottom: spacing.sm },
   body: { ...type.body, marginBottom: spacing.lg },
-  codeSlots: { position: 'relative', flexDirection: 'row', gap: 5 },
+  codeSlots: { position: 'relative', minHeight: 38, flexDirection: 'row', gap: 0, overflow: 'hidden', borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: radii.lg, backgroundColor: colors.surfaceRaised },
   codeSlotsError: { borderColor: colors.danger },
-  codeSlot: { flex: 1, minHeight: 40, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.border, borderRadius: radii.lg, backgroundColor: colors.surfaceRaised },
-  codeSlotActive: { borderColor: colors.accent },
-  codeSlotText: { fontSize: 16, lineHeight: 19, fontWeight: '800', color: colors.textPrimary },
+  codeSlot: { flex: 1, minHeight: 38, alignItems: 'center', justifyContent: 'center', borderWidth: 0, borderRadius: 0, backgroundColor: 'transparent' },
+  codeSlotDivider: { borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: colors.border },
+  codeSlotActive: { backgroundColor: colors.accentSoft, borderBottomWidth: 2, borderBottomColor: colors.accent },
+  codeSlotText: { fontSize: 15, lineHeight: 18, fontWeight: '800', color: colors.textPrimary },
   codeSlotEmpty: { color: colors.textMuted, fontWeight: '500' },
   codeInputOverlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, opacity: 0.01, color: 'transparent' },
-  joinHelp: { ...type.caption, color: colors.textMuted, fontSize: 10, lineHeight: 14, marginTop: -1 },
-  consentRow: { minHeight: 44, flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingTop: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
-  checkbox: { width: 18, height: 18, borderRadius: radii.md, borderWidth: 1.5, borderColor: colors.textMuted, alignItems: 'center', justifyContent: 'center', marginTop: 1 },
+  joinHelp: { ...type.caption, color: colors.textMuted, fontSize: 9, lineHeight: 12, marginTop: -1 },
+  consentRow: { minHeight: 36, flexDirection: 'row', alignItems: 'center', gap: 7, paddingTop: 7, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
+  checkbox: { width: 17, height: 17, borderRadius: radii.md, borderWidth: 1.5, borderColor: colors.textMuted, alignItems: 'center', justifyContent: 'center', marginTop: 0 },
   checkboxChecked: { backgroundColor: colors.accent, borderColor: colors.accent },
   consentCopy: { flex: 1 },
-  consentTitle: { ...type.caption, color: colors.textPrimary, fontSize: 11, lineHeight: 14, fontWeight: '700' },
-  consentBody: { ...type.caption, color: colors.textMuted, fontSize: 10, lineHeight: 14, marginTop: 2 },
-  errorBox: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm, backgroundColor: colors.dangerSurface, borderRadius: radii.lg, padding: 8 },
-  errorText: { ...type.caption, color: colors.danger, flex: 1, fontSize: 10, lineHeight: 14 },
-  hostLink: { minHeight: 62, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 11, paddingVertical: 9, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: radii.lg, backgroundColor: colors.surface },
+  consentTitle: { ...type.caption, color: colors.textPrimary, fontSize: 10, lineHeight: 13, fontWeight: '700' },
+  consentBody: { ...type.caption, color: colors.textMuted, fontSize: 9, lineHeight: 12, marginTop: 1 },
+  errorBox: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.dangerSurface, borderRadius: radii.lg, paddingHorizontal: 7, paddingVertical: 5 },
+  errorText: { ...type.caption, color: colors.danger, flex: 1, fontSize: 9, lineHeight: 12 },
+  hostLink: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 10, paddingVertical: 8, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: radii.lg, backgroundColor: colors.surface },
   hostLinkPressed: { opacity: 0.82 },
-  hostLinkIcon: { width: 38, height: 38, borderRadius: radii.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceRaised },
+  hostLinkIcon: { width: 34, height: 34, borderRadius: radii.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceRaised },
   hostLinkCopy: { flex: 1, minWidth: 0 },
-  hostLinkTitle: { ...type.body, color: colors.textPrimary, fontSize: 13, lineHeight: 16, fontWeight: '700' },
-  hostLinkText: { ...type.caption, color: colors.textMuted, fontSize: 10, lineHeight: 14, marginTop: 2 },
-  button: { minHeight: 44, backgroundColor: colors.accent, borderRadius: radii.lg, alignItems: 'center', justifyContent: 'center', marginTop: -1 },
+  hostLinkTitle: { ...type.body, color: colors.textPrimary, fontSize: 12, lineHeight: 15, fontWeight: '700' },
+  hostLinkText: { ...type.caption, color: colors.textMuted, fontSize: 9, lineHeight: 12, marginTop: 1 },
+  button: { minHeight: 42, backgroundColor: colors.accent, borderRadius: radii.lg, alignItems: 'center', justifyContent: 'center', marginTop: -1 },
   buttonPressed: { backgroundColor: colors.accentPressed },
   buttonDisabled: { opacity: 0.5 },
-  buttonText: { ...type.button, color: colors.accentText, fontSize: 13 },
+  buttonText: { ...type.button, color: colors.accentText, fontSize: 12 },
   codeCard: { backgroundColor: colors.surface, borderRadius: radii.lg, padding: spacing.md, alignItems: 'center', marginBottom: spacing.lg, ...elevation.raised },
   codeLabel: { ...type.label },
   codeValue: { fontSize: 32, fontWeight: '800', letterSpacing: 6, color: colors.accent, marginTop: spacing.xs },

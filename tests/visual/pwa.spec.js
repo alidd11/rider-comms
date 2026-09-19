@@ -337,6 +337,7 @@ test('ride join baseline owns the iPhone top edge in day and night', async ({ pa
       const header = screen.querySelector('.page-header');
       const heroElement = screen.querySelector('.ride-hero');
       const join = screen.querySelector('.ride-entry');
+      const rail = screen.querySelector('.ride-code-slots');
       const slot = screen.querySelector('.ride-code-slots span');
       const button = screen.querySelector('.ride-join-button');
       const start = screen.querySelector('.ride-start-row');
@@ -353,8 +354,12 @@ test('ride join baseline owns the iPhone top edge in day and night', async ({ pa
         heroRadius: parseFloat(hero.borderTopLeftRadius),
         joinTop: box(join).top,
         joinRadius: parseFloat(getComputedStyle(join).borderTopLeftRadius),
+        railHeight: box(rail).height,
+        railRadius: parseFloat(getComputedStyle(rail).borderTopLeftRadius),
+        railGap: parseFloat(getComputedStyle(rail).gap) || 0,
         slotHeight: box(slot).height,
         slotRadius: parseFloat(getComputedStyle(slot).borderTopLeftRadius),
+        slotBackground: getComputedStyle(slot).backgroundColor,
         buttonHeight: box(button).height,
         startHeight: box(start).height,
         startRadius: parseFloat(getComputedStyle(start).borderTopLeftRadius),
@@ -378,10 +383,13 @@ test('ride join baseline owns the iPhone top edge in day and night', async ({ pa
     expect(visual.joinTop - (visual.heroTop + visual.heroHeight)).toBeGreaterThanOrEqual(10);
     expect(visual.joinTop - (visual.heroTop + visual.heroHeight)).toBeLessThanOrEqual(14);
     expect(visual.joinRadius).toBeLessThanOrEqual(4);
-    expect(visual.slotHeight).toBeLessThanOrEqual(42);
-    expect(visual.slotRadius).toBeLessThanOrEqual(4);
-    expect(visual.buttonHeight).toBeLessThanOrEqual(46);
-    expect(visual.startHeight).toBeLessThanOrEqual(66);
+    expect(visual.railHeight).toBeLessThanOrEqual(40);
+    expect(visual.railRadius).toBeLessThanOrEqual(4);
+    expect(visual.railGap).toBe(0);
+    expect(visual.slotHeight).toBeLessThanOrEqual(40);
+    expect(visual.slotRadius).toBe(0);
+    expect(visual.buttonHeight).toBeLessThanOrEqual(44);
+    expect(visual.startHeight).toBeLessThanOrEqual(60);
     expect(visual.startRadius).toBeLessThanOrEqual(4);
     expect(visual.startBottom).toBeLessThanOrEqual(visual.navTop + 2);
 
