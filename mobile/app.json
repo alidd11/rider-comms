@@ -5,7 +5,7 @@
     "version": "0.1.0",
     "orientation": "portrait",
     "scheme": "ridercomms",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "automatic",
     "plugins": [
       "@livekit/react-native-expo-plugin",
       "@config-plugins/react-native-webrtc",

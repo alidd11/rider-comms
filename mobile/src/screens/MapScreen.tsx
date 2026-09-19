@@ -14,7 +14,7 @@
 // a `segment: 'host'` param, read below, instead of navigating to its own
 // registered-but-never-actually-shown screen.
 import * as React from 'react';
-import { View, Text, Pressable, StyleSheet, Alert, Linking, Platform } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Alert, Linking, Platform, useColorScheme } from 'react-native';
 import { useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -74,6 +74,20 @@ const DARK_MAP_STYLE = [
   { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#25333B' }] },
   { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#20313A' }] },
   { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#071C25' }] },
+];
+const LIGHT_MAP_STYLE = [
+  { elementType: 'geometry', stylers: [{ color: '#E6EDEF' }] },
+  { elementType: 'labels.text.stroke', stylers: [{ color: '#EEF3F4' }] },
+  { elementType: 'labels.text.fill', stylers: [{ color: '#526169' }] },
+  { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#2F4048' }] },
+  { featureType: 'landscape.natural', elementType: 'geometry', stylers: [{ color: '#E1E9E7' }] },
+  { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+  { featureType: 'transit', stylers: [{ visibility: 'off' }] },
+  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#F7F9FA' }] },
+  { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#BDC9CE' }] },
+  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#D4E1E5' }] },
+  { featureType: 'road.highway', elementType: 'geometry.stroke', stylers: [{ color: '#AEBDC3' }] },
+  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#C9E0E7' }] },
 ];
 const NAV_STEP_ARRIVAL_RADIUS_M = 30;
 const NAV_OFF_ROUTE_RADIUS_M = 60;
@@ -158,6 +172,7 @@ function SegmentToggle({
 }
 
 export function MapScreen(): React.JSX.Element {
+  const colorScheme = useColorScheme();
   const { client, riderId } = useAuth();
   const { rideLocations } = useRide();
   const { shareLocation, setShareLocation, unitSystem, navigationProvider } = useSettings();
@@ -201,7 +216,11 @@ export function MapScreen(): React.JSX.Element {
     }, 450);
   }, []);
 
-  const requestCurrentLocation = React.useCallback(async (showSettingsPrompt = true): Promise<{ lat: number; lon: number; accuracyMeters: number; recordedAt: number } | null> => {
+  const requestCurrentLocation = React.useCallback(async (
+    showSettingsPrompt = true,
+    accuracy: Location.Accuracy = Location.Accuracy.Balanced,
+    refreshMovementTracking = true,
+  ): Promise<{ lat: number; lon: number; accuracyMeters: number; recordedAt: number } | null> => {
     try {
       const permission = await Location.requestForegroundPermissionsAsync();
       if (!permission.granted) {
@@ -218,7 +237,7 @@ export function MapScreen(): React.JSX.Element {
         }
         return null;
       }
-      const result = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const result = await Location.getCurrentPositionAsync({ accuracy });
       const next = {
         lat: result.coords.latitude,
         lon: result.coords.longitude,
@@ -226,7 +245,7 @@ export function MapScreen(): React.JSX.Element {
         recordedAt: result.timestamp,
       };
       setCurrentLocation(next);
-      await refreshTracking();
+      if (refreshMovementTracking) await refreshTracking();
       setLocationUnavailable(false);
       return next;
     } catch {
@@ -258,7 +277,11 @@ export function MapScreen(): React.JSX.Element {
     let cancelled = false;
 
     async function tick() {
-      const location = await requestCurrentLocation(false);
+      // Nearby Voice authorisation is capped at <=100 m accuracy by the
+      // backend. Ask for a high-accuracy fix while live so an otherwise valid
+      // two-rider test is not rejected just because the generic map fix used
+      // the lower-power Balanced mode.
+      const location = await requestCurrentLocation(false, Location.Accuracy.High, false);
       if (!location || cancelled) return;
       const { lat, lon, accuracyMeters, recordedAt } = location;
       try {
@@ -320,11 +343,25 @@ export function MapScreen(): React.JSX.Element {
     }
     try {
       await preflightVoiceMicrophone();
-      setShareLocation(true);
     } catch (microphoneError) {
       Alert.alert('Microphone unavailable', microphoneErrorMessage(microphoneError));
+      return;
     }
-  }, [lockedForSafety, setShareLocation, shareLocation]);
+
+    try {
+      // The presence endpoint refuses a fix until the durable profile says
+      // shareLocation=true. Confirm that backend write BEFORE flipping the
+      // local setting; otherwise the presence effect can race the queued
+      // SettingsContext save and fail the first Go Live with a 403.
+      await client.updateProfile(riderId, { shareLocation: true });
+      setShareLocation(true);
+    } catch {
+      Alert.alert(
+        'Nearby Voice unavailable',
+        'Rider Comms could not enable Nearby Voice on the server. Check your connection and try again.',
+      );
+    }
+  }, [client, lockedForSafety, riderId, setShareLocation, shareLocation]);
 
   async function handleReport(hazardType: HazardType) {
     setReportSheetOpen(false);
@@ -621,7 +658,7 @@ export function MapScreen(): React.JSX.Element {
             loadingEnabled
             loadingBackgroundColor={colors.background}
             loadingIndicatorColor={colors.accent}
-            customMapStyle={DARK_MAP_STYLE}
+            customMapStyle={colorScheme === 'light' ? LIGHT_MAP_STYLE : DARK_MAP_STYLE}
             showsCompass={false}
             showsMyLocationButton={false}
             toolbarEnabled={false}
@@ -851,7 +888,7 @@ export function MapScreen(): React.JSX.Element {
       <View style={styles.rideBarSlot} pointerEvents="box-none">
         <RideBar controlsVisible={!activeRoute} />
       </View>
-      <ProximityVoice enabled={shareLocation && ridersInZone.length > 0} />
+      <ProximityVoice enabled={shareLocation} peerIds={ridersInZone} />
     </View>
   );
 }

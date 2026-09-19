@@ -170,30 +170,39 @@
     { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#071c25' }] },
   ];
   const MAP_STYLE_LIGHT = [
-    { elementType: 'geometry', stylers: [{ color: '#eef3f5' }] },
-    { elementType: 'labels.text.stroke', stylers: [{ color: '#eef3f5' }] },
-    { elementType: 'labels.text.fill', stylers: [{ color: '#4f5e66' }] },
-    { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#33434b' }] },
-    { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#ffffff' }] },
-    { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#cdd8dd' }] },
-    { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#dbe7eb' }] },
+    { elementType: 'geometry', stylers: [{ color: '#e6edef' }] },
+    { elementType: 'labels.text.stroke', stylers: [{ color: '#eef3f4' }] },
+    { elementType: 'labels.text.fill', stylers: [{ color: '#526169' }] },
+    { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#2f4048' }] },
+    { featureType: 'landscape.natural', elementType: 'geometry', stylers: [{ color: '#e1e9e7' }] },
+    { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#f7f9fa' }] },
+    { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#bdc9ce' }] },
+    { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#d4e1e5' }] },
+    { featureType: 'road.highway', elementType: 'geometry.stroke', stylers: [{ color: '#aebdc3' }] },
     { featureType: 'poi', stylers: [{ visibility: 'off' }] },
     { featureType: 'transit', stylers: [{ visibility: 'off' }] },
-    { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#d7eaf0' }] },
+    { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#c9e0e7' }] },
   ];
-  // The approved Rider Comms production mockup is intentionally dark-only.
-  // Device light mode must not invert the graphite product identity.
+  const darkModeQuery = window.matchMedia?.('(prefers-color-scheme: dark)');
   function prefersDarkMode() {
-    return true;
+    return darkModeQuery ? darkModeQuery.matches : true;
   }
   function applyColorScheme() {
+    // Always black-translucent, in both themes. 'default' (which this used
+    // to switch to for light mode) makes iOS reserve a solid, opaque status
+    // bar bar instead of overlaying content — the exact "band" at the top
+    // this is here to avoid. black-translucent is the only value that's
+    // truly edge-to-edge; the cost is the status bar's own text/icons stay
+    // light-on-transparent even over a light background, which iOS gives no
+    // way around for a home-screen web app.
     const meta = $('#statusBarStyleMeta');
     if (meta) meta.setAttribute('content', 'black-translucent');
     map?.setOptions({
-      styles: MAP_STYLE_DARK,
-      backgroundColor: '#080d10',
+      styles: prefersDarkMode() ? MAP_STYLE_DARK : MAP_STYLE_LIGHT,
+      backgroundColor: prefersDarkMode() ? '#080d10' : '#e9eef0',
     });
   }
+  darkModeQuery?.addEventListener('change', applyColorScheme);
 
 
   // Real nearby riders (from POST /presence's inZoneWith, resolved to
@@ -1912,6 +1921,7 @@
   let voiceFailureNotified = false;
   let voiceReconnectTimer;
   const intentionalVoiceDisconnects = new WeakSet();
+  const remoteVoiceElements = new WeakMap();
 
   const VOICE_SPEAKING_THRESHOLD = 0.06; // same starting point as mobile's SPEAKING_VOLUME_THRESHOLD — unverified against real riding noise
   const VOICE_RELEASE_HANGTIME_MS = 500;
@@ -1983,9 +1993,18 @@
     return state.activeRide ? `ride:${state.activeRide.rideId}` : state.publicLive ? 'channel' : undefined;
   }
 
+  function cleanupRemoteVoiceAudio(room) {
+    const elements = remoteVoiceElements.get(room);
+    if (!elements) return;
+    for (const element of elements) element.remove();
+    elements.clear();
+    remoteVoiceElements.delete(room);
+  }
+
   function disconnectManagedVoiceRoom(room) {
     if (!room) return;
     intentionalVoiceDisconnects.add(room);
+    cleanupRemoteVoiceAudio(room);
     void room.disconnect().catch(() => {});
   }
 
@@ -2000,13 +2019,48 @@
 
   function wireVoiceRoomLifecycle(room, targetKey, peerId) {
     const events = window.LivekitClient?.RoomEvent;
+    const Track = window.LivekitClient?.Track;
     if (!events?.Disconnected) return;
+
+    const audioElements = new Set();
+    remoteVoiceElements.set(room, audioElements);
+
+    // The raw LiveKit JS Room API auto-subscribes, but it does NOT render
+    // browser audio for us. Attach every subscribed remote audio track to an
+    // actual <audio> element or a perfectly healthy room is still silent.
+    if (events.TrackSubscribed) {
+      room.on(events.TrackSubscribed, (track) => {
+        if (Track?.Kind?.Audio && track.kind !== Track.Kind.Audio) return;
+        const element = track.attach();
+        element.autoplay = true;
+        element.style.display = 'none';
+        element.dataset.riderCommsVoice = 'true';
+        document.body.appendChild(element);
+        audioElements.add(element);
+        // iOS/Safari may still require its audio context to be resumed. The
+        // direct Go Live flow has already performed getUserMedia from the
+        // rider's tap, so this succeeds in the normal test path; failures are
+        // harmless and a later room reconnect can retry.
+        void room.startAudio?.().catch(() => {});
+      });
+    }
+
+    if (events.TrackUnsubscribed) {
+      room.on(events.TrackUnsubscribed, (track) => {
+        for (const element of track.detach()) {
+          audioElements.delete(element);
+          element.remove();
+        }
+      });
+    }
 
     room.on(events.Reconnected, () => {
       voiceFailureNotified = false;
+      void room.startAudio?.().catch(() => {});
       renderVoiceStatus();
     });
     room.on(events.Disconnected, () => {
+      cleanupRemoteVoiceAudio(room);
       if (intentionalVoiceDisconnects.has(room)) return;
 
       if (peerId) {
@@ -2149,11 +2203,12 @@
         for (const connection of response.connections) {
           if (proximityVoiceRooms.has(connection.peerId)) continue;
           const pairRoom = new window.LivekitClient.Room();
+          wireVoiceRoomLifecycle(pairRoom, 'channel', connection.peerId);
           try {
             await pairRoom.connect(connection.url, connection.token);
+            await pairRoom.startAudio?.().catch(() => {});
             await pairRoom.localParticipant.setMicrophoneEnabled(voiceIsSpeaking && !voiceManuallyMuted);
             proximityVoiceRooms.set(connection.peerId, pairRoom);
-            wireVoiceRoomLifecycle(pairRoom, 'channel', connection.peerId);
           } catch (error) {
             lastPairError = error;
             disconnectManagedVoiceRoom(pairRoom);
@@ -2165,11 +2220,13 @@
         if (enteringChannel) voiceManuallyMuted = false;
       } else {
         room = new window.LivekitClient.Room();
+        const targetKey = `ride:${rideId}`;
+        wireVoiceRoomLifecycle(room, targetKey);
         await room.connect(response.url, response.token);
+        await room.startAudio?.().catch(() => {});
         await room.localParticipant.setMicrophoneEnabled(false);
         voiceRoom = room;
-        voiceTargetKey = `ride:${rideId}`;
-        wireVoiceRoomLifecycle(room, voiceTargetKey);
+        voiceTargetKey = targetKey;
         voiceManuallyMuted = false;
       }
       microphonePermissionReady = true;
@@ -3635,8 +3692,8 @@
       disableDefaultUI: true,
       gestureHandling: 'greedy',
       clickableIcons: false,
-      backgroundColor: '#080d10',
-      styles: MAP_STYLE_DARK,
+      backgroundColor: prefersDarkMode() ? '#080d10' : '#f2f5f6',
+      styles: prefersDarkMode() ? MAP_STYLE_DARK : MAP_STYLE_LIGHT,
     });
     usingFallbackMap = false;
     $('#fallbackMap').hidden = true;

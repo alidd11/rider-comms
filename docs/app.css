@@ -1,5 +1,5 @@
 :root {
-  color-scheme: dark; --bg:#080d10; --system-chrome:#080d10; --nav-chrome:#080d10; --bg-elevated:#0d1317; --surface:#11171b; --surface-raised:#182127; --surface-hover:#1d282f; --border:#202a30; --border-soft:#182127; --text:#f3f6f7; --text-secondary:#aab5ba; --text-muted:#748188; --accent:#2fa8d3; --accent-soft:#102d38; --accent-text:#041318; --success:#42c58a; --danger:#f0646b; --warning:#d39a42; --focus:#64bde0; --font-display:Inter,ui-sans-serif,system-ui,sans-serif; --shadow-sm:0 3px 12px rgb(0 0 0/.2); --shadow-lg:0 12px 34px rgb(0 0 0/.36); --radius-sm:3px; --radius-md:4px; --radius-lg:4px; --radius-pill:999px; --touch:48px; --nav-height:58px; --content-max:680px; --safe-top:env(safe-area-inset-top,0px); --safe-right:env(safe-area-inset-right,0px); --safe-bottom:env(safe-area-inset-bottom,0px); --safe-left:env(safe-area-inset-left,0px); --app-vh:100dvh; --visual-vh:100dvh; --visual-viewport-top:0px; --bottom-safe-area:0px; --nav-safe-bottom:0px; --bottom-control-inset:0px; --navigation-control-inset:0px; --bottom-nav-height:calc(var(--nav-height) + var(--bottom-control-inset) + 1px); font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; font-synthesis:none;
+  color-scheme: light dark; --bg:#080d10; --system-chrome:#080d10; --nav-chrome:#080d10; --bg-elevated:#0d1317; --surface:#11171b; --surface-raised:#182127; --surface-hover:#1d282f; --border:#202a30; --border-soft:#182127; --text:#f3f6f7; --text-secondary:#aab5ba; --text-muted:#748188; --accent:#2fa8d3; --accent-soft:#102d38; --accent-text:#041318; --success:#42c58a; --danger:#f0646b; --warning:#d39a42; --focus:#64bde0; --font-display:Inter,ui-sans-serif,system-ui,sans-serif; --shadow-sm:0 3px 12px rgb(0 0 0/.2); --shadow-lg:0 12px 34px rgb(0 0 0/.36); --radius-sm:3px; --radius-md:4px; --radius-lg:4px; --radius-pill:999px; --touch:48px; --nav-height:58px; --content-max:680px; --safe-top:env(safe-area-inset-top,0px); --safe-right:env(safe-area-inset-right,0px); --safe-bottom:env(safe-area-inset-bottom,0px); --safe-left:env(safe-area-inset-left,0px); --app-vh:100dvh; --visual-vh:100dvh; --visual-viewport-top:0px; --bottom-safe-area:0px; --nav-safe-bottom:0px; --bottom-control-inset:0px; --navigation-control-inset:0px; --bottom-nav-height:calc(var(--nav-height) + var(--bottom-control-inset) + 1px); font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; font-synthesis:none;
 }
 :root{--surface:#11171b;--surface-raised:#182127;--surface-hover:#1d282f;--border:#27323a}
 /* Installed iOS PWA viewport model.
@@ -150,8 +150,28 @@ img,svg{-webkit-user-drag:none}
    hex/rgb values below are the ones baked in outside those tokens (map
    canvas, glass chips, gradients, nav bar) and need their own light-mode
    value alongside them. */
-
-
+@media(prefers-color-scheme:light){
+  :root{--bg:#e9eef0;--bg-elevated:#f1f4f5;--surface:#f7f9fa;--surface-raised:#dfe7ea;--surface-hover:#d7e1e5;--border:#bcc8ce;--border-soft:#cdd8dd;--text:#0b1216;--text-secondary:#46545c;--text-muted:#6a7981;--accent:#279fc8;--accent-soft:#d5ebf2;--accent-text:#031217;--success:#268b64;--danger:#be4a53;--warning:#97620f;--focus:#279fc8;--shadow-sm:0 3px 12px rgb(22 38 46/.09);--shadow-lg:0 12px 30px rgb(22 38 46/.14)}
+  .glass{background:rgb(247 249 250/.92);border-color:rgb(45 61 69/.12)}
+  .content-screen{background:radial-gradient(circle at 50% -10%,#fff 0,var(--bg) 34%)}
+  .map-canvas{background:#dce5e8}
+  .fallback-map{background:radial-gradient(circle at 68% 22%,#edf2f3 0,#dfe7e9 50%,#d2dde0 100%)}
+  .fallback-map:after{opacity:.16;background-image:linear-gradient(#b7c2c7 1px,transparent 1px),linear-gradient(90deg,#b7c2c7 1px,transparent 1px)}
+  .road{background:#ccd7db;border-block-color:#b3bfc4}
+  .road:after{border-top-color:#98a5aa}
+  .ride-summary{background:linear-gradient(135deg,#e2f2e9,var(--surface))}
+  .profile-row{background:linear-gradient(130deg,#f1e9dd,var(--surface))}
+  .ride-pill{background:rgb(255 255 255/.95)}
+  .map-error{background:rgb(255 255 255/.96)}
+  .update-banner{background:var(--surface-raised)}
+  .auth-screen{background:radial-gradient(circle at 85% 8%,rgb(47 168 211/.12),transparent 25%),radial-gradient(circle at 8% 38%,rgb(146 118 224/.24),transparent 32%),var(--bg)}
+  .auth-card{box-shadow:0 24px 70px rgb(40 30 15/.13),inset 0 1px rgb(255 255 255/.65)}
+  .auth-mark{box-shadow:inset 0 1px rgb(255 255 255/.5),0 12px 28px rgb(40 30 15/.12)}
+}
+@media(prefers-color-scheme:light) and (min-width:1080px){
+  body{background:#e6ddcf}
+  .app-shell{box-shadow:0 0 80px rgb(40 30 15/.15)}
+}
 
 /* Visual-system refinement: stronger hierarchy, calmer surfaces and the
    same active-navigation language as the native app. */
@@ -169,8 +189,12 @@ img,svg{-webkit-user-drag:none}
 @media(min-width:1080px){
   .auth-screen{right:auto;left:50%;width:min(100%,540px);transform:translateX(-50%);border-inline:1px solid var(--border-soft);box-shadow:0 0 80px rgb(0 0 0/.55)}
 }
-
-
+@media(prefers-color-scheme:light){
+  .people-list,.ride-entry,.settings-group,.route-card,.profile-row{box-shadow:0 12px 34px rgb(40 30 15/.09)}
+}
+@media(prefers-color-scheme:light) and (min-width:1080px){
+  .auth-screen{box-shadow:0 0 80px rgb(40 30 15/.15)}
+}
 
 .auth-notice{margin:0 0 16px;padding:11px 13px;border:1px solid rgb(61 214 140/.28);border-radius:12px;background:rgb(61 214 140/.09);color:var(--success);font-size:.75rem;line-height:1.45}
 .auth-notice.error{border-color:rgb(255 90 77/.25);background:rgb(255 90 77/.09);color:var(--danger)}
@@ -179,8 +203,8 @@ img,svg{-webkit-user-drag:none}
    viewport on iOS. Use the same opaque colour for that system-owned region,
    the page root behind it, and the fixed tab bar so there is no false
    edge-to-edge seam. The safe-area padding itself remains untouched. */
-
-
+@media(prefers-color-scheme:light){:root{--system-chrome:#e9eef0}}
+@media(prefers-color-scheme:light){:root{--nav-chrome:#e9eef0}}
 /* Purposeful inactive states for the ride and social areas. These surfaces
    use real account/ride state and avoid filling an empty screen with sample
    riders or fabricated activity. */
@@ -245,7 +269,7 @@ img,svg{-webkit-user-drag:none}
 .version{margin-top:18px}
 .bottom-nav>button:before{display:none}.bottom-nav>button svg{width:21px;height:21px}.bottom-nav>button span{font-size:.63rem}.bottom-nav>button.active span{font-weight:800}
 @media(max-width:390px){.content-screen .page-header{margin-bottom:16px}.network-summary{margin-top:-4px}.settings-group small{max-width:220px}}
-
+@media(prefers-color-scheme:light){.content-screen{background:var(--bg)}.profile-row{background:transparent}.settings-group,.profile-row,.ride-entry,.people-list{box-shadow:none}}
 
 /* Utility screen refinement: compact, content-led hierarchy for phone-sized
    installed PWAs. Touch targets remain at least 44px while visual chrome is
@@ -309,7 +333,7 @@ img,svg{-webkit-user-drag:none}
 .safety-guidance{overflow:hidden;border:1px solid var(--border-soft);border-radius:12px;background:var(--surface)}
 .safety-guidance>div{min-height:66px;display:flex;align-items:center;gap:11px;padding:10px 13px;border-bottom:1px solid var(--border-soft)}.safety-guidance>div:last-child{border-bottom:0}.safety-guidance>div>span:nth-child(2){min-width:0;flex:1}.safety-guidance strong,.safety-guidance small{display:block}.safety-guidance strong{font-size:.82rem}.safety-guidance small{margin-top:3px;color:var(--text-secondary);font-size:.7rem;line-height:1.35}
 .plan-card{border-radius:12px;box-shadow:none}
-
+@media(prefers-color-scheme:light){.settings-page .profile-row,.settings-page .settings-group,.settings-sheet-section,.settings-note,.choice-list,.safety-guidance{background:#fff}}
 
 /* Final shared utility-screen language. Day and night retain identical
    geometry and hierarchy; only semantic colour tokens change. */
@@ -339,7 +363,7 @@ img,svg{-webkit-user-drag:none}
 .route-detail{border-radius:18px 18px 0 0;background:var(--bg)}
 .route-detail-photo{border-radius:17px 17px 0 0}
 .plan-card{background:var(--surface)}
-@media all{
+@media(prefers-color-scheme:dark){
   .glass{background:rgb(8 13 16/.9);border-color:rgb(255 255 255/.09)}
   .content-screen,.auth-screen{background:var(--bg)}
   .profile-row,.ride-entry,.settings-group,.settings-sheet-section,.settings-note,.choice-list,.safety-guidance,.plan-card{background:var(--surface)}
@@ -546,7 +570,7 @@ html.chat-open .bottom-nav,html.chat-open .ride-pill,html.chat-open .movement-sa
 .sheet>header .icon-button{border-radius:var(--radius-lg)}
 .settings-sheet-section,.settings-note,.choice-list,.safety-guidance,.plan-card{border-radius:var(--radius-lg)}
 .avatar-picker-option{border-radius:var(--radius-lg)}
-.movement-safety-banner{border-radius:var(--radius-lg);background:rgb(17 23 27/.96)}
+.movement-safety-banner{border-radius:var(--radius-lg);background:color-mix(in srgb,var(--surface) 96%,transparent)}
 .movement-safety-banner button{border-radius:var(--radius-md);background:var(--accent);color:var(--accent-text)}
 .bottom-nav{border-top-color:var(--border-soft);background:var(--nav-chrome);backdrop-filter:none}
 .bottom-nav>button{border-radius:0}
@@ -556,7 +580,10 @@ html.chat-open .bottom-nav,html.chat-open .ride-pill,html.chat-open .movement-sa
 .search-screen .search-shell,.search-result-icon,.search-empty-icon{border-radius:var(--radius-lg)}
 .search-screen .poi-chip,.chip{border-radius:var(--radius-md)}
 .update-banner,.toast{border-radius:var(--radius-lg)}
-
+@media(prefers-color-scheme:light){
+  .content-screen{background:var(--bg);border-color:var(--border)}.glass{background:rgb(255 255 255/.92);border-color:var(--border)}
+  .map-actions .icon-button,.search-slot{background:rgb(247 249 250/.94);border-color:var(--border)}
+}
 
 /* Map destination, report and settings states: production mockup parity. */
 #destinationCard{
@@ -601,7 +628,10 @@ html.chat-open .bottom-nav,html.chat-open .ride-pill,html.chat-open .movement-sa
 .hazard-type-tile{min-height:94px;padding:15px 7px 12px;border:1px solid var(--border);border-radius:4px;background:var(--surface);box-shadow:none}
 .hazard-type-tile svg{width:24px;height:24px}
 .hazard-type-tile span{color:var(--text-secondary);font-size:.72rem;font-weight:760}
-
+@media(prefers-color-scheme:light){
+  #destinationCard{background:rgb(255 255 255/.97)}
+  .settings-sheet-section,.hazard-type-tile{background:var(--surface)}
+}
 
 /* Legacy-design audit overrides. */
 .auth-screen{background:var(--bg);background-image:none}
@@ -699,3 +729,19 @@ body:has(#sheetBackdrop:not([hidden])) #joinNearbyBtn{opacity:0;pointer-events:n
 .ride-code-entry:focus-within .ride-code-slots{outline:2px solid color-mix(in srgb,var(--accent) 24%,transparent);outline-offset:2px}
 .ride-join-button{margin-top:8px}
 .ride-entry .ride-form>.ride-join-button{min-height:44px}
+
+/* Day/night mockup parity foundation.
+   Geometry is shared between appearances; the day palette is intentionally
+   tonal rather than default-browser white, while night remains the approved
+   graphite mockup. */
+@media(prefers-color-scheme:light){
+  .content-screen,.search-screen{background:var(--bg)}
+  .ride-entry,.people-list,.settings-page .profile-row,.settings-page .settings-group,
+  .settings-sheet-section,.settings-note,.choice-list,.safety-guidance,.plan-card{
+    background:var(--surface);
+    border-color:var(--border-soft);
+  }
+  .bottom-nav{background:var(--nav-chrome);border-top-color:var(--border-soft)}
+  .movement-safety-banner{background:rgb(247 249 250/.96);color:var(--text)}
+  .movement-safety-banner small{color:var(--text-secondary)}
+}
