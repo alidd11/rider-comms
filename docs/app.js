@@ -1341,6 +1341,7 @@
         if (chatDirty && activeChat) await loadChatMessages();
       } catch {
         if (generation !== socialEventGeneration || !session) return;
+        socialEventCursor = undefined;
         await waitForSocialRetry(SOCIAL_EVENT_RETRY_MS);
       }
     }
@@ -4557,6 +4558,7 @@
     navigate(location.hash.slice(1) || state.screen || 'map', false);
     loadGoogleMaps();
     registerServiceWorker();
+    void loadFriendsData();
     startSocialEvents();
     syncFriendActivityPolling();
     // Startup only reconciles saved UI state with the browser. Permission
