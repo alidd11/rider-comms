@@ -265,9 +265,15 @@ function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Elemen
       setMessages((current) => reconcileMessageThread(current, page.messages));
       setNextCursor(page.nextCursor);
       setPeerReadThroughMessageId(page.peerReadThroughMessageId);
-      await client.markMessagesRead(riderId);
-      await refreshMessages();
       setError(null);
+      try {
+        await client.markMessagesRead(riderId);
+        await refreshMessages();
+      } catch {
+        // The thread itself loaded successfully. Keep it usable even if the
+        // secondary read acknowledgement/unread-summary refresh is transiently
+        // unavailable; the realtime provider will reconcile it on recovery.
+      }
     } catch (err) {
       if (err instanceof ApiError && err.status === 403) setError('This conversation is no longer available.');
       else setError('Could not refresh messages. Check your connection and try again.');
