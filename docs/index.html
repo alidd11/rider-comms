@@ -17,7 +17,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
-  <link rel="stylesheet" href="app.css?v=78">
+  <link rel="stylesheet" href="app.css?v=79">
   <link rel="stylesheet" href="routes.css?v=37">
   <title>Rider Comms</title>
 </head>
@@ -212,10 +212,9 @@
       </section>
 
       <section class="screen content-screen" data-screen="friends" aria-labelledby="friendsTitle">
-        <div class="page-width"><header class="page-header"><div><h1 id="friendsTitle">Friends</h1></div><span id="friendsCountBadge" class="count-badge" hidden>0</span></header>
+        <div class="page-width"><header class="page-header"><div><h1 id="friendsTitle">Friends</h1></div><span id="friendsCountBadge" class="count-badge" hidden>0</span><button id="addFriendToggle" class="icon-button add-friend-toggle" aria-label="Add a rider" title="Add a rider &#8211; connect using their handle or Rider ID"><svg><use href="#i-friends"/></svg></button></header>
           <div class="network-summary" aria-label="Network summary"><span><b id="networkFriendCount">0</b> friends</span><span><b id="networkRequestCount">0</b> requests</span></div>
-          <div class="search-and-add"><div class="search-row"><svg><use href="#i-search"/></svg><input id="friendSearch" placeholder="Search your friends" autocomplete="off"></div>
-          <button id="addFriendToggle" class="icon-button add-friend-toggle" aria-label="Add a rider" title="Add a rider &#8211; connect using their handle or Rider ID"><svg><use href="#i-friends"/></svg></button></div>
+          <div class="search-and-add"><div class="search-row"><svg><use href="#i-search"/></svg><input id="friendSearch" placeholder="Search friends" autocomplete="off"></div></div>
           <form id="addFriendForm" class="compact-form" hidden><label for="friendId">Handle or Rider ID</label><div><input id="friendId" placeholder="@their_handle" autocomplete="off"><button class="button primary">Send</button></div><p id="friendFeedback" class="support-copy"></p></form>
           <section id="requestSection" hidden><div class="section-heading"><h2>Requests</h2><span id="requestsCountBadge" class="count-badge">0</span></div><div id="requestList" class="people-list"></div></section>
           <section id="friendSection" hidden><div class="section-heading"><h2>Your friends</h2></div><div id="friendList" class="people-list"></div></section>
@@ -284,6 +283,6 @@
   <script src="routes.js?v=33" defer></script>
   <script src="movement-safety.js?v=2" defer></script>
   <script src="message-state.js?v=1" defer></script>
-  <script src="app.js?v=80" defer></script>
+  <script src="app.js?v=81" defer></script>
 </body>
 </html>

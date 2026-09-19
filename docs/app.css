@@ -687,3 +687,33 @@ body:has(#sheetBackdrop:not([hidden])) #joinNearbyBtn{opacity:0;pointer-events:n
 .hazard-type-tile:nth-child(5){grid-column:4/span 2}
 .bottom-nav>button{font-weight:650}
 .bottom-nav>button svg{stroke-width:1.7}
+
+/* Live-network Friends presentation from the approved mockup. */
+[data-screen="friends"] .page-header{align-items:center}
+[data-screen="friends"] .page-header .add-friend-toggle{margin-left:auto}
+[data-screen="friends"] .search-and-add{display:block}
+[data-screen="friends"] #friendSection>.section-heading{display:none}
+[data-screen="friends"] .people-list{overflow:visible;border:0;border-radius:0;background:transparent;box-shadow:none}
+[data-screen="friends"] #friendList{padding-top:2px}
+[data-screen="friends"] .friend-row{position:relative;min-height:64px;padding-inline:2px;border-bottom:1px solid var(--border-soft)}
+[data-screen="friends"] .friend-row[data-group-label]{margin-top:30px}
+[data-screen="friends"] .friend-row[data-group-label]::before{content:attr(data-group-label);position:absolute;left:2px;top:-23px;color:var(--text-secondary);font-size:.68rem;font-weight:820;letter-spacing:.11em;text-transform:uppercase}
+.friend-avatar-wrap{position:relative;display:inline-grid;place-items:center;flex:none}
+.friend-presence-dot{position:absolute;right:-1px;bottom:-1px;width:12px;height:12px;border:2px solid var(--bg);border-radius:50%;background:var(--text-muted)}
+.friend-presence-dot.online{background:var(--success)}
+.friend-row.is-online .friend-activity{color:var(--success)}
+.friend-more{flex:none;color:var(--text-muted);font-size:.9rem;font-weight:900;letter-spacing:.05em}
+.friend-profile-card{border-color:var(--border);border-radius:var(--radius-lg);background:var(--surface)}
+.friend-profile-card small.online{color:var(--success)}
+.friend-profile-actions{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.friend-profile-actions button{min-height:64px;display:grid;place-items:center;align-content:center;gap:6px;padding:7px;border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--surface);color:var(--text)}
+.friend-action-icon{width:22px;height:22px;display:grid;place-items:center;color:var(--accent)}
+.friend-action-icon svg{width:20px;height:20px}
+.friend-profile-actions strong{font-size:.7rem}
+.friend-detail-list{overflow:hidden;border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--surface)}
+.friend-detail-list>div{min-height:58px;display:flex;align-items:center;gap:11px;padding:8px 10px;border-bottom:1px solid var(--border-soft)}
+.friend-detail-list>div:last-child{border-bottom:0}
+.friend-detail-list>div>span:last-child{min-width:0;flex:1}
+.friend-detail-list strong,.friend-detail-list small{display:block}
+.friend-detail-list strong{font-size:.8rem}.friend-detail-list small{margin-top:3px;color:var(--text-secondary);font-size:.7rem}
+.chat-composer textarea{border-radius:var(--radius-lg)}

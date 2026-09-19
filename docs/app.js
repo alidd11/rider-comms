@@ -222,6 +222,10 @@
   // members. Keyed by riderId for easy lookup when placing markers.
   let rideMemberLocations = new Map();
 
+  // Social online/last-seen is deliberately separate from location presence.
+  // It is loaded only for current friends and never persisted to localStorage.
+  let friendActivity = new Map();
+
   // Real crowdsourced hazard reports for the current area (GET
   // /hazards/nearby), refreshed whenever the map screen is (re)opened or a
   // new report is created — same runtime-only convention as nearbyRiders
@@ -688,11 +692,48 @@
     renderFallbackMarkers();
   }
 
+  function friendActivityLabel(activity) {
+    if (!activity) return 'Connected';
+    if (activity.online) return 'Online now';
+    if (!Number.isFinite(activity.lastSeenAt)) return 'Offline';
+    const elapsed = Math.max(0, Date.now() - activity.lastSeenAt);
+    const minutes = Math.floor(elapsed / 60000);
+    if (minutes < 60) return `Last seen ${Math.max(1, minutes)}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `Last seen ${hours}h ago`;
+    return `Last seen ${Math.floor(hours / 24)}d ago`;
+  }
+
   function renderFriends() {
     const query = $('#friendSearch').value.trim().toLowerCase();
-    const friends = state.friends.filter((friend) => [friend.displayName, friend.handle, friend.riderId].some((value) => value.toLowerCase().includes(query)));
+    const friends = state.friends
+      .filter((friend) => [friend.displayName, friend.handle, friend.riderId].some((value) => value.toLowerCase().includes(query)))
+      .sort((a, b) => {
+        const aOnline = friendActivity.get(a.riderId)?.online === true;
+        const bOnline = friendActivity.get(b.riderId)?.online === true;
+        if (aOnline !== bOnline) return aOnline ? -1 : 1;
+        return a.displayName.localeCompare(b.displayName);
+      });
+    const onlineCount = friends.filter((friend) => friendActivity.get(friend.riderId)?.online === true).length;
+    const firstOfflineIndex = friends.findIndex((friend) => friendActivity.get(friend.riderId)?.online !== true);
+
     $('#requestList').innerHTML = state.requests.map((person) => `<article class="request-row">${avatar(person)}<div class="identity"><strong>${escapeHtml(person.displayName)}</strong><span>${escapeHtml(person.handle)} · ${escapeHtml(person.status)}</span></div><div class="request-actions"><button class="decline" data-decline="${escapeHtml(person.id)}" aria-label="Decline ${escapeHtml(person.displayName)}">×</button><button class="accept" data-accept="${escapeHtml(person.id)}" aria-label="Accept ${escapeHtml(person.displayName)}">✓</button></div></article>`).join('');
-    $('#friendList').innerHTML = friends.map((person) => `<button class="friend-row" data-friend="${escapeHtml(person.riderId)}">${avatar(person)}<span class="identity"><strong>${escapeHtml(person.displayName)}</strong><span>${escapeHtml(person.handle)} · ${escapeHtml(person.status)}</span></span><span class="chevron">${icon('chevron')}</span></button>`).join('');
+
+    $('#friendList').innerHTML = friends.map((person, index) => {
+      const activity = friendActivity.get(person.riderId);
+      const online = activity?.online === true;
+      const groupLabel = index === 0
+        ? (online ? `Online (${onlineCount})` : `Offline (${friends.length})`)
+        : index === firstOfflineIndex
+          ? `Offline (${friends.length - onlineCount})`
+          : '';
+      return `<button class="friend-row${online ? ' is-online' : ''}" data-friend="${escapeHtml(person.riderId)}"${groupLabel ? ` data-group-label="${escapeHtml(groupLabel)}"` : ''}>
+        <span class="friend-avatar-wrap">${avatar(person)}<i class="friend-presence-dot ${online ? 'online' : 'offline'}" aria-hidden="true"></i></span>
+        <span class="identity"><strong>${escapeHtml(person.displayName)}</strong><span class="friend-activity">${escapeHtml(friendActivityLabel(activity))}</span></span>
+        <span class="friend-more" aria-hidden="true">•••</span>
+      </button>`;
+    }).join('');
+
     const hasFriends = state.friends.length > 0;
     const hasVisibleFriends = friends.length > 0;
     const hasRequests = state.requests.length > 0;
@@ -727,18 +768,29 @@
     try {
       profile = await apiFetch('GET', `/profiles/${encodeURIComponent(riderId)}`);
     } catch {
-      // The friendship itself is still valid if optional public-profile data
-      // cannot be refreshed. Show the identity already loaded with the list.
+      // Keep the friendship identity available when optional public-profile
+      // data cannot be refreshed.
     }
+    const activity = friendActivity.get(riderId);
     const socialLinks = [
       profile.instagramUsername ? `<a class="social-link" href="https://www.instagram.com/${encodeURIComponent(profile.instagramUsername)}/" target="_blank" rel="noopener"><span>Instagram</span><strong>@${escapeHtml(profile.instagramUsername)}</strong>${icon('chevron')}</a>` : '',
       profile.tiktokUsername ? `<a class="social-link" href="https://www.tiktok.com/@${encodeURIComponent(profile.tiktokUsername)}" target="_blank" rel="noopener"><span>TikTok</span><strong>@${escapeHtml(profile.tiktokUsername)}</strong>${icon('chevron')}</a>` : '',
     ].filter(Boolean).join('');
-    presentSheet(friend.displayName, `<article class="friend-profile-card">${avatar({ ...friend, avatarId: profile.avatarId || friend.avatarId })}<div><strong>${escapeHtml(friend.displayName)}</strong><span>${escapeHtml(friend.handle)}</span><small>Connected rider</small></div></article>
+
+    presentSheet(friend.displayName, `<article class="friend-profile-card">
+        <span class="friend-avatar-wrap">${avatar({ ...friend, avatarId: profile.avatarId || friend.avatarId })}<i class="friend-presence-dot ${activity?.online ? 'online' : 'offline'}" aria-hidden="true"></i></span>
+        <div><strong>${escapeHtml(friend.displayName)}</strong><span>${escapeHtml(friend.handle)}</span><small class="${activity?.online ? 'online' : ''}">${escapeHtml(friendActivityLabel(activity))}</small></div>
+      </article>
+      <div class="friend-profile-actions" aria-label="Rider actions">
+        <button id="messageFriend"><span class="friend-action-icon">${icon('friends')}</span><strong>Message</strong></button>
+        <button id="copyFriendId"><span class="friend-action-icon">${icon('share')}</span><strong>Copy ID</strong></button>
+        <button id="friendSafetyActions"><span class="friend-action-icon">${icon('shield')}</span><strong>More</strong></button>
+      </div>
+      <div class="friend-detail-list">
+        <div><span class="setting-icon">${icon('broadcast')}</span><span><strong>Rider status</strong><small>${escapeHtml(friendActivityLabel(activity))}</small></span></div>
+        ${state.activeRide?.memberIds?.includes(riderId) ? `<div><span class="setting-icon">${icon('ride')}</span><span><strong>In your group ride</strong><small>Connected to this ride</small></span></div>` : ''}
+      </div>
       ${socialLinks ? `<div class="social-links">${socialLinks}</div>` : '<p class="friend-profile-note">This rider has not shared any social links with you.</p>'}
-      <button class="button primary wide" id="messageFriend">Message</button>
-      <button class="button secondary wide" id="copyFriendId">Copy Rider ID</button>
-      <button class="button danger wide" id="friendSafetyActions">Report or block rider</button>
       <p class="caption">Only connect and arrange rides with people you trust. Social links follow each rider’s privacy settings.</p>`, () => {
       $('#copyFriendId').addEventListener('click', async () => {
         try { await navigator.clipboard.writeText(riderId); showToast('Rider ID copied.'); }
@@ -1162,11 +1214,13 @@
   async function loadFriendsData() {
     if (!state.profile.riderId) return;
     try {
-      const [friendsResult, requestsResult] = await Promise.all([
+      const [friendsResult, requestsResult, activityResult] = await Promise.all([
         apiFetch('GET', `/riders/${encodeURIComponent(state.profile.riderId)}/friends?limit=100`),
         apiFetch('GET', `/riders/${encodeURIComponent(state.profile.riderId)}/friend-requests?limit=100`),
+        apiFetch('GET', '/friends/activity').catch(() => ({ activity: [] })),
       ]);
       state.friends = friendsResult.friends.map((friend) => ({ riderId: friend.riderId, displayName: friend.displayName, handle: friend.handle, avatarId: friend.avatarId || 'ember', status: 'Connected' }));
+      friendActivity = new Map((Array.isArray(activityResult.activity) ? activityResult.activity : []).map((item) => [item.riderId, item]));
       const incoming = requestsResult.incoming.filter((request) => request.status === 'pending');
       state.requests = incoming.map((request) => {
         const profile = requestsResult.profiles?.[request.fromRiderId];
