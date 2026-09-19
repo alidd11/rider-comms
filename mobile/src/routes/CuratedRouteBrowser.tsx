@@ -27,6 +27,7 @@ import {
   type RideWindow,
   type RiderCoordinate,
 } from './routeDiscovery';
+import type { RouteCategory } from '../screens/ScenicRoutesScreen';
 
 async function openExternalUrl(url: string, failureMessage: string): Promise<void> {
   try {
@@ -259,36 +260,54 @@ function CuratedRouteCard({ route, width, onPress }: { route: CuratedRoute; widt
   );
 }
 
+function routeDiscoveryText(route: CuratedRoute): string {
+  return [route.name, route.region, route.road, route.description, route.riderNote, ...route.highlights].join(' ').toLocaleLowerCase();
+}
+
+function matchesRouteCategory(route: CuratedRoute, category: RouteCategory): boolean {
+  if (category === 'all' || category === 'near') return true;
+  const text = routeDiscoveryText(route);
+  if (category === 'coastal') return /(coast|coastal|sea|shore|isle|island|ocean|causeway)/.test(text);
+  if (category === 'mountain') return /(mountain|pass|highland|cairngorm|snowdon|eryri|glencoe|hartside|hardknott|wrynose|buttertubs|moor|peak|bealach|black mountain)/.test(text);
+  return route.roadType === 'rural' || /(scenic|valley|forest|dale|loch|lake|moor|views|countryside)/.test(text);
+}
+
 export function CuratedRouteBrowser({
   rideWindow,
   riderLocation,
+  category,
+  query,
   onGuideToStart,
 }: {
   rideWindow: RideWindow;
   riderLocation: RiderCoordinate | null;
+  category: RouteCategory;
+  query: string;
   onGuideToStart: (route: CuratedRoute) => void;
 }) {
   const { width: viewportWidth } = useWindowDimensions();
   const [selectedRoute, setSelectedRoute] = React.useState<CuratedRoute | null>(null);
-  const routes = React.useMemo(
-    () => sortRoutesForDiscovery(CURATED_ROUTES, rideWindow, riderLocation),
-    [rideWindow, riderLocation]
-  );
+  const routes = React.useMemo(() => {
+    const normalizedQuery = query.trim().toLocaleLowerCase();
+    return sortRoutesForDiscovery(CURATED_ROUTES, rideWindow, category === 'near' ? riderLocation : null)
+      .filter((route) => matchesRouteCategory(route, category))
+      .filter((route) => !normalizedQuery || routeDiscoveryText(route).includes(normalizedQuery));
+  }, [category, query, rideWindow, riderLocation]);
   const contentWidth = Math.min(viewportWidth - spacing.lg * 2, 720);
   const cardWidth = contentWidth >= 620 ? (contentWidth - spacing.md) / 2 : contentWidth;
 
   return (
     <>
       <View style={styles.cardGrid}>
-        {routes.map((route) => {
-          return <CuratedRouteCard key={route.id} route={route} width={cardWidth} onPress={() => setSelectedRoute(route)} />;
-        })}
+        {routes.map((route) => (
+          <CuratedRouteCard key={route.id} route={route} width={cardWidth} onPress={() => setSelectedRoute(route)} />
+        ))}
       </View>
       {routes.length === 0 ? (
         <View style={styles.emptyState}>
           <MaterialCommunityIcons name="routes" size={28} color={colors.textMuted} />
-          <Text style={styles.emptyTitle}>No curated rides in that time window yet</Text>
-          <Text style={styles.emptyCopy}>Try another duration. The catalogue will expand without fabricating routes we have not reviewed.</Text>
+          <Text style={styles.emptyTitle}>No curated rides match</Text>
+          <Text style={styles.emptyCopy}>Try another category, duration or search. Rider Comms only shows routes we have actually reviewed.</Text>
         </View>
       ) : null}
       <RouteOverview

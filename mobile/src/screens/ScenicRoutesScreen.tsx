@@ -1,15 +1,26 @@
 import * as React from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import * as Location from 'expo-location';
 import { useNavigation } from '@react-navigation/native';
 import type { NavigationProp } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { colors, radii, spacing, type } from '../theme';
 import { CuratedRouteBrowser } from '../routes/CuratedRouteBrowser';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { RIDE_WINDOWS, type RideWindow, type RiderCoordinate } from '../routes/routeDiscovery';
 import type { CuratedRoute } from '../routes/curatedRoutes';
 import type { TabParamList } from '../navigation';
+
+export type RouteCategory = 'all' | 'scenic' | 'mountain' | 'coastal' | 'near';
+
+const ROUTE_CATEGORIES: ReadonlyArray<{ value: RouteCategory; label: string }> = [
+  { value: 'all', label: 'All' },
+  { value: 'scenic', label: 'Scenic' },
+  { value: 'mountain', label: 'Mountain' },
+  { value: 'coastal', label: 'Coastal' },
+  { value: 'near', label: 'Near me' },
+];
 
 function FilterChip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
   return (
@@ -29,6 +40,9 @@ export function ScenicRoutesScreen(): React.JSX.Element {
   const navigation = useNavigation<NavigationProp<TabParamList>>();
   const [rideWindow, setRideWindow] = React.useState<RideWindow>('all');
   const [riderLocation, setRiderLocation] = React.useState<RiderCoordinate | null>(null);
+  const [category, setCategory] = React.useState<RouteCategory>('all');
+  const [query, setQuery] = React.useState('');
+  const [toolsOpen, setToolsOpen] = React.useState(false);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -45,6 +59,25 @@ export function ScenicRoutesScreen(): React.JSX.Element {
     });
     return () => { cancelled = true; };
   }, []);
+
+  const selectCategory = React.useCallback(async (value: RouteCategory) => {
+    if (value !== 'near' || riderLocation) {
+      setCategory(value);
+      return;
+    }
+    try {
+      const permission = await Location.requestForegroundPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert('Location needed', 'Allow location to sort curated rides by distance from you.');
+        return;
+      }
+      const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      setRiderLocation({ lat: position.coords.latitude, lon: position.coords.longitude });
+      setCategory('near');
+    } catch {
+      Alert.alert('Location unavailable', 'Rider Comms could not get a current location fix.');
+    }
+  }, [riderLocation]);
 
   const guideToStart = React.useCallback((route: CuratedRoute) => {
     navigation.navigate('Map', {
@@ -63,7 +96,19 @@ export function ScenicRoutesScreen(): React.JSX.Element {
         contentInsetAdjustmentBehavior="automatic"
         showsVerticalScrollIndicator={false}
       >
-        <ScreenHeader title="Routes" />
+        <ScreenHeader
+          title="Routes"
+          action={(
+            <Pressable
+              style={({ pressed }) => [styles.searchToggle, toolsOpen && styles.searchToggleActive, pressed && styles.searchTogglePressed]}
+              onPress={() => setToolsOpen((value) => !value)}
+              accessibilityRole="button"
+              accessibilityLabel={toolsOpen ? 'Close route search and filters' : 'Search and filter routes'}
+            >
+              <Ionicons name={toolsOpen ? 'close' : 'search'} size={21} color={toolsOpen ? colors.accentText : colors.textPrimary} />
+            </Pressable>
+          )}
+        />
 
         <ScrollView
           horizontal
@@ -71,19 +116,49 @@ export function ScenicRoutesScreen(): React.JSX.Element {
           contentContainerStyle={styles.filterRow}
           accessibilityRole="tablist"
         >
-          {RIDE_WINDOWS.map((filter) => (
+          {ROUTE_CATEGORIES.map((filter) => (
             <FilterChip
               key={filter.value}
               label={filter.label}
-              active={rideWindow === filter.value}
-              onPress={() => setRideWindow(filter.value)}
+              active={category === filter.value}
+              onPress={() => void selectCategory(filter.value)}
             />
           ))}
         </ScrollView>
 
+        {toolsOpen ? (
+          <View style={styles.routeTools}>
+            <View style={styles.routeSearch}>
+              <Ionicons name="search" size={18} color={colors.textMuted} />
+              <TextInput
+                style={styles.routeSearchInput}
+                value={query}
+                onChangeText={setQuery}
+                placeholder="Search routes or regions"
+                placeholderTextColor={colors.textMuted}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              {query ? <Pressable onPress={() => setQuery('')} hitSlop={8}><Ionicons name="close-circle" size={18} color={colors.textMuted} /></Pressable> : null}
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.durationRow}>
+              {RIDE_WINDOWS.map((filter) => (
+                <FilterChip
+                  key={filter.value}
+                  label={filter.label}
+                  active={rideWindow === filter.value}
+                  onPress={() => setRideWindow(filter.value)}
+                />
+              ))}
+            </ScrollView>
+          </View>
+        ) : null}
+
         <CuratedRouteBrowser
           rideWindow={rideWindow}
           riderLocation={riderLocation}
+          category={category}
+          query={query}
           onGuideToStart={guideToStart}
         />
       </ScrollView>
@@ -102,6 +177,13 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   filterRow: { gap: spacing.sm, paddingRight: spacing.lg },
+  searchToggle: { width: 44, height: 44, borderRadius: radii.md, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
+  searchToggleActive: { backgroundColor: colors.accent, borderColor: colors.accent },
+  searchTogglePressed: { opacity: 0.78 },
+  routeTools: { gap: spacing.sm, padding: spacing.sm, borderRadius: radii.md, backgroundColor: colors.surface, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
+  routeSearch: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.sm, borderRadius: radii.md, backgroundColor: colors.background, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
+  routeSearchInput: { ...type.body, flex: 1, minHeight: 44, color: colors.textPrimary, fontSize: 14 },
+  durationRow: { gap: spacing.xs, paddingRight: spacing.sm },
   chip: {
     minHeight: 44,
     paddingHorizontal: spacing.md,

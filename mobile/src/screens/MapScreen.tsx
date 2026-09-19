@@ -53,6 +53,7 @@ import {
   navigationGpsNotice,
 } from '../navigationGpsHealth';
 import { speakNavigationPrompt, stopNavigationPrompt } from '../audio/navigationSpeech';
+import { microphoneErrorMessage, preflightVoiceMicrophone } from '../audio/microphone';
 
 const PRESENCE_UPDATE_INTERVAL_MS = 8000; // per spec Section 8: every 5-10s
 const DEFAULT_REGION = {
@@ -200,7 +201,11 @@ export function MapScreen(): React.JSX.Element {
     }, 450);
   }, []);
 
-  const requestCurrentLocation = React.useCallback(async (showSettingsPrompt = true): Promise<{ lat: number; lon: number; accuracyMeters: number; recordedAt: number } | null> => {
+  const requestCurrentLocation = React.useCallback(async (
+    showSettingsPrompt = true,
+    accuracy: Location.Accuracy = Location.Accuracy.Balanced,
+    refreshMovementTracking = true,
+  ): Promise<{ lat: number; lon: number; accuracyMeters: number; recordedAt: number } | null> => {
     try {
       const permission = await Location.requestForegroundPermissionsAsync();
       if (!permission.granted) {
@@ -217,7 +222,7 @@ export function MapScreen(): React.JSX.Element {
         }
         return null;
       }
-      const result = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const result = await Location.getCurrentPositionAsync({ accuracy });
       const next = {
         lat: result.coords.latitude,
         lon: result.coords.longitude,
@@ -225,7 +230,7 @@ export function MapScreen(): React.JSX.Element {
         recordedAt: result.timestamp,
       };
       setCurrentLocation(next);
-      await refreshTracking();
+      if (refreshMovementTracking) await refreshTracking();
       setLocationUnavailable(false);
       return next;
     } catch {
@@ -257,7 +262,11 @@ export function MapScreen(): React.JSX.Element {
     let cancelled = false;
 
     async function tick() {
-      const location = await requestCurrentLocation(false);
+      // Nearby Voice authorisation is capped at <=100 m accuracy by the
+      // backend. Ask for a high-accuracy fix while live so an otherwise valid
+      // two-rider test is not rejected just because the generic map fix used
+      // the lower-power Balanced mode.
+      const location = await requestCurrentLocation(false, Location.Accuracy.High, false);
       if (!location || cancelled) return;
       const { lat, lon, accuracyMeters, recordedAt } = location;
       try {
@@ -307,6 +316,37 @@ export function MapScreen(): React.JSX.Element {
       clearInterval(interval);
     };
   }, [client, currentLocation]);
+
+  const handleNearbyToggle = React.useCallback(async () => {
+    if (shareLocation) {
+      setShareLocation(false);
+      return;
+    }
+    if (lockedForSafety) {
+      Alert.alert('Nearby Voice unavailable while moving', 'Stop safely before joining Nearby Voice. You can always leave or mute an active voice session while riding.');
+      return;
+    }
+    try {
+      await preflightVoiceMicrophone();
+    } catch (microphoneError) {
+      Alert.alert('Microphone unavailable', microphoneErrorMessage(microphoneError));
+      return;
+    }
+
+    try {
+      // The presence endpoint refuses a fix until the durable profile says
+      // shareLocation=true. Confirm that backend write BEFORE flipping the
+      // local setting; otherwise the presence effect can race the queued
+      // SettingsContext save and fail the first Go Live with a 403.
+      await client.updateProfile(riderId, { shareLocation: true });
+      setShareLocation(true);
+    } catch {
+      Alert.alert(
+        'Nearby Voice unavailable',
+        'Rider Comms could not enable Nearby Voice on the server. Check your connection and try again.',
+      );
+    }
+  }, [client, lockedForSafety, riderId, setShareLocation, shareLocation]);
 
   async function handleReport(hazardType: HazardType) {
     setReportSheetOpen(false);
@@ -707,7 +747,7 @@ export function MapScreen(): React.JSX.Element {
           </Pressable>
           <Pressable
             style={[styles.mapActionButton, shareLocation && styles.mapActionButtonActive]}
-            onPress={() => setShareLocation(!shareLocation)}
+            onPress={() => void handleNearbyToggle()}
             accessibilityRole="button"
             accessibilityState={{ selected: shareLocation }}
             accessibilityLabel={shareLocation ? 'Stop live location and proximity voice' : 'Go live nearby and enable proximity voice'}
@@ -833,7 +873,7 @@ export function MapScreen(): React.JSX.Element {
       <View style={styles.rideBarSlot} pointerEvents="box-none">
         <RideBar controlsVisible={!activeRoute} />
       </View>
-      <ProximityVoice enabled={shareLocation && ridersInZone.length > 0} />
+      <ProximityVoice enabled={shareLocation} peerIds={ridersInZone} />
     </View>
   );
 }

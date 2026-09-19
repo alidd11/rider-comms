@@ -389,9 +389,18 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
         if (await moderationStore.isBlockedBetween(actorId, targetId)) return sendJson(res, 403, { error: 'blocked' });
         return sendJson(res, 200, await publicProfile(profileStore, friendStore, actorId, targetId));
       }
+      if (req.method === 'GET' && url.pathname === '/rides/current') {
+        const current = await rideStore.getCurrentRideForMember(actorId);
+        return sendJson(res, 200, { ride: current ? {
+          ...rideBody(current.ride), shareRideLocation: current.shareRideLocation, code: current.code,
+        } : null });
+      }
       if (s[0] === 'rides' && s[1]) {
         const id = decodeURIComponent(s[1]);
-        if (req.method === 'GET' && s.length === 2) { const r = await rideStore.getRideForMember(id, actorId); return r.ok ? sendJson(res, 200, rideBody(r.ride)) : sendJson(res, r.reason === 'not_found' ? 404 : 403, { error: r.reason }); }
+        if (req.method === 'GET' && s.length === 2) {
+          const session = await rideStore.getMemberRideSession(id, actorId);
+          return session ? sendJson(res, 200, { ...rideBody(session.ride), shareRideLocation: session.shareRideLocation, code: session.code }) : sendJson(res, 404, { error: 'not_found' });
+        }
         if (req.method === 'POST' && s[2] === 'leave') { const r = await rideStore.leaveRide(id, actorId); return r.ok ? sendJson(res, 200, {}) : sendJson(res, r.reason === 'not_found' ? 404 : 403, { error: r.reason }); }
         if (req.method === 'DELETE' && s.length === 2) { const r = await rideStore.endRide(id, actorId); return r.ok ? sendJson(res, 200, {}) : sendJson(res, r.reason === 'not_found' ? 404 : 403, { error: r.reason }); }
         if (req.method === 'DELETE' && s[2] === 'members' && s[3]) { const r = await rideStore.removeMember(id, actorId, decodeURIComponent(s[3])); return r.ok ? sendJson(res, 200, rideBody(r.ride)) : sendJson(res, r.reason === 'not_found' ? 404 : 403, { error: r.reason }); }

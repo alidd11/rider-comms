@@ -31,7 +31,8 @@
  * change to retune it.
  */
 import { useEffect, useRef, useState } from 'react';
-import { useLocalParticipant, useTrackVolume } from '@livekit/react-native';
+import { useConnectionState, useLocalParticipant, useTrackVolume } from '@livekit/react-native';
+import { ConnectionState, createLocalAudioTrack } from 'livekit-client';
 import type { LocalAudioTrack } from 'livekit-client';
 
 /** Normalized volume (0-1) above which the rider is considered speaking. */
@@ -48,13 +49,49 @@ const RELEASE_HANGTIME_MS = 500;
  * the real published microphone track to match, so other participants
  * only actually hear audio while this is true.
  */
-export function useVoiceActivity(enabled: boolean): boolean {
+export function useVoiceActivity(enabled: boolean, onError?: (message: string) => void): boolean {
+  const connectionState = useConnectionState();
   const { localParticipant, microphoneTrack } = useLocalParticipant();
+  const publishingRef = useRef(false);
+  const onErrorRef = useRef(onError);
+  onErrorRef.current = onError;
   // useLocalParticipant() returns a TrackPublication; useTrackVolume needs
   // the actual LocalAudioTrack the publication wraps.
   const volume = useTrackVolume(microphoneTrack?.track as LocalAudioTrack | undefined);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const releaseTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  // Never let LiveKit auto-publish an open microphone. Once the room is
+  // connected, create the local audio track ourselves, mute it BEFORE
+  // publication, then publish that already-muted track. The VOX effect below
+  // is the only code allowed to unmute it.
+  useEffect(() => {
+    if (connectionState !== ConnectionState.Connected || microphoneTrack?.track || publishingRef.current) return;
+    let cancelled = false;
+    let createdTrack: LocalAudioTrack | undefined;
+    publishingRef.current = true;
+
+    void (async () => {
+      try {
+        createdTrack = await createLocalAudioTrack();
+        await createdTrack.mute();
+        if (cancelled) {
+          createdTrack.stop();
+          return;
+        }
+        await localParticipant.publishTrack(createdTrack);
+      } catch (error) {
+        createdTrack?.stop();
+        if (!cancelled) {
+          onErrorRef.current?.(error instanceof Error ? error.message : 'Microphone is unavailable.');
+        }
+      } finally {
+        publishingRef.current = false;
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [connectionState, localParticipant, microphoneTrack?.track]);
 
   useEffect(() => {
     if (!enabled) {
@@ -86,16 +123,16 @@ export function useVoiceActivity(enabled: boolean): boolean {
   }, []);
 
   useEffect(() => {
-    if (!localParticipant) return;
-    // Real LiveKit call: mutes/unmutes the already-published track (per
-    // stopMicTrackOnMute:false above, this never stops mic hardware
-    // capture, so the volume processor driving this same hook keeps
-    // working across mute/unmute cycles). When `enabled` is false (VOX
-    // off, or a manual mute override), `isSpeaking` is already forced
-    // false by the effect above, so this correctly mutes rather than
-    // just skipping the call and leaving a stale mic state behind.
-    void localParticipant.setMicrophoneEnabled(isSpeaking).catch(() => {});
-  }, [isSpeaking, localParticipant]);
+    const track = microphoneTrack?.track as LocalAudioTrack | undefined;
+    if (!track) return;
+    // The publication is already muted before it reaches the SFU. From that
+    // safe baseline VOX only toggles this exact track; it never asks
+    // setMicrophoneEnabled(true) to create a new un-gated microphone.
+    const operation = isSpeaking ? track.unmute() : track.mute();
+    void operation.catch((error) => {
+      onErrorRef.current?.(error instanceof Error ? error.message : 'Could not update microphone state.');
+    });
+  }, [isSpeaking, microphoneTrack?.track]);
 
   return enabled ? isSpeaking : false;
 }

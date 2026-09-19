@@ -32,6 +32,26 @@ describe('authenticated API', () => {
     }
   });
   it('supports the private ride lifecycle', needsDb, async () => { const made = await postJson(ctx, 'host', '/rides', {}); const ride = await made.json() as { rideId: string; code: string }; assert.equal((await postJson(ctx, 'member', '/rides/join', { code: ride.code })).status, 200); assert.equal((await authenticatedFetch(ctx, 'member', `/rides/${ride.rideId}/members/host`, { method: 'DELETE' })).status, 403); assert.equal((await authenticatedFetch(ctx, 'host', `/rides/${ride.rideId}`, { method: 'DELETE' })).status, 200); });
+  it('reconciles current ride membership and consent after a client restart', needsDb, async () => {
+    assert.equal((await authenticatedFetch(ctx, 'member', '/rides/current')).status, 200);
+    const made = await postJson(ctx, 'host', '/rides', {});
+    const { rideId, code } = await made.json() as { rideId: string; code: string };
+    await postJson(ctx, 'member', '/rides/join', { code });
+    const enabled = await authenticatedFetch(ctx, 'member', `/rides/${rideId}/location-sharing`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: true }),
+    });
+    assert.equal(enabled.status, 200);
+    const member = await authenticatedFetch(ctx, 'member', '/rides/current');
+    const snapshot = await member.json() as { ride: { rideId: string; shareRideLocation: boolean; code: string } };
+    assert.equal(snapshot.ride.rideId, rideId);
+    assert.equal(snapshot.ride.code, code);
+    assert.equal(snapshot.ride.shareRideLocation, true);
+    const host = await authenticatedFetch(ctx, 'host', '/rides/current');
+    assert.equal((await host.json() as { ride: { shareRideLocation: boolean } }).ride.shareRideLocation, false);
+    assert.equal((await authenticatedFetch(ctx, 'outsider', `/rides/${rideId}`)).status, 404);
+    await authenticatedFetch(ctx, 'host', `/rides/${rideId}/members/member`, { method: 'DELETE' });
+    assert.deepEqual(await (await authenticatedFetch(ctx, 'member', '/rides/current')).json(), { ride: null });
+  });
   it('shares ride-member locations only after explicit ride consent and only with fellow members', needsDb, async () => {
     const made = await postJson(ctx, 'host', '/rides', {}); const ride = await made.json() as { rideId: string; code: string };
     await postJson(ctx, 'member', '/rides/join', { code: ride.code });

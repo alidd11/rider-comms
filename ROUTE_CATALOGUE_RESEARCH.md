@@ -41,12 +41,84 @@ The current draft is deliberately not considered complete. Yorkshire and the Sco
 | B4391 Ffestiniog–Bala side | **Promote to research shortlist** | Supercar Driver describes the B4391 as a favourite driving road and its road character is distinct from the more famous Evo Triangle. Needs final waypoint, image and conditions verification before entering app data. |
 | Evo Triangle, North Wales | **Do not auto-admit because of fame** | It remains an important enthusiast route, but Denbighshire records show average-speed-camera investment and North Wales Police continue targeted motorcycle-safety enforcement. It should only enter with modern framing: scenic/flowing road at the posted limit, not a performance-test fantasy. |
 | Cheddar Gorge, B3135 | **Scenic candidate, not performance-road candidate** | The gorge remains visually distinctive, but Somerset made a 30 mph extension permanent in May 2026. If included, the reason should be scenery and road setting, not speed or aggressive driving. |
-| A32 Meon Valley / A339 Alton–Basingstoke | **Continue researching** | These are repeatedly recommended by South-East riders and would materially improve London/South-East coverage, but current collision, enforcement and temporary-work context deserves a stronger authority check before promotion. |
+| A32 Meon Valley / A339 Alton–Basingstoke | **Deprioritise; A272 is the stronger South-East addition** | The A339 has genuine rider appeal, but the evidence is old and repeatedly paired with warnings about hidden junctions and casualty history; Hampshire Police recorded serious A339 collisions again in January and April 2026. The A32 also had a fatal motorcycle collision near Wickham in February 2026. These single incidents do not by themselves define either whole road, but without a stronger modern route/safety case there is no reason to prefer them over the better-evidenced A272 segment. |
 | Cat and Fiddle / A54-A537 area | **Defer in 2026** | Derbyshire County Council has a 14-week full closure on the A54 Macclesfield Main Road from 27 July to 30 October 2026, with another construction phase planned for spring 2027. Do not publish a flagship Peak District route through active major works. |
-| A272 South Downs / Sussex | **Promote to research shortlist** | The road gives an unusually long rural east-west corridor through the South Downs/Weald and is repeatedly recommended by riders; its value is flow, villages and access to Loomies/West Sussex rather than outright speed. Needs a final chosen segment rather than dumping the entire 80+ mile road into one card. |
+| A272 South Downs / Sussex | **Strong draft: Petersfield–Petworth; hold for works timing** | Rider UK publishes a reproducible 54-mile Petersfield–Maresfield ride and specifically highlights the first Petersfield–Cowdray stretch. Visit Midhurst independently describes the A272 between Petersfield and Petworth as iconic and beautiful, making Petersfield–Midhurst–Petworth the strongest compact Rider Comms segment. The image candidate is a real A272 photograph heading out of Petworth towards Midhurst (Ben Gamble, CC BY-SA 2.0). West Sussex's 2026–27 programme lists A272 resurfacing between Mills Farm Road and Terwick Hill near Rogate as pre-construction, so do not ship until the works date/status is checked. |
 | B1145 Norfolk | **Admitted: Bawdeswell–Gayton** | Motorcycle Sport & Leisure gives a reproducible 17-mile B1145 section from Bawdeswell to Gayton; a July 2026 advanced-rider club report independently praises roughly 20 miles of flowing bends and good surface, while PistonHeads provides independent car-enthusiast corroboration. The selected image is on the B1145 west of Gayton inside the curated corridor. |
-| B1135 Hethel | **Continue researching** | Car enthusiasts repeatedly praise the short Wymondham/Hethel section and its proximity to Lotus, but evidence is currently too enthusiast-forum-heavy for first-party publication without a stronger current road/safety check. |
-| B4391 Ffestiniog–A4212 | **Strong car-enthusiast draft; motorcycle corroboration still required** | Supercar Driver calls this an outstanding legal-speed flow road, highlighting smooth tarmac, technical sections, visibility and involvement without needing extreme speeds. It is a strong candidate for the car side of Rider Comms, but I want independent motorcycle/current-condition evidence before admitting it. |
+| B1135 Hethel | **Defer until Hethel works settle** | The road-quality case is real: PistonHeads specifically praises the B1135 between the A11 and Hethel for flowing bends, varying radii and cambers, and motorcycle-route sources also use the Hethel section. But the official South Norfolk project page still shows phase-four full B1135 Wymondham Road closure through 25 September 2026, followed by temporary two-way lights to 9 October and completion works into late November. New 30/50 mph traffic orders also take effect on 19 September. Revisit after the new junction layout is fully operational rather than publishing a route through an active rebuild. |
+| B4391 Ffestiniog–A4212 | **Bike/car case is strong; hold for authoritative reopening evidence** | Supercar Driver documents the eight-mile Ffestiniog–A4212 section as a favourite driving road with strong legal-speed flow. Motorcycle-specific/community sources independently praise the same section for bends, scenery and low traffic, and a Commons image exists from the actual B4391 roughly 3 km from Llan Ffestiniog (Ian Warburton, CC BY-SA 2.0). June 2026 rider reports said the Ffestiniog end was closed; I still do not have an authoritative current reopening notice, so the route stays out of app data until that is resolved. |
+| A619 “13 Bends”, Bakewell–Baslow | **Research shortlist; safety framing required** | Curvy Riders specifically recommends the A619 13 Bends to motorcyclists, and Commons has an exact road image labelled “13 Bends” on the A619 between Baslow and Bakewell (Peter Barr, CC BY-SA 2.0). Derbyshire County Council records 7 motorcycle collisions and 3 killed/seriously injured riders on this section during the 2019–2024 summer periods, with exceeding the speed limit listed as a contributory factor. It can only qualify as a legal-speed scenic/technical route with explicit safety context, not as a performance-road recommendation. |
+| A5004 Long Hill, Buxton–Whaley Bridge | **Do not promote ahead of safer Peak alternatives** | It is undeniably popular with riders and visually strong, but Derbyshire County Council records 8 summer motorcycle collisions and 4 killed/seriously injured riders during 2019–2024, with road layout and careless/reckless/in-a-hurry factors. Derbyshire also has Fernilee culvert repair design work on the A5004. Keep researching, but do not fill the Midlands gap merely because the road is famous. |
+
+
+## Expansion verification — 19 September 2026
+
+### A272 Petersfield–Petworth
+
+The strongest publishable shape is **Petersfield → Midhurst → Petworth**, not the full A272. Rider UK gives the full Petersfield–Maresfield run as 54 miles / about 1h22 and explicitly calls the Petersfield–Cowdray stretch a highlight. Visit Midhurst independently describes Midhurst as sitting on the A272 between Petersfield and Petworth and calls the road iconic and beautiful.
+
+Current-works screen: Hampshire's planned A272 Langrish closure is west of Petersfield and therefore outside this proposed eastbound segment. However, West Sussex's 2026–27 highways programme lists resurfacing on the A272 from Mills Farm Road to Terwick Hill near Rogate as pre-construction. That lies inside the proposed corridor, so final admission waits for a dated works check rather than pretending the road is unaffected.
+
+Image candidate: [A272, Midhurst Road](https://commons.wikimedia.org/wiki/File:A272,_Midhurst_Road_-_geograph.org.uk_-_777961.jpg), photographed heading out of Petworth towards Midhurst by Ben Gamble, CC BY-SA 2.0. This is route-specific photography, not generic South Downs scenery.
+
+Sources:
+- [Rider UK — The A272](https://rideruk.com/the-a272/)
+- [Visit Midhurst — Getting here](https://visitmidhurst.com/visit/getting-here/)
+- [West Sussex 2026–27 highways programme](https://www.westsussex.gov.uk/media/mzanakbp/2026-2027-highways-transport-and-planning-delivery-programme.pdf)
+
+### B4391 Ffestiniog–A4212
+
+The quality case is now strong for both audiences. Supercar Driver identifies the eight-mile Ffestiniog–A4212 section as a favourite driving road and explicitly frames its appeal around flow and involvement at legal speeds. Motorcycle road sources and current rider discussion independently identify the same section as a standout North Wales ride.
+
+The blocker is **current access certainty**, not route quality. Rider reports from June 2026 said the Ffestiniog end was closed. Because I have not found a current Gwynedd/Traffic Wales reopening notice that clearly supersedes that closure, it remains out of the shipped catalogue.
+
+Image candidate: [B4391 approx 3km from Llan Ffestiniog](https://commons.wikimedia.org/wiki/File:B4391_approx_3km_from_Llan_Ffestiniog_-_geograph.org.uk_-_101596.jpg), Ian Warburton, CC BY-SA 2.0. The file description and coordinates explicitly place the photograph on the B4391.
+
+Sources:
+- [Supercar Driver — B4391](https://www.supercar-driver.com/blog/our-favourite-driving-roads-b4391-north-wales)
+- [Best Biking Roads — B4391 Ffestiniog–Arenig](https://www.bestbikingroads.com/motorcycle-roads/united-kingdom/north-wales/ride/b4391-ffestiniog-arenig)
+
+### A32 / A339 South-East screen
+
+The earlier shortlist combined two popular local rider roads without enough modern evidence. That is no longer a good admission path.
+
+- **A339 Alton–Basingstoke:** enthusiast sources describe a genuinely engaging road and explicitly note it can be enjoyable within the posted limits, but they also repeatedly flag hidden entrances/junctions and a serious casualty history. Hampshire Police recorded serious collisions on the A339 in both January and April 2026. Those incidents are not evidence that the entire road is inherently unsafe, but they reinforce the need for a current authority-level route assessment before Rider Comms recommends it.
+- **A32 Meon Valley:** the road remains useful as a connector around West Meon, but Hampshire Police recorded a fatal motorcycle collision near Wickham in February 2026. Current public notices also show continuing works on roads feeding into the A32/West Meon area. There is not enough upside over the A272 to justify rushing it into the catalogue.
+
+Decision: focus South-East expansion on the better-evidenced **A272 Petersfield–Petworth** candidate first, and leave A32/A339 out until a stronger current route/safety case emerges.
+
+Sources:
+- [Best Biking Roads — A339 Alton–Basingstoke](https://www.bestbikingroads.com/motorcycle-roads/united-kingdom/south-east-england/ride/a339-alton-basingstoke)
+- [Hampshire Police — A339 serious collision, April 2026](https://www.hampshire.police.uk/news/hampshire/news/appeals/2026/april/witness-appeal-following-serious-collision-on-a339/)
+- [Hampshire Police — A32 fatal motorcycle collision follow-up, March 2026](https://www.hampshire.police.uk/news/hampshire/news/news/2026/march-2026/tribute-paid-following-death-of-motorcyclist/)
+- [Hampshire County Council — West Meon temporary works](https://www.hants.gov.uk/community/publicnotices/publicnoticedetails?id=22938)
+
+### B1135 Hethel
+
+The driving character is not the problem. PistonHeads describes the B1135 between the A11 and Hethel as a short sequence of flowing bends with varying radii and cambers, and motorcycle-route sources independently use the same Hethel corridor.
+
+The current road state is the blocker. South Norfolk's official Hethel Roundabout and Link Road programme lists a **full B1135 Wymondham Road closure through 25 September 2026**, then temporary two-way traffic lights from 25 September to 9 October, followed by off-line completion works into late November. Norfolk County Council also made new Hethel-area 30 mph and 50 mph traffic orders on 15 September, effective **19 September 2026**.
+
+A local parish update suggested the closure might finish on 18 September, but that conflicts with the current official project programme. Use the council programme as the safer source of truth. Decision: **defer B1135 Hethel until the junction works and new traffic layout settle**, then reassess the road as it actually exists after construction.
+
+Sources:
+- [South Norfolk — B1135 Hethel Roundabout and Link Road](https://www.southnorfolkandbroadland.gov.uk/planning/future-development/infrastructure-delivery/b1135-hethel-roundabout-and-link-road)
+- [Norfolk County Council — Hethel traffic orders 2026](https://norfolk.citizenspace.com/environment-transport-and-development/the-norfolk-county-council-bracon-ash-chapman-wa/)
+- [PistonHeads — Lotus Elise Sport 135: PH Fleet](https://www.pistonheads.com/news/ph-fleet/lotus-elise-sport-135-ph-fleet/29661)
+- [Best Biking Roads — B1135 / B113 / A1066 / A143](https://www.bestbikingroads.com/motorcycle-roads/united-kingdom/east-anglia/ride/b1135-b113-a1066-a143-wymondham-harleston)
+
+### Peak District / Midlands screen
+
+I do not want the catalogue gap to force a weak admission. Two obvious roads have now been screened more critically:
+
+- **A619 “13 Bends”, Bakewell–Baslow:** current motorcycle editorial recommends it, and [this Commons image](https://commons.wikimedia.org/wiki/File:13_Bends_-_geograph.org.uk_-_1116088.jpg) is explicitly the A619 road between Baslow and Bakewell (Peter Barr, CC BY-SA 2.0). Derbyshire's 2019–2024 summer collision data records 7 motorcycle collisions, 8 riders injured and 3 killed/seriously injured; exceeding the speed limit is listed as a contributory factor. Continue researching as a legal-speed technical/scenic candidate only.
+- **A5004 Long Hill:** popular and scenic, but Derbyshire records 8 summer motorcycle collisions and 4 killed/seriously injured riders over the same period. The council also lists Fernilee culvert repair design work on the A5004. It does not get admitted merely to tick the Peak District box.
+
+Sources:
+- [Curvy Riders — Recommended Roads: 13 Bends](https://www.curvyriders.co.uk/recommended-roads-13-bends-bakewell/)
+- [Derbyshire County Council — motorcycle collisions](https://www.derbyshire.gov.uk/transport-roads/road-safety/motorcycles/motorcycle-collisions/motorcycle-collisions.aspx)
+- [Derbyshire County Council — highway structures](https://www.derbyshire.gov.uk/transport-roads/roads-traffic/road-maintenance/road-improvements/highway-structures/highway-structures.aspx)
+
 
 ## Catalogue decisions
 
