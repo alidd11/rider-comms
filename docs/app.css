@@ -1361,3 +1361,21 @@ body:has(#sheetBackdrop:not([hidden])) #joinNearbyBtn{opacity:0;pointer-events:n
   .map-header .search-slot,.map-actions .icon-button{background:rgb(247 249 250/.92);border-color:var(--border)}
   #joinNearbyBtn{background:rgb(213 235 242/.94)}
 }
+
+/* Ride-safe status must never cover page actions. On content screens it behaves
+   like a compact bottom status card above the tab bar; the map keeps the
+   top-right placement where it does not obscure primary map chrome. */
+body:has(.content-screen.active) .movement-safety-banner{
+  top:auto;
+  bottom:calc(var(--bottom-nav-height) + max(12px,var(--safe-bottom)));
+  left:auto;
+  right:max(14px,var(--safe-right));
+  width:min(320px,calc(100% - 28px - var(--safe-left) - var(--safe-right)));
+}
+@media(max-width:699px){
+  body:has(.content-screen.active) .movement-safety-banner{
+    left:max(14px,var(--safe-left));
+    right:max(14px,var(--safe-right));
+    width:auto;
+  }
+}
