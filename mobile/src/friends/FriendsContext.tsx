@@ -166,6 +166,11 @@ export function FriendsProvider({ children }: { children: React.ReactNode }): Re
     let stopped = false;
     let cursor: string | undefined;
 
+    // Keep Friends usable even if the realtime transport is temporarily
+    // unavailable. The post-baseline refresh below closes the race between
+    // this initial snapshot and cursor establishment.
+    void refresh();
+
     const run = async () => {
       while (!stopped) {
         try {
@@ -206,6 +211,10 @@ export function FriendsProvider({ children }: { children: React.ReactNode }): Re
           setError(null);
         } catch (err) {
           if (stopped) return;
+          // Re-establish the durable tail and reload authoritative state after
+          // any transport/state-refresh failure. This avoids sitting on a
+          // valid cursor with a stale local snapshot after recovery.
+          cursor = undefined;
           setError(messageFor(err, 'Live social updates paused. Reconnecting…'));
           await new Promise<void>((resolve) => setTimeout(resolve, SOCIAL_EVENT_RETRY_MS));
         }
