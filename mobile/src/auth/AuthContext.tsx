@@ -17,7 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { API_BASE_URL } from '../config';
 import { ApiError, RiderCommsClient } from '../api/client';
 import type { LoginSession } from '../api/client';
-import { colors, MIN_TOUCH_TARGET, radii, spacing, type, useConcreteThemeColors } from '../theme';
+import { colors, radii, spacing, type, useConcreteThemeColors } from '../theme';
 
 const KEY = '@rider-comms/auth-v2';
 const LEGACY_GUEST_KEY = '@rider-comms/auth-v1';
