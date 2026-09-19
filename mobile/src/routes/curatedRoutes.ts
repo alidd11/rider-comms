@@ -566,6 +566,7 @@ export const CURATED_ROUTES: readonly CuratedRoute[] = [
       "Bannau Brycheiniog views"
     ],
     "safetyNotices": [
+      "A temporary B4560 closure at Llangynidr is scheduled for 5–13 October 2026 for ground-investigation works; check Traffic Wales before travelling.",
       "Sheep and wild ponies can be on or beside the carriageway.",
       "The exposed high ground can be windy, wet or low-visibility even when valleys are clearer.",
       "Keep extra margin through blind crests and tighter hairpins."
