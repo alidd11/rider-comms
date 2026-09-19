@@ -3,9 +3,6 @@ import assert from 'node:assert/strict';
 import { ProfileStore } from '../src/profileStore.ts';
 import { ensureMigrated, getPool, resetDbForTests } from '../src/db.ts';
 
-// ProfileStore is now Postgres-backed (see db.ts) — these tests need
-// DATABASE_URL to point at a reachable Postgres instance and are skipped
-// otherwise, rather than failing every run in a sandbox with no database.
 const hasDatabase = Boolean(process.env.DATABASE_URL);
 
 describe('ProfileStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping Postgres-backed ProfileStore tests' }, () => {
@@ -19,7 +16,7 @@ describe('ProfileStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping
   });
 
   beforeEach(async () => {
-    await getPool().query('TRUNCATE rider_profiles');
+    await getPool().query('TRUNCATE social_events, rider_blocks, friendships, rider_profiles RESTART IDENTITY');
   });
 
   after(async () => {
@@ -31,9 +28,6 @@ describe('ProfileStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping
     const profile = await store.getOrCreate('rider-1');
     assert.equal(profile.riderId, 'rider-1');
     assert.equal(profile.displayName, 'Rider');
-    // Derived from the riderId itself (see profileStore's makeDefault) so
-    // every new profile starts with a handle that's already unique, no
-    // customization required before a friend could add them by it.
     assert.equal(profile.handle, '@rider-1');
     assert.equal(profile.avatarId, 'ember');
     assert.equal(profile.zoneTier, 'free');
@@ -61,7 +55,7 @@ describe('ProfileStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping
     assert.equal(result.ok, true);
     if (result.ok) {
       assert.equal(result.profile.displayName, 'New Name');
-      assert.equal(result.profile.handle, '@rider-1'); // untouched fields kept
+      assert.equal(result.profile.handle, '@rider-1');
       assert.ok(result.profile.updatedAt > original.updatedAt);
     }
   });
@@ -146,5 +140,76 @@ describe('ProfileStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping
     await store.getOrCreate('rider-1');
     assert.equal(await store.findRiderIdByHandle('@Rider-1'), 'rider-1');
     assert.equal(await store.findRiderIdByHandle('@nobody'), undefined);
+  });
+
+  it('emits a self-only refresh for private profile settings changes', async () => {
+    const store = new ProfileStore();
+    await store.getOrCreate('rider-1');
+    await store.getOrCreate('friend-1');
+    await getPool().query(
+      `INSERT INTO friendships (rider_id, friend_id, created_at)
+       VALUES ('rider-1', 'friend-1', 1), ('friend-1', 'rider-1', 1)`,
+    );
+
+    const result = await store.update('rider-1', { notifyChat: true });
+    assert.equal(result.ok, true);
+
+    const { rows } = await getPool().query<{ rider_id: string; event_type: string; actor_id: string; entity_id: string }>(
+      `SELECT rider_id, event_type, actor_id, entity_id
+       FROM social_events
+       ORDER BY rider_id`,
+    );
+    assert.deepEqual(rows, [
+      { rider_id: 'rider-1', event_type: 'social_refresh', actor_id: 'rider-1', entity_id: 'profile' },
+    ]);
+  });
+
+  it('fans friend-facing profile refreshes only to current unblocked friends', async () => {
+    const store = new ProfileStore();
+    for (const riderId of ['rider-1', 'friend-1', 'blocked-1', 'former-1']) {
+      await store.getOrCreate(riderId);
+    }
+    await getPool().query(
+      `INSERT INTO friendships (rider_id, friend_id, created_at)
+       VALUES
+         ('rider-1', 'friend-1', 1), ('friend-1', 'rider-1', 1),
+         ('rider-1', 'blocked-1', 1), ('blocked-1', 'rider-1', 1)`,
+    );
+    await getPool().query(
+      `INSERT INTO rider_blocks (rider_id, blocked_rider_id, created_at)
+       VALUES ('blocked-1', 'rider-1', 1)`,
+    );
+
+    const result = await store.update('rider-1', {
+      displayName: 'Updated Rider',
+      instagramVisibility: 'private',
+    });
+    assert.equal(result.ok, true);
+
+    const { rows } = await getPool().query<{ rider_id: string; event_type: string; actor_id: string; entity_id: string }>(
+      `SELECT rider_id, event_type, actor_id, entity_id
+       FROM social_events
+       WHERE actor_id = 'rider-1' AND entity_id = 'profile'
+       ORDER BY rider_id`,
+    );
+    assert.deepEqual(rows, [
+      { rider_id: 'friend-1', event_type: 'social_refresh', actor_id: 'rider-1', entity_id: 'profile' },
+      { rider_id: 'rider-1', event_type: 'social_refresh', actor_id: 'rider-1', entity_id: 'profile' },
+    ]);
+  });
+
+  it('does not emit a refresh when an update leaves the stored profile unchanged', async () => {
+    const store = new ProfileStore();
+    await store.getOrCreate('rider-1');
+
+    const result = await store.update('rider-1', { displayName: 'Rider' });
+    assert.equal(result.ok, true);
+
+    const { rows } = await getPool().query(
+      `SELECT 1
+       FROM social_events
+       WHERE actor_id = 'rider-1' AND entity_id = 'profile'`,
+    );
+    assert.equal(rows.length, 0);
   });
 });
