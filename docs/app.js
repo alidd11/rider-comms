@@ -269,6 +269,7 @@
   let movementWatchId;
   let movementFreshnessTimer;
   let movementPermissionStatus;
+  let movementAccessDenied = false;
   let latestDevicePosition;
   let mapCentredOnLiveLocation = false;
   let activeChat = null;
@@ -2153,6 +2154,7 @@
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
     latestDevicePosition = position;
     locationPermissionReady = true;
+    movementAccessDenied = false;
 
     if (!map || usingFallbackMap) return;
     const point = { lat, lng };
@@ -2192,8 +2194,9 @@
       : 'Waiting for a reliable speed fix. Controls stay available.';
     const enableButton = $('#enableLocationBtn');
     if (enableButton) {
-      enableButton.hidden = !warning;
-      enableButton.textContent = movementPermissionStatus?.state === 'denied' ? 'Location help' : 'Enable location';
+      // A missing speed fix does not mean location permission is missing.
+      enableButton.hidden = !warning || (!movementAccessDenied && (locationPermissionReady || movementPermissionStatus?.state === 'granted'));
+      enableButton.textContent = movementAccessDenied || movementPermissionStatus?.state === 'denied' ? 'Location help' : 'Enable location';
     }
     $$('[data-nav="routes"], [data-nav="friends"], [data-nav="settings"]').forEach((item) => {
       item.setAttribute('aria-disabled', String(locked));
@@ -2222,31 +2225,50 @@
         applyDevicePosition(position);
         applyMovementState(movementTracker.addFix(movementFix(position)));
       },
-      () => stopMovementSafetyTracking(),
+      (error) => {
+        if (error.code === 1) {
+          movementAccessDenied = true;
+          locationPermissionReady = false;
+          stopMovementSafetyTracking();
+        } else {
+          // TIMEOUT/POSITION_UNAVAILABLE are recoverable watch errors. Keep
+          // the subscription so the next valid fix can recover without a tap.
+          applyMovementState(movementTracker.stateAt(Date.now()));
+        }
+      },
       { enableHighAccuracy: true, maximumAge: 2000, timeout: 15000 }
     );
     movementFreshnessTimer = setInterval(() => applyMovementState(movementTracker.stateAt(Date.now())), 2000);
   }
 
   async function initialiseMovementSafety() {
-    applyMovementState('unknown');
+    applyMovementState(movementTracker.stateAt(Date.now()));
     try {
       const permission = await navigator.permissions?.query?.({ name: 'geolocation' });
-      if (permission?.state === 'granted') startMovementSafetyTracking();
+      if (permission?.state === 'granted' || (!permission && locationPermissionReady)) startMovementSafetyTracking();
       if (permission && permission !== movementPermissionStatus) permission.addEventListener('change', () => {
+        movementAccessDenied = permission.state === 'denied';
         if (permission.state === 'granted') startMovementSafetyTracking();
-        else stopMovementSafetyTracking();
+        else {
+          locationPermissionReady = false;
+          stopMovementSafetyTracking();
+        }
       });
       movementPermissionStatus = permission;
+      movementAccessDenied = permission?.state === 'denied';
       applyMovementState(movementState);
-    } catch { /* permission state is unavailable; a deliberate location action can start tracking */ }
+    } catch {
+      // Some browsers expose geolocation without the Permissions API.
+      // Resume only after an actual successful location request in this session.
+      if (locationPermissionReady) startMovementSafetyTracking();
+    }
   }
 
   async function requestMovementLocationAccess() {
     try {
       const position = await currentPosition();
       applyMovementState(movementTracker.addFix(movementFix(position)));
-      showToast('Location enabled. Keep still briefly while Rider Comms confirms you are stationary.');
+      showToast('Location enabled. Controls stay available until sustained movement at 8 mph.');
     } catch (error) {
       showToast(locationAccessMessage(error, 'enable ride-safe controls'));
     }
