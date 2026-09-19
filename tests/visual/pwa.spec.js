@@ -249,7 +249,9 @@ test('login baseline matches Rider Comms hierarchy in day and night', async ({ p
 
     const visual = await page.evaluate(() => {
       const root = getComputedStyle(document.documentElement);
-      const tab = getComputedStyle(document.querySelector('.auth-segmented'));
+      const segment = document.querySelector('.auth-segmented');
+      const tab = getComputedStyle(segment);
+      const activeTab = getComputedStyle(segment.querySelector('button.active'));
       const input = getComputedStyle(document.querySelector('#loginUsername'));
       const button = getComputedStyle(document.querySelector('#loginSubmit'));
       const cardElement = document.querySelector('.auth-card');
@@ -266,6 +268,9 @@ test('login baseline matches Rider Comms hierarchy in day and night', async ({ p
         surface: root.getPropertyValue('--surface').trim().toLowerCase(),
         tabRadius: parseFloat(tab.borderTopLeftRadius),
         tabHeight: parseFloat(tab.height),
+        tabTopBorder: parseFloat(tab.borderTopWidth),
+        tabBottomBorder: parseFloat(tab.borderBottomWidth),
+        activeTabBottomBorder: parseFloat(activeTab.borderBottomWidth),
         inputRadius: parseFloat(input.borderTopLeftRadius),
         inputHeight: parseFloat(input.height),
         buttonRadius: parseFloat(button.borderTopLeftRadius),
@@ -286,10 +291,13 @@ test('login baseline matches Rider Comms hierarchy in day and night', async ({ p
       };
     });
 
-    expect(visual.tabRadius).toBeLessThanOrEqual(4);
-    expect(visual.tabHeight).toBeLessThanOrEqual(44);
+    expect(visual.tabRadius).toBe(0);
+    expect(visual.tabHeight).toBeLessThanOrEqual(40);
+    expect(visual.tabTopBorder).toBe(0);
+    expect(visual.tabBottomBorder).toBeGreaterThanOrEqual(1);
+    expect(visual.activeTabBottomBorder).toBeGreaterThanOrEqual(2);
     expect(visual.inputRadius).toBeLessThanOrEqual(4);
-    expect(visual.inputHeight).toBeLessThanOrEqual(48);
+    expect(visual.inputHeight).toBeLessThanOrEqual(46);
     expect(visual.buttonRadius).toBeLessThanOrEqual(4);
     expect(visual.buttonHeight).toBeLessThanOrEqual(50);
     expect(visual.cardBackground).toBe('rgba(0, 0, 0, 0)');
@@ -303,7 +311,7 @@ test('login baseline matches Rider Comms hierarchy in day and night', async ({ p
     expect(Math.abs(visual.heroLeft)).toBeLessThanOrEqual(1);
     expect(Math.abs(visual.heroWidth - visual.viewportWidth)).toBeLessThanOrEqual(1);
     expect(visual.heroBackground).toContain('photo-1770614956862-a143fb5e4921');
-    expect(visual.titleSize).toBeLessThanOrEqual(35);
+    expect(visual.titleSize).toBeLessThanOrEqual(32);
     expect(visual.background).toBe(scheme === 'dark' ? '#080d10' : '#e9eef0');
     expect(visual.surface).toBe(scheme === 'dark' ? '#11171b' : '#f7f9fa');
 
