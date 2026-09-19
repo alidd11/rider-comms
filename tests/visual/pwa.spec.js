@@ -241,37 +241,52 @@ test('login baseline matches Rider Comms hierarchy in day and night', async ({ p
       const tab = getComputedStyle(document.querySelector('.auth-segmented'));
       const input = getComputedStyle(document.querySelector('#loginUsername'));
       const button = getComputedStyle(document.querySelector('#loginSubmit'));
-      const card = getComputedStyle(document.querySelector('.auth-card'));
+      const cardElement = document.querySelector('.auth-card');
+      const card = getComputedStyle(cardElement);
       const heroElement = document.querySelector('.auth-visual');
       const hero = getComputedStyle(heroElement);
       const heroRect = heroElement.getBoundingClientRect();
+      const cardRect = cardElement.getBoundingClientRect();
       const title = getComputedStyle(document.querySelector('#authTitle'));
+      const termsRect = document.querySelector('.auth-terms').getBoundingClientRect();
+      const assuranceRect = document.querySelector('.auth-assurance').getBoundingClientRect();
       return {
         background: root.getPropertyValue('--bg').trim().toLowerCase(),
         surface: root.getPropertyValue('--surface').trim().toLowerCase(),
         tabRadius: parseFloat(tab.borderTopLeftRadius),
+        tabHeight: parseFloat(tab.height),
         inputRadius: parseFloat(input.borderTopLeftRadius),
+        inputHeight: parseFloat(input.height),
         buttonRadius: parseFloat(button.borderTopLeftRadius),
+        buttonHeight: parseFloat(button.height),
         cardBackground: card.backgroundColor,
         cardBorderWidth: parseFloat(card.borderTopWidth),
+        cardTop: cardRect.top,
         heroHeight: parseFloat(hero.height),
         heroRadius: parseFloat(hero.borderTopLeftRadius),
         heroBackground: hero.backgroundImage,
         heroTop: heroRect.top,
+        heroBottom: heroRect.bottom,
         heroLeft: heroRect.left,
         heroWidth: heroRect.width,
         viewportWidth: window.innerWidth,
         titleSize: parseFloat(title.fontSize),
+        assuranceAfterTerms: assuranceRect.top >= termsRect.bottom,
       };
     });
 
     expect(visual.tabRadius).toBeLessThanOrEqual(4);
+    expect(visual.tabHeight).toBeLessThanOrEqual(44);
     expect(visual.inputRadius).toBeLessThanOrEqual(4);
+    expect(visual.inputHeight).toBeLessThanOrEqual(48);
     expect(visual.buttonRadius).toBeLessThanOrEqual(4);
+    expect(visual.buttonHeight).toBeLessThanOrEqual(50);
     expect(visual.cardBackground).toBe('rgba(0, 0, 0, 0)');
     expect(visual.cardBorderWidth).toBe(0);
-    expect(visual.heroHeight).toBeGreaterThanOrEqual(215);
-    expect(visual.heroHeight).toBeLessThanOrEqual(225);
+    expectNear(visual.cardTop, visual.heroBottom);
+    expect(visual.assuranceAfterTerms).toBe(true);
+    expect(visual.heroHeight).toBeGreaterThanOrEqual(238);
+    expect(visual.heroHeight).toBeLessThanOrEqual(250);
     expect(visual.heroRadius).toBe(0);
     expect(Math.abs(visual.heroTop)).toBeLessThanOrEqual(1);
     expect(Math.abs(visual.heroLeft)).toBeLessThanOrEqual(1);
