@@ -191,11 +191,11 @@ function AuthScreen({ onAuthenticated, restoreError, onRetryRestore }: {
       <ScrollView
         keyboardShouldPersistTaps="handled"
         contentInsetAdjustmentBehavior="never"
-        contentContainerStyle={[styles.authScroll, { paddingTop: 0, paddingBottom: insets.bottom + spacing.xl }]}
+        contentContainerStyle={[styles.authScroll, { paddingTop: 0, paddingBottom: insets.bottom + 20 }]}
       >
         <ImageBackground
           source={{ uri: AUTH_HERO_IMAGE }}
-          style={[styles.visual, { height: 220 + insets.top, backgroundColor: palette.surface }]}
+          style={[styles.visual, { height: 244 + insets.top, backgroundColor: palette.surface }]}
           imageStyle={styles.visualImage}
           accessibilityRole="image"
           accessibilityLabel="Motorcyclists riding together on a winding mountain road"
@@ -238,7 +238,7 @@ function AuthScreen({ onAuthenticated, restoreError, onRetryRestore }: {
 
         <View style={styles.form}>
           {!isRecovery ? <View style={styles.field}>
-            <Text style={[styles.fieldLabel, { color: palette.textSecondary }]}>Username</Text>
+            <Text style={[styles.fieldLabel, { color: palette.textSecondary }]}>{isSignup ? 'Choose a username' : 'Username'}</Text>
             <TextInput
               accessibilityLabel="Username"
               autoCapitalize="none"
@@ -249,14 +249,14 @@ function AuthScreen({ onAuthenticated, restoreError, onRetryRestore }: {
               returnKeyType="next"
               value={username}
               onChangeText={setUsername}
-              placeholder="rider_name"
+              placeholder={isSignup ? 'e.g. ali_rides' : 'Your username'}
               placeholderTextColor={palette.textMuted}
               style={[styles.input, { backgroundColor: palette.surface, borderColor: palette.border, color: palette.textPrimary }]}
             />
           </View> : null}
           {isSignup || mode === 'recover' ? (
             <View style={styles.field}>
-              <Text style={[styles.fieldLabel, { color: palette.textSecondary }]}>Email</Text>
+              <Text style={[styles.fieldLabel, { color: palette.textSecondary }]}>{mode === 'recover' ? 'Account email' : 'Email address'}</Text>
               <TextInput
                 accessibilityLabel="Email address"
                 autoCapitalize="none"
@@ -339,14 +339,14 @@ function AuthScreen({ onAuthenticated, restoreError, onRetryRestore }: {
           </Pressable>
         </View>
 
-        <View style={styles.featureRow} accessibilityLabel="Nearby riders, Private rides, Hazard alerts">
-          <Text style={[styles.featureText, { color: palette.textMuted }]}>Nearby riders</Text>
-          <View style={[styles.featureDot, { backgroundColor: palette.border }]} />
-          <Text style={[styles.featureText, { color: palette.textMuted }]}>Private rides</Text>
-          <View style={[styles.featureDot, { backgroundColor: palette.border }]} />
-          <Text style={[styles.featureText, { color: palette.textMuted }]}>Hazard alerts</Text>
-        </View>
         <Text style={[styles.securityNote, { color: palette.textMuted }]}>By continuing, you agree to ride responsibly and follow the Rider Comms safety and privacy rules.</Text>
+        <View style={styles.featureRow} accessibilityLabel="Nearby riders, Private rides, Hazard alerts">
+          <Text style={[styles.featureText, { color: palette.textSecondary }]}>Nearby riders</Text>
+          <View style={[styles.featureDot, { backgroundColor: palette.accent }]} />
+          <Text style={[styles.featureText, { color: palette.textSecondary }]}>Private rides</Text>
+          <View style={[styles.featureDot, { backgroundColor: palette.accent }]} />
+          <Text style={[styles.featureText, { color: palette.textSecondary }]}>Hazard alerts</Text>
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -437,39 +437,39 @@ const styles = StyleSheet.create({
   brandCopy: { gap: 3 },
   brandName: { fontSize: 12, lineHeight: 15, fontWeight: '800', letterSpacing: 2.1 },
   brandTagline: { fontSize: 11, lineHeight: 14, fontWeight: '600' },
-  visual: { height: 220, justifyContent: 'flex-end', overflow: 'hidden', marginHorizontal: -20, marginBottom: 18, borderRadius: 0, borderWidth: 0 },
+  visual: { height: 244, justifyContent: 'flex-end', overflow: 'hidden', marginHorizontal: -20, marginBottom: 0, borderRadius: 0, borderWidth: 0 },
   visualImage: { borderRadius: 0 },
-  visualShade: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(4,8,11,0.24)' },
-  visualCopy: { paddingHorizontal: 14, paddingBottom: 13 },
-  visualTitle: { color: '#FFFFFF', fontSize: 25, lineHeight: 25, fontWeight: '800', letterSpacing: -0.9, textShadowColor: 'rgba(0,0,0,0.55)', textShadowRadius: 8 },
-  intro: { marginBottom: 14 },
-  modeEyebrow: { fontSize: 10, lineHeight: 13, fontWeight: '800', letterSpacing: 1.4, marginBottom: 6 },
-  title: { fontSize: 32, lineHeight: 34, fontWeight: '800', letterSpacing: -1.05 },
-  subtitle: { fontSize: 13, lineHeight: 19, fontWeight: '500', maxWidth: 370, marginTop: 7 },
-  tabs: { flexDirection: 'row', gap: 2, padding: 3, borderRadius: radii.lg, borderWidth: 1, marginBottom: 14 },
-  tab: { minHeight: 44, flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: radii.sm },
-  tabActive: {},
-  tabText: { fontSize: 13, lineHeight: 17, fontWeight: '700' },
-  backToLogin: { minHeight: 40, alignSelf: 'flex-start', justifyContent: 'center', marginBottom: spacing.sm },
-  backToLoginText: { fontSize: 13, fontWeight: '700' },
-  notice: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, borderWidth: 1, borderRadius: radii.lg, padding: spacing.md, marginBottom: spacing.md },
-  noticeText: { ...type.caption, flex: 1 },
-  noticeAction: { ...type.button },
-  form: { gap: 11 },
-  field: { gap: 6 },
-  fieldLabel: { fontSize: 12, lineHeight: 16, fontWeight: '700' },
-  input: { minHeight: 48, borderWidth: 1, borderRadius: radii.lg, fontSize: 16, paddingHorizontal: 14 },
-  passwordField: { minHeight: 48, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: radii.lg, overflow: 'hidden' },
-  passwordInput: { minHeight: 46, flex: 1, fontSize: 16, paddingLeft: 14, paddingRight: 8 },
-  passwordToggle: { width: 48, height: 46, alignItems: 'center', justifyContent: 'center' },
-  error: { ...type.caption, lineHeight: 18 },
-  forgotButton: { minHeight: 36, alignSelf: 'flex-end', justifyContent: 'center', marginTop: -3 },
-  forgotText: { fontSize: 13, lineHeight: 17, fontWeight: '700' },
-  primaryButton: { minHeight: 48, borderRadius: radii.lg, alignItems: 'center', justifyContent: 'center', marginTop: 2 },
-  primaryButtonText: { ...type.button },
+  visualShade: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(3,7,9,0.20)' },
+  visualCopy: { paddingHorizontal: 22, paddingBottom: 18 },
+  visualTitle: { color: '#FFFFFF', fontSize: 30, lineHeight: 28, fontWeight: '800', letterSpacing: -1.2, textShadowColor: 'rgba(0,0,0,0.48)', textShadowRadius: 10 },
+  intro: { marginTop: 17, marginBottom: 13, paddingHorizontal: 2 },
+  modeEyebrow: { fontSize: 10, lineHeight: 12, fontWeight: '800', letterSpacing: 1.6, marginBottom: 6 },
+  title: { fontSize: 34, lineHeight: 34, fontWeight: '800', letterSpacing: -1.25 },
+  subtitle: { fontSize: 13, lineHeight: 18, fontWeight: '500', maxWidth: 370, marginTop: 7 },
+  tabs: { flexDirection: 'row', gap: 2, padding: 3, minHeight: 42, borderRadius: radii.lg, borderWidth: 1, marginBottom: 12 },
+  tab: { minHeight: 36, flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: radii.sm },
+  tabActive: { borderWidth: StyleSheet.hairlineWidth },
+  tabText: { fontSize: 12, lineHeight: 16, fontWeight: '700' },
+  backToLogin: { minHeight: 36, alignSelf: 'flex-start', justifyContent: 'center', marginBottom: spacing.sm },
+  backToLoginText: { fontSize: 12, fontWeight: '700' },
+  notice: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, borderWidth: 1, borderRadius: radii.lg, padding: 10, marginBottom: 10 },
+  noticeText: { ...type.caption, flex: 1, fontSize: 11, lineHeight: 15 },
+  noticeAction: { ...type.button, fontSize: 12 },
+  form: { gap: 10 },
+  field: { gap: 5 },
+  fieldLabel: { fontSize: 11, lineHeight: 14, fontWeight: '700' },
+  input: { minHeight: 46, borderWidth: 1, borderRadius: radii.lg, fontSize: 15, paddingHorizontal: 13 },
+  passwordField: { minHeight: 46, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: radii.lg, overflow: 'hidden' },
+  passwordInput: { minHeight: 44, flex: 1, fontSize: 15, paddingLeft: 13, paddingRight: 7 },
+  passwordToggle: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  error: { ...type.caption, fontSize: 11, lineHeight: 16 },
+  forgotButton: { minHeight: 32, alignSelf: 'flex-end', justifyContent: 'center', marginTop: -2 },
+  forgotText: { fontSize: 11, lineHeight: 15, fontWeight: '700' },
+  primaryButton: { minHeight: 48, borderRadius: radii.lg, alignItems: 'center', justifyContent: 'center', marginTop: 1 },
+  primaryButtonText: { ...type.button, fontSize: 14 },
   buttonDisabled: { opacity: 0.6 },
-  featureRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: 8, marginTop: 16 },
-  featureText: { fontSize: 11, lineHeight: 14, fontWeight: '600' },
-  featureDot: { width: 3, height: 3, borderRadius: radii.pill },
-  securityNote: { fontSize: 10.5, lineHeight: 15, textAlign: 'center', maxWidth: 330, alignSelf: 'center', marginTop: 11 },
+  featureRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: 8, marginTop: 10 },
+  featureText: { fontSize: 10, lineHeight: 13, fontWeight: '700', letterSpacing: 0.2 },
+  featureDot: { width: 3, height: 3, borderRadius: radii.pill, opacity: 0.72 },
+  securityNote: { fontSize: 10, lineHeight: 14, textAlign: 'center', maxWidth: 326, alignSelf: 'center', marginTop: 11 },
 });
