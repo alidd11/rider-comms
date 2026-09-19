@@ -717,7 +717,7 @@ export function MapScreen(): React.JSX.Element {
           </MapView>
         </View>
       ) : (
-        <View style={[styles.hostFill, { paddingTop: insets.top + spacing.xxl }]}>
+        <View style={styles.hostFill}>
           <HostPanel />
         </View>
       )}
@@ -856,7 +856,7 @@ export function MapScreen(): React.JSX.Element {
         </>
       )}
 
-      {!lockedForSafety && !activeRoute && <SegmentToggle segment={segment} onChange={setSegment} topInset={insets.top} />}
+      {segment === 'public' && !lockedForSafety && !activeRoute && <SegmentToggle segment={segment} onChange={setSegment} topInset={insets.top} />}
 
       {!activeRoute && (lockedForSafety || movementState === 'unknown') && (
         <View
@@ -897,7 +897,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   mapFill: { flex: 1 },
   map: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
-  hostFill: { flex: 1, padding: spacing.lg, paddingTop: spacing.xxl },
+  hostFill: { flex: 1, padding: 0, backgroundColor: colors.background },
   searchSlot: {
     position: 'absolute',
     left: spacing.lg,

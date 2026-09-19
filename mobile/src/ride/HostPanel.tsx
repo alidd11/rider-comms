@@ -5,8 +5,9 @@
 // once this app has a real map SDK behind it, which costs real money per
 // load. One persistent map, switched by a segment, keeps that to one.
 import * as React from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, ImageBackground, ScrollView } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, ImageBackground, ScrollView, StatusBar } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation';
@@ -20,6 +21,7 @@ const RIDE_HERO_IMAGE = 'https://images.unsplash.com/photo-1770614956862-a143fb5
 
 function JoinOrHostForm(): React.JSX.Element {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const insets = useSafeAreaInsets();
   const { startRide } = useRide();
   const { client } = useAuth();
   const [code, setCode] = React.useState('');
@@ -54,81 +56,100 @@ function JoinOrHostForm(): React.JSX.Element {
   const canSubmit = !loading && code.length === 6;
 
   return (
-    <ScrollView contentContainerStyle={styles.form} showsVerticalScrollIndicator={false}>
-      <Text style={styles.rootTitle}>Ride</Text>
-      <ImageBackground source={{ uri: RIDE_HERO_IMAGE }} style={styles.hero} imageStyle={styles.heroImage}>
-        <View style={styles.heroShade} />
-        <Text style={styles.heroTitle}>{'Ride further.\ntogether.'}</Text>
-      </ImageBackground>
-
-      <View style={styles.joinCard}>
-        <Text style={styles.joinTitle}>Join a ride</Text>
-        <Pressable
-          style={[styles.codeSlots, error && styles.codeSlotsError]}
-          onPress={() => codeInputRef.current?.focus()}
-          accessibilityRole="button"
-          accessibilityLabel="Enter six character ride code"
-        >
-          {Array.from({ length: 6 }, (_, index) => (
-            <View key={index} style={[styles.codeSlot, index === code.length && code.length < 6 && styles.codeSlotActive]}>
-              <Text style={[styles.codeSlotText, !code[index] && styles.codeSlotEmpty]}>{code[index] ?? '—'}</Text>
-            </View>
-          ))}
-          <TextInput
-            ref={codeInputRef}
-            style={styles.codeInputOverlay}
-            autoCapitalize="characters"
-            autoCorrect={false}
-            maxLength={6}
-            value={code}
-            onChangeText={(text) => {
-              setCode(text.toUpperCase().replace(/[^A-Z2-9]/g, '').slice(0, 6));
-              if (error) setError(null);
-            }}
-            accessibilityLabel="Ride invite code"
-          />
-        </Pressable>
-        <Pressable
-          style={({ pressed }) => [styles.button, pressed && canSubmit && styles.buttonPressed, !canSubmit && styles.buttonDisabled]}
-          onPress={handleJoin}
-          disabled={!canSubmit}
-        >
-          {loading ? <ActivityIndicator color={colors.accentText} /> : <Text style={styles.buttonText}>Join Ride</Text>}
-        </Pressable>
-        <Pressable
-          accessibilityRole="checkbox"
-          accessibilityState={{ checked: shareRideLocation }}
-          onPress={() => setShareRideLocation((value) => !value)}
-          style={styles.consentRow}
-        >
-          <View style={[styles.checkbox, shareRideLocation && styles.checkboxChecked]}>
-            {shareRideLocation && <Ionicons name="checkmark" size={14} color={colors.accentText} />}
-          </View>
-          <View style={styles.consentCopy}>
-            <Text style={styles.consentTitle}>Share live location</Text>
-            <Text style={styles.consentBody}>Optional · visible only to current ride members.</Text>
-          </View>
-        </Pressable>
-        {error ? (
-          <View style={styles.errorBox}>
-            <Ionicons name="alert-circle" size={18} color={colors.danger} />
-            <Text style={styles.errorText}>{error}</Text>
-          </View>
-        ) : null}
-      </View>
-
-      <Pressable
-        onPress={() => navigation.navigate('CreateRide')}
-        style={({ pressed }) => [styles.hostLink, pressed && styles.hostLinkPressed]}
+    <>
+      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+      <ScrollView
+        style={styles.joinScreen}
+        contentContainerStyle={[styles.joinScroll, { paddingBottom: insets.bottom + 20 }]}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        contentInsetAdjustmentBehavior="never"
       >
-        <View style={styles.hostLinkIcon}><Ionicons name="people" size={20} color={colors.textPrimary} /></View>
-        <View style={styles.hostLinkCopy}>
-          <Text style={styles.hostLinkTitle}>Start a ride</Text>
-          <Text style={styles.hostLinkText}>Create a new ride and invite your friends.</Text>
+        <ImageBackground
+          source={{ uri: RIDE_HERO_IMAGE }}
+          style={[styles.hero, { height: 244 + insets.top }]}
+          imageStyle={styles.heroImage}
+          accessibilityRole="image"
+          accessibilityLabel="Motorcyclists riding together on a winding mountain road"
+        >
+          <View style={styles.heroShade} />
+          <View style={styles.heroFade} />
+          <Text style={styles.heroTitle}>{'Ride further.\ntogether.'}</Text>
+        </ImageBackground>
+
+        <View style={styles.joinBody}>
+          <View style={styles.joinCard}>
+            <Text style={styles.joinTitle}>Join a ride</Text>
+            <Text style={styles.fieldLabel}>Enter invite code</Text>
+            <Pressable
+              style={[styles.codeSlots, error && styles.codeSlotsError]}
+              onPress={() => codeInputRef.current?.focus()}
+              accessibilityRole="button"
+              accessibilityLabel="Enter six character ride code"
+            >
+              {Array.from({ length: 6 }, (_, index) => (
+                <View key={index} style={[styles.codeSlot, index === code.length && code.length < 6 && styles.codeSlotActive]}>
+                  <Text style={[styles.codeSlotText, !code[index] && styles.codeSlotEmpty]}>{code[index] ?? '—'}</Text>
+                </View>
+              ))}
+              <TextInput
+                ref={codeInputRef}
+                style={styles.codeInputOverlay}
+                autoCapitalize="characters"
+                autoCorrect={false}
+                maxLength={6}
+                value={code}
+                onChangeText={(text) => {
+                  setCode(text.toUpperCase().replace(/[^A-Z2-9]/g, '').slice(0, 6));
+                  if (error) setError(null);
+                }}
+                accessibilityLabel="Ride invite code"
+              />
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [styles.button, pressed && canSubmit && styles.buttonPressed, !canSubmit && styles.buttonDisabled]}
+              onPress={handleJoin}
+              disabled={!canSubmit}
+            >
+              {loading ? <ActivityIndicator color={colors.accentText} /> : <Text style={styles.buttonText}>Join Ride</Text>}
+            </Pressable>
+            <Text style={styles.joinHelp}>Ask the host for their six-character code.</Text>
+            <Pressable
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: shareRideLocation }}
+              onPress={() => setShareRideLocation((value) => !value)}
+              style={styles.consentRow}
+            >
+              <View style={[styles.checkbox, shareRideLocation && styles.checkboxChecked]}>
+                {shareRideLocation && <Ionicons name="checkmark" size={13} color={colors.accentText} />}
+              </View>
+              <View style={styles.consentCopy}>
+                <Text style={styles.consentTitle}>Share my live location</Text>
+                <Text style={styles.consentBody}>Optional. Only current ride members can see it, and it is removed when you leave or switch this off.</Text>
+              </View>
+            </Pressable>
+            {error ? (
+              <View style={styles.errorBox}>
+                <Ionicons name="alert-circle" size={17} color={colors.danger} />
+                <Text style={styles.errorText}>{error}</Text>
+              </View>
+            ) : null}
+          </View>
+
+          <Pressable
+            onPress={() => navigation.navigate('CreateRide')}
+            style={({ pressed }) => [styles.hostLink, pressed && styles.hostLinkPressed]}
+          >
+            <View style={styles.hostLinkIcon}><Ionicons name="people" size={19} color={colors.textSecondary} /></View>
+            <View style={styles.hostLinkCopy}>
+              <Text style={styles.hostLinkTitle}>Start a ride</Text>
+              <Text style={styles.hostLinkText}>Create a new ride and invite your friends.</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={17} color={colors.textMuted} />
+          </Pressable>
         </View>
-        <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-      </Pressable>
-    </ScrollView>
+      </ScrollView>
+    </>
   );
 }
 
@@ -182,48 +203,60 @@ function MemberCard(): React.JSX.Element {
 
 export function HostPanel(): React.JSX.Element {
   const { activeRide } = useRide();
+  const insets = useSafeAreaInsets();
 
   if (!activeRide) return <JoinOrHostForm />;
-  return activeRide.isHost ? <HostRoster /> : <MemberCard />;
+  return (
+    <View style={[styles.activePanel, { paddingTop: insets.top + spacing.lg, paddingBottom: insets.bottom + spacing.lg }]}>
+      {activeRide.isHost ? <HostRoster /> : <MemberCard />}
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
+  joinScreen: { flex: 1, backgroundColor: colors.background },
+  joinScroll: { flexGrow: 1, backgroundColor: colors.background },
+  joinBody: { gap: 10, paddingHorizontal: 20, paddingTop: 12 },
+  activePanel: { flex: 1, paddingHorizontal: spacing.lg, backgroundColor: colors.background },
   form: { flexGrow: 1, gap: spacing.md },
   rootTitle: { ...type.title, color: colors.textPrimary, fontSize: 28, lineHeight: 32, letterSpacing: -0.8 },
-  hero: { height: 188, justifyContent: 'flex-end', overflow: 'hidden', borderRadius: radii.lg, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, backgroundColor: colors.surface },
-  heroImage: { borderRadius: radii.lg },
-  heroShade: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(5,9,12,0.32)' },
-  heroTitle: { color: '#FFFFFF', fontSize: 26, lineHeight: 25, fontWeight: '800', letterSpacing: -0.8, padding: spacing.md, textShadowColor: 'rgba(0,0,0,0.55)', textShadowRadius: 8 },
-  joinCard: { gap: spacing.sm, padding: spacing.md, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: radii.lg, backgroundColor: colors.surface },
-  joinTitle: { ...type.subheading, color: colors.textPrimary, fontWeight: '800' },
+  hero: { width: '100%', justifyContent: 'flex-end', overflow: 'hidden', borderRadius: 0, borderWidth: 0, backgroundColor: colors.surface },
+  heroImage: { borderRadius: 0 },
+  heroShade: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(3,7,9,0.18)' },
+  heroFade: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 76, backgroundColor: 'rgba(3,7,9,0.22)' },
+  heroTitle: { color: '#FFFFFF', fontSize: 30, lineHeight: 28, fontWeight: '800', letterSpacing: -1.2, paddingHorizontal: 22, paddingBottom: 18, textShadowColor: 'rgba(0,0,0,0.48)', textShadowRadius: 10 },
+  joinCard: { gap: 8, padding: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: radii.lg, backgroundColor: colors.surface },
+  joinTitle: { ...type.subheading, color: colors.textPrimary, fontSize: 15, lineHeight: 18, fontWeight: '800', marginBottom: 1 },
+  fieldLabel: { ...type.caption, color: colors.textSecondary, fontSize: 11, lineHeight: 14, fontWeight: '700' },
   iconBadge: { width: 48, height: 48, borderRadius: radii.lg, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
   title: { ...type.heading, marginBottom: spacing.sm },
   body: { ...type.body, marginBottom: spacing.lg },
-  codeSlots: { position: 'relative', flexDirection: 'row', gap: spacing.xs },
+  codeSlots: { position: 'relative', flexDirection: 'row', gap: 5 },
   codeSlotsError: { borderColor: colors.danger },
-  codeSlot: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.border, borderRadius: radii.md, backgroundColor: colors.background },
+  codeSlot: { flex: 1, minHeight: 40, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.border, borderRadius: radii.lg, backgroundColor: colors.surfaceRaised },
   codeSlotActive: { borderColor: colors.accent },
-  codeSlotText: { fontSize: 19, lineHeight: 22, fontWeight: '800', color: colors.textPrimary },
+  codeSlotText: { fontSize: 16, lineHeight: 19, fontWeight: '800', color: colors.textPrimary },
   codeSlotEmpty: { color: colors.textMuted, fontWeight: '500' },
   codeInputOverlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, opacity: 0.01, color: 'transparent' },
-  consentRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm, paddingTop: spacing.sm, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
-  checkbox: { width: 20, height: 20, borderRadius: radii.md, borderWidth: 1.5, borderColor: colors.textMuted, alignItems: 'center', justifyContent: 'center', marginTop: 1 },
+  joinHelp: { ...type.caption, color: colors.textMuted, fontSize: 10, lineHeight: 14, marginTop: -1 },
+  consentRow: { minHeight: 44, flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingTop: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
+  checkbox: { width: 18, height: 18, borderRadius: radii.md, borderWidth: 1.5, borderColor: colors.textMuted, alignItems: 'center', justifyContent: 'center', marginTop: 1 },
   checkboxChecked: { backgroundColor: colors.accent, borderColor: colors.accent },
   consentCopy: { flex: 1 },
-  consentTitle: { ...type.caption, color: colors.textPrimary, fontWeight: '700' },
-  consentBody: { ...type.caption, color: colors.textSecondary, marginTop: 2, lineHeight: 17 },
-  errorBox: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm, backgroundColor: colors.dangerSurface, borderRadius: radii.md, padding: spacing.sm },
-  errorText: { ...type.caption, color: colors.danger, flex: 1 },
-  hostLink: { minHeight: 68, flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.sm, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: radii.lg, backgroundColor: colors.surface },
+  consentTitle: { ...type.caption, color: colors.textPrimary, fontSize: 11, lineHeight: 14, fontWeight: '700' },
+  consentBody: { ...type.caption, color: colors.textMuted, fontSize: 10, lineHeight: 14, marginTop: 2 },
+  errorBox: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm, backgroundColor: colors.dangerSurface, borderRadius: radii.lg, padding: 8 },
+  errorText: { ...type.caption, color: colors.danger, flex: 1, fontSize: 10, lineHeight: 14 },
+  hostLink: { minHeight: 62, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 11, paddingVertical: 9, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: radii.lg, backgroundColor: colors.surface },
   hostLinkPressed: { opacity: 0.82 },
-  hostLinkIcon: { width: 40, height: 40, borderRadius: radii.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceRaised },
+  hostLinkIcon: { width: 38, height: 38, borderRadius: radii.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceRaised },
   hostLinkCopy: { flex: 1, minWidth: 0 },
-  hostLinkTitle: { ...type.body, color: colors.textPrimary, fontWeight: '700' },
-  hostLinkText: { ...type.caption, color: colors.textSecondary, marginTop: 2 },
-  button: { minHeight: MIN_TOUCH_TARGET, backgroundColor: colors.accent, borderRadius: radii.md, alignItems: 'center', justifyContent: 'center' },
+  hostLinkTitle: { ...type.body, color: colors.textPrimary, fontSize: 13, lineHeight: 16, fontWeight: '700' },
+  hostLinkText: { ...type.caption, color: colors.textMuted, fontSize: 10, lineHeight: 14, marginTop: 2 },
+  button: { minHeight: 44, backgroundColor: colors.accent, borderRadius: radii.lg, alignItems: 'center', justifyContent: 'center', marginTop: -1 },
   buttonPressed: { backgroundColor: colors.accentPressed },
   buttonDisabled: { opacity: 0.5 },
-  buttonText: { ...type.button, color: colors.accentText },
+  buttonText: { ...type.button, color: colors.accentText, fontSize: 13 },
   codeCard: { backgroundColor: colors.surface, borderRadius: radii.lg, padding: spacing.md, alignItems: 'center', marginBottom: spacing.lg, ...elevation.raised },
   codeLabel: { ...type.label },
   codeValue: { fontSize: 32, fontWeight: '800', letterSpacing: 6, color: colors.accent, marginTop: spacing.xs },

@@ -223,6 +223,7 @@ test('login baseline matches Rider Comms hierarchy in day and night', async ({ p
   for (const scheme of ['dark', 'light']) {
     await page.emulateMedia({ colorScheme: scheme });
     await page.goto('/');
+    await page.evaluate(() => document.documentElement.style.setProperty('--safe-top', '59px'));
 
     await expect(page.locator('#authScreen')).toBeVisible();
     await expect(page.locator('#app')).toBeHidden();
@@ -241,37 +242,52 @@ test('login baseline matches Rider Comms hierarchy in day and night', async ({ p
       const tab = getComputedStyle(document.querySelector('.auth-segmented'));
       const input = getComputedStyle(document.querySelector('#loginUsername'));
       const button = getComputedStyle(document.querySelector('#loginSubmit'));
-      const card = getComputedStyle(document.querySelector('.auth-card'));
+      const cardElement = document.querySelector('.auth-card');
+      const card = getComputedStyle(cardElement);
       const heroElement = document.querySelector('.auth-visual');
       const hero = getComputedStyle(heroElement);
       const heroRect = heroElement.getBoundingClientRect();
+      const cardRect = cardElement.getBoundingClientRect();
       const title = getComputedStyle(document.querySelector('#authTitle'));
+      const termsRect = document.querySelector('.auth-terms').getBoundingClientRect();
+      const assuranceRect = document.querySelector('.auth-assurance').getBoundingClientRect();
       return {
         background: root.getPropertyValue('--bg').trim().toLowerCase(),
         surface: root.getPropertyValue('--surface').trim().toLowerCase(),
         tabRadius: parseFloat(tab.borderTopLeftRadius),
+        tabHeight: parseFloat(tab.height),
         inputRadius: parseFloat(input.borderTopLeftRadius),
+        inputHeight: parseFloat(input.height),
         buttonRadius: parseFloat(button.borderTopLeftRadius),
+        buttonHeight: parseFloat(button.height),
         cardBackground: card.backgroundColor,
         cardBorderWidth: parseFloat(card.borderTopWidth),
+        cardTop: cardRect.top,
         heroHeight: parseFloat(hero.height),
         heroRadius: parseFloat(hero.borderTopLeftRadius),
         heroBackground: hero.backgroundImage,
         heroTop: heroRect.top,
+        heroBottom: heroRect.bottom,
         heroLeft: heroRect.left,
         heroWidth: heroRect.width,
         viewportWidth: window.innerWidth,
         titleSize: parseFloat(title.fontSize),
+        assuranceAfterTerms: assuranceRect.top >= termsRect.bottom,
       };
     });
 
     expect(visual.tabRadius).toBeLessThanOrEqual(4);
+    expect(visual.tabHeight).toBeLessThanOrEqual(44);
     expect(visual.inputRadius).toBeLessThanOrEqual(4);
+    expect(visual.inputHeight).toBeLessThanOrEqual(48);
     expect(visual.buttonRadius).toBeLessThanOrEqual(4);
+    expect(visual.buttonHeight).toBeLessThanOrEqual(50);
     expect(visual.cardBackground).toBe('rgba(0, 0, 0, 0)');
     expect(visual.cardBorderWidth).toBe(0);
-    expect(visual.heroHeight).toBeGreaterThanOrEqual(215);
-    expect(visual.heroHeight).toBeLessThanOrEqual(225);
+    expectNear(visual.cardTop, visual.heroBottom);
+    expect(visual.assuranceAfterTerms).toBe(true);
+    expect(visual.heroHeight).toBeGreaterThanOrEqual(297);
+    expect(visual.heroHeight).toBeLessThanOrEqual(309);
     expect(visual.heroRadius).toBe(0);
     expect(Math.abs(visual.heroTop)).toBeLessThanOrEqual(1);
     expect(Math.abs(visual.heroLeft)).toBeLessThanOrEqual(1);
@@ -283,6 +299,86 @@ test('login baseline matches Rider Comms hierarchy in day and night', async ({ p
 
     await page.screenshot({
       path: testInfo.outputPath(`iphone-17-pro-max-login-${scheme}-baseline.png`),
+      fullPage: true,
+    });
+  }
+});
+
+test('ride join baseline owns the iPhone top edge in day and night', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'iphone-17-pro-max-webkit', 'Ride baseline screenshots target iPhone 17 Pro Max geometry.');
+
+  await mockAuthenticatedApi(page, 'stationary');
+
+  for (const scheme of ['dark', 'light']) {
+    await page.emulateMedia({ colorScheme: scheme });
+    await page.goto('/');
+    await page.evaluate(() => document.documentElement.style.setProperty('--safe-top', '59px'));
+    await expect(page.locator('#app')).toBeVisible();
+    await page.locator('.bottom-nav [data-nav="ride"]').click();
+    await expect(page.locator('#rideJoinState')).toBeVisible();
+    await page.locator('[data-screen="ride"]').evaluate(async (element) => {
+      await Promise.all(element.getAnimations().map((animation) => animation.finished));
+    });
+    await expect(page.locator('.ride-hero')).toBeVisible();
+    await expect(page.locator('#joinRideForm')).toBeVisible();
+    await expect(page.locator('#rideHostMode')).toBeVisible();
+    await assertNoViewportOverflow(page);
+
+    const visual = await page.evaluate(() => {
+      const screen = document.querySelector('[data-screen="ride"]');
+      const header = screen.querySelector('.page-header');
+      const heroElement = screen.querySelector('.ride-hero');
+      const join = screen.querySelector('.ride-entry');
+      const slot = screen.querySelector('.ride-code-slots span');
+      const button = screen.querySelector('.ride-join-button');
+      const start = screen.querySelector('.ride-start-row');
+      const nav = document.querySelector('.bottom-nav');
+      const box = (element) => element.getBoundingClientRect();
+      const hero = getComputedStyle(heroElement);
+      return {
+        screenTop: box(screen).top,
+        headerHeight: box(header).height,
+        heroTop: box(heroElement).top,
+        heroLeft: box(heroElement).left,
+        heroWidth: box(heroElement).width,
+        heroHeight: box(heroElement).height,
+        heroRadius: parseFloat(hero.borderTopLeftRadius),
+        joinTop: box(join).top,
+        joinRadius: parseFloat(getComputedStyle(join).borderTopLeftRadius),
+        slotHeight: box(slot).height,
+        slotRadius: parseFloat(getComputedStyle(slot).borderTopLeftRadius),
+        buttonHeight: box(button).height,
+        startHeight: box(start).height,
+        startRadius: parseFloat(getComputedStyle(start).borderTopLeftRadius),
+        startBottom: box(start).bottom,
+        navTop: box(nav).top,
+        viewportWidth: window.innerWidth,
+        titleWidth: box(document.querySelector('#rideTitle')).width,
+        safeTopShieldDisplay: getComputedStyle(screen, '::before').display,
+      };
+    });
+
+    expectNear(visual.heroTop, visual.screenTop);
+    expectNear(visual.heroLeft, 0);
+    expectNear(visual.heroWidth, visual.viewportWidth);
+    expect(visual.headerHeight).toBeLessThanOrEqual(1);
+    expect(visual.titleWidth).toBeLessThanOrEqual(1);
+    expect(visual.safeTopShieldDisplay).toBe('none');
+    expect(visual.heroHeight).toBeGreaterThanOrEqual(297);
+    expect(visual.heroHeight).toBeLessThanOrEqual(309);
+    expect(visual.heroRadius).toBe(0);
+    expect(visual.joinTop - (visual.heroTop + visual.heroHeight)).toBeGreaterThanOrEqual(10);
+    expect(visual.joinTop - (visual.heroTop + visual.heroHeight)).toBeLessThanOrEqual(14);
+    expect(visual.joinRadius).toBeLessThanOrEqual(4);
+    expect(visual.slotHeight).toBeLessThanOrEqual(42);
+    expect(visual.slotRadius).toBeLessThanOrEqual(4);
+    expect(visual.buttonHeight).toBeLessThanOrEqual(46);
+    expect(visual.startHeight).toBeLessThanOrEqual(66);
+    expect(visual.startRadius).toBeLessThanOrEqual(4);
+    expect(visual.startBottom).toBeLessThanOrEqual(visual.navTop + 2);
+
+    await page.screenshot({
+      path: testInfo.outputPath(`iphone-17-pro-max-ride-${scheme}-baseline.png`),
       fullPage: true,
     });
   }
@@ -418,6 +514,9 @@ test('final mockup parity is sharp, map-first and iPhone 17 Pro Max safe', async
 
   await page.locator('.bottom-nav [data-nav="ride"]').click();
   await expect(page.locator('.ride-hero')).toBeVisible();
+  await page.locator('[data-screen="ride"]').evaluate(async (element) => {
+    await Promise.all(element.getAnimations().map((animation) => animation.finished));
+  });
   const rideHeroRadius = await page.locator('.ride-hero').evaluate((element) => parseFloat(getComputedStyle(element).borderTopLeftRadius));
   expect(rideHeroRadius).toBeLessThanOrEqual(4);
   await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-ride-final.png'), fullPage: true });
@@ -508,14 +607,14 @@ test('PWA utility viewport paints safe areas as one edge-to-edge canvas', async 
   const viewportMeta = await page.locator('meta[name="viewport"]').getAttribute('content');
   expect(viewportMeta).toContain('viewport-fit=cover');
 
-  await page.locator('.bottom-nav [data-nav="ride"]').click();
+  await page.locator('.bottom-nav [data-nav="settings"]').click();
   await page.evaluate(() => {
     document.documentElement.style.setProperty('--safe-top', '59px');
     document.documentElement.style.setProperty('--safe-left', '47px');
     document.documentElement.style.setProperty('--safe-right', '47px');
   });
 
-  const viewport = await page.locator('[data-screen="ride"]').evaluate((screen) => {
+  const viewport = await page.locator('[data-screen="settings"]').evaluate((screen) => {
     const screenStyle = getComputedStyle(screen);
     const shieldStyle = getComputedStyle(screen, '::before');
     const navStyle = getComputedStyle(document.querySelector('.bottom-nav'));
