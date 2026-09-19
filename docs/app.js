@@ -1937,20 +1937,25 @@
       }
       if (key === 'shareLocation') {
         button.disabled = true;
-        if (active) {
-          try {
-            await currentPosition();
-          } catch (error) {
-            button.disabled = false;
-            showToast(locationAccessMessage(error, 'share your location'));
-            return;
-          }
+        if (!active) {
+          const ok = await stopPublicNearby({ disableLocationSharing: true });
+          button.disabled = false;
+          button.setAttribute('aria-pressed', String(state.profile.shareLocation));
+          if (ok) showToast('Nearby visibility and proximity voice are off.');
+          return;
         }
-        const ok = await patchProfile({ shareLocation: active });
+        try {
+          await currentPosition();
+        } catch (error) {
+          button.disabled = false;
+          showToast(locationAccessMessage(error, 'share your location'));
+          return;
+        }
+        const ok = await patchProfile({ shareLocation: true });
         button.disabled = false;
         if (ok) {
-          button.setAttribute('aria-pressed', String(active));
-          if (active) syncRideLocationSharing();
+          button.setAttribute('aria-pressed', 'true');
+          syncRideLocationSharing();
         }
       }
     }));
@@ -2040,8 +2045,7 @@
     }, PRESENCE_REFRESH_MS);
   }
 
-  async function stopPublicPresenceForRide() {
-    if (!state.publicLive) return;
+  async function stopPublicNearby({ disableLocationSharing = false } = {}) {
     stopPresenceRefresh();
     state.publicLive = false;
     nearbyRiders = [];
@@ -2049,7 +2053,22 @@
     persist();
     renderMapStatus();
     renderMapRiders();
+
+    // Remove the current public presence lease immediately. The backend also
+    // expires stale leases, but a deliberate "off" action should not wait for
+    // that timeout before disappearing from Nearby.
     try { await apiFetch('DELETE', '/presence'); } catch { /* Presence also expires server-side. */ }
+
+    if (!disableLocationSharing || !state.profile.shareLocation) return true;
+    return patchProfile({ shareLocation: false });
+  }
+
+  async function stopPublicPresenceForRide() {
+    if (!state.publicLive) return;
+    // Entering a private ride ends the public session but does not rewrite the
+    // rider's standing public-location preference. The map button itself does
+    // revoke that preference, matching native's one-switch behaviour.
+    await stopPublicNearby();
   }
 
   // Stored public-live intent is not proof of current server consent or an
@@ -2678,15 +2697,10 @@
    */
   async function toggleNearby() {
     if (state.publicLive) {
-      stopPresenceRefresh();
-      state.publicLive = false;
-      syncVoiceConnection();
-      try { await apiFetch('DELETE', '/presence'); } catch { /* best effort — still go offline locally */ }
-      nearbyRiders = [];
-      persist();
-      renderMapStatus();
-      renderMapRiders();
-      showToast('You are no longer visible nearby.');
+      const saved = await stopPublicNearby({ disableLocationSharing: true });
+      showToast(saved
+        ? 'Nearby visibility and proximity voice are off.'
+        : 'Nearby is off, but the location-sharing preference could not be saved.');
       return;
     }
     if (!(await preflightMicrophoneAccess())) return;
