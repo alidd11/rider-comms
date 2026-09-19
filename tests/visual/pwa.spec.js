@@ -223,6 +223,7 @@ test('login baseline matches Rider Comms hierarchy in day and night', async ({ p
   for (const scheme of ['dark', 'light']) {
     await page.emulateMedia({ colorScheme: scheme });
     await page.goto('/');
+    await page.evaluate(() => document.documentElement.style.setProperty('--safe-top', '59px'));
 
     await expect(page.locator('#authScreen')).toBeVisible();
     await expect(page.locator('#app')).toBeHidden();
@@ -285,8 +286,8 @@ test('login baseline matches Rider Comms hierarchy in day and night', async ({ p
     expect(visual.cardBorderWidth).toBe(0);
     expectNear(visual.cardTop, visual.heroBottom);
     expect(visual.assuranceAfterTerms).toBe(true);
-    expect(visual.heroHeight).toBeGreaterThanOrEqual(238);
-    expect(visual.heroHeight).toBeLessThanOrEqual(250);
+    expect(visual.heroHeight).toBeGreaterThanOrEqual(297);
+    expect(visual.heroHeight).toBeLessThanOrEqual(309);
     expect(visual.heroRadius).toBe(0);
     expect(Math.abs(visual.heroTop)).toBeLessThanOrEqual(1);
     expect(Math.abs(visual.heroLeft)).toBeLessThanOrEqual(1);
@@ -311,9 +312,13 @@ test('ride join baseline owns the iPhone top edge in day and night', async ({ pa
   for (const scheme of ['dark', 'light']) {
     await page.emulateMedia({ colorScheme: scheme });
     await page.goto('/');
+    await page.evaluate(() => document.documentElement.style.setProperty('--safe-top', '59px'));
     await expect(page.locator('#app')).toBeVisible();
     await page.locator('.bottom-nav [data-nav="ride"]').click();
     await expect(page.locator('#rideJoinState')).toBeVisible();
+    await page.locator('[data-screen="ride"]').evaluate(async (element) => {
+      await Promise.all(element.getAnimations().map((animation) => animation.finished));
+    });
     await expect(page.locator('.ride-hero')).toBeVisible();
     await expect(page.locator('#joinRideForm')).toBeVisible();
     await expect(page.locator('#rideHostMode')).toBeVisible();
@@ -359,7 +364,8 @@ test('ride join baseline owns the iPhone top edge in day and night', async ({ pa
     expect(visual.headerHeight).toBeLessThanOrEqual(1);
     expect(visual.titleWidth).toBeLessThanOrEqual(1);
     expect(visual.safeTopShieldDisplay).toBe('none');
-    expect(visual.heroHeight).toBeGreaterThanOrEqual(238);
+    expect(visual.heroHeight).toBeGreaterThanOrEqual(297);
+    expect(visual.heroHeight).toBeLessThanOrEqual(309);
     expect(visual.heroRadius).toBe(0);
     expect(visual.joinTop - (visual.heroTop + visual.heroHeight)).toBeGreaterThanOrEqual(10);
     expect(visual.joinTop - (visual.heroTop + visual.heroHeight)).toBeLessThanOrEqual(14);
@@ -508,6 +514,9 @@ test('final mockup parity is sharp, map-first and iPhone 17 Pro Max safe', async
 
   await page.locator('.bottom-nav [data-nav="ride"]').click();
   await expect(page.locator('.ride-hero')).toBeVisible();
+  await page.locator('[data-screen="ride"]').evaluate(async (element) => {
+    await Promise.all(element.getAnimations().map((animation) => animation.finished));
+  });
   const rideHeroRadius = await page.locator('.ride-hero').evaluate((element) => parseFloat(getComputedStyle(element).borderTopLeftRadius));
   expect(rideHeroRadius).toBeLessThanOrEqual(4);
   await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-ride-final.png'), fullPage: true });
