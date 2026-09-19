@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { DirectMessage } from '@rider-comms/shared';
 import { ensureMigrated, getPool } from './db.ts';
-import { appendSocialEvent } from './socialEventStore.ts';
+import { appendSocialEventForRiders } from './socialEventStore.ts';
 
 interface DirectMessageRow {
   id: string;
@@ -111,7 +111,7 @@ export class MessageStore {
         'INSERT INTO direct_messages (id, from_rider_id, to_rider_id, text, created_at, conversation_key) VALUES ($1, $2, $3, $4, $5, $6)',
         [message.id, message.fromRiderId, message.toRiderId, message.text, message.createdAt, conversationKey(message.fromRiderId, message.toRiderId)]
       );
-      await appendSocialEvent(client, toRiderId, 'message', fromRiderId, message.id, message.createdAt);
+      await appendSocialEventForRiders(client, [fromRiderId, toRiderId], 'message', fromRiderId, message.id, message.createdAt);
       await client.query('COMMIT');
       return message;
     } catch (error) {
@@ -252,7 +252,7 @@ export class MessageStore {
         [riderId, key, message.seq, Date.now()],
       );
       if (advanced.rows[0]) {
-        await appendSocialEvent(client, withRiderId, 'message_read', riderId, message.id);
+        await appendSocialEventForRiders(client, [riderId, withRiderId], 'message_read', riderId, message.id);
       }
       await client.query('COMMIT');
       return Number(message.seq);
