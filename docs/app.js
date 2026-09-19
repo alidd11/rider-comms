@@ -1908,6 +1908,9 @@
   // the two are picked between.
   let voiceRoom;
   const proximityVoiceRooms = new Map(); // peerId -> pair-isolated LiveKit room
+  const voiceRemoteSpeakersByRoom = new Map(); // LiveKit Room -> Set<riderId>
+  const voiceSpeakerProfiles = new Map(); // riderId -> resolved public profile
+  const voiceSpeakerProfileLoads = new Set();
   let voiceTargetKey; // 'channel' or `ride:${rideId}`
   let voiceMeterStream;
   let voiceAudioContext;
@@ -1995,10 +1998,13 @@
 
   function cleanupRemoteVoiceAudio(room) {
     const elements = remoteVoiceElements.get(room);
-    if (!elements) return;
-    for (const element of elements) element.remove();
-    elements.clear();
-    remoteVoiceElements.delete(room);
+    if (elements) {
+      for (const element of elements) element.remove();
+      elements.clear();
+      remoteVoiceElements.delete(room);
+    }
+    voiceRemoteSpeakersByRoom.delete(room);
+    renderVoiceStatus();
   }
 
   function disconnectManagedVoiceRoom(room) {
@@ -2015,6 +2021,73 @@
       if (currentVoiceTarget() !== targetKey) return;
       syncVoiceConnection();
     }, 2000);
+  }
+
+  function activeRemoteVoiceSpeakerIds() {
+    const ids = new Set();
+    for (const speakers of voiceRemoteSpeakersByRoom.values()) {
+      for (const riderId of speakers) {
+        if (riderId && riderId !== state.profile?.riderId) ids.add(riderId);
+      }
+    }
+    return [...ids];
+  }
+
+  function voiceSpeakerProfile(riderId) {
+    return voiceSpeakerProfiles.get(riderId)
+      || nearbyRiders.find((person) => person.riderId === riderId)
+      || state.activeRide?.members?.find((person) => person.riderId === riderId)
+      || state.friends.find((person) => person.riderId === riderId);
+  }
+
+  function voiceSpeakerSummary() {
+    const ids = activeRemoteVoiceSpeakerIds();
+    if (!ids.length) return '';
+    const names = ids.map((riderId) => voiceSpeakerProfile(riderId)?.displayName || 'Nearby rider');
+    return names.length === 1 ? `${names[0]} speaking` : `${names[0]} + ${names.length - 1} speaking`;
+  }
+
+  function ensureVoiceSpeakerProfiles(riderIds) {
+    for (const riderId of riderIds) {
+      if (!riderId || voiceSpeakerProfiles.has(riderId) || voiceSpeakerProfileLoads.has(riderId)) continue;
+      voiceSpeakerProfileLoads.add(riderId);
+      void apiFetch('GET', `/profiles/${encodeURIComponent(riderId)}`)
+        .then((profile) => { voiceSpeakerProfiles.set(riderId, profile); })
+        .catch(() => {})
+        .finally(() => {
+          voiceSpeakerProfileLoads.delete(riderId);
+          renderVoiceStatus();
+        });
+    }
+  }
+
+  function renderMapVoiceSpeakerChip(summary) {
+    let chip = $('#voiceSpeakerChip');
+    if (!chip) {
+      chip = document.createElement('div');
+      chip.id = 'voiceSpeakerChip';
+      chip.className = 'status-chip';
+      chip.setAttribute('role', 'status');
+      chip.setAttribute('aria-live', 'polite');
+      Object.assign(chip.style, {
+        position: 'absolute',
+        zIndex: '9',
+        top: 'calc(var(--safe-top) + 66px)',
+        right: 'max(16px,var(--safe-right))',
+        maxWidth: 'min(70vw,260px)',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
+        pointerEvents: 'none',
+      });
+      $('#mapCanvas')?.appendChild(chip);
+    }
+    const visible = Boolean(summary && state.publicLive && !state.activeRide);
+    chip.hidden = !visible;
+    if (visible) {
+      chip.textContent = summary;
+      chip.setAttribute('aria-label', summary);
+    }
   }
 
   function wireVoiceRoomLifecycle(room, targetKey, peerId) {
@@ -2051,6 +2124,17 @@
           audioElements.delete(element);
           element.remove();
         }
+      });
+    }
+
+    if (events.ActiveSpeakersChanged) {
+      room.on(events.ActiveSpeakersChanged, (speakers) => {
+        const remoteIds = speakers
+          .map((participant) => participant.identity)
+          .filter((identity) => identity && identity !== state.profile?.riderId);
+        voiceRemoteSpeakersByRoom.set(room, new Set(remoteIds));
+        ensureVoiceSpeakerProfiles(remoteIds);
+        renderVoiceStatus();
       });
     }
 
@@ -2091,6 +2175,8 @@
     const wantsVoice = Boolean(state.activeRide || state.publicLive);
     const needsResume = wantsVoice && !connected && (!microphonePermissionReady || voiceFailureNotified);
     const resumeLocked = needsResume && window.RiderMovementSafety.isLockedForSafety(movementState);
+    const remoteSpeakerSummary = connected ? voiceSpeakerSummary() : '';
+    renderMapVoiceSpeakerChip(remoteSpeakerSummary);
     avatar.classList.toggle('voice-talking', connected && voiceIsSpeaking);
     avatar.classList.toggle('voice-muted', connected && voiceManuallyMuted);
     badge.hidden = !connected && !needsResume;
@@ -2112,8 +2198,9 @@
       rideChip.classList.toggle('talking', voiceIsSpeaking);
       rideChip.classList.toggle('muted', voiceManuallyMuted);
       const rideChipText = $('#rideVoiceStatusText', rideChip);
-      if (rideChipText) rideChipText.textContent = needsResume ? 'Resume voice' : label;
-      rideChip.setAttribute('aria-label', needsResume ? 'Resume voice' : label);
+      const rideLabel = needsResume ? 'Resume voice' : remoteSpeakerSummary || label;
+      if (rideChipText) rideChipText.textContent = rideLabel;
+      rideChip.setAttribute('aria-label', rideLabel);
     }
   }
 
@@ -2270,6 +2357,7 @@
     if (voiceRoom) { disconnectManagedVoiceRoom(voiceRoom); voiceRoom = undefined; }
     for (const room of proximityVoiceRooms.values()) disconnectManagedVoiceRoom(room);
     proximityVoiceRooms.clear();
+    voiceRemoteSpeakersByRoom.clear();
     voiceTargetKey = undefined;
     renderVoiceStatus();
   }

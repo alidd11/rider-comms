@@ -5,6 +5,7 @@ import type { ProximityVoiceConnection } from '../api/client';
 import { acquireVoiceAudioSession, releaseVoiceAudioSession } from '../audio/audioSession';
 import { LiveKitAudioPriorityBridge } from '../audio/LiveKitAudioPriorityBridge';
 import { useVoiceActivity } from '../audio/useVoiceActivity';
+import { ActiveSpeakerBridge } from './ActiveSpeakerBridge';
 import { useAuth } from '../auth/AuthContext';
 import { useRide } from '../ride/RideContext';
 import { colors, elevation, radii, spacing, type } from '../theme';
@@ -34,6 +35,8 @@ export function ProximityVoice({
   const active = enabled && !activeRide;
   const [connections, setConnections] = React.useState<ProximityVoiceConnection[]>([]);
   const [connectedPeers, setConnectedPeers] = React.useState<Set<string>>(new Set());
+  const [speakingPeers, setSpeakingPeers] = React.useState<Set<string>>(new Set());
+  const [peerNames, setPeerNames] = React.useState<Map<string, string>>(new Map());
   const [error, setError] = React.useState<string | null>(null);
   const [refreshVersion, setRefreshVersion] = React.useState(0);
   const [audioSessionReady, setAudioSessionReady] = React.useState(false);
@@ -41,11 +44,27 @@ export function ProximityVoice({
     () => [...peerIds].sort().join('\u0000'),
     [peerIds],
   );
+  const connectionRosterKey = React.useMemo(
+    () => connections.map((connection) => connection.peerId).sort().join('\u0000'),
+    [connections],
+  );
+
+  const handlePeerSpeaking = React.useCallback((peerId: string, speaking: boolean) => {
+    setSpeakingPeers((current) => {
+      const next = new Set(current);
+      if (speaking) next.add(peerId);
+      else next.delete(peerId);
+      if (next.size === current.size && [...next].every((id) => current.has(id))) return current;
+      return next;
+    });
+  }, []);
 
   React.useEffect(() => {
     if (!active) {
       setConnections([]);
       setConnectedPeers(new Set());
+      setSpeakingPeers(new Set());
+      setPeerNames(new Map());
       setError(null);
       return;
     }
@@ -71,6 +90,26 @@ export function ProximityVoice({
     const timer = setInterval(() => void refresh(), ROSTER_REFRESH_MS);
     return () => { cancelled = true; clearInterval(timer); };
   }, [active, client, peerRosterKey, refreshVersion]);
+
+  React.useEffect(() => {
+    if (!active || !connectionRosterKey) {
+      setPeerNames(new Map());
+      return;
+    }
+    let cancelled = false;
+    const ids = connectionRosterKey.split('\u0000').filter(Boolean);
+    void Promise.all(ids.map(async (peerId) => {
+      try {
+        const profile = await client.getPublicProfile(peerId);
+        return [peerId, profile.displayName || profile.handle || 'Nearby rider'] as const;
+      } catch {
+        return [peerId, 'Nearby rider'] as const;
+      }
+    })).then((entries) => {
+      if (!cancelled) setPeerNames(new Map(entries));
+    });
+    return () => { cancelled = true; };
+  }, [active, client, connectionRosterKey]);
 
   const needsAudioSession = active && connections.length > 0;
   React.useEffect(() => {
@@ -100,6 +139,14 @@ export function ProximityVoice({
 
   if (!active) return null;
 
+  const speakingPeerIds = [...speakingPeers].filter((peerId) => connectedPeers.has(peerId));
+  const speakingNames = speakingPeerIds.map((peerId) => peerNames.get(peerId) ?? 'Nearby rider');
+  const speakingSummary = speakingNames.length === 0
+    ? null
+    : speakingNames.length === 1
+      ? speakingNames[0]
+      : `${speakingNames[0]} + ${speakingNames.length - 1}`;
+
   return (
     <View pointerEvents="none" style={styles.host} accessibilityLiveRegion="polite">
       <View style={[styles.status, error && styles.statusError]}>
@@ -107,9 +154,11 @@ export function ProximityVoice({
           <Text style={[styles.text, error && styles.textError]}>
             {error
               ? 'Nearby Voice unavailable'
-              : connectedPeers.size > 0
-                ? `Nearby Voice · ${connectedPeers.size} connected`
-                : connections.length > 0
+              : speakingSummary
+                ? `Nearby Voice · ${speakingSummary} speaking`
+                : connectedPeers.size > 0
+                  ? `Nearby Voice · ${connectedPeers.size} connected`
+                  : connections.length > 0
                   ? 'Connecting Nearby Voice'
                   : 'Nearby Voice · waiting for riders'}
           </Text>
@@ -121,6 +170,7 @@ export function ProximityVoice({
             next.delete(connection.peerId);
             return next;
           });
+          handlePeerSpeaking(connection.peerId, false);
           // Remove the failed credential so the refresh cannot preserve it;
           // the next authorised roster response will supply a fresh token.
           setConnections((current) => current.filter((item) => item.peerId !== connection.peerId));
@@ -144,6 +194,9 @@ export function ProximityVoice({
           onMediaDeviceFailure={() => setError('Microphone or audio device became unavailable.')}
         >
           <VoiceActivityBridge onError={(message) => setError(message || 'Microphone is unavailable.')} />
+          <ActiveSpeakerBridge
+            onSpeakerIdsChange={(speakerIds) => handlePeerSpeaking(connection.peerId, speakerIds.includes(connection.peerId))}
+          />
           <LiveKitAudioPriorityBridge sourceId={`proximity:${connection.peerId}`} />
         </LiveKitRoom>
         );
