@@ -106,7 +106,7 @@ export const CURATED_ROUTES: readonly CuratedRoute[] = [
     ],
     "routeSourceUrl": "https://www.visitsurrey.com/ideas-and-inspiration/itineraries/a-drive-through-the-surrey-hills/",
     "conditionsUrl": "https://one.network/uk",
-    "reviewedAt": "2026-09-18",
+    "reviewedAt": "2026-09-19",
     "image": {
       "uri": "https://upload.wikimedia.org/wikipedia/commons/2/27/A25_Shere_Road%2C_looking_towards_Sherbourne_Farm_-_geograph.org.uk_-_3794452.jpg",
       "alt": "The A25 Shere Road in the Surrey Hills",
@@ -162,7 +162,7 @@ export const CURATED_ROUTES: readonly CuratedRoute[] = [
     ],
     "routeSourceUrl": "https://www.bikestop.co.uk/blog/great-biking-roads-near-bike-stop",
     "conditionsUrl": "https://one.network/uk",
-    "reviewedAt": "2026-09-18",
+    "reviewedAt": "2026-09-19",
     "image": {
       "uri": "https://upload.wikimedia.org/wikipedia/commons/f/f5/A507_towards_Baldock_-_geograph.org.uk_-_3102113.jpg",
       "alt": "The A507 heading towards Baldock",
@@ -170,6 +170,68 @@ export const CURATED_ROUTES: readonly CuratedRoute[] = [
       "licenseName": "CC BY-SA 2.0",
       "licenseUrl": "https://creativecommons.org/licenses/by-sa/2.0/",
       "sourceUrl": "https://commons.wikimedia.org/wiki/File:A507_towards_Baldock_-_geograph.org.uk_-_3102113.jpg"
+    }
+  },
+  {
+    "id": "b1145-norfolk",
+    "name": "Norfolk B1145",
+    "region": "Norfolk",
+    "road": "B1145 · Bawdeswell to Gayton",
+    "description": "Seventeen miles of flowing rural B-road through open Norfolk countryside, linking Bawdeswell, North Elmham, Litcham and Gayton.",
+    "riderNote": "A rare East Anglia road that works for both bikes and nimble cars: less about elevation, more about rhythm, sightlines and linking bends while staying within the posted limits.",
+    "vehicleSuitability": [
+      "motorcycle_small",
+      "motorcycle_large",
+      "scooter",
+      "car"
+    ],
+    "roadType": "rural",
+    "distanceMiles": 17,
+    "estimatedDurationMinutes": 35,
+    "difficulty": "moderate",
+    "highlights": [
+      "Open Norfolk countryside",
+      "North Elmham",
+      "Litcham",
+      "Flowing B-road bends"
+    ],
+    "safetyNotices": [
+      "Agricultural traffic can leave mud or gravel on rural sections, particularly after wet weather.",
+      "Expect village limits, side-road junctions and wildlife along the route; keep enough margin for hazards beyond open sightlines.",
+      "Ride time is an editorial planning estimate and excludes stops."
+    ],
+    "start": {
+      "lat": 52.7467,
+      "lon": 1.0314,
+      "label": "Bawdeswell"
+    },
+    "end": {
+      "lat": 52.7441,
+      "lon": 0.5571,
+      "label": "Gayton"
+    },
+    "waypoints": [
+      {
+        "lat": 52.7485,
+        "lon": 0.9393,
+        "label": "North Elmham"
+      },
+      {
+        "lat": 52.7258,
+        "lon": 0.7876,
+        "label": "Litcham"
+      }
+    ],
+    "routeSourceUrl": "https://www.mslmagazine.co.uk/day-ride-norfolk-loop/",
+    "conditionsUrl": "https://one.network/uk",
+    "reviewedAt": "2026-09-19",
+    "image": {
+      "uri": "https://upload.wikimedia.org/wikipedia/commons/f/f3/Bend_on_the_B1145_west_of_Gayton%2C_Norfolk_-_geograph.org.uk_-_564445.jpg",
+      "alt": "A bend on the B1145 west of Gayton in Norfolk",
+      "author": "Robert Walden",
+      "licenseName": "CC BY-SA 2.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/2.0/",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Bend_on_the_B1145_west_of_Gayton,_Norfolk_-_geograph.org.uk_-_564445.jpg"
     }
   },
   {
@@ -279,7 +341,7 @@ export const CURATED_ROUTES: readonly CuratedRoute[] = [
     ],
     "routeSourceUrl": "https://www.adventurebikerider.com/article/uk-roads-to-ride-in-2021/",
     "conditionsUrl": "https://one.network/uk",
-    "reviewedAt": "2026-09-18",
+    "reviewedAt": "2026-09-19",
     "image": {
       "uri": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/bb/Princetown_%2C_Two_Bridges_Road_B3212_-_geograph.org.uk_-_5488011.jpg/1280px-Princetown_%2C_Two_Bridges_Road_B3212_-_geograph.org.uk_-_5488011.jpg",
       "alt": "The B3212 near Princetown on Dartmoor",
@@ -333,9 +395,9 @@ export const CURATED_ROUTES: readonly CuratedRoute[] = [
         "label": "Zennor"
       }
     ],
-    "routeSourceUrl": "https://www.adventurebikerider.com/5-of-the-best-roads-in-the-uk/",
+    "routeSourceUrl": "https://www.visitcornwall.com/things-to-do/experiences/five-to-try-scenic-drives",
     "conditionsUrl": "https://one.network/uk",
-    "reviewedAt": "2026-09-18",
+    "reviewedAt": "2026-09-19",
     "image": {
       "uri": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/07/B3306%2C_St_Ives_to_Zennor_road_-_geograph.org.uk_-_8249620.jpg/1280px-B3306%2C_St_Ives_to_Zennor_road_-_geograph.org.uk_-_8249620.jpg",
       "alt": "The B3306 between St Ives and Zennor",
@@ -388,9 +450,9 @@ export const CURATED_ROUTES: readonly CuratedRoute[] = [
         "label": "Countisbury"
       }
     ],
-    "routeSourceUrl": "https://www.adventurebikerider.com/article/uk-roads-to-ride-in-2021/",
+    "routeSourceUrl": "https://www.adventurebikerider.com/8-roads-with-the-best-views-in-the-uk/",
     "conditionsUrl": "https://one.network/uk",
-    "reviewedAt": "2026-09-18",
+    "reviewedAt": "2026-09-19",
     "image": {
       "uri": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d9/Porlock_%2C_Porlock_Hill_A39_-_geograph.org.uk_-_6258978.jpg/1280px-Porlock_%2C_Porlock_Hill_A39_-_geograph.org.uk_-_6258978.jpg",
       "alt": "The A39 climbing Porlock Hill",
