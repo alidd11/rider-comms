@@ -1,6 +1,7 @@
 import type {
   DirectMessage,
   Difficulty,
+  FriendActivity,
   FriendRequest,
   FriendSummary,
   HazardReport,
@@ -103,6 +104,7 @@ export class RiderCommsClient {
     return this.request('GET', `/riders/${encodeURIComponent(id)}/friends?${query}`);
   }
   removeFriend(id: string, friendId: string): Promise<Record<string, never>> { return this.request('DELETE', `/riders/${encodeURIComponent(id)}/friends/${encodeURIComponent(friendId)}`); }
+  getFriendActivity(): Promise<{ activity: FriendActivity[] }> { return this.request('GET', '/friends/activity'); }
   sendMessage(toRiderId: string, text: string): Promise<DirectMessage> { return this.request('POST', '/messages', { toRiderId, text }); }
   getMessages(withRiderId: string, options: { before?: string; limit?: number } = {}): Promise<{ messages: DirectMessage[]; nextCursor: string | null }> {
     const query = new URLSearchParams({ withRiderId });

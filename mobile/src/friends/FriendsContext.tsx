@@ -1,5 +1,5 @@
 import * as React from 'react';
-import type { FriendRequest, FriendSummary } from '@rider-comms/shared';
+import type { FriendActivity, FriendRequest, FriendSummary } from '@rider-comms/shared';
 import { ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 
@@ -13,6 +13,7 @@ interface FriendsContextValue {
   incomingRequests: FriendRequest[];
   outgoingRequests: FriendRequest[];
   requestProfiles: Readonly<Record<string, FriendSummary>>;
+  activityByRider: Readonly<Record<string, FriendActivity>>;
   loading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
@@ -51,19 +52,22 @@ export function FriendsProvider({ children }: { children: React.ReactNode }): Re
   const [incomingRequests, setIncomingRequests] = React.useState<FriendRequest[]>([]);
   const [outgoingRequests, setOutgoingRequests] = React.useState<FriendRequest[]>([]);
   const [requestProfiles, setRequestProfiles] = React.useState<Record<string, FriendSummary>>({});
+  const [activityByRider, setActivityByRider] = React.useState<Record<string, FriendActivity>>({});
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
 
   const refresh = React.useCallback(async () => {
     try {
-      const [friendsRes, requestsRes] = await Promise.all([
+      const [friendsRes, requestsRes, activityRes] = await Promise.all([
         client.getFriends(ME),
         client.getFriendRequests(ME),
+        client.getFriendActivity().catch(() => ({ activity: [] })),
       ]);
       setFriends(friendsRes.friends);
       setIncomingRequests(requestsRes.incoming);
       setOutgoingRequests(requestsRes.outgoing);
       setRequestProfiles(requestsRes.profiles);
+      setActivityByRider(Object.fromEntries(activityRes.activity.map((item) => [item.riderId, item])));
       setError(null);
     } catch (err) {
       setError(messageFor(err, 'Could not load friends.'));
@@ -150,6 +154,7 @@ export function FriendsProvider({ children }: { children: React.ReactNode }): Re
       incomingRequests,
       outgoingRequests,
       requestProfiles,
+      activityByRider,
       loading,
       error,
       refresh,
@@ -158,7 +163,7 @@ export function FriendsProvider({ children }: { children: React.ReactNode }): Re
       decline,
       remove,
     }),
-    [friends, incomingRequests, outgoingRequests, requestProfiles, loading, error, refresh, sendRequest, accept, decline, remove]
+    [friends, incomingRequests, outgoingRequests, requestProfiles, activityByRider, loading, error, refresh, sendRequest, accept, decline, remove]
   );
 
   return <FriendsContext.Provider value={value}>{children}</FriendsContext.Provider>;
