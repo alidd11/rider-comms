@@ -792,7 +792,7 @@ body:has(#sheetBackdrop:not([hidden])) #joinNearbyBtn{opacity:0;pointer-events:n
   .auth-assurance{padding-top:18px}
 }
 @media(prefers-color-scheme:light){
-  .auth-mark,.auth-segmented,.auth-field>input,.password-field{background:var(--surface)}
+  .auth-mark,.auth-segmented,.auth-screen .auth-field>input,.auth-screen .password-field{background:var(--surface)}
 }
 
 
@@ -910,9 +910,9 @@ body:has(#sheetBackdrop:not([hidden])) #joinNearbyBtn{opacity:0;pointer-events:n
   color:var(--text);
   box-shadow:inset 0 0 0 1px var(--border-soft);
 }
-.auth-segmented button:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
+.auth-screen .auth-segmented button:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
 .auth-form{display:grid;gap:10px}
-.auth-form[hidden]{display:none}
+.auth-screen .auth-form[hidden]{display:none}
 .auth-field{display:grid;gap:5px}
 .auth-field label{
   color:var(--text-secondary);
@@ -929,9 +929,9 @@ body:has(#sheetBackdrop:not([hidden])) #joinNearbyBtn{opacity:0;pointer-events:n
   box-shadow:inset 3px 0 0 transparent;
   transition:border-color 140ms ease,background 140ms ease,box-shadow 140ms ease;
 }
-.auth-field>input{padding:0 13px;color:var(--text);font-size:.91rem}
-.password-field{display:flex;align-items:center;overflow:hidden}
-.password-field input{
+.auth-screen .auth-field>input{padding:0 13px;color:var(--text);font-size:.91rem}
+.auth-screen .password-field{display:flex;align-items:center;overflow:hidden}
+.auth-screen .password-field input{
   min-width:0;
   min-height:44px;
   flex:1;
@@ -942,7 +942,7 @@ body:has(#sheetBackdrop:not([hidden])) #joinNearbyBtn{opacity:0;pointer-events:n
   color:var(--text);
   font-size:.91rem;
 }
-.password-toggle{
+.auth-screen .password-toggle{
   width:44px;
   height:44px;
   display:grid;
@@ -952,13 +952,13 @@ body:has(#sheetBackdrop:not([hidden])) #joinNearbyBtn{opacity:0;pointer-events:n
   background:transparent;
   color:var(--text-muted);
 }
-.password-toggle svg{width:19px;height:19px}
-.auth-field>input:focus,.password-field:focus-within{
+.auth-screen .password-toggle svg{width:19px;height:19px}
+.auth-screen .auth-field>input:focus,.auth-screen .password-field:focus-within{
   border-color:color-mix(in srgb,var(--accent) 72%,var(--border));
   background:var(--surface);
   box-shadow:inset 3px 0 0 var(--accent);
 }
-.password-toggle:focus-visible{border-radius:var(--radius-lg)}
+.auth-screen .password-toggle:focus-visible{border-radius:var(--radius-lg)}
 .auth-text-action{
   min-height:32px;
   justify-self:end;
@@ -977,8 +977,8 @@ body:has(#sheetBackdrop:not([hidden])) #joinNearbyBtn{opacity:0;pointer-events:n
   box-shadow:none;
 }
 .auth-requirements{margin:0;color:var(--text-muted);font-size:.66rem;line-height:1.38}
-.auth-error,.auth-notice{border-radius:var(--radius-lg)}
-.auth-notice{margin-bottom:10px}
+.auth-screen .auth-error,.auth-screen .auth-notice{border-radius:var(--radius-lg)}
+.auth-screen .auth-notice{margin-bottom:10px}
 .auth-terms{
   max-width:326px;
   margin:11px auto 0;
@@ -1025,5 +1025,5 @@ body:has(#sheetBackdrop:not([hidden])) #joinNearbyBtn{opacity:0;pointer-events:n
 }
 @media(prefers-color-scheme:light){
   .auth-segmented{background:var(--surface-raised)}
-  .auth-field>input,.password-field{background:var(--surface)}
+  .auth-screen .auth-field>input,.auth-screen .password-field{background:var(--surface)}
 }
