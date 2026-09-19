@@ -581,6 +581,9 @@ const MIGRATIONS: { name: string; sql: string }[] = [
   {
     name: '0028_private_ride_exclusions',
     sql: `
+      ALTER TABLE rides
+        ADD COLUMN IF NOT EXISTS voice_generation BIGINT NOT NULL DEFAULT 1;
+
       CREATE TABLE IF NOT EXISTS ride_exclusions (
         ride_id TEXT NOT NULL REFERENCES rides (id) ON DELETE CASCADE,
         rider_id TEXT NOT NULL,
