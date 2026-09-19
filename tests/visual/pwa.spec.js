@@ -349,6 +349,7 @@ test('ride join baseline owns the iPhone top edge in day and night', async ({ pa
         navTop: box(nav).top,
         viewportWidth: window.innerWidth,
         titleWidth: box(document.querySelector('#rideTitle')).width,
+        safeTopShieldDisplay: getComputedStyle(screen, '::before').display,
       };
     });
 
@@ -357,6 +358,7 @@ test('ride join baseline owns the iPhone top edge in day and night', async ({ pa
     expectNear(visual.heroWidth, visual.viewportWidth);
     expect(visual.headerHeight).toBeLessThanOrEqual(1);
     expect(visual.titleWidth).toBeLessThanOrEqual(1);
+    expect(visual.safeTopShieldDisplay).toBe('none');
     expect(visual.heroHeight).toBeGreaterThanOrEqual(238);
     expect(visual.heroRadius).toBe(0);
     expect(visual.joinTop - (visual.heroTop + visual.heroHeight)).toBeGreaterThanOrEqual(10);
@@ -596,14 +598,14 @@ test('PWA utility viewport paints safe areas as one edge-to-edge canvas', async 
   const viewportMeta = await page.locator('meta[name="viewport"]').getAttribute('content');
   expect(viewportMeta).toContain('viewport-fit=cover');
 
-  await page.locator('.bottom-nav [data-nav="ride"]').click();
+  await page.locator('.bottom-nav [data-nav="settings"]').click();
   await page.evaluate(() => {
     document.documentElement.style.setProperty('--safe-top', '59px');
     document.documentElement.style.setProperty('--safe-left', '47px');
     document.documentElement.style.setProperty('--safe-right', '47px');
   });
 
-  const viewport = await page.locator('[data-screen="ride"]').evaluate((screen) => {
+  const viewport = await page.locator('[data-screen="settings"]').evaluate((screen) => {
     const screenStyle = getComputedStyle(screen);
     const shieldStyle = getComputedStyle(screen, '::before');
     const navStyle = getComputedStyle(document.querySelector('.bottom-nav'));
