@@ -3573,7 +3573,20 @@
       }
       joinRideByCode(code);
     });
-    $('#rideCode').addEventListener('input', (event) => { event.target.value = event.target.value.toUpperCase().replace(/[^A-Z2-9]/g, '').slice(0, 6); });
+    const syncRideCodeSlots = () => {
+      const code = $('#rideCode').value;
+      $('#rideCodeSlots span').forEach((slot, index) => {
+        slot.textContent = code[index] || '—';
+        slot.classList.toggle('filled', Boolean(code[index]));
+        slot.classList.toggle('active', index === code.length && code.length < 6);
+      });
+    };
+    $('#rideCode').addEventListener('input', (event) => {
+      event.target.value = event.target.value.toUpperCase().replace(/[^A-Z2-9]/g, '').slice(0, 6);
+      syncRideCodeSlots();
+    });
+    $('#rideCode').addEventListener('focus', syncRideCodeSlots);
+    syncRideCodeSlots();
     $('#createRideBtn').addEventListener('click', createRide);
     $('#leaveRideBtn').addEventListener('click', endRide);
     $('#activeRideLocationConsent').addEventListener('change', (event) => {

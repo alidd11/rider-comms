@@ -25,6 +25,7 @@ function JoinOrHostForm(): React.JSX.Element {
   const [loading, setLoading] = React.useState(false);
   const [shareRideLocation, setShareRideLocation] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const codeInputRef = React.useRef<TextInput>(null);
 
   const handleJoin = React.useCallback(async () => {
     setLoading(true);
@@ -55,19 +56,31 @@ function JoinOrHostForm(): React.JSX.Element {
 
       <View style={styles.joinCard}>
         <Text style={styles.joinTitle}>Join a ride</Text>
-        <TextInput
-          style={[styles.input, error && styles.inputError]}
-          placeholder="ABCDEF"
-          placeholderTextColor={colors.textMuted}
-          autoCapitalize="characters"
-          autoCorrect={false}
-          maxLength={6}
-          value={code}
-          onChangeText={(text) => {
-            setCode(text);
-            if (error) setError(null);
-          }}
-        />
+        <Pressable
+          style={[styles.codeSlots, error && styles.codeSlotsError]}
+          onPress={() => codeInputRef.current?.focus()}
+          accessibilityRole="button"
+          accessibilityLabel="Enter six character ride code"
+        >
+          {Array.from({ length: 6 }, (_, index) => (
+            <View key={index} style={[styles.codeSlot, index === code.length && code.length < 6 && styles.codeSlotActive]}>
+              <Text style={[styles.codeSlotText, !code[index] && styles.codeSlotEmpty]}>{code[index] ?? '—'}</Text>
+            </View>
+          ))}
+          <TextInput
+            ref={codeInputRef}
+            style={styles.codeInputOverlay}
+            autoCapitalize="characters"
+            autoCorrect={false}
+            maxLength={6}
+            value={code}
+            onChangeText={(text) => {
+              setCode(text.toUpperCase().replace(/[^A-Z2-9]/g, '').slice(0, 6));
+              if (error) setError(null);
+            }}
+            accessibilityLabel="Ride invite code"
+          />
+        </Pressable>
         <Pressable
           style={({ pressed }) => [styles.button, pressed && canSubmit && styles.buttonPressed, !canSubmit && styles.buttonDisabled]}
           onPress={handleJoin}
@@ -179,8 +192,13 @@ const styles = StyleSheet.create({
   iconBadge: { width: 48, height: 48, borderRadius: radii.lg, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
   title: { ...type.heading, marginBottom: spacing.sm },
   body: { ...type.body, marginBottom: spacing.lg },
-  input: { borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background, borderRadius: radii.md, minHeight: 48, fontSize: 21, fontWeight: '700', letterSpacing: 7, textAlign: 'center', color: colors.textPrimary },
-  inputError: { borderColor: colors.danger },
+  codeSlots: { position: 'relative', flexDirection: 'row', gap: spacing.xs },
+  codeSlotsError: { borderColor: colors.danger },
+  codeSlot: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.border, borderRadius: radii.md, backgroundColor: colors.background },
+  codeSlotActive: { borderColor: colors.accent },
+  codeSlotText: { fontSize: 19, lineHeight: 22, fontWeight: '800', color: colors.textPrimary },
+  codeSlotEmpty: { color: colors.textMuted, fontWeight: '500' },
+  codeInputOverlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, opacity: 0.01, color: 'transparent' },
   consentRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm, paddingTop: spacing.sm, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
   checkbox: { width: 20, height: 20, borderRadius: radii.md, borderWidth: 1.5, borderColor: colors.textMuted, alignItems: 'center', justifyContent: 'center', marginTop: 1 },
   checkboxChecked: { backgroundColor: colors.accent, borderColor: colors.accent },
