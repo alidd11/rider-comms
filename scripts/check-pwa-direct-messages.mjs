@@ -30,6 +30,13 @@ for (const expected of [
 assert.equal(app.includes('MESSAGE_POLL_INTERVAL_MS'), false, 'PWA DMs must not fall back to fixed-interval message polling');
 assert.equal(app.includes('syncChatPolling'), false, 'PWA DMs must use the durable social event feed');
 
+const clearSessionStart = app.indexOf('function clearSession()');
+const clearSessionEnd = app.indexOf('const state = loadState()', clearSessionStart);
+assert.ok(clearSessionStart >= 0 && clearSessionEnd > clearSessionStart, 'Could not inspect PWA session cleanup');
+const clearSession = app.slice(clearSessionStart, clearSessionEnd);
+assert.ok(clearSession.includes('stopSocialEvents();'), 'PWA logout must invalidate the social realtime generation');
+assert.ok(clearSession.includes('clearInterval(friendActivityTimer);'), 'PWA logout must stop friend activity polling');
+
 const context = vm.createContext({ globalThis: {} });
 vm.runInContext(helper, context);
 const { dedupe, reconcile } = context.globalThis.RiderMessageState;
