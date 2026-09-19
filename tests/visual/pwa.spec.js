@@ -523,6 +523,113 @@ test('PWA resumes public presence only after server consent and granted location
   await expect(page.locator('#voiceStatusBtn')).toHaveAttribute('aria-label', 'Resume voice');
 });
 
+test('PWA attaches subscribed Nearby Voice audio after Go Live', async ({ page }) => {
+  await mockAuthenticatedApi(page, 'stationary', ({ url, request }) => {
+    if (url.pathname === `/riders/${RIDER_ID}/profile` && request.method() === 'PUT') {
+      return { body: { ...PROFILE, shareLocation: true } };
+    }
+    if (url.pathname === '/presence' && request.method() === 'POST') {
+      return {
+        body: {
+          inZoneWith: ['rider_peer01'],
+          transitions: [{ a: RIDER_ID, b: 'rider_peer01', type: 'entered' }],
+          radiusMiles: 1,
+        },
+      };
+    }
+    if (url.pathname === '/profiles/rider_peer01') {
+      return { body: { riderId: 'rider_peer01', displayName: 'Peer Rider', handle: '@peer', avatarId: 'ridge' } };
+    }
+    if (url.pathname === '/voice/token' && request.method() === 'POST') {
+      return {
+        body: {
+          connections: [{
+            peerId: 'rider_peer01',
+            token: 'visual-livekit-token',
+            url: 'wss://voice.example.test',
+          }],
+          refreshAfterMs: 20_000,
+        },
+      };
+    }
+    return null;
+  });
+
+  await page.addInitScript(() => {
+    const fakeStream = { getTracks: () => [{ stop() {} }] };
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: { getUserMedia: async () => fakeStream },
+    });
+    class FakeAudioContext {
+      createMediaStreamSource() { return { connect() {} }; }
+      createAnalyser() {
+        return {
+          fftSize: 512,
+          frequencyBinCount: 32,
+          getByteTimeDomainData(data) { data.fill(128); },
+        };
+      }
+      close() { return Promise.resolve(); }
+    }
+    Object.defineProperty(window, 'AudioContext', { configurable: true, value: FakeAudioContext });
+  });
+
+  await page.route('https://cdn.jsdelivr.net/npm/livekit-client@2.22.3/dist/livekit-client.umd.js', (route) => route.fulfill({
+    status: 200,
+    contentType: 'application/javascript',
+    body: `
+      (() => {
+        const RoomEvent = {
+          TrackSubscribed: 'trackSubscribed',
+          TrackUnsubscribed: 'trackUnsubscribed',
+          Reconnected: 'reconnected',
+          Disconnected: 'disconnected',
+        };
+        const Track = { Kind: { Audio: 'audio' } };
+        class Room {
+          constructor() {
+            this.handlers = new Map();
+            this.canPlaybackAudio = true;
+            this.localParticipant = { setMicrophoneEnabled: async () => {} };
+          }
+          on(event, handler) {
+            const handlers = this.handlers.get(event) || [];
+            handlers.push(handler);
+            this.handlers.set(event, handlers);
+            return this;
+          }
+          emit(event, ...args) {
+            for (const handler of this.handlers.get(event) || []) handler(...args);
+          }
+          async connect() {
+            const attached = [];
+            const track = {
+              kind: 'audio',
+              attach() {
+                const element = document.createElement('audio');
+                attached.push(element);
+                return element;
+              },
+              detach() { return attached.splice(0); },
+            };
+            this.emit(RoomEvent.TrackSubscribed, track, {}, { identity: 'rider_peer01' });
+          }
+          async startAudio() { this.canPlaybackAudio = true; }
+          async disconnect() { this.emit(RoomEvent.Disconnected); }
+        }
+        window.LivekitClient = { Room, RoomEvent, Track };
+      })();
+    `,
+  }));
+
+  await page.goto('/');
+  await page.locator('#joinNearbyBtn').click();
+
+  await expect.poll(() => page.locator('audio[data-rider-comms-voice="true"]').count()).toBe(1);
+  await expect(page.locator('#joinNearbyBtn')).toHaveAttribute('data-active', 'true');
+});
+
 test('PWA pauses saved public presence when current server consent is off', async ({ page }) => {
   let presenceUpdates = 0;
   await mockAuthenticatedApi(page, 'stationary', ({ url, request }) => {
@@ -1198,7 +1305,11 @@ test('@viewport standalone canvas, navigation and scroll geometry remain coheren
     const geometry = await standaloneGeometry(page);
     expectNear(geometry.appTop, 0);
     expectNear(geometry.appBottom, geometry.viewportHeight);
-    expectNear(geometry.screenBottom, geometry.appBottom);
+    // Fractional-DPR Chromium can place the scrollable screen edge on an
+    // adjacent device pixel even when the fixed app/nav geometry is exact.
+    // Keep this seam within 2 CSS px; app/nav bottom remain at the stricter
+    // default tolerance immediately above/below.
+    expectNear(geometry.screenBottom, geometry.appBottom, 2);
     expectNear(geometry.navBottom, geometry.appBottom);
     expectNear(geometry.navHeight, 58 + safeBottom + 1);
     expect(geometry.navPaddingBottom).toBeGreaterThanOrEqual(safeBottom);
