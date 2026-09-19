@@ -761,7 +761,7 @@ export function MapScreen(): React.JSX.Element {
             <MaterialCommunityIcons name="crosshairs-gps" size={22} color={colors.accent} />
           </Pressable>
           <Pressable
-            style={[styles.mapActionButton, shareLocation && styles.mapActionButtonActive]}
+            style={[styles.mapActionButton, styles.nearbyActionButton, shareLocation && styles.mapActionButtonActive]}
             onPress={() => void handleNearbyToggle()}
             accessibilityRole="button"
             accessibilityState={{ selected: shareLocation }}
@@ -901,7 +901,7 @@ const styles = StyleSheet.create({
   searchSlot: {
     position: 'absolute',
     left: spacing.lg,
-    right: spacing.xxl + spacing.md,
+    right: spacing.xxl + spacing.sm,
     zIndex: 9,
   },
   sideToggle: {
@@ -931,15 +931,23 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   mapActionButton: {
-    width: MIN_TOUCH_TARGET,
-    height: MIN_TOUCH_TARGET,
+    width: 42,
+    height: 42,
     borderRadius: radii.lg,
     backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     ...elevation.raised,
+  },
+  nearbyActionButton: {
+    width: 54,
+    height: 54,
+    borderRadius: radii.pill,
+    marginTop: spacing.xs,
+    borderColor: colors.accent,
+    backgroundColor: colors.accentSoft,
   },
   mapActionButtonActive: {
     borderColor: colors.accent,

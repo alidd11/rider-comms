@@ -212,11 +212,11 @@ function AuthScreen({ onAuthenticated, restoreError, onRetryRestore }: {
           <Text style={[styles.subtitle, { color: palette.textSecondary }]}>{copy.description}</Text>
         </View>
 
-        {!isRecovery ? <View accessibilityRole="tablist" style={[styles.tabs, { borderColor: palette.border }]}>
-          <Pressable accessibilityRole="tab" accessibilityState={{ selected: !isSignup }} onPress={() => switchMode('login')} style={[styles.tab, !isSignup && [styles.tabActive, { borderBottomColor: palette.accent }]]}>
+        {!isRecovery ? <View accessibilityRole="tablist" style={[styles.tabs, { backgroundColor: palette.surfaceRaised }]}>
+          <Pressable accessibilityRole="tab" accessibilityState={{ selected: !isSignup }} onPress={() => switchMode('login')} style={[styles.tab, !isSignup && [styles.tabActive, { backgroundColor: palette.surface, borderBottomColor: palette.accent }]]}>
             <Text style={[styles.tabText, { color: !isSignup ? palette.textPrimary : palette.textMuted }]}>Log in</Text>
           </Pressable>
-          <Pressable accessibilityRole="tab" accessibilityState={{ selected: isSignup }} onPress={() => switchMode('signup')} style={[styles.tab, isSignup && [styles.tabActive, { borderBottomColor: palette.accent }]]}>
+          <Pressable accessibilityRole="tab" accessibilityState={{ selected: isSignup }} onPress={() => switchMode('signup')} style={[styles.tab, isSignup && [styles.tabActive, { backgroundColor: palette.surface, borderBottomColor: palette.accent }]]}>
             <Text style={[styles.tabText, { color: isSignup ? palette.textPrimary : palette.textMuted }]}>Create account</Text>
           </Pressable>
         </View> : null}
@@ -446,10 +446,10 @@ const styles = StyleSheet.create({
   modeEyebrow: { fontSize: 10, lineHeight: 12, fontWeight: '800', letterSpacing: 1.6, marginBottom: 5 },
   title: { fontSize: 30, lineHeight: 31, fontWeight: '800', letterSpacing: -1.05 },
   subtitle: { fontSize: 13, lineHeight: 18, fontWeight: '500', maxWidth: 370, marginTop: 6 },
-  tabs: { flexDirection: 'row', gap: 8, padding: 0, minHeight: 38, borderRadius: 0, borderWidth: 0, borderBottomWidth: 1, marginBottom: 11 },
-  tab: { minHeight: 37, flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: 0, borderBottomWidth: 2, borderBottomColor: 'transparent' },
+  tabs: { width: 248, flexDirection: 'row', gap: 2, padding: 2, minHeight: 38, borderRadius: radii.lg, borderWidth: 0, marginBottom: 11 },
+  tab: { minHeight: 34, flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: radii.sm, borderBottomWidth: 2, borderBottomColor: 'transparent' },
   tabActive: {},
-  tabText: { fontSize: 12, lineHeight: 16, fontWeight: '700' },
+  tabText: { fontSize: 11, lineHeight: 15, fontWeight: '700' },
   backToLogin: { minHeight: 36, alignSelf: 'flex-start', justifyContent: 'center', marginBottom: spacing.sm },
   backToLoginText: { fontSize: 12, fontWeight: '700' },
   notice: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, borderWidth: 1, borderRadius: radii.lg, padding: 10, marginBottom: 10 },
@@ -458,17 +458,17 @@ const styles = StyleSheet.create({
   form: { gap: 9 },
   field: { gap: 4 },
   fieldLabel: { fontSize: 11, lineHeight: 14, fontWeight: '700' },
-  input: { minHeight: 44, borderWidth: 1, borderRadius: radii.lg, fontSize: 14, paddingHorizontal: 13 },
-  passwordField: { minHeight: 44, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: radii.lg, overflow: 'hidden' },
-  passwordInput: { minHeight: 42, flex: 1, fontSize: 14, paddingLeft: 13, paddingRight: 7 },
-  passwordToggle: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center' },
+  input: { minHeight: 42, borderWidth: 1, borderRadius: radii.lg, fontSize: 14, paddingHorizontal: 13 },
+  passwordField: { minHeight: 42, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: radii.lg, overflow: 'hidden' },
+  passwordInput: { minHeight: 40, flex: 1, fontSize: 14, paddingLeft: 13, paddingRight: 7 },
+  passwordToggle: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   error: { ...type.caption, fontSize: 11, lineHeight: 16 },
   forgotButton: { minHeight: 30, alignSelf: 'flex-end', justifyContent: 'center', marginTop: -2 },
   forgotText: { fontSize: 11, lineHeight: 15, fontWeight: '700' },
-  primaryButton: { minHeight: 46, borderRadius: radii.lg, alignItems: 'center', justifyContent: 'center', marginTop: 1 },
+  primaryButton: { minHeight: 44, borderRadius: radii.lg, alignItems: 'center', justifyContent: 'center', marginTop: 1 },
   primaryButtonText: { ...type.button, fontSize: 14 },
   buttonDisabled: { opacity: 0.6 },
-  featureRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: 8, marginTop: 8 },
+  featureRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: 8, marginTop: 'auto', paddingTop: 18, paddingBottom: 4 },
   featureText: { fontSize: 10, lineHeight: 13, fontWeight: '700', letterSpacing: 0.2 },
   featureDot: { width: 3, height: 3, borderRadius: radii.pill, opacity: 0.72 },
   securityNote: { fontSize: 10, lineHeight: 14, textAlign: 'center', maxWidth: 326, alignSelf: 'center', marginTop: 10 },

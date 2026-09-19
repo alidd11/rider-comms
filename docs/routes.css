@@ -65,3 +65,17 @@ html.pwa-standalone .route-detail{max-height:92%}
 .route-tools .chip-row.compact{flex-wrap:nowrap;overflow-x:auto;padding:0;margin:0;scrollbar-width:none}
 .route-tools .chip-row.compact::-webkit-scrollbar{display:none}
 .route-tools .chip-row.compact .chip{flex:none;min-height:36px;padding-inline:10px;font-size:.68rem}
+
+
+/* Full-app mockup parity: compact photographic route cards. */
+#curatedRouteFilters{gap:6px;margin-bottom:9px!important}
+#curatedRouteFilters .chip{min-height:34px;padding-inline:10px;font-size:.65rem;border:0;background:var(--surface-raised)}
+#curatedRouteFilters .chip.active{background:var(--accent);color:var(--accent-text)}
+.curated-route-list{gap:9px}
+.curated-route-card{height:136px;border-color:var(--border-soft);background:var(--surface)}
+.curated-route-card>img,.curated-route-card:after,.route-photo-fallback{height:76px}
+.curated-route-overlay{top:76px;padding:6px 9px}
+.curated-route-overlay strong{font-size:.84rem}
+.curated-route-overlay .route-region{font-size:.61rem}
+.route-quick-stats{gap:6px;margin-top:3px}
+.route-quick-stats b{font-size:.58rem}
