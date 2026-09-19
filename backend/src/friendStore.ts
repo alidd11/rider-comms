@@ -385,15 +385,19 @@ export class FriendStore {
         'DELETE FROM friendships WHERE rider_id = $1 AND friend_id = $2',
         [friendId, riderId],
       );
-      await client.query(
+      const removedRequests = await client.query<FriendRequestRow>(
         `DELETE FROM friend_requests
          WHERE status = 'pending'
            AND ((from_rider_id = $1 AND to_rider_id = $2)
-             OR (from_rider_id = $2 AND to_rider_id = $1))`,
+             OR (from_rider_id = $2 AND to_rider_id = $1))
+         RETURNING *`,
         [riderId, friendId],
       );
       if ((removedForward.rowCount ?? 0) > 0 || (removedReverse.rowCount ?? 0) > 0) {
         await appendSocialEvent(client, friendId, 'friend_removed', riderId, riderId);
+      }
+      for (const request of removedRequests.rows) {
+        await appendSocialEvent(client, friendId, 'friend_request_resolved', riderId, request.id);
       }
       await client.query('COMMIT');
     } catch (error) {
