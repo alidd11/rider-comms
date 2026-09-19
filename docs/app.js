@@ -2045,7 +2045,7 @@
     presenceRefreshTimer = setInterval(async () => {
       if (!state.publicLive || state.activeRide || document.visibilityState !== 'visible') return;
       try {
-        const position = await currentPosition();
+        const position = await currentPublicPresencePosition();
         if (state.publicLive && !state.activeRide) await sendPresence(position);
       } catch { /* A transient miss is retried on the next tick. */ }
     }, PRESENCE_REFRESH_MS);
