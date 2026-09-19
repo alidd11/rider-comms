@@ -35,12 +35,17 @@ import { useConnectionState, useLocalParticipant, useTrackVolume } from '@liveki
 import { ConnectionState, createLocalAudioTrack } from 'livekit-client';
 import type { LocalAudioTrack } from 'livekit-client';
 
-/** Normalized volume (0-1) above which the rider is considered speaking. */
-const SPEAKING_VOLUME_THRESHOLD = 0.06;
+/** Start transmitting at a lower level than the original 0.06 threshold.
+ * A short attack hold rejects single-sample bumps from wind/helmet movement. */
+const SPEAKING_ATTACK_THRESHOLD = 0.035;
 
-/** How long to keep transmitting after volume drops below the threshold,
- * so a brief pause mid-sentence doesn't clip the next word. */
-const RELEASE_HANGTIME_MS = 500;
+/** Once speech has opened the mic, keep it open through quieter syllables.
+ * This hysteresis prevents rapid mute/unmute chatter around one threshold. */
+const SPEAKING_RELEASE_THRESHOLD = 0.02;
+const SPEAKING_ATTACK_HOLD_MS = 70;
+
+/** Keep transmitting through natural pauses so sentence tails are not clipped. */
+const RELEASE_HANGTIME_MS = 650;
 
 /**
  * Must be called from within a `<LiveKitRoom>` tree (it uses LiveKit's
@@ -59,7 +64,12 @@ export function useVoiceActivity(enabled: boolean, onError?: (message: string) =
   // the actual LocalAudioTrack the publication wraps.
   const volume = useTrackVolume(microphoneTrack?.track as LocalAudioTrack | undefined);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const attackTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const releaseTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const latestVolume = useRef(0);
+  const enabledRef = useRef(enabled);
+  latestVolume.current = volume;
+  enabledRef.current = enabled;
 
   // Never let LiveKit auto-publish an open microphone. Once the room is
   // connected, create the local audio track ourselves, mute it BEFORE
@@ -95,6 +105,10 @@ export function useVoiceActivity(enabled: boolean, onError?: (message: string) =
 
   useEffect(() => {
     if (!enabled) {
+      if (attackTimer.current) {
+        clearTimeout(attackTimer.current);
+        attackTimer.current = undefined;
+      }
       if (releaseTimer.current) {
         clearTimeout(releaseTimer.current);
         releaseTimer.current = undefined;
@@ -102,22 +116,48 @@ export function useVoiceActivity(enabled: boolean, onError?: (message: string) =
       setIsSpeaking(false);
       return;
     }
-    if (volume > SPEAKING_VOLUME_THRESHOLD) {
-      if (releaseTimer.current) {
-        clearTimeout(releaseTimer.current);
-        releaseTimer.current = undefined;
+
+    if (isSpeaking) {
+      if (attackTimer.current) {
+        clearTimeout(attackTimer.current);
+        attackTimer.current = undefined;
       }
-      setIsSpeaking(true);
-    } else if (!releaseTimer.current) {
-      releaseTimer.current = setTimeout(() => {
-        releaseTimer.current = undefined;
-        setIsSpeaking(false);
-      }, RELEASE_HANGTIME_MS);
+      if (volume > SPEAKING_RELEASE_THRESHOLD) {
+        if (releaseTimer.current) {
+          clearTimeout(releaseTimer.current);
+          releaseTimer.current = undefined;
+        }
+      } else if (!releaseTimer.current) {
+        releaseTimer.current = setTimeout(() => {
+          releaseTimer.current = undefined;
+          setIsSpeaking(false);
+        }, RELEASE_HANGTIME_MS);
+      }
+      return;
     }
-  }, [volume, enabled]);
+
+    if (releaseTimer.current) {
+      clearTimeout(releaseTimer.current);
+      releaseTimer.current = undefined;
+    }
+    if (volume >= SPEAKING_ATTACK_THRESHOLD) {
+      if (!attackTimer.current) {
+        attackTimer.current = setTimeout(() => {
+          attackTimer.current = undefined;
+          if (enabledRef.current && latestVolume.current >= SPEAKING_ATTACK_THRESHOLD) {
+            setIsSpeaking(true);
+          }
+        }, SPEAKING_ATTACK_HOLD_MS);
+      }
+    } else if (attackTimer.current) {
+      clearTimeout(attackTimer.current);
+      attackTimer.current = undefined;
+    }
+  }, [volume, enabled, isSpeaking]);
 
   useEffect(() => {
     return () => {
+      if (attackTimer.current) clearTimeout(attackTimer.current);
       if (releaseTimer.current) clearTimeout(releaseTimer.current);
     };
   }, []);
