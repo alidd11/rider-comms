@@ -19,16 +19,39 @@ interface ActivityRow {
  * request.
  */
 export class SocialActivityStore {
+  private readonly lastWriteByRider = new Map<string, number>();
+  private readonly inFlightByRider = new Map<string, Promise<void>>();
+
   async touch(riderId: string, now = Date.now()): Promise<void> {
-    await ensureMigrated();
-    await getPool().query(
-      `INSERT INTO rider_activity (rider_id, last_seen_at)
-       VALUES ($1, $2)
-       ON CONFLICT (rider_id) DO UPDATE SET
-         last_seen_at = GREATEST(rider_activity.last_seen_at, EXCLUDED.last_seen_at)
-       WHERE rider_activity.last_seen_at <= EXCLUDED.last_seen_at - $3`,
-      [riderId, now, MIN_ACTIVITY_WRITE_INTERVAL_MS],
-    );
+    const cached = this.lastWriteByRider.get(riderId);
+    if (cached !== undefined && now - cached < MIN_ACTIVITY_WRITE_INTERVAL_MS) return;
+
+    const inFlight = this.inFlightByRider.get(riderId);
+    if (inFlight) {
+      await inFlight;
+      const refreshed = this.lastWriteByRider.get(riderId);
+      if (refreshed !== undefined && now - refreshed < MIN_ACTIVITY_WRITE_INTERVAL_MS) return;
+    }
+
+    const write = (async () => {
+      await ensureMigrated();
+      await getPool().query(
+        `INSERT INTO rider_activity (rider_id, last_seen_at)
+         VALUES ($1, $2)
+         ON CONFLICT (rider_id) DO UPDATE SET
+           last_seen_at = GREATEST(rider_activity.last_seen_at, EXCLUDED.last_seen_at)
+         WHERE rider_activity.last_seen_at <= EXCLUDED.last_seen_at - $3`,
+        [riderId, now, MIN_ACTIVITY_WRITE_INTERVAL_MS],
+      );
+      const previous = this.lastWriteByRider.get(riderId);
+      if (previous === undefined || now > previous) this.lastWriteByRider.set(riderId, now);
+    })();
+    this.inFlightByRider.set(riderId, write);
+    try {
+      await write;
+    } finally {
+      if (this.inFlightByRider.get(riderId) === write) this.inFlightByRider.delete(riderId);
+    }
   }
 
   /**
@@ -65,15 +88,20 @@ export class SocialActivityStore {
 
   async cleanupExpired(now = Date.now()): Promise<number> {
     await ensureMigrated();
+    const cutoff = now - SOCIAL_ACTIVITY_RETENTION_MS;
     const result = await getPool().query(
       'DELETE FROM rider_activity WHERE last_seen_at < $1',
-      [now - SOCIAL_ACTIVITY_RETENTION_MS],
+      [cutoff],
     );
+    for (const [riderId, lastWrite] of this.lastWriteByRider) {
+      if (lastWrite < cutoff) this.lastWriteByRider.delete(riderId);
+    }
     return result.rowCount ?? 0;
   }
 
   async deleteRider(riderId: string): Promise<void> {
     await ensureMigrated();
     await getPool().query('DELETE FROM rider_activity WHERE rider_id = $1', [riderId]);
+    this.lastWriteByRider.delete(riderId);
   }
 }
