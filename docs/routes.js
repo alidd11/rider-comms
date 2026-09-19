@@ -1,93 +1,1157 @@
 (() => {
   'use strict';
 
-  const routeImages = Object.freeze({
-    hartside: 'https://upload.wikimedia.org/wikipedia/commons/5/5c/The_A686_below_Hartside_-_geograph.org.uk_-_1073084.jpg',
-    glencoe: 'https://upload.wikimedia.org/wikipedia/commons/0/0d/A82_towards_Glencoe_-_geograph.org.uk_-_3149881.jpg',
-    snowroads: 'https://thumb.wikimedia.org/wikipedia/commons/thumb/3/32/Cairngorms_National_Park_road_%28Unsplash%29.jpg/1280px-Cairngorms_National_Park_road_%28Unsplash%29.jpg',
-    cambrianSpine: 'https://upload.wikimedia.org/wikipedia/commons/d/dd/A470_at_Bwlch_Oerddrws.jpg',
-    causewayCoast: 'https://upload.wikimedia.org/wikipedia/commons/e/e1/Causeway_Coastal_Route%2C_Dunseverick_-_geograph.org.uk_-_5572416.jpg',
-    wyeValley: 'https://upload.wikimedia.org/wikipedia/commons/9/9a/A466_Wye_valley_road_-_geograph.org.uk_-_1402565.jpg',
-  });
   const routes = [
     {
-      id: 'a686-hartside', name: 'Hartside Pass', region: 'Cumbria & Northumberland', road: 'A686 · Penrith to Haydon Bridge',
-      distance: 37, minutes: 70, difficulty: 'Challenging', roadType: 'Mountain',
-      description: 'A high Pennine crossing with long sightlines, sweeping bends and a memorable descent into the South Tyne valley.',
-      note: 'A motorbike-first A-road ride. Smaller bikes and scooters can use it without a motorway, but should allow extra climbing time.',
-      highlights: ['Hartside summit', 'Alston', 'South Tyne valley'],
-      safety: ['Exposed summit weather changes quickly.', 'Ice and winter closures can affect the Alston section.'],
-      start: [54.6641, -2.7527], end: [54.974, -2.2472], waypoints: [[54.8128, -2.4393]],
-      image: routeImages.hartside, alt: 'The A686 below Hartside summit',
-      credit: 'Andrew Smith · CC BY-SA 2.0', source: 'https://commons.wikimedia.org/wiki/File:The_A686_below_Hartside_-_geograph.org.uk_-_1073084.jpg',
-      license: 'https://creativecommons.org/licenses/by-sa/2.0/',
-      conditions: 'https://one.network/uk', routeSource: 'https://www.adventurebikerider.com/abrs-weekend-ride-crossing-the-pennines-on-the-a686/',
+      "id": "surrey-hills-circuit",
+      "name": "Surrey Hills Circuit",
+      "region": "Surrey Hills",
+      "road": "A25 & Surrey lanes · Guildford circuit",
+      "distance": 39,
+      "minutes": 90,
+      "difficulty": "Moderate",
+      "roadType": "Rural",
+      "description": "A compact circuit through Newlands Corner, Shere, Box Hill and Leith Hill, linking some of the South East’s best-known viewpoints and villages.",
+      "note": "A useful ride-out from the London side of the country: varied enough to feel like a proper trip without needing a full day or a motorway-heavy approach.",
+      "vehicleSuitability": [
+        "motorcycle_small",
+        "motorcycle_large",
+        "scooter",
+        "car"
+      ],
+      "highlights": [
+        "Newlands Corner",
+        "Shere",
+        "Box Hill",
+        "Leith Hill"
+      ],
+      "safety": [
+        "Expect cyclists, walkers and busy visitor traffic around Box Hill and the main viewpoints.",
+        "Some linking lanes are narrow and shaded; allow for damp surfaces and limited sightlines.",
+        "Ride time excludes stops and is a planning estimate."
+      ],
+      "start": [
+        51.2362,
+        -0.5704
+      ],
+      "end": [
+        51.2362,
+        -0.5704
+      ],
+      "waypoints": [
+        [
+          51.2323,
+          -0.5071
+        ],
+        [
+          51.2206,
+          -0.4652
+        ],
+        [
+          51.2543,
+          -0.3124
+        ],
+        [
+          51.1767,
+          -0.3694
+        ]
+      ],
+      "image": "https://upload.wikimedia.org/wikipedia/commons/2/27/A25_Shere_Road%2C_looking_towards_Sherbourne_Farm_-_geograph.org.uk_-_3794452.jpg",
+      "alt": "The A25 Shere Road in the Surrey Hills",
+      "credit": "David Martin · CC BY-SA 2.0",
+      "imageAuthor": "David Martin",
+      "imageLicenseName": "CC BY-SA 2.0",
+      "source": "https://commons.wikimedia.org/wiki/File:A25_Shere_Road,_looking_towards_Sherbourne_Farm_-_geograph.org.uk_-_3794452.jpg",
+      "license": "https://creativecommons.org/licenses/by-sa/2.0/",
+      "conditions": "https://one.network/uk",
+      "routeSource": "https://www.visitsurrey.com/ideas-and-inspiration/itineraries/a-drive-through-the-surrey-hills/",
+      "reviewedAt": "2026-09-19"
     },
     {
-      id: 'a82-glencoe', name: 'Glencoe Run', region: 'Scottish Highlands', road: 'A82 · Tyndrum to Glencoe',
-      distance: 35, minutes: 55, difficulty: 'Moderate', roadType: 'Mountain',
-      description: 'A dramatic Highland run past Rannoch Moor and the mountains guarding Glencoe.',
-      note: 'An approachable surfaced A-road for road bikes of every capacity, with exposed weather and tourist traffic to respect.',
-      highlights: ['Rannoch Moor', 'Buachaille Etive Mòr', 'Glencoe'],
-      safety: ['Expect fast weather changes and crosswinds.', 'Viewpoint traffic can be heavy in peak season.'],
-      start: [56.4343, -4.7148], end: [56.6826, -5.1023], waypoints: [[56.6466, -4.8378]],
-      image: routeImages.glencoe, alt: 'The A82 heading towards Glencoe',
-      credit: 'N Chadwick · CC BY-SA 2.0', source: 'https://commons.wikimedia.org/wiki/File:A82_towards_Glencoe_-_geograph.org.uk_-_3149881.jpg',
-      license: 'https://creativecommons.org/licenses/by-sa/2.0/',
-      conditions: 'https://www.traffic.gov.scot/', routeSource: 'https://www.seelochlomond.co.uk/discover/a82-loch-lomond-road-trip',
+      "id": "a507-baldock-buntingford",
+      "name": "A507 Hertfordshire Sweep",
+      "region": "Hertfordshire",
+      "road": "A507 · Baldock to Buntingford",
+      "distance": 9,
+      "minutes": 15,
+      "difficulty": "Easy",
+      "roadType": "Rural",
+      "description": "A short South-East blast through open, undulating countryside, mixing long sweepers with tighter turns on the run towards Buntingford.",
+      "note": "Best treated as a compact road to enjoy smoothly rather than a destination epic. It is easy to pair with a longer Hertfordshire or Cambridgeshire ride.",
+      "vehicleSuitability": [
+        "motorcycle_small",
+        "motorcycle_large",
+        "scooter",
+        "car"
+      ],
+      "highlights": [
+        "Open sweepers",
+        "Cottered countryside",
+        "Easy London-side access"
+      ],
+      "safety": [
+        "The route is popular with riders and can be actively policed; stay within posted limits.",
+        "Watch for gravel and debris near junctions and field entrances.",
+        "Traffic can interrupt the flow at busier times."
+      ],
+      "start": [
+        51.9896,
+        -0.1887
+      ],
+      "end": [
+        51.9444,
+        -0.0162
+      ],
+      "waypoints": [
+        [
+          51.9478,
+          -0.044
+        ]
+      ],
+      "image": "https://upload.wikimedia.org/wikipedia/commons/f/f5/A507_towards_Baldock_-_geograph.org.uk_-_3102113.jpg",
+      "alt": "The A507 heading towards Baldock",
+      "credit": "JThomas · CC BY-SA 2.0",
+      "imageAuthor": "JThomas",
+      "imageLicenseName": "CC BY-SA 2.0",
+      "source": "https://commons.wikimedia.org/wiki/File:A507_towards_Baldock_-_geograph.org.uk_-_3102113.jpg",
+      "license": "https://creativecommons.org/licenses/by-sa/2.0/",
+      "conditions": "https://one.network/uk",
+      "routeSource": "https://www.bikestop.co.uk/blog/great-biking-roads-near-bike-stop",
+      "reviewedAt": "2026-09-19"
     },
     {
-      id: 'snowroads', name: 'SnowRoads', region: 'Cairngorms National Park', road: 'A93, A939 & A940',
-      distance: 90, minutes: 180, difficulty: 'Challenging', roadType: 'Mountain',
-      description: 'Britain’s highest public roads through Glenshee, Braemar, Ballater and Tomintoul.',
-      note: 'An unhurried full-day motorcycle route. Smaller bikes work well when fuel range, weather and daylight are planned carefully.',
-      highlights: ['Glenshee', 'Braemar', 'Lecht Road', 'Tomintoul'],
-      safety: ['Snow gates and winter closures are possible.', 'Fuel stops are widely spaced.'],
-      start: [56.5916, -3.34], end: [57.3297, -3.608], waypoints: [[57.0065, -3.3962], [57.0491, -3.04], [57.252, -3.377]],
-      image: routeImages.snowroads, alt: 'A mountain road through Cairngorms National Park',
-      credit: 'Milada Vigerova · CC0 1.0', source: 'https://commons.wikimedia.org/wiki/File:Cairngorms_National_Park_road_(Unsplash).jpg',
-      license: 'https://creativecommons.org/publicdomain/zero/1.0/',
-      conditions: 'https://www.traffic.gov.scot/', routeSource: 'https://www.visitcairngorms.com/inspire-me/snowroads/',
+      "id": "b1145-norfolk",
+      "name": "Norfolk B1145",
+      "region": "Norfolk",
+      "road": "B1145 · Bawdeswell to Gayton",
+      "distance": 17,
+      "minutes": 35,
+      "difficulty": "Moderate",
+      "roadType": "Rural",
+      "description": "Seventeen miles of flowing rural B-road through open Norfolk countryside, linking Bawdeswell, North Elmham, Litcham and Gayton.",
+      "note": "A rare East Anglia road that works for both bikes and nimble cars: less about elevation, more about rhythm, sightlines and linking bends while staying within the posted limits.",
+      "vehicleSuitability": [
+        "motorcycle_small",
+        "motorcycle_large",
+        "scooter",
+        "car"
+      ],
+      "highlights": [
+        "Open Norfolk countryside",
+        "North Elmham",
+        "Litcham",
+        "Flowing B-road bends"
+      ],
+      "safety": [
+        "Agricultural traffic can leave mud or gravel on rural sections, particularly after wet weather.",
+        "Expect village limits, side-road junctions and wildlife along the route; keep enough margin for hazards beyond open sightlines.",
+        "Ride time is an editorial planning estimate and excludes stops."
+      ],
+      "start": [
+        52.7467,
+        1.0314
+      ],
+      "end": [
+        52.7441,
+        0.5571
+      ],
+      "waypoints": [
+        [
+          52.7485,
+          0.9393
+        ],
+        [
+          52.7258,
+          0.7876
+        ]
+      ],
+      "image": "https://upload.wikimedia.org/wikipedia/commons/f/f3/Bend_on_the_B1145_west_of_Gayton%2C_Norfolk_-_geograph.org.uk_-_564445.jpg",
+      "alt": "A bend on the B1145 west of Gayton in Norfolk",
+      "credit": "Robert Walden · CC BY-SA 2.0",
+      "imageAuthor": "Robert Walden",
+      "imageLicenseName": "CC BY-SA 2.0",
+      "source": "https://commons.wikimedia.org/wiki/File:Bend_on_the_B1145_west_of_Gayton,_Norfolk_-_geograph.org.uk_-_564445.jpg",
+      "license": "https://creativecommons.org/licenses/by-sa/2.0/",
+      "conditions": "https://one.network/uk",
+      "routeSource": "https://www.mslmagazine.co.uk/day-ride-norfolk-loop/",
+      "reviewedAt": "2026-09-19"
     },
     {
-      id: 'a470-mid-wales', name: 'Cambrian Spine', region: 'Mid Wales', road: 'A470 · Brecon to Dolgellau',
-      distance: 88, minutes: 135, difficulty: 'Moderate', roadType: 'Mixed',
-      description: 'A cross-country ride through reservoirs, open moorland and the mountain approaches to Eryri.',
-      note: 'Continuous A-road touring without motorways. Suitable for 125cc machines when distance and faster overtaking traffic are planned for.',
-      highlights: ['Bannau Brycheiniog', 'Rhayader', 'Bwlch Oerddrws'],
-      safety: ['Watch for livestock, damp bends and changing visibility.', 'Times are planning estimates.'],
-      start: [51.946, -3.391], end: [52.742, -3.886], waypoints: [[52.149, -3.404], [52.299, -3.511], [52.724, -3.685]],
-      image: routeImages.cambrianSpine, alt: 'The A470 at Bwlch Oerddrws',
-      credit: 'Martin Bodman · CC BY-SA 2.0', source: 'https://commons.wikimedia.org/wiki/File:A470_at_Bwlch_Oerddrws.jpg',
-      license: 'https://creativecommons.org/licenses/by-sa/2.0/',
-      conditions: 'https://traffic.wales/', routeSource: 'https://en.wikipedia.org/wiki/A470_road',
+      "id": "a466-wye-valley",
+      "name": "Wye Valley Sweep",
+      "region": "Monmouthshire",
+      "road": "A466 · Monmouth to Chepstow",
+      "distance": 19,
+      "minutes": 40,
+      "difficulty": "Easy",
+      "roadType": "Rural",
+      "description": "A compact riverside ride through wooded gorge scenery, Tintern and the lower Wye Valley.",
+      "note": "A shorter, lower-speed option that makes a strong first scenic ride for 125cc riders and scooters while remaining enjoyable on larger bikes.",
+      "vehicleSuitability": [
+        "motorcycle_small",
+        "motorcycle_large",
+        "scooter",
+        "car"
+      ],
+      "highlights": [
+        "Wye gorge",
+        "Tintern Abbey",
+        "Chepstow"
+      ],
+      "safety": [
+        "Expect cyclists, pedestrians and slow traffic near Tintern.",
+        "Wooded bends can remain damp after rain.",
+        "Check conditions and local restrictions before departure."
+      ],
+      "start": [
+        51.8126,
+        -2.7158
+      ],
+      "end": [
+        51.6419,
+        -2.6756
+      ],
+      "waypoints": [
+        [
+          51.697,
+          -2.681
+        ]
+      ],
+      "image": "https://upload.wikimedia.org/wikipedia/commons/9/9a/A466_Wye_valley_road_-_geograph.org.uk_-_1402565.jpg",
+      "alt": "The A466 following the Wye Valley towards Chepstow",
+      "credit": "Jonathan Billinger · CC BY-SA 2.0",
+      "imageAuthor": "Jonathan Billinger",
+      "imageLicenseName": "CC BY-SA 2.0",
+      "source": "https://commons.wikimedia.org/wiki/File:A466_Wye_valley_road_-_geograph.org.uk_-_1402565.jpg",
+      "license": "https://creativecommons.org/licenses/by-sa/2.0/",
+      "conditions": "https://traffic.wales/",
+      "routeSource": "https://www.visitwales.com/destinations/south-wales/wye-valley-and-vale-usk/must-do-wye-valley-and-vale-usk",
+      "reviewedAt": "2026-09-19"
     },
     {
-      id: 'causeway-coast', name: 'Causeway Coast', region: 'County Antrim', road: 'A2 · Belfast to Derry/Londonderry',
-      distance: 120, minutes: 210, difficulty: 'Moderate', roadType: 'Coastal',
-      description: 'A full coastal journey through glens, beaches and the Giant’s Causeway landscape.',
-      note: 'The main A2 corridor suits road motorcycles and scooters; this overview deliberately excludes the tighter Torr Head detour.',
-      highlights: ['Glens of Antrim', 'Ballycastle', 'Giant’s Causeway'],
-      safety: ['Coastal wind, spray and tourist traffic can slow progress.', 'Plan this as a full-day ride.'],
-      start: [54.5973, -5.9301], end: [54.9966, -7.3086], waypoints: [[54.857, -5.811], [55.205, -6.249], [55.204, -6.523]],
-      image: routeImages.causewayCoast, alt: 'Causeway Coastal Route at Dunseverick',
-      credit: 'David Dixon · CC BY-SA 2.0', source: 'https://commons.wikimedia.org/wiki/File:Causeway_Coastal_Route,_Dunseverick_-_geograph.org.uk_-_5572416.jpg',
-      license: 'https://creativecommons.org/licenses/by-sa/2.0/',
-      conditions: 'https://www.trafficwatchni.com/', routeSource: 'https://discovernorthernireland.com/destinations/causeway-coastal-route/getting-here/',
+      "id": "b3212-dartmoor",
+      "name": "Dartmoor Crossing",
+      "region": "Devon",
+      "road": "B3212 · Exeter to Yelverton",
+      "distance": 33,
+      "minutes": 65,
+      "difficulty": "Moderate",
+      "roadType": "Rural",
+      "description": "Thirty-three miles from city edge to open moor, with long sweepers, big-sky views and the unmistakable high-Dartmoor section around Princetown.",
+      "note": "A strong half-day building block: the road is engaging without needing extreme gradients, and it can be linked naturally with a wider Devon ride.",
+      "vehicleSuitability": [
+        "motorcycle_small",
+        "motorcycle_large",
+        "scooter",
+        "car"
+      ],
+      "highlights": [
+        "Open Dartmoor",
+        "Moretonhampstead",
+        "Princetown"
+      ],
+      "safety": [
+        "The moor section carries a 40 mph limit in places because free-roaming animals can enter the road.",
+        "Watch for ponies and sheep, especially around blind crests and verges.",
+        "Fog, rain and exposure can change the character of the road quickly."
+      ],
+      "start": [
+        50.7256,
+        -3.5269
+      ],
+      "end": [
+        50.4923,
+        -4.0832
+      ],
+      "waypoints": [
+        [
+          50.6608,
+          -3.765
+        ],
+        [
+          50.5437,
+          -3.9886
+        ]
+      ],
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/bb/Princetown_%2C_Two_Bridges_Road_B3212_-_geograph.org.uk_-_5488011.jpg/1280px-Princetown_%2C_Two_Bridges_Road_B3212_-_geograph.org.uk_-_5488011.jpg",
+      "alt": "The B3212 near Princetown on Dartmoor",
+      "credit": "Lewis Clarke · CC BY-SA 2.0",
+      "imageAuthor": "Lewis Clarke",
+      "imageLicenseName": "CC BY-SA 2.0",
+      "source": "https://commons.wikimedia.org/wiki/File:Princetown_,_Two_Bridges_Road_B3212_-_geograph.org.uk_-_5488011.jpg",
+      "license": "https://creativecommons.org/licenses/by-sa/2.0/",
+      "conditions": "https://one.network/uk",
+      "routeSource": "https://www.adventurebikerider.com/article/uk-roads-to-ride-in-2021/",
+      "reviewedAt": "2026-09-19"
     },
     {
-      id: 'a466-wye-valley', name: 'Wye Valley Sweep', region: 'Monmouthshire', road: 'A466 · Monmouth to Chepstow',
-      distance: 19, minutes: 40, difficulty: 'Easy', roadType: 'Rural',
-      description: 'A compact riverside ride through wooded gorge scenery, Tintern and the lower Wye Valley.',
-      note: 'A lower-speed first scenic ride for 125cc riders and scooters that remains enjoyable on larger bikes.',
-      highlights: ['Wye gorge', 'Tintern Abbey', 'Chepstow'],
-      safety: ['Expect cyclists and slow traffic near Tintern.', 'Wooded bends can remain damp after rain.'],
-      start: [51.8126, -2.7158], end: [51.6419, -2.6756], waypoints: [[51.697, -2.681]],
-      image: routeImages.wyeValley, alt: 'The A466 following the Wye Valley',
-      credit: 'Jonathan Billinger · CC BY-SA 2.0', source: 'https://commons.wikimedia.org/wiki/File:A466_Wye_valley_road_-_geograph.org.uk_-_1402565.jpg',
-      license: 'https://creativecommons.org/licenses/by-sa/2.0/',
-      conditions: 'https://traffic.wales/', routeSource: 'https://www.visitwales.com/destinations/south-wales/wye-valley-and-vale-usk/must-do-wye-valley-and-vale-usk',
+      "id": "b3306-west-cornwall",
+      "name": "West Cornwall Coast Road",
+      "region": "West Cornwall",
+      "road": "B3306 · St Ives to St Just",
+      "distance": 13,
+      "minutes": 35,
+      "difficulty": "Moderate",
+      "roadType": "Coastal",
+      "description": "A thirteen-mile coastal rollercoaster across exposed West Cornwall, passing moorland, sea views and the remains of the tin-mining landscape.",
+      "note": "Short enough to repeat, distinctive enough to travel for. The appeal is the rhythm and coastal setting rather than outright speed.",
+      "vehicleSuitability": [
+        "motorcycle_small",
+        "motorcycle_large",
+        "scooter",
+        "car"
+      ],
+      "highlights": [
+        "Zennor",
+        "Atlantic views",
+        "Tin-mining landscape"
+      ],
+      "safety": [
+        "Peak-season traffic can be heavy around St Ives and the coast.",
+        "The road is exposed to wind and weather.",
+        "Allow for narrow sections, walkers and local traffic near settlements."
+      ],
+      "start": [
+        50.211,
+        -5.4804
+      ],
+      "end": [
+        50.1234,
+        -5.6802
+      ],
+      "waypoints": [
+        [
+          50.1919,
+          -5.568
+        ]
+      ],
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/07/B3306%2C_St_Ives_to_Zennor_road_-_geograph.org.uk_-_8249620.jpg/1280px-B3306%2C_St_Ives_to_Zennor_road_-_geograph.org.uk_-_8249620.jpg",
+      "alt": "The B3306 between St Ives and Zennor",
+      "credit": "Richard Rogerson · CC BY-SA 2.0",
+      "imageAuthor": "Richard Rogerson",
+      "imageLicenseName": "CC BY-SA 2.0",
+      "source": "https://commons.wikimedia.org/wiki/File:B3306,_St_Ives_to_Zennor_road_-_geograph.org.uk_-_8249620.jpg",
+      "license": "https://creativecommons.org/licenses/by-sa/2.0/",
+      "conditions": "https://one.network/uk",
+      "routeSource": "https://www.visitcornwall.com/things-to-do/experiences/five-to-try-scenic-drives",
+      "reviewedAt": "2026-09-19"
     },
+    {
+      "id": "a39-porlock-lynmouth",
+      "name": "Exmoor Coast",
+      "region": "Exmoor",
+      "road": "A39 · Porlock to Lynmouth",
+      "distance": 12,
+      "minutes": 30,
+      "difficulty": "Challenging",
+      "roadType": "Coastal",
+      "description": "A steep, dramatic Exmoor crossing that climbs hard out of Porlock before opening into faster coastal curves and the descent towards Lynmouth.",
+      "note": "This curated line stays on the public A39. It does not depend on the separate private Porlock Scenic Toll Road variant mentioned by some ride guides.",
+      "vehicleSuitability": [
+        "motorcycle_small",
+        "motorcycle_large",
+        "car"
+      ],
+      "highlights": [
+        "Porlock Hill",
+        "Exmoor heights",
+        "Countisbury Hill"
+      ],
+      "safety": [
+        "Porlock Hill reaches very steep gradients with tight bends; use an appropriate gear and leave extra braking margin.",
+        "The descent towards Lynmouth is also steep and demands concentration.",
+        "Coastal weather, tourist traffic and slower vehicles can materially affect the ride."
+      ],
+      "start": [
+        51.2088,
+        -3.595
+      ],
+      "end": [
+        51.2295,
+        -3.8311
+      ],
+      "waypoints": [
+        [
+          51.216,
+          -3.796
+        ]
+      ],
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d9/Porlock_%2C_Porlock_Hill_A39_-_geograph.org.uk_-_6258978.jpg/1280px-Porlock_%2C_Porlock_Hill_A39_-_geograph.org.uk_-_6258978.jpg",
+      "alt": "The A39 climbing Porlock Hill",
+      "credit": "Lewis Clarke · CC BY-SA 2.0",
+      "imageAuthor": "Lewis Clarke",
+      "imageLicenseName": "CC BY-SA 2.0",
+      "source": "https://commons.wikimedia.org/wiki/File:Porlock_,_Porlock_Hill_A39_-_geograph.org.uk_-_6258978.jpg",
+      "license": "https://creativecommons.org/licenses/by-sa/2.0/",
+      "conditions": "https://one.network/uk",
+      "routeSource": "https://www.adventurebikerider.com/8-roads-with-the-best-views-in-the-uk/",
+      "reviewedAt": "2026-09-19"
+    },
+    {
+      "id": "glyndwrs-way",
+      "name": "Glyndŵr’s Way",
+      "region": "Mid Wales",
+      "road": "Knighton to Welshpool · via Rhayader & Machynlleth",
+      "distance": 114,
+      "minutes": 240,
+      "difficulty": "Challenging",
+      "roadType": "Mixed",
+      "description": "A deliberate 114-mile motorcycle route across Mid Wales, combining quiet border roads, the Llanidloes mountain road, Clywedog scenery and the A487 beneath Cadair Idris.",
+      "note": "A proper one-day ride rather than a single trunk-road corridor. Start early, treat the waypoints as part of the route, and allow much longer if you plan sightseeing stops.",
+      "vehicleSuitability": [
+        "motorcycle_small",
+        "motorcycle_large",
+        "car"
+      ],
+      "highlights": [
+        "Rhayader",
+        "Clywedog Reservoir",
+        "Machynlleth",
+        "Cadair Idris",
+        "Lake Vyrnwy"
+      ],
+      "safety": [
+        "The route is long and includes exposed upland and narrow mountain-road sections.",
+        "Weather and daylight matter; do not treat the planning time as a live ETA.",
+        "Watch for livestock, damp surfaces and limited fuel/phone coverage on remote sections."
+      ],
+      "start": [
+        52.3438,
+        -3.0507
+      ],
+      "end": [
+        52.659,
+        -3.147
+      ],
+      "waypoints": [
+        [
+          52.3015,
+          -3.511
+        ],
+        [
+          52.449,
+          -3.54
+        ],
+        [
+          52.3501,
+          -3.7711
+        ],
+        [
+          52.5903,
+          -3.8535
+        ],
+        [
+          52.72665,
+          -3.82721
+        ],
+        [
+          52.759,
+          -3.482
+        ]
+      ],
+      "image": "https://upload.wikimedia.org/wikipedia/commons/8/80/The_road_down_into_Cwmystwyth_-_geograph.org.uk_-_6304586.jpg",
+      "alt": "A mountain road descending into Cwmystwyth in Mid Wales",
+      "credit": "John Lucas · CC BY-SA 2.0",
+      "imageAuthor": "John Lucas",
+      "imageLicenseName": "CC BY-SA 2.0",
+      "source": "https://commons.wikimedia.org/wiki/File:The_road_down_into_Cwmystwyth_-_geograph.org.uk_-_6304586.jpg",
+      "license": "https://creativecommons.org/licenses/by-sa/2.0/",
+      "conditions": "https://traffic.wales/",
+      "routeSource": "https://www.adventurebikerider.com/article/great-britain-glyndwrs-way/",
+      "reviewedAt": "2026-09-18"
+    },
+    {
+      "id": "b4560-llangynidr",
+      "name": "Llangynidr Mountain Road",
+      "region": "Bannau Brycheiniog",
+      "road": "B4560 · Talgarth to Beaufort",
+      "distance": 17,
+      "minutes": 40,
+      "difficulty": "Challenging",
+      "roadType": "Mountain",
+      "description": "A high Welsh road mixing tight climbing hairpins with open, sweeping upland curves and broad views across Bannau Brycheiniog.",
+      "note": "Short in mileage but not a casual shortcut. The appeal is the technical change of pace from hairpins to exposed, flowing hilltop road.",
+      "vehicleSuitability": [
+        "motorcycle_small",
+        "motorcycle_large",
+        "car"
+      ],
+      "highlights": [
+        "Upland hairpins",
+        "Open hilltops",
+        "Bannau Brycheiniog views"
+      ],
+      "safety": [
+        "Sheep and wild ponies can be on or beside the carriageway.",
+        "The exposed high ground can be windy, wet or low-visibility even when valleys are clearer.",
+        "Keep extra margin through blind crests and tighter hairpins."
+      ],
+      "start": [
+        51.9954,
+        -3.2322
+      ],
+      "end": [
+        51.795,
+        -3.205
+      ],
+      "waypoints": [
+        [
+          51.867,
+          -3.228
+        ]
+      ],
+      "image": "https://upload.wikimedia.org/wikipedia/commons/e/e1/B4560_Llangynidr_mountain_road_-_geograph.org.uk_-_4380999.jpg",
+      "alt": "The B4560 Llangynidr mountain road",
+      "credit": "Jonathan Billinger · CC BY-SA 2.0",
+      "imageAuthor": "Jonathan Billinger",
+      "imageLicenseName": "CC BY-SA 2.0",
+      "source": "https://commons.wikimedia.org/wiki/File:B4560_Llangynidr_mountain_road_-_geograph.org.uk_-_4380999.jpg",
+      "license": "https://creativecommons.org/licenses/by-sa/2.0/",
+      "conditions": "https://traffic.wales/",
+      "routeSource": "https://www.adventurebikerider.com/article/uk-roads-to-ride-in-2021/",
+      "reviewedAt": "2026-09-18"
+    },
+    {
+      "id": "a686-hartside",
+      "name": "Hartside Pass",
+      "region": "Cumbria & Northumberland",
+      "road": "A686 · Penrith to Haydon Bridge",
+      "distance": 37,
+      "minutes": 70,
+      "difficulty": "Challenging",
+      "roadType": "Mountain",
+      "description": "A high Pennine crossing with long sightlines, sweeping bends and a memorable descent into the South Tyne valley.",
+      "note": "A motorbike-first day ride on public A-roads. Smaller bikes and scooters can use the route without a motorway, but should allow extra climbing time.",
+      "vehicleSuitability": [
+        "motorcycle_small",
+        "motorcycle_large",
+        "scooter",
+        "car"
+      ],
+      "highlights": [
+        "Hartside summit",
+        "South Tyne valley",
+        "Alston stop"
+      ],
+      "safety": [
+        "Exposed summit weather can change quickly.",
+        "Ice and winter gritting limitations can affect the Alston section.",
+        "Check closures and conditions before setting off."
+      ],
+      "start": [
+        54.6641,
+        -2.7527
+      ],
+      "end": [
+        54.974,
+        -2.2472
+      ],
+      "waypoints": [
+        [
+          54.8128,
+          -2.4393
+        ]
+      ],
+      "image": "https://upload.wikimedia.org/wikipedia/commons/5/5c/The_A686_below_Hartside_-_geograph.org.uk_-_1073084.jpg",
+      "alt": "The A686 descending below Hartside summit",
+      "credit": "Andrew Smith · CC BY-SA 2.0",
+      "imageAuthor": "Andrew Smith",
+      "imageLicenseName": "CC BY-SA 2.0",
+      "source": "https://commons.wikimedia.org/wiki/File:The_A686_below_Hartside_-_geograph.org.uk_-_1073084.jpg",
+      "license": "https://creativecommons.org/licenses/by-sa/2.0/",
+      "conditions": "https://one.network/uk",
+      "routeSource": "https://www.adventurebikerider.com/abrs-weekend-ride-crossing-the-pennines-on-the-a686/",
+      "reviewedAt": "2026-09-19"
+    },
+    {
+      "id": "b6277-north-pennines",
+      "name": "North Pennines B6277",
+      "region": "County Durham & Cumbria",
+      "road": "B6277 · Barnard Castle to Alston",
+      "distance": 31,
+      "minutes": 60,
+      "difficulty": "Moderate",
+      "roadType": "Mountain",
+      "description": "A remote 31-mile Pennine road with a rewarding mix of flowing bends and short straights as it climbs from Teesdale towards Alston.",
+      "note": "A strong alternative to simply repeating the A686. It delivers the same broad high-country feeling with its own quieter, undulating rhythm.",
+      "vehicleSuitability": [
+        "motorcycle_small",
+        "motorcycle_large",
+        "scooter",
+        "car"
+      ],
+      "highlights": [
+        "Teesdale",
+        "Middleton-in-Teesdale",
+        "High Pennine moorland"
+      ],
+      "safety": [
+        "The road reaches remote, exposed upland terrain close to 600m.",
+        "Weather can deteriorate quickly and winter conditions can be severe.",
+        "Fuel and services thin out towards the higher sections; plan range before setting off."
+      ],
+      "start": [
+        54.5444,
+        -1.927
+      ],
+      "end": [
+        54.8128,
+        -2.4393
+      ],
+      "waypoints": [
+        [
+          54.6254,
+          -2.082
+        ]
+      ],
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/0b/Middleton-in-Teesdale_%2C_Alston_Road_B6277_-_geograph.org.uk_-_6687638.jpg/1280px-Middleton-in-Teesdale_%2C_Alston_Road_B6277_-_geograph.org.uk_-_6687638.jpg",
+      "alt": "The B6277 Alston road near Middleton-in-Teesdale",
+      "credit": "Lewis Clarke · CC BY-SA 2.0",
+      "imageAuthor": "Lewis Clarke",
+      "imageLicenseName": "CC BY-SA 2.0",
+      "source": "https://commons.wikimedia.org/wiki/File:Middleton-in-Teesdale_,_Alston_Road_B6277_-_geograph.org.uk_-_6687638.jpg",
+      "license": "https://creativecommons.org/licenses/by-sa/2.0/",
+      "conditions": "https://one.network/uk",
+      "routeSource": "https://www.adventurebikerider.com/article/uk-roads-to-ride-in-2021/",
+      "reviewedAt": "2026-09-19"
+    },
+    {
+      "id": "honister-newlands-loop",
+      "name": "Honister & Newlands Circuit",
+      "region": "Lake District",
+      "road": "Keswick · Honister Pass · Buttermere · Newlands Pass",
+      "distance": 25,
+      "minutes": 75,
+      "difficulty": "Challenging",
+      "roadType": "Mountain",
+      "description": "A compact Lake District circuit pairing the steep Honister crossing with Buttermere and the narrow, dramatic Newlands Pass before returning to Keswick.",
+      "note": "This is intentionally labelled challenging. It is scenic and memorable, but the gradients, narrow carriageway and tourist traffic make it a route to ride patiently.",
+      "vehicleSuitability": [
+        "motorcycle_small",
+        "motorcycle_large",
+        "car"
+      ],
+      "highlights": [
+        "Borrowdale",
+        "Honister Pass",
+        "Buttermere",
+        "Newlands Pass"
+      ],
+      "safety": [
+        "Honister is one of the steepest roads in the country, reaching roughly 1-in-4 gradients.",
+        "Newlands and Honister include narrow sections, tight bends and limited passing room.",
+        "Do not rely on ordinary sat-nav journey times; slow traffic, livestock and visitors can add substantial time."
+      ],
+      "start": [
+        54.6013,
+        -3.1347
+      ],
+      "end": [
+        54.6013,
+        -3.1347
+      ],
+      "waypoints": [
+        [
+          54.5129,
+          -3.1664
+        ],
+        [
+          54.5117,
+          -3.1993
+        ],
+        [
+          54.5413,
+          -3.276
+        ],
+        [
+          54.5765,
+          -3.229
+        ],
+        [
+          54.614,
+          -3.191
+        ]
+      ],
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/17/Honister_pass_near_the_slate_mine_-_geograph.org.uk_-_6186484.jpg/1280px-Honister_pass_near_the_slate_mine_-_geograph.org.uk_-_6186484.jpg",
+      "alt": "Honister Pass near the slate mine",
+      "credit": "Richard Humphrey · CC BY-SA 2.0",
+      "imageAuthor": "Richard Humphrey",
+      "imageLicenseName": "CC BY-SA 2.0",
+      "source": "https://commons.wikimedia.org/wiki/File:Honister_pass_near_the_slate_mine_-_geograph.org.uk_-_6186484.jpg",
+      "license": "https://creativecommons.org/licenses/by-sa/2.0/",
+      "conditions": "https://one.network/uk",
+      "routeSource": "https://lakedistrict.gov.uk/blog/top-10-locations-to-visit-in-the-lake-district/",
+      "reviewedAt": "2026-09-19"
+    },
+    {
+      "id": "yorkshire-ribblehead-buttertubs",
+      "name": "Ribblehead & Buttertubs",
+      "region": "Yorkshire Dales",
+      "road": "B6255 & Buttertubs Pass · Ingleton to Muker",
+      "distance": 23,
+      "minutes": 50,
+      "difficulty": "Challenging",
+      "roadType": "Mountain",
+      "description": "A compact Dales route that pairs the flowing B6255 past Ribblehead with the steep, exposed Buttertubs crossing from Hawes into Swaledale.",
+      "note": "This combines two roads that are stronger together than as separate novelty cards: the B6255 provides the flowing approach and Buttertubs adds the technical high-moor finish.",
+      "vehicleSuitability": [
+        "motorcycle_small",
+        "motorcycle_large",
+        "car"
+      ],
+      "highlights": [
+        "Ribblehead",
+        "Wensleydale",
+        "Buttertubs Pass",
+        "Swaledale"
+      ],
+      "safety": [
+        "Buttertubs is narrow and exposed, with livestock, cattle grids and steep pitches.",
+        "The high pass is weather-sensitive and can become unreliable in severe conditions; check current road status before setting off.",
+        "Drystone walls leave little verge or run-off on parts of the Dales road network.",
+        "Summer weekends can be busy around Hawes and Ribblehead; allow substantially longer if stopping."
+      ],
+      "start": [
+        54.1535,
+        -2.468
+      ],
+      "end": [
+        54.3839,
+        -2.1469
+      ],
+      "waypoints": [
+        [
+          54.2068,
+          -2.3638
+        ],
+        [
+          54.3042,
+          -2.1964
+        ],
+        [
+          54.3602,
+          -2.1961
+        ]
+      ],
+      "image": "https://upload.wikimedia.org/wikipedia/commons/8/8c/The_B6255_road_near_Ribblehead_-_geograph.org.uk_-_8295984.jpg",
+      "alt": "The B6255 road running across open moorland near Ribblehead",
+      "credit": "Thomas Nugent · CC BY-SA 2.0",
+      "imageAuthor": "Thomas Nugent",
+      "imageLicenseName": "CC BY-SA 2.0",
+      "source": "https://commons.wikimedia.org/wiki/File:The_B6255_road_near_Ribblehead_-_geograph.org.uk_-_8295984.jpg",
+      "license": "https://creativecommons.org/licenses/by-sa/2.0/",
+      "conditions": "https://one.network/uk",
+      "routeSource": "https://www.rapidtraining.co.uk/blog/2023/02/21/2023-2-21-rapid-roads-b6255",
+      "reviewedAt": "2026-09-19"
+    },
+    {
+      "id": "a708-three-lochs",
+      "name": "Three Lochs Run",
+      "region": "Scottish Borders",
+      "road": "A708 & reservoir roads · Moffat loop",
+      "distance": 43,
+      "minutes": 75,
+      "difficulty": "Moderate",
+      "roadType": "Mixed",
+      "description": "A forty-three-mile Borders loop from Moffat along the A708 beside St Mary's Loch, then back through the Talla and Megget reservoir country and the Devil's Beef Tub.",
+      "note": "A strong crossover route for bikes and cars: the A708 provides flowing road and scenery, while the reservoir leg slows the pace and gives the loop a distinct touring character.",
+      "vehicleSuitability": [
+        "motorcycle_small",
+        "motorcycle_large",
+        "scooter",
+        "car"
+      ],
+      "highlights": [
+        "Grey Mare's Tail",
+        "St Mary's Loch",
+        "Talla Reservoir",
+        "Devil's Beef Tub"
+      ],
+      "safety": [
+        "The Megget and Talla reservoir leg is narrow, uses passing places and has some uneven sections, so it needs a lower pace than the A708.",
+        "There are no fuel stations on the 43-mile loop; fill up in Moffat before leaving.",
+        "Weather changes quickly on the exposed Borders uplands.",
+        "Ride time is a route-only planning estimate and excludes scenic or café stops."
+      ],
+      "start": [
+        55.3333,
+        -3.4443
+      ],
+      "end": [
+        55.3333,
+        -3.4443
+      ],
+      "waypoints": [
+        [
+          55.4923,
+          -3.1914
+        ],
+        [
+          55.4935,
+          -3.4158
+        ],
+        [
+          55.5042,
+          -3.4291
+        ],
+        [
+          55.4015,
+          -3.4862
+        ]
+      ],
+      "image": "https://upload.wikimedia.org/wikipedia/commons/4/45/A708_beside_St_Mary%27s_Loch_-_geograph.org.uk_-_7249278.jpg",
+      "alt": "The A708 beside St Mary's Loch in the Scottish Borders",
+      "credit": "Sandy Gerrard · CC BY-SA 2.0",
+      "imageAuthor": "Sandy Gerrard",
+      "imageLicenseName": "CC BY-SA 2.0",
+      "source": "https://commons.wikimedia.org/wiki/File:A708_beside_St_Mary's_Loch_-_geograph.org.uk_-_7249278.jpg",
+      "license": "https://creativecommons.org/licenses/by-sa/2.0/",
+      "conditions": "https://www.traffic.gov.scot/",
+      "routeSource": "https://www.motorcyclescotland.com/routes/three-lochs-run/",
+      "reviewedAt": "2026-09-19"
+    },
+    {
+      "id": "a821-dukes-pass",
+      "name": "Duke’s Pass",
+      "region": "Loch Lomond & The Trossachs",
+      "road": "A821 · Aberfoyle to Kilmahog",
+      "distance": 14,
+      "minutes": 35,
+      "difficulty": "Challenging",
+      "roadType": "Mountain",
+      "description": "Fourteen miles of near-continuous corners through wooded Trossachs hills, climbing quickly out of Aberfoyle before running past lochs towards Kilmahog.",
+      "note": "A compact technical road rather than a sightseeing cruise. Ride it for the corner sequence, then stop for the scenery rather than trying to do both at once.",
+      "vehicleSuitability": [
+        "motorcycle_small",
+        "motorcycle_large",
+        "car"
+      ],
+      "highlights": [
+        "Trossachs forest",
+        "Brig o’ Turk",
+        "Loch Achray"
+      ],
+      "safety": [
+        "Corners come in quick succession and demand sustained attention.",
+        "Tourist coaches can take wide lines through sharper bends.",
+        "Forested sections can stay damp and visibility changes quickly with weather."
+      ],
+      "start": [
+        56.1785,
+        -4.3848
+      ],
+      "end": [
+        56.2494,
+        -4.2479
+      ],
+      "waypoints": [
+        [
+          56.2301,
+          -4.3639
+        ]
+      ],
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/77/Duke%27s_Pass_-_geograph.org.uk_-_4767591.jpg/1280px-Duke%27s_Pass_-_geograph.org.uk_-_4767591.jpg",
+      "alt": "Duke’s Pass in the Trossachs",
+      "credit": "James Allan · CC BY-SA 2.0",
+      "imageAuthor": "James Allan",
+      "imageLicenseName": "CC BY-SA 2.0",
+      "source": "https://commons.wikimedia.org/wiki/File:Duke's_Pass_-_geograph.org.uk_-_4767591.jpg",
+      "license": "https://creativecommons.org/licenses/by-sa/2.0/",
+      "conditions": "https://www.traffic.gov.scot/",
+      "routeSource": "https://www.adventurebikerider.com/article/uk-roads-to-ride-in-2021/",
+      "reviewedAt": "2026-09-18"
+    },
+    {
+      "id": "a82-glencoe",
+      "name": "Glencoe Run",
+      "region": "Scottish Highlands",
+      "road": "A82 · Tyndrum to Glencoe",
+      "distance": 35,
+      "minutes": 55,
+      "difficulty": "Moderate",
+      "roadType": "Mountain",
+      "description": "A dramatic Highland run past Rannoch Moor and the mountains guarding Glencoe.",
+      "note": "Wide, surfaced A-road riding with no motorway required. It is approachable on smaller road bikes, while exposed weather and tourist traffic still demand care.",
+      "vehicleSuitability": [
+        "motorcycle_small",
+        "motorcycle_large",
+        "scooter",
+        "car"
+      ],
+      "highlights": [
+        "Rannoch Moor",
+        "Buachaille Etive Mòr",
+        "Glencoe"
+      ],
+      "safety": [
+        "Expect fast weather changes and strong crosswinds.",
+        "Traffic can be heavy at viewpoints and in peak season.",
+        "Check Traffic Scotland before departure."
+      ],
+      "start": [
+        56.4343,
+        -4.7148
+      ],
+      "end": [
+        56.6826,
+        -5.1023
+      ],
+      "waypoints": [
+        [
+          56.6466,
+          -4.8378
+        ]
+      ],
+      "image": "https://upload.wikimedia.org/wikipedia/commons/0/0d/A82_towards_Glencoe_-_geograph.org.uk_-_3149881.jpg",
+      "alt": "The A82 heading towards Glencoe",
+      "credit": "N Chadwick · CC BY-SA 2.0",
+      "imageAuthor": "N Chadwick",
+      "imageLicenseName": "CC BY-SA 2.0",
+      "source": "https://commons.wikimedia.org/wiki/File:A82_towards_Glencoe_-_geograph.org.uk_-_3149881.jpg",
+      "license": "https://creativecommons.org/licenses/by-sa/2.0/",
+      "conditions": "https://www.traffic.gov.scot/",
+      "routeSource": "https://www.seelochlomond.co.uk/discover/a82-loch-lomond-road-trip",
+      "reviewedAt": "2026-09-15"
+    },
+    {
+      "id": "snowroads",
+      "name": "SnowRoads",
+      "region": "Cairngorms National Park",
+      "road": "A93, A939 & A940 · Blairgowrie to Grantown-on-Spey",
+      "distance": 90,
+      "minutes": 180,
+      "difficulty": "Challenging",
+      "roadType": "Mountain",
+      "description": "Ninety miles across Britain’s highest public roads, linking Glenshee, Braemar, Ballater and Tomintoul.",
+      "note": "Built for an unhurried motorcycle day. The route avoids motorways and is viable on smaller-capacity road bikes when weather, range and daylight are planned carefully.",
+      "vehicleSuitability": [
+        "motorcycle_small",
+        "motorcycle_large",
+        "scooter",
+        "car"
+      ],
+      "highlights": [
+        "Glenshee",
+        "Braemar",
+        "Lecht Road",
+        "Tomintoul"
+      ],
+      "safety": [
+        "Snow gates and winter closures are possible.",
+        "Fuel stops are widely spaced; plan range before riding.",
+        "Allow a full day and check Highland conditions."
+      ],
+      "start": [
+        56.5916,
+        -3.34
+      ],
+      "end": [
+        57.3297,
+        -3.608
+      ],
+      "waypoints": [
+        [
+          57.0065,
+          -3.3962
+        ],
+        [
+          57.0491,
+          -3.04
+        ],
+        [
+          57.252,
+          -3.377
+        ]
+      ],
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/32/Cairngorms_National_Park_road_%28Unsplash%29.jpg/1280px-Cairngorms_National_Park_road_%28Unsplash%29.jpg",
+      "alt": "A mountain road through Cairngorms National Park",
+      "credit": "Milada Vigerova · CC0 1.0",
+      "imageAuthor": "Milada Vigerova",
+      "imageLicenseName": "CC0 1.0",
+      "source": "https://commons.wikimedia.org/wiki/File:Cairngorms_National_Park_road_(Unsplash).jpg",
+      "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "conditions": "https://www.traffic.gov.scot/",
+      "routeSource": "https://www.visitcairngorms.com/inspire-me/snowroads/",
+      "reviewedAt": "2026-09-15"
+    },
+    {
+      "id": "a838-durness-tongue",
+      "name": "North Coast A838",
+      "region": "Sutherland",
+      "road": "A838 · Durness to Tongue",
+      "distance": 29,
+      "minutes": 55,
+      "difficulty": "Moderate",
+      "roadType": "Coastal",
+      "description": "A remote north-coast run around Loch Eriboll and across open moorland, combining low-speed bends with wider flowing sections and constant Atlantic-scale scenery.",
+      "note": "This is the kind of NC500 section that works well on its own. It gives riders the character of the far north without pretending a 500-mile itinerary is one ordinary ride.",
+      "vehicleSuitability": [
+        "motorcycle_small",
+        "motorcycle_large",
+        "scooter",
+        "car"
+      ],
+      "highlights": [
+        "Loch Eriboll",
+        "North-coast beaches",
+        "Open Sutherland moorland"
+      ],
+      "safety": [
+        "The route is remote; fuel, food and phone coverage can be sparse.",
+        "Summer traffic can be heavy relative to the road width.",
+        "Allow for single-track etiquette, changing weather and slow vehicles."
+      ],
+      "start": [
+        58.568,
+        -4.745
+      ],
+      "end": [
+        58.477,
+        -4.417
+      ],
+      "waypoints": [
+        [
+          58.465,
+          -4.748
+        ]
+      ],
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d0/A838_towards_Durness_-_geograph.org.uk_-_8260507.jpg/1280px-A838_towards_Durness_-_geograph.org.uk_-_8260507.jpg",
+      "alt": "The A838 in Sutherland near Durness",
+      "credit": "Steven Brown · CC BY-SA 2.0",
+      "imageAuthor": "Steven Brown",
+      "imageLicenseName": "CC BY-SA 2.0",
+      "source": "https://commons.wikimedia.org/wiki/File:A838_towards_Durness_-_geograph.org.uk_-_8260507.jpg",
+      "license": "https://creativecommons.org/licenses/by-sa/2.0/",
+      "conditions": "https://www.traffic.gov.scot/",
+      "routeSource": "https://www.adventurebikerider.com/article/8-of-britains-most-scenic-rides/",
+      "reviewedAt": "2026-09-18"
+    },
+    {
+      "id": "causeway-coast",
+      "name": "Causeway Coast",
+      "region": "County Antrim, Northern Ireland",
+      "road": "A2 · Belfast to Derry/Londonderry",
+      "distance": 120,
+      "minutes": 210,
+      "difficulty": "Moderate",
+      "roadType": "Coastal",
+      "description": "A full coastal journey through glens, cliff-backed beaches and the basalt landscape around the Giant’s Causeway.",
+      "note": "The main signed A2 corridor suits road motorcycles and scooters; this overview intentionally excludes the tighter Torr Head detour.",
+      "vehicleSuitability": [
+        "motorcycle_small",
+        "motorcycle_large",
+        "scooter",
+        "car"
+      ],
+      "highlights": [
+        "Glens of Antrim",
+        "Ballycastle",
+        "Giant’s Causeway"
+      ],
+      "safety": [
+        "Coastal winds, spray and tourist traffic can slow progress.",
+        "Treat the route as a full-day ride with planned stops.",
+        "Check Trafficwatch NI before leaving."
+      ],
+      "start": [
+        54.5973,
+        -5.9301
+      ],
+      "end": [
+        54.9966,
+        -7.3086
+      ],
+      "waypoints": [
+        [
+          54.857,
+          -5.811
+        ],
+        [
+          55.205,
+          -6.249
+        ],
+        [
+          55.204,
+          -6.523
+        ]
+      ],
+      "image": "https://upload.wikimedia.org/wikipedia/commons/e/e1/Causeway_Coastal_Route%2C_Dunseverick_-_geograph.org.uk_-_5572416.jpg",
+      "alt": "The Causeway Coastal Route at Dunseverick",
+      "credit": "David Dixon · CC BY-SA 2.0",
+      "imageAuthor": "David Dixon",
+      "imageLicenseName": "CC BY-SA 2.0",
+      "source": "https://commons.wikimedia.org/wiki/File:Causeway_Coastal_Route,_Dunseverick_-_geograph.org.uk_-_5572416.jpg",
+      "license": "https://creativecommons.org/licenses/by-sa/2.0/",
+      "conditions": "https://www.trafficwatchni.com/",
+      "routeSource": "https://discovernorthernireland.com/destinations/causeway-coastal-route/getting-here/",
+      "reviewedAt": "2026-09-15"
+    },
+    {
+      "id": "mourne-coast-a2",
+      "name": "Mourne Coast",
+      "region": "County Down, Northern Ireland",
+      "road": "A2 · Newry to Newcastle via the coast",
+      "distance": 35,
+      "minutes": 70,
+      "difficulty": "Moderate",
+      "roadType": "Coastal",
+      "description": "A signed coastal run from Newry through Warrenpoint, Rostrevor, Kilkeel and Annalong, with Carlingford Lough and the Mournes trading places beside the road.",
+      "note": "Use this as the concentrated coastal section rather than trying to compress the much longer Belfast-to-Newry tourism route into one ordinary ride.",
+      "vehicleSuitability": [
+        "motorcycle_small",
+        "motorcycle_large",
+        "scooter",
+        "car"
+      ],
+      "highlights": [
+        "Carlingford Lough",
+        "Rostrevor",
+        "Kilkeel",
+        "Annalong",
+        "Slieve Donard"
+      ],
+      "safety": [
+        "Coastal weather can bring strong wind, spray and rapidly changing visibility.",
+        "Expect village traffic, walkers and visitors around seaside stops.",
+        "Official tourism guidance encourages taking substantially longer when stopping to explore; the ride time here excludes stops."
+      ],
+      "start": [
+        54.1751,
+        -6.3402
+      ],
+      "end": [
+        54.211,
+        -5.891
+      ],
+      "waypoints": [
+        [
+          54.100079,
+          -6.25128
+        ],
+        [
+          54.1,
+          -6.202
+        ],
+        [
+          54.063,
+          -5.993
+        ],
+        [
+          54.1082,
+          -5.8997
+        ]
+      ],
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/1c/The_cliff_top_Annalong_Road_on_the_north-eastern_outskirts_of_Ballymartin_-_geograph.org.uk_-_5927104.jpg/1280px-The_cliff_top_Annalong_Road_on_the_north-eastern_outskirts_of_Ballymartin_-_geograph.org.uk_-_5927104.jpg",
+      "alt": "The Annalong Road on the Mourne coast",
+      "credit": "Eric Jones · CC BY-SA 2.0",
+      "imageAuthor": "Eric Jones",
+      "imageLicenseName": "CC BY-SA 2.0",
+      "source": "https://commons.wikimedia.org/wiki/File:The_cliff_top_Annalong_Road_on_the_north-eastern_outskirts_of_Ballymartin_-_geograph.org.uk_-_5927104.jpg",
+      "license": "https://creativecommons.org/licenses/by-sa/2.0/",
+      "conditions": "https://www.trafficwatchni.com/",
+      "routeSource": "https://www.visitmournegullionstrangford.com/things-to-do/mourne-coastal-route-from-newcastle-p847801",
+      "reviewedAt": "2026-09-19"
+    }
   ];
 
   const labels = { all: 'All rides', quick: 'Under 90 min', half_day: '90 min–3 hr', day_trip: '3+ hr' };
