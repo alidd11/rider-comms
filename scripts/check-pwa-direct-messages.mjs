@@ -18,12 +18,17 @@ for (const expected of [
 for (const expected of [
   "apiFetch('GET', `/messages?${query.toString()}`)",
   "apiFetch('POST', '/messages'",
-  'MESSAGE_POLL_INTERVAL_MS = 10000',
-  "document.visibilityState !== 'visible'",
+  "apiFetch('POST', '/messages/read'",
+  "apiFetch('GET', '/messages/unread-count')",
+  "apiFetch('GET', '/social/events?limit=100&waitMs=0')",
+  'loadAllConversationPages()',
+  'chatPeerReadThroughMessageId',
   "window.RiderMovementSafety.isLockedForSafety(movementState)",
-  "$$('[data-retry-message]', messages)",
+  "$('[data-retry-message]', messages)",
   'openFriendSafetyActions(activeChat)',
 ]) assert.ok(app.includes(expected), `PWA chat implementation missing ${expected}`);
+assert.equal(app.includes('MESSAGE_POLL_INTERVAL_MS'), false, 'PWA DMs must not fall back to fixed-interval message polling');
+assert.equal(app.includes('syncChatPolling'), false, 'PWA DMs must use the durable social event feed');
 
 const context = vm.createContext({ globalThis: {} });
 vm.runInContext(helper, context);
