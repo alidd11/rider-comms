@@ -2122,7 +2122,9 @@
   let voiceAudioContext;
   let voiceAnalyser;
   let voiceLevelFrame;
+  let voiceAttackTimer;
   let voiceReleaseTimer;
+  let voiceLatestRms = 0;
   let voiceManuallyMuted = false;
   let voiceIsSpeaking = false;
   let liveKitLoadPromise;
@@ -2132,8 +2134,12 @@
   const intentionalVoiceDisconnects = new WeakSet();
   const remoteVoiceElements = new WeakMap();
 
-  const VOICE_SPEAKING_THRESHOLD = 0.06; // same starting point as mobile's SPEAKING_VOLUME_THRESHOLD — unverified against real riding noise
-  const VOICE_RELEASE_HANGTIME_MS = 500;
+  // More sensitive than the original 0.06 gate, but with hysteresis and a
+  // short attack hold so one wind/helmet bump does not immediately transmit.
+  const VOICE_SPEAKING_ATTACK_THRESHOLD = 0.035;
+  const VOICE_SPEAKING_RELEASE_THRESHOLD = 0.02;
+  const VOICE_ATTACK_HOLD_MS = 70;
+  const VOICE_RELEASE_HANGTIME_MS = 650;
 
   function microphoneAccessMessage(error) {
     if (!navigator.mediaDevices?.getUserMedia) return 'Microphone access is not supported by this browser.';
@@ -2441,12 +2447,38 @@
   }
 
   function handleVoiceVolume(rms) {
-    if (voiceManuallyMuted) { setVoiceSpeaking(false); return; }
-    if (rms > VOICE_SPEAKING_THRESHOLD) {
+    voiceLatestRms = rms;
+    if (voiceManuallyMuted) {
+      if (voiceAttackTimer) { clearTimeout(voiceAttackTimer); voiceAttackTimer = undefined; }
       if (voiceReleaseTimer) { clearTimeout(voiceReleaseTimer); voiceReleaseTimer = undefined; }
-      setVoiceSpeaking(true);
-    } else if (!voiceReleaseTimer) {
-      voiceReleaseTimer = setTimeout(() => { voiceReleaseTimer = undefined; setVoiceSpeaking(false); }, VOICE_RELEASE_HANGTIME_MS);
+      setVoiceSpeaking(false);
+      return;
+    }
+
+    if (voiceIsSpeaking) {
+      if (voiceAttackTimer) { clearTimeout(voiceAttackTimer); voiceAttackTimer = undefined; }
+      if (rms > VOICE_SPEAKING_RELEASE_THRESHOLD) {
+        if (voiceReleaseTimer) { clearTimeout(voiceReleaseTimer); voiceReleaseTimer = undefined; }
+      } else if (!voiceReleaseTimer) {
+        voiceReleaseTimer = setTimeout(() => {
+          voiceReleaseTimer = undefined;
+          setVoiceSpeaking(false);
+        }, VOICE_RELEASE_HANGTIME_MS);
+      }
+      return;
+    }
+
+    if (voiceReleaseTimer) { clearTimeout(voiceReleaseTimer); voiceReleaseTimer = undefined; }
+    if (rms >= VOICE_SPEAKING_ATTACK_THRESHOLD) {
+      if (!voiceAttackTimer) {
+        voiceAttackTimer = setTimeout(() => {
+          voiceAttackTimer = undefined;
+          if (!voiceManuallyMuted && voiceLatestRms >= VOICE_SPEAKING_ATTACK_THRESHOLD) setVoiceSpeaking(true);
+        }, VOICE_ATTACK_HOLD_MS);
+      }
+    } else if (voiceAttackTimer) {
+      clearTimeout(voiceAttackTimer);
+      voiceAttackTimer = undefined;
     }
   }
 
@@ -2570,7 +2602,9 @@
 
   function stopVoiceLevelLoop() {
     if (voiceLevelFrame) { cancelAnimationFrame(voiceLevelFrame); voiceLevelFrame = undefined; }
+    if (voiceAttackTimer) { clearTimeout(voiceAttackTimer); voiceAttackTimer = undefined; }
     if (voiceReleaseTimer) { clearTimeout(voiceReleaseTimer); voiceReleaseTimer = undefined; }
+    voiceLatestRms = 0;
     voiceAnalyser = undefined;
     if (voiceAudioContext) { void voiceAudioContext.close().catch(() => {}); voiceAudioContext = undefined; }
     if (voiceMeterStream) { voiceMeterStream.getTracks().forEach((track) => track.stop()); voiceMeterStream = undefined; }
