@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 import {
   CURATED_ROUTES,
@@ -86,6 +87,50 @@ describe('curated route catalogue', () => {
       assert.ok(minutesPerMile >= 1.25, `${route.id}: timing is implausibly fast`);
       assert.ok(minutesPerMile <= 3.5, `${route.id}: timing is implausibly slow`);
     }
+  });
+
+  it('keeps the PWA and native curated route data in 1:1 parity', () => {
+    const pwaSource = readFileSync(new URL('../../docs/routes.js', import.meta.url), 'utf8');
+    const match = pwaSource.match(/const routes = (\[[\s\S]*?\]);\n\n  const labels/);
+    assert.ok(match, 'PWA curated route data block was not found');
+    const pwaRoutes = JSON.parse(match[1]);
+
+    const nativeComparable = CURATED_ROUTES.map((route) => ({
+      id: route.id,
+      name: route.name,
+      region: route.region,
+      road: route.road,
+      distance: route.distanceMiles,
+      minutes: route.estimatedDurationMinutes,
+      difficulty: route.difficulty,
+      roadType: route.roadType,
+      description: route.description,
+      note: route.riderNote,
+      vehicleSuitability: route.vehicleSuitability,
+      highlights: route.highlights,
+      safety: route.safetyNotices,
+      start: [route.start.lat, route.start.lon],
+      end: [route.end.lat, route.end.lon],
+      waypoints: route.waypoints.map(({ lat, lon }) => [lat, lon]),
+      image: route.image.uri,
+      alt: route.image.alt,
+      imageAuthor: route.image.author,
+      imageLicenseName: route.image.licenseName,
+      source: route.image.sourceUrl,
+      license: route.image.licenseUrl,
+      conditions: route.conditionsUrl,
+      routeSource: route.routeSourceUrl,
+      reviewedAt: route.reviewedAt,
+    }));
+
+    const pwaComparable = pwaRoutes.map((route: Record<string, unknown>) => ({
+      ...route,
+      difficulty: String(route.difficulty).toLowerCase(),
+      roadType: String(route.roadType).toLowerCase(),
+      credit: undefined,
+    })).map(({ credit: _credit, ...route }: Record<string, unknown>) => route);
+
+    assert.deepEqual(pwaComparable, nativeComparable);
   });
 
   it('filters without mutating the catalogue', () => {
