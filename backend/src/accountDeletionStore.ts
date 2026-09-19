@@ -37,6 +37,9 @@ export class AccountDeletionStore {
 
       // Remove dependent rows before their owners. The ride-location and
       // hideout-participant foreign keys handle their respective cascades.
+      // Exclusions from rides owned by other people do not cascade through
+      // this rider's account, so remove those explicitly as personal data.
+      await client.query('DELETE FROM ride_exclusions WHERE rider_id = $1', [riderId]);
       await client.query('DELETE FROM ride_members WHERE rider_id = $1', [riderId]);
       await client.query('DELETE FROM rides WHERE created_by = $1', [riderId]);
       await client.query('DELETE FROM friendships WHERE rider_id = $1 OR friend_id = $1', [riderId]);
