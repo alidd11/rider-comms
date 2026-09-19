@@ -42,6 +42,15 @@ describe('MessageStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping
     assert.equal(message.toRiderId, 'b');
     assert.equal(message.text, 'hey');
     assert.ok(message.createdAt > 0);
+
+    const fanout = await getPool().query<{ rider_id: string }>(
+      `SELECT rider_id
+       FROM social_events
+       WHERE event_type = 'message' AND entity_id = $1
+       ORDER BY rider_id`,
+      [message.id],
+    );
+    assert.deepEqual(fanout.rows.map(({ rider_id }) => rider_id), ['a', 'b']);
   });
 
   it('getThread returns messages in either direction, sorted ascending by createdAt', async () => {
@@ -92,6 +101,16 @@ describe('MessageStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping
        ORDER BY seq`,
     );
     assert.equal(receiptEvents.rows.length, 2);
+    const mirroredReceipts = await getPool().query<{ rider_id: string; entity_id: string }>(
+      `SELECT rider_id, entity_id
+       FROM social_events
+       WHERE actor_id = 'a' AND event_type = 'message_read'
+       ORDER BY seq`,
+    );
+    assert.deepEqual(
+      mirroredReceipts.rows.map(({ rider_id }) => rider_id),
+      ['a', 'b', 'a', 'b'],
+    );
 
     const pageForB = await store.getThreadPage('b', 'a');
     assert.equal(pageForB.peerReadThroughMessageId, receiptEvents.rows.at(-1)?.entity_id ?? null);
