@@ -86,6 +86,25 @@ describe('RideStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping Po
     }
   });
 
+  it('restores only current membership and its own private location consent', async () => {
+    const store = new RideStore();
+    assert.equal(await store.getCurrentRideForMember('member'), null);
+    const { ride, codeRecord } = await store.createRide('host');
+    await store.joinRide(codeRecord.code, 'member', '1.1.1.1');
+    assert.equal((await store.getCurrentRideForMember('member'))?.shareRideLocation, false);
+    assert.equal((await store.getCurrentRideForMember('host'))?.shareRideLocation, false);
+    await store.setMemberLocationSharing(ride.id, 'member', true);
+    const restored = await store.getCurrentRideForMember('member');
+    assert.equal(restored?.ride.id, ride.id);
+    assert.equal(restored?.code, codeRecord.code);
+    assert.equal(restored?.shareRideLocation, true);
+    assert.equal((await store.getCurrentRideForMember('host'))?.shareRideLocation, false);
+    assert.equal(await store.getMemberRideSession(ride.id, 'outsider'), null);
+    await store.removeMember(ride.id, 'host', 'member');
+    assert.equal(await store.getCurrentRideForMember('member'), null);
+    assert.equal(await store.getMemberRideSession(ride.id, 'member'), null);
+  });
+
   it('purges location when consent is withdrawn or membership ends', async () => {
     const store = new RideStore();
     const { ride, codeRecord } = await store.createRide('host');
