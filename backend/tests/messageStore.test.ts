@@ -27,7 +27,7 @@ describe('MessageStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping
   });
 
   beforeEach(async () => {
-    await getPool().query('TRUNCATE direct_message_reads, direct_messages');
+    await getPool().query('TRUNCATE social_events, direct_message_reads, direct_messages RESTART IDENTITY');
   });
 
   after(async () => {
@@ -83,8 +83,25 @@ describe('MessageStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping
     const secondRead = await store.markThreadRead('a', 'b');
     assert.ok(secondRead > firstRead);
 
-    // Repeating the call cannot move the cursor backwards.
+    // Repeating the call cannot move the cursor backwards or emit duplicates.
     assert.equal(await store.markThreadRead('a', 'b'), secondRead);
+    const receiptEvents = await getPool().query<{ entity_id: string }>(
+      `SELECT entity_id
+       FROM social_events
+       WHERE rider_id = 'b' AND actor_id = 'a' AND event_type = 'message_read'
+       ORDER BY seq`,
+    );
+    assert.equal(receiptEvents.rows.length, 2);
+
+    const pageForB = await store.getThreadPage('b', 'a');
+    assert.equal(pageForB.peerReadThroughMessageId, receiptEvents.rows.at(-1)?.entity_id ?? null);
+  });
+
+  it('does not create read state or receipt events for an empty thread', async () => {
+    const store = new MessageStore();
+    assert.equal(await store.markThreadRead('a', 'b'), 0);
+    assert.equal((await getPool().query('SELECT 1 FROM direct_message_reads')).rowCount, 0);
+    assert.equal((await getPool().query("SELECT 1 FROM social_events WHERE event_type = 'message_read'")).rowCount, 0);
   });
 
   it('paginates newest-first in SQL without gaps or duplicates', async () => {
