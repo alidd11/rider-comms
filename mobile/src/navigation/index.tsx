@@ -3,8 +3,8 @@
 // to be correct against @react-navigation's real v7 API — review against
 // the installed version once you're on a real dev machine.
 import * as React from 'react';
-import { Linking, View, Text, StyleSheet, useColorScheme } from 'react-native';
-import { DarkTheme, DefaultTheme, NavigationContainer, useNavigationState } from '@react-navigation/native';
+import { Linking, View, Text, StyleSheet } from 'react-native';
+import { DarkTheme, NavigationContainer, useNavigationState } from '@react-navigation/native';
 import type { LinkingOptions, NavigatorScreenParams } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -279,20 +279,18 @@ function OnboardingGate({ children }: { children: React.ReactNode }): React.JSX.
 }
 
 export function AppNavigator(): React.JSX.Element {
-  const scheme = useColorScheme();
   const concreteColors = useConcreteThemeColors();
-  const baseTheme = scheme === 'light' ? DefaultTheme : DarkTheme;
   const navigationTheme = React.useMemo(() => ({
-    ...baseTheme,
+    ...DarkTheme,
     colors: {
-      ...baseTheme.colors,
+      ...DarkTheme.colors,
       primary: concreteColors.accent,
       background: concreteColors.background,
       card: concreteColors.surface,
       text: concreteColors.textPrimary,
       border: concreteColors.border,
     },
-  }), [baseTheme, concreteColors]);
+  }), [concreteColors]);
 
   return (
     // Every screen in this app hides the native nav header and builds its

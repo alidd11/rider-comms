@@ -1,5 +1,3 @@
-import { DynamicColorIOS, Platform, PlatformColor, useColorScheme } from 'react-native';
-
 /** One product identity translated between two lighting conditions. */
 export const lightColors = {
   background: '#F2F5F6',
@@ -44,41 +42,15 @@ export const darkColors = {
 export type ThemeColors = { [K in keyof typeof lightColors]: string };
 export type ConcreteThemeColors = typeof lightColors | typeof darkColors;
 
-function adaptive(light: string, dark: string, androidAttribute?: string): string {
-  // React Navigation still types colours as plain strings even though React
-  // Native accepts semantic OpaqueColorValue objects in every colour prop.
-  if (Platform.OS === 'ios') return DynamicColorIOS({ light, dark }) as unknown as string;
-  if (Platform.OS === 'android' && androidAttribute) return PlatformColor(androidAttribute) as unknown as string;
-  return dark;
-}
-
 /**
- * Static styles and icon colours can consume these adaptive values directly.
- * iOS resolves DynamicColorIOS on every appearance change; Android resolves
- * framework theme attributes after userInterfaceStyle switches automatically.
+ * Rider Comms ships the approved graphite mockup as one production
+ * appearance. System light mode must not invert product surfaces or make
+ * native diverge from the installed PWA.
  */
-export const colors: ThemeColors = {
-  background: adaptive(lightColors.background, darkColors.background, '?android:attr/colorBackground'),
-  surface: adaptive(lightColors.surface, darkColors.surface, '?android:attr/colorBackgroundFloating'),
-  surfaceRaised: adaptive(lightColors.surfaceRaised, darkColors.surfaceRaised, '?android:attr/colorBackgroundFloating'),
-  border: adaptive(lightColors.border, darkColors.border, '?android:attr/colorControlNormal'),
-  textPrimary: adaptive(lightColors.textPrimary, darkColors.textPrimary, '?android:attr/textColorPrimary'),
-  textSecondary: adaptive(lightColors.textSecondary, darkColors.textSecondary, '?android:attr/textColorSecondary'),
-  textMuted: adaptive(lightColors.textMuted, darkColors.textMuted, '?android:attr/textColorSecondary'),
-  accent: adaptive(lightColors.accent, darkColors.accent),
-  accentPressed: adaptive(lightColors.accentPressed, darkColors.accentPressed),
-  accentSoft: adaptive(lightColors.accentSoft, darkColors.accentSoft),
-  accentText: adaptive(lightColors.accentText, darkColors.accentText),
-  success: adaptive(lightColors.success, darkColors.success),
-  danger: adaptive(lightColors.danger, darkColors.danger),
-  dangerSurface: adaptive(lightColors.dangerSurface, darkColors.dangerSurface),
-  warning: adaptive(lightColors.warning, darkColors.warning),
-  asphalt: adaptive(lightColors.asphalt, darkColors.asphalt),
-  laneLine: adaptive(lightColors.laneLine, darkColors.laneLine),
-};
+export const colors: ThemeColors = { ...darkColors };
 
 export function useConcreteThemeColors(): ConcreteThemeColors {
-  return useColorScheme() === 'light' ? lightColors : darkColors;
+  return darkColors;
 }
 
 export const spacing = {

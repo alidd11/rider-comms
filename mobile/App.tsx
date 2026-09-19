@@ -1,6 +1,6 @@
 // Unverified scaffold — see src/navigation/index.tsx header note.
 import * as React from 'react';
-import { Platform, StatusBar, useColorScheme } from 'react-native';
+import { Platform, StatusBar } from 'react-native';
 import * as NavigationBar from 'expo-navigation-bar';
 import { registerGlobals } from '@livekit/react-native';
 import { AppNavigator } from './src/navigation';
@@ -12,15 +12,13 @@ import { AppNavigator } from './src/navigation';
 registerGlobals({ autoConfigureAudioSession: false });
 
 export default function App(): React.JSX.Element {
-  const scheme = useColorScheme();
-
   React.useEffect(() => {
-    if (Platform.OS === 'android') void NavigationBar.setStyle(scheme === 'light' ? 'dark' : 'light');
-  }, [scheme]);
+    if (Platform.OS === 'android') void NavigationBar.setStyle('light');
+  }, []);
 
   return (
     <>
-      <StatusBar barStyle={scheme === 'light' ? 'dark-content' : 'light-content'} translucent backgroundColor="transparent" />
+      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
       <AppNavigator />
     </>
   );
