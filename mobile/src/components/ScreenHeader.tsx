@@ -26,9 +26,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: spacing.md,
-    marginBottom: spacing.md,
+    marginBottom: 13,
   },
   copy: { flex: 1, minWidth: 0 },
-  title: { ...type.title, fontSize: 30, lineHeight: 35 },
-  action: { paddingTop: spacing.xs },
+  title: { ...type.title, fontSize: 28, lineHeight: 31, letterSpacing: -0.9 },
+  action: { paddingTop: 0 },
 });
