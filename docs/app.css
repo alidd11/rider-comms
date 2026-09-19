@@ -943,7 +943,7 @@ body:has(#sheetBackdrop:not([hidden])) #joinNearbyBtn{opacity:0;pointer-events:n
   outline:0;
   background:transparent;
   color:var(--text);
-  font-size:.91rem;
+  font-size:.86rem;
 }
 .auth-screen .password-toggle{
   width:42px;
