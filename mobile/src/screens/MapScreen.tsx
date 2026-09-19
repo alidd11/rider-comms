@@ -327,17 +327,23 @@ export function MapScreen(): React.JSX.Element {
     }
     try {
       await preflightVoiceMicrophone();
+    } catch (microphoneError) {
+      Alert.alert('Microphone unavailable', microphoneErrorMessage(microphoneError));
+      return;
+    }
+
+    try {
       // The presence endpoint refuses a fix until the durable profile says
       // shareLocation=true. Confirm that backend write BEFORE flipping the
       // local setting; otherwise the presence effect can race the queued
       // SettingsContext save and fail the first Go Live with a 403.
       await client.updateProfile(riderId, { shareLocation: true });
       setShareLocation(true);
-    } catch (microphoneError) {
-      const message = microphoneError instanceof Error && /profile|network|fetch|request/i.test(microphoneError.message)
-        ? 'Rider Comms could not enable Nearby Voice on the server. Check your connection and try again.'
-        : microphoneErrorMessage(microphoneError);
-      Alert.alert('Nearby Voice unavailable', message);
+    } catch {
+      Alert.alert(
+        'Nearby Voice unavailable',
+        'Rider Comms could not enable Nearby Voice on the server. Check your connection and try again.',
+      );
     }
   }, [client, lockedForSafety, riderId, setShareLocation, shareLocation]);
 
