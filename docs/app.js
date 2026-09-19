@@ -2049,7 +2049,11 @@
     stopPresenceRefresh();
     state.publicLive = false;
     nearbyRiders = [];
-    disconnectVoice();
+    // Only tear down the public proximity transport. This helper is also
+    // called from Settings, which remains reachable during a private ride;
+    // changing public visibility must never drop that ride's private voice.
+    if (voiceTargetKey === 'channel' || proximityVoiceRooms.size) disconnectVoice();
+    else renderVoiceStatus();
     persist();
     renderMapStatus();
     renderMapRiders();
