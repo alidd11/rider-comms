@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const [appConfigSource, appSource, rideBarSource, proximitySource, voiceActivitySource, mapScreenSource, pwaSource] = await Promise.all([
+const [appConfigSource, appSource, rideBarSource, proximitySource, voiceActivitySource, activeSpeakerSource, mapScreenSource, pwaSource] = await Promise.all([
   readFile(new URL('../mobile/app.json', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/App.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/ride/RideBar.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/voice/ProximityVoice.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/audio/useVoiceActivity.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../mobile/src/voice/ActiveSpeakerBridge.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/screens/MapScreen.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../docs/app.js', import.meta.url), 'utf8'),
 ]);
@@ -45,6 +46,21 @@ assert.match(
   /connect=\{audioSessionReady\}/,
   'Proximity voice must wait for native audio-session readiness before connecting',
 );
+assert.match(
+  activeSpeakerSource,
+  /RoomEvent\.ActiveSpeakersChanged/,
+  'Native voice must use LiveKit active-speaker events rather than infer remote speaking from mute state',
+);
+assert.match(
+  proximitySource,
+  /<ActiveSpeakerBridge[\s\S]*speakerIds\.includes\(connection\.peerId\)/,
+  'Native proximity voice must surface which authorised nearby peer is actively speaking',
+);
+assert.match(
+  rideBarSource,
+  /<ActiveSpeakerBridge[\s\S]*activeSpeakerLabel/,
+  'Native private rides must surface the active speaker in persistent ride UI',
+);
 
 const profileWrite = mapScreenSource.indexOf("await client.updateProfile(riderId, { shareLocation: true });");
 const localGoLive = mapScreenSource.indexOf('setShareLocation(true);');
@@ -72,5 +88,15 @@ assert.match(
   /events\.TrackUnsubscribed[\s\S]*track\.detach\(\)/,
   'PWA voice must detach remote audio tracks during teardown',
 );
+assert.match(
+  pwaSource,
+  /events\.ActiveSpeakersChanged[\s\S]*voiceRemoteSpeakersByRoom/,
+  'PWA voice must track LiveKit remote active speakers',
+);
+assert.match(
+  pwaSource,
+  /voiceSpeakerChip[\s\S]*remoteSpeakerSummary/,
+  'PWA public voice must render a visible active-speaker indicator',
+);
 
-console.log('Native/PWA LiveKit bootstrap and safe microphone invariants valid');
+console.log('Native/PWA LiveKit bootstrap, safe microphone, and active-speaker invariants valid');
