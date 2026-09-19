@@ -633,7 +633,6 @@
   async function createHazard(type, chips) {
     const errorEl = $('#hazardFormError');
     if (errorEl) errorEl.hidden = true;
-    if (!(await preflightMicrophoneAccess())) return;
     let position;
     try {
       position = await currentPosition();
@@ -2143,6 +2142,7 @@
       showToast('You are no longer visible nearby.');
       return;
     }
+    if (!(await preflightMicrophoneAccess())) return;
     let position;
     try {
       position = await currentPosition();
