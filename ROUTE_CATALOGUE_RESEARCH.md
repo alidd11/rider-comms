@@ -71,6 +71,16 @@ The current draft is deliberately not considered complete. Before publication, t
 | Causeway Coast | Keep | Established destination route with official tourism and live-condition sources; provides Northern Ireland coverage. | [Discover Northern Ireland](https://discovernorthernireland.com/destinations/causeway-coastal-route/getting-here/) |
 | Mourne Coast, A2 | Add | Official tourism sources describe the signed coastal run through Newcastle/Annalong/Kilkeel/Rostrevor/Warrenpoint/Newry with sea and mountain scenery. The catalogue uses the coastal section rather than the much longer Belfast route. | [Visit Mourne Gullion Strangford](https://www.visitmournegullionstrangford.com/things-to-do/mourne-coastal-route-from-newcastle-p847801) |
 
+
+## Geometry verification notes
+
+- **Three Lochs Run:** verified against Motorcycle Scotland's published 42.9-mile / 1h14m route description. The intended order is Moffat → A708 / St Mary's Loch → Megget and Talla reservoir roads → A701 / Devil's Beef Tub → Moffat. The catalogue's 43-mile / 75-minute planning values match the published route closely. The source also confirms the reservoir leg is narrow with passing places and that there are no fuel stations on the loop.
+- **Mourne Coast:** verified against the official Mourne Gullion Strangford road directions. The signed coastal element runs Newcastle → Annalong → Kilkeel → Rostrevor / Warrenpoint → Newry on the A2 corridor. The Rider Comms route uses the reverse direction, and Warrenpoint is now an explicit waypoint so external routing cannot shortcut the intended coastal section between Newry and Rostrevor.
+- **Glyndŵr’s Way:** the motorcycle source confirms the 114-mile Knighton-to-Welshpool concept via Mid Wales, including the B4518 / Clywedog section, Machynlleth and the A487. Keep this route under additional waypoint scrutiny because it is the longest and most manually specified catalogue entry.
+
+These checks are not a substitute for live routing. Before publication, every manually curated route still needs its ordered waypoint sequence reviewed for unintended motorway/trunk-road shortcuts and duplicate/backtracking behaviour.
+
+
 ## Routes deliberately deferred
 
 ### A57 Snake Pass
