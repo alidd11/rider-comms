@@ -11,6 +11,7 @@ import type {
   RiderProfile,
   RoadType,
   ScenicRoute,
+  SocialEventPage,
   VehicleCategory,
 } from '@rider-comms/shared';
 
@@ -37,6 +38,11 @@ export interface PublicRiderProfile {
   instagramUsername: string;
   tiktokUsername: string;
 }
+export interface ConversationSummary {
+  friend: FriendSummary;
+  lastMessage: DirectMessage;
+  unreadCount: number;
+}
 
 export class ApiError extends Error {
   readonly status: number;
@@ -48,11 +54,11 @@ export class RiderCommsClient {
   private readonly fetchImpl: typeof fetch;
   private readonly token?: string;
   constructor(baseUrl: string, fetchImpl: typeof fetch = fetch, token?: string) { this.baseUrl = baseUrl.replace(/\/$/, ''); this.fetchImpl = fetchImpl; this.token = token; }
-  private async request<T>(method: string, path: string, body?: unknown): Promise<T> {
+  private async request<T>(method: string, path: string, body?: unknown, timeoutMs = 10_000): Promise<T> {
     const headers: Record<string, string> = {};
     if (body !== undefined) headers['Content-Type'] = 'application/json';
     if (this.token) headers.Authorization = `Bearer ${this.token}`;
-    const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), 10_000);
+    const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), timeoutMs);
     try {
       const res = await this.fetchImpl(`${this.baseUrl}${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body), signal: controller.signal });
       if (res.status === 204 && res.ok) return undefined as T;
@@ -99,6 +105,7 @@ export class RiderCommsClient {
   }
   acceptFriendRequest(id: string): Promise<{ friend: FriendSummary }> { return this.request('POST', `/friends/requests/${encodeURIComponent(id)}/accept`, {}); }
   declineFriendRequest(id: string): Promise<Record<string, never>> { return this.request('POST', `/friends/requests/${encodeURIComponent(id)}/decline`, {}); }
+  cancelFriendRequest(id: string): Promise<Record<string, never>> { return this.request('DELETE', `/friends/requests/${encodeURIComponent(id)}`); }
   getFriends(id: string, options: { before?: string; limit?: number } = {}): Promise<{ friends: FriendSummary[]; nextCursor: string | null }> {
     const query = new URLSearchParams({ limit: String(options.limit ?? 100) });
     if (options.before) query.set('before', options.before);
@@ -107,11 +114,24 @@ export class RiderCommsClient {
   removeFriend(id: string, friendId: string): Promise<Record<string, never>> { return this.request('DELETE', `/riders/${encodeURIComponent(id)}/friends/${encodeURIComponent(friendId)}`); }
   getFriendActivity(): Promise<{ activity: FriendActivity[] }> { return this.request('GET', '/friends/activity'); }
   sendMessage(toRiderId: string, text: string): Promise<DirectMessage> { return this.request('POST', '/messages', { toRiderId, text }); }
-  getMessages(withRiderId: string, options: { before?: string; limit?: number } = {}): Promise<{ messages: DirectMessage[]; nextCursor: string | null }> {
+  getMessages(withRiderId: string, options: { before?: string; limit?: number } = {}): Promise<{ messages: DirectMessage[]; nextCursor: string | null; peerReadThroughMessageId: string | null }> {
     const query = new URLSearchParams({ withRiderId });
     if (options.before) query.set('before', options.before);
     if (options.limit !== undefined) query.set('limit', String(options.limit));
     return this.request('GET', `/messages?${query.toString()}`);
+  }
+  getConversations(options: { before?: string; limit?: number } = {}): Promise<{ conversations: ConversationSummary[]; nextCursor: string | null }> {
+    const query = new URLSearchParams({ limit: String(options.limit ?? 50) });
+    if (options.before) query.set('before', options.before);
+    return this.request('GET', `/conversations?${query.toString()}`);
+  }
+  getUnreadMessageCount(): Promise<{ unreadCount: number }> { return this.request('GET', '/messages/unread-count'); }
+  markMessagesRead(withRiderId: string): Promise<{ readThroughSeq: number }> { return this.request('POST', '/messages/read', { withRiderId }); }
+  getSocialEvents(options: { after?: string; limit?: number; waitMs?: number } = {}): Promise<SocialEventPage> {
+    const waitMs = options.waitMs ?? 25_000;
+    const query = new URLSearchParams({ limit: String(options.limit ?? 100), waitMs: String(waitMs) });
+    if (options.after) query.set('after', options.after);
+    return this.request('GET', `/social/events?${query.toString()}`, undefined, Math.max(10_000, waitMs + 5_000));
   }
   blockRider(riderId: string): Promise<Record<string, never>> { return this.request('POST', '/blocks', { riderId }); }
   unblockRider(riderId: string): Promise<Record<string, never>> { return this.request('DELETE', `/blocks/${encodeURIComponent(riderId)}`); }
