@@ -7,7 +7,7 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Constants from 'expo-constants';
 import type { SocialVisibility } from '@rider-comms/shared';
-import { colors, spacing, radii, type, elevation, MIN_TOUCH_TARGET } from '../theme';
+import { colors, spacing, radii, type, MIN_TOUCH_TARGET } from '../theme';
 import { useSettings } from '../settings/SettingsContext';
 import type { UnitSystem } from '../settings/SettingsContext';
 import { AVATAR_PRESETS, getAvatarPreset } from '../settings/avatars';
@@ -183,6 +183,69 @@ function AvatarPickerModal({
   );
 }
 
+
+type SettingsSheetKey = 'profile' | 'sessions' | 'account' | 'map' | 'navigation' | 'units' | 'notifications' | 'privacy' | 'safety';
+
+const SETTINGS_SHEET_TITLES: Record<SettingsSheetKey, string> = {
+  profile: 'Edit profile',
+  sessions: 'Signed-in devices',
+  account: 'Account and data',
+  map: 'Location and map',
+  navigation: 'Navigation',
+  units: 'Distance units',
+  notifications: 'Notifications',
+  privacy: 'Privacy controls',
+  safety: 'Safety',
+};
+
+function SettingsRow({ icon, title, subtitle, right, danger = false, onPress }: {
+  icon: React.ComponentProps<typeof Ionicons>['name'];
+  title: string;
+  subtitle?: string;
+  right?: string;
+  danger?: boolean;
+  onPress: () => void;
+}): React.JSX.Element {
+  return (
+    <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.settingRow, pressed && styles.settingRowPressed]}>
+      <Ionicons name={icon} size={21} color={danger ? colors.danger : colors.textSecondary} style={styles.settingRowIcon} />
+      <View style={styles.settingRowCopy}>
+        <Text style={[styles.settingRowTitle, danger && styles.settingRowDanger]}>{title}</Text>
+        {subtitle ? <Text style={styles.settingRowSubtitle}>{subtitle}</Text> : null}
+      </View>
+      {right ? <Text style={styles.settingRowValue}>{right}</Text> : null}
+      <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+    </Pressable>
+  );
+}
+
+function SettingsSheet({ visible, title, onClose, children }: {
+  visible: boolean;
+  title: string;
+  onClose: () => void;
+  children: React.ReactNode;
+}): React.JSX.Element {
+  const insets = useSafeAreaInsets();
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <Pressable style={styles.modalBackdrop} onPress={onClose}>
+        <Pressable style={[styles.settingsSheet, { paddingBottom: Math.max(insets.bottom, spacing.md) }]} onPress={(event) => event.stopPropagation()}>
+          <View style={styles.modalHandle} />
+          <View style={styles.settingsSheetHeader}>
+            <Text style={styles.settingsSheetTitle}>{title}</Text>
+            <Pressable style={styles.modalClose} onPress={onClose} accessibilityRole="button" accessibilityLabel={'Close ' + title}>
+              <Ionicons name="close" size={20} color={colors.textPrimary} />
+            </Pressable>
+          </View>
+          <ScrollView contentContainerStyle={styles.settingsSheetBody} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets showsVerticalScrollIndicator={false}>
+            {children}
+          </ScrollView>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
 export function SettingsScreen(): React.JSX.Element {
   const {
     zoneTier,
@@ -223,10 +286,9 @@ export function SettingsScreen(): React.JSX.Element {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const appVersion = Constants.expoConfig?.version ?? '0.1.0';
   const [pickerOpen, setPickerOpen] = React.useState(false);
+  const [activeSheet, setActiveSheet] = React.useState<SettingsSheetKey | null>(null);
   const [nameDraft, setNameDraft] = React.useState(displayName);
-  const [editingName, setEditingName] = React.useState(false);
   const [handleDraft, setHandleDraft] = React.useState(handle);
-  const [editingHandle, setEditingHandle] = React.useState(false);
   const [sessions, setSessions] = React.useState<AccountSessionSummary[]>([]);
   const [sessionsError, setSessionsError] = React.useState<string | null>(null);
 
@@ -263,12 +325,10 @@ export function SettingsScreen(): React.JSX.Element {
 
   function commitName() {
     setDisplayName(nameDraft);
-    setEditingName(false);
   }
 
   function commitHandle() {
     setHandle(handleDraft);
-    setEditingHandle(false);
   }
 
   function confirmReset() {
@@ -308,249 +368,193 @@ export function SettingsScreen(): React.JSX.Element {
     );
   }
 
+
+  const navigationLabel = NAVIGATION_PROVIDER_OPTIONS.find((option) => option.id === navigationProvider)?.label ?? 'Rider Comms';
+  const sheetTitle = activeSheet ? SETTINGS_SHEET_TITLES[activeSheet] : '';
+
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={[styles.scroll, { paddingTop: insets.top + spacing.lg }]}>
+      <ScrollView
+        contentContainerStyle={[styles.scroll, { paddingTop: insets.top + spacing.lg, paddingBottom: insets.bottom + spacing.xxl }]}
+        showsVerticalScrollIndicator={false}
+      >
         <ScreenHeader title="Settings" />
-        <View style={[styles.profileCard, elevation.raised]}>
-          <Pressable
-            onPress={() => setPickerOpen(true)}
-            style={styles.avatarTapArea}
-            accessibilityRole="button"
-            accessibilityLabel="Change profile avatar"
-          >
-            <View style={[styles.avatarRing, { backgroundColor: avatar.bg }]}>
-              <MaterialCommunityIcons name={avatar.icon} size={30} color={colors.textPrimary} />
-            </View>
-            <View style={styles.avatarEditBadge}>
-              <Ionicons name="pencil" size={13} color={colors.accentText} />
-            </View>
-          </Pressable>
 
+        <Pressable style={styles.profileCard} onPress={() => setActiveSheet('profile')} accessibilityRole="button" accessibilityLabel="Edit profile">
+          <View style={[styles.profileAvatar, { backgroundColor: avatar.bg }]}>
+            <MaterialCommunityIcons name={avatar.icon} size={28} color={colors.textPrimary} />
+          </View>
           <View style={styles.profileCopy}>
-            {editingName ? (
-              <TextInput
-                style={styles.nameInput}
-                value={nameDraft}
-                onChangeText={setNameDraft}
-                onSubmitEditing={commitName}
-                onBlur={commitName}
-                autoFocus
-                maxLength={24}
-                returnKeyType="done"
-                placeholder="Rider name"
-                placeholderTextColor={colors.textMuted}
-              />
-            ) : (
-              <Pressable
-                onPress={() => setEditingName(true)}
-                style={styles.nameRow}
-                accessibilityRole="button"
-                accessibilityLabel="Edit rider name"
-              >
-                <Text numberOfLines={1} style={styles.name}>{displayName}</Text>
-                <Ionicons name="pencil" size={14} color={colors.textMuted} />
-              </Pressable>
-            )}
-
-            {editingHandle ? (
-              <TextInput
-                style={styles.handleInput}
-                value={handleDraft}
-                onChangeText={setHandleDraft}
-                onSubmitEditing={commitHandle}
-                onBlur={commitHandle}
-                autoFocus
-                maxLength={24}
-                autoCapitalize="none"
-                returnKeyType="done"
-                placeholder="@handle"
-                placeholderTextColor={colors.textMuted}
-              />
-            ) : (
-              <Pressable
-                onPress={() => setEditingHandle(true)}
-                style={styles.handleRow}
-                accessibilityRole="button"
-                accessibilityLabel="Edit rider handle"
-              >
-                <Text numberOfLines={1} style={styles.handle}>{handle}</Text>
-                <Ionicons name="pencil" size={12} color={colors.textMuted} />
-              </Pressable>
-            )}
-
-            <Text style={styles.caption}>{emailVerified ? 'Email verified' : 'Email verification pending'}</Text>
-            <Text selectable numberOfLines={1} style={styles.riderId}>Rider ID: {riderId}</Text>
+            <Text numberOfLines={1} style={styles.name}>{displayName}</Text>
+            <Text numberOfLines={1} style={styles.handle}>{handle}</Text>
+            <Text selectable numberOfLines={1} style={styles.riderId}>{riderId}</Text>
           </View>
-        </View>
-        <View style={styles.profileSaveStatus} accessibilityLiveRegion="polite">
-          {saving ? <><ActivityIndicator color={colors.accent} size="small" /><Text style={styles.profileSavingText}>Saving profile…</Text></> : null}
-          {profileError ? <><Ionicons name="alert-circle" size={17} color={colors.danger} /><Text style={styles.profileSaveError}>{profileError}</Text><Pressable onPress={clearProfileError} hitSlop={8}><Ionicons name="close" size={18} color={colors.textMuted} /></Pressable></> : null}
-        </View>
-
-        <View style={styles.sectionLabelRow}>
-          <Ionicons name="share-social-outline" size={14} color={colors.textMuted} />
-          <Text style={[styles.sectionLabel, styles.sectionLabelInRow]}>Social profiles</Text>
-        </View>
-        <View style={[styles.section, elevation.raised]}>
-          <SocialRow label="Instagram" icon="logo-instagram" username={instagramUsername} visibility={instagramVisibility} onUsername={setInstagramUsername} onVisibility={setInstagramVisibility}/>
-          <SocialRow label="TikTok" icon="logo-tiktok" username={tiktokUsername} visibility={tiktokVisibility} onUsername={setTiktokUsername} onVisibility={setTiktokVisibility}/>
-        </View>
-
-        <View style={styles.sectionLabelRow}>
-          <Ionicons name="card-outline" size={14} color={colors.textMuted} />
-          <Text style={[styles.sectionLabel, styles.sectionLabelInRow]}>Billing</Text>
-        </View>
-        <Pressable
-          style={({ pressed }) => [styles.section, styles.billingRow, elevation.raised, pressed && styles.tierRowPressed]}
-          onPress={() => navigation.navigate('Billing')}
-        >
-          <View style={styles.billingPlanBadge}>
-            <MaterialCommunityIcons name="motorbike" size={18} color={colors.accent} />
-          </View>
-          <View style={styles.billingInfo}>
-            <Text style={styles.billingPlanName}>{PLAN_INFO[zoneTier].name} plan</Text>
-            <Text style={styles.billingPlanPrice}>
-              {PLAN_INFO[zoneTier].priceLabel === 'Free' ? 'No card on file' : `${PLAN_INFO[zoneTier].priceLabel}/mo`}
-            </Text>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+          <Text style={styles.profileEdit}>Edit</Text>
         </Pressable>
 
-        <View style={styles.sectionLabelRow}>
-          <Ionicons name="navigate-outline" size={14} color={colors.textMuted} />
-          <Text style={[styles.sectionLabel, styles.sectionLabelInRow]}>Navigation</Text>
-        </View>
-        <View accessibilityRole="radiogroup" style={[styles.section, elevation.raised]}>
-          {NAVIGATION_PROVIDER_OPTIONS.map((option) => (
-            <NavigationProviderRow
-              key={option.id}
-              provider={option.id}
-              selected={navigationProvider === option.id}
-              onSelect={() => setNavigationProvider(option.id)}
-            />
-          ))}
-        </View>
-
-        <View style={styles.sectionLabelRow}>
-          <MaterialCommunityIcons name="ruler" size={14} color={colors.textMuted} />
-          <Text style={[styles.sectionLabel, styles.sectionLabelInRow]}>Units</Text>
-        </View>
-        <View style={[styles.section, elevation.raised]}>
-          {loaded &&
-            UNIT_ORDER.map((unit) => (
-              <UnitRow key={unit} unit={unit} selected={unitSystem === unit} onSelect={() => setUnitSystem(unit)} />
-            ))}
-        </View>
-
-        <View style={styles.sectionLabelRow}>
-          <Ionicons name="notifications-outline" size={14} color={colors.textMuted} />
-          <Text style={[styles.sectionLabel, styles.sectionLabelInRow]}>Notifications</Text>
-        </View>
-        <View style={[styles.section, elevation.raised]}>
-          <ToggleRow
-            icon="people-outline"
-            label="Nearby riders"
-            value={notifyNearby}
-            onValueChange={setNotifyNearby}
-          />
-          <ToggleRow
-            icon="mail-open-outline"
-            label="Ride invites"
-            value={notifyInvites}
-            onValueChange={setNotifyInvites}
-          />
-          <ToggleRow
-            icon="chatbubble-ellipses-outline"
-            label="Group chat messages"
-            value={notifyChat}
-            onValueChange={setNotifyChat}
-          />
-        </View>
-
-        <View style={styles.sectionLabelRow}>
-          <Ionicons name="lock-closed-outline" size={14} color={colors.textMuted} />
-          <Text style={[styles.sectionLabel, styles.sectionLabelInRow]}>Privacy</Text>
-        </View>
-        <View style={[styles.section, elevation.raised]}>
-          <ToggleRow
-            icon="location-outline"
-            label="Share my location while riding"
-            value={shareLocation}
-            onValueChange={setShareLocation}
-            caption="Other riders in your zone can see your position on the map."
-          />
-        </View>
-
-        <Pressable style={styles.legalRow} onPress={() => navigation.navigate('Legal')}>
-          <Ionicons name="shield-checkmark-outline" size={20} color={colors.accent}/>
-          <View style={styles.legalInfo}><Text style={styles.aboutLabel}>Privacy, safety & terms</Text><Text style={styles.aboutValue}>Data choices, rider conduct and riding safety</Text></View>
-          <Ionicons name="chevron-forward" size={20} color={colors.textMuted}/>
-        </Pressable>
-
-        <View style={styles.sectionLabelRow}>
-          <Ionicons name="phone-portrait-outline" size={14} color={colors.textMuted} />
-          <Text style={[styles.sectionLabel, styles.sectionLabelInRow]}>Signed-in devices</Text>
-        </View>
-        <View style={[styles.section, elevation.raised]}>
-          {sessions.map((session) => (
-            <View key={session.id} style={styles.sessionRow}>
-              <View style={styles.sessionInfo}>
-                <Text style={styles.aboutLabel}>{session.deviceName}</Text>
-                <Text style={styles.aboutValue}>{session.current ? 'This device' : `Active ${new Date(session.lastSeenAt).toLocaleDateString()}`}</Text>
-              </View>
-              {!session.current && (
-                <Pressable accessibilityRole="button" accessibilityLabel={`Sign out ${session.deviceName}`} onPress={() => void revokeSession(session.id)} style={styles.sessionRevoke}>
-                  <Text style={styles.sessionRevokeText}>Sign out</Text>
-                </Pressable>
-              )}
-            </View>
-          ))}
-          {sessions.length === 0 && <Text style={styles.sessionEmpty}>{sessionsError ?? 'No account sessions found.'}</Text>}
-          {sessionsError && sessions.length > 0 && <Text style={styles.sessionEmpty}>{sessionsError}</Text>}
-        </View>
-
-        <Text style={styles.sectionLabel}>Advanced</Text>
-        <View style={styles.section}>
-          <Pressable
-            style={({ pressed }) => [styles.dangerButton, pressed && styles.dangerButtonPressed]}
-            onPress={confirmReset}
-          >
-            <Ionicons name="trash-outline" size={18} color={colors.danger} />
-            <Text style={styles.dangerButtonText}>Reset app data</Text>
-          </Pressable>
-          <Pressable
-            style={({ pressed }) => [styles.dangerButton, styles.deleteAccountButton, pressed && styles.dangerButtonPressed]}
-            onPress={confirmLogOut}
-          >
-            <Ionicons name="log-out-outline" size={18} color={colors.danger} />
-            <Text style={styles.dangerButtonText}>Log out</Text>
-          </Pressable>
-          <Pressable
-            style={({ pressed }) => [styles.dangerButton, styles.deleteAccountButton, pressed && styles.dangerButtonPressed]}
-            onPress={confirmDeleteAccount}
-          >
-            <Ionicons name="person-remove-outline" size={18} color={colors.danger} />
-            <Text style={styles.dangerButtonText}>Delete account</Text>
-          </Pressable>
-        </View>
-
-        <Text style={styles.sectionLabel}>About</Text>
-        <View style={styles.section}>
-          <View style={styles.aboutRow}>
-            <Text style={styles.aboutLabel}>Version</Text>
-            <Text style={styles.aboutValue}>{appVersion}</Text>
+        {(saving || profileError) ? (
+          <View style={styles.profileSaveStatus} accessibilityLiveRegion="polite">
+            {saving ? <><ActivityIndicator color={colors.accent} size="small" /><Text style={styles.profileSavingText}>Saving profile…</Text></> : null}
+            {profileError ? <><Ionicons name="alert-circle" size={17} color={colors.danger} /><Text style={styles.profileSaveError}>{profileError}</Text><Pressable onPress={clearProfileError} hitSlop={8}><Ionicons name="close" size={18} color={colors.textMuted} /></Pressable></> : null}
           </View>
+        ) : null}
+
+        <Text style={styles.sectionLabel}>Account</Text>
+        <View style={styles.settingsGroup}>
+          <SettingsRow icon="person-outline" title="Profile" subtitle="Name, handle and connected profiles" onPress={() => setActiveSheet('profile')} />
+          <SettingsRow
+            icon="card-outline"
+            title="Plan and billing"
+            subtitle={PLAN_INFO[zoneTier].name + ' plan · ' + (PLAN_INFO[zoneTier].priceLabel === 'Free' ? 'No card on file' : PLAN_INFO[zoneTier].priceLabel + '/mo')}
+            right={PLAN_INFO[zoneTier].priceLabel === 'Free' ? 'Free' : undefined}
+            onPress={() => navigation.navigate('Billing')}
+          />
+          <SettingsRow icon="settings-outline" title="Signed-in devices" subtitle="Review and revoke account sessions" onPress={() => setActiveSheet('sessions')} />
+          <SettingsRow icon="shield-checkmark-outline" title="Account and data" subtitle="Account deletion and local data" onPress={() => setActiveSheet('account')} />
         </View>
+
+        <Text style={styles.sectionLabel}>Preferences</Text>
+        <View style={styles.settingsGroup}>
+          <SettingsRow icon="location-outline" title="Location and map" subtitle="Location sharing and nearby riders" onPress={() => setActiveSheet('map')} />
+          <SettingsRow icon="navigate-outline" title="Navigation" subtitle={navigationLabel} onPress={() => setActiveSheet('navigation')} />
+          <SettingsRow icon="swap-horizontal-outline" title="Distance units" subtitle={UNIT_LABELS[unitSystem].name} onPress={() => setActiveSheet('units')} />
+          <SettingsRow icon="notifications-outline" title="Notifications" subtitle="Notification preferences" onPress={() => setActiveSheet('notifications')} />
+        </View>
+
+        <Text style={styles.sectionLabel}>Privacy and safety</Text>
+        <View style={styles.settingsGroup}>
+          <SettingsRow icon="shield-checkmark-outline" title="Privacy controls" subtitle="Visibility and social profiles" onPress={() => setActiveSheet('privacy')} />
+          <SettingsRow icon="information-circle-outline" title="Safety" subtitle="Low-distraction and emergency guidance" onPress={() => setActiveSheet('safety')} />
+        </View>
+
+        <View style={[styles.settingsGroup, styles.signOutGroup]}>
+          <SettingsRow icon="log-out-outline" title="Log out" subtitle={'Signed in as ' + riderId} danger onPress={confirmLogOut} />
+        </View>
+
+        <Text style={styles.versionText}>Rider Comms {appVersion} · Native</Text>
       </ScrollView>
 
-      <AvatarPickerModal
-        visible={pickerOpen}
-        currentId={avatarId}
-        onSelect={setAvatarId}
-        onClose={() => setPickerOpen(false)}
-      />
+      <SettingsSheet visible={activeSheet !== null} title={sheetTitle} onClose={() => setActiveSheet(null)}>
+        {activeSheet === 'profile' ? (
+          <>
+            <View style={styles.settingsSheetSection}>
+              <Text style={styles.sheetEyebrow}>Identity</Text>
+              <Text style={styles.fieldLabel}>Avatar</Text>
+              <Pressable
+                style={styles.sheetAvatarRow}
+                onPress={() => {
+                  setActiveSheet(null);
+                  setPickerOpen(true);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Change profile avatar"
+              >
+                <View style={[styles.sheetAvatar, { backgroundColor: avatar.bg }]}>
+                  <MaterialCommunityIcons name={avatar.icon} size={30} color={colors.textPrimary} />
+                </View>
+                <View style={styles.sheetAvatarCopy}>
+                  <Text style={styles.sheetProfileName}>Current avatar</Text>
+                  <Text style={styles.sheetMeta}>Tap to choose another rider icon.</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+              </Pressable>
+              <Text style={styles.fieldLabel}>Display name</Text>
+              <TextInput style={styles.sheetInput} value={nameDraft} onChangeText={setNameDraft} onSubmitEditing={commitName} onBlur={commitName} maxLength={24} returnKeyType="done" placeholder="Rider name" placeholderTextColor={colors.textMuted} />
+              <Text style={styles.fieldLabel}>Rider handle</Text>
+              <TextInput style={styles.sheetInput} value={handleDraft} onChangeText={setHandleDraft} onSubmitEditing={commitHandle} onBlur={commitHandle} maxLength={24} autoCapitalize="none" returnKeyType="done" placeholder="@handle" placeholderTextColor={colors.textMuted} />
+              <Text style={styles.sheetMetaBlock}>{emailVerified ? 'Email verified' : 'Email verification pending'} · {riderId}</Text>
+            </View>
+            <View style={styles.settingsSheetSection}>
+              <Text style={styles.sheetEyebrow}>Connected profiles</Text>
+              <SocialRow label="Instagram" icon="logo-instagram" username={instagramUsername} visibility={instagramVisibility} onUsername={setInstagramUsername} onVisibility={setInstagramVisibility}/>
+              <SocialRow label="TikTok" icon="logo-tiktok" username={tiktokUsername} visibility={tiktokVisibility} onUsername={setTiktokUsername} onVisibility={setTiktokVisibility}/>
+            </View>
+          </>
+        ) : null}
 
+        {activeSheet === 'sessions' ? (
+          <View style={styles.settingsSheetSection}>
+            {sessions.map((session) => (
+              <View key={session.id} style={styles.sessionRow}>
+                <View style={styles.sessionInfo}>
+                  <Text style={styles.aboutLabel}>{session.deviceName}</Text>
+                  <Text style={styles.aboutValue}>{session.current ? 'This device' : 'Active ' + new Date(session.lastSeenAt).toLocaleDateString()}</Text>
+                </View>
+                {!session.current ? <Pressable accessibilityRole="button" accessibilityLabel={'Sign out ' + session.deviceName} onPress={() => void revokeSession(session.id)} style={styles.sessionRevoke}><Text style={styles.sessionRevokeText}>Sign out</Text></Pressable> : null}
+              </View>
+            ))}
+            {sessions.length === 0 ? <Text style={styles.sessionEmpty}>{sessionsError ?? 'No account sessions found.'}</Text> : null}
+            {sessionsError && sessions.length > 0 ? <Text style={styles.sessionEmpty}>{sessionsError}</Text> : null}
+            <Pressable style={styles.sheetSecondaryAction} onPress={() => void loadSessions()}><Text style={styles.sheetSecondaryActionText}>Refresh devices</Text></Pressable>
+          </View>
+        ) : null}
+
+        {activeSheet === 'account' ? (
+          <View style={styles.settingsSheetSection}>
+            <Text style={styles.sheetBodyCopy}>Delete your Rider Comms account and associated data, or reset local app preferences on this device.</Text>
+            <Pressable style={styles.sheetSecondaryAction} onPress={confirmReset}><Text style={styles.sheetSecondaryActionText}>Reset app data</Text></Pressable>
+            <Pressable style={styles.sheetDangerAction} onPress={confirmDeleteAccount}><Text style={styles.sheetDangerActionText}>Delete account</Text></Pressable>
+          </View>
+        ) : null}
+
+        {activeSheet === 'map' ? (
+          <>
+            <View style={styles.settingsSheetSection}>
+              <ToggleRow icon="location-outline" label="Nearby rider visibility" value={shareLocation} onValueChange={setShareLocation} caption="Share your position only after you choose to go live." />
+            </View>
+            <View style={styles.sheetNote}>
+              <Text style={styles.sheetNoteTitle}>Location stays in your control</Text>
+              <Text style={styles.sheetNoteCopy}>Private-ride location is controlled separately inside each ride and remains off unless you explicitly enable it.</Text>
+            </View>
+          </>
+        ) : null}
+
+        {activeSheet === 'navigation' ? (
+          <View accessibilityRole="radiogroup" style={styles.settingsSheetSection}>
+            {NAVIGATION_PROVIDER_OPTIONS.map((option) => <NavigationProviderRow key={option.id} provider={option.id} selected={navigationProvider === option.id} onSelect={() => setNavigationProvider(option.id)} />)}
+          </View>
+        ) : null}
+
+        {activeSheet === 'units' ? (
+          <View style={styles.settingsSheetSection}>
+            {loaded ? UNIT_ORDER.map((unit) => <UnitRow key={unit} unit={unit} selected={unitSystem === unit} onSelect={() => setUnitSystem(unit)} />) : <ActivityIndicator style={styles.sheetLoader} color={colors.accent} />}
+          </View>
+        ) : null}
+
+        {activeSheet === 'notifications' ? (
+          <View style={styles.settingsSheetSection}>
+            <ToggleRow icon="people-outline" label="Nearby riders" value={notifyNearby} onValueChange={setNotifyNearby} />
+            <ToggleRow icon="mail-open-outline" label="Ride invites" value={notifyInvites} onValueChange={setNotifyInvites} />
+            <ToggleRow icon="chatbubble-ellipses-outline" label="Group chat messages" value={notifyChat} onValueChange={setNotifyChat} />
+          </View>
+        ) : null}
+
+        {activeSheet === 'privacy' ? (
+          <>
+            <View style={styles.settingsSheetSection}>
+              <ToggleRow icon="location-outline" label="Live location" value={shareLocation} onValueChange={setShareLocation} caption="Visible to nearby riders only while you are live." />
+            </View>
+            <View style={styles.settingsSheetSection}>
+              <Text style={styles.sheetEyebrow}>Connected profile visibility</Text>
+              <SocialRow label="Instagram" icon="logo-instagram" username={instagramUsername} visibility={instagramVisibility} onUsername={setInstagramUsername} onVisibility={setInstagramVisibility}/>
+              <SocialRow label="TikTok" icon="logo-tiktok" username={tiktokUsername} visibility={tiktokVisibility} onUsername={setTiktokUsername} onVisibility={setTiktokVisibility}/>
+            </View>
+          </>
+        ) : null}
+
+        {activeSheet === 'safety' ? (
+          <>
+            <View style={styles.settingsSheetSection}>
+              <View style={styles.safetyRow}><Ionicons name="speedometer-outline" size={21} color={colors.accent} /><View style={styles.safetyCopyWrap}><Text style={styles.safetyTitle}>Set up while stationary</Text><Text style={styles.safetyCopy}>Complete profile, route and group controls before moving.</Text></View></View>
+              <View style={styles.safetyRow}><Ionicons name="location-outline" size={21} color={colors.accent} /><View style={styles.safetyCopyWrap}><Text style={styles.safetyTitle}>Control your location</Text><Text style={styles.safetyCopy}>Nearby visibility and private-ride sharing can be stopped independently.</Text></View></View>
+              <View style={styles.safetyRow}><Ionicons name="warning-outline" size={21} color={colors.warning} /><View style={styles.safetyCopyWrap}><Text style={styles.safetyTitle}>Not an emergency service</Text><Text style={styles.safetyCopy}>Use the appropriate emergency service when urgent help is needed.</Text></View></View>
+            </View>
+            <Pressable style={styles.sheetSecondaryActionStandalone} onPress={() => { setActiveSheet(null); navigation.navigate('Legal'); }}><Text style={styles.sheetSecondaryActionText}>Privacy, safety & terms</Text></Pressable>
+          </>
+        ) : null}
+      </SettingsSheet>
+
+      <AvatarPickerModal visible={pickerOpen} currentId={avatarId} onSelect={setAvatarId} onClose={() => setPickerOpen(false)} />
       <RideBar />
     </View>
   );
@@ -757,4 +761,46 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
   },
   modalDoneText: { ...type.button, color: colors.accentText },
+  profileAvatar: { width: 58, height: 58, borderRadius: radii.pill, alignItems: 'center', justifyContent: 'center' },
+  profileEdit: { ...type.button, color: colors.accent, fontSize: 14 },
+  settingsGroup: { overflow: 'hidden', backgroundColor: colors.surface, borderRadius: radii.lg, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
+  signOutGroup: { marginTop: spacing.lg },
+  settingRow: { minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.md, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+  settingRowPressed: { backgroundColor: colors.surfaceRaised },
+  settingRowIcon: { width: 22 },
+  settingRowCopy: { flex: 1, minWidth: 0, paddingVertical: spacing.sm },
+  settingRowTitle: { ...type.body, color: colors.textPrimary, fontWeight: '700', fontSize: 15 },
+  settingRowSubtitle: { ...type.caption, color: colors.textSecondary, marginTop: 2, fontSize: 12 },
+  settingRowValue: { ...type.caption, color: colors.textSecondary, fontWeight: '700' },
+  settingRowDanger: { color: colors.danger },
+  versionText: { ...type.caption, color: colors.textMuted, textAlign: 'center', marginTop: spacing.md },
+  settingsSheet: { width: '100%', maxHeight: '86%', backgroundColor: colors.background, borderTopLeftRadius: radii.xl, borderTopRightRadius: radii.xl, borderWidth: StyleSheet.hairlineWidth, borderBottomWidth: 0, borderColor: colors.border, padding: spacing.md },
+  settingsSheetHeader: { minHeight: MIN_TOUCH_TARGET, flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.sm },
+  settingsSheetTitle: { ...type.heading, color: colors.textPrimary, flex: 1 },
+  settingsSheetBody: { gap: spacing.md, paddingBottom: spacing.sm },
+  settingsSheetSection: { overflow: 'hidden', borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: radii.lg, backgroundColor: colors.surface },
+  sheetEyebrow: { ...type.label, color: colors.textMuted, paddingHorizontal: spacing.md, paddingTop: spacing.md, paddingBottom: spacing.xs },
+  fieldLabel: { ...type.caption, color: colors.textSecondary, fontWeight: '700', paddingHorizontal: spacing.md, paddingTop: spacing.md },
+  sheetInput: { ...type.body, color: colors.textPrimary, minHeight: MIN_TOUCH_TARGET, marginHorizontal: spacing.md, marginTop: spacing.xs, paddingHorizontal: spacing.md, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: radii.md, backgroundColor: colors.background },
+  sheetAvatarRow: { minHeight: 76, flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginHorizontal: spacing.md, marginTop: spacing.xs, padding: spacing.sm, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: radii.md, backgroundColor: colors.background },
+  sheetAvatar: { width: 52, height: 52, borderRadius: radii.pill, alignItems: 'center', justifyContent: 'center' },
+  sheetAvatarCopy: { flex: 1, minWidth: 0 },
+  sheetProfileName: { ...type.body, color: colors.textPrimary, fontWeight: '700' },
+  sheetMeta: { ...type.caption, color: colors.textMuted, marginTop: 2 },
+  sheetMetaBlock: { ...type.caption, color: colors.textMuted, margin: spacing.md },
+  sheetBodyCopy: { ...type.body, color: colors.textSecondary, padding: spacing.md, lineHeight: 22 },
+  sheetNote: { padding: spacing.md, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: radii.lg, backgroundColor: colors.surface },
+  sheetNoteTitle: { ...type.body, color: colors.textPrimary, fontWeight: '700' },
+  sheetNoteCopy: { ...type.caption, color: colors.textSecondary, marginTop: spacing.xs, lineHeight: 18 },
+  sheetSecondaryAction: { minHeight: MIN_TOUCH_TARGET, alignItems: 'center', justifyContent: 'center', margin: spacing.md, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: radii.md, backgroundColor: colors.surfaceRaised },
+  sheetSecondaryActionStandalone: { minHeight: MIN_TOUCH_TARGET, alignItems: 'center', justifyContent: 'center', borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: radii.md, backgroundColor: colors.surfaceRaised },
+  sheetSecondaryActionText: { ...type.button, color: colors.textPrimary },
+  sheetDangerAction: { minHeight: MIN_TOUCH_TARGET, alignItems: 'center', justifyContent: 'center', marginHorizontal: spacing.md, marginBottom: spacing.md, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.danger, borderRadius: radii.md, backgroundColor: colors.dangerSurface },
+  sheetDangerActionText: { ...type.button, color: colors.danger },
+  sheetLoader: { margin: spacing.lg },
+  safetyRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md, padding: spacing.md, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+  safetyCopyWrap: { flex: 1, minWidth: 0 },
+  safetyTitle: { ...type.body, color: colors.textPrimary, fontWeight: '700' },
+  safetyCopy: { ...type.caption, color: colors.textSecondary, marginTop: 2 },
+
 });
