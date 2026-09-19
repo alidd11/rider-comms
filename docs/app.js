@@ -2778,7 +2778,7 @@
 
       let position;
       try {
-        position = await currentPosition();
+        position = await currentPublicPresencePosition();
       } catch (error) {
         showToast(locationAccessMessage(error, 'join riders nearby'));
         return;
@@ -2836,6 +2836,32 @@
       nearbyTogglePending = false;
       renderMapStatus();
     }
+  }
+
+  const MAX_PUBLIC_PRESENCE_ACCURACY_METERS = 100;
+  const MAX_REUSED_PRESENCE_FIX_AGE_MS = 15_000;
+
+  function usablePublicPresencePosition(position, now = Date.now()) {
+    if (!position?.coords) return false;
+    const timestamp = Number(position.timestamp);
+    const ageMs = now - timestamp;
+    const accuracyMeters = Number(position.coords.accuracy);
+    return Number.isFinite(position.coords.latitude)
+      && Number.isFinite(position.coords.longitude)
+      && Number.isFinite(timestamp)
+      && Number.isFinite(accuracyMeters)
+      && accuracyMeters >= 0
+      && accuracyMeters <= MAX_PUBLIC_PRESENCE_ACCURACY_METERS
+      && ageMs >= 0
+      && ageMs <= MAX_REUSED_PRESENCE_FIX_AGE_MS;
+  }
+
+  async function currentPublicPresencePosition() {
+    // The high-accuracy movement watcher already owns the map's current fix.
+    // Reuse it when it still satisfies the backend's public-presence privacy
+    // bounds instead of starting a second iOS geolocation request from the tap.
+    if (usablePublicPresencePosition(latestDevicePosition)) return latestDevicePosition;
+    return currentPosition();
   }
 
   function currentPosition() {
