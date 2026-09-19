@@ -129,7 +129,7 @@ Sources:
 - [Accessible Derbyshire — Castleton, Edale & Hope scenic drive](https://www.accessiblederbyshire.org/things-to-do/scenic-drives/castleton-edale-hope/)
 - [Derbyshire County Council — Castleton parking changes](https://www.derbyshire.gov.uk/transport-roads/roads-traffic/parking/castleton-parking-changes/castleton-parking-changes.aspx)
 - [Derbyshire County Council public notice — Winnats Pass closure, 1 October–25 November 2026](https://publicnoticeportal.uk/notice/traffic-and-roads/6aa1f41f9efcd904574c8973)
-- [Curvy Riders — Recommended Roads: 13 Bends](https://www.curvyriders.co.uk/recommended-roads/13-bends-bakewell/)
+- [Curvy Riders — Recommended Roads: 13 Bends](https://www.curvyriders.co.uk/recommended-roads-13-bends-bakewell/)
 - [Derbyshire County Council — motorcycle collisions](https://www.derbyshire.gov.uk/transport-roads/road-safety/motorcycles/motorcycle-collisions/motorcycle-collisions.aspx)
 - [Derbyshire County Council — highway structures](https://www.derbyshire.gov.uk/transport-roads/roads-traffic/road-maintenance/road-improvements/highway-structures/highway-structures.aspx)
 
