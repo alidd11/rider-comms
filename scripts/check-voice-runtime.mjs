@@ -53,7 +53,7 @@ assert.ok(
 );
 assert.match(
   mapScreenSource,
-  /requestCurrentLocation\(false, Location\.Accuracy\.High\)/,
+  /requestCurrentLocation\(false, Location\.Accuracy\.High, false\)/,
   'Nearby Voice presence must request a high-accuracy fix compatible with backend presence validation',
 );
 assert.match(
