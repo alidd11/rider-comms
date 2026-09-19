@@ -90,6 +90,7 @@ async function mockAuthenticatedApi(page, movement = 'stationary', backendOverri
     };
     else if (url.pathname === `/riders/${RIDER_ID}/friend-requests`) body = { incoming: [], outgoing: [] };
     else if (url.pathname === '/hazards/nearby') body = { hazards: [] };
+    else if (url.pathname === '/rides/current') body = { ride: null };
     else if (url.pathname === '/config') body = { googleMapsApiKey: 'visual-test-key' };
     await route.fulfill({
       status: 200,
@@ -477,8 +478,37 @@ test('PWA GPS timeout recovers without another permission request or startup loc
   await expect(page.locator('[data-screen="friends"]')).toHaveClass(/active/);
 });
 
+test('PWA restores server ride consent and clears a removed cached ride on reopen', async ({ page }) => {
+  let currentRide = {
+    rideId: 'ride-reopen-1', code: 'ABCDEF', createdBy: RIDER_ID,
+    memberIds: [RIDER_ID], shareRideLocation: true,
+  };
+  await mockAuthenticatedApi(page, 'stationary', ({ url }) =>
+    url.pathname === '/rides/current' ? { body: { ride: currentRide } } : null);
+  await page.addInitScript(({ riderId, profile }) => {
+    localStorage.setItem(`rider-comms-pwa-v4:${riderId}`, JSON.stringify({
+      screen: 'ride', profile,
+      activeRide: { rideId: 'ride-reopen-1', code: 'OLD123', memberIds: [riderId], shareRideLocation: false },
+    }));
+  }, { riderId: RIDER_ID, profile: PROFILE });
+  await page.goto('/');
+  await expect(page.locator('#rideActiveState')).toBeVisible();
+  await expect(page.locator('#activeRideCode')).toHaveText('ABCDEF');
+  await expect(page.locator('#activeRideLocationConsent')).toBeChecked();
+  currentRide = null;
+  await page.reload();
+  await expect(page.locator('#rideJoinState')).toBeVisible();
+  await expect(page.locator('#rideActiveState')).toBeHidden();
+  const cached = await page.evaluate((id) => JSON.parse(localStorage.getItem(`rider-comms-pwa-v4:${id}`)), RIDER_ID);
+  expect(cached.activeRide).toBeNull();
+});
+
 test('PWA host can remove another rider from a private ride', async ({ page }) => {
-  await mockAuthenticatedApi(page);
+  await mockAuthenticatedApi(page, 'stationary', ({ url }) =>
+    url.pathname === '/rides/current' ? { body: { ride: {
+      rideId: 'ride-visual-1', code: 'ABCDEF', createdBy: RIDER_ID,
+      memberIds: [RIDER_ID, 'rider_guest01'], shareRideLocation: false,
+    } } } : null);
   await page.addInitScript(({ riderId, profile }) => {
     localStorage.setItem(`rider-comms-pwa-v4:${riderId}`, JSON.stringify({
       screen: 'ride',
