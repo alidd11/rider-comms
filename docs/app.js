@@ -1317,7 +1317,7 @@
             if (event.type === 'message' || event.type === 'message_read' || event.type === 'friend_removed' || event.type === 'social_refresh') {
               messageDirty = true;
             }
-            if (event.type === 'message' || event.type === 'message_read') chatDirty = true;
+            if (event.type === 'message' || event.type === 'message_read' || event.type === 'friend_removed') chatDirty = true;
             if (event.type === 'social_refresh' && event.entityId === 'profile' && event.actorRiderId === state.profile.riderId) {
               selfProfileDirty = true;
             }
