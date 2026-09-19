@@ -1257,3 +1257,61 @@ body:has(#sheetBackdrop:not([hidden])) #joinNearbyBtn{opacity:0;pointer-events:n
   #rideJoinState .ride-entry .ride-form{padding-top:7px;padding-bottom:9px}
   #rideJoinState .ride-start-row{margin-top:8px}
 }
+
+
+/* Full-app mockup parity foundation. */
+@media(max-width:699px){
+  .content-screen{background:var(--bg);background-image:none}
+  .content-screen:not(.ride-screen){padding:calc(var(--safe-top) + 18px) max(16px,var(--safe-right)) calc(var(--bottom-nav-height) + 18px) max(16px,var(--safe-left))}
+  .content-screen .page-width{width:100%;max-width:100%}
+  .content-screen .page-header{align-items:center;margin:0 0 13px}
+  .content-screen .page-header h1{font-size:1.68rem;line-height:1;letter-spacing:-.045em}
+  .content-screen .page-header .icon-button{width:40px;min-width:40px;height:40px;border:0;background:transparent}
+  .search-row{height:44px;padding-inline:11px;background:var(--surface);border-color:var(--border-soft)}
+  .settings-page .group-title{margin:14px 2px 6px;font-size:.62rem;letter-spacing:.13em}
+  .settings-page .profile-row{gap:10px;padding:10px;border-color:var(--border-soft);background:var(--surface)}
+  .settings-page .profile-row .avatar-lg{width:46px;height:46px}
+  .settings-page .profile-copy strong{font-size:.86rem}
+  .settings-page .profile-copy span{font-size:.72rem}
+  .settings-page .profile-copy small{display:none}
+  .settings-page .settings-group{border-color:var(--border-soft);box-shadow:none}
+  .settings-page .settings-group>button{min-height:49px;gap:9px;padding:6px 9px}
+  .settings-page .setting-icon{width:30px;height:30px;border:0;background:transparent}
+  .settings-page .settings-group strong{font-size:.78rem}
+  .settings-page .settings-group small{margin-top:1px;font-size:.64rem}
+  .settings-page .settings-signout{margin-top:12px}
+  .settings-page .version{margin-top:13px;font-size:.6rem}
+}
+.bottom-nav>button svg{width:20px;height:20px}
+.bottom-nav>button span{font-size:.62rem;font-weight:700}
+.map-header{top:calc(var(--safe-top) + 10px);left:max(14px,var(--safe-left));right:max(14px,var(--safe-right));gap:8px}
+.map-header .search-slot{min-height:42px;padding-inline:11px;border-color:rgb(255 255 255/.13);background:rgb(9 14 18/.84);box-shadow:none}
+.map-header .avatar-sm{width:42px;height:42px}
+.map-actions{right:max(14px,var(--safe-right));bottom:28px;gap:7px}
+.map-actions .icon-button{width:42px;min-width:42px;height:42px;border-color:rgb(255 255 255/.13);background:rgb(9 14 18/.84);box-shadow:none}
+#joinNearbyBtn{width:54px;min-width:54px;height:54px;margin-top:8px;border-radius:50%;border-color:color-mix(in srgb,var(--accent) 70%,transparent);background:rgb(11 28 35/.9);color:var(--accent)}
+[data-screen="friends"] .search-row{margin-bottom:4px}
+[data-screen="friends"] .friend-row{min-height:58px;gap:10px;padding-block:7px}
+[data-screen="friends"] .friend-row .avatar{width:40px;height:40px}
+[data-screen="friends"] .friend-row .identity strong{font-size:.82rem}
+[data-screen="friends"] .friend-row .identity span{margin-top:2px;font-size:.67rem}
+[data-screen="friends"] .friend-row[data-group-label]{margin-top:27px}
+[data-screen="friends"] .friend-row[data-group-label]::before{top:-20px;font-size:.61rem}
+.friend-profile-card{gap:10px;padding:10px!important}
+.friend-profile-card .avatar{width:52px;height:52px}
+.friend-profile-actions{gap:6px}
+.friend-profile-actions button{min-height:56px;gap:4px;padding:6px}
+.friend-profile-actions strong{font-size:.64rem}
+.friend-detail-list>div{min-height:50px;padding:6px 9px}
+.auth-segmented{width:min(248px,100%);min-height:38px;gap:2px;margin:0 0 11px;padding:2px;border:0;border-radius:var(--radius-lg);background:var(--surface-raised)}
+.auth-segmented button{min-height:34px;border:0;border-radius:var(--radius-sm);font-size:.7rem}
+.auth-segmented button.active{background:var(--surface);box-shadow:inset 0 -2px 0 var(--accent)}
+.auth-screen .auth-field>input,.auth-screen .password-field{min-height:42px;background:var(--surface-raised);border-color:transparent}
+.auth-screen .password-field input{min-height:40px}
+.auth-screen .password-toggle{width:40px;height:40px}
+.auth-submit{min-height:44px}
+.auth-assurance{margin-top:auto;padding:18px 2px max(3px,var(--safe-bottom))}
+@media(prefers-color-scheme:light){
+  .map-header .search-slot,.map-actions .icon-button{background:rgb(247 249 250/.92);border-color:var(--border)}
+  #joinNearbyBtn{background:rgb(213 235 242/.94)}
+}
