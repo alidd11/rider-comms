@@ -3,8 +3,8 @@ import { randomUUID } from 'node:crypto';
 import { isIP } from 'node:net';
 import { SlidingWindowRateLimiter, TIER_RADIUS_MILES, validateScenicRouteInput } from '@rider-comms/shared';
 import type { Difficulty, HazardType, RoadType, Rider, VehicleCategory } from '@rider-comms/shared';
-import { getLiveKitCredentialsFromEnv, mintVoiceToken, proximityRoomName, rideRoomName } from './liveKitToken.ts';
-import type { LiveKitCredentials } from './liveKitToken.ts';
+import { createVoiceRoomAdmin, getLiveKitCredentialsFromEnv, mintVoiceToken, proximityRoomName, rideRoomName } from './liveKitToken.ts';
+import type { LiveKitCredentials, VoiceRoomAdmin } from './liveKitToken.ts';
 import { AuthStore } from './authStore.ts';
 import { RideStore } from './rideStore.ts';
 import { PresenceStore, StaleLocationFixError } from './presenceStore.ts';
@@ -46,6 +46,7 @@ export interface ApiServerOptions {
    * the environment; pass null explicitly (e.g. in tests) to force the
    * "voice not configured" path regardless of the real environment. */
   liveKitCredentials?: LiveKitCredentials | null;
+  voiceRoomAdmin?: VoiceRoomAdmin | null;
   accountDeletionStore?: Pick<AccountDeletionStore, 'deleteRider'>;
   socialRateLimitStore?: Pick<SocialRateLimitStore, 'consume'>;
   socialActivityStore?: Pick<SocialActivityStore, 'touch' | 'getFriendActivity'>;
@@ -181,6 +182,11 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
   const passwordResetLimiter = new SlidingWindowRateLimiter(3, 10 * 60_000);
   const allowedOrigins = new Set(options.allowedOrigins ?? []);
   const liveKitCredentials = 'liveKitCredentials' in options ? options.liveKitCredentials : getLiveKitCredentialsFromEnv();
+  const voiceRoomAdmin = 'voiceRoomAdmin' in options
+    ? options.voiceRoomAdmin
+    : liveKitCredentials
+      ? createVoiceRoomAdmin(liveKitCredentials)
+      : null;
   const accountDeletionStore = options.accountDeletionStore ?? new AccountDeletionStore();
   const socialRateLimitStore = options.socialRateLimitStore ?? new SocialRateLimitStore();
   const socialActivityStore = options.socialActivityStore ?? new SocialActivityStore();
@@ -283,10 +289,20 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
         return sendJson(res, 200, result);
       }
       if (req.method === 'DELETE' && url.pathname === '/auth/me') {
+        if (voiceRoomAdmin) {
+          const targets = await rideStore.getVoiceCleanupTargetsForRider(actorId);
+          try {
+            for (const rideId of targets.hostedRideIds) await voiceRoomAdmin.deleteRoom(rideRoomName(rideId));
+            for (const rideId of targets.memberRideIds) await voiceRoomAdmin.removeParticipant(rideRoomName(rideId), actorId);
+          } catch (error) {
+            console.error('private ride voice cleanup failed before account deletion', error);
+            return sendJson(res, 503, { error: 'voice_cleanup_failed' });
+          }
+        }
         await accountDeletionStore.deleteRider(actorId);
-        // Do not revoke the in-process token until the database transaction
-        // commits. If deletion fails, the rider can retry instead of being
-        // logged out while their durable account and data still exist.
+        // Do not revoke the in-process token until voice cleanup and the
+        // database transaction both commit. If either fails, the rider can
+        // retry instead of being logged out into a split-brain state.
         authStore.forgetRider(actorId);
         return sendJson(res, 200, {});
       }
@@ -297,7 +313,7 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
         const result = await rideStore.joinRide(body.code, actorId, address);
         if (!result.ok) {
           if (result.reason === 'rate_limited') res.setHeader('Retry-After', '60');
-          const status = result.reason === 'rate_limited' ? 429 : result.reason === 'ride_full' ? 409 : 404;
+          const status = result.reason === 'rate_limited' ? 429 : result.reason === 'ride_full' ? 409 : result.reason === 'excluded' ? 403 : 404;
           return sendJson(res, status, { error: result.reason });
         }
         return sendJson(res, 200, { rideId: result.rideId });
@@ -391,10 +407,62 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
       }
       if (s[0] === 'rides' && s[1]) {
         const id = decodeURIComponent(s[1]);
-        if (req.method === 'GET' && s.length === 2) { const r = await rideStore.getRideForMember(id, actorId); return r.ok ? sendJson(res, 200, rideBody(r.ride)) : sendJson(res, r.reason === 'not_found' ? 404 : 403, { error: r.reason }); }
-        if (req.method === 'POST' && s[2] === 'leave') { const r = await rideStore.leaveRide(id, actorId); return r.ok ? sendJson(res, 200, {}) : sendJson(res, r.reason === 'not_found' ? 404 : 403, { error: r.reason }); }
-        if (req.method === 'DELETE' && s.length === 2) { const r = await rideStore.endRide(id, actorId); return r.ok ? sendJson(res, 200, {}) : sendJson(res, r.reason === 'not_found' ? 404 : 403, { error: r.reason }); }
-        if (req.method === 'DELETE' && s[2] === 'members' && s[3]) { const r = await rideStore.removeMember(id, actorId, decodeURIComponent(s[3])); return r.ok ? sendJson(res, 200, rideBody(r.ride)) : sendJson(res, r.reason === 'not_found' ? 404 : 403, { error: r.reason }); }
+        if (req.method === 'GET' && s.length === 2) {
+          const r = await rideStore.getRideForMember(id, actorId);
+          if (!r.ok) return sendJson(res, r.reason === 'not_found' ? 404 : 403, { error: r.reason });
+          if (r.ride.createdBy !== actorId) return sendJson(res, 200, rideBody(r.ride));
+          const codeRecord = await rideStore.getCurrentCode(id);
+          return sendJson(res, 200, {
+            ...rideBody(r.ride),
+            ...(codeRecord ? { code: codeRecord.code, expiresAt: codeRecord.expiresAt } : {}),
+          });
+        }
+        if (req.method === 'POST' && s[2] === 'leave') {
+          const current = await rideStore.getRideForMember(id, actorId);
+          if (!current.ok) return sendJson(res, current.reason === 'not_found' ? 404 : 403, { error: current.reason });
+          if (current.ride.createdBy === actorId) return sendJson(res, 403, { error: 'forbidden' });
+          if (voiceRoomAdmin) {
+            try { await voiceRoomAdmin.removeParticipant(rideRoomName(id), actorId); }
+            catch (error) {
+              console.error('private ride voice cleanup failed before leave', error);
+              return sendJson(res, 503, { error: 'voice_cleanup_failed' });
+            }
+          }
+          const r = await rideStore.leaveRide(id, actorId);
+          return r.ok ? sendJson(res, 200, {}) : sendJson(res, r.reason === 'not_found' ? 404 : 403, { error: r.reason });
+        }
+        if (req.method === 'DELETE' && s.length === 2) {
+          const current = await rideStore.getRideForMember(id, actorId);
+          if (!current.ok) return sendJson(res, current.reason === 'not_found' ? 404 : 403, { error: current.reason });
+          if (current.ride.createdBy !== actorId) return sendJson(res, 403, { error: 'forbidden' });
+          if (voiceRoomAdmin) {
+            try { await voiceRoomAdmin.deleteRoom(rideRoomName(id)); }
+            catch (error) {
+              console.error('private ride voice cleanup failed before ride end', error);
+              return sendJson(res, 503, { error: 'voice_cleanup_failed' });
+            }
+          }
+          const r = await rideStore.endRide(id, actorId);
+          return r.ok ? sendJson(res, 200, {}) : sendJson(res, r.reason === 'not_found' ? 404 : 403, { error: r.reason });
+        }
+        if (req.method === 'DELETE' && s[2] === 'members' && s[3]) {
+          const memberId = decodeURIComponent(s[3]);
+          const current = await rideStore.getRideForMember(id, actorId);
+          if (!current.ok) return sendJson(res, current.reason === 'not_found' ? 404 : 403, { error: current.reason });
+          if (current.ride.createdBy !== actorId || memberId === actorId) return sendJson(res, 403, { error: 'forbidden' });
+          if (!current.ride.memberIds.has(memberId)) return sendJson(res, 403, { error: 'not_member' });
+          if (voiceRoomAdmin) {
+            try { await voiceRoomAdmin.removeParticipant(rideRoomName(id), memberId); }
+            catch (error) {
+              console.error('private ride voice cleanup failed before host removal', error);
+              return sendJson(res, 503, { error: 'voice_cleanup_failed' });
+            }
+          }
+          const r = await rideStore.removeMember(id, actorId, memberId);
+          return r.ok
+            ? sendJson(res, 200, { ...rideBody(r.ride), code: r.codeRecord.code, expiresAt: r.codeRecord.expiresAt })
+            : sendJson(res, r.reason === 'not_found' ? 404 : 403, { error: r.reason });
+        }
         if (req.method === 'PUT' && s[2] === 'location-sharing') {
           const body = await readJsonBody(req);
           if (typeof body.enabled !== 'boolean') return sendJson(res, 400, { error: 'enabled must be a boolean' });
