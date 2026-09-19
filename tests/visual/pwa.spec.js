@@ -226,6 +226,8 @@ test('login baseline matches Rider Comms hierarchy in day and night', async ({ p
 
     await expect(page.locator('#authScreen')).toBeVisible();
     await expect(page.locator('#app')).toBeHidden();
+    await expect(page.locator('#authEyebrow')).toBeVisible();
+    await expect(page.locator('#authEyebrow')).toHaveText('Welcome back');
     await expect(page.locator('#authTitle')).toHaveText('Ready to ride?');
     await expect(page.locator('#authDescription')).toHaveText('Sign in to reconnect with your rides, friends and rider circle.');
     await expect(page.locator('#loginForm')).toBeVisible();
