@@ -3800,6 +3800,10 @@
       const result = await apiFetch('POST', '/auth/login', { username, password, deviceName: 'Rider Comms PWA' });
       saveSession({ riderId: result.riderId, token: result.token });
       applyAuthenticatedIdentity(result.riderId, username);
+      // A newly authenticated rider may already belong to a ride on another
+      // device. Reconcile before enabling ride location or voice in the UI.
+      state.activeRide = null;
+      await refreshActiveRide();
       hideAuthScreen();
       startApp();
       loadProfile();
