@@ -41,7 +41,7 @@ The current draft is deliberately not considered complete. Yorkshire and the Sco
 | B4391 Ffestiniog–Bala side | **Promote to research shortlist** | Supercar Driver describes the B4391 as a favourite driving road and its road character is distinct from the more famous Evo Triangle. Needs final waypoint, image and conditions verification before entering app data. |
 | Evo Triangle, North Wales | **Do not auto-admit because of fame** | It remains an important enthusiast route, but Denbighshire records show average-speed-camera investment and North Wales Police continue targeted motorcycle-safety enforcement. It should only enter with modern framing: scenic/flowing road at the posted limit, not a performance-test fantasy. |
 | Cheddar Gorge, B3135 | **Scenic candidate, not performance-road candidate** | The gorge remains visually distinctive, but Somerset made a 30 mph extension permanent in May 2026. If included, the reason should be scenery and road setting, not speed or aggressive driving. |
-| A32 Meon Valley / A339 Alton–Basingstoke | **Continue researching** | These are repeatedly recommended by South-East riders and would materially improve London/South-East coverage, but current collision, enforcement and temporary-work context deserves a stronger authority check before promotion. |
+| A32 Meon Valley / A339 Alton–Basingstoke | **Deprioritise; A272 is the stronger South-East addition** | The A339 has genuine rider appeal, but the evidence is old and repeatedly paired with warnings about hidden junctions and casualty history; Hampshire Police recorded serious A339 collisions again in January and April 2026. The A32 also had a fatal motorcycle collision near Wickham in February 2026. These single incidents do not by themselves define either whole road, but without a stronger modern route/safety case there is no reason to prefer them over the better-evidenced A272 segment. |
 | Cat and Fiddle / A54-A537 area | **Defer in 2026** | Derbyshire County Council has a 14-week full closure on the A54 Macclesfield Main Road from 27 July to 30 October 2026, with another construction phase planned for spring 2027. Do not publish a flagship Peak District route through active major works. |
 | A272 South Downs / Sussex | **Strong draft: Petersfield–Petworth; hold for works timing** | Rider UK publishes a reproducible 54-mile Petersfield–Maresfield ride and specifically highlights the first Petersfield–Cowdray stretch. Visit Midhurst independently describes the A272 between Petersfield and Petworth as iconic and beautiful, making Petersfield–Midhurst–Petworth the strongest compact Rider Comms segment. The image candidate is a real A272 photograph heading out of Petworth towards Midhurst (Ben Gamble, CC BY-SA 2.0). West Sussex's 2026–27 programme lists A272 resurfacing between Mills Farm Road and Terwick Hill near Rogate as pre-construction, so do not ship until the works date/status is checked. |
 | B1145 Norfolk | **Admitted: Bawdeswell–Gayton** | Motorcycle Sport & Leisure gives a reproducible 17-mile B1145 section from Bawdeswell to Gayton; a July 2026 advanced-rider club report independently praises roughly 20 miles of flowing bends and good surface, while PistonHeads provides independent car-enthusiast corroboration. The selected image is on the B1145 west of Gayton inside the curated corridor. |
@@ -77,6 +77,21 @@ Image candidate: [B4391 approx 3km from Llan Ffestiniog](https://commons.wikimed
 Sources:
 - [Supercar Driver — B4391](https://www.supercar-driver.com/blog/our-favourite-driving-roads-b4391-north-wales)
 - [Best Biking Roads — B4391 Ffestiniog–Arenig](https://www.bestbikingroads.com/motorcycle-roads/united-kingdom/north-wales/ride/b4391-ffestiniog-arenig)
+
+### A32 / A339 South-East screen
+
+The earlier shortlist combined two popular local rider roads without enough modern evidence. That is no longer a good admission path.
+
+- **A339 Alton–Basingstoke:** enthusiast sources describe a genuinely engaging road and explicitly note it can be enjoyable within the posted limits, but they also repeatedly flag hidden entrances/junctions and a serious casualty history. Hampshire Police recorded serious collisions on the A339 in both January and April 2026. Those incidents are not evidence that the entire road is inherently unsafe, but they reinforce the need for a current authority-level route assessment before Rider Comms recommends it.
+- **A32 Meon Valley:** the road remains useful as a connector around West Meon, but Hampshire Police recorded a fatal motorcycle collision near Wickham in February 2026. Current public notices also show continuing works on roads feeding into the A32/West Meon area. There is not enough upside over the A272 to justify rushing it into the catalogue.
+
+Decision: focus South-East expansion on the better-evidenced **A272 Petersfield–Petworth** candidate first, and leave A32/A339 out until a stronger current route/safety case emerges.
+
+Sources:
+- [Best Biking Roads — A339 Alton–Basingstoke](https://www.bestbikingroads.com/motorcycle-roads/united-kingdom/south-east-england/ride/a339-alton-basingstoke)
+- [Hampshire Police — A339 serious collision, April 2026](https://www.hampshire.police.uk/news/hampshire/news/appeals/2026/april/witness-appeal-following-serious-collision-on-a339/)
+- [Hampshire Police — A32 fatal motorcycle collision follow-up, March 2026](https://www.hampshire.police.uk/news/hampshire/news/news/2026/march-2026/tribute-paid-following-death-of-motorcyclist/)
+- [Hampshire County Council — West Meon temporary works](https://www.hants.gov.uk/community/publicnotices/publicnoticedetails?id=22938)
 
 ### Peak District / Midlands screen
 
