@@ -722,6 +722,74 @@
     return `Last seen ${Math.floor(hours / 24)}d ago`;
   }
 
+  async function loadAllFriendPages() {
+    const friends = [];
+    let before;
+    do {
+      const query = new URLSearchParams({ limit: '100' });
+      if (before) query.set('before', before);
+      const page = await apiFetch('GET', `/riders/${encodeURIComponent(state.profile.riderId)}/friends?${query.toString()}`);
+      friends.push(...(Array.isArray(page.friends) ? page.friends : []));
+      before = page.nextCursor || undefined;
+    } while (before);
+    return friends;
+  }
+
+  async function loadAllFriendRequestPages() {
+    const incoming = [];
+    const outgoing = [];
+    const profiles = {};
+    let before;
+    do {
+      const query = new URLSearchParams({ limit: '100' });
+      if (before) query.set('before', before);
+      const page = await apiFetch('GET', `/riders/${encodeURIComponent(state.profile.riderId)}/friend-requests?${query.toString()}`);
+      incoming.push(...(Array.isArray(page.incoming) ? page.incoming : []));
+      outgoing.push(...(Array.isArray(page.outgoing) ? page.outgoing : []));
+      Object.assign(profiles, page.profiles || {});
+      before = page.nextCursor || undefined;
+    } while (before);
+    return { incoming, outgoing, profiles };
+  }
+
+  async function loadAllConversationPages() {
+    const conversations = [];
+    let before;
+    do {
+      const query = new URLSearchParams({ limit: '100' });
+      if (before) query.set('before', before);
+      const page = await apiFetch('GET', `/conversations?${query.toString()}`);
+      conversations.push(...(Array.isArray(page.conversations) ? page.conversations : []));
+      before = page.nextCursor || undefined;
+    } while (before);
+    return conversations;
+  }
+
+  async function refreshFriendActivity() {
+    if (!state.profile.riderId) return;
+    const result = await apiFetch('GET', '/friends/activity').catch(() => ({ activity: [] }));
+    friendActivity = new Map((Array.isArray(result.activity) ? result.activity : []).map((item) => [item.riderId, item]));
+    renderFriends();
+  }
+
+  async function refreshMessageSummaries() {
+    if (!state.profile.riderId) return;
+    const [conversations, unread] = await Promise.all([
+      loadAllConversationPages(),
+      apiFetch('GET', '/messages/unread-count'),
+    ]);
+    conversationSummaries = new Map(conversations.map((conversation) => [conversation.friend.riderId, conversation]));
+    unreadMessageCount = Number.isFinite(unread.unreadCount) ? unread.unreadCount : 0;
+    renderFriends();
+  }
+
+  function syncFriendActivityPolling() {
+    clearInterval(friendActivityTimer);
+    friendActivityTimer = undefined;
+    if (!session) return;
+    friendActivityTimer = setInterval(() => { void refreshFriendActivity(); }, 30_000);
+  }
+
   function renderFriends() {
     const query = $('#friendSearch').value.trim().toLowerCase();
     const friends = state.friends
@@ -735,11 +803,14 @@
     const onlineCount = friends.filter((friend) => friendActivity.get(friend.riderId)?.online === true).length;
     const firstOfflineIndex = friends.findIndex((friend) => friendActivity.get(friend.riderId)?.online !== true);
 
-    $('#requestList').innerHTML = state.requests.map((person) => `<article class="request-row">${avatar(person)}<div class="identity"><strong>${escapeHtml(person.displayName)}</strong><span>${escapeHtml(person.handle)} · ${escapeHtml(person.status)}</span></div><div class="request-actions"><button class="decline" data-decline="${escapeHtml(person.id)}" aria-label="Decline ${escapeHtml(person.displayName)}">×</button><button class="accept" data-accept="${escapeHtml(person.id)}" aria-label="Accept ${escapeHtml(person.displayName)}">✓</button></div></article>`).join('');
+    const incomingRows = state.requests.map((person) => `<article class="request-row">${avatar(person)}<div class="identity"><strong>${escapeHtml(person.displayName)}</strong><span>${escapeHtml(person.handle)} · ${escapeHtml(person.status)}</span></div><div class="request-actions"><button class="decline" data-decline="${escapeHtml(person.id)}" aria-label="Decline ${escapeHtml(person.displayName)}">×</button><button class="accept" data-accept="${escapeHtml(person.id)}" aria-label="Accept ${escapeHtml(person.displayName)}">✓</button></div></article>`).join('');
+    const outgoingRows = outgoingFriendRequests.map((person) => `<article class="request-row">${avatar(person)}<div class="identity"><strong>${escapeHtml(person.displayName)}</strong><span>${escapeHtml(person.handle)} · Pending</span></div><div class="request-actions"><button data-cancel-request="${escapeHtml(person.id)}" aria-label="Cancel request to ${escapeHtml(person.displayName)}">Cancel</button></div></article>`).join('');
+    $('#requestList').innerHTML = incomingRows + outgoingRows;
 
     $('#friendList').innerHTML = friends.map((person, index) => {
       const activity = friendActivity.get(person.riderId);
       const online = activity?.online === true;
+      const unread = conversationSummaries.get(person.riderId)?.unreadCount || 0;
       const groupLabel = index === 0
         ? (online ? `Online (${onlineCount})` : `Offline (${friends.length})`)
         : index === firstOfflineIndex
@@ -748,12 +819,14 @@
       return `<button class="friend-row${online ? ' is-online' : ''}" data-friend="${escapeHtml(person.riderId)}"${groupLabel ? ` data-group-label="${escapeHtml(groupLabel)}"` : ''}>
         <span class="friend-avatar-wrap">${avatar(person)}<i class="friend-presence-dot ${online ? 'online' : 'offline'}" aria-hidden="true"></i></span>
         <span class="identity"><strong>${escapeHtml(person.displayName)}</strong><span class="friend-activity">${escapeHtml(friendActivityLabel(activity))}</span></span>
+        ${unread > 0 ? `<span class="count-badge friend-unread-badge" aria-label="${unread} unread messages">${unread > 99 ? '99+' : unread}</span>` : ''}
         <span class="friend-more" aria-hidden="true">•••</span>
       </button>`;
     }).join('');
     const hasFriends = state.friends.length > 0;
     const hasVisibleFriends = friends.length > 0;
-    const hasRequests = state.requests.length > 0;
+    const requestTotal = state.requests.length + outgoingFriendRequests.length;
+    const hasRequests = requestTotal > 0;
     const empty = $('#friendEmpty');
     $('#requestSection').hidden = !hasRequests;
     $('#friendSection').hidden = !hasVisibleFriends;
@@ -768,13 +841,18 @@
       count.hidden = !hasFriends;
     }
     const requestCount = $('#requestsCountBadge');
-    if (requestCount) requestCount.textContent = String(state.requests.length);
+    if (requestCount) requestCount.textContent = String(requestTotal);
     $('#networkFriendCount').textContent = String(state.friends.length);
-    $('#networkRequestCount').textContent = String(state.requests.length);
+    $('#networkRequestCount').textContent = String(requestTotal);
     const navBadge = $('#friendsNavBadge');
-    if (navBadge) { navBadge.textContent = String(state.requests.length); navBadge.hidden = state.requests.length === 0; }
+    const attentionCount = state.requests.length + unreadMessageCount;
+    if (navBadge) {
+      navBadge.textContent = attentionCount > 99 ? '99+' : String(attentionCount);
+      navBadge.hidden = attentionCount === 0;
+    }
     $$('[data-accept]').forEach((button) => button.addEventListener('click', () => acceptRequest(button.dataset.accept)));
     $$('[data-decline]').forEach((button) => button.addEventListener('click', () => declineRequest(button.dataset.decline)));
+    $$('[data-cancel-request]').forEach((button) => button.addEventListener('click', () => cancelRequest(button.dataset.cancelRequest)));
     $$('[data-friend]').forEach((button) => button.addEventListener('click', () => openFriendProfile(button.dataset.friend)));
   }
 
@@ -1231,17 +1309,27 @@
   async function loadFriendsData() {
     if (!state.profile.riderId) return;
     try {
-      const [friendsResult, requestsResult, activityResult] = await Promise.all([
-        apiFetch('GET', `/riders/${encodeURIComponent(state.profile.riderId)}/friends?limit=100`),
-        apiFetch('GET', `/riders/${encodeURIComponent(state.profile.riderId)}/friend-requests?limit=100`),
+      const [friendsResult, requestsResult, activityResult, conversations, unread] = await Promise.all([
+        loadAllFriendPages(),
+        loadAllFriendRequestPages(),
         apiFetch('GET', '/friends/activity').catch(() => ({ activity: [] })),
+        loadAllConversationPages(),
+        apiFetch('GET', '/messages/unread-count'),
       ]);
-      state.friends = friendsResult.friends.map((friend) => ({ riderId: friend.riderId, displayName: friend.displayName, handle: friend.handle, avatarId: friend.avatarId || 'ember', status: 'Connected' }));
+      state.friends = friendsResult.map((friend) => ({ riderId: friend.riderId, displayName: friend.displayName, handle: friend.handle, avatarId: friend.avatarId || 'ember', status: 'Connected' }));
       friendActivity = new Map((Array.isArray(activityResult.activity) ? activityResult.activity : []).map((item) => [item.riderId, item]));
+      conversationSummaries = new Map(conversations.map((conversation) => [conversation.friend.riderId, conversation]));
+      unreadMessageCount = Number.isFinite(unread.unreadCount) ? unread.unreadCount : 0;
+
       const incoming = requestsResult.incoming.filter((request) => request.status === 'pending');
       state.requests = incoming.map((request) => {
         const profile = requestsResult.profiles?.[request.fromRiderId];
         return { id: request.id, riderId: request.fromRiderId, displayName: profile?.displayName ?? request.fromRiderId, handle: profile?.handle ?? request.fromRiderId, avatarId: profile?.avatarId || 'ember', status: 'Wants to connect' };
+      });
+      const outgoing = requestsResult.outgoing.filter((request) => request.status === 'pending');
+      outgoingFriendRequests = outgoing.map((request) => {
+        const profile = requestsResult.profiles?.[request.toRiderId];
+        return { id: request.id, riderId: request.toRiderId, displayName: profile?.displayName ?? request.toRiderId, handle: profile?.handle ?? request.toRiderId, avatarId: profile?.avatarId || 'ember' };
       });
       persist();
       renderFriends();
@@ -1272,6 +1360,17 @@
       showToast('Request declined.');
     } catch {
       showToast('Could not decline that request. Try again.');
+    }
+  }
+
+  async function cancelRequest(requestId) {
+    try {
+      await apiFetch('DELETE', `/friends/requests/${encodeURIComponent(requestId)}`);
+      outgoingFriendRequests = outgoingFriendRequests.filter((request) => request.id !== requestId);
+      renderFriends();
+      showToast('Request cancelled.');
+    } catch {
+      showToast('Could not cancel that request. Try again.');
     }
   }
 
