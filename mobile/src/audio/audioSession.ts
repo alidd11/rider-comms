@@ -36,6 +36,10 @@ const VOICE_AUDIO_CONFIG: AudioConfiguration = {
     // library's own default staying this way.
     preferredOutputList: ['bluetooth', 'headset', 'speaker', 'earpiece'],
     audioTypeOptions: {
+      // Keep focus management explicit because the custom configuration
+      // replaces LiveKit's preset. The MAY_DUCK request below is what lets
+      // a well-behaved music app continue underneath Rider Comms voice.
+      manageAudioFocus: true,
       audioMode: 'inCommunication',
       audioAttributesUsageType: 'voiceCommunication',
       // Some Android devices only route to a Bluetooth mic (not just the

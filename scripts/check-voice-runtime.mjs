@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const [appConfigSource, appSource, rideBarSource, proximitySource, voiceActivitySource, activeSpeakerSource, mapScreenSource, pwaSource] = await Promise.all([
+const [appConfigSource, appSource, rideBarSource, proximitySource, voiceActivitySource, audioSessionSource, activeSpeakerSource, mapScreenSource, pwaSource] = await Promise.all([
   readFile(new URL('../mobile/app.json', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/App.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/ride/RideBar.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/voice/ProximityVoice.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/audio/useVoiceActivity.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../mobile/src/audio/audioSession.ts', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/voice/ActiveSpeakerBridge.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/screens/MapScreen.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../docs/app.js', import.meta.url), 'utf8'),
@@ -35,6 +36,27 @@ for (const [label, source] of [['private ride', rideBarSource], ['proximity', pr
 const muteIndex = voiceActivitySource.indexOf('await createdTrack.mute();');
 const publishIndex = voiceActivitySource.indexOf('await localParticipant.publishTrack(createdTrack);');
 assert.ok(muteIndex >= 0 && publishIndex > muteIndex, 'Native microphone track must be muted before publication');
+
+assert.match(
+  voiceActivitySource,
+  /SPEAKING_ATTACK_THRESHOLD\s*=\s*0\.035[\s\S]*SPEAKING_RELEASE_THRESHOLD\s*=\s*0\.02[\s\S]*SPEAKING_ATTACK_HOLD_MS\s*=\s*70[\s\S]*RELEASE_HANGTIME_MS\s*=\s*650/,
+  'Native VOX must keep the tuned sensitive gate, hysteresis and anti-spike attack hold',
+);
+assert.match(
+  pwaSource,
+  /VOICE_SPEAKING_ATTACK_THRESHOLD\s*=\s*0\.035[\s\S]*VOICE_SPEAKING_RELEASE_THRESHOLD\s*=\s*0\.02[\s\S]*VOICE_ATTACK_HOLD_MS\s*=\s*70[\s\S]*VOICE_RELEASE_HANGTIME_MS\s*=\s*650/,
+  'PWA VOX must stay aligned with the tuned native sensitivity envelope',
+);
+assert.match(
+  audioSessionSource,
+  /audioCategory:\s*'playAndRecord'[\s\S]*audioCategoryOptions:\s*\[[^\]]*'mixWithOthers'[^\]]*'allowBluetoothA2DP'/,
+  'iOS voice must preserve external music mixing and A2DP output where the selected route supports it',
+);
+assert.match(
+  audioSessionSource,
+  /manageAudioFocus:\s*true[\s\S]*audioFocusMode:\s*'gainTransientMayDuck'/,
+  'Android voice must request ducking focus instead of stopping external music',
+);
 
 assert.match(
   rideBarSource,
