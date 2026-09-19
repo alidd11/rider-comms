@@ -66,6 +66,19 @@ export async function appendSocialEvent(
   return encodeSocialEventCursor(rows[0]?.seq ?? 0);
 }
 
+export async function appendSocialEventForRiders(
+  client: QueryClient,
+  riderIds: readonly string[],
+  type: SocialEventType,
+  actorRiderId: string,
+  entityId: string,
+  createdAt = Date.now(),
+): Promise<void> {
+  for (const riderId of new Set(riderIds)) {
+    await appendSocialEvent(client, riderId, type, actorRiderId, entityId, createdAt);
+  }
+}
+
 function rowToEvent(row: EventRow): SocialEvent {
   return {
     cursor: encodeSocialEventCursor(row.seq),
