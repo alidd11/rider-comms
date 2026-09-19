@@ -247,11 +247,13 @@ export function RideBar({ controlsVisible = true }: { controlsVisible?: boolean 
     : remoteSpeakerNames.length === 1
       ? remoteSpeakerNames[0]
       : `${remoteSpeakerNames[0]} + ${remoteSpeakerNames.length - 1}`;
-  const activeSpeakerLabel = remoteSpeakerSummary
-    ? `${remoteSpeakerSummary} speaking`
-    : talking
-      ? 'You speaking'
-      : null;
+  const activeSpeakerLabel = roomStatus === 'connected'
+    ? remoteSpeakerSummary
+      ? `${remoteSpeakerSummary} speaking`
+      : talking
+        ? 'You speaking'
+        : null
+    : null;
   const voiceLabel = voiceFailure
     ? 'Voice unavailable'
     : roomStatus === 'connected'
