@@ -70,6 +70,9 @@ describe('POST /voice/token', () => {
       const payload = JSON.parse(Buffer.from(body.connections[0].token.split('.')[1], 'base64url').toString('utf8'));
       assert.match(payload.video.room, /^proximity:[a-f0-9]{32}$/);
       assert.equal(payload.video.canSubscribe, true);
+      assert.equal(payload.video.canPublish, true);
+      assert.deepEqual(payload.video.canPublishSources, ['microphone']);
+      assert.equal(payload.video.canPublishData, false);
 
       assert.equal((await postJson(ctx, 'alice', '/blocks', { riderId: 'bob' })).status, 200);
       const blocked = await postJson(ctx, 'alice', '/voice/token', { target: 'channel' });

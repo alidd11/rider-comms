@@ -33,5 +33,9 @@ describe('liveKitToken', () => {
     assert.equal(payload.sub, 'rider_alice');
     assert.equal(payload.video.room, 'ride:abc123');
     assert.equal(payload.video.roomJoin, true);
+    assert.equal(payload.video.canPublish, true);
+    assert.deepEqual(payload.video.canPublishSources, ['microphone']);
+    assert.equal(payload.video.canPublishData, false);
+    assert.equal(payload.video.canSubscribe, true);
   });
 });

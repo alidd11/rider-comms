@@ -2,7 +2,7 @@ import * as React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { LiveKitRoom } from '@livekit/react-native';
 import type { ProximityVoiceConnection } from '../api/client';
-import { startVoiceAudioSession, stopVoiceAudioSession } from '../audio/audioSession';
+import { acquireVoiceAudioSession, releaseVoiceAudioSession } from '../audio/audioSession';
 import { LiveKitAudioPriorityBridge } from '../audio/LiveKitAudioPriorityBridge';
 import { useVoiceActivity } from '../audio/useVoiceActivity';
 import { useAuth } from '../auth/AuthContext';
@@ -11,8 +11,8 @@ import { colors, elevation, radii, spacing, type } from '../theme';
 
 const ROSTER_REFRESH_MS = 20_000;
 
-function VoiceActivityBridge(): null {
-  useVoiceActivity(true);
+function VoiceActivityBridge({ onError }: { onError: (message: string) => void }): null {
+  useVoiceActivity(true, onError);
   return null;
 }
 
@@ -29,6 +29,8 @@ export function ProximityVoice({ enabled }: { enabled: boolean }): React.JSX.Ele
   const [connections, setConnections] = React.useState<ProximityVoiceConnection[]>([]);
   const [connectedPeers, setConnectedPeers] = React.useState<Set<string>>(new Set());
   const [error, setError] = React.useState<string | null>(null);
+  const [refreshVersion, setRefreshVersion] = React.useState(0);
+  const [audioSessionReady, setAudioSessionReady] = React.useState(false);
 
   React.useEffect(() => {
     if (!active) {
@@ -58,19 +60,33 @@ export function ProximityVoice({ enabled }: { enabled: boolean }): React.JSX.Ele
     void refresh();
     const timer = setInterval(() => void refresh(), ROSTER_REFRESH_MS);
     return () => { cancelled = true; clearInterval(timer); };
-  }, [active, client]);
+  }, [active, client, refreshVersion]);
 
+  const needsAudioSession = active && connections.length > 0;
   React.useEffect(() => {
-    if (!active || connections.length === 0) return;
+    if (!needsAudioSession) {
+      setAudioSessionReady(false);
+      return;
+    }
+
     let stopped = false;
-    void startVoiceAudioSession().catch(() => {
-      if (!stopped) setError('Microphone or Bluetooth audio is unavailable.');
-    });
+    setAudioSessionReady(false);
+    void acquireVoiceAudioSession('proximity')
+      .then(() => {
+        if (!stopped) setAudioSessionReady(true);
+      })
+      .catch(() => {
+        if (!stopped) {
+          setAudioSessionReady(false);
+          setError('Microphone or Bluetooth audio is unavailable.');
+        }
+      });
+
     return () => {
       stopped = true;
-      void stopVoiceAudioSession().catch(() => {});
+      void releaseVoiceAudioSession('proximity').catch(() => {});
     };
-  }, [active, connections.length]);
+  }, [needsAudioSession]);
 
   if (!active) return null;
 
@@ -88,25 +104,40 @@ export function ProximityVoice({ enabled }: { enabled: boolean }): React.JSX.Ele
           </Text>
         </View>
       )}
-      {connections.map((connection) => (
-        <LiveKitRoom
-          key={connection.peerId}
-          serverUrl={connection.url}
-          token={connection.token}
-          audio
-          connect
-          onConnected={() => setConnectedPeers((current) => new Set(current).add(connection.peerId))}
-          onDisconnected={() => setConnectedPeers((current) => {
+      {connections.map((connection) => {
+        const retryPeer = () => {
+          setConnectedPeers((current) => {
             const next = new Set(current);
             next.delete(connection.peerId);
             return next;
-          })}
-          onError={() => setError('Could not connect to proximity voice.')}
+          });
+          // Remove the failed credential so the refresh cannot preserve it;
+          // the next authorised roster response will supply a fresh token.
+          setConnections((current) => current.filter((item) => item.peerId !== connection.peerId));
+          setRefreshVersion((version) => version + 1);
+        };
+        return (
+        <LiveKitRoom
+          key={`${connection.peerId}:${connection.token}`}
+          serverUrl={connection.url}
+          token={connection.token}
+          connect={audioSessionReady}
+          onConnected={() => {
+            setError(null);
+            setConnectedPeers((current) => new Set(current).add(connection.peerId));
+          }}
+          onDisconnected={retryPeer}
+          onError={() => {
+            setError('Could not connect to proximity voice.');
+            retryPeer();
+          }}
+          onMediaDeviceFailure={() => setError('Microphone or audio device became unavailable.')}
         >
-          <VoiceActivityBridge />
+          <VoiceActivityBridge onError={(message) => setError(message || 'Microphone is unavailable.')} />
           <LiveKitAudioPriorityBridge sourceId={`proximity:${connection.peerId}`} />
         </LiveKitRoom>
-      ))}
+        );
+      })}
     </View>
   );
 }

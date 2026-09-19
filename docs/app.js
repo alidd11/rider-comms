@@ -1312,7 +1312,7 @@
     button.disabled = true;
     button.textContent = 'Creating…';
     try {
-      await preflightMicrophoneAccess();
+      if (!(await preflightMicrophoneAccess())) return;
       const shareRideLocation = $('#hostRideLocationConsent').checked;
       const result = await apiFetch('POST', '/rides', {});
       state.activeRide = { rideId: result.rideId, code: result.code, isHost: true, createdBy: result.createdBy, memberIds: result.memberIds, shareRideLocation: false };
@@ -1342,7 +1342,7 @@
     button.disabled = true;
     button.textContent = 'Joining…';
     try {
-      await preflightMicrophoneAccess();
+      if (!(await preflightMicrophoneAccess())) return;
       const shareRideLocation = $('#joinRideLocationConsent').checked;
       const joined = await apiFetch('POST', '/rides/join', { code });
       const ride = await apiFetch('GET', `/rides/${encodeURIComponent(joined.rideId)}`);
@@ -1794,6 +1794,8 @@
   let liveKitLoadPromise;
   let microphonePermissionReady = false;
   let voiceFailureNotified = false;
+  let voiceReconnectTimer;
+  const intentionalVoiceDisconnects = new WeakSet();
 
   const VOICE_SPEAKING_THRESHOLD = 0.06; // same starting point as mobile's SPEAKING_VOLUME_THRESHOLD — unverified against real riding noise
   const VOICE_RELEASE_HANGTIME_MS = 500;
@@ -1847,6 +1849,49 @@
       document.head.appendChild(script);
     });
     return liveKitLoadPromise;
+  }
+
+  function currentVoiceTarget() {
+    return state.activeRide ? `ride:${state.activeRide.rideId}` : state.publicLive ? 'channel' : undefined;
+  }
+
+  function disconnectManagedVoiceRoom(room) {
+    if (!room) return;
+    intentionalVoiceDisconnects.add(room);
+    void room.disconnect().catch(() => {});
+  }
+
+  function scheduleVoiceReconnect(targetKey) {
+    if (!targetKey || voiceReconnectTimer || !microphonePermissionReady) return;
+    voiceReconnectTimer = setTimeout(() => {
+      voiceReconnectTimer = undefined;
+      if (currentVoiceTarget() !== targetKey) return;
+      syncVoiceConnection();
+    }, 2000);
+  }
+
+  function wireVoiceRoomLifecycle(room, targetKey, peerId) {
+    const events = window.LivekitClient?.RoomEvent;
+    if (!events?.Disconnected) return;
+
+    room.on(events.Reconnected, () => {
+      voiceFailureNotified = false;
+      renderVoiceStatus();
+    });
+    room.on(events.Disconnected, () => {
+      if (intentionalVoiceDisconnects.has(room)) return;
+
+      if (peerId) {
+        if (proximityVoiceRooms.get(peerId) === room) proximityVoiceRooms.delete(peerId);
+      } else if (voiceRoom === room) {
+        voiceRoom = undefined;
+        if (voiceTargetKey === targetKey) voiceTargetKey = undefined;
+      }
+
+      if (!voiceRoom && !proximityVoiceRooms.size) stopVoiceLevelLoop();
+      renderVoiceStatus();
+      scheduleVoiceReconnect(targetKey);
+    });
   }
 
   /**
@@ -1961,9 +2006,10 @@
         const desiredPeers = new Set(response.connections.map((connection) => connection.peerId));
         for (const [peerId, existingRoom] of proximityVoiceRooms) {
           if (desiredPeers.has(peerId)) continue;
-          void existingRoom.disconnect();
+          disconnectManagedVoiceRoom(existingRoom);
           proximityVoiceRooms.delete(peerId);
         }
+        let lastPairError;
         for (const connection of response.connections) {
           if (proximityVoiceRooms.has(connection.peerId)) continue;
           const pairRoom = new window.LivekitClient.Room();
@@ -1971,11 +2017,14 @@
             await pairRoom.connect(connection.url, connection.token);
             await pairRoom.localParticipant.setMicrophoneEnabled(voiceIsSpeaking && !voiceManuallyMuted);
             proximityVoiceRooms.set(connection.peerId, pairRoom);
+            wireVoiceRoomLifecycle(pairRoom, 'channel', connection.peerId);
           } catch (error) {
-            void pairRoom.disconnect();
-            throw error;
+            lastPairError = error;
+            disconnectManagedVoiceRoom(pairRoom);
+            console.warn('[rider-comms] Could not connect proximity peer', connection.peerId, error);
           }
         }
+        if (response.connections.length > 0 && proximityVoiceRooms.size === 0 && lastPairError) throw lastPairError;
         voiceTargetKey = 'channel';
         if (enteringChannel) voiceManuallyMuted = false;
       } else {
@@ -1984,6 +2033,7 @@
         await room.localParticipant.setMicrophoneEnabled(false);
         voiceRoom = room;
         voiceTargetKey = `ride:${rideId}`;
+        wireVoiceRoomLifecycle(room, voiceTargetKey);
         voiceManuallyMuted = false;
       }
       microphonePermissionReady = true;
@@ -2003,7 +2053,7 @@
       // room connected fine but the second meter-stream getUserMedia call
       // failed) rather than leaking a live, published connection nothing
       // still references.
-      if (room) void room.disconnect();
+      if (room) disconnectManagedVoiceRoom(room);
       if (kind === 'ride') {
         voiceRoom = undefined;
         voiceTargetKey = undefined;
@@ -2023,8 +2073,9 @@
 
   function disconnectVoice() {
     stopVoiceLevelLoop();
-    if (voiceRoom) { void voiceRoom.disconnect(); voiceRoom = undefined; }
-    for (const room of proximityVoiceRooms.values()) void room.disconnect();
+    if (voiceReconnectTimer) { clearTimeout(voiceReconnectTimer); voiceReconnectTimer = undefined; }
+    if (voiceRoom) { disconnectManagedVoiceRoom(voiceRoom); voiceRoom = undefined; }
+    for (const room of proximityVoiceRooms.values()) disconnectManagedVoiceRoom(room);
     proximityVoiceRooms.clear();
     voiceTargetKey = undefined;
     renderVoiceStatus();
@@ -2091,6 +2142,7 @@
       showToast('You are no longer visible nearby.');
       return;
     }
+    if (!(await preflightMicrophoneAccess())) return;
     let position;
     try {
       position = await currentPosition();

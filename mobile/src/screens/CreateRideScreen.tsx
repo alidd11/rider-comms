@@ -7,6 +7,7 @@ import { useAuth } from '../auth/AuthContext';
 import { colors, spacing, radii, type, elevation, MIN_TOUCH_TARGET } from '../theme';
 import { useRide } from '../ride/RideContext';
 import { useMovementSafety } from '../safety/MovementSafetyContext';
+import { microphoneErrorMessage, preflightVoiceMicrophone } from '../audio/microphone';
 import { RideSafeSurface } from '../safety/RideSafeSurface';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'CreateRide'>;
@@ -27,6 +28,12 @@ function CreateRideScreenContent({ navigation }: Props): React.JSX.Element {
     setLoading(true);
     setError(null);
     try {
+      try {
+        await preflightVoiceMicrophone();
+      } catch (microphoneError) {
+        setError(microphoneErrorMessage(microphoneError));
+        return;
+      }
       const { rideId, code } = await client.createRide();
       await startRide({ rideId, code, isHost: true }, shareRideLocation);
       navigation.goBack();
