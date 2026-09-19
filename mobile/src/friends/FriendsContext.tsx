@@ -182,7 +182,7 @@ export function FriendsProvider({ children }: { children: React.ReactNode }): Re
             for (const event of page.events) {
               networkDirty ||= socialEventNeedsNetworkRefresh(event);
               messagesDirty ||= socialEventNeedsMessageRefresh(event);
-              revisionDirty ||= event.type === 'message' || event.type === 'message_read' || event.type === 'social_refresh';
+              revisionDirty ||= event.type === 'message' || event.type === 'message_read' || event.type === 'friend_removed' || event.type === 'social_refresh';
             }
             cursor = page.cursor;
             if (!page.hasMore || stopped) break;
