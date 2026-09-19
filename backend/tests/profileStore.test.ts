@@ -70,6 +70,22 @@ describe('ProfileStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping
     }
   });
 
+  it('preserves unrelated fields across concurrent partial updates', async () => {
+    const store = new ProfileStore();
+    await store.getOrCreate('rider-1');
+
+    const [nameResult, socialResult] = await Promise.all([
+      store.update('rider-1', { displayName: 'Parallel Rider' }),
+      store.update('rider-1', { instagramUsername: 'parallel_rides' }),
+    ]);
+    assert.equal(nameResult.ok, true);
+    assert.equal(socialResult.ok, true);
+
+    const profile = await store.getOrCreate('rider-1');
+    assert.equal(profile.displayName, 'Parallel Rider');
+    assert.equal(profile.instagramUsername, 'parallel_rides');
+  });
+
   it('rejects an invalid zoneTier without applying anything', async () => {
     const store = new ProfileStore();
     const result = await store.update('rider-1', { zoneTier: 'gold' as never });
