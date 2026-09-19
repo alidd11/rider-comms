@@ -19,7 +19,7 @@ describe('RideStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping Po
   });
 
   beforeEach(async () => {
-    await getPool().query('TRUNCATE rides, ride_members, ride_codes, ride_locations');
+    await getPool().query('TRUNCATE ride_exclusions, ride_locations, ride_members, ride_codes, rides');
   });
 
   after(async () => {
@@ -122,6 +122,43 @@ describe('RideStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping Po
       [ride.id, 'guest']
     );
     assert.equal(count.rows[0]?.count, '0');
+  });
+
+  it('rotates the invite and permanently excludes a host-removed rider from that ride', async () => {
+    const store = new RideStore(1000, 60_000);
+    const { ride, codeRecord } = await store.createRide('host');
+    assert.equal((await store.joinRide(codeRecord.code, 'guest', '3.3.3.3')).ok, true);
+
+    const removed = await store.removeMember(ride.id, 'host', 'guest');
+    assert.equal(removed.ok, true);
+    if (!removed.ok) return;
+
+    assert.notEqual(removed.codeRecord.code, codeRecord.code);
+    assert.equal((await store.getCurrentCode(ride.id))?.code, removed.codeRecord.code);
+    assert.deepEqual(
+      await store.joinRide(codeRecord.code, 'other-rider', '3.3.3.4'),
+      { ok: false, reason: 'invalid_or_expired' },
+    );
+    assert.deepEqual(
+      await store.joinRide(removed.codeRecord.code, 'guest', '3.3.3.3'),
+      { ok: false, reason: 'excluded' },
+    );
+    assert.equal((await store.joinRide(removed.codeRecord.code, 'other-rider', '3.3.3.4')).ok, true);
+
+    const exclusion = await getPool().query<{ count: string }>(
+      'SELECT COUNT(*)::text AS count FROM ride_exclusions WHERE ride_id = $1 AND rider_id = $2',
+      [ride.id, 'guest'],
+    );
+    assert.equal(exclusion.rows[0]?.count, '1');
+  });
+
+  it('does not rotate a ride code when the host targets someone who is not a current member', async () => {
+    const store = new RideStore();
+    const { ride, codeRecord } = await store.createRide('host');
+
+    const result = await store.removeMember(ride.id, 'host', 'stranger');
+    assert.deepEqual(result, { ok: false, reason: 'not_member' });
+    assert.equal((await store.getCurrentCode(ride.id))?.code, codeRecord.code);
   });
 
   it('does not return or retain stale ride locations', async () => {
