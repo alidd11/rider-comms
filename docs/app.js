@@ -896,8 +896,6 @@
     });
   }
 
-  const MESSAGE_POLL_INTERVAL_MS = 10000;
-
   function formatMessageTime(value) {
     const date = new Date(value);
     return Number.isFinite(date.getTime()) ? date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
@@ -1071,7 +1069,13 @@
     messages.innerHTML = chatMessages.map((message) => {
       const mine = message.fromRiderId === state.profile.riderId;
       const failed = mine && message.status === 'failed';
-      const status = message.status === 'pending' ? '<small>Sending…</small>' : failed ? '<small>Failed — tap to retry</small>' : '';
+      const status = message.status === 'pending'
+        ? '<small>Sending…</small>'
+        : failed
+          ? '<small>Failed — tap to retry</small>'
+          : mine && message.id === chatPeerReadThroughMessageId
+            ? '<small>Read</small>'
+            : '';
       const body = `<span>${escapeHtml(message.text)}</span><time>${escapeHtml(formatMessageTime(message.createdAt))}</time>${status}`;
       return failed
         ? `<button class="chat-bubble-row mine" data-retry-message="${escapeHtml(message.id)}" aria-label="Message failed. Retry sending."><span class="chat-bubble failed">${body}</span></button>`
@@ -1110,6 +1114,11 @@
         : window.RiderMessageState.reconcile(chatMessages, page.messages);
       if (older) chatHasLoadedOlder = true;
       if (!chatHasLoadedOlder || older) chatNextCursor = page.nextCursor;
+      chatPeerReadThroughMessageId = page.peerReadThroughMessageId || null;
+      if (!older) {
+        await apiFetch('POST', '/messages/read', { withRiderId: riderId });
+        await refreshMessageSummaries();
+      }
       setChatError('');
       renderChat();
       if (!older) requestAnimationFrame(() => { $('#chatThread').scrollTop = $('#chatThread').scrollHeight; });
@@ -1120,13 +1129,6 @@
       chatLoading = false;
       renderChat();
     }
-  }
-
-  function syncChatPolling() {
-    clearInterval(chatPollTimer);
-    chatPollTimer = undefined;
-    if (!activeChat || document.visibilityState !== 'visible') return;
-    chatPollTimer = setInterval(() => void loadChatMessages(), MESSAGE_POLL_INTERVAL_MS);
   }
 
   function openChat(friend) {
@@ -1140,6 +1142,7 @@
     chatMessages = [];
     chatNextCursor = null;
     chatHasLoadedOlder = false;
+    chatPeerReadThroughMessageId = null;
     chatHideouts = [];
     chatHideoutsLoading = false;
     chatHideoutError = '';
@@ -1157,7 +1160,6 @@
     syncViewportEnvironment();
     setChatError('');
     renderChat();
-    syncChatPolling();
     history.pushState({ screen: 'friends', chat: friend.riderId }, '', '#friends/chat');
     document.title = `${friend.displayName} · Rider Comms`;
     void loadChatMessages({ showLoading: true });
@@ -1166,12 +1168,11 @@
 
   function closeChat({ restoreFocus = true } = {}) {
     if (!activeChat) return;
-    clearInterval(chatPollTimer);
-    chatPollTimer = undefined;
     activeChat = null;
     chatMessages = [];
     chatNextCursor = null;
     chatHasLoadedOlder = false;
+    chatPeerReadThroughMessageId = null;
     chatHideouts = [];
     chatHideoutsLoading = false;
     chatHideoutError = '';
@@ -1277,6 +1278,79 @@
       error.textContent = 'Could not block that rider. Check your connection and try again.';
       error.hidden = false;
     }
+  }
+
+  const SOCIAL_EVENT_RETRY_MS = 2000;
+
+  function waitForSocialRetry(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  async function runSocialEventLoop(generation) {
+    while (session && generation === socialEventGeneration) {
+      try {
+        if (!socialEventCursor) {
+          const baseline = await apiFetch('GET', '/social/events?limit=100&waitMs=0');
+          if (generation !== socialEventGeneration) return;
+          socialEventCursor = baseline.cursor;
+          await loadFriendsData();
+        }
+
+        let page = await apiFetch(
+          'GET',
+          `/social/events?after=${encodeURIComponent(socialEventCursor)}&limit=100&waitMs=25000`,
+          undefined,
+          30_000,
+        );
+        if (generation !== socialEventGeneration) return;
+
+        let networkDirty = false;
+        let messageDirty = false;
+        let chatDirty = false;
+        let selfProfileDirty = false;
+
+        while (true) {
+          for (const event of Array.isArray(page.events) ? page.events : []) {
+            if (event.type === 'friend_request' || event.type === 'friend_request_resolved' || event.type === 'friend_removed' || event.type === 'social_refresh') {
+              networkDirty = true;
+            }
+            if (event.type === 'message' || event.type === 'message_read' || event.type === 'friend_removed' || event.type === 'social_refresh') {
+              messageDirty = true;
+            }
+            if (event.type === 'message' || event.type === 'message_read') chatDirty = true;
+            if (event.type === 'social_refresh' && event.entityId === 'profile' && event.actorRiderId === state.profile.riderId) {
+              selfProfileDirty = true;
+            }
+          }
+          socialEventCursor = page.cursor || socialEventCursor;
+          if (!page.hasMore || generation !== socialEventGeneration) break;
+          page = await apiFetch(
+            'GET',
+            `/social/events?after=${encodeURIComponent(socialEventCursor)}&limit=100&waitMs=0`,
+          );
+        }
+
+        if (generation !== socialEventGeneration) return;
+        if (selfProfileDirty) await loadProfile();
+        if (networkDirty) await loadFriendsData();
+        else if (messageDirty) await refreshMessageSummaries();
+        if (chatDirty && activeChat) await loadChatMessages();
+      } catch {
+        if (generation !== socialEventGeneration || !session) return;
+        await waitForSocialRetry(SOCIAL_EVENT_RETRY_MS);
+      }
+    }
+  }
+
+  function startSocialEvents() {
+    socialEventGeneration += 1;
+    socialEventCursor = undefined;
+    void runSocialEventLoop(socialEventGeneration);
+  }
+
+  function stopSocialEvents() {
+    socialEventGeneration += 1;
+    socialEventCursor = undefined;
   }
 
   /**
@@ -4473,13 +4547,13 @@
     navigate(location.hash.slice(1) || state.screen || 'map', false);
     loadGoogleMaps();
     registerServiceWorker();
-    loadFriendsData();
+    startSocialEvents();
+    syncFriendActivityPolling();
     // Startup only reconciles saved UI state with the browser. Permission
     // prompts belong to deliberate taps in Settings, never cold launch.
     syncNotificationPreference();
     void initialiseMovementSafety();
     document.addEventListener('visibilitychange', () => {
-      syncChatPolling();
       if (document.visibilityState === 'visible') void initialiseMovementSafety();
       else stopMovementSafetyTracking();
       if (document.visibilityState === 'visible') {
