@@ -294,8 +294,8 @@ test('login baseline matches Rider Comms hierarchy in day and night', async ({ p
     expect(visual.cardBorderWidth).toBe(0);
     expectNear(visual.cardTop, visual.heroBottom);
     expect(visual.assuranceAfterTerms).toBe(true);
-    expect(visual.heroHeight / visual.viewportHeight).toBeGreaterThanOrEqual(0.45);
-    expect(visual.heroHeight / visual.viewportHeight).toBeLessThanOrEqual(0.49);
+    expect(visual.heroHeight).toBeGreaterThanOrEqual(297);
+    expect(visual.heroHeight).toBeLessThanOrEqual(309);
     expect(visual.heroRadius).toBe(0);
     expect(Math.abs(visual.heroTop)).toBeLessThanOrEqual(1);
     expect(Math.abs(visual.heroLeft)).toBeLessThanOrEqual(1);
@@ -379,8 +379,8 @@ test('ride join baseline owns the iPhone top edge in day and night', async ({ pa
     expect(visual.headerHeight).toBeLessThanOrEqual(1);
     expect(visual.titleWidth).toBeLessThanOrEqual(1);
     expect(visual.safeTopShieldDisplay).toBe('none');
-    expect(visual.heroHeight).toBeGreaterThanOrEqual(297);
-    expect(visual.heroHeight).toBeLessThanOrEqual(309);
+    expect(visual.heroHeight / visual.viewportHeight).toBeGreaterThanOrEqual(0.45);
+    expect(visual.heroHeight / visual.viewportHeight).toBeLessThanOrEqual(0.49);
     expect(visual.heroRadius).toBe(0);
     expect(visual.joinTop - (visual.heroTop + visual.heroHeight)).toBeGreaterThanOrEqual(10);
     expect(visual.joinTop - (visual.heroTop + visual.heroHeight)).toBeLessThanOrEqual(14);
