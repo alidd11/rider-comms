@@ -709,6 +709,36 @@ test('PWA restores server ride consent and clears a removed cached ride on reope
   expect(cached.activeRide).toBeNull();
 });
 
+test('PWA resumes consented ride location after its first GPS fix and maps members at real coordinates', async ({ page }) => {
+  let uploads = 0;
+  const other = { riderId: 'rider_guest01', displayName: 'Guest Rider', handle: '@guest_rider' };
+  await mockAuthenticatedApi(page, 'stationary', ({ request, url }) => {
+    if (url.pathname === '/rides/current') return { body: { ride: {
+      rideId: 'ride-reopen-1', code: 'ABCDEF', createdBy: RIDER_ID,
+      memberIds: [RIDER_ID, other.riderId], shareRideLocation: true,
+    } } };
+    if (url.pathname === `/profiles/${other.riderId}`) return { body: other };
+    if (url.pathname === '/rides/ride-reopen-1/location' && request.method() === 'POST') {
+      uploads += 1;
+      return { body: { ok: true } };
+    }
+    if (url.pathname === '/rides/ride-reopen-1/locations') return { body: { locations: [
+      { riderId: other.riderId, lat: 51.51, lon: -0.13, recordedAt: Date.now() },
+    ] } };
+    return null;
+  });
+  await page.goto('/');
+  await expect(page.locator('#activeRideLocationConsent')).toBeChecked();
+  await expect.poll(() => uploads).toBeGreaterThan(0);
+  await expect.poll(() => page.evaluate(() => {
+    const markers = window.__riderCommsTestMarkers || [];
+    return markers.filter((marker) => marker.title === 'Guest Rider').map((marker) => marker.position);
+  })).toContainEqual({ lat: 51.51, lng: -0.13 });
+  const guestPositions = await page.evaluate(() => (window.__riderCommsTestMarkers || [])
+    .filter((marker) => marker.title === 'Guest Rider').map((marker) => marker.position));
+  expect(guestPositions.every((point) => point.lat === 51.51 && point.lng === -0.13)).toBe(true);
+});
+
 test('PWA resumes public presence only after server consent and granted location permission', async ({ page }) => {
   let presenceUpdates = 0;
   await mockAuthenticatedApi(page, 'stationary', ({ url, request }) => {
