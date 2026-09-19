@@ -670,6 +670,7 @@ test('PWA attaches subscribed Nearby Voice audio after Go Live', async ({ page }
         const RoomEvent = {
           TrackSubscribed: 'trackSubscribed',
           TrackUnsubscribed: 'trackUnsubscribed',
+          ActiveSpeakersChanged: 'activeSpeakersChanged',
           Reconnected: 'reconnected',
           Disconnected: 'disconnected',
         };
@@ -701,6 +702,7 @@ test('PWA attaches subscribed Nearby Voice audio after Go Live', async ({ page }
               detach() { return attached.splice(0); },
             };
             this.emit(RoomEvent.TrackSubscribed, track, {}, { identity: 'rider_peer01' });
+            this.emit(RoomEvent.ActiveSpeakersChanged, [{ identity: 'rider_peer01' }]);
           }
           async startAudio() { this.canPlaybackAudio = true; }
           async disconnect() { this.emit(RoomEvent.Disconnected); }
@@ -715,6 +717,8 @@ test('PWA attaches subscribed Nearby Voice audio after Go Live', async ({ page }
 
   await expect.poll(() => page.locator('audio[data-rider-comms-voice="true"]').count()).toBe(1);
   await expect(page.locator('#joinNearbyBtn')).toHaveAttribute('data-active', 'true');
+  await expect(page.locator('#voiceSpeakerStatus')).toBeVisible();
+  await expect(page.locator('#voiceSpeakerStatus')).toHaveText('Peer Rider speaking');
 });
 
 test('PWA pauses saved public presence when current server consent is off', async ({ page }) => {
