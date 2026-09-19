@@ -4,6 +4,7 @@ import { ApiError, type ConversationSummary, type RiderCommsClient } from '../ap
 import { useAuth } from '../auth/AuthContext';
 
 const SOCIAL_EVENT_RETRY_MS = 2_000;
+const SOCIAL_ACTIVITY_POLL_MS = 30_000;
 
 interface FriendsContextValue {
   friends: FriendSummary[];
@@ -113,18 +114,22 @@ export function FriendsProvider({ children }: { children: React.ReactNode }): Re
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
 
+  const refreshActivity = React.useCallback(async () => {
+    const activityRes = await client.getFriendActivity().catch(() => ({ activity: [] }));
+    setActivityByRider(Object.fromEntries(activityRes.activity.map((item) => [item.riderId, item])));
+  }, [client]);
+
   const refreshNetwork = React.useCallback(async () => {
-    const [friendsRes, requestsRes, activityRes] = await Promise.all([
+    const [friendsRes, requestsRes] = await Promise.all([
       loadAllFriends(client, ME),
       loadAllRequests(client, ME),
-      client.getFriendActivity().catch(() => ({ activity: [] })),
     ]);
     setFriends(friendsRes);
     setIncomingRequests(requestsRes.incoming);
     setOutgoingRequests(requestsRes.outgoing);
     setRequestProfiles(requestsRes.profiles);
-    setActivityByRider(Object.fromEntries(activityRes.activity.map((item) => [item.riderId, item])));
-  }, [ME, client]);
+    await refreshActivity();
+  }, [ME, client, refreshActivity]);
 
   const refreshMessages = React.useCallback(async () => {
     const [conversationRes, unreadRes] = await Promise.all([
@@ -145,6 +150,11 @@ export function FriendsProvider({ children }: { children: React.ReactNode }): Re
       setLoading(false);
     }
   }, [refreshMessages, refreshNetwork]);
+
+  React.useEffect(() => {
+    const interval = setInterval(() => { void refreshActivity(); }, SOCIAL_ACTIVITY_POLL_MS);
+    return () => clearInterval(interval);
+  }, [refreshActivity]);
 
   React.useEffect(() => {
     let stopped = false;
