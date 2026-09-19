@@ -80,6 +80,11 @@ export function RideProvider({ children }: { children: React.ReactNode }): React
     try {
       const updated = await client.removeRideMember(activeRide.rideId, id);
       setRoster(updated.memberIds);
+      if (updated.code) {
+        setActiveRide((current) => current?.rideId === activeRide.rideId
+          ? { ...current, code: updated.code }
+          : current);
+      }
       setRideLocations((current) => current.filter((location) => location.riderId !== id));
     } catch {
       // Preserve the server-authoritative roster on failure.
@@ -93,7 +98,14 @@ export function RideProvider({ children }: { children: React.ReactNode }): React
       if (cancelled || AppState.currentState !== 'active') return;
       try {
         const ride = await client.getRide(activeRide.rideId);
-        if (!cancelled) setRoster(ride.memberIds);
+        if (!cancelled) {
+          setRoster(ride.memberIds);
+          if (ride.code) {
+            setActiveRide((current) => current?.rideId === ride.rideId
+              ? { ...current, code: ride.code }
+              : current);
+          }
+        }
       } catch (error) {
         if (!cancelled && error instanceof ApiError && (error.status === 403 || error.status === 404)) {
           setActiveRide(null);
