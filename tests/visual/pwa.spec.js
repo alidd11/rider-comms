@@ -1361,6 +1361,17 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
   expect(await page.evaluate(() => document.documentElement.style.getPropertyValue('--app-vh'))).toBe('100vh');
 });
 
+test('PWA Friends remains usable when realtime transport is temporarily unavailable', async ({ page }) => {
+  await mockAuthenticatedApi(page, 'stationary', ({ url }) => {
+    if (url.pathname === '/social/events') return { status: 503, body: { error: 'temporarily_unavailable' } };
+    return null;
+  });
+  await page.goto('/#friends');
+  await expect(page.locator('#friendList [data-friend]')).toHaveCount(2);
+  await expect(page.locator('#friendList')).toContainText('Maya');
+  await expect(page.locator('#friendList')).toContainText('Jay');
+});
+
 test('PWA preserves backend avatar presets on friend surfaces', async ({ page }) => {
   await mockAuthenticatedApi(page);
   await page.goto('/#friends');
