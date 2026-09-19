@@ -56,7 +56,11 @@ test('PWA shows and clears the remote Nearby Voice active speaker', async ({ pag
         return {
           fftSize: 512,
           frequencyBinCount: 32,
-          getByteTimeDomainData(data) { data.fill(128); },
+          // +/-5 around the midpoint is ~0.039 RMS: below the old 0.06
+          // threshold, but above the tuned 0.035 speech attack threshold.
+          getByteTimeDomainData(data) {
+            for (let index = 0; index < data.length; index += 1) data[index] = index % 2 ? 123 : 133;
+          },
         };
       }
       close() { return Promise.resolve(); }
@@ -144,6 +148,9 @@ test('PWA shows and clears the remote Nearby Voice active speaker', async ({ pag
 
   await page.goto('/');
   await page.locator('#joinNearbyBtn').click();
+
+  const localVoiceButton = page.locator('#voiceStatusBtn');
+  await expect(localVoiceButton).toHaveAttribute('aria-label', 'Talking');
 
   const speakerChip = page.locator('#voiceSpeakerChip');
   await expect(speakerChip).toBeVisible();
