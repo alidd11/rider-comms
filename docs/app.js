@@ -1919,6 +1919,7 @@
   let voiceFailureNotified = false;
   let voiceReconnectTimer;
   const intentionalVoiceDisconnects = new WeakSet();
+  const remoteVoiceElements = new WeakMap();
 
   const VOICE_SPEAKING_THRESHOLD = 0.06; // same starting point as mobile's SPEAKING_VOLUME_THRESHOLD — unverified against real riding noise
   const VOICE_RELEASE_HANGTIME_MS = 500;
@@ -1990,9 +1991,18 @@
     return state.activeRide ? `ride:${state.activeRide.rideId}` : state.publicLive ? 'channel' : undefined;
   }
 
+  function cleanupRemoteVoiceAudio(room) {
+    const elements = remoteVoiceElements.get(room);
+    if (!elements) return;
+    for (const element of elements) element.remove();
+    elements.clear();
+    remoteVoiceElements.delete(room);
+  }
+
   function disconnectManagedVoiceRoom(room) {
     if (!room) return;
     intentionalVoiceDisconnects.add(room);
+    cleanupRemoteVoiceAudio(room);
     void room.disconnect().catch(() => {});
   }
 
@@ -2007,13 +2017,48 @@
 
   function wireVoiceRoomLifecycle(room, targetKey, peerId) {
     const events = window.LivekitClient?.RoomEvent;
+    const Track = window.LivekitClient?.Track;
     if (!events?.Disconnected) return;
+
+    const audioElements = new Set();
+    remoteVoiceElements.set(room, audioElements);
+
+    // The raw LiveKit JS Room API auto-subscribes, but it does NOT render
+    // browser audio for us. Attach every subscribed remote audio track to an
+    // actual <audio> element or a perfectly healthy room is still silent.
+    if (events.TrackSubscribed) {
+      room.on(events.TrackSubscribed, (track) => {
+        if (Track?.Kind?.Audio && track.kind !== Track.Kind.Audio) return;
+        const element = track.attach();
+        element.autoplay = true;
+        element.style.display = 'none';
+        element.dataset.riderCommsVoice = 'true';
+        document.body.appendChild(element);
+        audioElements.add(element);
+        // iOS/Safari may still require its audio context to be resumed. The
+        // direct Go Live flow has already performed getUserMedia from the
+        // rider's tap, so this succeeds in the normal test path; failures are
+        // harmless and a later room reconnect can retry.
+        void room.startAudio?.().catch(() => {});
+      });
+    }
+
+    if (events.TrackUnsubscribed) {
+      room.on(events.TrackUnsubscribed, (track) => {
+        for (const element of track.detach()) {
+          audioElements.delete(element);
+          element.remove();
+        }
+      });
+    }
 
     room.on(events.Reconnected, () => {
       voiceFailureNotified = false;
+      void room.startAudio?.().catch(() => {});
       renderVoiceStatus();
     });
     room.on(events.Disconnected, () => {
+      cleanupRemoteVoiceAudio(room);
       if (intentionalVoiceDisconnects.has(room)) return;
 
       if (peerId) {
@@ -2156,11 +2201,12 @@
         for (const connection of response.connections) {
           if (proximityVoiceRooms.has(connection.peerId)) continue;
           const pairRoom = new window.LivekitClient.Room();
+          wireVoiceRoomLifecycle(pairRoom, 'channel', connection.peerId);
           try {
             await pairRoom.connect(connection.url, connection.token);
+            await pairRoom.startAudio?.().catch(() => {});
             await pairRoom.localParticipant.setMicrophoneEnabled(voiceIsSpeaking && !voiceManuallyMuted);
             proximityVoiceRooms.set(connection.peerId, pairRoom);
-            wireVoiceRoomLifecycle(pairRoom, 'channel', connection.peerId);
           } catch (error) {
             lastPairError = error;
             disconnectManagedVoiceRoom(pairRoom);
@@ -2172,11 +2218,13 @@
         if (enteringChannel) voiceManuallyMuted = false;
       } else {
         room = new window.LivekitClient.Room();
+        const targetKey = `ride:${rideId}`;
+        wireVoiceRoomLifecycle(room, targetKey);
         await room.connect(response.url, response.token);
+        await room.startAudio?.().catch(() => {});
         await room.localParticipant.setMicrophoneEnabled(false);
         voiceRoom = room;
-        voiceTargetKey = `ride:${rideId}`;
-        wireVoiceRoomLifecycle(room, voiceTargetKey);
+        voiceTargetKey = targetKey;
         voiceManuallyMuted = false;
       }
       microphonePermissionReady = true;
