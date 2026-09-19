@@ -31,22 +31,38 @@ import { useMovementSafety } from '../safety/MovementSafetyContext';
  * token to resolve — the token fetch and the audio session setup happen
  * in parallel, not one after the other.
  */
-function useVoiceAudioSession(active: boolean): string | null {
-  const [error, setError] = React.useState<string | null>(null);
+function useVoiceAudioSession(active: boolean): { ready: boolean; error: string | null } {
+  const [state, setState] = React.useState<{ ready: boolean; error: string | null }>({ ready: false, error: null });
+
   React.useEffect(() => {
-    if (!active) { setError(null); return; }
+    if (!active) {
+      setState({ ready: false, error: null });
+      return;
+    }
+
     let stopped = false;
-    setError(null);
-    void acquireVoiceAudioSession('private-ride').catch(() => {
-      if (!stopped) setError('Audio routing is unavailable. Check microphone permission and your Bluetooth connection.');
-    });
+    setState({ ready: false, error: null });
+    void acquireVoiceAudioSession('private-ride')
+      .then(() => {
+        if (!stopped) setState({ ready: true, error: null });
+      })
+      .catch(() => {
+        if (!stopped) {
+          setState({
+            ready: false,
+            error: 'Audio routing is unavailable. Check microphone permission and your Bluetooth connection.',
+          });
+        }
+      });
+
     return () => {
       if (stopped) return;
       stopped = true;
       void releaseVoiceAudioSession('private-ride').catch(() => {});
     };
   }, [active]);
-  return error;
+
+  return state;
 }
 
 function useRideVoiceToken(rideId: string | undefined, refreshKey: number): { token?: string; url?: string; error?: string } {
@@ -123,10 +139,11 @@ export function RideBar({ controlsVisible = true }: { controlsVisible?: boolean 
   const voiceRetryTimer = React.useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   // Hooks run unconditionally, before the !activeRide early return below.
   const voice = useRideVoiceToken(activeRide?.rideId, voiceRetryVersion);
-  const audioSessionError = useVoiceAudioSession(Boolean(activeRide));
+  const audioSession = useVoiceAudioSession(Boolean(activeRide));
+  const audioSessionError = audioSession.error;
   const [roomStatus, setRoomStatus] = React.useState<'connecting' | 'connected' | 'disconnected' | 'error'>('connecting');
   const [roomError, setRoomError] = React.useState<string | null>(null);
-  const voiceConnected = Boolean(voice.token && voice.url);
+  const voiceConnected = Boolean(voice.token && voice.url && audioSession.ready);
   const handleSpeakingChange = React.useCallback((speaking: boolean) => {
     // This is the local rider's VOX state for the UI only. Incoming remote
     // speaker state is tracked by LiveKitAudioPriorityBridge.
