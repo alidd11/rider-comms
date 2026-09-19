@@ -11,6 +11,7 @@ import {
   TextInput,
   View,
   ImageBackground,
+  StatusBar,
 } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -186,24 +187,15 @@ function AuthScreen({ onAuthenticated, restoreError, onRetryRestore }: {
 
   return (
     <KeyboardAvoidingView style={[styles.screen, { backgroundColor: palette.background }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
       <ScrollView
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={[styles.authScroll, { paddingTop: insets.top + spacing.xl, paddingBottom: insets.bottom + spacing.xl }]}
+        contentInsetAdjustmentBehavior="never"
+        contentContainerStyle={[styles.authScroll, { paddingTop: 0, paddingBottom: insets.bottom + spacing.xl }]}
       >
-        <View style={styles.brandRow}>
-          <View style={[styles.brandMark, { backgroundColor: palette.surface, borderColor: palette.border }]}>
-            <MaterialCommunityIcons name="routes" size={23} color={palette.accent} />
-            <View style={[styles.brandStatusDot, { backgroundColor: palette.success, borderColor: palette.background }]} />
-          </View>
-          <View style={styles.brandCopy}>
-            <Text style={[styles.brandName, { color: palette.textPrimary }]}>RIDER COMMS</Text>
-            <Text style={[styles.brandTagline, { color: palette.textMuted }]}>Eyes up. Comms on.</Text>
-          </View>
-        </View>
-
         <ImageBackground
           source={{ uri: AUTH_HERO_IMAGE }}
-          style={[styles.visual, { backgroundColor: palette.surface, borderColor: palette.border }]}
+          style={[styles.visual, { height: 220 + insets.top, backgroundColor: palette.surface }]}
           imageStyle={styles.visualImage}
           accessibilityRole="image"
           accessibilityLabel="Motorcyclists riding together on a winding mountain road"
@@ -445,8 +437,8 @@ const styles = StyleSheet.create({
   brandCopy: { gap: 3 },
   brandName: { fontSize: 12, lineHeight: 15, fontWeight: '800', letterSpacing: 2.1 },
   brandTagline: { fontSize: 11, lineHeight: 14, fontWeight: '600' },
-  visual: { height: 180, justifyContent: 'flex-end', overflow: 'hidden', borderRadius: radii.lg, borderWidth: 1, marginBottom: 18 },
-  visualImage: { borderRadius: radii.lg },
+  visual: { height: 220, justifyContent: 'flex-end', overflow: 'hidden', marginHorizontal: -20, marginBottom: 18, borderRadius: 0, borderWidth: 0 },
+  visualImage: { borderRadius: 0 },
   visualShade: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(4,8,11,0.24)' },
   visualCopy: { paddingHorizontal: 14, paddingBottom: 13 },
   visualTitle: { color: '#FFFFFF', fontSize: 25, lineHeight: 25, fontWeight: '800', letterSpacing: -0.9, textShadowColor: 'rgba(0,0,0,0.55)', textShadowRadius: 8 },

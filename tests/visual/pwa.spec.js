@@ -227,6 +227,7 @@ test('login baseline matches Rider Comms hierarchy in day and night', async ({ p
     await expect(page.locator('#authScreen')).toBeVisible();
     await expect(page.locator('#app')).toBeHidden();
     await expect(page.locator('.auth-visual')).toBeVisible();
+    await expect(page.locator('.auth-hero')).toHaveCount(0);
     await expect(page.locator('#authEyebrow')).toBeVisible();
     await expect(page.locator('#authEyebrow')).toHaveText('Welcome back');
     await expect(page.locator('#authTitle')).toHaveText('Ready to ride?');
@@ -256,6 +257,10 @@ test('login baseline matches Rider Comms hierarchy in day and night', async ({ p
         heroHeight: parseFloat(hero.height),
         heroRadius: parseFloat(hero.borderTopLeftRadius),
         heroBackground: hero.backgroundImage,
+        heroTop: hero.getBoundingClientRect().top,
+        heroLeft: hero.getBoundingClientRect().left,
+        heroWidth: hero.getBoundingClientRect().width,
+        viewportWidth: window.innerWidth,
         titleSize: parseFloat(title.fontSize),
       };
     });
@@ -266,9 +271,12 @@ test('login baseline matches Rider Comms hierarchy in day and night', async ({ p
     expect(visual.buttonRadius).toBeLessThanOrEqual(4);
     expect(visual.cardBackground).toBe('rgba(0, 0, 0, 0)');
     expect(visual.cardBorderWidth).toBe(0);
-    expect(visual.heroHeight).toBeGreaterThanOrEqual(170);
-    expect(visual.heroHeight).toBeLessThanOrEqual(190);
-    expect(visual.heroRadius).toBeLessThanOrEqual(4);
+    expect(visual.heroHeight).toBeGreaterThanOrEqual(215);
+    expect(visual.heroHeight).toBeLessThanOrEqual(225);
+    expect(visual.heroRadius).toBe(0);
+    expect(Math.abs(visual.heroTop)).toBeLessThanOrEqual(1);
+    expect(Math.abs(visual.heroLeft)).toBeLessThanOrEqual(1);
+    expect(Math.abs(visual.heroWidth - visual.viewportWidth)).toBeLessThanOrEqual(1);
     expect(visual.heroBackground).toContain('photo-1770614956862-a143fb5e4921');
     expect(visual.titleSize).toBeLessThanOrEqual(35);
     expect(visual.background).toBe(scheme === 'dark' ? '#080d10' : '#e9eef0');
