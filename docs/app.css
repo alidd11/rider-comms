@@ -745,3 +745,52 @@ body:has(#sheetBackdrop:not([hidden])) #joinNearbyBtn{opacity:0;pointer-events:n
   .movement-safety-banner{background:rgb(247 249 250/.96);color:var(--text)}
   .movement-safety-banner small{color:var(--text-secondary)}
 }
+
+
+/* Login baseline: approved Rider Comms visual language.
+   Keep auth geometry identical across day/night; only semantic tokens change. */
+.auth-screen{
+  padding:max(calc(var(--safe-top) + 22px),28px) max(20px,var(--safe-right)) max(calc(var(--safe-bottom) + 22px),28px) max(20px,var(--safe-left));
+  background:var(--bg);
+}
+.auth-layout{width:min(100%,420px);min-height:calc(100dvh - max(calc(var(--safe-top) + 22px),28px) - max(calc(var(--safe-bottom) + 22px),28px));justify-content:center}
+.auth-hero{gap:10px;padding:0 0 28px}
+.auth-mark{width:42px;height:42px;border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--surface);box-shadow:none}
+.auth-mark svg{width:22px;height:22px;color:var(--accent)}
+.auth-mark span{right:5px;bottom:5px;width:7px;height:7px;border:2px solid var(--bg)}
+.auth-brand{gap:3px}
+.auth-brand span{font-size:.72rem;font-weight:800;letter-spacing:.18em}
+.auth-brand small{color:var(--text-muted);font-size:.68rem;font-weight:600}
+.auth-card{width:100%;margin:0;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none}
+.auth-intro{padding:0 0 22px}
+.auth-intro .eyebrow{margin-bottom:10px;color:var(--accent);font-size:.67rem;font-weight:800;letter-spacing:.15em}
+.auth-intro h1{max-width:none;font-size:clamp(2.15rem,9vw,2.55rem);font-weight:800;line-height:1.02;letter-spacing:-.052em}
+.auth-intro p{max-width:370px;margin:10px 0 0;color:var(--text-secondary);font-size:.9rem;line-height:1.48}
+.auth-segmented{gap:2px;margin:0 0 18px;padding:3px;border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--surface)}
+.auth-segmented button{min-height:44px;border-radius:var(--radius-sm);font-size:.8rem;font-weight:760}
+.auth-segmented button.active{background:var(--surface-raised);color:var(--text);box-shadow:none}
+.auth-form{gap:14px}
+.auth-field{gap:7px}
+.auth-field label{color:var(--text-secondary);font-size:.72rem;font-weight:700}
+.auth-field>input,.password-field{min-height:52px;border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--surface)}
+.auth-field>input{padding:0 14px;font-size:1rem}
+.password-field input{min-height:50px;padding-left:14px;font-size:1rem}
+.password-toggle{width:48px;height:50px;color:var(--text-muted)}
+.auth-field>input:focus,.password-field:focus-within{border-color:var(--accent);background:var(--surface);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 24%,transparent)}
+.password-toggle:focus-visible{border-radius:var(--radius-lg)}
+.auth-text-action{min-height:40px;color:var(--accent);font-size:.75rem;font-weight:750}
+.auth-submit{min-height:52px;margin-top:2px;border-radius:var(--radius-lg);font-size:.9rem;box-shadow:none}
+.auth-requirements{font-size:.7rem}
+.auth-error,.auth-notice{border-radius:var(--radius-lg)}
+.auth-terms{max-width:330px;margin:16px auto 0;color:var(--text-muted);font-size:.66rem;line-height:1.45}
+.auth-assurance{gap:8px;margin-top:0;padding:28px 2px 2px;color:var(--text-muted);font-size:.64rem;font-weight:650}
+.auth-assurance i{background:var(--border)}
+@media(max-height:720px) and (orientation:portrait){
+  .auth-layout{justify-content:flex-start}
+  .auth-hero{padding-bottom:18px}
+  .auth-intro{padding-bottom:16px}
+  .auth-assurance{padding-top:18px}
+}
+@media(prefers-color-scheme:light){
+  .auth-mark,.auth-segmented,.auth-field>input,.password-field{background:var(--surface)}
+}
