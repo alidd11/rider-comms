@@ -155,6 +155,12 @@ function RequestRow({ request, profile }: { request: FriendRequest; profile?: Fr
 
 function OutgoingRequestRow({ request, profile }: { request: FriendRequest; profile?: FriendSummary }): React.JSX.Element {
   const avatar = getAvatarPreset(profile?.avatarId ?? DEFAULT_AVATAR_ID);
+  const { cancel } = useFriends();
+  const [cancelling, setCancelling] = React.useState(false);
+  const handleCancel = async () => {
+    setCancelling(true);
+    try { await cancel(request.id); } finally { setCancelling(false); }
+  };
   return (
     <View style={styles.requestRow}>
       <View style={[styles.requestAvatar, { backgroundColor: avatar.bg }]}>
@@ -164,7 +170,9 @@ function OutgoingRequestRow({ request, profile }: { request: FriendRequest; prof
         <Text style={styles.requestName}>{profile?.displayName ?? 'Pending request'}</Text>
         <Text style={styles.requestHandle}>{profile?.handle ?? request.toRiderId}</Text>
       </View>
-      <View style={styles.pendingPill}><Text style={styles.pendingPillText}>Pending</Text></View>
+      <Pressable style={styles.cancelRequestButton} onPress={() => void handleCancel()} disabled={cancelling} accessibilityLabel={`Cancel request to ${profile?.displayName ?? 'rider'}`}>
+        {cancelling ? <ActivityIndicator color={colors.textMuted} size="small" /> : <Text style={styles.cancelRequestText}>Cancel</Text>}
+      </Pressable>
     </View>
   );
 }
@@ -185,10 +193,12 @@ function activityLabel(activity?: FriendActivity): string {
 function FriendRow({
   friend,
   activity,
+  unreadCount,
   onProfile,
 }: {
   friend: FriendSummary;
   activity?: FriendActivity;
+  unreadCount: number;
   onProfile: (friend: FriendSummary) => void;
 }): React.JSX.Element {
   const avatar = getAvatarPreset(friend.avatarId);
@@ -209,6 +219,7 @@ function FriendRow({
         <Text style={styles.friendName}>{friend.displayName}</Text>
         <Text style={[styles.friendHandle, activity?.online && styles.friendHandleOnline]}>{activityLabel(activity)}</Text>
       </View>
+      {unreadCount > 0 ? <View style={styles.unreadPill}><Text style={styles.unreadPillText}>{unreadCount > 99 ? '99+' : unreadCount}</Text></View> : null}
       <Ionicons name="ellipsis-horizontal" size={21} color={colors.textMuted} />
     </Pressable>
   );
@@ -346,7 +357,7 @@ function FriendProfileModal({
 }
 
 export function FriendsScreen(): React.JSX.Element {
-  const { friends, incomingRequests, outgoingRequests, requestProfiles, activityByRider, loading, error, refresh } = useFriends();
+  const { friends, incomingRequests, outgoingRequests, requestProfiles, activityByRider, conversations, loading, error, refresh } = useFriends();
   const insets = useSafeAreaInsets();
   const [query, setQuery] = React.useState('');
   const [selectedProfile, setSelectedProfile] = React.useState<FriendSummary | null>(null);
@@ -357,6 +368,10 @@ export function FriendsScreen(): React.JSX.Element {
     return friends.filter((friend) => [friend.displayName, friend.handle, friend.riderId]
       .some((value) => value.toLocaleLowerCase().includes(normalized)));
   }, [friends, query]);
+  const unreadByRider = React.useMemo(
+    () => Object.fromEntries(conversations.map((conversation) => [conversation.friend.riderId, conversation.unreadCount])),
+    [conversations],
+  );
   const onlineFriends = filteredFriends.filter((friend) => activityByRider[friend.riderId]?.online);
   const offlineFriends = filteredFriends.filter((friend) => !activityByRider[friend.riderId]?.online);
 
@@ -451,7 +466,7 @@ export function FriendsScreen(): React.JSX.Element {
               <>
                 <Text style={styles.networkSectionLabel}>Online ({onlineFriends.length})</Text>
                 {onlineFriends.map((friend) => (
-                  <FriendRow key={friend.riderId} friend={friend} activity={activityByRider[friend.riderId]} onProfile={setSelectedProfile} />
+                  <FriendRow key={friend.riderId} friend={friend} activity={activityByRider[friend.riderId]} unreadCount={unreadByRider[friend.riderId] ?? 0} onProfile={setSelectedProfile} />
                 ))}
               </>
             ) : null}
@@ -459,7 +474,7 @@ export function FriendsScreen(): React.JSX.Element {
               <>
                 <Text style={styles.networkSectionLabel}>Offline ({offlineFriends.length})</Text>
                 {offlineFriends.map((friend) => (
-                  <FriendRow key={friend.riderId} friend={friend} activity={activityByRider[friend.riderId]} onProfile={setSelectedProfile} />
+                  <FriendRow key={friend.riderId} friend={friend} activity={activityByRider[friend.riderId]} unreadCount={unreadByRider[friend.riderId] ?? 0} onProfile={setSelectedProfile} />
                 ))}
               </>
             ) : null}
@@ -512,6 +527,10 @@ const styles = StyleSheet.create({
   requestAccept: { width: 44, height: 44, borderRadius: radii.md, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
   pendingPill: { paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, backgroundColor: colors.surfaceRaised, borderRadius: radii.pill },
   pendingPillText: { ...type.caption, fontWeight: '700' },
+  cancelRequestButton: { minHeight: MIN_TOUCH_TARGET, justifyContent: 'center', paddingHorizontal: spacing.sm },
+  cancelRequestText: { ...type.caption, color: colors.textSecondary, fontWeight: '700' },
+  unreadPill: { minWidth: 24, height: 24, paddingHorizontal: 7, borderRadius: radii.pill, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
+  unreadPillText: { ...type.caption, color: colors.accentText, fontWeight: '800' },
   friendSearchRow: { minHeight: MIN_TOUCH_TARGET, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, backgroundColor: colors.surface, borderRadius: radii.md, paddingHorizontal: spacing.md, marginBottom: spacing.md },
   friendSearchInput: { ...type.body, color: colors.textPrimary, flex: 1, minHeight: MIN_TOUCH_TARGET },
   networkList: { marginTop: spacing.xs },

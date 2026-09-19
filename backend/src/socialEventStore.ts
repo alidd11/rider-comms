@@ -132,11 +132,16 @@ export class SocialEventStore {
         client.on('notification', (message) => {
           if (message.channel === SOCIAL_EVENT_CHANNEL && message.payload) this.wake(message.payload);
         });
-        client.on('error', (error) => {
+        let listenerDropped = false;
+        const dropListener = (error?: Error) => {
+          if (listenerDropped) return;
+          listenerDropped = true;
           if (this.listenerClient === client) this.listenerClient = undefined;
           try { client.release(error); } catch { /* the pool may already have discarded it */ }
           this.wakeAll();
-        });
+        };
+        client.on('error', (error) => dropListener(error));
+        client.on('end', () => dropListener());
         this.listenerClient = client;
         return client;
       })().finally(() => {
