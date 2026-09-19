@@ -217,6 +217,37 @@ function expectNear(actual, expected, tolerance = 1.5) {
   expect(Math.abs(actual - expected)).toBeLessThanOrEqual(tolerance);
 }
 
+test('approved production mockup stays graphite when the device requests light appearance', async ({ page }) => {
+  await page.emulateMedia({ colorScheme: 'light' });
+  await mockAuthenticatedApi(page);
+  await page.goto('/');
+  await expect(page.locator('#app')).toBeVisible();
+
+  const palette = await page.evaluate(() => {
+    const root = getComputedStyle(document.documentElement);
+    const ride = getComputedStyle(document.querySelector('[data-screen="ride"]'));
+    const nav = getComputedStyle(document.querySelector('.bottom-nav'));
+    const map = getComputedStyle(document.querySelector('#mapCanvas'));
+    return {
+      colorScheme: root.colorScheme,
+      background: root.getPropertyValue('--bg').trim(),
+      surface: root.getPropertyValue('--surface').trim(),
+      text: root.getPropertyValue('--text').trim(),
+      rideBackground: ride.backgroundColor,
+      navBackground: nav.backgroundColor,
+      mapBackground: map.backgroundColor,
+    };
+  });
+
+  expect(palette.colorScheme).toContain('dark');
+  expect(palette.background.toLowerCase()).toBe('#080d10');
+  expect(palette.surface.toLowerCase()).toBe('#11171b');
+  expect(palette.text.toLowerCase()).toBe('#f3f6f7');
+  expect(palette.rideBackground).toBe('rgb(8, 13, 16)');
+  expect(palette.navBackground).toBe('rgb(8, 13, 16)');
+  expect(palette.mapBackground).toBe('rgb(8, 13, 16)');
+});
+
 test('core PWA screens render without runtime errors or viewport overflow', async ({ page }, testInfo) => {
   const runtimeErrors = [];
   page.on('pageerror', (error) => runtimeErrors.push(`pageerror: ${error.stack || error.message}`));
