@@ -1042,6 +1042,7 @@ body:has(#sheetBackdrop:not([hidden])) #joinNearbyBtn{opacity:0;pointer-events:n
     max-width:none;
     margin:0;
   }
+  .ride-screen.active::before{display:none}
   .ride-screen .page-header{
     position:absolute;
     z-index:5;
