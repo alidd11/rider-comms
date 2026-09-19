@@ -125,7 +125,7 @@ function GroupRideTabIcon({ size }: { size: number }): React.JSX.Element {
   const active = useMapSegment() === 'host';
   return (
     <TabIconShell active={active}>
-      <MaterialCommunityIcons name="account-group-outline" size={size} color={segmentTintColor(active)} />
+      <MaterialCommunityIcons name="motorbike" size={size} color={segmentTintColor(active)} />
     </TabIconShell>
   );
 }
