@@ -458,7 +458,7 @@
       "license": "https://creativecommons.org/licenses/by-sa/2.0/",
       "conditions": "https://traffic.wales/",
       "routeSource": "https://www.adventurebikerider.com/article/great-britain-glyndwrs-way/",
-      "reviewedAt": "2026-09-18"
+      "reviewedAt": "2026-09-19"
     },
     {
       "id": "b4560-llangynidr",
@@ -509,7 +509,7 @@
       "license": "https://creativecommons.org/licenses/by-sa/2.0/",
       "conditions": "https://traffic.wales/",
       "routeSource": "https://www.adventurebikerider.com/article/uk-roads-to-ride-in-2021/",
-      "reviewedAt": "2026-09-18"
+      "reviewedAt": "2026-09-19"
     },
     {
       "id": "a686-hartside",
@@ -859,7 +859,7 @@
       "license": "https://creativecommons.org/licenses/by-sa/2.0/",
       "conditions": "https://www.traffic.gov.scot/",
       "routeSource": "https://www.adventurebikerider.com/article/uk-roads-to-ride-in-2021/",
-      "reviewedAt": "2026-09-18"
+      "reviewedAt": "2026-09-19"
     },
     {
       "id": "a82-glencoe",
@@ -911,7 +911,7 @@
       "license": "https://creativecommons.org/licenses/by-sa/2.0/",
       "conditions": "https://www.traffic.gov.scot/",
       "routeSource": "https://www.seelochlomond.co.uk/discover/a82-loch-lomond-road-trip",
-      "reviewedAt": "2026-09-15"
+      "reviewedAt": "2026-09-19"
     },
     {
       "id": "snowroads",
@@ -972,7 +972,7 @@
       "license": "https://creativecommons.org/publicdomain/zero/1.0/",
       "conditions": "https://www.traffic.gov.scot/",
       "routeSource": "https://www.visitcairngorms.com/inspire-me/snowroads/",
-      "reviewedAt": "2026-09-15"
+      "reviewedAt": "2026-09-19"
     },
     {
       "id": "a838-durness-tongue",
@@ -1024,19 +1024,19 @@
       "license": "https://creativecommons.org/licenses/by-sa/2.0/",
       "conditions": "https://www.traffic.gov.scot/",
       "routeSource": "https://www.adventurebikerider.com/article/8-of-britains-most-scenic-rides/",
-      "reviewedAt": "2026-09-18"
+      "reviewedAt": "2026-09-19"
     },
     {
       "id": "causeway-coast",
       "name": "Causeway Coast",
       "region": "County Antrim, Northern Ireland",
       "road": "A2 · Belfast to Derry/Londonderry",
-      "distance": 120,
+      "distance": 115,
       "minutes": 210,
       "difficulty": "Moderate",
       "roadType": "Coastal",
       "description": "A full coastal journey through glens, cliff-backed beaches and the basalt landscape around the Giant’s Causeway.",
-      "note": "The main signed A2 corridor suits road motorcycles and scooters; this overview intentionally excludes the tighter Torr Head detour.",
+      "note": "The main signed coastal corridor suits road motorcycles and scooters. The official route varies with optional loops; this curated line intentionally excludes the tighter Torr Head detour and keeps the principal coast road.",
       "vehicleSuitability": [
         "motorcycle_small",
         "motorcycle_large",
@@ -1073,6 +1073,14 @@
         [
           55.204,
           -6.523
+        ],
+        [
+          55.2045,
+          -6.6529
+        ],
+        [
+          55.1656,
+          -6.7868
         ]
       ],
       "image": "https://upload.wikimedia.org/wikipedia/commons/e/e1/Causeway_Coastal_Route%2C_Dunseverick_-_geograph.org.uk_-_5572416.jpg",
@@ -1084,7 +1092,7 @@
       "license": "https://creativecommons.org/licenses/by-sa/2.0/",
       "conditions": "https://www.trafficwatchni.com/",
       "routeSource": "https://discovernorthernireland.com/destinations/causeway-coastal-route/getting-here/",
-      "reviewedAt": "2026-09-15"
+      "reviewedAt": "2026-09-19"
     },
     {
       "id": "mourne-coast-a2",
