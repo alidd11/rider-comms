@@ -753,7 +753,7 @@ body:has(#sheetBackdrop:not([hidden])) #joinNearbyBtn{opacity:0;pointer-events:n
   padding:max(calc(var(--safe-top) + 22px),28px) max(20px,var(--safe-right)) max(calc(var(--safe-bottom) + 22px),28px) max(20px,var(--safe-left));
   background:var(--bg);
 }
-.auth-layout{width:min(100%,420px);min-height:calc(100dvh - max(calc(var(--safe-top) + 22px),28px) - max(calc(var(--safe-bottom) + 22px),28px));justify-content:center}
+.auth-layout{width:min(100%,420px);min-height:calc(100dvh - max(calc(var(--safe-top) + 22px),28px) - max(calc(var(--safe-bottom) + 22px),28px));justify-content:flex-start;padding-top:18px}
 .auth-hero{gap:10px;padding:0 0 28px}
 .auth-mark{width:42px;height:42px;border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--surface);box-shadow:none}
 .auth-mark svg{width:22px;height:22px;color:var(--accent)}
@@ -786,7 +786,7 @@ body:has(#sheetBackdrop:not([hidden])) #joinNearbyBtn{opacity:0;pointer-events:n
 .auth-assurance{gap:8px;margin-top:0;padding:28px 2px 2px;color:var(--text-muted);font-size:.64rem;font-weight:650}
 .auth-assurance i{background:var(--border)}
 @media(max-height:720px) and (orientation:portrait){
-  .auth-layout{justify-content:flex-start}
+  .auth-layout{padding-top:0}
   .auth-hero{padding-bottom:18px}
   .auth-intro{padding-bottom:16px}
   .auth-assurance{padding-top:18px}
