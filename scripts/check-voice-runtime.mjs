@@ -72,5 +72,20 @@ assert.match(
   /events\.TrackUnsubscribed[\s\S]*track\.detach\(\)/,
   'PWA voice must detach remote audio tracks during teardown',
 );
+assert.match(
+  proximitySource,
+  /useSpeakingParticipants\(\)[\s\S]*RemoteSpeakerBridge/,
+  'Native Nearby Voice must subscribe to LiveKit active-speaker state',
+);
+assert.match(
+  rideBarSource,
+  /useSpeakingParticipants\(\)[\s\S]*RemoteSpeakerBridge/,
+  'Native private rides must subscribe to LiveKit active-speaker state',
+);
+assert.match(
+  pwaSource,
+  /events\.ActiveSpeakersChanged[\s\S]*remoteVoiceSpeakerLabel/,
+  'PWA voice must surface remote LiveKit active speakers by rider identity',
+);
 
-console.log('Native/PWA LiveKit bootstrap and safe microphone invariants valid');
+console.log('Native/PWA LiveKit bootstrap, speaker visibility and safe microphone invariants valid');
