@@ -2200,6 +2200,26 @@
       if (rideChipText) rideChipText.textContent = rideLabel;
       rideChip.setAttribute('aria-label', rideLabel);
     }
+
+    // The global ride pill remains visible across Map/Friends/Settings, so it
+    // must carry the same speaker identity as native's persistent RideBar.
+    const ridePill = $('#ridePill');
+    const ridePillLabel = ridePill ? $('small', ridePill) : null;
+    const ridePillVoiceLabel = state.activeRide
+      ? remoteSpeakerSummary || (voiceIsSpeaking ? 'You speaking' : 'Active ride')
+      : 'Active ride';
+    if (ridePillLabel) {
+      ridePillLabel.textContent = ridePillVoiceLabel;
+      ridePillLabel.style.color = ridePillVoiceLabel === 'Active ride' ? '' : 'var(--accent)';
+    }
+    if (ridePill) {
+      ridePill.setAttribute(
+        'aria-label',
+        state.activeRide && ridePillVoiceLabel !== 'Active ride'
+          ? `Active ride · ${ridePillVoiceLabel}`
+          : 'Open active ride',
+      );
+    }
   }
 
   function setVoiceSpeaking(speaking) {

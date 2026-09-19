@@ -98,5 +98,10 @@ assert.match(
   /voiceSpeakerChip[\s\S]*remoteSpeakerSummary/,
   'PWA public voice must render a visible active-speaker indicator',
 );
+assert.match(
+  pwaSource,
+  /ridePillVoiceLabel[\s\S]*remoteSpeakerSummary[\s\S]*You speaking/,
+  'PWA private-ride speaker identity must remain visible in the global ride pill across tabs',
+);
 
 console.log('Native/PWA LiveKit bootstrap, safe microphone, and active-speaker invariants valid');
