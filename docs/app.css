@@ -578,7 +578,7 @@ html.chat-open .bottom-nav,html.chat-open .ride-pill,html.chat-open .movement-sa
 .bottom-nav>button{border-radius:0}
 .bottom-nav>button.active svg{filter:none}
 .bottom-nav>button.active span{font-weight:760}
-.avatar{box-shadow:inset 0 0 0 1px rgb(255 255 255/.16),0 0 0 2px color-mix(in srgb,var(--avatar,#4f7cff) 18%,transparent)}
+.avatar{box-shadow:none}
 .search-screen .search-shell,.search-result-icon,.search-empty-icon{border-radius:var(--radius-lg)}
 .search-screen .poi-chip,.chip{border-radius:var(--radius-md)}
 .update-banner,.toast{border-radius:var(--radius-lg)}
