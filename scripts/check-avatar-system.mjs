@@ -110,10 +110,10 @@ assert.ok(
 );
 
 for (const selector of [
-  "$('[data-avatar-option]', $('#sheetBody')).forEach",
-  "$('[data-avatar-family-tab]', $('#sheetBody')).forEach",
-  "$('[data-avatar-family-tab]', body).forEach",
-  "$('[data-avatar-family-panel]', body).forEach",
+  "document.querySelectorAll('#sheetBody [data-avatar-option]').forEach",
+  "document.querySelectorAll('#sheetBody [data-avatar-family-tab]').forEach",
+  "body.querySelectorAll('[data-avatar-family-tab]').forEach",
+  "body.querySelectorAll('[data-avatar-family-panel]').forEach",
 ]) {
   assert.ok(pwaApp.includes(selector), `PWA avatar picker must iterate a node collection: ${selector}`);
 }
