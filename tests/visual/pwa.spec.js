@@ -777,6 +777,20 @@ test('PWA route discovery previews route shape and hands the start back to the m
   await expect(page.locator('#destinationCard')).toContainText('start');
   await expect(page.locator('#destinationCard .destination-primary-action')).toBeVisible();
   await expect(page.locator('#destinationCard .destination-primary-action')).toContainText('Start route');
+  await expect(page.locator('.screen-map .map-actions')).toBeHidden();
+  const destinationGeometry = await page.evaluate(() => {
+    const card = document.querySelector('#destinationCard');
+    const primary = document.querySelector('#destinationCard .destination-primary-action');
+    const dismiss = document.querySelector('#destinationCard .destination-card-dismiss');
+    return {
+      cardRadius: card ? parseFloat(getComputedStyle(card).borderTopLeftRadius) : NaN,
+      primaryRadius: primary ? parseFloat(getComputedStyle(primary).borderTopLeftRadius) : NaN,
+      dismissRadius: dismiss ? parseFloat(getComputedStyle(dismiss).borderTopLeftRadius) : NaN,
+    };
+  });
+  expect(destinationGeometry.cardRadius).toBe(16);
+  expect(destinationGeometry.primaryRadius).toBe(14);
+  expect(destinationGeometry.dismissRadius).toBe(20);
   await assertNoViewportOverflow(page);
 });
 
