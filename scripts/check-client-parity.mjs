@@ -36,8 +36,9 @@ for (const required of ['auth', 'group-ride', 'ride-safe', 'place-search', 'frie
   if (!ids.has(required)) throw new Error(`Missing required parity capability: ${required}`);
 }
 
-const [pwaMapSource, nativeMapSource, nativeCameraSource] = await Promise.all([
+const [pwaMapSource, pwaIndexSource, nativeMapSource, nativeCameraSource] = await Promise.all([
   readFile(new URL('../docs/app.js', import.meta.url), 'utf8'),
+  readFile(new URL('../docs/index.html', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/screens/MapScreen.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/navigationCamera.ts', import.meta.url), 'utf8'),
 ]);
@@ -93,6 +94,8 @@ for (const [label, source, patterns] of [
     /setNavigationTrafficVisible\(true\)/,
     /if \(!preserveMute\) navMuted = false/,
     /preserveMute: true/,
+    /if \(!navMuted\) speak\('Rerouting\.'\)/,
+    /showToast\('Could not reroute\. Continue with caution\.'\)/,
     /visibleMapRiders\(\)/,
   ]],
   ['Native navigation', nativeMapSource, [
@@ -115,7 +118,12 @@ for (const [label, source, patterns] of [
     /position\.coords\.speed/,
     /pitch: profile\.pitch/,
     /zoom: profile\.zoom/,
-    /animateCamera\([\s\S]*duration: movingSpeed !== null && movingSpeed <= 1\.5 \? 650 : 500/,
+    /AccessibilityInfo\.isReduceMotionEnabled\(\)/,
+    /reduceMotionChanged/,
+    /reduceMotionEnabled[\s\S]*setCamera\(camera\)[\s\S]*animateCamera\(camera/,
+    /animateCamera\(camera, \{ duration: movingSpeed !== null && movingSpeed <= 1\.5 \? 650 : 500 \}\)/,
+    /if \(!navigationMuted\) speakNavigationPrompt\('Rerouting\.'\)/,
+    /setNavigationNotice\('Could not reroute\. Continue with caution\.'\)/,
     /showsTraffic=\{Boolean\(activeRoute\)\}/,
     /fitRoute\(activeRoute\)/,
     /rideLocations[\s\S]*Private ride member · live location/,
@@ -144,6 +152,13 @@ for (const [label, source] of [['PWA adaptive camera', pwaMapSource], ['Native a
   for (const pattern of adaptiveCameraPatterns) {
     if (!pattern.test(source)) throw new Error(`${label} drifted from the shared adaptive camera contract: ${pattern}`);
   }
+}
+
+if (!/id="navInstruction"[^>]*role="status"[^>]*aria-live="polite"[^>]*aria-atomic="true"/.test(pwaIndexSource)) {
+  throw new Error('PWA navigation maneuver instruction must be a polite atomic live region');
+}
+if (!/style=\{styles\.navigationInstruction\} accessibilityLiveRegion="polite"/.test(nativeMapSource)) {
+  throw new Error('Native navigation maneuver instruction must remain a polite live region');
 }
 
 console.log(`Client parity manifest valid: ${manifest.capabilities.length} capabilities tracked; map basemaps and adaptive dedicated navigation aligned`);
