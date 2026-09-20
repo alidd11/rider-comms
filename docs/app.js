@@ -151,6 +151,18 @@
     };
   }
 
+  function navigationPositionMapIcon() {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+      <circle cx="32" cy="32" r="27" fill="#4285F4" stroke="#FFFFFF" stroke-width="4"/>
+      <path d="M32 13 45 46 32 40 19 46Z" fill="#FFFFFF"/>
+    </svg>`;
+    return {
+      url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
+      scaledSize: new google.maps.Size(58, 58),
+      anchor: new google.maps.Point(29, 29),
+    };
+  }
+
   const PLAN_ORDER = ['free', 'premium', 'premium_plus'];
   const PLAN_INFO = {
     free: {
@@ -375,6 +387,7 @@
   let mapMarkers = [];
   let mapHazardMarkers = [];
   let destinationMarker;
+  let navigationTrafficLayer;
 
   function loadState() {
     try {
@@ -699,7 +712,10 @@
     renderHazardMarkers();
     const riders = visibleMapRiders();
     if (!map || usingFallbackMap) return renderFallbackMarkers([]);
-    if (userMapMarker) userMapMarker.setIcon?.(riderAvatarMapIcon(state.profile, true));
+    if (userMapMarker) {
+      if (navSteps.length) updateNavigationPositionIcon();
+      else userMapMarker.setIcon?.(riderAvatarMapIcon(state.profile, true));
+    }
     mapMarkers.forEach((marker) => marker.setMap(null));
     mapMarkers = riders.map((person) => {
       const real = rideMemberLocations.get(person.riderId);
@@ -3419,6 +3435,14 @@
 
   function centreMap(lat, lng) {
     if (map) {
+      if (navSteps.length) {
+        navFollowing = true;
+        navCurrentPosition = { lat, lng };
+        userMapMarker?.setPosition({ lat, lng });
+        updateNavigationControls();
+        applyNavigationCamera({ lat, lng }, navSteps[navStepIndex]);
+        return;
+      }
       map.panTo({ lat, lng });
       map.setZoom(15);
       userMapMarker?.setPosition({ lat, lng });
@@ -4083,8 +4107,14 @@
   let navWatchId;
   let navDestination = null; // { lat, lng, label }
   let navLastAnnouncedStep = -1;
+  let navPromptTargetIndex = -1;
+  let navPromptStage = 0;
+  let navLastNowPromptStep = -1;
   let navOffRouteSince = null;
   let navRerouting = false;
+  let navFollowing = true;
+  let navMuted = false;
+  let navCurrentPosition = null;
   let navGpsWatchdog;
   let navLastFixAt = 0;
   let navGpsIssue = null;
@@ -4102,6 +4132,26 @@
    * short (metres-to-low-kilometres) spans between a rider's real position
    * and a route step's endpoints/segment; no need for full geodesic math
    * at this scale, and no extra Maps `geometry` library to load for it. */
+  function bearingDegrees(from, to) {
+    const toRad = (value) => (value * Math.PI) / 180;
+    const toDeg = (value) => (value * 180) / Math.PI;
+    const lat1 = toRad(from.lat);
+    const lat2 = toRad(to.lat);
+    const deltaLon = toRad(to.lng - from.lng);
+    const y = Math.sin(deltaLon) * Math.cos(lat2);
+    const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(deltaLon);
+    return (toDeg(Math.atan2(y, x)) + 360) % 360;
+  }
+
+  function navigationCameraCentre(from, to) {
+    const distance = metersBetween(from, to);
+    const fraction = distance > 220 ? 0.2 : distance > 90 ? 0.14 : 0.08;
+    return {
+      lat: from.lat + (to.lat - from.lat) * fraction,
+      lng: from.lng + (to.lng - from.lng) * fraction,
+    };
+  }
+
   function metersBetween(a, b) {
     const R = 6_371_000;
     const toRad = (deg) => (deg * Math.PI) / 180;
@@ -4113,19 +4163,116 @@
     return 2 * R * Math.asin(Math.sqrt(h));
   }
 
-  /** Perpendicular distance from `point` to the segment `segStart`→`segEnd`,
-   * in metres, via a local flat projection centred on segStart — same
-   * "good enough over short spans" reasoning as metersBetween above. */
-  function distanceToSegmentMeters(point, segStart, segEnd) {
+  /** Local short-span projection used for route matching. Returning the
+   * projection ratio as well as the cross-track distance lets navigation
+   * calculate remaining distance along a curved step instead of measuring a
+   * straight line to the next junction. */
+  function projectToSegment(point, segStart, segEnd) {
     const metersPerDegLat = 111_320;
     const metersPerDegLng = 111_320 * Math.cos((point.lat * Math.PI) / 180);
     const toXY = (p) => ({ x: (p.lng - segStart.lng) * metersPerDegLng, y: (p.lat - segStart.lat) * metersPerDegLat });
     const p = toXY(point);
     const b = toXY(segEnd);
     const lengthSq = b.x * b.x + b.y * b.y;
-    const t = lengthSq > 0 ? Math.max(0, Math.min(1, (p.x * b.x + p.y * b.y) / lengthSq)) : 0;
-    const closest = { x: t * b.x, y: t * b.y };
-    return Math.hypot(p.x - closest.x, p.y - closest.y);
+    const ratio = lengthSq > 0 ? Math.max(0, Math.min(1, (p.x * b.x + p.y * b.y) / lengthSq)) : 0;
+    const closest = { x: ratio * b.x, y: ratio * b.y };
+    return { distanceMeters: Math.hypot(p.x - closest.x, p.y - closest.y), ratio };
+  }
+
+  function distanceToSegmentMeters(point, segStart, segEnd) {
+    return projectToSegment(point, segStart, segEnd).distanceMeters;
+  }
+
+  function navigationStepPath(step) {
+    const rawPath = Array.isArray(step?.path)
+      ? step.path
+      : typeof step?.path?.getArray === 'function'
+        ? step.path.getArray()
+        : [];
+    const coordinates = rawPath.map((point) => ({
+      lat: typeof point?.lat === 'function' ? point.lat() : point?.lat,
+      lng: typeof point?.lng === 'function' ? point.lng() : point?.lng,
+    })).filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lng));
+    if (coordinates.length >= 2) return coordinates;
+    return [
+      { lat: step.start_location.lat(), lng: step.start_location.lng() },
+      { lat: step.end_location.lat(), lng: step.end_location.lng() },
+    ];
+  }
+
+  function distanceToPathMeters(point, path) {
+    if (!path.length) return Number.POSITIVE_INFINITY;
+    if (path.length === 1) return metersBetween(point, path[0]);
+    let nearest = Number.POSITIVE_INFINITY;
+    for (let index = 0; index < path.length - 1; index += 1) {
+      nearest = Math.min(nearest, projectToSegment(point, path[index], path[index + 1]).distanceMeters);
+    }
+    return nearest;
+  }
+
+  function remainingDistanceOnPathMeters(point, path) {
+    if (!path.length) return 0;
+    if (path.length === 1) return metersBetween(point, path[0]);
+
+    let nearestIndex = 0;
+    let nearestProjection = projectToSegment(point, path[0], path[1]);
+    for (let index = 1; index < path.length - 1; index += 1) {
+      const projection = projectToSegment(point, path[index], path[index + 1]);
+      if (projection.distanceMeters < nearestProjection.distanceMeters) {
+        nearestIndex = index;
+        nearestProjection = projection;
+      }
+    }
+
+    let remaining = metersBetween(path[nearestIndex], path[nearestIndex + 1]) * (1 - nearestProjection.ratio);
+    for (let index = nearestIndex + 1; index < path.length - 1; index += 1) {
+      remaining += metersBetween(path[index], path[index + 1]);
+    }
+    return remaining;
+  }
+
+
+  function lookAheadCoordinateOnPath(point, path, lookAheadMeters = 120) {
+    if (!path.length) return point;
+    if (path.length === 1) return path[0];
+
+    let nearestIndex = 0;
+    let nearestProjection = projectToSegment(point, path[0], path[1]);
+    for (let index = 1; index < path.length - 1; index += 1) {
+      const projection = projectToSegment(point, path[index], path[index + 1]);
+      if (projection.distanceMeters < nearestProjection.distanceMeters) {
+        nearestIndex = index;
+        nearestProjection = projection;
+      }
+    }
+
+    let remainingLookAhead = Math.max(0, lookAheadMeters);
+    let segmentIndex = nearestIndex;
+    let startRatio = nearestProjection.ratio;
+
+    while (segmentIndex < path.length - 1) {
+      const start = path[segmentIndex];
+      const end = path[segmentIndex + 1];
+      const segmentLength = metersBetween(start, end);
+      const available = segmentLength * (1 - startRatio);
+      if (segmentLength <= 0) {
+        segmentIndex += 1;
+        startRatio = 0;
+        continue;
+      }
+      if (remainingLookAhead <= available) {
+        const ratio = Math.max(0, Math.min(1, startRatio + remainingLookAhead / segmentLength));
+        return {
+          lat: start.lat + (end.lat - start.lat) * ratio,
+          lng: start.lng + (end.lng - start.lng) * ratio,
+        };
+      }
+      remainingLookAhead -= available;
+      segmentIndex += 1;
+      startRatio = 0;
+    }
+
+    return path[path.length - 1];
   }
 
   // Google's Directions "instructions" field sometimes nests an advisory
@@ -4150,7 +4297,7 @@
    * the audio announcement of it. */
   function speak(text) {
     try {
-      if (!('speechSynthesis' in window)) return;
+      if (navMuted || !('speechSynthesis' in window)) return;
       window.speechSynthesis.cancel();
       window.speechSynthesis.speak(new SpeechSynthesisUtterance(text));
     } catch { /* voice guidance is a nice-to-have, never blocks navigation */ }
@@ -4168,6 +4315,21 @@
       return `${Math.max(10, Math.round(feet / 10) * 10)} ft`;
     }
     return `${miles.toFixed(miles < 10 ? 1 : 0)} mi`;
+  }
+
+
+  function navigationPromptStageForDistance(meters) {
+    if (!Number.isFinite(meters) || meters > 500) return 0;
+    if (meters > 150) return 1;
+    if (meters > 40) return 2;
+    return 3;
+  }
+
+  function navigationPromptText(instruction, meters, stage) {
+    const cleaned = String(instruction || '').replace(/\s+/g, ' ').trim();
+    if (!cleaned || stage === 0) return '';
+    if (stage === 3) return cleaned;
+    return `In ${formatNavDistance(meters)}, ${cleaned}`;
   }
 
   function formatNavDuration(seconds) {
@@ -4204,12 +4366,18 @@
     'ramp-left': { icon: 'i-nav-arrow', rotate: -30 },
     'ramp-right': { icon: 'i-nav-arrow', rotate: 30 },
     merge: { icon: 'i-nav-arrow', rotate: -20 },
+    arrive: { icon: 'i-location', rotate: 0 },
   };
 
-  function applyManeuverIcon(maneuver) {
+  function applyManeuverSvg(svg, maneuver) {
+    if (!svg) return;
     const presentation = MANEUVER_PRESENTATIONS[maneuver] || { icon: 'i-nav-arrow', rotate: 0 };
-    $('#navManeuverSvg use').setAttribute('href', `#${presentation.icon}`);
-    $('#navManeuverSvg').style.transform = `rotate(${presentation.rotate}deg)`;
+    $('use', svg)?.setAttribute('href', `#${presentation.icon}`);
+    svg.style.transform = `rotate(${presentation.rotate}deg)`;
+  }
+
+  function applyManeuverIcon(maneuver) {
+    applyManeuverSvg($('#navManeuverSvg'), maneuver);
   }
 
   function getDirectionsService() {
@@ -4222,38 +4390,140 @@
       directionsRenderer = new google.maps.DirectionsRenderer({
         suppressMarkers: true,
         preserveViewport: true,
-        polylineOptions: { strokeColor: '#2fa8d3', strokeWeight: 6, strokeOpacity: 0.9 },
+        polylineOptions: { strokeColor: '#4285F4', strokeWeight: 7, strokeOpacity: 0.96 },
       });
     }
     directionsRenderer.setMap(map);
     return directionsRenderer;
   }
 
+
+  function setNavigationTrafficVisible(visible) {
+    if (!map || typeof google?.maps?.TrafficLayer !== 'function') return;
+    if (!navigationTrafficLayer) navigationTrafficLayer = new google.maps.TrafficLayer();
+    navigationTrafficLayer.setMap(visible ? map : null);
+  }
+
   function renderNavStep() {
     const step = navSteps[navStepIndex];
     if (!step) return;
-    applyManeuverIcon(step.maneuver);
-    $('#navDistanceNext').textContent = formatNavDistance(step.distance.value);
-    $('#navInstruction').textContent = stripHtml(step.instructions);
-    // Google's own guidance is to surface the *next* maneuver ahead of
-    // time rather than only at the moment it's due — a rider glancing at
-    // the screen mid-turn should already know what's coming after it.
-    const nextStep = navSteps[navStepIndex + 1];
-    $('#navNextPreview').hidden = !nextStep;
-    if (nextStep) $('#navNextInstruction').textContent = stripHtml(nextStep.instructions);
-    let remainingMeters = 0;
-    let remainingSeconds = 0;
-    for (let i = navStepIndex; i < navSteps.length; i++) {
+    const upcomingStep = navSteps[navStepIndex + 1];
+    applyManeuverIcon(upcomingStep?.maneuver || 'arrive');
+    const stepPath = navigationStepPath(step);
+    const turnDistance = navCurrentPosition ? remainingDistanceOnPathMeters(navCurrentPosition, stepPath) : step.distance.value;
+    $('#navDistanceNext').textContent = formatNavDistance(turnDistance);
+    $('#navInstruction').textContent = upcomingStep
+      ? stripHtml(upcomingStep.instructions)
+      : `Arrive at ${navDestination?.label || 'destination'}`;
+    // Surface the maneuver after the upcoming one in the compact "Then" row.
+    const followingStep = navSteps[navStepIndex + 2];
+    $('#navNextPreview').hidden = !followingStep;
+    if (followingStep) {
+      applyManeuverSvg($('#navNextManeuverSvg'), followingStep.maneuver);
+      $('#navNextInstruction').textContent = stripHtml(followingStep.instructions);
+    }
+    let remainingMeters = turnDistance;
+    const currentStepDistance = Math.max(1, step.distance.value);
+    const currentStepRatio = Math.max(0, Math.min(1, turnDistance / currentStepDistance));
+    let remainingSeconds = step.duration.value * currentStepRatio;
+    for (let i = navStepIndex + 1; i < navSteps.length; i++) {
       remainingMeters += navSteps[i].distance.value;
       remainingSeconds += navSteps[i].duration.value;
     }
     $('#navDistance').textContent = formatNavDistance(remainingMeters);
     $('#navEta').textContent = formatNavDuration(remainingSeconds);
     $('#navArrival').textContent = formatArrivalTime(remainingSeconds);
-    if (navLastAnnouncedStep !== navStepIndex) {
+    if (!navMuted && navLastAnnouncedStep !== navStepIndex) {
       navLastAnnouncedStep = navStepIndex;
-      speak(stripHtml(step.instructions));
+      if (navLastNowPromptStep !== navStepIndex) speak(stripHtml(step.instructions));
     }
+  }
+
+  function maybeSpeakUpcomingNavigationPrompt(here, step) {
+    const upcomingIndex = navStepIndex + 1;
+    const upcomingStep = navSteps[upcomingIndex];
+    if (!upcomingStep) return;
+
+    if (navPromptTargetIndex !== upcomingIndex) {
+      navPromptTargetIndex = upcomingIndex;
+      navPromptStage = 0;
+    }
+
+    const maneuverDistance = remainingDistanceOnPathMeters(here, navigationStepPath(step));
+    const stage = navigationPromptStageForDistance(maneuverDistance);
+    if (navMuted || stage <= navPromptStage) return;
+
+    navPromptStage = stage;
+    if (stage === 3) navLastNowPromptStep = upcomingIndex;
+    const prompt = navigationPromptText(stripHtml(upcomingStep.instructions), maneuverDistance, stage);
+    if (prompt) speak(prompt);
+  }
+
+  function updateNavigationControls() {
+    const locate = $('#locateBtn');
+    locate?.classList.toggle('active', navFollowing);
+    const mute = $('#navMuteBtn');
+    if (mute) {
+      mute.setAttribute('aria-label', navMuted ? 'Unmute navigation guidance' : 'Mute navigation guidance');
+      const use = $('use', mute);
+      if (use) use.setAttribute('href', navMuted ? '#i-volume-off' : '#i-volume');
+      mute.classList.toggle('active', navMuted);
+    }
+    const overview = $('#navOverviewBtn');
+    if (overview) {
+      overview.setAttribute('aria-label', navFollowing ? 'Show route overview' : 'Resume navigation follow mode');
+      const use = $('use', overview);
+      if (use) use.setAttribute('href', navFollowing ? '#i-route' : '#i-target');
+      overview.classList.toggle('active', !navFollowing);
+    }
+  }
+
+  function updateNavigationPositionIcon() {
+    if (!userMapMarker || !navSteps.length) return;
+    userMapMarker.setIcon?.(navigationPositionMapIcon());
+  }
+
+  function applyNavigationCamera(here, step, gpsHeading) {
+    if (!map || !step) return;
+    const lookAhead = lookAheadCoordinateOnPath(here, navigationStepPath(step), 120);
+    const centre = navigationCameraCentre(here, lookAhead);
+    const heading = Number.isFinite(gpsHeading) && gpsHeading >= 0 ? gpsHeading : bearingDegrees(here, lookAhead);
+    if (!navFollowing) return;
+    if (typeof map.moveCamera === 'function') {
+      map.moveCamera({ center: centre, zoom: 18, heading, tilt: 55 });
+    } else {
+      map.panTo(centre);
+      map.setZoom(18);
+      map.setHeading?.(heading);
+      map.setTilt?.(55);
+    }
+    // In heading-up follow mode the map rotates underneath the marker, so the
+    // chevron itself remains screen-up. Overview/pan mode uses geographic
+    // heading instead (see updateNavigationPositionIcon).
+    updateNavigationPositionIcon();
+  }
+
+  function showNavigationOverview() {
+    if (!map || !navSteps.length) return;
+    navFollowing = false;
+    map.setHeading?.(0);
+    map.setTilt?.(0);
+    updateNavigationPositionIcon();
+    const route = directionsRenderer?.getDirections?.()?.routes?.[0];
+    if (route?.bounds) map.fitBounds?.(route.bounds, { top: 170, right: 70, bottom: 150, left: 70 });
+    updateNavigationControls();
+  }
+
+  function resumeNavigationFollowing() {
+    navFollowing = true;
+    updateNavigationControls();
+    if (!latestDevicePosition || !navSteps[navStepIndex]) return;
+    const here = {
+      lat: latestDevicePosition.coords.latitude,
+      lng: latestDevicePosition.coords.longitude,
+    };
+    navCurrentPosition = here;
+    applyNavigationCamera(here, navSteps[navStepIndex], latestDevicePosition.coords.heading);
   }
 
   /** Entry point — called from the destination card's real "Start"
@@ -4284,14 +4554,20 @@
 
   // Navigation now extends the real app surface through the installed-iPhone
   // bottom safe area. Do not recolour browser/system chrome to hide a gap.
-  function applyRoute(result, destination, label) {
+  function applyRoute(result, destination, label, { preserveMute = false } = {}) {
     const leg = result.routes[0]?.legs[0];
     if (!leg) { showToast('Could not calculate a route. Try again.'); return; }
     getDirectionsRenderer().setDirections(result);
     navSteps = leg.steps;
     navStepIndex = 0;
     navLastAnnouncedStep = -1;
+    navPromptTargetIndex = -1;
+    navPromptStage = 0;
+    navLastNowPromptStep = -1;
     navOffRouteSince = null;
+    navFollowing = true;
+    if (!preserveMute) navMuted = false;
+    navCurrentPosition = null;
     navDestination = { ...destination, label };
     hideDestinationCard();
     destinationMarker?.setMap(null);
@@ -4310,10 +4586,18 @@
     // screen are the route, the turn card, the ETA bar, and the controls a
     // rider actually needs mid-drive (report hazard, re-centre, end nav).
     $('#app').classList.add('nav-mode');
+    setNavigationTrafficVisible(true);
     $('#navBanner').hidden = false;
     $('#navSummary').hidden = false;
+    userMapMarker?.setIcon?.(navigationPositionMapIcon());
+    updateNavigationControls();
     renderNavStep();
     startNavTracking();
+    if (latestDevicePosition && navSteps[0]) {
+      const here = { lat: latestDevicePosition.coords.latitude, lng: latestDevicePosition.coords.longitude };
+      navCurrentPosition = here;
+      applyNavigationCamera(here, navSteps[0], latestDevicePosition.coords.heading);
+    }
   }
 
   function setNavGpsIssue(message) {
@@ -4387,26 +4671,37 @@
     clearNavGpsIssue();
     if (navRerouting || !navSteps.length) return;
     const here = { lat: position.coords.latitude, lng: position.coords.longitude };
-    centreMap(here.lat, here.lng);
-    const step = navSteps[navStepIndex];
-    if (!step) return;
-    const stepEnd = { lat: step.end_location.lat(), lng: step.end_location.lng() };
-    if (metersBetween(here, stepEnd) <= NAV_STEP_ARRIVAL_RADIUS_M) {
-      if (navStepIndex < navSteps.length - 1) {
-        navStepIndex += 1;
-      } else {
-        finishNavigation(true);
-        return;
-      }
+    navCurrentPosition = here;
+    userMapMarker?.setPosition?.(here);
+
+    let effectiveIndex = navStepIndex;
+    while (effectiveIndex < navSteps.length - 1) {
+      const step = navSteps[effectiveIndex];
+      const next = navSteps[effectiveIndex + 1];
+      const stepEnd = { lat: step.end_location.lat(), lng: step.end_location.lng() };
+      const reachedStepEnd = metersBetween(here, stepEnd) <= NAV_STEP_ARRIVAL_RADIUS_M;
+      const alreadyOnNextStep = distanceToPathMeters(here, navigationStepPath(next)) <= NAV_STEP_ARRIVAL_RADIUS_M * 1.5;
+      if (!reachedStepEnd && !alreadyOnNextStep) break;
+      effectiveIndex += 1;
     }
+
+    const lastStep = navSteps[navSteps.length - 1];
+    const lastEnd = { lat: lastStep.end_location.lat(), lng: lastStep.end_location.lng() };
+    if (effectiveIndex === navSteps.length - 1 && metersBetween(here, lastEnd) <= NAV_STEP_ARRIVAL_RADIUS_M) {
+      finishNavigation(true);
+      return;
+    }
+
+    if (effectiveIndex !== navStepIndex) navStepIndex = effectiveIndex;
+    const step = navSteps[navStepIndex];
     renderNavStep();
-    checkOffRoute(here, navSteps[navStepIndex]);
+    maybeSpeakUpcomingNavigationPrompt(here, step);
+    applyNavigationCamera(here, step, position.coords.heading);
+    checkOffRoute(here, step);
   }
 
   function checkOffRoute(here, step) {
-    const stepStart = { lat: step.start_location.lat(), lng: step.start_location.lng() };
-    const stepEnd = { lat: step.end_location.lat(), lng: step.end_location.lng() };
-    const distanceToRoute = distanceToSegmentMeters(here, stepStart, stepEnd);
+    const distanceToRoute = distanceToPathMeters(here, navigationStepPath(step));
     if (distanceToRoute > NAV_OFF_ROUTE_RADIUS_M) {
       if (!navOffRouteSince) navOffRouteSince = Date.now();
       else if (Date.now() - navOffRouteSince > NAV_OFF_ROUTE_GRACE_MS) {
@@ -4434,25 +4729,38 @@
       (result, status) => {
         navRerouting = false;
         if (status !== 'OK' || !result) return;
-        applyRoute(result, { lat: navDestination.lat, lng: navDestination.lng }, navDestination.label);
+        applyRoute(result, { lat: navDestination.lat, lng: navDestination.lng }, navDestination.label, { preserveMute: true });
       }
     );
   }
 
   function finishNavigation(arrived) {
+    const announceArrival = Boolean(arrived && !navMuted);
     stopNavTracking();
     directionsRenderer?.setMap(null);
     navSteps = [];
     navStepIndex = 0;
     navDestination = null;
+    navLastAnnouncedStep = -1;
+    navPromptTargetIndex = -1;
+    navPromptStage = 0;
+    navLastNowPromptStep = -1;
     navOffRouteSince = null;
     navRerouting = false;
+    navFollowing = true;
+    navMuted = false;
+    navCurrentPosition = null;
+    map?.setHeading?.(0);
+    map?.setTilt?.(0);
+    setNavigationTrafficVisible(false);
+    userMapMarker?.setIcon?.(riderAvatarMapIcon(state.profile, true));
+    updateNavigationControls();
     $('#navBanner').hidden = true;
     $('#navSummary').hidden = true;
     $('#app').classList.remove('nav-mode');
     if (arrived) {
       showToast('You have arrived.');
-      speak('You have arrived at your destination.');
+      if (announceArrival) speak('You have arrived at your destination.');
     }
   }
 
@@ -4472,11 +4780,23 @@
       disableDefaultUI: true,
       gestureHandling: 'greedy',
       clickableIcons: false,
-      // Roadmap is Google's current standard navigation-oriented map. Use its
-      // native system colour scheme and keep Rider Comms' product layers above it.
+      // A div-backed Maps JavaScript map otherwise defaults to the raster
+      // renderer, which ignores the pitched/heading camera used by navigation.
+      // Force Google's vector/WebGL renderer so navigation can use genuine
+      // provider-native perspective and close-zoom 3D building geometry.
+      renderingType: google.maps.RenderingType.VECTOR,
+      tiltInteractionEnabled: true,
+      headingInteractionEnabled: true,
+      isFractionalZoomEnabled: true,
       mapTypeId: 'roadmap',
       colorScheme: 'FOLLOW_SYSTEM',
       backgroundColor: prefersDarkMode() ? '#080d10' : '#f2f5f6',
+    });
+    map.addListener?.('dragstart', () => {
+      if (!navSteps.length) return;
+      navFollowing = false;
+      updateNavigationPositionIcon();
+      updateNavigationControls();
     });
     usingFallbackMap = false;
     $('#fallbackMap').hidden = true;
@@ -4529,6 +4849,16 @@
   function bindEvents() {
     $$('[data-nav]').forEach((button) => button.addEventListener('click', () => navigate(button.dataset.nav)));
     $('#enableLocationBtn').addEventListener('click', () => void requestMovementLocationAccess());
+    $('#navMuteBtn')?.addEventListener('click', () => {
+      navMuted = !navMuted;
+      if (navMuted) window.speechSynthesis?.cancel?.();
+      else if (navSteps.length) renderNavStep();
+      updateNavigationControls();
+    });
+    $('#navOverviewBtn')?.addEventListener('click', () => {
+      if (navFollowing) showNavigationOverview();
+      else resumeNavigationFollowing();
+    });
     window.addEventListener('popstate', () => {
       if (activeChat) closeChat();
       navigate(location.hash.split('/')[0].slice(1) || 'map', false);
