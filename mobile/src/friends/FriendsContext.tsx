@@ -4,6 +4,7 @@ import { ApiError, type ConversationSummary, type RiderCommsClient } from '../ap
 import { useAuth } from '../auth/AuthContext';
 import { refreshAuthoritativeSocialSnapshot } from './socialRefresh';
 import { useSettings } from '../settings/SettingsContext';
+import { appendUniqueFriendRequest } from './requestState';
 
 const SOCIAL_EVENT_RETRY_MS = 2_000;
 const SOCIAL_ACTIVITY_POLL_MS = 30_000;
@@ -250,7 +251,7 @@ export function FriendsProvider({ children }: { children: React.ReactNode }): Re
     async (toRiderId: string) => {
       try {
         const request = await client.sendFriendRequest(toRiderId);
-        setOutgoingRequests((current) => [...current, request]);
+        setOutgoingRequests((current) => appendUniqueFriendRequest(current, request));
       } catch (err) {
         throw new Error(messageFor(err, 'Could not send that friend request.'));
       } finally {
