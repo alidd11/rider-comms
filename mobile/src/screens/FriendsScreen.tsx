@@ -174,7 +174,7 @@ function OutgoingRequestRow({ request, profile }: { request: FriendRequest; prof
 }
 
 function activityLabel(activity?: FriendActivity): string {
-  if (!activity) return 'Connected';
+  if (!activity) return 'Offline';
   if (activity.online) return 'Online now';
   if (!activity.lastSeenAt) return 'Offline';
   const elapsed = Math.max(0, Date.now() - activity.lastSeenAt);
