@@ -298,7 +298,7 @@ function FriendProfileModal({
 
           <View style={styles.profileIdentity}>
             <View style={styles.profileAvatarWrap}>
-              <RiderAvatar avatarId={profile?.avatarId ?? friend.avatarId} size={64} status={activity?.online ? 'online' : 'stale'} />
+              <RiderAvatar avatarId={profile?.avatarId ?? friend.avatarId} size={56} status={activity?.online ? 'online' : 'stale'} />
             </View>
             <View style={styles.profileIdentityCopy}>
               <Text style={styles.profileModalName}>{profile?.displayName ?? friend.displayName}</Text>
@@ -589,7 +589,7 @@ const styles = StyleSheet.create({
   profileLoader: { marginTop: spacing.md },
   profileError: { ...type.caption, color: colors.danger, marginTop: spacing.md },
   profileActions: { flexDirection: 'row', gap: 6, marginTop: spacing.md },
-  profileAction: { flex: 1, minHeight: 56, alignItems: 'center', justifyContent: 'center', gap: 4, backgroundColor: colors.surface, borderRadius: radii.md, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
+  profileAction: { flex: 1, minHeight: 58, alignItems: 'center', justifyContent: 'center', gap: 4, backgroundColor: colors.surface, borderRadius: radii.md, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
   profileActionText: { ...type.caption, color: colors.textPrimary, fontWeight: '700' },
   profileDetailList: { marginTop: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: radii.lg, overflow: 'hidden', backgroundColor: colors.surface },
   profileDetailRow: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 10 },
