@@ -2112,3 +2112,47 @@ body:has(.content-screen.active) .movement-safety-banner{
   .chat-composer .icon-button{width:44px;min-width:44px;height:44px;border-radius:8px}
 }
 
+/* Friends list mockup refinement — presence dots sit beside avatars like the
+   approved concept, section labels use ordinary title case, and activity copy
+   stays neutral so green is reserved for the live-presence signal itself. */
+@media(max-width:699px){
+  [data-screen="friends"] .friend-row{
+    min-height:60px;
+    gap:10px;
+    padding:7px 1px;
+  }
+  [data-screen="friends"] .friend-row[data-group-label]{margin-top:28px}
+  [data-screen="friends"] .friend-row[data-group-label]::before{
+    top:-21px;
+    font-size:.72rem;
+    font-weight:700;
+    letter-spacing:0;
+    text-transform:none;
+  }
+  [data-screen="friends"] .friend-avatar-wrap{
+    display:flex;
+    align-items:center;
+    gap:7px;
+  }
+  [data-screen="friends"] .friend-row .avatar{
+    width:42px;
+    height:42px;
+  }
+  [data-screen="friends"] .friend-row .friend-presence-dot{
+    position:static;
+    right:auto;
+    bottom:auto;
+    width:10px;
+    height:10px;
+    flex:none;
+    border:0;
+    box-shadow:none;
+  }
+  [data-screen="friends"] .friend-row .identity strong{font-size:.84rem}
+  [data-screen="friends"] .friend-row .identity span{
+    margin-top:2px;
+    font-size:.71rem;
+  }
+  [data-screen="friends"] .friend-row.is-online .friend-activity{color:var(--text-secondary)}
+}
+
