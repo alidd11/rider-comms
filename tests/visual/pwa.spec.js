@@ -2317,7 +2317,7 @@ test('@viewport PWA chat stays pinned to the visible viewport when the keyboard 
   expectNear(restoredNavBox.y + restoredNavBox.height, baselineNavBox.y + baselineNavBox.height);
 });
 
-test('PWA profile avatar selection persists and updates visible avatars', async ({ page }) => {
+test('PWA profile avatar families persist and render the selected identity', async ({ page }) => {
   let savedAvatar = 'ember';
   await mockAuthenticatedApi(page, 'stationary', async ({ request, url }) => {
     if (request.method() === 'PUT' && url.pathname === `/riders/${RIDER_ID}/profile`) {
@@ -2330,12 +2330,24 @@ test('PWA profile avatar selection persists and updates visible avatars', async 
 
   await page.goto('/#settings');
   await page.locator('#editProfileBtn').click();
+  await expect(page.locator('[data-avatar-family-tab="helmet"]')).toHaveAttribute('aria-selected', 'true');
   await expect(page.locator('[data-avatar-option="ember"]')).toHaveAttribute('aria-checked', 'true');
 
-  await page.locator('[data-avatar-option="rose"]').click();
-  await expect.poll(() => savedAvatar).toBe('rose');
-  await expect(page.locator('[data-avatar-option="rose"]')).toHaveAttribute('aria-checked', 'true');
-  await expect(page.locator('[data-avatar]').first()).toHaveCSS('--avatar', '#EC4899');
+  await page.locator('[data-avatar-family-tab="motorbike"]').click();
+  await expect(page.locator('[data-avatar-family-panel="motorbike"]')).toBeVisible();
+  await expect(page.locator('[data-avatar-option="bike_sport"] .rider-avatar-svg')).toHaveAttribute('data-avatar-family', 'motorbike');
+  await page.locator('[data-avatar-option="bike_sport"]').click();
+  await expect.poll(() => savedAvatar).toBe('bike_sport');
+  await expect(page.locator('[data-avatar-option="bike_sport"]')).toHaveAttribute('aria-checked', 'true');
+  await expect(page.locator('[data-avatar]').first().locator('.rider-avatar-svg')).toHaveAttribute('data-avatar-family', 'motorbike');
+
+  await page.locator('[data-avatar-family-tab="car"]').click();
+  await expect(page.locator('[data-avatar-family-panel="car"]')).toBeVisible();
+  await expect(page.locator('[data-avatar-option="car_hatchback"] .rider-avatar-svg')).toHaveAttribute('data-avatar-family', 'car');
+  await page.locator('[data-avatar-option="car_hatchback"]').click();
+  await expect.poll(() => savedAvatar).toBe('car_hatchback');
+  await expect(page.locator('[data-avatar-option="car_hatchback"]')).toHaveAttribute('aria-checked', 'true');
+  await expect(page.locator('[data-avatar]').first().locator('.rider-avatar-svg')).toHaveAttribute('data-avatar-family', 'car');
 });
 
 test('@viewport standalone canvas, navigation and scroll geometry remain coherent', async ({ page }, testInfo) => {
