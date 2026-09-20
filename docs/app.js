@@ -425,18 +425,6 @@
     return String(value).replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character]));
   }
 
-  function initials(name) {
-    const result = String(name).trim().split(/\s+/).slice(0, 2).map((part) => part[0] || '').join('').toUpperCase();
-    return result || 'RC';
-  }
-
-  function identityColor(id) {
-    const colors = ['#4f7cff', '#8b5cf6', '#e45d8c', '#148f77', '#b96c22', '#3d7f92'];
-    let hash = 0;
-    for (const char of id) hash = ((hash << 5) - hash + char.charCodeAt(0)) | 0;
-    return colors[Math.abs(hash) % colors.length];
-  }
-
   function avatar(person, className = '') {
     return `<span class="avatar ${className}" aria-hidden="true">${riderAvatarSvg(person.avatarId)}</span>`;
   }
@@ -726,6 +714,7 @@
     renderHazardMarkers();
     const riders = visibleMapRiders();
     if (!map || usingFallbackMap) return renderFallbackMarkers([]);
+    if (userMapMarker) userMapMarker.setIcon(riderAvatarMapIcon(state.profile, true));
     mapMarkers.forEach((marker) => marker.setMap(null));
     mapMarkers = riders.map((person) => {
       const real = rideMemberLocations.get(person.riderId);
@@ -4271,15 +4260,6 @@
     renderMapRiders();
     renderMapHazards();
 
-  }
-
-  function currentLocationIcon() {
-    const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="52" height="52" viewBox="0 0 52 52"><circle cx="26" cy="26" r="21" fill="#2fa8d3" stroke="#ffffff" stroke-width="3"/><path d="M28.8 13.2 18.1 34.8l8.2-3 5.7 6.9 6-25.5-9.2 0Z" fill="#ffffff" stroke="#0b6f91" stroke-width=".7" stroke-linejoin="round"/></svg>';
-    return {
-      url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
-      scaledSize: new google.maps.Size(44, 44),
-      anchor: new google.maps.Point(22, 22),
-    };
   }
 
   function addMapMarker(person, position, current) {
