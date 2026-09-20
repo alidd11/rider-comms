@@ -256,6 +256,7 @@
   let socialEventCursor;
   let socialEventGeneration = 0;
   let friendActivityTimer;
+  let activeFriendProfileRiderId = null;
 
   // Real crowdsourced hazard reports for the current area (GET
   // /hazards/nearby), refreshed whenever the map screen is (re)opened or a
@@ -894,42 +895,67 @@
 
   async function openFriendProfile(riderId) {
     const friend = state.friends.find((person) => person.riderId === riderId);
-    if (!friend) return;
-    let profile = friend;
+    if (!friend) {
+      if (activeFriendProfileRiderId === riderId) closeSheet();
+      return;
+    }
+
+    const renderProfile = (profile, { loading = false } = {}) => {
+      const currentFriend = state.friends.find((person) => person.riderId === riderId);
+      if (!currentFriend) {
+        if (activeFriendProfileRiderId === riderId) closeSheet();
+        return false;
+      }
+      const activity = friendActivity.get(riderId);
+      const socialLinks = [
+        profile.instagramUsername ? `<a class="social-link" href="https://www.instagram.com/${encodeURIComponent(profile.instagramUsername)}/" target="_blank" rel="noopener"><span>Instagram</span><strong>@${escapeHtml(profile.instagramUsername)}</strong>${icon('chevron')}</a>` : '',
+        profile.tiktokUsername ? `<a class="social-link" href="https://www.tiktok.com/@${encodeURIComponent(profile.tiktokUsername)}" target="_blank" rel="noopener"><span>TikTok</span><strong>@${escapeHtml(profile.tiktokUsername)}</strong>${icon('chevron')}</a>` : '',
+      ].filter(Boolean).join('');
+
+      presentSheet(currentFriend.displayName, `<article class="friend-profile-card">
+          <span class="friend-avatar-wrap">${avatar({ ...currentFriend, avatarId: profile.avatarId || currentFriend.avatarId })}<i class="friend-presence-dot ${activity?.online ? 'online' : 'offline'}" aria-hidden="true"></i></span>
+          <div><strong>${escapeHtml(currentFriend.displayName)}</strong><span>${escapeHtml(currentFriend.handle)}</span><small class="${activity?.online ? 'online' : ''}">${escapeHtml(friendActivityLabel(activity))}</small></div>
+        </article>
+        <div class="friend-profile-actions" aria-label="Rider actions">
+          <button id="messageFriend"><span class="friend-action-icon">${icon('friends')}</span><strong>Message</strong></button>
+          <button id="copyFriendId"><span class="friend-action-icon">${icon('share')}</span><strong>Copy ID</strong></button>
+          <button id="friendSafetyActions"><span class="friend-action-icon">${icon('shield')}</span><strong>More</strong></button>
+        </div>
+        <div class="friend-detail-list">
+          <div><span class="setting-icon">${icon('broadcast')}</span><span><strong>Rider status</strong><small>${escapeHtml(friendActivityLabel(activity))}</small></span></div>
+          ${state.activeRide?.memberIds?.includes(riderId) ? `<div><span class="setting-icon">${icon('ride')}</span><span><strong>In your group ride</strong><small>Connected to this ride</small></span></div>` : ''}
+        </div>
+        ${loading
+          ? '<p class="friend-profile-note">Refreshing shared profile…</p>'
+          : socialLinks
+            ? `<div class="social-links">${socialLinks}</div>`
+            : '<p class="friend-profile-note">This rider has not shared any social links with you.</p>'}
+        <p class="caption">Only connect and arrange rides with people you trust. Social links follow each rider’s privacy settings.</p>`, () => {
+        $('#copyFriendId').addEventListener('click', async () => {
+          try { await navigator.clipboard.writeText(riderId); showToast('Rider ID copied.'); }
+          catch { showToast(riderId); }
+        });
+        $('#messageFriend').addEventListener('click', () => openChat(currentFriend));
+        $('#friendSafetyActions').addEventListener('click', () => openFriendSafetyActions(currentFriend));
+      });
+      activeFriendProfileRiderId = riderId;
+      return true;
+    };
+
+    // Scrub any previously-visible social links immediately. The authoritative
+    // public profile response is the only thing allowed to reveal them again.
+    if (!renderProfile(friend, { loading: true })) return;
+
+    let profile;
     try {
       profile = await apiFetch('GET', `/profiles/${encodeURIComponent(riderId)}`);
     } catch {
-      // Keep the friendship identity available when optional public-profile data
-      // cannot be refreshed.
+      // The scrubbed friendship identity stays visible, but no stale social
+      // links survive a failed privacy refresh.
+      return;
     }
-    const activity = friendActivity.get(riderId);
-    const socialLinks = [
-      profile.instagramUsername ? `<a class="social-link" href="https://www.instagram.com/${encodeURIComponent(profile.instagramUsername)}/" target="_blank" rel="noopener"><span>Instagram</span><strong>@${escapeHtml(profile.instagramUsername)}</strong>${icon('chevron')}</a>` : '',
-      profile.tiktokUsername ? `<a class="social-link" href="https://www.tiktok.com/@${encodeURIComponent(profile.tiktokUsername)}" target="_blank" rel="noopener"><span>TikTok</span><strong>@${escapeHtml(profile.tiktokUsername)}</strong>${icon('chevron')}</a>` : '',
-    ].filter(Boolean).join('');
-
-    presentSheet(friend.displayName, `<article class="friend-profile-card">
-        <span class="friend-avatar-wrap">${avatar({ ...friend, avatarId: profile.avatarId || friend.avatarId })}<i class="friend-presence-dot ${activity?.online ? 'online' : 'offline'}" aria-hidden="true"></i></span>
-        <div><strong>${escapeHtml(friend.displayName)}</strong><span>${escapeHtml(friend.handle)}</span><small class="${activity?.online ? 'online' : ''}">${escapeHtml(friendActivityLabel(activity))}</small></div>
-      </article>
-      <div class="friend-profile-actions" aria-label="Rider actions">
-        <button id="messageFriend"><span class="friend-action-icon">${icon('friends')}</span><strong>Message</strong></button>
-        <button id="copyFriendId"><span class="friend-action-icon">${icon('share')}</span><strong>Copy ID</strong></button>
-        <button id="friendSafetyActions"><span class="friend-action-icon">${icon('shield')}</span><strong>More</strong></button>
-      </div>
-      <div class="friend-detail-list">
-        <div><span class="setting-icon">${icon('broadcast')}</span><span><strong>Rider status</strong><small>${escapeHtml(friendActivityLabel(activity))}</small></span></div>
-        ${state.activeRide?.memberIds?.includes(riderId) ? `<div><span class="setting-icon">${icon('ride')}</span><span><strong>In your group ride</strong><small>Connected to this ride</small></span></div>` : ''}
-      </div>
-      ${socialLinks ? `<div class="social-links">${socialLinks}</div>` : '<p class="friend-profile-note">This rider has not shared any social links with you.</p>'}
-      <p class="caption">Only connect and arrange rides with people you trust. Social links follow each rider’s privacy settings.</p>`, () => {
-      $('#copyFriendId').addEventListener('click', async () => {
-        try { await navigator.clipboard.writeText(riderId); showToast('Rider ID copied.'); }
-        catch { showToast(riderId); }
-      });
-      $('#messageFriend').addEventListener('click', () => openChat(friend));
-      $('#friendSafetyActions').addEventListener('click', () => openFriendSafetyActions(friend));
-    });
+    if (activeFriendProfileRiderId !== riderId) return;
+    renderProfile(profile);
   }
 
   function formatMessageTime(value) {
@@ -1285,7 +1311,8 @@
   }
 
   function openFriendSafetyActions(friend) {
-    presentSheet('Safety options', `<div class="settings-note"><strong>${escapeHtml(friend.displayName)}</strong><p>Reports are sent to Rider Comms for review. Blocking immediately removes this friendship and prevents messages or new requests.</p></div>
+    presentSheet('Safety options', `<div class="settings-note"><strong>${escapeHtml(friend.displayName)}</strong><p>Reports are sent to Rider Comms for review. Removing ends the friendship; blocking also prevents messages or new requests.</p></div>
+      <button class="button secondary wide" id="removeFriendBtn">Remove friend</button>
       <div class="choice-list" aria-label="Report reason">
         <button data-report-rider="harassment"><span><strong>Report harassment</strong><small>Threats, abuse or repeated unwanted contact</small></span>${icon('chevron')}</button>
         <button data-report-rider="unsafe"><span><strong>Report unsafe behaviour</strong><small>Dangerous conduct affecting rider safety</small></span>${icon('chevron')}</button>
@@ -1293,11 +1320,40 @@
       </div>
       <button class="button danger wide" id="blockFriendBtn">Block rider</button>
       <p id="friendSafetyError" class="inline-error" role="alert" hidden></p>`, () => {
+      $('#removeFriendBtn').addEventListener('click', () => void removeFriend(friend));
       $$('[data-report-rider]', $('#sheetBody')).forEach((button) => {
         button.addEventListener('click', () => void reportFriend(friend, button.dataset.reportRider));
       });
       $('#blockFriendBtn').addEventListener('click', () => void blockFriend(friend));
     });
+  }
+
+  async function removeFriend(friend) {
+    if (!window.confirm(`Remove ${friend.displayName} from your friends list?`)) return;
+    const button = $('#removeFriendBtn');
+    const error = $('#friendSafetyError');
+    button.disabled = true;
+    error.hidden = true;
+    try {
+      await apiFetch(
+        'DELETE',
+        `/riders/${encodeURIComponent(state.profile.riderId)}/friends/${encodeURIComponent(friend.riderId)}`,
+      );
+      state.friends = state.friends.filter((candidate) => candidate.riderId !== friend.riderId);
+      state.requests = state.requests.filter((request) => request.riderId !== friend.riderId);
+      outgoingFriendRequests = outgoingFriendRequests.filter((request) => request.riderId !== friend.riderId);
+      conversationSummaries.delete(friend.riderId);
+      persist();
+      renderFriends();
+      if (activeChat?.riderId === friend.riderId) closeChat({ restoreFocus: false });
+      closeSheet();
+      showToast(`${friend.displayName} removed from friends.`);
+      void Promise.all([refreshFriendNetwork(), refreshMessageSummaries()]).catch(() => {});
+    } catch {
+      button.disabled = false;
+      error.textContent = 'Could not remove that friend. Check your connection and try again.';
+      error.hidden = false;
+    }
   }
 
   async function reportFriend(friend, reason) {
@@ -1368,6 +1424,7 @@
             refreshProfileAuthoritative(),
           ]);
           if (activeChat) await loadChatMessages({ throwOnError: true });
+          if (activeFriendProfileRiderId) await openFriendProfile(activeFriendProfileRiderId);
         }
 
         let page = await apiFetch(
@@ -1382,16 +1439,21 @@
         let messageDirty = false;
         let chatDirty = false;
         let selfProfileDirty = false;
+        const friendProfileDirtyRiderIds = new Set();
 
         while (true) {
           for (const event of Array.isArray(page.events) ? page.events : []) {
-            if (event.type === 'friend_request' || event.type === 'friend_request_resolved' || event.type === 'friend_removed' || event.type === 'social_refresh') {
+            const peerProfileDirty = event.type === 'social_refresh'
+              && event.entityId === 'profile'
+              && event.actorRiderId !== state.profile.riderId;
+            if (event.type === 'friend_request' || event.type === 'friend_request_resolved' || event.type === 'friend_removed' || peerProfileDirty) {
               networkDirty = true;
             }
-            if (event.type === 'message' || event.type === 'message_read' || event.type === 'friend_removed' || event.type === 'social_refresh') {
+            if (event.type === 'message' || event.type === 'message_read' || event.type === 'friend_removed') {
               messageDirty = true;
             }
             if (event.type === 'message' || event.type === 'message_read' || event.type === 'friend_removed') chatDirty = true;
+            if (peerProfileDirty) friendProfileDirtyRiderIds.add(event.actorRiderId);
             if (event.type === 'social_refresh' && event.entityId === 'profile' && event.actorRiderId === state.profile.riderId) {
               selfProfileDirty = true;
             }
@@ -1409,6 +1471,13 @@
         if (networkDirty) await refreshFriendNetwork();
         if (messageDirty) await refreshMessageSummaries();
         if (chatDirty && activeChat) await loadChatMessages({ throwOnError: true });
+
+        const openProfileRiderId = activeFriendProfileRiderId;
+        if (openProfileRiderId && !state.friends.some((friend) => friend.riderId === openProfileRiderId)) {
+          closeSheet();
+        } else if (openProfileRiderId && friendProfileDirtyRiderIds.has(openProfileRiderId)) {
+          await openFriendProfile(openProfileRiderId);
+        }
       } catch {
         if (generation !== socialEventGeneration || !session) return;
         socialEventCursor = undefined;
@@ -1516,7 +1585,9 @@
     try {
       const result = await apiFetch('POST', `/friends/requests/${encodeURIComponent(requestId)}/accept`, {});
       state.requests = state.requests.filter((request) => request.id !== requestId);
-      state.friends.push({ riderId: result.friend.riderId, displayName: result.friend.displayName, handle: result.friend.handle, avatarId: result.friend.avatarId || 'ember', status: 'Connected now' });
+      if (!state.friends.some((friend) => friend.riderId === result.friend.riderId)) {
+        state.friends.push({ riderId: result.friend.riderId, displayName: result.friend.displayName, handle: result.friend.handle, avatarId: result.friend.avatarId || 'ember', status: 'Connected now' });
+      }
       persist();
       renderFriends();
       showToast(`${result.friend.displayName} added to friends.`);
@@ -1549,11 +1620,13 @@
   }
 
   const FRIEND_REQUEST_ERROR_MESSAGES = {
-    cannot_friend_yourself: 'You can’t send a friend request to yourself.',
-    rider_not_found: 'No rider with that ID exists.',
-    blocked: 'You can’t send a request to this rider.',
-    already_requested: 'A request is already pending with this rider.',
-    already_friends: 'You’re already friends with this rider.',
+    cannot_friend_yourself: 'You cannot send a friend request to yourself.',
+    rider_not_found: 'No rider with that handle or Rider ID was found.',
+    blocked: 'This connection is unavailable.',
+    request_exists: 'A friend request is already pending between you.',
+    already_friends: 'You are already friends with this rider.',
+    rate_limited: 'Too many requests. Wait a moment and try again.',
+    unauthorized: 'Your session has expired. Sign in again.',
   };
 
   async function sendFriendRequest(riderId) {
@@ -1875,6 +1948,7 @@
   }
 
   function presentSheet(title, body, ready) {
+    activeFriendProfileRiderId = null;
     if ($('#sheetBackdrop').hidden) lastSheetTrigger = document.activeElement;
     $('#sheetTitle').textContent = title;
     $('#sheetBody').innerHTML = body;
@@ -2077,6 +2151,7 @@
   }
 
   function closeSheet() {
+    activeFriendProfileRiderId = null;
     const trigger = lastSheetTrigger;
     $('#sheetBackdrop').hidden = true;
     document.documentElement.classList.remove('sheet-open');
