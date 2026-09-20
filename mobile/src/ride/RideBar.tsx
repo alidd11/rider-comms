@@ -28,7 +28,7 @@ import { useMovementSafety } from '../safety/MovementSafetyContext';
  * token to resolve — the token fetch and the audio session setup happen
  * in parallel, not one after the other.
  */
-function useVoiceAudioSession(active: boolean): { ready: boolean; error: string | null } {
+function useVoiceAudioSession(active: boolean, retryKey: number): { ready: boolean; error: string | null } {
   const [state, setState] = React.useState<{ ready: boolean; error: string | null }>({ ready: false, error: null });
 
   React.useEffect(() => {
@@ -57,7 +57,7 @@ function useVoiceAudioSession(active: boolean): { ready: boolean; error: string 
       stopped = true;
       void releaseVoiceAudioSession('private-ride').catch(() => {});
     };
-  }, [active]);
+  }, [active, retryKey]);
 
   return state;
 }
@@ -149,10 +149,11 @@ export function RideBar({ controlsVisible = true }: { controlsVisible?: boolean 
   const [locationShareBusy, setLocationShareBusy] = React.useState(false);
   const [locationShareError, setLocationShareError] = React.useState<string | null>(null);
   const [voiceRetryVersion, setVoiceRetryVersion] = React.useState(0);
+  const [audioSessionRetryVersion, setAudioSessionRetryVersion] = React.useState(0);
   const voiceRetryTimer = React.useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   // Hooks run unconditionally, before the !activeRide early return below.
   const voice = useRideVoiceToken(activeRide?.rideId, voiceRetryVersion);
-  const audioSession = useVoiceAudioSession(Boolean(activeRide));
+  const audioSession = useVoiceAudioSession(Boolean(activeRide), audioSessionRetryVersion);
   const audioSessionError = audioSession.error;
   const [roomStatus, setRoomStatus] = React.useState<'connecting' | 'connected' | 'disconnected' | 'error'>('connecting');
   const [roomError, setRoomError] = React.useState<string | null>(null);
@@ -181,6 +182,26 @@ export function RideBar({ controlsVisible = true }: { controlsVisible?: boolean 
     setRoomStatus('error');
     setRoomError(message || 'Microphone is unavailable.');
   }, []);
+
+  // Audio-session permission/device failures are not safe to hammer in an
+  // automatic loop: the rider may need to reconnect Bluetooth or change an
+  // OS permission first. When stationary, the existing voice control becomes
+  // an explicit retry action. Re-acquire native audio routing only when that
+  // setup itself failed; ordinary token/LiveKit retries keep a healthy audio
+  // session leased so Bluetooth/music playback is not needlessly disrupted.
+  const retryVoiceManually = React.useCallback(() => {
+    if (voiceRetryTimer.current) {
+      clearTimeout(voiceRetryTimer.current);
+      voiceRetryTimer.current = undefined;
+    }
+    setTalking(false);
+    setRemoteSpeakerIds(new Set());
+    setRoomStatus('connecting');
+    setRoomError(null);
+    setManuallyMuted(false);
+    if (audioSessionError) setAudioSessionRetryVersion((version) => version + 1);
+    setVoiceRetryVersion((version) => version + 1);
+  }, [audioSessionError]);
 
   // A token request can fail before LiveKitRoom ever exists, so neither
   // onError nor onDisconnected can start the normal reconnect loop. Retry
@@ -401,20 +422,35 @@ export function RideBar({ controlsVisible = true }: { controlsVisible?: boolean 
               </View>
 
               <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={voiceFailure
+                  ? 'Retry voice connection'
+                  : manuallyMuted
+                    ? 'Unmute hands-free voice'
+                    : 'Mute hands-free voice'}
                 style={({ pressed }) => [
                   styles.talkButton,
-                  talking && styles.talkButtonActive,
+                  talking && !voiceFailure && styles.talkButtonActive,
                   pressed && styles.talkButtonPressed,
                 ]}
-                onPress={() => setManuallyMuted((muted) => !muted)}
+                onPress={() => {
+                  if (voiceFailure) retryVoiceManually();
+                  else setManuallyMuted((muted) => !muted);
+                }}
               >
                 <Ionicons
-                  name={manuallyMuted ? 'mic-off' : talking ? 'mic' : 'mic-outline'}
+                  name={voiceFailure ? 'refresh' : manuallyMuted ? 'mic-off' : talking ? 'mic' : 'mic-outline'}
                   size={22}
                   color={colors.textPrimary}
                 />
                 <Text style={styles.talkButtonText}>
-                  {manuallyMuted ? 'Muted — tap to unmute' : talking ? 'Talking' : 'Listening — hands-free'}
+                  {voiceFailure
+                    ? 'Retry voice'
+                    : manuallyMuted
+                      ? 'Muted — tap to unmute'
+                      : talking
+                        ? 'Talking'
+                        : 'Listening — hands-free'}
                 </Text>
               </Pressable>
 
