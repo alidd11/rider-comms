@@ -820,29 +820,32 @@
         if (aOnline !== bOnline) return aOnline ? -1 : 1;
         return 0;
       });
-    const onlineCount = friends.filter((friend) => friendActivity.get(friend.riderId)?.online === true).length;
-    const firstOfflineIndex = friends.findIndex((friend) => friendActivity.get(friend.riderId)?.online !== true);
+    const onlineFriends = friends.filter((friend) => friendActivity.get(friend.riderId)?.online === true);
+    const offlineFriends = friends.filter((friend) => friendActivity.get(friend.riderId)?.online !== true);
 
     const incomingRows = state.requests.map((person) => `<article class="request-row">${avatar(person)}<div class="identity"><strong>${escapeHtml(person.displayName)}</strong><span>${escapeHtml(person.handle)} · ${escapeHtml(person.status)}</span></div><div class="request-actions"><button class="decline" data-decline="${escapeHtml(person.id)}" aria-label="Decline ${escapeHtml(person.displayName)}">×</button><button class="accept" data-accept="${escapeHtml(person.id)}" aria-label="Accept ${escapeHtml(person.displayName)}">✓</button></div></article>`).join('');
     const outgoingRows = outgoingFriendRequests.map((person) => `<article class="request-row">${avatar(person)}<div class="identity"><strong>${escapeHtml(person.displayName)}</strong><span>${escapeHtml(person.handle)} · Pending</span></div><div class="request-actions"><button data-cancel-request="${escapeHtml(person.id)}" aria-label="Cancel request to ${escapeHtml(person.displayName)}">Cancel</button></div></article>`).join('');
     $('#requestList').innerHTML = incomingRows + outgoingRows;
 
-    $('#friendList').innerHTML = friends.map((person, index) => {
+    const friendRowHtml = (person) => {
       const activity = friendActivity.get(person.riderId);
       const online = activity?.online === true;
       const unread = conversationSummaries.get(person.riderId)?.unreadCount || 0;
-      const groupLabel = index === 0
-        ? (online ? `Online (${onlineCount})` : `Offline (${friends.length})`)
-        : index === firstOfflineIndex
-          ? `Offline (${friends.length - onlineCount})`
-          : '';
-      return `<button class="friend-row${online ? ' is-online' : ''}" data-friend="${escapeHtml(person.riderId)}"${groupLabel ? ` data-group-label="${escapeHtml(groupLabel)}"` : ''}>
+      return `<button class="friend-row${online ? ' is-online' : ''}" data-friend="${escapeHtml(person.riderId)}">
         <span class="friend-avatar-wrap">${avatar(person)}<i class="friend-presence-dot ${online ? 'online' : 'offline'}" aria-hidden="true"></i></span>
         <span class="identity"><strong>${escapeHtml(person.displayName)}</strong><span class="friend-activity">${escapeHtml(friendActivityLabel(activity))}</span></span>
         ${unread > 0 ? `<span class="count-badge friend-unread-badge" aria-label="${unread} unread messages">${unread > 99 ? '99+' : unread}</span>` : ''}
         <span class="friend-more" aria-hidden="true">•••</span>
       </button>`;
-    }).join('');
+    };
+    $('#friendList').innerHTML = [
+      onlineFriends.length
+        ? `<section class="friend-group"><h2 class="friend-group-label">Online (${onlineFriends.length})</h2>${onlineFriends.map(friendRowHtml).join('')}</section>`
+        : '',
+      offlineFriends.length
+        ? `<section class="friend-group"><h2 class="friend-group-label">Offline (${offlineFriends.length})</h2>${offlineFriends.map(friendRowHtml).join('')}</section>`
+        : '',
+    ].join('');
     const hasFriends = state.friends.length > 0;
     const hasVisibleFriends = friends.length > 0;
     const requestTotal = state.requests.length + outgoingFriendRequests.length;
