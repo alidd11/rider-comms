@@ -4957,12 +4957,15 @@
     if (!navDestination) return;
     navRerouting = true;
     showToast('Rerouting…');
-    speak('Rerouting.');
+    if (!navMuted) speak('Rerouting.');
     getDirectionsService().route(
       { origin: here, destination: { lat: navDestination.lat, lng: navDestination.lng }, travelMode: google.maps.TravelMode.DRIVING },
       (result, status) => {
         navRerouting = false;
-        if (status !== 'OK' || !result) return;
+        if (status !== 'OK' || !result) {
+          showToast('Could not reroute. Continue with caution.');
+          return;
+        }
         applyRoute(result, { lat: navDestination.lat, lng: navDestination.lng }, navDestination.label, { preserveMute: true });
       }
     );
