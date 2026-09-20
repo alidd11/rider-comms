@@ -1945,3 +1945,104 @@ body:has(.content-screen.active) .movement-safety-banner{
     margin:0;
   }
 }
+
+/* Friends mockup parity v2 — keep the list deliberately flat and let the
+   rider identity, presence and activity carry the hierarchy. Friend detail
+   uses the same bottom-sheet language as the supplied concept without adding
+   actions that do not exist in the product. */
+@media(max-width:699px){
+  [data-screen="friends"] .page-header{margin-bottom:13px}
+  [data-screen="friends"] .search-row{
+    height:44px;
+    padding-inline:11px;
+    border-radius:4px;
+    border-color:var(--border);
+    background:var(--surface);
+  }
+  [data-screen="friends"] .search-row input{font-size:.84rem}
+  [data-screen="friends"] #friendList{padding-top:0}
+  [data-screen="friends"] .friend-row{
+    min-height:62px;
+    gap:10px;
+    padding:8px 1px;
+  }
+  [data-screen="friends"] .friend-row[data-group-label]{margin-top:29px}
+  [data-screen="friends"] .friend-row[data-group-label]::before{
+    top:-22px;
+    left:1px;
+    font-size:.64rem;
+    letter-spacing:.12em;
+  }
+
+  body:has(.friend-profile-card) .sheet>header{
+    min-height:40px;
+    margin-bottom:0;
+    justify-content:flex-end;
+  }
+  body:has(.friend-profile-card) .sheet>header h2{
+    position:absolute!important;
+    width:1px!important;
+    height:1px!important;
+    margin:-1px!important;
+    padding:0!important;
+    overflow:hidden!important;
+    clip:rect(0,0,0,0)!important;
+    white-space:nowrap!important;
+    border:0!important;
+  }
+  body:has(.friend-profile-card) .sheet-body{gap:10px}
+  .friend-profile-card{
+    gap:11px;
+    padding:2px 0 12px!important;
+    border:0;
+    border-bottom:1px solid var(--border-soft);
+    border-radius:0;
+    background:transparent;
+  }
+  .friend-profile-card .avatar{width:56px;height:56px}
+  .friend-profile-card>div:last-child strong{
+    font-size:1.02rem;
+    line-height:1.18;
+  }
+  .friend-profile-card>div:last-child span{
+    margin-top:2px;
+    font-size:.78rem;
+  }
+  .friend-profile-card>div:last-child small{
+    margin-top:4px;
+    font-size:.68rem;
+  }
+  .friend-profile-actions{
+    gap:7px;
+    margin-top:0;
+  }
+  .friend-profile-actions button{
+    min-height:58px;
+    padding:6px;
+    border-radius:4px;
+    background:var(--surface);
+  }
+  .friend-profile-actions strong{font-size:.67rem}
+  .friend-detail-list{
+    margin-top:0;
+    border-radius:4px;
+  }
+  .friend-detail-list>div{
+    min-height:52px;
+    padding:7px 9px;
+  }
+  .friend-profile-note,
+  .social-links{
+    border-radius:4px;
+  }
+  .friend-profile-note{
+    padding:11px;
+    font-size:.72rem;
+  }
+  body:has(.friend-profile-card) .sheet-body>.caption{
+    margin:0;
+    font-size:.69rem;
+    line-height:1.42;
+  }
+}
+
