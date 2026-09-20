@@ -1507,7 +1507,6 @@ body:has(.content-screen.active) .movement-safety-banner{
   color:var(--auth-text);
   scrollbar-width:none;
 }
-.auth-screen::-webkit-scrollbar{display:none}
 .auth-screen .auth-visual{
   position:fixed;
   z-index:0;
@@ -1580,7 +1579,6 @@ body:has(.content-screen.active) .movement-safety-banner{
   border:0!important;
 }
 .auth-screen .auth-form{display:grid;gap:10px}
-.auth-screen .auth-form[hidden]{display:none}
 .auth-screen .auth-field{
   position:relative;
   display:block;
@@ -1751,15 +1749,15 @@ body:has(.content-screen.active) .movement-safety-banner{
   font-size:.63rem;
   line-height:1.35;
 }
-.auth-screen .auth-error,
-.auth-screen .auth-notice{
+.auth-screen .auth-error.auth-error,
+.auth-screen .auth-notice.auth-notice{
   border:1px solid rgb(255 98 104/.28);
   border-radius:7px;
   background:rgb(70 16 20/.35);
   color:#ff9da2;
   font-size:.68rem;
 }
-.auth-screen .auth-notice{margin-bottom:10px}
+.auth-screen .auth-notice.auth-notice{margin-bottom:10px}
 .auth-screen .auth-terms{
   margin:24px auto 0;
   color:#667578;
