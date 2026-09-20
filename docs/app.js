@@ -100,21 +100,55 @@
   };
   const HAZARD_TYPE_ORDER = ['police', 'camera', 'accident', 'hazard', 'road_closure'];
 
-  // Mirrors the native avatar IDs and colours. The PWA maps those presets to
-  // its existing SVG sprite so the same rider identity survives both shells.
+  // Deterministic rider avatar masters. These IDs are persisted in Postgres,
+  // so the artwork can improve without migrating or resetting user profiles.
+  // Native uses the same colours + motif paths in mobile/src/settings/avatars.ts.
   const AVATAR_PRESETS = [
-    { id: 'ember', icon: 'ride', bg: '#FF8A2B' },
-    { id: 'ridge', icon: 'ride', bg: '#4C8BF5' },
-    { id: 'moss', icon: 'shield', bg: '#3DD68C' },
-    { id: 'dusk', icon: 'route', bg: '#8B5CF6' },
-    { id: 'blaze', icon: 'target', bg: '#FF5A5F' },
-    { id: 'gold', icon: 'route', bg: '#FBBF24' },
-    { id: 'slate', icon: 'nav-arrow', bg: '#64748B' },
-    { id: 'rose', icon: 'location', bg: '#EC4899' },
+    { id: 'ember', label: 'Ember', tagline: 'Always ready', bg: '#FF8A2B', motifPath: 'M32 10c-4 4-7 8-5 12 1.4 3 5.2 4.2 8 2.2 4-2.8 3-8-3-14Z' },
+    { id: 'ridge', label: 'Ridge', tagline: 'Finds new roads', bg: '#4C8BF5', motifPath: 'M19 24l8-10 5 6 4-5 9 9H19Z' },
+    { id: 'moss', label: 'Moss', tagline: 'Keeps it flowing', bg: '#3DD68C', motifPath: 'M21 24c3-9 11-12 22-11-2 8-8 12-17 11 4-3 8-6 13-8-7 2-12 4-18 8Z' },
+    { id: 'dusk', label: 'Dusk', tagline: 'Night ride', bg: '#8B5CF6', motifPath: 'M37 11a10 10 0 1 0 7 16 11 11 0 1 1-7-16Z' },
+    { id: 'blaze', label: 'Blaze', tagline: 'Fast and focused', bg: '#FF5A5F', motifPath: 'M35 9 23 25h8l-3 12 13-19h-9l3-9Z', motifFill: '#071015' },
+    { id: 'gold', label: 'Gold', tagline: 'Brightens the ride', bg: '#FBBF24', motifPath: 'm32 10 3.4 7 7.7 1.1-5.6 5.4 1.3 7.7-6.8-3.6-6.8 3.6 1.3-7.7-5.6-5.4 7.7-1.1L32 10Z', motifFill: '#071015' },
+    { id: 'slate', label: 'Slate', tagline: 'Points the way', bg: '#64748B', motifPath: 'M32 10 44 26l-12-5-12 5 12-16Z', motifFill: '#071015' },
+    { id: 'rose', label: 'Rose', tagline: 'Explores everywhere', bg: '#EC4899', motifPath: 'M32 10a7 7 0 0 0-7 7c0 6 7 13 7 13s7-7 7-13a7 7 0 0 0-7-7Zm0 4a3 3 0 1 1 0 6 3 3 0 0 1 0-6Z', motifFill: '#071015' },
   ];
   const AVATAR_PRESET_BY_ID = Object.fromEntries(AVATAR_PRESETS.map((preset) => [preset.id, preset]));
   function avatarPreset(id) {
     return AVATAR_PRESET_BY_ID[id] || AVATAR_PRESETS[0];
+  }
+
+  function riderAvatarSvg(id, { selected = false, mapMarker = false, status = 'none' } = {}) {
+    const preset = avatarPreset(id);
+    const faceStroke = selected ? '#22D3EE' : '#EAF8FB';
+    const tailFill = selected ? '#22D3EE' : '#071015';
+    const statusFill = status === 'online' ? '#35E68A' : status === 'stale' ? '#78909A' : '';
+    const height = mapMarker ? 72 : 64;
+    return `<svg class="rider-avatar-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 ${height}" aria-hidden="true">
+      ${mapMarker ? `<path d="M24 56h16L32 70 24 56Z" fill="${tailFill}" stroke="#071015" stroke-width="2"/>` : ''}
+      <circle cx="32" cy="32" r="30" fill="#071015" stroke="${faceStroke}" stroke-width="${selected ? 3 : 2}"/>
+      <circle cx="32" cy="32" r="25.5" fill="${preset.bg}"/>
+      <path d="M13 30.5C18 25 46 25 51 30.5L48 42.5C42.5 47 21.5 47 16 42.5L13 30.5Z" fill="#071015"/>
+      <circle cx="24.5" cy="36" r="2.7" fill="#22D3EE"/>
+      <circle cx="39.5" cy="36" r="2.7" fill="#22D3EE"/>
+      <path d="M24 49C28.8 52 35.2 52 40 49" fill="none" stroke="#071015" stroke-width="2.2" stroke-linecap="round"/>
+      <path d="${preset.motifPath}" fill="${preset.motifFill || '#F4F7F8'}"/>
+      ${statusFill ? `<circle cx="51" cy="49" r="7" fill="#071015"/><circle cx="51" cy="49" r="4.8" fill="${statusFill}"/>` : ''}
+    </svg>`;
+  }
+
+  function riderAvatarMapIcon(person, current = false, statusOverride) {
+    const status = statusOverride || (current
+      ? (state.profile.shareLocation || state.activeRide?.shareRideLocation ? 'online' : 'none')
+      : 'online');
+    const svg = riderAvatarSvg(person.avatarId, { selected: current, mapMarker: true, status });
+    const width = current ? 44 : 40;
+    const height = width * (72 / 64);
+    return {
+      url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
+      scaledSize: new google.maps.Size(width, height),
+      anchor: new google.maps.Point(width / 2, height - 1),
+    };
   }
 
   const PLAN_ORDER = ['free', 'premium', 'premium_plus'];
@@ -393,27 +427,15 @@
     return String(value).replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character]));
   }
 
-  function initials(name) {
-    const result = String(name).trim().split(/\s+/).slice(0, 2).map((part) => part[0] || '').join('').toUpperCase();
-    return result || 'RC';
-  }
-
-  function identityColor(id) {
-    const colors = ['#4f7cff', '#8b5cf6', '#e45d8c', '#148f77', '#b96c22', '#3d7f92'];
-    let hash = 0;
-    for (const char of id) hash = ((hash << 5) - hash + char.charCodeAt(0)) | 0;
-    return colors[Math.abs(hash) % colors.length];
-  }
-
   function avatar(person, className = '') {
     const preset = avatarPreset(person.avatarId);
-    return `<span class="avatar ${className}" style="--avatar:${preset.bg}" aria-hidden="true">${icon(preset.icon)}</span>`;
+    return `<span class="avatar ${className}" style="--avatar:${preset.bg}" aria-hidden="true">${riderAvatarSvg(person.avatarId)}</span>`;
   }
 
   function avatarOptionsMarkup(selectedId) {
     return `<div class="avatar-picker-grid" role="radiogroup" aria-label="Profile avatar">${AVATAR_PRESETS.map((preset) => {
       const selected = preset.id === selectedId;
-      return `<button type="button" class="avatar-picker-option${selected ? ' selected' : ''}" data-avatar-option="${preset.id}" role="radio" aria-checked="${selected}" aria-label="${preset.id} avatar"><span class="avatar avatar-lg" style="--avatar:${preset.bg}">${icon(preset.icon)}</span>${selected ? '<span class="avatar-picker-check">✓</span>' : ''}</button>`;
+      return `<button type="button" class="avatar-picker-option${selected ? ' selected' : ''}" data-avatar-option="${preset.id}" role="radio" aria-checked="${selected}" aria-label="${escapeHtml(preset.label)} avatar"><span class="avatar avatar-lg" style="--avatar:${preset.bg}">${riderAvatarSvg(preset.id, { selected })}</span><span class="avatar-picker-label">${escapeHtml(preset.label)}</span>${selected ? '<span class="avatar-picker-check">✓</span>' : ''}</button>`;
     }).join('')}</div>`;
   }
 
@@ -506,11 +528,14 @@
     const genericProfile = state.profile.displayName.trim().toLowerCase() === 'rider'
       || state.profile.handle.trim().toLowerCase() === '@rider';
     $('#completeProfilePrompt').hidden = !genericProfile;
-    $$('[data-avatar]').forEach((element) => {
+    document.querySelectorAll('[data-avatar]').forEach((element) => {
       const preset = avatarPreset(state.profile.avatarId);
-      element.innerHTML = icon(preset.icon);
+      element.innerHTML = riderAvatarSvg(state.profile.avatarId);
       element.style.setProperty('--avatar', preset.bg);
     });
+    if (userMapMarker && map && !usingFallbackMap) {
+      userMapMarker.setIcon?.(riderAvatarMapIcon(state.profile, true));
+    }
   }
 
   function renderFallbackMarkers() {
@@ -693,10 +718,12 @@
     renderHazardMarkers();
     const riders = visibleMapRiders();
     if (!map || usingFallbackMap) return renderFallbackMarkers([]);
+    if (userMapMarker) userMapMarker.setIcon?.(riderAvatarMapIcon(state.profile, true));
     mapMarkers.forEach((marker) => marker.setMap(null));
     mapMarkers = riders.map((person) => {
       const real = rideMemberLocations.get(person.riderId);
-      return addMapMarker(person, { lat: real.lat, lng: real.lon }, false);
+      const fresh = Date.now() - real.updatedAt <= RIDE_LOCATION_REFRESH_MS * 2;
+      return addMapMarker(person, { lat: real.lat, lng: real.lon }, false, fresh ? 'online' : 'stale');
     });
   }
 
@@ -3153,7 +3180,9 @@
   }
 
   const RIDE_LOCATION_REFRESH_MS = 10_000; // same 5-10s cadence as public presence (see PRESENCE_REFRESH_MS)
+  const RIDE_AVATAR_REFRESH_MS = 30_000;
   let rideLocationTimer;
+  let lastRideAvatarRefreshAt = 0;
 
   async function setRideLocationSharing(enabled) {
     const ride = state.activeRide;
@@ -3213,7 +3242,14 @@
           const { locations } = await apiFetch('GET', `/rides/${encodeURIComponent(ride.rideId)}/locations`);
           if (state.activeRide?.rideId !== ride.rideId || !state.activeRide.shareRideLocation || !session) return;
           rideMemberLocations = new Map(locations.map((entry) => [entry.riderId, entry]));
-          if (state.activeRide) renderMapRiders();
+          if (state.activeRide) {
+            renderMapRiders();
+            const now = Date.now();
+            if (now - lastRideAvatarRefreshAt >= RIDE_AVATAR_REFRESH_MS) {
+              lastRideAvatarRefreshAt = now;
+              void loadRideRoster();
+            }
+          }
         } catch {
           // Best-effort, same as the public presence refresh above — a
           // missed tick (denied permission, a transient network blip)
@@ -3226,6 +3262,7 @@
     } else {
       if (rideLocationTimer) clearInterval(rideLocationTimer);
       rideLocationTimer = undefined;
+      lastRideAvatarRefreshAt = 0;
       if (!state.activeRide) rideMemberLocations = new Map();
     }
   }
@@ -4316,34 +4353,12 @@
 
   }
 
-  function currentLocationIcon() {
-    const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="52" height="52" viewBox="0 0 52 52"><circle cx="26" cy="26" r="21" fill="#2fa8d3" stroke="#ffffff" stroke-width="3"/><path d="M28.8 13.2 18.1 34.8l8.2-3 5.7 6.9 6-25.5-9.2 0Z" fill="#ffffff" stroke="#0b6f91" stroke-width=".7" stroke-linejoin="round"/></svg>';
-    return {
-      url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
-      scaledSize: new google.maps.Size(44, 44),
-      anchor: new google.maps.Point(22, 22),
-    };
-  }
-
-  function addMapMarker(person, position, current) {
+  function addMapMarker(person, position, current, status) {
     const marker = new google.maps.Marker({
       map,
       position,
       title: current ? 'Your location' : person.displayName,
-      // "You" gets a small, unlabelled dot — the same convention every
-      // real map app (Google Maps, Waze, Uber) uses for the rider's own
-      // position: precise, not a beach-ball with initials on it. Other
-      // riders keep a (smaller than before) labelled dot, since telling
-      // several nearby riders apart at a glance is the point there.
-      ...(current ? {} : { label: { text: initials(person.displayName), color: '#ffffff', fontWeight: '700', fontSize: '9px' } }),
-      icon: current ? currentLocationIcon() : {
-        path: google.maps.SymbolPath.CIRCLE,
-        scale: 9,
-        fillColor: identityColor(person.riderId),
-        fillOpacity: 1,
-        strokeColor: '#e9eef5',
-        strokeWeight: 2,
-      },
+      icon: riderAvatarMapIcon(person, current, status),
       zIndex: current ? 10 : 5,
     });
     marker.addListener('click', () => selectRider(person.riderId, visibleMapRiders()));
