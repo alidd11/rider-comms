@@ -1519,7 +1519,7 @@ body:has(.content-screen.active) .movement-safety-banner{
   background:
     linear-gradient(180deg,rgb(1 7 10/.20) 0%,rgb(2 9 12/.36) 32%,rgb(2 8 10/.80) 67%,#03090b 100%),
     url("https://images.unsplash.com/photo-1552306062-29a5560e1c31?auto=format&fit=crop&q=82&w=1400");
-  background-position:center top;
+  background-position:center center;
   background-size:cover;
 }
 .auth-screen .auth-visual::after{
@@ -1543,6 +1543,9 @@ body:has(.content-screen.active) .movement-safety-banner{
 }
 .auth-screen .auth-card{
   width:100%;
+  flex:1;
+  display:flex;
+  flex-direction:column;
   margin:0;
   padding:0;
   border:0;
@@ -1748,7 +1751,8 @@ body:has(.content-screen.active) .movement-safety-banner{
 }
 .auth-screen .auth-notice.auth-notice{margin-bottom:10px}
 .auth-screen .auth-terms{
-  margin:24px auto 0;
+  margin:auto auto 0;
+  padding-top:30px;
   color:#667578;
   font-size:.52rem;
   font-weight:620;
@@ -1767,7 +1771,7 @@ body:has(.content-screen.active) .movement-safety-banner{
     linear-gradient(180deg,rgb(2 9 12/.34),rgb(2 9 12/.62) 55%,rgb(2 8 10/.92)),
     url("https://images.unsplash.com/photo-1552306062-29a5560e1c31?auto=format&fit=crop&q=82&w=1400");
   background-size:cover;
-  background-position:center top;
+  background-position:center center;
   color:#f4fafa;
   transition:opacity .28s ease,visibility .28s ease;
 }
