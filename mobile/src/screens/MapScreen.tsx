@@ -29,6 +29,7 @@ import { HostPanel } from '../ride/HostPanel';
 import { useSettings } from '../settings/SettingsContext';
 import { PlaceSearchBar } from './PlaceSearchBar';
 import type { PlaceResult } from '../api/places';
+import type { PublicRiderProfile } from '../api/client';
 import { HazardReportSheet, HAZARD_TYPE_META } from './HazardReportSheet';
 import { buildNavigationProviderUrl, navigationTargetFromValues, openNavigationUrl } from '../navigationLinks';
 import type { NavigationTarget } from '../navigationLinks';
@@ -50,8 +51,12 @@ import {
 } from '../navigationGpsHealth';
 import { speakNavigationPrompt, stopNavigationPrompt } from '../audio/navigationSpeech';
 import { microphoneErrorMessage, preflightVoiceMicrophone } from '../audio/microphone';
+import { RiderAvatar } from '../components/RiderAvatar';
 
 const PRESENCE_UPDATE_INTERVAL_MS = 8000; // per spec Section 8: every 5-10s
+const RIDE_MARKER_REFRESH_MS = 10_000;
+const RIDE_MARKER_STALE_MS = 20_000;
+const RIDE_AVATAR_REFRESH_MS = 30_000;
 const DEFAULT_REGION = {
   latitude: 51.5074,
   longitude: -0.1278,
@@ -124,8 +129,8 @@ function HazardMarker({
 export function MapScreen(): React.JSX.Element {
   const colorScheme = useColorScheme();
   const { client, riderId } = useAuth();
-  const { rideLocations } = useRide();
-  const { shareLocation, setShareLocation, unitSystem, navigationProvider } = useSettings();
+  const { rideLocations, roster, shareRideLocation } = useRide();
+  const { shareLocation, setShareLocation, unitSystem, navigationProvider, avatarId, displayName } = useSettings();
   const { lockedForSafety, movementState, locationAccess, requestLocationAccess, openLocationSettings, refreshTracking } = useMovementSafety();
   const insets = useSafeAreaInsets();
   const { height: viewportHeight } = useWindowDimensions();
@@ -155,8 +160,64 @@ export function MapScreen(): React.JSX.Element {
   const navGpsTracker = React.useRef(new NavigationGpsTracker());
   const announcedNavigationStep = React.useRef<{ route: InAppNavigationRoute; index: number } | null>(null);
   const [mapReady, setMapReady] = React.useState(false);
+  const [rideProfiles, setRideProfiles] = React.useState<Record<string, PublicRiderProfile>>({});
+  const [markerNow, setMarkerNow] = React.useState(() => Date.now());
   const mapRef = React.useRef<MapView | null>(null);
   const centredOnFirstFix = React.useRef(false);
+
+  const rideRosterKey = React.useMemo(() => roster.slice().sort().join('|'), [roster]);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    const ids = roster.filter((id) => id !== riderId);
+
+    if (!ids.length) {
+      setRideProfiles({});
+      return () => { cancelled = true; };
+    }
+
+    const refresh = async () => {
+      const entries = await Promise.all(ids.map(async (id) => {
+        try {
+          return [id, await client.getPublicProfile(id)] as const;
+        } catch {
+          return null;
+        }
+      }));
+      if (cancelled) return;
+      setRideProfiles(Object.fromEntries(entries.filter((entry): entry is readonly [string, PublicRiderProfile] => entry !== null)));
+    };
+
+    void refresh();
+    // Ride locations themselves refresh every 10 seconds. Profile identity
+    // changes are lower urgency, but still reconcile during a live ride so a
+    // newly selected avatar appears without leaving/rejoining.
+    const timer = setInterval(refresh, RIDE_AVATAR_REFRESH_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [client, riderId, rideRosterKey]);
+
+  React.useEffect(() => {
+    if (!rideLocations.length) return;
+    setMarkerNow(Date.now());
+    const timer = setInterval(() => setMarkerNow(Date.now()), RIDE_MARKER_REFRESH_MS);
+    return () => clearInterval(timer);
+  }, [rideLocations.length]);
+
+  const ownRideLocation = rideLocations.find((location) => location.riderId === riderId);
+  const selfMapLocation = ownRideLocation
+    ? { lat: ownRideLocation.lat, lon: ownRideLocation.lon }
+    : currentLocation;
+  const ownRideLocationFresh = Boolean(
+    ownRideLocation && markerNow - ownRideLocation.updatedAt <= RIDE_MARKER_STALE_MS,
+  );
+  const selfMapStatus = shareLocation || (shareRideLocation && ownRideLocationFresh)
+    ? 'online'
+    : ownRideLocation && !ownRideLocationFresh
+      ? 'stale'
+      : 'none';
 
   const focusCoordinate = React.useCallback((target: { lat: number; lon: number }, delta = FOCUSED_REGION_DELTA) => {
     mapRef.current?.animateToRegion({
@@ -618,29 +679,48 @@ export function MapScreen(): React.JSX.Element {
             pitchEnabled={false}
             onMapReady={() => setMapReady(true)}
           >
-            {currentLocation && (
+            {selfMapLocation && (
               <Marker
-                coordinate={{ latitude: currentLocation.lat, longitude: currentLocation.lon }}
-                title="Your location"
-                anchor={{ x: 0.5, y: 0.5 }}
+                key={`self-rider-${avatarId}-${selfMapStatus}`}
+                coordinate={{ latitude: selfMapLocation.lat, longitude: selfMapLocation.lon }}
+                title={displayName || 'Your location'}
+                description={shareRideLocation ? 'Your live group-ride location' : 'Your location'}
+                anchor={{ x: 0.5, y: 1 }}
                 tracksViewChanges={false}
               >
-                <View style={styles.currentLocationMarker}>
-                  <Ionicons name="navigate" size={20} color="#ffffff" />
-                </View>
+                <RiderAvatar
+                  avatarId={avatarId}
+                  size={44}
+                  mapMarker
+                  selected
+                  status={selfMapStatus}
+                />
               </Marker>
             )}
             {rideLocations
               .filter((location) => location.riderId !== riderId)
-              .map((location) => (
-                <Marker
-                  key={`ride-location-${location.riderId}`}
-                  coordinate={{ latitude: location.lat, longitude: location.lon }}
-                  title={location.riderId}
-                  description="Private ride member · live location"
-                  pinColor={colors.success}
-                />
-              ))}
+              .map((location) => {
+                const profile = rideProfiles[location.riderId];
+                const fresh = markerNow - location.updatedAt <= RIDE_MARKER_STALE_MS;
+                const markerStatus = fresh ? 'online' : 'stale';
+                return (
+                  <Marker
+                    key={`ride-location-${location.riderId}-${profile?.avatarId ?? 'ember'}-${markerStatus}`}
+                    coordinate={{ latitude: location.lat, longitude: location.lon }}
+                    title={profile?.displayName ?? 'Ride member'}
+                    description="Private ride member · live location"
+                    anchor={{ x: 0.5, y: 1 }}
+                    tracksViewChanges={false}
+                  >
+                    <RiderAvatar
+                      avatarId={profile?.avatarId ?? 'ember'}
+                      size={40}
+                      mapMarker
+                      status={markerStatus}
+                    />
+                  </Marker>
+                );
+              })}
             {navigationTarget && (
               <Marker
                 coordinate={{ latitude: navigationTarget.lat, longitude: navigationTarget.lon }}

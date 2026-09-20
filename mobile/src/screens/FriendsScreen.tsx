@@ -10,9 +10,10 @@ import type { RootStackParamList } from '../navigation';
 import { colors, spacing, radii, type, elevation, MIN_TOUCH_TARGET } from '../theme';
 import { useFriends } from '../friends/FriendsContext';
 import { useAuth } from '../auth/AuthContext';
-import { DEFAULT_AVATAR_ID, getAvatarPreset } from '../settings/avatars';
+import { DEFAULT_AVATAR_ID } from '../settings/avatars';
 import { RideBar } from '../ride/RideBar';
 import { ScreenHeader } from '../components/ScreenHeader';
+import { RiderAvatar } from '../components/RiderAvatar';
 import type { PublicRiderProfile } from '../api/client';
 
 function YourRiderIdCard(): React.JSX.Element {
@@ -123,7 +124,6 @@ function AddFriendCard(): React.JSX.Element {
 
 function RequestRow({ request, profile }: { request: FriendRequest; profile?: FriendSummary }): React.JSX.Element {
   const { accept, decline } = useFriends();
-  const avatar = getAvatarPreset(profile?.avatarId ?? DEFAULT_AVATAR_ID);
   const [resolving, setResolving] = React.useState<'accept' | 'decline' | null>(null);
   const resolve = async (action: 'accept' | 'decline') => {
     setResolving(action);
@@ -136,9 +136,7 @@ function RequestRow({ request, profile }: { request: FriendRequest; profile?: Fr
   };
   return (
     <View style={styles.requestRow}>
-      <View style={[styles.requestAvatar, { backgroundColor: avatar.bg }]}>
-        <MaterialCommunityIcons name={avatar.icon} size={20} color={colors.textPrimary} />
-      </View>
+      <RiderAvatar avatarId={profile?.avatarId ?? DEFAULT_AVATAR_ID} size={40} />
       <View style={styles.requestIdentity}>
         <Text style={styles.requestName}>{profile?.displayName ?? 'Rider request'}</Text>
         <Text style={styles.requestHandle}>{profile?.handle ?? request.fromRiderId}</Text>
@@ -154,7 +152,6 @@ function RequestRow({ request, profile }: { request: FriendRequest; profile?: Fr
 }
 
 function OutgoingRequestRow({ request, profile }: { request: FriendRequest; profile?: FriendSummary }): React.JSX.Element {
-  const avatar = getAvatarPreset(profile?.avatarId ?? DEFAULT_AVATAR_ID);
   const { cancel } = useFriends();
   const [cancelling, setCancelling] = React.useState(false);
   const handleCancel = async () => {
@@ -163,9 +160,7 @@ function OutgoingRequestRow({ request, profile }: { request: FriendRequest; prof
   };
   return (
     <View style={styles.requestRow}>
-      <View style={[styles.requestAvatar, { backgroundColor: avatar.bg }]}>
-        <MaterialCommunityIcons name={avatar.icon} size={20} color={colors.textPrimary} />
-      </View>
+      <RiderAvatar avatarId={profile?.avatarId ?? DEFAULT_AVATAR_ID} size={40} />
       <View style={styles.requestIdentity}>
         <Text style={styles.requestName}>{profile?.displayName ?? 'Pending request'}</Text>
         <Text style={styles.requestHandle}>{profile?.handle ?? request.toRiderId}</Text>
@@ -201,7 +196,6 @@ function FriendRow({
   unreadCount: number;
   onProfile: (friend: FriendSummary) => void;
 }): React.JSX.Element {
-  const avatar = getAvatarPreset(friend.avatarId);
   return (
     <Pressable
       style={({ pressed }) => [styles.friendRow, pressed && styles.friendRowPressed]}
@@ -210,10 +204,7 @@ function FriendRow({
       accessibilityLabel={`Open ${friend.displayName}'s rider profile`}
     >
       <View style={styles.friendAvatarWrap}>
-        <View style={[styles.friendAvatar, { backgroundColor: avatar.bg }]}>
-          <MaterialCommunityIcons name={avatar.icon} size={22} color={colors.textPrimary} />
-        </View>
-        <View style={[styles.friendPresence, activity?.online ? styles.friendPresenceOnline : styles.friendPresenceOffline]} />
+        <RiderAvatar avatarId={friend.avatarId} size={44} status={activity?.online ? 'online' : 'stale'} />
       </View>
       <View style={styles.friendInfo}>
         <Text style={styles.friendName}>{friend.displayName}</Text>
@@ -259,7 +250,6 @@ function FriendProfileModal({
   }, [client, friend]);
 
   if (!friend) return <></>;
-  const avatar = getAvatarPreset(profile?.avatarId ?? friend.avatarId);
   const openSocial = (url: string) => {
     void Linking.openURL(url).catch(() => Alert.alert('Couldn’t open link', 'This profile link could not be opened.'));
   };
@@ -297,10 +287,7 @@ function FriendProfileModal({
 
           <View style={styles.profileIdentity}>
             <View style={styles.profileAvatarWrap}>
-              <View style={[styles.profileModalAvatar, { backgroundColor: avatar.bg }]}>
-                <MaterialCommunityIcons name={avatar.icon} size={31} color={colors.textPrimary} />
-              </View>
-              <View style={[styles.profilePresence, activity?.online ? styles.friendPresenceOnline : styles.friendPresenceOffline]} />
+              <RiderAvatar avatarId={profile?.avatarId ?? friend.avatarId} size={64} status={activity?.online ? 'online' : 'stale'} />
             </View>
             <View style={styles.profileIdentityCopy}>
               <Text style={styles.profileModalName}>{profile?.displayName ?? friend.displayName}</Text>
