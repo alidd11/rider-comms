@@ -50,16 +50,18 @@ test('PWA shows and clears the remote Nearby Voice active speaker', async ({ pag
       configurable: true,
       value: { getUserMedia: async () => fakeStream },
     });
+    window.__voiceTestAmplitude = 0;
     class FakeAudioContext {
       createMediaStreamSource() { return { connect() {} }; }
       createAnalyser() {
         return {
           fftSize: 512,
           frequencyBinCount: 32,
-          // +/-5 around the midpoint is ~0.039 RMS: below the old 0.06
-          // threshold, but above the tuned 0.035 speech attack threshold.
           getByteTimeDomainData(data) {
-            for (let index = 0; index < data.length; index += 1) data[index] = index % 2 ? 123 : 133;
+            const amplitude = window.__voiceTestAmplitude || 0;
+            for (let index = 0; index < data.length; index += 1) {
+              data[index] = 128 + (index % 2 ? -amplitude : amplitude);
+            }
           },
         };
       }
@@ -150,7 +152,28 @@ test('PWA shows and clears the remote Nearby Voice active speaker', async ({ pag
   await page.locator('#joinNearbyBtn').click();
 
   const localVoiceButton = page.locator('#voiceStatusBtn');
+  await expect(localVoiceButton).toHaveAttribute('aria-label', 'Listening — hands-free');
+
+  // A brief ~0.039 RMS burst is above the tuned 0.035 attack threshold but
+  // shorter than the 70 ms attack hold. This models a helmet/wind bump and
+  // must not open the transmitter.
+  await page.evaluate(() => { window.__voiceTestAmplitude = 5; });
+  await page.waitForTimeout(30);
+  await page.evaluate(() => { window.__voiceTestAmplitude = 0; });
+  await page.waitForTimeout(120);
+  await expect(localVoiceButton).toHaveAttribute('aria-label', 'Listening — hands-free');
+
+  // The same level held as real speech should open the mic even though it is
+  // still below the old 0.06 gate.
+  await page.evaluate(() => { window.__voiceTestAmplitude = 5; });
   await expect(localVoiceButton).toHaveAttribute('aria-label', 'Talking');
+
+  // A short natural pause must stay open through the 650 ms release hangtime,
+  // then close again once the pause genuinely persists.
+  await page.evaluate(() => { window.__voiceTestAmplitude = 0; });
+  await page.waitForTimeout(250);
+  await expect(localVoiceButton).toHaveAttribute('aria-label', 'Talking');
+  await expect(localVoiceButton).toHaveAttribute('aria-label', 'Listening — hands-free', { timeout: 1_200 });
 
   const speakerChip = page.locator('#voiceSpeakerChip');
   await expect(speakerChip).toBeVisible();
