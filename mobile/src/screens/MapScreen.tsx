@@ -76,8 +76,8 @@ const FOCUSED_REGION_DELTA = 0.025;
 const NAV_STEP_ARRIVAL_RADIUS_M = 30;
 const NAV_OFF_ROUTE_RADIUS_M = 60;
 const NAV_OFF_ROUTE_GRACE_MS = 10_000;
-const NAVIGATION_CAMERA_ZOOM = 18;
-const NAVIGATION_CAMERA_PITCH = 55;
+const NAVIGATION_CAMERA_ZOOM = 18.4;
+const NAVIGATION_CAMERA_PITCH = 60;
 
 function bearingDegrees(from: { lat: number; lon: number }, to: { lat: number; lon: number }): number {
   const toRad = (value: number) => (value * Math.PI) / 180;
@@ -92,7 +92,9 @@ function bearingDegrees(from: { lat: number; lon: number }, to: { lat: number; l
 
 function navigationCameraCentre(from: { lat: number; lon: number }, to: { lat: number; lon: number }): { lat: number; lon: number } {
   const distance = metersBetween(from, to);
-  const fraction = distance > 220 ? 0.2 : distance > 90 ? 0.14 : 0.08;
+  // Keep the rider low in the navigation frame so more of the road ahead is
+  // visible, matching the dedicated guidance camera on the PWA.
+  const fraction = distance > 120 ? 0.36 : distance > 70 ? 0.30 : 0.22;
   return {
     lat: from.lat + (to.lat - from.lat) * fraction,
     lon: from.lon + (to.lon - from.lon) * fraction,
@@ -502,7 +504,7 @@ export function MapScreen(): React.JSX.Element {
     gpsHeading?: number | null,
   ) => {
     if (stepPath.length === 0) return;
-    const lookAhead = lookAheadCoordinateOnPath(here, stepPath, 120);
+    const lookAhead = lookAheadCoordinateOnPath(here, stepPath, 150);
     const heading = Number.isFinite(gpsHeading) && (gpsHeading ?? -1) >= 0
       ? Number(gpsHeading)
       : bearingDegrees(here, lookAhead);
@@ -795,22 +797,16 @@ export function MapScreen(): React.JSX.Element {
                 coordinate={{ latitude: selfMapLocation.lat, longitude: selfMapLocation.lon }}
                 title={displayName || 'Your location'}
                 description={shareRideLocation ? 'Your live group-ride location' : 'Your location'}
-                anchor={activeRoute ? { x: 0.5, y: 0.5 } : { x: 0.5, y: 1 }}
+                anchor={{ x: 0.5, y: 1 }}
                 tracksViewChanges={false}
               >
-                {activeRoute ? (
-                  <View style={styles.navigationPositionMarker}>
-                    <Ionicons name="navigate" size={28} color="#FFFFFF" style={styles.navigationPositionGlyph} />
-                  </View>
-                ) : (
-                  <RiderAvatar
-                    avatarId={avatarId}
-                    size={44}
-                    mapMarker
-                    selected
-                    status={selfMapStatus}
-                  />
-                )}
+                <RiderAvatar
+                  avatarId={avatarId}
+                  size={activeRoute ? 54 : 44}
+                  mapMarker
+                  selected
+                  status={selfMapStatus}
+                />
               </Marker>
             )}
             {rideLocations
@@ -1168,24 +1164,6 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: '#ffffff',
     ...elevation.raised,
-  },
-  navigationPositionMarker: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#4285F4',
-    borderWidth: 4,
-    borderColor: '#FFFFFF',
-    shadowColor: '#000000',
-    shadowOpacity: 0.26,
-    shadowRadius: 9,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 7,
-  },
-  navigationPositionGlyph: {
-    transform: [{ rotate: '-45deg' }],
   },
   nearbyCount: {
     position: 'absolute',

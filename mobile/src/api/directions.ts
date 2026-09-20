@@ -54,8 +54,17 @@ const ENTITY_REPLACEMENTS: Record<string, string> = {
   '&nbsp;': ' ',
 };
 
+function collapseRepeatedFollowInstruction(value: string): string {
+  const match = value.match(/^(.*?)\.?\s+Continue to follow\s+(.+?)\.?$/i);
+  if (!match) return value;
+  const lead = match[1]!.trim().replace(/[.]$/, '');
+  const repeatedRoad = match[2]!.trim().replace(/[.]$/, '');
+  const comparable = (text: string) => text.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  return comparable(lead).includes(comparable(repeatedRoad)) ? lead : value;
+}
+
 export function stripNavigationInstruction(value: string): string {
-  return value
+  const cleaned = value
     .replace(/<div[^>]*>/gi, '. ')
     .replace(/<\/div>/gi, '')
     .replace(/<[^>]+>/g, '')
@@ -63,6 +72,7 @@ export function stripNavigationInstruction(value: string): string {
     .replace(/\s+/g, ' ')
     .replace(/\s+([,.])/g, '$1')
     .trim();
+  return collapseRepeatedFollowInstruction(cleaned);
 }
 
 export function decodeGooglePolyline(encoded: string): RouteCoordinate[] {

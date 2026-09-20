@@ -52,6 +52,18 @@ assert.match(nativeMap, /rideLocations[\s\S]*<RiderAvatar[\s\S]*mapMarker/, 'nat
 assert.match(nativeMap, /client\.getPublicProfile\(id\)/, 'native live ride markers must resolve authoritative avatar identities');
 assert.match(pwa, /function riderAvatarMapIcon\([\s\S]*riderAvatarSvg/, 'PWA must build map markers from the shared avatar geometry');
 assert.match(pwa, /function addMapMarker\([\s\S]*icon: riderAvatarMapIcon\(person, current, status\)/, 'PWA rider markers must use avatar map icons');
+assert.match(
+  pwa,
+  /function updateNavigationPositionIcon\(\)[\s\S]*riderAvatarMapIcon\(state\.profile, true, undefined, 54\)/,
+  'PWA navigation must keep the rider-selected avatar as the live self marker',
+);
+assert.ok(!pwa.includes('function navigationPositionMapIcon()'), 'PWA navigation must not replace the selected rider avatar with a generic chevron');
+assert.match(
+  nativeMap,
+  /size=\{activeRoute \? 54 : 44\}[\s\S]*mapMarker[\s\S]*selected/,
+  'native navigation must keep the rider-selected avatar as the live self marker',
+);
+assert.ok(!nativeMap.includes('navigationPositionMarker'), 'native navigation must not replace the selected rider avatar with a generic chevron');
 
 assert.match(nativeRide, /const RIDE_LOCATION_REFRESH_MS = 10_000/, 'native ride locations must retain their 10 second refresh cadence');
 assert.match(pwa, /const RIDE_LOCATION_REFRESH_MS = 10_000/, 'PWA ride locations must retain their 10 second refresh cadence');
