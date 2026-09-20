@@ -120,11 +120,12 @@ async function mockAuthenticatedApi(page, movement = 'stationary', backendOverri
         constructor(_element, options) {
           this.centre = options.center;
           this.zoom = options.zoom;
+          this.options = { ...options };
           window.__riderCommsTestMap = this;
         }
         panTo(centre) { this.centre = centre; }
         setZoom(zoom) { this.zoom = zoom; }
-        setOptions() {}
+        setOptions(options) { this.options = { ...this.options, ...options }; }
         getCenter() {
           return {
             lat: () => this.centre.lat,
@@ -150,6 +151,8 @@ async function mockAuthenticatedApi(page, movement = 'stationary', backendOverri
       window.google = { maps: {
         Map: MapMock,
         Marker: MarkerMock,
+        Size: class Size { constructor(width, height) { this.width = width; this.height = height; } },
+        Point: class Point { constructor(x, y) { this.x = x; this.y = y; } },
         SymbolPath: { CIRCLE: 0 },
         places: {
           PlacesService: PlacesServiceMock,
@@ -512,6 +515,9 @@ test('final mockup parity is sharp, map-first and iPhone 17 Pro Max safe', async
     const canvas = document.querySelector('#mapCanvas');
     const search = document.querySelector('#mapSearchSlot');
     const action = document.querySelector('.map-actions .icon-button');
+    const nearby = document.querySelector('#joinNearbyBtn');
+    const avatarButton = document.querySelector('#mapAvatarButton');
+    const optionsGlyph = document.querySelector('.map-search-options');
     const screenBox = screen?.getBoundingClientRect();
     const canvasBox = canvas?.getBoundingClientRect();
     return {
@@ -522,6 +528,11 @@ test('final mockup parity is sharp, map-first and iPhone 17 Pro Max safe', async
       viewportWidth: document.documentElement.clientWidth,
       searchRadius: search ? parseFloat(getComputedStyle(search).borderTopLeftRadius) : NaN,
       actionRadius: action ? parseFloat(getComputedStyle(action).borderTopLeftRadius) : NaN,
+      nearbyWidth: nearby?.getBoundingClientRect().width ?? NaN,
+      avatarDisplay: avatarButton ? getComputedStyle(avatarButton).display : null,
+      optionsGlyphWidth: optionsGlyph?.getBoundingClientRect().width ?? NaN,
+      mapTypeId: window.__riderCommsTestMap?.options?.mapTypeId ?? null,
+      mapStyles: window.__riderCommsTestMap?.options?.styles ?? [],
     };
   });
   expectNear(mapGeometry.canvasTop, mapGeometry.screenTop);
@@ -529,10 +540,21 @@ test('final mockup parity is sharp, map-first and iPhone 17 Pro Max safe', async
   expectNear(mapGeometry.canvasRight, mapGeometry.viewportWidth);
   expect(mapGeometry.searchRadius).toBeLessThanOrEqual(4);
   expect(mapGeometry.actionRadius).toBeLessThanOrEqual(4);
+  expect(mapGeometry.nearbyWidth).toBeGreaterThanOrEqual(62);
+  expect(mapGeometry.avatarDisplay).toBe('none');
+  expect(mapGeometry.optionsGlyphWidth).toBeGreaterThanOrEqual(16);
+  expect(mapGeometry.mapTypeId).toBe('satellite');
   await expect(page.locator('[data-screen="map"] .page-header')).toHaveCount(0);
   await expect(page.locator('#mapSearchSlot')).toBeVisible();
   await expect(page.locator('#movementSafetyBanner')).toBeHidden();
   await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-map-final.png'), fullPage: true });
+  await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-map-dark-final.png'), fullPage: true });
+
+  await page.emulateMedia({ colorScheme: 'light' });
+  await expect.poll(() => page.locator('#reportHazardBtn').evaluate((button) => getComputedStyle(button).backgroundColor))
+    .toMatch(/247, 249, 250/);
+  await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-map-light-final.png'), fullPage: true });
+  await page.emulateMedia({ colorScheme: 'dark' });
 
   await page.locator('#reportHazardBtn').click();
   await expect(page.locator('#sheetBackdrop')).toBeVisible();
@@ -670,7 +692,7 @@ test('PWA map uses an already-granted live location instead of showing the Londo
   });
 
   expect(mapState.centre).toEqual({ lat: 51.5074, lng: -0.1278 });
-  expect(mapState.zoom).toBe(15);
+  expect(mapState.zoom).toBe(14);
   expect(mapState.ownPosition).toEqual({ lat: 51.5074, lng: -0.1278 });
   expect(mapState.ownMarkerCount).toBe(1);
   expect(mapState.ownMarkerEverUsedFallback).toBe(false);

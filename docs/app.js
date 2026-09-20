@@ -155,35 +155,7 @@
     return Object.hasOwn(NAVIGATION_PROVIDERS, value) ? value : 'google_maps';
   }
 
-  // Automatic day/night map skin — kept in sync with the CSS light-mode
-  // media block below via prefersDarkMode(), so the map tiles match the
-  // rest of the UI instead of staying stuck on the dark skin in daylight.
-  const MAP_STYLE_DARK = [
-    { elementType: 'geometry', stylers: [{ color: '#0a1115' }] },
-    { elementType: 'labels.text.stroke', stylers: [{ color: '#0a1115' }] },
-    { elementType: 'labels.text.fill', stylers: [{ color: '#7d8c94' }] },
-    { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#a9b7bd' }] },
-    { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#172229' }] },
-    { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#25333b' }] },
-    { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#20313a' }] },
-    { featureType: 'poi', stylers: [{ visibility: 'off' }] },
-    { featureType: 'transit', stylers: [{ visibility: 'off' }] },
-    { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#071c25' }] },
-  ];
-  const MAP_STYLE_LIGHT = [
-    { elementType: 'geometry', stylers: [{ color: '#e6edef' }] },
-    { elementType: 'labels.text.stroke', stylers: [{ color: '#eef3f4' }] },
-    { elementType: 'labels.text.fill', stylers: [{ color: '#526169' }] },
-    { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#2f4048' }] },
-    { featureType: 'landscape.natural', elementType: 'geometry', stylers: [{ color: '#e1e9e7' }] },
-    { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#f7f9fa' }] },
-    { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#bdc9ce' }] },
-    { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#d4e1e5' }] },
-    { featureType: 'road.highway', elementType: 'geometry.stroke', stylers: [{ color: '#aebdc3' }] },
-    { featureType: 'poi', stylers: [{ visibility: 'off' }] },
-    { featureType: 'transit', stylers: [{ visibility: 'off' }] },
-    { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#c9e0e7' }] },
-  ];
+  // Keep the fallback canvas in sync with the device's day/night appearance.
   const darkModeQuery = window.matchMedia?.('(prefers-color-scheme: dark)');
   function prefersDarkMode() {
     return darkModeQuery ? darkModeQuery.matches : true;
@@ -199,7 +171,6 @@
     const meta = $('#statusBarStyleMeta');
     if (meta) meta.setAttribute('content', 'black-translucent');
     map?.setOptions({
-      styles: prefersDarkMode() ? MAP_STYLE_DARK : MAP_STYLE_LIGHT,
       backgroundColor: prefersDarkMode() ? '#080d10' : '#e9eef0',
     });
   }
@@ -2180,6 +2151,11 @@
     return 'Microphone access is unavailable right now.';
   }
 
+  function shouldRetryVoiceConnection(error) {
+    if (!(error instanceof ApiError)) return true;
+    return error.status === 0 || error.status === 408 || error.status === 429 || error.status >= 500;
+  }
+
   /** Ask while the rider is still inside the original Create, Join or Go
    * live tap. Waiting for API calls first loses the browser's user-gesture
    * allowance and can suppress the installed-PWA permission prompt. */
@@ -2685,6 +2661,7 @@
         voiceRoom = undefined;
         voiceTargetKey = undefined;
       }
+      if (shouldRetryVoiceConnection(error)) scheduleVoiceReconnect(requestedTarget);
       renderVoiceStatus();
     }
   }
@@ -4203,12 +4180,14 @@
     const centre = liveCentre || fallbackCentre;
     map = new google.maps.Map($('#googleMap'), {
       center: centre,
-      zoom: liveCentre ? 15 : 14,
+      zoom: 14,
       disableDefaultUI: true,
       gestureHandling: 'greedy',
       clickableIcons: false,
+      // Hybrid's label layer ignores our embedded JSON styling on real maps.
+      // Satellite keeps live photographic tiles while removing that layer.
+      mapTypeId: 'satellite',
       backgroundColor: prefersDarkMode() ? '#080d10' : '#f2f5f6',
-      styles: prefersDarkMode() ? MAP_STYLE_DARK : MAP_STYLE_LIGHT,
     });
     usingFallbackMap = false;
     $('#fallbackMap').hidden = true;
@@ -4226,6 +4205,15 @@
 
   }
 
+  function currentLocationIcon() {
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="52" height="52" viewBox="0 0 52 52"><circle cx="26" cy="26" r="21" fill="#2fa8d3" stroke="#ffffff" stroke-width="3"/><path d="M28.8 13.2 18.1 34.8l8.2-3 5.7 6.9 6-25.5-9.2 0Z" fill="#ffffff" stroke="#0b6f91" stroke-width=".7" stroke-linejoin="round"/></svg>';
+    return {
+      url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
+      scaledSize: new google.maps.Size(44, 44),
+      anchor: new google.maps.Point(22, 22),
+    };
+  }
+
   function addMapMarker(person, position, current) {
     const marker = new google.maps.Marker({
       map,
@@ -4237,18 +4225,13 @@
       // riders keep a (smaller than before) labelled dot, since telling
       // several nearby riders apart at a glance is the point there.
       ...(current ? {} : { label: { text: initials(person.displayName), color: '#ffffff', fontWeight: '700', fontSize: '9px' } }),
-      icon: {
+      icon: current ? currentLocationIcon() : {
         path: google.maps.SymbolPath.CIRCLE,
-        // A precise dot, not a beach-ball (see the earlier size pass) —
-        // but 7 turned out to undershoot the other way and got hard to
-        // spot at a glance. 10 with a slightly thicker ring keeps it
-        // clearly the smallest/simplest shape on the map (still no
-        // label, unlike other riders) while actually being visible.
-        scale: current ? 10 : 9,
+        scale: 9,
         fillColor: identityColor(person.riderId),
         fillOpacity: 1,
-        strokeColor: current ? '#ffffff' : '#e9eef5',
-        strokeWeight: current ? 3 : 2,
+        strokeColor: '#e9eef5',
+        strokeWeight: 2,
       },
       zIndex: current ? 10 : 5,
     });
