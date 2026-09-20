@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import type { DirectMessage } from '@rider-comms/shared';
-import { reconcileMessageThread, type LocalDirectMessage } from '../src/friends/messageState.ts';
+import { mergeOlderMessagePage, reconcileMessageThread, type LocalDirectMessage } from '../src/friends/messageState.ts';
 
 const message = (id: string, createdAt: number): DirectMessage => ({
   id,
@@ -40,6 +40,21 @@ describe('reconcileMessageThread', () => {
     assert.deepEqual(
       reconcileMessageThread(current, [message('later', 3), message('earlier', 1)]).map((item) => item.id),
       ['earlier', 'local', 'later']
+    );
+  });
+});
+
+describe('mergeOlderMessagePage', () => {
+  it('prepends older history without duplicates and keeps deterministic order', () => {
+    const current: LocalDirectMessage[] = [
+      message('server-2', 20),
+      { ...message('local-pending', 30), status: 'pending' },
+    ];
+    const older = [message('server-1', 10), message('server-2', 20)];
+
+    assert.deepEqual(
+      mergeOlderMessagePage(current, older).map((item) => item.id),
+      ['server-1', 'server-2', 'local-pending'],
     );
   });
 });
