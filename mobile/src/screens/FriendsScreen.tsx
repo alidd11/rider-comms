@@ -261,7 +261,9 @@ function FriendProfileModal({
   const confirmRemove = () => Alert.alert('Remove friend?', `${friend.displayName} will be removed from your friends list.`, [
     { text: 'Cancel', style: 'cancel' },
     { text: 'Remove', style: 'destructive', onPress: () => {
-      void remove(friend.riderId).then(onClose);
+      void remove(friend.riderId)
+        .then(onClose)
+        .catch(() => Alert.alert('Couldn’t remove friend', 'Please try again when you have a connection.'));
     } },
   ]);
   const safetyActions = () => Alert.alert('More actions', `Choose what to do about ${friend.displayName}.`, [
