@@ -503,7 +503,7 @@ test('core PWA screens render without runtime errors or viewport overflow', asyn
   expect(runtimeErrors).toEqual([]);
 });
 
-test('final mockup parity is sharp, map-first and iPhone 17 Pro Max safe', async ({ page }, testInfo) => {
+test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 Pro Max', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'iphone-17-pro-max-webkit', 'Final mockup screenshots target iPhone 17 Pro Max geometry.');
 
   await mockAuthenticatedApi(page, 'stationary');
@@ -532,21 +532,22 @@ test('final mockup parity is sharp, map-first and iPhone 17 Pro Max safe', async
       avatarDisplay: avatarButton ? getComputedStyle(avatarButton).display : null,
       optionsGlyphWidth: optionsGlyph?.getBoundingClientRect().width ?? NaN,
       mapTypeId: window.__riderCommsTestMap?.options?.mapTypeId ?? null,
+      mapColorScheme: window.__riderCommsTestMap?.options?.colorScheme ?? null,
       mapStyles: window.__riderCommsTestMap?.options?.styles ?? [],
     };
   });
   expectNear(mapGeometry.canvasTop, mapGeometry.screenTop);
   expectNear(mapGeometry.canvasLeft, 0);
   expectNear(mapGeometry.canvasRight, mapGeometry.viewportWidth);
-  expect(mapGeometry.searchRadius).toBeLessThanOrEqual(4);
-  expect(mapGeometry.actionRadius).toBeLessThanOrEqual(4);
+  expect(mapGeometry.searchRadius).toBeGreaterThanOrEqual(20);
+  expect(mapGeometry.searchRadius).toBeLessThanOrEqual(26);
+  expect(mapGeometry.actionRadius).toBeGreaterThanOrEqual(20);
   expect(mapGeometry.nearbyWidth).toBeGreaterThanOrEqual(62);
   expect(mapGeometry.avatarDisplay).toBe('none');
   expect(mapGeometry.optionsGlyphWidth).toBeGreaterThanOrEqual(16);
-  expect(mapGeometry.mapTypeId).toBe('hybrid');
-  expect(mapGeometry.mapStyles.some((entry) => entry.featureType === 'poi' && entry.stylers?.some((styler) => styler.visibility === 'off'))).toBe(true);
-  expect(mapGeometry.mapStyles.some((entry) => entry.featureType === 'transit' && entry.stylers?.some((styler) => styler.visibility === 'off'))).toBe(true);
-  expect(mapGeometry.mapStyles.some((entry) => entry.featureType === 'road.local' && entry.elementType === 'labels')).toBe(true);
+  expect(mapGeometry.mapTypeId).toBe('roadmap');
+  expect(mapGeometry.mapColorScheme).toBe('FOLLOW_SYSTEM');
+  expect(mapGeometry.mapStyles).toEqual([]);
   await expect(page.locator('[data-screen="map"] .page-header')).toHaveCount(0);
   await expect(page.locator('#mapSearchSlot')).toBeVisible();
   await expect(page.locator('#movementSafetyBanner')).toBeHidden();
@@ -554,6 +555,13 @@ test('final mockup parity is sharp, map-first and iPhone 17 Pro Max safe', async
   await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-map-dark-final.png'), fullPage: true });
 
   await page.emulateMedia({ colorScheme: 'light' });
+  // Map action buttons animate their background for 140 ms. Wait for the
+  // settled provider-light chrome rather than capturing the first transition
+  // frame and accidentally blessing a dark control in the light screenshot.
+  await expect.poll(() => page.locator('#reportHazardBtn').evaluate((button) => getComputedStyle(button).backgroundColor))
+    .toMatch(/255, 255, 255/);
+  await expect.poll(() => page.locator('#locateBtn').evaluate((button) => getComputedStyle(button).backgroundColor))
+    .toMatch(/255, 255, 255/);
   await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-map-light-final.png'), fullPage: true });
   await page.emulateMedia({ colorScheme: 'dark' });
 

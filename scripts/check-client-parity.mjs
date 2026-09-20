@@ -36,4 +36,22 @@ for (const required of ['auth', 'group-ride', 'ride-safe', 'place-search', 'frie
   if (!ids.has(required)) throw new Error(`Missing required parity capability: ${required}`);
 }
 
-console.log(`Client parity manifest valid: ${manifest.capabilities.length} capabilities tracked`);
+const [pwaMapSource, nativeMapSource] = await Promise.all([
+  readFile(new URL('../docs/app.js', import.meta.url), 'utf8'),
+  readFile(new URL('../mobile/src/screens/MapScreen.tsx', import.meta.url), 'utf8'),
+]);
+
+if (!/mapTypeId:\s*['"]roadmap['"]/.test(pwaMapSource) || !/colorScheme:\s*['"]FOLLOW_SYSTEM['"]/.test(pwaMapSource)) {
+  throw new Error('PWA map must use the provider-native Google Roadmap surface with system colour scheme');
+}
+if (/MAP_STYLE_(?:DARK|LIGHT)/.test(pwaMapSource)) {
+  throw new Error('PWA map must not replace Google Roadmap with embedded basemap imitation styles');
+}
+if (!/mapType="standard"/.test(nativeMapSource)) {
+  throw new Error('Native map must use the provider-native standard road map surface');
+}
+if (/HYBRID_MAP_STYLE_(?:DARK|LIGHT)/.test(nativeMapSource)) {
+  throw new Error('Native map must not carry embedded Hybrid basemap imitation styles');
+}
+
+console.log(`Client parity manifest valid: ${manifest.capabilities.length} capabilities tracked; map basemaps aligned`);
