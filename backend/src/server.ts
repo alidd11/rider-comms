@@ -34,6 +34,12 @@ const MAX_PRESENCE_ACCURACY_METERS = 100;
 const MAX_PRESENCE_FIX_AGE_MS = 30_000;
 const MAX_PRESENCE_FUTURE_SKEW_MS = 5_000;
 const PROXIMITY_VOICE_TOKEN_TTL_SECONDS = 60;
+const PROXIMITY_VOICE_REFRESH_MS = 20_000;
+// LiveKit token expiry only gates joining; it does not eject an already
+// connected participant. Treat public proximity authorization as a renewable
+// client lease so a stale pair cannot remain connected indefinitely if the
+// backend/presence path stops confirming that they are still allowed together.
+const PROXIMITY_VOICE_AUTHORIZATION_LEASE_MS = PROXIMITY_VOICE_TOKEN_TTL_SECONDS * 1000;
 const AUTH_CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
 const SOCIAL_RATE_CLEANUP_INTERVAL_MS = 15 * 60 * 1000;
 const SOCIAL_STATE_CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
@@ -354,7 +360,11 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
               PROXIMITY_VOICE_TOKEN_TTL_SECONDS
             )),
           })));
-          return sendJson(res, 200, { connections, refreshAfterMs: 20_000 });
+          return sendJson(res, 200, {
+            connections,
+            refreshAfterMs: PROXIMITY_VOICE_REFRESH_MS,
+            authorizationLeaseMs: PROXIMITY_VOICE_AUTHORIZATION_LEASE_MS,
+          });
         }
         return sendJson(res, 400, { error: "target must be 'ride' or 'channel'" });
       }

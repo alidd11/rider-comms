@@ -2187,6 +2187,11 @@
   let microphonePermissionReady = false;
   let voiceFailureNotified = false;
   let voiceReconnectTimer;
+  let publicVoiceAuthorizationLeaseTimer;
+  let publicVoiceAuthorizationExpired = false;
+  let publicVoiceConnectInFlight = false;
+  let publicVoiceRefreshPending = false;
+  const DEFAULT_PUBLIC_VOICE_AUTHORIZATION_LEASE_MS = 60_000;
   const intentionalVoiceDisconnects = new WeakSet();
   const remoteVoiceElements = new WeakMap();
 
@@ -2337,6 +2342,40 @@
       if (currentVoiceTarget() !== targetKey) return;
       syncVoiceConnection();
     }, 2000);
+  }
+
+  function clearPublicVoiceAuthorizationLease() {
+    if (publicVoiceAuthorizationLeaseTimer) {
+      clearTimeout(publicVoiceAuthorizationLeaseTimer);
+      publicVoiceAuthorizationLeaseTimer = undefined;
+    }
+  }
+
+  function expirePublicVoiceAuthorizationLease() {
+    publicVoiceAuthorizationLeaseTimer = undefined;
+    if (currentVoiceTarget() !== 'channel') return;
+
+    // A LiveKit participant is not ejected merely because its join token has
+    // expired. If the app can no longer re-confirm mutual proximity/block
+    // authorization within the server-provided lease, stop transmitting first
+    // and tear every public pair room down. Nearby stays armed and retries.
+    setVoiceSpeaking(false);
+    for (const room of proximityVoiceRooms.values()) disconnectManagedVoiceRoom(room);
+    proximityVoiceRooms.clear();
+    if (!voiceRoom) stopVoiceLevelLoop();
+    publicVoiceAuthorizationExpired = true;
+    voiceFailureNotified = false;
+    renderVoiceStatus();
+    scheduleVoiceReconnect('channel');
+  }
+
+  function renewPublicVoiceAuthorizationLease(leaseMs) {
+    clearPublicVoiceAuthorizationLease();
+    publicVoiceAuthorizationExpired = false;
+    const duration = typeof leaseMs === 'number' && Number.isFinite(leaseMs) && leaseMs > 0
+      ? leaseMs
+      : DEFAULT_PUBLIC_VOICE_AUTHORIZATION_LEASE_MS;
+    publicVoiceAuthorizationLeaseTimer = setTimeout(expirePublicVoiceAuthorizationLease, duration);
   }
 
   function activeRemoteVoiceSpeakerIds() {
@@ -2497,17 +2536,21 @@
     // Public Nearby intentionally releases microphone capture when there are
     // no authorised proximity peers. Keep the feature visibly "armed" instead
     // of making that privacy/battery optimisation look like voice crashed.
+    const publicAuthorizationExpired = state.publicLive
+      && !state.activeRide
+      && publicVoiceAuthorizationExpired;
     const waitingForPublicPeer = state.publicLive
       && !state.activeRide
       && !connected
       && microphonePermissionReady
-      && !voiceFailureNotified;
+      && !voiceFailureNotified
+      && !publicAuthorizationExpired;
     const resumeLocked = needsResume && window.RiderMovementSafety.isLockedForSafety(movementState);
     const remoteSpeakerSummary = connected ? voiceSpeakerSummary() : '';
     renderMapVoiceSpeakerChip(remoteSpeakerSummary);
     avatar.classList.toggle('voice-talking', connected && voiceIsSpeaking);
     avatar.classList.toggle('voice-muted', connected && voiceManuallyMuted);
-    badge.hidden = !connected && !needsResume && !waitingForPublicPeer;
+    badge.hidden = !connected && !needsResume && !waitingForPublicPeer && !publicAuthorizationExpired;
     badge.toggleAttribute('inert', resumeLocked);
     badge.setAttribute('aria-disabled', String(resumeLocked));
     badge.classList.toggle('talking', voiceIsSpeaking);
@@ -2516,11 +2559,13 @@
     const label = voiceManuallyMuted ? 'Muted — tap to unmute' : voiceIsSpeaking ? 'Talking' : 'Listening — hands-free';
     badge.setAttribute(
       'aria-label',
-      needsResume
-        ? 'Resume voice'
-        : waitingForPublicPeer
-          ? 'Nearby Voice · waiting for riders'
-          : voiceManuallyMuted
+      publicAuthorizationExpired
+        ? 'Nearby Voice · reconnecting'
+        : needsResume
+          ? 'Resume voice'
+          : waitingForPublicPeer
+            ? 'Nearby Voice · waiting for riders'
+            : voiceManuallyMuted
             ? 'Proximity voice muted — tap to unmute'
             : voiceIsSpeaking
               ? 'Talking'
@@ -2672,6 +2717,11 @@
    * as a blocking error over the action that triggered this. */
   async function connectVoice(kind, rideId) {
     if (kind === 'ride' && voiceRoom) return;
+    if (kind === 'channel' && publicVoiceConnectInFlight) {
+      publicVoiceRefreshPending = true;
+      return;
+    }
+    if (kind === 'channel') publicVoiceConnectInFlight = true;
     const requestedTarget = kind === 'ride' ? `ride:${rideId}` : 'channel';
     let room;
     try {
@@ -2686,6 +2736,7 @@
       if (currentVoiceTarget() !== requestedTarget) return;
 
       if (kind === 'channel') {
+        renewPublicVoiceAuthorizationLease(response.authorizationLeaseMs);
         const enteringChannel = voiceTargetKey !== 'channel';
         const desiredPeers = new Set(response.connections.map((connection) => connection.peerId));
         for (const [peerId, existingRoom] of proximityVoiceRooms) {
@@ -2767,7 +2818,10 @@
         return;
       }
       console.warn('[rider-comms] Could not connect voice chat', error);
-      if (!voiceFailureNotified) {
+      const leasedPublicConnection = kind === 'channel'
+        && proximityVoiceRooms.size > 0
+        && !publicVoiceAuthorizationExpired;
+      if (!leasedPublicConnection && !voiceFailureNotified) {
         showToast(error?.name === 'NotAllowedError' || error?.name === 'SecurityError'
           ? microphoneAccessMessage(error)
           : 'Voice chat is unavailable right now. Your ride and map still work.');
@@ -2780,6 +2834,14 @@
       }
       if (shouldRetryVoiceConnection(error)) scheduleVoiceReconnect(requestedTarget);
       renderVoiceStatus();
+    } finally {
+      if (kind === 'channel') {
+        publicVoiceConnectInFlight = false;
+        if (publicVoiceRefreshPending) {
+          publicVoiceRefreshPending = false;
+          if (currentVoiceTarget() === 'channel') queueMicrotask(() => syncVoiceConnection());
+        }
+      }
     }
   }
 
@@ -2800,6 +2862,9 @@
   }
 
   function disconnectVoice() {
+    clearPublicVoiceAuthorizationLease();
+    publicVoiceAuthorizationExpired = false;
+    publicVoiceRefreshPending = false;
     stopVoiceLevelLoop();
     if (voiceReconnectTimer) { clearTimeout(voiceReconnectTimer); voiceReconnectTimer = undefined; }
     if (voiceRoom) { disconnectManagedVoiceRoom(voiceRoom); voiceRoom = undefined; }
@@ -2811,6 +2876,9 @@
   }
 
   function disconnectPublicVoice() {
+    clearPublicVoiceAuthorizationLease();
+    publicVoiceAuthorizationExpired = false;
+    publicVoiceRefreshPending = false;
     // disconnectManagedVoiceRoom() removes each public room's remote-audio
     // elements and active-speaker entry. Do not clear the process-wide speaker
     // map here: a private ride may be using it at the same time from Settings.
