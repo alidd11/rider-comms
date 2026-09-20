@@ -9,7 +9,6 @@ const request = (id: string): FriendRequest => ({
   toRiderId: 'rider_b',
   status: 'pending',
   createdAt: 1,
-  updatedAt: 1,
 });
 
 describe('appendUniqueFriendRequest', () => {
