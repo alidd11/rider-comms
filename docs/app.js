@@ -4375,7 +4375,7 @@
     const lead = repeatedFollow[1].trim().replace(/[.]$/, '');
     const repeatedRoad = repeatedFollow[2].trim().replace(/[.]$/, '');
     const comparable = (value) => value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-    return comparable(lead).includes(comparable(repeatedRoad)) ? lead : cleaned;
+    return comparable(lead).endsWith(comparable(repeatedRoad)) ? lead : cleaned;
   }
 
   /** Best-effort voice guidance — SpeechSynthesis isn't universally
