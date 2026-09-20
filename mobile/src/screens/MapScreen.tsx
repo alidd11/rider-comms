@@ -59,28 +59,6 @@ const DEFAULT_REGION = {
   longitudeDelta: 0.16,
 };
 const FOCUSED_REGION_DELTA = 0.025;
-const HYBRID_MAP_STYLE_DARK = [
-  { featureType: 'poi', stylers: [{ visibility: 'off' }] },
-  { featureType: 'transit', stylers: [{ visibility: 'off' }] },
-  { featureType: 'administrative.land_parcel', stylers: [{ visibility: 'off' }] },
-  { featureType: 'road.local', elementType: 'labels', stylers: [{ visibility: 'off' }] },
-  { featureType: 'road', elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
-  { featureType: 'road', elementType: 'labels.text.stroke', stylers: [{ color: '#071015' }, { weight: 3 }] },
-  { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#bac6cb' }] },
-  { featureType: 'administrative.locality', elementType: 'labels.text.stroke', stylers: [{ color: '#071015' }, { weight: 4 }] },
-  { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#d9e1e4' }] },
-];
-const HYBRID_MAP_STYLE_LIGHT = [
-  { featureType: 'poi', stylers: [{ visibility: 'off' }] },
-  { featureType: 'transit', stylers: [{ visibility: 'off' }] },
-  { featureType: 'administrative.land_parcel', stylers: [{ visibility: 'off' }] },
-  { featureType: 'road.local', elementType: 'labels', stylers: [{ visibility: 'off' }] },
-  { featureType: 'road', elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
-  { featureType: 'road', elementType: 'labels.text.stroke', stylers: [{ color: '#f3f6f7' }, { weight: 3 }] },
-  { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#3a4a52' }] },
-  { featureType: 'administrative.locality', elementType: 'labels.text.stroke', stylers: [{ color: '#f3f6f7' }, { weight: 4 }] },
-  { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#24343c' }] },
-];
 const NAV_STEP_ARRIVAL_RADIUS_M = 30;
 const NAV_OFF_ROUTE_RADIUS_M = 60;
 const NAV_OFF_ROUTE_GRACE_MS = 10_000;
@@ -609,8 +587,7 @@ export function MapScreen(): React.JSX.Element {
             loadingEnabled
             loadingBackgroundColor={colors.background}
             loadingIndicatorColor={colors.accent}
-            mapType="hybrid"
-            customMapStyle={colorScheme === 'light' ? HYBRID_MAP_STYLE_LIGHT : HYBRID_MAP_STYLE_DARK}
+            mapType="satellite"
             showsCompass={false}
             showsMyLocationButton={false}
             toolbarEnabled={false}
@@ -672,6 +649,10 @@ export function MapScreen(): React.JSX.Element {
               />
             ))}
           </MapView>
+          <View
+            pointerEvents="none"
+            style={[styles.mapTint, { backgroundColor: colorScheme === 'light' ? 'rgba(8, 18, 22, .06)' : 'rgba(3, 12, 18, .24)' }]}
+          />
         </View>
       ) : (
         <View style={styles.hostFill}>
@@ -852,6 +833,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   mapFill: { flex: 1 },
   map: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
+  mapTint: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
   hostFill: { flex: 1, padding: 0, backgroundColor: colors.background },
   searchSlot: {
     position: 'absolute',
