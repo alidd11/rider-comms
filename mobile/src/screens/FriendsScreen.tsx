@@ -202,7 +202,7 @@ function FriendRow({
       style={({ pressed }) => [styles.friendRow, pressed && styles.friendRowPressed]}
       onPress={() => onProfile(friend)}
       accessibilityRole="button"
-      accessibilityLabel={`Open ${friend.displayName}'s rider profile`}
+      accessibilityLabel={`${friend.displayName}, ${activityLabel(activity)}. Open rider profile`}
     >
       <View style={styles.friendAvatarWrap}>
         <RiderAvatar avatarId={friend.avatarId} size={42} />
