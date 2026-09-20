@@ -255,16 +255,20 @@
   }
 
   function loadSession() {
-    try {
-      const stored = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null');
-      if (stored && typeof stored.riderId === 'string' && typeof stored.token === 'string') return stored;
-    } catch { /* fall through to null */ }
+    for (const storage of [localStorage, sessionStorage]) {
+      try {
+        const stored = JSON.parse(storage.getItem(SESSION_KEY) || 'null');
+        if (stored && typeof stored.riderId === 'string' && typeof stored.token === 'string') return stored;
+      } catch { /* fall through to the next storage */ }
+    }
     return null;
   }
 
-  function saveSession(nextSession) {
+  function saveSession(nextSession, remember = true) {
     session = nextSession;
-    localStorage.setItem(SESSION_KEY, JSON.stringify(nextSession));
+    localStorage.removeItem(SESSION_KEY);
+    sessionStorage.removeItem(SESSION_KEY);
+    (remember ? localStorage : sessionStorage).setItem(SESSION_KEY, JSON.stringify(nextSession));
   }
 
   function clearSession() {
@@ -277,6 +281,7 @@
     unreadMessageCount = 0;
     session = null;
     localStorage.removeItem(SESSION_KEY);
+    sessionStorage.removeItem(SESSION_KEY);
   }
 
   let session = loadSession();
@@ -4418,13 +4423,22 @@
 
   const USERNAME_PATTERN = /^[A-Za-z0-9_]{3,20}$/;
 
-  function showAuthScreen() {
+  let authSplashTimer;
+  function showAuthScreen(withSplash = false) {
     $('#app').hidden = true;
     $('#authScreen').hidden = false;
     document.documentElement.classList.add('auth-open');
+    const splash = $('#authSplash');
+    if (!splash) return;
+    clearTimeout(authSplashTimer);
+    splash.hidden = !withSplash;
+    if (withSplash) authSplashTimer = setTimeout(() => { splash.hidden = true; }, 900);
   }
 
   function hideAuthScreen() {
+    clearTimeout(authSplashTimer);
+    const splash = $('#authSplash');
+    if (splash) splash.hidden = true;
     $('#authScreen').hidden = true;
     $('#app').hidden = false;
     document.documentElement.classList.remove('auth-open');
@@ -4520,7 +4534,7 @@
     button.textContent = 'Logging in…';
     try {
       const result = await apiFetch('POST', '/auth/login', { username, password, deviceName: 'Rider Comms PWA' });
-      saveSession({ riderId: result.riderId, token: result.token });
+      saveSession({ riderId: result.riderId, token: result.token }, $('#rememberMe')?.checked !== false);
       applyAuthenticatedIdentity(result.riderId, username);
       // A newly authenticated rider may already belong to a ride on another
       // device. Reconcile before enabling ride location or voice in the UI.
@@ -4637,9 +4651,9 @@
     authFormsWired = true;
     const authCopy = {
       login: {
-        eyebrow: 'Welcome back',
-        title: 'Ready to ride?',
-        description: 'Sign in to reconnect with your rides, friends and rider circle.',
+        eyebrow: '',
+        title: 'Welcome back',
+        description: 'Good to see you again.',
       },
       signup: {
         eyebrow: 'New rider',
@@ -4660,7 +4674,7 @@
 
     setAuthMode = (target, moveFocus = true) => {
       const mode = typeof target === 'string' ? target : target.dataset.authMode;
-      $$('[data-auth-mode]').forEach((item) => {
+      $$('.auth-segmented [data-auth-mode]').forEach((item) => {
         const selected = item.dataset.authMode === mode;
         item.classList.toggle('active', selected);
         item.setAttribute('aria-selected', String(selected));
@@ -4668,6 +4682,8 @@
       });
       const forms = { login: $('#loginForm'), signup: $('#signupForm'), recover: $('#recoverForm'), reset: $('#resetForm') };
       Object.entries(forms).forEach(([name, form]) => { form.hidden = name !== mode; form.setAttribute('aria-hidden', String(name !== mode)); });
+      const extras = $('#authLoginExtras');
+      if (extras) extras.hidden = mode !== 'login';
       $$('.auth-error').forEach((item) => { item.hidden = true; });
       $('#authNotice').hidden = true;
       const copy = authCopy[mode];
@@ -4803,7 +4819,7 @@
     const verification = await consumeEmailVerificationLink();
     if (!session) {
       wireAuthForms();
-      showAuthScreen();
+      showAuthScreen(true);
       if (verification) {
         const notice = $('#authNotice');
         notice.textContent = verification.message;
