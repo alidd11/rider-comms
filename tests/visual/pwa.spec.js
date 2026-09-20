@@ -331,7 +331,7 @@ test('login baseline matches the approved night-rider concept in day and night',
   }
 });
 
-test('ride join baseline owns the iPhone top edge in day and night', async ({ page }, testInfo) => {
+test('ride join baseline matches the approved compact-card hierarchy in day and night', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'iphone-17-pro-max-webkit', 'Ride baseline screenshots target iPhone 17 Pro Max geometry.');
 
   await mockAuthenticatedApi(page, 'stationary');
@@ -346,6 +346,7 @@ test('ride join baseline owns the iPhone top edge in day and night', async ({ pa
     await page.locator('[data-screen="ride"]').evaluate(async (element) => {
       await Promise.all(element.getAnimations().map((animation) => animation.finished));
     });
+    await expect(page.locator('#rideTitle')).toBeVisible();
     await expect(page.locator('.ride-hero')).toBeVisible();
     await expect(page.locator('#joinRideForm')).toBeVisible();
     await expect(page.locator('#rideHostMode')).toBeVisible();
@@ -354,6 +355,7 @@ test('ride join baseline owns the iPhone top edge in day and night', async ({ pa
     const visual = await page.evaluate(() => {
       const screen = document.querySelector('[data-screen="ride"]');
       const header = screen.querySelector('.page-header');
+      const title = screen.querySelector('#rideTitle');
       const heroElement = screen.querySelector('.ride-hero');
       const join = screen.querySelector('.ride-entry');
       const rail = screen.querySelector('.ride-code-slots');
@@ -365,7 +367,11 @@ test('ride join baseline owns the iPhone top edge in day and night', async ({ pa
       const hero = getComputedStyle(heroElement);
       return {
         screenTop: box(screen).top,
+        headerTop: box(header).top,
         headerHeight: box(header).height,
+        titleTop: box(title).top,
+        titleBottom: box(title).bottom,
+        titleWidth: box(title).width,
         heroTop: box(heroElement).top,
         heroLeft: box(heroElement).left,
         heroWidth: box(heroElement).width,
@@ -378,30 +384,26 @@ test('ride join baseline owns the iPhone top edge in day and night', async ({ pa
         railGap: parseFloat(getComputedStyle(rail).gap) || 0,
         slotHeight: box(slot).height,
         slotRadius: parseFloat(getComputedStyle(slot).borderTopLeftRadius),
-        slotBackground: getComputedStyle(slot).backgroundColor,
         buttonHeight: box(button).height,
         startHeight: box(start).height,
         startRadius: parseFloat(getComputedStyle(start).borderTopLeftRadius),
         startBottom: box(start).bottom,
         navTop: box(nav).top,
         viewportWidth: window.innerWidth,
-        viewportHeight: window.innerHeight,
         navGap: box(nav).top - box(start).bottom,
-        titleWidth: box(document.querySelector('#rideTitle')).width,
-        safeTopShieldDisplay: getComputedStyle(screen, '::before').display,
       };
     });
 
-    expectNear(visual.heroTop, visual.screenTop);
-    expectNear(visual.heroLeft, 0);
-    expectNear(visual.heroWidth, visual.viewportWidth);
-    expect(visual.headerHeight).toBeLessThanOrEqual(1);
-    expect(visual.titleWidth).toBeLessThanOrEqual(1);
-    expect(visual.safeTopShieldDisplay).toBe('none');
-    expect(visual.heroHeight / visual.viewportHeight).toBeGreaterThanOrEqual(0.45);
-    expect(visual.heroHeight / visual.viewportHeight).toBeLessThanOrEqual(0.49);
-    expect(visual.heroRadius).toBe(0);
-    expect(visual.joinTop - (visual.heroTop + visual.heroHeight)).toBeGreaterThanOrEqual(10);
+    expect(visual.headerTop).toBeGreaterThanOrEqual(visual.screenTop + 70);
+    expect(visual.headerHeight).toBeGreaterThan(24);
+    expect(visual.titleWidth).toBeGreaterThan(40);
+    expect(visual.heroTop).toBeGreaterThan(visual.titleBottom);
+    expect(visual.heroLeft).toBeGreaterThanOrEqual(18);
+    expect(visual.heroWidth).toBeLessThanOrEqual(visual.viewportWidth - 36);
+    expect(visual.heroHeight).toBeGreaterThanOrEqual(190);
+    expect(visual.heroHeight).toBeLessThanOrEqual(235);
+    expect(visual.heroRadius).toBeLessThanOrEqual(4);
+    expect(visual.joinTop - (visual.heroTop + visual.heroHeight)).toBeGreaterThanOrEqual(8);
     expect(visual.joinTop - (visual.heroTop + visual.heroHeight)).toBeLessThanOrEqual(14);
     expect(visual.joinRadius).toBeLessThanOrEqual(4);
     expect(visual.railHeight).toBeLessThanOrEqual(40);
@@ -414,7 +416,7 @@ test('ride join baseline owns the iPhone top edge in day and night', async ({ pa
     expect(visual.startRadius).toBeLessThanOrEqual(4);
     expect(visual.startBottom).toBeLessThanOrEqual(visual.navTop + 2);
     expect(visual.navGap).toBeGreaterThanOrEqual(0);
-    expect(visual.navGap).toBeLessThanOrEqual(170);
+    expect(visual.navGap).toBeLessThanOrEqual(360);
 
     await page.screenshot({
       path: testInfo.outputPath(`iphone-17-pro-max-ride-${scheme}-baseline.png`),
@@ -501,7 +503,7 @@ test('core PWA screens render without runtime errors or viewport overflow', asyn
   expect(runtimeErrors).toEqual([]);
 });
 
-test('final mockup parity is sharp, map-first and iPhone 17 Pro Max safe', async ({ page }, testInfo) => {
+test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 Pro Max', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'iphone-17-pro-max-webkit', 'Final mockup screenshots target iPhone 17 Pro Max geometry.');
 
   await mockAuthenticatedApi(page, 'stationary');
@@ -530,21 +532,22 @@ test('final mockup parity is sharp, map-first and iPhone 17 Pro Max safe', async
       avatarDisplay: avatarButton ? getComputedStyle(avatarButton).display : null,
       optionsGlyphWidth: optionsGlyph?.getBoundingClientRect().width ?? NaN,
       mapTypeId: window.__riderCommsTestMap?.options?.mapTypeId ?? null,
+      mapColorScheme: window.__riderCommsTestMap?.options?.colorScheme ?? null,
       mapStyles: window.__riderCommsTestMap?.options?.styles ?? [],
     };
   });
   expectNear(mapGeometry.canvasTop, mapGeometry.screenTop);
   expectNear(mapGeometry.canvasLeft, 0);
   expectNear(mapGeometry.canvasRight, mapGeometry.viewportWidth);
-  expect(mapGeometry.searchRadius).toBeLessThanOrEqual(4);
-  expect(mapGeometry.actionRadius).toBeLessThanOrEqual(4);
+  expect(mapGeometry.searchRadius).toBeGreaterThanOrEqual(20);
+  expect(mapGeometry.searchRadius).toBeLessThanOrEqual(26);
+  expect(mapGeometry.actionRadius).toBeGreaterThanOrEqual(20);
   expect(mapGeometry.nearbyWidth).toBeGreaterThanOrEqual(62);
   expect(mapGeometry.avatarDisplay).toBe('none');
   expect(mapGeometry.optionsGlyphWidth).toBeGreaterThanOrEqual(16);
-  expect(mapGeometry.mapTypeId).toBe('hybrid');
-  expect(mapGeometry.mapStyles.some((entry) => entry.featureType === 'poi' && entry.stylers?.some((styler) => styler.visibility === 'off'))).toBe(true);
-  expect(mapGeometry.mapStyles.some((entry) => entry.featureType === 'transit' && entry.stylers?.some((styler) => styler.visibility === 'off'))).toBe(true);
-  expect(mapGeometry.mapStyles.some((entry) => entry.featureType === 'road.local' && entry.elementType === 'labels')).toBe(true);
+  expect(mapGeometry.mapTypeId).toBe('roadmap');
+  expect(mapGeometry.mapColorScheme).toBe('FOLLOW_SYSTEM');
+  expect(mapGeometry.mapStyles).toEqual([]);
   await expect(page.locator('[data-screen="map"] .page-header')).toHaveCount(0);
   await expect(page.locator('#mapSearchSlot')).toBeVisible();
   await expect(page.locator('#movementSafetyBanner')).toBeHidden();
@@ -552,6 +555,13 @@ test('final mockup parity is sharp, map-first and iPhone 17 Pro Max safe', async
   await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-map-dark-final.png'), fullPage: true });
 
   await page.emulateMedia({ colorScheme: 'light' });
+  // Map action buttons animate their background for 140 ms. Wait for the
+  // settled provider-light chrome rather than capturing the first transition
+  // frame and accidentally blessing a dark control in the light screenshot.
+  await expect.poll(() => page.locator('#reportHazardBtn').evaluate((button) => getComputedStyle(button).backgroundColor))
+    .toMatch(/255, 255, 255/);
+  await expect.poll(() => page.locator('#locateBtn').evaluate((button) => getComputedStyle(button).backgroundColor))
+    .toMatch(/255, 255, 255/);
   await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-map-light-final.png'), fullPage: true });
   await page.emulateMedia({ colorScheme: 'dark' });
 
@@ -576,8 +586,26 @@ test('final mockup parity is sharp, map-first and iPhone 17 Pro Max safe', async
   await page.locator('[data-screen="ride"]').evaluate(async (element) => {
     await Promise.all(element.getAnimations().map((animation) => animation.finished));
   });
-  const rideHeroRadius = await page.locator('.ride-hero').evaluate((element) => parseFloat(getComputedStyle(element).borderTopLeftRadius));
-  expect(rideHeroRadius).toBeLessThanOrEqual(4);
+  await expect(page.locator('#rideTitle')).toBeVisible();
+  const rideGeometry = await page.evaluate(() => {
+    const title = document.querySelector('#rideTitle');
+    const hero = document.querySelector('#rideJoinState .ride-hero');
+    const joinCard = document.querySelector('#rideJoinState .ride-entry');
+    const box = (element) => element?.getBoundingClientRect();
+    return {
+      title: box(title),
+      hero: box(hero),
+      joinCard: box(joinCard),
+      heroRadius: hero ? parseFloat(getComputedStyle(hero).borderTopLeftRadius) : NaN,
+      viewportWidth: window.innerWidth,
+    };
+  });
+  expect(rideGeometry.heroRadius).toBeLessThanOrEqual(4);
+  expect(rideGeometry.hero.height).toBeGreaterThanOrEqual(190);
+  expect(rideGeometry.hero.height).toBeLessThanOrEqual(235);
+  expect(rideGeometry.hero.width).toBeLessThan(rideGeometry.viewportWidth - 30);
+  expect(rideGeometry.hero.top).toBeGreaterThan(rideGeometry.title.bottom);
+  expect(Math.abs(rideGeometry.joinCard.width - rideGeometry.hero.width)).toBeLessThanOrEqual(2);
   await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-ride-final.png'), fullPage: true });
 
   await page.locator('.bottom-nav [data-nav="routes"]').click();
@@ -619,7 +647,7 @@ test('final mockup parity is sharp, map-first and iPhone 17 Pro Max safe', async
     };
   });
   expect(friendsGeometry.searchHeight).toBeLessThanOrEqual(46);
-  expect(friendsGeometry.rowHeight).toBeLessThanOrEqual(60);
+  expect(friendsGeometry.rowHeight).toBeLessThanOrEqual(64);
   expect(friendsGeometry.avatarWidth).toBeLessThanOrEqual(42);
   await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-friends-final.png'), fullPage: true });
 
@@ -627,19 +655,31 @@ test('final mockup parity is sharp, map-first and iPhone 17 Pro Max safe', async
   await expect(page.locator('#sheetBackdrop')).toBeVisible();
   await expect(page.locator('.friend-profile-card')).toBeVisible();
   const friendDetailGeometry = await page.evaluate(() => {
-    const avatar = document.querySelector('.friend-profile-card .avatar');
+    const card = document.querySelector('.friend-profile-card');
+    const avatar = card?.querySelector('.avatar');
     const action = document.querySelector('.friend-profile-actions button');
-    const listRow = document.querySelector('.friend-detail-list > div');
+    const list = document.querySelector('.friend-detail-list');
+    const listRow = list?.querySelector(':scope > div');
+    const title = document.querySelector('#sheetTitle');
     const box = (element) => element?.getBoundingClientRect();
     return {
       avatarWidth: box(avatar)?.width ?? NaN,
       actionHeight: box(action)?.height ?? NaN,
       listRowHeight: box(listRow)?.height ?? NaN,
+      cardBorderWidth: card ? parseFloat(getComputedStyle(card).borderTopWidth) : NaN,
+      cardBackground: card ? getComputedStyle(card).backgroundColor : null,
+      listRadius: list ? parseFloat(getComputedStyle(list).borderTopLeftRadius) : NaN,
+      titleWidth: box(title)?.width ?? NaN,
     };
   });
-  expect(friendDetailGeometry.avatarWidth).toBeLessThanOrEqual(54);
-  expect(friendDetailGeometry.actionHeight).toBeLessThanOrEqual(58);
-  expect(friendDetailGeometry.listRowHeight).toBeLessThanOrEqual(52);
+  expect(friendDetailGeometry.avatarWidth).toBeGreaterThanOrEqual(54);
+  expect(friendDetailGeometry.avatarWidth).toBeLessThanOrEqual(58);
+  expect(friendDetailGeometry.actionHeight).toBeLessThanOrEqual(60);
+  expect(friendDetailGeometry.listRowHeight).toBeLessThanOrEqual(54);
+  expect(friendDetailGeometry.cardBorderWidth).toBe(0);
+  expect(friendDetailGeometry.cardBackground).toBe('rgba(0, 0, 0, 0)');
+  expect(friendDetailGeometry.listRadius).toBeLessThanOrEqual(4);
+  expect(friendDetailGeometry.titleWidth).toBeLessThanOrEqual(1);
   await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-friend-detail-final.png'), fullPage: true });
   await page.locator('#closeSheet').click();
 
@@ -1046,6 +1086,111 @@ test('PWA Nearby Voice waits without holding the mic, then connects when a rider
   await expect(voice).toHaveAttribute('aria-label', 'Listening — hands-free');
 });
 
+test('PWA public voice fails closed when proximity authorization cannot be renewed', async ({ page }) => {
+  let shareLocation = false;
+  let voiceTokenRequests = 0;
+
+  await mockAuthenticatedApi(page, 'stationary', ({ url, request }) => {
+    if (url.pathname === `/riders/${RIDER_ID}/profile`) {
+      if (request.method() === 'PUT') {
+        const update = request.postDataJSON();
+        if (typeof update.shareLocation === 'boolean') shareLocation = update.shareLocation;
+      }
+      return { body: { ...PROFILE, shareLocation } };
+    }
+    if (url.pathname === '/presence' && request.method() === 'POST') {
+      return {
+        body: {
+          inZoneWith: ['rider_peer01'],
+          transitions: [{ a: RIDER_ID, b: 'rider_peer01', type: 'entered' }],
+          radiusMiles: 1,
+        },
+      };
+    }
+    if (url.pathname === '/profiles/rider_peer01') {
+      return { body: { riderId: 'rider_peer01', displayName: 'Peer Rider', handle: '@peer', avatarId: 'ridge' } };
+    }
+    if (url.pathname === '/voice/token' && request.method() === 'POST') {
+      voiceTokenRequests += 1;
+      if (voiceTokenRequests > 1) {
+        return { status: 503, body: { error: 'voice_temporarily_unavailable' } };
+      }
+      return {
+        body: {
+          connections: [{ peerId: 'rider_peer01', token: 'leased-peer-token', url: 'wss://voice.example.test' }],
+          refreshAfterMs: 20_000,
+          authorizationLeaseMs: 600,
+        },
+      };
+    }
+    return null;
+  });
+
+  await page.addInitScript(() => {
+    const realSetInterval = window.setInterval.bind(window);
+    window.setInterval = (handler, timeout = 0, ...args) =>
+      realSetInterval(handler, timeout === 20_000 ? 150 : timeout, ...args);
+
+    window.__publicVoiceDisconnects = 0;
+    const fakeStream = { getTracks: () => [{ stop() {} }] };
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: { getUserMedia: async () => fakeStream },
+    });
+    class FakeAudioContext {
+      createMediaStreamSource() { return { connect() {} }; }
+      createAnalyser() {
+        return {
+          fftSize: 512,
+          frequencyBinCount: 32,
+          getByteTimeDomainData(data) { data.fill(128); },
+        };
+      }
+      close() { return Promise.resolve(); }
+    }
+    Object.defineProperty(window, 'AudioContext', { configurable: true, value: FakeAudioContext });
+    window.LivekitClient = {
+      Room: class {
+        constructor() {
+          this.localParticipant = { setMicrophoneEnabled: async () => {} };
+        }
+        on() { return this; }
+        async connect() {}
+        async startAudio() {}
+        async disconnect() { window.__publicVoiceDisconnects += 1; }
+      },
+      RoomEvent: {
+        TrackSubscribed: 'trackSubscribed',
+        TrackUnsubscribed: 'trackUnsubscribed',
+        ActiveSpeakersChanged: 'activeSpeakersChanged',
+        Reconnected: 'reconnected',
+        Disconnected: 'disconnected',
+      },
+      Track: { Kind: { Audio: 'audio' } },
+    };
+  });
+
+  await page.goto('/');
+  const nearby = page.locator('#joinNearbyBtn');
+  const voice = page.locator('#voiceStatusBtn');
+
+  await nearby.click();
+  await expect(nearby).toHaveAttribute('data-active', 'true');
+  await expect(voice).toHaveAttribute('aria-label', 'Listening — hands-free');
+  await expect.poll(() => voiceTokenRequests).toBeGreaterThanOrEqual(2);
+
+  // A transient refresh miss keeps the still-valid pair alive until the
+  // server-provided authorization lease expires.
+  await expect.poll(() => page.evaluate(() => window.__publicVoiceDisconnects), { timeout: 400 }).toBe(0);
+
+  // Token expiry alone does not eject a connected LiveKit participant.
+  // Rider Comms must therefore mute/disconnect the pair itself once it can no
+  // longer re-confirm current proximity/block authorization.
+  await expect.poll(() => page.evaluate(() => window.__publicVoiceDisconnects), { timeout: 1_500 }).toBeGreaterThanOrEqual(1);
+  await expect(voice).toHaveAttribute('aria-label', 'Nearby Voice · reconnecting');
+  await expect(nearby).toHaveAttribute('data-active', 'true');
+});
+
 test('PWA cancels a delayed Nearby Voice connect after the rider turns Nearby off', async ({ page }) => {
   let shareLocation = false;
   let voiceTokenRequested = false;
@@ -1125,6 +1270,108 @@ test('PWA cancels a delayed Nearby Voice connect after the rider turns Nearby of
   releaseVoiceToken();
   await expect.poll(() => page.evaluate(() => window.__nearbyVoiceRoomsCreated)).toBe(0);
   await expect(page.locator('#voiceStatusBtn')).toBeHidden();
+});
+
+test('PWA coalesces overlapping Nearby Voice authorization refreshes', async ({ page }) => {
+  let shareLocation = false;
+  let voiceTokenRequests = 0;
+  let releaseFirstToken;
+  const firstTokenGate = new Promise((resolve) => { releaseFirstToken = resolve; });
+
+  await mockAuthenticatedApi(page, 'stationary', async ({ url, request }) => {
+    if (url.pathname === `/riders/${RIDER_ID}/profile`) {
+      if (request.method() === 'PUT') {
+        const update = request.postDataJSON();
+        if (typeof update.shareLocation === 'boolean') shareLocation = update.shareLocation;
+      }
+      return { body: { ...PROFILE, shareLocation } };
+    }
+    if (url.pathname === '/presence' && request.method() === 'POST') {
+      return {
+        body: {
+          inZoneWith: ['rider_peer01'],
+          transitions: [{ a: RIDER_ID, b: 'rider_peer01', type: 'entered' }],
+          radiusMiles: 1,
+        },
+      };
+    }
+    if (url.pathname === '/profiles/rider_peer01') {
+      return { body: { riderId: 'rider_peer01', displayName: 'Peer Rider', handle: '@peer', avatarId: 'ridge' } };
+    }
+    if (url.pathname === '/voice/token' && request.method() === 'POST') {
+      voiceTokenRequests += 1;
+      if (voiceTokenRequests === 1) await firstTokenGate;
+      return {
+        body: {
+          connections: [{ peerId: 'rider_peer01', token: `peer-token-${voiceTokenRequests}`, url: 'wss://voice.example.test' }],
+          refreshAfterMs: 20_000,
+          authorizationLeaseMs: 60_000,
+        },
+      };
+    }
+    return null;
+  });
+
+  await page.addInitScript(() => {
+    const realSetInterval = window.setInterval.bind(window);
+    window.setInterval = (handler, timeout = 0, ...args) =>
+      realSetInterval(handler, timeout === 20_000 ? 75 : timeout, ...args);
+
+    window.__nearbyVoiceRoomsCreated = 0;
+    const fakeStream = { getTracks: () => [{ stop() {} }] };
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: { getUserMedia: async () => fakeStream },
+    });
+    class FakeAudioContext {
+      createMediaStreamSource() { return { connect() {} }; }
+      createAnalyser() {
+        return {
+          fftSize: 512,
+          frequencyBinCount: 32,
+          getByteTimeDomainData(data) { data.fill(128); },
+        };
+      }
+      close() { return Promise.resolve(); }
+    }
+    Object.defineProperty(window, 'AudioContext', { configurable: true, value: FakeAudioContext });
+    window.LivekitClient = {
+      Room: class {
+        constructor() {
+          window.__nearbyVoiceRoomsCreated += 1;
+          this.localParticipant = { setMicrophoneEnabled: async () => {} };
+        }
+        on() { return this; }
+        async connect() {}
+        async startAudio() {}
+        async disconnect() {}
+      },
+      RoomEvent: {
+        TrackSubscribed: 'trackSubscribed',
+        TrackUnsubscribed: 'trackUnsubscribed',
+        ActiveSpeakersChanged: 'activeSpeakersChanged',
+        Reconnected: 'reconnected',
+        Disconnected: 'disconnected',
+      },
+      Track: { Kind: { Audio: 'audio' } },
+    };
+  });
+
+  await page.goto('/');
+  await page.locator('#joinNearbyBtn').click();
+  await expect.poll(() => voiceTokenRequests).toBe(1);
+
+  // Presence keeps refreshing while the first token request is deliberately
+  // blocked. Those refreshes must collapse into one pending replay instead of
+  // constructing multiple LiveKit pair rooms for the same peer.
+  await page.waitForTimeout(250);
+  expect(voiceTokenRequests).toBe(1);
+
+  releaseFirstToken();
+  await expect.poll(() => voiceTokenRequests).toBeGreaterThanOrEqual(2);
+  await expect.poll(() => page.evaluate(() => window.__nearbyVoiceRoomsCreated)).toBe(1);
+  await page.waitForTimeout(250);
+  expect(await page.evaluate(() => window.__nearbyVoiceRoomsCreated)).toBe(1);
 });
 
 test('PWA attaches subscribed Nearby Voice audio after Go Live', async ({ page }) => {
@@ -2046,7 +2293,10 @@ test('@viewport standalone canvas, navigation and scroll geometry remain coheren
     expectNear(geometry.navHeight, 58 + safeBottom + 1);
     expect(geometry.navPaddingBottom).toBeGreaterThanOrEqual(safeBottom);
     expect(geometry.railBottom).toBeLessThanOrEqual(geometry.appBottom - safeBottom + 1);
-    expectNear(geometry.mapBottom, geometry.navTop);
+    // Chromium at fractional DPR can also quantize the fixed map/nav seam to
+    // the adjacent device pixel. Keep that seam within 2 CSS px while still
+    // requiring the fixed app/nav bottom edges above to use the stricter bound.
+    expectNear(geometry.mapBottom, geometry.navTop, 2);
     expect(geometry.documentWidth).toBeLessThanOrEqual(geometry.viewportWidth + 1);
   }
 

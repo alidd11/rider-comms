@@ -51,7 +51,7 @@ describe('POST /voice/token', () => {
     it('returns no public voice rooms when the rider has no current proximity pairs', needsDb, async () => {
       const res = await postJson(ctx, 'alice', '/voice/token', { target: 'channel' });
       assert.equal(res.status, 200);
-      assert.deepEqual(await res.json(), { connections: [], refreshAfterMs: 20_000 });
+      assert.deepEqual(await res.json(), { connections: [], refreshAfterMs: 20_000, authorizationLeaseMs: 60_000 });
     });
 
     it('mints one pair-isolated public room for each current unblocked peer', needsDb, async () => {
@@ -63,7 +63,13 @@ describe('POST /voice/token', () => {
 
       const res = await postJson(ctx, 'alice', '/voice/token', { target: 'channel' });
       assert.equal(res.status, 200);
-      const body = await res.json() as { connections: Array<{ peerId: string; token: string; url: string }> };
+      const body = await res.json() as {
+        connections: Array<{ peerId: string; token: string; url: string }>;
+        refreshAfterMs: number;
+        authorizationLeaseMs: number;
+      };
+      assert.equal(body.refreshAfterMs, 20_000);
+      assert.equal(body.authorizationLeaseMs, 60_000);
       assert.equal(body.connections.length, 1);
       assert.equal(body.connections[0].peerId, 'bob');
       assert.equal(body.connections[0].url, FAKE_CREDS.url);
@@ -79,7 +85,13 @@ describe('POST /voice/token', () => {
       // targets a different room, which would look connected but stay silent.
       const reverseRes = await postJson(ctx, 'bob', '/voice/token', { target: 'channel' });
       assert.equal(reverseRes.status, 200);
-      const reverseBody = await reverseRes.json() as { connections: Array<{ peerId: string; token: string; url: string }> };
+      const reverseBody = await reverseRes.json() as {
+        connections: Array<{ peerId: string; token: string; url: string }>;
+        refreshAfterMs: number;
+        authorizationLeaseMs: number;
+      };
+      assert.equal(reverseBody.refreshAfterMs, 20_000);
+      assert.equal(reverseBody.authorizationLeaseMs, 60_000);
       assert.equal(reverseBody.connections.length, 1);
       assert.equal(reverseBody.connections[0].peerId, 'alice');
       assert.equal(reverseBody.connections[0].url, FAKE_CREDS.url);
@@ -88,7 +100,7 @@ describe('POST /voice/token', () => {
 
       assert.equal((await postJson(ctx, 'alice', '/blocks', { riderId: 'bob' })).status, 200);
       const blocked = await postJson(ctx, 'alice', '/voice/token', { target: 'channel' });
-      assert.deepEqual(await blocked.json(), { connections: [], refreshAfterMs: 20_000 });
+      assert.deepEqual(await blocked.json(), { connections: [], refreshAfterMs: 20_000, authorizationLeaseMs: 60_000 });
     });
 
     it('rejects an unknown target', async () => {
