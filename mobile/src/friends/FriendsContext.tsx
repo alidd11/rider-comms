@@ -1,10 +1,16 @@
 import * as React from 'react';
-import type { FriendActivity, FriendRequest, FriendSummary, SocialEvent } from '@rider-comms/shared';
+import type { FriendActivity, FriendRequest, FriendSummary } from '@rider-comms/shared';
 import { ApiError, type ConversationSummary, type RiderCommsClient } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { refreshAuthoritativeSocialSnapshot } from './socialRefresh';
 import { useSettings } from '../settings/SettingsContext';
 import { appendUniqueFriendRequest } from './requestState';
+import {
+  socialEventInvalidatesFriendProfile,
+  socialEventInvalidatesOpenChat,
+  socialEventNeedsMessageRefresh,
+  socialEventNeedsNetworkRefresh,
+} from './socialEventState';
 
 const SOCIAL_EVENT_RETRY_MS = 2_000;
 const SOCIAL_ACTIVITY_POLL_MS = 30_000;
@@ -18,6 +24,7 @@ interface FriendsContextValue {
   conversations: ConversationSummary[];
   unreadMessageCount: number;
   socialRevision: number;
+  friendProfileRevision: number;
   loading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
@@ -90,20 +97,6 @@ async function loadAllConversations(client: RiderCommsClient): Promise<Conversat
   return conversations;
 }
 
-function socialEventNeedsNetworkRefresh(event: SocialEvent): boolean {
-  return event.type === 'friend_request'
-    || event.type === 'friend_request_resolved'
-    || event.type === 'friend_removed'
-    || event.type === 'social_refresh';
-}
-
-function socialEventNeedsMessageRefresh(event: SocialEvent): boolean {
-  return event.type === 'message'
-    || event.type === 'message_read'
-    || event.type === 'friend_removed'
-    || event.type === 'social_refresh';
-}
-
 export function FriendsProvider({ children }: { children: React.ReactNode }): React.JSX.Element {
   const { riderId: ME, client } = useAuth();
   const { refreshProfile } = useSettings();
@@ -115,6 +108,7 @@ export function FriendsProvider({ children }: { children: React.ReactNode }): Re
   const [conversations, setConversations] = React.useState<ConversationSummary[]>([]);
   const [unreadMessageCount, setUnreadMessageCount] = React.useState(0);
   const [socialRevision, setSocialRevision] = React.useState(0);
+  const [friendProfileRevision, setFriendProfileRevision] = React.useState(0);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -198,6 +192,9 @@ export function FriendsProvider({ children }: { children: React.ReactNode }): Re
             // The same baseline also refreshes this rider's account profile so
             // cross-device settings/privacy edits cannot be skipped by recovery.
             setSocialRevision((value) => value + 1);
+            // A rebaseline may skip invalidation events that occurred while
+            // disconnected. Refresh any currently open friend profile too.
+            setFriendProfileRevision((value) => value + 1);
             setError(null);
             continue;
           }
@@ -208,13 +205,15 @@ export function FriendsProvider({ children }: { children: React.ReactNode }): Re
           let networkDirty = false;
           let messagesDirty = false;
           let revisionDirty = false;
+          let friendProfileDirty = false;
           let selfProfileDirty = false;
 
           while (true) {
             for (const event of page.events) {
-              networkDirty ||= socialEventNeedsNetworkRefresh(event);
+              networkDirty ||= socialEventNeedsNetworkRefresh(event, ME);
               messagesDirty ||= socialEventNeedsMessageRefresh(event);
-              revisionDirty ||= event.type === 'message' || event.type === 'message_read' || event.type === 'friend_removed' || event.type === 'social_refresh';
+              revisionDirty ||= socialEventInvalidatesOpenChat(event);
+              friendProfileDirty ||= socialEventInvalidatesFriendProfile(event, ME);
               selfProfileDirty ||= event.type === 'social_refresh'
                 && event.entityId === 'profile'
                 && event.actorRiderId === ME;
@@ -227,6 +226,7 @@ export function FriendsProvider({ children }: { children: React.ReactNode }): Re
           if (networkDirty) await refreshNetwork();
           if (messagesDirty) await refreshMessages();
           if (selfProfileDirty) await refreshProfile();
+          if (friendProfileDirty) setFriendProfileRevision((value) => value + 1);
           if (revisionDirty) setSocialRevision((value) => value + 1);
           // A completed long-poll proves the realtime transport recovered,
           // even when there were no state-changing events in this page.
@@ -334,6 +334,7 @@ export function FriendsProvider({ children }: { children: React.ReactNode }): Re
       conversations,
       unreadMessageCount,
       socialRevision,
+      friendProfileRevision,
       loading,
       error,
       refresh,
@@ -353,6 +354,7 @@ export function FriendsProvider({ children }: { children: React.ReactNode }): Re
       conversations,
       unreadMessageCount,
       socialRevision,
+      friendProfileRevision,
       loading,
       error,
       refresh,
