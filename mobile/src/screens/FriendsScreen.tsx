@@ -300,7 +300,7 @@ function FriendProfileModal({
             <View style={styles.profileIdentityCopy}>
               <Text style={styles.profileModalName}>{profile?.displayName ?? friend.displayName}</Text>
               <Text style={styles.profileModalHandle}>{profile?.handle ?? friend.handle}</Text>
-              <Text style={[styles.profileActivity, activity?.online && styles.profileActivityOnline]}>{activityLabel(activity)}</Text>
+              <Text style={styles.profileActivity}>{activityLabel(activity)}</Text>
             </View>
           </View>
 
@@ -562,7 +562,6 @@ const styles = StyleSheet.create({
   profileModalName: { ...type.heading, color: colors.textPrimary },
   profileModalHandle: { ...type.body, color: colors.textSecondary, marginTop: 1 },
   profileActivity: { ...type.caption, color: colors.textSecondary, marginTop: spacing.xs },
-  profileActivityOnline: { color: colors.success, fontWeight: '700' },
   profileLoader: { marginTop: spacing.md },
   profileError: { ...type.caption, color: colors.danger, marginTop: spacing.md },
   profileActions: { flexDirection: 'row', gap: 6, marginTop: spacing.md },
