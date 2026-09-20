@@ -555,6 +555,13 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
   await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-map-dark-final.png'), fullPage: true });
 
   await page.emulateMedia({ colorScheme: 'light' });
+  // Map action buttons animate their background for 140 ms. Wait for the
+  // settled provider-light chrome rather than capturing the first transition
+  // frame and accidentally blessing a dark control in the light screenshot.
+  await expect.poll(() => page.locator('#reportHazardBtn').evaluate((button) => getComputedStyle(button).backgroundColor))
+    .toMatch(/255, 255, 255/);
+  await expect.poll(() => page.locator('#locateBtn').evaluate((button) => getComputedStyle(button).backgroundColor))
+    .toMatch(/255, 255, 255/);
   await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-map-light-final.png'), fullPage: true });
   await page.emulateMedia({ colorScheme: 'dark' });
 
