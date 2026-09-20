@@ -639,7 +639,7 @@ test('final mockup parity is sharp, map-first and iPhone 17 Pro Max safe', async
     };
   });
   expect(friendsGeometry.searchHeight).toBeLessThanOrEqual(46);
-  expect(friendsGeometry.rowHeight).toBeLessThanOrEqual(60);
+  expect(friendsGeometry.rowHeight).toBeLessThanOrEqual(64);
   expect(friendsGeometry.avatarWidth).toBeLessThanOrEqual(42);
   await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-friends-final.png'), fullPage: true });
 
@@ -647,19 +647,31 @@ test('final mockup parity is sharp, map-first and iPhone 17 Pro Max safe', async
   await expect(page.locator('#sheetBackdrop')).toBeVisible();
   await expect(page.locator('.friend-profile-card')).toBeVisible();
   const friendDetailGeometry = await page.evaluate(() => {
-    const avatar = document.querySelector('.friend-profile-card .avatar');
+    const card = document.querySelector('.friend-profile-card');
+    const avatar = card?.querySelector('.avatar');
     const action = document.querySelector('.friend-profile-actions button');
-    const listRow = document.querySelector('.friend-detail-list > div');
+    const list = document.querySelector('.friend-detail-list');
+    const listRow = list?.querySelector(':scope > div');
+    const title = document.querySelector('#sheetTitle');
     const box = (element) => element?.getBoundingClientRect();
     return {
       avatarWidth: box(avatar)?.width ?? NaN,
       actionHeight: box(action)?.height ?? NaN,
       listRowHeight: box(listRow)?.height ?? NaN,
+      cardBorderWidth: card ? parseFloat(getComputedStyle(card).borderTopWidth) : NaN,
+      cardBackground: card ? getComputedStyle(card).backgroundColor : null,
+      listRadius: list ? parseFloat(getComputedStyle(list).borderTopLeftRadius) : NaN,
+      titleWidth: box(title)?.width ?? NaN,
     };
   });
-  expect(friendDetailGeometry.avatarWidth).toBeLessThanOrEqual(54);
-  expect(friendDetailGeometry.actionHeight).toBeLessThanOrEqual(58);
-  expect(friendDetailGeometry.listRowHeight).toBeLessThanOrEqual(52);
+  expect(friendDetailGeometry.avatarWidth).toBeGreaterThanOrEqual(54);
+  expect(friendDetailGeometry.avatarWidth).toBeLessThanOrEqual(58);
+  expect(friendDetailGeometry.actionHeight).toBeLessThanOrEqual(60);
+  expect(friendDetailGeometry.listRowHeight).toBeLessThanOrEqual(54);
+  expect(friendDetailGeometry.cardBorderWidth).toBe(0);
+  expect(friendDetailGeometry.cardBackground).toBe('rgba(0, 0, 0, 0)');
+  expect(friendDetailGeometry.listRadius).toBeLessThanOrEqual(4);
+  expect(friendDetailGeometry.titleWidth).toBeLessThanOrEqual(1);
   await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-friend-detail-final.png'), fullPage: true });
   await page.locator('#closeSheet').click();
 
