@@ -553,8 +553,8 @@ html.chat-open .bottom-nav,html.chat-open .ride-pill,html.chat-open .movement-sa
 .map-actions{right:max(14px,var(--safe-right));gap:8px}
 .map-actions .icon-button{border-radius:var(--radius-lg);background:rgb(10 17 21/.92);border-color:rgb(255 255 255/.1)}
 .rider-card,#destinationCard,.map-error{border-radius:var(--radius-lg)}
-/* Dedicated navigation deliberately keeps the larger, glanceable geometry
-   defined above instead of inheriting the flat home-screen mockup radius. */
+/* Dedicated navigation keeps its glanceable maneuver banner and route
+   summary while the floating actions use the shared map-control geometry. */
 .nav-banner,.nav-summary{background:#0d151a}
 .nav-next-preview{background:#091116}
 .nav-banner-copy strong,.nav-summary-eta strong{color:var(--accent)}
