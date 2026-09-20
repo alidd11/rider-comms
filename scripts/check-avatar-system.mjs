@@ -31,8 +31,12 @@ for (const [id, colour, motif] of avatars) {
 }
 
 const visor = 'M13 30.5C18 25 46 25 51 30.5L48 42.5C42.5 47 21.5 47 16 42.5L13 30.5Z';
-assert.ok(nativeRenderer.includes(visor), 'native avatar visor geometry changed');
-assert.ok(pwa.includes(visor), 'PWA avatar visor geometry changed');
+const mapTail = 'M24 56h16L32 70 24 56Z';
+for (const [surface, source] of [['native', nativeRenderer], ['PWA', pwa]]) {
+  assert.ok(source.includes(visor), `${surface} avatar visor geometry changed`);
+  assert.ok(source.includes(mapTail), `${surface} avatar map-pin geometry changed`);
+  assert.ok(source.includes('cx="51" cy="49" r="7"'), `${surface} avatar status-dot geometry changed`);
+}
 assert.ok(nativeRenderer.includes('#22D3EE') && pwa.includes('#22D3EE'), 'avatar accent/eyes must stay shared cyan');
 assert.ok(nativeRenderer.includes('#35E68A') && pwa.includes('#35E68A'), 'online state must stay shared green');
 
