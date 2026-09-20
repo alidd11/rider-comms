@@ -4146,6 +4146,8 @@
   let navMuted = false;
   let navCurrentPosition = null;
   let navCameraHeading = null;
+  let navCameraAnimationFrame;
+  let navCameraAnimationToken = 0;
   let navGpsWatchdog;
   let navLastFixAt = 0;
   let navGpsIssue = null;
@@ -4615,6 +4617,62 @@
     userMapMarker.setIcon?.(riderAvatarMapIcon(state.profile, true, undefined, 54));
   }
 
+  function stopNavigationCameraAnimation() {
+    navCameraAnimationToken += 1;
+    if (navCameraAnimationFrame !== undefined) {
+      cancelAnimationFrame(navCameraAnimationFrame);
+      navCameraAnimationFrame = undefined;
+    }
+  }
+
+  function animateNavigationCamera(target, durationMs = 500) {
+    if (!map || typeof map.moveCamera !== 'function') return false;
+    stopNavigationCameraAnimation();
+
+    const currentCentre = map.getCenter?.();
+    const from = {
+      center: currentCentre
+        ? { lat: currentCentre.lat(), lng: currentCentre.lng() }
+        : target.center,
+      zoom: map.getZoom?.(),
+      heading: map.getHeading?.(),
+      tilt: map.getTilt?.(),
+    };
+    const hasSnapshot = Number.isFinite(from.center?.lat)
+      && Number.isFinite(from.center?.lng)
+      && Number.isFinite(from.zoom)
+      && Number.isFinite(from.heading)
+      && Number.isFinite(from.tilt);
+    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+    if (!hasSnapshot || reduceMotion || durationMs <= 0) {
+      map.moveCamera(target);
+      return true;
+    }
+
+    const token = navCameraAnimationToken;
+    const headingDelta = ((target.heading - from.heading + 540) % 360) - 180;
+    let startedAt;
+    const frame = (timestamp) => {
+      if (token !== navCameraAnimationToken || !navFollowing) return;
+      if (startedAt === undefined) startedAt = timestamp;
+      const progress = Math.min(1, Math.max(0, (timestamp - startedAt) / durationMs));
+      const eased = 1 - ((1 - progress) ** 3);
+      map.moveCamera({
+        center: {
+          lat: from.center.lat + (target.center.lat - from.center.lat) * eased,
+          lng: from.center.lng + (target.center.lng - from.center.lng) * eased,
+        },
+        zoom: from.zoom + (target.zoom - from.zoom) * eased,
+        heading: (from.heading + headingDelta * eased + 360) % 360,
+        tilt: from.tilt + (target.tilt - from.tilt) * eased,
+      });
+      if (progress < 1) navCameraAnimationFrame = requestAnimationFrame(frame);
+      else navCameraAnimationFrame = undefined;
+    };
+    navCameraAnimationFrame = requestAnimationFrame(frame);
+    return true;
+  }
+
   function applyNavigationCamera(here, step, gpsHeading, speedMps) {
     if (!map || !step) return;
     const currentPath = navigationStepPath(step);
@@ -4652,9 +4710,11 @@
 
     if (!navFollowing) return;
     const centre = lookAheadCoordinateOnPath(here, cameraPath, profile.centreAheadMeters);
-    if (typeof map.moveCamera === 'function') {
-      map.moveCamera({ center: centre, zoom: profile.zoom, heading, tilt: profile.pitch });
-    } else {
+    const transitionDuration = movingSpeed !== null && movingSpeed <= 1.5 ? 650 : 500;
+    if (!animateNavigationCamera(
+      { center: centre, zoom: profile.zoom, heading, tilt: profile.pitch },
+      transitionDuration,
+    )) {
       map.panTo(centre);
       map.setZoom(profile.zoom);
       map.setHeading?.(heading);
@@ -4670,6 +4730,7 @@
     if (!map || !navSteps.length) return;
     navFollowing = false;
     navCameraHeading = null;
+    stopNavigationCameraAnimation();
     map.setHeading?.(0);
     map.setTilt?.(0);
     updateNavigationPositionIcon();
@@ -4726,6 +4787,7 @@
   function applyRoute(result, destination, label, { preserveMute = false } = {}) {
     const leg = result.routes[0]?.legs[0];
     if (!leg) { showToast('Could not calculate a route. Try again.'); return; }
+    stopNavigationCameraAnimation();
     getDirectionsRenderer().setDirections(result);
     navSteps = leg.steps;
     navStepIndex = 0;
@@ -4911,6 +4973,7 @@
 
   function finishNavigation(arrived) {
     const announceArrival = Boolean(arrived && !navMuted);
+    stopNavigationCameraAnimation();
     stopNavTracking();
     directionsRenderer?.setMap(null);
     navSteps = [];
@@ -4971,6 +5034,7 @@
     map.addListener?.('dragstart', () => {
       if (!navSteps.length) return;
       navFollowing = false;
+      stopNavigationCameraAnimation();
       updateNavigationPositionIcon();
       updateNavigationControls();
     });
