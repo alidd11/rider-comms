@@ -649,7 +649,8 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
     const row = document.querySelector('#friendList [data-friend]');
     const avatar = row?.querySelector('.avatar');
     const presence = row?.querySelector('.friend-presence-dot');
-    const labelStyle = row ? getComputedStyle(row, '::before') : null;
+    const groupLabel = document.querySelector('#friendList .friend-group-label');
+    const labelStyle = groupLabel ? getComputedStyle(groupLabel) : null;
     const box = (element) => element?.getBoundingClientRect();
     const avatarBox = box(avatar);
     const presenceBox = box(presence);
@@ -664,6 +665,8 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
         : NaN,
       groupLabelTransform: labelStyle?.textTransform ?? null,
       groupLabelFontSize: labelStyle ? parseFloat(labelStyle.fontSize) : NaN,
+      groupLabelText: groupLabel?.textContent?.trim() ?? null,
+      groupLabelTag: groupLabel?.tagName ?? null,
     };
   });
   expect(friendsGeometry.searchHeight).toBeLessThanOrEqual(46);
@@ -676,6 +679,8 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
   expect(friendsGeometry.presenceCentreDelta).toBeLessThanOrEqual(1);
   expect(friendsGeometry.groupLabelTransform).toBe('none');
   expect(friendsGeometry.groupLabelFontSize).toBeGreaterThanOrEqual(11);
+  expect(friendsGeometry.groupLabelText).toMatch(/^(Online|Offline) \(\d+\)$/);
+  expect(friendsGeometry.groupLabelTag).toBe('H2');
   await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-friends-final.png'), fullPage: true });
 
   await page.locator('#friendList [data-friend]').first().click();
