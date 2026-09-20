@@ -296,17 +296,18 @@ test('login baseline matches Rider Comms hierarchy in day and night', async ({ p
         viewportWidth: window.innerWidth,
         titleSize: parseFloat(title.fontSize),
         assuranceAfterTerms: assuranceRect.top >= termsRect.bottom,
+        assuranceGap: assuranceRect.top - termsRect.bottom,
       };
     });
 
-    expect(visual.tabRadius).toBeLessThanOrEqual(4);
+    expect(visual.tabRadius).toBe(0);
     expect(visual.tabHeight).toBeLessThanOrEqual(40);
-    expect(visual.tabWidth).toBeLessThanOrEqual(250);
+    expect(visual.tabWidth).toBeGreaterThanOrEqual(360);
     expect(visual.tabTopBorder).toBe(0);
-    expect(visual.tabBottomBorder).toBe(0);
-    expect(visual.activeTabBottomBorder).toBe(0);
-    expect(visual.activeTabBackground).not.toBe('rgba(0, 0, 0, 0)');
-    expect(visual.activeTabShadow).not.toBe('none');
+    expect(visual.tabBottomBorder).toBeGreaterThan(0);
+    expect(visual.activeTabBottomBorder).toBeGreaterThanOrEqual(2);
+    expect(visual.activeTabBackground).toBe('rgba(0, 0, 0, 0)');
+    expect(visual.activeTabShadow).toBe('none');
     expect(visual.inputRadius).toBeLessThanOrEqual(4);
     expect(visual.inputHeight).toBeLessThanOrEqual(44);
     expect(visual.buttonRadius).toBeLessThanOrEqual(4);
@@ -315,6 +316,8 @@ test('login baseline matches Rider Comms hierarchy in day and night', async ({ p
     expect(visual.cardBorderWidth).toBe(0);
     expectNear(visual.cardTop, visual.heroBottom);
     expect(visual.assuranceAfterTerms).toBe(true);
+    expect(visual.assuranceGap).toBeGreaterThanOrEqual(8);
+    expect(visual.assuranceGap).toBeLessThanOrEqual(28);
     expect(visual.heroHeight).toBeGreaterThanOrEqual(297);
     expect(visual.heroHeight).toBeLessThanOrEqual(309);
     expect(visual.heroRadius).toBe(0);
