@@ -13,7 +13,7 @@
   ],
   "scripts": {
     "test": "npm run test --workspace=shared && npm run test --workspace=backend && npm run test:client --workspace=mobile",
-    "lint": "node --check docs/app.js && node --check docs/routes.js && node --check docs/message-state.js && node --check docs/sw.js && node --check scripts/build-pwa.mjs && node --check scripts/check-pwa-viewport.mjs && node scripts/check-pwa-viewport.mjs && node scripts/check-client-parity.mjs && node scripts/check-avatar-system.mjs && node scripts/check-pwa-social-safety.mjs && node scripts/check-pwa-direct-messages.mjs && node scripts/check-service-worker.mjs && node scripts/check-voice-runtime.mjs && node scripts/check-workflows.mjs",
+    "lint": "node --check docs/app.js && node --check docs/avatar-system.js && node --check docs/routes.js && node --check docs/message-state.js && node --check docs/sw.js && node --check scripts/build-pwa.mjs && node --check scripts/check-pwa-viewport.mjs && node scripts/check-pwa-viewport.mjs && node scripts/check-client-parity.mjs && node scripts/check-avatar-system.mjs && node scripts/check-pwa-social-safety.mjs && node scripts/check-pwa-direct-messages.mjs && node scripts/check-service-worker.mjs && node scripts/check-voice-runtime.mjs && node scripts/check-workflows.mjs",
     "typecheck": "tsc --noEmit -p shared/tsconfig.json && tsc --noEmit -p backend/tsconfig.json && tsc --noEmit -p mobile/tsconfig.json",
     "check": "npm run lint && npm run typecheck && npm test",
     "build:web": "node scripts/build-pwa.mjs",
