@@ -2046,3 +2046,58 @@ body:has(.content-screen.active) .movement-safety-banner{
   }
 }
 
+/* Direct-message mockup parity — keep the conversation visually subordinate to
+   rider identity and message content. Existing DM, hideout and safety behaviour
+   is unchanged. Preserve the verified 10px + safe-area composer contract. */
+@media(max-width:699px){
+  .chat-header{
+    min-height:calc(var(--safe-top) + 54px);
+    grid-template-columns:40px 36px minmax(0,1fr) 40px 40px;
+    gap:7px;
+    padding:var(--safe-top) max(14px,var(--safe-right)) 7px max(14px,var(--safe-left));
+    background:var(--bg);
+    border-bottom-color:var(--border-soft);
+  }
+  .chat-header>.icon-button{
+    width:40px;
+    min-width:40px;
+    height:40px;
+    border:0;
+    border-radius:4px;
+    background:transparent;
+    box-shadow:none;
+  }
+  #chatAvatar{width:36px;height:36px}
+  .chat-identity h1{font-size:.96rem;font-weight:780;letter-spacing:-.02em}
+  .chat-identity span{margin-top:1px;font-size:.69rem}
+  .chat-hideout-plan{color:var(--accent)}
+  #chatSafety{color:var(--text-secondary)}
+  .chat-thread{padding:12px max(14px,var(--safe-right)) 16px max(14px,var(--safe-left))}
+  #chatMessages{gap:7px}
+  .chat-bubble{
+    max-width:min(80%,520px);
+    padding:9px 11px;
+    border-radius:10px 10px 10px 4px;
+    box-shadow:none;
+  }
+  .chat-bubble-row.mine .chat-bubble{border-radius:10px 10px 4px 10px}
+  .chat-bubble span{font-size:.84rem;line-height:1.4}
+  .chat-bubble time{font-size:.61rem}
+  .chat-bubble small{font-size:.63rem}
+  .chat-composer{
+    grid-template-columns:minmax(0,1fr) 44px;
+    gap:8px;
+    padding:9px max(12px,var(--safe-right)) calc(10px + var(--nav-safe-bottom)) max(12px,var(--safe-left));
+    background:var(--bg);
+  }
+  html.keyboard-open .chat-composer{padding-bottom:10px}
+  .chat-composer textarea{
+    min-height:44px;
+    padding:10px 12px;
+    border-radius:8px;
+    background:var(--surface);
+    font-size:.84rem;
+  }
+  .chat-composer .icon-button{width:44px;min-width:44px;height:44px;border-radius:8px}
+}
+
