@@ -36,3 +36,5 @@ Rider Comms may layer only product-specific controls and data above the provider
 - Ride Safe status
 
 Map controls should remain large enough for stationary/gloved interaction and visually distinct from map labels, while preserving the provider's map readability and attribution.
+
+On phone layouts, map controls use one compact right-side cluster rather than scattering actions across the viewport. Report, Re-centre and Go live share the same 48 × 48 rounded-square geometry and spacing; individual controls must not be shifted with viewport-relative transforms or enlarged into a separate visual hierarchy. During dedicated navigation the redundant standalone Re-centre control is hidden/omitted: the route overview control becomes the single follow-mode return action after a pan, alongside Report and Mute. PWA and native should preserve this same control hierarchy and geometry.
