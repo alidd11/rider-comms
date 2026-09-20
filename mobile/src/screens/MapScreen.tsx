@@ -53,6 +53,12 @@ import {
   navigationPromptText,
 } from '../navigationGuidance';
 import {
+  combineNavigationCameraPaths,
+  navigationCameraProfile,
+  navigationViewportBias,
+  stabilizeNavigationHeading,
+} from '../navigationCamera';
+import {
   NAV_GPS_CHECK_INTERVAL_MS,
   NavigationGpsTracker,
   isNavigationGpsNotice,
@@ -76,8 +82,6 @@ const FOCUSED_REGION_DELTA = 0.025;
 const NAV_STEP_ARRIVAL_RADIUS_M = 30;
 const NAV_OFF_ROUTE_RADIUS_M = 60;
 const NAV_OFF_ROUTE_GRACE_MS = 10_000;
-const NAVIGATION_CAMERA_ZOOM = 18.4;
-const NAVIGATION_CAMERA_PITCH = 60;
 
 function bearingDegrees(from: { lat: number; lon: number }, to: { lat: number; lon: number }): number {
   const toRad = (value: number) => (value * Math.PI) / 180;
@@ -88,17 +92,6 @@ function bearingDegrees(from: { lat: number; lon: number }, to: { lat: number; l
   const y = Math.sin(deltaLon) * Math.cos(lat2);
   const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(deltaLon);
   return (toDeg(Math.atan2(y, x)) + 360) % 360;
-}
-
-function navigationCameraCentre(from: { lat: number; lon: number }, to: { lat: number; lon: number }): { lat: number; lon: number } {
-  const distance = metersBetween(from, to);
-  // Keep the rider low in the navigation frame so more of the road ahead is
-  // visible, matching the dedicated guidance camera on the PWA.
-  const fraction = distance > 120 ? 0.36 : distance > 70 ? 0.30 : 0.22;
-  return {
-    lat: from.lat + (to.lat - from.lat) * fraction,
-    lon: from.lon + (to.lon - from.lon) * fraction,
-  };
 }
 
 function formatNavigationDuration(seconds: number): string {
@@ -172,6 +165,7 @@ export function MapScreen(): React.JSX.Element {
   const navOffRouteSince = React.useRef<number | null>(null);
   const navRerouting = React.useRef(false);
   const navigationFollowingRef = React.useRef(true);
+  const navigationCameraHeading = React.useRef<number | null>(null);
   const navGpsTracker = React.useRef(new NavigationGpsTracker());
   const announcedNavigationStep = React.useRef<{ route: InAppNavigationRoute; index: number } | null>(null);
   const navigationPromptProgress = React.useRef<{ route: InAppNavigationRoute; targetIndex: number; stage: number } | null>(null);
@@ -224,7 +218,7 @@ export function MapScreen(): React.JSX.Element {
   }, [rideLocations.length]);
 
   const ownRideLocation = rideLocations.find((location) => location.riderId === riderId);
-  // During turn-by-turn guidance the navigation chevron must follow the
+  // During turn-by-turn guidance the selected rider avatar must follow the
   // device's live high-accuracy fix, not the slower ride-location round trip.
   // Other riders still use the consented private-ride location feed below.
   const selfMapLocation = activeRoute && currentLocation
@@ -491,6 +485,7 @@ export function MapScreen(): React.JSX.Element {
     if (!mapReady || nextRoute.coordinates.length < 2) return;
     navigationFollowingRef.current = false;
     setNavigationFollowing(false);
+    navigationCameraHeading.current = null;
     mapRef.current?.fitToCoordinates(
       nextRoute.coordinates.map((coordinate) => ({ latitude: coordinate.lat, longitude: coordinate.lon })),
       { edgePadding: { top: 170, right: 64, bottom: 180, left: 64 }, animated: true }
@@ -500,23 +495,63 @@ export function MapScreen(): React.JSX.Element {
 
   const focusNavigationCamera = React.useCallback((
     here: { lat: number; lon: number },
-    stepPath: readonly { lat: number; lon: number }[],
+    routeForCamera: InAppNavigationRoute,
+    stepIndex: number,
     gpsHeading?: number | null,
+    speedMps?: number | null,
   ) => {
-    if (stepPath.length === 0) return;
-    const lookAhead = lookAheadCoordinateOnPath(here, stepPath, 150);
-    const heading = Number.isFinite(gpsHeading) && (gpsHeading ?? -1) >= 0
+    const step = routeForCamera.steps[stepIndex];
+    if (!step || step.coordinates.length === 0) return;
+
+    const upcomingStep = routeForCamera.steps[stepIndex + 1];
+    const followingStep = routeForCamera.steps[stepIndex + 2];
+    const cameraPath = combineNavigationCameraPaths(
+      step.coordinates,
+      upcomingStep?.coordinates,
+      followingStep?.coordinates,
+    );
+    if (cameraPath.length === 0) return;
+
+    const maneuverDistance = remainingDistanceOnPathMeters(here, step.coordinates);
+    const topOcclusion = insets.top + 136 + (followingStep ? 48 : 0) + (navigationNotice ? 36 : 0);
+    const bottomOcclusion = Math.max(insets.bottom, spacing.sm) + 112;
+    const viewportBias = navigationViewportBias(viewportHeight, topOcclusion, bottomOcclusion);
+    const profile = navigationCameraProfile({
+      speedMps,
+      maneuverDistanceMeters: maneuverDistance,
+      maneuver: upcomingStep?.maneuver,
+      viewportBias,
+    });
+
+    const headingTarget = lookAheadCoordinateOnPath(
+      here,
+      cameraPath,
+      Math.min(70, Math.max(35, profile.lookAheadMeters * 0.35)),
+    );
+    const routeHeading = bearingDegrees(here, headingTarget);
+    const movingSpeed = Number.isFinite(speedMps) ? Number(speedMps) : null;
+    const candidateHeading = movingSpeed !== null
+      && movingSpeed > 2.5
+      && Number.isFinite(gpsHeading)
+      && (gpsHeading ?? -1) >= 0
       ? Number(gpsHeading)
-      : bearingDegrees(here, lookAhead);
+      : routeHeading;
+    const heading = stabilizeNavigationHeading(
+      navigationCameraHeading.current,
+      candidateHeading,
+      movingSpeed,
+    );
+    navigationCameraHeading.current = heading;
+
     if (!mapReady || !navigationFollowingRef.current) return;
-    const centre = navigationCameraCentre(here, lookAhead);
+    const centre = lookAheadCoordinateOnPath(here, cameraPath, profile.centreAheadMeters);
     mapRef.current?.animateCamera({
       center: { latitude: centre.lat, longitude: centre.lon },
       heading,
-      pitch: NAVIGATION_CAMERA_PITCH,
-      zoom: NAVIGATION_CAMERA_ZOOM,
-    }, { duration: 550 });
-  }, [mapReady]);
+      pitch: profile.pitch,
+      zoom: profile.zoom,
+    }, { duration: movingSpeed !== null && movingSpeed <= 1.5 ? 650 : 500 });
+  }, [insets.bottom, insets.top, mapReady, navigationNotice, viewportHeight]);
 
   React.useEffect(() => {
     navigationFollowingRef.current = navigationFollowing;
@@ -541,6 +576,7 @@ export function MapScreen(): React.JSX.Element {
     navOffRouteSince.current = null;
     navRerouting.current = false;
     navGpsTracker.current.reset();
+    navigationCameraHeading.current = null;
     navigationFollowingRef.current = true;
     setNavigationFollowing(true);
     setNavigationMuted(false);
@@ -564,10 +600,10 @@ export function MapScreen(): React.JSX.Element {
       finalNavigationPrompt.current = null;
       setNavigationNotice(rerouting ? 'Route updated.' : null);
       navOffRouteSince.current = null;
+      if (!rerouting) navigationCameraHeading.current = null;
       navigationFollowingRef.current = true;
       setNavigationFollowing(true);
-      const firstStep = nextRoute.steps[0];
-      if (firstStep) focusNavigationCamera(origin, firstStep.coordinates);
+      if (nextRoute.steps[0]) focusNavigationCamera(origin, nextRoute, 0);
     } finally {
       if (rerouting) navRerouting.current = false;
     }
@@ -666,7 +702,13 @@ export function MapScreen(): React.JSX.Element {
         }
 
         const effectiveStep = activeRoute.steps[effectiveIndex]!;
-        focusNavigationCamera(here, effectiveStep.coordinates, position.coords.heading);
+        focusNavigationCamera(
+          here,
+          activeRoute,
+          effectiveIndex,
+          position.coords.heading,
+          position.coords.speed,
+        );
 
         const upcomingIndex = effectiveIndex + 1;
         const upcomingStep = activeRoute.steps[upcomingIndex];
@@ -728,7 +770,7 @@ export function MapScreen(): React.JSX.Element {
     if (activeRoute && currentNavigationStep) {
       navigationFollowingRef.current = true;
       setNavigationFollowing(true);
-      focusNavigationCamera(location, currentNavigationStep.coordinates);
+      focusNavigationCamera(location, activeRoute, navigationStepIndex);
       return;
     }
     focusCoordinate(location);
