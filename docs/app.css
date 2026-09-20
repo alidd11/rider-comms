@@ -1959,7 +1959,7 @@ body:has(.content-screen.active) .movement-safety-banner{
     border-color:var(--border);
     background:var(--surface);
   }
-  [data-screen="friends"] .search-row input{font-size:.84rem}
+  [data-screen="friends"] .search-row input{font-size:.875rem}
   [data-screen="friends"] #friendList{padding-top:0}
   [data-screen="friends"] .friend-row{
     min-height:62px;
