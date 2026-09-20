@@ -15,7 +15,7 @@ import {
   StatusBar,
 } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { API_BASE_URL } from '../config';
 import { ApiError, RiderCommsClient } from '../api/client';
@@ -337,13 +337,13 @@ function AuthScreen({ onAuthenticated, restoreError, onRetryRestore }: {
                   <View style={styles.dividerRow}><View style={styles.dividerLine} /><Text style={styles.dividerText}>or continue with</Text><View style={styles.dividerLine} /></View>
                   <View style={styles.socialRow}>
                     <Pressable disabled accessibilityRole="button" accessibilityLabel="Apple sign-in is not connected yet" style={styles.socialButton}>
-                      <MaterialCommunityIcons name="apple" size={21} color={AUTH_TEXT} />
+                      <Ionicons name="logo-apple" size={22} color={AUTH_TEXT} />
                     </Pressable>
                     <Pressable disabled accessibilityRole="button" accessibilityLabel="Google sign-in is not connected yet" style={styles.socialButton}>
                       <MaterialCommunityIcons name="google" size={21} color={AUTH_TEXT} />
                     </Pressable>
                     <Pressable disabled accessibilityRole="button" accessibilityLabel="Discord sign-in is not connected yet" style={styles.socialButton}>
-                      <MaterialCommunityIcons name="message-processing-outline" size={21} color="#8D9CFF" />
+                      <Ionicons name="logo-discord" size={22} color="#8D9CFF" />
                     </Pressable>
                   </View>
                   <Pressable accessibilityRole="button" onPress={() => switchMode('signup')} style={styles.createAccountButton}>
