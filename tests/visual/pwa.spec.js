@@ -690,7 +690,7 @@ test('PWA map uses an already-granted live location instead of showing the Londo
   });
 
   expect(mapState.centre).toEqual({ lat: 51.5074, lng: -0.1278 });
-  expect(mapState.zoom).toBe(15);
+  expect(mapState.zoom).toBe(14);
   expect(mapState.ownPosition).toEqual({ lat: 51.5074, lng: -0.1278 });
   expect(mapState.ownMarkerCount).toBe(1);
   expect(mapState.ownMarkerEverUsedFallback).toBe(false);
