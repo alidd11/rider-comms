@@ -26,7 +26,7 @@ const LEGACY_GUEST_KEY = '@rider-comms/auth-v1';
 const USERNAME_PATTERN = /^[A-Za-z0-9_]{3,20}$/;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-const AUTH_HERO_IMAGE = 'https://images.unsplash.com/photo-1599401791281-224d244504a5?auto=format&fit=crop&q=82&w=1400';
+const AUTH_HERO_IMAGE = 'https://images.unsplash.com/photo-1552306062-29a5560e1c31?auto=format&fit=crop&q=82&w=1400';
 const AUTH_ACCENT = '#63F3D2';
 const AUTH_ACCENT_DEEP = '#0D8C78';
 const AUTH_TEXT = '#F2F7F7';
