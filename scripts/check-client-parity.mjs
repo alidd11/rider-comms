@@ -36,9 +36,10 @@ for (const required of ['auth', 'group-ride', 'ride-safe', 'place-search', 'frie
   if (!ids.has(required)) throw new Error(`Missing required parity capability: ${required}`);
 }
 
-const [pwaMapSource, nativeMapSource] = await Promise.all([
+const [pwaMapSource, nativeMapSource, nativeCameraSource] = await Promise.all([
   readFile(new URL('../docs/app.js', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/screens/MapScreen.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../mobile/src/navigationCamera.ts', import.meta.url), 'utf8'),
 ]);
 
 if (
@@ -79,7 +80,12 @@ for (const [label, source, patterns] of [
     /distanceToPathMeters/,
     /remainingDistanceOnPathMeters/,
     /lookAheadCoordinateOnPath/,
-    /moveCamera\(\{ center: centre, zoom: 18\.4, heading, tilt: 60 \}\)/,
+    /navigationCameraProfile/,
+    /currentNavigationViewportBias/,
+    /combineNavigationCameraPaths/,
+    /stabilizeNavigationHeading/,
+    /position\.coords\.speed/,
+    /moveCamera\(\{ center: centre, zoom: profile\.zoom, heading, tilt: profile\.pitch \}\)/,
     /setNavigationTrafficVisible\(true\)/,
     /if \(!preserveMute\) navMuted = false/,
     /preserveMute: true/,
@@ -98,8 +104,13 @@ for (const [label, source, patterns] of [
     /distanceToPathMeters/,
     /remainingDistanceOnPathMeters/,
     /lookAheadCoordinateOnPath/,
-    /NAVIGATION_CAMERA_ZOOM = 18\.4/,
-    /NAVIGATION_CAMERA_PITCH = 60/,
+    /navigationCameraProfile/,
+    /navigationViewportBias/,
+    /combineNavigationCameraPaths/,
+    /stabilizeNavigationHeading/,
+    /position\.coords\.speed/,
+    /pitch: profile\.pitch/,
+    /zoom: profile\.zoom/,
     /showsTraffic=\{Boolean\(activeRoute\)\}/,
     /fitRoute\(activeRoute\)/,
     /rideLocations[\s\S]*Private ride member · live location/,
@@ -112,4 +123,22 @@ for (const [label, source, patterns] of [
   }
 }
 
-console.log(`Client parity manifest valid: ${manifest.capabilities.length} capabilities tracked; map basemaps and dedicated navigation aligned`);
+const adaptiveCameraPatterns = [
+  /speed <= 1\.5[\s\S]*zoom: 18\.8[\s\S]*pitch: 52[\s\S]*lookAheadMeters: 90[\s\S]*centreAheadMeters: 42/,
+  /speed < 7[\s\S]*zoom: 18\.7[\s\S]*pitch: 58[\s\S]*lookAheadMeters: 120[\s\S]*centreAheadMeters: 52/,
+  /speed < 14[\s\S]*zoom: 18\.4[\s\S]*pitch: 60[\s\S]*lookAheadMeters: 165[\s\S]*centreAheadMeters: 70/,
+  /speed < 22[\s\S]*zoom: 18\.0[\s\S]*pitch: 58[\s\S]*lookAheadMeters: 230[\s\S]*centreAheadMeters: 95/,
+  /zoom: 17\.6[\s\S]*pitch: 54[\s\S]*lookAheadMeters: 310[\s\S]*centreAheadMeters: 125/,
+  /maneuver\.includes\('roundabout'\)[\s\S]*maneuver\.includes\('uturn'\)[\s\S]*maneuver\.includes\('fork'\)/,
+  /maneuverDistance <= 260/,
+  /maneuverDistance <= 180/,
+  /occludedFraction[\s\S]*topDominance/,
+  /speed <= 1\.5[\s\S]*return previous/,
+];
+for (const [label, source] of [['PWA adaptive camera', pwaMapSource], ['Native adaptive camera', nativeCameraSource]]) {
+  for (const pattern of adaptiveCameraPatterns) {
+    if (!pattern.test(source)) throw new Error(`${label} drifted from the shared adaptive camera contract: ${pattern}`);
+  }
+}
+
+console.log(`Client parity manifest valid: ${manifest.capabilities.length} capabilities tracked; map basemaps and adaptive dedicated navigation aligned`);
