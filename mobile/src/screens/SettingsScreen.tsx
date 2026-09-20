@@ -1,7 +1,7 @@
 // Unverified scaffold — see navigation/index.tsx header note.
 import * as React from 'react';
 import { View, Text, Pressable, TextInput, ScrollView, Modal, Switch, Alert, ActivityIndicator, StyleSheet } from 'react-native';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -16,6 +16,7 @@ import { RideBar } from '../ride/RideBar';
 import type { RootStackParamList } from '../navigation';
 import { useAuth } from '../auth/AuthContext';
 import { ScreenHeader } from '../components/ScreenHeader';
+import { RiderAvatar } from '../components/RiderAvatar';
 import type { AccountSessionSummary } from '../api/client';
 import { NAVIGATION_PROVIDER_OPTIONS, type NavigationProvider } from '../navigationPreference';
 
@@ -149,21 +150,17 @@ function AvatarPickerModal({
               return (
                 <Pressable
                   key={preset.id}
-                  style={styles.avatarGridItem}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected }}
+                  accessibilityLabel={preset.label + ' avatar'}
+                  style={[styles.avatarGridItem, selected && styles.avatarGridItemSelected]}
                   onPress={() => {
                     onSelect(preset.id);
                     onClose();
                   }}
                 >
-                  <View
-                    style={[
-                      styles.avatarSwatch,
-                      { backgroundColor: preset.bg },
-                      selected && styles.avatarSwatchSelected,
-                    ]}
-                  >
-                    <MaterialCommunityIcons name={preset.icon} size={30} color={colors.textPrimary} />
-                  </View>
+                  <RiderAvatar avatarId={preset.id} size={56} selected={selected} />
+                  <Text numberOfLines={1} style={styles.avatarGridLabel}>{preset.label}</Text>
                   {selected && (
                     <View style={styles.avatarCheck}>
                       <Ionicons name="checkmark-circle" size={20} color={colors.accent} />
@@ -381,9 +378,7 @@ export function SettingsScreen(): React.JSX.Element {
         <ScreenHeader title="Settings" />
 
         <Pressable style={styles.profileCard} onPress={() => setActiveSheet('profile')} accessibilityRole="button" accessibilityLabel="Edit profile">
-          <View style={[styles.profileAvatar, { backgroundColor: avatar.bg }]}>
-            <MaterialCommunityIcons name={avatar.icon} size={28} color={colors.textPrimary} />
-          </View>
+          <RiderAvatar avatarId={avatarId} size={58} />
           <View style={styles.profileCopy}>
             <Text numberOfLines={1} style={styles.name}>{displayName}</Text>
             <Text numberOfLines={1} style={styles.handle}>{handle}</Text>
@@ -449,12 +444,10 @@ export function SettingsScreen(): React.JSX.Element {
                 accessibilityRole="button"
                 accessibilityLabel="Change profile avatar"
               >
-                <View style={[styles.sheetAvatar, { backgroundColor: avatar.bg }]}>
-                  <MaterialCommunityIcons name={avatar.icon} size={30} color={colors.textPrimary} />
-                </View>
+                <RiderAvatar avatarId={avatarId} size={54} />
                 <View style={styles.sheetAvatarCopy}>
-                  <Text style={styles.sheetProfileName}>Current avatar</Text>
-                  <Text style={styles.sheetMeta}>Tap to choose another rider icon.</Text>
+                  <Text style={styles.sheetProfileName}>{avatar.label}</Text>
+                  <Text style={styles.sheetMeta}>{avatar.tagline} · Tap to choose another.</Text>
                 </View>
                 <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
               </Pressable>
@@ -740,18 +733,24 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   avatarGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: spacing.md },
-  avatarGridItem: { width: '22%', alignItems: 'center' },
-  avatarSwatch: {
-    width: 64,
-    height: 64,
-    borderRadius: radii.pill,
+  avatarGridItem: {
+    width: '23%',
+    minHeight: 82,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: 'transparent',
+    gap: 5,
+    paddingVertical: 7,
+    borderRadius: radii.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
   },
-  avatarSwatchSelected: { borderColor: colors.accent },
-  avatarCheck: { position: 'absolute', right: -2, bottom: -2 },
+  avatarGridItemSelected: {
+    borderColor: colors.accent,
+    backgroundColor: colors.surfaceRaised,
+  },
+  avatarGridLabel: { ...type.caption, color: colors.textSecondary, fontSize: 9, fontWeight: '700' },
+  avatarCheck: { position: 'absolute', right: 3, top: 3 },
   modalDone: {
     minHeight: MIN_TOUCH_TARGET,
     backgroundColor: colors.accent,
