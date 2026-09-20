@@ -1182,7 +1182,6 @@ const styles = StyleSheet.create({
   mapActions: {
     position: 'absolute',
     right: spacing.md,
-    bottom: spacing.md,
     zIndex: 10,
     gap: spacing.sm,
   },
