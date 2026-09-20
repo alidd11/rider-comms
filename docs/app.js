@@ -137,8 +137,10 @@
     </svg>`;
   }
 
-  function riderAvatarMapIcon(person, current = false) {
-    const status = current ? (state.profile.shareLocation ? 'online' : 'none') : 'online';
+  function riderAvatarMapIcon(person, current = false, statusOverride) {
+    const status = statusOverride || (current
+      ? (state.profile.shareLocation || state.activeRide?.shareRideLocation ? 'online' : 'none')
+      : 'online');
     const svg = riderAvatarSvg(person.avatarId, { selected: current, mapMarker: true, status });
     const width = current ? 50 : 44;
     const height = current ? 56 : 50;
@@ -718,7 +720,8 @@
     mapMarkers.forEach((marker) => marker.setMap(null));
     mapMarkers = riders.map((person) => {
       const real = rideMemberLocations.get(person.riderId);
-      return addMapMarker(person, { lat: real.lat, lng: real.lon }, false);
+      const fresh = Date.now() - real.updatedAt <= RIDE_LOCATION_REFRESH_MS * 2;
+      return addMapMarker(person, { lat: real.lat, lng: real.lon }, false, fresh ? 'online' : 'stale');
     });
   }
 
@@ -4262,12 +4265,12 @@
 
   }
 
-  function addMapMarker(person, position, current) {
+  function addMapMarker(person, position, current, status) {
     const marker = new google.maps.Marker({
       map,
       position,
       title: current ? (person.displayName || 'Your location') : person.displayName,
-      icon: riderAvatarMapIcon(person, current),
+      icon: riderAvatarMapIcon(person, current, status),
       zIndex: current ? 10 : 5,
     });
     marker.addListener('click', () => selectRider(person.riderId, visibleMapRiders()));
