@@ -5,16 +5,12 @@
 // shared by current ride members. Public nearby riders remain a count rather
 // than being placed at invented bearings.
 //
-// Public and Host share this one screen via a segmented toggle instead of
-// being separate tabs — once this has a real map SDK behind it, a second
-// tab would mean a second mounted (and separately billed) map instance for
-// no reason, since only one is ever visible at a time anyway. The bottom
-// tab bar's "Group Ride" button isn't a second screen either — it redirects
-// (see navigation/index.tsx's tabPress listener) to this same Map route with
-// a `segment: 'host'` param, read below, instead of navigating to its own
-// registered-but-never-actually-shown screen.
+// Public map and private ride hosting share this one mounted screen. The
+// bottom Map and Ride tabs switch the route's segment parameter rather than
+// mounting a second map instance, which keeps map billing/state predictable
+// and matches the PWA's tab-owned interaction model.
 import * as React from 'react';
-import { View, Text, Pressable, StyleSheet, Alert, Linking, Platform, useColorScheme } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Alert, Linking, Platform, useWindowDimensions } from 'react-native';
 import { useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -63,32 +59,6 @@ const DEFAULT_REGION = {
   longitudeDelta: 0.16,
 };
 const FOCUSED_REGION_DELTA = 0.025;
-const DARK_MAP_STYLE = [
-  { elementType: 'geometry', stylers: [{ color: '#0A1115' }] },
-  { elementType: 'labels.text.stroke', stylers: [{ color: '#0A1115' }] },
-  { elementType: 'labels.text.fill', stylers: [{ color: '#7D8C94' }] },
-  { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#A9B7BD' }] },
-  { featureType: 'poi', stylers: [{ visibility: 'off' }] },
-  { featureType: 'transit', stylers: [{ visibility: 'off' }] },
-  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#172229' }] },
-  { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#25333B' }] },
-  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#20313A' }] },
-  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#071C25' }] },
-];
-const LIGHT_MAP_STYLE = [
-  { elementType: 'geometry', stylers: [{ color: '#E6EDEF' }] },
-  { elementType: 'labels.text.stroke', stylers: [{ color: '#EEF3F4' }] },
-  { elementType: 'labels.text.fill', stylers: [{ color: '#526169' }] },
-  { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#2F4048' }] },
-  { featureType: 'landscape.natural', elementType: 'geometry', stylers: [{ color: '#E1E9E7' }] },
-  { featureType: 'poi', stylers: [{ visibility: 'off' }] },
-  { featureType: 'transit', stylers: [{ visibility: 'off' }] },
-  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#F7F9FA' }] },
-  { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#BDC9CE' }] },
-  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#D4E1E5' }] },
-  { featureType: 'road.highway', elementType: 'geometry.stroke', stylers: [{ color: '#AEBDC3' }] },
-  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#C9E0E7' }] },
-];
 const NAV_STEP_ARRIVAL_RADIUS_M = 30;
 const NAV_OFF_ROUTE_RADIUS_M = 60;
 const NAV_OFF_ROUTE_GRACE_MS = 10_000;
@@ -129,55 +99,13 @@ function HazardMarker({
   );
 }
 
-/**
- * Icon-only Public/Host toggle, floated on the right edge instead of a
- * full-width pill at the top — keeps the map clear top-to-bottom instead
- * of pushing it down under a header bar.
- */
-function SegmentToggle({
-  segment,
-  onChange,
-  topInset,
-}: {
-  segment: Segment;
-  onChange: (s: Segment) => void;
-  topInset: number;
-}): React.JSX.Element {
-  return (
-    <View style={[styles.sideToggle, { top: topInset + spacing.sm }]}>
-      <Pressable
-        style={[styles.sideToggleButton, segment === 'public' && styles.sideToggleButtonActive]}
-        onPress={() => onChange('public')}
-        hitSlop={8}
-      >
-        <Ionicons
-          name="radio"
-          size={20}
-          color={segment === 'public' ? colors.accentText : colors.textPrimary}
-        />
-      </Pressable>
-      <Pressable
-        style={[styles.sideToggleButton, segment === 'host' && styles.sideToggleButtonActive]}
-        onPress={() => onChange('host')}
-        hitSlop={8}
-      >
-        <Ionicons
-          name="people"
-          size={20}
-          color={segment === 'host' ? colors.accentText : colors.textPrimary}
-        />
-      </Pressable>
-    </View>
-  );
-}
-
 export function MapScreen(): React.JSX.Element {
-  const colorScheme = useColorScheme();
   const { client, riderId } = useAuth();
   const { rideLocations } = useRide();
   const { shareLocation, setShareLocation, unitSystem, navigationProvider } = useSettings();
   const { lockedForSafety, movementState, locationAccess, requestLocationAccess, openLocationSettings, refreshTracking } = useMovementSafety();
   const insets = useSafeAreaInsets();
+  const { height: viewportHeight } = useWindowDimensions();
   const route = useRoute<RouteProp<TabParamList, 'Map'>>();
   const [segment, setSegment] = React.useState<Segment>(route.params?.segment ?? 'public');
   const [ridersInZone, setRidersInZone] = React.useState<string[]>([]);
@@ -658,7 +586,7 @@ export function MapScreen(): React.JSX.Element {
             loadingEnabled
             loadingBackgroundColor={colors.background}
             loadingIndicatorColor={colors.accent}
-            customMapStyle={colorScheme === 'light' ? LIGHT_MAP_STYLE : DARK_MAP_STYLE}
+            mapType="hybrid"
             showsCompass={false}
             showsMyLocationButton={false}
             toolbarEnabled={false}
@@ -670,8 +598,13 @@ export function MapScreen(): React.JSX.Element {
               <Marker
                 coordinate={{ latitude: currentLocation.lat, longitude: currentLocation.lon }}
                 title="Your location"
-                pinColor={colors.accent}
-              />
+                anchor={{ x: 0.5, y: 0.5 }}
+                tracksViewChanges={false}
+              >
+                <View style={styles.currentLocationMarker}>
+                  <Ionicons name="navigate" size={20} color="#ffffff" />
+                </View>
+              </Marker>
             )}
             {rideLocations
               .filter((location) => location.riderId !== riderId)
@@ -745,7 +678,7 @@ export function MapScreen(): React.JSX.Element {
       {segment === 'public' && !selectedDestination && (
         <View style={[styles.mapActions, { bottom: insets.bottom + spacing.sm }]}>
           {!lockedForSafety && <Pressable
-            style={styles.mapActionButton}
+            style={[styles.mapActionButton, { transform: [{ translateY: -(viewportHeight * 0.4) }] }]}
             onPress={() => void openReportSheet()}
             accessibilityRole="button"
             accessibilityLabel="Report on the road"
@@ -753,7 +686,7 @@ export function MapScreen(): React.JSX.Element {
             <MaterialCommunityIcons name="alert-plus" size={22} color={colors.textPrimary} />
           </Pressable>}
           <Pressable
-            style={styles.mapActionButton}
+            style={[styles.mapActionButton, { transform: [{ translateY: -(viewportHeight * 0.4) }] }]}
             onPress={() => void centreOnCurrentLocation()}
             accessibilityRole="button"
             accessibilityLabel="Centre map on my location"
@@ -767,7 +700,7 @@ export function MapScreen(): React.JSX.Element {
             accessibilityState={{ selected: shareLocation }}
             accessibilityLabel={shareLocation ? 'Stop live location and proximity voice' : 'Go live nearby and enable proximity voice'}
           >
-            <Ionicons name="radio" size={21} color={shareLocation ? colors.accent : colors.textPrimary} />
+            <Ionicons name="people" size={24} color={shareLocation ? colors.accentText : colors.accent} />
           </Pressable>
         </View>
       )}
@@ -856,8 +789,6 @@ export function MapScreen(): React.JSX.Element {
         </>
       )}
 
-      {segment === 'public' && !lockedForSafety && !activeRoute && <SegmentToggle segment={segment} onChange={setSegment} topInset={insets.top} />}
-
       {!activeRoute && (lockedForSafety || movementState === 'unknown') && (
         <View
           style={[styles.safetyBanner, { top: insets.top + spacing.sm + (segment === 'public' ? MIN_TOUCH_TARGET + spacing.sm : 0) }]}
@@ -900,28 +831,10 @@ const styles = StyleSheet.create({
   hostFill: { flex: 1, padding: 0, backgroundColor: colors.background },
   searchSlot: {
     position: 'absolute',
-    left: spacing.lg,
-    right: spacing.xxl + spacing.sm,
+    left: spacing.md,
+    right: spacing.md,
     zIndex: 9,
   },
-  sideToggle: {
-    position: 'absolute',
-    top: spacing.lg,
-    right: spacing.sm,
-    gap: spacing.xs,
-  },
-  sideToggleButton: {
-    width: MIN_TOUCH_TARGET,
-    height: MIN_TOUCH_TARGET,
-    borderRadius: radii.lg,
-    backgroundColor: colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: colors.border,
-    ...elevation.raised,
-  },
-  sideToggleButtonActive: { backgroundColor: colors.accent, borderColor: colors.accent },
   pinBadgeSelected: { borderColor: colors.accent, backgroundColor: colors.accentPressed },
   hazardBadge: { alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: colors.background },
   mapActions: {
@@ -931,8 +844,8 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   mapActionButton: {
-    width: 42,
-    height: 42,
+    width: 46,
+    height: 46,
     borderRadius: radii.lg,
     backgroundColor: colors.surface,
     alignItems: 'center',
@@ -942,16 +855,28 @@ const styles = StyleSheet.create({
     ...elevation.raised,
   },
   nearbyActionButton: {
-    width: 54,
-    height: 54,
+    width: 64,
+    height: 64,
     borderRadius: radii.pill,
-    marginTop: spacing.xs,
+    marginTop: spacing.lg,
+    borderWidth: 1.5,
     borderColor: colors.accent,
-    backgroundColor: colors.accentSoft,
+    backgroundColor: colors.surface,
   },
   mapActionButtonActive: {
     borderColor: colors.accent,
-    backgroundColor: colors.accentSoft,
+    backgroundColor: colors.accent,
+  },
+  currentLocationMarker: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.accent,
+    borderWidth: 3,
+    borderColor: '#ffffff',
+    ...elevation.raised,
   },
   nearbyCount: {
     position: 'absolute',

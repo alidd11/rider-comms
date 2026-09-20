@@ -199,7 +199,6 @@
     const meta = $('#statusBarStyleMeta');
     if (meta) meta.setAttribute('content', 'black-translucent');
     map?.setOptions({
-      styles: prefersDarkMode() ? MAP_STYLE_DARK : MAP_STYLE_LIGHT,
       backgroundColor: prefersDarkMode() ? '#080d10' : '#e9eef0',
     });
   }
@@ -4213,8 +4212,8 @@
       disableDefaultUI: true,
       gestureHandling: 'greedy',
       clickableIcons: false,
+      mapTypeId: 'hybrid',
       backgroundColor: prefersDarkMode() ? '#080d10' : '#f2f5f6',
-      styles: prefersDarkMode() ? MAP_STYLE_DARK : MAP_STYLE_LIGHT,
     });
     usingFallbackMap = false;
     $('#fallbackMap').hidden = true;
@@ -4232,6 +4231,15 @@
 
   }
 
+  function currentLocationIcon() {
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="52" height="52" viewBox="0 0 52 52"><circle cx="26" cy="26" r="21" fill="#2fa8d3" stroke="#ffffff" stroke-width="3"/><path d="M28.8 13.2 18.1 34.8l8.2-3 5.7 6.9 6-25.5-9.2 0Z" fill="#ffffff" stroke="#0b6f91" stroke-width=".7" stroke-linejoin="round"/></svg>';
+    return {
+      url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
+      scaledSize: new google.maps.Size(44, 44),
+      anchor: new google.maps.Point(22, 22),
+    };
+  }
+
   function addMapMarker(person, position, current) {
     const marker = new google.maps.Marker({
       map,
@@ -4243,18 +4251,13 @@
       // riders keep a (smaller than before) labelled dot, since telling
       // several nearby riders apart at a glance is the point there.
       ...(current ? {} : { label: { text: initials(person.displayName), color: '#ffffff', fontWeight: '700', fontSize: '9px' } }),
-      icon: {
+      icon: current ? currentLocationIcon() : {
         path: google.maps.SymbolPath.CIRCLE,
-        // A precise dot, not a beach-ball (see the earlier size pass) —
-        // but 7 turned out to undershoot the other way and got hard to
-        // spot at a glance. 10 with a slightly thicker ring keeps it
-        // clearly the smallest/simplest shape on the map (still no
-        // label, unlike other riders) while actually being visible.
-        scale: current ? 10 : 9,
+        scale: 9,
         fillColor: identityColor(person.riderId),
         fillOpacity: 1,
-        strokeColor: current ? '#ffffff' : '#e9eef5',
-        strokeWeight: current ? 3 : 2,
+        strokeColor: '#e9eef5',
+        strokeWeight: 2,
       },
       zIndex: current ? 10 : 5,
     });

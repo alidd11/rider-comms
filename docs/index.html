@@ -17,7 +17,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
-  <link rel="stylesheet" href="app.css?v=91">
+  <link rel="stylesheet" href="app.css?v=92">
   <link rel="stylesheet" href="routes.css?v=39">
   <title>Rider Comms</title>
 </head>
@@ -33,6 +33,7 @@
     <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
     <symbol id="i-share" viewBox="0 0 24 24"><path d="M12 16V3m0 0L7 8m5-5 5 5M5 13v7h14v-7"/></symbol>
     <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></symbol>
+    <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></symbol>
     <symbol id="i-card" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M3 10h18M7 15h4"/></symbol>
     <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4.5 21c.5-4.4 3-6.5 7.5-6.5s7 2.1 7.5 6.5"/></symbol>
     <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3 4.5 6v5.2c0 4.8 2.9 8.2 7.5 9.8 4.6-1.6 7.5-5 7.5-9.8V6L12 3Z"/><path d="m9 12 2 2 4-4"/></symbol>
@@ -141,13 +142,13 @@
           <div id="googleMap" class="google-map" aria-hidden="true"></div>
           <div class="fallback-map" id="fallbackMap"><div class="road road-a"></div><div class="road road-b"></div><div class="road road-c"></div></div>
           <h1 id="mapTitle" class="sr-only">North London rider map</h1>
-          <header class="map-header"><div class="search-slot glass" id="mapSearchSlot"><svg><use href="#i-search"/></svg><input id="placeSearchInput" placeholder="Search for a place" autocomplete="off" readonly></div><div class="map-avatar-wrap"><button class="avatar avatar-sm" id="mapAvatarButton" data-avatar="AI" aria-label="Open profile">AI</button><button id="voiceStatusBtn" class="voice-mute-badge" aria-label="Listening — hands-free" hidden><svg><use href="#i-mic"/></svg></button></div></header>
+          <header class="map-header"><div class="search-slot glass" id="mapSearchSlot"><svg><use href="#i-search"/></svg><input id="placeSearchInput" placeholder="Search for a place" autocomplete="off" readonly><svg class="map-search-options" aria-hidden="true"><use href="#i-sliders"/></svg></div><div class="map-avatar-wrap"><button class="avatar avatar-sm" id="mapAvatarButton" data-avatar="AI" aria-label="Open profile">AI</button><button id="voiceStatusBtn" class="voice-mute-badge" aria-label="Listening — hands-free" hidden><svg><use href="#i-mic"/></svg></button></div></header>
           <div id="fallbackMarkers" class="fallback-markers"></div>
           <div id="hazardMarkers" class="hazard-markers"></div>
           <div class="map-actions">
             <button id="reportHazardBtn" class="icon-button glass" aria-label="Report on the road"><svg><use href="#i-report"/></svg></button>
             <button id="locateBtn" class="icon-button glass" aria-label="Centre on my location"><svg><use href="#i-target"/></svg></button>
-            <button id="joinNearbyBtn" class="icon-button glass" aria-label="Go live nearby"><svg><use href="#i-broadcast"/></svg></button>
+            <button id="joinNearbyBtn" class="icon-button glass" aria-label="Go live nearby"><svg><use href="#i-users"/></svg></button>
           </div>
           <article id="riderCard" class="rider-card glass" hidden></article>
           <article id="hazardCard" class="rider-card glass" hidden></article>
@@ -282,6 +283,6 @@
   <script src="routes.js?v=34" defer></script>
   <script src="movement-safety.js?v=2" defer></script>
   <script src="message-state.js?v=1" defer></script>
-  <script src="app.js?v=86" defer></script>
+  <script src="app.js?v=87" defer></script>
 </body>
 </html>
