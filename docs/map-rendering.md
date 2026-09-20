@@ -12,6 +12,12 @@ The iOS/Android provider difference is an implementation detail allowed by the c
 
 Do not add a global tint, brightness filter, satellite-only presentation or a second hand-authored basemap theme merely to make screenshots resemble a concept image. If a future branded basemap is needed, prefer provider-supported cloud styling and document the platform configuration.
 
+## Navigation camera and rider identity
+
+Dedicated in-app navigation keeps the provider basemap but changes the camera, not the map artwork. The PWA uses Google Maps' vector renderer with heading/tilt enabled; native uses the provider camera exposed through `react-native-maps`. Both clients use the same close navigation pitch/zoom and bias the camera ahead of the rider so the route occupies the useful upper portion of the viewport.
+
+The current rider's persisted avatar remains their self marker during navigation. Do not replace it with a generic navigation chevron. The provider map rotates underneath the screen-upright avatar in follow mode, while authorised private-ride member avatars continue to render from their own persisted `avatarId` values.
+
 ## Rider Comms overlay
 
 Rider Comms may layer only product-specific controls and data above the provider map:
