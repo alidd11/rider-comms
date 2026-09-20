@@ -507,7 +507,19 @@ test('core PWA screens render without runtime errors or viewport overflow', asyn
 test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 Pro Max', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'iphone-17-pro-max-webkit', 'Final mockup screenshots target iPhone 17 Pro Max geometry.');
 
-  await mockAuthenticatedApi(page, 'stationary');
+  await mockAuthenticatedApi(page, 'stationary', ({ url }) => {
+    if (url.pathname === '/friends/activity') {
+      return {
+        body: {
+          activity: [
+            { riderId: 'rider_friend01', online: true, lastSeenAt: Date.now() },
+            { riderId: 'rider_friend02', online: false, lastSeenAt: Date.now() - (2 * 60 * 60 * 1000) },
+          ],
+        },
+      };
+    }
+    return null;
+  });
   await page.goto('/');
   await expect(page.locator('#app')).toBeVisible();
 
@@ -679,8 +691,11 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
   expect(friendsGeometry.presenceCentreDelta).toBeLessThanOrEqual(1);
   expect(friendsGeometry.groupLabelTransform).toBe('none');
   expect(friendsGeometry.groupLabelFontSize).toBeGreaterThanOrEqual(11);
-  expect(friendsGeometry.groupLabelText).toMatch(/^(Online|Offline) \(\d+\)$/);
+  expect(friendsGeometry.groupLabelText).toBe('Online (1)');
   expect(friendsGeometry.groupLabelTag).toBe('H2');
+  await expect(page.locator('#friendList .friend-group-label')).toHaveText(['Online (1)', 'Offline (1)']);
+  await expect(page.locator('[data-friend="rider_friend01"] .friend-activity')).toHaveText('Online now');
+  await expect(page.locator('[data-friend="rider_friend02"] .friend-activity')).toContainText('Last seen 2h ago');
   await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-friends-final.png'), fullPage: true });
 
   await page.locator('#friendList [data-friend]').first().click();
