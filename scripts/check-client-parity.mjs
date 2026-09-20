@@ -94,8 +94,10 @@ for (const [label, source, patterns] of [
     /setNavigationTrafficVisible\(true\)/,
     /if \(!preserveMute\) navMuted = false/,
     /preserveMute: true/,
+    /setNavStatusNotice\('Rerouting…'\)/,
     /if \(!navMuted\) speak\('Rerouting\.'\)/,
-    /showToast\('Could not reroute\. Continue with caution\.'\)/,
+    /setNavStatusNotice\('Could not reroute\. Continue with caution\.'\)/,
+    /routeNotice: 'Route updated\.'/,
     /visibleMapRiders\(\)/,
   ]],
   ['Native navigation', nativeMapSource, [
