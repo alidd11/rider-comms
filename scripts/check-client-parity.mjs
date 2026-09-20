@@ -189,4 +189,11 @@ if (!/navigationActionButton:\s*\{[\s\S]*?width: 48,[\s\S]*?height: 48,[\s\S]*?b
   throw new Error('Native navigation controls must keep the shared 48px rounded-square geometry');
 }
 
+if (/bottom: insets\.bottom \+ 116/.test(nativeMapSource)) {
+  throw new Error('Native navigation controls must not double-count the bottom safe area above the summary');
+}
+if (!/NAVIGATION_SUMMARY_BASE_HEIGHT \+ spacing\.md/.test(nativeMapSource)) {
+  throw new Error('Native navigation controls must stay directly above the navigation summary');
+}
+
 console.log(`Client parity manifest valid: ${manifest.capabilities.length} capabilities tracked; map basemaps and adaptive dedicated navigation aligned`);
