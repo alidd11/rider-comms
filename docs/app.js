@@ -727,7 +727,7 @@
   }
 
   function friendActivityLabel(activity) {
-    if (!activity) return 'Connected';
+    if (!activity) return 'Offline';
     if (activity.online) return 'Online now';
     if (!Number.isFinite(activity.lastSeenAt)) return 'Offline';
     const elapsed = Math.max(0, Date.now() - activity.lastSeenAt);
