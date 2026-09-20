@@ -10,7 +10,7 @@
 // mounting a second map instance, which keeps map billing/state predictable
 // and matches the PWA's tab-owned interaction model.
 import * as React from 'react';
-import { View, Text, Pressable, StyleSheet, Alert, Linking, Platform } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Alert, Linking, Platform, useWindowDimensions } from 'react-native';
 import { useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -105,6 +105,7 @@ export function MapScreen(): React.JSX.Element {
   const { shareLocation, setShareLocation, unitSystem, navigationProvider } = useSettings();
   const { lockedForSafety, movementState, locationAccess, requestLocationAccess, openLocationSettings, refreshTracking } = useMovementSafety();
   const insets = useSafeAreaInsets();
+  const { height: viewportHeight } = useWindowDimensions();
   const route = useRoute<RouteProp<TabParamList, 'Map'>>();
   const [segment, setSegment] = React.useState<Segment>(route.params?.segment ?? 'public');
   const [ridersInZone, setRidersInZone] = React.useState<string[]>([]);
@@ -677,7 +678,7 @@ export function MapScreen(): React.JSX.Element {
       {segment === 'public' && !selectedDestination && (
         <View style={[styles.mapActions, { bottom: insets.bottom + spacing.sm }]}>
           {!lockedForSafety && <Pressable
-            style={[styles.mapActionButton, styles.mapActionUpper]}
+            style={[styles.mapActionButton, { transform: [{ translateY: -(viewportHeight * 0.4) }] }]}
             onPress={() => void openReportSheet()}
             accessibilityRole="button"
             accessibilityLabel="Report on the road"
@@ -685,7 +686,7 @@ export function MapScreen(): React.JSX.Element {
             <MaterialCommunityIcons name="alert-plus" size={22} color={colors.textPrimary} />
           </Pressable>}
           <Pressable
-            style={[styles.mapActionButton, styles.mapActionUpper]}
+            style={[styles.mapActionButton, { transform: [{ translateY: -(viewportHeight * 0.4) }] }]}
             onPress={() => void centreOnCurrentLocation()}
             accessibilityRole="button"
             accessibilityLabel="Centre map on my location"
@@ -853,7 +854,6 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     ...elevation.raised,
   },
-  mapActionUpper: { transform: [{ translateY: -56 }] },
   nearbyActionButton: {
     width: 64,
     height: 64,
