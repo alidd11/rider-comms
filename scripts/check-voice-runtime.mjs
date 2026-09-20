@@ -99,6 +99,21 @@ assert.match(
   'PWA voice must not timer-retry microphone permission/security/no-device failures',
 );
 assert.match(
+  pwaSource,
+  /async function resumeVoiceMeterContext\(\)[\s\S]*context\.resume\(\)[\s\S]*context\.state === 'running'/,
+  'PWA voice must explicitly resume a suspended Web Audio VOX context',
+);
+assert.match(
+  pwaSource,
+  /context\.onstatechange = \(\) => \{[\s\S]*context\.state !== 'running'\) setVoiceSpeaking\(false\)[\s\S]*renderVoiceStatus\(\)/,
+  'PWA voice must fail closed when Web Audio stops running instead of leaving transmission latched on',
+);
+assert.match(
+  pwaSource,
+  /meterNeedsResume[\s\S]*Resume voice[\s\S]*resumeVoiceMeterContext\(\)/,
+  'PWA voice must expose rider-initiated recovery when its VOX analyser is suspended',
+);
+assert.match(
   activeSpeakerSource,
   /RoomEvent\.ActiveSpeakersChanged/,
   'Native voice must use LiveKit active-speaker events rather than infer remote speaking from mute state',

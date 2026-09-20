@@ -2214,8 +2214,45 @@
     }
   }
 
+  function voiceMeterContextNeedsResume() {
+    const state = voiceAudioContext?.state;
+    // Real Web Audio implementations expose a string AudioContextState.
+    // Treat a missing state as "not observable" rather than "suspended" so
+    // older/minimal webviews and deterministic test doubles are not falsely
+    // pushed into the recovery UI.
+    return typeof state === 'string' && state !== 'running';
+  }
+
+  async function resumeVoiceMeterContext() {
+    const context = voiceAudioContext;
+    if (!context || !voiceMeterContextNeedsResume()) return true;
+    if (context.state === 'closed' || typeof context.resume !== 'function') return false;
+    try {
+      await context.resume();
+    } catch {
+      return false;
+    }
+    return context === voiceAudioContext && context.state === 'running';
+  }
+
   async function resumePreviouslyAllowedVoice() {
     if (!state.activeRide && !state.publicLive) return;
+
+    // Safari can preserve the LiveKit room while suspending the Web Audio
+    // context that drives VOX after an app switch, lock-screen interruption
+    // or other media takeover. A connected room with a suspended analyser is
+    // not healthy voice: fail closed and try to resume the existing context
+    // before treating the session as ready again.
+    if (voiceMeterContextNeedsResume()) {
+      const resumed = await resumeVoiceMeterContext();
+      if (!resumed) {
+        voiceFailureNotified = true;
+        renderVoiceStatus();
+        return;
+      }
+      voiceFailureNotified = false;
+    }
+
     try {
       const permission = await navigator.permissions?.query({ name: 'microphone' });
       if (permission?.state === 'granted') {
@@ -2425,7 +2462,11 @@
     const badge = $('#voiceStatusBtn');
     const connected = Boolean(voiceRoom || proximityVoiceRooms.size);
     const wantsVoice = Boolean(state.activeRide || state.publicLive);
-    const needsResume = wantsVoice && !connected && (!microphonePermissionReady || voiceFailureNotified);
+    const meterNeedsResume = connected && voiceMeterContextNeedsResume();
+    const needsResume = wantsVoice && (
+      (!connected && (!microphonePermissionReady || voiceFailureNotified))
+      || meterNeedsResume
+    );
     // Public Nearby intentionally releases microphone capture when there are
     // no authorised proximity peers. Keep the feature visibly "armed" instead
     // of making that privacy/battery optimisation look like voice crashed.
@@ -2561,11 +2602,24 @@
    */
   async function startVoiceLevelLoop() {
     voiceMeterStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    voiceAudioContext = new (window.AudioContext || window.webkitAudioContext)();
-    const source = voiceAudioContext.createMediaStreamSource(voiceMeterStream);
-    voiceAnalyser = voiceAudioContext.createAnalyser();
+    const context = new (window.AudioContext || window.webkitAudioContext)();
+    voiceAudioContext = context;
+    // WebKit may suspend Web Audio independently of the underlying microphone
+    // capture/LiveKit room. Never leave a previously-open transmitter latched
+    // on when that happens: close VOX immediately, then the foreground/tap
+    // recovery paths below can resume the analyser safely.
+    context.onstatechange = () => {
+      if (voiceAudioContext !== context) return;
+      if (context.state !== 'running') setVoiceSpeaking(false);
+      renderVoiceStatus();
+    };
+    const source = context.createMediaStreamSource(voiceMeterStream);
+    voiceAnalyser = context.createAnalyser();
     voiceAnalyser.fftSize = 512;
     source.connect(voiceAnalyser);
+    if (context.state !== 'running' && context.state !== 'closed') {
+      void context.resume().catch(() => {});
+    }
     const data = new Uint8Array(voiceAnalyser.frequencyBinCount);
     const tick = () => {
       if (!voiceAnalyser) return;
@@ -2708,7 +2762,12 @@
     if (voiceReleaseTimer) { clearTimeout(voiceReleaseTimer); voiceReleaseTimer = undefined; }
     voiceLatestRms = 0;
     voiceAnalyser = undefined;
-    if (voiceAudioContext) { void voiceAudioContext.close().catch(() => {}); voiceAudioContext = undefined; }
+    const context = voiceAudioContext;
+    voiceAudioContext = undefined;
+    if (context) {
+      context.onstatechange = null;
+      void context.close().catch(() => {});
+    }
     if (voiceMeterStream) { voiceMeterStream.getTracks().forEach((track) => track.stop()); voiceMeterStream = undefined; }
     voiceIsSpeaking = false;
   }
@@ -2766,6 +2825,23 @@
   }
 
   async function toggleVoiceMute() {
+    // A suspended VOX analyser is a recovery action, not a mute toggle. This
+    // handler runs from a direct rider tap, so it is the best chance Safari
+    // has to satisfy any user-activation requirement for AudioContext.resume().
+    if (voiceMeterContextNeedsResume()) {
+      if (window.RiderMovementSafety.isLockedForSafety(movementState)) return;
+      const resumed = await resumeVoiceMeterContext();
+      if (!resumed) {
+        voiceFailureNotified = true;
+        showToast('Voice could not resume. Check microphone access and try again.');
+        renderVoiceStatus();
+        return;
+      }
+      voiceFailureNotified = false;
+      renderVoiceStatus();
+      return;
+    }
+
     if (!voiceRoom && !proximityVoiceRooms.size) {
       if (!state.activeRide && !state.publicLive) return;
       if (window.RiderMovementSafety.isLockedForSafety(movementState)) return;
