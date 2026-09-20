@@ -126,7 +126,7 @@ function HazardMarker({
 export function MapScreen(): React.JSX.Element {
   const colorScheme = useColorScheme();
   const { client, riderId } = useAuth();
-  const { rideLocations, roster } = useRide();
+  const { rideLocations, roster, shareRideLocation } = useRide();
   const { shareLocation, setShareLocation, unitSystem, navigationProvider, avatarId, displayName } = useSettings();
   const { lockedForSafety, movementState, locationAccess, requestLocationAccess, openLocationSettings, refreshTracking } = useMovementSafety();
   const insets = useSafeAreaInsets();
@@ -158,6 +158,7 @@ export function MapScreen(): React.JSX.Element {
   const announcedNavigationStep = React.useRef<{ route: InAppNavigationRoute; index: number } | null>(null);
   const [mapReady, setMapReady] = React.useState(false);
   const [rideProfiles, setRideProfiles] = React.useState<Record<string, PublicRiderProfile>>({});
+  const [markerNow, setMarkerNow] = React.useState(() => Date.now());
   const mapRef = React.useRef<MapView | null>(null);
   const centredOnFirstFix = React.useRef(false);
 
@@ -194,6 +195,26 @@ export function MapScreen(): React.JSX.Element {
       clearInterval(timer);
     };
   }, [client, riderId, rideRosterKey]);
+
+  React.useEffect(() => {
+    if (!rideLocations.length) return;
+    setMarkerNow(Date.now());
+    const timer = setInterval(() => setMarkerNow(Date.now()), RIDE_LOCATION_REFRESH_MS);
+    return () => clearInterval(timer);
+  }, [rideLocations.length]);
+
+  const ownRideLocation = rideLocations.find((location) => location.riderId === riderId);
+  const selfMapLocation = ownRideLocation
+    ? { lat: ownRideLocation.lat, lon: ownRideLocation.lon }
+    : currentLocation;
+  const ownRideLocationFresh = Boolean(
+    ownRideLocation && markerNow - ownRideLocation.updatedAt <= RIDE_LOCATION_REFRESH_MS * 2,
+  );
+  const selfMapStatus = shareLocation || (shareRideLocation && ownRideLocationFresh)
+    ? 'online'
+    : ownRideLocation && !ownRideLocationFresh
+      ? 'stale'
+      : 'none';
 
   const focusCoordinate = React.useCallback((target: { lat: number; lon: number }, delta = FOCUSED_REGION_DELTA) => {
     mapRef.current?.animateToRegion({
@@ -655,11 +676,12 @@ export function MapScreen(): React.JSX.Element {
             pitchEnabled={false}
             onMapReady={() => setMapReady(true)}
           >
-            {currentLocation && (
+            {selfMapLocation && (
               <Marker
-                coordinate={{ latitude: currentLocation.lat, longitude: currentLocation.lon }}
+                key={`self-rider-${avatarId}-${selfMapStatus}`}
+                coordinate={{ latitude: selfMapLocation.lat, longitude: selfMapLocation.lon }}
                 title={displayName || 'Your location'}
-                description="Your location"
+                description={shareRideLocation ? 'Your live group-ride location' : 'Your location'}
                 anchor={{ x: 0.5, y: 1 }}
                 tracksViewChanges={false}
               >
@@ -668,7 +690,7 @@ export function MapScreen(): React.JSX.Element {
                   size={44}
                   mapMarker
                   selected
-                  status={shareLocation ? 'online' : 'none'}
+                  status={selfMapStatus}
                 />
               </Marker>
             )}
@@ -676,10 +698,11 @@ export function MapScreen(): React.JSX.Element {
               .filter((location) => location.riderId !== riderId)
               .map((location) => {
                 const profile = rideProfiles[location.riderId];
-                const fresh = Date.now() - location.updatedAt <= 20_000;
+                const fresh = markerNow - location.updatedAt <= RIDE_LOCATION_REFRESH_MS * 2;
+                const markerStatus = fresh ? 'online' : 'stale';
                 return (
                   <Marker
-                    key={`ride-location-${location.riderId}`}
+                    key={`ride-location-${location.riderId}-${profile?.avatarId ?? 'ember'}-${markerStatus}`}
                     coordinate={{ latitude: location.lat, longitude: location.lon }}
                     title={profile?.displayName ?? 'Ride member'}
                     description="Private ride member · live location"
@@ -690,7 +713,7 @@ export function MapScreen(): React.JSX.Element {
                       avatarId={profile?.avatarId ?? 'ember'}
                       size={40}
                       mapMarker
-                      status={fresh ? 'online' : 'stale'}
+                      status={markerStatus}
                     />
                   </Marker>
                 );
