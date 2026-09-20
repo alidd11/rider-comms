@@ -2253,7 +2253,10 @@ test('@viewport standalone canvas, navigation and scroll geometry remain coheren
     expectNear(geometry.navHeight, 58 + safeBottom + 1);
     expect(geometry.navPaddingBottom).toBeGreaterThanOrEqual(safeBottom);
     expect(geometry.railBottom).toBeLessThanOrEqual(geometry.appBottom - safeBottom + 1);
-    expectNear(geometry.mapBottom, geometry.navTop);
+    // Chromium at fractional DPR can also quantize the fixed map/nav seam to
+    // the adjacent device pixel. Keep that seam within 2 CSS px while still
+    // requiring the fixed app/nav bottom edges above to use the stricter bound.
+    expectNear(geometry.mapBottom, geometry.navTop, 2);
     expect(geometry.documentWidth).toBeLessThanOrEqual(geometry.viewportWidth + 1);
   }
 
