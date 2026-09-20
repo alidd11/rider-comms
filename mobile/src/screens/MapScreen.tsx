@@ -59,28 +59,6 @@ const DEFAULT_REGION = {
   longitudeDelta: 0.16,
 };
 const FOCUSED_REGION_DELTA = 0.025;
-const HYBRID_MAP_STYLE_DARK = [
-  { featureType: 'poi', stylers: [{ visibility: 'off' }] },
-  { featureType: 'transit', stylers: [{ visibility: 'off' }] },
-  { featureType: 'administrative.land_parcel', stylers: [{ visibility: 'off' }] },
-  { featureType: 'road.local', elementType: 'labels', stylers: [{ visibility: 'off' }] },
-  { featureType: 'road', elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
-  { featureType: 'road', elementType: 'labels.text.stroke', stylers: [{ color: '#071015' }, { weight: 3 }] },
-  { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#bac6cb' }] },
-  { featureType: 'administrative.locality', elementType: 'labels.text.stroke', stylers: [{ color: '#071015' }, { weight: 4 }] },
-  { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#d9e1e4' }] },
-];
-const HYBRID_MAP_STYLE_LIGHT = [
-  { featureType: 'poi', stylers: [{ visibility: 'off' }] },
-  { featureType: 'transit', stylers: [{ visibility: 'off' }] },
-  { featureType: 'administrative.land_parcel', stylers: [{ visibility: 'off' }] },
-  { featureType: 'road.local', elementType: 'labels', stylers: [{ visibility: 'off' }] },
-  { featureType: 'road', elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
-  { featureType: 'road', elementType: 'labels.text.stroke', stylers: [{ color: '#f3f6f7' }, { weight: 3 }] },
-  { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#3a4a52' }] },
-  { featureType: 'administrative.locality', elementType: 'labels.text.stroke', stylers: [{ color: '#f3f6f7' }, { weight: 4 }] },
-  { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#24343c' }] },
-];
 const NAV_STEP_ARRIVAL_RADIUS_M = 30;
 const NAV_OFF_ROUTE_RADIUS_M = 60;
 const NAV_OFF_ROUTE_GRACE_MS = 10_000;
@@ -609,8 +587,8 @@ export function MapScreen(): React.JSX.Element {
             loadingEnabled
             loadingBackgroundColor={colors.background}
             loadingIndicatorColor={colors.accent}
-            mapType="hybrid"
-            customMapStyle={colorScheme === 'light' ? HYBRID_MAP_STYLE_LIGHT : HYBRID_MAP_STYLE_DARK}
+            mapType="standard"
+            userInterfaceStyle={colorScheme === 'dark' ? 'dark' : 'light'}
             showsCompass={false}
             showsMyLocationButton={false}
             toolbarEnabled={false}
@@ -870,7 +848,7 @@ const styles = StyleSheet.create({
   mapActionButton: {
     width: 46,
     height: 46,
-    borderRadius: radii.lg,
+    borderRadius: 23,
     backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
@@ -911,7 +889,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.xs,
     paddingHorizontal: spacing.sm,
-    borderRadius: radii.lg,
+    borderRadius: 17,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
@@ -935,7 +913,7 @@ const styles = StyleSheet.create({
     right: spacing.md,
     gap: spacing.sm,
     padding: spacing.md,
-    borderRadius: radii.lg,
+    borderRadius: 16,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     backgroundColor: colors.background,
@@ -945,7 +923,7 @@ const styles = StyleSheet.create({
   destinationCardIcon: {
     width: 42,
     height: 42,
-    borderRadius: radii.md,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.accentSoft,
@@ -958,7 +936,7 @@ const styles = StyleSheet.create({
   destinationCardDismiss: {
     width: 40,
     height: 40,
-    borderRadius: radii.md,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.surfaceRaised,
@@ -971,7 +949,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.sm,
-    borderRadius: radii.md,
+    borderRadius: 14,
     backgroundColor: colors.accent,
   },
   destinationPrimaryTitle: { ...type.button, color: colors.accentText, lineHeight: 19 },
@@ -979,12 +957,12 @@ const styles = StyleSheet.create({
   navigationBanner: {
     position: 'absolute', left: spacing.md, right: spacing.md,
     flexDirection: 'row', alignItems: 'center', gap: spacing.md,
-    padding: spacing.md, borderRadius: radii.lg,
+    padding: spacing.md, borderRadius: 16,
     backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
     ...elevation.raised,
   },
   navigationManeuver: {
-    width: 48, height: 48, borderRadius: radii.md,
+    width: 48, height: 48, borderRadius: 12,
     alignItems: 'center', justifyContent: 'center', backgroundColor: colors.accent,
   },
   navigationBannerCopy: { flex: 1, minWidth: 0 },
@@ -995,14 +973,14 @@ const styles = StyleSheet.create({
   navigationNextInstruction: { ...type.caption, color: colors.textSecondary, flex: 1 },
   navigationNotice: { ...type.caption, color: colors.textSecondary, marginTop: spacing.xs },
   navigationEndButton: {
-    width: MIN_TOUCH_TARGET, height: MIN_TOUCH_TARGET, borderRadius: radii.lg,
+    width: MIN_TOUCH_TARGET, height: MIN_TOUCH_TARGET, borderRadius: MIN_TOUCH_TARGET / 2,
     alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceRaised,
   },
   navigationSummary: {
     position: 'absolute', left: spacing.md, right: spacing.md,
     minHeight: 72, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around',
     gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm,
-    borderRadius: radii.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
+    borderRadius: 16, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
     ...elevation.raised,
   },
   navigationSummaryPrimary: { minWidth: 84 },
