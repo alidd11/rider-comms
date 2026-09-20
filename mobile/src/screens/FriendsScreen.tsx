@@ -12,6 +12,7 @@ import { useFriends } from '../friends/FriendsContext';
 import { useAuth } from '../auth/AuthContext';
 import { DEFAULT_AVATAR_ID } from '../settings/avatars';
 import { RideBar } from '../ride/RideBar';
+import { useRide } from '../ride/RideContext';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { RiderAvatar } from '../components/RiderAvatar';
 import type { PublicRiderProfile } from '../api/client';
@@ -221,11 +222,13 @@ function FriendProfileModal({
   friend,
   activity,
   profileRevision,
+  inActiveRide,
   onClose,
 }: {
   friend: FriendSummary | null;
   activity?: FriendActivity;
   profileRevision: number;
+  inActiveRide: boolean;
   onClose: () => void;
 }): React.JSX.Element {
   const insets = useSafeAreaInsets();
@@ -327,6 +330,25 @@ function FriendProfileModal({
             </Pressable>
           </View>
 
+          <View style={styles.profileDetailList}>
+            <View style={[styles.profileDetailRow, inActiveRide && styles.profileDetailRowDivider]}>
+              <Ionicons name="radio-outline" size={19} color={colors.textSecondary} />
+              <View style={styles.profileDetailCopy}>
+                <Text style={styles.profileDetailTitle}>Rider status</Text>
+                <Text style={styles.profileDetailValue}>{activityLabel(activity)}</Text>
+              </View>
+            </View>
+            {inActiveRide ? (
+              <View style={styles.profileDetailRow}>
+                <Ionicons name="people-outline" size={19} color={colors.textSecondary} />
+                <View style={styles.profileDetailCopy}>
+                  <Text style={styles.profileDetailTitle}>In your group ride</Text>
+                  <Text style={styles.profileDetailValue}>Connected to this ride</Text>
+                </View>
+              </View>
+            ) : null}
+          </View>
+
           {(profile?.instagramUsername || profile?.tiktokUsername) ? (
             <View style={styles.socialList}>
               {profile.instagramUsername ? (
@@ -354,6 +376,7 @@ function FriendProfileModal({
 export function FriendsScreen(): React.JSX.Element {
   const { friends, incomingRequests, outgoingRequests, requestProfiles, activityByRider, conversations, friendProfileRevision, loading, error, refresh } = useFriends();
   const insets = useSafeAreaInsets();
+  const { roster } = useRide();
   const [query, setQuery] = React.useState('');
   const [selectedProfile, setSelectedProfile] = React.useState<FriendSummary | null>(null);
   const [addOpen, setAddOpen] = React.useState(false);
@@ -489,6 +512,7 @@ export function FriendsScreen(): React.JSX.Element {
         friend={selectedFriend}
         activity={selectedFriend ? activityByRider[selectedFriend.riderId] : undefined}
         profileRevision={friendProfileRevision}
+        inActiveRide={selectedFriend ? roster.includes(selectedFriend.riderId) : false}
         onClose={() => setSelectedProfile(null)}
       />
     </View>
@@ -567,6 +591,12 @@ const styles = StyleSheet.create({
   profileActions: { flexDirection: 'row', gap: 6, marginTop: spacing.md },
   profileAction: { flex: 1, minHeight: 56, alignItems: 'center', justifyContent: 'center', gap: 4, backgroundColor: colors.surface, borderRadius: radii.md, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
   profileActionText: { ...type.caption, color: colors.textPrimary, fontWeight: '700' },
+  profileDetailList: { marginTop: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: radii.lg, overflow: 'hidden', backgroundColor: colors.surface },
+  profileDetailRow: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 10 },
+  profileDetailRowDivider: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+  profileDetailCopy: { flex: 1, minWidth: 0 },
+  profileDetailTitle: { ...type.caption, color: colors.textPrimary, fontWeight: '700' },
+  profileDetailValue: { ...type.caption, color: colors.textSecondary, marginTop: 2, fontWeight: '500' },
   profilePrivacyNote: { ...type.caption, color: colors.textSecondary, marginTop: 12, padding: 11, backgroundColor: colors.surface, borderRadius: radii.lg },
   socialList: { marginTop: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: radii.lg, overflow: 'hidden' },
   socialRow: { minHeight: MIN_TOUCH_TARGET, flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.md, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
