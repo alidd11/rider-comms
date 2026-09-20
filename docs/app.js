@@ -4430,7 +4430,13 @@
   const USERNAME_PATTERN = /^[A-Za-z0-9_]{3,20}$/;
 
   let authSplashTimer;
+  function clearAuthFocus() {
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && active !== document.body) active.blur();
+  }
+
   function showAuthScreen(withSplash = false) {
+    clearAuthFocus();
     $('#app').hidden = true;
     $('#authScreen').hidden = false;
     document.documentElement.classList.add('auth-open');
@@ -4438,7 +4444,12 @@
     if (!splash) return;
     clearTimeout(authSplashTimer);
     splash.hidden = !withSplash;
-    if (withSplash) authSplashTimer = setTimeout(() => { splash.hidden = true; }, 900);
+    if (withSplash) {
+      authSplashTimer = setTimeout(() => {
+        splash.hidden = true;
+        clearAuthFocus();
+      }, 900);
+    }
   }
 
   function hideAuthScreen() {
