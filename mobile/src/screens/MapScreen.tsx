@@ -963,7 +963,7 @@ export function MapScreen(): React.JSX.Element {
       {segment === 'public' && !selectedDestination && !activeRoute && (
         <View style={[styles.mapActions, { bottom: insets.bottom + spacing.sm }]}>
           {!lockedForSafety && <Pressable
-            style={[styles.mapActionButton, { transform: [{ translateY: -(viewportHeight * 0.32) }] }]}
+            style={styles.mapActionButton}
             onPress={() => void openReportSheet()}
             accessibilityRole="button"
             accessibilityLabel="Report on the road"
@@ -971,7 +971,7 @@ export function MapScreen(): React.JSX.Element {
             <MaterialCommunityIcons name="alert-plus" size={22} color={colors.textPrimary} />
           </Pressable>}
           <Pressable
-            style={[styles.mapActionButton, { transform: [{ translateY: -(viewportHeight * 0.32) }] }]}
+            style={styles.mapActionButton}
             onPress={() => void centreOnCurrentLocation()}
             accessibilityRole="button"
             accessibilityLabel="Centre map on my location"
@@ -979,7 +979,7 @@ export function MapScreen(): React.JSX.Element {
             <MaterialCommunityIcons name="crosshairs-gps" size={22} color={colors.accent} />
           </Pressable>
           <Pressable
-            style={[styles.mapActionButton, styles.nearbyActionButton, shareLocation && styles.mapActionButtonActive]}
+            style={[styles.mapActionButton, shareLocation && styles.mapActionButtonActive]}
             onPress={() => void handleNearbyToggle()}
             accessibilityRole="button"
             accessibilityState={{ selected: shareLocation }}
@@ -1002,14 +1002,6 @@ export function MapScreen(): React.JSX.Element {
               <MaterialCommunityIcons name="alert-plus" size={22} color={colors.textPrimary} />
             </Pressable>
           )}
-          <Pressable
-            style={[styles.navigationActionButton, navigationFollowing && styles.navigationActionButtonActive]}
-            onPress={() => void centreOnCurrentLocation()}
-            accessibilityRole="button"
-            accessibilityLabel="Resume navigation follow mode"
-          >
-            <MaterialCommunityIcons name="crosshairs-gps" size={22} color={navigationFollowing ? colors.accentText : colors.textPrimary} />
-          </Pressable>
           <Pressable
             style={[styles.navigationActionButton, navigationMuted && styles.navigationActionButtonActive]}
             onPress={() => setNavigationMuted((current) => !current)}
@@ -1188,29 +1180,21 @@ const styles = StyleSheet.create({
   hazardBadge: { alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: colors.background },
   mapActions: {
     position: 'absolute',
-    right: spacing.sm,
-    bottom: spacing.sm,
+    right: spacing.md,
+    bottom: spacing.md,
+    zIndex: 10,
     gap: spacing.sm,
   },
   mapActionButton: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
+    width: 48,
+    height: 48,
+    borderRadius: 14,
     backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     ...elevation.raised,
-  },
-  nearbyActionButton: {
-    width: 64,
-    height: 64,
-    borderRadius: radii.pill,
-    marginTop: spacing.lg,
-    borderWidth: 1.5,
-    borderColor: colors.accent,
-    backgroundColor: colors.surface,
   },
   mapActionButtonActive: {
     borderColor: colors.accent,
@@ -1308,9 +1292,9 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   navigationActionButton: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 48,
+    height: 48,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.surface,
