@@ -330,15 +330,15 @@ function AuthScreen({ onAuthenticated, restoreError, onRetryRestore }: {
                 <>
                   <View style={styles.dividerRow}><View style={styles.dividerLine} /><Text style={styles.dividerText}>or continue with</Text><View style={styles.dividerLine} /></View>
                   <View style={styles.socialRow}>
-                    {([
-                      ['apple', 'Apple'],
-                      ['google', 'Google'],
-                      ['discord', 'Discord'],
-                    ] as const).map(([icon, label]) => (
-                      <Pressable key={label} disabled accessibilityRole="button" accessibilityLabel={`${label} sign-in is not connected yet`} style={styles.socialButton}>
-                        <MaterialCommunityIcons name={icon} size={21} color={label === 'Discord' ? '#8D9CFF' : AUTH_TEXT} />
-                      </Pressable>
-                    ))}
+                    <Pressable disabled accessibilityRole="button" accessibilityLabel="Apple sign-in is not connected yet" style={styles.socialButton}>
+                      <MaterialCommunityIcons name="apple" size={21} color={AUTH_TEXT} />
+                    </Pressable>
+                    <Pressable disabled accessibilityRole="button" accessibilityLabel="Google sign-in is not connected yet" style={styles.socialButton}>
+                      <MaterialCommunityIcons name="google" size={21} color={AUTH_TEXT} />
+                    </Pressable>
+                    <Pressable disabled accessibilityRole="button" accessibilityLabel="Discord sign-in is not connected yet" style={styles.socialButton}>
+                      <MaterialCommunityIcons name="message-processing-outline" size={21} color="#8D9CFF" />
+                    </Pressable>
                   </View>
                   <Pressable accessibilityRole="button" onPress={() => switchMode('signup')} style={styles.createAccountButton}>
                     <Text style={styles.createAccountText}>Create account</Text>
@@ -519,7 +519,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#03090B' },
   keyboard: { flex: 1 },
   backgroundImage: { resizeMode: 'cover' },
-  backgroundShade: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(2,8,10,0.55)' },
+  backgroundShade: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(2,8,10,0.55)' },
   authScroll: { flexGrow: 1, width: '100%', maxWidth: 440, alignSelf: 'center', paddingHorizontal: 24 },
   intro: { marginBottom: 18 },
   title: { color: AUTH_TEXT, fontSize: 28, lineHeight: 30, fontWeight: '700', letterSpacing: -0.8 },
@@ -565,7 +565,7 @@ const styles = StyleSheet.create({
   createAccountText: { color: AUTH_ACCENT, fontSize: 12, fontWeight: '600' },
   footerTagline: { color: '#667578', fontSize: 8, lineHeight: 11, fontWeight: '600', letterSpacing: 2.1, textAlign: 'center', marginTop: 26 },
   splash: { flex: 1, backgroundColor: '#03090B' },
-  splashShade: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(2,8,10,0.62)' },
+  splashShade: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(2,8,10,0.62)' },
   splashCenter: { alignItems: 'center' },
   splashMark: { color: '#DFFCFF', fontSize: 76, lineHeight: 78, fontWeight: '200', fontStyle: 'italic', letterSpacing: -10, textShadowColor: 'rgba(99,243,210,0.28)', textShadowRadius: 16 },
   splashName: { color: AUTH_TEXT, fontSize: 13, fontWeight: '500', letterSpacing: 6, marginTop: 10, marginLeft: 6 },
