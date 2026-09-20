@@ -27,6 +27,13 @@ describe('native in-app directions helpers', () => {
     );
   });
 
+  it('collapses duplicate continue-to-follow turn text for the same road', () => {
+    assert.equal(
+      stripNavigationInstruction("Continue straight onto <b>St Paul's Rd / A1201</b><div>Continue to follow St Paul's Rd / A1201</div>"),
+      "Continue straight onto St Paul's Rd / A1201"
+    );
+  });
+
   it('measures route proximity in metres', () => {
     assert.ok(metersBetween({ lat: 51.5, lon: -0.1 }, { lat: 51.5009, lon: -0.1 }) > 90);
     assert.ok(distanceToSegmentMeters(
