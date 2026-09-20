@@ -159,30 +159,26 @@
   // media block below via prefersDarkMode(), so the map tiles match the
   // rest of the UI instead of staying stuck on the dark skin in daylight.
   const MAP_STYLE_DARK = [
-    { elementType: 'geometry', stylers: [{ color: '#0a1115' }] },
-    { elementType: 'labels.text.stroke', stylers: [{ color: '#0a1115' }] },
-    { elementType: 'labels.text.fill', stylers: [{ color: '#7d8c94' }] },
-    { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#a9b7bd' }] },
-    { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#172229' }] },
-    { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#25333b' }] },
-    { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#20313a' }] },
     { featureType: 'poi', stylers: [{ visibility: 'off' }] },
     { featureType: 'transit', stylers: [{ visibility: 'off' }] },
-    { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#071c25' }] },
+    { featureType: 'administrative.land_parcel', stylers: [{ visibility: 'off' }] },
+    { featureType: 'road.local', elementType: 'labels', stylers: [{ visibility: 'off' }] },
+    { featureType: 'road', elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
+    { featureType: 'road', elementType: 'labels.text.stroke', stylers: [{ color: '#071015' }, { weight: 3 }] },
+    { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#bac6cb' }] },
+    { featureType: 'administrative.locality', elementType: 'labels.text.stroke', stylers: [{ color: '#071015' }, { weight: 4 }] },
+    { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#d9e1e4' }] },
   ];
   const MAP_STYLE_LIGHT = [
-    { elementType: 'geometry', stylers: [{ color: '#e6edef' }] },
-    { elementType: 'labels.text.stroke', stylers: [{ color: '#eef3f4' }] },
-    { elementType: 'labels.text.fill', stylers: [{ color: '#526169' }] },
-    { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#2f4048' }] },
-    { featureType: 'landscape.natural', elementType: 'geometry', stylers: [{ color: '#e1e9e7' }] },
-    { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#f7f9fa' }] },
-    { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#bdc9ce' }] },
-    { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#d4e1e5' }] },
-    { featureType: 'road.highway', elementType: 'geometry.stroke', stylers: [{ color: '#aebdc3' }] },
     { featureType: 'poi', stylers: [{ visibility: 'off' }] },
     { featureType: 'transit', stylers: [{ visibility: 'off' }] },
-    { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#c9e0e7' }] },
+    { featureType: 'administrative.land_parcel', stylers: [{ visibility: 'off' }] },
+    { featureType: 'road.local', elementType: 'labels', stylers: [{ visibility: 'off' }] },
+    { featureType: 'road', elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
+    { featureType: 'road', elementType: 'labels.text.stroke', stylers: [{ color: '#f3f6f7' }, { weight: 3 }] },
+    { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#3a4a52' }] },
+    { featureType: 'administrative.locality', elementType: 'labels.text.stroke', stylers: [{ color: '#f3f6f7' }, { weight: 4 }] },
+    { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#24343c' }] },
   ];
   const darkModeQuery = window.matchMedia?.('(prefers-color-scheme: dark)');
   function prefersDarkMode() {
@@ -199,6 +195,7 @@
     const meta = $('#statusBarStyleMeta');
     if (meta) meta.setAttribute('content', 'black-translucent');
     map?.setOptions({
+      styles: prefersDarkMode() ? MAP_STYLE_DARK : MAP_STYLE_LIGHT,
       backgroundColor: prefersDarkMode() ? '#080d10' : '#e9eef0',
     });
   }
@@ -4213,6 +4210,7 @@
       gestureHandling: 'greedy',
       clickableIcons: false,
       mapTypeId: 'hybrid',
+      styles: prefersDarkMode() ? MAP_STYLE_DARK : MAP_STYLE_LIGHT,
       backgroundColor: prefersDarkMode() ? '#080d10' : '#f2f5f6',
     });
     usingFallbackMap = false;
