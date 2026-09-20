@@ -547,6 +547,11 @@ test('final mockup parity is sharp, map-first and iPhone 17 Pro Max safe', async
   await expect(page.locator('#mapSearchSlot')).toBeVisible();
   await expect(page.locator('#movementSafetyBanner')).toBeHidden();
   await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-map-final.png'), fullPage: true });
+  await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-map-dark-final.png'), fullPage: true });
+
+  await page.emulateMedia({ colorScheme: 'light' });
+  await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-map-light-final.png'), fullPage: true });
+  await page.emulateMedia({ colorScheme: 'dark' });
 
   await page.locator('#reportHazardBtn').click();
   await expect(page.locator('#sheetBackdrop')).toBeVisible();
