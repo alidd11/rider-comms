@@ -151,6 +151,7 @@ async function mockAuthenticatedApi(page, movement = 'stationary', backendOverri
       window.google = { maps: {
         Map: MapMock,
         Marker: MarkerMock,
+        RenderingType: { VECTOR: 'VECTOR', RASTER: 'RASTER' },
         Size: class Size { constructor(width, height) { this.width = width; this.height = height; } },
         Point: class Point { constructor(x, y) { this.x = x; this.y = y; } },
         SymbolPath: { CIRCLE: 0 },
@@ -533,6 +534,10 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
       optionsGlyphWidth: optionsGlyph?.getBoundingClientRect().width ?? NaN,
       mapTypeId: window.__riderCommsTestMap?.options?.mapTypeId ?? null,
       mapColorScheme: window.__riderCommsTestMap?.options?.colorScheme ?? null,
+      mapRenderingType: window.__riderCommsTestMap?.options?.renderingType ?? null,
+      tiltInteractionEnabled: window.__riderCommsTestMap?.options?.tiltInteractionEnabled ?? null,
+      headingInteractionEnabled: window.__riderCommsTestMap?.options?.headingInteractionEnabled ?? null,
+      fractionalZoomEnabled: window.__riderCommsTestMap?.options?.isFractionalZoomEnabled ?? null,
       mapStyles: window.__riderCommsTestMap?.options?.styles ?? [],
     };
   });
@@ -547,6 +552,10 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
   expect(mapGeometry.optionsGlyphWidth).toBeGreaterThanOrEqual(16);
   expect(mapGeometry.mapTypeId).toBe('roadmap');
   expect(mapGeometry.mapColorScheme).toBe('FOLLOW_SYSTEM');
+  expect(mapGeometry.mapRenderingType).toBe('VECTOR');
+  expect(mapGeometry.tiltInteractionEnabled).toBe(true);
+  expect(mapGeometry.headingInteractionEnabled).toBe(true);
+  expect(mapGeometry.fractionalZoomEnabled).toBe(true);
   expect(mapGeometry.mapStyles).toEqual([]);
   await expect(page.locator('[data-screen="map"] .page-header')).toHaveCount(0);
   await expect(page.locator('#mapSearchSlot')).toBeVisible();
