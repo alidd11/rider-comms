@@ -242,6 +242,7 @@ test('login baseline matches the approved night-rider concept in day and night',
 
     await expect(page.locator('#authScreen')).toBeVisible();
     await expect(page.locator('#app')).toBeHidden();
+    await expect(page.locator('#authSplash')).toBeHidden({ timeout: 2_500 });
 
     // Capture the separate branded entry state from the approved two-screen concept
     // without making timing of the real cold-start animation part of screenshot stability.
