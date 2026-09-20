@@ -17,7 +17,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
-  <link rel="stylesheet" href="app.css?v=95">
+  <link rel="stylesheet" href="app.css?v=96">
   <link rel="stylesheet" href="routes.css?v=39">
   <title>Rider Comms</title>
 </head>
@@ -51,6 +51,8 @@
     <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.8"/></symbol>
     <symbol id="i-eye-off" viewBox="0 0 24 24"><path d="M3 3l18 18M10.6 6.1A9.8 9.8 0 0 1 12 6c6 0 9.5 6 9.5 6a16 16 0 0 1-2.1 2.8M6.2 7.1C3.8 8.8 2.5 12 2.5 12s3.5 6 9.5 6c1.4 0 2.7-.3 3.8-.8M9.9 9.9a3 3 0 0 0 4.2 4.2"/></symbol>
     <symbol id="i-mic" viewBox="0 0 24 24"><path d="M12 14a3.5 3.5 0 0 0 3.5-3.5v-4a3.5 3.5 0 0 0-7 0v4A3.5 3.5 0 0 0 12 14Z"/><path d="M6 10.5a6 6 0 0 0 12 0M12 16.5V20M9 20h6"/></symbol>
+    <symbol id="i-volume" viewBox="0 0 24 24"><path d="M5 10v4h3l4 4V6L8 10H5Z"/><path d="M15 9a4 4 0 0 1 0 6M17.5 6.5a7.5 7.5 0 0 1 0 11"/></symbol>
+    <symbol id="i-volume-off" viewBox="0 0 24 24"><path d="M5 10v4h3l4 4V9.5M12 6 9.5 8.5M4 4l16 16"/></symbol>
     <symbol id="i-broadcast" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2.2"/><path d="M8.6 8.6a4.8 4.8 0 0 1 6.8 0"/><path d="M5.8 5.8a8.8 8.8 0 0 1 12.4 0"/></symbol>
     <symbol id="i-fuel" viewBox="0 0 24 24"><path d="M5 21V6a2 2 0 0 1 2-2h5a2 2 0 0 1 2 2v15"/><path d="M4 21h11"/><path d="M14 10h2.5a2 2 0 0 1 2 2v3.2a1.5 1.5 0 0 0 3 0V8.5L18.5 5.5"/><path d="M7 6.5h4"/></symbol>
     <symbol id="i-parking" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M10 8v8M10 8h2.6a2.4 2.4 0 0 1 0 4.8H10"/></symbol>
@@ -213,6 +215,8 @@
           <div class="map-actions">
             <button id="reportHazardBtn" class="icon-button glass" aria-label="Report on the road"><svg><use href="#i-report"/></svg></button>
             <button id="locateBtn" class="icon-button glass" aria-label="Centre on my location"><svg><use href="#i-target"/></svg></button>
+            <button id="navMuteBtn" class="icon-button glass nav-only-control" aria-label="Mute navigation guidance"><svg><use href="#i-volume"/></svg></button>
+            <button id="navOverviewBtn" class="icon-button glass nav-only-control" aria-label="Show route overview"><svg><use href="#i-route"/></svg></button>
             <button id="joinNearbyBtn" class="icon-button glass" aria-label="Go live nearby"><svg><use href="#i-users"/></svg></button>
           </div>
           <article id="riderCard" class="rider-card glass" hidden></article>
@@ -227,7 +231,7 @@
               </div>
               <button id="endNavBtn" class="icon-button" aria-label="End navigation">×</button>
             </div>
-            <div id="navNextPreview" class="nav-next-preview" hidden><svg><use href="#i-chevron"/></svg><span>Then</span><span id="navNextInstruction"></span></div>
+            <div id="navNextPreview" class="nav-next-preview" hidden><svg id="navNextManeuverSvg"><use href="#i-nav-arrow"/></svg><span>Then</span><span id="navNextInstruction"></span></div>
             <div id="navGpsNotice" class="nav-gps-notice" role="status" aria-live="polite" hidden></div>
           </div>
           <div id="navSummary" class="nav-summary" hidden>
@@ -348,6 +352,6 @@
   <script src="routes.js?v=34" defer></script>
   <script src="movement-safety.js?v=2" defer></script>
   <script src="message-state.js?v=2" defer></script>
-  <script src="app.js?v=91" defer></script>
+  <script src="app.js?v=94" defer></script>
 </body>
 </html>
