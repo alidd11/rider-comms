@@ -831,9 +831,11 @@
       const activity = friendActivity.get(person.riderId);
       const online = activity?.online === true;
       const unread = conversationSummaries.get(person.riderId)?.unreadCount || 0;
+      const inActiveRide = state.activeRide?.memberIds?.includes(person.riderId) === true;
+      const activityCopy = inActiveRide ? 'In your group ride' : friendActivityLabel(activity);
       return `<button class="friend-row${online ? ' is-online' : ''}" data-friend="${escapeHtml(person.riderId)}">
         <span class="friend-avatar-wrap">${avatar(person)}<i class="friend-presence-dot ${online ? 'online' : 'offline'}" aria-hidden="true"></i></span>
-        <span class="identity"><strong>${escapeHtml(person.displayName)}</strong><span class="friend-activity">${escapeHtml(friendActivityLabel(activity))}</span></span>
+        <span class="identity"><strong>${escapeHtml(person.displayName)}</strong><span class="friend-activity">${escapeHtml(activityCopy)}</span></span>
         ${unread > 0 ? `<span class="count-badge friend-unread-badge" aria-label="${unread} unread messages">${unread > 99 ? '99+' : unread}</span>` : ''}
         <span class="friend-more" aria-hidden="true">•••</span>
       </button>`;
