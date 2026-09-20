@@ -232,7 +232,7 @@ function expectNear(actual, expected, tolerance = 1.5) {
   expect(Math.abs(actual - expected)).toBeLessThanOrEqual(tolerance);
 }
 
-test('login baseline matches Rider Comms hierarchy in day and night', async ({ page }, testInfo) => {
+test('login baseline matches the approved night-rider concept in day and night', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'iphone-17-pro-max-webkit', 'Login baseline screenshots target iPhone 17 Pro Max geometry.');
 
   for (const scheme of ['dark', 'light']) {
@@ -242,94 +242,90 @@ test('login baseline matches Rider Comms hierarchy in day and night', async ({ p
 
     await expect(page.locator('#authScreen')).toBeVisible();
     await expect(page.locator('#app')).toBeHidden();
-    await expect(page.locator('.auth-visual')).toBeVisible();
-    await expect(page.locator('.auth-hero')).toHaveCount(0);
-    await expect(page.locator('#authEyebrow')).toBeVisible();
-    await expect(page.locator('#authEyebrow')).toHaveText('Welcome back');
-    await expect(page.locator('#authTitle')).toHaveText('Ready to ride?');
-    await expect(page.locator('#authDescription')).toHaveText('Sign in to reconnect with your rides, friends and rider circle.');
+
+    // Capture the separate branded entry state without coupling this visual
+    // audit to WebKit timer scheduling. The production splash still auto-hides
+    // after its brief cold-start dwell; the test owns visibility deterministically.
+    await page.evaluate(() => {
+      const splash = document.querySelector('#authSplash');
+      if (splash) splash.hidden = false;
+    });
+    await expect(page.locator('#authSplash')).toBeVisible();
+    await page.screenshot({
+      path: testInfo.outputPath(`iphone-17-pro-max-auth-splash-${scheme}.png`),
+      fullPage: true,
+    });
+    await page.evaluate(() => {
+      const splash = document.querySelector('#authSplash');
+      if (splash) splash.hidden = true;
+    });
+
+    await expect(page.locator('#authTitle')).toHaveText('Welcome back');
+    await expect(page.locator('#authDescription')).toHaveText('Good to see you again.');
     await expect(page.locator('#loginForm')).toBeVisible();
     await expect(page.locator('#signupForm')).toBeHidden();
+    await expect(page.locator('.auth-segmented')).toBeHidden();
+    await expect(page.locator('#authLoginExtras')).toBeVisible();
+    await expect(page.locator('.auth-social-row button')).toHaveCount(3);
+    for (const provider of await page.locator('.auth-social-row button').all()) await expect(provider).toBeDisabled();
+    await expect(page.locator('#createAccountLink')).toBeVisible();
+    await expect(page.locator('#rememberMe')).toBeChecked();
     await assertNoViewportOverflow(page);
 
     const visual = await page.evaluate(() => {
-      const root = getComputedStyle(document.documentElement);
-      const segment = document.querySelector('.auth-segmented');
-      const tab = getComputedStyle(segment);
-      const activeTab = getComputedStyle(segment.querySelector('button.active'));
-      const input = getComputedStyle(document.querySelector('#loginUsername'));
+      const screen = document.querySelector('#authScreen');
+      const background = getComputedStyle(document.querySelector('.auth-visual'));
+      const username = getComputedStyle(document.querySelector('#loginUsername'));
       const button = getComputedStyle(document.querySelector('#loginSubmit'));
-      const cardElement = document.querySelector('.auth-card');
-      const card = getComputedStyle(cardElement);
-      const heroElement = document.querySelector('.auth-visual');
-      const hero = getComputedStyle(heroElement);
-      const heroRect = heroElement.getBoundingClientRect();
-      const cardRect = cardElement.getBoundingClientRect();
-      const title = getComputedStyle(document.querySelector('#authTitle'));
-      const termsRect = document.querySelector('.auth-terms').getBoundingClientRect();
-      const assuranceRect = document.querySelector('.auth-assurance').getBoundingClientRect();
+      const card = getComputedStyle(document.querySelector('.auth-card'));
+      const intro = document.querySelector('.auth-intro').getBoundingClientRect();
+      const social = document.querySelector('.auth-social-row').getBoundingClientRect();
+      const terms = document.querySelector('.auth-terms').getBoundingClientRect();
       return {
-        background: root.getPropertyValue('--bg').trim().toLowerCase(),
-        surface: root.getPropertyValue('--surface').trim().toLowerCase(),
-        tabRadius: parseFloat(tab.borderTopLeftRadius),
-        tabHeight: parseFloat(tab.height),
-        tabWidth: parseFloat(tab.width),
-        tabTopBorder: parseFloat(tab.borderTopWidth),
-        tabBottomBorder: parseFloat(tab.borderBottomWidth),
-        activeTabBottomBorder: parseFloat(activeTab.borderBottomWidth),
-        activeTabBackground: activeTab.backgroundColor,
-        activeTabShadow: activeTab.boxShadow,
-        inputRadius: parseFloat(input.borderTopLeftRadius),
-        inputHeight: parseFloat(input.height),
-        buttonRadius: parseFloat(button.borderTopLeftRadius),
+        screenBackground: getComputedStyle(screen).backgroundColor,
+        backgroundImage: background.backgroundImage,
+        inputHeight: parseFloat(username.height),
+        inputRadius: parseFloat(username.borderTopLeftRadius),
         buttonHeight: parseFloat(button.height),
+        buttonRadius: parseFloat(button.borderTopLeftRadius),
         cardBackground: card.backgroundColor,
-        cardBorderWidth: parseFloat(card.borderTopWidth),
-        cardTop: cardRect.top,
-        heroHeight: parseFloat(hero.height),
-        heroRadius: parseFloat(hero.borderTopLeftRadius),
-        heroBackground: hero.backgroundImage,
-        heroTop: heroRect.top,
-        heroBottom: heroRect.bottom,
-        heroLeft: heroRect.left,
-        heroWidth: heroRect.width,
-        viewportWidth: window.innerWidth,
-        titleSize: parseFloat(title.fontSize),
-        assuranceAfterTerms: assuranceRect.top >= termsRect.bottom,
+        cardBorder: parseFloat(card.borderTopWidth),
+        introTop: intro.top,
+        socialWidth: social.width,
+        termsTop: terms.top,
+        viewportHeight: window.innerHeight,
       };
     });
 
-    expect(visual.tabRadius).toBeLessThanOrEqual(4);
-    expect(visual.tabHeight).toBeLessThanOrEqual(40);
-    expect(visual.tabWidth).toBeLessThanOrEqual(250);
-    expect(visual.tabTopBorder).toBe(0);
-    expect(visual.tabBottomBorder).toBe(0);
-    expect(visual.activeTabBottomBorder).toBe(0);
-    expect(visual.activeTabBackground).not.toBe('rgba(0, 0, 0, 0)');
-    expect(visual.activeTabShadow).not.toBe('none');
-    expect(visual.inputRadius).toBeLessThanOrEqual(4);
-    expect(visual.inputHeight).toBeLessThanOrEqual(44);
-    expect(visual.buttonRadius).toBeLessThanOrEqual(4);
-    expect(visual.buttonHeight).toBeLessThanOrEqual(50);
+    expect(visual.screenBackground).toBe('rgb(3, 9, 11)');
+    expect(visual.backgroundImage).toContain('photo-1552306062-29a5560e1c31');
+    expect(visual.inputHeight).toBeGreaterThanOrEqual(43);
+    expect(visual.inputHeight).toBeLessThanOrEqual(47);
+    expect(visual.inputRadius).toBeGreaterThanOrEqual(6);
+    expect(visual.inputRadius).toBeLessThanOrEqual(9);
+    expect(visual.buttonHeight).toBeGreaterThanOrEqual(45);
+    expect(visual.buttonHeight).toBeLessThanOrEqual(48);
+    expect(visual.buttonRadius).toBeGreaterThanOrEqual(7);
+    expect(visual.buttonRadius).toBeLessThanOrEqual(9);
     expect(visual.cardBackground).toBe('rgba(0, 0, 0, 0)');
-    expect(visual.cardBorderWidth).toBe(0);
-    expectNear(visual.cardTop, visual.heroBottom);
-    expect(visual.assuranceAfterTerms).toBe(true);
-    expect(visual.heroHeight).toBeGreaterThanOrEqual(297);
-    expect(visual.heroHeight).toBeLessThanOrEqual(309);
-    expect(visual.heroRadius).toBe(0);
-    expect(Math.abs(visual.heroTop)).toBeLessThanOrEqual(1);
-    expect(Math.abs(visual.heroLeft)).toBeLessThanOrEqual(1);
-    expect(Math.abs(visual.heroWidth - visual.viewportWidth)).toBeLessThanOrEqual(1);
-    expect(visual.heroBackground).toContain('photo-1770614956862-a143fb5e4921');
-    expect(visual.titleSize).toBeLessThanOrEqual(32);
-    expect(visual.background).toBe(scheme === 'dark' ? '#080d10' : '#e9eef0');
-    expect(visual.surface).toBe(scheme === 'dark' ? '#11171b' : '#f7f9fa');
+    expect(visual.cardBorder).toBe(0);
+    expect(visual.introTop).toBeGreaterThan(160);
+    expect(visual.introTop).toBeLessThan(330);
+    expect(visual.socialWidth).toBeGreaterThan(120);
+    expect(visual.termsTop).toBeLessThan(visual.viewportHeight);
+    expect(visual.termsTop).toBeGreaterThan(visual.introTop);
 
     await page.screenshot({
       path: testInfo.outputPath(`iphone-17-pro-max-login-${scheme}-baseline.png`),
       fullPage: true,
     });
+
+    await page.locator('#createAccountLink').click();
+    await expect(page.locator('#signupForm')).toBeVisible();
+    await expect(page.locator('#authLoginExtras')).toBeHidden();
+    await expect(page.locator('#authTitle')).toHaveText('Create your account');
+    await page.locator('.auth-back-login').first().click();
+    await expect(page.locator('#loginForm')).toBeVisible();
   }
 });
 

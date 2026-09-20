@@ -19,20 +19,26 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { API_BASE_URL } from '../config';
 import { ApiError, RiderCommsClient } from '../api/client';
 import type { LoginSession } from '../api/client';
-import { colors, radii, spacing, type, useConcreteThemeColors } from '../theme';
+
 
 const KEY = '@rider-comms/auth-v2';
 const LEGACY_GUEST_KEY = '@rider-comms/auth-v1';
 const USERNAME_PATTERN = /^[A-Za-z0-9_]{3,20}$/;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-const AUTH_HERO_IMAGE = 'https://images.unsplash.com/photo-1770614956862-a143fb5e4921?auto=format&fit=crop&q=80&w=1200';
+const AUTH_HERO_IMAGE = 'https://images.unsplash.com/photo-1552306062-29a5560e1c31?auto=format&fit=crop&q=82&w=1400';
+const AUTH_ACCENT = '#63F3D2';
+const AUTH_ACCENT_DEEP = '#0D8C78';
+const AUTH_TEXT = '#F2F7F7';
+const AUTH_MUTED = '#9DAAAD';
+const AUTH_SURFACE = 'rgba(7,15,18,0.58)';
+const AUTH_BORDER = 'rgba(214,236,238,0.22)';
 
 const AUTH_COPY = {
   login: {
-    eyebrow: 'WELCOME BACK',
-    title: 'Ready to ride?',
-    description: 'Sign in to reconnect with your rides, friends and rider circle.',
+    eyebrow: '',
+    title: 'Welcome back',
+    description: 'Good to see you again.',
   },
   signup: {
     eyebrow: 'NEW RIDER',
@@ -95,12 +101,11 @@ function authErrorMessage(error: unknown): string {
 }
 
 function AuthScreen({ onAuthenticated, restoreError, onRetryRestore }: {
-  onAuthenticated: (session: StoredSession) => Promise<void>;
+  onAuthenticated: (session: StoredSession, remember?: boolean) => Promise<void>;
   restoreError: string | null;
   onRetryRestore: () => void;
 }): React.JSX.Element {
   const insets = useSafeAreaInsets();
-  const palette = useConcreteThemeColors();
   const [mode, setMode] = React.useState<'login' | 'signup' | 'recover' | 'reset'>('login');
   const [username, setUsername] = React.useState('');
   const [email, setEmail] = React.useState('');
@@ -110,6 +115,7 @@ function AuthScreen({ onAuthenticated, restoreError, onRetryRestore }: {
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [passwordVisible, setPasswordVisible] = React.useState(false);
+  const [rememberMe, setRememberMe] = React.useState(true);
   const isSignup = mode === 'signup';
   const isRecovery = mode === 'recover' || mode === 'reset';
   const copy = AUTH_COPY[mode];
@@ -160,7 +166,7 @@ function AuthScreen({ onAuthenticated, restoreError, onRetryRestore }: {
           // Account creation succeeded; profile editing remains available in
           // Settings if this optional first-write could not be completed.
         }
-        await onAuthenticated(result);
+        await onAuthenticated(result, true);
         Alert.alert(
           'Account created',
           result.emailVerificationSent
@@ -168,7 +174,7 @@ function AuthScreen({ onAuthenticated, restoreError, onRetryRestore }: {
             : 'Your account is ready. Email verification is temporarily unavailable, so you can continue testing without it.'
         );
       } else {
-        await onAuthenticated(await publicClient.logIn(normalizedUsername, password));
+        await onAuthenticated(await publicClient.logIn(normalizedUsername, password), rememberMe);
       }
     } catch (submitError) {
       setError(authErrorMessage(submitError));
@@ -186,169 +192,248 @@ function AuthScreen({ onAuthenticated, restoreError, onRetryRestore }: {
   }
 
   return (
-    <KeyboardAvoidingView style={[styles.screen, { backgroundColor: palette.background }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <ImageBackground
+      source={{ uri: AUTH_HERO_IMAGE }}
+      style={styles.screen}
+      imageStyle={styles.backgroundImage}
+      accessibilityLabel="Motorcyclist riding through mountains at dusk"
+    >
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
-      <ScrollView
-        keyboardShouldPersistTaps="handled"
-        contentInsetAdjustmentBehavior="never"
-        contentContainerStyle={[styles.authScroll, { paddingTop: 0, paddingBottom: insets.bottom + 20 }]}
-      >
-        <ImageBackground
-          source={{ uri: AUTH_HERO_IMAGE }}
-          style={[styles.visual, { height: 244 + insets.top, backgroundColor: palette.surface }]}
-          imageStyle={styles.visualImage}
-          accessibilityRole="image"
-          accessibilityLabel="Motorcyclists riding together on a winding mountain road"
+      <View style={styles.backgroundShade} />
+      <KeyboardAvoidingView style={styles.keyboard} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          contentInsetAdjustmentBehavior="never"
+          contentContainerStyle={[styles.authScroll, { paddingTop: insets.top + 170, paddingBottom: insets.bottom + 20 }]}
         >
-          <View style={styles.visualShade} />
-          <View style={styles.visualCopy}>
-            <Text style={styles.visualTitle}>{'Ride further.\ntogether.'}</Text>
+          <View style={styles.intro}>
+            <Text style={styles.title}>{copy.title}</Text>
+            <Text style={styles.subtitle}>{copy.description}</Text>
           </View>
-        </ImageBackground>
 
-        <View style={styles.intro}>
-          <Text style={[styles.modeEyebrow, { color: palette.accent }]}>{copy.eyebrow}</Text>
-          <Text style={[styles.title, { color: palette.textPrimary }]}>{copy.title}</Text>
-          <Text style={[styles.subtitle, { color: palette.textSecondary }]}>{copy.description}</Text>
-        </View>
-
-        {!isRecovery ? <View accessibilityRole="tablist" style={[styles.tabs, { backgroundColor: palette.surfaceRaised }]}>
-          <Pressable accessibilityRole="tab" accessibilityState={{ selected: !isSignup }} onPress={() => switchMode('login')} style={[styles.tab, !isSignup && [styles.tabActive, { backgroundColor: palette.surface, borderBottomColor: palette.accent }]]}>
-            <Text style={[styles.tabText, { color: !isSignup ? palette.textPrimary : palette.textMuted }]}>Log in</Text>
-          </Pressable>
-          <Pressable accessibilityRole="tab" accessibilityState={{ selected: isSignup }} onPress={() => switchMode('signup')} style={[styles.tab, isSignup && [styles.tabActive, { backgroundColor: palette.surface, borderBottomColor: palette.accent }]]}>
-            <Text style={[styles.tabText, { color: isSignup ? palette.textPrimary : palette.textMuted }]}>Create account</Text>
-          </Pressable>
-        </View> : null}
-
-        {isRecovery ? (
-          <Pressable accessibilityRole="button" onPress={() => switchMode('login')} style={styles.backToLogin}>
-            <Text style={[styles.backToLoginText, { color: palette.accent }]}>Back to log in</Text>
-          </Pressable>
-        ) : null}
-
-        {restoreError ? (
-          <View style={[styles.notice, { backgroundColor: palette.dangerSurface, borderColor: palette.danger }]}>
-            <Text style={[styles.noticeText, { color: palette.textSecondary }]}>{restoreError}</Text>
-            <Pressable accessibilityRole="button" onPress={onRetryRestore}><Text style={[styles.noticeAction, { color: palette.accent }]}>Retry</Text></Pressable>
-          </View>
-        ) : null}
-
-        {notice ? <View style={[styles.notice, { backgroundColor: palette.surface, borderColor: palette.border }]}><Text style={[styles.noticeText, { color: palette.textSecondary }]}>{notice}</Text></View> : null}
-
-        <View style={styles.form}>
-          {!isRecovery ? <View style={styles.field}>
-            <Text style={[styles.fieldLabel, { color: palette.textSecondary }]}>{isSignup ? 'Choose a username' : 'Username'}</Text>
-            <TextInput
-              accessibilityLabel="Username"
-              autoCapitalize="none"
-              autoCorrect={false}
-              autoComplete="username"
-              textContentType="username"
-              maxLength={20}
-              returnKeyType="next"
-              value={username}
-              onChangeText={setUsername}
-              placeholder={isSignup ? 'e.g. ali_rides' : 'Your username'}
-              placeholderTextColor={palette.textMuted}
-              style={[styles.input, { backgroundColor: palette.surfaceRaised, borderColor: 'transparent', color: palette.textPrimary }]}
-            />
-          </View> : null}
-          {isSignup || mode === 'recover' ? (
-            <View style={styles.field}>
-              <Text style={[styles.fieldLabel, { color: palette.textSecondary }]}>{mode === 'recover' ? 'Account email' : 'Email address'}</Text>
-              <TextInput
-                accessibilityLabel="Email address"
-                autoCapitalize="none"
-                autoCorrect={false}
-                autoComplete="email"
-                textContentType="emailAddress"
-                keyboardType="email-address"
-                maxLength={254}
-                returnKeyType="next"
-                value={email}
-                onChangeText={setEmail}
-                placeholder="you@example.com"
-                placeholderTextColor={palette.textMuted}
-                style={[styles.input, { backgroundColor: palette.surfaceRaised, borderColor: 'transparent', color: palette.textPrimary }]}
-              />
+          {restoreError ? (
+            <View style={styles.notice}>
+              <Text style={styles.noticeText}>{restoreError}</Text>
+              <Pressable accessibilityRole="button" onPress={onRetryRestore}><Text style={styles.noticeAction}>Retry</Text></Pressable>
             </View>
           ) : null}
-          {mode === 'reset' ? (
-            <View style={styles.field}>
-              <Text style={[styles.fieldLabel, { color: palette.textSecondary }]}>Reset code</Text>
-              <TextInput
-                accessibilityLabel="Password reset code"
-                autoCapitalize="none"
-                autoCorrect={false}
-                value={resetToken}
-                onChangeText={setResetToken}
-                placeholder="Code from your email"
-                placeholderTextColor={palette.textMuted}
-                style={[styles.input, { backgroundColor: palette.surfaceRaised, borderColor: 'transparent', color: palette.textPrimary }]}
-              />
-            </View>
-          ) : null}
-          {mode !== 'recover' ? <View style={styles.field}>
-            <Text style={[styles.fieldLabel, { color: palette.textSecondary }]}>Password</Text>
-            <View style={[styles.passwordField, { backgroundColor: palette.surfaceRaised, borderColor: 'transparent' }]}>
-              <TextInput
-                accessibilityLabel="Password"
-                autoCapitalize="none"
-                autoCorrect={false}
-                autoComplete={isSignup || mode === 'reset' ? 'new-password' : 'current-password'}
-                textContentType={isSignup || mode === 'reset' ? 'newPassword' : 'password'}
-                secureTextEntry={!passwordVisible}
-                maxLength={128}
-                returnKeyType="go"
-                onSubmitEditing={() => { if (!busy) void submit(); }}
-                value={password}
-                onChangeText={setPassword}
-                placeholder={isSignup ? '8 characters minimum' : 'Your password'}
-                placeholderTextColor={palette.textMuted}
-                style={[styles.passwordInput, { color: palette.textPrimary }]}
-              />
+
+          {notice ? <View style={styles.notice}><Text style={styles.noticeText}>{notice}</Text></View> : null}
+
+          {!isRecovery ? (
+            <View style={styles.form}>
+              <View style={styles.fieldWrap}>
+                <MaterialCommunityIcons name="account-outline" size={18} color={AUTH_MUTED} style={styles.fieldIcon} />
+                <TextInput
+                  accessibilityLabel="Username"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  autoComplete="username"
+                  textContentType="username"
+                  maxLength={20}
+                  returnKeyType="next"
+                  value={username}
+                  onChangeText={setUsername}
+                  placeholder="Username"
+                  placeholderTextColor={AUTH_MUTED}
+                  style={styles.input}
+                />
+              </View>
+
+              {isSignup ? (
+                <View style={styles.fieldWrap}>
+                  <MaterialCommunityIcons name="email-outline" size={18} color={AUTH_MUTED} style={styles.fieldIcon} />
+                  <TextInput
+                    accessibilityLabel="Email address"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    autoComplete="email"
+                    textContentType="emailAddress"
+                    keyboardType="email-address"
+                    maxLength={254}
+                    returnKeyType="next"
+                    value={email}
+                    onChangeText={setEmail}
+                    placeholder="Email address"
+                    placeholderTextColor={AUTH_MUTED}
+                    style={styles.input}
+                  />
+                </View>
+              ) : null}
+
+              <View style={styles.fieldWrap}>
+                <MaterialCommunityIcons name="lock-outline" size={18} color={AUTH_MUTED} style={styles.fieldIcon} />
+                <TextInput
+                  accessibilityLabel="Password"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  autoComplete={isSignup ? 'new-password' : 'current-password'}
+                  textContentType={isSignup ? 'newPassword' : 'password'}
+                  secureTextEntry={!passwordVisible}
+                  maxLength={128}
+                  returnKeyType="go"
+                  onSubmitEditing={() => { if (!busy) void submit(); }}
+                  value={password}
+                  onChangeText={setPassword}
+                  placeholder="Password"
+                  placeholderTextColor={AUTH_MUTED}
+                  style={styles.passwordInput}
+                />
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={passwordVisible ? 'Hide password' : 'Show password'}
+                  accessibilityState={{ selected: passwordVisible }}
+                  onPress={() => setPasswordVisible((visible) => !visible)}
+                  style={styles.passwordToggle}
+                >
+                  <MaterialCommunityIcons name={passwordVisible ? 'eye-off-outline' : 'eye-outline'} size={18} color={AUTH_MUTED} />
+                </Pressable>
+              </View>
+
+              {!isSignup ? (
+                <View style={styles.loginMeta}>
+                  <Pressable
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: rememberMe }}
+                    onPress={() => setRememberMe((value) => !value)}
+                    style={styles.rememberRow}
+                  >
+                    <View style={[styles.checkbox, rememberMe && styles.checkboxChecked]}>
+                      {rememberMe ? <View style={styles.checkboxInner} /> : null}
+                    </View>
+                    <Text style={styles.rememberText}>Remember me</Text>
+                  </Pressable>
+                  <Pressable accessibilityRole="button" onPress={() => switchMode('recover')} style={styles.forgotButton}>
+                    <Text style={styles.forgotText}>Forgot password?</Text>
+                  </Pressable>
+                </View>
+              ) : (
+                <Text style={styles.requirements}>Username: 3–20 letters, numbers or underscores. Password: at least 8 characters.</Text>
+              )}
+
+              {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
+
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={passwordVisible ? 'Hide password' : 'Show password'}
-                accessibilityState={{ selected: passwordVisible }}
-                onPress={() => setPasswordVisible((visible) => !visible)}
-                style={styles.passwordToggle}
+                disabled={busy}
+                onPress={() => void submit()}
+                style={({ pressed }) => [styles.primaryButton, pressed && !busy && styles.primaryButtonPressed, busy && styles.buttonDisabled]}
               >
-                <MaterialCommunityIcons name={passwordVisible ? 'eye-off-outline' : 'eye-outline'} size={20} color={palette.textMuted} />
+                {busy ? <ActivityIndicator color={AUTH_TEXT} /> : <Text style={styles.primaryButtonText}>{isSignup ? 'Create account' : 'Log in'}</Text>}
               </Pressable>
-            </View>
-          </View> : null}
-          {mode === 'login' ? (
-            <Pressable accessibilityRole="button" onPress={() => switchMode('recover')} style={styles.forgotButton}>
-              <Text style={[styles.forgotText, { color: palette.accent }]}>Forgot password?</Text>
-            </Pressable>
-          ) : null}
-          {error ? <Text accessibilityRole="alert" style={[styles.error, { color: palette.danger }]}>{error}</Text> : null}
-          <Pressable
-            accessibilityRole="button"
-            disabled={busy}
-            onPress={() => void submit()}
-            style={({ pressed }) => [
-              styles.primaryButton,
-              { backgroundColor: pressed && !busy ? palette.accentPressed : palette.accent },
-              busy && styles.buttonDisabled,
-            ]}
-          >
-            {busy ? <ActivityIndicator color={palette.accentText} /> : <Text style={[styles.primaryButtonText, { color: palette.accentText }]}>{isSignup ? 'Create account' : mode === 'recover' ? 'Send reset link' : mode === 'reset' ? 'Reset password' : 'Log in'}</Text>}
-          </Pressable>
-        </View>
 
-        <Text style={[styles.securityNote, { color: palette.textMuted }]}>By continuing, you agree to ride responsibly and follow the Rider Comms safety and privacy rules.</Text>
-        <View style={styles.featureRow} accessibilityLabel="Nearby riders, Private rides, Hazard alerts">
-          <Text style={[styles.featureText, { color: palette.textSecondary }]}>Nearby riders</Text>
-          <View style={[styles.featureDot, { backgroundColor: palette.accent }]} />
-          <Text style={[styles.featureText, { color: palette.textSecondary }]}>Private rides</Text>
-          <View style={[styles.featureDot, { backgroundColor: palette.accent }]} />
-          <Text style={[styles.featureText, { color: palette.textSecondary }]}>Hazard alerts</Text>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+              {isSignup ? (
+                <Pressable accessibilityRole="button" onPress={() => switchMode('login')} style={styles.createAccountButton}>
+                  <Text style={styles.createAccountText}>Back to log in</Text>
+                </Pressable>
+              ) : (
+                <>
+                  <View style={styles.dividerRow}><View style={styles.dividerLine} /><Text style={styles.dividerText}>or continue with</Text><View style={styles.dividerLine} /></View>
+                  <View style={styles.socialRow}>
+                    <Pressable disabled accessibilityRole="button" accessibilityLabel="Apple sign-in is not connected yet" style={styles.socialButton}>
+                      <MaterialCommunityIcons name="apple" size={21} color={AUTH_TEXT} />
+                    </Pressable>
+                    <Pressable disabled accessibilityRole="button" accessibilityLabel="Google sign-in is not connected yet" style={styles.socialButton}>
+                      <MaterialCommunityIcons name="google" size={21} color={AUTH_TEXT} />
+                    </Pressable>
+                    <Pressable disabled accessibilityRole="button" accessibilityLabel="Discord sign-in is not connected yet" style={styles.socialButton}>
+                      <MaterialCommunityIcons name="message-processing-outline" size={21} color="#8D9CFF" />
+                    </Pressable>
+                  </View>
+                  <Pressable accessibilityRole="button" onPress={() => switchMode('signup')} style={styles.createAccountButton}>
+                    <Text style={styles.createAccountText}>Create account</Text>
+                  </Pressable>
+                </>
+              )}
+            </View>
+          ) : mode === 'recover' ? (
+            <View style={styles.form}>
+              <View style={styles.fieldWrap}>
+                <MaterialCommunityIcons name="email-outline" size={18} color={AUTH_MUTED} style={styles.fieldIcon} />
+                <TextInput
+                  accessibilityLabel="Email address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  autoComplete="email"
+                  textContentType="emailAddress"
+                  keyboardType="email-address"
+                  maxLength={254}
+                  value={email}
+                  onChangeText={setEmail}
+                  placeholder="Account email"
+                  placeholderTextColor={AUTH_MUTED}
+                  style={styles.input}
+                />
+              </View>
+              <Text style={styles.requirements}>For privacy, the response is the same whether or not an account exists.</Text>
+              {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
+              <Pressable disabled={busy} onPress={() => void submit()} style={styles.primaryButton}>
+                {busy ? <ActivityIndicator color={AUTH_TEXT} /> : <Text style={styles.primaryButtonText}>Send reset link</Text>}
+              </Pressable>
+              <Pressable onPress={() => switchMode('login')} style={styles.createAccountButton}><Text style={styles.createAccountText}>Back to log in</Text></Pressable>
+            </View>
+          ) : (
+            <View style={styles.form}>
+              <View style={styles.fieldWrap}>
+                <MaterialCommunityIcons name="lock-outline" size={18} color={AUTH_MUTED} style={styles.fieldIcon} />
+                <TextInput
+                  accessibilityLabel="Password reset code"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  value={resetToken}
+                  onChangeText={setResetToken}
+                  placeholder="Reset code"
+                  placeholderTextColor={AUTH_MUTED}
+                  style={styles.input}
+                />
+              </View>
+              <View style={styles.fieldWrap}>
+                <MaterialCommunityIcons name="lock-outline" size={18} color={AUTH_MUTED} style={styles.fieldIcon} />
+                <TextInput
+                  accessibilityLabel="New password"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  secureTextEntry={!passwordVisible}
+                  maxLength={128}
+                  value={password}
+                  onChangeText={setPassword}
+                  placeholder="New password"
+                  placeholderTextColor={AUTH_MUTED}
+                  style={styles.passwordInput}
+                />
+                <Pressable onPress={() => setPasswordVisible((visible) => !visible)} style={styles.passwordToggle}>
+                  <MaterialCommunityIcons name={passwordVisible ? 'eye-off-outline' : 'eye-outline'} size={18} color={AUTH_MUTED} />
+                </Pressable>
+              </View>
+              {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
+              <Pressable disabled={busy} onPress={() => void submit()} style={styles.primaryButton}>
+                {busy ? <ActivityIndicator color={AUTH_TEXT} /> : <Text style={styles.primaryButtonText}>Reset password</Text>}
+              </Pressable>
+              <Pressable onPress={() => switchMode('login')} style={styles.createAccountButton}><Text style={styles.createAccountText}>Back to log in</Text></Pressable>
+            </View>
+          )}
+
+          <Text style={styles.footerTagline}>RIDE TOGETHER. STAY CONNECTED.</Text>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </ImageBackground>
+  );
+}
+
+function AuthSplash(): React.JSX.Element {
+  const insets = useSafeAreaInsets();
+  return (
+    <ImageBackground source={{ uri: AUTH_HERO_IMAGE }} style={styles.splash} imageStyle={styles.backgroundImage}>
+      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+      <View style={styles.splashShade} />
+      <View style={[styles.splashCenter, { paddingTop: insets.top + 70 }]}>
+        <Text style={styles.splashMark}>R</Text>
+        <Text style={styles.splashName}>RIDER COMMS</Text>
+        <Text style={styles.splashMotto}>{'RIDE TOGETHER\nSTAY CONNECTED'}</Text>
+      </View>
+      <Text style={[styles.splashFooter, { bottom: insets.bottom + 58 }]}>{'A SAFER, STRONGER\nRIDING COMMUNITY'}</Text>
+      <View style={[styles.splashProgress, { bottom: insets.bottom + 20 }]}><View style={styles.splashProgressFill} /></View>
+    </ImageBackground>
   );
 }
 
@@ -361,6 +446,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
   React.useEffect(() => {
     let cancelled = false;
     void (async () => {
+      const splashStartedAt = Date.now();
       setLoading(true);
       setRestoreError(null);
       try {
@@ -382,14 +468,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
           setRestoreError('We could not restore your saved session. You can retry or sign in again.');
         }
       } finally {
+        const remainingSplashMs = Math.max(0, 900 - (Date.now() - splashStartedAt));
+        if (remainingSplashMs > 0) await new Promise((resolve) => setTimeout(resolve, remainingSplashMs));
         if (!cancelled) setLoading(false);
       }
     })();
     return () => { cancelled = true; };
   }, [restoreAttempt]);
 
-  const onAuthenticated = React.useCallback(async (nextSession: StoredSession) => {
-    await SecureStore.setItemAsync(KEY, JSON.stringify(nextSession));
+  const onAuthenticated = React.useCallback(async (nextSession: StoredSession, remember = true) => {
+    if (remember) await SecureStore.setItemAsync(KEY, JSON.stringify(nextSession));
+    else await SecureStore.deleteItemAsync(KEY);
     setSession(nextSession);
     setRestoreError(null);
   }, []);
@@ -415,7 +504,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
     };
   }, [session]);
 
-  if (loading) return <View style={styles.center}><ActivityIndicator color={colors.accent}/><Text style={styles.loadingLabel}>Restoring your account…</Text></View>;
+  if (loading) return <AuthSplash />;
   if (!value) return <AuthScreen onAuthenticated={onAuthenticated} restoreError={restoreError} onRetryRestore={() => setRestoreAttempt((attempt) => attempt + 1)} />;
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
@@ -427,49 +516,61 @@ export function useAuth(): AuthValue {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.md, backgroundColor: colors.background, padding: spacing.lg },
-  loadingLabel: { ...type.body },
-  authScroll: { flexGrow: 1, justifyContent: 'flex-start', paddingHorizontal: 20, width: '100%', maxWidth: 440, alignSelf: 'center' },
-  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 },
-  brandMark: { position: 'relative', width: 42, height: 42, borderRadius: radii.lg, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  brandStatusDot: { position: 'absolute', right: 5, bottom: 5, width: 8, height: 8, borderRadius: radii.pill, borderWidth: 2 },
-  brandCopy: { gap: 3 },
-  brandName: { fontSize: 12, lineHeight: 15, fontWeight: '800', letterSpacing: 2.1 },
-  brandTagline: { fontSize: 11, lineHeight: 14, fontWeight: '600' },
-  visual: { height: 244, justifyContent: 'flex-end', overflow: 'hidden', marginHorizontal: -20, marginBottom: 0, borderRadius: 0, borderWidth: 0 },
-  visualImage: { borderRadius: 0 },
-  visualShade: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(3,7,9,0.20)' },
-  visualCopy: { paddingHorizontal: 22, paddingBottom: 18 },
-  visualTitle: { color: '#FFFFFF', fontSize: 30, lineHeight: 28, fontWeight: '800', letterSpacing: -1.2, textShadowColor: 'rgba(0,0,0,0.48)', textShadowRadius: 10 },
-  intro: { marginTop: 15, marginBottom: 11, paddingHorizontal: 2 },
-  modeEyebrow: { fontSize: 10, lineHeight: 12, fontWeight: '800', letterSpacing: 1.6, marginBottom: 5 },
-  title: { fontSize: 30, lineHeight: 31, fontWeight: '800', letterSpacing: -1.05 },
-  subtitle: { fontSize: 13, lineHeight: 18, fontWeight: '500', maxWidth: 370, marginTop: 6 },
-  tabs: { width: 248, flexDirection: 'row', gap: 2, padding: 2, minHeight: 38, borderRadius: radii.lg, borderWidth: 0, marginBottom: 11 },
-  tab: { minHeight: 34, flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: radii.sm, borderBottomWidth: 2, borderBottomColor: 'transparent' },
-  tabActive: {},
-  tabText: { fontSize: 11, lineHeight: 15, fontWeight: '700' },
-  backToLogin: { minHeight: 36, alignSelf: 'flex-start', justifyContent: 'center', marginBottom: spacing.sm },
-  backToLoginText: { fontSize: 12, fontWeight: '700' },
-  notice: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, borderWidth: 1, borderRadius: radii.lg, padding: 10, marginBottom: 10 },
-  noticeText: { ...type.caption, flex: 1, fontSize: 11, lineHeight: 15 },
-  noticeAction: { ...type.button, fontSize: 12 },
-  form: { gap: 9 },
-  field: { gap: 4 },
-  fieldLabel: { fontSize: 11, lineHeight: 14, fontWeight: '700' },
-  input: { minHeight: 42, borderWidth: 1, borderRadius: radii.lg, fontSize: 14, paddingHorizontal: 13 },
-  passwordField: { minHeight: 42, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: radii.lg, overflow: 'hidden' },
-  passwordInput: { minHeight: 40, flex: 1, fontSize: 14, paddingLeft: 13, paddingRight: 7 },
-  passwordToggle: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-  error: { ...type.caption, fontSize: 11, lineHeight: 16 },
-  forgotButton: { minHeight: 30, alignSelf: 'flex-end', justifyContent: 'center', marginTop: -2 },
-  forgotText: { fontSize: 11, lineHeight: 15, fontWeight: '700' },
-  primaryButton: { minHeight: 44, borderRadius: radii.lg, alignItems: 'center', justifyContent: 'center', marginTop: 1 },
-  primaryButtonText: { ...type.button, fontSize: 14 },
-  buttonDisabled: { opacity: 0.6 },
-  featureRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: 8, marginTop: 'auto', paddingTop: 18, paddingBottom: 4 },
-  featureText: { fontSize: 10, lineHeight: 13, fontWeight: '700', letterSpacing: 0.2 },
-  featureDot: { width: 3, height: 3, borderRadius: radii.pill, opacity: 0.72 },
-  securityNote: { fontSize: 10, lineHeight: 14, textAlign: 'center', maxWidth: 326, alignSelf: 'center', marginTop: 10 },
+  screen: { flex: 1, backgroundColor: '#03090B' },
+  keyboard: { flex: 1 },
+  backgroundImage: { resizeMode: 'cover' },
+  backgroundShade: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(2,8,10,0.55)' },
+  authScroll: { flexGrow: 1, width: '100%', maxWidth: 440, alignSelf: 'center', paddingHorizontal: 24 },
+  intro: { marginBottom: 18 },
+  title: { color: AUTH_TEXT, fontSize: 28, lineHeight: 30, fontWeight: '700', letterSpacing: -0.8 },
+  subtitle: { color: AUTH_MUTED, fontSize: 12, lineHeight: 17, fontWeight: '500', marginTop: 5 },
+  form: { gap: 10 },
+  fieldWrap: {
+    minHeight: 45,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: AUTH_BORDER,
+    borderRadius: 7,
+    backgroundColor: AUTH_SURFACE,
+    overflow: 'hidden',
+  },
+  fieldIcon: { marginLeft: 12, marginRight: 3 },
+  input: { minHeight: 43, flex: 1, color: AUTH_TEXT, fontSize: 13, paddingHorizontal: 8 },
+  passwordInput: { minHeight: 43, flex: 1, color: AUTH_TEXT, fontSize: 13, paddingHorizontal: 8 },
+  passwordToggle: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center' },
+  loginMeta: { minHeight: 30, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  rememberRow: { minHeight: 30, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  checkbox: { width: 17, height: 17, borderRadius: 4, borderWidth: 1, borderColor: 'rgba(215,231,233,0.36)', backgroundColor: 'rgba(4,11,13,0.45)', alignItems: 'center', justifyContent: 'center' },
+  checkboxChecked: { borderColor: AUTH_ACCENT, backgroundColor: AUTH_ACCENT_DEEP },
+  checkboxInner: { width: 7, height: 7, borderRadius: 2, backgroundColor: AUTH_ACCENT },
+  rememberText: { color: '#D7E0E1', fontSize: 11, fontWeight: '500' },
+  forgotButton: { minHeight: 30, justifyContent: 'center' },
+  forgotText: { color: AUTH_ACCENT, fontSize: 11, fontWeight: '600' },
+  primaryButton: { minHeight: 46, marginTop: 5, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(101,246,211,0.38)', backgroundColor: AUTH_ACCENT_DEEP, alignItems: 'center', justifyContent: 'center', shadowColor: AUTH_ACCENT, shadowOpacity: 0.12, shadowRadius: 10 },
+  primaryButtonPressed: { opacity: 0.88 },
+  primaryButtonText: { color: AUTH_TEXT, fontSize: 13, fontWeight: '700' },
+  buttonDisabled: { opacity: 0.62 },
+  requirements: { color: '#95A2A5', fontSize: 10, lineHeight: 14 },
+  error: { color: '#FF9DA2', fontSize: 11, lineHeight: 15, paddingHorizontal: 2 },
+  notice: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderColor: 'rgba(255,98,104,0.28)', borderRadius: 7, padding: 9, backgroundColor: 'rgba(70,16,20,0.35)', marginBottom: 10 },
+  noticeText: { color: '#FFC0C3', fontSize: 11, lineHeight: 15, flex: 1 },
+  noticeAction: { color: AUTH_ACCENT, fontSize: 11, fontWeight: '700' },
+  dividerRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 7 },
+  dividerLine: { height: StyleSheet.hairlineWidth, flex: 1, backgroundColor: AUTH_BORDER },
+  dividerText: { color: AUTH_MUTED, fontSize: 10 },
+  socialRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 24, marginTop: 2 },
+  socialButton: { width: 48, height: 44, borderWidth: 1, borderColor: 'rgba(214,236,238,0.14)', borderRadius: 9, backgroundColor: 'rgba(10,20,23,0.72)', alignItems: 'center', justifyContent: 'center' },
+  createAccountButton: { minHeight: 34, alignSelf: 'center', justifyContent: 'center', paddingHorizontal: 8, marginTop: 1 },
+  createAccountText: { color: AUTH_ACCENT, fontSize: 12, fontWeight: '600' },
+  footerTagline: { color: '#667578', fontSize: 8, lineHeight: 11, fontWeight: '600', letterSpacing: 2.1, textAlign: 'center', marginTop: 'auto', paddingTop: 30, paddingBottom: 8 },
+  splash: { flex: 1, backgroundColor: '#03090B' },
+  splashShade: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(2,8,10,0.62)' },
+  splashCenter: { alignItems: 'center' },
+  splashMark: { color: '#DFFCFF', fontSize: 76, lineHeight: 78, fontWeight: '200', fontStyle: 'italic', letterSpacing: -10, textShadowColor: 'rgba(99,243,210,0.28)', textShadowRadius: 16 },
+  splashName: { color: AUTH_TEXT, fontSize: 13, fontWeight: '500', letterSpacing: 6, marginTop: 10, marginLeft: 6 },
+  splashMotto: { color: '#D2DDDF', fontSize: 9, lineHeight: 17, fontWeight: '500', letterSpacing: 4, textAlign: 'center', marginTop: 26, marginLeft: 4 },
+  splashFooter: { position: 'absolute', left: 0, right: 0, color: '#899699', fontSize: 8, lineHeight: 14, letterSpacing: 3, textAlign: 'center' },
+  splashProgress: { position: 'absolute', left: '50%', width: 72, height: 3, marginLeft: -36, borderRadius: 999, overflow: 'hidden', backgroundColor: 'rgba(217,236,238,0.22)' },
+  splashProgressFill: { width: '62%', height: '100%', borderRadius: 999, backgroundColor: AUTH_ACCENT },
 });
