@@ -900,7 +900,7 @@
       return;
     }
 
-    const renderProfile = (profile, { loading = false } = {}) => {
+    const renderProfile = (profile, { loading = false, refreshError = false } = {}) => {
       const currentFriend = state.friends.find((person) => person.riderId === riderId);
       if (!currentFriend) {
         if (activeFriendProfileRiderId === riderId) closeSheet();
@@ -927,9 +927,11 @@
         </div>
         ${loading
           ? '<p class="friend-profile-note">Refreshing shared profile…</p>'
-          : socialLinks
-            ? `<div class="social-links">${socialLinks}</div>`
-            : '<p class="friend-profile-note">This rider has not shared any social links with you.</p>'}
+          : refreshError
+            ? '<p class="friend-profile-note">Could not refresh shared profile. Reopen this rider to try again.</p>'
+            : socialLinks
+              ? `<div class="social-links">${socialLinks}</div>`
+              : '<p class="friend-profile-note">This rider has not shared any social links with you.</p>'}
         <p class="caption">Only connect and arrange rides with people you trust. Social links follow each rider’s privacy settings.</p>`, () => {
         $('#copyFriendId').addEventListener('click', async () => {
           try { await navigator.clipboard.writeText(riderId); showToast('Rider ID copied.'); }
@@ -952,6 +954,7 @@
     } catch {
       // The scrubbed friendship identity stays visible, but no stale social
       // links survive a failed privacy refresh.
+      if (activeFriendProfileRiderId === riderId) renderProfile(friend, { refreshError: true });
       return;
     }
     if (activeFriendProfileRiderId !== riderId) return;
