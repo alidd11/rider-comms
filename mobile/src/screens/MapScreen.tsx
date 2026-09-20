@@ -10,7 +10,7 @@
 // mounting a second map instance, which keeps map billing/state predictable
 // and matches the PWA's tab-owned interaction model.
 import * as React from 'react';
-import { View, Text, Pressable, StyleSheet, Alert, Linking, useColorScheme, useWindowDimensions } from 'react-native';
+import { AccessibilityInfo, View, Text, Pressable, StyleSheet, Alert, Linking, useColorScheme, useWindowDimensions } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
@@ -162,6 +162,7 @@ export function MapScreen(): React.JSX.Element {
   const [navigationNotice, setNavigationNotice] = React.useState<string | null>(null);
   const [navigationMuted, setNavigationMuted] = React.useState(false);
   const [navigationFollowing, setNavigationFollowing] = React.useState(true);
+  const [reduceMotionEnabled, setReduceMotionEnabled] = React.useState(false);
   const navOffRouteSince = React.useRef<number | null>(null);
   const navRerouting = React.useRef(false);
   const navigationFollowingRef = React.useRef(true);
@@ -177,6 +178,20 @@ export function MapScreen(): React.JSX.Element {
   const centredOnFirstFix = React.useRef(false);
 
   const rideRosterKey = React.useMemo(() => roster.slice().sort().join('|'), [roster]);
+
+  React.useEffect(() => {
+    let active = true;
+    void AccessibilityInfo.isReduceMotionEnabled()
+      .then((enabled) => {
+        if (active) setReduceMotionEnabled(enabled);
+      })
+      .catch(() => {});
+    const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotionEnabled);
+    return () => {
+      active = false;
+      subscription.remove();
+    };
+  }, []);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -545,13 +560,18 @@ export function MapScreen(): React.JSX.Element {
 
     if (!mapReady || !navigationFollowingRef.current) return;
     const centre = lookAheadCoordinateOnPath(here, cameraPath, profile.centreAheadMeters);
-    mapRef.current?.animateCamera({
+    const camera = {
       center: { latitude: centre.lat, longitude: centre.lon },
       heading,
       pitch: profile.pitch,
       zoom: profile.zoom,
-    }, { duration: movingSpeed !== null && movingSpeed <= 1.5 ? 650 : 500 });
-  }, [insets.bottom, insets.top, mapReady, navigationNotice, viewportHeight]);
+    };
+    if (reduceMotionEnabled) {
+      mapRef.current?.setCamera(camera);
+    } else {
+      mapRef.current?.animateCamera(camera, { duration: movingSpeed !== null && movingSpeed <= 1.5 ? 650 : 500 });
+    }
+  }, [insets.bottom, insets.top, mapReady, navigationNotice, reduceMotionEnabled, viewportHeight]);
 
   React.useEffect(() => {
     navigationFollowingRef.current = navigationFollowing;
@@ -1061,7 +1081,7 @@ export function MapScreen(): React.JSX.Element {
 
       {activeRoute && currentNavigationStep && (
         <>
-          <View style={[styles.navigationBanner, { top: insets.top + spacing.sm }]} accessibilityLiveRegion="polite">
+          <View style={[styles.navigationBanner, { top: insets.top + spacing.sm }]}>
             <View style={styles.navigationBannerMain}>
               <View style={styles.navigationManeuver}>
                 <Ionicons
@@ -1072,7 +1092,7 @@ export function MapScreen(): React.JSX.Element {
               </View>
               <View style={styles.navigationBannerCopy}>
                 <Text style={styles.navigationDistance}>{formatNavigationDistance(distanceToCurrentStepEnd, unitSystem)}</Text>
-                <Text numberOfLines={2} style={styles.navigationInstruction}>{navigationGuidanceInstruction}</Text>
+                <Text numberOfLines={2} style={styles.navigationInstruction} accessibilityLiveRegion="polite">{navigationGuidanceInstruction}</Text>
               </View>
               <Pressable accessibilityRole="button" accessibilityLabel="End navigation" onPress={() => finishInAppNavigation(false)} style={styles.navigationEndButton}>
                 <Ionicons name="close" size={24} color={colors.textPrimary} />
