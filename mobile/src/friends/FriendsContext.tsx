@@ -309,9 +309,9 @@ export function FriendsProvider({ children }: { children: React.ReactNode }): Re
 
   const remove = React.useCallback(
     async (friendId: string) => {
-      setFriends((current) => current.filter((friend) => friend.riderId !== friendId));
       try {
         await client.removeFriend(ME, friendId);
+        setFriends((current) => current.filter((friend) => friend.riderId !== friendId));
         setError(null);
       } catch (err) {
         const message = messageFor(err, 'Could not remove that friend.');
