@@ -681,7 +681,6 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
   expect(friendDetailGeometry.listRadius).toBeLessThanOrEqual(4);
   expect(friendDetailGeometry.titleWidth).toBeLessThanOrEqual(1);
   await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-friend-detail-final.png'), fullPage: true });
-
   await page.locator('#messageFriend').click();
   await expect(page.locator('#chatScreen')).toBeVisible();
   const dmGeometry = await page.evaluate(() => {
@@ -1975,25 +1974,48 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
     root.style.setProperty('--bottom-safe-area', '34px');
     document.querySelector('#app').classList.add('nav-mode');
     document.querySelector('#navSummary').hidden = false;
+    document.querySelector('#navBanner').hidden = false;
   });
 
   const summary = page.locator('#navSummary');
+  const banner = page.locator('#navBanner');
+  const mute = page.locator('#navMuteBtn');
+  const overview = page.locator('#navOverviewBtn');
   const [summaryBox, viewport] = await Promise.all([
     summary.boundingBox(),
     Promise.resolve(page.viewportSize()),
   ]);
-  const metrics = await summary.evaluate((element) => {
-    const style = getComputedStyle(element);
+  const metrics = await page.evaluate(() => {
+    const summary = document.querySelector('#navSummary');
+    const banner = document.querySelector('#navBanner');
+    const mute = document.querySelector('#navMuteBtn');
+    const overview = document.querySelector('#navOverviewBtn');
+    const end = document.querySelector('#endNavBtn');
+    const summaryStyle = getComputedStyle(summary);
+    const bannerStyle = getComputedStyle(banner);
     return {
-      height: parseFloat(style.height),
-      paddingBottom: parseFloat(style.paddingBottom),
+      height: parseFloat(summaryStyle.height),
+      paddingBottom: parseFloat(summaryStyle.paddingBottom),
+      summaryRadius: parseFloat(summaryStyle.borderTopLeftRadius),
+      bannerRadius: parseFloat(bannerStyle.borderTopLeftRadius),
+      endRadius: end ? parseFloat(getComputedStyle(end).borderTopLeftRadius) : 0,
+      muteSize: mute?.getBoundingClientRect().width ?? 0,
+      overviewSize: overview?.getBoundingClientRect().width ?? 0,
     };
   });
 
   expect(summaryBox).not.toBeNull();
   expect(viewport).not.toBeNull();
-  expect(metrics.height).toBe(88 + 18);
+  expect(metrics.height).toBe(104 + 18);
   expect(metrics.paddingBottom).toBe(18);
+  expect(metrics.summaryRadius).toBeGreaterThanOrEqual(20);
+  expect(metrics.bannerRadius).toBeGreaterThanOrEqual(20);
+  expect(metrics.endRadius).toBeGreaterThanOrEqual(20);
+  expect(metrics.muteSize).toBe(52);
+  expect(metrics.overviewSize).toBe(52);
+  await expect(banner).toBeVisible();
+  await expect(mute).toBeVisible();
+  await expect(overview).toBeVisible();
   await expect(page.locator('html')).toHaveClass(/pwa-standalone/);
   // Fractional device-scale rounding can move an absolutely positioned edge
   // a little over two CSS pixels on some Chromium/WebKit device profiles.

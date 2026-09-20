@@ -2,9 +2,12 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   decodeGooglePolyline,
+  distanceToPathMeters,
   distanceToSegmentMeters,
   fetchDrivingRoute,
+  lookAheadCoordinateOnPath,
   metersBetween,
+  remainingDistanceOnPathMeters,
   stripNavigationInstruction,
 } from '../src/api/directions.ts';
 
@@ -33,6 +36,25 @@ describe('native in-app directions helpers', () => {
     ) > 15);
   });
 
+  it('tracks curved route geometry instead of the straight step chord', () => {
+    const path = [
+      { lat: 51.5, lon: -0.1 },
+      { lat: 51.501, lon: -0.1 },
+      { lat: 51.501, lon: -0.098 },
+    ];
+    const atBend = path[1]!;
+
+    assert.ok(distanceToSegmentMeters(atBend, path[0]!, path[2]!) > 40);
+    assert.equal(distanceToPathMeters(atBend, path), 0);
+
+    const remaining = remainingDistanceOnPathMeters(atBend, path);
+    assert.ok(remaining > 130 && remaining < 150);
+
+    const lookAhead = lookAheadCoordinateOnPath(atBend, path, 70);
+    assert.ok(Math.abs(lookAhead.lat - 51.501) < 0.00001);
+    assert.ok(lookAhead.lon > -0.1 && lookAhead.lon < -0.098);
+  });
+
   it('parses a Google Directions response into route and steps', async () => {
     const fakeFetch = (async () => new Response(JSON.stringify({
       status: 'OK',
@@ -48,6 +70,7 @@ describe('native in-app directions helpers', () => {
             duration: { value: 300 },
             start_location: { lat: 51.5, lng: -0.1 },
             end_location: { lat: 51.51, lng: -0.11 },
+            polyline: { points: '_p~iF~ps|U_ulLnnqC_mqNvxq`@' },
           }],
         }],
       }],
@@ -65,6 +88,7 @@ describe('native in-app directions helpers', () => {
     assert.equal(route.distanceMeters, 1200);
     assert.equal(route.durationSeconds, 300);
     assert.equal(route.coordinates.length, 3);
+    assert.equal(route.steps[0]?.coordinates.length, 3);
   });
 
   it('fails cleanly when directions are not configured or no route exists', async () => {

@@ -54,4 +54,53 @@ if (/HYBRID_MAP_STYLE_(?:DARK|LIGHT)/.test(nativeMapSource)) {
   throw new Error('Native map must not carry embedded Hybrid basemap imitation styles');
 }
 
-console.log(`Client parity manifest valid: ${manifest.capabilities.length} capabilities tracked; map basemaps aligned`);
+for (const [label, source, patterns] of [
+  ['PWA navigation', pwaMapSource, [
+    /navFollowing/,
+    /navMuted/,
+    /navigationPositionMapIcon/,
+    /applyNavigationCamera/,
+    /showNavigationOverview/,
+    /navMuteBtn/,
+    /navOverviewBtn/,
+    /navigationStepPath/,
+    /navPromptTargetIndex/,
+    /navigationPromptStageForDistance/,
+    /maybeSpeakUpcomingNavigationPrompt/,
+    /navSteps\[navStepIndex \+ 1\]/,
+    /navSteps\[navStepIndex \+ 2\]/,
+    /arrive: \{ icon: 'i-location'/,
+    /distanceToPathMeters/,
+    /remainingDistanceOnPathMeters/,
+    /lookAheadCoordinateOnPath/,
+    /setNavigationTrafficVisible\(true\)/,
+    /if \(!preserveMute\) navMuted = false/,
+    /preserveMute: true/,
+    /visibleMapRiders\(\)/,
+  ]],
+  ['Native navigation', nativeMapSource, [
+    /navigationFollowing/,
+    /navigationMuted/,
+    /navigationPositionMarker/,
+    /focusNavigationCamera/,
+    /navigationPromptProgress/,
+    /navigationPromptStageForDistance/,
+    /upcomingNavigationStep/,
+    /followingNavigationStep/,
+    /navigationGuidanceInstruction/,
+    /distanceToPathMeters/,
+    /remainingDistanceOnPathMeters/,
+    /lookAheadCoordinateOnPath/,
+    /showsTraffic=\{Boolean\(activeRoute\)\}/,
+    /fitRoute\(activeRoute\)/,
+    /rideLocations[\s\S]*Private ride member · live location/,
+    /RideBar controlsVisible=\{!activeRoute\}/,
+    /tabBarStyle:\s*activeRoute\s*\?\s*\{\s*display:\s*'none'/,
+  ]],
+]) {
+  for (const pattern of patterns) {
+    if (!pattern.test(source)) throw new Error(`${label} is missing required dedicated-navigation behavior: ${pattern}`);
+  }
+}
+
+console.log(`Client parity manifest valid: ${manifest.capabilities.length} capabilities tracked; map basemaps and dedicated navigation aligned`);
