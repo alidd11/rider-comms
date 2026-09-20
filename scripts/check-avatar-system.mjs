@@ -40,7 +40,7 @@ assert.match(nativeMap, /<RiderAvatar[\s\S]*mapMarker[\s\S]*selected/, 'native s
 assert.match(nativeMap, /rideLocations[\s\S]*<RiderAvatar[\s\S]*mapMarker/, 'native private ride positions must render RiderAvatar markers');
 assert.match(nativeMap, /client\.getPublicProfile\(id\)/, 'native live ride markers must resolve authoritative avatar identities');
 assert.match(pwa, /function riderAvatarMapIcon\([\s\S]*riderAvatarSvg/, 'PWA must build map markers from the shared avatar geometry');
-assert.match(pwa, /function addMapMarker\([\s\S]*icon: riderAvatarMapIcon\(person, current\)/, 'PWA rider markers must use avatar map icons');
+assert.match(pwa, /function addMapMarker\([\s\S]*icon: riderAvatarMapIcon\(person, current, status\)/, 'PWA rider markers must use avatar map icons');
 
 assert.match(nativeRide, /const RIDE_LOCATION_REFRESH_MS = 10_000/, 'native ride locations must retain their 10 second refresh cadence');
 assert.match(pwa, /const RIDE_LOCATION_REFRESH_MS = 10_000/, 'PWA ride locations must retain their 10 second refresh cadence');
