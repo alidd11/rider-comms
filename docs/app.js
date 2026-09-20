@@ -4694,8 +4694,10 @@
       if (moveFocus) focusTarget.focus();
     };
 
-    $$('[data-auth-mode]').forEach((button) => {
+    $('[data-auth-mode]').forEach((button) => {
       button.addEventListener('click', () => setAuthMode(button));
+    });
+    $('.auth-segmented [data-auth-mode]').forEach((button) => {
       button.addEventListener('keydown', (event) => {
         if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
         event.preventDefault();
