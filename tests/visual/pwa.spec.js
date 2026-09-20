@@ -681,6 +681,7 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
   await page.locator('#friendList [data-friend]').first().click();
   await expect(page.locator('#sheetBackdrop')).toBeVisible();
   await expect(page.locator('.friend-profile-card')).toBeVisible();
+  await expect(page.locator('#shareFriendId')).toContainText('Share ID');
   const friendDetailGeometry = await page.evaluate(() => {
     const card = document.querySelector('.friend-profile-card');
     const avatar = card?.querySelector('.avatar');
