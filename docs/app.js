@@ -4816,11 +4816,14 @@
     // rider actually needs mid-drive (report hazard, re-centre, end nav).
     $('#app').classList.add('nav-mode');
     setNavigationTrafficVisible(true);
+    // Populate the first real maneuver before revealing the live region so
+    // assistive technology does not announce the placeholder and then the
+    // instruction back-to-back.
+    renderNavStep();
     $('#navBanner').hidden = false;
     $('#navSummary').hidden = false;
     updateNavigationPositionIcon();
     updateNavigationControls();
-    renderNavStep();
     startNavTracking();
     if (latestDevicePosition && navSteps[0]) {
       const here = { lat: latestDevicePosition.coords.latitude, lng: latestDevicePosition.coords.longitude };
