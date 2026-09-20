@@ -519,7 +519,7 @@ const styles = StyleSheet.create({
   unreadPill: { minWidth: 24, height: 24, paddingHorizontal: 7, borderRadius: radii.pill, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
   unreadPillText: { ...type.caption, color: colors.accentText, fontWeight: '800' },
   friendSearchRow: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, backgroundColor: colors.surface, borderRadius: radii.lg, paddingHorizontal: 11, marginBottom: 2 },
-  friendSearchInput: { ...type.body, color: colors.textPrimary, flex: 1, minHeight: MIN_TOUCH_TARGET },
+  friendSearchInput: { ...type.body, color: colors.textPrimary, flex: 1, minHeight: MIN_TOUCH_TARGET, fontSize: 14 },
   networkList: { marginTop: spacing.xs },
   networkSectionLabel: { ...type.label, color: colors.textSecondary, marginTop: 14, marginBottom: 5, textTransform: 'uppercase', letterSpacing: 1.1, fontSize: 10 },
   friendRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 62, paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
