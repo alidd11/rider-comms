@@ -2122,11 +2122,13 @@ body:has(.content-screen.active) .movement-safety-banner{
   gap:10px;
   padding:7px 1px;
 }
-[data-screen="friends"] .friend-row[data-group-label]{margin-top:28px}
-[data-screen="friends"] .friend-row[data-group-label]::before{
-  top:-21px;
+[data-screen="friends"] .friend-group + .friend-group{margin-top:18px}
+[data-screen="friends"] .friend-group-label{
+  margin:15px 1px 5px;
+  color:var(--text-secondary);
   font-size:.72rem;
   font-weight:700;
+  line-height:1.25;
   letter-spacing:0;
   text-transform:none;
 }
