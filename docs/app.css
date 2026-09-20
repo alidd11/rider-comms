@@ -1409,7 +1409,8 @@ body:has(.content-screen.active) .movement-safety-banner{
     flex:none;
     color:var(--text-secondary);
   }
-  .screen-map .map-avatar-wrap{display:none}
+  .screen-map .map-avatar-wrap{min-width:0}
+  .screen-map #mapAvatarButton{display:none}
   .screen-map .map-actions{
     right:max(14px,var(--safe-right));
     bottom:42px;
