@@ -1295,7 +1295,7 @@
       <button class="button danger wide" id="blockFriendBtn">Block rider</button>
       <p id="friendSafetyError" class="inline-error" role="alert" hidden></p>`, () => {
       $('#removeFriendBtn').addEventListener('click', () => void removeFriend(friend));
-      $('[data-report-rider]', $('#sheetBody')).forEach((button) => {
+      $$('[data-report-rider]', $('#sheetBody')).forEach((button) => {
         button.addEventListener('click', () => void reportFriend(friend, button.dataset.reportRider));
       });
       $('#blockFriendBtn').addEventListener('click', () => void blockFriend(friend));
