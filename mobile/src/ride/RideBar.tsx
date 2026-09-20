@@ -9,6 +9,7 @@ import * as React from 'react';
 import { View, Text, Pressable, StyleSheet, Modal, Alert } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LiveKitRoom } from '@livekit/react-native';
+import { ApiError } from '../api/client';
 import { audioEngine } from '../audio/audioEngine';
 import { LiveKitAudioPriorityBridge } from '../audio/LiveKitAudioPriorityBridge';
 import { acquireVoiceAudioSession, releaseVoiceAudioSession } from '../audio/audioSession';
@@ -61,9 +62,12 @@ function useVoiceAudioSession(active: boolean): { ready: boolean; error: string 
   return state;
 }
 
-function useRideVoiceToken(rideId: string | undefined, refreshKey: number): { token?: string; url?: string; error?: string } {
+function useRideVoiceToken(
+  rideId: string | undefined,
+  refreshKey: number,
+): { token?: string; url?: string; error?: string; retryable?: boolean } {
   const { client } = useAuth();
-  const [state, setState] = React.useState<{ token?: string; url?: string; error?: string }>({});
+  const [state, setState] = React.useState<{ token?: string; url?: string; error?: string; retryable?: boolean }>({});
 
   React.useEffect(() => {
     if (!rideId) { setState({}); return; }
@@ -74,7 +78,17 @@ function useRideVoiceToken(rideId: string | undefined, refreshKey: number): { to
     setState({});
     client.getRideVoiceToken(rideId)
       .then((res) => { if (!cancelled) setState({ token: res.token, url: res.url }); })
-      .catch((err) => { if (!cancelled) setState({ error: err instanceof Error ? err.message : 'Could not connect to voice' }); });
+      .catch((err) => {
+        if (cancelled) return;
+        const retryable = !(err instanceof ApiError)
+          || err.status === 408
+          || err.status === 429
+          || err.status >= 500;
+        setState({
+          error: err instanceof Error ? err.message : 'Could not connect to voice',
+          retryable,
+        });
+      });
     return () => { cancelled = true; };
   }, [rideId, client, refreshKey]);
 
@@ -167,6 +181,15 @@ export function RideBar({ controlsVisible = true }: { controlsVisible?: boolean 
     setRoomStatus('error');
     setRoomError(message || 'Microphone is unavailable.');
   }, []);
+
+  // A token request can fail before LiveKitRoom ever exists, so neither
+  // onError nor onDisconnected can start the normal reconnect loop. Retry
+  // transient/network/rate-limit/server failures through the same fresh-token
+  // path; do not hammer permanent 4xx authorisation/membership failures.
+  React.useEffect(() => {
+    if (!activeRide?.rideId || !voice.error || voice.retryable !== true) return;
+    scheduleVoiceRetry();
+  }, [activeRide?.rideId, scheduleVoiceRetry, voice.error, voice.retryable]);
 
   React.useEffect(() => () => {
     if (voiceRetryTimer.current) clearTimeout(voiceRetryTimer.current);
