@@ -74,6 +74,21 @@ assert.match(
   'Private ride voice must retry transient token failures that happen before LiveKitRoom exists',
 );
 assert.match(
+  rideBarSource,
+  /function useVoiceAudioSession\(active: boolean, retryKey: number\)[\s\S]*\[active, retryKey\]/,
+  'Native private-ride audio routing must support an explicit rider-initiated retry without requiring the ride to change',
+);
+assert.match(
+  rideBarSource,
+  /const retryVoiceManually = React\.useCallback[\s\S]*if \(audioSessionError\) setAudioSessionRetryVersion[\s\S]*setVoiceRetryVersion/,
+  'Native voice manual retry must re-acquire failed audio routing without churning a healthy session, and refresh voice credentials',
+);
+assert.match(
+  rideBarSource,
+  /voiceFailure\)[\s\S]*retryVoiceManually\(\)[\s\S]*Retry voice/,
+  'Native voice failure UI must expose a rider-initiated retry action',
+);
+assert.match(
   pwaSource,
   /shouldRetryVoiceConnection\(error\)[\s\S]*scheduleVoiceReconnect\(requestedTarget\)/,
   'PWA voice must retry transient token/connect failures that happen before a room exists',
