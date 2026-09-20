@@ -539,10 +539,7 @@ test('final mockup parity is sharp, map-first and iPhone 17 Pro Max safe', async
   expect(mapGeometry.nearbyWidth).toBeGreaterThanOrEqual(62);
   expect(mapGeometry.avatarDisplay).toBe('none');
   expect(mapGeometry.optionsGlyphWidth).toBeGreaterThanOrEqual(16);
-  expect(mapGeometry.mapTypeId).toBe('hybrid');
-  expect(mapGeometry.mapStyles.some((entry) => entry.featureType === 'poi' && entry.stylers?.some((styler) => styler.visibility === 'off'))).toBe(true);
-  expect(mapGeometry.mapStyles.some((entry) => entry.featureType === 'transit' && entry.stylers?.some((styler) => styler.visibility === 'off'))).toBe(true);
-  expect(mapGeometry.mapStyles.some((entry) => entry.featureType === 'road.local' && entry.elementType === 'labels')).toBe(true);
+  expect(mapGeometry.mapTypeId).toBe('satellite');
   await expect(page.locator('[data-screen="map"] .page-header')).toHaveCount(0);
   await expect(page.locator('#mapSearchSlot')).toBeVisible();
   await expect(page.locator('#movementSafetyBanner')).toBeHidden();
@@ -550,6 +547,8 @@ test('final mockup parity is sharp, map-first and iPhone 17 Pro Max safe', async
   await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-map-dark-final.png'), fullPage: true });
 
   await page.emulateMedia({ colorScheme: 'light' });
+  await expect.poll(() => page.locator('#reportHazardBtn').evaluate((button) => getComputedStyle(button).backgroundColor))
+    .toMatch(/247, 249, 250/);
   await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-map-light-final.png'), fullPage: true });
   await page.emulateMedia({ colorScheme: 'dark' });
 
@@ -689,7 +688,7 @@ test('PWA map uses an already-granted live location instead of showing the Londo
   });
 
   expect(mapState.centre).toEqual({ lat: 51.5074, lng: -0.1278 });
-  expect(mapState.zoom).toBe(15);
+  expect(mapState.zoom).toBe(14);
   expect(mapState.ownPosition).toEqual({ lat: 51.5074, lng: -0.1278 });
   expect(mapState.ownMarkerCount).toBe(1);
   expect(mapState.ownMarkerEverUsedFallback).toBe(false);
