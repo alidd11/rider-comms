@@ -42,6 +42,10 @@ assert.ok(nativeRenderer.includes('#22D3EE') && pwa.includes('#22D3EE'), 'avatar
 assert.ok(nativeRenderer.includes('#35E68A') && pwa.includes('#35E68A'), 'online state must stay shared green');
 assert.ok(pwaCss.includes('background:var(--avatar,transparent)'), 'legacy non-rider avatar backgrounds must remain supported');
 assert.ok(pwaCss.includes('.avatar>svg:not(.rider-avatar-svg)'), 'legacy hazard glyph sizing must remain isolated from rider SVGs');
+assert.ok(
+  pwa.includes("document.querySelectorAll('[data-avatar]').forEach"),
+  'PWA profile rendering must iterate the full avatar node collection rather than call forEach on a single element',
+);
 
 assert.match(nativeMap, /<RiderAvatar[\s\S]*mapMarker[\s\S]*selected/, 'native self marker must use the selected RiderAvatar');
 assert.match(nativeMap, /rideLocations[\s\S]*<RiderAvatar[\s\S]*mapMarker/, 'native private ride positions must render RiderAvatar markers');
