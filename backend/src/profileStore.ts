@@ -6,7 +6,13 @@ import { appendSocialEventForRiders } from './socialEventStore.ts';
 const ZONE_TIERS: ZoneTier[] = ['free', 'premium', 'premium_plus'];
 const UNIT_SYSTEMS: UnitSystem[] = ['mi', 'km'];
 const SOCIAL_VISIBILITIES = ['public', 'friends', 'private'];
-const AVATAR_IDS = ['ember', 'ridge', 'moss', 'dusk', 'blaze', 'gold', 'slate', 'rose'] as const;
+const AVATAR_IDS = [
+  'ember', 'ridge', 'moss', 'dusk', 'blaze', 'gold', 'slate', 'rose',
+  'bike_sport', 'bike_naked', 'bike_tourer', 'bike_scooter', 'bike_adventure', 'bike_cruiser',
+  'bike_retro', 'bike_electric', 'bike_custom', 'bike_trail', 'bike_sport_touring', 'bike_cafe_racer',
+  'car_hatchback', 'car_saloon', 'car_suv', 'car_4x4', 'car_coupe', 'car_convertible',
+  'car_estate', 'car_van', 'car_pickup', 'car_supercar', 'car_classic', 'car_electric',
+] as const;
 const AVATAR_ID_SET = new Set<string>(AVATAR_IDS);
 
 export type ProfileUpdateResult =

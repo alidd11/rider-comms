@@ -1,39 +1,12 @@
-export type AvatarFamily = 'helmet' | 'motorbike' | 'car';
+(() => {
+  'use strict';
 
-export interface AvatarPreset {
-  id: string;
-  family: AvatarFamily;
-  label: string;
-  tagline: string;
-  bg: string;
-  secondary: string;
-  accent: string;
-  motifPath?: string;
-  motifFill?: string;
-  bodyPath?: string;
-  glassPath?: string;
-  detailPath?: string;
-}
-
-export const AVATAR_FAMILIES: ReadonlyArray<{ id: AvatarFamily; label: string }> = [
+  const AVATAR_FAMILIES = [
   { id: 'helmet', label: 'Helmets' },
   { id: 'motorbike', label: 'Motorbikes' },
   { id: 'car', label: 'Cars' },
 ];
-
-/**
- * Rider Comms avatar collection.
- *
- * IDs are persisted in rider_profiles.avatar_id. Existing helmet IDs therefore
- * stay stable forever; the motorbike/car IDs extend the same field without a
- * database migration. PWA and native mirror these exact colours + SVG paths
- * and scripts/check-avatar-system.mjs fails CI if either shell drifts.
- *
- * The vehicle silhouettes intentionally use a 64x64 master and only a handful
- * of bold layers. That is what keeps them recognisable at the 40px live-map
- * size while still looking premium in the profile picker.
- */
-export const AVATAR_PRESETS: readonly AvatarPreset[] = [
+  const AVATAR_PRESETS = [
   // Rider helmets — existing persisted IDs.
   { id: 'ember', family: 'helmet', label: 'Ember', tagline: 'Always ahead', bg: '#FF8A2B', secondary: '#9E2D0A', accent: '#22D3EE', motifPath: 'M32 10c-4 4-7 8-5 12 1.4 3 5.2 4.2 8 2.2 4-2.8 3-8-3-14Z' },
   { id: 'ridge', family: 'helmet', label: 'Ridge', tagline: 'Higher together', bg: '#4C8BF5', secondary: '#1746A2', accent: '#22D3EE', motifPath: 'M19 24l8-10 5 6 4-5 9 9H19Z' },
@@ -72,14 +45,96 @@ export const AVATAR_PRESETS: readonly AvatarPreset[] = [
   { id: 'car_classic', family: 'car', label: 'Classic', tagline: 'Icons live on', bg: '#47C48A', secondary: '#1D6A4A', accent: '#F6E7B0', bodyPath: 'M22 7h20l7 12v26l-7 12H22l-7-12V19l7-12Z', glassPath: 'M23 17h18l5 9-3 11H21l-3-11 5-9Z', detailPath: 'M19 42h26M25 51h14' },
   { id: 'car_electric', family: 'car', label: 'Electric', tagline: 'Future ready', bg: '#22D3EE', secondary: '#0E7490', accent: '#071015', bodyPath: 'M21 7h22l7 11v28l-7 11H21l-7-11V18l7-11Z', glassPath: 'M23 16h18l5 10-2 11H20l-2-11 5-10Z', detailPath: 'M19 43h26M27 50h10' },
 ];
+  const AVATAR_PRESET_BY_ID = Object.fromEntries(AVATAR_PRESETS.map((preset) => [preset.id, preset]));
 
-export type AvatarId = string;
-export const DEFAULT_AVATAR_ID: AvatarId = 'ember';
+  const MAP_TAIL_PATH = 'M24 56h16L32 70 24 56Z';
+  const HELMET_LOWER_SHELL_PATH = 'M9 32c1 16 9 25 23 29 14-4 22-13 23-29l-8 13-15 8-15-8-8-13Z';
+  const HELMET_VISOR_PATH = 'M10 27c5-6 39-6 44 0l-3 16c-7 5-31 5-38 0l-3-16Z';
+  const HELMET_GLOSS_PATH = 'M17 16c7-7 19-9 29-4';
+  const MOTORBIKE_HANDLEBAR_PATH = 'M14 25c7-2 10-2 14 0M36 25c4-2 7-2 14 0';
+  const MOTORBIKE_WHEEL_PATH = 'M28 36c0 10 1 20 4 22 3-2 4-12 4-22Z';
+  const CAR_WHEELS_PATH = 'M14 20h4v10h-4ZM46 20h4v10h-4ZM14 36h4v10h-4ZM46 36h4v10h-4Z';
 
-export function getAvatarPreset(id: string): AvatarPreset {
-  return AVATAR_PRESETS.find((preset) => preset.id === id) ?? AVATAR_PRESETS[0];
-}
+  function avatarPreset(id) {
+    return AVATAR_PRESET_BY_ID[id] || AVATAR_PRESETS[0];
+  }
 
-export function getAvatarFamily(id: string): AvatarFamily {
-  return getAvatarPreset(id).family;
-}
+  function getAvatarFamily(id) {
+    return avatarPreset(id).family;
+  }
+
+  function helmetArtwork(preset) {
+    return `
+      <circle cx="32" cy="32" r="25.5" fill="${preset.bg}"/>
+      <path d="${HELMET_LOWER_SHELL_PATH}" fill="${preset.secondary}"/>
+      <path d="${HELMET_GLOSS_PATH}" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" opacity=".28"/>
+      <path d="${HELMET_VISOR_PATH}" fill="#020A0E" stroke="#162A31" stroke-width="1.4"/>
+      <path d="M18 34c3-3 6-3 8 1-2 5-5 6-8-1ZM46 34c-3-3-6-3-8 1 2 5 5 6 8-1Z" fill="${preset.accent}"/>
+      <path d="M18 47c8 6 20 6 28 0" fill="none" stroke="#071015" stroke-width="2.4" stroke-linecap="round"/>
+      ${preset.motifPath ? `<path d="${preset.motifPath}" fill="${preset.motifFill || '#F4F7F8'}"/>` : ''}
+    `;
+  }
+
+  function motorbikeArtwork(preset) {
+    return `
+      <circle cx="32" cy="32" r="25" fill="#0B1419" stroke="${preset.bg}" stroke-width="1.8"/>
+      <path d="${MOTORBIKE_HANDLEBAR_PATH}" fill="none" stroke="#B9C8CF" stroke-width="2.1" stroke-linecap="round"/>
+      <path d="${MOTORBIKE_WHEEL_PATH}" fill="#070C10" stroke="#A7B5BC" stroke-width="1.2"/>
+      ${preset.bodyPath ? `<path d="${preset.bodyPath}" fill="${preset.bg}" stroke="${preset.secondary}" stroke-width="1.6" stroke-linejoin="round"/>` : ''}
+      ${preset.glassPath ? `<path d="${preset.glassPath}" fill="#071015" stroke="#A8DDE8" stroke-width="1" opacity=".96"/>` : ''}
+      ${preset.detailPath ? `<path d="${preset.detailPath}" fill="none" stroke="${preset.accent}" stroke-width="1.6" stroke-linecap="round"/>` : ''}
+      <circle cx="32" cy="32" r="2.8" fill="${preset.accent}"/>
+      <path d="M24 17c5-5 11-5 16 0" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" opacity=".22"/>
+    `;
+  }
+
+  function carArtwork(preset) {
+    return `
+      <circle cx="32" cy="32" r="25" fill="#0B1419" stroke="${preset.bg}" stroke-width="1.8"/>
+      <path d="${CAR_WHEELS_PATH}" fill="#05090C" stroke="#62717A" stroke-width=".9"/>
+      ${preset.bodyPath ? `<path d="${preset.bodyPath}" fill="${preset.bg}" stroke="${preset.secondary}" stroke-width="1.6" stroke-linejoin="round"/>` : ''}
+      ${preset.glassPath ? `<path d="${preset.glassPath}" fill="#071015" stroke="#9FDCE8" stroke-width="1" opacity=".95"/>` : ''}
+      ${preset.detailPath ? `<path d="${preset.detailPath}" fill="none" stroke="${preset.accent}" stroke-width="1.35" stroke-linecap="round"/>` : ''}
+      <path d="M24 12c5-3 11-3 16 0" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" opacity=".24"/>
+    `;
+  }
+
+  function riderAvatarSvg(id, { selected = false, mapMarker = false, status = 'none' } = {}) {
+    const preset = avatarPreset(id);
+    const normalStroke = preset.family === 'helmet' ? '#DFF7FB' : preset.bg;
+    const stroke = selected ? '#22D3EE' : normalStroke;
+    const tailFill = selected ? '#22D3EE' : '#071015';
+    const statusFill = status === 'online' ? '#35E68A' : status === 'stale' ? '#78909A' : '';
+    const height = mapMarker ? 72 : 64;
+    const artwork = preset.family === 'helmet'
+      ? helmetArtwork(preset)
+      : preset.family === 'motorbike'
+        ? motorbikeArtwork(preset)
+        : carArtwork(preset);
+
+    return `<svg class="rider-avatar-svg" data-avatar-family="${preset.family}" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 ${height}" aria-hidden="true">
+      ${mapMarker ? `<path d="${MAP_TAIL_PATH}" fill="${tailFill}" stroke="#071015" stroke-width="2"/>` : ''}
+      <circle cx="32" cy="32" r="30" fill="#071015" stroke="${stroke}" stroke-width="${selected ? 3 : 2}"/>
+      ${selected ? '<circle cx="32" cy="32" r="27.5" fill="none" stroke="#22D3EE" stroke-width="1" opacity=".55"/>' : ''}
+      ${artwork}
+      ${status === 'stale' ? '<circle cx="32" cy="32" r="26.5" fill="#071015" opacity=".44"/>' : ''}
+      ${statusFill ? `<circle cx="51" cy="49" r="7" fill="#071015"/><circle cx="51" cy="49" r="4.8" fill="${statusFill}"/>` : ''}
+    </svg>`;
+  }
+
+  window.RiderAvatarSystem = Object.freeze({
+    AVATAR_FAMILIES,
+    AVATAR_PRESETS,
+    AVATAR_PRESET_BY_ID,
+    MAP_TAIL_PATH,
+    HELMET_LOWER_SHELL_PATH,
+    HELMET_VISOR_PATH,
+    HELMET_GLOSS_PATH,
+    MOTORBIKE_HANDLEBAR_PATH,
+    MOTORBIKE_WHEEL_PATH,
+    CAR_WHEELS_PATH,
+    avatarPreset,
+    getAvatarFamily,
+    riderAvatarSvg,
+  });
+})();

@@ -122,6 +122,17 @@ describe('ProfileStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping
     assert.equal(profile.avatarId, 'ember');
   });
 
+  it('accepts motorbike and car avatar presets', async () => {
+    const store = new ProfileStore();
+    const bike = await store.update('rider-1', { avatarId: 'bike_sport' });
+    assert.equal(bike.ok, true);
+    if (bike.ok) assert.equal(bike.profile.avatarId, 'bike_sport');
+
+    const car = await store.update('rider-1', { avatarId: 'car_hatchback' });
+    assert.equal(car.ok, true);
+    if (car.ok) assert.equal(car.profile.avatarId, 'car_hatchback');
+  });
+
   it('does not partially apply an update that fails validation', async () => {
     const store = new ProfileStore();
     const result = await store.update('rider-1', {

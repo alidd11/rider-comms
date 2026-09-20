@@ -100,42 +100,14 @@
   };
   const HAZARD_TYPE_ORDER = ['police', 'camera', 'accident', 'hazard', 'road_closure'];
 
-  // Deterministic rider avatar masters. These IDs are persisted in Postgres,
-  // so the artwork can improve without migrating or resetting user profiles.
-  // Native uses the same colours + motif paths in mobile/src/settings/avatars.ts.
-  const AVATAR_PRESETS = [
-    { id: 'ember', label: 'Ember', tagline: 'Always ready', bg: '#FF8A2B', motifPath: 'M32 10c-4 4-7 8-5 12 1.4 3 5.2 4.2 8 2.2 4-2.8 3-8-3-14Z' },
-    { id: 'ridge', label: 'Ridge', tagline: 'Finds new roads', bg: '#4C8BF5', motifPath: 'M19 24l8-10 5 6 4-5 9 9H19Z' },
-    { id: 'moss', label: 'Moss', tagline: 'Keeps it flowing', bg: '#3DD68C', motifPath: 'M21 24c3-9 11-12 22-11-2 8-8 12-17 11 4-3 8-6 13-8-7 2-12 4-18 8Z' },
-    { id: 'dusk', label: 'Dusk', tagline: 'Night ride', bg: '#8B5CF6', motifPath: 'M37 11a10 10 0 1 0 7 16 11 11 0 1 1-7-16Z' },
-    { id: 'blaze', label: 'Blaze', tagline: 'Fast and focused', bg: '#FF5A5F', motifPath: 'M35 9 23 25h8l-3 12 13-19h-9l3-9Z', motifFill: '#071015' },
-    { id: 'gold', label: 'Gold', tagline: 'Brightens the ride', bg: '#FBBF24', motifPath: 'm32 10 3.4 7 7.7 1.1-5.6 5.4 1.3 7.7-6.8-3.6-6.8 3.6 1.3-7.7-5.6-5.4 7.7-1.1L32 10Z', motifFill: '#071015' },
-    { id: 'slate', label: 'Slate', tagline: 'Points the way', bg: '#64748B', motifPath: 'M32 10 44 26l-12-5-12 5 12-16Z', motifFill: '#071015' },
-    { id: 'rose', label: 'Rose', tagline: 'Explores everywhere', bg: '#EC4899', motifPath: 'M32 10a7 7 0 0 0-7 7c0 6 7 13 7 13s7-7 7-13a7 7 0 0 0-7-7Zm0 4a3 3 0 1 1 0 6 3 3 0 0 1 0-6Z', motifFill: '#071015' },
-  ];
-  const AVATAR_PRESET_BY_ID = Object.fromEntries(AVATAR_PRESETS.map((preset) => [preset.id, preset]));
-  function avatarPreset(id) {
-    return AVATAR_PRESET_BY_ID[id] || AVATAR_PRESETS[0];
-  }
-
-  function riderAvatarSvg(id, { selected = false, mapMarker = false, status = 'none' } = {}) {
-    const preset = avatarPreset(id);
-    const faceStroke = selected ? '#22D3EE' : '#EAF8FB';
-    const tailFill = selected ? '#22D3EE' : '#071015';
-    const statusFill = status === 'online' ? '#35E68A' : status === 'stale' ? '#78909A' : '';
-    const height = mapMarker ? 72 : 64;
-    return `<svg class="rider-avatar-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 ${height}" aria-hidden="true">
-      ${mapMarker ? `<path d="M24 56h16L32 70 24 56Z" fill="${tailFill}" stroke="#071015" stroke-width="2"/>` : ''}
-      <circle cx="32" cy="32" r="30" fill="#071015" stroke="${faceStroke}" stroke-width="${selected ? 3 : 2}"/>
-      <circle cx="32" cy="32" r="25.5" fill="${preset.bg}"/>
-      <path d="M13 30.5C18 25 46 25 51 30.5L48 42.5C42.5 47 21.5 47 16 42.5L13 30.5Z" fill="#071015"/>
-      <circle cx="24.5" cy="36" r="2.7" fill="#22D3EE"/>
-      <circle cx="39.5" cy="36" r="2.7" fill="#22D3EE"/>
-      <path d="M24 49C28.8 52 35.2 52 40 49" fill="none" stroke="#071015" stroke-width="2.2" stroke-linecap="round"/>
-      <path d="${preset.motifPath}" fill="${preset.motifFill || '#F4F7F8'}"/>
-      ${statusFill ? `<circle cx="51" cy="49" r="7" fill="#071015"/><circle cx="51" cy="49" r="4.8" fill="${statusFill}"/>` : ''}
-    </svg>`;
-  }
+  const {
+    AVATAR_FAMILIES,
+    AVATAR_PRESETS,
+    AVATAR_PRESET_BY_ID,
+    avatarPreset,
+    getAvatarFamily,
+    riderAvatarSvg,
+  } = window.RiderAvatarSystem;
 
   function riderAvatarMapIcon(person, current = false, statusOverride, sizeOverride) {
     const status = statusOverride || (current
@@ -416,10 +388,33 @@
   }
 
   function avatarOptionsMarkup(selectedId) {
-    return `<div class="avatar-picker-grid" role="radiogroup" aria-label="Profile avatar">${AVATAR_PRESETS.map((preset) => {
-      const selected = preset.id === selectedId;
-      return `<button type="button" class="avatar-picker-option${selected ? ' selected' : ''}" data-avatar-option="${preset.id}" role="radio" aria-checked="${selected}" aria-label="${escapeHtml(preset.label)} avatar"><span class="avatar avatar-lg" style="--avatar:${preset.bg}">${riderAvatarSvg(preset.id, { selected })}</span><span class="avatar-picker-label">${escapeHtml(preset.label)}</span>${selected ? '<span class="avatar-picker-check">✓</span>' : ''}</button>`;
-    }).join('')}</div>`;
+    const selectedFamily = getAvatarFamily(selectedId);
+    const familyTabs = AVATAR_FAMILIES.map((family) => {
+      const active = family.id === selectedFamily;
+      return `<button type="button" class="avatar-family-tab${active ? ' active' : ''}" data-avatar-family-tab="${family.id}" role="tab" aria-selected="${active}">${escapeHtml(family.label)}</button>`;
+    }).join('');
+    const panels = AVATAR_FAMILIES.map((family) => {
+      const active = family.id === selectedFamily;
+      const options = AVATAR_PRESETS.filter((preset) => preset.family === family.id).map((preset) => {
+        const selected = preset.id === selectedId;
+        return `<button type="button" class="avatar-picker-option${selected ? ' selected' : ''}" data-avatar-option="${preset.id}" role="radio" aria-checked="${selected}" aria-label="${escapeHtml(preset.label)} avatar"><span class="avatar avatar-lg" style="--avatar:${preset.bg}">${riderAvatarSvg(preset.id, { selected })}</span><span class="avatar-picker-label">${escapeHtml(preset.label)}</span>${selected ? '<span class="avatar-picker-check">✓</span>' : ''}</button>`;
+      }).join('');
+      return `<div class="avatar-family-panel" data-avatar-family-panel="${family.id}"${active ? '' : ' hidden'}><div class="avatar-picker-grid" role="radiogroup" aria-label="${escapeHtml(family.label)} avatars">${options}</div></div>`;
+    }).join('');
+    return `<div class="avatar-family-tabs" role="tablist" aria-label="Avatar type">${familyTabs}</div>${panels}`;
+  }
+
+  function setAvatarPickerFamily(familyId) {
+    const body = $('#sheetBody');
+    if (!body || !AVATAR_FAMILIES.some((family) => family.id === familyId)) return;
+    body.querySelectorAll('[data-avatar-family-tab]').forEach((button) => {
+      const active = button.dataset.avatarFamilyTab === familyId;
+      button.classList.toggle('active', active);
+      button.setAttribute('aria-selected', String(active));
+    });
+    body.querySelectorAll('[data-avatar-family-panel]').forEach((panel) => {
+      panel.hidden = panel.dataset.avatarFamilyPanel !== familyId;
+    });
   }
 
   async function selectProfileAvatar(avatarId) {
@@ -1849,8 +1844,11 @@
         body: `<div class="settings-sheet-section"><span class="settings-sheet-label">Identity</span><div class="form-field"><label>Avatar</label>${avatarOptionsMarkup(state.profile.avatarId)}</div><div class="form-field"><label for="editName">Display name</label><input id="editName" maxlength="50" value="${escapeHtml(state.profile.displayName)}"></div><div class="form-field"><label for="editHandle">Rider handle</label><input id="editHandle" maxlength="25" value="${escapeHtml(state.profile.handle)}"></div></div><div class="settings-sheet-section"><span class="settings-sheet-label">Connected profiles</span><div class="form-field"><label for="editInstagram">Instagram</label><input id="editInstagram" maxlength="30" value="${escapeHtml(state.profile.instagram)}" placeholder="Username"></div><div class="form-field"><label for="editTiktok">TikTok</label><input id="editTiktok" maxlength="30" value="${escapeHtml(state.profile.tiktok)}" placeholder="Username"></div><p class="caption">Control who can see these in Privacy controls.</p></div><p id="profileFormError" class="inline-error" hidden></p><button class="button primary wide" id="saveProfile">Save changes</button>`,
         ready: () => {
           $('#saveProfile').addEventListener('click', saveProfile);
-          $$('[data-avatar-option]', $('#sheetBody')).forEach((button) => {
+          document.querySelectorAll('#sheetBody [data-avatar-option]').forEach((button) => {
             button.addEventListener('click', () => void selectProfileAvatar(button.dataset.avatarOption));
+          });
+          document.querySelectorAll('#sheetBody [data-avatar-family-tab]').forEach((button) => {
+            button.addEventListener('click', () => setAvatarPickerFamily(button.dataset.avatarFamilyTab));
           });
         },
       }),
