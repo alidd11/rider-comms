@@ -76,8 +76,8 @@ const FOCUSED_REGION_DELTA = 0.025;
 const NAV_STEP_ARRIVAL_RADIUS_M = 30;
 const NAV_OFF_ROUTE_RADIUS_M = 60;
 const NAV_OFF_ROUTE_GRACE_MS = 10_000;
-const NAVIGATION_CAMERA_ZOOM = 17.6;
-const NAVIGATION_CAMERA_PITCH = 52;
+const NAVIGATION_CAMERA_ZOOM = 18;
+const NAVIGATION_CAMERA_PITCH = 55;
 
 function bearingDegrees(from: { lat: number; lon: number }, to: { lat: number; lon: number }): number {
   const toRad = (value: number) => (value * Math.PI) / 180;
