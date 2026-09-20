@@ -34,6 +34,13 @@ describe('native in-app directions helpers', () => {
     );
   });
 
+  it('preserves meaningful secondary continue-to-follow guidance', () => {
+    assert.equal(
+      stripNavigationInstruction('Turn left onto <b>A1</b><div>Continue to follow signs for M1</div>'),
+      'Turn left onto A1. Continue to follow signs for M1'
+    );
+  });
+
   it('measures route proximity in metres', () => {
     assert.ok(metersBetween({ lat: 51.5, lon: -0.1 }, { lat: 51.5009, lon: -0.1 }) > 90);
     assert.ok(distanceToSegmentMeters(
