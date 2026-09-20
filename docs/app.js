@@ -155,31 +155,7 @@
     return Object.hasOwn(NAVIGATION_PROVIDERS, value) ? value : 'google_maps';
   }
 
-  // Automatic day/night map skin — kept in sync with the CSS light-mode
-  // media block below via prefersDarkMode(), so the map tiles match the
-  // rest of the UI instead of staying stuck on the dark skin in daylight.
-  const MAP_STYLE_DARK = [
-    { featureType: 'poi', stylers: [{ visibility: 'off' }] },
-    { featureType: 'transit', stylers: [{ visibility: 'off' }] },
-    { featureType: 'administrative.land_parcel', stylers: [{ visibility: 'off' }] },
-    { featureType: 'road.local', elementType: 'labels', stylers: [{ visibility: 'off' }] },
-    { featureType: 'road', elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
-    { featureType: 'road', elementType: 'labels.text.stroke', stylers: [{ color: '#071015' }, { weight: 3 }] },
-    { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#bac6cb' }] },
-    { featureType: 'administrative.locality', elementType: 'labels.text.stroke', stylers: [{ color: '#071015' }, { weight: 4 }] },
-    { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#d9e1e4' }] },
-  ];
-  const MAP_STYLE_LIGHT = [
-    { featureType: 'poi', stylers: [{ visibility: 'off' }] },
-    { featureType: 'transit', stylers: [{ visibility: 'off' }] },
-    { featureType: 'administrative.land_parcel', stylers: [{ visibility: 'off' }] },
-    { featureType: 'road.local', elementType: 'labels', stylers: [{ visibility: 'off' }] },
-    { featureType: 'road', elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
-    { featureType: 'road', elementType: 'labels.text.stroke', stylers: [{ color: '#f3f6f7' }, { weight: 3 }] },
-    { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#3a4a52' }] },
-    { featureType: 'administrative.locality', elementType: 'labels.text.stroke', stylers: [{ color: '#f3f6f7' }, { weight: 4 }] },
-    { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#24343c' }] },
-  ];
+  // Keep the fallback canvas in sync with the device's day/night appearance.
   const darkModeQuery = window.matchMedia?.('(prefers-color-scheme: dark)');
   function prefersDarkMode() {
     return darkModeQuery ? darkModeQuery.matches : true;
@@ -195,7 +171,6 @@
     const meta = $('#statusBarStyleMeta');
     if (meta) meta.setAttribute('content', 'black-translucent');
     map?.setOptions({
-      styles: prefersDarkMode() ? MAP_STYLE_DARK : MAP_STYLE_LIGHT,
       backgroundColor: prefersDarkMode() ? '#080d10' : '#e9eef0',
     });
   }
@@ -4210,12 +4185,13 @@
     const centre = liveCentre || fallbackCentre;
     map = new google.maps.Map($('#googleMap'), {
       center: centre,
-      zoom: liveCentre ? 15 : 14,
+      zoom: 14,
       disableDefaultUI: true,
       gestureHandling: 'greedy',
       clickableIcons: false,
-      mapTypeId: 'hybrid',
-      styles: prefersDarkMode() ? MAP_STYLE_DARK : MAP_STYLE_LIGHT,
+      // Hybrid's label layer ignores our embedded JSON styling on real maps.
+      // Satellite keeps live photographic tiles while removing that layer.
+      mapTypeId: 'satellite',
       backgroundColor: prefersDarkMode() ? '#080d10' : '#f2f5f6',
     });
     usingFallbackMap = false;
