@@ -14,7 +14,9 @@ Do not add a global tint, brightness filter, satellite-only presentation or a se
 
 ## Navigation camera and rider identity
 
-Dedicated in-app navigation keeps the provider basemap but changes the camera, not the map artwork. The PWA uses Google Maps' vector renderer with heading/tilt enabled; native uses the provider camera exposed through `react-native-maps`. Both clients use the same close navigation pitch/zoom and bias the camera ahead of the rider so the route occupies the useful upper portion of the viewport.
+Dedicated in-app navigation keeps the provider basemap but changes the camera, not the map artwork. The PWA uses Google Maps' vector renderer with heading/tilt enabled; native uses the provider camera exposed through `react-native-maps`. Both clients use the same adaptive navigation-camera model: close urban riding is tighter, faster travel exposes more road ahead, ordinary turns progressively tighten, and roundabouts/U-turns/forks pull back and flatten enough to understand the junction geometry.
+
+The camera target follows the routed step polylines rather than a straight chord to the maneuver endpoint. Current, upcoming and following step geometry can contribute to look-ahead so the view can reveal the road after a turn. Low-speed heading is stabilised to avoid compass-noise rotation, while moving fixes blend toward the device heading. Camera forward bias also accounts for the top maneuver card and bottom ETA sheet so the rider remains low in the usable map viewport rather than mathematically centred behind those overlays. Provider SDKs may clamp pitch/zoom differently, but the requested behavior and decision thresholds remain aligned across PWA/native.
 
 The current rider's persisted avatar remains their self marker during navigation. Do not replace it with a generic navigation chevron. The provider map rotates underneath the screen-upright avatar in follow mode, while authorised private-ride member avatars continue to render from their own persisted `avatarId` values.
 
