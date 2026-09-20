@@ -314,6 +314,7 @@
   let chatHasLoadedOlder = false;
   let chatPeerReadThroughMessageId = null;
   let chatLoading = false;
+  let chatLoadPromise = null;
   let chatReturnFocus = null;
   let chatHideouts = [];
   let chatHideoutsLoading = false;
@@ -1115,43 +1116,66 @@
     $('#chatSend').disabled = unavailable;
   }
 
-  async function loadChatMessages({ older = false, showLoading = false } = {}) {
-    if (!activeChat || chatLoading || (older && !chatNextCursor)) return;
-    const riderId = activeChat.riderId;
-    chatLoading = true;
-    if (showLoading) {
-      setChatError('Loading messages…');
-      $('#chatRetry').hidden = true;
+  async function loadChatMessages({ older = false, showLoading = false, throwOnError = false } = {}) {
+    if (!activeChat || (older && !chatNextCursor)) return;
+
+    // Latest-thread refreshes are authoritative and must never be discarded
+    // just because another chat fetch is already in flight. Older-page loads
+    // remain user-driven and simply wait for a quiet thread.
+    if (older && chatLoadPromise) return;
+    while (!older && chatLoadPromise) {
+      try { await chatLoadPromise; } catch { /* The queued latest fetch retries below. */ }
+      if (!activeChat) return;
     }
-    try {
-      const query = new URLSearchParams({ withRiderId: riderId, limit: '100' });
-      if (older) query.set('before', chatNextCursor);
-      const page = await apiFetch('GET', `/messages?${query.toString()}`);
-      if (!activeChat || activeChat.riderId !== riderId) return;
-      chatMessages = older || chatHasLoadedOlder
-        ? window.RiderMessageState.dedupe([...page.messages, ...chatMessages])
-        : window.RiderMessageState.reconcile(chatMessages, page.messages);
-      if (older) chatHasLoadedOlder = true;
-      if (!chatHasLoadedOlder || older) chatNextCursor = page.nextCursor;
-      chatPeerReadThroughMessageId = page.peerReadThroughMessageId || null;
-      setChatError('');
-      if (!older) {
-        try {
-          await apiFetch('POST', '/messages/read', { withRiderId: riderId });
-          await refreshMessageSummaries();
-        } catch {
-          // The conversation loaded successfully. Read-state reconciliation
-          // can recover independently without turning the thread into an error.
-        }
+
+    const riderId = activeChat.riderId;
+    const run = (async () => {
+      chatLoading = true;
+      if (showLoading) {
+        setChatError('Loading messages…');
+        $('#chatRetry').hidden = true;
       }
-      renderChat();
-      if (!older) requestAnimationFrame(() => { $('#chatThread').scrollTop = $('#chatThread').scrollHeight; });
-    } catch (error) {
-      const unavailable = error instanceof ApiError && error.status === 403;
-      setChatError(unavailable ? 'This conversation is no longer available.' : 'Could not refresh messages. Check your connection and try again.', unavailable);
+      try {
+        const query = new URLSearchParams({ withRiderId: riderId, limit: '100' });
+        if (older) query.set('before', chatNextCursor);
+        const page = await apiFetch('GET', `/messages?${query.toString()}`);
+        if (!activeChat || activeChat.riderId !== riderId) return;
+        chatMessages = older || chatHasLoadedOlder
+          ? window.RiderMessageState.dedupe([...page.messages, ...chatMessages])
+          : window.RiderMessageState.reconcile(chatMessages, page.messages);
+        if (older) chatHasLoadedOlder = true;
+        if (!chatHasLoadedOlder || older) chatNextCursor = page.nextCursor;
+        chatPeerReadThroughMessageId = page.peerReadThroughMessageId || null;
+        setChatError('');
+        if (!older) {
+          try {
+            await apiFetch('POST', '/messages/read', { withRiderId: riderId });
+            await refreshMessageSummaries();
+          } catch {
+            // The conversation loaded successfully. Read-state reconciliation
+            // can recover independently without turning the thread into an error.
+          }
+        }
+        renderChat();
+        if (!older) requestAnimationFrame(() => { $('#chatThread').scrollTop = $('#chatThread').scrollHeight; });
+      } catch (error) {
+        const unavailable = error instanceof ApiError && error.status === 403;
+        setChatError(unavailable ? 'This conversation is no longer available.' : 'Could not refresh messages. Check your connection and try again.', unavailable);
+        // A 403 is authoritative relationship state, not a transport failure.
+        // Transient failures must escape realtime callers so they rebaseline
+        // instead of advancing the durable cursor with a stale open thread.
+        if (throwOnError && !unavailable) throw error;
+      } finally {
+        chatLoading = false;
+        renderChat();
+      }
+    })();
+
+    chatLoadPromise = run;
+    try {
+      await run;
     } finally {
-      chatLoading = false;
-      renderChat();
+      if (chatLoadPromise === run) chatLoadPromise = null;
     }
   }
 
@@ -1317,7 +1341,17 @@
           const baseline = await apiFetch('GET', '/social/events?limit=100&waitMs=0');
           if (generation !== socialEventGeneration) return;
           socialEventCursor = baseline.cursor;
-          await loadFriendsData();
+
+          // Cursor establishment is only valid once every authoritative social
+          // snapshot succeeds. If any fetch fails, the catch below clears the
+          // cursor so recovery starts from a new tail instead of keeping stale
+          // local state behind an already-advanced cursor.
+          await Promise.all([
+            refreshFriendNetwork(),
+            refreshMessageSummaries(),
+            refreshProfileAuthoritative(),
+          ]);
+          if (activeChat) await loadChatMessages({ throwOnError: true });
         }
 
         let page = await apiFetch(
@@ -1355,10 +1389,10 @@
         }
 
         if (generation !== socialEventGeneration) return;
-        if (selfProfileDirty) await loadProfile();
-        if (networkDirty) await loadFriendsData();
-        else if (messageDirty) await refreshMessageSummaries();
-        if (chatDirty && activeChat) await loadChatMessages();
+        if (selfProfileDirty) await refreshProfileAuthoritative();
+        if (networkDirty) await refreshFriendNetwork();
+        if (messageDirty) await refreshMessageSummaries();
+        if (chatDirty && activeChat) await loadChatMessages({ throwOnError: true });
       } catch {
         if (generation !== socialEventGeneration || !session) return;
         socialEventCursor = undefined;
@@ -1405,35 +1439,58 @@
    * Request responses include joined profile summaries, so this remains two
    * bounded SQL-backed requests regardless of how many riders are listed.
    */
+  async function refreshFriendNetwork() {
+    if (!state.profile.riderId) return;
+    const [friendsResult, requestsResult, activityResult] = await Promise.all([
+      loadAllFriendPages(),
+      loadAllFriendRequestPages(),
+      apiFetch('GET', '/friends/activity').catch(() => null),
+    ]);
+    state.friends = friendsResult.map((friend) => ({
+      riderId: friend.riderId,
+      displayName: friend.displayName,
+      handle: friend.handle,
+      avatarId: friend.avatarId || 'ember',
+      status: 'Connected',
+    }));
+    if (activityResult) {
+      friendActivity = new Map((Array.isArray(activityResult.activity) ? activityResult.activity : []).map((item) => [item.riderId, item]));
+    }
+
+    const incoming = requestsResult.incoming.filter((request) => request.status === 'pending');
+    state.requests = incoming.map((request) => {
+      const profile = requestsResult.profiles?.[request.fromRiderId];
+      return {
+        id: request.id,
+        riderId: request.fromRiderId,
+        displayName: profile?.displayName ?? request.fromRiderId,
+        handle: profile?.handle ?? request.fromRiderId,
+        avatarId: profile?.avatarId || 'ember',
+        status: 'Wants to connect',
+      };
+    });
+    const outgoing = requestsResult.outgoing.filter((request) => request.status === 'pending');
+    outgoingFriendRequests = outgoing.map((request) => {
+      const profile = requestsResult.profiles?.[request.toRiderId];
+      return {
+        id: request.id,
+        riderId: request.toRiderId,
+        displayName: profile?.displayName ?? request.toRiderId,
+        handle: profile?.handle ?? request.toRiderId,
+        avatarId: profile?.avatarId || 'ember',
+      };
+    });
+    persist();
+    renderFriends();
+  }
+
   async function loadFriendsData() {
     if (!state.profile.riderId) return;
     try {
-      const [friendsResult, requestsResult, activityResult, conversations, unread] = await Promise.all([
-        loadAllFriendPages(),
-        loadAllFriendRequestPages(),
-        apiFetch('GET', '/friends/activity').catch(() => null),
-        loadAllConversationPages(),
-        apiFetch('GET', '/messages/unread-count'),
-      ]);
-      state.friends = friendsResult.map((friend) => ({ riderId: friend.riderId, displayName: friend.displayName, handle: friend.handle, avatarId: friend.avatarId || 'ember', status: 'Connected' }));
-      if (activityResult) {
-        friendActivity = new Map((Array.isArray(activityResult.activity) ? activityResult.activity : []).map((item) => [item.riderId, item]));
-      }
-      conversationSummaries = new Map(conversations.map((conversation) => [conversation.friend.riderId, conversation]));
-      unreadMessageCount = Number.isFinite(unread.unreadCount) ? unread.unreadCount : 0;
-
-      const incoming = requestsResult.incoming.filter((request) => request.status === 'pending');
-      state.requests = incoming.map((request) => {
-        const profile = requestsResult.profiles?.[request.fromRiderId];
-        return { id: request.id, riderId: request.fromRiderId, displayName: profile?.displayName ?? request.fromRiderId, handle: profile?.handle ?? request.fromRiderId, avatarId: profile?.avatarId || 'ember', status: 'Wants to connect' };
-      });
-      const outgoing = requestsResult.outgoing.filter((request) => request.status === 'pending');
-      outgoingFriendRequests = outgoing.map((request) => {
-        const profile = requestsResult.profiles?.[request.toRiderId];
-        return { id: request.id, riderId: request.toRiderId, displayName: profile?.displayName ?? request.toRiderId, handle: profile?.handle ?? request.toRiderId, avatarId: profile?.avatarId || 'ember' };
-      });
-      persist();
-      renderFriends();
+      // Network and message summaries are independent authoritative resources.
+      // Apply either successful snapshot even when the other one is transiently
+      // unavailable; realtime callers use the throwing functions directly.
+      await Promise.all([refreshFriendNetwork(), refreshMessageSummaries()]);
     } catch (error) {
       showToast('Could not load friends. ' + authErrorMessage(error));
     }
@@ -4648,11 +4705,16 @@
     renderMapStatus();
   }
 
-  /** Loads the rider's real profile from the backend (GET /riders/:id/profile). */
+  /** Throwing profile snapshot used by the durable social event loop. */
+  async function refreshProfileAuthoritative() {
+    const profile = await apiFetch('GET', `/riders/${encodeURIComponent(state.profile.riderId)}/profile`);
+    applyRemoteProfile(profile);
+  }
+
+  /** UI/startup wrapper keeps the existing non-fatal profile-load behavior. */
   async function loadProfile() {
     try {
-      const profile = await apiFetch('GET', `/riders/${encodeURIComponent(state.profile.riderId)}/profile`);
-      applyRemoteProfile(profile);
+      await refreshProfileAuthoritative();
       return true;
     } catch {
       showToast('Could not load your profile from the server.');

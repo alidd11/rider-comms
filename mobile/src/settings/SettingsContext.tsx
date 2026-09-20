@@ -34,6 +34,7 @@ interface SettingsContextValue extends ProfileState {
   setInstagramUsername: (v: string) => void; setInstagramVisibility: (v: SocialVisibility) => void;
   setTiktokUsername: (v: string) => void; setTiktokVisibility: (v: SocialVisibility) => void;
   setNavigationProvider: (v: NavigationProvider) => void; resetAll: () => void;
+  refreshProfile: () => Promise<void>;
 }
 const SettingsContext = React.createContext<SettingsContextValue | null>(null);
 function validCached(raw: string | null): Partial<ProfileState> { try { return raw ? JSON.parse(raw) as Partial<ProfileState> : {}; } catch { return {}; } }
@@ -57,6 +58,27 @@ export function SettingsProvider({ children }: { children: React.ReactNode }): R
       .catch(() => { if (!cancelled) setNavigationProviderState(DEFAULT_NAVIGATION_PROVIDER); });
     return () => { cancelled = true; };
   }, [riderId]);
+  const refreshProfile = React.useCallback(async () => {
+    // Social invalidation can race a local queued profile edit. Only apply a
+    // remote snapshot when the save queue stayed idle for the entire fetch;
+    // otherwise retry after the newer local write has reached the server.
+    while (true) {
+      const queueAtStart = saveQueue.current;
+      await queueAtStart;
+      if (queueAtStart !== saveQueue.current || pendingSaves.current > 0) continue;
+
+      const profile = await client.getProfile(riderId);
+      if (queueAtStart !== saveQueue.current || pendingSaves.current > 0) continue;
+
+      const { riderId: _id, updatedAt: _at, ...value } = profile;
+      stateRef.current = value;
+      setState(value);
+      await AsyncStorage.setItem(cacheKey(riderId), JSON.stringify(value));
+      setLoaded(true);
+      return;
+    }
+  }, [client, riderId]);
+
   const update = React.useCallback(<K extends keyof ProfileState>(key: K, value: ProfileState[K]) => {
     const previousValue = stateRef.current[key];
     const optimistic = { ...stateRef.current, [key]: value };
@@ -136,7 +158,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }): R
     void client.updateProfile(riderId, DEFAULTS).catch(() => setProfileError('Your settings could not be reset on the server.'));
   }, [client, riderId]);
   const clearProfileError = React.useCallback(() => setProfileError(null), []);
-  const value = React.useMemo(() => ({ ...state, ...setters, navigationProvider, setNavigationProvider, loaded, saving, profileError, clearProfileError, resetAll }), [state, setters, navigationProvider, setNavigationProvider, loaded, saving, profileError, clearProfileError, resetAll]);
+  const value = React.useMemo(() => ({ ...state, ...setters, navigationProvider, setNavigationProvider, loaded, saving, profileError, clearProfileError, resetAll, refreshProfile }), [state, setters, navigationProvider, setNavigationProvider, loaded, saving, profileError, clearProfileError, resetAll, refreshProfile]);
   return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;
 }
 export function useSettings(): SettingsContextValue { const value = React.useContext(SettingsContext); if (!value) throw new Error('useSettings() must be called within SettingsProvider'); return value; }
