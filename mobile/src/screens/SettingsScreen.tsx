@@ -10,7 +10,7 @@ import type { SocialVisibility } from '@rider-comms/shared';
 import { colors, spacing, radii, type, MIN_TOUCH_TARGET } from '../theme';
 import { useSettings } from '../settings/SettingsContext';
 import type { UnitSystem } from '../settings/SettingsContext';
-import { AVATAR_PRESETS, getAvatarPreset } from '../settings/avatars';
+import { AVATAR_FAMILIES, AVATAR_PRESETS, getAvatarFamily, getAvatarPreset, type AvatarFamily } from '../settings/avatars';
 import { PLAN_INFO } from '../settings/plans';
 import { RideBar } from '../ride/RideBar';
 import type { RootStackParamList } from '../navigation';
@@ -129,6 +129,14 @@ function AvatarPickerModal({
   onClose: () => void;
 }): React.JSX.Element {
   const insets = useSafeAreaInsets();
+  const [family, setFamily] = React.useState<AvatarFamily>(() => getAvatarFamily(currentId));
+
+  React.useEffect(() => {
+    if (visible) setFamily(getAvatarFamily(currentId));
+  }, [currentId, visible]);
+
+  const visiblePresets = AVATAR_PRESETS.filter((preset) => preset.family === family);
+
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <Pressable style={styles.modalBackdrop} onPress={onClose}>
@@ -137,15 +145,41 @@ function AvatarPickerModal({
           <View style={styles.modalHeader}>
             <View style={styles.modalHeaderCopy}>
               <Text style={styles.modalTitle}>Choose an avatar</Text>
-              <Text style={styles.modalSubtitle}>Pick how other riders will see you on the road.</Text>
+              <Text style={styles.modalSubtitle}>Choose how you appear in Rider Comms and on authorised live ride maps.</Text>
             </View>
             <Pressable style={styles.modalClose} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close avatar picker">
               <Ionicons name="close" size={20} color={colors.textPrimary} />
             </Pressable>
           </View>
 
-          <View style={styles.avatarGrid}>
-            {AVATAR_PRESETS.map((preset) => {
+          <View style={styles.avatarFamilyTabs} accessibilityRole="tablist">
+            {AVATAR_FAMILIES.map((item) => {
+              const active = family === item.id;
+              return (
+                <Pressable
+                  key={item.id}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected: active }}
+                  onPress={() => setFamily(item.id)}
+                  style={[styles.avatarFamilyTab, active && styles.avatarFamilyTabActive]}
+                >
+                  <Ionicons
+                    name={item.id === 'helmet' ? 'shield-outline' : item.id === 'motorbike' ? 'speedometer-outline' : 'car-sport-outline'}
+                    size={16}
+                    color={active ? colors.accentText : colors.textSecondary}
+                  />
+                  <Text style={[styles.avatarFamilyTabText, active && styles.avatarFamilyTabTextActive]}>{item.label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          <ScrollView
+            style={styles.avatarPickerScroll}
+            contentContainerStyle={styles.avatarGrid}
+            showsVerticalScrollIndicator={false}
+          >
+            {visiblePresets.map((preset) => {
               const selected = preset.id === currentId;
               return (
                 <Pressable
@@ -159,7 +193,7 @@ function AvatarPickerModal({
                     onClose();
                   }}
                 >
-                  <RiderAvatar avatarId={preset.id} size={56} selected={selected} />
+                  <RiderAvatar avatarId={preset.id} size={58} selected={selected} />
                   <Text numberOfLines={1} style={styles.avatarGridLabel}>{preset.label}</Text>
                   {selected && (
                     <View style={styles.avatarCheck}>
@@ -169,7 +203,7 @@ function AvatarPickerModal({
                 </Pressable>
               );
             })}
-          </View>
+          </ScrollView>
 
           <Pressable style={styles.modalDone} onPress={onClose}>
             <Text style={styles.modalDoneText}>Done</Text>
@@ -732,10 +766,33 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
   },
-  avatarGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: spacing.md },
+  avatarFamilyTabs: {
+    flexDirection: 'row',
+    gap: 6,
+    marginBottom: spacing.md,
+    padding: 4,
+    borderRadius: radii.md,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+  },
+  avatarFamilyTab: {
+    flex: 1,
+    minHeight: 38,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    borderRadius: radii.sm,
+  },
+  avatarFamilyTabActive: { backgroundColor: colors.accent },
+  avatarFamilyTabText: { ...type.caption, color: colors.textSecondary, fontWeight: '700', fontSize: 10 },
+  avatarFamilyTabTextActive: { color: colors.accentText },
+  avatarPickerScroll: { maxHeight: 330 },
+  avatarGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: spacing.md, paddingBottom: spacing.xs },
   avatarGridItem: {
     width: '23%',
-    minHeight: 82,
+    minHeight: 86,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 5,
