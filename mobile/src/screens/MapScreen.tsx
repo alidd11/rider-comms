@@ -82,6 +82,7 @@ const FOCUSED_REGION_DELTA = 0.025;
 const NAV_STEP_ARRIVAL_RADIUS_M = 30;
 const NAV_OFF_ROUTE_RADIUS_M = 60;
 const NAV_OFF_ROUTE_GRACE_MS = 10_000;
+const NAVIGATION_SUMMARY_BASE_HEIGHT = 104;
 
 function bearingDegrees(from: { lat: number; lon: number }, to: { lat: number; lon: number }): number {
   const toRad = (value: number) => (value * Math.PI) / 180;
@@ -991,7 +992,7 @@ export function MapScreen(): React.JSX.Element {
       )}
 
       {activeRoute && currentNavigationStep && (
-        <View style={[styles.navigationActions, { bottom: insets.bottom + 116 }]}>
+        <View style={[styles.navigationActions, { bottom: NAVIGATION_SUMMARY_BASE_HEIGHT + spacing.md }]}>
           {!lockedForSafety && (
             <Pressable
               style={styles.navigationActionButton}
@@ -1370,7 +1371,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    minHeight: 104,
+    minHeight: NAVIGATION_SUMMARY_BASE_HEIGHT,
     paddingTop: 10,
     paddingHorizontal: spacing.lg,
     borderTopLeftRadius: 24,
