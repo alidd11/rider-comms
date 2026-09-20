@@ -26,6 +26,7 @@ for (const expected of [
   "window.RiderMovementSafety.isLockedForSafety(movementState)",
   "$$('[data-retry-message]', messages)",
   'openFriendSafetyActions(activeChat)',
+  'window.RiderMessageState.acknowledge(chatMessages, localId, sent)',
 ]) assert.ok(app.includes(expected), `PWA chat implementation missing ${expected}`);
 assert.equal(app.includes('MESSAGE_POLL_INTERVAL_MS'), false, 'PWA DMs must not fall back to fixed-interval message polling');
 assert.equal(app.includes('syncChatPolling'), false, 'PWA DMs must use the durable social event feed');
