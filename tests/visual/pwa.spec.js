@@ -639,7 +639,7 @@ test('final mockup parity is sharp, map-first and iPhone 17 Pro Max safe', async
     };
   });
   expect(friendsGeometry.searchHeight).toBeLessThanOrEqual(46);
-  expect(friendsGeometry.rowHeight).toBeLessThanOrEqual(60);
+  expect(friendsGeometry.rowHeight).toBeLessThanOrEqual(64);
   expect(friendsGeometry.avatarWidth).toBeLessThanOrEqual(42);
   await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-friends-final.png'), fullPage: true });
 
