@@ -903,7 +903,7 @@
           <div><strong>${escapeHtml(currentFriend.displayName)}</strong><span>${escapeHtml(currentFriend.handle)}</span><small class="${activity?.online ? 'online' : ''}">${escapeHtml(friendActivityLabel(activity))}</small></div>
         </article>
         <div class="friend-profile-actions" aria-label="Rider actions">
-          <button id="messageFriend"><span class="friend-action-icon">${icon('friends')}</span><strong>Message</strong></button>
+          <button id="messageFriend"><span class="friend-action-icon">${icon('message')}</span><strong>Message</strong></button>
           <button id="shareFriendId"><span class="friend-action-icon">${icon('share')}</span><strong>Share ID</strong></button>
           <button id="friendSafetyActions"><span class="friend-action-icon friend-action-more" aria-hidden="true">•••</span><strong>More</strong></button>
         </div>
