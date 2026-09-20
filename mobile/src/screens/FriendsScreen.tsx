@@ -206,8 +206,8 @@ function FriendRow({
     >
       <View style={styles.friendAvatarWrap}>
         <RiderAvatar avatarId={friend.avatarId} size={42} />
+        <View style={[styles.friendPresenceDot, activity?.online ? styles.friendPresenceOnline : styles.friendPresenceOffline]} />
       </View>
-      <View style={[styles.friendPresenceDot, activity?.online ? styles.friendPresenceOnline : styles.friendPresenceOffline]} />
       <View style={styles.friendInfo}>
         <Text style={styles.friendName}>{friend.displayName}</Text>
         <Text style={styles.friendHandle}>{activityLabel(activity)}</Text>
@@ -564,7 +564,7 @@ const styles = StyleSheet.create({
   networkSectionLabel: { ...type.label, color: colors.textSecondary, marginTop: 15, marginBottom: 5, textTransform: 'none', letterSpacing: 0, fontSize: 12, lineHeight: 16, fontWeight: '700' },
   friendRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 60, paddingVertical: 7, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   friendRowPressed: { opacity: 0.72 },
-  friendAvatarWrap: { flexShrink: 0 },
+  friendAvatarWrap: { flexDirection: 'row', alignItems: 'center', gap: 7, flexShrink: 0 },
   friendPresenceDot: { width: 10, height: 10, borderRadius: 5, flexShrink: 0 },
   friendPresenceOnline: { backgroundColor: colors.success },
   friendPresenceOffline: { backgroundColor: colors.textMuted },
