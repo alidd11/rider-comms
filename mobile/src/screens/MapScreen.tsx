@@ -219,7 +219,7 @@ export function MapScreen(): React.JSX.Element {
   }, [rideLocations.length]);
 
   const ownRideLocation = rideLocations.find((location) => location.riderId === riderId);
-  // During turn-by-turn guidance the navigation chevron must follow the
+  // During turn-by-turn guidance the selected rider avatar must follow the
   // device's live high-accuracy fix, not the slower ride-location round trip.
   // Other riders still use the consented private-ride location feed below.
   const selfMapLocation = activeRoute && currentLocation
