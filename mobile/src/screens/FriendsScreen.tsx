@@ -190,19 +190,22 @@ function FriendRow({
   friend,
   activity,
   unreadCount,
+  inActiveRide,
   onProfile,
 }: {
   friend: FriendSummary;
   activity?: FriendActivity;
   unreadCount: number;
+  inActiveRide: boolean;
   onProfile: (friend: FriendSummary) => void;
 }): React.JSX.Element {
+  const activityCopy = inActiveRide ? 'In your group ride' : activityLabel(activity);
   return (
     <Pressable
       style={({ pressed }) => [styles.friendRow, pressed && styles.friendRowPressed]}
       onPress={() => onProfile(friend)}
       accessibilityRole="button"
-      accessibilityLabel={`${friend.displayName}, ${activityLabel(activity)}. Open rider profile`}
+      accessibilityLabel={`${friend.displayName}, ${activityCopy}. Open rider profile`}
     >
       <View style={styles.friendAvatarWrap}>
         <RiderAvatar avatarId={friend.avatarId} size={42} />
@@ -210,7 +213,7 @@ function FriendRow({
       </View>
       <View style={styles.friendInfo}>
         <Text style={styles.friendName}>{friend.displayName}</Text>
-        <Text style={styles.friendHandle}>{activityLabel(activity)}</Text>
+        <Text style={styles.friendHandle}>{activityCopy}</Text>
       </View>
       {unreadCount > 0 ? <View style={styles.unreadPill}><Text style={styles.unreadPillText}>{unreadCount > 99 ? '99+' : unreadCount}</Text></View> : null}
       <Ionicons name="ellipsis-horizontal" size={21} color={colors.textMuted} />
@@ -494,7 +497,7 @@ export function FriendsScreen(): React.JSX.Element {
               <>
                 <Text accessibilityRole="header" style={styles.networkSectionLabel}>Online ({onlineFriends.length})</Text>
                 {onlineFriends.map((friend) => (
-                  <FriendRow key={friend.riderId} friend={friend} activity={activityByRider[friend.riderId]} unreadCount={unreadByRider[friend.riderId] ?? 0} onProfile={setSelectedProfile} />
+                  <FriendRow key={friend.riderId} friend={friend} activity={activityByRider[friend.riderId]} unreadCount={unreadByRider[friend.riderId] ?? 0} inActiveRide={roster.includes(friend.riderId)} onProfile={setSelectedProfile} />
                 ))}
               </>
             ) : null}
@@ -502,7 +505,7 @@ export function FriendsScreen(): React.JSX.Element {
               <>
                 <Text accessibilityRole="header" style={styles.networkSectionLabel}>Offline ({offlineFriends.length})</Text>
                 {offlineFriends.map((friend) => (
-                  <FriendRow key={friend.riderId} friend={friend} activity={activityByRider[friend.riderId]} unreadCount={unreadByRider[friend.riderId] ?? 0} onProfile={setSelectedProfile} />
+                  <FriendRow key={friend.riderId} friend={friend} activity={activityByRider[friend.riderId]} unreadCount={unreadByRider[friend.riderId] ?? 0} inActiveRide={roster.includes(friend.riderId)} onProfile={setSelectedProfile} />
                 ))}
               </>
             ) : null}
