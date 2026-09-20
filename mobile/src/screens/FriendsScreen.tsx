@@ -204,11 +204,12 @@ function FriendRow({
       accessibilityLabel={`Open ${friend.displayName}'s rider profile`}
     >
       <View style={styles.friendAvatarWrap}>
-        <RiderAvatar avatarId={friend.avatarId} size={44} status={activity?.online ? 'online' : 'stale'} />
+        <RiderAvatar avatarId={friend.avatarId} size={42} />
       </View>
+      <View style={[styles.friendPresenceDot, activity?.online ? styles.friendPresenceOnline : styles.friendPresenceOffline]} />
       <View style={styles.friendInfo}>
         <Text style={styles.friendName}>{friend.displayName}</Text>
-        <Text style={[styles.friendHandle, activity?.online && styles.friendHandleOnline]}>{activityLabel(activity)}</Text>
+        <Text style={styles.friendHandle}>{activityLabel(activity)}</Text>
       </View>
       {unreadCount > 0 ? <View style={styles.unreadPill}><Text style={styles.unreadPillText}>{unreadCount > 99 ? '99+' : unreadCount}</Text></View> : null}
       <Ionicons name="ellipsis-horizontal" size={21} color={colors.textMuted} />
@@ -299,7 +300,7 @@ function FriendProfileModal({
             <View style={styles.profileIdentityCopy}>
               <Text style={styles.profileModalName}>{profile?.displayName ?? friend.displayName}</Text>
               <Text style={styles.profileModalHandle}>{profile?.handle ?? friend.handle}</Text>
-              <Text style={[styles.profileActivity, activity?.online && styles.profileActivityOnline]}>{activityLabel(activity)}</Text>
+              <Text style={styles.profileActivity}>{activityLabel(activity)}</Text>
             </View>
           </View>
 
@@ -391,7 +392,7 @@ export function FriendsScreen(): React.JSX.Element {
               accessibilityRole="button"
               accessibilityLabel={addOpen ? 'Close add friend' : 'Add friend'}
             >
-              <Ionicons name={addOpen ? 'close' : 'person-add-outline'} size={21} color={addOpen ? colors.accentText : colors.accent} />
+              <Ionicons name={addOpen ? 'close' : 'person-add-outline'} size={21} color={addOpen ? colors.accentText : colors.textPrimary} />
             </Pressable>
           )}
         />
@@ -536,18 +537,16 @@ const styles = StyleSheet.create({
   friendSearchRow: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, backgroundColor: colors.surface, borderRadius: radii.lg, paddingHorizontal: 11, marginBottom: 2 },
   friendSearchInput: { ...type.body, color: colors.textPrimary, flex: 1, minHeight: MIN_TOUCH_TARGET, fontSize: 14 },
   networkList: { marginTop: spacing.xs },
-  networkSectionLabel: { ...type.label, color: colors.textSecondary, marginTop: 14, marginBottom: 5, textTransform: 'uppercase', letterSpacing: 1.1, fontSize: 10 },
-  friendRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 62, paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+  networkSectionLabel: { ...type.label, color: colors.textSecondary, marginTop: 15, marginBottom: 5, textTransform: 'none', letterSpacing: 0, fontSize: 12, lineHeight: 16, fontWeight: '700' },
+  friendRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 60, paddingVertical: 7, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   friendRowPressed: { opacity: 0.72 },
-  friendAvatarWrap: { position: 'relative' },
-  friendAvatar: { width: 40, height: 40, borderRadius: radii.pill, alignItems: 'center', justifyContent: 'center' },
-  friendPresence: { position: 'absolute', right: -1, bottom: -1, width: 12, height: 12, borderRadius: 6, borderWidth: 2, borderColor: colors.background },
+  friendAvatarWrap: { flexShrink: 0 },
+  friendPresenceDot: { width: 10, height: 10, borderRadius: 5, flexShrink: 0 },
   friendPresenceOnline: { backgroundColor: colors.success },
   friendPresenceOffline: { backgroundColor: colors.textMuted },
   friendInfo: { flex: 1, gap: 2 },
   friendName: { ...type.body, color: colors.textPrimary, fontWeight: '700', fontSize: 14 },
   friendHandle: { ...type.caption, color: colors.textSecondary, fontSize: 11 },
-  friendHandleOnline: { color: colors.success },
   emptyState: { padding: spacing.xl, alignItems: 'center', gap: spacing.sm },
   emptyTitle: { ...type.subheading, color: colors.textPrimary },
   emptyText: { ...type.caption, textAlign: 'center' },
@@ -563,7 +562,6 @@ const styles = StyleSheet.create({
   profileModalName: { ...type.heading, color: colors.textPrimary },
   profileModalHandle: { ...type.body, color: colors.textSecondary, marginTop: 1 },
   profileActivity: { ...type.caption, color: colors.textSecondary, marginTop: spacing.xs },
-  profileActivityOnline: { color: colors.success, fontWeight: '700' },
   profileLoader: { marginTop: spacing.md },
   profileError: { ...type.caption, color: colors.danger, marginTop: spacing.md },
   profileActions: { flexDirection: 'row', gap: 6, marginTop: spacing.md },
