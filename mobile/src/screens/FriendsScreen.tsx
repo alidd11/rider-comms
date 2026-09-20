@@ -204,8 +204,7 @@ function FriendRow({
       accessibilityLabel={`Open ${friend.displayName}'s rider profile`}
     >
       <View style={styles.friendAvatarWrap}>
-        <RiderAvatar avatarId={friend.avatarId} size={44} status={online ? 'online' : 'stale'} />
-        <View style={[styles.friendPresence, activity?.online ? styles.friendPresenceOnline : styles.friendPresenceOffline]} />
+        <RiderAvatar avatarId={friend.avatarId} size={44} status={activity?.online ? 'online' : 'stale'} />
       </View>
       <View style={styles.friendInfo}>
         <Text style={styles.friendName}>{friend.displayName}</Text>
@@ -289,7 +288,6 @@ function FriendProfileModal({
           <View style={styles.profileIdentity}>
             <View style={styles.profileAvatarWrap}>
               <RiderAvatar avatarId={profile?.avatarId ?? friend.avatarId} size={64} status={activity?.online ? 'online' : 'stale'} />
-              <View style={[styles.profilePresence, activity?.online ? styles.friendPresenceOnline : styles.friendPresenceOffline]} />
             </View>
             <View style={styles.profileIdentityCopy}>
               <Text style={styles.profileModalName}>{profile?.displayName ?? friend.displayName}</Text>
