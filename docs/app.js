@@ -528,7 +528,7 @@
     const genericProfile = state.profile.displayName.trim().toLowerCase() === 'rider'
       || state.profile.handle.trim().toLowerCase() === '@rider';
     $('#completeProfilePrompt').hidden = !genericProfile;
-    $('[data-avatar]').forEach((element) => {
+    document.querySelectorAll('[data-avatar]').forEach((element) => {
       const preset = avatarPreset(state.profile.avatarId);
       element.innerHTML = riderAvatarSvg(state.profile.avatarId);
       element.style.setProperty('--avatar', preset.bg);
