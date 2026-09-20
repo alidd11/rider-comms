@@ -1,14 +1,17 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const [appConfigSource, appSource, rideBarSource, proximitySource, proximityStateSource, voiceActivitySource, audioSessionSource, activeSpeakerSource, mapScreenSource, pwaSource, serverSource] = await Promise.all([
+const [appConfigSource, mobilePackageSource, appSource, rideBarSource, proximitySource, proximityStateSource, voiceActivitySource, audioSessionSource, foregroundServiceSource, foregroundPluginSource, activeSpeakerSource, mapScreenSource, pwaSource, serverSource] = await Promise.all([
   readFile(new URL('../mobile/app.json', import.meta.url), 'utf8'),
+  readFile(new URL('../mobile/package.json', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/App.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/ride/RideBar.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/voice/ProximityVoice.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/voice/proximityVoiceState.ts', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/audio/useVoiceActivity.ts', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/audio/audioSession.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../mobile/src/audio/voiceForegroundService.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../mobile/plugins/withAndroidVoiceForegroundService.js', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/voice/ActiveSpeakerBridge.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/screens/MapScreen.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../docs/app.js', import.meta.url), 'utf8'),
@@ -16,10 +19,39 @@ const [appConfigSource, appSource, rideBarSource, proximitySource, proximityStat
 ]);
 
 const appConfig = JSON.parse(appConfigSource);
+const mobilePackage = JSON.parse(mobilePackageSource);
 const plugins = new Set(appConfig?.expo?.plugins ?? []);
 for (const plugin of ['@livekit/react-native-expo-plugin', '@config-plugins/react-native-webrtc']) {
   assert.ok(plugins.has(plugin), `Native voice requires Expo config plugin: ${plugin}`);
 }
+assert.equal(
+  mobilePackage?.dependencies?.['@supersami/rn-foreground-service'],
+  '2.2.5',
+  'Android background voice must pin the LiveKit example foreground-service bridge',
+);
+assert.ok(
+  plugins.has('./plugins/withAndroidVoiceForegroundService'),
+  'Android background voice requires the local foreground-service manifest plugin',
+);
+const androidPermissions = new Set(appConfig?.expo?.android?.permissions ?? []);
+for (const permission of ['RECORD_AUDIO', 'FOREGROUND_SERVICE', 'FOREGROUND_SERVICE_MICROPHONE', 'WAKE_LOCK']) {
+  assert.ok(androidPermissions.has(permission), `Android background voice requires permission: ${permission}`);
+}
+assert.match(
+  foregroundPluginSource,
+  /ForegroundService'[\s\S]*ForegroundServiceTask'[\s\S]*'android:foregroundServiceType': 'microphone'/,
+  'Expo prebuild must declare both native foreground-service components as microphone services',
+);
+assert.match(
+  foregroundServiceSource,
+  /PermissionsAndroid\.PERMISSIONS\.RECORD_AUDIO[\s\S]*PermissionsAndroid\.request[\s\S]*startService\([\s\S]*ServiceType: 'microphone'/,
+  'Android background voice must grant microphone access before starting a microphone-typed foreground service',
+);
+assert.match(
+  foregroundServiceSource,
+  /startService\([\s\S]*service\.isRunning\(\)[\s\S]*stopServiceAll\(\)[\s\S]*Android background voice service could not start/,
+  'Native voice must confirm Android actually entered foreground-service state before LiveKit becomes ready',
+);
 
 assert.match(
   appSource,
@@ -58,6 +90,17 @@ assert.match(
   audioSessionSource,
   /manageAudioFocus:\s*true[\s\S]*audioFocusMode:\s*'gainTransientMayDuck'/,
   'Android voice must request ducking focus instead of stopping external music',
+);
+const foregroundStartIndex = audioSessionSource.indexOf('await startAndroidVoiceForegroundService();');
+const nativeAudioStartIndex = audioSessionSource.indexOf('await AudioSession.startAudioSession();');
+assert.ok(
+  foregroundStartIndex >= 0 && nativeAudioStartIndex > foregroundStartIndex,
+  'Android foreground protection must be established before the native LiveKit audio session becomes ready',
+);
+assert.match(
+  audioSessionSource,
+  /AudioSession\.stopAudioSession\(\)[\s\S]*stopAndroidVoiceForegroundService\(\)/,
+  'The last native voice owner must tear down both audio routing and the Android foreground service',
 );
 
 assert.match(
