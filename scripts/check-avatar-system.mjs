@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const [nativePresets, nativeRenderer, nativeMap, nativeRide, pwa, backendProfiles] = await Promise.all([
+const [nativePresets, nativeRenderer, nativeMap, nativeRide, pwa, pwaCss, backendProfiles] = await Promise.all([
   readFile(new URL('../mobile/src/settings/avatars.ts', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/components/RiderAvatar.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/screens/MapScreen.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/ride/RideContext.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../docs/app.js', import.meta.url), 'utf8'),
+  readFile(new URL('../docs/app.css', import.meta.url), 'utf8'),
   readFile(new URL('../backend/src/profileStore.ts', import.meta.url), 'utf8'),
 ]);
 
@@ -39,6 +40,8 @@ for (const [surface, source] of [['native', nativeRenderer], ['PWA', pwa]]) {
 }
 assert.ok(nativeRenderer.includes('#22D3EE') && pwa.includes('#22D3EE'), 'avatar accent/eyes must stay shared cyan');
 assert.ok(nativeRenderer.includes('#35E68A') && pwa.includes('#35E68A'), 'online state must stay shared green');
+assert.ok(pwaCss.includes('background:var(--avatar,transparent)'), 'legacy non-rider avatar backgrounds must remain supported');
+assert.ok(pwaCss.includes('.avatar>svg:not(.rider-avatar-svg)'), 'legacy hazard glyph sizing must remain isolated from rider SVGs');
 
 assert.match(nativeMap, /<RiderAvatar[\s\S]*mapMarker[\s\S]*selected/, 'native self marker must use the selected RiderAvatar');
 assert.match(nativeMap, /rideLocations[\s\S]*<RiderAvatar[\s\S]*mapMarker/, 'native private ride positions must render RiderAvatar markers');
