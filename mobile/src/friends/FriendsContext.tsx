@@ -2,6 +2,7 @@ import * as React from 'react';
 import type { FriendActivity, FriendRequest, FriendSummary, SocialEvent } from '@rider-comms/shared';
 import { ApiError, type ConversationSummary, type RiderCommsClient } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
+import { refreshAuthoritativeSocialSnapshot } from './socialRefresh';
 
 const SOCIAL_EVENT_RETRY_MS = 2_000;
 const SOCIAL_ACTIVITY_POLL_MS = 30_000;
@@ -146,16 +147,21 @@ export function FriendsProvider({ children }: { children: React.ReactNode }): Re
     setUnreadMessageCount(unreadRes.unreadCount);
   }, [client]);
 
+  const refreshAuthoritative = React.useCallback(
+    () => refreshAuthoritativeSocialSnapshot(refreshNetwork, refreshMessages),
+    [refreshMessages, refreshNetwork],
+  );
+
   const refresh = React.useCallback(async () => {
     try {
-      await Promise.all([refreshNetwork(), refreshMessages()]);
+      await refreshAuthoritative();
       setError(null);
     } catch (err) {
       setError(messageFor(err, 'Could not load friends.'));
     } finally {
       setLoading(false);
     }
-  }, [refreshMessages, refreshNetwork]);
+  }, [refreshAuthoritative]);
 
   React.useEffect(() => {
     const interval = setInterval(() => { void refreshActivity(); }, SOCIAL_ACTIVITY_POLL_MS);
@@ -181,7 +187,8 @@ export function FriendsProvider({ children }: { children: React.ReactNode }): Re
             // Establish the durable tail first, then load authoritative state.
             // An event committed after this cursor is guaranteed to replay on
             // the next long poll; one committed before it is included here.
-            await refresh();
+            await refreshAuthoritative();
+            setError(null);
             continue;
           }
 
@@ -223,7 +230,7 @@ export function FriendsProvider({ children }: { children: React.ReactNode }): Re
 
     void run();
     return () => { stopped = true; };
-  }, [client, refresh, refreshMessages, refreshNetwork]);
+  }, [client, refresh, refreshAuthoritative, refreshMessages, refreshNetwork]);
 
   const sendRequest = React.useCallback(
     async (toRiderId: string) => {
