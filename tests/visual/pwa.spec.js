@@ -516,6 +516,8 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
     const canvas = document.querySelector('#mapCanvas');
     const search = document.querySelector('#mapSearchSlot');
     const action = document.querySelector('.map-actions .icon-button');
+    const report = document.querySelector('#reportHazardBtn');
+    const locate = document.querySelector('#locateBtn');
     const nearby = document.querySelector('#joinNearbyBtn');
     const avatarButton = document.querySelector('#mapAvatarButton');
     const optionsGlyph = document.querySelector('.map-search-options');
@@ -529,7 +531,13 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
       viewportWidth: document.documentElement.clientWidth,
       searchRadius: search ? parseFloat(getComputedStyle(search).borderTopLeftRadius) : NaN,
       actionRadius: action ? parseFloat(getComputedStyle(action).borderTopLeftRadius) : NaN,
+      reportWidth: report?.getBoundingClientRect().width ?? NaN,
+      locateWidth: locate?.getBoundingClientRect().width ?? NaN,
       nearbyWidth: nearby?.getBoundingClientRect().width ?? NaN,
+      reportTransform: report ? getComputedStyle(report).transform : null,
+      locateTransform: locate ? getComputedStyle(locate).transform : null,
+      firstGap: report && locate ? locate.getBoundingClientRect().top - report.getBoundingClientRect().bottom : NaN,
+      secondGap: locate && nearby ? nearby.getBoundingClientRect().top - locate.getBoundingClientRect().bottom : NaN,
       avatarDisplay: avatarButton ? getComputedStyle(avatarButton).display : null,
       optionsGlyphWidth: optionsGlyph?.getBoundingClientRect().width ?? NaN,
       mapTypeId: window.__riderCommsTestMap?.options?.mapTypeId ?? null,
@@ -546,8 +554,15 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
   expectNear(mapGeometry.canvasRight, mapGeometry.viewportWidth);
   expect(mapGeometry.searchRadius).toBeGreaterThanOrEqual(20);
   expect(mapGeometry.searchRadius).toBeLessThanOrEqual(26);
-  expect(mapGeometry.actionRadius).toBeGreaterThanOrEqual(20);
-  expect(mapGeometry.nearbyWidth).toBeGreaterThanOrEqual(62);
+  expect(mapGeometry.actionRadius).toBeGreaterThanOrEqual(12);
+  expect(mapGeometry.actionRadius).toBeLessThanOrEqual(16);
+  expect(mapGeometry.reportWidth).toBe(48);
+  expect(mapGeometry.locateWidth).toBe(48);
+  expect(mapGeometry.nearbyWidth).toBe(48);
+  expect(mapGeometry.reportTransform).toBe('none');
+  expect(mapGeometry.locateTransform).toBe('none');
+  expectNear(mapGeometry.firstGap, 8);
+  expectNear(mapGeometry.secondGap, 8);
   expect(mapGeometry.avatarDisplay).toBe('none');
   expect(mapGeometry.optionsGlyphWidth).toBeGreaterThanOrEqual(16);
   expect(mapGeometry.mapTypeId).toBe('roadmap');
@@ -1997,6 +2012,8 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
   const metrics = await page.evaluate(() => {
     const summary = document.querySelector('#navSummary');
     const banner = document.querySelector('#navBanner');
+    const report = document.querySelector('#reportHazardBtn');
+    const locate = document.querySelector('#locateBtn');
     const mute = document.querySelector('#navMuteBtn');
     const overview = document.querySelector('#navOverviewBtn');
     const end = document.querySelector('#endNavBtn');
@@ -2008,8 +2025,11 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
       summaryRadius: parseFloat(summaryStyle.borderTopLeftRadius),
       bannerRadius: parseFloat(bannerStyle.borderTopLeftRadius),
       endRadius: end ? parseFloat(getComputedStyle(end).borderTopLeftRadius) : 0,
+      reportSize: report?.getBoundingClientRect().width ?? 0,
+      locateDisplay: locate ? getComputedStyle(locate).display : null,
       muteSize: mute?.getBoundingClientRect().width ?? 0,
       overviewSize: overview?.getBoundingClientRect().width ?? 0,
+      muteRadius: mute ? parseFloat(getComputedStyle(mute).borderTopLeftRadius) : 0,
     };
   });
 
@@ -2020,8 +2040,12 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
   expect(metrics.summaryRadius).toBeGreaterThanOrEqual(20);
   expect(metrics.bannerRadius).toBeGreaterThanOrEqual(20);
   expect(metrics.endRadius).toBeGreaterThanOrEqual(20);
-  expect(metrics.muteSize).toBe(52);
-  expect(metrics.overviewSize).toBe(52);
+  expect(metrics.reportSize).toBe(48);
+  expect(metrics.locateDisplay).toBe('none');
+  expect(metrics.muteSize).toBe(48);
+  expect(metrics.overviewSize).toBe(48);
+  expect(metrics.muteRadius).toBeGreaterThanOrEqual(12);
+  expect(metrics.muteRadius).toBeLessThanOrEqual(16);
   await expect(banner).toBeVisible();
   await expect(mute).toBeVisible();
   await expect(overview).toBeVisible();
