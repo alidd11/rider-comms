@@ -901,8 +901,8 @@
         </article>
         <div class="friend-profile-actions" aria-label="Rider actions">
           <button id="messageFriend"><span class="friend-action-icon">${icon('friends')}</span><strong>Message</strong></button>
-          <button id="copyFriendId"><span class="friend-action-icon">${icon('share')}</span><strong>Copy ID</strong></button>
-          <button id="friendSafetyActions"><span class="friend-action-icon">${icon('shield')}</span><strong>More</strong></button>
+          <button id="shareFriendId"><span class="friend-action-icon">${icon('share')}</span><strong>Share ID</strong></button>
+          <button id="friendSafetyActions"><span class="friend-action-icon friend-action-more" aria-hidden="true">•••</span><strong>More</strong></button>
         </div>
         <div class="friend-detail-list">
           <div><span class="setting-icon">${icon('broadcast')}</span><span><strong>Rider status</strong><small>${escapeHtml(friendActivityLabel(activity))}</small></span></div>
@@ -916,7 +916,12 @@
               ? `<div class="social-links">${socialLinks}</div>`
               : '<p class="friend-profile-note">This rider has not shared any social links with you.</p>'}
         <p class="caption">Only connect and arrange rides with people you trust. Social links follow each rider’s privacy settings.</p>`, () => {
-        $('#copyFriendId').addEventListener('click', async () => {
+        $('#shareFriendId').addEventListener('click', async () => {
+          const message = `${currentFriend.displayName} on Rider Comms: ${riderId}`;
+          if (navigator.share) {
+            try { await navigator.share({ text: message }); return; }
+            catch (error) { if (error?.name === 'AbortError') return; }
+          }
           try { await navigator.clipboard.writeText(riderId); showToast('Rider ID copied.'); }
           catch { showToast(riderId); }
         });
