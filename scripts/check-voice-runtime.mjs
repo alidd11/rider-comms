@@ -79,6 +79,11 @@ assert.match(
   'PWA voice must retry transient token/connect failures that happen before a room exists',
 );
 assert.match(
+  pwaSource,
+  /shouldRetryVoiceConnection\(error\)[\s\S]*NotAllowedError[\s\S]*SecurityError[\s\S]*NotFoundError[\s\S]*return false/,
+  'PWA voice must not timer-retry microphone permission/security/no-device failures',
+);
+assert.match(
   activeSpeakerSource,
   /RoomEvent\.ActiveSpeakersChanged/,
   'Native voice must use LiveKit active-speaker events rather than infer remote speaking from mute state',
