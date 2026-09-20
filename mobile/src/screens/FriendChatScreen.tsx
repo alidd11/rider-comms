@@ -254,6 +254,7 @@ function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Elemen
   const [error, setError] = React.useState<string | null>(null);
   const listRef = React.useRef<FlatList<LocalMessage>>(null);
   const focusedRef = React.useRef(false);
+  const hasLoadedOlderRef = React.useRef(false);
   const preserveViewportOnNextContentChange = React.useRef(false);
 
   const [hideouts, setHideouts] = React.useState<Hideout[]>([]);
@@ -263,8 +264,10 @@ function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Elemen
     if (showLoading) setLoading(true);
     try {
       const page = await client.getMessages(riderId, { limit: 100 });
-      setMessages((current) => reconcileMessageThread(current, page.messages));
-      setNextCursor(page.nextCursor);
+      setMessages((current) => hasLoadedOlderRef.current
+        ? mergeOlderMessagePage(current, page.messages)
+        : reconcileMessageThread(current, page.messages));
+      if (!hasLoadedOlderRef.current) setNextCursor(page.nextCursor);
       setPeerReadThroughMessageId(page.peerReadThroughMessageId);
       setError(null);
       try {
@@ -289,6 +292,7 @@ function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Elemen
     try {
       const page = await client.getMessages(riderId, { before: nextCursor, limit: 100 });
       if (page.messages.length > 0) preserveViewportOnNextContentChange.current = true;
+      hasLoadedOlderRef.current = true;
       setMessages((current) => mergeOlderMessagePage(current, page.messages));
       setNextCursor(page.nextCursor);
       setPeerReadThroughMessageId(page.peerReadThroughMessageId);
