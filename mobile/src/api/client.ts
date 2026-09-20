@@ -29,7 +29,7 @@ export interface RideMemberLocation { riderId: string; lat: number; lon: number;
 export interface PresenceResponse { inZoneWith: string[]; transitions: Array<{ a: string; b: string; type: 'entered' | 'left' }>; radiusMiles: number }
 export interface VoiceTokenResponse { token: string; url: string }
 export interface ProximityVoiceConnection extends VoiceTokenResponse { peerId: string }
-export interface ProximityVoiceResponse { connections: ProximityVoiceConnection[]; refreshAfterMs: number }
+export interface ProximityVoiceResponse { connections: ProximityVoiceConnection[]; refreshAfterMs: number; authorizationLeaseMs: number }
 export interface PublicRiderProfile {
   riderId: string;
   displayName: string;

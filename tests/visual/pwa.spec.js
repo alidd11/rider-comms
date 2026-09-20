@@ -1046,6 +1046,111 @@ test('PWA Nearby Voice waits without holding the mic, then connects when a rider
   await expect(voice).toHaveAttribute('aria-label', 'Listening — hands-free');
 });
 
+test('PWA public voice fails closed when proximity authorization cannot be renewed', async ({ page }) => {
+  let shareLocation = false;
+  let voiceTokenRequests = 0;
+
+  await mockAuthenticatedApi(page, 'stationary', ({ url, request }) => {
+    if (url.pathname === `/riders/${RIDER_ID}/profile`) {
+      if (request.method() === 'PUT') {
+        const update = request.postDataJSON();
+        if (typeof update.shareLocation === 'boolean') shareLocation = update.shareLocation;
+      }
+      return { body: { ...PROFILE, shareLocation } };
+    }
+    if (url.pathname === '/presence' && request.method() === 'POST') {
+      return {
+        body: {
+          inZoneWith: ['rider_peer01'],
+          transitions: [{ a: RIDER_ID, b: 'rider_peer01', type: 'entered' }],
+          radiusMiles: 1,
+        },
+      };
+    }
+    if (url.pathname === '/profiles/rider_peer01') {
+      return { body: { riderId: 'rider_peer01', displayName: 'Peer Rider', handle: '@peer', avatarId: 'ridge' } };
+    }
+    if (url.pathname === '/voice/token' && request.method() === 'POST') {
+      voiceTokenRequests += 1;
+      if (voiceTokenRequests > 1) {
+        return { status: 503, body: { error: 'voice_temporarily_unavailable' } };
+      }
+      return {
+        body: {
+          connections: [{ peerId: 'rider_peer01', token: 'leased-peer-token', url: 'wss://voice.example.test' }],
+          refreshAfterMs: 20_000,
+          authorizationLeaseMs: 600,
+        },
+      };
+    }
+    return null;
+  });
+
+  await page.addInitScript(() => {
+    const realSetInterval = window.setInterval.bind(window);
+    window.setInterval = (handler, timeout = 0, ...args) =>
+      realSetInterval(handler, timeout === 20_000 ? 150 : timeout, ...args);
+
+    window.__publicVoiceDisconnects = 0;
+    const fakeStream = { getTracks: () => [{ stop() {} }] };
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: { getUserMedia: async () => fakeStream },
+    });
+    class FakeAudioContext {
+      createMediaStreamSource() { return { connect() {} }; }
+      createAnalyser() {
+        return {
+          fftSize: 512,
+          frequencyBinCount: 32,
+          getByteTimeDomainData(data) { data.fill(128); },
+        };
+      }
+      close() { return Promise.resolve(); }
+    }
+    Object.defineProperty(window, 'AudioContext', { configurable: true, value: FakeAudioContext });
+    window.LivekitClient = {
+      Room: class {
+        constructor() {
+          this.localParticipant = { setMicrophoneEnabled: async () => {} };
+        }
+        on() { return this; }
+        async connect() {}
+        async startAudio() {}
+        async disconnect() { window.__publicVoiceDisconnects += 1; }
+      },
+      RoomEvent: {
+        TrackSubscribed: 'trackSubscribed',
+        TrackUnsubscribed: 'trackUnsubscribed',
+        ActiveSpeakersChanged: 'activeSpeakersChanged',
+        Reconnected: 'reconnected',
+        Disconnected: 'disconnected',
+      },
+      Track: { Kind: { Audio: 'audio' } },
+    };
+  });
+
+  await page.goto('/');
+  const nearby = page.locator('#joinNearbyBtn');
+  const voice = page.locator('#voiceStatusBtn');
+
+  await nearby.click();
+  await expect(nearby).toHaveAttribute('data-active', 'true');
+  await expect(voice).toHaveAttribute('aria-label', 'Listening — hands-free');
+  await expect.poll(() => voiceTokenRequests).toBeGreaterThanOrEqual(2);
+
+  // A transient refresh miss keeps the still-valid pair alive until the
+  // server-provided authorization lease expires.
+  await expect.poll(() => page.evaluate(() => window.__publicVoiceDisconnects), { timeout: 400 }).toBe(0);
+
+  // Token expiry alone does not eject a connected LiveKit participant.
+  // Rider Comms must therefore mute/disconnect the pair itself once it can no
+  // longer re-confirm current proximity/block authorization.
+  await expect.poll(() => page.evaluate(() => window.__publicVoiceDisconnects), { timeout: 1_500 }).toBeGreaterThanOrEqual(1);
+  await expect(voice).toHaveAttribute('aria-label', 'Nearby Voice · reconnecting');
+  await expect(nearby).toHaveAttribute('data-active', 'true');
+});
+
 test('PWA cancels a delayed Nearby Voice connect after the rider turns Nearby off', async ({ page }) => {
   let shareLocation = false;
   let voiceTokenRequested = false;
@@ -1125,6 +1230,108 @@ test('PWA cancels a delayed Nearby Voice connect after the rider turns Nearby of
   releaseVoiceToken();
   await expect.poll(() => page.evaluate(() => window.__nearbyVoiceRoomsCreated)).toBe(0);
   await expect(page.locator('#voiceStatusBtn')).toBeHidden();
+});
+
+test('PWA coalesces overlapping Nearby Voice authorization refreshes', async ({ page }) => {
+  let shareLocation = false;
+  let voiceTokenRequests = 0;
+  let releaseFirstToken;
+  const firstTokenGate = new Promise((resolve) => { releaseFirstToken = resolve; });
+
+  await mockAuthenticatedApi(page, 'stationary', async ({ url, request }) => {
+    if (url.pathname === `/riders/${RIDER_ID}/profile`) {
+      if (request.method() === 'PUT') {
+        const update = request.postDataJSON();
+        if (typeof update.shareLocation === 'boolean') shareLocation = update.shareLocation;
+      }
+      return { body: { ...PROFILE, shareLocation } };
+    }
+    if (url.pathname === '/presence' && request.method() === 'POST') {
+      return {
+        body: {
+          inZoneWith: ['rider_peer01'],
+          transitions: [{ a: RIDER_ID, b: 'rider_peer01', type: 'entered' }],
+          radiusMiles: 1,
+        },
+      };
+    }
+    if (url.pathname === '/profiles/rider_peer01') {
+      return { body: { riderId: 'rider_peer01', displayName: 'Peer Rider', handle: '@peer', avatarId: 'ridge' } };
+    }
+    if (url.pathname === '/voice/token' && request.method() === 'POST') {
+      voiceTokenRequests += 1;
+      if (voiceTokenRequests === 1) await firstTokenGate;
+      return {
+        body: {
+          connections: [{ peerId: 'rider_peer01', token: `peer-token-${voiceTokenRequests}`, url: 'wss://voice.example.test' }],
+          refreshAfterMs: 20_000,
+          authorizationLeaseMs: 60_000,
+        },
+      };
+    }
+    return null;
+  });
+
+  await page.addInitScript(() => {
+    const realSetInterval = window.setInterval.bind(window);
+    window.setInterval = (handler, timeout = 0, ...args) =>
+      realSetInterval(handler, timeout === 20_000 ? 75 : timeout, ...args);
+
+    window.__nearbyVoiceRoomsCreated = 0;
+    const fakeStream = { getTracks: () => [{ stop() {} }] };
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: { getUserMedia: async () => fakeStream },
+    });
+    class FakeAudioContext {
+      createMediaStreamSource() { return { connect() {} }; }
+      createAnalyser() {
+        return {
+          fftSize: 512,
+          frequencyBinCount: 32,
+          getByteTimeDomainData(data) { data.fill(128); },
+        };
+      }
+      close() { return Promise.resolve(); }
+    }
+    Object.defineProperty(window, 'AudioContext', { configurable: true, value: FakeAudioContext });
+    window.LivekitClient = {
+      Room: class {
+        constructor() {
+          window.__nearbyVoiceRoomsCreated += 1;
+          this.localParticipant = { setMicrophoneEnabled: async () => {} };
+        }
+        on() { return this; }
+        async connect() {}
+        async startAudio() {}
+        async disconnect() {}
+      },
+      RoomEvent: {
+        TrackSubscribed: 'trackSubscribed',
+        TrackUnsubscribed: 'trackUnsubscribed',
+        ActiveSpeakersChanged: 'activeSpeakersChanged',
+        Reconnected: 'reconnected',
+        Disconnected: 'disconnected',
+      },
+      Track: { Kind: { Audio: 'audio' } },
+    };
+  });
+
+  await page.goto('/');
+  await page.locator('#joinNearbyBtn').click();
+  await expect.poll(() => voiceTokenRequests).toBe(1);
+
+  // Presence keeps refreshing while the first token request is deliberately
+  // blocked. Those refreshes must collapse into one pending replay instead of
+  // constructing multiple LiveKit pair rooms for the same peer.
+  await page.waitForTimeout(250);
+  expect(voiceTokenRequests).toBe(1);
+
+  releaseFirstToken();
+  await expect.poll(() => voiceTokenRequests).toBeGreaterThanOrEqual(2);
+  await expect.poll(() => page.evaluate(() => window.__nearbyVoiceRoomsCreated)).toBe(1);
+  await page.waitForTimeout(250);
+  expect(await page.evaluate(() => window.__nearbyVoiceRoomsCreated)).toBe(1);
 });
 
 test('PWA attaches subscribed Nearby Voice audio after Go Live', async ({ page }) => {

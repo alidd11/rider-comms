@@ -1,16 +1,18 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const [appConfigSource, appSource, rideBarSource, proximitySource, voiceActivitySource, audioSessionSource, activeSpeakerSource, mapScreenSource, pwaSource] = await Promise.all([
+const [appConfigSource, appSource, rideBarSource, proximitySource, proximityStateSource, voiceActivitySource, audioSessionSource, activeSpeakerSource, mapScreenSource, pwaSource, serverSource] = await Promise.all([
   readFile(new URL('../mobile/app.json', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/App.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/ride/RideBar.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/voice/ProximityVoice.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../mobile/src/voice/proximityVoiceState.ts', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/audio/useVoiceActivity.ts', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/audio/audioSession.ts', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/voice/ActiveSpeakerBridge.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/screens/MapScreen.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../docs/app.js', import.meta.url), 'utf8'),
+  readFile(new URL('../backend/src/server.ts', import.meta.url), 'utf8'),
 ]);
 
 const appConfig = JSON.parse(appConfigSource);
@@ -122,6 +124,46 @@ assert.match(
   proximitySource,
   /<ActiveSpeakerBridge[\s\S]*speakerIds\.includes\(connection\.peerId\)/,
   'Native proximity voice must surface which authorised nearby peer is actively speaking',
+);
+assert.match(
+  serverSource,
+  /PROXIMITY_VOICE_AUTHORIZATION_LEASE_MS[\s\S]*authorizationLeaseMs:\s*PROXIMITY_VOICE_AUTHORIZATION_LEASE_MS/,
+  'Backend public voice must publish an explicit renewable authorization lease',
+);
+assert.match(
+  proximitySource,
+  /const expireAuthorizationLease[\s\S]*setConnections\(\[\]\)[\s\S]*setAuthorizationExpired\(true\)/,
+  'Native public voice must fail closed when its proximity authorization lease expires',
+);
+assert.match(
+  proximitySource,
+  /renewAuthorizationLease\(timing\.authorizationLeaseMs\)/,
+  'Native public voice must renew its authorization lease only after a successful server response',
+);
+assert.match(
+  proximitySource,
+  /setConnectedPeers\(\(current\) => prunePeerSet[\s\S]*setSpeakingPeers\(\(current\) => prunePeerSet[\s\S]*setLocalSpeakingPeers\(\(current\) => prunePeerSet/,
+  'Native public voice must immediately prune stale connected, remote-speaking and local-speaking peer state',
+);
+assert.match(
+  proximityStateSource,
+  /localSpeaking[\s\S]*Nearby Voice · You speaking/,
+  'Native Nearby Voice status must expose when the local rider is transmitting',
+);
+assert.match(
+  pwaSource,
+  /function expirePublicVoiceAuthorizationLease\(\)[\s\S]*setVoiceSpeaking\(false\)[\s\S]*proximityVoiceRooms\.clear\(\)[\s\S]*scheduleVoiceReconnect\('channel'\)/,
+  'PWA public voice must mute and disconnect stale pair rooms when authorization cannot be renewed',
+);
+assert.match(
+  pwaSource,
+  /renewPublicVoiceAuthorizationLease\(response\.authorizationLeaseMs\)/,
+  'PWA public voice must renew its authorization lease only after a successful server response',
+);
+assert.match(
+  pwaSource,
+  /publicVoiceConnectInFlight[\s\S]*publicVoiceRefreshPending[\s\S]*queueMicrotask\(\(\) => syncVoiceConnection\(\)\)/,
+  'PWA public voice must serialize overlapping authorization/connect refreshes and replay one pending refresh',
 );
 assert.match(
   rideBarSource,
