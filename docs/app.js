@@ -4145,6 +4145,7 @@
   let navFollowing = true;
   let navMuted = false;
   let navCurrentPosition = null;
+  let navCameraHeading = null;
   let navGpsWatchdog;
   let navLastFixAt = 0;
   let navGpsIssue = null;
@@ -4173,15 +4174,105 @@
     return (toDeg(Math.atan2(y, x)) + 360) % 360;
   }
 
-  function navigationCameraCentre(from, to) {
-    const distance = metersBetween(from, to);
-    // Bias the camera materially ahead of the rider so the avatar sits in the
-    // lower third and the useful road/next junction occupies the upper frame.
-    const fraction = distance > 120 ? 0.36 : distance > 70 ? 0.30 : 0.22;
+  function navigationCameraProfile({
+    speedMps,
+    maneuverDistanceMeters,
+    maneuver,
+    viewportBias = 1,
+  }) {
+    const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+    const speed = Number.isFinite(speedMps) ? Math.max(0, Number(speedMps)) : 8;
+    let profile;
+
+    if (speed <= 1.5) profile = { zoom: 18.8, pitch: 52, lookAheadMeters: 90, centreAheadMeters: 42 };
+    else if (speed < 7) profile = { zoom: 18.7, pitch: 58, lookAheadMeters: 120, centreAheadMeters: 52 };
+    else if (speed < 14) profile = { zoom: 18.4, pitch: 60, lookAheadMeters: 165, centreAheadMeters: 70 };
+    else if (speed < 22) profile = { zoom: 18.0, pitch: 58, lookAheadMeters: 230, centreAheadMeters: 95 };
+    else profile = { zoom: 17.6, pitch: 54, lookAheadMeters: 310, centreAheadMeters: 125 };
+
+    const maneuverDistance = Number.isFinite(maneuverDistanceMeters)
+      ? Math.max(0, Number(maneuverDistanceMeters))
+      : Number.POSITIVE_INFINITY;
+    const complexManeuver = Boolean(maneuver && (
+      maneuver.includes('roundabout')
+      || maneuver.includes('uturn')
+      || maneuver.includes('fork')
+    ));
+
+    if (complexManeuver && maneuverDistance <= 260) {
+      profile = {
+        zoom: Math.min(profile.zoom, 18.0),
+        pitch: Math.min(profile.pitch, 50),
+        lookAheadMeters: Math.max(profile.lookAheadMeters, 220),
+        centreAheadMeters: Math.max(profile.centreAheadMeters, 80),
+      };
+    } else if (maneuverDistance <= 180) {
+      const proximity = clamp((180 - maneuverDistance) / 160, 0, 1);
+      profile = {
+        zoom: Math.min(18.9, profile.zoom + 0.35 * proximity),
+        pitch: Math.max(52, profile.pitch - 5 * proximity),
+        lookAheadMeters: Math.max(140, profile.lookAheadMeters * (1 - 0.2 * proximity)),
+        centreAheadMeters: Math.max(55, profile.centreAheadMeters * (1 - 0.08 * proximity)),
+      };
+    }
+
     return {
-      lat: from.lat + (to.lat - from.lat) * fraction,
-      lng: from.lng + (to.lng - from.lng) * fraction,
+      ...profile,
+      centreAheadMeters: profile.centreAheadMeters * clamp(viewportBias, 0.9, 1.3),
     };
+  }
+
+  function navigationViewportBias(viewportHeight, topOcclusion, bottomOcclusion) {
+    const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+    if (!Number.isFinite(viewportHeight) || viewportHeight <= 0) return 1;
+    const top = clamp(Number.isFinite(topOcclusion) ? topOcclusion : 0, 0, viewportHeight);
+    const bottom = clamp(Number.isFinite(bottomOcclusion) ? bottomOcclusion : 0, 0, viewportHeight);
+    const occludedFraction = clamp((top + bottom) / viewportHeight, 0, 0.7);
+    const topDominance = clamp((top - bottom) / viewportHeight, -0.25, 0.25);
+    return clamp(1 + occludedFraction * 0.45 + topDominance * 0.35, 0.9, 1.3);
+  }
+
+  function currentNavigationViewportBias() {
+    const mapElement = $('#googleMap');
+    const banner = $('#navBanner');
+    const summary = $('#navSummary');
+    if (!mapElement) return 1;
+    const mapRect = mapElement.getBoundingClientRect();
+    if (mapRect.height <= 0) return 1;
+    const bannerRect = banner && !banner.hidden ? banner.getBoundingClientRect() : null;
+    const summaryRect = summary && !summary.hidden ? summary.getBoundingClientRect() : null;
+    const topOcclusion = bannerRect ? Math.max(0, bannerRect.bottom - mapRect.top) : 0;
+    const bottomOcclusion = summaryRect ? Math.max(0, mapRect.bottom - summaryRect.top) : 0;
+    return navigationViewportBias(mapRect.height, topOcclusion, bottomOcclusion);
+  }
+
+  function stabilizeNavigationHeading(previousHeading, candidateHeading, speedMps) {
+    const normalise = (value) => ((value % 360) + 360) % 360;
+    const candidate = normalise(candidateHeading);
+    if (!Number.isFinite(previousHeading)) return candidate;
+    const previous = normalise(Number(previousHeading));
+    const speed = Number.isFinite(speedMps) ? Math.max(0, Number(speedMps)) : 8;
+    if (speed <= 1.5) return previous;
+    const delta = ((candidate - previous + 540) % 360) - 180;
+    const alpha = speed < 5 ? 0.22 : speed < 12 ? 0.34 : speed < 22 ? 0.46 : 0.56;
+    return normalise(previous + delta * alpha);
+  }
+
+  function combineNavigationCameraPaths(...paths) {
+    const combined = [];
+    paths.forEach((path) => {
+      if (!Array.isArray(path)) return;
+      path.forEach((coordinate) => {
+        const previous = combined[combined.length - 1];
+        if (
+          previous
+          && Math.abs(previous.lat - coordinate.lat) < 1e-7
+          && Math.abs(previous.lng - coordinate.lng) < 1e-7
+        ) return;
+        combined.push(coordinate);
+      });
+    });
+    return combined;
   }
 
   function metersBetween(a, b) {
@@ -4326,7 +4417,7 @@
     const lead = repeatedFollow[1].trim().replace(/[.]$/, '');
     const repeatedRoad = repeatedFollow[2].trim().replace(/[.]$/, '');
     const comparable = (value) => value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-    return comparable(lead).includes(comparable(repeatedRoad)) ? lead : cleaned;
+    return comparable(lead).endsWith(comparable(repeatedRoad)) ? lead : cleaned;
   }
 
   /** Best-effort voice guidance — SpeechSynthesis isn't universally
@@ -4524,19 +4615,50 @@
     userMapMarker.setIcon?.(riderAvatarMapIcon(state.profile, true, undefined, 54));
   }
 
-  function applyNavigationCamera(here, step, gpsHeading) {
+  function applyNavigationCamera(here, step, gpsHeading, speedMps) {
     if (!map || !step) return;
-    const lookAhead = lookAheadCoordinateOnPath(here, navigationStepPath(step), 150);
-    const centre = navigationCameraCentre(here, lookAhead);
-    const heading = Number.isFinite(gpsHeading) && gpsHeading >= 0 ? gpsHeading : bearingDegrees(here, lookAhead);
+    const currentPath = navigationStepPath(step);
+    const upcomingStep = navSteps[navStepIndex + 1];
+    const followingStep = navSteps[navStepIndex + 2];
+    const cameraPath = combineNavigationCameraPaths(
+      currentPath,
+      upcomingStep ? navigationStepPath(upcomingStep) : undefined,
+      followingStep ? navigationStepPath(followingStep) : undefined,
+    );
+    if (!cameraPath.length) return;
+
+    const maneuverDistance = remainingDistanceOnPathMeters(here, currentPath);
+    const profile = navigationCameraProfile({
+      speedMps,
+      maneuverDistanceMeters: maneuverDistance,
+      maneuver: upcomingStep?.maneuver,
+      viewportBias: currentNavigationViewportBias(),
+    });
+    const headingTarget = lookAheadCoordinateOnPath(
+      here,
+      cameraPath,
+      Math.min(70, Math.max(35, profile.lookAheadMeters * 0.35)),
+    );
+    const routeHeading = bearingDegrees(here, headingTarget);
+    const movingSpeed = Number.isFinite(speedMps) ? Number(speedMps) : null;
+    const candidateHeading = movingSpeed !== null
+      && movingSpeed > 2.5
+      && Number.isFinite(gpsHeading)
+      && gpsHeading >= 0
+      ? gpsHeading
+      : routeHeading;
+    const heading = stabilizeNavigationHeading(navCameraHeading, candidateHeading, movingSpeed);
+    navCameraHeading = heading;
+
     if (!navFollowing) return;
+    const centre = lookAheadCoordinateOnPath(here, cameraPath, profile.centreAheadMeters);
     if (typeof map.moveCamera === 'function') {
-      map.moveCamera({ center: centre, zoom: 18.4, heading, tilt: 60 });
+      map.moveCamera({ center: centre, zoom: profile.zoom, heading, tilt: profile.pitch });
     } else {
       map.panTo(centre);
-      map.setZoom(18.4);
+      map.setZoom(profile.zoom);
       map.setHeading?.(heading);
-      map.setTilt?.(60);
+      map.setTilt?.(profile.pitch);
     }
     // In heading-up follow mode the map rotates underneath the rider's chosen
     // avatar, keeping their identity screen-upright while exposing more road
@@ -4547,6 +4669,7 @@
   function showNavigationOverview() {
     if (!map || !navSteps.length) return;
     navFollowing = false;
+    navCameraHeading = null;
     map.setHeading?.(0);
     map.setTilt?.(0);
     updateNavigationPositionIcon();
@@ -4564,7 +4687,12 @@
       lng: latestDevicePosition.coords.longitude,
     };
     navCurrentPosition = here;
-    applyNavigationCamera(here, navSteps[navStepIndex], latestDevicePosition.coords.heading);
+    applyNavigationCamera(
+      here,
+      navSteps[navStepIndex],
+      latestDevicePosition.coords.heading,
+      latestDevicePosition.coords.speed,
+    );
   }
 
   /** Entry point — called from the destination card's real "Start"
@@ -4609,6 +4737,7 @@
     navFollowing = true;
     if (!preserveMute) navMuted = false;
     navCurrentPosition = null;
+    if (!preserveMute) navCameraHeading = null;
     navDestination = { ...destination, label };
     hideDestinationCard();
     destinationMarker?.setMap(null);
@@ -4630,14 +4759,19 @@
     setNavigationTrafficVisible(true);
     $('#navBanner').hidden = false;
     $('#navSummary').hidden = false;
-    userMapMarker?.setIcon?.(navigationPositionMapIcon());
+    updateNavigationPositionIcon();
     updateNavigationControls();
     renderNavStep();
     startNavTracking();
     if (latestDevicePosition && navSteps[0]) {
       const here = { lat: latestDevicePosition.coords.latitude, lng: latestDevicePosition.coords.longitude };
       navCurrentPosition = here;
-      applyNavigationCamera(here, navSteps[0], latestDevicePosition.coords.heading);
+      applyNavigationCamera(
+        here,
+        navSteps[0],
+        latestDevicePosition.coords.heading,
+        latestDevicePosition.coords.speed,
+      );
     }
   }
 
@@ -4737,7 +4871,7 @@
     const step = navSteps[navStepIndex];
     renderNavStep();
     maybeSpeakUpcomingNavigationPrompt(here, step);
-    applyNavigationCamera(here, step, position.coords.heading);
+    applyNavigationCamera(here, step, position.coords.heading, position.coords.speed);
     checkOffRoute(here, step);
   }
 
@@ -4791,6 +4925,7 @@
     navFollowing = true;
     navMuted = false;
     navCurrentPosition = null;
+    navCameraHeading = null;
     map?.setHeading?.(0);
     map?.setTilt?.(0);
     setNavigationTrafficVisible(false);
