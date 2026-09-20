@@ -2157,6 +2157,6 @@ body:has(.content-screen.active) .movement-safety-banner{
   font-size:.71rem;
 }
 [data-screen="friends"] .friend-row.is-online .friend-activity{color:var(--text-secondary)}
-.friend-profile-card small.online{color:var(--text-secondary)}
+.friend-profile-card small{color:var(--text-secondary)}
 .friend-action-more{font-size:.9rem;font-weight:900;letter-spacing:.08em;line-height:1}
 
