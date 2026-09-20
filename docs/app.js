@@ -428,13 +428,14 @@
   }
 
   function avatar(person, className = '') {
-    return `<span class="avatar ${className}" aria-hidden="true">${riderAvatarSvg(person.avatarId)}</span>`;
+    const preset = avatarPreset(person.avatarId);
+    return `<span class="avatar ${className}" style="--avatar:${preset.bg}" aria-hidden="true">${riderAvatarSvg(person.avatarId)}</span>`;
   }
 
   function avatarOptionsMarkup(selectedId) {
     return `<div class="avatar-picker-grid" role="radiogroup" aria-label="Profile avatar">${AVATAR_PRESETS.map((preset) => {
       const selected = preset.id === selectedId;
-      return `<button type="button" class="avatar-picker-option${selected ? ' selected' : ''}" data-avatar-option="${preset.id}" role="radio" aria-checked="${selected}" aria-label="${escapeHtml(preset.label)} avatar"><span class="avatar avatar-lg">${riderAvatarSvg(preset.id, { selected })}</span><span class="avatar-picker-label">${escapeHtml(preset.label)}</span>${selected ? '<span class="avatar-picker-check">✓</span>' : ''}</button>`;
+      return `<button type="button" class="avatar-picker-option${selected ? ' selected' : ''}" data-avatar-option="${preset.id}" role="radio" aria-checked="${selected}" aria-label="${escapeHtml(preset.label)} avatar"><span class="avatar avatar-lg" style="--avatar:${preset.bg}">${riderAvatarSvg(preset.id, { selected })}</span><span class="avatar-picker-label">${escapeHtml(preset.label)}</span>${selected ? '<span class="avatar-picker-check">✓</span>' : ''}</button>`;
     }).join('')}</div>`;
   }
 
@@ -528,8 +529,9 @@
       || state.profile.handle.trim().toLowerCase() === '@rider';
     $('#completeProfilePrompt').hidden = !genericProfile;
     $('[data-avatar]').forEach((element) => {
+      const preset = avatarPreset(state.profile.avatarId);
       element.innerHTML = riderAvatarSvg(state.profile.avatarId);
-      element.style.removeProperty('--avatar');
+      element.style.setProperty('--avatar', preset.bg);
     });
     if (userMapMarker && map && !usingFallbackMap) {
       userMapMarker.setIcon?.(riderAvatarMapIcon(state.profile, true));
@@ -4279,7 +4281,7 @@
     const marker = new google.maps.Marker({
       map,
       position,
-      title: current ? (person.displayName || 'Your location') : person.displayName,
+      title: current ? 'Your location' : person.displayName,
       icon: riderAvatarMapIcon(person, current, status),
       zIndex: current ? 10 : 5,
     });
