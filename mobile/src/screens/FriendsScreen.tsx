@@ -219,10 +219,12 @@ function FriendRow({
 function FriendProfileModal({
   friend,
   activity,
+  profileRevision,
   onClose,
 }: {
   friend: FriendSummary | null;
   activity?: FriendActivity;
+  profileRevision: number;
   onClose: () => void;
 }): React.JSX.Element {
   const insets = useSafeAreaInsets();
@@ -240,6 +242,9 @@ function FriendProfileModal({
       return;
     }
     let cancelled = false;
+    // Drop previously-visible social links immediately when realtime says this
+    // profile changed. Only the new authoritative response may reveal them.
+    setProfile(null);
     setLoading(true);
     setError(null);
     void client.getPublicProfile(friend.riderId)
@@ -247,7 +252,7 @@ function FriendProfileModal({
       .catch(() => { if (!cancelled) setError('Could not refresh this profile.'); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [client, friend]);
+  }, [client, friend, profileRevision]);
 
   if (!friend) return <></>;
   const openSocial = (url: string) => {
@@ -346,7 +351,7 @@ function FriendProfileModal({
 }
 
 export function FriendsScreen(): React.JSX.Element {
-  const { friends, incomingRequests, outgoingRequests, requestProfiles, activityByRider, conversations, loading, error, refresh } = useFriends();
+  const { friends, incomingRequests, outgoingRequests, requestProfiles, activityByRider, conversations, friendProfileRevision, loading, error, refresh } = useFriends();
   const insets = useSafeAreaInsets();
   const [query, setQuery] = React.useState('');
   const [selectedProfile, setSelectedProfile] = React.useState<FriendSummary | null>(null);
@@ -361,6 +366,13 @@ export function FriendsScreen(): React.JSX.Element {
     () => Object.fromEntries(conversations.map((conversation) => [conversation.friend.riderId, conversation.unreadCount])),
     [conversations],
   );
+  const selectedFriend = selectedProfile
+    ? friends.find((friend) => friend.riderId === selectedProfile.riderId) ?? null
+    : null;
+
+  React.useEffect(() => {
+    if (selectedProfile && !selectedFriend) setSelectedProfile(null);
+  }, [selectedFriend, selectedProfile]);
   const onlineFriends = filteredFriends.filter((friend) => activityByRider[friend.riderId]?.online);
   const offlineFriends = filteredFriends.filter((friend) => !activityByRider[friend.riderId]?.online);
 
@@ -473,8 +485,9 @@ export function FriendsScreen(): React.JSX.Element {
 
       <RideBar />
       <FriendProfileModal
-        friend={selectedProfile}
-        activity={selectedProfile ? activityByRider[selectedProfile.riderId] : undefined}
+        friend={selectedFriend}
+        activity={selectedFriend ? activityByRider[selectedFriend.riderId] : undefined}
+        profileRevision={friendProfileRevision}
         onClose={() => setSelectedProfile(null)}
       />
     </View>
