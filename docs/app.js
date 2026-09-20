@@ -1269,7 +1269,8 @@
   }
 
   function openFriendSafetyActions(friend) {
-    presentSheet('Safety options', `<div class="settings-note"><strong>${escapeHtml(friend.displayName)}</strong><p>Reports are sent to Rider Comms for review. Blocking immediately removes this friendship and prevents messages or new requests.</p></div>
+    presentSheet('Safety options', `<div class="settings-note"><strong>${escapeHtml(friend.displayName)}</strong><p>Reports are sent to Rider Comms for review. Removing ends the friendship; blocking also prevents messages or new requests.</p></div>
+      <button class="button secondary wide" id="removeFriendBtn">Remove friend</button>
       <div class="choice-list" aria-label="Report reason">
         <button data-report-rider="harassment"><span><strong>Report harassment</strong><small>Threats, abuse or repeated unwanted contact</small></span>${icon('chevron')}</button>
         <button data-report-rider="unsafe"><span><strong>Report unsafe behaviour</strong><small>Dangerous conduct affecting rider safety</small></span>${icon('chevron')}</button>
@@ -1277,11 +1278,40 @@
       </div>
       <button class="button danger wide" id="blockFriendBtn">Block rider</button>
       <p id="friendSafetyError" class="inline-error" role="alert" hidden></p>`, () => {
-      $$('[data-report-rider]', $('#sheetBody')).forEach((button) => {
+      $('#removeFriendBtn').addEventListener('click', () => void removeFriend(friend));
+      $('[data-report-rider]', $('#sheetBody')).forEach((button) => {
         button.addEventListener('click', () => void reportFriend(friend, button.dataset.reportRider));
       });
       $('#blockFriendBtn').addEventListener('click', () => void blockFriend(friend));
     });
+  }
+
+  async function removeFriend(friend) {
+    if (!window.confirm(`Remove ${friend.displayName} from your friends list?`)) return;
+    const button = $('#removeFriendBtn');
+    const error = $('#friendSafetyError');
+    button.disabled = true;
+    error.hidden = true;
+    try {
+      await apiFetch(
+        'DELETE',
+        `/riders/${encodeURIComponent(state.profile.riderId)}/friends/${encodeURIComponent(friend.riderId)}`,
+      );
+      state.friends = state.friends.filter((candidate) => candidate.riderId !== friend.riderId);
+      state.requests = state.requests.filter((request) => request.riderId !== friend.riderId);
+      outgoingFriendRequests = outgoingFriendRequests.filter((request) => request.riderId !== friend.riderId);
+      conversationSummaries.delete(friend.riderId);
+      persist();
+      renderFriends();
+      if (activeChat?.riderId === friend.riderId) closeChat({ restoreFocus: false });
+      closeSheet();
+      showToast(`${friend.displayName} removed from friends.`);
+      void Promise.all([refreshFriendNetwork(), refreshMessageSummaries()]).catch(() => {});
+    } catch {
+      button.disabled = false;
+      error.textContent = 'Could not remove that friend. Check your connection and try again.';
+      error.hidden = false;
+    }
   }
 
   async function reportFriend(friend, reason) {
@@ -1500,7 +1530,9 @@
     try {
       const result = await apiFetch('POST', `/friends/requests/${encodeURIComponent(requestId)}/accept`, {});
       state.requests = state.requests.filter((request) => request.id !== requestId);
-      state.friends.push({ riderId: result.friend.riderId, displayName: result.friend.displayName, handle: result.friend.handle, avatarId: result.friend.avatarId || 'ember', status: 'Connected now' });
+      if (!state.friends.some((friend) => friend.riderId === result.friend.riderId)) {
+        state.friends.push({ riderId: result.friend.riderId, displayName: result.friend.displayName, handle: result.friend.handle, avatarId: result.friend.avatarId || 'ember', status: 'Connected now' });
+      }
       persist();
       renderFriends();
       showToast(`${result.friend.displayName} added to friends.`);
@@ -1533,11 +1565,13 @@
   }
 
   const FRIEND_REQUEST_ERROR_MESSAGES = {
-    cannot_friend_yourself: 'You can’t send a friend request to yourself.',
-    rider_not_found: 'No rider with that ID exists.',
-    blocked: 'You can’t send a request to this rider.',
-    already_requested: 'A request is already pending with this rider.',
-    already_friends: 'You’re already friends with this rider.',
+    cannot_friend_yourself: 'You cannot send a friend request to yourself.',
+    rider_not_found: 'No rider with that handle or Rider ID was found.',
+    blocked: 'This connection is unavailable.',
+    request_exists: 'A friend request is already pending between you.',
+    already_friends: 'You are already friends with this rider.',
+    rate_limited: 'Too many requests. Wait a moment and try again.',
+    unauthorized: 'Your session has expired. Sign in again.',
   };
 
   async function sendFriendRequest(riderId) {
