@@ -35,13 +35,13 @@ export const AVATAR_FAMILIES: ReadonlyArray<{ id: AvatarFamily; label: string }>
  */
 export const AVATAR_PRESETS: readonly AvatarPreset[] = [
   // Rider helmets — existing persisted IDs.
-  { id: 'ember', family: 'helmet', label: 'Ember', tagline: 'Always ahead', bg: '#FF7A1A', secondary: '#9E2D0A', accent: '#22D3EE', motifPath: 'M32 10c-4 4-7 8-5 12 1.4 3 5.2 4.2 8 2.2 4-2.8 3-8-3-14Z' },
-  { id: 'ridge', family: 'helmet', label: 'Ridge', tagline: 'Higher together', bg: '#3B82F6', secondary: '#1746A2', accent: '#22D3EE', motifPath: 'M19 24l8-10 5 6 4-5 9 9H19Z' },
-  { id: 'moss', family: 'helmet', label: 'Moss', tagline: 'Explore more', bg: '#34D98A', secondary: '#147A4A', accent: '#22D3EE', motifPath: 'M21 24c3-9 11-12 22-11-2 8-8 12-17 11 4-3 8-6 13-8-7 2-12 4-18 8Z', motifFill: '#071015' },
+  { id: 'ember', family: 'helmet', label: 'Ember', tagline: 'Always ahead', bg: '#FF8A2B', secondary: '#9E2D0A', accent: '#22D3EE', motifPath: 'M32 10c-4 4-7 8-5 12 1.4 3 5.2 4.2 8 2.2 4-2.8 3-8-3-14Z' },
+  { id: 'ridge', family: 'helmet', label: 'Ridge', tagline: 'Higher together', bg: '#4C8BF5', secondary: '#1746A2', accent: '#22D3EE', motifPath: 'M19 24l8-10 5 6 4-5 9 9H19Z' },
+  { id: 'moss', family: 'helmet', label: 'Moss', tagline: 'Explore more', bg: '#3DD68C', secondary: '#147A4A', accent: '#22D3EE', motifPath: 'M21 24c3-9 11-12 22-11-2 8-8 12-17 11 4-3 8-6 13-8-7 2-12 4-18 8Z', motifFill: '#071015' },
   { id: 'dusk', family: 'helmet', label: 'Dusk', tagline: 'Rides later', bg: '#8B5CF6', secondary: '#4D2B9C', accent: '#22D3EE', motifPath: 'M37 11a10 10 0 1 0 7 16 11 11 0 1 1-7-16Z' },
-  { id: 'blaze', family: 'helmet', label: 'Blaze', tagline: 'Full throttle', bg: '#FF4D55', secondary: '#A51623', accent: '#22D3EE', motifPath: 'M35 9 23 25h8l-3 12 13-19h-9l3-9Z', motifFill: '#071015' },
+  { id: 'blaze', family: 'helmet', label: 'Blaze', tagline: 'Full throttle', bg: '#FF5A5F', secondary: '#A51623', accent: '#22D3EE', motifPath: 'M35 9 23 25h8l-3 12 13-19h-9l3-9Z', motifFill: '#071015' },
   { id: 'gold', family: 'helmet', label: 'Gold', tagline: 'Ride royalty', bg: '#FBBF24', secondary: '#9A6500', accent: '#22D3EE', motifPath: 'm32 10 3.4 7 7.7 1.1-5.6 5.4 1.3 7.7-6.8-3.6-6.8 3.6 1.3-7.7-5.6-5.4 7.7-1.1L32 10Z', motifFill: '#071015' },
-  { id: 'slate', family: 'helmet', label: 'Slate', tagline: 'Steady always', bg: '#7C8DA3', secondary: '#334155', accent: '#22D3EE', motifPath: 'M32 10 44 26l-12-5-12 5 12-16Z', motifFill: '#071015' },
+  { id: 'slate', family: 'helmet', label: 'Slate', tagline: 'Steady always', bg: '#64748B', secondary: '#334155', accent: '#22D3EE', motifPath: 'M32 10 44 26l-12-5-12 5 12-16Z', motifFill: '#071015' },
   { id: 'rose', family: 'helmet', label: 'Rose', tagline: 'Good company', bg: '#EC4899', secondary: '#9D174D', accent: '#22D3EE', motifPath: 'M32 10a7 7 0 0 0-7 7c0 6 7 13 7 13s7-7 7-13a7 7 0 0 0-7-7Zm0 4a3 3 0 1 1 0 6 3 3 0 0 1 0-6Z', motifFill: '#071015' },
 
   // Motorbikes — front-on, deliberately simplified for map-size recognition.
