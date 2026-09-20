@@ -1361,7 +1361,17 @@
           const baseline = await apiFetch('GET', '/social/events?limit=100&waitMs=0');
           if (generation !== socialEventGeneration) return;
           socialEventCursor = baseline.cursor;
-          await loadFriendsData();
+
+          // Cursor establishment is only valid once every authoritative social
+          // snapshot succeeds. If any fetch fails, the catch below clears the
+          // cursor so recovery starts from a new tail instead of keeping stale
+          // local state behind an already-advanced cursor.
+          await Promise.all([
+            refreshFriendNetwork(),
+            refreshMessageSummaries(),
+            refreshProfileAuthoritative(),
+          ]);
+          if (activeChat) await loadChatMessages({ throwOnError: true });
         }
 
         let page = await apiFetch(
@@ -1399,10 +1409,10 @@
         }
 
         if (generation !== socialEventGeneration) return;
-        if (selfProfileDirty) await loadProfile();
-        if (networkDirty) await loadFriendsData();
-        else if (messageDirty) await refreshMessageSummaries();
-        if (chatDirty && activeChat) await loadChatMessages();
+        if (selfProfileDirty) await refreshProfileAuthoritative();
+        if (networkDirty) await refreshFriendNetwork();
+        if (messageDirty) await refreshMessageSummaries();
+        if (chatDirty && activeChat) await loadChatMessages({ throwOnError: true });
       } catch {
         if (generation !== socialEventGeneration || !session) return;
         socialEventCursor = undefined;
