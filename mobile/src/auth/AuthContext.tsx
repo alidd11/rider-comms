@@ -446,7 +446,7 @@ const styles = StyleSheet.create({
   modeEyebrow: { fontSize: 10, lineHeight: 12, fontWeight: '800', letterSpacing: 1.6, marginBottom: 5 },
   title: { fontSize: 30, lineHeight: 31, fontWeight: '800', letterSpacing: -1.05 },
   subtitle: { fontSize: 13, lineHeight: 18, fontWeight: '500', maxWidth: 370, marginTop: 6 },
-  tabs: { width: '100%', flexDirection: 'row', gap: 0, padding: 0, minHeight: 38, borderRadius: 0, borderWidth: 0, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.borderSoft, marginBottom: 10 },
+  tabs: { width: '100%', flexDirection: 'row', gap: 0, padding: 0, minHeight: 38, borderRadius: 0, borderWidth: 0, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border, marginBottom: 10 },
   tab: { minHeight: 37, flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: 0, borderBottomWidth: 2, borderBottomColor: 'transparent' },
   tabActive: { borderBottomColor: colors.accent },
   tabText: { fontSize: 11, lineHeight: 15, fontWeight: '700' },
