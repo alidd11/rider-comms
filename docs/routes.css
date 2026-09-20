@@ -79,3 +79,27 @@ html.pwa-standalone .route-detail{max-height:92%}
 .curated-route-overlay .route-region{font-size:.61rem}
 .route-quick-stats{gap:6px;margin-top:3px}
 .route-quick-stats b{font-size:.58rem}
+
+
+/* Routes mockup parity v2 — compact photography-first cards with icon-led
+   metadata and tighter control rhythm matching the supplied concept board. */
+@media(max-width:699px){
+  [data-screen="routes"] .page-header{margin-bottom:12px}
+  [data-screen="routes"] .page-header h1{font-size:1.78rem;line-height:1}
+  [data-screen="routes"] .route-search-toggle{width:38px;min-width:38px;height:38px}
+  #curatedRouteFilters{gap:7px;margin-bottom:9px!important}
+  #curatedRouteFilters .chip{min-height:34px;padding-inline:11px;border-radius:4px;font-size:.66rem}
+  .curated-route-list{gap:10px}
+  .curated-route-card{height:138px}
+  .curated-route-card>img,.curated-route-card:after,.route-photo-fallback{height:78px}
+  .curated-route-overlay{top:78px;padding:7px 10px}
+  .curated-route-overlay strong{font-size:.86rem}
+  .curated-route-overlay .route-region{font-size:.62rem}
+  .route-quick-stats{align-items:center;gap:10px;margin-top:4px}
+  .route-quick-stats b{display:inline-flex;align-items:center;gap:4px;font-size:.59rem}
+  .route-quick-stats b+b:before{display:none}
+  .route-quick-stats svg{width:11px;height:11px;flex:none;color:var(--text-muted)}
+  .route-tools{margin-bottom:10px;padding:8px;border-radius:4px}
+  .route-search{min-height:43px;border-radius:4px}
+  .route-tools .chip-row.compact .chip{min-height:34px;border-radius:4px}
+}

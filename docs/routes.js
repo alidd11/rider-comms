@@ -1407,7 +1407,7 @@
         <img src="${route.image}" alt="${escapeHtml(route.alt)}" loading="lazy" referrerpolicy="no-referrer">
         <span class="route-photo-fallback" aria-hidden="true"><svg><use href="#i-route"/></svg></span>
         <span class="route-trace-card">${routeTraceSvg(route)}</span>
-        <span class="curated-route-overlay"><span class="route-region">${escapeHtml(route.region)}</span><strong>${escapeHtml(route.name)}</strong><small>${escapeHtml(route.road)}</small><span class="route-quick-stats">${category === 'near' && approach ? `<b class="route-approach">${escapeHtml(approach)}</b>` : ''}<b>${route.distance} mi</b><b>${route.minutes} min</b><b>${escapeHtml(route.roadType)}</b></span></span>
+        <span class="curated-route-overlay"><span class="route-region">${escapeHtml(route.region)}</span><strong>${escapeHtml(route.name)}</strong><small>${escapeHtml(route.road)}</small><span class="route-quick-stats">${category === 'near' && approach ? `<b class="route-approach">${escapeHtml(approach)}</b>` : ''}<b><svg aria-hidden="true"><use href="#i-route"/></svg>${route.distance} mi</b><b><svg aria-hidden="true"><use href="#i-location"/></svg>${escapeHtml(route.roadType)}</b><b><svg aria-hidden="true"><use href="#i-history"/></svg>${route.minutes} min</b></span></span>
       </button>`;
     }).join('');
     root.querySelectorAll('img').forEach((image) => image.addEventListener('error', () => image.closest('.curated-route-card')?.classList.add('image-failed'), { once: true }));

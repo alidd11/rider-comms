@@ -251,9 +251,9 @@ function CuratedRouteCard({ route, width, onPress }: { route: CuratedRoute; widt
         <Text style={styles.cardTitle} numberOfLines={1}>{route.name}</Text>
         <Text style={styles.cardRegion} numberOfLines={1}>{route.region}</Text>
         <View style={styles.cardStats}>
-          <Text style={styles.cardStat}>{route.distanceMiles} mi</Text>
-          <Text style={styles.cardStat}>{route.roadType}</Text>
-          <Text style={styles.cardStat}>{route.estimatedDurationMinutes} min</Text>
+          <View style={styles.cardStatItem}><Ionicons name="navigate-outline" size={11} color={colors.textMuted} /><Text style={styles.cardStat}>{route.distanceMiles} mi</Text></View>
+          <View style={styles.cardStatItem}><Ionicons name="location-outline" size={11} color={colors.textMuted} /><Text style={styles.cardStat}>{route.roadType}</Text></View>
+          <View style={styles.cardStatItem}><Ionicons name="time-outline" size={11} color={colors.textMuted} /><Text style={styles.cardStat}>{route.estimatedDurationMinutes} min</Text></View>
         </View>
       </View>
     </Pressable>
@@ -323,9 +323,9 @@ export function CuratedRouteBrowser({
 
 const styles = StyleSheet.create({
   cardGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 9 },
-  curatedCard: { height: 136, overflow: 'hidden', borderRadius: radii.md, backgroundColor: colors.surface, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
+  curatedCard: { height: 138, overflow: 'hidden', borderRadius: radii.md, backgroundColor: colors.surface, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
   cardPressed: { opacity: 0.88, transform: [{ scale: 0.99 }] },
-  cardMedia: { position: 'relative', height: 76, backgroundColor: colors.surfaceRaised },
+  cardMedia: { position: 'relative', height: 78, backgroundColor: colors.surfaceRaised },
   cardImage: { width: '100%', height: '100%' },
   cardImageShade: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(5,8,11,0.10)' },
   imageFallback: { alignItems: 'center', justifyContent: 'center' },
@@ -333,7 +333,8 @@ const styles = StyleSheet.create({
   cardBody: { flex: 1, justifyContent: 'center', paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, backgroundColor: colors.surface },
   cardTitle: { ...type.subheading, color: colors.textPrimary, fontSize: 14, lineHeight: 17, fontWeight: '800' },
   cardRegion: { ...type.caption, color: colors.textSecondary, marginTop: 0, fontSize: 10 },
-  cardStats: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 3 },
+  cardStats: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 4 },
+  cardStatItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   cardStat: { ...type.caption, color: colors.textMuted, fontSize: 10, fontWeight: '700', textTransform: 'capitalize' },
   overviewRoot: { flex: 1, backgroundColor: colors.background },
   overviewScroll: { backgroundColor: colors.background },
