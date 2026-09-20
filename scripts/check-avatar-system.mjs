@@ -109,4 +109,27 @@ assert.ok(
   'PWA profile rendering must iterate the full avatar node collection rather than call forEach on a single element',
 );
 
+for (const selector of [
+  "$('[data-avatar-option]', $('#sheetBody')).forEach",
+  "$('[data-avatar-family-tab]', $('#sheetBody')).forEach",
+  "$('[data-avatar-family-tab]', body).forEach",
+  "$('[data-avatar-family-panel]', body).forEach",
+]) {
+  assert.ok(pwaApp.includes(selector), `PWA avatar picker must iterate a node collection: ${selector}`);
+}
+
+for (const [id, bg] of Object.entries({
+  ember: '#FF8A2B',
+  ridge: '#4C8BF5',
+  moss: '#3DD68C',
+  dusk: '#8B5CF6',
+  blaze: '#FF5A5F',
+  gold: '#FBBF24',
+  slate: '#64748B',
+  rose: '#EC4899',
+})) {
+  const preset = nativeCatalogue.find((entry) => entry.id === id);
+  assert.equal(preset?.bg, bg, `existing helmet ${id} base colour must remain backwards-compatible`);
+}
+
 console.log('Rider avatar parity valid: 32 deterministic helmet/motorbike/car identities share picker, navigation/map states and persistence rules');
