@@ -41,8 +41,14 @@ const [pwaMapSource, nativeMapSource] = await Promise.all([
   readFile(new URL('../mobile/src/screens/MapScreen.tsx', import.meta.url), 'utf8'),
 ]);
 
-if (!/mapTypeId:\s*['"]roadmap['"]/.test(pwaMapSource) || !/colorScheme:\s*['"]FOLLOW_SYSTEM['"]/.test(pwaMapSource)) {
-  throw new Error('PWA map must use the provider-native Google Roadmap surface with system colour scheme');
+if (
+  !/mapTypeId:\s*['"]roadmap['"]/.test(pwaMapSource)
+  || !/colorScheme:\s*['"]FOLLOW_SYSTEM['"]/.test(pwaMapSource)
+  || !/renderingType:\s*google\.maps\.RenderingType\.VECTOR/.test(pwaMapSource)
+  || !/tiltInteractionEnabled:\s*true/.test(pwaMapSource)
+  || !/headingInteractionEnabled:\s*true/.test(pwaMapSource)
+) {
+  throw new Error('PWA map must use Google Roadmap with the vector renderer and provider-native tilt/heading');
 }
 if (/MAP_STYLE_(?:DARK|LIGHT)/.test(pwaMapSource)) {
   throw new Error('PWA map must not replace Google Roadmap with embedded basemap imitation styles');
@@ -54,4 +60,56 @@ if (/HYBRID_MAP_STYLE_(?:DARK|LIGHT)/.test(nativeMapSource)) {
   throw new Error('Native map must not carry embedded Hybrid basemap imitation styles');
 }
 
-console.log(`Client parity manifest valid: ${manifest.capabilities.length} capabilities tracked; map basemaps aligned`);
+for (const [label, source, patterns] of [
+  ['PWA navigation', pwaMapSource, [
+    /navFollowing/,
+    /navMuted/,
+    /navigationPositionMapIcon/,
+    /applyNavigationCamera/,
+    /showNavigationOverview/,
+    /navMuteBtn/,
+    /navOverviewBtn/,
+    /navigationStepPath/,
+    /navPromptTargetIndex/,
+    /navigationPromptStageForDistance/,
+    /maybeSpeakUpcomingNavigationPrompt/,
+    /navSteps\[navStepIndex \+ 1\]/,
+    /navSteps\[navStepIndex \+ 2\]/,
+    /arrive: \{ icon: 'i-location'/,
+    /distanceToPathMeters/,
+    /remainingDistanceOnPathMeters/,
+    /lookAheadCoordinateOnPath/,
+    /moveCamera\(\{ center: centre, zoom: 18, heading, tilt: 55 \}\)/,
+    /setNavigationTrafficVisible\(true\)/,
+    /if \(!preserveMute\) navMuted = false/,
+    /preserveMute: true/,
+    /visibleMapRiders\(\)/,
+  ]],
+  ['Native navigation', nativeMapSource, [
+    /navigationFollowing/,
+    /navigationMuted/,
+    /navigationPositionMarker/,
+    /focusNavigationCamera/,
+    /navigationPromptProgress/,
+    /navigationPromptStageForDistance/,
+    /upcomingNavigationStep/,
+    /followingNavigationStep/,
+    /navigationGuidanceInstruction/,
+    /distanceToPathMeters/,
+    /remainingDistanceOnPathMeters/,
+    /lookAheadCoordinateOnPath/,
+    /NAVIGATION_CAMERA_ZOOM = 18/,
+    /NAVIGATION_CAMERA_PITCH = 55/,
+    /showsTraffic=\{Boolean\(activeRoute\)\}/,
+    /fitRoute\(activeRoute\)/,
+    /rideLocations[\s\S]*Private ride member · live location/,
+    /RideBar controlsVisible=\{!activeRoute\}/,
+    /tabBarStyle:\s*activeRoute\s*\?\s*\{\s*display:\s*'none'/,
+  ]],
+]) {
+  for (const pattern of patterns) {
+    if (!pattern.test(source)) throw new Error(`${label} is missing required dedicated-navigation behavior: ${pattern}`);
+  }
+}
+
+console.log(`Client parity manifest valid: ${manifest.capabilities.length} capabilities tracked; map basemaps and dedicated navigation aligned`);

@@ -10,9 +10,10 @@
 // mounting a second map instance, which keeps map billing/state predictable
 // and matches the PWA's tab-owned interaction model.
 import * as React from 'react';
-import { View, Text, Pressable, StyleSheet, Alert, Linking, Platform, useColorScheme, useWindowDimensions } from 'react-native';
-import { useRoute } from '@react-navigation/native';
+import { View, Text, Pressable, StyleSheet, Alert, Linking, useColorScheme, useWindowDimensions } from 'react-native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
+import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
@@ -36,13 +37,21 @@ import type { NavigationTarget } from '../navigationLinks';
 import { useMovementSafety } from '../safety/MovementSafetyContext';
 import { GOOGLE_DIRECTIONS_API_KEY } from '../config';
 import {
+  distanceToPathMeters,
   distanceToSegmentMeters,
   fetchDrivingRoute,
+  lookAheadCoordinateOnPath,
   metersBetween,
+  remainingDistanceOnPathMeters,
   type InAppNavigationRoute,
 } from '../api/directions';
 import { navigationProviderLabel } from '../navigationPreference';
-import { formatNavigationDistance, maneuverIcon } from '../navigationGuidance';
+import {
+  formatNavigationDistance,
+  maneuverIcon,
+  navigationPromptStageForDistance,
+  navigationPromptText,
+} from '../navigationGuidance';
 import {
   NAV_GPS_CHECK_INTERVAL_MS,
   NavigationGpsTracker,
@@ -67,6 +76,28 @@ const FOCUSED_REGION_DELTA = 0.025;
 const NAV_STEP_ARRIVAL_RADIUS_M = 30;
 const NAV_OFF_ROUTE_RADIUS_M = 60;
 const NAV_OFF_ROUTE_GRACE_MS = 10_000;
+const NAVIGATION_CAMERA_ZOOM = 18;
+const NAVIGATION_CAMERA_PITCH = 55;
+
+function bearingDegrees(from: { lat: number; lon: number }, to: { lat: number; lon: number }): number {
+  const toRad = (value: number) => (value * Math.PI) / 180;
+  const toDeg = (value: number) => (value * 180) / Math.PI;
+  const lat1 = toRad(from.lat);
+  const lat2 = toRad(to.lat);
+  const deltaLon = toRad(to.lon - from.lon);
+  const y = Math.sin(deltaLon) * Math.cos(lat2);
+  const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(deltaLon);
+  return (toDeg(Math.atan2(y, x)) + 360) % 360;
+}
+
+function navigationCameraCentre(from: { lat: number; lon: number }, to: { lat: number; lon: number }): { lat: number; lon: number } {
+  const distance = metersBetween(from, to);
+  const fraction = distance > 220 ? 0.2 : distance > 90 ? 0.14 : 0.08;
+  return {
+    lat: from.lat + (to.lat - from.lat) * fraction,
+    lon: from.lon + (to.lon - from.lon) * fraction,
+  };
+}
 
 function formatNavigationDuration(seconds: number): string {
   const minutes = Math.max(1, Math.round(seconds / 60));
@@ -113,6 +144,7 @@ export function MapScreen(): React.JSX.Element {
   const insets = useSafeAreaInsets();
   const { height: viewportHeight } = useWindowDimensions();
   const route = useRoute<RouteProp<TabParamList, 'Map'>>();
+  const navigation = useNavigation<BottomTabNavigationProp<TabParamList, 'Map'>>();
   const [segment, setSegment] = React.useState<Segment>(route.params?.segment ?? 'public');
   const [ridersInZone, setRidersInZone] = React.useState<string[]>([]);
   // "No location yet" (getCurrentLocation() failing — expected pre-GPS, see
@@ -133,10 +165,15 @@ export function MapScreen(): React.JSX.Element {
   const [navigationStepIndex, setNavigationStepIndex] = React.useState(0);
   const [navigationLoading, setNavigationLoading] = React.useState(false);
   const [navigationNotice, setNavigationNotice] = React.useState<string | null>(null);
+  const [navigationMuted, setNavigationMuted] = React.useState(false);
+  const [navigationFollowing, setNavigationFollowing] = React.useState(true);
   const navOffRouteSince = React.useRef<number | null>(null);
   const navRerouting = React.useRef(false);
+  const navigationFollowingRef = React.useRef(true);
   const navGpsTracker = React.useRef(new NavigationGpsTracker());
   const announcedNavigationStep = React.useRef<{ route: InAppNavigationRoute; index: number } | null>(null);
+  const navigationPromptProgress = React.useRef<{ route: InAppNavigationRoute; targetIndex: number; stage: number } | null>(null);
+  const finalNavigationPrompt = React.useRef<{ route: InAppNavigationRoute; index: number } | null>(null);
   const [mapReady, setMapReady] = React.useState(false);
   const [rideProfiles, setRideProfiles] = React.useState<Record<string, PublicRiderProfile>>({});
   const [markerNow, setMarkerNow] = React.useState(() => Date.now());
@@ -185,9 +222,14 @@ export function MapScreen(): React.JSX.Element {
   }, [rideLocations.length]);
 
   const ownRideLocation = rideLocations.find((location) => location.riderId === riderId);
-  const selfMapLocation = ownRideLocation
-    ? { lat: ownRideLocation.lat, lon: ownRideLocation.lon }
-    : currentLocation;
+  // During turn-by-turn guidance the navigation chevron must follow the
+  // device's live high-accuracy fix, not the slower ride-location round trip.
+  // Other riders still use the consented private-ride location feed below.
+  const selfMapLocation = activeRoute && currentLocation
+    ? currentLocation
+    : ownRideLocation
+      ? { lat: ownRideLocation.lat, lon: ownRideLocation.lon }
+      : currentLocation;
   const ownRideLocationFresh = Boolean(
     ownRideLocation && markerNow - ownRideLocation.updatedAt <= RIDE_MARKER_STALE_MS,
   );
@@ -414,16 +456,24 @@ export function MapScreen(): React.JSX.Element {
 
   const selectedHazard = hazards.find((h) => h.id === selectedHazardId) ?? null;
   const currentNavigationStep = activeRoute?.steps[navigationStepIndex] ?? null;
-  const nextNavigationStep = activeRoute?.steps[navigationStepIndex + 1] ?? null;
-  const remainingNavigationMeters = activeRoute
-    ? activeRoute.steps.slice(navigationStepIndex).reduce((sum, step) => sum + step.distanceMeters, 0)
-    : 0;
-  const remainingNavigationSeconds = activeRoute
-    ? activeRoute.steps.slice(navigationStepIndex).reduce((sum, step) => sum + step.durationSeconds, 0)
-    : 0;
+  const upcomingNavigationStep = activeRoute?.steps[navigationStepIndex + 1] ?? null;
+  const followingNavigationStep = activeRoute?.steps[navigationStepIndex + 2] ?? null;
+  const navigationGuidanceInstruction = upcomingNavigationStep?.instruction
+    ?? `Arrive at ${navigationDestination?.label ?? 'destination'}`;
   const distanceToCurrentStepEnd = currentNavigationStep && currentLocation
-    ? metersBetween(currentLocation, currentNavigationStep.end)
+    ? remainingDistanceOnPathMeters(currentLocation, currentNavigationStep.coordinates)
     : currentNavigationStep?.distanceMeters ?? 0;
+  const laterNavigationSteps = activeRoute?.steps.slice(navigationStepIndex + 1) ?? [];
+  const remainingNavigationMeters = currentNavigationStep
+    ? distanceToCurrentStepEnd + laterNavigationSteps.reduce((sum, step) => sum + step.distanceMeters, 0)
+    : 0;
+  const currentStepTimeRatio = currentNavigationStep?.distanceMeters
+    ? Math.max(0, Math.min(1, distanceToCurrentStepEnd / currentNavigationStep.distanceMeters))
+    : 0;
+  const remainingNavigationSeconds = currentNavigationStep
+    ? currentNavigationStep.durationSeconds * currentStepTimeRatio
+      + laterNavigationSteps.reduce((sum, step) => sum + step.durationSeconds, 0)
+    : 0;
 
   const selectedDestination: NavigationTarget | null = navigationTarget ?? (selectedPlace
     ? { lat: selectedPlace.lat, lon: selectedPlace.lon, label: selectedPlace.name }
@@ -437,25 +487,67 @@ export function MapScreen(): React.JSX.Element {
 
   const fitRoute = React.useCallback((nextRoute: InAppNavigationRoute) => {
     if (!mapReady || nextRoute.coordinates.length < 2) return;
+    navigationFollowingRef.current = false;
+    setNavigationFollowing(false);
     mapRef.current?.fitToCoordinates(
       nextRoute.coordinates.map((coordinate) => ({ latitude: coordinate.lat, longitude: coordinate.lon })),
-      { edgePadding: { top: 150, right: 56, bottom: 180, left: 56 }, animated: true }
+      { edgePadding: { top: 170, right: 64, bottom: 180, left: 64 }, animated: true }
     );
+    mapRef.current?.animateCamera({ heading: 0, pitch: 0 }, { duration: 250 });
   }, [mapReady]);
+
+  const focusNavigationCamera = React.useCallback((
+    here: { lat: number; lon: number },
+    stepPath: readonly { lat: number; lon: number }[],
+    gpsHeading?: number | null,
+  ) => {
+    if (stepPath.length === 0) return;
+    const lookAhead = lookAheadCoordinateOnPath(here, stepPath, 120);
+    const heading = Number.isFinite(gpsHeading) && (gpsHeading ?? -1) >= 0
+      ? Number(gpsHeading)
+      : bearingDegrees(here, lookAhead);
+    if (!mapReady || !navigationFollowingRef.current) return;
+    const centre = navigationCameraCentre(here, lookAhead);
+    mapRef.current?.animateCamera({
+      center: { latitude: centre.lat, longitude: centre.lon },
+      heading,
+      pitch: NAVIGATION_CAMERA_PITCH,
+      zoom: NAVIGATION_CAMERA_ZOOM,
+    }, { duration: 550 });
+  }, [mapReady]);
+
+  React.useEffect(() => {
+    navigationFollowingRef.current = navigationFollowing;
+  }, [navigationFollowing]);
+
+  React.useEffect(() => {
+    navigation.setOptions({ tabBarStyle: activeRoute ? { display: 'none' } : undefined });
+    return () => navigation.setOptions({ tabBarStyle: undefined });
+  }, [activeRoute, navigation]);
+
+  React.useEffect(() => {
+    if (navigationMuted) void stopNavigationPrompt();
+  }, [navigationMuted]);
 
   const finishInAppNavigation = React.useCallback((arrived = false) => {
     setActiveRoute(null);
     setNavigationDestination(null);
     setNavigationStepIndex(0);
     announcedNavigationStep.current = null;
+    navigationPromptProgress.current = null;
+    finalNavigationPrompt.current = null;
     navOffRouteSince.current = null;
     navRerouting.current = false;
     navGpsTracker.current.reset();
+    navigationFollowingRef.current = true;
+    setNavigationFollowing(true);
+    setNavigationMuted(false);
     setNavigationNotice(arrived ? 'You have arrived.' : null);
+    mapRef.current?.animateCamera({ heading: 0, pitch: 0 }, { duration: 350 });
     void stopNavigationPrompt().finally(() => {
-      if (arrived) speakNavigationPrompt('You have arrived at your destination.');
+      if (arrived && !navigationMuted) speakNavigationPrompt('You have arrived at your destination.');
     });
-  }, []);
+  }, [navigationMuted]);
 
   const requestInAppRoute = React.useCallback(async (origin: { lat: number; lon: number }, target: NavigationTarget, rerouting = false) => {
     if (!GOOGLE_DIRECTIONS_API_KEY) throw new Error('directions_not_configured');
@@ -465,13 +557,19 @@ export function MapScreen(): React.JSX.Element {
       setActiveRoute(nextRoute);
       setNavigationDestination(target);
       setNavigationStepIndex(0);
+      announcedNavigationStep.current = null;
+      navigationPromptProgress.current = null;
+      finalNavigationPrompt.current = null;
       setNavigationNotice(rerouting ? 'Route updated.' : null);
       navOffRouteSince.current = null;
-      fitRoute(nextRoute);
+      navigationFollowingRef.current = true;
+      setNavigationFollowing(true);
+      const firstStep = nextRoute.steps[0];
+      if (firstStep) focusNavigationCamera(origin, firstStep.coordinates);
     } finally {
       if (rerouting) navRerouting.current = false;
     }
-  }, [fitRoute]);
+  }, [focusNavigationCamera]);
 
   async function startInAppNavigation(target: NavigationTarget): Promise<void> {
     const origin = currentLocation ?? await requestCurrentLocation(true);
@@ -496,12 +594,14 @@ export function MapScreen(): React.JSX.Element {
   }
 
   React.useEffect(() => {
-    if (!activeRoute || !currentNavigationStep) return;
+    if (!activeRoute || !currentNavigationStep || navigationMuted) return;
     const last = announcedNavigationStep.current;
     if (last?.route === activeRoute && last.index === navigationStepIndex) return;
     announcedNavigationStep.current = { route: activeRoute, index: navigationStepIndex };
-    speakNavigationPrompt(currentNavigationStep.instruction);
-  }, [activeRoute, currentNavigationStep, navigationStepIndex]);
+    const finalPrompt = finalNavigationPrompt.current;
+    const alreadySpokenAtTurn = finalPrompt?.route === activeRoute && finalPrompt.index === navigationStepIndex;
+    if (!alreadySpokenAtTurn) speakNavigationPrompt(currentNavigationStep.instruction);
+  }, [activeRoute, currentNavigationStep, navigationMuted, navigationStepIndex]);
 
   React.useEffect(() => {
     return () => {
@@ -541,7 +641,6 @@ export function MapScreen(): React.JSX.Element {
         }
         const here = { lat: position.coords.latitude, lon: position.coords.longitude };
         setCurrentLocation(here);
-        focusCoordinate(here, 0.012);
 
         if (
           navigationStepIndex === activeRoute.steps.length - 1 &&
@@ -556,7 +655,7 @@ export function MapScreen(): React.JSX.Element {
           const step = activeRoute.steps[effectiveIndex]!;
           const nextStep = activeRoute.steps[effectiveIndex + 1]!;
           const reachedStepEnd = metersBetween(here, step.end) <= NAV_STEP_ARRIVAL_RADIUS_M;
-          const alreadyOnNextStep = distanceToSegmentMeters(here, nextStep.start, nextStep.end) <= NAV_STEP_ARRIVAL_RADIUS_M * 1.5;
+          const alreadyOnNextStep = distanceToPathMeters(here, nextStep.coordinates) <= NAV_STEP_ARRIVAL_RADIUS_M * 1.5;
           if (!reachedStepEnd && !alreadyOnNextStep) break;
           effectiveIndex += 1;
         }
@@ -565,7 +664,27 @@ export function MapScreen(): React.JSX.Element {
         }
 
         const effectiveStep = activeRoute.steps[effectiveIndex]!;
-        const distanceOffRoute = distanceToSegmentMeters(here, effectiveStep.start, effectiveStep.end);
+        focusNavigationCamera(here, effectiveStep.coordinates, position.coords.heading);
+
+        const upcomingIndex = effectiveIndex + 1;
+        const upcomingStep = activeRoute.steps[upcomingIndex];
+        if (upcomingStep) {
+          let progress = navigationPromptProgress.current;
+          if (progress?.route !== activeRoute || progress.targetIndex !== upcomingIndex) {
+            progress = { route: activeRoute, targetIndex: upcomingIndex, stage: 0 };
+            navigationPromptProgress.current = progress;
+          }
+          const maneuverDistance = remainingDistanceOnPathMeters(here, effectiveStep.coordinates);
+          const promptStage = navigationPromptStageForDistance(maneuverDistance);
+          if (!navigationMuted && promptStage > progress.stage) {
+            navigationPromptProgress.current = { ...progress, stage: promptStage };
+            if (promptStage === 3) finalNavigationPrompt.current = { route: activeRoute, index: upcomingIndex };
+            const prompt = navigationPromptText(upcomingStep.instruction, maneuverDistance, unitSystem, promptStage);
+            if (prompt) speakNavigationPrompt(prompt);
+          }
+        }
+
+        const distanceOffRoute = distanceToPathMeters(here, effectiveStep.coordinates);
         if (distanceOffRoute <= NAV_OFF_ROUTE_RADIUS_M) {
           navOffRouteSince.current = null;
           return;
@@ -579,7 +698,7 @@ export function MapScreen(): React.JSX.Element {
 
         navOffRouteSince.current = null;
         setNavigationNotice('Rerouting…');
-        speakNavigationPrompt('Rerouting.');
+        if (!navigationMuted) speakNavigationPrompt('Rerouting.');
         void requestInAppRoute(here, navigationDestination, true).catch(() => {
           setNavigationNotice('Could not reroute. Continue with caution.');
         });
@@ -599,11 +718,18 @@ export function MapScreen(): React.JSX.Element {
       cancelled = true;
       subscription?.remove();
     };
-  }, [activeRoute, currentNavigationStep, finishInAppNavigation, focusCoordinate, navigationDestination, navigationStepIndex, requestInAppRoute]);
+  }, [activeRoute, currentNavigationStep, finishInAppNavigation, focusNavigationCamera, navigationDestination, navigationMuted, navigationStepIndex, requestInAppRoute, unitSystem]);
 
   async function centreOnCurrentLocation(): Promise<void> {
     const location = currentLocation ?? await requestCurrentLocation(true);
-    if (location) focusCoordinate(location);
+    if (!location) return;
+    if (activeRoute && currentNavigationStep) {
+      navigationFollowingRef.current = true;
+      setNavigationFollowing(true);
+      focusNavigationCamera(location, currentNavigationStep.coordinates);
+      return;
+    }
+    focusCoordinate(location);
   }
 
   function selectPlace(place: PlaceResult): void {
@@ -652,27 +778,39 @@ export function MapScreen(): React.JSX.Element {
             userInterfaceStyle={colorScheme === 'dark' ? 'dark' : 'light'}
             showsCompass={false}
             showsMyLocationButton={false}
+            showsTraffic={Boolean(activeRoute)}
             toolbarEnabled={false}
-            rotateEnabled={false}
-            pitchEnabled={false}
+            rotateEnabled={Boolean(activeRoute)}
+            pitchEnabled={Boolean(activeRoute)}
+            onPanDrag={() => {
+              if (!activeRoute) return;
+              navigationFollowingRef.current = false;
+              setNavigationFollowing(false);
+            }}
             onMapReady={() => setMapReady(true)}
           >
             {selfMapLocation && (
               <Marker
-                key={`self-rider-${avatarId}-${selfMapStatus}`}
+                key={`self-rider-${avatarId}-${selfMapStatus}-${activeRoute ? 'nav' : 'map'}`}
                 coordinate={{ latitude: selfMapLocation.lat, longitude: selfMapLocation.lon }}
                 title={displayName || 'Your location'}
                 description={shareRideLocation ? 'Your live group-ride location' : 'Your location'}
-                anchor={{ x: 0.5, y: 1 }}
+                anchor={activeRoute ? { x: 0.5, y: 0.5 } : { x: 0.5, y: 1 }}
                 tracksViewChanges={false}
               >
-                <RiderAvatar
-                  avatarId={avatarId}
-                  size={44}
-                  mapMarker
-                  selected
-                  status={selfMapStatus}
-                />
+                {activeRoute ? (
+                  <View style={styles.navigationPositionMarker}>
+                    <Ionicons name="navigate" size={28} color="#FFFFFF" style={styles.navigationPositionGlyph} />
+                  </View>
+                ) : (
+                  <RiderAvatar
+                    avatarId={avatarId}
+                    size={44}
+                    mapMarker
+                    selected
+                    status={selfMapStatus}
+                  />
+                )}
               </Marker>
             )}
             {rideLocations
@@ -715,11 +853,18 @@ export function MapScreen(): React.JSX.Element {
               />
             )}
             {activeRoute && (
-              <Polyline
-                coordinates={activeRoute.coordinates.map((coordinate) => ({ latitude: coordinate.lat, longitude: coordinate.lon }))}
-                strokeColor={colors.accent}
-                strokeWidth={6}
-              />
+              <>
+                <Polyline
+                  coordinates={activeRoute.coordinates.map((coordinate) => ({ latitude: coordinate.lat, longitude: coordinate.lon }))}
+                  strokeColor="#174EA6"
+                  strokeWidth={10}
+                />
+                <Polyline
+                  coordinates={activeRoute.coordinates.map((coordinate) => ({ latitude: coordinate.lat, longitude: coordinate.lon }))}
+                  strokeColor="#4285F4"
+                  strokeWidth={6}
+                />
+              </>
             )}
             {hazards.map((hazard) => (
               <HazardMarker
@@ -757,7 +902,7 @@ export function MapScreen(): React.JSX.Element {
       )}
 
 
-      {segment === 'public' && !selectedDestination && (
+      {segment === 'public' && !selectedDestination && !activeRoute && (
         <View style={[styles.mapActions, { bottom: insets.bottom + spacing.sm }]}>
           {!lockedForSafety && <Pressable
             style={[styles.mapActionButton, { transform: [{ translateY: -(viewportHeight * 0.32) }] }]}
@@ -783,6 +928,53 @@ export function MapScreen(): React.JSX.Element {
             accessibilityLabel={shareLocation ? 'Stop live location and proximity voice' : 'Go live nearby and enable proximity voice'}
           >
             <Ionicons name="people" size={24} color={shareLocation ? colors.accentText : colors.accent} />
+          </Pressable>
+        </View>
+      )}
+
+      {activeRoute && currentNavigationStep && (
+        <View style={[styles.navigationActions, { bottom: insets.bottom + 116 }]}>
+          {!lockedForSafety && (
+            <Pressable
+              style={styles.navigationActionButton}
+              onPress={() => void openReportSheet()}
+              accessibilityRole="button"
+              accessibilityLabel="Report on the road"
+            >
+              <MaterialCommunityIcons name="alert-plus" size={22} color={colors.textPrimary} />
+            </Pressable>
+          )}
+          <Pressable
+            style={[styles.navigationActionButton, navigationFollowing && styles.navigationActionButtonActive]}
+            onPress={() => void centreOnCurrentLocation()}
+            accessibilityRole="button"
+            accessibilityLabel="Resume navigation follow mode"
+          >
+            <MaterialCommunityIcons name="crosshairs-gps" size={22} color={navigationFollowing ? colors.accentText : colors.textPrimary} />
+          </Pressable>
+          <Pressable
+            style={[styles.navigationActionButton, navigationMuted && styles.navigationActionButtonActive]}
+            onPress={() => setNavigationMuted((current) => !current)}
+            accessibilityRole="button"
+            accessibilityState={{ selected: navigationMuted }}
+            accessibilityLabel={navigationMuted ? 'Unmute navigation guidance' : 'Mute navigation guidance'}
+          >
+            <Ionicons name={navigationMuted ? 'volume-mute' : 'volume-high'} size={22} color={navigationMuted ? colors.accentText : colors.textPrimary} />
+          </Pressable>
+          <Pressable
+            style={[styles.navigationActionButton, !navigationFollowing && styles.navigationActionButtonActive]}
+            onPress={() => {
+              if (navigationFollowing) fitRoute(activeRoute);
+              else void centreOnCurrentLocation();
+            }}
+            accessibilityRole="button"
+            accessibilityLabel={navigationFollowing ? 'Show route overview' : 'Resume navigation follow mode'}
+          >
+            <Ionicons
+              name={navigationFollowing ? 'map-outline' : 'navigate'}
+              size={22}
+              color={navigationFollowing ? colors.textPrimary : colors.accentText}
+            />
           </Pressable>
         </View>
       )}
@@ -832,40 +1024,57 @@ export function MapScreen(): React.JSX.Element {
       {activeRoute && currentNavigationStep && (
         <>
           <View style={[styles.navigationBanner, { top: insets.top + spacing.sm }]} accessibilityLiveRegion="polite">
-            <View style={styles.navigationManeuver}>
-              <Ionicons
-                name={maneuverIcon(currentNavigationStep.maneuver) as keyof typeof Ionicons.glyphMap}
-                size={24}
-                color={colors.accentText}
-              />
+            <View style={styles.navigationBannerMain}>
+              <View style={styles.navigationManeuver}>
+                <Ionicons
+                  name={(upcomingNavigationStep ? maneuverIcon(upcomingNavigationStep.maneuver) : 'flag') as keyof typeof Ionicons.glyphMap}
+                  size={34}
+                  color={colors.textPrimary}
+                />
+              </View>
+              <View style={styles.navigationBannerCopy}>
+                <Text style={styles.navigationDistance}>{formatNavigationDistance(distanceToCurrentStepEnd, unitSystem)}</Text>
+                <Text numberOfLines={2} style={styles.navigationInstruction}>{navigationGuidanceInstruction}</Text>
+              </View>
+              <Pressable accessibilityRole="button" accessibilityLabel="End navigation" onPress={() => finishInAppNavigation(false)} style={styles.navigationEndButton}>
+                <Ionicons name="close" size={24} color={colors.textPrimary} />
+              </Pressable>
             </View>
-            <View style={styles.navigationBannerCopy}>
-              <Text style={styles.navigationDistance}>{formatNavigationDistance(distanceToCurrentStepEnd, unitSystem)}</Text>
-              <Text numberOfLines={2} style={styles.navigationInstruction}>{currentNavigationStep.instruction}</Text>
-              {nextNavigationStep ? (
-                <View style={styles.navigationNextRow}>
-                  <Text style={styles.navigationNextLabel}>THEN</Text>
-                  <Text numberOfLines={1} style={styles.navigationNextInstruction}>{nextNavigationStep.instruction}</Text>
-                </View>
-              ) : null}
-              {navigationNotice ? <Text style={styles.navigationNotice}>{navigationNotice}</Text> : null}
-            </View>
-            <Pressable accessibilityRole="button" accessibilityLabel="End navigation" onPress={() => finishInAppNavigation(false)} style={styles.navigationEndButton}>
-              <Ionicons name="close" size={20} color={colors.textPrimary} />
-            </Pressable>
+            {followingNavigationStep ? (
+              <View style={styles.navigationNextPreview}>
+                <Ionicons
+                  name={maneuverIcon(followingNavigationStep.maneuver) as keyof typeof Ionicons.glyphMap}
+                  size={20}
+                  color={colors.textSecondary}
+                />
+                <Text style={styles.navigationNextLabel}>Then</Text>
+                <Text numberOfLines={1} style={styles.navigationNextInstruction}>{followingNavigationStep.instruction}</Text>
+              </View>
+            ) : null}
+            {navigationNotice ? (
+              <View style={styles.navigationNoticeRow}>
+                <Ionicons name="warning-outline" size={16} color={colors.warning} />
+                <Text style={styles.navigationNotice}>{navigationNotice}</Text>
+              </View>
+            ) : null}
           </View>
-          <View style={[styles.navigationSummary, { bottom: insets.bottom + spacing.sm }]}>
-            <View style={styles.navigationSummaryPrimary}>
-              <Text style={styles.navigationArrival}>{new Date(Date.now() + remainingNavigationSeconds * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</Text>
-              <Text style={styles.navigationSummaryLabel}>arrival</Text>
-            </View>
-            <View>
-              <Text style={styles.navigationSummaryValue}>{formatNavigationDuration(remainingNavigationSeconds)}</Text>
-              <Text style={styles.navigationSummaryLabel}>left</Text>
-            </View>
-            <View>
-              <Text style={styles.navigationSummaryValue}>{formatNavigationDistance(remainingNavigationMeters, unitSystem)}</Text>
-              <Text style={styles.navigationSummaryLabel}>away</Text>
+          <View style={[styles.navigationSummary, { paddingBottom: Math.max(insets.bottom, spacing.sm) }]}>
+            <View style={styles.navigationSummaryHandle} />
+            <View style={styles.navigationSummaryContent}>
+              <View style={styles.navigationSummaryPrimary}>
+                <Text style={styles.navigationArrival}>{new Date(Date.now() + remainingNavigationSeconds * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</Text>
+                <Text style={styles.navigationSummaryLabel}>arrival</Text>
+              </View>
+              <View style={styles.navigationSummaryDivider} />
+              <View style={styles.navigationSummaryStat}>
+                <Text style={styles.navigationSummaryValue}>{formatNavigationDuration(remainingNavigationSeconds)}</Text>
+                <Text style={styles.navigationSummaryLabel}>left</Text>
+              </View>
+              <View style={styles.navigationSummaryDivider} />
+              <View style={styles.navigationSummaryStat}>
+                <Text style={styles.navigationSummaryValue}>{formatNavigationDistance(remainingNavigationMeters, unitSystem)}</Text>
+                <Text style={styles.navigationSummaryLabel}>away</Text>
+              </View>
             </View>
           </View>
         </>
@@ -960,6 +1169,24 @@ const styles = StyleSheet.create({
     borderColor: '#ffffff',
     ...elevation.raised,
   },
+  navigationPositionMarker: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#4285F4',
+    borderWidth: 4,
+    borderColor: '#FFFFFF',
+    shadowColor: '#000000',
+    shadowOpacity: 0.26,
+    shadowRadius: 9,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 7,
+  },
+  navigationPositionGlyph: {
+    transform: [{ rotate: '-45deg' }],
+  },
   nearbyCount: {
     position: 'absolute',
     left: spacing.lg,
@@ -1034,39 +1261,121 @@ const styles = StyleSheet.create({
   },
   destinationPrimaryTitle: { ...type.button, color: colors.accentText, lineHeight: 19 },
   destinationPrimarySubtitle: { ...type.caption, color: colors.accentText, opacity: 0.72, marginTop: 1 },
-  navigationBanner: {
-    position: 'absolute', left: spacing.md, right: spacing.md,
-    flexDirection: 'row', alignItems: 'center', gap: spacing.md,
-    padding: spacing.md, borderRadius: 16,
-    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
+  navigationActions: {
+    position: 'absolute',
+    right: spacing.md,
+    zIndex: 12,
+    gap: spacing.sm,
+  },
+  navigationActionButton: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
     ...elevation.raised,
+  },
+  navigationActionButtonActive: {
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
+  },
+  navigationBanner: {
+    position: 'absolute',
+    left: spacing.sm,
+    right: spacing.sm,
+    overflow: 'hidden',
+    borderRadius: 22,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    ...elevation.raised,
+  },
+  navigationBannerMain: {
+    minHeight: 118,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 14,
   },
   navigationManeuver: {
-    width: 48, height: 48, borderRadius: 12,
-    alignItems: 'center', justifyContent: 'center', backgroundColor: colors.accent,
+    width: 64,
+    height: 76,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   navigationBannerCopy: { flex: 1, minWidth: 0 },
-  navigationDistance: { ...type.subheading, color: colors.textPrimary },
-  navigationInstruction: { ...type.body, color: colors.textPrimary, marginTop: 2, fontWeight: '700' },
-  navigationNextRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginTop: spacing.xs },
-  navigationNextLabel: { ...type.caption, color: colors.textMuted, fontWeight: '800' },
-  navigationNextInstruction: { ...type.caption, color: colors.textSecondary, flex: 1 },
-  navigationNotice: { ...type.caption, color: colors.textSecondary, marginTop: spacing.xs },
+  navigationDistance: { color: colors.textPrimary, fontSize: 34, lineHeight: 38, fontWeight: '800' },
+  navigationInstruction: { ...type.body, color: colors.textPrimary, marginTop: 3, fontSize: 17, lineHeight: 22, fontWeight: '700' },
+  navigationNextPreview: {
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+    backgroundColor: colors.background,
+  },
+  navigationNextLabel: { ...type.caption, color: colors.textMuted, fontWeight: '800', textTransform: 'uppercase' },
+  navigationNextInstruction: { ...type.body, color: colors.textSecondary, flex: 1, fontSize: 15, lineHeight: 20 },
+  navigationNoticeRow: {
+    minHeight: 40,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+    backgroundColor: colors.dangerSurface,
+  },
+  navigationNotice: { ...type.caption, color: colors.textSecondary, flex: 1 },
   navigationEndButton: {
-    width: MIN_TOUCH_TARGET, height: MIN_TOUCH_TARGET, borderRadius: MIN_TOUCH_TARGET / 2,
-    alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceRaised,
+    width: MIN_TOUCH_TARGET,
+    height: MIN_TOUCH_TARGET,
+    borderRadius: MIN_TOUCH_TARGET / 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surfaceRaised,
   },
   navigationSummary: {
-    position: 'absolute', left: spacing.md, right: spacing.md,
-    minHeight: 72, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around',
-    gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm,
-    borderRadius: 16, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    minHeight: 104,
+    paddingTop: 10,
+    paddingHorizontal: spacing.lg,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    backgroundColor: colors.surface,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
     ...elevation.raised,
   },
-  navigationSummaryPrimary: { minWidth: 84 },
-  navigationArrival: { ...type.heading, color: colors.textPrimary, fontSize: 24 },
-  navigationSummaryValue: { ...type.subheading, color: colors.textPrimary, textAlign: 'center' },
-  navigationSummaryLabel: { ...type.caption, color: colors.textMuted, textAlign: 'center' },
+  navigationSummaryHandle: {
+    width: 46,
+    height: 5,
+    alignSelf: 'center',
+    marginBottom: 10,
+    borderRadius: 3,
+    backgroundColor: colors.textMuted,
+    opacity: 0.55,
+  },
+  navigationSummaryContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  navigationSummaryPrimary: { flex: 1, minWidth: 92 },
+  navigationSummaryStat: { flex: 1, alignItems: 'center' },
+  navigationSummaryDivider: { width: StyleSheet.hairlineWidth, height: 46, backgroundColor: colors.border },
+  navigationArrival: { ...type.heading, color: colors.success, fontSize: 26, lineHeight: 30 },
+  navigationSummaryValue: { ...type.heading, color: colors.textPrimary, fontSize: 23, lineHeight: 28, textAlign: 'center' },
+  navigationSummaryLabel: { ...type.caption, color: colors.textMuted, marginTop: 2, textAlign: 'center', textTransform: 'uppercase' },
   rideBarSlot: { marginTop: 'auto', paddingHorizontal: spacing.lg, paddingBottom: spacing.lg },
   safetyBanner: {
     position: 'absolute', left: spacing.lg, right: spacing.lg,
