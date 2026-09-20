@@ -1208,7 +1208,7 @@
     try {
       const sent = await apiFetch('POST', '/messages', { toRiderId: riderId, text });
       if (activeChat?.riderId !== riderId) return;
-      chatMessages = chatMessages.map((message) => message.id === localId ? sent : message);
+      chatMessages = window.RiderMessageState.acknowledge(chatMessages, localId, sent);
       renderChat();
     } catch {
       if (activeChat?.riderId !== riderId) return;
