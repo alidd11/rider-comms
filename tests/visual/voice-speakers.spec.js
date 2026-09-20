@@ -16,7 +16,7 @@ const PROFILE = {
   tiktokVisibility: 'friends',
 };
 
-test('PWA shows and clears the remote Nearby Voice active speaker', async ({ page }) => {
+test('PWA retries a transient pre-connect voice failure and preserves VOX/speaker state', async ({ page }) => {
   await page.addInitScript(({ riderId }) => {
     localStorage.setItem('rider-comms-session-v1', JSON.stringify({ riderId, token: 'voice-speaker-test-token' }));
     Object.defineProperty(navigator, 'permissions', {
@@ -70,6 +70,7 @@ test('PWA shows and clears the remote Nearby Voice active speaker', async ({ pag
     Object.defineProperty(window, 'AudioContext', { configurable: true, value: FakeAudioContext });
   }, { riderId: RIDER_ID });
 
+  let voiceTokenRequests = 0;
   await page.route('https://backend-production-7fa0.up.railway.app/**', async (route) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -97,6 +98,16 @@ test('PWA shows and clears the remote Nearby Voice active speaker', async ({ pag
         radiusMiles: 1,
       };
     } else if (url.pathname === '/voice/token' && request.method() === 'POST') {
+      voiceTokenRequests += 1;
+      if (voiceTokenRequests === 1) {
+        await route.fulfill({
+          status: 503,
+          contentType: 'application/json',
+          headers,
+          body: JSON.stringify({ error: 'voice_temporarily_unavailable' }),
+        });
+        return;
+      }
       body = {
         connections: [{ peerId: PEER_ID, token: 'speaker-livekit-token', url: 'wss://voice.example.test' }],
         refreshAfterMs: 20_000,
@@ -150,6 +161,11 @@ test('PWA shows and clears the remote Nearby Voice active speaker', async ({ pag
 
   await page.goto('/');
   await page.locator('#joinNearbyBtn').click();
+
+  // The first token mint is deliberately failed above before any LiveKit
+  // Room exists. Rider Comms must self-recover through the reconnect scheduler
+  // rather than requiring the rider to toggle Nearby off/on again.
+  await expect.poll(() => voiceTokenRequests, { timeout: 5_000 }).toBeGreaterThanOrEqual(2);
 
   const localVoiceButton = page.locator('#voiceStatusBtn');
   await expect(localVoiceButton).toHaveAttribute('aria-label', 'Listening — hands-free');
