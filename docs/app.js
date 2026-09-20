@@ -4645,11 +4645,16 @@
     renderMapStatus();
   }
 
-  /** Loads the rider's real profile from the backend (GET /riders/:id/profile). */
+  /** Throwing profile snapshot used by the durable social event loop. */
+  async function refreshProfileAuthoritative() {
+    const profile = await apiFetch('GET', `/riders/${encodeURIComponent(state.profile.riderId)}/profile`);
+    applyRemoteProfile(profile);
+  }
+
+  /** UI/startup wrapper keeps the existing non-fatal profile-load behavior. */
   async function loadProfile() {
     try {
-      const profile = await apiFetch('GET', `/riders/${encodeURIComponent(state.profile.riderId)}/profile`);
-      applyRemoteProfile(profile);
+      await refreshProfileAuthoritative();
       return true;
     } catch {
       showToast('Could not load your profile from the server.');
