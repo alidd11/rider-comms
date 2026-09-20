@@ -56,6 +56,7 @@ import { RiderAvatar } from '../components/RiderAvatar';
 const PRESENCE_UPDATE_INTERVAL_MS = 8000; // per spec Section 8: every 5-10s
 const RIDE_MARKER_REFRESH_MS = 10_000;
 const RIDE_MARKER_STALE_MS = 20_000;
+const RIDE_AVATAR_REFRESH_MS = 30_000;
 const DEFAULT_REGION = {
   latitude: 51.5074,
   longitude: -0.1278,
@@ -191,7 +192,7 @@ export function MapScreen(): React.JSX.Element {
     // Ride locations themselves refresh every 10 seconds. Profile identity
     // changes are lower urgency, but still reconcile during a live ride so a
     // newly selected avatar appears without leaving/rejoining.
-    const timer = setInterval(refresh, 30_000);
+    const timer = setInterval(refresh, RIDE_AVATAR_REFRESH_MS);
     return () => {
       cancelled = true;
       clearInterval(timer);
