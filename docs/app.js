@@ -142,8 +142,8 @@
       ? (state.profile.shareLocation || state.activeRide?.shareRideLocation ? 'online' : 'none')
       : 'online');
     const svg = riderAvatarSvg(person.avatarId, { selected: current, mapMarker: true, status });
-    const width = current ? 50 : 44;
-    const height = current ? 56 : 50;
+    const width = current ? 44 : 40;
+    const height = width * (72 / 64);
     return {
       url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
       scaledSize: new google.maps.Size(width, height),
