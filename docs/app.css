@@ -1722,8 +1722,6 @@ body:has(.content-screen.active) .movement-safety-banner{
 }
 .auth-social-row button:disabled{opacity:.8}
 .auth-provider-mark{display:grid;place-items:center;font-size:1rem;font-weight:800}
-.auth-provider-logo{display:block;width:20px;height:20px;object-fit:contain;filter:brightness(0) invert(1)}
-.auth-provider-logo.discord{width:22px;height:18px;filter:none}
 .auth-provider-mark.apple{font-size:.72rem}
 .auth-provider-mark.google{color:#f4f7f7}
 .auth-provider-mark.discord{color:#8d9cff}
