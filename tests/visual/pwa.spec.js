@@ -260,6 +260,8 @@ test('login baseline matches the approved night-rider concept in day and night',
       if (splash) splash.hidden = true;
     });
 
+    await expect(page.locator('#loginUsername')).not.toBeFocused();
+    await expect(page.locator('#loginPassword')).not.toBeFocused();
     await expect(page.locator('#authTitle')).toHaveText('Welcome back');
     await expect(page.locator('#authDescription')).toHaveText('Good to see you again.');
     await expect(page.locator('#loginForm')).toBeVisible();
