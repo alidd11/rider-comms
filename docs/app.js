@@ -4456,12 +4456,12 @@
     const heading = Number.isFinite(gpsHeading) && gpsHeading >= 0 ? gpsHeading : bearingDegrees(here, lookAhead);
     if (!navFollowing) return;
     if (typeof map.moveCamera === 'function') {
-      map.moveCamera({ center: centre, zoom: 17.6, heading, tilt: 45 });
+      map.moveCamera({ center: centre, zoom: 18, heading, tilt: 55 });
     } else {
       map.panTo(centre);
       map.setZoom(18);
       map.setHeading?.(heading);
-      map.setTilt?.(45);
+      map.setTilt?.(55);
     }
     // In heading-up follow mode the map rotates underneath the marker, so the
     // chevron itself remains screen-up. Overview/pan mode uses geographic
@@ -4746,8 +4746,14 @@
       disableDefaultUI: true,
       gestureHandling: 'greedy',
       clickableIcons: false,
-      // Roadmap is Google's current standard navigation-oriented map. Use its
-      // native system colour scheme and keep Rider Comms' product layers above it.
+      // A div-backed Maps JavaScript map otherwise defaults to the raster
+      // renderer, which ignores the pitched/heading camera used by navigation.
+      // Force Google's vector/WebGL renderer so navigation can use genuine
+      // provider-native perspective and close-zoom 3D building geometry.
+      renderingType: google.maps.RenderingType.VECTOR,
+      tiltInteractionEnabled: true,
+      headingInteractionEnabled: true,
+      isFractionalZoomEnabled: true,
       mapTypeId: 'roadmap',
       colorScheme: 'FOLLOW_SYSTEM',
       backgroundColor: prefersDarkMode() ? '#080d10' : '#f2f5f6',

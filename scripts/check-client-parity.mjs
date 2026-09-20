@@ -41,8 +41,14 @@ const [pwaMapSource, nativeMapSource] = await Promise.all([
   readFile(new URL('../mobile/src/screens/MapScreen.tsx', import.meta.url), 'utf8'),
 ]);
 
-if (!/mapTypeId:\s*['"]roadmap['"]/.test(pwaMapSource) || !/colorScheme:\s*['"]FOLLOW_SYSTEM['"]/.test(pwaMapSource)) {
-  throw new Error('PWA map must use the provider-native Google Roadmap surface with system colour scheme');
+if (
+  !/mapTypeId:\s*['"]roadmap['"]/.test(pwaMapSource)
+  || !/colorScheme:\s*['"]FOLLOW_SYSTEM['"]/.test(pwaMapSource)
+  || !/renderingType:\s*google\.maps\.RenderingType\.VECTOR/.test(pwaMapSource)
+  || !/tiltInteractionEnabled:\s*true/.test(pwaMapSource)
+  || !/headingInteractionEnabled:\s*true/.test(pwaMapSource)
+) {
+  throw new Error('PWA map must use Google Roadmap with the vector renderer and provider-native tilt/heading');
 }
 if (/MAP_STYLE_(?:DARK|LIGHT)/.test(pwaMapSource)) {
   throw new Error('PWA map must not replace Google Roadmap with embedded basemap imitation styles');
@@ -73,6 +79,7 @@ for (const [label, source, patterns] of [
     /distanceToPathMeters/,
     /remainingDistanceOnPathMeters/,
     /lookAheadCoordinateOnPath/,
+    /moveCamera\(\{ center: centre, zoom: 18, heading, tilt: 55 \}\)/,
     /setNavigationTrafficVisible\(true\)/,
     /if \(!preserveMute\) navMuted = false/,
     /preserveMute: true/,
@@ -91,6 +98,8 @@ for (const [label, source, patterns] of [
     /distanceToPathMeters/,
     /remainingDistanceOnPathMeters/,
     /lookAheadCoordinateOnPath/,
+    /NAVIGATION_CAMERA_ZOOM = 18/,
+    /NAVIGATION_CAMERA_PITCH = 55/,
     /showsTraffic=\{Boolean\(activeRoute\)\}/,
     /fitRoute\(activeRoute\)/,
     /rideLocations[\s\S]*Private ride member · live location/,
