@@ -18,6 +18,13 @@ describe('adaptive navigation camera', () => {
     assert.ok(stopped.centreAheadMeters < city.centreAheadMeters && city.centreAheadMeters < fast.centreAheadMeters);
   });
 
+  it('uses the normal city profile when GPS speed is unavailable', () => {
+    assert.deepEqual(
+      navigationCameraProfile({ speedMps: null }),
+      { zoom: 18.4, pitch: 60, lookAheadMeters: 165, centreAheadMeters: 70 },
+    );
+  });
+
   it('pulls back and flattens for an approaching complex junction', () => {
     const ordinary = navigationCameraProfile({ speedMps: 10, maneuverDistanceMeters: 90, maneuver: 'turn-right' });
     const roundabout = navigationCameraProfile({ speedMps: 10, maneuverDistanceMeters: 90, maneuver: 'roundabout-right' });
