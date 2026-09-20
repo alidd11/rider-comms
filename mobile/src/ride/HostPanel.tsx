@@ -24,10 +24,10 @@ function JoinOrHostForm(): React.JSX.Element {
   const insets = useSafeAreaInsets();
   const { height: viewportHeight } = useWindowDimensions();
   const heroHeight = viewportHeight <= 760
-    ? 214 + insets.top
+    ? 194
     : viewportHeight >= 820
-      ? Math.max(244 + insets.top, Math.min(viewportHeight * 0.47, 400 + insets.top))
-      : 244 + insets.top;
+      ? Math.min(232, viewportHeight * 0.26)
+      : 210;
   const { startRide } = useRide();
   const { client } = useAuth();
   const [code, setCode] = React.useState('');
@@ -71,6 +71,7 @@ function JoinOrHostForm(): React.JSX.Element {
         keyboardShouldPersistTaps="handled"
         contentInsetAdjustmentBehavior="never"
       >
+        <Text style={[styles.screenTitle, { marginTop: insets.top + 18 }]}>Ride</Text>
         <ImageBackground
           source={{ uri: RIDE_HERO_IMAGE }}
           style={[styles.hero, { height: heroHeight }]}
@@ -222,15 +223,16 @@ export function HostPanel(): React.JSX.Element {
 const styles = StyleSheet.create({
   joinScreen: { flex: 1, backgroundColor: colors.background },
   joinScroll: { flexGrow: 1, backgroundColor: colors.background },
-  joinBody: { gap: 8, paddingHorizontal: 20, paddingTop: 11 },
+  joinBody: { gap: 8, paddingHorizontal: 20, paddingTop: 10 },
   activePanel: { flex: 1, paddingHorizontal: spacing.lg, backgroundColor: colors.background },
   form: { flexGrow: 1, gap: spacing.md },
   rootTitle: { ...type.title, color: colors.textPrimary, fontSize: 28, lineHeight: 32, letterSpacing: -0.8 },
-  hero: { width: '100%', justifyContent: 'flex-end', overflow: 'hidden', borderRadius: 0, borderWidth: 0, backgroundColor: colors.surface },
-  heroImage: { borderRadius: 0 },
+  screenTitle: { ...type.title, color: colors.textPrimary, fontSize: 28, lineHeight: 30, letterSpacing: -0.9, marginHorizontal: 20, marginBottom: 13 },
+  hero: { marginHorizontal: 20, justifyContent: 'flex-end', overflow: 'hidden', borderRadius: radii.lg, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, backgroundColor: colors.surface },
+  heroImage: { borderRadius: radii.lg },
   heroShade: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(3,7,9,0.18)' },
-  heroFade: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 76, backgroundColor: 'rgba(3,7,9,0.22)' },
-  heroTitle: { color: '#FFFFFF', fontSize: 30, lineHeight: 28, fontWeight: '800', letterSpacing: -1.2, paddingHorizontal: 22, paddingBottom: 18, textShadowColor: 'rgba(0,0,0,0.48)', textShadowRadius: 10 },
+  heroFade: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 62, backgroundColor: 'rgba(3,7,9,0.30)' },
+  heroTitle: { color: '#FFFFFF', fontSize: 24, lineHeight: 23, fontWeight: '800', letterSpacing: -0.9, paddingHorizontal: 14, paddingBottom: 14, textShadowColor: 'rgba(0,0,0,0.48)', textShadowRadius: 8 },
   joinCard: { gap: 7, padding: 11, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: radii.lg, backgroundColor: colors.surface },
   joinTitle: { ...type.subheading, color: colors.textPrimary, fontSize: 14, lineHeight: 17, fontWeight: '800', marginBottom: 0 },
   fieldLabel: { ...type.caption, color: colors.textSecondary, fontSize: 10, lineHeight: 13, fontWeight: '700' },
