@@ -252,6 +252,7 @@ function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Elemen
   const [nextCursor, setNextCursor] = React.useState<string | null>(null);
   const [peerReadThroughMessageId, setPeerReadThroughMessageId] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
+  const [conversationUnavailable, setConversationUnavailable] = React.useState(false);
   const listRef = React.useRef<FlatList<LocalMessage>>(null);
   const focusedRef = React.useRef(false);
   const hasLoadedOlderRef = React.useRef(false);
@@ -269,6 +270,7 @@ function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Elemen
         : reconcileMessageThread(current, page.messages));
       if (!hasLoadedOlderRef.current) setNextCursor(page.nextCursor);
       setPeerReadThroughMessageId(page.peerReadThroughMessageId);
+      setConversationUnavailable(false);
       setError(null);
       try {
         await client.markMessagesRead(riderId);
@@ -279,8 +281,12 @@ function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Elemen
         // unavailable; the realtime provider will reconcile it on recovery.
       }
     } catch (err) {
-      if (err instanceof ApiError && err.status === 403) setError('This conversation is no longer available.');
-      else setError('Could not refresh messages. Check your connection and try again.');
+      if (err instanceof ApiError && err.status === 403) {
+        setConversationUnavailable(true);
+        setError('This conversation is no longer available.');
+      } else {
+        setError('Could not refresh messages. Check your connection and try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -296,10 +302,15 @@ function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Elemen
       setMessages((current) => mergeOlderMessagePage(current, page.messages));
       setNextCursor(page.nextCursor);
       setPeerReadThroughMessageId(page.peerReadThroughMessageId);
+      setConversationUnavailable(false);
       setError(null);
     } catch (err) {
-      if (err instanceof ApiError && err.status === 403) setError('This conversation is no longer available.');
-      else setError('Could not load older messages. Check your connection and try again.');
+      if (err instanceof ApiError && err.status === 403) {
+        setConversationUnavailable(true);
+        setError('This conversation is no longer available.');
+      } else {
+        setError('Could not load older messages. Check your connection and try again.');
+      }
     } finally {
       setLoadingOlder(false);
     }
@@ -463,9 +474,11 @@ function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Elemen
         <View style={styles.errorBox}>
           <Ionicons name="alert-circle" size={18} color={colors.danger} />
           <Text style={styles.errorText}>{error}</Text>
-          <Pressable onPress={() => void loadMessages(true)} hitSlop={8}>
-            <Text style={styles.retryText}>Retry</Text>
-          </Pressable>
+          {!conversationUnavailable ? (
+            <Pressable onPress={() => void loadMessages(true)} hitSlop={8}>
+              <Text style={styles.retryText}>Retry</Text>
+            </Pressable>
+          ) : null}
         </View>
       )}
 
@@ -516,6 +529,8 @@ function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Elemen
           placeholderTextColor={colors.textMuted}
           value={draft}
           onChangeText={setDraft}
+          editable={!conversationUnavailable}
+          accessibilityState={{ disabled: conversationUnavailable }}
           multiline
           maxLength={1000}
           accessibilityLabel={`Message ${displayName}`}
@@ -524,10 +539,11 @@ function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Elemen
           style={({ pressed }) => [
             styles.sendButton,
             pressed && draft.trim() && styles.sendButtonPressed,
-            (!draft.trim() || sending) && styles.sendButtonDisabled,
+            (!draft.trim() || sending || conversationUnavailable) && styles.sendButtonDisabled,
           ]}
           onPress={handleSend}
-          disabled={!draft.trim() || sending}
+          disabled={!draft.trim() || sending || conversationUnavailable}
+          accessibilityState={{ disabled: !draft.trim() || sending || conversationUnavailable }}
         >
           {sending ? (
             <ActivityIndicator color={colors.accentText} size="small" />
