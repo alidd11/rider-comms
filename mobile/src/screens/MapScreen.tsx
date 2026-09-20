@@ -54,6 +54,8 @@ import { microphoneErrorMessage, preflightVoiceMicrophone } from '../audio/micro
 import { RiderAvatar } from '../components/RiderAvatar';
 
 const PRESENCE_UPDATE_INTERVAL_MS = 8000; // per spec Section 8: every 5-10s
+const RIDE_MARKER_REFRESH_MS = 10_000;
+const RIDE_MARKER_STALE_MS = 20_000;
 const DEFAULT_REGION = {
   latitude: 51.5074,
   longitude: -0.1278,
@@ -199,7 +201,7 @@ export function MapScreen(): React.JSX.Element {
   React.useEffect(() => {
     if (!rideLocations.length) return;
     setMarkerNow(Date.now());
-    const timer = setInterval(() => setMarkerNow(Date.now()), RIDE_LOCATION_REFRESH_MS);
+    const timer = setInterval(() => setMarkerNow(Date.now()), RIDE_MARKER_REFRESH_MS);
     return () => clearInterval(timer);
   }, [rideLocations.length]);
 
@@ -208,7 +210,7 @@ export function MapScreen(): React.JSX.Element {
     ? { lat: ownRideLocation.lat, lon: ownRideLocation.lon }
     : currentLocation;
   const ownRideLocationFresh = Boolean(
-    ownRideLocation && markerNow - ownRideLocation.updatedAt <= RIDE_LOCATION_REFRESH_MS * 2,
+    ownRideLocation && markerNow - ownRideLocation.updatedAt <= RIDE_MARKER_STALE_MS,
   );
   const selfMapStatus = shareLocation || (shareRideLocation && ownRideLocationFresh)
     ? 'online'
@@ -698,7 +700,7 @@ export function MapScreen(): React.JSX.Element {
               .filter((location) => location.riderId !== riderId)
               .map((location) => {
                 const profile = rideProfiles[location.riderId];
-                const fresh = markerNow - location.updatedAt <= RIDE_LOCATION_REFRESH_MS * 2;
+                const fresh = markerNow - location.updatedAt <= RIDE_MARKER_STALE_MS;
                 const markerStatus = fresh ? 'online' : 'stale';
                 return (
                   <Marker
