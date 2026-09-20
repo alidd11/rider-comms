@@ -451,7 +451,7 @@ export function FriendsScreen(): React.JSX.Element {
 
         {incomingRequests.length > 0 && (
           <>
-            <Text style={styles.networkSectionLabel}>Requests ({incomingRequests.length})</Text>
+            <Text accessibilityRole="header" style={styles.networkSectionLabel}>Requests ({incomingRequests.length})</Text>
             <View style={styles.section}>
               {incomingRequests.map((request) => (
                 <RequestRow key={request.id} request={request} profile={requestProfiles[request.fromRiderId]} />
@@ -462,7 +462,7 @@ export function FriendsScreen(): React.JSX.Element {
 
         {outgoingRequests.length > 0 && (
           <>
-            <Text style={styles.networkSectionLabel}>Sent ({outgoingRequests.length})</Text>
+            <Text accessibilityRole="header" style={styles.networkSectionLabel}>Sent ({outgoingRequests.length})</Text>
             <View style={styles.section}>
               {outgoingRequests.map((request) => (
                 <OutgoingRequestRow key={request.id} request={request} profile={requestProfiles[request.toRiderId]} />
@@ -489,7 +489,7 @@ export function FriendsScreen(): React.JSX.Element {
           <View style={styles.networkList}>
             {onlineFriends.length > 0 ? (
               <>
-                <Text style={styles.networkSectionLabel}>Online ({onlineFriends.length})</Text>
+                <Text accessibilityRole="header" style={styles.networkSectionLabel}>Online ({onlineFriends.length})</Text>
                 {onlineFriends.map((friend) => (
                   <FriendRow key={friend.riderId} friend={friend} activity={activityByRider[friend.riderId]} unreadCount={unreadByRider[friend.riderId] ?? 0} onProfile={setSelectedProfile} />
                 ))}
@@ -497,7 +497,7 @@ export function FriendsScreen(): React.JSX.Element {
             ) : null}
             {offlineFriends.length > 0 ? (
               <>
-                <Text style={styles.networkSectionLabel}>Offline ({offlineFriends.length})</Text>
+                <Text accessibilityRole="header" style={styles.networkSectionLabel}>Offline ({offlineFriends.length})</Text>
                 {offlineFriends.map((friend) => (
                   <FriendRow key={friend.riderId} friend={friend} activity={activityByRider[friend.riderId]} unreadCount={unreadByRider[friend.riderId] ?? 0} onProfile={setSelectedProfile} />
                 ))}
