@@ -176,6 +176,12 @@ if (!/\.nav-mode #locateBtn\{display:none\}/.test(pwaCssSource)) {
 if (!/\.nav-mode \.map-actions \.icon-button\{width:48px;min-width:48px;height:48px;border-radius:14px/.test(pwaCssSource)) {
   throw new Error('PWA navigation controls must keep the shared 48px rounded-square geometry');
 }
+if (!/body:has\(#destinationCard:not\(\[hidden\]\)\) \.screen-map \.map-actions\{display:none\}/.test(pwaCssSource)) {
+  throw new Error('PWA destination selection must hide competing general map controls like native');
+}
+if (!/#destinationCard \.destination-primary-action\{[^\n]*border-radius:14px/.test(pwaCssSource)) {
+  throw new Error('PWA destination primary action must align with native navigation button geometry');
+}
 if (!/mapActionButton:\s*\{[\s\S]*?width: 48,[\s\S]*?height: 48,[\s\S]*?borderRadius: 14/.test(nativeMapSource)) {
   throw new Error('Native map controls must keep the shared 48px rounded-square geometry');
 }
