@@ -18,6 +18,24 @@ for (const required of [
 
 assert.ok(app.includes('window.confirm(`Block ${friend.displayName}?'), 'PWA block flow must require confirmation');
 
+for (const required of [
+  'async function refreshFriendNetwork()',
+  'async function refreshProfileAuthoritative()',
+  'await Promise.all([\n            refreshFriendNetwork(),\n            refreshMessageSummaries(),\n            refreshProfileAuthoritative(),\n          ])',
+  'if (activeChat) await loadChatMessages({ throwOnError: true });',
+  'if (chatDirty && activeChat) await loadChatMessages({ throwOnError: true });',
+]) {
+  assert.ok(app.includes(required), `PWA social realtime recovery contract missing: ${required}`);
+}
+
+const realtimeLoop = section('async function runSocialEventLoop(generation)', 'function startSocialEvents()');
+assert.equal(
+  realtimeLoop.includes('await loadFriendsData();'),
+  false,
+  'Realtime cursor recovery must not call the UI wrapper that swallows refresh failures',
+);
+
+
 function section(startMarker, endMarker) {
   const start = app.indexOf(startMarker);
   const end = app.indexOf(endMarker, start);
