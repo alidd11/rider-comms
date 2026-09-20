@@ -314,7 +314,9 @@ export function FriendsProvider({ children }: { children: React.ReactNode }): Re
         await client.removeFriend(ME, friendId);
         setError(null);
       } catch (err) {
-        setError(messageFor(err, 'Could not remove that friend.'));
+        const message = messageFor(err, 'Could not remove that friend.');
+        setError(message);
+        throw new Error(message);
       } finally {
         void Promise.all([refreshNetwork(), refreshMessages()]);
       }
