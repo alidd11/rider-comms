@@ -407,12 +407,12 @@
   function setAvatarPickerFamily(familyId) {
     const body = $('#sheetBody');
     if (!body || !AVATAR_FAMILIES.some((family) => family.id === familyId)) return;
-    $('[data-avatar-family-tab]', body).forEach((button) => {
+    body.querySelectorAll('[data-avatar-family-tab]').forEach((button) => {
       const active = button.dataset.avatarFamilyTab === familyId;
       button.classList.toggle('active', active);
       button.setAttribute('aria-selected', String(active));
     });
-    $('[data-avatar-family-panel]', body).forEach((panel) => {
+    body.querySelectorAll('[data-avatar-family-panel]').forEach((panel) => {
       panel.hidden = panel.dataset.avatarFamilyPanel !== familyId;
     });
   }
@@ -1844,10 +1844,10 @@
         body: `<div class="settings-sheet-section"><span class="settings-sheet-label">Identity</span><div class="form-field"><label>Avatar</label>${avatarOptionsMarkup(state.profile.avatarId)}</div><div class="form-field"><label for="editName">Display name</label><input id="editName" maxlength="50" value="${escapeHtml(state.profile.displayName)}"></div><div class="form-field"><label for="editHandle">Rider handle</label><input id="editHandle" maxlength="25" value="${escapeHtml(state.profile.handle)}"></div></div><div class="settings-sheet-section"><span class="settings-sheet-label">Connected profiles</span><div class="form-field"><label for="editInstagram">Instagram</label><input id="editInstagram" maxlength="30" value="${escapeHtml(state.profile.instagram)}" placeholder="Username"></div><div class="form-field"><label for="editTiktok">TikTok</label><input id="editTiktok" maxlength="30" value="${escapeHtml(state.profile.tiktok)}" placeholder="Username"></div><p class="caption">Control who can see these in Privacy controls.</p></div><p id="profileFormError" class="inline-error" hidden></p><button class="button primary wide" id="saveProfile">Save changes</button>`,
         ready: () => {
           $('#saveProfile').addEventListener('click', saveProfile);
-          $('[data-avatar-option]', $('#sheetBody')).forEach((button) => {
+          document.querySelectorAll('#sheetBody [data-avatar-option]').forEach((button) => {
             button.addEventListener('click', () => void selectProfileAvatar(button.dataset.avatarOption));
           });
-          $('[data-avatar-family-tab]', $('#sheetBody')).forEach((button) => {
+          document.querySelectorAll('#sheetBody [data-avatar-family-tab]').forEach((button) => {
             button.addEventListener('click', () => setAvatarPickerFamily(button.dataset.avatarFamilyTab));
           });
         },
