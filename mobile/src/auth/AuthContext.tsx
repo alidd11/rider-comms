@@ -19,7 +19,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { API_BASE_URL } from '../config';
 import { ApiError, RiderCommsClient } from '../api/client';
 import type { LoginSession } from '../api/client';
-import { colors, radii, spacing, type, useConcreteThemeColors } from '../theme';
+
 
 const KEY = '@rider-comms/auth-v2';
 const LEGACY_GUEST_KEY = '@rider-comms/auth-v1';
@@ -36,9 +36,9 @@ const AUTH_BORDER = 'rgba(214,236,238,0.22)';
 
 const AUTH_COPY = {
   login: {
-    eyebrow: 'WELCOME BACK',
-    title: 'Ready to ride?',
-    description: 'Sign in to reconnect with your rides, friends and rider circle.',
+    eyebrow: '',
+    title: 'Welcome back',
+    description: 'Good to see you again.',
   },
   signup: {
     eyebrow: 'NEW RIDER',
@@ -106,7 +106,6 @@ function AuthScreen({ onAuthenticated, restoreError, onRetryRestore }: {
   onRetryRestore: () => void;
 }): React.JSX.Element {
   const insets = useSafeAreaInsets();
-  const palette = useConcreteThemeColors();
   const [mode, setMode] = React.useState<'login' | 'signup' | 'recover' | 'reset'>('login');
   const [username, setUsername] = React.useState('');
   const [email, setEmail] = React.useState('');
