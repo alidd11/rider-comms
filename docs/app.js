@@ -3102,7 +3102,9 @@
   }
 
   const RIDE_LOCATION_REFRESH_MS = 10_000; // same 5-10s cadence as public presence (see PRESENCE_REFRESH_MS)
+  const RIDE_AVATAR_REFRESH_MS = 30_000;
   let rideLocationTimer;
+  let lastRideAvatarRefreshAt = 0;
 
   async function setRideLocationSharing(enabled) {
     const ride = state.activeRide;
@@ -3162,7 +3164,14 @@
           const { locations } = await apiFetch('GET', `/rides/${encodeURIComponent(ride.rideId)}/locations`);
           if (state.activeRide?.rideId !== ride.rideId || !state.activeRide.shareRideLocation || !session) return;
           rideMemberLocations = new Map(locations.map((entry) => [entry.riderId, entry]));
-          if (state.activeRide) renderMapRiders();
+          if (state.activeRide) {
+            renderMapRiders();
+            const now = Date.now();
+            if (now - lastRideAvatarRefreshAt >= RIDE_AVATAR_REFRESH_MS) {
+              lastRideAvatarRefreshAt = now;
+              void loadRideRoster();
+            }
+          }
         } catch {
           // Best-effort, same as the public presence refresh above — a
           // missed tick (denied permission, a transient network blip)
@@ -3175,6 +3184,7 @@
     } else {
       if (rideLocationTimer) clearInterval(rideLocationTimer);
       rideLocationTimer = undefined;
+      lastRideAvatarRefreshAt = 0;
       if (!state.activeRide) rideMemberLocations = new Map();
     }
   }
