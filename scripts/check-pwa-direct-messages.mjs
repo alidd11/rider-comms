@@ -12,7 +12,7 @@ for (const expected of [
   'role="log"',
   'id="chatComposer"',
   'maxlength="1000"',
-  'message-state.js?v=1',
+  'message-state.js?v=2',
 ]) assert.ok(html.includes(expected), `PWA chat markup missing ${expected}`);
 
 for (const expected of [
