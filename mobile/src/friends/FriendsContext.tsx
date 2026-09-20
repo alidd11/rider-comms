@@ -3,6 +3,7 @@ import type { FriendActivity, FriendRequest, FriendSummary, SocialEvent } from '
 import { ApiError, type ConversationSummary, type RiderCommsClient } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { refreshAuthoritativeSocialSnapshot } from './socialRefresh';
+import { useSettings } from '../settings/SettingsContext';
 
 const SOCIAL_EVENT_RETRY_MS = 2_000;
 const SOCIAL_ACTIVITY_POLL_MS = 30_000;
@@ -104,6 +105,7 @@ function socialEventNeedsMessageRefresh(event: SocialEvent): boolean {
 
 export function FriendsProvider({ children }: { children: React.ReactNode }): React.JSX.Element {
   const { riderId: ME, client } = useAuth();
+  const { refreshProfile } = useSettings();
   const [friends, setFriends] = React.useState<FriendSummary[]>([]);
   const [incomingRequests, setIncomingRequests] = React.useState<FriendRequest[]>([]);
   const [outgoingRequests, setOutgoingRequests] = React.useState<FriendRequest[]>([]);
@@ -187,11 +189,13 @@ export function FriendsProvider({ children }: { children: React.ReactNode }): Re
             // Establish the durable tail first, then load authoritative state.
             // An event committed after this cursor is guaranteed to replay on
             // the next long poll; one committed before it is included here.
-            await refreshAuthoritative();
+            await Promise.all([refreshAuthoritative(), refreshProfile()]);
             // A baseline follows initial connect and every recovery. Bump the
             // social revision after the authoritative snapshot succeeds so an
             // already-open chat re-reads its thread even when the event that
             // originally dirtied it was skipped by a failed refresh/rebaseline.
+            // The same baseline also refreshes this rider's account profile so
+            // cross-device settings/privacy edits cannot be skipped by recovery.
             setSocialRevision((value) => value + 1);
             setError(null);
             continue;
@@ -203,12 +207,16 @@ export function FriendsProvider({ children }: { children: React.ReactNode }): Re
           let networkDirty = false;
           let messagesDirty = false;
           let revisionDirty = false;
+          let selfProfileDirty = false;
 
           while (true) {
             for (const event of page.events) {
               networkDirty ||= socialEventNeedsNetworkRefresh(event);
               messagesDirty ||= socialEventNeedsMessageRefresh(event);
               revisionDirty ||= event.type === 'message' || event.type === 'message_read' || event.type === 'friend_removed' || event.type === 'social_refresh';
+              selfProfileDirty ||= event.type === 'social_refresh'
+                && event.entityId === 'profile'
+                && event.actorRiderId === ME;
             }
             cursor = page.cursor;
             if (!page.hasMore || stopped) break;
@@ -217,6 +225,7 @@ export function FriendsProvider({ children }: { children: React.ReactNode }): Re
 
           if (networkDirty) await refreshNetwork();
           if (messagesDirty) await refreshMessages();
+          if (selfProfileDirty) await refreshProfile();
           if (revisionDirty) setSocialRevision((value) => value + 1);
           // A completed long-poll proves the realtime transport recovered,
           // even when there were no state-changing events in this page.
@@ -235,7 +244,7 @@ export function FriendsProvider({ children }: { children: React.ReactNode }): Re
 
     void run();
     return () => { stopped = true; };
-  }, [client, refresh, refreshAuthoritative, refreshMessages, refreshNetwork]);
+  }, [ME, client, refresh, refreshAuthoritative, refreshMessages, refreshNetwork, refreshProfile]);
 
   const sendRequest = React.useCallback(
     async (toRiderId: string) => {
