@@ -25,7 +25,7 @@ import { useAuth } from '../auth/AuthContext';
 import { colors, spacing, radii, type, elevation, MIN_TOUCH_TARGET } from '../theme';
 import { getAvatarPreset } from '../settings/avatars';
 import { buildNavigationProviderUrl, openNavigationUrl } from '../navigationLinks';
-import { reconcileMessageThread, type LocalDirectMessage } from '../friends/messageState';
+import { mergeOlderMessagePage, reconcileMessageThread, type LocalDirectMessage } from '../friends/messageState';
 import { useMovementSafety } from '../safety/MovementSafetyContext';
 import { RideSafeSurface } from '../safety/RideSafeSurface';
 import { useFriends } from '../friends/FriendsContext';
@@ -254,6 +254,7 @@ function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Elemen
   const [error, setError] = React.useState<string | null>(null);
   const listRef = React.useRef<FlatList<LocalMessage>>(null);
   const focusedRef = React.useRef(false);
+  const preserveViewportOnNextContentChange = React.useRef(false);
 
   const [hideouts, setHideouts] = React.useState<Hideout[]>([]);
   const [planOpen, setPlanOpen] = React.useState(false);
@@ -287,11 +288,8 @@ function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Elemen
     setLoadingOlder(true);
     try {
       const page = await client.getMessages(riderId, { before: nextCursor, limit: 100 });
-      setMessages((current) => {
-        const merged = new Map<string, LocalMessage>();
-        for (const message of [...page.messages, ...current]) merged.set(message.id, message);
-        return [...merged.values()].sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id));
-      });
+      if (page.messages.length > 0) preserveViewportOnNextContentChange.current = true;
+      setMessages((current) => mergeOlderMessagePage(current, page.messages));
       setNextCursor(page.nextCursor);
       setPeerReadThroughMessageId(page.peerReadThroughMessageId);
       setError(null);
@@ -487,7 +485,15 @@ function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Elemen
         ) : null}
         contentContainerStyle={[styles.messageList, messages.length === 0 && styles.messageListEmpty]}
         inverted={false}
-        onContentSizeChange={() => { if (messages.length > 0) listRef.current?.scrollToEnd({ animated: true }); }}
+        maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
+        onContentSizeChange={() => {
+          if (messages.length === 0) return;
+          if (preserveViewportOnNextContentChange.current) {
+            preserveViewportOnNextContentChange.current = false;
+            return;
+          }
+          listRef.current?.scrollToEnd({ animated: true });
+        }}
         ListEmptyComponent={loading ? (
           <View style={styles.chatEmpty}><ActivityIndicator color={colors.accent} /><Text style={styles.chatEmptyText}>Loading conversation…</Text></View>
         ) : (
