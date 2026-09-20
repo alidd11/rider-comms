@@ -10,7 +10,7 @@
 // mounting a second map instance, which keeps map billing/state predictable
 // and matches the PWA's tab-owned interaction model.
 import * as React from 'react';
-import { View, Text, Pressable, StyleSheet, Alert, Linking, Platform, useWindowDimensions } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Alert, Linking, Platform, useColorScheme, useWindowDimensions } from 'react-native';
 import { useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -59,6 +59,28 @@ const DEFAULT_REGION = {
   longitudeDelta: 0.16,
 };
 const FOCUSED_REGION_DELTA = 0.025;
+const HYBRID_MAP_STYLE_DARK = [
+  { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+  { featureType: 'transit', stylers: [{ visibility: 'off' }] },
+  { featureType: 'administrative.land_parcel', stylers: [{ visibility: 'off' }] },
+  { featureType: 'road.local', elementType: 'labels', stylers: [{ visibility: 'off' }] },
+  { featureType: 'road', elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
+  { featureType: 'road', elementType: 'labels.text.stroke', stylers: [{ color: '#071015' }, { weight: 3 }] },
+  { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#bac6cb' }] },
+  { featureType: 'administrative.locality', elementType: 'labels.text.stroke', stylers: [{ color: '#071015' }, { weight: 4 }] },
+  { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#d9e1e4' }] },
+];
+const HYBRID_MAP_STYLE_LIGHT = [
+  { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+  { featureType: 'transit', stylers: [{ visibility: 'off' }] },
+  { featureType: 'administrative.land_parcel', stylers: [{ visibility: 'off' }] },
+  { featureType: 'road.local', elementType: 'labels', stylers: [{ visibility: 'off' }] },
+  { featureType: 'road', elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
+  { featureType: 'road', elementType: 'labels.text.stroke', stylers: [{ color: '#f3f6f7' }, { weight: 3 }] },
+  { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#3a4a52' }] },
+  { featureType: 'administrative.locality', elementType: 'labels.text.stroke', stylers: [{ color: '#f3f6f7' }, { weight: 4 }] },
+  { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#24343c' }] },
+];
 const NAV_STEP_ARRIVAL_RADIUS_M = 30;
 const NAV_OFF_ROUTE_RADIUS_M = 60;
 const NAV_OFF_ROUTE_GRACE_MS = 10_000;
@@ -100,6 +122,7 @@ function HazardMarker({
 }
 
 export function MapScreen(): React.JSX.Element {
+  const colorScheme = useColorScheme();
   const { client, riderId } = useAuth();
   const { rideLocations } = useRide();
   const { shareLocation, setShareLocation, unitSystem, navigationProvider } = useSettings();
@@ -587,6 +610,7 @@ export function MapScreen(): React.JSX.Element {
             loadingBackgroundColor={colors.background}
             loadingIndicatorColor={colors.accent}
             mapType="hybrid"
+            customMapStyle={colorScheme === 'light' ? HYBRID_MAP_STYLE_LIGHT : HYBRID_MAP_STYLE_DARK}
             showsCompass={false}
             showsMyLocationButton={false}
             toolbarEnabled={false}
@@ -678,7 +702,7 @@ export function MapScreen(): React.JSX.Element {
       {segment === 'public' && !selectedDestination && (
         <View style={[styles.mapActions, { bottom: insets.bottom + spacing.sm }]}>
           {!lockedForSafety && <Pressable
-            style={[styles.mapActionButton, { transform: [{ translateY: -(viewportHeight * 0.4) }] }]}
+            style={[styles.mapActionButton, { transform: [{ translateY: -(viewportHeight * 0.32) }] }]}
             onPress={() => void openReportSheet()}
             accessibilityRole="button"
             accessibilityLabel="Report on the road"
@@ -686,7 +710,7 @@ export function MapScreen(): React.JSX.Element {
             <MaterialCommunityIcons name="alert-plus" size={22} color={colors.textPrimary} />
           </Pressable>}
           <Pressable
-            style={[styles.mapActionButton, { transform: [{ translateY: -(viewportHeight * 0.4) }] }]}
+            style={[styles.mapActionButton, { transform: [{ translateY: -(viewportHeight * 0.32) }] }]}
             onPress={() => void centreOnCurrentLocation()}
             accessibilityRole="button"
             accessibilityLabel="Centre map on my location"
