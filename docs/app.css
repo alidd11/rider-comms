@@ -1328,34 +1328,38 @@ body:has(#sheetBackdrop:not([hidden])) #joinNearbyBtn{opacity:0;pointer-events:n
   .settings-page .version{margin-top:13px;font-size:.6rem}
 
   .auth-segmented{
-    width:min(248px,100%);
+    width:100%;
     min-height:38px;
-    gap:2px;
-    margin:0 0 11px;
-    padding:2px;
+    gap:0;
+    margin:0 0 10px;
+    padding:0;
     border:0;
-    border-radius:var(--radius-lg);
-    background:var(--surface-raised);
+    border-bottom:1px solid var(--border-soft);
+    border-radius:0;
+    background:transparent;
   }
   .auth-segmented button{
-    min-height:34px;
+    min-height:37px;
     border:0;
-    border-radius:var(--radius-sm);
+    border-bottom:2px solid transparent;
+    border-radius:0;
+    background:transparent;
     font-size:.7rem;
   }
   .auth-segmented button.active{
-    background:var(--surface);
-    box-shadow:inset 0 -2px 0 var(--accent);
+    background:transparent;
+    border-bottom-color:var(--accent);
+    box-shadow:none;
   }
   .auth-screen .auth-field>input,.auth-screen .password-field{
-    min-height:42px;
+    min-height:44px;
     background:var(--surface-raised);
     border-color:transparent;
   }
-  .auth-screen .password-field input{min-height:40px}
-  .auth-screen .password-toggle{width:40px;height:40px}
-  .auth-submit{min-height:44px}
-  .auth-assurance{margin-top:auto;padding:18px 2px max(3px,var(--safe-bottom))}
+  .auth-screen .password-field input{min-height:42px}
+  .auth-screen .password-toggle{width:42px;height:42px}
+  .auth-submit{min-height:46px}
+  .auth-assurance{margin-top:10px;padding:8px 2px 0}
 }
 @media(max-width:699px) and (prefers-color-scheme:light){
   .map-header .search-slot,.map-actions .icon-button{background:rgb(247 249 250/.92);border-color:var(--border)}
