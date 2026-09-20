@@ -60,7 +60,7 @@ function collapseRepeatedFollowInstruction(value: string): string {
   const lead = match[1]!.trim().replace(/[.]$/, '');
   const repeatedRoad = match[2]!.trim().replace(/[.]$/, '');
   const comparable = (text: string) => text.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-  return comparable(lead).includes(comparable(repeatedRoad)) ? lead : value;
+  return comparable(lead).endsWith(comparable(repeatedRoad)) ? lead : value;
 }
 
 export function stripNavigationInstruction(value: string): string {
