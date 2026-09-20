@@ -19,3 +19,12 @@ export function reconcileMessageThread(
   merged.sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id));
   return merged;
 }
+
+export function mergeOlderMessagePage(
+  current: readonly LocalDirectMessage[],
+  older: readonly DirectMessage[]
+): LocalDirectMessage[] {
+  const merged = new Map<string, LocalDirectMessage>();
+  for (const message of [...older, ...current]) merged.set(message.id, message);
+  return [...merged.values()].sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id));
+}
