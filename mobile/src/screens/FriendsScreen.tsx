@@ -367,6 +367,9 @@ function FriendProfileModal({
               ) : null}
             </View>
           ) : !loading ? <Text style={styles.profilePrivacyNote}>No connected profiles are shared with you.</Text> : null}
+          <Text style={styles.profileSafetyNote}>
+            Only connect and arrange rides with people you trust. Social links follow each rider’s privacy settings.
+          </Text>
         </Pressable>
       </Pressable>
     </Modal>
@@ -598,6 +601,7 @@ const styles = StyleSheet.create({
   profileDetailTitle: { ...type.caption, color: colors.textPrimary, fontWeight: '700' },
   profileDetailValue: { ...type.caption, color: colors.textSecondary, marginTop: 2, fontWeight: '500' },
   profilePrivacyNote: { ...type.caption, color: colors.textSecondary, marginTop: 12, padding: 11, backgroundColor: colors.surface, borderRadius: radii.lg },
+  profileSafetyNote: { ...type.caption, color: colors.textMuted, marginTop: 10, lineHeight: 18 },
   socialList: { marginTop: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: radii.lg, overflow: 'hidden' },
   socialRow: { minHeight: MIN_TOUCH_TARGET, flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.md, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   socialText: { ...type.body, color: colors.textPrimary, flex: 1 },
