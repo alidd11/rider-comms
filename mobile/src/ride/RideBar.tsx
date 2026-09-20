@@ -1,15 +1,10 @@
-// Unverified on real hardware — see navigation/index.tsx header note. This
-// sandbox has no native build tooling and no device to actually place a
-// call from, so the LiveKit connection itself (and the exact VOX
-// threshold/hangtime tuning in useVoiceActivity.ts) have never been
-// confirmed on real hardware. What IS real and code-verified: the token
-// fetch from the backend (client.getRideVoiceToken /
-// backend/src/liveKitToken.ts, genuine and tested end-to-end against a
-// real LiveKit Cloud project), and hands-free VOX itself — see
-// ../audio/useVoiceActivity.ts, which mutes/unmutes the real published mic
-// track based on a real native on-device volume reading, not a stub.
-// The microphone is created and muted before publication by
-// useVoiceActivity.ts; LiveKitRoom never auto-publishes an open mic.
+// Public/private LiveKit voice and hands-free VOX have been confirmed on
+// physical devices. The current sensitivity envelope is intentionally
+// conservative for helmet/intercom use; broader wind/engine/headset testing
+// is still required before treating the tuning as production-final. Token
+// fetches remain server-authorised, and useVoiceActivity.ts creates and mutes
+// the real microphone track before publication so LiveKitRoom never
+// auto-publishes an open mic.
 import * as React from 'react';
 import { View, Text, Pressable, StyleSheet, Modal, Alert } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';

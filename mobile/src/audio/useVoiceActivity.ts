@@ -22,13 +22,11 @@
  * after a short hangtime once it stops.
  *
  * WHAT'S REAL: the volume signal (native, on-device, from the actual mic
- * input) and the mute/unmute calls (real LiveKit API, real track object).
- * WHAT'S UNVERIFIED: the exact threshold/hangtime values below are a
- * reasonable starting point, not tuned against real hardware or a real
- * riding environment (wind noise, helmet acoustics) — this sandbox has no
- * device to tune against. Expect these two constants to need adjustment
- * after a real on-bike test; nothing else in this file should need to
- * change to retune it.
+ * input), the mute/unmute calls (real LiveKit API, real track object), and
+ * end-to-end voice operation confirmed on physical devices. The threshold,
+ * hysteresis and hangtime below are the current tested baseline, but they
+ * still need broader helmet/intercom, wind, engine and road-noise validation
+ * before being considered production-final.
  */
 import { useEffect, useRef, useState } from 'react';
 import { useConnectionState, useLocalParticipant, useTrackVolume } from '@livekit/react-native';
