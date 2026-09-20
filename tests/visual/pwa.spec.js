@@ -551,6 +551,8 @@ test('final mockup parity is sharp, map-first and iPhone 17 Pro Max safe', async
   await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-map-dark-final.png'), fullPage: true });
 
   await page.emulateMedia({ colorScheme: 'light' });
+  await expect.poll(() => page.locator('#reportHazardBtn').evaluate((button) => getComputedStyle(button).backgroundColor))
+    .toMatch(/247, 249, 250/);
   await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-map-light-final.png'), fullPage: true });
   await page.emulateMedia({ colorScheme: 'dark' });
 
