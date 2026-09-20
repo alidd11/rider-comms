@@ -6,14 +6,27 @@ import { acquireVoiceAudioSession, releaseVoiceAudioSession } from '../audio/aud
 import { LiveKitAudioPriorityBridge } from '../audio/LiveKitAudioPriorityBridge';
 import { useVoiceActivity } from '../audio/useVoiceActivity';
 import { ActiveSpeakerBridge } from './ActiveSpeakerBridge';
+import {
+  DEFAULT_PROXIMITY_VOICE_REFRESH_MS,
+  proximityVoiceStatus,
+  prunePeerSet,
+  resolveProximityVoiceTiming,
+} from './proximityVoiceState';
 import { useAuth } from '../auth/AuthContext';
 import { useRide } from '../ride/RideContext';
 import { colors, elevation, radii, spacing, type } from '../theme';
 
-const ROSTER_REFRESH_MS = 20_000;
-
-function VoiceActivityBridge({ onError }: { onError: (message: string) => void }): null {
-  useVoiceActivity(true, onError);
+function VoiceActivityBridge({
+  onError,
+  onSpeakingChange,
+}: {
+  onError: (message: string) => void;
+  onSpeakingChange: (speaking: boolean) => void;
+}): null {
+  const speaking = useVoiceActivity(true, onError);
+  React.useEffect(() => {
+    onSpeakingChange(speaking);
+  }, [onSpeakingChange, speaking]);
   return null;
 }
 
@@ -36,10 +49,14 @@ export function ProximityVoice({
   const [connections, setConnections] = React.useState<ProximityVoiceConnection[]>([]);
   const [connectedPeers, setConnectedPeers] = React.useState<Set<string>>(new Set());
   const [speakingPeers, setSpeakingPeers] = React.useState<Set<string>>(new Set());
+  const [localSpeakingPeers, setLocalSpeakingPeers] = React.useState<Set<string>>(new Set());
   const [peerNames, setPeerNames] = React.useState<Map<string, string>>(new Map());
   const [error, setError] = React.useState<string | null>(null);
+  const [authorizationExpired, setAuthorizationExpired] = React.useState(false);
   const [refreshVersion, setRefreshVersion] = React.useState(0);
   const [audioSessionReady, setAudioSessionReady] = React.useState(false);
+  const authorizationLeaseTimer = React.useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const hasAuthorizedOnce = React.useRef(false);
   const peerRosterKey = React.useMemo(
     () => [...peerIds].sort().join('\u0000'),
     [peerIds],
@@ -48,6 +65,31 @@ export function ProximityVoice({
     () => connections.map((connection) => connection.peerId).sort().join('\u0000'),
     [connections],
   );
+
+  const clearAuthorizationLease = React.useCallback(() => {
+    if (authorizationLeaseTimer.current) {
+      clearTimeout(authorizationLeaseTimer.current);
+      authorizationLeaseTimer.current = undefined;
+    }
+  }, []);
+
+  const expireAuthorizationLease = React.useCallback(() => {
+    authorizationLeaseTimer.current = undefined;
+    setConnections([]);
+    setConnectedPeers(new Set());
+    setSpeakingPeers(new Set());
+    setLocalSpeakingPeers(new Set());
+    setPeerNames(new Map());
+    setError(null);
+    setAuthorizationExpired(true);
+  }, []);
+
+  const renewAuthorizationLease = React.useCallback((leaseMs: number) => {
+    clearAuthorizationLease();
+    authorizationLeaseTimer.current = setTimeout(expireAuthorizationLease, leaseMs);
+  }, [clearAuthorizationLease, expireAuthorizationLease]);
+
+  React.useEffect(() => () => clearAuthorizationLease(), [clearAuthorizationLease]);
 
   const handlePeerSpeaking = React.useCallback((peerId: string, speaking: boolean) => {
     setSpeakingPeers((current) => {
@@ -59,20 +101,44 @@ export function ProximityVoice({
     });
   }, []);
 
+  const handleLocalSpeaking = React.useCallback((peerId: string, speaking: boolean) => {
+    setLocalSpeakingPeers((current) => {
+      const next = new Set(current);
+      if (speaking) next.add(peerId);
+      else next.delete(peerId);
+      if (next.size === current.size && [...next].every((id) => current.has(id))) return current;
+      return next;
+    });
+  }, []);
+
   React.useEffect(() => {
     if (!active) {
+      clearAuthorizationLease();
+      hasAuthorizedOnce.current = false;
       setConnections([]);
       setConnectedPeers(new Set());
       setSpeakingPeers(new Set());
+      setLocalSpeakingPeers(new Set());
       setPeerNames(new Map());
       setError(null);
+      setAuthorizationExpired(false);
       return;
     }
+
     let cancelled = false;
+    let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+
     async function refresh() {
+      let nextRefreshMs = DEFAULT_PROXIMITY_VOICE_REFRESH_MS;
       try {
         const response = await client.getChannelVoiceToken();
+        const timing = resolveProximityVoiceTiming(
+          response.refreshAfterMs,
+          response.authorizationLeaseMs,
+        );
+        nextRefreshMs = timing.refreshAfterMs;
         if (!cancelled) {
+          const authorisedPeerIds = new Set(response.connections.map((connection) => connection.peerId));
           // Keep the existing credential for unchanged peers so connected
           // rooms are not needlessly remounted every refresh. New peers get
           // a fresh token; removed peers disappear and disconnect at once.
@@ -80,16 +146,44 @@ export function ProximityVoice({
             const previous = new Map(current.map((connection) => [connection.peerId, connection]));
             return response.connections.map((connection) => previous.get(connection.peerId) ?? connection);
           });
+          setConnectedPeers((current) => prunePeerSet(current, authorisedPeerIds));
+          setSpeakingPeers((current) => prunePeerSet(current, authorisedPeerIds));
+          setLocalSpeakingPeers((current) => prunePeerSet(current, authorisedPeerIds));
+          setPeerNames((current) => new Map(
+            [...current].filter(([peerId]) => authorisedPeerIds.has(peerId)),
+          ));
+          hasAuthorizedOnce.current = true;
+          setAuthorizationExpired(false);
           setError(null);
+          renewAuthorizationLease(timing.authorizationLeaseMs);
         }
       } catch (cause) {
-        if (!cancelled) setError(cause instanceof Error ? cause.message : 'Proximity voice is unavailable.');
+        if (!cancelled && !hasAuthorizedOnce.current) {
+          setError(cause instanceof Error ? cause.message : 'Proximity voice is unavailable.');
+        }
+        // If a previous authorization is still leased, preserve that existing
+        // pair through a transient backend miss. The independent lease timer
+        // fails closed if re-authorization cannot be confirmed in time.
+      } finally {
+        if (!cancelled) {
+          refreshTimer = setTimeout(() => void refresh(), nextRefreshMs);
+        }
       }
     }
+
     void refresh();
-    const timer = setInterval(() => void refresh(), ROSTER_REFRESH_MS);
-    return () => { cancelled = true; clearInterval(timer); };
-  }, [active, client, peerRosterKey, refreshVersion]);
+    return () => {
+      cancelled = true;
+      if (refreshTimer) clearTimeout(refreshTimer);
+    };
+  }, [
+    active,
+    clearAuthorizationLease,
+    client,
+    peerRosterKey,
+    refreshVersion,
+    renewAuthorizationLease,
+  ]);
 
   React.useEffect(() => {
     if (!active || !connectionRosterKey) {
@@ -141,26 +235,23 @@ export function ProximityVoice({
 
   const speakingPeerIds = [...speakingPeers].filter((peerId) => connectedPeers.has(peerId));
   const speakingNames = speakingPeerIds.map((peerId) => peerNames.get(peerId) ?? 'Nearby rider');
-  const speakingSummary = speakingNames.length === 0
-    ? null
-    : speakingNames.length === 1
-      ? speakingNames[0]
-      : `${speakingNames[0]} + ${speakingNames.length - 1}`;
+  const localSpeaking = [...localSpeakingPeers].some((peerId) => connectedPeers.has(peerId));
+  const statusHasIssue = Boolean(error || authorizationExpired);
+  const statusText = proximityVoiceStatus({
+    error: Boolean(error),
+    authorizationExpired,
+    localSpeaking,
+    remoteSpeakingNames: speakingNames,
+    connectedCount: connectedPeers.size,
+    pendingCount: connections.length,
+  });
 
   return (
     <View pointerEvents="none" style={styles.host} accessibilityLiveRegion="polite">
-      <View style={[styles.status, error && styles.statusError]}>
-          <View style={[styles.dot, error && styles.dotError]} />
-          <Text style={[styles.text, error && styles.textError]}>
-            {error
-              ? 'Nearby Voice unavailable'
-              : speakingSummary
-                ? `Nearby Voice · ${speakingSummary} speaking`
-                : connectedPeers.size > 0
-                  ? `Nearby Voice · ${connectedPeers.size} connected`
-                  : connections.length > 0
-                  ? 'Connecting Nearby Voice'
-                  : 'Nearby Voice · waiting for riders'}
+      <View style={[styles.status, statusHasIssue && styles.statusError]}>
+          <View style={[styles.dot, statusHasIssue && styles.dotError]} />
+          <Text style={[styles.text, statusHasIssue && styles.textError]}>
+            {statusText}
           </Text>
         </View>
       {connections.map((connection) => {
@@ -171,6 +262,7 @@ export function ProximityVoice({
             return next;
           });
           handlePeerSpeaking(connection.peerId, false);
+          handleLocalSpeaking(connection.peerId, false);
           // Remove the failed credential so the refresh cannot preserve it;
           // the next authorised roster response will supply a fresh token.
           setConnections((current) => current.filter((item) => item.peerId !== connection.peerId));
@@ -193,7 +285,10 @@ export function ProximityVoice({
           }}
           onMediaDeviceFailure={() => setError('Microphone or audio device became unavailable.')}
         >
-          <VoiceActivityBridge onError={(message) => setError(message || 'Microphone is unavailable.')} />
+          <VoiceActivityBridge
+            onError={(message) => setError(message || 'Microphone is unavailable.')}
+            onSpeakingChange={(speaking) => handleLocalSpeaking(connection.peerId, speaking)}
+          />
           <ActiveSpeakerBridge
             onSpeakerIdsChange={(speakerIds) => handlePeerSpeaking(connection.peerId, speakerIds.includes(connection.peerId))}
           />

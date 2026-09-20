@@ -381,7 +381,7 @@ function SearchState({ icon, title, copy, compact = false, actionLabel, onAction
 const styles = StyleSheet.create({
   collapsed: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 46,
-    paddingHorizontal: 12, borderRadius: radii.sm, backgroundColor: colors.surface,
+    paddingHorizontal: 14, borderRadius: 23, backgroundColor: colors.surface,
     borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border,
   },
   collapsedText: { ...type.body, color: colors.textMuted, flex: 1, fontSize: 13 },

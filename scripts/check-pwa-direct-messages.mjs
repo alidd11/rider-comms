@@ -12,7 +12,7 @@ for (const expected of [
   'role="log"',
   'id="chatComposer"',
   'maxlength="1000"',
-  'message-state.js?v=1',
+  'message-state.js?v=2',
 ]) assert.ok(html.includes(expected), `PWA chat markup missing ${expected}`);
 
 for (const expected of [
@@ -26,6 +26,7 @@ for (const expected of [
   "window.RiderMovementSafety.isLockedForSafety(movementState)",
   "$$('[data-retry-message]', messages)",
   'openFriendSafetyActions(activeChat)',
+  'window.RiderMessageState.acknowledge(chatMessages, localId, sent)',
 ]) assert.ok(app.includes(expected), `PWA chat implementation missing ${expected}`);
 assert.equal(app.includes('MESSAGE_POLL_INTERVAL_MS'), false, 'PWA DMs must not fall back to fixed-interval message polling');
 assert.equal(app.includes('syncChatPolling'), false, 'PWA DMs must use the durable social event feed');
@@ -39,7 +40,7 @@ assert.ok(clearSession.includes('clearInterval(friendActivityTimer);'), 'PWA log
 
 const context = vm.createContext({ globalThis: {} });
 vm.runInContext(helper, context);
-const { dedupe, reconcile } = context.globalThis.RiderMessageState;
+const { acknowledge, dedupe, reconcile } = context.globalThis.RiderMessageState;
 const fetched = [{ id: 'server-1', createdAt: 10 }, { id: 'server-2', createdAt: 20 }];
 const current = [
   { id: 'server-1', createdAt: 10 },
@@ -56,6 +57,22 @@ assert.deepEqual(
   Array.from(dedupe([{ id: '2', createdAt: 20 }, { id: '1', createdAt: 10 }, { id: '2', createdAt: 20 }]), (message) => message.id),
   ['1', '2'],
   'older-page merge must deduplicate and sort messages',
+);
+assert.deepEqual(
+  Array.from(
+    acknowledge(
+      [
+        { id: 'server-1', createdAt: 10 },
+        { id: 'server-ack', createdAt: 30 },
+        { id: 'local-pending', createdAt: 20, status: 'pending' },
+      ],
+      'local-pending',
+      { id: 'server-ack', createdAt: 30 },
+    ),
+    (message) => message.id,
+  ),
+  ['server-1', 'server-ack'],
+  'send acknowledgement must not duplicate a message already delivered by realtime',
 );
 
 const capability = parity.capabilities.find(({ id }) => id === 'direct-messages');
