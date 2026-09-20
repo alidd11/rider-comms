@@ -48,6 +48,8 @@ assert.match(pwa, /function addMapMarker\([\s\S]*icon: riderAvatarMapIcon\(perso
 
 assert.match(nativeRide, /const RIDE_LOCATION_REFRESH_MS = 10_000/, 'native ride locations must retain their 10 second refresh cadence');
 assert.match(pwa, /const RIDE_LOCATION_REFRESH_MS = 10_000/, 'PWA ride locations must retain their 10 second refresh cadence');
+assert.match(nativeMap, /const RIDE_AVATAR_REFRESH_MS = 30_000/, 'native ride avatar identity must refresh every 30 seconds');
+assert.match(pwa, /const RIDE_AVATAR_REFRESH_MS = 30_000/, 'PWA ride avatar identity must refresh every 30 seconds');
 assert.match(pwa, /function visibleMapRiders\(\)[\s\S]*state\.activeRide[\s\S]*rideMemberLocations\.has/, 'PWA map avatars must remain limited to authorised private ride locations');
 assert.match(nativeMap, /ridersInZone\.length[\s\S]*exact locations private/, 'native public Nearby must continue to expose a count rather than individual coordinates');
 
