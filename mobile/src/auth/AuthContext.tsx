@@ -563,7 +563,7 @@ const styles = StyleSheet.create({
   socialButton: { width: 48, height: 44, borderWidth: 1, borderColor: 'rgba(214,236,238,0.14)', borderRadius: 9, backgroundColor: 'rgba(10,20,23,0.72)', alignItems: 'center', justifyContent: 'center' },
   createAccountButton: { minHeight: 34, alignSelf: 'center', justifyContent: 'center', paddingHorizontal: 8, marginTop: 1 },
   createAccountText: { color: AUTH_ACCENT, fontSize: 12, fontWeight: '600' },
-  footerTagline: { color: '#667578', fontSize: 8, lineHeight: 11, fontWeight: '600', letterSpacing: 2.1, textAlign: 'center', marginTop: 26 },
+  footerTagline: { color: '#667578', fontSize: 8, lineHeight: 11, fontWeight: '600', letterSpacing: 2.1, textAlign: 'center', marginTop: 'auto', paddingTop: 30, paddingBottom: 8 },
   splash: { flex: 1, backgroundColor: '#03090B' },
   splashShade: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(2,8,10,0.62)' },
   splashCenter: { alignItems: 'center' },
