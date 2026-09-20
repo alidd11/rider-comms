@@ -2152,6 +2152,12 @@
   }
 
   function shouldRetryVoiceConnection(error) {
+    // Permission/security/no-device failures need rider or device intervention.
+    // Retrying them from a timer can also lose the browser user gesture needed
+    // to prompt again, so keep the automatic loop for genuinely transient work.
+    if (['NotAllowedError', 'SecurityError', 'NotFoundError', 'DevicesNotFoundError'].includes(error?.name)) {
+      return false;
+    }
     if (!(error instanceof ApiError)) return true;
     return error.status === 0 || error.status === 408 || error.status === 429 || error.status >= 500;
   }
