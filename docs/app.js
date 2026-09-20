@@ -1449,35 +1449,58 @@
    * Request responses include joined profile summaries, so this remains two
    * bounded SQL-backed requests regardless of how many riders are listed.
    */
+  async function refreshFriendNetwork() {
+    if (!state.profile.riderId) return;
+    const [friendsResult, requestsResult, activityResult] = await Promise.all([
+      loadAllFriendPages(),
+      loadAllFriendRequestPages(),
+      apiFetch('GET', '/friends/activity').catch(() => null),
+    ]);
+    state.friends = friendsResult.map((friend) => ({
+      riderId: friend.riderId,
+      displayName: friend.displayName,
+      handle: friend.handle,
+      avatarId: friend.avatarId || 'ember',
+      status: 'Connected',
+    }));
+    if (activityResult) {
+      friendActivity = new Map((Array.isArray(activityResult.activity) ? activityResult.activity : []).map((item) => [item.riderId, item]));
+    }
+
+    const incoming = requestsResult.incoming.filter((request) => request.status === 'pending');
+    state.requests = incoming.map((request) => {
+      const profile = requestsResult.profiles?.[request.fromRiderId];
+      return {
+        id: request.id,
+        riderId: request.fromRiderId,
+        displayName: profile?.displayName ?? request.fromRiderId,
+        handle: profile?.handle ?? request.fromRiderId,
+        avatarId: profile?.avatarId || 'ember',
+        status: 'Wants to connect',
+      };
+    });
+    const outgoing = requestsResult.outgoing.filter((request) => request.status === 'pending');
+    outgoingFriendRequests = outgoing.map((request) => {
+      const profile = requestsResult.profiles?.[request.toRiderId];
+      return {
+        id: request.id,
+        riderId: request.toRiderId,
+        displayName: profile?.displayName ?? request.toRiderId,
+        handle: profile?.handle ?? request.toRiderId,
+        avatarId: profile?.avatarId || 'ember',
+      };
+    });
+    persist();
+    renderFriends();
+  }
+
   async function loadFriendsData() {
     if (!state.profile.riderId) return;
     try {
-      const [friendsResult, requestsResult, activityResult, conversations, unread] = await Promise.all([
-        loadAllFriendPages(),
-        loadAllFriendRequestPages(),
-        apiFetch('GET', '/friends/activity').catch(() => null),
-        loadAllConversationPages(),
-        apiFetch('GET', '/messages/unread-count'),
-      ]);
-      state.friends = friendsResult.map((friend) => ({ riderId: friend.riderId, displayName: friend.displayName, handle: friend.handle, avatarId: friend.avatarId || 'ember', status: 'Connected' }));
-      if (activityResult) {
-        friendActivity = new Map((Array.isArray(activityResult.activity) ? activityResult.activity : []).map((item) => [item.riderId, item]));
-      }
-      conversationSummaries = new Map(conversations.map((conversation) => [conversation.friend.riderId, conversation]));
-      unreadMessageCount = Number.isFinite(unread.unreadCount) ? unread.unreadCount : 0;
-
-      const incoming = requestsResult.incoming.filter((request) => request.status === 'pending');
-      state.requests = incoming.map((request) => {
-        const profile = requestsResult.profiles?.[request.fromRiderId];
-        return { id: request.id, riderId: request.fromRiderId, displayName: profile?.displayName ?? request.fromRiderId, handle: profile?.handle ?? request.fromRiderId, avatarId: profile?.avatarId || 'ember', status: 'Wants to connect' };
-      });
-      const outgoing = requestsResult.outgoing.filter((request) => request.status === 'pending');
-      outgoingFriendRequests = outgoing.map((request) => {
-        const profile = requestsResult.profiles?.[request.toRiderId];
-        return { id: request.id, riderId: request.toRiderId, displayName: profile?.displayName ?? request.toRiderId, handle: profile?.handle ?? request.toRiderId, avatarId: profile?.avatarId || 'ember' };
-      });
-      persist();
-      renderFriends();
+      // Network and message summaries are independent authoritative resources.
+      // Apply either successful snapshot even when the other one is transiently
+      // unavailable; realtime callers use the throwing functions directly.
+      await Promise.all([refreshFriendNetwork(), refreshMessageSummaries()]);
     } catch (error) {
       showToast('Could not load friends. ' + authErrorMessage(error));
     }
