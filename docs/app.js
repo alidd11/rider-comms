@@ -4814,7 +4814,7 @@
     // the search bar, POI chips, bottom tab bar and "go live" control all
     // disappear (see the .nav-mode rules in app.css) so the only things on
     // screen are the route, the turn card, the ETA bar, and the controls a
-    // rider actually needs mid-drive (report hazard, re-centre, end nav).
+    // rider actually needs mid-drive (report hazard, mute guidance, route overview/follow, end nav).
     $('#app').classList.add('nav-mode');
     setNavigationTrafficVisible(true);
     // Populate the first real maneuver before revealing the live region so
