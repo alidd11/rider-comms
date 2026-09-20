@@ -12,11 +12,23 @@ for (const required of [
   "apiFetch('DELETE', `/friends/requests/${encodeURIComponent(requestId)}`)",
   "id=\"sheetInstagramVisibility\"",
   "id=\"sheetTiktokVisibility\"",
+  'id="removeFriendBtn"',
+  '/friends/${encodeURIComponent(friend.riderId)}',
+  "request_exists: 'A friend request is already pending between you.'",
+  "rate_limited: 'Too many requests. Wait a moment and try again.'",
+  '!state.friends.some((friend) => friend.riderId === result.friend.riderId)',
+  'let activeFriendProfileRiderId = null;',
+  'if (activeFriendProfileRiderId) await openFriendProfile(activeFriendProfileRiderId);',
+  'const friendProfileDirtyRiderIds = new Set();',
+  'friendProfileDirtyRiderIds.has(openProfileRiderId)',
+  'Refreshing shared profile…',
 ]) {
   assert.ok(app.includes(required), `PWA social safety contract missing: ${required}`);
 }
 
 assert.ok(app.includes('window.confirm(`Block ${friend.displayName}?'), 'PWA block flow must require confirmation');
+assert.ok(app.includes('window.confirm(`Remove ${friend.displayName} from your friends list?`)'), 'PWA remove-friend flow must require confirmation');
+assert.equal(app.includes('already_requested:'), false, 'PWA friend request errors must use backend request_exists code');
 
 for (const required of [
   'async function refreshFriendNetwork()',
@@ -33,6 +45,15 @@ assert.equal(
   realtimeLoop.includes('await loadFriendsData();'),
   false,
   'Realtime cursor recovery must not call the UI wrapper that swallows refresh failures',
+);
+assert.ok(
+  realtimeLoop.includes("const peerProfileDirty = event.type === 'social_refresh'"),
+  'Peer profile refresh events must be classified independently',
+);
+assert.equal(
+  realtimeLoop.includes("event.type === 'friend_removed' || event.type === 'social_refresh'"),
+  false,
+  'Profile refresh events must not reload message summaries/open chat state',
 );
 
 
