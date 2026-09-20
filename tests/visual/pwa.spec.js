@@ -298,7 +298,7 @@ test('login baseline matches the approved night-rider concept in day and night',
     });
 
     expect(visual.screenBackground).toBe('rgb(3, 9, 11)');
-    expect(visual.backgroundImage).toContain('photo-1599401791281-224d244504a5');
+    expect(visual.backgroundImage).toContain('photo-1552306062-29a5560e1c31');
     expect(visual.inputHeight).toBeGreaterThanOrEqual(43);
     expect(visual.inputHeight).toBeLessThanOrEqual(47);
     expect(visual.inputRadius).toBeGreaterThanOrEqual(6);
