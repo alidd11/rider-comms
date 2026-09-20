@@ -585,6 +585,22 @@ test('final mockup parity is sharp, map-first and iPhone 17 Pro Max safe', async
   const finalRouteBox = await finalRouteCard.boundingBox();
   expect(finalRouteBox).not.toBeNull();
   expect(finalRouteBox.width / finalRouteBox.height).toBeGreaterThan(2);
+  await expect(finalRouteCard.locator('.route-quick-stats svg')).toHaveCount(3);
+  const routeCardGeometry = await finalRouteCard.evaluate((card) => {
+    const image = card.querySelector('img');
+    const stats = card.querySelector('.route-quick-stats');
+    const box = (element) => element?.getBoundingClientRect();
+    return {
+      cardHeight: box(card)?.height ?? NaN,
+      imageHeight: box(image)?.height ?? NaN,
+      statsHeight: box(stats)?.height ?? NaN,
+    };
+  });
+  expect(routeCardGeometry.cardHeight).toBeGreaterThanOrEqual(136);
+  expect(routeCardGeometry.cardHeight).toBeLessThanOrEqual(140);
+  expect(routeCardGeometry.imageHeight).toBeGreaterThanOrEqual(76);
+  expect(routeCardGeometry.imageHeight).toBeLessThanOrEqual(80);
+  expect(routeCardGeometry.statsHeight).toBeLessThanOrEqual(18);
   await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-routes-final.png'), fullPage: true });
 
   await page.locator('.bottom-nav [data-nav="friends"]').click();
