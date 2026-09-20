@@ -331,7 +331,7 @@ test('login baseline matches the approved night-rider concept in day and night',
   }
 });
 
-test('ride join baseline owns the iPhone top edge in day and night', async ({ page }, testInfo) => {
+test('ride join baseline matches the approved compact-card hierarchy in day and night', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'iphone-17-pro-max-webkit', 'Ride baseline screenshots target iPhone 17 Pro Max geometry.');
 
   await mockAuthenticatedApi(page, 'stationary');
@@ -346,6 +346,7 @@ test('ride join baseline owns the iPhone top edge in day and night', async ({ pa
     await page.locator('[data-screen="ride"]').evaluate(async (element) => {
       await Promise.all(element.getAnimations().map((animation) => animation.finished));
     });
+    await expect(page.locator('#rideTitle')).toBeVisible();
     await expect(page.locator('.ride-hero')).toBeVisible();
     await expect(page.locator('#joinRideForm')).toBeVisible();
     await expect(page.locator('#rideHostMode')).toBeVisible();
@@ -354,6 +355,7 @@ test('ride join baseline owns the iPhone top edge in day and night', async ({ pa
     const visual = await page.evaluate(() => {
       const screen = document.querySelector('[data-screen="ride"]');
       const header = screen.querySelector('.page-header');
+      const title = screen.querySelector('#rideTitle');
       const heroElement = screen.querySelector('.ride-hero');
       const join = screen.querySelector('.ride-entry');
       const rail = screen.querySelector('.ride-code-slots');
@@ -365,7 +367,11 @@ test('ride join baseline owns the iPhone top edge in day and night', async ({ pa
       const hero = getComputedStyle(heroElement);
       return {
         screenTop: box(screen).top,
+        headerTop: box(header).top,
         headerHeight: box(header).height,
+        titleTop: box(title).top,
+        titleBottom: box(title).bottom,
+        titleWidth: box(title).width,
         heroTop: box(heroElement).top,
         heroLeft: box(heroElement).left,
         heroWidth: box(heroElement).width,
@@ -378,30 +384,26 @@ test('ride join baseline owns the iPhone top edge in day and night', async ({ pa
         railGap: parseFloat(getComputedStyle(rail).gap) || 0,
         slotHeight: box(slot).height,
         slotRadius: parseFloat(getComputedStyle(slot).borderTopLeftRadius),
-        slotBackground: getComputedStyle(slot).backgroundColor,
         buttonHeight: box(button).height,
         startHeight: box(start).height,
         startRadius: parseFloat(getComputedStyle(start).borderTopLeftRadius),
         startBottom: box(start).bottom,
         navTop: box(nav).top,
         viewportWidth: window.innerWidth,
-        viewportHeight: window.innerHeight,
         navGap: box(nav).top - box(start).bottom,
-        titleWidth: box(document.querySelector('#rideTitle')).width,
-        safeTopShieldDisplay: getComputedStyle(screen, '::before').display,
       };
     });
 
-    expectNear(visual.heroTop, visual.screenTop);
-    expectNear(visual.heroLeft, 0);
-    expectNear(visual.heroWidth, visual.viewportWidth);
-    expect(visual.headerHeight).toBeLessThanOrEqual(1);
-    expect(visual.titleWidth).toBeLessThanOrEqual(1);
-    expect(visual.safeTopShieldDisplay).toBe('none');
-    expect(visual.heroHeight / visual.viewportHeight).toBeGreaterThanOrEqual(0.45);
-    expect(visual.heroHeight / visual.viewportHeight).toBeLessThanOrEqual(0.49);
-    expect(visual.heroRadius).toBe(0);
-    expect(visual.joinTop - (visual.heroTop + visual.heroHeight)).toBeGreaterThanOrEqual(10);
+    expect(visual.headerTop).toBeGreaterThanOrEqual(visual.screenTop + 70);
+    expect(visual.headerHeight).toBeGreaterThan(24);
+    expect(visual.titleWidth).toBeGreaterThan(40);
+    expect(visual.heroTop).toBeGreaterThan(visual.titleBottom);
+    expect(visual.heroLeft).toBeGreaterThanOrEqual(18);
+    expect(visual.heroWidth).toBeLessThanOrEqual(visual.viewportWidth - 36);
+    expect(visual.heroHeight).toBeGreaterThanOrEqual(190);
+    expect(visual.heroHeight).toBeLessThanOrEqual(235);
+    expect(visual.heroRadius).toBeLessThanOrEqual(4);
+    expect(visual.joinTop - (visual.heroTop + visual.heroHeight)).toBeGreaterThanOrEqual(8);
     expect(visual.joinTop - (visual.heroTop + visual.heroHeight)).toBeLessThanOrEqual(14);
     expect(visual.joinRadius).toBeLessThanOrEqual(4);
     expect(visual.railHeight).toBeLessThanOrEqual(40);
@@ -414,7 +416,7 @@ test('ride join baseline owns the iPhone top edge in day and night', async ({ pa
     expect(visual.startRadius).toBeLessThanOrEqual(4);
     expect(visual.startBottom).toBeLessThanOrEqual(visual.navTop + 2);
     expect(visual.navGap).toBeGreaterThanOrEqual(0);
-    expect(visual.navGap).toBeLessThanOrEqual(170);
+    expect(visual.navGap).toBeLessThanOrEqual(360);
 
     await page.screenshot({
       path: testInfo.outputPath(`iphone-17-pro-max-ride-${scheme}-baseline.png`),
@@ -576,8 +578,26 @@ test('final mockup parity is sharp, map-first and iPhone 17 Pro Max safe', async
   await page.locator('[data-screen="ride"]').evaluate(async (element) => {
     await Promise.all(element.getAnimations().map((animation) => animation.finished));
   });
-  const rideHeroRadius = await page.locator('.ride-hero').evaluate((element) => parseFloat(getComputedStyle(element).borderTopLeftRadius));
-  expect(rideHeroRadius).toBeLessThanOrEqual(4);
+  await expect(page.locator('#rideTitle')).toBeVisible();
+  const rideGeometry = await page.evaluate(() => {
+    const title = document.querySelector('#rideTitle');
+    const hero = document.querySelector('#rideJoinState .ride-hero');
+    const joinCard = document.querySelector('#rideJoinState .ride-entry');
+    const box = (element) => element?.getBoundingClientRect();
+    return {
+      title: box(title),
+      hero: box(hero),
+      joinCard: box(joinCard),
+      heroRadius: hero ? parseFloat(getComputedStyle(hero).borderTopLeftRadius) : NaN,
+      viewportWidth: window.innerWidth,
+    };
+  });
+  expect(rideGeometry.heroRadius).toBeLessThanOrEqual(4);
+  expect(rideGeometry.hero.height).toBeGreaterThanOrEqual(190);
+  expect(rideGeometry.hero.height).toBeLessThanOrEqual(235);
+  expect(rideGeometry.hero.width).toBeLessThan(rideGeometry.viewportWidth - 30);
+  expect(rideGeometry.hero.top).toBeGreaterThan(rideGeometry.title.bottom);
+  expect(Math.abs(rideGeometry.joinCard.width - rideGeometry.hero.width)).toBeLessThanOrEqual(2);
   await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-ride-final.png'), fullPage: true });
 
   await page.locator('.bottom-nav [data-nav="routes"]').click();

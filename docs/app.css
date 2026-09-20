@@ -1863,3 +1863,85 @@ body:has(.content-screen.active) .movement-safety-banner{
   .auth-screen .auth-layout{padding-top:clamp(180px,24dvh,240px)}
   .auth-screen .auth-card{max-width:420px;margin-inline:auto}
 }
+
+/* Ride mockup parity v2 — the Ride tab follows the same screen hierarchy as
+   Routes/Friends/Settings: visible title first, then a compact photographic
+   hero card, then the real join/start controls. Keep this after the older
+   full-bleed experiment so it is the final phone-layout authority. */
+@media(max-width:699px){
+  .ride-screen{
+    padding:calc(var(--safe-top) + 18px) max(20px,var(--safe-right))
+      calc(var(--bottom-nav-height) + 18px) max(20px,var(--safe-left));
+    background:var(--bg);
+  }
+  .ride-screen>.page-width{
+    width:100%;
+    max-width:100%;
+    margin:0 auto;
+  }
+  .ride-screen .page-header{
+    position:static;
+    z-index:auto;
+    height:auto;
+    min-height:0;
+    margin:0 0 13px;
+    overflow:visible;
+    pointer-events:auto;
+  }
+  .ride-screen .page-header h1{
+    position:static!important;
+    width:auto!important;
+    height:auto!important;
+    margin:0!important;
+    padding:0!important;
+    overflow:visible!important;
+    clip:auto!important;
+    white-space:normal!important;
+    border:0!important;
+    font-size:1.78rem;
+    line-height:1;
+    letter-spacing:-.045em;
+  }
+  .ride-screen .page-header .icon-button{
+    position:static;
+    pointer-events:auto;
+  }
+  #rideJoinState .ride-hero{
+    width:100%;
+    height:clamp(190px,26dvh,232px);
+    margin:0;
+    border:1px solid color-mix(in srgb,var(--border-soft) 68%,transparent);
+    border-radius:4px;
+    background-position:center 54%;
+  }
+  #rideJoinState .ride-hero::after{
+    height:54px;
+    background:linear-gradient(180deg,transparent,rgb(3 7 9/.32));
+  }
+  #rideJoinState .ride-hero-copy{
+    left:14px;
+    right:14px;
+    bottom:14px;
+  }
+  #rideJoinState .ride-hero-copy strong{
+    max-width:220px;
+    font-size:1.52rem;
+    line-height:.96;
+    letter-spacing:-.045em;
+  }
+  #rideJoinState .ride-entry{
+    width:100%;
+    margin:10px 0 0;
+  }
+  #rideJoinState .ride-start-row{
+    width:100%;
+    margin:8px 0 0;
+  }
+  #rideJoinState .ride-mode-return{
+    margin:4px 0 0;
+  }
+  #rideActiveState{
+    width:100%;
+    margin:0;
+  }
+}
