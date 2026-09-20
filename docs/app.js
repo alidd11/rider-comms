@@ -334,6 +334,7 @@
   let chatHasLoadedOlder = false;
   let chatPeerReadThroughMessageId = null;
   let chatLoading = false;
+  let chatLoadPromise = null;
   let chatReturnFocus = null;
   let chatHideouts = [];
   let chatHideoutsLoading = false;
@@ -1135,43 +1136,66 @@
     $('#chatSend').disabled = unavailable;
   }
 
-  async function loadChatMessages({ older = false, showLoading = false } = {}) {
-    if (!activeChat || chatLoading || (older && !chatNextCursor)) return;
-    const riderId = activeChat.riderId;
-    chatLoading = true;
-    if (showLoading) {
-      setChatError('Loading messages…');
-      $('#chatRetry').hidden = true;
+  async function loadChatMessages({ older = false, showLoading = false, throwOnError = false } = {}) {
+    if (!activeChat || (older && !chatNextCursor)) return;
+
+    // Latest-thread refreshes are authoritative and must never be discarded
+    // just because another chat fetch is already in flight. Older-page loads
+    // remain user-driven and simply wait for a quiet thread.
+    if (older && chatLoadPromise) return;
+    while (!older && chatLoadPromise) {
+      try { await chatLoadPromise; } catch { /* The queued latest fetch retries below. */ }
+      if (!activeChat) return;
     }
-    try {
-      const query = new URLSearchParams({ withRiderId: riderId, limit: '100' });
-      if (older) query.set('before', chatNextCursor);
-      const page = await apiFetch('GET', `/messages?${query.toString()}`);
-      if (!activeChat || activeChat.riderId !== riderId) return;
-      chatMessages = older || chatHasLoadedOlder
-        ? window.RiderMessageState.dedupe([...page.messages, ...chatMessages])
-        : window.RiderMessageState.reconcile(chatMessages, page.messages);
-      if (older) chatHasLoadedOlder = true;
-      if (!chatHasLoadedOlder || older) chatNextCursor = page.nextCursor;
-      chatPeerReadThroughMessageId = page.peerReadThroughMessageId || null;
-      setChatError('');
-      if (!older) {
-        try {
-          await apiFetch('POST', '/messages/read', { withRiderId: riderId });
-          await refreshMessageSummaries();
-        } catch {
-          // The conversation loaded successfully. Read-state reconciliation
-          // can recover independently without turning the thread into an error.
-        }
+
+    const riderId = activeChat.riderId;
+    const run = (async () => {
+      chatLoading = true;
+      if (showLoading) {
+        setChatError('Loading messages…');
+        $('#chatRetry').hidden = true;
       }
-      renderChat();
-      if (!older) requestAnimationFrame(() => { $('#chatThread').scrollTop = $('#chatThread').scrollHeight; });
-    } catch (error) {
-      const unavailable = error instanceof ApiError && error.status === 403;
-      setChatError(unavailable ? 'This conversation is no longer available.' : 'Could not refresh messages. Check your connection and try again.', unavailable);
+      try {
+        const query = new URLSearchParams({ withRiderId: riderId, limit: '100' });
+        if (older) query.set('before', chatNextCursor);
+        const page = await apiFetch('GET', `/messages?${query.toString()}`);
+        if (!activeChat || activeChat.riderId !== riderId) return;
+        chatMessages = older || chatHasLoadedOlder
+          ? window.RiderMessageState.dedupe([...page.messages, ...chatMessages])
+          : window.RiderMessageState.reconcile(chatMessages, page.messages);
+        if (older) chatHasLoadedOlder = true;
+        if (!chatHasLoadedOlder || older) chatNextCursor = page.nextCursor;
+        chatPeerReadThroughMessageId = page.peerReadThroughMessageId || null;
+        setChatError('');
+        if (!older) {
+          try {
+            await apiFetch('POST', '/messages/read', { withRiderId: riderId });
+            await refreshMessageSummaries();
+          } catch {
+            // The conversation loaded successfully. Read-state reconciliation
+            // can recover independently without turning the thread into an error.
+          }
+        }
+        renderChat();
+        if (!older) requestAnimationFrame(() => { $('#chatThread').scrollTop = $('#chatThread').scrollHeight; });
+      } catch (error) {
+        const unavailable = error instanceof ApiError && error.status === 403;
+        setChatError(unavailable ? 'This conversation is no longer available.' : 'Could not refresh messages. Check your connection and try again.', unavailable);
+        // A 403 is authoritative relationship state, not a transport failure.
+        // Transient failures must escape realtime callers so they rebaseline
+        // instead of advancing the durable cursor with a stale open thread.
+        if (throwOnError && !unavailable) throw error;
+      } finally {
+        chatLoading = false;
+        renderChat();
+      }
+    })();
+
+    chatLoadPromise = run;
+    try {
+      await run;
     } finally {
-      chatLoading = false;
-      renderChat();
+      if (chatLoadPromise === run) chatLoadPromise = null;
     }
   }
 
