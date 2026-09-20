@@ -2689,6 +2689,7 @@
         voiceRoom = undefined;
         voiceTargetKey = undefined;
       }
+      if (shouldRetryVoiceConnection(error)) scheduleVoiceReconnect(requestedTarget);
       renderVoiceStatus();
     }
   }
