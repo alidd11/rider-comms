@@ -16,7 +16,7 @@ const PROFILE = {
   tiktokVisibility: 'friends',
 };
 
-test('PWA shows and clears the remote Nearby Voice active speaker', async ({ page }) => {
+test('PWA retries a transient pre-connect voice failure and preserves VOX/speaker state', async ({ page }) => {
   await page.addInitScript(({ riderId }) => {
     localStorage.setItem('rider-comms-session-v1', JSON.stringify({ riderId, token: 'voice-speaker-test-token' }));
     Object.defineProperty(navigator, 'permissions', {
@@ -50,16 +50,18 @@ test('PWA shows and clears the remote Nearby Voice active speaker', async ({ pag
       configurable: true,
       value: { getUserMedia: async () => fakeStream },
     });
+    window.__voiceTestAmplitude = 0;
     class FakeAudioContext {
       createMediaStreamSource() { return { connect() {} }; }
       createAnalyser() {
         return {
           fftSize: 512,
           frequencyBinCount: 32,
-          // +/-5 around the midpoint is ~0.039 RMS: below the old 0.06
-          // threshold, but above the tuned 0.035 speech attack threshold.
           getByteTimeDomainData(data) {
-            for (let index = 0; index < data.length; index += 1) data[index] = index % 2 ? 123 : 133;
+            const amplitude = window.__voiceTestAmplitude || 0;
+            for (let index = 0; index < data.length; index += 1) {
+              data[index] = 128 + (index % 2 ? -amplitude : amplitude);
+            }
           },
         };
       }
@@ -68,6 +70,7 @@ test('PWA shows and clears the remote Nearby Voice active speaker', async ({ pag
     Object.defineProperty(window, 'AudioContext', { configurable: true, value: FakeAudioContext });
   }, { riderId: RIDER_ID });
 
+  let voiceTokenRequests = 0;
   await page.route('https://backend-production-7fa0.up.railway.app/**', async (route) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -95,6 +98,16 @@ test('PWA shows and clears the remote Nearby Voice active speaker', async ({ pag
         radiusMiles: 1,
       };
     } else if (url.pathname === '/voice/token' && request.method() === 'POST') {
+      voiceTokenRequests += 1;
+      if (voiceTokenRequests === 1) {
+        await route.fulfill({
+          status: 503,
+          contentType: 'application/json',
+          headers,
+          body: JSON.stringify({ error: 'voice_temporarily_unavailable' }),
+        });
+        return;
+      }
       body = {
         connections: [{ peerId: PEER_ID, token: 'speaker-livekit-token', url: 'wss://voice.example.test' }],
         refreshAfterMs: 20_000,
@@ -149,8 +162,34 @@ test('PWA shows and clears the remote Nearby Voice active speaker', async ({ pag
   await page.goto('/');
   await page.locator('#joinNearbyBtn').click();
 
+  // The first token mint is deliberately failed above before any LiveKit
+  // Room exists. Rider Comms must self-recover through the reconnect scheduler
+  // rather than requiring the rider to toggle Nearby off/on again.
+  await expect.poll(() => voiceTokenRequests, { timeout: 5_000 }).toBeGreaterThanOrEqual(2);
+
   const localVoiceButton = page.locator('#voiceStatusBtn');
+  await expect(localVoiceButton).toHaveAttribute('aria-label', 'Listening — hands-free');
+
+  // A brief ~0.039 RMS burst is above the tuned 0.035 attack threshold but
+  // shorter than the 70 ms attack hold. This models a helmet/wind bump and
+  // must not open the transmitter.
+  await page.evaluate(() => { window.__voiceTestAmplitude = 5; });
+  await page.waitForTimeout(30);
+  await page.evaluate(() => { window.__voiceTestAmplitude = 0; });
+  await page.waitForTimeout(120);
+  await expect(localVoiceButton).toHaveAttribute('aria-label', 'Listening — hands-free');
+
+  // The same level held as real speech should open the mic even though it is
+  // still below the old 0.06 gate.
+  await page.evaluate(() => { window.__voiceTestAmplitude = 5; });
   await expect(localVoiceButton).toHaveAttribute('aria-label', 'Talking');
+
+  // A short natural pause must stay open through the 650 ms release hangtime,
+  // then close again once the pause genuinely persists.
+  await page.evaluate(() => { window.__voiceTestAmplitude = 0; });
+  await page.waitForTimeout(250);
+  await expect(localVoiceButton).toHaveAttribute('aria-label', 'Talking');
+  await expect(localVoiceButton).toHaveAttribute('aria-label', 'Listening — hands-free', { timeout: 1_200 });
 
   const speakerChip = page.locator('#voiceSpeakerChip');
   await expect(speakerChip).toBeVisible();
