@@ -681,7 +681,43 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
   expect(friendDetailGeometry.listRadius).toBeLessThanOrEqual(4);
   expect(friendDetailGeometry.titleWidth).toBeLessThanOrEqual(1);
   await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-friend-detail-final.png'), fullPage: true });
-  await page.locator('#closeSheet').click();
+
+  await page.locator('#messageFriend').click();
+  await expect(page.locator('#chatScreen')).toBeVisible();
+  const dmGeometry = await page.evaluate(() => {
+    const header = document.querySelector('.chat-header');
+    const avatar = document.querySelector('#chatAvatar');
+    const plan = document.querySelector('#chatHideoutPlan');
+    const safety = document.querySelector('#chatSafety');
+    const composer = document.querySelector('#chatComposer');
+    const input = document.querySelector('#chatInput');
+    const send = document.querySelector('#chatSend');
+    const box = (element) => element?.getBoundingClientRect();
+    return {
+      headerHeight: box(header)?.height ?? NaN,
+      avatarWidth: box(avatar)?.width ?? NaN,
+      planWidth: box(plan)?.width ?? NaN,
+      safetyWidth: box(safety)?.width ?? NaN,
+      inputHeight: box(input)?.height ?? NaN,
+      inputRadius: input ? parseFloat(getComputedStyle(input).borderTopLeftRadius) : NaN,
+      sendWidth: box(send)?.width ?? NaN,
+      sendRadius: send ? parseFloat(getComputedStyle(send).borderTopLeftRadius) : NaN,
+      composerHeight: box(composer)?.height ?? NaN,
+    };
+  });
+  expect(dmGeometry.headerHeight).toBeLessThanOrEqual(120);
+  expect(dmGeometry.avatarWidth).toBeGreaterThanOrEqual(34);
+  expect(dmGeometry.avatarWidth).toBeLessThanOrEqual(38);
+  expect(dmGeometry.planWidth).toBe(40);
+  expect(dmGeometry.safetyWidth).toBe(40);
+  expect(dmGeometry.inputHeight).toBeGreaterThanOrEqual(44);
+  expect(dmGeometry.inputRadius).toBeLessThanOrEqual(8);
+  expect(dmGeometry.sendWidth).toBe(44);
+  expect(dmGeometry.sendRadius).toBeLessThanOrEqual(8);
+  expect(dmGeometry.composerHeight).toBeLessThanOrEqual(82);
+  await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-dm-final.png'), fullPage: true });
+  await page.locator('#chatBack').click();
+  await expect(page.locator('#chatScreen')).toBeHidden();
 
   await page.locator('.bottom-nav [data-nav="settings"]').click();
   await expect(page.locator('.settings-page')).toBeVisible();

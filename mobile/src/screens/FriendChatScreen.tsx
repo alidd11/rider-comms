@@ -458,12 +458,17 @@ function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Elemen
         </Pressable>
         <RiderAvatar avatarId={avatarId} size={40} />
         <Text style={styles.headerName}>{displayName}</Text>
-        <Pressable onPress={() => setPlanOpen(true)} style={styles.planButton} hitSlop={8}>
-          <MaterialCommunityIcons name="map-marker-plus" size={18} color={colors.accent} />
-          <Text style={styles.planButtonText}>Plan a hideout</Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Plan a hideout"
+          onPress={() => setPlanOpen(true)}
+          style={styles.planButton}
+          hitSlop={8}
+        >
+          <MaterialCommunityIcons name="map-marker-plus-outline" size={20} color={colors.accent} />
         </Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel="Safety options" onPress={openSafetyActions} style={styles.safetyButton} hitSlop={8}>
-          <Ionicons name="ellipsis-horizontal-circle" size={23} color={colors.textSecondary}/>
+          <Ionicons name="shield-checkmark-outline" size={21} color={colors.textSecondary}/>
         </Pressable>
       </View>
 
@@ -564,25 +569,25 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
-    paddingHorizontal: spacing.md,
+    gap: 7,
+    paddingHorizontal: 14,
     paddingTop: spacing.xl,
-    paddingBottom: spacing.md,
-    borderBottomWidth: 1,
+    paddingBottom: 7,
+    borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
   },
-  backButton: { padding: spacing.xs },
+  backButton: { width: 40, height: 40, borderRadius: radii.md, alignItems: 'center', justifyContent: 'center' },
   headerAvatar: {
-    width: 32,
-    height: 32,
+    width: 36,
+    height: 36,
     borderRadius: radii.pill,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerName: { ...type.subheading, flex: 1 },
-  planButton: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, padding: spacing.xs },
+  headerName: { ...type.subheading, flex: 1, fontSize: 16, lineHeight: 20, letterSpacing: -0.2 },
+  planButton: { width: 40, height: 40, borderRadius: radii.md, alignItems: 'center', justifyContent: 'center' },
   planButtonText: { ...type.caption, color: colors.accent },
-  safetyButton: { padding: spacing.xs },
+  safetyButton: { width: 40, height: 40, borderRadius: radii.md, alignItems: 'center', justifyContent: 'center' },
   errorBox: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -612,7 +617,7 @@ const styles = StyleSheet.create({
   hideoutCoords: { ...type.caption },
   hideoutCoordsLink: { color: colors.accent, textDecorationLine: 'underline' },
   hideoutDelete: { padding: spacing.xs },
-  messageList: { padding: spacing.md, gap: spacing.sm, flexGrow: 1 },
+  messageList: { paddingHorizontal: 14, paddingVertical: 12, gap: 7, flexGrow: 1 },
   messageListEmpty: { justifyContent: 'center' },
   loadOlderButton: { alignSelf: 'center', minHeight: MIN_TOUCH_TARGET, justifyContent: 'center', paddingHorizontal: spacing.md },
   loadOlderText: { ...type.caption, color: colors.accent, fontWeight: '700' },
@@ -622,8 +627,8 @@ const styles = StyleSheet.create({
   bubbleRow: { flexDirection: 'row', marginBottom: spacing.sm },
   bubbleRowMine: { justifyContent: 'flex-end' },
   bubbleRowTheirs: { justifyContent: 'flex-start' },
-  bubbleColumn: { maxWidth: '78%' },
-  bubble: { borderRadius: radii.lg, padding: spacing.md },
+  bubbleColumn: { maxWidth: '80%' },
+  bubble: { borderRadius: 10, paddingHorizontal: 11, paddingVertical: 9 },
   bubbleMine: { backgroundColor: colors.accent },
   bubbleTheirs: { backgroundColor: colors.surface },
   bubbleFailed: { opacity: 0.6, borderWidth: 1, borderColor: colors.danger },
@@ -642,28 +647,32 @@ const styles = StyleSheet.create({
   composer: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    gap: spacing.sm,
-    padding: spacing.md,
-    borderTopWidth: 1,
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingTop: 9,
+    paddingBottom: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.border,
   },
   composerInput: {
     flex: 1,
-    minHeight: MIN_TOUCH_TARGET,
-    maxHeight: 120,
+    minHeight: 44,
+    maxHeight: 112,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
-    borderRadius: radii.lg,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     ...type.body,
+    fontSize: 14,
+    lineHeight: 20,
     color: colors.textPrimary,
   },
   sendButton: {
-    width: MIN_TOUCH_TARGET,
-    height: MIN_TOUCH_TARGET,
-    borderRadius: radii.pill,
+    width: 44,
+    height: 44,
+    borderRadius: 8,
     backgroundColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
