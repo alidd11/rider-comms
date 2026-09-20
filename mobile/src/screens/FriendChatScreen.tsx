@@ -346,7 +346,7 @@ function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Elemen
   // waiting on a full loadMessages() round trip before it shows up at all.
   const handleSend = React.useCallback(async () => {
     const text = draft.trim();
-    if (!text || conversationUnavailable) return;
+    if (!text) return;
     const tempId = `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     setMessages((current) => [
       ...current,
@@ -357,38 +357,27 @@ function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Elemen
     try {
       const sent = await client.sendMessage(riderId, text);
       setMessages((current) => current.map((m) => (m.id === tempId ? sent : m)));
-      setConversationUnavailable(false);
       setError(null);
-    } catch (err) {
+    } catch {
       setMessages((current) => current.map((m) => (m.id === tempId ? { ...m, status: 'failed' } : m)));
-      if (err instanceof ApiError && err.status === 403) {
-        setConversationUnavailable(true);
-        setError('This conversation is no longer available.');
-      }
     } finally {
       setSending(false);
     }
-  }, [client, conversationUnavailable, draft, riderId, currentRiderId]);
+  }, [client, draft, riderId, currentRiderId]);
 
   const handleRetry = React.useCallback(
     async (localId: string) => {
       const target = messages.find((m) => m.id === localId);
-      if (!target || conversationUnavailable) return;
+      if (!target) return;
       setMessages((current) => current.map((m) => (m.id === localId ? { ...m, status: 'pending' } : m)));
       try {
         const sent = await client.sendMessage(riderId, target.text);
         setMessages((current) => current.map((m) => (m.id === localId ? sent : m)));
-        setConversationUnavailable(false);
-        setError(null);
-      } catch (err) {
+      } catch {
         setMessages((current) => current.map((m) => (m.id === localId ? { ...m, status: 'failed' } : m)));
-        if (err instanceof ApiError && err.status === 403) {
-          setConversationUnavailable(true);
-          setError('This conversation is no longer available.');
-        }
       }
     },
-    [client, conversationUnavailable, messages, riderId]
+    [client, messages, riderId]
   );
 
   const handleOpenHideout = React.useCallback(async (hideout: Hideout) => {
