@@ -532,7 +532,7 @@
       element.style.removeProperty('--avatar');
     });
     if (userMapMarker && map && !usingFallbackMap) {
-      userMapMarker.setIcon(riderAvatarMapIcon(state.profile, true));
+      userMapMarker.setIcon?.(riderAvatarMapIcon(state.profile, true));
     }
   }
 
@@ -716,7 +716,7 @@
     renderHazardMarkers();
     const riders = visibleMapRiders();
     if (!map || usingFallbackMap) return renderFallbackMarkers([]);
-    if (userMapMarker) userMapMarker.setIcon(riderAvatarMapIcon(state.profile, true));
+    if (userMapMarker) userMapMarker.setIcon?.(riderAvatarMapIcon(state.profile, true));
     mapMarkers.forEach((marker) => marker.setMap(null));
     mapMarkers = riders.map((person) => {
       const real = rideMemberLocations.get(person.riderId);
