@@ -13,7 +13,8 @@
       "expo-location",
       "expo-notifications",
       "expo-status-bar",
-      "react-native-maps"
+      "react-native-maps",
+      "./plugins/withAndroidVoiceForegroundService"
     ],
     "ios": {
       "bundleIdentifier": "com.ridercomms.app",
@@ -68,7 +69,10 @@
         "RECORD_AUDIO",
         "MODIFY_AUDIO_SETTINGS",
         "BLUETOOTH_CONNECT",
-        "POST_NOTIFICATIONS"
+        "POST_NOTIFICATIONS",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_MICROPHONE",
+        "WAKE_LOCK"
       ]
     }
   }
