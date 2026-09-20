@@ -2157,6 +2157,12 @@
   }
 
   function shouldRetryVoiceConnection(error) {
+    // Permission/security/no-device failures need rider or device intervention.
+    // Retrying them from a timer can also lose the browser user gesture needed
+    // to prompt again, so keep the automatic loop for genuinely transient work.
+    if (['NotAllowedError', 'SecurityError', 'NotFoundError', 'DevicesNotFoundError'].includes(error?.name)) {
+      return false;
+    }
     if (!(error instanceof ApiError)) return true;
     return error.status === 0 || error.status === 408 || error.status === 429 || error.status >= 500;
   }
@@ -4670,10 +4676,10 @@
       if (moveFocus) focusTarget.focus();
     };
 
-    $('[data-auth-mode]').forEach((button) => {
+    $$('[data-auth-mode]').forEach((button) => {
       button.addEventListener('click', () => setAuthMode(button));
     });
-    $('.auth-segmented [data-auth-mode]').forEach((button) => {
+    $$('.auth-segmented [data-auth-mode]').forEach((button) => {
       button.addEventListener('keydown', (event) => {
         if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
         event.preventDefault();
