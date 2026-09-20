@@ -204,7 +204,7 @@ function AuthScreen({ onAuthenticated, restoreError, onRetryRestore }: {
         <ScrollView
           keyboardShouldPersistTaps="handled"
           contentInsetAdjustmentBehavior="never"
-          contentContainerStyle={[styles.authScroll, { paddingTop: insets.top + 132, paddingBottom: insets.bottom + 20 }]}
+          contentContainerStyle={[styles.authScroll, { paddingTop: insets.top + 170, paddingBottom: insets.bottom + 20 }]}
         >
           <View style={styles.intro}>
             <Text style={styles.title}>{copy.title}</Text>
