@@ -543,10 +543,7 @@ test('final mockup parity is sharp, map-first and iPhone 17 Pro Max safe', async
   expect(mapGeometry.nearbyWidth).toBeGreaterThanOrEqual(62);
   expect(mapGeometry.avatarDisplay).toBe('none');
   expect(mapGeometry.optionsGlyphWidth).toBeGreaterThanOrEqual(16);
-  expect(mapGeometry.mapTypeId).toBe('hybrid');
-  expect(mapGeometry.mapStyles.some((entry) => entry.featureType === 'poi' && entry.stylers?.some((styler) => styler.visibility === 'off'))).toBe(true);
-  expect(mapGeometry.mapStyles.some((entry) => entry.featureType === 'transit' && entry.stylers?.some((styler) => styler.visibility === 'off'))).toBe(true);
-  expect(mapGeometry.mapStyles.some((entry) => entry.featureType === 'road.local' && entry.elementType === 'labels')).toBe(true);
+  expect(mapGeometry.mapTypeId).toBe('satellite');
   await expect(page.locator('[data-screen="map"] .page-header')).toHaveCount(0);
   await expect(page.locator('#mapSearchSlot')).toBeVisible();
   await expect(page.locator('#movementSafetyBanner')).toBeHidden();

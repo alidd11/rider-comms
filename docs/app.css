@@ -1383,6 +1383,8 @@ body:has(.content-screen.active) .movement-safety-banner{
 
 /* Map/Home mockup parity pass: photographic map, quieter chrome and the
    mockup's separated control rhythm. Functionality remains unchanged. */
+.screen-map .google-map{filter:brightness(.74) contrast(1.08) saturate(.78)}
+@media(prefers-color-scheme:light){.screen-map .google-map{filter:brightness(.91) contrast(1.04) saturate(.9)}}
 @media(max-width:699px){
   .screen-map .map-header{
     top:calc(var(--safe-top) + 10px);
