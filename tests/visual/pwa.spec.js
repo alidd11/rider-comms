@@ -753,7 +753,7 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
   await assertNoViewportOverflow(page);
 });
 
-test('PWA route discovery previews route shape and hands the start back to the map', async ({ page }) => {
+test('PWA route discovery previews route shape and hands the start back to the map', async ({ page }, testInfo) => {
   await mockAuthenticatedApi(page);
   await page.goto('/');
   await expect(page.locator('#app')).toBeVisible();
@@ -792,6 +792,7 @@ test('PWA route discovery previews route shape and hands the start back to the m
   expect(destinationGeometry.primaryRadius).toBe(14);
   expect(destinationGeometry.dismissRadius).toBe(20);
   await assertNoViewportOverflow(page);
+  await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-destination-navigation-final.png'), fullPage: true });
 });
 
 test('PWA map uses an already-granted live location instead of showing the London fallback as the rider', async ({ page }) => {
@@ -1994,7 +1995,7 @@ test('installed PWA tab rail keeps controls above the home indicator', async ({ 
   expect(labelBottomGap).toBeLessThanOrEqual(7);
 });
 
-test('PWA navigation summary extends through the installed iPhone bottom safe area', async ({ page }) => {
+test('PWA navigation summary extends through the installed iPhone bottom safe area', async ({ page }, testInfo) => {
   await page.addInitScript(() => {
     // Model an installed WebKit launch with an innerHeight measurement that
     // excludes the gesture area. CSS viewport geometry must remain authoritative.
@@ -2070,6 +2071,7 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
   // false failures from sub-pixel viewport quantisation.
   expect(Math.abs((summaryBox.y + summaryBox.height) - viewport.height)).toBeLessThanOrEqual(3);
   expect(await page.evaluate(() => document.documentElement.style.getPropertyValue('--app-vh'))).toBe('100vh');
+  await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-navigation-controls-final.png'), fullPage: true });
 });
 
 test('PWA Friends remains usable when realtime transport is temporarily unavailable', async ({ page }) => {
