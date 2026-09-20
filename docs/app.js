@@ -137,29 +137,17 @@
     </svg>`;
   }
 
-  function riderAvatarMapIcon(person, current = false, statusOverride) {
+  function riderAvatarMapIcon(person, current = false, statusOverride, sizeOverride) {
     const status = statusOverride || (current
       ? (state.profile.shareLocation || state.activeRide?.shareRideLocation ? 'online' : 'none')
       : 'online');
     const svg = riderAvatarSvg(person.avatarId, { selected: current, mapMarker: true, status });
-    const width = current ? 44 : 40;
+    const width = sizeOverride ?? (current ? 44 : 40);
     const height = width * (72 / 64);
     return {
       url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
       scaledSize: new google.maps.Size(width, height),
       anchor: new google.maps.Point(width / 2, height - 1),
-    };
-  }
-
-  function navigationPositionMapIcon() {
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-      <circle cx="32" cy="32" r="27" fill="#4285F4" stroke="#FFFFFF" stroke-width="4"/>
-      <path d="M32 13 45 46 32 40 19 46Z" fill="#FFFFFF"/>
-    </svg>`;
-    return {
-      url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
-      scaledSize: new google.maps.Size(58, 58),
-      anchor: new google.maps.Point(29, 29),
     };
   }
 
@@ -4189,7 +4177,9 @@
 
   function navigationCameraCentre(from, to) {
     const distance = metersBetween(from, to);
-    const fraction = distance > 220 ? 0.2 : distance > 90 ? 0.14 : 0.08;
+    // Bias the camera materially ahead of the rider so the avatar sits in the
+    // lower third and the useful road/next junction occupies the upper frame.
+    const fraction = distance > 120 ? 0.36 : distance > 70 ? 0.30 : 0.22;
     return {
       lat: from.lat + (to.lat - from.lat) * fraction,
       lng: from.lng + (to.lng - from.lng) * fraction,
@@ -4332,7 +4322,13 @@
     const div = document.createElement('div');
     div.innerHTML = html;
     const text = Array.from(div.childNodes).map((node) => node.textContent || '').join(' ');
-    return text.replace(/\s+/g, ' ').trim();
+    const cleaned = text.replace(/\s+/g, ' ').trim();
+    const repeatedFollow = cleaned.match(/^(.*?)\.?\s+Continue to follow\s+(.+?)\.?$/i);
+    if (!repeatedFollow) return cleaned;
+    const lead = repeatedFollow[1].trim().replace(/[.]$/, '');
+    const repeatedRoad = repeatedFollow[2].trim().replace(/[.]$/, '');
+    const comparable = (value) => value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    return comparable(lead).includes(comparable(repeatedRoad)) ? lead : cleaned;
   }
 
   /** Best-effort voice guidance — SpeechSynthesis isn't universally
@@ -4524,26 +4520,29 @@
 
   function updateNavigationPositionIcon() {
     if (!userMapMarker || !navSteps.length) return;
-    userMapMarker.setIcon?.(navigationPositionMapIcon());
+    // Navigation keeps the rider's persisted identity instead of replacing it
+    // with a generic blue chevron. Heading-up mode rotates the provider map
+    // beneath this marker, so the chosen avatar can remain screen-upright.
+    userMapMarker.setIcon?.(riderAvatarMapIcon(state.profile, true, undefined, 54));
   }
 
   function applyNavigationCamera(here, step, gpsHeading) {
     if (!map || !step) return;
-    const lookAhead = lookAheadCoordinateOnPath(here, navigationStepPath(step), 120);
+    const lookAhead = lookAheadCoordinateOnPath(here, navigationStepPath(step), 150);
     const centre = navigationCameraCentre(here, lookAhead);
     const heading = Number.isFinite(gpsHeading) && gpsHeading >= 0 ? gpsHeading : bearingDegrees(here, lookAhead);
     if (!navFollowing) return;
     if (typeof map.moveCamera === 'function') {
-      map.moveCamera({ center: centre, zoom: 18, heading, tilt: 55 });
+      map.moveCamera({ center: centre, zoom: 18.4, heading, tilt: 60 });
     } else {
       map.panTo(centre);
-      map.setZoom(18);
+      map.setZoom(18.4);
       map.setHeading?.(heading);
-      map.setTilt?.(55);
+      map.setTilt?.(60);
     }
-    // In heading-up follow mode the map rotates underneath the marker, so the
-    // chevron itself remains screen-up. Overview/pan mode uses geographic
-    // heading instead (see updateNavigationPositionIcon).
+    // In heading-up follow mode the map rotates underneath the rider's chosen
+    // avatar, keeping their identity screen-upright while exposing more road
+    // ahead in the pitched perspective.
     updateNavigationPositionIcon();
   }
 
