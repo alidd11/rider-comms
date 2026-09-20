@@ -151,6 +151,7 @@ async function mockAuthenticatedApi(page, movement = 'stationary', backendOverri
       window.google = { maps: {
         Map: MapMock,
         Marker: MarkerMock,
+        RenderingType: { VECTOR: 'VECTOR', RASTER: 'RASTER' },
         Size: class Size { constructor(width, height) { this.width = width; this.height = height; } },
         Point: class Point { constructor(x, y) { this.x = x; this.y = y; } },
         SymbolPath: { CIRCLE: 0 },
@@ -533,6 +534,10 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
       optionsGlyphWidth: optionsGlyph?.getBoundingClientRect().width ?? NaN,
       mapTypeId: window.__riderCommsTestMap?.options?.mapTypeId ?? null,
       mapColorScheme: window.__riderCommsTestMap?.options?.colorScheme ?? null,
+      mapRenderingType: window.__riderCommsTestMap?.options?.renderingType ?? null,
+      tiltInteractionEnabled: window.__riderCommsTestMap?.options?.tiltInteractionEnabled ?? null,
+      headingInteractionEnabled: window.__riderCommsTestMap?.options?.headingInteractionEnabled ?? null,
+      fractionalZoomEnabled: window.__riderCommsTestMap?.options?.isFractionalZoomEnabled ?? null,
       mapStyles: window.__riderCommsTestMap?.options?.styles ?? [],
     };
   });
@@ -547,6 +552,10 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
   expect(mapGeometry.optionsGlyphWidth).toBeGreaterThanOrEqual(16);
   expect(mapGeometry.mapTypeId).toBe('roadmap');
   expect(mapGeometry.mapColorScheme).toBe('FOLLOW_SYSTEM');
+  expect(mapGeometry.mapRenderingType).toBe('VECTOR');
+  expect(mapGeometry.tiltInteractionEnabled).toBe(true);
+  expect(mapGeometry.headingInteractionEnabled).toBe(true);
+  expect(mapGeometry.fractionalZoomEnabled).toBe(true);
   expect(mapGeometry.mapStyles).toEqual([]);
   await expect(page.locator('[data-screen="map"] .page-header')).toHaveCount(0);
   await expect(page.locator('#mapSearchSlot')).toBeVisible();
@@ -681,7 +690,42 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
   expect(friendDetailGeometry.listRadius).toBeLessThanOrEqual(4);
   expect(friendDetailGeometry.titleWidth).toBeLessThanOrEqual(1);
   await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-friend-detail-final.png'), fullPage: true });
-  await page.locator('#closeSheet').click();
+  await page.locator('#messageFriend').click();
+  await expect(page.locator('#chatScreen')).toBeVisible();
+  const dmGeometry = await page.evaluate(() => {
+    const header = document.querySelector('.chat-header');
+    const avatar = document.querySelector('#chatAvatar');
+    const plan = document.querySelector('#chatHideoutPlan');
+    const safety = document.querySelector('#chatSafety');
+    const composer = document.querySelector('#chatComposer');
+    const input = document.querySelector('#chatInput');
+    const send = document.querySelector('#chatSend');
+    const box = (element) => element?.getBoundingClientRect();
+    return {
+      headerHeight: box(header)?.height ?? NaN,
+      avatarWidth: box(avatar)?.width ?? NaN,
+      planWidth: box(plan)?.width ?? NaN,
+      safetyWidth: box(safety)?.width ?? NaN,
+      inputHeight: box(input)?.height ?? NaN,
+      inputRadius: input ? parseFloat(getComputedStyle(input).borderTopLeftRadius) : NaN,
+      sendWidth: box(send)?.width ?? NaN,
+      sendRadius: send ? parseFloat(getComputedStyle(send).borderTopLeftRadius) : NaN,
+      composerHeight: box(composer)?.height ?? NaN,
+    };
+  });
+  expect(dmGeometry.headerHeight).toBeLessThanOrEqual(120);
+  expect(dmGeometry.avatarWidth).toBeGreaterThanOrEqual(34);
+  expect(dmGeometry.avatarWidth).toBeLessThanOrEqual(38);
+  expect(dmGeometry.planWidth).toBe(40);
+  expect(dmGeometry.safetyWidth).toBe(40);
+  expect(dmGeometry.inputHeight).toBeGreaterThanOrEqual(44);
+  expect(dmGeometry.inputRadius).toBeLessThanOrEqual(8);
+  expect(dmGeometry.sendWidth).toBe(44);
+  expect(dmGeometry.sendRadius).toBeLessThanOrEqual(8);
+  expect(dmGeometry.composerHeight).toBeLessThanOrEqual(82);
+  await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-dm-final.png'), fullPage: true });
+  await page.locator('#chatBack').click();
+  await expect(page.locator('#chatScreen')).toBeHidden();
 
   await page.locator('.bottom-nav [data-nav="settings"]').click();
   await expect(page.locator('.settings-page')).toBeVisible();
@@ -1939,25 +1983,48 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
     root.style.setProperty('--bottom-safe-area', '34px');
     document.querySelector('#app').classList.add('nav-mode');
     document.querySelector('#navSummary').hidden = false;
+    document.querySelector('#navBanner').hidden = false;
   });
 
   const summary = page.locator('#navSummary');
+  const banner = page.locator('#navBanner');
+  const mute = page.locator('#navMuteBtn');
+  const overview = page.locator('#navOverviewBtn');
   const [summaryBox, viewport] = await Promise.all([
     summary.boundingBox(),
     Promise.resolve(page.viewportSize()),
   ]);
-  const metrics = await summary.evaluate((element) => {
-    const style = getComputedStyle(element);
+  const metrics = await page.evaluate(() => {
+    const summary = document.querySelector('#navSummary');
+    const banner = document.querySelector('#navBanner');
+    const mute = document.querySelector('#navMuteBtn');
+    const overview = document.querySelector('#navOverviewBtn');
+    const end = document.querySelector('#endNavBtn');
+    const summaryStyle = getComputedStyle(summary);
+    const bannerStyle = getComputedStyle(banner);
     return {
-      height: parseFloat(style.height),
-      paddingBottom: parseFloat(style.paddingBottom),
+      height: parseFloat(summaryStyle.height),
+      paddingBottom: parseFloat(summaryStyle.paddingBottom),
+      summaryRadius: parseFloat(summaryStyle.borderTopLeftRadius),
+      bannerRadius: parseFloat(bannerStyle.borderTopLeftRadius),
+      endRadius: end ? parseFloat(getComputedStyle(end).borderTopLeftRadius) : 0,
+      muteSize: mute?.getBoundingClientRect().width ?? 0,
+      overviewSize: overview?.getBoundingClientRect().width ?? 0,
     };
   });
 
   expect(summaryBox).not.toBeNull();
   expect(viewport).not.toBeNull();
-  expect(metrics.height).toBe(88 + 18);
+  expect(metrics.height).toBe(104 + 18);
   expect(metrics.paddingBottom).toBe(18);
+  expect(metrics.summaryRadius).toBeGreaterThanOrEqual(20);
+  expect(metrics.bannerRadius).toBeGreaterThanOrEqual(20);
+  expect(metrics.endRadius).toBeGreaterThanOrEqual(20);
+  expect(metrics.muteSize).toBe(52);
+  expect(metrics.overviewSize).toBe(52);
+  await expect(banner).toBeVisible();
+  await expect(mute).toBeVisible();
+  await expect(overview).toBeVisible();
   await expect(page.locator('html')).toHaveClass(/pwa-standalone/);
   // Fractional device-scale rounding can move an absolutely positioned edge
   // a little over two CSS pixels on some Chromium/WebKit device profiles.
