@@ -530,6 +530,7 @@ function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Elemen
           value={draft}
           onChangeText={setDraft}
           editable={!conversationUnavailable}
+          accessibilityState={{ disabled: conversationUnavailable }}
           multiline
           maxLength={1000}
           accessibilityLabel={`Message ${displayName}`}
