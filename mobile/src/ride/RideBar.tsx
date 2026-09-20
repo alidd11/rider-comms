@@ -1,19 +1,15 @@
-// Unverified on real hardware — see navigation/index.tsx header note. This
-// sandbox has no native build tooling and no device to actually place a
-// call from, so the LiveKit connection itself (and the exact VOX
-// threshold/hangtime tuning in useVoiceActivity.ts) have never been
-// confirmed on real hardware. What IS real and code-verified: the token
-// fetch from the backend (client.getRideVoiceToken /
-// backend/src/liveKitToken.ts, genuine and tested end-to-end against a
-// real LiveKit Cloud project), and hands-free VOX itself — see
-// ../audio/useVoiceActivity.ts, which mutes/unmutes the real published mic
-// track based on a real native on-device volume reading, not a stub.
-// The microphone is created and muted before publication by
-// useVoiceActivity.ts; LiveKitRoom never auto-publishes an open mic.
+// Public/private LiveKit voice and hands-free VOX have been confirmed on
+// physical devices. The current sensitivity envelope is intentionally
+// conservative for helmet/intercom use; broader wind/engine/headset testing
+// is still required before treating the tuning as production-final. Token
+// fetches remain server-authorised, and useVoiceActivity.ts creates and mutes
+// the real microphone track before publication so LiveKitRoom never
+// auto-publishes an open mic.
 import * as React from 'react';
 import { View, Text, Pressable, StyleSheet, Modal, Alert } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LiveKitRoom } from '@livekit/react-native';
+import { ApiError } from '../api/client';
 import { audioEngine } from '../audio/audioEngine';
 import { LiveKitAudioPriorityBridge } from '../audio/LiveKitAudioPriorityBridge';
 import { acquireVoiceAudioSession, releaseVoiceAudioSession } from '../audio/audioSession';
@@ -66,9 +62,12 @@ function useVoiceAudioSession(active: boolean): { ready: boolean; error: string 
   return state;
 }
 
-function useRideVoiceToken(rideId: string | undefined, refreshKey: number): { token?: string; url?: string; error?: string } {
+function useRideVoiceToken(
+  rideId: string | undefined,
+  refreshKey: number,
+): { token?: string; url?: string; error?: string; retryable?: boolean } {
   const { client } = useAuth();
-  const [state, setState] = React.useState<{ token?: string; url?: string; error?: string }>({});
+  const [state, setState] = React.useState<{ token?: string; url?: string; error?: string; retryable?: boolean }>({});
 
   React.useEffect(() => {
     if (!rideId) { setState({}); return; }
@@ -79,7 +78,17 @@ function useRideVoiceToken(rideId: string | undefined, refreshKey: number): { to
     setState({});
     client.getRideVoiceToken(rideId)
       .then((res) => { if (!cancelled) setState({ token: res.token, url: res.url }); })
-      .catch((err) => { if (!cancelled) setState({ error: err instanceof Error ? err.message : 'Could not connect to voice' }); });
+      .catch((err) => {
+        if (cancelled) return;
+        const retryable = !(err instanceof ApiError)
+          || err.status === 408
+          || err.status === 429
+          || err.status >= 500;
+        setState({
+          error: err instanceof Error ? err.message : 'Could not connect to voice',
+          retryable,
+        });
+      });
     return () => { cancelled = true; };
   }, [rideId, client, refreshKey]);
 
@@ -172,6 +181,15 @@ export function RideBar({ controlsVisible = true }: { controlsVisible?: boolean 
     setRoomStatus('error');
     setRoomError(message || 'Microphone is unavailable.');
   }, []);
+
+  // A token request can fail before LiveKitRoom ever exists, so neither
+  // onError nor onDisconnected can start the normal reconnect loop. Retry
+  // transient/network/rate-limit/server failures through the same fresh-token
+  // path; do not hammer permanent 4xx authorisation/membership failures.
+  React.useEffect(() => {
+    if (!activeRide?.rideId || !voice.error || voice.retryable !== true) return;
+    scheduleVoiceRetry();
+  }, [activeRide?.rideId, scheduleVoiceRetry, voice.error, voice.retryable]);
 
   React.useEffect(() => () => {
     if (voiceRetryTimer.current) clearTimeout(voiceRetryTimer.current);
