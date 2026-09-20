@@ -252,7 +252,7 @@ function FriendProfileModal({
       .catch(() => { if (!cancelled) setError('Could not refresh this profile.'); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [client, friend, profileRevision]);
+  }, [client, friend?.riderId, profileRevision]);
 
   if (!friend) return <></>;
   const openSocial = (url: string) => {
