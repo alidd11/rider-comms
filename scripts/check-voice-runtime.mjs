@@ -69,6 +69,16 @@ assert.match(
   'Proximity voice must wait for native audio-session readiness before connecting',
 );
 assert.match(
+  rideBarSource,
+  /voice\.error[\s\S]*voice\.retryable[\s\S]*scheduleVoiceRetry\(\)/,
+  'Private ride voice must retry transient token failures that happen before LiveKitRoom exists',
+);
+assert.match(
+  pwaSource,
+  /shouldRetryVoiceConnection\(error\)[\s\S]*scheduleVoiceReconnect\(requestedTarget\)/,
+  'PWA voice must retry transient token/connect failures that happen before a room exists',
+);
+assert.match(
   activeSpeakerSource,
   /RoomEvent\.ActiveSpeakersChanged/,
   'Native voice must use LiveKit active-speaker events rather than infer remote speaking from mute state',
