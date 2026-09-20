@@ -516,7 +516,7 @@ test('final mockup parity is sharp, map-first and iPhone 17 Pro Max safe', async
     const search = document.querySelector('#mapSearchSlot');
     const action = document.querySelector('.map-actions .icon-button');
     const nearby = document.querySelector('#joinNearbyBtn');
-    const avatarWrap = document.querySelector('.map-avatar-wrap');
+    const avatarButton = document.querySelector('#mapAvatarButton');
     const optionsGlyph = document.querySelector('.map-search-options');
     const screenBox = screen?.getBoundingClientRect();
     const canvasBox = canvas?.getBoundingClientRect();
@@ -529,7 +529,7 @@ test('final mockup parity is sharp, map-first and iPhone 17 Pro Max safe', async
       searchRadius: search ? parseFloat(getComputedStyle(search).borderTopLeftRadius) : NaN,
       actionRadius: action ? parseFloat(getComputedStyle(action).borderTopLeftRadius) : NaN,
       nearbyWidth: nearby?.getBoundingClientRect().width ?? NaN,
-      avatarDisplay: avatarWrap ? getComputedStyle(avatarWrap).display : null,
+      avatarDisplay: avatarButton ? getComputedStyle(avatarButton).display : null,
       optionsGlyphWidth: optionsGlyph?.getBoundingClientRect().width ?? NaN,
       mapTypeId: window.__riderCommsTestMap?.options?.mapTypeId ?? null,
     };
