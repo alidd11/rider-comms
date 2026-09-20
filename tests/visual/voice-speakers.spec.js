@@ -45,13 +45,29 @@ test('PWA retries a transient pre-connect voice failure and preserves VOX/speake
         },
       },
     });
-    const fakeStream = { getTracks: () => [{ stop() {} }] };
+    window.__voiceGetUserMediaCount = 0;
+    window.__voiceTrackStopCount = 0;
     Object.defineProperty(navigator, 'mediaDevices', {
       configurable: true,
-      value: { getUserMedia: async () => fakeStream },
+      value: {
+        getUserMedia: async () => {
+          window.__voiceGetUserMediaCount += 1;
+          const track = {
+            stop() { window.__voiceTrackStopCount += 1; },
+          };
+          return { getTracks: () => [track] };
+        },
+      },
     });
     window.__voiceTestAmplitude = 0;
+    window.__voiceAudioResumeCount = 0;
+    window.__voiceMicrophoneStates = [];
     class FakeAudioContext {
+      constructor() {
+        this.state = 'running';
+        this.onstatechange = null;
+        window.__voiceTestAudioContext = this;
+      }
       createMediaStreamSource() { return { connect() {} }; }
       createAnalyser() {
         return {
@@ -65,7 +81,15 @@ test('PWA retries a transient pre-connect voice failure and preserves VOX/speake
           },
         };
       }
-      close() { return Promise.resolve(); }
+      async resume() {
+        window.__voiceAudioResumeCount += 1;
+        this.state = 'running';
+        this.onstatechange?.();
+      }
+      close() {
+        this.state = 'closed';
+        return Promise.resolve();
+      }
     }
     Object.defineProperty(window, 'AudioContext', { configurable: true, value: FakeAudioContext });
   }, { riderId: RIDER_ID });
@@ -136,7 +160,11 @@ test('PWA retries a transient pre-connect voice failure and preserves VOX/speake
           constructor() {
             this.handlers = new Map();
             this.canPlaybackAudio = true;
-            this.localParticipant = { setMicrophoneEnabled: async () => {} };
+            this.localParticipant = {
+              setMicrophoneEnabled: async (enabled) => {
+                window.__voiceMicrophoneStates.push(Boolean(enabled));
+              },
+            };
             window.__voiceSpeakerTestRoom = this;
           }
           on(event, handler) {
@@ -152,7 +180,10 @@ test('PWA retries a transient pre-connect voice failure and preserves VOX/speake
             queueMicrotask(() => this.emit(RoomEvent.ActiveSpeakersChanged, [{ identity: 'rider_voice_peer' }]));
           }
           async startAudio() { this.canPlaybackAudio = true; }
-          async disconnect() { this.emit(RoomEvent.Disconnected); }
+          async disconnect() {
+            window.__voiceRoomDisconnectCount = (window.__voiceRoomDisconnectCount || 0) + 1;
+            this.emit(RoomEvent.Disconnected);
+          }
         }
         window.LivekitClient = { Room, RoomEvent, Track };
       })();
@@ -170,6 +201,30 @@ test('PWA retries a transient pre-connect voice failure and preserves VOX/speake
   const localVoiceButton = page.locator('#voiceStatusBtn');
   await expect(localVoiceButton).toHaveAttribute('aria-label', 'Listening — hands-free');
 
+  // Physical iOS PWA testing previously reported the system microphone
+  // indicator disappearing roughly 4–5 seconds after enabling public Nearby.
+  // With an authorised peer actually connected, that must not be Rider Comms
+  // tearing down the pair room or the independent VOX meter stream. Hold this
+  // simulated public connection beyond that window and verify both remain live.
+  const persistenceBefore = await page.evaluate(() => ({
+    getUserMediaCount: window.__voiceGetUserMediaCount || 0,
+    trackStopCount: window.__voiceTrackStopCount || 0,
+    disconnectCount: window.__voiceRoomDisconnectCount || 0,
+  }));
+  expect(persistenceBefore.getUserMediaCount).toBeGreaterThanOrEqual(2);
+  expect(persistenceBefore.trackStopCount).toBe(1);
+  expect(persistenceBefore.disconnectCount).toBe(0);
+
+  await page.waitForTimeout(5_500);
+  await expect(localVoiceButton).toHaveAttribute('aria-label', 'Listening — hands-free');
+
+  const persistenceAfter = await page.evaluate(() => ({
+    trackStopCount: window.__voiceTrackStopCount || 0,
+    disconnectCount: window.__voiceRoomDisconnectCount || 0,
+  }));
+  expect(persistenceAfter.trackStopCount).toBe(1);
+  expect(persistenceAfter.disconnectCount).toBe(0);
+
   // A brief ~0.039 RMS burst is above the tuned 0.035 attack threshold but
   // shorter than the 70 ms attack hold. This models a helmet/wind bump and
   // must not open the transmitter.
@@ -181,6 +236,26 @@ test('PWA retries a transient pre-connect voice failure and preserves VOX/speake
 
   // The same level held as real speech should open the mic even though it is
   // still below the old 0.06 gate.
+  await page.evaluate(() => { window.__voiceTestAmplitude = 5; });
+  await expect(localVoiceButton).toHaveAttribute('aria-label', 'Talking');
+
+  // Installed WebKit can suspend Web Audio independently of the LiveKit room
+  // after an app switch, lock-screen/media interruption, or similar lifecycle
+  // event. Rider Comms must fail closed immediately instead of leaving the
+  // last VOX transmit state latched on, then resume the analyser on foreground.
+  await page.evaluate(() => {
+    window.__voiceTestAmplitude = 0;
+    window.__voiceTestAudioContext.state = 'suspended';
+    window.__voiceTestAudioContext.onstatechange?.();
+  });
+  await expect(localVoiceButton).toHaveAttribute('aria-label', 'Resume voice');
+  await expect.poll(() => page.evaluate(() => window.__voiceMicrophoneStates.at(-1))).toBe(false);
+
+  await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+  await expect.poll(() => page.evaluate(() => window.__voiceAudioResumeCount)).toBeGreaterThanOrEqual(1);
+  await expect(localVoiceButton).toHaveAttribute('aria-label', 'Listening — hands-free');
+
+  // After the context has resumed, VOX must still be able to open again.
   await page.evaluate(() => { window.__voiceTestAmplitude = 5; });
   await expect(localVoiceButton).toHaveAttribute('aria-label', 'Talking');
 
