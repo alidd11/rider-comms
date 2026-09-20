@@ -188,6 +188,11 @@ export function FriendsProvider({ children }: { children: React.ReactNode }): Re
             // An event committed after this cursor is guaranteed to replay on
             // the next long poll; one committed before it is included here.
             await refreshAuthoritative();
+            // A baseline follows initial connect and every recovery. Bump the
+            // social revision after the authoritative snapshot succeeds so an
+            // already-open chat re-reads its thread even when the event that
+            // originally dirtied it was skipped by a failed refresh/rebaseline.
+            setSocialRevision((value) => value + 1);
             setError(null);
             continue;
           }
