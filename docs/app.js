@@ -2179,6 +2179,11 @@
     return 'Microphone access is unavailable right now.';
   }
 
+  function shouldRetryVoiceConnection(error) {
+    if (!(error instanceof ApiError)) return true;
+    return error.status === 0 || error.status === 408 || error.status === 429 || error.status >= 500;
+  }
+
   /** Ask while the rider is still inside the original Create, Join or Go
    * live tap. Waiting for API calls first loses the browser's user-gesture
    * allowance and can suppress the installed-PWA permission prompt. */
