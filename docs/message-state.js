@@ -12,6 +12,10 @@
     return [...byId.values()].sort(order);
   };
 
+  function acknowledge(current, localId, sent) {
+    return dedupe([...current.filter((message) => String(message.id) !== String(localId)), sent]);
+  }
+
   function reconcile(current, fetched) {
     const serverIds = new Set(fetched.map((message) => String(message.id)));
     const localOnly = current.filter((message) =>
@@ -19,5 +23,5 @@
     return dedupe([...fetched, ...localOnly]);
   }
 
-  globalThis.RiderMessageState = Object.freeze({ dedupe, reconcile });
+  globalThis.RiderMessageState = Object.freeze({ acknowledge, dedupe, reconcile });
 })();

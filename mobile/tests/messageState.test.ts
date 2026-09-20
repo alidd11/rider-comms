@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import type { DirectMessage } from '@rider-comms/shared';
-import { mergeOlderMessagePage, reconcileMessageThread, type LocalDirectMessage } from '../src/friends/messageState.ts';
+import { acknowledgeOptimisticMessage, mergeOlderMessagePage, reconcileMessageThread, type LocalDirectMessage } from '../src/friends/messageState.ts';
 
 const message = (id: string, createdAt: number): DirectMessage => ({
   id,
@@ -40,6 +40,35 @@ describe('reconcileMessageThread', () => {
     assert.deepEqual(
       reconcileMessageThread(current, [message('later', 3), message('earlier', 1)]).map((item) => item.id),
       ['earlier', 'local', 'later']
+    );
+  });
+});
+
+describe('acknowledgeOptimisticMessage', () => {
+  it('replaces the local echo without duplicating a server message already delivered by realtime', () => {
+    const sent = message('server-ack', 30);
+    const current: LocalDirectMessage[] = [
+      message('server-1', 10),
+      sent,
+      { ...message('local-pending', 20), text: sent.text, status: 'pending' },
+    ];
+
+    assert.deepEqual(
+      acknowledgeOptimisticMessage(current, 'local-pending', sent).map((item) => item.id),
+      ['server-1', 'server-ack'],
+    );
+  });
+
+  it('still inserts the acknowledged server message when realtime has not delivered it yet', () => {
+    const sent = message('server-ack', 30);
+    const current: LocalDirectMessage[] = [
+      message('server-1', 10),
+      { ...message('local-pending', 20), text: sent.text, status: 'pending' },
+    ];
+
+    assert.deepEqual(
+      acknowledgeOptimisticMessage(current, 'local-pending', sent).map((item) => item.id),
+      ['server-1', 'server-ack'],
     );
   });
 });

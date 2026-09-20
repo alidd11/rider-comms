@@ -24,7 +24,7 @@ import { ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { colors, spacing, radii, type, elevation, MIN_TOUCH_TARGET } from '../theme';
 import { buildNavigationProviderUrl, openNavigationUrl } from '../navigationLinks';
-import { mergeOlderMessagePage, reconcileMessageThread, type LocalDirectMessage } from '../friends/messageState';
+import { acknowledgeOptimisticMessage, mergeOlderMessagePage, reconcileMessageThread, type LocalDirectMessage } from '../friends/messageState';
 import { useMovementSafety } from '../safety/MovementSafetyContext';
 import { RideSafeSurface } from '../safety/RideSafeSurface';
 import { useFriends } from '../friends/FriendsContext';
@@ -355,7 +355,7 @@ function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Elemen
     setSending(true);
     try {
       const sent = await client.sendMessage(riderId, text);
-      setMessages((current) => current.map((m) => (m.id === tempId ? sent : m)));
+      setMessages((current) => acknowledgeOptimisticMessage(current, tempId, sent));
       setError(null);
     } catch {
       setMessages((current) => current.map((m) => (m.id === tempId ? { ...m, status: 'failed' } : m)));
@@ -371,7 +371,7 @@ function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Elemen
       setMessages((current) => current.map((m) => (m.id === localId ? { ...m, status: 'pending' } : m)));
       try {
         const sent = await client.sendMessage(riderId, target.text);
-        setMessages((current) => current.map((m) => (m.id === localId ? sent : m)));
+        setMessages((current) => acknowledgeOptimisticMessage(current, localId, sent));
       } catch {
         setMessages((current) => current.map((m) => (m.id === localId ? { ...m, status: 'failed' } : m)));
       }

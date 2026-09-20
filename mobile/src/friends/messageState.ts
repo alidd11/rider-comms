@@ -20,6 +20,20 @@ export function reconcileMessageThread(
   return merged;
 }
 
+export function acknowledgeOptimisticMessage(
+  current: readonly LocalDirectMessage[],
+  localId: string,
+  sent: DirectMessage,
+): LocalDirectMessage[] {
+  const merged = new Map<string, LocalDirectMessage>();
+  for (const message of current) {
+    if (message.id === localId) continue;
+    merged.set(message.id, message);
+  }
+  merged.set(sent.id, sent);
+  return [...merged.values()].sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id));
+}
+
 export function mergeOlderMessagePage(
   current: readonly LocalDirectMessage[],
   older: readonly DirectMessage[]
