@@ -47,7 +47,7 @@ The PWA visual suite is useful regression coverage, but it is not a substitute f
 
 The native in-app route fetch still uses a pre-release Google Directions web-service path. A public release should move to an approved native navigation SDK or a protected server-side routing service rather than shipping a reusable web-service credential in the client.
 
-Background and locked-screen navigation is not yet production-complete. Navigation, LiveKit voice and audio routing must be validated during real rides with the screen locked, after missed turns, through degraded/lost GPS, across app background/foreground transitions and with common Bluetooth helmet systems.
+Background and locked-screen navigation is not yet production-complete. Native voice now has the platform infrastructure needed for background audio: iOS declares the audio background mode, while Android starts a microphone-typed foreground service before the LiveKit audio session and keeps it leased across public/private voice owners. Navigation, LiveKit voice and audio routing must still be validated during real rides with the screen locked, after missed turns, through degraded/lost GPS, across app background/foreground transitions and with common Bluetooth helmet systems.
 
 VOX, wind/engine-noise behavior, echo handling and prompt/chat ducking require physical motorcycle/headset testing. Automated audio-priority tests verify state and gain decisions, not the end-to-end acoustic result.
 

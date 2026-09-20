@@ -22,6 +22,10 @@
  */
 import { AudioSession } from '@livekit/react-native';
 import type { AudioConfiguration } from '@livekit/react-native';
+import {
+  startAndroidVoiceForegroundService,
+  stopAndroidVoiceForegroundService,
+} from './voiceForegroundService';
 
 const VOICE_AUDIO_CONFIG: AudioConfiguration = {
   ios: {
@@ -76,29 +80,60 @@ function serializeSessionOperation(operation: () => Promise<void>): Promise<void
 }
 
 async function startVoiceAudioSession(): Promise<void> {
-  await AudioSession.configureAudio(VOICE_AUDIO_CONFIG);
-  // configureAudio()'s own `ios` option only covers output routing (see
-  // AudioConfiguration above) — the actual AVAudioSession category/mode
-  // is a separate call. Without this, iOS defaults to a category that
-  // silences the rider's music/nav app entirely for the whole ride, the
-  // same "why did it mute my music" behaviour the PWA has no fix for
-  // (there's no web API for this — see docs/app.js's voice module). The
-  // native app can ask for real coexistence instead: `mixWithOthers`
-  // keeps other apps' audio playing (unducked) alongside the call,
-  // `allowBluetooth(A2DP)`/`allowAirPlay` keep the earlier Bluetooth
-  // routing config actually reachable under a play-and-record category,
-  // and `voiceChat` audio mode applies the same echo-cancellation/
-  // gain tuning iOS uses for real phone/FaceTime calls.
-  await AudioSession.setAppleAudioConfiguration({
-    audioCategory: 'playAndRecord',
-    audioCategoryOptions: ['mixWithOthers', 'allowBluetooth', 'allowBluetoothA2DP', 'allowAirPlay', 'defaultToSpeaker'],
-    audioMode: 'voiceChat',
-  });
-  await AudioSession.startAudioSession();
+  let foregroundServiceStarted = false;
+  try {
+    // Android must establish its microphone foreground service while Rider
+    // Comms is still in the foreground. This helper also confirms RECORD_AUDIO
+    // permission before asking Android 14+ to create a microphone-typed FGS.
+    // The no-op iOS implementation preserves the same call order everywhere.
+    await startAndroidVoiceForegroundService();
+    foregroundServiceStarted = true;
+
+    await AudioSession.configureAudio(VOICE_AUDIO_CONFIG);
+    // configureAudio()'s own `ios` option only covers output routing (see
+    // AudioConfiguration above) — the actual AVAudioSession category/mode
+    // is a separate call. Without this, iOS defaults to a category that
+    // silences the rider's music/nav app entirely for the whole ride, the
+    // same "why did it mute my music" behaviour the PWA has no fix for
+    // (there's no web API for this — see docs/app.js's voice module). The
+    // native app can ask for real coexistence instead: `mixWithOthers`
+    // keeps other apps' audio playing (unducked) alongside the call,
+    // `allowBluetooth(A2DP)`/`allowAirPlay` keep the earlier Bluetooth
+    // routing config actually reachable under a play-and-record category,
+    // and `voiceChat` audio mode applies the same echo-cancellation/
+    // gain tuning iOS uses for real phone/FaceTime calls.
+    await AudioSession.setAppleAudioConfiguration({
+      audioCategory: 'playAndRecord',
+      audioCategoryOptions: ['mixWithOthers', 'allowBluetooth', 'allowBluetoothA2DP', 'allowAirPlay', 'defaultToSpeaker'],
+      audioMode: 'voiceChat',
+    });
+    await AudioSession.startAudioSession();
+  } catch (error) {
+    if (foregroundServiceStarted) {
+      await stopAndroidVoiceForegroundService().catch(() => {});
+    }
+    throw error;
+  }
 }
 
 async function stopVoiceAudioSession(): Promise<void> {
-  await AudioSession.stopAudioSession();
+  let audioSessionError: unknown;
+  try {
+    await AudioSession.stopAudioSession();
+  } catch (error) {
+    audioSessionError = error;
+  }
+
+  // Never strand the persistent Android voice notification/service if native
+  // audio teardown itself throws. Conversely, surface a foreground-service
+  // stop failure when audio teardown succeeded so the caller can report it.
+  try {
+    await stopAndroidVoiceForegroundService();
+  } catch (error) {
+    if (audioSessionError === undefined) throw error;
+  }
+
+  if (audioSessionError !== undefined) throw audioSessionError;
 }
 
 /**
