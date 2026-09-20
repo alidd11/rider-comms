@@ -4061,13 +4061,10 @@
   }
 
   /**
-   * "Navigate" hands off to the device's own maps app via Google's
-   * universal cross-platform link (opens the native Google Maps app if
-   * installed, Apple Maps' own equivalent isn't needed since this link
-   * still opens fine in a browser tab otherwise) — turn-by-turn routing
-   * itself isn't something this app owns or renders; that's a real,
-   * working "start navigating there" action without pretending to be a
-   * navigation SDK this app doesn't have.
+   * Build the external-navigation URL for the rider's selected provider.
+   * Rider Comms itself owns the in-app turn-by-turn path; this helper is
+   * only for Google Maps, Waze and Apple Maps handoff when the rider has
+   * selected an external provider in Settings.
    */
   function navigationHref(provider, lat, lng, label) {
     const coordinate = `${lat},${lng}`;
