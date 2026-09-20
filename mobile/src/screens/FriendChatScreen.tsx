@@ -23,7 +23,6 @@ import type { RootStackParamList } from '../navigation';
 import { ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { colors, spacing, radii, type, elevation, MIN_TOUCH_TARGET } from '../theme';
-import { getAvatarPreset } from '../settings/avatars';
 import { buildNavigationProviderUrl, openNavigationUrl } from '../navigationLinks';
 import { acknowledgeOptimisticMessage, mergeOlderMessagePage, reconcileMessageThread, type LocalDirectMessage } from '../friends/messageState';
 import { useMovementSafety } from '../safety/MovementSafetyContext';
@@ -31,6 +30,7 @@ import { RideSafeSurface } from '../safety/RideSafeSurface';
 import { useFriends } from '../friends/FriendsContext';
 import { useSettings } from '../settings/SettingsContext';
 import { navigationProviderLabel } from '../navigationPreference';
+import { RiderAvatar } from '../components/RiderAvatar';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'FriendChat'>;
 
@@ -241,7 +241,6 @@ function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Elemen
   const { riderId: currentRiderId, client } = useAuth();
   const { refresh: refreshFriends, refreshMessages, socialRevision } = useFriends();
   const { navigationProvider } = useSettings();
-  const avatar = getAvatarPreset(avatarId);
   const insets = useSafeAreaInsets();
 
   const [messages, setMessages] = React.useState<LocalMessage[]>([]);
@@ -457,9 +456,7 @@ function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Elemen
         <Pressable onPress={() => navigation.goBack()} style={styles.backButton} hitSlop={8}>
           <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
         </Pressable>
-        <View style={[styles.headerAvatar, { backgroundColor: avatar.bg }]}>
-          <MaterialCommunityIcons name={avatar.icon} size={18} color={colors.textPrimary} />
-        </View>
+        <RiderAvatar avatarId={avatarId} size={40} />
         <Text style={styles.headerName}>{displayName}</Text>
         <Pressable onPress={() => setPlanOpen(true)} style={styles.planButton} hitSlop={8}>
           <MaterialCommunityIcons name="map-marker-plus" size={18} color={colors.accent} />
