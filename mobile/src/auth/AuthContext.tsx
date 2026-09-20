@@ -2,6 +2,7 @@ import * as React from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -116,6 +117,10 @@ function AuthScreen({ onAuthenticated, restoreError, onRetryRestore }: {
   const [error, setError] = React.useState<string | null>(null);
   const [passwordVisible, setPasswordVisible] = React.useState(false);
   const [rememberMe, setRememberMe] = React.useState(true);
+
+  React.useEffect(() => {
+    Keyboard.dismiss();
+  }, []);
   const isSignup = mode === 'signup';
   const isRecovery = mode === 'recover' || mode === 'reset';
   const copy = AUTH_COPY[mode];
@@ -226,6 +231,7 @@ function AuthScreen({ onAuthenticated, restoreError, onRetryRestore }: {
                 <MaterialCommunityIcons name="account-outline" size={18} color={AUTH_MUTED} style={styles.fieldIcon} />
                 <TextInput
                   accessibilityLabel="Username"
+                  autoFocus={false}
                   autoCapitalize="none"
                   autoCorrect={false}
                   autoComplete="username"
