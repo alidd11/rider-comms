@@ -4581,8 +4581,14 @@
     $('#navDistance').textContent = formatNavDistance(remainingMeters);
     $('#navEta').textContent = formatNavDuration(remainingSeconds);
     $('#navArrival').textContent = formatArrivalTime(remainingSeconds);
-    $('#navSpeed').textContent = formatNavSpeed(navCurrentSpeedMps);
-    $('#navSpeedUnit').textContent = navSpeedUnit();
+    const speedValue = formatNavSpeed(navCurrentSpeedMps);
+    const speedUnit = navSpeedUnit();
+    $('#navSpeed').textContent = speedValue;
+    $('#navSpeedUnit').textContent = speedUnit;
+    $('.nav-summary-speed')?.setAttribute(
+      'aria-label',
+      navCurrentSpeedMps == null ? 'Current speed unavailable' : `Current speed ${speedValue} ${speedUnit}`,
+    );
     if (!navMuted && navLastAnnouncedStep !== navStepIndex) {
       navLastAnnouncedStep = navStepIndex;
       if (navLastNowPromptStep !== navStepIndex) speak(stripHtml(step.instructions));
@@ -4876,6 +4882,12 @@
     if (navGpsIssue === message && navStatusNotice === message) return;
     navGpsIssue = message;
     navOffRouteSince = null;
+    navCurrentSpeedMps = null;
+    const speed = $('#navSpeed');
+    const unit = $('#navSpeedUnit');
+    if (speed) speed.textContent = '—';
+    if (unit) unit.textContent = navSpeedUnit();
+    $('.nav-summary-speed')?.setAttribute('aria-label', 'Current speed unavailable');
     setNavStatusNotice(message);
   }
 
