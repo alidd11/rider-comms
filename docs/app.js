@@ -898,7 +898,7 @@
       const activityCopy = friendActivityLabel(activity);
       const inActiveRide = state.activeRide?.memberIds?.includes(riderId) === true;
       const rideLocation = rideMemberLocations.get(riderId);
-      const liveRideLocation = rideLocation && Date.now() - rideLocation.updatedAt <= RIDE_LOCATION_REFRESH_MS * 2
+      const liveRideLocation = inActiveRide && rideLocation && Date.now() - rideLocation.updatedAt <= RIDE_LOCATION_REFRESH_MS * 2
         ? rideLocation
         : null;
       const socialLinks = [
