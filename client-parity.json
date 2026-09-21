@@ -11,33 +11,173 @@
     ]
   },
   "capabilities": [
-    { "id": "auth", "pwa": true, "native": true, "status": "parity" },
-    { "id": "password-recovery", "pwa": true, "native": true, "status": "parity" },
-    { "id": "profile", "pwa": true, "native": true, "status": "parity" },
-    { "id": "settings", "pwa": true, "native": true, "status": "behavior-gap" },
-    { "id": "avatar-selection", "pwa": true, "native": true, "status": "parity" },
-    { "id": "friends", "pwa": true, "native": true, "status": "parity" },
-    { "id": "direct-messages", "pwa": true, "native": true, "status": "parity" },
-    { "id": "social-realtime", "pwa": true, "native": true, "status": "parity" },
-    { "id": "message-read-state", "pwa": true, "native": true, "status": "parity" },
-    { "id": "social-pagination", "pwa": true, "native": true, "status": "parity" },
-    { "id": "social-profile-privacy", "pwa": true, "native": true, "status": "parity" },
-    { "id": "friend-request-cancel", "pwa": true, "native": true, "status": "parity" },
-    { "id": "hideouts", "pwa": true, "native": true, "status": "parity" },
-    { "id": "block-report", "pwa": true, "native": true, "status": "parity" },
-    { "id": "public-proximity", "pwa": true, "native": true, "status": "parity" },
-    { "id": "proximity-voice", "pwa": true, "native": true, "status": "parity" },
-    { "id": "group-ride", "pwa": true, "native": true, "status": "parity" },
-    { "id": "host-remove-rider", "pwa": true, "native": true, "status": "parity" },
-    { "id": "private-ride-location", "pwa": true, "native": true, "status": "parity" },
-    { "id": "hazards", "pwa": true, "native": true, "status": "parity" },
-    { "id": "place-search", "pwa": true, "native": true, "status": "parity" },
-    { "id": "recent-places", "pwa": true, "native": true, "status": "parity" },
-    { "id": "navigation", "pwa": true, "native": true, "status": "behavior-gap" },
-    { "id": "routes", "pwa": true, "native": true, "status": "parity" },
-    { "id": "ride-safe", "pwa": true, "native": true, "status": "parity" },
-    { "id": "session-management", "pwa": true, "native": true, "status": "parity" },
-    { "id": "account-deletion", "pwa": true, "native": true, "status": "parity" },
-    { "id": "billing-preview", "pwa": true, "native": true, "status": "parity" }
+    {
+      "id": "auth",
+      "pwa": true,
+      "native": true,
+      "status": "parity"
+    },
+    {
+      "id": "password-recovery",
+      "pwa": true,
+      "native": true,
+      "status": "parity"
+    },
+    {
+      "id": "profile",
+      "pwa": true,
+      "native": true,
+      "status": "parity"
+    },
+    {
+      "id": "settings",
+      "pwa": true,
+      "native": true,
+      "status": "behavior-gap"
+    },
+    {
+      "id": "avatar-selection",
+      "pwa": true,
+      "native": true,
+      "status": "parity"
+    },
+    {
+      "id": "friends",
+      "pwa": true,
+      "native": true,
+      "status": "parity"
+    },
+    {
+      "id": "direct-messages",
+      "pwa": true,
+      "native": true,
+      "status": "parity"
+    },
+    {
+      "id": "social-realtime",
+      "pwa": true,
+      "native": true,
+      "status": "parity"
+    },
+    {
+      "id": "message-read-state",
+      "pwa": true,
+      "native": true,
+      "status": "parity"
+    },
+    {
+      "id": "social-pagination",
+      "pwa": true,
+      "native": true,
+      "status": "parity"
+    },
+    {
+      "id": "social-profile-privacy",
+      "pwa": true,
+      "native": true,
+      "status": "parity"
+    },
+    {
+      "id": "friend-request-cancel",
+      "pwa": true,
+      "native": true,
+      "status": "parity"
+    },
+    {
+      "id": "hideouts",
+      "pwa": true,
+      "native": true,
+      "status": "parity"
+    },
+    {
+      "id": "block-report",
+      "pwa": true,
+      "native": true,
+      "status": "parity"
+    },
+    {
+      "id": "public-proximity",
+      "pwa": true,
+      "native": true,
+      "status": "parity"
+    },
+    {
+      "id": "proximity-voice",
+      "pwa": true,
+      "native": true,
+      "status": "parity"
+    },
+    {
+      "id": "group-ride",
+      "pwa": true,
+      "native": true,
+      "status": "parity"
+    },
+    {
+      "id": "host-remove-rider",
+      "pwa": true,
+      "native": true,
+      "status": "parity"
+    },
+    {
+      "id": "private-ride-location",
+      "pwa": true,
+      "native": true,
+      "status": "parity"
+    },
+    {
+      "id": "hazards",
+      "pwa": true,
+      "native": true,
+      "status": "parity"
+    },
+    {
+      "id": "place-search",
+      "pwa": true,
+      "native": true,
+      "status": "parity"
+    },
+    {
+      "id": "recent-places",
+      "pwa": true,
+      "native": true,
+      "status": "parity"
+    },
+    {
+      "id": "navigation",
+      "pwa": true,
+      "native": true,
+      "status": "behavior-gap"
+    },
+    {
+      "id": "routes",
+      "pwa": true,
+      "native": true,
+      "status": "parity"
+    },
+    {
+      "id": "ride-safe",
+      "pwa": true,
+      "native": true,
+      "status": "parity"
+    },
+    {
+      "id": "session-management",
+      "pwa": true,
+      "native": true,
+      "status": "parity"
+    },
+    {
+      "id": "account-deletion",
+      "pwa": true,
+      "native": true,
+      "status": "parity"
+    },
+    {
+      "id": "billing-preview",
+      "pwa": true,
+      "native": true,
+      "status": "parity"
+    }
   ]
 }
