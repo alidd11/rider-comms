@@ -22,6 +22,13 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
+      - name: Ensure image optimizer is available
+        run: |
+          if ! command -v convert >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y imagemagick
+          fi
+          convert -version
       - name: Fetch approved route card images
         run: node scripts/fetch-route-card-images.mjs
       - name: Commit generated route assets
