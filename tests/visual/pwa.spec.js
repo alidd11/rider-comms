@@ -2074,6 +2074,9 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
     document.querySelector('#navInstruction').setAttribute('aria-label', 'Turn sharp left onto Holloway Road / A1');
     document.querySelector('#navProviderInstruction').textContent = 'Turn sharp left onto Holloway Road / A1';
     document.querySelector('#navNextInstruction').textContent = 'Keep right at the fork onto Seven Sisters Road / A503';
+    const roadAhead = document.querySelector('#navRoadAhead');
+    roadAhead.hidden = false;
+    roadAhead.innerHTML = '<span class="nav-road-ahead-label">Reports ahead</span><span class="nav-road-ahead-events"><span class="nav-road-ahead-event" aria-label="Speed camera reported, 0.6 mi ahead"><svg style="--road-alert:#2fa8d3"><use href="#i-camera"/></svg><span>Speed camera</span><strong>0.6 mi</strong></span><span class="nav-road-ahead-event" aria-label="Police reported, 1.1 mi ahead"><svg style="--road-alert:#2fa8d3"><use href="#i-shield"/></svg><span>Police</span><strong>1.1 mi</strong></span></span>';
     document.querySelector('#navSpeed').textContent = '32';
     document.querySelector('#navSpeedUnit').textContent = 'mph';
     const banner = document.querySelector('#navBanner');
@@ -2106,6 +2109,8 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
     const nextPreview = document.querySelector('#navNextPreview');
     const nextSvg = document.querySelector('#navNextManeuverSvg');
     const nextUse = document.querySelector('#navNextManeuverSvg use');
+    const roadAhead = document.querySelector('#navRoadAhead');
+    const roadAheadEvents = [...document.querySelectorAll('.nav-road-ahead-event')];
     const speed = document.querySelector('#navSpeedBadge');
     const instruction = document.querySelector('#navInstruction');
     const providerInstruction = document.querySelector('#navProviderInstruction');
@@ -2142,6 +2147,9 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
       nextHeight: nextPreview?.getBoundingClientRect().height ?? NaN,
       nextSvgWidth: nextSvg?.getBoundingClientRect().width ?? NaN,
       nextHref: nextUse?.getAttribute('href') ?? null,
+      roadAheadHeight: roadAhead?.getBoundingClientRect().height ?? NaN,
+      roadAheadLabels: roadAheadEvents.map((event) => event.textContent?.replace(/\s+/g, ' ').trim()),
+      roadAheadEventCount: roadAheadEvents.length,
       speedWidth: speed?.getBoundingClientRect().width ?? NaN,
       speedHeight: speed?.getBoundingClientRect().height ?? NaN,
       speedRadius: speed ? parseFloat(getComputedStyle(speed).borderTopLeftRadius) : NaN,
@@ -2183,6 +2191,12 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
   expect(metrics.nextHeight).toBeGreaterThanOrEqual(50);
   expect(metrics.nextSvgWidth).toBe(30);
   expect(metrics.nextHref).toBe('#i-nav-fork-right');
+  expect(metrics.roadAheadHeight).toBeGreaterThanOrEqual(42);
+  expect(metrics.roadAheadEventCount).toBe(2);
+  expect(metrics.roadAheadLabels[0]).toContain('Speed camera');
+  expect(metrics.roadAheadLabels[0]).toContain('0.6 mi');
+  expect(metrics.roadAheadLabels[1]).toContain('Police');
+  expect(metrics.roadAheadLabels[1]).toContain('1.1 mi');
   expect(metrics.speedWidth).toBe(76);
   expect(metrics.speedHeight).toBe(76);
   expect(metrics.speedRadius).toBe(38);
