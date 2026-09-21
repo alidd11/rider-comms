@@ -375,11 +375,11 @@ export function SettingsScreen(): React.JSX.Element {
 
   function confirmReset() {
     Alert.alert(
-      'Reset app data?',
-      'This clears your profile, avatar, and all settings on this device and puts everything back to its defaults.',
+      'Reset Rider Comms settings?',
+      'This resets your Rider Comms profile and synced preferences to their defaults, and clears this device’s saved navigation preference.',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Reset', style: 'destructive', onPress: () => resetAll() },
+        { text: 'Reset settings', style: 'destructive', onPress: () => resetAll() },
       ]
     );
   }
@@ -464,7 +464,7 @@ export function SettingsScreen(): React.JSX.Element {
               icon="card-outline"
               title="Plan and billing"
               subtitle={PLAN_INFO[zoneTier].name + ' plan · ' + (PLAN_INFO[zoneTier].priceLabel === 'Free' ? 'No card on file' : PLAN_INFO[zoneTier].priceLabel + '/mo')}
-              right={PLAN_INFO[zoneTier].priceLabel === 'Free' ? 'Free' : undefined}
+              right={PLAN_INFO[zoneTier].name}
               onPress={() => { setActiveSheet(null); navigation.navigate('Billing'); }}
             />
             <SettingsRow icon="phone-portrait-outline" title="Signed-in devices" subtitle="Review and revoke account sessions" onPress={() => setActiveSheet('sessions')} />
