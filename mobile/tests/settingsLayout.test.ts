@@ -54,6 +54,14 @@ describe('Settings mockup contract', () => {
     assert.match(settingsSource, /value=\{handleDraft\}[\s\S]*?maxLength=\{25\}/);
   });
 
+  it('validates and normalizes profile fields before syncing', () => {
+    assert.ok(settingsSource.includes("raw.startsWith('@') ? raw : `@${raw}`"));
+    assert.match(settingsSource, /Use 3–24 letters, numbers or underscores for your handle\./);
+    assert.match(settingsSource, /draft\.trim\(\)\.replace\(\/\^@\//);
+    assert.match(settingsSource, /Use up to 30 letters, numbers, dots or underscores\./);
+    assert.match(settingsSource, /accessibilityRole="alert"/);
+  });
+
   it('does not advertise offline map downloads that do not exist', () => {
     assert.ok(settingsSource.includes('Offline map downloads are not available in this build yet.'));
   });
