@@ -38,6 +38,8 @@ function UnitRow({
   const { name, blurb } = UNIT_LABELS[unit];
   return (
     <Pressable
+      accessibilityRole="radio"
+      accessibilityState={{ selected }}
       style={({ pressed }) => [styles.tierRow, selected && styles.tierRowSelected, pressed && styles.tierRowPressed]}
       onPress={onSelect}
     >
@@ -97,6 +99,8 @@ function ToggleRow({
         {caption && <Text style={styles.toggleCaption}>{caption}</Text>}
       </View>
       <Switch
+        accessibilityLabel={label}
+        accessibilityHint={caption}
         value={value}
         onValueChange={onValueChange}
         trackColor={{ false: colors.border, true: colors.accent }}
@@ -130,7 +134,7 @@ function SocialRow({ label, icon, username, visibility, onUsername, onVisibility
     <View style={styles.socialHeading}><Ionicons name={icon} size={20} color={colors.textSecondary}/><Text style={styles.toggleLabel}>{label}</Text></View>
     <TextInput style={styles.socialInput} value={draft} onChangeText={(value) => { setDraft(value); setError(null); }} onBlur={commitUsername} onSubmitEditing={commitUsername} autoCapitalize="none" autoCorrect={false} maxLength={31} placeholder="username" placeholderTextColor={colors.textMuted}/>
     {error ? <Text accessibilityRole="alert" style={styles.socialError}>{error}</Text> : null}
-    <View style={styles.visibilityRow}>{options.map((option) => <Pressable key={option} onPress={() => onVisibility(option)} style={[styles.visibilityChoice, visibility === option && styles.visibilityChoiceActive]}><Text style={[styles.visibilityText, visibility === option && styles.visibilityTextActive]}>{option === 'friends' ? 'Friends only' : option[0].toUpperCase() + option.slice(1)}</Text></Pressable>)}</View>
+    <View style={styles.visibilityRow} accessibilityRole="radiogroup">{options.map((option) => <Pressable key={option} accessibilityRole="radio" accessibilityState={{ selected: visibility === option }} onPress={() => onVisibility(option)} style={[styles.visibilityChoice, visibility === option && styles.visibilityChoiceActive]}><Text style={[styles.visibilityText, visibility === option && styles.visibilityTextActive]}>{option === 'friends' ? 'Friends only' : option[0].toUpperCase() + option.slice(1)}</Text></Pressable>)}</View>
   </View>;
 }
 
