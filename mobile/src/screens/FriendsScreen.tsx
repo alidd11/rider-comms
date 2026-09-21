@@ -493,7 +493,7 @@ export function FriendsScreen(): React.JSX.Element {
   const selectedFriend = selectedProfile
     ? friends.find((friend) => friend.riderId === selectedProfile.riderId) ?? null
     : null;
-  const selectedRideLocation = selectedFriend
+  const selectedRideLocation = selectedFriend && roster.includes(selectedFriend.riderId)
     ? rideLocations.find((location) => (
         location.riderId === selectedFriend.riderId
         && Date.now() - location.updatedAt <= FRIEND_RIDE_LOCATION_STALE_MS
