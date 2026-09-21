@@ -331,14 +331,18 @@ export function SettingsScreen(): React.JSX.Element {
   const [handleDraft, setHandleDraft] = React.useState(handle);
   const [sessions, setSessions] = React.useState<AccountSessionSummary[]>([]);
   const [sessionsError, setSessionsError] = React.useState<string | null>(null);
+  const [sessionsLoading, setSessionsLoading] = React.useState(false);
 
   const loadSessions = React.useCallback(async () => {
+    setSessionsLoading(true);
+    setSessionsError(null);
     try {
       const result = await client.getSessions();
       setSessions(result.sessions);
-      setSessionsError(null);
     } catch {
       setSessionsError('Could not load signed-in devices.');
+    } finally {
+      setSessionsLoading(false);
     }
   }, [client]);
 
@@ -562,9 +566,15 @@ export function SettingsScreen(): React.JSX.Element {
                 {!session.current ? <Pressable accessibilityRole="button" accessibilityLabel={'Sign out ' + session.deviceName} onPress={() => void revokeSession(session.id)} style={styles.sessionRevoke}><Text style={styles.sessionRevokeText}>Sign out</Text></Pressable> : null}
               </View>
             ))}
-            {sessions.length === 0 ? <Text style={styles.sessionEmpty}>{sessionsError ?? 'No account sessions found.'}</Text> : null}
+            {sessionsLoading && sessions.length === 0 ? (
+              <View style={styles.sessionLoading} accessibilityLiveRegion="polite">
+                <ActivityIndicator color={colors.accent} size="small" />
+                <Text style={styles.sessionEmpty}>Loading signed-in devices…</Text>
+              </View>
+            ) : null}
+            {!sessionsLoading && sessions.length === 0 ? <Text style={styles.sessionEmpty}>{sessionsError ?? 'No account sessions found.'}</Text> : null}
             {sessionsError && sessions.length > 0 ? <Text style={styles.sessionEmpty}>{sessionsError}</Text> : null}
-            <Pressable style={styles.sheetSecondaryAction} onPress={() => void loadSessions()}><Text style={styles.sheetSecondaryActionText}>Refresh devices</Text></Pressable>
+            <Pressable disabled={sessionsLoading} style={[styles.sheetSecondaryAction, sessionsLoading && styles.sheetActionDisabled]} onPress={() => void loadSessions()}><Text style={styles.sheetSecondaryActionText}>{sessionsLoading ? 'Refreshing…' : 'Refresh devices'}</Text></Pressable>
           </View>
         ) : null}
 
@@ -713,6 +723,8 @@ const styles = StyleSheet.create({
   sessionRevoke: { minHeight: MIN_TOUCH_TARGET, justifyContent: 'center', paddingHorizontal: spacing.sm },
   sessionRevokeText: { ...type.button, color: colors.danger },
   sessionEmpty: { ...type.caption, padding: spacing.md },
+  sessionLoading: { minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm },
+  sheetActionDisabled: { opacity: 0.55 },
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
   modalSheet: {
     backgroundColor: colors.background,
