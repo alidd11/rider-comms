@@ -167,6 +167,7 @@ export function MapScreen(): React.JSX.Element {
   const [navigationMuted, setNavigationMuted] = React.useState(false);
   const [navigationFollowing, setNavigationFollowing] = React.useState(true);
   const [navigationSpeedMps, setNavigationSpeedMps] = React.useState<number | null>(null);
+  const [navigationBannerHeight, setNavigationBannerHeight] = React.useState(166);
   const [navigationSummaryHeight, setNavigationSummaryHeight] = React.useState(NAVIGATION_SUMMARY_BASE_HEIGHT);
   const [reduceMotionEnabled, setReduceMotionEnabled] = React.useState(false);
   const navOffRouteSince = React.useRef<number | null>(null);
@@ -1098,7 +1099,13 @@ export function MapScreen(): React.JSX.Element {
 
       {activeRoute && currentNavigationStep && (
         <>
-          <View style={[styles.navigationBanner, { top: insets.top + spacing.sm }]}>
+          <View
+            style={[styles.navigationBanner, { top: insets.top + spacing.sm }]}
+            onLayout={(event) => {
+              const measuredHeight = Math.ceil(event.nativeEvent.layout.height);
+              setNavigationBannerHeight((current) => Math.abs(current - measuredHeight) > 1 ? measuredHeight : current);
+            }}
+          >
             <View style={styles.navigationBannerMain}>
               <View style={styles.navigationManeuver}>
                 <NavigationManeuverGlyph
@@ -1148,6 +1155,19 @@ export function MapScreen(): React.JSX.Element {
             ) : null}
           </View>
           <View
+            style={[
+              styles.navigationSpeedBadge,
+              { top: insets.top + spacing.sm + navigationBannerHeight + spacing.sm },
+            ]}
+            accessible
+            accessibilityLabel={navigationSpeedMps == null
+              ? 'Current speed unavailable'
+              : `Current speed ${formatNavigationSpeed(navigationSpeedMps, unitSystem)} ${navigationSpeedUnit(unitSystem)}`}
+          >
+            <Text style={styles.navigationSpeedBadgeValue}>{formatNavigationSpeed(navigationSpeedMps, unitSystem)}</Text>
+            <Text style={styles.navigationSpeedBadgeUnit}>{navigationSpeedUnit(unitSystem)}</Text>
+          </View>
+          <View
             style={[styles.navigationSummary, { paddingBottom: Math.max(insets.bottom, spacing.sm) }]}
             onLayout={(event) => {
               const measuredHeight = Math.ceil(event.nativeEvent.layout.height);
@@ -1169,20 +1189,6 @@ export function MapScreen(): React.JSX.Element {
               <View style={styles.navigationSummaryStat}>
                 <Text style={styles.navigationSummaryValue}>{formatNavigationDistance(remainingNavigationMeters, unitSystem)}</Text>
                 <Text style={styles.navigationSummaryLabel}>away</Text>
-              </View>
-              <View style={styles.navigationSummaryDivider} />
-              <View
-                style={styles.navigationSummaryStat}
-                accessible
-                accessibilityLabel={navigationSpeedMps == null
-                  ? 'Current speed unavailable'
-                  : `Current speed ${formatNavigationSpeed(navigationSpeedMps, unitSystem)} ${navigationSpeedUnit(unitSystem)}`}
-              >
-                <View style={styles.navigationSpeedValueRow}>
-                  <Ionicons accessible={false} name="speedometer-outline" size={16} color={colors.textSecondary} />
-                  <Text style={styles.navigationSummaryValue}>{formatNavigationSpeed(navigationSpeedMps, unitSystem)}</Text>
-                </View>
-                <Text style={styles.navigationSummaryLabel}>{navigationSpeedUnit(unitSystem)}</Text>
               </View>
             </View>
           </View>
@@ -1441,6 +1447,36 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: colors.surfaceRaised,
   },
+  navigationSpeedBadge: {
+    position: 'absolute',
+    right: spacing.md,
+    zIndex: 13,
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(13,21,26,0.94)',
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.18)',
+    ...elevation.raised,
+  },
+  navigationSpeedBadgeValue: {
+    color: colors.textPrimary,
+    fontSize: 30,
+    lineHeight: 32,
+    fontWeight: '800',
+    letterSpacing: -0.8,
+  },
+  navigationSpeedBadgeUnit: {
+    marginTop: 1,
+    color: colors.textMuted,
+    fontSize: 10,
+    lineHeight: 13,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
   navigationSummary: {
     position: 'absolute',
     left: 0,
@@ -1475,7 +1511,6 @@ const styles = StyleSheet.create({
   navigationSummaryDivider: { width: StyleSheet.hairlineWidth, height: 46, backgroundColor: colors.border },
   navigationArrival: { ...type.heading, color: colors.success, fontSize: 25, lineHeight: 30 },
   navigationSummaryValue: { ...type.heading, color: colors.textPrimary, fontSize: 21, lineHeight: 27, textAlign: 'center' },
-  navigationSpeedValueRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
   navigationSummaryLabel: { ...type.caption, color: colors.textMuted, marginTop: 2, textAlign: 'center', textTransform: 'uppercase' },
   rideBarSlot: { marginTop: 'auto', paddingHorizontal: spacing.lg, paddingBottom: spacing.lg },
   safetyBanner: {
