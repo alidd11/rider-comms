@@ -458,7 +458,7 @@ export function SettingsScreen(): React.JSX.Element {
   return (
     <View style={styles.container}>
       <ScrollView
-        contentContainerStyle={[styles.scroll, { paddingTop: insets.top + spacing.lg, paddingBottom: insets.bottom + spacing.xxl }]}
+        contentContainerStyle={[styles.scroll, { paddingTop: insets.top + spacing.lg, paddingBottom: insets.bottom + spacing.md }]}
         showsVerticalScrollIndicator={false}
       >
         <ScreenHeader title="Settings" />
