@@ -464,7 +464,7 @@ export function SettingsScreen(): React.JSX.Element {
         <ScreenHeader title="Settings" />
 
         <Pressable style={styles.profileCard} onPress={() => setActiveSheet('profile')} accessibilityRole="button" accessibilityLabel="Open profile settings">
-          <RiderAvatar avatarId={avatarId} size={50} />
+          <RiderAvatar avatarId={avatarId} size={60} />
           <View style={styles.profileCopy}>
             <Text numberOfLines={1} style={styles.name}>{displayName}</Text>
             <Text numberOfLines={1} style={styles.handle}>{handle}</Text>
@@ -697,13 +697,13 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   scroll: { width: '100%', maxWidth: 760, alignSelf: 'center', padding: spacing.md, paddingTop: spacing.lg },
   profileCard: {
-    minHeight: 72,
+    minHeight: 88,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     marginBottom: 8,
     paddingHorizontal: 12,
-    paddingVertical: 9,
+    paddingVertical: 10,
     borderRadius: 8,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
@@ -713,8 +713,8 @@ const styles = StyleSheet.create({
   profileSavingText: { ...type.caption, color: colors.textSecondary },
   profileSaveError: { ...type.caption, color: colors.danger, flex: 1 },
   profileCopy: { flex: 1, minWidth: 0, gap: 3 },
-  name: { ...type.subheading, color: colors.textPrimary, flexShrink: 1, fontSize: 15, lineHeight: 19 },
-  handle: { ...type.caption, color: colors.textSecondary, flexShrink: 1, fontSize: 11, lineHeight: 15 },
+  name: { ...type.subheading, color: colors.textPrimary, flexShrink: 1, fontSize: 16, lineHeight: 20 },
+  handle: { ...type.caption, color: colors.textSecondary, flexShrink: 1, fontSize: 12, lineHeight: 16 },
   tierRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
