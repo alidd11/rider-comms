@@ -269,13 +269,13 @@ function SettingsRow({ icon, title, subtitle, right, danger = false, showChevron
 }): React.JSX.Element {
   return (
     <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.settingRow, last && styles.settingRowLast, pressed && styles.settingRowPressed]}>
-      <Ionicons name={icon} size={21} color={danger ? colors.danger : colors.textSecondary} style={styles.settingRowIcon} />
+      <Ionicons name={icon} size={19} color={danger ? colors.danger : colors.textPrimary} style={styles.settingRowIcon} />
       <View style={styles.settingRowCopy}>
         <Text style={[styles.settingRowTitle, danger && styles.settingRowDanger]}>{title}</Text>
         {subtitle ? <Text style={styles.settingRowSubtitle}>{subtitle}</Text> : null}
       </View>
       {right ? <Text numberOfLines={1} style={styles.settingRowValue}>{right}</Text> : null}
-      {showChevron ? <Ionicons name="chevron-forward" size={18} color={colors.textMuted} /> : null}
+      {showChevron ? <Ionicons name="chevron-forward" size={16} color={colors.textMuted} /> : null}
     </Pressable>
   );
 }
@@ -472,10 +472,11 @@ export function SettingsScreen(): React.JSX.Element {
           <Ionicons name="chevron-forward" size={19} color={colors.textMuted} />
         </Pressable>
 
-        {(saving || profileError) ? (
+        {profileError ? (
           <View style={styles.profileSaveStatus} accessibilityLiveRegion="polite">
-            {saving ? <><ActivityIndicator color={colors.accent} size="small" /><Text style={styles.profileSavingText}>Saving profile…</Text></> : null}
-            {profileError ? <><Ionicons name="alert-circle" size={17} color={colors.danger} /><Text style={styles.profileSaveError}>{profileError}</Text><Pressable onPress={clearProfileError} hitSlop={8}><Ionicons name="close" size={18} color={colors.textMuted} /></Pressable></> : null}
+            <Ionicons name="alert-circle" size={17} color={colors.danger} />
+            <Text style={styles.profileSaveError}>{profileError}</Text>
+            <Pressable accessibilityRole="button" accessibilityLabel="Dismiss settings error" onPress={clearProfileError} hitSlop={8}><Ionicons name="close" size={18} color={colors.textMuted} /></Pressable>
           </View>
         ) : null}
 
@@ -859,7 +860,7 @@ const styles = StyleSheet.create({
   settingRow: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   settingRowLast: { borderBottomWidth: 0 },
   settingRowPressed: { backgroundColor: colors.surfaceRaised },
-  settingRowIcon: { width: 22 },
+  settingRowIcon: { width: 20 },
   settingRowCopy: { flex: 1, minWidth: 0, paddingVertical: 7 },
   settingRowTitle: { ...type.body, color: colors.textPrimary, fontWeight: '600', fontSize: 13.5, lineHeight: 18 },
   settingRowSubtitle: { ...type.caption, color: colors.textSecondary, marginTop: 2, fontSize: 10 },
