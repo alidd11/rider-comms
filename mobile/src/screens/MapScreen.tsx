@@ -163,6 +163,7 @@ export function MapScreen(): React.JSX.Element {
   const [navigationNotice, setNavigationNotice] = React.useState<string | null>(null);
   const [navigationMuted, setNavigationMuted] = React.useState(false);
   const [navigationFollowing, setNavigationFollowing] = React.useState(true);
+  const [navigationSummaryHeight, setNavigationSummaryHeight] = React.useState(NAVIGATION_SUMMARY_BASE_HEIGHT);
   const [reduceMotionEnabled, setReduceMotionEnabled] = React.useState(false);
   const navOffRouteSince = React.useRef<number | null>(null);
   const navRerouting = React.useRef(false);
@@ -992,7 +993,7 @@ export function MapScreen(): React.JSX.Element {
       )}
 
       {activeRoute && currentNavigationStep && (
-        <View style={[styles.navigationActions, { bottom: NAVIGATION_SUMMARY_BASE_HEIGHT + spacing.md }]}>
+        <View style={[styles.navigationActions, { bottom: navigationSummaryHeight + spacing.md }]}>
           {!lockedForSafety && (
             <Pressable
               style={styles.navigationActionButton}
@@ -1109,7 +1110,13 @@ export function MapScreen(): React.JSX.Element {
               </View>
             ) : null}
           </View>
-          <View style={[styles.navigationSummary, { paddingBottom: Math.max(insets.bottom, spacing.sm) }]}>
+          <View
+            style={[styles.navigationSummary, { paddingBottom: Math.max(insets.bottom, spacing.sm) }]}
+            onLayout={(event) => {
+              const measuredHeight = Math.ceil(event.nativeEvent.layout.height);
+              setNavigationSummaryHeight((current) => Math.abs(current - measuredHeight) > 1 ? measuredHeight : current);
+            }}
+          >
             <View style={styles.navigationSummaryHandle} />
             <View style={styles.navigationSummaryContent}>
               <View style={styles.navigationSummaryPrimary}>
