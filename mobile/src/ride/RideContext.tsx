@@ -49,7 +49,7 @@ export function RideProvider({ children }: { children: React.ReactNode }): React
     setRideLocations([]);
 
     const scheduleRetry = () => {
-      if (cancelled || retryTimer || activeRideId.current) return;
+      if (cancelled || retryTimer) return;
       retryTimer = setTimeout(() => {
         retryTimer = undefined;
         if (!cancelled && !activeRideId.current && AppState.currentState === 'active') void restore();
