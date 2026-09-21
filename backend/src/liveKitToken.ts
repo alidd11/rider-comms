@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { AccessToken, TrackSource } from 'livekit-server-sdk';
+import { AccessToken, RoomServiceClient, TrackSource } from 'livekit-server-sdk';
 
 /**
  * Voice transport (spec Sections 4/5/7): mints a short-lived LiveKit room
@@ -13,6 +13,43 @@ export interface LiveKitCredentials {
   apiKey: string;
   apiSecret: string;
   url: string;
+}
+
+export const RIDE_VOICE_TOKEN_TTL_SECONDS = 60;
+
+export interface LiveKitRoomAdmin {
+  revokeRideParticipant(rideId: string, identity: string, revokedAt?: number): Promise<void>;
+}
+
+/** The media client connects over WS(S), while LiveKit's RoomServiceClient
+ * requires the corresponding HTTP(S) API origin. Keep that provider-specific
+ * transport conversion here rather than teaching Rider Comms to emulate room
+ * administration itself. */
+export function liveKitRoomServiceUrl(url: string): string {
+  const parsed = new URL(url);
+  if (parsed.protocol === 'wss:') parsed.protocol = 'https:';
+  else if (parsed.protocol === 'ws:') parsed.protocol = 'http:';
+  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+    throw new Error('LIVEKIT_URL must use wss, ws, https, or http');
+  }
+  return parsed.toString().replace(/\/$/, '');
+}
+
+export function createLiveKitRoomAdmin(credentials: LiveKitCredentials): LiveKitRoomAdmin {
+  const rooms = new RoomServiceClient(
+    liveKitRoomServiceUrl(credentials.url),
+    credentials.apiKey,
+    credentials.apiSecret,
+  );
+  return {
+    revokeRideParticipant: async (rideId, identity, revokedAt = Date.now()) => {
+      await rooms.removeParticipant(
+        rideRoomName(rideId),
+        identity,
+        { revokeTokenTs: BigInt(Math.floor(revokedAt / 1000)) },
+      );
+    },
+  };
 }
 
 export function getLiveKitCredentialsFromEnv(env: NodeJS.ProcessEnv = process.env): LiveKitCredentials | null {
