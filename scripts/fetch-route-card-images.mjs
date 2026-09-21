@@ -1,8 +1,13 @@
 import { createHash } from 'node:crypto';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
+import { promisify } from 'node:util';
 
 const CARD_WIDTH = 640;
+const JPEG_QUALITY = 78;
+const execFileAsync = promisify(execFile);
 const catalogPath = new URL('../mobile/src/routes/curatedRoutes.ts', import.meta.url);
 const catalog = await readFile(catalogPath, 'utf8');
 const routeMatches = [...catalog.matchAll(/"id":\s*"([^"]+)"[\s\S]*?"image":\s*\{\s*"uri":\s*"([^"]+)"/g)];
@@ -87,18 +92,41 @@ async function fetchImage(uri) {
   throw lastError ?? new Error(`Unable to fetch ${uri}`);
 }
 
+async function optimizeCardImage(bytes) {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), 'rider-comms-route-card-'));
+  const inputPath = path.join(tempDir, 'source-image');
+  const outputPath = path.join(tempDir, 'card.jpg');
+  try {
+    await writeFile(inputPath, bytes);
+    await execFileAsync('convert', [
+      inputPath,
+      '-auto-orient',
+      '-resize', `${CARD_WIDTH}x>`,
+      '-strip',
+      '-sampling-factor', '4:2:0',
+      '-interlace', 'Plane',
+      '-quality', String(JPEG_QUALITY),
+      outputPath,
+    ]);
+    return await readFile(outputPath);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+}
+
 const manifest = {
   generatedAt: new Date().toISOString(),
   width: CARD_WIDTH,
-  note: 'Local runtime card copies derived from the authoritative image URI in mobile/src/routes/curatedRoutes.ts. Attribution and licence metadata remain in the curated route catalogue and ROUTE_IMAGE_LICENSES.md.',
+  jpegQuality: JPEG_QUALITY,
+  note: 'Local runtime card copies derived from the authoritative image URI in mobile/src/routes/curatedRoutes.ts. Files are resized/recompressed for card display; attribution, source and licence metadata remain in the curated route catalogue and ROUTE_IMAGE_LICENSES.md.',
   routes: {},
 };
 
 let totalBytes = 0;
 for (const [, id, sourceUri] of routeMatches) {
-  const { candidate, bytes, contentType } = await fetchImage(sourceUri);
-  const extension = contentType.includes('png') ? 'png' : 'jpg';
-  const filename = `${id}.${extension}`;
+  const { candidate, bytes: fetchedBytes } = await fetchImage(sourceUri);
+  const bytes = await optimizeCardImage(fetchedBytes);
+  const filename = `${id}.jpg`;
 
   for (const root of outputRoots) {
     await writeFile(new URL(filename, root), bytes);
@@ -110,10 +138,12 @@ for (const [, id, sourceUri] of routeMatches) {
     file: filename,
     sourceUri,
     fetchedUri: candidate,
+    fetchedBytes: fetchedBytes.length,
     bytes: bytes.length,
     sha256,
+    modification: `Resized to a maximum of ${CARD_WIDTH}px wide and JPEG recompressed at quality ${JPEG_QUALITY} for Rider Comms route-card display.`,
   };
-  console.log(`${id}: ${(bytes.length / 1024).toFixed(1)} KiB (${candidate})`);
+  console.log(`${id}: ${(fetchedBytes.length / 1024).toFixed(1)} KiB -> ${(bytes.length / 1024).toFixed(1)} KiB`);
 }
 
 await writeFile(
