@@ -236,17 +236,18 @@ const SETTINGS_SHEET_TITLES: Record<SettingsSheetKey, string> = {
   safety: 'Safety',
 };
 
-function SettingsRow({ icon, title, subtitle, right, danger = false, showChevron = true, onPress }: {
+function SettingsRow({ icon, title, subtitle, right, danger = false, showChevron = true, last = false, onPress }: {
   icon: React.ComponentProps<typeof Ionicons>['name'];
   title: string;
   subtitle?: string;
   right?: string;
   danger?: boolean;
   showChevron?: boolean;
+  last?: boolean;
   onPress: () => void;
 }): React.JSX.Element {
   return (
-    <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.settingRow, pressed && styles.settingRowPressed]}>
+    <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.settingRow, last && styles.settingRowLast, pressed && styles.settingRowPressed]}>
       <Ionicons name={icon} size={21} color={danger ? colors.danger : colors.textSecondary} style={styles.settingRowIcon} />
       <View style={styles.settingRowCopy}>
         <Text style={[styles.settingRowTitle, danger && styles.settingRowDanger]}>{title}</Text>
@@ -420,7 +421,7 @@ export function SettingsScreen(): React.JSX.Element {
         <ScreenHeader title="Settings" />
 
         <Pressable style={styles.profileCard} onPress={() => setActiveSheet('profile')} accessibilityRole="button" accessibilityLabel="Open profile settings">
-          <RiderAvatar avatarId={avatarId} size={56} />
+          <RiderAvatar avatarId={avatarId} size={50} />
           <View style={styles.profileCopy}>
             <Text numberOfLines={1} style={styles.name}>{displayName}</Text>
             <Text numberOfLines={1} style={styles.handle}>{handle}</Text>
@@ -440,16 +441,16 @@ export function SettingsScreen(): React.JSX.Element {
           <SettingsRow icon="chatbubble-ellipses-outline" title="Communication" onPress={() => setActiveSheet('communication')} />
           <SettingsRow icon="map-outline" title="Map & Navigation" onPress={() => setActiveSheet('mapNavigation')} />
           <SettingsRow icon="cloud-download-outline" title="Offline Maps" onPress={() => setActiveSheet('offlineMaps')} />
-          <SettingsRow icon="options-outline" title="Units & Preferences" onPress={() => setActiveSheet('unitsPreferences')} />
+          <SettingsRow icon="options-outline" title="Units & Preferences" last onPress={() => setActiveSheet('unitsPreferences')} />
         </View>
 
         <View style={[styles.settingsGroup, styles.secondarySettingsGroup]}>
           <SettingsRow icon="help-circle-outline" title="Help & Support" onPress={() => setActiveSheet('help')} />
-          <SettingsRow icon="information-circle-outline" title="About" onPress={() => setActiveSheet('about')} />
+          <SettingsRow icon="information-circle-outline" title="About" last onPress={() => setActiveSheet('about')} />
         </View>
 
         <View style={[styles.settingsGroup, styles.signOutGroup]}>
-          <SettingsRow icon="log-out-outline" title="Sign Out" danger showChevron={false} onPress={confirmLogOut} />
+          <SettingsRow icon="log-out-outline" title="Sign Out" danger showChevron={false} last onPress={confirmLogOut} />
         </View>
       </ScrollView>
 
@@ -465,21 +466,21 @@ export function SettingsScreen(): React.JSX.Element {
               onPress={() => { setActiveSheet(null); navigation.navigate('Billing'); }}
             />
             <SettingsRow icon="phone-portrait-outline" title="Signed-in devices" subtitle="Review and revoke account sessions" onPress={() => setActiveSheet('sessions')} />
-            <SettingsRow icon="shield-checkmark-outline" title="Account and data" subtitle="Account deletion and local data" onPress={() => setActiveSheet('account')} />
+            <SettingsRow icon="shield-checkmark-outline" title="Account and data" subtitle="Account deletion and local data" last onPress={() => setActiveSheet('account')} />
           </View>
         ) : null}
 
         {activeSheet === 'communication' ? (
           <View style={styles.settingsSheetSection}>
             <SettingsRow icon="notifications-outline" title="Notifications" subtitle="Nearby riders, ride invites and group chat" onPress={() => setActiveSheet('notifications')} />
-            <SettingsRow icon="shield-checkmark-outline" title="Privacy controls" subtitle="Location visibility and connected profiles" onPress={() => setActiveSheet('privacy')} />
+            <SettingsRow icon="shield-checkmark-outline" title="Privacy controls" subtitle="Location visibility and connected profiles" last onPress={() => setActiveSheet('privacy')} />
           </View>
         ) : null}
 
         {activeSheet === 'mapNavigation' ? (
           <View style={styles.settingsSheetSection}>
             <SettingsRow icon="location-outline" title="Location and map" subtitle="Location sharing and nearby riders" onPress={() => setActiveSheet('map')} />
-            <SettingsRow icon="navigate-outline" title="Navigation" subtitle={navigationLabel} onPress={() => setActiveSheet('navigation')} />
+            <SettingsRow icon="navigate-outline" title="Navigation" subtitle={navigationLabel} last onPress={() => setActiveSheet('navigation')} />
           </View>
         ) : null}
 
@@ -492,14 +493,14 @@ export function SettingsScreen(): React.JSX.Element {
 
         {activeSheet === 'unitsPreferences' ? (
           <View style={styles.settingsSheetSection}>
-            <SettingsRow icon="swap-horizontal-outline" title="Distance units" subtitle={UNIT_LABELS[unitSystem].name} onPress={() => setActiveSheet('units')} />
+            <SettingsRow icon="swap-horizontal-outline" title="Distance units" subtitle={UNIT_LABELS[unitSystem].name} last onPress={() => setActiveSheet('units')} />
           </View>
         ) : null}
 
         {activeSheet === 'help' ? (
           <View style={styles.settingsSheetSection}>
             <SettingsRow icon="information-circle-outline" title="Safety guidance" subtitle="Low-distraction and emergency guidance" onPress={() => setActiveSheet('safety')} />
-            <SettingsRow icon="document-text-outline" title="Privacy, safety & terms" subtitle="Read Rider Comms legal and safety information" onPress={() => { setActiveSheet(null); navigation.navigate('Legal'); }} />
+            <SettingsRow icon="document-text-outline" title="Privacy, safety & terms" subtitle="Read Rider Comms legal and safety information" last onPress={() => { setActiveSheet(null); navigation.navigate('Legal'); }} />
           </View>
         ) : null}
 
@@ -640,14 +641,14 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   scroll: { width: '100%', maxWidth: 760, alignSelf: 'center', padding: spacing.md, paddingTop: spacing.lg },
   profileCard: {
-    minHeight: 78,
+    minHeight: 72,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     marginBottom: 12,
     paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 10,
+    paddingVertical: 9,
+    borderRadius: 8,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     backgroundColor: colors.surface,
@@ -678,7 +679,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, alignSelf: 'flex-start', maxWidth: '100%' },
-  name: { ...type.subheading, color: colors.textPrimary, flexShrink: 1 },
+  name: { ...type.subheading, color: colors.textPrimary, flexShrink: 1, fontSize: 15, lineHeight: 19 },
   nameInput: {
     ...type.heading,
     width: '100%',
@@ -687,7 +688,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs,
   },
   handleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, alignSelf: 'flex-start', maxWidth: '100%' },
-  handle: { ...type.caption, color: colors.textSecondary, flexShrink: 1, fontSize: 12 },
+  handle: { ...type.caption, color: colors.textSecondary, flexShrink: 1, fontSize: 11, lineHeight: 15 },
   handleInput: {
     ...type.body,
     color: colors.textSecondary,
@@ -870,14 +871,15 @@ const styles = StyleSheet.create({
   modalDoneText: { ...type.button, color: colors.accentText },
   profileAvatar: { width: 58, height: 58, borderRadius: radii.pill, alignItems: 'center', justifyContent: 'center' },
   profileEdit: { ...type.button, color: colors.accent, fontSize: 14 },
-  settingsGroup: { overflow: 'hidden', backgroundColor: colors.surface, borderRadius: 10, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
-  secondarySettingsGroup: { marginTop: 14 },
-  signOutGroup: { marginTop: 14 },
-  settingRow: { minHeight: 54, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+  settingsGroup: { overflow: 'hidden', backgroundColor: colors.surface, borderRadius: 8, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
+  secondarySettingsGroup: { marginTop: 12 },
+  signOutGroup: { marginTop: 12 },
+  settingRow: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+  settingRowLast: { borderBottomWidth: 0 },
   settingRowPressed: { backgroundColor: colors.surfaceRaised },
   settingRowIcon: { width: 22 },
-  settingRowCopy: { flex: 1, minWidth: 0, paddingVertical: 8 },
-  settingRowTitle: { ...type.body, color: colors.textPrimary, fontWeight: '600', fontSize: 14 },
+  settingRowCopy: { flex: 1, minWidth: 0, paddingVertical: 7 },
+  settingRowTitle: { ...type.body, color: colors.textPrimary, fontWeight: '600', fontSize: 13.5, lineHeight: 18 },
   settingRowSubtitle: { ...type.caption, color: colors.textSecondary, marginTop: 2, fontSize: 10 },
   settingRowValue: { ...type.caption, color: colors.textSecondary, fontWeight: '700' },
   settingRowDanger: { color: colors.danger },
