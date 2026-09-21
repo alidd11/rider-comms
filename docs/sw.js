@@ -1,6 +1,6 @@
-const CACHE_NAME = 'rider-comms-pwa-v131';
+const CACHE_NAME = 'rider-comms-pwa-v137';
 const ASSETS = [
-  './', './index.html', './app.css?v=104', './avatar-system.js?v=1', './app.js?v=106', './routes.css?v=39', './routes.js?v=34', './movement-safety.js?v=2', './message-state.js?v=2', './config.js?v=31',
+  './', './index.html', './app.css?v=110', './avatar-system.js?v=1', './app.js?v=111', './routes.css?v=39', './routes.js?v=34', './movement-safety.js?v=2', './message-state.js?v=2', './config.js?v=31',
   './manifest.json', './icons/icon-192.png', './icons/icon-512.png',
 ];
 const SHELL_URLS = new Set(ASSETS.map((asset) => new URL(asset, self.location.href).href));
