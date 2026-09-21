@@ -32,7 +32,7 @@ for (const capability of manifest.capabilities) {
   }
 }
 
-for (const required of ['auth', 'group-ride', 'ride-safe', 'place-search', 'friends', 'direct-messages', 'social-realtime', 'message-read-state']) {
+for (const required of ['auth', 'settings', 'group-ride', 'ride-safe', 'place-search', 'friends', 'direct-messages', 'social-realtime', 'message-read-state']) {
   if (!ids.has(required)) throw new Error(`Missing required parity capability: ${required}`);
 }
 
@@ -41,6 +41,7 @@ const [
   pwaCssSource,
   pwaIndexSource,
   nativeMapSource,
+  nativeSettingsSource,
   nativeCameraSource,
   nativeManeuverSource,
   nativeManeuverGlyphSource,
@@ -50,11 +51,59 @@ const [
   readFile(new URL('../docs/app.css', import.meta.url), 'utf8'),
   readFile(new URL('../docs/index.html', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/screens/MapScreen.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../mobile/src/screens/SettingsScreen.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/navigationCamera.ts', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/navigationManeuver.ts', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/components/NavigationManeuverGlyph.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/navigationGuidance.ts', import.meta.url), 'utf8'),
 ]);
+
+
+const SETTINGS_ROOT_LABELS = [
+  'Account',
+  'Communication',
+  'Map & Navigation',
+  'Offline Maps',
+  'Units & Preferences',
+  'Help & Support',
+  'About',
+  'Sign Out',
+];
+for (const label of SETTINGS_ROOT_LABELS) {
+  const escaped = label.replaceAll('&', '&amp;');
+  if (!pwaIndexSource.includes(`<strong${label === 'Sign Out' ? ' class="danger-text"' : ''}>${escaped}</strong>`)) {
+    throw new Error(`PWA Settings root is missing approved category: ${label}`);
+  }
+  if (!nativeSettingsSource.includes(`title="${label}"`)) {
+    throw new Error(`Native Settings root is missing approved category: ${label}`);
+  }
+}
+for (const token of ['accountHub', 'communication', 'mapNavigation', 'offlineMaps', 'unitsPreferences', 'help', 'about']) {
+  if (!pwaIndexSource.includes(`data-sheet="${token}"`) || !nativeSettingsSource.includes(`activeSheet === '${token}'`)) {
+    throw new Error(`Settings hierarchy drifted for ${token}`);
+  }
+}
+if (/<h2 class="group-title">(?:Account|Preferences|Privacy and safety)<\/h2>/.test(pwaIndexSource)) {
+  throw new Error('PWA Settings must not expose the legacy section-heavy root');
+}
+if (!/settings-profile-row/.test(pwaIndexSource) || !/settings-main-group/.test(pwaIndexSource) || !/settings-secondary-group/.test(pwaIndexSource)) {
+  throw new Error('PWA Settings must preserve the approved profile + grouped-card mockup hierarchy');
+}
+if (!/patchProfile\(\{ unitSystem: next \}\)/.test(pwaMapSource) || !nativeSettingsSource.includes("setUnitSystem(unit)")) {
+  throw new Error('Distance units must persist through the rider profile on both clients');
+}
+for (const key of ['notifyNearby', 'notifyInvites', 'notifyChat']) {
+  if (!pwaMapSource.includes(key) || !nativeSettingsSource.includes(key)) {
+    throw new Error(`Settings notification parity is missing ${key}`);
+  }
+}
+if (!pwaMapSource.includes('Reset Rider Comms settings to their defaults?') || !nativeSettingsSource.includes('Reset Rider Comms settings?')) {
+  throw new Error('Settings reset behavior must exist on both clients');
+}
+if (!pwaMapSource.includes('Offline map downloads are not available in this build yet.')
+  || !nativeSettingsSource.includes('Offline map downloads are not available in this build yet.')) {
+  throw new Error('Offline Maps disclosure must match on both clients');
+}
 
 if (
   !/mapTypeId:\s*['"]roadmap['"]/.test(pwaMapSource)
