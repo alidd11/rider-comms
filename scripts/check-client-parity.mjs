@@ -183,8 +183,8 @@ for (const [label, source] of [['PWA adaptive camera', pwaMapSource], ['Native a
 if (!/id="navInstruction"[^>]*role="status"[^>]*aria-live="polite"[^>]*aria-atomic="true"/.test(pwaIndexSource)) {
   throw new Error('PWA navigation maneuver instruction must be a polite atomic live region');
 }
-if (!/style=\{styles\.navigationInstruction\} accessibilityLiveRegion="polite"/.test(nativeMapSource)) {
-  throw new Error('Native navigation maneuver instruction must remain a polite live region');
+if (!/style=\{styles\.navigationInstruction\}[\s\S]{0,220}?accessibilityLiveRegion="polite"[\s\S]{0,220}?accessibilityLabel=\{navigationGuidanceInstruction\}/.test(nativeMapSource)) {
+  throw new Error('Native navigation maneuver instruction must remain a polite live region with the full provider instruction as its accessible label');
 }
 
 for (const [maneuver, icon] of [
