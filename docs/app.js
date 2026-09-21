@@ -4488,6 +4488,19 @@
     return state.unit === 'km' ? 'km/h' : 'mph';
   }
 
+  function renderNavSpeed() {
+    const speedValue = formatNavSpeed(navCurrentSpeedMps);
+    const speedUnit = navSpeedUnit();
+    const speed = $('#navSpeed');
+    const unit = $('#navSpeedUnit');
+    if (speed) speed.textContent = speedValue;
+    if (unit) unit.textContent = speedUnit;
+    $('.nav-summary-speed')?.setAttribute(
+      'aria-label',
+      navCurrentSpeedMps == null ? 'Current speed unavailable' : `Current speed ${speedValue} ${speedUnit}`,
+    );
+  }
+
   function formatArrivalTime(remainingSeconds) {
     return new Date(Date.now() + remainingSeconds * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   }
@@ -4581,14 +4594,7 @@
     $('#navDistance').textContent = formatNavDistance(remainingMeters);
     $('#navEta').textContent = formatNavDuration(remainingSeconds);
     $('#navArrival').textContent = formatArrivalTime(remainingSeconds);
-    const speedValue = formatNavSpeed(navCurrentSpeedMps);
-    const speedUnit = navSpeedUnit();
-    $('#navSpeed').textContent = speedValue;
-    $('#navSpeedUnit').textContent = speedUnit;
-    $('.nav-summary-speed')?.setAttribute(
-      'aria-label',
-      navCurrentSpeedMps == null ? 'Current speed unavailable' : `Current speed ${speedValue} ${speedUnit}`,
-    );
+    renderNavSpeed();
     if (!navMuted && navLastAnnouncedStep !== navStepIndex) {
       navLastAnnouncedStep = navStepIndex;
       if (navLastNowPromptStep !== navStepIndex) speak(stripHtml(step.instructions));
@@ -4883,11 +4889,7 @@
     navGpsIssue = message;
     navOffRouteSince = null;
     navCurrentSpeedMps = null;
-    const speed = $('#navSpeed');
-    const unit = $('#navSpeedUnit');
-    if (speed) speed.textContent = '—';
-    if (unit) unit.textContent = navSpeedUnit();
-    $('.nav-summary-speed')?.setAttribute('aria-label', 'Current speed unavailable');
+    renderNavSpeed();
     setNavStatusNotice(message);
   }
 
@@ -4937,12 +4939,14 @@
   function handleNavPosition(position) {
     navLastFixAt = Date.now();
     clearNavGpsIssue();
-    if (navRerouting || !navSteps.length) return;
-    const here = { lat: position.coords.latitude, lng: position.coords.longitude };
-    navCurrentPosition = here;
+    if (!navSteps.length) return;
     navCurrentSpeedMps = Number.isFinite(position.coords.speed) && Number(position.coords.speed) >= 0
       ? Number(position.coords.speed)
       : null;
+    renderNavSpeed();
+    if (navRerouting) return;
+    const here = { lat: position.coords.latitude, lng: position.coords.longitude };
+    navCurrentPosition = here;
     userMapMarker?.setPosition?.(here);
 
     let effectiveIndex = navStepIndex;
