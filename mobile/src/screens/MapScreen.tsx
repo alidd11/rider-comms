@@ -870,15 +870,15 @@ export function MapScreen(): React.JSX.Element {
                 coordinate={{ latitude: selfMapLocation.lat, longitude: selfMapLocation.lon }}
                 title={displayName || 'Your location'}
                 description={shareRideLocation ? 'Your live group-ride location' : 'Your location'}
-                anchor={{ x: 0.5, y: 1 }}
+                anchor={{ x: 0.5, y: activeRoute ? 0.5 : 1 }}
                 tracksViewChanges={false}
               >
                 <RiderAvatar
                   avatarId={avatarId}
-                  size={activeRoute ? 54 : 44}
-                  mapMarker
+                  size={activeRoute ? 64 : 44}
+                  mapMarker={!activeRoute}
                   selected
-                  status={selfMapStatus}
+                  status={activeRoute ? 'none' : selfMapStatus}
                 />
               </Marker>
             )}
@@ -933,6 +933,18 @@ export function MapScreen(): React.JSX.Element {
                   strokeColor="#4285F4"
                   strokeWidth={6}
                 />
+                {navigationDestination ? (
+                  <Marker
+                    coordinate={{ latitude: navigationDestination.lat, longitude: navigationDestination.lon }}
+                    title={navigationDestination.label ? `Destination: ${navigationDestination.label}` : 'Route destination'}
+                    anchor={{ x: 0.5, y: 0.92 }}
+                    tracksViewChanges={false}
+                  >
+                    <View style={styles.navigationDestinationMarker}>
+                      <MaterialCommunityIcons name="flag-checkered" size={23} color={colors.accentText} />
+                    </View>
+                  </Marker>
+                ) : null}
               </>
             )}
             {hazards.map((hazard) => (
@@ -1089,7 +1101,7 @@ export function MapScreen(): React.JSX.Element {
               <View style={styles.navigationManeuver}>
                 <NavigationManeuverGlyph
                   maneuver={upcomingNavigationStep?.maneuver ?? 'arrive'}
-                  size={58}
+                  size={66}
                   color={colors.textPrimary}
                   secondaryColor={colors.textMuted}
                 />
@@ -1107,7 +1119,7 @@ export function MapScreen(): React.JSX.Element {
                 <View style={styles.navigationNextGlyph}>
                   <NavigationManeuverGlyph
                     maneuver={followingNavigationStep.maneuver}
-                    size={28}
+                    size={30}
                     color={colors.textSecondary}
                     secondaryColor={colors.textMuted}
                   />
@@ -1340,55 +1352,60 @@ const styles = StyleSheet.create({
     backgroundColor: colors.accent,
     borderColor: colors.accent,
   },
+  navigationDestinationMarker: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.accent,
+    borderWidth: 3,
+    borderColor: colors.background,
+    ...elevation.raised,
+  },
   navigationBanner: {
     position: 'absolute',
     left: spacing.sm,
     right: spacing.sm,
     overflow: 'hidden',
-    borderRadius: 22,
+    borderRadius: 18,
     backgroundColor: colors.surface,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     ...elevation.raised,
   },
   navigationBannerMain: {
-    minHeight: 118,
+    minHeight: 116,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 14,
+    gap: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
   },
   navigationManeuver: {
-    width: 72,
-    height: 80,
+    width: 70,
+    height: 78,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 18,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    backgroundColor: colors.surfaceRaised,
   },
   navigationBannerCopy: { flex: 1, minWidth: 0 },
-  navigationDistance: { color: colors.accent, fontSize: 36, lineHeight: 40, fontWeight: '800', letterSpacing: -0.6 },
-  navigationInstruction: { ...type.body, color: colors.textPrimary, marginTop: 2, fontSize: 17, lineHeight: 22, fontWeight: '700' },
+  navigationDistance: { color: colors.accent, fontSize: 39, lineHeight: 42, fontWeight: '800', letterSpacing: -0.9 },
+  navigationInstruction: { ...type.body, color: colors.textPrimary, marginTop: 1, fontSize: 17, lineHeight: 21, fontWeight: '700' },
   navigationNextPreview: {
-    minHeight: 52,
+    minHeight: 50,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
-    paddingHorizontal: spacing.md,
+    paddingHorizontal: 14,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.border,
     backgroundColor: colors.background,
   },
   navigationNextGlyph: {
-    width: 34,
-    height: 34,
+    width: 32,
+    height: 32,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 10,
-    backgroundColor: colors.surfaceRaised,
   },
   navigationNextLabel: { ...type.caption, color: colors.textMuted, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.7 },
   navigationNextInstruction: { ...type.body, color: colors.textSecondary, flex: 1, fontSize: 15, lineHeight: 20, fontWeight: '600' },
