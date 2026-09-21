@@ -4,6 +4,7 @@ import { authenticatedFetch, postJson, startTestServer } from './httpTestUtils.t
 import type { TestServer } from './httpTestUtils.ts';
 import { parseAllowedOrigins } from '../src/server.ts';
 import type { ApiRequestLog } from '../src/server.ts';
+import { getPool } from '../src/db.ts';
 
 // DELETE /auth/me cascades into every Postgres-backed store's deleteRider()
 // (see db.ts); profileStore/rideStore/presenceStore are now Postgres-backed
@@ -24,6 +25,50 @@ describe('authenticated API', () => {
     const authenticated = await authenticatedFetch(ctx, 'legacy-client', '/auth/guest', { method: 'POST' });
     assert.equal(authenticated.status, 404);
     assert.deepEqual(await authenticated.json(), { error: 'not_found' });
+  });
+  it('requires verified email for abuse-sensitive writes while preserving account access', needsDb, async () => {
+    const suffix = Math.random().toString(36).slice(2, 10);
+    const username = `verify_${suffix}`;
+    const email = `${username}@example.com`;
+    const signup = await fetch(`${ctx.baseUrl()}/auth/signup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, email, password: 'correct-horse-battery', deviceName: 'verification-test' }),
+    });
+    assert.equal(signup.status, 201);
+    const session = await signup.json() as { riderId: string; token: string; emailVerified: boolean };
+    assert.equal(session.emailVerified, false);
+    const headers = { Authorization: `Bearer ${session.token}`, 'Content-Type': 'application/json' };
+
+    const me = await fetch(`${ctx.baseUrl()}/auth/me`, { headers });
+    assert.equal(me.status, 200);
+    assert.equal((await me.json() as { emailVerified: boolean }).emailVerified, false);
+
+    for (const [path, body] of [
+      ['/friends/requests', { toRiderId: 'someone' }],
+      ['/messages', { toRiderId: 'someone', text: 'hello' }],
+      ['/reports', { riderId: 'someone', reason: 'spam' }],
+      ['/hideouts', { name: 'Test', lat: 51.5, lon: -0.1, participantIds: ['someone'] }],
+      ['/hazards', { type: 'hazard', lat: 51.5, lon: -0.1 }],
+      ['/scenic-routes', {}],
+      ['/presence', { lat: 51.5, lon: -0.1, accuracyMeters: 5, recordedAt: Date.now() }],
+      ['/voice/token', { target: 'channel' }],
+    ] as const) {
+      const response = await fetch(`${ctx.baseUrl()}${path}`, { method: 'POST', headers, body: JSON.stringify(body) });
+      assert.equal(response.status, 403, path);
+      assert.deepEqual(await response.json(), { error: 'email_verification_required' });
+    }
+
+    await getPool().query('UPDATE users SET email_verified_at = now() WHERE id = $1', [session.riderId]);
+    const afterVerification = await fetch(`${ctx.baseUrl()}/hazards`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ type: 'hazard', lat: 51.5, lon: -0.1 }),
+    });
+    assert.equal(afterVerification.status, 201);
+
+    const deletion = await fetch(`${ctx.baseUrl()}/auth/me`, { method: 'DELETE', headers });
+    assert.equal(deletion.status, 200);
   });
   it('logs out and revokes the current token', async () => { const session = ctx.authStore.createTestSession('logout-me'); const headers = { Authorization: `Bearer ${session.token}` }; assert.equal((await fetch(`${ctx.baseUrl()}/auth/logout`, { method: 'POST', headers })).status, 204); assert.equal((await fetch(`${ctx.baseUrl()}/auth/me`, { headers })).status, 401); });
   it('deletes an account and revokes its token', needsDb, async () => { const session = ctx.authStore.createTestSession('delete-me'); const headers = { Authorization: `Bearer ${session.token}` }; assert.equal((await fetch(`${ctx.baseUrl()}/auth/me`, { method: 'DELETE', headers })).status, 200); assert.equal((await fetch(`${ctx.baseUrl()}/auth/me`, { headers })).status, 401); assert.equal(await ctx.authStore.hasRider('delete-me'), false); });

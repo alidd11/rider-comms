@@ -49,6 +49,7 @@ import { navigationProviderLabel } from '../navigationPreference';
 import {
   formatNavigationDistance,
   formatNavigationSpeed,
+  navigationManeuverAction,
   navigationPromptStageForDistance,
   navigationPromptText,
   navigationSpeedUnit,
@@ -166,6 +167,7 @@ export function MapScreen(): React.JSX.Element {
   const [navigationMuted, setNavigationMuted] = React.useState(false);
   const [navigationFollowing, setNavigationFollowing] = React.useState(true);
   const [navigationSpeedMps, setNavigationSpeedMps] = React.useState<number | null>(null);
+  const [navigationBannerHeight, setNavigationBannerHeight] = React.useState(166);
   const [navigationSummaryHeight, setNavigationSummaryHeight] = React.useState(NAVIGATION_SUMMARY_BASE_HEIGHT);
   const [reduceMotionEnabled, setReduceMotionEnabled] = React.useState(false);
   const navOffRouteSince = React.useRef<number | null>(null);
@@ -476,6 +478,7 @@ export function MapScreen(): React.JSX.Element {
   const followingNavigationStep = activeRoute?.steps[navigationStepIndex + 2] ?? null;
   const navigationGuidanceInstruction = upcomingNavigationStep?.instruction
     ?? `Arrive at ${navigationDestination?.label ?? 'destination'}`;
+  const navigationGlanceAction = navigationManeuverAction(upcomingNavigationStep?.maneuver ?? 'arrive');
   const distanceToCurrentStepEnd = currentNavigationStep && currentLocation
     ? remainingDistanceOnPathMeters(currentLocation, currentNavigationStep.coordinates)
     : currentNavigationStep?.distanceMeters ?? 0;
@@ -870,15 +873,15 @@ export function MapScreen(): React.JSX.Element {
                 coordinate={{ latitude: selfMapLocation.lat, longitude: selfMapLocation.lon }}
                 title={displayName || 'Your location'}
                 description={shareRideLocation ? 'Your live group-ride location' : 'Your location'}
-                anchor={{ x: 0.5, y: 1 }}
+                anchor={{ x: 0.5, y: activeRoute ? 0.5 : 1 }}
                 tracksViewChanges={false}
               >
                 <RiderAvatar
                   avatarId={avatarId}
-                  size={activeRoute ? 54 : 44}
-                  mapMarker
+                  size={activeRoute ? 64 : 44}
+                  mapMarker={!activeRoute}
                   selected
-                  status={selfMapStatus}
+                  status={activeRoute ? 'none' : selfMapStatus}
                 />
               </Marker>
             )}
@@ -933,6 +936,18 @@ export function MapScreen(): React.JSX.Element {
                   strokeColor="#4285F4"
                   strokeWidth={6}
                 />
+                {navigationDestination ? (
+                  <Marker
+                    coordinate={{ latitude: navigationDestination.lat, longitude: navigationDestination.lon }}
+                    title={navigationDestination.label ? `Destination: ${navigationDestination.label}` : 'Route destination'}
+                    anchor={{ x: 0.5, y: 0.92 }}
+                    tracksViewChanges={false}
+                  >
+                    <View style={styles.navigationDestinationMarker}>
+                      <MaterialCommunityIcons name="flag-checkered" size={23} color={colors.accentText} />
+                    </View>
+                  </Marker>
+                ) : null}
               </>
             )}
             {hazards.map((hazard) => (
@@ -1084,19 +1099,35 @@ export function MapScreen(): React.JSX.Element {
 
       {activeRoute && currentNavigationStep && (
         <>
-          <View style={[styles.navigationBanner, { top: insets.top + spacing.sm }]}>
+          <View
+            style={[styles.navigationBanner, { top: insets.top + spacing.sm }]}
+            onLayout={(event) => {
+              const measuredHeight = Math.ceil(event.nativeEvent.layout.height);
+              setNavigationBannerHeight((current) => Math.abs(current - measuredHeight) > 1 ? measuredHeight : current);
+            }}
+          >
             <View style={styles.navigationBannerMain}>
               <View style={styles.navigationManeuver}>
                 <NavigationManeuverGlyph
                   maneuver={upcomingNavigationStep?.maneuver ?? 'arrive'}
-                  size={58}
+                  size={66}
                   color={colors.textPrimary}
                   secondaryColor={colors.textMuted}
                 />
               </View>
               <View style={styles.navigationBannerCopy}>
                 <Text style={styles.navigationDistance}>{formatNavigationDistance(distanceToCurrentStepEnd, unitSystem)}</Text>
-                <Text numberOfLines={2} style={styles.navigationInstruction} accessibilityLiveRegion="polite">{navigationGuidanceInstruction}</Text>
+                <Text
+                  numberOfLines={1}
+                  style={styles.navigationInstruction}
+                  accessibilityLiveRegion="polite"
+                  accessibilityLabel={navigationGuidanceInstruction}
+                >
+                  {navigationGlanceAction}
+                </Text>
+                <Text numberOfLines={1} accessible={false} style={styles.navigationProviderInstruction}>
+                  {navigationGuidanceInstruction}
+                </Text>
               </View>
               <Pressable accessibilityRole="button" accessibilityLabel="End navigation" onPress={() => finishInAppNavigation(false)} style={styles.navigationEndButton}>
                 <Ionicons name="close" size={24} color={colors.textPrimary} />
@@ -1107,7 +1138,7 @@ export function MapScreen(): React.JSX.Element {
                 <View style={styles.navigationNextGlyph}>
                   <NavigationManeuverGlyph
                     maneuver={followingNavigationStep.maneuver}
-                    size={28}
+                    size={30}
                     color={colors.textSecondary}
                     secondaryColor={colors.textMuted}
                   />
@@ -1122,6 +1153,19 @@ export function MapScreen(): React.JSX.Element {
                 <Text style={styles.navigationNotice}>{navigationNotice}</Text>
               </View>
             ) : null}
+          </View>
+          <View
+            style={[
+              styles.navigationSpeedBadge,
+              { top: insets.top + spacing.sm + navigationBannerHeight + spacing.sm },
+            ]}
+            accessible
+            accessibilityLabel={navigationSpeedMps == null
+              ? 'Current speed unavailable'
+              : `Current speed ${formatNavigationSpeed(navigationSpeedMps, unitSystem)} ${navigationSpeedUnit(unitSystem)}`}
+          >
+            <Text style={styles.navigationSpeedBadgeValue}>{formatNavigationSpeed(navigationSpeedMps, unitSystem)}</Text>
+            <Text style={styles.navigationSpeedBadgeUnit}>{navigationSpeedUnit(unitSystem)}</Text>
           </View>
           <View
             style={[styles.navigationSummary, { paddingBottom: Math.max(insets.bottom, spacing.sm) }]}
@@ -1145,20 +1189,6 @@ export function MapScreen(): React.JSX.Element {
               <View style={styles.navigationSummaryStat}>
                 <Text style={styles.navigationSummaryValue}>{formatNavigationDistance(remainingNavigationMeters, unitSystem)}</Text>
                 <Text style={styles.navigationSummaryLabel}>away</Text>
-              </View>
-              <View style={styles.navigationSummaryDivider} />
-              <View
-                style={styles.navigationSummaryStat}
-                accessible
-                accessibilityLabel={navigationSpeedMps == null
-                  ? 'Current speed unavailable'
-                  : `Current speed ${formatNavigationSpeed(navigationSpeedMps, unitSystem)} ${navigationSpeedUnit(unitSystem)}`}
-              >
-                <View style={styles.navigationSpeedValueRow}>
-                  <Ionicons accessible={false} name="speedometer-outline" size={16} color={colors.textSecondary} />
-                  <Text style={styles.navigationSummaryValue}>{formatNavigationSpeed(navigationSpeedMps, unitSystem)}</Text>
-                </View>
-                <Text style={styles.navigationSummaryLabel}>{navigationSpeedUnit(unitSystem)}</Text>
               </View>
             </View>
           </View>
@@ -1340,55 +1370,61 @@ const styles = StyleSheet.create({
     backgroundColor: colors.accent,
     borderColor: colors.accent,
   },
+  navigationDestinationMarker: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.accent,
+    borderWidth: 3,
+    borderColor: colors.background,
+    ...elevation.raised,
+  },
   navigationBanner: {
     position: 'absolute',
     left: spacing.sm,
     right: spacing.sm,
     overflow: 'hidden',
-    borderRadius: 22,
+    borderRadius: 18,
     backgroundColor: colors.surface,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     ...elevation.raised,
   },
   navigationBannerMain: {
-    minHeight: 118,
+    minHeight: 116,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 14,
+    gap: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
   },
   navigationManeuver: {
-    width: 72,
-    height: 80,
+    width: 70,
+    height: 78,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 18,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    backgroundColor: colors.surfaceRaised,
   },
   navigationBannerCopy: { flex: 1, minWidth: 0 },
-  navigationDistance: { color: colors.accent, fontSize: 36, lineHeight: 40, fontWeight: '800', letterSpacing: -0.6 },
-  navigationInstruction: { ...type.body, color: colors.textPrimary, marginTop: 2, fontSize: 17, lineHeight: 22, fontWeight: '700' },
+  navigationDistance: { color: colors.accent, fontSize: 39, lineHeight: 42, fontWeight: '800', letterSpacing: -0.9 },
+  navigationInstruction: { ...type.body, color: colors.textPrimary, marginTop: 1, fontSize: 18, lineHeight: 21, fontWeight: '800' },
+  navigationProviderInstruction: { ...type.caption, minWidth: 0, color: colors.textSecondary, marginTop: 4, fontSize: 13, lineHeight: 17, fontWeight: '600' },
   navigationNextPreview: {
-    minHeight: 52,
+    minHeight: 50,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
-    paddingHorizontal: spacing.md,
+    paddingHorizontal: 14,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.border,
     backgroundColor: colors.background,
   },
   navigationNextGlyph: {
-    width: 34,
-    height: 34,
+    width: 32,
+    height: 32,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 10,
-    backgroundColor: colors.surfaceRaised,
   },
   navigationNextLabel: { ...type.caption, color: colors.textMuted, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.7 },
   navigationNextInstruction: { ...type.body, color: colors.textSecondary, flex: 1, fontSize: 15, lineHeight: 20, fontWeight: '600' },
@@ -1410,6 +1446,36 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.surfaceRaised,
+  },
+  navigationSpeedBadge: {
+    position: 'absolute',
+    right: spacing.md,
+    zIndex: 13,
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(13,21,26,0.94)',
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.18)',
+    ...elevation.raised,
+  },
+  navigationSpeedBadgeValue: {
+    color: colors.textPrimary,
+    fontSize: 30,
+    lineHeight: 32,
+    fontWeight: '800',
+    letterSpacing: -0.8,
+  },
+  navigationSpeedBadgeUnit: {
+    marginTop: 1,
+    color: colors.textMuted,
+    fontSize: 10,
+    lineHeight: 13,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
   },
   navigationSummary: {
     position: 'absolute',
@@ -1445,7 +1511,6 @@ const styles = StyleSheet.create({
   navigationSummaryDivider: { width: StyleSheet.hairlineWidth, height: 46, backgroundColor: colors.border },
   navigationArrival: { ...type.heading, color: colors.success, fontSize: 25, lineHeight: 30 },
   navigationSummaryValue: { ...type.heading, color: colors.textPrimary, fontSize: 21, lineHeight: 27, textAlign: 'center' },
-  navigationSpeedValueRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
   navigationSummaryLabel: { ...type.caption, color: colors.textMuted, marginTop: 2, textAlign: 'center', textTransform: 'uppercase' },
   rideBarSlot: { marginTop: 'auto', paddingHorizontal: spacing.lg, paddingBottom: spacing.lg },
   safetyBanner: {

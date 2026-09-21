@@ -36,6 +36,34 @@ export function navigationSpeedUnit(unit: NavigationUnit): 'mph' | 'km/h' {
 }
 
 
+const GLANCE_ACTIONS: Record<string, string> = {
+  straight: 'Go straight',
+  'turn-left': 'Turn left',
+  'turn-right': 'Turn right',
+  'turn-slight-left': 'Bear left',
+  'turn-slight-right': 'Bear right',
+  'turn-sharp-left': 'Sharp left',
+  'turn-sharp-right': 'Sharp right',
+  'uturn-left': 'Make a U-turn',
+  'uturn-right': 'Make a U-turn',
+  'fork-left': 'Keep left',
+  'fork-right': 'Keep right',
+  'ramp-left': 'Take ramp left',
+  'ramp-right': 'Take ramp right',
+  merge: 'Merge',
+  arrive: 'Arrive',
+};
+
+// Only structured maneuver metadata is simplified. Provider instruction text
+// remains intact and is never parsed into synthetic road/route/junction data.
+export function navigationManeuverAction(maneuver?: string): string {
+  const maneuverKey = maneuver || 'straight';
+  return maneuverKey.startsWith('roundabout')
+    ? 'At roundabout'
+    : GLANCE_ACTIONS[maneuverKey] ?? 'Go straight';
+}
+
+
 export type NavigationPromptStage = 0 | 1 | 2 | 3;
 
 export function navigationPromptStageForDistance(metres: number): NavigationPromptStage {

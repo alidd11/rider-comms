@@ -14,6 +14,7 @@
     { "id": "auth", "pwa": true, "native": true, "status": "parity" },
     { "id": "password-recovery", "pwa": true, "native": true, "status": "parity" },
     { "id": "profile", "pwa": true, "native": true, "status": "parity" },
+    { "id": "settings", "pwa": true, "native": true, "status": "parity" },
     { "id": "avatar-selection", "pwa": true, "native": true, "status": "parity" },
     { "id": "friends", "pwa": true, "native": true, "status": "parity" },
     { "id": "direct-messages", "pwa": true, "native": true, "status": "parity" },
