@@ -15,7 +15,9 @@ import { RideBar } from '../ride/RideBar';
 import { useRide } from '../ride/RideContext';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { RiderAvatar } from '../components/RiderAvatar';
-import type { PublicRiderProfile } from '../api/client';
+import type { PublicRiderProfile, RideMemberLocation } from '../api/client';
+
+const FRIEND_RIDE_LOCATION_STALE_MS = 20_000;
 
 function YourRiderIdCard(): React.JSX.Element {
   const { riderId } = useAuth();
@@ -226,12 +228,20 @@ function FriendProfileModal({
   activity,
   profileRevision,
   inActiveRide,
+  rideLocation,
+  rideMemberCount,
+  shareRideLocation,
+  setRideLocationSharing,
   onClose,
 }: {
   friend: FriendSummary | null;
   activity?: FriendActivity;
   profileRevision: number;
   inActiveRide: boolean;
+  rideLocation?: RideMemberLocation;
+  rideMemberCount: number;
+  shareRideLocation: boolean;
+  setRideLocationSharing: (enabled: boolean) => Promise<boolean>;
   onClose: () => void;
 }): React.JSX.Element {
   const insets = useSafeAreaInsets();
@@ -241,6 +251,7 @@ function FriendProfileModal({
   const [profile, setProfile] = React.useState<PublicRiderProfile | null>(null);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [locationShareBusy, setLocationShareBusy] = React.useState(false);
 
   React.useEffect(() => {
     if (!friend) {
@@ -263,7 +274,6 @@ function FriendProfileModal({
 
   if (!friend) return <></>;
   const activityCopy = activityLabel(activity);
-  const activityValue = activity?.online ? 'Online' : activityCopy.replace(/^Last seen\s+/, '');
   const sharedProfileCount = Number(Boolean(profile?.instagramUsername)) + Number(Boolean(profile?.tiktokUsername));
   const openSocial = (url: string) => {
     void Linking.openURL(url).catch(() => Alert.alert('Couldn’t open link', 'This profile link could not be opened.'));
@@ -282,9 +292,13 @@ function FriendProfileModal({
     } },
   ]);
   const safetyActions = () => Alert.alert('More actions', `Choose what to do about ${friend.displayName}.`, [
+    { text: 'Share Rider ID', onPress: () => {
+      void Share.share({ message: `${profile?.displayName ?? friend.displayName} on Rider Comms: ${friend.riderId}` });
+    } },
     { text: 'Remove friend', onPress: confirmRemove },
     { text: 'Report harassment', onPress: () => report('harassment') },
     { text: 'Report unsafe behaviour', onPress: () => report('unsafe') },
+    { text: 'Report spam', onPress: () => report('spam') },
     { text: 'Block rider', style: 'destructive', onPress: () => {
       void client.blockRider(friend.riderId)
         .then(async () => { await refresh(); onClose(); })
@@ -292,6 +306,21 @@ function FriendProfileModal({
     } },
     { text: 'Cancel', style: 'cancel' },
   ]);
+
+  const viewOnMap = () => {
+    if (!rideLocation) return;
+    onClose();
+    navigation.navigate('Tabs', {
+      screen: 'Map',
+      params: {
+        segment: 'public',
+        at: Date.now(),
+        lat: rideLocation.lat,
+        lon: rideLocation.lon,
+        label: `${friend.displayName} · live ride location`,
+      },
+    });
+  };
 
   return (
     <Modal visible animationType="slide" transparent onRequestClose={onClose}>
@@ -302,38 +331,13 @@ function FriendProfileModal({
             <Ionicons name="close" size={22} color={colors.textPrimary} />
           </Pressable>
 
-          <View style={styles.profileHero}>
-            <View style={styles.profileHeroBackdrop}>
-              <View style={styles.profileHeroBackdropAvatar} pointerEvents="none">
-                <RiderAvatar avatarId={profile?.avatarId ?? friend.avatarId} size={92} />
-              </View>
+          <View style={styles.profileIdentity}>
+            <View style={styles.profileAvatarWrap}>
+              <RiderAvatar avatarId={profile?.avatarId ?? friend.avatarId} size={60} status={activity?.online ? 'online' : 'stale'} />
             </View>
-            <View style={styles.profileIdentity}>
-              <View style={styles.profileAvatarWrap}>
-                <RiderAvatar avatarId={profile?.avatarId ?? friend.avatarId} size={72} status={activity?.online ? 'online' : 'stale'} />
-              </View>
-              <View style={styles.profileIdentityCopy}>
-                <Text style={styles.profileModalName}>{profile?.displayName ?? friend.displayName}</Text>
-                <Text style={styles.profileModalHandle}>{profile?.handle ?? friend.handle}</Text>
-                <View style={styles.profileRelationship}>
-                  <View style={[styles.profileRelationshipDot, activity?.online && styles.profileRelationshipDotOnline]} />
-                  <Text style={styles.profileRelationshipText}>Connected rider</Text>
-                </View>
-              </View>
-            </View>
-            <View style={styles.profileStats}>
-              <View style={styles.profileStat}>
-                <Text style={styles.profileStatValue} numberOfLines={1}>{activityValue}</Text>
-                <Text style={styles.profileStatLabel}>Activity</Text>
-              </View>
-              <View style={[styles.profileStat, styles.profileStatDivider]}>
-                <Text style={styles.profileStatValue}>{inActiveRide ? 'Together' : '—'}</Text>
-                <Text style={styles.profileStatLabel}>Group ride</Text>
-              </View>
-              <View style={[styles.profileStat, styles.profileStatDivider]}>
-                <Text style={styles.profileStatValue}>{sharedProfileCount}</Text>
-                <Text style={styles.profileStatLabel}>Shared</Text>
-              </View>
+            <View style={styles.profileIdentityCopy}>
+              <Text style={styles.profileModalName}>{profile?.displayName ?? friend.displayName}</Text>
+              <Text style={styles.profileModalHandle}>{profile?.handle ?? friend.handle} · {activityCopy}</Text>
             </View>
           </View>
 
@@ -341,45 +345,95 @@ function FriendProfileModal({
           {error && <Text style={styles.profileError}>{error}</Text>}
 
           <View style={styles.profileActions}>
-            <Pressable style={({ pressed }) => [styles.profilePrimaryAction, pressed && styles.profileActionPressed]} onPress={() => {
-              onClose();
-              navigation.navigate('FriendChat', { riderId: friend.riderId, displayName: friend.displayName, avatarId: friend.avatarId });
-            }}>
-              <Ionicons name="chatbubble" size={21} color={colors.accentText} />
-              <View style={styles.profileActionCopy}>
-                <Text style={styles.profilePrimaryActionText}>Message</Text>
-                <Text style={styles.profilePrimaryActionDetail}>Start a private conversation</Text>
-              </View>
+            <Pressable
+              style={({ pressed }) => [styles.profileAction, pressed && styles.profileActionPressed]}
+              onPress={() => {
+                onClose();
+                navigation.navigate('FriendChat', { riderId: friend.riderId, displayName: friend.displayName, avatarId: friend.avatarId });
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Message rider"
+            >
+              <Ionicons name="chatbubble-outline" size={21} color={colors.accent} />
+              <Text style={styles.profileActionText}>Message</Text>
             </Pressable>
-            <Pressable style={({ pressed }) => [styles.profileSecondaryAction, pressed && styles.profileActionPressed]} onPress={() => {
-              void Share.share({ message: `${profile?.displayName ?? friend.displayName} on Rider Comms: ${friend.riderId}` });
-            }}>
-              <Ionicons name="share-outline" size={21} color={colors.accent} />
-              <View style={styles.profileActionCopy}>
-                <Text style={styles.profileSecondaryActionText}>Share Rider ID</Text>
-                <Text style={styles.profileSecondaryActionDetail}>Send this rider’s ID</Text>
-              </View>
+            <Pressable
+              style={({ pressed }) => [
+                styles.profileAction,
+                shareRideLocation && inActiveRide && styles.profileActionActive,
+                (!inActiveRide || locationShareBusy) && styles.profileActionDisabled,
+                pressed && inActiveRide && !locationShareBusy && styles.profileActionPressed,
+              ]}
+              onPress={() => {
+                if (!inActiveRide || locationShareBusy) return;
+                setLocationShareBusy(true);
+                void setRideLocationSharing(!shareRideLocation)
+                  .then((ok) => {
+                    if (!ok && !shareRideLocation) {
+                      Alert.alert('Location not shared', 'Rider Comms could not enable private ride location sharing. Check location permission and your connection.');
+                    }
+                  })
+                  .finally(() => setLocationShareBusy(false));
+              }}
+              disabled={!inActiveRide || locationShareBusy}
+              accessibilityRole="button"
+              accessibilityLabel={
+                !inActiveRide
+                  ? 'Share location unavailable outside a shared group ride'
+                  : shareRideLocation
+                    ? 'Stop sharing your location with the group ride'
+                    : 'Share your location with the group ride'
+              }
+              accessibilityState={{ disabled: !inActiveRide || locationShareBusy, selected: shareRideLocation && inActiveRide }}
+            >
+              <Ionicons name="navigate-outline" size={21} color={inActiveRide ? colors.accent : colors.textMuted} />
+              <Text style={styles.profileActionText}>Share Location</Text>
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [styles.profileAction, !rideLocation && styles.profileActionDisabled, pressed && rideLocation && styles.profileActionPressed]}
+              onPress={viewOnMap}
+              disabled={!rideLocation}
+              accessibilityRole="button"
+              accessibilityLabel={rideLocation ? 'View rider on map' : 'Rider location not shared'}
+              accessibilityState={{ disabled: !rideLocation }}
+            >
+              <Ionicons name="location-outline" size={21} color={rideLocation ? colors.accent : colors.textMuted} />
+              <Text style={styles.profileActionText}>Map</Text>
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [styles.profileAction, pressed && styles.profileActionPressed]}
+              onPress={safetyActions}
+              accessibilityRole="button"
+              accessibilityLabel="More rider actions"
+            >
+              <Ionicons name="ellipsis-horizontal" size={22} color={colors.textSecondary} />
+              <Text style={styles.profileActionText}>More</Text>
             </Pressable>
           </View>
 
-          <Pressable style={({ pressed }) => [styles.profileSafetyAction, pressed && styles.profileActionPressed]} onPress={safetyActions}>
-            <Ionicons name="shield-outline" size={21} color={colors.danger} />
-            <View style={styles.profileActionCopy}>
-              <Text style={styles.profileSafetyActionText}>Report or block rider</Text>
-              <Text style={styles.profileSafetyActionDetail}>Safety and connection options</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={17} color={colors.danger} />
-          </Pressable>
-
-          {inActiveRide ? (
-            <View style={styles.profileRideContext}>
-              <Ionicons name="people-outline" size={19} color={colors.textSecondary} />
+          <View style={styles.profileDetailList}>
+            <View style={styles.profileDetailRow}>
+              <Ionicons name="location-outline" size={19} color={colors.textSecondary} />
               <View style={styles.profileDetailCopy}>
-                <Text style={styles.profileDetailTitle}>In your group ride</Text>
-                <Text style={styles.profileDetailValue}>Connected to this ride</Text>
+                <Text style={styles.profileDetailTitle}>{rideLocation ? 'Live ride location' : 'Location not shared'}</Text>
+                <Text style={styles.profileDetailValue}>{rideLocation ? 'Updated recently' : 'Private ride location only'}</Text>
               </View>
             </View>
-          ) : null}
+            <View style={[styles.profileDetailRow, styles.profileDetailRowDivider]}>
+              <Ionicons name="people-outline" size={19} color={colors.textSecondary} />
+              <View style={styles.profileDetailCopy}>
+                <Text style={styles.profileDetailTitle}>{inActiveRide ? 'In your group ride' : 'Not in your group ride'}</Text>
+                <Text style={styles.profileDetailValue}>{inActiveRide ? `${rideMemberCount} rider${rideMemberCount === 1 ? '' : 's'}` : 'No shared ride'}</Text>
+              </View>
+            </View>
+            <View style={styles.profileDetailRow}>
+              <Ionicons name="share-social-outline" size={19} color={colors.textSecondary} />
+              <View style={styles.profileDetailCopy}>
+                <Text style={styles.profileDetailTitle}>{sharedProfileCount ? `${sharedProfileCount} shared profile${sharedProfileCount === 1 ? '' : 's'}` : 'No shared profiles'}</Text>
+                <Text style={styles.profileDetailValue}>Nothing shared with you</Text>
+              </View>
+            </View>
+          </View>
 
           {(profile?.instagramUsername || profile?.tiktokUsername) ? (
             <View style={styles.profileSocialSection}>
@@ -401,10 +455,18 @@ function FriendProfileModal({
                 ) : null}
               </View>
             </View>
-          ) : !loading ? <Text style={styles.profilePrivacyNote}>No connected profiles are shared with you.</Text> : null}
-          <Text style={styles.profileSafetyNote}>
-            Only connect and arrange rides with people you trust. Social links follow each rider’s privacy settings.
-          </Text>
+          ) : null}
+
+          {rideLocation ? (
+            <Pressable
+              style={({ pressed }) => [styles.profileMapButton, pressed && styles.profileActionPressed]}
+              onPress={viewOnMap}
+              accessibilityRole="button"
+              accessibilityLabel="View rider on map"
+            >
+              <Text style={styles.profileMapButtonText}>View on Map</Text>
+            </Pressable>
+          ) : null}
         </Pressable>
       </Pressable>
     </Modal>
@@ -414,7 +476,7 @@ function FriendProfileModal({
 export function FriendsScreen(): React.JSX.Element {
   const { friends, incomingRequests, outgoingRequests, requestProfiles, activityByRider, conversations, friendProfileRevision, loading, error, refresh } = useFriends();
   const insets = useSafeAreaInsets();
-  const { roster } = useRide();
+  const { roster, rideLocations, shareRideLocation, setRideLocationSharing } = useRide();
   const [query, setQuery] = React.useState('');
   const [selectedProfile, setSelectedProfile] = React.useState<FriendSummary | null>(null);
   const [addOpen, setAddOpen] = React.useState(false);
@@ -431,6 +493,12 @@ export function FriendsScreen(): React.JSX.Element {
   const selectedFriend = selectedProfile
     ? friends.find((friend) => friend.riderId === selectedProfile.riderId) ?? null
     : null;
+  const selectedRideLocation = selectedFriend && roster.includes(selectedFriend.riderId)
+    ? rideLocations.find((location) => (
+        location.riderId === selectedFriend.riderId
+        && Date.now() - location.updatedAt <= FRIEND_RIDE_LOCATION_STALE_MS
+      ))
+    : undefined;
 
   React.useEffect(() => {
     if (selectedProfile && !selectedFriend) setSelectedProfile(null);
@@ -551,6 +619,10 @@ export function FriendsScreen(): React.JSX.Element {
         activity={selectedFriend ? activityByRider[selectedFriend.riderId] : undefined}
         profileRevision={friendProfileRevision}
         inActiveRide={selectedFriend ? roster.includes(selectedFriend.riderId) : false}
+        rideLocation={selectedRideLocation}
+        rideMemberCount={roster.length}
+        shareRideLocation={shareRideLocation}
+        setRideLocationSharing={setRideLocationSharing}
         onClose={() => setSelectedProfile(null)}
       />
     </View>
@@ -613,49 +685,33 @@ const styles = StyleSheet.create({
   emptyTitle: { ...type.subheading, color: colors.textPrimary },
   emptyText: { ...type.caption, textAlign: 'center' },
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.58)', justifyContent: 'flex-end' },
-  profileModal: { backgroundColor: colors.background, borderTopLeftRadius: radii.xl, borderTopRightRadius: radii.xl, borderWidth: StyleSheet.hairlineWidth, borderBottomWidth: 0, borderColor: colors.border, padding: spacing.md, paddingBottom: spacing.xl },
-  modalHandle: { alignSelf: 'center', width: 40, height: 4, borderRadius: radii.pill, backgroundColor: colors.border, marginBottom: spacing.md },
-  modalClose: { position: 'absolute', right: spacing.md, top: spacing.md, zIndex: 4, width: MIN_TOUCH_TARGET, height: MIN_TOUCH_TARGET, borderRadius: radii.md, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceRaised },
-  profileHero: { overflow: 'hidden', borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: 18, backgroundColor: colors.surface },
-  profileHeroBackdrop: { height: 126, overflow: 'hidden', alignItems: 'flex-end', justifyContent: 'center', paddingRight: 28, backgroundColor: colors.surfaceRaised },
-  profileHeroBackdropAvatar: { opacity: 0.18, transform: [{ scale: 2.15 }] },
-  profileIdentity: { flexDirection: 'row', alignItems: 'flex-end', gap: 12, marginTop: -30, paddingHorizontal: 12, paddingBottom: 12 },
+  profileModal: { backgroundColor: colors.background, borderTopLeftRadius: 18, borderTopRightRadius: 18, borderWidth: StyleSheet.hairlineWidth, borderBottomWidth: 0, borderColor: colors.border, padding: spacing.md, paddingBottom: spacing.xl },
+  modalHandle: { alignSelf: 'center', width: 40, height: 4, borderRadius: radii.pill, backgroundColor: colors.border, marginBottom: spacing.sm },
+  modalClose: { position: 'absolute', right: spacing.md, top: spacing.md, zIndex: 4, width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceRaised },
+  profileIdentity: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingTop: 2, paddingRight: 46, paddingBottom: 10 },
   profileAvatarWrap: { position: 'relative' },
-  profileIdentityCopy: { flex: 1, minWidth: 0, paddingBottom: 3 },
+  profileIdentityCopy: { flex: 1, minWidth: 0 },
   profileModalName: { ...type.heading, color: colors.textPrimary, fontSize: 18 },
-  profileModalHandle: { ...type.body, color: colors.textSecondary, marginTop: 2 },
-  profileRelationship: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 },
-  profileRelationshipDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.textMuted },
-  profileRelationshipDotOnline: { backgroundColor: colors.success },
-  profileRelationshipText: { ...type.caption, color: colors.textSecondary, fontWeight: '700' },
-  profileStats: { flexDirection: 'row', borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
-  profileStat: { flex: 1, minWidth: 0, alignItems: 'center', paddingHorizontal: 6, paddingTop: 10, paddingBottom: 11 },
-  profileStatDivider: { borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: colors.border },
-  profileStatValue: { ...type.body, color: colors.textPrimary, fontWeight: '800' },
-  profileStatLabel: { ...type.caption, color: colors.textMuted, marginTop: 3, fontWeight: '700' },
-  profileLoader: { marginTop: spacing.md },
-  profileError: { ...type.caption, color: colors.danger, marginTop: spacing.md },
-  profileActions: { gap: 8, marginTop: 10 },
-  profilePrimaryAction: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 13, paddingVertical: 9, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.accent, backgroundColor: colors.accent },
-  profileSecondaryAction: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 13, paddingVertical: 9, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, backgroundColor: colors.surface },
-  profileSafetyAction: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 11, marginTop: 8, paddingHorizontal: 13, paddingVertical: 9, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.danger, backgroundColor: colors.surface },
-  profileActionPressed: { opacity: 0.78 },
-  profileActionCopy: { flex: 1, minWidth: 0 },
-  profilePrimaryActionText: { ...type.caption, color: colors.accentText, fontWeight: '800' },
-  profilePrimaryActionDetail: { ...type.caption, color: colors.accentText, opacity: 0.78, marginTop: 2 },
-  profileSecondaryActionText: { ...type.caption, color: colors.textPrimary, fontWeight: '800' },
-  profileSecondaryActionDetail: { ...type.caption, color: colors.textSecondary, marginTop: 2 },
-  profileSafetyActionText: { ...type.caption, color: colors.danger, fontWeight: '800' },
-  profileSafetyActionDetail: { ...type.caption, color: colors.textSecondary, marginTop: 2 },
-  profileRideContext: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8, paddingHorizontal: 11, paddingVertical: 8, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: 12, backgroundColor: colors.surface },
+  profileModalHandle: { ...type.body, color: colors.textSecondary, marginTop: 1 },
+  profileLoader: { marginTop: spacing.sm },
+  profileError: { ...type.caption, color: colors.danger, marginTop: spacing.sm },
+  profileActions: { flexDirection: 'row', gap: 7, marginTop: 2 },
+  profileAction: { flex: 1, minWidth: 0, minHeight: 70, alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 3, backgroundColor: colors.surface, borderRadius: 10, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
+  profileActionDisabled: { opacity: 0.38 },
+  profileActionActive: { borderColor: colors.accent, backgroundColor: colors.accentSoft },
+  profileActionPressed: { opacity: 0.72 },
+  profileActionText: { ...type.caption, color: colors.textPrimary, fontWeight: '700', fontSize: 10.5 },
+  profileDetailList: { marginTop: 10, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: 12, overflow: 'hidden', backgroundColor: colors.surface },
+  profileDetailRow: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 10, paddingVertical: 7 },
+  profileDetailRowDivider: { borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
   profileDetailCopy: { flex: 1, minWidth: 0 },
   profileDetailTitle: { ...type.caption, color: colors.textPrimary, fontWeight: '700' },
-  profileDetailValue: { ...type.caption, color: colors.textSecondary, marginTop: 2, fontWeight: '500' },
-  profilePrivacyNote: { ...type.caption, color: colors.textMuted, marginTop: 10, paddingHorizontal: 1, lineHeight: 18 },
-  profileSafetyNote: { ...type.caption, color: colors.textMuted, marginTop: 10, lineHeight: 18 },
+  profileDetailValue: { ...type.caption, color: colors.textSecondary, marginTop: 2, fontWeight: '500', lineHeight: 17 },
   profileSocialSection: { gap: 7, marginTop: 10 },
   profileSectionLabel: { ...type.caption, color: colors.textMuted, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1.1 },
-  socialList: { borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: radii.lg, overflow: 'hidden' },
+  socialList: { borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: 12, overflow: 'hidden' },
   socialRow: { minHeight: MIN_TOUCH_TARGET, flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.md, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   socialText: { ...type.body, color: colors.textPrimary, flex: 1 },
+  profileMapButton: { minHeight: 48, marginTop: 10, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: colors.accent },
+  profileMapButtonText: { ...type.body, color: colors.accentText, fontWeight: '800' },
 });
