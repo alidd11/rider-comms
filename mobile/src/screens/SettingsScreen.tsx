@@ -862,7 +862,7 @@ const styles = StyleSheet.create({
   settingRowPressed: { backgroundColor: colors.surfaceRaised },
   settingRowIcon: { width: 20 },
   settingRowCopy: { flex: 1, minWidth: 0, paddingVertical: 7 },
-  settingRowTitle: { ...type.body, color: colors.textPrimary, fontWeight: '600', fontSize: 13.5, lineHeight: 18 },
+  settingRowTitle: { ...type.body, color: colors.textPrimary, fontWeight: '500', fontSize: 13.5, lineHeight: 18 },
   settingRowSubtitle: { ...type.caption, color: colors.textSecondary, marginTop: 2, fontSize: 10 },
   settingRowValue: { ...type.caption, color: colors.textSecondary, fontWeight: '700', maxWidth: '34%', flexShrink: 1 },
   settingRowDanger: { color: colors.danger },
