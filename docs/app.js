@@ -895,32 +895,58 @@
         return false;
       }
       const activity = friendActivity.get(riderId);
+      const activityCopy = friendActivityLabel(activity);
+      const activityValue = activity?.online ? 'Online' : activityCopy.replace(/^Last seen\s+/, '');
+      const inActiveRide = state.activeRide?.memberIds?.includes(riderId) === true;
       const socialLinks = [
         profile.instagramUsername ? `<a class="social-link" href="https://www.instagram.com/${encodeURIComponent(profile.instagramUsername)}/" target="_blank" rel="noopener"><span>Instagram</span><strong>@${escapeHtml(profile.instagramUsername)}</strong>${icon('chevron')}</a>` : '',
         profile.tiktokUsername ? `<a class="social-link" href="https://www.tiktok.com/@${encodeURIComponent(profile.tiktokUsername)}" target="_blank" rel="noopener"><span>TikTok</span><strong>@${escapeHtml(profile.tiktokUsername)}</strong>${icon('chevron')}</a>` : '',
       ].filter(Boolean).join('');
+      const sharedProfileCount = Number(Boolean(profile.instagramUsername)) + Number(Boolean(profile.tiktokUsername));
+      const profileAvatar = avatar({ ...currentFriend, avatarId: profile.avatarId || currentFriend.avatarId });
 
       presentSheet(currentFriend.displayName, `<article class="friend-profile-card">
-          <span class="friend-avatar-wrap">${avatar({ ...currentFriend, avatarId: profile.avatarId || currentFriend.avatarId })}<i class="friend-presence-dot ${activity?.online ? 'online' : 'offline'}" aria-hidden="true"></i></span>
-          <div><strong>${escapeHtml(currentFriend.displayName)}</strong><span>${escapeHtml(currentFriend.handle)}</span><small class="${activity?.online ? 'online' : ''}">${escapeHtml(friendActivityLabel(activity))}</small></div>
+          <div class="friend-profile-cover" aria-hidden="true">
+            <span class="friend-profile-cover-avatar">${profileAvatar}</span>
+          </div>
+          <div class="friend-profile-identity">
+            <span class="friend-profile-avatar">${profileAvatar}<i class="friend-presence-dot ${activity?.online ? 'online' : 'offline'}" aria-hidden="true"></i></span>
+            <div class="friend-profile-copy">
+              <strong>${escapeHtml(currentFriend.displayName)}</strong>
+              <span>${escapeHtml(currentFriend.handle)}</span>
+              <small class="friend-profile-relationship"><i class="friend-profile-relationship-dot ${activity?.online ? 'online' : 'offline'}" aria-hidden="true"></i>Connected rider</small>
+            </div>
+          </div>
+          <div class="friend-profile-stats" aria-label="Rider connection details">
+            <div><strong>${escapeHtml(activityValue)}</strong><small>Activity</small></div>
+            <div><strong>${inActiveRide ? 'Together' : '—'}</strong><small>Group ride</small></div>
+            <div><strong>${sharedProfileCount}</strong><small>Shared</small></div>
+          </div>
         </article>
         <div class="friend-profile-actions" aria-label="Rider actions">
-          <button id="messageFriend"><span class="friend-action-icon">${icon('message')}</span><strong>Message</strong></button>
-          <button id="shareFriendId"><span class="friend-action-icon">${icon('share')}</span><strong>Share ID</strong></button>
-          <button id="friendSafetyActions"><span class="friend-action-icon friend-action-more" aria-hidden="true">•••</span><strong>More</strong></button>
+          <button id="messageFriend" class="friend-profile-action-primary">
+            <span class="friend-action-icon">${icon('message')}</span>
+            <span><strong>Message</strong><small>Start a private conversation</small></span>
+          </button>
+          <button id="shareFriendId" class="friend-profile-action-secondary">
+            <span class="friend-action-icon">${icon('share')}</span>
+            <span><strong>Share Rider ID</strong><small>Send this rider’s ID</small></span>
+          </button>
         </div>
-        <div class="friend-detail-list">
-          <div><span class="setting-icon">${icon('broadcast')}</span><span><strong>Rider status</strong><small>${escapeHtml(friendActivityLabel(activity))}</small></span></div>
-          ${state.activeRide?.memberIds?.includes(riderId) ? `<div><span class="setting-icon">${icon('ride')}</span><span><strong>In your group ride</strong><small>Connected to this ride</small></span></div>` : ''}
-        </div>
+        <button id="friendSafetyActions" class="friend-profile-safety-action">
+          <span class="friend-action-icon">${icon('shield')}</span>
+          <span><strong>Report or block rider</strong><small>Safety and connection options</small></span>
+          ${icon('chevron')}
+        </button>
+        ${inActiveRide ? `<div class="friend-profile-ride-context"><span class="setting-icon">${icon('ride')}</span><span><strong>In your group ride</strong><small>Connected to this ride</small></span></div>` : ''}
         ${loading
-          ? '<p class="friend-profile-note">Refreshing shared profile…</p>'
+          ? '<p class="friend-profile-note friend-profile-note-quiet">Refreshing shared profile…</p>'
           : refreshError
-            ? '<p class="friend-profile-note">Could not refresh shared profile. Reopen this rider to try again.</p>'
+            ? '<p class="friend-profile-note friend-profile-note-quiet">Could not refresh shared profile. Reopen this rider to try again.</p>'
             : socialLinks
-              ? `<div class="social-links">${socialLinks}</div>`
-              : '<p class="friend-profile-note">This rider has not shared any social links with you.</p>'}
-        <p class="caption">Only connect and arrange rides with people you trust. Social links follow each rider’s privacy settings.</p>`, () => {
+              ? `<div class="friend-profile-social"><span class="friend-profile-section-label">Shared profiles</span><div class="social-links">${socialLinks}</div></div>`
+              : '<p class="friend-profile-note friend-profile-note-quiet">No connected profiles are shared with you.</p>'}
+        <p class="caption friend-profile-safety-note">Only connect and arrange rides with people you trust. Social links follow each rider’s privacy settings.</p>`, () => {
         $('#shareFriendId').addEventListener('click', async () => {
           const message = `${currentFriend.displayName} on Rider Comms: ${riderId}`;
           if (navigator.share) {
