@@ -2354,3 +2354,64 @@ body:has(.friend-profile-card) .sheet-body{gap:10px}
   .friend-profile-detail-list>div{min-height:56px;padding:7px 10px}
 }
 
+
+
+/* Settings mockup parity: shallow category hierarchy and compact grouped rows. */
+[data-screen="settings"] .settings-page .page-header{margin-bottom:12px}
+[data-screen="settings"] .settings-page .settings-profile-row{
+  width:100%;min-height:100px;display:flex;align-items:center;gap:12px;
+  margin:0 0 8px;padding:10px 12px;border:1px solid var(--border-soft);
+  border-radius:8px;background:var(--surface-raised);box-shadow:none;color:var(--text);text-align:left
+}
+[data-screen="settings"] .settings-page .settings-profile-row .avatar-lg{width:72px;height:72px;flex:none}
+[data-screen="settings"] .settings-page .settings-profile-row .profile-copy{min-width:0;flex:1}
+[data-screen="settings"] .settings-page .settings-profile-row .profile-copy strong{font-size:1.06rem;line-height:1.25}
+[data-screen="settings"] .settings-page .settings-profile-row .profile-copy span{margin-top:2px;font-size:.75rem;color:var(--text-secondary)}
+[data-screen="settings"] .settings-page .settings-profile-row>svg{width:14px;height:14px;flex:none;color:var(--text-muted)}
+[data-screen="settings"] .settings-page .settings-main-group{margin-top:0}
+[data-screen="settings"] .settings-page .settings-secondary-group,[data-screen="settings"] .settings-page .settings-signout{margin-top:12px}
+[data-screen="settings"] .settings-page .settings-group{
+  overflow:hidden;border:1px solid var(--border-soft);border-radius:8px;
+  background:var(--surface-raised);box-shadow:none
+}
+[data-screen="settings"] .settings-page .settings-group>button{
+  width:100%;min-height:48px;display:flex;align-items:center;gap:10px;
+  padding:7px 12px;border:0;border-bottom:1px solid var(--border-soft);
+  background:transparent;color:var(--text);text-align:left
+}
+[data-screen="settings"] .settings-page .settings-group>button:last-child{border-bottom:0}
+[data-screen="settings"] .settings-page .settings-group>button>span:nth-child(2){min-width:0;flex:1}
+[data-screen="settings"] .settings-page .settings-group strong{font-size:.875rem;font-weight:500}
+[data-screen="settings"] .settings-page .settings-group small{display:none}
+[data-screen="settings"] .settings-page .setting-icon{width:20px;height:24px;display:grid;place-items:center;border:0;border-radius:0;background:transparent;color:var(--text)}
+[data-screen="settings"] .settings-page .setting-icon svg{width:20px;height:20px}
+[data-screen="settings"] .settings-page .settings-group>button>svg{width:14px;height:14px;flex:none;color:var(--text-muted)}
+[data-screen="settings"] .settings-page .settings-signout .setting-icon,[data-screen="settings"] .settings-page .settings-signout strong{color:var(--danger)}
+[data-screen="settings"] .settings-page .settings-signout>button>svg{display:none}
+[data-screen="settings"] .settings-page .group-title,[data-screen="settings"] .settings-page>.version{display:none}
+
+.settings-hub-list{
+  overflow:hidden;border:1px solid var(--border-soft);border-radius:8px;background:var(--surface)
+}
+.settings-hub-list>button{
+  width:100%;min-height:54px;display:flex;align-items:center;gap:10px;padding:7px 12px;
+  border:0;border-bottom:1px solid var(--border-soft);background:transparent;color:var(--text);text-align:left
+}
+.settings-hub-list>button:last-child{border-bottom:0}
+.settings-hub-list>button>span:nth-child(2){min-width:0;flex:1}
+.settings-hub-list strong,.settings-hub-list small{display:block}
+.settings-hub-list strong{font-size:.84rem}
+.settings-hub-list small{margin-top:2px;overflow:hidden;color:var(--text-secondary);font-size:.69rem;text-overflow:ellipsis;white-space:nowrap}
+.settings-hub-list>button>svg{width:14px;height:14px;flex:none;color:var(--text-muted)}
+.settings-hub-list .setting-icon{width:28px;height:28px;border:0;background:transparent}
+.settings-hub-list .setting-icon svg{width:19px;height:19px}
+.settings-about-card{display:grid;gap:5px;padding:16px;border:1px solid var(--border-soft);border-radius:8px;background:var(--surface)}
+.settings-about-card strong{font-size:1rem}
+.settings-about-card span{color:var(--text-secondary);font-size:.75rem}
+.settings-legal-list{display:grid;gap:12px}
+.settings-legal-list section{padding:14px;border:1px solid var(--border-soft);border-radius:8px;background:var(--surface)}
+.settings-legal-list strong{font-size:.86rem}
+.settings-legal-list p{margin:5px 0 0;color:var(--text-secondary);font-size:.75rem;line-height:1.48}
+@media(prefers-color-scheme:light){
+  [data-screen="settings"] .settings-page .settings-profile-row,[data-screen="settings"] .settings-page .settings-group,.settings-hub-list,.settings-about-card,.settings-legal-list section{background:#fff}
+}
