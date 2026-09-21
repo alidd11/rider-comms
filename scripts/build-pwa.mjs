@@ -16,6 +16,11 @@ const publicFiles = [
 ];
 await Promise.all(publicFiles.map((file) => cp(resolve(source, file), resolve(destination, file))));
 await cp(resolve(source, 'icons'), resolve(destination, 'icons'), { recursive: true });
+await cp(
+  resolve(source, 'assets', 'routes', 'cards'),
+  resolve(destination, 'assets', 'routes', 'cards'),
+  { recursive: true },
+);
 
 const required = ['index.html', 'app.css', 'app.js', 'avatar-system.js', 'movement-safety.js', 'message-state.js', 'config.js', 'manifest.json', 'sw.js'];
 await Promise.all(required.map((file) => readFile(resolve(destination, file))));
