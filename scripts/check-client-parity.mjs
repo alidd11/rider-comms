@@ -79,7 +79,7 @@ for (const [label, source, patterns] of [
   ['PWA navigation', pwaMapSource, [
     /navFollowing/,
     /navMuted/,
-    /riderAvatarMapIcon\(state\.profile, true, undefined, 54\)/,
+    /riderAvatarMapIcon\(state\.profile, true, undefined, 64, true\)/,
     /applyNavigationCamera/,
     /showNavigationOverview/,
     /navMuteBtn/,
@@ -123,7 +123,7 @@ for (const [label, source, patterns] of [
   ['Native navigation', nativeMapSource, [
     /navigationFollowing/,
     /navigationMuted/,
-    /size=\{activeRoute \? 54 : 44\}/,
+    /size=\{activeRoute \? 64 : 44\}/,
     /focusNavigationCamera/,
     /navigationPromptProgress/,
     /navigationPromptStageForDistance/,
@@ -223,11 +223,17 @@ for (const glyph of ['slightLeft', 'left', 'sharpLeft', 'forkLeft', 'rampLeft', 
   }
 }
 
-if (!/\.nav-maneuver-icon\{[^\n]*width:72px;height:80px[^\n]*border-radius:18px/.test(pwaCssSource)) {
-  throw new Error('PWA primary maneuver glyph must remain large and glanceable');
+if (!/\.nav-maneuver-icon\{[^\n]*width:70px;height:78px[^\n]*display:grid;place-items:center/.test(pwaCssSource)) {
+  throw new Error('PWA primary maneuver glyph must remain large, flat and glanceable');
 }
-if (!/navigationManeuver:\s*\{[\s\S]*?width: 72,[\s\S]*?height: 80,[\s\S]*?borderRadius: 18/.test(nativeMapSource)) {
-  throw new Error('Native primary maneuver glyph must match the PWA glanceable geometry');
+if (/\.nav-maneuver-icon\{[^\n]*(?:background|border-radius|border:)/.test(pwaCssSource)) {
+  throw new Error('PWA primary maneuver glyph must stay integrated into the navigation header rather than boxed as a separate tile');
+}
+if (!/navigationManeuver:\s*\{[\s\S]*?width: 70,[\s\S]*?height: 78,[\s\S]*?alignItems: 'center'/.test(nativeMapSource)) {
+  throw new Error('Native primary maneuver glyph must match the flat PWA guidance geometry');
+}
+if (/navigationManeuver:\s*\{[\s\S]*?backgroundColor: colors\.surfaceRaised/.test(nativeMapSource)) {
+  throw new Error('Native primary maneuver glyph must stay integrated into the navigation header rather than boxed as a separate tile');
 }
 
 if (!/id="navSpeed"/.test(pwaIndexSource) || !/id="navSpeedUnit"/.test(pwaIndexSource)) {
@@ -238,6 +244,22 @@ if (!/nav-summary-speed/.test(pwaCssSource) || !/grid-template-columns:1\.08fr 1
 }
 if (!/formatNavigationSpeed/.test(nativeGuidanceSource) || !/navigationSpeedUnit/.test(nativeGuidanceSource)) {
   throw new Error('Native navigation must share explicit GPS speed formatting and units');
+}
+
+if (!/function routeFinishIcon\(\)/.test(pwaMapSource)
+  || !/title: label \? \`Destination: \${label}\` : 'Route destination'/.test(pwaMapSource)
+  || !/destinationMarker\?\.setMap\(null\);[\s\S]*destinationMarker = undefined;[\s\S]*navSteps = \[\]/.test(pwaMapSource)) {
+  throw new Error('PWA navigation must render and clear a dedicated route-finish marker');
+}
+if (!/navigationDestination \? \([\s\S]*flag-checkered[\s\S]*navigationDestinationMarker/.test(nativeMapSource)) {
+  throw new Error('Native navigation must render a dedicated route-finish marker');
+}
+if (!/mapMarker=\{!activeRoute\}/.test(nativeMapSource)
+  || !/status=\{activeRoute \? 'none' : selfMapStatus\}/.test(nativeMapSource)) {
+  throw new Error('Native navigation avatar must switch from a map pin to a clean navigation avatar');
+}
+if (!/mapMarker: !navigationMode/.test(pwaMapSource) || !/anchor: navigationMode/.test(pwaMapSource)) {
+  throw new Error('PWA navigation avatar must switch from a map pin to a clean centred navigation avatar');
 }
 
 if (/translateY\(-32vh\)/.test(pwaCssSource)) {
