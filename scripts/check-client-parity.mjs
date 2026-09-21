@@ -36,8 +36,10 @@ for (const required of ['auth', 'group-ride', 'ride-safe', 'place-search', 'frie
   if (!ids.has(required)) throw new Error(`Missing required parity capability: ${required}`);
 }
 
-const [pwaMapSource, nativeMapSource, nativeCameraSource] = await Promise.all([
+const [pwaMapSource, pwaCssSource, pwaIndexSource, nativeMapSource, nativeCameraSource] = await Promise.all([
   readFile(new URL('../docs/app.js', import.meta.url), 'utf8'),
+  readFile(new URL('../docs/app.css', import.meta.url), 'utf8'),
+  readFile(new URL('../docs/index.html', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/screens/MapScreen.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/navigationCamera.ts', import.meta.url), 'utf8'),
 ]);
@@ -93,6 +95,10 @@ for (const [label, source, patterns] of [
     /setNavigationTrafficVisible\(true\)/,
     /if \(!preserveMute\) navMuted = false/,
     /preserveMute: true/,
+    /setNavStatusNotice\('Rerouting…'\)/,
+    /if \(!navMuted\) speak\('Rerouting\.'\)/,
+    /setNavStatusNotice\('Could not reroute\. Continue with caution\.'\)/,
+    /routeNotice: 'Route updated\.'/,
     /visibleMapRiders\(\)/,
   ]],
   ['Native navigation', nativeMapSource, [
@@ -115,7 +121,12 @@ for (const [label, source, patterns] of [
     /position\.coords\.speed/,
     /pitch: profile\.pitch/,
     /zoom: profile\.zoom/,
-    /animateCamera\([\s\S]*duration: movingSpeed !== null && movingSpeed <= 1\.5 \? 650 : 500/,
+    /AccessibilityInfo\.isReduceMotionEnabled\(\)/,
+    /reduceMotionChanged/,
+    /reduceMotionEnabled[\s\S]*setCamera\(camera\)[\s\S]*animateCamera\(camera/,
+    /animateCamera\(camera, \{ duration: movingSpeed !== null && movingSpeed <= 1\.5 \? 650 : 500 \}\)/,
+    /if \(!navigationMuted\) speakNavigationPrompt\('Rerouting\.'\)/,
+    /setNavigationNotice\('Could not reroute\. Continue with caution\.'\)/,
     /showsTraffic=\{Boolean\(activeRoute\)\}/,
     /fitRoute\(activeRoute\)/,
     /rideLocations[\s\S]*Private ride member · live location/,
@@ -144,6 +155,51 @@ for (const [label, source] of [['PWA adaptive camera', pwaMapSource], ['Native a
   for (const pattern of adaptiveCameraPatterns) {
     if (!pattern.test(source)) throw new Error(`${label} drifted from the shared adaptive camera contract: ${pattern}`);
   }
+}
+
+if (!/id="navInstruction"[^>]*role="status"[^>]*aria-live="polite"[^>]*aria-atomic="true"/.test(pwaIndexSource)) {
+  throw new Error('PWA navigation maneuver instruction must be a polite atomic live region');
+}
+if (!/style=\{styles\.navigationInstruction\} accessibilityLiveRegion="polite"/.test(nativeMapSource)) {
+  throw new Error('Native navigation maneuver instruction must remain a polite live region');
+}
+
+if (/translateY\(-32vh\)/.test(pwaCssSource)) {
+  throw new Error('PWA map controls must not be scattered with viewport-relative vertical transforms');
+}
+if (/viewportHeight \* 0\.32/.test(nativeMapSource)) {
+  throw new Error('Native map controls must not be scattered with viewport-relative vertical transforms');
+}
+if (!/\.nav-mode #locateBtn\{display:none\}/.test(pwaCssSource)) {
+  throw new Error('PWA navigation must hide the redundant standalone re-centre control');
+}
+if (!/\.nav-mode \.map-actions \.icon-button\{width:48px;min-width:48px;height:48px;border-radius:14px/.test(pwaCssSource)) {
+  throw new Error('PWA navigation controls must keep the shared 48px rounded-square geometry');
+}
+if (!/#app\.nav-mode \.screen-map \.map-actions\{[\s\S]*?bottom:calc\(var\(--nav-summary-height,104px\) \+ var\(--navigation-control-inset\) \+ 18px\)/.test(pwaCssSource)) {
+  throw new Error('PWA phone navigation controls must stay above the ETA summary despite later map-control rules');
+}
+if (!/body:has\(#destinationCard:not\(\[hidden\]\)\) \.screen-map \.map-actions\{display:none\}/.test(pwaCssSource)) {
+  throw new Error('PWA destination selection must hide competing general map controls like native');
+}
+if (!/#destinationCard \.destination-primary-action\{[^\n]*border-radius:14px/.test(pwaCssSource)) {
+  throw new Error('PWA destination primary action must align with native navigation button geometry');
+}
+if (!/mapActionButton:\s*\{[\s\S]*?width: 48,[\s\S]*?height: 48,[\s\S]*?borderRadius: 14/.test(nativeMapSource)) {
+  throw new Error('Native map controls must keep the shared 48px rounded-square geometry');
+}
+if (!/navigationActionButton:\s*\{[\s\S]*?width: 48,[\s\S]*?height: 48,[\s\S]*?borderRadius: 14/.test(nativeMapSource)) {
+  throw new Error('Native navigation controls must keep the shared 48px rounded-square geometry');
+}
+
+if (/bottom: insets\.bottom \+ 116/.test(nativeMapSource)) {
+  throw new Error('Native navigation controls must not double-count the bottom safe area above the summary');
+}
+if (!/navigationSummaryHeight \+ spacing\.md/.test(nativeMapSource)) {
+  throw new Error('Native navigation controls must stay directly above the measured navigation summary');
+}
+if (!/onLayout=\{\(event\) => \{[\s\S]*setNavigationSummaryHeight/.test(nativeMapSource)) {
+  throw new Error('Native navigation controls must follow the real ETA summary height including safe-area and text growth');
 }
 
 console.log(`Client parity manifest valid: ${manifest.capabilities.length} capabilities tracked; map basemaps and adaptive dedicated navigation aligned`);

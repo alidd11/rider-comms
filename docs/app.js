@@ -4158,6 +4158,7 @@
   let navGpsWatchdog;
   let navLastFixAt = 0;
   let navGpsIssue = null;
+  let navStatusNotice = null;
 
   const NAV_STEP_ARRIVAL_RADIUS_M = 30;
   const NAV_OFF_ROUTE_RADIUS_M = 60;
@@ -4791,7 +4792,7 @@
 
   // Navigation now extends the real app surface through the installed-iPhone
   // bottom safe area. Do not recolour browser/system chrome to hide a gap.
-  function applyRoute(result, destination, label, { preserveMute = false } = {}) {
+  function applyRoute(result, destination, label, { preserveMute = false, routeNotice = null } = {}) {
     const leg = result.routes[0]?.legs[0];
     if (!leg) { showToast('Could not calculate a route. Try again.'); return; }
     stopNavigationCameraAnimation();
@@ -4823,15 +4824,19 @@
     // the search bar, POI chips, bottom tab bar and "go live" control all
     // disappear (see the .nav-mode rules in app.css) so the only things on
     // screen are the route, the turn card, the ETA bar, and the controls a
-    // rider actually needs mid-drive (report hazard, re-centre, end nav).
+    // rider actually needs mid-drive (report hazard, mute guidance, route overview/follow, end nav).
     $('#app').classList.add('nav-mode');
     setNavigationTrafficVisible(true);
+    // Populate the first real maneuver before revealing the live region so
+    // assistive technology does not announce the placeholder and then the
+    // instruction back-to-back.
+    renderNavStep();
     $('#navBanner').hidden = false;
     $('#navSummary').hidden = false;
     updateNavigationPositionIcon();
     updateNavigationControls();
-    renderNavStep();
     startNavTracking();
+    if (routeNotice) setNavStatusNotice(routeNotice);
     if (latestDevicePosition && navSteps[0]) {
       const here = { lat: latestDevicePosition.coords.latitude, lng: latestDevicePosition.coords.longitude };
       navCurrentPosition = here;
@@ -4844,25 +4849,26 @@
     }
   }
 
-  function setNavGpsIssue(message) {
-    if (navGpsIssue === message) return;
-    navGpsIssue = message;
-    navOffRouteSince = null;
+  function setNavStatusNotice(message) {
+    navStatusNotice = message || null;
     const notice = $('#navGpsNotice');
     if (notice) {
-      notice.textContent = message;
-      notice.hidden = false;
+      notice.textContent = navStatusNotice || '';
+      notice.hidden = !navStatusNotice;
     }
+  }
+
+  function setNavGpsIssue(message) {
+    if (navGpsIssue === message && navStatusNotice === message) return;
+    navGpsIssue = message;
+    navOffRouteSince = null;
+    setNavStatusNotice(message);
   }
 
   function clearNavGpsIssue() {
     if (!navGpsIssue) return;
     navGpsIssue = null;
-    const notice = $('#navGpsNotice');
-    if (notice) {
-      notice.textContent = '';
-      notice.hidden = true;
-    }
+    setNavStatusNotice(null);
     if (navSteps.length) showToast('GPS signal restored.');
   }
 
@@ -4874,11 +4880,7 @@
   function startNavTracking() {
     stopNavTracking();
     navLastFixAt = Date.now();
-    const notice = $('#navGpsNotice');
-    if (notice) {
-      notice.textContent = '';
-      notice.hidden = true;
-    }
+    setNavStatusNotice(null);
     if (!navigator.geolocation) {
       setNavGpsIssue(NAV_GPS_UNAVAILABLE_NOTICE);
       return;
@@ -4903,11 +4905,7 @@
     navGpsWatchdog = undefined;
     navLastFixAt = 0;
     navGpsIssue = null;
-    const notice = $('#navGpsNotice');
-    if (notice) {
-      notice.textContent = '';
-      notice.hidden = true;
-    }
+    setNavStatusNotice(null);
   }
 
   function handleNavPosition(position) {
@@ -4966,14 +4964,22 @@
   async function rerouteFromCurrentPosition(here) {
     if (!navDestination) return;
     navRerouting = true;
-    showToast('Rerouting…');
-    speak('Rerouting.');
+    setNavStatusNotice('Rerouting…');
+    if (!navMuted) speak('Rerouting.');
     getDirectionsService().route(
       { origin: here, destination: { lat: navDestination.lat, lng: navDestination.lng }, travelMode: google.maps.TravelMode.DRIVING },
       (result, status) => {
         navRerouting = false;
-        if (status !== 'OK' || !result) return;
-        applyRoute(result, { lat: navDestination.lat, lng: navDestination.lng }, navDestination.label, { preserveMute: true });
+        if (status !== 'OK' || !result) {
+          setNavStatusNotice('Could not reroute. Continue with caution.');
+          return;
+        }
+        applyRoute(
+          result,
+          { lat: navDestination.lat, lng: navDestination.lng },
+          navDestination.label,
+          { preserveMute: true, routeNotice: 'Route updated.' },
+        );
       }
     );
   }

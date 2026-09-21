@@ -10,7 +10,7 @@
 // mounting a second map instance, which keeps map billing/state predictable
 // and matches the PWA's tab-owned interaction model.
 import * as React from 'react';
-import { View, Text, Pressable, StyleSheet, Alert, Linking, useColorScheme, useWindowDimensions } from 'react-native';
+import { AccessibilityInfo, View, Text, Pressable, StyleSheet, Alert, Linking, useColorScheme, useWindowDimensions } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
@@ -82,6 +82,7 @@ const FOCUSED_REGION_DELTA = 0.025;
 const NAV_STEP_ARRIVAL_RADIUS_M = 30;
 const NAV_OFF_ROUTE_RADIUS_M = 60;
 const NAV_OFF_ROUTE_GRACE_MS = 10_000;
+const NAVIGATION_SUMMARY_BASE_HEIGHT = 104;
 
 function bearingDegrees(from: { lat: number; lon: number }, to: { lat: number; lon: number }): number {
   const toRad = (value: number) => (value * Math.PI) / 180;
@@ -162,6 +163,8 @@ export function MapScreen(): React.JSX.Element {
   const [navigationNotice, setNavigationNotice] = React.useState<string | null>(null);
   const [navigationMuted, setNavigationMuted] = React.useState(false);
   const [navigationFollowing, setNavigationFollowing] = React.useState(true);
+  const [navigationSummaryHeight, setNavigationSummaryHeight] = React.useState(NAVIGATION_SUMMARY_BASE_HEIGHT);
+  const [reduceMotionEnabled, setReduceMotionEnabled] = React.useState(false);
   const navOffRouteSince = React.useRef<number | null>(null);
   const navRerouting = React.useRef(false);
   const navigationFollowingRef = React.useRef(true);
@@ -177,6 +180,20 @@ export function MapScreen(): React.JSX.Element {
   const centredOnFirstFix = React.useRef(false);
 
   const rideRosterKey = React.useMemo(() => roster.slice().sort().join('|'), [roster]);
+
+  React.useEffect(() => {
+    let active = true;
+    void AccessibilityInfo.isReduceMotionEnabled()
+      .then((enabled) => {
+        if (active) setReduceMotionEnabled(enabled);
+      })
+      .catch(() => {});
+    const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotionEnabled);
+    return () => {
+      active = false;
+      subscription.remove();
+    };
+  }, []);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -545,13 +562,18 @@ export function MapScreen(): React.JSX.Element {
 
     if (!mapReady || !navigationFollowingRef.current) return;
     const centre = lookAheadCoordinateOnPath(here, cameraPath, profile.centreAheadMeters);
-    mapRef.current?.animateCamera({
+    const camera = {
       center: { latitude: centre.lat, longitude: centre.lon },
       heading,
       pitch: profile.pitch,
       zoom: profile.zoom,
-    }, { duration: movingSpeed !== null && movingSpeed <= 1.5 ? 650 : 500 });
-  }, [insets.bottom, insets.top, mapReady, navigationNotice, viewportHeight]);
+    };
+    if (reduceMotionEnabled) {
+      mapRef.current?.setCamera(camera);
+    } else {
+      mapRef.current?.animateCamera(camera, { duration: movingSpeed !== null && movingSpeed <= 1.5 ? 650 : 500 });
+    }
+  }, [insets.bottom, insets.top, mapReady, navigationNotice, reduceMotionEnabled, viewportHeight]);
 
   React.useEffect(() => {
     navigationFollowingRef.current = navigationFollowing;
@@ -943,7 +965,7 @@ export function MapScreen(): React.JSX.Element {
       {segment === 'public' && !selectedDestination && !activeRoute && (
         <View style={[styles.mapActions, { bottom: insets.bottom + spacing.sm }]}>
           {!lockedForSafety && <Pressable
-            style={[styles.mapActionButton, { transform: [{ translateY: -(viewportHeight * 0.32) }] }]}
+            style={styles.mapActionButton}
             onPress={() => void openReportSheet()}
             accessibilityRole="button"
             accessibilityLabel="Report on the road"
@@ -951,7 +973,7 @@ export function MapScreen(): React.JSX.Element {
             <MaterialCommunityIcons name="alert-plus" size={22} color={colors.textPrimary} />
           </Pressable>}
           <Pressable
-            style={[styles.mapActionButton, { transform: [{ translateY: -(viewportHeight * 0.32) }] }]}
+            style={styles.mapActionButton}
             onPress={() => void centreOnCurrentLocation()}
             accessibilityRole="button"
             accessibilityLabel="Centre map on my location"
@@ -959,7 +981,7 @@ export function MapScreen(): React.JSX.Element {
             <MaterialCommunityIcons name="crosshairs-gps" size={22} color={colors.accent} />
           </Pressable>
           <Pressable
-            style={[styles.mapActionButton, styles.nearbyActionButton, shareLocation && styles.mapActionButtonActive]}
+            style={[styles.mapActionButton, shareLocation && styles.mapActionButtonActive]}
             onPress={() => void handleNearbyToggle()}
             accessibilityRole="button"
             accessibilityState={{ selected: shareLocation }}
@@ -971,7 +993,7 @@ export function MapScreen(): React.JSX.Element {
       )}
 
       {activeRoute && currentNavigationStep && (
-        <View style={[styles.navigationActions, { bottom: insets.bottom + 116 }]}>
+        <View style={[styles.navigationActions, { bottom: navigationSummaryHeight + spacing.md }]}>
           {!lockedForSafety && (
             <Pressable
               style={styles.navigationActionButton}
@@ -982,14 +1004,6 @@ export function MapScreen(): React.JSX.Element {
               <MaterialCommunityIcons name="alert-plus" size={22} color={colors.textPrimary} />
             </Pressable>
           )}
-          <Pressable
-            style={[styles.navigationActionButton, navigationFollowing && styles.navigationActionButtonActive]}
-            onPress={() => void centreOnCurrentLocation()}
-            accessibilityRole="button"
-            accessibilityLabel="Resume navigation follow mode"
-          >
-            <MaterialCommunityIcons name="crosshairs-gps" size={22} color={navigationFollowing ? colors.accentText : colors.textPrimary} />
-          </Pressable>
           <Pressable
             style={[styles.navigationActionButton, navigationMuted && styles.navigationActionButtonActive]}
             onPress={() => setNavigationMuted((current) => !current)}
@@ -1061,7 +1075,7 @@ export function MapScreen(): React.JSX.Element {
 
       {activeRoute && currentNavigationStep && (
         <>
-          <View style={[styles.navigationBanner, { top: insets.top + spacing.sm }]} accessibilityLiveRegion="polite">
+          <View style={[styles.navigationBanner, { top: insets.top + spacing.sm }]}>
             <View style={styles.navigationBannerMain}>
               <View style={styles.navigationManeuver}>
                 <Ionicons
@@ -1072,7 +1086,7 @@ export function MapScreen(): React.JSX.Element {
               </View>
               <View style={styles.navigationBannerCopy}>
                 <Text style={styles.navigationDistance}>{formatNavigationDistance(distanceToCurrentStepEnd, unitSystem)}</Text>
-                <Text numberOfLines={2} style={styles.navigationInstruction}>{navigationGuidanceInstruction}</Text>
+                <Text numberOfLines={2} style={styles.navigationInstruction} accessibilityLiveRegion="polite">{navigationGuidanceInstruction}</Text>
               </View>
               <Pressable accessibilityRole="button" accessibilityLabel="End navigation" onPress={() => finishInAppNavigation(false)} style={styles.navigationEndButton}>
                 <Ionicons name="close" size={24} color={colors.textPrimary} />
@@ -1096,7 +1110,13 @@ export function MapScreen(): React.JSX.Element {
               </View>
             ) : null}
           </View>
-          <View style={[styles.navigationSummary, { paddingBottom: Math.max(insets.bottom, spacing.sm) }]}>
+          <View
+            style={[styles.navigationSummary, { paddingBottom: Math.max(insets.bottom, spacing.sm) }]}
+            onLayout={(event) => {
+              const measuredHeight = Math.ceil(event.nativeEvent.layout.height);
+              setNavigationSummaryHeight((current) => Math.abs(current - measuredHeight) > 1 ? measuredHeight : current);
+            }}
+          >
             <View style={styles.navigationSummaryHandle} />
             <View style={styles.navigationSummaryContent}>
               <View style={styles.navigationSummaryPrimary}>
@@ -1168,29 +1188,20 @@ const styles = StyleSheet.create({
   hazardBadge: { alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: colors.background },
   mapActions: {
     position: 'absolute',
-    right: spacing.sm,
-    bottom: spacing.sm,
+    right: spacing.md,
+    zIndex: 10,
     gap: spacing.sm,
   },
   mapActionButton: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
+    width: 48,
+    height: 48,
+    borderRadius: 14,
     backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     ...elevation.raised,
-  },
-  nearbyActionButton: {
-    width: 64,
-    height: 64,
-    borderRadius: radii.pill,
-    marginTop: spacing.lg,
-    borderWidth: 1.5,
-    borderColor: colors.accent,
-    backgroundColor: colors.surface,
   },
   mapActionButtonActive: {
     borderColor: colors.accent,
@@ -1288,9 +1299,9 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   navigationActionButton: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 48,
+    height: 48,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.surface,
@@ -1366,7 +1377,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    minHeight: 104,
+    minHeight: NAVIGATION_SUMMARY_BASE_HEIGHT,
     paddingTop: 10,
     paddingHorizontal: spacing.lg,
     borderTopLeftRadius: 24,
