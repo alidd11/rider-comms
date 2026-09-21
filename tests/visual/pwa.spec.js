@@ -830,7 +830,8 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
   const settingsRadius = await page.locator('.settings-page .settings-group').first().evaluate((element) =>
     parseFloat(getComputedStyle(element).borderTopLeftRadius)
   );
-  expect(settingsRadius).toBeLessThanOrEqual(4);
+  expect(settingsRadius).toBeGreaterThanOrEqual(7);
+  expect(settingsRadius).toBeLessThanOrEqual(9);
   await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-settings-final.png'), fullPage: true });
   await assertNoViewportOverflow(page);
 });
@@ -1915,6 +1916,43 @@ test('PWA host can remove another rider from a private ride', async ({ page }) =
   await expect(page.locator('#toast')).toContainText('removed from the ride');
 });
 
+test('PWA Settings matches the approved shallow mockup hierarchy', async ({ page }, testInfo) => {
+  await mockAuthenticatedApi(page);
+  await page.goto('/#settings');
+
+  await expect(page.locator('.settings-page .group-title')).toHaveCount(0);
+  await expect(page.locator('.settings-main-group > button')).toHaveCount(5);
+  await expect(page.locator('.settings-secondary-group > button')).toHaveCount(2);
+  await expect(page.locator('.settings-main-group')).toContainText('Account');
+  await expect(page.locator('.settings-main-group')).toContainText('Communication');
+  await expect(page.locator('.settings-main-group')).toContainText('Map & Navigation');
+  await expect(page.locator('.settings-main-group')).toContainText('Offline Maps');
+  await expect(page.locator('.settings-main-group')).toContainText('Units & Preferences');
+  await expect(page.locator('.settings-secondary-group')).toContainText('Help & Support');
+  await expect(page.locator('.settings-secondary-group')).toContainText('About');
+  await expect(page.locator('#logoutBtn')).toHaveText('Sign Out');
+  await expect(page.locator('#logoutBtn > svg')).toHaveCount(0);
+
+  const profile = await page.locator('.settings-profile-row').evaluate((element) => {
+    const style = getComputedStyle(element);
+    return { height: element.getBoundingClientRect().height, radius: parseFloat(style.borderTopLeftRadius) };
+  });
+  expect(profile.height).toBeGreaterThanOrEqual(96);
+  expect(profile.height).toBeLessThanOrEqual(108);
+  expect(profile.radius).toBeGreaterThanOrEqual(7);
+
+  await page.locator('[data-sheet="offlineMaps"]').click();
+  await expect(page.locator('#sheetTitle')).toHaveText('Offline Maps');
+  await expect(page.locator('#sheetBody')).toContainText('Offline map downloads are not available in this build yet.');
+  await page.locator('#closeSheet').click();
+
+  await page.locator('[data-sheet="about"]').click();
+  await expect(page.locator('#sheetTitle')).toHaveText('About');
+  await expect(page.locator('#sheetBody')).toContainText('Version 0.3.0 · PWA');
+  await page.screenshot({ path: testInfo.outputPath('settings-approved-mockup-parity.png'), fullPage: true });
+  await assertNoViewportOverflow(page);
+});
+
 test('PWA settings sheets own the bottom edge without competing with app chrome', async ({ page }, testInfo) => {
   await mockAuthenticatedApi(page, 'unknown');
   await page.goto('/#settings');
@@ -1927,7 +1965,8 @@ test('PWA settings sheets own the bottom edge without competing with app chrome'
   await expect(nav).toBeVisible();
   await expect(banner).toBeVisible();
 
-  await page.locator('[data-sheet="privacy"]').click();
+  await page.locator('[data-sheet="communication"]').click();
+  await page.locator('[data-settings-target="privacy"]').click();
   await expect(page.locator('#sheetBackdrop')).toBeVisible();
   await expect(page.locator('html')).toHaveClass(/sheet-open/);
   await expect(app).toHaveAttribute('inert', '');
@@ -1986,10 +2025,11 @@ test('PWA billing preview matches native plan content and account tier', async (
   page.on('dialog', (dialog) => void dialog.accept());
   await page.goto('/#settings');
 
+  await page.locator('[data-sheet="accountHub"]').click();
   await expect(page.locator('#planSummary')).toHaveText('Premium plan · $4.99/mo');
   await expect(page.locator('#planPill')).toHaveText('Premium');
 
-  await page.locator('[data-sheet="plans"]').click();
+  await page.locator('[data-settings-target="plans"]').click();
   await expect(page.locator('#sheetTitle')).toHaveText('Plan and billing');
   await expect(page.locator('.billing-notice')).toContainText('cannot be purchased until verified App Store and Google Play billing is connected');
   await expect(page.locator('.billing-notice')).toContainText('does not collect card details');
@@ -2016,10 +2056,12 @@ test('PWA billing preview matches native plan content and account tier', async (
 
   await page.locator('#returnToFreePlan').click();
   await expect.poll(() => updates).toEqual([{ zoneTier: 'free' }]);
-  await expect(page.locator('#planSummary')).toHaveText('Free plan · No card on file');
-  await expect(page.locator('#planPill')).toHaveText('Free');
   await expect(page.locator('[data-plan-tier="free"] .plan-pill')).toHaveText('Current');
   await expect(page.locator('#returnToFreePlan')).toHaveCount(0);
+  await page.locator('#closeSheet').click();
+  await page.locator('[data-sheet="accountHub"]').click();
+  await expect(page.locator('#planSummary')).toHaveText('Free plan · No card on file');
+  await expect(page.locator('#planPill')).toHaveText('Free');
   await assertNoViewportOverflow(page);
 });
 
@@ -2027,7 +2069,8 @@ test('PWA navigation preference offers Rider Comms, Google Maps, Waze and Apple 
   await mockAuthenticatedApi(page);
   await page.goto('/#settings');
 
-  await page.locator('[data-sheet="navigation"]').click();
+  await page.locator('[data-sheet="mapNavigation"]').click();
+  await page.locator('[data-settings-target="navigation"]').click();
   const options = page.locator('[data-navigation-option]');
   await expect(options).toHaveCount(4);
   await expect(page.locator('[data-navigation-option="google_maps"]')).toHaveAttribute('aria-checked', 'true');
@@ -2035,9 +2078,12 @@ test('PWA navigation preference offers Rider Comms, Google Maps, Waze and Apple 
   await page.locator('[data-navigation-option="waze"]').click();
   await expect(page.locator('[data-navigation-option="waze"]')).toHaveAttribute('aria-checked', 'true');
   await page.locator('#closeSheet').click();
+  await page.locator('[data-sheet="mapNavigation"]').click();
   await expect(page.locator('#navigationProviderSummary')).toHaveText('Waze');
+  await page.locator('#closeSheet').click();
 
   await page.reload();
+  await page.locator('[data-sheet="mapNavigation"]').click();
   await expect(page.locator('#navigationProviderSummary')).toHaveText('Waze');
 });
 
@@ -2169,12 +2215,17 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
     document.querySelector('#app').classList.add('nav-mode');
     document.querySelector('#navSummary').hidden = false;
     document.querySelector('#navBanner').hidden = false;
+    document.querySelector('#navSpeedBadge').hidden = false;
     document.querySelector('#navNextPreview').hidden = false;
     document.querySelector('#navDistanceNext').textContent = '0.5 mi';
-    document.querySelector('#navInstruction').textContent = 'Sharp left onto Holloway Road';
-    document.querySelector('#navNextInstruction').textContent = 'Keep right at the fork';
+    document.querySelector('#navInstruction').textContent = 'Sharp left';
+    document.querySelector('#navInstruction').setAttribute('aria-label', 'Turn sharp left onto Holloway Road / A1');
+    document.querySelector('#navProviderInstruction').textContent = 'Turn sharp left onto Holloway Road / A1';
+    document.querySelector('#navNextInstruction').textContent = 'Keep right at the fork onto Seven Sisters Road / A503';
     document.querySelector('#navSpeed').textContent = '32';
     document.querySelector('#navSpeedUnit').textContent = 'mph';
+    const banner = document.querySelector('#navBanner');
+    document.querySelector('#app').style.setProperty('--nav-banner-height', `${Math.ceil(banner.getBoundingClientRect().height)}px`);
     const mainUse = document.querySelector('#navManeuverSvg use');
     const nextUse = document.querySelector('#navNextManeuverSvg use');
     mainUse?.setAttribute('href', '#i-nav-sharp-left');
@@ -2203,7 +2254,9 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
     const nextPreview = document.querySelector('#navNextPreview');
     const nextSvg = document.querySelector('#navNextManeuverSvg');
     const nextUse = document.querySelector('#navNextManeuverSvg use');
-    const speed = document.querySelector('.nav-summary-speed');
+    const speed = document.querySelector('#navSpeedBadge');
+    const instruction = document.querySelector('#navInstruction');
+    const providerInstruction = document.querySelector('#navProviderInstruction');
     const speedValue = document.querySelector('#navSpeed');
     const speedUnit = document.querySelector('#navSpeedUnit');
     const summaryStyle = getComputedStyle(summary);
@@ -2213,6 +2266,9 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
       paddingBottom: parseFloat(summaryStyle.paddingBottom),
       summaryRadius: parseFloat(summaryStyle.borderTopLeftRadius),
       bannerRadius: parseFloat(bannerStyle.borderTopLeftRadius),
+      instructionText: instruction?.textContent ?? null,
+      instructionAriaLabel: instruction?.getAttribute('aria-label') ?? null,
+      providerInstruction: providerInstruction?.textContent ?? null,
       endRadius: end ? parseFloat(getComputedStyle(end).borderTopLeftRadius) : 0,
       reportSize: report?.getBoundingClientRect().width ?? 0,
       locateDisplay: locate ? getComputedStyle(locate).display : null,
@@ -2227,14 +2283,21 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
       maneuverWidth: maneuver?.getBoundingClientRect().width ?? NaN,
       maneuverHeight: maneuver?.getBoundingClientRect().height ?? NaN,
       maneuverRadius: maneuver ? parseFloat(getComputedStyle(maneuver).borderTopLeftRadius) : NaN,
+      maneuverBackground: maneuver ? getComputedStyle(maneuver).backgroundColor : null,
+      maneuverBorderWidth: maneuver ? parseFloat(getComputedStyle(maneuver).borderTopWidth) : NaN,
       maneuverSvgWidth: maneuverSvg?.getBoundingClientRect().width ?? NaN,
       maneuverHref: maneuverUse?.getAttribute('href') ?? null,
       nextHeight: nextPreview?.getBoundingClientRect().height ?? NaN,
       nextSvgWidth: nextSvg?.getBoundingClientRect().width ?? NaN,
       nextHref: nextUse?.getAttribute('href') ?? null,
       speedWidth: speed?.getBoundingClientRect().width ?? NaN,
+      speedHeight: speed?.getBoundingClientRect().height ?? NaN,
+      speedRadius: speed ? parseFloat(getComputedStyle(speed).borderTopLeftRadius) : NaN,
+      speedTopGap: speed && banner ? speed.getBoundingClientRect().top - banner.getBoundingClientRect().bottom : NaN,
+      speedRightGap: speed ? window.innerWidth - speed.getBoundingClientRect().right : NaN,
       speedValue: speedValue?.textContent ?? null,
       speedUnit: speedUnit?.textContent ?? null,
+      speedStillInSummary: Boolean(document.querySelector('.nav-summary-speed')),
     };
   });
 
@@ -2243,7 +2306,10 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
   expect(metrics.height).toBe(104 + 18);
   expect(metrics.paddingBottom).toBe(18);
   expect(metrics.summaryRadius).toBeGreaterThanOrEqual(20);
-  expect(metrics.bannerRadius).toBeGreaterThanOrEqual(20);
+  expect(metrics.bannerRadius).toBe(18);
+  expect(metrics.instructionText).toBe('Sharp left');
+  expect(metrics.instructionAriaLabel).toBe('Turn sharp left onto Holloway Road / A1');
+  expect(metrics.providerInstruction).toBe('Turn sharp left onto Holloway Road / A1');
   expect(metrics.endRadius).toBeGreaterThanOrEqual(20);
   expect(metrics.reportSize).toBe(48);
   expect(metrics.locateDisplay).toBe('none');
@@ -2255,18 +2321,26 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
   expect(metrics.muteTop).toBeLessThan(metrics.overviewTop);
   expect(metrics.overviewBottom).toBeLessThan(metrics.summaryTop);
   expectNear(metrics.summaryTop - metrics.overviewBottom, 18, 2);
-  expect(metrics.maneuverWidth).toBe(72);
-  expect(metrics.maneuverHeight).toBe(80);
-  expect(metrics.maneuverRadius).toBe(18);
-  expect(metrics.maneuverSvgWidth).toBe(58);
+  expect(metrics.maneuverWidth).toBe(70);
+  expect(metrics.maneuverHeight).toBe(78);
+  expect(metrics.maneuverRadius).toBe(0);
+  expect(metrics.maneuverBackground).toBe('rgba(0, 0, 0, 0)');
+  expect(metrics.maneuverBorderWidth).toBe(0);
+  expect(metrics.maneuverSvgWidth).toBe(66);
   expect(metrics.maneuverHref).toBe('#i-nav-sharp-left');
-  expect(metrics.nextHeight).toBeGreaterThanOrEqual(52);
-  expect(metrics.nextSvgWidth).toBe(34);
+  expect(metrics.nextHeight).toBeGreaterThanOrEqual(50);
+  expect(metrics.nextSvgWidth).toBe(30);
   expect(metrics.nextHref).toBe('#i-nav-fork-right');
-  expect(metrics.speedWidth).toBeGreaterThan(60);
+  expectNear(metrics.speedWidth, 76, 0.1);
+  expectNear(metrics.speedHeight, 76, 0.1);
+  expectNear(metrics.speedRadius, 38, 0.1);
+  expectNear(metrics.speedTopGap, 10, 2);
+  expectNear(metrics.speedRightGap, 14, 2);
   expect(metrics.speedValue).toBe('32');
   expect(metrics.speedUnit).toBe('mph');
+  expect(metrics.speedStillInSummary).toBe(false);
   await expect(banner).toBeVisible();
+  await expect(page.locator('#navSpeedBadge')).toBeVisible();
   await expect(mute).toBeVisible();
   await expect(overview).toBeVisible();
   await expect(page.locator('html')).toHaveClass(/pwa-standalone/);
@@ -2631,7 +2705,7 @@ test('@viewport standalone canvas, navigation and scroll geometry remain coheren
     ['ride', '#joinRideForm .ride-location-consent'],
     ['routes', '#curatedRouteList'],
     ['friends', '#friendList'],
-    ['settings', '.version'],
+    ['settings', '.settings-signout'],
   ];
 
   for (const [name, finalSelector] of screens) {
@@ -2745,12 +2819,22 @@ test('@viewport full-screen overlays and sheets share the stable standalone bott
 
   await page.locator('#editProfileBtn').click();
   await assertSheet('edit-profile-sheet');
-  for (const [type, name] of [['map', 'location-map-sheet'], ['navigation', 'navigation-sheet'], ['plans', 'plan-sheet']]) {
-    await page.locator(`[data-sheet="${type}"]`).click();
-    await assertSheet(name);
-  }
+
+  await page.locator('[data-sheet="mapNavigation"]').click();
+  await page.locator('[data-settings-target="map"]').click();
+  await assertSheet('location-map-sheet');
+
+  await page.locator('[data-sheet="mapNavigation"]').click();
+  await page.locator('[data-settings-target="navigation"]').click();
+  await assertSheet('navigation-sheet');
+
+  await page.locator('[data-sheet="accountHub"]').click();
+  await page.locator('[data-settings-target="plans"]').click();
+  await assertSheet('plan-sheet');
+
   // Repeat a sheet transition to catch accumulated bottom offsets.
-  await page.locator('[data-sheet="map"]').click();
+  await page.locator('[data-sheet="mapNavigation"]').click();
+  await page.locator('[data-settings-target="map"]').click();
   await assertSheet('location-map-sheet-repeat');
 
   await page.locator('.bottom-nav [data-nav="friends"]').click();
@@ -2805,14 +2889,16 @@ test('PWA exposes session management and account deletion', async ({ page }) => 
   });
 
   await page.goto('/#settings');
-  await page.locator('[data-sheet="sessions"]').click();
+  await page.locator('[data-sheet="accountHub"]').click();
+  await page.locator('[data-settings-target="sessions"]').click();
   await expect(page.locator('#sessionList')).toContainText('Other phone');
   await page.locator('[data-revoke-session="session-remote"]').click();
   await expect(page.locator('#sessionList')).not.toContainText('Other phone');
   expect(remoteRevoked).toBe(true);
 
   await page.locator('#closeSheet').click();
-  await page.locator('[data-sheet="account"]').click();
+  await page.locator('[data-sheet="accountHub"]').click();
+  await page.locator('[data-settings-target="account"]').click();
   page.on('dialog', (dialog) => void dialog.accept());
   await page.evaluate(() => {
     document.querySelector('#deleteAccountBtn')?.click();
