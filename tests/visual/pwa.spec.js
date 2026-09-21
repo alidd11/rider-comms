@@ -2045,6 +2045,11 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
       muteSize: mute?.getBoundingClientRect().width ?? 0,
       overviewSize: overview?.getBoundingClientRect().width ?? 0,
       muteRadius: mute ? parseFloat(getComputedStyle(mute).borderTopLeftRadius) : 0,
+      reportTop: report?.getBoundingClientRect().top ?? NaN,
+      muteTop: mute?.getBoundingClientRect().top ?? NaN,
+      overviewTop: overview?.getBoundingClientRect().top ?? NaN,
+      overviewBottom: overview?.getBoundingClientRect().bottom ?? NaN,
+      summaryTop: summary?.getBoundingClientRect().top ?? NaN,
     };
   });
 
@@ -2061,6 +2066,10 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
   expect(metrics.overviewSize).toBe(48);
   expect(metrics.muteRadius).toBeGreaterThanOrEqual(12);
   expect(metrics.muteRadius).toBeLessThanOrEqual(16);
+  expect(metrics.reportTop).toBeLessThan(metrics.muteTop);
+  expect(metrics.muteTop).toBeLessThan(metrics.overviewTop);
+  expect(metrics.overviewBottom).toBeLessThan(metrics.summaryTop);
+  expectNear(metrics.summaryTop - metrics.overviewBottom, 18, 2);
   await expect(banner).toBeVisible();
   await expect(mute).toBeVisible();
   await expect(overview).toBeVisible();
