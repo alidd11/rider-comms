@@ -269,13 +269,13 @@ function SettingsRow({ icon, title, subtitle, right, danger = false, showChevron
 }): React.JSX.Element {
   return (
     <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.settingRow, last && styles.settingRowLast, pressed && styles.settingRowPressed]}>
-      <Ionicons name={icon} size={19} color={danger ? colors.danger : colors.textPrimary} style={styles.settingRowIcon} />
+      <Ionicons name={icon} size={20} color={danger ? colors.danger : colors.textPrimary} style={styles.settingRowIcon} />
       <View style={styles.settingRowCopy}>
         <Text style={[styles.settingRowTitle, danger && styles.settingRowDanger]}>{title}</Text>
         {subtitle ? <Text style={styles.settingRowSubtitle}>{subtitle}</Text> : null}
       </View>
       {right ? <Text numberOfLines={1} style={styles.settingRowValue}>{right}</Text> : null}
-      {showChevron ? <Ionicons name="chevron-forward" size={16} color={colors.textMuted} /> : null}
+      {showChevron ? <Ionicons name="chevron-forward" size={14} color={colors.textMuted} /> : null}
     </Pressable>
   );
 }
@@ -469,7 +469,7 @@ export function SettingsScreen(): React.JSX.Element {
             <Text numberOfLines={1} style={styles.name}>{displayName}</Text>
             <Text numberOfLines={1} style={styles.handle}>{handle}</Text>
           </View>
-          <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
+          <Ionicons name="chevron-forward" size={14} color={colors.textMuted} />
         </Pressable>
 
         {profileError ? (
@@ -713,7 +713,7 @@ const styles = StyleSheet.create({
   profileSavingText: { ...type.caption, color: colors.textSecondary },
   profileSaveError: { ...type.caption, color: colors.danger, flex: 1 },
   profileCopy: { flex: 1, minWidth: 0, gap: 3 },
-  name: { ...type.subheading, color: colors.textPrimary, flexShrink: 1, fontSize: 16, lineHeight: 20 },
+  name: { ...type.subheading, color: colors.textPrimary, flexShrink: 1, fontSize: 17, lineHeight: 21 },
   handle: { ...type.caption, color: colors.textSecondary, flexShrink: 1, fontSize: 12, lineHeight: 16 },
   tierRow: {
     flexDirection: 'row',
@@ -862,7 +862,7 @@ const styles = StyleSheet.create({
   settingRowPressed: { backgroundColor: colors.surface },
   settingRowIcon: { width: 20 },
   settingRowCopy: { flex: 1, minWidth: 0, paddingVertical: 7 },
-  settingRowTitle: { ...type.body, color: colors.textPrimary, fontWeight: '500', fontSize: 13.5, lineHeight: 18 },
+  settingRowTitle: { ...type.body, color: colors.textPrimary, fontWeight: '500', fontSize: 14, lineHeight: 18 },
   settingRowSubtitle: { ...type.caption, color: colors.textSecondary, marginTop: 2, fontSize: 10 },
   settingRowValue: { ...type.caption, color: colors.textSecondary, fontWeight: '700', maxWidth: '34%', flexShrink: 1 },
   settingRowDanger: { color: colors.danger },

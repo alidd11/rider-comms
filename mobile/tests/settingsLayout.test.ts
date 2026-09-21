@@ -35,7 +35,7 @@ describe('Settings mockup contract', () => {
     assert.match(settingsSource, /settingsGroup: \{[^\n]*backgroundColor: colors\.surfaceRaised/);
     assert.match(settingsSource, /backgroundColor: colors\.surfaceRaised,[\s\S]*?profileSaveStatus:/);
     assert.match(settingsSource, /<RiderAvatar avatarId=\{avatarId\} size=\{72\} \/>/);
-    assert.match(settingsSource, /<Ionicons name="chevron-forward" size=\{16\} color=\{colors\.textMuted\} \/>/);
+    assert.match(settingsSource, /<Ionicons name="chevron-forward" size=\{14\} color=\{colors\.textMuted\} \/>/);
     assert.match(settingsSource, /settingsGroup:\s*\{[^\n]*borderRadius:\s*8/);
     assert.match(settingsSource, /settingRow:\s*\{[^\n]*minHeight:\s*48/);
     assert.match(settingsSource, /secondarySettingsGroup:\s*\{\s*marginTop:\s*12\s*\}/);
@@ -69,8 +69,8 @@ describe('Settings mockup contract', () => {
   });
 
   it('keeps the root visually quiet like the approved mockup', () => {
-    assert.match(settingsSource, /<Ionicons name=\{icon\} size=\{19\} color=\{danger \? colors\.danger : colors\.textPrimary\}/);
-    assert.match(settingsSource, /<Ionicons name="chevron-forward" size=\{16\} color=\{colors\.textMuted\}/);
+    assert.match(settingsSource, /<Ionicons name=\{icon\} size=\{20\} color=\{danger \? colors\.danger : colors\.textPrimary\}/);
+    assert.match(settingsSource, /<Ionicons name="chevron-forward" size=\{14\} color=\{colors\.textMuted\}/);
     assert.doesNotMatch(settingsSource, /\{\(saving \|\| profileError\) \? \(/);
     assert.match(settingsSource, /accessibilityLabel="Dismiss settings error"/);
   });
