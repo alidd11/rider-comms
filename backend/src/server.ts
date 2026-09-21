@@ -243,10 +243,6 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
       if (req.method === 'GET' && url.pathname === '/config') {
         return sendJson(res, 200, { googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY ?? '' });
       }
-      if (req.method === 'POST' && url.pathname === '/auth/guest') {
-        if (!guestLimiter.tryConsume(address)) return sendJson(res, 429, { error: 'rate_limited' });
-        const session = authStore.createGuest(); await profileStore.getOrCreate(session.riderId); await socialActivityStore.touch(session.riderId); return sendJson(res, 201, session);
-      }
       if (req.method === 'POST' && url.pathname === '/auth/signup') {
         if (!guestLimiter.tryConsume(address)) return sendJson(res, 429, { error: 'rate_limited' });
         const body = await readJsonBody(req);
