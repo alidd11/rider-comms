@@ -292,9 +292,6 @@ function FriendProfileModal({
     } },
   ]);
   const safetyActions = () => Alert.alert('More actions', `Choose what to do about ${friend.displayName}.`, [
-    { text: 'Share Rider ID', onPress: () => {
-      void Share.share({ message: `${profile?.displayName ?? friend.displayName} on Rider Comms: ${friend.riderId}` });
-    } },
     { text: 'Remove friend', onPress: confirmRemove },
     { text: 'Report harassment', onPress: () => report('harassment') },
     { text: 'Report unsafe behaviour', onPress: () => report('unsafe') },
@@ -357,6 +354,17 @@ function FriendProfileModal({
               <Text style={styles.profileActionText}>Message</Text>
             </Pressable>
             <Pressable
+              style={({ pressed }) => [styles.profileAction, pressed && styles.profileActionPressed]}
+              onPress={() => {
+                void Share.share({ message: `${profile?.displayName ?? friend.displayName} on Rider Comms: ${friend.riderId}` });
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Share Rider ID"
+            >
+              <Ionicons name="share-outline" size={21} color={colors.accent} />
+              <Text style={styles.profileActionText}>Share ID</Text>
+            </Pressable>
+            <Pressable
               style={({ pressed }) => [
                 styles.profileAction,
                 shareRideLocation && inActiveRide && styles.profileActionActive,
@@ -387,17 +395,6 @@ function FriendProfileModal({
             >
               <Ionicons name="navigate-outline" size={21} color={inActiveRide ? colors.accent : colors.textMuted} />
               <Text style={styles.profileActionText}>Share Location</Text>
-            </Pressable>
-            <Pressable
-              style={({ pressed }) => [styles.profileAction, !rideLocation && styles.profileActionDisabled, pressed && rideLocation && styles.profileActionPressed]}
-              onPress={viewOnMap}
-              disabled={!rideLocation}
-              accessibilityRole="button"
-              accessibilityLabel={rideLocation ? 'View rider on map' : 'Rider location not shared'}
-              accessibilityState={{ disabled: !rideLocation }}
-            >
-              <Ionicons name="location-outline" size={21} color={rideLocation ? colors.accent : colors.textMuted} />
-              <Text style={styles.profileActionText}>Map</Text>
             </Pressable>
             <Pressable
               style={({ pressed }) => [styles.profileAction, pressed && styles.profileActionPressed]}
