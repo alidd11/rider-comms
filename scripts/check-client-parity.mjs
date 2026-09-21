@@ -246,19 +246,21 @@ if (!/formatNavigationSpeed/.test(nativeGuidanceSource) || !/navigationSpeedUnit
   throw new Error('Native navigation must share explicit GPS speed formatting and units');
 }
 
-if (!/id="navRoadContext"/.test(pwaIndexSource)
-  || !/id="navRouteBadge"/.test(pwaIndexSource)
-  || !/id="navRoadName"/.test(pwaIndexSource)
-  || !/function navGlanceInstruction\(/.test(pwaMapSource)
-  || !/function navGlanceSummary\(/.test(pwaMapSource)) {
-  throw new Error('PWA navigation header must split verbose directions into action, route badge and road context');
+if (!/id="navProviderInstruction"/.test(pwaIndexSource)
+  || !/function navGlanceAction\(/.test(pwaMapSource)
+  || !/providerInstruction\.textContent = fullInstruction/.test(pwaMapSource)) {
+  throw new Error('PWA navigation header must pair a structured maneuver action with untouched provider instruction text');
 }
-if (!/navigationGlanceInstruction/.test(nativeGuidanceSource)
-  || !/navigationGlanceSummary/.test(nativeGuidanceSource)
-  || !/navigationRoadRow/.test(nativeMapSource)
-  || !/navigationRouteBadge/.test(nativeMapSource)
-  || !/navigationRoadName/.test(nativeMapSource)) {
-  throw new Error('Native navigation header must match the glance-first action, route badge and road context contract');
+if (!/navigationManeuverAction/.test(nativeGuidanceSource)
+  || !/navigationProviderInstruction/.test(nativeMapSource)
+  || !/\{navigationGuidanceInstruction\}/.test(nativeMapSource)) {
+  throw new Error('Native navigation header must pair a structured maneuver action with untouched provider instruction text');
+}
+if (/function navGlanceInstruction\(|function navGlanceSummary\(/.test(pwaMapSource)
+  || /navRouteBadge|navRoadName/.test(pwaIndexSource)
+  || /roadFromInstruction|roundaboutAction|navigationGlanceInstruction|navigationGlanceSummary/.test(nativeGuidanceSource)
+  || /navigationRouteBadge|navigationRoadName/.test(nativeMapSource)) {
+  throw new Error('Navigation must not reconstruct route, road, exit or junction metadata from free-form provider instructions');
 }
 
 if (!/function routeFinishIcon\(\)/.test(pwaMapSource)
