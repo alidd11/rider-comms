@@ -464,7 +464,7 @@ export function SettingsScreen(): React.JSX.Element {
         <ScreenHeader title="Settings" />
 
         <Pressable style={styles.profileCard} onPress={() => setActiveSheet('profile')} accessibilityRole="button" accessibilityLabel="Open profile settings">
-          <RiderAvatar avatarId={avatarId} size={60} />
+          <RiderAvatar avatarId={avatarId} size={56} />
           <View style={styles.profileCopy}>
             <Text numberOfLines={1} style={styles.name}>{displayName}</Text>
             <Text numberOfLines={1} style={styles.handle}>{handle}</Text>
@@ -695,15 +695,15 @@ export function SettingsScreen(): React.JSX.Element {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-  scroll: { width: '100%', maxWidth: 760, alignSelf: 'center', paddingHorizontal: 20, paddingVertical: spacing.md, paddingTop: spacing.lg },
+  scroll: { width: '100%', maxWidth: 760, alignSelf: 'center', paddingHorizontal: spacing.md, paddingVertical: spacing.md, paddingTop: spacing.lg },
   profileCard: {
-    minHeight: 88,
+    minHeight: 78,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     marginBottom: 8,
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 9,
     borderRadius: 8,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
@@ -855,9 +855,9 @@ const styles = StyleSheet.create({
   },
   modalDoneText: { ...type.button, color: colors.accentText },
   settingsGroup: { overflow: 'hidden', backgroundColor: colors.surfaceRaised, borderRadius: 8, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
-  secondarySettingsGroup: { marginTop: 12 },
-  signOutGroup: { marginTop: 12 },
-  settingRow: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+  secondarySettingsGroup: { marginTop: 10 },
+  signOutGroup: { marginTop: 10 },
+  settingRow: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   settingRowLast: { borderBottomWidth: 0 },
   settingRowPressed: { backgroundColor: colors.surface },
   settingRowIcon: { width: 20 },
