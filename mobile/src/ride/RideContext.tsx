@@ -5,6 +5,7 @@ import { useAuth } from '../auth/AuthContext';
 import { ApiError, type RideMemberLocation } from '../api/client';
 
 const RIDE_LOCATION_REFRESH_MS = 10_000;
+const RIDE_RESTORE_RETRY_MS = 10_000;
 
 export interface ActiveRide {
   rideId: string;
@@ -37,12 +38,27 @@ export function RideProvider({ children }: { children: React.ReactNode }): React
 
   React.useEffect(() => {
     let cancelled = false;
-    // The database owns membership and consent. Refresh when a session opens
-    // or the app resumes; a transient network failure is retried in 10s.
+    let restoreInFlight = false;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    // The database owns membership and consent. Reconcile when a session
+    // opens or the app returns to the foreground. A successful "no ride"
+    // response is authoritative and does not need a 10-second idle poll;
+    // only a transient failure schedules a retry.
     setActiveRide(null);
     setRoster([]);
     setRideLocations([]);
+
+    const scheduleRetry = () => {
+      if (cancelled || retryTimer) return;
+      retryTimer = setTimeout(() => {
+        retryTimer = undefined;
+        if (!cancelled && !activeRideId.current && AppState.currentState === 'active') void restore();
+      }, RIDE_RESTORE_RETRY_MS);
+    };
+
     const restore = async () => {
+      if (cancelled || restoreInFlight) return;
+      restoreInFlight = true;
       const change = localRideChange.current;
       try {
         const { ride } = await client.getCurrentRide();
@@ -57,15 +73,27 @@ export function RideProvider({ children }: { children: React.ReactNode }): React
         if (!ride?.shareRideLocation) setRideLocations([]);
       } catch {
         // Do not resume a cached ride or its private location sharing from
-        // an unverified membership. The next retry can reconnect it.
+        // an unverified membership. Retry only after a genuine failure.
+        scheduleRetry();
+      } finally {
+        restoreInFlight = false;
       }
     };
+
     void restore();
-    const timer = setInterval(() => { if (!activeRideId.current && AppState.currentState === 'active') void restore(); }, 10_000);
     const listener = AppState.addEventListener('change', (status) => {
-      if (status === 'active' && !activeRideId.current) void restore();
+      if (status !== 'active' || activeRideId.current) return;
+      if (retryTimer) {
+        clearTimeout(retryTimer);
+        retryTimer = undefined;
+      }
+      void restore();
     });
-    return () => { cancelled = true; clearInterval(timer); listener.remove(); };
+    return () => {
+      cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
+      listener.remove();
+    };
   }, [client, riderId]);
 
   const setSharingForRide = React.useCallback(async (rideId: string, enabled: boolean): Promise<boolean> => {
