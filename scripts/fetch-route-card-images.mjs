@@ -102,7 +102,6 @@ async function optimizeCardImage(bytes) {
       inputPath,
       '-auto-orient',
       '-resize', `${CARD_WIDTH}x>`,
-      '-strip',
       '-sampling-factor', '4:2:0',
       '-interlace', 'Plane',
       '-quality', String(JPEG_QUALITY),
@@ -118,7 +117,7 @@ const manifest = {
   generatedAt: new Date().toISOString(),
   width: CARD_WIDTH,
   jpegQuality: JPEG_QUALITY,
-  note: 'Local runtime card copies derived from the authoritative image URI in mobile/src/routes/curatedRoutes.ts. Files are resized/recompressed for card display; attribution, source and licence metadata remain in the curated route catalogue and ROUTE_IMAGE_LICENSES.md.',
+  note: 'Local runtime card copies derived from the authoritative image URI in mobile/src/routes/curatedRoutes.ts. Files are resized/recompressed for card display while embedded metadata is preserved; attribution, source and licence metadata remain in the curated route catalogue and ROUTE_IMAGE_LICENSES.md.',
   routes: {},
 };
 
@@ -141,7 +140,7 @@ for (const [, id, sourceUri] of routeMatches) {
     fetchedBytes: fetchedBytes.length,
     bytes: bytes.length,
     sha256,
-    modification: `Resized to a maximum of ${CARD_WIDTH}px wide and JPEG recompressed at quality ${JPEG_QUALITY} for Rider Comms route-card display.`,
+    modification: `Resized to a maximum of ${CARD_WIDTH}px wide and JPEG recompressed at quality ${JPEG_QUALITY} for Rider Comms route-card display; embedded metadata preserved.`,
   };
   console.log(`${id}: ${(fetchedBytes.length / 1024).toFixed(1)} KiB -> ${(bytes.length / 1024).toFixed(1)} KiB`);
 }
