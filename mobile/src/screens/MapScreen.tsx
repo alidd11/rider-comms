@@ -1362,8 +1362,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceRaised,
   },
   navigationBannerCopy: { flex: 1, minWidth: 0 },
-  navigationDistance: { color: colors.accent, fontSize: 36, lineHeight: 40, fontWeight: '850', letterSpacing: -0.6 },
-  navigationInstruction: { ...type.body, color: colors.textPrimary, marginTop: 2, fontSize: 17, lineHeight: 22, fontWeight: '750' },
+  navigationDistance: { color: colors.accent, fontSize: 36, lineHeight: 40, fontWeight: '800', letterSpacing: -0.6 },
+  navigationInstruction: { ...type.body, color: colors.textPrimary, marginTop: 2, fontSize: 17, lineHeight: 22, fontWeight: '700' },
   navigationNextPreview: {
     minHeight: 52,
     flexDirection: 'row',
