@@ -4572,12 +4572,22 @@
     );
   }
 
+  let navBannerResizeObserver = null;
+
   function syncNavigationOverlayGeometry() {
     const banner = $('#navBanner');
     const app = $('#app');
     if (!banner || !app || banner.hidden) return;
     const height = Math.ceil(banner.getBoundingClientRect().height);
     if (height > 0) app.style.setProperty('--nav-banner-height', `${height}px`);
+  }
+
+  function watchNavigationOverlayGeometry() {
+    if (navBannerResizeObserver || !('ResizeObserver' in window)) return;
+    const banner = $('#navBanner');
+    if (!banner) return;
+    navBannerResizeObserver = new ResizeObserver(syncNavigationOverlayGeometry);
+    navBannerResizeObserver.observe(banner);
   }
 
   function formatArrivalTime(remainingSeconds) {
@@ -4944,6 +4954,7 @@
     // screen are the route, the turn card, the ETA bar, and the controls a
     // rider actually needs mid-drive (report hazard, mute guidance, route overview/follow, end nav).
     $('#app').classList.add('nav-mode');
+    watchNavigationOverlayGeometry();
     setNavigationTrafficVisible(true);
     // Populate the first real maneuver before revealing the live region so
     // assistive technology does not announce the placeholder and then the
