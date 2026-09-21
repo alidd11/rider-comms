@@ -241,7 +241,7 @@ if (!/id="navSpeedBadge"[^>]*class="nav-speed-badge"/.test(pwaIndexSource)
   || !/id="navSpeedUnit"/.test(pwaIndexSource)) {
   throw new Error('PWA dedicated navigation must expose the prominent live-speed badge and units');
 }
-if (!/\.nav-speed-badge\{[^\n]*top:calc\(var\(--safe-top\) \+ 8px \+ var\(--nav-banner-height,166px\) \+ 10px\)[^\n]*right:max\(14px,var\(--safe-right\)\)[^\n]*width:76px;height:76px/.test(pwaCssSource)
+if (!/\.nav-speed-badge\{[^\n]*top:calc\(var\(--safe-top\) \+ 8px \+ var\(--nav-banner-height,166px\) \+ 10px\)[^\n]*right:max\(14px,var\(--safe-right\)\)[^\n]*width:76px;height:76px[^\n]*border-radius:38px/.test(pwaCssSource)
   || !/grid-template-columns:1\.14fr 1fr 1fr/.test(pwaCssSource)
   || /nav-summary-speed/.test(pwaCssSource)) {
   throw new Error('PWA navigation must keep live speed in the 76px top-right badge and the ETA summary to three trip stats');
