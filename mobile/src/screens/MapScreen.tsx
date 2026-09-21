@@ -70,8 +70,11 @@ import { speakNavigationPrompt, stopNavigationPrompt } from '../audio/navigation
 import { microphoneErrorMessage, preflightVoiceMicrophone } from '../audio/microphone';
 import { RiderAvatar } from '../components/RiderAvatar';
 import { NavigationManeuverGlyph } from '../components/NavigationManeuverGlyph';
+import { NavigationRoadAhead } from '../components/NavigationRoadAhead';
+import { navigationHazardsAhead } from '../navigationRoadEvents';
 
 const PRESENCE_UPDATE_INTERVAL_MS = 8000; // per spec Section 8: every 5-10s
+const HAZARD_REFRESH_INTERVAL_MS = 60_000;
 const RIDE_MARKER_REFRESH_MS = 10_000;
 const RIDE_MARKER_STALE_MS = 20_000;
 const RIDE_AVATAR_REFRESH_MS = 30_000;
@@ -154,6 +157,7 @@ export function MapScreen(): React.JSX.Element {
   const [locationUnavailable, setLocationUnavailable] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [currentLocation, setCurrentLocation] = React.useState<{ lat: number; lon: number } | null>(null);
+  const currentLocationRef = React.useRef<{ lat: number; lon: number } | null>(null);
   const [selectedPlace, setSelectedPlace] = React.useState<PlaceResult | null>(null);
   const [hazards, setHazards] = React.useState<HazardReport[]>([]);
   const [selectedHazardId, setSelectedHazardId] = React.useState<string | null>(null);
@@ -313,6 +317,10 @@ export function MapScreen(): React.JSX.Element {
   }, [requestCurrentLocation]);
 
   React.useEffect(() => {
+    currentLocationRef.current = currentLocation;
+  }, [currentLocation]);
+
+  React.useEffect(() => {
     if (!mapReady || segment !== 'public' || !currentLocation || centredOnFirstFix.current || navigationTarget || selectedPlace) return;
     centredOnFirstFix.current = true;
     focusCoordinate(currentLocation);
@@ -358,29 +366,32 @@ export function MapScreen(): React.JSX.Element {
     };
   }, [client, requestCurrentLocation, shareLocation]);
 
-  // Nearby hazard reports poll independently of the presence tick above —
-  // they're visible whether or not the rider is sharing their own location
-  // publicly (shareLocation only gates *being seen*, not *seeing others'
-  // reports*), so this only needs a location fix to exist, not shareLocation.
+  // Nearby reports refresh on the same one-minute cadence as the PWA. The
+  // high-accuracy navigation watcher updates currentLocation every couple of
+  // seconds, so keying this effect to the coordinate object would otherwise
+  // restart the poll — and hit /hazards/nearby on nearly every GPS fix.
+  const hasCurrentLocation = currentLocation !== null;
   React.useEffect(() => {
-    if (!currentLocation) { setHazards([]); return; }
+    if (!hasCurrentLocation) { setHazards([]); return; }
     let cancelled = false;
     async function fetchHazards() {
+      const location = currentLocationRef.current;
+      if (!location) return;
       try {
-        const { hazards: fetched } = await client.getNearbyHazards(currentLocation!.lat, currentLocation!.lon);
+        const { hazards: fetched } = await client.getNearbyHazards(location.lat, location.lon);
         if (!cancelled) setHazards(fetched);
       } catch {
         // Nearby hazards are a secondary layer on top of the core map —
         // a failure here doesn't need its own error banner.
       }
     }
-    fetchHazards();
-    const interval = setInterval(fetchHazards, PRESENCE_UPDATE_INTERVAL_MS);
+    void fetchHazards();
+    const interval = setInterval(() => void fetchHazards(), HAZARD_REFRESH_INTERVAL_MS);
     return () => {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [client, currentLocation]);
+  }, [client, hasCurrentLocation]);
 
   const handleNearbyToggle = React.useCallback(async () => {
     if (shareLocation) {
@@ -476,6 +487,18 @@ export function MapScreen(): React.JSX.Element {
   const currentNavigationStep = activeRoute?.steps[navigationStepIndex] ?? null;
   const upcomingNavigationStep = activeRoute?.steps[navigationStepIndex + 1] ?? null;
   const followingNavigationStep = activeRoute?.steps[navigationStepIndex + 2] ?? null;
+  const navigationRoadAlertPath = React.useMemo(
+    () => activeRoute
+      ? combineNavigationCameraPaths(...activeRoute.steps.slice(navigationStepIndex).map((step) => step.coordinates))
+      : [],
+    [activeRoute, navigationStepIndex],
+  );
+  const navigationRoadAlerts = React.useMemo(
+    () => activeRoute && currentLocation
+      ? navigationHazardsAhead(currentLocation, navigationRoadAlertPath, hazards)
+      : [],
+    [activeRoute, currentLocation, hazards, navigationRoadAlertPath],
+  );
   const navigationGuidanceInstruction = upcomingNavigationStep?.instruction
     ?? `Arrive at ${navigationDestination?.label ?? 'destination'}`;
   const navigationGlanceAction = navigationManeuverAction(upcomingNavigationStep?.maneuver ?? 'arrive');
@@ -536,7 +559,9 @@ export function MapScreen(): React.JSX.Element {
     if (cameraPath.length === 0) return;
 
     const maneuverDistance = remainingDistanceOnPathMeters(here, step.coordinates);
-    const topOcclusion = insets.top + 136 + (followingStep ? 48 : 0) + (navigationNotice ? 36 : 0);
+    // The measured header already includes the maneuver, provider instruction,
+    // Then row, Road Ahead reports and any GPS/reroute notice.
+    const topOcclusion = insets.top + spacing.sm + navigationBannerHeight;
     const bottomOcclusion = Math.max(insets.bottom, spacing.sm) + 112;
     const viewportBias = navigationViewportBias(viewportHeight, topOcclusion, bottomOcclusion);
     const profile = navigationCameraProfile({
@@ -579,7 +604,7 @@ export function MapScreen(): React.JSX.Element {
     } else {
       mapRef.current?.animateCamera(camera, { duration: movingSpeed !== null && movingSpeed <= 1.5 ? 650 : 500 });
     }
-  }, [insets.bottom, insets.top, mapReady, navigationNotice, reduceMotionEnabled, viewportHeight]);
+  }, [insets.bottom, insets.top, mapReady, navigationBannerHeight, reduceMotionEnabled, viewportHeight]);
 
   React.useEffect(() => {
     navigationFollowingRef.current = navigationFollowing;
@@ -1147,6 +1172,7 @@ export function MapScreen(): React.JSX.Element {
                 <Text numberOfLines={1} style={styles.navigationNextInstruction}>{followingNavigationStep.instruction}</Text>
               </View>
             ) : null}
+            <NavigationRoadAhead alerts={navigationRoadAlerts} unit={unitSystem} />
             {navigationNotice ? (
               <View style={styles.navigationNoticeRow}>
                 <Ionicons name="warning-outline" size={16} color={colors.warning} />
