@@ -236,14 +236,31 @@ if (/navigationManeuver:\s*\{[^}]*backgroundColor: colors\.surfaceRaised/.test(n
   throw new Error('Native primary maneuver glyph must stay integrated into the navigation header rather than boxed as a separate tile');
 }
 
-if (!/id="navSpeed"/.test(pwaIndexSource) || !/id="navSpeedUnit"/.test(pwaIndexSource)) {
-  throw new Error('PWA dedicated navigation must expose live GPS speed and units');
+if (!/id="navSpeedBadge"[^>]*class="nav-speed-badge"/.test(pwaIndexSource)
+  || !/id="navSpeed"/.test(pwaIndexSource)
+  || !/id="navSpeedUnit"/.test(pwaIndexSource)) {
+  throw new Error('PWA dedicated navigation must expose the prominent live-speed badge and units');
 }
-if (!/nav-summary-speed/.test(pwaCssSource) || !/grid-template-columns:1\.08fr 1fr 1fr 1fr/.test(pwaCssSource)) {
-  throw new Error('PWA navigation summary must keep the four-stat layout with live speed');
+if (!/\.nav-speed-badge\{[^\n]*top:calc\(var\(--safe-top\) \+ 8px \+ var\(--nav-banner-height,166px\) \+ 10px\)[^\n]*right:max\(14px,var\(--safe-right\)\)[^\n]*width:76px;height:76px/.test(pwaCssSource)
+  || !/grid-template-columns:1\.14fr 1fr 1fr/.test(pwaCssSource)
+  || /nav-summary-speed/.test(pwaCssSource)) {
+  throw new Error('PWA navigation must keep live speed in the 76px top-right badge and the ETA summary to three trip stats');
+}
+if (!/syncNavigationOverlayGeometry/.test(pwaMapSource)
+  || !/--nav-banner-height/.test(pwaMapSource)
+  || !/\$\('#navSpeedBadge'\)\.hidden = false/.test(pwaMapSource)
+  || !/\$\('#navSpeedBadge'\)\.hidden = true/.test(pwaMapSource)) {
+  throw new Error('PWA speed badge must follow the measured guidance-header height and navigation lifecycle');
 }
 if (!/formatNavigationSpeed/.test(nativeGuidanceSource) || !/navigationSpeedUnit/.test(nativeGuidanceSource)) {
   throw new Error('Native navigation must share explicit GPS speed formatting and units');
+}
+if (!/navigationBannerHeight/.test(nativeMapSource)
+  || !/setNavigationBannerHeight/.test(nativeMapSource)
+  || !/styles\.navigationSpeedBadge/.test(nativeMapSource)
+  || !/right: spacing\.md/.test(nativeMapSource)
+  || !/width: 76,[\s\S]*height: 76,[\s\S]*borderRadius: 38/.test(nativeMapSource)) {
+  throw new Error('Native navigation must position the 76px live-speed badge at the upper right below the measured guidance header');
 }
 
 if (!/id="navProviderInstruction"/.test(pwaIndexSource)
