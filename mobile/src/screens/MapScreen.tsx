@@ -684,6 +684,7 @@ export function MapScreen(): React.JSX.Element {
       const notice = navigationGpsNotice(navGpsTracker.current.stateAt());
       if (!notice) return;
       navOffRouteSince.current = null;
+      setNavigationSpeedMps(null);
       setNavigationNotice(notice);
     }, NAV_GPS_CHECK_INTERVAL_MS);
 
@@ -784,6 +785,7 @@ export function MapScreen(): React.JSX.Element {
       const permission = await Location.getForegroundPermissionsAsync().catch(() => null);
       const health = navGpsTracker.current.markUnavailable(permission?.granted === false);
       navOffRouteSince.current = null;
+      setNavigationSpeedMps(null);
       setNavigationNotice(navigationGpsNotice(health));
     });
 
@@ -1145,9 +1147,15 @@ export function MapScreen(): React.JSX.Element {
                 <Text style={styles.navigationSummaryLabel}>away</Text>
               </View>
               <View style={styles.navigationSummaryDivider} />
-              <View style={styles.navigationSummaryStat}>
+              <View
+                style={styles.navigationSummaryStat}
+                accessible
+                accessibilityLabel={navigationSpeedMps == null
+                  ? 'Current speed unavailable'
+                  : `Current speed ${formatNavigationSpeed(navigationSpeedMps, unitSystem)} ${navigationSpeedUnit(unitSystem)}`}
+              >
                 <View style={styles.navigationSpeedValueRow}>
-                  <Ionicons name="speedometer-outline" size={16} color={colors.textSecondary} />
+                  <Ionicons accessible={false} name="speedometer-outline" size={16} color={colors.textSecondary} />
                   <Text style={styles.navigationSummaryValue}>{formatNavigationSpeed(navigationSpeedMps, unitSystem)}</Text>
                 </View>
                 <Text style={styles.navigationSummaryLabel}>{navigationSpeedUnit(unitSystem)}</Text>
