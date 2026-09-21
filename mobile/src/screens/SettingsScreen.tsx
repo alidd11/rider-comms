@@ -695,7 +695,7 @@ export function SettingsScreen(): React.JSX.Element {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-  scroll: { width: '100%', maxWidth: 760, alignSelf: 'center', padding: spacing.md, paddingTop: spacing.lg },
+  scroll: { width: '100%', maxWidth: 760, alignSelf: 'center', paddingHorizontal: 20, paddingVertical: spacing.md, paddingTop: spacing.lg },
   profileCard: {
     minHeight: 88,
     flexDirection: 'row',
