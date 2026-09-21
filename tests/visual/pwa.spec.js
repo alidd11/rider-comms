@@ -2118,6 +2118,7 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
       dockGap: parseFloat(actionsStyle.columnGap),
       dockPadding: parseFloat(actionsStyle.paddingTop),
       dockRadius: parseFloat(actionsStyle.borderTopLeftRadius),
+      dockBottom: actions?.getBoundingClientRect().bottom ?? NaN,
       reportSize: report?.getBoundingClientRect().width ?? 0,
       locateDisplay: locate ? getComputedStyle(locate).display : null,
       muteSize: mute?.getBoundingClientRect().width ?? 0,
@@ -2171,7 +2172,7 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
   expectNear(metrics.muteLeft - metrics.reportRight, 2, 1);
   expectNear(metrics.overviewLeft - metrics.muteRight, 2, 1);
   expect(metrics.overviewBottom).toBeLessThan(metrics.summaryTop);
-  expectNear(metrics.summaryTop - metrics.overviewBottom, 18, 2);
+  expectNear(metrics.summaryTop - metrics.dockBottom, 18, 2);
   expect(metrics.maneuverWidth).toBe(72);
   expect(metrics.maneuverHeight).toBe(80);
   expect(metrics.maneuverRadius).toBe(18);
