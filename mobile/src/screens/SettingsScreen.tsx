@@ -623,8 +623,8 @@ export function SettingsScreen(): React.JSX.Element {
 
         {activeSheet === 'account' ? (
           <View style={styles.settingsSheetSection}>
-            <Text style={styles.sheetBodyCopy}>Delete your Rider Comms account and associated data, or reset local app preferences on this device.</Text>
-            <Pressable style={styles.sheetSecondaryAction} onPress={confirmReset}><Text style={styles.sheetSecondaryActionText}>Reset app data</Text></Pressable>
+            <Text style={styles.sheetBodyCopy}>Delete your Rider Comms account and associated data, or reset your Rider Comms profile and preferences to their defaults.</Text>
+            <Pressable style={styles.sheetSecondaryAction} onPress={confirmReset}><Text style={styles.sheetSecondaryActionText}>Reset settings</Text></Pressable>
             <Pressable style={styles.sheetDangerAction} onPress={confirmDeleteAccount}><Text style={styles.sheetDangerActionText}>Delete account</Text></Pressable>
           </View>
         ) : null}
