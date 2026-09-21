@@ -41,7 +41,7 @@ describe('POST /voice/token', () => {
       assert.equal(memberBody.url, FAKE_CREDS.url);
       assert.equal(memberBody.token.split('.').length, 3);
       const ridePayload = JSON.parse(Buffer.from(memberBody.token.split('.')[1], 'base64url').toString('utf8'));
-      assert.ok(ridePayload.exp - ridePayload.iat <= 61, 'private ride tokens must be short-lived');
+      assert.ok(ridePayload.exp - ridePayload.nbf <= 61, 'private ride tokens must be short-lived');
 
       const strangerRes = await postJson(ctx, 'stranger', '/voice/token', { target: 'ride', rideId: created.rideId });
       assert.equal(strangerRes.status, 403);
