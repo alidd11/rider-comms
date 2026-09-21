@@ -2067,6 +2067,7 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
     document.querySelector('#app').classList.add('nav-mode');
     document.querySelector('#navSummary').hidden = false;
     document.querySelector('#navBanner').hidden = false;
+    document.querySelector('#navSpeedBadge').hidden = false;
     document.querySelector('#navNextPreview').hidden = false;
     document.querySelector('#navDistanceNext').textContent = '0.5 mi';
     document.querySelector('#navInstruction').textContent = 'Sharp left';
@@ -2075,6 +2076,8 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
     document.querySelector('#navNextInstruction').textContent = 'Keep right at the fork onto Seven Sisters Road / A503';
     document.querySelector('#navSpeed').textContent = '32';
     document.querySelector('#navSpeedUnit').textContent = 'mph';
+    const banner = document.querySelector('#navBanner');
+    document.querySelector('#app').style.setProperty('--nav-banner-height', `${Math.ceil(banner.getBoundingClientRect().height)}px`);
     const mainUse = document.querySelector('#navManeuverSvg use');
     const nextUse = document.querySelector('#navNextManeuverSvg use');
     mainUse?.setAttribute('href', '#i-nav-sharp-left');
@@ -2103,7 +2106,7 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
     const nextPreview = document.querySelector('#navNextPreview');
     const nextSvg = document.querySelector('#navNextManeuverSvg');
     const nextUse = document.querySelector('#navNextManeuverSvg use');
-    const speed = document.querySelector('.nav-summary-speed');
+    const speed = document.querySelector('#navSpeedBadge');
     const instruction = document.querySelector('#navInstruction');
     const providerInstruction = document.querySelector('#navProviderInstruction');
     const speedValue = document.querySelector('#navSpeed');
@@ -2140,8 +2143,13 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
       nextSvgWidth: nextSvg?.getBoundingClientRect().width ?? NaN,
       nextHref: nextUse?.getAttribute('href') ?? null,
       speedWidth: speed?.getBoundingClientRect().width ?? NaN,
+      speedHeight: speed?.getBoundingClientRect().height ?? NaN,
+      speedRadius: speed ? parseFloat(getComputedStyle(speed).borderTopLeftRadius) : NaN,
+      speedTopGap: speed && banner ? speed.getBoundingClientRect().top - banner.getBoundingClientRect().bottom : NaN,
+      speedRightGap: speed ? window.innerWidth - speed.getBoundingClientRect().right : NaN,
       speedValue: speedValue?.textContent ?? null,
       speedUnit: speedUnit?.textContent ?? null,
+      speedStillInSummary: Boolean(document.querySelector('.nav-summary-speed')),
     };
   });
 
@@ -2175,10 +2183,16 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
   expect(metrics.nextHeight).toBeGreaterThanOrEqual(50);
   expect(metrics.nextSvgWidth).toBe(30);
   expect(metrics.nextHref).toBe('#i-nav-fork-right');
-  expect(metrics.speedWidth).toBeGreaterThan(60);
+  expect(metrics.speedWidth).toBe(76);
+  expect(metrics.speedHeight).toBe(76);
+  expect(metrics.speedRadius).toBe(38);
+  expectNear(metrics.speedTopGap, 10, 2);
+  expectNear(metrics.speedRightGap, 14, 2);
   expect(metrics.speedValue).toBe('32');
   expect(metrics.speedUnit).toBe('mph');
+  expect(metrics.speedStillInSummary).toBe(false);
   await expect(banner).toBeVisible();
+  await expect(page.locator('#navSpeedBadge')).toBeVisible();
   await expect(mute).toBeVisible();
   await expect(overview).toBeVisible();
   await expect(page.locator('html')).toHaveClass(/pwa-standalone/);
