@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-09-21T23:33:07.425Z",
-  "width": 768,
+  "generatedAt": "2026-09-21T23:34:10.712Z",
+  "width": 640,
   "note": "Local runtime card copies derived from the authoritative image URI in mobile/src/routes/curatedRoutes.ts. Attribution and licence metadata remain in the curated route catalogue and ROUTE_IMAGE_LICENSES.md.",
   "routes": {
     "surrey-hills-circuit": {
