@@ -49,8 +49,7 @@ import { navigationProviderLabel } from '../navigationPreference';
 import {
   formatNavigationDistance,
   formatNavigationSpeed,
-  navigationGlanceInstruction,
-  navigationGlanceSummary,
+  navigationManeuverAction,
   navigationPromptStageForDistance,
   navigationPromptText,
   navigationSpeedUnit,
@@ -478,18 +477,7 @@ export function MapScreen(): React.JSX.Element {
   const followingNavigationStep = activeRoute?.steps[navigationStepIndex + 2] ?? null;
   const navigationGuidanceInstruction = upcomingNavigationStep?.instruction
     ?? `Arrive at ${navigationDestination?.label ?? 'destination'}`;
-  const navigationGlance = navigationGlanceInstruction(
-    navigationGuidanceInstruction,
-    upcomingNavigationStep?.maneuver ?? 'arrive',
-    navigationDestination?.label ?? 'destination',
-  );
-  const followingNavigationSummary = followingNavigationStep
-    ? navigationGlanceSummary(
-      followingNavigationStep.instruction,
-      followingNavigationStep.maneuver,
-      navigationDestination?.label ?? 'destination',
-    )
-    : '';
+  const navigationGlanceAction = navigationManeuverAction(upcomingNavigationStep?.maneuver ?? 'arrive');
   const distanceToCurrentStepEnd = currentNavigationStep && currentLocation
     ? remainingDistanceOnPathMeters(currentLocation, currentNavigationStep.coordinates)
     : currentNavigationStep?.distanceMeters ?? 0;
@@ -1128,14 +1116,11 @@ export function MapScreen(): React.JSX.Element {
                   accessibilityLiveRegion="polite"
                   accessibilityLabel={navigationGuidanceInstruction}
                 >
-                  {navigationGlance.action}
+                  {navigationGlanceAction}
                 </Text>
-                {(navigationGlance.routeCode || navigationGlance.road) ? (
-                  <View style={styles.navigationRoadRow} accessible={false}>
-                    {navigationGlance.routeCode ? <Text style={styles.navigationRouteBadge}>{navigationGlance.routeCode}</Text> : null}
-                    {navigationGlance.road ? <Text numberOfLines={1} style={styles.navigationRoadName}>{navigationGlance.road}</Text> : null}
-                  </View>
-                ) : null}
+                <Text numberOfLines={1} accessible={false} style={styles.navigationProviderInstruction}>
+                  {navigationGuidanceInstruction}
+                </Text>
               </View>
               <Pressable accessibilityRole="button" accessibilityLabel="End navigation" onPress={() => finishInAppNavigation(false)} style={styles.navigationEndButton}>
                 <Ionicons name="close" size={24} color={colors.textPrimary} />
@@ -1152,7 +1137,7 @@ export function MapScreen(): React.JSX.Element {
                   />
                 </View>
                 <Text style={styles.navigationNextLabel}>Then</Text>
-                <Text numberOfLines={1} style={styles.navigationNextInstruction}>{followingNavigationSummary}</Text>
+                <Text numberOfLines={1} style={styles.navigationNextInstruction}>{followingNavigationStep.instruction}</Text>
               </View>
             ) : null}
             {navigationNotice ? (
@@ -1418,19 +1403,7 @@ const styles = StyleSheet.create({
   navigationBannerCopy: { flex: 1, minWidth: 0 },
   navigationDistance: { color: colors.accent, fontSize: 39, lineHeight: 42, fontWeight: '800', letterSpacing: -0.9 },
   navigationInstruction: { ...type.body, color: colors.textPrimary, marginTop: 1, fontSize: 18, lineHeight: 21, fontWeight: '800' },
-  navigationRoadRow: { minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 4 },
-  navigationRouteBadge: {
-    flexShrink: 0,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 5,
-    backgroundColor: colors.surfaceRaised,
-    color: colors.textPrimary,
-    fontSize: 11,
-    lineHeight: 15,
-    fontWeight: '800',
-  },
-  navigationRoadName: { ...type.caption, flex: 1, minWidth: 0, color: colors.textSecondary, fontSize: 13, lineHeight: 17, fontWeight: '600' },
+  navigationProviderInstruction: { ...type.caption, minWidth: 0, color: colors.textSecondary, marginTop: 4, fontSize: 13, lineHeight: 17, fontWeight: '600' },
   navigationNextPreview: {
     minHeight: 50,
     flexDirection: 'row',
