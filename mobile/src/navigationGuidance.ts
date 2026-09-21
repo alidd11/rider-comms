@@ -36,6 +36,79 @@ export function navigationSpeedUnit(unit: NavigationUnit): 'mph' | 'km/h' {
 }
 
 
+export interface NavigationGlanceInstruction {
+  action: string;
+  road: string;
+  routeCode: string | null;
+}
+
+const GLANCE_ACTIONS: Record<string, string> = {
+  straight: 'Go straight',
+  'turn-left': 'Turn left',
+  'turn-right': 'Turn right',
+  'turn-slight-left': 'Bear left',
+  'turn-slight-right': 'Bear right',
+  'turn-sharp-left': 'Sharp left',
+  'turn-sharp-right': 'Sharp right',
+  'uturn-left': 'Make a U-turn',
+  'uturn-right': 'Make a U-turn',
+  'fork-left': 'Keep left',
+  'fork-right': 'Keep right',
+  'ramp-left': 'Take ramp left',
+  'ramp-right': 'Take ramp right',
+  merge: 'Merge',
+  arrive: 'Arrive',
+};
+
+function roundaboutAction(instruction: string): string {
+  const exit = instruction.match(/\b(?:take\s+the\s+)?(\d+(?:st|nd|rd|th)\s+exit)\b/i)?.[1];
+  return exit ? `Take the ${exit.toLowerCase()}` : 'At roundabout';
+}
+
+function roadFromInstruction(instruction: string): string {
+  const match = instruction.match(/\b(?:onto|towards?|to stay on|to continue on)\s+(.+)$/i);
+  if (!match?.[1]) return '';
+  return match[1]
+    .replace(/\s+(?:towards?)\s+.+$/i, '')
+    .replace(/[.,;]+$/g, '')
+    .trim();
+}
+
+export function navigationGlanceInstruction(
+  instruction: string,
+  maneuver?: string,
+  destinationLabel = 'destination'
+): NavigationGlanceInstruction {
+  const cleaned = instruction.replace(/\s+/g, ' ').trim();
+  const maneuverKey = maneuver || 'straight';
+  const action = maneuverKey.startsWith('roundabout')
+    ? roundaboutAction(cleaned)
+    : GLANCE_ACTIONS[maneuverKey] ?? 'Go straight';
+
+  let road = maneuverKey === 'arrive' ? destinationLabel.trim() : roadFromInstruction(cleaned);
+  const routeMatch = road.match(/\b(?:A|M)\d{1,4}\b/i);
+  const routeCode = routeMatch?.[0]?.toUpperCase() ?? null;
+  if (routeCode) {
+    road = road
+      .replace(new RegExp(`\\b${routeCode}\\b`, 'i'), '')
+      .replace(/^\s*[\/|·-]\s*|\s*[\/|·-]\s*$/g, '')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
+  }
+
+  return { action, road, routeCode };
+}
+
+export function navigationGlanceSummary(
+  instruction: string,
+  maneuver?: string,
+  destinationLabel = 'destination'
+): string {
+  const glance = navigationGlanceInstruction(instruction, maneuver, destinationLabel);
+  return [glance.action, glance.routeCode, glance.road].filter(Boolean).join(' · ');
+}
+
+
 export type NavigationPromptStage = 0 | 1 | 2 | 3;
 
 export function navigationPromptStageForDistance(metres: number): NavigationPromptStage {
