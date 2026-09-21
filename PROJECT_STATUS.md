@@ -5,10 +5,10 @@
 ## Executive status
 
 - **Lifecycle:** pre-alpha / internal testing. The repository is suitable for continued development and controlled testing, not public production use.
-- **Snapshot main:** `7fdbedb77ade2eb9ae9ea1021fabbf29f15d2e68` — merge of PR #283, **Enforce blocks on private ride locations**.
+- **Snapshot main:** `df02282de7249dd870a668cf543294f01134f576` — merge of PR #286, **Revoke private ride voice authorization**.
 - **Main verification:** CI, PWA deployment and GitHub Pages deployment all completed successfully on that exact main SHA.
 - **Client parity:** `client-parity.json` currently records PWA/native parity for every tracked capability except **navigation**, which remains a `behavior-gap` pending production-grade background/locked-screen and physical ride validation.
-- **Active development:** Settings parity, clicked-friend profile alignment, navigation header/control refinement and route-aware Road ahead alerts are in separate open PRs. PR #283's private-ride location privacy fix is now merged.
+- **Active development:** Settings parity, clicked-friend profile alignment, navigation header/control refinement and route-aware Road ahead alerts are in separate open PRs. PR #283's private-ride location privacy fix and PR #286's private-ride voice revocation hardening are now merged.
 
 ## What is currently on `main`
 
@@ -43,6 +43,7 @@
 ### Voice
 
 - LiveKit-backed public/private proximity voice and VOX plumbing.
+- Private-ride voice now uses short-lived authorization, revokes affected LiveKit participants on block/leave/removal/ride end, and denies fresh ride tokens where a current block forbids re-entry.
 - Native audio-session/Bluetooth coexistence infrastructure and navigation-prompt priority/ducking.
 - Physical-device validation remains important for helmet/intercom behavior, wind/engine noise, background execution and locked-screen continuity.
 
@@ -74,7 +75,7 @@ Do not casually edit or rebase files already owned by the active PRs. At this sn
 - **#285** overlaps navigation CSS/index/service-worker files, `docs/map-rendering.md`, native `MapScreen.tsx`, the parity guard and PWA visual tests.
 - **#282** overlaps the shared PWA shell, `client-parity.json`, navigation/MapScreen/parity/build files and adds the Road ahead implementation/tests/docs.
 
-PR #281 was closed without merge and superseded by current-main PR #285. PR #283 has merged, so its backend files are no longer active-PR-owned. The highest-overlap area is the shared PWA/navigation surface. Those branches must be refreshed and reconciled against the newest `main` one at a time before final merge. Settings should not be marked complete until its PWA pass is performed after that overlap clears.
+PR #281 was closed without merge and superseded by current-main PR #285. PRs #283 and #286 have merged, so their backend files are no longer active-PR-owned. The highest-overlap area is the shared PWA/navigation surface. Those branches must be refreshed and reconciled against the newest `main` one at a time before final merge. Settings should not be marked complete until its PWA pass is performed after that overlap clears.
 
 ## Current release blockers
 
