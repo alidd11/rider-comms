@@ -716,32 +716,46 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
   await page.locator('#friendList [data-friend]').first().click();
   await expect(page.locator('#sheetBackdrop')).toBeVisible();
   await expect(page.locator('.friend-profile-card')).toBeVisible();
-  await expect(page.locator('#shareFriendId')).toContainText('Share ID');
+  await expect(page.locator('#shareFriendId')).toContainText('Share Rider ID');
+  await expect(page.locator('#friendSafetyActions')).toContainText('Report or block rider');
+  await expect(page.locator('.friend-profile-stats > div')).toHaveCount(3);
+  await expect(page.locator('.friend-profile-stats > div').first()).toContainText('Online');
+  await expect(page.locator('.friend-profile-relationship')).toContainText('Connected rider');
+  await expect(page.locator('.friend-detail-list')).toHaveCount(0);
   const friendDetailGeometry = await page.evaluate(() => {
     const card = document.querySelector('.friend-profile-card');
-    const avatar = card?.querySelector('.avatar');
-    const action = document.querySelector('.friend-profile-actions button');
-    const list = document.querySelector('.friend-detail-list');
-    const listRow = list?.querySelector(':scope > div');
+    const cover = document.querySelector('.friend-profile-cover');
+    const avatar = document.querySelector('.friend-profile-avatar .avatar');
+    const primary = document.querySelector('#messageFriend');
+    const secondary = document.querySelector('#shareFriendId');
+    const safety = document.querySelector('#friendSafetyActions');
     const title = document.querySelector('#sheetTitle');
     const box = (element) => element?.getBoundingClientRect();
     return {
-      avatarWidth: box(avatar)?.width ?? NaN,
-      actionHeight: box(action)?.height ?? NaN,
-      listRowHeight: box(listRow)?.height ?? NaN,
       cardBorderWidth: card ? parseFloat(getComputedStyle(card).borderTopWidth) : NaN,
-      cardBackground: card ? getComputedStyle(card).backgroundColor : null,
-      listRadius: list ? parseFloat(getComputedStyle(list).borderTopLeftRadius) : NaN,
+      cardRadius: card ? parseFloat(getComputedStyle(card).borderTopLeftRadius) : NaN,
+      coverHeight: box(cover)?.height ?? NaN,
+      avatarWidth: box(avatar)?.width ?? NaN,
+      primaryHeight: box(primary)?.height ?? NaN,
+      secondaryHeight: box(secondary)?.height ?? NaN,
+      safetyHeight: box(safety)?.height ?? NaN,
+      primaryWidth: box(primary)?.width ?? NaN,
+      secondaryWidth: box(secondary)?.width ?? NaN,
+      primaryDisplay: primary ? getComputedStyle(primary).display : null,
       titleWidth: box(title)?.width ?? NaN,
     };
   });
-  expect(friendDetailGeometry.avatarWidth).toBeGreaterThanOrEqual(54);
-  expect(friendDetailGeometry.avatarWidth).toBeLessThanOrEqual(58);
-  expect(friendDetailGeometry.actionHeight).toBeLessThanOrEqual(60);
-  expect(friendDetailGeometry.listRowHeight).toBeLessThanOrEqual(54);
-  expect(friendDetailGeometry.cardBorderWidth).toBe(0);
-  expect(friendDetailGeometry.cardBackground).toBe('rgba(0, 0, 0, 0)');
-  expect(friendDetailGeometry.listRadius).toBeLessThanOrEqual(4);
+  expect(friendDetailGeometry.cardBorderWidth).toBeGreaterThan(0);
+  expect(friendDetailGeometry.cardRadius).toBeGreaterThanOrEqual(16);
+  expect(friendDetailGeometry.coverHeight).toBeGreaterThanOrEqual(120);
+  expect(friendDetailGeometry.coverHeight).toBeLessThanOrEqual(132);
+  expect(friendDetailGeometry.avatarWidth).toBeGreaterThanOrEqual(66);
+  expect(friendDetailGeometry.avatarWidth).toBeLessThanOrEqual(72);
+  expect(friendDetailGeometry.primaryHeight).toBeGreaterThanOrEqual(54);
+  expect(friendDetailGeometry.secondaryHeight).toBeGreaterThanOrEqual(54);
+  expect(friendDetailGeometry.safetyHeight).toBeGreaterThanOrEqual(54);
+  expectNear(friendDetailGeometry.primaryWidth, friendDetailGeometry.secondaryWidth, 1);
+  expect(friendDetailGeometry.primaryDisplay).toBe('flex');
   expect(friendDetailGeometry.titleWidth).toBeLessThanOrEqual(1);
   await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-friend-detail-final.png'), fullPage: true });
   await page.locator('#messageFriend').click();
