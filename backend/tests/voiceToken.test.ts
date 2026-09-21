@@ -40,6 +40,8 @@ describe('POST /voice/token', () => {
       const memberBody = await memberRes.json() as { token: string; url: string };
       assert.equal(memberBody.url, FAKE_CREDS.url);
       assert.equal(memberBody.token.split('.').length, 3);
+      const ridePayload = JSON.parse(Buffer.from(memberBody.token.split('.')[1], 'base64url').toString('utf8'));
+      assert.ok(ridePayload.exp - ridePayload.nbf <= 61, 'private ride tokens must be short-lived');
 
       const strangerRes = await postJson(ctx, 'stranger', '/voice/token', { target: 'ride', rideId: created.rideId });
       assert.equal(strangerRes.status, 403);
@@ -101,6 +103,74 @@ describe('POST /voice/token', () => {
       assert.equal((await postJson(ctx, 'alice', '/blocks', { riderId: 'bob' })).status, 200);
       const blocked = await postJson(ctx, 'alice', '/voice/token', { target: 'channel' });
       assert.deepEqual(await blocked.json(), { connections: [], refreshAfterMs: 20_000, authorizationLeaseMs: 60_000 });
+    });
+
+    it('ejects a blocked rider from shared private voice and denies a fresh token', needsDb, async () => {
+      const revocations: Array<{ rideId: string; riderId: string }> = [];
+      const isolated = startTestServer({
+        liveKitCredentials: FAKE_CREDS,
+        liveKitRoomAdmin: {
+          revokeRideParticipant: async (rideId, riderId) => { revocations.push({ rideId, riderId }); },
+        },
+      });
+      await isolated.ready;
+      try {
+        const created = await (await postJson(isolated, 'voice-block-host', '/rides', {})).json() as { rideId: string; code: string };
+        assert.equal((await postJson(isolated, 'voice-block-member', '/rides/join', { code: created.code })).status, 200);
+        assert.equal((await postJson(isolated, 'voice-block-member', '/voice/token', { target: 'ride', rideId: created.rideId })).status, 200);
+
+        assert.equal((await postJson(isolated, 'voice-block-host', '/blocks', { riderId: 'voice-block-member' })).status, 200);
+        assert.deepEqual(revocations, [{ rideId: created.rideId, riderId: 'voice-block-member' }]);
+
+        const blockedToken = await postJson(isolated, 'voice-block-member', '/voice/token', { target: 'ride', rideId: created.rideId });
+        assert.equal(blockedToken.status, 403);
+        assert.deepEqual(await blockedToken.json(), { error: 'blocked' });
+
+        // Blocking is directional for room admission: the blocker remains
+        // authorised after the blocked participant has been ejected.
+        assert.equal((await postJson(isolated, 'voice-block-host', '/voice/token', { target: 'ride', rideId: created.rideId })).status, 200);
+      } finally {
+        await isolated.close();
+      }
+    });
+
+    it('revokes private voice on leave, host removal, and ride end', needsDb, async () => {
+      const revocations: Array<{ rideId: string; riderId: string }> = [];
+      const isolated = startTestServer({
+        liveKitCredentials: FAKE_CREDS,
+        liveKitRoomAdmin: {
+          revokeRideParticipant: async (rideId, riderId) => { revocations.push({ rideId, riderId }); },
+        },
+      });
+      await isolated.ready;
+      try {
+        const leaveRide = await (await postJson(isolated, 'voice-leave-host', '/rides', {})).json() as { rideId: string; code: string };
+        await postJson(isolated, 'voice-leave-member', '/rides/join', { code: leaveRide.code });
+        assert.equal((await postJson(isolated, 'voice-leave-member', `/rides/${leaveRide.rideId}/leave`, {})).status, 200);
+
+        const removeRide = await (await postJson(isolated, 'voice-remove-host', '/rides', {})).json() as { rideId: string; code: string };
+        await postJson(isolated, 'voice-remove-member', '/rides/join', { code: removeRide.code });
+        assert.equal((await fetch(`${isolated.baseUrl()}/rides/${removeRide.rideId}/members/voice-remove-member`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${isolated.authStore.createTestSession('voice-remove-host').token}` },
+        })).status, 200);
+
+        const endRide = await (await postJson(isolated, 'voice-end-host', '/rides', {})).json() as { rideId: string; code: string };
+        await postJson(isolated, 'voice-end-member', '/rides/join', { code: endRide.code });
+        assert.equal((await fetch(`${isolated.baseUrl()}/rides/${endRide.rideId}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${isolated.authStore.createTestSession('voice-end-host').token}` },
+        })).status, 200);
+
+        assert.deepEqual(revocations, [
+          { rideId: leaveRide.rideId, riderId: 'voice-leave-member' },
+          { rideId: removeRide.rideId, riderId: 'voice-remove-member' },
+          { rideId: endRide.rideId, riderId: 'voice-end-host' },
+          { rideId: endRide.rideId, riderId: 'voice-end-member' },
+        ]);
+      } finally {
+        await isolated.close();
+      }
     });
 
     it('rejects an unknown target', async () => {

@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { getLiveKitCredentialsFromEnv, mintVoiceToken, proximityRoomName, rideRoomName } from '../src/liveKitToken.ts';
+import { getLiveKitCredentialsFromEnv, liveKitRoomServiceUrl, mintVoiceToken, proximityRoomName, rideRoomName } from '../src/liveKitToken.ts';
 
 const FAKE_CREDS = { apiKey: 'fake-key', apiSecret: 'fake-secret-at-least-32-bytes-long!!', url: 'wss://example.livekit.cloud' };
 
@@ -12,6 +12,13 @@ describe('liveKitToken', () => {
       getLiveKitCredentialsFromEnv({ LIVEKIT_API_KEY: 'k', LIVEKIT_API_SECRET: 's', LIVEKIT_URL: 'wss://x' }),
       { apiKey: 'k', apiSecret: 's', url: 'wss://x' }
     );
+  });
+
+  it('maps LiveKit media URLs to the provider room-service origin', () => {
+    assert.equal(liveKitRoomServiceUrl('wss://example.livekit.cloud'), 'https://example.livekit.cloud');
+    assert.equal(liveKitRoomServiceUrl('ws://127.0.0.1:7880'), 'http://127.0.0.1:7880');
+    assert.equal(liveKitRoomServiceUrl('https://example.livekit.cloud'), 'https://example.livekit.cloud');
+    assert.throws(() => liveKitRoomServiceUrl('ftp://example.com'), /LIVEKIT_URL/);
   });
 
   it('uses a stable opaque room for exactly one proximity pair', () => {
