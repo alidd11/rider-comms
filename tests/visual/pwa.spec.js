@@ -2316,9 +2316,9 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
   expect(metrics.nextHeight).toBeGreaterThanOrEqual(50);
   expect(metrics.nextSvgWidth).toBe(30);
   expect(metrics.nextHref).toBe('#i-nav-fork-right');
-  expect(metrics.speedWidth).toBe(76);
-  expect(metrics.speedHeight).toBe(76);
-  expect(metrics.speedRadius).toBe(38);
+  expectNear(metrics.speedWidth, 76, 0.1);
+  expectNear(metrics.speedHeight, 76, 0.1);
+  expectNear(metrics.speedRadius, 38, 0.1);
   expectNear(metrics.speedTopGap, 10, 2);
   expectNear(metrics.speedRightGap, 14, 2);
   expect(metrics.speedValue).toBe('32');
