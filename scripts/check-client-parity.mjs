@@ -176,6 +176,9 @@ if (!/\.nav-mode #locateBtn\{display:none\}/.test(pwaCssSource)) {
 if (!/\.nav-mode \.map-actions \.icon-button\{width:48px;min-width:48px;height:48px;border-radius:14px/.test(pwaCssSource)) {
   throw new Error('PWA navigation controls must keep the shared 48px rounded-square geometry');
 }
+if (!/#app\.nav-mode \.screen-map \.map-actions\{[\s\S]*?bottom:calc\(var\(--nav-summary-height,104px\) \+ var\(--navigation-control-inset\) \+ 18px\)/.test(pwaCssSource)) {
+  throw new Error('PWA phone navigation controls must stay above the ETA summary despite later map-control rules');
+}
 if (!/body:has\(#destinationCard:not\(\[hidden\]\)\) \.screen-map \.map-actions\{display:none\}/.test(pwaCssSource)) {
   throw new Error('PWA destination selection must hide competing general map controls like native');
 }
