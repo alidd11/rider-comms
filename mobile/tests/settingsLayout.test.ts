@@ -62,6 +62,13 @@ describe('Settings mockup contract', () => {
     assert.match(settingsSource, /accessibilityRole="alert"/);
   });
 
+  it('keeps Settings controls accessible', () => {
+    assert.match(settingsSource, /accessibilityRole="radio"/);
+    assert.match(settingsSource, /accessibilityState=\{\{ selected \}\}/);
+    assert.match(settingsSource, /accessibilityLabel=\{label\}/);
+    assert.match(settingsSource, /accessibilityRole="radiogroup"/);
+  });
+
   it('does not advertise offline map downloads that do not exist', () => {
     assert.ok(settingsSource.includes('Offline map downloads are not available in this build yet.'));
   });
