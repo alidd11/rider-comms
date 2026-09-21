@@ -108,11 +108,28 @@ function ToggleRow({
 
 function SocialRow({ label, icon, username, visibility, onUsername, onVisibility }: { label: string; icon: React.ComponentProps<typeof Ionicons>['name']; username: string; visibility: SocialVisibility; onUsername: (value: string) => void; onVisibility: (value: SocialVisibility) => void }): React.JSX.Element {
   const [draft, setDraft] = React.useState(username);
-  React.useEffect(() => setDraft(username), [username]);
+  const [error, setError] = React.useState<string | null>(null);
+  React.useEffect(() => {
+    setDraft(username);
+    setError(null);
+  }, [username]);
   const options: SocialVisibility[] = ['public', 'friends', 'private'];
+
+  function commitUsername() {
+    const normalized = draft.trim().replace(/^@/, '');
+    if (!/^[a-z0-9._]{0,30}$/i.test(normalized)) {
+      setError('Use up to 30 letters, numbers, dots or underscores.');
+      return;
+    }
+    setError(null);
+    setDraft(normalized);
+    if (normalized !== username) onUsername(normalized);
+  }
+
   return <View style={styles.socialRow}>
     <View style={styles.socialHeading}><Ionicons name={icon} size={20} color={colors.textSecondary}/><Text style={styles.toggleLabel}>{label}</Text></View>
-    <TextInput style={styles.socialInput} value={draft} onChangeText={setDraft} onBlur={() => onUsername(draft)} onSubmitEditing={() => onUsername(draft)} autoCapitalize="none" autoCorrect={false} maxLength={31} placeholder="username" placeholderTextColor={colors.textMuted}/>
+    <TextInput style={styles.socialInput} value={draft} onChangeText={(value) => { setDraft(value); setError(null); }} onBlur={commitUsername} onSubmitEditing={commitUsername} autoCapitalize="none" autoCorrect={false} maxLength={31} placeholder="username" placeholderTextColor={colors.textMuted}/>
+    {error ? <Text accessibilityRole="alert" style={styles.socialError}>{error}</Text> : null}
     <View style={styles.visibilityRow}>{options.map((option) => <Pressable key={option} onPress={() => onVisibility(option)} style={[styles.visibilityChoice, visibility === option && styles.visibilityChoiceActive]}><Text style={[styles.visibilityText, visibility === option && styles.visibilityTextActive]}>{option === 'friends' ? 'Friends only' : option[0].toUpperCase() + option.slice(1)}</Text></Pressable>)}</View>
   </View>;
 }
@@ -329,6 +346,7 @@ export function SettingsScreen(): React.JSX.Element {
   const [activeSheet, setActiveSheet] = React.useState<SettingsSheetKey | null>(null);
   const [nameDraft, setNameDraft] = React.useState(displayName);
   const [handleDraft, setHandleDraft] = React.useState(handle);
+  const [profileDraftError, setProfileDraftError] = React.useState<string | null>(null);
   const [sessions, setSessions] = React.useState<AccountSessionSummary[]>([]);
   const [sessionsError, setSessionsError] = React.useState<string | null>(null);
   const [sessionsLoading, setSessionsLoading] = React.useState(false);
@@ -370,11 +388,26 @@ export function SettingsScreen(): React.JSX.Element {
   const avatar = getAvatarPreset(avatarId);
 
   function commitName() {
-    setDisplayName(nameDraft);
+    const next = nameDraft.trim();
+    if (!next) {
+      setProfileDraftError('Add a display name.');
+      return;
+    }
+    setProfileDraftError(null);
+    setNameDraft(next);
+    if (next !== displayName) setDisplayName(next);
   }
 
   function commitHandle() {
-    setHandle(handleDraft);
+    const raw = handleDraft.trim();
+    const next = raw.startsWith('@') ? raw : `@${raw}`;
+    if (!/^@[a-z0-9_]{3,24}$/i.test(next)) {
+      setProfileDraftError('Use 3–24 letters, numbers or underscores for your handle.');
+      return;
+    }
+    setProfileDraftError(null);
+    setHandleDraft(next);
+    if (next !== handle) setHandle(next);
   }
 
   function confirmReset() {
@@ -542,10 +575,16 @@ export function SettingsScreen(): React.JSX.Element {
                 <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
               </Pressable>
               <Text style={styles.fieldLabel}>Display name</Text>
-              <TextInput style={styles.sheetInput} value={nameDraft} onChangeText={setNameDraft} onSubmitEditing={commitName} onBlur={commitName} maxLength={50} returnKeyType="done" placeholder="Rider name" placeholderTextColor={colors.textMuted} />
+              <TextInput style={styles.sheetInput} value={nameDraft} onChangeText={(value) => { setNameDraft(value); setProfileDraftError(null); }} onSubmitEditing={commitName} onBlur={commitName} maxLength={50} returnKeyType="done" placeholder="Rider name" placeholderTextColor={colors.textMuted} />
               <Text style={styles.fieldLabel}>Rider handle</Text>
-              <TextInput style={styles.sheetInput} value={handleDraft} onChangeText={setHandleDraft} onSubmitEditing={commitHandle} onBlur={commitHandle} maxLength={25} autoCapitalize="none" returnKeyType="done" placeholder="@handle" placeholderTextColor={colors.textMuted} />
+              <TextInput style={styles.sheetInput} value={handleDraft} onChangeText={(value) => { setHandleDraft(value); setProfileDraftError(null); }} onSubmitEditing={commitHandle} onBlur={commitHandle} maxLength={25} autoCapitalize="none" autoCorrect={false} returnKeyType="done" placeholder="@handle" placeholderTextColor={colors.textMuted} />
               <Text style={styles.sheetMetaBlock}>{emailVerified ? 'Email verified' : 'Email verification pending'} · {riderId}</Text>
+              {(saving || profileDraftError || profileError) ? (
+                <View style={styles.sheetSaveStatus} accessibilityLiveRegion="polite">
+                  {saving ? <><ActivityIndicator color={colors.accent} size="small" /><Text style={styles.profileSavingText}>Saving profile…</Text></> : null}
+                  {profileDraftError || profileError ? <Text accessibilityRole="alert" style={styles.profileSaveError}>{profileDraftError ?? profileError}</Text> : null}
+                </View>
+              ) : null}
             </View>
             <View style={styles.settingsSheetSection}>
               <Text style={styles.sheetEyebrow}>Connected profiles</Text>
@@ -711,6 +750,7 @@ const styles = StyleSheet.create({
   socialRow: { padding: spacing.md, gap: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border },
   socialHeading: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   socialInput: { ...type.body, color: colors.textPrimary, minHeight: MIN_TOUCH_TARGET, backgroundColor: colors.surfaceRaised, borderRadius: radii.md, paddingHorizontal: spacing.md },
+  socialError: { ...type.caption, color: colors.danger },
   visibilityRow: { flexDirection: 'row', gap: spacing.xs },
   visibilityChoice: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: radii.md, backgroundColor: colors.surfaceRaised },
   visibilityChoiceActive: { backgroundColor: colors.accent },
@@ -837,6 +877,7 @@ const styles = StyleSheet.create({
   sheetProfileName: { ...type.body, color: colors.textPrimary, fontWeight: '700' },
   sheetMeta: { ...type.caption, color: colors.textMuted, marginTop: 2 },
   sheetMetaBlock: { ...type.caption, color: colors.textMuted, margin: spacing.md },
+  sheetSaveStatus: { minHeight: 28, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginHorizontal: spacing.md, marginBottom: spacing.md },
   sheetBodyCopy: { ...type.body, color: colors.textSecondary, padding: spacing.md, lineHeight: 22 },
   sheetNote: { padding: spacing.md, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: radii.lg, backgroundColor: colors.surface },
   sheetNoteTitle: { ...type.body, color: colors.textPrimary, fontWeight: '700' },
