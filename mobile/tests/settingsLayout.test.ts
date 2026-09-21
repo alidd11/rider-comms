@@ -69,6 +69,12 @@ describe('Settings mockup contract', () => {
     assert.match(settingsSource, /accessibilityRole="radiogroup"/);
   });
 
+  it('keeps distance-unit wording aligned with the PWA', () => {
+    assert.ok(settingsSource.includes("name: 'Kilometres'"));
+    assert.ok(settingsSource.includes("blurb: 'Use miles and mph.'"));
+    assert.ok(settingsSource.includes("blurb: 'Use kilometres and km/h.'"));
+  });
+
   it('does not advertise offline map downloads that do not exist', () => {
     assert.ok(settingsSource.includes('Offline map downloads are not available in this build yet.'));
   });
