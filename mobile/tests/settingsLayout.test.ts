@@ -24,11 +24,12 @@ describe('Settings mockup contract', () => {
       cursor = next;
     }
 
+    assert.match(settingsSource, /icon="apps-outline" title="Units & Preferences" last/);
     assert.match(settingsSource, /title="Sign Out" danger showChevron=\{false\} last/);
   });
 
   it('keeps mockup card and row geometry compact', () => {
-    assert.match(settingsSource, /profileCard:\s*\{[\s\S]*?minHeight:\s*72[\s\S]*?borderRadius:\s*8/);
+    assert.match(settingsSource, /profileCard:\s*\{[\s\S]*?minHeight:\s*72[\s\S]*?marginBottom:\s*8[\s\S]*?borderRadius:\s*8/);
     assert.match(settingsSource, /settingsGroup:\s*\{[^\n]*borderRadius:\s*8/);
     assert.match(settingsSource, /settingRow:\s*\{[^\n]*minHeight:\s*52/);
     assert.match(settingsSource, /secondarySettingsGroup:\s*\{\s*marginTop:\s*12\s*\}/);
