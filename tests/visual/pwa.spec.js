@@ -2200,12 +2200,17 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
     document.querySelector('#app').classList.add('nav-mode');
     document.querySelector('#navSummary').hidden = false;
     document.querySelector('#navBanner').hidden = false;
+    document.querySelector('#navSpeedBadge').hidden = false;
     document.querySelector('#navNextPreview').hidden = false;
     document.querySelector('#navDistanceNext').textContent = '0.5 mi';
-    document.querySelector('#navInstruction').textContent = 'Sharp left onto Holloway Road';
-    document.querySelector('#navNextInstruction').textContent = 'Keep right at the fork';
+    document.querySelector('#navInstruction').textContent = 'Sharp left';
+    document.querySelector('#navInstruction').setAttribute('aria-label', 'Turn sharp left onto Holloway Road / A1');
+    document.querySelector('#navProviderInstruction').textContent = 'Turn sharp left onto Holloway Road / A1';
+    document.querySelector('#navNextInstruction').textContent = 'Keep right at the fork onto Seven Sisters Road / A503';
     document.querySelector('#navSpeed').textContent = '32';
     document.querySelector('#navSpeedUnit').textContent = 'mph';
+    const banner = document.querySelector('#navBanner');
+    document.querySelector('#app').style.setProperty('--nav-banner-height', `${Math.ceil(banner.getBoundingClientRect().height)}px`);
     const mainUse = document.querySelector('#navManeuverSvg use');
     const nextUse = document.querySelector('#navNextManeuverSvg use');
     mainUse?.setAttribute('href', '#i-nav-sharp-left');
@@ -2234,7 +2239,9 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
     const nextPreview = document.querySelector('#navNextPreview');
     const nextSvg = document.querySelector('#navNextManeuverSvg');
     const nextUse = document.querySelector('#navNextManeuverSvg use');
-    const speed = document.querySelector('.nav-summary-speed');
+    const speed = document.querySelector('#navSpeedBadge');
+    const instruction = document.querySelector('#navInstruction');
+    const providerInstruction = document.querySelector('#navProviderInstruction');
     const speedValue = document.querySelector('#navSpeed');
     const speedUnit = document.querySelector('#navSpeedUnit');
     const summaryStyle = getComputedStyle(summary);
@@ -2244,6 +2251,9 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
       paddingBottom: parseFloat(summaryStyle.paddingBottom),
       summaryRadius: parseFloat(summaryStyle.borderTopLeftRadius),
       bannerRadius: parseFloat(bannerStyle.borderTopLeftRadius),
+      instructionText: instruction?.textContent ?? null,
+      instructionAriaLabel: instruction?.getAttribute('aria-label') ?? null,
+      providerInstruction: providerInstruction?.textContent ?? null,
       endRadius: end ? parseFloat(getComputedStyle(end).borderTopLeftRadius) : 0,
       reportSize: report?.getBoundingClientRect().width ?? 0,
       locateDisplay: locate ? getComputedStyle(locate).display : null,
@@ -2258,14 +2268,21 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
       maneuverWidth: maneuver?.getBoundingClientRect().width ?? NaN,
       maneuverHeight: maneuver?.getBoundingClientRect().height ?? NaN,
       maneuverRadius: maneuver ? parseFloat(getComputedStyle(maneuver).borderTopLeftRadius) : NaN,
+      maneuverBackground: maneuver ? getComputedStyle(maneuver).backgroundColor : null,
+      maneuverBorderWidth: maneuver ? parseFloat(getComputedStyle(maneuver).borderTopWidth) : NaN,
       maneuverSvgWidth: maneuverSvg?.getBoundingClientRect().width ?? NaN,
       maneuverHref: maneuverUse?.getAttribute('href') ?? null,
       nextHeight: nextPreview?.getBoundingClientRect().height ?? NaN,
       nextSvgWidth: nextSvg?.getBoundingClientRect().width ?? NaN,
       nextHref: nextUse?.getAttribute('href') ?? null,
       speedWidth: speed?.getBoundingClientRect().width ?? NaN,
+      speedHeight: speed?.getBoundingClientRect().height ?? NaN,
+      speedRadius: speed ? parseFloat(getComputedStyle(speed).borderTopLeftRadius) : NaN,
+      speedTopGap: speed && banner ? speed.getBoundingClientRect().top - banner.getBoundingClientRect().bottom : NaN,
+      speedRightGap: speed ? window.innerWidth - speed.getBoundingClientRect().right : NaN,
       speedValue: speedValue?.textContent ?? null,
       speedUnit: speedUnit?.textContent ?? null,
+      speedStillInSummary: Boolean(document.querySelector('.nav-summary-speed')),
     };
   });
 
@@ -2274,7 +2291,10 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
   expect(metrics.height).toBe(104 + 18);
   expect(metrics.paddingBottom).toBe(18);
   expect(metrics.summaryRadius).toBeGreaterThanOrEqual(20);
-  expect(metrics.bannerRadius).toBeGreaterThanOrEqual(20);
+  expect(metrics.bannerRadius).toBe(18);
+  expect(metrics.instructionText).toBe('Sharp left');
+  expect(metrics.instructionAriaLabel).toBe('Turn sharp left onto Holloway Road / A1');
+  expect(metrics.providerInstruction).toBe('Turn sharp left onto Holloway Road / A1');
   expect(metrics.endRadius).toBeGreaterThanOrEqual(20);
   expect(metrics.reportSize).toBe(48);
   expect(metrics.locateDisplay).toBe('none');
@@ -2286,18 +2306,26 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
   expect(metrics.muteTop).toBeLessThan(metrics.overviewTop);
   expect(metrics.overviewBottom).toBeLessThan(metrics.summaryTop);
   expectNear(metrics.summaryTop - metrics.overviewBottom, 18, 2);
-  expect(metrics.maneuverWidth).toBe(72);
-  expect(metrics.maneuverHeight).toBe(80);
-  expect(metrics.maneuverRadius).toBe(18);
-  expect(metrics.maneuverSvgWidth).toBe(58);
+  expect(metrics.maneuverWidth).toBe(70);
+  expect(metrics.maneuverHeight).toBe(78);
+  expect(metrics.maneuverRadius).toBe(0);
+  expect(metrics.maneuverBackground).toBe('rgba(0, 0, 0, 0)');
+  expect(metrics.maneuverBorderWidth).toBe(0);
+  expect(metrics.maneuverSvgWidth).toBe(66);
   expect(metrics.maneuverHref).toBe('#i-nav-sharp-left');
-  expect(metrics.nextHeight).toBeGreaterThanOrEqual(52);
-  expect(metrics.nextSvgWidth).toBe(34);
+  expect(metrics.nextHeight).toBeGreaterThanOrEqual(50);
+  expect(metrics.nextSvgWidth).toBe(30);
   expect(metrics.nextHref).toBe('#i-nav-fork-right');
-  expect(metrics.speedWidth).toBeGreaterThan(60);
+  expectNear(metrics.speedWidth, 76, 0.1);
+  expectNear(metrics.speedHeight, 76, 0.1);
+  expectNear(metrics.speedRadius, 38, 0.1);
+  expectNear(metrics.speedTopGap, 10, 2);
+  expectNear(metrics.speedRightGap, 14, 2);
   expect(metrics.speedValue).toBe('32');
   expect(metrics.speedUnit).toBe('mph');
+  expect(metrics.speedStillInSummary).toBe(false);
   await expect(banner).toBeVisible();
+  await expect(page.locator('#navSpeedBadge')).toBeVisible();
   await expect(mute).toBeVisible();
   await expect(overview).toBeVisible();
   await expect(page.locator('html')).toHaveClass(/pwa-standalone/);

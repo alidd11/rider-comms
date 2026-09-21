@@ -4,6 +4,7 @@ import {
   formatNavigationDistance,
   formatNavigationSpeed,
   maneuverIcon,
+  navigationManeuverAction,
   navigationPromptStageForDistance,
   navigationPromptText,
   navigationSpeedUnit,
@@ -24,6 +25,15 @@ describe('navigation guidance presentation', () => {
     assert.equal(navigationSpeedUnit('km'), 'km/h');
     assert.equal(formatNavigationSpeed(null, 'mi'), '—');
     assert.equal(formatNavigationSpeed(-1, 'mi'), '—');
+  });
+
+  it('derives glanceable actions only from structured maneuver metadata', () => {
+    assert.equal(navigationManeuverAction('straight'), 'Go straight');
+    assert.equal(navigationManeuverAction('turn-slight-right'), 'Bear right');
+    assert.equal(navigationManeuverAction('turn-sharp-left'), 'Sharp left');
+    assert.equal(navigationManeuverAction('fork-right'), 'Keep right');
+    assert.equal(navigationManeuverAction('roundabout-right'), 'At roundabout');
+    assert.equal(navigationManeuverAction('arrive'), 'Arrive');
   });
 
   it('stages advance turn prompts without repeating far-away instructions', () => {

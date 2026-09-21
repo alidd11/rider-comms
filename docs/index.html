@@ -17,7 +17,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
-  <link rel="stylesheet" href="app.css?v=104">
+  <link rel="stylesheet" href="app.css?v=109">
   <link rel="stylesheet" href="routes.css?v=39">
   <title>Rider Comms</title>
 </head>
@@ -251,17 +251,21 @@
               <div class="nav-banner-copy">
                 <strong id="navDistanceNext"></strong>
                 <span id="navInstruction" role="status" aria-live="polite" aria-atomic="true">Calculating route…</span>
+                <span id="navProviderInstruction" class="nav-provider-instruction" aria-hidden="true"></span>
               </div>
               <button id="endNavBtn" class="icon-button" aria-label="End navigation">×</button>
             </div>
             <div id="navNextPreview" class="nav-next-preview" hidden><svg id="navNextManeuverSvg" aria-hidden="true"><use href="#i-nav-straight"/></svg><span>Then</span><span id="navNextInstruction"></span></div>
             <div id="navGpsNotice" class="nav-gps-notice" role="status" aria-live="polite" hidden></div>
           </div>
+          <div id="navSpeedBadge" class="nav-speed-badge" aria-label="Current speed unavailable" hidden>
+            <strong id="navSpeed">—</strong>
+            <span id="navSpeedUnit">mph</span>
+          </div>
           <div id="navSummary" class="nav-summary" hidden>
             <div class="nav-summary-eta"><strong id="navArrival"></strong><span>arrival</span></div>
             <div class="nav-summary-stat"><strong id="navEta"></strong><span>left</span></div>
             <div class="nav-summary-stat"><strong id="navDistance"></strong><span>away</span></div>
-            <div class="nav-summary-stat nav-summary-speed" aria-label="Current speed unavailable"><strong><svg aria-hidden="true"><use href="#i-speedometer"/></svg><span id="navSpeed">—</span></strong><span id="navSpeedUnit">mph</span></div>
           </div>
           <div id="mapError" class="map-error" hidden><strong>Map unavailable</strong><span>The rider view is still available. Check the map key or connection.</span></div>
         </div>
@@ -383,6 +387,6 @@
   <script src="movement-safety.js?v=2" defer></script>
   <script src="message-state.js?v=2" defer></script>
   <script src="avatar-system.js?v=1" defer></script>
-  <script src="app.js?v=106" defer></script>
+  <script src="app.js?v=110" defer></script>
 </body>
 </html>

@@ -113,17 +113,21 @@
     riderAvatarSvg,
   } = window.RiderAvatarSystem;
 
-  function riderAvatarMapIcon(person, current = false, statusOverride, sizeOverride) {
-    const status = statusOverride || (current
-      ? (state.profile.shareLocation || state.activeRide?.shareRideLocation ? 'online' : 'none')
-      : 'online');
-    const svg = riderAvatarSvg(person.avatarId, { selected: current, mapMarker: true, status });
+  function riderAvatarMapIcon(person, current = false, statusOverride, sizeOverride, navigationMode = false) {
+    const status = navigationMode
+      ? 'none'
+      : statusOverride || (current
+        ? (state.profile.shareLocation || state.activeRide?.shareRideLocation ? 'online' : 'none')
+        : 'online');
+    const svg = riderAvatarSvg(person.avatarId, { selected: current, mapMarker: !navigationMode, status });
     const width = sizeOverride ?? (current ? 44 : 40);
-    const height = width * (72 / 64);
+    const height = navigationMode ? width : width * (72 / 64);
     return {
       url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
       scaledSize: new google.maps.Size(width, height),
-      anchor: new google.maps.Point(width / 2, height - 1),
+      anchor: navigationMode
+        ? new google.maps.Point(width / 2, height / 2)
+        : new google.maps.Point(width / 2, height - 1),
     };
   }
 
@@ -535,6 +539,19 @@
       url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
       scaledSize: new google.maps.Size(30, 40),
       anchor: new google.maps.Point(15, 38),
+    };
+  }
+
+  function routeFinishIcon() {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="44" height="48" viewBox="0 0 44 48">
+      <circle cx="22" cy="21" r="18" fill="#2fa8d3" stroke="#071015" stroke-width="3"/>
+      <path d="M15 34V10m0 2h16l-4 5 4 5H15" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M17 12h4v4h-4zm8 0h4v4h-4zm-4 4h4v4h-4zm8 0h2l-2 4h-4v-4z" fill="#fff"/>
+    </svg>`;
+    return {
+      url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
+      scaledSize: new google.maps.Size(44, 48),
+      anchor: new google.maps.Point(22, 43),
     };
   }
 
@@ -4585,6 +4602,34 @@
     return comparable(lead).endsWith(comparable(repeatedRoad)) ? lead : cleaned;
   }
 
+  const NAV_GLANCE_ACTIONS = {
+    straight: 'Go straight',
+    'turn-left': 'Turn left',
+    'turn-right': 'Turn right',
+    'turn-slight-left': 'Bear left',
+    'turn-slight-right': 'Bear right',
+    'turn-sharp-left': 'Sharp left',
+    'turn-sharp-right': 'Sharp right',
+    'uturn-left': 'Make a U-turn',
+    'uturn-right': 'Make a U-turn',
+    'fork-left': 'Keep left',
+    'fork-right': 'Keep right',
+    'ramp-left': 'Take ramp left',
+    'ramp-right': 'Take ramp right',
+    merge: 'Merge',
+    arrive: 'Arrive',
+  };
+
+  // The compact action comes only from the provider's structured maneuver
+  // category. Free-form instructions remain provider-authored text; do not
+  // mine them for road, route, exit, lane or junction metadata.
+  function navGlanceAction(maneuver) {
+    const maneuverKey = maneuver || 'straight';
+    return maneuverKey.startsWith('roundabout')
+      ? 'At roundabout'
+      : NAV_GLANCE_ACTIONS[maneuverKey] || 'Go straight';
+  }
+
   /** Best-effort voice guidance — SpeechSynthesis isn't universally
    * available/enabled (older browsers, some in-app webviews), so a
    * missing/failing voice never blocks the real navigation logic, only
@@ -4649,10 +4694,28 @@
     const unit = $('#navSpeedUnit');
     if (speed) speed.textContent = speedValue;
     if (unit) unit.textContent = speedUnit;
-    $('.nav-summary-speed')?.setAttribute(
+    $('.nav-speed-badge')?.setAttribute(
       'aria-label',
       navCurrentSpeedMps == null ? 'Current speed unavailable' : `Current speed ${speedValue} ${speedUnit}`,
     );
+  }
+
+  let navBannerResizeObserver = null;
+
+  function syncNavigationOverlayGeometry() {
+    const banner = $('#navBanner');
+    const app = $('#app');
+    if (!banner || !app || banner.hidden) return;
+    const height = Math.ceil(banner.getBoundingClientRect().height);
+    if (height > 0) app.style.setProperty('--nav-banner-height', `${height}px`);
+  }
+
+  function watchNavigationOverlayGeometry() {
+    if (navBannerResizeObserver || !('ResizeObserver' in window)) return;
+    const banner = $('#navBanner');
+    if (!banner) return;
+    navBannerResizeObserver = new ResizeObserver(syncNavigationOverlayGeometry);
+    navBannerResizeObserver.observe(banner);
   }
 
   function formatArrivalTime(remainingSeconds) {
@@ -4727,10 +4790,16 @@
     const stepPath = navigationStepPath(step);
     const turnDistance = navCurrentPosition ? remainingDistanceOnPathMeters(navCurrentPosition, stepPath) : step.distance.value;
     $('#navDistanceNext').textContent = formatNavDistance(turnDistance);
-    $('#navInstruction').textContent = upcomingStep
+    const fullInstruction = upcomingStep
       ? stripHtml(upcomingStep.instructions)
       : `Arrive at ${navDestination?.label || 'destination'}`;
-    // Surface the maneuver after the upcoming one in the compact "Then" row.
+    const instruction = $('#navInstruction');
+    instruction.textContent = navGlanceAction(upcomingStep?.maneuver || 'arrive');
+    instruction.setAttribute('aria-label', fullInstruction);
+    const providerInstruction = $('#navProviderInstruction');
+    if (providerInstruction) providerInstruction.textContent = fullInstruction;
+    // Keep the provider-authored next instruction intact. The maneuver glyph
+    // supplies the glanceable geometry without reconstructing road metadata.
     const followingStep = navSteps[navStepIndex + 2];
     $('#navNextPreview').hidden = !followingStep;
     if (followingStep) {
@@ -4749,6 +4818,7 @@
     $('#navEta').textContent = formatNavDuration(remainingSeconds);
     $('#navArrival').textContent = formatArrivalTime(remainingSeconds);
     renderNavSpeed();
+    requestAnimationFrame(syncNavigationOverlayGeometry);
     if (!navMuted && navLastAnnouncedStep !== navStepIndex) {
       navLastAnnouncedStep = navStepIndex;
       if (navLastNowPromptStep !== navStepIndex) speak(stripHtml(step.instructions));
@@ -4799,7 +4869,7 @@
     // Navigation keeps the rider's persisted identity instead of replacing it
     // with a generic blue chevron. Heading-up mode rotates the provider map
     // beneath this marker, so the chosen avatar can remain screen-upright.
-    userMapMarker.setIcon?.(riderAvatarMapIcon(state.profile, true, undefined, 54));
+    userMapMarker.setIcon?.(riderAvatarMapIcon(state.profile, true, undefined, 64, true));
   }
 
   function stopNavigationCameraAnimation() {
@@ -4991,7 +5061,13 @@
     navDestination = { ...destination, label };
     hideDestinationCard();
     destinationMarker?.setMap(null);
-    destinationMarker = undefined;
+    destinationMarker = new google.maps.Marker({
+      map,
+      position: destination,
+      title: label ? `Destination: ${label}` : 'Route destination',
+      icon: routeFinishIcon(),
+      zIndex: 11,
+    });
     // Any POI category the rider had tapped before starting nav (fuel,
     // parking, food…) leaves its markers on the map otherwise — clutter
     // that has nothing to do with the route and makes driving mode look
@@ -5006,13 +5082,16 @@
     // screen are the route, the turn card, the ETA bar, and the controls a
     // rider actually needs mid-drive (report hazard, mute guidance, route overview/follow, end nav).
     $('#app').classList.add('nav-mode');
+    watchNavigationOverlayGeometry();
     setNavigationTrafficVisible(true);
     // Populate the first real maneuver before revealing the live region so
     // assistive technology does not announce the placeholder and then the
     // instruction back-to-back.
     renderNavStep();
     $('#navBanner').hidden = false;
+    $('#navSpeedBadge').hidden = false;
     $('#navSummary').hidden = false;
+    requestAnimationFrame(syncNavigationOverlayGeometry);
     updateNavigationPositionIcon();
     updateNavigationControls();
     startNavTracking();
@@ -5036,6 +5115,7 @@
       notice.textContent = navStatusNotice || '';
       notice.hidden = !navStatusNotice;
     }
+    requestAnimationFrame(syncNavigationOverlayGeometry);
   }
 
   function setNavGpsIssue(message) {
@@ -5176,6 +5256,8 @@
     stopNavigationCameraAnimation();
     stopNavTracking();
     directionsRenderer?.setMap(null);
+    destinationMarker?.setMap(null);
+    destinationMarker = undefined;
     navSteps = [];
     navStepIndex = 0;
     navDestination = null;
@@ -5196,7 +5278,9 @@
     userMapMarker?.setIcon?.(riderAvatarMapIcon(state.profile, true));
     updateNavigationControls();
     $('#navBanner').hidden = true;
+    $('#navSpeedBadge').hidden = true;
     $('#navSummary').hidden = true;
+    $('#app').style.removeProperty('--nav-banner-height');
     $('#app').classList.remove('nav-mode');
     if (arrived) {
       showToast('You have arrived.');

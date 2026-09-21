@@ -128,7 +128,7 @@ for (const [label, source, patterns] of [
   ['PWA navigation', pwaMapSource, [
     /navFollowing/,
     /navMuted/,
-    /riderAvatarMapIcon\(state\.profile, true, undefined, 54\)/,
+    /riderAvatarMapIcon\(state\.profile, true, undefined, 64, true\)/,
     /applyNavigationCamera/,
     /showNavigationOverview/,
     /navMuteBtn/,
@@ -172,7 +172,7 @@ for (const [label, source, patterns] of [
   ['Native navigation', nativeMapSource, [
     /navigationFollowing/,
     /navigationMuted/,
-    /size=\{activeRoute \? 54 : 44\}/,
+    /size=\{activeRoute \? 64 : 44\}/,
     /focusNavigationCamera/,
     /navigationPromptProgress/,
     /navigationPromptStageForDistance/,
@@ -232,8 +232,8 @@ for (const [label, source] of [['PWA adaptive camera', pwaMapSource], ['Native a
 if (!/id="navInstruction"[^>]*role="status"[^>]*aria-live="polite"[^>]*aria-atomic="true"/.test(pwaIndexSource)) {
   throw new Error('PWA navigation maneuver instruction must be a polite atomic live region');
 }
-if (!/style=\{styles\.navigationInstruction\} accessibilityLiveRegion="polite"/.test(nativeMapSource)) {
-  throw new Error('Native navigation maneuver instruction must remain a polite live region');
+if (!/style=\{styles\.navigationInstruction\}[\s\S]{0,220}?accessibilityLiveRegion="polite"[\s\S]{0,220}?accessibilityLabel=\{navigationGuidanceInstruction\}/.test(nativeMapSource)) {
+  throw new Error('Native navigation maneuver instruction must remain a polite live region with the full provider instruction as its accessible label');
 }
 
 for (const [maneuver, icon] of [
@@ -272,21 +272,77 @@ for (const glyph of ['slightLeft', 'left', 'sharpLeft', 'forkLeft', 'rampLeft', 
   }
 }
 
-if (!/\.nav-maneuver-icon\{[^\n]*width:72px;height:80px[^\n]*border-radius:18px/.test(pwaCssSource)) {
-  throw new Error('PWA primary maneuver glyph must remain large and glanceable');
+if (!/\.nav-maneuver-icon\{[^\n]*width:70px;height:78px[^\n]*display:grid;place-items:center/.test(pwaCssSource)) {
+  throw new Error('PWA primary maneuver glyph must remain large, flat and glanceable');
 }
-if (!/navigationManeuver:\s*\{[\s\S]*?width: 72,[\s\S]*?height: 80,[\s\S]*?borderRadius: 18/.test(nativeMapSource)) {
-  throw new Error('Native primary maneuver glyph must match the PWA glanceable geometry');
+if (/\.nav-maneuver-icon\{[^\n]*(?:background|border-radius|border:)/.test(pwaCssSource)) {
+  throw new Error('PWA primary maneuver glyph must stay integrated into the navigation header rather than boxed as a separate tile');
+}
+if (!/navigationManeuver:\s*\{[^}]*width: 70,[^}]*height: 78,[^}]*alignItems: 'center'/.test(nativeMapSource)) {
+  throw new Error('Native primary maneuver glyph must match the flat PWA guidance geometry');
+}
+if (/navigationManeuver:\s*\{[^}]*backgroundColor: colors\.surfaceRaised/.test(nativeMapSource)) {
+  throw new Error('Native primary maneuver glyph must stay integrated into the navigation header rather than boxed as a separate tile');
 }
 
-if (!/id="navSpeed"/.test(pwaIndexSource) || !/id="navSpeedUnit"/.test(pwaIndexSource)) {
-  throw new Error('PWA dedicated navigation must expose live GPS speed and units');
+if (!/id="navSpeedBadge"[^>]*class="nav-speed-badge"/.test(pwaIndexSource)
+  || !/id="navSpeed"/.test(pwaIndexSource)
+  || !/id="navSpeedUnit"/.test(pwaIndexSource)) {
+  throw new Error('PWA dedicated navigation must expose the prominent live-speed badge and units');
 }
-if (!/nav-summary-speed/.test(pwaCssSource) || !/grid-template-columns:1\.08fr 1fr 1fr 1fr/.test(pwaCssSource)) {
-  throw new Error('PWA navigation summary must keep the four-stat layout with live speed');
+if (!/\.nav-speed-badge\{[^\n]*top:calc\(var\(--safe-top\) \+ 8px \+ var\(--nav-banner-height,166px\) \+ 10px\)[^\n]*right:max\(14px,var\(--safe-right\)\)[^\n]*width:76px;height:76px[^\n]*border-radius:38px/.test(pwaCssSource)
+  || !/grid-template-columns:1\.14fr 1fr 1fr/.test(pwaCssSource)
+  || /nav-summary-speed/.test(pwaCssSource)) {
+  throw new Error('PWA navigation must keep live speed in the 76px top-right badge and the ETA summary to three trip stats');
+}
+if (!/syncNavigationOverlayGeometry/.test(pwaMapSource)
+  || !/--nav-banner-height/.test(pwaMapSource)
+  || !/\$\('#navSpeedBadge'\)\.hidden = false/.test(pwaMapSource)
+  || !/\$\('#navSpeedBadge'\)\.hidden = true/.test(pwaMapSource)) {
+  throw new Error('PWA speed badge must follow the measured guidance-header height and navigation lifecycle');
 }
 if (!/formatNavigationSpeed/.test(nativeGuidanceSource) || !/navigationSpeedUnit/.test(nativeGuidanceSource)) {
   throw new Error('Native navigation must share explicit GPS speed formatting and units');
+}
+if (!/navigationBannerHeight/.test(nativeMapSource)
+  || !/setNavigationBannerHeight/.test(nativeMapSource)
+  || !/styles\.navigationSpeedBadge/.test(nativeMapSource)
+  || !/right: spacing\.md/.test(nativeMapSource)
+  || !/width: 76,[\s\S]*height: 76,[\s\S]*borderRadius: 38/.test(nativeMapSource)) {
+  throw new Error('Native navigation must position the 76px live-speed badge at the upper right below the measured guidance header');
+}
+
+if (!/id="navProviderInstruction"/.test(pwaIndexSource)
+  || !/function navGlanceAction\(/.test(pwaMapSource)
+  || !/providerInstruction\.textContent = fullInstruction/.test(pwaMapSource)) {
+  throw new Error('PWA navigation header must pair a structured maneuver action with untouched provider instruction text');
+}
+if (!/navigationManeuverAction/.test(nativeGuidanceSource)
+  || !/navigationProviderInstruction/.test(nativeMapSource)
+  || !/\{navigationGuidanceInstruction\}/.test(nativeMapSource)) {
+  throw new Error('Native navigation header must pair a structured maneuver action with untouched provider instruction text');
+}
+if (/function navGlanceInstruction\(|function navGlanceSummary\(/.test(pwaMapSource)
+  || /navRouteBadge|navRoadName/.test(pwaIndexSource)
+  || /roadFromInstruction|roundaboutAction|navigationGlanceInstruction|navigationGlanceSummary/.test(nativeGuidanceSource)
+  || /navigationRouteBadge|navigationRoadName/.test(nativeMapSource)) {
+  throw new Error('Navigation must not reconstruct route, road, exit or junction metadata from free-form provider instructions');
+}
+
+if (!/function routeFinishIcon\(\)/.test(pwaMapSource)
+  || !/title: label \? \`Destination: \${label}\` : 'Route destination'/.test(pwaMapSource)
+  || !/destinationMarker\?\.setMap\(null\);[\s\S]*destinationMarker = undefined;[\s\S]*navSteps = \[\]/.test(pwaMapSource)) {
+  throw new Error('PWA navigation must render and clear a dedicated route-finish marker');
+}
+if (!/navigationDestination \? \([\s\S]*flag-checkered[\s\S]*navigationDestinationMarker/.test(nativeMapSource)) {
+  throw new Error('Native navigation must render a dedicated route-finish marker');
+}
+if (!/mapMarker=\{!activeRoute\}/.test(nativeMapSource)
+  || !/status=\{activeRoute \? 'none' : selfMapStatus\}/.test(nativeMapSource)) {
+  throw new Error('Native navigation avatar must switch from a map pin to a clean navigation avatar');
+}
+if (!/mapMarker: !navigationMode/.test(pwaMapSource) || !/anchor: navigationMode/.test(pwaMapSource)) {
+  throw new Error('PWA navigation avatar must switch from a map pin to a clean centred navigation avatar');
 }
 
 if (/translateY\(-32vh\)/.test(pwaCssSource)) {
