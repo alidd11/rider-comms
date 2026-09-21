@@ -5,10 +5,10 @@ Pre-alpha Expo/React Native and installable PWA for proximity-based rider commun
 ## Project snapshot
 
 - **Lifecycle:** pre-alpha / internal testing; not production-ready.
-- **Snapshot main:** `7fdbedb77ade2eb9ae9ea1021fabbf29f15d2e68` (PR #283).
+- **Snapshot main:** `df02282de7249dd870a668cf543294f01134f576` (PR #286).
 - **Main checks:** CI, PWA deployment and GitHub Pages deployment are green on that exact SHA.
 - **PWA/native parity:** all capabilities currently tracked on `main` are parity except navigation, which remains a deliberate `behavior-gap` pending production-grade background/locked-screen and physical ride validation.
-- **Active work:** Settings parity, Friends profile refinement, and navigation header/control/Road ahead work. The private-ride location block-boundary fix from PR #283 is now on `main`.
+- **Active work:** Settings parity, Friends profile refinement, and navigation header/control/Road ahead work. The private-ride location block-boundary fix from PR #283 and private-ride voice revocation hardening from PR #286 are now on `main`.
 
 See [PROJECT_STATUS.md](PROJECT_STATUS.md) for the detailed current handover, active PR ownership/overlap, release blockers and source-of-truth rules.
 
