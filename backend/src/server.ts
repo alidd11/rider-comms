@@ -175,6 +175,32 @@ async function consumeSocialWrite(
   return false;
 }
 
+function requiresVerifiedEmail(method: string | undefined, pathname: string): boolean {
+  if (method !== 'POST') return false;
+  if ([
+    '/presence',
+    '/voice/token',
+    '/reports',
+    '/friends/requests',
+    '/messages',
+    '/hideouts',
+    '/hazards',
+    '/scenic-routes',
+  ].includes(pathname)) return true;
+  return /^\/hazards\/[^/]+\/(confirm|deny)$/.test(pathname);
+}
+
+async function requireVerifiedEmail(
+  res: http.ServerResponse,
+  authStore: AuthStore,
+  actorId: string,
+): Promise<boolean> {
+  const identity = await authStore.getIdentity(actorId);
+  if (!identity || identity.emailVerified) return true;
+  sendJson(res, 403, { error: 'email_verification_required' });
+  return false;
+}
+
 export function createApp(rideStore = new RideStore(), presenceStore = new PresenceStore(), profileStore = new ProfileStore(), friendStore = new FriendStore(profileStore), messageStore = new MessageStore(), hideoutStore = new HideoutStore(), authStore = new AuthStore(), moderationStore = new ModerationStore(), hazardStore = new HazardStore(), scenicRouteStore = new ScenicRouteStore(), options: ApiServerOptions = {}): http.Server {
   const authLimiter = new SlidingWindowRateLimiter(20, 60_000);
   const apiLimiter = new SlidingWindowRateLimiter(300, 60_000);
@@ -314,6 +340,7 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
         authStore.forgetRider(actorId);
         return sendJson(res, 200, {});
       }
+      if (requiresVerifiedEmail(req.method, url.pathname) && !(await requireVerifiedEmail(res, authStore, actorId))) return;
       if (req.method === 'POST' && url.pathname === '/rides') { const { ride, codeRecord } = await rideStore.createRide(actorId); return sendJson(res, 201, { ...rideBody(ride), code: codeRecord.code, expiresAt: codeRecord.expiresAt }); }
       if (req.method === 'POST' && url.pathname === '/rides/join') {
         const body = await readJsonBody(req);
