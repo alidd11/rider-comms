@@ -254,11 +254,14 @@
             <div id="navNextPreview" class="nav-next-preview" hidden><svg id="navNextManeuverSvg" aria-hidden="true"><use href="#i-nav-straight"/></svg><span>Then</span><span id="navNextInstruction"></span></div>
             <div id="navGpsNotice" class="nav-gps-notice" role="status" aria-live="polite" hidden></div>
           </div>
+          <div id="navSpeedBadge" class="nav-speed-badge" aria-label="Current speed unavailable" hidden>
+            <strong id="navSpeed">—</strong>
+            <span id="navSpeedUnit">mph</span>
+          </div>
           <div id="navSummary" class="nav-summary" hidden>
             <div class="nav-summary-eta"><strong id="navArrival"></strong><span>arrival</span></div>
             <div class="nav-summary-stat"><strong id="navEta"></strong><span>left</span></div>
             <div class="nav-summary-stat"><strong id="navDistance"></strong><span>away</span></div>
-            <div class="nav-summary-stat nav-summary-speed" aria-label="Current speed unavailable"><strong><svg aria-hidden="true"><use href="#i-speedometer"/></svg><span id="navSpeed">—</span></strong><span id="navSpeedUnit">mph</span></div>
           </div>
           <div id="mapError" class="map-error" hidden><strong>Map unavailable</strong><span>The rider view is still available. Check the map key or connection.</span></div>
         </div>
