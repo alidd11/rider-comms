@@ -4152,6 +4152,7 @@
   let navFollowing = true;
   let navMuted = false;
   let navCurrentPosition = null;
+  let navCurrentSpeedMps = null;
   let navCameraHeading = null;
   let navCameraAnimationFrame;
   let navCameraAnimationToken = 0;
@@ -4477,6 +4478,16 @@
     return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
   }
 
+  function formatNavSpeed(speedMps) {
+    if (!Number.isFinite(speedMps) || Number(speedMps) < 0) return '—';
+    const converted = state.unit === 'km' ? Number(speedMps) * 3.6 : Number(speedMps) * 2.2369362921;
+    return String(Math.round(converted));
+  }
+
+  function navSpeedUnit() {
+    return state.unit === 'km' ? 'km/h' : 'mph';
+  }
+
   function formatArrivalTime(remainingSeconds) {
     return new Date(Date.now() + remainingSeconds * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   }
@@ -4570,6 +4581,8 @@
     $('#navDistance').textContent = formatNavDistance(remainingMeters);
     $('#navEta').textContent = formatNavDuration(remainingSeconds);
     $('#navArrival').textContent = formatArrivalTime(remainingSeconds);
+    $('#navSpeed').textContent = formatNavSpeed(navCurrentSpeedMps);
+    $('#navSpeedUnit').textContent = navSpeedUnit();
     if (!navMuted && navLastAnnouncedStep !== navStepIndex) {
       navLastAnnouncedStep = navStepIndex;
       if (navLastNowPromptStep !== navStepIndex) speak(stripHtml(step.instructions));
@@ -4805,6 +4818,9 @@
     navFollowing = true;
     if (!preserveMute) navMuted = false;
     navCurrentPosition = null;
+    navCurrentSpeedMps = Number.isFinite(latestDevicePosition?.coords?.speed) && Number(latestDevicePosition.coords.speed) >= 0
+      ? Number(latestDevicePosition.coords.speed)
+      : null;
     if (!preserveMute) navCameraHeading = null;
     navDestination = { ...destination, label };
     hideDestinationCard();
@@ -4912,6 +4928,9 @@
     if (navRerouting || !navSteps.length) return;
     const here = { lat: position.coords.latitude, lng: position.coords.longitude };
     navCurrentPosition = here;
+    navCurrentSpeedMps = Number.isFinite(position.coords.speed) && Number(position.coords.speed) >= 0
+      ? Number(position.coords.speed)
+      : null;
     userMapMarker?.setPosition?.(here);
 
     let effectiveIndex = navStepIndex;
@@ -4999,6 +5018,7 @@
     navFollowing = true;
     navMuted = false;
     navCurrentPosition = null;
+    navCurrentSpeedMps = null;
     navCameraHeading = null;
     map?.setHeading?.(0);
     map?.setTilt?.(0);
