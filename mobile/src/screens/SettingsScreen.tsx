@@ -397,12 +397,12 @@ export function SettingsScreen(): React.JSX.Element {
 
   function confirmLogOut() {
     Alert.alert(
-      'Log out?',
+      'Sign out?',
       'You’ll need your username and password to sign in again.',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Log out', onPress: () => {
-          void logOut().catch(() => Alert.alert('Logged out on this device', 'Rider Comms could not contact the server to revoke the session, but it has been removed from this device.'));
+        { text: 'Sign out', style: 'destructive', onPress: () => {
+          void logOut().catch(() => Alert.alert('Signed out on this device', 'Rider Comms could not contact the server to revoke the session, but it has been removed from this device.'));
         } },
       ]
     );
