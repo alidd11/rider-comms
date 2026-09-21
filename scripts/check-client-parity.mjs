@@ -229,10 +229,10 @@ if (!/\.nav-maneuver-icon\{[^\n]*width:70px;height:78px[^\n]*display:grid;place-
 if (/\.nav-maneuver-icon\{[^\n]*(?:background|border-radius|border:)/.test(pwaCssSource)) {
   throw new Error('PWA primary maneuver glyph must stay integrated into the navigation header rather than boxed as a separate tile');
 }
-if (!/navigationManeuver:\s*\{[\s\S]*?width: 70,[\s\S]*?height: 78,[\s\S]*?alignItems: 'center'/.test(nativeMapSource)) {
+if (!/navigationManeuver:\s*\{[^}]*width: 70,[^}]*height: 78,[^}]*alignItems: 'center'/.test(nativeMapSource)) {
   throw new Error('Native primary maneuver glyph must match the flat PWA guidance geometry');
 }
-if (/navigationManeuver:\s*\{[\s\S]*?backgroundColor: colors\.surfaceRaised/.test(nativeMapSource)) {
+if (/navigationManeuver:\s*\{[^}]*backgroundColor: colors\.surfaceRaised/.test(nativeMapSource)) {
   throw new Error('Native primary maneuver glyph must stay integrated into the navigation header rather than boxed as a separate tile');
 }
 
@@ -244,6 +244,21 @@ if (!/nav-summary-speed/.test(pwaCssSource) || !/grid-template-columns:1\.08fr 1
 }
 if (!/formatNavigationSpeed/.test(nativeGuidanceSource) || !/navigationSpeedUnit/.test(nativeGuidanceSource)) {
   throw new Error('Native navigation must share explicit GPS speed formatting and units');
+}
+
+if (!/id="navRoadContext"/.test(pwaIndexSource)
+  || !/id="navRouteBadge"/.test(pwaIndexSource)
+  || !/id="navRoadName"/.test(pwaIndexSource)
+  || !/function navGlanceInstruction\(/.test(pwaMapSource)
+  || !/function navGlanceSummary\(/.test(pwaMapSource)) {
+  throw new Error('PWA navigation header must split verbose directions into action, route badge and road context');
+}
+if (!/navigationGlanceInstruction/.test(nativeGuidanceSource)
+  || !/navigationGlanceSummary/.test(nativeGuidanceSource)
+  || !/navigationRoadRow/.test(nativeMapSource)
+  || !/navigationRouteBadge/.test(nativeMapSource)
+  || !/navigationRoadName/.test(nativeMapSource)) {
+  throw new Error('Native navigation header must match the glance-first action, route badge and road context contract');
 }
 
 if (!/function routeFinishIcon\(\)/.test(pwaMapSource)
