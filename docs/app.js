@@ -4566,10 +4566,18 @@
     const unit = $('#navSpeedUnit');
     if (speed) speed.textContent = speedValue;
     if (unit) unit.textContent = speedUnit;
-    $('.nav-summary-speed')?.setAttribute(
+    $('.nav-speed-badge')?.setAttribute(
       'aria-label',
       navCurrentSpeedMps == null ? 'Current speed unavailable' : `Current speed ${speedValue} ${speedUnit}`,
     );
+  }
+
+  function syncNavigationOverlayGeometry() {
+    const banner = $('#navBanner');
+    const app = $('#app');
+    if (!banner || !app || banner.hidden) return;
+    const height = Math.ceil(banner.getBoundingClientRect().height);
+    if (height > 0) app.style.setProperty('--nav-banner-height', `${height}px`);
   }
 
   function formatArrivalTime(remainingSeconds) {
@@ -4672,6 +4680,7 @@
     $('#navEta').textContent = formatNavDuration(remainingSeconds);
     $('#navArrival').textContent = formatArrivalTime(remainingSeconds);
     renderNavSpeed();
+    requestAnimationFrame(syncNavigationOverlayGeometry);
     if (!navMuted && navLastAnnouncedStep !== navStepIndex) {
       navLastAnnouncedStep = navStepIndex;
       if (navLastNowPromptStep !== navStepIndex) speak(stripHtml(step.instructions));
@@ -4941,7 +4950,9 @@
     // instruction back-to-back.
     renderNavStep();
     $('#navBanner').hidden = false;
+    $('#navSpeedBadge').hidden = false;
     $('#navSummary').hidden = false;
+    requestAnimationFrame(syncNavigationOverlayGeometry);
     updateNavigationPositionIcon();
     updateNavigationControls();
     startNavTracking();
@@ -4965,6 +4976,7 @@
       notice.textContent = navStatusNotice || '';
       notice.hidden = !navStatusNotice;
     }
+    requestAnimationFrame(syncNavigationOverlayGeometry);
   }
 
   function setNavGpsIssue(message) {
@@ -5127,7 +5139,9 @@
     userMapMarker?.setIcon?.(riderAvatarMapIcon(state.profile, true));
     updateNavigationControls();
     $('#navBanner').hidden = true;
+    $('#navSpeedBadge').hidden = true;
     $('#navSummary').hidden = true;
+    $('#app').style.removeProperty('--nav-banner-height');
     $('#app').classList.remove('nav-mode');
     if (arrived) {
       showToast('You have arrived.');
