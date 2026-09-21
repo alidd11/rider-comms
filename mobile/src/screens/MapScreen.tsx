@@ -48,7 +48,6 @@ import {
 import { navigationProviderLabel } from '../navigationPreference';
 import {
   formatNavigationDistance,
-  maneuverIcon,
   navigationPromptStageForDistance,
   navigationPromptText,
 } from '../navigationGuidance';
@@ -67,6 +66,7 @@ import {
 import { speakNavigationPrompt, stopNavigationPrompt } from '../audio/navigationSpeech';
 import { microphoneErrorMessage, preflightVoiceMicrophone } from '../audio/microphone';
 import { RiderAvatar } from '../components/RiderAvatar';
+import { NavigationManeuverGlyph } from '../components/NavigationManeuverGlyph';
 
 const PRESENCE_UPDATE_INTERVAL_MS = 8000; // per spec Section 8: every 5-10s
 const RIDE_MARKER_REFRESH_MS = 10_000;
@@ -1078,10 +1078,11 @@ export function MapScreen(): React.JSX.Element {
           <View style={[styles.navigationBanner, { top: insets.top + spacing.sm }]}>
             <View style={styles.navigationBannerMain}>
               <View style={styles.navigationManeuver}>
-                <Ionicons
-                  name={(upcomingNavigationStep ? maneuverIcon(upcomingNavigationStep.maneuver) : 'flag') as keyof typeof Ionicons.glyphMap}
-                  size={34}
+                <NavigationManeuverGlyph
+                  maneuver={upcomingNavigationStep?.maneuver ?? 'arrive'}
+                  size={58}
                   color={colors.textPrimary}
+                  secondaryColor={colors.textMuted}
                 />
               </View>
               <View style={styles.navigationBannerCopy}>
@@ -1094,11 +1095,14 @@ export function MapScreen(): React.JSX.Element {
             </View>
             {followingNavigationStep ? (
               <View style={styles.navigationNextPreview}>
-                <Ionicons
-                  name={maneuverIcon(followingNavigationStep.maneuver) as keyof typeof Ionicons.glyphMap}
-                  size={20}
-                  color={colors.textSecondary}
-                />
+                <View style={styles.navigationNextGlyph}>
+                  <NavigationManeuverGlyph
+                    maneuver={followingNavigationStep.maneuver}
+                    size={28}
+                    color={colors.textSecondary}
+                    secondaryColor={colors.textMuted}
+                  />
+                </View>
                 <Text style={styles.navigationNextLabel}>Then</Text>
                 <Text numberOfLines={1} style={styles.navigationNextInstruction}>{followingNavigationStep.instruction}</Text>
               </View>
@@ -1333,16 +1337,20 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
   },
   navigationManeuver: {
-    width: 64,
-    height: 76,
+    width: 72,
+    height: 80,
     alignItems: 'center',
     justifyContent: 'center',
+    borderRadius: 18,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceRaised,
   },
   navigationBannerCopy: { flex: 1, minWidth: 0 },
-  navigationDistance: { color: colors.textPrimary, fontSize: 34, lineHeight: 38, fontWeight: '800' },
-  navigationInstruction: { ...type.body, color: colors.textPrimary, marginTop: 3, fontSize: 17, lineHeight: 22, fontWeight: '700' },
+  navigationDistance: { color: colors.accent, fontSize: 36, lineHeight: 40, fontWeight: '850', letterSpacing: -0.6 },
+  navigationInstruction: { ...type.body, color: colors.textPrimary, marginTop: 2, fontSize: 17, lineHeight: 22, fontWeight: '750' },
   navigationNextPreview: {
-    minHeight: 48,
+    minHeight: 52,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
@@ -1351,8 +1359,16 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
     backgroundColor: colors.background,
   },
-  navigationNextLabel: { ...type.caption, color: colors.textMuted, fontWeight: '800', textTransform: 'uppercase' },
-  navigationNextInstruction: { ...type.body, color: colors.textSecondary, flex: 1, fontSize: 15, lineHeight: 20 },
+  navigationNextGlyph: {
+    width: 34,
+    height: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 10,
+    backgroundColor: colors.surfaceRaised,
+  },
+  navigationNextLabel: { ...type.caption, color: colors.textMuted, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.7 },
+  navigationNextInstruction: { ...type.body, color: colors.textSecondary, flex: 1, fontSize: 15, lineHeight: 20, fontWeight: '600' },
   navigationNoticeRow: {
     minHeight: 40,
     flexDirection: 'row',
