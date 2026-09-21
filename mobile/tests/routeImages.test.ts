@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  ROUTE_IMAGE_PREFETCH_COUNT,
   routeCardImageUri,
   routeHeroImageUri,
   routeImageUriAtWidth,
@@ -32,4 +33,9 @@ test('leaves unsupported image hosts untouched', () => {
     routeImageUriAtWidth('https://cdn.example.com/route.jpg', 640),
     'https://cdn.example.com/route.jpg',
   );
+});
+
+
+test('warms enough route cards to cover the initial Routes viewport', () => {
+  assert.equal(ROUTE_IMAGE_PREFETCH_COUNT, 8);
 });
