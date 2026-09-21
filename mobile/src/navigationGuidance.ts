@@ -25,6 +25,16 @@ export function formatNavigationDistance(metres: number, unit: NavigationUnit): 
   return `${miles.toFixed(miles < 10 ? 1 : 0)} mi`;
 }
 
+export function formatNavigationSpeed(speedMps: number | null | undefined, unit: NavigationUnit): string {
+  if (!Number.isFinite(speedMps) || Number(speedMps) < 0) return '—';
+  const converted = unit === 'km' ? Number(speedMps) * 3.6 : Number(speedMps) * 2.2369362921;
+  return String(Math.round(converted));
+}
+
+export function navigationSpeedUnit(unit: NavigationUnit): 'mph' | 'km/h' {
+  return unit === 'km' ? 'km/h' : 'mph';
+}
+
 
 export type NavigationPromptStage = 0 | 1 | 2 | 3;
 
