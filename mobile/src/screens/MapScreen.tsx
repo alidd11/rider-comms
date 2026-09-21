@@ -48,8 +48,10 @@ import {
 import { navigationProviderLabel } from '../navigationPreference';
 import {
   formatNavigationDistance,
+  formatNavigationSpeed,
   navigationPromptStageForDistance,
   navigationPromptText,
+  navigationSpeedUnit,
 } from '../navigationGuidance';
 import {
   combineNavigationCameraPaths,
@@ -163,6 +165,7 @@ export function MapScreen(): React.JSX.Element {
   const [navigationNotice, setNavigationNotice] = React.useState<string | null>(null);
   const [navigationMuted, setNavigationMuted] = React.useState(false);
   const [navigationFollowing, setNavigationFollowing] = React.useState(true);
+  const [navigationSpeedMps, setNavigationSpeedMps] = React.useState<number | null>(null);
   const [navigationSummaryHeight, setNavigationSummaryHeight] = React.useState(NAVIGATION_SUMMARY_BASE_HEIGHT);
   const [reduceMotionEnabled, setReduceMotionEnabled] = React.useState(false);
   const navOffRouteSince = React.useRef<number | null>(null);
@@ -602,6 +605,7 @@ export function MapScreen(): React.JSX.Element {
     navigationFollowingRef.current = true;
     setNavigationFollowing(true);
     setNavigationMuted(false);
+    setNavigationSpeedMps(null);
     setNavigationNotice(arrived ? 'You have arrived.' : null);
     mapRef.current?.animateCamera({ heading: 0, pitch: 0 }, { duration: 350 });
     void stopNavigationPrompt().finally(() => {
@@ -701,6 +705,9 @@ export function MapScreen(): React.JSX.Element {
         }
         const here = { lat: position.coords.latitude, lon: position.coords.longitude };
         setCurrentLocation(here);
+        setNavigationSpeedMps(Number.isFinite(position.coords.speed) && Number(position.coords.speed) >= 0
+          ? Number(position.coords.speed)
+          : null);
 
         if (
           navigationStepIndex === activeRoute.steps.length - 1 &&
@@ -1137,6 +1144,14 @@ export function MapScreen(): React.JSX.Element {
                 <Text style={styles.navigationSummaryValue}>{formatNavigationDistance(remainingNavigationMeters, unitSystem)}</Text>
                 <Text style={styles.navigationSummaryLabel}>away</Text>
               </View>
+              <View style={styles.navigationSummaryDivider} />
+              <View style={styles.navigationSummaryStat}>
+                <View style={styles.navigationSpeedValueRow}>
+                  <Ionicons name="speedometer-outline" size={16} color={colors.textSecondary} />
+                  <Text style={styles.navigationSummaryValue}>{formatNavigationSpeed(navigationSpeedMps, unitSystem)}</Text>
+                </View>
+                <Text style={styles.navigationSummaryLabel}>{navigationSpeedUnit(unitSystem)}</Text>
+              </View>
             </View>
           </View>
         </>
@@ -1417,11 +1432,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  navigationSummaryPrimary: { flex: 1, minWidth: 92 },
-  navigationSummaryStat: { flex: 1, alignItems: 'center' },
+  navigationSummaryPrimary: { flex: 1.08, minWidth: 78 },
+  navigationSummaryStat: { flex: 1, minWidth: 0, alignItems: 'center' },
   navigationSummaryDivider: { width: StyleSheet.hairlineWidth, height: 46, backgroundColor: colors.border },
-  navigationArrival: { ...type.heading, color: colors.success, fontSize: 26, lineHeight: 30 },
-  navigationSummaryValue: { ...type.heading, color: colors.textPrimary, fontSize: 23, lineHeight: 28, textAlign: 'center' },
+  navigationArrival: { ...type.heading, color: colors.success, fontSize: 25, lineHeight: 30 },
+  navigationSummaryValue: { ...type.heading, color: colors.textPrimary, fontSize: 21, lineHeight: 27, textAlign: 'center' },
+  navigationSpeedValueRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
   navigationSummaryLabel: { ...type.caption, color: colors.textMuted, marginTop: 2, textAlign: 'center', textTransform: 'uppercase' },
   rideBarSlot: { marginTop: 'auto', paddingHorizontal: spacing.lg, paddingBottom: spacing.lg },
   safetyBanner: {
