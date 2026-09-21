@@ -18,21 +18,41 @@ const outputRoots = [
 
 for (const root of outputRoots) await mkdir(root, { recursive: true });
 
-function wikimediaThumbnailUrl(uri, width) {
+function wikimediaFileName(uri) {
   const clean = uri.split(/[?#]/, 1)[0];
-  const thumb = clean.match(/^(https:\/\/(?:upload|thumb)\.wikimedia\.org)(\/wikipedia\/commons\/thumb\/)([0-9a-f]\/[^/]+\/)([^/]+)\/[^/?#]+$/i);
-  if (thumb) {
-    const [, origin, prefix, shard, fileName] = thumb;
-    return `${origin}${prefix}${shard}${fileName}/${width}px-${fileName}`;
+  const thumb = clean.match(/\/wikipedia\/commons\/thumb\/[0-9a-f]\/[^/]+\/([^/]+)\/[^/?#]+$/i);
+  if (thumb) return thumb[1];
+  const original = clean.match(/\/wikipedia\/commons\/[0-9a-f]\/[^/]+\/([^/?#]+)$/i);
+  return original?.[1] ?? null;
+}
+
+function preferredWikimediaUrl(uri) {
+  const fileName = wikimediaFileName(uri);
+  if (!fileName) return uri;
+  return `https://commons.wikimedia.org/wiki/Special:Redirect/file/${fileName}?width=${CARD_WIDTH}`;
+}
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+let lastRequestAt = 0;
+
+async function pacedFetch(url, headers) {
+  const elapsed = Date.now() - lastRequestAt;
+  if (elapsed < 1250) await sleep(1250 - elapsed);
+
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    lastRequestAt = Date.now();
+    const response = await fetch(url, { headers, redirect: 'follow' });
+    if (response.status !== 429 && response.status < 500) return response;
+
+    const retryAfter = Number(response.headers.get('retry-after'));
+    const delayMs = Number.isFinite(retryAfter) && retryAfter > 0
+      ? retryAfter * 1000
+      : 4000 * (attempt + 1);
+    console.log(`Rate limited fetching ${url}; retrying in ${Math.round(delayMs / 1000)}s`);
+    await sleep(delayMs);
   }
 
-  const original = clean.match(/^(https:\/\/(?:upload|thumb)\.wikimedia\.org)(\/wikipedia\/commons\/)([0-9a-f]\/[^/]+\/)([^/?#]+)$/i);
-  if (original) {
-    const [, origin, prefix, shard, fileName] = original;
-    return `${origin}${prefix}thumb/${shard}${fileName}/${width}px-${fileName}`;
-  }
-
-  return uri;
+  return fetch(url, { headers, redirect: 'follow' });
 }
 
 async function fetchImage(uri) {
@@ -41,11 +61,11 @@ async function fetchImage(uri) {
     Accept: 'image/avif,image/webp,image/jpeg,image/*,*/*;q=0.8',
   };
 
-  const candidates = [wikimediaThumbnailUrl(uri, CARD_WIDTH), uri];
+  const candidates = [preferredWikimediaUrl(uri), uri];
   let lastError = null;
   for (const candidate of [...new Set(candidates)]) {
     try {
-      const response = await fetch(candidate, { headers, redirect: 'follow' });
+      const response = await pacedFetch(candidate, headers);
       if (!response.ok) {
         lastError = new Error(`${response.status} ${response.statusText} for ${candidate}`);
         continue;
@@ -55,7 +75,11 @@ async function fetchImage(uri) {
         lastError = new Error(`Unexpected content type ${contentType || '(missing)'} for ${candidate}`);
         continue;
       }
-      return { candidate, bytes: Buffer.from(await response.arrayBuffer()), contentType };
+      return {
+        candidate: response.url || candidate,
+        bytes: Buffer.from(await response.arrayBuffer()),
+        contentType,
+      };
     } catch (error) {
       lastError = error;
     }
