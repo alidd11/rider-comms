@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { distanceBetweenMeters, formatPlaceDistance, isSearchQueryValid, searchNearbyPlaces, searchPlaces } from '../src/api/places.ts';
+import { distanceBetweenMeters, formatPlaceDistance, isSearchQueryValid, MIN_PLACE_SEARCH_QUERY_LENGTH, PLACE_SEARCH_DEBOUNCE_MS, searchNearbyPlaces, searchPlaces } from '../src/api/places.ts';
 import { addRecentPlace, parseRecentPlaces, recentPlacesStorageKey } from '../src/search/recentPlaces.ts';
 
 function fakeFetch(handler: (url: string, init: RequestInit) => { status: number; body: unknown }): typeof fetch {
@@ -11,12 +11,16 @@ function fakeFetch(handler: (url: string, init: RequestInit) => { status: number
 }
 
 describe('isSearchQueryValid', () => {
-  it('rejects empty or whitespace-only queries', () => {
+  it('rejects empty, whitespace-only, and single-character queries', () => {
     assert.equal(isSearchQueryValid(''), false);
     assert.equal(isSearchQueryValid('   '), false);
+    assert.equal(isSearchQueryValid('a'), false);
   });
 
-  it('accepts a normal query', () => {
+  it('accepts useful queries after the minimum input threshold', () => {
+    assert.equal(MIN_PLACE_SEARCH_QUERY_LENGTH, 2);
+    assert.equal(PLACE_SEARCH_DEBOUNCE_MS, 500);
+    assert.equal(isSearchQueryValid('M1'), true);
     assert.equal(isSearchQueryValid('gas station'), true);
   });
 
