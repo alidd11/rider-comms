@@ -2125,6 +2125,8 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
       maneuverWidth: maneuver?.getBoundingClientRect().width ?? NaN,
       maneuverHeight: maneuver?.getBoundingClientRect().height ?? NaN,
       maneuverRadius: maneuver ? parseFloat(getComputedStyle(maneuver).borderTopLeftRadius) : NaN,
+      maneuverBackground: maneuver ? getComputedStyle(maneuver).backgroundColor : null,
+      maneuverBorderWidth: maneuver ? parseFloat(getComputedStyle(maneuver).borderTopWidth) : NaN,
       maneuverSvgWidth: maneuverSvg?.getBoundingClientRect().width ?? NaN,
       maneuverHref: maneuverUse?.getAttribute('href') ?? null,
       nextHeight: nextPreview?.getBoundingClientRect().height ?? NaN,
@@ -2153,13 +2155,15 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
   expect(metrics.muteTop).toBeLessThan(metrics.overviewTop);
   expect(metrics.overviewBottom).toBeLessThan(metrics.summaryTop);
   expectNear(metrics.summaryTop - metrics.overviewBottom, 18, 2);
-  expect(metrics.maneuverWidth).toBe(72);
-  expect(metrics.maneuverHeight).toBe(80);
-  expect(metrics.maneuverRadius).toBe(18);
-  expect(metrics.maneuverSvgWidth).toBe(58);
+  expect(metrics.maneuverWidth).toBe(70);
+  expect(metrics.maneuverHeight).toBe(78);
+  expect(metrics.maneuverRadius).toBe(0);
+  expect(metrics.maneuverBackground).toBe('rgba(0, 0, 0, 0)');
+  expect(metrics.maneuverBorderWidth).toBe(0);
+  expect(metrics.maneuverSvgWidth).toBe(66);
   expect(metrics.maneuverHref).toBe('#i-nav-sharp-left');
-  expect(metrics.nextHeight).toBeGreaterThanOrEqual(52);
-  expect(metrics.nextSvgWidth).toBe(34);
+  expect(metrics.nextHeight).toBeGreaterThanOrEqual(50);
+  expect(metrics.nextSvgWidth).toBe(30);
   expect(metrics.nextHref).toBe('#i-nav-fork-right');
   expect(metrics.speedWidth).toBeGreaterThan(60);
   expect(metrics.speedValue).toBe('32');
