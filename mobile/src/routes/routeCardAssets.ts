@@ -4,7 +4,8 @@ import type { ImageSourcePropType } from 'react-native';
  * Static local route-card photography. The larger route overview image stays
  * provider-hosted and is loaded only after a rider opens a route.
  *
- * Keep this list in sync with ROUTE_CARD_ASSETS.json. The client test verifies
+ * Generated card derivatives preserve embedded image metadata. Keep this list
+ * in sync with ROUTE_CARD_ASSETS.json. The client test verifies
  * that every curated route has matching native + PWA bytes and provenance.
  */
 const ROUTE_CARD_IMAGES: Readonly<Record<string, ImageSourcePropType>> = {
