@@ -762,6 +762,13 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
   expect(friendDetailGeometry.closeRadius).toBeGreaterThanOrEqual(19);
   expect(friendDetailGeometry.titleWidth).toBeLessThanOrEqual(1);
   await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-friend-detail-final.png'), fullPage: true });
+  await page.locator('#friendSafetyActions').click();
+  await expect(page.locator('#sheetTitle')).toHaveText('More actions');
+  await expect(page.locator('#shareFriendIdMore')).toContainText('Share Rider ID');
+  await page.locator('#closeSheet').click();
+
+  await page.locator('#friendList [data-friend]').first().click();
+  await expect(page.locator('#messageFriend')).toBeVisible();
   await page.locator('#messageFriend').click();
   await expect(page.locator('#chatScreen')).toBeVisible();
   const dmGeometry = await page.evaluate(() => {
