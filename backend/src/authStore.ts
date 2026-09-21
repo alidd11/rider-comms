@@ -91,14 +91,6 @@ export class AuthStore {
     const normalized = value.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim();
     return normalized.slice(0, 120) || 'Unknown device';
   }
-  createGuest(): GuestSession {
-    let riderId: string;
-    do { riderId = `rider_${generateRideCode(8).toLowerCase()}`; } while (this.issuedRiderIds.has(riderId));
-    const token = randomBytes(32).toString('base64url');
-    this.issuedRiderIds.add(riderId);
-    this.riderByTokenDigest.set(this.digest(token), { riderId, expiresAt: Number.POSITIVE_INFINITY });
-    return { riderId, token };
-  }
   async hasRider(riderId: string): Promise<boolean> {
     if (this.issuedRiderIds.has(riderId)) return true;
     if (!process.env.DATABASE_URL) return false;
@@ -138,7 +130,7 @@ export class AuthStore {
     await ensureMigrated();
     await getPool().query('DELETE FROM account_sessions WHERE token_hash = $1', [tokenHash]);
   }
-  /** Removes process-local guest/session state after durable deletion commits. */
+  /** Removes process-local test/session state after durable deletion commits. */
   forgetRider(riderId: string): void {
     this.issuedRiderIds.delete(riderId);
     for (const [digest, session] of this.riderByTokenDigest) {
