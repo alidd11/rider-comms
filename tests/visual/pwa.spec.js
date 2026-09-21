@@ -507,7 +507,19 @@ test('core PWA screens render without runtime errors or viewport overflow', asyn
 test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 Pro Max', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'iphone-17-pro-max-webkit', 'Final mockup screenshots target iPhone 17 Pro Max geometry.');
 
-  await mockAuthenticatedApi(page, 'stationary');
+  await mockAuthenticatedApi(page, 'stationary', ({ url }) => {
+    if (url.pathname === '/friends/activity') {
+      return {
+        body: {
+          activity: [
+            { riderId: 'rider_friend01', online: true, lastSeenAt: Date.now() },
+            { riderId: 'rider_friend02', online: false, lastSeenAt: Date.now() - (2 * 60 * 60 * 1000) },
+          ],
+        },
+      };
+    }
+    return null;
+  });
   await page.goto('/');
   await expect(page.locator('#app')).toBeVisible();
 
@@ -648,21 +660,48 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
     const search = document.querySelector('[data-screen="friends"] .search-row');
     const row = document.querySelector('#friendList [data-friend]');
     const avatar = row?.querySelector('.avatar');
+    const presence = row?.querySelector('.friend-presence-dot');
+    const groupLabel = document.querySelector('#friendList .friend-group-label');
+    const labelStyle = groupLabel ? getComputedStyle(groupLabel) : null;
     const box = (element) => element?.getBoundingClientRect();
+    const avatarBox = box(avatar);
+    const presenceBox = box(presence);
     return {
       searchHeight: box(search)?.height ?? NaN,
       rowHeight: box(row)?.height ?? NaN,
-      avatarWidth: box(avatar)?.width ?? NaN,
+      avatarWidth: avatarBox?.width ?? NaN,
+      presenceWidth: presenceBox?.width ?? NaN,
+      presenceGap: avatarBox && presenceBox ? presenceBox.left - avatarBox.right : NaN,
+      presenceCentreDelta: avatarBox && presenceBox
+        ? Math.abs((avatarBox.top + avatarBox.height / 2) - (presenceBox.top + presenceBox.height / 2))
+        : NaN,
+      groupLabelTransform: labelStyle?.textTransform ?? null,
+      groupLabelFontSize: labelStyle ? parseFloat(labelStyle.fontSize) : NaN,
+      groupLabelText: groupLabel?.textContent?.trim() ?? null,
+      groupLabelTag: groupLabel?.tagName ?? null,
     };
   });
   expect(friendsGeometry.searchHeight).toBeLessThanOrEqual(46);
-  expect(friendsGeometry.rowHeight).toBeLessThanOrEqual(64);
+  expect(friendsGeometry.rowHeight).toBeLessThanOrEqual(62);
+  expect(friendsGeometry.avatarWidth).toBeGreaterThanOrEqual(40);
   expect(friendsGeometry.avatarWidth).toBeLessThanOrEqual(42);
+  expect(friendsGeometry.presenceWidth).toBeGreaterThanOrEqual(9);
+  expect(friendsGeometry.presenceWidth).toBeLessThanOrEqual(10);
+  expect(friendsGeometry.presenceGap).toBeGreaterThanOrEqual(6);
+  expect(friendsGeometry.presenceCentreDelta).toBeLessThanOrEqual(1);
+  expect(friendsGeometry.groupLabelTransform).toBe('none');
+  expect(friendsGeometry.groupLabelFontSize).toBeGreaterThanOrEqual(11);
+  expect(friendsGeometry.groupLabelText).toBe('Online (1)');
+  expect(friendsGeometry.groupLabelTag).toBe('H2');
+  await expect(page.locator('#friendList .friend-group-label')).toHaveText(['Online (1)', 'Offline (1)']);
+  await expect(page.locator('[data-friend="rider_friend01"] .friend-activity')).toHaveText('Online now');
+  await expect(page.locator('[data-friend="rider_friend02"] .friend-activity')).toContainText('Last seen 2h ago');
   await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-friends-final.png'), fullPage: true });
 
   await page.locator('#friendList [data-friend]').first().click();
   await expect(page.locator('#sheetBackdrop')).toBeVisible();
   await expect(page.locator('.friend-profile-card')).toBeVisible();
+  await expect(page.locator('#shareFriendId')).toContainText('Share ID');
   const friendDetailGeometry = await page.evaluate(() => {
     const card = document.querySelector('.friend-profile-card');
     const avatar = card?.querySelector('.avatar');

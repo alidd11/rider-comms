@@ -12,6 +12,7 @@ import { useFriends } from '../friends/FriendsContext';
 import { useAuth } from '../auth/AuthContext';
 import { DEFAULT_AVATAR_ID } from '../settings/avatars';
 import { RideBar } from '../ride/RideBar';
+import { useRide } from '../ride/RideContext';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { RiderAvatar } from '../components/RiderAvatar';
 import type { PublicRiderProfile } from '../api/client';
@@ -173,7 +174,7 @@ function OutgoingRequestRow({ request, profile }: { request: FriendRequest; prof
 }
 
 function activityLabel(activity?: FriendActivity): string {
-  if (!activity) return 'Connected';
+  if (!activity) return 'Offline';
   if (activity.online) return 'Online now';
   if (!activity.lastSeenAt) return 'Offline';
   const elapsed = Math.max(0, Date.now() - activity.lastSeenAt);
@@ -189,26 +190,30 @@ function FriendRow({
   friend,
   activity,
   unreadCount,
+  inActiveRide,
   onProfile,
 }: {
   friend: FriendSummary;
   activity?: FriendActivity;
   unreadCount: number;
+  inActiveRide: boolean;
   onProfile: (friend: FriendSummary) => void;
 }): React.JSX.Element {
+  const activityCopy = inActiveRide ? 'In your group ride' : activityLabel(activity);
   return (
     <Pressable
       style={({ pressed }) => [styles.friendRow, pressed && styles.friendRowPressed]}
       onPress={() => onProfile(friend)}
       accessibilityRole="button"
-      accessibilityLabel={`Open ${friend.displayName}'s rider profile`}
+      accessibilityLabel={`${friend.displayName}, ${activityCopy}. Open rider profile`}
     >
       <View style={styles.friendAvatarWrap}>
-        <RiderAvatar avatarId={friend.avatarId} size={44} status={activity?.online ? 'online' : 'stale'} />
+        <RiderAvatar avatarId={friend.avatarId} size={42} />
+        <View style={[styles.friendPresenceDot, activity?.online ? styles.friendPresenceOnline : styles.friendPresenceOffline]} />
       </View>
       <View style={styles.friendInfo}>
         <Text style={styles.friendName}>{friend.displayName}</Text>
-        <Text style={[styles.friendHandle, activity?.online && styles.friendHandleOnline]}>{activityLabel(activity)}</Text>
+        <Text style={styles.friendHandle}>{activityCopy}</Text>
       </View>
       {unreadCount > 0 ? <View style={styles.unreadPill}><Text style={styles.unreadPillText}>{unreadCount > 99 ? '99+' : unreadCount}</Text></View> : null}
       <Ionicons name="ellipsis-horizontal" size={21} color={colors.textMuted} />
@@ -220,11 +225,13 @@ function FriendProfileModal({
   friend,
   activity,
   profileRevision,
+  inActiveRide,
   onClose,
 }: {
   friend: FriendSummary | null;
   activity?: FriendActivity;
   profileRevision: number;
+  inActiveRide: boolean;
   onClose: () => void;
 }): React.JSX.Element {
   const insets = useSafeAreaInsets();
@@ -294,12 +301,12 @@ function FriendProfileModal({
 
           <View style={styles.profileIdentity}>
             <View style={styles.profileAvatarWrap}>
-              <RiderAvatar avatarId={profile?.avatarId ?? friend.avatarId} size={64} status={activity?.online ? 'online' : 'stale'} />
+              <RiderAvatar avatarId={profile?.avatarId ?? friend.avatarId} size={56} status={activity?.online ? 'online' : 'stale'} />
             </View>
             <View style={styles.profileIdentityCopy}>
               <Text style={styles.profileModalName}>{profile?.displayName ?? friend.displayName}</Text>
               <Text style={styles.profileModalHandle}>{profile?.handle ?? friend.handle}</Text>
-              <Text style={[styles.profileActivity, activity?.online && styles.profileActivityOnline]}>{activityLabel(activity)}</Text>
+              <Text style={styles.profileActivity}>{activityLabel(activity)}</Text>
             </View>
           </View>
 
@@ -326,6 +333,25 @@ function FriendProfileModal({
             </Pressable>
           </View>
 
+          <View style={styles.profileDetailList}>
+            <View style={[styles.profileDetailRow, inActiveRide && styles.profileDetailRowDivider]}>
+              <Ionicons name="radio-outline" size={19} color={colors.textSecondary} />
+              <View style={styles.profileDetailCopy}>
+                <Text style={styles.profileDetailTitle}>Rider status</Text>
+                <Text style={styles.profileDetailValue}>{activityLabel(activity)}</Text>
+              </View>
+            </View>
+            {inActiveRide ? (
+              <View style={styles.profileDetailRow}>
+                <Ionicons name="people-outline" size={19} color={colors.textSecondary} />
+                <View style={styles.profileDetailCopy}>
+                  <Text style={styles.profileDetailTitle}>In your group ride</Text>
+                  <Text style={styles.profileDetailValue}>Connected to this ride</Text>
+                </View>
+              </View>
+            ) : null}
+          </View>
+
           {(profile?.instagramUsername || profile?.tiktokUsername) ? (
             <View style={styles.socialList}>
               {profile.instagramUsername ? (
@@ -344,6 +370,9 @@ function FriendProfileModal({
               ) : null}
             </View>
           ) : !loading ? <Text style={styles.profilePrivacyNote}>No connected profiles are shared with you.</Text> : null}
+          <Text style={styles.profileSafetyNote}>
+            Only connect and arrange rides with people you trust. Social links follow each rider’s privacy settings.
+          </Text>
         </Pressable>
       </Pressable>
     </Modal>
@@ -353,6 +382,7 @@ function FriendProfileModal({
 export function FriendsScreen(): React.JSX.Element {
   const { friends, incomingRequests, outgoingRequests, requestProfiles, activityByRider, conversations, friendProfileRevision, loading, error, refresh } = useFriends();
   const insets = useSafeAreaInsets();
+  const { roster } = useRide();
   const [query, setQuery] = React.useState('');
   const [selectedProfile, setSelectedProfile] = React.useState<FriendSummary | null>(null);
   const [addOpen, setAddOpen] = React.useState(false);
@@ -391,7 +421,7 @@ export function FriendsScreen(): React.JSX.Element {
               accessibilityRole="button"
               accessibilityLabel={addOpen ? 'Close add friend' : 'Add friend'}
             >
-              <Ionicons name={addOpen ? 'close' : 'person-add-outline'} size={21} color={addOpen ? colors.accentText : colors.accent} />
+              <Ionicons name={addOpen ? 'close' : 'person-add-outline'} size={21} color={addOpen ? colors.accentText : colors.textPrimary} />
             </Pressable>
           )}
         />
@@ -427,7 +457,7 @@ export function FriendsScreen(): React.JSX.Element {
 
         {incomingRequests.length > 0 && (
           <>
-            <Text style={styles.networkSectionLabel}>Requests ({incomingRequests.length})</Text>
+            <Text accessibilityRole="header" style={styles.networkSectionLabel}>Requests ({incomingRequests.length})</Text>
             <View style={styles.section}>
               {incomingRequests.map((request) => (
                 <RequestRow key={request.id} request={request} profile={requestProfiles[request.fromRiderId]} />
@@ -438,7 +468,7 @@ export function FriendsScreen(): React.JSX.Element {
 
         {outgoingRequests.length > 0 && (
           <>
-            <Text style={styles.networkSectionLabel}>Sent ({outgoingRequests.length})</Text>
+            <Text accessibilityRole="header" style={styles.networkSectionLabel}>Sent ({outgoingRequests.length})</Text>
             <View style={styles.section}>
               {outgoingRequests.map((request) => (
                 <OutgoingRequestRow key={request.id} request={request} profile={requestProfiles[request.toRiderId]} />
@@ -465,17 +495,17 @@ export function FriendsScreen(): React.JSX.Element {
           <View style={styles.networkList}>
             {onlineFriends.length > 0 ? (
               <>
-                <Text style={styles.networkSectionLabel}>Online ({onlineFriends.length})</Text>
+                <Text accessibilityRole="header" style={styles.networkSectionLabel}>Online ({onlineFriends.length})</Text>
                 {onlineFriends.map((friend) => (
-                  <FriendRow key={friend.riderId} friend={friend} activity={activityByRider[friend.riderId]} unreadCount={unreadByRider[friend.riderId] ?? 0} onProfile={setSelectedProfile} />
+                  <FriendRow key={friend.riderId} friend={friend} activity={activityByRider[friend.riderId]} unreadCount={unreadByRider[friend.riderId] ?? 0} inActiveRide={roster.includes(friend.riderId)} onProfile={setSelectedProfile} />
                 ))}
               </>
             ) : null}
             {offlineFriends.length > 0 ? (
               <>
-                <Text style={styles.networkSectionLabel}>Offline ({offlineFriends.length})</Text>
+                <Text accessibilityRole="header" style={styles.networkSectionLabel}>Offline ({offlineFriends.length})</Text>
                 {offlineFriends.map((friend) => (
-                  <FriendRow key={friend.riderId} friend={friend} activity={activityByRider[friend.riderId]} unreadCount={unreadByRider[friend.riderId] ?? 0} onProfile={setSelectedProfile} />
+                  <FriendRow key={friend.riderId} friend={friend} activity={activityByRider[friend.riderId]} unreadCount={unreadByRider[friend.riderId] ?? 0} inActiveRide={roster.includes(friend.riderId)} onProfile={setSelectedProfile} />
                 ))}
               </>
             ) : null}
@@ -488,6 +518,7 @@ export function FriendsScreen(): React.JSX.Element {
         friend={selectedFriend}
         activity={selectedFriend ? activityByRider[selectedFriend.riderId] : undefined}
         profileRevision={friendProfileRevision}
+        inActiveRide={selectedFriend ? roster.includes(selectedFriend.riderId) : false}
         onClose={() => setSelectedProfile(null)}
       />
     </View>
@@ -536,18 +567,16 @@ const styles = StyleSheet.create({
   friendSearchRow: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, backgroundColor: colors.surface, borderRadius: radii.lg, paddingHorizontal: 11, marginBottom: 2 },
   friendSearchInput: { ...type.body, color: colors.textPrimary, flex: 1, minHeight: MIN_TOUCH_TARGET, fontSize: 14 },
   networkList: { marginTop: spacing.xs },
-  networkSectionLabel: { ...type.label, color: colors.textSecondary, marginTop: 14, marginBottom: 5, textTransform: 'uppercase', letterSpacing: 1.1, fontSize: 10 },
-  friendRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 62, paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+  networkSectionLabel: { ...type.label, color: colors.textSecondary, marginTop: 15, marginBottom: 5, textTransform: 'none', letterSpacing: 0, fontSize: 12, lineHeight: 16, fontWeight: '700' },
+  friendRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 60, paddingVertical: 7, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   friendRowPressed: { opacity: 0.72 },
-  friendAvatarWrap: { position: 'relative' },
-  friendAvatar: { width: 40, height: 40, borderRadius: radii.pill, alignItems: 'center', justifyContent: 'center' },
-  friendPresence: { position: 'absolute', right: -1, bottom: -1, width: 12, height: 12, borderRadius: 6, borderWidth: 2, borderColor: colors.background },
+  friendAvatarWrap: { flexDirection: 'row', alignItems: 'center', gap: 7, flexShrink: 0 },
+  friendPresenceDot: { width: 10, height: 10, borderRadius: 5, flexShrink: 0 },
   friendPresenceOnline: { backgroundColor: colors.success },
   friendPresenceOffline: { backgroundColor: colors.textMuted },
   friendInfo: { flex: 1, gap: 2 },
   friendName: { ...type.body, color: colors.textPrimary, fontWeight: '700', fontSize: 14 },
   friendHandle: { ...type.caption, color: colors.textSecondary, fontSize: 11 },
-  friendHandleOnline: { color: colors.success },
   emptyState: { padding: spacing.xl, alignItems: 'center', gap: spacing.sm },
   emptyTitle: { ...type.subheading, color: colors.textPrimary },
   emptyText: { ...type.caption, textAlign: 'center' },
@@ -563,13 +592,19 @@ const styles = StyleSheet.create({
   profileModalName: { ...type.heading, color: colors.textPrimary },
   profileModalHandle: { ...type.body, color: colors.textSecondary, marginTop: 1 },
   profileActivity: { ...type.caption, color: colors.textSecondary, marginTop: spacing.xs },
-  profileActivityOnline: { color: colors.success, fontWeight: '700' },
   profileLoader: { marginTop: spacing.md },
   profileError: { ...type.caption, color: colors.danger, marginTop: spacing.md },
   profileActions: { flexDirection: 'row', gap: 6, marginTop: spacing.md },
-  profileAction: { flex: 1, minHeight: 56, alignItems: 'center', justifyContent: 'center', gap: 4, backgroundColor: colors.surface, borderRadius: radii.md, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
+  profileAction: { flex: 1, minHeight: 58, alignItems: 'center', justifyContent: 'center', gap: 4, backgroundColor: colors.surface, borderRadius: radii.md, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
   profileActionText: { ...type.caption, color: colors.textPrimary, fontWeight: '700' },
+  profileDetailList: { marginTop: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: radii.lg, overflow: 'hidden', backgroundColor: colors.surface },
+  profileDetailRow: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 10 },
+  profileDetailRowDivider: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+  profileDetailCopy: { flex: 1, minWidth: 0 },
+  profileDetailTitle: { ...type.caption, color: colors.textPrimary, fontWeight: '700' },
+  profileDetailValue: { ...type.caption, color: colors.textSecondary, marginTop: 2, fontWeight: '500' },
   profilePrivacyNote: { ...type.caption, color: colors.textSecondary, marginTop: 12, padding: 11, backgroundColor: colors.surface, borderRadius: radii.lg },
+  profileSafetyNote: { ...type.caption, color: colors.textMuted, marginTop: 10, lineHeight: 18 },
   socialList: { marginTop: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: radii.lg, overflow: 'hidden' },
   socialRow: { minHeight: MIN_TOUCH_TARGET, flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.md, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   socialText: { ...type.body, color: colors.textPrimary, flex: 1 },

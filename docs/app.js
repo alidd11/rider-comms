@@ -727,7 +727,7 @@
   }
 
   function friendActivityLabel(activity) {
-    if (!activity) return 'Connected';
+    if (!activity) return 'Offline';
     if (activity.online) return 'Online now';
     if (!Number.isFinite(activity.lastSeenAt)) return 'Offline';
     const elapsed = Math.max(0, Date.now() - activity.lastSeenAt);
@@ -820,29 +820,34 @@
         if (aOnline !== bOnline) return aOnline ? -1 : 1;
         return 0;
       });
-    const onlineCount = friends.filter((friend) => friendActivity.get(friend.riderId)?.online === true).length;
-    const firstOfflineIndex = friends.findIndex((friend) => friendActivity.get(friend.riderId)?.online !== true);
+    const onlineFriends = friends.filter((friend) => friendActivity.get(friend.riderId)?.online === true);
+    const offlineFriends = friends.filter((friend) => friendActivity.get(friend.riderId)?.online !== true);
 
     const incomingRows = state.requests.map((person) => `<article class="request-row">${avatar(person)}<div class="identity"><strong>${escapeHtml(person.displayName)}</strong><span>${escapeHtml(person.handle)} · ${escapeHtml(person.status)}</span></div><div class="request-actions"><button class="decline" data-decline="${escapeHtml(person.id)}" aria-label="Decline ${escapeHtml(person.displayName)}">×</button><button class="accept" data-accept="${escapeHtml(person.id)}" aria-label="Accept ${escapeHtml(person.displayName)}">✓</button></div></article>`).join('');
     const outgoingRows = outgoingFriendRequests.map((person) => `<article class="request-row">${avatar(person)}<div class="identity"><strong>${escapeHtml(person.displayName)}</strong><span>${escapeHtml(person.handle)} · Pending</span></div><div class="request-actions"><button data-cancel-request="${escapeHtml(person.id)}" aria-label="Cancel request to ${escapeHtml(person.displayName)}">Cancel</button></div></article>`).join('');
     $('#requestList').innerHTML = incomingRows + outgoingRows;
 
-    $('#friendList').innerHTML = friends.map((person, index) => {
+    const friendRowHtml = (person) => {
       const activity = friendActivity.get(person.riderId);
       const online = activity?.online === true;
       const unread = conversationSummaries.get(person.riderId)?.unreadCount || 0;
-      const groupLabel = index === 0
-        ? (online ? `Online (${onlineCount})` : `Offline (${friends.length})`)
-        : index === firstOfflineIndex
-          ? `Offline (${friends.length - onlineCount})`
-          : '';
-      return `<button class="friend-row${online ? ' is-online' : ''}" data-friend="${escapeHtml(person.riderId)}"${groupLabel ? ` data-group-label="${escapeHtml(groupLabel)}"` : ''}>
+      const inActiveRide = state.activeRide?.memberIds?.includes(person.riderId) === true;
+      const activityCopy = inActiveRide ? 'In your group ride' : friendActivityLabel(activity);
+      return `<button class="friend-row${online ? ' is-online' : ''}" data-friend="${escapeHtml(person.riderId)}">
         <span class="friend-avatar-wrap">${avatar(person)}<i class="friend-presence-dot ${online ? 'online' : 'offline'}" aria-hidden="true"></i></span>
-        <span class="identity"><strong>${escapeHtml(person.displayName)}</strong><span class="friend-activity">${escapeHtml(friendActivityLabel(activity))}</span></span>
+        <span class="identity"><strong>${escapeHtml(person.displayName)}</strong><span class="friend-activity">${escapeHtml(activityCopy)}</span></span>
         ${unread > 0 ? `<span class="count-badge friend-unread-badge" aria-label="${unread} unread messages">${unread > 99 ? '99+' : unread}</span>` : ''}
         <span class="friend-more" aria-hidden="true">•••</span>
       </button>`;
-    }).join('');
+    };
+    $('#friendList').innerHTML = [
+      onlineFriends.length
+        ? `<section class="friend-group"><h2 class="friend-group-label">Online (${onlineFriends.length})</h2>${onlineFriends.map(friendRowHtml).join('')}</section>`
+        : '',
+      offlineFriends.length
+        ? `<section class="friend-group"><h2 class="friend-group-label">Offline (${offlineFriends.length})</h2>${offlineFriends.map(friendRowHtml).join('')}</section>`
+        : '',
+    ].join('');
     const hasFriends = state.friends.length > 0;
     const hasVisibleFriends = friends.length > 0;
     const requestTotal = state.requests.length + outgoingFriendRequests.length;
@@ -900,9 +905,9 @@
           <div><strong>${escapeHtml(currentFriend.displayName)}</strong><span>${escapeHtml(currentFriend.handle)}</span><small class="${activity?.online ? 'online' : ''}">${escapeHtml(friendActivityLabel(activity))}</small></div>
         </article>
         <div class="friend-profile-actions" aria-label="Rider actions">
-          <button id="messageFriend"><span class="friend-action-icon">${icon('friends')}</span><strong>Message</strong></button>
-          <button id="copyFriendId"><span class="friend-action-icon">${icon('share')}</span><strong>Copy ID</strong></button>
-          <button id="friendSafetyActions"><span class="friend-action-icon">${icon('shield')}</span><strong>More</strong></button>
+          <button id="messageFriend"><span class="friend-action-icon">${icon('message')}</span><strong>Message</strong></button>
+          <button id="shareFriendId"><span class="friend-action-icon">${icon('share')}</span><strong>Share ID</strong></button>
+          <button id="friendSafetyActions"><span class="friend-action-icon friend-action-more" aria-hidden="true">•••</span><strong>More</strong></button>
         </div>
         <div class="friend-detail-list">
           <div><span class="setting-icon">${icon('broadcast')}</span><span><strong>Rider status</strong><small>${escapeHtml(friendActivityLabel(activity))}</small></span></div>
@@ -916,7 +921,12 @@
               ? `<div class="social-links">${socialLinks}</div>`
               : '<p class="friend-profile-note">This rider has not shared any social links with you.</p>'}
         <p class="caption">Only connect and arrange rides with people you trust. Social links follow each rider’s privacy settings.</p>`, () => {
-        $('#copyFriendId').addEventListener('click', async () => {
+        $('#shareFriendId').addEventListener('click', async () => {
+          const message = `${currentFriend.displayName} on Rider Comms: ${riderId}`;
+          if (navigator.share) {
+            try { await navigator.share({ text: message }); return; }
+            catch (error) { if (error?.name === 'AbortError') return; }
+          }
           try { await navigator.clipboard.writeText(riderId); showToast('Rider ID copied.'); }
           catch { showToast(riderId); }
         });
