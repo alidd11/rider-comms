@@ -686,24 +686,23 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
       rowHeight: box(row)?.height ?? NaN,
       avatarWidth: avatarBox?.width ?? NaN,
       presenceWidth: presenceBox?.width ?? NaN,
-      presenceGap: avatarBox && presenceBox ? presenceBox.left - avatarBox.right : NaN,
-      presenceCentreDelta: avatarBox && presenceBox
-        ? Math.abs((avatarBox.top + avatarBox.height / 2) - (presenceBox.top + presenceBox.height / 2))
-        : NaN,
+      presenceOverlap: avatarBox && presenceBox ? avatarBox.right - presenceBox.left : NaN,
+      presenceBottomDelta: avatarBox && presenceBox ? Math.abs(avatarBox.bottom - presenceBox.bottom) : NaN,
       groupLabelTransform: labelStyle?.textTransform ?? null,
       groupLabelFontSize: labelStyle ? parseFloat(labelStyle.fontSize) : NaN,
       groupLabelText: groupLabel?.textContent?.trim() ?? null,
       groupLabelTag: groupLabel?.tagName ?? null,
     };
   });
-  expect(friendsGeometry.searchHeight).toBeLessThanOrEqual(46);
-  expect(friendsGeometry.rowHeight).toBeLessThanOrEqual(62);
-  expect(friendsGeometry.avatarWidth).toBeGreaterThanOrEqual(40);
-  expect(friendsGeometry.avatarWidth).toBeLessThanOrEqual(42);
+  expect(friendsGeometry.searchHeight).toBeLessThanOrEqual(44);
+  expect(friendsGeometry.rowHeight).toBeLessThanOrEqual(58);
+  expect(friendsGeometry.avatarWidth).toBeGreaterThanOrEqual(39);
+  expect(friendsGeometry.avatarWidth).toBeLessThanOrEqual(41);
   expect(friendsGeometry.presenceWidth).toBeGreaterThanOrEqual(9);
   expect(friendsGeometry.presenceWidth).toBeLessThanOrEqual(10);
-  expect(friendsGeometry.presenceGap).toBeGreaterThanOrEqual(6);
-  expect(friendsGeometry.presenceCentreDelta).toBeLessThanOrEqual(1);
+  expect(friendsGeometry.presenceOverlap).toBeGreaterThanOrEqual(6);
+  expect(friendsGeometry.presenceOverlap).toBeLessThanOrEqual(10);
+  expect(friendsGeometry.presenceBottomDelta).toBeLessThanOrEqual(2);
   expect(friendsGeometry.groupLabelTransform).toBe('none');
   expect(friendsGeometry.groupLabelFontSize).toBeGreaterThanOrEqual(11);
   expect(friendsGeometry.groupLabelText).toBe('Online (1)');
@@ -733,6 +732,7 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
     const avatar = document.querySelector('.friend-profile-avatar .avatar');
     const actions = [...document.querySelectorAll('.friend-profile-actions button')];
     const detailList = document.querySelector('.friend-profile-detail-list');
+    const detailRows = [...document.querySelectorAll('.friend-profile-detail-list > div')];
     const close = document.querySelector('#closeSheet');
     const title = document.querySelector('#sheetTitle');
     const box = (element) => element?.getBoundingClientRect();
@@ -743,6 +743,7 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
       actionWidths: actions.map((action) => box(action)?.width ?? NaN),
       actionHeights: actions.map((action) => box(action)?.height ?? NaN),
       detailRadius: detailList ? parseFloat(getComputedStyle(detailList).borderTopLeftRadius) : NaN,
+      detailHeights: detailRows.map((row) => box(row)?.height ?? NaN),
       closeWidth: box(close)?.width ?? NaN,
       closeRadius: close ? parseFloat(getComputedStyle(close).borderTopLeftRadius) : NaN,
       titleWidth: box(title)?.width ?? NaN,
@@ -750,13 +751,17 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
   });
   expect(friendDetailGeometry.cardBorderWidth).toBe(0);
   expect(friendDetailGeometry.cardBackground).toBe('rgba(0, 0, 0, 0)');
-  expect(friendDetailGeometry.avatarWidth).toBeGreaterThanOrEqual(58);
-  expect(friendDetailGeometry.avatarWidth).toBeLessThanOrEqual(62);
+  expect(friendDetailGeometry.avatarWidth).toBeGreaterThanOrEqual(52);
+  expect(friendDetailGeometry.avatarWidth).toBeLessThanOrEqual(56);
   expect(friendDetailGeometry.actionWidths).toHaveLength(4);
   for (const width of friendDetailGeometry.actionWidths.slice(1)) expectNear(width, friendDetailGeometry.actionWidths[0], 1);
   for (const height of friendDetailGeometry.actionHeights) {
-    expect(height).toBeGreaterThanOrEqual(68);
-    expect(height).toBeLessThanOrEqual(74);
+    expect(height).toBeGreaterThanOrEqual(62);
+    expect(height).toBeLessThanOrEqual(66);
+  }
+  for (const height of friendDetailGeometry.detailHeights) {
+    expect(height).toBeGreaterThanOrEqual(48);
+    expect(height).toBeLessThanOrEqual(52);
   }
   expect(friendDetailGeometry.detailRadius).toBeGreaterThanOrEqual(10);
   expect(friendDetailGeometry.detailRadius).toBeLessThanOrEqual(14);
@@ -766,9 +771,18 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
   await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-friend-detail-final.png'), fullPage: true });
   await page.locator('#friendSafetyActions').click();
   await expect(page.locator('#sheetTitle')).toHaveText('More actions');
+  await expect(page.locator('.friend-more-card')).toContainText('Maya');
   await expect(page.locator('#shareFriendIdMore')).toContainText('Share Rider ID');
   await expect(page.locator('#removeFriendBtn')).toContainText('Remove friend');
+  await expect(page.locator('#reportFriendBtn')).toContainText('Report rider');
+  await expect(page.locator('#blockFriendBtn')).toContainText('Block rider');
+  await expect(page.locator('.friend-more-menu > button')).toHaveCount(4);
+  await expect(page.locator('[data-report-rider]')).toHaveCount(0);
+  await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-friend-more-final.png'), fullPage: true });
+  await page.locator('#reportFriendBtn').click();
+  await expect(page.locator('#sheetTitle')).toHaveText('Report rider');
   await expect(page.locator('[data-report-rider]')).toHaveCount(3);
+  await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-friend-report-final.png'), fullPage: true });
   await page.locator('#closeSheet').click();
 
   await page.locator('#friendList [data-friend]').first().click();
@@ -876,8 +890,9 @@ test('friend profile exposes only fresh consented private-ride location actions'
   await expect(page.locator('#shareFriendLocation')).toBeEnabled();
   await expect(page.locator('#shareFriendLocation')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('#friendMapAction')).toBeEnabled();
-  await expect(page.locator('.friend-profile-detail-list')).toContainText('Live ride location');
-  await expect(page.locator('.friend-profile-detail-list')).toContainText('In your group ride');
+  await expect(page.locator('.friend-profile-detail-list')).toContainText('Location');
+  await expect(page.locator('.friend-profile-detail-list')).toContainText('Shared in your current ride');
+  await expect(page.locator('.friend-profile-detail-list')).toContainText('Group ride');
   await expect(page.locator('.friend-profile-detail-list')).toContainText('2 riders');
   await expect(page.locator('#viewFriendOnMap')).toBeVisible();
 

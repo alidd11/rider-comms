@@ -210,7 +210,7 @@ function FriendRow({
       accessibilityLabel={`${friend.displayName}, ${activityCopy}. Open rider profile`}
     >
       <View style={styles.friendAvatarWrap}>
-        <RiderAvatar avatarId={friend.avatarId} size={42} />
+        <RiderAvatar avatarId={friend.avatarId} size={40} />
         <View style={[styles.friendPresenceDot, activity?.online ? styles.friendPresenceOnline : styles.friendPresenceOffline]} />
       </View>
       <View style={styles.friendInfo}>
@@ -291,14 +291,18 @@ function FriendProfileModal({
         .catch(() => Alert.alert('Couldn’t remove friend', 'Please try again when you have a connection.'));
     } },
   ]);
-  const safetyActions = () => Alert.alert('More actions', `Choose what to do about ${friend.displayName}.`, [
+  const reportActions = () => Alert.alert('Report rider', 'Choose the reason that best describes the issue.', [
+    { text: 'Harassment', onPress: () => report('harassment') },
+    { text: 'Unsafe behaviour', onPress: () => report('unsafe') },
+    { text: 'Spam or scam', onPress: () => report('spam') },
+    { text: 'Cancel', style: 'cancel' },
+  ]);
+  const safetyActions = () => Alert.alert('More actions', `Manage your connection with ${friend.displayName}.`, [
     { text: 'Share Rider ID', onPress: () => {
       void Share.share({ message: `${profile?.displayName ?? friend.displayName} on Rider Comms: ${friend.riderId}` });
     } },
     { text: 'Remove friend', onPress: confirmRemove },
-    { text: 'Report harassment', onPress: () => report('harassment') },
-    { text: 'Report unsafe behaviour', onPress: () => report('unsafe') },
-    { text: 'Report spam', onPress: () => report('spam') },
+    { text: 'Report rider', onPress: reportActions },
     { text: 'Block rider', style: 'destructive', onPress: () => {
       void client.blockRider(friend.riderId)
         .then(async () => { await refresh(); onClose(); })
@@ -333,7 +337,7 @@ function FriendProfileModal({
 
           <View style={styles.profileIdentity}>
             <View style={styles.profileAvatarWrap}>
-              <RiderAvatar avatarId={profile?.avatarId ?? friend.avatarId} size={60} status={activity?.online ? 'online' : 'stale'} />
+              <RiderAvatar avatarId={profile?.avatarId ?? friend.avatarId} size={54} status={activity?.online ? 'online' : 'stale'} />
             </View>
             <View style={styles.profileIdentityCopy}>
               <Text style={styles.profileModalName}>{profile?.displayName ?? friend.displayName}</Text>
@@ -415,22 +419,22 @@ function FriendProfileModal({
             <View style={styles.profileDetailRow}>
               <Ionicons name="location-outline" size={19} color={colors.textSecondary} />
               <View style={styles.profileDetailCopy}>
-                <Text style={styles.profileDetailTitle}>{rideLocation ? 'Live ride location' : 'Location not shared'}</Text>
-                <Text style={styles.profileDetailValue}>{rideLocation ? 'Updated recently' : 'Private ride location only'}</Text>
+                <Text style={styles.profileDetailTitle}>Location</Text>
+                <Text style={styles.profileDetailValue}>{rideLocation ? 'Shared in your current ride · updated recently' : 'Not shared with you'}</Text>
               </View>
             </View>
             <View style={[styles.profileDetailRow, styles.profileDetailRowDivider]}>
               <Ionicons name="people-outline" size={19} color={colors.textSecondary} />
               <View style={styles.profileDetailCopy}>
-                <Text style={styles.profileDetailTitle}>{inActiveRide ? 'In your group ride' : 'Not in your group ride'}</Text>
-                <Text style={styles.profileDetailValue}>{inActiveRide ? `${rideMemberCount} rider${rideMemberCount === 1 ? '' : 's'}` : 'No shared ride'}</Text>
+                <Text style={styles.profileDetailTitle}>Group ride</Text>
+                <Text style={styles.profileDetailValue}>{inActiveRide ? `${rideMemberCount} rider${rideMemberCount === 1 ? '' : 's'} · riding together` : 'Not in your current ride'}</Text>
               </View>
             </View>
             <View style={styles.profileDetailRow}>
               <Ionicons name="share-social-outline" size={19} color={colors.textSecondary} />
               <View style={styles.profileDetailCopy}>
-                <Text style={styles.profileDetailTitle}>{sharedProfileCount ? `${sharedProfileCount} shared profile${sharedProfileCount === 1 ? '' : 's'}` : 'No shared profiles'}</Text>
-                <Text style={styles.profileDetailValue}>Nothing shared with you</Text>
+                <Text style={styles.profileDetailTitle}>Shared profiles</Text>
+                <Text style={styles.profileDetailValue}>{sharedProfileCount ? `${sharedProfileCount} profile${sharedProfileCount === 1 ? '' : 's'} shared with you` : 'None shared'}</Text>
               </View>
             </View>
           </View>
@@ -668,14 +672,14 @@ const styles = StyleSheet.create({
   cancelRequestText: { ...type.caption, color: colors.textSecondary, fontWeight: '700' },
   unreadPill: { minWidth: 24, height: 24, paddingHorizontal: 7, borderRadius: radii.pill, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
   unreadPillText: { ...type.caption, color: colors.accentText, fontWeight: '800' },
-  friendSearchRow: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, backgroundColor: colors.surface, borderRadius: radii.lg, paddingHorizontal: 11, marginBottom: 2 },
-  friendSearchInput: { ...type.body, color: colors.textPrimary, flex: 1, minHeight: MIN_TOUCH_TARGET, fontSize: 14 },
+  friendSearchRow: { minHeight: 42, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, backgroundColor: colors.surface, borderRadius: 4, paddingHorizontal: 11, marginBottom: 2 },
+  friendSearchInput: { ...type.body, color: colors.textPrimary, flex: 1, minHeight: 42, fontSize: 14 },
   networkList: { marginTop: spacing.xs },
   networkSectionLabel: { ...type.label, color: colors.textSecondary, marginTop: 15, marginBottom: 5, textTransform: 'none', letterSpacing: 0, fontSize: 12, lineHeight: 16, fontWeight: '700' },
-  friendRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 60, paddingVertical: 7, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+  friendRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 56, paddingVertical: 6, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   friendRowPressed: { opacity: 0.72 },
-  friendAvatarWrap: { flexDirection: 'row', alignItems: 'center', gap: 7, flexShrink: 0 },
-  friendPresenceDot: { width: 10, height: 10, borderRadius: 5, flexShrink: 0 },
+  friendAvatarWrap: { position: 'relative', flexShrink: 0 },
+  friendPresenceDot: { position: 'absolute', right: -2, bottom: 1, width: 10, height: 10, borderRadius: 5, borderWidth: 2, borderColor: colors.background },
   friendPresenceOnline: { backgroundColor: colors.success },
   friendPresenceOffline: { backgroundColor: colors.textMuted },
   friendInfo: { flex: 1, gap: 2 },
@@ -688,30 +692,30 @@ const styles = StyleSheet.create({
   profileModal: { backgroundColor: colors.background, borderTopLeftRadius: 18, borderTopRightRadius: 18, borderWidth: StyleSheet.hairlineWidth, borderBottomWidth: 0, borderColor: colors.border, padding: spacing.md, paddingBottom: spacing.xl },
   modalHandle: { alignSelf: 'center', width: 40, height: 4, borderRadius: radii.pill, backgroundColor: colors.border, marginBottom: spacing.sm },
   modalClose: { position: 'absolute', right: spacing.md, top: spacing.md, zIndex: 4, width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceRaised },
-  profileIdentity: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingTop: 2, paddingRight: 46, paddingBottom: 10 },
+  profileIdentity: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingTop: 0, paddingRight: 46, paddingBottom: 8 },
   profileAvatarWrap: { position: 'relative' },
   profileIdentityCopy: { flex: 1, minWidth: 0 },
-  profileModalName: { ...type.heading, color: colors.textPrimary, fontSize: 18 },
+  profileModalName: { ...type.heading, color: colors.textPrimary, fontSize: 17 },
   profileModalHandle: { ...type.body, color: colors.textSecondary, marginTop: 1 },
   profileLoader: { marginTop: spacing.sm },
   profileError: { ...type.caption, color: colors.danger, marginTop: spacing.sm },
   profileActions: { flexDirection: 'row', gap: 7, marginTop: 2 },
-  profileAction: { flex: 1, minWidth: 0, minHeight: 70, alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 3, backgroundColor: colors.surface, borderRadius: 10, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
+  profileAction: { flex: 1, minWidth: 0, minHeight: 64, alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 3, backgroundColor: colors.surface, borderRadius: 10, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
   profileActionDisabled: { opacity: 0.38 },
   profileActionActive: { borderColor: colors.accent, backgroundColor: colors.accentSoft },
   profileActionPressed: { opacity: 0.72 },
   profileActionText: { ...type.caption, color: colors.textPrimary, fontWeight: '700', fontSize: 10.5 },
   profileDetailList: { marginTop: 10, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: 12, overflow: 'hidden', backgroundColor: colors.surface },
-  profileDetailRow: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 10, paddingVertical: 7 },
+  profileDetailRow: { minHeight: 50, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 10, paddingVertical: 6 },
   profileDetailRowDivider: { borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
   profileDetailCopy: { flex: 1, minWidth: 0 },
-  profileDetailTitle: { ...type.caption, color: colors.textPrimary, fontWeight: '700' },
-  profileDetailValue: { ...type.caption, color: colors.textSecondary, marginTop: 2, fontWeight: '500', lineHeight: 17 },
+  profileDetailTitle: { ...type.caption, color: colors.textPrimary, fontWeight: '700', fontSize: 12 },
+  profileDetailValue: { ...type.caption, color: colors.textSecondary, marginTop: 1, fontWeight: '500', fontSize: 11, lineHeight: 15 },
   profileSocialSection: { gap: 7, marginTop: 10 },
   profileSectionLabel: { ...type.caption, color: colors.textMuted, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1.1 },
   socialList: { borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: 12, overflow: 'hidden' },
   socialRow: { minHeight: MIN_TOUCH_TARGET, flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.md, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   socialText: { ...type.body, color: colors.textPrimary, flex: 1 },
-  profileMapButton: { minHeight: 48, marginTop: 10, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: colors.accent },
+  profileMapButton: { minHeight: 46, marginTop: 9, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: colors.accent },
   profileMapButtonText: { ...type.body, color: colors.accentText, fontWeight: '800' },
 });
