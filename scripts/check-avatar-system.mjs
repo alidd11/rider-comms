@@ -86,14 +86,14 @@ assert.match(pwaApp, /function addMapMarker\([\s\S]*icon: riderAvatarMapIcon\(pe
 
 assert.match(
   pwaApp,
-  /function updateNavigationPositionIcon\(\)[\s\S]*riderAvatarMapIcon\(state\.profile, true, undefined, 54\)/,
-  'PWA navigation must keep the rider-selected avatar as the live self marker',
+  /function updateNavigationPositionIcon\(\)[\s\S]*riderAvatarMapIcon\(state\.profile, true, undefined, 64, true\)/,
+  'PWA navigation must keep the rider-selected avatar as the enlarged tail-free live self marker',
 );
 assert.ok(!pwaApp.includes('navigationPositionMapIcon('), 'PWA navigation must not reference a generic navigation chevron anywhere');
 assert.match(
   nativeMap,
-  /size=\{activeRoute \? 54 : 44\}[\s\S]*mapMarker[\s\S]*selected/,
-  'native navigation must keep the rider-selected avatar as the live self marker',
+  /size=\{activeRoute \? 64 : 44\}[\s\S]*mapMarker=\{!activeRoute\}[\s\S]*selected/,
+  'native navigation must keep the rider-selected avatar as the enlarged tail-free live self marker',
 );
 assert.ok(!nativeMap.includes('navigationPositionMarker'), 'native navigation must not replace the selected rider avatar with a generic chevron');
 
