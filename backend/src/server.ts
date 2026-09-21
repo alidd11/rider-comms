@@ -7,6 +7,7 @@ import { createLiveKitRoomAdmin, getLiveKitCredentialsFromEnv, mintVoiceToken, p
 import type { LiveKitCredentials, LiveKitRoomAdmin } from './liveKitToken.ts';
 import { AuthStore } from './authStore.ts';
 import { RideStore } from './rideStore.ts';
+import type { RideMemberLocation } from './rideStore.ts';
 import { PresenceStore, StaleLocationFixError } from './presenceStore.ts';
 import { ProfileStore } from './profileStore.ts';
 import { FriendStore, InvalidFriendCursorError } from './friendStore.ts';
@@ -239,6 +240,16 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
         }));
       }
     });
+  };
+
+  const visibleRideLocationsFor = async (actorId: string, locations: RideMemberLocation[]): Promise<RideMemberLocation[]> => {
+    const peerIds = locations
+      .map((location) => location.riderId)
+      .filter((riderId) => riderId !== actorId);
+    if (peerIds.length === 0) return locations;
+    const allowedPeerIds = new Set(await moderationStore.filterAllowedPeerIds(actorId, peerIds));
+    return locations.filter((location) =>
+      location.riderId === actorId || allowedPeerIds.has(location.riderId));
   };
   const app = http.createServer(async (req, res) => {
     const startedAt = Date.now();
@@ -492,7 +503,8 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
         if (req.method === 'POST' && s[2] === 'location') {
           const body = await readJsonBody(req); if (!isCoordinate(body.lat, body.lon)) return sendJson(res, 400, { error: 'valid lat and lon are required' });
           const r = await rideStore.updateMemberLocation(id, actorId, body.lat as number, body.lon as number);
-          return r.ok ? sendJson(res, 200, {}) : sendJson(res, r.reason === 'not_found' ? 404 : 403, { error: r.reason });
+          if (!r.ok) return sendJson(res, r.reason === 'not_found' ? 404 : 403, { error: r.reason });
+          return sendJson(res, 200, { locations: await visibleRideLocationsFor(actorId, r.locations) });
         }
         if (req.method === 'GET' && s[2] === 'locations') {
           const r = await rideStore.getMemberLocations(id, actorId);
@@ -500,12 +512,7 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
           // A private-ride membership is not permission to bypass an explicit
           // block. Preserve the actor's own shared fix, but never disclose a
           // blocked peer's precise coordinates in either direction.
-          const peerIds = r.locations.map((location) => location.riderId).filter((riderId) => riderId !== actorId);
-          const allowedPeerIds = new Set(await moderationStore.filterAllowedPeerIds(actorId, peerIds));
-          return sendJson(res, 200, {
-            locations: r.locations.filter((location) =>
-              location.riderId === actorId || allowedPeerIds.has(location.riderId)),
-          });
+          return sendJson(res, 200, { locations: await visibleRideLocationsFor(actorId, r.locations) });
         }
       }
       if (s[0] === 'riders' && s[2]) {

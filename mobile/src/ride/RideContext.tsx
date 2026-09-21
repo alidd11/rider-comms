@@ -205,8 +205,11 @@ export function RideProvider({ children }: { children: React.ReactNode }): React
         if (!permission.granted || cancelled) return;
         const fix = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
         if (cancelled) return;
-        await client.updateRideLocation(activeRide.rideId, fix.coords.latitude, fix.coords.longitude);
-        const { locations } = await client.getRideLocations(activeRide.rideId);
+        const { locations } = await client.updateRideLocation(
+          activeRide.rideId,
+          fix.coords.latitude,
+          fix.coords.longitude,
+        );
         if (!cancelled) setRideLocations(locations);
       } catch {
         // A missed foreground tick is retried. The backend expires locations

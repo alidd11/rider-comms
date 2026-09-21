@@ -121,7 +121,7 @@ describe('RiderCommsClient.joinRide', () => {
 });
 
 describe('RiderCommsClient private ride location', () => {
-  it('uses the consent, upload and read endpoints for a private ride', async () => {
+  it('returns the current ride snapshot from the location upload without a follow-up read', async () => {
     const requests: Array<{ url: string; method: string; body?: unknown }> = [];
     const client = new RiderCommsClient('http://example.test', fakeFetch((url, init) => {
       requests.push({
@@ -129,16 +129,15 @@ describe('RiderCommsClient private ride location', () => {
         method: init.method ?? 'GET',
         body: init.body ? JSON.parse(init.body as string) : undefined,
       });
-      if (url.endsWith('/locations')) {
+      if (url.endsWith('/location-sharing')) return { status: 200, body: { enabled: true } };
+      if (url.endsWith('/location')) {
         return { status: 200, body: { locations: [{ riderId: 'friend', lat: 51.5, lon: -0.1, updatedAt: 123 }] } };
       }
-      if (url.endsWith('/location-sharing')) return { status: 200, body: { enabled: true } };
-      return { status: 200, body: {} };
+      return { status: 200, body: { locations: [] } };
     }), 'token');
 
     assert.deepEqual(await client.setRideLocationSharing('ride/1', true), { enabled: true });
-    await client.updateRideLocation('ride/1', 51.5, -0.1);
-    const locations = await client.getRideLocations('ride/1');
+    const locations = await client.updateRideLocation('ride/1', 51.5, -0.1);
 
     assert.equal(locations.locations[0].riderId, 'friend');
     assert.deepEqual(requests, [
@@ -152,12 +151,17 @@ describe('RiderCommsClient private ride location', () => {
         method: 'POST',
         body: { lat: 51.5, lon: -0.1 },
       },
-      {
-        url: 'http://example.test/rides/ride%2F1/locations',
-        method: 'GET',
-        body: undefined,
-      },
     ]);
+  });
+
+  it('keeps the explicit ride-location read endpoint available for reconciliation', async () => {
+    const client = new RiderCommsClient('http://example.test', fakeFetch((url, init) => {
+      assert.equal(url, 'http://example.test/rides/ride%2F1/locations');
+      assert.equal(init.method, 'GET');
+      return { status: 200, body: { locations: [{ riderId: 'friend', lat: 51.5, lon: -0.1, updatedAt: 123 }] } };
+    }), 'token');
+
+    assert.equal((await client.getRideLocations('ride/1')).locations[0].riderId, 'friend');
   });
 });
 

@@ -45,6 +45,10 @@ export type RideLocationsResult =
   | { ok: true; locations: RideMemberLocation[] }
   | { ok: false; reason: 'not_found' | 'forbidden' | 'not_member' | 'location_sharing_disabled' };
 
+export type RideLocationUpdateResult =
+  | { ok: true; ride: Ride; locations: RideMemberLocation[] }
+  | { ok: false; reason: 'not_found' | 'forbidden' | 'not_member' | 'location_sharing_disabled' };
+
 const RIDE_LOCATION_MAX_AGE_MS = 30_000;
 
 interface RideRow {
@@ -312,29 +316,7 @@ export class RideStore {
     await pool.query('DELETE FROM ride_members WHERE rider_id = $1', [riderId]);
   }
 
-  /** Private-ride location is separate from public presence and requires
-   * explicit, per-ride consent. Membership alone never enables upload. */
-  async updateMemberLocation(rideId: string, riderId: string, lat: number, lon: number): Promise<RideActionResult> {
-    const result = await this.getRideForMember(rideId, riderId);
-    if (!result.ok) return result;
-    const pool = getPool();
-    const updated = await pool.query(
-      `INSERT INTO ride_locations (ride_id, rider_id, lat, lon, updated_at)
-       SELECT $1, $2, $3, $4, $5
-       FROM ride_members
-       WHERE ride_id = $1 AND rider_id = $2 AND location_sharing_enabled = TRUE
-       ON CONFLICT (ride_id, rider_id)
-       DO UPDATE SET lat = $3, lon = $4, updated_at = $5
-       RETURNING rider_id`,
-      [rideId, riderId, lat, lon, Date.now()]
-    );
-    if (updated.rowCount === 0) return { ok: false, reason: 'location_sharing_disabled' };
-    return result;
-  }
-
-  async getMemberLocations(rideId: string, actorId: string): Promise<RideLocationsResult> {
-    const result = await this.getRideForMember(rideId, actorId);
-    if (!result.ok) return result;
+  private async loadFreshMemberLocations(rideId: string): Promise<RideMemberLocation[]> {
     const pool = getPool();
     const freshSince = Date.now() - RIDE_LOCATION_MAX_AGE_MS;
     await pool.query('DELETE FROM ride_locations WHERE ride_id = $1 AND updated_at < $2', [rideId, freshSince]);
@@ -350,9 +332,39 @@ export class RideStore {
        ORDER BY location.rider_id ASC`,
       [rideId, freshSince]
     );
-    return {
-      ok: true,
-      locations: rows.map((row) => ({ riderId: row.rider_id, lat: row.lat, lon: row.lon, updatedAt: Number(row.updated_at) })),
-    };
+    return rows.map((row) => ({
+      riderId: row.rider_id,
+      lat: row.lat,
+      lon: row.lon,
+      updatedAt: Number(row.updated_at),
+    }));
+  }
+
+  /** Private-ride location is separate from public presence and requires
+   * explicit, per-ride consent. Membership alone never enables upload.
+   * Return the same fresh ride-location snapshot that the read endpoint
+   * exposes so clients do not need a second authenticated request per tick. */
+  async updateMemberLocation(rideId: string, riderId: string, lat: number, lon: number): Promise<RideLocationUpdateResult> {
+    const result = await this.getRideForMember(rideId, riderId);
+    if (!result.ok) return result;
+    const pool = getPool();
+    const updated = await pool.query(
+      `INSERT INTO ride_locations (ride_id, rider_id, lat, lon, updated_at)
+       SELECT $1, $2, $3, $4, $5
+       FROM ride_members
+       WHERE ride_id = $1 AND rider_id = $2 AND location_sharing_enabled = TRUE
+       ON CONFLICT (ride_id, rider_id)
+       DO UPDATE SET lat = $3, lon = $4, updated_at = $5
+       RETURNING rider_id`,
+      [rideId, riderId, lat, lon, Date.now()]
+    );
+    if (updated.rowCount === 0) return { ok: false, reason: 'location_sharing_disabled' };
+    return { ...result, locations: await this.loadFreshMemberLocations(rideId) };
+  }
+
+  async getMemberLocations(rideId: string, actorId: string): Promise<RideLocationsResult> {
+    const result = await this.getRideForMember(rideId, actorId);
+    if (!result.ok) return result;
+    return { ok: true, locations: await this.loadFreshMemberLocations(rideId) };
   }
 }

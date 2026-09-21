@@ -113,7 +113,13 @@ describe('authenticated API', () => {
     assert.equal((await authenticatedFetch(ctx, 'member', `/rides/${ride.rideId}/location-sharing`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: true }),
     })).status, 200);
-    assert.equal((await postJson(ctx, 'member', `/rides/${ride.rideId}/location`, { lat: 51.5, lon: -0.1 })).status, 200);
+    const memberUpload = await postJson(ctx, 'member', `/rides/${ride.rideId}/location`, { lat: 51.5, lon: -0.1 });
+    assert.equal(memberUpload.status, 200);
+    assert.deepEqual(
+      (await memberUpload.json() as { locations: Array<{ riderId: string; lat: number; lon: number }> }).locations
+        .map((l) => ({ riderId: l.riderId, lat: l.lat, lon: l.lon })),
+      [{ riderId: 'member', lat: 51.5, lon: -0.1 }],
+    );
     const seenByHost = await authenticatedFetch(ctx, 'host', `/rides/${ride.rideId}/locations`);
     assert.deepEqual((await seenByHost.json() as { locations: Array<{ riderId: string; lat: number; lon: number }> }).locations.map((l) => ({ riderId: l.riderId, lat: l.lat, lon: l.lon })), [{ riderId: 'member', lat: 51.5, lon: -0.1 }]);
     assert.equal((await postJson(ctx, 'outsider', `/rides/${ride.rideId}/location`, { lat: 0, lon: 0 })).status, 403);
@@ -146,6 +152,13 @@ describe('authenticated API', () => {
     );
 
     assert.equal((await postJson(ctx, 'block-location-host', '/blocks', { riderId: 'block-location-member' })).status, 200);
+
+    const uploadAfterBlock = await postJson(ctx, 'block-location-host', `/rides/${ride.rideId}/location`, { lat: 51.50, lon: -0.10 });
+    assert.equal(uploadAfterBlock.status, 200);
+    assert.deepEqual(
+      (await uploadAfterBlock.json() as { locations: Array<{ riderId: string }> }).locations.map((location) => location.riderId),
+      ['block-location-host'],
+    );
 
     const seenByHost = await authenticatedFetch(ctx, 'block-location-host', `/rides/${ride.rideId}/locations`);
     assert.deepEqual(
