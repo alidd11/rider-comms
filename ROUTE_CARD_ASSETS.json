@@ -1,154 +1,197 @@
 {
-  "generatedAt": "2026-09-21T23:34:10.712Z",
+  "generatedAt": "2026-09-21T23:35:50.161Z",
   "width": 640,
-  "note": "Local runtime card copies derived from the authoritative image URI in mobile/src/routes/curatedRoutes.ts. Attribution and licence metadata remain in the curated route catalogue and ROUTE_IMAGE_LICENSES.md.",
+  "jpegQuality": 78,
+  "note": "Local runtime card copies derived from the authoritative image URI in mobile/src/routes/curatedRoutes.ts. Files are resized/recompressed for card display; attribution, source and licence metadata remain in the curated route catalogue and ROUTE_IMAGE_LICENSES.md.",
   "routes": {
     "surrey-hills-circuit": {
       "file": "surrey-hills-circuit.jpg",
       "sourceUri": "https://upload.wikimedia.org/wikipedia/commons/2/27/A25_Shere_Road%2C_looking_towards_Sherbourne_Farm_-_geograph.org.uk_-_3794452.jpg",
       "fetchedUri": "https://upload.wikimedia.org/wikipedia/commons/2/27/A25_Shere_Road%2C_looking_towards_Sherbourne_Farm_-_geograph.org.uk_-_3794452.jpg?utm_source=commons.wikimedia.org&utm_campaign=index&utm_content=thumbnail_unscaled",
-      "bytes": 87200,
-      "sha256": "1090c4532fc8d7691d30e2fd280f519a61432f67c94fc187a29d47cf6f795568"
+      "fetchedBytes": 87200,
+      "bytes": 63179,
+      "sha256": "553b5fca922af64abedde69e12cb421618a755e454d703655a74b75fc34eb456",
+      "modification": "Resized to a maximum of 640px wide and JPEG recompressed at quality 78 for Rider Comms route-card display."
     },
     "a507-baldock-buntingford": {
       "file": "a507-baldock-buntingford.jpg",
       "sourceUri": "https://upload.wikimedia.org/wikipedia/commons/f/f5/A507_towards_Baldock_-_geograph.org.uk_-_3102113.jpg",
       "fetchedUri": "https://upload.wikimedia.org/wikipedia/commons/f/f5/A507_towards_Baldock_-_geograph.org.uk_-_3102113.jpg?utm_source=commons.wikimedia.org&utm_campaign=index&utm_content=thumbnail_unscaled",
-      "bytes": 60073,
-      "sha256": "691bf92c22f57d3b957fd32ae5b03baa367ffd9b203b90e29feb44b413ddea9b"
+      "fetchedBytes": 60073,
+      "bytes": 46129,
+      "sha256": "2204000f8e611b52f220bf549bd3b8a49581ba5f0270500a2db439d51ed1ad70",
+      "modification": "Resized to a maximum of 640px wide and JPEG recompressed at quality 78 for Rider Comms route-card display."
     },
     "b1145-norfolk": {
       "file": "b1145-norfolk.jpg",
       "sourceUri": "https://upload.wikimedia.org/wikipedia/commons/f/f3/Bend_on_the_B1145_west_of_Gayton%2C_Norfolk_-_geograph.org.uk_-_564445.jpg",
       "fetchedUri": "https://upload.wikimedia.org/wikipedia/commons/f/f3/Bend_on_the_B1145_west_of_Gayton%2C_Norfolk_-_geograph.org.uk_-_564445.jpg?utm_source=commons.wikimedia.org&utm_campaign=index&utm_content=thumbnail_unscaled",
-      "bytes": 87149,
-      "sha256": "f2f93020d2b3a14a849654b39fdf7503f571fbd6fe904b9d7484cc15b9e41a61"
+      "fetchedBytes": 87149,
+      "bytes": 55074,
+      "sha256": "368bc096917bfca4298670463f0f5345af7c0689b60aed37df612d26818ffe0a",
+      "modification": "Resized to a maximum of 640px wide and JPEG recompressed at quality 78 for Rider Comms route-card display."
     },
     "a466-wye-valley": {
       "file": "a466-wye-valley.jpg",
       "sourceUri": "https://upload.wikimedia.org/wikipedia/commons/9/9a/A466_Wye_valley_road_-_geograph.org.uk_-_1402565.jpg",
       "fetchedUri": "https://upload.wikimedia.org/wikipedia/commons/9/9a/A466_Wye_valley_road_-_geograph.org.uk_-_1402565.jpg?utm_source=commons.wikimedia.org&utm_campaign=index&utm_content=thumbnail_unscaled",
-      "bytes": 248145,
-      "sha256": "90846420324b9aad2aaff3f19f43084018bc65ca7158b4a85f2d77afd70d4e64"
+      "fetchedBytes": 248145,
+      "bytes": 60587,
+      "sha256": "ec5255f7056b3e67cff9a034dc96a3099656e56e01df7006e8728cabe87aea87",
+      "modification": "Resized to a maximum of 640px wide and JPEG recompressed at quality 78 for Rider Comms route-card display."
     },
     "b3212-dartmoor": {
       "file": "b3212-dartmoor.jpg",
       "sourceUri": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/bb/Princetown_%2C_Two_Bridges_Road_B3212_-_geograph.org.uk_-_5488011.jpg/1280px-Princetown_%2C_Two_Bridges_Road_B3212_-_geograph.org.uk_-_5488011.jpg",
       "fetchedUri": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/bb/Princetown_%2C_Two_Bridges_Road_B3212_-_geograph.org.uk_-_5488011.jpg/960px-Princetown_%2C_Two_Bridges_Road_B3212_-_geograph.org.uk_-_5488011.jpg?utm_source=commons.wikimedia.org&utm_campaign=index&utm_content=thumbnail",
-      "bytes": 171549,
-      "sha256": "366049829f7c75cd94f4912bd4e43a40e89ed4c4d85dbef81c0851870dee74b6"
+      "fetchedBytes": 171549,
+      "bytes": 53411,
+      "sha256": "3dd8d6ca49114d672668c19495a7e224ce86bfc9301d25d25ce375d36b7cef32",
+      "modification": "Resized to a maximum of 640px wide and JPEG recompressed at quality 78 for Rider Comms route-card display."
     },
     "b3306-west-cornwall": {
       "file": "b3306-west-cornwall.jpg",
       "sourceUri": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/07/B3306%2C_St_Ives_to_Zennor_road_-_geograph.org.uk_-_8249620.jpg/1280px-B3306%2C_St_Ives_to_Zennor_road_-_geograph.org.uk_-_8249620.jpg",
       "fetchedUri": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/07/B3306%2C_St_Ives_to_Zennor_road_-_geograph.org.uk_-_8249620.jpg/960px-B3306%2C_St_Ives_to_Zennor_road_-_geograph.org.uk_-_8249620.jpg?utm_source=commons.wikimedia.org&utm_campaign=index&utm_content=thumbnail",
-      "bytes": 168906,
-      "sha256": "f4f15c4bac04d860580c8d33b0ec87e0edd8f161a1b7e0c9f2452bcbacf74ce2"
+      "fetchedBytes": 168906,
+      "bytes": 50632,
+      "sha256": "7a4a9dfb5d29950f7fd672561920835c50c3689cc6b56769167cfcfcab546235",
+      "modification": "Resized to a maximum of 640px wide and JPEG recompressed at quality 78 for Rider Comms route-card display."
     },
     "a39-porlock-lynmouth": {
       "file": "a39-porlock-lynmouth.jpg",
       "sourceUri": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d9/Porlock_%2C_Porlock_Hill_A39_-_geograph.org.uk_-_6258978.jpg/1280px-Porlock_%2C_Porlock_Hill_A39_-_geograph.org.uk_-_6258978.jpg",
       "fetchedUri": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d9/Porlock_%2C_Porlock_Hill_A39_-_geograph.org.uk_-_6258978.jpg/960px-Porlock_%2C_Porlock_Hill_A39_-_geograph.org.uk_-_6258978.jpg?utm_source=commons.wikimedia.org&utm_campaign=index&utm_content=thumbnail",
-      "bytes": 278439,
-      "sha256": "8069b394a410c5ff3df4a8dc007568288d649cef708eba42d3a2d83c83887b97"
+      "fetchedBytes": 278439,
+      "bytes": 83632,
+      "sha256": "a0d2fa4ea0a6ac4a268bedee57b241796908bfbe8cdb7723c00dcabaab1efb75",
+      "modification": "Resized to a maximum of 640px wide and JPEG recompressed at quality 78 for Rider Comms route-card display."
     },
     "glyndwrs-way": {
       "file": "glyndwrs-way.jpg",
       "sourceUri": "https://upload.wikimedia.org/wikipedia/commons/8/80/The_road_down_into_Cwmystwyth_-_geograph.org.uk_-_6304586.jpg",
       "fetchedUri": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/80/The_road_down_into_Cwmystwyth_-_geograph.org.uk_-_6304586.jpg/960px-The_road_down_into_Cwmystwyth_-_geograph.org.uk_-_6304586.jpg?utm_source=commons.wikimedia.org&utm_campaign=index&utm_content=thumbnail",
-      "bytes": 248902,
-      "sha256": "184d9a70f422b44f08416005310616087f78a696487fb64aba2c68fea6953003"
+      "fetchedBytes": 248902,
+      "bytes": 75428,
+      "sha256": "2c4361acd76a5e190f2a627eb0116e1532cb98cd57d6b634f4787b370a388477",
+      "modification": "Resized to a maximum of 640px wide and JPEG recompressed at quality 78 for Rider Comms route-card display."
     },
     "b4391-ffestiniog-arenig": {
       "file": "b4391-ffestiniog-arenig.jpg",
       "sourceUri": "https://upload.wikimedia.org/wikipedia/commons/d/d2/B4391_approx_3km_from_Llan_Ffestiniog_-_geograph.org.uk_-_101596.jpg",
       "fetchedUri": "https://upload.wikimedia.org/wikipedia/commons/d/d2/B4391_approx_3km_from_Llan_Ffestiniog_-_geograph.org.uk_-_101596.jpg?utm_source=commons.wikimedia.org&utm_campaign=index&utm_content=thumbnail_unscaled",
-      "bytes": 86313,
-      "sha256": "c8db7ccf4adf889d0deaab550f0ac3af4a558dfc17fb7fca5e5bc3074e122e3e"
+      "fetchedBytes": 86313,
+      "bytes": 53279,
+      "sha256": "7c7b394ba5e4c68227074b26b9d1836083ef2040c2b7c2deec992f20df275085",
+      "modification": "Resized to a maximum of 640px wide and JPEG recompressed at quality 78 for Rider Comms route-card display."
     },
     "b4560-llangynidr": {
       "file": "b4560-llangynidr.jpg",
       "sourceUri": "https://upload.wikimedia.org/wikipedia/commons/e/e1/B4560_Llangynidr_mountain_road_-_geograph.org.uk_-_4380999.jpg",
       "fetchedUri": "https://upload.wikimedia.org/wikipedia/commons/e/e1/B4560_Llangynidr_mountain_road_-_geograph.org.uk_-_4380999.jpg?utm_source=commons.wikimedia.org&utm_campaign=index&utm_content=thumbnail_unscaled",
-      "bytes": 179206,
-      "sha256": "72c76831d9f75d40c96e3e0c15a697fa2bccd7c7d1d349559e0caa9eb02f1c1e"
+      "fetchedBytes": 179206,
+      "bytes": 36576,
+      "sha256": "40430fdaf7a36c121388a434f7897040a5554c1700a1213352924bed9ff53454",
+      "modification": "Resized to a maximum of 640px wide and JPEG recompressed at quality 78 for Rider Comms route-card display."
     },
     "a686-hartside": {
       "file": "a686-hartside.jpg",
       "sourceUri": "https://upload.wikimedia.org/wikipedia/commons/5/5c/The_A686_below_Hartside_-_geograph.org.uk_-_1073084.jpg",
       "fetchedUri": "https://upload.wikimedia.org/wikipedia/commons/5/5c/The_A686_below_Hartside_-_geograph.org.uk_-_1073084.jpg?utm_source=commons.wikimedia.org&utm_campaign=index&utm_content=thumbnail_unscaled",
-      "bytes": 150230,
-      "sha256": "526a25a612fd6e5a845f0437680b41575936acd964b8c0f42b2679238f963eaa"
+      "fetchedBytes": 150230,
+      "bytes": 62186,
+      "sha256": "c4446053289a945bb8cafcc74d65aeb273095f8933f14251d481dce8242ffa56",
+      "modification": "Resized to a maximum of 640px wide and JPEG recompressed at quality 78 for Rider Comms route-card display."
     },
     "b6277-north-pennines": {
       "file": "b6277-north-pennines.jpg",
       "sourceUri": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/0b/Middleton-in-Teesdale_%2C_Alston_Road_B6277_-_geograph.org.uk_-_6687638.jpg/1280px-Middleton-in-Teesdale_%2C_Alston_Road_B6277_-_geograph.org.uk_-_6687638.jpg",
       "fetchedUri": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/0b/Middleton-in-Teesdale_%2C_Alston_Road_B6277_-_geograph.org.uk_-_6687638.jpg/960px-Middleton-in-Teesdale_%2C_Alston_Road_B6277_-_geograph.org.uk_-_6687638.jpg?utm_source=commons.wikimedia.org&utm_campaign=index&utm_content=thumbnail",
-      "bytes": 237763,
-      "sha256": "ae7c84f222e29eaa9cb1ec5cff4916c4885beb7da7b81f488ea298990bd92147"
+      "fetchedBytes": 237763,
+      "bytes": 74741,
+      "sha256": "40b34b5ae4442eb072c7e76bf03c7b7f868d1f77797c7fe70b92379af93e12a3",
+      "modification": "Resized to a maximum of 640px wide and JPEG recompressed at quality 78 for Rider Comms route-card display."
     },
     "honister-newlands-loop": {
       "file": "honister-newlands-loop.jpg",
       "sourceUri": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/17/Honister_pass_near_the_slate_mine_-_geograph.org.uk_-_6186484.jpg/1280px-Honister_pass_near_the_slate_mine_-_geograph.org.uk_-_6186484.jpg",
       "fetchedUri": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/17/Honister_pass_near_the_slate_mine_-_geograph.org.uk_-_6186484.jpg/960px-Honister_pass_near_the_slate_mine_-_geograph.org.uk_-_6186484.jpg?utm_source=commons.wikimedia.org&utm_campaign=index&utm_content=thumbnail",
-      "bytes": 278180,
-      "sha256": "6e9fae7c144545c719d1c1bc1d6d7aed1f1faf3930e4f45c3a72c7c433397816"
+      "fetchedBytes": 278180,
+      "bytes": 84319,
+      "sha256": "ad879caa950211b422a5be978f46968dbeb72114872bd91834e173a263740db0",
+      "modification": "Resized to a maximum of 640px wide and JPEG recompressed at quality 78 for Rider Comms route-card display."
     },
     "yorkshire-ribblehead-buttertubs": {
       "file": "yorkshire-ribblehead-buttertubs.jpg",
       "sourceUri": "https://upload.wikimedia.org/wikipedia/commons/8/8c/The_B6255_road_near_Ribblehead_-_geograph.org.uk_-_8295984.jpg",
       "fetchedUri": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/8c/The_B6255_road_near_Ribblehead_-_geograph.org.uk_-_8295984.jpg/960px-The_B6255_road_near_Ribblehead_-_geograph.org.uk_-_8295984.jpg?utm_source=commons.wikimedia.org&utm_campaign=index&utm_content=thumbnail",
-      "bytes": 204688,
-      "sha256": "c65f0f0aa4318a6e31eeafad90b38dfabe4fb2491ac08ee3160ae4549e37257e"
+      "fetchedBytes": 204688,
+      "bytes": 71660,
+      "sha256": "8678e3d9c5130bad794beb937dfc275f1644235d924216e0783bc9e425013ee8",
+      "modification": "Resized to a maximum of 640px wide and JPEG recompressed at quality 78 for Rider Comms route-card display."
     },
     "a708-three-lochs": {
       "file": "a708-three-lochs.jpg",
       "sourceUri": "https://upload.wikimedia.org/wikipedia/commons/4/45/A708_beside_St_Mary%27s_Loch_-_geograph.org.uk_-_7249278.jpg",
       "fetchedUri": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/45/A708_beside_St_Mary%27s_Loch_-_geograph.org.uk_-_7249278.jpg/960px-A708_beside_St_Mary%27s_Loch_-_geograph.org.uk_-_7249278.jpg?utm_source=commons.wikimedia.org&utm_campaign=index&utm_content=thumbnail",
-      "bytes": 208023,
-      "sha256": "1ad4f574ca4f027953afa0a7ba145a29eead20add23ca2219fc89215d2ccbec6"
+      "fetchedBytes": 208023,
+      "bytes": 56219,
+      "sha256": "0fcbae5b76767cf0894815e16c83681041905432a5d9edef206c927ecdbcd3c0",
+      "modification": "Resized to a maximum of 640px wide and JPEG recompressed at quality 78 for Rider Comms route-card display."
     },
     "a821-dukes-pass": {
       "file": "a821-dukes-pass.jpg",
       "sourceUri": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/77/Duke%27s_Pass_-_geograph.org.uk_-_4767591.jpg/1280px-Duke%27s_Pass_-_geograph.org.uk_-_4767591.jpg",
       "fetchedUri": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/77/Duke%27s_Pass_-_geograph.org.uk_-_4767591.jpg/960px-Duke%27s_Pass_-_geograph.org.uk_-_4767591.jpg?utm_source=commons.wikimedia.org&utm_campaign=index&utm_content=thumbnail",
-      "bytes": 183989,
-      "sha256": "7d5d351857717c61eb64dc74b051ce63f67be52bab3139846e87534a0fd58052"
+      "fetchedBytes": 183989,
+      "bytes": 52732,
+      "sha256": "0aeed0940128898e68bfcb7ab441622da491fa4b4cdbf61a4023e736c0218ff2",
+      "modification": "Resized to a maximum of 640px wide and JPEG recompressed at quality 78 for Rider Comms route-card display."
     },
     "a82-glencoe": {
       "file": "a82-glencoe.jpg",
       "sourceUri": "https://upload.wikimedia.org/wikipedia/commons/0/0d/A82_towards_Glencoe_-_geograph.org.uk_-_3149881.jpg",
       "fetchedUri": "https://upload.wikimedia.org/wikipedia/commons/0/0d/A82_towards_Glencoe_-_geograph.org.uk_-_3149881.jpg?utm_source=commons.wikimedia.org&utm_campaign=index&utm_content=thumbnail_unscaled",
-      "bytes": 56721,
-      "sha256": "eeb117be1a350dad0e62ee202bbae48b9b3dea993b4408a351042216fc466281"
+      "fetchedBytes": 56721,
+      "bytes": 46578,
+      "sha256": "2b9f95da0a3885cf232caa50f91b6de8f55d22785e163ee04a3cdbc5fe17f240",
+      "modification": "Resized to a maximum of 640px wide and JPEG recompressed at quality 78 for Rider Comms route-card display."
     },
     "snowroads": {
       "file": "snowroads.jpg",
       "sourceUri": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/32/Cairngorms_National_Park_road_%28Unsplash%29.jpg/1280px-Cairngorms_National_Park_road_%28Unsplash%29.jpg",
       "fetchedUri": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/32/Cairngorms_National_Park_road_%28Unsplash%29.jpg/960px-Cairngorms_National_Park_road_%28Unsplash%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=index&utm_content=thumbnail",
-      "bytes": 117871,
-      "sha256": "49e02db05ad37706f64798b19abf21d16548984b116dd12e127949767aae8b52"
+      "fetchedBytes": 117871,
+      "bytes": 37424,
+      "sha256": "a11ba0a12c85b4e23249f660cef2785046e19ffa1b6d0c695cace73e92b74035",
+      "modification": "Resized to a maximum of 640px wide and JPEG recompressed at quality 78 for Rider Comms route-card display."
     },
     "a838-durness-tongue": {
       "file": "a838-durness-tongue.jpg",
       "sourceUri": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d0/A838_towards_Durness_-_geograph.org.uk_-_8260507.jpg/1280px-A838_towards_Durness_-_geograph.org.uk_-_8260507.jpg",
       "fetchedUri": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d0/A838_towards_Durness_-_geograph.org.uk_-_8260507.jpg/960px-A838_towards_Durness_-_geograph.org.uk_-_8260507.jpg?utm_source=commons.wikimedia.org&utm_campaign=index&utm_content=thumbnail",
-      "bytes": 278851,
-      "sha256": "b707111b53c6c6f2532ce99867bd85fff4ba5dde46d9f07d1c1a877cc8bd8718"
+      "fetchedBytes": 278851,
+      "bytes": 83336,
+      "sha256": "854351952e0e7b263abcdcd85517ff89eb7fcef398be914f2a7bcd1dbbd6f437",
+      "modification": "Resized to a maximum of 640px wide and JPEG recompressed at quality 78 for Rider Comms route-card display."
     },
     "causeway-coast": {
       "file": "causeway-coast.jpg",
       "sourceUri": "https://upload.wikimedia.org/wikipedia/commons/e/e1/Causeway_Coastal_Route%2C_Dunseverick_-_geograph.org.uk_-_5572416.jpg",
       "fetchedUri": "https://upload.wikimedia.org/wikipedia/commons/e/e1/Causeway_Coastal_Route%2C_Dunseverick_-_geograph.org.uk_-_5572416.jpg?utm_source=commons.wikimedia.org&utm_campaign=index&utm_content=thumbnail_unscaled",
-      "bytes": 468040,
-      "sha256": "a5b1efa12a6a547e73d33662d9f2e06fd1d0b2e4bd3df9c4ffc2af979c38560a"
+      "fetchedBytes": 468040,
+      "bytes": 67425,
+      "sha256": "742622e2193cad7fb66eb38237f2a0244f0e6fef45c1db3324dce1237a29f61c",
+      "modification": "Resized to a maximum of 640px wide and JPEG recompressed at quality 78 for Rider Comms route-card display."
     },
     "mourne-coast-a2": {
       "file": "mourne-coast-a2.jpg",
       "sourceUri": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/1c/The_cliff_top_Annalong_Road_on_the_north-eastern_outskirts_of_Ballymartin_-_geograph.org.uk_-_5927104.jpg/1280px-The_cliff_top_Annalong_Road_on_the_north-eastern_outskirts_of_Ballymartin_-_geograph.org.uk_-_5927104.jpg",
       "fetchedUri": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/1c/The_cliff_top_Annalong_Road_on_the_north-eastern_outskirts_of_Ballymartin_-_geograph.org.uk_-_5927104.jpg/960px-The_cliff_top_Annalong_Road_on_the_north-eastern_outskirts_of_Ballymartin_-_geograph.org.uk_-_5927104.jpg?utm_source=commons.wikimedia.org&utm_campaign=index&utm_content=thumbnail",
-      "bytes": 106666,
-      "sha256": "c89cf520ba88ce476f5942538cd2f6251276264bd9e54d40b508038678c4dfb0"
+      "fetchedBytes": 106666,
+      "bytes": 37213,
+      "sha256": "158f5f621e2147596b256fc146a4ed8172ebe62c1846e18ab45ed82f2f9e5bbb",
+      "modification": "Resized to a maximum of 640px wide and JPEG recompressed at quality 78 for Rider Comms route-card display."
     }
   }
 }
