@@ -2,6 +2,16 @@
 
 Pre-alpha Expo/React Native and installable PWA for proximity-based rider communication and private group rides. The monorepo contains both clients, a dependency-light Node.js API, PostgreSQL persistence, and shared TypeScript logic.
 
+## Project snapshot
+
+- **Lifecycle:** pre-alpha / internal testing; not production-ready.
+- **Snapshot main:** `df02282de7249dd870a668cf543294f01134f576` (PR #286).
+- **Main checks:** CI, PWA deployment and GitHub Pages deployment are green on that exact SHA.
+- **PWA/native parity:** all capabilities currently tracked on `main` are parity except navigation, which remains a deliberate `behavior-gap` pending production-grade background/locked-screen and physical ride validation.
+- **Active work:** Settings parity, Friends profile refinement, and navigation header/control/Road ahead work. The private-ride location block-boundary fix from PR #283 and private-ride voice revocation hardening from PR #286 are now on `main`.
+
+See [PROJECT_STATUS.md](PROJECT_STATUS.md) for the detailed current handover, active PR ownership/overlap, release blockers and source-of-truth rules.
+
 ## Current status
 
 Working and verified in this repository:
