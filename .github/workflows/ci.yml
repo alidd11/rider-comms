@@ -53,6 +53,14 @@ jobs:
       - name: Verify iOS bundle
         working-directory: mobile
         run: npx expo export --platform ios --output-dir /tmp/rider-comms-ios
+      - name: Report native export size
+        run: node scripts/report-native-export-sizes.mjs android=/tmp/rider-comms-android ios=/tmp/rider-comms-ios
+      - name: Upload native export size report
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: native-export-size-report
+          path: native-export-size-report.json
+          if-no-files-found: error
       - name: Upload PWA visual audit
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
