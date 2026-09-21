@@ -33,7 +33,7 @@
       "id": "settings",
       "pwa": true,
       "native": true,
-      "status": "behavior-gap"
+      "status": "parity"
     },
     {
       "id": "avatar-selection",
