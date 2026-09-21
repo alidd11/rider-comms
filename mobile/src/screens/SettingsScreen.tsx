@@ -542,9 +542,9 @@ export function SettingsScreen(): React.JSX.Element {
                 <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
               </Pressable>
               <Text style={styles.fieldLabel}>Display name</Text>
-              <TextInput style={styles.sheetInput} value={nameDraft} onChangeText={setNameDraft} onSubmitEditing={commitName} onBlur={commitName} maxLength={24} returnKeyType="done" placeholder="Rider name" placeholderTextColor={colors.textMuted} />
+              <TextInput style={styles.sheetInput} value={nameDraft} onChangeText={setNameDraft} onSubmitEditing={commitName} onBlur={commitName} maxLength={50} returnKeyType="done" placeholder="Rider name" placeholderTextColor={colors.textMuted} />
               <Text style={styles.fieldLabel}>Rider handle</Text>
-              <TextInput style={styles.sheetInput} value={handleDraft} onChangeText={setHandleDraft} onSubmitEditing={commitHandle} onBlur={commitHandle} maxLength={24} autoCapitalize="none" returnKeyType="done" placeholder="@handle" placeholderTextColor={colors.textMuted} />
+              <TextInput style={styles.sheetInput} value={handleDraft} onChangeText={setHandleDraft} onSubmitEditing={commitHandle} onBlur={commitHandle} maxLength={25} autoCapitalize="none" returnKeyType="done" placeholder="@handle" placeholderTextColor={colors.textMuted} />
               <Text style={styles.sheetMetaBlock}>{emailVerified ? 'Email verified' : 'Email verification pending'} · {riderId}</Text>
             </View>
             <View style={styles.settingsSheetSection}>
