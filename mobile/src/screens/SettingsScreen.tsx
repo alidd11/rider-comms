@@ -21,8 +21,8 @@ import type { AccountSessionSummary } from '../api/client';
 import { NAVIGATION_PROVIDER_OPTIONS, type NavigationProvider } from '../navigationPreference';
 
 const UNIT_LABELS: Record<UnitSystem, { name: string; blurb: string }> = {
-  mi: { name: 'Miles', blurb: 'Distances and zone radius shown in miles.' },
-  km: { name: 'Kilometers', blurb: 'Distances and zone radius shown in kilometers.' },
+  mi: { name: 'Miles', blurb: 'Use miles and mph.' },
+  km: { name: 'Kilometres', blurb: 'Use kilometres and km/h.' },
 };
 const UNIT_ORDER: UnitSystem[] = ['mi', 'km'];
 
