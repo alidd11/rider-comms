@@ -129,6 +129,23 @@ export class ModerationStore {
     return rows.length > 0;
   }
 
+  /** Whether any listed rider has explicitly blocked this rider. This is
+   * directional on purpose: the blocker may stay in a private ride voice room
+   * after the blocked participant is ejected, while the blocked participant
+   * cannot obtain a fresh token back into that shared room. */
+  async isBlockedByAny(riderId: string, possibleBlockerIds: string[]): Promise<boolean> {
+    const blockerIds = [...new Set(possibleBlockerIds.filter((id) => id !== riderId))];
+    if (blockerIds.length === 0) return false;
+    await ensureMigrated();
+    const { rows } = await getPool().query(
+      `SELECT 1 FROM rider_blocks
+       WHERE blocked_rider_id = $1 AND rider_id = ANY($2::text[])
+       LIMIT 1`,
+      [riderId, blockerIds],
+    );
+    return rows.length > 0;
+  }
+
   /**
    * Bulk block filtering for presence/voice/group social responses. This
    * avoids an N+1 block lookup for every nearby peer while preserving the
