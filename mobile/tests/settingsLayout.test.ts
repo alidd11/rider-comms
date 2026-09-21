@@ -29,12 +29,12 @@ describe('Settings mockup contract', () => {
   });
 
   it('keeps mockup card and row geometry compact', () => {
-    assert.match(settingsSource, /profileCard:\s*\{[\s\S]*?minHeight:\s*92[\s\S]*?marginBottom:\s*8[\s\S]*?borderRadius:\s*8/);
+    assert.match(settingsSource, /profileCard:\s*\{[\s\S]*?minHeight:\s*100[\s\S]*?marginBottom:\s*8[\s\S]*?borderRadius:\s*8/);
     assert.match(settingsSource, /paddingBottom: insets\.bottom \+ spacing\.md/);
     assert.match(settingsSource, /scroll: \{[^\n]*paddingHorizontal: spacing\.md/);
     assert.match(settingsSource, /settingsGroup: \{[^\n]*backgroundColor: colors\.surfaceRaised/);
     assert.match(settingsSource, /backgroundColor: colors\.surfaceRaised,[\s\S]*?profileSaveStatus:/);
-    assert.match(settingsSource, /<RiderAvatar avatarId=\{avatarId\} size=\{64\} \/>/);
+    assert.match(settingsSource, /<RiderAvatar avatarId=\{avatarId\} size=\{72\} \/>/);
     assert.match(settingsSource, /<Ionicons name="chevron-forward" size=\{16\} color=\{colors\.textMuted\} \/>/);
     assert.match(settingsSource, /settingsGroup:\s*\{[^\n]*borderRadius:\s*8/);
     assert.match(settingsSource, /settingRow:\s*\{[^\n]*minHeight:\s*48/);

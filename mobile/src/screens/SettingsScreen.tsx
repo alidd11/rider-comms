@@ -464,7 +464,7 @@ export function SettingsScreen(): React.JSX.Element {
         <ScreenHeader title="Settings" />
 
         <Pressable style={styles.profileCard} onPress={() => setActiveSheet('profile')} accessibilityRole="button" accessibilityLabel="Open profile settings">
-          <RiderAvatar avatarId={avatarId} size={64} />
+          <RiderAvatar avatarId={avatarId} size={72} />
           <View style={styles.profileCopy}>
             <Text numberOfLines={1} style={styles.name}>{displayName}</Text>
             <Text numberOfLines={1} style={styles.handle}>{handle}</Text>
@@ -697,7 +697,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   scroll: { width: '100%', maxWidth: 760, alignSelf: 'center', paddingHorizontal: spacing.md, paddingVertical: spacing.md, paddingTop: spacing.lg },
   profileCard: {
-    minHeight: 92,
+    minHeight: 100,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
