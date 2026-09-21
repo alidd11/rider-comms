@@ -1,6 +1,5 @@
 import { createHash, randomBytes, randomUUID, scrypt, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
-import { generateRideCode } from '@rider-comms/shared';
 import { getPool, ensureMigrated } from './db.ts';
 import { sendPasswordResetEmail, sendVerificationEmail } from './email.ts';
 
@@ -90,14 +89,6 @@ export class AuthStore {
     if (typeof value !== 'string') return 'Unknown device';
     const normalized = value.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim();
     return normalized.slice(0, 120) || 'Unknown device';
-  }
-  createGuest(): GuestSession {
-    let riderId: string;
-    do { riderId = `rider_${generateRideCode(8).toLowerCase()}`; } while (this.issuedRiderIds.has(riderId));
-    const token = randomBytes(32).toString('base64url');
-    this.issuedRiderIds.add(riderId);
-    this.riderByTokenDigest.set(this.digest(token), { riderId, expiresAt: Number.POSITIVE_INFINITY });
-    return { riderId, token };
   }
   async hasRider(riderId: string): Promise<boolean> {
     if (this.issuedRiderIds.has(riderId)) return true;
