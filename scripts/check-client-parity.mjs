@@ -195,8 +195,11 @@ if (!/navigationActionButton:\s*\{[\s\S]*?width: 48,[\s\S]*?height: 48,[\s\S]*?b
 if (/bottom: insets\.bottom \+ 116/.test(nativeMapSource)) {
   throw new Error('Native navigation controls must not double-count the bottom safe area above the summary');
 }
-if (!/NAVIGATION_SUMMARY_BASE_HEIGHT \+ spacing\.md/.test(nativeMapSource)) {
-  throw new Error('Native navigation controls must stay directly above the navigation summary');
+if (!/navigationSummaryHeight \+ spacing\.md/.test(nativeMapSource)) {
+  throw new Error('Native navigation controls must stay directly above the measured navigation summary');
+}
+if (!/onLayout=\{\(event\) => \{[\s\S]*setNavigationSummaryHeight/.test(nativeMapSource)) {
+  throw new Error('Native navigation controls must follow the real ETA summary height including safe-area and text growth');
 }
 
 console.log(`Client parity manifest valid: ${manifest.capabilities.length} capabilities tracked; map basemaps and adaptive dedicated navigation aligned`);
