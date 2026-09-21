@@ -57,7 +57,7 @@ describe('Settings mockup contract', () => {
   it('validates and normalizes profile fields before syncing', () => {
     assert.ok(settingsSource.includes("raw.startsWith('@') ? raw : `@${raw}`"));
     assert.match(settingsSource, /Use 3–24 letters, numbers or underscores for your handle\./);
-    assert.match(settingsSource, /draft\.trim\(\)\.replace\(\/\^@\//);
+    assert.ok(settingsSource.includes("draft.trim().replace(/^@/, '')"));
     assert.match(settingsSource, /Use up to 30 letters, numbers, dots or underscores\./);
     assert.match(settingsSource, /accessibilityRole="alert"/);
   });
