@@ -1430,7 +1430,7 @@ const styles = StyleSheet.create({
     lineHeight: 15,
     fontWeight: '800',
   },
-  navigationRoadName: { ...type.caption, flex: 1, minWidth: 0, color: colors.textSecondary, fontSize: 13, lineHeight: 17, fontWeight: '650' },
+  navigationRoadName: { ...type.caption, flex: 1, minWidth: 0, color: colors.textSecondary, fontSize: 13, lineHeight: 17, fontWeight: '600' },
   navigationNextPreview: {
     minHeight: 50,
     flexDirection: 'row',
