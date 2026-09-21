@@ -816,7 +816,8 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
   const settingsRadius = await page.locator('.settings-page .settings-group').first().evaluate((element) =>
     parseFloat(getComputedStyle(element).borderTopLeftRadius)
   );
-  expect(settingsRadius).toBeLessThanOrEqual(4);
+  expect(settingsRadius).toBeGreaterThanOrEqual(7);
+  expect(settingsRadius).toBeLessThanOrEqual(9);
   await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-settings-final.png'), fullPage: true });
   await assertNoViewportOverflow(page);
 });
@@ -1900,6 +1901,43 @@ test('PWA host can remove another rider from a private ride', async ({ page }) =
   await expect(page.locator('#toast')).toContainText('removed from the ride');
 });
 
+test('PWA Settings matches the approved shallow mockup hierarchy', async ({ page }, testInfo) => {
+  await mockAuthenticatedApi(page);
+  await page.goto('/#settings');
+
+  await expect(page.locator('.settings-page .group-title')).toHaveCount(0);
+  await expect(page.locator('.settings-main-group > button')).toHaveCount(5);
+  await expect(page.locator('.settings-secondary-group > button')).toHaveCount(2);
+  await expect(page.locator('.settings-main-group')).toContainText('Account');
+  await expect(page.locator('.settings-main-group')).toContainText('Communication');
+  await expect(page.locator('.settings-main-group')).toContainText('Map & Navigation');
+  await expect(page.locator('.settings-main-group')).toContainText('Offline Maps');
+  await expect(page.locator('.settings-main-group')).toContainText('Units & Preferences');
+  await expect(page.locator('.settings-secondary-group')).toContainText('Help & Support');
+  await expect(page.locator('.settings-secondary-group')).toContainText('About');
+  await expect(page.locator('#logoutBtn')).toHaveText('Sign Out');
+  await expect(page.locator('#logoutBtn > svg')).toHaveCount(0);
+
+  const profile = await page.locator('.settings-profile-row').evaluate((element) => {
+    const style = getComputedStyle(element);
+    return { height: element.getBoundingClientRect().height, radius: parseFloat(style.borderTopLeftRadius) };
+  });
+  expect(profile.height).toBeGreaterThanOrEqual(96);
+  expect(profile.height).toBeLessThanOrEqual(108);
+  expect(profile.radius).toBeGreaterThanOrEqual(7);
+
+  await page.locator('[data-sheet="offlineMaps"]').click();
+  await expect(page.locator('#sheetTitle')).toHaveText('Offline Maps');
+  await expect(page.locator('#sheetBody')).toContainText('Offline map downloads are not available in this build yet.');
+  await page.locator('#closeSheet').click();
+
+  await page.locator('[data-sheet="about"]').click();
+  await expect(page.locator('#sheetTitle')).toHaveText('About');
+  await expect(page.locator('#sheetBody')).toContainText('Version 0.3.0 · PWA');
+  await page.screenshot({ path: testInfo.outputPath('settings-approved-mockup-parity.png'), fullPage: true });
+  await assertNoViewportOverflow(page);
+});
+
 test('PWA settings sheets own the bottom edge without competing with app chrome', async ({ page }, testInfo) => {
   await mockAuthenticatedApi(page, 'unknown');
   await page.goto('/#settings');
@@ -1912,7 +1950,8 @@ test('PWA settings sheets own the bottom edge without competing with app chrome'
   await expect(nav).toBeVisible();
   await expect(banner).toBeVisible();
 
-  await page.locator('[data-sheet="privacy"]').click();
+  await page.locator('[data-sheet="communication"]').click();
+  await page.locator('[data-settings-target="privacy"]').click();
   await expect(page.locator('#sheetBackdrop')).toBeVisible();
   await expect(page.locator('html')).toHaveClass(/sheet-open/);
   await expect(app).toHaveAttribute('inert', '');
@@ -1971,10 +2010,11 @@ test('PWA billing preview matches native plan content and account tier', async (
   page.on('dialog', (dialog) => void dialog.accept());
   await page.goto('/#settings');
 
+  await page.locator('[data-sheet="accountHub"]').click();
   await expect(page.locator('#planSummary')).toHaveText('Premium plan · $4.99/mo');
   await expect(page.locator('#planPill')).toHaveText('Premium');
 
-  await page.locator('[data-sheet="plans"]').click();
+  await page.locator('[data-settings-target="plans"]').click();
   await expect(page.locator('#sheetTitle')).toHaveText('Plan and billing');
   await expect(page.locator('.billing-notice')).toContainText('cannot be purchased until verified App Store and Google Play billing is connected');
   await expect(page.locator('.billing-notice')).toContainText('does not collect card details');
@@ -2001,10 +2041,12 @@ test('PWA billing preview matches native plan content and account tier', async (
 
   await page.locator('#returnToFreePlan').click();
   await expect.poll(() => updates).toEqual([{ zoneTier: 'free' }]);
-  await expect(page.locator('#planSummary')).toHaveText('Free plan · No card on file');
-  await expect(page.locator('#planPill')).toHaveText('Free');
   await expect(page.locator('[data-plan-tier="free"] .plan-pill')).toHaveText('Current');
   await expect(page.locator('#returnToFreePlan')).toHaveCount(0);
+  await page.locator('#closeSheet').click();
+  await page.locator('[data-sheet="accountHub"]').click();
+  await expect(page.locator('#planSummary')).toHaveText('Free plan · No card on file');
+  await expect(page.locator('#planPill')).toHaveText('Free');
   await assertNoViewportOverflow(page);
 });
 
@@ -2012,7 +2054,8 @@ test('PWA navigation preference offers Rider Comms, Google Maps, Waze and Apple 
   await mockAuthenticatedApi(page);
   await page.goto('/#settings');
 
-  await page.locator('[data-sheet="navigation"]').click();
+  await page.locator('[data-sheet="mapNavigation"]').click();
+  await page.locator('[data-settings-target="navigation"]').click();
   const options = page.locator('[data-navigation-option]');
   await expect(options).toHaveCount(4);
   await expect(page.locator('[data-navigation-option="google_maps"]')).toHaveAttribute('aria-checked', 'true');
@@ -2020,9 +2063,12 @@ test('PWA navigation preference offers Rider Comms, Google Maps, Waze and Apple 
   await page.locator('[data-navigation-option="waze"]').click();
   await expect(page.locator('[data-navigation-option="waze"]')).toHaveAttribute('aria-checked', 'true');
   await page.locator('#closeSheet').click();
+  await page.locator('[data-sheet="mapNavigation"]').click();
   await expect(page.locator('#navigationProviderSummary')).toHaveText('Waze');
+  await page.locator('#closeSheet').click();
 
   await page.reload();
+  await page.locator('[data-sheet="mapNavigation"]').click();
   await expect(page.locator('#navigationProviderSummary')).toHaveText('Waze');
 });
 
@@ -2616,7 +2662,7 @@ test('@viewport standalone canvas, navigation and scroll geometry remain coheren
     ['ride', '#joinRideForm .ride-location-consent'],
     ['routes', '#curatedRouteList'],
     ['friends', '#friendList'],
-    ['settings', '.version'],
+    ['settings', '.settings-signout'],
   ];
 
   for (const [name, finalSelector] of screens) {
@@ -2730,12 +2776,22 @@ test('@viewport full-screen overlays and sheets share the stable standalone bott
 
   await page.locator('#editProfileBtn').click();
   await assertSheet('edit-profile-sheet');
-  for (const [type, name] of [['map', 'location-map-sheet'], ['navigation', 'navigation-sheet'], ['plans', 'plan-sheet']]) {
-    await page.locator(`[data-sheet="${type}"]`).click();
-    await assertSheet(name);
-  }
+
+  await page.locator('[data-sheet="mapNavigation"]').click();
+  await page.locator('[data-settings-target="map"]').click();
+  await assertSheet('location-map-sheet');
+
+  await page.locator('[data-sheet="mapNavigation"]').click();
+  await page.locator('[data-settings-target="navigation"]').click();
+  await assertSheet('navigation-sheet');
+
+  await page.locator('[data-sheet="accountHub"]').click();
+  await page.locator('[data-settings-target="plans"]').click();
+  await assertSheet('plan-sheet');
+
   // Repeat a sheet transition to catch accumulated bottom offsets.
-  await page.locator('[data-sheet="map"]').click();
+  await page.locator('[data-sheet="mapNavigation"]').click();
+  await page.locator('[data-settings-target="map"]').click();
   await assertSheet('location-map-sheet-repeat');
 
   await page.locator('.bottom-nav [data-nav="friends"]').click();
@@ -2790,14 +2846,16 @@ test('PWA exposes session management and account deletion', async ({ page }) => 
   });
 
   await page.goto('/#settings');
-  await page.locator('[data-sheet="sessions"]').click();
+  await page.locator('[data-sheet="accountHub"]').click();
+  await page.locator('[data-settings-target="sessions"]').click();
   await expect(page.locator('#sessionList')).toContainText('Other phone');
   await page.locator('[data-revoke-session="session-remote"]').click();
   await expect(page.locator('#sessionList')).not.toContainText('Other phone');
   expect(remoteRevoked).toBe(true);
 
   await page.locator('#closeSheet').click();
-  await page.locator('[data-sheet="account"]').click();
+  await page.locator('[data-sheet="accountHub"]').click();
+  await page.locator('[data-settings-target="account"]').click();
   page.on('dialog', (dialog) => void dialog.accept());
   await page.evaluate(() => {
     document.querySelector('#deleteAccountBtn')?.click();
