@@ -71,6 +71,42 @@ describe('authenticated API', () => {
     const afterWithdrawal = await authenticatedFetch(ctx, 'host', `/rides/${ride.rideId}/locations`);
     assert.deepEqual((await afterWithdrawal.json() as { locations: unknown[] }).locations, []);
   });
+  it('hides private ride locations between blocked members in both directions', needsDb, async () => {
+    const made = await postJson(ctx, 'block-location-host', '/rides', {});
+    const ride = await made.json() as { rideId: string; code: string };
+    assert.equal((await postJson(ctx, 'block-location-member', '/rides/join', { code: ride.code })).status, 200);
+
+    for (const riderId of ['block-location-host', 'block-location-member']) {
+      assert.equal((await authenticatedFetch(ctx, riderId, `/rides/${ride.rideId}/location-sharing`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: true }),
+      })).status, 200);
+    }
+    assert.equal((await postJson(ctx, 'block-location-host', `/rides/${ride.rideId}/location`, { lat: 51.50, lon: -0.10 })).status, 200);
+    assert.equal((await postJson(ctx, 'block-location-member', `/rides/${ride.rideId}/location`, { lat: 51.51, lon: -0.11 })).status, 200);
+
+    const beforeBlock = await authenticatedFetch(ctx, 'block-location-host', `/rides/${ride.rideId}/locations`);
+    assert.deepEqual(
+      (await beforeBlock.json() as { locations: Array<{ riderId: string }> }).locations.map((location) => location.riderId).sort(),
+      ['block-location-host', 'block-location-member'],
+    );
+
+    assert.equal((await postJson(ctx, 'block-location-host', '/blocks', { riderId: 'block-location-member' })).status, 200);
+
+    const seenByHost = await authenticatedFetch(ctx, 'block-location-host', `/rides/${ride.rideId}/locations`);
+    assert.deepEqual(
+      (await seenByHost.json() as { locations: Array<{ riderId: string }> }).locations.map((location) => location.riderId),
+      ['block-location-host'],
+    );
+
+    const seenByMember = await authenticatedFetch(ctx, 'block-location-member', `/rides/${ride.rideId}/locations`);
+    assert.deepEqual(
+      (await seenByMember.json() as { locations: Array<{ riderId: string }> }).locations.map((location) => location.riderId),
+      ['block-location-member'],
+    );
+  });
+
   it('blocks client paid-tier elevation but allows returning an existing paid test tier to Free', needsDb, async () => {
     await ctx.profileStore.update('billing-rider', { zoneTier: 'premium' });
 
