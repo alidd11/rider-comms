@@ -342,7 +342,9 @@ export function SettingsScreen(): React.JSX.Element {
     }
   }, [client]);
 
-  React.useEffect(() => { void loadSessions(); }, [loadSessions]);
+  React.useEffect(() => {
+    if (activeSheet === 'sessions') void loadSessions();
+  }, [activeSheet, loadSessions]);
 
   async function revokeSession(id: string) {
     try {
