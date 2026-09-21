@@ -2155,3 +2155,209 @@ body:has(.content-screen.active) .movement-safety-banner{
 .friend-profile-card small.online{color:var(--text-secondary)}
 .friend-action-more{font-size:.9rem;font-weight:900;letter-spacing:.08em;line-height:1}
 
+/* Friend profile mockup parity.
+   The approved profile is a visual identity sheet, not a utility settings card:
+   lead with the rider, follow with compact real connection metadata, then one
+   clear primary message action, a secondary ID action and an explicit safety
+   action. No fabricated ride totals, mileage or mutual counts are shown. */
+.friend-profile-card{
+  display:block!important;
+  overflow:hidden;
+  padding:0!important;
+  border:1px solid var(--border)!important;
+  border-radius:18px!important;
+  background:var(--surface)!important;
+}
+.friend-profile-cover{
+  position:relative;
+  height:132px;
+  overflow:hidden;
+  background:
+    radial-gradient(circle at 78% 24%,color-mix(in srgb,var(--accent) 24%,transparent),transparent 34%),
+    linear-gradient(145deg,color-mix(in srgb,var(--surface-raised) 84%,var(--accent) 16%),var(--bg-elevated));
+}
+.friend-profile-cover::before,
+.friend-profile-cover::after{
+  content:"";
+  position:absolute;
+  left:-12%;
+  width:124%;
+  height:1px;
+  background:color-mix(in srgb,var(--text-muted) 22%,transparent);
+  transform-origin:center;
+}
+.friend-profile-cover::before{bottom:38px;transform:rotate(-7deg)}
+.friend-profile-cover::after{bottom:25px;transform:rotate(5deg)}
+.friend-profile-cover-avatar{
+  position:absolute!important;
+  right:28px;
+  bottom:-14px;
+  display:block!important;
+  opacity:.22;
+  filter:blur(7px) saturate(.65);
+  transform:scale(2.15);
+  transform-origin:center;
+  pointer-events:none;
+}
+.friend-profile-cover-avatar .avatar{width:78px!important;height:78px!important;border:0!important}
+.friend-profile-identity{
+  position:relative;
+  z-index:2;
+  display:flex;
+  align-items:flex-end;
+  gap:12px;
+  margin-top:-32px;
+  padding:0 14px 13px;
+}
+.friend-profile-avatar{
+  position:relative;
+  display:grid;
+  place-items:center;
+  flex:none;
+}
+.friend-profile-avatar .avatar{
+  width:72px!important;
+  height:72px!important;
+  border:3px solid var(--surface);
+  box-shadow:0 8px 24px rgb(0 0 0/.22);
+}
+.friend-profile-avatar .friend-presence-dot{
+  right:2px;
+  bottom:3px;
+  width:13px;
+  height:13px;
+  border:2px solid var(--surface);
+}
+.friend-profile-copy{min-width:0;flex:1;padding-bottom:3px}
+.friend-profile-copy strong,
+.friend-profile-copy span,
+.friend-profile-copy small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.friend-profile-copy strong{font-size:1.08rem;line-height:1.16}
+.friend-profile-copy span{margin-top:3px;color:var(--text-secondary);font-size:.8rem}
+.friend-profile-copy .friend-profile-relationship{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  margin-top:6px;
+  color:var(--text-secondary);
+  font-size:.7rem;
+  font-weight:720;
+}
+.friend-profile-relationship-dot{width:7px;height:7px;flex:none;border-radius:50%;background:var(--text-muted)}
+.friend-profile-relationship-dot.online{background:var(--success)}
+.friend-profile-stats{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  border-top:1px solid var(--border-soft);
+}
+.friend-profile-stats>div{
+  min-width:0;
+  padding:11px 8px 12px;
+  text-align:center;
+}
+.friend-profile-stats>div+div{border-left:1px solid var(--border-soft)}
+.friend-profile-stats strong,
+.friend-profile-stats small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.friend-profile-stats strong{font-size:.86rem;line-height:1.2}
+.friend-profile-stats small{margin-top:4px;color:var(--text-muted);font-size:.64rem;font-weight:700}
+
+.friend-profile-actions{
+  display:grid!important;
+  grid-template-columns:1fr!important;
+  gap:8px!important;
+  margin-top:0!important;
+}
+.friend-profile-actions .friend-profile-action-primary,
+.friend-profile-actions .friend-profile-action-secondary,
+.friend-profile-safety-action{
+  width:100%;
+  min-height:56px;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:flex-start!important;
+  gap:11px!important;
+  padding:9px 13px!important;
+  border-radius:12px!important;
+  text-align:left;
+}
+.friend-profile-actions .friend-profile-action-primary{
+  border:1px solid var(--accent)!important;
+  background:var(--accent)!important;
+  color:var(--accent-text)!important;
+}
+.friend-profile-actions .friend-profile-action-secondary{
+  border:1px solid var(--border)!important;
+  background:var(--surface)!important;
+  color:var(--text)!important;
+}
+.friend-profile-actions .friend-action-icon,
+.friend-profile-safety-action .friend-action-icon{
+  width:24px;
+  height:24px;
+  flex:none;
+}
+.friend-profile-actions .friend-profile-action-primary .friend-action-icon{color:var(--accent-text)}
+.friend-profile-actions button>span:last-child,
+.friend-profile-safety-action>span:nth-child(2){min-width:0;flex:1}
+.friend-profile-actions strong,
+.friend-profile-actions small,
+.friend-profile-safety-action strong,
+.friend-profile-safety-action small{display:block}
+.friend-profile-actions strong,.friend-profile-safety-action strong{font-size:.78rem}
+.friend-profile-actions small,.friend-profile-safety-action small{
+  margin-top:3px;
+  color:var(--text-secondary);
+  font-size:.67rem;
+  font-weight:600;
+  line-height:1.25;
+}
+.friend-profile-actions .friend-profile-action-primary small{color:color-mix(in srgb,var(--accent-text) 78%,transparent)}
+.friend-profile-safety-action{
+  border:1px solid color-mix(in srgb,var(--danger) 42%,var(--border));
+  background:color-mix(in srgb,var(--danger) 8%,var(--surface));
+  color:var(--danger);
+}
+.friend-profile-safety-action .friend-action-icon{color:var(--danger)}
+.friend-profile-safety-action>svg{width:16px;height:16px;flex:none;color:var(--danger)}
+.friend-profile-safety-action small{color:var(--text-secondary)}
+.friend-profile-ride-context{
+  min-height:52px;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:8px 11px;
+  border:1px solid var(--border-soft);
+  border-radius:12px;
+  background:var(--surface);
+}
+.friend-profile-ride-context>span:last-child{min-width:0;flex:1}
+.friend-profile-ride-context strong,.friend-profile-ride-context small{display:block}
+.friend-profile-ride-context strong{font-size:.78rem}
+.friend-profile-ride-context small{margin-top:3px;color:var(--text-secondary);font-size:.68rem}
+.friend-profile-social{display:grid;gap:7px}
+.friend-profile-section-label{
+  color:var(--text-muted)!important;
+  font-size:.64rem!important;
+  font-weight:800!important;
+  letter-spacing:.11em;
+  text-transform:uppercase;
+}
+.friend-profile-note.friend-profile-note-quiet{
+  margin:0;
+  padding:2px 1px;
+  border:0;
+  border-radius:0;
+  background:transparent;
+  color:var(--text-muted);
+  font-size:.72rem;
+  line-height:1.42;
+}
+.friend-profile-safety-note{margin:0!important;color:var(--text-muted)!important}
+
+@media(max-width:699px){
+  body:has(.friend-profile-card) .sheet-body{gap:9px}
+  .friend-profile-cover{height:126px}
+  .friend-profile-avatar .avatar{width:68px!important;height:68px!important}
+  .friend-profile-identity{margin-top:-30px;padding-inline:12px}
+  .friend-profile-stats>div{padding:10px 6px 11px}
+}
