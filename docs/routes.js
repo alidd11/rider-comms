@@ -1227,9 +1227,10 @@
   let riderLocation = null;
   const escapeHtml = (value) => String(value).replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
 
-  const ROUTE_CARD_IMAGE_WIDTH = 960;
+  const ROUTE_CARD_IMAGE_WIDTH = 768;
   const ROUTE_HERO_IMAGE_WIDTH = 1600;
-  const ROUTE_IMAGE_PREFETCH_COUNT = 4;
+  const ROUTE_IMAGE_PREFETCH_COUNT = 8;
+  const ROUTE_IMAGE_BACKGROUND_BATCH_SIZE = 4;
   const warmedRouteImages = new Set();
   const WIKIMEDIA_ORIGINAL_RE = /^(https:\/\/(?:upload|thumb)\.wikimedia\.org)(\/wikipedia\/commons\/)([0-9a-f]\/[^/]+\/)([^/?#]+)$/i;
   const WIKIMEDIA_THUMB_RE = /^(https:\/\/(?:upload|thumb)\.wikimedia\.org)(\/wikipedia\/commons\/thumb\/)([0-9a-f]\/[^/]+\/)([^/]+)\/[^/?#]+$/i;
@@ -1260,23 +1261,49 @@
   const routeCardImage = (route) => routeImageAtWidth(route.image, ROUTE_CARD_IMAGE_WIDTH);
   const routeHeroImage = (route) => routeImageAtWidth(route.image, ROUTE_HERO_IMAGE_WIDTH);
 
-  const warmRouteImages = (routeList) => {
-    if (navigator.connection?.saveData) return;
-    routeList.slice(0, ROUTE_IMAGE_PREFETCH_COUNT).forEach((route) => {
+  const ensureWikimediaConnections = () => {
+    ['https://upload.wikimedia.org', 'https://thumb.wikimedia.org'].forEach((origin) => {
+      if (document.head.querySelector(`link[rel="preconnect"][href="${origin}"]`)) return;
+      const link = document.createElement('link');
+      link.rel = 'preconnect';
+      link.href = origin;
+      link.crossOrigin = 'anonymous';
+      document.head.append(link);
+    });
+  };
+
+  const warmRouteImages = (routeList, priority = 'low') => {
+    if (navigator.connection?.saveData && priority === 'low') return;
+    routeList.forEach((route) => {
       const src = routeCardImage(route);
       if (warmedRouteImages.has(src)) return;
       warmedRouteImages.add(src);
       const image = new Image();
       image.decoding = 'async';
+      image.fetchPriority = priority;
       image.referrerPolicy = 'no-referrer';
       image.src = src;
     });
   };
 
+  const warmRemainingRouteImages = () => {
+    if (navigator.connection?.saveData) return;
+    let offset = ROUTE_IMAGE_PREFETCH_COUNT;
+    const warmBatch = () => {
+      if (offset >= routes.length) return;
+      warmRouteImages(routes.slice(offset, offset + ROUTE_IMAGE_BACKGROUND_BATCH_SIZE));
+      offset += ROUTE_IMAGE_BACKGROUND_BATCH_SIZE;
+      if (offset < routes.length) window.setTimeout(warmBatch, 450);
+    };
+    warmBatch();
+  };
+
   const scheduleRouteImageWarmup = () => {
-    const warm = () => warmRouteImages(routes);
-    if ('requestIdleCallback' in window) window.requestIdleCallback(warm, { timeout: 1500 });
-    else window.setTimeout(warm, 300);
+    ensureWikimediaConnections();
+    warmRouteImages(routes.slice(0, ROUTE_IMAGE_PREFETCH_COUNT), 'high');
+    const warmRemaining = () => warmRemainingRouteImages();
+    if ('requestIdleCallback' in window) window.requestIdleCallback(warmRemaining, { timeout: 1200 });
+    else window.setTimeout(warmRemaining, 700);
   };
 
   const mapsUrl = (route) => {
@@ -1453,10 +1480,11 @@
       root.innerHTML = '<div class="route-discovery-empty"><svg><use href="#i-route"/></svg><strong>No curated rides match</strong><span>Try another category, duration or search. Rider Comms only shows routes we have actually reviewed.</span></div>';
       return;
     }
-    root.innerHTML = visible.map((route) => {
+    root.innerHTML = visible.map((route, index) => {
       const approach = riderLocation ? formatApproach(haversineMiles(riderLocation, route.start)) : '';
+      const eager = index < ROUTE_IMAGE_PREFETCH_COUNT;
       return `<button class="curated-route-card" data-curated-route="${route.id}" aria-label="View ${escapeHtml(route.name)} route overview">
-        <img src="${routeCardImage(route)}" alt="${escapeHtml(route.alt)}" loading="lazy" decoding="async" referrerpolicy="no-referrer">
+        <img src="${routeCardImage(route)}" alt="${escapeHtml(route.alt)}" loading="${eager ? 'eager' : 'lazy'}" fetchpriority="${index < 4 ? 'high' : 'auto'}" decoding="async" referrerpolicy="no-referrer">
         <span class="route-photo-fallback" aria-hidden="true"><svg><use href="#i-route"/></svg></span>
         <span class="route-trace-card">${routeTraceSvg(route)}</span>
         <span class="curated-route-overlay"><span class="route-region">${escapeHtml(route.region)}</span><strong>${escapeHtml(route.name)}</strong><small>${escapeHtml(route.road)}</small><span class="route-quick-stats">${category === 'near' && approach ? `<b class="route-approach">${escapeHtml(approach)}</b>` : ''}<b><svg aria-hidden="true"><use href="#i-route"/></svg>${route.distance} mi</b><b><svg aria-hidden="true"><use href="#i-location"/></svg>${escapeHtml(route.roadType)}</b><b><svg aria-hidden="true"><use href="#i-history"/></svg>${route.minutes} min</b></span></span>
