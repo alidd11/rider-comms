@@ -1,0 +1,52 @@
+# Navigation road-ahead alerts
+
+Rider Comms navigation may surface approaching road information only when the app has a real source for it. The navigation header must never infer cameras, traffic lights, lane guidance or posted speed limits from road geometry, instruction text or map artwork.
+
+## Available data today
+
+The shared Rider Comms hazard service currently supplies these crowdsourced report types to both PWA and native:
+
+- speed camera
+- police
+- accident
+- road hazard
+- road closure
+
+These are rider reports, not authoritative infrastructure records. Navigation copy must preserve that provenance (for example, **Speed camera reported**) rather than presenting a report as a guaranteed fixed camera or police location.
+
+Google traffic rendering may continue to colour the provider map during navigation, but it is a visual basemap layer. Rider Comms does not receive structured traffic incidents from that layer and must not turn map colouring into invented road-ahead events.
+
+## Route matching
+
+A nearby report is eligible for the navigation header only when all of the following are true:
+
+- the rider has a reliable position close to the active route
+- the report is within 70 m of the active route geometry
+- the report is ahead of the rider according to remaining routed distance
+- it is no more than 3 km ahead
+- it has not been passed by more than the small GPS/projection grace distance
+- it is one of the two nearest eligible reports
+
+Distance ahead is computed from progress along the route polyline, not straight-line distance. This prevents a report on a nearby parallel street, a road behind the rider or the far side of a loop from being surfaced merely because it is geographically close.
+
+While the current fix is more than 120 m from the active route, road-ahead reports are suppressed until routing/GPS state is reconciled.
+
+## Presentation contract
+
+The active maneuver remains the first visual priority. The existing **Then** row remains the second maneuver preview. When eligible reports exist, a compact **road ahead** strip sits below turn guidance and shows no more than two events.
+
+Each event uses the same hazard icon language as the map, an explicit reported label and routed distance ahead. The corresponding hazard marker remains visible on the route so the header alert has spatial context.
+
+Do not continuously announce changing alert distances through an accessibility live region or voice guidance. A future audio-warning policy can be added separately with de-duplication and user preference controls.
+
+## Data not available in the current parity-safe architecture
+
+Rider Comms currently routes through Google Directions / provider map SDKs rather than a shared Navigation SDK event feed. Therefore the product must not currently display these as structured road-ahead facts:
+
+- traffic-light locations
+- stop-sign locations
+- authoritative posted speed limits
+- Google/Waze camera or police reports
+- recommended lanes
+
+If a provider later exposes one of these through a data source usable by both PWA and native, it should enter the same road-event model and ship to both clients together.
