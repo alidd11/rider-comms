@@ -716,10 +716,11 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
   await page.locator('#friendList [data-friend]').first().click();
   await expect(page.locator('#sheetBackdrop')).toBeVisible();
   await expect(page.locator('.friend-profile-card')).toBeVisible();
+  await expect(page.locator('#shareFriendId')).toContainText('Share ID');
   await expect(page.locator('#shareFriendLocation')).toContainText('Share Location');
   await expect(page.locator('#shareFriendLocation')).toBeDisabled();
   await expect(page.locator('#friendSafetyActions')).toContainText('More');
-  await expect(page.locator('#friendMapAction')).toBeDisabled();
+  await expect(page.locator('#friendMapAction')).toHaveCount(0);
   await expect(page.locator('.friend-profile-actions button')).toHaveCount(4);
   await expect(page.locator('.friend-profile-detail-list > div')).toHaveCount(3);
   await expect(page.locator('.friend-profile-cover')).toHaveCount(0);
@@ -764,7 +765,8 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
   await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-friend-detail-final.png'), fullPage: true });
   await page.locator('#friendSafetyActions').click();
   await expect(page.locator('#sheetTitle')).toHaveText('More actions');
-  await expect(page.locator('#shareFriendIdMore')).toContainText('Share Rider ID');
+  await expect(page.locator('#removeFriendBtn')).toContainText('Remove friend');
+  await expect(page.locator('[data-report-rider]')).toHaveCount(3);
   await page.locator('#closeSheet').click();
 
   await page.locator('#friendList [data-friend]').first().click();
@@ -867,9 +869,10 @@ test('friend profile exposes only fresh consented private-ride location actions'
   await page.locator('.bottom-nav [data-nav="friends"]').click();
   await page.locator('#friendList [data-friend="rider_friend01"]').click();
   await expect(page.locator('.friend-profile-card')).toBeVisible();
+  await expect(page.locator('#shareFriendId')).toBeEnabled();
   await expect(page.locator('#shareFriendLocation')).toBeEnabled();
   await expect(page.locator('#shareFriendLocation')).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.locator('#friendMapAction')).toBeEnabled();
+  await expect(page.locator('#friendMapAction')).toHaveCount(0);
   await expect(page.locator('.friend-profile-detail-list')).toContainText('Live ride location');
   await expect(page.locator('.friend-profile-detail-list')).toContainText('In your group ride');
   await expect(page.locator('.friend-profile-detail-list')).toContainText('2 riders');
