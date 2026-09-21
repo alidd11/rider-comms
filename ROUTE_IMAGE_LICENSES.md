@@ -46,7 +46,7 @@ Before a route image is admitted or replaced:
 - Keep creator attribution, file source, licence name and licence URL available from the route overview.
 - Do not imply that a photographer, Wikimedia Commons, Geograph or a tourism publisher endorses Rider Comms.
 - If a CC BY-SA image is downloaded, modified or redistributed rather than merely rendered from its source, retain the same or a compatible licence for the adapted image and describe the change.
-- Rider Comms route-card copies are resized to a maximum width of 640 px, metadata-stripped and JPEG-recompressed at quality 78. `ROUTE_CARD_ASSETS.json` records the source URI, fetched URI, file hash and this modification for every bundled copy.
+- Rider Comms route-card copies are resized to a maximum width of 640 px and JPEG-recompressed at quality 78 while embedded metadata is preserved. `ROUTE_CARD_ASSETS.json` records the source URI, fetched URI, file hash and this modification for every bundled copy.
 - Do not remove watermarks or embedded attribution metadata.
 - Before a production store release, copy approved assets to a controlled CDN/object store only after preserving the source metadata and licence obligations.
 
