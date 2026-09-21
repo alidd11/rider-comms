@@ -253,7 +253,7 @@ function SettingsRow({ icon, title, subtitle, right, danger = false, showChevron
         <Text style={[styles.settingRowTitle, danger && styles.settingRowDanger]}>{title}</Text>
         {subtitle ? <Text style={styles.settingRowSubtitle}>{subtitle}</Text> : null}
       </View>
-      {right ? <Text style={styles.settingRowValue}>{right}</Text> : null}
+      {right ? <Text numberOfLines={1} style={styles.settingRowValue}>{right}</Text> : null}
       {showChevron ? <Ionicons name="chevron-forward" size={18} color={colors.textMuted} /> : null}
     </Pressable>
   );
@@ -807,7 +807,7 @@ const styles = StyleSheet.create({
   settingRowCopy: { flex: 1, minWidth: 0, paddingVertical: 7 },
   settingRowTitle: { ...type.body, color: colors.textPrimary, fontWeight: '600', fontSize: 13.5, lineHeight: 18 },
   settingRowSubtitle: { ...type.caption, color: colors.textSecondary, marginTop: 2, fontSize: 10 },
-  settingRowValue: { ...type.caption, color: colors.textSecondary, fontWeight: '700' },
+  settingRowValue: { ...type.caption, color: colors.textSecondary, fontWeight: '700', maxWidth: '34%', flexShrink: 1 },
   settingRowDanger: { color: colors.danger },
   aboutSummary: { padding: spacing.md, gap: 4 },
   aboutTitle: { ...type.subheading, color: colors.textPrimary },
