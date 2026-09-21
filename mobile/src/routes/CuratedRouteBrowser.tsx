@@ -28,6 +28,7 @@ import {
   type RiderCoordinate,
 } from './routeDiscovery';
 import type { RouteCategory } from '../screens/ScenicRoutesScreen';
+import { routeCardImageUri, routeHeroImageUri } from './routeImages';
 
 async function openExternalUrl(url: string, failureMessage: string): Promise<void> {
   try {
@@ -100,6 +101,22 @@ function RouteOverview({
 }) {
   const insets = useSafeAreaInsets();
   const [imageFailed, setImageFailed] = React.useState(false);
+  const cardImageUri = route ? routeCardImageUri(route.image.uri) : '';
+  const heroImageUri = route ? routeHeroImageUri(route.image.uri) : '';
+  const [displayImageUri, setDisplayImageUri] = React.useState(cardImageUri);
+
+  React.useEffect(() => {
+    setImageFailed(false);
+    setDisplayImageUri(cardImageUri);
+    if (!heroImageUri || heroImageUri === cardImageUri) return undefined;
+
+    let active = true;
+    void Image.prefetch(heroImageUri)
+      .then(() => { if (active) setDisplayImageUri(heroImageUri); })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, [cardImageUri, heroImageUri]);
+
   if (!route) return null;
 
   const credit = `${route.image.author} · ${route.image.licenseName}`;
@@ -118,7 +135,7 @@ function RouteOverview({
                 <MaterialCommunityIcons name="image-off-outline" size={34} color={colors.textMuted} />
               </View>
             ) : (
-              <Image source={{ uri: route.image.uri }} style={styles.overviewImage} accessibilityLabel={route.image.alt} onError={() => setImageFailed(true)} />
+              <Image source={{ uri: displayImageUri }} style={styles.overviewImage} accessibilityLabel={route.image.alt} onError={() => setImageFailed(true)} />
             )}
             <View style={styles.overviewShade} />
             <Pressable
@@ -239,7 +256,7 @@ function CuratedRouteCard({ route, width, onPress }: { route: CuratedRoute; widt
           </View>
         ) : (
           <Image
-            source={{ uri: route.image.uri }}
+            source={{ uri: routeCardImageUri(route.image.uri) }}
             style={styles.cardImage}
             accessibilityLabel={route.image.alt}
             onError={() => setImageFailed(true)}
