@@ -51,6 +51,14 @@ img,svg{-webkit-user-drag:none}
 .nav-next-preview svg{width:30px;height:30px;flex:none}
 .nav-next-preview span:first-of-type{flex:none;font-weight:800;text-transform:uppercase;letter-spacing:.07em;font-size:.67rem}
 .nav-next-preview span:last-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#e5eaec;font-size:.9rem;font-weight:650}
+.nav-road-ahead{min-height:42px;display:flex;align-items:center;gap:9px;padding:7px 14px;border-top:1px solid rgb(255 255 255/.08);background:#0b1115}
+.nav-road-ahead[hidden]{display:none}
+.nav-road-ahead-label{flex:none;color:#8f9ca2;font-size:.62rem;font-weight:850;letter-spacing:.075em;text-transform:uppercase}
+.nav-road-ahead-events{min-width:0;flex:1;display:flex;align-items:center;gap:7px}
+.nav-road-ahead-event{min-width:0;min-height:28px;display:flex;align-items:center;gap:5px;flex:1;padding:4px 7px;border-radius:9px;background:rgb(255 255 255/.06)}
+.nav-road-ahead-event svg{width:17px;height:17px;flex:none;color:var(--road-alert,#2fa8d3)}
+.nav-road-ahead-event>span{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#cbd4d8;font-size:.68rem;font-weight:700}
+.nav-road-ahead-event strong{flex:none;color:#f3f6f7;font-size:.68rem;font-weight:850;white-space:nowrap}
 .nav-gps-notice{padding:10px 15px;border-top:1px solid rgb(255 255 255/.08);background:#2a171a;color:#ffb7c5;font-size:.76rem;font-weight:700;line-height:1.35}
 .nav-gps-notice[hidden]{display:none}
 .nav-speed-badge{position:absolute;z-index:13;top:calc(var(--safe-top) + 8px + var(--nav-banner-height,166px) + 10px);right:max(14px,var(--safe-right));width:76px;height:76px;display:flex;flex-direction:column;align-items:center;justify-content:center;border:2px solid rgb(255 255 255/.18);border-radius:38px;background:rgb(13 21 26/.94);box-shadow:0 10px 24px rgb(0 0 0/.34);backdrop-filter:blur(12px);color:#f5f4fb}
