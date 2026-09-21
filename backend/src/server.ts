@@ -176,7 +176,7 @@ async function consumeSocialWrite(
 }
 
 export function createApp(rideStore = new RideStore(), presenceStore = new PresenceStore(), profileStore = new ProfileStore(), friendStore = new FriendStore(profileStore), messageStore = new MessageStore(), hideoutStore = new HideoutStore(), authStore = new AuthStore(), moderationStore = new ModerationStore(), hazardStore = new HazardStore(), scenicRouteStore = new ScenicRouteStore(), options: ApiServerOptions = {}): http.Server {
-  const guestLimiter = new SlidingWindowRateLimiter(20, 60_000);
+  const authLimiter = new SlidingWindowRateLimiter(20, 60_000);
   const apiLimiter = new SlidingWindowRateLimiter(300, 60_000);
   const hazardCreateLimiter = new SlidingWindowRateLimiter(10, 10 * 60_000);
   // Resending a verification email is an authenticated rider spamming
@@ -243,12 +243,8 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
       if (req.method === 'GET' && url.pathname === '/config') {
         return sendJson(res, 200, { googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY ?? '' });
       }
-      if (req.method === 'POST' && url.pathname === '/auth/guest') {
-        if (!guestLimiter.tryConsume(address)) return sendJson(res, 429, { error: 'rate_limited' });
-        const session = authStore.createGuest(); await profileStore.getOrCreate(session.riderId); await socialActivityStore.touch(session.riderId); return sendJson(res, 201, session);
-      }
       if (req.method === 'POST' && url.pathname === '/auth/signup') {
-        if (!guestLimiter.tryConsume(address)) return sendJson(res, 429, { error: 'rate_limited' });
+        if (!authLimiter.tryConsume(address)) return sendJson(res, 429, { error: 'rate_limited' });
         const body = await readJsonBody(req);
         const result = await authStore.signUp(body.username, body.email, body.password, body.deviceName);
         if ('error' in result) return sendJson(res, result.error === 'username_taken' || result.error === 'email_taken' ? 409 : 400, { error: result.error });
@@ -257,7 +253,7 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
         return sendJson(res, 201, result);
       }
       if (req.method === 'POST' && url.pathname === '/auth/login') {
-        if (!guestLimiter.tryConsume(address)) return sendJson(res, 429, { error: 'rate_limited' });
+        if (!authLimiter.tryConsume(address)) return sendJson(res, 429, { error: 'rate_limited' });
         const body = await readJsonBody(req);
         const result = await authStore.logIn(body.username, body.password, body.deviceName);
         if ('error' in result) return sendJson(res, 401, { error: result.error });
@@ -266,7 +262,7 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
         return sendJson(res, 200, result);
       }
       if (req.method === 'POST' && url.pathname === '/auth/verify-email') {
-        if (!guestLimiter.tryConsume(address)) return sendJson(res, 429, { error: 'rate_limited' });
+        if (!authLimiter.tryConsume(address)) return sendJson(res, 429, { error: 'rate_limited' });
         const body = await readJsonBody(req);
         const result = await authStore.verifyEmail(body.token);
         if ('error' in result) return sendJson(res, result.error === 'invalid_token' ? 400 : 410, { error: result.error });
@@ -279,7 +275,7 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
         return sendJson(res, 202, { accepted: true });
       }
       if (req.method === 'POST' && url.pathname === '/auth/password-reset/confirm') {
-        if (!guestLimiter.tryConsume(address)) return sendJson(res, 429, { error: 'rate_limited' });
+        if (!authLimiter.tryConsume(address)) return sendJson(res, 429, { error: 'rate_limited' });
         const body = await readJsonBody(req);
         const result = await authStore.resetPassword(body.token, body.password);
         if ('error' in result) return sendJson(res, result.error === 'expired_token' ? 410 : 400, { error: result.error });

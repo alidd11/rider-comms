@@ -16,7 +16,15 @@ const needsDb = { skip: !hasDatabase && 'DATABASE_URL not set; skipping Postgres
 describe('authenticated API', () => {
   let ctx: TestServer; before(async () => { ctx = startTestServer(); await ctx.ready; }); after(() => ctx.close());
   it('keeps health public and protects product endpoints', async () => { assert.equal((await fetch(`${ctx.baseUrl()}/health`)).status, 200); assert.equal((await fetch(`${ctx.baseUrl()}/rides`, { method: 'POST' })).status, 401); });
-  it('creates guest identities', needsDb, async () => { const res = await fetch(`${ctx.baseUrl()}/auth/guest`, { method: 'POST' }); assert.equal(res.status, 201); const session = await res.json() as { riderId: string; token: string }; assert.match(session.riderId, /^rider_[a-z2-9]{8}$/); const me = await fetch(`${ctx.baseUrl()}/auth/me`, { headers: { Authorization: `Bearer ${session.token}` } }); assert.deepEqual(await me.json(), { riderId: session.riderId, username: null, emailVerified: false }); });
+  it('does not expose disposable guest authentication', async () => {
+    const unauthenticated = await fetch(`${ctx.baseUrl()}/auth/guest`, { method: 'POST' });
+    assert.equal(unauthenticated.status, 401);
+    assert.deepEqual(await unauthenticated.json(), { error: 'unauthorized' });
+
+    const authenticated = await authenticatedFetch(ctx, 'legacy-client', '/auth/guest', { method: 'POST' });
+    assert.equal(authenticated.status, 404);
+    assert.deepEqual(await authenticated.json(), { error: 'not_found' });
+  });
   it('logs out and revokes the current token', async () => { const session = ctx.authStore.createTestSession('logout-me'); const headers = { Authorization: `Bearer ${session.token}` }; assert.equal((await fetch(`${ctx.baseUrl()}/auth/logout`, { method: 'POST', headers })).status, 204); assert.equal((await fetch(`${ctx.baseUrl()}/auth/me`, { headers })).status, 401); });
   it('deletes an account and revokes its token', needsDb, async () => { const session = ctx.authStore.createTestSession('delete-me'); const headers = { Authorization: `Bearer ${session.token}` }; assert.equal((await fetch(`${ctx.baseUrl()}/auth/me`, { method: 'DELETE', headers })).status, 200); assert.equal((await fetch(`${ctx.baseUrl()}/auth/me`, { headers })).status, 401); assert.equal(await ctx.authStore.hasRider('delete-me'), false); });
   it('keeps the session usable when atomic account deletion fails', async () => {
@@ -175,7 +183,7 @@ describe('production HTTP boundary', () => {
   });
 
   it('rejects untrusted browser origins before side effects run', async () => {
-    const response = await fetch(`${ctx.baseUrl()}/auth/guest`, {
+    const response = await fetch(`${ctx.baseUrl()}/auth/signup`, {
       method: 'POST',
       headers: { Origin: 'https://malicious.example' },
     });

@@ -6,7 +6,17 @@ import { AccountDeletionStore } from '../src/accountDeletionStore.ts';
 import type { sendPasswordResetEmail, sendVerificationEmail } from '../src/email.ts';
 import { getPool, resetDbForTests } from '../src/db.ts';
 
-describe('AuthStore', () => { it('issues unique readable IDs and authenticates the matching token', async () => { const store = new AuthStore(); const a = store.createGuest(); const b = store.createGuest(); assert.match(a.riderId, /^rider_[a-z2-9]{8}$/); assert.notEqual(a.riderId, b.riderId); assert.equal(await store.riderForToken(a.token), a.riderId); assert.equal(await store.riderForToken(`${a.token}x`), undefined); }); });
+describe('AuthStore test sessions', () => {
+  it('keeps the explicit test-session helper isolated to its supplied rider ID', async () => {
+    const store = new AuthStore();
+    const a = store.createTestSession('test-rider-a');
+    const b = store.createTestSession('test-rider-b');
+    assert.notEqual(a.token, b.token);
+    assert.equal(await store.riderForToken(a.token), 'test-rider-a');
+    assert.equal(await store.riderForToken(b.token), 'test-rider-b');
+    assert.equal(await store.riderForToken(`${a.token}x`), undefined);
+  });
+});
 
 // The username/password account flow is backed by real Postgres (see
 // db.ts) — these tests need DATABASE_URL to point at a reachable Postgres
