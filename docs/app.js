@@ -109,17 +109,21 @@
     riderAvatarSvg,
   } = window.RiderAvatarSystem;
 
-  function riderAvatarMapIcon(person, current = false, statusOverride, sizeOverride) {
-    const status = statusOverride || (current
-      ? (state.profile.shareLocation || state.activeRide?.shareRideLocation ? 'online' : 'none')
-      : 'online');
-    const svg = riderAvatarSvg(person.avatarId, { selected: current, mapMarker: true, status });
+  function riderAvatarMapIcon(person, current = false, statusOverride, sizeOverride, navigationMode = false) {
+    const status = navigationMode
+      ? 'none'
+      : statusOverride || (current
+        ? (state.profile.shareLocation || state.activeRide?.shareRideLocation ? 'online' : 'none')
+        : 'online');
+    const svg = riderAvatarSvg(person.avatarId, { selected: current, mapMarker: !navigationMode, status });
     const width = sizeOverride ?? (current ? 44 : 40);
-    const height = width * (72 / 64);
+    const height = navigationMode ? width : width * (72 / 64);
     return {
       url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
       scaledSize: new google.maps.Size(width, height),
-      anchor: new google.maps.Point(width / 2, height - 1),
+      anchor: navigationMode
+        ? new google.maps.Point(width / 2, height / 2)
+        : new google.maps.Point(width / 2, height - 1),
     };
   }
 
@@ -527,6 +531,19 @@
       url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
       scaledSize: new google.maps.Size(30, 40),
       anchor: new google.maps.Point(15, 38),
+    };
+  }
+
+  function routeFinishIcon() {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="44" height="48" viewBox="0 0 44 48">
+      <circle cx="22" cy="21" r="18" fill="#2fa8d3" stroke="#071015" stroke-width="3"/>
+      <path d="M15 34V10m0 2h16l-4 5 4 5H15" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M17 12h4v4h-4zm8 0h4v4h-4zm-4 4h4v4h-4zm8 0h2l-2 4h-4v-4z" fill="#fff"/>
+    </svg>`;
+    return {
+      url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
+      scaledSize: new google.maps.Size(44, 48),
+      anchor: new google.maps.Point(22, 43),
     };
   }
 
@@ -4671,7 +4688,7 @@
     // Navigation keeps the rider's persisted identity instead of replacing it
     // with a generic blue chevron. Heading-up mode rotates the provider map
     // beneath this marker, so the chosen avatar can remain screen-upright.
-    userMapMarker.setIcon?.(riderAvatarMapIcon(state.profile, true, undefined, 54));
+    userMapMarker.setIcon?.(riderAvatarMapIcon(state.profile, true, undefined, 64, true));
   }
 
   function stopNavigationCameraAnimation() {
@@ -4863,7 +4880,13 @@
     navDestination = { ...destination, label };
     hideDestinationCard();
     destinationMarker?.setMap(null);
-    destinationMarker = undefined;
+    destinationMarker = new google.maps.Marker({
+      map,
+      position: destination,
+      title: label ? `Destination: ${label}` : 'Route destination',
+      icon: routeFinishIcon(),
+      zIndex: 11,
+    });
     // Any POI category the rider had tapped before starting nav (fuel,
     // parking, food…) leaves its markers on the map otherwise — clutter
     // that has nothing to do with the route and makes driving mode look
@@ -5048,6 +5071,8 @@
     stopNavigationCameraAnimation();
     stopNavTracking();
     directionsRenderer?.setMap(null);
+    destinationMarker?.setMap(null);
+    destinationMarker = undefined;
     navSteps = [];
     navStepIndex = 0;
     navDestination = null;
