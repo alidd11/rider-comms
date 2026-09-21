@@ -49,6 +49,11 @@ describe('Settings mockup contract', () => {
     assert.ok(settingsSource.includes("navigation.navigate('Legal')"));
   });
 
+  it('matches backend and PWA profile field limits', () => {
+    assert.match(settingsSource, /value=\{nameDraft\}[\s\S]*?maxLength=\{50\}/);
+    assert.match(settingsSource, /value=\{handleDraft\}[\s\S]*?maxLength=\{25\}/);
+  });
+
   it('does not advertise offline map downloads that do not exist', () => {
     assert.ok(settingsSource.includes('Offline map downloads are not available in this build yet.'));
   });
