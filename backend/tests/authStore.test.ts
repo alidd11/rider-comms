@@ -6,7 +6,7 @@ import { AccountDeletionStore } from '../src/accountDeletionStore.ts';
 import type { sendPasswordResetEmail, sendVerificationEmail } from '../src/email.ts';
 import { getPool, resetDbForTests } from '../src/db.ts';
 
-describe('AuthStore', () => { it('issues unique readable IDs and authenticates the matching token', async () => { const store = new AuthStore(); const a = store.createGuest(); const b = store.createGuest(); assert.match(a.riderId, /^rider_[a-z2-9]{8}$/); assert.notEqual(a.riderId, b.riderId); assert.equal(await store.riderForToken(a.token), a.riderId); assert.equal(await store.riderForToken(`${a.token}x`), undefined); }); });
+describe('AuthStore', () => { it('authenticates only the matching internal test-session token', async () => { const store = new AuthStore(); const session = store.createTestSession('test-rider'); assert.equal(await store.riderForToken(session.token), 'test-rider'); assert.equal(await store.riderForToken(`${session.token}x`), undefined); }); });
 
 // The username/password account flow is backed by real Postgres (see
 // db.ts) — these tests need DATABASE_URL to point at a reachable Postgres
