@@ -441,7 +441,7 @@ export function SettingsScreen(): React.JSX.Element {
           <SettingsRow icon="chatbubble-ellipses-outline" title="Communication" onPress={() => setActiveSheet('communication')} />
           <SettingsRow icon="map-outline" title="Map & Navigation" onPress={() => setActiveSheet('mapNavigation')} />
           <SettingsRow icon="cloud-download-outline" title="Offline Maps" onPress={() => setActiveSheet('offlineMaps')} />
-          <SettingsRow icon="options-outline" title="Units & Preferences" last onPress={() => setActiveSheet('unitsPreferences')} />
+          <SettingsRow icon="apps-outline" title="Units & Preferences" last onPress={() => setActiveSheet('unitsPreferences')} />
         </View>
 
         <View style={[styles.settingsGroup, styles.secondarySettingsGroup]}>
