@@ -36,12 +36,24 @@ for (const required of ['auth', 'group-ride', 'ride-safe', 'place-search', 'frie
   if (!ids.has(required)) throw new Error(`Missing required parity capability: ${required}`);
 }
 
-const [pwaMapSource, pwaCssSource, pwaIndexSource, nativeMapSource, nativeCameraSource] = await Promise.all([
+const [
+  pwaMapSource,
+  pwaCssSource,
+  pwaIndexSource,
+  nativeMapSource,
+  nativeCameraSource,
+  nativeManeuverSource,
+  nativeManeuverGlyphSource,
+  nativeGuidanceSource,
+] = await Promise.all([
   readFile(new URL('../docs/app.js', import.meta.url), 'utf8'),
   readFile(new URL('../docs/app.css', import.meta.url), 'utf8'),
   readFile(new URL('../docs/index.html', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/screens/MapScreen.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/navigationCamera.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../mobile/src/navigationManeuver.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../mobile/src/components/NavigationManeuverGlyph.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../mobile/src/navigationGuidance.ts', import.meta.url), 'utf8'),
 ]);
 
 if (
@@ -78,7 +90,14 @@ for (const [label, source, patterns] of [
     /maybeSpeakUpcomingNavigationPrompt/,
     /navSteps\[navStepIndex \+ 1\]/,
     /navSteps\[navStepIndex \+ 2\]/,
-    /arrive: \{ icon: 'i-location'/,
+    /arrive: 'i-nav-arrive'/,
+    /'turn-slight-left': 'i-nav-slight-left'/,
+    /'turn-sharp-right': 'i-nav-sharp-right'/,
+    /'fork-right': 'i-nav-fork-right'/,
+    /'ramp-left': 'i-nav-ramp-left'/,
+    /navCurrentSpeedMps/,
+    /formatNavSpeed\(navCurrentSpeedMps\)/,
+    /navSpeedUnit\(\)/,
     /distanceToPathMeters/,
     /remainingDistanceOnPathMeters/,
     /lookAheadCoordinateOnPath/,
@@ -110,7 +129,11 @@ for (const [label, source, patterns] of [
     /navigationPromptStageForDistance/,
     /upcomingNavigationStep/,
     /followingNavigationStep/,
+    /NavigationManeuverGlyph/,
     /navigationGuidanceInstruction/,
+    /navigationSpeedMps/,
+    /formatNavigationSpeed\(navigationSpeedMps, unitSystem\)/,
+    /navigationSpeedUnit\(unitSystem\)/,
     /distanceToPathMeters/,
     /remainingDistanceOnPathMeters/,
     /lookAheadCoordinateOnPath/,
@@ -164,6 +187,59 @@ if (!/style=\{styles\.navigationInstruction\} accessibilityLiveRegion="polite"/.
   throw new Error('Native navigation maneuver instruction must remain a polite live region');
 }
 
+for (const [maneuver, icon] of [
+  ['turn-slight-left', 'i-nav-slight-left'],
+  ['turn-left', 'i-nav-left'],
+  ['turn-sharp-left', 'i-nav-sharp-left'],
+  ['fork-right', 'i-nav-fork-right'],
+  ['ramp-left', 'i-nav-ramp-left'],
+  ['roundabout-right', 'i-nav-roundabout-right'],
+]) {
+  const mapping = new RegExp(`['"]${maneuver}['"]\\s*:\\s*['"]${icon}['"]`);
+  if (!mapping.test(pwaMapSource)) {
+    throw new Error(`PWA navigation must preserve distinct maneuver geometry for ${maneuver}`);
+  }
+  if (!pwaIndexSource.includes(`id="${icon}"`)) {
+    throw new Error(`PWA navigation is missing the ${icon} maneuver glyph`);
+  }
+}
+
+for (const token of [
+  "'slight-left'",
+  "'left'",
+  "'sharp-left'",
+  "'fork-left'",
+  "'ramp-left'",
+  "'roundabout-left'",
+  "'uturn-left'",
+]) {
+  if (!nativeManeuverSource.includes(token)) {
+    throw new Error(`Native navigation maneuver categories are missing ${token}`);
+  }
+}
+for (const glyph of ['slightLeft', 'left', 'sharpLeft', 'forkLeft', 'rampLeft', 'roundaboutLeft', 'uturnLeft']) {
+  if (!nativeManeuverGlyphSource.includes(glyph)) {
+    throw new Error(`Native navigation maneuver glyphs are missing ${glyph}`);
+  }
+}
+
+if (!/\.nav-maneuver-icon\{[^\n]*width:72px;height:80px[^\n]*border-radius:18px/.test(pwaCssSource)) {
+  throw new Error('PWA primary maneuver glyph must remain large and glanceable');
+}
+if (!/navigationManeuver:\s*\{[\s\S]*?width: 72,[\s\S]*?height: 80,[\s\S]*?borderRadius: 18/.test(nativeMapSource)) {
+  throw new Error('Native primary maneuver glyph must match the PWA glanceable geometry');
+}
+
+if (!/id="navSpeed"/.test(pwaIndexSource) || !/id="navSpeedUnit"/.test(pwaIndexSource)) {
+  throw new Error('PWA dedicated navigation must expose live GPS speed and units');
+}
+if (!/nav-summary-speed/.test(pwaCssSource) || !/grid-template-columns:1\.08fr 1fr 1fr 1fr/.test(pwaCssSource)) {
+  throw new Error('PWA navigation summary must keep the four-stat layout with live speed');
+}
+if (!/formatNavigationSpeed/.test(nativeGuidanceSource) || !/navigationSpeedUnit/.test(nativeGuidanceSource)) {
+  throw new Error('Native navigation must share explicit GPS speed formatting and units');
+}
+
 if (/translateY\(-32vh\)/.test(pwaCssSource)) {
   throw new Error('PWA map controls must not be scattered with viewport-relative vertical transforms');
 }
@@ -202,4 +278,4 @@ if (!/onLayout=\{\(event\) => \{[\s\S]*setNavigationSummaryHeight/.test(nativeMa
   throw new Error('Native navigation controls must follow the real ETA summary height including safe-area and text growth');
 }
 
-console.log(`Client parity manifest valid: ${manifest.capabilities.length} capabilities tracked; map basemaps and adaptive dedicated navigation aligned`);
+console.log(`Client parity manifest valid: ${manifest.capabilities.length} capabilities tracked; map basemaps, maneuver glanceability, live speed and adaptive dedicated navigation aligned`);

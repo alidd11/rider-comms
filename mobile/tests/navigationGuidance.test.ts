@@ -2,9 +2,11 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   formatNavigationDistance,
+  formatNavigationSpeed,
   maneuverIcon,
   navigationPromptStageForDistance,
   navigationPromptText,
+  navigationSpeedUnit,
 } from '../src/navigationGuidance.ts';
 
 describe('navigation guidance presentation', () => {
@@ -13,6 +15,15 @@ describe('navigation guidance presentation', () => {
     assert.equal(formatNavigationDistance(1600, 'km'), '1.6 km');
     assert.equal(formatNavigationDistance(75, 'mi'), '250 ft');
     assert.equal(formatNavigationDistance(1609.344, 'mi'), '1.0 mi');
+  });
+
+  it('formats live GPS speed without implying a legal speed limit', () => {
+    assert.equal(formatNavigationSpeed(13.4112, 'mi'), '30');
+    assert.equal(navigationSpeedUnit('mi'), 'mph');
+    assert.equal(formatNavigationSpeed(13.8889, 'km'), '50');
+    assert.equal(navigationSpeedUnit('km'), 'km/h');
+    assert.equal(formatNavigationSpeed(null, 'mi'), '—');
+    assert.equal(formatNavigationSpeed(-1, 'mi'), '—');
   });
 
   it('stages advance turn prompts without repeating far-away instructions', () => {

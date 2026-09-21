@@ -48,9 +48,10 @@ import {
 import { navigationProviderLabel } from '../navigationPreference';
 import {
   formatNavigationDistance,
-  maneuverIcon,
+  formatNavigationSpeed,
   navigationPromptStageForDistance,
   navigationPromptText,
+  navigationSpeedUnit,
 } from '../navigationGuidance';
 import {
   combineNavigationCameraPaths,
@@ -67,6 +68,7 @@ import {
 import { speakNavigationPrompt, stopNavigationPrompt } from '../audio/navigationSpeech';
 import { microphoneErrorMessage, preflightVoiceMicrophone } from '../audio/microphone';
 import { RiderAvatar } from '../components/RiderAvatar';
+import { NavigationManeuverGlyph } from '../components/NavigationManeuverGlyph';
 
 const PRESENCE_UPDATE_INTERVAL_MS = 8000; // per spec Section 8: every 5-10s
 const RIDE_MARKER_REFRESH_MS = 10_000;
@@ -163,6 +165,7 @@ export function MapScreen(): React.JSX.Element {
   const [navigationNotice, setNavigationNotice] = React.useState<string | null>(null);
   const [navigationMuted, setNavigationMuted] = React.useState(false);
   const [navigationFollowing, setNavigationFollowing] = React.useState(true);
+  const [navigationSpeedMps, setNavigationSpeedMps] = React.useState<number | null>(null);
   const [navigationSummaryHeight, setNavigationSummaryHeight] = React.useState(NAVIGATION_SUMMARY_BASE_HEIGHT);
   const [reduceMotionEnabled, setReduceMotionEnabled] = React.useState(false);
   const navOffRouteSince = React.useRef<number | null>(null);
@@ -602,6 +605,7 @@ export function MapScreen(): React.JSX.Element {
     navigationFollowingRef.current = true;
     setNavigationFollowing(true);
     setNavigationMuted(false);
+    setNavigationSpeedMps(null);
     setNavigationNotice(arrived ? 'You have arrived.' : null);
     mapRef.current?.animateCamera({ heading: 0, pitch: 0 }, { duration: 350 });
     void stopNavigationPrompt().finally(() => {
@@ -680,6 +684,7 @@ export function MapScreen(): React.JSX.Element {
       const notice = navigationGpsNotice(navGpsTracker.current.stateAt());
       if (!notice) return;
       navOffRouteSince.current = null;
+      setNavigationSpeedMps(null);
       setNavigationNotice(notice);
     }, NAV_GPS_CHECK_INTERVAL_MS);
 
@@ -701,6 +706,9 @@ export function MapScreen(): React.JSX.Element {
         }
         const here = { lat: position.coords.latitude, lon: position.coords.longitude };
         setCurrentLocation(here);
+        setNavigationSpeedMps(Number.isFinite(position.coords.speed) && Number(position.coords.speed) >= 0
+          ? Number(position.coords.speed)
+          : null);
 
         if (
           navigationStepIndex === activeRoute.steps.length - 1 &&
@@ -777,6 +785,7 @@ export function MapScreen(): React.JSX.Element {
       const permission = await Location.getForegroundPermissionsAsync().catch(() => null);
       const health = navGpsTracker.current.markUnavailable(permission?.granted === false);
       navOffRouteSince.current = null;
+      setNavigationSpeedMps(null);
       setNavigationNotice(navigationGpsNotice(health));
     });
 
@@ -1078,10 +1087,11 @@ export function MapScreen(): React.JSX.Element {
           <View style={[styles.navigationBanner, { top: insets.top + spacing.sm }]}>
             <View style={styles.navigationBannerMain}>
               <View style={styles.navigationManeuver}>
-                <Ionicons
-                  name={(upcomingNavigationStep ? maneuverIcon(upcomingNavigationStep.maneuver) : 'flag') as keyof typeof Ionicons.glyphMap}
-                  size={34}
+                <NavigationManeuverGlyph
+                  maneuver={upcomingNavigationStep?.maneuver ?? 'arrive'}
+                  size={58}
                   color={colors.textPrimary}
+                  secondaryColor={colors.textMuted}
                 />
               </View>
               <View style={styles.navigationBannerCopy}>
@@ -1094,11 +1104,14 @@ export function MapScreen(): React.JSX.Element {
             </View>
             {followingNavigationStep ? (
               <View style={styles.navigationNextPreview}>
-                <Ionicons
-                  name={maneuverIcon(followingNavigationStep.maneuver) as keyof typeof Ionicons.glyphMap}
-                  size={20}
-                  color={colors.textSecondary}
-                />
+                <View style={styles.navigationNextGlyph}>
+                  <NavigationManeuverGlyph
+                    maneuver={followingNavigationStep.maneuver}
+                    size={28}
+                    color={colors.textSecondary}
+                    secondaryColor={colors.textMuted}
+                  />
+                </View>
                 <Text style={styles.navigationNextLabel}>Then</Text>
                 <Text numberOfLines={1} style={styles.navigationNextInstruction}>{followingNavigationStep.instruction}</Text>
               </View>
@@ -1132,6 +1145,20 @@ export function MapScreen(): React.JSX.Element {
               <View style={styles.navigationSummaryStat}>
                 <Text style={styles.navigationSummaryValue}>{formatNavigationDistance(remainingNavigationMeters, unitSystem)}</Text>
                 <Text style={styles.navigationSummaryLabel}>away</Text>
+              </View>
+              <View style={styles.navigationSummaryDivider} />
+              <View
+                style={styles.navigationSummaryStat}
+                accessible
+                accessibilityLabel={navigationSpeedMps == null
+                  ? 'Current speed unavailable'
+                  : `Current speed ${formatNavigationSpeed(navigationSpeedMps, unitSystem)} ${navigationSpeedUnit(unitSystem)}`}
+              >
+                <View style={styles.navigationSpeedValueRow}>
+                  <Ionicons accessible={false} name="speedometer-outline" size={16} color={colors.textSecondary} />
+                  <Text style={styles.navigationSummaryValue}>{formatNavigationSpeed(navigationSpeedMps, unitSystem)}</Text>
+                </View>
+                <Text style={styles.navigationSummaryLabel}>{navigationSpeedUnit(unitSystem)}</Text>
               </View>
             </View>
           </View>
@@ -1333,16 +1360,20 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
   },
   navigationManeuver: {
-    width: 64,
-    height: 76,
+    width: 72,
+    height: 80,
     alignItems: 'center',
     justifyContent: 'center',
+    borderRadius: 18,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceRaised,
   },
   navigationBannerCopy: { flex: 1, minWidth: 0 },
-  navigationDistance: { color: colors.textPrimary, fontSize: 34, lineHeight: 38, fontWeight: '800' },
-  navigationInstruction: { ...type.body, color: colors.textPrimary, marginTop: 3, fontSize: 17, lineHeight: 22, fontWeight: '700' },
+  navigationDistance: { color: colors.accent, fontSize: 36, lineHeight: 40, fontWeight: '800', letterSpacing: -0.6 },
+  navigationInstruction: { ...type.body, color: colors.textPrimary, marginTop: 2, fontSize: 17, lineHeight: 22, fontWeight: '700' },
   navigationNextPreview: {
-    minHeight: 48,
+    minHeight: 52,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
@@ -1351,8 +1382,16 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
     backgroundColor: colors.background,
   },
-  navigationNextLabel: { ...type.caption, color: colors.textMuted, fontWeight: '800', textTransform: 'uppercase' },
-  navigationNextInstruction: { ...type.body, color: colors.textSecondary, flex: 1, fontSize: 15, lineHeight: 20 },
+  navigationNextGlyph: {
+    width: 34,
+    height: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 10,
+    backgroundColor: colors.surfaceRaised,
+  },
+  navigationNextLabel: { ...type.caption, color: colors.textMuted, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.7 },
+  navigationNextInstruction: { ...type.body, color: colors.textSecondary, flex: 1, fontSize: 15, lineHeight: 20, fontWeight: '600' },
   navigationNoticeRow: {
     minHeight: 40,
     flexDirection: 'row',
@@ -1401,11 +1440,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  navigationSummaryPrimary: { flex: 1, minWidth: 92 },
-  navigationSummaryStat: { flex: 1, alignItems: 'center' },
+  navigationSummaryPrimary: { flex: 1.08, minWidth: 78 },
+  navigationSummaryStat: { flex: 1, minWidth: 0, alignItems: 'center' },
   navigationSummaryDivider: { width: StyleSheet.hairlineWidth, height: 46, backgroundColor: colors.border },
-  navigationArrival: { ...type.heading, color: colors.success, fontSize: 26, lineHeight: 30 },
-  navigationSummaryValue: { ...type.heading, color: colors.textPrimary, fontSize: 23, lineHeight: 28, textAlign: 'center' },
+  navigationArrival: { ...type.heading, color: colors.success, fontSize: 25, lineHeight: 30 },
+  navigationSummaryValue: { ...type.heading, color: colors.textPrimary, fontSize: 21, lineHeight: 27, textAlign: 'center' },
+  navigationSpeedValueRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
   navigationSummaryLabel: { ...type.caption, color: colors.textMuted, marginTop: 2, textAlign: 'center', textTransform: 'uppercase' },
   rideBarSlot: { marginTop: 'auto', paddingHorizontal: spacing.lg, paddingBottom: spacing.lg },
   safetyBanner: {
