@@ -4492,38 +4492,14 @@
     arrive: 'Arrive',
   };
 
-  function navGlanceInstruction(instruction, maneuver, destinationLabel = 'destination') {
-    const cleaned = String(instruction || '').replace(/\s+/g, ' ').trim();
+  // The compact action comes only from the provider's structured maneuver
+  // category. Free-form instructions remain provider-authored text; do not
+  // mine them for road, route, exit, lane or junction metadata.
+  function navGlanceAction(maneuver) {
     const maneuverKey = maneuver || 'straight';
-    const exit = maneuverKey.startsWith('roundabout')
-      ? cleaned.match(/\b(?:take\s+the\s+)?(\d+(?:st|nd|rd|th)\s+exit)\b/i)?.[1]
-      : null;
-    const action = maneuverKey.startsWith('roundabout')
-      ? (exit ? `Take the ${exit.toLowerCase()}` : 'At roundabout')
+    return maneuverKey.startsWith('roundabout')
+      ? 'At roundabout'
       : NAV_GLANCE_ACTIONS[maneuverKey] || 'Go straight';
-
-    let road = maneuverKey === 'arrive'
-      ? String(destinationLabel || 'destination').trim()
-      : cleaned.match(/\b(?:onto|towards?|to stay on|to continue on)\s+(.+)$/i)?.[1] || '';
-    road = road
-      .replace(/\s+(?:towards?)\s+.+$/i, '')
-      .replace(/[.,;]+$/g, '')
-      .trim();
-    const routeMatch = road.match(/\b(?:A|M)\d{1,4}\b/i);
-    const routeCode = routeMatch?.[0]?.toUpperCase() || null;
-    if (routeCode) {
-      road = road
-        .replace(new RegExp(`\\b${routeCode}\\b`, 'i'), '')
-        .replace(/^\s*[\/|·-]\s*|\s*[\/|·-]\s*$/g, '')
-        .replace(/\s{2,}/g, ' ')
-        .trim();
-    }
-    return { action, road, routeCode };
-  }
-
-  function navGlanceSummary(instruction, maneuver, destinationLabel = 'destination') {
-    const glance = navGlanceInstruction(instruction, maneuver, destinationLabel);
-    return [glance.action, glance.routeCode, glance.road].filter(Boolean).join(' · ');
   }
 
   /** Best-effort voice guidance — SpeechSynthesis isn't universally
@@ -4671,33 +4647,18 @@
     const fullInstruction = upcomingStep
       ? stripHtml(upcomingStep.instructions)
       : `Arrive at ${navDestination?.label || 'destination'}`;
-    const glance = navGlanceInstruction(
-      fullInstruction,
-      upcomingStep?.maneuver || 'arrive',
-      navDestination?.label || 'destination',
-    );
     const instruction = $('#navInstruction');
-    instruction.textContent = glance.action;
+    instruction.textContent = navGlanceAction(upcomingStep?.maneuver || 'arrive');
     instruction.setAttribute('aria-label', fullInstruction);
-    const roadContext = $('#navRoadContext');
-    const routeBadge = $('#navRouteBadge');
-    const roadName = $('#navRoadName');
-    if (roadContext && routeBadge && roadName) {
-      roadContext.hidden = !glance.routeCode && !glance.road;
-      routeBadge.hidden = !glance.routeCode;
-      routeBadge.textContent = glance.routeCode || '';
-      roadName.textContent = glance.road || '';
-    }
-    // Surface the maneuver after the upcoming one in the compact "Then" row.
+    const providerInstruction = $('#navProviderInstruction');
+    if (providerInstruction) providerInstruction.textContent = fullInstruction;
+    // Keep the provider-authored next instruction intact. The maneuver glyph
+    // supplies the glanceable geometry without reconstructing road metadata.
     const followingStep = navSteps[navStepIndex + 2];
     $('#navNextPreview').hidden = !followingStep;
     if (followingStep) {
       applyManeuverSvg($('#navNextManeuverSvg'), followingStep.maneuver);
-      $('#navNextInstruction').textContent = navGlanceSummary(
-        stripHtml(followingStep.instructions),
-        followingStep.maneuver,
-        navDestination?.label || 'destination',
-      );
+      $('#navNextInstruction').textContent = stripHtml(followingStep.instructions);
     }
     let remainingMeters = turnDistance;
     const currentStepDistance = Math.max(1, step.distance.value);
