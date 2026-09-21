@@ -716,48 +716,63 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
   await page.locator('#friendList [data-friend]').first().click();
   await expect(page.locator('#sheetBackdrop')).toBeVisible();
   await expect(page.locator('.friend-profile-card')).toBeVisible();
-  await expect(page.locator('#shareFriendId')).toContainText('Share Rider ID');
-  await expect(page.locator('#friendSafetyActions')).toContainText('Report or block rider');
-  await expect(page.locator('.friend-profile-stats > div')).toHaveCount(3);
-  await expect(page.locator('.friend-profile-stats > div').first()).toContainText('Online');
-  await expect(page.locator('.friend-profile-relationship')).toContainText('Connected rider');
-  await expect(page.locator('.friend-detail-list')).toHaveCount(0);
+  await expect(page.locator('#shareFriendId')).toHaveCount(0);
+  await expect(page.locator('#shareFriendLocation')).toContainText('Share Location');
+  await expect(page.locator('#shareFriendLocation')).toBeDisabled();
+  await expect(page.locator('#friendMapAction')).toContainText('Map');
+  await expect(page.locator('#friendMapAction')).toBeDisabled();
+  await expect(page.locator('#friendSafetyActions')).toContainText('More');
+  await expect(page.locator('.friend-profile-actions button')).toHaveCount(4);
+  await expect(page.locator('.friend-profile-detail-list > div')).toHaveCount(3);
+  await expect(page.locator('.friend-profile-cover')).toHaveCount(0);
+  await expect(page.locator('.friend-profile-stats')).toHaveCount(0);
+  await expect(page.locator('.friend-profile-copy')).toContainText('Online now');
+  await expect(page.locator('.friend-profile-view-map')).toHaveCount(0);
   const friendDetailGeometry = await page.evaluate(() => {
     const card = document.querySelector('.friend-profile-card');
-    const cover = document.querySelector('.friend-profile-cover');
     const avatar = document.querySelector('.friend-profile-avatar .avatar');
-    const primary = document.querySelector('#messageFriend');
-    const secondary = document.querySelector('#shareFriendId');
-    const safety = document.querySelector('#friendSafetyActions');
+    const actions = [...document.querySelectorAll('.friend-profile-actions button')];
+    const detailList = document.querySelector('.friend-profile-detail-list');
+    const close = document.querySelector('#closeSheet');
     const title = document.querySelector('#sheetTitle');
     const box = (element) => element?.getBoundingClientRect();
     return {
       cardBorderWidth: card ? parseFloat(getComputedStyle(card).borderTopWidth) : NaN,
-      cardRadius: card ? parseFloat(getComputedStyle(card).borderTopLeftRadius) : NaN,
-      coverHeight: box(cover)?.height ?? NaN,
+      cardBackground: card ? getComputedStyle(card).backgroundColor : null,
       avatarWidth: box(avatar)?.width ?? NaN,
-      primaryHeight: box(primary)?.height ?? NaN,
-      secondaryHeight: box(secondary)?.height ?? NaN,
-      safetyHeight: box(safety)?.height ?? NaN,
-      primaryWidth: box(primary)?.width ?? NaN,
-      secondaryWidth: box(secondary)?.width ?? NaN,
-      primaryDisplay: primary ? getComputedStyle(primary).display : null,
+      actionWidths: actions.map((action) => box(action)?.width ?? NaN),
+      actionHeights: actions.map((action) => box(action)?.height ?? NaN),
+      detailRadius: detailList ? parseFloat(getComputedStyle(detailList).borderTopLeftRadius) : NaN,
+      closeWidth: box(close)?.width ?? NaN,
+      closeRadius: close ? parseFloat(getComputedStyle(close).borderTopLeftRadius) : NaN,
       titleWidth: box(title)?.width ?? NaN,
     };
   });
-  expect(friendDetailGeometry.cardBorderWidth).toBeGreaterThan(0);
-  expect(friendDetailGeometry.cardRadius).toBeGreaterThanOrEqual(16);
-  expect(friendDetailGeometry.coverHeight).toBeGreaterThanOrEqual(120);
-  expect(friendDetailGeometry.coverHeight).toBeLessThanOrEqual(132);
-  expect(friendDetailGeometry.avatarWidth).toBeGreaterThanOrEqual(66);
-  expect(friendDetailGeometry.avatarWidth).toBeLessThanOrEqual(72);
-  expect(friendDetailGeometry.primaryHeight).toBeGreaterThanOrEqual(54);
-  expect(friendDetailGeometry.secondaryHeight).toBeGreaterThanOrEqual(54);
-  expect(friendDetailGeometry.safetyHeight).toBeGreaterThanOrEqual(54);
-  expectNear(friendDetailGeometry.primaryWidth, friendDetailGeometry.secondaryWidth, 1);
-  expect(friendDetailGeometry.primaryDisplay).toBe('flex');
+  expect(friendDetailGeometry.cardBorderWidth).toBe(0);
+  expect(friendDetailGeometry.cardBackground).toBe('rgba(0, 0, 0, 0)');
+  expect(friendDetailGeometry.avatarWidth).toBeGreaterThanOrEqual(58);
+  expect(friendDetailGeometry.avatarWidth).toBeLessThanOrEqual(62);
+  expect(friendDetailGeometry.actionWidths).toHaveLength(4);
+  for (const width of friendDetailGeometry.actionWidths.slice(1)) expectNear(width, friendDetailGeometry.actionWidths[0], 1);
+  for (const height of friendDetailGeometry.actionHeights) {
+    expect(height).toBeGreaterThanOrEqual(68);
+    expect(height).toBeLessThanOrEqual(74);
+  }
+  expect(friendDetailGeometry.detailRadius).toBeGreaterThanOrEqual(10);
+  expect(friendDetailGeometry.detailRadius).toBeLessThanOrEqual(14);
+  expect(friendDetailGeometry.closeWidth).toBe(38);
+  expect(friendDetailGeometry.closeRadius).toBeGreaterThanOrEqual(19);
   expect(friendDetailGeometry.titleWidth).toBeLessThanOrEqual(1);
   await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-friend-detail-final.png'), fullPage: true });
+  await page.locator('#friendSafetyActions').click();
+  await expect(page.locator('#sheetTitle')).toHaveText('More actions');
+  await expect(page.locator('#shareFriendIdMore')).toContainText('Share Rider ID');
+  await expect(page.locator('#removeFriendBtn')).toContainText('Remove friend');
+  await expect(page.locator('[data-report-rider]')).toHaveCount(3);
+  await page.locator('#closeSheet').click();
+
+  await page.locator('#friendList [data-friend]').first().click();
+  await expect(page.locator('#messageFriend')).toBeVisible();
   await page.locator('#messageFriend').click();
   await expect(page.locator('#chatScreen')).toBeVisible();
   const dmGeometry = await page.evaluate(() => {
@@ -801,9 +816,82 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
   const settingsRadius = await page.locator('.settings-page .settings-group').first().evaluate((element) =>
     parseFloat(getComputedStyle(element).borderTopLeftRadius)
   );
-  expect(settingsRadius).toBeLessThanOrEqual(4);
+  expect(settingsRadius).toBeGreaterThanOrEqual(7);
+  expect(settingsRadius).toBeLessThanOrEqual(9);
   await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-settings-final.png'), fullPage: true });
   await assertNoViewportOverflow(page);
+});
+
+
+test('friend profile exposes only fresh consented private-ride location actions', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'iphone-17-pro-max-webkit', 'Friend-profile mockup screenshot targets iPhone 17 Pro Max geometry.');
+
+  const rideId = 'ride_visual01';
+  const friendLocation = { riderId: 'rider_friend01', lat: 51.5142, lon: -0.1183, updatedAt: Date.now() };
+  const ride = {
+    rideId,
+    createdBy: RIDER_ID,
+    createdAt: Date.now() - 60_000,
+    memberIds: [RIDER_ID, 'rider_friend01'],
+    shareRideLocation: true,
+    code: 'RIDE01',
+  };
+  let rideLocationReads = 0;
+
+  await mockAuthenticatedApi(page, 'stationary', ({ request, url }) => {
+    if (url.pathname === '/rides/current') return { body: { ride } };
+    if (url.pathname === `/rides/${rideId}` && request.method() === 'GET') return { body: ride };
+    if (url.pathname === `/rides/${rideId}/locations`) {
+      rideLocationReads += 1;
+      return {
+        body: {
+          locations: [
+            { riderId: RIDER_ID, lat: 51.5074, lon: -0.1278, updatedAt: Date.now() },
+            { ...friendLocation, updatedAt: Date.now() },
+          ],
+        },
+      };
+    }
+    if (url.pathname === `/profiles/${RIDER_ID}`) {
+      return { body: { riderId: RIDER_ID, displayName: PROFILE.displayName, handle: PROFILE.handle, avatarId: PROFILE.avatarId, instagramUsername: '', tiktokUsername: '' } };
+    }
+    if (url.pathname === '/profiles/rider_friend01') {
+      return { body: { riderId: 'rider_friend01', displayName: 'Maya', handle: '@maya_moto', avatarId: 'ridge', instagramUsername: '', tiktokUsername: '' } };
+    }
+    if (url.pathname === '/friends/activity') {
+      return { body: { activity: [{ riderId: 'rider_friend01', online: true, lastSeenAt: Date.now() }] } };
+    }
+    return null;
+  });
+
+  await page.goto('/');
+  await expect(page.locator('#app')).toBeVisible();
+  await expect.poll(() => page.locator('#activeRideLocationConsent').isChecked()).toBe(true);
+  await expect.poll(() => rideLocationReads).toBeGreaterThan(0);
+
+  await page.locator('.bottom-nav [data-nav="friends"]').click();
+  await page.locator('#friendList [data-friend="rider_friend01"]').click();
+  await expect(page.locator('.friend-profile-card')).toBeVisible();
+  await expect(page.locator('#shareFriendId')).toHaveCount(0);
+  await expect(page.locator('#shareFriendLocation')).toBeEnabled();
+  await expect(page.locator('#shareFriendLocation')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#friendMapAction')).toBeEnabled();
+  await expect(page.locator('.friend-profile-detail-list')).toContainText('Live ride location');
+  await expect(page.locator('.friend-profile-detail-list')).toContainText('In your group ride');
+  await expect(page.locator('.friend-profile-detail-list')).toContainText('2 riders');
+  await expect(page.locator('#viewFriendOnMap')).toBeVisible();
+
+  await page.screenshot({
+    path: testInfo.outputPath('iphone-17-pro-max-friend-detail-shared-ride.png'),
+    fullPage: true,
+  });
+
+  await page.locator('#friendMapAction').click();
+  await expect(page.locator('[data-screen="map"]')).toHaveClass(/active/);
+  await expect.poll(async () => page.evaluate(() => {
+    const centre = window.__riderCommsTestMap?.centre;
+    return centre ? [centre.lat, centre.lng] : null;
+  })).toEqual([friendLocation.lat, friendLocation.lon]);
 });
 
 test('PWA route discovery previews route shape and hands the start back to the map', async ({ page }, testInfo) => {
@@ -1813,6 +1901,43 @@ test('PWA host can remove another rider from a private ride', async ({ page }) =
   await expect(page.locator('#toast')).toContainText('removed from the ride');
 });
 
+test('PWA Settings matches the approved shallow mockup hierarchy', async ({ page }, testInfo) => {
+  await mockAuthenticatedApi(page);
+  await page.goto('/#settings');
+
+  await expect(page.locator('.settings-page .group-title')).toHaveCount(0);
+  await expect(page.locator('.settings-main-group > button')).toHaveCount(5);
+  await expect(page.locator('.settings-secondary-group > button')).toHaveCount(2);
+  await expect(page.locator('.settings-main-group')).toContainText('Account');
+  await expect(page.locator('.settings-main-group')).toContainText('Communication');
+  await expect(page.locator('.settings-main-group')).toContainText('Map & Navigation');
+  await expect(page.locator('.settings-main-group')).toContainText('Offline Maps');
+  await expect(page.locator('.settings-main-group')).toContainText('Units & Preferences');
+  await expect(page.locator('.settings-secondary-group')).toContainText('Help & Support');
+  await expect(page.locator('.settings-secondary-group')).toContainText('About');
+  await expect(page.locator('#logoutBtn')).toHaveText('Sign Out');
+  await expect(page.locator('#logoutBtn > svg')).toHaveCount(0);
+
+  const profile = await page.locator('.settings-profile-row').evaluate((element) => {
+    const style = getComputedStyle(element);
+    return { height: element.getBoundingClientRect().height, radius: parseFloat(style.borderTopLeftRadius) };
+  });
+  expect(profile.height).toBeGreaterThanOrEqual(96);
+  expect(profile.height).toBeLessThanOrEqual(108);
+  expect(profile.radius).toBeGreaterThanOrEqual(7);
+
+  await page.locator('[data-sheet="offlineMaps"]').click();
+  await expect(page.locator('#sheetTitle')).toHaveText('Offline Maps');
+  await expect(page.locator('#sheetBody')).toContainText('Offline map downloads are not available in this build yet.');
+  await page.locator('#closeSheet').click();
+
+  await page.locator('[data-sheet="about"]').click();
+  await expect(page.locator('#sheetTitle')).toHaveText('About');
+  await expect(page.locator('#sheetBody')).toContainText('Version 0.3.0 · PWA');
+  await page.screenshot({ path: testInfo.outputPath('settings-approved-mockup-parity.png'), fullPage: true });
+  await assertNoViewportOverflow(page);
+});
+
 test('PWA settings sheets own the bottom edge without competing with app chrome', async ({ page }, testInfo) => {
   await mockAuthenticatedApi(page, 'unknown');
   await page.goto('/#settings');
@@ -1825,7 +1950,8 @@ test('PWA settings sheets own the bottom edge without competing with app chrome'
   await expect(nav).toBeVisible();
   await expect(banner).toBeVisible();
 
-  await page.locator('[data-sheet="privacy"]').click();
+  await page.locator('[data-sheet="communication"]').click();
+  await page.locator('[data-settings-target="privacy"]').click();
   await expect(page.locator('#sheetBackdrop')).toBeVisible();
   await expect(page.locator('html')).toHaveClass(/sheet-open/);
   await expect(app).toHaveAttribute('inert', '');
@@ -1884,10 +2010,11 @@ test('PWA billing preview matches native plan content and account tier', async (
   page.on('dialog', (dialog) => void dialog.accept());
   await page.goto('/#settings');
 
+  await page.locator('[data-sheet="accountHub"]').click();
   await expect(page.locator('#planSummary')).toHaveText('Premium plan · $4.99/mo');
   await expect(page.locator('#planPill')).toHaveText('Premium');
 
-  await page.locator('[data-sheet="plans"]').click();
+  await page.locator('[data-settings-target="plans"]').click();
   await expect(page.locator('#sheetTitle')).toHaveText('Plan and billing');
   await expect(page.locator('.billing-notice')).toContainText('cannot be purchased until verified App Store and Google Play billing is connected');
   await expect(page.locator('.billing-notice')).toContainText('does not collect card details');
@@ -1914,10 +2041,12 @@ test('PWA billing preview matches native plan content and account tier', async (
 
   await page.locator('#returnToFreePlan').click();
   await expect.poll(() => updates).toEqual([{ zoneTier: 'free' }]);
-  await expect(page.locator('#planSummary')).toHaveText('Free plan · No card on file');
-  await expect(page.locator('#planPill')).toHaveText('Free');
   await expect(page.locator('[data-plan-tier="free"] .plan-pill')).toHaveText('Current');
   await expect(page.locator('#returnToFreePlan')).toHaveCount(0);
+  await page.locator('#closeSheet').click();
+  await page.locator('[data-sheet="accountHub"]').click();
+  await expect(page.locator('#planSummary')).toHaveText('Free plan · No card on file');
+  await expect(page.locator('#planPill')).toHaveText('Free');
   await assertNoViewportOverflow(page);
 });
 
@@ -1925,7 +2054,8 @@ test('PWA navigation preference offers Rider Comms, Google Maps, Waze and Apple 
   await mockAuthenticatedApi(page);
   await page.goto('/#settings');
 
-  await page.locator('[data-sheet="navigation"]').click();
+  await page.locator('[data-sheet="mapNavigation"]').click();
+  await page.locator('[data-settings-target="navigation"]').click();
   const options = page.locator('[data-navigation-option]');
   await expect(options).toHaveCount(4);
   await expect(page.locator('[data-navigation-option="google_maps"]')).toHaveAttribute('aria-checked', 'true');
@@ -1933,9 +2063,12 @@ test('PWA navigation preference offers Rider Comms, Google Maps, Waze and Apple 
   await page.locator('[data-navigation-option="waze"]').click();
   await expect(page.locator('[data-navigation-option="waze"]')).toHaveAttribute('aria-checked', 'true');
   await page.locator('#closeSheet').click();
+  await page.locator('[data-sheet="mapNavigation"]').click();
   await expect(page.locator('#navigationProviderSummary')).toHaveText('Waze');
+  await page.locator('#closeSheet').click();
 
   await page.reload();
+  await page.locator('[data-sheet="mapNavigation"]').click();
   await expect(page.locator('#navigationProviderSummary')).toHaveText('Waze');
 });
 
@@ -2557,7 +2690,7 @@ test('@viewport standalone canvas, navigation and scroll geometry remain coheren
     ['ride', '#joinRideForm .ride-location-consent'],
     ['routes', '#curatedRouteList'],
     ['friends', '#friendList'],
-    ['settings', '.version'],
+    ['settings', '.settings-signout'],
   ];
 
   for (const [name, finalSelector] of screens) {
@@ -2671,12 +2804,22 @@ test('@viewport full-screen overlays and sheets share the stable standalone bott
 
   await page.locator('#editProfileBtn').click();
   await assertSheet('edit-profile-sheet');
-  for (const [type, name] of [['map', 'location-map-sheet'], ['navigation', 'navigation-sheet'], ['plans', 'plan-sheet']]) {
-    await page.locator(`[data-sheet="${type}"]`).click();
-    await assertSheet(name);
-  }
+
+  await page.locator('[data-sheet="mapNavigation"]').click();
+  await page.locator('[data-settings-target="map"]').click();
+  await assertSheet('location-map-sheet');
+
+  await page.locator('[data-sheet="mapNavigation"]').click();
+  await page.locator('[data-settings-target="navigation"]').click();
+  await assertSheet('navigation-sheet');
+
+  await page.locator('[data-sheet="accountHub"]').click();
+  await page.locator('[data-settings-target="plans"]').click();
+  await assertSheet('plan-sheet');
+
   // Repeat a sheet transition to catch accumulated bottom offsets.
-  await page.locator('[data-sheet="map"]').click();
+  await page.locator('[data-sheet="mapNavigation"]').click();
+  await page.locator('[data-settings-target="map"]').click();
   await assertSheet('location-map-sheet-repeat');
 
   await page.locator('.bottom-nav [data-nav="friends"]').click();
@@ -2731,14 +2874,16 @@ test('PWA exposes session management and account deletion', async ({ page }) => 
   });
 
   await page.goto('/#settings');
-  await page.locator('[data-sheet="sessions"]').click();
+  await page.locator('[data-sheet="accountHub"]').click();
+  await page.locator('[data-settings-target="sessions"]').click();
   await expect(page.locator('#sessionList')).toContainText('Other phone');
   await page.locator('[data-revoke-session="session-remote"]').click();
   await expect(page.locator('#sessionList')).not.toContainText('Other phone');
   expect(remoteRevoked).toBe(true);
 
   await page.locator('#closeSheet').click();
-  await page.locator('[data-sheet="account"]').click();
+  await page.locator('[data-sheet="accountHub"]').click();
+  await page.locator('[data-settings-target="account"]').click();
   page.on('dialog', (dialog) => void dialog.accept());
   await page.evaluate(() => {
     document.querySelector('#deleteAccountBtn')?.click();
