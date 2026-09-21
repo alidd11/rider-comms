@@ -2090,6 +2090,7 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
   const metrics = await page.evaluate(() => {
     const summary = document.querySelector('#navSummary');
     const banner = document.querySelector('#navBanner');
+    const actions = document.querySelector('.screen-map .map-actions');
     const report = document.querySelector('#reportHazardBtn');
     const locate = document.querySelector('#locateBtn');
     const mute = document.querySelector('#navMuteBtn');
@@ -2106,20 +2107,30 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
     const speedUnit = document.querySelector('#navSpeedUnit');
     const summaryStyle = getComputedStyle(summary);
     const bannerStyle = getComputedStyle(banner);
+    const actionsStyle = getComputedStyle(actions);
     return {
       height: parseFloat(summaryStyle.height),
       paddingBottom: parseFloat(summaryStyle.paddingBottom),
       summaryRadius: parseFloat(summaryStyle.borderTopLeftRadius),
       bannerRadius: parseFloat(bannerStyle.borderTopLeftRadius),
       endRadius: end ? parseFloat(getComputedStyle(end).borderTopLeftRadius) : 0,
+      dockDirection: actionsStyle.flexDirection,
+      dockGap: parseFloat(actionsStyle.columnGap),
+      dockPadding: parseFloat(actionsStyle.paddingTop),
+      dockRadius: parseFloat(actionsStyle.borderTopLeftRadius),
       reportSize: report?.getBoundingClientRect().width ?? 0,
       locateDisplay: locate ? getComputedStyle(locate).display : null,
       muteSize: mute?.getBoundingClientRect().width ?? 0,
       overviewSize: overview?.getBoundingClientRect().width ?? 0,
       muteRadius: mute ? parseFloat(getComputedStyle(mute).borderTopLeftRadius) : 0,
       reportTop: report?.getBoundingClientRect().top ?? NaN,
+      reportLeft: report?.getBoundingClientRect().left ?? NaN,
+      reportRight: report?.getBoundingClientRect().right ?? NaN,
       muteTop: mute?.getBoundingClientRect().top ?? NaN,
+      muteLeft: mute?.getBoundingClientRect().left ?? NaN,
+      muteRight: mute?.getBoundingClientRect().right ?? NaN,
       overviewTop: overview?.getBoundingClientRect().top ?? NaN,
+      overviewLeft: overview?.getBoundingClientRect().left ?? NaN,
       overviewBottom: overview?.getBoundingClientRect().bottom ?? NaN,
       summaryTop: summary?.getBoundingClientRect().top ?? NaN,
       maneuverWidth: maneuver?.getBoundingClientRect().width ?? NaN,
@@ -2143,14 +2154,22 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
   expect(metrics.summaryRadius).toBeGreaterThanOrEqual(20);
   expect(metrics.bannerRadius).toBeGreaterThanOrEqual(20);
   expect(metrics.endRadius).toBeGreaterThanOrEqual(20);
+  expect(metrics.dockDirection).toBe('row');
+  expectNear(metrics.dockGap, 2, 0.5);
+  expect(metrics.dockPadding).toBe(4);
+  expect(metrics.dockRadius).toBe(18);
   expect(metrics.reportSize).toBe(48);
   expect(metrics.locateDisplay).toBe('none');
   expect(metrics.muteSize).toBe(48);
   expect(metrics.overviewSize).toBe(48);
   expect(metrics.muteRadius).toBeGreaterThanOrEqual(12);
   expect(metrics.muteRadius).toBeLessThanOrEqual(16);
-  expect(metrics.reportTop).toBeLessThan(metrics.muteTop);
-  expect(metrics.muteTop).toBeLessThan(metrics.overviewTop);
+  expectNear(metrics.reportTop, metrics.muteTop, 1);
+  expectNear(metrics.muteTop, metrics.overviewTop, 1);
+  expect(metrics.reportLeft).toBeLessThan(metrics.muteLeft);
+  expect(metrics.muteLeft).toBeLessThan(metrics.overviewLeft);
+  expectNear(metrics.muteLeft - metrics.reportRight, 2, 1);
+  expectNear(metrics.overviewLeft - metrics.muteRight, 2, 1);
   expect(metrics.overviewBottom).toBeLessThan(metrics.summaryTop);
   expectNear(metrics.summaryTop - metrics.overviewBottom, 18, 2);
   expect(metrics.maneuverWidth).toBe(72);
