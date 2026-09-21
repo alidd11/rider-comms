@@ -896,67 +896,70 @@
       }
       const activity = friendActivity.get(riderId);
       const activityCopy = friendActivityLabel(activity);
-      const activityValue = activity?.online ? 'Online' : activityCopy.replace(/^Last seen\s+/, '');
       const inActiveRide = state.activeRide?.memberIds?.includes(riderId) === true;
+      const rideLocation = rideMemberLocations.get(riderId);
+      const liveRideLocation = inActiveRide && rideLocation && Date.now() - rideLocation.updatedAt <= RIDE_LOCATION_REFRESH_MS * 2
+        ? rideLocation
+        : null;
       const socialLinks = [
         profile.instagramUsername ? `<a class="social-link" href="https://www.instagram.com/${encodeURIComponent(profile.instagramUsername)}/" target="_blank" rel="noopener"><span>Instagram</span><strong>@${escapeHtml(profile.instagramUsername)}</strong>${icon('chevron')}</a>` : '',
         profile.tiktokUsername ? `<a class="social-link" href="https://www.tiktok.com/@${encodeURIComponent(profile.tiktokUsername)}" target="_blank" rel="noopener"><span>TikTok</span><strong>@${escapeHtml(profile.tiktokUsername)}</strong>${icon('chevron')}</a>` : '',
       ].filter(Boolean).join('');
       const sharedProfileCount = Number(Boolean(profile.instagramUsername)) + Number(Boolean(profile.tiktokUsername));
+      const groupRideCount = state.activeRide?.memberIds?.length ?? 0;
       const profileAvatar = avatar({ ...currentFriend, avatarId: profile.avatarId || currentFriend.avatarId });
+      const mapActionState = liveRideLocation
+        ? ' aria-label="View rider on map"'
+        : ' disabled aria-disabled="true" aria-label="Rider location not shared" title="This rider is not sharing a fresh private-ride location."';
+      const shareLocationState = inActiveRide
+        ? ` aria-pressed="${state.activeRide?.shareRideLocation === true}" aria-label="${state.activeRide?.shareRideLocation === true ? 'Stop sharing your location with this group ride' : 'Share your location with this group ride'}"`
+        : ' disabled aria-disabled="true" aria-label="Share location unavailable outside a shared group ride" title="Available when you are in the same group ride."';
 
       presentSheet(currentFriend.displayName, `<article class="friend-profile-card">
-          <div class="friend-profile-cover" aria-hidden="true">
-            <span class="friend-profile-cover-avatar">${profileAvatar}</span>
-          </div>
           <div class="friend-profile-identity">
             <span class="friend-profile-avatar">${profileAvatar}<i class="friend-presence-dot ${activity?.online ? 'online' : 'offline'}" aria-hidden="true"></i></span>
             <div class="friend-profile-copy">
               <strong>${escapeHtml(currentFriend.displayName)}</strong>
-              <span>${escapeHtml(currentFriend.handle)}</span>
-              <small class="friend-profile-relationship"><i class="friend-profile-relationship-dot ${activity?.online ? 'online' : 'offline'}" aria-hidden="true"></i>Connected rider</small>
+              <span>${escapeHtml(currentFriend.handle)} · ${escapeHtml(activityCopy)}</span>
             </div>
-          </div>
-          <div class="friend-profile-stats" aria-label="Rider connection details">
-            <div><strong>${escapeHtml(activityValue)}</strong><small>Activity</small></div>
-            <div><strong>${inActiveRide ? 'Together' : '—'}</strong><small>Group ride</small></div>
-            <div><strong>${sharedProfileCount}</strong><small>Shared</small></div>
           </div>
         </article>
         <div class="friend-profile-actions" aria-label="Rider actions">
-          <button id="messageFriend" class="friend-profile-action-primary">
-            <span class="friend-action-icon">${icon('message')}</span>
-            <span><strong>Message</strong><small>Start a private conversation</small></span>
-          </button>
-          <button id="shareFriendId" class="friend-profile-action-secondary">
-            <span class="friend-action-icon">${icon('share')}</span>
-            <span><strong>Share Rider ID</strong><small>Send this rider’s ID</small></span>
-          </button>
+          <button id="messageFriend"><span class="friend-action-icon">${icon('message')}</span><strong>Message</strong></button>
+          <button id="shareFriendLocation"${shareLocationState}><span class="friend-action-icon">${icon('nav-arrow')}</span><strong>Share Location</strong></button>
+          <button id="friendMapAction"${mapActionState}><span class="friend-action-icon">${icon('location')}</span><strong>Map</strong></button>
+          <button id="friendSafetyActions"><span class="friend-action-icon friend-action-more" aria-hidden="true">•••</span><strong>More</strong></button>
         </div>
-        <button id="friendSafetyActions" class="friend-profile-safety-action">
-          <span class="friend-action-icon">${icon('shield')}</span>
-          <span><strong>Report or block rider</strong><small>Safety and connection options</small></span>
-          ${icon('chevron')}
-        </button>
-        ${inActiveRide ? `<div class="friend-profile-ride-context"><span class="setting-icon">${icon('ride')}</span><span><strong>In your group ride</strong><small>Connected to this ride</small></span></div>` : ''}
+        <div class="friend-profile-detail-list">
+          <div><span class="setting-icon">${icon('location')}</span><span><strong>${liveRideLocation ? 'Live ride location' : 'Location not shared'}</strong><small>${liveRideLocation ? 'Updated recently' : 'Private ride location only'}</small></span></div>
+          <div><span class="setting-icon">${icon('ride')}</span><span><strong>${inActiveRide ? 'In your group ride' : 'Not in your group ride'}</strong><small>${inActiveRide ? `${groupRideCount} rider${groupRideCount === 1 ? '' : 's'}` : 'No shared ride'}</small></span></div>
+          <div><span class="setting-icon">${icon('friends')}</span><span><strong>${sharedProfileCount ? `${sharedProfileCount} shared profile${sharedProfileCount === 1 ? '' : 's'}` : 'No shared profiles'}</strong><small>Nothing shared with you</small></span></div>
+        </div>
         ${loading
           ? '<p class="friend-profile-note friend-profile-note-quiet">Refreshing shared profile…</p>'
           : refreshError
             ? '<p class="friend-profile-note friend-profile-note-quiet">Could not refresh shared profile. Reopen this rider to try again.</p>'
             : socialLinks
               ? `<div class="friend-profile-social"><span class="friend-profile-section-label">Shared profiles</span><div class="social-links">${socialLinks}</div></div>`
-              : '<p class="friend-profile-note friend-profile-note-quiet">No connected profiles are shared with you.</p>'}
-        <p class="caption friend-profile-safety-note">Only connect and arrange rides with people you trust. Social links follow each rider’s privacy settings.</p>`, () => {
-        $('#shareFriendId').addEventListener('click', async () => {
-          const message = `${currentFriend.displayName} on Rider Comms: ${riderId}`;
-          if (navigator.share) {
-            try { await navigator.share({ text: message }); return; }
-            catch (error) { if (error?.name === 'AbortError') return; }
-          }
-          try { await navigator.clipboard.writeText(riderId); showToast('Rider ID copied.'); }
-          catch { showToast(riderId); }
+              : ''}
+        ${liveRideLocation ? '<button id="viewFriendOnMap" class="friend-profile-view-map">View on Map</button>' : ''}`, () => {
+        const showFriendOnMap = () => {
+          if (!liveRideLocation) return;
+          closeSheet();
+          navigate('map');
+          centreMap(liveRideLocation.lat, liveRideLocation.lon);
+          const ridePeople = state.activeRide?.members || [];
+          if (ridePeople.some((person) => person.riderId === riderId)) selectRider(riderId, ridePeople);
+        };
+        $('#shareFriendLocation').addEventListener('click', async () => {
+          if (!inActiveRide || !state.activeRide) return;
+          const enable = state.activeRide.shareRideLocation !== true;
+          const ok = await setRideLocationSharing(enable);
+          if (ok && activeFriendProfileRiderId === riderId) renderProfile(profile);
         });
         $('#messageFriend').addEventListener('click', () => openChat(currentFriend));
+        $('#friendMapAction').addEventListener('click', showFriendOnMap);
+        $('#viewFriendOnMap')?.addEventListener('click', showFriendOnMap);
         $('#friendSafetyActions').addEventListener('click', () => openFriendSafetyActions(currentFriend));
       });
       activeFriendProfileRiderId = riderId;
@@ -1333,7 +1336,8 @@
   }
 
   function openFriendSafetyActions(friend) {
-    presentSheet('Safety options', `<div class="settings-note"><strong>${escapeHtml(friend.displayName)}</strong><p>Reports are sent to Rider Comms for review. Removing ends the friendship; blocking also prevents messages or new requests.</p></div>
+    presentSheet('More actions', `<div class="settings-note"><strong>${escapeHtml(friend.displayName)}</strong><p>Share this rider’s ID, manage the friendship, or use Rider Comms safety tools.</p></div>
+      <button class="button secondary wide" id="shareFriendIdMore">Share Rider ID</button>
       <button class="button secondary wide" id="removeFriendBtn">Remove friend</button>
       <div class="choice-list" aria-label="Report reason">
         <button data-report-rider="harassment"><span><strong>Report harassment</strong><small>Threats, abuse or repeated unwanted contact</small></span>${icon('chevron')}</button>
@@ -1342,6 +1346,15 @@
       </div>
       <button class="button danger wide" id="blockFriendBtn">Block rider</button>
       <p id="friendSafetyError" class="inline-error" role="alert" hidden></p>`, () => {
+      $('#shareFriendIdMore').addEventListener('click', async () => {
+        const message = `${friend.displayName} on Rider Comms: ${friend.riderId}`;
+        if (navigator.share) {
+          try { await navigator.share({ text: message }); return; }
+          catch (error) { if (error?.name === 'AbortError') return; }
+        }
+        try { await navigator.clipboard.writeText(friend.riderId); showToast('Rider ID copied.'); }
+        catch { showToast(friend.riderId); }
+      });
       $('#removeFriendBtn').addEventListener('click', () => void removeFriend(friend));
       $$('[data-report-rider]', $('#sheetBody')).forEach((button) => {
         button.addEventListener('click', () => void reportFriend(friend, button.dataset.reportRider));
