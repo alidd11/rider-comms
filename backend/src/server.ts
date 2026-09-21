@@ -3,8 +3,8 @@ import { randomUUID } from 'node:crypto';
 import { isIP } from 'node:net';
 import { SlidingWindowRateLimiter, TIER_RADIUS_MILES, validateScenicRouteInput } from '@rider-comms/shared';
 import type { Difficulty, HazardType, RoadType, Rider, VehicleCategory } from '@rider-comms/shared';
-import { getLiveKitCredentialsFromEnv, mintVoiceToken, proximityRoomName, rideRoomName } from './liveKitToken.ts';
-import type { LiveKitCredentials } from './liveKitToken.ts';
+import { createLiveKitRoomAdmin, getLiveKitCredentialsFromEnv, mintVoiceToken, proximityRoomName, RIDE_VOICE_TOKEN_TTL_SECONDS, rideRoomName } from './liveKitToken.ts';
+import type { LiveKitCredentials, LiveKitRoomAdmin } from './liveKitToken.ts';
 import { AuthStore } from './authStore.ts';
 import { RideStore } from './rideStore.ts';
 import { PresenceStore, StaleLocationFixError } from './presenceStore.ts';
@@ -52,6 +52,7 @@ export interface ApiServerOptions {
    * the environment; pass null explicitly (e.g. in tests) to force the
    * "voice not configured" path regardless of the real environment. */
   liveKitCredentials?: LiveKitCredentials | null;
+  liveKitRoomAdmin?: Pick<LiveKitRoomAdmin, 'revokeRideParticipant'> | null;
   accountDeletionStore?: Pick<AccountDeletionStore, 'deleteRider'>;
   socialRateLimitStore?: Pick<SocialRateLimitStore, 'consume'>;
   socialActivityStore?: Pick<SocialActivityStore, 'touch' | 'getFriendActivity'>;
@@ -175,7 +176,7 @@ async function consumeSocialWrite(
 }
 
 export function createApp(rideStore = new RideStore(), presenceStore = new PresenceStore(), profileStore = new ProfileStore(), friendStore = new FriendStore(profileStore), messageStore = new MessageStore(), hideoutStore = new HideoutStore(), authStore = new AuthStore(), moderationStore = new ModerationStore(), hazardStore = new HazardStore(), scenicRouteStore = new ScenicRouteStore(), options: ApiServerOptions = {}): http.Server {
-  const guestLimiter = new SlidingWindowRateLimiter(20, 60_000);
+  const authLimiter = new SlidingWindowRateLimiter(20, 60_000);
   const apiLimiter = new SlidingWindowRateLimiter(300, 60_000);
   const hazardCreateLimiter = new SlidingWindowRateLimiter(10, 10 * 60_000);
   // Resending a verification email is an authenticated rider spamming
@@ -187,11 +188,32 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
   const passwordResetLimiter = new SlidingWindowRateLimiter(3, 10 * 60_000);
   const allowedOrigins = new Set(options.allowedOrigins ?? []);
   const liveKitCredentials = 'liveKitCredentials' in options ? options.liveKitCredentials : getLiveKitCredentialsFromEnv();
+  const liveKitRoomAdmin = 'liveKitRoomAdmin' in options
+    ? options.liveKitRoomAdmin
+    : liveKitCredentials ? createLiveKitRoomAdmin(liveKitCredentials) : null;
   const accountDeletionStore = options.accountDeletionStore ?? new AccountDeletionStore();
   const socialRateLimitStore = options.socialRateLimitStore ?? new SocialRateLimitStore();
   const socialActivityStore = options.socialActivityStore ?? new SocialActivityStore();
   const socialEventStore = options.socialEventStore ?? new SocialEventStore();
   const readinessCheck = options.readinessCheck ?? checkDatabaseReady;
+  const revokeRideVoiceParticipants = async (rideId: string, riderIds: Iterable<string>): Promise<void> => {
+    if (!liveKitRoomAdmin) return;
+    const uniqueRiderIds = [...new Set(riderIds)];
+    const results = await Promise.allSettled(
+      uniqueRiderIds.map((riderId) => liveKitRoomAdmin.revokeRideParticipant(rideId, riderId)),
+    );
+    results.forEach((result, index) => {
+      if (result.status === 'rejected') {
+        console.error(JSON.stringify({
+          level: 'error',
+          event: 'ride_voice_revocation_failed',
+          rideId,
+          riderId: uniqueRiderIds[index],
+          message: result.reason instanceof Error ? result.reason.message : String(result.reason),
+        }));
+      }
+    });
+  };
   const app = http.createServer(async (req, res) => {
     const startedAt = Date.now();
     const id = requestId(req);
@@ -221,12 +243,8 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
       if (req.method === 'GET' && url.pathname === '/config') {
         return sendJson(res, 200, { googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY ?? '' });
       }
-      if (req.method === 'POST' && url.pathname === '/auth/guest') {
-        if (!guestLimiter.tryConsume(address)) return sendJson(res, 429, { error: 'rate_limited' });
-        const session = authStore.createGuest(); await profileStore.getOrCreate(session.riderId); await socialActivityStore.touch(session.riderId); return sendJson(res, 201, session);
-      }
       if (req.method === 'POST' && url.pathname === '/auth/signup') {
-        if (!guestLimiter.tryConsume(address)) return sendJson(res, 429, { error: 'rate_limited' });
+        if (!authLimiter.tryConsume(address)) return sendJson(res, 429, { error: 'rate_limited' });
         const body = await readJsonBody(req);
         const result = await authStore.signUp(body.username, body.email, body.password, body.deviceName);
         if ('error' in result) return sendJson(res, result.error === 'username_taken' || result.error === 'email_taken' ? 409 : 400, { error: result.error });
@@ -235,7 +253,7 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
         return sendJson(res, 201, result);
       }
       if (req.method === 'POST' && url.pathname === '/auth/login') {
-        if (!guestLimiter.tryConsume(address)) return sendJson(res, 429, { error: 'rate_limited' });
+        if (!authLimiter.tryConsume(address)) return sendJson(res, 429, { error: 'rate_limited' });
         const body = await readJsonBody(req);
         const result = await authStore.logIn(body.username, body.password, body.deviceName);
         if ('error' in result) return sendJson(res, 401, { error: result.error });
@@ -244,7 +262,7 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
         return sendJson(res, 200, result);
       }
       if (req.method === 'POST' && url.pathname === '/auth/verify-email') {
-        if (!guestLimiter.tryConsume(address)) return sendJson(res, 429, { error: 'rate_limited' });
+        if (!authLimiter.tryConsume(address)) return sendJson(res, 429, { error: 'rate_limited' });
         const body = await readJsonBody(req);
         const result = await authStore.verifyEmail(body.token);
         if ('error' in result) return sendJson(res, result.error === 'invalid_token' ? 400 : 410, { error: result.error });
@@ -257,7 +275,7 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
         return sendJson(res, 202, { accepted: true });
       }
       if (req.method === 'POST' && url.pathname === '/auth/password-reset/confirm') {
-        if (!guestLimiter.tryConsume(address)) return sendJson(res, 429, { error: 'rate_limited' });
+        if (!authLimiter.tryConsume(address)) return sendJson(res, 429, { error: 'rate_limited' });
         const body = await readJsonBody(req);
         const result = await authStore.resetPassword(body.token, body.password);
         if ('error' in result) return sendJson(res, result.error === 'expired_token' ? 410 : 400, { error: result.error });
@@ -345,7 +363,16 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
           if (typeof body.rideId !== 'string') return sendJson(res, 400, { error: 'rideId is required' });
           const result = await rideStore.getRideForMember(body.rideId, actorId);
           if (!result.ok) return sendJson(res, result.reason === 'not_found' ? 404 : 403, { error: result.reason });
-          const voiceToken = await mintVoiceToken(liveKitCredentials, actorId, rideRoomName(result.ride.id));
+          const otherMemberIds = [...result.ride.memberIds].filter((riderId) => riderId !== actorId);
+          if (await moderationStore.isBlockedByAny(actorId, otherMemberIds)) {
+            return sendJson(res, 403, { error: 'blocked' });
+          }
+          const voiceToken = await mintVoiceToken(
+            liveKitCredentials,
+            actorId,
+            rideRoomName(result.ride.id),
+            RIDE_VOICE_TOKEN_TTL_SECONDS,
+          );
           return sendJson(res, 200, voiceToken);
         }
         if (body.target === 'channel') {
@@ -376,7 +403,9 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
         const body = await readJsonBody(req);
         if (typeof body.riderId !== 'string' || body.riderId === actorId) return sendJson(res, 400, { error: 'valid riderId is required' });
         if (!(await authStore.hasRider(body.riderId))) return sendJson(res, 404, { error: 'rider_not_found' });
+        const sharedRideIds = await rideStore.getSharedRideIds(actorId, body.riderId);
         await moderationStore.block(actorId, body.riderId);
+        await Promise.all(sharedRideIds.map((rideId) => revokeRideVoiceParticipants(rideId, [body.riderId as string])));
         return sendJson(res, 200, {});
       }
       if (req.method === 'DELETE' && s[0] === 'blocks' && s[1] && s.length === 2) {
@@ -411,9 +440,22 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
           const session = await rideStore.getMemberRideSession(id, actorId);
           return session ? sendJson(res, 200, { ...rideBody(session.ride), shareRideLocation: session.shareRideLocation, code: session.code }) : sendJson(res, 404, { error: 'not_found' });
         }
-        if (req.method === 'POST' && s[2] === 'leave') { const r = await rideStore.leaveRide(id, actorId); return r.ok ? sendJson(res, 200, {}) : sendJson(res, r.reason === 'not_found' ? 404 : 403, { error: r.reason }); }
-        if (req.method === 'DELETE' && s.length === 2) { const r = await rideStore.endRide(id, actorId); return r.ok ? sendJson(res, 200, {}) : sendJson(res, r.reason === 'not_found' ? 404 : 403, { error: r.reason }); }
-        if (req.method === 'DELETE' && s[2] === 'members' && s[3]) { const r = await rideStore.removeMember(id, actorId, decodeURIComponent(s[3])); return r.ok ? sendJson(res, 200, rideBody(r.ride)) : sendJson(res, r.reason === 'not_found' ? 404 : 403, { error: r.reason }); }
+        if (req.method === 'POST' && s[2] === 'leave') {
+          const r = await rideStore.leaveRide(id, actorId);
+          if (r.ok) await revokeRideVoiceParticipants(id, [actorId]);
+          return r.ok ? sendJson(res, 200, {}) : sendJson(res, r.reason === 'not_found' ? 404 : 403, { error: r.reason });
+        }
+        if (req.method === 'DELETE' && s.length === 2) {
+          const r = await rideStore.endRide(id, actorId);
+          if (r.ok) await revokeRideVoiceParticipants(id, r.ride.memberIds);
+          return r.ok ? sendJson(res, 200, {}) : sendJson(res, r.reason === 'not_found' ? 404 : 403, { error: r.reason });
+        }
+        if (req.method === 'DELETE' && s[2] === 'members' && s[3]) {
+          const memberId = decodeURIComponent(s[3]);
+          const r = await rideStore.removeMember(id, actorId, memberId);
+          if (r.ok) await revokeRideVoiceParticipants(id, [memberId]);
+          return r.ok ? sendJson(res, 200, rideBody(r.ride)) : sendJson(res, r.reason === 'not_found' ? 404 : 403, { error: r.reason });
+        }
         if (req.method === 'PUT' && s[2] === 'location-sharing') {
           const body = await readJsonBody(req);
           if (typeof body.enabled !== 'boolean') return sendJson(res, 400, { error: 'enabled must be a boolean' });

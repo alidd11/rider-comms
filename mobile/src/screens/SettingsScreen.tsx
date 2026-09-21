@@ -21,8 +21,8 @@ import type { AccountSessionSummary } from '../api/client';
 import { NAVIGATION_PROVIDER_OPTIONS, type NavigationProvider } from '../navigationPreference';
 
 const UNIT_LABELS: Record<UnitSystem, { name: string; blurb: string }> = {
-  mi: { name: 'Miles', blurb: 'Distances and zone radius shown in miles.' },
-  km: { name: 'Kilometers', blurb: 'Distances and zone radius shown in kilometers.' },
+  mi: { name: 'Miles', blurb: 'Use miles and mph.' },
+  km: { name: 'Kilometres', blurb: 'Use kilometres and km/h.' },
 };
 const UNIT_ORDER: UnitSystem[] = ['mi', 'km'];
 
@@ -38,6 +38,8 @@ function UnitRow({
   const { name, blurb } = UNIT_LABELS[unit];
   return (
     <Pressable
+      accessibilityRole="radio"
+      accessibilityState={{ selected }}
       style={({ pressed }) => [styles.tierRow, selected && styles.tierRowSelected, pressed && styles.tierRowPressed]}
       onPress={onSelect}
     >
@@ -97,6 +99,8 @@ function ToggleRow({
         {caption && <Text style={styles.toggleCaption}>{caption}</Text>}
       </View>
       <Switch
+        accessibilityLabel={label}
+        accessibilityHint={caption}
         value={value}
         onValueChange={onValueChange}
         trackColor={{ false: colors.border, true: colors.accent }}
@@ -108,12 +112,29 @@ function ToggleRow({
 
 function SocialRow({ label, icon, username, visibility, onUsername, onVisibility }: { label: string; icon: React.ComponentProps<typeof Ionicons>['name']; username: string; visibility: SocialVisibility; onUsername: (value: string) => void; onVisibility: (value: SocialVisibility) => void }): React.JSX.Element {
   const [draft, setDraft] = React.useState(username);
-  React.useEffect(() => setDraft(username), [username]);
+  const [error, setError] = React.useState<string | null>(null);
+  React.useEffect(() => {
+    setDraft(username);
+    setError(null);
+  }, [username]);
   const options: SocialVisibility[] = ['public', 'friends', 'private'];
+
+  function commitUsername() {
+    const normalized = draft.trim().replace(/^@/, '');
+    if (!/^[a-z0-9._]{0,30}$/i.test(normalized)) {
+      setError('Use up to 30 letters, numbers, dots or underscores.');
+      return;
+    }
+    setError(null);
+    setDraft(normalized);
+    if (normalized !== username) onUsername(normalized);
+  }
+
   return <View style={styles.socialRow}>
     <View style={styles.socialHeading}><Ionicons name={icon} size={20} color={colors.textSecondary}/><Text style={styles.toggleLabel}>{label}</Text></View>
-    <TextInput style={styles.socialInput} value={draft} onChangeText={setDraft} onBlur={() => onUsername(draft)} onSubmitEditing={() => onUsername(draft)} autoCapitalize="none" autoCorrect={false} maxLength={31} placeholder="username" placeholderTextColor={colors.textMuted}/>
-    <View style={styles.visibilityRow}>{options.map((option) => <Pressable key={option} onPress={() => onVisibility(option)} style={[styles.visibilityChoice, visibility === option && styles.visibilityChoiceActive]}><Text style={[styles.visibilityText, visibility === option && styles.visibilityTextActive]}>{option === 'friends' ? 'Friends only' : option[0].toUpperCase() + option.slice(1)}</Text></Pressable>)}</View>
+    <TextInput style={styles.socialInput} value={draft} onChangeText={(value) => { setDraft(value); setError(null); }} onBlur={commitUsername} onSubmitEditing={commitUsername} autoCapitalize="none" autoCorrect={false} maxLength={31} placeholder="username" placeholderTextColor={colors.textMuted}/>
+    {error ? <Text accessibilityRole="alert" style={styles.socialError}>{error}</Text> : null}
+    <View style={styles.visibilityRow} accessibilityRole="radiogroup">{options.map((option) => <Pressable key={option} accessibilityRole="radio" accessibilityState={{ selected: visibility === option }} onPress={() => onVisibility(option)} style={[styles.visibilityChoice, visibility === option && styles.visibilityChoiceActive]}><Text style={[styles.visibilityText, visibility === option && styles.visibilityTextActive]}>{option === 'friends' ? 'Friends only' : option[0].toUpperCase() + option.slice(1)}</Text></Pressable>)}</View>
   </View>;
 }
 
@@ -215,9 +236,16 @@ function AvatarPickerModal({
 }
 
 
-type SettingsSheetKey = 'profile' | 'sessions' | 'account' | 'map' | 'navigation' | 'units' | 'notifications' | 'privacy' | 'safety';
+type SettingsSheetKey = 'accountHub' | 'communication' | 'mapNavigation' | 'offlineMaps' | 'unitsPreferences' | 'help' | 'about' | 'profile' | 'sessions' | 'account' | 'map' | 'navigation' | 'units' | 'notifications' | 'privacy' | 'safety';
 
 const SETTINGS_SHEET_TITLES: Record<SettingsSheetKey, string> = {
+  accountHub: 'Account',
+  communication: 'Communication',
+  mapNavigation: 'Map & Navigation',
+  offlineMaps: 'Offline Maps',
+  unitsPreferences: 'Units & Preferences',
+  help: 'Help & Support',
+  about: 'About',
   profile: 'Edit profile',
   sessions: 'Signed-in devices',
   account: 'Account and data',
@@ -229,23 +257,25 @@ const SETTINGS_SHEET_TITLES: Record<SettingsSheetKey, string> = {
   safety: 'Safety',
 };
 
-function SettingsRow({ icon, title, subtitle, right, danger = false, onPress }: {
+function SettingsRow({ icon, title, subtitle, right, danger = false, showChevron = true, last = false, onPress }: {
   icon: React.ComponentProps<typeof Ionicons>['name'];
   title: string;
   subtitle?: string;
   right?: string;
   danger?: boolean;
+  showChevron?: boolean;
+  last?: boolean;
   onPress: () => void;
 }): React.JSX.Element {
   return (
-    <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.settingRow, pressed && styles.settingRowPressed]}>
-      <Ionicons name={icon} size={21} color={danger ? colors.danger : colors.textSecondary} style={styles.settingRowIcon} />
+    <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.settingRow, last && styles.settingRowLast, pressed && styles.settingRowPressed]}>
+      <Ionicons name={icon} size={20} color={danger ? colors.danger : colors.textPrimary} style={styles.settingRowIcon} />
       <View style={styles.settingRowCopy}>
         <Text style={[styles.settingRowTitle, danger && styles.settingRowDanger]}>{title}</Text>
         {subtitle ? <Text style={styles.settingRowSubtitle}>{subtitle}</Text> : null}
       </View>
-      {right ? <Text style={styles.settingRowValue}>{right}</Text> : null}
-      <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+      {right ? <Text numberOfLines={1} style={styles.settingRowValue}>{right}</Text> : null}
+      {showChevron ? <Ionicons name="chevron-forward" size={14} color={colors.textMuted} /> : null}
     </Pressable>
   );
 }
@@ -320,20 +350,27 @@ export function SettingsScreen(): React.JSX.Element {
   const [activeSheet, setActiveSheet] = React.useState<SettingsSheetKey | null>(null);
   const [nameDraft, setNameDraft] = React.useState(displayName);
   const [handleDraft, setHandleDraft] = React.useState(handle);
+  const [profileDraftError, setProfileDraftError] = React.useState<string | null>(null);
   const [sessions, setSessions] = React.useState<AccountSessionSummary[]>([]);
   const [sessionsError, setSessionsError] = React.useState<string | null>(null);
+  const [sessionsLoading, setSessionsLoading] = React.useState(false);
 
   const loadSessions = React.useCallback(async () => {
+    setSessionsLoading(true);
+    setSessionsError(null);
     try {
       const result = await client.getSessions();
       setSessions(result.sessions);
-      setSessionsError(null);
     } catch {
       setSessionsError('Could not load signed-in devices.');
+    } finally {
+      setSessionsLoading(false);
     }
   }, [client]);
 
-  React.useEffect(() => { void loadSessions(); }, [loadSessions]);
+  React.useEffect(() => {
+    if (activeSheet === 'sessions') void loadSessions();
+  }, [activeSheet, loadSessions]);
 
   async function revokeSession(id: string) {
     try {
@@ -355,20 +392,35 @@ export function SettingsScreen(): React.JSX.Element {
   const avatar = getAvatarPreset(avatarId);
 
   function commitName() {
-    setDisplayName(nameDraft);
+    const next = nameDraft.trim();
+    if (!next) {
+      setProfileDraftError('Add a display name.');
+      return;
+    }
+    setProfileDraftError(null);
+    setNameDraft(next);
+    if (next !== displayName) setDisplayName(next);
   }
 
   function commitHandle() {
-    setHandle(handleDraft);
+    const raw = handleDraft.trim();
+    const next = raw.startsWith('@') ? raw : `@${raw}`;
+    if (!/^@[a-z0-9_]{3,24}$/i.test(next)) {
+      setProfileDraftError('Use 3–24 letters, numbers or underscores for your handle.');
+      return;
+    }
+    setProfileDraftError(null);
+    setHandleDraft(next);
+    if (next !== handle) setHandle(next);
   }
 
   function confirmReset() {
     Alert.alert(
-      'Reset app data?',
-      'This clears your profile, avatar, and all settings on this device and puts everything back to its defaults.',
+      'Reset Rider Comms settings?',
+      'This resets your Rider Comms profile and synced preferences to their defaults, and clears this device’s saved navigation preference.',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Reset', style: 'destructive', onPress: () => resetAll() },
+        { text: 'Reset settings', style: 'destructive', onPress: () => resetAll() },
       ]
     );
   }
@@ -388,12 +440,12 @@ export function SettingsScreen(): React.JSX.Element {
 
   function confirmLogOut() {
     Alert.alert(
-      'Log out?',
+      'Sign out?',
       'You’ll need your username and password to sign in again.',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Log out', onPress: () => {
-          void logOut().catch(() => Alert.alert('Logged out on this device', 'Rider Comms could not contact the server to revoke the session, but it has been removed from this device.'));
+        { text: 'Sign out', style: 'destructive', onPress: () => {
+          void logOut().catch(() => Alert.alert('Signed out on this device', 'Rider Comms could not contact the server to revoke the session, but it has been removed from this device.'));
         } },
       ]
     );
@@ -406,64 +458,106 @@ export function SettingsScreen(): React.JSX.Element {
   return (
     <View style={styles.container}>
       <ScrollView
-        contentContainerStyle={[styles.scroll, { paddingTop: insets.top + spacing.lg, paddingBottom: insets.bottom + spacing.xxl }]}
+        contentContainerStyle={[styles.scroll, { paddingTop: insets.top + spacing.lg, paddingBottom: insets.bottom + spacing.md }]}
         showsVerticalScrollIndicator={false}
       >
         <ScreenHeader title="Settings" />
 
-        <Pressable style={styles.profileCard} onPress={() => setActiveSheet('profile')} accessibilityRole="button" accessibilityLabel="Edit profile">
-          <RiderAvatar avatarId={avatarId} size={58} />
+        <Pressable style={styles.profileCard} onPress={() => setActiveSheet('profile')} accessibilityRole="button" accessibilityLabel="Open profile settings">
+          <RiderAvatar avatarId={avatarId} size={72} />
           <View style={styles.profileCopy}>
             <Text numberOfLines={1} style={styles.name}>{displayName}</Text>
             <Text numberOfLines={1} style={styles.handle}>{handle}</Text>
-            <Text selectable numberOfLines={1} style={styles.riderId}>{riderId}</Text>
           </View>
-          <Text style={styles.profileEdit}>Edit</Text>
+          <Ionicons name="chevron-forward" size={14} color={colors.textMuted} />
         </Pressable>
 
-        {(saving || profileError) ? (
+        {profileError ? (
           <View style={styles.profileSaveStatus} accessibilityLiveRegion="polite">
-            {saving ? <><ActivityIndicator color={colors.accent} size="small" /><Text style={styles.profileSavingText}>Saving profile…</Text></> : null}
-            {profileError ? <><Ionicons name="alert-circle" size={17} color={colors.danger} /><Text style={styles.profileSaveError}>{profileError}</Text><Pressable onPress={clearProfileError} hitSlop={8}><Ionicons name="close" size={18} color={colors.textMuted} /></Pressable></> : null}
+            <Ionicons name="alert-circle" size={17} color={colors.danger} />
+            <Text style={styles.profileSaveError}>{profileError}</Text>
+            <Pressable accessibilityRole="button" accessibilityLabel="Dismiss settings error" onPress={clearProfileError} hitSlop={8}><Ionicons name="close" size={18} color={colors.textMuted} /></Pressable>
           </View>
         ) : null}
 
-        <Text style={styles.sectionLabel}>Account</Text>
         <View style={styles.settingsGroup}>
-          <SettingsRow icon="person-outline" title="Profile" subtitle="Name, handle and connected profiles" onPress={() => setActiveSheet('profile')} />
-          <SettingsRow
-            icon="card-outline"
-            title="Plan and billing"
-            subtitle={PLAN_INFO[zoneTier].name + ' plan · ' + (PLAN_INFO[zoneTier].priceLabel === 'Free' ? 'No card on file' : PLAN_INFO[zoneTier].priceLabel + '/mo')}
-            right={PLAN_INFO[zoneTier].priceLabel === 'Free' ? 'Free' : undefined}
-            onPress={() => navigation.navigate('Billing')}
-          />
-          <SettingsRow icon="settings-outline" title="Signed-in devices" subtitle="Review and revoke account sessions" onPress={() => setActiveSheet('sessions')} />
-          <SettingsRow icon="shield-checkmark-outline" title="Account and data" subtitle="Account deletion and local data" onPress={() => setActiveSheet('account')} />
+          <SettingsRow icon="person-outline" title="Account" onPress={() => setActiveSheet('accountHub')} />
+          <SettingsRow icon="chatbubble-ellipses-outline" title="Communication" onPress={() => setActiveSheet('communication')} />
+          <SettingsRow icon="map-outline" title="Map & Navigation" onPress={() => setActiveSheet('mapNavigation')} />
+          <SettingsRow icon="cloud-download-outline" title="Offline Maps" onPress={() => setActiveSheet('offlineMaps')} />
+          <SettingsRow icon="apps-outline" title="Units & Preferences" last onPress={() => setActiveSheet('unitsPreferences')} />
         </View>
 
-        <Text style={styles.sectionLabel}>Preferences</Text>
-        <View style={styles.settingsGroup}>
-          <SettingsRow icon="location-outline" title="Location and map" subtitle="Location sharing and nearby riders" onPress={() => setActiveSheet('map')} />
-          <SettingsRow icon="navigate-outline" title="Navigation" subtitle={navigationLabel} onPress={() => setActiveSheet('navigation')} />
-          <SettingsRow icon="swap-horizontal-outline" title="Distance units" subtitle={UNIT_LABELS[unitSystem].name} onPress={() => setActiveSheet('units')} />
-          <SettingsRow icon="notifications-outline" title="Notifications" subtitle="Notification preferences" onPress={() => setActiveSheet('notifications')} />
-        </View>
-
-        <Text style={styles.sectionLabel}>Privacy and safety</Text>
-        <View style={styles.settingsGroup}>
-          <SettingsRow icon="shield-checkmark-outline" title="Privacy controls" subtitle="Visibility and social profiles" onPress={() => setActiveSheet('privacy')} />
-          <SettingsRow icon="information-circle-outline" title="Safety" subtitle="Low-distraction and emergency guidance" onPress={() => setActiveSheet('safety')} />
+        <View style={[styles.settingsGroup, styles.secondarySettingsGroup]}>
+          <SettingsRow icon="help-circle-outline" title="Help & Support" onPress={() => setActiveSheet('help')} />
+          <SettingsRow icon="information-circle-outline" title="About" last onPress={() => setActiveSheet('about')} />
         </View>
 
         <View style={[styles.settingsGroup, styles.signOutGroup]}>
-          <SettingsRow icon="log-out-outline" title="Log out" subtitle={'Signed in as ' + riderId} danger onPress={confirmLogOut} />
+          <SettingsRow icon="log-out-outline" title="Sign Out" danger showChevron={false} last onPress={confirmLogOut} />
         </View>
-
-        <Text style={styles.versionText}>Rider Comms {appVersion} · Native</Text>
       </ScrollView>
 
       <SettingsSheet visible={activeSheet !== null} title={sheetTitle} onClose={() => setActiveSheet(null)}>
+        {activeSheet === 'accountHub' ? (
+          <View style={styles.settingsSheetSection}>
+            <SettingsRow icon="person-outline" title="Profile" subtitle="Name, handle and connected profiles" onPress={() => setActiveSheet('profile')} />
+            <SettingsRow
+              icon="card-outline"
+              title="Plan and billing"
+              subtitle={PLAN_INFO[zoneTier].name + ' plan · ' + (PLAN_INFO[zoneTier].priceLabel === 'Free' ? 'No card on file' : PLAN_INFO[zoneTier].priceLabel + '/mo')}
+              right={PLAN_INFO[zoneTier].name}
+              onPress={() => { setActiveSheet(null); navigation.navigate('Billing'); }}
+            />
+            <SettingsRow icon="phone-portrait-outline" title="Signed-in devices" subtitle="Review and revoke account sessions" onPress={() => setActiveSheet('sessions')} />
+            <SettingsRow icon="shield-checkmark-outline" title="Account and data" subtitle="Account deletion and local data" last onPress={() => setActiveSheet('account')} />
+          </View>
+        ) : null}
+
+        {activeSheet === 'communication' ? (
+          <View style={styles.settingsSheetSection}>
+            <SettingsRow icon="notifications-outline" title="Notifications" subtitle="Nearby riders, ride invites and group chat" onPress={() => setActiveSheet('notifications')} />
+            <SettingsRow icon="shield-checkmark-outline" title="Privacy controls" subtitle="Location visibility and connected profiles" last onPress={() => setActiveSheet('privacy')} />
+          </View>
+        ) : null}
+
+        {activeSheet === 'mapNavigation' ? (
+          <View style={styles.settingsSheetSection}>
+            <SettingsRow icon="location-outline" title="Location and map" subtitle="Location sharing and nearby riders" onPress={() => setActiveSheet('map')} />
+            <SettingsRow icon="navigate-outline" title="Navigation" subtitle={navigationLabel} last onPress={() => setActiveSheet('navigation')} />
+          </View>
+        ) : null}
+
+        {activeSheet === 'offlineMaps' ? (
+          <View style={styles.sheetNote}>
+            <Text style={styles.sheetNoteTitle}>Online maps only</Text>
+            <Text style={styles.sheetNoteCopy}>Offline map downloads are not available in this build yet. Rider Comms currently needs a data connection for map tiles and route calculation.</Text>
+          </View>
+        ) : null}
+
+        {activeSheet === 'unitsPreferences' ? (
+          <View style={styles.settingsSheetSection}>
+            <SettingsRow icon="swap-horizontal-outline" title="Distance units" subtitle={UNIT_LABELS[unitSystem].name} last onPress={() => setActiveSheet('units')} />
+          </View>
+        ) : null}
+
+        {activeSheet === 'help' ? (
+          <View style={styles.settingsSheetSection}>
+            <SettingsRow icon="information-circle-outline" title="Safety guidance" subtitle="Low-distraction and emergency guidance" onPress={() => setActiveSheet('safety')} />
+            <SettingsRow icon="document-text-outline" title="Privacy, safety & terms" subtitle="Read Rider Comms legal and safety information" last onPress={() => { setActiveSheet(null); navigation.navigate('Legal'); }} />
+          </View>
+        ) : null}
+
+        {activeSheet === 'about' ? (
+          <View style={styles.settingsSheetSection}>
+            <View style={styles.aboutSummary}>
+              <Text style={styles.aboutTitle}>Rider Comms</Text>
+              <Text style={styles.aboutSummaryValue}>Version {appVersion} · Native</Text>
+              <Text style={styles.aboutSummaryValue}>Signed in as {riderId}</Text>
+            </View>
+          </View>
+        ) : null}
+
         {activeSheet === 'profile' ? (
           <>
             <View style={styles.settingsSheetSection}>
@@ -486,10 +580,16 @@ export function SettingsScreen(): React.JSX.Element {
                 <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
               </Pressable>
               <Text style={styles.fieldLabel}>Display name</Text>
-              <TextInput style={styles.sheetInput} value={nameDraft} onChangeText={setNameDraft} onSubmitEditing={commitName} onBlur={commitName} maxLength={24} returnKeyType="done" placeholder="Rider name" placeholderTextColor={colors.textMuted} />
+              <TextInput style={styles.sheetInput} value={nameDraft} onChangeText={(value) => { setNameDraft(value); setProfileDraftError(null); }} onSubmitEditing={commitName} onBlur={commitName} maxLength={50} returnKeyType="done" placeholder="Rider name" placeholderTextColor={colors.textMuted} />
               <Text style={styles.fieldLabel}>Rider handle</Text>
-              <TextInput style={styles.sheetInput} value={handleDraft} onChangeText={setHandleDraft} onSubmitEditing={commitHandle} onBlur={commitHandle} maxLength={24} autoCapitalize="none" returnKeyType="done" placeholder="@handle" placeholderTextColor={colors.textMuted} />
+              <TextInput style={styles.sheetInput} value={handleDraft} onChangeText={(value) => { setHandleDraft(value); setProfileDraftError(null); }} onSubmitEditing={commitHandle} onBlur={commitHandle} maxLength={25} autoCapitalize="none" autoCorrect={false} returnKeyType="done" placeholder="@handle" placeholderTextColor={colors.textMuted} />
               <Text style={styles.sheetMetaBlock}>{emailVerified ? 'Email verified' : 'Email verification pending'} · {riderId}</Text>
+              {(saving || profileDraftError || profileError) ? (
+                <View style={styles.sheetSaveStatus} accessibilityLiveRegion="polite">
+                  {saving ? <><ActivityIndicator color={colors.accent} size="small" /><Text style={styles.profileSavingText}>Saving profile…</Text></> : null}
+                  {profileDraftError || profileError ? <Text accessibilityRole="alert" style={styles.profileSaveError}>{profileDraftError ?? profileError}</Text> : null}
+                </View>
+              ) : null}
             </View>
             <View style={styles.settingsSheetSection}>
               <Text style={styles.sheetEyebrow}>Connected profiles</Text>
@@ -510,16 +610,22 @@ export function SettingsScreen(): React.JSX.Element {
                 {!session.current ? <Pressable accessibilityRole="button" accessibilityLabel={'Sign out ' + session.deviceName} onPress={() => void revokeSession(session.id)} style={styles.sessionRevoke}><Text style={styles.sessionRevokeText}>Sign out</Text></Pressable> : null}
               </View>
             ))}
-            {sessions.length === 0 ? <Text style={styles.sessionEmpty}>{sessionsError ?? 'No account sessions found.'}</Text> : null}
+            {sessionsLoading && sessions.length === 0 ? (
+              <View style={styles.sessionLoading} accessibilityLiveRegion="polite">
+                <ActivityIndicator color={colors.accent} size="small" />
+                <Text style={styles.sessionEmpty}>Loading signed-in devices…</Text>
+              </View>
+            ) : null}
+            {!sessionsLoading && sessions.length === 0 ? <Text style={styles.sessionEmpty}>{sessionsError ?? 'No account sessions found.'}</Text> : null}
             {sessionsError && sessions.length > 0 ? <Text style={styles.sessionEmpty}>{sessionsError}</Text> : null}
-            <Pressable style={styles.sheetSecondaryAction} onPress={() => void loadSessions()}><Text style={styles.sheetSecondaryActionText}>Refresh devices</Text></Pressable>
+            <Pressable disabled={sessionsLoading} style={[styles.sheetSecondaryAction, sessionsLoading && styles.sheetActionDisabled]} onPress={() => void loadSessions()}><Text style={styles.sheetSecondaryActionText}>{sessionsLoading ? 'Refreshing…' : 'Refresh devices'}</Text></Pressable>
           </View>
         ) : null}
 
         {activeSheet === 'account' ? (
           <View style={styles.settingsSheetSection}>
-            <Text style={styles.sheetBodyCopy}>Delete your Rider Comms account and associated data, or reset local app preferences on this device.</Text>
-            <Pressable style={styles.sheetSecondaryAction} onPress={confirmReset}><Text style={styles.sheetSecondaryActionText}>Reset app data</Text></Pressable>
+            <Text style={styles.sheetBodyCopy}>Delete your Rider Comms account and associated data, or reset your Rider Comms profile and preferences to their defaults.</Text>
+            <Pressable style={styles.sheetSecondaryAction} onPress={confirmReset}><Text style={styles.sheetSecondaryActionText}>Reset settings</Text></Pressable>
             <Pressable style={styles.sheetDangerAction} onPress={confirmDeleteAccount}><Text style={styles.sheetDangerActionText}>Delete account</Text></Pressable>
           </View>
         ) : null}
@@ -589,72 +695,26 @@ export function SettingsScreen(): React.JSX.Element {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-  scroll: { width: '100%', maxWidth: 760, alignSelf: 'center', padding: spacing.md, paddingTop: spacing.lg },
+  scroll: { width: '100%', maxWidth: 760, alignSelf: 'center', paddingHorizontal: spacing.md, paddingVertical: spacing.md, paddingTop: spacing.lg },
   profileCard: {
+    minHeight: 100,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    marginBottom: 12,
-    padding: 10,
-    borderRadius: radii.lg,
+    gap: 12,
+    marginBottom: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: 8,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.surfaceRaised,
   },
   profileSaveStatus: { minHeight: 24, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: -spacing.sm, marginBottom: spacing.sm, paddingHorizontal: spacing.xs },
   profileSavingText: { ...type.caption, color: colors.textSecondary },
   profileSaveError: { ...type.caption, color: colors.danger, flex: 1 },
-  profileCopy: { flex: 1, minWidth: 0, gap: 2 },
-  avatarTapArea: { flexShrink: 0 },
-  avatarRing: {
-    width: 54,
-    height: 54,
-    borderRadius: radii.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarEditBadge: {
-    position: 'absolute',
-    right: -2,
-    bottom: -2,
-    width: 26,
-    height: 26,
-    borderRadius: radii.pill,
-    backgroundColor: colors.accent,
-    borderWidth: 2,
-    borderColor: colors.background,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  nameRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, alignSelf: 'flex-start', maxWidth: '100%' },
-  name: { ...type.subheading, color: colors.textPrimary, flexShrink: 1 },
-  nameInput: {
-    ...type.heading,
-    width: '100%',
-    borderBottomWidth: 1,
-    borderBottomColor: colors.accent,
-    paddingVertical: spacing.xs,
-  },
-  handleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, alignSelf: 'flex-start', maxWidth: '100%' },
-  handle: { ...type.caption, color: colors.textSecondary, flexShrink: 1 },
-  handleInput: {
-    ...type.body,
-    color: colors.textSecondary,
-    width: '100%',
-    borderBottomWidth: 1,
-    borderBottomColor: colors.accent,
-    paddingVertical: spacing.xs,
-  },
-  caption: { ...type.caption, marginTop: spacing.xs },
-  riderId: { ...type.caption, color: colors.textPrimary, marginTop: 2 },
-  sectionLabelRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginTop: spacing.lg, marginBottom: spacing.sm },
-  sectionLabelInRow: { marginTop: 0, marginBottom: 0 },
-  sectionLabel: {
-    ...type.label,
-    marginBottom: spacing.sm,
-    marginTop: spacing.lg,
-  },
-  section: { backgroundColor: colors.surface, borderRadius: radii.lg, overflow: 'hidden', borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
+  profileCopy: { flex: 1, minWidth: 0, gap: 3 },
+  name: { ...type.subheading, color: colors.textPrimary, flexShrink: 1, fontSize: 17, lineHeight: 21 },
+  handle: { ...type.caption, color: colors.textSecondary, flexShrink: 1, fontSize: 12, lineHeight: 16 },
   tierRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -679,18 +739,6 @@ const styles = StyleSheet.create({
   tierInfo: { flex: 1, gap: spacing.xs },
   tierName: { ...type.body, color: colors.textPrimary, fontWeight: '700', fontSize: 16 },
   tierBlurb: { ...type.caption },
-  billingRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md },
-  billingPlanBadge: {
-    width: 36,
-    height: 36,
-    borderRadius: radii.pill,
-    backgroundColor: colors.surfaceRaised,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  billingInfo: { flex: 1, gap: spacing.xs },
-  billingPlanName: { ...type.body, color: colors.textPrimary, fontWeight: '700', fontSize: 16 },
-  billingPlanPrice: { ...type.caption },
   toggleRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -707,25 +755,12 @@ const styles = StyleSheet.create({
   socialRow: { padding: spacing.md, gap: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border },
   socialHeading: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   socialInput: { ...type.body, color: colors.textPrimary, minHeight: MIN_TOUCH_TARGET, backgroundColor: colors.surfaceRaised, borderRadius: radii.md, paddingHorizontal: spacing.md },
+  socialError: { ...type.caption, color: colors.danger },
   visibilityRow: { flexDirection: 'row', gap: spacing.xs },
   visibilityChoice: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: radii.md, backgroundColor: colors.surfaceRaised },
   visibilityChoiceActive: { backgroundColor: colors.accent },
   visibilityText: { ...type.caption, fontSize: 11 },
   visibilityTextActive: { color: colors.accentText, fontWeight: '700' },
-  dangerButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.sm,
-    minHeight: MIN_TOUCH_TARGET,
-    backgroundColor: colors.dangerSurface,
-  },
-  dangerButtonPressed: { opacity: 0.85 },
-  deleteAccountButton: { borderTopWidth: 1, borderTopColor: colors.border },
-  dangerButtonText: { ...type.button, color: colors.danger },
-  legalRow: { marginTop: spacing.lg, minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md, backgroundColor: colors.surface, borderRadius: radii.lg },
-  legalInfo: { flex: 1, gap: spacing.xs },
-  aboutRow: { flexDirection: 'row', justifyContent: 'space-between', padding: spacing.md },
   aboutLabel: { ...type.body, color: colors.textPrimary },
   aboutValue: { ...type.caption },
   sessionRow: { minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border },
@@ -733,6 +768,8 @@ const styles = StyleSheet.create({
   sessionRevoke: { minHeight: MIN_TOUCH_TARGET, justifyContent: 'center', paddingHorizontal: spacing.sm },
   sessionRevokeText: { ...type.button, color: colors.danger },
   sessionEmpty: { ...type.caption, padding: spacing.md },
+  sessionLoading: { minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm },
+  sheetActionDisabled: { opacity: 0.55 },
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
   modalSheet: {
     backgroundColor: colors.background,
@@ -817,19 +854,21 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
   },
   modalDoneText: { ...type.button, color: colors.accentText },
-  profileAvatar: { width: 58, height: 58, borderRadius: radii.pill, alignItems: 'center', justifyContent: 'center' },
-  profileEdit: { ...type.button, color: colors.accent, fontSize: 14 },
-  settingsGroup: { overflow: 'hidden', backgroundColor: colors.surface, borderRadius: radii.lg, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
-  signOutGroup: { marginTop: spacing.lg },
-  settingRow: { minHeight: 50, flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
-  settingRowPressed: { backgroundColor: colors.surfaceRaised },
+  settingsGroup: { overflow: 'hidden', backgroundColor: colors.surfaceRaised, borderRadius: 8, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
+  secondarySettingsGroup: { marginTop: 12 },
+  signOutGroup: { marginTop: 12 },
+  settingRow: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+  settingRowLast: { borderBottomWidth: 0 },
+  settingRowPressed: { backgroundColor: colors.surface },
   settingRowIcon: { width: 20 },
-  settingRowCopy: { flex: 1, minWidth: 0, paddingVertical: 6 },
-  settingRowTitle: { ...type.body, color: colors.textPrimary, fontWeight: '700', fontSize: 13 },
-  settingRowSubtitle: { ...type.caption, color: colors.textSecondary, marginTop: 1, fontSize: 10 },
-  settingRowValue: { ...type.caption, color: colors.textSecondary, fontWeight: '700' },
+  settingRowCopy: { flex: 1, minWidth: 0, paddingVertical: 7 },
+  settingRowTitle: { ...type.body, color: colors.textPrimary, fontWeight: '500', fontSize: 14, lineHeight: 18 },
+  settingRowSubtitle: { ...type.caption, color: colors.textSecondary, marginTop: 2, fontSize: 10 },
+  settingRowValue: { ...type.caption, color: colors.textSecondary, fontWeight: '700', maxWidth: '34%', flexShrink: 1 },
   settingRowDanger: { color: colors.danger },
-  versionText: { ...type.caption, color: colors.textMuted, textAlign: 'center', marginTop: 12, fontSize: 10 },
+  aboutSummary: { padding: spacing.md, gap: 4 },
+  aboutTitle: { ...type.subheading, color: colors.textPrimary },
+  aboutSummaryValue: { ...type.caption, color: colors.textSecondary },
   settingsSheet: { width: '100%', maxHeight: '86%', backgroundColor: colors.background, borderTopLeftRadius: radii.xl, borderTopRightRadius: radii.xl, borderWidth: StyleSheet.hairlineWidth, borderBottomWidth: 0, borderColor: colors.border, padding: spacing.md },
   settingsSheetHeader: { minHeight: MIN_TOUCH_TARGET, flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.sm },
   settingsSheetTitle: { ...type.heading, color: colors.textPrimary, flex: 1 },
@@ -839,11 +878,11 @@ const styles = StyleSheet.create({
   fieldLabel: { ...type.caption, color: colors.textSecondary, fontWeight: '700', paddingHorizontal: spacing.md, paddingTop: spacing.md },
   sheetInput: { ...type.body, color: colors.textPrimary, minHeight: MIN_TOUCH_TARGET, marginHorizontal: spacing.md, marginTop: spacing.xs, paddingHorizontal: spacing.md, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: radii.md, backgroundColor: colors.background },
   sheetAvatarRow: { minHeight: 76, flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginHorizontal: spacing.md, marginTop: spacing.xs, padding: spacing.sm, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: radii.md, backgroundColor: colors.background },
-  sheetAvatar: { width: 52, height: 52, borderRadius: radii.pill, alignItems: 'center', justifyContent: 'center' },
   sheetAvatarCopy: { flex: 1, minWidth: 0 },
   sheetProfileName: { ...type.body, color: colors.textPrimary, fontWeight: '700' },
   sheetMeta: { ...type.caption, color: colors.textMuted, marginTop: 2 },
   sheetMetaBlock: { ...type.caption, color: colors.textMuted, margin: spacing.md },
+  sheetSaveStatus: { minHeight: 28, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginHorizontal: spacing.md, marginBottom: spacing.md },
   sheetBodyCopy: { ...type.body, color: colors.textSecondary, padding: spacing.md, lineHeight: 22 },
   sheetNote: { padding: spacing.md, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: radii.lg, backgroundColor: colors.surface },
   sheetNoteTitle: { ...type.body, color: colors.textPrimary, fontWeight: '700' },
