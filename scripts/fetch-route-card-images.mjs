@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-const CARD_WIDTH = 768;
+const CARD_WIDTH = 640;
 const catalogPath = new URL('../mobile/src/routes/curatedRoutes.ts', import.meta.url);
 const catalog = await readFile(catalogPath, 'utf8');
 const routeMatches = [...catalog.matchAll(/"id":\s*"([^"]+)"[\s\S]*?"image":\s*\{\s*"uri":\s*"([^"]+)"/g)];
