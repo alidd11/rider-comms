@@ -427,7 +427,16 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
         }
         if (req.method === 'GET' && s[2] === 'locations') {
           const r = await rideStore.getMemberLocations(id, actorId);
-          return r.ok ? sendJson(res, 200, { locations: r.locations }) : sendJson(res, r.reason === 'not_found' ? 404 : 403, { error: r.reason });
+          if (!r.ok) return sendJson(res, r.reason === 'not_found' ? 404 : 403, { error: r.reason });
+          // A private-ride membership is not permission to bypass an explicit
+          // block. Preserve the actor's own shared fix, but never disclose a
+          // blocked peer's precise coordinates in either direction.
+          const peerIds = r.locations.map((location) => location.riderId).filter((riderId) => riderId !== actorId);
+          const allowedPeerIds = new Set(await moderationStore.filterAllowedPeerIds(actorId, peerIds));
+          return sendJson(res, 200, {
+            locations: r.locations.filter((location) =>
+              location.riderId === actorId || allowedPeerIds.has(location.riderId)),
+          });
         }
       }
       if (s[0] === 'riders' && s[2]) {
