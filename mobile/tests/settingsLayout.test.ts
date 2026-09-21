@@ -32,6 +32,7 @@ describe('Settings mockup contract', () => {
     assert.match(settingsSource, /profileCard:\s*\{[\s\S]*?minHeight:\s*88[\s\S]*?marginBottom:\s*8[\s\S]*?borderRadius:\s*8/);
     assert.match(settingsSource, /paddingBottom: insets\.bottom \+ spacing\.md/);
     assert.match(settingsSource, /<RiderAvatar avatarId=\{avatarId\} size=\{60\} \/>/);
+    assert.match(settingsSource, /<Ionicons name="chevron-forward" size=\{16\} color=\{colors\.textMuted\} \/>/);
     assert.match(settingsSource, /settingsGroup:\s*\{[^\n]*borderRadius:\s*8/);
     assert.match(settingsSource, /settingRow:\s*\{[^\n]*minHeight:\s*52/);
     assert.match(settingsSource, /secondarySettingsGroup:\s*\{\s*marginTop:\s*12\s*\}/);

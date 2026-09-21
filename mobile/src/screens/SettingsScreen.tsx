@@ -469,7 +469,7 @@ export function SettingsScreen(): React.JSX.Element {
             <Text numberOfLines={1} style={styles.name}>{displayName}</Text>
             <Text numberOfLines={1} style={styles.handle}>{handle}</Text>
           </View>
-          <Ionicons name="chevron-forward" size={19} color={colors.textMuted} />
+          <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
         </Pressable>
 
         {profileError ? (
