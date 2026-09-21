@@ -76,6 +76,10 @@
       handle: '',
       avatarId: 'ember',
       zoneTier: 'free',
+      unitSystem: 'mi',
+      notifyNearby: false,
+      notifyInvites: false,
+      notifyChat: false,
       instagram: '',
       tiktok: '',
       instagramVisibility: 'friends',
@@ -109,17 +113,21 @@
     riderAvatarSvg,
   } = window.RiderAvatarSystem;
 
-  function riderAvatarMapIcon(person, current = false, statusOverride, sizeOverride) {
-    const status = statusOverride || (current
-      ? (state.profile.shareLocation || state.activeRide?.shareRideLocation ? 'online' : 'none')
-      : 'online');
-    const svg = riderAvatarSvg(person.avatarId, { selected: current, mapMarker: true, status });
+  function riderAvatarMapIcon(person, current = false, statusOverride, sizeOverride, navigationMode = false) {
+    const status = navigationMode
+      ? 'none'
+      : statusOverride || (current
+        ? (state.profile.shareLocation || state.activeRide?.shareRideLocation ? 'online' : 'none')
+        : 'online');
+    const svg = riderAvatarSvg(person.avatarId, { selected: current, mapMarker: !navigationMode, status });
     const width = sizeOverride ?? (current ? 44 : 40);
-    const height = width * (72 / 64);
+    const height = navigationMode ? width : width * (72 / 64);
     return {
       url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
       scaledSize: new google.maps.Size(width, height),
-      anchor: new google.maps.Point(width / 2, height - 1),
+      anchor: navigationMode
+        ? new google.maps.Point(width / 2, height / 2)
+        : new google.maps.Point(width / 2, height - 1),
     };
   }
 
@@ -360,6 +368,7 @@
         ...structuredClone(DEFAULT_STATE),
         ...stored,
         navigationProvider: navigationProvider(stored.navigationProvider),
+        unit: storedProfile.unitSystem === 'km' ? 'km' : storedProfile.unitSystem === 'mi' ? 'mi' : stored.unit === 'km' ? 'km' : 'mi',
         profile: {
           ...DEFAULT_STATE.profile,
           ...storedProfile,
@@ -493,8 +502,10 @@
   function renderProfile() {
     $('#profileName').textContent = state.profile.displayName;
     $('#profileHandle').textContent = state.profile.handle;
-    $('#profileRiderId').textContent = state.profile.riderId;
-    $('#distanceUnitsSummary').textContent = state.unit === 'km' ? 'Kilometres' : 'Miles';
+    const profileRiderId = $('#profileRiderId');
+    if (profileRiderId) profileRiderId.textContent = state.profile.riderId;
+    const distanceUnitsSummary = $('#distanceUnitsSummary');
+    if (distanceUnitsSummary) distanceUnitsSummary.textContent = state.profile.unitSystem === 'km' ? 'Kilometres' : 'Miles';
     const tier = planTier(state.profile.zoneTier);
     const plan = PLAN_INFO[tier];
     const planSummary = $('#planSummary');
@@ -505,7 +516,8 @@
     if (navigationSummary) navigationSummary.textContent = NAVIGATION_PROVIDERS[navigationProvider(state.navigationProvider)].label;
     const genericProfile = state.profile.displayName.trim().toLowerCase() === 'rider'
       || state.profile.handle.trim().toLowerCase() === '@rider';
-    $('#completeProfilePrompt').hidden = !genericProfile;
+    const completeProfilePrompt = $('#completeProfilePrompt');
+    if (completeProfilePrompt) completeProfilePrompt.hidden = !genericProfile;
     document.querySelectorAll('[data-avatar]').forEach((element) => {
       const preset = avatarPreset(state.profile.avatarId);
       element.innerHTML = riderAvatarSvg(state.profile.avatarId);
@@ -527,6 +539,19 @@
       url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
       scaledSize: new google.maps.Size(30, 40),
       anchor: new google.maps.Point(15, 38),
+    };
+  }
+
+  function routeFinishIcon() {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="44" height="48" viewBox="0 0 44 48">
+      <circle cx="22" cy="21" r="18" fill="#2fa8d3" stroke="#071015" stroke-width="3"/>
+      <path d="M15 34V10m0 2h16l-4 5 4 5H15" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M17 12h4v4h-4zm8 0h4v4h-4zm-4 4h4v4h-4zm8 0h2l-2 4h-4v-4z" fill="#fff"/>
+    </svg>`;
+    return {
+      url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
+      scaledSize: new google.maps.Size(44, 48),
+      anchor: new google.maps.Point(22, 43),
     };
   }
 
@@ -1906,11 +1931,78 @@
     }
   }
 
+  function wireSettingsHubRows() {
+    $$('[data-settings-target]', $('#sheetBody')).forEach((button) => {
+      button.addEventListener('click', () => openSheet(button.dataset.settingsTarget));
+    });
+  }
+
   function openSheet(type) {
     const templates = {
+      accountHub: () => {
+        const tier = planTier(state.profile.zoneTier);
+        const plan = PLAN_INFO[tier];
+        return {
+          title: 'Account',
+          body: `<div class="settings-hub-list">
+            <button data-settings-target="profile"><span class="setting-icon">${icon('user')}</span><span><strong>Profile</strong><small>Name, handle and connected profiles</small></span>${icon('chevron')}</button>
+            <button data-settings-target="plans"><span class="setting-icon">${icon('card')}</span><span><strong>Plan and billing</strong><small id="planSummary">${escapeHtml(plan.name)} plan · ${escapeHtml(plan.priceLabel === 'Free' ? 'No card on file' : `${plan.priceLabel}/mo`)}</small></span><span id="planPill" class="plan-pill">${escapeHtml(plan.name)}</span>${icon('chevron')}</button>
+            <button data-settings-target="sessions"><span class="setting-icon">${icon('settings')}</span><span><strong>Signed-in devices</strong><small>Review and revoke account sessions</small></span>${icon('chevron')}</button>
+            <button data-settings-target="account"><span class="setting-icon">${icon('shield')}</span><span><strong>Account and data</strong><small>Account deletion and settings reset</small></span>${icon('chevron')}</button>
+          </div>`,
+          ready: wireSettingsHubRows,
+        };
+      },
+      communication: () => ({
+        title: 'Communication',
+        body: `<div class="settings-hub-list">
+          <button data-settings-target="notifications"><span class="setting-icon">${icon('bell')}</span><span><strong>Notifications</strong><small>Nearby riders, ride invites and group chat</small></span>${icon('chevron')}</button>
+          <button data-settings-target="privacy"><span class="setting-icon">${icon('shield')}</span><span><strong>Privacy controls</strong><small>Location visibility and connected profiles</small></span>${icon('chevron')}</button>
+        </div>`,
+        ready: wireSettingsHubRows,
+      }),
+      mapNavigation: () => ({
+        title: 'Map & Navigation',
+        body: `<div class="settings-hub-list">
+          <button data-settings-target="map"><span class="setting-icon">${icon('location')}</span><span><strong>Location and map</strong><small>Location sharing and nearby riders</small></span>${icon('chevron')}</button>
+          <button data-settings-target="navigation"><span class="setting-icon">${icon('nav-arrow')}</span><span><strong>Navigation</strong><small id="navigationProviderSummary">${escapeHtml(NAVIGATION_PROVIDERS[navigationProvider(state.navigationProvider)].label)}</small></span>${icon('chevron')}</button>
+        </div>`,
+        ready: wireSettingsHubRows,
+      }),
+      offlineMaps: () => ({
+        title: 'Offline Maps',
+        body: '<div class="settings-note"><strong>Online maps only</strong><p>Offline map downloads are not available in this build yet. Rider Comms currently needs a data connection for map tiles and route calculation.</p></div>',
+      }),
+      unitsPreferences: () => ({
+        title: 'Units & Preferences',
+        body: `<div class="settings-hub-list"><button data-settings-target="units"><span class="setting-icon">${icon('units')}</span><span><strong>Distance units</strong><small id="distanceUnitsSummary">${state.profile.unitSystem === 'km' ? 'Kilometres' : 'Miles'}</small></span>${icon('chevron')}</button></div>`,
+        ready: wireSettingsHubRows,
+      }),
+      help: () => ({
+        title: 'Help & Support',
+        body: `<div class="settings-hub-list">
+          <button data-settings-target="safety"><span class="setting-icon">${icon('info')}</span><span><strong>Safety guidance</strong><small>Low-distraction and emergency guidance</small></span>${icon('chevron')}</button>
+          <button data-settings-target="legal"><span class="setting-icon">${icon('shield')}</span><span><strong>Privacy, safety & terms</strong><small>Read Rider Comms legal and safety information</small></span>${icon('chevron')}</button>
+        </div>`,
+        ready: wireSettingsHubRows,
+      }),
+      about: () => ({
+        title: 'About',
+        body: `<div class="settings-about-card"><strong>Rider Comms</strong><span>Version 0.3.0 · PWA</span><span>Signed in as ${escapeHtml(state.profile.riderId)}</span></div>`,
+      }),
+      legal: () => ({
+        title: 'Privacy, safety & terms',
+        body: `<div class="settings-legal-list">
+          <section><strong>Privacy</strong><p>Rider Comms stores its private session token in browser storage for this test build. Profile settings, friendships, messages, rides, hideouts and optional social usernames are sent to the test API. Public nearby-rider location starts only after you enable sharing and go live. Private-ride location is a separate, optional choice for each ride and is removed when you switch it off, leave, are removed or the ride ends.</p></section>
+          <section><strong>Your choices</strong><p>Location sharing starts off. Instagram and TikTok usernames each have Public, Friends only or Private visibility. You can delete your account and associated test data from Settings.</p></section>
+          <section><strong>Rider safety and conduct</strong><p>Harassment, threats, sexual exploitation, dangerous content, spam and impersonation are not allowed. Direct-message screens include Report and Block controls. Blocking removes the friendship and prevents further messages or requests.</p></section>
+          <section><strong>Riding safety</strong><p>Do not operate messaging, profile or billing controls while moving. Stop somewhere safe before using visual or touch controls.</p></section>
+          <section><strong>Test-build notice</strong><p>This is a pre-alpha test build backed by a test API and database. A published privacy policy, support contact, documented retention schedule, tested deletion process and staffed moderation operation are still required before public store release.</p></section>
+        </div>`,
+      }),
       profile: () => ({
         title: 'Edit profile',
-        body: `<div class="settings-sheet-section"><span class="settings-sheet-label">Identity</span><div class="form-field"><label>Avatar</label>${avatarOptionsMarkup(state.profile.avatarId)}</div><div class="form-field"><label for="editName">Display name</label><input id="editName" maxlength="50" value="${escapeHtml(state.profile.displayName)}"></div><div class="form-field"><label for="editHandle">Rider handle</label><input id="editHandle" maxlength="25" value="${escapeHtml(state.profile.handle)}"></div></div><div class="settings-sheet-section"><span class="settings-sheet-label">Connected profiles</span><div class="form-field"><label for="editInstagram">Instagram</label><input id="editInstagram" maxlength="30" value="${escapeHtml(state.profile.instagram)}" placeholder="Username"></div><div class="form-field"><label for="editTiktok">TikTok</label><input id="editTiktok" maxlength="30" value="${escapeHtml(state.profile.tiktok)}" placeholder="Username"></div><p class="caption">Control who can see these in Privacy controls.</p></div><p id="profileFormError" class="inline-error" hidden></p><button class="button primary wide" id="saveProfile">Save changes</button>`,
+        body: `<div class="settings-sheet-section"><span class="settings-sheet-label">Identity</span><div class="form-field"><label>Avatar</label>${avatarOptionsMarkup(state.profile.avatarId)}</div><div class="form-field"><label for="editName">Display name</label><input id="editName" maxlength="50" value="${escapeHtml(state.profile.displayName)}"></div><div class="form-field"><label for="editHandle">Rider handle</label><input id="editHandle" maxlength="25" value="${escapeHtml(state.profile.handle)}"></div></div><div class="settings-sheet-section"><span class="settings-sheet-label">Connected profiles</span><div class="form-field"><label for="editInstagram">Instagram</label><input id="editInstagram" maxlength="31" value="${escapeHtml(state.profile.instagram)}" placeholder="Username"></div><div class="form-field"><label for="editTiktok">TikTok</label><input id="editTiktok" maxlength="31" value="${escapeHtml(state.profile.tiktok)}" placeholder="Username"></div><p class="caption">Control who can see these in Privacy controls.</p></div><p id="profileFormError" class="inline-error" hidden></p><button class="button primary wide" id="saveProfile">Save changes</button>`,
         ready: () => {
           $('#saveProfile').addEventListener('click', saveProfile);
           document.querySelectorAll('#sheetBody [data-avatar-option]').forEach((button) => {
@@ -1931,8 +2023,9 @@
       }),
       account: () => ({
         title: 'Account and data',
-        body: `<div class="settings-note"><strong>Delete Rider Comms account</strong><p>This permanently removes your account and associated test data. This cannot be undone.</p></div><button class="button danger wide" id="deleteAccountBtn">Delete account</button><p id="deleteAccountError" class="inline-error" hidden></p>`,
+        body: `<div class="settings-note"><strong>Reset settings</strong><p>Reset your Rider Comms profile and synced preferences to their defaults, and restore Google Maps as the device navigation provider.</p></div><button class="button secondary wide" id="resetSettingsBtn">Reset settings</button><div class="settings-note"><strong>Delete Rider Comms account</strong><p>This permanently removes your account and associated test data. This cannot be undone.</p></div><button class="button danger wide" id="deleteAccountBtn">Delete account</button><p id="deleteAccountError" class="inline-error" hidden></p>`,
         ready: () => {
+          $('#resetSettingsBtn').addEventListener('click', () => void resetSettings());
           $('#deleteAccountBtn').addEventListener('click', () => void deleteCurrentAccount());
         },
       }),
@@ -1988,8 +2081,8 @@
         },
       }),
       map: () => ({ title: 'Location and map', body: `<div class="settings-sheet-section">${toggleMarkup('shareLocation', 'Nearby rider visibility', 'Share your position only after you choose to go live.', state.profile.shareLocation)}</div><div class="settings-note"><strong>Location stays in your control</strong><p>Turning this off stops nearby-rider visibility. Private-ride location is controlled separately inside each ride and remains off unless you explicitly enable it.</p></div>`, ready: wireToggles }),
-      units: () => ({ title: 'Distance units', body: `<div class="choice-list" role="radiogroup" aria-label="Distance units"><button data-unit-option="mi" role="radio"><span><strong>Miles</strong><small>Use miles and mph</small></span><i></i></button><button data-unit-option="km" role="radio"><span><strong>Kilometres</strong><small>Use kilometres and km/h</small></span><i></i></button></div>`, ready: () => { $$('[data-unit-option]', $('#sheetBody')).forEach((button) => { const active = button.dataset.unitOption === state.unit; button.setAttribute('aria-checked', String(active)); button.addEventListener('click', () => { state.unit = button.dataset.unitOption; persist(); openSheet('units'); showToast('Distance unit updated.'); }); }); } }),
-      notifications: () => ({ title: 'Notifications', body: `<div class="settings-sheet-section">${toggleMarkup('notifications', 'Notification permission', 'Allow Rider Comms to use device notifications.', notificationSettingActive())}</div><div class="settings-note"><strong>Permission only</strong><p>Background ride and message delivery is not active yet. This control only manages browser permission.</p></div>`, ready: wireToggles }),
+      units: () => ({ title: 'Distance units', body: `<div class="choice-list" role="radiogroup" aria-label="Distance units"><button data-unit-option="mi" role="radio"><span><strong>Miles</strong><small>Use miles and mph</small></span><i></i></button><button data-unit-option="km" role="radio"><span><strong>Kilometres</strong><small>Use kilometres and km/h</small></span><i></i></button></div>`, ready: () => { $$('[data-unit-option]', $('#sheetBody')).forEach((button) => { const active = button.dataset.unitOption === state.profile.unitSystem; button.setAttribute('aria-checked', String(active)); button.addEventListener('click', async () => { button.disabled = true; const next = button.dataset.unitOption; const ok = await patchProfile({ unitSystem: next }); if (ok) { openSheet('units'); showToast('Distance unit updated.'); } else button.disabled = false; }); }); } }),
+      notifications: () => ({ title: 'Notifications', body: `<div class="settings-sheet-section">${toggleMarkup('notifyNearby', 'Nearby riders', 'Notify me about nearby riders.', state.profile.notifyNearby)}${toggleMarkup('notifyInvites', 'Ride invites', 'Notify me about group ride invitations.', state.profile.notifyInvites)}${toggleMarkup('notifyChat', 'Group chat messages', 'Notify me about group ride messages.', state.profile.notifyChat)}</div><div class="settings-note"><strong>Browser permission required</strong><p>Enabling a notification preference also requires browser notification permission. Background delivery remains platform-dependent.</p></div>`, ready: wireToggles }),
       safety: () => ({ title: 'Safety', body: `<div class="safety-guidance"><div><span class="setting-icon"><svg><use href="#i-ride"/></svg></span><span><strong>Set up while stationary</strong><small>Complete profile, route and group controls before moving.</small></span></div><div><span class="setting-icon"><svg><use href="#i-location"/></svg></span><span><strong>Control your location</strong><small>Nearby visibility can be stopped at any time.</small></span></div><div><span class="setting-icon"><svg><use href="#i-info"/></svg></span><span><strong>Not an emergency service</strong><small>Call the appropriate emergency service if you need urgent help.</small></span></div></div>` }),
       reportHazard: () => ({
         title: 'Report on the road',
@@ -2059,6 +2152,38 @@
       list.innerHTML = '<p class="inline-error">Could not load signed-in devices. Check your connection and try again.</p>';
     } finally {
       if (refresh) refresh.disabled = false;
+    }
+  }
+
+  async function resetSettings() {
+    if (!window.confirm('Reset Rider Comms settings to their defaults?')) return;
+    try {
+      if (state.publicLive || state.profile.shareLocation) {
+        await stopPublicNearby({ disableLocationSharing: false });
+      }
+      const profile = await apiFetch('PUT', `/riders/${encodeURIComponent(state.profile.riderId)}/profile`, {
+        zoneTier: 'free',
+        avatarId: 'ember',
+        displayName: 'Rider',
+        handle: '@rider',
+        unitSystem: 'mi',
+        notifyNearby: false,
+        notifyInvites: false,
+        notifyChat: false,
+        shareLocation: false,
+        instagramUsername: '',
+        instagramVisibility: 'friends',
+        tiktokUsername: '',
+        tiktokVisibility: 'friends',
+      });
+      state.navigationProvider = 'google_maps';
+      state.notifications = false;
+      applyRemoteProfile(profile);
+      persist();
+      openSheet('accountHub');
+      showToast('Settings reset.');
+    } catch {
+      showToast('Could not reset settings. Try again.');
     }
   }
 
@@ -2139,12 +2264,19 @@
     $$('[data-toggle]', $('#sheetBody')).forEach((button) => button.addEventListener('click', async () => {
       const key = button.dataset.toggle;
       const active = button.getAttribute('aria-pressed') !== 'true';
-      if (key === 'notifications') {
+      if (['notifyNearby', 'notifyInvites', 'notifyChat'].includes(key)) {
         button.disabled = true;
         const granted = !active || await requestNotificationPermission();
-        state.notifications = active && granted;
-        persist();
-        button.setAttribute('aria-pressed', String(state.notifications));
+        if (!granted) {
+          button.disabled = false;
+          return;
+        }
+        const ok = await patchProfile({ [key]: active });
+        if (ok) {
+          state.notifications = Boolean(state.profile.notifyNearby || state.profile.notifyInvites || state.profile.notifyChat);
+          persist();
+          button.setAttribute('aria-pressed', String(Boolean(state.profile[key])));
+        }
         button.disabled = false;
         return;
       }
@@ -4490,6 +4622,34 @@
     return comparable(lead).endsWith(comparable(repeatedRoad)) ? lead : cleaned;
   }
 
+  const NAV_GLANCE_ACTIONS = {
+    straight: 'Go straight',
+    'turn-left': 'Turn left',
+    'turn-right': 'Turn right',
+    'turn-slight-left': 'Bear left',
+    'turn-slight-right': 'Bear right',
+    'turn-sharp-left': 'Sharp left',
+    'turn-sharp-right': 'Sharp right',
+    'uturn-left': 'Make a U-turn',
+    'uturn-right': 'Make a U-turn',
+    'fork-left': 'Keep left',
+    'fork-right': 'Keep right',
+    'ramp-left': 'Take ramp left',
+    'ramp-right': 'Take ramp right',
+    merge: 'Merge',
+    arrive: 'Arrive',
+  };
+
+  // The compact action comes only from the provider's structured maneuver
+  // category. Free-form instructions remain provider-authored text; do not
+  // mine them for road, route, exit, lane or junction metadata.
+  function navGlanceAction(maneuver) {
+    const maneuverKey = maneuver || 'straight';
+    return maneuverKey.startsWith('roundabout')
+      ? 'At roundabout'
+      : NAV_GLANCE_ACTIONS[maneuverKey] || 'Go straight';
+  }
+
   /** Best-effort voice guidance — SpeechSynthesis isn't universally
    * available/enabled (older browsers, some in-app webviews), so a
    * missing/failing voice never blocks the real navigation logic, only
@@ -4554,10 +4714,28 @@
     const unit = $('#navSpeedUnit');
     if (speed) speed.textContent = speedValue;
     if (unit) unit.textContent = speedUnit;
-    $('.nav-summary-speed')?.setAttribute(
+    $('.nav-speed-badge')?.setAttribute(
       'aria-label',
       navCurrentSpeedMps == null ? 'Current speed unavailable' : `Current speed ${speedValue} ${speedUnit}`,
     );
+  }
+
+  let navBannerResizeObserver = null;
+
+  function syncNavigationOverlayGeometry() {
+    const banner = $('#navBanner');
+    const app = $('#app');
+    if (!banner || !app || banner.hidden) return;
+    const height = Math.ceil(banner.getBoundingClientRect().height);
+    if (height > 0) app.style.setProperty('--nav-banner-height', `${height}px`);
+  }
+
+  function watchNavigationOverlayGeometry() {
+    if (navBannerResizeObserver || !('ResizeObserver' in window)) return;
+    const banner = $('#navBanner');
+    if (!banner) return;
+    navBannerResizeObserver = new ResizeObserver(syncNavigationOverlayGeometry);
+    navBannerResizeObserver.observe(banner);
   }
 
   function formatArrivalTime(remainingSeconds) {
@@ -4632,10 +4810,16 @@
     const stepPath = navigationStepPath(step);
     const turnDistance = navCurrentPosition ? remainingDistanceOnPathMeters(navCurrentPosition, stepPath) : step.distance.value;
     $('#navDistanceNext').textContent = formatNavDistance(turnDistance);
-    $('#navInstruction').textContent = upcomingStep
+    const fullInstruction = upcomingStep
       ? stripHtml(upcomingStep.instructions)
       : `Arrive at ${navDestination?.label || 'destination'}`;
-    // Surface the maneuver after the upcoming one in the compact "Then" row.
+    const instruction = $('#navInstruction');
+    instruction.textContent = navGlanceAction(upcomingStep?.maneuver || 'arrive');
+    instruction.setAttribute('aria-label', fullInstruction);
+    const providerInstruction = $('#navProviderInstruction');
+    if (providerInstruction) providerInstruction.textContent = fullInstruction;
+    // Keep the provider-authored next instruction intact. The maneuver glyph
+    // supplies the glanceable geometry without reconstructing road metadata.
     const followingStep = navSteps[navStepIndex + 2];
     $('#navNextPreview').hidden = !followingStep;
     if (followingStep) {
@@ -4654,6 +4838,7 @@
     $('#navEta').textContent = formatNavDuration(remainingSeconds);
     $('#navArrival').textContent = formatArrivalTime(remainingSeconds);
     renderNavSpeed();
+    requestAnimationFrame(syncNavigationOverlayGeometry);
     if (!navMuted && navLastAnnouncedStep !== navStepIndex) {
       navLastAnnouncedStep = navStepIndex;
       if (navLastNowPromptStep !== navStepIndex) speak(stripHtml(step.instructions));
@@ -4704,7 +4889,7 @@
     // Navigation keeps the rider's persisted identity instead of replacing it
     // with a generic blue chevron. Heading-up mode rotates the provider map
     // beneath this marker, so the chosen avatar can remain screen-upright.
-    userMapMarker.setIcon?.(riderAvatarMapIcon(state.profile, true, undefined, 54));
+    userMapMarker.setIcon?.(riderAvatarMapIcon(state.profile, true, undefined, 64, true));
   }
 
   function stopNavigationCameraAnimation() {
@@ -4896,7 +5081,13 @@
     navDestination = { ...destination, label };
     hideDestinationCard();
     destinationMarker?.setMap(null);
-    destinationMarker = undefined;
+    destinationMarker = new google.maps.Marker({
+      map,
+      position: destination,
+      title: label ? `Destination: ${label}` : 'Route destination',
+      icon: routeFinishIcon(),
+      zIndex: 11,
+    });
     // Any POI category the rider had tapped before starting nav (fuel,
     // parking, food…) leaves its markers on the map otherwise — clutter
     // that has nothing to do with the route and makes driving mode look
@@ -4911,13 +5102,16 @@
     // screen are the route, the turn card, the ETA bar, and the controls a
     // rider actually needs mid-drive (report hazard, mute guidance, route overview/follow, end nav).
     $('#app').classList.add('nav-mode');
+    watchNavigationOverlayGeometry();
     setNavigationTrafficVisible(true);
     // Populate the first real maneuver before revealing the live region so
     // assistive technology does not announce the placeholder and then the
     // instruction back-to-back.
     renderNavStep();
     $('#navBanner').hidden = false;
+    $('#navSpeedBadge').hidden = false;
     $('#navSummary').hidden = false;
+    requestAnimationFrame(syncNavigationOverlayGeometry);
     updateNavigationPositionIcon();
     updateNavigationControls();
     startNavTracking();
@@ -4941,6 +5135,7 @@
       notice.textContent = navStatusNotice || '';
       notice.hidden = !navStatusNotice;
     }
+    requestAnimationFrame(syncNavigationOverlayGeometry);
   }
 
   function setNavGpsIssue(message) {
@@ -5081,6 +5276,8 @@
     stopNavigationCameraAnimation();
     stopNavTracking();
     directionsRenderer?.setMap(null);
+    destinationMarker?.setMap(null);
+    destinationMarker = undefined;
     navSteps = [];
     navStepIndex = 0;
     navDestination = null;
@@ -5101,7 +5298,9 @@
     userMapMarker?.setIcon?.(riderAvatarMapIcon(state.profile, true));
     updateNavigationControls();
     $('#navBanner').hidden = true;
+    $('#navSpeedBadge').hidden = true;
     $('#navSummary').hidden = true;
+    $('#app').style.removeProperty('--nav-banner-height');
     $('#app').classList.remove('nav-mode');
     if (arrived) {
       showToast('You have arrived.');
@@ -5286,7 +5485,7 @@
       $('#friendId').value = '';
     });
     $$('[data-sheet]').forEach((button) => button.addEventListener('click', () => openSheet(button.dataset.sheet)));
-    $('#completeProfilePrompt').addEventListener('click', () => openSheet('profile'));
+    $('#completeProfilePrompt')?.addEventListener('click', () => openSheet('profile'));
     $('#editProfileBtn').addEventListener('click', () => openSheet('profile'));
     $('#reportHazardBtn').addEventListener('click', () => openSheet('reportHazard'));
     $('#closeSheet').addEventListener('click', closeSheet);
@@ -5312,7 +5511,7 @@
       }
     });
     $('#logoutBtn').addEventListener('click', async () => {
-      if (!window.confirm('Log out of Rider Comms on this device?')) return;
+      if (!window.confirm('Sign out of Rider Comms on this device?')) return;
       try {
         await apiFetch('POST', '/auth/logout');
       } catch {
@@ -5405,6 +5604,12 @@
     state.profile.handle = profile.handle;
     state.profile.avatarId = profile.avatarId || 'ember';
     state.profile.zoneTier = planTier(profile.zoneTier);
+    state.profile.unitSystem = profile.unitSystem === 'km' ? 'km' : 'mi';
+    state.profile.notifyNearby = Boolean(profile.notifyNearby);
+    state.profile.notifyInvites = Boolean(profile.notifyInvites);
+    state.profile.notifyChat = Boolean(profile.notifyChat);
+    state.unit = state.profile.unitSystem;
+    state.notifications = Boolean(state.profile.notifyNearby || state.profile.notifyInvites || state.profile.notifyChat);
     state.profile.instagram = profile.instagramUsername;
     state.profile.tiktok = profile.tiktokUsername;
     state.profile.instagramVisibility = profile.instagramVisibility;
