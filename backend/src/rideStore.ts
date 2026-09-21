@@ -193,6 +193,19 @@ export class RideStore {
     return this.loadRide(rideId);
   }
 
+  async getSharedRideIds(riderA: string, riderB: string): Promise<string[]> {
+    await ensureMigrated();
+    const { rows } = await getPool().query<{ ride_id: string }>(
+      `SELECT a.ride_id
+       FROM ride_members a
+       INNER JOIN ride_members b ON b.ride_id = a.ride_id
+       WHERE a.rider_id = $1 AND b.rider_id = $2
+       ORDER BY a.ride_id`,
+      [riderA, riderB],
+    );
+    return rows.map((row) => row.ride_id);
+  }
+
   async getRideForMember(rideId: string, riderId: string): Promise<RideActionResult> {
     await ensureMigrated();
     const ride = await this.loadRide(rideId);
