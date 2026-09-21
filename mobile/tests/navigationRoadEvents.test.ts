@@ -135,9 +135,9 @@ describe('route-ahead navigation hazard selection', () => {
     assert.doesNotMatch(mapScreenSource, /setInterval\(fetchHazards, PRESENCE_UPDATE_INTERVAL_MS\)/);
   });
 
-  it('measures the real navigation banner so road-ahead alerts cannot hide the route camera target', () => {
-    assert.match(mapScreenSource, /navigationBannerHeightRef = React\.useRef\(136\)/);
-    assert.match(mapScreenSource, /const topOcclusion = insets\.top \+ spacing\.sm \+ navigationBannerHeightRef\.current/);
-    assert.match(mapScreenSource, /navigationBannerHeightRef\.current = Math\.ceil\(event\.nativeEvent\.layout\.height\)/);
+  it('uses the measured navigation banner height so road-ahead alerts cannot hide the route camera target', () => {
+    assert.match(mapScreenSource, /const \[navigationBannerHeight, setNavigationBannerHeight\] = React\.useState\(166\)/);
+    assert.match(mapScreenSource, /const topOcclusion = insets\.top \+ spacing\.sm \+ navigationBannerHeight/);
+    assert.match(mapScreenSource, /setNavigationBannerHeight\(\(current\) => Math\.abs\(current - measuredHeight\) > 1 \? measuredHeight : current\)/);
   });
 });
