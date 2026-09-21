@@ -1227,6 +1227,58 @@
   let riderLocation = null;
   const escapeHtml = (value) => String(value).replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
 
+  const ROUTE_CARD_IMAGE_WIDTH = 960;
+  const ROUTE_HERO_IMAGE_WIDTH = 1600;
+  const ROUTE_IMAGE_PREFETCH_COUNT = 4;
+  const warmedRouteImages = new Set();
+  const WIKIMEDIA_ORIGINAL_RE = /^(https:\/\/(?:upload|thumb)\.wikimedia\.org)(\/wikipedia\/commons\/)([0-9a-f]\/[^/]+\/)([^/?#]+)$/i;
+  const WIKIMEDIA_THUMB_RE = /^(https:\/\/(?:upload|thumb)\.wikimedia\.org)(\/wikipedia\/commons\/thumb\/)([0-9a-f]\/[^/]+\/)([^/]+)\/[^/?#]+$/i;
+
+  const thumbnailFileName = (fileName, width) => fileName.toLowerCase().endsWith('.svg')
+    ? `${width}px-${fileName}.png`
+    : `${width}px-${fileName}`;
+
+  const routeImageAtWidth = (uri, width) => {
+    const normalizedWidth = Math.min(2000, Math.max(320, Math.round(width)));
+    const cleanUri = String(uri).split(/[?#]/, 1)[0];
+
+    const thumbMatch = cleanUri.match(WIKIMEDIA_THUMB_RE);
+    if (thumbMatch) {
+      const [, origin, prefix, shard, fileName] = thumbMatch;
+      return `${origin}${prefix}${shard}${fileName}/${thumbnailFileName(fileName, normalizedWidth)}`;
+    }
+
+    const originalMatch = cleanUri.match(WIKIMEDIA_ORIGINAL_RE);
+    if (originalMatch) {
+      const [, origin, prefix, shard, fileName] = originalMatch;
+      return `${origin}${prefix}thumb/${shard}${fileName}/${thumbnailFileName(fileName, normalizedWidth)}`;
+    }
+
+    return uri;
+  };
+
+  const routeCardImage = (route) => routeImageAtWidth(route.image, ROUTE_CARD_IMAGE_WIDTH);
+  const routeHeroImage = (route) => routeImageAtWidth(route.image, ROUTE_HERO_IMAGE_WIDTH);
+
+  const warmRouteImages = (routeList) => {
+    if (navigator.connection?.saveData) return;
+    routeList.slice(0, ROUTE_IMAGE_PREFETCH_COUNT).forEach((route) => {
+      const src = routeCardImage(route);
+      if (warmedRouteImages.has(src)) return;
+      warmedRouteImages.add(src);
+      const image = new Image();
+      image.decoding = 'async';
+      image.referrerPolicy = 'no-referrer';
+      image.src = src;
+    });
+  };
+
+  const scheduleRouteImageWarmup = () => {
+    const warm = () => warmRouteImages(routes);
+    if ('requestIdleCallback' in window) window.requestIdleCallback(warm, { timeout: 1500 });
+    else window.setTimeout(warm, 300);
+  };
+
   const mapsUrl = (route) => {
     const params = new URLSearchParams({ api: '1', origin: route.start.join(','), destination: route.end.join(','), travelmode: 'driving' });
     if (route.waypoints.length) params.set('waypoints', route.waypoints.map((point) => point.join(',')).join('|'));
@@ -1404,7 +1456,7 @@
     root.innerHTML = visible.map((route) => {
       const approach = riderLocation ? formatApproach(haversineMiles(riderLocation, route.start)) : '';
       return `<button class="curated-route-card" data-curated-route="${route.id}" aria-label="View ${escapeHtml(route.name)} route overview">
-        <img src="${route.image}" alt="${escapeHtml(route.alt)}" loading="lazy" referrerpolicy="no-referrer">
+        <img src="${routeCardImage(route)}" alt="${escapeHtml(route.alt)}" loading="lazy" decoding="async" referrerpolicy="no-referrer">
         <span class="route-photo-fallback" aria-hidden="true"><svg><use href="#i-route"/></svg></span>
         <span class="route-trace-card">${routeTraceSvg(route)}</span>
         <span class="curated-route-overlay"><span class="route-region">${escapeHtml(route.region)}</span><strong>${escapeHtml(route.name)}</strong><small>${escapeHtml(route.road)}</small><span class="route-quick-stats">${category === 'near' && approach ? `<b class="route-approach">${escapeHtml(approach)}</b>` : ''}<b><svg aria-hidden="true"><use href="#i-route"/></svg>${route.distance} mi</b><b><svg aria-hidden="true"><use href="#i-location"/></svg>${escapeHtml(route.roadType)}</b><b><svg aria-hidden="true"><use href="#i-history"/></svg>${route.minutes} min</b></span></span>
@@ -1428,7 +1480,7 @@
     const backdrop = document.createElement('div');
     backdrop.className = 'route-detail-backdrop';
     backdrop.innerHTML = `<section class="route-detail" role="dialog" aria-modal="true" aria-labelledby="routeDetailTitle">
-      <div class="route-detail-photo"><img src="${route.image}" alt="${escapeHtml(route.alt)}"><button class="icon-button route-detail-close" aria-label="Close route overview">×</button><div><span>${escapeHtml(route.region)}</span><h2 id="routeDetailTitle">${escapeHtml(route.name)}</h2><p>${escapeHtml(route.road)}</p></div></div>
+      <div class="route-detail-photo"><img src="${routeCardImage(route)}" alt="${escapeHtml(route.alt)}" decoding="async" referrerpolicy="no-referrer"><button class="icon-button route-detail-close" aria-label="Close route overview">×</button><div><span>${escapeHtml(route.region)}</span><h2 id="routeDetailTitle">${escapeHtml(route.name)}</h2><p>${escapeHtml(route.road)}</p></div></div>
       <div class="route-detail-body"><div class="route-detail-stats"><span><b>${route.distance} mi</b>route</span><span><b>${route.minutes} min</b>ride time*</span><span><b>${escapeHtml(route.difficulty)}</b>demand</span>${approach ? `<span><b>${escapeHtml(approach.replace(' from you', ''))}</b>to start</span>` : ''}</div>
       <div class="route-trace-panel"><div><h3>Route shape</h3><p>${route.waypoints.length} curated ${route.waypoints.length === 1 ? 'waypoint' : 'waypoints'}</p></div><span class="route-trace-detail">${routeTraceSvg(route, 156, 88)}</span></div>
       <p>${escapeHtml(route.description)}</p><div class="rider-note"><strong>Rider note</strong><p>${escapeHtml(route.note)}</p></div>
@@ -1440,6 +1492,17 @@
       <div class="route-links"><a href="${route.conditions}" target="_blank" rel="noopener">Live conditions</a><a href="${route.routeSource}" target="_blank" rel="noopener">Route source</a><a href="${route.source}" target="_blank" rel="noopener">Photo: ${escapeHtml(route.credit)}</a><a href="${route.license}" target="_blank" rel="noopener">Photo licence</a></div></div>
     </section>`;
     document.body.append(backdrop);
+    const detailImage = backdrop.querySelector('.route-detail-photo img');
+    const heroImageSrc = routeHeroImage(route);
+    if (detailImage && heroImageSrc !== routeCardImage(route)) {
+      const heroImage = new Image();
+      heroImage.decoding = 'async';
+      heroImage.referrerPolicy = 'no-referrer';
+      heroImage.addEventListener('load', () => {
+        if (backdrop.isConnected) detailImage.src = heroImageSrc;
+      }, { once: true });
+      heroImage.src = heroImageSrc;
+    }
     const close = () => backdrop.remove();
     backdrop.querySelector('.route-detail-close').addEventListener('click', close);
     backdrop.addEventListener('click', (event) => { if (event.target === backdrop) close(); });
@@ -1452,6 +1515,7 @@
     renderFilters();
     renderHeading();
     renderRoutes();
+    scheduleRouteImageWarmup();
     void useGrantedLocation();
   }
 
