@@ -4,8 +4,7 @@ import {
   formatNavigationDistance,
   formatNavigationSpeed,
   maneuverIcon,
-  navigationGlanceInstruction,
-  navigationGlanceSummary,
+  navigationManeuverAction,
   navigationPromptStageForDistance,
   navigationPromptText,
   navigationSpeedUnit,
@@ -28,27 +27,13 @@ describe('navigation guidance presentation', () => {
     assert.equal(formatNavigationSpeed(-1, 'mi'), '—');
   });
 
-  it('compresses route instructions into glanceable action and road context', () => {
-    assert.deepEqual(
-      navigationGlanceInstruction("Continue straight onto St Paul's Rd / A1201", 'straight'),
-      { action: 'Go straight', road: "St Paul's Rd", routeCode: 'A1201' },
-    );
-    assert.deepEqual(
-      navigationGlanceInstruction('Turn slight right onto Balls Pond Rd / A104', 'turn-slight-right'),
-      { action: 'Bear right', road: 'Balls Pond Rd', routeCode: 'A104' },
-    );
-    assert.deepEqual(
-      navigationGlanceInstruction('At the roundabout, take the 2nd exit onto A10', 'roundabout-right'),
-      { action: 'Take the 2nd exit', road: '', routeCode: 'A10' },
-    );
-    assert.deepEqual(
-      navigationGlanceInstruction('', 'arrive', 'Ace Cafe'),
-      { action: 'Arrive', road: 'Ace Cafe', routeCode: null },
-    );
-    assert.equal(
-      navigationGlanceSummary('Turn left onto Seven Sisters Rd / A503', 'turn-left'),
-      'Turn left · A503 · Seven Sisters Rd',
-    );
+  it('derives glanceable actions only from structured maneuver metadata', () => {
+    assert.equal(navigationManeuverAction('straight'), 'Go straight');
+    assert.equal(navigationManeuverAction('turn-slight-right'), 'Bear right');
+    assert.equal(navigationManeuverAction('turn-sharp-left'), 'Sharp left');
+    assert.equal(navigationManeuverAction('fork-right'), 'Keep right');
+    assert.equal(navigationManeuverAction('roundabout-right'), 'At roundabout');
+    assert.equal(navigationManeuverAction('arrive'), 'Arrive');
   });
 
   it('stages advance turn prompts without repeating far-away instructions', () => {
