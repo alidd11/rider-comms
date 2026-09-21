@@ -312,6 +312,24 @@ if (!/navigationBannerHeight/.test(nativeMapSource)
   throw new Error('Native navigation must position the 76px live-speed badge at the upper right below the measured guidance header');
 }
 
+if (
+  !/id="navRoadAhead"[^>]*class="nav-road-ahead"/.test(pwaIndexSource)
+  || !/navigationRemainingRoutePath/.test(pwaMapSource)
+  || !/navigationHazardsAhead\(/.test(pwaMapSource)
+  || !/renderNavigationRoadAhead\(\)/.test(pwaMapSource)
+  || !/\.nav-road-ahead\{[^\n]*min-height:42px/.test(pwaCssSource)
+) {
+  throw new Error('PWA navigation must surface the shared route-ahead hazard strip');
+}
+if (
+  !/NavigationRoadAhead/.test(nativeMapSource)
+  || !/navigationRoadAlerts/.test(nativeMapSource)
+  || !/navigationHazardsAhead\(/.test(nativeMapSource)
+  || !/const topOcclusion = insets\.top \+ spacing\.sm \+ navigationBannerHeight/.test(nativeMapSource)
+) {
+  throw new Error('Native navigation must surface route-ahead hazards below the measured guidance header');
+}
+
 if (!/id="navProviderInstruction"/.test(pwaIndexSource)
   || !/function navGlanceAction\(/.test(pwaMapSource)
   || !/providerInstruction\.textContent = fullInstruction/.test(pwaMapSource)) {
@@ -389,4 +407,4 @@ if (!/onLayout=\{\(event\) => \{[\s\S]*setNavigationSummaryHeight/.test(nativeMa
   throw new Error('Native navigation controls must follow the real ETA summary height including safe-area and text growth');
 }
 
-console.log(`Client parity manifest valid: ${manifest.capabilities.length} capabilities tracked; map basemaps, navigation control dock, maneuver glanceability, live speed and adaptive dedicated navigation aligned`);
+console.log(`Client parity manifest valid: ${manifest.capabilities.length} capabilities tracked; map basemaps, navigation control dock, route-ahead alerts, maneuver glanceability, live speed and adaptive dedicated navigation aligned`);

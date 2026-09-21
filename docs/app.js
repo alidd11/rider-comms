@@ -103,6 +103,10 @@
     road_closure: { label: 'Road closure', icon: 'i-no-entry', color: '#f0646b' },
   };
   const HAZARD_TYPE_ORDER = ['police', 'camera', 'accident', 'hazard', 'road_closure'];
+  const {
+    navigationHazardLabel,
+    navigationHazardsAhead,
+  } = window.RiderNavigationRoadEvents;
 
   const {
     AVATAR_FAMILIES,
@@ -638,6 +642,7 @@
       // keep whatever was last loaded
     }
     renderHazardMarkers();
+    if (navSteps.length) renderNavigationRoadAhead();
   }
 
   /** Refreshes nearbyHazards for the rider's real current position, falling
@@ -4343,6 +4348,7 @@
   let navFollowing = true;
   let navMuted = false;
   let navCurrentPosition = null;
+  let navCurrentAccuracyMeters = null;
   let navCurrentSpeedMps = null;
   let navCameraHeading = null;
   let navCameraAnimationFrame;
@@ -4802,6 +4808,42 @@
     navigationTrafficLayer.setMap(visible ? map : null);
   }
 
+  function navigationRemainingRoutePath() {
+    return combineNavigationCameraPaths(
+      ...navSteps.slice(navStepIndex).map((step) => navigationStepPath(step)),
+    );
+  }
+
+  function renderNavigationRoadAhead() {
+    const container = $('#navRoadAhead');
+    if (!container) return;
+    if (!navSteps.length || !navCurrentPosition || navGpsIssue) {
+      container.hidden = true;
+      container.replaceChildren();
+      return;
+    }
+
+    const alerts = navigationHazardsAhead(
+      navCurrentPosition,
+      navigationRemainingRoutePath(),
+      nearbyHazards,
+      { currentAccuracyMeters: navCurrentAccuracyMeters },
+    );
+    container.hidden = alerts.length === 0;
+    if (!alerts.length) {
+      container.replaceChildren();
+      return;
+    }
+
+    container.innerHTML = `<span class="nav-road-ahead-label">Reports ahead</span><span class="nav-road-ahead-events">${alerts.map((alert) => {
+      const meta = HAZARD_TYPES[alert.hazard.type];
+      const label = navigationHazardLabel(alert.hazard.type);
+      const displayLabel = label.replace(/ reported$/, '');
+      const distance = formatNavDistance(alert.distanceAheadMeters);
+      return `<span class="nav-road-ahead-event" aria-label="${escapeHtml(label)}, ${escapeHtml(distance)} ahead"><svg aria-hidden="true" style="--road-alert:${meta.color}"><use href="#${meta.icon}"/></svg><span>${escapeHtml(displayLabel)}</span><strong>${escapeHtml(distance)}</strong></span>`;
+    }).join('')}</span>`;
+  }
+
   function renderNavStep() {
     const step = navSteps[navStepIndex];
     if (!step) return;
@@ -4838,6 +4880,7 @@
     $('#navEta').textContent = formatNavDuration(remainingSeconds);
     $('#navArrival').textContent = formatArrivalTime(remainingSeconds);
     renderNavSpeed();
+    renderNavigationRoadAhead();
     requestAnimationFrame(syncNavigationOverlayGeometry);
     if (!navMuted && navLastAnnouncedStep !== navStepIndex) {
       navLastAnnouncedStep = navStepIndex;
@@ -5074,6 +5117,7 @@
     navFollowing = true;
     if (!preserveMute) navMuted = false;
     navCurrentPosition = null;
+    navCurrentAccuracyMeters = null;
     navCurrentSpeedMps = Number.isFinite(latestDevicePosition?.coords?.speed) && Number(latestDevicePosition.coords.speed) >= 0
       ? Number(latestDevicePosition.coords.speed)
       : null;
@@ -5142,8 +5186,10 @@
     if (navGpsIssue === message && navStatusNotice === message) return;
     navGpsIssue = message;
     navOffRouteSince = null;
+    navCurrentAccuracyMeters = null;
     navCurrentSpeedMps = null;
     renderNavSpeed();
+    renderNavigationRoadAhead();
     setNavStatusNotice(message);
   }
 
@@ -5200,6 +5246,9 @@
     renderNavSpeed();
     if (navRerouting) return;
     const here = { lat: position.coords.latitude, lng: position.coords.longitude };
+    navCurrentAccuracyMeters = Number.isFinite(position.coords.accuracy)
+      ? Number(position.coords.accuracy)
+      : null;
     navCurrentPosition = here;
     userMapMarker?.setPosition?.(here);
 
@@ -5290,8 +5339,14 @@
     navFollowing = true;
     navMuted = false;
     navCurrentPosition = null;
+    navCurrentAccuracyMeters = null;
     navCurrentSpeedMps = null;
     navCameraHeading = null;
+    const roadAhead = $('#navRoadAhead');
+    if (roadAhead) {
+      roadAhead.hidden = true;
+      roadAhead.replaceChildren();
+    }
     map?.setHeading?.(0);
     map?.setTilt?.(0);
     setNavigationTrafficVisible(false);

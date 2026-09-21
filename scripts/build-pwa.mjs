@@ -11,13 +11,13 @@ await mkdir(destination, { recursive: true });
 // Deploy only the public application shell. Copying the entire docs folder
 // previously published internal product specifications alongside the PWA.
 const publicFiles = [
-  'index.html', 'app.css', 'app.js', 'avatar-system.js', 'movement-safety.js', 'message-state.js', 'config.js',
+  'index.html', 'app.css', 'app.js', 'avatar-system.js', 'navigation-road-events.js', 'movement-safety.js', 'message-state.js', 'config.js',
   'routes.css', 'routes.js', 'manifest.json', 'sw.js',
 ];
 await Promise.all(publicFiles.map((file) => cp(resolve(source, file), resolve(destination, file))));
 await cp(resolve(source, 'icons'), resolve(destination, 'icons'), { recursive: true });
 
-const required = ['index.html', 'app.css', 'app.js', 'avatar-system.js', 'movement-safety.js', 'message-state.js', 'config.js', 'manifest.json', 'sw.js'];
+const required = ['index.html', 'app.css', 'app.js', 'avatar-system.js', 'navigation-road-events.js', 'movement-safety.js', 'message-state.js', 'config.js', 'manifest.json', 'sw.js'];
 await Promise.all(required.map((file) => readFile(resolve(destination, file))));
 
 // Cache-busting the deployed app.css/app.js used to be a manually-bumped
@@ -27,14 +27,15 @@ await Promise.all(required.map((file) => readFile(resolve(destination, file))));
 // since the request URL never changes. Deriving it from the actual file
 // contents instead means every real content change gets a fresh version
 // automatically; nothing to remember, nothing to get wrong.
-const [rawCss, rawJs, rawAvatarSystem, rawMovementSafety, rawMessageState] = await Promise.all([
+const [rawCss, rawJs, rawAvatarSystem, rawNavigationRoadEvents, rawMovementSafety, rawMessageState] = await Promise.all([
   readFile(resolve(destination, 'app.css'), 'utf8'),
   readFile(resolve(destination, 'app.js'), 'utf8'),
   readFile(resolve(destination, 'avatar-system.js'), 'utf8'),
+  readFile(resolve(destination, 'navigation-road-events.js'), 'utf8'),
   readFile(resolve(destination, 'movement-safety.js'), 'utf8'),
   readFile(resolve(destination, 'message-state.js'), 'utf8'),
 ]);
-const version = createHash('sha256').update(rawCss).update(rawJs).update(rawAvatarSystem).update(rawMovementSafety).update(rawMessageState).digest('hex').slice(0, 10);
+const version = createHash('sha256').update(rawCss).update(rawJs).update(rawAvatarSystem).update(rawNavigationRoadEvents).update(rawMovementSafety).update(rawMessageState).digest('hex').slice(0, 10);
 
 for (const file of ['index.html', 'sw.js']) {
   const path = resolve(destination, file);
@@ -46,7 +47,7 @@ for (const file of ['index.html', 'sw.js']) {
 }
 
 const html = await readFile(resolve(destination, 'index.html'), 'utf8');
-for (const asset of ['app.css', 'config.js', 'avatar-system.js', 'app.js', 'movement-safety.js', 'message-state.js', 'manifest.json', 'routes.css', 'routes.js']) {
+for (const asset of ['app.css', 'config.js', 'avatar-system.js', 'navigation-road-events.js', 'app.js', 'movement-safety.js', 'message-state.js', 'manifest.json', 'routes.css', 'routes.js']) {
   if (!html.includes(asset)) throw new Error(`PWA shell does not reference ${asset}`);
 }
 
