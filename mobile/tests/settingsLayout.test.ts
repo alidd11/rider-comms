@@ -62,6 +62,13 @@ describe('Settings mockup contract', () => {
     assert.match(settingsSource, /accessibilityRole="alert"/);
   });
 
+  it('keeps the root visually quiet like the approved mockup', () => {
+    assert.match(settingsSource, /<Ionicons name=\{icon\} size=\{19\} color=\{danger \? colors\.danger : colors\.textPrimary\}/);
+    assert.match(settingsSource, /<Ionicons name="chevron-forward" size=\{16\} color=\{colors\.textMuted\}/);
+    assert.doesNotMatch(settingsSource, /\{\(saving \|\| profileError\) \? \(/);
+    assert.match(settingsSource, /accessibilityLabel="Dismiss settings error"/);
+  });
+
   it('keeps Settings controls accessible', () => {
     assert.match(settingsSource, /accessibilityRole="radio"/);
     assert.match(settingsSource, /accessibilityState=\{\{ selected \}\}/);
