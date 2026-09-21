@@ -4474,6 +4474,58 @@
     return comparable(lead).endsWith(comparable(repeatedRoad)) ? lead : cleaned;
   }
 
+  const NAV_GLANCE_ACTIONS = {
+    straight: 'Go straight',
+    'turn-left': 'Turn left',
+    'turn-right': 'Turn right',
+    'turn-slight-left': 'Bear left',
+    'turn-slight-right': 'Bear right',
+    'turn-sharp-left': 'Sharp left',
+    'turn-sharp-right': 'Sharp right',
+    'uturn-left': 'Make a U-turn',
+    'uturn-right': 'Make a U-turn',
+    'fork-left': 'Keep left',
+    'fork-right': 'Keep right',
+    'ramp-left': 'Take ramp left',
+    'ramp-right': 'Take ramp right',
+    merge: 'Merge',
+    arrive: 'Arrive',
+  };
+
+  function navGlanceInstruction(instruction, maneuver, destinationLabel = 'destination') {
+    const cleaned = String(instruction || '').replace(/\s+/g, ' ').trim();
+    const maneuverKey = maneuver || 'straight';
+    const exit = maneuverKey.startsWith('roundabout')
+      ? cleaned.match(/\b(?:take\s+the\s+)?(\d+(?:st|nd|rd|th)\s+exit)\b/i)?.[1]
+      : null;
+    const action = maneuverKey.startsWith('roundabout')
+      ? (exit ? `Take the ${exit.toLowerCase()}` : 'At roundabout')
+      : NAV_GLANCE_ACTIONS[maneuverKey] || 'Go straight';
+
+    let road = maneuverKey === 'arrive'
+      ? String(destinationLabel || 'destination').trim()
+      : cleaned.match(/\b(?:onto|towards?|to stay on|to continue on)\s+(.+)$/i)?.[1] || '';
+    road = road
+      .replace(/\s+(?:towards?)\s+.+$/i, '')
+      .replace(/[.,;]+$/g, '')
+      .trim();
+    const routeMatch = road.match(/\b(?:A|M)\d{1,4}\b/i);
+    const routeCode = routeMatch?.[0]?.toUpperCase() || null;
+    if (routeCode) {
+      road = road
+        .replace(new RegExp(`\\b${routeCode}\\b`, 'i'), '')
+        .replace(/^\s*[\/|·-]\s*|\s*[\/|·-]\s*$/g, '')
+        .replace(/\s{2,}/g, ' ')
+        .trim();
+    }
+    return { action, road, routeCode };
+  }
+
+  function navGlanceSummary(instruction, maneuver, destinationLabel = 'destination') {
+    const glance = navGlanceInstruction(instruction, maneuver, destinationLabel);
+    return [glance.action, glance.routeCode, glance.road].filter(Boolean).join(' · ');
+  }
+
   /** Best-effort voice guidance — SpeechSynthesis isn't universally
    * available/enabled (older browsers, some in-app webviews), so a
    * missing/failing voice never blocks the real navigation logic, only
@@ -4616,15 +4668,36 @@
     const stepPath = navigationStepPath(step);
     const turnDistance = navCurrentPosition ? remainingDistanceOnPathMeters(navCurrentPosition, stepPath) : step.distance.value;
     $('#navDistanceNext').textContent = formatNavDistance(turnDistance);
-    $('#navInstruction').textContent = upcomingStep
+    const fullInstruction = upcomingStep
       ? stripHtml(upcomingStep.instructions)
       : `Arrive at ${navDestination?.label || 'destination'}`;
+    const glance = navGlanceInstruction(
+      fullInstruction,
+      upcomingStep?.maneuver || 'arrive',
+      navDestination?.label || 'destination',
+    );
+    const instruction = $('#navInstruction');
+    instruction.textContent = glance.action;
+    instruction.setAttribute('aria-label', fullInstruction);
+    const roadContext = $('#navRoadContext');
+    const routeBadge = $('#navRouteBadge');
+    const roadName = $('#navRoadName');
+    if (roadContext && routeBadge && roadName) {
+      roadContext.hidden = !glance.routeCode && !glance.road;
+      routeBadge.hidden = !glance.routeCode;
+      routeBadge.textContent = glance.routeCode || '';
+      roadName.textContent = glance.road || '';
+    }
     // Surface the maneuver after the upcoming one in the compact "Then" row.
     const followingStep = navSteps[navStepIndex + 2];
     $('#navNextPreview').hidden = !followingStep;
     if (followingStep) {
       applyManeuverSvg($('#navNextManeuverSvg'), followingStep.maneuver);
-      $('#navNextInstruction').textContent = stripHtml(followingStep.instructions);
+      $('#navNextInstruction').textContent = navGlanceSummary(
+        stripHtml(followingStep.instructions),
+        followingStep.maneuver,
+        navDestination?.label || 'destination',
+      );
     }
     let remainingMeters = turnDistance;
     const currentStepDistance = Math.max(1, step.distance.value);
