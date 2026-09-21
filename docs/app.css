@@ -1426,6 +1426,15 @@ body:has(.content-screen.active) .movement-safety-banner{
     bottom:32px;
     gap:8px;
   }
+  /* Keep dedicated-navigation actions above the ETA summary. This selector
+     intentionally outranks the generic phone-map inset above; otherwise the
+     later bottom:32px declaration pushes Mute/Overview underneath the panel. */
+  #app.nav-mode .screen-map .map-actions{
+    bottom:calc(var(--nav-summary-height,104px) + var(--navigation-control-inset) + 18px);
+    right:max(14px,var(--safe-right));
+    z-index:13;
+    gap:8px;
+  }
   .screen-map .map-actions #reportHazardBtn,
   .screen-map .map-actions #locateBtn,
   .screen-map #joinNearbyBtn{
