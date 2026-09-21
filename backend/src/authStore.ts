@@ -215,8 +215,9 @@ export class AuthStore {
       );
     }
     const session = await this.issueAccountSession(row.id, deviceName);
-    // Verification is informational only — login is never gated on it, so
-    // a client can nudge an unverified rider without blocking sign-in.
+    // Login remains available so riders can restore an account, resend
+    // verification, manage sessions, or delete it. The API authorization
+    // boundary blocks abuse-sensitive writes until this becomes true.
     return { ...session, emailVerified: row.email_verified_at !== null };
   }
 
