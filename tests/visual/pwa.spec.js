@@ -2069,8 +2069,13 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
     document.querySelector('#navBanner').hidden = false;
     document.querySelector('#navNextPreview').hidden = false;
     document.querySelector('#navDistanceNext').textContent = '0.5 mi';
-    document.querySelector('#navInstruction').textContent = 'Sharp left onto Holloway Road';
-    document.querySelector('#navNextInstruction').textContent = 'Keep right at the fork';
+    document.querySelector('#navInstruction').textContent = 'Sharp left';
+    document.querySelector('#navInstruction').setAttribute('aria-label', 'Turn sharp left onto Holloway Road / A1');
+    document.querySelector('#navRoadContext').hidden = false;
+    document.querySelector('#navRouteBadge').hidden = false;
+    document.querySelector('#navRouteBadge').textContent = 'A1';
+    document.querySelector('#navRoadName').textContent = 'Holloway Road';
+    document.querySelector('#navNextInstruction').textContent = 'Keep right · A503 · Seven Sisters Rd';
     document.querySelector('#navSpeed').textContent = '32';
     document.querySelector('#navSpeedUnit').textContent = 'mph';
     const mainUse = document.querySelector('#navManeuverSvg use');
@@ -2102,6 +2107,9 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
     const nextSvg = document.querySelector('#navNextManeuverSvg');
     const nextUse = document.querySelector('#navNextManeuverSvg use');
     const speed = document.querySelector('.nav-summary-speed');
+    const instruction = document.querySelector('#navInstruction');
+    const routeBadge = document.querySelector('#navRouteBadge');
+    const roadName = document.querySelector('#navRoadName');
     const speedValue = document.querySelector('#navSpeed');
     const speedUnit = document.querySelector('#navSpeedUnit');
     const summaryStyle = getComputedStyle(summary);
@@ -2111,6 +2119,10 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
       paddingBottom: parseFloat(summaryStyle.paddingBottom),
       summaryRadius: parseFloat(summaryStyle.borderTopLeftRadius),
       bannerRadius: parseFloat(bannerStyle.borderTopLeftRadius),
+      instructionText: instruction?.textContent ?? null,
+      instructionAriaLabel: instruction?.getAttribute('aria-label') ?? null,
+      routeBadge: routeBadge?.textContent ?? null,
+      roadName: roadName?.textContent ?? null,
       endRadius: end ? parseFloat(getComputedStyle(end).borderTopLeftRadius) : 0,
       reportSize: report?.getBoundingClientRect().width ?? 0,
       locateDisplay: locate ? getComputedStyle(locate).display : null,
@@ -2143,7 +2155,11 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
   expect(metrics.height).toBe(104 + 18);
   expect(metrics.paddingBottom).toBe(18);
   expect(metrics.summaryRadius).toBeGreaterThanOrEqual(20);
-  expect(metrics.bannerRadius).toBeGreaterThanOrEqual(20);
+  expect(metrics.bannerRadius).toBe(18);
+  expect(metrics.instructionText).toBe('Sharp left');
+  expect(metrics.instructionAriaLabel).toBe('Turn sharp left onto Holloway Road / A1');
+  expect(metrics.routeBadge).toBe('A1');
+  expect(metrics.roadName).toBe('Holloway Road');
   expect(metrics.endRadius).toBeGreaterThanOrEqual(20);
   expect(metrics.reportSize).toBe(48);
   expect(metrics.locateDisplay).toBe('none');
