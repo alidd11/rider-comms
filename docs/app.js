@@ -4481,38 +4481,36 @@
     return new Date(Date.now() + remainingSeconds * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   }
 
-  // Google's DirectionsResult steps carry a `maneuver` field (turn-left,
-  // roundabout-right, uturn-left, merge, fork-right, …) — real nav apps
-  // (Google Maps, Waze) show a direction-specific arrow for this rather
-  // than one generic "go" icon for every step, so a rider can tell a
-  // sharp turn from a gentle one at a glance without reading the text.
-  // There's no full icon set here, so this reuses the existing arrow (and
-  // the existing loop-shaped reset icon for roundabouts) and rotates it —
-  // close enough to convey direction without shipping ~15 new SVGs.
+  // Preserve the maneuver geometry Google already gives us. A slight turn,
+  // ordinary turn, sharp turn, fork, ramp and merge are materially different
+  // decisions for a rider; rotating one generic triangle made those distinctions
+  // too hard to read at a glance.
   const MANEUVER_PRESENTATIONS = {
-    'turn-slight-left': { icon: 'i-nav-arrow', rotate: -30 },
-    'turn-left': { icon: 'i-nav-arrow', rotate: -90 },
-    'turn-sharp-left': { icon: 'i-nav-arrow', rotate: -135 },
-    'uturn-left': { icon: 'i-nav-arrow', rotate: 180 },
-    'turn-slight-right': { icon: 'i-nav-arrow', rotate: 30 },
-    'turn-right': { icon: 'i-nav-arrow', rotate: 90 },
-    'turn-sharp-right': { icon: 'i-nav-arrow', rotate: 135 },
-    'uturn-right': { icon: 'i-nav-arrow', rotate: 180 },
-    'roundabout-left': { icon: 'i-reset', rotate: -90 },
-    'roundabout-right': { icon: 'i-reset', rotate: 90 },
-    'fork-left': { icon: 'i-nav-arrow', rotate: -30 },
-    'fork-right': { icon: 'i-nav-arrow', rotate: 30 },
-    'ramp-left': { icon: 'i-nav-arrow', rotate: -30 },
-    'ramp-right': { icon: 'i-nav-arrow', rotate: 30 },
-    merge: { icon: 'i-nav-arrow', rotate: -20 },
-    arrive: { icon: 'i-location', rotate: 0 },
+    'turn-slight-left': 'i-nav-slight-left',
+    'turn-left': 'i-nav-left',
+    'turn-sharp-left': 'i-nav-sharp-left',
+    'uturn-left': 'i-nav-uturn-left',
+    'turn-slight-right': 'i-nav-slight-right',
+    'turn-right': 'i-nav-right',
+    'turn-sharp-right': 'i-nav-sharp-right',
+    'uturn-right': 'i-nav-uturn-right',
+    'roundabout-left': 'i-nav-roundabout-left',
+    'roundabout-right': 'i-nav-roundabout-right',
+    'fork-left': 'i-nav-fork-left',
+    'fork-right': 'i-nav-fork-right',
+    'ramp-left': 'i-nav-ramp-left',
+    'ramp-right': 'i-nav-ramp-right',
+    merge: 'i-nav-merge',
+    arrive: 'i-nav-arrive',
   };
 
   function applyManeuverSvg(svg, maneuver) {
     if (!svg) return;
-    const presentation = MANEUVER_PRESENTATIONS[maneuver] || { icon: 'i-nav-arrow', rotate: 0 };
-    $('use', svg)?.setAttribute('href', `#${presentation.icon}`);
-    svg.style.transform = `rotate(${presentation.rotate}deg)`;
+    const maneuverKey = maneuver || 'straight';
+    const icon = MANEUVER_PRESENTATIONS[maneuverKey] || 'i-nav-straight';
+    $('use', svg)?.setAttribute('href', `#${icon}`);
+    svg.dataset.maneuver = maneuverKey;
+    svg.style.transform = 'none';
   }
 
   function applyManeuverIcon(maneuver) {
