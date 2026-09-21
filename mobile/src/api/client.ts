@@ -85,7 +85,7 @@ export class RiderCommsClient {
   endRide(id: string): Promise<Record<string, never>> { return this.request('DELETE', `/rides/${encodeURIComponent(id)}`); }
   removeRideMember(id: string, memberId: string): Promise<RideResponse> { return this.request('DELETE', `/rides/${encodeURIComponent(id)}/members/${encodeURIComponent(memberId)}`); }
   setRideLocationSharing(id: string, enabled: boolean): Promise<{ enabled: boolean }> { return this.request('PUT', `/rides/${encodeURIComponent(id)}/location-sharing`, { enabled }); }
-  updateRideLocation(id: string, lat: number, lon: number): Promise<Record<string, never>> { return this.request('POST', `/rides/${encodeURIComponent(id)}/location`, { lat, lon }); }
+  updateRideLocation(id: string, lat: number, lon: number): Promise<{ locations: RideMemberLocation[] }> { return this.request('POST', `/rides/${encodeURIComponent(id)}/location`, { lat, lon }); }
   getRideLocations(id: string): Promise<{ locations: RideMemberLocation[] }> { return this.request('GET', `/rides/${encodeURIComponent(id)}/locations`); }
   updatePresence(lat: number, lon: number, accuracyMeters: number, recordedAt: number): Promise<PresenceResponse> {
     return this.request('POST', '/presence', { lat, lon, accuracyMeters, recordedAt });
