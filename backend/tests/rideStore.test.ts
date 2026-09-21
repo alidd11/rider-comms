@@ -75,6 +75,12 @@ describe('RideStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping Po
     assert.equal((await store.setMemberLocationSharing(ride.id, 'guest', true)).ok, true);
     const update = await store.updateMemberLocation(ride.id, 'guest', 51.5, -0.1);
     assert.equal(update.ok, true);
+    if (update.ok) {
+      assert.deepEqual(
+        update.locations.map((l) => ({ riderId: l.riderId, lat: l.lat, lon: l.lon })),
+        [{ riderId: 'guest', lat: 51.5, lon: -0.1 }],
+      );
+    }
 
     const read = await store.getMemberLocations(ride.id, 'host');
     assert.equal(read.ok, true);
