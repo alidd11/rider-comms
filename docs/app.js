@@ -926,7 +926,7 @@
         </article>
         <div class="friend-profile-actions" aria-label="Rider actions">
           <button id="messageFriend"><span class="friend-action-icon">${icon('message')}</span><strong>Message</strong></button>
-          <button id="shareFriendLocation"${shareLocationState}><span class="friend-action-icon">${icon('share')}</span><strong>Share Location</strong></button>
+          <button id="shareFriendLocation"${shareLocationState}><span class="friend-action-icon">${icon('nav-arrow')}</span><strong>Share Location</strong></button>
           <button id="friendMapAction"${mapActionState}><span class="friend-action-icon">${icon('location')}</span><strong>Map</strong></button>
           <button id="friendSafetyActions"><span class="friend-action-icon friend-action-more" aria-hidden="true">•••</span><strong>More</strong></button>
         </div>
