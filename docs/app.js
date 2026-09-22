@@ -3292,9 +3292,12 @@
         && proximityVoiceRooms.size > 0
         && !publicVoiceAuthorizationExpired;
       if (!leasedPublicConnection && !voiceFailureNotified) {
-        showToast(error?.name === 'NotAllowedError' || error?.name === 'SecurityError'
-          ? microphoneAccessMessage(error)
-          : 'Voice chat is unavailable right now. Your ride and map still work.');
+        const code = error instanceof ApiError ? error.body?.error : undefined;
+        showToast(code === 'email_verification_required'
+          ? 'Verify your email before using voice chat.'
+          : error?.name === 'NotAllowedError' || error?.name === 'SecurityError'
+            ? microphoneAccessMessage(error)
+            : 'Voice chat is unavailable right now. Your ride and map still work.');
         voiceFailureNotified = true;
       }
       if (room) disconnectManagedVoiceRoom(room);
