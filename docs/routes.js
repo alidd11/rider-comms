@@ -1508,13 +1508,13 @@
     backdrop.innerHTML = `<section class="route-detail" role="dialog" aria-modal="true" aria-labelledby="routeDetailTitle">
       <div class="route-detail-photo"><img src="${routeCardImage(route)}" alt="${escapeHtml(route.alt)}" decoding="async" referrerpolicy="no-referrer"><button class="icon-button route-detail-close" aria-label="Close route overview">×</button><div><span>${escapeHtml(route.region)}</span><h2 id="routeDetailTitle">${escapeHtml(route.name)}</h2><p>${escapeHtml(route.road)}</p></div></div>
       <div class="route-detail-body"><div class="route-detail-stats"><span><b>${route.distance} mi</b>route</span><span><b>${route.minutes} min</b>ride time*</span><span><b>${escapeHtml(route.difficulty)}</b>demand</span>${approach ? `<span><b>${escapeHtml(approach.replace(' from you', ''))}</b>to start</span>` : ''}</div>
+      <p class="caption route-action-note">Rider Comms guides you to the route start. “Open full route” preserves the curated waypoints. *Ride time is a planning estimate, not live traffic.</p>
       <div class="route-trace-panel"><div><h3>Route shape</h3><p>${route.waypoints.length} curated ${route.waypoints.length === 1 ? 'waypoint' : 'waypoints'}</p></div><span class="route-trace-detail">${routeTraceSvg(route, 156, 88)}</span></div>
       <p>${escapeHtml(route.description)}</p><div class="rider-note"><strong>Rider note</strong><p>${escapeHtml(route.note)}</p></div>
       <div><h3>Why ride it</h3><div class="badge-row"><span class="badge">${escapeHtml(route.roadType)}</span>${route.highlights.map((item) => `<span class="badge">${escapeHtml(item)}</span>`).join('')}</div></div>
       <div class="safety-box"><svg><use href="#i-shield"/></svg><div><strong>Before you ride</strong>${route.safety.map((item) => `<p>${escapeHtml(item)}</p>`).join('')}</div></div>
       <button class="button primary wide" data-guide-route-start>Guide me to the start</button>
       <a class="button secondary wide" href="${mapsUrl(route)}" target="_blank" rel="noopener">Open full route in Maps</a>
-      <p class="caption route-action-note">Rider Comms guides you to the route start. “Open full route” preserves the curated waypoints. *Ride time is a planning estimate, not live traffic.</p>
       <div class="route-links"><a href="${route.conditions}" target="_blank" rel="noopener">Live conditions</a><a href="${route.routeSource}" target="_blank" rel="noopener">Route source</a><a href="${route.source}" target="_blank" rel="noopener">Photo: ${escapeHtml(route.credit)}</a><a href="${route.license}" target="_blank" rel="noopener">Photo licence</a></div></div>
     </section>`;
     document.body.append(backdrop);
