@@ -90,6 +90,11 @@ const NAV_STEP_ARRIVAL_RADIUS_M = 30;
 const NAV_OFF_ROUTE_RADIUS_M = 60;
 const NAV_OFF_ROUTE_GRACE_MS = 10_000;
 const NAVIGATION_SUMMARY_BASE_HEIGHT = 104;
+// styles.navigationActions' own footprint: 48px buttons + 4px padding on
+// each side (see the styles below) -- kept as a named constant here
+// because the adaptive camera's bottom-occlusion estimate needs to know
+// it too (see focusNavigationCamera), not just the styles that position it.
+const NAVIGATION_ACTIONS_HEIGHT = 56;
 
 function bearingDegrees(from: { lat: number; lon: number }, to: { lat: number; lon: number }): number {
   const toRad = (value: number) => (value * Math.PI) / 180;
@@ -670,7 +675,13 @@ export function MapScreen(): React.JSX.Element {
 
     const maneuverDistance = remainingDistanceOnPathMeters(here, step.coordinates);
     const topOcclusion = insets.top + spacing.sm + navigationBannerHeight;
-    const bottomOcclusion = Math.max(insets.bottom, spacing.sm) + 112;
+    // Was a flat 112px guess that predated the navigation control dock
+    // (Report/Mute/Overview-Follow) landing above the ETA summary bar --
+    // undercounting the real occluded height by the dock's own footprint
+    // pushed the rider's own puck down into that now-taller stack instead
+    // of keeping it clear of it, worst right when a maneuver's zoom/pitch
+    // changes amplify that same fixed offset in screen-pixel terms.
+    const bottomOcclusion = Math.max(insets.bottom, spacing.sm) + navigationSummaryHeight + spacing.md + NAVIGATION_ACTIONS_HEIGHT;
     const viewportBias = navigationViewportBias(viewportHeight, topOcclusion, bottomOcclusion);
     const profile = navigationCameraProfile({
       speedMps,
@@ -712,7 +723,7 @@ export function MapScreen(): React.JSX.Element {
     } else {
       mapRef.current?.animateCamera(camera, { duration: movingSpeed !== null && movingSpeed <= 1.5 ? 650 : 500 });
     }
-  }, [insets.bottom, insets.top, mapReady, navigationBannerHeight, reduceMotionEnabled, viewportHeight]);
+  }, [insets.bottom, insets.top, mapReady, navigationBannerHeight, navigationSummaryHeight, reduceMotionEnabled, viewportHeight]);
 
   React.useEffect(() => {
     navigationFollowingRef.current = navigationFollowing;

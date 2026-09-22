@@ -4440,6 +4440,15 @@
   // are validated, while riders can always choose an external provider.
   let directionsService;
   let directionsRenderer;
+  // DirectionsRenderer draws only a single flat polyline -- against some
+  // basemap colours (especially water/park tints near its own blue) that
+  // reads as barely-there. Real nav apps give the route line a darker
+  // outline so it stays legible over anything underneath; suppress the
+  // renderer's own line (see getDirectionsRenderer) and draw that
+  // outline+inner pair ourselves instead, same two colours/widths the
+  // native app already uses.
+  let navRouteOutline;
+  let navRouteLine;
   let navSteps = [];
   let navStepIndex = 0;
   let navWatchId;
@@ -4549,13 +4558,26 @@
     const mapElement = $('#googleMap');
     const banner = $('#navBanner');
     const summary = $('#navSummary');
+    // In nav mode the mute/overview control dock (.map-actions) floats
+    // above #navSummary, not inside it -- measuring only #navSummary's own
+    // top edge missed the dock's height entirely, understating how much of
+    // the bottom of the screen is actually occluded and letting the
+    // rider's own puck sit lower on screen than there was real clearance
+    // for, worst exactly when a maneuver's zoom/pitch change amplifies
+    // that same fixed offset in screen-pixel terms.
+    const controls = $('.map-actions');
     if (!mapElement) return 1;
     const mapRect = mapElement.getBoundingClientRect();
     if (mapRect.height <= 0) return 1;
     const bannerRect = banner && !banner.hidden ? banner.getBoundingClientRect() : null;
     const summaryRect = summary && !summary.hidden ? summary.getBoundingClientRect() : null;
+    const controlsRect = controls && !controls.hidden ? controls.getBoundingClientRect() : null;
     const topOcclusion = bannerRect ? Math.max(0, bannerRect.bottom - mapRect.top) : 0;
-    const bottomOcclusion = summaryRect ? Math.max(0, mapRect.bottom - summaryRect.top) : 0;
+    const bottomEdge = Math.min(
+      summaryRect ? summaryRect.top : Number.POSITIVE_INFINITY,
+      controlsRect ? controlsRect.top : Number.POSITIVE_INFINITY,
+    );
+    const bottomOcclusion = Number.isFinite(bottomEdge) ? Math.max(0, mapRect.bottom - bottomEdge) : 0;
     return navigationViewportBias(mapRect.height, topOcclusion, bottomOcclusion);
   }
 
@@ -4898,14 +4920,30 @@
     if (!directionsRenderer) {
       directionsRenderer = new google.maps.DirectionsRenderer({
         suppressMarkers: true,
+        suppressPolylines: true,
         preserveViewport: true,
-        polylineOptions: { strokeColor: '#4285F4', strokeWeight: 7, strokeOpacity: 0.96 },
       });
     }
     directionsRenderer.setMap(map);
     return directionsRenderer;
   }
 
+  function renderNavigationRouteLine(path) {
+    if (!Array.isArray(path) || path.length < 2) return;
+    if (!navRouteOutline) {
+      navRouteOutline = new google.maps.Polyline({ strokeColor: '#174EA6', strokeWeight: 10, zIndex: 6 });
+      navRouteLine = new google.maps.Polyline({ strokeColor: '#4285F4', strokeWeight: 6, zIndex: 7 });
+    }
+    navRouteOutline.setPath(path);
+    navRouteLine.setPath(path);
+    navRouteOutline.setMap(map);
+    navRouteLine.setMap(map);
+  }
+
+  function clearNavigationRouteLine() {
+    navRouteOutline?.setMap(null);
+    navRouteLine?.setMap(null);
+  }
 
   function setNavigationTrafficVisible(visible) {
     if (!map || typeof google?.maps?.TrafficLayer !== 'function') return;
@@ -5213,6 +5251,7 @@
     stopNavigationCameraAnimation();
     getDirectionsRenderer().setDirections(result);
     navSteps = leg.steps;
+    renderNavigationRouteLine(combineNavigationCameraPaths(...navSteps.map((step) => navigationStepPath(step))));
     navStepIndex = 0;
     navLastAnnouncedStep = -1;
     navPromptTargetIndex = -1;
@@ -5430,6 +5469,7 @@
     stopNavigationCameraAnimation();
     stopNavTracking();
     directionsRenderer?.setMap(null);
+    clearNavigationRouteLine();
     destinationMarker?.setMap(null);
     destinationMarker = undefined;
     navSteps = [];
