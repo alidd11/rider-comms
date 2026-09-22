@@ -355,6 +355,19 @@ describe('AuthStore account signup/login (Postgres-backed)', { skip: !hasDatabas
     assert.deepEqual(result, { error: 'not_found' });
   });
 
+  it('reads admin authorization only from the durable account row', async () => {
+    const { fn } = fakeSender();
+    const store = new AuthStore(fn);
+    const signedUp = await store.signUp(uniqueUsername(), uniqueEmail(), 'correct-horse-battery');
+    assert.ok(!('error' in signedUp));
+    if ('error' in signedUp) return;
+
+    assert.equal(await store.isAdmin(signedUp.riderId), false);
+    await getPool().query('UPDATE users SET is_admin = true WHERE id = $1', [signedUp.riderId]);
+    assert.equal(await store.isAdmin(signedUp.riderId), true);
+    assert.equal(await store.isAdmin('rider_does_not_exist'), false);
+  });
+
   it('resets a password with a single-use token and revokes every existing session', async () => {
     const verification = fakeSender();
     const reset = fakeResetSender();

@@ -57,11 +57,11 @@ function rowToRoute(row: ScenicRouteRow): ScenicRoute {
 }
 
 /**
- * User-submitted scenic routes, persisted in Postgres (see db.ts).
+ * Admin-curated scenic routes, persisted in Postgres (see db.ts).
  * Deliberately starts empty — there is no seed data here, because route
  * suitability/safety must never be fabricated for unverified content (see
- * shared/scenicRoutes.ts). Routes only exist once someone has explicitly
- * submitted them through the validated create path.
+ * shared/scenicRoutes.ts). The HTTP boundary authorizes a durable admin
+ * account before anything reaches this validated create path.
  *
  * This is unrelated to the static motorbike-first route catalogue added in
  * PR #48 (`mobile/src/routes/curatedRoutes.ts`) — that is client-side

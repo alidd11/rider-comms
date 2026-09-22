@@ -2,7 +2,7 @@ import { after, before, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { authenticatedFetch, postJson, startTestServer } from './httpTestUtils.ts';
 import type { TestServer } from './httpTestUtils.ts';
-import { getPool, resetDbForTests } from '../src/db.ts';
+import { ensureMigrated, getPool, resetDbForTests } from '../src/db.ts';
 
 // ScenicRouteStore is now Postgres-backed (see db.ts) — this suite needs
 // DATABASE_URL to point at a reachable Postgres instance and is skipped
@@ -32,14 +32,32 @@ function validBody(overrides: Record<string, unknown> = {}) {
 }
 
 describe('scenic routes API', { skip: !hasDatabase && 'DATABASE_URL not set; skipping Postgres-backed scenic routes tests' }, () => {
+  const adminRiderId = 'test-scenic-admin';
+  const memberRiderId = 'test-scenic-member';
+  const testRiderIds = [adminRiderId, memberRiderId];
   let ctx: TestServer;
+
   before(async () => {
     await getPool().query('SELECT 1');
+    await ensureMigrated();
     await getPool().query('TRUNCATE scenic_routes');
+    await getPool().query('DELETE FROM users WHERE id = ANY($1::text[])', [testRiderIds]);
+    await getPool().query(
+      `INSERT INTO users (id, username, password_hash, email_verified_at, is_admin)
+       VALUES
+         ($1, 'tst_scenic_admin', 'test-only', now(), true),
+         ($2, 'tst_scenic_member', 'test-only', now(), false)`,
+      [adminRiderId, memberRiderId],
+    );
     ctx = startTestServer();
     await ctx.ready;
   });
-  after(async () => { await ctx.close(); await resetDbForTests(); });
+
+  after(async () => {
+    await ctx.close();
+    await getPool().query('DELETE FROM users WHERE id = ANY($1::text[])', [testRiderIds]);
+    await resetDbForTests();
+  });
 
   it('requires auth', async () => {
     const res = await fetch(`${ctx.baseUrl()}/scenic-routes`, { method: 'POST' });
@@ -52,18 +70,24 @@ describe('scenic routes API', { skip: !hasDatabase && 'DATABASE_URL not set; ski
     assert.deepEqual(await res.json(), { routes: [] });
   });
 
-  it('rejects an invalid route with 400', async () => {
-    const res = await postJson(ctx, 'curator-1', '/scenic-routes', validBody({ scenicRating: 9 }));
+  it('rejects a verified non-admin publisher', async () => {
+    const res = await postJson(ctx, memberRiderId, '/scenic-routes', validBody());
+    assert.equal(res.status, 403);
+    assert.deepEqual(await res.json(), { error: 'admin_required' });
+  });
+
+  it('validates route content only after the admin boundary', async () => {
+    const res = await postJson(ctx, adminRiderId, '/scenic-routes', validBody({ scenicRating: 9 }));
     assert.equal(res.status, 400);
     const body = await res.json() as { error: string };
     assert.match(body.error, /scenicRating/);
   });
 
-  it('creates a valid route and lists it back', async () => {
-    const created = await postJson(ctx, 'curator-1', '/scenic-routes', validBody());
+  it('creates a valid route as an admin and lists it back', async () => {
+    const created = await postJson(ctx, adminRiderId, '/scenic-routes', validBody());
     assert.equal(created.status, 201);
     const route = await created.json() as { id: string; createdBy: string };
-    assert.equal(route.createdBy, 'curator-1');
+    assert.equal(route.createdBy, adminRiderId);
 
     const list = await authenticatedFetch(ctx, 'browser-1', '/scenic-routes');
     const { routes } = await list.json() as { routes: { id: string }[] };
@@ -79,7 +103,7 @@ describe('scenic routes API', { skip: !hasDatabase && 'DATABASE_URL not set; ski
   });
 
   it('filters by vehicle category', async () => {
-    const car = await postJson(ctx, 'curator-2', '/scenic-routes', validBody({ vehicleSuitability: ['car'], name: 'Car Route' }));
+    const car = await postJson(ctx, adminRiderId, '/scenic-routes', validBody({ vehicleSuitability: ['car'], name: 'Car Route' }));
     const carRoute = await car.json() as { id: string };
 
     const filtered = await authenticatedFetch(ctx, 'browser-1', '/scenic-routes?vehicleCategory=car');
@@ -93,11 +117,11 @@ describe('scenic routes API', { skip: !hasDatabase && 'DATABASE_URL not set; ski
   });
 
   it('only the creator can delete their own route', async () => {
-    const created = await postJson(ctx, 'curator-3', '/scenic-routes', validBody({ name: 'Deletable' }));
+    const created = await postJson(ctx, adminRiderId, '/scenic-routes', validBody({ name: 'Deletable' }));
     const route = await created.json() as { id: string };
 
     assert.equal((await authenticatedFetch(ctx, 'someone-else', `/scenic-routes/${route.id}`, { method: 'DELETE' })).status, 403);
-    assert.equal((await authenticatedFetch(ctx, 'curator-3', `/scenic-routes/${route.id}`, { method: 'DELETE' })).status, 200);
-    assert.equal((await authenticatedFetch(ctx, 'curator-3', `/scenic-routes/${route.id}`, { method: 'DELETE' })).status, 404);
+    assert.equal((await authenticatedFetch(ctx, adminRiderId, `/scenic-routes/${route.id}`, { method: 'DELETE' })).status, 200);
+    assert.equal((await authenticatedFetch(ctx, adminRiderId, `/scenic-routes/${route.id}`, { method: 'DELETE' })).status, 404);
   });
 });
