@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const [appConfigSource, mobilePackageSource, appSource, rideBarSource, proximitySource, proximityStateSource, voiceActivitySource, audioSessionSource, foregroundServiceSource, foregroundPluginSource, activeSpeakerSource, mapScreenSource, pwaSource, serverSource] = await Promise.all([
+const [appConfigSource, mobilePackageSource, appSource, rideBarSource, proximitySource, proximityStateSource, voiceActivitySource, audioSessionSource, foregroundServiceSource, foregroundPluginSource, activeSpeakerSource, mapScreenSource, mobileClientSource, settingsScreenSource, pwaSource, serverSource] = await Promise.all([
   readFile(new URL('../mobile/app.json', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/package.json', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/App.tsx', import.meta.url), 'utf8'),
@@ -14,6 +14,8 @@ const [appConfigSource, mobilePackageSource, appSource, rideBarSource, proximity
   readFile(new URL('../mobile/plugins/withAndroidVoiceForegroundService.js', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/voice/ActiveSpeakerBridge.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/screens/MapScreen.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../mobile/src/api/client.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../mobile/src/screens/SettingsScreen.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../docs/app.js', import.meta.url), 'utf8'),
   readFile(new URL('../backend/src/server.ts', import.meta.url), 'utf8'),
 ]);
@@ -259,6 +261,21 @@ assert.match(
   pwaSource,
   /session\?\.emailVerified === false[\s\S]*Verify your email before joining Nearby Voice/,
   'PWA Nearby must explain the verified-account prerequisite before requesting microphone/location access',
+);
+assert.match(
+  mobileClientSource,
+  /resendVerification\(\): Promise<\{ sent: boolean \}>[\s\S]*\/auth\/resend-verification/,
+  'Native account client must expose verification resend so Nearby eligibility can recover',
+);
+assert.match(
+  settingsScreenSource,
+  /Resend verification email[\s\S]*client\.resendVerification\(\)/,
+  'Native Settings must expose a verification resend action for Nearby Voice',
+);
+assert.match(
+  pwaSource,
+  /async function resendVerificationEmail\(\)[\s\S]*\/auth\/resend-verification/,
+  'PWA Settings must expose a verification resend action for Nearby Voice',
 );
 assert.match(
   pwaSource,
