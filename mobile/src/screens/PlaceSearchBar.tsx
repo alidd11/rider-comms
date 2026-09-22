@@ -20,13 +20,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, spacing, radii, type, elevation, MIN_TOUCH_TARGET } from '../theme';
 import { GOOGLE_PLACES_API_KEY } from '../config';
-import { distanceBetweenMeters, formatPlaceDistance, isSearchQueryValid, searchNearbyPlaces, searchPlaces } from '../api/places';
+import { distanceBetweenMeters, formatPlaceDistance, isSearchQueryValid, PLACE_SEARCH_DEBOUNCE_MS, searchNearbyPlaces, searchPlaces } from '../api/places';
 import type { PlaceResult, PlaceSearchFailure } from '../api/places';
 import { useAuth } from '../auth/AuthContext';
 import { addRecentPlace, parseRecentPlaces, recentPlacesStorageKey } from '../search/recentPlaces';
 import { useSettings } from '../settings/SettingsContext';
-
-const SEARCH_DEBOUNCE_MS = 300;
 
 const CATEGORIES = [
   { label: 'Petrol', types: ['gas_station'], icon: 'gas-station-outline' },
@@ -118,7 +116,7 @@ export function PlaceSearchBar({
         .finally(() => {
           if (requestId === requestRef.current) setLoading(false);
         });
-    }, SEARCH_DEBOUNCE_MS);
+    }, PLACE_SEARCH_DEBOUNCE_MS);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };

@@ -686,24 +686,23 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
       rowHeight: box(row)?.height ?? NaN,
       avatarWidth: avatarBox?.width ?? NaN,
       presenceWidth: presenceBox?.width ?? NaN,
-      presenceGap: avatarBox && presenceBox ? presenceBox.left - avatarBox.right : NaN,
-      presenceCentreDelta: avatarBox && presenceBox
-        ? Math.abs((avatarBox.top + avatarBox.height / 2) - (presenceBox.top + presenceBox.height / 2))
-        : NaN,
+      presenceOverlap: avatarBox && presenceBox ? avatarBox.right - presenceBox.left : NaN,
+      presenceBottomDelta: avatarBox && presenceBox ? Math.abs(avatarBox.bottom - presenceBox.bottom) : NaN,
       groupLabelTransform: labelStyle?.textTransform ?? null,
       groupLabelFontSize: labelStyle ? parseFloat(labelStyle.fontSize) : NaN,
       groupLabelText: groupLabel?.textContent?.trim() ?? null,
       groupLabelTag: groupLabel?.tagName ?? null,
     };
   });
-  expect(friendsGeometry.searchHeight).toBeLessThanOrEqual(46);
-  expect(friendsGeometry.rowHeight).toBeLessThanOrEqual(62);
-  expect(friendsGeometry.avatarWidth).toBeGreaterThanOrEqual(40);
-  expect(friendsGeometry.avatarWidth).toBeLessThanOrEqual(42);
+  expect(friendsGeometry.searchHeight).toBeLessThanOrEqual(44);
+  expect(friendsGeometry.rowHeight).toBeLessThanOrEqual(58);
+  expect(friendsGeometry.avatarWidth).toBeGreaterThanOrEqual(39);
+  expect(friendsGeometry.avatarWidth).toBeLessThanOrEqual(41);
   expect(friendsGeometry.presenceWidth).toBeGreaterThanOrEqual(9);
   expect(friendsGeometry.presenceWidth).toBeLessThanOrEqual(10);
-  expect(friendsGeometry.presenceGap).toBeGreaterThanOrEqual(6);
-  expect(friendsGeometry.presenceCentreDelta).toBeLessThanOrEqual(1);
+  expect(friendsGeometry.presenceOverlap).toBeGreaterThanOrEqual(6);
+  expect(friendsGeometry.presenceOverlap).toBeLessThanOrEqual(10);
+  expect(friendsGeometry.presenceBottomDelta).toBeLessThanOrEqual(2);
   expect(friendsGeometry.groupLabelTransform).toBe('none');
   expect(friendsGeometry.groupLabelFontSize).toBeGreaterThanOrEqual(11);
   expect(friendsGeometry.groupLabelText).toBe('Online (1)');
@@ -733,6 +732,7 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
     const avatar = document.querySelector('.friend-profile-avatar .avatar');
     const actions = [...document.querySelectorAll('.friend-profile-actions button')];
     const detailList = document.querySelector('.friend-profile-detail-list');
+    const detailRows = [...document.querySelectorAll('.friend-profile-detail-list > div')];
     const close = document.querySelector('#closeSheet');
     const title = document.querySelector('#sheetTitle');
     const box = (element) => element?.getBoundingClientRect();
@@ -743,6 +743,7 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
       actionWidths: actions.map((action) => box(action)?.width ?? NaN),
       actionHeights: actions.map((action) => box(action)?.height ?? NaN),
       detailRadius: detailList ? parseFloat(getComputedStyle(detailList).borderTopLeftRadius) : NaN,
+      detailHeights: detailRows.map((row) => box(row)?.height ?? NaN),
       closeWidth: box(close)?.width ?? NaN,
       closeRadius: close ? parseFloat(getComputedStyle(close).borderTopLeftRadius) : NaN,
       titleWidth: box(title)?.width ?? NaN,
@@ -750,13 +751,17 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
   });
   expect(friendDetailGeometry.cardBorderWidth).toBe(0);
   expect(friendDetailGeometry.cardBackground).toBe('rgba(0, 0, 0, 0)');
-  expect(friendDetailGeometry.avatarWidth).toBeGreaterThanOrEqual(58);
-  expect(friendDetailGeometry.avatarWidth).toBeLessThanOrEqual(62);
+  expect(friendDetailGeometry.avatarWidth).toBeGreaterThanOrEqual(52);
+  expect(friendDetailGeometry.avatarWidth).toBeLessThanOrEqual(56);
   expect(friendDetailGeometry.actionWidths).toHaveLength(4);
   for (const width of friendDetailGeometry.actionWidths.slice(1)) expectNear(width, friendDetailGeometry.actionWidths[0], 1);
   for (const height of friendDetailGeometry.actionHeights) {
-    expect(height).toBeGreaterThanOrEqual(68);
-    expect(height).toBeLessThanOrEqual(74);
+    expect(height).toBeGreaterThanOrEqual(62);
+    expect(height).toBeLessThanOrEqual(66);
+  }
+  for (const height of friendDetailGeometry.detailHeights) {
+    expect(height).toBeGreaterThanOrEqual(48);
+    expect(height).toBeLessThanOrEqual(52);
   }
   expect(friendDetailGeometry.detailRadius).toBeGreaterThanOrEqual(10);
   expect(friendDetailGeometry.detailRadius).toBeLessThanOrEqual(14);
@@ -766,9 +771,18 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
   await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-friend-detail-final.png'), fullPage: true });
   await page.locator('#friendSafetyActions').click();
   await expect(page.locator('#sheetTitle')).toHaveText('More actions');
+  await expect(page.locator('.friend-more-card')).toContainText('Maya');
   await expect(page.locator('#shareFriendIdMore')).toContainText('Share Rider ID');
   await expect(page.locator('#removeFriendBtn')).toContainText('Remove friend');
+  await expect(page.locator('#reportFriendBtn')).toContainText('Report rider');
+  await expect(page.locator('#blockFriendBtn')).toContainText('Block rider');
+  await expect(page.locator('.friend-more-menu > button')).toHaveCount(4);
+  await expect(page.locator('[data-report-rider]')).toHaveCount(0);
+  await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-friend-more-final.png'), fullPage: true });
+  await page.locator('#reportFriendBtn').click();
+  await expect(page.locator('#sheetTitle')).toHaveText('Report rider');
   await expect(page.locator('[data-report-rider]')).toHaveCount(3);
+  await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-friend-report-final.png'), fullPage: true });
   await page.locator('#closeSheet').click();
 
   await page.locator('#friendList [data-friend]').first().click();
@@ -876,8 +890,9 @@ test('friend profile exposes only fresh consented private-ride location actions'
   await expect(page.locator('#shareFriendLocation')).toBeEnabled();
   await expect(page.locator('#shareFriendLocation')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('#friendMapAction')).toBeEnabled();
-  await expect(page.locator('.friend-profile-detail-list')).toContainText('Live ride location');
-  await expect(page.locator('.friend-profile-detail-list')).toContainText('In your group ride');
+  await expect(page.locator('.friend-profile-detail-list')).toContainText('Location');
+  await expect(page.locator('.friend-profile-detail-list')).toContainText('Shared in your current ride');
+  await expect(page.locator('.friend-profile-detail-list')).toContainText('Group ride');
   await expect(page.locator('.friend-profile-detail-list')).toContainText('2 riders');
   await expect(page.locator('#viewFriendOnMap')).toBeVisible();
 
@@ -2207,6 +2222,9 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
     document.querySelector('#navInstruction').setAttribute('aria-label', 'Turn sharp left onto Holloway Road / A1');
     document.querySelector('#navProviderInstruction').textContent = 'Turn sharp left onto Holloway Road / A1';
     document.querySelector('#navNextInstruction').textContent = 'Keep right at the fork onto Seven Sisters Road / A503';
+    const roadAhead = document.querySelector('#navRoadAhead');
+    roadAhead.hidden = false;
+    roadAhead.innerHTML = '<span class="nav-road-ahead-label">Reports ahead</span><span class="nav-road-ahead-events"><span class="nav-road-ahead-event" aria-label="Speed camera reported, 0.6 mi ahead"><svg style="--road-alert:#2fa8d3"><use href="#i-camera"/></svg><span>Speed camera</span><strong>0.6 mi</strong></span><span class="nav-road-ahead-event" aria-label="Road closure reported, 1.4 mi ahead"><svg style="--road-alert:#f0646b"><use href="#i-no-entry"/></svg><span>Road closure</span><strong>1.4 mi</strong></span></span>';
     document.querySelector('#navSpeed').textContent = '32';
     document.querySelector('#navSpeedUnit').textContent = 'mph';
     const banner = document.querySelector('#navBanner');
@@ -2228,6 +2246,7 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
   const metrics = await page.evaluate(() => {
     const summary = document.querySelector('#navSummary');
     const banner = document.querySelector('#navBanner');
+    const actions = document.querySelector('.screen-map .map-actions');
     const report = document.querySelector('#reportHazardBtn');
     const locate = document.querySelector('#locateBtn');
     const mute = document.querySelector('#navMuteBtn');
@@ -2239,6 +2258,8 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
     const nextPreview = document.querySelector('#navNextPreview');
     const nextSvg = document.querySelector('#navNextManeuverSvg');
     const nextUse = document.querySelector('#navNextManeuverSvg use');
+    const roadAhead = document.querySelector('#navRoadAhead');
+    const roadAheadEvents = [...document.querySelectorAll('.nav-road-ahead-event')];
     const speed = document.querySelector('#navSpeedBadge');
     const instruction = document.querySelector('#navInstruction');
     const providerInstruction = document.querySelector('#navProviderInstruction');
@@ -2246,6 +2267,7 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
     const speedUnit = document.querySelector('#navSpeedUnit');
     const summaryStyle = getComputedStyle(summary);
     const bannerStyle = getComputedStyle(banner);
+    const actionsStyle = getComputedStyle(actions);
     return {
       height: parseFloat(summaryStyle.height),
       paddingBottom: parseFloat(summaryStyle.paddingBottom),
@@ -2255,14 +2277,24 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
       instructionAriaLabel: instruction?.getAttribute('aria-label') ?? null,
       providerInstruction: providerInstruction?.textContent ?? null,
       endRadius: end ? parseFloat(getComputedStyle(end).borderTopLeftRadius) : 0,
+      dockDirection: actionsStyle.flexDirection,
+      dockGap: parseFloat(actionsStyle.columnGap),
+      dockPadding: parseFloat(actionsStyle.paddingTop),
+      dockRadius: parseFloat(actionsStyle.borderTopLeftRadius),
+      dockBottom: actions?.getBoundingClientRect().bottom ?? NaN,
       reportSize: report?.getBoundingClientRect().width ?? 0,
       locateDisplay: locate ? getComputedStyle(locate).display : null,
       muteSize: mute?.getBoundingClientRect().width ?? 0,
       overviewSize: overview?.getBoundingClientRect().width ?? 0,
       muteRadius: mute ? parseFloat(getComputedStyle(mute).borderTopLeftRadius) : 0,
       reportTop: report?.getBoundingClientRect().top ?? NaN,
+      reportLeft: report?.getBoundingClientRect().left ?? NaN,
+      reportRight: report?.getBoundingClientRect().right ?? NaN,
       muteTop: mute?.getBoundingClientRect().top ?? NaN,
+      muteLeft: mute?.getBoundingClientRect().left ?? NaN,
+      muteRight: mute?.getBoundingClientRect().right ?? NaN,
       overviewTop: overview?.getBoundingClientRect().top ?? NaN,
+      overviewLeft: overview?.getBoundingClientRect().left ?? NaN,
       overviewBottom: overview?.getBoundingClientRect().bottom ?? NaN,
       summaryTop: summary?.getBoundingClientRect().top ?? NaN,
       maneuverWidth: maneuver?.getBoundingClientRect().width ?? NaN,
@@ -2275,6 +2307,9 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
       nextHeight: nextPreview?.getBoundingClientRect().height ?? NaN,
       nextSvgWidth: nextSvg?.getBoundingClientRect().width ?? NaN,
       nextHref: nextUse?.getAttribute('href') ?? null,
+      roadAheadHeight: roadAhead?.getBoundingClientRect().height ?? NaN,
+      roadAheadLabels: roadAheadEvents.map((event) => event.textContent?.replace(/\s+/g, ' ').trim()),
+      roadAheadEventCount: roadAheadEvents.length,
       speedWidth: speed?.getBoundingClientRect().width ?? NaN,
       speedHeight: speed?.getBoundingClientRect().height ?? NaN,
       speedRadius: speed ? parseFloat(getComputedStyle(speed).borderTopLeftRadius) : NaN,
@@ -2296,16 +2331,24 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
   expect(metrics.instructionAriaLabel).toBe('Turn sharp left onto Holloway Road / A1');
   expect(metrics.providerInstruction).toBe('Turn sharp left onto Holloway Road / A1');
   expect(metrics.endRadius).toBeGreaterThanOrEqual(20);
+  expect(metrics.dockDirection).toBe('row');
+  expectNear(metrics.dockGap, 2, 0.5);
+  expect(metrics.dockPadding).toBe(4);
+  expect(metrics.dockRadius).toBe(18);
   expect(metrics.reportSize).toBe(48);
   expect(metrics.locateDisplay).toBe('none');
   expect(metrics.muteSize).toBe(48);
   expect(metrics.overviewSize).toBe(48);
   expect(metrics.muteRadius).toBeGreaterThanOrEqual(12);
   expect(metrics.muteRadius).toBeLessThanOrEqual(16);
-  expect(metrics.reportTop).toBeLessThan(metrics.muteTop);
-  expect(metrics.muteTop).toBeLessThan(metrics.overviewTop);
+  expectNear(metrics.reportTop, metrics.muteTop, 1);
+  expectNear(metrics.muteTop, metrics.overviewTop, 1);
+  expect(metrics.reportLeft).toBeLessThan(metrics.muteLeft);
+  expect(metrics.muteLeft).toBeLessThan(metrics.overviewLeft);
+  expectNear(metrics.muteLeft - metrics.reportRight, 2, 1);
+  expectNear(metrics.overviewLeft - metrics.muteRight, 2, 1);
   expect(metrics.overviewBottom).toBeLessThan(metrics.summaryTop);
-  expectNear(metrics.summaryTop - metrics.overviewBottom, 18, 2);
+  expectNear(metrics.summaryTop - metrics.dockBottom, 18, 2);
   expect(metrics.maneuverWidth).toBe(70);
   expect(metrics.maneuverHeight).toBe(78);
   expect(metrics.maneuverRadius).toBe(0);
@@ -2316,6 +2359,12 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
   expect(metrics.nextHeight).toBeGreaterThanOrEqual(50);
   expect(metrics.nextSvgWidth).toBe(30);
   expect(metrics.nextHref).toBe('#i-nav-fork-right');
+  expect(metrics.roadAheadHeight).toBeGreaterThanOrEqual(42);
+  expect(metrics.roadAheadEventCount).toBe(2);
+  expect(metrics.roadAheadLabels[0]).toContain('Speed camera');
+  expect(metrics.roadAheadLabels[0]).toContain('0.6 mi');
+  expect(metrics.roadAheadLabels[1]).toContain('Road closure');
+  expect(metrics.roadAheadLabels[1]).toContain('1.4 mi');
   expectNear(metrics.speedWidth, 76, 0.1);
   expectNear(metrics.speedHeight, 76, 0.1);
   expectNear(metrics.speedRadius, 38, 0.1);

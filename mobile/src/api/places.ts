@@ -11,6 +11,8 @@
 const PLACES_TEXT_SEARCH_URL = 'https://places.googleapis.com/v1/places:searchText';
 const PLACES_NEARBY_SEARCH_URL = 'https://places.googleapis.com/v1/places:searchNearby';
 const MAX_QUERY_LENGTH = 200;
+export const MIN_PLACE_SEARCH_QUERY_LENGTH = 2;
+export const PLACE_SEARCH_DEBOUNCE_MS = 500;
 const NEARBY_RADIUS_METERS = 5_000;
 
 export interface PlaceResult {
@@ -32,7 +34,7 @@ export type PlaceSearchResult =
  * without a key or a live API. */
 export function isSearchQueryValid(query: string): boolean {
   const trimmed = query.trim();
-  return trimmed.length > 0 && trimmed.length <= MAX_QUERY_LENGTH;
+  return trimmed.length >= MIN_PLACE_SEARCH_QUERY_LENGTH && trimmed.length <= MAX_QUERY_LENGTH;
 }
 
 interface PlacesApiPlace {

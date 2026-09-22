@@ -34,6 +34,7 @@
     { "id": "place-search", "pwa": true, "native": true, "status": "parity" },
     { "id": "recent-places", "pwa": true, "native": true, "status": "parity" },
     { "id": "navigation", "pwa": true, "native": true, "status": "behavior-gap" },
+    { "id": "navigation-road-ahead", "pwa": true, "native": true, "status": "parity" },
     { "id": "routes", "pwa": true, "native": true, "status": "parity" },
     { "id": "ride-safe", "pwa": true, "native": true, "status": "parity" },
     { "id": "session-management", "pwa": true, "native": true, "status": "parity" },

@@ -312,6 +312,24 @@ if (!/navigationBannerHeight/.test(nativeMapSource)
   throw new Error('Native navigation must position the 76px live-speed badge at the upper right below the measured guidance header');
 }
 
+if (
+  !/id="navRoadAhead"[^>]*class="nav-road-ahead"/.test(pwaIndexSource)
+  || !/navigationRemainingRoutePath/.test(pwaMapSource)
+  || !/navigationHazardsAhead\(/.test(pwaMapSource)
+  || !/renderNavigationRoadAhead\(\)/.test(pwaMapSource)
+  || !/\.nav-road-ahead\{[^\n]*min-height:42px/.test(pwaCssSource)
+) {
+  throw new Error('PWA navigation must surface the shared route-ahead hazard strip');
+}
+if (
+  !/NavigationRoadAhead/.test(nativeMapSource)
+  || !/navigationRoadAlerts/.test(nativeMapSource)
+  || !/navigationHazardsAhead\(/.test(nativeMapSource)
+  || !/const topOcclusion = insets\.top \+ spacing\.sm \+ navigationBannerHeight/.test(nativeMapSource)
+) {
+  throw new Error('Native navigation must surface route-ahead hazards below the measured guidance header');
+}
+
 if (!/id="navProviderInstruction"/.test(pwaIndexSource)
   || !/function navGlanceAction\(/.test(pwaMapSource)
   || !/providerInstruction\.textContent = fullInstruction/.test(pwaMapSource)) {
@@ -354,11 +372,14 @@ if (/viewportHeight \* 0\.32/.test(nativeMapSource)) {
 if (!/\.nav-mode #locateBtn\{display:none\}/.test(pwaCssSource)) {
   throw new Error('PWA navigation must hide the redundant standalone re-centre control');
 }
-if (!/\.nav-mode \.map-actions \.icon-button\{width:48px;min-width:48px;height:48px;border-radius:14px/.test(pwaCssSource)) {
-  throw new Error('PWA navigation controls must keep the shared 48px rounded-square geometry');
+if (!/\.nav-mode \.map-actions\{[^\n]*flex-direction:row;align-items:center;gap:2px;padding:4px;[^\n]*border-radius:18px/.test(pwaCssSource)) {
+  throw new Error('PWA navigation actions must remain one compact horizontal dock');
 }
-if (!/#app\.nav-mode \.screen-map \.map-actions\{[\s\S]*?bottom:calc\(var\(--nav-summary-height,104px\) \+ var\(--navigation-control-inset\) \+ 18px\)/.test(pwaCssSource)) {
-  throw new Error('PWA phone navigation controls must stay above the ETA summary despite later map-control rules');
+if (!/\.nav-mode \.map-actions \.icon-button\{width:48px;min-width:48px;height:48px;[^\n]*border-radius:14px/.test(pwaCssSource)) {
+  throw new Error('PWA navigation dock controls must keep 48px rounded-square touch targets');
+}
+if (!/#app\.nav-mode \.screen-map \.map-actions\{[\s\S]*?bottom:calc\(var\(--nav-summary-height,104px\) \+ var\(--navigation-control-inset\) \+ 18px\)[\s\S]*?flex-direction:row[\s\S]*?gap:2px[\s\S]*?padding:4px/.test(pwaCssSource)) {
+  throw new Error('PWA phone navigation dock must stay horizontal and directly above the ETA summary');
 }
 if (!/body:has\(#destinationCard:not\(\[hidden\]\)\) \.screen-map \.map-actions\{display:none\}/.test(pwaCssSource)) {
   throw new Error('PWA destination selection must hide competing general map controls like native');
@@ -369,8 +390,11 @@ if (!/#destinationCard \.destination-primary-action\{[^\n]*border-radius:14px/.t
 if (!/mapActionButton:\s*\{[\s\S]*?width: 48,[\s\S]*?height: 48,[\s\S]*?borderRadius: 14/.test(nativeMapSource)) {
   throw new Error('Native map controls must keep the shared 48px rounded-square geometry');
 }
+if (!/navigationActions:\s*\{[\s\S]*?flexDirection: 'row',[\s\S]*?gap: 2,[\s\S]*?padding: 4,[\s\S]*?borderRadius: 18/.test(nativeMapSource)) {
+  throw new Error('Native navigation actions must match the compact horizontal PWA dock');
+}
 if (!/navigationActionButton:\s*\{[\s\S]*?width: 48,[\s\S]*?height: 48,[\s\S]*?borderRadius: 14/.test(nativeMapSource)) {
-  throw new Error('Native navigation controls must keep the shared 48px rounded-square geometry');
+  throw new Error('Native navigation dock controls must keep 48px rounded-square touch targets');
 }
 
 if (/bottom: insets\.bottom \+ 116/.test(nativeMapSource)) {
@@ -383,4 +407,4 @@ if (!/onLayout=\{\(event\) => \{[\s\S]*setNavigationSummaryHeight/.test(nativeMa
   throw new Error('Native navigation controls must follow the real ETA summary height including safe-area and text growth');
 }
 
-console.log(`Client parity manifest valid: ${manifest.capabilities.length} capabilities tracked; map basemaps, maneuver glanceability, live speed and adaptive dedicated navigation aligned`);
+console.log(`Client parity manifest valid: ${manifest.capabilities.length} capabilities tracked; map basemaps, navigation control dock, route-ahead alerts, maneuver glanceability, live speed and adaptive dedicated navigation aligned`);

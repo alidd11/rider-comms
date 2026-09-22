@@ -103,6 +103,10 @@
     road_closure: { label: 'Road closure', icon: 'i-no-entry', color: '#f0646b' },
   };
   const HAZARD_TYPE_ORDER = ['police', 'camera', 'accident', 'hazard', 'road_closure'];
+  const {
+    navigationHazardLabel,
+    navigationHazardsAhead,
+  } = window.RiderNavigationRoadEvents;
 
   const {
     AVATAR_FAMILIES,
@@ -638,6 +642,7 @@
       // keep whatever was last loaded
     }
     renderHazardMarkers();
+    if (navSteps.length) renderNavigationRoadAhead();
   }
 
   /** Refreshes nearbyHazards for the rider's real current position, falling
@@ -956,9 +961,9 @@
           <button id="friendSafetyActions"><span class="friend-action-icon friend-action-more" aria-hidden="true">•••</span><strong>More</strong></button>
         </div>
         <div class="friend-profile-detail-list">
-          <div><span class="setting-icon">${icon('location')}</span><span><strong>${liveRideLocation ? 'Live ride location' : 'Location not shared'}</strong><small>${liveRideLocation ? 'Updated recently' : 'Private ride location only'}</small></span></div>
-          <div><span class="setting-icon">${icon('ride')}</span><span><strong>${inActiveRide ? 'In your group ride' : 'Not in your group ride'}</strong><small>${inActiveRide ? `${groupRideCount} rider${groupRideCount === 1 ? '' : 's'}` : 'No shared ride'}</small></span></div>
-          <div><span class="setting-icon">${icon('friends')}</span><span><strong>${sharedProfileCount ? `${sharedProfileCount} shared profile${sharedProfileCount === 1 ? '' : 's'}` : 'No shared profiles'}</strong><small>Nothing shared with you</small></span></div>
+          <div><span class="setting-icon">${icon('location')}</span><span><strong>Location</strong><small>${liveRideLocation ? 'Shared in your current ride · updated recently' : 'Not shared with you'}</small></span></div>
+          <div><span class="setting-icon">${icon('ride')}</span><span><strong>Group ride</strong><small>${inActiveRide ? `${groupRideCount} rider${groupRideCount === 1 ? '' : 's'} · riding together` : 'Not in your current ride'}</small></span></div>
+          <div><span class="setting-icon">${icon('friends')}</span><span><strong>Shared profiles</strong><small>${sharedProfileCount ? `${sharedProfileCount} profile${sharedProfileCount === 1 ? '' : 's'} shared with you` : 'None shared'}</small></span></div>
         </div>
         ${loading
           ? '<p class="friend-profile-note friend-profile-note-quiet">Refreshing shared profile…</p>'
@@ -1360,16 +1365,38 @@
     await sendChatText(target.text, localId);
   }
 
-  function openFriendSafetyActions(friend) {
-    presentSheet('More actions', `<div class="settings-note"><strong>${escapeHtml(friend.displayName)}</strong><p>Share this rider’s ID, manage the friendship, or use Rider Comms safety tools.</p></div>
-      <button class="button secondary wide" id="shareFriendIdMore">Share Rider ID</button>
-      <button class="button secondary wide" id="removeFriendBtn">Remove friend</button>
-      <div class="choice-list" aria-label="Report reason">
-        <button data-report-rider="harassment"><span><strong>Report harassment</strong><small>Threats, abuse or repeated unwanted contact</small></span>${icon('chevron')}</button>
-        <button data-report-rider="unsafe"><span><strong>Report unsafe behaviour</strong><small>Dangerous conduct affecting rider safety</small></span>${icon('chevron')}</button>
-        <button data-report-rider="spam"><span><strong>Report spam</strong><small>Scams, advertising or repeated unwanted messages</small></span>${icon('chevron')}</button>
+  function openFriendReportActions(friend) {
+    presentSheet('Report rider', `<article class="friend-more-card">
+        <span class="friend-more-avatar">${avatar(friend)}</span>
+        <span><strong>${escapeHtml(friend.displayName)}</strong><small>${escapeHtml(friend.handle)}</small></span>
+      </article>
+      <p class="friend-more-intro">Choose the reason that best describes the issue. Reports are sent to Rider Comms for review.</p>
+      <div class="friend-more-menu" aria-label="Report reason">
+        <button data-report-rider="harassment"><span class="friend-more-icon">${icon('message')}</span><span><strong>Harassment</strong><small>Threats, abuse or repeated unwanted contact</small></span>${icon('chevron')}</button>
+        <button data-report-rider="unsafe"><span class="friend-more-icon">${icon('shield')}</span><span><strong>Unsafe behaviour</strong><small>Dangerous conduct affecting rider safety</small></span>${icon('chevron')}</button>
+        <button data-report-rider="spam"><span class="friend-more-icon">${icon('info')}</span><span><strong>Spam or scam</strong><small>Advertising, scams or repeated unwanted messages</small></span>${icon('chevron')}</button>
       </div>
-      <button class="button danger wide" id="blockFriendBtn">Block rider</button>
+      <p id="friendSafetyError" class="inline-error" role="alert" hidden></p>`, () => {
+      $('[data-report-rider]', $('#sheetBody')).forEach((button) => {
+        button.addEventListener('click', () => void reportFriend(friend, button.dataset.reportRider));
+      });
+    });
+  }
+
+  function openFriendSafetyActions(friend) {
+    presentSheet('More actions', `<article class="friend-more-card">
+        <span class="friend-more-avatar">${avatar(friend)}</span>
+        <span><strong>${escapeHtml(friend.displayName)}</strong><small>${escapeHtml(friend.handle)}</small></span>
+      </article>
+      <div class="friend-more-menu" aria-label="Connection actions">
+        <button id="shareFriendIdMore"><span class="friend-more-icon">${icon('share')}</span><span><strong>Share Rider ID</strong><small>Send or copy this rider’s ID</small></span>${icon('chevron')}</button>
+        <button id="removeFriendBtn"><span class="friend-more-icon">${icon('friends')}</span><span><strong>Remove friend</strong><small>End this Rider Comms connection</small></span>${icon('chevron')}</button>
+      </div>
+      <span class="friend-more-section-label">Safety</span>
+      <div class="friend-more-menu" aria-label="Safety actions">
+        <button id="reportFriendBtn"><span class="friend-more-icon">${icon('shield')}</span><span><strong>Report rider</strong><small>Harassment, unsafe behaviour or spam</small></span>${icon('chevron')}</button>
+        <button class="danger" id="blockFriendBtn"><span class="friend-more-icon">${icon('close')}</span><span><strong>Block rider</strong><small>Remove this connection and prevent further contact</small></span>${icon('chevron')}</button>
+      </div>
       <p id="friendSafetyError" class="inline-error" role="alert" hidden></p>`, () => {
       $('#shareFriendIdMore').addEventListener('click', async () => {
         const message = `${friend.displayName} on Rider Comms: ${friend.riderId}`;
@@ -1381,9 +1408,7 @@
         catch { showToast(friend.riderId); }
       });
       $('#removeFriendBtn').addEventListener('click', () => void removeFriend(friend));
-      $$('[data-report-rider]', $('#sheetBody')).forEach((button) => {
-        button.addEventListener('click', () => void reportFriend(friend, button.dataset.reportRider));
-      });
+      $('#reportFriendBtn').addEventListener('click', () => openFriendReportActions(friend));
       $('#blockFriendBtn').addEventListener('click', () => void blockFriend(friend));
     });
   }
@@ -4323,6 +4348,7 @@
   let navFollowing = true;
   let navMuted = false;
   let navCurrentPosition = null;
+  let navCurrentAccuracyMeters = null;
   let navCurrentSpeedMps = null;
   let navCameraHeading = null;
   let navCameraAnimationFrame;
@@ -4782,6 +4808,42 @@
     navigationTrafficLayer.setMap(visible ? map : null);
   }
 
+  function navigationRemainingRoutePath() {
+    return combineNavigationCameraPaths(
+      ...navSteps.slice(navStepIndex).map((step) => navigationStepPath(step)),
+    );
+  }
+
+  function renderNavigationRoadAhead() {
+    const container = $('#navRoadAhead');
+    if (!container) return;
+    if (!navSteps.length || !navCurrentPosition || navGpsIssue) {
+      container.hidden = true;
+      container.replaceChildren();
+      return;
+    }
+
+    const alerts = navigationHazardsAhead(
+      navCurrentPosition,
+      navigationRemainingRoutePath(),
+      nearbyHazards,
+      { currentAccuracyMeters: navCurrentAccuracyMeters },
+    );
+    container.hidden = alerts.length === 0;
+    if (!alerts.length) {
+      container.replaceChildren();
+      return;
+    }
+
+    container.innerHTML = `<span class="nav-road-ahead-label">Reports ahead</span><span class="nav-road-ahead-events">${alerts.map((alert) => {
+      const meta = HAZARD_TYPES[alert.hazard.type];
+      const label = navigationHazardLabel(alert.hazard.type);
+      const displayLabel = label.replace(/ reported$/, '');
+      const distance = formatNavDistance(alert.distanceAheadMeters);
+      return `<span class="nav-road-ahead-event" aria-label="${escapeHtml(label)}, ${escapeHtml(distance)} ahead"><svg aria-hidden="true" style="--road-alert:${meta.color}"><use href="#${meta.icon}"/></svg><span>${escapeHtml(displayLabel)}</span><strong>${escapeHtml(distance)}</strong></span>`;
+    }).join('')}</span>`;
+  }
+
   function renderNavStep() {
     const step = navSteps[navStepIndex];
     if (!step) return;
@@ -4818,6 +4880,7 @@
     $('#navEta').textContent = formatNavDuration(remainingSeconds);
     $('#navArrival').textContent = formatArrivalTime(remainingSeconds);
     renderNavSpeed();
+    renderNavigationRoadAhead();
     requestAnimationFrame(syncNavigationOverlayGeometry);
     if (!navMuted && navLastAnnouncedStep !== navStepIndex) {
       navLastAnnouncedStep = navStepIndex;
@@ -5054,6 +5117,7 @@
     navFollowing = true;
     if (!preserveMute) navMuted = false;
     navCurrentPosition = null;
+    navCurrentAccuracyMeters = null;
     navCurrentSpeedMps = Number.isFinite(latestDevicePosition?.coords?.speed) && Number(latestDevicePosition.coords.speed) >= 0
       ? Number(latestDevicePosition.coords.speed)
       : null;
@@ -5122,8 +5186,10 @@
     if (navGpsIssue === message && navStatusNotice === message) return;
     navGpsIssue = message;
     navOffRouteSince = null;
+    navCurrentAccuracyMeters = null;
     navCurrentSpeedMps = null;
     renderNavSpeed();
+    renderNavigationRoadAhead();
     setNavStatusNotice(message);
   }
 
@@ -5180,6 +5246,9 @@
     renderNavSpeed();
     if (navRerouting) return;
     const here = { lat: position.coords.latitude, lng: position.coords.longitude };
+    navCurrentAccuracyMeters = Number.isFinite(position.coords.accuracy)
+      ? Number(position.coords.accuracy)
+      : null;
     navCurrentPosition = here;
     userMapMarker?.setPosition?.(here);
 
@@ -5270,8 +5339,14 @@
     navFollowing = true;
     navMuted = false;
     navCurrentPosition = null;
+    navCurrentAccuracyMeters = null;
     navCurrentSpeedMps = null;
     navCameraHeading = null;
+    const roadAhead = $('#navRoadAhead');
+    if (roadAhead) {
+      roadAhead.hidden = true;
+      roadAhead.replaceChildren();
+    }
     map?.setHeading?.(0);
     map?.setTilt?.(0);
     setNavigationTrafficVisible(false);
