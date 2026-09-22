@@ -33,6 +33,12 @@ describe('navigation guidance presentation', () => {
     assert.equal(navigationManeuverAction('turn-sharp-left'), 'Sharp left');
     assert.equal(navigationManeuverAction('fork-right'), 'Keep right');
     assert.equal(navigationManeuverAction('roundabout-right'), 'At roundabout');
+    assert.equal(navigationManeuverAction('ferry'), 'Take the ferry');
+    assert.equal(navigationManeuverAction('ferry-train'), 'Take the ferry train');
+    assert.equal(navigationManeuverAction('depart'), 'Start route');
+    assert.equal(navigationManeuverAction('name-change'), 'Continue');
+    assert.equal(navigationManeuverAction(undefined), 'Continue');
+    assert.equal(navigationManeuverAction('provider-future-value'), 'Continue');
     assert.equal(navigationManeuverAction('arrive'), 'Arrive');
   });
 
@@ -56,7 +62,10 @@ describe('navigation guidance presentation', () => {
     assert.equal(maneuverIcon('merge'), 'git-merge-outline');
     assert.equal(maneuverIcon('roundabout-left'), 'sync');
     assert.equal(maneuverIcon('roundabout-right'), 'sync');
-    assert.equal(maneuverIcon(undefined), 'arrow-up');
+    assert.equal(maneuverIcon('ferry'), 'boat-outline');
+    assert.equal(maneuverIcon('ferry-train'), 'boat-outline');
+    assert.equal(maneuverIcon(undefined), 'navigate');
+    assert.equal(maneuverIcon('provider-future-value'), 'navigate');
     assert.equal(maneuverIcon('straight'), 'arrow-up');
   });
 });

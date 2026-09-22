@@ -103,6 +103,13 @@ export function NavigationManeuverGlyph({
     </>
   );
 
+  const ferry = (
+    <>
+      <Path d="M12 40 32 49 52 40 47 52H17Z" {...main} />
+      <Path d="M21 40V25h22v15M32 25V14M25 19h14" {...main} />
+    </>
+  );
+
   let content: React.ReactNode;
   switch (kind) {
     case 'slight-left': content = slightLeft; break;
@@ -120,6 +127,7 @@ export function NavigationManeuverGlyph({
     case 'ramp-right': content = mirror(rampLeft); break;
     case 'roundabout-left': content = roundaboutLeft; break;
     case 'roundabout-right': content = mirror(roundaboutLeft); break;
+    case 'ferry': content = ferry; break;
     case 'arrive': content = arrive; break;
     default: content = straight; break;
   }
