@@ -4923,32 +4923,14 @@
     return comparable(lead).endsWith(comparable(repeatedRoad)) ? lead : cleaned;
   }
 
-  const NAV_GLANCE_ACTIONS = {
-    straight: 'Go straight',
-    'turn-left': 'Turn left',
-    'turn-right': 'Turn right',
-    'turn-slight-left': 'Bear left',
-    'turn-slight-right': 'Bear right',
-    'turn-sharp-left': 'Sharp left',
-    'turn-sharp-right': 'Sharp right',
-    'uturn-left': 'Make a U-turn',
-    'uturn-right': 'Make a U-turn',
-    'fork-left': 'Keep left',
-    'fork-right': 'Keep right',
-    'ramp-left': 'Take ramp left',
-    'ramp-right': 'Take ramp right',
-    merge: 'Merge',
-    arrive: 'Arrive',
-  };
+  const navigationGuidance = globalThis.RiderNavigationGuidance;
+  if (!navigationGuidance) throw new Error('Navigation guidance runtime is unavailable');
 
-  // The compact action comes only from the provider's structured maneuver
-  // category. Free-form instructions remain provider-authored text; do not
-  // mine them for road, route, exit, lane or junction metadata.
+  // Keep the app-level adapters tiny: the shared browser runtime owns all
+  // user-facing formatting and prompt-stage decisions, while state.unit
+  // remains the account-scoped preference already used throughout the PWA.
   function navGlanceAction(maneuver) {
-    const maneuverKey = maneuver || 'straight';
-    return maneuverKey.startsWith('roundabout')
-      ? 'At roundabout'
-      : NAV_GLANCE_ACTIONS[maneuverKey] || 'Go straight';
+    return navigationGuidance.navigationManeuverAction(maneuver);
   }
 
   /** Best-effort voice guidance — SpeechSynthesis isn't universally
@@ -4964,32 +4946,16 @@
   }
 
   function formatNavDistance(meters) {
-    if (state.unit === 'km') {
-      if (meters < 1000) return `${Math.max(10, Math.round(meters / 10) * 10)} m`;
-      const kilometres = meters / 1000;
-      return `${kilometres.toFixed(kilometres < 10 ? 1 : 0)} km`;
-    }
-    const miles = meters / 1609.344;
-    if (miles < 0.1) {
-      const feet = meters * 3.28084;
-      return `${Math.max(10, Math.round(feet / 10) * 10)} ft`;
-    }
-    return `${miles.toFixed(miles < 10 ? 1 : 0)} mi`;
+    return navigationGuidance.formatNavigationDistance(meters, state.unit);
   }
 
 
   function navigationPromptStageForDistance(meters) {
-    if (!Number.isFinite(meters) || meters > 500) return 0;
-    if (meters > 150) return 1;
-    if (meters > 40) return 2;
-    return 3;
+    return navigationGuidance.navigationPromptStageForDistance(meters);
   }
 
   function navigationPromptText(instruction, meters, stage) {
-    const cleaned = String(instruction || '').replace(/\s+/g, ' ').trim();
-    if (!cleaned || stage === 0) return '';
-    if (stage === 3) return cleaned;
-    return `In ${formatNavDistance(meters)}, ${cleaned}`;
+    return navigationGuidance.navigationPromptText(instruction, meters, state.unit, stage);
   }
 
   function formatNavDuration(seconds) {
@@ -4999,13 +4965,11 @@
   }
 
   function formatNavSpeed(speedMps) {
-    if (!Number.isFinite(speedMps) || Number(speedMps) < 0) return '—';
-    const converted = state.unit === 'km' ? Number(speedMps) * 3.6 : Number(speedMps) * 2.2369362921;
-    return String(Math.round(converted));
+    return navigationGuidance.formatNavigationSpeed(speedMps, state.unit);
   }
 
   function navSpeedUnit() {
-    return state.unit === 'km' ? 'km/h' : 'mph';
+    return navigationGuidance.navigationSpeedUnit(state.unit);
   }
 
   function renderNavSpeed() {
