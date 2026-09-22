@@ -366,12 +366,13 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
       if (requiresVerifiedEmail(req.method, url.pathname) && !(await requireVerifiedEmail(res, authStore, actorId))) return;
       if (req.method === 'POST' && url.pathname === '/rides') { const { ride, codeRecord } = await rideStore.createRide(actorId); return sendJson(res, 201, { ...rideBody(ride), code: codeRecord.code, expiresAt: codeRecord.expiresAt }); }
       if (req.method === 'POST' && url.pathname === '/rides/join') {
+        if (!(await consumeRateLimit(res, rateLimitStore, rateLimitSubject('rider', actorId), 'ride_join_rider'))) return;
+        if (!(await consumeRateLimit(res, rateLimitStore, rateLimitSubject('ip', address), 'ride_join_ip'))) return;
         const body = await readJsonBody(req);
         if (typeof body.code !== 'string' || !/^[A-Z2-9]{6}$/i.test(body.code)) return sendJson(res, 400, { error: 'a valid 6-character code is required' });
-        const result = await rideStore.joinRide(body.code, actorId, address);
+        const result = await rideStore.joinRide(body.code, actorId);
         if (!result.ok) {
-          if (result.reason === 'rate_limited') res.setHeader('Retry-After', '60');
-          const status = result.reason === 'rate_limited' ? 429 : result.reason === 'ride_full' ? 409 : 404;
+          const status = result.reason === 'ride_full' ? 409 : 404;
           return sendJson(res, status, { error: result.reason });
         }
         return sendJson(res, 200, { rideId: result.rideId });

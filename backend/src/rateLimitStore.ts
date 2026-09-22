@@ -4,6 +4,8 @@ import { ensureMigrated, getPool } from './db.ts';
 export type RateLimitAction =
   | 'auth'
   | 'api'
+  | 'ride_join_rider'
+  | 'ride_join_ip'
   | 'hazard_create'
   | 'verification_resend'
   | 'password_reset_request';
@@ -18,6 +20,10 @@ export const RATE_LIMIT_POLICIES: Readonly<Record<RateLimitAction, RateLimitPoli
   // for one client address, preserving the previous combined auth window.
   auth: { maxEvents: 20, windowMs: 60_000 },
   api: { maxEvents: 300, windowMs: 60_000 },
+  // A private ride code grants access to live group features, so guessing is
+  // constrained independently by authenticated rider and client address.
+  ride_join_rider: { maxEvents: 5, windowMs: 60_000 },
+  ride_join_ip: { maxEvents: 20, windowMs: 60_000 },
   hazard_create: { maxEvents: 10, windowMs: 10 * 60_000 },
   verification_resend: { maxEvents: 3, windowMs: 10 * 60_000 },
   password_reset_request: { maxEvents: 3, windowMs: 10 * 60_000 },

@@ -619,7 +619,7 @@ const MIGRATIONS: { name: string; sql: string }[] = [
         id BIGSERIAL PRIMARY KEY,
         subject_key TEXT NOT NULL,
         action TEXT NOT NULL CHECK (
-          action IN ('auth', 'api', 'hazard_create', 'verification_resend', 'password_reset_request')
+          action IN ('auth', 'api', 'ride_join_rider', 'ride_join_ip', 'hazard_create', 'verification_resend', 'password_reset_request')
         ),
         created_at BIGINT NOT NULL
       );

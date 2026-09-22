@@ -2,7 +2,6 @@ import { randomUUID } from 'node:crypto';
 import {
   createRideCodeRecord,
   isRideCodeExpired,
-  SlidingWindowRateLimiter,
 } from '@rider-comms/shared';
 import type { RideCodeRecord } from '@rider-comms/shared';
 import { ensureMigrated, getPool } from './db.ts';
@@ -22,7 +21,7 @@ export interface RideSession {
 
 export type JoinRideResult =
   | { ok: true; rideId: string }
-  | { ok: false; reason: 'rate_limited' | 'invalid_or_expired' | 'ride_full' };
+  | { ok: false; reason: 'invalid_or_expired' | 'ride_full' };
 
 // Product rule: a private ride group is 2-20 riders. The lower bound isn't
 // something to reject on — a ride starts at 1 member (the creator) until
@@ -75,23 +74,16 @@ function rowToCodeRecord(row: RideCodeRow): RideCodeRecord {
 
 /**
  * Private ride groups (Section 5 of the spec): create a ride, get a code,
- * others join with it. Join attempts are rate-limited (Section 13 — a ride
- * code is effectively a password to a live voice room) and an invalid code
- * and an expired code return the identical response, so a guesser can't
- * use the response to tell a near-miss from a stale one.
+ * others join with it. The HTTP security boundary rate-limits join attempts
+ * durably by both authenticated rider and client address (Section 13 — a ride
+ * code is effectively a password to a live voice room). An invalid code and
+ * an expired code return the identical response, so a guesser can't use the
+ * response to tell a near-miss from a stale one.
  *
  * Persisted in Postgres (see db.ts): `rides` + `ride_members` (one row per
- * member, rather than the in-memory Set) + `ride_codes`. Rate limiters stay
- * in-process — they're a per-request-burst defense, not durable state.
+ * member, rather than the in-memory Set) + `ride_codes`.
  */
 export class RideStore {
-  private riderJoinLimiter: SlidingWindowRateLimiter;
-  private ipJoinLimiter: SlidingWindowRateLimiter;
-
-  constructor(maxJoinAttempts = 5, windowMs = 60_000) {
-    this.riderJoinLimiter = new SlidingWindowRateLimiter(maxJoinAttempts, windowMs);
-    this.ipJoinLimiter = new SlidingWindowRateLimiter(maxJoinAttempts * 4, windowMs);
-  }
 
   private async loadRide(rideId: string): Promise<Ride | undefined> {
     const pool = getPool();
@@ -146,11 +138,7 @@ export class RideStore {
     return { ride, codeRecord };
   }
 
-  async joinRide(code: string, riderId: string, rateLimitKey: string): Promise<JoinRideResult> {
-    if (!this.riderJoinLimiter.tryConsume(riderId) || !this.ipJoinLimiter.tryConsume(rateLimitKey)) {
-      return { ok: false, reason: 'rate_limited' };
-    }
-
+  async joinRide(code: string, riderId: string): Promise<JoinRideResult> {
     await ensureMigrated();
     const client = await getPool().connect();
     try {
