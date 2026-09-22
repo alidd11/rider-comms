@@ -1,18 +1,19 @@
 import * as React from 'react';
 import { View, Text, Pressable, Modal, StyleSheet } from 'react-native';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { HazardType } from '@rider-comms/shared';
 import { colors, spacing, radii, type } from '../theme';
+import { HazardIcon } from '../components/HazardIcon';
 
-export const HAZARD_TYPE_META: Record<HazardType, { label: string; icon: keyof typeof MaterialCommunityIcons.glyphMap; color: string }> = {
-  police: { label: 'Police', icon: 'police-badge', color: colors.accent },
-  hidden_police: { label: 'Hidden police', icon: 'incognito', color: colors.accent },
-  police_checkpoint: { label: 'Police checkpoint', icon: 'boom-gate', color: colors.accent },
-  camera: { label: 'Mobile speed camera', icon: 'camera', color: colors.accent },
-  accident: { label: 'Accident', icon: 'car-emergency', color: colors.danger },
-  hazard: { label: 'Pothole', icon: 'car-tire-alert', color: colors.warning },
-  road_closure: { label: 'Road closure', icon: 'road-variant', color: colors.danger },
+export const HAZARD_TYPE_META: Record<HazardType, { label: string; color: string }> = {
+  police: { label: 'Police', color: colors.accent },
+  hidden_police: { label: 'Hidden police', color: colors.accent },
+  police_checkpoint: { label: 'Police checkpoint', color: colors.accent },
+  camera: { label: 'Mobile speed camera', color: colors.accent },
+  accident: { label: 'Accident', color: colors.danger },
+  hazard: { label: 'Pothole', color: colors.warning },
+  road_closure: { label: 'Road closure', color: colors.danger },
 };
 
 const HAZARD_TYPE_ORDER: HazardType[] = [
@@ -58,8 +59,8 @@ export function HazardReportSheet({
                   style={({ pressed }) => [styles.typeButton, pressed && styles.typeButtonPressed]}
                   onPress={() => onReport(type)}
                 >
-                  <View style={[styles.typeIconBadge, { borderColor: meta.color }]}>
-                    <MaterialCommunityIcons name={meta.icon} size={24} color={meta.color} />
+                  <View style={styles.typeIcon}>
+                    <HazardIcon type={type} size={40} />
                   </View>
                   <Text style={styles.typeLabel}>{meta.label}</Text>
                 </Pressable>
@@ -101,7 +102,7 @@ const styles = StyleSheet.create({
   grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', columnGap: spacing.sm, rowGap: spacing.sm },
   typeButton: {
     width: '31%',
-    minHeight: 96,
+    minHeight: 104,
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.sm,
@@ -112,6 +113,6 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   typeButtonPressed: { opacity: 0.82 },
-  typeIconBadge: { width: 38, height: 38, borderRadius: radii.md, alignItems: 'center', justifyContent: 'center', borderWidth: StyleSheet.hairlineWidth },
+  typeIcon: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   typeLabel: { ...type.caption, color: colors.textSecondary, textAlign: 'center', fontWeight: '700' },
 });

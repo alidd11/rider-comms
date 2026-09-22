@@ -2522,3 +2522,12 @@ body:has(.friend-more-card) .sheet-body{gap:9px}
 @media(prefers-color-scheme:light){
   [data-screen="settings"] .settings-page .settings-profile-row,[data-screen="settings"] .settings-page .settings-group,.settings-hub-list,.settings-about-card,.settings-legal-list section{background:#fff}
 }
+
+/* Approved Rider Comms road-report icon family. Keep these vectors visually
+   identical to native: large readable artwork in the report sheet and the
+   same family reduced into compact 26/32px map markers. */
+.hazard-type-tile{min-height:96px;padding:12px 6px 10px;gap:6px}
+.hazard-type-tile .hazard-art-icon{width:38px;height:38px;flex:none;overflow:visible}
+.hazard-card-art{width:42px;height:42px;display:grid;place-items:center;flex:none}
+.hazard-card-art .hazard-art-icon{width:38px;height:38px}
+.nav-road-ahead-event .nav-road-ahead-icon{width:18px;height:18px;flex:none;overflow:visible}
