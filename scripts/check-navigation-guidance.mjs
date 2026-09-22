@@ -4,6 +4,7 @@ import {
   formatNavigationSpeed,
   maneuverIcon,
   navigationManeuverAction,
+  normalizeNavigationInstructionText,
   navigationPromptStageForDistance,
   navigationPromptText,
   navigationSpeedUnit,
@@ -34,6 +35,12 @@ const fixtures = {
     ['  Keep   right  ', 500, 'km', 1],
     ['', 30, 'km', 3],
     ['Continue', 800, 'mi', 0],
+  ],
+  instruction: [
+    'Turn left onto A1',
+    '  Continue   to follow  St Paul\'s Rd / A1201 ',
+    'Keep right, then merge',
+    '',
   ],
 };
 
@@ -66,6 +73,13 @@ for (const [instruction, metres, unit, stage] of fixtures.prompt) {
   assert.equal(
     browser.navigationPromptText(instruction, metres, unit, stage),
     navigationPromptText(instruction, metres, unit, stage),
+  );
+}
+
+for (const instruction of fixtures.instruction) {
+  assert.equal(
+    browser.normalizeNavigationInstructionText(instruction),
+    normalizeNavigationInstructionText(instruction),
   );
 }
 

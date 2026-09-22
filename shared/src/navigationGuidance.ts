@@ -34,6 +34,14 @@ export interface NavigationInstruction {
   arrivalSide?: 'left' | 'right';
 }
 
+/**
+ * Prepare provider-authored instruction text for display or speech without
+ * trying to reinterpret, shorten, or reconstruct its navigation meaning.
+ */
+export function normalizeNavigationInstructionText(value: string): string {
+  return value.replace(/\s+/g, ' ').trim();
+}
+
 export function formatNavigationDistance(metres: number, unit: NavigationUnit): string {
   if (unit === 'km') {
     if (metres < 1000) return `${Math.max(10, Math.round(metres / 10) * 10)} m`;
@@ -101,7 +109,7 @@ export function navigationPromptText(
   unit: NavigationUnit,
   stage: NavigationPromptStage
 ): string {
-  const cleaned = instruction.replace(/\s+/g, ' ').trim();
+  const cleaned = normalizeNavigationInstructionText(instruction);
   if (!cleaned || stage === 0) return '';
   if (stage === 3) return cleaned;
   return `In ${formatNavigationDistance(metres, unit)}, ${cleaned}`;

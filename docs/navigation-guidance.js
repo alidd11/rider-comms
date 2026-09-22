@@ -61,8 +61,12 @@
     return 3;
   }
 
+  function normalizeNavigationInstructionText(value) {
+    return String(value || '').replace(/\s+/g, ' ').trim();
+  }
+
   function navigationPromptText(instruction, metres, unit, stage) {
-    const cleaned = String(instruction || '').replace(/\s+/g, ' ').trim();
+    const cleaned = normalizeNavigationInstructionText(instruction);
     if (!cleaned || stage === 0) return '';
     if (stage === 3) return cleaned;
     return `In ${formatNavigationDistance(metres, unit)}, ${cleaned}`;
@@ -101,6 +105,7 @@
     formatNavigationSpeed,
     maneuverIcon,
     navigationManeuverAction,
+    normalizeNavigationInstructionText,
     navigationPromptStageForDistance,
     navigationPromptText,
     navigationSpeedUnit,
