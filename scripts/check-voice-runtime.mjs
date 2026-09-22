@@ -215,7 +215,7 @@ assert.match(
 );
 
 const profileWrite = mapScreenSource.indexOf("await client.updateProfile(riderId, { shareLocation: true });");
-const localGoLive = mapScreenSource.indexOf('setShareLocation(true);');
+const localGoLive = mapScreenSource.indexOf('setPublicLive(true);');
 assert.ok(
   profileWrite >= 0 && localGoLive > profileWrite,
   'Nearby Voice must confirm backend location-sharing consent before enabling local presence',
@@ -227,8 +227,38 @@ assert.match(
 );
 assert.match(
   mapScreenSource,
-  /<ProximityVoice enabled=\{shareLocation\} peerIds=\{ridersInZone\} \/>/,
-  'Nearby Voice transport must remain mounted for the live session while the peer roster changes',
+  /<ProximityVoice enabled=\{publicLive\} peerIds=\{ridersInZone\} \/>/,
+  'Nearby Voice transport must be controlled by session-scoped live state, not durable profile consent',
+);
+assert.match(
+  mapScreenSource,
+  /const \[publicLive, setPublicLive\] = React\.useState\(false\)/,
+  'Native Nearby must require a fresh opt-in for each mounted app session',
+);
+assert.match(
+  mapScreenSource,
+  /await client\.getMe\(\)[\s\S]*identity\.emailVerified/,
+  'Native Nearby must explain the verified-account prerequisite before opening voice',
+);
+assert.match(
+  pwaSource,
+  /const PRESENCE_REFRESH_MS = 8_000[\s\S]*presenceRefreshInFlight/,
+  'PWA presence must refresh inside the 5–10s product cadence without overlapping GPS/network work',
+);
+assert.match(
+  pwaSource,
+  /schedulePublicVoiceRefresh\(response\.refreshAfterMs\)/,
+  'PWA public voice must renew authorization on the server-advertised cadence instead of every presence ping',
+);
+assert.match(
+  pwaSource,
+  /session\?\.emailVerified === false[\s\S]*Verify your email before joining Nearby Voice/,
+  'PWA Nearby must explain the verified-account prerequisite before requesting microphone/location access',
+);
+assert.match(
+  pwaSource,
+  /const hadPersistedPublicLive = state\.publicLive === true[\s\S]*state\.publicLive = false[\s\S]*apiFetch\('DELETE', '\/presence'\)/,
+  'PWA Nearby must clear persisted public-live state instead of auto-rejoining after reload/cold launch',
 );
 assert.match(
   pwaSource,
