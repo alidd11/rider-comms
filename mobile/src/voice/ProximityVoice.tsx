@@ -248,30 +248,40 @@ export function ProximityVoice({
   const speakingPeerIds = [...speakingPeers].filter((peerId) => connectedPeers.has(peerId));
   const speakingNames = speakingPeerIds.map((peerId) => peerNames.get(peerId) ?? 'Nearby rider');
   const localSpeaking = [...localSpeakingPeers].some((peerId) => connectedPeers.has(peerId));
+  const partialConnectionIssue = Boolean(error && connectedPeers.size > 0 && !audioSessionError && !authorizationExpired);
   const statusHasIssue = Boolean(error || audioSessionError || authorizationExpired);
-  const statusText = proximityVoiceStatus({
-    error: Boolean(error || audioSessionError),
-    authorizationExpired,
-    manuallyMuted,
-    localSpeaking,
-    remoteSpeakingNames: speakingNames,
-    connectedCount: connectedPeers.size,
-    pendingCount: connections.length,
-  });
+  const statusText = partialConnectionIssue
+    ? `Nearby Voice · ${connectedPeers.size} connected · Reconnecting`
+    : proximityVoiceStatus({
+      error: Boolean(error || audioSessionError),
+      authorizationExpired,
+      manuallyMuted,
+      localSpeaking,
+      remoteSpeakingNames: speakingNames,
+      connectedCount: connectedPeers.size,
+      pendingCount: connections.length,
+    });
   const voiceControlEnabled = connectedPeers.size > 0 || statusHasIssue;
   const voiceControlLabel = audioSessionError
     ? 'Nearby Voice unavailable — tap to retry audio'
-    : error
-      ? 'Nearby Voice unavailable — tap to retry'
-      : authorizationExpired
-        ? 'Nearby Voice reconnecting — tap to retry'
+    : authorizationExpired
+      ? 'Nearby Voice reconnecting — tap to retry'
+      : error
+        ? connectedPeers.size > 0
+          ? `${displayStatusText} — tap to retry disconnected riders`
+          : 'Nearby Voice unavailable — tap to retry'
         : connectedPeers.size > 0
           ? manuallyMuted
-            ? 'Proximity voice muted — tap to unmute'
-            : 'Listening — hands-free — tap to mute'
+            ? `${statusText} — tap to unmute microphone`
+            : speakingNames.length > 0
+              ? `${statusText} — tap to mute microphone`
+              : 'Listening — hands-free — tap to mute microphone'
           : statusText;
+  const displayStatusText = statusHasIssue && !partialConnectionIssue
+    ? `${statusText} · Tap to retry`
+    : statusText;
   const handleVoiceControlPress = () => {
-    if (audioSessionError || error || authorizationExpired) {
+    if (audioSessionError || authorizationExpired || (error && connectedPeers.size === 0)) {
       setError(null);
       setAudioSessionError(null);
       setConnections([]);
@@ -280,6 +290,14 @@ export function ProximityVoice({
       setLocalSpeakingPeers(new Set());
       setPeerNames(new Map());
       setAudioSessionRetryVersion((version) => version + 1);
+      setRefreshVersion((version) => version + 1);
+      return;
+    }
+    if (error && connectedPeers.size > 0) {
+      // A single pair-room failure must not tear down healthy nearby rooms.
+      // retryPeer() already removed the failed credential; a fresh
+      // authorization fetch can restore only that peer.
+      setError(null);
       setRefreshVersion((version) => version + 1);
       return;
     }
@@ -340,7 +358,7 @@ export function ProximityVoice({
         >
           <VoiceActivityBridge
             enabled={!manuallyMuted}
-            onError={(message) => setError(message || 'Microphone is unavailable.')}
+            onError={(message) => setAudioSessionError(message || 'Microphone is unavailable.')}
             onSpeakingChange={(speaking) => handleLocalSpeaking(connection.peerId, speaking)}
           />
           <ActiveSpeakerBridge

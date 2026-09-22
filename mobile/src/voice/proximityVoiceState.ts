@@ -53,13 +53,16 @@ export function proximityVoiceStatus({
 }): string {
   if (error) return 'Nearby Voice unavailable';
   if (authorizationExpired) return 'Nearby Voice · reconnecting';
-  if (manuallyMuted && connectedCount > 0) return 'Nearby Voice · muted';
   if (localSpeaking) return 'Nearby Voice · You speaking';
-  if (remoteSpeakingNames.length === 1) return `Nearby Voice · ${remoteSpeakingNames[0]} speaking`;
-  if (remoteSpeakingNames.length > 1) {
-    return `Nearby Voice · ${remoteSpeakingNames[0]} + ${remoteSpeakingNames.length - 1} speaking`;
+  if (remoteSpeakingNames.length === 1) {
+    return `Nearby Voice · ${remoteSpeakingNames[0]} speaking${manuallyMuted ? ' · Mic muted' : ''}`;
   }
-  if (connectedCount > 0) return `Nearby Voice · ${connectedCount} connected`;
+  if (remoteSpeakingNames.length > 1) {
+    return `Nearby Voice · ${remoteSpeakingNames[0]} + ${remoteSpeakingNames.length - 1} speaking${manuallyMuted ? ' · Mic muted' : ''}`;
+  }
+  if (manuallyMuted && connectedCount > 0) return 'Nearby Voice · Mic muted';
+  if (connectedCount === 1) return 'Nearby Voice · Listening';
+  if (connectedCount > 1) return `Nearby Voice · Listening · ${connectedCount} riders`;
   if (pendingCount > 0) return 'Connecting Nearby Voice';
   return 'Nearby Voice · waiting for riders';
 }

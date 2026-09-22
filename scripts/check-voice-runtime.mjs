@@ -131,6 +131,16 @@ assert.match(
   'Native public proximity voice must support rider-initiated audio-session and authorization recovery without disabling Nearby presence',
 );
 assert.match(
+  proximitySource,
+  /error && connectedPeers\.size > 0[\s\S]*setRefreshVersion[\s\S]*return;/,
+  'Native proximity retry must preserve healthy pair rooms when only one authorised peer connection fails',
+);
+assert.match(
+  proximitySource,
+  /onError=\{\(message\) => setAudioSessionError/,
+  'Native VOX microphone failures must use the audio recovery path instead of masquerading as a peer-room transport failure',
+);
+assert.match(
   pwaSource,
   /voiceManuallyMuted[\s\S]*async function toggleVoiceMute\(\)/,
   'PWA public proximity voice must retain the equivalent mute/recovery control',
