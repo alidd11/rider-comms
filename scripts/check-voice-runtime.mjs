@@ -137,6 +137,11 @@ assert.match(
 );
 assert.match(
   proximitySource,
+  /consecutiveRefreshFailures[\s\S]*resolveProximityVoiceRetryDelay[\s\S]*setTimeout\(\(\) => void refresh\(\), nextRefreshMs\)/,
+  'Native proximity authorization must retry transient failures sooner before backing off to the normal refresh cadence',
+);
+assert.match(
+  proximitySource,
   /onError=\{\(message\) => setAudioSessionError/,
   'Native VOX microphone failures must use the audio recovery path instead of masquerading as a peer-room transport failure',
 );

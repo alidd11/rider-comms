@@ -5,6 +5,7 @@ import {
   DEFAULT_PROXIMITY_VOICE_REFRESH_MS,
   proximityVoiceStatus,
   prunePeerSet,
+  resolveProximityVoiceRetryDelay,
   resolveProximityVoiceTiming,
 } from '../src/voice/proximityVoiceState.ts';
 
@@ -25,6 +26,14 @@ describe('proximity voice state', () => {
       refreshAfterMs: 5_000,
       authorizationLeaseMs: 10_000,
     });
+  });
+
+  it('backs transient authorization failures off to the normal refresh cadence', () => {
+    assert.equal(resolveProximityVoiceRetryDelay(1, 20_000), 5_000);
+    assert.equal(resolveProximityVoiceRetryDelay(2, 20_000), 10_000);
+    assert.equal(resolveProximityVoiceRetryDelay(3, 20_000), 20_000);
+    assert.equal(resolveProximityVoiceRetryDelay(8, 20_000), 20_000);
+    assert.equal(resolveProximityVoiceRetryDelay(1, 3_000), 3_000);
   });
 
   it('prunes connected/speaking state to the latest authorised roster', () => {

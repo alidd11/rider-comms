@@ -10,6 +10,7 @@ import {
   DEFAULT_PROXIMITY_VOICE_REFRESH_MS,
   proximityVoiceStatus,
   prunePeerSet,
+  resolveProximityVoiceRetryDelay,
   resolveProximityVoiceTiming,
 } from './proximityVoiceState';
 import { useAuth } from '../auth/AuthContext';
@@ -134,16 +135,20 @@ export function ProximityVoice({
 
     let cancelled = false;
     let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+    let normalRefreshMs = DEFAULT_PROXIMITY_VOICE_REFRESH_MS;
+    let consecutiveRefreshFailures = 0;
 
     async function refresh() {
-      let nextRefreshMs = DEFAULT_PROXIMITY_VOICE_REFRESH_MS;
+      let nextRefreshMs = normalRefreshMs;
       try {
         const response = await client.getChannelVoiceToken();
         const timing = resolveProximityVoiceTiming(
           response.refreshAfterMs,
           response.authorizationLeaseMs,
         );
-        nextRefreshMs = timing.refreshAfterMs;
+        normalRefreshMs = timing.refreshAfterMs;
+        nextRefreshMs = normalRefreshMs;
+        consecutiveRefreshFailures = 0;
         if (!cancelled) {
           const authorisedPeerIds = new Set(response.connections.map((connection) => connection.peerId));
           // Keep the existing credential for unchanged peers so connected
@@ -165,12 +170,18 @@ export function ProximityVoice({
           renewAuthorizationLease(timing.authorizationLeaseMs);
         }
       } catch (cause) {
+        consecutiveRefreshFailures += 1;
+        nextRefreshMs = resolveProximityVoiceRetryDelay(
+          consecutiveRefreshFailures,
+          normalRefreshMs,
+        );
         if (!cancelled && !hasAuthorizedOnce.current) {
           setError(cause instanceof Error ? cause.message : 'Proximity voice is unavailable.');
         }
         // If a previous authorization is still leased, preserve that existing
-        // pair through a transient backend miss. The independent lease timer
-        // fails closed if re-authorization cannot be confirmed in time.
+        // pair through a transient backend miss. Retry sooner at first, then
+        // back off to the normal server cadence while the independent lease
+        // timer still fails closed if authorization cannot be renewed.
       } finally {
         if (!cancelled) {
           refreshTimer = setTimeout(() => void refresh(), nextRefreshMs);

@@ -5,6 +5,23 @@ function validPositiveMs(value: number | undefined): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value > 0;
 }
 
+export function resolveProximityVoiceRetryDelay(
+  consecutiveFailures: number,
+  normalRefreshMs = DEFAULT_PROXIMITY_VOICE_REFRESH_MS,
+): number {
+  const refreshCap = validPositiveMs(normalRefreshMs)
+    ? normalRefreshMs
+    : DEFAULT_PROXIMITY_VOICE_REFRESH_MS;
+  const failures = Number.isFinite(consecutiveFailures)
+    ? Math.max(1, Math.floor(consecutiveFailures))
+    : 1;
+  // 5s, 10s, then cap at the normal server cadence. This gives a rider
+  // multiple recovery attempts inside the authorization lease without
+  // creating a tight retry loop during a backend outage.
+  const retryMs = 5_000 * (2 ** Math.min(2, failures - 1));
+  return Math.min(refreshCap, retryMs);
+}
+
 export function resolveProximityVoiceTiming(
   refreshAfterMs: number | undefined,
   authorizationLeaseMs: number | undefined,
