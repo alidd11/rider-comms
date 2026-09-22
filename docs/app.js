@@ -215,6 +215,9 @@
   // persisted state the way profile/friends data does — they are always
   // re-fetched from the backend rather than trusted from localStorage.
   let nearbyRiders = [];
+  // Track the backend-authorised public voice roster separately from display
+  // profiles so faster presence polling does not churn LiveKit tokens.
+  let nearbyVoicePeerKey = '';
 
   // Real per-rider coordinates for the active ride's members (GET
   // /rides/:id/locations) — same runtime-only convention as nearbyRiders
@@ -2490,8 +2493,12 @@
   // real always-on client does: keep sending its current fix on an
   // interval for as long as the rider stays live, well inside that
   // staleness window.
-  const PRESENCE_REFRESH_MS = 20_000;
+  // Keep public presence on the product's 5–10s cadence. Twenty seconds left
+  // too little margin inside the backend's ~30s stale lease and delayed peer
+  // discovery enough to make two-device testing look disconnected.
+  const PRESENCE_REFRESH_MS = 8_000;
   let presenceRefreshTimer;
+  let presenceRefreshInFlight = false;
 
   function stopPresenceRefresh() {
     clearInterval(presenceRefreshTimer);
@@ -2501,11 +2508,13 @@
   function startPresenceRefresh() {
     stopPresenceRefresh();
     presenceRefreshTimer = setInterval(async () => {
-      if (!state.publicLive || state.activeRide || document.visibilityState !== 'visible') return;
+      if (!state.publicLive || state.activeRide || document.visibilityState !== 'visible' || presenceRefreshInFlight) return;
+      presenceRefreshInFlight = true;
       try {
         const position = await currentPublicPresencePosition();
         if (state.publicLive && !state.activeRide) await sendPresence(position);
       } catch { /* A transient miss is retried on the next tick. */ }
+      finally { presenceRefreshInFlight = false; }
     }, PRESENCE_REFRESH_MS);
   }
 
@@ -2513,6 +2522,7 @@
     stopPresenceRefresh();
     state.publicLive = false;
     nearbyRiders = [];
+    nearbyVoicePeerKey = '';
     // Only tear down the public proximity transport. This helper is also
     // called from Settings, which remains reachable during a private ride;
     // changing public visibility must never drop that ride's private voice.
@@ -2578,9 +2588,12 @@
       accuracyMeters: position.coords.accuracy,
       recordedAt: position.timestamp,
     });
+    const nextVoicePeerKey = [...result.inZoneWith].sort().join('\u0000');
+    const voicePeersChanged = nextVoicePeerKey !== nearbyVoicePeerKey;
+    nearbyVoicePeerKey = nextVoicePeerKey;
     nearbyRiders = await resolveRiderProfiles(result.inZoneWith);
     if (!state.activeRide) renderMapRiders();
-    if (state.publicLive && !state.activeRide && microphonePermissionReady) syncVoiceConnection();
+    if (state.publicLive && !state.activeRide && microphonePermissionReady && voicePeersChanged) syncVoiceConnection();
     return result;
   }
 
@@ -2617,6 +2630,7 @@
   let microphonePermissionReady = false;
   let voiceFailureNotified = false;
   let voiceReconnectTimer;
+  let publicVoiceRefreshTimer;
   let publicVoiceAuthorizationLeaseTimer;
   let publicVoiceAuthorizationExpired = false;
   let publicVoiceConnectInFlight = false;
@@ -2774,6 +2788,27 @@
     }, 2000);
   }
 
+  function clearPublicVoiceRefresh() {
+    if (publicVoiceRefreshTimer) {
+      clearTimeout(publicVoiceRefreshTimer);
+      publicVoiceRefreshTimer = undefined;
+    }
+  }
+
+  function schedulePublicVoiceRefresh(refreshAfterMs) {
+    clearPublicVoiceRefresh();
+    const delayMs = typeof refreshAfterMs === 'number' && Number.isFinite(refreshAfterMs) && refreshAfterMs > 0
+      ? Math.max(1_000, refreshAfterMs)
+      : 20_000;
+    publicVoiceRefreshTimer = setTimeout(() => {
+      publicVoiceRefreshTimer = undefined;
+      // Background public voice must not renew without fresh visible-session
+      // presence; foregrounding resumes presence before voice authorization.
+      if (currentVoiceTarget() !== 'channel' || document.visibilityState !== 'visible') return;
+      syncVoiceConnection();
+    }, delayMs);
+  }
+
   function clearPublicVoiceAuthorizationLease() {
     if (publicVoiceAuthorizationLeaseTimer) {
       clearTimeout(publicVoiceAuthorizationLeaseTimer);
@@ -2783,6 +2818,7 @@
 
   function expirePublicVoiceAuthorizationLease() {
     publicVoiceAuthorizationLeaseTimer = undefined;
+    clearPublicVoiceRefresh();
     if (currentVoiceTarget() !== 'channel') return;
 
     // A LiveKit participant is not ejected merely because its join token has
@@ -3167,6 +3203,7 @@
 
       if (kind === 'channel') {
         renewPublicVoiceAuthorizationLease(response.authorizationLeaseMs);
+        schedulePublicVoiceRefresh(response.refreshAfterMs);
         const enteringChannel = voiceTargetKey !== 'channel';
         const desiredPeers = new Set(response.connections.map((connection) => connection.peerId));
         for (const [peerId, existingRoom] of proximityVoiceRooms) {
@@ -3292,6 +3329,7 @@
   }
 
   function disconnectVoice() {
+    clearPublicVoiceRefresh();
     clearPublicVoiceAuthorizationLease();
     publicVoiceAuthorizationExpired = false;
     publicVoiceRefreshPending = false;
@@ -3306,6 +3344,7 @@
   }
 
   function disconnectPublicVoice() {
+    clearPublicVoiceRefresh();
     clearPublicVoiceAuthorizationLease();
     publicVoiceAuthorizationExpired = false;
     publicVoiceRefreshPending = false;
@@ -3410,6 +3449,13 @@
         return;
       }
 
+      // Email verification is an intentional public-channel anti-abuse gate.
+      // Init refreshes this value from /auth/me, so fail before asking for
+      // microphone/location when the account is not eligible.
+      if (session?.emailVerified === false) {
+        showToast('Verify your email before joining Nearby Voice.');
+        return;
+      }
       if (!(await preflightMicrophoneAccess())) return;
 
       let position;
@@ -3466,11 +3512,13 @@
         }
 
         const code = error instanceof ApiError ? error.body?.error : undefined;
-        showToast(code === 'location_sharing_disabled'
-          ? 'Enable location sharing in Settings to go live.'
-          : code === 'location accuracy must be between 0 and 100 metres'
-            ? 'Waiting for a more accurate GPS fix. Try Nearby again in a moment.'
-            : 'Could not go live. Try again.');
+        showToast(code === 'email_verification_required'
+          ? 'Verify your email before joining Nearby Voice.'
+          : code === 'location_sharing_disabled'
+            ? 'Enable location sharing in Settings to go live.'
+            : code === 'location accuracy must be between 0 and 100 metres'
+              ? 'Waiting for a more accurate GPS fix. Try Nearby again in a moment.'
+              : 'Could not go live. Try again.');
       }
     } finally {
       nearbyTogglePending = false;
@@ -5893,7 +5941,7 @@
     button.textContent = 'Logging in…';
     try {
       const result = await apiFetch('POST', '/auth/login', { username, password, deviceName: 'Rider Comms PWA' });
-      saveSession({ riderId: result.riderId, token: result.token }, $('#rememberMe')?.checked !== false);
+      saveSession({ riderId: result.riderId, token: result.token, emailVerified: Boolean(result.emailVerified) }, $('#rememberMe')?.checked !== false);
       applyAuthenticatedIdentity(result.riderId, username);
       // A newly authenticated rider may already belong to a ride on another
       // device. Reconcile before enabling ride location or voice in the UI.
@@ -5931,7 +5979,7 @@
     button.textContent = 'Creating account…';
     try {
       const result = await apiFetch('POST', '/auth/signup', { username, email, password, deviceName: 'Rider Comms PWA' });
-      saveSession({ riderId: result.riderId, token: result.token });
+      saveSession({ riderId: result.riderId, token: result.token, emailVerified: Boolean(result.emailVerified) });
       applyAuthenticatedIdentity(result.riderId, username);
       hideAuthScreen();
       startApp();
@@ -6196,6 +6244,8 @@
         location.reload();
         return;
       }
+      const rememberedSession = localStorage.getItem(SESSION_KEY) !== null;
+      saveSession({ ...session, emailVerified: Boolean(identity.emailVerified) }, rememberedSession);
     } catch (error) {
       if (error instanceof ApiError && error.status === 0) {
         wireAuthForms();
@@ -6208,20 +6258,20 @@
       return;
     }
     applyAuthenticatedIdentity(session.riderId, state.profile.displayName || session.riderId);
-    // Do not publish private location or join a room from persisted UI state.
-    const restorePublicLive = state.publicLive === true;
+    // Public Nearby is opt-in per running app session. Persisted UI state is
+    // never authority to restart location publication or microphone capture
+    // after a reload/cold launch; clear any prior presence lease instead.
+    const hadPersistedPublicLive = state.publicLive === true;
     state.publicLive = false;
     state.activeRide = null;
+    persist();
     await refreshActiveRide();
-    if (restorePublicLive && state.activeRide) {
+    if (hadPersistedPublicLive) {
       try { await apiFetch('DELETE', '/presence'); } catch { /* Lease expires server-side. */ }
     }
     hideAuthScreen();
     startApp();
-    if (await loadProfile() && restorePublicLive && !state.activeRide) {
-      state.publicLive = true;
-      await resumePublicPresence();
-    }
+    await loadProfile();
     if (verification) showToast(verification.message);
   }
 
