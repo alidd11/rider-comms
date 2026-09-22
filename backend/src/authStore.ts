@@ -381,6 +381,16 @@ export class AuthStore {
     return rows[0] ? { riderId, username: rows[0].username, emailVerified: rows[0].email_verified_at !== null } : undefined;
   }
 
+  async isAdmin(riderId: string): Promise<boolean> {
+    if (!process.env.DATABASE_URL) return false;
+    await ensureMigrated();
+    const { rows } = await getPool().query<{ is_admin: boolean }>(
+      'SELECT is_admin FROM users WHERE id = $1',
+      [riderId]
+    );
+    return rows[0]?.is_admin === true;
+  }
+
   async listSessions(riderId: string, currentToken: string): Promise<AccountSessionSummary[]> {
     await ensureMigrated();
     const currentHash = this.digest(currentToken);
