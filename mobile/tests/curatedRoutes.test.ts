@@ -134,6 +134,22 @@ describe('curated route catalogue', () => {
     assert.deepEqual(pwaComparable, nativeComparable);
   });
 
+  it('explains the curated-route handoff before detailed planning content in both clients', () => {
+    const nativeBrowserSource = readFileSync(new URL('../src/routes/CuratedRouteBrowser.tsx', import.meta.url), 'utf8');
+    const pwaSource = readFileSync(new URL('../../docs/routes.js', import.meta.url), 'utf8');
+    const handoffCopy = 'Rider Comms guides you to the route start.';
+
+    const nativeCopyIndex = nativeBrowserSource.indexOf(handoffCopy);
+    const nativeTraceIndex = nativeBrowserSource.indexOf('<View style={styles.tracePanel}>');
+    assert.ok(nativeCopyIndex >= 0 && nativeCopyIndex < nativeTraceIndex);
+    assert.equal(nativeBrowserSource.split(handoffCopy).length - 1, 1);
+
+    const pwaCopyIndex = pwaSource.indexOf(handoffCopy);
+    const pwaTraceIndex = pwaSource.indexOf('<div class="route-trace-panel">');
+    assert.ok(pwaCopyIndex >= 0 && pwaCopyIndex < pwaTraceIndex);
+    assert.equal(pwaSource.split(handoffCopy).length - 1, 1);
+  });
+
   it('filters without mutating the catalogue', () => {
     const before = [...CURATED_ROUTES];
     const matching = CURATED_ROUTES.filter((route) => routeMatchesVehicle(route, 'scooter'));
