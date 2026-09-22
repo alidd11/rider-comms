@@ -178,6 +178,14 @@ export function MapScreen(): React.JSX.Element {
   const navOffRouteSince = React.useRef<number | null>(null);
   const navRerouting = React.useRef(false);
   const navigationFollowingRef = React.useRef(true);
+  // Read inside the GPS watchPositionAsync callback below instead of closing
+  // over the state values directly, so that effect's own dependency array
+  // doesn't need navigationStepIndex/navigationMuted -- without this, the
+  // whole location subscription would tear down and re-subscribe on every
+  // single maneuver step and every mute toggle, instead of only when
+  // navigation actually starts or stops.
+  const navigationStepIndexRef = React.useRef(0);
+  const navigationMutedRef = React.useRef(false);
   const navigationCameraHeading = React.useRef<number | null>(null);
   const navGpsTracker = React.useRef(new NavigationGpsTracker());
   const announcedNavigationStep = React.useRef<{ route: InAppNavigationRoute; index: number } | null>(null);
@@ -610,6 +618,14 @@ export function MapScreen(): React.JSX.Element {
   }, [navigationFollowing]);
 
   React.useEffect(() => {
+    navigationStepIndexRef.current = navigationStepIndex;
+  }, [navigationStepIndex]);
+
+  React.useEffect(() => {
+    navigationMutedRef.current = navigationMuted;
+  }, [navigationMuted]);
+
+  React.useEffect(() => {
     navigation.setOptions({ tabBarStyle: activeRoute ? { display: 'none' } : undefined });
     return () => navigation.setOptions({ tabBarStyle: undefined });
   }, [activeRoute, navigation]);
@@ -636,9 +652,9 @@ export function MapScreen(): React.JSX.Element {
     setNavigationNotice(arrived ? 'You have arrived.' : null);
     mapRef.current?.animateCamera({ heading: 0, pitch: 0 }, { duration: 350 });
     void stopNavigationPrompt().finally(() => {
-      if (arrived && !navigationMuted) speakNavigationPrompt('You have arrived at your destination.');
+      if (arrived && !navigationMutedRef.current) speakNavigationPrompt('You have arrived at your destination.');
     });
-  }, [navigationMuted]);
+  }, []);
 
   const requestInAppRoute = React.useCallback(async (origin: { lat: number; lon: number }, target: NavigationTarget, rerouting = false) => {
     if (!GOOGLE_DIRECTIONS_API_KEY) throw new Error('directions_not_configured');
@@ -720,6 +736,10 @@ export function MapScreen(): React.JSX.Element {
 
   React.useEffect(() => {
     if (!activeRoute || !navigationDestination || !currentNavigationStep) return;
+    // activeRoute/navigationDestination gate whether this effect runs at
+    // all; navigationStepIndexRef/navigationMutedRef (read inside the
+    // callback below) keep it from restarting the subscription on every
+    // step advance or mute toggle.
     let cancelled = false;
     let subscription: Location.LocationSubscription | null = null;
 
@@ -738,15 +758,19 @@ export function MapScreen(): React.JSX.Element {
           ? Number(position.coords.speed)
           : null);
 
+        const stepIndex = navigationStepIndexRef.current;
+        const startingStep = activeRoute.steps[stepIndex];
+        if (!startingStep) return;
+
         if (
-          navigationStepIndex === activeRoute.steps.length - 1 &&
-          metersBetween(here, currentNavigationStep.end) <= NAV_STEP_ARRIVAL_RADIUS_M
+          stepIndex === activeRoute.steps.length - 1 &&
+          metersBetween(here, startingStep.end) <= NAV_STEP_ARRIVAL_RADIUS_M
         ) {
           finishInAppNavigation(true);
           return;
         }
 
-        let effectiveIndex = navigationStepIndex;
+        let effectiveIndex = stepIndex;
         while (effectiveIndex < activeRoute.steps.length - 1) {
           const step = activeRoute.steps[effectiveIndex]!;
           const nextStep = activeRoute.steps[effectiveIndex + 1]!;
@@ -755,7 +779,7 @@ export function MapScreen(): React.JSX.Element {
           if (!reachedStepEnd && !alreadyOnNextStep) break;
           effectiveIndex += 1;
         }
-        if (effectiveIndex !== navigationStepIndex) {
+        if (effectiveIndex !== stepIndex) {
           setNavigationStepIndex(effectiveIndex);
         }
 
@@ -778,7 +802,7 @@ export function MapScreen(): React.JSX.Element {
           }
           const maneuverDistance = remainingDistanceOnPathMeters(here, effectiveStep.coordinates);
           const promptStage = navigationPromptStageForDistance(maneuverDistance);
-          if (!navigationMuted && promptStage > progress.stage) {
+          if (!navigationMutedRef.current && promptStage > progress.stage) {
             navigationPromptProgress.current = { ...progress, stage: promptStage };
             if (promptStage === 3) finalNavigationPrompt.current = { route: activeRoute, index: upcomingIndex };
             const prompt = navigationPromptText(upcomingStep.instruction, maneuverDistance, unitSystem, promptStage);
@@ -800,7 +824,7 @@ export function MapScreen(): React.JSX.Element {
 
         navOffRouteSince.current = null;
         setNavigationNotice('Rerouting…');
-        if (!navigationMuted) speakNavigationPrompt('Rerouting.');
+        if (!navigationMutedRef.current) speakNavigationPrompt('Rerouting.');
         void requestInAppRoute(here, navigationDestination, true).catch(() => {
           setNavigationNotice('Could not reroute. Continue with caution.');
         });
@@ -822,7 +846,14 @@ export function MapScreen(): React.JSX.Element {
       cancelled = true;
       subscription?.remove();
     };
-  }, [activeRoute, currentNavigationStep, finishInAppNavigation, focusNavigationCamera, navigationDestination, navigationMuted, navigationStepIndex, requestInAppRoute, unitSystem]);
+    // currentNavigationStep only gates whether this effect starts at all
+    // (evaluated once per route); navigationMuted/navigationStepIndex are
+    // deliberately excluded -- their current values are read from
+    // navigationMutedRef/navigationStepIndexRef inside the callback above,
+    // so muting or advancing a step doesn't tear down and re-subscribe the
+    // GPS watcher.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeRoute, finishInAppNavigation, focusNavigationCamera, navigationDestination, requestInAppRoute, unitSystem]);
 
   async function centreOnCurrentLocation(): Promise<void> {
     const location = currentLocation ?? await requestCurrentLocation(true);
