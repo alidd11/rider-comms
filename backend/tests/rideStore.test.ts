@@ -27,27 +27,27 @@ describe('RideStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping Po
   });
 
   it('caps a ride at 20 members and returns ride_full past the cap', async () => {
-    const store = new RideStore(1000, 60_000); // high join-attempt limit, this test is about the size cap
+    const store = new RideStore(); // rate limiting lives at the HTTP security boundary; this test is about the size cap
     const { ride, codeRecord } = await store.createRide('host');
 
     for (let i = 0; i < 19; i++) {
-      const result = await store.joinRide(codeRecord.code, `rider_${i}`, `1.1.1.${i}`);
+      const result = await store.joinRide(codeRecord.code, `rider_${i}`);
       assert.equal(result.ok, true, `rider_${i} should have joined`);
     }
     const afterJoins = await store.getRide(ride.id);
     assert.equal(afterJoins?.memberIds.size, 20); // host + 19 joiners
 
-    const overflow = await store.joinRide(codeRecord.code, 'rider_20', '1.1.1.20');
+    const overflow = await store.joinRide(codeRecord.code, 'rider_20');
     assert.deepEqual(overflow, { ok: false, reason: 'ride_full' });
     const stillCapped = await store.getRide(ride.id);
     assert.equal(stillCapped?.memberIds.size, 20);
   });
 
   it('never exceeds the member cap when join requests race', async () => {
-    const store = new RideStore(1000, 60_000);
+    const store = new RideStore();
     const { ride, codeRecord } = await store.createRide('host');
     const results = await Promise.all(
-      Array.from({ length: 30 }, (_, index) => store.joinRide(codeRecord.code, `racer_${index}`, `2.2.2.${index}`)),
+      Array.from({ length: 30 }, (_, index) => store.joinRide(codeRecord.code, `racer_${index}`)),
     );
     assert.equal(results.filter((result) => result.ok).length, 19);
     assert.equal(results.filter((result) => !result.ok && result.reason === 'ride_full').length, 11);
@@ -55,20 +55,20 @@ describe('RideStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping Po
   });
 
   it('lets an existing member re-join a full ride without being rejected', async () => {
-    const store = new RideStore(1000, 60_000);
+    const store = new RideStore();
     const { ride, codeRecord } = await store.createRide('host');
-    for (let i = 0; i < 19; i++) await store.joinRide(codeRecord.code, `rider_${i}`, `1.1.1.${i}`);
+    for (let i = 0; i < 19; i++) await store.joinRide(codeRecord.code, `rider_${i}`);
     const afterJoins = await store.getRide(ride.id);
     assert.equal(afterJoins?.memberIds.size, 20);
 
-    const rejoin = await store.joinRide(codeRecord.code, 'rider_0', '1.1.1.0');
+    const rejoin = await store.joinRide(codeRecord.code, 'rider_0');
     assert.equal(rejoin.ok, true);
   });
 
   it('requires explicit per-ride consent before sharing a member location', async () => {
     const store = new RideStore();
     const { ride, codeRecord } = await store.createRide('host');
-    await store.joinRide(codeRecord.code, 'guest', '1.1.1.1');
+    await store.joinRide(codeRecord.code, 'guest');
 
     const denied = await store.updateMemberLocation(ride.id, 'guest', 51.5, -0.1);
     assert.deepEqual(denied, { ok: false, reason: 'location_sharing_disabled' });
@@ -96,7 +96,7 @@ describe('RideStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping Po
     const store = new RideStore();
     assert.equal(await store.getCurrentRideForMember('member'), null);
     const { ride, codeRecord } = await store.createRide('host');
-    await store.joinRide(codeRecord.code, 'member', '1.1.1.1');
+    await store.joinRide(codeRecord.code, 'member');
     assert.equal((await store.getCurrentRideForMember('member'))?.shareRideLocation, false);
     assert.equal((await store.getCurrentRideForMember('host'))?.shareRideLocation, false);
     await store.setMemberLocationSharing(ride.id, 'member', true);
@@ -114,7 +114,7 @@ describe('RideStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping Po
   it('purges location when consent is withdrawn or membership ends', async () => {
     const store = new RideStore();
     const { ride, codeRecord } = await store.createRide('host');
-    await store.joinRide(codeRecord.code, 'guest', '1.1.1.1');
+    await store.joinRide(codeRecord.code, 'guest');
     await store.setMemberLocationSharing(ride.id, 'guest', true);
     await store.updateMemberLocation(ride.id, 'guest', 51.5, -0.1);
 
@@ -136,7 +136,7 @@ describe('RideStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping Po
   it('purges a rider location when the host removes that member', async () => {
     const store = new RideStore();
     const { ride, codeRecord } = await store.createRide('host');
-    await store.joinRide(codeRecord.code, 'guest', '1.1.1.1');
+    await store.joinRide(codeRecord.code, 'guest');
     await store.setMemberLocationSharing(ride.id, 'guest', true);
     await store.updateMemberLocation(ride.id, 'guest', 51.5, -0.1);
 
@@ -152,7 +152,7 @@ describe('RideStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping Po
   it('does not return or retain stale ride locations', async () => {
     const store = new RideStore();
     const { ride, codeRecord } = await store.createRide('host');
-    await store.joinRide(codeRecord.code, 'guest', '1.1.1.1');
+    await store.joinRide(codeRecord.code, 'guest');
     await store.setMemberLocationSharing(ride.id, 'guest', true);
     await store.updateMemberLocation(ride.id, 'guest', 51.5, -0.1);
     await getPool().query(

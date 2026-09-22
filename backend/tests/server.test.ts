@@ -71,6 +71,48 @@ describe('authenticated API', () => {
     assert.equal(deletion.status, 200);
   });
   it('logs out and revokes the current token', async () => { const session = ctx.authStore.createTestSession('logout-me'); const headers = { Authorization: `Bearer ${session.token}` }; assert.equal((await fetch(`${ctx.baseUrl()}/auth/logout`, { method: 'POST', headers })).status, 204); assert.equal((await fetch(`${ctx.baseUrl()}/auth/me`, { headers })).status, 401); });
+  it('returns the durable limiter retry delay instead of a fixed Retry-After value', async () => {
+    const limited = startTestServer({
+      rateLimitStore: {
+        consume: async (_subjectKey, action) => action === 'hazard_create'
+          ? { allowed: false, retryAfterSeconds: 437 }
+          : { allowed: true, retryAfterSeconds: 0 },
+      },
+    });
+    await limited.ready;
+    try {
+      const response = await postJson(limited, 'rate-limited-rider', '/hazards', { type: 'hazard', lat: 51.5, lon: -0.1 });
+      assert.equal(response.status, 429);
+      assert.equal(response.headers.get('retry-after'), '437');
+      assert.deepEqual(await response.json(), { error: 'rate_limited' });
+    } finally {
+      await limited.close();
+    }
+  });
+
+  it('rate-limits private ride code guessing durably by rider and client address', async () => {
+    const actions: string[] = [];
+    const limited = startTestServer({
+      rateLimitStore: {
+        consume: async (_subjectKey, action) => {
+          actions.push(action);
+          return action === 'ride_join_ip'
+            ? { allowed: false, retryAfterSeconds: 41 }
+            : { allowed: true, retryAfterSeconds: 0 };
+        },
+      },
+    });
+    await limited.ready;
+    try {
+      const response = await postJson(limited, 'ride-code-guesser', '/rides/join', { code: 'ABCDEF' });
+      assert.equal(response.status, 429);
+      assert.equal(response.headers.get('retry-after'), '41');
+      assert.deepEqual(await response.json(), { error: 'rate_limited' });
+      assert.deepEqual(actions, ['api', 'ride_join_rider', 'ride_join_ip']);
+    } finally {
+      await limited.close();
+    }
+  });
   it('deletes an account and revokes its token', needsDb, async () => { const session = ctx.authStore.createTestSession('delete-me'); const headers = { Authorization: `Bearer ${session.token}` }; assert.equal((await fetch(`${ctx.baseUrl()}/auth/me`, { method: 'DELETE', headers })).status, 200); assert.equal((await fetch(`${ctx.baseUrl()}/auth/me`, { headers })).status, 401); assert.equal(await ctx.authStore.hasRider('delete-me'), false); });
   it('keeps the session usable when atomic account deletion fails', async () => {
     const failed = startTestServer({ accountDeletionStore: { deleteRider: async () => { throw new Error('database unavailable'); } } });
