@@ -594,6 +594,12 @@ const MIGRATIONS: { name: string; sql: string }[] = [
         ON social_events (actor_id);
     `,
   },
+  {
+    name: '0030_scrypt_v2_default',
+    sql: `
+      ALTER TABLE users ALTER COLUMN password_algorithm SET DEFAULT 'scrypt-v2';
+    `,
+  },
 ];
 
 /**
