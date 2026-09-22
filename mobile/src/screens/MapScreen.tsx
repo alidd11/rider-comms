@@ -30,6 +30,7 @@ import { HostPanel } from '../ride/HostPanel';
 import { useSettings } from '../settings/SettingsContext';
 import { PlaceSearchBar } from './PlaceSearchBar';
 import type { PlaceResult } from '../api/places';
+import { ApiError } from '../api/client';
 import type { PublicRiderProfile } from '../api/client';
 import { HazardReportSheet, HAZARD_TYPE_META } from './HazardReportSheet';
 import { buildNavigationProviderUrl, navigationTargetFromValues, openNavigationUrl } from '../navigationLinks';
@@ -254,6 +255,9 @@ export function MapScreen(): React.JSX.Element {
   const route = useRoute<RouteProp<TabParamList, 'Map'>>();
   const navigation = useNavigation<BottomTabNavigationProp<TabParamList, 'Map'>>();
   const [segment, setSegment] = React.useState<Segment>(route.params?.segment ?? 'public');
+  // Durable shareLocation is consent. Public Nearby itself is session-scoped
+  // so Settings or a cold start cannot silently publish location/audio.
+  const [publicLive, setPublicLive] = React.useState(false);
   const [ridersInZone, setRidersInZone] = React.useState<string[]>([]);
   // "No location yet" (getCurrentLocation() failing — expected pre-GPS, see
   // the TODO on that stub above) is a normal, non-alarming state, not a
@@ -370,7 +374,7 @@ export function MapScreen(): React.JSX.Element {
   const ownRideLocationFresh = Boolean(
     ownRideLocation && markerNow - ownRideLocation.updatedAt <= RIDE_MARKER_STALE_MS,
   );
-  const selfMapStatus = shareLocation || (shareRideLocation && ownRideLocationFresh)
+  const selfMapStatus = publicLive || (shareRideLocation && ownRideLocationFresh)
     ? 'online'
     : ownRideLocation && !ownRideLocationFresh
       ? 'stale'
@@ -443,7 +447,7 @@ export function MapScreen(): React.JSX.Element {
   }, [currentLocation, focusCoordinate, mapReady, navigationTarget, segment, selectedPlace]);
 
   React.useEffect(() => {
-    if (!shareLocation) {
+    if (!publicLive) {
       setRidersInZone([]);
       void client.leavePresence();
       return;
@@ -467,8 +471,16 @@ export function MapScreen(): React.JSX.Element {
         }
       } catch (err) {
         if (!cancelled) {
+          const code = err instanceof ApiError && typeof err.body === 'object' && err.body && 'error' in (err.body as Record<string, unknown>)
+            ? String((err.body as Record<string, unknown>).error)
+            : '';
           setLocationUnavailable(false);
-          setError(err instanceof Error ? err.message : 'Could not update your zone.');
+          setError(code === 'email_verification_required'
+            ? 'Verify your email before using Nearby Voice.'
+            : code === 'location_sharing_disabled'
+              ? 'Nearby location sharing is off. Tap Go live to enable it again.'
+              : err instanceof Error ? err.message : 'Could not update your zone.');
+          if (code === 'email_verification_required' || code === 'location_sharing_disabled') setPublicLive(false);
         }
       }
     }
@@ -480,7 +492,7 @@ export function MapScreen(): React.JSX.Element {
       clearInterval(interval);
       void client.leavePresence();
     };
-  }, [client, requestCurrentLocation, shareLocation]);
+  }, [client, publicLive, requestCurrentLocation]);
 
   // Navigation updates GPS frequently; keep the hazard network refresh on a
   // one-minute cadence while recomputing route-relative distance locally.
@@ -507,12 +519,23 @@ export function MapScreen(): React.JSX.Element {
   }, [client, hasCurrentLocation]);
 
   const handleNearbyToggle = React.useCallback(async () => {
-    if (shareLocation) {
+    if (publicLive) {
+      setPublicLive(false);
       setShareLocation(false);
       return;
     }
     if (lockedForSafety) {
       Alert.alert('Nearby Voice unavailable while moving', 'Stop safely before joining Nearby Voice. You can always leave or mute an active voice session while riding.');
+      return;
+    }
+    try {
+      const identity = await client.getMe();
+      if (!identity.emailVerified) {
+        Alert.alert('Verify your email', 'Verify your Rider Comms email before joining Nearby Voice.');
+        return;
+      }
+    } catch {
+      Alert.alert('Nearby Voice unavailable', 'Rider Comms could not confirm your account status. Check your connection and try again.');
       return;
     }
     try {
@@ -529,13 +552,14 @@ export function MapScreen(): React.JSX.Element {
       // SettingsContext save and fail the first Go Live with a 403.
       await client.updateProfile(riderId, { shareLocation: true });
       setShareLocation(true);
+      setPublicLive(true);
     } catch {
       Alert.alert(
         'Nearby Voice unavailable',
         'Rider Comms could not enable Nearby Voice on the server. Check your connection and try again.',
       );
     }
-  }, [client, lockedForSafety, riderId, setShareLocation, shareLocation]);
+  }, [client, lockedForSafety, publicLive, riderId, setShareLocation]);
 
   async function handleReport(hazardType: HazardType) {
     setReportSheetOpen(false);
@@ -1174,13 +1198,13 @@ export function MapScreen(): React.JSX.Element {
             <MaterialCommunityIcons name="crosshairs-gps" size={22} color={colors.accent} />
           </Pressable>
           <Pressable
-            style={[styles.mapActionButton, shareLocation && styles.mapActionButtonActive]}
+            style={[styles.mapActionButton, publicLive && styles.mapActionButtonActive]}
             onPress={() => void handleNearbyToggle()}
             accessibilityRole="button"
-            accessibilityState={{ selected: shareLocation }}
-            accessibilityLabel={shareLocation ? 'Stop live location and proximity voice' : 'Go live nearby and enable proximity voice'}
+            accessibilityState={{ selected: publicLive }}
+            accessibilityLabel={publicLive ? 'Stop live location and proximity voice' : 'Go live nearby and enable proximity voice'}
           >
-            <Ionicons name="people" size={24} color={shareLocation ? colors.accentText : colors.accent} />
+            <Ionicons name="people" size={24} color={publicLive ? colors.accentText : colors.accent} />
           </Pressable>
         </View>
       )}
@@ -1395,7 +1419,7 @@ export function MapScreen(): React.JSX.Element {
       <View style={styles.rideBarSlot} pointerEvents="box-none">
         <RideBar controlsVisible={!activeRoute} />
       </View>
-      <ProximityVoice enabled={shareLocation} peerIds={ridersInZone} />
+      <ProximityVoice enabled={publicLive} peerIds={ridersInZone} />
     </View>
   );
 }
