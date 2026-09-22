@@ -237,6 +237,11 @@ assert.match(
 );
 assert.match(
   mapScreenSource,
+  /if \(publicLive && \(!shareLocation \|\| activeRide\)\) setPublicLive\(false\)/,
+  'Native Nearby must stop public presence when consent is disabled or a private ride becomes active',
+);
+assert.match(
+  mapScreenSource,
   /await client\.getMe\(\)[\s\S]*identity\.emailVerified/,
   'Native Nearby must explain the verified-account prerequisite before opening voice',
 );
