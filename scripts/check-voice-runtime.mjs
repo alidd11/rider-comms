@@ -269,7 +269,12 @@ assert.match(
 );
 assert.match(
   settingsScreenSource,
-  /Resend verification email[\s\S]*client\.resendVerification\(\)/,
+  /client\.resendVerification\(\)/,
+  'Native Settings must call the verification resend endpoint for Nearby Voice recovery',
+);
+assert.match(
+  settingsScreenSource,
+  /Resend verification email/,
   'Native Settings must expose a verification resend action for Nearby Voice',
 );
 assert.match(
