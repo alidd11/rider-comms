@@ -197,7 +197,7 @@ for (const [label, source, patterns] of [
     /reduceMotionChanged/,
     /reduceMotionEnabled[\s\S]*setCamera\(camera\)[\s\S]*animateCamera\(camera/,
     /animateCamera\(camera, \{ duration: movingSpeed !== null && movingSpeed <= 1\.5 \? 650 : 500 \}\)/,
-    /if \(!navigationMuted\) speakNavigationPrompt\('Rerouting\.'\)/,
+    /if \(!navigationMutedRef\.current\) speakNavigationPrompt\('Rerouting\.'\)/,
     /setNavigationNotice\('Could not reroute\. Continue with caution\.'\)/,
     /showsTraffic=\{Boolean\(activeRoute\)\}/,
     /fitRoute\(activeRoute\)/,

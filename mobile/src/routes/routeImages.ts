@@ -1,9 +1,7 @@
 const WIKIMEDIA_ORIGINAL_RE = /^(https:\/\/(?:upload|thumb)\.wikimedia\.org)(\/wikipedia\/commons\/)([0-9a-f]\/[^/]+\/)([^/?#]+)$/i;
 const WIKIMEDIA_THUMB_RE = /^(https:\/\/(?:upload|thumb)\.wikimedia\.org)(\/wikipedia\/commons\/thumb\/)([0-9a-f]\/[^/]+\/)([^/]+)\/[^/?#]+$/i;
 
-export const ROUTE_CARD_IMAGE_WIDTH = 768;
 export const ROUTE_HERO_IMAGE_WIDTH = 1600;
-export const ROUTE_IMAGE_PREFETCH_COUNT = 8;
 
 function thumbnailFileName(fileName: string, width: number): string {
   return fileName.toLowerCase().endsWith('.svg')
@@ -35,9 +33,6 @@ export function routeImageUriAtWidth(uri: string, width: number): string {
   return uri;
 }
 
-export function routeCardImageUri(uri: string): string {
-  return routeImageUriAtWidth(uri, ROUTE_CARD_IMAGE_WIDTH);
-}
 
 export function routeHeroImageUri(uri: string): string {
   return routeImageUriAtWidth(uri, ROUTE_HERO_IMAGE_WIDTH);

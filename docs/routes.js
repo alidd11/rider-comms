@@ -1227,7 +1227,6 @@
   let riderLocation = null;
   const escapeHtml = (value) => String(value).replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
 
-  const ROUTE_CARD_IMAGE_WIDTH = 768;
   const ROUTE_HERO_IMAGE_WIDTH = 1600;
   const ROUTE_IMAGE_PREFETCH_COUNT = 8;
   const ROUTE_IMAGE_BACKGROUND_BATCH_SIZE = 4;
@@ -1258,7 +1257,7 @@
     return uri;
   };
 
-  const routeCardImage = (route) => routeImageAtWidth(route.image, ROUTE_CARD_IMAGE_WIDTH);
+  const routeCardImage = (route) => `assets/routes/cards/${route.id}.jpg`;
   const routeHeroImage = (route) => routeImageAtWidth(route.image, ROUTE_HERO_IMAGE_WIDTH);
 
   const ensureWikimediaConnections = () => {
@@ -1299,7 +1298,6 @@
   };
 
   const scheduleRouteImageWarmup = () => {
-    ensureWikimediaConnections();
     warmRouteImages(routes.slice(0, ROUTE_IMAGE_PREFETCH_COUNT), 'high');
     const warmRemaining = () => warmRemainingRouteImages();
     if ('requestIdleCallback' in window) window.requestIdleCallback(warmRemaining, { timeout: 1200 });
@@ -1522,6 +1520,7 @@
     document.body.append(backdrop);
     const detailImage = backdrop.querySelector('.route-detail-photo img');
     const heroImageSrc = routeHeroImage(route);
+    ensureWikimediaConnections();
     if (detailImage && heroImageSrc !== routeCardImage(route)) {
       const heroImage = new Image();
       heroImage.decoding = 'async';

@@ -595,11 +595,17 @@ const MIGRATIONS: { name: string; sql: string }[] = [
     `,
   },
   {
+    name: '0030_scrypt_v2_default',
+    sql: `
+      ALTER TABLE users ALTER COLUMN password_algorithm SET DEFAULT 'scrypt-v2';
+    `,
+  },
+  {
     // Adds two new police-presence report types (distinct from the generic
     // `police` type: out-of-sight vs. a staffed roadside checkpoint) without
     // touching any existing row -- this only widens the CHECK constraint
     // from #0021, same DROP/ADD pattern it used.
-    name: '0030_widen_hazard_report_types',
+    name: '0031_widen_hazard_report_types',
     sql: `
       ALTER TABLE hazard_reports DROP CONSTRAINT IF EXISTS hazard_reports_type_check;
       ALTER TABLE hazard_reports ADD CONSTRAINT hazard_reports_type_check
