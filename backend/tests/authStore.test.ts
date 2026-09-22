@@ -1,6 +1,6 @@
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes, scrypt } from 'node:crypto';
 import { AuthStore } from '../src/authStore.ts';
 import { AccountDeletionStore } from '../src/accountDeletionStore.ts';
 import type { sendPasswordResetEmail, sendVerificationEmail } from '../src/email.ts';
@@ -51,6 +51,17 @@ describe('AuthStore account signup/login (Postgres-backed)', { skip: !hasDatabas
     return `${uniqueUsername()}@example.com`;
   }
 
+  async function legacyScryptHash(password: string): Promise<string> {
+    const salt = randomBytes(16);
+    const derivedKey = await new Promise<Buffer>((resolve, reject) => {
+      scrypt(password, salt, 64, (error, key) => {
+        if (error) reject(error);
+        else resolve(key);
+      });
+    });
+    return `${salt.toString('hex')}:${derivedKey.toString('hex')}`;
+  }
+
   /**
    * Fake sender that never calls Resend (or the network at all) — records
    * every call so tests can assert on it, and hands back the raw token so
@@ -92,6 +103,11 @@ describe('AuthStore account signup/login (Postgres-backed)', { skip: !hasDatabas
     assert.equal(calls.length, 1);
     assert.equal(calls[0].email, email);
     assert.ok(calls[0].token.length > 0);
+    const { rows: credentials } = await getPool().query<{ password_algorithm: string }>(
+      'SELECT password_algorithm FROM users WHERE id = $1',
+      [result.riderId]
+    );
+    assert.equal(credentials[0]?.password_algorithm, 'scrypt-v2');
   });
 
   it('rejects a duplicate username, case-insensitively', async () => {
@@ -148,6 +164,41 @@ describe('AuthStore account signup/login (Postgres-backed)', { skip: !hasDatabas
     assert.equal(loggedIn.riderId, signedUp.riderId);
     assert.equal(loggedIn.emailVerified, false);
     assert.equal(await store.riderForToken(loggedIn.token), signedUp.riderId);
+  });
+
+  it('upgrades a valid scrypt-v1 password only after successful authentication', async () => {
+    const store = new AuthStore();
+    const username = uniqueUsername();
+    const riderId = `rider_${Math.random().toString(36).slice(2, 10)}`;
+    const password = 'legacy-correct-horse-battery';
+    const legacyHash = await legacyScryptHash(password);
+    await getPool().query(
+      'INSERT INTO users (id, username, email, password_hash, password_algorithm) VALUES ($1, $2, $3, $4, $5)',
+      [riderId, username, uniqueEmail(), legacyHash, 'scrypt-v1']
+    );
+
+    assert.deepEqual(await store.logIn(username, 'wrong-password'), { error: 'invalid_credentials' });
+    const { rows: before } = await getPool().query<{ password_hash: string; password_algorithm: string }>(
+      'SELECT password_hash, password_algorithm FROM users WHERE id = $1',
+      [riderId]
+    );
+    assert.equal(before[0]?.password_algorithm, 'scrypt-v1');
+    assert.equal(before[0]?.password_hash, legacyHash);
+
+    const loggedIn = await store.logIn(username, password);
+    assert.ok(!('error' in loggedIn));
+    if ('error' in loggedIn) return;
+    assert.equal(loggedIn.riderId, riderId);
+
+    const { rows: afterUpgrade } = await getPool().query<{ password_hash: string; password_algorithm: string }>(
+      'SELECT password_hash, password_algorithm FROM users WHERE id = $1',
+      [riderId]
+    );
+    assert.equal(afterUpgrade[0]?.password_algorithm, 'scrypt-v2');
+    assert.notEqual(afterUpgrade[0]?.password_hash, legacyHash);
+
+    const secondLogin = await store.logIn(username, password);
+    assert.ok(!('error' in secondLogin));
   });
 
   it('persists account sessions across AuthStore instances and supports revocation', async () => {

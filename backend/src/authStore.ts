@@ -1,10 +1,9 @@
 import { createHash, randomBytes, randomUUID, scrypt, timingSafeEqual } from 'node:crypto';
-import { promisify } from 'node:util';
+import type { ScryptOptions } from 'node:crypto';
 import { generateRideCode } from '@rider-comms/shared';
 import { getPool, ensureMigrated } from './db.ts';
 import { sendPasswordResetEmail, sendVerificationEmail } from './email.ts';
 
-const scryptAsync = promisify(scrypt);
 
 export interface GuestSession { riderId: string; token: string; }
 export interface LoginSession extends GuestSession { emailVerified: boolean; }
@@ -18,6 +17,14 @@ const USERNAME_PATTERN = /^[A-Za-z0-9_]{3,20}$/;
 // address some stricter regex doesn't happen to anticipate.
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const SCRYPT_KEYLEN = 64;
+const LEGACY_PASSWORD_ALGORITHM = 'scrypt-v1';
+const PASSWORD_ALGORITHM = 'scrypt-v2';
+const SCRYPT_V2_OPTIONS: ScryptOptions = {
+  N: 2 ** 15,
+  r: 8,
+  p: 3,
+  maxmem: 64 * 1024 * 1024,
+};
 const VERIFICATION_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
 const PASSWORD_RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
 const ACCOUNT_SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -26,7 +33,6 @@ const MAX_PASSWORD_LENGTH = 128;
 // username and a wrong password. Without it, login timing exposes whether a
 // username exists before credentials have been authenticated.
 const DUMMY_PASSWORD_HASH = `${'00'.repeat(16)}:${'00'.repeat(SCRYPT_KEYLEN)}`;
-const PASSWORD_ALGORITHM = 'scrypt-v1';
 
 export type SignUpResult = SignUpSession | { error: 'username_taken' | 'email_taken' | 'invalid_username' | 'invalid_email' | 'weak_password' };
 export type LogInResult = LoginSession | { error: 'invalid_credentials' };
@@ -46,19 +52,38 @@ function isStrongEnoughPassword(password: unknown): password is string {
   return typeof password === 'string' && password.length >= 8 && password.length <= MAX_PASSWORD_LENGTH;
 }
 
-async function hashPassword(password: string): Promise<string> {
+function scryptOptionsForAlgorithm(algorithm: string): ScryptOptions | null {
+  if (algorithm === LEGACY_PASSWORD_ALGORITHM) return {};
+  if (algorithm === PASSWORD_ALGORITHM) return SCRYPT_V2_OPTIONS;
+  return null;
+}
+
+function derivePassword(password: string, salt: Buffer, keyLength: number, options: ScryptOptions): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    scrypt(password, salt, keyLength, options, (error, derivedKey) => {
+      if (error) reject(error);
+      else resolve(derivedKey);
+    });
+  });
+}
+
+async function hashPassword(password: string, algorithm = PASSWORD_ALGORITHM): Promise<string> {
+  const options = scryptOptionsForAlgorithm(algorithm);
+  if (!options) throw new Error(`Unsupported password algorithm: ${algorithm}`);
   const salt = randomBytes(16);
-  const derivedKey = (await scryptAsync(password, salt, SCRYPT_KEYLEN)) as Buffer;
+  const derivedKey = await derivePassword(password, salt, SCRYPT_KEYLEN, options);
   return `${salt.toString('hex')}:${derivedKey.toString('hex')}`;
 }
 
-async function verifyPassword(password: string, stored: string): Promise<boolean> {
+async function verifyPassword(password: string, stored: string, algorithm: string): Promise<boolean> {
   try {
-    const [saltHex, keyHex] = stored.split(':');
-    if (!saltHex || !keyHex || saltHex.length !== 32 || keyHex.length !== SCRYPT_KEYLEN * 2) return false;
+    const options = scryptOptionsForAlgorithm(algorithm);
+    if (!options) return false;
+    const [saltHex, keyHex, extra] = stored.split(':');
+    if (extra !== undefined || !saltHex || !keyHex || saltHex.length !== 32 || keyHex.length !== SCRYPT_KEYLEN * 2) return false;
     const salt = Buffer.from(saltHex, 'hex');
     const expectedKey = Buffer.from(keyHex, 'hex');
-    const derivedKey = (await scryptAsync(password, salt, expectedKey.length)) as Buffer;
+    const derivedKey = await derivePassword(password, salt, expectedKey.length, options);
     return derivedKey.length === expectedKey.length && timingSafeEqual(derivedKey, expectedKey);
   } catch {
     return false;
@@ -206,7 +231,11 @@ export class AuthStore {
       [username]
     );
     const row = rows[0];
-    const passwordMatches = await verifyPassword(password, row?.password_hash ?? DUMMY_PASSWORD_HASH);
+    const passwordMatches = await verifyPassword(
+      password,
+      row?.password_hash ?? DUMMY_PASSWORD_HASH,
+      row?.password_algorithm ?? PASSWORD_ALGORITHM
+    );
     if (!row || !passwordMatches) return { error: 'invalid_credentials' };
     if (row.password_algorithm !== PASSWORD_ALGORITHM) {
       await pool.query(
