@@ -24,7 +24,7 @@ import type { TabParamList } from '../navigation';
 import { useAuth } from '../auth/AuthContext';
 import { colors, spacing, radii, type, elevation, MIN_TOUCH_TARGET } from '../theme';
 import { RideBar } from '../ride/RideBar';
-import { useRide } from '../ride/RideContext';
+import { RIDE_LOCATION_REFRESH_MS, useRide } from '../ride/RideContext';
 import { ProximityVoice } from '../voice/ProximityVoice';
 import { HostPanel } from '../ride/HostPanel';
 import { useSettings } from '../settings/SettingsContext';
@@ -69,6 +69,7 @@ import {
 import { speakNavigationPrompt, stopNavigationPrompt } from '../audio/navigationSpeech';
 import { microphoneErrorMessage, preflightVoiceMicrophone } from '../audio/microphone';
 import { RiderAvatar } from '../components/RiderAvatar';
+import type { RiderAvatarStatus } from '../components/RiderAvatar';
 import { NavigationManeuverGlyph } from '../components/NavigationManeuverGlyph';
 import { NavigationRoadAhead } from '../components/NavigationRoadAhead';
 import { navigationHazardsAhead } from '../navigationRoadEvents';
@@ -133,6 +134,106 @@ function HazardMarker({
       <View style={[styles.hazardBadge, { width: size, height: size, borderRadius: size / 2, backgroundColor: meta.color }, selected && styles.pinBadgeSelected]}>
         <MaterialCommunityIcons name={meta.icon} size={size * 0.6} color={colors.accentText} />
       </View>
+    </Marker>
+  );
+}
+
+/**
+ * Both of the marker components below glide toward each new fix over
+ * `RIDE_LOCATION_REFRESH_MS` instead of snapping straight to it -- these
+ * markers only ever move on a `rideLocations` poll tick that infrequent, so
+ * without this a rider at speed visibly teleports ~200-300m across the map
+ * every refresh instead of appearing to move continuously, the way Google
+ * Maps/Waze/Apple Maps read even though their own underlying position
+ * source is just as infrequent.
+ *
+ * `coordinate` is intentionally set only once, from the component's own
+ * initial mount value (`React.useState`'s lazy initializer runs exactly
+ * once) -- react-native-maps animates position changes made through the
+ * marker ref's imperative `animateMarkerToCoordinate`, but changing the
+ * declarative `coordinate` prop itself still snaps instantly, which would
+ * undo the glide. Remounting (a new `key` from the caller) is the only way
+ * to reset a marker's start position, same as it already was before this
+ * component existed.
+ */
+function SmoothSelfMarker({
+  location,
+  avatarId,
+  displayName,
+  shareRideLocation,
+  status,
+}: {
+  location: { lat: number; lon: number };
+  avatarId: string;
+  displayName: string;
+  shareRideLocation: boolean;
+  status: RiderAvatarStatus;
+}): React.JSX.Element {
+  const markerRef = React.useRef<React.ElementRef<typeof Marker> | null>(null);
+  const hasMounted = React.useRef(false);
+  const [initialCoordinate] = React.useState(() => ({ latitude: location.lat, longitude: location.lon }));
+
+  React.useEffect(() => {
+    if (!hasMounted.current) {
+      hasMounted.current = true;
+      return;
+    }
+    markerRef.current?.animateMarkerToCoordinate(
+      { latitude: location.lat, longitude: location.lon },
+      RIDE_LOCATION_REFRESH_MS,
+    );
+  }, [location.lat, location.lon]);
+
+  return (
+    <Marker
+      ref={markerRef}
+      coordinate={initialCoordinate}
+      title={displayName || 'Your location'}
+      description={shareRideLocation ? 'Your live group-ride location' : 'Your location'}
+      anchor={{ x: 0.5, y: 1 }}
+      tracksViewChanges={false}
+    >
+      <RiderAvatar avatarId={avatarId} size={44} mapMarker selected status={status} />
+    </Marker>
+  );
+}
+
+function SmoothRideMemberMarker({
+  location,
+  avatarId,
+  displayName,
+  status,
+}: {
+  location: { lat: number; lon: number };
+  avatarId: string;
+  displayName: string;
+  status: RiderAvatarStatus;
+}): React.JSX.Element {
+  const markerRef = React.useRef<React.ElementRef<typeof Marker> | null>(null);
+  const hasMounted = React.useRef(false);
+  const [initialCoordinate] = React.useState(() => ({ latitude: location.lat, longitude: location.lon }));
+
+  React.useEffect(() => {
+    if (!hasMounted.current) {
+      hasMounted.current = true;
+      return;
+    }
+    markerRef.current?.animateMarkerToCoordinate(
+      { latitude: location.lat, longitude: location.lon },
+      RIDE_LOCATION_REFRESH_MS,
+    );
+  }, [location.lat, location.lon]);
+
+  return (
+    <Marker
+      ref={markerRef}
+      coordinate={initialCoordinate}
+      title={displayName}
+      description="Private ride member · live location"
+      anchor={{ x: 0.5, y: 1 }}
+      tracksViewChanges={false}
+    >
+      <RiderAvatar avatarId={avatarId} size={40} mapMarker status={status} />
     </Marker>
   );
 }
@@ -924,24 +1025,32 @@ export function MapScreen(): React.JSX.Element {
             }}
             onMapReady={() => setMapReady(true)}
           >
-            {selfMapLocation && (
+            {selfMapLocation && (activeRoute ? (
               <Marker
-                key={`self-rider-${avatarId}-${selfMapStatus}-${activeRoute ? 'nav' : 'map'}`}
+                key={`self-rider-${avatarId}-nav`}
                 coordinate={{ latitude: selfMapLocation.lat, longitude: selfMapLocation.lon }}
                 title={displayName || 'Your location'}
                 description={shareRideLocation ? 'Your live group-ride location' : 'Your location'}
-                anchor={{ x: 0.5, y: activeRoute ? 0.5 : 1 }}
+                anchor={{ x: 0.5, y: 0.5 }}
                 tracksViewChanges={false}
               >
-                <RiderAvatar
-                  avatarId={avatarId}
-                  size={activeRoute ? 64 : 44}
-                  mapMarker={!activeRoute}
-                  selected
-                  status={activeRoute ? 'none' : selfMapStatus}
-                />
+                <RiderAvatar avatarId={avatarId} size={64} mapMarker={false} selected status="none" />
               </Marker>
-            )}
+            ) : (
+              // Turn-by-turn navigation already drives the marker above via
+              // its own, more frequent watchPosition subscription tightly
+              // coupled to the adaptive nav camera -- SmoothSelfMarker's own
+              // independent glide would fight it, so this smoothed version
+              // only ever renders outside of active navigation.
+              <SmoothSelfMarker
+                key={`self-rider-${avatarId}-${selfMapStatus}-map`}
+                location={selfMapLocation}
+                avatarId={avatarId}
+                displayName={displayName}
+                shareRideLocation={shareRideLocation}
+                status={selfMapStatus}
+              />
+            ))}
             {rideLocations
               .filter((location) => location.riderId !== riderId)
               .map((location) => {
@@ -949,21 +1058,13 @@ export function MapScreen(): React.JSX.Element {
                 const fresh = markerNow - location.updatedAt <= RIDE_MARKER_STALE_MS;
                 const markerStatus = fresh ? 'online' : 'stale';
                 return (
-                  <Marker
+                  <SmoothRideMemberMarker
                     key={`ride-location-${location.riderId}-${profile?.avatarId ?? 'ember'}-${markerStatus}`}
-                    coordinate={{ latitude: location.lat, longitude: location.lon }}
-                    title={profile?.displayName ?? 'Ride member'}
-                    description="Private ride member · live location"
-                    anchor={{ x: 0.5, y: 1 }}
-                    tracksViewChanges={false}
-                  >
-                    <RiderAvatar
-                      avatarId={profile?.avatarId ?? 'ember'}
-                      size={40}
-                      mapMarker
-                      status={markerStatus}
-                    />
-                  </Marker>
+                    location={{ lat: location.lat, lon: location.lon }}
+                    avatarId={profile?.avatarId ?? 'ember'}
+                    displayName={profile?.displayName ?? 'Ride member'}
+                    status={markerStatus}
+                  />
                 );
               })}
             {navigationTarget && (

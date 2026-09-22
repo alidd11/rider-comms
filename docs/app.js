@@ -110,6 +110,8 @@
     navigationHazardsAhead,
   } = window.RiderNavigationRoadEvents;
 
+  const { PositionAnimator } = window.RiderPositionInterpolation;
+
   const {
     AVATAR_FAMILIES,
     AVATAR_PRESETS,
@@ -359,8 +361,64 @@
   let map;
   let usingFallbackMap = true;
   let userMapMarker;
-  let mapMarkers = [];
+  let lastSelfDeviceFixAtMs;
+  const mapMarkers = new Map(); // riderId -> { marker, status }
   let mapHazardMarkers = [];
+  // Riders' real positions only ever change in discrete jumps -- a poll
+  // every RIDE_LOCATION_REFRESH_MS/PRESENCE_REFRESH_MS, or a GPS fix every
+  // couple of seconds -- so every marker glides toward each new fix over an
+  // animation loop instead of snapping straight to it, the same way
+  // Google Maps/Waze/Apple Maps read as continuous motion despite an
+  // equally infrequent underlying position source. Keyed by an arbitrary
+  // string ('self' for userMapMarker, riderId for everyone else) so one
+  // loop drives every animated marker on the map.
+  const animatedMarkers = new Map();
+  let animatedMarkersFrame;
+
+  function tickAnimatedMarkers() {
+    animatedMarkersFrame = undefined;
+    if (animatedMarkers.size === 0) return;
+    const now = Date.now();
+    for (const { marker, animator } of animatedMarkers.values()) {
+      const position = animator.positionAt(now);
+      marker.setPosition({ lat: position.lat, lng: position.lon });
+    }
+    animatedMarkersFrame = requestAnimationFrame(tickAnimatedMarkers);
+  }
+
+  function ensureMarkerAnimationLoop() {
+    if (animatedMarkersFrame === undefined) animatedMarkersFrame = requestAnimationFrame(tickAnimatedMarkers);
+  }
+
+  /** Registers/updates `marker` under `key` and glides it to `{lat,lng}` over `durationMs`. */
+  function glideMarkerTo(key, marker, latLng, durationMs, nowMs) {
+    const target = { lat: latLng.lat, lon: latLng.lng };
+    let entry = animatedMarkers.get(key);
+    if (!entry) {
+      entry = { marker, animator: new PositionAnimator(target) };
+      animatedMarkers.set(key, entry);
+    } else {
+      entry.marker = marker;
+      entry.animator.moveTo(target, durationMs, nowMs);
+    }
+    ensureMarkerAnimationLoop();
+  }
+
+  /** Registers/updates `marker` under `key`, jumping immediately with no glide (a marker's first fix). */
+  function snapMarkerTo(key, marker, latLng) {
+    const target = { lat: latLng.lat, lon: latLng.lng };
+    const entry = animatedMarkers.get(key);
+    if (entry) {
+      entry.marker = marker;
+      entry.animator.reset(target);
+    } else {
+      animatedMarkers.set(key, { marker, animator: new PositionAnimator(target) });
+    }
+  }
+
+  function removeAnimatedMarker(key) {
+    animatedMarkers.delete(key);
+  }
   let destinationMarker;
   let navigationTrafficLayer;
 
@@ -732,12 +790,39 @@
       if (navSteps.length) updateNavigationPositionIcon();
       else userMapMarker.setIcon?.(riderAvatarMapIcon(state.profile, true));
     }
-    mapMarkers.forEach((marker) => marker.setMap(null));
-    mapMarkers = riders.map((person) => {
+    // Update existing markers in place (position glides, icon swaps only
+    // when status actually changes) instead of tearing every marker down
+    // and rebuilding it on every call -- this used to run on every ride
+    // poll tick *and* on unrelated UI actions (selecting a rider, voting on
+    // a hazard, ...), so riders' avatars would visibly flicker even when
+    // nothing about their position had changed.
+    const now = Date.now();
+    const seenRiderIds = new Set();
+    for (const person of riders) {
+      seenRiderIds.add(person.riderId);
       const real = rideMemberLocations.get(person.riderId);
-      const fresh = Date.now() - real.updatedAt <= RIDE_LOCATION_REFRESH_MS * 2;
-      return addMapMarker(person, { lat: real.lat, lng: real.lon }, false, fresh ? 'online' : 'stale');
-    });
+      const fresh = now - real.updatedAt <= RIDE_LOCATION_REFRESH_MS * 2;
+      const status = fresh ? 'online' : 'stale';
+      const latLng = { lat: real.lat, lng: real.lon };
+      const existing = mapMarkers.get(person.riderId);
+      if (!existing) {
+        const marker = addMapMarker(person, latLng, false, status);
+        mapMarkers.set(person.riderId, { marker, status });
+        snapMarkerTo(person.riderId, marker, latLng);
+      } else {
+        if (existing.status !== status) {
+          existing.status = status;
+          existing.marker.setIcon(riderAvatarMapIcon(person, false, status));
+        }
+        glideMarkerTo(person.riderId, existing.marker, latLng, RIDE_LOCATION_REFRESH_MS, now);
+      }
+    }
+    for (const [riderId, existing] of mapMarkers) {
+      if (seenRiderIds.has(riderId)) continue;
+      existing.marker.setMap(null);
+      mapMarkers.delete(riderId);
+      removeAnimatedMarker(riderId);
+    }
   }
 
   function selectRider(riderId, people = nearbyRiders) {
@@ -3426,11 +3511,29 @@
 
     if (!map || usingFallbackMap) return;
     const point = { lat, lng };
+    const now = Date.now();
     if (!userMapMarker) {
       userMapMarker = addMapMarker({ ...state.profile, displayName: state.profile.displayName }, point, true);
+      snapMarkerTo('self', userMapMarker, point);
+    } else if (navSteps.length) {
+      // Turn-by-turn navigation already owns the marker's position via its
+      // own, more frequent watchPosition subscription (handleNavPosition),
+      // tightly coupled to the adaptive nav camera -- this movement-safety
+      // watcher keeps running in the background regardless of nav mode, so
+      // it must not also drive the marker or the two would fight over its
+      // position every animation frame.
+      removeAnimatedMarker('self');
     } else {
-      userMapMarker.setPosition(point);
+      // watchPosition fires irregularly rather than on a fixed interval, so
+      // the glide duration adapts to how long it's actually been since the
+      // last fix (clamped so a long gap doesn't produce a slow-motion catch-
+      // up, and a burst of fast fixes doesn't produce a near-instant snap).
+      const durationMs = Number.isFinite(lastSelfDeviceFixAtMs)
+        ? Math.min(3000, Math.max(300, now - lastSelfDeviceFixAtMs))
+        : 300;
+      glideMarkerTo('self', userMapMarker, point, durationMs, now);
     }
+    lastSelfDeviceFixAtMs = now;
 
     if (!mapCentredOnLiveLocation) {
       map.panTo(point);
