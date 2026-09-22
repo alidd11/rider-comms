@@ -1,15 +1,12 @@
 import type { NavigationTarget } from '../navigationLinks.ts';
+import { normalizeNavigationInstructionText, type NavigationInstruction } from '@rider-comms/shared';
 
 export interface RouteCoordinate {
   lat: number;
   lon: number;
 }
 
-export interface NavigationRouteStep {
-  instruction: string;
-  maneuver?: string;
-  distanceMeters: number;
-  durationSeconds: number;
+export interface NavigationRouteStep extends NavigationInstruction {
   start: RouteCoordinate;
   end: RouteCoordinate;
   coordinates: RouteCoordinate[];
@@ -54,25 +51,13 @@ const ENTITY_REPLACEMENTS: Record<string, string> = {
   '&nbsp;': ' ',
 };
 
-function collapseRepeatedFollowInstruction(value: string): string {
-  const match = value.match(/^(.*?)\.?\s+Continue to follow\s+(.+?)\.?$/i);
-  if (!match) return value;
-  const lead = match[1]!.trim().replace(/[.]$/, '');
-  const repeatedRoad = match[2]!.trim().replace(/[.]$/, '');
-  const comparable = (text: string) => text.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-  return comparable(lead).endsWith(comparable(repeatedRoad)) ? lead : value;
-}
-
 export function stripNavigationInstruction(value: string): string {
-  const cleaned = value
+  return normalizeNavigationInstructionText(value
     .replace(/<div[^>]*>/gi, '. ')
     .replace(/<\/div>/gi, '')
     .replace(/<[^>]+>/g, '')
     .replace(/&(?:amp|lt|gt|quot|#39|nbsp);/g, (entity) => ENTITY_REPLACEMENTS[entity] ?? entity)
-    .replace(/\s+/g, ' ')
-    .replace(/\s+([,.])/g, '$1')
-    .trim();
-  return collapseRepeatedFollowInstruction(cleaned);
+    .replace(/\s+([,.])/g, '$1'));
 }
 
 export function decodeGooglePolyline(encoded: string): RouteCoordinate[] {
