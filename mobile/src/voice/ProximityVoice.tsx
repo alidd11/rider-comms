@@ -268,7 +268,7 @@ export function ProximityVoice({
       ? 'Nearby Voice reconnecting — tap to retry'
       : error
         ? connectedPeers.size > 0
-          ? `${displayStatusText} — tap to retry disconnected riders`
+          ? `${statusText} — tap to retry disconnected riders`
           : 'Nearby Voice unavailable — tap to retry'
         : connectedPeers.size > 0
           ? manuallyMuted
@@ -277,7 +277,7 @@ export function ProximityVoice({
               ? `${statusText} — tap to mute microphone`
               : 'Listening — hands-free — tap to mute microphone'
           : statusText;
-  const displayStatusText = statusHasIssue && !partialConnectionIssue
+  const displayStatusText = statusHasIssue
     ? `${statusText} · Tap to retry`
     : statusText;
   const handleVoiceControlPress = () => {
@@ -316,13 +316,13 @@ export function ProximityVoice({
         onPress={handleVoiceControlPress}
         style={({ pressed }) => [
           styles.status,
-          statusHasIssue && styles.statusError,
+          partialConnectionIssue ? styles.statusWarning : statusHasIssue && styles.statusError,
           pressed && voiceControlEnabled && styles.statusPressed,
         ]}
       >
-        <View style={[styles.dot, statusHasIssue && styles.dotError]} />
-        <Text style={[styles.text, statusHasIssue && styles.textError]}>
-          {statusText}
+        <View style={[styles.dot, partialConnectionIssue ? styles.dotWarning : statusHasIssue && styles.dotError]} />
+        <Text style={[styles.text, partialConnectionIssue ? styles.textWarning : statusHasIssue && styles.textError]}>
+          {displayStatusText}
         </Text>
       </Pressable>
       {connections.map((connection) => {
@@ -381,9 +381,12 @@ const styles = StyleSheet.create({
     ...elevation.raised,
   },
   statusError: { borderColor: colors.danger },
+  statusWarning: { borderColor: colors.warning },
   statusPressed: { opacity: 0.78 },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.success },
   dotError: { backgroundColor: colors.danger },
+  dotWarning: { backgroundColor: colors.warning },
   text: { ...type.caption, color: colors.textSecondary, fontWeight: '700' },
   textError: { color: colors.danger },
+  textWarning: { color: colors.warning },
 });
