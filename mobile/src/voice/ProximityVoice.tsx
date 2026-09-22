@@ -271,13 +271,15 @@ export function ProximityVoice({
             : 'Listening — hands-free — tap to mute'
           : statusText;
   const handleVoiceControlPress = () => {
-    if (audioSessionError) {
-      setAudioSessionError(null);
-      setAudioSessionRetryVersion((version) => version + 1);
-      return;
-    }
-    if (error || authorizationExpired) {
+    if (audioSessionError || error || authorizationExpired) {
       setError(null);
+      setAudioSessionError(null);
+      setConnections([]);
+      setConnectedPeers(new Set());
+      setSpeakingPeers(new Set());
+      setLocalSpeakingPeers(new Set());
+      setPeerNames(new Map());
+      setAudioSessionRetryVersion((version) => version + 1);
       setRefreshVersion((version) => version + 1);
       return;
     }
@@ -334,7 +336,7 @@ export function ProximityVoice({
             setError('Could not connect to proximity voice.');
             retryPeer();
           }}
-          onMediaDeviceFailure={() => setError('Microphone or audio device became unavailable.')}
+          onMediaDeviceFailure={() => setAudioSessionError('Microphone or audio device became unavailable.')}
         >
           <VoiceActivityBridge
             enabled={!manuallyMuted}
