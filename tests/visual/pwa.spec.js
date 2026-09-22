@@ -17,7 +17,7 @@ const PROFILE = {
 
 async function mockAuthenticatedApi(page, movement = 'stationary', backendOverride = null) {
   await page.addInitScript(({ riderId, movementState }) => {
-    localStorage.setItem('rider-comms-session-v1', JSON.stringify({ riderId, token: 'visual-test-token' }));
+    localStorage.setItem('rider-comms-session-v1', JSON.stringify({ riderId, token: 'visual-test-token', emailVerified: true }));
     Object.defineProperty(navigator, 'permissions', { value: { query: async ({ name } = {}) => ({ state: name === 'microphone' ? 'prompt' : ['stationary', 'recovering'].includes(movementState) ? 'granted' : 'denied', addEventListener() {} }) } });
     let watchId = 0;
     window.__riderCommsGetCurrentPositionCalls = 0;
@@ -82,7 +82,7 @@ async function mockAuthenticatedApi(page, movement = 'stationary', backendOverri
       }
     }
     let body = {};
-    if (url.pathname === '/auth/me') body = { riderId: RIDER_ID };
+    if (url.pathname === '/auth/me') body = { riderId: RIDER_ID, emailVerified: true };
     else if (url.pathname === `/riders/${RIDER_ID}/profile`) body = PROFILE;
     else if (url.pathname === `/riders/${RIDER_ID}/friends`) body = {
       friends: [
@@ -1122,13 +1122,15 @@ test('PWA resumes consented ride location after its first GPS fix and maps membe
   expect(guestPositions.every((point) => point.lat === 51.51 && point.lng === -0.13)).toBe(true);
 });
 
-test('PWA resumes public presence only after server consent and granted location permission', async ({ page }) => {
+test('PWA clears persisted Nearby live state instead of auto-rejoining after reload', async ({ page }) => {
   let presenceUpdates = 0;
+  let presenceDeletes = 0;
   await mockAuthenticatedApi(page, 'stationary', ({ url, request }) => {
     if (url.pathname === `/riders/${RIDER_ID}/profile`) return { body: { ...PROFILE, shareLocation: true } };
-    if (url.pathname === '/presence' && request.method() === 'POST') {
-      presenceUpdates += 1;
-      return { body: { inZoneWith: [] } };
+    if (url.pathname === '/presence' && request.method() === 'POST') presenceUpdates += 1;
+    if (url.pathname === '/presence' && request.method() === 'DELETE') {
+      presenceDeletes += 1;
+      return { body: {} };
     }
     return null;
   });
@@ -1136,9 +1138,12 @@ test('PWA resumes public presence only after server consent and granted location
     localStorage.setItem(`rider-comms-pwa-v4:${riderId}`, JSON.stringify({ screen: 'map', profile, publicLive: true }));
   }, { riderId: RIDER_ID, profile: { ...PROFILE, shareLocation: true } });
   await page.goto('/');
-  await expect.poll(() => presenceUpdates).toBe(1);
-  await expect(page.locator('#joinNearbyBtn')).toHaveAttribute('data-active', 'true');
-  await expect(page.locator('#voiceStatusBtn')).toHaveAttribute('aria-label', 'Resume voice');
+  await expect.poll(() => presenceDeletes).toBeGreaterThan(0);
+  expect(presenceUpdates).toBe(0);
+  await expect(page.locator('#joinNearbyBtn')).toHaveAttribute('data-active', 'false');
+  const cached = await page.evaluate((riderId) =>
+    JSON.parse(localStorage.getItem(`rider-comms-pwa-v4:${riderId}`) || '{}'), RIDER_ID);
+  expect(cached.publicLive).toBe(false);
 });
 
 test('PWA Nearby control switches public visibility and proximity voice off together', async ({ page }) => {
@@ -1260,7 +1265,7 @@ test('PWA Nearby Voice waits without holding the mic, then connects when a rider
     // presence refresh deterministic and fast enough for this browser test.
     const realSetInterval = window.setInterval.bind(window);
     window.setInterval = (handler, timeout = 0, ...args) =>
-      realSetInterval(handler, timeout === 20_000 ? 300 : timeout, ...args);
+      realSetInterval(handler, timeout === 8_000 ? 300 : timeout, ...args);
 
     window.__nearbyVoiceRoomsCreated = 0;
     const fakeStream = { getTracks: () => [{ stop() {} }] };
@@ -1357,9 +1362,9 @@ test('PWA public voice fails closed when proximity authorization cannot be renew
   });
 
   await page.addInitScript(() => {
-    const realSetInterval = window.setInterval.bind(window);
-    window.setInterval = (handler, timeout = 0, ...args) =>
-      realSetInterval(handler, timeout === 20_000 ? 150 : timeout, ...args);
+    const realSetTimeout = window.setTimeout.bind(window);
+    window.setTimeout = (handler, timeout = 0, ...args) =>
+      realSetTimeout(handler, timeout === 20_000 ? 150 : timeout, ...args);
 
     window.__publicVoiceDisconnects = 0;
     const fakeStream = { getTracks: () => [{ stop() {} }] };
@@ -1505,6 +1510,7 @@ test('PWA cancels a delayed Nearby Voice connect after the rider turns Nearby of
 test('PWA coalesces overlapping Nearby Voice authorization refreshes', async ({ page }) => {
   let shareLocation = false;
   let voiceTokenRequests = 0;
+  let presenceUpdates = 0;
   let releaseFirstToken;
   const firstTokenGate = new Promise((resolve) => { releaseFirstToken = resolve; });
 
@@ -1517,10 +1523,12 @@ test('PWA coalesces overlapping Nearby Voice authorization refreshes', async ({ 
       return { body: { ...PROFILE, shareLocation } };
     }
     if (url.pathname === '/presence' && request.method() === 'POST') {
+      presenceUpdates += 1;
+      const peerVisible = presenceUpdates % 2 === 1;
       return {
         body: {
-          inZoneWith: ['rider_peer01'],
-          transitions: [{ a: RIDER_ID, b: 'rider_peer01', type: 'entered' }],
+          inZoneWith: peerVisible ? ['rider_peer01'] : [],
+          transitions: [{ a: RIDER_ID, b: 'rider_peer01', type: peerVisible ? 'entered' : 'left' }],
           radiusMiles: 1,
         },
       };
@@ -1545,7 +1553,7 @@ test('PWA coalesces overlapping Nearby Voice authorization refreshes', async ({ 
   await page.addInitScript(() => {
     const realSetInterval = window.setInterval.bind(window);
     window.setInterval = (handler, timeout = 0, ...args) =>
-      realSetInterval(handler, timeout === 20_000 ? 75 : timeout, ...args);
+      realSetInterval(handler, timeout === 8_000 ? 75 : timeout, ...args);
 
     window.__nearbyVoiceRoomsCreated = 0;
     const fakeStream = { getTracks: () => [{ stop() {} }] };
@@ -1836,7 +1844,7 @@ test('PWA pauses saved public presence when current server consent is off', asyn
   expect(presenceUpdates).toBe(0);
 });
 
-test('PWA does not prompt for location when restoring nearby without permission', async ({ page }) => {
+test('PWA clears stale Nearby state without prompting for location on reload', async ({ page }) => {
   let presenceUpdates = 0;
   await mockAuthenticatedApi(page, 'denied', ({ url, request }) => {
     if (url.pathname === `/riders/${RIDER_ID}/profile`) return { body: { ...PROFILE, shareLocation: true } };
@@ -1847,9 +1855,9 @@ test('PWA does not prompt for location when restoring nearby without permission'
     localStorage.setItem(`rider-comms-pwa-v4:${riderId}`, JSON.stringify({ screen: 'map', profile, publicLive: true }));
   }, { riderId: RIDER_ID, profile: { ...PROFILE, shareLocation: true } });
   await page.goto('/');
-  await expect(page.locator('#toast')).toContainText('Nearby paused.');
   await expect(page.locator('#joinNearbyBtn')).toHaveAttribute('data-active', 'false');
   expect(presenceUpdates).toBe(0);
+  expect(await page.evaluate(() => window.__riderCommsGetCurrentPositionCalls)).toBe(0);
 });
 
 test('PWA host can remove another rider from a private ride', async ({ page }) => {
