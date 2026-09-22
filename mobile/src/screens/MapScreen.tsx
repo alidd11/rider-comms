@@ -73,6 +73,7 @@ import { RiderAvatar } from '../components/RiderAvatar';
 import type { RiderAvatarStatus } from '../components/RiderAvatar';
 import { NavigationManeuverGlyph } from '../components/NavigationManeuverGlyph';
 import { NavigationRoadAhead } from '../components/NavigationRoadAhead';
+import { HazardMarkerIcon } from '../components/HazardIcon';
 import { navigationHazardsAhead } from '../navigationRoadEvents';
 
 const PRESENCE_UPDATE_INTERVAL_MS = 8000; // per spec Section 8: every 5-10s
@@ -135,10 +136,11 @@ function HazardMarker({
       title={meta.label}
       description="Reported by a nearby rider"
       onPress={onPress}
+      anchor={{ x: 0.5, y: 1 }}
       tracksViewChanges={selected}
     >
-      <View style={[styles.hazardBadge, { width: size, height: size, borderRadius: size / 2, backgroundColor: meta.color }, selected && styles.pinBadgeSelected]}>
-        <MaterialCommunityIcons name={meta.icon} size={size * 0.6} color={colors.accentText} />
+      <View style={[styles.hazardMarker, { width: size, height: size }, selected && styles.hazardMarkerSelected]}>
+        <HazardMarkerIcon type={hazard.type} size={size} selected={selected} />
       </View>
     </Marker>
   );
@@ -1442,8 +1444,14 @@ const styles = StyleSheet.create({
     right: spacing.md,
     zIndex: 9,
   },
-  pinBadgeSelected: { borderColor: colors.accent, backgroundColor: colors.accentPressed },
-  hazardBadge: { alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: colors.background },
+  hazardMarker: { alignItems: 'center', justifyContent: 'center' },
+  hazardMarkerSelected: {
+    shadowColor: '#35D6FF',
+    shadowOpacity: 0.9,
+    shadowRadius: 9,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 7,
+  },
   mapActions: {
     position: 'absolute',
     right: spacing.md,
