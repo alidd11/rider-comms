@@ -97,15 +97,58 @@
   // label, colour) for the real HazardType values the backend returns —
   // never mock report data.
   const HAZARD_TYPES = {
-    police: { label: 'Police', icon: 'i-shield', color: '#2fa8d3' },
-    hidden_police: { label: 'Hidden police', icon: 'i-hidden-police', color: '#2fa8d3' },
-    police_checkpoint: { label: 'Police checkpoint', icon: 'i-police-checkpoint', color: '#2fa8d3' },
-    camera: { label: 'Mobile speed camera', icon: 'i-camera', color: '#2fa8d3' },
-    accident: { label: 'Accident', icon: 'i-alert', color: '#f0646b' },
-    hazard: { label: 'Pothole', icon: 'i-pothole', color: '#d39a42' },
-    road_closure: { label: 'Road closure', icon: 'i-no-entry', color: '#f0646b' },
+    police: { label: 'Police', color: '#2fa8d3' },
+    hidden_police: { label: 'Hidden police', color: '#2fa8d3' },
+    police_checkpoint: { label: 'Police checkpoint', color: '#2fa8d3' },
+    camera: { label: 'Mobile speed camera', color: '#2fa8d3' },
+    accident: { label: 'Accident', color: '#f0646b' },
+    hazard: { label: 'Pothole', color: '#d39a42' },
+    road_closure: { label: 'Road closure', color: '#f0646b' },
   };
   const HAZARD_TYPE_ORDER = ['police', 'hidden_police', 'police_checkpoint', 'camera', 'accident', 'hazard', 'road_closure'];
+
+  // Brand-specific road report artwork from the approved Rider Comms icon
+  // sheet. These are deliberately inline vectors rather than font glyphs so
+  // the report sheet, selected cards, navigation alerts and map markers all
+  // share the exact same visual language.
+  function hazardIconInnerSvg(type) {
+    switch (type) {
+      case 'police':
+        return '<path d="M8 22C10 14 16 10 24 10s14 4 16 12l-5 5H13Z" fill="#2FB7EB"/><path d="M9 28h30l-2 5c-4 3-8 4-13 4s-9-1-13-4Z" fill="#159CCF"/><path d="M7 32c4 6 30 6 34 0l-2 6c-4 3-9 5-15 5s-11-2-15-5Z" fill="#2FB7EB"/><path d="M24 14l4 2v4c0 3-1.7 5.4-4 6.6-2.3-1.2-4-3.6-4-6.6v-4Z" fill="#10191F"/>';
+      case 'hidden_police':
+        return '<path d="M9 23c1.8-7.5 8-11 15-11s13.2 3.5 15 11l-5 4H14Z" fill="#2FB7EB"/><path d="M24 15l3.6 1.8v3.3c0 2.6-1.5 4.4-3.6 5.4-2.1-1-3.6-2.8-3.6-5.4v-3.3Z" fill="#10191F"/><path d="M5 29l38-7v15L8 43Z" fill="#63727A"/><path d="M7 31l35-6v4L7 35Z" fill="#303C43"/><path d="M11 34c8 3 18 3 26 0l-2 5c-6 3-16 3-22 0Z" fill="#2FB7EB"/>';
+      case 'police_checkpoint':
+        return '<path d="M16 13c1-5 4-8 8-8s7 3 8 8l-3 3H19Z" fill="#2FB7EB"/><path d="M24 8l3 1.5v3c0 2-1.2 3.6-3 4.5-1.8-.9-3-2.5-3-4.5v-3Z" fill="#10191F"/><rect x="6" y="24" width="36" height="10" rx="2" fill="#F4F7F8"/><polygon points="6,24 13,24 19,34 12,34" fill="#F0646B"/><polygon points="22,24 29,24 35,34 28,34" fill="#F0646B"/><polygon points="38,24 42,24 42,31" fill="#F0646B"/><rect x="10" y="34" width="4" height="9" rx="1" fill="#63727A"/><rect x="34" y="34" width="4" height="9" rx="1" fill="#63727A"/>';
+      case 'camera':
+        return '<rect x="13" y="9" width="14" height="10" rx="2" fill="#2FB7EB"/><circle cx="20" cy="14" r="3" fill="#071015"/><path d="M8 22h25l8 8v10H6a3 3 0 0 1-3-3V27a5 5 0 0 1 5-5Z" fill="#F4F7F8"/><path d="M28 23h5l6 7H28Z" fill="#9EC6D7"/><rect x="9" y="26" width="12" height="7" rx="1.5" fill="#73848D"/><circle cx="12" cy="40" r="4" fill="#10191F"/><circle cx="34" cy="40" r="4" fill="#10191F"/><path d="M30 10c4 1 7 4 8 8" fill="none" stroke="#2FB7EB" stroke-width="3" stroke-linecap="round"/><path d="M32 5c7 2 11 6 13 13" fill="none" stroke="#2FB7EB" stroke-width="3" stroke-linecap="round"/>';
+      case 'accident':
+        return '<polygon points="24,3 28,12 36,7 34,16 43,15 36,22 44,27 33,28 36,38 27,32 24,43 20,32 11,38 15,28 4,27 12,22 5,15 14,16 12,7 20,12" fill="#F0646B"/><path d="M2 31l3-8h11l5 8v9H3a2 2 0 0 1-2-2v-5c0-1 .4-1.5 1-2Z" fill="#F4F7F8"/><path d="M27 31l5-8h11l4 8v7a2 2 0 0 1-2 2H27Z" fill="#F4F7F8"/><rect x="6" y="25" width="8" height="5" rx="1" fill="#87979E"/><rect x="34" y="25" width="7" height="5" rx="1" fill="#87979E"/><circle cx="7" cy="40" r="3" fill="#10191F"/><circle cx="17" cy="40" r="3" fill="#10191F"/><circle cx="32" cy="40" r="3" fill="#10191F"/><circle cx="42" cy="40" r="3" fill="#10191F"/>';
+      case 'hazard':
+        return '<polygon points="4,23 10,15 17,14 20,8 28,12 35,10 38,17 45,20 41,28 44,34 35,36 30,42 22,39 14,42 10,35 3,33 7,28" fill="#E2A03D"/><path d="M10 25c3-7 9-10 16-9 8 0 13 4 14 10-2 7-8 10-16 10-7 0-12-4-14-11Z" fill="#10191F"/><path d="M12 23c4-3 8-5 13-5 6 0 10 2 13 5" fill="none" stroke="#6A4A1D" stroke-width="2" stroke-linecap="round"/>';
+      case 'road_closure':
+        return '<rect x="7" y="31" width="34" height="8" rx="2" fill="#F4F7F8"/><polygon points="7,31 14,31 20,39 13,39" fill="#F0646B"/><polygon points="23,31 30,31 36,39 29,39" fill="#F0646B"/><polygon points="39,31 41,31 41,35" fill="#F0646B"/><rect x="10" y="39" width="4" height="6" rx="1" fill="#63727A"/><rect x="34" y="39" width="4" height="6" rx="1" fill="#63727A"/><circle cx="24" cy="17" r="13" fill="#F0646B"/><circle cx="24" cy="17" r="9.5" fill="#F4F7F8"/><rect x="14" y="15.2" width="20" height="3.6" rx="1.8" fill="#F0646B"/>';
+      default:
+        return '';
+    }
+  }
+
+  function hazardIconMarkup(type, className = 'hazard-art-icon') {
+    return '<svg class="' + className + '" viewBox="0 0 48 48" aria-hidden="true">' + hazardIconInnerSvg(type) + '</svg>';
+  }
+
+  function hazardPinIcon(type, selected = false) {
+    const size = selected ? 32 : 26;
+    const border = selected ? '#35D6FF' : '#3C4E58';
+    const borderWidth = selected ? 2.8 : 1.8;
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">'
+      + '<path d="M32 2C17 2 7 12.5 7 26c0 16.5 25 36 25 36s25-19.5 25-36C57 12.5 47 2 32 2Z" fill="#0D171C" stroke="' + border + '" stroke-width="' + borderWidth + '"/>'
+      + '<g transform="translate(15 7) scale(0.7)">' + hazardIconInnerSvg(type) + '</g></svg>';
+    return {
+      url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg),
+      scaledSize: new google.maps.Size(size, size),
+      anchor: new google.maps.Point(size / 2, size),
+    };
+  }
   const {
     navigationHazardLabel,
     navigationHazardsAhead,
@@ -626,14 +669,27 @@
 
   function addHazardMapMarker(hazard) {
     const meta = HAZARD_TYPES[hazard.type];
-    const marker = new google.maps.Marker({ map, position: { lat: hazard.lat, lng: hazard.lon }, title: meta.label, icon: pinIcon(meta.color), zIndex: 6 });
+    const marker = new google.maps.Marker({
+      map,
+      position: { lat: hazard.lat, lng: hazard.lon },
+      title: meta.label,
+      icon: hazardPinIcon(hazard.type),
+      zIndex: 6,
+    });
     marker.addListener('click', () => selectHazard(hazard.id));
-    return marker;
+    return { id: hazard.id, type: hazard.type, marker };
+  }
+
+  function setHazardMarkerSelection(hazardId = null) {
+    mapHazardMarkers.forEach((entry) => {
+      entry.marker.setIcon(hazardPinIcon(entry.type, entry.id === hazardId));
+      entry.marker.setZIndex(entry.id === hazardId ? 8 : 6);
+    });
   }
 
   function renderMapHazards() {
     if (!map || usingFallbackMap) return;
-    mapHazardMarkers.forEach((marker) => marker.setMap(null));
+    mapHazardMarkers.forEach((entry) => entry.marker.setMap(null));
     mapHazardMarkers = nearbyHazards.map((hazard) => addHazardMapMarker(hazard));
   }
 
@@ -660,14 +716,15 @@
   function selectHazard(hazardId) {
     const hazard = nearbyHazards.find((h) => h.id === hazardId);
     const card = $('#hazardCard');
-    if (!hazard) { card.hidden = true; return; }
+    if (!hazard) { card.hidden = true; setHazardMarkerSelection(); return; }
     const meta = HAZARD_TYPES[hazard.type];
     hideDestinationCard();
-    card.innerHTML = `<span class="avatar" style="--avatar:${meta.color}" aria-hidden="true"><svg><use href="#${meta.icon}"/></svg></span><div class="rider-card-copy"><strong>${escapeHtml(meta.label)}</strong><span>Reported ${timeAgo(hazard.createdAt)}</span><div class="hazard-vote-row"><button class="compact-button" data-vote="confirm">Still there (${hazard.confirmations})</button><button class="compact-button" data-vote="deny">Gone (${hazard.denials})</button></div></div><button class="icon-button" aria-label="Dismiss" data-dismiss-hazard>×</button>`;
+    setHazardMarkerSelection(hazard.id);
+    card.innerHTML = `<span class="hazard-card-art" aria-hidden="true">${hazardIconMarkup(hazard.type)}</span><div class="rider-card-copy"><strong>${escapeHtml(meta.label)}</strong><span>Reported ${timeAgo(hazard.createdAt)}</span><div class="hazard-vote-row"><button class="compact-button" data-vote="confirm">Still there (${hazard.confirmations})</button><button class="compact-button" data-vote="deny">Gone (${hazard.denials})</button></div></div><button class="icon-button" aria-label="Dismiss" data-dismiss-hazard>×</button>`;
     card.hidden = false;
     $('[data-vote="confirm"]', card).addEventListener('click', () => voteHazard(hazardId, 'confirm'));
     $('[data-vote="deny"]', card).addEventListener('click', () => voteHazard(hazardId, 'deny'));
-    $('[data-dismiss-hazard]', card).addEventListener('click', () => { card.hidden = true; });
+    $('[data-dismiss-hazard]', card).addEventListener('click', () => { card.hidden = true; setHazardMarkerSelection(); });
   }
 
   /** Real confirm/deny voting (POST /hazards/:id/confirm or /deny) — the
@@ -2188,7 +2245,7 @@
       }),
       reportHazard: () => ({
         title: 'Report on the road',
-        body: `<p class="caption">Let nearby riders know what's ahead. Reports fade out over time.</p><div class="hazard-type-grid" id="hazardTypeChips">${HAZARD_TYPE_ORDER.map((t) => `<button type="button" class="hazard-type-tile" data-hazard-type="${t}" style="--hazard:${HAZARD_TYPES[t].color}">${icon(HAZARD_TYPES[t].icon.replace(/^i-/, ''))}<span>${escapeHtml(HAZARD_TYPES[t].label)}</span></button>`).join('')}</div><p id="hazardFormError" class="inline-error" hidden></p>`,
+        body: `<p class="caption">Let nearby riders know what's ahead. Reports fade out over time.</p><div class="hazard-type-grid" id="hazardTypeChips">${HAZARD_TYPE_ORDER.map((t) => `<button type="button" class="hazard-type-tile" data-hazard-type="${t}" style="--hazard:${HAZARD_TYPES[t].color}">${hazardIconMarkup(t)}<span>${escapeHtml(HAZARD_TYPES[t].label)}</span></button>`).join('')}</div><p id="hazardFormError" class="inline-error" hidden></p>`,
         ready: () => {
           const chips = $$('[data-hazard-type]', $('#hazardTypeChips'));
           chips.forEach((chip) => chip.addEventListener('click', () => createHazard(chip.dataset.hazardType, chips)));
@@ -5094,7 +5151,7 @@
       const label = navigationHazardLabel(alert.hazard.type);
       const displayLabel = label.replace(/ reported$/, '');
       const distance = formatNavDistance(alert.distanceAheadMeters);
-      return `<span class="nav-road-ahead-event" aria-label="${escapeHtml(label)}, ${escapeHtml(distance)} ahead"><svg aria-hidden="true" style="--road-alert:${meta.color}"><use href="#${meta.icon}"/></svg><span>${escapeHtml(displayLabel)}</span><strong>${escapeHtml(distance)}</strong></span>`;
+      return `<span class="nav-road-ahead-event" aria-label="${escapeHtml(label)}, ${escapeHtml(distance)} ahead">${hazardIconMarkup(alert.hazard.type, 'nav-road-ahead-icon')}<span>${escapeHtml(displayLabel)}</span><strong>${escapeHtml(distance)}</strong></span>`;
     }).join('')}</span>`;
   }
 
