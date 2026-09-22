@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const [appConfigSource, mobilePackageSource, appSource, rideBarSource, proximitySource, proximityStateSource, voiceActivitySource, audioSessionSource, foregroundServiceSource, foregroundPluginSource, activeSpeakerSource, mapScreenSource, pwaSource, serverSource] = await Promise.all([
+const [appConfigSource, mobilePackageSource, appSource, rideBarSource, proximitySource, proximityStateSource, voiceActivitySource, audioSessionSource, foregroundServiceSource, foregroundPluginSource, activeSpeakerSource, mapScreenSource, mobileClientSource, settingsScreenSource, pwaSource, serverSource] = await Promise.all([
   readFile(new URL('../mobile/app.json', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/package.json', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/App.tsx', import.meta.url), 'utf8'),
@@ -14,6 +14,8 @@ const [appConfigSource, mobilePackageSource, appSource, rideBarSource, proximity
   readFile(new URL('../mobile/plugins/withAndroidVoiceForegroundService.js', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/voice/ActiveSpeakerBridge.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/screens/MapScreen.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../mobile/src/api/client.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../mobile/src/screens/SettingsScreen.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../docs/app.js', import.meta.url), 'utf8'),
   readFile(new URL('../backend/src/server.ts', import.meta.url), 'utf8'),
 ]);
@@ -215,7 +217,7 @@ assert.match(
 );
 
 const profileWrite = mapScreenSource.indexOf("await client.updateProfile(riderId, { shareLocation: true });");
-const localGoLive = mapScreenSource.indexOf('setShareLocation(true);');
+const localGoLive = mapScreenSource.indexOf('setPublicLive(true);');
 assert.ok(
   profileWrite >= 0 && localGoLive > profileWrite,
   'Nearby Voice must confirm backend location-sharing consent before enabling local presence',
@@ -227,8 +229,63 @@ assert.match(
 );
 assert.match(
   mapScreenSource,
-  /<ProximityVoice enabled=\{shareLocation\} peerIds=\{ridersInZone\} \/>/,
-  'Nearby Voice transport must remain mounted for the live session while the peer roster changes',
+  /<ProximityVoice enabled=\{publicLive\} peerIds=\{ridersInZone\} \/>/,
+  'Nearby Voice transport must be controlled by session-scoped live state, not durable profile consent',
+);
+assert.match(
+  mapScreenSource,
+  /const \[publicLive, setPublicLive\] = React\.useState\(false\)/,
+  'Native Nearby must require a fresh opt-in for each mounted app session',
+);
+assert.match(
+  mapScreenSource,
+  /if \(publicLive && \(!shareLocation \|\| activeRide\)\) setPublicLive\(false\)/,
+  'Native Nearby must stop public presence when consent is disabled or a private ride becomes active',
+);
+assert.match(
+  mapScreenSource,
+  /await client\.getMe\(\)[\s\S]*identity\.emailVerified/,
+  'Native Nearby must explain the verified-account prerequisite before opening voice',
+);
+assert.match(
+  pwaSource,
+  /const PRESENCE_REFRESH_MS = 8_000[\s\S]*presenceRefreshInFlight/,
+  'PWA presence must refresh inside the 5–10s product cadence without overlapping GPS/network work',
+);
+assert.match(
+  pwaSource,
+  /schedulePublicVoiceRefresh\(response\.refreshAfterMs\)/,
+  'PWA public voice must renew authorization on the server-advertised cadence instead of every presence ping',
+);
+assert.match(
+  pwaSource,
+  /session\?\.emailVerified === false[\s\S]*Verify your email before joining Nearby Voice/,
+  'PWA Nearby must explain the verified-account prerequisite before requesting microphone/location access',
+);
+assert.match(
+  mobileClientSource,
+  /resendVerification\(\): Promise<\{ sent: boolean \}>[\s\S]*\/auth\/resend-verification/,
+  'Native account client must expose verification resend so Nearby eligibility can recover',
+);
+assert.match(
+  settingsScreenSource,
+  /client\.resendVerification\(\)/,
+  'Native Settings must call the verification resend endpoint for Nearby Voice recovery',
+);
+assert.match(
+  settingsScreenSource,
+  /Resend verification email/,
+  'Native Settings must expose a verification resend action for Nearby Voice',
+);
+assert.match(
+  pwaSource,
+  /async function resendVerificationEmail\(\)[\s\S]*\/auth\/resend-verification/,
+  'PWA Settings must expose a verification resend action for Nearby Voice',
+);
+assert.match(
+  pwaSource,
+  /const hadPersistedPublicLive = state\.publicLive === true[\s\S]*state\.publicLive = false[\s\S]*apiFetch\('DELETE', '\/presence'\)/,
+  'PWA Nearby must clear persisted public-live state instead of auto-rejoining after reload/cold launch',
 );
 assert.match(
   pwaSource,

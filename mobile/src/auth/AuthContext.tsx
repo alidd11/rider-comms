@@ -176,7 +176,7 @@ function AuthScreen({ onAuthenticated, restoreError, onRetryRestore }: {
           'Account created',
           result.emailVerificationSent
             ? 'Open the verification link we sent to your email to confirm your address.'
-            : 'Your account is ready. Email verification is temporarily unavailable, so you can continue testing without it.'
+            : 'Your account was created, but the verification email could not be sent. Features that require a verified email, including Nearby Voice, will stay unavailable until verification delivery is restored.'
         );
       } else {
         await onAuthenticated(await publicClient.logIn(normalizedUsername, password), rememberMe);

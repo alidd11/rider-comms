@@ -84,8 +84,16 @@ function useRideVoiceToken(
           || err.status === 408
           || err.status === 429
           || err.status >= 500;
+        const code = err instanceof ApiError
+          && typeof err.body === 'object'
+          && err.body
+          && 'error' in (err.body as Record<string, unknown>)
+          ? String((err.body as Record<string, unknown>).error)
+          : '';
         setState({
-          error: err instanceof Error ? err.message : 'Could not connect to voice',
+          error: code === 'email_verification_required'
+            ? 'Verify your email before using ride voice.'
+            : err instanceof Error ? err.message : 'Could not connect to voice',
           retryable,
         });
       });

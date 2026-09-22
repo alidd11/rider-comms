@@ -18,7 +18,7 @@ const PROFILE = {
 
 test('PWA retries a transient pre-connect voice failure and preserves VOX/speaker state', async ({ page }) => {
   await page.addInitScript(({ riderId }) => {
-    localStorage.setItem('rider-comms-session-v1', JSON.stringify({ riderId, token: 'voice-speaker-test-token' }));
+    localStorage.setItem('rider-comms-session-v1', JSON.stringify({ riderId, token: 'voice-speaker-test-token', emailVerified: true }));
     Object.defineProperty(navigator, 'permissions', {
       configurable: true,
       value: { query: async () => ({ state: 'granted', addEventListener() {} }) },
@@ -109,7 +109,7 @@ test('PWA retries a transient pre-connect voice failure and preserves VOX/speake
     }
 
     let body = {};
-    if (url.pathname === '/auth/me') body = { riderId: RIDER_ID };
+    if (url.pathname === '/auth/me') body = { riderId: RIDER_ID, emailVerified: true };
     else if (url.pathname === `/riders/${RIDER_ID}/profile` && request.method() === 'PUT') body = { ...PROFILE, shareLocation: true };
     else if (url.pathname === `/riders/${RIDER_ID}/profile`) body = PROFILE;
     else if (url.pathname === `/riders/${RIDER_ID}/friends`) body = { friends: [] };
