@@ -715,7 +715,7 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
   await expect(page.locator('#sheetBackdrop')).toBeVisible();
   await expect(page.locator('.friend-profile-card')).toBeVisible();
   await expect(page.locator('#shareFriendId')).toHaveCount(0);
-  await expect(page.locator('#shareFriendLocation')).toContainText('Share Location');
+  await expect(page.locator('#shareFriendLocation')).toContainText('Share to Ride');
   await expect(page.locator('#shareFriendLocation')).toBeDisabled();
   await expect(page.locator('#friendMapAction')).toContainText('Map');
   await expect(page.locator('#friendMapAction')).toBeDisabled();
@@ -888,6 +888,9 @@ test('friend profile exposes only fresh consented private-ride location actions'
   await expect(page.locator('#shareFriendId')).toHaveCount(0);
   await expect(page.locator('#shareFriendLocation')).toBeEnabled();
   await expect(page.locator('#shareFriendLocation')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#shareFriendLocation')).toContainText('Share to Ride');
+  await expect(page.locator('#shareFriendLocation')).toHaveAttribute('aria-label', 'Stop sharing your location with this group ride');
+  await expect(page.locator('#shareFriendLocation')).toHaveAttribute('title', 'Shares your location with everyone in your current group ride, not just this rider.');
   await expect(page.locator('#friendMapAction')).toBeEnabled();
   await expect(page.locator('.friend-profile-detail-list')).toContainText('Location');
   await expect(page.locator('.friend-profile-detail-list')).toContainText('Shared in your current ride');
