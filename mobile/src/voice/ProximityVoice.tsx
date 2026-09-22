@@ -270,7 +270,7 @@ export function ProximityVoice({
             ? 'Proximity voice muted — tap to unmute'
             : 'Listening — hands-free — tap to mute'
           : statusText;
-  const handleVoiceControlPress = React.useCallback(() => {
+  const handleVoiceControlPress = () => {
     if (audioSessionError) {
       setAudioSessionError(null);
       setAudioSessionRetryVersion((version) => version + 1);
@@ -284,7 +284,7 @@ export function ProximityVoice({
     if (connectedPeers.size > 0) {
       setManuallyMuted((muted) => !muted);
     }
-  }, [audioSessionError, authorizationExpired, connectedPeers.size, error]);
+  };
 
   return (
     <View pointerEvents="box-none" style={styles.host} accessibilityLiveRegion="polite">
