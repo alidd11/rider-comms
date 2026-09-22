@@ -247,7 +247,7 @@ function SmoothRideMemberMarker({
 export function MapScreen(): React.JSX.Element {
   const colorScheme = useColorScheme();
   const { client, riderId } = useAuth();
-  const { rideLocations, roster, shareRideLocation } = useRide();
+  const { activeRide, rideLocations, roster, shareRideLocation } = useRide();
   const { shareLocation, setShareLocation, unitSystem, navigationProvider, avatarId, displayName } = useSettings();
   const { lockedForSafety, movementState, locationAccess, requestLocationAccess, openLocationSettings, refreshTracking } = useMovementSafety();
   const insets = useSafeAreaInsets();
@@ -439,6 +439,13 @@ export function MapScreen(): React.JSX.Element {
   React.useEffect(() => {
     currentLocationRef.current = currentLocation;
   }, [currentLocation]);
+
+  React.useEffect(() => {
+    // Public Nearby and private ride voice are mutually exclusive. Durable
+    // shareLocation remains the rider's consent preference, but disabling it
+    // in Settings or entering a private ride must end the live public session.
+    if (publicLive && (!shareLocation || activeRide)) setPublicLive(false);
+  }, [activeRide, publicLive, shareLocation]);
 
   React.useEffect(() => {
     if (!mapReady || segment !== 'public' || !currentLocation || centredOnFirstFix.current || navigationTarget || selectedPlace) return;
