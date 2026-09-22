@@ -46,6 +46,7 @@ test('native discards GPS subscriptions that resolve after resume or unmount', a
         isLockedForSafety: () => false,
       };
       if (name === './movementAdapter') return {};
+      if (name === '../settings/SettingsContext') return { useSettings: () => ({ rideSafeEnabled: true, rideSafeLoaded: true }) };
       throw new Error(`Unexpected import ${name}`);
     },
   });

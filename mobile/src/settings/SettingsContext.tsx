@@ -12,6 +12,7 @@ import {
   parseNavigationProvider,
   type NavigationProvider,
 } from '../navigationPreference';
+import { DEFAULT_RIDE_SAFE_ENABLED, parseRideSafeEnabled, rideSafeStorageKey } from '../rideSafePreference';
 
 const LEGACY_CACHE_KEY = '@rider-comms/settings/cachedProfile';
 const cacheKey = (riderId: string): string => `@rider-comms/settings/profile/${riderId}`;
@@ -24,6 +25,8 @@ const DEFAULTS: Omit<RiderProfile, 'riderId' | 'updatedAt'> = {
 type ProfileState = typeof DEFAULTS;
 interface SettingsContextValue extends ProfileState {
   navigationProvider: NavigationProvider;
+  rideSafeEnabled: boolean;
+  rideSafeLoaded: boolean;
   loaded: boolean;
   saving: boolean;
   profileError: string | null;
@@ -33,7 +36,7 @@ interface SettingsContextValue extends ProfileState {
   setNotifyInvites: (v: boolean) => void; setNotifyChat: (v: boolean) => void; setShareLocation: (v: boolean) => void;
   setInstagramUsername: (v: string) => void; setInstagramVisibility: (v: SocialVisibility) => void;
   setTiktokUsername: (v: string) => void; setTiktokVisibility: (v: SocialVisibility) => void;
-  setNavigationProvider: (v: NavigationProvider) => void; resetAll: () => void;
+  setNavigationProvider: (v: NavigationProvider) => void; setRideSafeEnabled: (v: boolean) => void; resetAll: () => void;
   refreshProfile: () => Promise<void>;
 }
 const SettingsContext = React.createContext<SettingsContextValue | null>(null);
@@ -43,6 +46,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }): R
   const { riderId, client } = useAuth();
   const [state, setState] = React.useState<ProfileState>(DEFAULTS); const [loaded, setLoaded] = React.useState(false);
   const [navigationProvider, setNavigationProviderState] = React.useState<NavigationProvider>(DEFAULT_NAVIGATION_PROVIDER);
+  const [rideSafeEnabled, setRideSafeEnabledState] = React.useState(DEFAULT_RIDE_SAFE_ENABLED);
+  const [rideSafeLoaded, setRideSafeLoaded] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [profileError, setProfileError] = React.useState<string | null>(null);
   const saveQueue = React.useRef<Promise<void>>(Promise.resolve());
@@ -56,6 +61,15 @@ export function SettingsProvider({ children }: { children: React.ReactNode }): R
     AsyncStorage.getItem(navigationProviderStorageKey(riderId))
       .then((value) => { if (!cancelled) setNavigationProviderState(parseNavigationProvider(value)); })
       .catch(() => { if (!cancelled) setNavigationProviderState(DEFAULT_NAVIGATION_PROVIDER); });
+    return () => { cancelled = true; };
+  }, [riderId]);
+  React.useEffect(() => {
+    let cancelled = false;
+    setRideSafeLoaded(false);
+    setRideSafeEnabledState(DEFAULT_RIDE_SAFE_ENABLED);
+    AsyncStorage.getItem(rideSafeStorageKey(riderId))
+      .then((value) => { if (!cancelled) { setRideSafeEnabledState(parseRideSafeEnabled(value)); setRideSafeLoaded(true); } })
+      .catch(() => { if (!cancelled) { setRideSafeEnabledState(DEFAULT_RIDE_SAFE_ENABLED); setRideSafeLoaded(true); } });
     return () => { cancelled = true; };
   }, [riderId]);
   const refreshProfile = React.useCallback(async () => {
@@ -149,16 +163,22 @@ export function SettingsProvider({ children }: { children: React.ReactNode }): R
     setNavigationProviderState(next);
     void AsyncStorage.setItem(navigationProviderStorageKey(riderId), next);
   }, [riderId]);
+  const setRideSafeEnabled = React.useCallback((value: boolean) => {
+    setRideSafeEnabledState(value);
+    void AsyncStorage.setItem(rideSafeStorageKey(riderId), String(value));
+  }, [riderId]);
   const resetAll = React.useCallback(() => {
     stateRef.current = DEFAULTS;
     setState(DEFAULTS);
     setNavigationProviderState(DEFAULT_NAVIGATION_PROVIDER);
+    setRideSafeEnabledState(DEFAULT_RIDE_SAFE_ENABLED);
     void AsyncStorage.removeItem(cacheKey(riderId));
     void AsyncStorage.removeItem(navigationProviderStorageKey(riderId));
+    void AsyncStorage.removeItem(rideSafeStorageKey(riderId));
     void client.updateProfile(riderId, DEFAULTS).catch(() => setProfileError('Your settings could not be reset on the server.'));
   }, [client, riderId]);
   const clearProfileError = React.useCallback(() => setProfileError(null), []);
-  const value = React.useMemo(() => ({ ...state, ...setters, navigationProvider, setNavigationProvider, loaded, saving, profileError, clearProfileError, resetAll, refreshProfile }), [state, setters, navigationProvider, setNavigationProvider, loaded, saving, profileError, clearProfileError, resetAll, refreshProfile]);
+  const value = React.useMemo(() => ({ ...state, ...setters, navigationProvider, setNavigationProvider, rideSafeEnabled, rideSafeLoaded, setRideSafeEnabled, loaded, saving, profileError, clearProfileError, resetAll, refreshProfile }), [state, setters, navigationProvider, setNavigationProvider, rideSafeEnabled, rideSafeLoaded, setRideSafeEnabled, loaded, saving, profileError, clearProfileError, resetAll, refreshProfile]);
   return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;
 }
 export function useSettings(): SettingsContextValue { const value = React.useContext(SettingsContext); if (!value) throw new Error('useSettings() must be called within SettingsProvider'); return value; }

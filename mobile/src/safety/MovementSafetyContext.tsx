@@ -7,6 +7,7 @@ import {
   type MovementState,
 } from '@rider-comms/shared';
 import { toMovementFix } from './movementAdapter';
+import { useSettings } from '../settings/SettingsContext';
 
 type MovementSafetyValue = {
   movementState: MovementState;
@@ -29,6 +30,7 @@ const MovementSafetyContext = React.createContext<MovementSafetyValue>({
 });
 
 export function MovementSafetyProvider({ children }: { children: React.ReactNode }): React.JSX.Element {
+  const { rideSafeEnabled, rideSafeLoaded } = useSettings();
   const tracker = React.useRef(new MovementStateTracker()).current;
   const [movementState, setMovementState] = React.useState<MovementState>('unknown');
   const [locationAccess, setLocationAccess] = React.useState<MovementSafetyValue['locationAccess']>('checking');
@@ -70,6 +72,10 @@ export function MovementSafetyProvider({ children }: { children: React.ReactNode
         }
         setLocationAccess('granted');
         setTrackingError(null);
+        if (!rideSafeEnabled) {
+          setMovementState(tracker.markUnavailable());
+          return;
+        }
         const nextSubscription = await Location.watchPositionAsync(
           {
             accuracy: Location.Accuracy.Balanced,
@@ -111,6 +117,16 @@ export function MovementSafetyProvider({ children }: { children: React.ReactNode
       }
     };
 
+    if (!rideSafeLoaded) {
+      setLocationAccess('checking');
+      setTrackingError(null);
+      setMovementState(tracker.markUnavailable());
+      return () => {
+        mounted = false;
+        stop();
+      };
+    }
+
     void start();
     const staleTimer = setInterval(() => {
       if (mounted) setMovementState(tracker.stateAt(Date.now()));
@@ -129,17 +145,17 @@ export function MovementSafetyProvider({ children }: { children: React.ReactNode
       clearInterval(staleTimer);
       appStateSubscription.remove();
     };
-  }, [tracker]);
+  }, [rideSafeEnabled, rideSafeLoaded, tracker]);
 
   const value = React.useMemo(() => ({
     movementState,
-    lockedForSafety: isLockedForSafety(movementState),
+    lockedForSafety: rideSafeEnabled && isLockedForSafety(movementState),
     locationAccess,
     trackingError,
     refreshTracking: () => startRef.current(),
     requestLocationAccess: () => requestRef.current(),
     openLocationSettings: () => Linking.openSettings(),
-  }), [locationAccess, movementState, trackingError]);
+  }), [locationAccess, movementState, rideSafeEnabled, trackingError]);
 
   return <MovementSafetyContext.Provider value={value}>{children}</MovementSafetyContext.Provider>;
 }
