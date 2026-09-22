@@ -3,8 +3,14 @@
  * hazards, closures, speed cameras). Kept intentionally small and pure here
  * so both the backend store and any future client-side logic can reuse the
  * exact same TTL and "should this disappear" rules without drifting.
+ *
+ * `hidden_police` and `police_checkpoint` are both police-presence reports,
+ * same as `police`/`camera`, just distinguishing *how* the presence shows up
+ * (out of sight vs. a staffed roadside checkpoint) -- riders asked for that
+ * distinction specifically, rather than folding it into the generic `police`
+ * type.
  */
-export type HazardType = 'police' | 'accident' | 'hazard' | 'road_closure' | 'camera';
+export type HazardType = 'police' | 'accident' | 'hazard' | 'road_closure' | 'camera' | 'hidden_police' | 'police_checkpoint';
 
 export interface HazardReport {
   id: string;
@@ -33,6 +39,8 @@ export function ttlMsForType(type: HazardType): number {
   switch (type) {
     case 'police':
     case 'camera':
+    case 'hidden_police':
+    case 'police_checkpoint':
       return HOUR_MS;
     case 'accident':
     case 'hazard':

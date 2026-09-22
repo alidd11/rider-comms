@@ -703,8 +703,7 @@ body:has(#sheetBackdrop:not([hidden])) .map-actions,
 body:has(#sheetBackdrop:not([hidden])) #joinNearbyBtn{opacity:0;pointer-events:none}
 .hazard-type-grid{grid-template-columns:repeat(6,minmax(0,1fr));justify-items:stretch}
 .hazard-type-tile{grid-column:span 2}
-.hazard-type-tile:nth-child(4){grid-column:2/span 2}
-.hazard-type-tile:nth-child(5){grid-column:4/span 2}
+.hazard-type-tile:nth-child(7){grid-column:3/span 2}
 .bottom-nav>button{font-weight:650}
 .bottom-nav>button svg{stroke-width:1.7}
 

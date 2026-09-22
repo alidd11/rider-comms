@@ -29,6 +29,11 @@ describe('ttlMsForType', () => {
     expect(ttlMsForType('road_closure')).toBeGreaterThan(ttlMsForType('hazard'));
   });
 
+  it('treats hidden_police and police_checkpoint as fast-moving, same as police/camera', () => {
+    expect(ttlMsForType('hidden_police')).toBe(ttlMsForType('police'));
+    expect(ttlMsForType('police_checkpoint')).toBe(ttlMsForType('police'));
+  });
+
   it('treats accident and hazard the same, mid-length', () => {
     expect(ttlMsForType('accident')).toBe(ttlMsForType('hazard'));
   });

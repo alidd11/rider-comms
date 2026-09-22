@@ -7,13 +7,23 @@ import { colors, spacing, radii, type } from '../theme';
 
 export const HAZARD_TYPE_META: Record<HazardType, { label: string; icon: keyof typeof MaterialCommunityIcons.glyphMap; color: string }> = {
   police: { label: 'Police', icon: 'police-badge', color: colors.accent },
+  hidden_police: { label: 'Hidden police', icon: 'incognito', color: colors.accent },
+  police_checkpoint: { label: 'Police checkpoint', icon: 'boom-gate', color: colors.accent },
+  camera: { label: 'Mobile speed camera', icon: 'camera', color: colors.accent },
   accident: { label: 'Accident', icon: 'car-emergency', color: colors.danger },
-  hazard: { label: 'Hazard', icon: 'alert', color: colors.warning },
+  hazard: { label: 'Pothole', icon: 'car-tire-alert', color: colors.warning },
   road_closure: { label: 'Road closure', icon: 'road-variant', color: colors.danger },
-  camera: { label: 'Speed camera', icon: 'camera', color: colors.accent },
 };
 
-const HAZARD_TYPE_ORDER: HazardType[] = ['police', 'camera', 'accident', 'hazard', 'road_closure'];
+const HAZARD_TYPE_ORDER: HazardType[] = [
+  'police',
+  'hidden_police',
+  'police_checkpoint',
+  'camera',
+  'accident',
+  'hazard',
+  'road_closure',
+];
 
 export function HazardReportSheet({
   visible,

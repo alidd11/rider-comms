@@ -97,12 +97,14 @@
   // never mock report data.
   const HAZARD_TYPES = {
     police: { label: 'Police', icon: 'i-shield', color: '#2fa8d3' },
-    camera: { label: 'Speed camera', icon: 'i-camera', color: '#2fa8d3' },
+    hidden_police: { label: 'Hidden police', icon: 'i-hidden-police', color: '#2fa8d3' },
+    police_checkpoint: { label: 'Police checkpoint', icon: 'i-police-checkpoint', color: '#2fa8d3' },
+    camera: { label: 'Mobile speed camera', icon: 'i-camera', color: '#2fa8d3' },
     accident: { label: 'Accident', icon: 'i-alert', color: '#f0646b' },
-    hazard: { label: 'Hazard', icon: 'i-cone', color: '#d39a42' },
+    hazard: { label: 'Pothole', icon: 'i-pothole', color: '#d39a42' },
     road_closure: { label: 'Road closure', icon: 'i-no-entry', color: '#f0646b' },
   };
-  const HAZARD_TYPE_ORDER = ['police', 'camera', 'accident', 'hazard', 'road_closure'];
+  const HAZARD_TYPE_ORDER = ['police', 'hidden_police', 'police_checkpoint', 'camera', 'accident', 'hazard', 'road_closure'];
   const {
     navigationHazardLabel,
     navigationHazardsAhead,

@@ -14,9 +14,11 @@ const ROAD_ALERT_META: Record<HazardType, {
   color: string;
 }> = {
   police: { icon: 'police-badge', color: colors.accent },
+  hidden_police: { icon: 'incognito', color: colors.accent },
+  police_checkpoint: { icon: 'boom-gate', color: colors.accent },
   camera: { icon: 'camera', color: colors.accent },
   accident: { icon: 'car-emergency', color: colors.danger },
-  hazard: { icon: 'alert', color: colors.warning },
+  hazard: { icon: 'car-tire-alert', color: colors.warning },
   road_closure: { icon: 'road-variant', color: colors.danger },
 };
 

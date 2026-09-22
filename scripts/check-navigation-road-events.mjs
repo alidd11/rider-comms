@@ -60,8 +60,26 @@ const prioritisedAlerts = pwa.navigationHazardsAhead(
 );
 assert.deepEqual(prioritisedAlerts.map((alert) => alert.hazard.id), ['camera-nearest', 'closure-third']);
 
-assert.equal(pwa.navigationHazardLabel('camera'), 'Speed camera reported');
+assert.equal(pwa.navigationHazardLabel('camera'), 'Mobile speed camera reported');
 assert.equal(pwa.navigationHazardLabel('police'), 'Police reported');
+assert.equal(pwa.navigationHazardLabel('hidden_police'), 'Hidden police reported');
+assert.equal(pwa.navigationHazardLabel('police_checkpoint'), 'Police checkpoint reported');
+assert.equal(pwa.navigationHazardLabel('hazard'), 'Pothole reported');
+
+const newTypeAlerts = pwa.navigationHazardsAhead(
+  { lat: 51.5020, lng: -0.1000 },
+  route,
+  [
+    hazard('hidden-police-ahead', 'hidden_police', 51.5040),
+    hazard('checkpoint-ahead', 'police_checkpoint', 51.5060),
+  ],
+  { currentAccuracyMeters: 10 },
+);
+assert.deepEqual(
+  newTypeAlerts.map((alert) => alert.hazard.id),
+  ['hidden-police-ahead', 'checkpoint-ahead'],
+  'new police-presence types must not be fail-closed as unknown report types',
+);
 
 const nowMs = 10_000;
 const staleAlerts = pwa.navigationHazardsAhead(
@@ -109,7 +127,7 @@ assert.equal(
 assert.match(nativeSource, /HIDE_NET_DENIAL_THRESHOLD/, 'native route-ahead selector must reuse the shared crowd-hide threshold');
 assert.match(nativeSource, /hazard\.expiresAt > nowMs/, 'native route-ahead selector must suppress expired reports before the next poll');
 
-for (const phrase of ['Speed camera reported', 'Police reported', 'Accident reported', 'Road closure reported', 'Road hazard reported']) {
+for (const phrase of ['Mobile speed camera reported', 'Police reported', 'Hidden police reported', 'Police checkpoint reported', 'Accident reported', 'Road closure reported', 'Pothole reported']) {
   assert.ok(nativeSource.includes(phrase), `native route-ahead labels must include ${phrase}`);
 }
 

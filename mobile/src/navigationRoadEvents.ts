@@ -13,7 +13,7 @@ export const NAVIGATION_ALERT_CURRENT_ROUTE_TOLERANCE_METERS = 120;
 export const NAVIGATION_ALERT_MAX_VISIBLE = 2;
 export const NAVIGATION_ALERT_MAX_LOCATION_ACCURACY_METERS = 75;
 
-const HAZARD_TYPES = new Set<HazardType>(['police', 'accident', 'hazard', 'road_closure', 'camera']);
+const HAZARD_TYPES = new Set<HazardType>(['police', 'accident', 'hazard', 'road_closure', 'camera', 'hidden_police', 'police_checkpoint']);
 const SAFETY_IMPACTING_TYPES = new Set<HazardType>(['road_closure', 'accident', 'hazard']);
 
 export interface NavigationRouteHazard {
@@ -37,7 +37,9 @@ const HAZARD_TIE_BREAK_PRIORITY: Record<HazardType, number> = {
   accident: 1,
   camera: 2,
   police: 3,
-  hazard: 4,
+  police_checkpoint: 4,
+  hidden_police: 5,
+  hazard: 6,
 };
 
 function finiteCoordinate(point: RouteCoordinate | null | undefined): point is RouteCoordinate {
@@ -161,10 +163,12 @@ export function navigationHazardsAhead(
 
 export function navigationHazardLabel(type: HazardType): string {
   switch (type) {
-    case 'camera': return 'Speed camera reported';
+    case 'camera': return 'Mobile speed camera reported';
     case 'police': return 'Police reported';
+    case 'hidden_police': return 'Hidden police reported';
+    case 'police_checkpoint': return 'Police checkpoint reported';
     case 'accident': return 'Accident reported';
     case 'road_closure': return 'Road closure reported';
-    case 'hazard': return 'Road hazard reported';
+    case 'hazard': return 'Pothole reported';
   }
 }

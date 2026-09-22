@@ -24,7 +24,7 @@ import { SocialActivityStore } from './socialActivityStore.ts';
 import { InvalidSocialEventCursorError, MAX_SOCIAL_EVENT_WAIT_MS, SocialEventStore } from './socialEventStore.ts';
 import { checkDatabaseReady, closeDatabase, ensureMigrated } from './db.ts';
 
-const HAZARD_TYPES = ['police', 'accident', 'hazard', 'road_closure', 'camera'] as const;
+const HAZARD_TYPES = ['police', 'accident', 'hazard', 'road_closure', 'camera', 'hidden_police', 'police_checkpoint'] as const;
 const VEHICLE_CATEGORIES = ['motorcycle_small', 'motorcycle_large', 'scooter', 'car'] as const;
 const ROAD_TYPES = ['rural', 'mountain', 'coastal', 'urban', 'mixed'] as const;
 const DIFFICULTIES = ['easy', 'moderate', 'challenging'] as const;
