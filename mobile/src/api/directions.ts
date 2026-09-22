@@ -1,15 +1,12 @@
 import type { NavigationTarget } from '../navigationLinks.ts';
+import type { NavigationInstruction } from '@rider-comms/shared';
 
 export interface RouteCoordinate {
   lat: number;
   lon: number;
 }
 
-export interface NavigationRouteStep {
-  instruction: string;
-  maneuver?: string;
-  distanceMeters: number;
-  durationSeconds: number;
+export interface NavigationRouteStep extends NavigationInstruction {
   start: RouteCoordinate;
   end: RouteCoordinate;
   coordinates: RouteCoordinate[];
