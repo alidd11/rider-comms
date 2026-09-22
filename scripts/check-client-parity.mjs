@@ -387,8 +387,8 @@ if (!/body:has\(#destinationCard:not\(\[hidden\]\)\) \.screen-map \.map-actions\
 if (!/#destinationCard \.destination-primary-action\{[^\n]*border-radius:14px/.test(pwaCssSource)) {
   throw new Error('PWA destination primary action must align with native navigation button geometry');
 }
-if (!/mapActionButton:\s*\{[\s\S]*?width: 48,[\s\S]*?height: 48,[\s\S]*?borderRadius: 14/.test(nativeMapSource)) {
-  throw new Error('Native map controls must keep the shared 48px rounded-square geometry');
+if (!/mapActionButton:\s*\{[\s\S]*?width: 54,[\s\S]*?height: 54,[\s\S]*?borderRadius: 27/.test(nativeMapSource)) {
+  throw new Error('Native map controls must keep the shared 54px circular geometry');
 }
 if (!/navigationActions:\s*\{[\s\S]*?flexDirection: 'row',[\s\S]*?gap: 2,[\s\S]*?padding: 4,[\s\S]*?borderRadius: 18/.test(nativeMapSource)) {
   throw new Error('Native navigation actions must match the compact horizontal PWA dock');
