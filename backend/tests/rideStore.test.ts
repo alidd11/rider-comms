@@ -27,7 +27,7 @@ describe('RideStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping Po
   });
 
   it('caps a ride at 20 members and returns ride_full past the cap', async () => {
-    const store = new RideStore(); // high join-attempt limit, this test is about the size cap
+    const store = new RideStore(); // rate limiting lives at the HTTP security boundary; this test is about the size cap
     const { ride, codeRecord } = await store.createRide('host');
 
     for (let i = 0; i < 19; i++) {
