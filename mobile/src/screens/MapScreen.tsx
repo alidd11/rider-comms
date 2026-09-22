@@ -1194,7 +1194,7 @@ export function MapScreen(): React.JSX.Element {
             accessibilityRole="button"
             accessibilityLabel="Report on the road"
           >
-            <MaterialCommunityIcons name="alert-plus" size={22} color={colors.textPrimary} />
+            <MaterialCommunityIcons name="alert-plus" size={24} color={colors.textPrimary} />
           </Pressable>}
           <Pressable
             style={styles.mapActionButton}
@@ -1202,7 +1202,7 @@ export function MapScreen(): React.JSX.Element {
             accessibilityRole="button"
             accessibilityLabel="Centre map on my location"
           >
-            <MaterialCommunityIcons name="crosshairs-gps" size={22} color={colors.accent} />
+            <MaterialCommunityIcons name="crosshairs-gps" size={24} color={colors.accent} />
           </Pressable>
           <Pressable
             style={[styles.mapActionButton, publicLive && styles.mapActionButtonActive]}
@@ -1451,15 +1451,19 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   mapActionButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
-    backgroundColor: colors.surface,
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    backgroundColor: colors.surfaceRaised,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
-    ...elevation.raised,
+    shadowColor: '#000',
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 8,
   },
   mapActionButtonActive: {
     borderColor: colors.accent,
