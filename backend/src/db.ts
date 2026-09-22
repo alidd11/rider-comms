@@ -612,6 +612,23 @@ const MIGRATIONS: { name: string; sql: string }[] = [
         CHECK (type IN ('police', 'accident', 'hazard', 'road_closure', 'camera', 'hidden_police', 'police_checkpoint'));
     `,
   },
+  {
+    name: '0032_durable_api_rate_limits',
+    sql: `
+      CREATE TABLE IF NOT EXISTS rate_limit_events (
+        id BIGSERIAL PRIMARY KEY,
+        subject_key TEXT NOT NULL,
+        action TEXT NOT NULL CHECK (
+          action IN ('auth', 'api', 'ride_join_rider', 'ride_join_ip', 'hazard_create', 'verification_resend', 'password_reset_request')
+        ),
+        created_at BIGINT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS rate_limit_events_subject_action_idx
+        ON rate_limit_events (subject_key, action, created_at);
+      CREATE INDEX IF NOT EXISTS rate_limit_events_created_at_idx
+        ON rate_limit_events (created_at);
+    `,
+  },
 ];
 
 /**

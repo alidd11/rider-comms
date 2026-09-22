@@ -15,6 +15,9 @@ export function startTestServer(options: ApiServerOptions = {}): TestServer {
   const effectiveOptions: ApiServerOptions = {
     ...options,
     ...(ownedSocialEventStore ? { socialEventStore: ownedSocialEventStore } : {}),
+    ...(!process.env.DATABASE_URL && !options.rateLimitStore
+      ? { rateLimitStore: { consume: async () => ({ allowed: true, retryAfterSeconds: 0 }) } }
+      : {}),
     ...(!process.env.DATABASE_URL && !options.socialActivityStore
       ? { socialActivityStore: { touch: async () => undefined, getFriendActivity: async () => [] } }
       : {}),

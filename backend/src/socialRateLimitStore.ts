@@ -35,10 +35,10 @@ const MAX_POLICY_WINDOW_MS = Math.max(...Object.values(SOCIAL_RATE_POLICIES).map
 /**
  * Durable social-write rate limiting.
  *
- * The generic API limiter is intentionally broad and process-local. Social
- * abuse controls need to survive restarts and remain consistent if the
- * backend runs more than one replica, so these windows are enforced in
- * Postgres. An advisory transaction lock serialises one actor/action key
+ * General auth/API abuse controls live in the separate durable RateLimitStore.
+ * Social actions keep their own policies here so moderation/contact limits can
+ * evolve independently. These windows are enforced in Postgres, and an
+ * advisory transaction lock serialises one actor/action key
  * before count+insert, preventing concurrent requests from racing through
  * the same remaining slot.
  */

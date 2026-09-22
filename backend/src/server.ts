@@ -1,7 +1,7 @@
 import http from 'node:http';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { isIP } from 'node:net';
-import { SlidingWindowRateLimiter, TIER_RADIUS_MILES, validateScenicRouteInput } from '@rider-comms/shared';
+import { TIER_RADIUS_MILES, validateScenicRouteInput } from '@rider-comms/shared';
 import type { Difficulty, HazardType, RoadType, Rider, VehicleCategory } from '@rider-comms/shared';
 import { createLiveKitRoomAdmin, getLiveKitCredentialsFromEnv, mintVoiceToken, proximityRoomName, RIDE_VOICE_TOKEN_TTL_SECONDS, rideRoomName } from './liveKitToken.ts';
 import type { LiveKitCredentials, LiveKitRoomAdmin } from './liveKitToken.ts';
@@ -20,6 +20,8 @@ import { ScenicRouteStore } from './scenicRouteStore.ts';
 import { AccountDeletionStore } from './accountDeletionStore.ts';
 import { SocialRateLimitStore } from './socialRateLimitStore.ts';
 import type { SocialRateAction } from './socialRateLimitStore.ts';
+import { RateLimitStore } from './rateLimitStore.ts';
+import type { RateLimitAction } from './rateLimitStore.ts';
 import { SocialActivityStore } from './socialActivityStore.ts';
 import { InvalidSocialEventCursorError, MAX_SOCIAL_EVENT_WAIT_MS, SocialEventStore } from './socialEventStore.ts';
 import { checkDatabaseReady, closeDatabase, ensureMigrated } from './db.ts';
@@ -42,6 +44,7 @@ const PROXIMITY_VOICE_REFRESH_MS = 20_000;
 // backend/presence path stops confirming that they are still allowed together.
 const PROXIMITY_VOICE_AUTHORIZATION_LEASE_MS = PROXIMITY_VOICE_TOKEN_TTL_SECONDS * 1000;
 const AUTH_CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
+const RATE_LIMIT_CLEANUP_INTERVAL_MS = 15 * 60 * 1000;
 const SOCIAL_RATE_CLEANUP_INTERVAL_MS = 15 * 60 * 1000;
 const SOCIAL_STATE_CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
 
@@ -55,6 +58,7 @@ export interface ApiServerOptions {
   liveKitCredentials?: LiveKitCredentials | null;
   liveKitRoomAdmin?: Pick<LiveKitRoomAdmin, 'revokeRideParticipant'> | null;
   accountDeletionStore?: Pick<AccountDeletionStore, 'deleteRider'>;
+  rateLimitStore?: Pick<RateLimitStore, 'consume'>;
   socialRateLimitStore?: Pick<SocialRateLimitStore, 'consume'>;
   socialActivityStore?: Pick<SocialActivityStore, 'touch' | 'getFriendActivity'>;
   socialEventStore?: Pick<SocialEventStore, 'waitForEvents'> & Partial<Pick<SocialEventStore, 'close'>>;
@@ -176,6 +180,23 @@ async function consumeSocialWrite(
   return false;
 }
 
+function rateLimitSubject(scope: 'ip' | 'rider', value: string): string {
+  return createHash('sha256').update(`${scope}:${value}`).digest('hex');
+}
+
+async function consumeRateLimit(
+  res: http.ServerResponse,
+  store: Pick<RateLimitStore, 'consume'>,
+  subjectKey: string,
+  action: RateLimitAction,
+): Promise<boolean> {
+  const result = await store.consume(subjectKey, action);
+  if (result.allowed) return true;
+  res.setHeader('Retry-After', String(result.retryAfterSeconds));
+  sendJson(res, 429, { error: 'rate_limited' });
+  return false;
+}
+
 function requiresVerifiedEmail(method: string | undefined, pathname: string): boolean {
   if (method !== 'POST') return false;
   if ([
@@ -203,22 +224,13 @@ async function requireVerifiedEmail(
 }
 
 export function createApp(rideStore = new RideStore(), presenceStore = new PresenceStore(), profileStore = new ProfileStore(), friendStore = new FriendStore(profileStore), messageStore = new MessageStore(), hideoutStore = new HideoutStore(), authStore = new AuthStore(), moderationStore = new ModerationStore(), hazardStore = new HazardStore(), scenicRouteStore = new ScenicRouteStore(), options: ApiServerOptions = {}): http.Server {
-  const authLimiter = new SlidingWindowRateLimiter(20, 60_000);
-  const apiLimiter = new SlidingWindowRateLimiter(300, 60_000);
-  const hazardCreateLimiter = new SlidingWindowRateLimiter(10, 10 * 60_000);
-  // Resending a verification email is an authenticated rider spamming
-  // themselves (or, if their account is compromised, someone else) with
-  // outbound Resend sends — keep it well below Resend's own limits and
-  // far below apiLimiter's general 300/min so it can't become a way to
-  // rack up email-sending cost/abuse.
-  const resendVerificationLimiter = new SlidingWindowRateLimiter(3, 10 * 60_000);
-  const passwordResetLimiter = new SlidingWindowRateLimiter(3, 10 * 60_000);
   const allowedOrigins = new Set(options.allowedOrigins ?? []);
   const liveKitCredentials = 'liveKitCredentials' in options ? options.liveKitCredentials : getLiveKitCredentialsFromEnv();
   const liveKitRoomAdmin = 'liveKitRoomAdmin' in options
     ? options.liveKitRoomAdmin
     : liveKitCredentials ? createLiveKitRoomAdmin(liveKitCredentials) : null;
   const accountDeletionStore = options.accountDeletionStore ?? new AccountDeletionStore();
+  const rateLimitStore = options.rateLimitStore ?? new RateLimitStore();
   const socialRateLimitStore = options.socialRateLimitStore ?? new SocialRateLimitStore();
   const socialActivityStore = options.socialActivityStore ?? new SocialActivityStore();
   const socialEventStore = options.socialEventStore ?? new SocialEventStore();
@@ -281,7 +293,7 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
         return sendJson(res, 200, { googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY ?? '' });
       }
       if (req.method === 'POST' && url.pathname === '/auth/signup') {
-        if (!authLimiter.tryConsume(address)) return sendJson(res, 429, { error: 'rate_limited' });
+        if (!(await consumeRateLimit(res, rateLimitStore, rateLimitSubject('ip', address), 'auth'))) return;
         const body = await readJsonBody(req);
         const result = await authStore.signUp(body.username, body.email, body.password, body.deviceName);
         if ('error' in result) return sendJson(res, result.error === 'username_taken' || result.error === 'email_taken' ? 409 : 400, { error: result.error });
@@ -290,7 +302,7 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
         return sendJson(res, 201, result);
       }
       if (req.method === 'POST' && url.pathname === '/auth/login') {
-        if (!authLimiter.tryConsume(address)) return sendJson(res, 429, { error: 'rate_limited' });
+        if (!(await consumeRateLimit(res, rateLimitStore, rateLimitSubject('ip', address), 'auth'))) return;
         const body = await readJsonBody(req);
         const result = await authStore.logIn(body.username, body.password, body.deviceName);
         if ('error' in result) return sendJson(res, 401, { error: result.error });
@@ -299,20 +311,20 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
         return sendJson(res, 200, result);
       }
       if (req.method === 'POST' && url.pathname === '/auth/verify-email') {
-        if (!authLimiter.tryConsume(address)) return sendJson(res, 429, { error: 'rate_limited' });
+        if (!(await consumeRateLimit(res, rateLimitStore, rateLimitSubject('ip', address), 'auth'))) return;
         const body = await readJsonBody(req);
         const result = await authStore.verifyEmail(body.token);
         if ('error' in result) return sendJson(res, result.error === 'invalid_token' ? 400 : 410, { error: result.error });
         return sendJson(res, 200, result);
       }
       if (req.method === 'POST' && url.pathname === '/auth/password-reset/request') {
-        if (!passwordResetLimiter.tryConsume(address)) { res.setHeader('Retry-After', '600'); return sendJson(res, 429, { error: 'rate_limited' }); }
+        if (!(await consumeRateLimit(res, rateLimitStore, rateLimitSubject('ip', address), 'password_reset_request'))) return;
         const body = await readJsonBody(req);
         await authStore.requestPasswordReset(body.email);
         return sendJson(res, 202, { accepted: true });
       }
       if (req.method === 'POST' && url.pathname === '/auth/password-reset/confirm') {
-        if (!authLimiter.tryConsume(address)) return sendJson(res, 429, { error: 'rate_limited' });
+        if (!(await consumeRateLimit(res, rateLimitStore, rateLimitSubject('ip', address), 'auth'))) return;
         const body = await readJsonBody(req);
         const result = await authStore.resetPassword(body.token, body.password);
         if ('error' in result) return sendJson(res, result.error === 'expired_token' ? 410 : 400, { error: result.error });
@@ -320,7 +332,7 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
       }
       const actorId = await authRider(req, res, authStore); if (!actorId) return;
       await socialActivityStore.touch(actorId);
-      if (!apiLimiter.tryConsume(actorId)) return sendJson(res, 429, { error: 'rate_limited' });
+      if (!(await consumeRateLimit(res, rateLimitStore, rateLimitSubject('rider', actorId), 'api'))) return;
       if (req.method === 'GET' && url.pathname === '/auth/me') {
         const identity = await authStore.getIdentity(actorId);
         return sendJson(res, 200, { riderId: actorId, username: identity?.username ?? null, emailVerified: identity?.emailVerified ?? false });
@@ -338,7 +350,7 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
         return sendEmpty(res, 204);
       }
       if (req.method === 'POST' && url.pathname === '/auth/resend-verification') {
-        if (!resendVerificationLimiter.tryConsume(actorId)) { res.setHeader('Retry-After', '600'); return sendJson(res, 429, { error: 'rate_limited' }); }
+        if (!(await consumeRateLimit(res, rateLimitStore, rateLimitSubject('rider', actorId), 'verification_resend'))) return;
         const result = await authStore.resendVerification(actorId);
         if ('error' in result) return sendJson(res, result.error === 'not_found' ? 404 : 409, { error: result.error });
         return sendJson(res, 200, result);
@@ -356,10 +368,11 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
       if (req.method === 'POST' && url.pathname === '/rides/join') {
         const body = await readJsonBody(req);
         if (typeof body.code !== 'string' || !/^[A-Z2-9]{6}$/i.test(body.code)) return sendJson(res, 400, { error: 'a valid 6-character code is required' });
-        const result = await rideStore.joinRide(body.code, actorId, address);
+        if (!(await consumeRateLimit(res, rateLimitStore, rateLimitSubject('rider', actorId), 'ride_join_rider'))) return;
+        if (!(await consumeRateLimit(res, rateLimitStore, rateLimitSubject('ip', address), 'ride_join_ip'))) return;
+        const result = await rideStore.joinRide(body.code, actorId);
         if (!result.ok) {
-          if (result.reason === 'rate_limited') res.setHeader('Retry-After', '60');
-          const status = result.reason === 'rate_limited' ? 429 : result.reason === 'ride_full' ? 409 : 404;
+          const status = result.reason === 'ride_full' ? 409 : 404;
           return sendJson(res, status, { error: result.reason });
         }
         return sendJson(res, 200, { rideId: result.rideId });
@@ -650,7 +663,7 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
       }
       if (req.method === 'DELETE' && s[0] === 'hideouts' && s[1]) { const r = await hideoutStore.delete(decodeURIComponent(s[1]), actorId); return r.ok ? sendJson(res, 200, {}) : sendJson(res, r.error === 'forbidden' ? 403 : 404, { error: r.error }); }
       if (req.method === 'POST' && url.pathname === '/hazards') {
-        if (!hazardCreateLimiter.tryConsume(actorId)) { res.setHeader('Retry-After', '60'); return sendJson(res, 429, { error: 'rate_limited' }); }
+        if (!(await consumeRateLimit(res, rateLimitStore, rateLimitSubject('rider', actorId), 'hazard_create'))) return;
         const body = await readJsonBody(req);
         if (typeof body.type !== 'string' || !HAZARD_TYPES.includes(body.type as HazardType)) return sendJson(res, 400, { error: 'valid type is required' });
         if (!isCoordinate(body.lat, body.lon)) return sendJson(res, 400, { error: 'valid lat and lon are required' });
@@ -728,14 +741,17 @@ async function startProductionServer(): Promise<void> {
   // never advertises itself as ready or receives product traffic.
   await ensureMigrated();
   const productionAuthStore = new AuthStore();
+  const productionRateLimitStore = new RateLimitStore();
   const productionSocialRateLimitStore = new SocialRateLimitStore();
   const productionSocialActivityStore = new SocialActivityStore();
   const productionSocialEventStore = new SocialEventStore();
   const initialCleanup = await productionAuthStore.cleanupExpiredRecords();
+  const initialRateCleanup = await productionRateLimitStore.cleanupExpired();
   const initialSocialRateCleanup = await productionSocialRateLimitStore.cleanupExpired();
   const initialSocialActivityCleanup = await productionSocialActivityStore.cleanupExpired();
   const initialSocialEventCleanup = await productionSocialEventStore.cleanupExpired();
   console.log(JSON.stringify({ level: 'info', event: 'auth_records_cleaned', ...initialCleanup }));
+  console.log(JSON.stringify({ level: 'info', event: 'rate_limit_events_cleaned', deleted: initialRateCleanup }));
   console.log(JSON.stringify({ level: 'info', event: 'social_rate_events_cleaned', deleted: initialSocialRateCleanup }));
   console.log(JSON.stringify({ level: 'info', event: 'social_activity_cleaned', deleted: initialSocialActivityCleanup }));
   console.log(JSON.stringify({ level: 'info', event: 'social_events_cleaned', deleted: initialSocialEventCleanup }));
@@ -743,6 +759,7 @@ async function startProductionServer(): Promise<void> {
     allowedOrigins,
     trustProxy: process.env.TRUST_PROXY === 'true',
     logger: (event) => console.log(JSON.stringify({ level: 'info', event: 'http_request', ...event })),
+    rateLimitStore: productionRateLimitStore,
     socialRateLimitStore: productionSocialRateLimitStore,
     socialActivityStore: productionSocialActivityStore,
     socialEventStore: productionSocialEventStore,
@@ -757,6 +774,12 @@ async function startProductionServer(): Promise<void> {
       .catch((error) => console.error(JSON.stringify({ level: 'error', event: 'auth_record_cleanup_failed', message: error instanceof Error ? error.message : String(error) })));
   }, AUTH_CLEANUP_INTERVAL_MS);
   authCleanupTimer.unref();
+  const rateLimitCleanupTimer = setInterval(() => {
+    void productionRateLimitStore.cleanupExpired()
+      .then((deleted) => console.log(JSON.stringify({ level: 'info', event: 'rate_limit_events_cleaned', deleted })))
+      .catch((error) => console.error(JSON.stringify({ level: 'error', event: 'rate_limit_cleanup_failed', message: error instanceof Error ? error.message : String(error) })));
+  }, RATE_LIMIT_CLEANUP_INTERVAL_MS);
+  rateLimitCleanupTimer.unref();
   const socialRateCleanupTimer = setInterval(() => {
     void productionSocialRateLimitStore.cleanupExpired()
       .then((deleted) => console.log(JSON.stringify({ level: 'info', event: 'social_rate_events_cleaned', deleted })))
@@ -778,6 +801,7 @@ async function startProductionServer(): Promise<void> {
     if (stopping) return;
     stopping = true;
     clearInterval(authCleanupTimer);
+    clearInterval(rateLimitCleanupTimer);
     clearInterval(socialRateCleanupTimer);
     clearInterval(socialStateCleanupTimer);
     void productionSocialEventStore.close().catch((error) => console.error(JSON.stringify({ level: 'error', event: 'social_event_listener_shutdown_failed', message: error instanceof Error ? error.message : String(error) })));
