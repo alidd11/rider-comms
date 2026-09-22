@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { LiveKitRoom } from '@livekit/react-native';
-import type { ProximityVoiceConnection } from '../api/client';
+import { ApiError, type ProximityVoiceConnection } from '../api/client';
 import { acquireVoiceAudioSession, releaseVoiceAudioSession } from '../audio/audioSession';
 import { LiveKitAudioPriorityBridge } from '../audio/LiveKitAudioPriorityBridge';
 import { useVoiceActivity } from '../audio/useVoiceActivity';
@@ -171,10 +171,12 @@ export function ProximityVoice({
         }
       } catch (cause) {
         consecutiveRefreshFailures += 1;
-        nextRefreshMs = resolveProximityVoiceRetryDelay(
-          consecutiveRefreshFailures,
-          normalRefreshMs,
-        );
+        const shouldRetrySoon = !(cause instanceof ApiError)
+          || cause.status === 408
+          || cause.status >= 500;
+        nextRefreshMs = shouldRetrySoon
+          ? resolveProximityVoiceRetryDelay(consecutiveRefreshFailures, normalRefreshMs)
+          : normalRefreshMs;
         if (!cancelled && !hasAuthorizedOnce.current) {
           setError(cause instanceof Error ? cause.message : 'Proximity voice is unavailable.');
         }

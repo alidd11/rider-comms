@@ -142,6 +142,11 @@ assert.match(
 );
 assert.match(
   proximitySource,
+  /cause instanceof ApiError[\s\S]*cause\.status === 408[\s\S]*cause\.status >= 500[\s\S]*normalRefreshMs/,
+  'Native proximity authorization must not aggressively retry permanent or rate-limited API responses',
+);
+assert.match(
+  proximitySource,
   /onError=\{\(message\) => setAudioSessionError/,
   'Native VOX microphone failures must use the audio recovery path instead of masquerading as a peer-room transport failure',
 );
