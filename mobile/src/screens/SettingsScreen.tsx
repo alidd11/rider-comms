@@ -356,6 +356,8 @@ export function SettingsScreen(): React.JSX.Element {
   const [sessions, setSessions] = React.useState<AccountSessionSummary[]>([]);
   const [sessionsError, setSessionsError] = React.useState<string | null>(null);
   const [sessionsLoading, setSessionsLoading] = React.useState(false);
+  const [verificationConfirmed, setVerificationConfirmed] = React.useState(emailVerified);
+  const [verificationSending, setVerificationSending] = React.useState(false);
 
   const loadSessions = React.useCallback(async () => {
     setSessionsLoading(true);
@@ -390,6 +392,34 @@ export function SettingsScreen(): React.JSX.Element {
   React.useEffect(() => {
     setHandleDraft(handle);
   }, [handle]);
+
+  React.useEffect(() => {
+    setVerificationConfirmed(emailVerified);
+  }, [emailVerified]);
+
+  async function resendVerificationEmail() {
+    if (verificationSending) return;
+    setVerificationSending(true);
+    try {
+      const identity = await client.getMe();
+      if (identity.emailVerified) {
+        setVerificationConfirmed(true);
+        Alert.alert('Email verified', 'Your Rider Comms email is already verified. Nearby Voice is available.');
+        return;
+      }
+      const result = await client.resendVerification();
+      Alert.alert(
+        result.sent ? 'Verification email sent' : 'Verification email unavailable',
+        result.sent
+          ? 'Open the new verification link in your email, then return to Rider Comms.'
+          : 'Rider Comms could not send a verification email because email delivery is not configured or temporarily unavailable. Nearby Voice remains unavailable until your email is verified.',
+      );
+    } catch {
+      Alert.alert('Couldn’t resend verification', 'Please check your connection, wait a moment if you recently requested another email, and try again.');
+    } finally {
+      setVerificationSending(false);
+    }
+  }
 
   const avatar = getAvatarPreset(avatarId);
 
@@ -600,7 +630,18 @@ export function SettingsScreen(): React.JSX.Element {
               <TextInput style={styles.sheetInput} value={nameDraft} onChangeText={(value) => { setNameDraft(value); setProfileDraftError(null); }} onSubmitEditing={commitName} onBlur={commitName} maxLength={50} returnKeyType="done" placeholder="Rider name" placeholderTextColor={colors.textMuted} />
               <Text style={styles.fieldLabel}>Rider handle</Text>
               <TextInput style={styles.sheetInput} value={handleDraft} onChangeText={(value) => { setHandleDraft(value); setProfileDraftError(null); }} onSubmitEditing={commitHandle} onBlur={commitHandle} maxLength={25} autoCapitalize="none" autoCorrect={false} returnKeyType="done" placeholder="@handle" placeholderTextColor={colors.textMuted} />
-              <Text style={styles.sheetMetaBlock}>{emailVerified ? 'Email verified' : 'Email verification pending'} · {riderId}</Text>
+              <Text style={styles.sheetMetaBlock}>{verificationConfirmed ? 'Email verified' : 'Email verification pending · Nearby Voice requires verification'} · {riderId}</Text>
+              {!verificationConfirmed ? (
+                <Pressable
+                  disabled={verificationSending}
+                  style={[styles.sheetSecondaryAction, verificationSending && styles.sheetActionDisabled]}
+                  onPress={() => void resendVerificationEmail()}
+                  accessibilityRole="button"
+                  accessibilityLabel="Resend verification email"
+                >
+                  <Text style={styles.sheetSecondaryActionText}>{verificationSending ? 'Sending…' : 'Resend verification email'}</Text>
+                </Pressable>
+              ) : null}
               {(saving || profileDraftError || profileError) ? (
                 <View style={styles.sheetSaveStatus} accessibilityLiveRegion="polite">
                   {saving ? <><ActivityIndicator color={colors.accent} size="small" /><Text style={styles.profileSavingText}>Saving profile…</Text></> : null}
