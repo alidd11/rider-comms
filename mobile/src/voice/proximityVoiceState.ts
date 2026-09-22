@@ -37,6 +37,7 @@ export function prunePeerSet(current: ReadonlySet<string>, authorisedPeerIds: Re
 export function proximityVoiceStatus({
   error,
   authorizationExpired,
+  manuallyMuted,
   localSpeaking,
   remoteSpeakingNames,
   connectedCount,
@@ -44,6 +45,7 @@ export function proximityVoiceStatus({
 }: {
   error: boolean;
   authorizationExpired: boolean;
+  manuallyMuted: boolean;
   localSpeaking: boolean;
   remoteSpeakingNames: readonly string[];
   connectedCount: number;
@@ -51,6 +53,7 @@ export function proximityVoiceStatus({
 }): string {
   if (error) return 'Nearby Voice unavailable';
   if (authorizationExpired) return 'Nearby Voice · reconnecting';
+  if (manuallyMuted && connectedCount > 0) return 'Nearby Voice · muted';
   if (localSpeaking) return 'Nearby Voice · You speaking';
   if (remoteSpeakingNames.length === 1) return `Nearby Voice · ${remoteSpeakingNames[0]} speaking`;
   if (remoteSpeakingNames.length > 1) {

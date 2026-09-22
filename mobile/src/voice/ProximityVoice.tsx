@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { LiveKitRoom } from '@livekit/react-native';
 import type { ProximityVoiceConnection } from '../api/client';
 import { acquireVoiceAudioSession, releaseVoiceAudioSession } from '../audio/audioSession';
@@ -17,13 +17,15 @@ import { useRide } from '../ride/RideContext';
 import { colors, elevation, radii, spacing, type } from '../theme';
 
 function VoiceActivityBridge({
+  enabled,
   onError,
   onSpeakingChange,
 }: {
+  enabled: boolean;
   onError: (message: string) => void;
   onSpeakingChange: (speaking: boolean) => void;
 }): null {
-  const speaking = useVoiceActivity(true, onError);
+  const speaking = useVoiceActivity(enabled, onError);
   React.useEffect(() => {
     onSpeakingChange(speaking);
   }, [onSpeakingChange, speaking]);
@@ -52,9 +54,12 @@ export function ProximityVoice({
   const [localSpeakingPeers, setLocalSpeakingPeers] = React.useState<Set<string>>(new Set());
   const [peerNames, setPeerNames] = React.useState<Map<string, string>>(new Map());
   const [error, setError] = React.useState<string | null>(null);
+  const [audioSessionError, setAudioSessionError] = React.useState<string | null>(null);
   const [authorizationExpired, setAuthorizationExpired] = React.useState(false);
   const [refreshVersion, setRefreshVersion] = React.useState(0);
+  const [audioSessionRetryVersion, setAudioSessionRetryVersion] = React.useState(0);
   const [audioSessionReady, setAudioSessionReady] = React.useState(false);
+  const [manuallyMuted, setManuallyMuted] = React.useState(false);
   const authorizationLeaseTimer = React.useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const hasAuthorizedOnce = React.useRef(false);
   const peerRosterKey = React.useMemo(
@@ -121,7 +126,9 @@ export function ProximityVoice({
       setLocalSpeakingPeers(new Set());
       setPeerNames(new Map());
       setError(null);
+      setAudioSessionError(null);
       setAuthorizationExpired(false);
+      setManuallyMuted(false);
       return;
     }
 
@@ -209,19 +216,24 @@ export function ProximityVoice({
   React.useEffect(() => {
     if (!needsAudioSession) {
       setAudioSessionReady(false);
+      setAudioSessionError(null);
       return;
     }
 
     let stopped = false;
     setAudioSessionReady(false);
+    setAudioSessionError(null);
     void acquireVoiceAudioSession('proximity')
       .then(() => {
-        if (!stopped) setAudioSessionReady(true);
+        if (!stopped) {
+          setAudioSessionReady(true);
+          setAudioSessionError(null);
+        }
       })
       .catch(() => {
         if (!stopped) {
           setAudioSessionReady(false);
-          setError('Microphone or Bluetooth audio is unavailable.');
+          setAudioSessionError('Microphone or Bluetooth audio is unavailable.');
         }
       });
 
@@ -229,31 +241,70 @@ export function ProximityVoice({
       stopped = true;
       void releaseVoiceAudioSession('proximity').catch(() => {});
     };
-  }, [needsAudioSession]);
+  }, [audioSessionRetryVersion, needsAudioSession]);
 
   if (!active) return null;
 
   const speakingPeerIds = [...speakingPeers].filter((peerId) => connectedPeers.has(peerId));
   const speakingNames = speakingPeerIds.map((peerId) => peerNames.get(peerId) ?? 'Nearby rider');
   const localSpeaking = [...localSpeakingPeers].some((peerId) => connectedPeers.has(peerId));
-  const statusHasIssue = Boolean(error || authorizationExpired);
+  const statusHasIssue = Boolean(error || audioSessionError || authorizationExpired);
   const statusText = proximityVoiceStatus({
-    error: Boolean(error),
+    error: Boolean(error || audioSessionError),
     authorizationExpired,
+    manuallyMuted,
     localSpeaking,
     remoteSpeakingNames: speakingNames,
     connectedCount: connectedPeers.size,
     pendingCount: connections.length,
   });
+  const voiceControlEnabled = connectedPeers.size > 0 || statusHasIssue;
+  const voiceControlLabel = audioSessionError
+    ? 'Nearby Voice unavailable — tap to retry audio'
+    : error
+      ? 'Nearby Voice unavailable — tap to retry'
+      : authorizationExpired
+        ? 'Nearby Voice reconnecting — tap to retry'
+        : connectedPeers.size > 0
+          ? manuallyMuted
+            ? 'Proximity voice muted — tap to unmute'
+            : 'Listening — hands-free — tap to mute'
+          : statusText;
+  const handleVoiceControlPress = React.useCallback(() => {
+    if (audioSessionError) {
+      setAudioSessionError(null);
+      setAudioSessionRetryVersion((version) => version + 1);
+      return;
+    }
+    if (error || authorizationExpired) {
+      setError(null);
+      setRefreshVersion((version) => version + 1);
+      return;
+    }
+    if (connectedPeers.size > 0) {
+      setManuallyMuted((muted) => !muted);
+    }
+  }, [audioSessionError, authorizationExpired, connectedPeers.size, error]);
 
   return (
-    <View pointerEvents="none" style={styles.host} accessibilityLiveRegion="polite">
-      <View style={[styles.status, statusHasIssue && styles.statusError]}>
-          <View style={[styles.dot, statusHasIssue && styles.dotError]} />
-          <Text style={[styles.text, statusHasIssue && styles.textError]}>
-            {statusText}
-          </Text>
-        </View>
+    <View pointerEvents="box-none" style={styles.host} accessibilityLiveRegion="polite">
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={voiceControlLabel}
+        accessibilityState={{ disabled: !voiceControlEnabled }}
+        disabled={!voiceControlEnabled}
+        onPress={handleVoiceControlPress}
+        style={({ pressed }) => [
+          styles.status,
+          statusHasIssue && styles.statusError,
+          pressed && voiceControlEnabled && styles.statusPressed,
+        ]}
+      >
+        <View style={[styles.dot, statusHasIssue && styles.dotError]} />
+        <Text style={[styles.text, statusHasIssue && styles.textError]}>
+          {statusText}
+        </Text>
+      </Pressable>
       {connections.map((connection) => {
         const retryPeer = () => {
           setConnectedPeers((current) => {
@@ -286,6 +337,7 @@ export function ProximityVoice({
           onMediaDeviceFailure={() => setError('Microphone or audio device became unavailable.')}
         >
           <VoiceActivityBridge
+            enabled={!manuallyMuted}
             onError={(message) => setError(message || 'Microphone is unavailable.')}
             onSpeakingChange={(speaking) => handleLocalSpeaking(connection.peerId, speaking)}
           />
@@ -309,6 +361,7 @@ const styles = StyleSheet.create({
     ...elevation.raised,
   },
   statusError: { borderColor: colors.danger },
+  statusPressed: { opacity: 0.78 },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.success },
   dotError: { backgroundColor: colors.danger },
   text: { ...type.caption, color: colors.textSecondary, fontWeight: '700' },

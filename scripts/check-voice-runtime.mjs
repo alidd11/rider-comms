@@ -116,6 +116,26 @@ assert.match(
   'Proximity voice must wait for native audio-session readiness before connecting',
 );
 assert.match(
+  proximitySource,
+  /const \[manuallyMuted, setManuallyMuted\][\s\S]*<Pressable[\s\S]*onPress=\{handleVoiceControlPress\}/,
+  'Native public proximity voice must expose a rider-operated mute/recovery control instead of a status-only surface',
+);
+assert.match(
+  proximitySource,
+  /<VoiceActivityBridge[\s\S]*enabled=\{!manuallyMuted\}/,
+  'Native public proximity mute must fail closed by disabling VOX transmission in every authorised pair room',
+);
+assert.match(
+  proximitySource,
+  /audioSessionRetryVersion[\s\S]*setAudioSessionRetryVersion[\s\S]*setRefreshVersion/,
+  'Native public proximity voice must support rider-initiated audio-session and authorization recovery without disabling Nearby presence',
+);
+assert.match(
+  pwaSource,
+  /voiceManuallyMuted[\s\S]*async function toggleVoiceMute\(\)/,
+  'PWA public proximity voice must retain the equivalent mute/recovery control',
+);
+assert.match(
   rideBarSource,
   /voice\.error[\s\S]*voice\.retryable[\s\S]*scheduleVoiceRetry\(\)/,
   'Private ride voice must retry transient token failures that happen before LiveKitRoom exists',
