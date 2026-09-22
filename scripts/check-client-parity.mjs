@@ -172,7 +172,8 @@ for (const [label, source, patterns] of [
   ['Native navigation', nativeMapSource, [
     /navigationFollowing/,
     /navigationMuted/,
-    /size=\{activeRoute \? 64 : 44\}/,
+    /size=\{64\}/,
+    /size=\{44\}/,
     /focusNavigationCamera/,
     /navigationPromptProgress/,
     /navigationPromptStageForDistance/,
@@ -355,8 +356,7 @@ if (!/function routeFinishIcon\(\)/.test(pwaMapSource)
 if (!/navigationDestination \? \([\s\S]*flag-checkered[\s\S]*navigationDestinationMarker/.test(nativeMapSource)) {
   throw new Error('Native navigation must render a dedicated route-finish marker');
 }
-if (!/mapMarker=\{!activeRoute\}/.test(nativeMapSource)
-  || !/status=\{activeRoute \? 'none' : selfMapStatus\}/.test(nativeMapSource)) {
+if (!/mapMarker=\{false\}[\s\S]{0,40}selected status="none"/.test(nativeMapSource)) {
   throw new Error('Native navigation avatar must switch from a map pin to a clean navigation avatar');
 }
 if (!/mapMarker: !navigationMode/.test(pwaMapSource) || !/anchor: navigationMode/.test(pwaMapSource)) {

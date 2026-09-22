@@ -4,7 +4,7 @@ import { AppState } from 'react-native';
 import { useAuth } from '../auth/AuthContext';
 import { ApiError, type RideMemberLocation } from '../api/client';
 
-const RIDE_LOCATION_REFRESH_MS = 10_000;
+export const RIDE_LOCATION_REFRESH_MS = 10_000;
 const RIDE_RESTORE_RETRY_MS = 10_000;
 
 export interface ActiveRide {
