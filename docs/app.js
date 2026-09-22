@@ -2591,9 +2591,12 @@
     const nextVoicePeerKey = [...result.inZoneWith].sort().join('\u0000');
     const voicePeersChanged = nextVoicePeerKey !== nearbyVoicePeerKey;
     nearbyVoicePeerKey = nextVoicePeerKey;
+    // Voice authorization should react to the backend roster immediately;
+    // resolving display profiles is secondary UI work and can take several
+    // extra network round trips on a crowded channel.
+    if (state.publicLive && !state.activeRide && microphonePermissionReady && voicePeersChanged) syncVoiceConnection();
     nearbyRiders = await resolveRiderProfiles(result.inZoneWith);
     if (!state.activeRide) renderMapRiders();
-    if (state.publicLive && !state.activeRide && microphonePermissionReady && voicePeersChanged) syncVoiceConnection();
     return result;
   }
 
