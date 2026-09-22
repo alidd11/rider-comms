@@ -5014,6 +5014,8 @@
     'uturn-right': 'i-nav-uturn-right',
     'roundabout-left': 'i-nav-roundabout-left',
     'roundabout-right': 'i-nav-roundabout-right',
+    ferry: 'i-nav-ferry',
+    'ferry-train': 'i-nav-ferry',
     'fork-left': 'i-nav-fork-left',
     'fork-right': 'i-nav-fork-right',
     'ramp-left': 'i-nav-ramp-left',

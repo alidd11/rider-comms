@@ -25,7 +25,8 @@ const fixtures = {
     undefined, 'straight', 'turn-left', 'turn-right', 'turn-slight-left', 'turn-slight-right',
     'turn-sharp-left', 'turn-sharp-right', 'uturn-left', 'uturn-right', 'fork-left',
     'fork-right', 'ramp-left', 'ramp-right', 'merge', 'roundabout-left',
-    'roundabout-right', 'arrive', 'provider-future-value',
+    'roundabout-right', 'ferry', 'ferry-train', 'depart', 'name-change',
+    'arrive', 'provider-future-value',
   ],
   promptDistance: [Number.NaN, 800, 501, 500, 151, 150, 41, 40, 0],
   prompt: [

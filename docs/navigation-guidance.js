@@ -44,14 +44,19 @@
     'ramp-left': 'Take ramp left',
     'ramp-right': 'Take ramp right',
     merge: 'Merge',
+    ferry: 'Take the ferry',
+    'ferry-train': 'Take the ferry train',
+    depart: 'Start route',
+    'name-change': 'Continue',
     arrive: 'Arrive',
   });
 
   function navigationManeuverAction(maneuver) {
-    const maneuverKey = maneuver || 'straight';
+    if (!maneuver) return 'Continue';
+    const maneuverKey = maneuver;
     return maneuverKey.startsWith('roundabout')
       ? 'At roundabout'
-      : glanceActions[maneuverKey] || 'Go straight';
+      : glanceActions[maneuverKey] || 'Continue';
   }
 
   function navigationPromptStageForDistance(metres) {
@@ -95,8 +100,13 @@
       case 'roundabout-left':
       case 'roundabout-right':
         return 'sync';
-      default:
+      case 'ferry':
+      case 'ferry-train':
+        return 'boat-outline';
+      case 'straight':
         return 'arrow-up';
+      default:
+        return 'navigate';
     }
   }
 
