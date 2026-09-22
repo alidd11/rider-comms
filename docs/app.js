@@ -2099,9 +2099,10 @@
       }),
       profile: () => ({
         title: 'Edit profile',
-        body: `<div class="settings-sheet-section"><span class="settings-sheet-label">Identity</span><div class="form-field"><label>Avatar</label>${avatarOptionsMarkup(state.profile.avatarId)}</div><div class="form-field"><label for="editName">Display name</label><input id="editName" maxlength="50" value="${escapeHtml(state.profile.displayName)}"></div><div class="form-field"><label for="editHandle">Rider handle</label><input id="editHandle" maxlength="25" value="${escapeHtml(state.profile.handle)}"></div></div><div class="settings-sheet-section"><span class="settings-sheet-label">Connected profiles</span><div class="form-field"><label for="editInstagram">Instagram</label><input id="editInstagram" maxlength="31" value="${escapeHtml(state.profile.instagram)}" placeholder="Username"></div><div class="form-field"><label for="editTiktok">TikTok</label><input id="editTiktok" maxlength="31" value="${escapeHtml(state.profile.tiktok)}" placeholder="Username"></div><p class="caption">Control who can see these in Privacy controls.</p></div><p id="profileFormError" class="inline-error" hidden></p><button class="button primary wide" id="saveProfile">Save changes</button>`,
+        body: `<div class="settings-sheet-section"><span class="settings-sheet-label">Identity</span><div class="form-field"><label>Avatar</label>${avatarOptionsMarkup(state.profile.avatarId)}</div><div class="form-field"><label for="editName">Display name</label><input id="editName" maxlength="50" value="${escapeHtml(state.profile.displayName)}"></div><div class="form-field"><label for="editHandle">Rider handle</label><input id="editHandle" maxlength="25" value="${escapeHtml(state.profile.handle)}"></div><p class="caption">${session?.emailVerified ? 'Email verified.' : 'Email verification pending. Nearby Voice requires a verified email.'}</p>${session?.emailVerified ? '' : '<button class="button secondary wide" id="resendVerificationBtn">Resend verification email</button>'}</div><div class="settings-sheet-section"><span class="settings-sheet-label">Connected profiles</span><div class="form-field"><label for="editInstagram">Instagram</label><input id="editInstagram" maxlength="31" value="${escapeHtml(state.profile.instagram)}" placeholder="Username"></div><div class="form-field"><label for="editTiktok">TikTok</label><input id="editTiktok" maxlength="31" value="${escapeHtml(state.profile.tiktok)}" placeholder="Username"></div><p class="caption">Control who can see these in Privacy controls.</p></div><p id="profileFormError" class="inline-error" hidden></p><button class="button primary wide" id="saveProfile">Save changes</button>`,
         ready: () => {
           $('#saveProfile').addEventListener('click', saveProfile);
+          $('#resendVerificationBtn')?.addEventListener('click', () => void resendVerificationEmail());
           document.querySelectorAll('#sheetBody [data-avatar-option]').forEach((button) => {
             button.addEventListener('click', () => void selectProfileAvatar(button.dataset.avatarOption));
           });
@@ -2220,6 +2221,38 @@
   function sessionDateLabel(value) {
     const date = new Date(value);
     return Number.isFinite(date.getTime()) ? date.toLocaleDateString() : 'Recently active';
+  }
+
+  async function resendVerificationEmail() {
+    const button = $('#resendVerificationBtn');
+    if (button) {
+      button.disabled = true;
+      button.textContent = 'Sending…';
+    }
+    try {
+      const identity = await apiFetch('GET', '/auth/me');
+      const remember = localStorage.getItem(SESSION_KEY) !== null;
+      if (identity.emailVerified) {
+        saveSession({ ...session, emailVerified: true }, remember);
+        showToast('Your email is already verified. Nearby Voice is available.');
+        openSheet('profile');
+        return;
+      }
+      const result = await apiFetch('POST', '/auth/resend-verification', {});
+      showToast(result.sent
+        ? 'Verification email sent. Open the new link, then return to Rider Comms.'
+        : 'Verification email could not be sent. Email delivery is not configured or is temporarily unavailable.');
+    } catch (error) {
+      const code = error instanceof ApiError ? error.body?.error : undefined;
+      showToast(code === 'rate_limited'
+        ? 'Too many verification requests. Wait a moment and try again.'
+        : 'Could not resend verification. Check your connection and try again.');
+    } finally {
+      if (button?.isConnected) {
+        button.disabled = false;
+        button.textContent = 'Resend verification email';
+      }
+    }
   }
 
   async function loadAccountSessions() {
