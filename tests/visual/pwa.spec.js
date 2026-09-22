@@ -542,7 +542,7 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
       canvasRight: canvasBox?.right ?? null,
       viewportWidth: document.documentElement.clientWidth,
       searchRadius: search ? parseFloat(getComputedStyle(search).borderTopLeftRadius) : NaN,
-      actionRadius: action ? parseFloat(getComputedStyle(action).borderTopLeftRadius) : NaN,
+      actionRadius: action ? getComputedStyle(action).borderTopLeftRadius : null,
       reportWidth: report?.getBoundingClientRect().width ?? NaN,
       locateWidth: locate?.getBoundingClientRect().width ?? NaN,
       nearbyWidth: nearby?.getBoundingClientRect().width ?? NaN,
@@ -566,11 +566,10 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
   expectNear(mapGeometry.canvasRight, mapGeometry.viewportWidth);
   expect(mapGeometry.searchRadius).toBeGreaterThanOrEqual(20);
   expect(mapGeometry.searchRadius).toBeLessThanOrEqual(26);
-  expect(mapGeometry.actionRadius).toBeGreaterThanOrEqual(12);
-  expect(mapGeometry.actionRadius).toBeLessThanOrEqual(16);
-  expect(mapGeometry.reportWidth).toBe(48);
-  expect(mapGeometry.locateWidth).toBe(48);
-  expect(mapGeometry.nearbyWidth).toBe(48);
+  expect(mapGeometry.actionRadius).toBe('50%');
+  expect(mapGeometry.reportWidth).toBe(54);
+  expect(mapGeometry.locateWidth).toBe(54);
+  expect(mapGeometry.nearbyWidth).toBe(54);
   expect(mapGeometry.reportTransform).toBe('none');
   expect(mapGeometry.locateTransform).toBe('none');
   expectNear(mapGeometry.firstGap, 8);
