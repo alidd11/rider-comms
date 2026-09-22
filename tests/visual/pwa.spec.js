@@ -927,6 +927,13 @@ test('PWA route discovery previews route shape and hands the start back to the m
   await firstRoute.click();
   await expect(page.locator('.route-detail')).toBeVisible();
   await expect(page.locator('.route-trace-detail')).toBeVisible();
+  await expect(page.locator('.route-action-note')).toContainText('Rider Comms guides you to the route start.');
+  const routeHandoffPrecedesDetail = await page.evaluate(() => {
+    const note = document.querySelector('.route-action-note');
+    const trace = document.querySelector('.route-trace-panel');
+    return Boolean(note && trace && (note.compareDocumentPosition(trace) & Node.DOCUMENT_POSITION_FOLLOWING));
+  });
+  expect(routeHandoffPrecedesDetail).toBe(true);
   await expect(page.locator('[data-guide-route-start]')).toBeVisible();
 
   await page.locator('[data-guide-route-start]').click();
