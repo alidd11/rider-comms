@@ -161,6 +161,7 @@ function RouteOverview({
               <MetaItem icon="speedometer-outline" value={route.difficulty} label="Demand" />
               {approach ? <MetaItem icon="locate-outline" value={approach.replace(' from you', '')} label="To start" /> : null}
             </View>
+            <Text style={styles.estimateNote}>Rider Comms guides you to the route start. “Open full route” preserves the curated waypoints. *Ride time is an editorial planning estimate, not live traffic.</Text>
 
             <View style={styles.tracePanel}>
               <View style={styles.traceCopy}>
@@ -215,8 +216,6 @@ function RouteOverview({
               <MaterialCommunityIcons name="map-marker-path" size={19} color={colors.textPrimary} />
               <Text style={styles.secondaryButtonText}>Open full route in Maps</Text>
             </Pressable>
-            <Text style={styles.estimateNote}>Rider Comms guides you to the route start. “Open full route” preserves the curated waypoints. *Ride time is an editorial planning estimate, not live traffic.</Text>
-
             <View style={styles.sourceBlock}>
               <Text style={styles.sectionTitle}>Sources & image rights</Text>
               <Text style={styles.sourceText}>Route information was reviewed {route.reviewedAt}. Conditions and suitability can change.</Text>
