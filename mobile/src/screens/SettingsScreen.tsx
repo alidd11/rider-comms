@@ -328,6 +328,8 @@ export function SettingsScreen(): React.JSX.Element {
     setShareLocation,
     navigationProvider,
     setNavigationProvider,
+    rideSafeEnabled,
+    setRideSafeEnabled,
     instagramUsername,
     setInstagramUsername,
     instagramVisibility,
@@ -417,10 +419,25 @@ export function SettingsScreen(): React.JSX.Element {
   function confirmReset() {
     Alert.alert(
       'Reset Rider Comms settings?',
-      'This resets your Rider Comms profile and synced preferences to their defaults, and clears this device’s saved navigation preference.',
+      'This resets your Rider Comms profile and synced preferences to their defaults, and clears this device’s saved navigation and Ride Safe preferences.',
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Reset settings', style: 'destructive', onPress: () => resetAll() },
+      ]
+    );
+  }
+
+  function changeRideSafePreference(enabled: boolean) {
+    if (enabled) {
+      setRideSafeEnabled(true);
+      return;
+    }
+    Alert.alert(
+      'Turn off Automatic Ride Safe?',
+      'Distracting controls will no longer lock automatically while this device is moving. Only change this while safely stopped.',
+      [
+        { text: 'Keep on', style: 'cancel' },
+        { text: 'Turn off', style: 'destructive', onPress: () => setRideSafeEnabled(false) },
       ]
     );
   }
@@ -677,6 +694,19 @@ export function SettingsScreen(): React.JSX.Element {
 
         {activeSheet === 'safety' ? (
           <>
+            <View style={styles.settingsSheetSection}>
+              <ToggleRow
+                icon="shield-checkmark-outline"
+                label="Automatic Ride Safe"
+                value={rideSafeEnabled}
+                onValueChange={changeRideSafePreference}
+                caption="Uses motion from this device to lock distracting controls at 8 mph and above. Recommended while riding."
+              />
+            </View>
+            <View style={styles.sheetNote}>
+              <Text style={styles.sheetNoteTitle}>Device-only safety preference</Text>
+              <Text style={styles.sheetNoteCopy}>When off, Rider Comms stops its dedicated Ride Safe location watcher. Map, navigation and optional ride-location features request location separately. Only change this while safely stopped.</Text>
+            </View>
             <View style={styles.settingsSheetSection}>
               <View style={styles.safetyRow}><Ionicons name="speedometer-outline" size={21} color={colors.accent} /><View style={styles.safetyCopyWrap}><Text style={styles.safetyTitle}>Set up while stationary</Text><Text style={styles.safetyCopy}>Complete profile, route and group controls before moving.</Text></View></View>
               <View style={styles.safetyRow}><Ionicons name="location-outline" size={21} color={colors.accent} /><View style={styles.safetyCopyWrap}><Text style={styles.safetyTitle}>Control your location</Text><Text style={styles.safetyCopy}>Nearby visibility and private-ride sharing can be stopped independently.</Text></View></View>

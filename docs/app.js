@@ -69,6 +69,7 @@
     activeRide: null,
     unit: 'mi',
     navigationProvider: 'google_maps',
+    rideSafeEnabled: true,
     notifications: false,
     profile: {
       riderId: '',
@@ -431,6 +432,7 @@
       return {
         ...structuredClone(DEFAULT_STATE),
         ...stored,
+        rideSafeEnabled: stored.rideSafeEnabled !== false,
         navigationProvider: navigationProvider(stored.navigationProvider),
         unit: storedProfile.unitSystem === 'km' ? 'km' : storedProfile.unitSystem === 'mi' ? 'mi' : stored.unit === 'km' ? 'km' : 'mi',
         profile: {
@@ -2175,7 +2177,11 @@
       map: () => ({ title: 'Location and map', body: `<div class="settings-sheet-section">${toggleMarkup('shareLocation', 'Nearby rider visibility', 'Share your position only after you choose to go live.', state.profile.shareLocation)}</div><div class="settings-note"><strong>Location stays in your control</strong><p>Turning this off stops nearby-rider visibility. Private-ride location is controlled separately inside each ride and remains off unless you explicitly enable it.</p></div>`, ready: wireToggles }),
       units: () => ({ title: 'Distance units', body: `<div class="choice-list" role="radiogroup" aria-label="Distance units"><button data-unit-option="mi" role="radio"><span><strong>Miles</strong><small>Use miles and mph</small></span><i></i></button><button data-unit-option="km" role="radio"><span><strong>Kilometres</strong><small>Use kilometres and km/h</small></span><i></i></button></div>`, ready: () => { $$('[data-unit-option]', $('#sheetBody')).forEach((button) => { const active = button.dataset.unitOption === state.profile.unitSystem; button.setAttribute('aria-checked', String(active)); button.addEventListener('click', async () => { button.disabled = true; const next = button.dataset.unitOption; const ok = await patchProfile({ unitSystem: next }); if (ok) { openSheet('units'); showToast('Distance unit updated.'); } else button.disabled = false; }); }); } }),
       notifications: () => ({ title: 'Notifications', body: `<div class="settings-sheet-section">${toggleMarkup('notifyNearby', 'Nearby riders', 'Notify me about nearby riders.', state.profile.notifyNearby)}${toggleMarkup('notifyInvites', 'Ride invites', 'Notify me about group ride invitations.', state.profile.notifyInvites)}${toggleMarkup('notifyChat', 'Group chat messages', 'Notify me about group ride messages.', state.profile.notifyChat)}</div><div class="settings-note"><strong>Browser permission required</strong><p>Enabling a notification preference also requires browser notification permission. Background delivery remains platform-dependent.</p></div>`, ready: wireToggles }),
-      safety: () => ({ title: 'Safety', body: `<div class="safety-guidance"><div><span class="setting-icon"><svg><use href="#i-ride"/></svg></span><span><strong>Set up while stationary</strong><small>Complete profile, route and group controls before moving.</small></span></div><div><span class="setting-icon"><svg><use href="#i-location"/></svg></span><span><strong>Control your location</strong><small>Nearby visibility can be stopped at any time.</small></span></div><div><span class="setting-icon"><svg><use href="#i-info"/></svg></span><span><strong>Not an emergency service</strong><small>Call the appropriate emergency service if you need urgent help.</small></span></div></div>` }),
+      safety: () => ({
+        title: 'Safety',
+        body: `<div class="settings-sheet-section">${toggleMarkup('rideSafeEnabled', 'Automatic Ride Safe', 'Uses device motion to lock distracting controls at 8 mph and above. Recommended while riding.', state.rideSafeEnabled)}</div><div class="settings-note"><strong>Device-only safety preference</strong><p>When off, Rider Comms stops its dedicated Ride Safe location watcher. Map, navigation and optional ride-location features request location separately. Only change this while safely stopped.</p></div><div class="safety-guidance"><div><span class="setting-icon"><svg><use href="#i-ride"/></svg></span><span><strong>Set up while stationary</strong><small>Complete profile, route and group controls before moving.</small></span></div><div><span class="setting-icon"><svg><use href="#i-location"/></svg></span><span><strong>Control your location</strong><small>Nearby visibility can be stopped at any time.</small></span></div><div><span class="setting-icon"><svg><use href="#i-info"/></svg></span><span><strong>Not an emergency service</strong><small>Call the appropriate emergency service if you need urgent help.</small></span></div></div>`,
+        ready: wireToggles,
+      }),
       reportHazard: () => ({
         title: 'Report on the road',
         body: `<p class="caption">Let nearby riders know what's ahead. Reports fade out over time.</p><div class="hazard-type-grid" id="hazardTypeChips">${HAZARD_TYPE_ORDER.map((t) => `<button type="button" class="hazard-type-tile" data-hazard-type="${t}" style="--hazard:${HAZARD_TYPES[t].color}">${icon(HAZARD_TYPES[t].icon.replace(/^i-/, ''))}<span>${escapeHtml(HAZARD_TYPES[t].label)}</span></button>`).join('')}</div><p id="hazardFormError" class="inline-error" hidden></p>`,
@@ -2356,6 +2362,20 @@
     $$('[data-toggle]', $('#sheetBody')).forEach((button) => button.addEventListener('click', async () => {
       const key = button.dataset.toggle;
       const active = button.getAttribute('aria-pressed') !== 'true';
+      if (key === 'rideSafeEnabled') {
+        if (!active && !window.confirm('Turn off Automatic Ride Safe? Distracting controls will no longer lock automatically while this device is moving. Only change this while safely stopped.')) return;
+        state.rideSafeEnabled = active;
+        persist();
+        button.setAttribute('aria-pressed', String(active));
+        if (active) {
+          await initialiseMovementSafety();
+          showToast('Automatic Ride Safe is on.');
+        } else {
+          stopMovementSafetyTracking();
+          showToast('Automatic Ride Safe is off on this device.');
+        }
+        return;
+      }
       if (['notifyNearby', 'notifyInvites', 'notifyChat'].includes(key)) {
         button.disabled = true;
         const granted = !active || await requestNotificationPermission();
@@ -3554,8 +3574,8 @@
 
   function applyMovementState(nextState) {
     movementState = nextState;
-    const locked = window.RiderMovementSafety.isLockedForSafety(nextState);
-    const warning = nextState === 'unknown';
+    const locked = state.rideSafeEnabled && window.RiderMovementSafety.isLockedForSafety(nextState);
+    const warning = state.rideSafeEnabled && nextState === 'unknown';
     $('#app')?.classList.toggle('safety-locked', locked);
     const banner = $('#movementSafetyBanner');
     if (banner) banner.hidden = !(locked || warning);
@@ -3591,7 +3611,7 @@
   }
 
   function startMovementSafetyTracking() {
-    if (!navigator.geolocation || movementWatchId !== undefined || document.visibilityState !== 'visible') return;
+    if (!state.rideSafeEnabled || !navigator.geolocation || movementWatchId !== undefined || document.visibilityState !== 'visible') return;
     movementWatchId = navigator.geolocation.watchPosition(
       (position) => {
         applyDevicePosition(position);
@@ -3614,6 +3634,10 @@
   }
 
   async function initialiseMovementSafety() {
+    if (!state.rideSafeEnabled) {
+      stopMovementSafetyTracking();
+      return;
+    }
     applyMovementState(movementTracker.stateAt(Date.now()));
     try {
       const permission = await navigator.permissions?.query?.({ name: 'geolocation' });
