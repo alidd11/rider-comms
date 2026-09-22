@@ -5991,7 +5991,7 @@
       startApp();
       showToast(result.emailVerificationSent
         ? 'Account created. Check your email to verify it.'
-        : 'Account created. Email verification is temporarily unavailable.');
+        : 'Account created, but the verification email could not be sent. Verified-only features such as Nearby Voice will remain unavailable until email delivery is restored.');
       await seedProfileFromUsername(username);
     } catch (error) {
       errorEl.textContent = authErrorMessage(error);
