@@ -594,6 +594,18 @@ const MIGRATIONS: { name: string; sql: string }[] = [
         ON social_events (actor_id);
     `,
   },
+  {
+    // Adds two new police-presence report types (distinct from the generic
+    // `police` type: out-of-sight vs. a staffed roadside checkpoint) without
+    // touching any existing row -- this only widens the CHECK constraint
+    // from #0021, same DROP/ADD pattern it used.
+    name: '0030_widen_hazard_report_types',
+    sql: `
+      ALTER TABLE hazard_reports DROP CONSTRAINT IF EXISTS hazard_reports_type_check;
+      ALTER TABLE hazard_reports ADD CONSTRAINT hazard_reports_type_check
+        CHECK (type IN ('police', 'accident', 'hazard', 'road_closure', 'camera', 'hidden_police', 'police_checkpoint'));
+    `,
+  },
 ];
 
 /**

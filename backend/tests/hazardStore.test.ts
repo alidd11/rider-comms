@@ -144,4 +144,12 @@ describe('HazardStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping 
     await store.deleteRider('rider-1');
     assert.equal(await store.get(report.id), undefined);
   });
+
+  it('accepts the hidden_police and police_checkpoint report types', async () => {
+    const store = new HazardStore();
+    const hiddenPolice = await store.create('hidden_police', 40.0, -74.0, 'rider-1');
+    assert.equal(hiddenPolice.type, 'hidden_police');
+    const checkpoint = await store.create('police_checkpoint', 40.0, -74.0, 'rider-1');
+    assert.equal(checkpoint.type, 'police_checkpoint');
+  });
 });

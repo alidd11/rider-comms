@@ -210,9 +210,12 @@ describe('route-ahead navigation hazard selection', () => {
   });
 
   it('uses explicit glanceable labels without implying provider-owned data', () => {
-    assert.equal(navigationHazardLabel('camera'), 'Speed camera reported');
+    assert.equal(navigationHazardLabel('camera'), 'Mobile speed camera reported');
     assert.equal(navigationHazardLabel('police'), 'Police reported');
+    assert.equal(navigationHazardLabel('hidden_police'), 'Hidden police reported');
+    assert.equal(navigationHazardLabel('police_checkpoint'), 'Police checkpoint reported');
     assert.equal(navigationHazardLabel('road_closure'), 'Road closure reported');
+    assert.equal(navigationHazardLabel('hazard'), 'Pothole reported');
   });
 
   it('does not turn the high-frequency navigation GPS watcher into a hazard API poll', () => {
