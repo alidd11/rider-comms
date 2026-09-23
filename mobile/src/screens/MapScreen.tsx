@@ -47,6 +47,7 @@ import {
 import { navigationProviderLabel } from '../navigationPreference';
 import {
   formatNavigationDistance,
+  formatNavigationDuration,
   formatNavigationSpeed,
   navigationManeuverAction,
   navigationPromptStageForDistance,
@@ -107,14 +108,6 @@ function bearingDegrees(from: { lat: number; lon: number }, to: { lat: number; l
   const y = Math.sin(deltaLon) * Math.cos(lat2);
   const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(deltaLon);
   return (toDeg(Math.atan2(y, x)) + 360) % 360;
-}
-
-function formatNavigationDuration(seconds: number): string {
-  const minutes = Math.max(1, Math.round(seconds / 60));
-  if (minutes < 60) return `${minutes} min`;
-  const hours = Math.floor(minutes / 60);
-  const remainder = minutes % 60;
-  return remainder ? `${hours} hr ${remainder} min` : `${hours} hr`;
 }
 
 type Segment = 'public' | 'host';

@@ -4,6 +4,7 @@
 // Google-specific response shapes.
 export {
   formatNavigationDistance,
+  formatNavigationDuration,
   formatNavigationSpeed,
   maneuverIcon,
   navigationManeuverAction,

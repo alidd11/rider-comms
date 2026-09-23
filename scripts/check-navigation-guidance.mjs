@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {
   formatNavigationDistance,
+  formatNavigationDuration,
   formatNavigationSpeed,
   maneuverIcon,
   navigationManeuverAction,
@@ -21,6 +22,7 @@ const fixtures = {
     [0, 'mi'], [30, 'mi'], [75, 'mi'], [160, 'mi'], [1609.344, 'mi'],
   ],
   speed: [[null, 'mi'], [-1, 'mi'], [0, 'mi'], [13.4112, 'mi'], [13.8889, 'km']],
+  duration: [0, 1, 30, 59, 60, 61, 599, 600, 3599, 3600, 3661, 7199],
   maneuver: [
     undefined, 'straight', 'turn-left', 'turn-right', 'turn-slight-left', 'turn-slight-right',
     'turn-sharp-left', 'turn-sharp-right', 'uturn-left', 'uturn-right', 'fork-left',
@@ -56,6 +58,14 @@ for (const [metres, unit] of fixtures.distance) {
 for (const [speedMps, unit] of fixtures.speed) {
   assert.equal(browser.formatNavigationSpeed(speedMps, unit), formatNavigationSpeed(speedMps, unit));
   assert.equal(browser.navigationSpeedUnit(unit), navigationSpeedUnit(unit));
+}
+
+for (const seconds of fixtures.duration) {
+  assert.equal(
+    browser.formatNavigationDuration(seconds),
+    formatNavigationDuration(seconds),
+    `PWA/native duration drift at ${seconds}s`,
+  );
 }
 
 for (const maneuver of fixtures.maneuver) {

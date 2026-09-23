@@ -4997,9 +4997,7 @@
   }
 
   function formatNavDuration(seconds) {
-    const minutes = Math.max(1, Math.round(seconds / 60));
-    if (minutes < 60) return `${minutes} min`;
-    return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+    return navigationGuidance.formatNavigationDuration(seconds);
   }
 
   function formatNavSpeed(speedMps) {
