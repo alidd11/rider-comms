@@ -36,11 +36,9 @@ import { HazardReportSheet, HAZARD_TYPE_META } from './HazardReportSheet';
 import { buildNavigationProviderUrl, navigationTargetFromValues, openNavigationUrl } from '../navigationLinks';
 import type { NavigationTarget } from '../navigationLinks';
 import { useMovementSafety } from '../safety/MovementSafetyContext';
-import { GOOGLE_DIRECTIONS_API_KEY } from '../config';
 import {
   distanceToPathMeters,
   distanceToSegmentMeters,
-  fetchDrivingRoute,
   lookAheadCoordinateOnPath,
   metersBetween,
   remainingDistanceOnPathMeters,
@@ -804,10 +802,9 @@ export function MapScreen(): React.JSX.Element {
   }, []);
 
   const requestInAppRoute = React.useCallback(async (origin: { lat: number; lon: number }, target: NavigationTarget, rerouting = false) => {
-    if (!GOOGLE_DIRECTIONS_API_KEY) throw new Error('directions_not_configured');
     if (rerouting) navRerouting.current = true;
     try {
-      const nextRoute = await fetchDrivingRoute(origin, target, GOOGLE_DIRECTIONS_API_KEY);
+      const nextRoute = await client.getDrivingRoute(origin, target);
       setActiveRoute(nextRoute);
       setNavigationDestination(target);
       setNavigationStepIndex(0);
@@ -823,7 +820,7 @@ export function MapScreen(): React.JSX.Element {
     } finally {
       if (rerouting) navRerouting.current = false;
     }
-  }, [focusNavigationCamera]);
+  }, [client, focusNavigationCamera]);
 
   async function startInAppNavigation(target: NavigationTarget): Promise<void> {
     const origin = currentLocation ?? await requestCurrentLocation(true);
@@ -836,9 +833,15 @@ export function MapScreen(): React.JSX.Element {
       setNavigationTarget(null);
       setSelectedHazardId(null);
     } catch (routeError) {
-      const message = routeError instanceof Error && routeError.message === 'directions_not_configured'
-        ? 'In-app navigation is not configured for this build yet. Choose Google Maps, Waze or Apple Maps in Settings.'
-        : routeError instanceof Error && routeError.message === 'directions_no_route'
+      const routeErrorCode = routeError instanceof ApiError
+        && typeof routeError.body === 'object'
+        && routeError.body
+        && 'error' in (routeError.body as Record<string, unknown>)
+        ? String((routeError.body as Record<string, unknown>).error)
+        : routeError instanceof Error ? routeError.message : '';
+      const message = routeErrorCode === 'directions_not_configured'
+        ? 'In-app navigation is not configured on the Rider Comms server yet. Choose Google Maps, Waze or Apple Maps in Settings.'
+        : routeErrorCode === 'directions_no_route'
           ? 'No driving route was found for that destination.'
           : 'Rider Comms could not calculate that route. Try again or choose another navigation app.';
       Alert.alert('Couldn’t start navigation', message);
