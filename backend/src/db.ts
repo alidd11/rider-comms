@@ -629,6 +629,19 @@ const MIGRATIONS: { name: string; sql: string }[] = [
         ON rate_limit_events (created_at);
     `,
   },
+  {
+    // The durable API limiter's action column is constrained so unknown
+    // limiter buckets fail closed. Widen it explicitly for the authenticated
+    // server-side Directions proxy rather than weakening the constraint.
+    name: '0033_add_directions_rate_limit_action',
+    sql: `
+      ALTER TABLE rate_limit_events DROP CONSTRAINT IF EXISTS rate_limit_events_action_check;
+      ALTER TABLE rate_limit_events ADD CONSTRAINT rate_limit_events_action_check
+        CHECK (
+          action IN ('auth', 'api', 'ride_join_rider', 'ride_join_ip', 'hazard_create', 'directions', 'verification_resend', 'password_reset_request')
+        );
+    `,
+  },
 ];
 
 /**

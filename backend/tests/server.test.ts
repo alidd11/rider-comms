@@ -4,6 +4,7 @@ import { authenticatedFetch, postJson, startTestServer } from './httpTestUtils.t
 import type { TestServer } from './httpTestUtils.ts';
 import { parseAllowedOrigins } from '../src/server.ts';
 import type { ApiRequestLog } from '../src/server.ts';
+import { DirectionsProviderError } from '../src/directionsProvider.ts';
 import { getPool } from '../src/db.ts';
 
 // DELETE /auth/me cascades into every Postgres-backed store's deleteRider()
@@ -87,6 +88,111 @@ describe('authenticated API', () => {
       assert.deepEqual(await response.json(), { error: 'rate_limited' });
     } finally {
       await limited.close();
+    }
+  });
+
+  it('proxies driving directions through the authenticated backend', async () => {
+    const requested: Array<{ origin: { lat: number; lon: number }; destination: { lat: number; lon: number } }> = [];
+    const route = {
+      coordinates: [{ lat: 51.5, lon: -0.1 }, { lat: 51.51, lon: -0.11 }],
+      steps: [{
+        instruction: 'Turn left onto A1',
+        maneuver: 'turn-left',
+        distanceMeters: 1200,
+        durationSeconds: 300,
+        start: { lat: 51.5, lon: -0.1 },
+        end: { lat: 51.51, lon: -0.11 },
+        coordinates: [{ lat: 51.5, lon: -0.1 }, { lat: 51.51, lon: -0.11 }],
+      }],
+      distanceMeters: 1200,
+      durationSeconds: 300,
+    };
+    const routed = startTestServer({
+      directionsProvider: async (origin, destination) => {
+        requested.push({ origin, destination });
+        return route;
+      },
+    });
+    await routed.ready;
+    try {
+      const unauthenticated = await fetch(`${routed.baseUrl()}/directions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ origin: { lat: 51.5, lon: -0.1 }, destination: { lat: 51.51, lon: -0.11 } }),
+      });
+      assert.equal(unauthenticated.status, 401);
+
+      const invalid = await postJson(routed, 'route-rider', '/directions', {
+        origin: { lat: 91, lon: -0.1 },
+        destination: { lat: 51.51, lon: -0.11 },
+      });
+      assert.equal(invalid.status, 400);
+      assert.equal(requested.length, 0);
+
+      const response = await postJson(routed, 'route-rider', '/directions', {
+        origin: { lat: 51.5, lon: -0.1 },
+        destination: { lat: 51.51, lon: -0.11 },
+      });
+      assert.equal(response.status, 200);
+      assert.deepEqual(await response.json(), route);
+      assert.deepEqual(requested, [{
+        origin: { lat: 51.5, lon: -0.1 },
+        destination: { lat: 51.51, lon: -0.11 },
+      }]);
+    } finally {
+      await routed.close();
+    }
+  });
+
+  it('rate-limits directions separately before provider quota is consumed', async () => {
+    const actions: string[] = [];
+    let providerCalls = 0;
+    const limited = startTestServer({
+      rateLimitStore: {
+        consume: async (_subjectKey, action) => {
+          actions.push(action);
+          return action === 'directions'
+            ? { allowed: false, retryAfterSeconds: 73 }
+            : { allowed: true, retryAfterSeconds: 0 };
+        },
+      },
+      directionsProvider: async () => {
+        providerCalls += 1;
+        throw new Error('provider should not be called');
+      },
+    });
+    await limited.ready;
+    try {
+      const response = await postJson(limited, 'route-rate-limited', '/directions', {
+        origin: { lat: 51.5, lon: -0.1 },
+        destination: { lat: 51.51, lon: -0.11 },
+      });
+      assert.equal(response.status, 429);
+      assert.equal(response.headers.get('retry-after'), '73');
+      assert.deepEqual(await response.json(), { error: 'rate_limited' });
+      assert.deepEqual(actions, ['api', 'directions']);
+      assert.equal(providerCalls, 0);
+    } finally {
+      await limited.close();
+    }
+  });
+
+  it('maps directions provider failures to safe backend errors', async () => {
+    const unavailable = startTestServer({
+      directionsProvider: async () => {
+        throw new DirectionsProviderError('directions_timeout');
+      },
+    });
+    await unavailable.ready;
+    try {
+      const response = await postJson(unavailable, 'route-timeout', '/directions', {
+        origin: { lat: 51.5, lon: -0.1 },
+        destination: { lat: 51.51, lon: -0.11 },
+      });
+      assert.equal(response.status, 504);
+      assert.deepEqual(await response.json(), { error: 'directions_timeout' });
+    } finally {
+      await unavailable.close();
     }
   });
 
