@@ -29,7 +29,7 @@ describe('POST /voice/token', () => {
 
   describe('with LiveKit configured', () => {
     let ctx: TestServer;
-    before(async () => { ctx = startTestServer({ liveKitCredentials: FAKE_CREDS }); await ctx.ready; });
+    before(async () => { ctx = startTestServer({ liveKitCredentials: FAKE_CREDS, liveKitRoomAdmin: {} }); await ctx.ready; });
     after(() => ctx.close());
 
     it('mints a ride token only for an actual member of that ride', needsDb, async () => {
@@ -103,6 +103,52 @@ describe('POST /voice/token', () => {
       assert.equal((await postJson(ctx, 'alice', '/blocks', { riderId: 'bob' })).status, 200);
       const blocked = await postJson(ctx, 'alice', '/voice/token', { target: 'channel' });
       assert.deepEqual(await blocked.json(), { connections: [], refreshAfterMs: 20_000, authorizationLeaseMs: 60_000 });
+    });
+
+    it('ejects both riders from an authorised public pair room when either rider blocks', needsDb, async () => {
+      const revocations: Array<{ riderA: string; riderB: string; riderId: string; revokedAt: number | undefined }> = [];
+      const isolated = startTestServer({
+        liveKitCredentials: FAKE_CREDS,
+        liveKitRoomAdmin: {
+          revokeProximityParticipant: async (riderA, riderB, riderId, revokedAt) => {
+            revocations.push({ riderA, riderB, riderId, revokedAt });
+          },
+        },
+      });
+      await isolated.ready;
+      try {
+        await isolated.profileStore.update('public-block-alice', { shareLocation: true });
+        await isolated.profileStore.update('public-block-bob', { shareLocation: true });
+        const now = Date.now();
+        assert.equal((await postJson(isolated, 'public-block-alice', '/presence', {
+          lat: 51.5, lon: -0.1, accuracyMeters: 5, recordedAt: now,
+        })).status, 200);
+        assert.equal((await postJson(isolated, 'public-block-bob', '/presence', {
+          lat: 51.5001, lon: -0.1, accuracyMeters: 5, recordedAt: now + 1,
+        })).status, 200);
+
+        const beforeBlock = await postJson(isolated, 'public-block-alice', '/voice/token', { target: 'channel' });
+        assert.equal(beforeBlock.status, 200);
+        const beforeBlockBody = await beforeBlock.json() as { connections: Array<{ peerId: string }> };
+        assert.deepEqual(beforeBlockBody.connections.map((connection) => connection.peerId), ['public-block-bob']);
+
+        assert.equal((await postJson(isolated, 'public-block-alice', '/blocks', { riderId: 'public-block-bob' })).status, 200);
+        assert.equal(revocations.length, 2);
+        assert.deepEqual(revocations.map((entry) => entry.riderId), ['public-block-alice', 'public-block-bob']);
+        assert.ok(revocations.every((entry) => entry.riderA === 'public-block-alice' && entry.riderB === 'public-block-bob'));
+        assert.equal(revocations[0].revokedAt, revocations[1].revokedAt);
+        assert.equal(typeof revocations[0].revokedAt, 'number');
+
+        const actorAfterBlock = await postJson(isolated, 'public-block-alice', '/voice/token', { target: 'channel' });
+        assert.equal(actorAfterBlock.status, 200);
+        assert.deepEqual((await actorAfterBlock.json() as { connections: unknown[] }).connections, []);
+
+        const peerAfterBlock = await postJson(isolated, 'public-block-bob', '/voice/token', { target: 'channel' });
+        assert.equal(peerAfterBlock.status, 200);
+        assert.deepEqual((await peerAfterBlock.json() as { connections: unknown[] }).connections, []);
+      } finally {
+        await isolated.close();
+      }
     });
 
     it('ejects a blocked rider from shared private voice and denies a fresh token', needsDb, async () => {

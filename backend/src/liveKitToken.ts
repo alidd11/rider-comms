@@ -19,6 +19,7 @@ export const RIDE_VOICE_TOKEN_TTL_SECONDS = 60;
 
 export interface LiveKitRoomAdmin {
   revokeRideParticipant(rideId: string, identity: string, revokedAt?: number): Promise<void>;
+  revokeProximityParticipant(riderA: string, riderB: string, identity: string, revokedAt?: number): Promise<void>;
 }
 
 /** The media client connects over WS(S), while LiveKit's RoomServiceClient
@@ -41,13 +42,19 @@ export function createLiveKitRoomAdmin(credentials: LiveKitCredentials): LiveKit
     credentials.apiKey,
     credentials.apiSecret,
   );
+  const revokeParticipant = async (roomName: string, identity: string, revokedAt = Date.now()): Promise<void> => {
+    await rooms.removeParticipant(
+      roomName,
+      identity,
+      { revokeTokenTs: BigInt(Math.floor(revokedAt / 1000)) },
+    );
+  };
   return {
     revokeRideParticipant: async (rideId, identity, revokedAt = Date.now()) => {
-      await rooms.removeParticipant(
-        rideRoomName(rideId),
-        identity,
-        { revokeTokenTs: BigInt(Math.floor(revokedAt / 1000)) },
-      );
+      await revokeParticipant(rideRoomName(rideId), identity, revokedAt);
+    },
+    revokeProximityParticipant: async (riderA, riderB, identity, revokedAt = Date.now()) => {
+      await revokeParticipant(proximityRoomName(riderA, riderB), identity, revokedAt);
     },
   };
 }
