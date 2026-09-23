@@ -116,6 +116,46 @@ assert.match(
   'Proximity voice must wait for native audio-session readiness before connecting',
 );
 assert.match(
+  proximitySource,
+  /const \[manuallyMuted, setManuallyMuted\][\s\S]*<Pressable[\s\S]*onPress=\{handleVoiceControlPress\}/,
+  'Native public proximity voice must expose a rider-operated mute/recovery control instead of a status-only surface',
+);
+assert.match(
+  proximitySource,
+  /<VoiceActivityBridge[\s\S]*enabled=\{!manuallyMuted\}/,
+  'Native public proximity mute must fail closed by disabling VOX transmission in every authorised pair room',
+);
+assert.match(
+  proximitySource,
+  /audioSessionRetryVersion[\s\S]*setAudioSessionRetryVersion[\s\S]*setRefreshVersion/,
+  'Native public proximity voice must support rider-initiated audio-session and authorization recovery without disabling Nearby presence',
+);
+assert.match(
+  proximitySource,
+  /error && connectedPeers\.size > 0[\s\S]*setRefreshVersion[\s\S]*return;/,
+  'Native proximity retry must preserve healthy pair rooms when only one authorised peer connection fails',
+);
+assert.match(
+  proximitySource,
+  /consecutiveRefreshFailures[\s\S]*resolveProximityVoiceRetryDelay[\s\S]*setTimeout\(\(\) => void refresh\(\), nextRefreshMs\)/,
+  'Native proximity authorization must retry transient failures sooner before backing off to the normal refresh cadence',
+);
+assert.match(
+  proximitySource,
+  /cause instanceof ApiError[\s\S]*cause\.status === 408[\s\S]*cause\.status >= 500[\s\S]*normalRefreshMs/,
+  'Native proximity authorization must not aggressively retry permanent or rate-limited API responses',
+);
+assert.match(
+  proximitySource,
+  /onError=\{\(message\) => setAudioSessionError/,
+  'Native VOX microphone failures must use the audio recovery path instead of masquerading as a peer-room transport failure',
+);
+assert.match(
+  pwaSource,
+  /voiceManuallyMuted[\s\S]*async function toggleVoiceMute\(\)/,
+  'PWA public proximity voice must retain the equivalent mute/recovery control',
+);
+assert.match(
   rideBarSource,
   /voice\.error[\s\S]*voice\.retryable[\s\S]*scheduleVoiceRetry\(\)/,
   'Private ride voice must retry transient token failures that happen before LiveKitRoom exists',

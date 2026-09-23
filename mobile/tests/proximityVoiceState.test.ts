@@ -5,6 +5,7 @@ import {
   DEFAULT_PROXIMITY_VOICE_REFRESH_MS,
   proximityVoiceStatus,
   prunePeerSet,
+  resolveProximityVoiceRetryDelay,
   resolveProximityVoiceTiming,
 } from '../src/voice/proximityVoiceState.ts';
 
@@ -27,6 +28,14 @@ describe('proximity voice state', () => {
     });
   });
 
+  it('backs transient authorization failures off to the normal refresh cadence', () => {
+    assert.equal(resolveProximityVoiceRetryDelay(1, 20_000), 5_000);
+    assert.equal(resolveProximityVoiceRetryDelay(2, 20_000), 10_000);
+    assert.equal(resolveProximityVoiceRetryDelay(3, 20_000), 20_000);
+    assert.equal(resolveProximityVoiceRetryDelay(8, 20_000), 20_000);
+    assert.equal(resolveProximityVoiceRetryDelay(1, 3_000), 3_000);
+  });
+
   it('prunes connected/speaking state to the latest authorised roster', () => {
     assert.deepEqual(
       [...prunePeerSet(new Set(['a', 'b', 'c']), new Set(['b', 'd']))],
@@ -38,6 +47,7 @@ describe('proximity voice state', () => {
     assert.equal(proximityVoiceStatus({
       error: false,
       authorizationExpired: false,
+      manuallyMuted: false,
       localSpeaking: true,
       remoteSpeakingNames: ['Maya'],
       connectedCount: 2,
@@ -47,17 +57,39 @@ describe('proximity voice state', () => {
     assert.equal(proximityVoiceStatus({
       error: false,
       authorizationExpired: true,
+      manuallyMuted: false,
       localSpeaking: false,
       remoteSpeakingNames: [],
       connectedCount: 0,
       pendingCount: 0,
     }), 'Nearby Voice · reconnecting');
+
+    assert.equal(proximityVoiceStatus({
+      error: false,
+      authorizationExpired: false,
+      manuallyMuted: true,
+      localSpeaking: false,
+      remoteSpeakingNames: [],
+      connectedCount: 1,
+      pendingCount: 1,
+    }), 'Nearby Voice · Mic muted');
+
+    assert.equal(proximityVoiceStatus({
+      error: false,
+      authorizationExpired: false,
+      manuallyMuted: true,
+      localSpeaking: false,
+      remoteSpeakingNames: ['Maya'],
+      connectedCount: 1,
+      pendingCount: 1,
+    }), 'Nearby Voice · Maya speaking · Mic muted');
   });
 
   it('summarises remote speakers and idle states', () => {
     assert.equal(proximityVoiceStatus({
       error: false,
       authorizationExpired: false,
+      manuallyMuted: false,
       localSpeaking: false,
       remoteSpeakingNames: ['Maya', 'Sam'],
       connectedCount: 2,
@@ -67,6 +99,27 @@ describe('proximity voice state', () => {
     assert.equal(proximityVoiceStatus({
       error: false,
       authorizationExpired: false,
+      manuallyMuted: false,
+      localSpeaking: false,
+      remoteSpeakingNames: [],
+      connectedCount: 1,
+      pendingCount: 1,
+    }), 'Nearby Voice · Listening');
+
+    assert.equal(proximityVoiceStatus({
+      error: false,
+      authorizationExpired: false,
+      manuallyMuted: false,
+      localSpeaking: false,
+      remoteSpeakingNames: [],
+      connectedCount: 3,
+      pendingCount: 3,
+    }), 'Nearby Voice · Listening · 3 riders');
+
+    assert.equal(proximityVoiceStatus({
+      error: false,
+      authorizationExpired: false,
+      manuallyMuted: false,
       localSpeaking: false,
       remoteSpeakingNames: [],
       connectedCount: 0,
