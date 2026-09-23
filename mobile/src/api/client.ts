@@ -14,6 +14,7 @@ import type {
   SocialEventPage,
   VehicleCategory,
 } from '@rider-comms/shared';
+import type { InAppNavigationRoute, RouteCoordinate } from './directions';
 
 export type ScenicRouteInput = Omit<ScenicRoute, 'id' | 'createdBy' | 'createdAt'>;
 export interface ScenicRouteFilters { vehicleCategory?: VehicleCategory; roadType?: RoadType; maxDifficulty?: Difficulty }
@@ -92,6 +93,12 @@ export class RiderCommsClient {
     return this.request('POST', '/presence', { lat, lon, accuracyMeters, recordedAt });
   }
   leavePresence(): Promise<Record<string, never>> { return this.request('DELETE', '/presence'); }
+  getDrivingRoute(origin: RouteCoordinate, destination: RouteCoordinate): Promise<InAppNavigationRoute> {
+    return this.request('POST', '/directions', {
+      origin: { lat: origin.lat, lon: origin.lon },
+      destination: { lat: destination.lat, lon: destination.lon },
+    }, 12_000);
+  }
   getRideVoiceToken(rideId: string): Promise<VoiceTokenResponse> { return this.request('POST', '/voice/token', { target: 'ride', rideId }); }
   getChannelVoiceToken(): Promise<ProximityVoiceResponse> { return this.request('POST', '/voice/token', { target: 'channel' }); }
   getProfile(id: string): Promise<RiderProfile> { return this.request('GET', `/riders/${encodeURIComponent(id)}/profile`); }

@@ -407,3 +407,44 @@ describe('RiderCommsClient.voice', () => {
     assert.equal(result.refreshAfterMs, 20_000);
   });
 });
+
+describe('RiderCommsClient directions', () => {
+  it('POSTs coordinates through the authenticated Rider Comms backend', async () => {
+    const route = {
+      coordinates: [{ lat: 51.5, lon: -0.1 }, { lat: 51.51, lon: -0.11 }],
+      steps: [{
+        instruction: 'Turn left onto A1',
+        maneuver: 'turn-left',
+        distanceMeters: 1200,
+        durationSeconds: 300,
+        start: { lat: 51.5, lon: -0.1 },
+        end: { lat: 51.51, lon: -0.11 },
+        coordinates: [{ lat: 51.5, lon: -0.1 }, { lat: 51.51, lon: -0.11 }],
+      }],
+      distanceMeters: 1200,
+      durationSeconds: 300,
+    };
+    const client = new RiderCommsClient(
+      'http://example.test',
+      fakeFetch((url, init) => {
+        assert.equal(url, 'http://example.test/directions');
+        assert.equal(init.method, 'POST');
+        assert.equal((init.headers as Record<string, string>).Authorization, 'Bearer session-token');
+        assert.deepEqual(JSON.parse(init.body as string), {
+          origin: { lat: 51.5, lon: -0.1 },
+          destination: { lat: 51.51, lon: -0.11 },
+        });
+        return { status: 200, body: route };
+      }),
+      'session-token',
+    );
+
+    assert.deepEqual(
+      await client.getDrivingRoute(
+        { lat: 51.5, lon: -0.1 },
+        { lat: 51.51, lon: -0.11 },
+      ),
+      route,
+    );
+  });
+});
