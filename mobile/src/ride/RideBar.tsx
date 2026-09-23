@@ -6,7 +6,8 @@
 // the real microphone track before publication so LiveKitRoom never
 // auto-publishes an open mic.
 import * as React from 'react';
-import { View, Text, Pressable, StyleSheet, Modal, Alert } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Modal, Alert, Share } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LiveKitRoom } from '@livekit/react-native';
 import { ApiError } from '../api/client';
@@ -156,6 +157,8 @@ export function RideBar({ controlsVisible = true }: { controlsVisible?: boolean 
   const [manuallyMuted, setManuallyMuted] = React.useState(false);
   const [locationShareBusy, setLocationShareBusy] = React.useState(false);
   const [locationShareError, setLocationShareError] = React.useState<string | null>(null);
+  const [codeCopied, setCodeCopied] = React.useState(false);
+  const codeCopiedTimeout = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const [voiceRetryVersion, setVoiceRetryVersion] = React.useState(0);
   const [audioSessionRetryVersion, setAudioSessionRetryVersion] = React.useState(0);
   const voiceRetryTimer = React.useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -259,7 +262,32 @@ export function RideBar({ controlsVisible = true }: { controlsVisible?: boolean 
     if (!controlsVisible) setExpanded(false);
   }, [controlsVisible]);
 
+  React.useEffect(() => {
+    return () => {
+      if (codeCopiedTimeout.current) clearTimeout(codeCopiedTimeout.current);
+    };
+  }, []);
+
   if (!activeRide) return null;
+
+  const handleShareCode = async () => {
+    const code = activeRide.code;
+    if (!code) return;
+    try {
+      await Share.share({ message: `Join my Rider Comms group ride with code ${code}` });
+    } catch {
+      // Ignore share-sheet dismissal; copy remains available separately.
+    }
+  };
+
+  const handleCopyCode = async () => {
+    const code = activeRide.code;
+    if (!code) return;
+    await Clipboard.setStringAsync(code);
+    setCodeCopied(true);
+    if (codeCopiedTimeout.current) clearTimeout(codeCopiedTimeout.current);
+    codeCopiedTimeout.current = setTimeout(() => setCodeCopied(false), 2000);
+  };
 
   const handleLeave = () => {
     Alert.alert(
@@ -388,7 +416,27 @@ export function RideBar({ controlsVisible = true }: { controlsVisible?: boolean 
 
               {activeRide.code && (
                 <View style={styles.codeCard}>
-                  <Text style={styles.codeLabel}>Share code</Text>
+                  <View style={styles.codeCardHead}>
+                    <Text style={styles.codeLabel}>{codeCopied ? 'Copied to clipboard' : 'Share code'}</Text>
+                    <View style={styles.codeCardActions}>
+                      <Pressable
+                        style={styles.codeCardAction}
+                        onPress={() => void handleCopyCode()}
+                        accessibilityRole="button"
+                        accessibilityLabel="Copy ride code"
+                      >
+                        <Ionicons name={codeCopied ? 'checkmark' : 'copy-outline'} size={18} color={codeCopied ? colors.success : colors.accent} />
+                      </Pressable>
+                      <Pressable
+                        style={styles.codeCardAction}
+                        onPress={() => void handleShareCode()}
+                        accessibilityRole="button"
+                        accessibilityLabel="Share ride code"
+                      >
+                        <Ionicons name="share-outline" size={18} color={colors.accent} />
+                      </Pressable>
+                    </View>
+                  </View>
                   <Text style={styles.codeValue}>{activeRide.code}</Text>
                 </View>
               )}
@@ -532,6 +580,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     ...elevation.raised,
   },
+  codeCardHead: { width: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  codeCardActions: { flexDirection: 'row', gap: spacing.xs },
+  codeCardAction: { width: 30, height: 30, borderRadius: radii.md, alignItems: 'center', justifyContent: 'center' },
   codeLabel: { ...type.caption },
   codeValue: { fontSize: 32, fontWeight: '800', letterSpacing: 6, color: colors.accent, marginTop: spacing.xs },
   rideId: { ...type.caption },

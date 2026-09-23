@@ -1,6 +1,7 @@
 // Unverified scaffold — see navigation/index.tsx header note.
 import * as React from 'react';
 import { View, Text, TextInput, Pressable, ScrollView, Alert, ActivityIndicator, Modal, Linking, RefreshControl, Share, StyleSheet } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -21,6 +22,23 @@ const FRIEND_RIDE_LOCATION_STALE_MS = 20_000;
 
 function YourRiderIdCard(): React.JSX.Element {
   const { riderId } = useAuth();
+  const [copied, setCopied] = React.useState(false);
+  const copiedTimeout = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  React.useEffect(() => {
+    return () => {
+      if (copiedTimeout.current) clearTimeout(copiedTimeout.current);
+    };
+  }, []);
+
+  const handleCopy = React.useCallback(async () => {
+    if (!riderId) return;
+    await Clipboard.setStringAsync(riderId);
+    setCopied(true);
+    if (copiedTimeout.current) clearTimeout(copiedTimeout.current);
+    copiedTimeout.current = setTimeout(() => setCopied(false), 2000);
+  }, [riderId]);
+
   return (
     <View style={[styles.section, elevation.raised, styles.yourIdCard]}>
       <View style={styles.yourIdRow}>
@@ -33,12 +51,22 @@ function YourRiderIdCard(): React.JSX.Element {
             {riderId}
           </Text>
         </View>
+        <Pressable
+          style={styles.yourIdCopyButton}
+          onPress={() => void handleCopy()}
+          accessibilityRole="button"
+          accessibilityLabel="Copy rider ID"
+        >
+          <Ionicons name={copied ? 'checkmark' : 'copy-outline'} size={18} color={copied ? colors.success : colors.accent} />
+        </Pressable>
       </View>
-      {/* TODO: add a one-tap copy button once a clipboard dependency (e.g.
-          expo-clipboard) is added to this app — for now, long-press to copy. */}
-      <Text style={styles.addCaption}>
-        Share this with a friend so they can add you back. Long-press the ID above to select and copy it.
-      </Text>
+      {copied ? (
+        <Text style={styles.addInlineSuccess}>Copied to clipboard</Text>
+      ) : (
+        <Text style={styles.addCaption}>
+          Share this with a friend so they can add you back.
+        </Text>
+      )}
     </View>
   );
 }
@@ -658,6 +686,7 @@ const styles = StyleSheet.create({
   yourIdRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   yourIdBadge: { width: 36, height: 36, borderRadius: radii.md, backgroundColor: colors.surfaceRaised, alignItems: 'center', justifyContent: 'center' },
   yourIdInfo: { flex: 1, gap: spacing.xs },
+  yourIdCopyButton: { width: 36, height: 36, borderRadius: radii.md, alignItems: 'center', justifyContent: 'center' },
   yourIdLabel: { ...type.caption },
   yourIdValue: { ...type.body, color: colors.textPrimary, fontWeight: '700', fontSize: 16 },
   requestRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
