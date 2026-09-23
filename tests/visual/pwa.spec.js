@@ -603,6 +603,8 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
   await page.locator('#reportHazardBtn').click();
   await expect(page.locator('#sheetBackdrop')).toBeVisible();
   await expect(page.locator('#sheetTitle')).toHaveText('Report on the road');
+  await expect(page.locator('.hazard-type-tile')).toHaveCount(6);
+  await expect(page.locator('.sheet')).toBeFocused();
   const reportShape = await page.evaluate(() => {
     const sheet = document.querySelector('.sheet');
     const tile = document.querySelector('.hazard-type-tile');
@@ -2367,7 +2369,7 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
   expect(metrics.maneuverBorderWidth).toBe(0);
   expect(metrics.maneuverSvgWidth).toBe(66);
   expect(metrics.maneuverHref).toBe('#i-nav-sharp-left');
-  expect(metrics.nextHeight).toBeGreaterThanOrEqual(50);
+  expectNear(metrics.nextHeight, 50, 0.1);
   expect(metrics.nextSvgWidth).toBe(30);
   expect(metrics.nextHref).toBe('#i-nav-fork-right');
   expect(metrics.roadAheadHeight).toBeGreaterThanOrEqual(42);

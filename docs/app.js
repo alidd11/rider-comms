@@ -113,17 +113,17 @@
   function hazardIconInnerSvg(type) {
     switch (type) {
       case 'police':
-        return '<path d="M8 22C10 14 16 10 24 10s14 4 16 12l-5 5H13Z" fill="#2FB7EB"/><path d="M9 28h30l-2 5c-4 3-8 4-13 4s-9-1-13-4Z" fill="#159CCF"/><path d="M7 32c4 6 30 6 34 0l-2 6c-4 3-9 5-15 5s-11-2-15-5Z" fill="#2FB7EB"/><path d="M24 14l4 2v4c0 3-1.7 5.4-4 6.6-2.3-1.2-4-3.6-4-6.6v-4Z" fill="#10191F"/>';
+        return '<path d="M7 22c2-7.5 8.5-12 17-12s15 4.5 17 12l-6 5H13Z" fill="#2FB7EB"/><path d="M11 27c4 2 22 2 26 0l-2 5c-3 3-7 4-11 4s-8-1-11-4Z" fill="#159CCF"/><path d="M24 14l4 2v4c0 3-1.7 5.4-4 6.6-2.3-1.2-4-3.6-4-6.6v-4Z" fill="#10191F"/>';
       case 'hidden_police':
-        return '<path d="M9 23c1.8-7.5 8-11 15-11s13.2 3.5 15 11l-5 4H14Z" fill="#2FB7EB"/><path d="M24 15l3.6 1.8v3.3c0 2.6-1.5 4.4-3.6 5.4-2.1-1-3.6-2.8-3.6-5.4v-3.3Z" fill="#10191F"/><path d="M5 29l38-7v15L8 43Z" fill="#63727A"/><path d="M7 31l35-6v4L7 35Z" fill="#303C43"/><path d="M11 34c8 3 18 3 26 0l-2 5c-6 3-16 3-22 0Z" fill="#2FB7EB"/>';
+        return '<path d="M8 22c2-7 8-11 16-11s14 4 16 11l-5 5H13Z" fill="#2FB7EB"/><path d="M24 14l4 2v4c0 3-1.7 5.2-4 6.4-2.3-1.2-4-3.4-4-6.4v-4Z" fill="#10191F"/><path d="M6 31c5-5 11-8 18-8 8 0 14 3 18 8l-2 10H8Z" fill="#303C43"/><path d="M9 31c5-3 10-4 15-4 6 0 11 1 15 4l-1 4H10Z" fill="#63727A"/>';
       case 'police_checkpoint':
-        return '<path d="M16 13c1-5 4-8 8-8s7 3 8 8l-3 3H19Z" fill="#2FB7EB"/><path d="M24 8l3 1.5v3c0 2-1.2 3.6-3 4.5-1.8-.9-3-2.5-3-4.5v-3Z" fill="#10191F"/><rect x="6" y="24" width="36" height="10" rx="2" fill="#F4F7F8"/><polygon points="6,24 13,24 19,34 12,34" fill="#F0646B"/><polygon points="22,24 29,24 35,34 28,34" fill="#F0646B"/><polygon points="38,24 42,24 42,31" fill="#F0646B"/><rect x="10" y="34" width="4" height="9" rx="1" fill="#63727A"/><rect x="34" y="34" width="4" height="9" rx="1" fill="#63727A"/>';
+        return '<path d="M14 13c1.5-6 5-9 10-9s8.5 3 10 9l-4 4H18Z" fill="#2FB7EB"/><path d="M24 7l3.5 1.7v3.2c0 2.3-1.4 4.1-3.5 5.1-2.1-1-3.5-2.8-3.5-5.1V8.7Z" fill="#10191F"/><rect x="4" y="22" width="40" height="11" rx="2" fill="#F4F7F8"/><polygon points="4,22 11,22 18,33 11,33" fill="#F0646B"/><polygon points="20,22 27,22 34,33 27,33" fill="#F0646B"/><polygon points="36,22 43,22 44,24 44,33 43,33" fill="#F0646B"/><rect x="8" y="33" width="5" height="11" rx="1" fill="#63727A"/><rect x="35" y="33" width="5" height="11" rx="1" fill="#63727A"/>';
       case 'camera':
         return '<rect x="13" y="9" width="14" height="10" rx="2" fill="#2FB7EB"/><circle cx="20" cy="14" r="3" fill="#071015"/><path d="M8 22h25l8 8v10H6a3 3 0 0 1-3-3V27a5 5 0 0 1 5-5Z" fill="#F4F7F8"/><path d="M28 23h5l6 7H28Z" fill="#9EC6D7"/><rect x="9" y="26" width="12" height="7" rx="1.5" fill="#73848D"/><circle cx="12" cy="40" r="4" fill="#10191F"/><circle cx="34" cy="40" r="4" fill="#10191F"/><path d="M30 10c4 1 7 4 8 8" fill="none" stroke="#2FB7EB" stroke-width="3" stroke-linecap="round"/><path d="M32 5c7 2 11 6 13 13" fill="none" stroke="#2FB7EB" stroke-width="3" stroke-linecap="round"/>';
       case 'accident':
-        return '<polygon points="24,3 28,12 36,7 34,16 43,15 36,22 44,27 33,28 36,38 27,32 24,43 20,32 11,38 15,28 4,27 12,22 5,15 14,16 12,7 20,12" fill="#F0646B"/><path d="M2 31l3-8h11l5 8v9H3a2 2 0 0 1-2-2v-5c0-1 .4-1.5 1-2Z" fill="#F4F7F8"/><path d="M27 31l5-8h11l4 8v7a2 2 0 0 1-2 2H27Z" fill="#F4F7F8"/><rect x="6" y="25" width="8" height="5" rx="1" fill="#87979E"/><rect x="34" y="25" width="7" height="5" rx="1" fill="#87979E"/><circle cx="7" cy="40" r="3" fill="#10191F"/><circle cx="17" cy="40" r="3" fill="#10191F"/><circle cx="32" cy="40" r="3" fill="#10191F"/><circle cx="42" cy="40" r="3" fill="#10191F"/>';
+        return '<polygon points="24,4 28,12 35,7 34,15 43,14 37,21 45,24 36,28 39,35 30,31 24,40 18,31 9,35 12,28 3,24 11,21 5,14 14,15 13,7 20,12" fill="#F0646B"/><path d="M1 31l4-9h12l5 9v9H3a2 2 0 0 1-2-2Z" fill="#F4F7F8"/><path d="M26 31l5-9h12l4 9v7a2 2 0 0 1-2 2H26Z" fill="#F4F7F8"/><rect x="6" y="25" width="9" height="5" rx="1" fill="#87979E"/><rect x="33" y="25" width="9" height="5" rx="1" fill="#87979E"/><circle cx="7" cy="40" r="3" fill="#10191F"/><circle cx="18" cy="40" r="3" fill="#10191F"/><circle cx="31" cy="40" r="3" fill="#10191F"/><circle cx="43" cy="40" r="3" fill="#10191F"/>';
       case 'road_closure':
-        return '<rect x="7" y="31" width="34" height="8" rx="2" fill="#F4F7F8"/><polygon points="7,31 14,31 20,39 13,39" fill="#F0646B"/><polygon points="23,31 30,31 36,39 29,39" fill="#F0646B"/><polygon points="39,31 41,31 41,35" fill="#F0646B"/><rect x="10" y="39" width="4" height="6" rx="1" fill="#63727A"/><rect x="34" y="39" width="4" height="6" rx="1" fill="#63727A"/><circle cx="24" cy="17" r="13" fill="#F0646B"/><circle cx="24" cy="17" r="9.5" fill="#F4F7F8"/><rect x="14" y="15.2" width="20" height="3.6" rx="1.8" fill="#F0646B"/>';
+        return '<circle cx="24" cy="16" r="14" fill="#F0646B"/><circle cx="24" cy="16" r="10.5" fill="#F4F7F8"/><rect x="13" y="14" width="22" height="4" rx="2" fill="#F0646B"/><rect x="4" y="29" width="40" height="9" rx="2" fill="#F4F7F8"/><polygon points="4,29 12,29 19,38 11,38" fill="#F0646B"/><polygon points="21,29 29,29 36,38 28,38" fill="#F0646B"/><polygon points="38,29 44,29 44,36 43,38" fill="#F0646B"/><rect x="8" y="38" width="5" height="7" rx="1" fill="#63727A"/><rect x="35" y="38" width="5" height="7" rx="1" fill="#63727A"/>';
       default:
         return '';
     }
@@ -2265,7 +2265,7 @@
     $('#chatScreen')?.setAttribute('inert', '');
     document.body.style.overflow = 'hidden';
     ready?.();
-    $('#closeSheet').focus();
+    $('.sheet').focus({ preventScroll: true });
   }
 
   function toggleMarkup(key, title, description, active) {
@@ -5835,7 +5835,10 @@
       if (focusable.length === 0) return;
       const first = focusable[0];
       const last = focusable[focusable.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
+      if (event.shiftKey && document.activeElement === $('.sheet')) {
+        event.preventDefault();
+        last.focus();
+      } else if (event.shiftKey && document.activeElement === first) {
         event.preventDefault();
         last.focus();
       } else if (!event.shiftKey && document.activeElement === last) {
