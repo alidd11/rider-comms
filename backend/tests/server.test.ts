@@ -50,7 +50,7 @@ describe('authenticated API', () => {
       ['/messages', { toRiderId: 'someone', text: 'hello' }],
       ['/reports', { riderId: 'someone', reason: 'spam' }],
       ['/hideouts', { name: 'Test', lat: 51.5, lon: -0.1, participantIds: ['someone'] }],
-      ['/hazards', { type: 'hazard', lat: 51.5, lon: -0.1 }],
+      ['/hazards', { type: 'accident', lat: 51.5, lon: -0.1 }],
       ['/scenic-routes', {}],
       ['/presence', { lat: 51.5, lon: -0.1, accuracyMeters: 5, recordedAt: Date.now() }],
       ['/voice/token', { target: 'channel' }],
@@ -64,7 +64,7 @@ describe('authenticated API', () => {
     const afterVerification = await fetch(`${ctx.baseUrl()}/hazards`, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ type: 'hazard', lat: 51.5, lon: -0.1 }),
+      body: JSON.stringify({ type: 'accident', lat: 51.5, lon: -0.1 }),
     });
     assert.equal(afterVerification.status, 201);
 
@@ -82,7 +82,7 @@ describe('authenticated API', () => {
     });
     await limited.ready;
     try {
-      const response = await postJson(limited, 'rate-limited-rider', '/hazards', { type: 'hazard', lat: 51.5, lon: -0.1 });
+      const response = await postJson(limited, 'rate-limited-rider', '/hazards', { type: 'accident', lat: 51.5, lon: -0.1 });
       assert.equal(response.status, 429);
       assert.equal(response.headers.get('retry-after'), '437');
       assert.deepEqual(await response.json(), { error: 'rate_limited' });
