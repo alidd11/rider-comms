@@ -372,14 +372,14 @@ if (/viewportHeight \* 0\.32/.test(nativeMapSource)) {
 if (!/\.nav-mode #locateBtn\{display:none\}/.test(pwaCssSource)) {
   throw new Error('PWA navigation must hide the redundant standalone re-centre control');
 }
-if (!/\.nav-mode \.map-actions\{[^\n]*flex-direction:row;align-items:center;gap:2px;padding:4px;[^\n]*border-radius:18px/.test(pwaCssSource)) {
-  throw new Error('PWA navigation actions must remain one compact horizontal dock');
+if (!/\.nav-mode \.map-actions\{[^\n]*flex-direction:column;align-items:center;gap:8px/.test(pwaCssSource)) {
+  throw new Error('PWA navigation actions must stack vertically like the general map controls');
 }
-if (!/\.nav-mode \.map-actions \.icon-button\{width:48px;min-width:48px;height:48px;[^\n]*border-radius:14px/.test(pwaCssSource)) {
-  throw new Error('PWA navigation dock controls must keep 48px rounded-square touch targets');
+if (!/\.nav-mode \.map-actions \.icon-button\{width:54px;min-width:54px;height:54px;border-radius:50%/.test(pwaCssSource)) {
+  throw new Error('PWA navigation dock controls must keep the shared 54px circular geometry');
 }
-if (!/#app\.nav-mode \.screen-map \.map-actions\{[\s\S]*?bottom:calc\(var\(--nav-summary-height,104px\) \+ var\(--navigation-control-inset\) \+ 18px\)[\s\S]*?flex-direction:row[\s\S]*?gap:2px[\s\S]*?padding:4px/.test(pwaCssSource)) {
-  throw new Error('PWA phone navigation dock must stay horizontal and directly above the ETA summary');
+if (!/#app\.nav-mode \.screen-map \.map-actions\{[\s\S]*?bottom:calc\(var\(--nav-summary-height,104px\) \+ var\(--navigation-control-inset\) \+ 18px\)[\s\S]*?flex-direction:column[\s\S]*?gap:8px/.test(pwaCssSource)) {
+  throw new Error('PWA phone navigation dock must stack vertically and stay directly above the ETA summary');
 }
 if (!/body:has\(#destinationCard:not\(\[hidden\]\)\) \.screen-map \.map-actions\{display:none\}/.test(pwaCssSource)) {
   throw new Error('PWA destination selection must hide competing general map controls like native');
@@ -390,11 +390,11 @@ if (!/#destinationCard \.destination-primary-action\{[^\n]*border-radius:14px/.t
 if (!/mapActionButton:\s*\{[\s\S]*?width: 54,[\s\S]*?height: 54,[\s\S]*?borderRadius: 27/.test(nativeMapSource)) {
   throw new Error('Native map controls must keep the shared 54px circular geometry');
 }
-if (!/navigationActions:\s*\{[\s\S]*?flexDirection: 'row',[\s\S]*?gap: 2,[\s\S]*?padding: 4,[\s\S]*?borderRadius: 18/.test(nativeMapSource)) {
-  throw new Error('Native navigation actions must match the compact horizontal PWA dock');
+if (!/navigationActions:\s*\{[\s\S]*?flexDirection: 'column',[\s\S]*?gap: spacing\.sm/.test(nativeMapSource)) {
+  throw new Error('Native navigation actions must stack vertically like the stacked PWA dock');
 }
-if (!/navigationActionButton:\s*\{[\s\S]*?width: 48,[\s\S]*?height: 48,[\s\S]*?borderRadius: 14/.test(nativeMapSource)) {
-  throw new Error('Native navigation dock controls must keep 48px rounded-square touch targets');
+if (!/navigationActionButton:\s*\{[\s\S]*?width: 54,[\s\S]*?height: 54,[\s\S]*?borderRadius: 27/.test(nativeMapSource)) {
+  throw new Error('Native navigation dock controls must keep the shared 54px circular geometry');
 }
 
 if (/bottom: insets\.bottom \+ 116/.test(nativeMapSource)) {
