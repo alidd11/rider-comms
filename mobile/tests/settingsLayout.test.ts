@@ -89,6 +89,10 @@ describe('Settings mockup contract', () => {
   });
 
   it('does not advertise offline map downloads that do not exist', () => {
+    assert.match(
+      settingsSource,
+      /title="Offline Maps" subtitle="Online only · downloads unavailable"/,
+    );
     assert.ok(settingsSource.includes('Offline map downloads are not available in this build yet.'));
   });
 });
