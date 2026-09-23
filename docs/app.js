@@ -3933,7 +3933,6 @@
       const position = await currentPosition();
       centreMap(position.coords.latitude, position.coords.longitude);
       syncRideLocationSharing();
-      showToast('Map centred on your location.');
     } catch (error) {
       showToast(locationAccessMessage(error, 'centre the map'));
     }
