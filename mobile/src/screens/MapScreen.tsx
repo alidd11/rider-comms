@@ -272,6 +272,8 @@ export function MapScreen(): React.JSX.Element {
   const currentLocationRef = React.useRef<{ lat: number; lon: number } | null>(null);
   const currentLocationAccuracyRef = React.useRef<number | null>(null);
   const [selectedPlace, setSelectedPlace] = React.useState<PlaceResult | null>(null);
+  const [destinationEta, setDestinationEta] = React.useState<{ distanceMeters: number; durationSeconds: number } | null>(null);
+  const destinationEtaRequestId = React.useRef(0);
   const [hazards, setHazards] = React.useState<HazardReport[]>([]);
   const [selectedHazardId, setSelectedHazardId] = React.useState<string | null>(null);
   const [reportSheetOpen, setReportSheetOpen] = React.useState(false);
@@ -1033,6 +1035,37 @@ export function MapScreen(): React.JSX.Element {
     setReportSheetOpen(true);
   }
 
+  // A rider picking a destination could not previously tell how far or how
+  // long the drive was until after committing to "Start route" -- fetch a
+  // quick driving-time estimate for the destination card itself so that
+  // decision can be made up front, same as Google/Waze/Apple Maps' own
+  // place cards. currentLocationRef (not the state value) keeps this from
+  // refetching on every GPS tick; the request id guards against a stale
+  // response landing after the destination changed or was dismissed.
+  React.useEffect(() => {
+    if (!selectedDestination) {
+      setDestinationEta(null);
+      return;
+    }
+    const requestId = ++destinationEtaRequestId.current;
+    const target = selectedDestination;
+    setDestinationEta(null);
+    (async () => {
+      const origin = currentLocationRef.current ?? await requestCurrentLocation(true);
+      if (!origin || requestId !== destinationEtaRequestId.current) return;
+      try {
+        const route = await client.getDrivingRoute({ lat: origin.lat, lon: origin.lon }, target);
+        if (requestId === destinationEtaRequestId.current) {
+          setDestinationEta({ distanceMeters: route.distanceMeters, durationSeconds: route.durationSeconds });
+        }
+      } catch {
+        // Best-effort preview only; "Start route" surfaces a real error if
+        // the route genuinely cannot be calculated.
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDestination?.lat, selectedDestination?.lon, client]);
+
   async function openDirections(target: NavigationTarget): Promise<void> {
     if (navigationProvider === 'in_app') {
       await startInAppNavigation(target);
@@ -1287,6 +1320,14 @@ export function MapScreen(): React.JSX.Element {
             >
               <Ionicons name="close" size={20} color={colors.textSecondary} />
             </Pressable>
+          </View>
+          <View style={styles.destinationCardEta}>
+            <Ionicons name="map-outline" size={15} color={colors.accent} />
+            <Text style={styles.destinationCardEtaText}>
+              {destinationEta
+                ? `${formatNavigationDistance(destinationEta.distanceMeters, unitSystem)} · ${formatNavigationDuration(destinationEta.durationSeconds)}`
+                : 'Calculating route…'}
+            </Text>
           </View>
           <Pressable
             style={styles.destinationPrimaryAction}
@@ -1556,6 +1597,16 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
   },
+  destinationCardEta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    marginTop: spacing.sm,
+    paddingTop: spacing.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+  },
+  destinationCardEtaText: { ...type.caption, color: colors.textSecondary, fontWeight: '700' },
   destinationPrimaryAction: {
     minHeight: 54,
     flexDirection: 'row',

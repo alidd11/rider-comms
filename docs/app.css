@@ -629,6 +629,9 @@ body:has(#destinationCard:not([hidden])) .screen-map .map-actions{display:none}
 #destinationCard .rider-card-copy strong{font-size:.98rem;font-weight:780;line-height:1.2}
 #destinationCard .rider-card-copy span{margin-top:3px;color:var(--text-muted);font-size:.76rem;line-height:1.3}
 #destinationCard .destination-card-dismiss{width:40px;height:40px;display:grid;place-items:center;border:1px solid var(--border);border-radius:20px;background:var(--surface-raised);color:var(--text-secondary);font-size:1.15rem}
+#destinationCard .destination-card-eta{display:flex;align-items:center;gap:7px;margin-top:9px;padding-top:9px;border-top:1px solid var(--border-soft);color:var(--text-secondary);font-size:.8rem;font-weight:700}
+#destinationCard .destination-card-eta svg{width:15px;height:15px;flex:none;color:var(--accent)}
+#destinationCard .destination-card-eta[hidden]{display:none}
 #destinationCard .destination-card-actions{display:block;margin-top:11px}
 #destinationCard .destination-primary-action{width:100%;min-height:52px;display:flex;align-items:center;justify-content:center;gap:10px;padding:0 15px;border:0;border-radius:14px;background:var(--accent);color:var(--accent-text);text-decoration:none;box-shadow:none}
 #destinationCard .destination-primary-action svg{width:19px;height:19px;flex:none}
