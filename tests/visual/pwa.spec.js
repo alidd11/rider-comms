@@ -826,6 +826,7 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
   await page.locator('.bottom-nav [data-nav="settings"]').click();
   await expect(page.locator('.settings-page')).toBeVisible();
   await expect(page.locator('[data-screen="settings"] .page-subtitle')).toHaveCount(0);
+  await expect(page.locator('[data-sheet="offlineMaps"] small')).toHaveText('Online only · downloads unavailable');
   const settingsRadius = await page.locator('.settings-page .settings-group').first().evaluate((element) =>
     parseFloat(getComputedStyle(element).borderTopLeftRadius)
   );
