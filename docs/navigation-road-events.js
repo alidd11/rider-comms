@@ -8,8 +8,8 @@
   const NAVIGATION_ALERT_MAX_VISIBLE = 2;
   const NAVIGATION_ALERT_MAX_LOCATION_ACCURACY_METERS = 75;
   const HIDE_NET_DENIAL_THRESHOLD = 3;
-  const HAZARD_TYPES = new Set(['police', 'accident', 'hazard', 'road_closure', 'camera', 'hidden_police', 'police_checkpoint']);
-  const SAFETY_IMPACTING_TYPES = new Set(['road_closure', 'accident', 'hazard']);
+  const HAZARD_TYPES = new Set(['police', 'accident', 'road_closure', 'camera', 'hidden_police', 'police_checkpoint']);
+  const SAFETY_IMPACTING_TYPES = new Set(['road_closure', 'accident']);
 
   const HAZARD_TIE_BREAK_PRIORITY = {
     road_closure: 0,
@@ -18,7 +18,6 @@
     police: 3,
     police_checkpoint: 4,
     hidden_police: 5,
-    hazard: 6,
   };
 
   function finiteCoordinate(point) {
@@ -203,7 +202,6 @@
       case 'police_checkpoint': return 'Police checkpoint reported';
       case 'accident': return 'Accident reported';
       case 'road_closure': return 'Road closure reported';
-      case 'hazard': return 'Pothole reported';
       default: return 'Road alert';
     }
   }

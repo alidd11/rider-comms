@@ -29,6 +29,11 @@ describe('hazard reports API', { skip: !hasDatabase && 'DATABASE_URL not set; sk
     assert.equal(res.status, 400);
   });
 
+  it('rejects the retired pothole report type', async () => {
+    const res = await postJson(ctx, 'reporter-pothole', '/hazards', { type: 'hazard', lat: 40, lon: -74 });
+    assert.equal(res.status, 400);
+  });
+
   it('rejects out-of-range coordinates', async () => {
     const res = await postJson(ctx, 'reporter-bad2', '/hazards', { type: 'police', lat: 999, lon: -74 });
     assert.equal(res.status, 400);
@@ -79,7 +84,7 @@ describe('hazard reports API', { skip: !hasDatabase && 'DATABASE_URL not set; sk
   });
 
   it('only the reporter can delete their own report', async () => {
-    const created = await postJson(ctx, 'reporter-4', '/hazards', { type: 'hazard', lat: 43.0, lon: -77.0 });
+    const created = await postJson(ctx, 'reporter-4', '/hazards', { type: 'accident', lat: 43.0, lon: -77.0 });
     const report = await created.json() as { id: string };
 
     assert.equal((await authenticatedFetch(ctx, 'someone-else', `/hazards/${report.id}`, { method: 'DELETE' })).status, 403);
@@ -91,7 +96,7 @@ describe('hazard reports API', { skip: !hasDatabase && 'DATABASE_URL not set; sk
     const rider = 'rate-limited-reporter';
     let sawRateLimit = false;
     for (let i = 0; i < 12; i++) {
-      const res = await postJson(ctx, rider, '/hazards', { type: 'hazard', lat: 44.0, lon: -78.0 });
+      const res = await postJson(ctx, rider, '/hazards', { type: 'accident', lat: 44.0, lon: -78.0 });
       if (res.status === 429) { sawRateLimit = true; break; }
       assert.equal(res.status, 201);
     }

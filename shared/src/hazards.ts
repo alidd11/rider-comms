@@ -10,7 +10,7 @@
  * distinction specifically, rather than folding it into the generic `police`
  * type.
  */
-export type HazardType = 'police' | 'accident' | 'hazard' | 'road_closure' | 'camera' | 'hidden_police' | 'police_checkpoint';
+export type HazardType = 'police' | 'accident' | 'road_closure' | 'camera' | 'hidden_police' | 'police_checkpoint';
 
 export interface HazardReport {
   id: string;
@@ -29,7 +29,7 @@ export interface HazardReport {
  *
  * - `police` / `camera`: checkpoints and mobile speed traps move on quickly
  *   (typically within the hour), so these expire fastest.
- * - `accident` / `hazard`: cleared or resolved within a couple of hours in
+ * - `accident`: cleared or resolved within a couple of hours in
  *   the common case, so they get a mid-length window.
  * - `road_closure`: closures (construction, downed trees, flooding) commonly
  *   last for a whole riding day, so they get the longest window.
@@ -43,7 +43,6 @@ export function ttlMsForType(type: HazardType): number {
     case 'police_checkpoint':
       return HOUR_MS;
     case 'accident':
-    case 'hazard':
       return 2 * HOUR_MS;
     case 'road_closure':
       return 8 * HOUR_MS;

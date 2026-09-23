@@ -41,17 +41,17 @@ describe('HazardStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping 
 
   it('does not surface reports far outside the geo-bucket neighborhood', async () => {
     const store = new HazardStore();
-    await store.create('hazard', 40.0, -74.0, 'rider-1');
+    await store.create('accident', 40.0, -74.0, 'rider-1');
     const found = await store.nearby(10.0, 100.0, Date.now());
     assert.equal(found.length, 0);
   });
 
   it('applies an exact 40-mile radius after the indexed bounding query', async () => {
     const store = new HazardStore();
-    await store.create('hazard', 40.0, -74.0, 'near');
+    await store.create('accident', 40.0, -74.0, 'near');
     // Inside the latitude/longitude rectangle, but just beyond 40 miles on
     // the diagonal, proving the final great-circle filter is not optional.
-    await store.create('hazard', 40.5, -73.6, 'outside');
+    await store.create('accident', 40.5, -73.6, 'outside');
     const found = await store.nearby(40.0, -74.0, Date.now());
     assert.equal(HAZARD_SEARCH_RADIUS_MILES, 40);
     assert.deepEqual(found.map((report) => report.reportedBy), ['near']);
@@ -59,7 +59,7 @@ describe('HazardStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping 
 
   it('finds nearby reports across the antimeridian', async () => {
     const store = new HazardStore();
-    const report = await store.create('hazard', 0, -179.9, 'across-date-line');
+    const report = await store.create('accident', 0, -179.9, 'across-date-line');
     const found = await store.nearby(0, 179.9, Date.now());
     assert.ok(found.some((candidate) => candidate.id === report.id));
   });
@@ -132,7 +132,7 @@ describe('HazardStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping 
 
   it('lets only the reporter remove their own report', async () => {
     const store = new HazardStore();
-    const report = await store.create('hazard', 40.0, -74.0, 'rider-1');
+    const report = await store.create('accident', 40.0, -74.0, 'rider-1');
     assert.equal(await store.remove(report.id, 'rider-2'), false);
     assert.equal(await store.remove(report.id, 'rider-1'), true);
     assert.equal(await store.get(report.id), undefined);
@@ -140,7 +140,7 @@ describe('HazardStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping 
 
   it('removes a rider deleting their account from all their reports', async () => {
     const store = new HazardStore();
-    const report = await store.create('hazard', 40.0, -74.0, 'rider-1');
+    const report = await store.create('accident', 40.0, -74.0, 'rider-1');
     await store.deleteRider('rider-1');
     assert.equal(await store.get(report.id), undefined);
   });

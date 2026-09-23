@@ -13,8 +13,8 @@ export const NAVIGATION_ALERT_CURRENT_ROUTE_TOLERANCE_METERS = 120;
 export const NAVIGATION_ALERT_MAX_VISIBLE = 2;
 export const NAVIGATION_ALERT_MAX_LOCATION_ACCURACY_METERS = 75;
 
-const HAZARD_TYPES = new Set<HazardType>(['police', 'accident', 'hazard', 'road_closure', 'camera', 'hidden_police', 'police_checkpoint']);
-const SAFETY_IMPACTING_TYPES = new Set<HazardType>(['road_closure', 'accident', 'hazard']);
+const HAZARD_TYPES = new Set<HazardType>(['police', 'accident', 'road_closure', 'camera', 'hidden_police', 'police_checkpoint']);
+const SAFETY_IMPACTING_TYPES = new Set<HazardType>(['road_closure', 'accident']);
 
 export interface NavigationRouteHazard {
   hazard: HazardReport;
@@ -39,7 +39,6 @@ const HAZARD_TIE_BREAK_PRIORITY: Record<HazardType, number> = {
   police: 3,
   police_checkpoint: 4,
   hidden_police: 5,
-  hazard: 6,
 };
 
 function finiteCoordinate(point: RouteCoordinate | null | undefined): point is RouteCoordinate {
@@ -73,7 +72,7 @@ function selectVisibleAlerts(
 
   // Keep the nearest report as the primary glance target. If that report is
   // informational (camera/police), reserve one remaining slot for the nearest
-  // safety-impacting condition so a closure/accident/hazard is not hidden by
+  // safety-impacting condition so a closure/accident is not hidden by
   // two enforcement reports farther down the same route.
   if (maxVisible > 1 && !SAFETY_IMPACTING_TYPES.has(nearest.hazard.type)) {
     const safetyAlert = sortedAlerts.slice(1).find((alert) => SAFETY_IMPACTING_TYPES.has(alert.hazard.type));
@@ -169,6 +168,5 @@ export function navigationHazardLabel(type: HazardType): string {
     case 'police_checkpoint': return 'Police checkpoint reported';
     case 'accident': return 'Accident reported';
     case 'road_closure': return 'Road closure reported';
-    case 'hazard': return 'Pothole reported';
   }
 }

@@ -102,10 +102,9 @@
     police_checkpoint: { label: 'Police checkpoint', color: '#2fa8d3' },
     camera: { label: 'Mobile speed camera', color: '#2fa8d3' },
     accident: { label: 'Accident', color: '#f0646b' },
-    hazard: { label: 'Pothole', color: '#d39a42' },
     road_closure: { label: 'Road closure', color: '#f0646b' },
   };
-  const HAZARD_TYPE_ORDER = ['police', 'hidden_police', 'police_checkpoint', 'camera', 'accident', 'hazard', 'road_closure'];
+  const HAZARD_TYPE_ORDER = ['police', 'hidden_police', 'police_checkpoint', 'camera', 'accident', 'road_closure'];
 
   // Brand-specific road report artwork from the approved Rider Comms icon
   // sheet. These are deliberately inline vectors rather than font glyphs so
@@ -123,8 +122,6 @@
         return '<rect x="13" y="9" width="14" height="10" rx="2" fill="#2FB7EB"/><circle cx="20" cy="14" r="3" fill="#071015"/><path d="M8 22h25l8 8v10H6a3 3 0 0 1-3-3V27a5 5 0 0 1 5-5Z" fill="#F4F7F8"/><path d="M28 23h5l6 7H28Z" fill="#9EC6D7"/><rect x="9" y="26" width="12" height="7" rx="1.5" fill="#73848D"/><circle cx="12" cy="40" r="4" fill="#10191F"/><circle cx="34" cy="40" r="4" fill="#10191F"/><path d="M30 10c4 1 7 4 8 8" fill="none" stroke="#2FB7EB" stroke-width="3" stroke-linecap="round"/><path d="M32 5c7 2 11 6 13 13" fill="none" stroke="#2FB7EB" stroke-width="3" stroke-linecap="round"/>';
       case 'accident':
         return '<polygon points="24,3 28,12 36,7 34,16 43,15 36,22 44,27 33,28 36,38 27,32 24,43 20,32 11,38 15,28 4,27 12,22 5,15 14,16 12,7 20,12" fill="#F0646B"/><path d="M2 31l3-8h11l5 8v9H3a2 2 0 0 1-2-2v-5c0-1 .4-1.5 1-2Z" fill="#F4F7F8"/><path d="M27 31l5-8h11l4 8v7a2 2 0 0 1-2 2H27Z" fill="#F4F7F8"/><rect x="6" y="25" width="8" height="5" rx="1" fill="#87979E"/><rect x="34" y="25" width="7" height="5" rx="1" fill="#87979E"/><circle cx="7" cy="40" r="3" fill="#10191F"/><circle cx="17" cy="40" r="3" fill="#10191F"/><circle cx="32" cy="40" r="3" fill="#10191F"/><circle cx="42" cy="40" r="3" fill="#10191F"/>';
-      case 'hazard':
-        return '<polygon points="4,23 10,15 17,14 20,8 28,12 35,10 38,17 45,20 41,28 44,34 35,36 30,42 22,39 14,42 10,35 3,33 7,28" fill="#E2A03D"/><path d="M10 25c3-7 9-10 16-9 8 0 13 4 14 10-2 7-8 10-16 10-7 0-12-4-14-11Z" fill="#10191F"/><path d="M12 23c4-3 8-5 13-5 6 0 10 2 13 5" fill="none" stroke="#6A4A1D" stroke-width="2" stroke-linecap="round"/>';
       case 'road_closure':
         return '<rect x="7" y="31" width="34" height="8" rx="2" fill="#F4F7F8"/><polygon points="7,31 14,31 20,39 13,39" fill="#F0646B"/><polygon points="23,31 30,31 36,39 29,39" fill="#F0646B"/><polygon points="39,31 41,31 41,35" fill="#F0646B"/><rect x="10" y="39" width="4" height="6" rx="1" fill="#63727A"/><rect x="34" y="39" width="4" height="6" rx="1" fill="#63727A"/><circle cx="24" cy="17" r="13" fill="#F0646B"/><circle cx="24" cy="17" r="9.5" fill="#F4F7F8"/><rect x="14" y="15.2" width="20" height="3.6" rx="1.8" fill="#F0646B"/>';
       default:

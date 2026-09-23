@@ -196,7 +196,7 @@ describe('route-ahead navigation hazard selection', () => {
 
   it('fails closed for an unknown report type instead of rendering broken navigation metadata', () => {
     const malformed = {
-      ...hazard('unknown', 'hazard', 51.5040),
+      ...hazard('unknown', 'camera', 51.5040),
       type: 'mystery_report',
     } as unknown as HazardReport;
 
@@ -215,7 +215,6 @@ describe('route-ahead navigation hazard selection', () => {
     assert.equal(navigationHazardLabel('hidden_police'), 'Hidden police reported');
     assert.equal(navigationHazardLabel('police_checkpoint'), 'Police checkpoint reported');
     assert.equal(navigationHazardLabel('road_closure'), 'Road closure reported');
-    assert.equal(navigationHazardLabel('hazard'), 'Pothole reported');
   });
 
   it('does not turn the high-frequency navigation GPS watcher into a hazard API poll', () => {
