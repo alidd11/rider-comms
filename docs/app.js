@@ -4901,26 +4901,18 @@
     return path[path.length - 1];
   }
 
-  // Google's Directions "instructions" field sometimes nests an advisory
-  // note (a road restriction, a seasonal closure) in a child element
-  // directly after the visible turn text, with no whitespace between
-  // them in the source, e.g. `Turn left onto Yerbury Rd<div>May be
-  // closed at certain times of day or year</div>`. Plain textContent
-  // concatenates the two into one run-on word ("...RdMay be closed...")
-  // -- both on screen and read aloud by the voice guidance below. Join
-  // each direct child's text with a space instead of relying on
-  // textContent's own (non-existent) whitespace handling.
+  // Google's Directions instruction can put secondary guidance in a child
+  // div. Convert that markup boundary to punctuation before extracting text,
+  // but otherwise preserve the provider-authored wording exactly.
   function stripHtml(html) {
     const div = document.createElement('div');
-    div.innerHTML = html;
-    const text = Array.from(div.childNodes).map((node) => node.textContent || '').join(' ');
-    const cleaned = text.replace(/\s+/g, ' ').trim();
-    const repeatedFollow = cleaned.match(/^(.*?)\.?\s+Continue to follow\s+(.+?)\.?$/i);
-    if (!repeatedFollow) return cleaned;
-    const lead = repeatedFollow[1].trim().replace(/[.]$/, '');
-    const repeatedRoad = repeatedFollow[2].trim().replace(/[.]$/, '');
-    const comparable = (value) => value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-    return comparable(lead).endsWith(comparable(repeatedRoad)) ? lead : cleaned;
+    // Google uses child divs for secondary guidance. Preserve that boundary
+    // as punctuation before converting the provider's HTML to plain text,
+    // matching the native sanitizer without interpreting the wording.
+    div.innerHTML = String(html || '')
+      .replace(/<div[^>]*>/gi, '. ')
+      .replace(/<\/div>/gi, '');
+    return navigationGuidance.normalizeNavigationInstructionText(div.textContent || '');
   }
 
   const navigationGuidance = globalThis.RiderNavigationGuidance;
@@ -5022,6 +5014,8 @@
     'uturn-right': 'i-nav-uturn-right',
     'roundabout-left': 'i-nav-roundabout-left',
     'roundabout-right': 'i-nav-roundabout-right',
+    ferry: 'i-nav-ferry',
+    'ferry-train': 'i-nav-ferry',
     'fork-left': 'i-nav-fork-left',
     'fork-right': 'i-nav-fork-right',
     'ramp-left': 'i-nav-ramp-left',

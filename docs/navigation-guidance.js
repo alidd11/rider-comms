@@ -44,14 +44,19 @@
     'ramp-left': 'Take ramp left',
     'ramp-right': 'Take ramp right',
     merge: 'Merge',
+    ferry: 'Take the ferry',
+    'ferry-train': 'Take the ferry train',
+    depart: 'Start route',
+    'name-change': 'Continue',
     arrive: 'Arrive',
   });
 
   function navigationManeuverAction(maneuver) {
-    const maneuverKey = maneuver || 'straight';
+    if (!maneuver) return 'Continue';
+    const maneuverKey = maneuver;
     return maneuverKey.startsWith('roundabout')
       ? 'At roundabout'
-      : glanceActions[maneuverKey] || 'Go straight';
+      : glanceActions[maneuverKey] || 'Continue';
   }
 
   function navigationPromptStageForDistance(metres) {
@@ -61,8 +66,12 @@
     return 3;
   }
 
+  function normalizeNavigationInstructionText(value) {
+    return String(value || '').replace(/\s+/g, ' ').trim();
+  }
+
   function navigationPromptText(instruction, metres, unit, stage) {
-    const cleaned = String(instruction || '').replace(/\s+/g, ' ').trim();
+    const cleaned = normalizeNavigationInstructionText(instruction);
     if (!cleaned || stage === 0) return '';
     if (stage === 3) return cleaned;
     return `In ${formatNavigationDistance(metres, unit)}, ${cleaned}`;
@@ -91,8 +100,13 @@
       case 'roundabout-left':
       case 'roundabout-right':
         return 'sync';
-      default:
+      case 'ferry':
+      case 'ferry-train':
+        return 'boat-outline';
+      case 'straight':
         return 'arrow-up';
+      default:
+        return 'navigate';
     }
   }
 
@@ -101,6 +115,7 @@
     formatNavigationSpeed,
     maneuverIcon,
     navigationManeuverAction,
+    normalizeNavigationInstructionText,
     navigationPromptStageForDistance,
     navigationPromptText,
     navigationSpeedUnit,

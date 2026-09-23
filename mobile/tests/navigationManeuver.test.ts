@@ -1,6 +1,10 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { navigationManeuverKind } from '../src/navigationManeuver.ts';
+
+const pwaApp = readFileSync(new URL('../../docs/app.js', import.meta.url), 'utf8');
+const pwaShell = readFileSync(new URL('../../docs/index.html', import.meta.url), 'utf8');
 
 describe('navigation maneuver visual categories', () => {
   it('preserves glanceable differences between turn strengths', () => {
@@ -19,11 +23,19 @@ describe('navigation maneuver visual categories', () => {
     assert.equal(navigationManeuverKind('ramp-left'), 'ramp-left');
     assert.equal(navigationManeuverKind('roundabout-right'), 'roundabout-right');
     assert.equal(navigationManeuverKind('uturn-left'), 'uturn-left');
+    assert.equal(navigationManeuverKind('ferry'), 'ferry');
+    assert.equal(navigationManeuverKind('ferry-train'), 'ferry');
   });
 
   it('falls back safely to straight guidance', () => {
     assert.equal(navigationManeuverKind('straight'), 'straight');
     assert.equal(navigationManeuverKind(undefined), 'straight');
     assert.equal(navigationManeuverKind('name-change'), 'straight');
+  });
+
+  it('keeps ferry maneuver artwork available in both clients', () => {
+    assert.match(pwaApp, /ferry: 'i-nav-ferry'/);
+    assert.match(pwaApp, /'ferry-train': 'i-nav-ferry'/);
+    assert.match(pwaShell, /id="i-nav-ferry"/);
   });
 });

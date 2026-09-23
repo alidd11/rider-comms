@@ -15,6 +15,7 @@ export type NavigationManeuverKind =
   | 'ramp-right'
   | 'roundabout-left'
   | 'roundabout-right'
+  | 'ferry'
   | 'arrive';
 
 export function navigationManeuverKind(maneuver?: string): NavigationManeuverKind {
@@ -34,6 +35,8 @@ export function navigationManeuverKind(maneuver?: string): NavigationManeuverKin
     case 'ramp-right': return 'ramp-right';
     case 'roundabout-left': return 'roundabout-left';
     case 'roundabout-right': return 'roundabout-right';
+    case 'ferry':
+    case 'ferry-train': return 'ferry';
     case 'arrive': return 'arrive';
     default: return 'straight';
   }

@@ -8,6 +8,7 @@ export type NavigationManeuverIcon =
   | 'return-up-forward'
   | 'git-merge-outline'
   | 'sync'
+  | 'boat-outline'
   | 'navigate';
 
 export interface NavigationLane {
@@ -32,6 +33,14 @@ export interface NavigationInstruction {
   exitNumber?: string;
   lanes?: readonly NavigationLane[];
   arrivalSide?: 'left' | 'right';
+}
+
+/**
+ * Prepare provider-authored instruction text for display or speech without
+ * trying to reinterpret, shorten, or reconstruct its navigation meaning.
+ */
+export function normalizeNavigationInstructionText(value: string): string {
+  return value.replace(/\s+/g, ' ').trim();
 }
 
 export function formatNavigationDistance(metres: number, unit: NavigationUnit): string {
@@ -74,16 +83,21 @@ const GLANCE_ACTIONS: Readonly<Record<string, string>> = {
   'ramp-left': 'Take ramp left',
   'ramp-right': 'Take ramp right',
   merge: 'Merge',
+  ferry: 'Take the ferry',
+  'ferry-train': 'Take the ferry train',
+  depart: 'Start route',
+  'name-change': 'Continue',
   arrive: 'Arrive',
 };
 
 // Only structured maneuver metadata is simplified. Provider instruction text
 // remains intact and is never parsed into synthetic road/route/junction data.
 export function navigationManeuverAction(maneuver?: string): string {
-  const maneuverKey = maneuver || 'straight';
+  if (!maneuver) return 'Continue';
+  const maneuverKey = maneuver;
   return maneuverKey.startsWith('roundabout')
     ? 'At roundabout'
-    : GLANCE_ACTIONS[maneuverKey] ?? 'Go straight';
+    : GLANCE_ACTIONS[maneuverKey] ?? 'Continue';
 }
 
 export type NavigationPromptStage = 0 | 1 | 2 | 3;
@@ -101,7 +115,7 @@ export function navigationPromptText(
   unit: NavigationUnit,
   stage: NavigationPromptStage
 ): string {
-  const cleaned = instruction.replace(/\s+/g, ' ').trim();
+  const cleaned = normalizeNavigationInstructionText(instruction);
   if (!cleaned || stage === 0) return '';
   if (stage === 3) return cleaned;
   return `In ${formatNavigationDistance(metres, unit)}, ${cleaned}`;
@@ -130,7 +144,12 @@ export function maneuverIcon(maneuver?: string): NavigationManeuverIcon {
     case 'roundabout-left':
     case 'roundabout-right':
       return 'sync';
-    default:
+    case 'ferry':
+    case 'ferry-train':
+      return 'boat-outline';
+    case 'straight':
       return 'arrow-up';
+    default:
+      return 'navigate';
   }
 }

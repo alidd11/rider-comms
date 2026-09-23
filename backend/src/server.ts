@@ -687,11 +687,12 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
         await hazardStore.remove(id, actorId);
         return sendJson(res, 200, {});
       }
-      // TODO(curation-policy): once the product team defines a real curation/
-      // moderation workflow for scenic routes, gate creation behind it. For
-      // now any authenticated rider can create one, matching the access
-      // level ride creation already uses elsewhere in this file.
       if (req.method === 'POST' && url.pathname === '/scenic-routes') {
+        // Backend scenic-route records are curated product content, not an
+        // open UGC publishing surface. ADMIN_RIDER_IDS bootstraps this durable
+        // entitlement into users.is_admin; authorization is always re-read
+        // from Postgres here rather than trusted from a client claim.
+        if (!(await authStore.isAdmin(actorId))) return sendJson(res, 403, { error: 'admin_required' });
         const body = await readJsonBody(req);
         const validated = validateScenicRouteInput(body);
         if (!validated.ok) return sendJson(res, 400, { error: validated.error });
