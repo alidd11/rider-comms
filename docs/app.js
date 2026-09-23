@@ -4898,18 +4898,29 @@
     return path[path.length - 1];
   }
 
+  const NAVIGATION_HTML_ENTITIES = Object.freeze({
+    '&amp;': '&',
+    '&lt;': '<',
+    '&gt;': '>',
+    '&quot;': '"',
+    '&#39;': "'",
+    '&nbsp;': ' ',
+  });
+
   // Google's Directions instruction can put secondary guidance in a child
-  // div. Convert that markup boundary to punctuation before extracting text,
-  // but otherwise preserve the provider-authored wording exactly.
+  // div. Convert that markup boundary to punctuation, strip all remaining
+  // tags as text and decode only the small entity set the provider uses.
+  // Do not hand provider HTML to the browser's HTML parser: the route string
+  // is external data and navigation only needs its text content.
   function stripHtml(html) {
-    const div = document.createElement('div');
-    // Google uses child divs for secondary guidance. Preserve that boundary
-    // as punctuation before converting the provider's HTML to plain text,
-    // matching the native sanitizer without interpreting the wording.
-    div.innerHTML = String(html || '')
-      .replace(/<div[^>]*>/gi, '. ')
-      .replace(/<\/div>/gi, '');
-    return navigationGuidance.normalizeNavigationInstructionText(div.textContent || '');
+    return navigationGuidance.normalizeNavigationInstructionText(
+      String(html || '')
+        .replace(/<div[^>]*>/gi, '. ')
+        .replace(/<\/div>/gi, '')
+        .replace(/<[^>]+>/g, '')
+        .replace(/&(?:amp|lt|gt|quot|#39|nbsp);/g, (entity) => NAVIGATION_HTML_ENTITIES[entity] ?? entity)
+        .replace(/\s+([,.])/g, '$1')
+    );
   }
 
   const navigationGuidance = globalThis.RiderNavigationGuidance;
