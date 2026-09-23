@@ -531,7 +531,7 @@ export function SettingsScreen(): React.JSX.Element {
           <SettingsRow icon="person-outline" title="Account" onPress={() => setActiveSheet('accountHub')} />
           <SettingsRow icon="chatbubble-ellipses-outline" title="Communication" onPress={() => setActiveSheet('communication')} />
           <SettingsRow icon="map-outline" title="Map & Navigation" onPress={() => setActiveSheet('mapNavigation')} />
-          <SettingsRow icon="cloud-download-outline" title="Offline Maps" onPress={() => setActiveSheet('offlineMaps')} />
+          <SettingsRow icon="cloud-download-outline" title="Offline Maps" subtitle="Online only · downloads unavailable" onPress={() => setActiveSheet('offlineMaps')} />
           <SettingsRow icon="apps-outline" title="Units & Preferences" last onPress={() => setActiveSheet('unitsPreferences')} />
         </View>
 
