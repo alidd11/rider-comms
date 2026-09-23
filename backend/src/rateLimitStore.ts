@@ -7,6 +7,7 @@ export type RateLimitAction =
   | 'ride_join_rider'
   | 'ride_join_ip'
   | 'hazard_create'
+  | 'directions'
   | 'verification_resend'
   | 'password_reset_request';
 
@@ -25,6 +26,9 @@ export const RATE_LIMIT_POLICIES: Readonly<Record<RateLimitAction, RateLimitPoli
   ride_join_rider: { maxEvents: 5, windowMs: 60_000 },
   ride_join_ip: { maxEvents: 20, windowMs: 60_000 },
   hazard_create: { maxEvents: 10, windowMs: 10 * 60_000 },
+  // Directions requests incur third-party quota/cost and can be triggered by
+  // rerouting. Keep enough headroom for normal riding while bounding abuse.
+  directions: { maxEvents: 60, windowMs: 10 * 60_000 },
   verification_resend: { maxEvents: 3, windowMs: 10 * 60_000 },
   password_reset_request: { maxEvents: 3, windowMs: 10 * 60_000 },
 };

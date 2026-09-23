@@ -5,6 +5,8 @@ import { TIER_RADIUS_MILES, validateScenicRouteInput } from '@rider-comms/shared
 import type { Difficulty, HazardType, RoadType, Rider, VehicleCategory } from '@rider-comms/shared';
 import { createLiveKitRoomAdmin, getLiveKitCredentialsFromEnv, mintVoiceToken, proximityRoomName, RIDE_VOICE_TOKEN_TTL_SECONDS, rideRoomName } from './liveKitToken.ts';
 import type { LiveKitCredentials, LiveKitRoomAdmin } from './liveKitToken.ts';
+import { DirectionsProviderError, fetchGoogleDrivingRoute } from './directionsProvider.ts';
+import type { DrivingRoute, RouteCoordinate } from './directionsProvider.ts';
 import { AuthStore } from './authStore.ts';
 import { RideStore } from './rideStore.ts';
 import type { RideMemberLocation } from './rideStore.ts';
@@ -59,6 +61,7 @@ export interface ApiServerOptions {
   liveKitRoomAdmin?: Partial<Pick<LiveKitRoomAdmin, 'revokeRideParticipant' | 'revokeProximityParticipant'>> | null;
   accountDeletionStore?: Pick<AccountDeletionStore, 'deleteRider'>;
   rateLimitStore?: Pick<RateLimitStore, 'consume'>;
+  directionsProvider?: (origin: RouteCoordinate, destination: RouteCoordinate) => Promise<DrivingRoute>;
   socialRateLimitStore?: Pick<SocialRateLimitStore, 'consume'>;
   socialActivityStore?: Pick<SocialActivityStore, 'touch' | 'getFriendActivity'>;
   socialEventStore?: Pick<SocialEventStore, 'waitForEvents'> & Partial<Pick<SocialEventStore, 'close'>>;
@@ -159,6 +162,12 @@ async function authRider(req: http.IncomingMessage, res: http.ServerResponse, au
   return riderId;
 }
 function isCoordinate(lat: unknown, lon: unknown): boolean { return typeof lat === 'number' && Number.isFinite(lat) && lat >= -90 && lat <= 90 && typeof lon === 'number' && Number.isFinite(lon) && lon >= -180 && lon <= 180; }
+function routeCoordinate(value: unknown): RouteCoordinate | null {
+  if (!value || Array.isArray(value) || typeof value !== 'object') return null;
+  const candidate = value as { lat?: unknown; lon?: unknown };
+  if (!isCoordinate(candidate.lat, candidate.lon)) return null;
+  return { lat: candidate.lat as number, lon: candidate.lon as number };
+}
 function rideBody(ride: { id: string; createdBy: string; createdAt: number; memberIds: Set<string> }) { return { rideId: ride.id, createdBy: ride.createdBy, createdAt: ride.createdAt, memberIds: [...ride.memberIds] }; }
 async function publicProfile(profileStore: ProfileStore, friendStore: FriendStore, actorId: string, targetId: string) {
   const profile = await profileStore.getOrCreate(targetId);
@@ -235,6 +244,7 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
   const socialActivityStore = options.socialActivityStore ?? new SocialActivityStore();
   const socialEventStore = options.socialEventStore ?? new SocialEventStore();
   const readinessCheck = options.readinessCheck ?? checkDatabaseReady;
+  const directionsProvider = options.directionsProvider ?? ((origin: RouteCoordinate, destination: RouteCoordinate) => fetchGoogleDrivingRoute(origin, destination));
   const revokeRideVoiceParticipants = async (rideId: string, riderIds: Iterable<string>): Promise<void> => {
     const revokeRideParticipant = liveKitRoomAdmin?.revokeRideParticipant;
     if (!revokeRideParticipant) return;
@@ -691,6 +701,25 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
         return sendJson(res, 201, await hideoutStore.create({ name: body.name.trim(), lat: body.lat as number, lon: body.lon as number, createdBy: actorId, participantIds: participants }));
       }
       if (req.method === 'DELETE' && s[0] === 'hideouts' && s[1]) { const r = await hideoutStore.delete(decodeURIComponent(s[1]), actorId); return r.ok ? sendJson(res, 200, {}) : sendJson(res, r.error === 'forbidden' ? 403 : 404, { error: r.error }); }
+      if (req.method === 'POST' && url.pathname === '/directions') {
+        const body = await readJsonBody(req);
+        const origin = routeCoordinate(body.origin);
+        const destination = routeCoordinate(body.destination);
+        if (!origin || !destination) {
+          return sendJson(res, 400, { error: 'valid origin and destination coordinates are required' });
+        }
+        if (!(await consumeRateLimit(res, rateLimitStore, rateLimitSubject('rider', actorId), 'directions'))) return;
+        try {
+          return sendJson(res, 200, await directionsProvider(origin, destination));
+        } catch (error) {
+          if (!(error instanceof DirectionsProviderError)) throw error;
+          if (error.code === 'directions_invalid_request') return sendJson(res, 400, { error: error.code });
+          if (error.code === 'directions_no_route') return sendJson(res, 404, { error: error.code });
+          if (error.code === 'directions_timeout') return sendJson(res, 504, { error: error.code });
+          if (error.code === 'directions_not_configured') return sendJson(res, 503, { error: error.code });
+          return sendJson(res, 502, { error: error.code });
+        }
+      }
       if (req.method === 'POST' && url.pathname === '/hazards') {
         if (!(await consumeRateLimit(res, rateLimitStore, rateLimitSubject('rider', actorId), 'hazard_create'))) return;
         const body = await readJsonBody(req);
