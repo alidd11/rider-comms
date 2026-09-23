@@ -642,6 +642,18 @@ const MIGRATIONS: { name: string; sql: string }[] = [
         );
     `,
   },
+  {
+    // Potholes are no longer a Rider Comms report category. Reports are
+    // short-lived, so remove any remaining legacy rows before tightening the
+    // database constraint to the six supported categories.
+    name: '0034_remove_pothole_reports',
+    sql: `
+      DELETE FROM hazard_reports WHERE type = 'hazard';
+      ALTER TABLE hazard_reports DROP CONSTRAINT IF EXISTS hazard_reports_type_check;
+      ALTER TABLE hazard_reports ADD CONSTRAINT hazard_reports_type_check
+        CHECK (type IN ('police', 'accident', 'road_closure', 'camera', 'hidden_police', 'police_checkpoint'));
+    `,
+  },
 ];
 
 /**

@@ -9,7 +9,6 @@ The shared Rider Comms hazard service currently supplies these crowdsourced repo
 - speed camera
 - police
 - accident
-- road hazard
 - road closure
 
 These are rider reports, not authoritative infrastructure records. Navigation copy must preserve that provenance (for example, **Speed camera reported**) rather than presenting a report as a guaranteed fixed camera or police location.
@@ -43,7 +42,7 @@ The 75 m accuracy check uses the operating system/browser's reported horizontal 
 
 The active maneuver remains the first visual priority. The existing **Then** row remains the second maneuver preview. When eligible reports exist, a compact **Reports ahead** strip sits below turn guidance and shows no more than two events.
 
-The nearest eligible report always keeps the first glance slot. If that nearest report is a camera or police report and a road closure, accident or road hazard is also ahead, the second slot is reserved for the nearest safety-impacting report rather than allowing two enforcement reports to hide it.
+The nearest eligible report always keeps the first glance slot. If that nearest report is a camera or police report and a road closure or accident is also ahead, the second slot is reserved for the nearest safety-impacting report rather than allowing two enforcement reports to hide it.
 
 Each event uses the same hazard icon language as the map, an explicit reported label and routed distance ahead. The corresponding hazard marker remains visible on the route so the header alert has spatial context.
 

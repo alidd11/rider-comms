@@ -8,7 +8,7 @@ const [nativeIcon, nativeSheet, nativeMap, pwa] = await Promise.all([
   readFile(new URL('../../docs/app.js', import.meta.url), 'utf8'),
 ]);
 
-const types = ['police', 'hidden_police', 'police_checkpoint', 'camera', 'accident', 'hazard', 'road_closure'];
+const types = ['police', 'hidden_police', 'police_checkpoint', 'camera', 'accident', 'road_closure'];
 for (const type of types) {
   assert.match(nativeIcon, new RegExp("case '" + type + "'"), 'native icon family missing ' + type);
   assert.match(pwa, new RegExp("case '" + type + "'"), 'PWA icon family missing ' + type);
@@ -22,3 +22,6 @@ assert.match(pwa, /hazardPinIcon\(hazard\.type\)/, 'PWA map must use compact ill
 assert.match(pwa, /const size = selected \? 32 : 26;/, 'PWA compact marker sizes must match native');
 
 console.log('Hazard icon PWA/native parity valid');
+
+assert.doesNotMatch(nativeSheet, /Pothole/, 'native report sheet must not expose the retired pothole category');
+assert.doesNotMatch(pwa, /label: 'Pothole'/, 'PWA report sheet must not expose the retired pothole category');

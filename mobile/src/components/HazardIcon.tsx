@@ -10,8 +10,6 @@ const WHITE = '#F4F7F8';
 const GREY = '#63727A';
 const GREY_DARK = '#303C43';
 const RED = '#F0646B';
-const ORANGE = '#E2A03D';
-const ORANGE_DARK = '#6A4A1D';
 
 function HazardArtwork({ type }: { type: HazardType }): React.JSX.Element {
   switch (type) {
@@ -73,14 +71,6 @@ function HazardArtwork({ type }: { type: HazardType }): React.JSX.Element {
           <Circle cx={17} cy={40} r={3} fill={DARK} />
           <Circle cx={32} cy={40} r={3} fill={DARK} />
           <Circle cx={42} cy={40} r={3} fill={DARK} />
-        </G>
-      );
-    case 'hazard':
-      return (
-        <G>
-          <Polygon points="4,23 10,15 17,14 20,8 28,12 35,10 38,17 45,20 41,28 44,34 35,36 30,42 22,39 14,42 10,35 3,33 7,28" fill={ORANGE} />
-          <Path d="M10 25c3-7 9-10 16-9 8 0 13 4 14 10-2 7-8 10-16 10-7 0-12-4-14-11Z" fill={DARK} />
-          <Path d="M12 23c4-3 8-5 13-5 6 0 10 2 13 5" fill="none" stroke={ORANGE_DARK} strokeWidth={2} strokeLinecap="round" />
         </G>
       );
     case 'road_closure':

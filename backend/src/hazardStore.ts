@@ -39,8 +39,8 @@ function rowToReport(row: HazardReportRow): HazardReport {
 }
 
 /**
- * Crowdsourced hazard/road reports (Waze-style: police, accidents, hazards,
- * closures, cameras), persisted in Postgres (see db.ts). `nearby()` uses an
+ * Crowdsourced road reports (Waze-style: police, accidents, closures and
+ * cameras), persisted in Postgres (see db.ts). `nearby()` uses an
  * indexed latitude/longitude bounding query, then verifies the exact
  * great-circle distance. It never loads the full report table.
  *

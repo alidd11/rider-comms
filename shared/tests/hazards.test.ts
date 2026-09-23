@@ -6,7 +6,7 @@ import type { HazardReport } from '../src/hazards.ts';
 function makeReport(overrides: Partial<HazardReport> = {}): HazardReport {
   return {
     id: 'r1',
-    type: 'hazard',
+    type: 'accident',
     lat: 40,
     lon: -70,
     reportedBy: 'rider-1',
@@ -26,7 +26,6 @@ describe('ttlMsForType', () => {
 
   it('gives road_closure the longest window since closures persist for hours', () => {
     expect(ttlMsForType('road_closure')).toBeGreaterThan(ttlMsForType('accident'));
-    expect(ttlMsForType('road_closure')).toBeGreaterThan(ttlMsForType('hazard'));
   });
 
   it('treats hidden_police and police_checkpoint as fast-moving, same as police/camera', () => {
@@ -34,8 +33,9 @@ describe('ttlMsForType', () => {
     expect(ttlMsForType('police_checkpoint')).toBe(ttlMsForType('police'));
   });
 
-  it('treats accident and hazard the same, mid-length', () => {
-    expect(ttlMsForType('accident')).toBe(ttlMsForType('hazard'));
+  it('keeps accident reports between fast-moving reports and closures', () => {
+    expect(ttlMsForType('accident')).toBeGreaterThan(ttlMsForType('police'));
+    expect(ttlMsForType('accident')).toBeLessThan(ttlMsForType('road_closure'));
   });
 });
 

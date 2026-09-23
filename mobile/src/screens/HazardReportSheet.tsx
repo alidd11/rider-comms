@@ -12,7 +12,6 @@ export const HAZARD_TYPE_META: Record<HazardType, { label: string; color: string
   police_checkpoint: { label: 'Police checkpoint', color: colors.accent },
   camera: { label: 'Mobile speed camera', color: colors.accent },
   accident: { label: 'Accident', color: colors.danger },
-  hazard: { label: 'Pothole', color: colors.warning },
   road_closure: { label: 'Road closure', color: colors.danger },
 };
 
@@ -22,7 +21,6 @@ const HAZARD_TYPE_ORDER: HazardType[] = [
   'police_checkpoint',
   'camera',
   'accident',
-  'hazard',
   'road_closure',
 ];
 
