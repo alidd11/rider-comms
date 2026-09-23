@@ -14,7 +14,7 @@ import type {
   SocialEventPage,
   VehicleCategory,
 } from '@rider-comms/shared';
-import type { InAppNavigationRoute, RouteCoordinate } from './directions.ts';
+import type { InAppNavigationRoute, RouteCoordinate } from './directions';
 
 export type ScenicRouteInput = Omit<ScenicRoute, 'id' | 'createdBy' | 'createdAt'>;
 export interface ScenicRouteFilters { vehicleCategory?: VehicleCategory; roadType?: RoadType; maxDifficulty?: Difficulty }
