@@ -2296,13 +2296,15 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
       locateDisplay: locate ? getComputedStyle(locate).display : null,
       muteSize: mute?.getBoundingClientRect().width ?? 0,
       overviewSize: overview?.getBoundingClientRect().width ?? 0,
-      muteRadius: mute ? parseFloat(getComputedStyle(mute).borderTopLeftRadius) : 0,
+      muteRadius: mute ? getComputedStyle(mute).borderTopLeftRadius : null,
       reportTop: report?.getBoundingClientRect().top ?? NaN,
       reportLeft: report?.getBoundingClientRect().left ?? NaN,
       reportRight: report?.getBoundingClientRect().right ?? NaN,
+      reportBottom: report?.getBoundingClientRect().bottom ?? NaN,
       muteTop: mute?.getBoundingClientRect().top ?? NaN,
       muteLeft: mute?.getBoundingClientRect().left ?? NaN,
       muteRight: mute?.getBoundingClientRect().right ?? NaN,
+      muteBottom: mute?.getBoundingClientRect().bottom ?? NaN,
       overviewTop: overview?.getBoundingClientRect().top ?? NaN,
       overviewLeft: overview?.getBoundingClientRect().left ?? NaN,
       overviewBottom: overview?.getBoundingClientRect().bottom ?? NaN,
@@ -2341,22 +2343,21 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
   expect(metrics.instructionAriaLabel).toBe('Turn sharp left onto Holloway Road / A1');
   expect(metrics.providerInstruction).toBe('Turn sharp left onto Holloway Road / A1');
   expect(metrics.endRadius).toBeGreaterThanOrEqual(20);
-  expect(metrics.dockDirection).toBe('row');
-  expectNear(metrics.dockGap, 2, 0.5);
-  expect(metrics.dockPadding).toBe(4);
-  expect(metrics.dockRadius).toBe(18);
-  expect(metrics.reportSize).toBe(48);
+  expect(metrics.dockDirection).toBe('column');
+  expectNear(metrics.dockGap, 8, 0.5);
+  expect(metrics.dockPadding).toBe(0);
+  expect(metrics.dockRadius).toBe(0);
+  expect(metrics.reportSize).toBe(54);
   expect(metrics.locateDisplay).toBe('none');
-  expect(metrics.muteSize).toBe(48);
-  expect(metrics.overviewSize).toBe(48);
-  expect(metrics.muteRadius).toBeGreaterThanOrEqual(12);
-  expect(metrics.muteRadius).toBeLessThanOrEqual(16);
-  expectNear(metrics.reportTop, metrics.muteTop, 1);
-  expectNear(metrics.muteTop, metrics.overviewTop, 1);
-  expect(metrics.reportLeft).toBeLessThan(metrics.muteLeft);
-  expect(metrics.muteLeft).toBeLessThan(metrics.overviewLeft);
-  expectNear(metrics.muteLeft - metrics.reportRight, 2, 1);
-  expectNear(metrics.overviewLeft - metrics.muteRight, 2, 1);
+  expect(metrics.muteSize).toBe(54);
+  expect(metrics.overviewSize).toBe(54);
+  expect(metrics.muteRadius).toBe('50%');
+  expectNear(metrics.reportLeft, metrics.muteLeft, 1);
+  expectNear(metrics.muteLeft, metrics.overviewLeft, 1);
+  expect(metrics.reportTop).toBeLessThan(metrics.muteTop);
+  expect(metrics.muteTop).toBeLessThan(metrics.overviewTop);
+  expectNear(metrics.muteTop - metrics.reportBottom, 8, 1);
+  expectNear(metrics.overviewTop - metrics.muteBottom, 8, 1);
   expect(metrics.overviewBottom).toBeLessThan(metrics.summaryTop);
   expectNear(metrics.summaryTop - metrics.dockBottom, 18, 2);
   expect(metrics.maneuverWidth).toBe(70);

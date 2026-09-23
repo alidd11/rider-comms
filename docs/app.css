@@ -32,8 +32,9 @@ img,svg{-webkit-user-drag:none}
 .search-screen .poi-chip-row.at-end{-webkit-mask-image:linear-gradient(to right,transparent 0,#000 14px,#000 100%);mask-image:linear-gradient(to right,transparent 0,#000 14px,#000 100%)}
 .search-screen .poi-chip-row.no-scroll{padding-right:max(16px,var(--safe-right));-webkit-mask-image:none;mask-image:none}
 .nav-mode .map-canvas{inset:0}
-.nav-mode .map-actions{bottom:calc(var(--nav-summary-height,104px) + var(--navigation-control-inset) + 18px);right:max(14px,var(--safe-right));flex-direction:row;align-items:center;gap:2px;padding:4px;border:1px solid rgb(255 255 255/.14);border-radius:18px;background:#11171b;box-shadow:0 6px 18px rgb(0 0 0/.3)}
-.nav-mode .map-actions .icon-button{width:48px;min-width:48px;height:48px;border:0;border-radius:14px;background:transparent;color:#f5f4fb;box-shadow:none}
+.nav-mode .map-actions{bottom:calc(var(--nav-summary-height,104px) + var(--navigation-control-inset) + 18px);right:max(14px,var(--safe-right));flex-direction:column;align-items:center;gap:8px}
+.nav-mode .map-actions .icon-button{width:54px;min-width:54px;height:54px;border-radius:50%;border:1px solid rgb(255 255 255/.16);color:var(--text);box-shadow:0 10px 24px rgb(0 0 0/.5),0 0 0 1px rgb(255 255 255/.04) inset}
+.nav-mode .map-actions .icon-button svg{width:24px;height:24px}
 .nav-only-control{display:none}
 .nav-mode .nav-only-control{display:grid}
 .nav-mode #locateBtn{display:none}
@@ -74,7 +75,7 @@ img,svg{-webkit-user-drag:none}
 .nav-summary-stat strong{font-size:1.25rem;font-weight:830;color:#f5f4fb;white-space:nowrap}
 .nav-summary-eta span,.nav-summary-stat>span{color:#89979e;font-size:.65rem;text-transform:uppercase;letter-spacing:.055em}
 .nav-summary-stat{border-left:1px solid rgb(255 255 255/.1);padding-left:14px}
-#app.nav-mode .screen-map .map-actions .icon-button{background:transparent;border-color:transparent;color:#f5f4fb;box-shadow:none}
+#app.nav-mode .screen-map .map-actions .icon-button{background:var(--bg-elevated);border-color:rgb(255 255 255/.16);color:var(--text);box-shadow:0 10px 24px rgb(0 0 0/.5),0 0 0 1px rgb(255 255 255/.04) inset}
 #app.nav-mode .screen-map .map-actions .icon-button.active{background:#4285f4;border-color:#4285f4;color:#fff}.map-avatar-wrap{position:relative;flex:none}.voice-mute-badge{position:absolute;right:-3px;bottom:-3px;width:20px;height:20px;min-width:0;border-radius:50%;background:var(--surface-raised);border:2px solid var(--bg);display:grid;place-items:center;padding:0}.voice-mute-badge svg{width:11px;height:11px;color:var(--text-secondary)}.voice-mute-badge.talking svg{color:var(--accent)}.voice-mute-badge.muted{background:var(--danger)}.voice-mute-badge.muted svg{color:#fff}.avatar.voice-talking{box-shadow:inset 0 0 0 1px rgb(255 255 255/.22),0 0 0 3px rgb(47 168 211/.55),0 0 14px 3px rgb(47 168 211/.5);animation:avatar-talk-pulse 1300ms ease-in-out infinite}.avatar.voice-muted{opacity:.55}@keyframes avatar-talk-pulse{0%,100%{box-shadow:inset 0 0 0 1px rgb(255 255 255/.22),0 0 0 3px rgb(47 168 211/.55),0 0 14px 3px rgb(47 168 211/.5)}50%{box-shadow:inset 0 0 0 1px rgb(255 255 255/.22),0 0 0 5px rgb(47 168 211/.35),0 0 20px 7px rgb(47 168 211/.35)}}.fallback-markers{position:absolute;inset:0;z-index:4;pointer-events:none}.rider-marker{position:absolute;width:46px;height:46px;display:grid;place-items:center;border:3px solid #0b0c1e;border-radius:50%;background:var(--marker,#4f7cff);color:#fff;box-shadow:0 6px 18px rgb(0 0 0/.52),0 0 0 3px rgb(255 255 255/.13);font-size:.76rem;font-weight:880;pointer-events:auto;transform:translate(-50%,-50%);transition:transform 150ms ease,box-shadow 150ms ease}.rider-marker:after{content:"";position:absolute;right:-2px;bottom:-1px;width:11px;height:11px;border:2px solid #0b0c1e;border-radius:50%;background:var(--success)}.rider-marker.current{width:52px;height:52px;border-color:var(--accent);box-shadow:0 8px 22px rgb(0 0 0/.56),0 0 0 4px rgb(47 168 211/.22)}.rider-marker.current:before{content:"";position:absolute;z-index:-1;inset:-12px;border-radius:50%;background:rgb(47 168 211/.2);animation:rider-pulse 2400ms ease-out infinite}.rider-marker.selected{transform:translate(-50%,-50%) scale(1.12)}.rider-marker:active{transform:translate(-50%,-50%) scale(.97)}@keyframes rider-pulse{0%{transform:scale(.55);opacity:.7}75%{opacity:0}100%{transform:scale(1.4);opacity:0}}
 .hazard-markers{position:absolute;inset:0;z-index:6;pointer-events:none}.hazard-marker{position:absolute;width:32px;height:32px;display:grid;place-items:center;padding-bottom:3px;border:2px solid #0b0c1e;border-radius:50%;background:var(--hazard,#ffc15a);color:#14152a;filter:drop-shadow(0 5px 7px rgb(0 0 0/.48));transform:translate(-50%,-100%);pointer-events:auto;transition:transform 150ms ease}.hazard-marker:after{content:"";position:absolute;left:50%;bottom:-6px;width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:8px solid #0b0c1e;transform:translateX(-50%)}.hazard-marker:before{content:"";position:absolute;left:50%;bottom:-4px;z-index:1;width:0;height:0;border-left:4.5px solid transparent;border-right:4.5px solid transparent;border-top:6px solid var(--hazard,#ffc15a);transform:translateX(-50%)}.hazard-marker:active{transform:translate(-50%,-100%) scale(.94)}.hazard-marker svg{position:relative;z-index:1;width:16px;height:16px;color:#14152a}
 .destination-pin{filter:drop-shadow(0 5px 8px rgb(0 0 0/.55))}.hazard-vote-row{display:flex;gap:8px;margin-top:8px}.hazard-vote-row .compact-button{flex:1}#destinationCard a.icon-button{display:grid;color:inherit;text-decoration:none}
@@ -383,7 +384,7 @@ img,svg{-webkit-user-drag:none}
   .fallback-map:after{background-image:linear-gradient(#36505d 1px,transparent 1px),linear-gradient(90deg,#36505d 1px,transparent 1px)}
   .road{background:#16242b;border-block-color:#21353f}.road:after{border-top-color:#4e6b77}
 }
-.nav-mode .map-actions .icon-button{background:var(--surface)}
+.nav-mode .map-actions .icon-button{background:var(--bg-elevated)}
 
 /* Production visual language: graphite canvas, restrained cyan accent,
    sharp surfaces and no decorative neon/HUD treatment. */
@@ -1448,10 +1449,9 @@ body:has(.content-screen.active) .movement-safety-banner{
     bottom:calc(var(--nav-summary-height,104px) + var(--navigation-control-inset) + 18px);
     right:max(14px,var(--safe-right));
     z-index:13;
-    flex-direction:row;
+    flex-direction:column;
     align-items:center;
-    gap:2px;
-    padding:4px;
+    gap:8px;
   }
   #app:not(.nav-mode) .screen-map .map-actions #reportHazardBtn,
   #app:not(.nav-mode) .screen-map .map-actions #locateBtn,

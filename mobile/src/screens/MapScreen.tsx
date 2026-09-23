@@ -92,11 +92,13 @@ const NAV_STEP_ARRIVAL_RADIUS_M = 30;
 const NAV_OFF_ROUTE_RADIUS_M = 60;
 const NAV_OFF_ROUTE_GRACE_MS = 10_000;
 const NAVIGATION_SUMMARY_BASE_HEIGHT = 104;
-// styles.navigationActions' own footprint: 48px buttons + 4px padding on
-// each side (see the styles below) -- kept as a named constant here
-// because the adaptive camera's bottom-occlusion estimate needs to know
-// it too (see focusNavigationCamera), not just the styles that position it.
-const NAVIGATION_ACTIONS_HEIGHT = 56;
+// styles.navigationActions' own footprint: the dock now stacks vertically,
+// so its height is the worst case of all three 54px buttons showing with
+// two 8px gaps between them (see the styles below) -- kept as a named
+// constant here because the adaptive camera's bottom-occlusion estimate
+// needs to know it too (see focusNavigationCamera), not just the styles
+// that position it.
+const NAVIGATION_ACTIONS_HEIGHT = 178;
 
 function bearingDegrees(from: { lat: number; lon: number }, to: { lat: number; lon: number }): number {
   const toRad = (value: number) => (value * Math.PI) / 180;
@@ -1227,7 +1229,7 @@ export function MapScreen(): React.JSX.Element {
               accessibilityRole="button"
               accessibilityLabel="Report on the road"
             >
-              <MaterialCommunityIcons name="alert-plus" size={22} color={colors.textPrimary} />
+              <MaterialCommunityIcons name="alert-plus" size={24} color={colors.textPrimary} />
             </Pressable>
           )}
           <Pressable
@@ -1237,7 +1239,7 @@ export function MapScreen(): React.JSX.Element {
             accessibilityState={{ selected: navigationMuted }}
             accessibilityLabel={navigationMuted ? 'Unmute navigation guidance' : 'Mute navigation guidance'}
           >
-            <Ionicons name={navigationMuted ? 'volume-mute' : 'volume-high'} size={22} color={navigationMuted ? colors.accentText : colors.textPrimary} />
+            <Ionicons name={navigationMuted ? 'volume-mute' : 'volume-high'} size={24} color={navigationMuted ? colors.accentText : colors.textPrimary} />
           </Pressable>
           <Pressable
             style={[styles.navigationActionButton, !navigationFollowing && styles.navigationActionButtonActive]}
@@ -1250,7 +1252,7 @@ export function MapScreen(): React.JSX.Element {
           >
             <Ionicons
               name={navigationFollowing ? 'map-outline' : 'navigate'}
-              size={22}
+              size={24}
               color={navigationFollowing ? colors.textPrimary : colors.accentText}
             />
           </Pressable>
@@ -1566,23 +1568,24 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: spacing.md,
     zIndex: 12,
-    flexDirection: 'row',
+    flexDirection: 'column',
     alignItems: 'center',
-    gap: 2,
-    padding: 4,
-    borderRadius: 18,
-    backgroundColor: colors.surface,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    ...elevation.raised,
+    gap: spacing.sm,
   },
   navigationActionButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    backgroundColor: colors.surfaceRaised,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'transparent',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    shadowColor: '#000',
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 8,
   },
   navigationActionButtonActive: {
     backgroundColor: colors.accent,
