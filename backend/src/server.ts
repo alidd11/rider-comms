@@ -56,7 +56,7 @@ export interface ApiServerOptions {
    * the environment; pass null explicitly (e.g. in tests) to force the
    * "voice not configured" path regardless of the real environment. */
   liveKitCredentials?: LiveKitCredentials | null;
-  liveKitRoomAdmin?: Pick<LiveKitRoomAdmin, 'revokeRideParticipant'> | null;
+  liveKitRoomAdmin?: Partial<Pick<LiveKitRoomAdmin, 'revokeRideParticipant' | 'revokeProximityParticipant'>> | null;
   accountDeletionStore?: Pick<AccountDeletionStore, 'deleteRider'>;
   rateLimitStore?: Pick<RateLimitStore, 'consume'>;
   socialRateLimitStore?: Pick<SocialRateLimitStore, 'consume'>;
@@ -236,10 +236,11 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
   const socialEventStore = options.socialEventStore ?? new SocialEventStore();
   const readinessCheck = options.readinessCheck ?? checkDatabaseReady;
   const revokeRideVoiceParticipants = async (rideId: string, riderIds: Iterable<string>): Promise<void> => {
-    if (!liveKitRoomAdmin) return;
+    const revokeRideParticipant = liveKitRoomAdmin?.revokeRideParticipant;
+    if (!revokeRideParticipant) return;
     const uniqueRiderIds = [...new Set(riderIds)];
     const results = await Promise.allSettled(
-      uniqueRiderIds.map((riderId) => liveKitRoomAdmin.revokeRideParticipant(rideId, riderId)),
+      uniqueRiderIds.map((riderId) => revokeRideParticipant(rideId, riderId)),
     );
     results.forEach((result, index) => {
       if (result.status === 'rejected') {
@@ -248,6 +249,27 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
           event: 'ride_voice_revocation_failed',
           rideId,
           riderId: uniqueRiderIds[index],
+          message: result.reason instanceof Error ? result.reason.message : String(result.reason),
+        }));
+      }
+    });
+  };
+  const revokeProximityVoiceParticipants = async (riderA: string, riderB: string): Promise<void> => {
+    const revokeProximityParticipant = liveKitRoomAdmin?.revokeProximityParticipant;
+    if (!revokeProximityParticipant) return;
+    const riderIds = [...new Set([riderA, riderB])];
+    const revokedAt = Date.now();
+    const results = await Promise.allSettled(
+      riderIds.map((riderId) => revokeProximityParticipant(riderA, riderB, riderId, revokedAt)),
+    );
+    results.forEach((result, index) => {
+      if (result.status === 'rejected') {
+        console.error(JSON.stringify({
+          level: 'error',
+          event: 'proximity_voice_revocation_failed',
+          riderA,
+          riderB,
+          riderId: riderIds[index],
           message: result.reason instanceof Error ? result.reason.message : String(result.reason),
         }));
       }
@@ -454,9 +476,16 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
         const body = await readJsonBody(req);
         if (typeof body.riderId !== 'string' || body.riderId === actorId) return sendJson(res, 400, { error: 'valid riderId is required' });
         if (!(await authStore.hasRider(body.riderId))) return sendJson(res, 404, { error: 'rider_not_found' });
-        const sharedRideIds = await rideStore.getSharedRideIds(actorId, body.riderId);
-        await moderationStore.block(actorId, body.riderId);
-        await Promise.all(sharedRideIds.map((rideId) => revokeRideVoiceParticipants(rideId, [body.riderId as string])));
+        const blockedRiderId = body.riderId;
+        const sharedRideIds = await rideStore.getSharedRideIds(actorId, blockedRiderId);
+        await moderationStore.block(actorId, blockedRiderId);
+        // Blocking immediately closes any already-authorised public pair room
+        // for both identities. Token refresh and the authorization lease still
+        // fail closed independently if provider-side revocation is unavailable.
+        await Promise.all([
+          revokeProximityVoiceParticipants(actorId, blockedRiderId),
+          ...sharedRideIds.map((rideId) => revokeRideVoiceParticipants(rideId, [blockedRiderId])),
+        ]);
         return sendJson(res, 200, {});
       }
       if (req.method === 'DELETE' && s[0] === 'blocks' && s[1] && s.length === 2) {
