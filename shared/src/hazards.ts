@@ -1,6 +1,6 @@
 /**
- * Waze-style crowdsourced hazard/road reports (police, accidents, generic
- * hazards, closures, speed cameras). Kept intentionally small and pure here
+ * Waze-style crowdsourced road reports (police, accidents, closures and
+ * speed cameras). Kept intentionally small and pure here
  * so both the backend store and any future client-side logic can reuse the
  * exact same TTL and "should this disappear" rules without drifting.
  *

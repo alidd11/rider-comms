@@ -10,8 +10,6 @@ const WHITE = '#F4F7F8';
 const GREY = '#63727A';
 const GREY_DARK = '#303C43';
 const RED = '#F0646B';
-const ORANGE = '#E2A03D';
-const ORANGE_DARK = '#6A4A1D';
 
 function HazardArtwork({ type }: { type: HazardType }): React.JSX.Element {
   switch (type) {
