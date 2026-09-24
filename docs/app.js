@@ -783,7 +783,25 @@
     const meta = HAZARD_TYPES[hazard.type];
     hideDestinationCard();
     setHazardMarkerSelection(hazard.id);
-    card.innerHTML = `<span class="hazard-card-art" aria-hidden="true">${hazardIconMarkup(hazard.type)}</span><div class="rider-card-copy"><strong>${escapeHtml(meta.label)}</strong><span>Reported ${timeAgo(hazard.createdAt)}</span><div class="hazard-vote-row"><button class="compact-button" data-vote="confirm">Still there (${hazard.confirmations})</button><button class="compact-button" data-vote="deny">Gone (${hazard.denials})</button></div></div><button class="icon-button" aria-label="Dismiss" data-dismiss-hazard>×</button>`;
+    card.innerHTML = `
+      <div class="hazard-card-head">
+        <span class="hazard-card-art" aria-hidden="true">${hazardIconMarkup(hazard.type)}</span>
+        <div class="hazard-card-copy">
+          <strong>${escapeHtml(meta.label)}</strong>
+          <span>Reported ${timeAgo(hazard.createdAt)}</span>
+        </div>
+        <button class="hazard-card-dismiss" aria-label="Dismiss road report" data-dismiss-hazard>×</button>
+      </div>
+      <div class="hazard-vote-row" aria-label="Road report status">
+        <button class="hazard-vote-button hazard-vote-confirm" data-vote="confirm" aria-label="Still there, ${hazard.confirmations} confirmations">
+          <span class="hazard-vote-label">Still there</span>
+          <span class="hazard-vote-count">${hazard.confirmations}</span>
+        </button>
+        <button class="hazard-vote-button hazard-vote-deny" data-vote="deny" aria-label="Gone, ${hazard.denials} reports">
+          <span class="hazard-vote-label">Gone</span>
+          <span class="hazard-vote-count">${hazard.denials}</span>
+        </button>
+      </div>`;
     card.hidden = false;
     $('[data-vote="confirm"]', card).addEventListener('click', () => voteHazard(hazardId, 'confirm'));
     $('[data-vote="deny"]', card).addEventListener('click', () => voteHazard(hazardId, 'deny'));

@@ -30,6 +30,7 @@ import { useSettings } from '../settings/SettingsContext';
 import { PlaceSearchBar } from './PlaceSearchBar';
 import type { PlaceResult } from '../api/places';
 import { HazardReportSheet } from './HazardReportSheet';
+import { HazardDetailCard } from '../components/HazardDetailCard';
 import { buildNavigationProviderUrl, navigationTargetFromValues, openNavigationUrl } from '../navigationLinks';
 import type { NavigationTarget } from '../navigationLinks';
 import { useMovementSafety } from '../safety/MovementSafetyContext';
@@ -622,7 +623,16 @@ export function MapScreen(): React.JSX.Element {
         onReport={handleReport}
       />
 
-      {segment === 'public' && !activeRoute && selectedDestination && (
+      {segment === 'public' && !activeRoute && selectedHazard && (
+        <HazardDetailCard
+          hazard={selectedHazard}
+          bottomInset={insets.bottom + spacing.sm}
+          onDismiss={() => setSelectedHazardId(null)}
+          onVote={handleVote}
+        />
+      )}
+
+      {segment === 'public' && !activeRoute && selectedDestination && !selectedHazard && (
         <View style={[styles.destinationCard, { bottom: insets.bottom + spacing.sm }]} accessibilityLiveRegion="polite">
           <View style={styles.destinationCardHead}>
             <View style={styles.destinationCardIcon}>
