@@ -113,9 +113,9 @@
   function hazardIconInnerSvg(type) {
     switch (type) {
       case 'police':
-        return '<path d="M7 22c2-7.5 8.5-12 17-12s15 4.5 17 12l-6 5H13Z" fill="#2FB7EB"/><path d="M11 27c4 2 22 2 26 0l-2 5c-3 3-7 4-11 4s-8-1-11-4Z" fill="#159CCF"/><path d="M24 14l4 2v4c0 3-1.7 5.4-4 6.6-2.3-1.2-4-3.6-4-6.6v-4Z" fill="#10191F"/>';
+        return '<path d="M6 20C10 13 16 9 24 9C32 9 38 13 42 20L36 24H12Z" fill="#2FB7EB"/><path d="M10 22H38L37 27H11Z" fill="#0E5F80"/><path d="M10 27C14 29 19 30 24 30C29 30 34 29 38 27L40 30C36 35 12 35 8 30Z" fill="#159CCF"/><path d="M24 11L27.5 12.6V16.5C27.5 19.3 26.2 21.3 24 22.6C21.8 21.3 20.5 19.3 20.5 16.5V12.6Z" fill="#F4F7F8" stroke="#63727A" stroke-width="0.7"/><path d="M24 13.3L26 14.2V16.2C26 17.9 25.3 19.2 24 20.1C22.7 19.2 22 17.9 22 16.2V14.2Z" fill="#159CCF"/>';
       case 'hidden_police':
-        return '<path d="M8 22c2-7 8-11 16-11s14 4 16 11l-5 5H13Z" fill="#2FB7EB"/><path d="M24 14l4 2v4c0 3-1.7 5.2-4 6.4-2.3-1.2-4-3.4-4-6.4v-4Z" fill="#10191F"/><path d="M6 31c5-5 11-8 18-8 8 0 14 3 18 8l-2 10H8Z" fill="#303C43"/><path d="M9 31c5-3 10-4 15-4 6 0 11 1 15 4l-1 4H10Z" fill="#63727A"/>';
+        return '<path d="M8 19C11 13 17 10 24 10C31 10 37 13 40 19L35 23H13Z" fill="#2FB7EB"/><path d="M12 21H36L35 26H13Z" fill="#0E5F80"/><path d="M24 11L27.5 12.6V16.5C27.5 19.3 26.2 21.3 24 22.6C21.8 21.3 20.5 19.3 20.5 16.5V12.6Z" fill="#F4F7F8" stroke="#63727A" stroke-width="0.7"/><path d="M24 13.3L26 14.2V16.2C26 17.9 25.3 19.2 24 20.1C22.7 19.2 22 17.9 22 16.2V14.2Z" fill="#159CCF"/><path d="M4 27H44V39H4Z" fill="#63727A"/><path d="M4 27H44V30H4Z" fill="#AAB5BB"/><circle cx="11" cy="34" r="1.5" fill="#10191F"/><circle cx="37" cy="34" r="1.5" fill="#10191F"/>';
       case 'police_checkpoint':
         return '<path d="M14 13c1.5-6 5-9 10-9s8.5 3 10 9l-4 4H18Z" fill="#2FB7EB"/><path d="M24 7l3.5 1.7v3.2c0 2.3-1.4 4.1-3.5 5.1-2.1-1-3.5-2.8-3.5-5.1V8.7Z" fill="#10191F"/><rect x="4" y="22" width="40" height="11" rx="2" fill="#F4F7F8"/><polygon points="4,22 11,22 18,33 11,33" fill="#F0646B"/><polygon points="20,22 27,22 34,33 27,33" fill="#F0646B"/><polygon points="36,22 43,22 44,24 44,33 43,33" fill="#F0646B"/><rect x="8" y="33" width="5" height="11" rx="1" fill="#63727A"/><rect x="35" y="33" width="5" height="11" rx="1" fill="#63727A"/>';
       case 'camera':
@@ -4738,12 +4738,62 @@
     return (toDeg(Math.atan2(y, x)) + 360) % 360;
   }
 
-  function navigationCameraProfile(input) {
-    return navigationCameraGuidance.navigationCameraProfile(input);
+  function navigationCameraProfile({
+    speedMps,
+    maneuverDistanceMeters,
+    maneuver,
+    viewportBias = 1,
+  }) {
+    const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+    const speed = Number.isFinite(speedMps) ? Math.max(0, Number(speedMps)) : 8;
+    let profile;
+
+    if (speed <= 1.5) profile = { zoom: 18.8, pitch: 52, lookAheadMeters: 90, centreAheadMeters: 42 };
+    else if (speed < 7) profile = { zoom: 18.7, pitch: 58, lookAheadMeters: 120, centreAheadMeters: 52 };
+    else if (speed < 14) profile = { zoom: 18.4, pitch: 60, lookAheadMeters: 165, centreAheadMeters: 70 };
+    else if (speed < 22) profile = { zoom: 18.0, pitch: 58, lookAheadMeters: 230, centreAheadMeters: 95 };
+    else profile = { zoom: 17.6, pitch: 54, lookAheadMeters: 310, centreAheadMeters: 125 };
+
+    const maneuverDistance = Number.isFinite(maneuverDistanceMeters)
+      ? Math.max(0, Number(maneuverDistanceMeters))
+      : Number.POSITIVE_INFINITY;
+    const complexManeuver = Boolean(maneuver && (
+      maneuver.includes('roundabout')
+      || maneuver.includes('uturn')
+      || maneuver.includes('fork')
+    ));
+
+    if (complexManeuver && maneuverDistance <= 260) {
+      profile = {
+        zoom: Math.min(profile.zoom, 18.0),
+        pitch: Math.min(profile.pitch, 50),
+        lookAheadMeters: Math.max(profile.lookAheadMeters, 220),
+        centreAheadMeters: Math.max(profile.centreAheadMeters, 80),
+      };
+    } else if (maneuverDistance <= 180) {
+      const proximity = clamp((180 - maneuverDistance) / 160, 0, 1);
+      profile = {
+        zoom: Math.min(18.9, profile.zoom + 0.35 * proximity),
+        pitch: Math.max(52, profile.pitch - 5 * proximity),
+        lookAheadMeters: Math.max(140, profile.lookAheadMeters * (1 - 0.2 * proximity)),
+        centreAheadMeters: Math.max(55, profile.centreAheadMeters * (1 - 0.08 * proximity)),
+      };
+    }
+
+    return {
+      ...profile,
+      centreAheadMeters: profile.centreAheadMeters * clamp(viewportBias, 0.9, 1.3),
+    };
   }
 
   function navigationViewportBias(viewportHeight, topOcclusion, bottomOcclusion) {
-    return navigationCameraGuidance.navigationViewportBias(viewportHeight, topOcclusion, bottomOcclusion);
+    const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+    if (!Number.isFinite(viewportHeight) || viewportHeight <= 0) return 1;
+    const top = clamp(Number.isFinite(topOcclusion) ? topOcclusion : 0, 0, viewportHeight);
+    const bottom = clamp(Number.isFinite(bottomOcclusion) ? bottomOcclusion : 0, 0, viewportHeight);
+    const occludedFraction = clamp((top + bottom) / viewportHeight, 0, 0.7);
+    const topDominance = clamp((top - bottom) / viewportHeight, -0.25, 0.25);
+    return clamp(1 + occludedFraction * 0.45 + topDominance * 0.35, 0.9, 1.3);
   }
 
   function currentNavigationViewportBias() {
@@ -4774,7 +4824,15 @@
   }
 
   function stabilizeNavigationHeading(previousHeading, candidateHeading, speedMps) {
-    return navigationCameraGuidance.stabilizeNavigationHeading(previousHeading, candidateHeading, speedMps);
+    const normalise = (value) => ((value % 360) + 360) % 360;
+    const candidate = normalise(candidateHeading);
+    if (!Number.isFinite(previousHeading)) return candidate;
+    const previous = normalise(Number(previousHeading));
+    const speed = Number.isFinite(speedMps) ? Math.max(0, Number(speedMps)) : 8;
+    if (speed <= 1.5) return previous;
+    const delta = ((candidate - previous + 540) % 360) - 180;
+    const alpha = speed < 5 ? 0.22 : speed < 12 ? 0.34 : speed < 22 ? 0.46 : 0.56;
+    return normalise(previous + delta * alpha);
   }
 
   function combineNavigationCameraPaths(...paths) {
@@ -4943,7 +5001,6 @@
   }
 
   const navigationGuidance = globalThis.RiderNavigationGuidance;
-  const navigationCameraGuidance = globalThis.RiderNavigationCamera;
   if (!navigationGuidance) throw new Error('Navigation guidance runtime is unavailable');
 
   // Keep the app-level adapters tiny: the shared browser runtime owns all
