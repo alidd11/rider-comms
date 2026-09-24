@@ -32,7 +32,7 @@ await Promise.all(required.map((file) => readFile(resolve(destination, file))));
 // since the request URL never changes. Deriving it from the actual file
 // contents instead means every real content change gets a fresh version
 // automatically; nothing to remember, nothing to get wrong.
-const [rawCss, rawJs, rawAvatarSystem, rawNavigationRoadEvents, rawNavigationGuidance, rawNavigationCamera, rawPositionInterpolation, rawMovementSafety, rawMessageState] = await Promise.all([
+const [rawCss, rawJs, rawAvatarSystem, rawNavigationRoadEvents, rawNavigationGuidance, rawNavigationCamera, rawPositionInterpolation, rawMovementSafety, rawMessageState, rawRoutesCss, rawRoutesJs] = await Promise.all([
   readFile(resolve(destination, 'app.css'), 'utf8'),
   readFile(resolve(destination, 'app.js'), 'utf8'),
   readFile(resolve(destination, 'avatar-system.js'), 'utf8'),
@@ -42,8 +42,23 @@ const [rawCss, rawJs, rawAvatarSystem, rawNavigationRoadEvents, rawNavigationGui
   readFile(resolve(destination, 'position-interpolation.js'), 'utf8'),
   readFile(resolve(destination, 'movement-safety.js'), 'utf8'),
   readFile(resolve(destination, 'message-state.js'), 'utf8'),
+  readFile(resolve(destination, 'routes.css'), 'utf8'),
+  readFile(resolve(destination, 'routes.js'), 'utf8'),
 ]);
-const version = createHash('sha256').update(rawCss).update(rawJs).update(rawAvatarSystem).update(rawNavigationRoadEvents).update(rawNavigationGuidance).update(rawNavigationCamera).update(rawPositionInterpolation).update(rawMovementSafety).update(rawMessageState).digest('hex').slice(0, 10);
+const version = createHash('sha256')
+  .update(rawCss)
+  .update(rawJs)
+  .update(rawAvatarSystem)
+  .update(rawNavigationRoadEvents)
+  .update(rawNavigationGuidance)
+  .update(rawNavigationCamera)
+  .update(rawPositionInterpolation)
+  .update(rawMovementSafety)
+  .update(rawMessageState)
+  .update(rawRoutesCss)
+  .update(rawRoutesJs)
+  .digest('hex')
+  .slice(0, 10);
 
 for (const file of ['index.html', 'sw.js']) {
   const path = resolve(destination, file);

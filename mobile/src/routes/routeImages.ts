@@ -2,6 +2,8 @@ const WIKIMEDIA_ORIGINAL_RE = /^(https:\/\/(?:upload|thumb)\.wikimedia\.org)(\/w
 const WIKIMEDIA_THUMB_RE = /^(https:\/\/(?:upload|thumb)\.wikimedia\.org)(\/wikipedia\/commons\/thumb\/)([0-9a-f]\/[^/]+\/)([^/]+)\/[^/?#]+$/i;
 
 export const ROUTE_HERO_IMAGE_WIDTH = 1600;
+export const ROUTE_CARD_IMAGE_FALLBACK_WIDTH = 640;
+export const ROUTE_CARD_IMAGE_MAX_WIDTH = 1280;
 
 function thumbnailFileName(fileName: string, width: number): string {
   return fileName.toLowerCase().endsWith('.svg')
@@ -33,6 +35,24 @@ export function routeImageUriAtWidth(uri: string, width: number): string {
   return uri;
 }
 
+
+/**
+ * Picks a route-card source that is dense enough for the physical display
+ * without requesting an unbounded image. Bundled 640px cards remain the
+ * immediate/offline fallback; supported Wikimedia sources can progressively
+ * upgrade to the DPR-aware URL returned here.
+ */
+export function routeCardImageUri(uri: string, logicalWidth: number, pixelRatio = 1): string {
+  const safeLogicalWidth = Number.isFinite(logicalWidth)
+    ? Math.max(1, logicalWidth)
+    : ROUTE_CARD_IMAGE_FALLBACK_WIDTH;
+  const safePixelRatio = Number.isFinite(pixelRatio) ? Math.max(1, pixelRatio) : 1;
+  const targetWidth = Math.min(
+    ROUTE_CARD_IMAGE_MAX_WIDTH,
+    Math.max(ROUTE_CARD_IMAGE_FALLBACK_WIDTH, Math.ceil(safeLogicalWidth * safePixelRatio)),
+  );
+  return routeImageUriAtWidth(uri, targetWidth);
+}
 
 export function routeHeroImageUri(uri: string): string {
   return routeImageUriAtWidth(uri, ROUTE_HERO_IMAGE_WIDTH);
