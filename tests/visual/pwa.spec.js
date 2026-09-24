@@ -746,7 +746,7 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
       detailRadius: detailList ? parseFloat(getComputedStyle(detailList).borderTopLeftRadius) : NaN,
       detailHeights: detailRows.map((row) => box(row)?.height ?? NaN),
       closeWidth: box(close)?.width ?? NaN,
-      closeRadius: close ? parseFloat(getComputedStyle(close).borderTopLeftRadius) : NaN,
+      closeRadius: close ? getComputedStyle(close).borderTopLeftRadius : null,
       titleWidth: box(title)?.width ?? NaN,
     };
   });
@@ -767,7 +767,7 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
   expect(friendDetailGeometry.detailRadius).toBeGreaterThanOrEqual(10);
   expect(friendDetailGeometry.detailRadius).toBeLessThanOrEqual(14);
   expect(friendDetailGeometry.closeWidth).toBe(38);
-  expect(friendDetailGeometry.closeRadius).toBeGreaterThanOrEqual(19);
+  expect(friendDetailGeometry.closeRadius).toBe('50%');
   expect(friendDetailGeometry.titleWidth).toBeLessThanOrEqual(1);
   await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-friend-detail-final.png'), fullPage: true });
   await page.locator('#friendSafetyActions').click();
@@ -2288,7 +2288,7 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
       instructionText: instruction?.textContent ?? null,
       instructionAriaLabel: instruction?.getAttribute('aria-label') ?? null,
       providerInstruction: providerInstruction?.textContent ?? null,
-      endRadius: end ? parseFloat(getComputedStyle(end).borderTopLeftRadius) : 0,
+      endRadius: end ? getComputedStyle(end).borderTopLeftRadius : null,
       dockDirection: actionsStyle.flexDirection,
       dockGap: parseFloat(actionsStyle.columnGap),
       dockPadding: parseFloat(actionsStyle.paddingTop),
@@ -2344,7 +2344,7 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
   expect(metrics.instructionText).toBe('Sharp left');
   expect(metrics.instructionAriaLabel).toBe('Turn sharp left onto Holloway Road / A1');
   expect(metrics.providerInstruction).toBe('Turn sharp left onto Holloway Road / A1');
-  expect(metrics.endRadius).toBeGreaterThanOrEqual(20);
+  expect(metrics.endRadius).toBe('50%');
   expect(metrics.dockDirection).toBe('column');
   expectNear(metrics.dockGap, 8, 0.5);
   expect(metrics.dockPadding).toBe(0);
