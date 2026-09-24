@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const [appConfigSource, mobilePackageSource, appSource, rideBarSource, proximitySource, proximityStateSource, voiceActivitySource, audioSessionSource, foregroundServiceSource, foregroundPluginSource, activeSpeakerSource, mapScreenSource, mobileClientSource, settingsScreenSource, pwaSource, serverSource] = await Promise.all([
+const [appConfigSource, mobilePackageSource, appSource, rideBarSource, proximitySource, proximityStateSource, voiceActivitySource, audioSessionSource, foregroundServiceSource, foregroundPluginSource, activeSpeakerSource, mapScreenOwnSource, presenceHookSource, mobileClientSource, settingsScreenSource, pwaSource, serverSource] = await Promise.all([
   readFile(new URL('../mobile/app.json', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/package.json', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/App.tsx', import.meta.url), 'utf8'),
@@ -14,11 +14,17 @@ const [appConfigSource, mobilePackageSource, appSource, rideBarSource, proximity
   readFile(new URL('../mobile/plugins/withAndroidVoiceForegroundService.js', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/voice/ActiveSpeakerBridge.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/screens/MapScreen.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../mobile/src/screens/usePresence.ts', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/api/client.ts', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/screens/SettingsScreen.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../docs/app.js', import.meta.url), 'utf8'),
   readFile(new URL('../backend/src/server.ts', import.meta.url), 'utf8'),
 ]);
+// MapScreen.tsx delegates Nearby Voice presence (Go Live state, the
+// presence poll, mutual exclusion with private rides) to usePresence.ts --
+// checked together since assertions below don't care which file a given
+// literal lives in.
+const mapScreenSource = mapScreenOwnSource + presenceHookSource;
 
 const appConfig = JSON.parse(appConfigSource);
 const mobilePackage = JSON.parse(mobilePackageSource);

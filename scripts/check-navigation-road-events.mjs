@@ -109,12 +109,17 @@ const staleAlerts = pwa.navigationHazardsAhead(
 );
 assert.deepEqual(staleAlerts.map((alert) => alert.hazard.id), ['active']);
 
-const [nativeSource, nativeMapSource, pwaAppSource, sharedHazardSource] = await Promise.all([
+const [nativeSource, nativeMapScreenSource, nativeNavigationSummarySource, pwaAppSource, sharedHazardSource] = await Promise.all([
   readFile(new URL('../mobile/src/navigationRoadEvents.ts', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/screens/MapScreen.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../mobile/src/screens/useNavigationSummary.ts', import.meta.url), 'utf8'),
   readFile(new URL('../docs/app.js', import.meta.url), 'utf8'),
   readFile(new URL('../shared/src/hazards.ts', import.meta.url), 'utf8'),
 ]);
+// MapScreen.tsx delegates the road-ahead-alert derivation to
+// useNavigationSummary.ts -- checked together since the assertion below
+// doesn't care which file a given literal lives in.
+const nativeMapSource = nativeMapScreenSource + nativeNavigationSummarySource;
 for (const [name, value] of [
   ['NAVIGATION_ALERT_ROUTE_CORRIDOR_METERS', 70],
   ['NAVIGATION_ALERT_LOOKAHEAD_METERS', '3_000'],
@@ -147,8 +152,13 @@ for (const phrase of ['Mobile speed camera reported', 'Police reported', 'Hidden
 }
 
 assert.match(
-  nativeMapSource,
-  /currentAccuracyMeters: currentLocationAccuracyRef\.current/,
+  nativeMapScreenSource,
+  /currentLocationAccuracyRef\.current,\s*\);/,
+  'native road-ahead alerts must pass the OS-reported GPS accuracy into useNavigationSummary',
+);
+assert.match(
+  nativeNavigationSummarySource,
+  /currentAccuracyMeters,\s*\}\)/,
   'native road-ahead alerts must consume the OS-reported GPS accuracy',
 );
 assert.match(

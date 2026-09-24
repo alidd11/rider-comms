@@ -43,6 +43,8 @@ const [
   nativeMapScreenSource,
   nativeMapMarkersSource,
   nativeHazardReportsSource,
+  nativeNavigationSummarySource,
+  nativeInAppNavigationSource,
   nativeSettingsSource,
   nativeCameraSource,
   nativeManeuverSource,
@@ -55,6 +57,8 @@ const [
   readFile(new URL('../mobile/src/screens/MapScreen.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/screens/mapMarkers.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/screens/useHazardReports.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../mobile/src/screens/useNavigationSummary.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../mobile/src/screens/useInAppNavigation.ts', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/screens/SettingsScreen.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/navigationCamera.ts', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/navigationManeuver.ts', import.meta.url), 'utf8'),
@@ -62,11 +66,13 @@ const [
   readFile(new URL('../mobile/src/navigationGuidance.ts', import.meta.url), 'utf8'),
 ]);
 // MapScreen.tsx delegates its map-marker rendering (HazardMarker,
-// SmoothSelfMarker, SmoothRideMemberMarker) to mapMarkers.tsx and its
-// hazard fetch/report/vote logic to useHazardReports.ts -- checked
-// together since parity assertions below don't care which file a given
-// literal lives in.
-const nativeMapSource = nativeMapScreenSource + nativeMapMarkersSource + nativeHazardReportsSource;
+// SmoothSelfMarker, SmoothRideMemberMarker) to mapMarkers.tsx, its hazard
+// fetch/report/vote logic to useHazardReports.ts, the active-step
+// road-ahead/summary derivations to useNavigationSummary.ts, and the
+// route request/reroute/GPS-watcher/camera logic to
+// useInAppNavigation.ts -- checked together since parity assertions below
+// don't care which file a given literal lives in.
+const nativeMapSource = nativeMapScreenSource + nativeMapMarkersSource + nativeHazardReportsSource + nativeNavigationSummarySource + nativeInAppNavigationSource;
 
 
 const SETTINGS_ROOT_LABELS = [
