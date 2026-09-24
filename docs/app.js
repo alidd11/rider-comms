@@ -4575,7 +4575,7 @@
     const action = provider === 'in_app'
       ? `<button class="destination-primary-action" data-start-in-app-navigation aria-label="Start route in Rider Comms"><svg><use href="#i-nav-arrow"/></svg><span><strong>Start route</strong><small>In Rider Comms</small></span></button>`
       : `<a class="destination-primary-action" href="${navigationHref(provider, lat, lng, label)}" target="_blank" rel="noopener noreferrer" aria-label="Start route in ${escapeHtml(providerInfo.label)}"><svg><use href="#i-nav-arrow"/></svg><span><strong>Start route</strong><small>${escapeHtml(providerCaption)}</small></span></a>`;
-    card.innerHTML = `<div class="destination-card-head"><span class="destination-card-icon" aria-hidden="true"><svg><use href="#i-location"/></svg></span><div class="rider-card-copy"><strong>${escapeHtml(label || 'Selected place')}</strong><span>${escapeHtml(secondary)}</span></div><button class="destination-card-dismiss" aria-label="Dismiss destination" data-dismiss-destination>×</button></div><div class="destination-card-actions">${action}</div>`;
+    card.innerHTML = `<div class="destination-card-head"><span class="destination-card-icon" aria-hidden="true"><svg><use href="#i-location"/></svg></span><div class="rider-card-copy"><strong>${escapeHtml(label || 'Selected place')}</strong><span>${escapeHtml(secondary)}</span></div><button class="destination-card-dismiss" aria-label="Dismiss destination" data-dismiss-destination>×</button></div><div class="destination-card-eta" data-destination-eta><svg aria-hidden="true"><use href="#i-route"/></svg><span>Calculating route…</span></div><div class="destination-card-actions">${action}</div>`;
     card.hidden = false;
     $('[data-start-in-app-navigation]', card)?.addEventListener('click', () => void startInAppNavigation(location, label));
     $('[data-dismiss-destination]', card).addEventListener('click', () => {
@@ -4583,6 +4583,44 @@
       destinationMarker?.setMap(null);
       destinationMarker = undefined;
     });
+    void updateDestinationEta(location);
+  }
+
+  // A rider picking a destination could not previously tell how far or how
+  // long the drive was until after committing to "Start route" -- fetch a
+  // quick driving-time estimate for the card itself so that decision can be
+  // made up front, same as Google/Waze/Apple Maps' own place cards. Guarded
+  // by a token since the card's destination can change (or be dismissed)
+  // while this request is still in flight.
+  let destinationEtaToken = 0;
+  async function updateDestinationEta(location) {
+    const token = ++destinationEtaToken;
+    let position;
+    try {
+      position = await currentPosition();
+    } catch {
+      if (token === destinationEtaToken) $('#destinationCard [data-destination-eta]')?.setAttribute('hidden', '');
+      return;
+    }
+    if (token !== destinationEtaToken) return;
+    if (typeof google?.maps?.DirectionsService !== 'function') {
+      $('#destinationCard [data-destination-eta]')?.setAttribute('hidden', '');
+      return;
+    }
+    const origin = { lat: position.coords.latitude, lng: position.coords.longitude };
+    const destination = { lat: location.lat(), lng: location.lng() };
+    getDirectionsService().route(
+      { origin, destination, travelMode: google.maps.TravelMode.DRIVING },
+      (result, status) => {
+        if (token !== destinationEtaToken) return;
+        const etaEl = $('#destinationCard [data-destination-eta]');
+        if (!etaEl) return;
+        const leg = status === 'OK' ? result?.routes[0]?.legs[0] : null;
+        if (!leg) { etaEl.setAttribute('hidden', ''); return; }
+        etaEl.querySelector('span').textContent = `${formatNavDistance(leg.distance.value)} · ${formatNavDuration(leg.duration.value)}`;
+        etaEl.removeAttribute('hidden');
+      }
+    );
   }
 
   function setDestinationMarker(location, label, address) {
@@ -4958,9 +4996,7 @@
   }
 
   function formatNavDuration(seconds) {
-    const minutes = Math.max(1, Math.round(seconds / 60));
-    if (minutes < 60) return `${minutes} min`;
-    return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+    return navigationGuidance.formatNavigationDuration(seconds);
   }
 
   function formatNavSpeed(speedMps) {
