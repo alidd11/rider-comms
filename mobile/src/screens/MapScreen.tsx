@@ -131,6 +131,7 @@ function HazardMarker({
       onPress={onPress}
       anchor={{ x: 0.5, y: 1 }}
       tracksViewChanges={selected}
+      zIndex={selected ? 12 : 6}
     >
       <View style={[styles.hazardMarker, { width: size, height: size }, selected && styles.hazardMarkerSelected]}>
         <HazardMarkerIcon type={hazard.type} size={size} selected={selected} />
@@ -269,6 +270,7 @@ export function MapScreen(): React.JSX.Element {
   const destinationEtaRequestId = React.useRef(0);
   const [hazards, setHazards] = React.useState<HazardReport[]>([]);
   const [selectedHazardId, setSelectedHazardId] = React.useState<string | null>(null);
+  const pendingHazardReportLocation = React.useRef<{ lat: number; lon: number } | null>(null);
   const [reportSheetOpen, setReportSheetOpen] = React.useState(false);
   const [navigationTarget, setNavigationTarget] = React.useState<NavigationTarget | null>(null);
   const [activeRoute, setActiveRoute] = React.useState<InAppNavigationRoute | null>(null);
@@ -566,14 +568,27 @@ export function MapScreen(): React.JSX.Element {
   }, [client, lockedForSafety, publicLive, riderId, setShareLocation]);
 
   async function handleReport(hazardType: HazardType) {
+    const reportLocation = pendingHazardReportLocation.current ?? currentLocation;
+    pendingHazardReportLocation.current = null;
     setReportSheetOpen(false);
-    if (!currentLocation) return;
+    if (!reportLocation) return;
     try {
-      const created = await client.createHazard(hazardType, currentLocation.lat, currentLocation.lon);
-      setHazards((current) => [...current, created]);
-    } catch {
-      // Reporting is best-effort from the rider's point of view — a failed
-      // report simply doesn't appear, no separate error UI for this yet.
+      const created = await client.createHazard(hazardType, reportLocation.lat, reportLocation.lon);
+      setHazards((current) => [created, ...current.filter((hazard) => hazard.id !== created.id)]);
+      setSelectedHazardId(created.id);
+    } catch (error) {
+      const code = error instanceof ApiError
+        && typeof error.body === 'object'
+        && error.body
+        && 'error' in (error.body as Record<string, unknown>)
+        ? String((error.body as Record<string, unknown>).error)
+        : '';
+      Alert.alert(
+        code === 'email_verification_required' ? 'Verify your email' : 'Couldn’t report hazard',
+        code === 'email_verification_required'
+          ? 'Verify your email in Settings → Account → Edit profile to report or confirm road hazards.'
+          : 'Rider Comms could not send that road report. Check your connection and try again.',
+      );
     }
   }
 
@@ -588,8 +603,19 @@ export function MapScreen(): React.JSX.Element {
             : h
         )
       );
-    } catch {
-      // Best-effort, same as handleReport above.
+    } catch (error) {
+      const code = error instanceof ApiError
+        && typeof error.body === 'object'
+        && error.body
+        && 'error' in (error.body as Record<string, unknown>)
+        ? String((error.body as Record<string, unknown>).error)
+        : '';
+      Alert.alert(
+        code === 'email_verification_required' ? 'Verify your email' : 'Couldn’t update road report',
+        code === 'email_verification_required'
+          ? 'Verify your email in Settings → Account → Edit profile to report or confirm road hazards.'
+          : 'Rider Comms could not update that road report. Check your connection and try again.',
+      );
     }
     setSelectedHazardId(null);
   }
@@ -1025,6 +1051,10 @@ export function MapScreen(): React.JSX.Element {
       Alert.alert('Location needed', 'Allow location while using Rider Comms before reporting a road hazard.');
       return;
     }
+    // Snapshot the authoritative device fix when reporting starts. Keep the
+    // incident where the rider observed it even if they move while choosing
+    // a category; do not infer or road-snap the coordinate.
+    pendingHazardReportLocation.current = { lat: location.lat, lon: location.lon };
     setReportSheetOpen(true);
   }
 
@@ -1288,7 +1318,14 @@ export function MapScreen(): React.JSX.Element {
         </View>
       )}
 
-      <HazardReportSheet visible={reportSheetOpen} onClose={() => setReportSheetOpen(false)} onReport={handleReport} />
+      <HazardReportSheet
+        visible={reportSheetOpen}
+        onClose={() => {
+          pendingHazardReportLocation.current = null;
+          setReportSheetOpen(false);
+        }}
+        onReport={handleReport}
+      />
 
       {segment === 'public' && !activeRoute && selectedDestination && (
         <View style={[styles.destinationCard, { bottom: insets.bottom + spacing.sm }]} accessibilityLiveRegion="polite">

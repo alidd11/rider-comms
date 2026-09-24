@@ -105,6 +105,31 @@ if (!pwaMapSource.includes('Offline map downloads are not available in this buil
   throw new Error('Offline Maps disclosure must match on both clients');
 }
 
+const HAZARD_EMAIL_VERIFICATION_COPY = 'Verify your email in Settings → Account → Edit profile to report or confirm road hazards.';
+if (!pwaMapSource.includes('email_verification_required: HAZARD_EMAIL_VERIFICATION_MESSAGE')
+  || !pwaMapSource.includes(HAZARD_EMAIL_VERIFICATION_COPY)) {
+  throw new Error('PWA hazard reporting must explain the verified-email requirement');
+}
+if (!nativeMapSource.includes("code === 'email_verification_required'")
+  || !nativeMapSource.includes(HAZARD_EMAIL_VERIFICATION_COPY)
+  || !nativeMapSource.includes("Couldn’t report hazard")
+  || !nativeMapSource.includes("Couldn’t update road report")) {
+  throw new Error('Native hazard reporting and voting must surface the verified-email requirement');
+}
+if (!pwaMapSource.includes('captureHazardReportPosition()')
+  || !pwaMapSource.includes('pendingHazardReportPosition')
+  || !pwaMapSource.includes('entry.marker.setZIndex(entry.id === hazardId ? 12 : 6)')
+  || !pwaMapSource.includes('nearbyHazards = [hazard, ...nearbyHazards.filter')
+  || !pwaMapSource.includes('selectHazard(hazard.id)')) {
+  throw new Error('PWA road reports must snapshot the report position and immediately select the server-created marker above the rider marker');
+}
+if (!nativeMapSource.includes('pendingHazardReportLocation.current = { lat: location.lat, lon: location.lon }')
+  || !nativeMapSource.includes('zIndex={selected ? 12 : 6}')
+  || !nativeMapSource.includes('setHazards((current) => [created, ...current.filter')
+  || !nativeMapSource.includes('setSelectedHazardId(created.id)')) {
+  throw new Error('Native road reports must snapshot the report position and immediately select the server-created marker above the rider marker');
+}
+
 if (
   !/mapTypeId:\s*['"]roadmap['"]/.test(pwaMapSource)
   || !/colorScheme:\s*['"]FOLLOW_SYSTEM['"]/.test(pwaMapSource)

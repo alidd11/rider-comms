@@ -284,6 +284,28 @@
   // above, since a report can expire or be voted away server-side at any
   // moment.
   let nearbyHazards = [];
+  let pendingHazardReportPosition = null;
+
+  function hazardReportPosition(position) {
+    const lat = Number(position?.coords?.latitude);
+    const lon = Number(position?.coords?.longitude);
+    return Number.isFinite(lat) && Number.isFinite(lon) ? { lat, lon } : null;
+  }
+
+  function captureHazardReportPosition() {
+    // Match Waze's report flow: snapshot the location when reporting starts,
+    // not after the rider has spent time choosing a category. Reuse the
+    // authoritative device fix; never infer or road-snap the incident.
+    pendingHazardReportPosition = hazardReportPosition(latestDevicePosition);
+    if (pendingHazardReportPosition) return;
+    void currentPosition()
+      .then((position) => {
+        if (!pendingHazardReportPosition && !$('#sheetBackdrop')?.hidden && $('#sheetTitle')?.textContent === 'Report on the road') {
+          pendingHazardReportPosition = hazardReportPosition(position);
+        }
+      })
+      .catch(() => {});
+  }
 
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -680,7 +702,10 @@
   function setHazardMarkerSelection(hazardId = null) {
     mapHazardMarkers.forEach((entry) => {
       entry.marker.setIcon(hazardPinIcon(entry.type, entry.id === hazardId));
-      entry.marker.setZIndex(entry.id === hazardId ? 8 : 6);
+      // The rider's own marker is z-index 10. A selected/newly-reported
+      // hazard may share that exact GPS coordinate, so keep it visible above
+      // the avatar without changing or inventing its authoritative location.
+      entry.marker.setZIndex(entry.id === hazardId ? 12 : 6);
     });
   }
 
@@ -744,6 +769,8 @@
         $('#hazardCard').hidden = true;
         renderHazardMarkers();
         showToast('That report is no longer active.');
+      } else if (code === 'email_verification_required') {
+        showToast(HAZARD_EMAIL_VERIFICATION_MESSAGE);
       } else {
         showToast('Could not record your vote. Try again.');
       }
@@ -803,7 +830,9 @@
     }
   }
 
+  const HAZARD_EMAIL_VERIFICATION_MESSAGE = 'Verify your email in Settings → Account → Edit profile to report or confirm road hazards.';
   const HAZARD_ERROR_MESSAGES = {
+    email_verification_required: HAZARD_EMAIL_VERIFICATION_MESSAGE,
     rate_limited: 'Too many reports — please wait a few minutes and try again.',
   };
 
@@ -814,19 +843,30 @@
   async function createHazard(type, chips) {
     const errorEl = $('#hazardFormError');
     if (errorEl) errorEl.hidden = true;
-    let position;
-    try {
-      position = await currentPosition();
-    } catch (error) {
-      if (errorEl) { errorEl.textContent = locationAccessMessage(error, 'report a hazard'); errorEl.hidden = false; }
+    let reportPosition = pendingHazardReportPosition;
+    if (!reportPosition) {
+      try {
+        reportPosition = hazardReportPosition(await currentPosition());
+      } catch (error) {
+        if (errorEl) { errorEl.textContent = locationAccessMessage(error, 'report a hazard'); errorEl.hidden = false; }
+        return;
+      }
+    }
+    if (!reportPosition) {
+      if (errorEl) { errorEl.textContent = 'Rider Comms could not get a valid location for that report.'; errorEl.hidden = false; }
       return;
     }
     chips?.forEach((chip) => { chip.disabled = true; });
     try {
-      const hazard = await apiFetch('POST', '/hazards', { type, lat: position.coords.latitude, lon: position.coords.longitude });
+      const hazard = await apiFetch('POST', '/hazards', { type, lat: reportPosition.lat, lon: reportPosition.lon });
+      pendingHazardReportPosition = null;
+      nearbyHazards = [hazard, ...nearbyHazards.filter((entry) => entry.id !== hazard.id)];
+      renderHazardMarkers();
       closeSheet();
+      selectHazard(hazard.id);
       showToast(`${HAZARD_TYPES[type].label} reported.`);
       await loadNearbyHazards(hazard.lat, hazard.lon);
+      if (nearbyHazards.some((entry) => entry.id === hazard.id)) selectHazard(hazard.id);
     } catch (error) {
       const code = error instanceof ApiError ? error.body?.error : undefined;
       if (errorEl) { errorEl.textContent = HAZARD_ERROR_MESSAGES[code] || 'Could not report that hazard. Try again.'; errorEl.hidden = false; }
@@ -5856,7 +5896,11 @@
     $$('[data-sheet]').forEach((button) => button.addEventListener('click', () => openSheet(button.dataset.sheet)));
     $('#completeProfilePrompt')?.addEventListener('click', () => openSheet('profile'));
     $('#editProfileBtn').addEventListener('click', () => openSheet('profile'));
-    $('#reportHazardBtn').addEventListener('click', () => openSheet('reportHazard'));
+    $('#reportHazardBtn').addEventListener('click', () => {
+      pendingHazardReportPosition = null;
+      captureHazardReportPosition();
+      openSheet('reportHazard');
+    });
     $('#closeSheet').addEventListener('click', closeSheet);
     $('#sheetBackdrop').addEventListener('click', (event) => { if (event.target === $('#sheetBackdrop')) closeSheet(); });
     document.addEventListener('keydown', (event) => {
