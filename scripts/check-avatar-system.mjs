@@ -87,7 +87,7 @@ assert.ok(pwaIndex.includes('avatar-system.js?v=1'), 'PWA must load the determin
 assert.match(pwaApp, /function riderAvatarMapIcon\([\s\S]*riderAvatarSvg\(person\.avatarId/, 'PWA map markers must use the selected deterministic avatar');
 assert.match(nativeMap, /<RiderAvatar[\s\S]*mapMarker[\s\S]*selected/, 'native self marker must use the selected RiderAvatar');
 assert.match(nativeMap, /rideLocations[\s\S]*<RiderAvatar[\s\S]*mapMarker/, 'native private ride positions must render RiderAvatar markers');
-assert.match(nativeMap, /client\.getPublicProfile\(id\)/, 'native live ride markers must resolve authoritative avatar identities');
+assert.match(nativeMap, /client\.getPublicProfiles\(ids\)/, 'native live ride markers must resolve authoritative avatar identities');
 assert.match(pwaApp, /function addMapMarker\([\s\S]*icon: riderAvatarMapIcon\(person, current, status\)/, 'PWA rider markers must use avatar map icons');
 
 assert.match(

@@ -7,6 +7,7 @@ import { createLiveKitRoomAdmin, getLiveKitCredentialsFromEnv, mintVoiceToken, p
 import type { LiveKitCredentials, LiveKitRoomAdmin } from './liveKitToken.ts';
 import { DirectionsProviderError, fetchGoogleDrivingRoute } from './directionsProvider.ts';
 import type { DrivingRoute, RouteCoordinate } from './directionsProvider.ts';
+import { DirectionsCache, wrapDirectionsProviderWithCache } from './directionsCache.ts';
 import { AuthStore } from './authStore.ts';
 import { RideStore } from './rideStore.ts';
 import type { RideMemberLocation } from './rideStore.ts';
@@ -35,6 +36,9 @@ const DIFFICULTIES = ['easy', 'moderate', 'challenging'] as const;
 
 const MAX_BODY_BYTES = 32 * 1024;
 const REQUEST_ID_PATTERN = /^[A-Za-z0-9._-]{8,128}$/;
+// Ride rosters are capped at MAX_RIDE_MEMBERS (20, see rideStore.ts); a
+// generous ceiling above that keeps this a defensive bound, not a real limit.
+const MAX_PROFILE_BATCH_SIZE = 50;
 const MAX_PRESENCE_ACCURACY_METERS = 100;
 const MAX_PRESENCE_FIX_AGE_MS = 30_000;
 const MAX_PRESENCE_FUTURE_SKEW_MS = 5_000;
@@ -62,6 +66,7 @@ export interface ApiServerOptions {
   accountDeletionStore?: Pick<AccountDeletionStore, 'deleteRider'>;
   rateLimitStore?: Pick<RateLimitStore, 'consume'>;
   directionsProvider?: (origin: RouteCoordinate, destination: RouteCoordinate) => Promise<DrivingRoute>;
+  directionsCache?: Pick<DirectionsCache, 'get' | 'set'>;
   socialRateLimitStore?: Pick<SocialRateLimitStore, 'consume'>;
   socialActivityStore?: Pick<SocialActivityStore, 'touch' | 'getFriendActivity'>;
   socialEventStore?: Pick<SocialEventStore, 'waitForEvents'> & Partial<Pick<SocialEventStore, 'close'>>;
@@ -244,7 +249,11 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
   const socialActivityStore = options.socialActivityStore ?? new SocialActivityStore();
   const socialEventStore = options.socialEventStore ?? new SocialEventStore();
   const readinessCheck = options.readinessCheck ?? checkDatabaseReady;
-  const directionsProvider = options.directionsProvider ?? ((origin: RouteCoordinate, destination: RouteCoordinate) => fetchGoogleDrivingRoute(origin, destination));
+  const directionsCache = options.directionsCache ?? new DirectionsCache();
+  const directionsProvider = wrapDirectionsProviderWithCache(
+    options.directionsProvider ?? ((origin: RouteCoordinate, destination: RouteCoordinate) => fetchGoogleDrivingRoute(origin, destination)),
+    directionsCache,
+  );
   const revokeRideVoiceParticipants = async (rideId: string, riderIds: Iterable<string>): Promise<void> => {
     const revokeRideParticipant = liveKitRoomAdmin?.revokeRideParticipant;
     if (!revokeRideParticipant) return;
@@ -517,6 +526,21 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
         if (!(await authStore.hasRider(targetId))) return sendJson(res, 404, { error: 'rider_not_found' });
         if (await moderationStore.isBlockedBetween(actorId, targetId)) return sendJson(res, 403, { error: 'blocked' });
         return sendJson(res, 200, await publicProfile(profileStore, friendStore, actorId, targetId));
+      }
+      if (req.method === 'POST' && url.pathname === '/profiles/batch') {
+        const body = await readJsonBody(req);
+        const ids = body.riderIds;
+        if (!Array.isArray(ids) || !ids.every((id) => typeof id === 'string') || ids.length === 0 || ids.length > MAX_PROFILE_BATCH_SIZE) {
+          return sendJson(res, 400, { error: `riderIds must be an array of 1 to ${MAX_PROFILE_BATCH_SIZE} strings` });
+        }
+        const uniqueIds = [...new Set(ids as string[])].filter((id) => id !== actorId);
+        const profiles: Record<string, Awaited<ReturnType<typeof publicProfile>>> = {};
+        await Promise.all(uniqueIds.map(async (targetId) => {
+          if (!(await authStore.hasRider(targetId))) return;
+          if (await moderationStore.isBlockedBetween(actorId, targetId)) return;
+          profiles[targetId] = await publicProfile(profileStore, friendStore, actorId, targetId);
+        }));
+        return sendJson(res, 200, { profiles });
       }
       if (req.method === 'GET' && url.pathname === '/rides/current') {
         const current = await rideStore.getCurrentRideForMember(actorId);
