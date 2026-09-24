@@ -36,6 +36,7 @@ const alerts = pwa.navigationHazardsAhead(
 assert.deepEqual(alerts.map((alert) => alert.hazard.id), ['near-police', 'far-camera']);
 assert.equal(pwa.NAVIGATION_ALERT_MAX_VISIBLE, 2);
 assert.equal(pwa.NAVIGATION_ALERT_MAX_LOCATION_ACCURACY_METERS, 75);
+assert.equal(pwa.NAVIGATION_ALERT_DUPLICATE_ROUTE_GAP_METERS, 80);
 assert.deepEqual(pwa.navigationHazardsAhead(
   { lat: 51.5020, lng: -0.1000 },
   route,
@@ -48,6 +49,18 @@ assert.deepEqual(pwa.navigationHazardsAhead(
   [hazard('missing-accuracy-camera', 'camera', 51.5040)],
   { currentAccuracyMeters: null },
 ), []);
+const dedupedAlerts = pwa.navigationHazardsAhead(
+  { lat: 51.5020, lng: -0.1000 },
+  route,
+  [
+    hazard('police-first', 'police', 51.5040),
+    hazard('police-duplicate', 'police', 51.5044),
+    hazard('camera-separate', 'camera', 51.5060),
+  ],
+  { currentAccuracyMeters: 10, duplicateRouteGapMeters: 80 },
+);
+assert.deepEqual(dedupedAlerts.map((alert) => alert.hazard.id), ['police-first', 'camera-separate']);
+
 const prioritisedAlerts = pwa.navigationHazardsAhead(
   { lat: 51.5010, lng: -0.1000 },
   route,
@@ -64,6 +77,8 @@ assert.equal(pwa.navigationHazardLabel('camera'), 'Mobile speed camera reported'
 assert.equal(pwa.navigationHazardLabel('police'), 'Police reported');
 assert.equal(pwa.navigationHazardLabel('hidden_police'), 'Hidden police reported');
 assert.equal(pwa.navigationHazardLabel('police_checkpoint'), 'Police checkpoint reported');
+assert.equal(pwa.navigationHazardCompactLabel('camera'), 'Mobile camera');
+assert.equal(pwa.navigationHazardCompactLabel('police_checkpoint'), 'Checkpoint');
 
 const newTypeAlerts = pwa.navigationHazardsAhead(
   { lat: 51.5020, lng: -0.1000 },
@@ -107,6 +122,7 @@ for (const [name, value] of [
   ['NAVIGATION_ALERT_CURRENT_ROUTE_TOLERANCE_METERS', 120],
   ['NAVIGATION_ALERT_MAX_VISIBLE', 2],
   ['NAVIGATION_ALERT_MAX_LOCATION_ACCURACY_METERS', 75],
+  ['NAVIGATION_ALERT_DUPLICATE_ROUTE_GAP_METERS', 80],
 ]) {
   assert.match(
     nativeSource,

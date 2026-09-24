@@ -427,6 +427,13 @@ export function MapScreen(): React.JSX.Element {
       : [],
     [activeRoute, currentLocation, hazards, navigationNotice, navigationRoadAlertPath],
   );
+  const visibleMapHazards = React.useMemo(() => {
+    if (!activeRoute) return hazards;
+    const visibleIds = new Set(navigationRoadAlerts.map((alert) => alert.hazard.id));
+    if (selectedHazardId) visibleIds.add(selectedHazardId);
+    return hazards.filter((hazard) => visibleIds.has(hazard.id));
+  }, [activeRoute, hazards, navigationRoadAlerts, selectedHazardId]);
+
   const navigationGuidanceInstruction = upcomingNavigationStep?.instruction
     ?? `Arrive at ${navigationDestination?.label ?? 'destination'}`;
   const navigationGlanceAction = navigationManeuverAction(upcomingNavigationStep?.maneuver ?? 'arrive');
@@ -959,7 +966,7 @@ export function MapScreen(): React.JSX.Element {
                 ) : null}
               </>
             )}
-            {hazards.map((hazard) => (
+            {visibleMapHazards.map((hazard) => (
               <HazardMarker
                 key={hazard.id}
                 hazard={hazard}

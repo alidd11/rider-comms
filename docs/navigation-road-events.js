@@ -7,6 +7,7 @@
   const NAVIGATION_ALERT_CURRENT_ROUTE_TOLERANCE_METERS = 120;
   const NAVIGATION_ALERT_MAX_VISIBLE = 2;
   const NAVIGATION_ALERT_MAX_LOCATION_ACCURACY_METERS = 75;
+  const NAVIGATION_ALERT_DUPLICATE_ROUTE_GAP_METERS = 80;
   const HIDE_NET_DENIAL_THRESHOLD = 3;
   const HAZARD_TYPES = new Set(['police', 'accident', 'road_closure', 'camera', 'hidden_police', 'police_checkpoint']);
   const SAFETY_IMPACTING_TYPES = new Set(['road_closure', 'accident']);
@@ -111,6 +112,18 @@
     return remaining;
   }
 
+  function dedupeNearbyAlerts(sortedAlerts, duplicateRouteGapMeters) {
+    const deduped = [];
+    for (const alert of sortedAlerts) {
+      const duplicate = deduped.some((existing) =>
+        existing.hazard.type === alert.hazard.type
+        && Math.abs(existing.distanceAheadMeters - alert.distanceAheadMeters) <= duplicateRouteGapMeters
+      );
+      if (!duplicate) deduped.push(alert);
+    }
+    return deduped;
+  }
+
   function selectVisibleAlerts(sortedAlerts, maxVisible) {
     if (sortedAlerts.length <= maxVisible) return sortedAlerts;
     const nearest = sortedAlerts[0];
@@ -148,6 +161,7 @@
     const maxVisible = Math.max(0, Math.floor(options.maxVisible ?? NAVIGATION_ALERT_MAX_VISIBLE));
     const nowMs = Number.isFinite(options.nowMs) ? Number(options.nowMs) : Date.now();
     const currentAccuracyMeters = options.currentAccuracyMeters;
+    const duplicateRouteGapMeters = Math.max(0, options.duplicateRouteGapMeters ?? NAVIGATION_ALERT_DUPLICATE_ROUTE_GAP_METERS);
     if (
       maxVisible === 0
       || typeof currentAccuracyMeters !== 'number'
@@ -191,7 +205,7 @@
           - (HAZARD_TIE_BREAK_PRIORITY[b.hazard.type] ?? 99);
       });
 
-    return selectVisibleAlerts(eligibleAlerts, maxVisible);
+    return selectVisibleAlerts(dedupeNearbyAlerts(eligibleAlerts, duplicateRouteGapMeters), maxVisible);
   }
 
   function navigationHazardLabel(type) {
@@ -206,6 +220,18 @@
     }
   }
 
+  function navigationHazardCompactLabel(type) {
+    switch (type) {
+      case 'camera': return 'Mobile camera';
+      case 'police': return 'Police';
+      case 'hidden_police': return 'Hidden police';
+      case 'police_checkpoint': return 'Checkpoint';
+      case 'accident': return 'Accident';
+      case 'road_closure': return 'Road closure';
+      default: return 'Road alert';
+    }
+  }
+
   globalThis.RiderNavigationRoadEvents = Object.freeze({
     NAVIGATION_ALERT_ROUTE_CORRIDOR_METERS,
     NAVIGATION_ALERT_LOOKAHEAD_METERS,
@@ -213,7 +239,9 @@
     NAVIGATION_ALERT_CURRENT_ROUTE_TOLERANCE_METERS,
     NAVIGATION_ALERT_MAX_VISIBLE,
     NAVIGATION_ALERT_MAX_LOCATION_ACCURACY_METERS,
+    NAVIGATION_ALERT_DUPLICATE_ROUTE_GAP_METERS,
     HIDE_NET_DENIAL_THRESHOLD,
+    navigationHazardCompactLabel,
     navigationHazardLabel,
     navigationHazardsAhead,
   });
