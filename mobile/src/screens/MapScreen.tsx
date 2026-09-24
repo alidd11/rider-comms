@@ -19,7 +19,6 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import MapView, { Marker, Polyline } from 'react-native-maps';
 import { haversineMiles } from '@rider-comms/shared';
-import type { HazardReport, HazardType } from '@rider-comms/shared';
 import type { TabParamList } from '../navigation';
 import { useAuth } from '../auth/AuthContext';
 import { colors, spacing, radii, type, elevation, MIN_TOUCH_TARGET } from '../theme';
@@ -73,9 +72,9 @@ import { NavigationRoadAhead } from '../components/NavigationRoadAhead';
 import { navigationHazardsAhead } from '../navigationRoadEvents';
 import { bearingDegrees, HazardMarker, SmoothSelfMarker, SmoothRideMemberMarker } from './mapMarkers';
 import { useRideProfiles } from './useRideProfiles';
+import { useHazardReports } from './useHazardReports';
 
 const PRESENCE_UPDATE_INTERVAL_MS = 8000; // per spec Section 8: every 5-10s
-const HAZARD_REFRESH_INTERVAL_MS = 60_000;
 const RIDE_MARKER_REFRESH_MS = 10_000;
 const RIDE_MARKER_STALE_MS = 20_000;
 const DEFAULT_REGION = {
@@ -127,10 +126,6 @@ export function MapScreen(): React.JSX.Element {
   const [selectedPlace, setSelectedPlace] = React.useState<PlaceResult | null>(null);
   const [destinationEta, setDestinationEta] = React.useState<{ distanceMeters: number; durationSeconds: number } | null>(null);
   const destinationEtaRequestId = React.useRef(0);
-  const [hazards, setHazards] = React.useState<HazardReport[]>([]);
-  const [selectedHazardId, setSelectedHazardId] = React.useState<string | null>(null);
-  const pendingHazardReportLocation = React.useRef<{ lat: number; lon: number } | null>(null);
-  const [reportSheetOpen, setReportSheetOpen] = React.useState(false);
   const [navigationTarget, setNavigationTarget] = React.useState<NavigationTarget | null>(null);
   const [activeRoute, setActiveRoute] = React.useState<InAppNavigationRoute | null>(null);
   const [navigationDestination, setNavigationDestination] = React.useState<NavigationTarget | null>(null);
@@ -325,29 +320,22 @@ export function MapScreen(): React.JSX.Element {
     };
   }, [client, publicLive, requestCurrentLocation]);
 
-  // Navigation updates GPS frequently; keep the hazard network refresh on a
-  // one-minute cadence while recomputing route-relative distance locally.
   const hasCurrentLocation = currentLocation !== null;
-  React.useEffect(() => {
-    if (!hasCurrentLocation) { setHazards([]); return; }
-    let cancelled = false;
-    async function fetchHazards() {
-      const location = currentLocationRef.current;
-      if (!location) return;
-      try {
-        const { hazards: fetched } = await client.getNearbyHazards(location.lat, location.lon);
-        if (!cancelled) setHazards(fetched);
-      } catch {
-        // Nearby hazards are a secondary layer on top of the core map.
-      }
-    }
-    void fetchHazards();
-    const interval = setInterval(() => void fetchHazards(), HAZARD_REFRESH_INTERVAL_MS);
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
-  }, [client, hasCurrentLocation]);
+  const requestCurrentLocationForHazardReport = React.useCallback(
+    () => requestCurrentLocation(true),
+    [requestCurrentLocation],
+  );
+  const {
+    hazards,
+    selectedHazardId,
+    setSelectedHazardId,
+    selectedHazard,
+    reportSheetOpen,
+    openReportSheet,
+    closeReportSheet,
+    handleReport,
+    handleVote,
+  } = useHazardReports(client, hasCurrentLocation, currentLocationRef, requestCurrentLocationForHazardReport);
 
   const handleNearbyToggle = React.useCallback(async () => {
     if (publicLive) {
@@ -392,59 +380,6 @@ export function MapScreen(): React.JSX.Element {
     }
   }, [client, lockedForSafety, publicLive, riderId, setShareLocation]);
 
-  async function handleReport(hazardType: HazardType) {
-    const reportLocation = pendingHazardReportLocation.current ?? currentLocation;
-    pendingHazardReportLocation.current = null;
-    setReportSheetOpen(false);
-    if (!reportLocation) return;
-    try {
-      const created = await client.createHazard(hazardType, reportLocation.lat, reportLocation.lon);
-      setHazards((current) => [created, ...current.filter((hazard) => hazard.id !== created.id)]);
-      setSelectedHazardId(created.id);
-    } catch (error) {
-      const code = error instanceof ApiError
-        && typeof error.body === 'object'
-        && error.body
-        && 'error' in (error.body as Record<string, unknown>)
-        ? String((error.body as Record<string, unknown>).error)
-        : '';
-      Alert.alert(
-        code === 'email_verification_required' ? 'Verify your email' : 'Couldn’t report hazard',
-        code === 'email_verification_required'
-          ? 'Verify your email in Settings → Account → Edit profile to report or confirm road hazards.'
-          : 'Rider Comms could not send that road report. Check your connection and try again.',
-      );
-    }
-  }
-
-  async function handleVote(hazardId: string, direction: 'confirm' | 'deny') {
-    try {
-      if (direction === 'confirm') await client.confirmHazard(hazardId);
-      else await client.denyHazard(hazardId);
-      setHazards((current) =>
-        current.map((h) =>
-          h.id === hazardId
-            ? { ...h, confirmations: h.confirmations + (direction === 'confirm' ? 1 : 0), denials: h.denials + (direction === 'deny' ? 1 : 0) }
-            : h
-        )
-      );
-    } catch (error) {
-      const code = error instanceof ApiError
-        && typeof error.body === 'object'
-        && error.body
-        && 'error' in (error.body as Record<string, unknown>)
-        ? String((error.body as Record<string, unknown>).error)
-        : '';
-      Alert.alert(
-        code === 'email_verification_required' ? 'Verify your email' : 'Couldn’t update road report',
-        code === 'email_verification_required'
-          ? 'Verify your email in Settings → Account → Edit profile to report or confirm road hazards.'
-          : 'Rider Comms could not update that road report. Check your connection and try again.',
-      );
-    }
-    setSelectedHazardId(null);
-  }
-
   // Reacts to the "Group Ride" tab bar shortcut (see navigation/index.tsx),
   // which navigates here with a fresh `at` nonce each press so a repeat tap
   // back to the same segment still switches even if the user had since
@@ -475,7 +410,6 @@ export function MapScreen(): React.JSX.Element {
     if (target) focusCoordinate(target);
   }, [focusCoordinate, mapReady, navigationTarget, segment, selectedPlace]);
 
-  const selectedHazard = hazards.find((h) => h.id === selectedHazardId) ?? null;
   const currentNavigationStep = activeRoute?.steps[navigationStepIndex] ?? null;
   const upcomingNavigationStep = activeRoute?.steps[navigationStepIndex + 1] ?? null;
   const followingNavigationStep = activeRoute?.steps[navigationStepIndex + 2] ?? null;
@@ -870,19 +804,6 @@ export function MapScreen(): React.JSX.Element {
     focusCoordinate(place);
   }
 
-  async function openReportSheet(): Promise<void> {
-    const location = currentLocation ?? await requestCurrentLocation(true);
-    if (!location) {
-      Alert.alert('Location needed', 'Allow location while using Rider Comms before reporting a road hazard.');
-      return;
-    }
-    // Snapshot the authoritative device fix when reporting starts. Keep the
-    // incident where the rider observed it even if they move while choosing
-    // a category; do not infer or road-snap the coordinate.
-    pendingHazardReportLocation.current = { lat: location.lat, lon: location.lon };
-    setReportSheetOpen(true);
-  }
-
   // A rider picking a destination could not previously tell how far or how
   // long the drive was until after committing to "Start route" -- fetch a
   // quick driving-time estimate for the destination card itself so that
@@ -1145,10 +1066,7 @@ export function MapScreen(): React.JSX.Element {
 
       <HazardReportSheet
         visible={reportSheetOpen}
-        onClose={() => {
-          pendingHazardReportLocation.current = null;
-          setReportSheetOpen(false);
-        }}
+        onClose={closeReportSheet}
         onReport={handleReport}
       />
 
