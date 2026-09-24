@@ -24,7 +24,7 @@ import type { TabParamList } from '../navigation';
 import { useAuth } from '../auth/AuthContext';
 import { colors, spacing, radii, type, elevation, MIN_TOUCH_TARGET } from '../theme';
 import { RideBar } from '../ride/RideBar';
-import { RIDE_LOCATION_REFRESH_MS, useRide } from '../ride/RideContext';
+import { useRide } from '../ride/RideContext';
 import { ProximityVoice } from '../voice/ProximityVoice';
 import { HostPanel } from '../ride/HostPanel';
 import { useSettings } from '../settings/SettingsContext';
@@ -32,7 +32,7 @@ import { PlaceSearchBar } from './PlaceSearchBar';
 import type { PlaceResult } from '../api/places';
 import { ApiError } from '../api/client';
 import type { PublicRiderProfile } from '../api/client';
-import { HazardReportSheet, HAZARD_TYPE_META } from './HazardReportSheet';
+import { HazardReportSheet } from './HazardReportSheet';
 import { buildNavigationProviderUrl, navigationTargetFromValues, openNavigationUrl } from '../navigationLinks';
 import type { NavigationTarget } from '../navigationLinks';
 import { useMovementSafety } from '../safety/MovementSafetyContext';
@@ -69,11 +69,10 @@ import {
 import { speakNavigationPrompt, stopNavigationPrompt } from '../audio/navigationSpeech';
 import { microphoneErrorMessage, preflightVoiceMicrophone } from '../audio/microphone';
 import { RiderAvatar } from '../components/RiderAvatar';
-import type { RiderAvatarStatus } from '../components/RiderAvatar';
 import { NavigationManeuverGlyph } from '../components/NavigationManeuverGlyph';
 import { NavigationRoadAhead } from '../components/NavigationRoadAhead';
-import { HazardMarkerIcon } from '../components/HazardIcon';
 import { navigationHazardsAhead } from '../navigationRoadEvents';
+import { bearingDegrees, HazardMarker, SmoothSelfMarker, SmoothRideMemberMarker } from './mapMarkers';
 
 const PRESENCE_UPDATE_INTERVAL_MS = 8000; // per spec Section 8: every 5-10s
 const HAZARD_REFRESH_INTERVAL_MS = 60_000;
@@ -99,146 +98,7 @@ const NAVIGATION_SUMMARY_BASE_HEIGHT = 104;
 // that position it.
 const NAVIGATION_ACTIONS_HEIGHT = 178;
 
-function bearingDegrees(from: { lat: number; lon: number }, to: { lat: number; lon: number }): number {
-  const toRad = (value: number) => (value * Math.PI) / 180;
-  const toDeg = (value: number) => (value * 180) / Math.PI;
-  const lat1 = toRad(from.lat);
-  const lat2 = toRad(to.lat);
-  const deltaLon = toRad(to.lon - from.lon);
-  const y = Math.sin(deltaLon) * Math.cos(lat2);
-  const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(deltaLon);
-  return (toDeg(Math.atan2(y, x)) + 360) % 360;
-}
-
 type Segment = 'public' | 'host';
-
-function HazardMarker({
-  hazard,
-  selected,
-  onPress,
-}: {
-  hazard: HazardReport;
-  selected: boolean;
-  onPress: () => void;
-}): React.JSX.Element {
-  const meta = HAZARD_TYPE_META[hazard.type];
-  const size = selected ? 32 : 26;
-  return (
-    <Marker
-      coordinate={{ latitude: hazard.lat, longitude: hazard.lon }}
-      title={meta.label}
-      description="Reported by a nearby rider"
-      onPress={onPress}
-      anchor={{ x: 0.5, y: 1 }}
-      tracksViewChanges={selected}
-      zIndex={selected ? 12 : 6}
-    >
-      <View style={[styles.hazardMarker, { width: size, height: size }, selected && styles.hazardMarkerSelected]}>
-        <HazardMarkerIcon type={hazard.type} size={size} selected={selected} />
-      </View>
-    </Marker>
-  );
-}
-
-/**
- * Both of the marker components below glide toward each new fix over
- * `RIDE_LOCATION_REFRESH_MS` instead of snapping straight to it -- these
- * markers only ever move on a `rideLocations` poll tick that infrequent, so
- * without this a rider at speed visibly teleports ~200-300m across the map
- * every refresh instead of appearing to move continuously, the way Google
- * Maps/Waze/Apple Maps read even though their own underlying position
- * source is just as infrequent.
- *
- * `coordinate` is intentionally set only once, from the component's own
- * initial mount value (`React.useState`'s lazy initializer runs exactly
- * once) -- react-native-maps animates position changes made through the
- * marker ref's imperative `animateMarkerToCoordinate`, but changing the
- * declarative `coordinate` prop itself still snaps instantly, which would
- * undo the glide. Remounting (a new `key` from the caller) is the only way
- * to reset a marker's start position, same as it already was before this
- * component existed.
- */
-function SmoothSelfMarker({
-  location,
-  avatarId,
-  displayName,
-  shareRideLocation,
-  status,
-}: {
-  location: { lat: number; lon: number };
-  avatarId: string;
-  displayName: string;
-  shareRideLocation: boolean;
-  status: RiderAvatarStatus;
-}): React.JSX.Element {
-  const markerRef = React.useRef<React.ElementRef<typeof Marker> | null>(null);
-  const hasMounted = React.useRef(false);
-  const [initialCoordinate] = React.useState(() => ({ latitude: location.lat, longitude: location.lon }));
-
-  React.useEffect(() => {
-    if (!hasMounted.current) {
-      hasMounted.current = true;
-      return;
-    }
-    markerRef.current?.animateMarkerToCoordinate(
-      { latitude: location.lat, longitude: location.lon },
-      RIDE_LOCATION_REFRESH_MS,
-    );
-  }, [location.lat, location.lon]);
-
-  return (
-    <Marker
-      ref={markerRef}
-      coordinate={initialCoordinate}
-      title={displayName || 'Your location'}
-      description={shareRideLocation ? 'Your live group-ride location' : 'Your location'}
-      anchor={{ x: 0.5, y: 1 }}
-      tracksViewChanges={false}
-    >
-      <RiderAvatar avatarId={avatarId} size={44} mapMarker selected status={status} />
-    </Marker>
-  );
-}
-
-function SmoothRideMemberMarker({
-  location,
-  avatarId,
-  displayName,
-  status,
-}: {
-  location: { lat: number; lon: number };
-  avatarId: string;
-  displayName: string;
-  status: RiderAvatarStatus;
-}): React.JSX.Element {
-  const markerRef = React.useRef<React.ElementRef<typeof Marker> | null>(null);
-  const hasMounted = React.useRef(false);
-  const [initialCoordinate] = React.useState(() => ({ latitude: location.lat, longitude: location.lon }));
-
-  React.useEffect(() => {
-    if (!hasMounted.current) {
-      hasMounted.current = true;
-      return;
-    }
-    markerRef.current?.animateMarkerToCoordinate(
-      { latitude: location.lat, longitude: location.lon },
-      RIDE_LOCATION_REFRESH_MS,
-    );
-  }, [location.lat, location.lon]);
-
-  return (
-    <Marker
-      ref={markerRef}
-      coordinate={initialCoordinate}
-      title={displayName}
-      description="Private ride member · live location"
-      anchor={{ x: 0.5, y: 1 }}
-      tracksViewChanges={false}
-    >
-      <RiderAvatar avatarId={avatarId} size={40} mapMarker status={status} />
-    </Marker>
-  );
-}
 
 export function MapScreen(): React.JSX.Element {
   const colorScheme = useColorScheme();
@@ -1519,14 +1379,6 @@ const styles = StyleSheet.create({
     left: spacing.md,
     right: spacing.md,
     zIndex: 9,
-  },
-  hazardMarker: { alignItems: 'center', justifyContent: 'center' },
-  hazardMarkerSelected: {
-    shadowColor: '#35D6FF',
-    shadowOpacity: 0.9,
-    shadowRadius: 9,
-    shadowOffset: { width: 0, height: 0 },
-    elevation: 7,
   },
   mapActions: {
     position: 'absolute',
