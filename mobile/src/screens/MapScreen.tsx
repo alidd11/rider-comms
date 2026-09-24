@@ -47,7 +47,6 @@ import {
   formatNavigationDistance,
   formatNavigationDuration,
   formatNavigationSpeed,
-  navigationManeuverAction,
   navigationPromptStageForDistance,
   navigationPromptText,
   navigationSpeedUnit,
@@ -68,10 +67,10 @@ import { speakNavigationPrompt, stopNavigationPrompt } from '../audio/navigation
 import { RiderAvatar } from '../components/RiderAvatar';
 import { NavigationManeuverGlyph } from '../components/NavigationManeuverGlyph';
 import { NavigationRoadAhead } from '../components/NavigationRoadAhead';
-import { navigationHazardsAhead } from '../navigationRoadEvents';
 import { bearingDegrees, HazardMarker, SmoothSelfMarker, SmoothRideMemberMarker } from './mapMarkers';
 import { useRideProfiles } from './useRideProfiles';
 import { useHazardReports } from './useHazardReports';
+import { useNavigationSummary } from './useNavigationSummary';
 import { usePresence } from './usePresence';
 
 const RIDE_MARKER_REFRESH_MS = 10_000;
@@ -320,40 +319,25 @@ export function MapScreen(): React.JSX.Element {
     if (target) focusCoordinate(target);
   }, [focusCoordinate, mapReady, navigationTarget, segment, selectedPlace]);
 
-  const currentNavigationStep = activeRoute?.steps[navigationStepIndex] ?? null;
-  const upcomingNavigationStep = activeRoute?.steps[navigationStepIndex + 1] ?? null;
-  const followingNavigationStep = activeRoute?.steps[navigationStepIndex + 2] ?? null;
-  const navigationRoadAlertPath = React.useMemo(
-    () => activeRoute
-      ? combineNavigationCameraPaths(...activeRoute.steps.slice(navigationStepIndex).map((step) => step.coordinates))
-      : [],
-    [activeRoute, navigationStepIndex],
+  const {
+    currentNavigationStep,
+    upcomingNavigationStep,
+    followingNavigationStep,
+    navigationRoadAlerts,
+    navigationGuidanceInstruction,
+    navigationGlanceAction,
+    distanceToCurrentStepEnd,
+    remainingNavigationMeters,
+    remainingNavigationSeconds,
+  } = useNavigationSummary(
+    activeRoute,
+    navigationStepIndex,
+    navigationDestination,
+    currentLocation,
+    navigationNotice,
+    hazards,
+    currentLocationAccuracyRef.current,
   );
-  const navigationRoadAlerts = React.useMemo(
-    () => activeRoute && currentLocation && !isNavigationGpsNotice(navigationNotice)
-      ? navigationHazardsAhead(currentLocation, navigationRoadAlertPath, hazards, {
-          currentAccuracyMeters: currentLocationAccuracyRef.current,
-        })
-      : [],
-    [activeRoute, currentLocation, hazards, navigationNotice, navigationRoadAlertPath],
-  );
-  const navigationGuidanceInstruction = upcomingNavigationStep?.instruction
-    ?? `Arrive at ${navigationDestination?.label ?? 'destination'}`;
-  const navigationGlanceAction = navigationManeuverAction(upcomingNavigationStep?.maneuver ?? 'arrive');
-  const distanceToCurrentStepEnd = currentNavigationStep && currentLocation
-    ? remainingDistanceOnPathMeters(currentLocation, currentNavigationStep.coordinates)
-    : currentNavigationStep?.distanceMeters ?? 0;
-  const laterNavigationSteps = activeRoute?.steps.slice(navigationStepIndex + 1) ?? [];
-  const remainingNavigationMeters = currentNavigationStep
-    ? distanceToCurrentStepEnd + laterNavigationSteps.reduce((sum, step) => sum + step.distanceMeters, 0)
-    : 0;
-  const currentStepTimeRatio = currentNavigationStep?.distanceMeters
-    ? Math.max(0, Math.min(1, distanceToCurrentStepEnd / currentNavigationStep.distanceMeters))
-    : 0;
-  const remainingNavigationSeconds = currentNavigationStep
-    ? currentNavigationStep.durationSeconds * currentStepTimeRatio
-      + laterNavigationSteps.reduce((sum, step) => sum + step.durationSeconds, 0)
-    : 0;
 
   const selectedDestination: NavigationTarget | null = navigationTarget ?? (selectedPlace
     ? { lat: selectedPlace.lat, lon: selectedPlace.lon, label: selectedPlace.name }

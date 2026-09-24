@@ -14,6 +14,7 @@ const route = [
 
 const mapScreenSource = await readFile(new URL('../src/screens/MapScreen.tsx', import.meta.url), 'utf8');
 const hazardReportsHookSource = await readFile(new URL('../src/screens/useHazardReports.ts', import.meta.url), 'utf8');
+const navigationSummaryHookSource = await readFile(new URL('../src/screens/useNavigationSummary.ts', import.meta.url), 'utf8');
 
 function hazard(
   id: string,
@@ -229,12 +230,12 @@ describe('route-ahead navigation hazard selection', () => {
 
   it('suppresses road-ahead guidance while navigation GPS is stale or unavailable', () => {
     assert.match(
-      mapScreenSource,
+      navigationSummaryHookSource,
       /activeRoute && currentLocation && !isNavigationGpsNotice\(navigationNotice\)/,
     );
     assert.match(
-      mapScreenSource,
-      /\[activeRoute, currentLocation, hazards, navigationNotice, navigationRoadAlertPath\]/,
+      navigationSummaryHookSource,
+      /\[activeRoute, currentAccuracyMeters, currentLocation, hazards, navigationNotice, navigationRoadAlertPath\]/,
     );
   });
 
