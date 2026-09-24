@@ -144,6 +144,59 @@ describe('authenticated API', () => {
     }
   });
 
+  it('caches directions responses to avoid re-billing near-identical requests', async () => {
+    let providerCalls = 0;
+    const route = {
+      coordinates: [{ lat: 51.5, lon: -0.1 }, { lat: 51.51, lon: -0.11 }],
+      steps: [{
+        instruction: 'Turn left onto A1',
+        distanceMeters: 1200,
+        durationSeconds: 300,
+        start: { lat: 51.5, lon: -0.1 },
+        end: { lat: 51.51, lon: -0.11 },
+        coordinates: [{ lat: 51.5, lon: -0.1 }, { lat: 51.51, lon: -0.11 }],
+      }],
+      distanceMeters: 1200,
+      durationSeconds: 300,
+    };
+    const cached = startTestServer({
+      directionsProvider: async () => {
+        providerCalls += 1;
+        return route;
+      },
+    });
+    await cached.ready;
+    try {
+      const first = await postJson(cached, 'route-cache-rider', '/directions', {
+        origin: { lat: 51.5, lon: -0.1 },
+        destination: { lat: 51.51, lon: -0.11 },
+      });
+      assert.equal(first.status, 200);
+      assert.equal(providerCalls, 1);
+
+      // A near-identical repeat (e.g. the ETA preview immediately followed
+      // by "Start route" from a slightly different GPS fix) must hit the
+      // cache, not the upstream provider again.
+      const second = await postJson(cached, 'route-cache-rider', '/directions', {
+        origin: { lat: 51.50001, lon: -0.10001 },
+        destination: { lat: 51.51, lon: -0.11 },
+      });
+      assert.equal(second.status, 200);
+      assert.deepEqual(await second.json(), route);
+      assert.equal(providerCalls, 1);
+
+      // A genuinely different destination must still hit the provider.
+      const third = await postJson(cached, 'route-cache-rider', '/directions', {
+        origin: { lat: 51.5, lon: -0.1 },
+        destination: { lat: 52.0, lon: -0.2 },
+      });
+      assert.equal(third.status, 200);
+      assert.equal(providerCalls, 2);
+    } finally {
+      await cached.close();
+    }
+  });
+
   it('rate-limits directions separately before provider quota is consumed', async () => {
     const actions: string[] = [];
     let providerCalls = 0;

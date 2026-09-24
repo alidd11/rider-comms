@@ -29,15 +29,12 @@ export function useRideProfiles(
     }
 
     const refresh = async () => {
-      const entries = await Promise.all(ids.map(async (id) => {
-        try {
-          return [id, await client.getPublicProfile(id)] as const;
-        } catch {
-          return null;
-        }
-      }));
-      if (cancelled) return;
-      setRideProfiles(Object.fromEntries(entries.filter((entry): entry is readonly [string, PublicRiderProfile] => entry !== null)));
+      try {
+        const profiles = await client.getPublicProfiles(ids);
+        if (!cancelled) setRideProfiles(profiles);
+      } catch {
+        // Best-effort refresh; keep whatever profiles are already shown.
+      }
     };
 
     void refresh();

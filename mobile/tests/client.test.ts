@@ -214,6 +214,29 @@ describe('RiderCommsClient social profiles and messages', () => {
     assert.equal((await client.getPublicProfile('rider/friend')).handle, '@sam');
   });
 
+  it('loads multiple public profiles in a single batch request', async () => {
+    const client = new RiderCommsClient(
+      'http://example.test',
+      fakeFetch((url, init) => {
+        assert.equal(url, 'http://example.test/profiles/batch');
+        assert.equal(init.method, 'POST');
+        assert.deepEqual(JSON.parse(init.body as string), { riderIds: ['rider-a', 'rider-b'] });
+        return {
+          status: 200,
+          body: {
+            profiles: {
+              'rider-a': { riderId: 'rider-a', displayName: 'Ali', handle: '@ali', avatarId: 'ember', instagramUsername: '', tiktokUsername: '' },
+            },
+          },
+        };
+      })
+    );
+
+    const profiles = await client.getPublicProfiles(['rider-a', 'rider-b']);
+    assert.deepEqual(Object.keys(profiles), ['rider-a']);
+    assert.equal(profiles['rider-a']?.handle, '@ali');
+  });
+
   it('sends a private message only to the requested rider', async () => {
     const client = new RiderCommsClient(
       'http://example.test',

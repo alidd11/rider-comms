@@ -103,6 +103,10 @@ export class RiderCommsClient {
   getChannelVoiceToken(): Promise<ProximityVoiceResponse> { return this.request('POST', '/voice/token', { target: 'channel' }); }
   getProfile(id: string): Promise<RiderProfile> { return this.request('GET', `/riders/${encodeURIComponent(id)}/profile`); }
   getPublicProfile(id: string): Promise<PublicRiderProfile> { return this.request('GET', `/profiles/${encodeURIComponent(id)}`); }
+  getPublicProfiles(riderIds: readonly string[]): Promise<Record<string, PublicRiderProfile>> {
+    return this.request<{ profiles: Record<string, PublicRiderProfile> }>('POST', '/profiles/batch', { riderIds })
+      .then((response) => response.profiles);
+  }
   updateProfile(id: string, update: ProfileUpdate): Promise<RiderProfile> { return this.request('PUT', `/riders/${encodeURIComponent(id)}/profile`, update); }
   sendFriendRequest(toRiderId: string): Promise<FriendRequest> { return this.request('POST', '/friends/requests', { toRiderId }); }
   getFriendRequests(id: string, options: { before?: string; limit?: number } = {}): Promise<{ incoming: FriendRequest[]; outgoing: FriendRequest[]; profiles: Record<string, FriendSummary>; nextCursor: string | null }> {
