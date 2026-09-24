@@ -4738,62 +4738,12 @@
     return (toDeg(Math.atan2(y, x)) + 360) % 360;
   }
 
-  function navigationCameraProfile({
-    speedMps,
-    maneuverDistanceMeters,
-    maneuver,
-    viewportBias = 1,
-  }) {
-    const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
-    const speed = Number.isFinite(speedMps) ? Math.max(0, Number(speedMps)) : 8;
-    let profile;
-
-    if (speed <= 1.5) profile = { zoom: 18.8, pitch: 52, lookAheadMeters: 90, centreAheadMeters: 42 };
-    else if (speed < 7) profile = { zoom: 18.7, pitch: 58, lookAheadMeters: 120, centreAheadMeters: 52 };
-    else if (speed < 14) profile = { zoom: 18.4, pitch: 60, lookAheadMeters: 165, centreAheadMeters: 70 };
-    else if (speed < 22) profile = { zoom: 18.0, pitch: 58, lookAheadMeters: 230, centreAheadMeters: 95 };
-    else profile = { zoom: 17.6, pitch: 54, lookAheadMeters: 310, centreAheadMeters: 125 };
-
-    const maneuverDistance = Number.isFinite(maneuverDistanceMeters)
-      ? Math.max(0, Number(maneuverDistanceMeters))
-      : Number.POSITIVE_INFINITY;
-    const complexManeuver = Boolean(maneuver && (
-      maneuver.includes('roundabout')
-      || maneuver.includes('uturn')
-      || maneuver.includes('fork')
-    ));
-
-    if (complexManeuver && maneuverDistance <= 260) {
-      profile = {
-        zoom: Math.min(profile.zoom, 18.0),
-        pitch: Math.min(profile.pitch, 50),
-        lookAheadMeters: Math.max(profile.lookAheadMeters, 220),
-        centreAheadMeters: Math.max(profile.centreAheadMeters, 80),
-      };
-    } else if (maneuverDistance <= 180) {
-      const proximity = clamp((180 - maneuverDistance) / 160, 0, 1);
-      profile = {
-        zoom: Math.min(18.9, profile.zoom + 0.35 * proximity),
-        pitch: Math.max(52, profile.pitch - 5 * proximity),
-        lookAheadMeters: Math.max(140, profile.lookAheadMeters * (1 - 0.2 * proximity)),
-        centreAheadMeters: Math.max(55, profile.centreAheadMeters * (1 - 0.08 * proximity)),
-      };
-    }
-
-    return {
-      ...profile,
-      centreAheadMeters: profile.centreAheadMeters * clamp(viewportBias, 0.9, 1.3),
-    };
+  function navigationCameraProfile(input) {
+    return navigationCameraGuidance.navigationCameraProfile(input);
   }
 
   function navigationViewportBias(viewportHeight, topOcclusion, bottomOcclusion) {
-    const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
-    if (!Number.isFinite(viewportHeight) || viewportHeight <= 0) return 1;
-    const top = clamp(Number.isFinite(topOcclusion) ? topOcclusion : 0, 0, viewportHeight);
-    const bottom = clamp(Number.isFinite(bottomOcclusion) ? bottomOcclusion : 0, 0, viewportHeight);
-    const occludedFraction = clamp((top + bottom) / viewportHeight, 0, 0.7);
-    const topDominance = clamp((top - bottom) / viewportHeight, -0.25, 0.25);
-    return clamp(1 + occludedFraction * 0.45 + topDominance * 0.35, 0.9, 1.3);
+    return navigationCameraGuidance.navigationViewportBias(viewportHeight, topOcclusion, bottomOcclusion);
   }
 
   function currentNavigationViewportBias() {
@@ -4824,15 +4774,7 @@
   }
 
   function stabilizeNavigationHeading(previousHeading, candidateHeading, speedMps) {
-    const normalise = (value) => ((value % 360) + 360) % 360;
-    const candidate = normalise(candidateHeading);
-    if (!Number.isFinite(previousHeading)) return candidate;
-    const previous = normalise(Number(previousHeading));
-    const speed = Number.isFinite(speedMps) ? Math.max(0, Number(speedMps)) : 8;
-    if (speed <= 1.5) return previous;
-    const delta = ((candidate - previous + 540) % 360) - 180;
-    const alpha = speed < 5 ? 0.22 : speed < 12 ? 0.34 : speed < 22 ? 0.46 : 0.56;
-    return normalise(previous + delta * alpha);
+    return navigationCameraGuidance.stabilizeNavigationHeading(previousHeading, candidateHeading, speedMps);
   }
 
   function combineNavigationCameraPaths(...paths) {
@@ -5001,6 +4943,7 @@
   }
 
   const navigationGuidance = globalThis.RiderNavigationGuidance;
+  const navigationCameraGuidance = globalThis.RiderNavigationCamera;
   if (!navigationGuidance) throw new Error('Navigation guidance runtime is unavailable');
 
   // Keep the app-level adapters tiny: the shared browser runtime owns all
