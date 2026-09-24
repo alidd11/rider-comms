@@ -25,3 +25,11 @@ console.log('Hazard icon PWA/native parity valid');
 
 assert.doesNotMatch(nativeSheet, /Pothole/, 'native report sheet must not expose the retired pothole category');
 assert.doesNotMatch(pwa, /label: 'Pothole'/, 'PWA report sheet must not expose the retired pothole category');
+
+const POLICE_CAP_REVISION = 'M6 20C10 13 16 9 24 9C32 9 38 13 42 20L36 24H12Z';
+const HIDDEN_POLICE_BARRIER = 'M4 27H44V39H4Z';
+assert.ok(nativeIcon.includes(POLICE_CAP_REVISION), 'native Police icon must use the revised peaked-cap silhouette');
+assert.ok(pwa.includes(POLICE_CAP_REVISION), 'PWA Police icon must match the revised peaked-cap silhouette');
+assert.ok(nativeIcon.includes(HIDDEN_POLICE_BARRIER), 'native Hidden police icon must show the concealment barrier');
+assert.ok(pwa.includes(HIDDEN_POLICE_BARRIER), 'PWA Hidden police icon must show the same concealment barrier');
+assert.ok(nativeIcon.includes('fill={WHITE}') && pwa.includes('fill="#F4F7F8"'), 'police artwork must retain the high-contrast shield treatment');

@@ -16,18 +16,34 @@ function HazardArtwork({ type }: { type: HazardType }): React.JSX.Element {
     case 'police':
       return (
         <G>
-          <Path d="M7 22c2-7.5 8.5-12 17-12s15 4.5 17 12l-6 5H13Z" fill={BLUE} />
-          <Path d="M11 27c4 2 22 2 26 0l-2 5c-3 3-7 4-11 4s-8-1-11-4Z" fill={BLUE_DARK} />
-          <Path d="M24 14l4 2v4c0 3-1.7 5.4-4 6.6-2.3-1.2-4-3.6-4-6.6v-4Z" fill={DARK} />
+          <Path d="M6 20C10 13 16 9 24 9C32 9 38 13 42 20L36 24H12Z" fill={BLUE} />
+          <Path d="M10 22H38L37 27H11Z" fill="#0E5F80" />
+          <Path d="M10 27C14 29 19 30 24 30C29 30 34 29 38 27L40 30C36 35 12 35 8 30Z" fill={BLUE_DARK} />
+          <Path
+            d="M24 11L27.5 12.6V16.5C27.5 19.3 26.2 21.3 24 22.6C21.8 21.3 20.5 19.3 20.5 16.5V12.6Z"
+            fill={WHITE}
+            stroke={GREY}
+            strokeWidth={0.7}
+          />
+          <Path d="M24 13.3L26 14.2V16.2C26 17.9 25.3 19.2 24 20.1C22.7 19.2 22 17.9 22 16.2V14.2Z" fill={BLUE_DARK} />
         </G>
       );
     case 'hidden_police':
       return (
         <G>
-          <Path d="M8 22c2-7 8-11 16-11s14 4 16 11l-5 5H13Z" fill={BLUE} />
-          <Path d="M24 14l4 2v4c0 3-1.7 5.2-4 6.4-2.3-1.2-4-3.4-4-6.4v-4Z" fill={DARK} />
-          <Path d="M6 31c5-5 11-8 18-8 8 0 14 3 18 8l-2 10H8Z" fill={GREY_DARK} />
-          <Path d="M9 31c5-3 10-4 15-4 6 0 11 1 15 4l-1 4H10Z" fill={GREY} />
+          <Path d="M8 19C11 13 17 10 24 10C31 10 37 13 40 19L35 23H13Z" fill={BLUE} />
+          <Path d="M12 21H36L35 26H13Z" fill="#0E5F80" />
+          <Path
+            d="M24 11L27.5 12.6V16.5C27.5 19.3 26.2 21.3 24 22.6C21.8 21.3 20.5 19.3 20.5 16.5V12.6Z"
+            fill={WHITE}
+            stroke={GREY}
+            strokeWidth={0.7}
+          />
+          <Path d="M24 13.3L26 14.2V16.2C26 17.9 25.3 19.2 24 20.1C22.7 19.2 22 17.9 22 16.2V14.2Z" fill={BLUE_DARK} />
+          <Path d="M4 27H44V39H4Z" fill={GREY} />
+          <Path d="M4 27H44V30H4Z" fill="#AAB5BB" />
+          <Circle cx={11} cy={34} r={1.5} fill={DARK} />
+          <Circle cx={37} cy={34} r={1.5} fill={DARK} />
         </G>
       );
     case 'police_checkpoint':
