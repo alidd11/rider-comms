@@ -31,7 +31,6 @@ import { useSettings } from '../settings/SettingsContext';
 import { PlaceSearchBar } from './PlaceSearchBar';
 import type { PlaceResult } from '../api/places';
 import { ApiError } from '../api/client';
-import type { PublicRiderProfile } from '../api/client';
 import { HazardReportSheet } from './HazardReportSheet';
 import { buildNavigationProviderUrl, navigationTargetFromValues, openNavigationUrl } from '../navigationLinks';
 import type { NavigationTarget } from '../navigationLinks';
@@ -73,12 +72,12 @@ import { NavigationManeuverGlyph } from '../components/NavigationManeuverGlyph';
 import { NavigationRoadAhead } from '../components/NavigationRoadAhead';
 import { navigationHazardsAhead } from '../navigationRoadEvents';
 import { bearingDegrees, HazardMarker, SmoothSelfMarker, SmoothRideMemberMarker } from './mapMarkers';
+import { useRideProfiles } from './useRideProfiles';
 
 const PRESENCE_UPDATE_INTERVAL_MS = 8000; // per spec Section 8: every 5-10s
 const HAZARD_REFRESH_INTERVAL_MS = 60_000;
 const RIDE_MARKER_REFRESH_MS = 10_000;
 const RIDE_MARKER_STALE_MS = 20_000;
-const RIDE_AVATAR_REFRESH_MS = 30_000;
 const DEFAULT_REGION = {
   latitude: 51.5074,
   longitude: -0.1278,
@@ -161,12 +160,10 @@ export function MapScreen(): React.JSX.Element {
   const navigationPromptProgress = React.useRef<{ route: InAppNavigationRoute; targetIndex: number; stage: number } | null>(null);
   const finalNavigationPrompt = React.useRef<{ route: InAppNavigationRoute; index: number } | null>(null);
   const [mapReady, setMapReady] = React.useState(false);
-  const [rideProfiles, setRideProfiles] = React.useState<Record<string, PublicRiderProfile>>({});
+  const rideProfiles = useRideProfiles(client, riderId, roster);
   const [markerNow, setMarkerNow] = React.useState(() => Date.now());
   const mapRef = React.useRef<MapView | null>(null);
   const centredOnFirstFix = React.useRef(false);
-
-  const rideRosterKey = React.useMemo(() => roster.slice().sort().join('|'), [roster]);
 
   React.useEffect(() => {
     let active = true;
@@ -181,38 +178,6 @@ export function MapScreen(): React.JSX.Element {
       subscription.remove();
     };
   }, []);
-
-  React.useEffect(() => {
-    let cancelled = false;
-    const ids = roster.filter((id) => id !== riderId);
-
-    if (!ids.length) {
-      setRideProfiles({});
-      return () => { cancelled = true; };
-    }
-
-    const refresh = async () => {
-      const entries = await Promise.all(ids.map(async (id) => {
-        try {
-          return [id, await client.getPublicProfile(id)] as const;
-        } catch {
-          return null;
-        }
-      }));
-      if (cancelled) return;
-      setRideProfiles(Object.fromEntries(entries.filter((entry): entry is readonly [string, PublicRiderProfile] => entry !== null)));
-    };
-
-    void refresh();
-    // Ride locations themselves refresh every 10 seconds. Profile identity
-    // changes are lower urgency, but still reconcile during a live ride so a
-    // newly selected avatar appears without leaving/rejoining.
-    const timer = setInterval(refresh, RIDE_AVATAR_REFRESH_MS);
-    return () => {
-      cancelled = true;
-      clearInterval(timer);
-    };
-  }, [client, riderId, rideRosterKey]);
 
   React.useEffect(() => {
     if (!rideLocations.length) return;
