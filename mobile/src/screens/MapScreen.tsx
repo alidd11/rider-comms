@@ -65,7 +65,6 @@ import {
   navigationGpsNotice,
 } from '../navigationGpsHealth';
 import { speakNavigationPrompt, stopNavigationPrompt } from '../audio/navigationSpeech';
-import { microphoneErrorMessage, preflightVoiceMicrophone } from '../audio/microphone';
 import { RiderAvatar } from '../components/RiderAvatar';
 import { NavigationManeuverGlyph } from '../components/NavigationManeuverGlyph';
 import { NavigationRoadAhead } from '../components/NavigationRoadAhead';
@@ -73,8 +72,8 @@ import { navigationHazardsAhead } from '../navigationRoadEvents';
 import { bearingDegrees, HazardMarker, SmoothSelfMarker, SmoothRideMemberMarker } from './mapMarkers';
 import { useRideProfiles } from './useRideProfiles';
 import { useHazardReports } from './useHazardReports';
+import { usePresence } from './usePresence';
 
-const PRESENCE_UPDATE_INTERVAL_MS = 8000; // per spec Section 8: every 5-10s
 const RIDE_MARKER_REFRESH_MS = 10_000;
 const RIDE_MARKER_STALE_MS = 20_000;
 const DEFAULT_REGION = {
@@ -109,10 +108,6 @@ export function MapScreen(): React.JSX.Element {
   const route = useRoute<RouteProp<TabParamList, 'Map'>>();
   const navigation = useNavigation<BottomTabNavigationProp<TabParamList, 'Map'>>();
   const [segment, setSegment] = React.useState<Segment>(route.params?.segment ?? 'public');
-  // Durable shareLocation is consent. Public Nearby itself is session-scoped
-  // so Settings or a cold start cannot silently publish location/audio.
-  const [publicLive, setPublicLive] = React.useState(false);
-  const [ridersInZone, setRidersInZone] = React.useState<string[]>([]);
   // "No location yet" (getCurrentLocation() failing — expected pre-GPS, see
   // the TODO on that stub above) is a normal, non-alarming state, not a
   // genuine error — kept separate from `error` so it renders with neutral
@@ -182,22 +177,6 @@ export function MapScreen(): React.JSX.Element {
   }, [rideLocations.length]);
 
   const ownRideLocation = rideLocations.find((location) => location.riderId === riderId);
-  // During turn-by-turn guidance the selected rider avatar must follow the
-  // device's live high-accuracy fix, not the slower ride-location round trip.
-  // Other riders still use the consented private-ride location feed below.
-  const selfMapLocation = activeRoute && currentLocation
-    ? currentLocation
-    : ownRideLocation
-      ? { lat: ownRideLocation.lat, lon: ownRideLocation.lon }
-      : currentLocation;
-  const ownRideLocationFresh = Boolean(
-    ownRideLocation && markerNow - ownRideLocation.updatedAt <= RIDE_MARKER_STALE_MS,
-  );
-  const selfMapStatus = publicLive || (shareRideLocation && ownRideLocationFresh)
-    ? 'online'
-    : ownRideLocation && !ownRideLocationFresh
-      ? 'stale'
-      : 'none';
 
   const focusCoordinate = React.useCallback((target: { lat: number; lon: number }, delta = FOCUSED_REGION_DELTA) => {
     mapRef.current?.animateToRegion({
@@ -260,65 +239,39 @@ export function MapScreen(): React.JSX.Element {
   }, [currentLocation]);
 
   React.useEffect(() => {
-    // Public Nearby and private ride voice are mutually exclusive. Durable
-    // shareLocation remains the rider's consent preference, but disabling it
-    // in Settings or entering a private ride must end the live public session.
-    if (publicLive && (!shareLocation || activeRide)) setPublicLive(false);
-  }, [activeRide, publicLive, shareLocation]);
-
-  React.useEffect(() => {
     if (!mapReady || segment !== 'public' || !currentLocation || centredOnFirstFix.current || navigationTarget || selectedPlace) return;
     centredOnFirstFix.current = true;
     focusCoordinate(currentLocation);
   }, [currentLocation, focusCoordinate, mapReady, navigationTarget, segment, selectedPlace]);
 
-  React.useEffect(() => {
-    if (!publicLive) {
-      setRidersInZone([]);
-      void client.leavePresence();
-      return;
-    }
-    let cancelled = false;
+  const { publicLive, ridersInZone, handleNearbyToggle } = usePresence(
+    client,
+    activeRide,
+    shareLocation,
+    setShareLocation,
+    lockedForSafety,
+    riderId,
+    requestCurrentLocation,
+    setLocationUnavailable,
+    setError,
+  );
 
-    async function tick() {
-      // Nearby Voice authorisation is capped at <=100 m accuracy by the
-      // backend. Ask for a high-accuracy fix while live so an otherwise valid
-      // two-rider test is not rejected just because the generic map fix used
-      // the lower-power Balanced mode.
-      const location = await requestCurrentLocation(false, Location.Accuracy.High, false);
-      if (!location || cancelled) return;
-      const { lat, lon, accuracyMeters, recordedAt } = location;
-      try {
-        const { inZoneWith } = await client.updatePresence(lat, lon, accuracyMeters, recordedAt);
-        if (!cancelled) {
-          setRidersInZone(inZoneWith);
-          setLocationUnavailable(false);
-          setError(null);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          const code = err instanceof ApiError && typeof err.body === 'object' && err.body && 'error' in (err.body as Record<string, unknown>)
-            ? String((err.body as Record<string, unknown>).error)
-            : '';
-          setLocationUnavailable(false);
-          setError(code === 'email_verification_required'
-            ? 'Verify your email before using Nearby Voice.'
-            : code === 'location_sharing_disabled'
-              ? 'Nearby location sharing is off. Tap Go live to enable it again.'
-              : err instanceof Error ? err.message : 'Could not update your zone.');
-          if (code === 'email_verification_required' || code === 'location_sharing_disabled') setPublicLive(false);
-        }
-      }
-    }
-
-    tick();
-    const interval = setInterval(tick, PRESENCE_UPDATE_INTERVAL_MS);
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-      void client.leavePresence();
-    };
-  }, [client, publicLive, requestCurrentLocation]);
+  // During turn-by-turn guidance the selected rider avatar must follow the
+  // device's live high-accuracy fix, not the slower ride-location round trip.
+  // Other riders still use the consented private-ride location feed below.
+  const selfMapLocation = activeRoute && currentLocation
+    ? currentLocation
+    : ownRideLocation
+      ? { lat: ownRideLocation.lat, lon: ownRideLocation.lon }
+      : currentLocation;
+  const ownRideLocationFresh = Boolean(
+    ownRideLocation && markerNow - ownRideLocation.updatedAt <= RIDE_MARKER_STALE_MS,
+  );
+  const selfMapStatus = publicLive || (shareRideLocation && ownRideLocationFresh)
+    ? 'online'
+    : ownRideLocation && !ownRideLocationFresh
+      ? 'stale'
+      : 'none';
 
   const hasCurrentLocation = currentLocation !== null;
   const requestCurrentLocationForHazardReport = React.useCallback(
@@ -336,49 +289,6 @@ export function MapScreen(): React.JSX.Element {
     handleReport,
     handleVote,
   } = useHazardReports(client, hasCurrentLocation, currentLocationRef, requestCurrentLocationForHazardReport);
-
-  const handleNearbyToggle = React.useCallback(async () => {
-    if (publicLive) {
-      setPublicLive(false);
-      setShareLocation(false);
-      return;
-    }
-    if (lockedForSafety) {
-      Alert.alert('Nearby Voice unavailable while moving', 'Stop safely before joining Nearby Voice. You can always leave or mute an active voice session while riding.');
-      return;
-    }
-    try {
-      const identity = await client.getMe();
-      if (!identity.emailVerified) {
-        Alert.alert('Verify your email', 'Verify your Rider Comms email before joining Nearby Voice.');
-        return;
-      }
-    } catch {
-      Alert.alert('Nearby Voice unavailable', 'Rider Comms could not confirm your account status. Check your connection and try again.');
-      return;
-    }
-    try {
-      await preflightVoiceMicrophone();
-    } catch (microphoneError) {
-      Alert.alert('Microphone unavailable', microphoneErrorMessage(microphoneError));
-      return;
-    }
-
-    try {
-      // The presence endpoint refuses a fix until the durable profile says
-      // shareLocation=true. Confirm that backend write BEFORE flipping the
-      // local setting; otherwise the presence effect can race the queued
-      // SettingsContext save and fail the first Go Live with a 403.
-      await client.updateProfile(riderId, { shareLocation: true });
-      setShareLocation(true);
-      setPublicLive(true);
-    } catch {
-      Alert.alert(
-        'Nearby Voice unavailable',
-        'Rider Comms could not enable Nearby Voice on the server. Check your connection and try again.',
-      );
-    }
-  }, [client, lockedForSafety, publicLive, riderId, setShareLocation]);
 
   // Reacts to the "Group Ride" tab bar shortcut (see navigation/index.tsx),
   // which navigates here with a fresh `at` nonce each press so a repeat tap
