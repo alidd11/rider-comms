@@ -22,9 +22,17 @@ import { colors, spacing, radii, type, elevation, MIN_TOUCH_TARGET } from '../th
 import { GOOGLE_PLACES_API_KEY } from '../config';
 import { distanceBetweenMeters, formatPlaceDistance, isSearchQueryValid, PLACE_SEARCH_DEBOUNCE_MS, searchNearbyPlaces, searchPlaces } from '../api/places';
 import type { PlaceResult, PlaceSearchFailure } from '../api/places';
+import { nearbySearchCacheKey, PlacesCache, textSearchCacheKey, wrapPlacesSearchWithCache } from '../api/placesCache';
 import { useAuth } from '../auth/AuthContext';
 import { addRecentPlace, parseRecentPlaces, recentPlacesStorageKey } from '../search/recentPlaces';
 import { useSettings } from '../settings/SettingsContext';
+
+// Module-level so the cache survives across searches within a session
+// (retyping, re-toggling a category chip) without persisting between app
+// launches.
+const placesCache = new PlacesCache();
+const cachedSearchPlaces = wrapPlacesSearchWithCache(searchPlaces, placesCache, textSearchCacheKey);
+const cachedSearchNearbyPlaces = wrapPlacesSearchWithCache(searchNearbyPlaces, placesCache, nearbySearchCacheKey);
 
 const CATEGORIES = [
   { label: 'Petrol', types: ['gas_station'], icon: 'gas-station-outline' },
@@ -105,8 +113,8 @@ export function PlaceSearchBar({
     debounceRef.current = setTimeout(() => {
       const category = CATEGORIES.find((item) => item.label === activeCategory);
       const request = category
-        ? searchNearbyPlaces({ includedTypes: category.types }, near, GOOGLE_PLACES_API_KEY)
-        : searchPlaces(query, near, GOOGLE_PLACES_API_KEY);
+        ? cachedSearchNearbyPlaces({ includedTypes: category.types }, near, GOOGLE_PLACES_API_KEY)
+        : cachedSearchPlaces(query, near, GOOGLE_PLACES_API_KEY);
       request
         .then((result) => {
           if (requestId !== requestRef.current) return;
