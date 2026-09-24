@@ -129,17 +129,40 @@
     }
   }
 
+  function hazardMapGlyphInnerSvg(type) {
+    switch (type) {
+      case 'police':
+        return '<path d="M7 22C11 14 17 11 24 11C31 11 37 14 41 22L35 27H13Z" fill="#2FB7EB"/><rect x="10" y="25" width="28" height="5" rx="2.5" fill="#159CCF"/><path d="M24 13L28 15V19C28 22 26.4 24.4 24 25.8C21.6 24.4 20 22 20 19V15Z" fill="#F4F7F8"/>';
+      case 'hidden_police':
+        return '<path d="M8 20C12 14 18 11 24 11C30 11 36 14 40 20L35 25H13Z" fill="#2FB7EB"/><path d="M24 13L27.5 14.6V18.2C27.5 21 26.1 23 24 24.3C21.9 23 20.5 21 20.5 18.2V14.6Z" fill="#F4F7F8"/><rect x="6" y="26" width="36" height="11" rx="2.5" fill="#63727A"/><rect x="6" y="26" width="36" height="3" rx="1.5" fill="#AAB5BB"/>';
+      case 'police_checkpoint':
+        return '<path d="M19 11C20 7 22 5 24 5C26 5 28 7 29 11L27 14H21Z" fill="#2FB7EB"/><rect x="5" y="20" width="38" height="10" rx="2" fill="#F4F7F8"/><polygon points="5,20 12,20 18,30 11,30" fill="#F0646B"/><polygon points="21,20 28,20 34,30 27,30" fill="#F0646B"/><polygon points="37,20 43,20 43,29 42,30" fill="#F0646B"/><rect x="9" y="30" width="4" height="10" rx="1" fill="#63727A"/><rect x="35" y="30" width="4" height="10" rx="1" fill="#63727A"/>';
+      case 'camera':
+        return '<rect x="9" y="18" width="27" height="19" rx="4" fill="#F4F7F8"/><rect x="13" y="13" width="13" height="10" rx="2.5" fill="#2FB7EB"/><circle cx="19.5" cy="18" r="3" fill="#071015"/><rect x="13" y="23" width="12" height="7" rx="1.5" fill="#73848D"/><circle cx="15" cy="37" r="3.5" fill="#10191F"/><circle cx="31" cy="37" r="3.5" fill="#10191F"/><path d="M30 12C34 13 37 16 38 20" fill="none" stroke="#2FB7EB" stroke-width="3.2" stroke-linecap="round"/><path d="M32 7C39 9 43 13 45 20" fill="none" stroke="#2FB7EB" stroke-width="3.2" stroke-linecap="round"/>';
+      case 'accident':
+        return '<polygon points="24,5 28,13 35,8 34,16 43,15 37,22 44,25 35,29 38,37 29,32 24,41 19,32 10,37 13,29 4,25 11,22 5,15 14,16 13,8 20,13" fill="#F0646B"/><rect x="5" y="29" width="16" height="10" rx="3" fill="#F4F7F8"/><rect x="27" y="29" width="16" height="10" rx="3" fill="#F4F7F8"/><circle cx="9" cy="40" r="2.5" fill="#10191F"/><circle cx="18" cy="40" r="2.5" fill="#10191F"/><circle cx="30" cy="40" r="2.5" fill="#10191F"/><circle cx="39" cy="40" r="2.5" fill="#10191F"/>';
+      case 'road_closure':
+        return '<circle cx="24" cy="21" r="15" fill="#F0646B"/><circle cx="24" cy="21" r="10.5" fill="#F4F7F8"/><rect x="13" y="18.5" width="22" height="5" rx="2.5" fill="#F0646B"/>';
+      default:
+        return '';
+    }
+  }
+
+  function hazardNavigationIconMarkup(type) {
+    return '<svg class="nav-road-ahead-icon" viewBox="0 0 48 48" aria-hidden="true">' + hazardMapGlyphInnerSvg(type) + '</svg>';
+  }
+
   function hazardIconMarkup(type, className = 'hazard-art-icon') {
     return '<svg class="' + className + '" viewBox="0 0 48 48" aria-hidden="true">' + hazardIconInnerSvg(type) + '</svg>';
   }
 
   function hazardPinIcon(type, selected = false) {
-    const size = selected ? 32 : 26;
+    const size = selected ? 44 : 36;
     const border = selected ? '#35D6FF' : '#3C4E58';
     const borderWidth = selected ? 2.8 : 1.8;
     const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">'
       + '<path d="M32 2C17 2 7 12.5 7 26c0 16.5 25 36 25 36s25-19.5 25-36C57 12.5 47 2 32 2Z" fill="#0D171C" stroke="' + border + '" stroke-width="' + borderWidth + '"/>'
-      + '<g transform="translate(15 7) scale(0.7)">' + hazardIconInnerSvg(type) + '</g></svg>';
+      + '<g transform="translate(10 8) scale(0.92)">' + hazardMapGlyphInnerSvg(type) + '</g></svg>';
     return {
       url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg),
       scaledSize: new google.maps.Size(size, size),
@@ -147,6 +170,7 @@
     };
   }
   const {
+    navigationHazardCompactLabel,
     navigationHazardLabel,
     navigationHazardsAhead,
   } = window.RiderNavigationRoadEvents;
@@ -430,6 +454,7 @@
   let lastSelfDeviceFixAtMs;
   const mapMarkers = new Map(); // riderId -> { marker, status }
   let mapHazardMarkers = [];
+  let mapHazardMarkerSignature = '';
   // Riders' real positions only ever change in discrete jumps -- a poll
   // every RIDE_LOCATION_REFRESH_MS/PRESENCE_REFRESH_MS, or a GPS fix every
   // couple of seconds -- so every marker glides toward each new fix over an
@@ -709,10 +734,26 @@
     });
   }
 
-  function renderMapHazards() {
+  function visibleHazardsForMap() {
+    if (!navSteps.length) return nearbyHazards;
+    if (!navCurrentPosition || navGpsIssue) return [];
+    const visibleIds = new Set(navigationHazardsAhead(
+      navCurrentPosition,
+      navigationRemainingRoutePath(),
+      nearbyHazards,
+      { currentAccuracyMeters: navCurrentAccuracyMeters },
+    ).map((alert) => alert.hazard.id));
+    return nearbyHazards.filter((hazard) => visibleIds.has(hazard.id));
+  }
+
+  function renderMapHazards(force = false) {
     if (!map || usingFallbackMap) return;
+    const visibleHazards = visibleHazardsForMap();
+    const signature = visibleHazards.map((hazard) => hazard.id).join('|');
+    if (!force && signature === mapHazardMarkerSignature) return;
     mapHazardMarkers.forEach((entry) => entry.marker.setMap(null));
-    mapHazardMarkers = nearbyHazards.map((hazard) => addHazardMapMarker(hazard));
+    mapHazardMarkers = visibleHazards.map((hazard) => addHazardMapMarker(hazard));
+    mapHazardMarkerSignature = signature;
   }
 
   function renderHazardMarkers() {
@@ -5181,6 +5222,7 @@
       nearbyHazards,
       { currentAccuracyMeters: navCurrentAccuracyMeters },
     );
+    renderMapHazards();
     container.hidden = alerts.length === 0;
     if (!alerts.length) {
       container.replaceChildren();
@@ -5190,9 +5232,9 @@
     container.innerHTML = `<span class="nav-road-ahead-label">Reports ahead</span><span class="nav-road-ahead-events">${alerts.map((alert) => {
       const meta = HAZARD_TYPES[alert.hazard.type];
       const label = navigationHazardLabel(alert.hazard.type);
-      const displayLabel = label.replace(/ reported$/, '');
+      const displayLabel = navigationHazardCompactLabel(alert.hazard.type);
       const distance = formatNavDistance(alert.distanceAheadMeters);
-      return `<span class="nav-road-ahead-event" aria-label="${escapeHtml(label)}, ${escapeHtml(distance)} ahead">${hazardIconMarkup(alert.hazard.type, 'nav-road-ahead-icon')}<span>${escapeHtml(displayLabel)}</span><strong>${escapeHtml(distance)}</strong></span>`;
+      return `<span class="nav-road-ahead-event" aria-label="${escapeHtml(label)}, ${escapeHtml(distance)} ahead">${hazardNavigationIconMarkup(alert.hazard.type)}<span>${escapeHtml(displayLabel)}</span><strong>${escapeHtml(distance)}</strong></span>`;
     }).join('')}</span>`;
   }
 
@@ -5701,6 +5743,7 @@
       roadAhead.hidden = true;
       roadAhead.replaceChildren();
     }
+    renderMapHazards(true);
     map?.setHeading?.(0);
     map?.setTilt?.(0);
     setNavigationTrafficVisible(false);

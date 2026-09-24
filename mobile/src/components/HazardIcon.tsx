@@ -104,6 +104,73 @@ function HazardArtwork({ type }: { type: HazardType }): React.JSX.Element {
   }
 }
 
+function HazardMapGlyph({ type }: { type: HazardType }): React.JSX.Element {
+  switch (type) {
+    case 'police':
+      return (
+        <G>
+          <Path d="M7 22C11 14 17 11 24 11C31 11 37 14 41 22L35 27H13Z" fill={BLUE} />
+          <Rect x={10} y={25} width={28} height={5} rx={2.5} fill={BLUE_DARK} />
+          <Path d="M24 13L28 15V19C28 22 26.4 24.4 24 25.8C21.6 24.4 20 22 20 19V15Z" fill={WHITE} />
+        </G>
+      );
+    case 'hidden_police':
+      return (
+        <G>
+          <Path d="M8 20C12 14 18 11 24 11C30 11 36 14 40 20L35 25H13Z" fill={BLUE} />
+          <Path d="M24 13L27.5 14.6V18.2C27.5 21 26.1 23 24 24.3C21.9 23 20.5 21 20.5 18.2V14.6Z" fill={WHITE} />
+          <Rect x={6} y={26} width={36} height={11} rx={2.5} fill={GREY} />
+          <Rect x={6} y={26} width={36} height={3} rx={1.5} fill="#AAB5BB" />
+        </G>
+      );
+    case 'police_checkpoint':
+      return (
+        <G>
+          <Path d="M19 11C20 7 22 5 24 5C26 5 28 7 29 11L27 14H21Z" fill={BLUE} />
+          <Rect x={5} y={20} width={38} height={10} rx={2} fill={WHITE} />
+          <Polygon points="5,20 12,20 18,30 11,30" fill={RED} />
+          <Polygon points="21,20 28,20 34,30 27,30" fill={RED} />
+          <Polygon points="37,20 43,20 43,29 42,30" fill={RED} />
+          <Rect x={9} y={30} width={4} height={10} rx={1} fill={GREY} />
+          <Rect x={35} y={30} width={4} height={10} rx={1} fill={GREY} />
+        </G>
+      );
+    case 'camera':
+      return (
+        <G>
+          <Rect x={9} y={18} width={27} height={19} rx={4} fill={WHITE} />
+          <Rect x={13} y={13} width={13} height={10} rx={2.5} fill={BLUE} />
+          <Circle cx={19.5} cy={18} r={3} fill={DEEP} />
+          <Rect x={13} y={23} width={12} height={7} rx={1.5} fill="#73848D" />
+          <Circle cx={15} cy={37} r={3.5} fill={DARK} />
+          <Circle cx={31} cy={37} r={3.5} fill={DARK} />
+          <Path d="M30 12C34 13 37 16 38 20" fill="none" stroke={BLUE} strokeWidth={3.2} strokeLinecap="round" />
+          <Path d="M32 7C39 9 43 13 45 20" fill="none" stroke={BLUE} strokeWidth={3.2} strokeLinecap="round" />
+        </G>
+      );
+    case 'accident':
+      return (
+        <G>
+          <Polygon points="24,5 28,13 35,8 34,16 43,15 37,22 44,25 35,29 38,37 29,32 24,41 19,32 10,37 13,29 4,25 11,22 5,15 14,16 13,8 20,13" fill={RED} />
+          <Rect x={5} y={29} width={16} height={10} rx={3} fill={WHITE} />
+          <Rect x={27} y={29} width={16} height={10} rx={3} fill={WHITE} />
+          <Circle cx={9} cy={40} r={2.5} fill={DARK} />
+          <Circle cx={18} cy={40} r={2.5} fill={DARK} />
+          <Circle cx={30} cy={40} r={2.5} fill={DARK} />
+          <Circle cx={39} cy={40} r={2.5} fill={DARK} />
+        </G>
+      );
+    case 'road_closure':
+      return (
+        <G>
+          <Circle cx={24} cy={21} r={15} fill={RED} />
+          <Circle cx={24} cy={21} r={10.5} fill={WHITE} />
+          <Rect x={13} y={18.5} width={22} height={5} rx={2.5} fill={RED} />
+        </G>
+      );
+  }
+}
+
 export function HazardIcon({ type, size = 38 }: { type: HazardType; size?: number }): React.JSX.Element {
   return (
     <Svg width={size} height={size} viewBox="0 0 48 48" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
@@ -114,7 +181,7 @@ export function HazardIcon({ type, size = 38 }: { type: HazardType; size?: numbe
 
 export function HazardMarkerIcon({
   type,
-  size = 26,
+  size = 36,
   selected = false,
 }: {
   type: HazardType;
@@ -129,9 +196,17 @@ export function HazardMarkerIcon({
         stroke={selected ? '#35D6FF' : '#3C4E58'}
         strokeWidth={selected ? 2.8 : 1.8}
       />
-      <G transform="translate(15 7) scale(0.7)">
-        <HazardArtwork type={type} />
+      <G transform="translate(10 8) scale(0.92)">
+        <HazardMapGlyph type={type} />
       </G>
+    </Svg>
+  );
+}
+
+export function HazardNavigationIcon({ type, size = 22 }: { type: HazardType; size?: number }): React.JSX.Element {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 48 48" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+      <HazardMapGlyph type={type} />
     </Svg>
   );
 }

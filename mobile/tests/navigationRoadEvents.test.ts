@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import type { HazardReport } from '@rider-comms/shared';
 import {
+  navigationHazardCompactLabel,
   navigationHazardLabel,
   navigationHazardsAhead,
 } from '../src/navigationRoadEvents.ts';
@@ -76,6 +77,21 @@ describe('route-ahead navigation hazard selection', () => {
     );
 
     assert.deepEqual(alerts.map((alert) => alert.hazard.id), ['ahead']);
+  });
+
+  it('deduplicates same-type reports that describe the same route event', () => {
+    const alerts = roadAlerts(
+      { lat: 51.5020, lon: -0.1000 },
+      route,
+      [
+        hazard('police-first', 'police', 51.5040),
+        hazard('police-duplicate', 'police', 51.5044),
+        hazard('camera-separate', 'camera', 51.5060),
+      ],
+      { duplicateRouteGapMeters: 80 },
+    );
+
+    assert.deepEqual(alerts.map((alert) => alert.hazard.id), ['police-first', 'camera-separate']);
   });
 
   it('suppresses route alerts while the current GPS fix is too far from the active route', () => {
@@ -218,6 +234,8 @@ describe('route-ahead navigation hazard selection', () => {
     assert.equal(navigationHazardLabel('hidden_police'), 'Hidden police reported');
     assert.equal(navigationHazardLabel('police_checkpoint'), 'Police checkpoint reported');
     assert.equal(navigationHazardLabel('road_closure'), 'Road closure reported');
+    assert.equal(navigationHazardCompactLabel('camera'), 'Mobile camera');
+    assert.equal(navigationHazardCompactLabel('police_checkpoint'), 'Checkpoint');
   });
 
   it('does not turn the high-frequency navigation GPS watcher into a hazard API poll', () => {

@@ -4,6 +4,7 @@ import {
   Image,
   Linking,
   Modal,
+  PixelRatio,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -29,7 +30,7 @@ import {
 } from './routeDiscovery';
 import type { RouteCategory } from '../screens/ScenicRoutesScreen';
 import { routeCardImageSource } from './routeCardAssets';
-import { routeHeroImageUri } from './routeImages';
+import { routeCardImageUri, routeHeroImageUri } from './routeImages';
 
 async function openExternalUrl(url: string, failureMessage: string): Promise<void> {
   try {
@@ -135,7 +136,7 @@ function RouteOverview({
                 <MaterialCommunityIcons name="image-off-outline" size={34} color={colors.textMuted} />
               </View>
             ) : (
-              <Image source={showHeroImage ? { uri: heroImageUri } : routeCardImageSource(route.id)} style={styles.overviewImage} accessibilityLabel={route.image.alt} onError={() => setImageFailed(true)} />
+              <Image source={showHeroImage ? { uri: heroImageUri } : routeCardImageSource(route.id)} style={styles.overviewImage} resizeMode="cover" fadeDuration={0} accessibilityLabel={route.image.alt} onError={() => setImageFailed(true)} />
             )}
             <View style={styles.overviewShade} />
             <Pressable
@@ -240,8 +241,42 @@ function RouteOverview({
   );
 }
 
-function CuratedRouteCard({ route, width, onPress }: { route: CuratedRoute; width: number; onPress: () => void }) {
+function CuratedRouteCard({
+  route,
+  width,
+  index,
+  onPress,
+}: {
+  route: CuratedRoute;
+  width: number;
+  index: number;
+  onPress: () => void;
+}) {
   const [imageFailed, setImageFailed] = React.useState(false);
+  const [highResolutionReady, setHighResolutionReady] = React.useState(false);
+  const highResolutionUri = React.useMemo(
+    () => routeCardImageUri(route.image.uri, width, PixelRatio.get()),
+    [route.image.uri, width],
+  );
+
+  React.useEffect(() => {
+    let active = true;
+    setHighResolutionReady(false);
+    const timer = setTimeout(() => {
+      void Image.prefetch(highResolutionUri)
+        .then((loaded) => {
+          if (active && loaded !== false) setHighResolutionReady(true);
+        })
+        .catch(() => undefined);
+    }, Math.min(index, 12) * 90);
+
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [highResolutionUri, index]);
+
+  const showFallback = imageFailed && !highResolutionReady;
   return (
     <Pressable
       accessibilityRole="button"
@@ -250,16 +285,21 @@ function CuratedRouteCard({ route, width, onPress }: { route: CuratedRoute; widt
       style={({ pressed }) => [styles.curatedCard, { width }, pressed && styles.cardPressed]}
     >
       <View style={styles.cardMedia}>
-        {imageFailed ? (
+        {showFallback ? (
           <View style={[styles.cardImage, styles.imageFallback]}>
             <MaterialCommunityIcons name="image-off-outline" size={26} color={colors.textMuted} />
           </View>
         ) : (
           <Image
-            source={routeCardImageSource(route.id)}
+            source={highResolutionReady ? { uri: highResolutionUri } : routeCardImageSource(route.id)}
             style={styles.cardImage}
+            resizeMode="cover"
+            fadeDuration={0}
             accessibilityLabel={route.image.alt}
-            onError={() => setImageFailed(true)}
+            onError={() => {
+              if (highResolutionReady) setHighResolutionReady(false);
+              else setImageFailed(true);
+            }}
           />
         )}
         <View style={styles.cardImageShade} />
@@ -316,8 +356,8 @@ export function CuratedRouteBrowser({
   return (
     <>
       <View style={styles.cardGrid}>
-        {routes.map((route) => (
-          <CuratedRouteCard key={route.id} route={route} width={cardWidth} onPress={() => setSelectedRoute(route)} />
+        {routes.map((route, index) => (
+          <CuratedRouteCard key={route.id} route={route} width={cardWidth} index={index} onPress={() => setSelectedRoute(route)} />
         ))}
       </View>
       {routes.length === 0 ? (

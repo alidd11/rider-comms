@@ -1228,9 +1228,12 @@
   const escapeHtml = (value) => String(value).replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
 
   const ROUTE_HERO_IMAGE_WIDTH = 1600;
+  const ROUTE_CARD_IMAGE_FALLBACK_WIDTH = 640;
+  const ROUTE_CARD_IMAGE_MAX_WIDTH = 1280;
   const ROUTE_IMAGE_PREFETCH_COUNT = 8;
   const ROUTE_IMAGE_BACKGROUND_BATCH_SIZE = 4;
   const warmedRouteImages = new Set();
+  const readyHighResolutionRouteImages = new Set();
   const WIKIMEDIA_ORIGINAL_RE = /^(https:\/\/(?:upload|thumb)\.wikimedia\.org)(\/wikipedia\/commons\/)([0-9a-f]\/[^/]+\/)([^/?#]+)$/i;
   const WIKIMEDIA_THUMB_RE = /^(https:\/\/(?:upload|thumb)\.wikimedia\.org)(\/wikipedia\/commons\/thumb\/)([0-9a-f]\/[^/]+\/)([^/]+)\/[^/?#]+$/i;
 
@@ -1259,6 +1262,15 @@
 
   const routeCardImage = (route) => `assets/routes/cards/${route.id}.jpg`;
   const routeHeroImage = (route) => routeImageAtWidth(route.image, ROUTE_HERO_IMAGE_WIDTH);
+  const routeCardHiDpiImage = (route, cssWidth) => {
+    const devicePixelRatio = Math.max(1, Number(window.devicePixelRatio) || 1);
+    const logicalWidth = Number.isFinite(cssWidth) && cssWidth > 0 ? cssWidth : ROUTE_CARD_IMAGE_FALLBACK_WIDTH;
+    const targetWidth = Math.min(
+      ROUTE_CARD_IMAGE_MAX_WIDTH,
+      Math.max(ROUTE_CARD_IMAGE_FALLBACK_WIDTH, Math.ceil(logicalWidth * devicePixelRatio)),
+    );
+    return routeImageAtWidth(route.image, targetWidth);
+  };
 
   const ensureWikimediaConnections = () => {
     ['https://upload.wikimedia.org', 'https://thumb.wikimedia.org'].forEach((origin) => {
@@ -1282,6 +1294,36 @@
       image.fetchPriority = priority;
       image.referrerPolicy = 'no-referrer';
       image.src = src;
+    });
+  };
+
+  const upgradeRouteCardImages = (root) => {
+    if (navigator.connection?.saveData) return;
+    ensureWikimediaConnections();
+    root.querySelectorAll('img[data-route-card-image]').forEach((image, index) => {
+      const route = routes.find((item) => item.id === image.dataset.routeCardImage);
+      if (!route) return;
+      const highResolutionSrc = routeCardHiDpiImage(route, image.getBoundingClientRect().width);
+      if (readyHighResolutionRouteImages.has(highResolutionSrc)) {
+        image.dataset.hidpi = 'true';
+        image.src = highResolutionSrc;
+        return;
+      }
+
+      window.setTimeout(() => {
+        if (!image.isConnected) return;
+        const highResolutionImage = new Image();
+        highResolutionImage.decoding = 'async';
+        highResolutionImage.fetchPriority = index < 4 ? 'high' : 'low';
+        highResolutionImage.referrerPolicy = 'no-referrer';
+        highResolutionImage.addEventListener('load', () => {
+          readyHighResolutionRouteImages.add(highResolutionSrc);
+          if (!image.isConnected) return;
+          image.dataset.hidpi = 'true';
+          image.src = highResolutionSrc;
+        }, { once: true });
+        highResolutionImage.src = highResolutionSrc;
+      }, Math.min(index, 12) * 90);
     });
   };
 
@@ -1482,13 +1524,22 @@
       const approach = riderLocation ? formatApproach(haversineMiles(riderLocation, route.start)) : '';
       const eager = index < ROUTE_IMAGE_PREFETCH_COUNT;
       return `<button class="curated-route-card" data-curated-route="${route.id}" aria-label="View ${escapeHtml(route.name)} route overview">
-        <img src="${routeCardImage(route)}" alt="${escapeHtml(route.alt)}" loading="${eager ? 'eager' : 'lazy'}" fetchpriority="${index < 4 ? 'high' : 'auto'}" decoding="async" referrerpolicy="no-referrer">
+        <img src="${routeCardImage(route)}" data-route-card-image="${route.id}" alt="${escapeHtml(route.alt)}" loading="${eager ? 'eager' : 'lazy'}" fetchpriority="${index < 4 ? 'high' : 'auto'}" decoding="async" referrerpolicy="no-referrer">
         <span class="route-photo-fallback" aria-hidden="true"><svg><use href="#i-route"/></svg></span>
         <span class="route-trace-card">${routeTraceSvg(route)}</span>
         <span class="curated-route-overlay"><span class="route-region">${escapeHtml(route.region)}</span><strong>${escapeHtml(route.name)}</strong><small>${escapeHtml(route.road)}</small><span class="route-quick-stats">${category === 'near' && approach ? `<b class="route-approach">${escapeHtml(approach)}</b>` : ''}<b><svg aria-hidden="true"><use href="#i-route"/></svg>${route.distance} mi</b><b><svg aria-hidden="true"><use href="#i-location"/></svg>${escapeHtml(route.roadType)}</b><b><svg aria-hidden="true"><use href="#i-history"/></svg>${route.minutes} min</b></span></span>
       </button>`;
     }).join('');
-    root.querySelectorAll('img').forEach((image) => image.addEventListener('error', () => image.closest('.curated-route-card')?.classList.add('image-failed'), { once: true }));
+    root.querySelectorAll('img[data-route-card-image]').forEach((image) => image.addEventListener('error', () => {
+      const route = routes.find((item) => item.id === image.dataset.routeCardImage);
+      if (route && image.dataset.hidpi === 'true') {
+        delete image.dataset.hidpi;
+        image.src = routeCardImage(route);
+        return;
+      }
+      image.closest('.curated-route-card')?.classList.add('image-failed');
+    }));
+    upgradeRouteCardImages(root);
     root.querySelectorAll('[data-curated-route]').forEach((button) => button.addEventListener('click', () => openRoute(button.dataset.curatedRoute)));
   }
 

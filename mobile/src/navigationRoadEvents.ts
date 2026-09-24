@@ -12,6 +12,7 @@ export const NAVIGATION_ALERT_PASSED_GRACE_METERS = 25;
 export const NAVIGATION_ALERT_CURRENT_ROUTE_TOLERANCE_METERS = 120;
 export const NAVIGATION_ALERT_MAX_VISIBLE = 2;
 export const NAVIGATION_ALERT_MAX_LOCATION_ACCURACY_METERS = 75;
+export const NAVIGATION_ALERT_DUPLICATE_ROUTE_GAP_METERS = 80;
 
 const HAZARD_TYPES = new Set<HazardType>(['police', 'accident', 'road_closure', 'camera', 'hidden_police', 'police_checkpoint']);
 const SAFETY_IMPACTING_TYPES = new Set<HazardType>(['road_closure', 'accident']);
@@ -30,6 +31,7 @@ export interface NavigationRouteHazardOptions {
   maxVisible?: number;
   nowMs?: number;
   currentAccuracyMeters?: number | null;
+  duplicateRouteGapMeters?: number;
 }
 
 const HAZARD_TIE_BREAK_PRIORITY: Record<HazardType, number> = {
@@ -60,6 +62,21 @@ function activeHazardReport(hazard: HazardReport, nowMs: number): boolean {
     && Number.isFinite(hazard.confirmations)
     && Number.isFinite(hazard.denials)
     && hazard.denials - hazard.confirmations < HIDE_NET_DENIAL_THRESHOLD;
+}
+
+function dedupeNearbyAlerts(
+  sortedAlerts: NavigationRouteHazard[],
+  duplicateRouteGapMeters: number,
+): NavigationRouteHazard[] {
+  const deduped: NavigationRouteHazard[] = [];
+  for (const alert of sortedAlerts) {
+    const duplicate = deduped.some((existing) =>
+      existing.hazard.type === alert.hazard.type
+      && Math.abs(existing.distanceAheadMeters - alert.distanceAheadMeters) <= duplicateRouteGapMeters
+    );
+    if (!duplicate) deduped.push(alert);
+  }
+  return deduped;
 }
 
 function selectVisibleAlerts(
@@ -115,6 +132,7 @@ export function navigationHazardsAhead(
   const maxVisible = Math.max(0, Math.floor(options.maxVisible ?? NAVIGATION_ALERT_MAX_VISIBLE));
   const nowMs = Number.isFinite(options.nowMs) ? Number(options.nowMs) : Date.now();
   const currentAccuracyMeters = options.currentAccuracyMeters;
+  const duplicateRouteGapMeters = Math.max(0, options.duplicateRouteGapMeters ?? NAVIGATION_ALERT_DUPLICATE_ROUTE_GAP_METERS);
   if (
     maxVisible === 0
     || typeof currentAccuracyMeters !== 'number'
@@ -157,7 +175,7 @@ export function navigationHazardsAhead(
       return HAZARD_TIE_BREAK_PRIORITY[a.hazard.type] - HAZARD_TIE_BREAK_PRIORITY[b.hazard.type];
     });
 
-  return selectVisibleAlerts(eligibleAlerts, maxVisible);
+  return selectVisibleAlerts(dedupeNearbyAlerts(eligibleAlerts, duplicateRouteGapMeters), maxVisible);
 }
 
 export function navigationHazardLabel(type: HazardType): string {
@@ -168,5 +186,16 @@ export function navigationHazardLabel(type: HazardType): string {
     case 'police_checkpoint': return 'Police checkpoint reported';
     case 'accident': return 'Accident reported';
     case 'road_closure': return 'Road closure reported';
+  }
+}
+
+export function navigationHazardCompactLabel(type: HazardType): string {
+  switch (type) {
+    case 'camera': return 'Mobile camera';
+    case 'police': return 'Police';
+    case 'hidden_police': return 'Hidden police';
+    case 'police_checkpoint': return 'Checkpoint';
+    case 'accident': return 'Accident';
+    case 'road_closure': return 'Road closure';
   }
 }

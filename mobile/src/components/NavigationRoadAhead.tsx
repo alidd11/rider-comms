@@ -1,25 +1,13 @@
 import * as React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import type { HazardType } from '@rider-comms/shared';
 import { colors } from '../theme';
+import { HazardNavigationIcon } from './HazardIcon';
 import { formatNavigationDistance, type NavigationUnit } from '../navigationGuidance';
 import {
+  navigationHazardCompactLabel,
   navigationHazardLabel,
   type NavigationRouteHazard,
 } from '../navigationRoadEvents';
-
-const ROAD_ALERT_META: Record<HazardType, {
-  icon: keyof typeof MaterialCommunityIcons.glyphMap;
-  color: string;
-}> = {
-  police: { icon: 'police-badge', color: colors.accent },
-  hidden_police: { icon: 'incognito', color: colors.accent },
-  police_checkpoint: { icon: 'boom-gate', color: colors.accent },
-  camera: { icon: 'camera', color: colors.accent },
-  accident: { icon: 'car-emergency', color: colors.danger },
-  road_closure: { icon: 'road-variant', color: colors.danger },
-};
 
 export function NavigationRoadAhead({
   alerts,
@@ -35,9 +23,8 @@ export function NavigationRoadAhead({
       <Text style={styles.eyebrow}>Reports ahead</Text>
       <View style={styles.events}>
         {alerts.slice(0, 2).map((alert) => {
-          const meta = ROAD_ALERT_META[alert.hazard.type];
           const label = navigationHazardLabel(alert.hazard.type);
-          const displayLabel = label.replace(/ reported$/, '');
+          const displayLabel = navigationHazardCompactLabel(alert.hazard.type);
           const distance = formatNavigationDistance(alert.distanceAheadMeters, unit);
           return (
             <View
@@ -46,12 +33,7 @@ export function NavigationRoadAhead({
               accessible
               accessibilityLabel={`${label}, ${distance} ahead`}
             >
-              <MaterialCommunityIcons
-                accessible={false}
-                name={meta.icon}
-                size={17}
-                color={meta.color}
-              />
+              <HazardNavigationIcon type={alert.hazard.type} size={22} />
               <Text numberOfLines={1} style={styles.eventLabel}>{displayLabel}</Text>
               <Text numberOfLines={1} style={styles.distance}>{distance}</Text>
             </View>
@@ -95,9 +77,9 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 7,
-    minHeight: 28,
+    gap: 6,
+    paddingHorizontal: 8,
+    minHeight: 32,
     borderRadius: 9,
     backgroundColor: colors.surfaceRaised,
   },
@@ -105,15 +87,15 @@ const styles = StyleSheet.create({
     minWidth: 0,
     flex: 1,
     color: colors.textSecondary,
-    fontSize: 11,
-    lineHeight: 14,
+    fontSize: 12,
+    lineHeight: 15,
     fontWeight: '700',
   },
   distance: {
     flexShrink: 0,
     color: colors.textPrimary,
-    fontSize: 11,
-    lineHeight: 14,
+    fontSize: 12,
+    lineHeight: 15,
     fontWeight: '800',
   },
 });

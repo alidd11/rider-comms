@@ -350,6 +350,8 @@ if (
   || !/navigationHazardsAhead\(/.test(pwaMapSource)
   || !/renderNavigationRoadAhead\(\)/.test(pwaMapSource)
   || !/\.nav-road-ahead\{[^\n]*min-height:42px/.test(pwaCssSource)
+  || !/hazardNavigationIconMarkup/.test(pwaMapSource)
+  || !/visibleHazardsForMap/.test(pwaMapSource)
 ) {
   throw new Error('PWA navigation must surface the shared route-ahead hazard strip');
 }
@@ -358,6 +360,7 @@ if (
   || !/navigationRoadAlerts/.test(nativeMapSource)
   || !/navigationHazardsAhead\(/.test(nativeMapSource)
   || !/const topOcclusion = insets\.top \+ spacing\.sm \+ navigationBannerHeight/.test(nativeMapSource)
+  || !/visibleMapHazards/.test(nativeMapSource)
 ) {
   throw new Error('Native navigation must surface route-ahead hazards below the measured guidance header');
 }
