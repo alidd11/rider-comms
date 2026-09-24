@@ -212,23 +212,13 @@ for (const [label, source, patterns] of [
   }
 }
 
-const adaptiveCameraPatterns = [
-  /speed <= 1\.5[\s\S]*zoom: 18\.8[\s\S]*pitch: 52[\s\S]*lookAheadMeters: 90[\s\S]*centreAheadMeters: 42/,
-  /speed < 7[\s\S]*zoom: 18\.7[\s\S]*pitch: 58[\s\S]*lookAheadMeters: 120[\s\S]*centreAheadMeters: 52/,
-  /speed < 14[\s\S]*zoom: 18\.4[\s\S]*pitch: 60[\s\S]*lookAheadMeters: 165[\s\S]*centreAheadMeters: 70/,
-  /speed < 22[\s\S]*zoom: 18\.0[\s\S]*pitch: 58[\s\S]*lookAheadMeters: 230[\s\S]*centreAheadMeters: 95/,
-  /zoom: 17\.6[\s\S]*pitch: 54[\s\S]*lookAheadMeters: 310[\s\S]*centreAheadMeters: 125/,
-  /maneuver\.includes\('roundabout'\)[\s\S]*maneuver\.includes\('uturn'\)[\s\S]*maneuver\.includes\('fork'\)/,
-  /maneuverDistance <= 260/,
-  /maneuverDistance <= 180/,
-  /occludedFraction[\s\S]*topDominance/,
-  /speed <= 1\.5[\s\S]*return previous/,
-];
-for (const [label, source] of [['PWA adaptive camera', pwaMapSource], ['Native adaptive camera', nativeCameraSource]]) {
-  for (const pattern of adaptiveCameraPatterns) {
-    if (!pattern.test(source)) throw new Error(`${label} drifted from the shared adaptive camera contract: ${pattern}`);
-  }
-}
+// The adaptive camera's zoom/pitch/heading math itself now lives in
+// shared/src/navigationCamera.ts (see docs/navigation-camera.js and
+// mobile/src/navigationCamera.ts), with real behavioral parity enforced by
+// scripts/check-navigation-camera.mjs against golden fixtures -- a stronger
+// guarantee than this file's usual literal-source-text matching, which
+// can no longer see that logic here since it isn't duplicated in-line
+// in either client anymore.
 
 if (!/id="navInstruction"[^>]*role="status"[^>]*aria-live="polite"[^>]*aria-atomic="true"/.test(pwaIndexSource)) {
   throw new Error('PWA navigation maneuver instruction must be a polite atomic live region');
