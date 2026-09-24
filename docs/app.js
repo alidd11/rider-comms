@@ -5731,6 +5731,10 @@
       center: centre,
       zoom: liveCentre ? 15 : 14,
       disableDefaultUI: true,
+      // The web map does not need hardware-keyboard navigation. Disabling it
+      // also removes Google's optional "Keyboard shortcuts" footer control
+      // while leaving Google's required map attribution untouched.
+      keyboardShortcuts: false,
       gestureHandling: 'greedy',
       clickableIcons: false,
       // A div-backed Maps JavaScript map otherwise defaults to the raster

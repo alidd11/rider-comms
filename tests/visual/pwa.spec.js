@@ -553,6 +553,7 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
       avatarDisplay: avatarButton ? getComputedStyle(avatarButton).display : null,
       optionsGlyphWidth: optionsGlyph?.getBoundingClientRect().width ?? NaN,
       mapTypeId: window.__riderCommsTestMap?.options?.mapTypeId ?? null,
+      keyboardShortcuts: window.__riderCommsTestMap?.options?.keyboardShortcuts ?? null,
       mapColorScheme: window.__riderCommsTestMap?.options?.colorScheme ?? null,
       mapRenderingType: window.__riderCommsTestMap?.options?.renderingType ?? null,
       tiltInteractionEnabled: window.__riderCommsTestMap?.options?.tiltInteractionEnabled ?? null,
@@ -577,6 +578,7 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
   expect(mapGeometry.avatarDisplay).toBe('none');
   expect(mapGeometry.optionsGlyphWidth).toBeGreaterThanOrEqual(16);
   expect(mapGeometry.mapTypeId).toBe('roadmap');
+  expect(mapGeometry.keyboardShortcuts).toBe(false);
   expect(mapGeometry.mapColorScheme).toBe('FOLLOW_SYSTEM');
   expect(mapGeometry.mapRenderingType).toBe('VECTOR');
   expect(mapGeometry.tiltInteractionEnabled).toBe(true);
