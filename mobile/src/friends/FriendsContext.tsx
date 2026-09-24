@@ -261,6 +261,14 @@ export function FriendsProvider({ children }: { children: React.ReactNode }): Re
     [client, refreshNetwork],
   );
 
+  // accept/decline/cancel deliberately do not re-throw, unlike sendRequest
+  // and remove below: their callers already optimistically remove the list
+  // item and only need to reset a local "resolving" flag in `finally`, so a
+  // failure is surfaced through the shared `error` banner instead of a
+  // per-call catch. sendRequest and remove back a form/confirmation flow
+  // that needs to know success vs failure to decide what the UI does next
+  // (keep the typed input vs clear it, keep the sheet open vs close it), so
+  // those re-throw for the caller to handle.
   const accept = React.useCallback(
     async (requestId: string) => {
       setIncomingRequests((current) => current.filter((request) => request.id !== requestId));
