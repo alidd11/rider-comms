@@ -15,6 +15,7 @@ const route = [
 const mapScreenSource = await readFile(new URL('../src/screens/MapScreen.tsx', import.meta.url), 'utf8');
 const hazardReportsHookSource = await readFile(new URL('../src/screens/useHazardReports.ts', import.meta.url), 'utf8');
 const navigationSummaryHookSource = await readFile(new URL('../src/screens/useNavigationSummary.ts', import.meta.url), 'utf8');
+const inAppNavigationHookSource = await readFile(new URL('../src/screens/useInAppNavigation.ts', import.meta.url), 'utf8');
 
 function hazard(
   id: string,
@@ -241,7 +242,7 @@ describe('route-ahead navigation hazard selection', () => {
 
   it('uses the measured navigation banner height so road-ahead alerts cannot hide the route camera target', () => {
     assert.match(mapScreenSource, /const \[navigationBannerHeight, setNavigationBannerHeight\] = React\.useState\(166\)/);
-    assert.match(mapScreenSource, /const topOcclusion = insets\.top \+ spacing\.sm \+ navigationBannerHeight/);
+    assert.match(inAppNavigationHookSource, /const topOcclusion = insets\.top \+ spacing\.sm \+ navigationBannerHeight/);
     assert.match(mapScreenSource, /setNavigationBannerHeight\(\(current\) => Math\.abs\(current - measuredHeight\) > 1 \? measuredHeight : current\)/);
   });
 });
