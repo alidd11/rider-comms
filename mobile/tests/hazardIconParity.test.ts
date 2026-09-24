@@ -16,10 +16,10 @@ for (const type of types) {
 
 assert.match(nativeSheet, /<HazardIcon type=\{type\} size=\{40\}/, 'native report sheet must use the approved artwork');
 assert.match(nativeMap, /<HazardMarkerIcon type=\{hazard\.type\} size=\{size\} selected=\{selected\}/, 'native map must reuse the icon family');
-assert.match(nativeMap, /const size = selected \? 32 : 26;/, 'native compact marker sizes must match the icon sheet');
+assert.match(nativeMap, /const size = selected \? 44 : 36;/, 'native compact marker sizes must stay glanceable on the basemap');
 assert.match(pwa, /hazardIconMarkup\(t\)/, 'PWA report sheet must use the approved artwork');
 assert.match(pwa, /hazardPinIcon\(hazard\.type\)/, 'PWA map must use compact illustrated markers');
-assert.match(pwa, /const size = selected \? 32 : 26;/, 'PWA compact marker sizes must match native');
+assert.match(pwa, /const size = selected \? 44 : 36;/, 'PWA compact marker sizes must match native');
 
 console.log('Hazard icon PWA/native parity valid');
 
@@ -33,3 +33,7 @@ assert.ok(pwa.includes(POLICE_CAP_REVISION), 'PWA Police icon must match the rev
 assert.ok(nativeIcon.includes(HIDDEN_POLICE_BARRIER), 'native Hidden police icon must show the concealment barrier');
 assert.ok(pwa.includes(HIDDEN_POLICE_BARRIER), 'PWA Hidden police icon must show the same concealment barrier');
 assert.ok(nativeIcon.includes('fill={WHITE}') && pwa.includes('fill="#F4F7F8"'), 'police artwork must retain the high-contrast shield treatment');
+
+assert.match(nativeIcon, /function HazardMapGlyph/, 'native map markers must use a dedicated optical-size glyph family');
+assert.match(nativeIcon, /HazardNavigationIcon/, 'native navigation alerts must use the dedicated compact hazard glyph family');
+assert.match(pwa, /function hazardMapGlyphInnerSvg/, 'PWA map markers must use a dedicated optical-size glyph family');

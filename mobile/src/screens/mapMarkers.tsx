@@ -32,7 +32,7 @@ export function HazardMarker({
   onPress: () => void;
 }): React.JSX.Element {
   const meta = HAZARD_TYPE_META[hazard.type];
-  const size = selected ? 32 : 26;
+  const size = selected ? 44 : 36;
   return (
     <Marker
       coordinate={{ latitude: hazard.lat, longitude: hazard.lon }}
