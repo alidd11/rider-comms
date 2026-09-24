@@ -5,7 +5,8 @@ const [
   nativePresets,
   nativeRenderer,
   nativeSettings,
-  nativeMap,
+  nativeMapScreen,
+  nativeRideProfilesHook,
   nativeRide,
   pwaAvatarSystem,
   pwaApp,
@@ -17,6 +18,7 @@ const [
   readFile(new URL('../mobile/src/components/RiderAvatar.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/screens/SettingsScreen.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/screens/MapScreen.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../mobile/src/screens/useRideProfiles.ts', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/ride/RideContext.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../docs/avatar-system.js', import.meta.url), 'utf8'),
   readFile(new URL('../docs/app.js', import.meta.url), 'utf8'),
@@ -24,6 +26,10 @@ const [
   readFile(new URL('../docs/index.html', import.meta.url), 'utf8'),
   readFile(new URL('../backend/src/profileStore.ts', import.meta.url), 'utf8'),
 ]);
+// MapScreen.tsx delegates ride-avatar-identity refreshing to the
+// useRideProfiles hook -- checked together since assertions below don't
+// care which file a given literal lives in.
+const nativeMap = nativeMapScreen + nativeRideProfilesHook;
 
 function extractArray(source, declaration, endMarker) {
   const start = source.indexOf(declaration);

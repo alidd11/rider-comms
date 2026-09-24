@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 const [nativeIcon, nativeSheet, nativeMap, pwa] = await Promise.all([
   readFile(new URL('../src/components/HazardIcon.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/screens/HazardReportSheet.tsx', import.meta.url), 'utf8'),
-  readFile(new URL('../src/screens/MapScreen.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/screens/mapMarkers.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../../docs/app.js', import.meta.url), 'utf8'),
 ]);
 

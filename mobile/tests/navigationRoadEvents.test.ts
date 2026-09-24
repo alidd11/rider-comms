@@ -13,6 +13,7 @@ const route = [
 ];
 
 const mapScreenSource = await readFile(new URL('../src/screens/MapScreen.tsx', import.meta.url), 'utf8');
+const hazardReportsHookSource = await readFile(new URL('../src/screens/useHazardReports.ts', import.meta.url), 'utf8');
 
 function hazard(
   id: string,
@@ -218,11 +219,11 @@ describe('route-ahead navigation hazard selection', () => {
   });
 
   it('does not turn the high-frequency navigation GPS watcher into a hazard API poll', () => {
-    assert.match(mapScreenSource, /const HAZARD_REFRESH_INTERVAL_MS = 60_000/);
     assert.match(mapScreenSource, /const currentLocationRef = React\.useRef/);
-    assert.match(mapScreenSource, /client\.getNearbyHazards\(location\.lat, location\.lon\)/);
-    assert.match(mapScreenSource, /setInterval\(\(\) => void fetchHazards\(\), HAZARD_REFRESH_INTERVAL_MS\)/);
-    assert.match(mapScreenSource, /\}, \[client, hasCurrentLocation\]\);/);
+    assert.match(hazardReportsHookSource, /const HAZARD_REFRESH_INTERVAL_MS = 60_000/);
+    assert.match(hazardReportsHookSource, /client\.getNearbyHazards\(location\.lat, location\.lon\)/);
+    assert.match(hazardReportsHookSource, /setInterval\(\(\) => void fetchHazards\(\), HAZARD_REFRESH_INTERVAL_MS\)/);
+    assert.match(hazardReportsHookSource, /\}, \[client, hasCurrentLocation\]\);/);
     assert.doesNotMatch(mapScreenSource, /setInterval\(fetchHazards, PRESENCE_UPDATE_INTERVAL_MS\)/);
   });
 

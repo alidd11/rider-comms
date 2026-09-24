@@ -40,7 +40,9 @@ const [
   pwaMapSource,
   pwaCssSource,
   pwaIndexSource,
-  nativeMapSource,
+  nativeMapScreenSource,
+  nativeMapMarkersSource,
+  nativeHazardReportsSource,
   nativeSettingsSource,
   nativeCameraSource,
   nativeManeuverSource,
@@ -51,12 +53,20 @@ const [
   readFile(new URL('../docs/app.css', import.meta.url), 'utf8'),
   readFile(new URL('../docs/index.html', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/screens/MapScreen.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../mobile/src/screens/mapMarkers.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../mobile/src/screens/useHazardReports.ts', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/screens/SettingsScreen.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/navigationCamera.ts', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/navigationManeuver.ts', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/components/NavigationManeuverGlyph.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/navigationGuidance.ts', import.meta.url), 'utf8'),
 ]);
+// MapScreen.tsx delegates its map-marker rendering (HazardMarker,
+// SmoothSelfMarker, SmoothRideMemberMarker) to mapMarkers.tsx and its
+// hazard fetch/report/vote logic to useHazardReports.ts -- checked
+// together since parity assertions below don't care which file a given
+// literal lives in.
+const nativeMapSource = nativeMapScreenSource + nativeMapMarkersSource + nativeHazardReportsSource;
 
 
 const SETTINGS_ROOT_LABELS = [
