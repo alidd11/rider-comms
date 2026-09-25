@@ -1,6 +1,4 @@
 import http from 'node:http';
-import { createHash, randomUUID } from 'node:crypto';
-import { isIP } from 'node:net';
 import { TIER_RADIUS_MILES, validateScenicRouteInput } from '@rider-comms/shared';
 import type { Difficulty, HazardType, RoadType, Rider, VehicleCategory } from '@rider-comms/shared';
 import { createLiveKitRoomAdmin, getLiveKitCredentialsFromEnv, mintVoiceToken, proximityRoomName, RIDE_VOICE_TOKEN_TTL_SECONDS, rideRoomName } from './liveKitToken.ts';
@@ -28,13 +26,31 @@ import type { RateLimitAction } from './rateLimitStore.ts';
 import { SocialActivityStore } from './socialActivityStore.ts';
 import { InvalidSocialEventCursorError, MAX_SOCIAL_EVENT_WAIT_MS, SocialEventStore } from './socialEventStore.ts';
 import { checkDatabaseReady, closeDatabase, ensureMigrated } from './db.ts';
+import {
+  applyCors,
+  applyResponsePolicy,
+  bearerToken,
+  clientAddress,
+  consumeRateLimit,
+  consumeSocialWrite,
+  isCoordinate,
+  parseAllowedOrigins,
+  RequestError,
+  rateLimitSubject,
+  readJsonBody,
+  requestId,
+  routeCoordinate,
+  sendEmpty,
+  sendJson,
+} from './serverHttp.ts';
+
+export { parseAllowedOrigins };
 
 const HAZARD_TYPES = ['police', 'accident', 'road_closure', 'camera', 'hidden_police', 'police_checkpoint'] as const;
 const VEHICLE_CATEGORIES = ['motorcycle_small', 'motorcycle_large', 'scooter', 'car'] as const;
 const ROAD_TYPES = ['rural', 'mountain', 'coastal', 'urban', 'mixed'] as const;
 const DIFFICULTIES = ['easy', 'moderate', 'challenging'] as const;
 
-const MAX_BODY_BYTES = 32 * 1024;
 const REQUEST_ID_PATTERN = /^[A-Za-z0-9._-]{8,128}$/;
 // Ride rosters are capped at MAX_RIDE_MEMBERS (20, see rideStore.ts); a
 // generous ceiling above that keeps this a defensive bound, not a real limit.
@@ -82,96 +98,10 @@ export interface ApiRequestLog {
   clientAddress: string;
 }
 
-class RequestError extends Error { readonly status: number; constructor(status: number, message: string) { super(message); this.status = status; } }
-
-function requestId(req: http.IncomingMessage): string {
-  const supplied = req.headers['x-request-id'];
-  return typeof supplied === 'string' && REQUEST_ID_PATTERN.test(supplied) ? supplied : randomUUID();
-}
-
-function clientAddress(req: http.IncomingMessage, trustProxy: boolean): string {
-  if (trustProxy) {
-    const forwarded = req.headers['x-forwarded-for'];
-    const candidate = (Array.isArray(forwarded) ? forwarded[0] : forwarded)?.split(',')[0]?.trim();
-    if (candidate && isIP(candidate)) return candidate;
-  }
-  return req.socket.remoteAddress ?? 'unknown';
-}
-
-function applyResponsePolicy(res: http.ServerResponse, id: string): void {
-  res.setHeader('Cache-Control', 'no-store');
-  res.setHeader('Content-Security-Policy', "default-src 'none'; frame-ancestors 'none'");
-  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
-  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
-  res.setHeader('Referrer-Policy', 'no-referrer');
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('X-Frame-Options', 'DENY');
-  res.setHeader('X-Request-ID', id);
-}
-
-function applyCors(req: http.IncomingMessage, res: http.ServerResponse, allowedOrigins: ReadonlySet<string>): boolean {
-  const origin = req.headers.origin;
-  res.setHeader('Vary', 'Origin');
-  if (!origin) return true;
-  if (!allowedOrigins.has(origin)) return false;
-  res.setHeader('Access-Control-Allow-Origin', origin);
-  res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type, X-Request-ID');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Expose-Headers', 'Retry-After, X-Request-ID');
-  res.setHeader('Access-Control-Max-Age', '600');
-  return true;
-}
-
-export function parseAllowedOrigins(raw: string | undefined): string[] {
-  if (!raw?.trim()) return [];
-  return [...new Set(raw.split(',').map((value) => value.trim()).filter(Boolean).map((value) => {
-    const parsed = new URL(value);
-    const localHttp = parsed.protocol === 'http:' && ['localhost', '127.0.0.1', '::1'].includes(parsed.hostname);
-    if (parsed.origin !== value || (parsed.protocol !== 'https:' && !localHttp)) {
-      throw new Error(`Invalid CORS origin: ${value}`);
-    }
-    return parsed.origin;
-  }))];
-}
-
-function sendJson(res: http.ServerResponse, status: number, body: unknown): void {
-  const payload = JSON.stringify(body);
-  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Content-Length': Buffer.byteLength(payload) });
-  res.end(payload);
-}
-
-function sendEmpty(res: http.ServerResponse, status: number): void {
-  res.writeHead(status);
-  res.end();
-}
-function readJsonBody(req: http.IncomingMessage): Promise<Record<string, unknown>> {
-  return new Promise((resolve, reject) => {
-    let data = '', bytes = 0, tooLarge = false;
-    req.on('data', (chunk: Buffer) => { bytes += chunk.length; if (bytes > MAX_BODY_BYTES) tooLarge = true; else data += chunk.toString('utf8'); });
-    req.on('end', () => {
-      if (tooLarge) return reject(new RequestError(413, 'request body is too large'));
-      if (!data) return resolve({});
-      try { const parsed: unknown = JSON.parse(data); if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') throw new RequestError(400, 'request body must be a JSON object'); resolve(parsed as Record<string, unknown>); }
-      catch (error) { reject(error instanceof RequestError ? error : new RequestError(400, 'invalid JSON')); }
-    });
-    req.on('error', reject);
-  });
-}
-function bearerToken(req: http.IncomingMessage): string {
-  const header = req.headers.authorization;
-  return header?.startsWith('Bearer ') ? header.slice(7).trim() : '';
-}
 async function authRider(req: http.IncomingMessage, res: http.ServerResponse, auth: AuthStore): Promise<string | undefined> {
   const riderId = await auth.riderForToken(bearerToken(req));
   if (!riderId) sendJson(res, 401, { error: 'unauthorized' });
   return riderId;
-}
-function isCoordinate(lat: unknown, lon: unknown): boolean { return typeof lat === 'number' && Number.isFinite(lat) && lat >= -90 && lat <= 90 && typeof lon === 'number' && Number.isFinite(lon) && lon >= -180 && lon <= 180; }
-function routeCoordinate(value: unknown): RouteCoordinate | null {
-  if (!value || Array.isArray(value) || typeof value !== 'object') return null;
-  const candidate = value as { lat?: unknown; lon?: unknown };
-  if (!isCoordinate(candidate.lat, candidate.lon)) return null;
-  return { lat: candidate.lat as number, lon: candidate.lon as number };
 }
 function rideBody(ride: { id: string; createdBy: string; createdAt: number; memberIds: Set<string> }) { return { rideId: ride.id, createdBy: ride.createdBy, createdAt: ride.createdAt, memberIds: [...ride.memberIds] }; }
 async function publicProfile(profileStore: ProfileStore, friendStore: FriendStore, actorId: string, targetId: string) {
@@ -179,36 +109,6 @@ async function publicProfile(profileStore: ProfileStore, friendStore: FriendStor
   const isFriend = actorId === targetId ? false : await friendStore.isFriendOf(actorId, targetId);
   const canSee = (visibility: 'public' | 'friends' | 'private') => visibility === 'public' || (visibility === 'friends' && isFriend) || actorId === targetId;
   return { riderId: profile.riderId, displayName: profile.displayName, handle: profile.handle, avatarId: profile.avatarId, instagramUsername: canSee(profile.instagramVisibility) ? profile.instagramUsername : '', tiktokUsername: canSee(profile.tiktokVisibility) ? profile.tiktokUsername : '' };
-}
-
-async function consumeSocialWrite(
-  res: http.ServerResponse,
-  store: Pick<SocialRateLimitStore, 'consume'>,
-  actorId: string,
-  action: SocialRateAction,
-): Promise<boolean> {
-  const result = await store.consume(actorId, action);
-  if (result.allowed) return true;
-  res.setHeader('Retry-After', String(result.retryAfterSeconds));
-  sendJson(res, 429, { error: 'rate_limited' });
-  return false;
-}
-
-function rateLimitSubject(scope: 'ip' | 'rider', value: string): string {
-  return createHash('sha256').update(`${scope}:${value}`).digest('hex');
-}
-
-async function consumeRateLimit(
-  res: http.ServerResponse,
-  store: Pick<RateLimitStore, 'consume'>,
-  subjectKey: string,
-  action: RateLimitAction,
-): Promise<boolean> {
-  const result = await store.consume(subjectKey, action);
-  if (result.allowed) return true;
-  res.setHeader('Retry-After', String(result.retryAfterSeconds));
-  sendJson(res, 429, { error: 'rate_limited' });
-  return false;
 }
 
 function requiresVerifiedEmail(method: string | undefined, pathname: string): boolean {
@@ -306,7 +206,7 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
   };
   const app = http.createServer(async (req, res) => {
     const startedAt = Date.now();
-    const id = requestId(req);
+    const id = requestId(req, REQUEST_ID_PATTERN);
     const address = clientAddress(req, options.trustProxy === true);
     applyResponsePolicy(res, id);
     res.once('finish', () => {
