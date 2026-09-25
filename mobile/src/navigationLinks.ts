@@ -13,7 +13,7 @@ export interface NavigationUrlOpener {
   openURL: (url: string) => Promise<unknown>;
 }
 
-export function isValidNavigationCoordinate(lat: unknown, lon: unknown): lat is number {
+function isValidNavigationCoordinate(lat: unknown, lon: unknown): lat is number {
   return typeof lat === 'number' && Number.isFinite(lat) && lat >= -90 && lat <= 90 &&
     typeof lon === 'number' && Number.isFinite(lon) && lon >= -180 && lon <= 180;
 }
