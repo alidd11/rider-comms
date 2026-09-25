@@ -41,6 +41,7 @@ const [
   pwaCssSource,
   pwaIndexSource,
   nativeMapScreenSource,
+  nativeMapScreenStylesSource,
   nativeMapMarkersSource,
   nativeHazardReportsSource,
   nativeNavigationSummarySource,
@@ -55,6 +56,7 @@ const [
   readFile(new URL('../docs/app.css', import.meta.url), 'utf8'),
   readFile(new URL('../docs/index.html', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/screens/MapScreen.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../mobile/src/screens/MapScreen.styles.ts', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/screens/mapMarkers.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/screens/useHazardReports.ts', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/screens/useNavigationSummary.ts', import.meta.url), 'utf8'),
@@ -68,11 +70,12 @@ const [
 // MapScreen.tsx delegates its map-marker rendering (HazardMarker,
 // SmoothSelfMarker, SmoothRideMemberMarker) to mapMarkers.tsx, its hazard
 // fetch/report/vote logic to useHazardReports.ts, the active-step
-// road-ahead/summary derivations to useNavigationSummary.ts, and the
+// road-ahead/summary derivations to useNavigationSummary.ts, the
 // route request/reroute/GPS-watcher/camera logic to
-// useInAppNavigation.ts -- checked together since parity assertions below
-// don't care which file a given literal lives in.
-const nativeMapSource = nativeMapScreenSource + nativeMapMarkersSource + nativeHazardReportsSource + nativeNavigationSummarySource + nativeInAppNavigationSource;
+// useInAppNavigation.ts, and its StyleSheet to MapScreen.styles.ts --
+// checked together since parity assertions below don't care which file a
+// given literal lives in.
+const nativeMapSource = nativeMapScreenSource + nativeMapScreenStylesSource + nativeMapMarkersSource + nativeHazardReportsSource + nativeNavigationSummarySource + nativeInAppNavigationSource;
 
 
 const SETTINGS_ROOT_LABELS = [
