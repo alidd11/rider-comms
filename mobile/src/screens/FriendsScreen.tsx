@@ -1,6 +1,6 @@
 // Unverified scaffold — see navigation/index.tsx header note.
 import * as React from 'react';
-import { View, Text, TextInput, Pressable, ScrollView, Alert, ActivityIndicator, Modal, Linking, RefreshControl, Share, StyleSheet } from 'react-native';
+import { View, Text, TextInput, Pressable, ScrollView, Alert, ActivityIndicator, Modal, Linking, RefreshControl, Share } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -8,7 +8,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { FriendActivity, FriendRequest, FriendSummary } from '@rider-comms/shared';
 import type { RootStackParamList } from '../navigation';
-import { colors, spacing, radii, type, elevation, MIN_TOUCH_TARGET } from '../theme';
+import { colors, spacing, elevation } from '../theme';
+import { styles } from './FriendsScreen.styles';
 import { useFriends } from '../friends/FriendsContext';
 import { useAuth } from '../auth/AuthContext';
 import { DEFAULT_AVATAR_ID } from '../settings/avatars';
@@ -662,90 +663,3 @@ export function FriendsScreen(): React.JSX.Element {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  scroll: { width: '100%', maxWidth: 760, alignSelf: 'center', paddingHorizontal: 20, paddingBottom: spacing.xxl },
-  errorBox: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm, backgroundColor: colors.dangerSurface, borderRadius: radii.md, padding: spacing.md, marginBottom: spacing.md },
-  errorText: { ...type.body, color: colors.danger, flex: 1 },
-  retryText: { ...type.button, color: colors.danger },
-  section: { backgroundColor: colors.surface, borderRadius: radii.md, overflow: 'hidden', marginBottom: spacing.md, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
-  headerAdd: { width: 40, height: 40, borderRadius: radii.md, alignItems: 'center', justifyContent: 'center', borderWidth: 0, backgroundColor: 'transparent' },
-  headerAddActive: { backgroundColor: colors.accent, borderColor: colors.accent },
-  headerAddPressed: { opacity: 0.78 },
-  addPanel: { gap: spacing.sm, marginBottom: spacing.md },
-  addCard: { padding: spacing.md, gap: spacing.sm },
-  addRow: { flexDirection: 'row', gap: spacing.sm },
-  addInput: { flex: 1, minHeight: MIN_TOUCH_TARGET, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background, borderRadius: radii.md, paddingHorizontal: spacing.md, ...type.body, color: colors.textPrimary },
-  addButton: { width: MIN_TOUCH_TARGET, height: MIN_TOUCH_TARGET, borderRadius: radii.md, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
-  addButtonPressed: { backgroundColor: colors.accentPressed },
-  addButtonDisabled: { opacity: 0.5 },
-  addCaption: { ...type.caption },
-  addInlineError: { ...type.caption, color: colors.danger },
-  addInlineSuccess: { ...type.caption, color: colors.success, fontWeight: '700' },
-  yourIdCard: { padding: spacing.md, gap: spacing.sm },
-  yourIdRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  yourIdBadge: { width: 36, height: 36, borderRadius: radii.md, backgroundColor: colors.surfaceRaised, alignItems: 'center', justifyContent: 'center' },
-  yourIdInfo: { flex: 1, gap: spacing.xs },
-  yourIdCopyButton: { width: 36, height: 36, borderRadius: radii.md, alignItems: 'center', justifyContent: 'center' },
-  yourIdLabel: { ...type.caption },
-  yourIdValue: { ...type.body, color: colors.textPrimary, fontWeight: '700', fontSize: 16 },
-  requestRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
-  requestAvatar: { width: 44, height: 44, borderRadius: radii.pill, backgroundColor: colors.surfaceRaised, alignItems: 'center', justifyContent: 'center' },
-  requestIdentity: { flex: 1, minWidth: 0, gap: 2 },
-  requestName: { ...type.body, color: colors.textPrimary, fontWeight: '700' },
-  requestHandle: { ...type.caption },
-  requestDecline: { width: 44, height: 44, borderRadius: radii.md, borderWidth: 1, borderColor: colors.danger, alignItems: 'center', justifyContent: 'center' },
-  requestAccept: { width: 44, height: 44, borderRadius: radii.md, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
-  pendingPill: { paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, backgroundColor: colors.surfaceRaised, borderRadius: radii.pill },
-  pendingPillText: { ...type.caption, fontWeight: '700' },
-  cancelRequestButton: { minHeight: MIN_TOUCH_TARGET, justifyContent: 'center', paddingHorizontal: spacing.sm },
-  cancelRequestText: { ...type.caption, color: colors.textSecondary, fontWeight: '700' },
-  unreadPill: { minWidth: 24, height: 24, paddingHorizontal: 7, borderRadius: radii.pill, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
-  unreadPillText: { ...type.caption, color: colors.accentText, fontWeight: '800' },
-  friendSearchRow: { minHeight: 42, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, backgroundColor: colors.surface, borderRadius: 4, paddingHorizontal: 11, marginBottom: 2 },
-  friendSearchInput: { ...type.body, color: colors.textPrimary, flex: 1, minHeight: 42, fontSize: 14 },
-  networkList: { marginTop: spacing.xs },
-  networkSectionLabel: { ...type.label, color: colors.textSecondary, marginTop: 15, marginBottom: 5, textTransform: 'none', letterSpacing: 0, fontSize: 12, lineHeight: 16, fontWeight: '700' },
-  friendRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 56, paddingVertical: 6, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
-  friendRowPressed: { opacity: 0.72 },
-  friendAvatarWrap: { position: 'relative', flexShrink: 0 },
-  friendPresenceDot: { position: 'absolute', right: -2, bottom: 1, width: 10, height: 10, borderRadius: 5, borderWidth: 2, borderColor: colors.background },
-  friendPresenceOnline: { backgroundColor: colors.success },
-  friendPresenceOffline: { backgroundColor: colors.textMuted },
-  friendInfo: { flex: 1, gap: 2 },
-  friendName: { ...type.body, color: colors.textPrimary, fontWeight: '700', fontSize: 14 },
-  friendHandle: { ...type.caption, color: colors.textSecondary, fontSize: 11 },
-  emptyState: { padding: spacing.xl, alignItems: 'center', gap: spacing.sm },
-  emptyTitle: { ...type.subheading, color: colors.textPrimary },
-  emptyText: { ...type.caption, textAlign: 'center' },
-  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.58)', justifyContent: 'flex-end' },
-  profileModal: { backgroundColor: colors.background, borderTopLeftRadius: 18, borderTopRightRadius: 18, borderWidth: StyleSheet.hairlineWidth, borderBottomWidth: 0, borderColor: colors.border, padding: spacing.md, paddingBottom: spacing.xl },
-  modalHandle: { alignSelf: 'center', width: 40, height: 4, borderRadius: radii.pill, backgroundColor: colors.border, marginBottom: spacing.sm },
-  modalClose: { position: 'absolute', right: spacing.md, top: spacing.md, zIndex: 4, width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceRaised },
-  profileIdentity: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingTop: 0, paddingRight: 46, paddingBottom: 8 },
-  profileAvatarWrap: { position: 'relative' },
-  profileIdentityCopy: { flex: 1, minWidth: 0 },
-  profileModalName: { ...type.heading, color: colors.textPrimary, fontSize: 17 },
-  profileModalHandle: { ...type.body, color: colors.textSecondary, marginTop: 1 },
-  profileLoader: { marginTop: spacing.sm },
-  profileError: { ...type.caption, color: colors.danger, marginTop: spacing.sm },
-  profileActions: { flexDirection: 'row', gap: 7, marginTop: 2 },
-  profileAction: { flex: 1, minWidth: 0, minHeight: 64, alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 3, backgroundColor: colors.surface, borderRadius: 10, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
-  profileActionDisabled: { opacity: 0.38 },
-  profileActionActive: { borderColor: colors.accent, backgroundColor: colors.accentSoft },
-  profileActionPressed: { opacity: 0.72 },
-  profileActionText: { ...type.caption, color: colors.textPrimary, fontWeight: '700', fontSize: 10.5 },
-  profileDetailList: { marginTop: 10, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: 12, overflow: 'hidden', backgroundColor: colors.surface },
-  profileDetailRow: { minHeight: 50, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 10, paddingVertical: 6 },
-  profileDetailRowDivider: { borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
-  profileDetailCopy: { flex: 1, minWidth: 0 },
-  profileDetailTitle: { ...type.caption, color: colors.textPrimary, fontWeight: '700', fontSize: 12 },
-  profileDetailValue: { ...type.caption, color: colors.textSecondary, marginTop: 1, fontWeight: '500', fontSize: 11, lineHeight: 15 },
-  profileSocialSection: { gap: 7, marginTop: 10 },
-  profileSectionLabel: { ...type.caption, color: colors.textMuted, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1.1 },
-  socialList: { borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: 12, overflow: 'hidden' },
-  socialRow: { minHeight: MIN_TOUCH_TARGET, flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.md, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
-  socialText: { ...type.body, color: colors.textPrimary, flex: 1 },
-  profileMapButton: { minHeight: 46, marginTop: 9, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: colors.accent },
-  profileMapButtonText: { ...type.body, color: colors.accentText, fontWeight: '800' },
-});
