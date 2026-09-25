@@ -2,7 +2,8 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const settingsSource = await readFile(new URL('../src/screens/SettingsScreen.tsx', import.meta.url), 'utf8');
+const settingsSource = await readFile(new URL('../src/screens/SettingsScreen.tsx', import.meta.url), 'utf8')
+  + await readFile(new URL('../src/screens/SettingsScreen.styles.ts', import.meta.url), 'utf8');
 
 describe('Settings mockup contract', () => {
   it('keeps the approved shallow root hierarchy in order', () => {
