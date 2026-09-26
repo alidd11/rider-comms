@@ -34,7 +34,7 @@ test('fetches profiles for everyone in the roster except the current rider', asy
   const client = fakeClient(getPublicProfiles);
   const roster = ['me', 'a', 'b'];
 
-  const { result } = renderHook(() => useRideProfiles(client, 'me', roster));
+  const { result } = await renderHook(() => useRideProfiles(client, 'me', roster));
 
   await waitFor(() => expect(result.current).toEqual({ a: fakeProfile('a'), b: fakeProfile('b') }));
   expect(getPublicProfiles).toHaveBeenCalledWith(['a', 'b']);
@@ -45,7 +45,7 @@ test('returns an empty map and skips fetching when no one else is in the roster'
   const client = fakeClient(getPublicProfiles);
   const roster = ['me'];
 
-  const { result } = renderHook(() => useRideProfiles(client, 'me', roster));
+  const { result } = await renderHook(() => useRideProfiles(client, 'me', roster));
 
   await waitFor(() => expect(result.current).toEqual({}));
   expect(getPublicProfiles).not.toHaveBeenCalled();
@@ -62,7 +62,7 @@ test('re-fetches on the refresh interval and keeps the latest profiles', async (
   const client = fakeClient(getPublicProfiles);
   const roster = ['me', 'a'];
 
-  const { result } = renderHook(() => useRideProfiles(client, 'me', roster));
+  const { result } = await renderHook(() => useRideProfiles(client, 'me', roster));
 
   await waitFor(() => expect(result.current.a?.displayName).toBe('a-v1'));
 
@@ -86,7 +86,7 @@ test('keeps the last successful profiles when a refresh throws', async () => {
   const client = fakeClient(getPublicProfiles);
   const roster = ['me', 'a'];
 
-  const { result } = renderHook(() => useRideProfiles(client, 'me', roster));
+  const { result } = await renderHook(() => useRideProfiles(client, 'me', roster));
 
   await waitFor(() => expect(result.current).toEqual({ a: fakeProfile('a') }));
 
@@ -107,10 +107,10 @@ test('stops refreshing after unmount', async () => {
   const client = fakeClient(getPublicProfiles);
   const roster = ['me', 'a'];
 
-  const { unmount } = renderHook(() => useRideProfiles(client, 'me', roster));
+  const { unmount } = await renderHook(() => useRideProfiles(client, 'me', roster));
   await waitFor(() => expect(getPublicProfiles).toHaveBeenCalledTimes(1));
 
-  unmount();
+  await unmount();
 
   await act(async () => {
     jest.advanceTimersByTime(60_000);
