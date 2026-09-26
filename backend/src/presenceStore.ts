@@ -2,6 +2,7 @@ import { computeZonePairs } from '@rider-comms/shared';
 import type { Rider, ZonePair, ZoneTransition } from '@rider-comms/shared';
 import type { PoolClient } from 'pg';
 import { ensureMigrated, getPool } from './db.ts';
+import { latLonBoundingBox } from './geoBoundingBox.ts';
 
 export interface PresenceUpdateResult {
   transitions: ZoneTransition[];
@@ -34,7 +35,6 @@ interface PairRow {
 }
 
 const MAX_ZONE_RADIUS_MILES = 20;
-const MILES_PER_DEGREE_LAT = 69;
 
 function rowToRider(row: RiderPresenceRow): Rider {
   return {
@@ -72,30 +72,9 @@ export class PresenceStore {
   }
 
   private async loadCandidates(client: PoolClient, rider: Rider, cutoff: number): Promise<Rider[]> {
-    const latDelta = MAX_ZONE_RADIUS_MILES / MILES_PER_DEGREE_LAT;
-    const minLat = Math.max(-90, rider.location.lat - latDelta);
-    const maxLat = Math.min(90, rider.location.lat + latDelta);
-    const longitudeScale = MILES_PER_DEGREE_LAT * Math.abs(Math.cos(rider.location.lat * Math.PI / 180));
-    const lonDelta = longitudeScale < 0.000001
-      ? 180
-      : Math.min(180, MAX_ZONE_RADIUS_MILES / longitudeScale);
-
-    const values: unknown[] = [rider.id, cutoff, minLat, maxLat];
-    let longitudeClause = '';
-    if (lonDelta < 180) {
-      const minLon = rider.location.lon - lonDelta;
-      const maxLon = rider.location.lon + lonDelta;
-      if (minLon < -180) {
-        values.push(minLon + 360, maxLon);
-        longitudeClause = 'AND (lon >= $5 OR lon <= $6)';
-      } else if (maxLon > 180) {
-        values.push(minLon, maxLon - 360);
-        longitudeClause = 'AND (lon >= $5 OR lon <= $6)';
-      } else {
-        values.push(minLon, maxLon);
-        longitudeClause = 'AND lon BETWEEN $5 AND $6';
-      }
-    }
+    const box = latLonBoundingBox(rider.location, MAX_ZONE_RADIUS_MILES, 5);
+    const { minLat, maxLat, longitudeClause } = box;
+    const values: unknown[] = [rider.id, cutoff, minLat, maxLat, ...box.longitudeParams];
 
     const { rows } = await client.query<RiderPresenceRow>(
       `SELECT rider_id, lat, lon, radius_miles, accuracy_meters, updated_at

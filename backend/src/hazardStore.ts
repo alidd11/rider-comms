@@ -5,11 +5,11 @@ import {
 } from '@rider-comms/shared';
 import type { HazardReport, HazardType } from '@rider-comms/shared';
 import { ensureMigrated, getPool } from './db.ts';
+import { latLonBoundingBox } from './geoBoundingBox.ts';
 
 export type VoteResult = { ok: true } | { ok: false; reason: 'not_found' };
 
 export const HAZARD_SEARCH_RADIUS_MILES = 40;
-const MILES_PER_DEGREE_LAT = 69;
 const MAX_NEARBY_RESULTS = 500;
 
 interface HazardReportRow {
@@ -76,29 +76,9 @@ export class HazardStore {
    * results and are removed when their normal TTL expires. */
   async nearby(lat: number, lon: number, nowMs: number): Promise<HazardReport[]> {
     await ensureMigrated();
-    const latDelta = HAZARD_SEARCH_RADIUS_MILES / MILES_PER_DEGREE_LAT;
-    const minLat = Math.max(-90, lat - latDelta);
-    const maxLat = Math.min(90, lat + latDelta);
-    const longitudeScale = MILES_PER_DEGREE_LAT * Math.abs(Math.cos(lat * Math.PI / 180));
-    const lonDelta = longitudeScale < 0.000001
-      ? 180
-      : Math.min(180, HAZARD_SEARCH_RADIUS_MILES / longitudeScale);
-    const values: unknown[] = [nowMs, minLat, maxLat, HIDE_NET_DENIAL_THRESHOLD, lat, lon];
-    let longitudeClause = '';
-    if (lonDelta < 180) {
-      const minLon = lon - lonDelta;
-      const maxLon = lon + lonDelta;
-      if (minLon < -180) {
-        values.push(minLon + 360, maxLon);
-        longitudeClause = 'AND (lon >= $7 OR lon <= $8)';
-      } else if (maxLon > 180) {
-        values.push(minLon, maxLon - 360);
-        longitudeClause = 'AND (lon >= $7 OR lon <= $8)';
-      } else {
-        values.push(minLon, maxLon);
-        longitudeClause = 'AND lon BETWEEN $7 AND $8';
-      }
-    }
+    const box = latLonBoundingBox({ lat, lon }, HAZARD_SEARCH_RADIUS_MILES, 7);
+    const { minLat, maxLat, longitudeClause } = box;
+    const values: unknown[] = [nowMs, minLat, maxLat, HIDE_NET_DENIAL_THRESHOLD, lat, lon, ...box.longitudeParams];
     const { rows } = await getPool().query<HazardReportRow>(
       `WITH expired AS (
          DELETE FROM hazard_reports WHERE expires_at <= $1
