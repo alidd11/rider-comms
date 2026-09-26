@@ -1,3 +1,4 @@
+import { haversineMeters } from '@rider-comms/shared';
 import type { NavigationInstruction } from '@rider-comms/shared';
 
 export interface RouteCoordinate {
@@ -19,14 +20,7 @@ export interface InAppNavigationRoute {
 }
 
 export function metersBetween(a: RouteCoordinate, b: RouteCoordinate): number {
-  const radius = 6_371_000;
-  const toRad = (degrees: number) => degrees * Math.PI / 180;
-  const dLat = toRad(b.lat - a.lat);
-  const dLon = toRad(b.lon - a.lon);
-  const lat1 = toRad(a.lat);
-  const lat2 = toRad(b.lat);
-  const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
-  return 2 * radius * Math.asin(Math.min(1, Math.sqrt(h)));
+  return haversineMeters(a, b);
 }
 
 function projectToSegment(

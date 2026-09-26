@@ -7,6 +7,7 @@
 // bundle-id/SHA1 fingerprint in the Google Cloud console, not by request
 // origin, so shipping the key in the app bundle via EXPO_PUBLIC_* is the
 // standard approach for native (see .env.example).
+import { haversineMeters } from '@rider-comms/shared';
 
 const PLACES_TEXT_SEARCH_URL = 'https://places.googleapis.com/v1/places:searchText';
 const PLACES_NEARBY_SEARCH_URL = 'https://places.googleapis.com/v1/places:searchNearby';
@@ -57,13 +58,7 @@ export function distanceBetweenMeters(
   from: { lat: number; lon: number },
   to: { lat: number; lon: number }
 ): number {
-  const radians = Math.PI / 180;
-  const lat1 = from.lat * radians;
-  const lat2 = to.lat * radians;
-  const deltaLat = (to.lat - from.lat) * radians;
-  const deltaLon = (to.lon - from.lon) * radians;
-  const a = Math.sin(deltaLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(deltaLon / 2) ** 2;
-  return 6_371_000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return haversineMeters(from, to);
 }
 
 export function formatPlaceDistance(meters: number, unit: 'mi' | 'km' = 'km'): string {
