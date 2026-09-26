@@ -1,7 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  buildExternalNavigationUrl,
   buildNavigationProviderUrl,
   navigationTargetFromValues,
   openNavigationUrl,
@@ -59,18 +58,6 @@ describe('navigation handoff URLs', () => {
     assert.equal(
       buildNavigationProviderUrl(target, 'apple_maps'),
       'https://maps.apple.com/?daddr=51.5%2C-0.1&q=Ace%20Caf%C3%A9%20%26%20meet&dirflg=d'
-    );
-  });
-
-  it('builds encoded iOS and Android handoff URLs', () => {
-    const target = { lat: 51.5, lon: -0.1, label: 'Ace Café & meet' };
-    assert.equal(
-      buildExternalNavigationUrl(target, 'ios'),
-      'https://maps.apple.com/?daddr=51.5%2C-0.1&q=Ace%20Caf%C3%A9%20%26%20meet&dirflg=d'
-    );
-    assert.equal(
-      buildExternalNavigationUrl(target, 'android'),
-      'geo:51.5,-0.1?q=51.5%2C-0.1(Ace%20Caf%C3%A9%20%26%20meet)'
     );
   });
 

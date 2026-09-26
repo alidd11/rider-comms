@@ -81,21 +81,6 @@ export function buildNavigationProviderUrl(
   return `https://maps.apple.com/?daddr=${encodeURIComponent(coordinate)}&q=${encodeURIComponent(label)}&dirflg=d`;
 }
 
-export function buildExternalNavigationUrl(
-  target: NavigationTarget,
-  platform: 'ios' | 'android'
-): string | null {
-  const validated = navigationTargetFromValues(target.lat, target.lon, target.label);
-  if (!validated) return null;
-
-  const coordinate = `${validated.lat},${validated.lon}`;
-  const label = validated.label ?? coordinate;
-  if (platform === 'ios') {
-    return `https://maps.apple.com/?daddr=${encodeURIComponent(coordinate)}&q=${encodeURIComponent(label)}&dirflg=d`;
-  }
-  return `geo:${coordinate}?q=${encodeURIComponent(`${coordinate}(${label})`)}`;
-}
-
 /** Feature-detects the destination URL before handing control to the OS.
  * Unsupported schemes and platform failures share the same safe false result
  * so screens can retain context and offer a retry/provider change. */
