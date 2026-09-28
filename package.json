@@ -24,6 +24,6 @@
     "react": "19.2.3"
   },
   "devDependencies": {
-    "@playwright/test": "^1.55.0"
+    "@playwright/test": "^1.55.1"
   }
 }
