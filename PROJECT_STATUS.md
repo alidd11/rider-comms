@@ -1,14 +1,14 @@
 # Rider Comms project status
 
-> Snapshot: 21 September 2026. This file is a handover/status snapshot, not a substitute for live GitHub state. Before changing code, re-check current `main`, open PRs, their exact HEAD SHAs/checks, and file overlap.
+> Snapshot: 28 September 2026. This file is a handover/status snapshot, not a substitute for live GitHub state. Before changing code, re-check current `main`, open PRs, their exact HEAD SHAs/checks, and file overlap.
 
 ## Executive status
 
 - **Lifecycle:** pre-alpha / internal testing. The repository is suitable for continued development and controlled testing, not public production use.
-- **Snapshot main:** `df02282de7249dd870a668cf543294f01134f576` — merge of PR #286, **Revoke private ride voice authorization**.
-- **Main verification:** CI, PWA deployment and GitHub Pages deployment all completed successfully on that exact main SHA.
+- **Snapshot main:** `579aa51a542270bbbaea40e4321cf80044fe69d8` — merge of PR #359, **Bump @playwright/test to 1.55.1 to clear the high-severity advisory**.
+- **Main verification:** CI (`verify`) passed on the PR heads merged into that SHA; re-check live checks on `main` before relying on it.
 - **Client parity:** `client-parity.json` currently records PWA/native parity for every tracked capability except **navigation**, which remains a `behavior-gap` pending production-grade background/locked-screen and physical ride validation.
-- **Active development:** Settings parity, clicked-friend profile alignment, navigation header/control refinement and route-aware Road ahead alerts are in separate open PRs. PR #283's private-ride location privacy fix and PR #286's private-ride voice revocation hardening are now merged.
+- **Active development:** the Settings, friend-profile, navigation header/dock and Road ahead PRs listed in the previous snapshot (#276, #279, #280, #282, #285) have all merged. Since then, work has focused on hardening: a server-side Directions proxy (#315, #318), Places/Directions billing reductions (#334, #335), refactors splitting `MapScreen`/`server.ts`, a native Jest suite (#348–#358), and the Playwright 1.55.1 security bump (#359).
 
 ## What is currently on `main`
 
@@ -51,37 +51,18 @@
 
 - Node 22+ monorepo with shared, backend and Expo/React Native workspaces.
 - PostgreSQL-backed automated tests, TypeScript/lint checks, PWA build, Playwright visual audit, Android export and iOS export are exercised by CI.
+- The native workspace has a Jest + `jest-expo` suite (`mobile/tests-jest`, 120 tests across 11 suites at this snapshot) covering the extracted map hooks (`usePresence`, `useRideProfiles`, `useNavigationSummary`, `useHazardReports`, `useInAppNavigation`), `useVoiceActivity`, and the Auth, Ride, Settings, Friends and MovementSafety contexts. It runs as part of root `npm test` alongside the legacy `node:test` client suite.
 - `main` deploys the PWA through GitHub Pages.
 
 ## Open PRs at this snapshot
 
-| PR | State | Exact head at review | Scope |
-| --- | --- | --- | --- |
-| #276 | Draft | `e8047a12e0f670239d7637614c207a9f4911eb7e` | Settings information architecture. Native redesign is implemented; the PWA parity pass is intentionally waiting for overlapping shared-PWA work to land. |
-| #279 | Draft | `e11e95c1ab24f7343ada644a4ad4cf9a19af820e` | Align the clicked-friend profile with the approved compact sheet while preserving real privacy/location state. |
-| #280 | Draft | `cba6d9fd62a8f39e33188a83ed5a7f46352e6668` | Navigation header hierarchy, prominent live-speed badge, larger in-navigation rider avatar and explicit route-finish marker. |
-| #285 | Draft | `3ad40cd5670134cf0ab621844894e393b363a2f8` | Current-main successor to closed #281; docks Report/Mute/Overview controls together above the ETA summary. |
-| #282 | Draft | `81a74cba39c34d2a01d2ec09d3c3667c943873ac` | Route-aware **Road ahead** alerts using Rider Comms' own hazard/report data only. |
-
-Exact-head CI was checked before this snapshot. PR state and checks can change after this file is committed, so live GitHub checks remain authoritative for merge decisions.
-
-## Active file ownership / coordination
-
-Do not casually edit or rebase files already owned by the active PRs. At this snapshot:
-
-- **#276** owns `client-parity.json`, `mobile/src/screens/SettingsScreen.tsx` and `mobile/tests/settingsLayout.test.ts`.
-- **#279** owns the shared PWA shell (`docs/app.css`, `docs/app.js`, `docs/index.html`, `docs/sw.js`), the native Friends screen and PWA visual tests.
-- **#280** owns shared PWA navigation shell files, `docs/map-rendering.md`, native navigation guidance/MapScreen work, avatar/parity guards and PWA visual tests.
-- **#285** overlaps navigation CSS/index/service-worker files, `docs/map-rendering.md`, native `MapScreen.tsx`, the parity guard and PWA visual tests.
-- **#282** overlaps the shared PWA shell, `client-parity.json`, navigation/MapScreen/parity/build files and adds the Road ahead implementation/tests/docs.
-
-PR #281 was closed without merge and superseded by current-main PR #285. PRs #283 and #286 have merged, so their backend files are no longer active-PR-owned. The highest-overlap area is the shared PWA/navigation surface. Those branches must be refreshed and reconciled against the newest `main` one at a time before final merge. Settings should not be marked complete until its PWA pass is performed after that overlap clears.
+None besides the PR that updates this file, so there is no active file ownership to coordinate around. Live GitHub state stays authoritative.
 
 ## Current release blockers
 
 The project remains pre-alpha mainly because implementation breadth is now ahead of production validation/operations. The principal blockers are:
 
-- production-grade routing/navigation delivery rather than shipping a reusable client-side web-service credential;
+- production-grade navigation delivery: routing now goes through the authenticated backend `/directions` proxy, but the native place-search key (`EXPO_PUBLIC_GOOGLE_PLACES_API_KEY`) still ships in the app bundle and needs a decision (see `AUDIT.md`);
 - physical motorcycle testing for navigation, missed-turn rerouting, degraded GPS, background/locked-screen execution, LiveKit voice and common Bluetooth helmet/intercom systems;
 - App Store / Google Play billing and receipt validation;
 - production retention, backups/restore, monitoring/alerting, moderation operations and recovery procedures;
@@ -91,7 +72,7 @@ The project remains pre-alpha mainly because implementation breadth is now ahead
 - load/failure testing and documented degraded-mode behavior for dense rider events and third-party outages;
 - continued dependency/security triage before release.
 
-See `AUDIT.md` for the engineering risk register and `COMPLIANCE.md` for store/production readiness requirements. `AUDIT.md` is dated 18 September 2026, so current code and live CI take precedence where the repository has moved on.
+See `AUDIT.md` for the engineering risk register and `COMPLIANCE.md` for store/production readiness requirements. `AUDIT.md` is dated 18 September 2026 with a 28 September addendum, so current code and live CI take precedence where the repository has moved on.
 
 ## Source-of-truth order
 
