@@ -1,8 +1,17 @@
 # Rider Comms engineering audit
 
-Audit date: 2026-09-18
+Audit date: 2026-09-18 (addendum 2026-09-28 below)
 
 This document records the current engineering assessment of `main`. Repository code, CI and the machine-readable parity manifest remain authoritative if this document becomes stale.
+
+## Addendum — 2026-09-28
+
+- **Routing credential:** resolved. Native in-app routing now calls the authenticated, rate-limited backend `POST /directions` proxy (#315), with a server-side route cache (#334). The client-side Directions web-service key was removed (#318). `GOOGLE_DIRECTIONS_API_KEY` is backend-only.
+- **Place search credential:** still open. `mobile/src/api/places.ts` calls Places API (New) directly with `EXPO_PUBLIC_GOOGLE_PLACES_API_KEY`, which ends up in the app bundle. The code relies on Google Cloud app restrictions (iOS bundle ID / Android package + SHA-1). For REST calls, those restrictions are generally enforced through `X-Ios-Bundle-Identifier` / `X-Android-Package` / `X-Android-Cert` request headers, which the client does not send today. So the key is either unrestricted, or restricted and rejecting requests; this needs verifying against the production key. The alternative is a backend place-search proxy matching `/directions`. The PWA's Maps JavaScript browser key is origin-restricted and is not affected.
+- **Dependencies:** PR #359 moved `@playwright/test` to 1.55.1, clearing both high-severity findings (Playwright's unverified browser download). `npm audit` now reports 14 moderate findings:
+  - Expo CLI/config tooling (`@expo/cli`, `@expo/config`, `@expo/config-plugins`, `@expo/prebuild-config`, `@expo/metro-config`, `@expo/inline-modules`, `@expo/local-build-cache-provider`, `xcode`, `uuid`, `@config-plugins/react-native-webrtc`, `expo`): `npm audit`'s only offered fix is a semver-major downgrade to `expo@46`, which is not viable. These are mostly build-time tooling; track upstream Expo releases.
+  - `decode-uri-component` via `query-string` via `@react-navigation/core` 7.21: reachable through deep-link URL parsing. `@react-navigation/core` 7.22 drops `query-string`; clearing it needs a coordinated `@react-navigation/*` minor upgrade.
+- **Native test coverage:** `mobile/tests-jest` now has 120 Jest tests across 11 suites, covering the extracted map hooks, VOX and the app contexts. It runs in root `npm test` and therefore in CI.
 
 ## Current verified state
 
@@ -45,7 +54,7 @@ The PWA visual suite is useful regression coverage, but it is not a substitute f
 
 ### Navigation and riding validation
 
-The native in-app route fetch still uses a pre-release Google Directions web-service path. A public release should move to an approved native navigation SDK or a protected server-side routing service rather than shipping a reusable web-service credential in the client.
+Native in-app routing now goes through the protected backend `/directions` proxy (see the 2026-09-28 addendum). Native place search still calls Google Places directly with a bundled key, which needs a decision before release.
 
 Background and locked-screen navigation is not yet production-complete. Native voice now has the platform infrastructure needed for background audio: iOS declares the audio background mode, while Android starts a microphone-typed foreground service before the LiveKit audio session and keeps it leased across public/private voice owners. Navigation, LiveKit voice and audio routing must still be validated during real rides with the screen locked, after missed turns, through degraded/lost GPS, across app background/foreground transitions and with common Bluetooth helmet systems.
 
@@ -79,7 +88,7 @@ Third-party maps, routing, LiveKit and email dependencies need production quota,
 
 ## Current audit findings to track
 
-- `npm ci` currently reports 15 dependency vulnerabilities (13 moderate, 2 high). Their applicability to shipped runtime code has not yet been triaged; do not equate the raw count with exploitable product vulnerabilities, but resolve or document each before release.
+- Dependency findings are triaged in the 2026-09-28 addendum: 0 high since #359, and 14 moderate that are either Expo tooling with no non-breaking fix or `decode-uri-component` pending a react-navigation minor upgrade.
 - Navigation remains a `behavior-gap` in `client-parity.json`; do not mark it complete from automated tests alone.
 - Installed-iPhone PWA viewport/keyboard/safe-area behavior has repeatedly differed from desktop/WebKit simulation. Physical-device evidence takes precedence over a green synthetic geometry assertion.
 - Public Nearby voice on the installed PWA intentionally releases microphone capture while no authorised proximity peer is connected; the system microphone indicator may therefore disappear after the initial permission/preflight capture even though Nearby remains armed and location-visible. A physical iOS PWA test previously observed the mic indicator disappearing after roughly 4–5 seconds. Treat that as expected only in the “Nearby Voice · waiting for riders” state. With an authorised peer connected, the pair-isolated LiveKit room and independent VOX meter must remain active. The PWA now also fails closed if WebKit suspends the VOX AudioContext, attempts to resume it on foreground, and exposes a rider-tap “Resume voice” path when automatic recovery is not permitted. Public pair authorization is separately renewed from current server-side proximity/block state: the backend advertises a 20-second refresh cadence and 60-second authorization lease, and both PWA/native tear stale public rooms down if that lease cannot be renewed. Automated coverage holds a simulated public connection beyond five seconds, exercises the suspend/resume cycle, and verifies PWA lease expiry, but an installed-device two-rider test is still required.
