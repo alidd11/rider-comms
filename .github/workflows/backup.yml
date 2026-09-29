@@ -1,0 +1,80 @@
+name: Database backup
+
+# Nightly encrypted logical backup of the production database, restored into a
+# throwaway Postgres first to prove it is usable. Needs repository secrets
+# PRODUCTION_DATABASE_URL (an externally reachable URL, with sslmode=require)
+# and BACKUP_AGE_RECIPIENT (an age public key). The matching private key must
+# NOT be stored in GitHub. Until both secrets exist the job skips cleanly. See
+# BACKUP_RESTORE.md.
+
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: database-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # Must match (or exceed) the production server's major version, since
+      # pg_dump refuses to dump a newer server. Override with a repository
+      # variable if production moves to a newer Postgres.
+      POSTGRES_MAJOR: ${{ vars.POSTGRES_MAJOR || '16' }}
+      PRODUCTION_DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+      BACKUP_AGE_RECIPIENT: ${{ secrets.BACKUP_AGE_RECIPIENT }}
+    services:
+      verify:
+        image: postgres:${{ vars.POSTGRES_MAJOR || '16' }}-alpine
+        env:
+          POSTGRES_USER: verify
+          POSTGRES_PASSWORD: verify
+          POSTGRES_DB: verify
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U verify -d verify"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Check configuration
+        id: config
+        run: |
+          if [ -z "$PRODUCTION_DATABASE_URL" ] || [ -z "$BACKUP_AGE_RECIPIENT" ]; then
+            echo "::notice::Backup skipped: set PRODUCTION_DATABASE_URL and BACKUP_AGE_RECIPIENT secrets to enable it."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.config.outputs.enabled == 'true'
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Install Postgres client and age
+        if: steps.config.outputs.enabled == 'true'
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q postgresql-common age
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y -q "postgresql-client-${POSTGRES_MAJOR}"
+          echo "/usr/lib/postgresql/${POSTGRES_MAJOR}/bin" >> "$GITHUB_PATH"
+      - name: Back up, verify and encrypt
+        if: steps.config.outputs.enabled == 'true'
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+          BACKUP_VERIFY_DATABASE_URL: postgres://verify:verify@127.0.0.1:5432/verify
+        run: scripts/db-backup.sh "$RUNNER_TEMP/backup"
+      - name: Upload encrypted backup
+        if: steps.config.outputs.enabled == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: rider-comms-db-backup-${{ github.run_id }}
+          path: ${{ runner.temp }}/backup/
+          if-no-files-found: error
+          retention-days: 30

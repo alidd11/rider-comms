@@ -16,7 +16,7 @@ This repository is a pre-alpha test build. Store review compliance is an ongoing
 
 ## Required before public App Store or Play Store submission
 
-1. Add account recovery, a documented retention schedule, encrypted production storage and backups, tested restore procedures, and scheduled retention/deletion jobs. Postgres persistence and atomic in-app deletion exist, but those operational controls do not.
+1. Operate the data controls now in the repository: password-reset account recovery, the retention schedule and scheduled deletion sweeps (`RETENTION.md`), and encrypted nightly backups with a restore-verification script (`BACKUP_RESTORE.md`). Still required: configure the backup secrets and private-key custody, confirm the database host encrypts storage at rest, run and record the monthly restore drill, and settle the open retention decisions listed in `RETENTION.md`.
 2. Publish a complete privacy policy and terms at stable HTTPS URLs, configure a monitored support address, and link them in store metadata and the app.
 3. Staff a moderation queue with response targets and appeal/escalation procedures; persist reports and audit actions.
 4. Complete Apple privacy nutrition labels, Google Play Data safety, content-rating, target-audience, account-deletion URL, and testing-access declarations accurately.

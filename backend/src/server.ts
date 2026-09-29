@@ -6,6 +6,7 @@ import type { LiveKitCredentials, LiveKitRoomAdmin } from './liveKitToken.ts';
 import { DirectionsProviderError, fetchGoogleDrivingRoute } from './directionsProvider.ts';
 import type { DrivingRoute, RouteCoordinate } from './directionsProvider.ts';
 import { DirectionsCache, wrapDirectionsProviderWithCache } from './directionsCache.ts';
+import { RetentionStore } from './retentionStore.ts';
 import { fetchGooglePlaces, normalizePlaceQuery, normalizePlaceTypes, PlacesProviderError } from './placesProvider.ts';
 import type { PlaceSearchRequest, PlaceSummary } from './placesProvider.ts';
 import { AuthStore } from './authStore.ts';
@@ -71,6 +72,7 @@ const AUTH_CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
 const RATE_LIMIT_CLEANUP_INTERVAL_MS = 15 * 60 * 1000;
 const SOCIAL_RATE_CLEANUP_INTERVAL_MS = 15 * 60 * 1000;
 const SOCIAL_STATE_CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
+const RETENTION_SWEEP_INTERVAL_MS = 15 * 60 * 1000;
 
 export interface ApiServerOptions {
   allowedOrigins?: readonly string[];
@@ -762,16 +764,19 @@ async function startProductionServer(): Promise<void> {
   const productionSocialRateLimitStore = new SocialRateLimitStore();
   const productionSocialActivityStore = new SocialActivityStore();
   const productionSocialEventStore = new SocialEventStore();
+  const productionRetentionStore = new RetentionStore();
   const initialCleanup = await productionAuthStore.cleanupExpiredRecords();
   const initialRateCleanup = await productionRateLimitStore.cleanupExpired();
   const initialSocialRateCleanup = await productionSocialRateLimitStore.cleanupExpired();
   const initialSocialActivityCleanup = await productionSocialActivityStore.cleanupExpired();
   const initialSocialEventCleanup = await productionSocialEventStore.cleanupExpired();
+  const initialRetentionSweep = await productionRetentionStore.sweep();
   console.log(JSON.stringify({ level: 'info', event: 'auth_records_cleaned', ...initialCleanup }));
   console.log(JSON.stringify({ level: 'info', event: 'rate_limit_events_cleaned', deleted: initialRateCleanup }));
   console.log(JSON.stringify({ level: 'info', event: 'social_rate_events_cleaned', deleted: initialSocialRateCleanup }));
   console.log(JSON.stringify({ level: 'info', event: 'social_activity_cleaned', deleted: initialSocialActivityCleanup }));
   console.log(JSON.stringify({ level: 'info', event: 'social_events_cleaned', deleted: initialSocialEventCleanup }));
+  console.log(JSON.stringify({ level: 'info', event: 'retention_sweep_completed', ...initialRetentionSweep }));
   const app = createApp(undefined, undefined, undefined, undefined, undefined, undefined, productionAuthStore, undefined, undefined, undefined, {
     allowedOrigins,
     trustProxy: process.env.TRUST_PROXY === 'true',
@@ -812,6 +817,12 @@ async function startProductionServer(): Promise<void> {
       .catch((error) => console.error(JSON.stringify({ level: 'error', event: 'social_state_cleanup_failed', message: error instanceof Error ? error.message : String(error) })));
   }, SOCIAL_STATE_CLEANUP_INTERVAL_MS);
   socialStateCleanupTimer.unref();
+  const retentionSweepTimer = setInterval(() => {
+    void productionRetentionStore.sweep()
+      .then((counts) => console.log(JSON.stringify({ level: 'info', event: 'retention_sweep_completed', ...counts })))
+      .catch((error) => console.error(JSON.stringify({ level: 'error', event: 'retention_sweep_failed', message: error instanceof Error ? error.message : String(error) })));
+  }, RETENTION_SWEEP_INTERVAL_MS);
+  retentionSweepTimer.unref();
 
   let stopping = false;
   const shutdown = (signal: NodeJS.Signals) => {
@@ -821,6 +832,7 @@ async function startProductionServer(): Promise<void> {
     clearInterval(rateLimitCleanupTimer);
     clearInterval(socialRateCleanupTimer);
     clearInterval(socialStateCleanupTimer);
+    clearInterval(retentionSweepTimer);
     void productionSocialEventStore.close().catch((error) => console.error(JSON.stringify({ level: 'error', event: 'social_event_listener_shutdown_failed', message: error instanceof Error ? error.message : String(error) })));
     console.log(JSON.stringify({ level: 'info', event: 'shutdown_started', signal }));
     const forceExit = setTimeout(() => {
