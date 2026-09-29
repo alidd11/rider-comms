@@ -8,6 +8,7 @@ export type RateLimitAction =
   | 'ride_join_ip'
   | 'hazard_create'
   | 'directions'
+  | 'places'
   | 'verification_resend'
   | 'password_reset_request';
 
@@ -29,6 +30,10 @@ export const RATE_LIMIT_POLICIES: Readonly<Record<RateLimitAction, RateLimitPoli
   // Directions requests incur third-party quota/cost and can be triggered by
   // rerouting. Keep enough headroom for normal riding while bounding abuse.
   directions: { maxEvents: 60, windowMs: 10 * 60_000 },
+  // Place search is billed per request. The native client debounces typing
+  // (500ms) and caches repeats in memory, so this bounds a scripted client
+  // without getting in the way of a rider browsing a few categories/queries.
+  places: { maxEvents: 120, windowMs: 10 * 60_000 },
   verification_resend: { maxEvents: 3, windowMs: 10 * 60_000 },
   password_reset_request: { maxEvents: 3, windowMs: 10 * 60_000 },
 };

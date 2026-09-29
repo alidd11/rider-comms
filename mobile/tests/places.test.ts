@@ -1,13 +1,31 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { ApiError } from '../src/api/client.ts';
+import type { PlaceSummary } from '../src/api/client.ts';
 import { distanceBetweenMeters, formatPlaceDistance, isSearchQueryValid, MIN_PLACE_SEARCH_QUERY_LENGTH, PLACE_SEARCH_DEBOUNCE_MS, searchNearbyPlaces, searchPlaces } from '../src/api/places.ts';
+import type { PlacesClient } from '../src/api/places.ts';
 import { addRecentPlace, parseRecentPlaces, recentPlacesStorageKey } from '../src/search/recentPlaces.ts';
 
-function fakeFetch(handler: (url: string, init: RequestInit) => { status: number; body: unknown }): typeof fetch {
-  return (async (url: string, init: RequestInit) => {
-    const { status, body } = handler(url, init);
-    return { ok: status >= 200 && status < 300, status, json: async () => body } as Response;
-  }) as typeof fetch;
+type SearchCall = { kind: 'text'; query: string; near: { lat: number; lon: number } }
+  | { kind: 'nearby'; includedTypes: readonly string[]; near: { lat: number; lon: number } };
+
+function fakeClient(respond: () => Promise<{ places: unknown }>): { client: PlacesClient; calls: SearchCall[] } {
+  const calls: SearchCall[] = [];
+  const client = {
+    searchPlaces: async (query: string, near: { lat: number; lon: number }) => {
+      calls.push({ kind: 'text', query, near });
+      return respond() as Promise<{ places: PlaceSummary[] }>;
+    },
+    searchNearbyPlaces: async (includedTypes: readonly string[], near: { lat: number; lon: number }) => {
+      calls.push({ kind: 'nearby', includedTypes, near });
+      return respond() as Promise<{ places: PlaceSummary[] }>;
+    },
+  };
+  return { client, calls };
+}
+
+function place(id: string, lat: number, lon: number, name = id): PlaceSummary {
+  return { id, name, address: `${name} address`, lat, lon };
 }
 
 describe('isSearchQueryValid', () => {
@@ -32,200 +50,94 @@ describe('isSearchQueryValid', () => {
 describe('searchPlaces', () => {
   const near = { lat: 51.5, lon: -0.1 };
 
-  it('returns an unavailable failure without calling the network when no API key is set', async () => {
-    let called = false;
-    const fetchImpl = (async () => {
-      called = true;
-      return { ok: true, json: async () => ({}) } as Response;
-    }) as typeof fetch;
-
-    const results = await searchPlaces('coffee', near, '', fetchImpl);
-    assert.deepEqual(results, { status: 'unavailable', places: [] });
-    assert.equal(called, false);
+  it('returns an empty successful result for an invalid query without calling the backend', async () => {
+    const { client, calls } = fakeClient(async () => ({ places: [] }));
+    assert.deepEqual(await searchPlaces('   ', near, client), { status: 'ok', places: [] });
+    assert.equal(calls.length, 0);
   });
 
-  it('returns an empty successful result for an invalid query even with a key set', async () => {
-    const results = await searchPlaces('   ', near, 'test-key', fakeFetch(() => ({ status: 200, body: {} })));
-    assert.deepEqual(results, { status: 'ok', places: [] });
+  it('sends the trimmed query and location to the backend and adds distances', async () => {
+    const { client, calls } = fakeClient(async () => ({ places: [place('p1', 51.501, -0.1, 'Bike Cafe')] }));
+
+    const result = await searchPlaces('  coffee shop ', near, client);
+
+    assert.deepEqual(calls, [{ kind: 'text', query: 'coffee shop', near }]);
+    assert.equal(result.status, 'ok');
+    assert.equal(result.places.length, 1);
+    assert.equal(result.places[0]!.name, 'Bike Cafe');
+    assert.equal(result.places[0]!.address, 'Bike Cafe address');
+    assert.ok(Math.abs(result.places[0]!.distanceMeters - 111) < 2);
   });
 
-  it('sends the query, key, and location bias, and maps the response', async () => {
-    const results = await searchPlaces(
-      'coffee shop',
-      near,
-      'test-key',
-      fakeFetch((url, init) => {
-        assert.equal(url, 'https://places.googleapis.com/v1/places:searchText');
-        assert.equal((init.headers as Record<string, string>)['X-Goog-Api-Key'], 'test-key');
-        const body = JSON.parse(init.body as string);
-        assert.equal(body.textQuery, 'coffee shop');
-        assert.deepEqual(body.locationBias.circle.center, { latitude: 51.5, longitude: -0.1 });
-        assert.equal(body.locationBias.circle.radius, 15_000);
-        return {
-          status: 200,
-          body: {
-            places: [
-              {
-                id: 'place1',
-                displayName: { text: 'Corner Coffee' },
-                formattedAddress: '1 High St',
-                location: { latitude: 51.51, longitude: -0.11 },
-              },
-            ],
-          },
-        };
-      })
-    );
-
-    assert.equal(results.status, 'ok');
-    assert.equal(results.places.length, 1);
-    assert.deepEqual(
-      { ...results.places[0], distanceMeters: undefined },
-      { id: 'place1', name: 'Corner Coffee', address: '1 High St', lat: 51.51, lon: -0.11, distanceMeters: undefined }
-    );
-    assert.ok(results.places[0].distanceMeters > 1_000);
+  it('preserves backend relevance order for text results', async () => {
+    const { client } = fakeClient(async () => ({ places: [place('far', 51.52, -0.1), place('near', 51.501, -0.1)] }));
+    const result = await searchPlaces('coffee', near, client);
+    assert.deepEqual(result.places.map((p) => p.id), ['far', 'near']);
   });
 
-  it('skips results missing a location and never throws on a bad response', async () => {
-    const results = await searchPlaces(
-      'coffee',
-      near,
-      'test-key',
-      fakeFetch(() => ({ status: 200, body: { places: [{ id: 'no-loc', displayName: { text: 'No Location' } }] } }))
-    );
-    assert.deepEqual(results, { status: 'ok', places: [] });
+  it('distinguishes quota, configuration and provider failures from zero results', async () => {
+    const failing = (status: number) => fakeClient(async () => { throw new ApiError(status, { error: 'x' }); }).client;
+    assert.deepEqual(await searchPlaces('coffee', near, failing(429)), { status: 'rate-limited', places: [] });
+    assert.deepEqual(await searchPlaces('coffee', near, failing(503)), { status: 'unavailable', places: [] });
+    assert.deepEqual(await searchPlaces('coffee', near, failing(502)), { status: 'provider-error', places: [] });
+    assert.deepEqual(await searchPlaces('coffee', near, failing(401)), { status: 'provider-error', places: [] });
   });
 
-  it('distinguishes provider and quota failures from zero results', async () => {
-    const results = await searchPlaces('coffee', near, 'test-key', fakeFetch(() => ({ status: 403, body: {} })));
-    assert.deepEqual(results, { status: 'provider-error', places: [] });
-    const limited = await searchPlaces('coffee', near, 'test-key', fakeFetch(() => ({ status: 429, body: {} })));
-    assert.deepEqual(limited, { status: 'rate-limited', places: [] });
+  it('distinguishes network failures and timeouts from zero results', async () => {
+    const offline = fakeClient(async () => { throw new TypeError('Network request failed'); }).client;
+    assert.deepEqual(await searchPlaces('coffee', near, offline), { status: 'network-error', places: [] });
+    const aborted = fakeClient(async () => { throw new DOMException('aborted', 'AbortError'); }).client;
+    assert.deepEqual(await searchPlaces('coffee', near, aborted), { status: 'network-error', places: [] });
   });
 
-  it('distinguishes network failures from zero results', async () => {
-    const throwingFetch = (async () => {
-      throw new Error('network down');
-    }) as typeof fetch;
-    const results = await searchPlaces('coffee', near, 'test-key', throwingFetch);
-    assert.deepEqual(results, { status: 'network-error', places: [] });
+  it('reports a malformed backend response', async () => {
+    const { client } = fakeClient(async () => ({ places: 'nope' }));
+    assert.deepEqual(await searchPlaces('coffee', near, client), { status: 'provider-error', places: [] });
   });
 
-  it('preserves provider relevance order for text results', async () => {
-    const results = await searchPlaces(
-      'museum',
-      near,
-      'test-key',
-      fakeFetch(() => ({
-        status: 200,
-        body: {
-          places: [
-            { id: 'relevant', displayName: { text: 'Relevant' }, location: { latitude: 51.55, longitude: -0.1 } },
-            { id: 'closer', displayName: { text: 'Closer' }, location: { latitude: 51.501, longitude: -0.1 } },
-          ],
-        },
-      }))
-    );
-    assert.equal(results.status, 'ok');
-    assert.deepEqual(results.places.map((place) => place.id), ['relevant', 'closer']);
-  });
-
-  it('reports a malformed provider response', async () => {
-    const results = await searchPlaces(
-      'coffee',
-      near,
-      'test-key',
-      fakeFetch(() => ({ status: 200, body: { places: 'not-an-array' } }))
-    );
-    assert.deepEqual(results, { status: 'provider-error', places: [] });
-
-    const invalidJson = (async () => ({
-      ok: true,
-      status: 200,
-      json: async () => { throw new SyntaxError('invalid JSON'); },
-    } as unknown as Response)) as typeof fetch;
-    const invalidJsonResult = await searchPlaces('coffee', near, 'test-key', invalidJson);
-    assert.deepEqual(invalidJsonResult, { status: 'provider-error', places: [] });
-  });
-
-  it('drops malformed and out-of-range provider places safely', async () => {
-    const results = await searchPlaces(
-      'coffee',
-      near,
-      'test-key',
-      fakeFetch(() => ({
-        status: 200,
-        body: {
-          places: [
-            null,
-            { id: 'nan', location: { latitude: Number.NaN, longitude: -0.1 } },
-            { id: 'outside', location: { latitude: 91, longitude: -0.1 } },
-          ],
-        },
-      }))
-    );
-    assert.deepEqual(results, { status: 'ok', places: [] });
+  it('drops malformed and out-of-range places safely', async () => {
+    const { client } = fakeClient(async () => ({
+      places: [
+        place('ok', 51.501, -0.1),
+        { id: 'no-coords', name: 'x', address: '' },
+        { ...place('bad-lat', 91, 0) },
+        { ...place('bad-lon', 0, 181) },
+        { ...place('nan', Number.NaN, 0) },
+        { id: 1, name: 'x', address: '', lat: 0, lon: 0 },
+        null,
+      ],
+    }));
+    const result = await searchPlaces('coffee', near, client);
+    assert.deepEqual(result.places.map((p) => p.id), ['ok']);
   });
 });
 
 describe('searchNearbyPlaces', () => {
   const near = { lat: 51.5, lon: -0.1 };
 
-  it('uses strict category types, a 5 km restriction, and distance ranking', async () => {
-    const results = await searchNearbyPlaces(
-      { includedTypes: ['restaurant'] },
-      near,
-      'test-key',
-      fakeFetch((url, init) => {
-        assert.equal(url, 'https://places.googleapis.com/v1/places:searchNearby');
-        const body = JSON.parse(init.body as string);
-        assert.deepEqual(body.includedTypes, ['restaurant']);
-        assert.equal(body.rankPreference, 'DISTANCE');
-        assert.equal(body.locationRestriction.circle.radius, 5_000);
-        assert.deepEqual(body.locationRestriction.circle.center, { latitude: 51.5, longitude: -0.1 });
-        return {
-          status: 200,
-          body: {
-            places: [{
-              id: 'restaurant-1',
-              displayName: { text: 'Nearby Restaurant' },
-              formattedAddress: '1 High St',
-              location: { latitude: 51.501, longitude: -0.1 },
-              businessStatus: 'OPERATIONAL',
-            }],
-          },
-        };
-      })
-    );
-
-    assert.equal(results.status, 'ok');
-    assert.equal(results.places.length, 1);
-    assert.equal(results.places[0].name, 'Nearby Restaurant');
+  it('sends the category types to the backend nearby search', async () => {
+    const { client, calls } = fakeClient(async () => ({ places: [] }));
+    await searchNearbyPlaces({ includedTypes: ['cafe', 'coffee_shop'] }, near, client);
+    assert.deepEqual(calls, [{ kind: 'nearby', includedTypes: ['cafe', 'coffee_shop'], near }]);
   });
 
-  it('removes permanently closed and out-of-radius places defensively', async () => {
-    const results = await searchNearbyPlaces(
-      { includedTypes: ['restaurant'] },
-      near,
-      'test-key',
-      fakeFetch(() => ({
-        status: 200,
-        body: {
-          places: [
-            {
-              id: 'closed', displayName: { text: 'Closed' }, businessStatus: 'CLOSED_PERMANENTLY',
-              location: { latitude: 51.501, longitude: -0.1 },
-            },
-            {
-              id: 'far', displayName: { text: 'Too Far' }, businessStatus: 'OPERATIONAL',
-              location: { latitude: 51.6, longitude: -0.1 },
-            },
-          ],
-        },
-      }))
-    );
+  it('skips the backend for an empty category', async () => {
+    const { client, calls } = fakeClient(async () => ({ places: [] }));
+    assert.deepEqual(await searchNearbyPlaces({ includedTypes: [] }, near, client), { status: 'ok', places: [] });
+    assert.equal(calls.length, 0);
+  });
 
-    assert.deepEqual(results, { status: 'ok', places: [] });
+  it('orders by distance and drops anything outside the 5 km radius defensively', async () => {
+    const { client } = fakeClient(async () => ({
+      places: [place('mid', 51.52, -0.1), place('outside', 51.6, -0.1), place('close', 51.501, -0.1)],
+    }));
+    const result = await searchNearbyPlaces({ includedTypes: ['parking'] }, near, client);
+    assert.deepEqual(result.places.map((p) => p.id), ['close', 'mid']);
+  });
+
+  it('passes backend failures through unchanged', async () => {
+    const { client } = fakeClient(async () => { throw new ApiError(429, { error: 'rate_limited' }); });
+    assert.deepEqual(await searchNearbyPlaces({ includedTypes: ['parking'] }, near, client), { status: 'rate-limited', places: [] });
   });
 });
 

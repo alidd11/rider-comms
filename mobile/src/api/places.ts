@@ -1,16 +1,12 @@
 // Native results are rendered list-first, then the selected place is focused
-// on the react-native-maps surface. This module queries Google's Places API
-// (Text Search, New) directly, the same way the PWA
-// loads the Maps JavaScript API directly client-side with a deployment-
-// injected browser key (see docs/app.js's loadGoogleMaps()) — no backend
-// proxy is needed for this, Places keys are restricted by app
-// bundle-id/SHA1 fingerprint in the Google Cloud console, not by request
-// origin, so shipping the key in the app bundle via EXPO_PUBLIC_* is the
-// standard approach for native (see .env.example).
+// on the react-native-maps surface. Place search goes through the Rider Comms
+// backend (`POST /places/search` and `/places/nearby`), which holds the Google
+// Places key server-side and rate-limits per rider. The app bundle carries no
+// Places credential, the same model as in-app routing's `/directions` proxy.
 import { haversineMeters } from '@rider-comms/shared';
+import { ApiError } from './client.ts';
+import type { PlaceSummary, RiderCommsClient } from './client.ts';
 
-const PLACES_TEXT_SEARCH_URL = 'https://places.googleapis.com/v1/places:searchText';
-const PLACES_NEARBY_SEARCH_URL = 'https://places.googleapis.com/v1/places:searchNearby';
 const MAX_QUERY_LENGTH = 200;
 export const MIN_PLACE_SEARCH_QUERY_LENGTH = 2;
 export const PLACE_SEARCH_DEBOUNCE_MS = 500;
@@ -38,18 +34,6 @@ export function isSearchQueryValid(query: string): boolean {
   return trimmed.length >= MIN_PLACE_SEARCH_QUERY_LENGTH && trimmed.length <= MAX_QUERY_LENGTH;
 }
 
-interface PlacesApiPlace {
-  id?: string;
-  displayName?: { text?: string };
-  formattedAddress?: string;
-  location?: { latitude?: number; longitude?: number };
-  businessStatus?: string;
-}
-
-interface PlacesApiResponse {
-  places?: PlacesApiPlace[];
-}
-
 export interface PlaceCategory {
   includedTypes: readonly string[];
 }
@@ -73,128 +57,83 @@ export function formatPlaceDistance(meters: number, unit: 'mi' | 'km' = 'km'): s
   return `${(meters / 1_000).toFixed(meters < 10_000 ? 1 : 0)} km`;
 }
 
+export type PlacesClient = Pick<RiderCommsClient, 'searchPlaces' | 'searchNearbyPlaces'>;
+
 /**
- * Searches Google Places for `query`, biased toward `near`. Returns a typed
- * result so callers never present quota, provider, configuration, or
- * network failures as a genuine zero-result search.
+ * Searches places matching `query`, biased toward `near`, through the backend.
+ * Returns a typed result so callers never present quota, provider,
+ * configuration, or network failures as a genuine zero-result search.
  */
 export async function searchPlaces(
   query: string,
   near: { lat: number; lon: number },
-  apiKey: string,
-  fetchImpl: typeof fetch = fetch
+  client: PlacesClient,
 ): Promise<PlaceSearchResult> {
-  if (!apiKey) return { status: 'unavailable', places: [] };
   if (!isSearchQueryValid(query)) return { status: 'ok', places: [] };
-
-  let response: Response;
-  try {
-    response = await fetchImpl(PLACES_TEXT_SEARCH_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Goog-Api-Key': apiKey,
-        'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.location,places.businessStatus',
-      },
-      body: JSON.stringify({
-        textQuery: query.trim(),
-        locationBias: {
-          circle: { center: { latitude: near.lat, longitude: near.lon }, radius: 15_000 },
-        },
-        maxResultCount: 8,
-      }),
-    });
-  } catch {
-    return { status: 'network-error', places: [] };
-  }
-  if (response.status === 429) return { status: 'rate-limited', places: [] };
-  if (!response.ok) return { status: 'provider-error', places: [] };
-
-  const data = await readPlacesResponse(response);
-  if (!data) return { status: 'provider-error', places: [] };
-  return { status: 'ok', places: mapPlaces(data, near) };
+  return runSearch(() => client.searchPlaces(query.trim(), near), near);
 }
 
-/** Category chips use Nearby Search rather than a text query. This makes
- * the category an actual type filter, keeps every result inside the rider's
- * local search radius, and asks Google to rank by distance. */
+/** Category chips use a nearby type search rather than a text query, so the
+ * category is an actual type filter, results stay inside the rider's local
+ * search radius, and they come back ordered by distance. */
 export async function searchNearbyPlaces(
   category: PlaceCategory,
   near: { lat: number; lon: number },
-  apiKey: string,
-  fetchImpl: typeof fetch = fetch
+  client: PlacesClient,
 ): Promise<PlaceSearchResult> {
-  if (!apiKey) return { status: 'unavailable', places: [] };
   if (category.includedTypes.length === 0) return { status: 'ok', places: [] };
-
-  let response: Response;
-  try {
-    response = await fetchImpl(PLACES_NEARBY_SEARCH_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Goog-Api-Key': apiKey,
-        'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.location,places.businessStatus',
-      },
-      body: JSON.stringify({
-        includedTypes: category.includedTypes,
-        maxResultCount: 8,
-        rankPreference: 'DISTANCE',
-        locationRestriction: {
-          circle: { center: { latitude: near.lat, longitude: near.lon }, radius: NEARBY_RADIUS_METERS },
-        },
-      }),
-    });
-  } catch {
-    return { status: 'network-error', places: [] };
-  }
-  if (response.status === 429) return { status: 'rate-limited', places: [] };
-  if (!response.ok) return { status: 'provider-error', places: [] };
-
-  const data = await readPlacesResponse(response);
-  if (!data) return { status: 'provider-error', places: [] };
+  const result = await runSearch(() => client.searchNearbyPlaces(category.includedTypes, near), near);
+  if (result.status !== 'ok') return result;
   return {
     status: 'ok',
-    places: mapPlaces(data, near)
+    places: result.places
       .filter((place) => place.distanceMeters <= NEARBY_RADIUS_METERS)
       .sort((a, b) => a.distanceMeters - b.distanceMeters),
   };
 }
 
-async function readPlacesResponse(response: Response): Promise<PlacesApiResponse | null> {
+async function runSearch(
+  request: () => Promise<{ places?: unknown }>,
+  near: { lat: number; lon: number },
+): Promise<PlaceSearchResult> {
+  let response: { places?: unknown };
   try {
-    const data: unknown = await response.json();
-    return isPlacesApiResponse(data) ? data : null;
-  } catch {
-    return null;
+    response = await request();
+  } catch (error) {
+    return { status: searchFailureFor(error), places: [] };
   }
+  if (!response || typeof response !== 'object' || !Array.isArray(response.places)) {
+    return { status: 'provider-error', places: [] };
+  }
+  return { status: 'ok', places: mapPlaces(response.places, near) };
 }
 
-function isPlacesApiResponse(value: unknown): value is PlacesApiResponse {
+function searchFailureFor(error: unknown): PlaceSearchFailure {
+  if (!(error instanceof ApiError)) return 'network-error';
+  if (error.status === 429) return 'rate-limited';
+  if (error.status === 503) return 'unavailable';
+  return 'provider-error';
+}
+
+function isPlaceSummary(value: unknown): value is PlaceSummary {
   if (!value || typeof value !== 'object') return false;
-  const places = (value as PlacesApiResponse).places;
-  return places === undefined || Array.isArray(places);
+  const place = value as Record<string, unknown>;
+  return typeof place.id === 'string'
+    && typeof place.name === 'string'
+    && typeof place.address === 'string'
+    && typeof place.lat === 'number' && Number.isFinite(place.lat) && place.lat >= -90 && place.lat <= 90
+    && typeof place.lon === 'number' && Number.isFinite(place.lon) && place.lon >= -180 && place.lon <= 180;
 }
 
-function mapPlaces(data: PlacesApiResponse, near: { lat: number; lon: number }): PlaceResult[] {
-  return (data.places ?? [])
-      .filter((place): place is PlacesApiPlace => Boolean(place) && typeof place === 'object')
-      .filter((place) => place.businessStatus !== 'CLOSED_PERMANENTLY')
-      .filter(
-        (place): place is PlacesApiPlace & { location: { latitude: number; longitude: number } } =>
-          typeof place.location?.latitude === 'number' && Number.isFinite(place.location.latitude)
-          && place.location.latitude >= -90 && place.location.latitude <= 90
-          && typeof place.location?.longitude === 'number' && Number.isFinite(place.location.longitude)
-          && place.location.longitude >= -180 && place.location.longitude <= 180
-      )
-      .map((place) => {
-        const result = {
-          id: place.id ?? `${place.location.latitude},${place.location.longitude}`,
-          name: place.displayName?.text ?? 'Unnamed place',
-          address: place.formattedAddress ?? '',
-          lat: place.location.latitude,
-          lon: place.location.longitude,
-        };
-        return { ...result, distanceMeters: distanceBetweenMeters(near, result) };
-      });
+function mapPlaces(places: unknown[], near: { lat: number; lon: number }): PlaceResult[] {
+  return places
+    .filter(isPlaceSummary)
+    .map((place) => ({
+      id: place.id,
+      name: place.name,
+      address: place.address,
+      lat: place.lat,
+      lon: place.lon,
+      distanceMeters: distanceBetweenMeters(near, place),
+    }));
 }

@@ -5,6 +5,8 @@ import type { TestServer } from './httpTestUtils.ts';
 import { parseAllowedOrigins } from '../src/server.ts';
 import type { ApiRequestLog } from '../src/server.ts';
 import { DirectionsProviderError } from '../src/directionsProvider.ts';
+import { PlacesProviderError } from '../src/placesProvider.ts';
+import type { PlaceSearchRequest } from '../src/placesProvider.ts';
 import { getPool } from '../src/db.ts';
 
 // DELETE /auth/me cascades into every Postgres-backed store's deleteRider()
@@ -246,6 +248,113 @@ describe('authenticated API', () => {
       assert.deepEqual(await response.json(), { error: 'directions_timeout' });
     } finally {
       await unavailable.close();
+    }
+  });
+
+  it('proxies authenticated place searches without exposing the provider key', async () => {
+    const requested: PlaceSearchRequest[] = [];
+    const places = [{ id: 'p1', name: 'Bike Cafe', address: '1 High St', lat: 51.501, lon: -0.101 }];
+    const searched = startTestServer({
+      placesProvider: async (request) => {
+        requested.push(request);
+        return places;
+      },
+    });
+    await searched.ready;
+    try {
+      const unauthenticated = await fetch(`${searched.baseUrl()}/places/search`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: 'coffee', near: { lat: 51.5, lon: -0.1 } }),
+      });
+      assert.equal(unauthenticated.status, 401);
+
+      for (const body of [
+        { query: 'c', near: { lat: 51.5, lon: -0.1 } },
+        { query: 'coffee', near: { lat: 91, lon: -0.1 } },
+        { query: 'coffee' },
+      ]) {
+        assert.equal((await postJson(searched, 'places-rider', '/places/search', body)).status, 400);
+      }
+      for (const body of [
+        { includedTypes: [], near: { lat: 51.5, lon: -0.1 } },
+        { includedTypes: ['Gas Station'], near: { lat: 51.5, lon: -0.1 } },
+        { includedTypes: ['gas_station'] },
+      ]) {
+        assert.equal((await postJson(searched, 'places-rider', '/places/nearby', body)).status, 400);
+      }
+      assert.equal(requested.length, 0);
+
+      const text = await postJson(searched, 'places-rider', '/places/search', { query: '  coffee ', near: { lat: 51.5, lon: -0.1 } });
+      assert.equal(text.status, 200);
+      assert.deepEqual(await text.json(), { places });
+
+      const nearby = await postJson(searched, 'places-rider', '/places/nearby', {
+        includedTypes: ['cafe', 'coffee_shop'],
+        near: { lat: 51.5, lon: -0.1 },
+      });
+      assert.equal(nearby.status, 200);
+      assert.deepEqual(requested, [
+        { kind: 'text', query: 'coffee', near: { lat: 51.5, lon: -0.1 } },
+        { kind: 'nearby', includedTypes: ['cafe', 'coffee_shop'], near: { lat: 51.5, lon: -0.1 } },
+      ]);
+    } finally {
+      await searched.close();
+    }
+  });
+
+  it('rate-limits place searches before provider quota is consumed', async () => {
+    const actions: string[] = [];
+    let providerCalls = 0;
+    const limited = startTestServer({
+      rateLimitStore: {
+        consume: async (_subjectKey, action) => {
+          actions.push(action);
+          return action === 'places'
+            ? { allowed: false, retryAfterSeconds: 58 }
+            : { allowed: true, retryAfterSeconds: 0 };
+        },
+      },
+      placesProvider: async () => {
+        providerCalls += 1;
+        return [];
+      },
+    });
+    await limited.ready;
+    try {
+      const response = await postJson(limited, 'places-rate-limited', '/places/search', { query: 'coffee', near: { lat: 51.5, lon: -0.1 } });
+      assert.equal(response.status, 429);
+      assert.equal(response.headers.get('retry-after'), '58');
+      assert.deepEqual(await response.json(), { error: 'rate_limited' });
+      assert.deepEqual(actions, ['api', 'places']);
+      assert.equal(providerCalls, 0);
+    } finally {
+      await limited.close();
+    }
+  });
+
+  it('maps places provider failures to safe backend errors', async () => {
+    for (const [code, status] of [
+      ['places_not_configured', 503],
+      ['places_rate_limited', 429],
+      ['places_timeout', 504],
+      ['places_unavailable', 502],
+      ['places_invalid_response', 502],
+    ] as const) {
+      const failing = startTestServer({
+        placesProvider: async () => { throw new PlacesProviderError(code); },
+      });
+      await failing.ready;
+      try {
+        const response = await postJson(failing, `places-${code}`, '/places/nearby', {
+          includedTypes: ['parking'],
+          near: { lat: 51.5, lon: -0.1 },
+        });
+        assert.equal(response.status, status, code);
+        assert.deepEqual(await response.json(), { error: code });
+      } finally {
+        await failing.close();
+      }
     }
   });
 
