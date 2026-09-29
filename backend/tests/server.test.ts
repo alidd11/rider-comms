@@ -522,6 +522,18 @@ describe('authenticated API', () => {
     assert.equal(jump.status, 422);
     assert.deepEqual(await jump.json(), { error: 'implausible_location_jump' });
   });
+
+  it('rate-limits presence updates per rider', needsDb, async () => {
+    await ctx.profileStore.update('presence-flood', { shareLocation: true });
+    const recordedAt = Date.now() - 25_000;
+    for (let i = 0; i < 20; i += 1) {
+      const ok = await postJson(ctx, 'presence-flood', '/presence', { lat: 51.5, lon: -0.1, accuracyMeters: 8, recordedAt: recordedAt + i });
+      assert.equal(ok.status, 200, `update ${i + 1} should be allowed`);
+    }
+    const limited = await postJson(ctx, 'presence-flood', '/presence', { lat: 51.5, lon: -0.1, accuracyMeters: 8, recordedAt: recordedAt + 20 });
+    assert.equal(limited.status, 429);
+    assert.ok(Number(limited.headers.get('retry-after')) > 0);
+  });
 });
 
 describe('production HTTP boundary', () => {

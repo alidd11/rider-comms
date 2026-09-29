@@ -720,4 +720,14 @@ export const MIGRATIONS: Migration[] = [
         ON presence_movement_anchors (recorded_at);
     `,
   },
+  {
+    name: '0039_add_presence_rate_limit_action',
+    sql: `
+      ALTER TABLE rate_limit_events DROP CONSTRAINT IF EXISTS rate_limit_events_action_check;
+      ALTER TABLE rate_limit_events ADD CONSTRAINT rate_limit_events_action_check
+        CHECK (
+          action IN ('auth', 'api', 'ride_join_rider', 'ride_join_ip', 'hazard_create', 'directions', 'places', 'client_error', 'presence', 'verification_resend', 'password_reset_request')
+        );
+    `,
+  },
 ];

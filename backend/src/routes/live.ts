@@ -22,6 +22,7 @@ export async function handleLiveRoutes(ctx: RouteContext): Promise<unknown> {
     return sendJson(res, 200, { rideId: result.rideId });
   }
   if (req.method === 'POST' && url.pathname === '/presence') {
+    if (!(await consumeRateLimit(res, rateLimitStore, rateLimitSubject('rider', actorId), 'presence'))) return;
     const body = await readJsonBody(req);
     if (!isCoordinate(body.lat, body.lon)) return sendJson(res, 400, { error: 'valid lat and lon are required' });
     if (typeof body.accuracyMeters !== 'number' || !Number.isFinite(body.accuracyMeters) || body.accuracyMeters < 0 || body.accuracyMeters > MAX_PRESENCE_ACCURACY_METERS) {
