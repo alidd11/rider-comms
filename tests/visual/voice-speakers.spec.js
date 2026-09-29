@@ -17,6 +17,9 @@ const PROFILE = {
 };
 
 test('PWA retries a transient pre-connect voice failure and preserves VOX/speaker state', async ({ page }) => {
+  // Exercises a real retry/backoff cycle in WebKit (~18 s on a normal CI
+  // runner), so the 30 s default leaves no headroom on a slower one.
+  test.setTimeout(90_000);
   await page.addInitScript(({ riderId }) => {
     localStorage.setItem('rider-comms-session-v1', JSON.stringify({ riderId, token: 'voice-speaker-test-token', emailVerified: true }));
     Object.defineProperty(navigator, 'permissions', {
