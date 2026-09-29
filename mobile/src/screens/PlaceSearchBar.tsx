@@ -19,7 +19,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, spacing, elevation } from '../theme';
 import { styles } from './PlaceSearchBar.styles';
-import { GOOGLE_PLACES_API_KEY } from '../config';
 import { distanceBetweenMeters, formatPlaceDistance, isSearchQueryValid, PLACE_SEARCH_DEBOUNCE_MS, searchNearbyPlaces, searchPlaces } from '../api/places';
 import type { PlaceResult, PlaceSearchFailure } from '../api/places';
 import { nearbySearchCacheKey, PlacesCache, textSearchCacheKey, wrapPlacesSearchWithCache } from '../api/placesCache';
@@ -52,7 +51,7 @@ export function PlaceSearchBar({
   onRequestLocation: () => Promise<void>;
 }): React.JSX.Element {
   const insets = useSafeAreaInsets();
-  const { riderId } = useAuth();
+  const { client, riderId } = useAuth();
   const { unitSystem } = useSettings();
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState('');
@@ -64,7 +63,6 @@ export function PlaceSearchBar({
   const [retryToken, setRetryToken] = React.useState(0);
   const debounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const requestRef = React.useRef(0);
-  const searchUnavailable = !GOOGLE_PLACES_API_KEY;
 
   React.useEffect(() => {
     let cancelled = false;
@@ -102,7 +100,7 @@ export function PlaceSearchBar({
   React.useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     const requestId = ++requestRef.current;
-    if ((!activeCategory && !isSearchQueryValid(query)) || !near || searchUnavailable) {
+    if ((!activeCategory && !isSearchQueryValid(query)) || !near) {
       setResults([]);
       setSearchError(null);
       setLoading(false);
@@ -113,8 +111,8 @@ export function PlaceSearchBar({
     debounceRef.current = setTimeout(() => {
       const category = CATEGORIES.find((item) => item.label === activeCategory);
       const request = category
-        ? cachedSearchNearbyPlaces({ includedTypes: category.types }, near, GOOGLE_PLACES_API_KEY)
-        : cachedSearchPlaces(query, near, GOOGLE_PLACES_API_KEY);
+        ? cachedSearchNearbyPlaces({ includedTypes: category.types }, near, client)
+        : cachedSearchPlaces(query, near, client);
       request
         .then((result) => {
           if (requestId !== requestRef.current) return;
@@ -128,7 +126,7 @@ export function PlaceSearchBar({
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [query, activeCategory, near, searchUnavailable, retryToken]);
+  }, [query, activeCategory, near, client, retryToken]);
 
   function close(): void {
     requestRef.current += 1;
@@ -270,8 +268,6 @@ export function PlaceSearchBar({
                 </Pressable>
               )}
             />
-          ) : searchUnavailable ? (
-            <SearchState icon="cloud-offline-outline" title="Search unavailable" copy="Place search is not configured for this build yet." />
           ) : !near ? (
             <SearchState
               icon="location-outline"
@@ -352,7 +348,7 @@ function searchFailureCopy(failure: PlaceSearchFailure): { title: string; copy: 
     return { title: 'Can’t reach place search', copy: 'Check your connection and try again.' };
   }
   if (failure === 'unavailable') {
-    return { title: 'Search unavailable', copy: 'Place search is not configured for this build yet.' };
+    return { title: 'Search unavailable', copy: 'Place search isn’t available right now. Try again later.' };
   }
   return { title: 'Place search failed', copy: 'The place service could not complete this search. Try again shortly.' };
 }

@@ -7,7 +7,7 @@ This document records the current engineering assessment of `main`. Repository c
 ## Addendum — 2026-09-28
 
 - **Routing credential:** resolved. Native in-app routing now calls the authenticated, rate-limited backend `POST /directions` proxy (#315), with a server-side route cache (#334). The client-side Directions web-service key was removed (#318). `GOOGLE_DIRECTIONS_API_KEY` is backend-only.
-- **Place search credential:** still open. `mobile/src/api/places.ts` calls Places API (New) directly with `EXPO_PUBLIC_GOOGLE_PLACES_API_KEY`, which ends up in the app bundle. The code relies on Google Cloud app restrictions (iOS bundle ID / Android package + SHA-1). For REST calls, those restrictions are generally enforced through `X-Ios-Bundle-Identifier` / `X-Android-Package` / `X-Android-Cert` request headers, which the client does not send today. So the key is either unrestricted, or restricted and rejecting requests; this needs verifying against the production key. The alternative is a backend place-search proxy matching `/directions`. The PWA's Maps JavaScript browser key is origin-restricted and is not affected.
+- **Place search credential:** resolved by moving native place search behind authenticated, rate-limited backend endpoints (`POST /places/search` and `/places/nearby`). The Google Places key is now backend-only (`GOOGLE_PLACES_API_KEY`, falling back to `GOOGLE_DIRECTIONS_API_KEY`) and `EXPO_PUBLIC_GOOGLE_PLACES_API_KEY` was removed from the app. The PWA's Maps JavaScript browser key is origin-restricted and unchanged.
 - **Dependencies:** PR #359 moved `@playwright/test` to 1.55.1, clearing both high-severity findings (Playwright's unverified browser download). `npm audit` now reports 14 moderate findings:
   - Expo CLI/config tooling (`@expo/cli`, `@expo/config`, `@expo/config-plugins`, `@expo/prebuild-config`, `@expo/metro-config`, `@expo/inline-modules`, `@expo/local-build-cache-provider`, `xcode`, `uuid`, `@config-plugins/react-native-webrtc`, `expo`): `npm audit`'s only offered fix is a semver-major downgrade to `expo@46`, which is not viable. These are mostly build-time tooling; track upstream Expo releases.
   - `decode-uri-component` via `query-string` via `@react-navigation/core` 7.21: reachable through deep-link URL parsing. `@react-navigation/core` 7.22 drops `query-string`; clearing it needs a coordinated `@react-navigation/*` minor upgrade.
@@ -54,7 +54,7 @@ The PWA visual suite is useful regression coverage, but it is not a substitute f
 
 ### Navigation and riding validation
 
-Native in-app routing now goes through the protected backend `/directions` proxy (see the 2026-09-28 addendum). Native place search still calls Google Places directly with a bundled key, which needs a decision before release.
+Native in-app routing and place search now go through protected backend proxies (`/directions`, `/places/*`; see the 2026-09-28 addendum), so no Google web-service key ships in the app.
 
 Background and locked-screen navigation is not yet production-complete. Native voice now has the platform infrastructure needed for background audio: iOS declares the audio background mode, while Android starts a microphone-typed foreground service before the LiveKit audio session and keeps it leased across public/private voice owners. Navigation, LiveKit voice and audio routing must still be validated during real rides with the screen locked, after missed turns, through degraded/lost GPS, across app background/foreground transitions and with common Bluetooth helmet systems.
 

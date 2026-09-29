@@ -114,11 +114,11 @@ without additional native setup. iOS uses Apple Maps by default. A standalone
 Android release still requires the Maps SDK for Android to be enabled and a
 restricted key tied to `com.ridercomms.app` plus the signing certificate SHA-1;
 configure that key through the `react-native-maps` Expo plugin for the release
-build. The Google Places search key remains a separate build-time setting. Native
-in-app guidance also requires `EXPO_PUBLIC_GOOGLE_DIRECTIONS_API_KEY` during
-pre-release testing. Keep it separate from Places and do not treat the
-client-side web-service key as a production credential; public release should
-use an approved navigation SDK or a server-side route service.
+build. Native place search and in-app route guidance go through the backend
+(`POST /places/search`, `/places/nearby` and `/directions`), so the app bundle
+carries no Google web-service key. Configure `GOOGLE_DIRECTIONS_API_KEY` and,
+optionally, a separate `GOOGLE_PLACES_API_KEY` on the backend only (see
+`.env.example`).
 
 ### Native app links and maps handoff
 

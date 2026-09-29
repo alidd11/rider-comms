@@ -6,6 +6,8 @@ import type { LiveKitCredentials, LiveKitRoomAdmin } from './liveKitToken.ts';
 import { DirectionsProviderError, fetchGoogleDrivingRoute } from './directionsProvider.ts';
 import type { DrivingRoute, RouteCoordinate } from './directionsProvider.ts';
 import { DirectionsCache, wrapDirectionsProviderWithCache } from './directionsCache.ts';
+import { fetchGooglePlaces, normalizePlaceQuery, normalizePlaceTypes, PlacesProviderError } from './placesProvider.ts';
+import type { PlaceSearchRequest, PlaceSummary } from './placesProvider.ts';
 import { AuthStore } from './authStore.ts';
 import { RideStore } from './rideStore.ts';
 import type { RideMemberLocation } from './rideStore.ts';
@@ -83,6 +85,7 @@ export interface ApiServerOptions {
   rateLimitStore?: Pick<RateLimitStore, 'consume'>;
   directionsProvider?: (origin: RouteCoordinate, destination: RouteCoordinate) => Promise<DrivingRoute>;
   directionsCache?: Pick<DirectionsCache, 'get' | 'set'>;
+  placesProvider?: (request: PlaceSearchRequest) => Promise<PlaceSummary[]>;
   socialRateLimitStore?: Pick<SocialRateLimitStore, 'consume'>;
   socialActivityStore?: Pick<SocialActivityStore, 'touch' | 'getFriendActivity'>;
   socialEventStore?: Pick<SocialEventStore, 'waitForEvents'> & Partial<Pick<SocialEventStore, 'close'>>;
@@ -154,6 +157,7 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
     options.directionsProvider ?? ((origin: RouteCoordinate, destination: RouteCoordinate) => fetchGoogleDrivingRoute(origin, destination)),
     directionsCache,
   );
+  const placesProvider = options.placesProvider ?? ((request: PlaceSearchRequest) => fetchGooglePlaces(request));
   const revokeRideVoiceParticipants = async (rideId: string, riderIds: Iterable<string>): Promise<void> => {
     const revokeRideParticipant = liveKitRoomAdmin?.revokeRideParticipant;
     if (!revokeRideParticipant) return;
@@ -641,6 +645,36 @@ export function createApp(rideStore = new RideStore(), presenceStore = new Prese
           if (error.code === 'directions_no_route') return sendJson(res, 404, { error: error.code });
           if (error.code === 'directions_timeout') return sendJson(res, 504, { error: error.code });
           if (error.code === 'directions_not_configured') return sendJson(res, 503, { error: error.code });
+          return sendJson(res, 502, { error: error.code });
+        }
+      }
+      if (req.method === 'POST' && (url.pathname === '/places/search' || url.pathname === '/places/nearby')) {
+        const body = await readJsonBody(req);
+        const near = routeCoordinate(body.near);
+        let request: PlaceSearchRequest | null = null;
+        if (near && url.pathname === '/places/search') {
+          const query = normalizePlaceQuery(body.query);
+          if (query) request = { kind: 'text', query, near };
+        } else if (near) {
+          const includedTypes = normalizePlaceTypes(body.includedTypes);
+          if (includedTypes) request = { kind: 'nearby', includedTypes, near };
+        }
+        if (!request) {
+          return sendJson(res, 400, {
+            error: url.pathname === '/places/search'
+              ? 'valid near coordinate and a 2-200 character query are required'
+              : 'valid near coordinate and 1-5 place types are required',
+          });
+        }
+        if (!(await consumeRateLimit(res, rateLimitStore, rateLimitSubject('rider', actorId), 'places'))) return;
+        try {
+          return sendJson(res, 200, { places: await placesProvider(request) });
+        } catch (error) {
+          if (!(error instanceof PlacesProviderError)) throw error;
+          if (error.code === 'places_invalid_request') return sendJson(res, 400, { error: error.code });
+          if (error.code === 'places_rate_limited') return sendJson(res, 429, { error: error.code });
+          if (error.code === 'places_timeout') return sendJson(res, 504, { error: error.code });
+          if (error.code === 'places_not_configured') return sendJson(res, 503, { error: error.code });
           return sendJson(res, 502, { error: error.code });
         }
       }

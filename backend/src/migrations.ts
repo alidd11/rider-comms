@@ -649,4 +649,16 @@ export const MIGRATIONS: Migration[] = [
         CHECK (type IN ('police', 'accident', 'road_closure', 'camera', 'hidden_police', 'police_checkpoint'));
     `,
   },
+  {
+    // Server-side Places proxy gets its own durable limiter bucket, widened
+    // explicitly the same way 0033 added the Directions bucket.
+    name: '0035_add_places_rate_limit_action',
+    sql: `
+      ALTER TABLE rate_limit_events DROP CONSTRAINT IF EXISTS rate_limit_events_action_check;
+      ALTER TABLE rate_limit_events ADD CONSTRAINT rate_limit_events_action_check
+        CHECK (
+          action IN ('auth', 'api', 'ride_join_rider', 'ride_join_ip', 'hazard_create', 'directions', 'places', 'verification_resend', 'password_reset_request')
+        );
+    `,
+  },
 ];

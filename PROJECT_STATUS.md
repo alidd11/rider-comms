@@ -62,7 +62,7 @@ None besides the PR that updates this file, so there is no active file ownership
 
 The project remains pre-alpha mainly because implementation breadth is now ahead of production validation/operations. The principal blockers are:
 
-- production-grade navigation delivery: routing now goes through the authenticated backend `/directions` proxy, but the native place-search key (`EXPO_PUBLIC_GOOGLE_PLACES_API_KEY`) still ships in the app bundle and needs a decision (see `AUDIT.md`);
+- production navigation validation: routing and native place search now go through authenticated backend proxies (`/directions`, `/places/*`), so no Google web-service key ships in the app, but the Places key must be configured and quota-monitored on the backend;
 - physical motorcycle testing for navigation, missed-turn rerouting, degraded GPS, background/locked-screen execution, LiveKit voice and common Bluetooth helmet/intercom systems;
 - App Store / Google Play billing and receipt validation;
 - production retention, backups/restore, monitoring/alerting, moderation operations and recovery procedures;

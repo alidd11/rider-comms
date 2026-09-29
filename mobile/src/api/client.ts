@@ -28,6 +28,7 @@ export interface JoinRideResponse { rideId: string }
 export interface RideResponse { rideId: string; createdBy: string; createdAt: number; memberIds: string[]; shareRideLocation: boolean; code: string | null }
 export interface RideMemberLocation { riderId: string; lat: number; lon: number; updatedAt: number }
 export interface PresenceResponse { inZoneWith: string[]; transitions: Array<{ a: string; b: string; type: 'entered' | 'left' }>; radiusMiles: number }
+export interface PlaceSummary { id: string; name: string; address: string; lat: number; lon: number }
 export interface VoiceTokenResponse { token: string; url: string }
 export interface ProximityVoiceConnection extends VoiceTokenResponse { peerId: string }
 export interface ProximityVoiceResponse { connections: ProximityVoiceConnection[]; refreshAfterMs: number; authorizationLeaseMs: number }
@@ -98,6 +99,12 @@ export class RiderCommsClient {
       origin: { lat: origin.lat, lon: origin.lon },
       destination: { lat: destination.lat, lon: destination.lon },
     }, 12_000);
+  }
+  searchPlaces(query: string, near: RouteCoordinate): Promise<{ places: PlaceSummary[] }> {
+    return this.request('POST', '/places/search', { query, near: { lat: near.lat, lon: near.lon } });
+  }
+  searchNearbyPlaces(includedTypes: readonly string[], near: RouteCoordinate): Promise<{ places: PlaceSummary[] }> {
+    return this.request('POST', '/places/nearby', { includedTypes, near: { lat: near.lat, lon: near.lon } });
   }
   getRideVoiceToken(rideId: string): Promise<VoiceTokenResponse> { return this.request('POST', '/voice/token', { target: 'ride', rideId }); }
   getChannelVoiceToken(): Promise<ProximityVoiceResponse> { return this.request('POST', '/voice/token', { target: 'channel' }); }
