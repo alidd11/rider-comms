@@ -15,6 +15,8 @@ export default tseslint.config(
       'test-results/**',
       'mobile/android/**',
       'mobile/ios/**',
+      // Slices of one IIFE, not standalone scripts: lint the assembled docs/app.js instead.
+      'docs/app/**',
     ],
   },
   js.configs.recommended,

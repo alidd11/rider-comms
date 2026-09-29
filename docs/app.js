@@ -1,3 +1,4 @@
+// GENERATED FILE: do not edit. Edit docs/app/*.js, then run `npm run build:pwa-app`.
 (() => {
   'use strict';
 
