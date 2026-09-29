@@ -8,7 +8,6 @@ const DARK = '#10191F';
 const DEEP = '#071015';
 const WHITE = '#F4F7F8';
 const GREY = '#63727A';
-const GREY_DARK = '#303C43';
 const RED = '#F0646B';
 
 function HazardArtwork({ type }: { type: HazardType }): React.JSX.Element {

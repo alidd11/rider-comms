@@ -76,8 +76,8 @@ class Expectation<T> {
   }
 
   toContain(expected: unknown): void {
-    const actual = this.actual as unknown as string | unknown[];
-    const contains = (actual as any).includes(expected);
+    const actual = this.actual as { includes(value: unknown): boolean };
+    const contains = actual.includes(expected);
     this.assertThat(
       contains,
       `expected ${JSON.stringify(this.actual)} ${this.negate ? 'not ' : ''}to contain ${JSON.stringify(expected)}`

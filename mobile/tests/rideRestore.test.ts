@@ -72,7 +72,6 @@ test('native stops polling after an authoritative no-ride restore and retries on
 
   const runRestore = async (result: 'empty' | 'error') => {
     const effects: Array<() => () => void> = [];
-    let stateIndex = 0;
     let currentRideCalls = 0;
     let retryCount = 0;
     const client = {
@@ -86,10 +85,7 @@ test('native stops polling after an authoritative no-ride restore and retries on
       createContext: () => ({ Provider: 'provider' }),
       useContext: () => null,
       useRef: (value: unknown) => ({ current: value }),
-      useState: (initial: unknown) => {
-        stateIndex += 1;
-        return [initial, () => {}];
-      },
+      useState: (initial: unknown) => [initial, () => {}],
       useEffect: (effect: () => () => void) => effects.push(effect),
       useCallback: (fn: unknown) => fn,
       useMemo: (fn: () => unknown) => fn(),

@@ -206,6 +206,8 @@ export class SocialEventStore {
     const riderWaiters = this.waiters.get(riderId) ?? new Set<() => void>();
     this.waiters.set(riderId, riderWaiters);
 
+    // Assigned below, after cleanup() is defined, because cleanup() clears it.
+    // eslint-disable-next-line prefer-const
     let timer: NodeJS.Timeout | undefined;
     const cleanup = () => {
       if (settled) return;

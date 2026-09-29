@@ -47,7 +47,6 @@ const [
   nativeNavigationSummarySource,
   nativeInAppNavigationSource,
   nativeSettingsSource,
-  nativeCameraSource,
   nativeManeuverSource,
   nativeManeuverGlyphSource,
   nativeGuidanceSource,
@@ -62,7 +61,6 @@ const [
   readFile(new URL('../mobile/src/screens/useNavigationSummary.ts', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/screens/useInAppNavigation.ts', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/screens/SettingsScreen.tsx', import.meta.url), 'utf8'),
-  readFile(new URL('../mobile/src/navigationCamera.ts', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/navigationManeuver.ts', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/components/NavigationManeuverGlyph.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/navigationGuidance.ts', import.meta.url), 'utf8'),
@@ -386,7 +384,7 @@ if (/function navGlanceInstruction\(|function navGlanceSummary\(/.test(pwaMapSou
 }
 
 if (!/function routeFinishIcon\(\)/.test(pwaMapSource)
-  || !/title: label \? \`Destination: \${label}\` : 'Route destination'/.test(pwaMapSource)
+  || !/title: label \? `Destination: \${label}` : 'Route destination'/.test(pwaMapSource)
   || !/destinationMarker\?\.setMap\(null\);[\s\S]*destinationMarker = undefined;[\s\S]*navSteps = \[\]/.test(pwaMapSource)) {
   throw new Error('PWA navigation must render and clear a dedicated route-finish marker');
 }

@@ -28,7 +28,6 @@ function extractFunction(source, signature) {
 }
 
 const navigationHrefSource = extractFunction(app, 'function navigationHref(provider, lat, lng, label) {');
-// eslint-disable-next-line no-new-func
 const navigationHref = new Function(`'use strict'; return (${navigationHrefSource});`)();
 
 const fixtures = [
