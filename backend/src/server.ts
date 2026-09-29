@@ -92,6 +92,22 @@ export interface ApiServerOptions {
   readinessCheck?: () => Promise<void>;
 }
 
+/** Everything createApp can be given. Stores default to their Postgres-backed
+ * implementations; tests and the production entry point pass only what they
+ * need to share or replace. */
+export interface CreateAppOptions extends ApiServerOptions {
+  rideStore?: RideStore;
+  presenceStore?: PresenceStore;
+  profileStore?: ProfileStore;
+  friendStore?: FriendStore;
+  messageStore?: MessageStore;
+  hideoutStore?: HideoutStore;
+  authStore?: AuthStore;
+  moderationStore?: ModerationStore;
+  hazardStore?: HazardStore;
+  scenicRouteStore?: ScenicRouteStore;
+}
+
 export interface ApiRequestLog {
   requestId: string;
   method: string;
@@ -140,7 +156,17 @@ async function requireVerifiedEmail(
   return false;
 }
 
-export function createApp(rideStore = new RideStore(), presenceStore = new PresenceStore(), profileStore = new ProfileStore(), friendStore = new FriendStore(profileStore), messageStore = new MessageStore(), hideoutStore = new HideoutStore(), authStore = new AuthStore(), moderationStore = new ModerationStore(), hazardStore = new HazardStore(), scenicRouteStore = new ScenicRouteStore(), options: ApiServerOptions = {}): http.Server {
+export function createApp(options: CreateAppOptions = {}): http.Server {
+  const rideStore = options.rideStore ?? new RideStore();
+  const presenceStore = options.presenceStore ?? new PresenceStore();
+  const profileStore = options.profileStore ?? new ProfileStore();
+  const friendStore = options.friendStore ?? new FriendStore(profileStore);
+  const messageStore = options.messageStore ?? new MessageStore();
+  const hideoutStore = options.hideoutStore ?? new HideoutStore();
+  const authStore = options.authStore ?? new AuthStore();
+  const moderationStore = options.moderationStore ?? new ModerationStore();
+  const hazardStore = options.hazardStore ?? new HazardStore();
+  const scenicRouteStore = options.scenicRouteStore ?? new ScenicRouteStore();
   const allowedOrigins = new Set(options.allowedOrigins ?? []);
   const liveKitCredentials = 'liveKitCredentials' in options ? options.liveKitCredentials : getLiveKitCredentialsFromEnv();
   const liveKitRoomAdmin = 'liveKitRoomAdmin' in options
@@ -825,7 +851,8 @@ async function startProductionServer(): Promise<void> {
   console.log(JSON.stringify({ level: 'info', event: 'social_activity_cleaned', deleted: initialSocialActivityCleanup }));
   console.log(JSON.stringify({ level: 'info', event: 'social_events_cleaned', deleted: initialSocialEventCleanup }));
   console.log(JSON.stringify({ level: 'info', event: 'retention_sweep_completed', ...initialRetentionSweep }));
-  const app = createApp(undefined, undefined, undefined, undefined, undefined, undefined, productionAuthStore, undefined, undefined, undefined, {
+  const app = createApp({
+    authStore: productionAuthStore,
     allowedOrigins,
     trustProxy: process.env.TRUST_PROXY === 'true',
     logger: (event) => console.log(JSON.stringify({ level: 'info', event: 'http_request', ...event })),
