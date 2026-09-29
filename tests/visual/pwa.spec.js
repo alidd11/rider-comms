@@ -235,6 +235,9 @@ function expectNear(actual, expected, tolerance = 1.5) {
 
 test('login baseline matches the approved night-rider concept in day and night', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'iphone-17-pro-max-webkit', 'Login baseline screenshots target iPhone 17 Pro Max geometry.');
+  // Two colour schemes x several screenshot states: ~20 s on a normal CI
+  // runner, so the 30 s default leaves no headroom on a slower one.
+  test.setTimeout(90_000);
 
   for (const scheme of ['dark', 'light']) {
     await page.emulateMedia({ colorScheme: scheme });

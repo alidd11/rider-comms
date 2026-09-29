@@ -25,6 +25,10 @@ Direct messages, Hideouts, block/report flows and the billing preview are now av
 
 These are defects to close during the parity programme, not deferred product ideas.
 
+## Editing the PWA
+
+The PWA's application code is split by feature into `docs/app/NN-name.js` (for example `12-voice.js`, `17-navigation.js`, `19-auth.js`). `docs/app.js` is generated from those parts in filename order: edit the part, then run `npm run build:pwa-app` and commit both. `npm run lint` fails if `docs/app.js` does not match its parts. The parts are slices of one script, so they share scope exactly as before; the split changes where code lives, not how it runs.
+
 ## Change rule
 
 A pull request that adds or materially changes a user-facing feature must do one of the following:

@@ -1,0 +1,98 @@
+// Part of docs/app.js. 20 of 20: App start-up. Edit here, then run `npm run build:pwa-app`.
+  // The app's real init, run once a session (existing or freshly created)
+  // is available. Safe to call more than once per page load conceptually,
+  // but bindEvents() is only ever invoked from here so it only runs once.
+  function startApp() {
+    const label = $('#logoutRiderId');
+    if (label) label.textContent = state.profile.riderId ? `Signed in as ${state.profile.riderId}` : 'Sign out of this account';
+    bindEvents();
+    applyColorScheme();
+    renderProfile();
+    renderFriends();
+    renderRide();
+    renderMapStatus();
+    void resumePreviouslyAllowedVoice();
+    renderFallbackMarkers();
+    renderHazardMarkers();
+    navigate(location.hash.slice(1) || state.screen || 'map', false);
+    loadGoogleMaps();
+    registerServiceWorker();
+    void loadFriendsData();
+    startSocialEvents();
+    syncFriendActivityPolling();
+    // Startup only reconciles saved UI state with the browser. Permission
+    // prompts belong to deliberate taps in Settings, never cold launch.
+    syncNotificationPreference();
+    void initialiseMovementSafety();
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') void initialiseMovementSafety();
+      else stopMovementSafetyTracking();
+      if (document.visibilityState === 'visible') {
+        void (async () => {
+          await refreshActiveRide();
+          if (state.publicLive && !presenceRefreshTimer) await resumePublicPresence();
+          else await resumePreviouslyAllowedVoice();
+        })();
+      } else stopPresenceRefresh();
+    });
+  }
+
+  async function init() {
+    const passwordResetToken = consumePasswordResetLink();
+    if (passwordResetToken) {
+      wireAuthForms(passwordResetToken);
+      showAuthScreen();
+      return;
+    }
+    const verification = await consumeEmailVerificationLink();
+    if (!session) {
+      wireAuthForms();
+      showAuthScreen(true);
+      if (verification) {
+        const notice = $('#authNotice');
+        notice.textContent = verification.message;
+        notice.classList.toggle('error', !verification.ok);
+        notice.hidden = false;
+      }
+      return;
+    }
+    try {
+      const identity = await apiFetch('GET', '/auth/me');
+      if (identity.riderId !== session.riderId) {
+        clearSession();
+        location.reload();
+        return;
+      }
+      const rememberedSession = localStorage.getItem(SESSION_KEY) !== null;
+      saveSession({ ...session, emailVerified: Boolean(identity.emailVerified) }, rememberedSession);
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 0) {
+        wireAuthForms();
+        showAuthScreen();
+        const notice = $('#authNotice');
+        notice.textContent = 'Your saved session could not be checked. Check your connection and try again.';
+        notice.classList.add('error');
+        notice.hidden = false;
+      }
+      return;
+    }
+    applyAuthenticatedIdentity(session.riderId, state.profile.displayName || session.riderId);
+    // Public Nearby is opt-in per running app session. Persisted UI state is
+    // never authority to restart location publication or microphone capture
+    // after a reload/cold launch; clear any prior presence lease instead.
+    const hadPersistedPublicLive = state.publicLive === true;
+    state.publicLive = false;
+    state.activeRide = null;
+    persist();
+    await refreshActiveRide();
+    if (hadPersistedPublicLive) {
+      try { await apiFetch('DELETE', '/presence'); } catch { /* Lease expires server-side. */ }
+    }
+    hideAuthScreen();
+    startApp();
+    await loadProfile();
+    if (verification) showToast(verification.message);
+  }
+
+  void init();
+})();
