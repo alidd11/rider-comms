@@ -1,6 +1,6 @@
 # Rider Comms engineering audit
 
-Audit date: 2026-09-18 (addendum 2026-09-28 below)
+Audit date: 2026-09-18 (addenda 2026-09-28 and 2026-09-29 below)
 
 This document records the current engineering assessment of `main`. Repository code, CI and the machine-readable parity manifest remain authoritative if this document becomes stale.
 
@@ -12,6 +12,35 @@ This document records the current engineering assessment of `main`. Repository c
   - Expo CLI/config tooling (`@expo/cli`, `@expo/config`, `@expo/config-plugins`, `@expo/prebuild-config`, `@expo/metro-config`, `@expo/inline-modules`, `@expo/local-build-cache-provider`, `xcode`, `uuid`, `@config-plugins/react-native-webrtc`, `expo`): `npm audit`'s only offered fix is a semver-major downgrade to `expo@46`, which is not viable. These are mostly build-time tooling; track upstream Expo releases.
   - `decode-uri-component` (via `query-string` via `@react-navigation/core` 7.21, reachable through deep-link URL parsing) is resolved: the `@react-navigation/*` packages were upgraded within their majors to core 7.22, which drops `query-string`.
 - **Native test coverage:** `mobile/tests-jest` now has 120 Jest tests across 11 suites, covering the extracted map hooks, VOX and the app contexts. It runs in root `npm test` and therefore in CI.
+
+## Addendum — 2026-09-29 (full code review)
+
+Scope: every backend route module and store, `serverHttp.ts`, auth, email, LiveKit token minting, `shared/src`, the PWA (`docs/app/*.js`, with every `innerHTML` template checked for escaping) and the native app's auth storage, API client and configuration.
+
+**Fixed in this change**
+- **Hazard reporter exposed (medium, privacy):** `GET /hazards/nearby` returned `reportedBy`, so any signed-in rider could link a hazard's location and time to the rider who reported it. The field is no longer published; it stays server-side for the DELETE ownership check.
+- **Hazard votes bypassed email verification (medium):** `/hazards/:id/confirm` and `/deny` matched any HTTP method, but the verified-email gate only covers POST, so a `GET` vote skipped it. The route is now POST-only.
+
+**Open, needs a product decision**
+- **Presence probing (high, privacy):** `POST /presence` trusts the client's coordinates and returns which riders are inside your zone (1 mile on the free tier). A signed-in rider can submit fabricated positions and narrow down where a location-sharing rider is. Blocking already removes the pairing. What bounds it today:
+  - fixes must be fresh (at most 30 s old)
+  - each fix must be newer than the previous one
+  - location sharing is opt-in
+
+  There is no plausibility check on how far a rider "moves" between fixes. A robust fix is to keep each rider's last accepted fix (outside the 30-second presence lease) and reject physically impossible jumps. That needs a threshold that tolerates GPS jumps and flights, so it is a UX decision, not a mechanical fix.
+
+**Checked and sound**
+- **Authorisation:** every rider-scoped route checks that the actor is the resource owner or a member. Direct messages, hideouts and friend actions require friendship and no block. Moderation re-reads admin status from Postgres on each request.
+- **Authentication:** bearer tokens, not cookies, so there is no CSRF surface. Native sessions are stored in the platform keychain (SecureStore).
+- **Client IP:** Railway's edge replaces a client-supplied `X-Forwarded-For` (verified on production: a spoofed header was logged as the real address), so `TRUST_PROXY=true` is safe there.
+- **Input handling:** SQL is fully parameterised. Profile updates are allowlisted. Request bodies are size-bounded. Social event cursors are strictly validated.
+- **PWA output:** all rider-controlled text in `innerHTML` templates goes through `escapeHtml`. The remaining interpolations are internal constants or numbers. Outbound navigation links are built with `URLSearchParams`.
+- **Voice:** LiveKit tokens are room-scoped, with short TTLs and leases re-checked against current proximity and block state.
+- **Transport:** release builds point at the HTTPS API, and every API request has a timeout.
+
+**Low / informational**
+- Email verification and reset tokens travel in link query strings, which is the standard pattern. They expire after 24 hours and one hour respectively, reset tokens are single-use, and the PWA removes the token from the address bar (`history.replaceState`) as soon as it reads it.
+- `POST /presence` has no dedicated rate limit. The client cadence and the freshness rules bound it, but a per-rider limit would add defence in depth alongside the presence fix above.
 
 ## Current verified state
 
