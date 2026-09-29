@@ -66,7 +66,7 @@ The retention schedule is documented in `RETENTION.md`, and scheduled sweeps now
 
 Mobile crash reporting and end-to-end operational monitoring are not yet a complete production observability stack. Structured backend logs and health/readiness checks exist, but they do not replace alerting, dashboards and client crash telemetry.
 
-Moderation data and in-app report/block controls exist, but launch still requires a staffed moderation queue, response targets, appeal/escalation procedures and abuse-operations tooling.
+Moderation data, in-app report/block controls and an admin moderation API now exist (see `MODERATION.md`): a review queue, dismiss or suspend decisions (suspension revokes sessions and refuses sign-in), unsuspend for appeals, and an audit log. Launch still needs named moderators, published response targets and a monitored appeals channel.
 
 Password recovery exists in code; production email delivery, sender/domain configuration and recovery operations still require deployment verification.
 

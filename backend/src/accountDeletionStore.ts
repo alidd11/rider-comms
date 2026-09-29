@@ -61,6 +61,7 @@ export class AccountDeletionStore {
       await client.query('DELETE FROM rider_profiles WHERE rider_id = $1', [riderId]);
       await client.query('DELETE FROM rider_blocks WHERE rider_id = $1 OR blocked_rider_id = $1', [riderId]);
       await client.query('DELETE FROM safety_reports WHERE reporter_id = $1 OR reported_rider_id = $1', [riderId]);
+      await client.query('DELETE FROM moderation_actions WHERE target_rider_id = $1', [riderId]);
       await client.query(
         'DELETE FROM hazard_report_votes WHERE rider_id = $1 OR report_id IN (SELECT id FROM hazard_reports WHERE reported_by = $1)',
         [riderId],
