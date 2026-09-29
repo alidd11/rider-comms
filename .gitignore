@@ -8,3 +8,9 @@ test-results/
 .env
 .env.*
 !.env.example
+
+# Database backups and backup keys must never be committed.
+backups/
+*.dump
+*.dump.age
+*.agekey

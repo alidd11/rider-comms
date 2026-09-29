@@ -62,7 +62,7 @@ VOX, wind/engine-noise behavior, echo handling and prompt/chat ducking require p
 
 ### Production operations
 
-Production still needs documented retention schedules, encrypted/controlled production backups, tested restore procedures and scheduled retention/deletion operations.
+The retention schedule is documented in `RETENTION.md`, and scheduled sweeps now also remove stale presence, ride locations, expired ride codes, abandoned rides and expired hazard reports. `BACKUP_RESTORE.md` covers encrypted nightly backups (`.github/workflows/backup.yml`, which verifies each dump by restoring it), the restore-drill script and the recovery procedure. Still outstanding: configuring the backup secrets, private-key custody, and running and recording restore drills.
 
 Mobile crash reporting and end-to-end operational monitoring are not yet a complete production observability stack. Structured backend logs and health/readiness checks exist, but they do not replace alerting, dashboards and client crash telemetry.
 

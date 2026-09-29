@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const workflowPaths = ['.github/workflows/ci.yml', '.github/workflows/pages.yml'];
+const workflowPaths = ['.github/workflows/ci.yml', '.github/workflows/pages.yml', '.github/workflows/backup.yml'];
 const workflows = await Promise.all(workflowPaths.map(async (path) => ({
   path,
   source: await readFile(new URL(`../${path}`, import.meta.url), 'utf8'),
