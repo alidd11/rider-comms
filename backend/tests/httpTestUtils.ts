@@ -22,7 +22,7 @@ export function startTestServer(options: ApiServerOptions = {}): TestServer {
       ? { socialActivityStore: { touch: async () => undefined, getFriendActivity: async () => [] } }
       : {}),
   };
-  const server: http.Server = createApp(undefined, undefined, profileStore, friendStore, undefined, undefined, authStore, undefined, undefined, undefined, effectiveOptions);
+  const server: http.Server = createApp({ ...effectiveOptions, profileStore, friendStore, authStore });
   let base = '';
   const ready = new Promise<void>((resolve) => server.listen(0, () => {
     base = `http://localhost:${(server.address() as AddressInfo).port}`;

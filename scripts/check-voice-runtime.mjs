@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { readdir, readFile } from 'node:fs/promises';
 
 const [appConfigSource, mobilePackageSource, appSource, rideBarSource, proximitySource, proximityStateSource, voiceActivitySource, audioSessionSource, foregroundServiceSource, foregroundPluginSource, activeSpeakerSource, mapScreenOwnSource, presenceHookSource, mobileClientSource, settingsScreenSource, pwaSource, serverSource] = await Promise.all([
   readFile(new URL('../mobile/app.json', import.meta.url), 'utf8'),
@@ -18,7 +18,14 @@ const [appConfigSource, mobilePackageSource, appSource, rideBarSource, proximity
   readFile(new URL('../mobile/src/api/client.ts', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/screens/SettingsScreen.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../docs/app.js', import.meta.url), 'utf8'),
-  readFile(new URL('../backend/src/server.ts', import.meta.url), 'utf8'),
+  // The backend's request handling spans server.ts and its route modules.
+  Promise.all([
+    readFile(new URL('../backend/src/server.ts', import.meta.url), 'utf8'),
+    ...(await readdir(new URL('../backend/src/routes/', import.meta.url)))
+      .filter((name) => name.endsWith('.ts'))
+      .sort()
+      .map((name) => readFile(new URL(`../backend/src/routes/${name}`, import.meta.url), 'utf8')),
+  ]).then((sources) => sources.join('\n')),
 ]);
 // MapScreen.tsx delegates Nearby Voice presence (Go Live state, the
 // presence poll, mutual exclusion with private rides) to usePresence.ts --
