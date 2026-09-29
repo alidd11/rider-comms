@@ -69,7 +69,7 @@ describe('wrapPlacesSearchWithCache', () => {
     let calls = 0;
     const cache = new PlacesCache();
     const wrapped = wrapPlacesSearchWithCache(
-      async (query: string, _near: typeof near) => {
+      async (_query: string, _near: typeof near) => {
         calls += 1;
         return okResult;
       },
@@ -86,7 +86,7 @@ describe('wrapPlacesSearchWithCache', () => {
     let calls = 0;
     const cache = new PlacesCache();
     const wrapped = wrapPlacesSearchWithCache(
-      async (query: string, _near: typeof near): Promise<PlaceSearchResult> => {
+      async (_query: string, _near: typeof near): Promise<PlaceSearchResult> => {
         calls += 1;
         return { status: 'network-error', places: [] };
       },

@@ -114,7 +114,6 @@ export class RideStore {
 
       // A conflict does not abort the transaction, unlike catching a unique
       // violation after a plain INSERT. Regenerate until a code is reserved.
-      // eslint-disable-next-line no-constant-condition
       while (true) {
         const inserted = await client.query(
           `INSERT INTO ride_codes (code, ride_id, created_at, expires_at)

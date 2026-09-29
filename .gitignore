@@ -14,3 +14,4 @@ backups/
 *.dump
 *.dump.age
 *.agekey
+coverage/

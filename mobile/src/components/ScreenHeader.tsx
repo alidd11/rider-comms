@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import type { StyleProp, ViewStyle } from 'react-native';
-import { colors, spacing, type } from '../theme';
+import { spacing, type } from '../theme';
 
 type ScreenHeaderProps = {
   title: string;

@@ -54,7 +54,17 @@ jobs:
             npm-audit-all.json
             npm-audit-production.json
           if-no-files-found: error
-      - run: npm run check
+      - run: npm run lint
+      - run: npm run typecheck
+      # Same suites as `npm test`, run once with coverage instrumentation.
+      - run: npm run test:coverage
+      - name: Upload coverage reports
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: coverage
+          path: coverage/
+          if-no-files-found: warn
       - name: Verify native Expo config
         working-directory: mobile
         run: npx expo prebuild --clean --no-install

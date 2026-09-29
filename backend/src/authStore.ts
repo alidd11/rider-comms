@@ -113,6 +113,7 @@ export class AuthStore {
   private digest(token: string): string { return createHash('sha256').update(token).digest('hex'); }
   private deviceName(value: unknown): string {
     if (typeof value !== 'string') return 'Unknown device';
+    // eslint-disable-next-line no-control-regex -- stripping control characters is the point
     const normalized = value.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim();
     return normalized.slice(0, 120) || 'Unknown device';
   }

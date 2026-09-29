@@ -1,5 +1,5 @@
 import { StyleSheet } from 'react-native';
-import { colors, spacing, radii, type, elevation, MIN_TOUCH_TARGET } from '../theme';
+import { colors, spacing, radii, type, MIN_TOUCH_TARGET } from '../theme';
 
 export const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },

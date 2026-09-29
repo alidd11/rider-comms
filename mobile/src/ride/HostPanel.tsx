@@ -13,7 +13,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation';
 import { ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
-import { colors, spacing, radii, type, elevation, MIN_TOUCH_TARGET } from '../theme';
+import { colors, spacing, radii, type, elevation } from '../theme';
 import { useRide } from './RideContext';
 import { microphoneErrorMessage, preflightVoiceMicrophone } from '../audio/microphone';
 

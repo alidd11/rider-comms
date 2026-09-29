@@ -2045,7 +2045,7 @@
       renderRide();
       if (ride) await loadRideRoster();
       else if (previous) showToast('That ride is no longer active.');
-    } catch (error) {
+    } catch {
       // Transient failures leave the last verified state intact. A fresh
       // login starts with no verified ride and can retry from the Ride tab.
     }
@@ -2510,10 +2510,6 @@
 
   function notificationPermission() {
     return 'Notification' in window ? Notification.permission : 'unsupported';
-  }
-
-  function notificationSettingActive() {
-    return state.notifications && notificationPermission() === 'granted';
   }
 
   function syncNotificationPreference() {
@@ -4938,10 +4934,6 @@
     return { distanceMeters: Math.hypot(p.x - closest.x, p.y - closest.y), ratio };
   }
 
-  function distanceToSegmentMeters(point, segStart, segEnd) {
-    return projectToSegment(point, segStart, segEnd).distanceMeters;
-  }
-
   function navigationStepPath(step) {
     const rawPath = Array.isArray(step?.path)
       ? step.path
@@ -5248,7 +5240,6 @@
     }
 
     container.innerHTML = `<span class="nav-road-ahead-label">Reports ahead</span><span class="nav-road-ahead-events">${alerts.map((alert) => {
-      const meta = HAZARD_TYPES[alert.hazard.type];
       const label = navigationHazardLabel(alert.hazard.type);
       const displayLabel = navigationHazardCompactLabel(alert.hazard.type);
       const distance = formatNavDistance(alert.distanceAheadMeters);

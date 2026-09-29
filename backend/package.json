@@ -6,7 +6,8 @@
   "main": "src/server.ts",
   "scripts": {
     "start": "node --experimental-strip-types src/server.ts",
-    "test": "node --experimental-strip-types --test --test-concurrency=1 tests/*.test.ts"
+    "test": "node --experimental-strip-types --test --test-concurrency=1 tests/*.test.ts",
+    "test:coverage": "node --experimental-strip-types --experimental-test-coverage --test-coverage-exclude='tests/**' --test-reporter=spec --test-reporter-destination=stdout --test-reporter=lcov --test-reporter-destination=../coverage/backend.lcov --test --test-concurrency=1 tests/*.test.ts"
   },
   "dependencies": {
     "@rider-comms/shared": "*",
