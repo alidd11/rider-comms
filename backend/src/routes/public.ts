@@ -1,4 +1,5 @@
 import { consumeRateLimit, rateLimitSubject, readJsonBody, sendJson } from '../serverHttp.ts';
+import { parseClientErrorReport } from '../clientErrors.ts';
 import { NOT_HANDLED } from './context.ts';
 import type { PublicRouteContext } from './context.ts';
 
@@ -54,6 +55,14 @@ export async function handlePublicRoutes(ctx: PublicRouteContext): Promise<unkno
     const result = await authStore.resetPassword(body.token, body.password);
     if ('error' in result) return sendJson(res, result.error === 'expired_token' ? 410 : 400, { error: result.error });
     return sendJson(res, 200, result);
+  }
+  if (req.method === 'POST' && url.pathname === '/client-errors') {
+    // Unauthenticated on purpose: crashes can happen before sign-in.
+    if (!(await consumeRateLimit(res, rateLimitStore, rateLimitSubject('ip', address), 'client_error'))) return;
+    const report = parseClientErrorReport(await readJsonBody(req));
+    if (!report) return sendJson(res, 400, { error: 'platform and message are required' });
+    console.error(JSON.stringify({ level: report.fatal ? 'fatal' : 'error', event: 'client_error', ...report }));
+    return sendJson(res, 202, { received: true });
   }
   return NOT_HANDLED;
 }

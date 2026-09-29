@@ -4,12 +4,15 @@ import { Platform, StatusBar, useColorScheme } from 'react-native';
 import * as NavigationBar from 'expo-navigation-bar';
 import { registerGlobals } from '@livekit/react-native';
 import { AppNavigator } from './src/navigation';
+import { AppErrorBoundary } from './src/errors/AppErrorBoundary';
+import { installGlobalErrorHandler } from './src/errors/errorReporting';
 
 // LiveKit React Native requires the WebRTC globals before any room/client is created.
 // Keep this at module bootstrap, outside React lifecycle, so every voice surface shares
 // the same correctly-initialised runtime. Rider Comms owns AudioSession itself,
 // so LiveKit's automatic iOS audio-session management must stay disabled.
 registerGlobals({ autoConfigureAudioSession: false });
+installGlobalErrorHandler();
 
 export default function App(): React.JSX.Element {
   const scheme = useColorScheme();
@@ -22,7 +25,9 @@ export default function App(): React.JSX.Element {
   return (
     <>
       <StatusBar barStyle={scheme === 'light' ? 'dark-content' : 'light-content'} translucent backgroundColor="transparent" />
-      <AppNavigator />
+      <AppErrorBoundary>
+        <AppNavigator />
+      </AppErrorBoundary>
     </>
   );
 }

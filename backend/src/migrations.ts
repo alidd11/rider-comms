@@ -690,4 +690,15 @@ export const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS moderation_actions_target_idx ON moderation_actions (target_rider_id, created_at);
     `,
   },
+  {
+    // Rate-limit bucket for the unauthenticated client crash-report endpoint.
+    name: '0037_add_client_error_rate_limit_action',
+    sql: `
+      ALTER TABLE rate_limit_events DROP CONSTRAINT IF EXISTS rate_limit_events_action_check;
+      ALTER TABLE rate_limit_events ADD CONSTRAINT rate_limit_events_action_check
+        CHECK (
+          action IN ('auth', 'api', 'ride_join_rider', 'ride_join_ip', 'hazard_create', 'directions', 'places', 'client_error', 'verification_resend', 'password_reset_request')
+        );
+    `,
+  },
 ];
