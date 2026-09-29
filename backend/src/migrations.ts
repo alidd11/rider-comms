@@ -661,4 +661,33 @@ export const MIGRATIONS: Migration[] = [
         );
     `,
   },
+  {
+    // Staffed moderation workflow: reports get a review status, riders can be
+    // suspended (sign-in refused, sessions revoked), and every moderator
+    // decision is kept in an append-only audit log.
+    name: '0036_moderation_queue',
+    sql: `
+      ALTER TABLE safety_reports ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'open';
+      ALTER TABLE safety_reports ADD COLUMN IF NOT EXISTS resolved_at BIGINT;
+      ALTER TABLE safety_reports ADD COLUMN IF NOT EXISTS resolved_by TEXT;
+      ALTER TABLE safety_reports DROP CONSTRAINT IF EXISTS safety_reports_status_check;
+      ALTER TABLE safety_reports ADD CONSTRAINT safety_reports_status_check
+        CHECK (status IN ('open', 'dismissed', 'actioned'));
+      CREATE INDEX IF NOT EXISTS safety_reports_status_created_idx ON safety_reports (status, created_at);
+      CREATE INDEX IF NOT EXISTS safety_reports_reported_rider_idx ON safety_reports (reported_rider_id);
+
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS suspended_at BIGINT;
+
+      CREATE TABLE IF NOT EXISTS moderation_actions (
+        id TEXT PRIMARY KEY,
+        moderator_id TEXT NOT NULL,
+        target_rider_id TEXT NOT NULL,
+        report_id TEXT,
+        action TEXT NOT NULL CHECK (action IN ('dismiss', 'suspend', 'unsuspend')),
+        note TEXT NOT NULL,
+        created_at BIGINT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS moderation_actions_target_idx ON moderation_actions (target_rider_id, created_at);
+    `,
+  },
 ];

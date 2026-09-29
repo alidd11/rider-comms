@@ -38,7 +38,8 @@ Deletion happens in three ways:
 | Social realtime events | 7 days | Hourly social sweep | `SOCIAL_EVENT_RETENTION_MS` |
 | Social "last seen" activity | 30 days | Hourly social sweep | `SOCIAL_ACTIVITY_RETENTION_MS` |
 | Blocks | Until unblocked or account deletion | User action / account deletion | `moderationStore.ts` |
-| Safety reports (moderation evidence) | Until account deletion of the reporter or the reported rider | Account deletion | `moderationStore.ts` |
+| Safety reports (moderation evidence, with review status) | Until account deletion of the reporter or the reported rider | Account deletion | `moderationStore.ts` |
+| Moderation audit log (decisions, notes, moderator ID) | Until account deletion of the rider the decision was about | Account deletion | `moderationStore.ts`, `MODERATION.md` |
 | Scenic routes submitted by a rider | Until deleted or account deletion | Account deletion | `scenicRouteStore.ts` |
 | Rate-limit counters | The longest policy window (10 minutes) | 15-minute rate-limit sweeps | `rateLimitStore.ts`, `socialRateLimitStore.ts` |
 | Directions route cache | 5 minutes, in process memory only | Cache TTL / process restart | `directionsCache.ts` |
@@ -52,8 +53,10 @@ These need an owner decision, not just code:
 - **Direct messages** are kept indefinitely while both accounts exist. Decide
   whether to add an age limit (for example 12 months) and say so in the privacy
   policy.
-- **Safety reports** are kept as moderation evidence. Once a moderation queue
-  records outcomes, decide how long resolved reports are kept after closure.
+- **Safety reports and the moderation audit log** are kept until the account
+  they concern is deleted. Decide whether resolved reports and audit entries
+  should expire sooner (for example 2 years after closure), and whether audit
+  entries should outlive account deletion for repeat-abuse cases.
 - **Backups** contain everything above, including data later deleted from the
   live database. The backup retention period (see `BACKUP_RESTORE.md`) must be
   stated in the privacy policy, because deleted accounts persist in backups

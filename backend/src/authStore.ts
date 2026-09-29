@@ -35,7 +35,7 @@ const MAX_PASSWORD_LENGTH = 128;
 const DUMMY_PASSWORD_HASH = `${'00'.repeat(16)}:${'00'.repeat(SCRYPT_KEYLEN)}`;
 
 export type SignUpResult = SignUpSession | { error: 'username_taken' | 'email_taken' | 'invalid_username' | 'invalid_email' | 'weak_password' };
-export type LogInResult = LoginSession | { error: 'invalid_credentials' };
+export type LogInResult = LoginSession | { error: 'invalid_credentials' | 'account_suspended' };
 export type VerifyEmailResult = { riderId: string; verified: true } | { error: 'invalid_token' | 'expired_token' };
 export type ResendVerificationResult = { sent: boolean } | { error: 'not_found' | 'already_verified' };
 export type ResetPasswordResult = { reset: true } | { error: 'invalid_token' | 'expired_token' | 'weak_password' };
@@ -226,8 +226,8 @@ export class AuthStore {
     if (!isValidUsername(username) || typeof password !== 'string' || password.length < 1 || password.length > MAX_PASSWORD_LENGTH) return { error: 'invalid_credentials' };
     await ensureMigrated();
     const pool = getPool();
-    const { rows } = await pool.query<{ id: string; password_hash: string; password_algorithm: string; email_verified_at: Date | null }>(
-      'SELECT id, password_hash, password_algorithm, email_verified_at FROM users WHERE lower(username) = lower($1)',
+    const { rows } = await pool.query<{ id: string; password_hash: string; password_algorithm: string; email_verified_at: Date | null; suspended_at: string | number | null }>(
+      'SELECT id, password_hash, password_algorithm, email_verified_at, suspended_at FROM users WHERE lower(username) = lower($1)',
       [username]
     );
     const row = rows[0];
@@ -237,6 +237,9 @@ export class AuthStore {
       row?.password_algorithm ?? PASSWORD_ALGORITHM
     );
     if (!row || !passwordMatches) return { error: 'invalid_credentials' };
+    // Checked only after the password matches, so suspension status is never
+    // revealed to someone who doesn't hold the account's credentials.
+    if (row.suspended_at !== null) return { error: 'account_suspended' };
     if (row.password_algorithm !== PASSWORD_ALGORITHM) {
       await pool.query(
         'UPDATE users SET password_hash = $1, password_algorithm = $2 WHERE id = $3',

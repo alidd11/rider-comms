@@ -86,6 +86,7 @@ function authErrorMessage(error: unknown): string {
     invalid_email: 'Enter a valid email address.',
     weak_password: 'Use a password between 8 and 128 characters.',
     invalid_credentials: 'The username or password is incorrect.',
+    account_suspended: 'This account has been suspended for breaking the community rules. Contact support if you think this is a mistake.',
     invalid_token: 'That reset code is invalid or has already been used.',
     expired_token: 'That reset code has expired. Request a new one.',
     rate_limited: 'Too many attempts. Wait a moment and try again.',
