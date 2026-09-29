@@ -162,6 +162,23 @@ test('turns itself off when the server says location sharing is disabled', async
   expect(setError).toHaveBeenCalledWith('Nearby location sharing is off. Tap Go live to enable it again.');
 });
 
+test('explains a rejected location jump and stays live so the next steady fix recovers', async () => {
+  const setError = jest.fn();
+  const client = {
+    updatePresence: jest.fn(async () => {
+      throw new ApiError(422, { error: 'implausible_location_jump' });
+    }),
+  };
+  const { result } = await renderPresence({ client, setError });
+
+  await act(async () => {
+    await result.current.handleNearbyToggle();
+  });
+
+  await waitFor(() => expect(setError).toHaveBeenCalledWith('Your location jumped unexpectedly. Waiting for a steadier GPS fix.'));
+  expect(result.current.publicLive).toBe(true);
+});
+
 test('go-live blocks with an alert while locked for safety, without calling the client', async () => {
   const client = { getMe: jest.fn() };
   const { result } = await renderPresence({ client, lockedForSafety: true });

@@ -1,6 +1,10 @@
 import { after, before, beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { PresenceStore } from '../src/presenceStore.ts';
+import {
+  ImplausibleLocationJumpError,
+  MOVEMENT_ANCHOR_WINDOW_MS,
+  PresenceStore,
+} from '../src/presenceStore.ts';
 import { ensureMigrated, getPool, resetDbForTests } from '../src/db.ts';
 import type { Rider } from '@rider-comms/shared';
 
@@ -35,7 +39,7 @@ describe('PresenceStore', { skip: !hasDatabase && 'DATABASE_URL not set; skippin
   });
 
   beforeEach(async () => {
-    await getPool().query('TRUNCATE presence_zone_pairs, rider_presence');
+    await getPool().query('TRUNCATE presence_zone_pairs, rider_presence, presence_movement_anchors');
   });
 
   after(async () => {
@@ -43,7 +47,8 @@ describe('PresenceStore', { skip: !hasDatabase && 'DATABASE_URL not set; skippin
   });
 
   it('reports a mutual in-zone pair as entered, then left when they separate', async () => {
-    const store = new PresenceStore();
+    // A long lease keeps `a` fresh while `b` drives away at a plausible speed.
+    const store = new PresenceStore(300_000);
     await store.updatePresence(rider('a', 51.5, -0.1, 5, 1000));
     const { transitions, zonePairs } = await store.updatePresence(rider('b', 51.501, -0.1, 5, 1001));
 
@@ -51,8 +56,8 @@ describe('PresenceStore', { skip: !hasDatabase && 'DATABASE_URL not set; skippin
     assertHasTransition(transitions, 'a', 'b', 'entered');
     assert.deepEqual(store.ridersInZoneWith('a', zonePairs), ['b']);
 
-    // Move b far outside both radii.
-    const { transitions: left } = await store.updatePresence(rider('b', 52.5, -0.1, 5, 1002));
+    // ~11 km in two minutes (~205 mph): outside both 5-mile radii.
+    const { transitions: left } = await store.updatePresence(rider('b', 51.6, -0.1, 5, 121_001));
     assert.equal(left.length, 1);
     assertHasTransition(left, 'a', 'b', 'left');
   });
@@ -122,5 +127,49 @@ describe('PresenceStore', { skip: !hasDatabase && 'DATABASE_URL not set; skippin
     await store.updatePresence(rider('a', 51.5, -0.1, 5, 2000));
     await assert.rejects(() => store.updatePresence(rider('a', 52, -0.1, 5, 1999)), /older than/);
     assert.equal((await store.getRider('a'))?.location.lat, 51.5);
+  });
+
+  describe('movement speed gate', () => {
+    // 0.01 degrees of latitude is ~1.11 km.
+    it('accepts road-speed movement between fixes', async () => {
+      const store = new PresenceStore();
+      await store.updatePresence(rider('a', 51.5, -0.1, 5, 1_000_000));
+      // ~1.11 km in 20 s is ~124 mph.
+      await store.updatePresence(rider('a', 51.51, -0.1, 5, 1_020_000));
+    });
+
+    it('tolerates GPS jitter between fixes a moment apart', async () => {
+      const store = new PresenceStore();
+      await store.updatePresence(rider('a', 51.5, -0.1, 5, 1_000_000));
+      // ~150 m in 1 ms: inside the 200 m accuracy allowance.
+      await store.updatePresence(rider('a', 51.50135, -0.1, 5, 1_000_001));
+    });
+
+    it('rejects a jump faster than 250 mph and keeps the previous position', async () => {
+      const store = new PresenceStore();
+      await store.updatePresence(rider('a', 51.5, -0.1, 5, 1_000_000));
+      // ~111 km in 60 s is ~4,100 mph.
+      await assert.rejects(() => store.updatePresence(rider('a', 52.5, -0.1, 5, 1_060_000)), ImplausibleLocationJumpError);
+      const current = await store.getRider('a');
+      assert.equal(current?.location.lat, 51.5);
+      // The rejected fix did not move the anchor, so a plausible fix from the
+      // original position is still accepted.
+      await store.updatePresence(rider('a', 51.501, -0.1, 5, 1_070_000));
+    });
+
+    it('still gates a rider whose presence lease expired, so going quiet cannot reset it', async () => {
+      const store = new PresenceStore();
+      await store.updatePresence(rider('a', 51.5, -0.1, 5, 1_000_000));
+      await store.removeRider('a');
+      await assert.rejects(() => store.updatePresence(rider('a', 40.7, -74.0, 5, 1_120_000)), ImplausibleLocationJumpError);
+    });
+
+    it('does not compare against a fix older than the 30-minute window', async () => {
+      const store = new PresenceStore();
+      await store.updatePresence(rider('a', 51.5, -0.1, 5, 1_000_000));
+      await store.removeRider('a');
+      // London to New York after a flight longer than the window.
+      await store.updatePresence(rider('a', 40.7, -74.0, 5, 1_000_000 + MOVEMENT_ANCHOR_WINDOW_MS + 1));
+    });
   });
 });

@@ -21,13 +21,10 @@ Scope: every backend route module and store, `serverHttp.ts`, auth, email, LiveK
 - **Hazard reporter exposed (medium, privacy):** `GET /hazards/nearby` returned `reportedBy`, so any signed-in rider could link a hazard's location and time to the rider who reported it. The field is no longer published; it stays server-side for the DELETE ownership check.
 - **Hazard votes bypassed email verification (medium):** `/hazards/:id/confirm` and `/deny` matched any HTTP method, but the verified-email gate only covers POST, so a `GET` vote skipped it. The route is now POST-only.
 
-**Open, needs a product decision**
-- **Presence probing (high, privacy):** `POST /presence` trusts the client's coordinates and returns which riders are inside your zone (1 mile on the free tier). A signed-in rider can submit fabricated positions and narrow down where a location-sharing rider is. Blocking already removes the pairing. What bounds it today:
-  - fixes must be fresh (at most 30 s old)
-  - each fix must be newer than the previous one
-  - location sharing is opt-in
-
-  There is no plausibility check on how far a rider "moves" between fixes. A robust fix is to keep each rider's last accepted fix (outside the 30-second presence lease) and reject physically impossible jumps. That needs a threshold that tolerates GPS jumps and flights, so it is a UX decision, not a mechanical fix.
+**Fixed after review**
+- **Presence probing (high, privacy):** `POST /presence` trusted the client's coordinates and replied with the riders inside your zone, so a signed-in rider could submit fabricated positions to narrow down where a location-sharing rider is. Each rider's last accepted fix is now kept for 30 minutes (`presence_movement_anchors`), and a fix implying more than 250 mph since then is rejected with `422 implausible_location_jump`. There is a 200 m allowance for GPS error. The check survives the 30-second presence lease, so going quiet does not reset it, while a rider returning after more than 30 minutes (for example after a flight) is not compared. Both clients explain the rejection and keep trying on the next fix.
+- **No crash alerting (medium, operations):** errors were only logged. The backend now emails staff about 500s, crashes, unhandled rejections and app crash reports, batched to at most one email per 15 minutes.
+- **Coverage could regress silently:** CI now fails if any package's line coverage drops below its floor (shared 95%, backend 88%, mobile node:test 88%, mobile Jest 79%).
 
 **Checked and sound**
 - **Authorisation:** every rider-scoped route checks that the actor is the resource owner or a member. Direct messages, hideouts and friend actions require friendship and no block. Moderation re-reads admin status from Postgres on each request.
@@ -40,7 +37,7 @@ Scope: every backend route module and store, `serverHttp.ts`, auth, email, LiveK
 
 **Low / informational**
 - Email verification and reset tokens travel in link query strings, which is the standard pattern. They expire after 24 hours and one hour respectively, reset tokens are single-use, and the PWA removes the token from the address bar (`history.replaceState`) as soon as it reads it.
-- `POST /presence` has no dedicated rate limit. The client cadence and the freshness rules bound it, but a per-rider limit would add defence in depth alongside the presence fix above.
+- `POST /presence` has no dedicated rate limit. The movement check, the client cadence and the freshness rules bound it; a per-rider limit would add defence in depth.
 
 ## Current verified state
 

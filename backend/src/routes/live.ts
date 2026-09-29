@@ -1,5 +1,5 @@
 import { RIDE_VOICE_TOKEN_TTL_SECONDS, mintVoiceToken, proximityRoomName, rideRoomName } from '../liveKitToken.ts';
-import { PresenceStore, StaleLocationFixError } from '../presenceStore.ts';
+import { PresenceStore, ImplausibleLocationJumpError, StaleLocationFixError } from '../presenceStore.ts';
 import { consumeRateLimit, isCoordinate, rateLimitSubject, readJsonBody, sendJson } from '../serverHttp.ts';
 import { TIER_RADIUS_MILES } from '@rider-comms/shared';
 import type { Rider } from '@rider-comms/shared';
@@ -38,6 +38,7 @@ export async function handleLiveRoutes(ctx: RouteContext): Promise<unknown> {
       presenceResult = await presenceStore.updatePresence({ ...rider, accuracyMeters: body.accuracyMeters });
     } catch (error) {
       if (error instanceof StaleLocationFixError) return sendJson(res, 409, { error: 'out_of_order_location_fix' });
+      if (error instanceof ImplausibleLocationJumpError) return sendJson(res, 422, { error: 'implausible_location_jump' });
       throw error;
     }
     const inZonePeerIds = presenceStore.ridersInZoneWith(actorId, presenceResult.zonePairs);

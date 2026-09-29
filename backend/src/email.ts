@@ -117,3 +117,17 @@ export async function sendPasswordResetEmail(
   const html = `<p>Reset your Rider Comms password</p><p><a href="${resetUrlString}">Choose a new password</a></p><p>Or enter this reset code in the app: <strong>${token}</strong></p><p>This link/code expires in one hour. If you did not request it, you can ignore this email.</p>`;
   return sendEmail(email, 'Reset your Rider Comms password', text, html, fetchImpl);
 }
+
+function escapeHtml(value: string): string {
+  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/** Staff-only operational email (error alerts). Never throws. */
+export async function sendOperationalEmail(
+  to: string,
+  subject: string,
+  text: string,
+  fetchImpl: typeof fetch = fetch
+): Promise<boolean> {
+  return sendEmail(to, subject, text, `<pre style="white-space:pre-wrap;font-family:monospace">${escapeHtml(text)}</pre>`, fetchImpl);
+}

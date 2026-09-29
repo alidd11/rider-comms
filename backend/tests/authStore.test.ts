@@ -368,6 +368,30 @@ describe('AuthStore account signup/login (Postgres-backed)', { skip: !hasDatabas
     assert.equal(await store.isAdmin('rider_does_not_exist'), false);
   });
 
+  it('sends error alerts to ALERT_EMAIL, else to verified admin addresses only', async () => {
+    const { fn } = fakeSender();
+    const store = new AuthStore(fn);
+    const verifiedEmail = uniqueEmail();
+    const verified = await store.signUp(uniqueUsername(), verifiedEmail, 'correct-horse-battery');
+    const unverified = await store.signUp(uniqueUsername(), uniqueEmail(), 'correct-horse-battery');
+    assert.ok(!('error' in verified) && !('error' in unverified));
+    if ('error' in verified || 'error' in unverified) return;
+    await getPool().query('UPDATE users SET is_admin = false');
+    await getPool().query('UPDATE users SET is_admin = true WHERE id = ANY($1)', [[verified.riderId, unverified.riderId]]);
+    await getPool().query('UPDATE users SET email_verified_at = now() WHERE id = $1', [verified.riderId]);
+
+    const previous = process.env.ALERT_EMAIL;
+    try {
+      delete process.env.ALERT_EMAIL;
+      assert.deepEqual(await store.listAlertRecipients(), [verifiedEmail]);
+      process.env.ALERT_EMAIL = ' ops@example.com, oncall@example.com ';
+      assert.deepEqual(await store.listAlertRecipients(), ['ops@example.com', 'oncall@example.com']);
+    } finally {
+      if (previous === undefined) delete process.env.ALERT_EMAIL; else process.env.ALERT_EMAIL = previous;
+      await getPool().query('UPDATE users SET is_admin = false WHERE id = ANY($1)', [[verified.riderId, unverified.riderId]]);
+    }
+  });
+
   it('resets a password with a single-use token and revokes every existing session', async () => {
     const verification = fakeSender();
     const reset = fakeResetSender();

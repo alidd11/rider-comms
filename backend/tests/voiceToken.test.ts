@@ -15,7 +15,7 @@ const needsDb = { skip: !hasDatabase && 'DATABASE_URL not set; skipping Postgres
 
 describe('POST /voice/token', () => {
   beforeEach(async () => {
-    if (hasDatabase) await getPool().query('TRUNCATE presence_zone_pairs, rider_presence');
+    if (hasDatabase) await getPool().query('TRUNCATE presence_zone_pairs, rider_presence, presence_movement_anchors');
   });
 
   it('returns 503 when LiveKit credentials are not configured', async () => {

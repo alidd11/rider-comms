@@ -89,7 +89,14 @@ its PEM chain (literal newlines or escaped `\n` are accepted).
 `CORS_ALLOWED_ORIGINS` is a comma-separated allowlist. Production origins must
 use HTTPS and must not include a path. Set `TRUST_PROXY=true` only when the API
 is behind a trusted reverse proxy that replaces `X-Forwarded-For`; otherwise
-leave it false. The API exposes `/health` and `/ready`, emits structured JSON
+leave it false.
+
+Error alerts: the production server emails staff when a request fails with a
+500, the process crashes, or an app sends a crash report. The first error in
+a quiet period is sent at once; later ones are batched into at most one email
+every 15 minutes. Recipients are `ALERT_EMAIL` (comma-separated) if set,
+otherwise every admin account (`ADMIN_RIDER_IDS` / `users.is_admin`) with a
+verified email. Delivery uses the same Resend settings as account email. The API exposes `/health` and `/ready`, emits structured JSON
 request logs, carries a safe `X-Request-ID`, and shuts down gracefully on
 `SIGTERM`/`SIGINT`. `/health` is process liveness only; `/ready` verifies the
 PostgreSQL connection and migration state. Production startup applies all

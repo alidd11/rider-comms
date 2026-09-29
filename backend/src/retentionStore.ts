@@ -1,4 +1,5 @@
 import { ensureMigrated, getPool } from './db.ts';
+import { MOVEMENT_ANCHOR_WINDOW_MS } from './presenceStore.ts';
 
 // Scheduled retention sweep for data that request paths only prune lazily.
 // Presence, ride locations and expired hazard reports are otherwise removed
@@ -19,8 +20,13 @@ export const RIDE_LOCATION_RETENTION_MS = 60 * 60 * 1000;
  * still open after this long has been abandoned. */
 export const RIDE_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 
+/** Last-fix anchors used by the presence speed gate are deleted once they
+ * are older than the window the gate compares against (30 minutes). */
+export const MOVEMENT_ANCHOR_RETENTION_MS = MOVEMENT_ANCHOR_WINDOW_MS;
+
 export interface RetentionSweepCounts {
   presence: number;
+  movementAnchors: number;
   rideLocations: number;
   rideCodes: number;
   rides: number;
@@ -37,6 +43,10 @@ export class RetentionStore {
         'DELETE FROM rider_presence WHERE updated_at < $1',
         [now - PRESENCE_RETENTION_MS],
       );
+      const movementAnchors = await client.query(
+        'DELETE FROM presence_movement_anchors WHERE recorded_at < $1',
+        [now - MOVEMENT_ANCHOR_RETENTION_MS],
+      );
       const rideLocations = await client.query(
         'DELETE FROM ride_locations WHERE updated_at < $1',
         [now - RIDE_LOCATION_RETENTION_MS],
@@ -48,6 +58,7 @@ export class RetentionStore {
       await client.query('COMMIT');
       return {
         presence: presence.rowCount ?? 0,
+        movementAnchors: movementAnchors.rowCount ?? 0,
         rideLocations: rideLocations.rowCount ?? 0,
         rideCodes: rideCodes.rowCount ?? 0,
         rides: rides.rowCount ?? 0,

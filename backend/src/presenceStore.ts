@@ -1,4 +1,4 @@
-import { computeZonePairs } from '@rider-comms/shared';
+import { computeZonePairs, haversineMeters } from '@rider-comms/shared';
 import type { Rider, ZonePair, ZoneTransition } from '@rider-comms/shared';
 import type { PoolClient } from 'pg';
 import { ensureMigrated, getPool } from './db.ts';
@@ -14,6 +14,34 @@ export class StaleLocationFixError extends Error {
     super('location fix is older than the last accepted fix');
     this.name = 'StaleLocationFixError';
   }
+}
+
+/** 250 mph. Faster than any rider travels on the road, so a larger jump
+ * between two fixes is a faked or corrupt position. */
+export const MAX_PLAUSIBLE_SPEED_METERS_PER_SECOND = 111.76;
+/** A previous fix older than this is not compared against, so a rider who
+ * flies or takes a long break is not locked out when they go live again. */
+export const MOVEMENT_ANCHOR_WINDOW_MS = 30 * 60_000;
+/** Allowance for GPS error at short intervals: two fixes at the backend's
+ * 100 m accuracy cap can disagree by up to 200 m without the rider moving. */
+export const MOVEMENT_JUMP_SLACK_METERS = 200;
+
+/**
+ * Thrown when a presence fix is too far from the rider's previous fix for
+ * the time between them. Without this check, anyone signed in could submit
+ * fabricated positions and use the in-zone replies to locate other riders.
+ */
+export class ImplausibleLocationJumpError extends Error {
+  constructor() {
+    super('location fix is implausibly far from the previous fix');
+    this.name = 'ImplausibleLocationJumpError';
+  }
+}
+
+interface AnchorRow {
+  lat: number;
+  lon: number;
+  recorded_at: string | number;
 }
 
 interface PresenceFix extends Rider {
@@ -115,6 +143,27 @@ export class PresenceStore {
       );
       await client.query('DELETE FROM rider_presence WHERE updated_at < $1', [cutoff]);
 
+      // Speed gate against the last accepted fix (kept longer than the
+      // presence lease, see migration 0038). The row lock serialises
+      // concurrent fixes from the same rider.
+      const anchor = await client.query<AnchorRow>(
+        'SELECT lat, lon, recorded_at FROM presence_movement_anchors WHERE rider_id = $1 FOR UPDATE',
+        [rider.id]
+      );
+      const previous = anchor.rows[0];
+      if (previous) {
+        const elapsedMs = rider.updatedAt - Number(previous.recorded_at);
+        if (elapsedMs < 0) throw new StaleLocationFixError();
+        if (elapsedMs <= MOVEMENT_ANCHOR_WINDOW_MS) {
+          const movedMeters = haversineMeters(
+            { lat: Number(previous.lat), lon: Number(previous.lon) },
+            rider.location,
+          );
+          const allowedMeters = MAX_PLAUSIBLE_SPEED_METERS_PER_SECOND * (elapsedMs / 1000) + MOVEMENT_JUMP_SLACK_METERS;
+          if (movedMeters > allowedMeters) throw new ImplausibleLocationJumpError();
+        }
+      }
+
       const accepted = await client.query(
         `INSERT INTO rider_presence
            (rider_id, lat, lon, radius_miles, accuracy_meters, updated_at)
@@ -130,6 +179,13 @@ export class PresenceStore {
         [rider.id, rider.location.lat, rider.location.lon, rider.radiusMiles, rider.accuracyMeters ?? 0, rider.updatedAt]
       );
       if (accepted.rowCount !== 1) throw new StaleLocationFixError();
+      await client.query(
+        `INSERT INTO presence_movement_anchors (rider_id, lat, lon, recorded_at)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (rider_id) DO UPDATE SET
+           lat = EXCLUDED.lat, lon = EXCLUDED.lon, recorded_at = EXCLUDED.recorded_at`,
+        [rider.id, rider.location.lat, rider.location.lon, rider.updatedAt]
+      );
 
       const candidates = await this.loadCandidates(client, rider, cutoff);
       const desiredPairs = computeZonePairs([rider, ...candidates])
