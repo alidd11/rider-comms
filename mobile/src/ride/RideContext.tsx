@@ -189,6 +189,9 @@ export function RideProvider({ children }: { children: React.ReactNode }): React
       clearInterval(timer);
       appStateSubscription.remove();
     };
+    // Keyed on the ride id, not the ride object: each poll replaces the
+    // object, and depending on it would restart this polling loop every time.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeRide?.rideId, client, riderId]);
 
   React.useEffect(() => {

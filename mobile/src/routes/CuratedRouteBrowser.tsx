@@ -109,7 +109,8 @@ function RouteOverview({
   React.useEffect(() => {
     setImageFailed(false);
     setShowHeroImage(false);
-    if (!route || !heroImageUri) return undefined;
+    // heroImageUri is empty whenever there is no route.
+    if (!heroImageUri) return undefined;
 
     let active = true;
     void Image.prefetch(heroImageUri)

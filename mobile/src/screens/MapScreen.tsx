@@ -166,6 +166,10 @@ export function MapScreen(): React.JSX.Element {
       setLocationUnavailable(true);
       return null;
     }
+    // refreshTracking forwards to the provider's latest start function through
+    // a ref, so an earlier copy is never stale; listing it would recreate this
+    // callback (and re-run everything keyed on it) on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   React.useEffect(() => {
