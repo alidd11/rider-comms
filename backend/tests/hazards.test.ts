@@ -47,8 +47,20 @@ describe('hazard reports API', { skip: !hasDatabase && 'DATABASE_URL not set; sk
 
     const nearby = await authenticatedFetch(ctx, 'reporter-1', '/hazards/nearby?lat=40.0&lon=-74.0');
     assert.equal(nearby.status, 200);
-    const { hazards } = await nearby.json() as { hazards: { id: string }[] };
+    const { hazards } = await nearby.json() as { hazards: { id: string; reportedBy?: string }[] };
     assert.ok(hazards.some((h) => h.id === report.id));
+    assert.ok(hazards.every((h) => !('reportedBy' in h)), 'nearby must not reveal who reported a hazard');
+  });
+
+  it('only accepts POST for confirm/deny, so votes stay behind the verified-email gate', async () => {
+    const created = await postJson(ctx, 'reporter-4', '/hazards', { type: 'camera', lat: 43.0, lon: -77.0 });
+    const report = await created.json() as { id: string };
+    for (const method of ['GET', 'PUT', 'PATCH']) {
+      assert.equal((await authenticatedFetch(ctx, 'voter-4', `/hazards/${report.id}/confirm`, { method })).status, 404);
+    }
+    const nearby = await authenticatedFetch(ctx, 'reporter-4', '/hazards/nearby?lat=43.0&lon=-77.0');
+    const { hazards } = await nearby.json() as { hazards: { id: string; confirmations: number }[] };
+    assert.equal(hazards.find((h) => h.id === report.id)?.confirmations, 0);
   });
 
   it('confirm and deny move the vote counts', async () => {

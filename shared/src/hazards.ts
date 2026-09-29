@@ -17,7 +17,8 @@ export interface HazardReport {
   type: HazardType;
   lat: number;
   lon: number;
-  reportedBy: string;
+  /** Only on the reporter's own `POST /hazards` response; never on `/hazards/nearby`. */
+  reportedBy?: string;
   createdAt: number;
   expiresAt: number;
   confirmations: number;
