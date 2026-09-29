@@ -179,6 +179,23 @@ test('explains a rejected location jump and stays live so the next steady fix re
   expect(result.current.publicLive).toBe(true);
 });
 
+test('explains a presence rate limit and stays live', async () => {
+  const setError = jest.fn();
+  const client = {
+    updatePresence: jest.fn(async () => {
+      throw new ApiError(429, { error: 'rate_limited' });
+    }),
+  };
+  const { result } = await renderPresence({ client, setError });
+
+  await act(async () => {
+    await result.current.handleNearbyToggle();
+  });
+
+  await waitFor(() => expect(setError).toHaveBeenCalledWith('Nearby is updating too often. It will catch up in a moment.'));
+  expect(result.current.publicLive).toBe(true);
+});
+
 test('go-live blocks with an alert while locked for safety, without calling the client', async () => {
   const client = { getMe: jest.fn() };
   const { result } = await renderPresence({ client, lockedForSafety: true });
