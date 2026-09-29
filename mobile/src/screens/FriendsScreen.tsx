@@ -282,8 +282,9 @@ function FriendProfileModal({
   const [error, setError] = React.useState<string | null>(null);
   const [locationShareBusy, setLocationShareBusy] = React.useState(false);
 
+  const friendRiderId = friend?.riderId;
   React.useEffect(() => {
-    if (!friend) {
+    if (!friendRiderId) {
       setProfile(null);
       setError(null);
       return;
@@ -294,12 +295,12 @@ function FriendProfileModal({
     setProfile(null);
     setLoading(true);
     setError(null);
-    void client.getPublicProfile(friend.riderId)
+    void client.getPublicProfile(friendRiderId)
       .then((next) => { if (!cancelled) setProfile(next); })
       .catch(() => { if (!cancelled) setError('Could not refresh this profile.'); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [client, friend?.riderId, profileRevision]);
+  }, [client, friendRiderId, profileRevision]);
 
   if (!friend) return <></>;
   const activityCopy = activityLabel(activity);

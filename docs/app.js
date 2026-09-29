@@ -339,6 +339,44 @@
   // rides, presence, hazards, scenic routes) goes through this one origin.
   const API_BASE_URL = 'https://backend-production-7fa0.up.railway.app';
 
+  // Vendor-free crash reporting: uncaught errors and unhandled promise
+  // rejections go to the backend's POST /client-errors, which logs them as
+  // structured events (see backend/src/clientErrors.ts). Best-effort only:
+  // duplicates within a minute are dropped and each page load sends at most
+  // 20 reports.
+  const clientErrorReporter = (() => {
+    const maxReports = 20;
+    const duplicateWindowMs = 60_000;
+    const lastSentAt = new Map();
+    let sent = 0;
+    return function reportClientError(error, context, fatal) {
+      const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error ?? 'Unknown error');
+      const key = `${context}|${message}`;
+      const now = Date.now();
+      if (sent >= maxReports || now - (lastSentAt.get(key) ?? -Infinity) < duplicateWindowMs) return;
+      sent += 1;
+      lastSentAt.set(key, now);
+      try {
+        void fetch(`${API_BASE_URL}/client-errors`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            platform: 'web',
+            message: message.slice(0, 500),
+            stack: error instanceof Error && error.stack ? error.stack.slice(0, 4000) : '',
+            fatal: fatal === true,
+            context,
+          }),
+          keepalive: true,
+        }).catch(() => undefined);
+      } catch {
+        // Reporting must never cause a second error.
+      }
+    };
+  })();
+  window.addEventListener('error', (event) => clientErrorReporter(event.error ?? event.message, 'window.error', true));
+  window.addEventListener('unhandledrejection', (event) => clientErrorReporter(event.reason, 'unhandledrejection', false));
+
   class ApiError extends Error {
     constructor(status, body) {
       super(`API error ${status}: ${JSON.stringify(body)}`);

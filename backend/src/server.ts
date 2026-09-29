@@ -256,7 +256,7 @@ export function createApp(options: CreateAppOptions = {}): http.Server {
       if ((await handleModerationRoutes(ctx)) !== NOT_HANDLED) return;
       if ((await handleScenicRouteRoutes(ctx)) !== NOT_HANDLED) return;
       return sendJson(res, 404, { error: 'not_found' });
-    } catch (error) { if (error instanceof RequestError) return sendJson(res, error.status, { error: error.message }); if (error instanceof URIError) return sendJson(res, 400, { error: 'invalid URL encoding' }); console.error('request failed', error); return sendJson(res, 500, { error: 'internal_error' }); }
+    } catch (error) { if (error instanceof RequestError) return sendJson(res, error.status, { error: error.message }); if (error instanceof URIError) return sendJson(res, 400, { error: 'invalid URL encoding' }); console.error(JSON.stringify({ level: 'error', event: 'request_failed', requestId: id, method: req.method, path: new URL(req.url ?? '/', 'http://localhost').pathname, message: error instanceof Error ? error.message : String(error), stack: error instanceof Error ? error.stack : undefined })); return sendJson(res, 500, { error: 'internal_error' }); }
   });
   app.once('close', () => {
     void socialEventStore.close?.().catch((error) => console.error('social event listener close failed', error));
@@ -372,6 +372,17 @@ async function startProductionServer(): Promise<void> {
       }
     });
   };
+  // Last-resort crash logging. An unhandled rejection is logged and the
+  // process keeps serving; an uncaught exception leaves the process in an
+  // unknown state, so it is logged and the process exits for the host to
+  // restart it.
+  process.on('unhandledRejection', (reason) => {
+    console.error(JSON.stringify({ level: 'error', event: 'unhandled_rejection', message: reason instanceof Error ? reason.message : String(reason), stack: reason instanceof Error ? reason.stack : undefined }));
+  });
+  process.on('uncaughtException', (error) => {
+    console.error(JSON.stringify({ level: 'fatal', event: 'uncaught_exception', message: error.message, stack: error.stack }));
+    process.exit(1);
+  });
   process.once('SIGTERM', shutdown);
   process.once('SIGINT', shutdown);
   app.listen(port, host, () => console.log(JSON.stringify({ level: 'info', event: 'server_started', host, port, allowedOrigins })));

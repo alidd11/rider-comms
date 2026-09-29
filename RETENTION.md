@@ -45,6 +45,7 @@ Deletion happens in three ways:
 | Directions route cache | 5 minutes, in process memory only | Cache TTL / process restart | `directionsCache.ts` |
 | Place search results | Not stored server-side (Google Places terms) | n/a | `placesProvider.ts` |
 | HTTP request logs | Per the hosting provider's log retention | Hosting provider | Structured logs from `server.ts` |
+| Crash reports from the apps (error message, stack trace, platform, app version, where it happened) | Per the hosting provider's log retention; never written to the database | Hosting provider | `backend/src/clientErrors.ts` |
 
 ## Open decisions before public launch
 

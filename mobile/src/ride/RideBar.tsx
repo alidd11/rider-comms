@@ -240,7 +240,7 @@ export function RideBar({ controlsVisible = true }: { controlsVisible?: boolean 
 
   const rosterKey = React.useMemo(() => [...roster].sort().join('\u0000'), [roster]);
   React.useEffect(() => {
-    if (!activeRide || !rosterKey) {
+    if (!activeRide?.rideId || !rosterKey) {
       setMemberNames(new Map());
       return;
     }

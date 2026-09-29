@@ -64,7 +64,7 @@ VOX, wind/engine-noise behavior, echo handling and prompt/chat ducking require p
 
 The retention schedule is documented in `RETENTION.md`, and scheduled sweeps now also remove stale presence, ride locations, expired ride codes, abandoned rides and expired hazard reports. `BACKUP_RESTORE.md` covers encrypted nightly backups (`.github/workflows/backup.yml`, which verifies each dump by restoring it), the restore-drill script and the recovery procedure. Still outstanding: configuring the backup secrets, private-key custody, and running and recording restore drills.
 
-Mobile crash reporting and end-to-end operational monitoring are not yet a complete production observability stack. Structured backend logs and health/readiness checks exist, but they do not replace alerting, dashboards and client crash telemetry.
+Vendor-free crash reporting now exists: the native app (global JS handler plus a render error boundary with a recovery screen) and the PWA (`error` / `unhandledrejection`) report to `POST /client-errors`, which writes structured `client_error` log events. The backend logs `request_failed`, `unhandled_rejection` and `uncaught_exception` as structured events too. Still missing: alert rules on those events in the hosting provider, dashboards and metrics, and native-level (non-JS) crash capture, which needs a native SDK.
 
 Moderation data, in-app report/block controls and an admin moderation API now exist (see `MODERATION.md`): a review queue, dismiss or suspend decisions (suspension revokes sessions and refuses sign-in), unsuspend for appeals, and an audit log. Launch still needs named moderators, published response targets and a monitored appeals channel.
 

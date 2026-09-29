@@ -31,6 +31,7 @@ representative, if required]
 | Reports and blocks about other riders | When you report or block | To keep riders safe and enforce our rules | Legitimate interest / legal obligation |
 | Device name, sign-in times, session tokens (stored only as hashes) | Each sign-in | So you can see and sign out of your devices, and to protect your account | Contract / legitimate interest (security) |
 | IP address, request logs | Every request | Security, abuse prevention and troubleshooting. Rate limiting uses a one-way hash of your IP address. | Legitimate interest (security) |
+| Crash reports: error message, technical stack trace, platform, app version | When the app hits an unexpected error | To find and fix bugs. Kept only in server logs, not linked to your account. | Legitimate interest (reliability) |
 
 We don't use advertising SDKs, don't sell personal data, don't track you
 across other apps or websites, and don't collect location in the background.
