@@ -1,6 +1,7 @@
 import { after, before, beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  MOVEMENT_ANCHOR_RETENTION_MS,
   PRESENCE_RETENTION_MS,
   RetentionStore,
   RIDE_LOCATION_RETENTION_MS,
@@ -47,7 +48,7 @@ describe('RetentionStore', { skip: !hasDatabase && 'DATABASE_URL not set; skippi
 
   beforeEach(async () => {
     await getPool().query(
-      'TRUNCATE rider_presence, presence_zone_pairs, ride_locations, ride_codes, ride_members, rides, hazard_reports, hazard_report_votes',
+      'TRUNCATE rider_presence, presence_zone_pairs, presence_movement_anchors, ride_locations, ride_codes, ride_members, rides, hazard_reports, hazard_report_votes',
     );
   });
 
@@ -117,10 +118,21 @@ describe('RetentionStore', { skip: !hasDatabase && 'DATABASE_URL not set; skippi
     assert.deepEqual(await ids('SELECT report_id AS id FROM hazard_report_votes'), ['live']);
   });
 
+  it('removes movement anchors older than the speed-gate window', async () => {
+    await getPool().query(
+      `INSERT INTO presence_movement_anchors (rider_id, lat, lon, recorded_at)
+       VALUES ('old', 51.5, -0.1, $1), ('recent', 51.5, -0.1, $2)`,
+      [NOW - MOVEMENT_ANCHOR_RETENTION_MS - 1, NOW - 60_000],
+    );
+    const counts = await new RetentionStore().sweep(NOW);
+    assert.equal(counts.movementAnchors, 1);
+    assert.deepEqual(await ids('SELECT rider_id AS id FROM presence_movement_anchors'), ['recent']);
+  });
+
   it('is a no-op on an already clean database', async () => {
     await insertPresence('rider-fresh', NOW);
     const counts = await new RetentionStore().sweep(NOW);
-    assert.deepEqual(counts, { presence: 0, rideLocations: 0, rideCodes: 0, rides: 0, hazardReports: 0 });
+    assert.deepEqual(counts, { presence: 0, movementAnchors: 0, rideLocations: 0, rideCodes: 0, rides: 0, hazardReports: 0 });
     assert.equal(await count('rider_presence'), 1);
   });
 });

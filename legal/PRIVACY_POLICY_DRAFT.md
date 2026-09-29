@@ -66,6 +66,9 @@ Summary of our retention schedule (full detail in [link to published retention
 summary]):
 
 - **Live locations** are shown for about 30 seconds and deleted within an hour.
+- **Your last nearby-sharing position** is kept for 30 minutes, only to check
+  that each new position is physically possible (this stops people faking
+  locations to find other riders). It is never shown to anyone.
 - **Hazard reports** expire after 1–8 hours depending on type.
 - **Ride join codes** expire after 12 hours. Rides are deleted when the host
   ends them, or 30 days after creation at the latest.

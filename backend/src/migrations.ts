@@ -701,4 +701,23 @@ export const MIGRATIONS: Migration[] = [
         );
     `,
   },
+  {
+    // Last accepted public-presence fix per rider, kept for 30 minutes so
+    // POST /presence can reject physically impossible jumps. Deliberately
+    // separate from rider_presence, which is deleted 30 seconds after a
+    // rider stops sending: a rider could otherwise go quiet, wait out the
+    // lease and "teleport" anywhere to probe who is nearby. Never served by
+    // any endpoint.
+    name: '0038_create_presence_movement_anchors',
+    sql: `
+      CREATE TABLE IF NOT EXISTS presence_movement_anchors (
+        rider_id TEXT PRIMARY KEY,
+        lat DOUBLE PRECISION NOT NULL CHECK (lat BETWEEN -90 AND 90),
+        lon DOUBLE PRECISION NOT NULL CHECK (lon BETWEEN -180 AND 180),
+        recorded_at BIGINT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS presence_movement_anchors_recorded_at_idx
+        ON presence_movement_anchors (recorded_at);
+    `,
+  },
 ];

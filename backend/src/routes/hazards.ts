@@ -15,9 +15,12 @@ export async function handleHazardRoutes(ctx: RouteContext): Promise<unknown> {
   if (req.method === 'GET' && url.pathname === '/hazards/nearby') {
     const lat = Number(url.searchParams.get('lat')), lon = Number(url.searchParams.get('lon'));
     if (!isCoordinate(lat, lon)) return sendJson(res, 400, { error: 'valid lat and lon are required' });
-    return sendJson(res, 200, { hazards: await hazardStore.nearby(lat, lon, Date.now()) });
+    // The reporter's rider ID is kept server-side (it authorises DELETE) and is
+    // never published, so a hazard's location can't be tied to a rider.
+    const hazards = (await hazardStore.nearby(lat, lon, Date.now())).map(({ reportedBy: _reportedBy, ...hazard }) => hazard);
+    return sendJson(res, 200, { hazards });
   }
-  if (s[0] === 'hazards' && s[1] && s.length === 3 && (s[2] === 'confirm' || s[2] === 'deny')) {
+  if (req.method === 'POST' && s[0] === 'hazards' && s[1] && s.length === 3 && (s[2] === 'confirm' || s[2] === 'deny')) {
     const id = decodeURIComponent(s[1]);
     const r = s[2] === 'confirm' ? await hazardStore.confirm(id, actorId) : await hazardStore.deny(id, actorId);
     return r.ok ? sendJson(res, 200, {}) : sendJson(res, 404, { error: r.reason });

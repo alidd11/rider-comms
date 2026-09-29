@@ -1,3 +1,4 @@
+import { reportOperationalError } from '../errorAlerts.ts';
 import { consumeRateLimit, rateLimitSubject, readJsonBody, sendJson } from '../serverHttp.ts';
 import { parseClientErrorReport } from '../clientErrors.ts';
 import { NOT_HANDLED } from './context.ts';
@@ -62,6 +63,7 @@ export async function handlePublicRoutes(ctx: PublicRouteContext): Promise<unkno
     const report = parseClientErrorReport(await readJsonBody(req));
     if (!report) return sendJson(res, 400, { error: 'platform and message are required' });
     console.error(JSON.stringify({ level: report.fatal ? 'fatal' : 'error', event: 'client_error', ...report }));
+    reportOperationalError('client_error', `${report.platform}${report.fatal ? ' (fatal)' : ''}${report.appVersion ? ` v${report.appVersion}` : ''}: ${report.message}`);
     return sendJson(res, 202, { received: true });
   }
   return NOT_HANDLED;

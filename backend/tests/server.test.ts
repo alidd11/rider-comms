@@ -512,6 +512,16 @@ describe('authenticated API', () => {
     const res = await postJson(ctx, 'near', '/presence', { ...fix, radiusMiles: 999, recordedAt: Date.now() });
     assert.equal((await res.json() as { radiusMiles: number }).radiusMiles, 1);
   });
+
+  it('rejects an implausible presence jump with 422', needsDb, async () => {
+    await ctx.profileStore.update('jumper', { shareLocation: true });
+    const recordedAt = Date.now() - 10_000;
+    assert.equal((await postJson(ctx, 'jumper', '/presence', { lat: 51.5, lon: -0.1, accuracyMeters: 8, recordedAt })).status, 200);
+    // London to Manchester (~260 km) ten seconds later.
+    const jump = await postJson(ctx, 'jumper', '/presence', { lat: 53.48, lon: -2.24, accuracyMeters: 8, recordedAt: recordedAt + 10_000 });
+    assert.equal(jump.status, 422);
+    assert.deepEqual(await jump.json(), { error: 'implausible_location_jump' });
+  });
 });
 
 describe('production HTTP boundary', () => {

@@ -28,6 +28,7 @@ Deletion happens in three ways:
 | Email-verification tokens | 24 hours | Hourly auth sweep | `VERIFICATION_TOKEN_TTL_MS`, `authStore.ts` |
 | Password-reset tokens | 1 hour | Hourly auth sweep | `PASSWORD_RESET_TOKEN_TTL_MS`, `authStore.ts` |
 | Public nearby presence (live coordinates) | Served for 30 s; stored at most 1 hour | 15-minute retention sweep (and on presence updates) | `PresenceStore` 30 s window; `PRESENCE_RETENTION_MS` |
+| Last accepted nearby-presence fix (for the 250 mph movement check) | 30 minutes; never served by any endpoint | 15-minute retention sweep; account deletion | `presence_movement_anchors`; `MOVEMENT_ANCHOR_RETENTION_MS` |
 | Private-ride coordinates | Served for 30 s; stored at most 1 hour | 15-minute retention sweep (and on ride-location reads) | `RIDE_LOCATION_MAX_AGE_MS`; `RIDE_LOCATION_RETENTION_MS` |
 | Private-ride join codes | 12 hours | 15-minute retention sweep | `shared/src/rideCode.ts`; `retentionStore.ts` |
 | Private rides and membership | Until the host ends the ride, or 30 days after creation | Ride end / 15-minute retention sweep | `RIDE_RETENTION_MS` |
@@ -46,6 +47,7 @@ Deletion happens in three ways:
 | Place search results | Not stored server-side (Google Places terms) | n/a | `placesProvider.ts` |
 | HTTP request logs | Per the hosting provider's log retention | Hosting provider | Structured logs from `server.ts` |
 | Crash reports from the apps (error message, stack trace, platform, app version, where it happened) | Per the hosting provider's log retention; never written to the database | Hosting provider | `backend/src/clientErrors.ts` |
+| Error alert emails to staff (error type, short message, time; no stack traces or IP addresses) | In the recipients' mailboxes; batched in server memory for at most 15 minutes first | Recipients | `backend/src/errorAlerts.ts` |
 
 ## Open decisions before public launch
 

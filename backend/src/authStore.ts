@@ -385,6 +385,21 @@ export class AuthStore {
     return rows[0] ? { riderId, username: rows[0].username, emailVerified: rows[0].email_verified_at !== null } : undefined;
   }
 
+  /**
+   * Who receives error alert emails: ALERT_EMAIL (comma-separated) when set,
+   * otherwise every admin account with a verified email address.
+   */
+  async listAlertRecipients(): Promise<string[]> {
+    const configured = (process.env.ALERT_EMAIL ?? '').split(',').map((email) => email.trim()).filter(Boolean);
+    if (configured.length > 0) return configured;
+    if (!process.env.DATABASE_URL) return [];
+    await ensureMigrated();
+    const { rows } = await getPool().query<{ email: string }>(
+      'SELECT email FROM users WHERE is_admin AND email_verified_at IS NOT NULL AND email IS NOT NULL ORDER BY email'
+    );
+    return rows.map((row) => row.email);
+  }
+
   async isAdmin(riderId: string): Promise<boolean> {
     if (!process.env.DATABASE_URL) return false;
     await ensureMigrated();

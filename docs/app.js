@@ -3745,7 +3745,9 @@
             ? 'Enable location sharing in Settings to go live.'
             : code === 'location accuracy must be between 0 and 100 metres'
               ? 'Waiting for a more accurate GPS fix. Try Nearby again in a moment.'
-              : 'Could not go live. Try again.');
+              : code === 'implausible_location_jump'
+                ? 'Your location jumped unexpectedly. Waiting for a steadier GPS fix. Try Nearby again in a moment.'
+                : 'Could not go live. Try again.');
       }
     } finally {
       nearbyTogglePending = false;

@@ -5,6 +5,8 @@ import { fetchGoogleDrivingRoute } from './directionsProvider.ts';
 import type { DrivingRoute, RouteCoordinate } from './directionsProvider.ts';
 import { DirectionsCache, wrapDirectionsProviderWithCache } from './directionsCache.ts';
 import { RetentionStore } from './retentionStore.ts';
+import { configureErrorAlerts, ErrorAlerter, flushErrorAlerts, reportOperationalError } from './errorAlerts.ts';
+import { sendOperationalEmail } from './email.ts';
 import { fetchGooglePlaces } from './placesProvider.ts';
 import type { PlaceSearchRequest, PlaceSummary } from './placesProvider.ts';
 import { AuthStore } from './authStore.ts';
@@ -256,7 +258,7 @@ export function createApp(options: CreateAppOptions = {}): http.Server {
       if ((await handleModerationRoutes(ctx)) !== NOT_HANDLED) return;
       if ((await handleScenicRouteRoutes(ctx)) !== NOT_HANDLED) return;
       return sendJson(res, 404, { error: 'not_found' });
-    } catch (error) { if (error instanceof RequestError) return sendJson(res, error.status, { error: error.message }); if (error instanceof URIError) return sendJson(res, 400, { error: 'invalid URL encoding' }); console.error(JSON.stringify({ level: 'error', event: 'request_failed', requestId: id, method: req.method, path: new URL(req.url ?? '/', 'http://localhost').pathname, message: error instanceof Error ? error.message : String(error), stack: error instanceof Error ? error.stack : undefined })); return sendJson(res, 500, { error: 'internal_error' }); }
+    } catch (error) { if (error instanceof RequestError) return sendJson(res, error.status, { error: error.message }); if (error instanceof URIError) return sendJson(res, 400, { error: 'invalid URL encoding' }); const failedPath = new URL(req.url ?? '/', 'http://localhost').pathname; const failureMessage = error instanceof Error ? error.message : String(error); console.error(JSON.stringify({ level: 'error', event: 'request_failed', requestId: id, method: req.method, path: failedPath, message: failureMessage, stack: error instanceof Error ? error.stack : undefined })); reportOperationalError('request_failed', `${req.method} ${failedPath} (request ${id}): ${failureMessage}`); return sendJson(res, 500, { error: 'internal_error' }); }
   });
   app.once('close', () => {
     void socialEventStore.close?.().catch((error) => console.error('social event listener close failed', error));
@@ -279,6 +281,11 @@ async function startProductionServer(): Promise<void> {
   const productionSocialActivityStore = new SocialActivityStore();
   const productionSocialEventStore = new SocialEventStore();
   const productionRetentionStore = new RetentionStore();
+  configureErrorAlerts(new ErrorAlerter({
+    recipients: () => productionAuthStore.listAlertRecipients(),
+    send: (to, subject, text) => sendOperationalEmail(to, subject, text),
+    environment: process.env.RAILWAY_ENVIRONMENT_NAME ?? 'production',
+  }));
   const initialCleanup = await productionAuthStore.cleanupExpiredRecords();
   const initialRateCleanup = await productionRateLimitStore.cleanupExpired();
   const initialSocialRateCleanup = await productionSocialRateLimitStore.cleanupExpired();
@@ -348,6 +355,7 @@ async function startProductionServer(): Promise<void> {
     clearInterval(socialRateCleanupTimer);
     clearInterval(socialStateCleanupTimer);
     clearInterval(retentionSweepTimer);
+    void flushErrorAlerts();
     void productionSocialEventStore.close().catch((error) => console.error(JSON.stringify({ level: 'error', event: 'social_event_listener_shutdown_failed', message: error instanceof Error ? error.message : String(error) })));
     console.log(JSON.stringify({ level: 'info', event: 'shutdown_started', signal }));
     const forceExit = setTimeout(() => {
@@ -377,11 +385,15 @@ async function startProductionServer(): Promise<void> {
   // unknown state, so it is logged and the process exits for the host to
   // restart it.
   process.on('unhandledRejection', (reason) => {
-    console.error(JSON.stringify({ level: 'error', event: 'unhandled_rejection', message: reason instanceof Error ? reason.message : String(reason), stack: reason instanceof Error ? reason.stack : undefined }));
+    const message = reason instanceof Error ? reason.message : String(reason);
+    console.error(JSON.stringify({ level: 'error', event: 'unhandled_rejection', message, stack: reason instanceof Error ? reason.stack : undefined }));
+    reportOperationalError('unhandled_rejection', message);
   });
   process.on('uncaughtException', (error) => {
     console.error(JSON.stringify({ level: 'fatal', event: 'uncaught_exception', message: error.message, stack: error.stack }));
-    process.exit(1);
+    reportOperationalError('uncaught_exception', error.message);
+    // Give the alert email a few seconds, then exit whatever happens.
+    void flushErrorAlerts().finally(() => process.exit(1));
   });
   process.once('SIGTERM', shutdown);
   process.once('SIGINT', shutdown);

@@ -1,14 +1,18 @@
 // Summarises the lcov files written by `npm run test:coverage` into a
-// per-package line/function coverage table. Report-only: no thresholds yet,
-// so coverage can be watched over time before any gate is set.
+// per-package line/function coverage table, and fails if any package's line
+// coverage drops below its floor.
 import { readFile, readdir, writeFile, appendFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
+// [name, lcov path, minimum line coverage %]. Floors sit ~2 points under the
+// coverage measured when they were set (2026-09-29: 97.6 / 90.2 / 90.2 /
+// 81.5), so normal churn passes but a real regression fails CI. Raise them as
+// coverage improves; never lower one to get a change through.
 const reports = [
-  ['shared', 'coverage/shared.lcov'],
-  ['backend', 'coverage/backend.lcov'],
-  ['mobile (node:test)', 'coverage/mobile-client.lcov'],
-  ['mobile (Jest)', 'coverage/jest/lcov.info'],
+  ['shared', 'coverage/shared.lcov', 95],
+  ['backend', 'coverage/backend.lcov', 88],
+  ['mobile (node:test)', 'coverage/mobile-client.lcov', 88],
+  ['mobile (Jest)', 'coverage/jest/lcov.info', 79],
 ];
 
 function totals(lcov) {
@@ -25,17 +29,21 @@ function totals(lcov) {
 }
 
 const pct = (hit, found) => (found === 0 ? 'n/a' : `${((hit / found) * 100).toFixed(1)}%`);
-const rows = ['| Package | Files | Lines | Functions |', '| --- | --- | --- | --- |'];
-for (const [name, path] of reports) {
+const rows = ['| Package | Files | Lines | Floor | Functions |', '| --- | --- | --- | --- | --- |'];
+const failures = [];
+for (const [name, path, floor] of reports) {
   let lcov;
   try {
     lcov = await readFile(path, 'utf8');
   } catch {
-    rows.push(`| ${name} | not run | | |`);
+    rows.push(`| ${name} | not run | | ${floor}% | |`);
+    failures.push(`${name}: no coverage report at ${path}`);
     continue;
   }
   const t = totals(lcov);
-  rows.push(`| ${name} | ${t.files} | ${pct(t.lh, t.lf)} (${t.lh}/${t.lf}) | ${pct(t.fnh, t.fnf)} |`);
+  const linePct = t.lf === 0 ? 0 : (t.lh / t.lf) * 100;
+  if (linePct < floor) failures.push(`${name}: line coverage ${linePct.toFixed(1)}% is below the ${floor}% floor`);
+  rows.push(`| ${name} | ${t.files} | ${pct(t.lh, t.lf)} (${t.lh}/${t.lf}) | ${floor}% | ${pct(t.fnh, t.fnf)} |`);
 }
 
 const markdown = `## Test coverage\n\n${rows.join('\n')}\n`;
@@ -44,3 +52,8 @@ await writeFile(join('coverage', 'summary.md'), markdown);
 if (process.env.GITHUB_STEP_SUMMARY) await appendFile(process.env.GITHUB_STEP_SUMMARY, markdown);
 // Keep the directory listing in the log so a missing report is obvious.
 console.log((await readdir('coverage')).join(' '));
+
+if (failures.length > 0) {
+  console.error(`Coverage check failed:\n- ${failures.join('\n- ')}`);
+  process.exit(1);
+}

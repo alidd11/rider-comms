@@ -84,7 +84,9 @@ export function usePresence(
             ? 'Verify your email before using Nearby Voice.'
             : code === 'location_sharing_disabled'
               ? 'Nearby location sharing is off. Tap Go live to enable it again.'
-              : err instanceof Error ? err.message : 'Could not update your zone.');
+              : code === 'implausible_location_jump'
+                ? 'Your location jumped unexpectedly. Waiting for a steadier GPS fix.'
+                : err instanceof Error ? err.message : 'Could not update your zone.');
           if (code === 'email_verification_required' || code === 'location_sharing_disabled') setPublicLive(false);
         }
       }
