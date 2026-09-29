@@ -10,6 +10,7 @@ export type RateLimitAction =
   | 'directions'
   | 'places'
   | 'client_error'
+  | 'presence'
   | 'verification_resend'
   | 'password_reset_request';
 
@@ -38,6 +39,10 @@ export const RATE_LIMIT_POLICIES: Readonly<Record<RateLimitAction, RateLimitPoli
   // Crash reports per client address: enough for a crash loop to be visible
   // in the logs without letting one client flood them.
   client_error: { maxEvents: 30, windowMs: 10 * 60_000 },
+  // Public presence per rider. Both apps send a fix every 8 s (7.5/minute),
+  // so 20/minute leaves room for go-live and foreground refreshes while
+  // bounding how fast a scripted client can probe with fabricated positions.
+  presence: { maxEvents: 20, windowMs: 60_000 },
   verification_resend: { maxEvents: 3, windowMs: 10 * 60_000 },
   password_reset_request: { maxEvents: 3, windowMs: 10 * 60_000 },
 };

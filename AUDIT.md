@@ -37,7 +37,7 @@ Scope: every backend route module and store, `serverHttp.ts`, auth, email, LiveK
 
 **Low / informational**
 - Email verification and reset tokens travel in link query strings, which is the standard pattern. They expire after 24 hours and one hour respectively, reset tokens are single-use, and the PWA removes the token from the address bar (`history.replaceState`) as soon as it reads it.
-- `POST /presence` has no dedicated rate limit. The movement check, the client cadence and the freshness rules bound it; a per-rider limit would add defence in depth.
+- `POST /presence` now also has a per-rider rate limit of 20 per minute. Both apps send every 8 seconds, so this only affects scripted clients.
 
 ## Current verified state
 
