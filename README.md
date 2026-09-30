@@ -91,6 +91,8 @@ use HTTPS and must not include a path. Set `TRUST_PROXY=true` only when the API
 is behind a trusted reverse proxy that replaces `X-Forwarded-For`; otherwise
 leave it false.
 
+Voice uses LiveKit via `LIVEKIT_URL`, `LIVEKIT_API_KEY` and `LIVEKIT_API_SECRET` on the backend (LiveKit Cloud or self-hosted). To run your own LiveKit server instead of paying for LiveKit Cloud, follow `SELF_HOSTED_VOICE.md`.
+
 Error alerts: the production server emails staff when a request fails with a
 500, the process crashes, or an app sends a crash report. The first error in
 a quiet period is sent at once; later ones are batched into at most one email

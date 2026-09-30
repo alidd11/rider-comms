@@ -24,7 +24,7 @@ Scope: every backend route module and store, `serverHttp.ts`, auth, email, LiveK
 **Fixed after review**
 - **Presence probing (high, privacy):** `POST /presence` trusted the client's coordinates and replied with the riders inside your zone, so a signed-in rider could submit fabricated positions to narrow down where a location-sharing rider is. Each rider's last accepted fix is now kept for 30 minutes (`presence_movement_anchors`), and a fix implying more than 250 mph since then is rejected with `422 implausible_location_jump`. There is a 200 m allowance for GPS error. The check survives the 30-second presence lease, so going quiet does not reset it, while a rider returning after more than 30 minutes (for example after a flight) is not compared. Both clients explain the rejection and keep trying on the next fix.
 - **No crash alerting (medium, operations):** errors were only logged. The backend now emails staff about 500s, crashes, unhandled rejections and app crash reports, batched to at most one email per 15 minutes.
-- **Coverage could regress silently:** CI now fails if any package's line coverage drops below its floor (shared 95%, backend 88%, mobile node:test 88%, mobile Jest 79%).
+- **Coverage could regress silently:** CI now fails if any package's line coverage drops below its floor (shared 95%, backend 88%, mobile node:test 88%, mobile Jest 84%).
 
 **Checked and sound**
 - **Authorisation:** every rider-scoped route checks that the actor is the resource owner or a member. Direct messages, hideouts and friend actions require friendship and no block. Moderation re-reads admin status from Postgres on each request.

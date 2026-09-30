@@ -1,0 +1,34 @@
+# Self-hosted LiveKit for Rider Comms. See SELF_HOSTED_VOICE.md before use.
+#
+# Runs on one Linux VPS with a public IP. Both containers use host
+# networking: WebRTC media needs the UDP port range to reach LiveKit
+# directly, and Docker's userland proxy is slow for thousands of ports.
+services:
+  livekit:
+    image: livekit/livekit-server:v1.13.7
+    command: --config /etc/livekit.yaml
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      # "<api key>: <api secret>", kept out of livekit.yaml so the config
+      # file can be committed. Set in infra/livekit/.env (never commit it).
+      LIVEKIT_KEYS: ${LIVEKIT_KEYS:?set LIVEKIT_KEYS in .env}
+    volumes:
+      - ./livekit.yaml:/etc/livekit.yaml:ro
+
+  # Terminates HTTPS/WSS for the signalling endpoint with an automatic
+  # Let's Encrypt certificate and forwards to LiveKit on 127.0.0.1:7880.
+  caddy:
+    image: caddy:2.11.4-alpine
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      LIVEKIT_DOMAIN: ${LIVEKIT_DOMAIN:?set LIVEKIT_DOMAIN in .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:

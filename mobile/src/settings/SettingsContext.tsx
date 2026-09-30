@@ -154,8 +154,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }): R
     setDisplayName: (v: string) => update('displayName', v.trim() || 'Rider'), setHandle: (v: string) => update('handle', v.trim() || '@rider'),
     setUnitSystem: (v: UnitSystem) => update('unitSystem', v), setNotifyNearby: (v: boolean) => updateNotification('notifyNearby', v),
     setNotifyInvites: (v: boolean) => updateNotification('notifyInvites', v), setNotifyChat: (v: boolean) => updateNotification('notifyChat', v),
-    setShareLocation: (v: boolean) => update('shareLocation', v), setInstagramUsername: (v: string) => update('instagramUsername', v.replace(/^@/, '').trim()),
-    setInstagramVisibility: (v: SocialVisibility) => update('instagramVisibility', v), setTiktokUsername: (v: string) => update('tiktokUsername', v.replace(/^@/, '').trim()),
+    setShareLocation: (v: boolean) => update('shareLocation', v), setInstagramUsername: (v: string) => update('instagramUsername', v.trim().replace(/^@/, '')),
+    setInstagramVisibility: (v: SocialVisibility) => update('instagramVisibility', v), setTiktokUsername: (v: string) => update('tiktokUsername', v.trim().replace(/^@/, '')),
     setTiktokVisibility: (v: SocialVisibility) => update('tiktokVisibility', v),
   }), [update, updateNotification]);
   const setNavigationProvider = React.useCallback((value: NavigationProvider) => {
