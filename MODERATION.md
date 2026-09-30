@@ -20,25 +20,27 @@ Open **https://alidd11.github.io/rider-comms/admin.html**. Before that, sign in 
 
 | Tab | What it shows |
 | --- | --- |
-| **Overview** | Headline numbers and four 30-day charts (see below). Hover a bar for its value, or open **Show table** for all of them. |
-| **Riders** | The newest riders, or a search by username, email, display name, handle or rider ID. Shows join date, last activity, friends, reports against the rider and badges (Admin, Suspended, Unverified). |
-| **Moderation** | The open queue (oldest first), dismissed and actioned reports, and the audit log. On each report, write a note, then choose **Dismiss** or **Suspend rider**; suspending asks for confirmation. **Unsuspend rider** appears on reports about a currently suspended rider. |
-| **System** | Live API and database health checked from your browser, plus links to the runbooks. |
+| **Overview** | Headline cards with change versus the previous period and small trend lines, four daily trend charts, and community and safety totals. Switch between **7 days** and **30 days** (remembered in your browser). |
+| **Riders** | The newest riders, or a search by username, email, display name, handle or rider ID. Shows status (Active, Unverified, Suspended, Admin), join date, last activity, friends and reports against the rider. |
+| **Moderation** | The open queue (oldest first), dismissed and actioned reports, and the audit log. The sidebar badge shows how many reports are open. On each report, write a note, then choose **Dismiss** or **Suspend rider**; suspending asks for confirmation. **Unsuspend rider** appears on reports about a currently suspended rider. |
+| **System** | Live API and database health checked from your browser, with response times, plus links to the runbooks. |
 
-The Overview numbers:
+The headline cards:
 
-- **Riders:** total, new today, this week and in 30 days, the share with a verified email, and suspended accounts.
-- **Engagement:** riders active in the last 24 hours, 7 days and 30 days, and stickiness (daily ÷ monthly active).
-- **Live right now:** riders on Nearby, rides in progress and riders in them, and riders with location sharing on.
-- **Social:** friendships, messages today and this week, and pending friend requests.
-- **Safety and content:** open reports, reports and moderation decisions this week, active hazards, scenic routes and hideouts.
-- **Charts** (per UTC day):
-  - new signups;
-  - active riders;
-  - rides started;
-  - messages.
+- **New riders** and **Messages sent** in the period, with the change versus the period before. Green means up.
+- **Open reports**, with the change in reports filed. Here fewer is better, so a fall shows green.
+- **Active riders** in the period, and the share of all riders that is.
+- **Rides started** in the period.
+- **Total riders** (with % verified and suspended), **Live now** (riders on Nearby and rides in progress) and **Stickiness** (daily ÷ monthly active riders, which shows whether people come back).
 
-  Active riders and rides started are counted from when the dashboard shipped, because the database didn't keep them before: ended rides are deleted, and only each rider's latest activity is stored. Earlier days show as "Not tracked yet".
+The trend charts (per UTC day):
+- New riders and messages show totals.
+- Active riders shows a daily average, because the same rider is counted on every day they ride.
+- Rides started shows totals.
+
+Each chart shows the previous period as a dashed grey line and today's incomplete value as a dashed segment. Hover or use the arrow keys to read a day, or choose **View as table**.
+
+Active riders and rides started are counted from when the dashboard shipped, because the database didn't keep them before: ended rides are deleted, and only each rider's latest activity is stored. Earlier days are shaded and marked "Not tracked yet".
 
 Everything is computed live from the database when you open or refresh the page. The daily history lives in `daily_metrics`, which holds only a date, a metric name and a number, never rider IDs.
 

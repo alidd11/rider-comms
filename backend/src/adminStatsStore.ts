@@ -4,8 +4,8 @@ import { ensureMigrated, getPool } from './db.ts';
 // only per-rider data is the staff rider search, which is admin-only.
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-/** Days of history returned for the dashboard's trend charts. */
-export const SERIES_DAYS = 30;
+/** Days of history returned for the dashboard's trend charts: 30 shown plus 30 to compare against. */
+export const SERIES_DAYS = 60;
 /** A public-presence fix counts as "live now" for this long (the API's own window). */
 const LIVE_PRESENCE_MS = 30_000;
 export const MAX_RIDER_SEARCH_RESULTS = 50;
