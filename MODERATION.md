@@ -14,7 +14,23 @@ explicitly with `UPDATE users SET is_admin = false WHERE id = '...'`.
 Admin status is re-read from the database on every moderation request.
 Moderators can't suspend themselves or another admin.
 
+## The moderation page
+
+Open **https://alidd11.github.io/rider-comms/moderation.html**. Before that, sign in to the Rider Comms app in the same browser with an admin account; the page reuses that sign-in.
+
+The page shows:
+- the open queue, oldest first;
+- dismissed and actioned reports;
+- the audit log.
+
+On each report you write a note, then choose **Dismiss** or **Suspend rider**. Suspending asks for confirmation first. **Unsuspend rider** appears on reports about a rider who is currently suspended. The page shows reporters' and reported riders' names next to their IDs, and never shows riders' text as HTML.
+
+The page is not listed anywhere in the app and asks search engines not to index it. The backend refuses every moderation request from a non-admin account, whatever the page shows.
+
 ## The API
+
+The page is a thin layer over these endpoints, which also work directly (for example with `curl`).
+
 
 All endpoints need an admin session (`Authorization: Bearer <token>` from
 `POST /auth/login`). Every write needs a `note` of 1–1000 characters,
@@ -80,5 +96,3 @@ in place. Record appeal decisions in the audit log note.
 - A monitored support address for appeals and erasure requests.
 - A decision on how long resolved reports and audit entries are kept (see
   `RETENTION.md`).
-- Optional: a staff UI on top of this API. The API is enough to run the
-  workflow, but a UI reduces mistakes.

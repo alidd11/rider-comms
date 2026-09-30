@@ -13,6 +13,8 @@ await mkdir(destination, { recursive: true });
 const publicFiles = [
   'index.html', 'app.css', 'app.js', 'avatar-system.js', 'navigation-road-events.js', 'navigation-guidance.js', 'navigation-camera.js', 'position-interpolation.js', 'movement-safety.js', 'message-state.js', 'config.js',
   'routes.css', 'routes.js', 'manifest.json', 'sw.js',
+  // Staff-only moderation page (noindex). The backend enforces admin access.
+  'moderation.html', 'moderation.css', 'moderation.js',
 ];
 await Promise.all(publicFiles.map((file) => cp(resolve(source, file), resolve(destination, file))));
 await cp(resolve(source, 'icons'), resolve(destination, 'icons'), { recursive: true });
