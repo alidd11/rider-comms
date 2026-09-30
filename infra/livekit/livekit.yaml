@@ -1,0 +1,28 @@
+# LiveKit server configuration for Rider Comms (single node).
+# API keys come from the LIVEKIT_KEYS environment variable (see .env.example).
+port: 7880
+# Only Caddy (same host) talks to the signalling port.
+bind_addresses:
+  - 127.0.0.1
+rtc:
+  # Media over UDP; open this range in the firewall.
+  port_range_start: 50000
+  port_range_end: 60000
+  # Fallback for networks that block UDP.
+  tcp_port: 7881
+  # Discover and advertise the VPS's public IP to clients.
+  use_external_ip: true
+turn:
+  # Built-in TURN relay for riders behind restrictive mobile/carrier NAT.
+  enabled: true
+  udp_port: 3478
+  # Relay ports, separate from the media range above.
+  relay_range_start: 30000
+  relay_range_end: 40000
+room:
+  # Rider Comms creates rooms on demand (one per ride or rider pair);
+  # close them soon after everyone leaves.
+  empty_timeout: 120
+  departure_timeout: 20
+logging:
+  level: info
