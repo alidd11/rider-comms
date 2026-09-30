@@ -7,8 +7,8 @@ import { MAX_PRESENCE_ACCURACY_METERS, MAX_PRESENCE_FIX_AGE_MS, MAX_PRESENCE_FUT
 import type { RouteContext } from './context.ts';
 
 export async function handleLiveRoutes(ctx: RouteContext): Promise<unknown> {
-  const { req, res, url, address, actorId, rideStore, presenceStore, profileStore, moderationStore, rateLimitStore, liveKitCredentials } = ctx;
-  if (req.method === 'POST' && url.pathname === '/rides') { const { ride, codeRecord } = await rideStore.createRide(actorId); return sendJson(res, 201, { ...rideBody(ride), code: codeRecord.code, expiresAt: codeRecord.expiresAt }); }
+  const { req, res, url, address, actorId, rideStore, presenceStore, profileStore, moderationStore, rateLimitStore, liveKitCredentials, adminStatsStore } = ctx;
+  if (req.method === 'POST' && url.pathname === '/rides') { const { ride, codeRecord } = await rideStore.createRide(actorId); void adminStatsStore.increment('rides_started').catch(() => { /* A missed dashboard count must never fail a ride. */ }); return sendJson(res, 201, { ...rideBody(ride), code: codeRecord.code, expiresAt: codeRecord.expiresAt }); }
   if (req.method === 'POST' && url.pathname === '/rides/join') {
     const body = await readJsonBody(req);
     if (typeof body.code !== 'string' || !/^[A-Z2-9]{6}$/i.test(body.code)) return sendJson(res, 400, { error: 'a valid 6-character code is required' });

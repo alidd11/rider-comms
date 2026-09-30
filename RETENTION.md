@@ -47,6 +47,7 @@ Deletion happens in three ways:
 | Place search results | Not stored server-side (Google Places terms) | n/a | `placesProvider.ts` |
 | HTTP request logs | Per the hosting provider's log retention | Hosting provider | Structured logs from `server.ts` |
 | Crash reports from the apps (error message, stack trace, platform, app version, where it happened) | Per the hosting provider's log retention; never written to the database | Hosting provider | `backend/src/clientErrors.ts` |
+| Daily dashboard metrics (date, metric name, count; no rider identifiers) | Kept indefinitely | n/a | `daily_metrics`, `adminStatsStore.ts` |
 | Error alert emails to staff (error type, short message, time; no stack traces or IP addresses) | In the recipients' mailboxes; batched in server memory for at most 15 minutes first | Recipients | `backend/src/errorAlerts.ts` |
 
 ## Open decisions before public launch

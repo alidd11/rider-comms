@@ -14,22 +14,41 @@ explicitly with `UPDATE users SET is_admin = false WHERE id = '...'`.
 Admin status is re-read from the database on every moderation request.
 Moderators can't suspend themselves or another admin.
 
-## The moderation page
+## The staff dashboard
 
-Open **https://alidd11.github.io/rider-comms/moderation.html**. Before that, sign in to the Rider Comms app in the same browser with an admin account; the page reuses that sign-in.
+Open **https://alidd11.github.io/rider-comms/admin.html**. Before that, sign in to the Rider Comms app in the same browser with an admin account; the dashboard reuses that sign-in. The old `moderation.html` address redirects to the dashboard's Moderation tab.
 
-The page shows:
-- the open queue, oldest first;
-- dismissed and actioned reports;
-- the audit log.
+| Tab | What it shows |
+| --- | --- |
+| **Overview** | Headline cards with change versus the previous period and small trend lines, four daily trend charts, and community and safety totals. Switch between **7 days** and **30 days** (remembered in your browser). |
+| **Riders** | The newest riders, or a search by username, email, display name, handle or rider ID. Shows status (Active, Unverified, Suspended, Admin), join date, last activity, friends and reports against the rider. |
+| **Moderation** | The open queue (oldest first), dismissed and actioned reports, and the audit log. The sidebar badge shows how many reports are open. On each report, write a note, then choose **Dismiss** or **Suspend rider**; suspending asks for confirmation. **Unsuspend rider** appears on reports about a currently suspended rider. |
+| **System** | Live API and database health checked from your browser, with response times, plus links to the runbooks. |
 
-On each report you write a note, then choose **Dismiss** or **Suspend rider**. Suspending asks for confirmation first. **Unsuspend rider** appears on reports about a rider who is currently suspended. The page shows reporters' and reported riders' names next to their IDs, and never shows riders' text as HTML.
+The headline cards:
 
-The page is not listed anywhere in the app and asks search engines not to index it. The backend refuses every moderation request from a non-admin account, whatever the page shows.
+- **New riders** and **Messages sent** in the period, with the change versus the period before. Green means up.
+- **Open reports**, with the change in reports filed. Here fewer is better, so a fall shows green.
+- **Active riders** in the period, and the share of all riders that is.
+- **Rides started** in the period.
+- **Total riders** (with % verified and suspended), **Live now** (riders on Nearby and rides in progress) and **Stickiness** (daily ÷ monthly active riders, which shows whether people come back).
+
+The trend charts (per UTC day):
+- New riders and messages show totals.
+- Active riders shows a daily average, because the same rider is counted on every day they ride.
+- Rides started shows totals.
+
+Each chart shows the previous period as a dashed grey line and today's incomplete value as a dashed segment. Hover or use the arrow keys to read a day, or choose **View as table**.
+
+Active riders and rides started are counted from when the dashboard shipped, because the database didn't keep them before: ended rides are deleted, and only each rider's latest activity is stored. Earlier days are shaded and marked "Not tracked yet".
+
+Everything is computed live from the database when you open or refresh the page. The daily history lives in `daily_metrics`, which holds only a date, a metric name and a number, never rider IDs.
+
+The dashboard is not linked from the app and asks search engines not to index it. It shows riders' text only as plain text, never as HTML. The backend refuses every `/admin` and `/moderation` request from a non-admin account, whatever the page shows.
 
 ## The API
 
-The page is a thin layer over these endpoints, which also work directly (for example with `curl`).
+The dashboard is a thin layer over these endpoints, which also work directly (for example with `curl`). Two more, `GET /admin/overview` and `GET /admin/riders?q=…&limit=…` (up to 50), serve the Overview and Riders tabs.
 
 
 All endpoints need an admin session (`Authorization: Bearer <token>` from
