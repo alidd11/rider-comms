@@ -232,3 +232,111 @@ test('resetAll clears local state and the server profile', async () => {
   await waitFor(() => expect(client.updateProfile).toHaveBeenCalled());
   expect(await AsyncStorage.getItem(`@rider-comms/settings/profile/${RIDER_ID}`)).toBeNull();
 });
+
+test('restores and persists the navigation provider per rider, ignoring unknown values', async () => {
+  await seedCache({});
+  await AsyncStorage.setItem(`@rider-comms/settings/navigation-provider/${RIDER_ID}`, 'waze');
+  const { result } = await renderSettings({ getProfile: jest.fn(async () => fakeProfile()) });
+  await waitFor(() => expect(result.current.navigationProvider).toBe('waze'));
+
+  await act(async () => { result.current.setNavigationProvider('in_app'); });
+  expect(result.current.navigationProvider).toBe('in_app');
+  expect(await AsyncStorage.getItem(`@rider-comms/settings/navigation-provider/${RIDER_ID}`)).toBe('in_app');
+
+  await act(async () => { result.current.setNavigationProvider('mapquest' as never); });
+  expect(result.current.navigationProvider).toBe('google_maps');
+});
+
+test('Ride Safe defaults on, restores a saved choice and persists changes', async () => {
+  await seedCache({});
+  await AsyncStorage.setItem(`@rider-comms/settings/ride-safe/${RIDER_ID}`, 'false');
+  const { result } = await renderSettings({ getProfile: jest.fn(async () => fakeProfile()) });
+  await waitFor(() => expect(result.current.rideSafeLoaded).toBe(true));
+  expect(result.current.rideSafeEnabled).toBe(false);
+
+  await act(async () => { result.current.setRideSafeEnabled(true); });
+  expect(result.current.rideSafeEnabled).toBe(true);
+  expect(await AsyncStorage.getItem(`@rider-comms/settings/ride-safe/${RIDER_ID}`)).toBe('true');
+});
+
+test('normalises names, handles and social usernames before saving', async () => {
+  await seedCache({});
+  const updateProfile = jest.fn(async () => fakeProfile());
+  const { result } = await renderSettings({ getProfile: jest.fn(async () => fakeProfile()), updateProfile });
+  await waitFor(() => expect(result.current.loaded).toBe(true));
+
+  await act(async () => {
+    result.current.setDisplayName('   ');
+    result.current.setHandle('  ');
+    result.current.setInstagramUsername(' @moto_maya ');
+    result.current.setTiktokUsername('@maya.rides');
+  });
+  await waitFor(() => expect(updateProfile).toHaveBeenCalledTimes(4));
+  expect(updateProfile).toHaveBeenNthCalledWith(1, RIDER_ID, { displayName: 'Rider' });
+  expect(updateProfile).toHaveBeenNthCalledWith(2, RIDER_ID, { handle: '@rider' });
+  expect(updateProfile).toHaveBeenNthCalledWith(3, RIDER_ID, { instagramUsername: 'moto_maya' });
+  expect(updateProfile).toHaveBeenNthCalledWith(4, RIDER_ID, { tiktokUsername: 'maya.rides' });
+});
+
+test.each([
+  [new ApiError(400, { error: 'handle must start with @' }), 'Use a handle that starts with @ and contains only letters, numbers, or underscores.'],
+  [new Error('offline'), 'Your profile change could not be saved. Check your connection and try again.'],
+])('explains a failed save (%s) and rolls it back', async (error, message) => {
+  await seedCache({ handle: '@alex' });
+  const updateProfile = jest.fn(async () => { throw error; });
+  const { result } = await renderSettings({ getProfile: jest.fn(async () => fakeProfile({ handle: '@alex' })), updateProfile });
+  await waitFor(() => expect(result.current.loaded).toBe(true));
+
+  await act(async () => { result.current.setHandle('@bad handle'); });
+  await waitFor(() => expect(result.current.profileError).toBe(message));
+  expect(result.current.handle).toBe('@alex');
+  expect(result.current.saving).toBe(false);
+
+  await act(async () => { result.current.clearProfileError(); });
+  expect(result.current.profileError).toBeNull();
+});
+
+test('explains when notification permission cannot be requested at all', async () => {
+  await seedCache({});
+  mockEnsureNotificationPermission.mockRejectedValueOnce(new Error('module missing'));
+  const updateProfile = jest.fn(async () => fakeProfile());
+  const { result } = await renderSettings({ getProfile: jest.fn(async () => fakeProfile()), updateProfile });
+  await waitFor(() => expect(result.current.loaded).toBe(true));
+
+  await act(async () => { result.current.setNotifyChat(true); });
+  await waitFor(() => expect(result.current.profileError).toBe('Rider Comms could not request notification permission. Try again from device settings.'));
+  expect(updateProfile).not.toHaveBeenCalled();
+  expect(result.current.notifyChat).toBe(false);
+});
+
+test('refreshProfile applies the server snapshot and updates the cache', async () => {
+  await seedCache({ displayName: 'Alex' });
+  const getProfile = jest.fn(async () => fakeProfile({ displayName: 'Alex' }));
+  const { result } = await renderSettings({ getProfile });
+  await waitFor(() => expect(result.current.loaded).toBe(true));
+
+  getProfile.mockResolvedValueOnce(fakeProfile({ displayName: 'Alex (edited on another device)' }));
+  await act(async () => { await result.current.refreshProfile(); });
+  expect(result.current.displayName).toBe('Alex (edited on another device)');
+  expect(JSON.parse((await AsyncStorage.getItem(`@rider-comms/settings/profile/${RIDER_ID}`)) ?? '{}').displayName)
+    .toBe('Alex (edited on another device)');
+});
+
+test('refreshProfile waits for a queued local save instead of overwriting it', async () => {
+  await seedCache({ displayName: 'Alex' });
+  let finishSave!: () => void;
+  const updateProfile = jest.fn(() => new Promise<RiderProfile>((resolve) => { finishSave = () => resolve(fakeProfile({ displayName: 'Local edit' })); }));
+  const getProfile = jest.fn(async () => fakeProfile({ displayName: 'Alex' }));
+  const { result } = await renderSettings({ getProfile, updateProfile });
+  await waitFor(() => expect(result.current.loaded).toBe(true));
+
+  await act(async () => { result.current.setDisplayName('Local edit'); });
+  getProfile.mockResolvedValue(fakeProfile({ displayName: 'Local edit' }));
+  let refreshed = false;
+  const refresh = result.current.refreshProfile().then(() => { refreshed = true; });
+  await act(async () => { await Promise.resolve(); });
+  expect(refreshed).toBe(false);
+
+  await act(async () => { finishSave(); await refresh; });
+  expect(result.current.displayName).toBe('Local edit');
+});

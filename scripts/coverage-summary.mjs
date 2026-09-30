@@ -5,14 +5,15 @@ import { readFile, readdir, writeFile, appendFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 // [name, lcov path, minimum line coverage %]. Floors sit ~2 points under the
-// coverage measured when they were set (2026-09-29: 97.6 / 90.2 / 90.2 /
-// 81.5), so normal churn passes but a real regression fails CI. Raise them as
+// coverage measured when they were set (2026-09-29: 97.6 / 90.2 / 90.2;
+// mobile Jest raised on 2026-09-30 at 86.5), so normal churn passes but a
+// real regression fails CI. Raise them as
 // coverage improves; never lower one to get a change through.
 const reports = [
   ['shared', 'coverage/shared.lcov', 95],
   ['backend', 'coverage/backend.lcov', 88],
   ['mobile (node:test)', 'coverage/mobile-client.lcov', 88],
-  ['mobile (Jest)', 'coverage/jest/lcov.info', 79],
+  ['mobile (Jest)', 'coverage/jest/lcov.info', 84],
 ];
 
 function totals(lcov) {
