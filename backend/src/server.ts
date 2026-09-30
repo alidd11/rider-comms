@@ -18,6 +18,7 @@ import { FriendStore } from './friendStore.ts';
 import { MessageStore } from './messageStore.ts';
 import { HideoutStore } from './hideoutStore.ts';
 import { ModerationStore } from './moderationStore.ts';
+import { AdminStatsStore } from './adminStatsStore.ts';
 import { HazardStore } from './hazardStore.ts';
 import { ScenicRouteStore } from './scenicRouteStore.ts';
 import { AccountDeletionStore } from './accountDeletionStore.ts';
@@ -39,6 +40,7 @@ import { handleSocialRoutes } from './routes/social.ts';
 import { handleNavigationRoutes } from './routes/navigation.ts';
 import { handleHazardRoutes } from './routes/hazards.ts';
 import { handleModerationRoutes } from './routes/moderation.ts';
+import { handleAdminRoutes } from './routes/admin.ts';
 import { handleScenicRouteRoutes } from './routes/scenicRoutes.ts';
 import {
   applyCors,
@@ -95,6 +97,7 @@ export interface CreateAppOptions extends ApiServerOptions {
   hideoutStore?: HideoutStore;
   authStore?: AuthStore;
   moderationStore?: ModerationStore;
+  adminStatsStore?: Pick<AdminStatsStore, 'overview' | 'searchRiders' | 'increment'>;
   hazardStore?: HazardStore;
   scenicRouteStore?: ScenicRouteStore;
 }
@@ -148,6 +151,7 @@ export function createApp(options: CreateAppOptions = {}): http.Server {
   const hideoutStore = options.hideoutStore ?? new HideoutStore();
   const authStore = options.authStore ?? new AuthStore();
   const moderationStore = options.moderationStore ?? new ModerationStore();
+  const adminStatsStore = options.adminStatsStore ?? new AdminStatsStore();
   const hazardStore = options.hazardStore ?? new HazardStore();
   const scenicRouteStore = options.scenicRouteStore ?? new ScenicRouteStore();
   const allowedOrigins = new Set(options.allowedOrigins ?? []);
@@ -219,7 +223,7 @@ export function createApp(options: CreateAppOptions = {}): http.Server {
   };
   const deps: RouteDeps = {
     rideStore, presenceStore, profileStore, friendStore, messageStore, hideoutStore, authStore,
-    moderationStore, hazardStore, scenicRouteStore, accountDeletionStore, rateLimitStore,
+    moderationStore, adminStatsStore, hazardStore, scenicRouteStore, accountDeletionStore, rateLimitStore,
     socialRateLimitStore, socialActivityStore, socialEventStore, readinessCheck, directionsProvider,
     placesProvider, liveKitCredentials, revokeRideVoiceParticipants, revokeProximityVoiceParticipants,
     visibleRideLocationsFor,
@@ -256,6 +260,7 @@ export function createApp(options: CreateAppOptions = {}): http.Server {
       if ((await handleNavigationRoutes(ctx)) !== NOT_HANDLED) return;
       if ((await handleHazardRoutes(ctx)) !== NOT_HANDLED) return;
       if ((await handleModerationRoutes(ctx)) !== NOT_HANDLED) return;
+      if ((await handleAdminRoutes(ctx)) !== NOT_HANDLED) return;
       if ((await handleScenicRouteRoutes(ctx)) !== NOT_HANDLED) return;
       return sendJson(res, 404, { error: 'not_found' });
     } catch (error) { if (error instanceof RequestError) return sendJson(res, error.status, { error: error.message }); if (error instanceof URIError) return sendJson(res, 400, { error: 'invalid URL encoding' }); const failedPath = new URL(req.url ?? '/', 'http://localhost').pathname; const failureMessage = error instanceof Error ? error.message : String(error); console.error(JSON.stringify({ level: 'error', event: 'request_failed', requestId: id, method: req.method, path: failedPath, message: failureMessage, stack: error instanceof Error ? error.stack : undefined })); reportOperationalError('request_failed', `${req.method} ${failedPath} (request ${id}): ${failureMessage}`); return sendJson(res, 500, { error: 'internal_error' }); }
@@ -345,6 +350,13 @@ async function startProductionServer(): Promise<void> {
       .catch((error) => console.error(JSON.stringify({ level: 'error', event: 'retention_sweep_failed', message: error instanceof Error ? error.message : String(error) })));
   }, RETENTION_SWEEP_INTERVAL_MS);
   retentionSweepTimer.unref();
+  // Daily active-rider snapshot for the staff dashboard (aggregate count only).
+  const productionAdminStatsStore = new AdminStatsStore();
+  const recordActiveRiders = () => void productionAdminStatsStore.recordActiveRiders()
+    .catch((error) => console.error(JSON.stringify({ level: 'error', event: 'active_riders_snapshot_failed', message: error instanceof Error ? error.message : String(error) })));
+  recordActiveRiders();
+  const activeRidersTimer = setInterval(recordActiveRiders, RETENTION_SWEEP_INTERVAL_MS);
+  activeRidersTimer.unref();
 
   let stopping = false;
   const shutdown = (signal: NodeJS.Signals) => {
@@ -355,6 +367,7 @@ async function startProductionServer(): Promise<void> {
     clearInterval(socialRateCleanupTimer);
     clearInterval(socialStateCleanupTimer);
     clearInterval(retentionSweepTimer);
+    clearInterval(activeRidersTimer);
     void flushErrorAlerts();
     void productionSocialEventStore.close().catch((error) => console.error(JSON.stringify({ level: 'error', event: 'social_event_listener_shutdown_failed', message: error instanceof Error ? error.message : String(error) })));
     console.log(JSON.stringify({ level: 'info', event: 'shutdown_started', signal }));

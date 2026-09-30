@@ -14,22 +14,39 @@ explicitly with `UPDATE users SET is_admin = false WHERE id = '...'`.
 Admin status is re-read from the database on every moderation request.
 Moderators can't suspend themselves or another admin.
 
-## The moderation page
+## The staff dashboard
 
-Open **https://alidd11.github.io/rider-comms/moderation.html**. Before that, sign in to the Rider Comms app in the same browser with an admin account; the page reuses that sign-in.
+Open **https://alidd11.github.io/rider-comms/admin.html**. Before that, sign in to the Rider Comms app in the same browser with an admin account; the dashboard reuses that sign-in. The old `moderation.html` address redirects to the dashboard's Moderation tab.
 
-The page shows:
-- the open queue, oldest first;
-- dismissed and actioned reports;
-- the audit log.
+| Tab | What it shows |
+| --- | --- |
+| **Overview** | Headline numbers and four 30-day charts (see below). Hover a bar for its value, or open **Show table** for all of them. |
+| **Riders** | The newest riders, or a search by username, email, display name, handle or rider ID. Shows join date, last activity, friends, reports against the rider and badges (Admin, Suspended, Unverified). |
+| **Moderation** | The open queue (oldest first), dismissed and actioned reports, and the audit log. On each report, write a note, then choose **Dismiss** or **Suspend rider**; suspending asks for confirmation. **Unsuspend rider** appears on reports about a currently suspended rider. |
+| **System** | Live API and database health checked from your browser, plus links to the runbooks. |
 
-On each report you write a note, then choose **Dismiss** or **Suspend rider**. Suspending asks for confirmation first. **Unsuspend rider** appears on reports about a rider who is currently suspended. The page shows reporters' and reported riders' names next to their IDs, and never shows riders' text as HTML.
+The Overview numbers:
 
-The page is not listed anywhere in the app and asks search engines not to index it. The backend refuses every moderation request from a non-admin account, whatever the page shows.
+- **Riders:** total, new today, this week and in 30 days, the share with a verified email, and suspended accounts.
+- **Engagement:** riders active in the last 24 hours, 7 days and 30 days, and stickiness (daily ÷ monthly active).
+- **Live right now:** riders on Nearby, rides in progress and riders in them, and riders with location sharing on.
+- **Social:** friendships, messages today and this week, and pending friend requests.
+- **Safety and content:** open reports, reports and moderation decisions this week, active hazards, scenic routes and hideouts.
+- **Charts** (per UTC day):
+  - new signups;
+  - active riders;
+  - rides started;
+  - messages.
+
+  Active riders and rides started are counted from when the dashboard shipped, because the database didn't keep them before: ended rides are deleted, and only each rider's latest activity is stored. Earlier days show as "Not tracked yet".
+
+Everything is computed live from the database when you open or refresh the page. The daily history lives in `daily_metrics`, which holds only a date, a metric name and a number, never rider IDs.
+
+The dashboard is not linked from the app and asks search engines not to index it. It shows riders' text only as plain text, never as HTML. The backend refuses every `/admin` and `/moderation` request from a non-admin account, whatever the page shows.
 
 ## The API
 
-The page is a thin layer over these endpoints, which also work directly (for example with `curl`).
+The dashboard is a thin layer over these endpoints, which also work directly (for example with `curl`). Two more, `GET /admin/overview` and `GET /admin/riders?q=…&limit=…` (up to 50), serve the Overview and Riders tabs.
 
 
 All endpoints need an admin session (`Authorization: Bearer <token>` from

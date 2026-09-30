@@ -730,4 +730,20 @@ export const MIGRATIONS: Migration[] = [
         );
     `,
   },
+  {
+    // Aggregate daily business metrics for the staff dashboard: a date, a
+    // metric name and a number. No rider identifiers, so it is kept
+    // indefinitely. 'active_riders' is a snapshot raised through the day;
+    // 'rides_started' is incremented per ride (ended rides are deleted, so
+    // they cannot be counted afterwards).
+    name: '0040_create_daily_metrics',
+    sql: `
+      CREATE TABLE IF NOT EXISTS daily_metrics (
+        day DATE NOT NULL,
+        metric TEXT NOT NULL CHECK (metric IN ('active_riders', 'rides_started')),
+        value INTEGER NOT NULL CHECK (value >= 0),
+        PRIMARY KEY (day, metric)
+      );
+    `,
+  },
 ];

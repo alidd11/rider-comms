@@ -26,7 +26,8 @@
 
 - PostgreSQL-backed username/password accounts, password recovery, expiring/revocable sessions and account deletion.
 - Profiles, selectable rider avatars, social-profile visibility controls, session management, blocks and reports.
-- Actor-authorised API behavior and durable moderation data, with an admin moderation queue (review, suspend, unsuspend) and an append-only audit log (`MODERATION.md`).
+- Actor-authorised API behavior and durable moderation data, with an admin moderation queue (review, suspend, unsuspend) and an append-only audit log.
+- A staff dashboard (`docs/admin.html`, documented in `MODERATION.md`) with business metrics and 30-day trends, rider lookup, moderation and system health. It is admin-only and enforced by the backend.
 - Block relationships now also gate private-ride coordinate responses in both directions, while preserving the requesting rider's own shared location.
 
 ### Friends and messaging

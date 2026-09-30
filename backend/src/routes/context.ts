@@ -8,6 +8,7 @@ import type { HideoutStore } from '../hideoutStore.ts';
 import type { LiveKitCredentials } from '../liveKitToken.ts';
 import type { MessageStore } from '../messageStore.ts';
 import type { ModerationStore } from '../moderationStore.ts';
+import type { AdminStatsStore } from '../adminStatsStore.ts';
 import type { PlaceSearchRequest, PlaceSummary } from '../placesProvider.ts';
 import type { PresenceStore } from '../presenceStore.ts';
 import type { ProfileStore } from '../profileStore.ts';
@@ -38,6 +39,7 @@ export interface RouteDeps {
   hideoutStore: HideoutStore;
   authStore: AuthStore;
   moderationStore: ModerationStore;
+  adminStatsStore: Pick<AdminStatsStore, 'overview' | 'searchRiders' | 'increment'>;
   hazardStore: HazardStore;
   scenicRouteStore: ScenicRouteStore;
   accountDeletionStore: Pick<AccountDeletionStore, 'deleteRider'>;
