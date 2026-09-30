@@ -1234,6 +1234,9 @@ test('PWA Nearby handles server rejections during background refresh like the na
   let shareLocation = false;
   let presenceUpdates = 0;
   let presenceDeletes = 0;
+  // Switched by the test, not by a request count, so the "still live after
+  // rejected jumps" assertion cannot race the next 400 ms refresh.
+  let sharingDisabledElsewhere = false;
 
   await mockAuthenticatedApi(page, 'stationary', ({ url, request }) => {
     if (url.pathname === `/riders/${RIDER_ID}/profile`) {
@@ -1245,10 +1248,10 @@ test('PWA Nearby handles server rejections during background refresh like the na
     }
     if (url.pathname === '/presence' && request.method() === 'POST') {
       presenceUpdates += 1;
-      // 1: go live. 2-3: a rejected jump (recoverable, one toast only).
-      // 4: sharing was switched off elsewhere, which must end Nearby.
-      if (presenceUpdates === 2 || presenceUpdates === 3) return { status: 422, body: { error: 'implausible_location_jump' } };
-      if (presenceUpdates >= 4) return { status: 403, body: { error: 'location_sharing_disabled' } };
+      // 1: go live. Then rejected jumps (recoverable, one toast only) until
+      // the test switches sharing off elsewhere, which must end Nearby.
+      if (sharingDisabledElsewhere) return { status: 403, body: { error: 'location_sharing_disabled' } };
+      if (presenceUpdates >= 2) return { status: 422, body: { error: 'implausible_location_jump' } };
       return { body: { inZoneWith: [], transitions: [], radiusMiles: 1 } };
     }
     if (url.pathname === '/presence' && request.method() === 'DELETE') {
@@ -1282,6 +1285,7 @@ test('PWA Nearby handles server rejections during background refresh like the na
   await expect.poll(() => presenceUpdates).toBeGreaterThanOrEqual(3);
   await expect(nearby).toHaveAttribute('data-active', 'true');
 
+  sharingDisabledElsewhere = true;
   await expect(nearby).toHaveAttribute('data-active', 'false');
   await expect(page.locator('#toast')).toContainText('Nearby location sharing is off');
   await expect.poll(() => presenceDeletes).toBeGreaterThan(0);
