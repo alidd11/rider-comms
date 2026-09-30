@@ -19,6 +19,8 @@ const publicFiles = [
 ];
 await Promise.all(publicFiles.map((file) => cp(resolve(source, file), resolve(destination, file))));
 await cp(resolve(source, 'icons'), resolve(destination, 'icons'), { recursive: true });
+// Self-hosted Inter (SIL Open Font License) for the staff dashboard.
+await cp(resolve(source, 'fonts'), resolve(destination, 'fonts'), { recursive: true });
 await cp(
   resolve(source, 'assets', 'routes', 'cards'),
   resolve(destination, 'assets', 'routes', 'cards'),

@@ -29,6 +29,8 @@ export interface AdminOverview {
   social: { friendships: number; pendingFriendRequests: number; messages24h: number; messages7d: number; messages30d: number };
   content: { activeHazards: number; scenicRoutes: number; hideouts: number };
   safety: { openReports: number; reports7d: number; moderationActions7d: number };
+  /** The same measures for the period before, so the dashboard can show change. */
+  previous: { new7d: number; new30d: number; messages7d: number; messages30d: number; reports7d: number };
   zoneTiers: Record<string, number>;
   series: DailySeries;
 }
@@ -92,7 +94,7 @@ export class AdminStatsStore {
     await ensureMigrated();
     const pool = getPool();
     const since = (ms: number) => now - ms;
-    const [riders, activity, social, content, safety, tiers] = await Promise.all([
+    const [riders, activity, social, content, safety, tiers, previous] = await Promise.all([
       pool.query(
         `SELECT count(*) AS total,
                 count(*) FILTER (WHERE email_verified_at IS NOT NULL) AS verified,
@@ -139,12 +141,22 @@ export class AdminStatsStore {
         [since(7 * DAY_MS)],
       ),
       pool.query<{ zone_tier: string; n: string }>('SELECT zone_tier, count(*) AS n FROM rider_profiles GROUP BY zone_tier'),
+      pool.query(
+        `SELECT
+           (SELECT count(*) FROM users WHERE created_at >= to_timestamp($1 / 1000.0) AND created_at < to_timestamp($2 / 1000.0)) AS new_prev_7d,
+           (SELECT count(*) FROM users WHERE created_at >= to_timestamp($3 / 1000.0) AND created_at < to_timestamp($4 / 1000.0)) AS new_prev_30d,
+           (SELECT count(*) FROM direct_messages WHERE created_at >= $1 AND created_at < $2) AS messages_prev_7d,
+           (SELECT count(*) FROM direct_messages WHERE created_at >= $3 AND created_at < $4) AS messages_prev_30d,
+           (SELECT count(*) FROM safety_reports WHERE created_at >= $1 AND created_at < $2) AS reports_prev_7d`,
+        [since(14 * DAY_MS), since(7 * DAY_MS), since(60 * DAY_MS), since(30 * DAY_MS)],
+      ),
     ]);
     const r = riders.rows[0] ?? {};
     const a = activity.rows[0] ?? {};
     const s = social.rows[0] ?? {};
     const c = content.rows[0] ?? {};
     const f = safety.rows[0] ?? {};
+    const p = previous.rows[0] ?? {};
     return {
       generatedAt: now,
       riders: {
@@ -162,6 +174,11 @@ export class AdminStatsStore {
       },
       content: { activeHazards: count(c.active_hazards), scenicRoutes: count(c.scenic_routes), hideouts: count(c.hideouts) },
       safety: { openReports: count(f.open_reports), reports7d: count(f.reports_7d), moderationActions7d: count(f.actions_7d) },
+      previous: {
+        new7d: count(p.new_prev_7d), new30d: count(p.new_prev_30d),
+        messages7d: count(p.messages_prev_7d), messages30d: count(p.messages_prev_30d),
+        reports7d: count(p.reports_prev_7d),
+      },
       zoneTiers: Object.fromEntries(tiers.rows.map((row) => [row.zone_tier, count(row.n)])),
       series: await this.series(now),
     };

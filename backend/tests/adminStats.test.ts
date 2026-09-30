@@ -90,6 +90,8 @@ describe('AdminStatsStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipp
     assert.equal(delta(result, baseline, (o) => o.social.friendships), 1, 'a friendship is two rows but one relationship');
     assert.equal(delta(result, baseline, (o) => o.safety.openReports), 1);
     assert.equal(delta(result, baseline, (o) => o.safety.reports7d), 1);
+    assert.equal(delta(result, baseline, (o) => o.previous.messages7d), 1, 'the 10-day-old message is in the previous week');
+    assert.equal(delta(result, baseline, (o) => o.previous.messages30d), 0);
 
     assert.equal(result.series.days.length, SERIES_DAYS);
     assert.equal(result.series.days.at(-1), new Date(now).toISOString().slice(0, 10));
