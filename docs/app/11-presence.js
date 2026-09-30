@@ -35,16 +35,49 @@
     presenceRefreshTimer = undefined;
   }
 
+  // Last refresh problem shown to the rider, so a repeated rejection (every
+  // 8 s) produces one toast rather than a stream of them.
+  let presenceRefreshIssue = '';
+
+  /** Same handling as the native app's usePresence: the server turning
+   * Nearby off ends the session, anything it can recover from keeps the
+   * rider live and says why, and network blips retry quietly. */
+  async function handlePresenceRefreshError(error) {
+    const code = error instanceof ApiError ? error.body?.error : undefined;
+    if (code === 'location_sharing_disabled' || code === 'email_verification_required') {
+      presenceRefreshIssue = '';
+      if (code === 'location_sharing_disabled') state.profile.shareLocation = false;
+      await stopPublicNearby();
+      showToast(code === 'location_sharing_disabled'
+        ? 'Nearby location sharing is off. Tap Go live to enable it again.'
+        : 'Verify your email before joining Nearby Voice.');
+      return;
+    }
+    const message = code === 'implausible_location_jump'
+      ? 'Your location jumped unexpectedly. Waiting for a steadier GPS fix.'
+      : code === 'rate_limited'
+        ? 'Nearby is updating too often. It will catch up in a moment.'
+        : '';
+    if (message && message !== presenceRefreshIssue) showToast(message);
+    presenceRefreshIssue = message;
+  }
+
   function startPresenceRefresh() {
     stopPresenceRefresh();
+    presenceRefreshIssue = '';
     presenceRefreshTimer = setInterval(async () => {
       if (!state.publicLive || state.activeRide || document.visibilityState !== 'visible' || presenceRefreshInFlight) return;
       presenceRefreshInFlight = true;
       try {
         const position = await currentPublicPresencePosition();
-        if (state.publicLive && !state.activeRide) await sendPresence(position);
-      } catch { /* A transient miss is retried on the next tick. */ }
-      finally { presenceRefreshInFlight = false; }
+        if (state.publicLive && !state.activeRide) {
+          await sendPresence(position);
+          presenceRefreshIssue = '';
+        }
+      } catch (error) {
+        // A transient miss (no fix, offline, timeout) is retried on the next tick.
+        await handlePresenceRefreshError(error);
+      } finally { presenceRefreshInFlight = false; }
     }, PRESENCE_REFRESH_MS);
   }
 

@@ -86,7 +86,9 @@ export function usePresence(
               ? 'Nearby location sharing is off. Tap Go live to enable it again.'
               : code === 'implausible_location_jump'
                 ? 'Your location jumped unexpectedly. Waiting for a steadier GPS fix.'
-                : err instanceof Error ? err.message : 'Could not update your zone.');
+                : code === 'rate_limited'
+                  ? 'Nearby is updating too often. It will catch up in a moment.'
+                  : err instanceof Error ? err.message : 'Could not update your zone.');
           if (code === 'email_verification_required' || code === 'location_sharing_disabled') setPublicLive(false);
         }
       }

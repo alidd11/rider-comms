@@ -1230,6 +1230,71 @@ test('PWA Nearby control switches public visibility and proximity voice off toge
   expect(cached.profile.shareLocation).toBe(false);
 });
 
+test('PWA Nearby handles server rejections during background refresh like the native app', async ({ page }) => {
+  let shareLocation = false;
+  let presenceUpdates = 0;
+  let presenceDeletes = 0;
+  // Switched by the test, not by a request count, so the "still live after
+  // rejected jumps" assertion cannot race the next 400 ms refresh.
+  let sharingDisabledElsewhere = false;
+
+  await mockAuthenticatedApi(page, 'stationary', ({ url, request }) => {
+    if (url.pathname === `/riders/${RIDER_ID}/profile`) {
+      if (request.method() === 'PUT') {
+        const update = request.postDataJSON();
+        if (typeof update.shareLocation === 'boolean') shareLocation = update.shareLocation;
+      }
+      return { body: { ...PROFILE, shareLocation } };
+    }
+    if (url.pathname === '/presence' && request.method() === 'POST') {
+      presenceUpdates += 1;
+      // 1: go live. Then rejected jumps (recoverable, one toast only) until
+      // the test switches sharing off elsewhere, which must end Nearby.
+      if (sharingDisabledElsewhere) return { status: 403, body: { error: 'location_sharing_disabled' } };
+      if (presenceUpdates >= 2) return { status: 422, body: { error: 'implausible_location_jump' } };
+      return { body: { inZoneWith: [], transitions: [], radiusMiles: 1 } };
+    }
+    if (url.pathname === '/presence' && request.method() === 'DELETE') {
+      presenceDeletes += 1;
+      return { body: {} };
+    }
+    if (url.pathname === '/voice/token' && request.method() === 'POST') {
+      return { body: { connections: [], refreshAfterMs: 20_000 } };
+    }
+    return null;
+  });
+
+  await page.addInitScript(() => {
+    const realSetInterval = window.setInterval.bind(window);
+    window.setInterval = (handler, timeout = 0, ...args) =>
+      realSetInterval(handler, timeout === 8_000 ? 400 : timeout, ...args);
+    const fakeStream = { getTracks: () => [{ stop() {} }] };
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: { getUserMedia: async () => fakeStream },
+    });
+    window.LivekitClient = {};
+  });
+
+  await page.goto('/');
+  const nearby = page.locator('#joinNearbyBtn');
+  await nearby.click();
+  await expect(nearby).toHaveAttribute('data-active', 'true');
+
+  await expect(page.locator('#toast')).toContainText('Your location jumped unexpectedly');
+  await expect.poll(() => presenceUpdates).toBeGreaterThanOrEqual(3);
+  await expect(nearby).toHaveAttribute('data-active', 'true');
+
+  sharingDisabledElsewhere = true;
+  await expect(nearby).toHaveAttribute('data-active', 'false');
+  await expect(page.locator('#toast')).toContainText('Nearby location sharing is off');
+  await expect.poll(() => presenceDeletes).toBeGreaterThan(0);
+  const cached = await page.evaluate((riderId) =>
+    JSON.parse(localStorage.getItem(`rider-comms-pwa-v4:${riderId}`) || '{}'), RIDER_ID);
+  expect(cached.publicLive).toBe(false);
+  expect(cached.profile.shareLocation).toBe(false);
+});
+
 test('PWA Nearby Voice waits without holding the mic, then connects when a rider enters range', async ({ page }) => {
   let shareLocation = false;
   let presenceUpdates = 0;
