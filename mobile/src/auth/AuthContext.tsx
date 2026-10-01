@@ -4,6 +4,7 @@ import {
   Alert,
   Keyboard,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -17,6 +18,7 @@ import * as SecureStore from 'expo-secure-store';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { API_BASE_URL } from '../config';
+import { LEGAL_LINKS } from '../legalLinks';
 import { AUTH_HERO_IMAGE, AUTH_MUTED, AUTH_TEXT, styles } from './AuthContext.styles';
 import { ApiError, RiderCommsClient } from '../api/client';
 import type { LoginSession } from '../api/client';
@@ -90,6 +92,8 @@ function authErrorMessage(error: unknown): string {
     invalid_token: 'That reset code is invalid or has already been used.',
     expired_token: 'That reset code has expired. Request a new one.',
     rate_limited: 'Too many attempts. Wait a moment and try again.',
+    terms_not_accepted: 'Agree to the Terms of Service and Community Guidelines to create an account.',
+    objectionable_username: 'That username isn’t allowed. Choose another.',
   };
   return code ? messages[code] ?? 'The account request could not be completed.' : 'The account request could not be completed.';
 }
@@ -110,6 +114,7 @@ function AuthScreen({ onAuthenticated, restoreError, onRetryRestore }: {
   const [error, setError] = React.useState<string | null>(null);
   const [passwordVisible, setPasswordVisible] = React.useState(false);
   const [rememberMe, setRememberMe] = React.useState(true);
+  const [agreedToTerms, setAgreedToTerms] = React.useState(false);
 
   React.useEffect(() => {
     Keyboard.dismiss();
@@ -137,6 +142,10 @@ function AuthScreen({ onAuthenticated, restoreError, onRetryRestore }: {
     }
     if (mode === 'reset' && !resetToken.trim()) {
       setError('Enter the reset code from your email.');
+      return;
+    }
+    if (isSignup && !agreedToTerms) {
+      setError('Agree to the Terms of Service and Community Guidelines to create an account.');
       return;
     }
 
@@ -307,7 +316,30 @@ function AuthScreen({ onAuthenticated, restoreError, onRetryRestore }: {
                   </Pressable>
                 </View>
               ) : (
-                <Text style={styles.requirements}>Username: 3–20 letters, numbers or underscores. Password: at least 8 characters.</Text>
+                <>
+                  <Text style={styles.requirements}>Username: 3–20 letters, numbers or underscores. Password: at least 8 characters.</Text>
+                  <View style={styles.termsRow}>
+                    <Pressable
+                      accessibilityRole="checkbox"
+                      accessibilityState={{ checked: agreedToTerms }}
+                      accessibilityLabel="I agree to the Terms of Service and Community Guidelines"
+                      onPress={() => setAgreedToTerms((value) => !value)}
+                      style={styles.termsCheckbox}
+                    >
+                      <View style={[styles.checkbox, agreedToTerms && styles.checkboxChecked]}>
+                        {agreedToTerms ? <View style={styles.checkboxInner} /> : null}
+                      </View>
+                    </Pressable>
+                    <Text style={styles.termsText}>
+                      I agree to the{' '}
+                      <Text accessibilityRole="link" style={styles.termsLink} onPress={() => void Linking.openURL(LEGAL_LINKS.terms)}>Terms of Service</Text>
+                      {' '}and{' '}
+                      <Text accessibilityRole="link" style={styles.termsLink} onPress={() => void Linking.openURL(LEGAL_LINKS.guidelines)}>Community Guidelines</Text>
+                      . Abusive or objectionable content and behaviour aren’t tolerated. See how we use your data in the{' '}
+                      <Text accessibilityRole="link" style={styles.termsLink} onPress={() => void Linking.openURL(LEGAL_LINKS.privacy)}>Privacy Policy</Text>.
+                    </Text>
+                  </View>
+                </>
               )}
 
               {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
@@ -327,18 +359,6 @@ function AuthScreen({ onAuthenticated, restoreError, onRetryRestore }: {
                 </Pressable>
               ) : (
                 <>
-                  <View style={styles.dividerRow}><View style={styles.dividerLine} /><Text style={styles.dividerText}>or continue with</Text><View style={styles.dividerLine} /></View>
-                  <View style={styles.socialRow}>
-                    <Pressable disabled accessibilityRole="button" accessibilityLabel="Apple sign-in is not connected yet" style={styles.socialButton}>
-                      <MaterialCommunityIcons name="apple" size={21} color={AUTH_TEXT} />
-                    </Pressable>
-                    <Pressable disabled accessibilityRole="button" accessibilityLabel="Google sign-in is not connected yet" style={styles.socialButton}>
-                      <MaterialCommunityIcons name="google" size={21} color={AUTH_TEXT} />
-                    </Pressable>
-                    <Pressable disabled accessibilityRole="button" accessibilityLabel="Discord sign-in is not connected yet" style={styles.socialButton}>
-                      <MaterialCommunityIcons name="message-processing-outline" size={21} color="#8D9CFF" />
-                    </Pressable>
-                  </View>
                   <Pressable accessibilityRole="button" onPress={() => switchMode('signup')} style={styles.createAccountButton}>
                     <Text style={styles.createAccountText}>Create account</Text>
                   </Pressable>
@@ -441,11 +461,60 @@ function AuthSplash(): React.JSX.Element {
   );
 }
 
+/** Shown once to accounts created before the current Terms, or after they
+ * change: posting, chat and voice stay locked until the rider agrees. */
+function TermsAgreementScreen({ client, knownVersion, onAccepted, onLogOut }: {
+  client: RiderCommsClient;
+  knownVersion: string | null;
+  onAccepted: () => void;
+  onLogOut: () => void;
+}): React.JSX.Element {
+  const insets = useSafeAreaInsets();
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const agree = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const version = knownVersion ?? (await client.getMe()).termsVersion;
+      if (!version) throw new Error('missing terms version');
+      await client.acceptTerms(version);
+      onAccepted();
+    } catch {
+      setError('Couldn’t save your agreement. Check your connection and try again.');
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <View style={[styles.termsGate, { paddingTop: insets.top + 48, paddingBottom: insets.bottom + 24 }]}>
+      <Text style={styles.title}>Updated terms</Text>
+      <Text style={styles.subtitle}>
+        To keep riding with others on Rider Comms, please read and agree to our Terms of Service and Community Guidelines.
+        Abusive or objectionable content and behaviour aren’t tolerated, and anyone can report or block another rider.
+      </Text>
+      <View style={styles.termsGateLinks}>
+        <Text accessibilityRole="link" style={styles.termsLink} onPress={() => void Linking.openURL(LEGAL_LINKS.terms)}>Terms of Service</Text>
+        <Text accessibilityRole="link" style={styles.termsLink} onPress={() => void Linking.openURL(LEGAL_LINKS.guidelines)}>Community Guidelines</Text>
+        <Text accessibilityRole="link" style={styles.termsLink} onPress={() => void Linking.openURL(LEGAL_LINKS.privacy)}>Privacy Policy</Text>
+      </View>
+      {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
+      <Pressable accessibilityRole="button" disabled={busy} onPress={() => void agree()} style={[styles.primaryButton, busy && styles.buttonDisabled]}>
+        {busy ? <ActivityIndicator color={AUTH_TEXT} /> : <Text style={styles.primaryButtonText}>I agree</Text>}
+      </Pressable>
+      <Pressable accessibilityRole="button" onPress={onLogOut} style={styles.createAccountButton}>
+        <Text style={styles.createAccountText}>Sign out</Text>
+      </Pressable>
+    </View>
+  );
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }): React.JSX.Element {
   const [session, setSession] = React.useState<StoredSession | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [restoreError, setRestoreError] = React.useState<string | null>(null);
   const [restoreAttempt, setRestoreAttempt] = React.useState(0);
+  const [termsVersion, setTermsVersion] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -462,7 +531,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
         const client = new RiderCommsClient(API_BASE_URL, fetch, cached.token);
         const me = await client.getMe();
         if (me.riderId !== cached.riderId) throw new Error('Stored account identity did not match the server.');
-        const refreshed = { ...cached, emailVerified: me.emailVerified };
+        const refreshed = { ...cached, emailVerified: me.emailVerified, termsAccepted: me.termsAccepted ?? true };
+        if (me.termsVersion) setTermsVersion(me.termsVersion);
         await SecureStore.setItemAsync(KEY, JSON.stringify(refreshed));
         if (!cancelled) setSession(refreshed);
       } catch (error) {
@@ -509,6 +579,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
   }, [session]);
 
   if (loading) return <AuthSplash />;
+  if (value && session?.termsAccepted === false) {
+    return (
+      <TermsAgreementScreen
+        client={value.client}
+        knownVersion={termsVersion}
+        onAccepted={() => void onAuthenticated({ ...session, termsAccepted: true })}
+        onLogOut={() => void value.logOut()}
+      />
+    );
+  }
   if (!value) return <AuthScreen onAuthenticated={onAuthenticated} restoreError={restoreError} onRetryRestore={() => setRestoreAttempt((attempt) => attempt + 1)} />;
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

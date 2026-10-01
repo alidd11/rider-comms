@@ -21,6 +21,49 @@
     }
   }
 
+  /** Blocking agreement for accounts created before the current Terms (or
+   * after they change). Resolves once the rider agrees; signing out reloads. */
+  function requireTermsAgreement(version) {
+    return new Promise((resolve) => {
+      const gate = document.createElement('div');
+      gate.className = 'terms-gate';
+      gate.setAttribute('role', 'dialog');
+      gate.setAttribute('aria-modal', 'true');
+      gate.setAttribute('aria-labelledby', 'termsGateTitle');
+      gate.innerHTML = `
+        <div class="terms-gate-card">
+          <h1 id="termsGateTitle">Updated terms</h1>
+          <p>To keep riding with others on Rider Comms, please read and agree to our Terms of Service and Community Guidelines. Abusive or objectionable content and behaviour aren’t tolerated, and anyone can report or block another rider.</p>
+          <p class="terms-gate-links"><a href="terms.html" target="_blank" rel="noopener">Terms of Service</a><a href="guidelines.html" target="_blank" rel="noopener">Community Guidelines</a><a href="privacy.html" target="_blank" rel="noopener">Privacy Policy</a></p>
+          <p class="inline-error" role="alert" hidden></p>
+          <button type="button" class="button primary wide" data-terms-agree>I agree</button>
+          <button type="button" class="button secondary wide" data-terms-signout>Sign out</button>
+        </div>`;
+      document.body.append(gate);
+      const agree = gate.querySelector('[data-terms-agree]');
+      const errorEl = gate.querySelector('.inline-error');
+      agree.focus();
+      agree.addEventListener('click', async () => {
+        agree.disabled = true;
+        errorEl.hidden = true;
+        try {
+          await apiFetch('POST', '/auth/accept-terms', { version });
+          gate.remove();
+          resolve();
+        } catch {
+          errorEl.textContent = 'Couldn’t save your agreement. Check your connection and try again.';
+          errorEl.hidden = false;
+          agree.disabled = false;
+        }
+      });
+      gate.querySelector('[data-terms-signout]').addEventListener('click', async () => {
+        try { await apiFetch('POST', '/auth/logout'); } catch { /* Local sign-out still completes. */ }
+        clearSession();
+        location.reload();
+      });
+    });
+  }
+
   function hideAuthScreen() {
     clearTimeout(authSplashTimer);
     const splash = $('#authSplash');
@@ -47,6 +90,8 @@
     rate_limited: 'Too many attempts — please wait a moment and try again.',
     network_error: 'Could not reach Rider Comms. Check your connection and try again.',
     timed_out: 'The request timed out. Please try again.',
+    terms_not_accepted: 'Agree to the Terms of Service and Community Guidelines to create an account.',
+    objectionable_username: 'That username isn’t allowed. Choose another.',
   };
 
   function authErrorMessage(error) {
@@ -165,11 +210,16 @@
       errorEl.hidden = false;
       return;
     }
+    if (!$('#signupTerms').checked) {
+      errorEl.textContent = AUTH_ERROR_MESSAGES.terms_not_accepted;
+      errorEl.hidden = false;
+      return;
+    }
     button.disabled = true;
     button.setAttribute('aria-busy', 'true');
     button.textContent = 'Creating account…';
     try {
-      const result = await apiFetch('POST', '/auth/signup', { username, email, password, deviceName: 'Rider Comms PWA' });
+      const result = await apiFetch('POST', '/auth/signup', { username, email, password, deviceName: 'Rider Comms PWA', acceptTerms: true });
       saveSession({ riderId: result.riderId, token: result.token, emailVerified: Boolean(result.emailVerified) });
       applyAuthenticatedIdentity(result.riderId, username);
       hideAuthScreen();

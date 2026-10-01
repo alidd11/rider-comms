@@ -3,12 +3,20 @@ import type { ScryptOptions } from 'node:crypto';
 import { generateRideCode } from '@rider-comms/shared';
 import { getPool, ensureMigrated } from './db.ts';
 import { sendPasswordResetEmail, sendVerificationEmail } from './email.ts';
+import { containsObjectionableText } from './contentFilter.ts';
 
 
 export interface GuestSession { riderId: string; token: string; }
-export interface LoginSession extends GuestSession { emailVerified: boolean; }
+export interface LoginSession extends GuestSession { emailVerified: boolean; termsAccepted: boolean; }
 export interface SignUpSession extends LoginSession { emailVerificationSent: boolean; }
-export interface AccountIdentity { riderId: string; username: string; emailVerified: boolean; }
+export interface AccountIdentity { riderId: string; username: string; emailVerified: boolean; termsAccepted: boolean; }
+
+/**
+ * The Terms of Service and Community Guidelines riders must agree to. Bump
+ * this when either document changes materially: everyone is asked to agree
+ * again before they next post or join voice.
+ */
+export const TERMS_VERSION = '2026-10-01';
 export interface AccountSessionSummary { id: string; deviceName: string; createdAt: string; lastSeenAt: string; expiresAt: string; current: boolean; }
 
 const USERNAME_PATTERN = /^[A-Za-z0-9_]{3,20}$/;
@@ -34,7 +42,7 @@ const MAX_PASSWORD_LENGTH = 128;
 // username exists before credentials have been authenticated.
 const DUMMY_PASSWORD_HASH = `${'00'.repeat(16)}:${'00'.repeat(SCRYPT_KEYLEN)}`;
 
-export type SignUpResult = SignUpSession | { error: 'username_taken' | 'email_taken' | 'invalid_username' | 'invalid_email' | 'weak_password' };
+export type SignUpResult = SignUpSession | { error: 'username_taken' | 'email_taken' | 'invalid_username' | 'invalid_email' | 'weak_password' | 'objectionable_username' };
 export type LogInResult = LoginSession | { error: 'invalid_credentials' | 'account_suspended' };
 export type VerifyEmailResult = { riderId: string; verified: true } | { error: 'invalid_token' | 'expired_token' };
 export type ResendVerificationResult = { sent: boolean } | { error: 'not_found' | 'already_verified' };
@@ -195,8 +203,10 @@ export class AuthStore {
    * expiry so a backend restart never logs out every rider and a database
    * leak does not expose bearer credentials.
    */
+  /** Callers must have obtained agreement to TERMS_VERSION first (the signup route refuses without it); it's recorded with the account. */
   async signUp(username: unknown, email: unknown, password: unknown, deviceName?: unknown): Promise<SignUpResult> {
     if (!isValidUsername(username)) return { error: 'invalid_username' };
+    if (containsObjectionableText(username)) return { error: 'objectionable_username' };
     if (!isValidEmail(email)) return { error: 'invalid_email' };
     if (!isStrongEnoughPassword(password)) return { error: 'weak_password' };
     await ensureMigrated();
@@ -206,8 +216,9 @@ export class AuthStore {
     const pool = getPool();
     try {
       await pool.query(
-        'INSERT INTO users (id, username, email, password_hash, password_algorithm) VALUES ($1, $2, $3, $4, $5)',
-        [riderId, username, email, passwordHash, PASSWORD_ALGORITHM]
+        `INSERT INTO users (id, username, email, password_hash, password_algorithm, terms_version, terms_accepted_at)
+         VALUES ($1, $2, $3, $4, $5, $6, now())`,
+        [riderId, username, email, passwordHash, PASSWORD_ALGORITHM, TERMS_VERSION]
       );
     } catch (error) {
       const constraint = uniqueViolationConstraint(error);
@@ -220,15 +231,15 @@ export class AuthStore {
     // issueVerification() already swallows send failures internally.
     const emailVerificationSent = await this.issueVerification(riderId, email);
     const session = await this.issueAccountSession(riderId, deviceName);
-    return { ...session, emailVerified: false, emailVerificationSent };
+    return { ...session, emailVerified: false, termsAccepted: true, emailVerificationSent };
   }
 
   async logIn(username: unknown, password: unknown, deviceName?: unknown): Promise<LogInResult> {
     if (!isValidUsername(username) || typeof password !== 'string' || password.length < 1 || password.length > MAX_PASSWORD_LENGTH) return { error: 'invalid_credentials' };
     await ensureMigrated();
     const pool = getPool();
-    const { rows } = await pool.query<{ id: string; password_hash: string; password_algorithm: string; email_verified_at: Date | null; suspended_at: string | number | null }>(
-      'SELECT id, password_hash, password_algorithm, email_verified_at, suspended_at FROM users WHERE lower(username) = lower($1)',
+    const { rows } = await pool.query<{ id: string; password_hash: string; password_algorithm: string; email_verified_at: Date | null; suspended_at: string | number | null; terms_version: string | null }>(
+      'SELECT id, password_hash, password_algorithm, email_verified_at, suspended_at, terms_version FROM users WHERE lower(username) = lower($1)',
       [username]
     );
     const row = rows[0];
@@ -251,7 +262,7 @@ export class AuthStore {
     // Login remains available so riders can restore an account, resend
     // verification, manage sessions, or delete it. The API authorization
     // boundary blocks abuse-sensitive writes until this becomes true.
-    return { ...session, emailVerified: row.email_verified_at !== null };
+    return { ...session, emailVerified: row.email_verified_at !== null, termsAccepted: row.terms_version === TERMS_VERSION };
   }
 
   /**
@@ -378,11 +389,20 @@ export class AuthStore {
   async getIdentity(riderId: string): Promise<AccountIdentity | undefined> {
     if (!process.env.DATABASE_URL) return undefined;
     await ensureMigrated();
-    const { rows } = await getPool().query<{ username: string; email_verified_at: Date | null }>(
-      'SELECT username, email_verified_at FROM users WHERE id = $1',
+    const { rows } = await getPool().query<{ username: string; email_verified_at: Date | null; terms_version: string | null }>(
+      'SELECT username, email_verified_at, terms_version FROM users WHERE id = $1',
       [riderId]
     );
-    return rows[0] ? { riderId, username: rows[0].username, emailVerified: rows[0].email_verified_at !== null } : undefined;
+    const row = rows[0];
+    return row ? { riderId, username: row.username, emailVerified: row.email_verified_at !== null, termsAccepted: row.terms_version === TERMS_VERSION } : undefined;
+  }
+
+  /** Records agreement to the current Terms; refuses a stale version so a client can't agree to text it didn't show. */
+  async acceptTerms(riderId: string, version: unknown): Promise<{ accepted: true } | { error: 'stale_terms_version' }> {
+    if (version !== TERMS_VERSION) return { error: 'stale_terms_version' };
+    await ensureMigrated();
+    await getPool().query('UPDATE users SET terms_version = $2, terms_accepted_at = now() WHERE id = $1', [riderId, TERMS_VERSION]);
+    return { accepted: true };
   }
 
   /**

@@ -16,6 +16,8 @@ const publicFiles = [
   // Staff-only dashboard (noindex); moderation.html redirects to it. The
   // backend enforces admin access on every request.
   'admin.html', 'admin.css', 'admin.js', 'moderation.html',
+  // Public legal and support pages, generated from legal/ (npm run build:legal).
+  'privacy.html', 'terms.html', 'guidelines.html', 'support.html', 'legal.css',
 ];
 await Promise.all(publicFiles.map((file) => cp(resolve(source, file), resolve(destination, file))));
 await cp(resolve(source, 'icons'), resolve(destination, 'icons'), { recursive: true });

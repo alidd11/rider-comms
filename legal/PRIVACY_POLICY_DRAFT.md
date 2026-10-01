@@ -23,7 +23,7 @@ representative, if required]
 | Data | When | Why | Legal basis (GDPR-style, [confirm]) |
 | --- | --- | --- | --- |
 | Username, email address, password (stored only as a salted hash) | Creating an account | To run your account, verify your email and let you reset your password | Contract |
-| Profile: display name, handle, avatar, units and notification preferences, optional Instagram/TikTok usernames with your chosen visibility | When you edit your profile | To show you to other riders the way you choose | Contract |
+| Profile: display name, handle, avatar, distance units, optional Instagram/TikTok usernames with your chosen visibility | When you edit your profile | To show you to other riders the way you choose | Contract |
 | Precise location | Only while the app is in use (foreground). Never collected in the background. | Nearby riders (only if you turn on sharing and go live), private-ride locations (only if you opt in for that ride), hazard reports, map search, navigation | Consent (you can turn each off at any time) |
 | Voice audio | Only while you're connected to a voice channel | Carried live between riders by our voice provider. We don't record or store voice. | Contract |
 | Messages, friend requests, hideouts | When you use them | To deliver them to the riders you choose | Contract |
@@ -31,6 +31,7 @@ representative, if required]
 | Reports and blocks about other riders | When you report or block | To keep riders safe and enforce our rules | Legitimate interest / legal obligation |
 | Device name, sign-in times, session tokens (stored only as hashes) | Each sign-in | So you can see and sign out of your devices, and to protect your account | Contract / legitimate interest (security) |
 | IP address, request logs | Every request | Security, abuse prevention and troubleshooting. Rate limiting uses a one-way hash of your IP address. | Legitimate interest (security) |
+| Product usage: when you were last active, and when you first joined a group ride or went live on Nearby | As you use the app | To understand, in aggregate, whether new riders find the app useful. Our staff dashboard shows only totals. | Legitimate interest (improving the service) |
 | Crash reports: error message, technical stack trace, platform, app version | When the app hits an unexpected error | To find and fix bugs. Kept only in server logs, not linked to your account. | Legitimate interest (reliability) |
 
 We don't use advertising SDKs, don't sell personal data, don't track you
@@ -52,7 +53,7 @@ instructions:
 | Apple (Apple Maps, iOS app only) | Map views of the area you're looking at | The iOS app's base map. Android shows Google Maps. |
 | Resend | Your email address and the message | Verification and password-reset emails |
 | GitHub Pages | Standard web request data | Hosts the web app |
-| [Apple / Google app stores] | Per their own policies | App distribution [and payments, once billing launches] |
+| [Apple / Google app stores] | Per their own policies | App distribution |
 
 We may also disclose data where the law requires it, or to protect someone
 from serious harm.
@@ -62,8 +63,7 @@ safeguard used, e.g. Standard Contractual Clauses.]
 
 ## How long we keep data
 
-Summary of our retention schedule (full detail in [link to published retention
-summary]):
+Summary of our retention schedule:
 
 - **Live locations** are shown for about 30 seconds and deleted within an hour.
 - **Your last nearby-sharing position** is kept for 30 minutes, only to check
@@ -88,7 +88,8 @@ summary]):
   ride's sharing are separate switches, and you can turn them off at any time.
   You can also withdraw location permission in your device settings.
 - **Social handles:** each can be Public, Friends only or Private.
-- **Blocking and reporting** are available from messages and profiles.
+- **Blocking and reporting** are available from profiles, chats, ride rosters,
+  friend requests and Nearby Voice. You can review and undo blocks in Settings.
 - **Delete your account** in Settings. This permanently deletes your account
   and associated data straight away (except backups, as above). If your
   account is suspended and you can't sign in, contact [support email] to
@@ -101,7 +102,7 @@ summary]):
 ## Safety and moderation
 
 Reports are reviewed by our moderators. We may suspend accounts that break our
-[Terms](TERMS_DRAFT.md). A suspension revokes all sign-ins. Decisions are
+[Terms](TERMS_DRAFT.md) and [Community Guidelines](COMMUNITY_GUIDELINES.md). We review reports within 24 hours. A suspension revokes all sign-ins. Decisions are
 logged, and you can appeal by contacting [support email].
 
 ## Security

@@ -766,5 +766,14 @@ export const MIGRATIONS: Migration[] = [
           action IN ('auth', 'api', 'ride_join_rider', 'ride_join_ip', 'hazard_create', 'directions', 'places', 'client_error', 'presence', 'verification_resend', 'password_reset_request', 'ride_create', 'hideout_create')
         );
     `,
+  },  {
+    // Which version of the Terms and Community Guidelines each rider agreed
+    // to, and when (App Store guideline 1.2). Existing accounts start with
+    // none and are asked to agree before posting or joining voice.
+    name: '0043_add_terms_acceptance',
+    sql: `
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS terms_version TEXT;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS terms_accepted_at TIMESTAMPTZ;
+    `,
   },
 ];

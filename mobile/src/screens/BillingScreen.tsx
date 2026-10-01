@@ -5,21 +5,20 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { ZoneTier } from '@rider-comms/shared';
 import { colors, MIN_TOUCH_TARGET, radii, spacing, type } from '../theme';
 import { useSettings } from '../settings/SettingsContext';
-import { PLAN_INFO, PLAN_ORDER, isPaidTier } from '../settings/plans';
+import { PLAN_INFO, isPaidTier } from '../settings/plans';
 import { useMovementSafety } from '../safety/MovementSafetyContext';
 import { RideSafeSurface } from '../safety/RideSafeSurface';
 
-function PlanRow({ tier, current, onReturnToFree }: { tier: ZoneTier; current: boolean; onReturnToFree?: () => void }) {
+function PlanCard({ tier, onReturnToFree }: { tier: ZoneTier; onReturnToFree?: () => void }) {
   const plan = PLAN_INFO[tier];
   return (
-    <View style={[styles.planRow, current && styles.planRowCurrent]}>
+    <View style={[styles.planRow, styles.planRowCurrent]}>
       <View style={styles.planHeading}>
         <View style={styles.planCopy}>
           <Text style={styles.planName}>{plan.name}</Text>
-          <Text style={styles.planPrice}>{plan.priceLabel}{plan.priceLabel !== 'Free' ? '/month' : ''}</Text>
         </View>
-        <View style={[styles.statusBadge, current && styles.statusBadgeCurrent]}>
-          <Text style={[styles.statusText, current && styles.statusTextCurrent]}>{current ? 'Current' : 'Unavailable'}</Text>
+        <View style={[styles.statusBadge, styles.statusBadgeCurrent]}>
+          <Text style={[styles.statusText, styles.statusTextCurrent]}>Current</Text>
         </View>
       </View>
       <Text style={styles.planBlurb}>{plan.blurb}</Text>
@@ -68,29 +67,14 @@ function BillingScreenContent({ navigation }: BillingProps): React.JSX.Element {
         <Pressable accessibilityRole="button" accessibilityLabel="Go back" onPress={navigation.goBack} style={styles.backButton}>
           <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
         </Pressable>
-        <Text style={styles.headerTitle}>Plan and billing</Text>
+        <Text style={styles.headerTitle}>Your plan</Text>
         <View style={styles.headerSpacer} />
       </View>
 
       <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + spacing.xl }]} showsVerticalScrollIndicator={false}>
-        <Text style={styles.intro}>Your plan controls the mutual nearby-rider radius. Private Group Rides remain available on every plan.</Text>
+        <Text style={styles.intro}>Your plan sets how far away other riders can be and still appear in Nearby. Private group rides work at any distance, on every plan.</Text>
 
-        <View style={styles.notice}>
-          <Ionicons name="information-circle-outline" size={21} color={colors.textSecondary} />
-          <Text style={styles.noticeText}>Paid plans are shown for transparency but cannot be purchased until verified App Store and Google Play billing is connected. Rider Comms does not collect card details.</Text>
-        </View>
-
-        <Text style={styles.sectionLabel}>Plans</Text>
-        <View style={styles.planList}>
-          {PLAN_ORDER.map((tier) => (
-            <PlanRow
-              key={tier}
-              tier={tier}
-              current={tier === zoneTier}
-              onReturnToFree={tier === zoneTier && isPaidTier(tier) ? confirmReturnToFree : undefined}
-            />
-          ))}
-        </View>
+        <PlanCard tier={zoneTier} onReturnToFree={isPaidTier(zoneTier) ? confirmReturnToFree : undefined} />
       </ScrollView>
     </View>
   );

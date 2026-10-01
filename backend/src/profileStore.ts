@@ -1,4 +1,5 @@
 import type { Pool } from 'pg';
+import { containsObjectionableText } from './contentFilter.ts';
 import type { ProfileUpdate, RiderProfile, UnitSystem, ZoneTier } from '@rider-comms/shared';
 import { ensureMigrated, getPool } from './db.ts';
 import { appendSocialEventForRiders } from './socialEventStore.ts';
@@ -40,6 +41,9 @@ type ProfileQueryClient = Pick<Pool, 'query'>;
  * error message for the first invalid field found, or null if everything
  * present is valid. Fields not present are not checked (PUT is a partial
  * merge, not a full replace). */
+/** Error code clients map to "choose something else" copy. */
+export const OBJECTIONABLE_CONTENT = 'objectionable_content';
+
 export function validateProfileUpdate(body: Record<string, unknown>): string | null {
   const unknownField = Object.keys(body).find((key) => !ALLOWED_UPDATE_FIELDS.has(key));
   if (unknownField) return `unknown profile field: ${unknownField}`;
@@ -66,6 +70,11 @@ export function validateProfileUpdate(body: Record<string, unknown>): string | n
   }
   for (const key of ['instagramVisibility', 'tiktokVisibility'] as const) {
     if (key in body && !SOCIAL_VISIBILITIES.includes(body[key] as string)) return `${key} must be public, friends, or private`;
+  }
+  // Names, handles and social usernames are shown to riders who aren't
+  // friends (Nearby, ride rosters, requests), so profanity is filtered too.
+  for (const key of ['displayName', 'handle', 'instagramUsername', 'tiktokUsername'] as const) {
+    if (containsObjectionableText(body[key])) return OBJECTIONABLE_CONTENT;
   }
   if ('zoneTier' in body && !ZONE_TIERS.includes(body.zoneTier as ZoneTier)) {
     return `zoneTier must be one of: ${ZONE_TIERS.join(', ')}`;

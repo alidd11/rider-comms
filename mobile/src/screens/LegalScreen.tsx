@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -7,15 +7,22 @@ import type { RootStackParamList } from '../navigation';
 import { colors, MIN_TOUCH_TARGET, spacing, type } from '../theme';
 import { useMovementSafety } from '../safety/MovementSafetyContext';
 import { RideSafeSurface } from '../safety/RideSafeSurface';
+import { LEGAL_LINKS } from '../legalLinks';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Legal'>;
 
 const sections = [
-  { title: 'Privacy', text: 'Rider Comms stores its private session token in your device secure store. Profile settings, friendships, messages, rides, hideouts and optional social usernames are sent to the test API. Public nearby-rider location starts only after you enable sharing and go live. Private-ride location is a separate, optional choice for each ride and is removed when you switch it off, leave, are removed or the ride ends.' },
-  { title: 'Your choices', text: 'Location sharing starts off. Instagram and TikTok usernames each have Public, Friends only or Private visibility. You can delete your account and associated test data from Settings.' },
-  { title: 'Rider safety and conduct', text: 'Harassment, threats, sexual exploitation, dangerous content, spam and impersonation are not allowed. Direct-message screens include Report and Block controls. Blocking removes the friendship and prevents further messages or requests.' },
-  { title: 'Riding safety', text: 'Do not operate messaging, profile or billing controls while moving. Stop somewhere safe before using visual or touch controls.' },
-  { title: 'Test-build notice', text: 'This is a pre-alpha test build backed by a test API and database. A published privacy policy, support contact, documented retention schedule, tested deletion process and staffed moderation operation are still required before public store release.' },
+  { title: 'Your privacy', text: 'Your sign-in is kept in your device’s secure storage. Location is shared only when you choose: going live on Nearby, or switching it on for a group ride. Voice is carried live and never recorded. You can delete your account and its data at any time in Settings.' },
+  { title: 'Your choices', text: 'Location sharing starts off. Instagram and TikTok usernames each have Public, Friends only or Private visibility. You can review and undo blocks in Settings → Communication → Blocked riders.' },
+  { title: 'Rider safety and conduct', text: 'Harassment, hate, sexual content, threats, stalking, spam and impersonation aren’t allowed. Report or block a rider from their profile, a chat, the ride roster, a friend request or the Nearby Voice rider list. Reports are reviewed within 24 hours.' },
+  { title: 'Riding safety', text: 'Don’t look at or touch your phone while moving. Rider Comms locks distracting controls when it detects you’re riding. Stop somewhere safe first.' },
+];
+
+const links: Array<{ label: string; url: string; icon: keyof typeof Ionicons.glyphMap }> = [
+  { label: 'Privacy Policy', url: LEGAL_LINKS.privacy, icon: 'lock-closed-outline' },
+  { label: 'Terms of Service', url: LEGAL_LINKS.terms, icon: 'document-text-outline' },
+  { label: 'Community Guidelines', url: LEGAL_LINKS.guidelines, icon: 'people-outline' },
+  { label: 'Contact support', url: LEGAL_LINKS.support, icon: 'help-buoy-outline' },
 ];
 
 export function LegalScreen(props: Props): React.JSX.Element {
@@ -32,6 +39,20 @@ function LegalScreenContent({ navigation }: Props): React.JSX.Element {
     </View>
     <ScrollView contentContainerStyle={styles.content}>
       {sections.map((section) => <View key={section.title} style={styles.section}><Text style={styles.heading}>{section.title}</Text><Text style={styles.body}>{section.text}</Text></View>)}
+      <View style={styles.linkGroup}>
+        {links.map((link) => (
+          <Pressable
+            key={link.label}
+            accessibilityRole="link"
+            onPress={() => { void Linking.openURL(link.url).catch(() => undefined); }}
+            style={({ pressed }) => [styles.linkRow, pressed && styles.linkRowPressed]}
+          >
+            <Ionicons name={link.icon} size={20} color={colors.textSecondary} />
+            <Text style={styles.linkLabel}>{link.label}</Text>
+            <Ionicons name="open-outline" size={16} color={colors.textMuted} />
+          </Pressable>
+        ))}
+      </View>
     </ScrollView>
   </View>;
 }
@@ -46,4 +67,8 @@ const styles = StyleSheet.create({
   section: { gap: spacing.sm },
   heading: { ...type.subheading, color: colors.textPrimary },
   body: { ...type.body, color: colors.textSecondary, lineHeight: 22 },
+  linkGroup: { borderTopWidth: 1, borderTopColor: colors.border },
+  linkRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: MIN_TOUCH_TARGET + 8, borderBottomWidth: 1, borderBottomColor: colors.border },
+  linkRowPressed: { opacity: 0.7 },
+  linkLabel: { ...type.body, color: colors.textPrimary, flex: 1 },
 });

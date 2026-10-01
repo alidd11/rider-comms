@@ -7,7 +7,8 @@ import type { RouteContext } from './context.ts';
 export async function handleSafetyRoutes(ctx: RouteContext): Promise<unknown> {
   const { req, res, url, actorId, s, rideStore, authStore, moderationStore, socialRateLimitStore, revokeRideVoiceParticipants, revokeProximityVoiceParticipants } = ctx;
   if (req.method === 'GET' && url.pathname === '/blocks') {
-    return sendJson(res, 200, { blockedRiderIds: await moderationStore.getBlocked(actorId) });
+    const blocked = await moderationStore.getBlockedSummaries(actorId);
+    return sendJson(res, 200, { blockedRiderIds: blocked.map((rider) => rider.riderId), blocked });
   }
   if (req.method === 'POST' && url.pathname === '/blocks') {
     const body = await readJsonBody(req);

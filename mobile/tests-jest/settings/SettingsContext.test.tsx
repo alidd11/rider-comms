@@ -8,11 +8,7 @@ import { SettingsProvider, useSettings } from '../../src/settings/SettingsContex
 
 const RIDER_ID = 'me';
 
-const mockEnsureNotificationPermission = jest.fn();
 
-jest.mock('../../src/notifications/permissions', () => ({
-  ensureNotificationPermission: () => mockEnsureNotificationPermission(),
-}));
 
 let mockAuthValue: { riderId: string; client: Partial<RiderCommsClient> } | null = null;
 
@@ -59,7 +55,6 @@ async function seedCache(profile: Partial<RiderProfile>): Promise<void> {
 }
 
 beforeEach(() => {
-  mockEnsureNotificationPermission.mockReset().mockResolvedValue(true);
 });
 
 afterEach(async () => {
@@ -180,41 +175,6 @@ test('does not roll back a field the rider has since changed again', async () =>
   expect(result.current.displayName).toBe('Second edit');
 });
 
-test('turning a notification on requires OS permission first', async () => {
-  mockEnsureNotificationPermission.mockResolvedValue(false);
-  const client = {
-    getProfile: jest.fn(async () => fakeProfile()),
-    updateProfile: jest.fn(),
-  };
-  const { result } = await renderSettings(client);
-  await waitFor(() => expect(result.current.loaded).toBe(true));
-
-  await act(async () => {
-    result.current.setNotifyNearby(true);
-  });
-
-  expect(client.updateProfile).not.toHaveBeenCalled();
-  expect(result.current.notifyNearby).toBe(false);
-  expect(result.current.profileError).toMatch(/blocked by the operating system/);
-});
-
-test('turning a notification off never needs OS permission', async () => {
-  await seedCache({ notifyNearby: true });
-  const client = {
-    getProfile: jest.fn(async () => fakeProfile({ notifyNearby: true })),
-    updateProfile: jest.fn(async () => fakeProfile({ notifyNearby: false })),
-  };
-  const { result } = await renderSettings(client);
-  await waitFor(() => expect(result.current.notifyNearby).toBe(true));
-
-  await act(() => {
-    result.current.setNotifyNearby(false);
-  });
-
-  expect(mockEnsureNotificationPermission).not.toHaveBeenCalled();
-  await waitFor(() => expect(client.updateProfile).toHaveBeenCalledWith(RIDER_ID, { notifyNearby: false }));
-});
-
 test('resetAll clears local state and the server profile', async () => {
   await seedCache({ displayName: 'Custom Name' });
   const client = {
@@ -294,19 +254,6 @@ test.each([
 
   await act(async () => { result.current.clearProfileError(); });
   expect(result.current.profileError).toBeNull();
-});
-
-test('explains when notification permission cannot be requested at all', async () => {
-  await seedCache({});
-  mockEnsureNotificationPermission.mockRejectedValueOnce(new Error('module missing'));
-  const updateProfile = jest.fn(async () => fakeProfile());
-  const { result } = await renderSettings({ getProfile: jest.fn(async () => fakeProfile()), updateProfile });
-  await waitFor(() => expect(result.current.loaded).toBe(true));
-
-  await act(async () => { result.current.setNotifyChat(true); });
-  await waitFor(() => expect(result.current.profileError).toBe('Rider Comms could not request notification permission. Try again from device settings.'));
-  expect(updateProfile).not.toHaveBeenCalled();
-  expect(result.current.notifyChat).toBe(false);
 });
 
 test('refreshProfile applies the server snapshot and updates the cache', async () => {

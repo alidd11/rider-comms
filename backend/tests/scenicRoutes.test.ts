@@ -43,10 +43,10 @@ describe('scenic routes API', { skip: !hasDatabase && 'DATABASE_URL not set; ski
     await getPool().query('TRUNCATE scenic_routes');
     await getPool().query('DELETE FROM users WHERE id = ANY($1::text[])', [testRiderIds]);
     await getPool().query(
-      `INSERT INTO users (id, username, password_hash, email_verified_at, is_admin)
+      `INSERT INTO users (id, username, password_hash, email_verified_at, is_admin, terms_version)
        VALUES
-         ($1, 'tst_scenic_admin', 'test-only', now(), true),
-         ($2, 'tst_scenic_member', 'test-only', now(), false)`,
+         ($1, 'tst_scenic_admin', 'test-only', now(), true, '2026-10-01'),
+         ($2, 'tst_scenic_member', 'test-only', now(), false, '2026-10-01')`,
       [adminRiderId, memberRiderId],
     );
     ctx = startTestServer();

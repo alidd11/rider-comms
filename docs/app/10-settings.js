@@ -14,7 +14,7 @@
           title: 'Account',
           body: `<div class="settings-hub-list">
             <button data-settings-target="profile"><span class="setting-icon">${icon('user')}</span><span><strong>Profile</strong><small>Name, handle and connected profiles</small></span>${icon('chevron')}</button>
-            <button data-settings-target="plans"><span class="setting-icon">${icon('card')}</span><span><strong>Plan and billing</strong><small id="planSummary">${escapeHtml(plan.name)} plan · ${escapeHtml(plan.priceLabel === 'Free' ? 'No card on file' : `${plan.priceLabel}/mo`)}</small></span><span id="planPill" class="plan-pill">${escapeHtml(plan.name)}</span>${icon('chevron')}</button>
+            <button data-settings-target="plans"><span class="setting-icon">${icon('card')}</span><span><strong>Your plan</strong><small id="planSummary">${escapeHtml(plan.name)} plan · ${escapeHtml(plan.features[0])}</small></span><span id="planPill" class="plan-pill">${escapeHtml(plan.name)}</span>${icon('chevron')}</button>
             <button data-settings-target="sessions"><span class="setting-icon">${icon('settings')}</span><span><strong>Signed-in devices</strong><small>Review and revoke account sessions</small></span>${icon('chevron')}</button>
             <button data-settings-target="account"><span class="setting-icon">${icon('shield')}</span><span><strong>Account and data</strong><small>Account deletion and settings reset</small></span>${icon('chevron')}</button>
           </div>`,
@@ -24,7 +24,6 @@
       communication: () => ({
         title: 'Communication',
         body: `<div class="settings-hub-list">
-          <button data-settings-target="notifications"><span class="setting-icon">${icon('bell')}</span><span><strong>Notifications</strong><small>Nearby riders, ride invites and group chat</small></span>${icon('chevron')}</button>
           <button data-settings-target="privacy"><span class="setting-icon">${icon('shield')}</span><span><strong>Privacy controls</strong><small>Location visibility and connected profiles</small></span>${icon('chevron')}</button>
         </div>`,
         ready: wireSettingsHubRows,
@@ -36,10 +35,6 @@
           <button data-settings-target="navigation"><span class="setting-icon">${icon('nav-arrow')}</span><span><strong>Navigation</strong><small id="navigationProviderSummary">${escapeHtml(NAVIGATION_PROVIDERS[navigationProvider(state.navigationProvider)].label)}</small></span>${icon('chevron')}</button>
         </div>`,
         ready: wireSettingsHubRows,
-      }),
-      offlineMaps: () => ({
-        title: 'Offline Maps',
-        body: '<div class="settings-note"><strong>Online maps only</strong><p>Offline map downloads are not available in this build yet. Rider Comms currently needs a data connection for map tiles and route calculation.</p></div>',
       }),
       unitsPreferences: () => ({
         title: 'Units & Preferences',
@@ -56,16 +51,16 @@
       }),
       about: () => ({
         title: 'About',
-        body: `<div class="settings-about-card"><strong>Rider Comms</strong><span>Version 0.3.0 · PWA</span><span>Signed in as ${escapeHtml(state.profile.riderId)}</span></div>`,
+        body: `<div class="settings-about-card"><strong>Rider Comms</strong><span>Version 0.3.0 · PWA</span><span>Signed in as ${escapeHtml(state.profile.displayName)} (${escapeHtml(state.profile.handle)})</span></div>`,
       }),
       legal: () => ({
         title: 'Privacy, safety & terms',
         body: `<div class="settings-legal-list">
-          <section><strong>Privacy</strong><p>Rider Comms stores its private session token in browser storage for this test build. Profile settings, friendships, messages, rides, hideouts and optional social usernames are sent to the test API. Public nearby-rider location starts only after you enable sharing and go live. Private-ride location is a separate, optional choice for each ride and is removed when you switch it off, leave, are removed or the ride ends.</p></section>
-          <section><strong>Your choices</strong><p>Location sharing starts off. Instagram and TikTok usernames each have Public, Friends only or Private visibility. You can delete your account and associated test data from Settings.</p></section>
-          <section><strong>Rider safety and conduct</strong><p>Harassment, threats, sexual exploitation, dangerous content, spam and impersonation are not allowed. Direct-message screens include Report and Block controls. Blocking removes the friendship and prevents further messages or requests.</p></section>
-          <section><strong>Riding safety</strong><p>Do not operate messaging, profile or billing controls while moving. Stop somewhere safe before using visual or touch controls.</p></section>
-          <section><strong>Test-build notice</strong><p>This is a pre-alpha test build backed by a test API and database. A published privacy policy, support contact, documented retention schedule, tested deletion process and staffed moderation operation are still required before public store release.</p></section>
+          <section><strong>Your privacy</strong><p>Your sign-in is kept in this browser. Location is shared only when you choose: going live on Nearby, or switching it on for a group ride. Voice is carried live and never recorded. You can delete your account and its data at any time in Settings.</p></section>
+          <section><strong>Your choices</strong><p>Location sharing starts off. Instagram and TikTok usernames each have Public, Friends only or Private visibility.</p></section>
+          <section><strong>Rider safety and conduct</strong><p>Harassment, hate, sexual content, threats, stalking, spam and impersonation aren’t allowed. Report or block a rider from their profile or a chat. Reports are reviewed within 24 hours.</p></section>
+          <section><strong>Riding safety</strong><p>Don’t look at or touch your phone while moving. Stop somewhere safe first.</p></section>
+          <section class="settings-legal-links"><a href="privacy.html" target="_blank" rel="noopener">Privacy Policy</a><a href="terms.html" target="_blank" rel="noopener">Terms of Service</a><a href="guidelines.html" target="_blank" rel="noopener">Community Guidelines</a><a href="support.html" target="_blank" rel="noopener">Contact support</a></section>
         </div>`,
       }),
       profile: () => ({
@@ -101,20 +96,17 @@
       plans: () => {
         const currentTier = planTier(state.profile.zoneTier);
         return {
-          title: 'Plan and billing',
-          body: `<p class="billing-intro">Your plan controls the mutual nearby-rider radius. Private Group Rides remain available on every plan.</p>
-            <div class="settings-note billing-notice"><strong>Store billing is not connected yet</strong><p>Paid plans are shown for transparency but cannot be purchased until verified App Store and Google Play billing is connected. Rider Comms does not collect card details.</p></div>
-            <div class="plan-list">${PLAN_ORDER.map((tier) => {
-              const plan = PLAN_INFO[tier];
-              const current = tier === currentTier;
-              const price = plan.priceLabel === 'Free' ? 'Free' : `${plan.priceLabel}/month`;
-              return `<article class="plan-card${current ? ' current' : ''}" data-plan-tier="${tier}">
-                <div class="plan-top"><span><strong>${escapeHtml(plan.name)}</strong><small>${escapeHtml(price)}</small></span><span class="plan-pill">${current ? 'Current' : 'Unavailable'}</span></div>
-                <p>${escapeHtml(plan.blurb)}</p>
-                <ul class="plan-features">${plan.features.map((feature) => `<li>${icon('plus')}<span>${escapeHtml(feature)}</span></li>`).join('')}</ul>
-                ${current && tier !== 'free' ? '<button class="button danger wide plan-return-free" id="returnToFreePlan">Return to Free</button>' : ''}
-              </article>`;
-            }).join('')}</div>`,
+          title: 'Your plan',
+          body: (() => {
+            const plan = PLAN_INFO[currentTier];
+            return `<p class="billing-intro">Your plan sets how far away other riders can be and still appear in Nearby. Private group rides work at any distance, on every plan.</p>
+            <div class="plan-list"><article class="plan-card current" data-plan-tier="${currentTier}">
+              <div class="plan-top"><span><strong>${escapeHtml(plan.name)}</strong></span><span class="plan-pill">Current</span></div>
+              <p>${escapeHtml(plan.blurb)}</p>
+              <ul class="plan-features">${plan.features.map((feature) => `<li>${icon('plus')}<span>${escapeHtml(feature)}</span></li>`).join('')}</ul>
+              ${currentTier !== 'free' ? '<button class="button danger wide plan-return-free" id="returnToFreePlan">Return to Free</button>' : ''}
+            </article></div>`;
+          })(),
           ready: () => {
             const returnButton = $('#returnToFreePlan');
             if (!returnButton) return;
@@ -151,7 +143,6 @@
       }),
       map: () => ({ title: 'Location and map', body: `<div class="settings-sheet-section">${toggleMarkup('shareLocation', 'Nearby rider visibility', 'Share your position only after you choose to go live.', state.profile.shareLocation)}</div><div class="settings-note"><strong>Location stays in your control</strong><p>Turning this off stops nearby-rider visibility. Private-ride location is controlled separately inside each ride and remains off unless you explicitly enable it.</p></div>`, ready: wireToggles }),
       units: () => ({ title: 'Distance units', body: `<div class="choice-list" role="radiogroup" aria-label="Distance units"><button data-unit-option="mi" role="radio"><span><strong>Miles</strong><small>Use miles and mph</small></span><i></i></button><button data-unit-option="km" role="radio"><span><strong>Kilometres</strong><small>Use kilometres and km/h</small></span><i></i></button></div>`, ready: () => { $$('[data-unit-option]', $('#sheetBody')).forEach((button) => { const active = button.dataset.unitOption === state.profile.unitSystem; button.setAttribute('aria-checked', String(active)); button.addEventListener('click', async () => { button.disabled = true; const next = button.dataset.unitOption; const ok = await patchProfile({ unitSystem: next }); if (ok) { openSheet('units'); showToast('Distance unit updated.'); } else button.disabled = false; }); }); } }),
-      notifications: () => ({ title: 'Notifications', body: `<div class="settings-sheet-section">${toggleMarkup('notifyNearby', 'Nearby riders', 'Notify me about nearby riders.', state.profile.notifyNearby)}${toggleMarkup('notifyInvites', 'Ride invites', 'Notify me about group ride invitations.', state.profile.notifyInvites)}${toggleMarkup('notifyChat', 'Group chat messages', 'Notify me about group ride messages.', state.profile.notifyChat)}</div><div class="settings-note"><strong>Browser permission required</strong><p>Enabling a notification preference also requires browser notification permission. Background delivery remains platform-dependent.</p></div>`, ready: wireToggles }),
       safety: () => ({
         title: 'Safety',
         body: `<div class="settings-sheet-section">${toggleMarkup('rideSafeEnabled', 'Automatic Ride Safe', 'Uses device motion to lock distracting controls at 8 mph and above. Recommended while riding.', state.rideSafeEnabled)}</div><div class="settings-note"><strong>Device-only safety preference</strong><p>When off, Rider Comms stops its dedicated Ride Safe location watcher. Map, navigation and optional ride-location features request location separately. Only change this while safely stopped.</p></div><div class="safety-guidance"><div><span class="setting-icon"><svg><use href="#i-ride"/></svg></span><span><strong>Set up while stationary</strong><small>Complete profile, route and group controls before moving.</small></span></div><div><span class="setting-icon"><svg><use href="#i-location"/></svg></span><span><strong>Control your location</strong><small>Nearby visibility can be stopped at any time.</small></span></div><div><span class="setting-icon"><svg><use href="#i-info"/></svg></span><span><strong>Not an emergency service</strong><small>Call the appropriate emergency service if you need urgent help.</small></span></div></div>`,

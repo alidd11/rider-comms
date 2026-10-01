@@ -50,7 +50,7 @@ describe('RiderCommsClient authentication', () => {
     assert.equal((await client.signUp('alex_rides', 'alex@example.com', 'secure-password')).token, 'signup-token');
     assert.equal((await client.logIn('alex_rides', 'secure-password')).token, 'login-token');
     assert.deepEqual(requests, [
-      { url: 'http://example.test/auth/signup', body: { username: 'alex_rides', email: 'alex@example.com', password: 'secure-password', deviceName: 'Rider Comms mobile' } },
+      { url: 'http://example.test/auth/signup', body: { username: 'alex_rides', email: 'alex@example.com', password: 'secure-password', deviceName: 'Rider Comms mobile', acceptTerms: true } },
       { url: 'http://example.test/auth/login', body: { username: 'alex_rides', password: 'secure-password', deviceName: 'Rider Comms mobile' } },
     ]);
   });

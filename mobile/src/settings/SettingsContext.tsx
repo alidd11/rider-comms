@@ -3,8 +3,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { ProfileUpdate, RiderProfile, SocialVisibility, ZoneTier } from '@rider-comms/shared';
 import { DEFAULT_AVATAR_ID } from './avatars';
 import { useAuth } from '../auth/AuthContext';
-import { ensureNotificationPermission } from '../notifications/permissions';
-import { resolveNotificationPreference } from '../notifications/preference';
 import { ApiError } from '../api/client';
 import {
   DEFAULT_NAVIGATION_PROVIDER,
@@ -32,8 +30,7 @@ interface SettingsContextValue extends ProfileState {
   profileError: string | null;
   clearProfileError: () => void;
   setZoneTier: (v: ZoneTier) => void; setAvatarId: (v: string) => void; setDisplayName: (v: string) => void;
-  setHandle: (v: string) => void; setUnitSystem: (v: UnitSystem) => void; setNotifyNearby: (v: boolean) => void;
-  setNotifyInvites: (v: boolean) => void; setNotifyChat: (v: boolean) => void; setShareLocation: (v: boolean) => void;
+  setHandle: (v: string) => void; setUnitSystem: (v: UnitSystem) => void; setShareLocation: (v: boolean) => void;
   setInstagramUsername: (v: string) => void; setInstagramVisibility: (v: SocialVisibility) => void;
   setTiktokUsername: (v: string) => void; setTiktokVisibility: (v: SocialVisibility) => void;
   setNavigationProvider: (v: NavigationProvider) => void; setRideSafeEnabled: (v: boolean) => void; resetAll: () => void;
@@ -131,33 +128,14 @@ export function SettingsProvider({ children }: { children: React.ReactNode }): R
       });
   }, [client, riderId]);
 
-  const updateNotification = React.useCallback((key: 'notifyNearby' | 'notifyInvites' | 'notifyChat', value: boolean) => {
-    if (!value) {
-      update(key, false);
-      return;
-    }
-    setProfileError(null);
-    void resolveNotificationPreference(true, ensureNotificationPermission)
-      .then((granted) => {
-        if (!granted) {
-          setProfileError('Notifications are blocked by the operating system. Allow them in device settings, then try again.');
-          return;
-        }
-        update(key, true);
-      })
-      .catch(() => {
-        setProfileError('Rider Comms could not request notification permission. Try again from device settings.');
-      });
-  }, [update]);
   const setters = React.useMemo(() => ({
     setZoneTier: (v: ZoneTier) => update('zoneTier', v), setAvatarId: (v: string) => update('avatarId', v),
     setDisplayName: (v: string) => update('displayName', v.trim() || 'Rider'), setHandle: (v: string) => update('handle', v.trim() || '@rider'),
-    setUnitSystem: (v: UnitSystem) => update('unitSystem', v), setNotifyNearby: (v: boolean) => updateNotification('notifyNearby', v),
-    setNotifyInvites: (v: boolean) => updateNotification('notifyInvites', v), setNotifyChat: (v: boolean) => updateNotification('notifyChat', v),
+    setUnitSystem: (v: UnitSystem) => update('unitSystem', v),
     setShareLocation: (v: boolean) => update('shareLocation', v), setInstagramUsername: (v: string) => update('instagramUsername', v.trim().replace(/^@/, '')),
     setInstagramVisibility: (v: SocialVisibility) => update('instagramVisibility', v), setTiktokUsername: (v: string) => update('tiktokUsername', v.trim().replace(/^@/, '')),
     setTiktokVisibility: (v: SocialVisibility) => update('tiktokVisibility', v),
-  }), [update, updateNotification]);
+  }), [update]);
   const setNavigationProvider = React.useCallback((value: NavigationProvider) => {
     const next = parseNavigationProvider(value);
     setNavigationProviderState(next);

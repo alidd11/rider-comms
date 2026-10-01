@@ -37,6 +37,59 @@ describe('authenticated API', () => {
     assert.equal(authenticated.status, 404);
     assert.deepEqual(await authenticated.json(), { error: 'not_found' });
   });
+  it('refuses signup without agreement to the Terms, and filters objectionable usernames', needsDb, async () => {
+    const suffix = Math.random().toString(36).slice(2, 10);
+    const post = (body: Record<string, unknown>) => fetch(`${ctx.baseUrl()}/auth/signup`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    const base = { username: `terms_${suffix}`, email: `terms_${suffix}@example.com`, password: 'correct-horse-battery' };
+    const refused = await post(base);
+    assert.equal(refused.status, 400);
+    assert.deepEqual(await refused.json(), { error: 'terms_not_accepted' });
+    const rude = await post({ ...base, username: `fuck_${suffix.slice(0, 6)}`, acceptTerms: true });
+    assert.equal(rude.status, 400);
+    assert.deepEqual(await rude.json(), { error: 'objectionable_username' });
+    const created = await post({ ...base, acceptTerms: true });
+    assert.equal(created.status, 201);
+    assert.equal((await created.json() as { termsAccepted: boolean }).termsAccepted, true);
+  });
+  it('asks existing accounts to agree to the current Terms before posting, but always allows reports', needsDb, async () => {
+    const riderId = `terms-legacy-${Math.random().toString(36).slice(2, 8)}`;
+    await getPool().query(
+      `INSERT INTO users (id, username, password_hash, email_verified_at) VALUES ($1, $2, 'test-only', now())`,
+      [riderId, `tst_${riderId.replace(/-/g, '_')}`],
+    );
+    try {
+      const me = await authenticatedFetch(ctx, riderId, '/auth/me');
+      const identity = await me.json() as { termsAccepted: boolean; termsVersion: string };
+      assert.equal(identity.termsAccepted, false);
+      assert.equal((await postJson(ctx, riderId, '/messages', { toRiderId: 'someone', text: 'hi' })).status, 403);
+      const blocked = await postJson(ctx, riderId, '/hideouts', { name: 'x', lat: 51.5, lon: -0.1, participantIds: ['someone'] });
+      assert.deepEqual(await blocked.json(), { error: 'terms_acceptance_required' });
+      assert.notEqual((await postJson(ctx, riderId, '/reports', { riderId: 'someone', reason: 'spam' })).status, 403);
+
+      const stale = await postJson(ctx, riderId, '/auth/accept-terms', { version: '2000-01-01' });
+      assert.equal(stale.status, 409);
+      assert.equal((await postJson(ctx, riderId, '/auth/accept-terms', { version: identity.termsVersion })).status, 200);
+      assert.equal((await (await authenticatedFetch(ctx, riderId, '/auth/me')).json() as { termsAccepted: boolean }).termsAccepted, true);
+    } finally {
+      await getPool().query('DELETE FROM users WHERE id = $1', [riderId]);
+    }
+  });
+  it('rejects objectionable profile names and slurs in messages', needsDb, async () => {
+    const profile = await authenticatedFetch(ctx, 'filter-rider', '/riders/filter-rider/profile', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ displayName: 'Sh1t Rider' }),
+    });
+    assert.equal(profile.status, 400);
+    assert.deepEqual(await profile.json(), { error: 'objectionable_content' });
+    const ok = await authenticatedFetch(ctx, 'filter-rider', '/riders/filter-rider/profile', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ displayName: 'Sussex Rider' }),
+    });
+    assert.equal(ok.status, 200);
+    const message = await postJson(ctx, 'filter-rider', '/messages', { toRiderId: 'someone', text: 'you f a g o t' });
+    assert.equal(message.status, 400);
+    assert.deepEqual(await message.json(), { error: 'objectionable_content' });
+  });
   it('requires verified email for abuse-sensitive writes while preserving account access', needsDb, async () => {
     const suffix = Math.random().toString(36).slice(2, 10);
     const username = `verify_${suffix}`;
@@ -44,7 +97,7 @@ describe('authenticated API', () => {
     const signup = await fetch(`${ctx.baseUrl()}/auth/signup`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, email, password: 'correct-horse-battery', deviceName: 'verification-test' }),
+      body: JSON.stringify({ username, email, password: 'correct-horse-battery', deviceName: 'verification-test', acceptTerms: true }),
     });
     assert.equal(signup.status, 201);
     const session = await signup.json() as { riderId: string; token: string; emailVerified: boolean };

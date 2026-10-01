@@ -11,7 +11,6 @@ describe('Settings mockup contract', () => {
       'Account',
       'Communication',
       'Map & Navigation',
-      'Offline Maps',
       'Units & Preferences',
       'Help & Support',
       'About',
@@ -44,12 +43,15 @@ describe('Settings mockup contract', () => {
   });
 
   it('preserves real controls behind the new category hierarchy', () => {
-    for (const key of ['accountHub', 'communication', 'mapNavigation', 'offlineMaps', 'unitsPreferences', 'help', 'about']) {
+    for (const key of ['accountHub', 'communication', 'mapNavigation', 'unitsPreferences', 'help', 'about']) {
       assert.ok(settingsSource.includes(`activeSheet === '${key}'`), `Missing Settings category sheet: ${key}`);
     }
 
     assert.ok(settingsSource.includes("setActiveSheet('navigation')"));
-    assert.ok(settingsSource.includes("setActiveSheet('notifications')"));
+    // No settings for features that don't work yet (App Review 2.1): push
+    // delivery and offline map downloads.
+    assert.ok(!settingsSource.includes("setActiveSheet('notifications')"));
+    assert.ok(!settingsSource.includes("setActiveSheet('offlineMaps')"));
     assert.ok(settingsSource.includes("setActiveSheet('privacy')"));
     assert.ok(settingsSource.includes("setActiveSheet('sessions')"));
     assert.ok(settingsSource.includes("navigation.navigate('Billing')"));
@@ -90,10 +92,6 @@ describe('Settings mockup contract', () => {
   });
 
   it('does not advertise offline map downloads that do not exist', () => {
-    assert.match(
-      settingsSource,
-      /title="Offline Maps" subtitle="Online only · downloads unavailable"/,
-    );
-    assert.ok(settingsSource.includes('Offline map downloads are not available in this build yet.'));
+    assert.ok(!settingsSource.includes('Offline Maps'));
   });
 });

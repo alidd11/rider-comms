@@ -273,8 +273,8 @@ test('login baseline matches the approved night-rider concept in day and night',
     await expect(page.locator('#signupForm')).toBeHidden();
     await expect(page.locator('.auth-segmented')).toBeHidden();
     await expect(page.locator('#authLoginExtras')).toBeVisible();
-    await expect(page.locator('.auth-social-row button')).toHaveCount(3);
-    for (const provider of await page.locator('.auth-social-row button').all()) await expect(provider).toBeDisabled();
+    // No placeholder third-party sign-in buttons (App Review 2.1 / 4.8).
+    await expect(page.locator('.auth-social-row')).toHaveCount(0);
     await expect(page.locator('#createAccountLink')).toBeVisible();
     await expect(page.locator('#rememberMe')).toBeChecked();
     await assertNoViewportOverflow(page);
@@ -286,7 +286,6 @@ test('login baseline matches the approved night-rider concept in day and night',
       const button = getComputedStyle(document.querySelector('#loginSubmit'));
       const card = getComputedStyle(document.querySelector('.auth-card'));
       const intro = document.querySelector('.auth-intro').getBoundingClientRect();
-      const social = document.querySelector('.auth-social-row').getBoundingClientRect();
       const terms = document.querySelector('.auth-terms').getBoundingClientRect();
       return {
         screenBackground: getComputedStyle(screen).backgroundColor,
@@ -298,7 +297,6 @@ test('login baseline matches the approved night-rider concept in day and night',
         cardBackground: card.backgroundColor,
         cardBorder: parseFloat(card.borderTopWidth),
         introTop: intro.top,
-        socialWidth: social.width,
         termsTop: terms.top,
         viewportHeight: window.innerHeight,
       };
@@ -318,7 +316,6 @@ test('login baseline matches the approved night-rider concept in day and night',
     expect(visual.cardBorder).toBe(0);
     expect(visual.introTop).toBeGreaterThan(160);
     expect(visual.introTop).toBeLessThan(330);
-    expect(visual.socialWidth).toBeGreaterThan(120);
     expect(visual.termsTop).toBeLessThan(visual.viewportHeight);
     expect(visual.termsTop).toBeGreaterThan(visual.introTop);
 
@@ -834,7 +831,6 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
   await page.locator('.bottom-nav [data-nav="settings"]').click();
   await expect(page.locator('.settings-page')).toBeVisible();
   await expect(page.locator('[data-screen="settings"] .page-subtitle')).toHaveCount(0);
-  await expect(page.locator('[data-sheet="offlineMaps"] small')).toHaveText('Online only · downloads unavailable');
   const settingsRadius = await page.locator('.settings-page .settings-group').first().evaluate((element) =>
     parseFloat(getComputedStyle(element).borderTopLeftRadius)
   );
@@ -2004,12 +2000,12 @@ test('PWA Settings matches the approved shallow mockup hierarchy', async ({ page
   await page.goto('/#settings');
 
   await expect(page.locator('.settings-page .group-title')).toHaveCount(0);
-  await expect(page.locator('.settings-main-group > button')).toHaveCount(5);
+  await expect(page.locator('.settings-main-group > button')).toHaveCount(4);
   await expect(page.locator('.settings-secondary-group > button')).toHaveCount(2);
   await expect(page.locator('.settings-main-group')).toContainText('Account');
   await expect(page.locator('.settings-main-group')).toContainText('Communication');
   await expect(page.locator('.settings-main-group')).toContainText('Map & Navigation');
-  await expect(page.locator('.settings-main-group')).toContainText('Offline Maps');
+  await expect(page.locator('.settings-main-group')).not.toContainText('Offline Maps');
   await expect(page.locator('.settings-main-group')).toContainText('Units & Preferences');
   await expect(page.locator('.settings-secondary-group')).toContainText('Help & Support');
   await expect(page.locator('.settings-secondary-group')).toContainText('About');
@@ -2023,11 +2019,6 @@ test('PWA Settings matches the approved shallow mockup hierarchy', async ({ page
   expect(profile.height).toBeGreaterThanOrEqual(96);
   expect(profile.height).toBeLessThanOrEqual(108);
   expect(profile.radius).toBeGreaterThanOrEqual(7);
-
-  await page.locator('[data-sheet="offlineMaps"]').click();
-  await expect(page.locator('#sheetTitle')).toHaveText('Offline Maps');
-  await expect(page.locator('#sheetBody')).toContainText('Offline map downloads are not available in this build yet.');
-  await page.locator('#closeSheet').click();
 
   await page.locator('[data-sheet="about"]').click();
   await expect(page.locator('#sheetTitle')).toHaveText('About');
@@ -2088,7 +2079,7 @@ test('PWA settings sheets own the bottom edge without competing with app chrome'
   await expect(banner).toBeVisible();
 });
 
-test('PWA billing preview matches native plan content and account tier', async ({ page }) => {
+test('PWA plan screen shows only the current plan, with no prices', async ({ page }) => {
   let profile = { ...PROFILE, zoneTier: 'premium' };
   const updates = [];
 
@@ -2109,33 +2100,17 @@ test('PWA billing preview matches native plan content and account tier', async (
   await page.goto('/#settings');
 
   await page.locator('[data-sheet="accountHub"]').click();
-  await expect(page.locator('#planSummary')).toHaveText('Premium plan · $4.99/mo');
+  await expect(page.locator('#planSummary')).toHaveText('Premium plan · 6 mi Nearby range');
   await expect(page.locator('#planPill')).toHaveText('Premium');
 
   await page.locator('[data-settings-target="plans"]').click();
-  await expect(page.locator('#sheetTitle')).toHaveText('Plan and billing');
-  await expect(page.locator('.billing-notice')).toContainText('cannot be purchased until verified App Store and Google Play billing is connected');
-  await expect(page.locator('.billing-notice')).toContainText('does not collect card details');
-
-  const free = page.locator('[data-plan-tier="free"]');
+  await expect(page.locator('#sheetTitle')).toHaveText('Your plan');
+  // Nothing is sold in the app: no prices, and no plans the rider can't have.
+  await expect(page.locator('#sheetBody')).not.toContainText('$');
+  await expect(page.locator('.plan-card')).toHaveCount(1);
   const premium = page.locator('[data-plan-tier="premium"]');
-  const premiumPlus = page.locator('[data-plan-tier="premium_plus"]');
-
-  await expect(free).toContainText('Free');
-  await expect(free).toContainText('1 mi zone radius');
-  await expect(free.locator('.plan-pill')).toHaveText('Unavailable');
-
-  await expect(premium).toContainText('$4.99/month');
-  await expect(premium).toContainText('Wider net for group rides that spread out on the highway.');
-  await expect(premium).toContainText('Everything in Free');
-  await expect(premium).toContainText('Priority support');
+  await expect(premium).toContainText('6 mi Nearby range');
   await expect(premium.locator('.plan-pill')).toHaveText('Current');
-
-  await expect(premiumPlus).toContainText('$9.99/month');
-  await expect(premiumPlus).toContainText('Widest range — for a convoy that has stretched way out.');
-  await expect(premiumPlus).toContainText('Everything in Premium');
-  await expect(premiumPlus).toContainText('Early access to new features');
-  await expect(premiumPlus.locator('.plan-pill')).toHaveText('Unavailable');
 
   await page.locator('#returnToFreePlan').click();
   await expect.poll(() => updates).toEqual([{ zoneTier: 'free' }]);
@@ -2143,7 +2118,7 @@ test('PWA billing preview matches native plan content and account tier', async (
   await expect(page.locator('#returnToFreePlan')).toHaveCount(0);
   await page.locator('#closeSheet').click();
   await page.locator('[data-sheet="accountHub"]').click();
-  await expect(page.locator('#planSummary')).toHaveText('Free plan · No card on file');
+  await expect(page.locator('#planSummary')).toHaveText('Free plan · 1 mi Nearby range');
   await expect(page.locator('#planPill')).toHaveText('Free');
   await assertNoViewportOverflow(page);
 });
@@ -3093,4 +3068,50 @@ test('PWA screens have no automatically detectable accessibility violations', as
   await page.locator('#mapSearchSlot').click();
   await expect(page.locator('#searchScreen')).toBeVisible();
   await expectNoAxeViolations(page, 'search');
+});
+
+test('PWA asks existing accounts to agree to the current Terms before the app opens', async ({ page }) => {
+  let accepted = null;
+  await mockAuthenticatedApi(page, 'stationary', async ({ request, url }) => {
+    if (url.pathname === '/auth/me') return { body: { riderId: RIDER_ID, emailVerified: true, termsAccepted: accepted !== null, termsVersion: '2026-10-01' } };
+    if (url.pathname === '/auth/accept-terms') {
+      accepted = request.postDataJSON();
+      return { body: { accepted: true } };
+    }
+    return null;
+  });
+  await page.goto('/');
+  const gate = page.getByRole('dialog', { name: 'Updated terms' });
+  await expect(gate).toBeVisible();
+  await expect(gate.getByRole('link', { name: 'Community Guidelines' })).toHaveAttribute('href', 'guidelines.html');
+  await gate.getByRole('button', { name: 'I agree' }).click();
+  await expect(gate).toHaveCount(0);
+  expect(accepted).toEqual({ version: '2026-10-01' });
+  await expect(page.locator('#app')).toBeVisible();
+});
+
+test('PWA signup requires agreeing to the Terms and sends the agreement', async ({ page }) => {
+  let signup = null;
+  await page.route('https://backend-production-7fa0.up.railway.app/**', async (route) => {
+    const request = route.request();
+    const headers = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Authorization,Content-Type', 'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS' };
+    if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers, body: '' });
+    if (new URL(request.url()).pathname === '/auth/signup') {
+      signup = request.postDataJSON();
+      return route.fulfill({ status: 400, headers, contentType: 'application/json', body: JSON.stringify({ error: 'username_taken' }) });
+    }
+    return route.fulfill({ status: 404, headers, contentType: 'application/json', body: '{}' });
+  });
+  await page.goto('/');
+  await page.locator('#createAccountLink').click();
+  await page.locator('#signupUsername').fill('new_rider');
+  await page.locator('#signupEmail').fill('new@example.com');
+  await page.locator('#signupPassword').fill('correct-horse');
+  await page.locator('#signupSubmit').click();
+  await expect(page.locator('#signupError')).toHaveText('Agree to the Terms of Service and Community Guidelines to create an account.');
+  expect(signup).toBeNull();
+  await page.locator('#signupTerms').check();
+  await page.locator('#signupSubmit').click();
+  await expect(page.locator('#signupError')).toHaveText('That username is already taken.');
+  expect(signup).toMatchObject({ username: 'new_rider', acceptTerms: true });
 });

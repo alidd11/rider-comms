@@ -1,0 +1,23 @@
+{
+  "_comment": "Fill these in, then run `npm run build:legal`. null keeps the placeholder visible in brackets; an empty string removes it.",
+  "[date]": "1 October 2026",
+  "[Company legal name]": null,
+  "[support email]": null,
+  "[postal address]": null,
+  "[2 working days]": "2 working days",
+  "[16 / the applicable minimum age]": "16",
+  "[e.g. ICO in the UK]": "in the UK, the Information Commissioner's Office",
+  "[30 days / the legal deadline]": "one month",
+  "[Hosting provider, e.g. Railway]": "Railway",
+  "[Apple / Google app stores]": "Apple App Store",
+  "[hosting provider log retention]": "up to 30 days",
+  "[16 / the minimum age in your country / the age required to ride]": "16",
+  "[Owner decision: add an age limit for messages?]": "",
+  "[Owner decision: shorter limit?]": "",
+  "[confirm]": "",
+  "[roles]": "authorised staff who need it",
+  "[Data Protection Officer or EU/UK representative, if required]": null,
+  "[International transfers: describe where each provider processes data and the safeguard used, e.g. Standard Contractual Clauses.]": null,
+  "[Legal review: police/camera report features and local law.]": null,
+  "[Governing law, courts, and any consumer-protection carve-outs for users in other countries.]": null
+}

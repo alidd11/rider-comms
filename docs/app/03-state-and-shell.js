@@ -198,7 +198,7 @@
     const tier = planTier(state.profile.zoneTier);
     const plan = PLAN_INFO[tier];
     const planSummary = $('#planSummary');
-    if (planSummary) planSummary.textContent = `${plan.name} plan · ${plan.priceLabel === 'Free' ? 'No card on file' : `${plan.priceLabel}/mo`}`;
+    if (planSummary) planSummary.textContent = `${plan.name} plan · ${plan.features[0]}`;
     const planPill = $('#planPill');
     if (planPill) planPill.textContent = plan.name;
     const navigationSummary = $('#navigationProviderSummary');

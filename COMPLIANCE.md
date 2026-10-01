@@ -1,23 +1,26 @@
 # Mobile store readiness
 
-This repository is a pre-alpha test build. Store review compliance is an ongoing operational obligation, not something code alone can guarantee.
+The step-by-step App Store submission guide, with App Store Connect answers and reviewer notes, is in `APP_REVIEW.md`. Store review compliance is an ongoing operational obligation, not something code alone can guarantee.
 
 ## Implemented in this branch
 
 - Foreground-only location permission with an in-context prompt, opt-in sharing, explicit leave, and no background-location declaration.
 - Secure device storage for the guest bearer token and server-derived actor identity.
 - Atomic in-app account deletion that revokes sessions and removes the rider's durable profile, social, message, ride, friendship, hideout, presence, hazard, moderation and submitted-route data.
-- In-app report and block controls for direct messages. Blocking removes the friendship and prevents messages and friend requests in either direction.
+- Agreement to the Terms of Service and Community Guidelines at signup, and once for existing accounts whenever the terms version changes (`TERMS_VERSION`). Posting, chat and voice are refused until the rider agrees.
+- Server-side filtering of slurs and explicit terms in usernames, display names, handles, social usernames, hideout names and messages (`backend/src/contentFilter.ts`).
+- Report and block from profiles, chats, the ride roster, friend requests and the Nearby Voice rider list (with per-rider mute), plus a Blocked riders list in Settings. Blocking removes the friendship and prevents messages, friend requests and Nearby pairing in either direction.
+- Published Privacy Policy, Terms, Community Guidelines and Support pages, generated from `legal/` (`npm run build:legal`) and linked from signup, the Legal screen and Settings.
 - Instagram and TikTok usernames with independent Public, Friends only, and Private visibility.
-- In-app privacy, safety, test-build and community-rule disclosures.
-- iOS privacy-manifest declaration for app preferences, explicit application identifiers, Android versioning, and an EAS internal APK profile.
+- In-app privacy, safety and community-rule summaries linking to the published pages.
+- iOS privacy manifest declaring collected data types and required-reason APIs, a full-bleed app icon and splash screen, explicit application identifiers, Android versioning, and an EAS internal APK profile.
 - No advertising SDK, tracking permission, background-location permission, billing unlock, or unimplemented video feed is exposed in the native build. Microphone permission is declared only for the explicit rider voice features.
 - Movement-aware Ride Safe surfaces in both clients use the same 8 mph threshold. Confirmed sustained movement locks distracting controls; unknown/stale GPS remains a visible warning state without hiding product areas, and below-threshold evidence must be sustained before an existing movement lock clears.
 
 ## Required before public App Store or Play Store submission
 
 1. Operate the data controls now in the repository: password-reset account recovery, the retention schedule and scheduled deletion sweeps (`RETENTION.md`), and encrypted nightly backups with a restore-verification script (`BACKUP_RESTORE.md`). Still required: configure the backup secrets and private-key custody, confirm the database host encrypts storage at rest, run and record the monthly restore drill, and settle the open retention decisions listed in `RETENTION.md`.
-2. Publish a complete privacy policy and terms at stable HTTPS URLs, configure a monitored support address, and link them in store metadata and the app. Engineering drafts that describe the app's actual data practices are in `legal/PRIVACY_POLICY_DRAFT.md` and `legal/TERMS_DRAFT.md`; they need legal review and the bracketed placeholders filled in before publication.
+2. Complete the published legal pages: fill in `legal/site-details.json` (company name, support email, postal address), have a lawyer complete the bracketed legal sections the pages still show, run `npm run build:legal`, and configure a monitored support address.
 3. Staff the moderation queue. Reports now carry a review status, admins can dismiss them or suspend riders, and every decision goes to an audit log (see `MODERATION.md`). Still required: named moderators, published response targets, and a monitored appeals/support channel.
 4. Complete Apple privacy nutrition labels, Google Play Data safety, content-rating, target-audience, account-deletion URL, and testing-access declarations accurately.
 5. Add acceptance of Terms and Community Guidelines before any future user-generated video upload. The video feature must include proactive filtering, report/block tools, moderation, age controls, per-post Public/Friends/Private visibility, and a movement lock covering playback, posting, comments, likes, and feed scrolling.

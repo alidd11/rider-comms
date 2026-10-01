@@ -17,6 +17,7 @@ import { RideBar } from '../ride/RideBar';
 import { useRide } from '../ride/RideContext';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { RiderAvatar } from '../components/RiderAvatar';
+import { openRiderSafetyMenu } from '../safety/riderSafetyActions';
 import type { PublicRiderProfile, RideMemberLocation } from '../api/client';
 
 const FRIEND_RIDE_LOCATION_STALE_MS = 20_000;
@@ -158,7 +159,8 @@ function AddFriendCard(): React.JSX.Element {
 }
 
 function RequestRow({ request, profile }: { request: FriendRequest; profile?: FriendSummary }): React.JSX.Element {
-  const { accept, decline } = useFriends();
+  const { accept, decline, refresh } = useFriends();
+  const { client } = useAuth();
   const [resolving, setResolving] = React.useState<'accept' | 'decline' | null>(null);
   const resolve = async (action: 'accept' | 'decline') => {
     setResolving(action);
@@ -174,8 +176,17 @@ function RequestRow({ request, profile }: { request: FriendRequest; profile?: Fr
       <RiderAvatar avatarId={profile?.avatarId ?? DEFAULT_AVATAR_ID} size={40} />
       <View style={styles.requestIdentity}>
         <Text style={styles.requestName}>{profile?.displayName ?? 'Rider request'}</Text>
-        <Text style={styles.requestHandle}>{profile?.handle ?? request.fromRiderId}</Text>
+        <Text style={styles.requestHandle}>{profile?.handle ?? ''}</Text>
       </View>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Report or block ${profile?.displayName ?? 'this rider'}`}
+        onPress={() => openRiderSafetyMenu(client, { riderId: request.fromRiderId, name: profile?.displayName, source: 'an incoming friend request' }, () => { void refresh(); })}
+        style={styles.requestDecline}
+        hitSlop={8}
+      >
+        <Ionicons name="ellipsis-horizontal" size={20} color={colors.textSecondary} />
+      </Pressable>
       <Pressable accessibilityRole="button" style={styles.requestDecline} onPress={() => void resolve('decline')} disabled={resolving !== null} accessibilityLabel={`Decline request from ${profile?.displayName ?? 'rider'}`} hitSlop={8}>
         {resolving === 'decline' ? <ActivityIndicator color={colors.danger} size="small" /> : <Ionicons name="close" size={20} color={colors.danger} />}
       </Pressable>

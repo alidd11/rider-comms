@@ -14,6 +14,9 @@ import {
   Alert,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import * as Location from 'expo-location';
+import MapView, { Marker } from 'react-native-maps';
+import type { MapPressEvent } from 'react-native-maps';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -128,31 +131,48 @@ function PlanHideoutModal({
 }): React.JSX.Element {
   const insets = useSafeAreaInsets();
   const [name, setName] = React.useState('');
-  const [lat, setLat] = React.useState('');
-  const [lon, setLon] = React.useState('');
+  const [pin, setPin] = React.useState<{ latitude: number; longitude: number } | null>(null);
   const [saving, setSaving] = React.useState(false);
+  const [locating, setLocating] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const mapRef = React.useRef<MapView | null>(null);
 
-  const canSubmit = name.trim().length > 0 && lat.trim().length > 0 && lon.trim().length > 0 && !saving;
+  const canSubmit = name.trim().length > 0 && pin !== null && !saving;
+
+  // Start from the rider's position when location is already allowed; never
+  // prompt from here. Without it the rider can still tap anywhere on the map.
+  const locateRider = React.useCallback(async (prompt: boolean) => {
+    setLocating(true);
+    try {
+      const permission = prompt ? await Location.requestForegroundPermissionsAsync() : await Location.getForegroundPermissionsAsync();
+      if (!permission.granted) {
+        if (prompt) setError('Allow location access in Settings, or tap the map to choose a spot.');
+        return;
+      }
+      const position = await Location.getLastKnownPositionAsync() ?? await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const next = { latitude: position.coords.latitude, longitude: position.coords.longitude };
+      setPin(next);
+      setError(null);
+      mapRef.current?.animateToRegion({ ...next, latitudeDelta: 0.02, longitudeDelta: 0.02 }, 250);
+    } catch {
+      if (prompt) setError('Could not find your location. Tap the map to choose a spot.');
+    } finally {
+      setLocating(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    if (visible && !pin) void locateRider(false);
+  }, [visible, pin, locateRider]);
 
   const handleCreate = async () => {
-    const latNum = Number(lat);
-    const lonNum = Number(lon);
-    if (Number.isNaN(latNum) || Number.isNaN(lonNum)) {
-      setError('Latitude and longitude must be numbers.');
-      return;
-    }
-    if (Math.abs(latNum) > 90 || Math.abs(lonNum) > 180) {
-      setError('Latitude must be between -90 and 90, and longitude between -180 and 180.');
-      return;
-    }
+    if (!pin) return;
     setSaving(true);
     setError(null);
     try {
-      await onCreate(name.trim(), latNum, lonNum);
+      await onCreate(name.trim(), pin.latitude, pin.longitude);
       setName('');
-      setLat('');
-      setLon('');
+      setPin(null);
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not create that hideout.');
@@ -185,27 +205,30 @@ function PlanHideoutModal({
           />
 
           <Text style={styles.modalSectionLabel}>Location</Text>
-          <View style={styles.coordRow}>
-            <TextInput
-              style={[styles.modalInput, styles.coordInput]}
-              placeholder="Latitude"
-              placeholderTextColor={colors.textMuted}
-              keyboardType="numbers-and-punctuation"
-              value={lat}
-              onChangeText={setLat}
-            />
-            <TextInput
-              style={[styles.modalInput, styles.coordInput]}
-              placeholder="Longitude"
-              placeholderTextColor={colors.textMuted}
-              keyboardType="numbers-and-punctuation"
-              value={lon}
-              onChangeText={setLon}
-            />
+          <View style={styles.pickerMapFrame}>
+            <MapView
+              ref={mapRef}
+              style={styles.pickerMap}
+              initialRegion={{ latitude: pin?.latitude ?? 54.5, longitude: pin?.longitude ?? -3.0, latitudeDelta: pin ? 0.02 : 9, longitudeDelta: pin ? 0.02 : 9 }}
+              onPress={(event: MapPressEvent) => { setPin(event.nativeEvent.coordinate); setError(null); }}
+              accessibilityLabel="Map. Tap to place the hideout."
+            >
+              {pin ? <Marker coordinate={pin} draggable onDragEnd={(event) => setPin(event.nativeEvent.coordinate)} /> : null}
+            </MapView>
           </View>
-          <Text style={styles.modalCaption}>
-            Tapping a spot on the map to set this is coming soon. For now, type coordinates directly.
-          </Text>
+          <View style={styles.pickerActions}>
+            <Text style={styles.modalCaption}>{pin ? 'Drag the pin or tap the map to move it.' : 'Tap the map to choose a spot.'}</Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Use my current location"
+              onPress={() => void locateRider(true)}
+              disabled={locating}
+              style={styles.pickerLocate}
+            >
+              {locating ? <ActivityIndicator color={colors.accentInk} /> : <Ionicons name="locate" size={18} color={colors.accentInk} />}
+              <Text style={styles.pickerLocateText}>My location</Text>
+            </Pressable>
+          </View>
 
           {error && (
             <View style={styles.modalErrorBox}>

@@ -20,7 +20,7 @@ export type ScenicRouteInput = Omit<ScenicRoute, 'id' | 'createdBy' | 'createdAt
 export interface ScenicRouteFilters { vehicleCategory?: VehicleCategory; roadType?: RoadType; maxDifficulty?: Difficulty }
 
 export interface GuestSession { riderId: string; token: string }
-export interface LoginSession extends GuestSession { emailVerified: boolean }
+export interface LoginSession extends GuestSession { emailVerified: boolean; termsAccepted?: boolean }
 export interface SignUpSession extends LoginSession { emailVerificationSent: boolean }
 export interface AccountSessionSummary { id: string; deviceName: string; createdAt: string; lastSeenAt: string; expiresAt: string; current: boolean }
 export interface CreateRideResponse { rideId: string; code: string; expiresAt: number; createdBy: string; memberIds: string[] }
@@ -32,6 +32,7 @@ export interface PlaceSummary { id: string; name: string; address: string; lat: 
 export interface VoiceTokenResponse { token: string; url: string }
 export interface ProximityVoiceConnection extends VoiceTokenResponse { peerId: string }
 export interface ProximityVoiceResponse { connections: ProximityVoiceConnection[]; refreshAfterMs: number; authorizationLeaseMs: number }
+export interface BlockedRider { riderId: string; displayName: string; handle: string; blockedAt: number }
 export interface PublicRiderProfile {
   riderId: string;
   displayName: string;
@@ -70,13 +71,14 @@ export class RiderCommsClient {
       return json as T;
     } finally { clearTimeout(timeout); }
   }
-  signUp(username: string, email: string, password: string, deviceName = 'Rider Comms mobile'): Promise<SignUpSession> { return this.request('POST', '/auth/signup', { username, email, password, deviceName }); }
+  signUp(username: string, email: string, password: string, deviceName = 'Rider Comms mobile'): Promise<SignUpSession> { return this.request('POST', '/auth/signup', { username, email, password, deviceName, acceptTerms: true }); }
   logIn(username: string, password: string, deviceName = 'Rider Comms mobile'): Promise<LoginSession> { return this.request('POST', '/auth/login', { username, password, deviceName }); }
   requestPasswordReset(email: string): Promise<{ accepted: true }> { return this.request('POST', '/auth/password-reset/request', { email }); }
   resetPassword(token: string, password: string): Promise<{ reset: true }> { return this.request('POST', '/auth/password-reset/confirm', { token, password }); }
   resendVerification(): Promise<{ sent: boolean }> { return this.request('POST', '/auth/resend-verification', {}); }
   logOut(): Promise<void> { return this.request('POST', '/auth/logout', {}); }
-  getMe(): Promise<{ riderId: string; username: string | null; emailVerified: boolean }> { return this.request('GET', '/auth/me'); }
+  getMe(): Promise<{ riderId: string; username: string | null; emailVerified: boolean; termsAccepted?: boolean; termsVersion?: string }> { return this.request('GET', '/auth/me'); }
+  acceptTerms(version: string): Promise<{ accepted: true }> { return this.request('POST', '/auth/accept-terms', { version }); }
   getSessions(): Promise<{ sessions: AccountSessionSummary[] }> { return this.request('GET', '/auth/sessions'); }
   revokeSession(id: string): Promise<void> { return this.request('DELETE', `/auth/sessions/${encodeURIComponent(id)}`); }
   deleteAccount(): Promise<Record<string, never>> { return this.request('DELETE', '/auth/me'); }
@@ -151,6 +153,7 @@ export class RiderCommsClient {
     if (options.after) query.set('after', options.after);
     return this.request('GET', `/social/events?${query.toString()}`, undefined, Math.max(10_000, waitMs + 5_000));
   }
+  getBlockedRiders(): Promise<{ blocked: BlockedRider[] }> { return this.request('GET', '/blocks'); }
   blockRider(riderId: string): Promise<Record<string, never>> { return this.request('POST', '/blocks', { riderId }); }
   unblockRider(riderId: string): Promise<Record<string, never>> { return this.request('DELETE', `/blocks/${encodeURIComponent(riderId)}`); }
   reportRider(riderId: string, reason: 'harassment' | 'unsafe' | 'spam' | 'sexual' | 'other', details = ''): Promise<{ received: true }> { return this.request('POST', '/reports', { riderId, reason, details }); }

@@ -205,28 +205,25 @@
     };
   }
 
-  const PLAN_ORDER = ['free', 'premium', 'premium_plus'];
+  // Plans set the Nearby range; nothing is sold in the app (see mobile/src/settings/plans.ts).
   const PLAN_INFO = {
     free: {
       name: 'Free',
-      priceLabel: 'Free',
-      blurb: 'The default — good for a stoplight-to-stoplight ride.',
+      blurb: 'Good for a stoplight-to-stoplight ride with riders close by.',
       radiusMiles: 1,
-      features: ['1 mi zone radius', 'Group rides with a host code', 'Voice chat while riding'],
+      features: ['1 mi Nearby range', 'Group rides with a host code', 'Voice chat while riding'],
     },
     premium: {
       name: 'Premium',
-      priceLabel: '$4.99',
-      blurb: 'Wider net for group rides that spread out on the highway.',
+      blurb: 'A wider range for group rides that spread out on the highway.',
       radiusMiles: 6,
-      features: ['6 mi zone radius', 'Everything in Free', 'Priority support'],
+      features: ['6 mi Nearby range', 'Group rides with a host code', 'Voice chat while riding'],
     },
     premium_plus: {
       name: 'Premium+',
-      priceLabel: '$9.99',
-      blurb: 'Widest range — for a convoy that has stretched way out.',
+      blurb: 'The widest range, for a convoy that has stretched way out.',
       radiusMiles: 20,
-      features: ['20 mi zone radius', 'Everything in Premium', 'Early access to new features'],
+      features: ['20 mi Nearby range', 'Group rides with a host code', 'Voice chat while riding'],
     },
   };
   function planTier(value) {

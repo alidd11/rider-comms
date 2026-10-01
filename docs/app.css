@@ -2656,3 +2656,15 @@ body:has(.friend-more-card) .sheet-body{gap:9px}
   background:color-mix(in srgb,var(--danger) 12%,var(--surface-raised));
   color:var(--danger);
 }
+
+/* Signup agreement and the one-time Terms gate for existing accounts. */
+.auth-agree{display:flex;align-items:flex-start;gap:10px;margin:10px 0 2px;color:var(--text-secondary);font-size:.72rem;line-height:1.45;text-align:left}
+.auth-agree input{flex:none;width:20px;height:20px;margin:1px 0 0;accent-color:var(--accent)}
+.auth-agree a,.terms-gate a{color:var(--accent-ink,var(--accent));font-weight:700}
+.terms-gate{position:fixed;z-index:120;inset:0;display:grid;place-items:center;padding:max(24px,var(--safe-top)) 20px max(24px,var(--safe-bottom));background:var(--bg)}
+.terms-gate-card{width:min(100%,420px);display:grid;gap:14px}
+.terms-gate-card h1{margin:0;font-size:1.5rem}
+.terms-gate-card p{margin:0;color:var(--text-secondary);line-height:1.5}
+.terms-gate-links{display:flex;flex-wrap:wrap;gap:8px 16px}
+.settings-legal-links{display:flex;flex-wrap:wrap;gap:10px 18px}
+.settings-legal-links a{color:var(--accent-ink,var(--accent));font-weight:700}

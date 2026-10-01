@@ -1,6 +1,6 @@
 // Unverified scaffold — see navigation/index.tsx header note.
 import * as React from 'react';
-import { View, Text, Pressable, TextInput, ScrollView, Modal, Switch, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, Pressable, TextInput, ScrollView, Modal, Switch, Alert, ActivityIndicator, Linking } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -8,6 +8,8 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Constants from 'expo-constants';
 import type { SocialVisibility } from '@rider-comms/shared';
 import { colors, spacing } from '../theme';
+import { BlockedRidersList } from './BlockedRidersList';
+import { LEGAL_LINKS } from '../legalLinks';
 import { styles } from './SettingsScreen.styles';
 import { useSettings } from '../settings/SettingsContext';
 import type { UnitSystem } from '../settings/SettingsContext';
@@ -237,13 +239,12 @@ function AvatarPickerModal({
 }
 
 
-type SettingsSheetKey = 'accountHub' | 'communication' | 'mapNavigation' | 'offlineMaps' | 'unitsPreferences' | 'help' | 'about' | 'profile' | 'sessions' | 'account' | 'map' | 'navigation' | 'units' | 'notifications' | 'privacy' | 'safety';
+type SettingsSheetKey = 'accountHub' | 'communication' | 'mapNavigation' | 'unitsPreferences' | 'help' | 'about' | 'profile' | 'sessions' | 'account' | 'map' | 'navigation' | 'units' | 'privacy' | 'blocked' | 'safety';
 
 const SETTINGS_SHEET_TITLES: Record<SettingsSheetKey, string> = {
   accountHub: 'Account',
   communication: 'Communication',
   mapNavigation: 'Map & Navigation',
-  offlineMaps: 'Offline Maps',
   unitsPreferences: 'Units & Preferences',
   help: 'Help & Support',
   about: 'About',
@@ -253,8 +254,8 @@ const SETTINGS_SHEET_TITLES: Record<SettingsSheetKey, string> = {
   map: 'Location and map',
   navigation: 'Navigation',
   units: 'Distance units',
-  notifications: 'Notifications',
   privacy: 'Privacy controls',
+  blocked: 'Blocked riders',
   safety: 'Safety',
 };
 
@@ -319,12 +320,6 @@ export function SettingsScreen(): React.JSX.Element {
     setHandle,
     unitSystem,
     setUnitSystem,
-    notifyNearby,
-    setNotifyNearby,
-    notifyInvites,
-    setNotifyInvites,
-    notifyChat,
-    setNotifyChat,
     shareLocation,
     setShareLocation,
     navigationProvider,
@@ -532,7 +527,6 @@ export function SettingsScreen(): React.JSX.Element {
           <SettingsRow icon="person-outline" title="Account" onPress={() => setActiveSheet('accountHub')} />
           <SettingsRow icon="chatbubble-ellipses-outline" title="Communication" onPress={() => setActiveSheet('communication')} />
           <SettingsRow icon="map-outline" title="Map & Navigation" onPress={() => setActiveSheet('mapNavigation')} />
-          <SettingsRow icon="cloud-download-outline" title="Offline Maps" subtitle="Online only · downloads unavailable" onPress={() => setActiveSheet('offlineMaps')} />
           <SettingsRow icon="apps-outline" title="Units & Preferences" last onPress={() => setActiveSheet('unitsPreferences')} />
         </View>
 
@@ -552,8 +546,8 @@ export function SettingsScreen(): React.JSX.Element {
             <SettingsRow icon="person-outline" title="Profile" subtitle="Name, handle and connected profiles" onPress={() => setActiveSheet('profile')} />
             <SettingsRow
               icon="card-outline"
-              title="Plan and billing"
-              subtitle={PLAN_INFO[zoneTier].name + ' plan · ' + (PLAN_INFO[zoneTier].priceLabel === 'Free' ? 'No card on file' : PLAN_INFO[zoneTier].priceLabel + '/mo')}
+              title="Your plan"
+              subtitle={`${PLAN_INFO[zoneTier].name} plan · ${PLAN_INFO[zoneTier].features[0]}`}
               right={PLAN_INFO[zoneTier].name}
               onPress={() => { setActiveSheet(null); navigation.navigate('Billing'); }}
             />
@@ -564,8 +558,8 @@ export function SettingsScreen(): React.JSX.Element {
 
         {activeSheet === 'communication' ? (
           <View style={styles.settingsSheetSection}>
-            <SettingsRow icon="notifications-outline" title="Notifications" subtitle="Nearby riders, ride invites and group chat" onPress={() => setActiveSheet('notifications')} />
-            <SettingsRow icon="shield-checkmark-outline" title="Privacy controls" subtitle="Location visibility and connected profiles" last onPress={() => setActiveSheet('privacy')} />
+            <SettingsRow icon="shield-checkmark-outline" title="Privacy controls" subtitle="Location visibility and connected profiles" onPress={() => setActiveSheet('privacy')} />
+            <SettingsRow icon="hand-left-outline" title="Blocked riders" subtitle="Review or undo blocks" last onPress={() => setActiveSheet('blocked')} />
           </View>
         ) : null}
 
@@ -573,13 +567,6 @@ export function SettingsScreen(): React.JSX.Element {
           <View style={styles.settingsSheetSection}>
             <SettingsRow icon="location-outline" title="Location and map" subtitle="Location sharing and nearby riders" onPress={() => setActiveSheet('map')} />
             <SettingsRow icon="navigate-outline" title="Navigation" subtitle={navigationLabel} last onPress={() => setActiveSheet('navigation')} />
-          </View>
-        ) : null}
-
-        {activeSheet === 'offlineMaps' ? (
-          <View style={styles.sheetNote}>
-            <Text style={styles.sheetNoteTitle}>Online maps only</Text>
-            <Text style={styles.sheetNoteCopy}>Offline map downloads are not available in this build yet. Rider Comms currently needs a data connection for map tiles and route calculation.</Text>
           </View>
         ) : null}
 
@@ -592,7 +579,8 @@ export function SettingsScreen(): React.JSX.Element {
         {activeSheet === 'help' ? (
           <View style={styles.settingsSheetSection}>
             <SettingsRow icon="information-circle-outline" title="Safety guidance" subtitle="Low-distraction and emergency guidance" onPress={() => setActiveSheet('safety')} />
-            <SettingsRow icon="document-text-outline" title="Privacy, safety & terms" subtitle="Read Rider Comms legal and safety information" last onPress={() => { setActiveSheet(null); navigation.navigate('Legal'); }} />
+            <SettingsRow icon="document-text-outline" title="Privacy, safety & terms" subtitle="Read Rider Comms legal and safety information" onPress={() => { setActiveSheet(null); navigation.navigate('Legal'); }} />
+            <SettingsRow icon="help-buoy-outline" title="Contact support" subtitle="Help, account deletion and how to reach us" last onPress={() => { void Linking.openURL(LEGAL_LINKS.support).catch(() => undefined); }} />
           </View>
         ) : null}
 
@@ -601,7 +589,7 @@ export function SettingsScreen(): React.JSX.Element {
             <View style={styles.aboutSummary}>
               <Text style={styles.aboutTitle}>Rider Comms</Text>
               <Text style={styles.aboutSummaryValue}>Version {appVersion} · Native</Text>
-              <Text style={styles.aboutSummaryValue}>Signed in as {riderId}</Text>
+              <Text style={styles.aboutSummaryValue}>Signed in as {displayName} ({handle})</Text>
             </View>
           </View>
         ) : null}
@@ -713,11 +701,9 @@ export function SettingsScreen(): React.JSX.Element {
           </View>
         ) : null}
 
-        {activeSheet === 'notifications' ? (
+        {activeSheet === 'blocked' ? (
           <View style={styles.settingsSheetSection}>
-            <ToggleRow icon="people-outline" label="Nearby riders" value={notifyNearby} onValueChange={setNotifyNearby} />
-            <ToggleRow icon="mail-open-outline" label="Ride invites" value={notifyInvites} onValueChange={setNotifyInvites} />
-            <ToggleRow icon="chatbubble-ellipses-outline" label="Group chat messages" value={notifyChat} onValueChange={setNotifyChat} />
+            <BlockedRidersList client={client} />
           </View>
         ) : null}
 

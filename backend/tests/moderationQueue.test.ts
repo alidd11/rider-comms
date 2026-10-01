@@ -42,12 +42,12 @@ describe('moderation queue API', { skip: !hasDatabase && 'DATABASE_URL not set; 
     await getPool().query('TRUNCATE safety_reports, moderation_actions');
     await getPool().query(`DELETE FROM users WHERE id = ANY($1::text[]) OR username LIKE 'modq_%'`, [SEEDED]);
     await getPool().query(
-      `INSERT INTO users (id, username, password_hash, email_verified_at, is_admin) VALUES
-         ($1, 'tst_mod_admin', 'test-only', now(), true),
-         ($2, 'tst_mod_admin2', 'test-only', now(), true),
-         ($3, 'tst_mod_member', 'test-only', now(), false),
-         ($4, 'tst_mod_reported', 'test-only', now(), false),
-         ($5, 'tst_mod_bystander', 'test-only', now(), false)`,
+      `INSERT INTO users (id, username, password_hash, email_verified_at, is_admin, terms_version) VALUES
+         ($1, 'tst_mod_admin', 'test-only', now(), true, '2026-10-01'),
+         ($2, 'tst_mod_admin2', 'test-only', now(), true, '2026-10-01'),
+         ($3, 'tst_mod_member', 'test-only', now(), false, '2026-10-01'),
+         ($4, 'tst_mod_reported', 'test-only', now(), false, '2026-10-01'),
+         ($5, 'tst_mod_bystander', 'test-only', now(), false, '2026-10-01')`,
       SEEDED,
     );
   });
@@ -116,7 +116,7 @@ describe('moderation queue API', { skip: !hasDatabase && 'DATABASE_URL not set; 
     const signup = await fetch(`${ctx.baseUrl()}/auth/signup`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, email: `${username}@example.com`, password: 'correct-horse-battery', deviceName: 'mod-test' }),
+      body: JSON.stringify({ username, email: `${username}@example.com`, password: 'correct-horse-battery', deviceName: 'mod-test', acceptTerms: true }),
     });
     assert.equal(signup.status, 201);
     const { riderId: target, token } = await signup.json() as { riderId: string; token: string };

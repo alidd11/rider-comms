@@ -25,14 +25,14 @@
     "@react-navigation/native-stack": "^7.19.2",
     "@rider-comms/shared": "*",
     "@supersami/rn-foreground-service": "2.2.5",
-    "expo": "^57.0.0",
+    "expo": "~57.0.26",
     "expo-clipboard": "~57.0.2",
     "expo-constants": "~57.0.18",
-    "expo-location": "~57.0.17",
-    "expo-navigation-bar": "~57.0.2",
-    "expo-notifications": "~57.0.19",
+    "expo-location": "~57.0.20",
+    "expo-navigation-bar": "~57.0.3",
     "expo-secure-store": "~57.0.4",
     "expo-speech": "~57.0.3",
+    "expo-splash-screen": "~57.0.9",
     "expo-status-bar": "~57.0.1",
     "livekit-client": "^2.22.0",
     "react": "19.2.3",
@@ -52,5 +52,15 @@
     "test-renderer": "^1.3.0",
     "typescript": "~6.0.3"
   },
-  "_NOTE": "Expo Go is suitable for UI/map testing only. LiveKit voice requires a native development/preview build because its WebRTC modules are not available in Expo Go. Standalone Android map tiles still require a restricted Maps SDK key and a rebuilt binary."
+  "_NOTE": "Expo Go is suitable for UI/map testing only. LiveKit voice requires a native development/preview build because its WebRTC modules are not available in Expo Go. Standalone Android map tiles still require a restricted Maps SDK key and a rebuilt binary.",
+  "expo": {
+    "doctor": {
+      "reactNativeDirectoryCheck": {
+        "exclude": [
+          "@supersami/rn-foreground-service",
+          "@livekit/react-native-expo-plugin"
+        ]
+      }
+    }
+  }
 }
