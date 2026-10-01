@@ -87,6 +87,8 @@ function toModerationAction(row: ModerationActionRow): ModerationAction {
 
 /** Blocks and safety reports, persisted in Postgres (see db.ts) and routed
  * to a staffed moderation workflow before user content launches. */
+export interface BlockedRiderSummary { riderId: string; displayName: string; handle: string; blockedAt: number }
+
 export class ModerationStore {
   private async lockPair(client: PoolClient, a: string, b: string): Promise<void> {
     await client.query(
@@ -188,6 +190,25 @@ export class ModerationStore {
       [riderId]
     );
     return rows.map((row) => row.blocked_rider_id);
+  }
+
+  /** The rider's own block list with names, for the "Blocked riders" screen. */
+  async getBlockedSummaries(riderId: string): Promise<BlockedRiderSummary[]> {
+    await ensureMigrated();
+    const { rows } = await getPool().query<{ rider_id: string; display_name: string | null; handle: string | null; blocked_at: string | number }>(
+      `SELECT b.blocked_rider_id AS rider_id, p.display_name, p.handle, b.created_at AS blocked_at
+       FROM rider_blocks b
+       LEFT JOIN rider_profiles p ON p.rider_id = b.blocked_rider_id
+       WHERE b.rider_id = $1
+       ORDER BY b.created_at DESC`,
+      [riderId]
+    );
+    return rows.map((row) => ({
+      riderId: row.rider_id,
+      displayName: row.display_name ?? 'Rider',
+      handle: row.handle ?? '',
+      blockedAt: Number(row.blocked_at),
+    }));
   }
 
   async isBlockedBetween(a: string, b: string): Promise<boolean> {

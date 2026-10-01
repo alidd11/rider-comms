@@ -56,7 +56,7 @@ function LocationPrimingStep({ onContinue }: { onContinue: () => Promise<void> }
           ride.
         </Text>
       </View>
-      <PrimaryButton label="Enable location" onPress={() => { void onContinue(); }} />
+      <PrimaryButton label="Continue" onPress={() => { void onContinue(); }} />
     </View>
   );
 }

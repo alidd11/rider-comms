@@ -1,4 +1,5 @@
-import { bearerToken, consumeRateLimit, rateLimitSubject, sendEmpty, sendJson } from '../serverHttp.ts';
+import { bearerToken, consumeRateLimit, rateLimitSubject, readJsonBody, sendEmpty, sendJson } from '../serverHttp.ts';
+import { TERMS_VERSION } from '../authStore.ts';
 import { NOT_HANDLED } from './context.ts';
 import type { RouteContext } from './context.ts';
 
@@ -6,7 +7,18 @@ export async function handleAccountRoutes(ctx: RouteContext): Promise<unknown> {
   const { req, res, url, actorId, authStore, accountDeletionStore, rateLimitStore } = ctx;
   if (req.method === 'GET' && url.pathname === '/auth/me') {
     const identity = await authStore.getIdentity(actorId);
-    return sendJson(res, 200, { riderId: actorId, username: identity?.username ?? null, emailVerified: identity?.emailVerified ?? false });
+    return sendJson(res, 200, {
+      riderId: actorId,
+      username: identity?.username ?? null,
+      emailVerified: identity?.emailVerified ?? false,
+      termsAccepted: identity?.termsAccepted ?? true,
+      termsVersion: TERMS_VERSION,
+    });
+  }
+  if (req.method === 'POST' && url.pathname === '/auth/accept-terms') {
+    const body = await readJsonBody(req);
+    const result = await authStore.acceptTerms(actorId, body.version);
+    return 'error' in result ? sendJson(res, 409, { error: result.error, termsVersion: TERMS_VERSION }) : sendJson(res, 200, result);
   }
   if (req.method === 'GET' && url.pathname === '/auth/sessions') {
     return sendJson(res, 200, { sessions: await authStore.listSessions(actorId, bearerToken(req)) });

@@ -135,11 +135,21 @@ async function requireVerifiedEmail(
   res: http.ServerResponse,
   authStore: AuthStore,
   actorId: string,
+  pathname: string,
 ): Promise<boolean> {
   const identity = await authStore.getIdentity(actorId);
-  if (!identity || identity.emailVerified) return true;
-  sendJson(res, 403, { error: 'email_verification_required' });
-  return false;
+  if (!identity) return true;
+  if (!identity.emailVerified) {
+    sendJson(res, 403, { error: 'email_verification_required' });
+    return false;
+  }
+  // Reporting stays open to everyone; everything else on this list posts
+  // content or joins voice, which needs agreement to the current Terms.
+  if (!identity.termsAccepted && pathname !== '/reports') {
+    sendJson(res, 403, { error: 'terms_acceptance_required' });
+    return false;
+  }
+  return true;
 }
 
 export function createApp(options: CreateAppOptions = {}): http.Server {
@@ -250,7 +260,7 @@ export function createApp(options: CreateAppOptions = {}): http.Server {
       await socialActivityStore.touch(actorId);
       if (!(await consumeRateLimit(res, rateLimitStore, rateLimitSubject('rider', actorId), 'api'))) return;
       if ((await handleAccountRoutes(ctx)) !== NOT_HANDLED) return;
-      if (requiresVerifiedEmail(req.method, url.pathname) && !(await requireVerifiedEmail(res, authStore, actorId))) return;
+      if (requiresVerifiedEmail(req.method, url.pathname) && !(await requireVerifiedEmail(res, authStore, actorId, url.pathname))) return;
       if ((await handleLiveRoutes(ctx)) !== NOT_HANDLED) return;
       if ((await handleSafetyRoutes(ctx)) !== NOT_HANDLED) return;
       if ((await handleProfileRoutes(ctx)) !== NOT_HANDLED) return;

@@ -12,4 +12,13 @@ const BACKEND_PORT = 4000;
  */
 const devServerHost = Constants.expoConfig?.hostUri?.split(':')[0];
 
-export const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? `http://${devServerHost ?? 'localhost'}:${BACKEND_PORT}`;
+const configuredApiUrl = process.env.EXPO_PUBLIC_API_URL;
+
+// A release build without EXPO_PUBLIC_API_URL would otherwise talk plain
+// HTTP to a host that doesn't exist on riders' phones. eas.json sets it for
+// every store profile; fail at startup rather than ship a broken build.
+if (!configuredApiUrl && typeof __DEV__ !== 'undefined' && !__DEV__) {
+  throw new Error('EXPO_PUBLIC_API_URL must be set for release builds');
+}
+
+export const API_BASE_URL = configuredApiUrl ?? `http://${devServerHost ?? 'localhost'}:${BACKEND_PORT}`;

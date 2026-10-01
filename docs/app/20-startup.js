@@ -65,6 +65,9 @@
       }
       const rememberedSession = localStorage.getItem(SESSION_KEY) !== null;
       saveSession({ ...session, emailVerified: Boolean(identity.emailVerified) }, rememberedSession);
+      // Accounts created before the current Terms agree once before the app
+      // opens (App Store guideline 1.2 parity with the iPhone app).
+      if (identity.termsAccepted === false) await requireTermsAgreement(identity.termsVersion);
     } catch (error) {
       if (error instanceof ApiError && error.status === 0) {
         wireAuthForms();

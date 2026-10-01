@@ -5,7 +5,7 @@
 // once this app has a real map SDK behind it, which costs real money per
 // load. One persistent map, switched by a segment, keeps that to one.
 import * as React from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, ImageBackground, ScrollView, StatusBar, useWindowDimensions } from 'react-native';
+import { Alert, View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, ImageBackground, ScrollView, StatusBar, useWindowDimensions } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -15,6 +15,8 @@ import { ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { colors, spacing, radii, type, elevation } from '../theme';
 import { useRide } from './RideContext';
+import { useRideProfiles } from '../screens/useRideProfiles';
+import { openRiderSafetyMenu } from '../safety/riderSafetyActions';
 import { microphoneErrorMessage, preflightVoiceMicrophone } from '../audio/microphone';
 
 const RIDE_HERO_IMAGE = 'https://images.unsplash.com/photo-1770614956862-a143fb5e4921?auto=format&fit=crop&q=80&w=1200';
@@ -160,9 +162,60 @@ function JoinOrHostForm(): React.JSX.Element {
   );
 }
 
+/** Everyone in the ride by name, with report/block on each other rider and
+ * (for the host) a confirmed remove. */
+function RideRoster({ canRemove }: { canRemove: boolean }): React.JSX.Element {
+  const { roster, removeRider } = useRide();
+  const { client, riderId } = useAuth();
+  const profiles = useRideProfiles(client, riderId, roster);
+  const nameOf = (id: string) => id === riderId ? 'You' : profiles[id]?.displayName || 'Rider';
+
+  const confirmRemove = (id: string) => Alert.alert(`Remove ${nameOf(id)}?`, 'They leave the ride and its voice channel straight away.', [
+    { text: 'Cancel', style: 'cancel' },
+    { text: 'Remove', style: 'destructive', onPress: () => {
+      void removeRider(id).catch(() => Alert.alert('Couldn’t remove rider', 'Please try again when you have a connection.'));
+    } },
+  ]);
+
+  return (
+    <View style={[styles.rosterCard, elevation.raised]}>
+      {roster.length <= 1 ? (
+        <Text style={styles.emptyRoster}>No one else has joined yet. Share the code above.</Text>
+      ) : (
+        roster.map((id) => (
+          <View key={id} style={styles.rosterRow}>
+            <View style={styles.rosterAvatar}>
+              <MaterialCommunityIcons name="motorbike" size={16} color={colors.textPrimary} />
+            </View>
+            <View style={styles.rosterNameColumn}>
+              <Text style={styles.rosterName} numberOfLines={1}>{nameOf(id)}</Text>
+              {id !== riderId && profiles[id]?.handle ? <Text style={styles.rosterHandle} numberOfLines={1}>{profiles[id].handle}</Text> : null}
+            </View>
+            {id !== riderId && (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Report or block ${nameOf(id)}`}
+                onPress={() => openRiderSafetyMenu(client, { riderId: id, name: nameOf(id), source: 'the ride roster' })}
+                style={styles.removeButton}
+                hitSlop={8}
+              >
+                <Ionicons name="ellipsis-horizontal-circle-outline" size={22} color={colors.textSecondary} />
+              </Pressable>
+            )}
+            {canRemove && id !== riderId && (
+              <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${nameOf(id)} from ride`} onPress={() => confirmRemove(id)} style={styles.removeButton} hitSlop={8}>
+                <Ionicons name="close-circle" size={22} color={colors.danger} />
+              </Pressable>
+            )}
+          </View>
+        ))
+      )}
+    </View>
+  );
+}
+
 function HostRoster(): React.JSX.Element {
-  const { activeRide, roster, removeRider } = useRide();
-  const { riderId } = useAuth();
+  const { activeRide, roster } = useRide();
 
   return (
     <View style={styles.form}>
@@ -173,29 +226,13 @@ function HostRoster(): React.JSX.Element {
       </View>
 
       <Text style={styles.sectionLabel}>Riders ({roster.length})</Text>
-      <View style={[styles.rosterCard, elevation.raised]}>
-        {roster.length === 0 ? (
-          <Text style={styles.emptyRoster}>No one has joined yet — share the code above.</Text>
-        ) : (
-          roster.map((id) => (
-            <View key={id} style={styles.rosterRow}>
-              <View style={styles.rosterAvatar}>
-                <MaterialCommunityIcons name="motorbike" size={16} color={colors.textPrimary} />
-              </View>
-              <Text style={styles.rosterName}>{id}</Text>
-              {id !== riderId && <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${id} from ride`} onPress={() => void removeRider(id)} style={styles.removeButton} hitSlop={8}>
-                <Ionicons name="close-circle" size={22} color={colors.danger} />
-              </Pressable>}
-            </View>
-          ))
-        )}
-      </View>
+      <RideRoster canRemove />
     </View>
   );
 }
 
 function MemberCard(): React.JSX.Element {
-  const { activeRide } = useRide();
+  const { roster } = useRide();
   return (
     <View style={styles.form}>
       <Text style={styles.rootTitle}>Ride</Text>
@@ -203,7 +240,9 @@ function MemberCard(): React.JSX.Element {
         <MaterialCommunityIcons name="motorbike" size={32} color={colors.accent} />
       </View>
       <Text style={styles.title}>You're in this ride</Text>
-      <Text style={styles.body}>Ride ID: {activeRide?.rideId} — only the host can add or remove riders.</Text>
+      <Text style={styles.body}>Only the host can add or remove riders.</Text>
+      <Text style={styles.sectionLabel}>Riders ({roster.length})</Text>
+      <RideRoster canRemove={false} />
     </View>
   );
 }
@@ -274,6 +313,8 @@ const styles = StyleSheet.create({
   emptyRoster: { ...type.caption, padding: spacing.md, textAlign: 'center' },
   rosterRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border },
   rosterAvatar: { width: 32, height: 32, borderRadius: radii.pill, backgroundColor: colors.surfaceRaised, alignItems: 'center', justifyContent: 'center' },
-  rosterName: { ...type.body, color: colors.textPrimary, flex: 1 },
+  rosterNameColumn: { flex: 1, minWidth: 0 },
+  rosterName: { ...type.body, color: colors.textPrimary },
+  rosterHandle: { ...type.caption, color: colors.textMuted },
   removeButton: { padding: spacing.xs },
 });

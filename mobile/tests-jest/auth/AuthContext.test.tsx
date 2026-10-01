@@ -1,6 +1,7 @@
 import * as React from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { act, renderHook, waitFor } from '@testing-library/react-native';
+import { Text } from 'react-native';
+import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react-native';
 import { AuthProvider, useAuth } from '../../src/auth/AuthContext';
 
 const SAFE_AREA_METRICS = {
@@ -23,6 +24,7 @@ jest.mock('expo-secure-store', () => ({
 
 interface MockClient {
   getMe: jest.Mock;
+  acceptTerms?: jest.Mock;
   logOut: jest.Mock;
   deleteAccount: jest.Mock;
 }
@@ -176,4 +178,22 @@ test('deleteAccount leaves the local session intact when the server call fails',
 
   expect(mockDeleteItemAsync).not.toHaveBeenCalledWith(KEY);
   expect(result.current.riderId).toBe('me');
+});
+
+test('asks an existing account to agree to the current Terms before showing the app', async () => {
+  mockGetItemAsync.mockImplementation(async (key: string) => (key === KEY ? cachedSession({ emailVerified: true }) : null));
+  mockClientImpl.getMe.mockResolvedValue({ riderId: 'me', username: 'me', emailVerified: true, termsAccepted: false, termsVersion: '2026-10-01' });
+  mockClientImpl.acceptTerms = jest.fn(async () => ({ accepted: true }));
+  await render(
+    <SafeAreaProvider initialMetrics={SAFE_AREA_METRICS}>
+      <AuthProvider><Text>Signed in content</Text></AuthProvider>
+    </SafeAreaProvider>,
+  );
+  await flushSplashDelay();
+
+  expect(await screen.findByText('Updated terms')).toBeTruthy();
+  expect(screen.queryByText('Signed in content')).toBeNull();
+  await fireEvent.press(screen.getByText('I agree'));
+  expect(mockClientImpl.acceptTerms).toHaveBeenCalledWith('2026-10-01');
+  expect(await screen.findByText('Signed in content')).toBeTruthy();
 });

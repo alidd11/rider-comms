@@ -125,10 +125,24 @@
           <label>Latitude<input id="hideoutLat" inputmode="decimal" autocomplete="off" placeholder="51.5074"></label>
           <label>Longitude<input id="hideoutLon" inputmode="decimal" autocomplete="off" placeholder="-0.1278"></label>
         </div>
-        <p class="caption">Save a meeting point shared with ${escapeHtml(friend.displayName)}. Enter coordinates directly.</p>
+        <button id="hideoutUseLocation" class="button secondary wide" type="button">Use my current location</button>
+        <p class="caption">Save a meeting point shared with ${escapeHtml(friend.displayName)}. Use your location, or paste coordinates from a map.</p>
         <p id="planHideoutError" class="inline-error" role="alert" hidden></p>
         <button id="saveHideoutBtn" class="button primary wide" type="submit">Save hideout</button>
       </form>`, () => {
+      $('#hideoutUseLocation').addEventListener('click', async () => {
+        const button = $('#hideoutUseLocation');
+        button.disabled = true;
+        try {
+          const position = await currentPosition();
+          $('#hideoutLat').value = position.coords.latitude.toFixed(5);
+          $('#hideoutLon').value = position.coords.longitude.toFixed(5);
+        } catch (error) {
+          showToast(locationAccessMessage(error, 'use your location for a hideout'));
+        } finally {
+          button.disabled = false;
+        }
+      });
       $('#planHideoutForm').addEventListener('submit', async (event) => {
         event.preventDefault();
         const name = $('#hideoutName').value.trim();

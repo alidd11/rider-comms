@@ -2,6 +2,7 @@ import { InvalidMessageCursorError } from '../messageStore.ts';
 import { consumeRateLimit, consumeSocialWrite, isCoordinate, rateLimitSubject, readJsonBody, sendJson } from '../serverHttp.ts';
 import { InvalidSocialEventCursorError, MAX_SOCIAL_EVENT_WAIT_MS } from '../socialEventStore.ts';
 import { NOT_HANDLED } from './context.ts';
+import { containsSevereText } from '../contentFilter.ts';
 import type { RouteContext } from './context.ts';
 
 /** Hideout invite list size: a private ride group's maximum. */
@@ -84,6 +85,7 @@ export async function handleSocialRoutes(ctx: RouteContext): Promise<unknown> {
   if (req.method === 'POST' && url.pathname === '/messages') {
     const body = await readJsonBody(req); if (typeof body.toRiderId !== 'string' || typeof body.text !== 'string') return sendJson(res, 400, { error: 'toRiderId and text are required' }); const text = body.text.trim();
     if (!text || text.length > 1000) return sendJson(res, 400, { error: !text ? 'text must not be empty' : 'text must be at most 1000 characters' });
+    if (containsSevereText(text)) return sendJson(res, 400, { error: 'objectionable_content' });
     if (await moderationStore.isBlockedBetween(actorId, body.toRiderId)) return sendJson(res, 403, { error: 'blocked' });
     if (!(await friendStore.isFriendOf(actorId, body.toRiderId))) return sendJson(res, 403, { error: 'not_friends' });
     if (!(await consumeSocialWrite(res, socialRateLimitStore, actorId, 'direct_message'))) return;
@@ -107,6 +109,7 @@ export async function handleSocialRoutes(ctx: RouteContext): Promise<unknown> {
     // Each participant costs a friendship lookup, so the list is capped at a
     // ride group's size rather than whatever fits in the request body.
     const body = await readJsonBody(req), ids = body.participantIds; if (typeof body.name !== 'string' || !body.name.trim() || body.name.trim().length > 100 || !isCoordinate(body.lat, body.lon) || !Array.isArray(ids) || ids.length === 0 || ids.length > MAX_HIDEOUT_PARTICIPANTS || !ids.every((id) => typeof id === 'string')) return sendJson(res, 400, { error: `valid name, lat, lon, and 1 to ${MAX_HIDEOUT_PARTICIPANTS} participantIds are required` });
+    if (containsSevereText(body.name)) return sendJson(res, 400, { error: 'objectionable_content' });
     if (!(await consumeRateLimit(res, rateLimitStore, rateLimitSubject('rider', actorId), 'hideout_create'))) return;
     const participants = [...new Set(ids as string[])].filter((id) => id !== actorId);
     for (const id of participants) { if (!(await friendStore.isFriendOf(actorId, id))) return sendJson(res, 403, { error: 'participants_must_be_friends' }); }

@@ -11,7 +11,9 @@
 
 These terms are an agreement between you and [Company legal name] for your
 use of Rider Comms (the app and web app). By creating an account you agree to
-them and to our [Privacy Policy](PRIVACY_POLICY_DRAFT.md).
+them, to our [Community Guidelines](COMMUNITY_GUIDELINES.md) and to our
+[Privacy Policy](PRIVACY_POLICY_DRAFT.md). There is no tolerance for objectionable content or abusive
+behaviour.
 
 ## 1. Riding safety comes first
 
@@ -56,7 +58,7 @@ You must not use Rider Comms to:
 
 ## 4. Reporting, moderation and suspension
 
-You can report and block other riders. We review reports and may remove
+You can report and block other riders. We review reports within 24 hours and may remove
 content, restrict features, or suspend or terminate accounts that break these
 terms or put others at risk, with or without notice where safety requires. You
 can appeal a decision by contacting [support email]; someone other than the
@@ -72,16 +74,15 @@ riders and expire automatically.
 ## 6. Third-party services
 
 Maps, place search and navigation use Google Maps Platform, and voice uses
-LiveKit. Your use of those features is also subject to [Google's terms, e.g.
-the Google Maps/Google Earth Additional Terms of Service] and our providers'
+LiveKit. Your use of those features is also subject to the
+[Google Maps/Google Earth Additional Terms of Service](https://maps.google.com/help/terms_maps/) and our providers'
 policies. Handing off to Google Maps, Waze or Apple Maps opens those apps
 under their own terms.
 
 ## 7. Paid plans
 
-[Not yet available. Before paid plans launch, add: prices, billing through
-the App Store / Google Play, auto-renewal, cancellation, refunds per store
-policy, and what each tier includes.]
+Rider Comms is currently free. If we introduce paid plans, they'll be sold
+through the App Store, and we'll update these terms before they launch.
 
 ## 8. Availability and changes
 

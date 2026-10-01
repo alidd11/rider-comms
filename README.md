@@ -4,7 +4,7 @@ Pre-alpha Expo/React Native and installable PWA for proximity-based rider commun
 
 ## Project snapshot
 
-- **Lifecycle:** pre-alpha / internal testing; not production-ready.
+- **Lifecycle:** release candidate. The code is ready for App Store submission; what remains is account, legal and device-testing work listed in `APP_REVIEW.md`.
 - **Snapshot main:** `df02282de7249dd870a668cf543294f01134f576` (PR #286).
 - **Main checks:** CI, PWA deployment and GitHub Pages deployment are green on that exact SHA.
 - **PWA/native parity:** all capabilities currently tracked on `main` are parity except navigation, which remains a deliberate `behavior-gap` pending production-grade background/locked-screen and physical ride validation.

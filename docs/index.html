@@ -145,12 +145,6 @@
         </form>
 
         <div id="authLoginExtras" class="auth-login-extras">
-          <div class="auth-divider"><span>or continue with</span></div>
-          <div class="auth-social-row" aria-label="Social sign-in providers">
-            <button type="button" disabled aria-label="Apple sign-in is not connected yet" title="Not connected yet"><span class="auth-provider-mark apple">●</span></button>
-            <button type="button" disabled aria-label="Google sign-in is not connected yet" title="Not connected yet"><span class="auth-provider-mark google">G</span></button>
-            <button type="button" disabled aria-label="Discord sign-in is not connected yet" title="Not connected yet"><span class="auth-provider-mark discord">◉</span></button>
-          </div>
           <button type="button" id="createAccountLink" class="auth-create-link" data-auth-mode="signup">Create account</button>
         </div>
 
@@ -171,6 +165,7 @@
             <div class="password-field"><input id="signupPassword" name="password" type="password" autocomplete="new-password" minlength="8" placeholder="Password" aria-describedby="signupRequirements" required><button type="button" class="password-toggle" data-password-toggle="signupPassword" aria-label="Show password" aria-pressed="false"><svg><use href="#i-eye"/></svg></button></div>
           </div>
           <p class="auth-requirements" id="signupRequirements">Username: 3–20 letters, numbers or underscores. Password: at least 8 characters.</p>
+          <label class="auth-agree"><input id="signupTerms" type="checkbox"><span>I agree to the <a href="terms.html" target="_blank" rel="noopener">Terms of Service</a> and <a href="guidelines.html" target="_blank" rel="noopener">Community Guidelines</a>. Abusive or objectionable content and behaviour aren’t tolerated. See the <a href="privacy.html" target="_blank" rel="noopener">Privacy Policy</a>.</span></label>
           <p id="signupError" class="auth-error" role="alert" aria-live="polite" hidden></p>
           <button class="button primary wide auth-submit" type="submit" id="signupSubmit"><span>Create account</span></button>
           <button type="button" class="auth-create-link auth-back-login">Back to log in</button>
@@ -236,7 +231,7 @@
         <div id="mapCanvas" class="map-canvas" role="application" aria-label="Rider map">
           <div id="googleMap" class="google-map" aria-hidden="true"></div>
           <div class="fallback-map" id="fallbackMap"><div class="road road-a"></div><div class="road road-b"></div><div class="road road-c"></div></div>
-          <h1 id="mapTitle" class="sr-only">North London rider map</h1>
+          <h1 id="mapTitle" class="sr-only">Rider map</h1>
           <header class="map-header"><div class="search-slot glass" id="mapSearchSlot"><svg><use href="#i-search"/></svg><input id="placeSearchInput" placeholder="Search for a place" aria-label="Search for a place" autocomplete="off" readonly><svg class="map-search-options" aria-hidden="true"><use href="#i-sliders"/></svg></div><div class="map-avatar-wrap"><button class="avatar avatar-sm" id="mapAvatarButton" data-avatar="AI" aria-label="Open profile">AI</button><button id="voiceStatusBtn" class="voice-mute-badge" aria-label="Listening — hands-free" hidden><svg><use href="#i-mic"/></svg></button></div></header>
           <div id="fallbackMarkers" class="fallback-markers"></div>
           <div id="hazardMarkers" class="hazard-markers"></div>
@@ -332,7 +327,6 @@
             <button data-sheet="accountHub"><span class="setting-icon"><svg><use href="#i-user"/></svg></span><span><strong>Account</strong></span><svg><use href="#i-chevron"/></svg></button>
             <button data-sheet="communication"><span class="setting-icon"><svg><use href="#i-message"/></svg></span><span><strong>Communication</strong></span><svg><use href="#i-chevron"/></svg></button>
             <button data-sheet="mapNavigation"><span class="setting-icon"><svg><use href="#i-map"/></svg></span><span><strong>Map &amp; Navigation</strong></span><svg><use href="#i-chevron"/></svg></button>
-            <button data-sheet="offlineMaps"><span class="setting-icon"><svg><use href="#i-cloud-download"/></svg></span><span><strong>Offline Maps</strong><small>Online only · downloads unavailable</small></span><svg><use href="#i-chevron"/></svg></button>
             <button data-sheet="unitsPreferences"><span class="setting-icon"><svg><use href="#i-apps"/></svg></span><span><strong>Units &amp; Preferences</strong></span><svg><use href="#i-chevron"/></svg></button>
           </div>
           <div class="settings-group settings-secondary-group">

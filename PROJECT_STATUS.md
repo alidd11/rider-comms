@@ -4,7 +4,7 @@
 
 ## Executive status
 
-- **Lifecycle:** pre-alpha / internal testing. The repository is suitable for continued development and controlled testing, not public production use.
+- **Lifecycle:** release candidate. The code is ready for App Store submission; the remaining steps need the owner (Apple account, legal review, moderation staffing, device testing). See `APP_REVIEW.md`.
 - **Snapshot main:** `0c20df0` — merge of PR #370, **Move CI to Node 24 action releases and rate-limit presence updates**.
 - **Main verification:** CI (`verify`) passed on the PR heads merged into that SHA; re-check live checks on `main` before relying on it.
 - **Client parity:** `client-parity.json` currently records PWA/native parity for every tracked capability except **navigation**, which remains a `behavior-gap` pending production-grade background/locked-screen and physical ride validation.
@@ -78,17 +78,15 @@ None besides the PR that updates this file, so there is no active file ownership
 
 ## Current release blockers
 
-The project remains pre-alpha mainly because implementation breadth is now ahead of production validation/operations. The principal blockers are:
+The code-side App Store requirements are done (see `APP_REVIEW.md`). What remains needs the owner:
 
-- production navigation validation: routing and native place search now go through authenticated backend proxies (`/directions`, `/places/*`), so no Google web-service key ships in the app, but the Places key must be configured and quota-monitored on the backend;
-- physical motorcycle testing for navigation, missed-turn rerouting, degraded GPS, background/locked-screen execution, LiveKit voice and common Bluetooth helmet/intercom systems;
-- App Store / Google Play billing and receipt validation;
-- operating the new retention, backup, alerting and moderation tooling in production: scheduling backups with a real encryption key, staffing the moderation queue, and rehearsing recovery;
-- legal review of the drafts in `legal/`, then final privacy/terms/support/store declarations and account-deletion operational metadata;
-- production Universal Link/App Link domain association using final Apple/Android signing identity;
-- physical-device accessibility validation, including screen readers, text scaling, contrast and riding-safe non-audio cues;
-- load/failure testing and documented degraded-mode behavior for dense rider events and third-party outages;
-- continued dependency/security triage before release.
+- legal: fill in `legal/site-details.json` and have a lawyer complete the bracketed sections of the published Privacy Policy and Terms;
+- operations: a monitored support address, a staffed moderation queue (the app promises review within 24 hours), and scheduled encrypted backups with a real key;
+- Apple: Developer Program membership, signing, TestFlight, the App Store Connect answers in `APP_REVIEW.md`, and a demo account for review;
+- physical testing on a motorcycle: navigation, rerouting, degraded GPS, locked-screen voice and common Bluetooth helmet intercoms, plus the screen-reader and text-size checks in `ACCESSIBILITY.md`;
+- later, not blocking a free launch: push notifications (needs APNs credentials), in-app purchase for wider Nearby ranges, offline maps, and Android.
+
+Load and outage behaviour is documented in `LOAD_TESTING.md` and `OUTAGES.md`.
 
 See `AUDIT.md` for the engineering risk register and `COMPLIANCE.md` for store/production readiness requirements. `AUDIT.md` is dated 18 September 2026, with addenda from 28 September and from the 29 September full code review, so current code and live CI take precedence where the repository has moved on.
 

@@ -152,6 +152,11 @@ test('creates an account, seeds the profile name and asks the rider to verify th
 
   await fireEvent.changeText(screen.getByLabelText('Email address'), 'new@example.com');
   await press('Create account');
+  expect(screen.getByRole('alert')).toHaveTextContent('Agree to the Terms of Service and Community Guidelines to create an account.');
+  expect(mockClientImpl.signUp).not.toHaveBeenCalled();
+
+  await fireEvent.press(screen.getByLabelText('I agree to the Terms of Service and Community Guidelines'));
+  await press('Create account');
 
   expect(mockClientImpl.signUp).toHaveBeenCalledWith('new_rider', 'new@example.com', 'correct-horse');
   expect(mockClientImpl.updateProfile).toHaveBeenCalledWith('rider_new', { displayName: 'new_rider', handle: '@new_rider' });
@@ -167,6 +172,7 @@ test('still signs the rider in when the optional first profile write fails', asy
   await fireEvent.changeText(screen.getByLabelText('Username'), 'new_rider');
   await fireEvent.changeText(screen.getByLabelText('Email address'), 'new@example.com');
   await fireEvent.changeText(screen.getByLabelText('Password'), 'correct-horse');
+  await fireEvent.press(screen.getByLabelText('I agree to the Terms of Service and Community Guidelines'));
   await press('Create account');
 
   await screen.findByText('Signed in content');
@@ -180,6 +186,7 @@ test('explains a signup conflict', async () => {
   await fireEvent.changeText(screen.getByLabelText('Username'), 'taken_name');
   await fireEvent.changeText(screen.getByLabelText('Email address'), 'new@example.com');
   await fireEvent.changeText(screen.getByLabelText('Password'), 'correct-horse');
+  await fireEvent.press(screen.getByLabelText('I agree to the Terms of Service and Community Guidelines'));
   await press('Create account');
 
   expect(await screen.findByRole('alert')).toHaveTextContent('That username is already taken.');

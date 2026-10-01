@@ -80,7 +80,6 @@ const SETTINGS_ROOT_LABELS = [
   'Account',
   'Communication',
   'Map & Navigation',
-  'Offline Maps',
   'Units & Preferences',
   'Help & Support',
   'About',
@@ -95,7 +94,7 @@ for (const label of SETTINGS_ROOT_LABELS) {
     throw new Error(`Native Settings root is missing approved category: ${label}`);
   }
 }
-for (const token of ['accountHub', 'communication', 'mapNavigation', 'offlineMaps', 'unitsPreferences', 'help', 'about']) {
+for (const token of ['accountHub', 'communication', 'mapNavigation', 'unitsPreferences', 'help', 'about']) {
   if (!pwaIndexSource.includes(`data-sheet="${token}"`) || !nativeSettingsSource.includes(`activeSheet === '${token}'`)) {
     throw new Error(`Settings hierarchy drifted for ${token}`);
   }
@@ -109,17 +108,16 @@ if (!/settings-profile-row/.test(pwaIndexSource) || !/settings-main-group/.test(
 if (!/patchProfile\(\{ unitSystem: next \}\)/.test(pwaMapSource) || !nativeSettingsSource.includes("setUnitSystem(unit)")) {
   throw new Error('Distance units must persist through the rider profile on both clients');
 }
-for (const key of ['notifyNearby', 'notifyInvites', 'notifyChat']) {
-  if (!pwaMapSource.includes(key) || !nativeSettingsSource.includes(key)) {
-    throw new Error(`Settings notification parity is missing ${key}`);
-  }
+// Neither client offers settings for features that don't work yet: there is
+// no push delivery and no offline map download (App Review guideline 2.1).
+if (/data-settings-target="notifications"|setActiveSheet\('notifications'\)/.test(pwaMapSource + nativeSettingsSource)) {
+  throw new Error('Notification settings must stay hidden on both clients until push delivery exists');
 }
 if (!pwaMapSource.includes('Reset Rider Comms settings to their defaults?') || !nativeSettingsSource.includes('Reset Rider Comms settings?')) {
   throw new Error('Settings reset behavior must exist on both clients');
 }
-if (!pwaMapSource.includes('Offline map downloads are not available in this build yet.')
-  || !nativeSettingsSource.includes('Offline map downloads are not available in this build yet.')) {
-  throw new Error('Offline Maps disclosure must match on both clients');
+if (/offlineMaps/.test(pwaMapSource + pwaIndexSource + nativeSettingsSource)) {
+  throw new Error('Offline Maps must stay hidden on both clients until downloads exist');
 }
 
 const HAZARD_EMAIL_VERIFICATION_COPY = 'Verify your email in Settings → Account → Edit profile to report or confirm road hazards.';

@@ -454,7 +454,6 @@ export function RideBar({ controlsVisible = true }: { controlsVisible?: boolean 
                   <Text style={styles.codeValue}>{activeRide.code}</Text>
                 </View>
               )}
-              <Text style={styles.rideId}>Ride ID: {activeRide.rideId}</Text>
               <Text style={[styles.voiceStatusText, voiceFailure && styles.voiceError]}>{voiceLabel}</Text>
               {voiceFailure && <Text style={styles.voiceError}>{voiceFailure}</Text>}
 
