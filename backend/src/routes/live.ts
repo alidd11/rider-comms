@@ -6,9 +6,14 @@ import type { Rider } from '@rider-comms/shared';
 import { MAX_PRESENCE_ACCURACY_METERS, MAX_PRESENCE_FIX_AGE_MS, MAX_PRESENCE_FUTURE_SKEW_MS, NOT_HANDLED, PROXIMITY_VOICE_AUTHORIZATION_LEASE_MS, PROXIMITY_VOICE_REFRESH_MS, PROXIMITY_VOICE_TOKEN_TTL_SECONDS, rideBody } from './context.ts';
 import type { RouteContext } from './context.ts';
 
+/** Dashboard funnel bookkeeping; a failure here must never fail the rider's request. */
+function recordMilestone(stats: RouteContext['adminStatsStore'], riderId: string, milestone: 'ride' | 'nearby'): void {
+  void stats.recordMilestone(riderId, milestone).catch(() => {});
+}
+
 export async function handleLiveRoutes(ctx: RouteContext): Promise<unknown> {
   const { req, res, url, address, actorId, rideStore, presenceStore, profileStore, moderationStore, rateLimitStore, liveKitCredentials, adminStatsStore } = ctx;
-  if (req.method === 'POST' && url.pathname === '/rides') { const { ride, codeRecord } = await rideStore.createRide(actorId); void adminStatsStore.increment('rides_started').catch(() => { /* A missed dashboard count must never fail a ride. */ }); return sendJson(res, 201, { ...rideBody(ride), code: codeRecord.code, expiresAt: codeRecord.expiresAt }); }
+  if (req.method === 'POST' && url.pathname === '/rides') { const { ride, codeRecord } = await rideStore.createRide(actorId); void adminStatsStore.increment('rides_started').catch(() => { /* A missed dashboard count must never fail a ride. */ }); recordMilestone(adminStatsStore, actorId, 'ride'); return sendJson(res, 201, { ...rideBody(ride), code: codeRecord.code, expiresAt: codeRecord.expiresAt }); }
   if (req.method === 'POST' && url.pathname === '/rides/join') {
     const body = await readJsonBody(req);
     if (typeof body.code !== 'string' || !/^[A-Z2-9]{6}$/i.test(body.code)) return sendJson(res, 400, { error: 'a valid 6-character code is required' });
@@ -19,6 +24,7 @@ export async function handleLiveRoutes(ctx: RouteContext): Promise<unknown> {
       const status = result.reason === 'ride_full' ? 409 : 404;
       return sendJson(res, status, { error: result.reason });
     }
+    recordMilestone(adminStatsStore, actorId, 'ride');
     return sendJson(res, 200, { rideId: result.rideId });
   }
   if (req.method === 'POST' && url.pathname === '/presence') {
@@ -42,6 +48,7 @@ export async function handleLiveRoutes(ctx: RouteContext): Promise<unknown> {
       if (error instanceof ImplausibleLocationJumpError) return sendJson(res, 422, { error: 'implausible_location_jump' });
       throw error;
     }
+    recordMilestone(adminStatsStore, actorId, 'nearby');
     const inZonePeerIds = presenceStore.ridersInZoneWith(actorId, presenceResult.zonePairs);
     const actorTransitions = presenceResult.transitions.filter((transition) => transition.a === actorId || transition.b === actorId);
     const transitionPeerIds = actorTransitions.map((transition) => transition.a === actorId ? transition.b : transition.a);

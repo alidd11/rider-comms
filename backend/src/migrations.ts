@@ -746,4 +746,14 @@ export const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    // Growth-funnel milestones for the staff dashboard. Rides and presence
+    // rows are deleted when they end, so "has this rider ever ridden" needs
+    // its own record. Part of the account: deleted with it.
+    name: '0041_add_rider_milestones',
+    sql: `
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS first_ride_at TIMESTAMPTZ;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS first_nearby_at TIMESTAMPTZ;
+    `,
+  },
 ];

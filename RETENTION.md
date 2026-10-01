@@ -24,6 +24,7 @@ Deletion happens in three ways:
 | --- | --- | --- | --- |
 | Account (username, email, password hash) | Until the rider deletes their account | Account deletion | `accountDeletionStore.ts` |
 | Rider profile, avatar, social handles and visibility | Until account deletion | Account deletion | `accountDeletionStore.ts` |
+| First group ride / first Nearby session times (dashboard funnel) | Until account deletion | Account deletion (columns on `users`) | `adminStatsStore.ts` |
 | Login sessions | 30 days from sign-in, or until logout/revocation | Hourly auth sweep | `ACCOUNT_SESSION_TTL_MS`, `authStore.ts` |
 | Email-verification tokens | 24 hours | Hourly auth sweep | `VERIFICATION_TOKEN_TTL_MS`, `authStore.ts` |
 | Password-reset tokens | 1 hour | Hourly auth sweep | `PASSWORD_RESET_TOKEN_TTL_MS`, `authStore.ts` |

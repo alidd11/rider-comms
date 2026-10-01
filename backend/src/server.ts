@@ -97,7 +97,7 @@ export interface CreateAppOptions extends ApiServerOptions {
   hideoutStore?: HideoutStore;
   authStore?: AuthStore;
   moderationStore?: ModerationStore;
-  adminStatsStore?: Pick<AdminStatsStore, 'overview' | 'searchRiders' | 'increment'>;
+  adminStatsStore?: Pick<AdminStatsStore, 'overview' | 'searchRiders' | 'increment' | 'recordMilestone'>;
   hazardStore?: HazardStore;
   scenicRouteStore?: ScenicRouteStore;
 }

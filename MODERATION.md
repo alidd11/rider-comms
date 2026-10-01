@@ -20,7 +20,7 @@ Open **https://alidd11.github.io/rider-comms/admin.html**. Before that, sign in 
 
 | Tab | What it shows |
 | --- | --- |
-| **Overview** | Headline cards with change versus the previous period and small trend lines, four daily trend charts, and community and safety totals. Switch between **7 days** and **30 days** (remembered in your browser). |
+| **Overview** | Headline cards with change versus the previous period and small trend lines, four daily trend charts, the activation funnel, and community and safety totals. Switch between **7 days** and **30 days** (remembered in your browser). |
 | **Riders** | The newest riders, or a search by username, email, display name, handle or rider ID. Shows status (Active, Unverified, Suspended, Admin), join date, last activity, friends and reports against the rider. |
 | **Moderation** | The open queue (oldest first), dismissed and actioned reports, and the audit log. The sidebar badge shows how many reports are open. On each report, write a note, then choose **Dismiss** or **Suspend rider**; suspending asks for confirmation. **Unsuspend rider** appears on reports about a currently suspended rider. |
 | **System** | Live API and database health checked from your browser, with response times, plus links to the runbooks. |
@@ -39,6 +39,15 @@ The trend charts (per UTC day):
 - Rides started shows totals.
 
 Each chart shows the previous period as a dashed grey line and today's incomplete value as a dashed segment. Hover or use the arrow keys to read a day, or choose **View as table**.
+
+The **Activation** funnel follows riders who signed up 7–30 days ago, so everyone in it has had a week to come back:
+
+1. Signed up.
+2. Verified their email.
+3. Started or joined a group ride, or went live on Nearby.
+4. Came back at least 7 days after signing up.
+
+Each step shows its count, its share of sign-ups, and the share of the step before. The biggest drop is where to focus. First rides are counted only from when this shipped, and the card says so while the window still includes earlier sign-ups.
 
 Active riders and rides started are counted from when the dashboard shipped, because the database didn't keep them before: ended rides are deleted, and only each rider's latest activity is stored. Earlier days are shaded and marked "Not tracked yet".
 
