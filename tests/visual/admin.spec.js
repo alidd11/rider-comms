@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { AXE_PROJECTS, expectNoAxeViolations } from './axe.js';
 
 const API = 'https://backend-production-7fa0.up.railway.app';
 const ADMIN_ID = 'rider_admin01';
@@ -267,4 +268,15 @@ test.describe('staff dashboard', () => {
     await expect(rows.nth(1)).toContainText('Database · Down');
     await expect(rows.nth(1).locator('.status-dot')).toHaveAttribute('data-state', 'down');
   });
+});
+
+test('staff dashboard views have no automatically detectable accessibility violations', async ({ page }, testInfo) => {
+  test.skip(!AXE_PROJECTS.has(testInfo.project.name), 'Audited once per colour scheme');
+  await signIn(page);
+  await mockModerationApi(page);
+  for (const view of ['overview', 'moderation', 'riders', 'system']) {
+    await page.goto(`/admin.html#${view}`);
+    await expect(page.locator('main')).toBeVisible();
+    await expectNoAxeViolations(page, view);
+  }
 });

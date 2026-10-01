@@ -192,7 +192,7 @@ function Tabs(): React.JSX.Element {
           borderTopColor: colors.border,
           borderTopWidth: StyleSheet.hairlineWidth,
         },
-        tabBarActiveTintColor: colors.accent,
+        tabBarActiveTintColor: colors.accentInk,
         tabBarInactiveTintColor: colors.textMuted,
         tabBarLabelStyle: styles.defaultTabLabel,
         tabBarIcon: ({ color, size, focused }) => TAB_ICONS[route.name](color, size, focused),

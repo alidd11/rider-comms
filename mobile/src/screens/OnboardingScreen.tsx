@@ -14,7 +14,7 @@ export const ONBOARDING_COMPLETED_KEY = '@rider-comms/onboarding/completed';
 
 function PrimaryButton({ label, onPress }: { label: string; onPress: () => void }): React.JSX.Element {
   return (
-    <Pressable
+    <Pressable accessibilityRole="button"
       style={({ pressed }) => [styles.primaryButton, pressed && styles.primaryButtonPressed]}
       onPress={onPress}
     >

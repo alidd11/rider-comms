@@ -133,6 +133,9 @@ function AddFriendCard(): React.JSX.Element {
           ]}
           onPress={handleSend}
           disabled={!canSubmit}
+          accessibilityRole="button"
+          accessibilityLabel="Send friend request"
+          accessibilityState={{ disabled: !canSubmit }}
         >
           {sending ? (
             <ActivityIndicator color={colors.accentText} size="small" />
@@ -173,10 +176,10 @@ function RequestRow({ request, profile }: { request: FriendRequest; profile?: Fr
         <Text style={styles.requestName}>{profile?.displayName ?? 'Rider request'}</Text>
         <Text style={styles.requestHandle}>{profile?.handle ?? request.fromRiderId}</Text>
       </View>
-      <Pressable style={styles.requestDecline} onPress={() => void resolve('decline')} disabled={resolving !== null} accessibilityLabel={`Decline request from ${profile?.displayName ?? 'rider'}`} hitSlop={8}>
+      <Pressable accessibilityRole="button" style={styles.requestDecline} onPress={() => void resolve('decline')} disabled={resolving !== null} accessibilityLabel={`Decline request from ${profile?.displayName ?? 'rider'}`} hitSlop={8}>
         {resolving === 'decline' ? <ActivityIndicator color={colors.danger} size="small" /> : <Ionicons name="close" size={20} color={colors.danger} />}
       </Pressable>
-      <Pressable style={styles.requestAccept} onPress={() => void resolve('accept')} disabled={resolving !== null} accessibilityLabel={`Accept request from ${profile?.displayName ?? 'rider'}`} hitSlop={8}>
+      <Pressable accessibilityRole="button" style={styles.requestAccept} onPress={() => void resolve('accept')} disabled={resolving !== null} accessibilityLabel={`Accept request from ${profile?.displayName ?? 'rider'}`} hitSlop={8}>
         {resolving === 'accept' ? <ActivityIndicator color={colors.accentText} size="small" /> : <Ionicons name="checkmark" size={20} color={colors.accentText} />}
       </Pressable>
     </View>
@@ -197,7 +200,7 @@ function OutgoingRequestRow({ request, profile }: { request: FriendRequest; prof
         <Text style={styles.requestName}>{profile?.displayName ?? 'Pending request'}</Text>
         <Text style={styles.requestHandle}>{profile?.handle ?? request.toRiderId}</Text>
       </View>
-      <Pressable style={styles.cancelRequestButton} onPress={() => void handleCancel()} disabled={cancelling} accessibilityLabel={`Cancel request to ${profile?.displayName ?? 'rider'}`}>
+      <Pressable accessibilityRole="button" style={styles.cancelRequestButton} onPress={() => void handleCancel()} disabled={cancelling} accessibilityLabel={`Cancel request to ${profile?.displayName ?? 'rider'}`}>
         {cancelling ? <ActivityIndicator color={colors.textMuted} size="small" /> : <Text style={styles.cancelRequestText}>Cancel</Text>}
       </Pressable>
     </View>
@@ -358,10 +361,10 @@ function FriendProfileModal({
 
   return (
     <Modal visible animationType="slide" transparent onRequestClose={onClose}>
-      <Pressable style={styles.modalBackdrop} onPress={onClose}>
-        <Pressable style={[styles.profileModal, { paddingBottom: insets.bottom + spacing.md }]} onPress={(event) => event.stopPropagation()}>
+      <Pressable style={styles.modalBackdrop} onPress={onClose} accessible={false}>
+        <Pressable style={[styles.profileModal, { paddingBottom: insets.bottom + spacing.md }]} onPress={(event) => event.stopPropagation()} accessible={false}>
           <View style={styles.modalHandle} />
-          <Pressable style={styles.modalClose} onPress={onClose} accessibilityLabel="Close profile">
+          <Pressable style={styles.modalClose} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close profile">
             <Ionicons name="close" size={22} color={colors.textPrimary} />
           </Pressable>
 
@@ -475,14 +478,14 @@ function FriendProfileModal({
               <Text style={styles.profileSectionLabel}>Shared profiles</Text>
               <View style={styles.socialList}>
                 {profile.instagramUsername ? (
-                  <Pressable style={styles.socialRow} onPress={() => openSocial(`https://www.instagram.com/${encodeURIComponent(profile.instagramUsername)}/`)}>
+                  <Pressable accessibilityRole="link" style={styles.socialRow} onPress={() => openSocial(`https://www.instagram.com/${encodeURIComponent(profile.instagramUsername)}/`)}>
                     <Ionicons name="logo-instagram" size={20} color={colors.textPrimary} />
                     <Text style={styles.socialText}>@{profile.instagramUsername}</Text>
                     <Ionicons name="open-outline" size={18} color={colors.textMuted} />
                   </Pressable>
                 ) : null}
                 {profile.tiktokUsername ? (
-                  <Pressable style={styles.socialRow} onPress={() => openSocial(`https://www.tiktok.com/@${encodeURIComponent(profile.tiktokUsername)}`)}>
+                  <Pressable accessibilityRole="link" style={styles.socialRow} onPress={() => openSocial(`https://www.tiktok.com/@${encodeURIComponent(profile.tiktokUsername)}`)}>
                     <Ionicons name="logo-tiktok" size={20} color={colors.textPrimary} />
                     <Text style={styles.socialText}>@{profile.tiktokUsername}</Text>
                     <Ionicons name="open-outline" size={18} color={colors.textMuted} />
@@ -572,7 +575,7 @@ export function FriendsScreen(): React.JSX.Element {
             autoCapitalize="none"
             autoCorrect={false}
           />
-          {query ? <Pressable onPress={() => setQuery('')} hitSlop={8}><Ionicons name="close-circle" size={19} color={colors.textMuted} /></Pressable> : null}
+          {query ? <Pressable accessibilityRole="button" accessibilityLabel="Clear search" onPress={() => setQuery('')} hitSlop={8}><Ionicons name="close-circle" size={19} color={colors.textMuted} /></Pressable> : null}
         </View>
 
         {addOpen ? (
@@ -586,7 +589,7 @@ export function FriendsScreen(): React.JSX.Element {
           <View style={styles.errorBox}>
             <Ionicons name="alert-circle" size={18} color={colors.danger} />
             <Text style={styles.errorText}>{error}</Text>
-            <Pressable onPress={() => void refresh()} hitSlop={8}><Text style={styles.retryText}>Retry</Text></Pressable>
+            <Pressable accessibilityRole="button" onPress={() => void refresh()} hitSlop={8}><Text style={styles.retryText}>Retry</Text></Pressable>
           </View>
         )}
 

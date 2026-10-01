@@ -155,7 +155,7 @@ export function PlaceSearchBar({
 
   return (
     <>
-      <Pressable
+      <Pressable accessibilityRole="button"
         style={({ pressed }) => [styles.collapsed, elevation.raised, pressed && styles.pressed]}
         onPress={() => {
           setOpen(true);
@@ -174,7 +174,7 @@ export function PlaceSearchBar({
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
           <View style={styles.header}>
-            <Pressable style={({ pressed }) => [styles.backButton, pressed && styles.pressed]} onPress={close} accessibilityLabel="Back to map">
+            <Pressable accessibilityRole="button" style={({ pressed }) => [styles.backButton, pressed && styles.pressed]} onPress={close} accessibilityLabel="Back to map">
               <Ionicons name="chevron-back" size={23} color={colors.textPrimary} />
             </Pressable>
             <View style={styles.inputShell}>
@@ -192,7 +192,7 @@ export function PlaceSearchBar({
               />
               {loading ? <ActivityIndicator size="small" color={colors.accent} /> : null}
               {Platform.OS !== 'ios' && query ? (
-                <Pressable onPress={() => updateQuery('')} hitSlop={8} accessibilityLabel="Clear search">
+                <Pressable accessibilityRole="button" onPress={() => updateQuery('')} hitSlop={8} accessibilityLabel="Clear search">
                   <Ionicons name="close-circle" size={20} color={colors.textMuted} />
                 </Pressable>
               ) : null}
@@ -245,7 +245,7 @@ export function PlaceSearchBar({
                 </View>
               }
               renderItem={({ item }) => (
-                <Pressable
+                <Pressable accessibilityRole="button"
                   style={({ pressed }) => [styles.resultRow, pressed && styles.resultRowPressed]}
                   onPress={() => {
                     onSelect(item);
@@ -308,7 +308,7 @@ export function PlaceSearchBar({
                 ) : null
               }
               renderItem={({ item }) => (
-                <Pressable
+                <Pressable accessibilityRole="button"
                   style={({ pressed }) => [styles.resultRow, pressed && styles.resultRowPressed]}
                   onPress={() => {
                     onSelect(item);

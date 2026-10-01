@@ -21,8 +21,10 @@
   --border-strong: #d4d4d4;
   --fg: #0a0a0a;
   --fg-2: #404040;
-  --muted-fg: #737373;
-  --accent: #ea580c;
+  /* Text tokens clear WCAG AA (4.5:1) on every light surface; the brighter
+     brand orange stays for chart marks, which aren't text. */
+  --muted-fg: #6b6b6b;
+  --accent: #c2410c;
   --accent-soft: #fff1e8;
   --chart-1: #ea580c;
   --chart-compare: #a3a3a3;

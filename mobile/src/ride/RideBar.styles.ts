@@ -23,7 +23,7 @@ export const styles = StyleSheet.create({
     paddingHorizontal: 7, paddingVertical: 4, borderRadius: radii.pill,
     backgroundColor: colors.surface,
   },
-  speakerPillText: { ...type.caption, color: colors.accent, fontWeight: '800', flexShrink: 1 },
+  speakerPillText: { ...type.caption, color: colors.accentInk, fontWeight: '800', flexShrink: 1 },
   locationLivePill: {
     flexDirection: 'row', alignItems: 'center', gap: 3,
     paddingHorizontal: 7, paddingVertical: 4, borderRadius: radii.pill,
@@ -65,7 +65,7 @@ export const styles = StyleSheet.create({
   codeCardActions: { flexDirection: 'row', gap: spacing.xs },
   codeCardAction: { width: 30, height: 30, borderRadius: radii.md, alignItems: 'center', justifyContent: 'center' },
   codeLabel: { ...type.caption },
-  codeValue: { fontSize: 32, fontWeight: '800', letterSpacing: 6, color: colors.accent, marginTop: spacing.xs },
+  codeValue: { fontSize: 32, fontWeight: '800', letterSpacing: 6, color: colors.accentInk, marginTop: spacing.xs },
   rideId: { ...type.caption },
   voiceError: { ...type.caption, color: colors.danger },
   locationCard: {

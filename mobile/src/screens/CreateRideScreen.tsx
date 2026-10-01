@@ -79,7 +79,7 @@ function CreateRideScreenContent({ navigation }: Props): React.JSX.Element {
         </View>
       )}
 
-      <Pressable
+      <Pressable accessibilityRole="button"
         style={({ pressed }) => [styles.button, pressed && styles.buttonPressed, loading && styles.buttonDisabled]}
         onPress={handleCreate}
         disabled={loading}

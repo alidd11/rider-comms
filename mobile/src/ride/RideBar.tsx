@@ -387,7 +387,7 @@ export function RideBar({ controlsVisible = true }: { controlsVisible?: boolean 
         </View>
       ) : controlsVisible ? (
         <>
-          <Pressable style={({ pressed }) => [styles.bar, pressed && styles.barPressed]} onPress={() => setExpanded(true)}>
+          <Pressable accessibilityRole="button" style={({ pressed }) => [styles.bar, pressed && styles.barPressed]} onPress={() => setExpanded(true)}>
             <View style={styles.liveDot} />
             <MaterialCommunityIcons name="motorbike" size={18} color={colors.accent} />
             <Text style={styles.barText}>In ride{activeRide.code ? ` · ${activeRide.code}` : ''}</Text>
@@ -423,7 +423,7 @@ export function RideBar({ controlsVisible = true }: { controlsVisible?: boolean 
                   <View style={styles.liveDot} />
                   <Text style={styles.statusText}>In ride</Text>
                 </View>
-                <Pressable onPress={() => setExpanded(false)} style={styles.closeButton}>
+                <Pressable accessibilityRole="button" accessibilityLabel="Collapse ride controls" onPress={() => setExpanded(false)} style={styles.closeButton}>
                   <Ionicons name="chevron-down" size={22} color={colors.textSecondary} />
                 </Pressable>
               </View>
@@ -524,7 +524,7 @@ export function RideBar({ controlsVisible = true }: { controlsVisible?: boolean 
                 </Text>
               </Pressable>
 
-              <Pressable style={({ pressed }) => [styles.leaveButton, pressed && styles.leaveButtonPressed]} onPress={handleLeave}>
+              <Pressable accessibilityRole="button" style={({ pressed }) => [styles.leaveButton, pressed && styles.leaveButtonPressed]} onPress={handleLeave}>
                 <Ionicons name="exit-outline" size={20} color={colors.danger} />
                 <Text style={styles.leaveButtonText}>Leave Ride</Text>
               </Pressable>

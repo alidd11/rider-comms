@@ -113,7 +113,7 @@ function JoinOrHostForm(): React.JSX.Element {
                 accessibilityLabel="Ride invite code"
               />
             </Pressable>
-            <Pressable
+            <Pressable accessibilityRole="button"
               style={({ pressed }) => [styles.button, pressed && canSubmit && styles.buttonPressed, !canSubmit && styles.buttonDisabled]}
               onPress={handleJoin}
               disabled={!canSubmit}
@@ -143,7 +143,7 @@ function JoinOrHostForm(): React.JSX.Element {
             ) : null}
           </View>
 
-          <Pressable
+          <Pressable accessibilityRole="button"
             onPress={() => navigation.navigate('CreateRide')}
             style={({ pressed }) => [styles.hostLink, pressed && styles.hostLinkPressed]}
           >
@@ -183,7 +183,7 @@ function HostRoster(): React.JSX.Element {
                 <MaterialCommunityIcons name="motorbike" size={16} color={colors.textPrimary} />
               </View>
               <Text style={styles.rosterName}>{id}</Text>
-              {id !== riderId && <Pressable onPress={() => void removeRider(id)} style={styles.removeButton} hitSlop={8}>
+              {id !== riderId && <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${id} from ride`} onPress={() => void removeRider(id)} style={styles.removeButton} hitSlop={8}>
                 <Ionicons name="close-circle" size={22} color={colors.danger} />
               </Pressable>}
             </View>
@@ -268,7 +268,7 @@ const styles = StyleSheet.create({
   buttonText: { ...type.button, color: colors.accentText, fontSize: 12 },
   codeCard: { backgroundColor: colors.surface, borderRadius: radii.lg, padding: spacing.md, alignItems: 'center', marginBottom: spacing.lg, ...elevation.raised },
   codeLabel: { ...type.label },
-  codeValue: { fontSize: 32, fontWeight: '800', letterSpacing: 6, color: colors.accent, marginTop: spacing.xs },
+  codeValue: { fontSize: 32, fontWeight: '800', letterSpacing: 6, color: colors.accentInk, marginTop: spacing.xs },
   sectionLabel: { ...type.label, marginBottom: spacing.sm },
   rosterCard: { backgroundColor: colors.surface, borderRadius: radii.lg, overflow: 'hidden' },
   emptyRoster: { ...type.caption, padding: spacing.md, textAlign: 'center' },

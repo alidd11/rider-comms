@@ -222,16 +222,16 @@ function RouteOverview({
             <View style={styles.sourceBlock}>
               <Text style={styles.sectionTitle}>Sources & image rights</Text>
               <Text style={styles.sourceText}>Route information was reviewed {route.reviewedAt}. Conditions and suitability can change.</Text>
-              <Pressable onPress={() => void openExternalUrl(route.routeSourceUrl, 'The route source is temporarily unavailable.')}>
+              <Pressable accessibilityRole="link" onPress={() => void openExternalUrl(route.routeSourceUrl, 'The route source is temporarily unavailable.')}>
                 <Text style={styles.sourceLink}>Read route source</Text>
               </Pressable>
-              <Pressable onPress={() => void openExternalUrl(route.conditionsUrl, 'Check current conditions in a browser before riding.')}>
+              <Pressable accessibilityRole="link" onPress={() => void openExternalUrl(route.conditionsUrl, 'Check current conditions in a browser before riding.')}>
                 <Text style={styles.sourceLink}>Check current road conditions</Text>
               </Pressable>
-              <Pressable onPress={() => void openExternalUrl(route.image.sourceUrl, 'The image source is temporarily unavailable.')}>
+              <Pressable accessibilityRole="link" onPress={() => void openExternalUrl(route.image.sourceUrl, 'The image source is temporarily unavailable.')}>
                 <Text style={styles.creditLink}>Photo: {credit}. Displayed with responsive cropping; source and licence.</Text>
               </Pressable>
-              <Pressable onPress={() => void openExternalUrl(route.image.licenseUrl, 'The Creative Commons licence is temporarily unavailable.')}>
+              <Pressable accessibilityRole="link" onPress={() => void openExternalUrl(route.image.licenseUrl, 'The Creative Commons licence is temporarily unavailable.')}>
                 <Text style={styles.sourceLink}>View image licence</Text>
               </Pressable>
             </View>

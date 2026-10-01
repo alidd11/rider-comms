@@ -132,7 +132,7 @@ const styles = StyleSheet.create({
   statusBadge: { minHeight: 28, justifyContent: 'center', paddingHorizontal: spacing.sm, borderRadius: radii.pill, backgroundColor: colors.surfaceRaised },
   statusBadgeCurrent: { backgroundColor: colors.accentSoft },
   statusText: { ...type.caption, color: colors.textMuted },
-  statusTextCurrent: { color: colors.accent, fontWeight: '800' },
+  statusTextCurrent: { color: colors.accentInk, fontWeight: '800' },
   planBlurb: { ...type.body, color: colors.textSecondary, marginTop: spacing.md },
   featureList: { gap: spacing.xs, marginTop: spacing.md },
   featureRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
