@@ -133,7 +133,7 @@ async function cleanup(): Promise<void> {
 interface Stat { latencies: number[]; errors: Map<string, number>; }
 const stats = new Map<string, Stat>();
 function record(name: string, ms: number, status: number | string): void {
-  const stat = stats.get(name) ?? { latencies: [], errors: new Map() };
+  const stat: Stat = stats.get(name) ?? { latencies: [], errors: new Map() };
   stats.set(name, stat);
   if (typeof status === 'number' && status >= 200 && status < 300) stat.latencies.push(ms);
   else stat.errors.set(String(status), (stat.errors.get(String(status)) ?? 0) + 1);
