@@ -36,6 +36,15 @@ const OVERVIEW = {
     activeRiders: DAYS.map((_, i) => (i < 55 ? null : 200 + i)),
     ridesStarted: DAYS.map((_, i) => (i < 55 ? null : i % 3)),
   },
+  funnel: {
+    cohortStart: Date.parse('2026-08-31T12:00:00Z'),
+    cohortEnd: Date.parse('2026-09-23T12:00:00Z'),
+    signedUp: 200,
+    verified: 160,
+    firstRide: 90,
+    returned: 45,
+    rideTrackingSince: Date.parse('2026-09-20T09:00:00Z'),
+  },
 };
 const RIDERS = [
   { riderId: 'rider_maya', username: 'maya', email: 'maya@example.com', emailVerified: true, createdAt: Date.parse('2026-09-01'), lastSeenAt: Date.now() - 5 * 60_000, isAdmin: false, suspended: false, displayName: 'Maya', handle: '@maya_moto', friends: 12, reportsAgainst: 0, reportsFiled: 1 },
@@ -268,6 +277,25 @@ test.describe('staff dashboard', () => {
     await expect(rows.nth(1)).toContainText('Database · Down');
     await expect(rows.nth(1).locator('.status-dot')).toHaveAttribute('data-state', 'down');
   });
+});
+
+test('overview shows the activation funnel with step conversion and a tracking note', async ({ page }) => {
+  await signIn(page);
+  await mockModerationApi(page);
+  await page.goto('/admin.html');
+  const funnel = page.locator('.funnel');
+  await expect(funnel.locator('.card-description')).toContainText('Riders who signed up');
+  const steps = funnel.locator('.funnel-step');
+  await expect(steps).toHaveCount(4);
+  await expect(steps.nth(0)).toContainText('200 · 100%');
+  await expect(steps.nth(1)).toContainText('160 · 80%');
+  await expect(steps.nth(2)).toContainText('90 · 45%');
+  await expect(steps.nth(2)).toContainText('56% of the step before');
+  await expect(steps.nth(3)).toContainText('45 · 23%');
+  await expect(steps.nth(3)).toContainText('50% of the step before');
+  await expect(funnel.locator('.funnel-note')).toContainText('First rides are counted from');
+  const widths = await funnel.locator('.funnel-fill').evaluateAll((fills) => fills.map((fill) => fill.style.width));
+  expect(widths).toEqual(['100%', '80%', '45%', '23%']);
 });
 
 test('staff dashboard views have no automatically detectable accessibility violations', async ({ page }, testInfo) => {

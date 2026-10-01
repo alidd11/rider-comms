@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { authenticatedFetch, postJson, startTestServer } from './httpTestUtils.ts';
 import type { TestServer } from './httpTestUtils.ts';
 import { ensureMigrated, getPool, resetDbForTests } from '../src/db.ts';
-import { AdminStatsStore, SERIES_DAYS } from '../src/adminStatsStore.ts';
+import { AdminStatsStore, FUNNEL_COHORT_MAX_AGE_DAYS, SERIES_DAYS } from '../src/adminStatsStore.ts';
 import type { AdminOverview } from '../src/adminStatsStore.ts';
 
 const hasDatabase = Boolean(process.env.DATABASE_URL);
@@ -11,7 +11,8 @@ const hasDatabase = Boolean(process.env.DATABASE_URL);
 const ADMIN = 'stats-admin';
 const RIDER_A = 'stats-rider-a';
 const RIDER_B = 'stats-rider-b';
-const SEEDED = [ADMIN, RIDER_A, RIDER_B];
+const FUNNEL = ['stats-f1', 'stats-f2', 'stats-f3', 'stats-f4', 'stats-f5'];
+const SEEDED = [ADMIN, RIDER_A, RIDER_B, ...FUNNEL];
 const DAY = 24 * 60 * 60 * 1000;
 
 async function seedUsers(): Promise<void> {
@@ -21,7 +22,7 @@ async function seedUsers(): Promise<void> {
        ($1, 'tst_stats_admin', 'stats-admin@example.com', 'test-only', now(), true, NULL),
        ($2, 'tst_stats_alpha', 'Alpha_Rider@example.com', 'test-only', now(), false, NULL),
        ($3, 'tst_stats_beta', 'beta@example.com', 'test-only', NULL, false, 123)`,
-    SEEDED,
+    [ADMIN, RIDER_A, RIDER_B],
   );
 }
 
@@ -125,6 +126,54 @@ describe('AdminStatsStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipp
     assert.deepEqual(series.ridesStarted.slice(SERIES_DAYS - 5), [0, 0, 0, 0, 0]);
   });
 
+  it('builds the growth funnel from riders who signed up 7 to 30 days ago', async () => {
+    const pool = getPool();
+    const now = Date.now();
+    const before = (await store.overview(now)).funnel;
+    const at = (daysAgo: number) => new Date(now - daysAgo * DAY);
+    // f1: verified, rode, came back after a week. f2: verified, went live on
+    // Nearby, last seen on day 3. f3: unverified, nothing else.
+    // f4 signed up too recently and f5 too long ago to be in the cohort.
+    await pool.query(
+      `INSERT INTO users (id, username, email, password_hash, created_at, email_verified_at, first_ride_at, first_nearby_at) VALUES
+         ($1, 'tst_stats_f1', 'f1@example.com', 'test-only', $6, $6, $6, NULL),
+         ($2, 'tst_stats_f2', 'f2@example.com', 'test-only', $6, $6, NULL, $6),
+         ($3, 'tst_stats_f3', 'f3@example.com', 'test-only', $6, NULL, NULL, NULL),
+         ($4, 'tst_stats_f4', 'f4@example.com', 'test-only', $7, $7, $7, NULL),
+         ($5, 'tst_stats_f5', 'f5@example.com', 'test-only', $8, $8, $8, NULL)`,
+      [...FUNNEL, at(20), at(2), at(FUNNEL_COHORT_MAX_AGE_DAYS + 5)],
+    );
+    await pool.query(
+      'INSERT INTO rider_activity (rider_id, last_seen_at) VALUES ($1, $2), ($3, $4), ($5, $6)',
+      [FUNNEL[0], now - 5 * DAY, FUNNEL[1], now - 17 * DAY, FUNNEL[3], now],
+    );
+    const after = (await store.overview(now)).funnel;
+    assert.deepEqual(
+      {
+        signedUp: after.signedUp - before.signedUp,
+        verified: after.verified - before.verified,
+        firstRide: after.firstRide - before.firstRide,
+        returned: after.returned - before.returned,
+      },
+      { signedUp: 3, verified: 2, firstRide: 2, returned: 1 },
+    );
+    assert.equal(after.cohortEnd - after.cohortStart, (FUNNEL_COHORT_MAX_AGE_DAYS - 7) * DAY);
+    assert.ok(after.rideTrackingSince && after.rideTrackingSince <= now);
+  });
+
+  it('records each rider milestone once, keeping the first time', async () => {
+    await seedUsers();
+    const first = Date.now() - DAY;
+    await new AdminStatsStore().recordMilestone(RIDER_A, 'ride', first);
+    await new AdminStatsStore().recordMilestone(RIDER_A, 'ride', Date.now());
+    const { rows } = await getPool().query<{ first_ride_at: Date; first_nearby_at: Date | null }>(
+      'SELECT first_ride_at, first_nearby_at FROM users WHERE id = $1',
+      [RIDER_A],
+    );
+    assert.equal(Math.round(rows[0].first_ride_at.getTime() / 1000), Math.round(first / 1000));
+    assert.equal(rows[0].first_nearby_at, null);
+  });
+
   it('searches riders by username, email, handle or ID and escapes wildcards', async () => {
     await seedUsers();
     await getPool().query(
@@ -202,5 +251,15 @@ describe('admin dashboard API', { skip: !hasDatabase && 'DATABASE_URL not set; s
       await new Promise((resolve) => setTimeout(resolve, 25));
     }
     assert.fail('rides_started was not incremented');
+  });
+
+  it('records a rider\'s first ride for the growth funnel', async () => {
+    assert.equal((await postJson(ctx, RIDER_B, '/rides', {})).status, 201);
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      const { rows } = await getPool().query('SELECT first_ride_at FROM users WHERE id = $1', [RIDER_B]);
+      if (rows[0]?.first_ride_at) return;
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    assert.fail('first_ride_at was not recorded');
   });
 });

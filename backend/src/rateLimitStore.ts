@@ -11,7 +11,9 @@ export type RateLimitAction =
   | 'client_error'
   | 'presence'
   | 'verification_resend'
-  | 'password_reset_request';
+  | 'password_reset_request'
+  | 'ride_create'
+  | 'hideout_create';
 
 export interface RateLimitPolicy {
   maxEvents: number;
@@ -44,6 +46,11 @@ export const RATE_LIMIT_POLICIES: Readonly<Record<RateLimitAction, RateLimitPoli
   presence: { maxEvents: 20, windowMs: 60_000 },
   verification_resend: { maxEvents: 3, windowMs: 10 * 60_000 },
   password_reset_request: { maxEvents: 3, windowMs: 10 * 60_000 },
+  // Each ride is a row, a join code and a voice room. A host starting over a
+  // few times is normal; dozens in minutes is a script.
+  ride_create: { maxEvents: 10, windowMs: 10 * 60_000 },
+  // Hideouts notify every invited friend; planning a few is normal.
+  hideout_create: { maxEvents: 10, windowMs: 10 * 60_000 },
 };
 
 export interface RateLimitResult {

@@ -1,8 +1,31 @@
 # Rider Comms engineering audit
 
-Audit date: 2026-09-18 (addenda 2026-09-28 and 2026-09-29 below)
+Audit date: 2026-09-18 (addenda 2026-09-28, 2026-09-29 and 2026-10-01 below)
 
 This document records the current engineering assessment of `main`. Repository code, CI and the machine-readable parity manifest remain authoritative if this document becomes stale.
+
+## Addendum — 2026-10-01 (second security pass)
+
+Scope: code added since 2026-09-29. That covers:
+- the staff dashboard and its admin endpoints
+- crash reports (`POST /client-errors`)
+- the places proxy
+- outage timeouts
+- the load-test fixes
+- funnel milestones
+
+Also re-checked: per-endpoint rate limits on every write route, and dependency advisories.
+
+**Fixed**
+- **Hideout fan-out (medium, availability):** `POST /hideouts` accepted any number of `participantIds`, and each one cost a friendship query. The 32 KB body cap still allowed about 4,000 queries per request. The list is now capped at 20, a ride group's size.
+- **Unbounded ride and hideout creation (low, abuse):** both relied only on the global 300/min limit. They now have their own limits: 10 rides and 10 hideouts per rider per 10 minutes (migration `0042`). A new test checks that every configured rate-limit action is accepted by the database's CHECK constraint, so a policy can't ship without its migration.
+- **`brace-expansion` (high, ReDoS, build tooling):** patched by `npm audit fix`, which only made patch-level bumps. The remaining 11 moderate findings are the Expo tooling chain described below; they need the parked Expo major upgrade.
+
+**Checked and sound**
+- **Admin endpoints:** `/admin/*` re-reads admin status from Postgres on every request, and the tests cover the 403 for non-admins. Rider search escapes `%` and `_` and caps results at 50. The dashboard renders all rider text with `textContent` and runs under a CSP without `unsafe-inline`.
+- **Funnel milestones:** written only by the server, once per rider, and deleted with the account. The dashboard sees only counts.
+- **Outage paths:** Resend (5 s), LiveKit revocation (5 s) and Google (8 s) all time out inside the apps' 10–12 s request limits. A failed revocation is logged and doesn't fail the request.
+- **Scenic-route creation** is admin-only. Friend requests, messages and safety reports have their own social limits. Presence, directions, places, hazards, ride joins and all auth routes were already limited.
 
 ## Addendum — 2026-09-28
 

@@ -481,6 +481,43 @@
     ]);
   }
 
+  /** Signed up → verified → first ride → came back, for one sign-up cohort. */
+  function funnelCard(funnel) {
+    const steps = [
+      ['Signed up', funnel.signedUp],
+      ['Verified email', funnel.verified],
+      ['First ride or Nearby', funnel.firstRide],
+      ['Came back after a week', funnel.returned],
+    ];
+    const cohort = `Riders who signed up ${formatDay(new Date(funnel.cohortStart).toISOString().slice(0, 10))} – ${formatDay(new Date(funnel.cohortEnd).toISOString().slice(0, 10))}`;
+    const header = el('div', { class: 'card-header' }, [el('div', {}, [
+      el('h3', { class: 'card-title', text: 'Activation' }),
+      el('p', { class: 'card-description', text: cohort }),
+    ])]);
+    if (funnel.signedUp === 0) {
+      return el('section', { class: 'card funnel' }, [header, el('p', { class: 'funnel-empty', text: 'No sign-ups in this window yet.' })]);
+    }
+    const rows = steps.map(([name, value], i) => {
+      const share = percent(value, funnel.signedUp) ?? 0;
+      const fill = el('span', { class: 'funnel-fill' });
+      // CSSOM rather than a style attribute: the page's CSP forbids inline styles.
+      fill.style.width = `${Math.max(share, value > 0 ? 1 : 0)}%`;
+      const step = i === 0 ? null : percent(value, steps[i - 1][1]);
+      return el('li', { class: 'funnel-step' }, [
+        el('div', { class: 'funnel-label' }, [
+          el('span', { class: 'stat-name', text: name }),
+          el('span', { class: 'stat-value', text: `${formatNumber(value)} · ${share}%` }),
+        ]),
+        el('div', { class: 'funnel-track', role: 'presentation' }, [fill]),
+        step === null ? null : el('span', { class: 'funnel-step-rate', text: `${step}% of the step before` }),
+      ]);
+    });
+    const undercount = funnel.rideTrackingSince && funnel.rideTrackingSince > funnel.cohortStart
+      ? el('p', { class: 'funnel-note', text: `First rides are counted from ${formatDay(new Date(funnel.rideTrackingSince).toISOString().slice(0, 10))}, so earlier sign-ups may show too few.` })
+      : null;
+    return el('section', { class: 'card funnel' }, [header, el('ol', { class: 'funnel-steps' }, rows), undercount]);
+  }
+
   function renderOverview(data) {
     const days = period;
     const { riders, activity, social, content, safety, series, previous } = data;
@@ -536,6 +573,8 @@
       kpis,
       el('h2', { class: 'section-title', text: 'Trends' }),
       el('div', { class: 'charts' }, charts),
+      el('h2', { class: 'section-title', text: 'Growth' }),
+      funnelCard(data.funnel),
       el('h2', { class: 'section-title', text: 'Community and safety' }),
       el('div', { class: 'panels' }, [
         statList('Community', 'Totals across all riders', [

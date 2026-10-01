@@ -11,6 +11,26 @@ const LIVE_PRESENCE_MS = 30_000;
 export const MAX_RIDER_SEARCH_RESULTS = 50;
 
 export type DailyMetric = 'active_riders' | 'rides_started';
+export type RiderMilestone = 'ride' | 'nearby';
+
+/** Funnel cohort: riders who signed up between these many days ago. Starts at
+ * 7 so everyone counted has had a week to come back; ends at 30 so a return
+ * after day 7 is always within the 30-day last-seen retention. */
+export const FUNNEL_COHORT_MIN_AGE_DAYS = 7;
+export const FUNNEL_COHORT_MAX_AGE_DAYS = 30;
+
+export interface GrowthFunnel {
+  cohortStart: number;
+  cohortEnd: number;
+  signedUp: number;
+  verified: number;
+  /** Joined or started a group ride, or went live on Nearby. */
+  firstRide: number;
+  /** Seen again at least 7 days after signing up. */
+  returned: number;
+  /** When first-ride tracking began (null before the migration ran); earlier signups can't show a first ride. */
+  rideTrackingSince: number | null;
+}
 
 export interface DailySeries {
   /** UTC dates, oldest first, `YYYY-MM-DD`. */
@@ -33,6 +53,7 @@ export interface AdminOverview {
   previous: { new7d: number; new30d: number; messages7d: number; messages30d: number; reports7d: number };
   zoneTiers: Record<string, number>;
   series: DailySeries;
+  funnel: GrowthFunnel;
 }
 
 export interface AdminRiderSummary {
@@ -60,6 +81,57 @@ function count(value: unknown): number {
 }
 
 export class AdminStatsStore {
+  // Riders already known to have reached each milestone, so a presence fix
+  // every 8 s doesn't cost an UPDATE each time. Per process; a restart only
+  // means one more no-op UPDATE per rider.
+  private readonly milestonesRecorded: Record<RiderMilestone, Set<string>> = { ride: new Set(), nearby: new Set() };
+
+  /** Records the first time a rider reaches a funnel milestone; later calls are no-ops. */
+  async recordMilestone(riderId: string, milestone: RiderMilestone, now = Date.now()): Promise<void> {
+    const seen = this.milestonesRecorded[milestone];
+    if (seen.has(riderId)) return;
+    await ensureMigrated();
+    const column = milestone === 'ride' ? 'first_ride_at' : 'first_nearby_at';
+    await getPool().query(
+      `UPDATE users SET ${column} = to_timestamp($2 / 1000.0) WHERE id = $1 AND ${column} IS NULL`,
+      [riderId, now],
+    );
+    if (seen.size >= 100_000) seen.clear();
+    seen.add(riderId);
+  }
+
+  private async funnel(now: number): Promise<GrowthFunnel> {
+    const pool = getPool();
+    const cohortStart = now - FUNNEL_COHORT_MAX_AGE_DAYS * DAY_MS;
+    const cohortEnd = now - FUNNEL_COHORT_MIN_AGE_DAYS * DAY_MS;
+    const [cohort, tracking] = await Promise.all([
+      pool.query(
+        `SELECT count(*) AS signed_up,
+                count(*) FILTER (WHERE u.email_verified_at IS NOT NULL) AS verified,
+                count(*) FILTER (WHERE u.first_ride_at IS NOT NULL OR u.first_nearby_at IS NOT NULL) AS first_ride,
+                count(*) FILTER (WHERE act.last_seen_at >= (extract(epoch FROM u.created_at) * 1000) + $3) AS returned
+         FROM users u
+         LEFT JOIN rider_activity act ON act.rider_id = u.id
+         WHERE u.created_at >= to_timestamp($1 / 1000.0) AND u.created_at < to_timestamp($2 / 1000.0)`,
+        [cohortStart, cohortEnd, FUNNEL_COHORT_MIN_AGE_DAYS * DAY_MS],
+      ),
+      pool.query<{ applied_at: Date }>(
+        "SELECT applied_at FROM schema_migrations WHERE name = '0041_add_rider_milestones'",
+      ),
+    ]);
+    const row = cohort.rows[0] ?? {};
+    const since = tracking.rows[0]?.applied_at;
+    return {
+      cohortStart,
+      cohortEnd,
+      signedUp: count(row.signed_up),
+      verified: count(row.verified),
+      firstRide: count(row.first_ride),
+      returned: count(row.returned),
+      rideTrackingSince: since ? new Date(since).getTime() : null,
+    };
+  }
+
   /**
    * Raises today's active-rider snapshot. Called on a timer: last-seen times
    * only move forward, so the day's count only grows and GREATEST keeps the
@@ -181,6 +253,7 @@ export class AdminStatsStore {
       },
       zoneTiers: Object.fromEntries(tiers.rows.map((row) => [row.zone_tier, count(row.n)])),
       series: await this.series(now),
+      funnel: await this.funnel(now),
     };
   }
 

@@ -425,6 +425,17 @@ a { color: inherit; }
 .tooltip-row .value { margin-left: auto; padding-left: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
 
 /* Stat lists */
+/* Activation funnel: one hue, length carries the value. */
+.funnel-steps { list-style: none; margin: 8px 0 0; padding: 0 16px 12px; display: grid; gap: 14px; }
+@media (min-width: 900px) { .funnel-steps { padding: 0 20px 16px; } }
+.funnel-label { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; }
+.funnel-label .stat-name { color: var(--fg-2); }
+.funnel-label .stat-value { font-weight: 500; font-variant-numeric: tabular-nums; }
+.funnel-track { height: 10px; margin-top: 6px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
+.funnel-fill { display: block; height: 100%; border-radius: inherit; background: var(--chart-1); }
+.funnel-step-rate { display: block; margin-top: 4px; font-size: 12px; color: var(--muted-fg); }
+.funnel-note, .funnel-empty { margin: 0; padding: 0 16px 16px; font-size: 12px; color: var(--muted-fg); }
+@media (min-width: 900px) { .funnel-note, .funnel-empty { padding: 0 20px 20px; } }
 .panels { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
 @media (min-width: 1024px) { .panels { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; } }
 .stat-list { list-style: none; margin: 8px 0 0; padding: 0 16px 6px; }
