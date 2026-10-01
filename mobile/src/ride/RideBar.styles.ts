@@ -30,6 +30,8 @@ export const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   locationLiveText: { ...type.caption, color: colors.success, fontWeight: '800' },
+  locationStaleText: { ...type.caption, color: colors.warning, fontWeight: '800' },
+  locationStaleStatusText: { ...type.caption, color: colors.warning },
   liveDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.success },
   errorDot: { backgroundColor: colors.danger },
   voiceStatusText: { ...type.caption, color: colors.textSecondary },

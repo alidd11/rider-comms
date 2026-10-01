@@ -42,6 +42,24 @@ export function computeZonePairs(riders: Rider[]): ZonePair[] {
   return pairs;
 }
 
+/**
+ * The zone pairs one rider forms with a set of others: the same rule as
+ * computeZonePairs, but linear. A presence update only needs the updating
+ * rider's pairs, and computing all n^2 pairs among a dense crowd and then
+ * discarding most of them was the server's main CPU cost under load.
+ */
+export function computeZonePairsFor(rider: Rider, others: Rider[]): ZonePair[] {
+  const pairs: ZonePair[] = [];
+  for (const other of others) {
+    if (other.id === rider.id) continue;
+    const distanceMiles = haversineMiles(rider.location, other.location);
+    if (distanceMiles <= Math.min(rider.radiusMiles, other.radiusMiles)) {
+      pairs.push({ a: rider.id, b: other.id, distanceMiles });
+    }
+  }
+  return pairs;
+}
+
 function pairKey(a: string, b: string): string {
   return [a, b].sort().join('::');
 }

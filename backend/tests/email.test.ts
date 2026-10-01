@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { sendPasswordResetEmail, sendVerificationEmail } from '../src/email.ts';
+import { RESEND_TIMEOUT_MS, sendPasswordResetEmail, sendVerificationEmail } from '../src/email.ts';
 
 // Same fake-fetch shape as mobile/tests/places.test.ts's fakeFetch: never
 // touches the network, and hands the handler the URL + init so it can
@@ -47,6 +47,25 @@ describe('sendVerificationEmail', () => {
     const sent = await sendVerificationEmail('rider@example.com', 'sometoken', { fetchImpl });
     assert.equal(sent, false);
     assert.equal(called, false);
+  });
+
+  it('gives up on a hung Resend request and reports it as not sent', async () => {
+    process.env.RESEND_API_KEY = 'test-key';
+    process.env.RESEND_FROM_EMAIL = 'noreply@example.com';
+    // Never answers on its own, like a Resend outage that leaves the
+    // connection open; only the timeout's abort signal ends it.
+    const fetchImpl = ((_url: string, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener('abort', () => reject(init.signal?.reason));
+    })) as typeof fetch;
+
+    assert.equal(RESEND_TIMEOUT_MS, 5_000);
+    // AbortSignal.timeout doesn't keep the process alive by itself.
+    const keepAlive = setTimeout(() => {}, 1_000);
+    try {
+      assert.equal(await sendVerificationEmail('rider@example.com', 'sometoken', { fetchImpl, timeoutMs: 20 }), false);
+    } finally {
+      clearTimeout(keepAlive);
+    }
   });
 
   it('posts to the Resend API with the token in the link and body when configured', async () => {

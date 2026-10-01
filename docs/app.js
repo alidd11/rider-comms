@@ -4015,6 +4015,10 @@
   const RIDE_AVATAR_REFRESH_MS = 30_000;
   let rideLocationTimer;
   let lastRideAvatarRefreshAt = 0;
+  // Three missed ticks (~30 s) without reaching the backend means group
+  // positions on the map are going out of date; say so once, not per tick.
+  const RIDE_UNREACHABLE_TICKS = 3;
+  let rideUnreachableTicks = 0;
 
   async function setRideLocationSharing(enabled) {
     const ride = state.activeRide;
@@ -4074,6 +4078,8 @@
           const { locations } = await apiFetch('GET', `/rides/${encodeURIComponent(ride.rideId)}/locations`);
           if (state.activeRide?.rideId !== ride.rideId || !state.activeRide.shareRideLocation || !session) return;
           rideMemberLocations = new Map(locations.map((entry) => [entry.riderId, entry]));
+          if (rideUnreachableTicks >= RIDE_UNREACHABLE_TICKS) showToast('Reconnected. Group positions are live again.');
+          rideUnreachableTicks = 0;
           if (state.activeRide) {
             renderMapRiders();
             const now = Date.now();
@@ -4082,11 +4088,20 @@
               void loadRideRoster();
             }
           }
-        } catch {
+        } catch (error) {
           // Best-effort, same as the public presence refresh above — a
           // missed tick (denied permission, a transient network blip)
           // just tries again next interval rather than surfacing an error
-          // banner over the whole ride.
+          // banner over the whole ride. The markers are still re-rendered
+          // so riders whose last fix has aged out turn grey instead of
+          // looking live while the backend is unreachable.
+          if (state.activeRide) renderMapRiders();
+          const unreachable = error instanceof ApiError && (error.status === 0 || error.status >= 500);
+          if (!unreachable) return;
+          rideUnreachableTicks += 1;
+          if (rideUnreachableTicks === RIDE_UNREACHABLE_TICKS) {
+            showToast("Can't reach Rider Comms. Group positions may be out of date; voice keeps working if it's connected.");
+          }
         }
       };
       rideLocationTimer = setInterval(tick, RIDE_LOCATION_REFRESH_MS);
@@ -4095,6 +4110,7 @@
       if (rideLocationTimer) clearInterval(rideLocationTimer);
       rideLocationTimer = undefined;
       lastRideAvatarRefreshAt = 0;
+      rideUnreachableTicks = 0;
       if (!state.activeRide) rideMemberLocations = new Map();
     }
   }

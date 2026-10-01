@@ -36,6 +36,20 @@ export function databaseSslOptions(connectionString: string, caCertificate = pro
   return { rejectUnauthorized: true, ...(ca ? { ca } : {}) };
 }
 
+/**
+ * Connections per backend process. Every authenticated request takes one for
+ * its rate-limit check before the route runs, and presence updates hold one
+ * for a short transaction, so node-postgres' default of 10 is raised. Keep
+ * replicas × this under the database's max_connections (LOAD_TESTING.md).
+ */
+export const DEFAULT_DATABASE_POOL_MAX = 20;
+export function databasePoolMax(raw: string | undefined): number {
+  if (raw === undefined || raw.trim() === '') return DEFAULT_DATABASE_POOL_MAX;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < 1 || value > 200) throw new Error('DATABASE_POOL_MAX must be an integer from 1 to 200');
+  return value;
+}
+
 function buildPool(): Pool {
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) {
@@ -48,6 +62,7 @@ function buildPool(): Pool {
     // system trust store or DATABASE_CA_CERT; unverified TLS is forbidden.
     ssl: databaseSslOptions(connectionString),
     connectionTimeoutMillis: 5_000,
+    max: databasePoolMax(process.env.DATABASE_POOL_MAX),
   });
 }
 
