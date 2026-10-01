@@ -74,6 +74,15 @@ describe('RateLimitStore', { skip: !hasDatabase && 'DATABASE_URL not set; skippi
     assert.equal(Number(rows[0]?.count), policy.maxEvents);
   });
 
+  it('accepts every configured action in the database', async () => {
+    // The table's CHECK constraint lists actions; a new policy without a
+    // migration would fail every request it guards.
+    const store = new RateLimitStore();
+    for (const action of Object.keys(RATE_LIMIT_POLICIES) as Array<keyof typeof RATE_LIMIT_POLICIES>) {
+      assert.equal((await store.consume('every-action', action, 5_000_000)).allowed, true, action);
+    }
+  });
+
   it('cleans expired rows using the longest configured window', async () => {
     const store = new RateLimitStore();
     const now = 4_000_000;

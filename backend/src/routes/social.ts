@@ -1,11 +1,14 @@
 import { InvalidMessageCursorError } from '../messageStore.ts';
-import { consumeSocialWrite, isCoordinate, readJsonBody, sendJson } from '../serverHttp.ts';
+import { consumeRateLimit, consumeSocialWrite, isCoordinate, rateLimitSubject, readJsonBody, sendJson } from '../serverHttp.ts';
 import { InvalidSocialEventCursorError, MAX_SOCIAL_EVENT_WAIT_MS } from '../socialEventStore.ts';
 import { NOT_HANDLED } from './context.ts';
 import type { RouteContext } from './context.ts';
 
+/** Hideout invite list size: a private ride group's maximum. */
+export const MAX_HIDEOUT_PARTICIPANTS = 20;
+
 export async function handleSocialRoutes(ctx: RouteContext): Promise<unknown> {
-  const { req, res, url, actorId, s, profileStore, friendStore, messageStore, hideoutStore, authStore, moderationStore, socialRateLimitStore, socialActivityStore, socialEventStore } = ctx;
+  const { req, res, url, actorId, s, profileStore, friendStore, messageStore, hideoutStore, authStore, moderationStore, socialRateLimitStore, socialActivityStore, socialEventStore, rateLimitStore } = ctx;
   if (req.method === 'GET' && url.pathname === '/friends/activity') {
     return sendJson(res, 200, { activity: await socialActivityStore.getFriendActivity(actorId) });
   }
@@ -101,7 +104,10 @@ export async function handleSocialRoutes(ctx: RouteContext): Promise<unknown> {
     }
   }
   if (req.method === 'POST' && url.pathname === '/hideouts') {
-    const body = await readJsonBody(req), ids = body.participantIds; if (typeof body.name !== 'string' || !body.name.trim() || body.name.trim().length > 100 || !isCoordinate(body.lat, body.lon) || !Array.isArray(ids) || ids.length === 0 || !ids.every((id) => typeof id === 'string')) return sendJson(res, 400, { error: 'valid name, lat, lon, and participantIds are required' });
+    // Each participant costs a friendship lookup, so the list is capped at a
+    // ride group's size rather than whatever fits in the request body.
+    const body = await readJsonBody(req), ids = body.participantIds; if (typeof body.name !== 'string' || !body.name.trim() || body.name.trim().length > 100 || !isCoordinate(body.lat, body.lon) || !Array.isArray(ids) || ids.length === 0 || ids.length > MAX_HIDEOUT_PARTICIPANTS || !ids.every((id) => typeof id === 'string')) return sendJson(res, 400, { error: `valid name, lat, lon, and 1 to ${MAX_HIDEOUT_PARTICIPANTS} participantIds are required` });
+    if (!(await consumeRateLimit(res, rateLimitStore, rateLimitSubject('rider', actorId), 'hideout_create'))) return;
     const participants = [...new Set(ids as string[])].filter((id) => id !== actorId);
     for (const id of participants) { if (!(await friendStore.isFriendOf(actorId, id))) return sendJson(res, 403, { error: 'participants_must_be_friends' }); }
     return sendJson(res, 201, await hideoutStore.create({ name: body.name.trim(), lat: body.lat as number, lon: body.lon as number, createdBy: actorId, participantIds: participants }));

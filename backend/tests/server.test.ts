@@ -18,7 +18,15 @@ const hasDatabase = Boolean(process.env.DATABASE_URL);
 const needsDb = { skip: !hasDatabase && 'DATABASE_URL not set; skipping Postgres-backed test' };
 
 describe('authenticated API', () => {
-  let ctx: TestServer; before(async () => { ctx = startTestServer(); await ctx.ready; }); after(() => ctx.close());
+  let ctx: TestServer;
+  before(async () => {
+    ctx = startTestServer();
+    await ctx.ready;
+    // Ride-creation limits are durable; clear them so local re-runs within
+    // the 10-minute window start fresh.
+    if (hasDatabase) await getPool().query("DELETE FROM rate_limit_events WHERE action = 'ride_create'");
+  });
+  after(() => ctx.close());
   it('keeps health public and protects product endpoints', async () => { assert.equal((await fetch(`${ctx.baseUrl()}/health`)).status, 200); assert.equal((await fetch(`${ctx.baseUrl()}/rides`, { method: 'POST' })).status, 401); });
   it('does not expose disposable guest authentication', async () => {
     const unauthenticated = await fetch(`${ctx.baseUrl()}/auth/guest`, { method: 'POST' });
@@ -393,6 +401,23 @@ describe('authenticated API', () => {
     } finally {
       await failed.close();
     }
+  });
+  it('limits how many rides one rider can start in a burst', needsDb, async () => {
+    const statuses: number[] = [];
+    for (let i = 0; i < 11; i += 1) {
+      const made = await postJson(ctx, 'ride-spammer', '/rides', {});
+      statuses.push(made.status);
+      if (made.status === 201) {
+        const { rideId } = await made.json() as { rideId: string };
+        await authenticatedFetch(ctx, 'ride-spammer', `/rides/${rideId}`, { method: 'DELETE' });
+      }
+    }
+    assert.deepEqual(statuses, [...Array(10).fill(201), 429]);
+  });
+  it('rejects a hideout invite list longer than a ride group', needsDb, async () => {
+    const participantIds = Array.from({ length: 21 }, (_, i) => `friend-${i}`);
+    const response = await postJson(ctx, 'hideout-planner', '/hideouts', { name: 'Too many', lat: 51.5, lon: -0.1, participantIds });
+    assert.equal(response.status, 400);
   });
   it('supports the private ride lifecycle', needsDb, async () => { const made = await postJson(ctx, 'host', '/rides', {}); const ride = await made.json() as { rideId: string; code: string }; assert.equal((await postJson(ctx, 'member', '/rides/join', { code: ride.code })).status, 200); assert.equal((await authenticatedFetch(ctx, 'member', `/rides/${ride.rideId}/members/host`, { method: 'DELETE' })).status, 403); assert.equal((await authenticatedFetch(ctx, 'host', `/rides/${ride.rideId}`, { method: 'DELETE' })).status, 200); });
   it('reconciles current ride membership and consent after a client restart', needsDb, async () => {

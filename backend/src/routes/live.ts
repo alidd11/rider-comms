@@ -13,7 +13,7 @@ function recordMilestone(stats: RouteContext['adminStatsStore'], riderId: string
 
 export async function handleLiveRoutes(ctx: RouteContext): Promise<unknown> {
   const { req, res, url, address, actorId, rideStore, presenceStore, profileStore, moderationStore, rateLimitStore, liveKitCredentials, adminStatsStore } = ctx;
-  if (req.method === 'POST' && url.pathname === '/rides') { const { ride, codeRecord } = await rideStore.createRide(actorId); void adminStatsStore.increment('rides_started').catch(() => { /* A missed dashboard count must never fail a ride. */ }); recordMilestone(adminStatsStore, actorId, 'ride'); return sendJson(res, 201, { ...rideBody(ride), code: codeRecord.code, expiresAt: codeRecord.expiresAt }); }
+  if (req.method === 'POST' && url.pathname === '/rides') { if (!(await consumeRateLimit(res, rateLimitStore, rateLimitSubject('rider', actorId), 'ride_create'))) return; const { ride, codeRecord } = await rideStore.createRide(actorId); void adminStatsStore.increment('rides_started').catch(() => { /* A missed dashboard count must never fail a ride. */ }); recordMilestone(adminStatsStore, actorId, 'ride'); return sendJson(res, 201, { ...rideBody(ride), code: codeRecord.code, expiresAt: codeRecord.expiresAt }); }
   if (req.method === 'POST' && url.pathname === '/rides/join') {
     const body = await readJsonBody(req);
     if (typeof body.code !== 'string' || !/^[A-Z2-9]{6}$/i.test(body.code)) return sendJson(res, 400, { error: 'a valid 6-character code is required' });

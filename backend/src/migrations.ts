@@ -756,4 +756,15 @@ export const MIGRATIONS: Migration[] = [
       ALTER TABLE users ADD COLUMN IF NOT EXISTS first_nearby_at TIMESTAMPTZ;
     `,
   },
+  {
+    // Per-rider limits on creating rides and hideouts.
+    name: '0042_rate_limit_ride_and_hideout_create',
+    sql: `
+      ALTER TABLE rate_limit_events DROP CONSTRAINT IF EXISTS rate_limit_events_action_check;
+      ALTER TABLE rate_limit_events ADD CONSTRAINT rate_limit_events_action_check
+        CHECK (
+          action IN ('auth', 'api', 'ride_join_rider', 'ride_join_ip', 'hazard_create', 'directions', 'places', 'client_error', 'presence', 'verification_resend', 'password_reset_request', 'ride_create', 'hideout_create')
+        );
+    `,
+  },
 ];
