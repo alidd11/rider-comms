@@ -252,3 +252,43 @@ test('ticks a location update to the server while ride location sharing is on', 
   await waitFor(() => expect(client.updateRideLocation).toHaveBeenCalledWith('ride-1', 51.5, -0.1));
   await waitFor(() => expect(result.current.rideLocations).toHaveLength(1));
 });
+
+test('flags group positions as unreachable after repeated network failures, and clears on recovery', async () => {
+  let failing = true;
+  const client = {
+    getCurrentRide: jest.fn(async () => ({ ride: fakeRide({ shareRideLocation: true }) })),
+    getRide: jest.fn(async () => fakeRide({ shareRideLocation: true })),
+    updateRideLocation: jest.fn(async () => {
+      if (failing) throw new TypeError('Network request failed');
+      return { locations: [{ riderId: RIDER_ID, lat: 51.5, lon: -0.1, updatedAt: 0 }] };
+    }),
+  };
+  const { result } = await renderRide(client);
+  await waitFor(() => expect(client.updateRideLocation).toHaveBeenCalledTimes(1));
+  expect(result.current.rideLocationsUnreachable).toBe(false);
+
+  for (let tick = 2; tick <= 3; tick += 1) {
+    await act(async () => { jest.advanceTimersByTime(10_000); });
+    await waitFor(() => expect(client.updateRideLocation).toHaveBeenCalledTimes(tick));
+  }
+  await waitFor(() => expect(result.current.rideLocationsUnreachable).toBe(true));
+
+  failing = false;
+  await act(async () => { jest.advanceTimersByTime(10_000); });
+  await waitFor(() => expect(result.current.rideLocationsUnreachable).toBe(false));
+  expect(result.current.rideLocations).toHaveLength(1);
+});
+
+test('does not treat a 4xx answer as the backend being unreachable', async () => {
+  const client = {
+    getCurrentRide: jest.fn(async () => ({ ride: fakeRide({ shareRideLocation: true }) })),
+    getRide: jest.fn(async () => fakeRide({ shareRideLocation: true })),
+    updateRideLocation: jest.fn(async () => { throw new ApiError(403, { error: 'location_sharing_disabled' }); }),
+  };
+  const { result } = await renderRide(client);
+  for (let tick = 1; tick <= 4; tick += 1) {
+    await waitFor(() => expect(client.updateRideLocation).toHaveBeenCalledTimes(tick));
+    await act(async () => { jest.advanceTimersByTime(10_000); });
+  }
+  expect(result.current.rideLocationsUnreachable).toBe(false);
+});

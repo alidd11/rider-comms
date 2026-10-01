@@ -5,6 +5,8 @@ import { useAuth } from '../auth/AuthContext';
 import { ApiError, type RideMemberLocation } from '../api/client';
 
 export const RIDE_LOCATION_REFRESH_MS = 10_000;
+// Three failed ticks (~30 s), matching the web app's notice.
+const RIDE_UNREACHABLE_TICKS = 3;
 const RIDE_RESTORE_RETRY_MS = 10_000;
 
 export interface ActiveRide {
@@ -21,6 +23,9 @@ interface Value {
   roster: string[];
   removeRider: (id: string) => Promise<void>;
   rideLocations: RideMemberLocation[];
+  /** True after several location ticks in a row failed to reach the backend,
+   * so group positions on the map are going out of date. */
+  rideLocationsUnreachable: boolean;
   shareRideLocation: boolean;
   setRideLocationSharing: (enabled: boolean) => Promise<boolean>;
 }
@@ -32,6 +37,7 @@ export function RideProvider({ children }: { children: React.ReactNode }): React
   const [activeRide, setActiveRide] = React.useState<ActiveRide | null>(null);
   const [roster, setRoster] = React.useState<string[]>([]);
   const [rideLocations, setRideLocations] = React.useState<RideMemberLocation[]>([]);
+  const [rideLocationsUnreachable, setRideLocationsUnreachable] = React.useState(false);
   const localRideChange = React.useRef(0);
   const activeRideId = React.useRef<string | null>(null);
   activeRideId.current = activeRide?.rideId ?? null;
@@ -195,11 +201,13 @@ export function RideProvider({ children }: { children: React.ReactNode }): React
   }, [activeRide?.rideId, client, riderId]);
 
   React.useEffect(() => {
+    setRideLocationsUnreachable(false);
     if (!activeRide?.shareRideLocation) {
       setRideLocations([]);
       return;
     }
     let cancelled = false;
+    let unreachableTicks = 0;
 
     const tick = async () => {
       if (cancelled || AppState.currentState !== 'active') return;
@@ -208,12 +216,27 @@ export function RideProvider({ children }: { children: React.ReactNode }): React
         if (!permission.granted || cancelled) return;
         const fix = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
         if (cancelled) return;
-        const { locations } = await client.updateRideLocation(
-          activeRide.rideId,
-          fix.coords.latitude,
-          fix.coords.longitude,
-        );
-        if (!cancelled) setRideLocations(locations);
+        let locations: RideMemberLocation[];
+        try {
+          ({ locations } = await client.updateRideLocation(
+            activeRide.rideId,
+            fix.coords.latitude,
+            fix.coords.longitude,
+          ));
+        } catch (error) {
+          // A network failure, timeout or 5xx means the backend is
+          // unreachable; a 4xx is a real answer and doesn't count.
+          if (!(error instanceof ApiError) || error.status >= 500) {
+            unreachableTicks += 1;
+            if (!cancelled && unreachableTicks >= RIDE_UNREACHABLE_TICKS) setRideLocationsUnreachable(true);
+          }
+          throw error;
+        }
+        unreachableTicks = 0;
+        if (!cancelled) {
+          setRideLocations(locations);
+          setRideLocationsUnreachable(false);
+        }
       } catch {
         // A missed foreground tick is retried. The backend expires locations
         // after 30s, so stale coordinates are never kept authoritative.
@@ -239,9 +262,10 @@ export function RideProvider({ children }: { children: React.ReactNode }): React
     roster,
     removeRider,
     rideLocations,
+    rideLocationsUnreachable,
     shareRideLocation: activeRide?.shareRideLocation === true,
     setRideLocationSharing,
-  }), [activeRide, startRide, leaveRide, roster, removeRider, rideLocations, setRideLocationSharing]);
+  }), [activeRide, startRide, leaveRide, roster, removeRider, rideLocations, rideLocationsUnreachable, setRideLocationSharing]);
 
   return <RideContext.Provider value={value}>{children}</RideContext.Provider>;
 }

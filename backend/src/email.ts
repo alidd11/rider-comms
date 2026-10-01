@@ -13,11 +13,16 @@
 import { createHash } from 'node:crypto';
 
 const RESEND_API_URL = 'https://api.resend.com/emails';
+// Signup, resend and password reset wait for the send. A hung Resend request
+// must give up well inside the apps' own 10 s request timeout, or signup
+// would succeed on the server while the app reports a failure (OUTAGES.md).
+export const RESEND_TIMEOUT_MS = 5_000;
 
 const DEFAULT_PUBLIC_APP_URL = 'https://alidd11.github.io/rider-comms/';
 
 export interface SendVerificationEmailOptions {
   fetchImpl?: typeof fetch;
+  timeoutMs?: number;
 }
 
 function recipientId(email: string): string {
@@ -29,7 +34,8 @@ async function sendEmail(
   subject: string,
   text: string,
   html: string,
-  fetchImpl: typeof fetch
+  fetchImpl: typeof fetch,
+  timeoutMs = RESEND_TIMEOUT_MS
 ): Promise<boolean> {
   const apiKey = process.env.RESEND_API_KEY;
   const from = process.env.RESEND_FROM_EMAIL;
@@ -43,6 +49,7 @@ async function sendEmail(
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({ from, to: email, subject, text, html }),
+      signal: AbortSignal.timeout(timeoutMs),
     });
     if (!response.ok) {
       console.error(`[rider-comms] Resend returned HTTP ${response.status} for recipient ${recipient}.`);
@@ -64,7 +71,7 @@ async function sendEmail(
 export async function sendVerificationEmail(
   email: string,
   token: string,
-  { fetchImpl = fetch }: SendVerificationEmailOptions = {}
+  { fetchImpl = fetch, timeoutMs = RESEND_TIMEOUT_MS }: SendVerificationEmailOptions = {}
 ): Promise<boolean> {
   let verifyUrlString: string;
   try {
@@ -87,7 +94,7 @@ export async function sendVerificationEmail(
   ].join('\n');
   const html = `<p>Welcome to Rider Comms!</p><p>Verify your email by clicking the link below:</p><p><a href="${verifyUrlString}">${verifyUrlString}</a></p><p>Or enter this verification code in the app: <strong>${token}</strong></p><p>This link/code expires in 24 hours. If you did not create this account, you can ignore this email.</p>`;
 
-  return sendEmail(email, 'Verify your Rider Comms email', text, html, fetchImpl);
+  return sendEmail(email, 'Verify your Rider Comms email', text, html, fetchImpl, timeoutMs);
 }
 
 export async function sendPasswordResetEmail(

@@ -147,7 +147,7 @@ function VoiceActivityBridge({
  * screen — tap it to expand the full mixer + leave-ride controls.
  */
 export function RideBar({ controlsVisible = true }: { controlsVisible?: boolean } = {}): React.JSX.Element | null {
-  const { activeRide, leaveRide, roster, shareRideLocation, setRideLocationSharing } = useRide();
+  const { activeRide, leaveRide, roster, shareRideLocation, setRideLocationSharing, rideLocationsUnreachable } = useRide();
   const { client, riderId } = useAuth();
   const { lockedForSafety } = useMovementSafety();
   const [expanded, setExpanded] = React.useState(false);
@@ -371,6 +371,9 @@ export function RideBar({ controlsVisible = true }: { controlsVisible?: boolean 
           <View style={styles.lockedBarCopy}>
             <Text style={styles.barText}>In ride{activeRide.code ? ` · ${activeRide.code}` : ''}</Text>
             <Text style={[styles.voiceStatusText, voiceFailure && styles.voiceError]}>{voiceLabel}</Text>
+            {shareRideLocation && rideLocationsUnreachable && (
+              <Text style={styles.locationStaleStatusText}>Can’t reach Rider Comms · positions out of date</Text>
+            )}
           </View>
           <Pressable
             accessibilityRole="button"
@@ -394,12 +397,22 @@ export function RideBar({ controlsVisible = true }: { controlsVisible?: boolean 
                 <Text numberOfLines={1} style={styles.speakerPillText}>{activeSpeakerLabel}</Text>
               </View>
             )}
-            {shareRideLocation && (
+            {shareRideLocation && (rideLocationsUnreachable ? (
+              <View
+                style={styles.locationLivePill}
+                accessible
+                accessibilityLabel="Can’t reach Rider Comms. Group positions are out of date."
+                accessibilityLiveRegion="polite"
+              >
+                <Ionicons name="cloud-offline" size={13} color={colors.warning} />
+                <Text style={styles.locationStaleText}>Offline</Text>
+              </View>
+            ) : (
               <View style={styles.locationLivePill}>
                 <Ionicons name="location" size={13} color={colors.success} />
                 <Text style={styles.locationLiveText}>Live</Text>
               </View>
-            )}
+            ))}
             <Ionicons name="chevron-up" size={18} color={colors.textSecondary} />
           </Pressable>
 

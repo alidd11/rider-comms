@@ -41,6 +41,10 @@ export function createLiveKitRoomAdmin(credentials: LiveKitCredentials): LiveKit
     liveKitRoomServiceUrl(credentials.url),
     credentials.apiKey,
     credentials.apiSecret,
+    // Blocking a rider or leaving a ride waits for revocation; if LiveKit is
+    // unreachable, give up sooner than the SDK's 10 s default (the failure
+    // is logged and the request still succeeds).
+    { requestTimeout: 5 },
   );
   const revokeParticipant = async (roomName: string, identity: string, revokedAt = Date.now()): Promise<void> => {
     await rooms.removeParticipant(
