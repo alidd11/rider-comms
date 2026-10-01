@@ -2,6 +2,7 @@ import { describe, it } from 'node:test';
 import { expect } from './testUtils.ts';
 import {
   computeZonePairs,
+  computeZonePairsFor,
   diffZoneTransitions,
   isMutuallyInZone,
 } from '../src/zoneMatcher.ts';
@@ -90,5 +91,22 @@ describe('diffZoneTransitions', () => {
   it('reports no transitions when nothing changed', () => {
     const snapshot = [{ a: 'a', b: 'b', distanceMiles: 0.3 }];
     expect(diffZoneTransitions(snapshot, snapshot)).toEqual([]);
+  });
+});
+
+describe('computeZonePairsFor', () => {
+  it('returns exactly the pairs computeZonePairs finds that involve the rider', () => {
+    const riders = Array.from({ length: 40 }, (_, i) =>
+      riderAt(`r${i}`, 40 + (i % 7) * 0.004, -105 + Math.floor(i / 7) * 0.006, 0.5 + (i % 3) * 0.5),
+    );
+    const [rider, ...others] = riders;
+    const expected = computeZonePairs(riders).filter((pair) => pair.a === rider.id || pair.b === rider.id);
+    expect(expected.length > 0).toBe(true);
+    expect(computeZonePairsFor(rider, others)).toEqual(expected);
+  });
+
+  it('never pairs a rider with itself', () => {
+    const rider = riderAt('a', 40, -105, 1);
+    expect(computeZonePairsFor(rider, [rider])).toEqual([]);
   });
 });

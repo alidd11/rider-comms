@@ -1,4 +1,4 @@
-import { computeZonePairs, haversineMeters } from '@rider-comms/shared';
+import { computeZonePairsFor, haversineMeters } from '@rider-comms/shared';
 import type { Rider, ZonePair, ZoneTransition } from '@rider-comms/shared';
 import type { PoolClient } from 'pg';
 import { ensureMigrated, getPool } from './db.ts';
@@ -63,6 +63,9 @@ interface PairRow {
 }
 
 const MAX_ZONE_RADIUS_MILES = 20;
+const DEADLOCK_DETECTED = '40P01';
+const SERIALIZATION_FAILURE = '40001';
+const MAX_PRESENCE_ATTEMPTS = 3;
 
 function rowToRider(row: RiderPresenceRow): Rider {
   return {
@@ -127,21 +130,32 @@ export class PresenceStore {
   }
 
   async updatePresence(rider: PresenceFix): Promise<PresenceUpdateResult> {
+    // Lock ordering makes deadlocks unlikely, but Postgres may still pick a
+    // victim under heavy contention; the transaction is safe to replay.
+    for (let attempt = 1; ; attempt += 1) {
+      try {
+        return await this.updatePresenceOnce(rider);
+      } catch (error) {
+        const code = (error as { code?: string }).code;
+        if ((code === DEADLOCK_DETECTED || code === SERIALIZATION_FAILURE) && attempt < MAX_PRESENCE_ATTEMPTS) continue;
+        throw error;
+      }
+    }
+  }
+
+  private async updatePresenceOnce(rider: PresenceFix): Promise<PresenceUpdateResult> {
     await ensureMigrated();
     const client = await getPool().connect();
     const cutoff = rider.updatedAt - this.staleAfterMs;
     try {
       await client.query('BEGIN');
 
-      const stalePairs = await client.query<PairRow>(
-        `SELECT DISTINCT pair.rider_a, pair.rider_b
-         FROM presence_zone_pairs pair
-         JOIN rider_presence presence
-           ON presence.rider_id = pair.rider_a OR presence.rider_id = pair.rider_b
-         WHERE presence.updated_at < $1`,
-        [cutoff]
-      );
-      await client.query('DELETE FROM rider_presence WHERE updated_at < $1', [cutoff]);
+      // This transaction only touches the updating rider's own rows and
+      // pairs. Deleting every stale row here (as it once did) made
+      // concurrent updates lock each other's rows and deadlock under a busy
+      // group ride. Stale rows are ignored by every read (cutoff filters),
+      // their pairs are removed below as "left", and the retention sweep
+      // deletes them.
 
       // Speed gate against the last accepted fix (kept longer than the
       // presence lease, see migration 0038). The row lock serialises
@@ -164,20 +178,29 @@ export class PresenceStore {
         }
       }
 
-      const accepted = await client.query(
-        `INSERT INTO rider_presence
-           (rider_id, lat, lon, radius_miles, accuracy_meters, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6)
-         ON CONFLICT (rider_id) DO UPDATE SET
-           lat = EXCLUDED.lat,
-           lon = EXCLUDED.lon,
-           radius_miles = EXCLUDED.radius_miles,
-           accuracy_meters = EXCLUDED.accuracy_meters,
-           updated_at = EXCLUDED.updated_at
-         WHERE rider_presence.updated_at < EXCLUDED.updated_at
+      // A plain UPDATE of non-key columns takes a FOR NO KEY UPDATE row lock,
+      // which doesn't block the KEY SHARE locks that other riders' pair
+      // inserts take on this row through the foreign key. INSERT ... ON
+      // CONFLICT DO UPDATE takes a full FOR UPDATE lock and caused
+      // rider-A-waits-for-B, B-waits-for-A deadlocks.
+      const fixValues = [rider.id, rider.location.lat, rider.location.lon, rider.radiusMiles, rider.accuracyMeters ?? 0, rider.updatedAt];
+      let accepted = await client.query(
+        `UPDATE rider_presence
+         SET lat = $2, lon = $3, radius_miles = $4, accuracy_meters = $5, updated_at = $6
+         WHERE rider_id = $1 AND updated_at < $6
          RETURNING rider_id`,
-        [rider.id, rider.location.lat, rider.location.lon, rider.radiusMiles, rider.accuracyMeters ?? 0, rider.updatedAt]
+        fixValues
       );
+      if (accepted.rowCount !== 1) {
+        accepted = await client.query(
+          `INSERT INTO rider_presence (rider_id, lat, lon, radius_miles, accuracy_meters, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6)
+           ON CONFLICT (rider_id) DO NOTHING
+           RETURNING rider_id`,
+          fixValues
+        );
+      }
+      // Neither updated nor inserted: a newer fix is already stored.
       if (accepted.rowCount !== 1) throw new StaleLocationFixError();
       await client.query(
         `INSERT INTO presence_movement_anchors (rider_id, lat, lon, recorded_at)
@@ -188,9 +211,7 @@ export class PresenceStore {
       );
 
       const candidates = await this.loadCandidates(client, rider, cutoff);
-      const desiredPairs = computeZonePairs([rider, ...candidates])
-        .filter((pair) => pair.a === rider.id || pair.b === rider.id)
-        .map(canonicalPair);
+      const desiredPairs = computeZonePairsFor(rider, candidates).map(canonicalPair);
       const desiredKeys = new Set(desiredPairs.map(pairKey));
 
       const existing = await client.query<PairRow>(
@@ -198,9 +219,19 @@ export class PresenceStore {
          WHERE rider_a = $1 OR rider_b = $1`,
         [rider.id]
       );
-      const transitions: ZoneTransition[] = stalePairs.rows
-        .filter((pair) => pair.rider_a === rider.id || pair.rider_b === rider.id)
-        .map((pair) => ({ ...pairToZonePair(pair), type: 'left' as const }));
+      const transitions: ZoneTransition[] = [];
+
+      // Pair rows are always locked in one global order (by key), so two
+      // riders updating at once can never wait on each other in a cycle.
+      // Plain code-unit comparison: cheaper than localeCompare and the same
+      // order on every replica regardless of locale.
+      const byKey = (left: ZonePair, right: ZonePair) => {
+        const l = pairKey(left);
+        const r = pairKey(right);
+        return l < r ? -1 : l > r ? 1 : 0;
+      };
+      existing.rows.sort((left, right) => byKey(pairToZonePair(left), pairToZonePair(right)));
+      desiredPairs.sort(byKey);
 
       for (const row of existing.rows) {
         const pair = pairToZonePair(row);
@@ -214,7 +245,14 @@ export class PresenceStore {
         if (removed.rowCount === 1) transitions.push({ ...pair, type: 'left' });
       }
 
+      // Only pairs that are new need a write. Re-inserting every existing
+      // pair cost one round trip per nearby rider on every fix, which
+      // exhausted the connection pool when hundreds of riders were close
+      // together (see LOAD_TESTING.md). If a partner deletes a pair between
+      // our read and commit, the next fix (8 s later) recreates it.
+      const existingKeys = new Set(existing.rows.map((row) => pairKey(pairToZonePair(row))));
       for (const pair of desiredPairs) {
+        if (existingKeys.has(pairKey(pair))) continue;
         const inserted = await client.query(
           `INSERT INTO presence_zone_pairs (rider_a, rider_b, created_at)
            VALUES ($1, $2, $3)

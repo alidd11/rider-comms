@@ -1,4 +1,3 @@
-import type { PoolClient } from 'pg';
 import { ensureMigrated, getPool } from './db.ts';
 
 export type RateLimitAction =
@@ -68,50 +67,49 @@ const MAX_POLICY_WINDOW_MS = Math.max(...Object.values(RATE_LIMIT_POLICIES).map(
  * IP address or rider ID.
  */
 export class RateLimitStore {
-  private async lockKey(client: PoolClient, subjectKey: string, action: RateLimitAction): Promise<void> {
-    await client.query(
-      'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
-      [`api-rate:${action}:${subjectKey}`],
-    );
-  }
-
   async consume(subjectKey: string, action: RateLimitAction, now = Date.now()): Promise<RateLimitResult> {
     await ensureMigrated();
     const policy = RATE_LIMIT_POLICIES[action];
     const cutoff = now - policy.windowMs;
     const client = await getPool().connect();
     try {
-      await client.query('BEGIN');
-      await this.lockKey(client, subjectKey, action);
+      // Every authenticated request passes through here, so this is kept to
+      // three round trips (it was six). BEGIN and the advisory lock go in one
+      // simple-protocol query, which can't take bind parameters, hence the
+      // escaped literal. The lock must be held before the counting statement
+      // starts: under READ COMMITTED that statement's snapshot then includes
+      // every insert committed by whoever held the lock before us.
+      const lockName = client.escapeLiteral(`api-rate:${action}:${subjectKey}`);
+      await client.query(`BEGIN; SELECT pg_advisory_xact_lock(hashtextextended(${lockName}, 0))`);
 
-      await client.query(
-        'DELETE FROM rate_limit_events WHERE subject_key = $1 AND action = $2 AND created_at <= $3',
-        [subjectKey, action, cutoff],
-      );
-
-      const { rows } = await client.query<RateWindowRow>(
-        `SELECT COUNT(*) AS event_count, MIN(created_at) AS oldest_created_at
-         FROM rate_limit_events
-         WHERE subject_key = $1 AND action = $2 AND created_at > $3`,
-        [subjectKey, action, cutoff],
-      );
-      const count = Number(rows[0]?.event_count ?? 0);
-      const oldest = rows[0]?.oldest_created_at == null ? null : Number(rows[0].oldest_created_at);
-      if (count >= policy.maxEvents) {
-        await client.query('COMMIT');
-        const retryAfterMs = oldest == null ? policy.windowMs : oldest + policy.windowMs - now;
-        return {
-          allowed: false,
-          retryAfterSeconds: Math.max(1, Math.ceil(retryAfterMs / 1000)),
-        };
-      }
-
-      await client.query(
-        'INSERT INTO rate_limit_events (subject_key, action, created_at) VALUES ($1, $2, $3)',
-        [subjectKey, action, now],
+      // One statement prunes expired rows, counts the live window and inserts
+      // the new event only if there is room. CTEs share a snapshot, so the
+      // count ignores the prune and the insert; it filters on the cutoff itself.
+      const { rows } = await client.query<RateWindowRow & { inserted: boolean }>(
+        `WITH pruned AS (
+           DELETE FROM rate_limit_events WHERE subject_key = $1 AND action = $2 AND created_at <= $3
+         ), live AS (
+           SELECT COUNT(*) AS event_count, MIN(created_at) AS oldest_created_at
+           FROM rate_limit_events
+           WHERE subject_key = $1 AND action = $2 AND created_at > $3
+         ), inserted AS (
+           INSERT INTO rate_limit_events (subject_key, action, created_at)
+           SELECT $1, $2, $4 FROM live WHERE live.event_count < $5
+           RETURNING 1
+         )
+         SELECT live.event_count, live.oldest_created_at, EXISTS (SELECT 1 FROM inserted) AS inserted
+         FROM live`,
+        [subjectKey, action, cutoff, now, policy.maxEvents],
       );
       await client.query('COMMIT');
-      return { allowed: true, retryAfterSeconds: 0 };
+
+      if (rows[0]?.inserted) return { allowed: true, retryAfterSeconds: 0 };
+      const oldest = rows[0]?.oldest_created_at == null ? null : Number(rows[0].oldest_created_at);
+      const retryAfterMs = oldest == null ? policy.windowMs : oldest + policy.windowMs - now;
+      return {
+        allowed: false,
+        retryAfterSeconds: Math.max(1, Math.ceil(retryAfterMs / 1000)),
+      };
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;

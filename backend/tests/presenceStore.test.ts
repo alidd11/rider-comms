@@ -129,6 +129,23 @@ describe('PresenceStore', { skip: !hasDatabase && 'DATABASE_URL not set; skippin
     assert.equal((await store.getRider('a'))?.location.lat, 51.5);
   });
 
+  it('keeps every clustered rider paired through bursts of simultaneous updates', async () => {
+    // Concurrency smoke test for the lock ordering and deadlock retry. The
+    // deadlock it guards against was rare (2 in ~1,400 updates at 500
+    // riders) and doesn't reproduce reliably at unit-test scale; the real
+    // check is scripts/loadtest.ts (see LOAD_TESTING.md).
+    const store = new PresenceStore(60_000);
+    const ids = Array.from({ length: 30 }, (_, i) => `burst-${String(i).padStart(2, '0')}`);
+    for (let round = 0; round < 5; round += 1) {
+      const results = await Promise.allSettled(ids.map((id, i) =>
+        store.updatePresence(rider(id, 51.5 + (i % 8) * 0.0005, -0.1 + Math.floor(i / 8) * 0.0005, 1, 1_000_000 + round * 1000 + i))));
+      const failures = results.filter((result) => result.status === 'rejected');
+      assert.deepEqual(failures.map((failure) => String((failure as PromiseRejectedResult).reason)), []);
+    }
+    const peers = await store.getCurrentPeerIds('burst-00', 1_005_000);
+    assert.equal(peers.length, 29, 'every clustered rider ends up paired');
+  });
+
   describe('movement speed gate', () => {
     // 0.01 degrees of latitude is ~1.11 km.
     it('accepts road-speed movement between fixes', async () => {

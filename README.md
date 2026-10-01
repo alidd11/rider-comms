@@ -92,6 +92,7 @@ is behind a trusted reverse proxy that replaces `X-Forwarded-For`; otherwise
 leave it false.
 
 Outages are caught from outside by a 10-minute GitHub check that emails you and opens an issue; see `UPTIME.md`.
+Capacity figures and how to load test are in `LOAD_TESTING.md`.
 
 Voice uses LiveKit via `LIVEKIT_URL`, `LIVEKIT_API_KEY` and `LIVEKIT_API_SECRET` on the backend (LiveKit Cloud or self-hosted). To run your own LiveKit server instead of paying for LiveKit Cloud, follow `SELF_HOSTED_VOICE.md`.
 
