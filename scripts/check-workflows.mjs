@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const workflowPaths = ['.github/workflows/ci.yml', '.github/workflows/pages.yml', '.github/workflows/backup.yml'];
+const workflowPaths = ['.github/workflows/ci.yml', '.github/workflows/pages.yml', '.github/workflows/backup.yml', '.github/workflows/uptime.yml'];
+// The uptime check only runs curl and gh, so it uses no external actions.
+const actionFreeWorkflows = new Set(['.github/workflows/uptime.yml']);
 const workflows = await Promise.all(workflowPaths.map(async (path) => ({
   path,
   source: await readFile(new URL(`../${path}`, import.meta.url), 'utf8'),
@@ -9,7 +11,7 @@ const workflows = await Promise.all(workflowPaths.map(async (path) => ({
 
 for (const { path, source } of workflows) {
   const uses = [...source.matchAll(/uses:\s*([^@\s]+)@([^\s#]+)/g)];
-  assert.ok(uses.length > 0, `${path} must declare its external actions`);
+  assert.ok(uses.length > 0 || actionFreeWorkflows.has(path), `${path} must declare its external actions`);
   for (const [, action, ref] of uses) {
     assert.match(ref, /^[a-f0-9]{40}$/, `${path}: ${action} must be pinned to an immutable commit SHA`);
   }

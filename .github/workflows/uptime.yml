@@ -1,0 +1,83 @@
+name: Uptime
+
+# Outside-in check that production is reachable. The backend emails staff
+# about errors while it is running (backend/src/errorAlerts.ts), but it can't
+# report its own outage, so this runs from GitHub instead. A failed run
+# emails whoever last changed this schedule (GitHub's default for scheduled
+# workflows) and opens a "Production is down" issue, which is closed again
+# automatically once checks pass. See UPTIME.md.
+
+on:
+  schedule:
+    # GitHub may delay scheduled runs by several minutes under load.
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: uptime
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      API: https://backend-production-7fa0.up.railway.app
+      SITE: https://alidd11.github.io/rider-comms
+      GH_TOKEN: ${{ github.token }}
+      ISSUE_TITLE: Production is down
+    steps:
+      - name: Check API, database and web app
+        id: probe
+        run: |
+          # A check fails only after three attempts 20 s apart, so a single
+          # dropped request or a deploy restart doesn't raise an alarm.
+          failures=""
+          probe() {
+            name="$1"; url="$2"
+            for attempt in 1 2 3; do
+              code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 15 "$url" || echo 000)
+              if [ "$code" = "200" ]; then
+                echo "OK   $name ($url)"
+                return 0
+              fi
+              echo "     $name attempt $attempt: HTTP $code"
+              [ "$attempt" -lt 3 ] && sleep 20
+            done
+            echo "DOWN $name ($url)"
+            failures="$failures- $name: $url returned HTTP $code after 3 attempts\n"
+          }
+          probe "API" "$API/health"
+          probe "Database (API readiness)" "$API/ready"
+          probe "Web app" "$SITE/"
+          if [ -n "$failures" ]; then
+            printf "%b" "$failures" > failures.md
+            echo "down=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "down=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Open or update the outage issue
+        if: steps.probe.outputs.down == 'true'
+        run: |
+          body=$(printf "Uptime check failed at %s UTC.\n\n%s\nRun: %s/%s/actions/runs/%s\n\nThis issue closes automatically when checks pass again. Next steps are in UPTIME.md." \
+            "$(date -u '+%Y-%m-%d %H:%M')" "$(cat failures.md)" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID")
+          existing=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "in:title \"$ISSUE_TITLE\"" --json number --jq '.[0].number // empty')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --repo "$GITHUB_REPOSITORY" --body "$body"
+          else
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$ISSUE_TITLE" --body "$body"
+          fi
+          echo "::error::Production check failed"
+          exit 1
+
+      - name: Close the outage issue after recovery
+        if: steps.probe.outputs.down == 'false'
+        run: |
+          for number in $(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "in:title \"$ISSUE_TITLE\"" --json number --jq '.[].number'); do
+            gh issue close "$number" --repo "$GITHUB_REPOSITORY" --comment "Recovered: all checks passed at $(date -u '+%Y-%m-%d %H:%M') UTC."
+          done
