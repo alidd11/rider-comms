@@ -36,8 +36,8 @@ export function HazardReportSheet({
   const insets = useSafeAreaInsets();
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose}>
-        <Pressable style={[styles.sheet, { paddingBottom: insets.bottom + spacing.md }]} onPress={(e) => e.stopPropagation()}>
+      <Pressable accessible={false} style={styles.backdrop} onPress={onClose}>
+        <Pressable accessible={false} style={[styles.sheet, { paddingBottom: insets.bottom + spacing.md }]} onPress={(e) => e.stopPropagation()}>
           <View style={styles.handle} />
           <View style={styles.header}>
             <View style={styles.headerCopy}>
@@ -52,7 +52,7 @@ export function HazardReportSheet({
             {HAZARD_TYPE_ORDER.map((type) => {
               const meta = HAZARD_TYPE_META[type];
               return (
-                <Pressable
+                <Pressable accessibilityRole="button"
                   key={type}
                   style={({ pressed }) => [styles.typeButton, pressed && styles.typeButtonPressed]}
                   onPress={() => onReport(type)}

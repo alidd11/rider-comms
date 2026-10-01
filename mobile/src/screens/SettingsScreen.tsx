@@ -161,8 +161,8 @@ function AvatarPickerModal({
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <Pressable style={styles.modalBackdrop} onPress={onClose}>
-        <Pressable style={[styles.modalSheet, { paddingBottom: insets.bottom + spacing.md }]} onPress={(e) => e.stopPropagation()}>
+      <Pressable accessible={false} style={styles.modalBackdrop} onPress={onClose}>
+        <Pressable accessible={false} style={[styles.modalSheet, { paddingBottom: insets.bottom + spacing.md }]} onPress={(e) => e.stopPropagation()}>
           <View style={styles.modalHandle} />
           <View style={styles.modalHeader}>
             <View style={styles.modalHeaderCopy}>
@@ -227,7 +227,7 @@ function AvatarPickerModal({
             })}
           </ScrollView>
 
-          <Pressable style={styles.modalDone} onPress={onClose}>
+          <Pressable accessibilityRole="button" style={styles.modalDone} onPress={onClose}>
             <Text style={styles.modalDoneText}>Done</Text>
           </Pressable>
         </Pressable>
@@ -290,8 +290,8 @@ function SettingsSheet({ visible, title, onClose, children }: {
   const insets = useSafeAreaInsets();
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <Pressable style={styles.modalBackdrop} onPress={onClose}>
-        <Pressable style={[styles.settingsSheet, { paddingBottom: Math.max(insets.bottom, spacing.md) }]} onPress={(event) => event.stopPropagation()}>
+      <Pressable accessible={false} style={styles.modalBackdrop} onPress={onClose}>
+        <Pressable accessible={false} style={[styles.settingsSheet, { paddingBottom: Math.max(insets.bottom, spacing.md) }]} onPress={(event) => event.stopPropagation()}>
           <View style={styles.modalHandle} />
           <View style={styles.settingsSheetHeader}>
             <Text style={styles.settingsSheetTitle}>{title}</Text>
@@ -677,15 +677,15 @@ export function SettingsScreen(): React.JSX.Element {
             ) : null}
             {!sessionsLoading && sessions.length === 0 ? <Text style={styles.sessionEmpty}>{sessionsError ?? 'No account sessions found.'}</Text> : null}
             {sessionsError && sessions.length > 0 ? <Text style={styles.sessionEmpty}>{sessionsError}</Text> : null}
-            <Pressable disabled={sessionsLoading} style={[styles.sheetSecondaryAction, sessionsLoading && styles.sheetActionDisabled]} onPress={() => void loadSessions()}><Text style={styles.sheetSecondaryActionText}>{sessionsLoading ? 'Refreshing…' : 'Refresh devices'}</Text></Pressable>
+            <Pressable accessibilityRole="button" disabled={sessionsLoading} style={[styles.sheetSecondaryAction, sessionsLoading && styles.sheetActionDisabled]} onPress={() => void loadSessions()}><Text style={styles.sheetSecondaryActionText}>{sessionsLoading ? 'Refreshing…' : 'Refresh devices'}</Text></Pressable>
           </View>
         ) : null}
 
         {activeSheet === 'account' ? (
           <View style={styles.settingsSheetSection}>
             <Text style={styles.sheetBodyCopy}>Delete your Rider Comms account and associated data, or reset your Rider Comms profile and preferences to their defaults.</Text>
-            <Pressable style={styles.sheetSecondaryAction} onPress={confirmReset}><Text style={styles.sheetSecondaryActionText}>Reset settings</Text></Pressable>
-            <Pressable style={styles.sheetDangerAction} onPress={confirmDeleteAccount}><Text style={styles.sheetDangerActionText}>Delete account</Text></Pressable>
+            <Pressable accessibilityRole="button" style={styles.sheetSecondaryAction} onPress={confirmReset}><Text style={styles.sheetSecondaryActionText}>Reset settings</Text></Pressable>
+            <Pressable accessibilityRole="button" style={styles.sheetDangerAction} onPress={confirmDeleteAccount}><Text style={styles.sheetDangerActionText}>Delete account</Text></Pressable>
           </View>
         ) : null}
 
@@ -754,7 +754,7 @@ export function SettingsScreen(): React.JSX.Element {
               <View style={styles.safetyRow}><Ionicons name="location-outline" size={21} color={colors.accent} /><View style={styles.safetyCopyWrap}><Text style={styles.safetyTitle}>Control your location</Text><Text style={styles.safetyCopy}>Nearby visibility and private-ride sharing can be stopped independently.</Text></View></View>
               <View style={styles.safetyRow}><Ionicons name="warning-outline" size={21} color={colors.warning} /><View style={styles.safetyCopyWrap}><Text style={styles.safetyTitle}>Not an emergency service</Text><Text style={styles.safetyCopy}>Use the appropriate emergency service when urgent help is needed.</Text></View></View>
             </View>
-            <Pressable style={styles.sheetSecondaryActionStandalone} onPress={() => { setActiveSheet(null); navigation.navigate('Legal'); }}><Text style={styles.sheetSecondaryActionText}>Privacy, safety & terms</Text></Pressable>
+            <Pressable accessibilityRole="button" style={styles.sheetSecondaryActionStandalone} onPress={() => { setActiveSheet(null); navigation.navigate('Legal'); }}><Text style={styles.sheetSecondaryActionText}>Privacy, safety & terms</Text></Pressable>
           </>
         ) : null}
       </SettingsSheet>

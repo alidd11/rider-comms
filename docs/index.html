@@ -106,7 +106,7 @@
       <div class="auth-splash-progress" aria-hidden="true"><span></span></div>
     </div>
 
-    <div class="auth-visual" role="img" aria-label="Motorcyclist riding through mountains at dusk">
+    <div class="auth-visual" aria-hidden="true">
       <div class="auth-visual-copy" aria-hidden="true"></div>
     </div>
 
@@ -215,7 +215,7 @@
       <button id="searchScreenBack" class="icon-button" aria-label="Back to map"><svg class="icon-back"><use href="#i-chevron"/></svg></button>
       <div class="search-slot glass">
         <svg><use href="#i-search"/></svg>
-        <input id="searchScreenInput" placeholder="Search for a place" autocomplete="off">
+        <input id="searchScreenInput" placeholder="Search for a place" aria-label="Search for a place" autocomplete="off">
         <button id="searchScreenClear" class="search-clear" aria-label="Clear search" hidden><svg><use href="#i-close"/></svg></button>
       </div>
     </header>
@@ -227,7 +227,7 @@
       <button class="chip poi-chip" data-poi-type="car_repair" aria-pressed="false"><svg><use href="#i-wrench"/></svg><span>Repair</span></button>
     </div>
     <div id="searchScreenResults" class="search-screen-results" role="region" aria-label="Place search results" aria-live="polite"></div>
-    <p class="search-screen-attribution">Place data from Google Maps</p>
+    <footer class="search-screen-attribution">Place data from Google Maps</footer>
   </div>
 
   <div id="app" class="app-shell" hidden>
@@ -237,7 +237,7 @@
           <div id="googleMap" class="google-map" aria-hidden="true"></div>
           <div class="fallback-map" id="fallbackMap"><div class="road road-a"></div><div class="road road-b"></div><div class="road road-c"></div></div>
           <h1 id="mapTitle" class="sr-only">North London rider map</h1>
-          <header class="map-header"><div class="search-slot glass" id="mapSearchSlot"><svg><use href="#i-search"/></svg><input id="placeSearchInput" placeholder="Search for a place" autocomplete="off" readonly><svg class="map-search-options" aria-hidden="true"><use href="#i-sliders"/></svg></div><div class="map-avatar-wrap"><button class="avatar avatar-sm" id="mapAvatarButton" data-avatar="AI" aria-label="Open profile">AI</button><button id="voiceStatusBtn" class="voice-mute-badge" aria-label="Listening — hands-free" hidden><svg><use href="#i-mic"/></svg></button></div></header>
+          <header class="map-header"><div class="search-slot glass" id="mapSearchSlot"><svg><use href="#i-search"/></svg><input id="placeSearchInput" placeholder="Search for a place" aria-label="Search for a place" autocomplete="off" readonly><svg class="map-search-options" aria-hidden="true"><use href="#i-sliders"/></svg></div><div class="map-avatar-wrap"><button class="avatar avatar-sm" id="mapAvatarButton" data-avatar="AI" aria-label="Open profile">AI</button><button id="voiceStatusBtn" class="voice-mute-badge" aria-label="Listening — hands-free" hidden><svg><use href="#i-mic"/></svg></button></div></header>
           <div id="fallbackMarkers" class="fallback-markers"></div>
           <div id="hazardMarkers" class="hazard-markers"></div>
           <div class="map-actions">
@@ -317,7 +317,7 @@
       <section class="screen content-screen" data-screen="friends" aria-labelledby="friendsTitle">
         <div class="page-width"><header class="page-header"><div><h1 id="friendsTitle">Friends</h1></div><span id="friendsCountBadge" class="count-badge" hidden>0</span><button id="addFriendToggle" class="icon-button add-friend-toggle" aria-label="Add a rider" title="Add a rider &#8211; connect using their handle or Rider ID"><svg><use href="#i-friends"/></svg></button></header>
           <div class="network-summary" aria-label="Network summary"><span><b id="networkFriendCount">0</b> friends</span><span><b id="networkRequestCount">0</b> requests</span></div>
-          <div class="search-and-add"><div class="search-row"><svg><use href="#i-search"/></svg><input id="friendSearch" placeholder="Search friends" autocomplete="off"></div></div>
+          <div class="search-and-add"><div class="search-row"><svg><use href="#i-search"/></svg><input id="friendSearch" placeholder="Search friends" aria-label="Search friends" autocomplete="off"></div></div>
           <form id="addFriendForm" class="compact-form" hidden><label for="friendId">Handle or Rider ID</label><div><input id="friendId" placeholder="@their_handle" autocomplete="off"><button class="button primary">Send</button></div><p id="friendFeedback" class="support-copy"></p></form>
           <section id="requestSection" hidden><div class="section-heading"><h2>Requests</h2><span id="requestsCountBadge" class="count-badge">0</span></div><div id="requestList" class="people-list"></div></section>
           <section id="friendSection" hidden><div class="section-heading"><h2>Your friends</h2></div><div id="friendList" class="people-list"></div></section>

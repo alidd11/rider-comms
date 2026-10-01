@@ -37,7 +37,7 @@ export const styles = StyleSheet.create({
   resultsEyebrow: { ...type.label, fontSize: 10 },
   resultsTitle: { ...type.subheading, fontSize: 16, marginTop: 2 },
   resultsCount: { ...type.caption, fontSize: 11 },
-  clearRecent: { ...type.caption, color: colors.accent, fontWeight: '800', paddingVertical: spacing.sm },
+  clearRecent: { ...type.caption, color: colors.accentInk, fontWeight: '800', paddingVertical: spacing.sm },
   resultRow: {
     minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 5,
     paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: colors.border,

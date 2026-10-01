@@ -75,7 +75,7 @@ function MessageBubble({
 
   return (
     <View style={[styles.bubbleRow, mine ? styles.bubbleRowMine : styles.bubbleRowTheirs]}>
-      {failed ? <Pressable onPress={() => onRetry(message.id)}>{bubble}</Pressable> : bubble}
+      {failed ? <Pressable accessibilityRole="button" accessibilityHint="Not sent. Double-tap to retry." onPress={() => onRetry(message.id)}>{bubble}</Pressable> : bubble}
     </View>
   );
 }
@@ -109,7 +109,7 @@ function HideoutRow({
         </Pressable>
       </View>
       {canDelete && (
-        <Pressable onPress={() => onDelete(hideout.id)} hitSlop={8} style={styles.hideoutDelete}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Delete hideout" onPress={() => onDelete(hideout.id)} hitSlop={8} style={styles.hideoutDelete}>
           <Ionicons name="trash-outline" size={18} color={colors.danger} />
         </Pressable>
       )}
@@ -163,8 +163,8 @@ function PlanHideoutModal({
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <Pressable style={styles.modalBackdrop} onPress={onClose}>
-        <Pressable style={[styles.modalSheet, { paddingBottom: insets.bottom + spacing.md }]} onPress={(e) => e.stopPropagation()}>
+      <Pressable accessible={false} style={styles.modalBackdrop} onPress={onClose}>
+        <Pressable accessible={false} style={[styles.modalSheet, { paddingBottom: insets.bottom + spacing.md }]} onPress={(e) => e.stopPropagation()}>
           <View style={styles.modalHandle} />
           <View style={styles.modalHeader}>
             <View style={styles.modalHeaderCopy}>
@@ -214,7 +214,7 @@ function PlanHideoutModal({
             </View>
           )}
 
-          <Pressable
+          <Pressable accessibilityRole="button"
             style={[styles.modalDone, !canSubmit && styles.modalDoneDisabled]}
             onPress={handleCreate}
             disabled={!canSubmit}
@@ -453,7 +453,7 @@ function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Elemen
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <View style={[styles.header, { paddingTop: insets.top + spacing.md }]}>
-        <Pressable onPress={() => navigation.goBack()} style={styles.backButton} hitSlop={8}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => navigation.goBack()} style={styles.backButton} hitSlop={8}>
           <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
         </Pressable>
         <RiderAvatar avatarId={avatarId} size={40} />
@@ -477,7 +477,7 @@ function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Elemen
           <Ionicons name="alert-circle" size={18} color={colors.danger} />
           <Text style={styles.errorText}>{error}</Text>
           {!conversationUnavailable ? (
-            <Pressable onPress={() => void loadMessages(true)} hitSlop={8}>
+            <Pressable accessibilityRole="button" onPress={() => void loadMessages(true)} hitSlop={8}>
               <Text style={styles.retryText}>Retry</Text>
             </Pressable>
           ) : null}
@@ -498,7 +498,7 @@ function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Elemen
         keyExtractor={(m) => m.id}
         renderItem={({ item }) => <MessageBubble message={item} currentRiderId={currentRiderId} onRetry={handleRetry} readByPeer={item.id === peerReadThroughMessageId} />}
         ListHeaderComponent={nextCursor ? (
-          <Pressable style={styles.loadOlderButton} onPress={() => void loadOlderMessages()} disabled={loadingOlder}>
+          <Pressable accessibilityRole="button" style={styles.loadOlderButton} onPress={() => void loadOlderMessages()} disabled={loadingOlder}>
             {loadingOlder ? <ActivityIndicator color={colors.accent} size="small" /> : <Text style={styles.loadOlderText}>Load older messages</Text>}
           </Pressable>
         ) : null}
@@ -545,6 +545,8 @@ function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Elemen
           ]}
           onPress={handleSend}
           disabled={!draft.trim() || sending || conversationUnavailable}
+          accessibilityRole="button"
+          accessibilityLabel="Send message"
           accessibilityState={{ disabled: !draft.trim() || sending || conversationUnavailable }}
         >
           {sending ? (

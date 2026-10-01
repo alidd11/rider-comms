@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { AXE_PROJECTS, expectNoAxeViolations } from './axe.js';
 
 const RIDER_ID = 'rider_visual01';
 const PROFILE = {
@@ -3066,4 +3067,30 @@ test('PWA password recovery is discoverable and enumeration-safe', async ({ page
   await page.locator('#resetSubmit').click();
   await expect(page.locator('#loginForm')).toBeVisible();
   await expect(page.locator('#authNotice')).toContainText('Password updated');
+});
+
+test('PWA screens have no automatically detectable accessibility violations', async ({ page }, testInfo) => {
+  test.skip(!AXE_PROJECTS.has(testInfo.project.name), 'Audited once per colour scheme');
+  await page.goto('/');
+  await expect(page.locator('#authScreen')).toBeVisible();
+  await expectNoAxeViolations(page, 'login');
+
+  await mockAuthenticatedApi(page);
+  await page.goto('/');
+  await expect(page.locator('#app')).toBeVisible();
+  for (const [screen, readySelector] of [
+    ['map', '#mapCanvas'],
+    ['ride', '#rideJoinState'],
+    ['routes', '#curatedRouteList'],
+    ['friends', '#friendList'],
+    ['settings', '.settings-page'],
+  ]) {
+    await page.locator(`.bottom-nav [data-nav="${screen}"]`).click();
+    await expect(page.locator(readySelector)).toBeVisible();
+    await expectNoAxeViolations(page, screen);
+  }
+  await page.locator('.bottom-nav [data-nav="map"]').click();
+  await page.locator('#mapSearchSlot').click();
+  await expect(page.locator('#searchScreen')).toBeVisible();
+  await expectNoAxeViolations(page, 'search');
 });

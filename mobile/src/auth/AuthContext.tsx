@@ -366,10 +366,10 @@ function AuthScreen({ onAuthenticated, restoreError, onRetryRestore }: {
               </View>
               <Text style={styles.requirements}>For privacy, the response is the same whether or not an account exists.</Text>
               {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
-              <Pressable disabled={busy} onPress={() => void submit()} style={styles.primaryButton}>
+              <Pressable accessibilityRole="button" disabled={busy} onPress={() => void submit()} style={styles.primaryButton}>
                 {busy ? <ActivityIndicator color={AUTH_TEXT} /> : <Text style={styles.primaryButtonText}>Send reset link</Text>}
               </Pressable>
-              <Pressable onPress={() => switchMode('login')} style={styles.createAccountButton}><Text style={styles.createAccountText}>Back to log in</Text></Pressable>
+              <Pressable accessibilityRole="button" onPress={() => switchMode('login')} style={styles.createAccountButton}><Text style={styles.createAccountText}>Back to log in</Text></Pressable>
             </View>
           ) : (
             <View style={styles.form}>
@@ -400,15 +400,20 @@ function AuthScreen({ onAuthenticated, restoreError, onRetryRestore }: {
                   placeholderTextColor={AUTH_MUTED}
                   style={styles.passwordInput}
                 />
-                <Pressable onPress={() => setPasswordVisible((visible) => !visible)} style={styles.passwordToggle}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={passwordVisible ? 'Hide password' : 'Show password'}
+                  onPress={() => setPasswordVisible((visible) => !visible)}
+                  style={styles.passwordToggle}
+                >
                   <MaterialCommunityIcons name={passwordVisible ? 'eye-off-outline' : 'eye-outline'} size={18} color={AUTH_MUTED} />
                 </Pressable>
               </View>
               {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
-              <Pressable disabled={busy} onPress={() => void submit()} style={styles.primaryButton}>
+              <Pressable accessibilityRole="button" disabled={busy} onPress={() => void submit()} style={styles.primaryButton}>
                 {busy ? <ActivityIndicator color={AUTH_TEXT} /> : <Text style={styles.primaryButtonText}>Reset password</Text>}
               </Pressable>
-              <Pressable onPress={() => switchMode('login')} style={styles.createAccountButton}><Text style={styles.createAccountText}>Back to log in</Text></Pressable>
+              <Pressable accessibilityRole="button" onPress={() => switchMode('login')} style={styles.createAccountButton}><Text style={styles.createAccountText}>Back to log in</Text></Pressable>
             </View>
           )}
 

@@ -139,7 +139,7 @@ export function ScenicRoutesScreen(): React.JSX.Element {
                 autoCapitalize="none"
                 autoCorrect={false}
               />
-              {query ? <Pressable onPress={() => setQuery('')} hitSlop={8}><Ionicons name="close-circle" size={18} color={colors.textMuted} /></Pressable> : null}
+              {query ? <Pressable accessibilityRole="button" accessibilityLabel="Clear search" onPress={() => setQuery('')} hitSlop={8}><Ionicons name="close-circle" size={18} color={colors.textMuted} /></Pressable> : null}
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.durationRow}>
               {RIDE_WINDOWS.map((filter) => (

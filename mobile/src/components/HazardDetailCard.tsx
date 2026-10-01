@@ -58,7 +58,7 @@ export function HazardDetailCard({
         >
           <Text style={styles.voteLabel}>Still there</Text>
           <View style={[styles.count, styles.confirmCount]}>
-            <Text style={[styles.countText, { color: colors.accent }]}>{hazard.confirmations}</Text>
+            <Text style={[styles.countText, { color: colors.accentInk }]}>{hazard.confirmations}</Text>
           </View>
         </Pressable>
         <Pressable
