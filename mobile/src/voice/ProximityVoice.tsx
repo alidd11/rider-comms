@@ -1,7 +1,6 @@
 import * as React from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LiveKitRoom } from '@livekit/react-native';
 import { ApiError, type ProximityVoiceConnection } from '../api/client';
 import { acquireVoiceAudioSession, releaseVoiceAudioSession } from '../audio/audioSession';
@@ -19,7 +18,7 @@ import { useAuth } from '../auth/AuthContext';
 import { useRide } from '../ride/RideContext';
 import { colors, elevation, MIN_TOUCH_TARGET, radii, spacing, type } from '../theme';
 import { useMovementSafety } from '../safety/MovementSafetyContext';
-import { confirmBlock, openReportFlow } from '../safety/riderSafetyActions';
+import { VoicePeopleSheet } from './VoicePeopleSheet';
 
 /** Riders heard this session stay listed (up to this many) so they can be
  * reported after they've moved out of range. */
@@ -74,7 +73,6 @@ export function ProximityVoice({
   const [recentPeers, setRecentPeers] = React.useState<Map<string, string>>(new Map());
   const [peopleOpen, setPeopleOpen] = React.useState(false);
   const { lockedForSafety } = useMovementSafety();
-  const insets = useSafeAreaInsets();
   const authorizationLeaseTimer = React.useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const hasAuthorizedOnce = React.useRef(false);
   const peerRosterKey = React.useMemo(
@@ -370,61 +368,27 @@ export function ProximityVoice({
           <Text style={styles.text}>{recentPeers.size}</Text>
         </Pressable>
       ) : null}
-      <Modal visible={peopleOpen && !lockedForSafety} animationType="slide" transparent onRequestClose={() => setPeopleOpen(false)}>
-        <Pressable accessible={false} style={styles.backdrop} onPress={() => setPeopleOpen(false)}>
-          <Pressable accessible={false} style={[styles.sheet, { paddingBottom: insets.bottom + spacing.md }]} onPress={(event) => event.stopPropagation()}>
-            <View style={styles.sheetHeader}>
-              <Text style={styles.sheetTitle}>Riders on Nearby Voice</Text>
-              <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={() => setPeopleOpen(false)} style={styles.iconButton}>
-                <Ionicons name="close" size={22} color={colors.textPrimary} />
-              </Pressable>
-            </View>
-            <Text style={styles.sheetCaption}>Muting stops you hearing each other for this session. Blocking also hides you from each other in Nearby.</Text>
-            <ScrollView>
-              {[...recentPeers].reverse().map(([peerId, name]) => {
-                const inRange = connections.some((connection) => connection.peerId === peerId);
-                const muted = mutedPeers.has(peerId);
-                const status = muted ? 'Muted' : inRange ? (connectedPeers.has(peerId) ? 'On voice' : 'Connecting') : 'Out of range';
-                const target = { riderId: peerId, name, source: 'Nearby Voice' };
-                return (
-                  <View key={peerId} style={styles.peerRow}>
-                    <View style={styles.peerIdentity}>
-                      <Text style={styles.peerName} numberOfLines={1}>{name}</Text>
-                      <Text style={styles.peerStatus}>{status}</Text>
-                    </View>
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel={muted ? `Unmute ${name}` : `Mute ${name}`}
-                      onPress={() => setMutedPeers((current) => {
-                        const next = new Set(current);
-                        if (muted) next.delete(peerId); else next.add(peerId);
-                        return next;
-                      })}
-                      style={styles.iconButton}
-                    >
-                      <Ionicons name={muted ? 'volume-mute' : 'volume-high-outline'} size={20} color={colors.textSecondary} />
-                    </Pressable>
-                    <Pressable accessibilityRole="button" accessibilityLabel={`Report ${name}`} onPress={() => openReportFlow(client, target)} style={styles.iconButton}>
-                      <Ionicons name="flag-outline" size={20} color={colors.textSecondary} />
-                    </Pressable>
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel={`Block ${name}`}
-                      onPress={() => confirmBlock(client, target, () => {
-                        setMutedPeers((current) => new Set(current).add(peerId));
-                        setRefreshVersion((version) => version + 1);
-                      })}
-                      style={styles.iconButton}
-                    >
-                      <Ionicons name="hand-left-outline" size={20} color={colors.danger} />
-                    </Pressable>
-                  </View>
-                );
-              })}
-            </ScrollView>
-          </Pressable>
-        </Pressable>
-      </Modal>
+      <VoicePeopleSheet
+        visible={peopleOpen && !lockedForSafety}
+        onClose={() => setPeopleOpen(false)}
+        client={client}
+        peers={recentPeers}
+        mutedPeers={mutedPeers}
+        statusOf={(peerId) => {
+          if (mutedPeers.has(peerId)) return 'Muted';
+          if (!connections.some((connection) => connection.peerId === peerId)) return 'Out of range';
+          return connectedPeers.has(peerId) ? 'On voice' : 'Connecting';
+        }}
+        onToggleMute={(peerId) => setMutedPeers((current) => {
+          const next = new Set(current);
+          if (next.has(peerId)) next.delete(peerId); else next.add(peerId);
+          return next;
+        })}
+        onBlocked={(peerId) => {
+          setMutedPeers((current) => new Set(current).add(peerId));
+          setRefreshVersion((version) => version + 1);
+        }}
+      />
       {connections.filter((connection) => !mutedPeers.has(connection.peerId)).map((connection) => {
         const retryPeer = () => {
           setConnectedPeers((current) => {
@@ -492,16 +456,6 @@ const styles = StyleSheet.create({
     minHeight: MIN_TOUCH_TARGET, backgroundColor: colors.surfaceRaised, borderWidth: 1, borderColor: colors.border,
     borderRadius: radii.pill, paddingHorizontal: spacing.md, ...elevation.raised,
   },
-  backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.45)' },
-  sheet: { maxHeight: '70%', backgroundColor: colors.surface, borderTopLeftRadius: radii.lg, borderTopRightRadius: radii.lg, paddingHorizontal: spacing.lg, paddingTop: spacing.md },
-  sheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  sheetTitle: { ...type.subheading, color: colors.textPrimary },
-  sheetCaption: { ...type.caption, color: colors.textSecondary, marginBottom: spacing.sm },
-  iconButton: { width: MIN_TOUCH_TARGET, height: MIN_TOUCH_TARGET, alignItems: 'center', justifyContent: 'center' },
-  peerRow: { flexDirection: 'row', alignItems: 'center', minHeight: 56, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
-  peerIdentity: { flex: 1, minWidth: 0 },
-  peerName: { ...type.body, color: colors.textPrimary },
-  peerStatus: { ...type.caption, color: colors.textMuted },
   textError: { color: colors.danger },
   textWarning: { color: colors.warning },
 });

@@ -1,11 +1,11 @@
 import { reportOperationalError } from '../errorAlerts.ts';
 import { consumeRateLimit, rateLimitSubject, readJsonBody, sendJson } from '../serverHttp.ts';
 import { parseClientErrorReport } from '../clientErrors.ts';
-import { NOT_HANDLED } from './context.ts';
+import { countFilterRejection, NOT_HANDLED } from './context.ts';
 import type { PublicRouteContext } from './context.ts';
 
 export async function handlePublicRoutes(ctx: PublicRouteContext): Promise<unknown> {
-  const { req, res, url, address, profileStore, authStore, rateLimitStore, socialActivityStore, readinessCheck } = ctx;
+  const { req, res, url, address, profileStore, authStore, rateLimitStore, socialActivityStore, readinessCheck, adminStatsStore } = ctx;
   if (req.method === 'GET' && url.pathname === '/health') return sendJson(res, 200, { ok: true });
   if (req.method === 'GET' && url.pathname === '/ready') {
     try {
@@ -26,6 +26,7 @@ export async function handlePublicRoutes(ctx: PublicRouteContext): Promise<unkno
     // Community Guidelines; the version agreed to is stored with it.
     if (body.acceptTerms !== true) return sendJson(res, 400, { error: 'terms_not_accepted' });
     const result = await authStore.signUp(body.username, body.email, body.password, body.deviceName);
+    if ('error' in result && result.error === 'objectionable_username') countFilterRejection(adminStatsStore);
     if ('error' in result) return sendJson(res, result.error === 'username_taken' || result.error === 'email_taken' ? 409 : 400, { error: result.error });
     await profileStore.getOrCreate(result.riderId);
     await socialActivityStore.touch(result.riderId);

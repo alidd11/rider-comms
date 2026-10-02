@@ -66,7 +66,6 @@ export const styles = StyleSheet.create({
   codeCardAction: { width: 30, height: 30, borderRadius: radii.md, alignItems: 'center', justifyContent: 'center' },
   codeLabel: { ...type.caption },
   codeValue: { fontSize: 32, fontWeight: '800', letterSpacing: 6, color: colors.accentInk, marginTop: spacing.xs },
-  rideId: { ...type.caption },
   voiceError: { ...type.caption, color: colors.danger },
   locationCard: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.md,

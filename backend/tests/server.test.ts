@@ -1,6 +1,6 @@
 import { after, before, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { authenticatedFetch, postJson, startTestServer } from './httpTestUtils.ts';
+import { authenticatedFetch, clearSharedTestState, postJson, startTestServer } from './httpTestUtils.ts';
 import type { TestServer } from './httpTestUtils.ts';
 import { parseAllowedOrigins } from '../src/server.ts';
 import type { ApiRequestLog } from '../src/server.ts';
@@ -20,11 +20,9 @@ const needsDb = { skip: !hasDatabase && 'DATABASE_URL not set; skipping Postgres
 describe('authenticated API', () => {
   let ctx: TestServer;
   before(async () => {
+    await clearSharedTestState();
     ctx = startTestServer();
     await ctx.ready;
-    // Ride-creation limits are durable; clear them so local re-runs within
-    // the 10-minute window start fresh.
-    if (hasDatabase) await getPool().query("DELETE FROM rate_limit_events WHERE action = 'ride_create'");
   });
   after(() => ctx.close());
   it('keeps health public and protects product endpoints', async () => { assert.equal((await fetch(`${ctx.baseUrl()}/health`)).status, 200); assert.equal((await fetch(`${ctx.baseUrl()}/rides`, { method: 'POST' })).status, 401); });
@@ -77,6 +75,10 @@ describe('authenticated API', () => {
     }
   });
   it('rejects objectionable profile names and slurs in messages', needsDb, async () => {
+    const rejectionsToday = async () => Number((await getPool().query(
+      "SELECT coalesce(sum(value), 0) AS n FROM daily_metrics WHERE metric = 'filter_rejections' AND day = (now() AT TIME ZONE 'UTC')::date",
+    )).rows[0].n);
+    const before = await rejectionsToday();
     const profile = await authenticatedFetch(ctx, 'filter-rider', '/riders/filter-rider/profile', {
       method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ displayName: 'Sh1t Rider' }),
     });
@@ -89,6 +91,9 @@ describe('authenticated API', () => {
     const message = await postJson(ctx, 'filter-rider', '/messages', { toRiderId: 'someone', text: 'you f a g o t' });
     assert.equal(message.status, 400);
     assert.deepEqual(await message.json(), { error: 'objectionable_content' });
+    // Both rejections are counted for the staff dashboard (fire-and-forget).
+    for (let attempt = 0; attempt < 20 && (await rejectionsToday()) - before < 2; attempt += 1) await new Promise((resolve) => setTimeout(resolve, 25));
+    assert.equal((await rejectionsToday()) - before, 2);
   });
   it('requires verified email for abuse-sensitive writes while preserving account access', needsDb, async () => {
     const suffix = Math.random().toString(36).slice(2, 10);

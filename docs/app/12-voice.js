@@ -162,6 +162,13 @@
     }, delayMs);
   }
 
+  /** Re-fetch the public pair roster now, so a mute, unmute or block takes
+   * effect without waiting for the next scheduled refresh. */
+  function requestPublicVoiceRefresh() {
+    if (currentVoiceTarget() !== 'channel' || document.visibilityState !== 'visible') return;
+    syncVoiceConnection();
+  }
+
   function clearPublicVoiceAuthorizationLease() {
     if (publicVoiceAuthorizationLeaseTimer) {
       clearTimeout(publicVoiceAuthorizationLeaseTimer);
@@ -262,6 +269,82 @@
       chip.textContent = summary;
       chip.setAttribute('aria-label', summary);
     }
+  }
+
+  async function rememberVoicePeers(peerIds) {
+    const unknown = peerIds.filter((peerId) => !recentVoicePeers.has(peerId));
+    if (unknown.length) {
+      for (const person of await resolveRiderProfiles(unknown)) recentVoicePeers.set(person.riderId, person);
+    }
+    for (const peerId of peerIds) {
+      const person = recentVoicePeers.get(peerId);
+      if (!person) continue;
+      recentVoicePeers.delete(peerId);
+      recentVoicePeers.set(peerId, person);
+    }
+    while (recentVoicePeers.size > MAX_RECENT_VOICE_PEERS) recentVoicePeers.delete(recentVoicePeers.keys().next().value);
+    renderVoicePeopleButton();
+  }
+
+  /** "Riders on voice" button: opens mute / report / block for each rider
+   * heard on Nearby Voice this session (App Store guideline 1.2 parity). */
+  function renderVoicePeopleButton() {
+    let button = $('#voicePeopleBtn');
+    if (!button) {
+      button = document.createElement('button');
+      button.id = 'voicePeopleBtn';
+      button.type = 'button';
+      button.className = 'voice-people-btn glass';
+      button.addEventListener('click', openVoicePeopleSheet);
+      $('#mapCanvas')?.appendChild(button);
+    }
+    const locked = window.RiderMovementSafety?.isLockedForSafety?.(movementState);
+    const visible = state.publicLive && !state.activeRide && recentVoicePeers.size > 0 && !locked;
+    button.hidden = !visible;
+    if (visible) {
+      button.innerHTML = `${icon('friends')}<span>${recentVoicePeers.size}</span>`;
+      button.setAttribute('aria-label', `Riders on Nearby Voice: ${recentVoicePeers.size}. Mute, report or block.`);
+    }
+  }
+
+  function openVoicePeopleSheet() {
+    const rows = [...recentVoicePeers.values()].reverse().map((person) => {
+      const muted = mutedVoicePeers.has(person.riderId);
+      const status = muted ? 'Muted' : proximityVoiceRooms.has(person.riderId) ? 'On voice' : 'Out of range';
+      const id = escapeHtml(person.riderId);
+      return `<article class="voice-peer-row"><span class="identity"><strong>${escapeHtml(person.displayName)}</strong><small>${status}</small></span>
+        <button type="button" data-voice-mute="${id}" aria-label="${muted ? 'Unmute' : 'Mute'} ${escapeHtml(person.displayName)}">${muted ? 'Unmute' : 'Mute'}</button>
+        <button type="button" data-voice-report="${id}" aria-label="Report ${escapeHtml(person.displayName)}">Report</button>
+        <button type="button" class="danger" data-voice-block="${id}" aria-label="Block ${escapeHtml(person.displayName)}">Block</button></article>`;
+    }).join('');
+    presentSheet('Riders on Nearby Voice', `<p class="caption">Muting stops you hearing each other for this session. Blocking also hides you from each other in Nearby.</p><div class="voice-peer-list">${rows}</div>`, () => {
+      const body = $('#sheetBody');
+      $$('[data-voice-mute]', body).forEach((button) => button.addEventListener('click', () => {
+        const peerId = button.dataset.voiceMute;
+        if (mutedVoicePeers.has(peerId)) mutedVoicePeers.delete(peerId);
+        else {
+          mutedVoicePeers.add(peerId);
+          const room = proximityVoiceRooms.get(peerId);
+          if (room) { disconnectManagedVoiceRoom(room); proximityVoiceRooms.delete(peerId); }
+        }
+        requestPublicVoiceRefresh();
+        openVoicePeopleSheet();
+      }));
+      $$('[data-voice-report]', body).forEach((button) => button.addEventListener('click', () => {
+        const person = recentVoicePeers.get(button.dataset.voiceReport);
+        if (person) openRiderReportSheet(person, 'Nearby Voice');
+      }));
+      $$('[data-voice-block]', body).forEach((button) => button.addEventListener('click', () => {
+        const person = recentVoicePeers.get(button.dataset.voiceBlock);
+        if (!person) return;
+        void blockRider(person, () => {
+          mutedVoicePeers.add(person.riderId);
+          const room = proximityVoiceRooms.get(person.riderId);
+          if (room) { disconnectManagedVoiceRoom(room); proximityVoiceRooms.delete(person.riderId); }
+          requestPublicVoiceRefresh();
+        }, `[data-voice-block="${CSS.escape(person.riderId)}"]`);
+      }));
+    });
   }
 
   function wireVoiceRoomLifecycle(room, targetKey, peerId) {
@@ -367,6 +450,7 @@
     const resumeLocked = needsResume && window.RiderMovementSafety.isLockedForSafety(movementState);
     const remoteSpeakerSummary = connected ? voiceSpeakerSummary() : '';
     renderMapVoiceSpeakerChip(remoteSpeakerSummary);
+    renderVoicePeopleButton();
     avatar.classList.toggle('voice-talking', connected && voiceIsSpeaking);
     avatar.classList.toggle('voice-muted', connected && voiceManuallyMuted);
     badge.hidden = !connected && !needsResume && !waitingForPublicPeer && !publicAuthorizationExpired;
@@ -558,7 +642,8 @@
         renewPublicVoiceAuthorizationLease(response.authorizationLeaseMs);
         schedulePublicVoiceRefresh(response.refreshAfterMs);
         const enteringChannel = voiceTargetKey !== 'channel';
-        const desiredPeers = new Set(response.connections.map((connection) => connection.peerId));
+        const desiredPeers = new Set(response.connections.map((connection) => connection.peerId).filter((peerId) => !mutedVoicePeers.has(peerId)));
+        void rememberVoicePeers(response.connections.map((connection) => connection.peerId));
         for (const [peerId, existingRoom] of proximityVoiceRooms) {
           if (desiredPeers.has(peerId)) continue;
           disconnectManagedVoiceRoom(existingRoom);
@@ -567,7 +652,7 @@
         let lastPairError;
         for (const connection of response.connections) {
           if (currentVoiceTarget() !== requestedTarget) return;
-          if (proximityVoiceRooms.has(connection.peerId)) continue;
+          if (proximityVoiceRooms.has(connection.peerId) || mutedVoicePeers.has(connection.peerId)) continue;
           const pairRoom = new window.LivekitClient.Room();
           wireVoiceRoomLifecycle(pairRoom, requestedTarget, connection.peerId);
           try {

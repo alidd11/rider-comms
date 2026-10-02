@@ -142,6 +142,13 @@
       void setRideLocationSharing(event.target.checked);
     });
     $('#rideRoster').addEventListener('click', (event) => {
+      const safety = event.target.closest?.('[data-rider-safety]');
+      if (safety) {
+        const riderId = safety.dataset.riderSafety;
+        const person = state.activeRide?.members?.find((member) => member.riderId === riderId) || { riderId, displayName: 'Rider', handle: '' };
+        openRiderSafetyMenu(person, 'the ride roster');
+        return;
+      }
       const button = event.target.closest?.('[data-remove-ride-member]');
       if (!button) return;
       void removeRideMemberFromActiveRide(button.dataset.removeRideMember);

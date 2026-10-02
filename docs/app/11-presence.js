@@ -179,6 +179,12 @@
   // the two are picked between.
   let voiceRoom;
   const proximityVoiceRooms = new Map(); // peerId -> pair-isolated LiveKit room
+  // Nearby Voice riders heard this session (peerId -> profile), kept so they
+  // can be muted, reported or blocked even after leaving range; and riders
+  // this rider chose not to hear (their pair room isn't joined).
+  const MAX_RECENT_VOICE_PEERS = 20;
+  const recentVoicePeers = new Map();
+  const mutedVoicePeers = new Set();
   const voiceRemoteSpeakersByRoom = new Map(); // LiveKit Room -> Set<riderId>
   const voiceSpeakerProfiles = new Map(); // riderId -> resolved public profile
   const voiceSpeakerProfileLoads = new Set();

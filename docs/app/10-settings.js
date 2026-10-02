@@ -25,8 +25,14 @@
         title: 'Communication',
         body: `<div class="settings-hub-list">
           <button data-settings-target="privacy"><span class="setting-icon">${icon('shield')}</span><span><strong>Privacy controls</strong><small>Location visibility and connected profiles</small></span>${icon('chevron')}</button>
+          <button data-settings-target="blocked"><span class="setting-icon">${icon('close')}</span><span><strong>Blocked riders</strong><small>Review or undo blocks</small></span>${icon('chevron')}</button>
         </div>`,
         ready: wireSettingsHubRows,
+      }),
+      blocked: () => ({
+        title: 'Blocked riders',
+        body: '<div id="blockedRidersList" class="blocked-list" aria-live="polite"><p class="caption">Loading…</p></div>',
+        ready: () => void renderBlockedRiders(),
       }),
       mapNavigation: () => ({
         title: 'Map & Navigation',
@@ -273,7 +279,6 @@
         tiktokVisibility: 'friends',
       });
       state.navigationProvider = 'google_maps';
-      state.notifications = false;
       applyRemoteProfile(profile);
       persist();
       openSheet('accountHub');
@@ -317,41 +322,6 @@
     }
   }
 
-  function notificationPermission() {
-    return 'Notification' in window ? Notification.permission : 'unsupported';
-  }
-
-  function syncNotificationPreference() {
-    if (state.notifications && notificationPermission() !== 'granted') {
-      state.notifications = false;
-      persist();
-    }
-  }
-
-  /** Notification permission must be requested directly from the Settings
-   * tap. Installed iOS PWAs and other mobile browsers may suppress a prompt
-   * started during app boot or after unrelated asynchronous work. */
-  async function requestNotificationPermission() {
-    const permission = notificationPermission();
-    if (permission === 'unsupported') {
-      showToast('Notifications are not supported by this browser.');
-      return false;
-    }
-    if (permission === 'denied') {
-      showToast('Notifications are blocked. Allow them in this site’s device settings.');
-      return false;
-    }
-    if (permission === 'granted') return true;
-    try {
-      const granted = await Notification.requestPermission() === 'granted';
-      if (!granted) showToast('Notification permission was not enabled.');
-      return granted;
-    } catch {
-      showToast('Could not request notification permission.');
-      return false;
-    }
-  }
-
   function wireToggles() {
     $$('[data-toggle]', $('#sheetBody')).forEach((button) => button.addEventListener('click', async () => {
       const key = button.dataset.toggle;
@@ -368,22 +338,6 @@
           stopMovementSafetyTracking();
           showToast('Automatic Ride Safe is off on this device.');
         }
-        return;
-      }
-      if (['notifyNearby', 'notifyInvites', 'notifyChat'].includes(key)) {
-        button.disabled = true;
-        const granted = !active || await requestNotificationPermission();
-        if (!granted) {
-          button.disabled = false;
-          return;
-        }
-        const ok = await patchProfile({ [key]: active });
-        if (ok) {
-          state.notifications = Boolean(state.profile.notifyNearby || state.profile.notifyInvites || state.profile.notifyChat);
-          persist();
-          button.setAttribute('aria-pressed', String(Boolean(state.profile[key])));
-        }
-        button.disabled = false;
         return;
       }
       if (key === 'shareLocation') {
@@ -444,6 +398,38 @@
       button.disabled = false;
       button.textContent = 'Save profile';
     }
+  }
+
+  /** Settings → Communication → Blocked riders: list blocks and undo them. */
+  async function renderBlockedRiders() {
+    const list = $('#blockedRidersList');
+    if (!list) return;
+    let blocked;
+    try {
+      ({ blocked } = await apiFetch('GET', '/blocks'));
+    } catch {
+      list.innerHTML = '<p class="inline-error" role="alert">Couldn’t load blocked riders. Check your connection and try again.</p>';
+      return;
+    }
+    if (!$('#blockedRidersList')) return;
+    if (!blocked?.length) {
+      list.innerHTML = '<p class="caption">You haven’t blocked anyone. Block a rider from their profile, a chat or the ride roster.</p>';
+      return;
+    }
+    list.innerHTML = blocked.map((rider) => `<article class="blocked-row"><span class="identity"><strong>${escapeHtml(rider.displayName)}</strong><small>${escapeHtml(rider.handle || '')}</small></span><button type="button" class="button secondary" data-unblock="${escapeHtml(rider.riderId)}">Unblock</button></article>`).join('');
+    $$('[data-unblock]', list).forEach((button) => button.addEventListener('click', async () => {
+      const rider = blocked.find((entry) => entry.riderId === button.dataset.unblock);
+      if (!rider || !window.confirm(`Unblock ${rider.displayName}? They’ll be able to find you in Nearby and send you a friend request again. Your previous friendship isn’t restored.`)) return;
+      button.disabled = true;
+      try {
+        await apiFetch('DELETE', `/blocks/${encodeURIComponent(rider.riderId)}`);
+        showToast(`${rider.displayName} unblocked.`);
+        void renderBlockedRiders();
+      } catch {
+        button.disabled = false;
+        showToast('Couldn’t unblock. Try again.');
+      }
+    }));
   }
 
   function closeSheet() {

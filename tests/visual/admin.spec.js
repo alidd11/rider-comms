@@ -9,7 +9,7 @@ const OPEN_REPORT = {
   reporterId: 'rider_reporter',
   reportedRiderId: 'rider_badactor',
   reason: 'harassment',
-  details: '<img src=x onerror="window.__xss=1"> kept messaging me',
+  details: 'Reported from the ride roster. <img src=x onerror="window.__xss=1"> kept messaging me',
   createdAt: Date.parse('2026-09-29T10:00:00Z'),
   status: 'open',
   resolvedAt: null,
@@ -25,7 +25,7 @@ const OVERVIEW = {
   activity: { active24h: 240, active7d: 610, active30d: 900, liveNearbyNow: 17, sharingLocation: 400, activeRides: 4, ridersInRides: 11 },
   social: { friendships: 2300, pendingFriendRequests: 40, messages24h: 530, messages7d: 3100, messages30d: 12000 },
   content: { activeHazards: 22, scenicRoutes: 64, hideouts: 18 },
-  safety: { openReports: 2, reports7d: 5, moderationActions7d: 3 },
+  safety: { openReports: 2, reports7d: 5, moderationActions7d: 3, filterRejections7d: 4 },
   previous: { new7d: 68, new30d: 310, messages7d: 3400, messages30d: 12000, reports7d: 10 },
   zoneTiers: { free: 1284 },
   series: {
@@ -145,7 +145,8 @@ test.describe('staff dashboard', () => {
     await expect(card).toContainText('@maya_moto · rider_reporter');
     await expect(card).toContainText('3 reports against this rider');
     // Rider-written details are shown as text, never run as HTML.
-    await expect(card.locator('.report-details')).toHaveText(OPEN_REPORT.details);
+    await expect(card.locator('.badge', { hasText: 'From the ride roster' })).toBeVisible();
+    await expect(card.locator('.report-details')).toHaveText('<img src=x onerror="window.__xss=1"> kept messaging me');
     await expect(card.locator('img')).toHaveCount(0);
     expect(await page.evaluate(() => window.__xss)).toBeUndefined();
 
@@ -207,6 +208,7 @@ test.describe('staff dashboard', () => {
     await expect(kpi('Stickiness').locator('.kpi-value')).toHaveText('27%');
     await expect(kpi('Live now').locator('.kpi-value')).toHaveText('17');
     await expect(kpi('Open reports').getByRole('link', { name: 'Review queue' })).toHaveAttribute('href', '#moderation');
+    await expect(page.locator('body')).toContainText('Blocked by the content filter this week');
 
     await page.getByRole('button', { name: '30 days' }).click();
     await expect(kpi('New riders').locator('.kpi-value')).toHaveText('310');

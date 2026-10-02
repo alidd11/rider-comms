@@ -776,4 +776,14 @@ export const MIGRATIONS: Migration[] = [
       ALTER TABLE users ADD COLUMN IF NOT EXISTS terms_accepted_at TIMESTAMPTZ;
     `,
   },
+  {
+    // Staff dashboard: daily count of names, messages and hideouts the
+    // content filter rejected (App Store guideline 1.2 evidence).
+    name: '0044_daily_metric_filter_rejections',
+    sql: `
+      ALTER TABLE daily_metrics DROP CONSTRAINT IF EXISTS daily_metrics_metric_check;
+      ALTER TABLE daily_metrics ADD CONSTRAINT daily_metrics_metric_check
+        CHECK (metric IN ('active_riders', 'rides_started', 'filter_rejections'));
+    `,
+  },
 ];

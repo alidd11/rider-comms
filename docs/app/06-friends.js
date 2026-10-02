@@ -96,7 +96,7 @@
     const onlineFriends = friends.filter((friend) => friendActivity.get(friend.riderId)?.online === true);
     const offlineFriends = friends.filter((friend) => friendActivity.get(friend.riderId)?.online !== true);
 
-    const incomingRows = state.requests.map((person) => `<article class="request-row">${avatar(person)}<div class="identity"><strong>${escapeHtml(person.displayName)}</strong><span>${escapeHtml(person.handle)} · ${escapeHtml(person.status)}</span></div><div class="request-actions"><button class="decline" data-decline="${escapeHtml(person.id)}" aria-label="Decline ${escapeHtml(person.displayName)}">×</button><button class="accept" data-accept="${escapeHtml(person.id)}" aria-label="Accept ${escapeHtml(person.displayName)}">✓</button></div></article>`).join('');
+    const incomingRows = state.requests.map((person) => `<article class="request-row">${avatar(person)}<div class="identity"><strong>${escapeHtml(person.displayName)}</strong><span>${escapeHtml(person.handle)} · ${escapeHtml(person.status)}</span></div><div class="request-actions"><button class="request-safety" data-request-safety="${escapeHtml(person.id)}" aria-label="Report or block ${escapeHtml(person.displayName)}">${icon('shield')}</button><button class="decline" data-decline="${escapeHtml(person.id)}" aria-label="Decline ${escapeHtml(person.displayName)}">×</button><button class="accept" data-accept="${escapeHtml(person.id)}" aria-label="Accept ${escapeHtml(person.displayName)}">✓</button></div></article>`).join('');
     const outgoingRows = outgoingFriendRequests.map((person) => `<article class="request-row">${avatar(person)}<div class="identity"><strong>${escapeHtml(person.displayName)}</strong><span>${escapeHtml(person.handle)} · Pending</span></div><div class="request-actions"><button data-cancel-request="${escapeHtml(person.id)}" aria-label="Cancel request to ${escapeHtml(person.displayName)}">Cancel</button></div></article>`).join('');
     $('#requestList').innerHTML = incomingRows + outgoingRows;
 
@@ -150,6 +150,10 @@
     }
     $$('[data-accept]').forEach((button) => button.addEventListener('click', () => acceptRequest(button.dataset.accept)));
     $$('[data-decline]').forEach((button) => button.addEventListener('click', () => declineRequest(button.dataset.decline)));
+    $$('[data-request-safety]').forEach((button) => button.addEventListener('click', () => {
+      const request = state.requests.find((candidate) => candidate.id === button.dataset.requestSafety);
+      if (request) openRiderSafetyMenu(request, 'an incoming friend request');
+    }));
     $$('[data-cancel-request]').forEach((button) => button.addEventListener('click', () => cancelRequest(button.dataset.cancelRequest)));
     $$('[data-friend]').forEach((button) => button.addEventListener('click', () => openFriendProfile(button.dataset.friend)));
   }

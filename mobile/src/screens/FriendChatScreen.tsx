@@ -120,7 +120,7 @@ function HideoutRow({
   );
 }
 
-function PlanHideoutModal({
+export function PlanHideoutModal({
   visible,
   onClose,
   onCreate,

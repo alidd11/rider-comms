@@ -164,7 +164,7 @@ function JoinOrHostForm(): React.JSX.Element {
 
 /** Everyone in the ride by name, with report/block on each other rider and
  * (for the host) a confirmed remove. */
-function RideRoster({ canRemove }: { canRemove: boolean }): React.JSX.Element {
+export function RideRoster({ canRemove }: { canRemove: boolean }): React.JSX.Element {
   const { roster, removeRider } = useRide();
   const { client, riderId } = useAuth();
   const profiles = useRideProfiles(client, riderId, roster);

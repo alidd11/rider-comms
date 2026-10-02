@@ -587,6 +587,7 @@
         statList('Safety and content', 'Moderation workload and shared places', [
           ['Open reports', formatNumber(safety.openReports)],
           ['Moderation decisions this week', formatNumber(safety.moderationActions7d)],
+          ['Blocked by the content filter this week', formatNumber(safety.filterRejections7d ?? 0)],
           ['Active hazard reports', formatNumber(content.activeHazards)],
           ['Scenic routes', formatNumber(content.scenicRoutes)],
           ['Hideouts', formatNumber(content.hideouts)],
@@ -703,18 +704,27 @@
     return el('div', {}, [el('div', { class: 'role', text: role }), person(name, sub, riderId)]);
   }
 
+  /** Apps prefix report details with "Reported from <where>"; show that as a badge. */
+  function splitReportSource(details) {
+    const match = /^Reported from ([^.\n]{1,80})\.?\s*/.exec(details || '');
+    if (!match) return { source: null, details: details || '' };
+    return { source: match[1], details: details.slice(match[0].length) };
+  }
+
   function reportCard(report) {
+    const { source, details } = splitReportSource(report.details);
     const card = el('article', { class: 'card report', dataset: { reportId: report.id } }, [
       el('div', { class: 'report-head' }, [
         el('div', { class: 'badges' }, [
           badge(REASON_LABELS[report.reason] || report.reason, report.status === 'open' ? 'warning' : null),
+          source ? badge(`From ${source}`, null, true) : null,
           report.reportsAgainstRider > 1 ? badge(`${report.reportsAgainstRider} reports against this rider`, null, true) : null,
           report.reportedRiderSuspended ? badge('Suspended', 'danger') : null,
         ]),
         el('span', { class: 'report-time' }, [timeEl(report.createdAt)]),
       ]),
       el('div', { class: 'report-people' }, [personBlock('Reported rider', report.reportedRiderId), personBlock('Reported by', report.reporterId)]),
-      el('p', { class: report.details ? 'report-details' : 'report-details empty', text: report.details || 'No details given.' }),
+      el('p', { class: details ? 'report-details' : 'report-details empty', text: details || 'No details given.' }),
       report.status !== 'open'
         ? el('p', { class: 'report-meta' }, [`${report.status === 'dismissed' ? 'Dismissed' : 'Actioned'} `, timeEl(report.resolvedAt), ` by ${riderLabel(report.resolvedBy).name}`])
         : null,

@@ -14,16 +14,8 @@ export const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   backButton: { width: 40, height: 40, borderRadius: radii.md, alignItems: 'center', justifyContent: 'center' },
-  headerAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: radii.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   headerName: { ...type.subheading, flex: 1, fontSize: 16, lineHeight: 20, letterSpacing: -0.2 },
   planButton: { width: 40, height: 40, borderRadius: radii.md, alignItems: 'center', justifyContent: 'center' },
-  planButtonText: { ...type.caption, color: colors.accentInk },
   safetyButton: { width: 40, height: 40, borderRadius: radii.md, alignItems: 'center', justifyContent: 'center' },
   errorBox: {
     flexDirection: 'row',

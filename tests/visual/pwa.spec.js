@@ -785,7 +785,7 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
   await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-friend-more-final.png'), fullPage: true });
   await page.locator('#reportFriendBtn').click();
   await expect(page.locator('#sheetTitle')).toHaveText('Report rider');
-  await expect(page.locator('[data-report-rider]')).toHaveCount(3);
+  await expect(page.locator('[data-report-rider]')).toHaveCount(5);
   await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-friend-report-final.png'), fullPage: true });
   await page.locator('#closeSheet').click();
 
@@ -3114,4 +3114,98 @@ test('PWA signup requires agreeing to the Terms and sends the agreement', async 
   await page.locator('#signupSubmit').click();
   await expect(page.locator('#signupError')).toHaveText('That username is already taken.');
   expect(signup).toMatchObject({ username: 'new_rider', acceptTerms: true });
+});
+
+test('PWA ride roster offers report and block for other riders', async ({ page }) => {
+  const reports = [];
+  const blocks = [];
+  await mockAuthenticatedApi(page, 'stationary', ({ request, url }) => {
+    if (url.pathname === '/rides/current') return { body: { ride: {
+      rideId: 'ride-visual-1', code: 'ABCDEF', createdBy: RIDER_ID,
+      memberIds: [RIDER_ID, 'rider_guest01'], shareRideLocation: false,
+    } } };
+    if (url.pathname === '/rides/ride-visual-1' && request.method() === 'GET') return { body: {
+      rideId: 'ride-visual-1', createdBy: RIDER_ID, createdAt: Date.now(), memberIds: [RIDER_ID, 'rider_guest01'],
+    } };
+    if (url.pathname === '/profiles/rider_guest01') return { body: { riderId: 'rider_guest01', displayName: 'Guest Rider', handle: '@guest_rider' } };
+    if (url.pathname === '/reports' && request.method() === 'POST') { reports.push(request.postDataJSON()); return { status: 201, body: { ok: true } }; }
+    if (url.pathname === '/blocks' && request.method() === 'POST') { blocks.push(request.postDataJSON()); return { status: 201, body: { ok: true } }; }
+    return null;
+  });
+  await page.addInitScript(({ riderId, profile }) => {
+    localStorage.setItem(`rider-comms-pwa-v4:${riderId}`, JSON.stringify({
+      screen: 'ride',
+      profile,
+      activeRide: {
+        rideId: 'ride-visual-1', code: 'ABCDEF', isHost: true, createdBy: riderId,
+        memberIds: [riderId, 'rider_guest01'],
+        members: [
+          { riderId, displayName: profile.displayName, handle: profile.handle },
+          { riderId: 'rider_guest01', displayName: 'Guest Rider', handle: '@guest_rider' },
+        ],
+        shareRideLocation: false,
+      },
+    }));
+  }, { riderId: RIDER_ID, profile: PROFILE });
+
+  page.on('dialog', (dialog) => void dialog.accept());
+  await page.goto('/#ride');
+  await expect(page.locator(`[data-rider-safety="${RIDER_ID}"]`)).toHaveCount(0);
+  await page.locator('[data-rider-safety="rider_guest01"]').click();
+  await page.locator('#riderReportBtn').click();
+  await page.locator('[data-report-rider="harassment"]').click();
+  await expect.poll(() => reports.length).toBe(1);
+  expect(reports[0]).toMatchObject({ riderId: 'rider_guest01', reason: 'harassment', details: 'Reported from the ride roster' });
+
+  await page.locator('[data-rider-safety="rider_guest01"]').click();
+  await page.locator('#riderBlockBtn').click();
+  await expect.poll(() => blocks.length).toBe(1);
+  expect(blocks[0]).toEqual({ riderId: 'rider_guest01' });
+  await expect(page.locator('#toast')).toContainText('Guest Rider blocked.');
+});
+
+test('PWA Settings lists blocked riders and can unblock them', async ({ page }) => {
+  let blocked = [{ riderId: 'rider_blocked01', displayName: 'Blocked Rider', handle: '@blocked', blockedAt: Date.now() }];
+  const unblocked = [];
+  await mockAuthenticatedApi(page, 'stationary', ({ request, url }) => {
+    if (url.pathname === '/blocks' && request.method() === 'GET') return { body: { blockedRiderIds: blocked.map((rider) => rider.riderId), blocked } };
+    if (url.pathname.startsWith('/blocks/') && request.method() === 'DELETE') {
+      const riderId = decodeURIComponent(url.pathname.slice('/blocks/'.length));
+      unblocked.push(riderId);
+      blocked = blocked.filter((rider) => rider.riderId !== riderId);
+      return { status: 204 };
+    }
+    return null;
+  });
+  page.on('dialog', (dialog) => void dialog.accept());
+  await page.goto('/#settings');
+  await page.locator('[data-sheet="communication"]').click();
+  await page.locator('[data-settings-target="blocked"]').click();
+  await expect(page.locator('#blockedRidersList')).toContainText('Blocked Rider');
+  await page.locator('[data-unblock="rider_blocked01"]').click();
+  await expect.poll(() => unblocked).toEqual(['rider_blocked01']);
+  await expect(page.locator('#blockedRidersList')).not.toContainText('Blocked Rider');
+});
+
+test('PWA incoming friend requests offer report and block', async ({ page }) => {
+  const blocks = [];
+  await mockAuthenticatedApi(page, 'stationary', ({ request, url }) => {
+    if (url.pathname === `/riders/${RIDER_ID}/friend-requests`) return { body: {
+      incoming: [{ id: 'request-1', fromRiderId: 'rider_stranger', toRiderId: RIDER_ID, status: 'pending', createdAt: Date.now() }],
+      outgoing: [],
+      profiles: { rider_stranger: { riderId: 'rider_stranger', displayName: 'Stranger', handle: '@stranger', avatarId: 'ember' } },
+      nextCursor: null,
+    } };
+    if (url.pathname === '/blocks' && request.method() === 'POST') { blocks.push(request.postDataJSON()); return { status: 201, body: { ok: true } }; }
+    return null;
+  });
+  page.on('dialog', (dialog) => void dialog.accept());
+  await page.goto('/#friends');
+  const safety = page.locator('[data-request-safety="request-1"]');
+  await expect(safety).toHaveAttribute('aria-label', 'Report or block Stranger');
+  await safety.evaluate((button) => button.click());
+  await expect(page.locator('#sheetTitle')).toHaveText('Stranger');
+  await page.locator('#riderBlockBtn').click();
+  await expect.poll(() => blocks).toEqual([{ riderId: 'rider_stranger' }]);
+  await expect(page.locator('[data-request-safety="request-1"]')).toHaveCount(0);
 });
