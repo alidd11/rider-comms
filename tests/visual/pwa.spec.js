@@ -3269,24 +3269,25 @@ test('PWA chat labels each day and keeps the composer on screen', async ({ page 
   await expect(page.locator('#chatInput')).toBeInViewport({ ratio: 1 });
 });
 
-test('PWA chat covers the status bar with a solid strip so iOS never blurs the header', async ({ page }) => {
+
+test('PWA chat is composited in the installed app and seats its title below the status bar', async ({ page }) => {
   await installStandaloneFixture(page);
   await mockAuthenticatedApi(page, 'stationary', ({ request, url }) => {
     if (url.pathname === '/messages' && request.method() === 'GET') return { body: { messages: [], nextCursor: null, peerReadThroughMessageId: null } };
     if (url.pathname === '/profiles/rider_friend01') return { body: { riderId: 'rider_friend01', displayName: 'Maya', handle: '@maya_moto', avatarId: 'ridge' } };
     return null;
   });
-  await page.addInitScript(() => document.addEventListener('DOMContentLoaded', () => document.documentElement.style.setProperty('--safe-top', '59px')));
   await page.goto('/#friends');
+  await page.evaluate(() => document.documentElement.style.setProperty('--safe-top', '59px'));
   await page.locator('[data-friend="rider_friend01"]').click();
   await page.locator('#messageFriend').click();
   await expect(page.locator('#chatScreen')).toBeVisible();
-  const strip = await page.evaluate(() => {
-    const style = getComputedStyle(document.querySelector('#chatScreen'), '::before');
-    const header = getComputedStyle(document.querySelector('.chat-header'));
-    return { position: style.position, top: style.top, height: style.height, left: style.left, right: style.right, background: style.backgroundColor, headerBackground: header.backgroundColor };
-  });
-  expect(strip).toMatchObject({ position: 'fixed', top: '0px', height: '59px', left: '0px', right: '0px' });
-  expect(strip.background).toBe(strip.headerBackground);
-  expect(strip.background).not.toMatch(/rgba\(.*, 0\)|transparent/);
+  await expect(page.locator('html')).toHaveClass(/pwa-standalone/);
+  // Composited like the tab bar, so iOS paints it to the physical bottom.
+  expect(await page.locator('#chatScreen').evaluate((el) => getComputedStyle(el).transform)).not.toBe('none');
+  // The title sits clear of the band iOS 26 blurs under the status bar.
+  const title = await page.locator('#chatTitle').boundingBox();
+  expect(title.y).toBeGreaterThanOrEqual(59 + 14);
+  // No solid bar over the status bar on the map or chat.
+  expect(await page.evaluate(() => getComputedStyle(document.querySelector('#chatScreen'), '::before').content)).toBe('none');
 });
