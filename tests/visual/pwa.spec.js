@@ -3209,3 +3209,33 @@ test('PWA incoming friend requests offer report and block', async ({ page }) => 
   await expect.poll(() => blocks).toEqual([{ riderId: 'rider_stranger' }]);
   await expect(page.locator('[data-request-safety="request-1"]')).toHaveCount(0);
 });
+
+test('PWA sign-in column is centred on desktop browsers', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto('/');
+  const box = await page.locator('.auth-screen').boundingBox();
+  expect(box).not.toBeNull();
+  expect(box.x).toBeGreaterThanOrEqual(0);
+  expect(Math.abs(box.x + box.width / 2 - 640)).toBeLessThanOrEqual(1);
+  await expect(page.locator('#loginUsername')).toBeInViewport();
+});
+
+test('PWA terms prompt scrolls on short landscape screens', async ({ page }) => {
+  await page.setViewportSize({ width: 568, height: 320 });
+  await mockAuthenticatedApi(page, 'stationary', ({ url }) => (url.pathname === '/auth/me' ? { body: { riderId: RIDER_ID, emailVerified: true, termsAccepted: false, termsVersion: '2026-10-01' } } : null));
+  await page.goto('/');
+  const gate = page.getByRole('dialog', { name: 'Updated terms' });
+  await expect(gate.getByRole('heading', { name: 'Updated terms' })).toBeInViewport();
+  const signOut = gate.getByRole('button', { name: 'Sign out' });
+  await signOut.scrollIntoViewIfNeeded();
+  await expect(signOut).toBeInViewport({ ratio: 1 });
+});
+
+test('PWA ride roster shows this rider from their own profile', async ({ page }) => {
+  await mockAuthenticatedApi(page, 'stationary', ({ url }) => (url.pathname === '/rides/current'
+    ? { body: { ride: { rideId: 'ride-visual-1', code: 'ABCDEF', createdBy: RIDER_ID, memberIds: [RIDER_ID], shareRideLocation: false } } }
+    : null));
+  await page.goto('/#ride');
+  await expect(page.locator('#rideRoster')).toContainText(`${PROFILE.displayName} · You`);
+  await expect(page.locator('#rideRoster')).not.toContainText(RIDER_ID);
+});

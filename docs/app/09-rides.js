@@ -5,6 +5,9 @@
     $('#rideActiveState').hidden = !active;
     $('#rideShareTop').hidden = !active;
     $('#ridePill').hidden = !active;
+    // The floating ride pill covers the last ~50px of every screen; give
+    // scrollable screens room to clear it.
+    document.documentElement.classList.toggle('ride-pill-visible', active);
     syncRideLocationSharing();
     syncVoiceConnection();
     if (!active) return;
@@ -14,7 +17,11 @@
     $('#activeRideLocationStatus').textContent = ride.shareRideLocation
       ? 'On — current ride members can see your recent position.'
       : 'Off — your position is not being uploaded to this ride.';
-    const members = ride.members || ride.memberIds.map((riderId) => ({ riderId, displayName: riderId, handle: riderId }));
+    const members = (ride.members || ride.memberIds.map((riderId) => ({ riderId, displayName: riderId, handle: riderId })))
+      // Show this rider from their own profile, never from a lookup fallback.
+      .map((person) => (person.riderId === state.profile.riderId
+        ? { ...person, displayName: state.profile.displayName || person.displayName, handle: state.profile.handle || person.handle, avatarId: state.profile.avatarId || person.avatarId }
+        : person));
     $('#activeRideCode').textContent = ride.code || 'Invite expired';
     $('#ridePillCode').textContent = ride.code || 'Invite expired';
     $('#copyRideCode').disabled = !ride.code;
@@ -32,7 +39,7 @@
       const safetyButton = person.riderId !== state.profile.riderId
         ? `<button type="button" class="roster-safety" data-rider-safety="${escapeHtml(person.riderId)}" aria-label="Report or block ${escapeHtml(person.displayName)}">${icon('shield')}</button>`
         : '';
-      return `<article class="roster-row">${avatar(person, 'small')}<div class="identity"><strong>${escapeHtml(person.displayName)}${person.riderId === state.profile.riderId ? ' · You' : ''}</strong><span>${escapeHtml(person.handle)}</span></div><span class="roster-status">${escapeHtml(person.riderId === ride.createdBy ? 'Host · connected' : 'Connected')}</span>${safetyButton}${removeButton}</article>`;
+      return `<article class="roster-row">${avatar(person, 'small')}<div class="identity"><strong>${escapeHtml(person.displayName)}${person.riderId === state.profile.riderId ? ' · You' : ''}</strong><span>${escapeHtml(person.handle)}${person.riderId === ride.createdBy ? '<b class="roster-host-inline" aria-hidden="true"> · Host</b>' : ''}</span></div><span class="roster-status">${escapeHtml(person.riderId === ride.createdBy ? 'Host · connected' : 'Connected')}</span>${safetyButton}${removeButton}</article>`;
     }).join('');
     renderMapRiders();
   }
