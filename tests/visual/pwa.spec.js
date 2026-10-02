@@ -3256,9 +3256,13 @@ test('PWA chat labels each day and keeps the composer on screen', async ({ page 
   await page.locator('[data-friend="rider_friend01"]').click();
   await page.locator('#messageFriend').click();
   await expect(page.locator('#chatMessages .chat-day')).toHaveText(['Yesterday', 'Today']);
-  // Anchored to the real bottom edge, not a 100vh box that can outgrow an
-  // installed iOS WebView.
-  await expect(page.locator('#chatScreen')).toHaveCSS('bottom', '0px');
+  // Installed: the chat shares the app shell's full-canvas height, so the
+  // composer sits on the home-indicator safe area like the tab bar does.
+  const [chatHeight, shellHeight] = await page.evaluate(() => [
+    document.querySelector('#chatScreen').getBoundingClientRect().height,
+    document.querySelector('.app-shell')?.getBoundingClientRect().height ?? window.innerHeight,
+  ]);
+  expect(Math.abs(chatHeight - shellHeight)).toBeLessThanOrEqual(1);
   const composer = await page.locator('#chatComposer').boundingBox();
   const viewportHeight = await page.evaluate(() => window.innerHeight);
   expect(composer.y + composer.height).toBeLessThanOrEqual(viewportHeight + 0.5);

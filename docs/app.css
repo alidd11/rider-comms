@@ -2709,12 +2709,11 @@ html.ride-pill-visible .screen{padding-bottom:calc(var(--bottom-nav-height) + 84
 }
 /* Chat day labels. */
 .chat-day{margin:14px 0 6px;text-align:center;color:var(--text-muted);font-size:.7rem;font-weight:700;letter-spacing:.04em}
-/* Installed iOS can start with a WebView shorter than the screen (the system
-   paints the strip under it). A 100vh chat then runs past the WebView's
-   bottom and clips the composer. Anchor the closed-keyboard chat to the real
-   bottom edge, as the tab bar already is. */
-.chat-screen{bottom:0;height:auto}
-html.keyboard-open .chat-screen{bottom:auto}
+/* Installed iOS: size the closed-keyboard chat exactly like the app shell
+   and tab bar (the full physical canvas, 100vh), never by the cold-start
+   fixed-position viewport, which can end ~50px early and leave a band under
+   the composer. The keyboard-open rule above still switches to --visual-vh. */
+html.pwa-standalone:not(.keyboard-open) .chat-screen{top:0;bottom:auto;height:var(--app-vh,100vh)}
 /* iOS 26 installed web apps blur ("soft edge") whatever sits under the
    status bar unless a solid, full-width fixed bar covers that strip. Content
    screens already have one (.content-screen.active::before); give the
