@@ -9,7 +9,7 @@ regression contract, not a visual design specification.
 | B. Screen content | app shell | `.app-main`, `.screen`, `.map-canvas` | Screens inherit the shell height. The map ends at the persistent navigation boundary. |
 | C. Persistent navigation | app shell | `.bottom-nav`, `.ride-pill`, navigation summary | The 58px tab rail stays above the full environment safe inset. Safe area is padding inside chrome, exactly once. |
 | D. Temporary overlay | stable app canvas | auth, search, sheet backdrop, route detail, toast and app banners | Full-screen overlays explicitly use `--app-vh` in standalone mode. Sheets protect their content with the safe inset. |
-| E. Keyboard UI | VisualViewport while open | chat screen and composer | Chat alone switches to `--visual-vh`/`--visual-viewport-top`; closing the keyboard restores `--app-vh`. |
+| E. Keyboard UI | VisualViewport while open | chat screen and composer | Closed chat is absolute inside the full-height relative body. Chat alone switches to `--visual-vh`/`--visual-viewport-top`; closing the keyboard restores `--app-vh`. |
 | F. Decorative | no geometry ownership | HUD grids, gradients and top safe-area shield | Decorative viewport units may size paint only. They must not establish a bottom edge or cover a geometry gap. |
 
 ## Invariants
