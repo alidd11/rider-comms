@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { Alert, type AlertButton } from 'react-native';
-import { RideRoster } from '../../src/ride/HostPanel';
+import { RideRoster } from '../../src/ride/RideRoster';
 
 const mockRemoveRider = jest.fn(async (_riderId: string) => undefined);
 const mockClient = { reportRider: jest.fn(), blockRider: jest.fn() };
@@ -16,11 +16,6 @@ jest.mock('../../src/auth/AuthContext', () => ({
 jest.mock('../../src/screens/useRideProfiles', () => ({
   useRideProfiles: () => ({ 'rider-2': { riderId: 'rider-2', displayName: 'Maya', handle: '@maya_moto' } }),
 }));
-jest.mock('../../src/audio/microphone', () => ({
-  microphoneErrorMessage: () => '',
-  preflightVoiceMicrophone: async () => undefined,
-}));
-jest.mock('@react-navigation/native', () => ({ useNavigation: () => ({ navigate: jest.fn() }) }));
 
 function lastButtons(): AlertButton[] {
   const calls = (Alert.alert as jest.Mock).mock.calls;

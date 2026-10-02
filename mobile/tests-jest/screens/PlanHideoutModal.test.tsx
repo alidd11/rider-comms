@@ -2,7 +2,7 @@ import * as React from 'react';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
-import { PlanHideoutModal } from '../../src/screens/FriendChatScreen';
+import { PlanHideoutModal } from '../../src/screens/PlanHideoutModal';
 
 jest.mock('react-native-maps', () => {
   const ReactActual = jest.requireActual<typeof import('react')>('react');
