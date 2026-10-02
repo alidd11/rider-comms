@@ -511,9 +511,9 @@ html.pwa-standalone .update-banner{
 /* Direct-message surface. Closed-keyboard chat owns the full app viewport.
    When iOS opens the keyboard, only this surface switches to VisualViewport
    geometry so the header stays visible and the composer follows the keyboard. */
-html.chat-open body{position:fixed;top:0;right:0;bottom:auto;left:0;width:100%;height:var(--app-vh,100vh);overflow:visible}
-.chat-screen{position:fixed;z-index:45;top:0;right:0;bottom:auto;left:0;width:min(100%,760px);height:var(--app-vh);margin-inline:auto;display:grid;grid-template-rows:auto auto auto minmax(0,1fr) auto;overflow:hidden;background:var(--bg);color:var(--text)}
-html.keyboard-open .chat-screen{top:calc(var(--visual-viewport-top,0px) + var(--chat-root-pan,0px));height:var(--visual-vh,var(--app-vh))}
+html.chat-open body{position:relative;width:100%;height:var(--app-vh,100vh);overflow:hidden}
+.chat-screen{position:absolute;z-index:45;top:0;right:0;bottom:auto;left:0;width:min(100%,760px);height:var(--app-vh);margin-inline:auto;display:grid;grid-template-rows:auto auto auto minmax(0,1fr) auto;overflow:hidden;background:var(--bg);color:var(--text)}
+html.keyboard-open .chat-screen{position:fixed;top:calc(var(--visual-viewport-top,0px) + var(--chat-root-pan,0px));height:var(--visual-vh,var(--app-vh))}
 .chat-screen[hidden]{display:none}
 .chat-header{grid-row:1;min-height:calc(var(--safe-top) + 62px);padding:var(--safe-top) max(14px,var(--safe-right)) 8px max(14px,var(--safe-left));display:grid;grid-template-columns:44px 40px minmax(0,1fr) 44px 44px;align-items:center;gap:8px;border-bottom:1px solid var(--border-soft);background:var(--surface)}
 .chat-header .icon-back{transform:rotate(180deg)}
@@ -2714,11 +2714,10 @@ html.ride-pill-visible .screen{padding-bottom:calc(var(--bottom-nav-height) + 84
    fixed-position viewport, which can end ~50px early and leave a band under
    the composer. The keyboard-open rule above still switches to --visual-vh. */
 html.pwa-standalone:not(.keyboard-open) .chat-screen{top:0;bottom:auto;height:var(--app-vh,100vh)}
-/* The chat-open body lock must not clip the chat. With inset:0 (bottom:0)
-   and overflow:hidden, installed iOS sized the locked body to its cold-start
-   fixed viewport (~55px short of the screen) and clipped the fixed chat, and
-   its composer, to that box. The lock now keeps top-anchored 100vh, like the
-   app shell, and never clips. */
+/* Closed-keyboard chat is absolute inside the full-height body, rather than
+   a fixed layer inside another fixed layer. Its containing block is the app
+   canvas; it no longer depends on standalone WebKit's fixed-layer paint bounds.
+   Only keyboard-open chat uses fixed VisualViewport coordinates. */
 /* iOS 26 blurs a band just below the status bar in installed web apps. Seat
    the chat title below it, as the other screens' titles already are. */
 .chat-header{padding-top:calc(var(--safe-top) + 14px);min-height:calc(var(--safe-top) + 68px)}

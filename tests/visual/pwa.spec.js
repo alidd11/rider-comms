@@ -2631,7 +2631,7 @@ test('@viewport PWA chat stays pinned to the visible viewport when the keyboard 
   await page.locator('#messageFriend').click();
   await expect(page.locator('#chatScreen')).toBeVisible();
   await expect(page.locator('#chatInput')).not.toBeFocused();
-  await expect(page.locator('body')).toHaveCSS('position', 'fixed');
+  await expect(page.locator('body')).toHaveCSS('position', 'relative');
 
   await page.evaluate(() => document.documentElement.style.setProperty('--bottom-safe-area', '34px'));
   const closedComposerPaddingBottom = await page.locator('#chatComposer').evaluate((element) => getComputedStyle(element).paddingBottom);
@@ -2700,7 +2700,7 @@ test('@viewport PWA chat stays pinned to the visible viewport when the keyboard 
   }, { height: initialViewportHeight });
 
   await expect(page.locator('html')).not.toHaveClass(/keyboard-open/);
-  await expect(page.locator('body')).toHaveCSS('position', 'fixed');
+  await expect(page.locator('body')).toHaveCSS('position', 'relative');
   await expect.poll(async () => {
     const box = await page.locator('#chatScreen').boundingBox();
     return box ? Math.round(box.y + box.height) : -1;
@@ -3270,7 +3270,7 @@ test('PWA chat labels each day and keeps the composer on screen', async ({ page 
 });
 
 
-test('PWA chat body lock never clips the chat, and the title sits below the status bar', async ({ page }) => {
+test('PWA chat uses the body canvas and keeps its controls above the safe area', async ({ page }) => {
   await installStandaloneFixture(page);
   await mockAuthenticatedApi(page, 'stationary', ({ request, url }) => {
     if (url.pathname === '/messages' && request.method() === 'GET') return { body: { messages: [], nextCursor: null, peerReadThroughMessageId: null } };
@@ -3283,12 +3283,25 @@ test('PWA chat body lock never clips the chat, and the title sits below the stat
   await page.locator('#messageFriend').click();
   await expect(page.locator('#chatScreen')).toBeVisible();
   await expect(page.locator('html')).toHaveClass(/pwa-standalone/);
-  // The body lock is top-anchored and never clips the fixed chat.
+  // Closed chat uses the full-height body as its containing block.
   const lock = await page.evaluate(() => {
     const b = getComputedStyle(document.body);
     return { position: b.position, overflow: b.overflow, bodyHeight: document.body.getBoundingClientRect().height, chatHeight: document.querySelector('#chatScreen').getBoundingClientRect().height };
   });
-  expect(lock).toMatchObject({ position: 'fixed', overflow: 'visible' });
+  expect(lock).toMatchObject({ position: 'relative', overflow: 'hidden' });
+  await expect(page.locator('#chatScreen')).toHaveCSS('position', 'absolute');
+  expect(await page.locator('#chatScreen').evaluate(el => el.offsetParent === document.body)).toBe(true);
+  await page.evaluate(() => document.documentElement.style.setProperty('--bottom-safe-area', '34px'));
+  const chat = await page.locator('#chatScreen').boundingBox();
+  for (const selector of ['#chatInput', '#chatSend']) {
+    const control = await page.locator(selector).boundingBox();
+    expect(control.y + control.height).toBeLessThanOrEqual(chat.y + chat.height - 34);
+    const hit = await page.locator(selector).evaluate(el => {
+      const r = el.getBoundingClientRect();
+      return el.contains(document.elementFromPoint(r.x + r.width / 2, r.bottom - 2));
+    });
+    expect(hit).toBe(true);
+  }
   expect(Math.abs(lock.bodyHeight - lock.chatHeight)).toBeLessThanOrEqual(1);
   // The title sits clear of the band iOS 26 blurs under the status bar.
   const title = await page.locator('#chatTitle').boundingBox();
