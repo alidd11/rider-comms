@@ -2715,3 +2715,16 @@ html.ride-pill-visible .screen{padding-bottom:calc(var(--bottom-nav-height) + 84
    bottom edge, as the tab bar already is. */
 .chat-screen{bottom:0;height:auto}
 html.keyboard-open .chat-screen{bottom:auto}
+/* iOS 26 installed web apps blur ("soft edge") whatever sits under the
+   status bar unless a solid, full-width fixed bar covers that strip. Content
+   screens already have one (.content-screen.active::before); give the
+   full-screen chat and search overlays the same, in their header colours,
+   so names and controls at the top are never blurred. */
+.chat-screen::before,.search-screen::before{content:"";position:fixed;z-index:2;top:0;left:0;right:0;height:var(--safe-top);pointer-events:none}
+.chat-screen::before{background:var(--surface)}
+.search-screen::before{background:var(--bg)}
+.chat-screen[hidden]::before,.search-screen[hidden]::before{display:none}
+@media(max-width:699px){.chat-screen::before{background:var(--bg)}}
+/* Same solid status-bar strip on the map and sign-in screens. */
+.screen-map.active::before,.auth-screen::before{content:"";position:fixed;z-index:30;top:0;left:0;right:0;height:var(--safe-top);background:var(--bg);pointer-events:none}
+.auth-screen[hidden]::before{display:none}

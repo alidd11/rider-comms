@@ -3264,3 +3264,25 @@ test('PWA chat labels each day and keeps the composer on screen', async ({ page 
   expect(composer.y + composer.height).toBeLessThanOrEqual(viewportHeight + 0.5);
   await expect(page.locator('#chatInput')).toBeInViewport({ ratio: 1 });
 });
+
+test('PWA chat covers the status bar with a solid strip so iOS never blurs the header', async ({ page }) => {
+  await installStandaloneFixture(page);
+  await mockAuthenticatedApi(page, 'stationary', ({ request, url }) => {
+    if (url.pathname === '/messages' && request.method() === 'GET') return { body: { messages: [], nextCursor: null, peerReadThroughMessageId: null } };
+    if (url.pathname === '/profiles/rider_friend01') return { body: { riderId: 'rider_friend01', displayName: 'Maya', handle: '@maya_moto', avatarId: 'ridge' } };
+    return null;
+  });
+  await page.addInitScript(() => document.addEventListener('DOMContentLoaded', () => document.documentElement.style.setProperty('--safe-top', '59px')));
+  await page.goto('/#friends');
+  await page.locator('[data-friend="rider_friend01"]').click();
+  await page.locator('#messageFriend').click();
+  await expect(page.locator('#chatScreen')).toBeVisible();
+  const strip = await page.evaluate(() => {
+    const style = getComputedStyle(document.querySelector('#chatScreen'), '::before');
+    const header = getComputedStyle(document.querySelector('.chat-header'));
+    return { position: style.position, top: style.top, height: style.height, left: style.left, right: style.right, background: style.backgroundColor, headerBackground: header.backgroundColor };
+  });
+  expect(strip).toMatchObject({ position: 'fixed', top: '0px', height: '59px', left: '0px', right: '0px' });
+  expect(strip.background).toBe(strip.headerBackground);
+  expect(strip.background).not.toMatch(/rgba\(.*, 0\)|transparent/);
+});
