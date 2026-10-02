@@ -24,6 +24,7 @@ import { colors, spacing } from '../theme';
 import { styles } from './FriendChatScreen.styles';
 import { PlanHideoutModal } from './PlanHideoutModal';
 import { buildNavigationProviderUrl, openNavigationUrl } from '../navigationLinks';
+import { formatMessageDay, startsNewDay } from '../friends/messageDay';
 import { acknowledgeOptimisticMessage, mergeOlderMessagePage, reconcileMessageThread, type LocalDirectMessage } from '../friends/messageState';
 import { useMovementSafety } from '../safety/MovementSafetyContext';
 import { RideSafeSurface } from '../safety/RideSafeSurface';
@@ -382,7 +383,14 @@ function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Elemen
         ref={listRef}
         data={messages}
         keyExtractor={(m) => m.id}
-        renderItem={({ item }) => <MessageBubble message={item} currentRiderId={currentRiderId} onRetry={handleRetry} readByPeer={item.id === peerReadThroughMessageId} />}
+        renderItem={({ item, index }) => (
+          <>
+            {startsNewDay(item.createdAt, messages[index - 1]?.createdAt) ? (
+              <Text style={styles.dayLabel} accessibilityRole="header">{formatMessageDay(item.createdAt)}</Text>
+            ) : null}
+            <MessageBubble message={item} currentRiderId={currentRiderId} onRetry={handleRetry} readByPeer={item.id === peerReadThroughMessageId} />
+          </>
+        )}
         ListHeaderComponent={nextCursor ? (
           <Pressable accessibilityRole="button" style={styles.loadOlderButton} onPress={() => void loadOlderMessages()} disabled={loadingOlder}>
             {loadingOlder ? <ActivityIndicator color={colors.accent} size="small" /> : <Text style={styles.loadOlderText}>Load older messages</Text>}

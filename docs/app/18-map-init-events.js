@@ -168,6 +168,13 @@
     $('#chatRetry').addEventListener('click', () => void loadChatMessages({ showLoading: true }));
     $('#chatLoadOlder').addEventListener('click', () => void loadChatMessages({ older: true }));
     $('#chatComposer').addEventListener('submit', (event) => { event.preventDefault(); submitChatMessage(); });
+    // Installed iOS can leave the document panned after the keyboard closes,
+    // shifting the chat; return to the top once focus leaves the composer.
+    $('#chatInput').addEventListener('blur', () => {
+      requestAnimationFrame(() => {
+        if (window.scrollY > 0) window.scrollTo(0, 0);
+      });
+    });
     $('#chatInput').addEventListener('keydown', (event) => {
       if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); submitChatMessage(); }
     });

@@ -1302,6 +1302,17 @@
     return Number.isFinite(date.getTime()) ? date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
   }
 
+  /** "Today", "Yesterday", "Mon 30 Sep", or with the year when it isn't this year. */
+  function formatMessageDay(value, now = new Date()) {
+    const date = new Date(value);
+    if (!Number.isFinite(date.getTime())) return '';
+    const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    const days = Math.round((startOfDay(now) - startOfDay(date)) / 86_400_000);
+    if (days === 0) return 'Today';
+    if (days === 1) return 'Yesterday';
+    return date.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short', ...(date.getFullYear() === now.getFullYear() ? {} : { year: 'numeric' }) });
+  }
+
   function renderChatHideouts() {
     const section = $('#chatHideouts');
     const list = $('#chatHideoutList');
@@ -1481,7 +1492,13 @@
   function renderChat() {
     if (!activeChat) return;
     const messages = $('#chatMessages');
+    let previousDay = '';
     messages.innerHTML = chatMessages.map((message) => {
+      // A day label before the first message of each day, so times from
+      // different days never read as one out-of-order conversation.
+      const day = formatMessageDay(message.createdAt);
+      const dayLabel = day && day !== previousDay ? `<p class="chat-day" role="separator">${escapeHtml(day)}</p>` : '';
+      previousDay = day || previousDay;
       const mine = message.fromRiderId === state.profile.riderId;
       const failed = mine && message.status === 'failed';
       const status = message.status === 'pending'
@@ -1492,9 +1509,9 @@
             ? '<small>Read</small>'
             : '';
       const body = `<span>${escapeHtml(message.text)}</span><time>${escapeHtml(formatMessageTime(message.createdAt))}</time>${status}`;
-      return failed
+      return dayLabel + (failed
         ? `<button class="chat-bubble-row mine" data-retry-message="${escapeHtml(message.id)}" aria-label="Message failed. Retry sending."><span class="chat-bubble failed">${body}</span></button>`
-        : `<div class="chat-bubble-row${mine ? ' mine' : ''}"><div class="chat-bubble">${body}</div></div>`;
+        : `<div class="chat-bubble-row${mine ? ' mine' : ''}"><div class="chat-bubble">${body}</div></div>`);
     }).join('');
     $('#chatEmpty').hidden = chatLoading || chatMessages.length > 0;
     $('#chatLoadOlder').hidden = !chatNextCursor;
@@ -6154,6 +6171,13 @@
     $('#chatRetry').addEventListener('click', () => void loadChatMessages({ showLoading: true }));
     $('#chatLoadOlder').addEventListener('click', () => void loadChatMessages({ older: true }));
     $('#chatComposer').addEventListener('submit', (event) => { event.preventDefault(); submitChatMessage(); });
+    // Installed iOS can leave the document panned after the keyboard closes,
+    // shifting the chat; return to the top once focus leaves the composer.
+    $('#chatInput').addEventListener('blur', () => {
+      requestAnimationFrame(() => {
+        if (window.scrollY > 0) window.scrollTo(0, 0);
+      });
+    });
     $('#chatInput').addEventListener('keydown', (event) => {
       if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); submitChatMessage(); }
     });

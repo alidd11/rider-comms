@@ -64,6 +64,7 @@ export const styles = StyleSheet.create({
   bubbleText: { ...type.body, color: colors.textPrimary },
   bubbleTextMine: { color: colors.accentText },
   bubbleTime: { ...type.caption, marginTop: spacing.xs },
+  dayLabel: { ...type.caption, alignSelf: 'center', marginTop: spacing.md, marginBottom: spacing.xs, color: colors.textMuted, fontWeight: '700' },
   bubbleTimeMine: { color: colors.accentText, opacity: 0.7 },
   bubbleStatusCaption: { ...type.caption, textAlign: 'right', marginTop: spacing.xs },
   bubbleStatusCaptionFailed: {
