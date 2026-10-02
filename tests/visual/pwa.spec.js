@@ -3270,7 +3270,7 @@ test('PWA chat labels each day and keeps the composer on screen', async ({ page 
 });
 
 
-test('PWA chat is composited in the installed app and seats its title below the status bar', async ({ page }) => {
+test('PWA chat body lock never clips the chat, and the title sits below the status bar', async ({ page }) => {
   await installStandaloneFixture(page);
   await mockAuthenticatedApi(page, 'stationary', ({ request, url }) => {
     if (url.pathname === '/messages' && request.method() === 'GET') return { body: { messages: [], nextCursor: null, peerReadThroughMessageId: null } };
@@ -3283,8 +3283,13 @@ test('PWA chat is composited in the installed app and seats its title below the 
   await page.locator('#messageFriend').click();
   await expect(page.locator('#chatScreen')).toBeVisible();
   await expect(page.locator('html')).toHaveClass(/pwa-standalone/);
-  // Composited like the tab bar, so iOS paints it to the physical bottom.
-  expect(await page.locator('#chatScreen').evaluate((el) => getComputedStyle(el).transform)).not.toBe('none');
+  // The body lock is top-anchored and never clips the fixed chat.
+  const lock = await page.evaluate(() => {
+    const b = getComputedStyle(document.body);
+    return { position: b.position, overflow: b.overflow, bodyHeight: document.body.getBoundingClientRect().height, chatHeight: document.querySelector('#chatScreen').getBoundingClientRect().height };
+  });
+  expect(lock).toMatchObject({ position: 'fixed', overflow: 'visible' });
+  expect(Math.abs(lock.bodyHeight - lock.chatHeight)).toBeLessThanOrEqual(1);
   // The title sits clear of the band iOS 26 blurs under the status bar.
   const title = await page.locator('#chatTitle').boundingBox();
   expect(title.y).toBeGreaterThanOrEqual(59 + 14);
