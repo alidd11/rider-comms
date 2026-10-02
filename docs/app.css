@@ -511,7 +511,7 @@ html.pwa-standalone .update-banner{
 /* Direct-message surface. Closed-keyboard chat owns the full app viewport.
    When iOS opens the keyboard, only this surface switches to VisualViewport
    geometry so the header stays visible and the composer follows the keyboard. */
-html.chat-open body{position:fixed;inset:0;width:100%;height:var(--app-vh,100dvh);overflow:hidden}
+html.chat-open body{position:fixed;top:0;right:0;bottom:auto;left:0;width:100%;height:var(--app-vh,100vh);overflow:visible}
 .chat-screen{position:fixed;z-index:45;top:0;right:0;bottom:auto;left:0;width:min(100%,760px);height:var(--app-vh);margin-inline:auto;display:grid;grid-template-rows:auto auto auto minmax(0,1fr) auto;overflow:hidden;background:var(--bg);color:var(--text)}
 html.keyboard-open .chat-screen{top:calc(var(--visual-viewport-top,0px) + var(--chat-root-pan,0px));height:var(--visual-vh,var(--app-vh))}
 .chat-screen[hidden]{display:none}
@@ -2714,11 +2714,11 @@ html.ride-pill-visible .screen{padding-bottom:calc(var(--bottom-nav-height) + 84
    fixed-position viewport, which can end ~50px early and leave a band under
    the composer. The keyboard-open rule above still switches to --visual-vh. */
 html.pwa-standalone:not(.keyboard-open) .chat-screen{top:0;bottom:auto;height:var(--app-vh,100vh)}
-/* Installed iOS paints a position:fixed layer only down to its cold-start
-   fixed viewport (~55px short of the screen) unless the layer is composited.
-   The tab bar already opts in (translateZ(0)); the chat needs the same, or
-   the composer is cut off at that line. */
-html.pwa-standalone .chat-screen{-webkit-transform:translateZ(0);transform:translateZ(0);-webkit-backface-visibility:hidden;backface-visibility:hidden}
+/* The chat-open body lock must not clip the chat. With inset:0 (bottom:0)
+   and overflow:hidden, installed iOS sized the locked body to its cold-start
+   fixed viewport (~55px short of the screen) and clipped the fixed chat, and
+   its composer, to that box. The lock now keeps top-anchored 100vh, like the
+   app shell, and never clips. */
 /* iOS 26 blurs a band just below the status bar in installed web apps. Seat
    the chat title below it, as the other screens' titles already are. */
 .chat-header{padding-top:calc(var(--safe-top) + 14px);min-height:calc(var(--safe-top) + 68px)}
