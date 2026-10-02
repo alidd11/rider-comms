@@ -1297,6 +1297,44 @@
     renderProfile(profile);
   }
 
+  // TEMPORARY on-device diagnostic (installed iOS only): measures where the
+  // chat composer is being cut off. Remove once the cause is fixed.
+  function renderChatViewportReadout() {
+    const isStandalone = window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone === true;
+    let box = $('#chatViewportReadout');
+    if (!isStandalone || !activeChat) { box?.remove(); return; }
+    if (!box) {
+      box = document.createElement('pre');
+      box.id = 'chatViewportReadout';
+      Object.assign(box.style, { position: 'fixed', zIndex: '200', left: '8px', right: '8px', top: '38%', margin: '0', padding: '8px', font: '11px/1.35 ui-monospace,monospace', whiteSpace: 'pre-wrap', background: 'rgba(255,214,0,.92)', color: '#000', borderRadius: '6px', pointerEvents: 'none' });
+      document.body.append(box);
+    }
+    const probe = (css) => { const el = document.createElement('div'); el.style.cssText = `position:fixed;left:0;top:0;width:1px;visibility:hidden;${css}`; document.body.append(el); const h = el.getBoundingClientRect().height; el.remove(); return Math.round(h); };
+    const rect = (sel) => { const el = typeof sel === 'string' ? $(sel) : sel; if (!el) return 'none'; const r = el.getBoundingClientRect(); return `${Math.round(r.top)}-${Math.round(r.bottom)} (h${Math.round(r.height)})`; };
+    const name = (el) => (el ? `${el.tagName.toLowerCase()}${el.id ? `#${el.id}` : ''}${el.classList.length ? `.${[...el.classList].slice(0, 2).join('.')}` : ''}` : 'none');
+    const textarea = $('#chatInput').getBoundingClientRect();
+    const x = Math.round(window.innerWidth / 3);
+    const sample = (y) => `${Math.round(y)}: ${document.elementsFromPoint(x, y).filter((el) => el.id !== 'chatViewportReadout').slice(0, 2).map(name).join(' > ') || 'nothing'}`;
+    const vh = probe('height:100vh');
+    const cs = getComputedStyle(document.documentElement);
+    box.textContent = [
+      'DEBUG (screenshot this)',
+      `screen ${screen.width}x${screen.height}  inner ${window.innerWidth}x${window.innerHeight}`,
+      `vv h${Math.round(visualViewport?.height ?? -1)} top${Math.round(visualViewport?.offsetTop ?? -1)}  scrollY ${Math.round(window.scrollY)}`,
+      `100vh=${vh} 100dvh=${probe('height:100dvh')} 100svh=${probe('height:100svh')} 100lvh=${probe('height:100lvh')}`,
+      `safe bottom ${probe('height:env(safe-area-inset-bottom)')} top ${probe('height:env(safe-area-inset-top)')}`,
+      `--app-vh ${cs.getPropertyValue('--app-vh').trim()} --visual-vh ${cs.getPropertyValue('--visual-vh').trim()}`,
+      `html ${document.documentElement.className}`,
+      `body ${rect(document.body)} chat ${rect('#chatScreen')}`,
+      `composer ${rect('#chatComposer')} input ${Math.round(textarea.top)}-${Math.round(textarea.bottom)}`,
+      'top element at:',
+      sample(textarea.top + 8),
+      sample(textarea.bottom - 6),
+      sample(Math.min(vh, window.innerHeight) - 30),
+      sample(vh - 10),
+    ].join('\n');
+  }
+
   function formatMessageTime(value) {
     const date = new Date(value);
     return Number.isFinite(date.getTime()) ? date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
@@ -1624,6 +1662,8 @@
     document.title = `${friend.displayName} · Rider Comms`;
     void loadChatMessages({ showLoading: true });
     void loadChatHideouts();
+    setTimeout(renderChatViewportReadout, 600);
+    setTimeout(renderChatViewportReadout, 2000);
   }
 
   function closeChat({ restoreFocus = true } = {}) {
@@ -1637,6 +1677,7 @@
     chatHideoutsLoading = false;
     chatHideoutError = '';
     $('#chatScreen').hidden = true;
+    $('#chatViewportReadout')?.remove();
     $('#app').removeAttribute('inert');
     document.documentElement.classList.remove('chat-open');
     syncViewportEnvironment();
