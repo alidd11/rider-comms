@@ -27,6 +27,7 @@ const PROFANE_TERMS = [
   'fuck*', 'fucker', 'fucking', 'shit', 'shite', 'cunt', 'pussy', 'twat', 'wanker*', 'bitch', 'slut', 'whore',
   'porn', 'porno', 'pornhub*', 'onlyfans*', 'nudes', 'sex', 'cum', 'jizz*', 'tits', 'boobs', 'penis', 'vagina',
   'rape', 'blowjob*', 'handjob*', 'dildo*', 'hentai*', 'nazi', 'hitler',
+  'dickhead', 'prick', 'arsehole', 'asshole', 'bellend', 'bastard', 'tosser', 'knobhead',
 ];
 
 function compile(terms: readonly string[]): Array<{ term: string; inside: boolean }> {

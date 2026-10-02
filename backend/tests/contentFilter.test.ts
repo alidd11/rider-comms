@@ -10,7 +10,7 @@ describe('content filter', () => {
   });
 
   it('blocks profanity only in public-facing text', () => {
-    for (const text of ['FuckRider', 'shit_biker', '@porn_star', 'onlyfans.link']) {
+    for (const text of ['FuckRider', 'shit_biker', '@porn_star', 'onlyfans.link', 'Dickhead', 'big_dickhead_99', 'Bellend', 'arsehole rider']) {
       assert.equal(containsObjectionableText(text), true, text);
       assert.equal(containsSevereText(text), false, text);
     }
@@ -19,7 +19,7 @@ describe('content filter', () => {
   it('lets ordinary names, places and words through', () => {
     for (const text of [
       'Scunthorpe', 'Penistone', 'Sussex Riders', 'Essex', 'Peacock', 'Dick Turpin', 'Coon', 'Dyke Road',
-      'therapist', 'grapes', 'Cockermouth', 'class act', 'Shitterton', 'Rider 1', '@ali_rides', 'Glencoe loop',
+      'therapist', 'grapes', 'Cockermouth', 'class act', 'Shitterton', 'Rider 1', '@ali_rides', 'Glencoe loop', 'Prickwillow', 'Bastardo Pass', 'Bass Hole', 'Bell End Road',
     ]) {
       assert.equal(containsObjectionableText(text), false, text);
     }

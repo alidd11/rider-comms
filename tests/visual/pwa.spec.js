@@ -3239,3 +3239,28 @@ test('PWA ride roster shows this rider from their own profile', async ({ page })
   await expect(page.locator('#rideRoster')).toContainText(`${PROFILE.displayName} · You`);
   await expect(page.locator('#rideRoster')).not.toContainText(RIDER_ID);
 });
+
+test('PWA chat labels each day and keeps the composer on screen', async ({ page }) => {
+  const now = Date.now();
+  const yesterday = now - 24 * 60 * 60 * 1000;
+  await installStandaloneFixture(page);
+  await mockAuthenticatedApi(page, 'stationary', ({ request, url }) => {
+    if (url.pathname === '/messages' && request.method() === 'GET') return { body: { messages: [
+      { id: 'm1', fromRiderId: RIDER_ID, toRiderId: 'rider_friend01', text: 'Yoo', createdAt: yesterday },
+      { id: 'm2', fromRiderId: RIDER_ID, toRiderId: 'rider_friend01', text: 'Still on for Sunday?', createdAt: now - 60_000 },
+    ], nextCursor: null, peerReadThroughMessageId: null } };
+    if (url.pathname === '/profiles/rider_friend01') return { body: { riderId: 'rider_friend01', displayName: 'Maya', handle: '@maya_moto', avatarId: 'ridge' } };
+    return null;
+  });
+  await page.goto('/#friends');
+  await page.locator('[data-friend="rider_friend01"]').click();
+  await page.locator('#messageFriend').click();
+  await expect(page.locator('#chatMessages .chat-day')).toHaveText(['Yesterday', 'Today']);
+  // Anchored to the real bottom edge, not a 100vh box that can outgrow an
+  // installed iOS WebView.
+  await expect(page.locator('#chatScreen')).toHaveCSS('bottom', '0px');
+  const composer = await page.locator('#chatComposer').boundingBox();
+  const viewportHeight = await page.evaluate(() => window.innerHeight);
+  expect(composer.y + composer.height).toBeLessThanOrEqual(viewportHeight + 0.5);
+  await expect(page.locator('#chatInput')).toBeInViewport({ ratio: 1 });
+});

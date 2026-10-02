@@ -2707,3 +2707,11 @@ html.ride-pill-visible .screen{padding-bottom:calc(var(--bottom-nav-height) + 84
   .voice-peer-row{flex-wrap:wrap;padding:8px 0}
   .voice-peer-row .identity{flex:1 1 100%}
 }
+/* Chat day labels. */
+.chat-day{margin:14px 0 6px;text-align:center;color:var(--text-muted);font-size:.7rem;font-weight:700;letter-spacing:.04em}
+/* Installed iOS can start with a WebView shorter than the screen (the system
+   paints the strip under it). A 100vh chat then runs past the WebView's
+   bottom and clips the composer. Anchor the closed-keyboard chat to the real
+   bottom edge, as the tab bar already is. */
+.chat-screen{bottom:0;height:auto}
+html.keyboard-open .chat-screen{bottom:auto}
