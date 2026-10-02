@@ -2686,3 +2686,24 @@ body:has(.friend-more-card) .sheet-body{gap:9px}
 .voice-peer-row .identity small{color:var(--text-muted)}
 .voice-peer-row button{min-height:40px;padding:0 10px;border:1px solid var(--border);border-radius:20px;background:transparent;color:var(--text)}
 .voice-peer-row button.danger{color:var(--danger)}
+/* Viewport audit fixes (2026-10). A later .auth-screen block resets inset:0,
+   which undid the desktop centring and pushed the sign-in column 270px off
+   the left edge; restate it last. */
+@media(min-width:1080px){.auth-screen{inset:0 auto 0 50%;width:min(100%,540px);transform:translateX(-50%)}}
+/* Terms prompt scrolls on short screens (phone landscape) instead of clipping. */
+.terms-gate{display:flex;overflow-y:auto;overscroll-behavior:contain}
+.terms-gate-card{margin:auto}
+/* Clear the floating ride pill at the bottom of scrolling screens. */
+html.ride-pill-visible .screen{padding-bottom:calc(var(--bottom-nav-height) + 84px)}
+/* Nearby Voice riders button sits top-left, clear of the right-hand map controls. */
+.voice-people-btn{right:auto;left:max(16px,var(--safe-left));top:calc(var(--safe-top) + 66px)}
+.roster-host-inline{display:none;font-weight:700;color:var(--success)}
+@media(max-width:400px){
+  /* Small phones: keep rider names readable in the roster and voice list. */
+  .roster-row{gap:8px;padding-inline:10px}
+  .roster-row .roster-status{width:10px;height:10px;flex:none;overflow:hidden;border-radius:50%;background:var(--success);font-size:0;color:transparent}
+  .roster-safety{margin-right:2px}
+  .roster-host-inline{display:inline}
+  .voice-peer-row{flex-wrap:wrap;padding:8px 0}
+  .voice-peer-row .identity{flex:1 1 100%}
+}
