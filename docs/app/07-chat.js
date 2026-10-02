@@ -365,22 +365,46 @@
     await sendChatText(target.text, localId);
   }
 
-  function openFriendReportActions(friend) {
+  const REPORT_REASONS = [
+    ['harassment', 'Harassment or threats', 'Abuse, threats or repeated unwanted contact', 'message'],
+    ['sexual', 'Sexual or explicit content', 'Explicit messages, names or behaviour', 'shield'],
+    ['unsafe', 'Unsafe behaviour', 'Dangerous conduct affecting rider safety', 'shield'],
+    ['spam', 'Spam or scam', 'Advertising, scams or repeated unwanted messages', 'info'],
+    ['other', 'Something else', 'Anything else that breaks the Community Guidelines', 'info'],
+  ];
+
+  /** Report flow shared by every place another rider appears (friend
+   * profile, chat, ride roster, friend requests, Nearby Voice). */
+  function openRiderReportSheet(person, source) {
     presentSheet('Report rider', `<article class="friend-more-card">
-        <span class="friend-more-avatar">${avatar(friend)}</span>
-        <span><strong>${escapeHtml(friend.displayName)}</strong><small>${escapeHtml(friend.handle)}</small></span>
+        <span class="friend-more-avatar">${avatar(person)}</span>
+        <span><strong>${escapeHtml(person.displayName)}</strong><small>${escapeHtml(person.handle || '')}</small></span>
       </article>
-      <p class="friend-more-intro">Choose the reason that best describes the issue. Reports are sent to Rider Comms for review.</p>
+      <p class="friend-more-intro">Choose the reason that best describes the issue. Our team reviews reports within 24 hours.</p>
       <div class="friend-more-menu" aria-label="Report reason">
-        <button data-report-rider="harassment"><span class="friend-more-icon">${icon('message')}</span><span><strong>Harassment</strong><small>Threats, abuse or repeated unwanted contact</small></span>${icon('chevron')}</button>
-        <button data-report-rider="unsafe"><span class="friend-more-icon">${icon('shield')}</span><span><strong>Unsafe behaviour</strong><small>Dangerous conduct affecting rider safety</small></span>${icon('chevron')}</button>
-        <button data-report-rider="spam"><span class="friend-more-icon">${icon('info')}</span><span><strong>Spam or scam</strong><small>Advertising, scams or repeated unwanted messages</small></span>${icon('chevron')}</button>
+        ${REPORT_REASONS.map(([reason, title, detail, glyph]) => `<button data-report-rider="${reason}"><span class="friend-more-icon">${icon(glyph)}</span><span><strong>${title}</strong><small>${detail}</small></span>${icon('chevron')}</button>`).join('')}
       </div>
       <p id="friendSafetyError" class="inline-error" role="alert" hidden></p>`, () => {
-      $('[data-report-rider]', $('#sheetBody')).forEach((button) => {
-        button.addEventListener('click', () => void reportFriend(friend, button.dataset.reportRider));
+      $$('[data-report-rider]', $('#sheetBody')).forEach((button) => {
+        button.addEventListener('click', () => void reportRider(person, button.dataset.reportRider, source));
       });
     });
+  }
+
+  /** Report and block for a rider who isn't (necessarily) a friend. */
+  function openRiderSafetyMenu(person, source, onBlocked) {
+    presentSheet(person.displayName || 'Rider', `<div class="friend-more-menu" aria-label="Safety actions">
+        <button id="riderReportBtn"><span class="friend-more-icon">${icon('shield')}</span><span><strong>Report rider</strong><small>Harassment, explicit content, unsafe behaviour or spam</small></span>${icon('chevron')}</button>
+        <button class="danger" id="riderBlockBtn"><span class="friend-more-icon">${icon('close')}</span><span><strong>Block rider</strong><small>You won’t see or hear each other in Nearby, and they can’t contact you</small></span>${icon('chevron')}</button>
+      </div>
+      <p id="friendSafetyError" class="inline-error" role="alert" hidden></p>`, () => {
+      $('#riderReportBtn').addEventListener('click', () => openRiderReportSheet(person, source));
+      $('#riderBlockBtn').addEventListener('click', () => void blockRider(person, onBlocked, '#riderBlockBtn'));
+    });
+  }
+
+  function openFriendReportActions(friend) {
+    openRiderReportSheet(friend, 'the PWA friend profile');
   }
 
   function openFriendSafetyActions(friend) {
@@ -441,15 +465,15 @@
     }
   }
 
-  async function reportFriend(friend, reason) {
+  async function reportRider(person, reason, source) {
     const error = $('#friendSafetyError');
     error.hidden = true;
     $$('[data-report-rider]', $('#sheetBody')).forEach((button) => { button.disabled = true; });
     try {
       await apiFetch('POST', '/reports', {
-        riderId: friend.riderId,
+        riderId: person.riderId,
         reason,
-        details: 'Reported from the PWA friend profile',
+        details: `Reported from ${source}`,
       });
       closeSheet();
       showToast('Report received. Thank you.');
@@ -460,29 +484,37 @@
     }
   }
 
-  async function blockFriend(friend) {
-    if (!window.confirm(`Block ${friend.displayName}? This removes them from your friends and prevents further contact.`)) return;
-    const button = $('#blockFriendBtn');
+  /** Blocks anyone (friend or not) and drops them from every local list. */
+  async function blockRider(person, onBlocked, buttonSelector = '#blockFriendBtn') {
+    if (!window.confirm(`Block ${person.displayName}? You won’t see or hear each other in Nearby, and they can’t message you or send friend requests. You can unblock them in Settings.`)) return;
+    const button = $(buttonSelector);
     const error = $('#friendSafetyError');
-    button.disabled = true;
-    error.hidden = true;
+    if (button) button.disabled = true;
+    if (error) error.hidden = true;
     try {
-      await apiFetch('POST', '/blocks', { riderId: friend.riderId });
-      state.friends = state.friends.filter((candidate) => candidate.riderId !== friend.riderId);
-      state.requests = state.requests.filter((request) => request.riderId !== friend.riderId);
-      nearbyRiders = nearbyRiders.filter((candidate) => candidate.riderId !== friend.riderId);
-      if (state.selectedRiderId === friend.riderId) state.selectedRiderId = null;
+      await apiFetch('POST', '/blocks', { riderId: person.riderId });
+      state.friends = state.friends.filter((candidate) => candidate.riderId !== person.riderId);
+      state.requests = state.requests.filter((request) => request.riderId !== person.riderId);
+      nearbyRiders = nearbyRiders.filter((candidate) => candidate.riderId !== person.riderId);
+      if (state.selectedRiderId === person.riderId) state.selectedRiderId = null;
       persist();
       renderFriends();
       renderMapRiders();
-      if (activeChat?.riderId === friend.riderId) closeChat({ restoreFocus: false });
+      if (activeChat?.riderId === person.riderId) closeChat({ restoreFocus: false });
       closeSheet();
-      showToast(`${friend.displayName} blocked.`);
+      onBlocked?.();
+      showToast(`${person.displayName} blocked.`);
     } catch {
-      button.disabled = false;
-      error.textContent = 'Could not block that rider. Check your connection and try again.';
-      error.hidden = false;
+      if (button) button.disabled = false;
+      if (error) {
+        error.textContent = 'Could not block that rider. Check your connection and try again.';
+        error.hidden = false;
+      }
     }
+  }
+
+  function blockFriend(friend) {
+    return blockRider(friend);
   }
 
   const SOCIAL_EVENT_RETRY_MS = 2000;

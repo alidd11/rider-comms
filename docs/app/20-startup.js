@@ -20,9 +20,6 @@
     void loadFriendsData();
     startSocialEvents();
     syncFriendActivityPolling();
-    // Startup only reconciles saved UI state with the browser. Permission
-    // prompts belong to deliberate taps in Settings, never cold launch.
-    syncNotificationPreference();
     void initialiseMovementSafety();
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') void initialiseMovementSafety();

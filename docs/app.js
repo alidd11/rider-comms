@@ -71,7 +71,6 @@
     unit: 'mi',
     navigationProvider: 'google_maps',
     rideSafeEnabled: true,
-    notifications: false,
     profile: {
       riderId: '',
       displayName: '',
@@ -1134,7 +1133,7 @@
     const onlineFriends = friends.filter((friend) => friendActivity.get(friend.riderId)?.online === true);
     const offlineFriends = friends.filter((friend) => friendActivity.get(friend.riderId)?.online !== true);
 
-    const incomingRows = state.requests.map((person) => `<article class="request-row">${avatar(person)}<div class="identity"><strong>${escapeHtml(person.displayName)}</strong><span>${escapeHtml(person.handle)} · ${escapeHtml(person.status)}</span></div><div class="request-actions"><button class="decline" data-decline="${escapeHtml(person.id)}" aria-label="Decline ${escapeHtml(person.displayName)}">×</button><button class="accept" data-accept="${escapeHtml(person.id)}" aria-label="Accept ${escapeHtml(person.displayName)}">✓</button></div></article>`).join('');
+    const incomingRows = state.requests.map((person) => `<article class="request-row">${avatar(person)}<div class="identity"><strong>${escapeHtml(person.displayName)}</strong><span>${escapeHtml(person.handle)} · ${escapeHtml(person.status)}</span></div><div class="request-actions"><button class="request-safety" data-request-safety="${escapeHtml(person.id)}" aria-label="Report or block ${escapeHtml(person.displayName)}">${icon('shield')}</button><button class="decline" data-decline="${escapeHtml(person.id)}" aria-label="Decline ${escapeHtml(person.displayName)}">×</button><button class="accept" data-accept="${escapeHtml(person.id)}" aria-label="Accept ${escapeHtml(person.displayName)}">✓</button></div></article>`).join('');
     const outgoingRows = outgoingFriendRequests.map((person) => `<article class="request-row">${avatar(person)}<div class="identity"><strong>${escapeHtml(person.displayName)}</strong><span>${escapeHtml(person.handle)} · Pending</span></div><div class="request-actions"><button data-cancel-request="${escapeHtml(person.id)}" aria-label="Cancel request to ${escapeHtml(person.displayName)}">Cancel</button></div></article>`).join('');
     $('#requestList').innerHTML = incomingRows + outgoingRows;
 
@@ -1188,6 +1187,10 @@
     }
     $$('[data-accept]').forEach((button) => button.addEventListener('click', () => acceptRequest(button.dataset.accept)));
     $$('[data-decline]').forEach((button) => button.addEventListener('click', () => declineRequest(button.dataset.decline)));
+    $$('[data-request-safety]').forEach((button) => button.addEventListener('click', () => {
+      const request = state.requests.find((candidate) => candidate.id === button.dataset.requestSafety);
+      if (request) openRiderSafetyMenu(request, 'an incoming friend request');
+    }));
     $$('[data-cancel-request]').forEach((button) => button.addEventListener('click', () => cancelRequest(button.dataset.cancelRequest)));
     $$('[data-friend]').forEach((button) => button.addEventListener('click', () => openFriendProfile(button.dataset.friend)));
   }
@@ -1660,22 +1663,46 @@
     await sendChatText(target.text, localId);
   }
 
-  function openFriendReportActions(friend) {
+  const REPORT_REASONS = [
+    ['harassment', 'Harassment or threats', 'Abuse, threats or repeated unwanted contact', 'message'],
+    ['sexual', 'Sexual or explicit content', 'Explicit messages, names or behaviour', 'shield'],
+    ['unsafe', 'Unsafe behaviour', 'Dangerous conduct affecting rider safety', 'shield'],
+    ['spam', 'Spam or scam', 'Advertising, scams or repeated unwanted messages', 'info'],
+    ['other', 'Something else', 'Anything else that breaks the Community Guidelines', 'info'],
+  ];
+
+  /** Report flow shared by every place another rider appears (friend
+   * profile, chat, ride roster, friend requests, Nearby Voice). */
+  function openRiderReportSheet(person, source) {
     presentSheet('Report rider', `<article class="friend-more-card">
-        <span class="friend-more-avatar">${avatar(friend)}</span>
-        <span><strong>${escapeHtml(friend.displayName)}</strong><small>${escapeHtml(friend.handle)}</small></span>
+        <span class="friend-more-avatar">${avatar(person)}</span>
+        <span><strong>${escapeHtml(person.displayName)}</strong><small>${escapeHtml(person.handle || '')}</small></span>
       </article>
-      <p class="friend-more-intro">Choose the reason that best describes the issue. Reports are sent to Rider Comms for review.</p>
+      <p class="friend-more-intro">Choose the reason that best describes the issue. Our team reviews reports within 24 hours.</p>
       <div class="friend-more-menu" aria-label="Report reason">
-        <button data-report-rider="harassment"><span class="friend-more-icon">${icon('message')}</span><span><strong>Harassment</strong><small>Threats, abuse or repeated unwanted contact</small></span>${icon('chevron')}</button>
-        <button data-report-rider="unsafe"><span class="friend-more-icon">${icon('shield')}</span><span><strong>Unsafe behaviour</strong><small>Dangerous conduct affecting rider safety</small></span>${icon('chevron')}</button>
-        <button data-report-rider="spam"><span class="friend-more-icon">${icon('info')}</span><span><strong>Spam or scam</strong><small>Advertising, scams or repeated unwanted messages</small></span>${icon('chevron')}</button>
+        ${REPORT_REASONS.map(([reason, title, detail, glyph]) => `<button data-report-rider="${reason}"><span class="friend-more-icon">${icon(glyph)}</span><span><strong>${title}</strong><small>${detail}</small></span>${icon('chevron')}</button>`).join('')}
       </div>
       <p id="friendSafetyError" class="inline-error" role="alert" hidden></p>`, () => {
-      $('[data-report-rider]', $('#sheetBody')).forEach((button) => {
-        button.addEventListener('click', () => void reportFriend(friend, button.dataset.reportRider));
+      $$('[data-report-rider]', $('#sheetBody')).forEach((button) => {
+        button.addEventListener('click', () => void reportRider(person, button.dataset.reportRider, source));
       });
     });
+  }
+
+  /** Report and block for a rider who isn't (necessarily) a friend. */
+  function openRiderSafetyMenu(person, source, onBlocked) {
+    presentSheet(person.displayName || 'Rider', `<div class="friend-more-menu" aria-label="Safety actions">
+        <button id="riderReportBtn"><span class="friend-more-icon">${icon('shield')}</span><span><strong>Report rider</strong><small>Harassment, explicit content, unsafe behaviour or spam</small></span>${icon('chevron')}</button>
+        <button class="danger" id="riderBlockBtn"><span class="friend-more-icon">${icon('close')}</span><span><strong>Block rider</strong><small>You won’t see or hear each other in Nearby, and they can’t contact you</small></span>${icon('chevron')}</button>
+      </div>
+      <p id="friendSafetyError" class="inline-error" role="alert" hidden></p>`, () => {
+      $('#riderReportBtn').addEventListener('click', () => openRiderReportSheet(person, source));
+      $('#riderBlockBtn').addEventListener('click', () => void blockRider(person, onBlocked, '#riderBlockBtn'));
+    });
+  }
+
+  function openFriendReportActions(friend) {
+    openRiderReportSheet(friend, 'the PWA friend profile');
   }
 
   function openFriendSafetyActions(friend) {
@@ -1736,15 +1763,15 @@
     }
   }
 
-  async function reportFriend(friend, reason) {
+  async function reportRider(person, reason, source) {
     const error = $('#friendSafetyError');
     error.hidden = true;
     $$('[data-report-rider]', $('#sheetBody')).forEach((button) => { button.disabled = true; });
     try {
       await apiFetch('POST', '/reports', {
-        riderId: friend.riderId,
+        riderId: person.riderId,
         reason,
-        details: 'Reported from the PWA friend profile',
+        details: `Reported from ${source}`,
       });
       closeSheet();
       showToast('Report received. Thank you.');
@@ -1755,29 +1782,37 @@
     }
   }
 
-  async function blockFriend(friend) {
-    if (!window.confirm(`Block ${friend.displayName}? This removes them from your friends and prevents further contact.`)) return;
-    const button = $('#blockFriendBtn');
+  /** Blocks anyone (friend or not) and drops them from every local list. */
+  async function blockRider(person, onBlocked, buttonSelector = '#blockFriendBtn') {
+    if (!window.confirm(`Block ${person.displayName}? You won’t see or hear each other in Nearby, and they can’t message you or send friend requests. You can unblock them in Settings.`)) return;
+    const button = $(buttonSelector);
     const error = $('#friendSafetyError');
-    button.disabled = true;
-    error.hidden = true;
+    if (button) button.disabled = true;
+    if (error) error.hidden = true;
     try {
-      await apiFetch('POST', '/blocks', { riderId: friend.riderId });
-      state.friends = state.friends.filter((candidate) => candidate.riderId !== friend.riderId);
-      state.requests = state.requests.filter((request) => request.riderId !== friend.riderId);
-      nearbyRiders = nearbyRiders.filter((candidate) => candidate.riderId !== friend.riderId);
-      if (state.selectedRiderId === friend.riderId) state.selectedRiderId = null;
+      await apiFetch('POST', '/blocks', { riderId: person.riderId });
+      state.friends = state.friends.filter((candidate) => candidate.riderId !== person.riderId);
+      state.requests = state.requests.filter((request) => request.riderId !== person.riderId);
+      nearbyRiders = nearbyRiders.filter((candidate) => candidate.riderId !== person.riderId);
+      if (state.selectedRiderId === person.riderId) state.selectedRiderId = null;
       persist();
       renderFriends();
       renderMapRiders();
-      if (activeChat?.riderId === friend.riderId) closeChat({ restoreFocus: false });
+      if (activeChat?.riderId === person.riderId) closeChat({ restoreFocus: false });
       closeSheet();
-      showToast(`${friend.displayName} blocked.`);
+      onBlocked?.();
+      showToast(`${person.displayName} blocked.`);
     } catch {
-      button.disabled = false;
-      error.textContent = 'Could not block that rider. Check your connection and try again.';
-      error.hidden = false;
+      if (button) button.disabled = false;
+      if (error) {
+        error.textContent = 'Could not block that rider. Check your connection and try again.';
+        error.hidden = false;
+      }
     }
+  }
+
+  function blockFriend(friend) {
+    return blockRider(friend);
   }
 
   const SOCIAL_EVENT_RETRY_MS = 2000;
@@ -1891,7 +1926,7 @@
     return Promise.all(riderIds.map(async (riderId) => {
       try {
         const profile = await apiFetch('GET', `/profiles/${encodeURIComponent(riderId)}`);
-        return { riderId, displayName: profile.displayName, handle: profile.handle, avatarId: profile.avatarId || 'ember' };
+        return { riderId, displayName: profile.displayName || riderId, handle: profile.handle || '', avatarId: profile.avatarId || 'ember' };
       } catch {
         return { riderId, displayName: riderId, handle: riderId, avatarId: 'ember' };
       }
@@ -2050,7 +2085,10 @@
       const removeButton = canRemove
         ? `<button type="button" class="roster-remove" data-remove-ride-member="${escapeHtml(person.riderId)}" aria-label="Remove ${escapeHtml(person.displayName)} from this ride">${icon('close')}</button>`
         : '';
-      return `<article class="roster-row">${avatar(person, 'small')}<div class="identity"><strong>${escapeHtml(person.displayName)}${person.riderId === state.profile.riderId ? ' · You' : ''}</strong><span>${escapeHtml(person.handle)}</span></div><span class="roster-status">${escapeHtml(person.riderId === ride.createdBy ? 'Host · connected' : 'Connected')}</span>${removeButton}</article>`;
+      const safetyButton = person.riderId !== state.profile.riderId
+        ? `<button type="button" class="roster-safety" data-rider-safety="${escapeHtml(person.riderId)}" aria-label="Report or block ${escapeHtml(person.displayName)}">${icon('shield')}</button>`
+        : '';
+      return `<article class="roster-row">${avatar(person, 'small')}<div class="identity"><strong>${escapeHtml(person.displayName)}${person.riderId === state.profile.riderId ? ' · You' : ''}</strong><span>${escapeHtml(person.handle)}</span></div><span class="roster-status">${escapeHtml(person.riderId === ride.createdBy ? 'Host · connected' : 'Connected')}</span>${safetyButton}${removeButton}</article>`;
     }).join('');
     renderMapRiders();
   }
@@ -2257,8 +2295,14 @@
         title: 'Communication',
         body: `<div class="settings-hub-list">
           <button data-settings-target="privacy"><span class="setting-icon">${icon('shield')}</span><span><strong>Privacy controls</strong><small>Location visibility and connected profiles</small></span>${icon('chevron')}</button>
+          <button data-settings-target="blocked"><span class="setting-icon">${icon('close')}</span><span><strong>Blocked riders</strong><small>Review or undo blocks</small></span>${icon('chevron')}</button>
         </div>`,
         ready: wireSettingsHubRows,
+      }),
+      blocked: () => ({
+        title: 'Blocked riders',
+        body: '<div id="blockedRidersList" class="blocked-list" aria-live="polite"><p class="caption">Loading…</p></div>',
+        ready: () => void renderBlockedRiders(),
       }),
       mapNavigation: () => ({
         title: 'Map & Navigation',
@@ -2505,7 +2549,6 @@
         tiktokVisibility: 'friends',
       });
       state.navigationProvider = 'google_maps';
-      state.notifications = false;
       applyRemoteProfile(profile);
       persist();
       openSheet('accountHub');
@@ -2549,41 +2592,6 @@
     }
   }
 
-  function notificationPermission() {
-    return 'Notification' in window ? Notification.permission : 'unsupported';
-  }
-
-  function syncNotificationPreference() {
-    if (state.notifications && notificationPermission() !== 'granted') {
-      state.notifications = false;
-      persist();
-    }
-  }
-
-  /** Notification permission must be requested directly from the Settings
-   * tap. Installed iOS PWAs and other mobile browsers may suppress a prompt
-   * started during app boot or after unrelated asynchronous work. */
-  async function requestNotificationPermission() {
-    const permission = notificationPermission();
-    if (permission === 'unsupported') {
-      showToast('Notifications are not supported by this browser.');
-      return false;
-    }
-    if (permission === 'denied') {
-      showToast('Notifications are blocked. Allow them in this site’s device settings.');
-      return false;
-    }
-    if (permission === 'granted') return true;
-    try {
-      const granted = await Notification.requestPermission() === 'granted';
-      if (!granted) showToast('Notification permission was not enabled.');
-      return granted;
-    } catch {
-      showToast('Could not request notification permission.');
-      return false;
-    }
-  }
-
   function wireToggles() {
     $$('[data-toggle]', $('#sheetBody')).forEach((button) => button.addEventListener('click', async () => {
       const key = button.dataset.toggle;
@@ -2600,22 +2608,6 @@
           stopMovementSafetyTracking();
           showToast('Automatic Ride Safe is off on this device.');
         }
-        return;
-      }
-      if (['notifyNearby', 'notifyInvites', 'notifyChat'].includes(key)) {
-        button.disabled = true;
-        const granted = !active || await requestNotificationPermission();
-        if (!granted) {
-          button.disabled = false;
-          return;
-        }
-        const ok = await patchProfile({ [key]: active });
-        if (ok) {
-          state.notifications = Boolean(state.profile.notifyNearby || state.profile.notifyInvites || state.profile.notifyChat);
-          persist();
-          button.setAttribute('aria-pressed', String(Boolean(state.profile[key])));
-        }
-        button.disabled = false;
         return;
       }
       if (key === 'shareLocation') {
@@ -2676,6 +2668,38 @@
       button.disabled = false;
       button.textContent = 'Save profile';
     }
+  }
+
+  /** Settings → Communication → Blocked riders: list blocks and undo them. */
+  async function renderBlockedRiders() {
+    const list = $('#blockedRidersList');
+    if (!list) return;
+    let blocked;
+    try {
+      ({ blocked } = await apiFetch('GET', '/blocks'));
+    } catch {
+      list.innerHTML = '<p class="inline-error" role="alert">Couldn’t load blocked riders. Check your connection and try again.</p>';
+      return;
+    }
+    if (!$('#blockedRidersList')) return;
+    if (!blocked?.length) {
+      list.innerHTML = '<p class="caption">You haven’t blocked anyone. Block a rider from their profile, a chat or the ride roster.</p>';
+      return;
+    }
+    list.innerHTML = blocked.map((rider) => `<article class="blocked-row"><span class="identity"><strong>${escapeHtml(rider.displayName)}</strong><small>${escapeHtml(rider.handle || '')}</small></span><button type="button" class="button secondary" data-unblock="${escapeHtml(rider.riderId)}">Unblock</button></article>`).join('');
+    $$('[data-unblock]', list).forEach((button) => button.addEventListener('click', async () => {
+      const rider = blocked.find((entry) => entry.riderId === button.dataset.unblock);
+      if (!rider || !window.confirm(`Unblock ${rider.displayName}? They’ll be able to find you in Nearby and send you a friend request again. Your previous friendship isn’t restored.`)) return;
+      button.disabled = true;
+      try {
+        await apiFetch('DELETE', `/blocks/${encodeURIComponent(rider.riderId)}`);
+        showToast(`${rider.displayName} unblocked.`);
+        void renderBlockedRiders();
+      } catch {
+        button.disabled = false;
+        showToast('Couldn’t unblock. Try again.');
+      }
+    }));
   }
 
   function closeSheet() {
@@ -2872,6 +2896,12 @@
   // the two are picked between.
   let voiceRoom;
   const proximityVoiceRooms = new Map(); // peerId -> pair-isolated LiveKit room
+  // Nearby Voice riders heard this session (peerId -> profile), kept so they
+  // can be muted, reported or blocked even after leaving range; and riders
+  // this rider chose not to hear (their pair room isn't joined).
+  const MAX_RECENT_VOICE_PEERS = 20;
+  const recentVoicePeers = new Map();
+  const mutedVoicePeers = new Set();
   const voiceRemoteSpeakersByRoom = new Map(); // LiveKit Room -> Set<riderId>
   const voiceSpeakerProfiles = new Map(); // riderId -> resolved public profile
   const voiceSpeakerProfileLoads = new Set();
@@ -3068,6 +3098,13 @@
     }, delayMs);
   }
 
+  /** Re-fetch the public pair roster now, so a mute, unmute or block takes
+   * effect without waiting for the next scheduled refresh. */
+  function requestPublicVoiceRefresh() {
+    if (currentVoiceTarget() !== 'channel' || document.visibilityState !== 'visible') return;
+    syncVoiceConnection();
+  }
+
   function clearPublicVoiceAuthorizationLease() {
     if (publicVoiceAuthorizationLeaseTimer) {
       clearTimeout(publicVoiceAuthorizationLeaseTimer);
@@ -3168,6 +3205,82 @@
       chip.textContent = summary;
       chip.setAttribute('aria-label', summary);
     }
+  }
+
+  async function rememberVoicePeers(peerIds) {
+    const unknown = peerIds.filter((peerId) => !recentVoicePeers.has(peerId));
+    if (unknown.length) {
+      for (const person of await resolveRiderProfiles(unknown)) recentVoicePeers.set(person.riderId, person);
+    }
+    for (const peerId of peerIds) {
+      const person = recentVoicePeers.get(peerId);
+      if (!person) continue;
+      recentVoicePeers.delete(peerId);
+      recentVoicePeers.set(peerId, person);
+    }
+    while (recentVoicePeers.size > MAX_RECENT_VOICE_PEERS) recentVoicePeers.delete(recentVoicePeers.keys().next().value);
+    renderVoicePeopleButton();
+  }
+
+  /** "Riders on voice" button: opens mute / report / block for each rider
+   * heard on Nearby Voice this session (App Store guideline 1.2 parity). */
+  function renderVoicePeopleButton() {
+    let button = $('#voicePeopleBtn');
+    if (!button) {
+      button = document.createElement('button');
+      button.id = 'voicePeopleBtn';
+      button.type = 'button';
+      button.className = 'voice-people-btn glass';
+      button.addEventListener('click', openVoicePeopleSheet);
+      $('#mapCanvas')?.appendChild(button);
+    }
+    const locked = window.RiderMovementSafety?.isLockedForSafety?.(movementState);
+    const visible = state.publicLive && !state.activeRide && recentVoicePeers.size > 0 && !locked;
+    button.hidden = !visible;
+    if (visible) {
+      button.innerHTML = `${icon('friends')}<span>${recentVoicePeers.size}</span>`;
+      button.setAttribute('aria-label', `Riders on Nearby Voice: ${recentVoicePeers.size}. Mute, report or block.`);
+    }
+  }
+
+  function openVoicePeopleSheet() {
+    const rows = [...recentVoicePeers.values()].reverse().map((person) => {
+      const muted = mutedVoicePeers.has(person.riderId);
+      const status = muted ? 'Muted' : proximityVoiceRooms.has(person.riderId) ? 'On voice' : 'Out of range';
+      const id = escapeHtml(person.riderId);
+      return `<article class="voice-peer-row"><span class="identity"><strong>${escapeHtml(person.displayName)}</strong><small>${status}</small></span>
+        <button type="button" data-voice-mute="${id}" aria-label="${muted ? 'Unmute' : 'Mute'} ${escapeHtml(person.displayName)}">${muted ? 'Unmute' : 'Mute'}</button>
+        <button type="button" data-voice-report="${id}" aria-label="Report ${escapeHtml(person.displayName)}">Report</button>
+        <button type="button" class="danger" data-voice-block="${id}" aria-label="Block ${escapeHtml(person.displayName)}">Block</button></article>`;
+    }).join('');
+    presentSheet('Riders on Nearby Voice', `<p class="caption">Muting stops you hearing each other for this session. Blocking also hides you from each other in Nearby.</p><div class="voice-peer-list">${rows}</div>`, () => {
+      const body = $('#sheetBody');
+      $$('[data-voice-mute]', body).forEach((button) => button.addEventListener('click', () => {
+        const peerId = button.dataset.voiceMute;
+        if (mutedVoicePeers.has(peerId)) mutedVoicePeers.delete(peerId);
+        else {
+          mutedVoicePeers.add(peerId);
+          const room = proximityVoiceRooms.get(peerId);
+          if (room) { disconnectManagedVoiceRoom(room); proximityVoiceRooms.delete(peerId); }
+        }
+        requestPublicVoiceRefresh();
+        openVoicePeopleSheet();
+      }));
+      $$('[data-voice-report]', body).forEach((button) => button.addEventListener('click', () => {
+        const person = recentVoicePeers.get(button.dataset.voiceReport);
+        if (person) openRiderReportSheet(person, 'Nearby Voice');
+      }));
+      $$('[data-voice-block]', body).forEach((button) => button.addEventListener('click', () => {
+        const person = recentVoicePeers.get(button.dataset.voiceBlock);
+        if (!person) return;
+        void blockRider(person, () => {
+          mutedVoicePeers.add(person.riderId);
+          const room = proximityVoiceRooms.get(person.riderId);
+          if (room) { disconnectManagedVoiceRoom(room); proximityVoiceRooms.delete(person.riderId); }
+          requestPublicVoiceRefresh();
+        }, `[data-voice-block="${CSS.escape(person.riderId)}"]`);
+      }));
+    });
   }
 
   function wireVoiceRoomLifecycle(room, targetKey, peerId) {
@@ -3273,6 +3386,7 @@
     const resumeLocked = needsResume && window.RiderMovementSafety.isLockedForSafety(movementState);
     const remoteSpeakerSummary = connected ? voiceSpeakerSummary() : '';
     renderMapVoiceSpeakerChip(remoteSpeakerSummary);
+    renderVoicePeopleButton();
     avatar.classList.toggle('voice-talking', connected && voiceIsSpeaking);
     avatar.classList.toggle('voice-muted', connected && voiceManuallyMuted);
     badge.hidden = !connected && !needsResume && !waitingForPublicPeer && !publicAuthorizationExpired;
@@ -3464,7 +3578,8 @@
         renewPublicVoiceAuthorizationLease(response.authorizationLeaseMs);
         schedulePublicVoiceRefresh(response.refreshAfterMs);
         const enteringChannel = voiceTargetKey !== 'channel';
-        const desiredPeers = new Set(response.connections.map((connection) => connection.peerId));
+        const desiredPeers = new Set(response.connections.map((connection) => connection.peerId).filter((peerId) => !mutedVoicePeers.has(peerId)));
+        void rememberVoicePeers(response.connections.map((connection) => connection.peerId));
         for (const [peerId, existingRoom] of proximityVoiceRooms) {
           if (desiredPeers.has(peerId)) continue;
           disconnectManagedVoiceRoom(existingRoom);
@@ -3473,7 +3588,7 @@
         let lastPairError;
         for (const connection of response.connections) {
           if (currentVoiceTarget() !== requestedTarget) return;
-          if (proximityVoiceRooms.has(connection.peerId)) continue;
+          if (proximityVoiceRooms.has(connection.peerId) || mutedVoicePeers.has(connection.peerId)) continue;
           const pairRoom = new window.LivekitClient.Room();
           wireVoiceRoomLifecycle(pairRoom, requestedTarget, connection.peerId);
           try {
@@ -6006,6 +6121,13 @@
       void setRideLocationSharing(event.target.checked);
     });
     $('#rideRoster').addEventListener('click', (event) => {
+      const safety = event.target.closest?.('[data-rider-safety]');
+      if (safety) {
+        const riderId = safety.dataset.riderSafety;
+        const person = state.activeRide?.members?.find((member) => member.riderId === riderId) || { riderId, displayName: 'Rider', handle: '' };
+        openRiderSafetyMenu(person, 'the ride roster');
+        return;
+      }
       const button = event.target.closest?.('[data-remove-ride-member]');
       if (!button) return;
       void removeRideMemberFromActiveRide(button.dataset.removeRideMember);
@@ -6221,7 +6343,6 @@
     state.profile.notifyInvites = Boolean(profile.notifyInvites);
     state.profile.notifyChat = Boolean(profile.notifyChat);
     state.unit = state.profile.unitSystem;
-    state.notifications = Boolean(state.profile.notifyNearby || state.profile.notifyInvites || state.profile.notifyChat);
     state.profile.instagram = profile.instagramUsername;
     state.profile.tiktok = profile.tiktokUsername;
     state.profile.instagramVisibility = profile.instagramVisibility;
@@ -6546,9 +6667,6 @@
     void loadFriendsData();
     startSocialEvents();
     syncFriendActivityPolling();
-    // Startup only reconciles saved UI state with the browser. Permission
-    // prompts belong to deliberate taps in Settings, never cold launch.
-    syncNotificationPreference();
     void initialiseMovementSafety();
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') void initialiseMovementSafety();

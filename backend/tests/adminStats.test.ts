@@ -117,6 +117,17 @@ describe('AdminStatsStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipp
     assert.equal(series.activeRiders[0], null, 'days before tracking started are missing, not zero');
   });
 
+  it('counts content-filter rejections over the last 7 days', async () => {
+    const now = Date.now();
+    const before = (await store.overview(now)).safety.filterRejections7d;
+    await store.increment('filter_rejections', now);
+    await store.increment('filter_rejections', now - 6 * DAY);
+    await store.increment('filter_rejections', now - 8 * DAY);
+    const { safety, series } = await store.overview(now);
+    assert.equal(safety.filterRejections7d - before, 2);
+    assert.equal(series.ridesStarted.length, SERIES_DAYS, 'filter counts never leak into the ride series');
+  });
+
   it('fills untracked days with zero rides once tracking has started', async () => {
     const now = Date.now();
     await store.increment('rides_started', now - 5 * DAY);

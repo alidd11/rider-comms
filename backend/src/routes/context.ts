@@ -29,6 +29,11 @@ import type { SocialRateLimitStore } from '../socialRateLimitStore.ts';
  */
 export const NOT_HANDLED = Symbol('not_handled');
 
+/** Counts a content-filter rejection for the staff dashboard. Never fails the request. */
+export function countFilterRejection(stats: Pick<AdminStatsStore, 'increment'>): void {
+  void stats.increment('filter_rejections').catch(() => { /* A missed dashboard count must never fail a request. */ });
+}
+
 /** Long-lived dependencies, built once per createApp call. */
 export interface RouteDeps {
   rideStore: RideStore;

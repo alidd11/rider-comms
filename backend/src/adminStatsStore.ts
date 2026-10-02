@@ -10,7 +10,7 @@ export const SERIES_DAYS = 60;
 const LIVE_PRESENCE_MS = 30_000;
 export const MAX_RIDER_SEARCH_RESULTS = 50;
 
-export type DailyMetric = 'active_riders' | 'rides_started';
+export type DailyMetric = 'active_riders' | 'rides_started' | 'filter_rejections';
 export type RiderMilestone = 'ride' | 'nearby';
 
 /** Funnel cohort: riders who signed up between these many days ago. Starts at
@@ -48,7 +48,8 @@ export interface AdminOverview {
   activity: { active24h: number; active7d: number; active30d: number; liveNearbyNow: number; sharingLocation: number; activeRides: number; ridersInRides: number };
   social: { friendships: number; pendingFriendRequests: number; messages24h: number; messages7d: number; messages30d: number };
   content: { activeHazards: number; scenicRoutes: number; hideouts: number };
-  safety: { openReports: number; reports7d: number; moderationActions7d: number };
+  /** filterRejections7d: names, messages and hideouts the content filter turned away in the last 7 days. */
+  safety: { openReports: number; reports7d: number; moderationActions7d: number; filterRejections7d: number };
   /** The same measures for the period before, so the dashboard can show change. */
   previous: { new7d: number; new30d: number; messages7d: number; messages30d: number; reports7d: number };
   zoneTiers: Record<string, number>;
@@ -209,8 +210,9 @@ export class AdminStatsStore {
         `SELECT
            (SELECT count(*) FROM safety_reports WHERE status = 'open') AS open_reports,
            (SELECT count(*) FROM safety_reports WHERE created_at >= $1) AS reports_7d,
-           (SELECT count(*) FROM moderation_actions WHERE created_at >= $1) AS actions_7d`,
-        [since(7 * DAY_MS)],
+           (SELECT count(*) FROM moderation_actions WHERE created_at >= $1) AS actions_7d,
+           (SELECT coalesce(sum(value), 0) FROM daily_metrics WHERE metric = 'filter_rejections' AND day >= $2::date) AS filter_rejections_7d`,
+        [since(7 * DAY_MS), utcDay(now - 6 * DAY_MS)],
       ),
       pool.query<{ zone_tier: string; n: string }>('SELECT zone_tier, count(*) AS n FROM rider_profiles GROUP BY zone_tier'),
       pool.query(
@@ -245,7 +247,7 @@ export class AdminStatsStore {
         messages24h: count(s.messages_24h), messages7d: count(s.messages_7d), messages30d: count(s.messages_30d),
       },
       content: { activeHazards: count(c.active_hazards), scenicRoutes: count(c.scenic_routes), hideouts: count(c.hideouts) },
-      safety: { openReports: count(f.open_reports), reports7d: count(f.reports_7d), moderationActions7d: count(f.actions_7d) },
+      safety: { openReports: count(f.open_reports), reports7d: count(f.reports_7d), moderationActions7d: count(f.actions_7d), filterRejections7d: count(f.filter_rejections_7d) },
       previous: {
         new7d: count(p.new_prev_7d), new30d: count(p.new_prev_30d),
         messages7d: count(p.messages_prev_7d), messages30d: count(p.messages_prev_30d),
@@ -288,7 +290,7 @@ export class AdminStatsStore {
       const i = index.get(row.day);
       if (i === undefined) continue;
       if (row.metric === 'active_riders') result.activeRiders[i] = count(row.value);
-      else result.ridesStarted[i] = count(row.value);
+      else if (row.metric === 'rides_started') result.ridesStarted[i] = count(row.value);
     }
     // Once tracking has started, a day with no rides is zero, not missing.
     const firstTracked = result.ridesStarted.findIndex((value) => value !== null);

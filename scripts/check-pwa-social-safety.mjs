@@ -26,7 +26,18 @@ for (const required of [
   assert.ok(app.includes(required), `PWA social safety contract missing: ${required}`);
 }
 
-assert.ok(app.includes('window.confirm(`Block ${friend.displayName}?'), 'PWA block flow must require confirmation');
+assert.ok(app.includes('window.confirm(`Block ${person.displayName}?'), 'PWA block flow must require confirmation');
+for (const required of [
+  'data-rider-safety',
+  'data-request-safety',
+  'data-unblock',
+  "apiFetch('GET', '/blocks')",
+  'data-voice-mute',
+  'data-voice-report',
+  'data-voice-block',
+]) {
+  assert.ok(app.includes(required), `PWA report/block parity missing: ${required}`);
+}
 assert.ok(app.includes('window.confirm(`Remove ${friend.displayName} from your friends list?`)'), 'PWA remove-friend flow must require confirmation');
 assert.equal(app.includes('already_requested:'), false, 'PWA friend request errors must use backend request_exists code');
 

@@ -49,6 +49,10 @@ The **Activation** funnel follows riders who signed up 7–30 days ago, so every
 
 Each step shows its count, its share of sign-ups, and the share of the step before. The biggest drop is where to focus. First rides are counted only from when this shipped, and the card says so while the window still includes earlier sign-ups.
 
+Each report shows where in the app it was filed (for example "From the ride roster" or "From Nearby Voice") as a badge, with any extra details below it.
+
+**Blocked by the content filter this week** (under Community and safety) counts usernames, names, handles, messages and hideout names the server's filter turned away. It's a count only; the rejected text is never stored. Counting started when this shipped.
+
 Active riders and rides started are counted from when the dashboard shipped, because the database didn't keep them before: ended rides are deleted, and only each rider's latest activity is stored. Earlier days are shaded and marked "Not tracked yet".
 
 Everything is computed live from the database when you open or refresh the page. The daily history lives in `daily_metrics`, which holds only a date, a metric name and a number, never rider IDs.

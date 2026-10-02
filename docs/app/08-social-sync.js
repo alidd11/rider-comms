@@ -108,7 +108,7 @@
     return Promise.all(riderIds.map(async (riderId) => {
       try {
         const profile = await apiFetch('GET', `/profiles/${encodeURIComponent(riderId)}`);
-        return { riderId, displayName: profile.displayName, handle: profile.handle, avatarId: profile.avatarId || 'ember' };
+        return { riderId, displayName: profile.displayName || riderId, handle: profile.handle || '', avatarId: profile.avatarId || 'ember' };
       } catch {
         return { riderId, displayName: riderId, handle: riderId, avatarId: 'ember' };
       }

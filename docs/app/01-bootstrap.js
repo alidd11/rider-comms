@@ -71,7 +71,6 @@
     unit: 'mi',
     navigationProvider: 'google_maps',
     rideSafeEnabled: true,
-    notifications: false,
     profile: {
       riderId: '',
       displayName: '',
