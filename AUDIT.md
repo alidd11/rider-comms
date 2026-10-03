@@ -149,6 +149,8 @@ Fixed in this pass:
 - Dated audit reports moved to `docs-archive/`.
 - Installed-iPhone PWA chat composer no longer cut off at the bottom (#386; confirmed on device).
 - Railway edge request tracing enabled for the backend (per-request latency and status).
+- Mobile coverage reports no longer count shared code (measured separately) or the API client in Jest (covered by its own suite); floors raised to 96% (node:test) and 89% (Jest).
+- CI runners pinned to ubuntu-24.04 ahead of the ubuntu-latest move to 26.04; `actions/cache` moved to v5 (Node 24).
 
 Still open:
 - iOS 26+ draws a Liquid Glass blur over the top of Home Screen web apps where the page isn't a flat colour; the map shows it. System behaviour, accepted.
