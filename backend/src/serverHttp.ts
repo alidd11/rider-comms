@@ -81,12 +81,22 @@ export function sendEmpty(res: http.ServerResponse, status: number): void {
 export function readJsonBody(req: http.IncomingMessage): Promise<Record<string, unknown>> {
   return new Promise((resolve, reject) => {
     let data = '', bytes = 0, tooLarge = false;
-    req.on('data', (chunk: Buffer) => { bytes += chunk.length; if (bytes > MAX_BODY_BYTES) tooLarge = true; else data += chunk.toString('utf8'); });
+    req.on('data', (chunk: Buffer) => {
+      bytes += chunk.length;
+      if (bytes > MAX_BODY_BYTES) tooLarge = true;
+      else data += chunk.toString('utf8');
+    });
     req.on('end', () => {
       if (tooLarge) return reject(new RequestError(413, 'request body is too large'));
       if (!data) return resolve({});
-      try { const parsed: unknown = JSON.parse(data); if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') throw new RequestError(400, 'request body must be a JSON object'); resolve(parsed as Record<string, unknown>); }
-      catch (error) { reject(error instanceof RequestError ? error : new RequestError(400, 'invalid JSON')); }
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(data);
+      } catch {
+        return reject(new RequestError(400, 'invalid JSON'));
+      }
+      if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') return reject(new RequestError(400, 'request body must be a JSON object'));
+      resolve(parsed as Record<string, unknown>);
     });
     req.on('error', reject);
   });

@@ -107,4 +107,24 @@ if (!html.includes(`<meta name="theme-color" content="${lightChrome}" media="(pr
     !css.includes(`@media(prefers-color-scheme:light){:root{--system-chrome:${lightChrome}}}`)) {
   throw new Error(`PWA light theme colour and system-chrome surface must remain ${lightChrome}`);
 }
+// Minify last: the checks above match the readable source text. Riders load
+// this over mobile data, and minifying roughly halves app.js. No target is
+// set, so syntax is never lowered, and these are classic scripts sharing
+// globals, so esbuild keeps their top-level names.
+const { transform } = await import('esbuild');
+const minified = [
+  'app.js', 'avatar-system.js', 'navigation-road-events.js', 'navigation-guidance.js', 'navigation-camera.js',
+  'position-interpolation.js', 'movement-safety.js', 'message-state.js', 'routes.js', 'admin.js',
+  'app.css', 'routes.css', 'admin.css', 'legal.css',
+];
+await Promise.all(minified.map(async (file) => {
+  const path = resolve(destination, file);
+  const { code } = await transform(await readFile(path, 'utf8'), {
+    loader: file.endsWith('.css') ? 'css' : 'js',
+    minify: true,
+    legalComments: 'none',
+  });
+  await writeFile(path, code);
+}));
+
 console.log(`Built PWA at ${destination}`);

@@ -59,8 +59,12 @@ function matches(text: string, terms: ReadonlyArray<{ term: string; inside: bool
   const spelled = new Set<string>();
   let run = '';
   for (const word of [...words, '']) {
-    if (word.length === 1) run += word;
-    else { if (run.length > 1) spelled.add(run); run = ''; }
+    if (word.length === 1) {
+      run += word;
+      continue;
+    }
+    if (run.length > 1) spelled.add(run);
+    run = '';
   }
   return terms.some(({ term, inside }) => wordSet.has(term) || spelled.has(term) || (inside && compact.includes(term)));
 }

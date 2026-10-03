@@ -13,7 +13,13 @@ function recordMilestone(stats: RouteContext['adminStatsStore'], riderId: string
 
 export async function handleLiveRoutes(ctx: RouteContext): Promise<unknown> {
   const { req, res, url, address, actorId, rideStore, presenceStore, profileStore, moderationStore, rateLimitStore, liveKitCredentials, adminStatsStore } = ctx;
-  if (req.method === 'POST' && url.pathname === '/rides') { if (!(await consumeRateLimit(res, rateLimitStore, rateLimitSubject('rider', actorId), 'ride_create'))) return; const { ride, codeRecord } = await rideStore.createRide(actorId); void adminStatsStore.increment('rides_started').catch(() => { /* A missed dashboard count must never fail a ride. */ }); recordMilestone(adminStatsStore, actorId, 'ride'); return sendJson(res, 201, { ...rideBody(ride), code: codeRecord.code, expiresAt: codeRecord.expiresAt }); }
+  if (req.method === 'POST' && url.pathname === '/rides') {
+    if (!(await consumeRateLimit(res, rateLimitStore, rateLimitSubject('rider', actorId), 'ride_create'))) return;
+    const { ride, codeRecord } = await rideStore.createRide(actorId);
+    void adminStatsStore.increment('rides_started').catch(() => { /* A missed dashboard count must never fail a ride. */ });
+    recordMilestone(adminStatsStore, actorId, 'ride');
+    return sendJson(res, 201, { ...rideBody(ride), code: codeRecord.code, expiresAt: codeRecord.expiresAt });
+  }
   if (req.method === 'POST' && url.pathname === '/rides/join') {
     const body = await readJsonBody(req);
     if (typeof body.code !== 'string' || !/^[A-Z2-9]{6}$/i.test(body.code)) return sendJson(res, 400, { error: 'a valid 6-character code is required' });
@@ -38,7 +44,11 @@ export async function handleLiveRoutes(ctx: RouteContext): Promise<unknown> {
     if (typeof body.recordedAt !== 'number' || !Number.isFinite(body.recordedAt) || body.recordedAt < now - MAX_PRESENCE_FIX_AGE_MS || body.recordedAt > now + MAX_PRESENCE_FUTURE_SKEW_MS) {
       return sendJson(res, 400, { error: 'location fix timestamp is stale or invalid' });
     }
-    const profile = await profileStore.getOrCreate(actorId); if (!profile.shareLocation) { await presenceStore.removeRider(actorId); return sendJson(res, 403, { error: 'location_sharing_disabled' }); }
+    const profile = await profileStore.getOrCreate(actorId);
+    if (!profile.shareLocation) {
+      await presenceStore.removeRider(actorId);
+      return sendJson(res, 403, { error: 'location_sharing_disabled' });
+    }
     const rider: Rider = { id: actorId, location: { lat: body.lat as number, lon: body.lon as number }, radiusMiles: TIER_RADIUS_MILES[profile.zoneTier], updatedAt: body.recordedAt };
     let presenceResult: Awaited<ReturnType<PresenceStore['updatePresence']>>;
     try {
@@ -59,7 +69,10 @@ export async function handleLiveRoutes(ctx: RouteContext): Promise<unknown> {
       radiusMiles: rider.radiusMiles,
     });
   }
-  if (req.method === 'DELETE' && url.pathname === '/presence') { await presenceStore.removeRider(actorId); return sendJson(res, 200, {}); }
+  if (req.method === 'DELETE' && url.pathname === '/presence') {
+    await presenceStore.removeRider(actorId);
+    return sendJson(res, 200, {});
+  }
   if (req.method === 'POST' && url.pathname === '/voice/token') {
     if (!liveKitCredentials) return sendJson(res, 503, { error: 'voice_not_configured' });
     const body = await readJsonBody(req);
