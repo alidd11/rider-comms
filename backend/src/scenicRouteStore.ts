@@ -134,8 +134,4 @@ export class ScenicRouteStore {
     return Boolean(rowCount);
   }
 
-  async deleteRider(riderId: string): Promise<void> {
-    await ensureMigrated();
-    await getPool().query('DELETE FROM scenic_routes WHERE created_by = $1', [riderId]);
-  }
 }

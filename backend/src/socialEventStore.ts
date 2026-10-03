@@ -250,14 +250,6 @@ export class SocialEventStore {
     return result.rowCount ?? 0;
   }
 
-  async deleteRider(riderId: string): Promise<void> {
-    await ensureMigrated();
-    await getPool().query(
-      'DELETE FROM social_events WHERE rider_id = $1 OR actor_id = $1',
-      [riderId],
-    );
-  }
-
   close(): Promise<void> {
     if (this.closePromise) return this.closePromise;
     this.closed = true;

@@ -411,13 +411,6 @@ export class FriendStore {
     }
   }
 
-  async deleteRider(riderId: string): Promise<void> {
-    await ensureMigrated();
-    const pool = getPool();
-    await pool.query('DELETE FROM friendships WHERE rider_id = $1 OR friend_id = $1', [riderId]);
-    await pool.query('DELETE FROM friend_requests WHERE from_rider_id = $1 OR to_rider_id = $1', [riderId]);
-  }
-
   /** Social authorisation treats a block as stronger than a stale friendship row. */
   async isFriendOf(a: string, b: string): Promise<boolean> {
     await ensureMigrated();

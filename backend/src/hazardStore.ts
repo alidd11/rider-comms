@@ -167,10 +167,4 @@ export class HazardStore {
     return rows[0] ? rowToReport(rows[0]) : undefined;
   }
 
-  async deleteRider(riderId: string): Promise<void> {
-    await ensureMigrated();
-    const pool = getPool();
-    await pool.query('DELETE FROM hazard_reports WHERE reported_by = $1', [riderId]);
-    await pool.query('DELETE FROM hazard_report_votes WHERE rider_id = $1', [riderId]);
-  }
 }

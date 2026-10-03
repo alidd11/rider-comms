@@ -1,5 +1,6 @@
 import { after, before, beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { AccountDeletionStore } from '../src/accountDeletionStore.ts';
 import { HAZARD_SEARCH_RADIUS_MILES, HazardStore } from '../src/hazardStore.ts';
 import { ensureMigrated, getPool, resetDbForTests } from '../src/db.ts';
 
@@ -141,7 +142,7 @@ describe('HazardStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping 
   it('removes a rider deleting their account from all their reports', async () => {
     const store = new HazardStore();
     const report = await store.create('accident', 40.0, -74.0, 'rider-1');
-    await store.deleteRider('rider-1');
+    await new AccountDeletionStore().deleteRider('rider-1');
     assert.equal(await store.get(report.id), undefined);
   });
 

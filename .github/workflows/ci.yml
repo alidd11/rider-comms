@@ -8,6 +8,10 @@ on:
     branches:
       - main
   pull_request:
+  # Weekly on main as well, so a broken upstream package, runner image or
+  # expired test fixture shows up even in a week with no merges.
+  schedule:
+    - cron: '41 4 * * 1'
 
 permissions:
   contents: read
