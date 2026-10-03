@@ -1,4 +1,3 @@
-// Unverified scaffold — see navigation/index.tsx header note.
 import * as React from 'react';
 import { View, Text, Pressable, TextInput, ScrollView, Modal, Switch, Alert, ActivityIndicator, Linking } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';

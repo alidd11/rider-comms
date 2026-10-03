@@ -85,3 +85,28 @@ export function installGlobalErrorHandler(): void {
     previous(error, isFatal);
   });
 }
+
+interface HermesPromiseTracker {
+  enablePromiseRejectionTracker?(options: {
+    allRejections: boolean;
+    onUnhandled: (id: number, error: unknown) => void;
+  }): void;
+}
+
+let rejectionReporterInstalled = false;
+
+/** Reports promise rejections nothing handled (a failed request nobody
+ * awaited, for example), which the global handler never sees. Release builds
+ * only: in development React Native already uses Hermes' tracker to show
+ * them as warnings, and replacing it would hide those. */
+export function installUnhandledRejectionReporter(isDev: boolean = typeof __DEV__ !== 'undefined' && __DEV__): void {
+  const hermes = (globalThis as { HermesInternal?: HermesPromiseTracker }).HermesInternal;
+  if (isDev || rejectionReporterInstalled || !hermes?.enablePromiseRejectionTracker) return;
+  rejectionReporterInstalled = true;
+  hermes.enablePromiseRejectionTracker({
+    allRejections: true,
+    onUnhandled: (_id, error) => {
+      reportClientError({ error, fatal: false, context: 'unhandledrejection' });
+    },
+  });
+}

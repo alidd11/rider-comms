@@ -1,4 +1,3 @@
-// Unverified scaffold — see navigation/index.tsx header note.
 //
 // Renders inside the Map screen's "Host" segment rather than as its own
 // screen/tab — a second screen would mean a second mounted map instance

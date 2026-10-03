@@ -1,11 +1,10 @@
-// Unverified scaffold — see src/navigation/index.tsx header note.
 import * as React from 'react';
 import { Platform, StatusBar, useColorScheme } from 'react-native';
 import * as NavigationBar from 'expo-navigation-bar';
 import { registerGlobals } from '@livekit/react-native';
 import { AppNavigator } from './src/navigation';
 import { AppErrorBoundary } from './src/errors/AppErrorBoundary';
-import { installGlobalErrorHandler } from './src/errors/errorReporting';
+import { installGlobalErrorHandler, installUnhandledRejectionReporter } from './src/errors/errorReporting';
 
 // LiveKit React Native requires the WebRTC globals before any room/client is created.
 // Keep this at module bootstrap, outside React lifecycle, so every voice surface shares
@@ -13,6 +12,7 @@ import { installGlobalErrorHandler } from './src/errors/errorReporting';
 // so LiveKit's automatic iOS audio-session management must stay disabled.
 registerGlobals({ autoConfigureAudioSession: false });
 installGlobalErrorHandler();
+installUnhandledRejectionReporter();
 
 export default function App(): React.JSX.Element {
   const scheme = useColorScheme();

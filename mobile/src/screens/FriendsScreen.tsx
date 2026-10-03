@@ -1,4 +1,3 @@
-// Unverified scaffold — see navigation/index.tsx header note.
 import * as React from 'react';
 import { View, Text, TextInput, Pressable, ScrollView, Alert, ActivityIndicator, Modal, Linking, RefreshControl, Share } from 'react-native';
 import * as Clipboard from 'expo-clipboard';

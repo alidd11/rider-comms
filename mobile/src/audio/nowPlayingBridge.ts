@@ -4,12 +4,11 @@
  * MediaSession/MediaController on Android — for whatever music app the
  * rider currently has open (Spotify, Apple Music, anything).
  *
- * TODO(native): this needs an actual native module or a library like
+ * TODO(native): this needs a native module or a library like
  * `react-native-track-player` / `react-native-music-control` to talk to
- * the OS media session APIs — pure JS/TypeScript can't reach those, and
- * this sandbox has no npm registry access to install such a library or a
- * device to test it on. This file defines the interface the rest of the
- * app (and AudioEngine's `setMusicPlaying`) should call against. Unsupported
+ * the OS media session APIs, which pure JS/TypeScript can't reach. Until
+ * one is added and tested on devices, this file defines the interface the
+ * rest of the app (and AudioEngine's `setMusicPlaying`) calls against. Unsupported
  * controls report false through capabilities/return values and must be
  * disabled in UI; they never throw merely because a binding is absent.
  */
