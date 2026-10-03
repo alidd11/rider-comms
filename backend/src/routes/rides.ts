@@ -39,7 +39,8 @@ export async function handleRideRoutes(ctx: RouteContext): Promise<unknown> {
       return r.ok ? sendJson(res, 200, { enabled: body.enabled }) : sendJson(res, r.reason === 'not_found' ? 404 : 403, { error: r.reason });
     }
     if (req.method === 'POST' && s[2] === 'location') {
-      const body = await readJsonBody(req); if (!isCoordinate(body.lat, body.lon)) return sendJson(res, 400, { error: 'valid lat and lon are required' });
+      const body = await readJsonBody(req);
+      if (!isCoordinate(body.lat, body.lon)) return sendJson(res, 400, { error: 'valid lat and lon are required' });
       const r = await rideStore.updateMemberLocation(id, actorId, body.lat as number, body.lon as number);
       if (!r.ok) return sendJson(res, r.reason === 'not_found' ? 404 : 403, { error: r.reason });
       return sendJson(res, 200, { locations: await visibleRideLocationsFor(actorId, r.locations) });

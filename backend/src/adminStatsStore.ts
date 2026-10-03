@@ -284,8 +284,14 @@ export class AdminStatsStore {
     const zeros = () => days.map(() => 0);
     const nulls = (): (number | null)[] => days.map(() => null);
     const result: DailySeries = { days, signups: zeros(), messages: zeros(), activeRiders: nulls(), ridesStarted: nulls() };
-    for (const row of signups.rows) { const i = index.get(row.day); if (i !== undefined) result.signups[i] = count(row.n); }
-    for (const row of messages.rows) { const i = index.get(row.day); if (i !== undefined) result.messages[i] = count(row.n); }
+    for (const row of signups.rows) {
+      const i = index.get(row.day);
+      if (i !== undefined) result.signups[i] = count(row.n);
+    }
+    for (const row of messages.rows) {
+      const i = index.get(row.day);
+      if (i !== undefined) result.messages[i] = count(row.n);
+    }
     for (const row of metrics.rows) {
       const i = index.get(row.day);
       if (i === undefined) continue;

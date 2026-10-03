@@ -38,7 +38,10 @@ interface FriendRequestProfileRow extends FriendRequestRow {
 
 interface ListCursor { createdAt: number; id: string }
 export class InvalidFriendCursorError extends Error {
-  constructor() { super('invalid friend cursor'); this.name = 'InvalidFriendCursorError'; }
+  constructor() {
+    super('invalid friend cursor');
+    this.name = 'InvalidFriendCursorError';
+  }
 }
 
 function encodeCursor(cursor: ListCursor): string {

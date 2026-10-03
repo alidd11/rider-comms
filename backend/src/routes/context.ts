@@ -96,10 +96,19 @@ export const PROXIMITY_VOICE_REFRESH_MS = 20_000;
 // backend/presence path stops confirming that they are still allowed together.
 export const PROXIMITY_VOICE_AUTHORIZATION_LEASE_MS = PROXIMITY_VOICE_TOKEN_TTL_SECONDS * 1000;
 
-export function rideBody(ride: { id: string; createdBy: string; createdAt: number; memberIds: Set<string> }) { return { rideId: ride.id, createdBy: ride.createdBy, createdAt: ride.createdAt, memberIds: [...ride.memberIds] }; }
+export function rideBody(ride: { id: string; createdBy: string; createdAt: number; memberIds: Set<string> }) {
+  return { rideId: ride.id, createdBy: ride.createdBy, createdAt: ride.createdAt, memberIds: [...ride.memberIds] };
+}
 export async function publicProfile(profileStore: ProfileStore, friendStore: FriendStore, actorId: string, targetId: string) {
   const profile = await profileStore.getOrCreate(targetId);
   const isFriend = actorId === targetId ? false : await friendStore.isFriendOf(actorId, targetId);
   const canSee = (visibility: 'public' | 'friends' | 'private') => visibility === 'public' || (visibility === 'friends' && isFriend) || actorId === targetId;
-  return { riderId: profile.riderId, displayName: profile.displayName, handle: profile.handle, avatarId: profile.avatarId, instagramUsername: canSee(profile.instagramVisibility) ? profile.instagramUsername : '', tiktokUsername: canSee(profile.tiktokVisibility) ? profile.tiktokUsername : '' };
+  return {
+    riderId: profile.riderId,
+    displayName: profile.displayName,
+    handle: profile.handle,
+    avatarId: profile.avatarId,
+    instagramUsername: canSee(profile.instagramVisibility) ? profile.instagramUsername : '',
+    tiktokUsername: canSee(profile.tiktokVisibility) ? profile.tiktokUsername : '',
+  };
 }

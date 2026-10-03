@@ -255,7 +255,8 @@ export function createApp(options: CreateAppOptions = {}): http.Server {
       if (!applyCors(req, res, allowedOrigins)) return sendJson(res, 403, { error: 'origin_not_allowed' });
       if (req.method === 'OPTIONS') return sendEmpty(res, 204);
       if ((await handlePublicRoutes({ ...deps, req, res, url, address })) !== NOT_HANDLED) return;
-      const actorId = await authRider(req, res, authStore); if (!actorId) return;
+      const actorId = await authRider(req, res, authStore);
+      if (!actorId) return;
       const ctx: RouteContext = { ...deps, req, res, url, address, actorId, s: url.pathname.split('/').filter(Boolean) };
       await socialActivityStore.touch(actorId);
       if (!(await consumeRateLimit(res, rateLimitStore, rateLimitSubject('rider', actorId), 'api'))) return;
@@ -273,7 +274,23 @@ export function createApp(options: CreateAppOptions = {}): http.Server {
       if ((await handleAdminRoutes(ctx)) !== NOT_HANDLED) return;
       if ((await handleScenicRouteRoutes(ctx)) !== NOT_HANDLED) return;
       return sendJson(res, 404, { error: 'not_found' });
-    } catch (error) { if (error instanceof RequestError) return sendJson(res, error.status, { error: error.message }); if (error instanceof URIError) return sendJson(res, 400, { error: 'invalid URL encoding' }); const failedPath = new URL(req.url ?? '/', 'http://localhost').pathname; const failureMessage = error instanceof Error ? error.message : String(error); console.error(JSON.stringify({ level: 'error', event: 'request_failed', requestId: id, method: req.method, path: failedPath, message: failureMessage, stack: error instanceof Error ? error.stack : undefined })); reportOperationalError('request_failed', `${req.method} ${failedPath} (request ${id}): ${failureMessage}`); return sendJson(res, 500, { error: 'internal_error' }); }
+    } catch (error) {
+      if (error instanceof RequestError) return sendJson(res, error.status, { error: error.message });
+      if (error instanceof URIError) return sendJson(res, 400, { error: 'invalid URL encoding' });
+      const failedPath = new URL(req.url ?? '/', 'http://localhost').pathname;
+      const failureMessage = error instanceof Error ? error.message : String(error);
+      console.error(JSON.stringify({
+        level: 'error',
+        event: 'request_failed',
+        requestId: id,
+        method: req.method,
+        path: failedPath,
+        message: failureMessage,
+        stack: error instanceof Error ? error.stack : undefined,
+      }));
+      reportOperationalError('request_failed', `${req.method} ${failedPath} (request ${id}): ${failureMessage}`);
+      return sendJson(res, 500, { error: 'internal_error' });
+    }
   });
   app.once('close', () => {
     void socialEventStore.close?.().catch((error) => console.error('social event listener close failed', error));
