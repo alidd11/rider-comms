@@ -1,11 +1,11 @@
 name: Native builds
 
-# Compiles the native apps: iOS for the simulator (CocoaPods, native
-# modules, Swift/Objective-C) and an Android debug APK (Gradle). The main CI
-# job only checks the JavaScript bundle and the Expo config, so a native
-# dependency that fails to compile would otherwise first show up in an EAS
-# build. Runs when the mobile app or its dependencies change, weekly, and on
-# demand. Neither build needs signing.
+# Compiles and launches the native apps: iOS in a simulator (CocoaPods,
+# native modules, Swift/Objective-C) and Android in an emulator (Gradle).
+# The main CI job only checks the JavaScript bundle and the Expo config, so a
+# native dependency that fails to compile or crashes at startup would
+# otherwise first show up in an EAS build. Runs when the mobile app or its
+# dependencies change, weekly, and on demand. Neither build needs signing.
 
 on:
   pull_request:
@@ -13,6 +13,7 @@ on:
       - 'mobile/**'
       - 'package-lock.json'
       - '.github/workflows/native-builds.yml'
+      - 'scripts/android-launch-check.sh'
   schedule:
     - cron: '23 5 * * 1'
   workflow_dispatch:
@@ -118,13 +119,38 @@ jobs:
       - name: Generate the native project
         working-directory: mobile
         run: npx expo prebuild --clean --platform android --no-install
-      - name: Build a debug APK
+      - name: Build a release APK
         working-directory: mobile/android
+        # Release embeds the JavaScript bundle (no Metro needed); the Expo
+        # template signs it with the debug keystore, which is fine for CI.
+        env:
+          EXPO_PUBLIC_API_URL: https://backend-production-7fa0.up.railway.app
         run: |
-          if ! ./gradlew assembleDebug --no-daemon > build.log 2>&1; then
+          if ! ./gradlew assembleRelease --no-daemon > build.log 2>&1; then
             tail -n 150 build.log
             errors="$( (sed -n '/What went wrong/,/Try:/p' build.log; grep -E '^e: |error:' build.log) | head -n 40)"
             echo "::error title=Android build failed::${errors//$'\n'/%0A}"
             exit 1
           fi
           tail -n 20 build.log
+      - name: Enable KVM for the emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      # Same reason as the iOS launch check: native modules run at startup.
+      - name: Launch in an Android emulator
+        uses: reactivecircus/android-emulator-runner@e93c997dcab69054e999e3924af3d21c4a736e13 # v2.9.0
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          script: scripts/android-launch-check.sh
+      - name: Upload the launch screenshot
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: android-launch-screenshot
+          path: android-launch.png
+          if-no-files-found: ignore
