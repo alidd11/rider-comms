@@ -46,7 +46,10 @@ export function markdownToHtml(markdown) {
       while (i < lines.length && lines[i].startsWith('|')) { rows.push(lines[i]); i += 1; }
       const cells = (row) => row.replace(/^\||\|$/g, '').split('|').map((cell) => inline(cell.trim()));
       const [head, , ...body] = rows;
-      out.push(`<div class="table"><table><thead><tr>${cells(head).map((c) => `<th>${c}</th>`).join('')}</tr></thead><tbody>${body.map((row) => `<tr>${cells(row).map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`);
+      // Wide tables scroll sideways on phones, so the wrapper must be keyboard
+      // focusable and named for screen readers (axe: scrollable-region-focusable).
+      const tableLabel = cells(head).map((c) => c.replace(/<[^>]+>/g, '')).join(', ');
+      out.push(`<div class="table" role="region" tabindex="0" aria-label="Table: ${tableLabel}"><table><thead><tr>${cells(head).map((c) => `<th>${c}</th>`).join('')}</tr></thead><tbody>${body.map((row) => `<tr>${cells(row).map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`);
       continue;
     }
     if (/^- /.test(line)) {

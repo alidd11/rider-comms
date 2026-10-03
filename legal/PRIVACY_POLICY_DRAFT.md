@@ -20,7 +20,7 @@ representative, if required]
 
 ## What we collect and why
 
-| Data | When | Why | Legal basis (GDPR-style, [confirm]) |
+| Data | When | Why | Legal basis (GDPR-style)[confirm] |
 | --- | --- | --- | --- |
 | Username, email address, password (stored only as a salted hash) | Creating an account | To run your account, verify your email and let you reset your password | Contract |
 | Profile: display name, handle, avatar, distance units, optional Instagram/TikTok usernames with your chosen visibility | When you edit your profile | To show you to other riders the way you choose | Contract |

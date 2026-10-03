@@ -14,6 +14,7 @@ strong{color:var(--fg)}
 a{color:var(--accent)}
 ul{padding-left:1.2em}
 .table{overflow-x:auto;margin:12px 0}
+.table:focus-visible{outline:2px solid currentColor;outline-offset:2px}
 table{border-collapse:collapse;font-size:.9rem;min-width:560px}
 th,td{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
 th{background:var(--surface);color:var(--fg)}

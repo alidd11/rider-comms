@@ -3080,6 +3080,15 @@ test('PWA screens have no automatically detectable accessibility violations', as
   await expectNoAxeViolations(page, 'search');
 });
 
+test('Public legal and support pages have no automatically detectable accessibility violations', async ({ page }, testInfo) => {
+  test.skip(!AXE_PROJECTS.has(testInfo.project.name), 'Audited once per colour scheme');
+  for (const path of ['/privacy.html', '/terms.html', '/guidelines.html', '/support.html']) {
+    await page.goto(path);
+    await expect(page.locator('h1')).toBeVisible();
+    await expectNoAxeViolations(page, path);
+  }
+});
+
 test('PWA asks existing accounts to agree to the current Terms before the app opens', async ({ page }) => {
   let accepted = null;
   await mockAuthenticatedApi(page, 'stationary', async ({ request, url }) => {
