@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const workflowPaths = ['.github/workflows/ci.yml', '.github/workflows/pages.yml', '.github/workflows/backup.yml', '.github/workflows/uptime.yml'];
+const workflowPaths = ['.github/workflows/ci.yml', '.github/workflows/pages.yml', '.github/workflows/backup.yml', '.github/workflows/uptime.yml', '.github/workflows/native-builds.yml'];
 // The uptime check only runs curl and gh, so it uses no external actions.
 const actionFreeWorkflows = new Set(['.github/workflows/uptime.yml']);
 const workflows = await Promise.all(workflowPaths.map(async (path) => ({

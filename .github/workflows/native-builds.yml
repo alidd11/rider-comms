@@ -1,0 +1,79 @@
+name: Native builds
+
+# Compiles the native apps: iOS for the simulator (CocoaPods, native
+# modules, Swift/Objective-C) and an Android debug APK (Gradle). The main CI
+# job only checks the JavaScript bundle and the Expo config, so a native
+# dependency that fails to compile would otherwise first show up in an EAS
+# build. Runs when the mobile app or its dependencies change, weekly, and on
+# demand. Neither build needs signing.
+
+on:
+  pull_request:
+    paths:
+      - 'mobile/**'
+      - 'package-lock.json'
+      - '.github/workflows/native-builds.yml'
+  schedule:
+    - cron: '23 5 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-builds-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ios:
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+      - run: npm ci
+      - name: Use the newest installed Xcode
+        run: |
+          xcode="$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)"
+          sudo xcode-select -s "$xcode"
+          xcodebuild -version
+      - name: Generate the native project
+        working-directory: mobile
+        run: npx expo prebuild --clean --platform ios --no-install
+      - name: Install CocoaPods
+        working-directory: mobile/ios
+        run: pod install
+      - name: Build for the iOS simulator
+        working-directory: mobile/ios
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -workspace RiderComms.xcworkspace \
+            -scheme RiderComms \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO \
+            build | tail -n 200
+
+  android:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          distribution: temurin
+          java-version: 17
+      - run: npm ci
+      - name: Generate the native project
+        working-directory: mobile
+        run: npx expo prebuild --clean --platform android --no-install
+      - name: Build a debug APK
+        working-directory: mobile/android
+        run: ./gradlew assembleDebug --no-daemon
