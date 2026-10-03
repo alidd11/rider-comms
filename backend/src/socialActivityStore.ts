@@ -99,9 +99,4 @@ export class SocialActivityStore {
     return result.rowCount ?? 0;
   }
 
-  async deleteRider(riderId: string): Promise<void> {
-    await ensureMigrated();
-    await getPool().query('DELETE FROM rider_activity WHERE rider_id = $1', [riderId]);
-    this.lastWriteByRider.delete(riderId);
-  }
 }

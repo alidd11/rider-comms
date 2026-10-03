@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { authenticatedFetch, postJson, startTestServer } from './httpTestUtils.ts';
 import type { TestServer } from './httpTestUtils.ts';
 import { ensureMigrated, getPool, resetDbForTests } from '../src/db.ts';
+import { AccountDeletionStore } from '../src/accountDeletionStore.ts';
 import { ModerationStore } from '../src/moderationStore.ts';
 import type { ModerationAction, QueuedSafetyReport } from '../src/moderationStore.ts';
 
@@ -189,7 +190,7 @@ describe('moderation queue API', { skip: !hasDatabase && 'DATABASE_URL not set; 
     assert.equal(result.ok, true);
     assert.equal((await store.listActions(REPORTED)).length, 1);
 
-    await store.deleteRider(REPORTED);
+    await new AccountDeletionStore().deleteRider(REPORTED);
 
     assert.deepEqual(await store.listActions(REPORTED), []);
     assert.equal(await reportStatus('d-1'), undefined);

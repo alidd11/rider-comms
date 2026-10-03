@@ -420,11 +420,4 @@ export class ModerationStore {
     return toModerationAction(rows[0]!);
   }
 
-  async deleteRider(riderId: string): Promise<void> {
-    await ensureMigrated();
-    const pool = getPool();
-    await pool.query('DELETE FROM rider_blocks WHERE rider_id = $1 OR blocked_rider_id = $1', [riderId]);
-    await pool.query('DELETE FROM safety_reports WHERE reporter_id = $1 OR reported_rider_id = $1', [riderId]);
-    await pool.query('DELETE FROM moderation_actions WHERE target_rider_id = $1', [riderId]);
-  }
 }

@@ -293,19 +293,4 @@ export class MessageStore {
     return Number(rows[0]?.unread_count ?? 0);
   }
 
-  async deleteRider(riderId: string): Promise<void> {
-    await ensureMigrated();
-    const pool = getPool();
-    await pool.query(
-      `DELETE FROM direct_message_reads
-       WHERE rider_id = $1
-          OR conversation_key IN (
-            SELECT DISTINCT conversation_key
-            FROM direct_messages
-            WHERE from_rider_id = $1 OR to_rider_id = $1
-          )`,
-      [riderId]
-    );
-    await pool.query('DELETE FROM direct_messages WHERE from_rider_id = $1 OR to_rider_id = $1', [riderId]);
-  }
 }

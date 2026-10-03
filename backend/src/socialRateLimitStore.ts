@@ -106,8 +106,4 @@ export class SocialRateLimitStore {
     return result.rowCount ?? 0;
   }
 
-  async deleteRider(riderId: string): Promise<void> {
-    await ensureMigrated();
-    await getPool().query('DELETE FROM social_rate_events WHERE actor_id = $1', [riderId]);
-  }
 }

@@ -9,8 +9,8 @@ import { PlacesProviderError } from '../src/placesProvider.ts';
 import type { PlaceSearchRequest } from '../src/placesProvider.ts';
 import { getPool } from '../src/db.ts';
 
-// DELETE /auth/me cascades into every Postgres-backed store's deleteRider()
-// (see db.ts); profileStore/rideStore/presenceStore are now Postgres-backed
+// DELETE /auth/me deletes the rider's rows in one transaction
+// (accountDeletionStore.ts); profileStore/rideStore/presenceStore are now Postgres-backed
 // too — every test in this block that touches one of them needs
 // DATABASE_URL pointing at a reachable Postgres instance and is skipped
 // otherwise, rather than failing every run in a sandbox with no database.

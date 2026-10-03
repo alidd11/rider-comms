@@ -285,8 +285,4 @@ export class ProfileStore {
     return rows[0]?.rider_id;
   }
 
-  async delete(riderId: string): Promise<void> {
-    await ensureMigrated();
-    await getPool().query('DELETE FROM rider_profiles WHERE rider_id = $1', [riderId]);
-  }
 }

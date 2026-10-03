@@ -296,13 +296,6 @@ export class RideStore {
     return { ok: true, ride };
   }
 
-  async deleteRider(riderId: string): Promise<void> {
-    await ensureMigrated();
-    const pool = getPool();
-    await pool.query('DELETE FROM rides WHERE created_by = $1', [riderId]);
-    await pool.query('DELETE FROM ride_members WHERE rider_id = $1', [riderId]);
-  }
-
   private async loadFreshMemberLocations(rideId: string): Promise<RideMemberLocation[]> {
     const pool = getPool();
     const freshSince = Date.now() - RIDE_LOCATION_MAX_AGE_MS;

@@ -132,10 +132,4 @@ export class HideoutStore {
     return { ok: true };
   }
 
-  async deleteRider(riderId: string): Promise<void> {
-    await this.dependencies.ensureMigrated();
-    const pool = this.dependencies.getPool();
-    await pool.query('DELETE FROM hideouts WHERE created_by = $1', [riderId]);
-    await pool.query('DELETE FROM hideout_participants WHERE rider_id = $1', [riderId]);
-  }
 }
