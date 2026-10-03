@@ -176,6 +176,11 @@ take them from a TestFlight build rather than the PWA.
 - **4.8 sign in with Apple:** not required, because there is no third-party sign-in.
 - **5.1.1 data and permissions:**
   - Permission strings explain each use.
+  - Purpose strings that SDK plugins add for APIs the app doesn't use (camera,
+    Face ID, "always" location, motion) say so plainly instead of the generic
+    "Allow Rider Comms to access…" text. `scripts/check-native-permissions.mjs`
+    keeps it that way. Unused Android permissions (camera, storage, draw over
+    other apps) are removed from the manifest.
   - The screen before the location prompt says "Continue", not "Enable" or "Allow".
   - Account deletion is in the app.
   - The privacy manifest declares collected data and required-reason APIs.

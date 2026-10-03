@@ -8,9 +8,26 @@
     "userInterfaceStyle": "automatic",
     "plugins": [
       "@livekit/react-native-expo-plugin",
-      "@config-plugins/react-native-webrtc",
-      "expo-secure-store",
-      "expo-location",
+      [
+        "@config-plugins/react-native-webrtc",
+        {
+          "cameraPermission": "Rider Comms doesn't use your camera. Voice chat is audio only."
+        }
+      ],
+      [
+        "expo-secure-store",
+        {
+          "faceIDPermission": "Rider Comms doesn't use Face ID."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Rider Comms only uses your location while the app is open, to show your position on the map, share it with your group ride when you turn that on, and find riders within your Nearby zone when you go live.",
+          "locationAlwaysPermission": "Rider Comms only uses your location while the app is open, to show your position on the map, share it with your group ride when you turn that on, and find riders within your Nearby zone when you go live.",
+          "motionUsagePermission": "Rider Comms doesn't use motion data."
+        }
+      ],
       "expo-status-bar",
       "react-native-maps",
       "./plugins/withAndroidVoiceForegroundService",
@@ -163,6 +180,12 @@
         "FOREGROUND_SERVICE",
         "FOREGROUND_SERVICE_MICROPHONE",
         "WAKE_LOCK"
+      ],
+      "blockedPermissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.SYSTEM_ALERT_WINDOW"
       ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/brand/adaptive-foreground.png",
