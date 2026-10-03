@@ -4,11 +4,9 @@ Pre-alpha Expo/React Native and installable PWA for proximity-based rider commun
 
 ## Project snapshot
 
-- **Lifecycle:** release candidate. The code is ready for App Store submission; what remains is account, legal and device-testing work listed in `APP_REVIEW.md`.
-- **Snapshot main:** `df02282de7249dd870a668cf543294f01134f576` (PR #286).
-- **Main checks:** CI, PWA deployment and GitHub Pages deployment are green on that exact SHA.
-- **PWA/native parity:** all capabilities currently tracked on `main` are parity except navigation, which remains a deliberate `behavior-gap` pending production-grade background/locked-screen and physical ride validation.
-- **Active work:** Settings parity, Friends profile refinement, and navigation header/control/Road ahead work. The private-ride location block-boundary fix from PR #283 and private-ride voice revocation hardening from PR #286 are now on `main`.
+- **Lifecycle:** release candidate. The code is ready for store submission; what remains needs the owner (accounts, legal details, device checks) and is listed in order in [LAUNCH_CHECKLIST.md](LAUNCH_CHECKLIST.md).
+- **Main checks:** every change lands through a pull request whose CI `verify` job is green; Railway deploys the backend from `main` behind a database-aware health check (`/ready`), and GitHub Pages deploys the PWA.
+- **PWA/native parity:** all tracked capabilities are at parity except navigation, which remains a deliberate `behavior-gap` pending background/locked-screen guidance and physical ride validation.
 
 See [PROJECT_STATUS.md](PROJECT_STATUS.md) for the detailed current handover, active PR ownership/overlap, release blockers and source-of-truth rules.
 
@@ -27,15 +25,15 @@ Working and verified in this repository:
 - Active-ride voice surfaces report token, LiveKit and native audio-routing failures explicitly. While movement-locked, voice remains hands-free and the ride bar exposes only the essential leave action. Unsupported media-session controls are feature-detected and disabled instead of throwing.
 - Android and iOS Metro exports plus an EAS internal Android APK profile.
 
-Still prototype-only:
+Known limitations:
 
 - Account credentials, expiring sessions, profiles, rides, friendships, messages, hideouts, presence, hazards, moderation records and scenic-route submissions are durable in Postgres. Anonymous guest sessions are process-local and disappear on restart by design; they are not recoverable accounts.
 - The native client uses a real Apple Maps/Google Maps surface for the rider's own location, selected places, shared destinations and hazard coordinates. Nearby riders are deliberately shown as a privacy-preserving count because the public presence API does not expose their exact coordinates. Riders can choose Rider Comms in-app guidance or explicit Google Maps, Waze, or Apple Maps handoff in Settings; the native in-app route client remains a pre-release development path until physical riding/background/voice validation is complete. A production Android build still needs a restricted Maps SDK key.
-- LiveKit ride/public proximity voice and VOX gating have been confirmed working on physical devices. Native audio-session/Bluetooth coexistence is implemented, and Android voice now starts a microphone-typed foreground service before LiveKit audio so an active call remains eligible for background execution. Broader helmet/intercom, wind/engine-noise, Android/iOS locked-screen continuity, navigation-prompt and external-music coexistence testing still require physical-device validation.
+- LiveKit ride/public proximity voice and VOX gating have been confirmed working on physical devices. Native audio-session/Bluetooth coexistence is implemented, and Android voice now starts a microphone-typed foreground service before LiveKit audio so an active call remains eligible for background execution. A two-rider ride over helmet intercoms has been confirmed on real devices. Wind/engine-noise, Android locked-screen continuity, navigation-prompt and external-music coexistence still need physical-device validation.
 - Store billing products and receipt validation are not connected; the plan UI cannot unlock a tier.
 - The proposed stationary-only video feed remains a documented follow-up. Scenic-route discovery is available, but still needs broader route coverage and live road-condition data.
 
-Do not treat the API as production-ready or use real private data until account recovery, documented retention, moderation operations, backups, monitoring and recovery controls are completed. See [COMPLIANCE.md](COMPLIANCE.md) for store-readiness requirements.
+Account recovery, the retention schedule, moderation tooling, monitoring and provider backups are in place. Before real riders' data goes in, the owner still needs to set up off-site encrypted backups and complete the legal details; see [LAUNCH_CHECKLIST.md](LAUNCH_CHECKLIST.md) and [COMPLIANCE.md](COMPLIANCE.md).
 
 ## Setup and verification
 
