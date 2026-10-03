@@ -150,6 +150,7 @@ Fixed in this pass:
 - Installed-iPhone PWA chat composer no longer cut off at the bottom (#386; confirmed on device).
 - Railway edge request tracing enabled for the backend (per-request latency and status).
 - Mobile coverage reports no longer count shared code (measured separately) or the API client in Jest (covered by its own suite); floors raised to 96% (node:test) and 89% (Jest).
+- Every CI build now runs a backup-and-restore drill (`scripts/backup-drill.sh`): encrypted backup of the test database, restore, row counts compared.
 - CI runners pinned to ubuntu-24.04 ahead of the ubuntu-latest move to 26.04; `actions/cache` moved to v5 (Node 24).
 
 Still open:

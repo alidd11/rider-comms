@@ -20,6 +20,11 @@ recover production from one.
   demand from the Actions tab. It verifies each dump against a throwaway
   Postgres container, then keeps the encrypted file as a workflow artifact for
   30 days.
+- `scripts/backup-drill.sh` runs on every CI build. It backs up the CI test
+  database with a throwaway key, restores the encrypted file into a scratch
+  database, and fails if any core table's row count differs. That proves the
+  scripts still work. It doesn't replace the monthly drill with a real
+  production backup and key.
 
 ## One-time setup
 

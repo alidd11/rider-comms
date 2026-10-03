@@ -62,6 +62,14 @@ jobs:
       - run: npm run typecheck
       # Same suites as `npm test`, run once with coverage instrumentation.
       - run: npm run test:coverage
+      # Back up the test database with the production backup scripts, restore
+      # it, and compare row counts, so the backup tooling is proven on every
+      # change rather than first exercised during an incident.
+      - name: Backup and restore drill
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q age
+          scripts/backup-drill.sh
       - name: Upload coverage reports
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
