@@ -156,10 +156,20 @@ Fixed in this pass:
 - Every CI build now runs a backup-and-restore drill (`scripts/backup-drill.sh`): encrypted backup of the test database, restore, row counts compared.
 - CI runners pinned to ubuntu-24.04 ahead of the ubuntu-latest move to 26.04; `actions/cache` moved to v5 (Node 24).
 
+Later the same day (#390 onwards):
+- Two-rider voice over helmet intercoms confirmed on real devices by the owner.
+- Railway deploys gate on `/ready` (database reachable), and both services restart on any exit.
+- Backend route handlers rewritten one statement per line; `/health` and `/ready` answer HEAD probes (production logs showed uptime-style HEAD requests getting 401).
+- PWA ships minified JS and CSS: app.js 83 KB to 47 KB gzipped. Live files verified byte-identical to the tested build.
+- Accessibility: keyboard-reachable legal tables, axe coverage for public pages, and a lint rule requiring an accessibility role on every native touchable.
+- Native release builds report unhandled promise rejections; stale "unverified scaffold" comments removed.
+- New Native builds workflow compiles the iOS app (Xcode, CocoaPods) and an Android debug APK, which no CI job did before.
+- `LAUNCH_CHECKLIST.md` lists the owner's remaining steps in order.
+
 Still open:
 - iOS 26+ draws a Liquid Glass blur over the top of Home Screen web apps where the page isn't a flat colour; the map shows it. System behaviour, accepted.
-- Owner items: legal details and review, monitored support email, backup secrets, Apple Developer setup and demo account, physical-device testing.
-- `npm audit`: 14 findings (5 high, 9 moderate), all in Expo build tooling (node-forge, uuid, xcode); none ship in the app or run on the server.
+- Owner items (in order in `LAUNCH_CHECKLIST.md`): legal details and review, monitored support email, off-site backup key and secrets, Apple Developer setup and demo accounts, remaining device checks (navigation while riding, Ride Safe, VoiceOver).
+- `npm audit`: 58 findings (50 high, 8 moderate). Nearly all trace to one advisory published on 3 October against `braces` (GHSA-vfj7-8cjw-p6xm, stack exhaustion from deeply nested glob patterns), which reaches Metro and Jest through `micromatch`. Every published version is affected, so no fix exists yet. `braces` only expands glob patterns from build and test configuration, never rider input, and none of it ships in the app or runs on the server. The rest are the known Expo tooling findings (node-forge, uuid, xcode). Recheck when `braces` releases a fix.
 
 ## Current audit findings to track
 
