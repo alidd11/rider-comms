@@ -25,7 +25,8 @@ location access is allowed for Rider Comms.
 
 ## Delete your account
 
-In the app: **Settings → Account → Account and data → Delete account**. This
+In the app, or [on the web](https://alidd11.github.io/rider-comms/) after
+signing in: **Settings → Account → Account and data → Delete account**. This
 permanently deletes your account, profile, messages, friendships, rides and
 reports straight away. Encrypted backups are kept for up to 30 days, then
 expire.

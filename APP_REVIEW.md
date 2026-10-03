@@ -164,6 +164,44 @@ take them from a TestFlight build rather than the PWA.
 > Voice needs two devices to hear each other. To test Nearby, both accounts
 > must go live within a mile of each other.
 
+## Google Play Console answers
+
+The Android build (`com.ridercomms.app`) uses the same backend and features.
+These answers match what the app sends off the device.
+
+| Field | Answer |
+| --- | --- |
+| Privacy policy | https://alidd11.github.io/rider-comms/privacy.html |
+| Account deletion URL | https://alidd11.github.io/rider-comms/support.html. The "Delete your account" section covers deleting from the app, on the web without installing the app, and by email. |
+| Ads | No |
+| Target audience | 16 and over (the Terms' minimum age); not designed for children |
+| Content rating (IARC) | Users interact, shares location (opt-in), no purchases, no other mature content |
+| App access | Sign-in required: give the same demo account as App Review |
+
+**Data safety.** Collected data is not shared with third parties: maps,
+voice and email providers process it on our behalf, which Google doesn't
+count as sharing. Data is encrypted in transit. Riders can delete their
+account and data.
+
+| Data type | Purpose | Notes |
+| --- | --- | --- |
+| Location → Precise location | App functionality | Optional (riders turn sharing on) |
+| Personal info → Name | App functionality | Display name |
+| Personal info → Email address | App functionality, account management | |
+| Personal info → User IDs | App functionality | |
+| Messages → Other in-app messages | App functionality | Chat with friends |
+| Audio → Voice or sound recordings | App functionality | Live voice only, processed ephemerally and never stored |
+| Photos and videos | Not collected | |
+| App activity → App interactions | Analytics | Last active, first ride |
+| App activity → Other user-generated content | App functionality | Profiles, hideouts, hazard reports |
+| App info and performance → Crash logs | App functionality | Not linked to the rider |
+
+**Foreground service declaration.** Voice keeps running with the screen off
+through a microphone foreground service (`FOREGROUND_SERVICE_MICROPHONE`).
+Play asks for its use case ("Voice chat with your riding group while the
+screen is off") and a short video showing voice continuing after the screen
+locks. Record the video on a test device.
+
 ## Rejection risks already handled in code
 
 - **2.1 completeness:**
