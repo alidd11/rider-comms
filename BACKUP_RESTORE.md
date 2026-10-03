@@ -34,7 +34,14 @@ recover production from one.
    - `BACKUP_AGE_RECIPIENT`: the `age1…` public key.
    - `PRODUCTION_DATABASE_URL`: an externally reachable connection string for
      the production database, with `sslmode=require`. A read-only role is
-     enough for `pg_dump` and is recommended.
+     enough for `pg_dump` and is recommended. On Railway the database is
+     private by default; it gets an external host and port only after you
+     add a TCP proxy to the Postgres service (Settings → Networking). That
+     exposes the database to the internet, so use a strong password and
+     the read-only role. The production service runs the plain `postgres:16-alpine`
+     image, which has no TLS certificate, so `sslmode=require` will fail until
+     TLS is configured on it; don't send the dump over an unencrypted
+     connection.
 
    Until both secrets exist, the nightly **Database backup** run fails with
    "No backup taken". That red run is deliberate: it stops a missing backup
@@ -42,9 +49,11 @@ recover production from one.
 3. **Match the Postgres version.** If production runs a Postgres major version
    newer than 16, add a repository variable `POSTGRES_MAJOR` set to that
    version. `pg_dump` cannot dump a newer server.
-4. **Enable provider snapshots too**, if the database host offers them. They
-   give faster point-in-time recovery, but they sit with the same provider as
-   the database, so they don't replace this off-provider encrypted copy.
+4. **Provider snapshots.** Railway volume backups are enabled on the
+   `postgres-data` volume (since 2026-10-03), on a daily schedule kept for 7
+   days and a weekly one kept for 4 weeks. They restore faster, but they sit
+   with the same provider as the database, so they don't replace this
+   off-provider encrypted copy.
 5. **Run the workflow once by hand** (Actions → Database backup → Run
    workflow) and check that it uploads an artifact.
 

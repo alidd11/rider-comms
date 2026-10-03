@@ -72,6 +72,66 @@ For every row: not used for tracking, and no third-party advertising.
 Voice is carried live and never stored, so it isn't "collected" in Apple's
 sense. Answer **No** to tracking.
 
+## Store listing
+
+Draft copy within App Store limits. It describes only features that ship;
+check it again if a feature changes.
+
+| Field (limit) | Text |
+| --- | --- |
+| Name (30) | Rider Comms |
+| Subtitle (30) | Group voice & rides for bikers |
+| Promotional text (170) | Talk to your group hands-free, see everyone on the map, and get warned about hazards ahead. Built for motorcycle riders. |
+| Keywords (100 bytes) | motorcycle,intercom,biker,group ride,helmet,voice chat,ride tracker,hazard,route,moto,navigation |
+
+Keywords leave out "rider" and "comms" because Apple already indexes the
+app name. The copy doesn't mention police or speed-camera reports: warning
+of speed cameras is illegal in some countries (the Terms flag this for legal
+review), so settle that, and the countries the app is listed in, before
+advertising it.
+
+**Description (4,000):**
+
+> Rider Comms keeps your group together on the road.
+>
+> GROUP VOICE
+> Talk to the riders in your group through your helmet intercom or
+> earphones. Voice opens when you speak, so you keep your hands on the bars.
+> It keeps working with the screen off.
+>
+> GROUP RIDES
+> Start a private ride and share the code. Everyone in the ride sees each
+> other on the map, and the roster shows who has joined.
+>
+> NEARBY
+> Turn on Nearby to talk to other riders close by, even if you aren't
+> friends yet. It's off until you switch it on. Other riders never see your
+> exact position, and you can mute, report or block anyone.
+>
+> HAZARDS
+> Report crashes and road closures in a tap. Riders near you see them on
+> the map, and reports disappear once other riders say they're gone.
+>
+> ROUTES AND NAVIGATION
+> Browse riding routes, plan a ride to your favourite meeting spots, and
+> navigate with spoken turn-by-turn directions.
+>
+> FRIENDS AND CHAT
+> Add friends by handle, message them, and see who's online.
+>
+> SAFETY
+> Location sharing is opt-in. You can report or block any rider from their
+> profile, chat or the ride roster. Reports are reviewed by a person within
+> 24 hours. You can delete your account and data from Settings at any time.
+>
+> Please ride safely and follow local laws. Set up voice and your route
+> before you set off, and don't use your phone while riding.
+
+**What's New (first release):** First release.
+
+Screenshots must show the iOS app itself (6.9" and 6.5" iPhone sizes), so
+take them from a TestFlight build rather than the PWA.
+
 ## Review notes (paste into App Store Connect)
 
 > Rider Comms is a companion app for motorcycle riders: group voice chat,
