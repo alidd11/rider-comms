@@ -6,8 +6,10 @@ import type { PublicRouteContext } from './context.ts';
 
 export async function handlePublicRoutes(ctx: PublicRouteContext): Promise<unknown> {
   const { req, res, url, address, profileStore, authStore, rateLimitStore, socialActivityStore, readinessCheck, adminStatsStore } = ctx;
-  if (req.method === 'GET' && url.pathname === '/health') return sendJson(res, 200, { ok: true });
-  if (req.method === 'GET' && url.pathname === '/ready') {
+  // Uptime monitors often probe with HEAD; Node drops the body for HEAD.
+  const isProbe = req.method === 'GET' || req.method === 'HEAD';
+  if (isProbe && url.pathname === '/health') return sendJson(res, 200, { ok: true });
+  if (isProbe && url.pathname === '/ready') {
     try {
       await readinessCheck();
       return sendJson(res, 200, { ok: true });

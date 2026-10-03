@@ -741,6 +741,14 @@ describe('production HTTP boundary', () => {
     assert.equal(event.status, 200);
   });
 
+  it('answers HEAD probes on liveness and readiness', async () => {
+    for (const path of ['/health', '/ready']) {
+      const response = await fetch(`${ctx.baseUrl()}${path}`, { method: 'HEAD' });
+      assert.equal(response.status, 200, `HEAD ${path}`);
+      assert.equal(await response.text(), '');
+    }
+  });
+
   it('keeps liveness healthy but fails readiness when PostgreSQL is unavailable', async () => {
     const unavailable = startTestServer({ readinessCheck: async () => { throw new Error('database unavailable'); } });
     await unavailable.ready;
