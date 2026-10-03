@@ -105,7 +105,9 @@ jobs:
 
   android:
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    # The release build takes about half an hour; the emulator step has its
+    # own 25-minute limit.
+    timeout-minutes: 80
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -141,19 +143,22 @@ jobs:
       # Same reason as the iOS launch check: native modules run at startup.
       # Uses the runner's own Android SDK rather than a third-party action.
       - name: Launch in an Android emulator
+        timeout-minutes: 25
         run: |
           export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH"
           image="system-images;android-34;google_apis;x86_64"
-          yes | sdkmanager --licenses > /dev/null || true
-          sdkmanager --install "$image" emulator platform-tools > /dev/null
-          echo no | avdmanager create avd --name ci --package "$image" --force > /dev/null
-          emulator -avd ci -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect > emulator.log 2>&1 &
-          adb wait-for-device
-          if ! timeout 420 bash -c 'until [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d "\r")" = 1 ]; do sleep 5; done'; then
-            log="$(tail -n 30 emulator.log)"
-            echo "::error title=Android emulator did not boot::${log//$'\n'/%0A}"
+          fail() {
+            log="$(tail -n 30 emulator.log 2>/dev/null)"
+            echo "::error title=Android emulator: $1::${log//$'\n'/%0A}"
             exit 1
-          fi
+          }
+          yes | sdkmanager --licenses > /dev/null || true
+          timeout 600 sdkmanager --install "$image" emulator platform-tools > /dev/null || fail "SDK install timed out"
+          echo no | avdmanager create avd --name ci --package "$image" --force > /dev/null
+          ls -l /dev/kvm
+          emulator -avd ci -no-window -no-audio -no-boot-anim -no-snapshot -accel on -gpu swiftshader_indirect > emulator.log 2>&1 &
+          timeout 300 adb wait-for-device || fail "device never appeared"
+          timeout 420 bash -c 'until [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d "\r")" = 1 ]; do sleep 5; done' || fail "did not finish booting"
           adb shell settings put global window_animation_scale 0
           adb shell settings put global transition_animation_scale 0
           adb shell settings put global animator_duration_scale 0
