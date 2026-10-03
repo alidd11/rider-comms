@@ -140,16 +140,22 @@ Third-party maps, routing, LiveKit and email dependencies need production quota,
 Checked live: security headers, CORS (unknown origins get 403), 1 MB body cap, clean 400/401/413 errors, no 5xx in the last 7 days, backend memory ~0.1 GB of 8 GB. Code review: scrypt passwords, hashed 30-day session tokens, suspension revokes sessions, admin re-checked per request, ownership enforced on every mutating route, Nearby returns rider IDs only (never coordinates) with blocks filtered, external text escaped before `innerHTML`. The public Maps key is referrer-restricted (Google rejects it from other origins). Retention and cleanup jobs run on schedule; uptime checks pass.
 
 Fixed in this pass:
-- **Backups were not running.** The nightly job was green but skipped every step because its two secrets were never set. It now fails until they are, so the gap is visible. Setting the secrets is an owner task (`BACKUP_RESTORE.md`).
+- **Backups were not running.** The nightly job was green but skipped every step because its two secrets were never set. It now fails until they are, so the gap is visible. Setting the secrets is an owner task (`BACKUP_RESTORE.md`). Railway volume backups of the production database are now enabled as a first layer (daily, kept 7 days; weekly, kept 4 weeks).
 - PWA `script-src` allowed all of `cdn.jsdelivr.net`; it now allows only the pinned LiveKit file, which loads with a subresource-integrity hash (matches the npm 2.22.3 bundle).
 - Backend sends `Strict-Transport-Security`.
 - Login is limited per account (10 per 15 minutes) as well as per address (migration 0045).
+- Signups are limited to 20 per address per hour (migration 0046), so one address can't farm accounts to evade bans. Messages, friend requests and reports already had per-rider limits.
 - The iOS associated domain is removed until the association file and Team ID exist.
 - CI timeout raised to 25 minutes, with Playwright browsers cached.
 - Dated audit reports moved to `docs-archive/`.
+- Installed-iPhone PWA chat composer no longer cut off at the bottom (#386; confirmed on device).
+- Railway edge request tracing enabled for the backend (per-request latency and status).
+- Mobile coverage reports no longer count shared code (measured separately) or the API client in Jest (covered by its own suite); floors raised to 96% (node:test) and 89% (Jest).
+- iOS build carried plugin-default purpose strings ("Allow $(PRODUCT_NAME) to access your camera", Face ID, always-location, motion) for APIs the app doesn't use, a common 5.1.1 rejection; they are now accurate. Android no longer declares camera, storage or draw-over-apps permissions. Both are lint-enforced.
+- Every CI build now runs a backup-and-restore drill (`scripts/backup-drill.sh`): encrypted backup of the test database, restore, row counts compared.
+- CI runners pinned to ubuntu-24.04 ahead of the ubuntu-latest move to 26.04; `actions/cache` moved to v5 (Node 24).
 
 Still open:
-- Installed-iPhone PWA: the chat composer is cut off at the bottom; four attempted fixes (#381–#384) did not resolve it. Needs on-device measurement before another change.
 - iOS 26+ draws a Liquid Glass blur over the top of Home Screen web apps where the page isn't a flat colour; the map shows it. System behaviour, accepted.
 - Owner items: legal details and review, monitored support email, backup secrets, Apple Developer setup and demo account, physical-device testing.
 - `npm audit`: 14 findings (5 high, 9 moderate), all in Expo build tooling (node-forge, uuid, xcode); none ship in the app or run on the server.

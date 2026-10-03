@@ -10,7 +10,7 @@
     "ios": "expo start --ios",
     "test:client": "node --experimental-strip-types --test tests/*.test.ts",
     "test:jest": "jest",
-    "test:client:coverage": "node --experimental-strip-types --experimental-test-coverage --test-coverage-exclude='tests/**' --test-reporter=spec --test-reporter-destination=stdout --test-reporter=lcov --test-reporter-destination=../coverage/mobile-client.lcov --test tests/*.test.ts",
+    "test:client:coverage": "node --experimental-strip-types --experimental-test-coverage --test-coverage-exclude='tests/**' --test-coverage-exclude='../shared/**' --test-reporter=spec --test-reporter-destination=stdout --test-reporter=lcov --test-reporter-destination=../coverage/mobile-client.lcov --test tests/*.test.ts",
     "test:jest:coverage": "jest --coverage --coverageReporters=lcov --coverageReporters=text-summary --coverageDirectory=../coverage/jest"
   },
   "dependencies": {

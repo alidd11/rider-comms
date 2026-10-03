@@ -35,7 +35,8 @@ const mapScreenSource = mapScreenOwnSource + presenceHookSource;
 
 const appConfig = JSON.parse(appConfigSource);
 const mobilePackage = JSON.parse(mobilePackageSource);
-const plugins = new Set(appConfig?.expo?.plugins ?? []);
+// Plugins are either a name or a [name, options] pair.
+const plugins = new Set((appConfig?.expo?.plugins ?? []).map((plugin) => (Array.isArray(plugin) ? plugin[0] : plugin)));
 for (const plugin of ['@livekit/react-native-expo-plugin', '@config-plugins/react-native-webrtc']) {
   assert.ok(plugins.has(plugin), `Native voice requires Expo config plugin: ${plugin}`);
 }

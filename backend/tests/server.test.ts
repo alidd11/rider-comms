@@ -52,6 +52,38 @@ describe('authenticated API', () => {
     });
     assert.equal(other.status, 401);
   });
+  it('limits accounts created per address', needsDb, async () => {
+    const signup = (suffix: string) => fetch(`${ctx.baseUrl()}/auth/signup`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: `farm_${suffix}`, email: `farm_${suffix}@example.com`, password: 'correct-horse-battery', acceptTerms: true }),
+    });
+    const suffix = Math.random().toString(36).slice(2, 10);
+    try {
+      assert.equal((await signup(suffix)).status, 201);
+      // Fill the rest of this address's hourly window directly: twenty real
+      // signups would hit the shared per-minute auth limit first.
+      const { rows } = await getPool().query<{ subject_key: string; created_at: string }>(
+        `SELECT subject_key, created_at FROM rate_limit_events WHERE action = 'signup_ip'`,
+      );
+      assert.equal(rows.length, 1);
+      await getPool().query(
+        `INSERT INTO rate_limit_events (subject_key, action, created_at)
+         SELECT $1, 'signup_ip', $2::bigint FROM generate_series(1, 19)`,
+        [rows[0].subject_key, rows[0].created_at],
+      );
+      const limited = await signup(`${suffix}b`);
+      assert.equal(limited.status, 429);
+      assert.deepEqual(await limited.json(), { error: 'rate_limited' });
+      // Signing in from the same address is unaffected.
+      const login = await fetch(`${ctx.baseUrl()}/auth/login`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: `farm_${suffix}`, password: 'correct-horse-battery' }),
+      });
+      assert.equal(login.status, 200);
+    } finally {
+      await getPool().query(`DELETE FROM rate_limit_events WHERE action = 'signup_ip'`);
+    }
+  });
   it('refuses signup without agreement to the Terms, and filters objectionable usernames', needsDb, async () => {
     const suffix = Math.random().toString(36).slice(2, 10);
     const post = (body: Record<string, unknown>) => fetch(`${ctx.baseUrl()}/auth/signup`, {

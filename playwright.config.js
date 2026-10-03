@@ -3,7 +3,9 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   testDir: './tests/visual',
   outputDir: 'test-results/playwright',
-  reporter: [['list'], ['html', { outputFolder: 'playwright-report', open: 'never' }]],
+  // In CI the github reporter turns each failure into a check annotation, so
+  // the failing test and line are visible without downloading the report.
+  reporter: [['list'], ['html', { outputFolder: 'playwright-report', open: 'never' }], ...(process.env.CI ? [['github']] : [])],
   use: {
     baseURL: 'http://127.0.0.1:4173',
     colorScheme: 'light',

@@ -62,7 +62,7 @@
 
 - Node 22+ monorepo with shared, backend and Expo/React Native workspaces.
 - PostgreSQL-backed automated tests, TypeScript/lint checks, PWA build, Playwright visual audit, Android export and iOS export are exercised by CI.
-- CI fails if line coverage drops below its floor: shared 95%, backend 88%, mobile node:test 88%, mobile Jest 84%.
+- CI fails if line coverage drops below its floor: shared 95%, backend 88%, mobile node:test 96%, mobile Jest 89%. Mobile reports count only mobile's own code; shared code is measured in its own report.
 - Operations:
   - A retention sweep runs every 15 minutes (`RETENTION.md`).
   - Encrypted database backups have a restore check (`BACKUP_RESTORE.md`).
