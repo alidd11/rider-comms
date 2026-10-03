@@ -15,7 +15,9 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # A full run takes ~12 minutes; 25 leaves room for a slow browser or apt
+    # mirror without letting a hung job run for the GitHub default of 6 hours.
+    timeout-minutes: 25
     services:
       postgres:
         image: postgres:16-alpine
@@ -69,6 +71,14 @@ jobs:
         working-directory: mobile
         run: npx expo prebuild --clean --no-install
       - run: npm run build:web
+      - name: Read Playwright version
+        id: playwright
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+      - name: Cache Playwright browsers
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
       - name: Install visual-test browser
         run: npx playwright install --with-deps chromium webkit
       - name: Run PWA visual smoke audit

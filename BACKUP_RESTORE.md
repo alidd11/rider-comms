@@ -35,6 +35,10 @@ recover production from one.
    - `PRODUCTION_DATABASE_URL`: an externally reachable connection string for
      the production database, with `sslmode=require`. A read-only role is
      enough for `pg_dump` and is recommended.
+
+   Until both secrets exist, the nightly **Database backup** run fails with
+   "No backup taken". That red run is deliberate: it stops a missing backup
+   looking healthy.
 3. **Match the Postgres version.** If production runs a Postgres major version
    newer than 16, add a repository variable `POSTGRES_MAJOR` set to that
    version. `pg_dump` cannot dump a newer server.

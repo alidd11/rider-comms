@@ -1736,6 +1736,11 @@ test('PWA attaches subscribed Nearby Voice audio after Go Live', async ({ page }
     Object.defineProperty(window, 'AudioContext', { configurable: true, value: FakeAudioContext });
   });
 
+  // These tests serve a fake LiveKit build, which the real SRI hash would
+  // reject; ignore the integrity attribute for the stub only.
+  await page.addInitScript(() => {
+    Object.defineProperty(HTMLScriptElement.prototype, 'integrity', { configurable: true, get() { return ''; }, set() {} });
+  });
   await page.route('https://cdn.jsdelivr.net/npm/livekit-client@2.22.3/dist/livekit-client.umd.js', (route) => route.fulfill({
     status: 200,
     contentType: 'application/javascript',
@@ -1839,6 +1844,11 @@ test('PWA keeps private-ride speaker identity visible across tabs', async ({ pag
     Object.defineProperty(window, 'AudioContext', { configurable: true, value: FakeAudioContext });
   });
 
+  // These tests serve a fake LiveKit build, which the real SRI hash would
+  // reject; ignore the integrity attribute for the stub only.
+  await page.addInitScript(() => {
+    Object.defineProperty(HTMLScriptElement.prototype, 'integrity', { configurable: true, get() { return ''; }, set() {} });
+  });
   await page.route('https://cdn.jsdelivr.net/npm/livekit-client@2.22.3/dist/livekit-client.umd.js', (route) => route.fulfill({
     status: 200,
     contentType: 'application/javascript',

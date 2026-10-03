@@ -102,6 +102,10 @@
       // loaded, like Google Maps above, so riders who never go live don't
       // pay for it.
       script.src = 'https://cdn.jsdelivr.net/npm/livekit-client@2.22.3/dist/livekit-client.umd.js';
+      // Subresource integrity: the browser refuses the file if the CDN ever
+      // serves anything but this exact build (hash of the npm 2.22.3 bundle).
+      script.integrity = 'sha384-G/xxtkVytOx/ia9Q8MXxM+V0ohsaY1fZAgVP3iSGTPz4wJ0s3+ulJNKXh/gnzEDZ';
+      script.crossOrigin = 'anonymous';
       script.async = true;
       script.onload = () => resolve();
       script.onerror = () => { liveKitLoadPromise = undefined; reject(new Error('voice_library_unavailable')); };

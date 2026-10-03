@@ -4,8 +4,8 @@ name: Database backup
 # throwaway Postgres first to prove it is usable. Needs repository secrets
 # PRODUCTION_DATABASE_URL (an externally reachable URL, with sslmode=require)
 # and BACKUP_AGE_RECIPIENT (an age public key). The matching private key must
-# NOT be stored in GitHub. Until both secrets exist the job skips cleanly. See
-# BACKUP_RESTORE.md.
+# NOT be stored in GitHub. Until both secrets exist the job FAILS, so a
+# missing backup is never hidden behind a green tick. See BACKUP_RESTORE.md.
 
 on:
   schedule:
@@ -49,8 +49,8 @@ jobs:
         id: config
         run: |
           if [ -z "$PRODUCTION_DATABASE_URL" ] || [ -z "$BACKUP_AGE_RECIPIENT" ]; then
-            echo "::notice::Backup skipped: set PRODUCTION_DATABASE_URL and BACKUP_AGE_RECIPIENT secrets to enable it."
-            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::error::No backup taken: set the PRODUCTION_DATABASE_URL and BACKUP_AGE_RECIPIENT repository secrets (see BACKUP_RESTORE.md)."
+            exit 1
           else
             echo "enabled=true" >> "$GITHUB_OUTPUT"
           fi

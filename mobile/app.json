@@ -28,9 +28,6 @@
       "bundleIdentifier": "com.ridercomms.app",
       "buildNumber": "1",
       "supportsTablet": false,
-      "associatedDomains": [
-        "applinks:alidd11.github.io"
-      ],
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Rider Comms uses your location while the app is open to show your position on the map, share it with riders in your group ride when you turn that on, and find riders within your Nearby zone when you go live.",
         "NSMicrophoneUsageDescription": "Rider Comms uses your microphone for hands-free voice chat with your group and nearby riders while you ride.",

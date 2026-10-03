@@ -35,6 +35,8 @@ export function applyResponsePolicy(res: http.ServerResponse, id: string): void 
   res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
   res.setHeader('Referrer-Policy', 'no-referrer');
+  // The API is only ever served over HTTPS (Railway edge); tell browsers never to try plain HTTP.
+  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('X-Request-ID', id);
@@ -107,7 +109,7 @@ export function routeCoordinate(value: unknown): RouteCoordinate | null {
   return { lat: candidate.lat as number, lon: candidate.lon as number };
 }
 
-export function rateLimitSubject(scope: 'ip' | 'rider', value: string): string {
+export function rateLimitSubject(scope: 'ip' | 'rider' | 'account', value: string): string {
   return createHash('sha256').update(`${scope}:${value}`).digest('hex');
 }
 
