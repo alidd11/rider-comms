@@ -50,15 +50,19 @@ jobs:
         run: pod install
       - name: Build for the iOS simulator
         working-directory: mobile/ios
-        # The full log is long; on failure the compiler's own error lines are
-        # also published as an annotation so they show on the PR.
+        # Release, so the JavaScript bundle is embedded and the app can start
+        # without a Metro server. The full log is long; on failure the
+        # compiler's own error lines are also published as an annotation.
+        env:
+          EXPO_PUBLIC_API_URL: https://backend-production-7fa0.up.railway.app
         run: |
           if ! xcodebuild \
             -workspace RiderComms.xcworkspace \
             -scheme RiderComms \
-            -configuration Debug \
+            -configuration Release \
             -sdk iphonesimulator \
             -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO \
             build > build.log 2>&1; then
             tail -n 150 build.log
@@ -67,6 +71,36 @@ jobs:
             exit 1
           fi
           tail -n 20 build.log
+      # Compiling isn't enough: native modules (LiveKit's WebRTC globals in
+      # particular) run at startup and can crash the app before any screen
+      # appears. Boot a simulator, launch, and check it is still running.
+      - name: Launch in the iOS simulator
+        working-directory: mobile/ios
+        run: |
+          app="build/Build/Products/Release-iphonesimulator/RiderComms.app"
+          udid="$(xcrun simctl list devices available -j | python3 -c 'import json, sys
+          devices = json.load(sys.stdin)["devices"]
+          print(next(d["udid"] for runtime, ds in sorted(devices.items(), reverse=True) if "iOS" in runtime for d in ds if d["name"].startswith("iPhone")))')"
+          xcrun simctl boot "$udid"
+          xcrun simctl bootstatus "$udid" -b > /dev/null
+          xcrun simctl install "$udid" "$app"
+          xcrun simctl launch "$udid" com.ridercomms.app
+          sleep 30
+          xcrun simctl io "$udid" screenshot "$GITHUB_WORKSPACE/ios-launch.png"
+          if ! xcrun simctl spawn "$udid" launchctl list | grep -q 'com.ridercomms.app'; then
+            report="$(ls -t ~/Library/Logs/DiagnosticReports/ 2>/dev/null | grep -i -m1 rider || true)"
+            detail="$( [ -n "$report" ] && head -n 40 ~/Library/Logs/DiagnosticReports/"$report" || echo 'no crash report found')"
+            echo "::error title=iOS app crashed on launch::${detail//$'\n'/%0A}"
+            exit 1
+          fi
+          echo "::notice title=iOS launch::Rider Comms is running 30 s after launch on $(xcrun simctl list devices | grep "$udid" | sed 's/ (.*//' | xargs)"
+      - name: Upload the launch screenshot
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ios-launch-screenshot
+          path: ios-launch.png
+          if-no-files-found: ignore
 
   android:
     runs-on: ubuntu-24.04
