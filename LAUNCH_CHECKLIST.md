@@ -15,6 +15,9 @@ device, so it needs the owner. The detailed guides are linked.
 - Production monitoring: uptime checks every 10 minutes, crash and error
   alert emails, request tracing, and a database-aware deploy health check.
 - Railway volume backups of the production database (daily and weekly).
+- Both native apps compile and launch (iPhone simulator, Android emulator)
+  on every mobile change and weekly, including after the LiveKit 3.0
+  upgrade. Voice itself still needs the device check below.
 
 ## 1. Legal and support (about a day, plus lawyer time)
 
