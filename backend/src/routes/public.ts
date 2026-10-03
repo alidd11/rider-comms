@@ -35,6 +35,9 @@ export async function handlePublicRoutes(ctx: PublicRouteContext): Promise<unkno
   if (req.method === 'POST' && url.pathname === '/auth/login') {
     if (!(await consumeRateLimit(res, rateLimitStore, rateLimitSubject('ip', address), 'auth'))) return;
     const body = await readJsonBody(req);
+    if (typeof body.username === 'string' && body.username.trim()) {
+      if (!(await consumeRateLimit(res, rateLimitStore, rateLimitSubject('account', body.username.trim().toLowerCase()), 'auth_account'))) return;
+    }
     const result = await authStore.logIn(body.username, body.password, body.deviceName);
     if ('error' in result) return sendJson(res, result.error === 'account_suspended' ? 403 : 401, { error: result.error });
     await profileStore.getOrCreate(result.riderId);

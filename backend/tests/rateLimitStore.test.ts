@@ -90,7 +90,8 @@ describe('RateLimitStore', { skip: !hasDatabase && 'DATABASE_URL not set; skippi
     assert.equal((await store.consume('old-b', 'api', now)).allowed, true);
     assert.equal((await store.consume('old-c', 'hazard_create', now)).allowed, true);
 
-    const deleted = await store.cleanupExpired(now + RATE_LIMIT_POLICIES.hazard_create.windowMs + 1);
+    const longestWindowMs = Math.max(...Object.values(RATE_LIMIT_POLICIES).map(({ windowMs }) => windowMs));
+    const deleted = await store.cleanupExpired(now + longestWindowMs + 1);
     assert.equal(deleted, 3);
     assert.equal((await getPool().query('SELECT 1 FROM rate_limit_events')).rowCount, 0);
   });

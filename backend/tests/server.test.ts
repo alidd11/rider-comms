@@ -35,6 +35,23 @@ describe('authenticated API', () => {
     assert.equal(authenticated.status, 404);
     assert.deepEqual(await authenticated.json(), { error: 'not_found' });
   });
+  it('limits login attempts per account, not just per address', needsDb, async () => {
+    const username = `lockout_${Math.random().toString(36).slice(2, 10)}`;
+    const attempt = () => fetch(`${ctx.baseUrl()}/auth/login`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password: 'wrong-password-123' }),
+    });
+    for (let i = 0; i < 10; i += 1) assert.equal((await attempt()).status, 401, `attempt ${i + 1} is checked normally`);
+    const limited = await attempt();
+    assert.equal(limited.status, 429);
+    assert.deepEqual(await limited.json(), { error: 'rate_limited' });
+    // A different account from the same address is unaffected.
+    const other = await fetch(`${ctx.baseUrl()}/auth/login`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: `${username}_b`, password: 'wrong-password-123' }),
+    });
+    assert.equal(other.status, 401);
+  });
   it('refuses signup without agreement to the Terms, and filters objectionable usernames', needsDb, async () => {
     const suffix = Math.random().toString(36).slice(2, 10);
     const post = (body: Record<string, unknown>) => fetch(`${ctx.baseUrl()}/auth/signup`, {
@@ -673,6 +690,7 @@ describe('production HTTP boundary', () => {
     assert.equal(response.headers.get('x-request-id'), 'request-12345');
     assert.equal(response.headers.get('x-content-type-options'), 'nosniff');
     assert.equal(response.headers.get('x-frame-options'), 'DENY');
+    assert.equal(response.headers.get('strict-transport-security'), 'max-age=31536000; includeSubDomains');
     assert.match(response.headers.get('content-security-policy') ?? '', /frame-ancestors 'none'/);
     assert.equal(response.headers.get('cache-control'), 'no-store');
   });

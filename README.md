@@ -156,9 +156,10 @@ corresponding `assetlinks.json` and `apple-app-site-association` files must be
 served from `https://alidd11.github.io/.well-known/` (or, preferably, a
 controlled production domain) with the final Android signing certificate and
 Apple Team ID. A project-level GitHub Pages path cannot by itself publish those
-domain-root association files, so the configured `autoVerify` and associated
-domain are declarations rather than verified production links until that
-hosting work is completed.
+domain-root association files. The iOS associated domain is therefore left
+out of `mobile/app.json` until the association file and Team ID exist (add
+`"associatedDomains": ["applinks:<domain>"]` under `ios` then); Android's
+`autoVerify` filter stays a declaration until `assetlinks.json` is hosted.
 
 With an authenticated Expo account, build an installable Android preview:
 

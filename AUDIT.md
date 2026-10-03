@@ -1,6 +1,6 @@
 # Rider Comms engineering audit
 
-Audit date: 2026-09-18 (addenda 2026-09-28, 2026-09-29 and 2026-10-01 below)
+Audit date: 2026-09-18 (addenda 2026-09-28, 2026-09-29, 2026-10-01 and 2026-10-03 below)
 
 This document records the current engineering assessment of `main`. Repository code, CI and the machine-readable parity manifest remain authoritative if this document becomes stale.
 
@@ -121,7 +121,7 @@ Password recovery exists in code; production email delivery, sender/domain confi
 
 ### Store, policy and identity
 
-Store billing is intentionally not connected. Paid plan cards are preview-only and cannot unlock Premium/Premium+ without verified App Store/Google Play purchase and receipt handling.
+Store billing is intentionally not connected. Both clients show only the rider's current Nearby range; no prices or purchasable plans are shown, and Premium/Premium+ cannot be unlocked without verified App Store/Google Play purchase handling.
 
 A complete privacy policy, terms, monitored support channel, store privacy/data-safety declarations, content ratings and account-deletion metadata remain operational requirements.
 
@@ -134,6 +134,25 @@ Accessibility requires physical-device review, including screen readers, Dynamic
 Presence, voice and database behavior need load and failure testing representative of dense rider events rather than only normal development traffic. Multi-region/failover strategy and explicit degraded-mode behavior remain pre-launch architecture work.
 
 Third-party maps, routing, LiveKit and email dependencies need production quota, outage and credential-rotation procedures.
+
+## Addendum 2026-10-03: full audit
+
+Checked live: security headers, CORS (unknown origins get 403), 1 MB body cap, clean 400/401/413 errors, no 5xx in the last 7 days, backend memory ~0.1 GB of 8 GB. Code review: scrypt passwords, hashed 30-day session tokens, suspension revokes sessions, admin re-checked per request, ownership enforced on every mutating route, Nearby returns rider IDs only (never coordinates) with blocks filtered, external text escaped before `innerHTML`. The public Maps key is referrer-restricted (Google rejects it from other origins). Retention and cleanup jobs run on schedule; uptime checks pass.
+
+Fixed in this pass:
+- **Backups were not running.** The nightly job was green but skipped every step because its two secrets were never set. It now fails until they are, so the gap is visible. Setting the secrets is an owner task (`BACKUP_RESTORE.md`).
+- PWA `script-src` allowed all of `cdn.jsdelivr.net`; it now allows only the pinned LiveKit file, which loads with a subresource-integrity hash (matches the npm 2.22.3 bundle).
+- Backend sends `Strict-Transport-Security`.
+- Login is limited per account (10 per 15 minutes) as well as per address (migration 0045).
+- The iOS associated domain is removed until the association file and Team ID exist.
+- CI timeout raised to 25 minutes, with Playwright browsers cached.
+- Dated audit reports moved to `docs-archive/`.
+
+Still open:
+- Installed-iPhone PWA: the chat composer is cut off at the bottom; four attempted fixes (#381–#384) did not resolve it. Needs on-device measurement before another change.
+- iOS 26+ draws a Liquid Glass blur over the top of Home Screen web apps where the page isn't a flat colour; the map shows it. System behaviour, accepted.
+- Owner items: legal details and review, monitored support email, backup secrets, Apple Developer setup and demo account, physical-device testing.
+- `npm audit`: 14 findings (5 high, 9 moderate), all in Expo build tooling (node-forge, uuid, xcode); none ship in the app or run on the server.
 
 ## Current audit findings to track
 

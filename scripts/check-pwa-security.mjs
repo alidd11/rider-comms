@@ -38,11 +38,16 @@ for (const source of [
   'https://*.google.com',
   'https://*.ggpht.com',
   'https://*.googleusercontent.com',
-  'https://cdn.jsdelivr.net',
+  'https://cdn.jsdelivr.net/npm/livekit-client@2.22.3/dist/livekit-client.umd.js',
   'blob:',
 ]) {
   assert.ok(scriptSrc.includes(source), `PWA script-src must allow required source: ${source}`);
 }
+assert.equal(
+  /https:\/\/cdn\.jsdelivr\.net(\s|;|$)/.test(scriptSrc),
+  false,
+  'PWA script-src must allow only the pinned LiveKit file on jsDelivr, not the whole CDN',
+);
 assert.equal(
   scriptSrc.includes("'unsafe-inline'"),
   false,
@@ -112,7 +117,7 @@ for (const escapedExternalValue of [
 }
 
 assert.ok(
-  app.includes("https://cdn.jsdelivr.net/npm/livekit-client@2.22.3/dist/livekit-client.umd.js"),
+  app.includes("https://cdn.jsdelivr.net/npm/livekit-client@2.22.3/dist/livekit-client.umd.js") && app.includes("script.integrity = 'sha384-"),
   'PWA LiveKit runtime must remain pinned to an exact CDN version',
 );
 assert.ok(
