@@ -1,4 +1,3 @@
-// Unverified scaffold — see navigation/index.tsx header note.
 import * as React from 'react';
 import {
   View,

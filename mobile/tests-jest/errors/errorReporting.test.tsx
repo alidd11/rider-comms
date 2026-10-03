@@ -2,7 +2,7 @@ import * as React from 'react';
 import { Text } from 'react-native';
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import { AppErrorBoundary } from '../../src/errors/AppErrorBoundary';
-import { installGlobalErrorHandler, reportClientError, resetErrorReportingForTests } from '../../src/errors/errorReporting';
+import { installGlobalErrorHandler, installUnhandledRejectionReporter, reportClientError, resetErrorReportingForTests } from '../../src/errors/errorReporting';
 
 function okFetch() {
   return jest.fn(async (_url: string, _init: RequestInit) => ({ ok: true, status: 202 }) as Response);
@@ -66,6 +66,31 @@ test('the global handler reports and then defers to React Native', () => {
     expect(sentBody(fetchMock)).toEqual(expect.objectContaining({ message: 'Error: uncaught', fatal: true, context: 'global' }));
   } finally {
     (globalThis as { ErrorUtils?: unknown }).ErrorUtils = originalErrorUtils;
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('release builds report unhandled promise rejections through Hermes', () => {
+  const originalHermes = (globalThis as { HermesInternal?: unknown }).HermesInternal;
+  const originalFetch = globalThis.fetch;
+  const fetchMock = okFetch();
+  let options: { allRejections: boolean; onUnhandled: (id: number, error: unknown) => void } | undefined;
+  const enable = jest.fn((next: typeof options) => { options = next; });
+  (globalThis as { HermesInternal?: unknown }).HermesInternal = { enablePromiseRejectionTracker: enable };
+  globalThis.fetch = fetchMock as unknown as typeof fetch;
+  try {
+    // Development keeps React Native's own tracker (LogBox warnings).
+    installUnhandledRejectionReporter(true);
+    expect(enable).not.toHaveBeenCalled();
+
+    installUnhandledRejectionReporter(false);
+    installUnhandledRejectionReporter(false);
+    expect(enable).toHaveBeenCalledTimes(1);
+    expect(options?.allRejections).toBe(true);
+    options!.onUnhandled(1, new Error('request failed'));
+    expect(sentBody(fetchMock)).toEqual(expect.objectContaining({ message: 'Error: request failed', fatal: false, context: 'unhandledrejection' }));
+  } finally {
+    (globalThis as { HermesInternal?: unknown }).HermesInternal = originalHermes;
     globalThis.fetch = originalFetch;
   }
 });

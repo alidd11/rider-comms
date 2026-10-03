@@ -1,0 +1,96 @@
+name: Native builds
+
+# Compiles the native apps: iOS for the simulator (CocoaPods, native
+# modules, Swift/Objective-C) and an Android debug APK (Gradle). The main CI
+# job only checks the JavaScript bundle and the Expo config, so a native
+# dependency that fails to compile would otherwise first show up in an EAS
+# build. Runs when the mobile app or its dependencies change, weekly, and on
+# demand. Neither build needs signing.
+
+on:
+  pull_request:
+    paths:
+      - 'mobile/**'
+      - 'package-lock.json'
+      - '.github/workflows/native-builds.yml'
+  schedule:
+    - cron: '23 5 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-builds-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ios:
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+      - run: npm ci
+      # Expo SDK 57's expo-modules-jsi puts SWIFT_RETURNS_RETAINED on C++
+      # constructors, which every Xcode up to 26.3 rejects (macos-15 tops out
+      # there), so this uses the newest Xcode on the macos-26 image.
+      - name: Select Xcode
+        run: |
+          xcode="$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)"
+          sudo xcode-select -s "$xcode"
+          echo "::notice title=Xcode::$(xcodebuild -version | tr '\n' ' ') (installed: $(ls /Applications | grep -E '^Xcode' | tr '\n' ' '))"
+      - name: Generate the native project
+        working-directory: mobile
+        run: npx expo prebuild --clean --platform ios --no-install
+      - name: Install CocoaPods
+        working-directory: mobile/ios
+        run: pod install
+      - name: Build for the iOS simulator
+        working-directory: mobile/ios
+        # The full log is long; on failure the compiler's own error lines are
+        # also published as an annotation so they show on the PR.
+        run: |
+          if ! xcodebuild \
+            -workspace RiderComms.xcworkspace \
+            -scheme RiderComms \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO \
+            build > build.log 2>&1; then
+            tail -n 150 build.log
+            errors="$(grep -E 'error:|fatal error|BUILD FAILED|The following build commands failed' build.log | sort -u | head -n 40)"
+            echo "::error title=iOS build failed::${errors//$'\n'/%0A}"
+            exit 1
+          fi
+          tail -n 20 build.log
+
+  android:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          distribution: temurin
+          java-version: 17
+      - run: npm ci
+      - name: Generate the native project
+        working-directory: mobile
+        run: npx expo prebuild --clean --platform android --no-install
+      - name: Build a debug APK
+        working-directory: mobile/android
+        run: |
+          if ! ./gradlew assembleDebug --no-daemon > build.log 2>&1; then
+            tail -n 150 build.log
+            errors="$( (sed -n '/What went wrong/,/Try:/p' build.log; grep -E '^e: |error:' build.log) | head -n 40)"
+            echo "::error title=Android build failed::${errors//$'\n'/%0A}"
+            exit 1
+          fi
+          tail -n 20 build.log

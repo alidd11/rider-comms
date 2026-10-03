@@ -1,24 +1,20 @@
 # Rider Comms project status
 
-> Snapshot: 30 September 2026. This file is a handover/status snapshot, not a substitute for live GitHub state. Before changing code, re-check current `main`, open PRs, their exact HEAD SHAs/checks, and file overlap.
+> Snapshot: 3 October 2026. This file is a handover/status snapshot, not a substitute for live GitHub state. Before changing code, re-check current `main`, open PRs, their exact HEAD SHAs/checks, and file overlap.
 
 ## Executive status
 
-- **Lifecycle:** release candidate. The code is ready for App Store submission; the remaining steps need the owner (Apple account, legal review, moderation staffing, device testing). See `APP_REVIEW.md`.
-- **Snapshot main:** `0c20df0` — merge of PR #370, **Move CI to Node 24 action releases and rate-limit presence updates**.
-- **Main verification:** CI (`verify`) passed on the PR heads merged into that SHA; re-check live checks on `main` before relying on it.
-- **Client parity:** `client-parity.json` currently records PWA/native parity for every tracked capability except **navigation**, which remains a `behavior-gap` pending production-grade background/locked-screen and physical ride validation.
-- **Active development:** production hardening. Since #359:
-  - backend Places proxy (#361);
-  - react-navigation security upgrade (#362);
-  - retention sweep, encrypted backups and a restore check (#363);
-  - moderation queue with suspensions and an audit log, plus privacy/terms drafts (#364);
-  - ESLint and coverage reporting (#365);
-  - `server.ts` split into route modules (#366);
-  - vendor-free crash reporting (#367);
-  - PWA `docs/app.js` split into 20 feature files (#368);
-  - full code-review fixes, error alert emails and coverage floors (#369);
-  - Node 24 CI actions and a presence rate limit (#370).
+- **Lifecycle:** release candidate. The code is ready for store submission; the remaining steps need the owner and are listed in order in `LAUNCH_CHECKLIST.md`.
+- **Main verification:** every change merges through a PR with a green CI `verify` job. Railway deploys the backend from `main` behind the `/ready` health check (a deploy that can't reach the database never takes traffic); GitHub Pages deploys the PWA.
+- **Client parity:** `client-parity.json` records PWA/native parity for every tracked capability except **navigation**, which remains a `behavior-gap` pending background/locked-screen guidance and physical ride validation.
+- **Device evidence:** a two-rider ride over helmet intercoms works on real devices, and the installed-iPhone PWA chat composer fix (#386) is confirmed.
+- **Recent work (#379–#390):**
+  - PWA safety parity, report sources and filter-rejection counts (#379);
+  - viewport, day-label and composer fixes (#380–#386);
+  - full audit: visible backup failures, pinned LiveKit script with SRI, HSTS, per-account login limit (#387);
+  - Railway volume backups, CI backup-and-restore drill, signup limit per address, accurate native permission strings, store listing and Google Play answers (#388);
+  - dependency updates and coverage floors that count only each package's own code (#389);
+  - readable backend handlers, minified PWA (app.js 83 KB to 47 KB gzipped), HEAD health probes, accessibility guards (#390).
 
 ## What is currently on `main`
 

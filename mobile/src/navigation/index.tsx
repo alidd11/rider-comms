@@ -1,7 +1,3 @@
-// Unverified in this sandbox: React Native/Expo aren't installed here (no
-// npm registry access), so this file has never actually been run. Written
-// to be correct against @react-navigation's real v7 API — review against
-// the installed version once you're on a real dev machine.
 import * as React from 'react';
 import { Linking, View, Text, StyleSheet, useColorScheme } from 'react-native';
 import { DarkTheme, DefaultTheme, NavigationContainer, useNavigationState } from '@react-navigation/native';
