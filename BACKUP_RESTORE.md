@@ -16,6 +16,17 @@ recover production from one.
   private key, and restores into a scratch database with `pg_restore --clean`.
   It then prints the latest applied migration and row counts for the core
   tables. It refuses to run if the target equals `DATABASE_URL`.
+- **Railway `db-backup` cron service** (`ops/backup/`) runs daily at 02:41
+  UTC inside the Railway project. It dumps the database over the private
+  network, so nothing is exposed to the internet, and restores each dump into
+  a throwaway Postgres inside the container to prove it is usable. It then
+  encrypts the dump to the age public key, uploads it with its checksum to the
+  `db-backups` bucket under `daily/`, and deletes uploads older than 30 days.
+  The private key isn't stored anywhere in Railway or the repository; the
+  owner keeps it. Logs show `backup_uploaded` and `backup_expired` events.
+  This copy is independent of the Postgres volume and its snapshots, but it
+  sits with the same provider. The GitHub workflow below is the off-provider
+  copy.
 - `.github/workflows/backup.yml` runs the backup nightly at 03:17 UTC, and on
   demand from the Actions tab. It verifies each dump against a throwaway
   Postgres container, then keeps the encrypted file as a workflow artifact for
@@ -48,9 +59,9 @@ recover production from one.
      TLS is configured on it; don't send the dump over an unencrypted
      connection.
 
-   Until both secrets exist, the nightly **Database backup** run fails with
-   "No backup taken". That red run is deliberate: it stops a missing backup
-   looking healthy.
+   Until both secrets exist, the nightly **Database backup** run passes with a
+   warning that no off-provider copy was taken. The daily Railway backup above
+   still runs.
 3. **Match the Postgres version.** If production runs a Postgres major version
    newer than 16, add a repository variable `POSTGRES_MAJOR` set to that
    version. `pg_dump` cannot dump a newer server.
@@ -76,8 +87,9 @@ policy must state the backup retention period (see `RETENTION.md`).
 
 ## Monthly restore drill
 
-1. Download the latest `rider-comms-db-backup-*` artifact from the Database
-   backup workflow and unzip it.
+1. Download the latest backup and its `.sha256`: from the `db-backups` bucket
+   (Railway dashboard, or any S3 client with the bucket's credentials), or the
+   latest `rider-comms-db-backup-*` artifact from the Database backup workflow.
 2. Create an empty scratch database. A local Postgres of the same major
    version works.
 3. Run:
