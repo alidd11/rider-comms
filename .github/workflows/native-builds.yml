@@ -34,11 +34,13 @@ jobs:
         with:
           node-version: 22
       - run: npm ci
-      # The runner's default Xcode, not the newest: a newer Swift compiler than
-      # Expo supports rejects expo-modules-jsi's C++ interop annotations.
-      - name: Show Xcode
+      # Pinned: Xcode 16.x can't resolve the Swift packages Expo SDK 57 needs,
+      # and Xcode 26.3's Swift compiler rejects expo-modules-jsi's C++ interop
+      # annotations. Move this with the Expo SDK.
+      - name: Select Xcode
         run: |
-          echo "::notice title=Xcode::$(xcodebuild -version | tr '\n' ' ') (installed: $(ls /Applications | grep -E '^Xcode' | tr '\n' ' '))"
+          sudo xcode-select -s /Applications/Xcode_26.2.app
+          echo "::notice title=Xcode::$(xcodebuild -version | tr '\n' ' ')"
       - name: Generate the native project
         working-directory: mobile
         run: npx expo prebuild --clean --platform ios --no-install
