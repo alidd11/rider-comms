@@ -1,11 +1,11 @@
 name: Native builds
 
-# Compiles the native apps: iOS for the simulator (CocoaPods, native
-# modules, Swift/Objective-C) and an Android debug APK (Gradle). The main CI
-# job only checks the JavaScript bundle and the Expo config, so a native
-# dependency that fails to compile would otherwise first show up in an EAS
-# build. Runs when the mobile app or its dependencies change, weekly, and on
-# demand. Neither build needs signing.
+# Compiles and launches the native apps: iOS in a simulator (CocoaPods,
+# native modules, Swift/Objective-C) and Android in an emulator (Gradle).
+# The main CI job only checks the JavaScript bundle and the Expo config, so a
+# native dependency that fails to compile or crashes at startup would
+# otherwise first show up in an EAS build. Runs when the mobile app or its
+# dependencies change, weekly, and on demand. Neither build needs signing.
 
 on:
   pull_request:
@@ -13,6 +13,7 @@ on:
       - 'mobile/**'
       - 'package-lock.json'
       - '.github/workflows/native-builds.yml'
+      - 'scripts/android-launch-check.sh'
   schedule:
     - cron: '23 5 * * 1'
   workflow_dispatch:
@@ -104,7 +105,9 @@ jobs:
 
   android:
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    # The release build takes about half an hour; the emulator step has its
+    # own 25-minute limit.
+    timeout-minutes: 80
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -118,13 +121,57 @@ jobs:
       - name: Generate the native project
         working-directory: mobile
         run: npx expo prebuild --clean --platform android --no-install
-      - name: Build a debug APK
+      - name: Build a release APK
         working-directory: mobile/android
+        # Release embeds the JavaScript bundle (no Metro needed); the Expo
+        # template signs it with the debug keystore, which is fine for CI.
+        env:
+          EXPO_PUBLIC_API_URL: https://backend-production-7fa0.up.railway.app
         run: |
-          if ! ./gradlew assembleDebug --no-daemon > build.log 2>&1; then
+          if ! ./gradlew assembleRelease --no-daemon > build.log 2>&1; then
             tail -n 150 build.log
             errors="$( (sed -n '/What went wrong/,/Try:/p' build.log; grep -E '^e: |error:' build.log) | head -n 40)"
             echo "::error title=Android build failed::${errors//$'\n'/%0A}"
             exit 1
           fi
           tail -n 20 build.log
+      - name: Enable KVM for the emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      # Same reason as the iOS launch check: native modules run at startup.
+      # Uses the runner's own Android SDK rather than a third-party action.
+      - name: Launch in an Android emulator
+        timeout-minutes: 25
+        run: |
+          export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH"
+          image="system-images;android-34;google_apis;x86_64"
+          fail() {
+            log="$(tail -n 30 emulator.log 2>/dev/null)"
+            echo "::error title=Android emulator: $1::${log//$'\n'/%0A}"
+            exit 1
+          }
+          yes | sdkmanager --licenses > /dev/null || true
+          timeout 600 sdkmanager --install "$image" emulator platform-tools > /dev/null || fail "SDK install timed out"
+          # avdmanager and the emulator default to different AVD folders on
+          # this image, so both are pointed at one explicitly.
+          export ANDROID_AVD_HOME="$HOME/.android/avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+          echo no | avdmanager create avd --name ci --package "$image" --force
+          emulator -list-avds | grep -qx ci || fail "AVD was not created"
+          ls -l /dev/kvm
+          emulator -avd ci -no-window -no-audio -no-boot-anim -no-snapshot -accel on -gpu swiftshader_indirect > emulator.log 2>&1 &
+          timeout 300 adb wait-for-device || fail "device never appeared"
+          timeout 420 bash -c 'until [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d "\r")" = 1 ]; do sleep 5; done' || fail "did not finish booting"
+          adb shell settings put global window_animation_scale 0
+          adb shell settings put global transition_animation_scale 0
+          adb shell settings put global animator_duration_scale 0
+          scripts/android-launch-check.sh
+      - name: Upload the launch screenshot
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: android-launch-screenshot
+          path: android-launch.png
+          if-no-files-found: ignore
