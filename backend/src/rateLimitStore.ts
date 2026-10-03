@@ -3,6 +3,7 @@ import { ensureMigrated, getPool } from './db.ts';
 export type RateLimitAction =
   | 'auth'
   | 'auth_account'
+  | 'signup_ip'
   | 'api'
   | 'ride_join_rider'
   | 'ride_join_ip'
@@ -28,6 +29,10 @@ export const RATE_LIMIT_POLICIES: Readonly<Record<RateLimitAction, RateLimitPoli
   // Login attempts per account, whichever addresses they come from, so a
   // password can't be guessed by spreading attempts across many IPs.
   auth_account: { maxEvents: 10, windowMs: 15 * 60_000 },
+  // Accounts created per client address. Bounds account farming and ban
+  // evasion while leaving room for a group signing up together behind one
+  // carrier-grade NAT address at a meet.
+  signup_ip: { maxEvents: 20, windowMs: 60 * 60_000 },
   api: { maxEvents: 300, windowMs: 60_000 },
   // A private ride code grants access to live group features, so guessing is
   // constrained independently by authenticated rider and client address.

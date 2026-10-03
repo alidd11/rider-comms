@@ -797,4 +797,14 @@ export const MIGRATIONS: Migration[] = [
         );
     `,
   },
+  {
+    name: '0046_rate_limit_signup_ip',
+    sql: `
+      ALTER TABLE rate_limit_events DROP CONSTRAINT IF EXISTS rate_limit_events_action_check;
+      ALTER TABLE rate_limit_events ADD CONSTRAINT rate_limit_events_action_check
+        CHECK (
+          action IN ('auth', 'auth_account', 'signup_ip', 'api', 'ride_join_rider', 'ride_join_ip', 'hazard_create', 'directions', 'places', 'client_error', 'presence', 'verification_resend', 'password_reset_request', 'ride_create', 'hideout_create')
+        );
+    `,
+  },
 ];

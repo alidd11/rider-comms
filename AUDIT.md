@@ -144,6 +144,7 @@ Fixed in this pass:
 - PWA `script-src` allowed all of `cdn.jsdelivr.net`; it now allows only the pinned LiveKit file, which loads with a subresource-integrity hash (matches the npm 2.22.3 bundle).
 - Backend sends `Strict-Transport-Security`.
 - Login is limited per account (10 per 15 minutes) as well as per address (migration 0045).
+- Signups are limited to 20 per address per hour (migration 0046), so one address can't farm accounts to evade bans. Messages, friend requests and reports already had per-rider limits.
 - The iOS associated domain is removed until the association file and Team ID exist.
 - CI timeout raised to 25 minutes, with Playwright browsers cached.
 - Dated audit reports moved to `docs-archive/`.

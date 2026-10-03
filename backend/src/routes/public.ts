@@ -21,6 +21,7 @@ export async function handlePublicRoutes(ctx: PublicRouteContext): Promise<unkno
   }
   if (req.method === 'POST' && url.pathname === '/auth/signup') {
     if (!(await consumeRateLimit(res, rateLimitStore, rateLimitSubject('ip', address), 'auth'))) return;
+    if (!(await consumeRateLimit(res, rateLimitStore, rateLimitSubject('ip', address), 'signup_ip'))) return;
     const body = await readJsonBody(req);
     // App Store guideline 1.2: no account without agreeing to the Terms and
     // Community Guidelines; the version agreed to is stored with it.
