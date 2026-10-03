@@ -1,0 +1,14 @@
+# Keeps the commit-pinned GitHub Actions current: one grouped pull request a
+# month. Dependabot updates both the SHA and the version comment, which
+# scripts/check-workflows.mjs requires. npm is left out on purpose: Expo pins
+# native package versions, and those move with the Expo SDK (expo install),
+# not one package at a time.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ['*']
