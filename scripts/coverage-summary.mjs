@@ -8,12 +8,12 @@ import { join } from 'node:path';
 // coverage measured when they were set (2026-09-29: 97.6 / 90.2 / 90.2;
 // mobile Jest raised on 2026-09-30 at 86.5; on 2026-10-03 shared code and the
 // API client stopped being double-counted in the mobile reports, which then
-// read 98.5 / 91.6), so normal churn passes but a
+// read 98.5 / 91.6, and backend likewise stopped counting shared code at 95.1), so normal churn passes but a
 // real regression fails CI. Raise them as
 // coverage improves; never lower one to get a change through.
 const reports = [
   ['shared', 'coverage/shared.lcov', 95],
-  ['backend', 'coverage/backend.lcov', 88],
+  ['backend', 'coverage/backend.lcov', 93],
   ['mobile (node:test)', 'coverage/mobile-client.lcov', 96],
   ['mobile (Jest)', 'coverage/jest/lcov.info', 89],
 ];
