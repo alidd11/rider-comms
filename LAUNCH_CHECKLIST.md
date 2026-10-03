@@ -79,6 +79,8 @@ On a real iPhone, with location and microphone allowed:
 - VoiceOver on sign-in, map, ride and chat, and the largest Dynamic Type
   size (`ACCESSIBILITY.md`).
 - Account deletion from Settings.
+- Voice on the first native build after the LiveKit React Native 3.0
+  upgrade (#391): a group ride and Nearby, on iPhone and Android.
 
 ## 6. Submit
 
