@@ -139,14 +139,25 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
       # Same reason as the iOS launch check: native modules run at startup.
+      # Uses the runner's own Android SDK rather than a third-party action.
       - name: Launch in an Android emulator
-        uses: reactivecircus/android-emulator-runner@e93c997dcab69054e999e3924af3d21c4a736e13 # v2.9.0
-        with:
-          api-level: 34
-          arch: x86_64
-          target: google_apis
-          disable-animations: true
-          script: scripts/android-launch-check.sh
+        run: |
+          export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH"
+          image="system-images;android-34;google_apis;x86_64"
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager --install "$image" emulator platform-tools > /dev/null
+          echo no | avdmanager create avd --name ci --package "$image" --force > /dev/null
+          emulator -avd ci -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect > emulator.log 2>&1 &
+          adb wait-for-device
+          if ! timeout 420 bash -c 'until [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d "\r")" = 1 ]; do sleep 5; done'; then
+            log="$(tail -n 30 emulator.log)"
+            echo "::error title=Android emulator did not boot::${log//$'\n'/%0A}"
+            exit 1
+          fi
+          adb shell settings put global window_animation_scale 0
+          adb shell settings put global transition_animation_scale 0
+          adb shell settings put global animator_duration_scale 0
+          scripts/android-launch-check.sh
       - name: Upload the launch screenshot
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
