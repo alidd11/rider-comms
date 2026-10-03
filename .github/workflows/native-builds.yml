@@ -47,16 +47,23 @@ jobs:
         run: pod install
       - name: Build for the iOS simulator
         working-directory: mobile/ios
+        # The full log is long; on failure the compiler's own error lines are
+        # also published as an annotation so they show on the PR.
         run: |
-          set -o pipefail
-          xcodebuild \
+          if ! xcodebuild \
             -workspace RiderComms.xcworkspace \
             -scheme RiderComms \
             -configuration Debug \
             -sdk iphonesimulator \
             -destination 'generic/platform=iOS Simulator' \
             CODE_SIGNING_ALLOWED=NO \
-            build | tail -n 200
+            build > build.log 2>&1; then
+            tail -n 150 build.log
+            errors="$(grep -E 'error:|fatal error|BUILD FAILED|The following build commands failed' build.log | sort -u | head -n 40)"
+            echo "::error title=iOS build failed::${errors//$'\n'/%0A}"
+            exit 1
+          fi
+          tail -n 20 build.log
 
   android:
     runs-on: ubuntu-24.04
@@ -76,4 +83,11 @@ jobs:
         run: npx expo prebuild --clean --platform android --no-install
       - name: Build a debug APK
         working-directory: mobile/android
-        run: ./gradlew assembleDebug --no-daemon
+        run: |
+          if ! ./gradlew assembleDebug --no-daemon > build.log 2>&1; then
+            tail -n 150 build.log
+            errors="$( (sed -n '/What went wrong/,/Try:/p' build.log; grep -E '^e: |error:' build.log) | head -n 40)"
+            echo "::error title=Android build failed::${errors//$'\n'/%0A}"
+            exit 1
+          fi
+          tail -n 20 build.log
