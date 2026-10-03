@@ -154,7 +154,12 @@ jobs:
           }
           yes | sdkmanager --licenses > /dev/null || true
           timeout 600 sdkmanager --install "$image" emulator platform-tools > /dev/null || fail "SDK install timed out"
-          echo no | avdmanager create avd --name ci --package "$image" --force > /dev/null
+          # avdmanager and the emulator default to different AVD folders on
+          # this image, so both are pointed at one explicitly.
+          export ANDROID_AVD_HOME="$HOME/.android/avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+          echo no | avdmanager create avd --name ci --package "$image" --force
+          emulator -list-avds | grep -qx ci || fail "AVD was not created"
           ls -l /dev/kvm
           emulator -avd ci -no-window -no-audio -no-boot-anim -no-snapshot -accel on -gpu swiftshader_indirect > emulator.log 2>&1 &
           timeout 300 adb wait-for-device || fail "device never appeared"

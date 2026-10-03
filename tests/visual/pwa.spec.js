@@ -1295,6 +1295,10 @@ test('PWA Nearby handles server rejections during background refresh like the na
 test('PWA Nearby Voice waits without holding the mic, then connects when a rider enters range', async ({ page }) => {
   let shareLocation = false;
   let presenceUpdates = 0;
+  // The test decides when the other rider enters range. Tying it to a count
+  // of presence refreshes left the waiting state on screen for only one
+  // 300 ms refresh, which a slow CI runner could miss.
+  let peerInRange = false;
 
   await mockAuthenticatedApi(page, 'stationary', ({ url, request }) => {
     if (url.pathname === `/riders/${RIDER_ID}/profile`) {
@@ -1306,7 +1310,7 @@ test('PWA Nearby Voice waits without holding the mic, then connects when a rider
     }
     if (url.pathname === '/presence' && request.method() === 'POST') {
       presenceUpdates += 1;
-      const peerVisible = presenceUpdates >= 2;
+      const peerVisible = peerInRange;
       return {
         body: {
           inZoneWith: peerVisible ? ['rider_peer01'] : [],
@@ -1319,10 +1323,9 @@ test('PWA Nearby Voice waits without holding the mic, then connects when a rider
       return { body: { riderId: 'rider_peer01', displayName: 'Peer Rider', handle: '@peer', avatarId: 'ridge' } };
     }
     if (url.pathname === '/voice/token' && request.method() === 'POST') {
-      const peerVisible = presenceUpdates >= 2;
       return {
         body: {
-          connections: peerVisible
+          connections: peerInRange
             ? [{ peerId: 'rider_peer01', token: 'peer-token', url: 'wss://voice.example.test' }]
             : [],
           refreshAfterMs: 20_000,
@@ -1387,8 +1390,13 @@ test('PWA Nearby Voice waits without holding the mic, then connects when a rider
   await expect(nearby).toHaveAttribute('data-active', 'true');
   await expect(voice).toBeVisible();
   await expect(voice).toHaveAttribute('aria-label', 'Nearby Voice · waiting for riders');
+  // Still waiting after further presence refreshes, with no room opened.
+  const refreshesBeforePeer = presenceUpdates;
+  await expect.poll(() => presenceUpdates).toBeGreaterThan(refreshesBeforePeer + 1);
+  await expect(voice).toHaveAttribute('aria-label', 'Nearby Voice · waiting for riders');
+  expect(await page.evaluate(() => window.__nearbyVoiceRoomsCreated)).toBe(0);
 
-  await expect.poll(() => presenceUpdates).toBeGreaterThanOrEqual(2);
+  peerInRange = true;
   await expect.poll(() => page.evaluate(() => window.__nearbyVoiceRoomsCreated)).toBe(1);
   await expect(voice).toHaveAttribute('aria-label', 'Listening — hands-free');
 });
