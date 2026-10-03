@@ -34,11 +34,11 @@ jobs:
         with:
           node-version: 22
       - run: npm ci
-      - name: Use the newest installed Xcode
+      # The runner's default Xcode, not the newest: a newer Swift compiler than
+      # Expo supports rejects expo-modules-jsi's C++ interop annotations.
+      - name: Show Xcode
         run: |
-          xcode="$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)"
-          sudo xcode-select -s "$xcode"
-          xcodebuild -version
+          echo "::notice title=Xcode::$(xcodebuild -version | tr '\n' ' ') (installed: $(ls /Applications | grep -E '^Xcode' | tr '\n' ' '))"
       - name: Generate the native project
         working-directory: mobile
         run: npx expo prebuild --clean --platform ios --no-install
