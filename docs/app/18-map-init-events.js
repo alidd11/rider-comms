@@ -66,6 +66,16 @@
     return marker;
   }
 
+  // Riders lose signal on the road. Say so, instead of leaving the map and
+  // chat looking frozen. navigator.onLine is only a hint, so this shows just
+  // while the browser itself reports no connection.
+  function watchConnection() {
+    const sync = () => { $('#offlineBanner').hidden = navigator.onLine !== false; };
+    window.addEventListener('online', sync);
+    window.addEventListener('offline', sync);
+    sync();
+  }
+
   function registerServiceWorker() {
     if (!('serviceWorker' in navigator)) return;
     let refreshing = false;

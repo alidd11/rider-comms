@@ -36,6 +36,7 @@
     { "id": "navigation", "pwa": true, "native": true, "status": "behavior-gap" },
     { "id": "navigation-road-ahead", "pwa": true, "native": true, "status": "parity" },
     { "id": "routes", "pwa": true, "native": true, "status": "parity" },
+    { "id": "connection-status", "pwa": true, "native": true, "status": "parity" },
     { "id": "ride-safe", "pwa": true, "native": true, "status": "parity" },
     { "id": "session-management", "pwa": true, "native": true, "status": "parity" },
     { "id": "account-deletion", "pwa": true, "native": true, "status": "parity" },

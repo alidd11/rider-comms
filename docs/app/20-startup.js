@@ -17,6 +17,7 @@
     navigate(location.hash.slice(1) || state.screen || 'map', false);
     loadGoogleMaps();
     registerServiceWorker();
+    watchConnection();
     void loadFriendsData();
     startSocialEvents();
     syncFriendActivityPolling();
