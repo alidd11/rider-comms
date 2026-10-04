@@ -15,6 +15,10 @@ device, so it needs the owner. The detailed guides are linked.
 - Production monitoring: uptime checks every 10 minutes, crash and error
   alert emails, request tracing, and a database-aware deploy health check.
 - Railway volume backups of the production database (daily and weekly).
+- A daily encrypted database backup (Railway `db-backup` service, 02:41
+  UTC). Each copy is verified by a test restore before upload and kept for
+  30 days. The owner holds the decryption key, `rider-comms-backup.agekey`.
+- Both apps show "No connection" when a rider loses signal (#398).
 - Both native apps compile and launch (iPhone simulator, Android emulator)
   on every mobile change and weekly, including after the LiveKit 3.0
   upgrade. Voice itself still needs the device check below.
@@ -31,12 +35,16 @@ device, so it needs the owner. The detailed guides are linked.
 4. Name who reviews reports. The app promises review within 24 hours
    (`MODERATION.md`).
 
-## 2. Off-site backups (about an hour)
+## 2. Backup key, and optionally an off-Railway copy
 
-Railway snapshots already exist, but they sit with the same provider as the
-database. The off-site copy needs:
+1. **Save the backup key** (`rider-comms-backup.agekey`, sent in the
+   session) in your password manager and one other safe place. Without it
+   the daily backups can't be restored.
 
-1. An age key pair. Keep the private key in two safe places.
+Optional: a copy outside Railway. The daily backup and the snapshots all
+sit with Railway. The GitHub workflow can keep a copy elsewhere once it has:
+
+1. The same age public key, or a new key pair.
 2. A read-only database role, a TCP proxy on the Postgres service, and TLS
    on Postgres. The plain image has no certificate.
 3. The `BACKUP_AGE_RECIPIENT` and `PRODUCTION_DATABASE_URL` repository
@@ -44,7 +52,7 @@ database. The off-site copy needs:
 4. One manual run of the Database backup workflow, then a restore drill.
 
 Steps and commands are in `BACKUP_RESTORE.md`. Until the secrets exist, the
-nightly backup job fails on purpose.
+nightly GitHub job passes with a warning and takes no copy.
 
 ## 3. Apple (a few days, mostly Apple's review time)
 
