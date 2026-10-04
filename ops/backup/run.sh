@@ -16,13 +16,21 @@ s3() { aws --endpoint-url "$ENDPOINT" s3 "$@"; }
 # BACKUP_VERIFY_DATABASE_URL). initdb refuses to run as root.
 scratch=/tmp/verify-pg
 mkdir -p "$scratch" && chown postgres:postgres "$scratch"
-su-exec postgres initdb -D "$scratch" -A trust -U postgres > /dev/null
+su-exec postgres initdb -D "$scratch" -A trust -U postgres --no-locale > /dev/null
 su-exec postgres pg_ctl -D "$scratch" -o "-c listen_addresses=127.0.0.1 -p 5433" -w start > /dev/null
 trap 'su-exec postgres pg_ctl -D "$scratch" -m fast stop > /dev/null 2>&1 || true' EXIT
 su-exec postgres createdb -h 127.0.0.1 -p 5433 -U postgres verify
 export BACKUP_VERIFY_DATABASE_URL="postgres://postgres@127.0.0.1:5433/verify"
 
-file="$(/app/db-backup.sh /tmp/backups)"
+# db-backup.sh prints the verify report on stderr (stdout is just the
+# backup path). Railway marks stderr lines as errors, so route the report to
+# stdout here; real failures still exit non-zero.
+if ! /app/db-backup.sh /tmp/backups > /tmp/backup-path 2> /tmp/backup-report; then
+  cat /tmp/backup-report
+  exit 1
+fi
+cat /tmp/backup-report
+file="$(cat /tmp/backup-path)"
 name="$(basename "$file")"
 s3 cp --only-show-errors "$file" "s3://$BUCKET/daily/$name"
 s3 cp --only-show-errors "$file.sha256" "s3://$BUCKET/daily/$name.sha256"
