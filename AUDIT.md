@@ -166,6 +166,8 @@ Later the same day (#390 onwards):
 - New Native builds workflow compiles both apps and launches them: a Release iOS build in an iPhone simulator (Xcode 26.6 on macos-26) and a release APK in an API 34 emulator. Each must still be running 30 s after launch. Its first run found Android hadn't compiled since at least 22 September (`@livekit/react-native` 2.12 vs webrtc 144.2); fixed by moving to LiveKit React Native 3.0.0 (#391), which now launches on both platforms.
 - The intermittent Playwright failure seen through the day was the Nearby Voice waiting-state test racing a 300 ms refresh; the test now controls when the peer enters range (#395).
 - `LAUNCH_CHECKLIST.md` lists the owner's remaining steps in order.
+- Daily encrypted logical backup runs as the Railway `db-backup` cron service (#397, #399): restore-verified inside the container, uploaded to the `db-backups` bucket, kept 30 days. The first production run succeeded on 4 October. The owner holds the private key.
+- Both apps tell riders when they've lost signal (#398): the PWA uses online/offline events, native uses expo-network, and it's tracked in `client-parity.json`.
 
 Still open:
 - iOS 26+ draws a Liquid Glass blur over the top of Home Screen web apps where the page isn't a flat colour; the map shows it. System behaviour, accepted.
