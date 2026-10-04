@@ -3097,6 +3097,23 @@ test('Public legal and support pages have no automatically detectable accessibil
   }
 });
 
+test('PWA says when the connection drops and clears the notice when it returns', async ({ page, context }) => {
+  await mockAuthenticatedApi(page, 'stationary');
+  await page.goto('/');
+  await expect(page.locator('#app')).toBeVisible();
+  const banner = page.locator('#offlineBanner');
+  await expect(banner).toBeHidden();
+
+  await context.setOffline(true);
+  await expect(banner).toBeVisible();
+  await expect(banner).toHaveText(/No connection/);
+  // The notice must never block the map or controls underneath it.
+  expect(await banner.evaluate((element) => getComputedStyle(element).pointerEvents)).toBe('none');
+
+  await context.setOffline(false);
+  await expect(banner).toBeHidden();
+});
+
 test('PWA asks existing accounts to agree to the current Terms before the app opens', async ({ page }) => {
   let accepted = null;
   await mockAuthenticatedApi(page, 'stationary', async ({ request, url }) => {

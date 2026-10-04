@@ -5,6 +5,7 @@ import type { LinkingOptions, NavigatorScreenParams } from '@react-navigation/na
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { ConnectionBanner } from '../components/ConnectionBanner';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { MapScreen } from '../screens/MapScreen';
@@ -348,6 +349,7 @@ export function AppNavigator(): React.JSX.Element {
                   <Stack.Screen name="Legal" component={LegalScreen} options={{ headerShown: false }} />
                 </Stack.Navigator>
               </NavigationContainer>
+              <ConnectionBanner />
               </MovementSafetyProvider>
             </OnboardingGate>
           </FriendsProvider>

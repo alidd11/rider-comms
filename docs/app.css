@@ -2721,3 +2721,8 @@ html.pwa-standalone:not(.keyboard-open) .chat-screen{top:0;bottom:auto;height:va
 /* iOS 26 blurs a band just below the status bar in installed web apps. Seat
    the chat title below it, as the other screens' titles already are. */
 .chat-header{padding-top:calc(var(--safe-top) + 14px);min-height:calc(var(--safe-top) + 68px)}
+/* Offline notice: same placement as the update banner, never blocks taps,
+   and sits below it if both are showing. */
+.offline-banner{pointer-events:none}
+.offline-banner span{text-align:center}
+.update-banner:not([hidden])+.offline-banner{top:calc(var(--safe-top) + 66px)}
