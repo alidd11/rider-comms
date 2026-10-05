@@ -980,7 +980,11 @@
         if (!['email_verification_required', 'location_sharing_disabled', 'rate_limited', 'implausible_location_jump', 'location accuracy must be between 0 and 100 metres'].includes(code)) {
           // Report why, without coordinates, so a failure like this is
           // diagnosable from the server logs.
-          clientErrorReporter(`Go live failed: ${code ?? (error instanceof Error ? error.message : String(error))}`, 'nearby.go_live', false);
+          // The fix's own timestamp age and accuracy (no coordinates) show
+          // whether the phone is handing back old fixes.
+          const timestampAgeS = Math.round((Date.now() - Number(position?.timestamp)) / 1000);
+          const accuracyM = Math.round(Number(position?.coords?.accuracy));
+          clientErrorReporter(`Go live failed: ${code ?? (error instanceof Error ? error.message : String(error))} (fix timestamp ${timestampAgeS}s old, accuracy ${accuracyM} m)`, 'nearby.go_live', false);
         }
       }
     } finally {
