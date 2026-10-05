@@ -54,6 +54,11 @@ export async function handleModerationRoutes(ctx: RouteContext): Promise<unknown
       if (!result.ok) return sendJson(res, result.error === 'not_found' ? 404 : 409, { error: result.error });
       return sendJson(res, 200, result);
     }
+    if (req.method === 'POST' && s[1] === 'riders' && s[2] && s[3] === 'verify-email' && s.length === 4) {
+      const result = await moderationStore.verifyEmail(decodeURIComponent(s[2]), actorId, note);
+      if (!result.ok) return sendJson(res, result.error === 'not_found' ? 404 : 409, { error: result.error });
+      return sendJson(res, 200, result);
+    }
     return sendJson(res, 404, { error: 'not_found' });
   }
   return NOT_HANDLED;

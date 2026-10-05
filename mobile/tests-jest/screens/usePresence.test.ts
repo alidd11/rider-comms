@@ -179,6 +179,23 @@ test('explains a rejected location jump and stays live so the next steady fix re
   expect(result.current.publicLive).toBe(true);
 });
 
+test('a stale-fix refusal shows a readable message instead of the raw API error', async () => {
+  const setError = jest.fn();
+  const client = {
+    updatePresence: jest.fn(async () => {
+      throw new ApiError(400, { error: 'location fix timestamp is stale or invalid' });
+    }),
+  };
+  const { result } = await renderPresence({ client, setError });
+
+  await act(async () => {
+    await result.current.handleNearbyToggle();
+  });
+
+  await waitFor(() => expect(setError).toHaveBeenCalledWith('Waiting for a fresh location. Trying again shortly.'));
+  expect(result.current.publicLive).toBe(true);
+});
+
 test('explains a presence rate limit and stays live', async () => {
   const setError = jest.fn();
   const client = {

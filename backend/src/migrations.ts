@@ -807,4 +807,13 @@ export const MIGRATIONS: Migration[] = [
         );
     `,
   },
+  {
+    // Staff can mark a rider's email verified; recorded in the audit log.
+    name: '0047_moderation_action_verify_email',
+    sql: `
+      ALTER TABLE moderation_actions DROP CONSTRAINT IF EXISTS moderation_actions_action_check;
+      ALTER TABLE moderation_actions ADD CONSTRAINT moderation_actions_action_check
+        CHECK (action IN ('dismiss', 'suspend', 'unsuspend', 'verify_email'));
+    `,
+  },
 ];

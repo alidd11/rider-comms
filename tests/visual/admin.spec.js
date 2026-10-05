@@ -106,6 +106,11 @@ async function mockModerationApi(page, { admin = true, suspended = false } = {})
       state.actions.unshift({ id: `a${state.actions.length}`, moderatorId: ADMIN_ID, targetRiderId: report.reportedRiderId, reportId: report.id, action: body.resolution, note: body.note, createdAt: Date.now() });
       return json(200, { ok: true });
     }
+    if (url.pathname.endsWith('/verify-email')) {
+      const rider = RIDERS.find((candidate) => url.pathname.includes(candidate.riderId));
+      if (rider) rider.emailVerified = true;
+      return json(200, { ok: true });
+    }
     if (url.pathname.endsWith('/unsuspend')) {
       for (const report of state.reports) report.reportedRiderSuspended = false;
       return json(200, { ok: true });
@@ -267,6 +272,20 @@ test.describe('staff dashboard', () => {
     await page.getByRole('button', { name: 'Search', exact: true }).click();
     await expect(page.locator('.empty-title')).toHaveText('No riders found');
     expect(state.riderQueries).toEqual(['', 'nobody']);
+  });
+
+  test('staff verify an unverified rider\'s email with a note', async ({ page }) => {
+    await signIn(page);
+    const state = await mockModerationApi(page);
+    await page.goto('/admin.html#riders');
+    const rex = page.locator('[data-rider-id="rider_rex"]:visible');
+    await expect(rex.getByRole('button', { name: "Mark rex's email verified" })).toBeVisible();
+    await expect(page.locator('[data-rider-id="rider_maya"]:visible').getByRole('button', { name: /email verified/ })).toHaveCount(0);
+
+    page.once('dialog', (dialog) => dialog.accept('Known tester'));
+    await rex.getByRole('button', { name: "Mark rex's email verified" }).click();
+    await expect.poll(() => state.posts.find((post) => post.path === '/moderation/riders/rider_rex/verify-email')?.body).toEqual({ note: 'Known tester' });
+    await expect(page.locator('[data-rider-id="rider_rex"]:visible').getByRole('button', { name: /email verified/ })).toHaveCount(0);
   });
 
   test('system view reports API and database health', async ({ page }) => {

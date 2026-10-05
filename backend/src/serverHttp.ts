@@ -67,7 +67,18 @@ export function parseAllowedOrigins(raw: string | undefined): string[] {
   }))];
 }
 
+// The `error` code of a 4xx/5xx JSON response, kept so the request log can
+// say why a request was refused. These are server-written codes and
+// messages (e.g. 'rate_limited'), never request data.
+const responseErrors = new WeakMap<http.ServerResponse, string>();
+
+export function responseErrorCode(res: http.ServerResponse): string | undefined {
+  return responseErrors.get(res);
+}
+
 export function sendJson(res: http.ServerResponse, status: number, body: unknown): void {
+  const error = status >= 400 && body && typeof body === 'object' ? (body as { error?: unknown }).error : undefined;
+  if (typeof error === 'string') responseErrors.set(res, error.slice(0, 120));
   const payload = JSON.stringify(body);
   res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Content-Length': Buffer.byteLength(payload) });
   res.end(payload);

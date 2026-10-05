@@ -21,7 +21,7 @@
     sexual: 'Sexual content',
     other: 'Other',
   };
-  const ACTION_LABELS = { dismiss: 'Dismissed a report', suspend: 'Suspended rider', unsuspend: 'Unsuspended rider' };
+  const ACTION_LABELS = { dismiss: 'Dismissed a report', suspend: 'Suspended rider', unsuspend: 'Unsuspended rider', verify_email: 'Verified email' };
 
   const pageEl = document.getElementById('page');
   const navEl = document.getElementById('nav');
@@ -608,6 +608,30 @@
     ]);
   }
 
+  // Until account emails can be delivered (Resend needs a verified domain),
+  // staff can verify riders they know. The note goes in the audit log.
+  function verifyEmailButton(rider) {
+    if (rider.emailVerified) return null;
+    const button = el('button', { type: 'button', class: 'button button-small', dataset: { action: 'verify-email' }, text: 'Verify email', 'aria-label': `Mark ${rider.username}'s email verified` });
+    button.addEventListener('click', async () => {
+      const note = window.prompt(`Mark ${rider.username}'s email as verified? Only do this for riders you know. Note for the audit log:`, 'Known rider; verification email not delivered.');
+      if (note === null) return;
+      if (!note.trim()) {
+        window.alert('A note is required. Every staff action is recorded with its reason.');
+        return;
+      }
+      button.disabled = true;
+      try {
+        await api('POST', `/moderation/riders/${encodeURIComponent(rider.riderId)}/verify-email`, { note: note.trim() });
+        await render();
+      } catch (error) {
+        button.disabled = false;
+        window.alert(error instanceof ApiError && error.code === 'already_verified' ? 'This rider is already verified.' : actionErrorMessage(error));
+      }
+    });
+    return button;
+  }
+
   function renderRiders(riders) {
     const form = el('form', { class: 'toolbar', role: 'search' });
     const input = el('input', { class: 'input', type: 'search', name: 'q', placeholder: 'Search name, username, email or ID', 'aria-label': 'Search riders', maxlength: 100, autocomplete: 'off' });
@@ -625,7 +649,7 @@
       : [
         el('div', { class: 'card only-mobile' }, [el('ul', { class: 'list' }, riders.map((rider) => el('li', { class: 'list-row', dataset: { riderId: rider.riderId } }, [
           person(displayName(rider), [rider.handle, rider.email].filter(Boolean).join(' · '), rider.riderId),
-          el('div', { class: 'trail' }, [riderBadges(rider), el('div', {}, [timeEl(rider.lastSeenAt, 'Inactive')])]),
+          el('div', { class: 'trail' }, [riderBadges(rider), verifyEmailButton(rider), el('div', {}, [timeEl(rider.lastSeenAt, 'Inactive')])]),
         ])))]),
         el('div', { class: 'card table-card only-desktop' }, [el('div', { class: 'table-scroll' }, [el('table', { class: 'table' }, [
           el('thead', {}, [el('tr', {}, [
@@ -635,7 +659,7 @@
           el('tbody', {}, riders.map((rider) => el('tr', { dataset: { riderId: rider.riderId } }, [
             el('td', {}, [person(displayName(rider), [rider.handle, rider.riderId].filter(Boolean).join(' · '), rider.riderId)]),
             el('td', { class: 'muted', text: rider.email || '—' }),
-            el('td', {}, [riderBadges(rider)]),
+            el('td', {}, [riderBadges(rider), verifyEmailButton(rider)]),
             el('td', { class: 'muted' }, [timeEl(rider.createdAt)]),
             el('td', { class: 'muted' }, [timeEl(rider.lastSeenAt, 'Over 30 days')]),
             el('td', { class: 'num', text: numberFormat.format(rider.friends) }),
