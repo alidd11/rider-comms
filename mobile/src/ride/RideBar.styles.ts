@@ -90,6 +90,17 @@ export const styles = StyleSheet.create({
   gainLabel: { ...type.body, color: colors.textPrimary, width: 90 },
   gainTrack: { flex: 1, height: 8, borderRadius: radii.pill, backgroundColor: colors.border, overflow: 'hidden' },
   gainFill: { height: '100%', backgroundColor: colors.accent, borderRadius: radii.pill },
+  musicControls: { flexDirection: 'row', justifyContent: 'center', gap: spacing.lg },
+  musicButton: {
+    width: MIN_TOUCH_TARGET,
+    height: MIN_TOUCH_TARGET,
+    borderRadius: radii.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surfaceRaised,
+  },
+  musicButtonPressed: { opacity: 0.7 },
+  musicHint: { ...type.caption },
   talkButton: {
     flexDirection: 'row',
     alignItems: 'center',

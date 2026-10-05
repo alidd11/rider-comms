@@ -115,6 +115,11 @@ On a real iPhone, with location and microphone allowed:
 - Account deletion from Settings.
 - Voice on the first native build after the LiveKit React Native 3.0
   upgrade (#391): a group ride and Nearby, on iPhone and Android.
+- Music during a ride: the Music level in the ride sheet rises when music
+  plays. On Android, the previous, play/pause and next buttons control
+  Spotify or YouTube Music, including during voice chat. On iPhone the sheet
+  says to use the helmet buttons.
+- Dark and light mode on Android follow the phone's setting.
 
 ## 6. Submit
 

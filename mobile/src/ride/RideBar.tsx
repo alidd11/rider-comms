@@ -14,6 +14,9 @@ import { ApiError } from '../api/client';
 import { audioEngine } from '../audio/audioEngine';
 import { LiveKitAudioPriorityBridge } from '../audio/LiveKitAudioPriorityBridge';
 import { acquireVoiceAudioSession, releaseVoiceAudioSession } from '../audio/audioSession';
+import { mediaControls } from '../audio/mediaControlsNative';
+import type { MediaKey } from '../audio/mediaControls';
+import { useMusicPlayback } from '../audio/useMusicPlayback';
 import { useVoiceActivity } from '../audio/useVoiceActivity';
 import { useAuth } from '../auth/AuthContext';
 import { ActiveSpeakerBridge } from '../voice/ActiveSpeakerBridge';
@@ -111,6 +114,44 @@ const CHANNELS: Array<{ key: 'nav' | 'chat' | 'music'; label: string; icon: keyo
   { key: 'music', label: 'Music', icon: 'musical-notes' },
 ];
 
+/**
+ * Play/pause and skip for the rider's music app where the platform allows it
+ * (Android). iOS can't control other apps' music, so it says to use the
+ * helmet or headset buttons instead. Only shown in the ride sheet, which
+ * Ride Safe closes while moving.
+ */
+function MusicControls({ playing, onChanged }: { playing: boolean | null; onChanged: () => void }): React.JSX.Element | null {
+  const { buttons, playbackState } = mediaControls.capabilities;
+  if (!buttons) {
+    return playbackState
+      ? <Text style={styles.musicHint}>Control music with your helmet or headset buttons, or your music app.</Text>
+      : null;
+  }
+  const press = (key: MediaKey) => {
+    if (mediaControls.send(key)) setTimeout(onChanged, 600);
+  };
+  const controls: Array<{ key: MediaKey; icon: keyof typeof Ionicons.glyphMap; label: string }> = [
+    { key: 'previous', icon: 'play-skip-back', label: 'Previous track' },
+    { key: 'playPause', icon: playing ? 'pause' : 'play', label: playing ? 'Pause music' : 'Play music' },
+    { key: 'next', icon: 'play-skip-forward', label: 'Next track' },
+  ];
+  return (
+    <View style={styles.musicControls}>
+      {controls.map(({ key, icon, label }) => (
+        <Pressable
+          key={key}
+          accessibilityRole="button"
+          accessibilityLabel={label}
+          onPress={() => press(key)}
+          style={({ pressed }) => [styles.musicButton, pressed && styles.musicButtonPressed]}
+        >
+          <Ionicons name={icon} size={22} color={colors.textPrimary} />
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
 function GainBar({ value }: { value: number }): React.JSX.Element {
   return (
     <View style={styles.gainTrack}>
@@ -152,6 +193,7 @@ export function RideBar({ controlsVisible = true }: { controlsVisible?: boolean 
   const { lockedForSafety } = useMovementSafety();
   const [expanded, setExpanded] = React.useState(false);
   const [gains, setGains] = React.useState(audioEngine.getGains());
+  const music = useMusicPlayback(Boolean(activeRide));
   const [talking, setTalking] = React.useState(false);
   const [remoteSpeakerIds, setRemoteSpeakerIds] = React.useState<Set<string>>(new Set());
   const [memberNames, setMemberNames] = React.useState<Map<string, string>>(new Map());
@@ -488,6 +530,7 @@ export function RideBar({ controlsVisible = true }: { controlsVisible?: boolean 
                     <GainBar value={gains[key]} />
                   </View>
                 ))}
+                <MusicControls playing={music.playing} onChanged={music.refresh} />
               </View>
 
               <Pressable

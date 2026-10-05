@@ -22,7 +22,7 @@ Working and verified in this repository:
 - In-app plan preview, privacy/safety information, and direct-message block/report controls.
 - Shared geo, ride-code, rate-limit, zone-transition, and audio-priority algorithms.
 - Shared 8 mph Ride Safe behavior in native and PWA: sustained movement at/above the threshold locks distracting controls; unknown/stale GPS shows a warning without making product areas disappear, and confirmed below-threshold movement unlocks after the shared hysteresis delay.
-- Active-ride voice surfaces report token, LiveKit and native audio-routing failures explicitly. While movement-locked, voice remains hands-free and the ride bar exposes only the essential leave action. Unsupported media-session controls are feature-detected and disabled instead of throwing.
+- Active-ride voice surfaces report token, LiveKit and native audio-routing failures explicitly. While movement-locked, voice remains hands-free and the ride bar exposes only the essential leave action. The ride sheet shows whether music is playing; on Android it also has previous, play/pause and next buttons for the rider's music app (iOS doesn't allow controlling other apps, so it points to helmet buttons).
 - Android and iOS Metro exports plus an EAS internal Android APK profile.
 
 Known limitations:
