@@ -25,6 +25,18 @@ export interface SendVerificationEmailOptions {
   timeoutMs?: number;
 }
 
+// Resend's error body explains a refusal ("verify a domain", "invalid
+// address") but can quote email addresses, which must not reach the logs.
+async function resendErrorReason(response: Response): Promise<string> {
+  try {
+    const body = (await response.json()) as { name?: unknown; message?: unknown };
+    const parts = [body?.name, body?.message].filter((part): part is string => typeof part === 'string' && part.length > 0);
+    return parts.join(': ').replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, '[email]').slice(0, 300);
+  } catch {
+    return '';
+  }
+}
+
 function recipientId(email: string): string {
   return createHash('sha256').update(email.trim().toLowerCase()).digest('hex').slice(0, 12);
 }
@@ -52,7 +64,8 @@ async function sendEmail(
       signal: AbortSignal.timeout(timeoutMs),
     });
     if (!response.ok) {
-      console.error(`[rider-comms] Resend returned HTTP ${response.status} for recipient ${recipient}.`);
+      const reason = await resendErrorReason(response);
+      console.error(`[rider-comms] Resend returned HTTP ${response.status} for recipient ${recipient}${reason ? ` (${reason})` : ''}.`);
       return false;
     }
     return true;

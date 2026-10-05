@@ -72,6 +72,14 @@ export async function handlePublicRoutes(ctx: PublicRouteContext): Promise<unkno
     if (!(await consumeRateLimit(res, rateLimitStore, rateLimitSubject('ip', address), 'client_error'))) return;
     const report = parseClientErrorReport(await readJsonBody(req));
     if (!report) return sendJson(res, 400, { error: 'platform and message are required' });
+    // A bare "Script error." is a cross-origin script (Google Maps, a browser
+    // extension) whose details the browser hides. Logged as a warning, but
+    // nothing in it can be acted on, so it doesn't email staff. Checked here
+    // too, because cached copies of the old PWA still send it as fatal.
+    if (report.message === 'Script error.' && !report.stack) {
+      console.warn(JSON.stringify({ level: 'warn', event: 'client_error', ...report, fatal: false }));
+      return sendJson(res, 202, { received: true });
+    }
     console.error(JSON.stringify({ level: report.fatal ? 'fatal' : 'error', event: 'client_error', ...report }));
     reportOperationalError('client_error', `${report.platform}${report.fatal ? ' (fatal)' : ''}${report.appVersion ? ` v${report.appVersion}` : ''}: ${report.message}`);
     return sendJson(res, 202, { received: true });

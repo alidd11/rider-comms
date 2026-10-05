@@ -91,7 +91,9 @@
       });
       watch(registration.installing);
       registration.addEventListener('updatefound', () => watch(registration.installing));
-      document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') registration.update(); });
+      // update() rejects when the network drops (common on a bike); the next
+      // visit tries again, so a failure needs no handling.
+      document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') registration.update().catch(() => {}); });
       $('#reloadApp').addEventListener('click', () => registration.waiting?.postMessage({ type: 'SKIP_WAITING' }));
     }).catch(() => {});
   }

@@ -371,7 +371,16 @@
       }
     };
   })();
-  window.addEventListener('error', (event) => clientErrorReporter(event.error ?? event.message, 'window.error', true));
+  window.addEventListener('error', (event) => {
+    // A script from another origin (Google Maps, a browser extension) that
+    // throws reaches us as a bare "Script error." with no stack: the browser
+    // hides the details, so it's logged as non-fatal and doesn't page staff.
+    if (!event.error && event.message === 'Script error.' && !event.filename) {
+      clientErrorReporter(event.message, 'window.error.cross_origin', false);
+      return;
+    }
+    clientErrorReporter(event.error ?? event.message, 'window.error', true);
+  });
   window.addEventListener('unhandledrejection', (event) => clientErrorReporter(event.reason, 'unhandledrejection', false));
 
   class ApiError extends Error {
@@ -6098,7 +6107,9 @@
       });
       watch(registration.installing);
       registration.addEventListener('updatefound', () => watch(registration.installing));
-      document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') registration.update(); });
+      // update() rejects when the network drops (common on a bike); the next
+      // visit tries again, so a failure needs no handling.
+      document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') registration.update().catch(() => {}); });
       $('#reloadApp').addEventListener('click', () => registration.waiting?.postMessage({ type: 'SKIP_WAITING' }));
     }).catch(() => {});
   }
