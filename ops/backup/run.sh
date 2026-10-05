@@ -16,8 +16,16 @@ s3() { aws --endpoint-url "$ENDPOINT" s3 "$@"; }
 # BACKUP_VERIFY_DATABASE_URL). initdb refuses to run as root.
 scratch=/tmp/verify-pg
 mkdir -p "$scratch" && chown postgres:postgres "$scratch"
-su-exec postgres initdb -D "$scratch" -A trust -U postgres --no-locale > /dev/null
-su-exec postgres pg_ctl -D "$scratch" -o "-c listen_addresses=127.0.0.1 -p 5433" -w start > /dev/null
+# Their chatter goes to a log file, not stderr: Railway marks stderr lines as
+# errors, and on Alpine (no `locale` command) a healthy start prints locale
+# warnings there. The log is shown only if startup fails.
+setup_log=/tmp/verify-pg-setup.log
+if ! su-exec postgres initdb -D "$scratch" -A trust -U postgres --no-locale > "$setup_log" 2>&1 ||
+   ! su-exec postgres pg_ctl -D "$scratch" -l "$scratch/server.log" -o "-c listen_addresses=127.0.0.1 -p 5433" -w start >> "$setup_log" 2>&1; then
+  cat "$setup_log" "$scratch/server.log" >&2 2>/dev/null || true
+  echo "Could not start the scratch Postgres for the verify restore" >&2
+  exit 1
+fi
 trap 'su-exec postgres pg_ctl -D "$scratch" -m fast stop > /dev/null 2>&1 || true' EXIT
 su-exec postgres createdb -h 127.0.0.1 -p 5433 -U postgres verify
 export BACKUP_VERIFY_DATABASE_URL="postgres://postgres@127.0.0.1:5433/verify"
