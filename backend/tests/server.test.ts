@@ -724,6 +724,17 @@ describe('production HTTP boundary', () => {
     assert.equal(response.headers.get('access-control-allow-origin'), null);
   });
 
+  it('logs why a request was refused, and nothing extra for successes', async () => {
+    logs.length = 0;
+    await fetch(`${ctx.baseUrl()}/auth/signup`, { method: 'POST', headers: { Origin: 'https://malicious.example', 'X-Request-ID': 'refused-12345' } });
+    await fetch(`${ctx.baseUrl()}/health`, { headers: { 'X-Request-ID': 'healthy-12345' } });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    assert.equal(logs.find((entry) => entry.requestId === 'refused-12345')?.error, 'origin_not_allowed');
+    const healthy = logs.find((entry) => entry.requestId === 'healthy-12345');
+    assert.ok(healthy);
+    assert.equal('error' in healthy, false);
+  });
+
   it('sets defensive response headers and propagates valid request IDs', async () => {
     const response = await fetch(`${ctx.baseUrl()}/health`, {
       headers: { Origin: allowedOrigin, 'X-Request-ID': 'request-12345' },

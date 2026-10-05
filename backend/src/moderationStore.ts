@@ -19,7 +19,7 @@ export const REPORT_STATUSES = ['open', 'dismissed', 'actioned'] as const;
 export type ReportStatus = (typeof REPORT_STATUSES)[number];
 export const REPORT_RESOLUTIONS = ['dismiss', 'suspend'] as const;
 export type ReportResolution = (typeof REPORT_RESOLUTIONS)[number];
-export type ModerationActionType = ReportResolution | 'unsuspend';
+export type ModerationActionType = ReportResolution | 'unsuspend' | 'verify_email';
 export const MAX_MODERATION_NOTE_LENGTH = 1000;
 
 export interface QueuedSafetyReport extends SafetyReport {
@@ -48,6 +48,10 @@ export type ResolveReportResult =
 export type UnsuspendResult =
   | { ok: true; action: ModerationAction }
   | { ok: false; error: 'not_found' | 'not_suspended' };
+
+export type VerifyEmailResult =
+  | { ok: true; action: ModerationAction }
+  | { ok: false; error: 'not_found' | 'already_verified' };
 
 interface QueuedReportRow {
   id: string;
@@ -378,6 +382,40 @@ export class ModerationStore {
       }
       await client.query('UPDATE users SET suspended_at = NULL WHERE id = $1', [riderId]);
       const action = await this.recordAction(client, moderatorId, riderId, null, 'unsuspend', note, now);
+      await client.query('COMMIT');
+      return { ok: true, action };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  /**
+   * Staff mark a rider's email verified, with the reason in the audit log.
+   * For riders staff know personally, while verification emails can't be
+   * delivered (see LAUNCH_CHECKLIST.md, Resend domain).
+   */
+  async verifyEmail(riderId: string, moderatorId: string, note: string, now = Date.now()): Promise<VerifyEmailResult> {
+    await ensureMigrated();
+    const client = await getPool().connect();
+    try {
+      await client.query('BEGIN');
+      const { rows } = await client.query<{ email_verified_at: Date | null }>(
+        'SELECT email_verified_at FROM users WHERE id = $1 FOR UPDATE',
+        [riderId],
+      );
+      if (!rows[0]) {
+        await client.query('ROLLBACK');
+        return { ok: false, error: 'not_found' };
+      }
+      if (rows[0].email_verified_at !== null) {
+        await client.query('ROLLBACK');
+        return { ok: false, error: 'already_verified' };
+      }
+      await client.query('UPDATE users SET email_verified_at = now() WHERE id = $1', [riderId]);
+      const action = await this.recordAction(client, moderatorId, riderId, null, 'verify_email', note, now);
       await client.query('COMMIT');
       return { ok: true, action };
     } catch (error) {

@@ -295,6 +295,8 @@ a { color: inherit; }
 .button:hover { background: var(--surface-2); }
 .button svg { width: 14px; height: 14px; }
 .button:disabled { opacity: 0.5; cursor: default; }
+/* Inline row action, e.g. Verify email beside a rider's badges. */
+.button-small { height: 28px; padding: 0 10px; font-size: 12px; margin-top: 6px; }
 /* Mobile has the refresh icon in the top bar instead. */
 .button.desktop-refresh { display: none; }
 .button-danger { color: #fff; background: var(--danger); border-color: transparent; }

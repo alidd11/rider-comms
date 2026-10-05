@@ -19,20 +19,24 @@ const PROFILE = {
 async function mockAuthenticatedApi(page, movement = 'stationary', backendOverride = null) {
   await page.addInitScript(({ riderId, movementState }) => {
     localStorage.setItem('rider-comms-session-v1', JSON.stringify({ riderId, token: 'visual-test-token', emailVerified: true }));
-    Object.defineProperty(navigator, 'permissions', { value: { query: async ({ name } = {}) => ({ state: name === 'microphone' ? 'prompt' : ['stationary', 'recovering'].includes(movementState) ? 'granted' : 'denied', addEventListener() {} }) } });
+    Object.defineProperty(navigator, 'permissions', { value: { query: async ({ name } = {}) => ({ state: name === 'microphone' ? 'prompt' : ['stationary', 'recovering', 'stale-timestamp'].includes(movementState) ? 'granted' : 'denied', addEventListener() {} }) } });
     let watchId = 0;
     window.__riderCommsGetCurrentPositionCalls = 0;
+    // 'stale-timestamp' is a stationary phone whose fixes carry a two-minute
+    // old timestamp, as iOS Safari does when it reuses its last known fix.
+    const timestampLagMs = movementState === 'stale-timestamp' ? 120_000 : 0;
+    const stationaryLike = movementState === 'stationary' || movementState === 'stale-timestamp';
     Object.defineProperty(navigator, 'geolocation', { value: {
       watchPosition(success, error) {
         if (movementState === 'recovering') {
           window.gpsTest = { success, error, cleared: false };
           return ++watchId;
         }
-        if (movementState !== 'stationary') {
+        if (!stationaryLike) {
           error?.({ code: 1, name: 'NotAllowedError' });
           return ++watchId;
         }
-        const base = Date.now() - 7000;
+        const base = Date.now() - 7000 - timestampLagMs;
         for (let index = 0; index <= 7; index += 1) success({
           timestamp: base + index * 1000,
           coords: { latitude: 51.5074, longitude: -0.1278, accuracy: 5, speed: 0 },
@@ -42,8 +46,8 @@ async function mockAuthenticatedApi(page, movement = 'stationary', backendOverri
       clearWatch() { if (window.gpsTest) window.gpsTest.cleared = true; },
       getCurrentPosition(success, error) {
         window.__riderCommsGetCurrentPositionCalls += 1;
-        if (movementState !== 'stationary') return error?.({ code: 1, name: 'NotAllowedError' });
-        success({ timestamp: Date.now(), coords: { latitude: 51.5074, longitude: -0.1278, accuracy: 5, speed: 0 } });
+        if (!stationaryLike) return error?.({ code: 1, name: 'NotAllowedError' });
+        success({ timestamp: Date.now() - timestampLagMs, coords: { latitude: 51.5074, longitude: -0.1278, accuracy: 5, speed: 0 } });
       },
     } });
   }, { riderId: RIDER_ID, movementState: movement });
@@ -3352,4 +3356,42 @@ test('PWA chat uses the body canvas and keeps its controls above the safe area',
   expect(title.y).toBeGreaterThanOrEqual(59 + 14);
   // No solid bar over the status bar on the map or chat.
   expect(await page.evaluate(() => getComputedStyle(document.querySelector('#chatScreen'), '::before').content)).toBe('none');
+});
+
+test('goes live when iOS hands back fixes with an old timestamp', async ({ page }) => {
+  let shareLocation = false;
+  const presenceBodies = [];
+  await mockAuthenticatedApi(page, 'stale-timestamp', ({ url, request }) => {
+    if (url.pathname === `/riders/${RIDER_ID}/profile`) {
+      if (request.method() === 'PUT') {
+        const update = request.postDataJSON();
+        if (typeof update.shareLocation === 'boolean') shareLocation = update.shareLocation;
+      }
+      return { body: { ...PROFILE, shareLocation } };
+    }
+    if (url.pathname === '/presence' && request.method() === 'POST') {
+      const body = request.postDataJSON();
+      presenceBodies.push(body);
+      // Same rule as the server: a fix more than 30 s old is refused.
+      if (body.fixAgeMs > 30_000) return { status: 400, body: { error: 'location fix timestamp is stale or invalid' } };
+      return { body: { inZoneWith: [], transitions: [], radiusMiles: 1 } };
+    }
+    if (url.pathname === '/presence' && request.method() === 'DELETE') return { body: {} };
+    if (url.pathname === '/voice/token' && request.method() === 'POST') return { body: { connections: [], refreshAfterMs: 20_000 } };
+    return null;
+  });
+  await page.addInitScript(() => {
+    const fakeStream = { getTracks: () => [{ stop() {} }] };
+    Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: { getUserMedia: async () => fakeStream } });
+    window.LivekitClient = {};
+  });
+
+  await page.goto('/');
+  const nearby = page.locator('#joinNearbyBtn');
+  await expect(nearby).toHaveAttribute('data-active', 'false');
+  await nearby.click();
+  await expect(nearby).toHaveAttribute('data-active', 'true');
+  expect(presenceBodies.length).toBeGreaterThan(0);
+  expect(presenceBodies[0].fixAgeMs).toBeLessThan(30_000);
+  expect(Date.now() - presenceBodies[0].recordedAt).toBeGreaterThan(100_000);
 });

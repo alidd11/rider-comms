@@ -88,7 +88,12 @@ export function usePresence(
                 ? 'Your location jumped unexpectedly. Waiting for a steadier GPS fix.'
                 : code === 'rate_limited'
                   ? 'Nearby is updating too often. It will catch up in a moment.'
-                  : err instanceof Error ? err.message : 'Could not update your zone.');
+                  : code === 'location accuracy must be between 0 and 100 metres'
+                    ? 'Waiting for a more accurate GPS fix.'
+                    : code === 'location fix timestamp is stale or invalid'
+                      ? 'Waiting for a fresh location. Trying again shortly.'
+                      // Other refusals: a readable line, not the raw API error.
+                      : err instanceof ApiError || !(err instanceof Error) ? 'Could not update your zone. Trying again shortly.' : err.message);
           if (code === 'email_verification_required' || code === 'location_sharing_disabled') setPublicLive(false);
         }
       }

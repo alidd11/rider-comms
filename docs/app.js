@@ -2900,9 +2900,10 @@
       lon: position.coords.longitude,
       accuracyMeters: position.coords.accuracy,
       recordedAt: position.timestamp,
-      // Measured on this device's clock, so a phone clock a few seconds off
-      // the server's can't make a fresh fix look stale.
-      fixAgeMs: Math.max(0, Date.now() - position.timestamp),
+      // Measured on this device's clock from when the fix reached the page
+      // (see devicePositionAgeMs), so neither clock skew nor iOS's reused
+      // timestamps make a current position look stale.
+      fixAgeMs: Math.max(0, Math.round(devicePositionAgeMs(position))),
     });
     const nextVoicePeerKey = [...result.inZoneWith].sort().join('\u0000');
     const voicePeersChanged = nextVoicePeerKey !== nearbyVoicePeerKey;
@@ -3952,7 +3953,11 @@
         if (!['email_verification_required', 'location_sharing_disabled', 'rate_limited', 'implausible_location_jump', 'location accuracy must be between 0 and 100 metres'].includes(code)) {
           // Report why, without coordinates, so a failure like this is
           // diagnosable from the server logs.
-          clientErrorReporter(`Go live failed: ${code ?? (error instanceof Error ? error.message : String(error))}`, 'nearby.go_live', false);
+          // The fix's own timestamp age and accuracy (no coordinates) show
+          // whether the phone is handing back old fixes.
+          const timestampAgeS = Math.round((Date.now() - Number(position?.timestamp)) / 1000);
+          const accuracyM = Math.round(Number(position?.coords?.accuracy));
+          clientErrorReporter(`Go live failed: ${code ?? (error instanceof Error ? error.message : String(error))} (fix timestamp ${timestampAgeS}s old, accuracy ${accuracyM} m)`, 'nearby.go_live', false);
         }
       }
     } finally {
@@ -3964,14 +3969,23 @@
   const MAX_PUBLIC_PRESENCE_ACCURACY_METERS = 100;
   const MAX_REUSED_PRESENCE_FIX_AGE_MS = 15_000;
 
+  // When each fix reached this page. Asked for a fresh fix, iOS Safari can
+  // answer with its last known one, still carrying that fix's original
+  // timestamp, so the timestamp made a current position look minutes old and
+  // the server refused to go live. Freshness is judged by delivery instead.
+  const deviceFixReceivedAt = new WeakMap();
+
+  function devicePositionAgeMs(position, now = Date.now()) {
+    return now - (deviceFixReceivedAt.get(position) ?? Number(position.timestamp));
+  }
+
   function usablePublicPresencePosition(position, now = Date.now()) {
     if (!position?.coords) return false;
-    const timestamp = Number(position.timestamp);
-    const ageMs = now - timestamp;
+    const ageMs = devicePositionAgeMs(position, now);
     const accuracyMeters = Number(position.coords.accuracy);
     return Number.isFinite(position.coords.latitude)
       && Number.isFinite(position.coords.longitude)
-      && Number.isFinite(timestamp)
+      && Number.isFinite(ageMs)
       && Number.isFinite(accuracyMeters)
       && accuracyMeters >= 0
       && accuracyMeters <= MAX_PUBLIC_PRESENCE_ACCURACY_METERS
@@ -4005,6 +4019,9 @@
     const lat = position?.coords?.latitude;
     const lng = position?.coords?.longitude;
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    // Every delivery counts: iOS may hand back the same fix object again
+    // when that is still its current position.
+    deviceFixReceivedAt.set(position, Date.now());
     latestDevicePosition = position;
     locationPermissionReady = true;
     movementAccessDenied = false;

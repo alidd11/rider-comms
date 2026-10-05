@@ -1,12 +1,21 @@
 // Part of docs/app.js. 13 of 20: Device position, Ride Safe and ride location sharing. Edit here, then run `npm run build:pwa-app`.
+  // When each fix reached this page. Asked for a fresh fix, iOS Safari can
+  // answer with its last known one, still carrying that fix's original
+  // timestamp, so the timestamp made a current position look minutes old and
+  // the server refused to go live. Freshness is judged by delivery instead.
+  const deviceFixReceivedAt = new WeakMap();
+
+  function devicePositionAgeMs(position, now = Date.now()) {
+    return now - (deviceFixReceivedAt.get(position) ?? Number(position.timestamp));
+  }
+
   function usablePublicPresencePosition(position, now = Date.now()) {
     if (!position?.coords) return false;
-    const timestamp = Number(position.timestamp);
-    const ageMs = now - timestamp;
+    const ageMs = devicePositionAgeMs(position, now);
     const accuracyMeters = Number(position.coords.accuracy);
     return Number.isFinite(position.coords.latitude)
       && Number.isFinite(position.coords.longitude)
-      && Number.isFinite(timestamp)
+      && Number.isFinite(ageMs)
       && Number.isFinite(accuracyMeters)
       && accuracyMeters >= 0
       && accuracyMeters <= MAX_PUBLIC_PRESENCE_ACCURACY_METERS
@@ -40,6 +49,9 @@
     const lat = position?.coords?.latitude;
     const lng = position?.coords?.longitude;
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    // Every delivery counts: iOS may hand back the same fix object again
+    // when that is still its current position.
+    deviceFixReceivedAt.set(position, Date.now());
     latestDevicePosition = position;
     locationPermissionReady = true;
     movementAccessDenied = false;

@@ -53,6 +53,7 @@ import {
   RequestError,
   rateLimitSubject,
   requestId,
+  responseErrorCode,
   sendEmpty,
   sendJson,
 } from './serverHttp.ts';
@@ -110,6 +111,8 @@ export interface ApiRequestLog {
   status: number;
   durationMs: number;
   clientAddress: string;
+  /** Why a 4xx/5xx was returned, when the handler said (see sendJson). */
+  error?: string;
 }
 
 async function authRider(req: http.IncomingMessage, res: http.ServerResponse, auth: AuthStore): Promise<string | undefined> {
@@ -246,7 +249,8 @@ export function createApp(options: CreateAppOptions = {}): http.Server {
     applyResponsePolicy(res, id);
     res.once('finish', () => {
       try {
-        options.logger?.({ requestId: id, method: req.method ?? 'UNKNOWN', path: new URL(req.url ?? '/', 'http://localhost').pathname, status: res.statusCode, durationMs: Date.now() - startedAt, clientAddress: address });
+        const error = responseErrorCode(res);
+        options.logger?.({ requestId: id, method: req.method ?? 'UNKNOWN', path: new URL(req.url ?? '/', 'http://localhost').pathname, status: res.statusCode, durationMs: Date.now() - startedAt, clientAddress: address, ...(error ? { error } : {}) });
       } catch (error) {
         console.error('request logger failed', error);
       }

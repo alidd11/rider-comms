@@ -112,6 +112,31 @@ describe('moderation queue API', { skip: !hasDatabase && 'DATABASE_URL not set; 
     assert.deepEqual(actions.actions.map((action) => action.action), ['dismiss']);
   });
 
+  it('staff can mark a rider\'s email verified, with a note in the audit log', async () => {
+    const username = `modv_${Math.random().toString(36).slice(2, 8)}`;
+    const signup = await fetch(`${ctx.baseUrl()}/auth/signup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, email: `${username}@example.com`, password: 'correct-horse-battery', deviceName: 'mod-test', acceptTerms: true }),
+    });
+    const { riderId: target, token } = await signup.json() as { riderId: string; token: string };
+    const me = async () => (await (await fetch(`${ctx.baseUrl()}/auth/me`, { headers: { Authorization: `Bearer ${token}` } })).json() as { emailVerified: boolean }).emailVerified;
+    assert.equal(await me(), false);
+
+    assert.equal((await postJson(ctx, ADMIN, `/moderation/riders/${target}/verify-email`, {})).status, 400, 'a note is required');
+    assert.equal((await postJson(ctx, BYSTANDER, `/moderation/riders/${target}/verify-email`, { note: 'x' })).status, 403, 'staff only');
+    const verified = await postJson(ctx, ADMIN, `/moderation/riders/${target}/verify-email`, { note: 'Known tester; email can\'t be delivered yet.' });
+    assert.equal(verified.status, 200);
+    assert.equal(await me(), true);
+    assert.equal((await postJson(ctx, ADMIN, `/moderation/riders/${target}/verify-email`, { note: 'again' })).status, 409);
+    assert.equal((await postJson(ctx, ADMIN, '/moderation/riders/nobody/verify-email', { note: 'x' })).status, 404);
+
+    const actions = await (await authenticatedFetch(ctx, ADMIN, `/moderation/actions?riderId=${target}`)).json() as { actions: ModerationAction[] };
+    assert.deepEqual(actions.actions.map((action) => action.action), ['verify_email']);
+
+    await getPool().query('DELETE FROM users WHERE id = $1', [target]);
+  });
+
   it('suspending revokes sessions, closes every open report against the rider and blocks sign-in until unsuspended', async () => {
     const username = `modq_${Math.random().toString(36).slice(2, 8)}`;
     const signup = await fetch(`${ctx.baseUrl()}/auth/signup`, {
