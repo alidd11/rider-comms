@@ -29,13 +29,23 @@ type PositionCallback = (position: {
   coords: { latitude: number; longitude: number; accuracy: number | null; speed: number | null; heading: number | null };
 }) => void;
 
-const mockWatchPositionAsync = jest.fn();
+const mockWatchNavigationLocation = jest.fn();
 const mockGetForegroundPermissionsAsync = jest.fn();
+const mockAcquireNavigationAudioSession = jest.fn(async () => undefined);
+const mockReleaseNavigationAudioSession = jest.fn(async () => undefined);
 
 jest.mock('expo-location', () => ({
-  watchPositionAsync: (...args: unknown[]) => mockWatchPositionAsync(...args),
   getForegroundPermissionsAsync: (...args: unknown[]) => mockGetForegroundPermissionsAsync(...args),
   Accuracy: { High: 4 },
+}));
+
+jest.mock('../../src/navigationLocationStream', () => ({
+  watchNavigationLocation: (...args: unknown[]) => mockWatchNavigationLocation(...args),
+}));
+
+jest.mock('../../src/audio/audioSession', () => ({
+  acquireNavigationAudioSession: () => mockAcquireNavigationAudioSession(),
+  releaseNavigationAudioSession: () => mockReleaseNavigationAudioSession(),
 }));
 
 // Three steps near 51.5N: north 222m, east ~208m, north 222m to the
@@ -149,8 +159,8 @@ async function renderNavigation(overrides: Partial<Props> = {}) {
 let mockRemove: jest.Mock;
 
 function lastPositionCallback(): PositionCallback {
-  const calls = mockWatchPositionAsync.mock.calls;
-  return calls[calls.length - 1]![1] as PositionCallback;
+  const calls = mockWatchNavigationLocation.mock.calls;
+  return calls[calls.length - 1]![0] as PositionCallback;
 }
 
 async function sendFix(lat: number, lon: number, speed: number | null = 8, heading: number | null = 0) {
@@ -173,8 +183,10 @@ beforeEach(() => {
   mockSpeakNavigationPrompt.mockClear();
   mockStopNavigationPrompt.mockClear();
   mockRemove = jest.fn();
-  mockWatchPositionAsync.mockReset();
-  mockWatchPositionAsync.mockImplementation(async () => ({ remove: mockRemove }));
+  mockWatchNavigationLocation.mockReset();
+  mockWatchNavigationLocation.mockImplementation(async () => ({ background: true, remove: mockRemove }));
+  mockAcquireNavigationAudioSession.mockClear();
+  mockReleaseNavigationAudioSession.mockClear();
   mockGetForegroundPermissionsAsync.mockReset();
   mockGetForegroundPermissionsAsync.mockResolvedValue({ granted: true });
 });
@@ -200,8 +212,8 @@ test('starts navigation from the current location and announces the first step',
   expect(props.setSelectedHazardId).toHaveBeenCalledWith(null);
   expect(mockSpeakNavigationPrompt).toHaveBeenCalledWith('Head north on Mill Lane');
   expect(props.mapRef.current!.animateCamera).toHaveBeenCalled();
-  expect(mockWatchPositionAsync).toHaveBeenCalledTimes(1);
-  expect(mockWatchPositionAsync.mock.calls[0]![0]).toEqual({ accuracy: 4, timeInterval: 2000, distanceInterval: 5 });
+  expect(mockWatchNavigationLocation).toHaveBeenCalledTimes(1);
+  expect(mockAcquireNavigationAudioSession).toHaveBeenCalledTimes(1);
 });
 
 test('asks for a location fix when none is known, and stops if none is available', async () => {
@@ -236,7 +248,7 @@ test.each([
   expect(result.current.activeRoute).toBeNull();
   expect(result.current.navigationLoading).toBe(false);
   expect(props.setSelectedPlace).not.toHaveBeenCalled();
-  expect(mockWatchPositionAsync).not.toHaveBeenCalled();
+  expect(mockWatchNavigationLocation).not.toHaveBeenCalled();
 });
 
 test('a GPS fix updates location, accuracy and speed', async () => {
@@ -282,7 +294,7 @@ test('advances steps as the rider reaches each maneuver, and arrives at the dest
   expect(result.current.navigationStepIndex).toBe(2);
   expect(mockSpeakNavigationPrompt).toHaveBeenCalledWith('Turn left onto Station Road');
   // Advancing a step must not re-subscribe the GPS watcher.
-  expect(mockWatchPositionAsync).toHaveBeenCalledTimes(1);
+  expect(mockWatchNavigationLocation).toHaveBeenCalledTimes(1);
 
   mockSpeakNavigationPrompt.mockClear();
   await sendFix(51.5039, -0.097);
@@ -311,7 +323,7 @@ test('muting silences prompts and stops speech without re-subscribing GPS', asyn
 
   expect(result.current.navigationStepIndex).toBe(1);
   expect(mockSpeakNavigationPrompt).not.toHaveBeenCalled();
-  expect(mockWatchPositionAsync).toHaveBeenCalledTimes(1);
+  expect(mockWatchNavigationLocation).toHaveBeenCalledTimes(1);
 });
 
 test('reroutes only after staying off route for the grace period', async () => {
@@ -335,6 +347,9 @@ test('reroutes only after staying off route for the grace period', async () => {
   expect(result.current.activeRoute).toBe(rerouted);
   expect(result.current.navigationStepIndex).toBe(0);
   expect(result.current.navigationNotice).toBe('Route updated.');
+  // The new route restarts the GPS feed, but the prompt audio session stays up.
+  expect(mockReleaseNavigationAudioSession).not.toHaveBeenCalled();
+  expect(mockAcquireNavigationAudioSession).toHaveBeenCalledTimes(1);
 });
 
 test('returning to the route resets the off-route grace timer', async () => {
@@ -374,7 +389,7 @@ test('flags a stale GPS signal and clears the notice when fixes resume', async (
 });
 
 test('reports removed location permission when the GPS watcher fails', async () => {
-  mockWatchPositionAsync.mockImplementation(async () => { throw new Error('denied'); });
+  mockWatchNavigationLocation.mockImplementation(async () => { throw new Error('denied'); });
   mockGetForegroundPermissionsAsync.mockResolvedValue({ granted: false });
   const { result, props } = await startNavigation({ currentLocationAccuracyRef: { current: 12 } });
 
@@ -401,9 +416,10 @@ test('finishing early resets navigation state and removes the GPS watcher', asyn
   expect(props.mapRef.current!.animateCamera).toHaveBeenLastCalledWith({ heading: 0, pitch: 0 }, { duration: 350 });
   expect(mockSpeakNavigationPrompt).not.toHaveBeenCalled();
   expect(mockRemove).toHaveBeenCalled();
+  expect(mockReleaseNavigationAudioSession).toHaveBeenCalled();
 });
 
-test('unmounting stops speech and removes the GPS watcher', async () => {
+test('unmounting stops speech, the GPS watcher and the prompt audio session', async () => {
   const { unmount } = await startNavigation();
   mockStopNavigationPrompt.mockClear();
 
@@ -411,6 +427,7 @@ test('unmounting stops speech and removes the GPS watcher', async () => {
 
   expect(mockRemove).toHaveBeenCalled();
   expect(mockStopNavigationPrompt).toHaveBeenCalled();
+  expect(mockReleaseNavigationAudioSession).toHaveBeenCalled();
 });
 
 test('the camera follows the rider only while following is on', async () => {

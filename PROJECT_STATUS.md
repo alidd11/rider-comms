@@ -6,7 +6,7 @@
 
 - **Lifecycle:** release candidate. The code is ready for store submission; the remaining steps need the owner and are listed in order in `LAUNCH_CHECKLIST.md`.
 - **Main verification:** every change merges through a PR with a green CI `verify` job. Railway deploys the backend from `main` behind the `/ready` health check (a deploy that can't reach the database never takes traffic); GitHub Pages deploys the PWA.
-- **Client parity:** `client-parity.json` records PWA/native parity for every tracked capability except **navigation**, which remains a `behavior-gap` pending background/locked-screen guidance and physical ride validation.
+- **Client parity:** `client-parity.json` records PWA/native parity for every tracked capability except **navigation**, which remains a `behavior-gap`: native navigation keeps guiding with the phone locked, which the PWA can't, and physical ride validation is pending.
 - **Device evidence:** a two-rider ride over helmet intercoms works on real devices, and the installed-iPhone PWA chat composer fix (#386) is confirmed.
 - **Recent work (#379–#390):**
   - PWA safety parity, report sources and filter-rejection counts (#379);

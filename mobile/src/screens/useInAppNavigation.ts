@@ -29,6 +29,8 @@ import {
   navigationGpsNotice,
 } from '../navigationGpsHealth';
 import { speakNavigationPrompt, stopNavigationPrompt } from '../audio/navigationSpeech';
+import { acquireNavigationAudioSession, releaseNavigationAudioSession } from '../audio/audioSession';
+import { watchNavigationLocation, type NavigationLocationWatch } from '../navigationLocationStream';
 import { bearingDegrees } from './mapMarkers';
 import type { UnitSystem } from '../settings/SettingsContext';
 
@@ -326,6 +328,18 @@ export function useInAppNavigation(
     return () => clearInterval(timer);
   }, [activeRoute]);
 
+  // Keeps iOS able to speak turn prompts with the screen locked. Keyed on
+  // navigation running rather than the route, so a reroute while the phone
+  // is locked doesn't stop and restart the audio session.
+  const navigationRunning = activeRoute !== null;
+  React.useEffect(() => {
+    if (!navigationRunning) return;
+    void acquireNavigationAudioSession().catch(() => {});
+    return () => {
+      void releaseNavigationAudioSession().catch(() => {});
+    };
+  }, [navigationRunning]);
+
   React.useEffect(() => {
     if (!activeRoute || !navigationDestination || !currentNavigationStep) return;
     // activeRoute/navigationDestination gate whether this effect runs at
@@ -333,10 +347,10 @@ export function useInAppNavigation(
     // callback below) keep it from restarting the subscription on every
     // step advance or mute toggle.
     let cancelled = false;
-    let subscription: Location.LocationSubscription | null = null;
+    let subscription: NavigationLocationWatch | null = null;
 
-    void Location.watchPositionAsync(
-      { accuracy: Location.Accuracy.High, timeInterval: 2000, distanceInterval: 5 },
+    // Keeps delivering fixes with the phone locked (see navigationLocationStream).
+    void watchNavigationLocation(
       (position) => {
         if (cancelled) return;
         const recovered = navGpsTracker.current.recordFix();

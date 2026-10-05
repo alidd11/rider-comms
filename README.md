@@ -6,7 +6,7 @@ Pre-alpha Expo/React Native and installable PWA for proximity-based rider commun
 
 - **Lifecycle:** release candidate. The code is ready for store submission; what remains needs the owner (accounts, legal details, device checks) and is listed in order in [LAUNCH_CHECKLIST.md](LAUNCH_CHECKLIST.md).
 - **Main checks:** every change lands through a pull request whose CI `verify` job is green; Railway deploys the backend from `main` behind a database-aware health check (`/ready`), and GitHub Pages deploys the PWA.
-- **PWA/native parity:** all tracked capabilities are at parity except navigation, which remains a deliberate `behavior-gap` pending background/locked-screen guidance and physical ride validation.
+- **PWA/native parity:** all tracked capabilities are at parity except navigation, a deliberate `behavior-gap`: the native app keeps guiding with the phone locked, which browsers can't do, and physical ride validation is still pending.
 
 See [PROJECT_STATUS.md](PROJECT_STATUS.md) for the detailed current handover, active PR ownership/overlap, release blockers and source-of-truth rules.
 

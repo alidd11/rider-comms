@@ -23,14 +23,18 @@
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "Rider Comms only uses your location while the app is open, to show your position on the map, share it with your group ride when you turn that on, and find riders within your Nearby zone when you go live.",
-          "locationAlwaysPermission": "Rider Comms only uses your location while the app is open, to show your position on the map, share it with your group ride when you turn that on, and find riders within your Nearby zone when you go live.",
-          "motionUsagePermission": "Rider Comms doesn't use motion data."
+          "locationAlwaysAndWhenInUsePermission": "Rider Comms doesn't need Always access. It uses your location while you use the app, and during turn-by-turn navigation you start, including with the screen locked. It stops when navigation ends.",
+          "locationAlwaysPermission": "Rider Comms doesn't need Always access. It uses your location while you use the app, and during turn-by-turn navigation you start, including with the screen locked. It stops when navigation ends.",
+          "motionUsagePermission": "Rider Comms doesn't use motion data.",
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": false,
+          "isAndroidForegroundServiceEnabled": true
         }
       ],
       "expo-status-bar",
       "react-native-maps",
       "./plugins/withAndroidVoiceForegroundService",
+      "./plugins/withoutBackgroundFetch",
       [
         "expo-splash-screen",
         {
@@ -46,10 +50,11 @@
       "buildNumber": "1",
       "supportsTablet": false,
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "Rider Comms uses your location while the app is open to show your position on the map, share it with riders in your group ride when you turn that on, and find riders within your Nearby zone when you go live.",
+        "NSLocationWhenInUseUsageDescription": "Rider Comms uses your location while you use the app, to show your position on the map, share it with your group ride when you turn that on, and find riders within your Nearby zone when you go live. During turn-by-turn navigation it keeps using your location with the screen locked, so directions continue, and stops when navigation ends.",
         "NSMicrophoneUsageDescription": "Rider Comms uses your microphone for hands-free voice chat with your group and nearby riders while you ride.",
         "UIBackgroundModes": [
-          "audio"
+          "audio",
+          "location"
         ],
         "ITSAppUsesNonExemptEncryption": false
       },
@@ -179,13 +184,15 @@
         "BLUETOOTH_CONNECT",
         "FOREGROUND_SERVICE",
         "FOREGROUND_SERVICE_MICROPHONE",
+        "FOREGROUND_SERVICE_LOCATION",
         "WAKE_LOCK"
       ],
       "blockedPermissions": [
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE",
-        "android.permission.SYSTEM_ALERT_WINDOW"
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.ACCESS_BACKGROUND_LOCATION"
       ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/brand/adaptive-foreground.png",

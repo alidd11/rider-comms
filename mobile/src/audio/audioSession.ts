@@ -20,6 +20,7 @@
  * expected, and whether iOS/Android actually keep music/nav audible at the
  * volume this asks for, both of which only real hardware can confirm.
  */
+import { Platform } from 'react-native';
 import { AudioSession } from '@livekit/react-native';
 import type { AudioConfiguration } from '@livekit/react-native';
 import {
@@ -63,14 +64,22 @@ const VOICE_AUDIO_CONFIG: AudioConfiguration = {
   },
 };
 
-/**
- * Call once, before LiveKitRoom's `connect` flips true — the library's own
- * docs are explicit that configuration must happen before connecting for it
- * to apply correctly. Idempotent-ish: calling it again just re-applies the
- * same configuration, which is harmless.
- */
-let sessionStarted = false;
+// Navigation without voice: a playback session that mixes with the rider's
+// music, so iOS keeps speaking turn prompts once the screen locks. Without
+// an active session the app's default category goes silent in the
+// background. Android needs nothing here; its speech plays in the background
+// as long as the navigation location service keeps the app alive.
+const NAVIGATION_APPLE_AUDIO_CONFIG = {
+  audioCategory: 'playback',
+  audioCategoryOptions: ['mixWithOthers', 'interruptSpokenAudioAndMixWithOthers', 'allowBluetoothA2DP', 'allowAirPlay'],
+  audioMode: 'voicePrompt',
+} as const satisfies Parameters<typeof AudioSession.setAppleAudioConfiguration>[0];
+
+type SessionMode = 'off' | 'voice' | 'navigation';
+
+let sessionMode: SessionMode = 'off';
 const sessionOwners = new Set<string>();
+let navigationActive = false;
 let sessionOperation: Promise<void> = Promise.resolve();
 
 function serializeSessionOperation(operation: () => Promise<void>): Promise<void> {
@@ -136,11 +145,45 @@ async function stopVoiceAudioSession(): Promise<void> {
   if (audioSessionError !== undefined) throw audioSessionError;
 }
 
+async function startNavigationAudioSession(): Promise<void> {
+  await AudioSession.setAppleAudioConfiguration({
+    ...NAVIGATION_APPLE_AUDIO_CONFIG,
+    audioCategoryOptions: [...NAVIGATION_APPLE_AUDIO_CONFIG.audioCategoryOptions],
+  });
+  await AudioSession.startAudioSession();
+}
+
+function desiredSessionMode(): SessionMode {
+  if (sessionOwners.size > 0) return 'voice';
+  if (navigationActive && Platform.OS === 'ios') return 'navigation';
+  return 'off';
+}
+
+/**
+ * Moves the device session to what the current owners need. Voice wins over
+ * navigation because its play-and-record session already plays prompts in
+ * the background. Each step clears the mode before tearing down, so a
+ * platform error never leaves a stale "started" flag behind.
+ */
+async function reconcileSession(): Promise<void> {
+  const desired = desiredSessionMode();
+  if (desired === sessionMode) return;
+  const previous = sessionMode;
+  sessionMode = 'off';
+  if (previous === 'voice') await stopVoiceAudioSession();
+  else if (previous === 'navigation') await AudioSession.stopAudioSession();
+  if (desired === 'voice') await startVoiceAudioSession();
+  else if (desired === 'navigation') await startNavigationAudioSession();
+  sessionMode = desired;
+}
+
 /**
  * The device audio session is process-global, while Rider Comms has more than
  * one component that can own voice (private RideBar and public ProximityVoice).
  * Lease it by a stable owner id so one component cleaning up can never stop
  * Bluetooth/call audio that the other component has already acquired.
+ * Call before LiveKitRoom's `connect` flips true: the library applies the
+ * configuration only to rooms that connect after it.
  */
 export function acquireVoiceAudioSession(ownerId: string): Promise<void> {
   const owner = ownerId.trim();
@@ -149,12 +192,13 @@ export function acquireVoiceAudioSession(ownerId: string): Promise<void> {
   sessionOwners.add(owner);
 
   return serializeSessionOperation(async () => {
-    if (sessionStarted || sessionOwners.size === 0) return;
+    if (!sessionOwners.has(owner)) return;
     try {
-      await startVoiceAudioSession();
-      sessionStarted = true;
+      await reconcileSession();
     } catch (error) {
       sessionOwners.delete(owner);
+      // Put navigation's prompt session back if voice could not start.
+      await reconcileSession().catch(() => {});
       throw error;
     }
   });
@@ -163,13 +207,16 @@ export function acquireVoiceAudioSession(ownerId: string): Promise<void> {
 export function releaseVoiceAudioSession(ownerId: string): Promise<void> {
   const owner = ownerId.trim();
   if (!owner || !sessionOwners.delete(owner)) return sessionOperation;
+  return serializeSessionOperation(reconcileSession);
+}
 
-  return serializeSessionOperation(async () => {
-    if (!sessionStarted || sessionOwners.size > 0) return;
-    // Clear our ownership state even if the platform throws while tearing
-    // the old route down. A later voice join must attempt a fresh start
-    // rather than trusting a stale in-memory "started" flag.
-    sessionStarted = false;
-    await stopVoiceAudioSession();
-  });
+/** Held while turn-by-turn navigation runs. */
+export function acquireNavigationAudioSession(): Promise<void> {
+  navigationActive = true;
+  return serializeSessionOperation(reconcileSession);
+}
+
+export function releaseNavigationAudioSession(): Promise<void> {
+  navigationActive = false;
+  return serializeSessionOperation(reconcileSession);
 }
