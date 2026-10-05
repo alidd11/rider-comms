@@ -150,6 +150,9 @@
       lon: position.coords.longitude,
       accuracyMeters: position.coords.accuracy,
       recordedAt: position.timestamp,
+      // Measured on this device's clock, so a phone clock a few seconds off
+      // the server's can't make a fresh fix look stale.
+      fixAgeMs: Math.max(0, Date.now() - position.timestamp),
     });
     const nextVoicePeerKey = [...result.inZoneWith].sort().join('\u0000');
     const voicePeersChanged = nextVoicePeerKey !== nearbyVoicePeerKey;

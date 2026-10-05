@@ -41,7 +41,18 @@ export async function handleLiveRoutes(ctx: RouteContext): Promise<unknown> {
       return sendJson(res, 400, { error: 'location accuracy must be between 0 and 100 metres' });
     }
     const now = Date.now();
-    if (typeof body.recordedAt !== 'number' || !Number.isFinite(body.recordedAt) || body.recordedAt < now - MAX_PRESENCE_FIX_AGE_MS || body.recordedAt > now + MAX_PRESENCE_FUTURE_SKEW_MS) {
+    // Clients send the fix's age measured on the device (fixAgeMs), because a
+    // phone clock a few seconds off ours made fresh fixes look stale or from
+    // the future. Older clients send only the absolute recordedAt.
+    let recordedAt: number;
+    if (typeof body.fixAgeMs === 'number' && Number.isFinite(body.fixAgeMs)) {
+      if (body.fixAgeMs < -MAX_PRESENCE_FUTURE_SKEW_MS || body.fixAgeMs > MAX_PRESENCE_FIX_AGE_MS) {
+        return sendJson(res, 400, { error: 'location fix timestamp is stale or invalid' });
+      }
+      recordedAt = now - Math.max(0, body.fixAgeMs);
+    } else if (typeof body.recordedAt === 'number' && Number.isFinite(body.recordedAt) && body.recordedAt >= now - MAX_PRESENCE_FIX_AGE_MS && body.recordedAt <= now + MAX_PRESENCE_FUTURE_SKEW_MS) {
+      recordedAt = body.recordedAt;
+    } else {
       return sendJson(res, 400, { error: 'location fix timestamp is stale or invalid' });
     }
     const profile = await profileStore.getOrCreate(actorId);
@@ -49,7 +60,7 @@ export async function handleLiveRoutes(ctx: RouteContext): Promise<unknown> {
       await presenceStore.removeRider(actorId);
       return sendJson(res, 403, { error: 'location_sharing_disabled' });
     }
-    const rider: Rider = { id: actorId, location: { lat: body.lat as number, lon: body.lon as number }, radiusMiles: TIER_RADIUS_MILES[profile.zoneTier], updatedAt: body.recordedAt };
+    const rider: Rider = { id: actorId, location: { lat: body.lat as number, lon: body.lon as number }, radiusMiles: TIER_RADIUS_MILES[profile.zoneTier], updatedAt: recordedAt };
     let presenceResult: Awaited<ReturnType<PresenceStore['updatePresence']>>;
     try {
       presenceResult = await presenceStore.updatePresence({ ...rider, accuracyMeters: body.accuracyMeters });

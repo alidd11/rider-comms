@@ -2900,6 +2900,9 @@
       lon: position.coords.longitude,
       accuracyMeters: position.coords.accuracy,
       recordedAt: position.timestamp,
+      // Measured on this device's clock, so a phone clock a few seconds off
+      // the server's can't make a fresh fix look stale.
+      fixAgeMs: Math.max(0, Date.now() - position.timestamp),
     });
     const nextVoicePeerKey = [...result.inZoneWith].sort().join('\u0000');
     const voicePeersChanged = nextVoicePeerKey !== nearbyVoicePeerKey;
@@ -3889,7 +3892,14 @@
           enabledSharingForNearby = true;
         }
 
-        await sendPresence(position);
+        try {
+          await sendPresence(position);
+        } catch (error) {
+          // Safari can hand back a cached fix that's already too old. Ask for
+          // a brand-new one once before giving up.
+          if (!(error instanceof ApiError) || error.body?.error !== 'location fix timestamp is stale or invalid') throw error;
+          await sendPresence(await currentPosition({ maximumAge: 0 }));
+        }
         state.publicLive = true;
         persist();
         renderMapStatus();
@@ -3936,7 +3946,14 @@
                 ? 'Your location jumped unexpectedly. Waiting for a steadier GPS fix. Try Nearby again in a moment.'
                 : code === 'rate_limited'
                   ? 'Nearby is updating too often. Try again in a moment.'
-                  : 'Could not go live. Try again.');
+                  : code === 'location fix timestamp is stale or invalid'
+                    ? 'Couldn’t get a fresh location. Check location is on for this app and try again.'
+                    : 'Could not go live. Try again.');
+        if (!['email_verification_required', 'location_sharing_disabled', 'rate_limited'].includes(code)) {
+          // Report why, without coordinates, so a failure like this is
+          // diagnosable from the server logs.
+          clientErrorReporter(`Go live failed: ${code ?? (error instanceof Error ? error.message : String(error))}`, 'nearby.go_live', false);
+        }
       }
     } finally {
       nearbyTogglePending = false;
@@ -3970,7 +3987,7 @@
     return currentPosition();
   }
 
-  function currentPosition() {
+  function currentPosition({ maximumAge = 15000 } = {}) {
     return new Promise((resolve, reject) => {
       if (!navigator.geolocation) return reject(new Error('Geolocation unavailable'));
       navigator.geolocation.getCurrentPosition((position) => {
@@ -3978,7 +3995,7 @@
         applyDevicePosition(position);
         startMovementSafetyTracking();
         resolve(position);
-      }, reject, { enableHighAccuracy: true, timeout: 10000, maximumAge: 15000 });
+      }, reject, { enableHighAccuracy: true, timeout: 10000, maximumAge });
     });
   }
 

@@ -22,7 +22,7 @@
     return currentPosition();
   }
 
-  function currentPosition() {
+  function currentPosition({ maximumAge = 15000 } = {}) {
     return new Promise((resolve, reject) => {
       if (!navigator.geolocation) return reject(new Error('Geolocation unavailable'));
       navigator.geolocation.getCurrentPosition((position) => {
@@ -30,7 +30,7 @@
         applyDevicePosition(position);
         startMovementSafetyTracking();
         resolve(position);
-      }, reject, { enableHighAccuracy: true, timeout: 10000, maximumAge: 15000 });
+      }, reject, { enableHighAccuracy: true, timeout: 10000, maximumAge });
     });
   }
 
