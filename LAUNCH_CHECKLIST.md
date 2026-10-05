@@ -12,7 +12,7 @@ device, so it needs the owner. The detailed guides are linked.
   with placeholders for the owner details below.
 - Store answers drafted: App Store listing, privacy labels, age rating,
   review notes, and Google Play Data safety (`APP_REVIEW.md`).
-- Production monitoring: uptime checks every 10 minutes, crash and error
+- Production monitoring: the backend checks the web app every 5 minutes, GitHub checks everything every few hours, crash and error
   alert emails, request tracing, and a database-aware deploy health check.
 - Railway volume backups of the production database (daily and weekly).
 - A daily encrypted database backup (Railway `db-backup` service, 02:41
@@ -28,6 +28,23 @@ device, so it needs the owner. The detailed guides are linked.
   pages, and requests only the permissions the store answers describe.
 
 ## 1. Legal and support (about a day, plus lawyer time)
+
+**Do this first: new riders aren't getting their verification email.**
+On 2026-10-05, Resend refused a new rider's verification email (HTTP 403),
+twice. Your own alert emails still arrive. That pattern almost always means
+the sending domain isn't verified in Resend, so it only delivers to the
+account owner. Until a rider verifies their email they can't go live, join
+voice, message, send friend requests or report hazards.
+
+1. In Resend (resend.com → Domains), add a domain you own, for example
+   `ridercomms.app`, and add the DNS records it shows at your domain
+   registrar. A `github.io` address can't be verified.
+2. Once Resend shows the domain as verified, set `RESEND_FROM_EMAIL` on the
+   Railway backend to an address on it, for example
+   `Rider Comms <noreply@ridercomms.app>`.
+3. Sign up with a fresh email and check the verification email arrives. If
+   it doesn't, the backend log line `Resend returned HTTP …` now includes
+   Resend's reason.
 
 1. Fill in `legal/site-details.json`: company legal name, support email and
    postal address. Then run `npm run build:legal` and merge.

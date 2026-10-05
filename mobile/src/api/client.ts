@@ -92,8 +92,11 @@ export class RiderCommsClient {
   setRideLocationSharing(id: string, enabled: boolean): Promise<{ enabled: boolean }> { return this.request('PUT', `/rides/${encodeURIComponent(id)}/location-sharing`, { enabled }); }
   updateRideLocation(id: string, lat: number, lon: number): Promise<{ locations: RideMemberLocation[] }> { return this.request('POST', `/rides/${encodeURIComponent(id)}/location`, { lat, lon }); }
   getRideLocations(id: string): Promise<{ locations: RideMemberLocation[] }> { return this.request('GET', `/rides/${encodeURIComponent(id)}/locations`); }
-  updatePresence(lat: number, lon: number, accuracyMeters: number, recordedAt: number): Promise<PresenceResponse> {
-    return this.request('POST', '/presence', { lat, lon, accuracyMeters, recordedAt });
+  updatePresence(lat: number, lon: number, accuracyMeters: number, recordedAt: number, now = Date.now()): Promise<PresenceResponse> {
+    // fixAgeMs is measured on this device's clock, so the server's freshness
+    // check doesn't depend on the phone and server clocks agreeing.
+    const fixAgeMs = Math.max(0, now - recordedAt);
+    return this.request('POST', '/presence', { lat, lon, accuracyMeters, recordedAt, fixAgeMs });
   }
   leavePresence(): Promise<Record<string, never>> { return this.request('DELETE', '/presence'); }
   getDrivingRoute(origin: RouteCoordinate, destination: RouteCoordinate): Promise<InAppNavigationRoute> {

@@ -920,7 +920,14 @@
           enabledSharingForNearby = true;
         }
 
-        await sendPresence(position);
+        try {
+          await sendPresence(position);
+        } catch (error) {
+          // Safari can hand back a cached fix that's already too old. Ask for
+          // a brand-new one once before giving up.
+          if (!(error instanceof ApiError) || error.body?.error !== 'location fix timestamp is stale or invalid') throw error;
+          await sendPresence(await currentPosition({ maximumAge: 0 }));
+        }
         state.publicLive = true;
         persist();
         renderMapStatus();
@@ -967,7 +974,14 @@
                 ? 'Your location jumped unexpectedly. Waiting for a steadier GPS fix. Try Nearby again in a moment.'
                 : code === 'rate_limited'
                   ? 'Nearby is updating too often. Try again in a moment.'
-                  : 'Could not go live. Try again.');
+                  : code === 'location fix timestamp is stale or invalid'
+                    ? 'Couldn’t get a fresh location. Check location is on for this app and try again.'
+                    : 'Could not go live. Try again.');
+        if (!['email_verification_required', 'location_sharing_disabled', 'rate_limited', 'implausible_location_jump', 'location accuracy must be between 0 and 100 metres'].includes(code)) {
+          // Report why, without coordinates, so a failure like this is
+          // diagnosable from the server logs.
+          clientErrorReporter(`Go live failed: ${code ?? (error instanceof Error ? error.message : String(error))}`, 'nearby.go_live', false);
+        }
       }
     } finally {
       nearbyTogglePending = false;

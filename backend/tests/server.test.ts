@@ -645,6 +645,16 @@ describe('authenticated API', () => {
     assert.equal((await res.json() as { radiusMiles: number }).radiusMiles, 1);
   });
 
+  it('judges fix freshness by the device-measured age, so phone clock skew does not reject a fresh fix', needsDb, async () => {
+    await ctx.profileStore.update('skewed', { shareLocation: true });
+    const fix = { lat: 51.5, lon: -0.1, accuracyMeters: 8 };
+    // Phone clock two minutes behind: the absolute timestamp alone looks stale.
+    const skewed = Date.now() - 120_000;
+    assert.equal((await postJson(ctx, 'skewed', '/presence', { ...fix, recordedAt: skewed })).status, 400);
+    assert.equal((await postJson(ctx, 'skewed', '/presence', { ...fix, recordedAt: skewed, fixAgeMs: 1_500 })).status, 200);
+    assert.equal((await postJson(ctx, 'skewed', '/presence', { ...fix, recordedAt: Date.now(), fixAgeMs: 45_000 })).status, 400);
+  });
+
   it('rejects an implausible presence jump with 422', needsDb, async () => {
     await ctx.profileStore.update('jumper', { shareLocation: true });
     const recordedAt = Date.now() - 10_000;

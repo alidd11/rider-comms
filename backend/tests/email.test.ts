@@ -102,6 +102,25 @@ describe('sendVerificationEmail', () => {
     assert.equal(sent, false);
   });
 
+  it('logs why Resend refused, with email addresses removed', async (t) => {
+    process.env.RESEND_API_KEY = 'test-key';
+    process.env.RESEND_FROM_EMAIL = 'noreply@example.com';
+    const logged: string[] = [];
+    t.mock.method(console, 'error', (message: string) => { logged.push(message); });
+
+    const sent = await sendVerificationEmail('rider@example.com', 'sometoken', {
+      fetchImpl: fakeFetch(() => ({
+        status: 403,
+        body: { name: 'validation_error', message: 'You can only send testing emails to your own email address (owner@example.com).' },
+      })),
+    });
+    assert.equal(sent, false);
+    assert.equal(logged.length, 1);
+    assert.match(logged[0]!, /HTTP 403 .*validation_error: You can only send testing emails/);
+    assert.match(logged[0]!, /\(\[email\]\)/);
+    assert.doesNotMatch(logged[0]!, /owner@example\.com|rider@example\.com/);
+  });
+
   it('returns false without throwing when the fetch implementation itself throws', async () => {
     process.env.RESEND_API_KEY = 'test-key';
     process.env.RESEND_FROM_EMAIL = 'noreply@example.com';

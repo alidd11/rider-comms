@@ -74,6 +74,29 @@ describe('POST /client-errors', () => {
     assert.equal(entry.context, 'boot');
   });
 
+  it('logs an opaque cross-origin "Script error." as a warning, not a fatal error', async () => {
+    const ctx = startTestServer();
+    await ctx.ready;
+    const errors: string[] = [];
+    const warnings: string[] = [];
+    const originalError = console.error;
+    const originalWarn = console.warn;
+    console.error = (line: unknown) => { errors.push(String(line)); };
+    console.warn = (line: unknown) => { warnings.push(String(line)); };
+    try {
+      const res = await post(ctx, { platform: 'web', message: 'Script error.', fatal: true, context: 'window.error' });
+      assert.equal(res.status, 202);
+    } finally {
+      console.error = originalError;
+      console.warn = originalWarn;
+      await ctx.close();
+    }
+    assert.equal(errors.some((line) => line.includes('client_error')), false);
+    const entry = JSON.parse(warnings.find((line) => line.includes('client_error'))!);
+    assert.equal(entry.level, 'warn');
+    assert.equal(entry.fatal, false);
+  });
+
   it('is rate-limited per client address', async () => {
     const actions: string[] = [];
     const ctx = startTestServer({

@@ -6,7 +6,8 @@ import type { DrivingRoute, RouteCoordinate } from './directionsProvider.ts';
 import { DirectionsCache, wrapDirectionsProviderWithCache } from './directionsCache.ts';
 import { RetentionStore } from './retentionStore.ts';
 import { configureErrorAlerts, ErrorAlerter, flushErrorAlerts, reportOperationalError } from './errorAlerts.ts';
-import { sendOperationalEmail } from './email.ts';
+import { DEFAULT_PUBLIC_APP_URL, sendOperationalEmail } from './email.ts';
+import { SITE_CHECK_INTERVAL_MS, SiteMonitor } from './siteMonitor.ts';
 import { fetchGooglePlaces } from './placesProvider.ts';
 import type { PlaceSearchRequest, PlaceSummary } from './placesProvider.ts';
 import { AuthStore } from './authStore.ts';
@@ -384,6 +385,16 @@ async function startProductionServer(): Promise<void> {
   recordActiveRiders();
   const activeRidersTimer = setInterval(recordActiveRiders, RETENTION_SWEEP_INTERVAL_MS);
   activeRidersTimer.unref();
+  // The web app and the privacy page the stores link to. The first check
+  // waits one interval, so a deploy restart never alerts.
+  const publicAppUrl = new URL(process.env.PUBLIC_APP_URL ?? DEFAULT_PUBLIC_APP_URL);
+  const siteMonitor = new SiteMonitor({
+    urls: [publicAppUrl.href, new URL('privacy.html', publicAppUrl).href],
+    report: (summary) => reportOperationalError('web_app_down', summary),
+    log: (entry) => console.log(JSON.stringify(entry)),
+  });
+  const siteMonitorTimer = setInterval(() => void siteMonitor.check(), SITE_CHECK_INTERVAL_MS);
+  siteMonitorTimer.unref();
 
   let stopping = false;
   const shutdown = (signal: NodeJS.Signals) => {
@@ -395,6 +406,7 @@ async function startProductionServer(): Promise<void> {
     clearInterval(socialStateCleanupTimer);
     clearInterval(retentionSweepTimer);
     clearInterval(activeRidersTimer);
+    clearInterval(siteMonitorTimer);
     void flushErrorAlerts();
     void productionSocialEventStore.close().catch((error) => console.error(JSON.stringify({ level: 'error', event: 'social_event_listener_shutdown_failed', message: error instanceof Error ? error.message : String(error) })));
     console.log(JSON.stringify({ level: 'info', event: 'shutdown_started', signal }));

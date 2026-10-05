@@ -1,6 +1,8 @@
 # Uptime monitoring
 
-The backend emails staff about errors while it is running (see `README.md`, "Error alerts"). It can't report its own outage, so `.github/workflows/uptime.yml` checks production from GitHub every 10 minutes. GitHub may delay scheduled runs by a few minutes when it's busy.
+The backend emails staff about errors while it is running (see `README.md`, "Error alerts"). It can't report its own outage, so `.github/workflows/uptime.yml` checks production from GitHub on a 10-minute schedule. In practice GitHub delays scheduled runs by hours: on 2026-10-05 it ran at 05:34 and 12:35 and slept through a 20-minute web app outage.
+
+The backend therefore also checks the web app and privacy page itself every 5 minutes (`backend/src/siteMonitor.ts`) and emails staff after two failed checks in a row, once per outage. That covers the web app being down, but not the backend being down. For an independent backend check, add a free external monitor such as UptimeRobot on `/health`.
 
 | Check | URL | Fails when |
 | --- | --- | --- |
@@ -22,5 +24,5 @@ Then:
 You can run the check by hand at any time: Actions, then **Uptime**, then **Run workflow**.
 
 ## Limits
-- It checks from one place every 10 minutes, so a short blip between runs can go unnoticed.
+- GitHub runs it every few hours at best, despite the 10-minute schedule, so it catches long outages only. The backend's own web app check covers the site within about 10 minutes.
 - It confirms that the API and database answer. It doesn't test voice (LiveKit), email (Resend) or Google Maps; see `OUTAGES.md`.

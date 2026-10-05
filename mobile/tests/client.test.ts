@@ -176,6 +176,7 @@ describe('RiderCommsClient.updatePresence', () => {
           lon: -105.0,
           accuracyMeters: 8,
           recordedAt: 1_700_000_000_000,
+          fixAgeMs: 2_500,
         });
         return {
           status: 200,
@@ -184,7 +185,7 @@ describe('RiderCommsClient.updatePresence', () => {
       })
     );
 
-    const result = await client.updatePresence(40.0, -105.0, 8, 1_700_000_000_000);
+    const result = await client.updatePresence(40.0, -105.0, 8, 1_700_000_000_000, 1_700_000_002_500);
     assert.deepEqual(result.inZoneWith, ['friend']);
     assert.equal(result.transitions[0].type, 'entered');
   });
