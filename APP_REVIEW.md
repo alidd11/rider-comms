@@ -38,7 +38,7 @@ Apple account, legal entity or a decision.
 | Category | Navigation (primary), Social Networking (secondary) |
 | Price | Free. No in-app purchases. |
 | Sign-in required | Yes. Give the demo account in Review Notes. |
-| Encryption export | Exempt. `ITSAppUsesNonExemptEncryption` is already `false`, because the app only uses standard HTTPS/TLS and WebRTC. |
+| Encryption export | **Decide before the first upload** (see "Known judgement calls"). The build currently declares `ITSAppUsesNonExemptEncryption: false`. |
 | Content rights | The app shows riders' own content, plus Google and Apple maps under their terms. Route photos are licensed (`ROUTE_IMAGE_LICENSES.md`). |
 
 ### Age rating questionnaire
@@ -230,19 +230,54 @@ location declaration doesn't apply.
 - **5.1.1 data and permissions:**
   - Permission strings explain each use.
   - Purpose strings that SDK plugins add for APIs the app doesn't use (camera,
-    Face ID, "always" location, motion) say so plainly instead of the generic
+    Face ID, photo library, "always" location, motion) say so plainly instead of the generic
     "Allow Rider Comms to access…" text. `scripts/check-native-permissions.mjs`
     keeps it that way. Unused Android permissions (camera, storage, draw over
     other apps) are removed from the manifest.
   - The screen before the location prompt says "Continue", not "Enable" or "Allow".
   - Account deletion is in the app.
-  - The privacy manifest declares collected data and required-reason APIs.
+  - The privacy manifest declares collected data and required-reason APIs,
+    and CI confirms it's in the built app.
+  - WebRTC can trigger iOS's local network prompt, so
+    `NSLocalNetworkUsageDescription` explains it instead of showing a blank
+    reason.
+  - CI fails if the built app links a privacy-sensitive system framework
+    (camera, Bluetooth, contacts, photos and so on) without its purpose
+    string, which App Store Connect would reject on upload (ITMS-90683).
+    `scripts/check-ios-purpose-strings.sh`.
 - **1.2 user-generated content:** agreement at signup (and once for existing
   accounts), server-side filtering, report, block and mute everywhere other
   riders appear, a blocked-riders list, and a 24-hour moderation commitment.
 - **Icon:** full-bleed 1024×1024 with no transparency (`mobile/assets/brand/`).
+- **Google Play technical requirements**, checked by CI on every release
+  APK (`scripts/check-android-release.sh`):
+  - Targets API 36, the level Play requires for new apps and updates.
+  - Every 64-bit native library supports 16 KB memory pages, which Play
+    requires for apps targeting Android 15 and later.
+  - The manifest has only the permissions these answers describe, with no
+    background location, camera, storage or media access.
+- **Android runtime permissions:** voice asks for the microphone first, then
+  Bluetooth (Android 12+, so helmet intercoms appear as an audio route) and
+  notifications (Android 13+, so the voice and navigation notifications are
+  visible). Saying no to either still leaves voice and navigation working.
+- **Android map:** needs a Google Maps key from the build environment
+  (`mobile/app.config.js`). A production Android build without one fails
+  instead of shipping a blank map.
 
 ## Known judgement calls
+
+- **Encryption export compliance.** Voice uses WebRTC, which encrypts audio
+  with standard algorithms (DTLS-SRTP) from its own bundled library, not
+  only with iOS's built-in encryption. Apple's questionnaire treats that as
+  "standard encryption algorithms instead of, or in addition to, using or
+  accessing the encryption within Apple's operating system." The build
+  currently says `false` (exempt), which is accurate only if the app
+  qualifies for an exemption. Many voice apps answer instead: uses
+  encryption, standard algorithms. That answer also asks whether the app is
+  offered in France, which needs a declaration to ANSSI. Ask your lawyer or
+  export adviser. If the answer is "uses standard encryption", set
+  `ITSAppUsesNonExemptEncryption` to `true` in `mobile/app.json` and answer
+  the questions in App Store Connect.
 
 - **Sign-in is required for the whole app.** Apple can ask for
   account-free browsing (5.1.1(v)) when core features don't need an account.

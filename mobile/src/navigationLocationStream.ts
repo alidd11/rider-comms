@@ -20,6 +20,7 @@
 import { Platform } from 'react-native';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
+import { requestOptionalAndroidPermissions } from './androidPermissions';
 
 export const NAVIGATION_LOCATION_TASK = 'rider-comms-navigation-location';
 
@@ -80,6 +81,9 @@ TaskManager.defineTask<{ locations?: Location.LocationObject[] }>(
 
 async function startBackgroundUpdates(): Promise<void> {
   if (backgroundRunning) return;
+  // Shows the "navigation is on" notification on Android 13+. Navigation
+  // keeps working if the rider says no.
+  await requestOptionalAndroidPermissions(['POST_NOTIFICATIONS']);
   await Location.startLocationUpdatesAsync(NAVIGATION_LOCATION_TASK, BACKGROUND_OPTIONS);
   backgroundRunning = true;
 }

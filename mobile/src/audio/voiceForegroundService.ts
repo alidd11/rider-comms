@@ -1,4 +1,5 @@
 import { NativeModules, PermissionsAndroid, Platform } from 'react-native';
+import { requestOptionalAndroidPermissions } from '../androidPermissions';
 
 interface AndroidForegroundServiceNativeModule {
   startService(config: {
@@ -50,6 +51,9 @@ async function ensureAndroidMicrophonePermission(): Promise<void> {
 export async function startAndroidVoiceForegroundService(): Promise<void> {
   if (Platform.OS !== 'android') return;
   await ensureAndroidMicrophonePermission();
+  // Bluetooth routing for helmet intercoms, and a visible "voice is on"
+  // notification. Voice still works if the rider says no.
+  await requestOptionalAndroidPermissions(['BLUETOOTH_CONNECT', 'POST_NOTIFICATIONS']);
   const service = nativeForegroundService();
   await service.startService({
     id: VOICE_SERVICE_NOTIFICATION_ID,

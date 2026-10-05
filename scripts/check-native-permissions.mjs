@@ -37,6 +37,20 @@ assert.ok((expo.android?.blockedPermissions ?? []).includes('android.permission.
 const whenInUse = String(expo.ios?.infoPlist?.NSLocationWhenInUseUsageDescription ?? '');
 assert.ok(whenInUse.startsWith('Rider Comms') && whenInUse.includes('navigation'), 'The While Using string must explain locked-screen navigation');
 
+// WebRTC can trigger iOS's local network prompt; without this string the
+// prompt has no explanation.
+// An SDK links Photos, so App Store Connect requires this string even though
+// the app never reads the photo library (ITMS-90683).
+assert.ok(String(expo.ios?.infoPlist?.NSPhotoLibraryUsageDescription ?? '').startsWith('Rider Comms'), 'NSPhotoLibraryUsageDescription must say Rider Comms does not use photos');
+const localNetwork = String(expo.ios?.infoPlist?.NSLocalNetworkUsageDescription ?? '');
+assert.ok(localNetwork.startsWith('Rider Comms'), 'NSLocalNetworkUsageDescription must explain the voice connection');
+// Android 13+ hides foreground-service notifications without it, and the
+// voice and navigation services both post one.
+assert.ok((expo.android?.permissions ?? []).includes('POST_NOTIFICATIONS'), 'Android needs POST_NOTIFICATIONS for the service notifications');
+// The Android map needs a Google Maps key, injected from the environment.
+const appConfig = await readFile(new URL('../mobile/app.config.js', import.meta.url), 'utf8');
+assert.ok(appConfig.includes('GOOGLE_MAPS_ANDROID_API_KEY') && appConfig.includes('androidGoogleMapsApiKey'), 'mobile/app.config.js must pass the Android Google Maps key to react-native-maps');
+
 const blocked = new Set(expo.android?.blockedPermissions ?? []);
 for (const permission of ['CAMERA', 'READ_EXTERNAL_STORAGE', 'WRITE_EXTERNAL_STORAGE', 'SYSTEM_ALERT_WINDOW']) {
   assert.ok(blocked.has(`android.permission.${permission}`), `Unused Android permission ${permission} must be blocked`);

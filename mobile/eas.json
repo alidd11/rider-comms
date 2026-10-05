@@ -5,6 +5,7 @@
   },
   "build": {
     "preview": {
+      "environment": "preview",
       "distribution": "internal",
       "android": {
         "buildType": "apk"
@@ -14,6 +15,7 @@
       }
     },
     "production": {
+      "environment": "production",
       "autoIncrement": true,
       "env": {
         "EXPO_PUBLIC_API_URL": "https://backend-production-7fa0.up.railway.app"
