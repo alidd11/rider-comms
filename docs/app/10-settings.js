@@ -29,6 +29,16 @@
         </div>`,
         ready: wireSettingsHubRows,
       }),
+      music: () => {
+        const apps = musicAppsInOrder();
+        const last = rememberedMusicApp();
+        return {
+          title: 'Music',
+          body: `<p class="caption music-sheet-note">Opens your music app. While riding, play, pause and skip with your helmet or headset buttons.</p>
+            <div class="settings-hub-list">${apps.map((app) => `<button data-music-app="${app.id}"><span class="setting-icon">${icon('music')}</span><span><strong>${escapeHtml(app.name)}</strong><small>${app.id === last ? 'Last used' : `Open ${escapeHtml(app.name)}`}</small></span>${icon('chevron')}</button>`).join('')}</div>`,
+          ready: () => $$('[data-music-app]').forEach((button) => button.addEventListener('click', () => openMusicApp(button.dataset.musicApp))),
+        };
+      },
       blocked: () => ({
         title: 'Blocked riders',
         body: '<div id="blockedRidersList" class="blocked-list" aria-live="polite"><p class="caption">Loading…</p></div>',
@@ -430,6 +440,42 @@
         showToast('Couldn’t unblock. Try again.');
       }
     }));
+  }
+
+  // Like Waze's music button, but a web app can't embed a player: it opens
+  // the rider's music app by its URL scheme and remembers which one.
+  const MUSIC_APPS = [
+    { id: 'spotify', name: 'Spotify', url: 'spotify:' },
+    { id: 'apple-music', name: 'Apple Music', url: 'music://', appleOnly: true },
+    { id: 'youtube-music', name: 'YouTube Music', url: 'youtubemusic://' },
+  ];
+  const MUSIC_APP_KEY = 'rider-comms-music-app';
+
+  function rememberedMusicApp() {
+    try { return localStorage.getItem(MUSIC_APP_KEY); } catch { return null; }
+  }
+
+  function musicAppsInOrder() {
+    const ua = navigator.userAgent;
+    const apple = /iPhone|iPad|iPod/.test(ua) || (ua.includes('Macintosh') && navigator.maxTouchPoints > 1);
+    const last = rememberedMusicApp();
+    return MUSIC_APPS
+      .filter((app) => !app.appleOnly || apple)
+      .sort((a, b) => Number(b.id === last) - Number(a.id === last));
+  }
+
+  function openMusicApp(id) {
+    const app = MUSIC_APPS.find((candidate) => candidate.id === id);
+    if (!app) return;
+    try { localStorage.setItem(MUSIC_APP_KEY, app.id); } catch { /* Ordering only. */ }
+    closeSheet();
+    // Opening the app hides this page. If it's still showing, the app
+    // probably isn't installed.
+    const notOpened = setTimeout(() => {
+      if (document.visibilityState === 'visible') showToast(`Couldn’t open ${app.name}. Is it installed?`);
+    }, 1600);
+    document.addEventListener('visibilitychange', () => clearTimeout(notOpened), { once: true });
+    window.location.href = app.url;
   }
 
   function closeSheet() {

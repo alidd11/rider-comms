@@ -289,7 +289,7 @@
     if (overview) {
       overview.setAttribute('aria-label', navFollowing ? 'Show route overview' : 'Resume navigation follow mode');
       const use = $('use', overview);
-      if (use) use.setAttribute('href', navFollowing ? '#i-route' : '#i-target');
+      if (use) use.setAttribute('href', navFollowing ? '#i-route' : '#i-locate');
       overview.classList.toggle('active', !navFollowing);
     }
   }

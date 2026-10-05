@@ -39,6 +39,14 @@ export const styles = StyleSheet.create({
     borderColor: colors.accent,
     backgroundColor: colors.accent,
   },
+  mapReportButton: {
+    borderColor: '#F5A524',
+    backgroundColor: '#F5A524',
+  },
+  mapLiveButtonActive: {
+    borderColor: colors.success,
+    backgroundColor: colors.success,
+  },
   nearbyCount: {
     position: 'absolute',
     left: spacing.lg,

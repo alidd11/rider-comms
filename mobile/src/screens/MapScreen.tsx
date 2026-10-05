@@ -10,7 +10,8 @@
 // mounting a second map instance, which keeps map billing/state predictable
 // and matches the PWA's tab-owned interaction model.
 import * as React from 'react';
-import { AccessibilityInfo, View, Text, Pressable, Alert, Linking, useColorScheme, useWindowDimensions } from 'react-native';
+import { AccessibilityInfo, View, Text, Pressable, Alert, Linking, Platform, useColorScheme, useWindowDimensions } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
@@ -42,6 +43,7 @@ import {
   navigationSpeedUnit,
 } from '../navigationGuidance';
 import { RiderAvatar } from '../components/RiderAvatar';
+import { MUSIC_APP_STORAGE_KEY, musicAppsFor, type MusicApp } from '../musicApps';
 import { NavigationManeuverGlyph } from '../components/NavigationManeuverGlyph';
 import { NavigationRoadAhead } from '../components/NavigationRoadAhead';
 import { HazardMarker, SmoothSelfMarker, SmoothRideMemberMarker } from './mapMarkers';
@@ -354,6 +356,22 @@ export function MapScreen(): React.JSX.Element {
     focusCoordinate(location);
   }
 
+  async function openMusicPicker(): Promise<void> {
+    const lastUsed = await AsyncStorage.getItem(MUSIC_APP_STORAGE_KEY).catch(() => null);
+    const launch = async (app: MusicApp): Promise<void> => {
+      await AsyncStorage.setItem(MUSIC_APP_STORAGE_KEY, app.id).catch(() => {});
+      try {
+        await Linking.openURL(app.url);
+      } catch {
+        Alert.alert(`Couldn’t open ${app.name}`, 'Is it installed?');
+      }
+    };
+    Alert.alert('Music', 'Opens your music app. While riding, play, pause and skip with your helmet or headset buttons.', [
+      ...musicAppsFor(Platform.OS, lastUsed).map((app) => ({ text: app.name, onPress: () => void launch(app) })),
+      { text: 'Cancel', style: 'cancel' as const },
+    ]);
+  }
+
   function selectPlace(place: PlaceResult): void {
     setNavigationTarget(null);
     setSelectedHazardId(null);
@@ -555,11 +573,19 @@ export function MapScreen(): React.JSX.Element {
         <View style={[styles.mapActions, { bottom: insets.bottom + spacing.sm }]}>
           {!lockedForSafety && <Pressable
             style={styles.mapActionButton}
+            onPress={() => void openMusicPicker()}
+            accessibilityRole="button"
+            accessibilityLabel="Open your music app"
+          >
+            <Ionicons name="musical-notes" size={24} color={colors.textPrimary} />
+          </Pressable>}
+          {!lockedForSafety && <Pressable
+            style={[styles.mapActionButton, styles.mapReportButton]}
             onPress={() => void openReportSheet()}
             accessibilityRole="button"
             accessibilityLabel="Report on the road"
           >
-            <MaterialCommunityIcons name="alert-plus" size={24} color={colors.textPrimary} />
+            <MaterialCommunityIcons name="alert-outline" size={26} color="#1F1300" />
           </Pressable>}
           <Pressable
             style={styles.mapActionButton}
@@ -567,16 +593,16 @@ export function MapScreen(): React.JSX.Element {
             accessibilityRole="button"
             accessibilityLabel="Centre map on my location"
           >
-            <MaterialCommunityIcons name="crosshairs-gps" size={24} color={colors.accent} />
+            <Ionicons name="navigate-outline" size={24} color={colors.accent} />
           </Pressable>
           <Pressable
-            style={[styles.mapActionButton, publicLive && styles.mapActionButtonActive]}
+            style={[styles.mapActionButton, publicLive && styles.mapLiveButtonActive]}
             onPress={() => void handleNearbyToggle()}
             accessibilityRole="button"
             accessibilityState={{ selected: publicLive }}
             accessibilityLabel={publicLive ? 'Stop live location and proximity voice' : 'Go live nearby and enable proximity voice'}
           >
-            <Ionicons name="people" size={24} color={publicLive ? colors.accentText : colors.accent} />
+            <MaterialCommunityIcons name="access-point" size={26} color={publicLive ? '#04210F' : colors.accent} />
           </Pressable>
         </View>
       )}

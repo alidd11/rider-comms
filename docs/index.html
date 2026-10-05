@@ -56,6 +56,10 @@
     <symbol id="i-pothole" viewBox="0 0 24 24"><path d="M12 4 16 7l3 4-2 5-5 3-5-2-2-5 2-5Z"/><path d="M12 9v4M12 9l-1.5 3M12 9l2 2.5"/></symbol>
     <symbol id="i-no-entry" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M6.5 6.5l11 11"/></symbol>
     <symbol id="i-report" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v6M12 16.5h.01"/></symbol>
+    <symbol id="i-hazard-report" viewBox="0 0 24 24"><path d="M10.3 4.2a2 2 0 0 1 3.4 0l7.6 13.1a2 2 0 0 1-1.7 3H4.4a2 2 0 0 1-1.7-3Z"/><path d="M12 9.5v4.2M12 16.8h.01"/></symbol>
+    <symbol id="i-locate" viewBox="0 0 24 24"><path d="M20.5 3.5 3.5 10.6l7.1 2.8 2.8 7.1Z"/></symbol>
+    <symbol id="i-live" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2.2"/><path d="M8.5 15.5a5 5 0 0 1 0-7M15.5 8.5a5 5 0 0 1 0 7M5.6 18.4a9 9 0 0 1 0-12.8M18.4 5.6a9 9 0 0 1 0 12.8"/></symbol>
+    <symbol id="i-music" viewBox="0 0 24 24"><path d="M9 18V5.5l11-2V16"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/></symbol>
     <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></symbol>
     <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.8"/></symbol>
     <symbol id="i-eye-off" viewBox="0 0 24 24"><path d="M3 3l18 18M10.6 6.1A9.8 9.8 0 0 1 12 6c6 0 9.5 6 9.5 6a16 16 0 0 1-2.1 2.8M6.2 7.1C3.8 8.8 2.5 12 2.5 12s3.5 6 9.5 6c1.4 0 2.7-.3 3.8-.8M9.9 9.9a3 3 0 0 0 4.2 4.2"/></symbol>
@@ -236,11 +240,12 @@
           <div id="fallbackMarkers" class="fallback-markers"></div>
           <div id="hazardMarkers" class="hazard-markers"></div>
           <div class="map-actions">
-            <button id="reportHazardBtn" class="icon-button glass map-action-button" aria-label="Report on the road"><svg><use href="#i-report"/></svg></button>
-            <button id="locateBtn" class="icon-button glass map-action-button" aria-label="Centre on my location"><svg><use href="#i-target"/></svg></button>
+            <button id="musicBtn" class="icon-button glass map-action-button" data-sheet="music" aria-label="Open your music app"><svg><use href="#i-music"/></svg></button>
+            <button id="reportHazardBtn" class="icon-button glass map-action-button" aria-label="Report on the road"><svg><use href="#i-hazard-report"/></svg></button>
+            <button id="locateBtn" class="icon-button glass map-action-button" aria-label="Centre on my location"><svg><use href="#i-locate"/></svg></button>
             <button id="navMuteBtn" class="icon-button glass nav-only-control" aria-label="Mute navigation guidance"><svg><use href="#i-volume"/></svg></button>
             <button id="navOverviewBtn" class="icon-button glass nav-only-control" aria-label="Show route overview"><svg><use href="#i-route"/></svg></button>
-            <button id="joinNearbyBtn" class="icon-button glass map-action-button" aria-label="Go live nearby"><svg><use href="#i-users"/></svg></button>
+            <button id="joinNearbyBtn" class="icon-button glass map-action-button" aria-label="Go live nearby"><svg><use href="#i-live"/></svg></button>
           </div>
           <article id="riderCard" class="rider-card glass" hidden></article>
           <article id="hazardCard" class="rider-card glass" hidden></article>
