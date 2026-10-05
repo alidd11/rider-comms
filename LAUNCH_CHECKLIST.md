@@ -76,8 +76,9 @@ nightly GitHub job passes with a warning and takes no copy.
 2. `cd mobile && npx eas-cli build --platform android --profile production`.
 3. Fill in Data safety, target audience, content rating and the account
    deletion URL from `APP_REVIEW.md`.
-4. Record the short video Play asks for to justify the microphone
-   foreground service: voice keeps going after the screen locks.
+4. Record the two short videos Play asks for to justify the foreground
+   services: voice keeps going after the screen locks, and navigation keeps
+   speaking turns after the screen locks (`APP_REVIEW.md`).
 
 ## 5. Device checks before submitting
 
@@ -85,6 +86,10 @@ On a real iPhone, with location and microphone allowed:
 
 - Navigation with turn prompts while riding, including losing GPS in a
   tunnel.
+- Navigation with the phone locked: start a route, lock the phone, and
+  check the next turn is spoken, with and without voice chat and music
+  playing. iPhone shows the blue location pill; Android shows a "Rider Comms
+  navigation" notification. Both disappear when navigation ends.
 - Ride Safe: controls lock above 8 mph and unlock after stopping. Check for
   false locks as a passenger.
 - VoiceOver on sign-in, map, ride and chat, and the largest Dynamic Type

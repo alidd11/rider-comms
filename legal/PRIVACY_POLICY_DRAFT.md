@@ -24,7 +24,7 @@ representative, if required]
 | --- | --- | --- | --- |
 | Username, email address, password (stored only as a salted hash) | Creating an account | To run your account, verify your email and let you reset your password | Contract |
 | Profile: display name, handle, avatar, distance units, optional Instagram/TikTok usernames with your chosen visibility | When you edit your profile | To show you to other riders the way you choose | Contract |
-| Precise location | Only while the app is in use (foreground). Never collected in the background. | Nearby riders (only if you turn on sharing and go live), private-ride locations (only if you opt in for that ride), hazard reports, map search, navigation | Consent (you can turn each off at any time) |
+| Precise location | While the app is in use. The one exception is turn-by-turn navigation you start: it keeps using your location with the screen locked so directions continue, and stops when navigation ends. | Nearby riders (only if you turn on sharing and go live), private-ride locations (only if you opt in for that ride), hazard reports, map search, navigation | Consent (you can turn each off at any time) |
 | Voice audio | Only while you're connected to a voice channel | Carried live between riders by our voice provider. We don't record or store voice. | Contract |
 | Messages, friend requests, hideouts | When you use them | To deliver them to the riders you choose | Contract |
 | Hazard reports and confirmations | When you submit them | To warn nearby riders; they expire within hours | Legitimate interest (road safety) |
@@ -35,7 +35,9 @@ representative, if required]
 | Crash reports: error message, technical stack trace, platform, app version | When the app hits an unexpected error | To find and fix bugs. Kept only in server logs, not linked to your account. | Legitimate interest (reliability) |
 
 We don't use advertising SDKs, don't sell personal data, don't track you
-across other apps or websites, and don't collect location in the background.
+across other apps or websites, and don't collect location in the background
+except during navigation you start. Your position is shared with other
+riders only while the app is open and sharing is on.
 
 ## Who we share data with
 

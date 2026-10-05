@@ -141,9 +141,15 @@ take them from a TestFlight build rather than the PWA.
 > **Demo account:** [username] / [password] (email verified). A second account
 > [username2] is already a friend for testing chat and rides.
 >
-> **Background audio** is used only for live voice chat with your group
-> while riding (the screen is usually off). The app does not use background
-> location: location is foreground-only.
+> **Background audio** is used for live voice chat with your group while
+> riding (the screen is usually off) and for spoken turn-by-turn directions.
+>
+> **Background location** is used only during turn-by-turn navigation that
+> the rider starts in the app, so directions keep working with the phone
+> locked. It runs under the "While Using the App" permission (the app never
+> asks for "Always"), iOS shows the blue location indicator while it runs,
+> and it stops as soon as navigation ends. To see it: start navigation to
+> any place from the map, lock the phone, and move; the next turn is spoken.
 >
 > **Safety and moderation (guideline 1.2):**
 > - Signing up requires agreeing to the Terms and Community Guidelines, which
@@ -196,11 +202,20 @@ account and data.
 | App activity → Other user-generated content | App functionality | Profiles, hideouts, hazard reports |
 | App info and performance → Crash logs | App functionality | Not linked to the rider |
 
-**Foreground service declaration.** Voice keeps running with the screen off
-through a microphone foreground service (`FOREGROUND_SERVICE_MICROPHONE`).
-Play asks for its use case ("Voice chat with your riding group while the
-screen is off") and a short video showing voice continuing after the screen
-locks. Record the video on a test device.
+**Foreground service declaration.** Two foreground services, each with a
+short video Play asks for. Record both on a test device.
+
+- **Microphone** (`FOREGROUND_SERVICE_MICROPHONE`): voice keeps running with
+  the screen off. Use case: "Voice chat with your riding group while the
+  screen is off." Video: voice continuing after the screen locks.
+- **Location** (`FOREGROUND_SERVICE_LOCATION`): turn-by-turn navigation the
+  rider starts keeps working with the screen off, with a "Rider Comms
+  navigation" notification, and stops when navigation ends. Use case:
+  "Navigation: spoken turn-by-turn directions while the screen is off."
+  Video: start navigation, lock the screen, and hear the next turn.
+
+The app doesn't request `ACCESS_BACKGROUND_LOCATION`, so Play's background
+location declaration doesn't apply.
 
 ## Rejection risks already handled in code
 

@@ -25,7 +25,17 @@ for (const [plugin, keys] of Object.entries(requiredStrings)) {
 for (const [key, value] of Object.entries(expo.ios?.infoPlist ?? {})) {
   if (key.endsWith('UsageDescription')) assert.ok(!String(value).includes('$(PRODUCT_NAME)'), `${key} must be specific to Rider Comms`);
 }
-assert.notEqual(expo.ios?.infoPlist?.UIBackgroundModes?.includes('location'), true, 'Location is foreground-only (see APP_REVIEW.md)');
+// Background location is only for navigation the rider starts, under the
+// "While Using" permission (see APP_REVIEW.md). Never ask for Always access.
+const location = pluginOptions.get('expo-location') ?? {};
+assert.ok(expo.ios?.infoPlist?.UIBackgroundModes?.includes('location'), 'iOS needs the location background mode for locked-screen navigation');
+assert.ok(expo.ios?.infoPlist?.UIBackgroundModes?.includes('audio'), 'iOS needs the audio background mode for voice and turn prompts');
+assert.equal(location.isAndroidBackgroundLocationEnabled, false, 'Android must not request ACCESS_BACKGROUND_LOCATION');
+assert.equal(location.isAndroidForegroundServiceEnabled, true, 'Android navigation runs as a location foreground service');
+assert.ok((expo.android?.permissions ?? []).includes('FOREGROUND_SERVICE_LOCATION'), 'Android needs FOREGROUND_SERVICE_LOCATION for navigation');
+assert.ok((expo.android?.blockedPermissions ?? []).includes('android.permission.ACCESS_BACKGROUND_LOCATION'), 'ACCESS_BACKGROUND_LOCATION must stay blocked');
+const whenInUse = String(expo.ios?.infoPlist?.NSLocationWhenInUseUsageDescription ?? '');
+assert.ok(whenInUse.startsWith('Rider Comms') && whenInUse.includes('navigation'), 'The While Using string must explain locked-screen navigation');
 
 const blocked = new Set(expo.android?.blockedPermissions ?? []);
 for (const permission of ['CAMERA', 'READ_EXTERNAL_STORAGE', 'WRITE_EXTERNAL_STORAGE', 'SYSTEM_ALERT_WINDOW']) {

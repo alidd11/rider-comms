@@ -4,7 +4,7 @@ The step-by-step App Store submission guide, with App Store Connect answers and 
 
 ## Implemented in this branch
 
-- Foreground-only location permission with an in-context prompt, opt-in sharing, explicit leave, and no background-location declaration.
+- "While Using" location permission with an in-context prompt, opt-in sharing and explicit leave. The app never asks for Always (or Android background) location. The only background use is turn-by-turn navigation the rider starts: iOS shows its location indicator and Android a navigation notification, and updates stop when navigation ends. Sharing with riders still happens only while the app is open.
 - Secure device storage for the guest bearer token and server-derived actor identity.
 - Atomic in-app account deletion that revokes sessions and removes the rider's durable profile, social, message, ride, friendship, hideout, presence, hazard, moderation and submitted-route data.
 - Agreement to the Terms of Service and Community Guidelines at signup, and once for existing accounts whenever the terms version changes (`TERMS_VERSION`). Posting, chat and voice are refused until the rider agrees.

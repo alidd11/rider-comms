@@ -5,6 +5,9 @@ import { registerGlobals } from '@livekit/react-native';
 import { AppNavigator } from './src/navigation';
 import { AppErrorBoundary } from './src/errors/AppErrorBoundary';
 import { installGlobalErrorHandler, installUnhandledRejectionReporter } from './src/errors/errorReporting';
+// Importing it also defines the background navigation location task, which
+// has to happen as the bundle loads.
+import { stopStaleNavigationLocationUpdates } from './src/navigationLocationStream';
 
 // LiveKit React Native requires the WebRTC globals before any room/client is created.
 // Keep this at module bootstrap, outside React lifecycle, so every voice surface shares
@@ -13,6 +16,7 @@ import { installGlobalErrorHandler, installUnhandledRejectionReporter } from './
 registerGlobals({ autoConfigureAudioSession: false });
 installGlobalErrorHandler();
 installUnhandledRejectionReporter();
+void stopStaleNavigationLocationUpdates().catch(() => {});
 
 export default function App(): React.JSX.Element {
   const scheme = useColorScheme();
