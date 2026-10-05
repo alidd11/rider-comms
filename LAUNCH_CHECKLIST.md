@@ -22,6 +22,10 @@ device, so it needs the owner. The detailed guides are linked.
 - Both native apps compile and launch (iPhone simulator, Android emulator)
   on every mobile change and weekly, including after the LiveKit 3.0
   upgrade. Voice itself still needs the device check below.
+- Store technical checks run on those builds: the iPhone app has a purpose
+  string for every privacy-sensitive framework it links and bundles its
+  privacy manifest. The Android APK targets API 36, supports 16 KB memory
+  pages, and requests only the permissions the store answers describe.
 
 ## 1. Legal and support (about a day, plus lawyer time)
 
@@ -58,25 +62,39 @@ nightly GitHub job passes with a warning and takes no copy.
 
 1. Join the Apple Developer Program and register the bundle ID
    `com.ridercomms.app`.
-2. Build and upload:
+2. Decide the encryption export answer with your lawyer or export adviser
+   before the first upload (`APP_REVIEW.md`, "Known judgement calls"). It
+   decides one line in `mobile/app.json` and whether France needs a
+   declaration.
+3. Build and upload:
    `cd mobile && npx eas-cli build --platform ios --profile production`,
    then `npx eas-cli submit --platform ios`. Build numbers increment
    automatically.
-3. Create two demo accounts with verified email that are friends with each
+4. Create two demo accounts with verified email that are friends with each
    other, for App Review.
-4. Take screenshots from the TestFlight build (6.9" and 6.5" iPhone).
-5. Fill in App Store Connect from `APP_REVIEW.md`: listing copy, privacy
+5. Take screenshots from the TestFlight build (6.9" and 6.5" iPhone).
+6. Fill in App Store Connect from `APP_REVIEW.md`: listing copy, privacy
    label, age rating, and review notes with the demo accounts.
-6. Optional: to make shared links open the app, add the Apple Team ID and
+7. Optional: to make shared links open the app, add the Apple Team ID and
    the association file (README, "Native app links and maps handoff").
 
 ## 4. Google Play (optional for launch)
 
 1. Create a Play Console account and app.
-2. `cd mobile && npx eas-cli build --platform android --profile production`.
-3. Fill in Data safety, target audience, content rating and the account
+2. Create the Android map key. Without it the Android map can't load, and
+   the production build refuses to start:
+   - In Google Cloud, enable **Maps SDK for Android** and create an API key.
+   - Restrict it to Android apps: package `com.ridercomms.app` with the
+     SHA-1 of the EAS upload key (`npx eas-cli credentials`) and of Play's
+     app signing key (Play Console → Test and release → App integrity).
+   - Save it in EAS as `GOOGLE_MAPS_ANDROID_API_KEY` for the production
+     and preview environments: `npx eas-cli env:create --name
+     GOOGLE_MAPS_ANDROID_API_KEY --environment production --environment
+     preview --visibility sensitive`.
+3. `cd mobile && npx eas-cli build --platform android --profile production`.
+4. Fill in Data safety, target audience, content rating and the account
    deletion URL from `APP_REVIEW.md`.
-4. Record the two short videos Play asks for to justify the foreground
+5. Record the two short videos Play asks for to justify the foreground
    services: voice keeps going after the screen locks, and navigation keeps
    speaking turns after the screen locks (`APP_REVIEW.md`).
 

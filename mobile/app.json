@@ -52,6 +52,7 @@
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Rider Comms uses your location while you use the app, to show your position on the map, share it with your group ride when you turn that on, and find riders within your Nearby zone when you go live. During turn-by-turn navigation it keeps using your location with the screen locked, so directions continue, and stops when navigation ends.",
         "NSMicrophoneUsageDescription": "Rider Comms uses your microphone for hands-free voice chat with your group and nearby riders while you ride.",
+        "NSLocalNetworkUsageDescription": "Rider Comms checks your network connections to find the best route for voice chat. It doesn't look for or connect to other devices on your network.",
         "UIBackgroundModes": [
           "audio",
           "location"
@@ -182,6 +183,7 @@
         "RECORD_AUDIO",
         "MODIFY_AUDIO_SETTINGS",
         "BLUETOOTH_CONNECT",
+        "POST_NOTIFICATIONS",
         "FOREGROUND_SERVICE",
         "FOREGROUND_SERVICE_MICROPHONE",
         "FOREGROUND_SERVICE_LOCATION",
