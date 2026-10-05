@@ -3949,7 +3949,7 @@
                   : code === 'location fix timestamp is stale or invalid'
                     ? 'Couldn’t get a fresh location. Check location is on for this app and try again.'
                     : 'Could not go live. Try again.');
-        if (!['email_verification_required', 'location_sharing_disabled', 'rate_limited'].includes(code)) {
+        if (!['email_verification_required', 'location_sharing_disabled', 'rate_limited', 'implausible_location_jump', 'location accuracy must be between 0 and 100 metres'].includes(code)) {
           // Report why, without coordinates, so a failure like this is
           // diagnosable from the server logs.
           clientErrorReporter(`Go live failed: ${code ?? (error instanceof Error ? error.message : String(error))}`, 'nearby.go_live', false);
