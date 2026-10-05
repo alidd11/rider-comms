@@ -39,6 +39,9 @@ assert.ok(whenInUse.startsWith('Rider Comms') && whenInUse.includes('navigation'
 
 // WebRTC can trigger iOS's local network prompt; without this string the
 // prompt has no explanation.
+// An SDK links Photos, so App Store Connect requires this string even though
+// the app never reads the photo library (ITMS-90683).
+assert.ok(String(expo.ios?.infoPlist?.NSPhotoLibraryUsageDescription ?? '').startsWith('Rider Comms'), 'NSPhotoLibraryUsageDescription must say Rider Comms does not use photos');
 const localNetwork = String(expo.ios?.infoPlist?.NSLocalNetworkUsageDescription ?? '');
 assert.ok(localNetwork.startsWith('Rider Comms'), 'NSLocalNetworkUsageDescription must explain the voice connection');
 // Android 13+ hides foreground-service notifications without it, and the

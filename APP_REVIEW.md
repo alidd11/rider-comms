@@ -230,7 +230,7 @@ location declaration doesn't apply.
 - **5.1.1 data and permissions:**
   - Permission strings explain each use.
   - Purpose strings that SDK plugins add for APIs the app doesn't use (camera,
-    Face ID, "always" location, motion) say so plainly instead of the generic
+    Face ID, photo library, "always" location, motion) say so plainly instead of the generic
     "Allow Rider Comms to access…" text. `scripts/check-native-permissions.mjs`
     keeps it that way. Unused Android permissions (camera, storage, draw over
     other apps) are removed from the manifest.
