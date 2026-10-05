@@ -12,7 +12,7 @@ device, so it needs the owner. The detailed guides are linked.
   with placeholders for the owner details below.
 - Store answers drafted: App Store listing, privacy labels, age rating,
   review notes, and Google Play Data safety (`APP_REVIEW.md`).
-- Production monitoring: uptime checks every 10 minutes, crash and error
+- Production monitoring: the backend checks the web app every 5 minutes, GitHub checks everything every few hours, crash and error
   alert emails, request tracing, and a database-aware deploy health check.
 - Railway volume backups of the production database (daily and weekly).
 - A daily encrypted database backup (Railway `db-backup` service, 02:41

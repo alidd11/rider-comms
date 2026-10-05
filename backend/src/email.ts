@@ -18,7 +18,7 @@ const RESEND_API_URL = 'https://api.resend.com/emails';
 // would succeed on the server while the app reports a failure (OUTAGES.md).
 export const RESEND_TIMEOUT_MS = 5_000;
 
-const DEFAULT_PUBLIC_APP_URL = 'https://alidd11.github.io/rider-comms/';
+export const DEFAULT_PUBLIC_APP_URL = 'https://alidd11.github.io/rider-comms/';
 
 export interface SendVerificationEmailOptions {
   fetchImpl?: typeof fetch;

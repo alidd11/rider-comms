@@ -4,7 +4,7 @@
 // ALERT_INTERVAL_MS is collected into the next email. Nothing is persisted:
 // the buffer lives in memory and is flushed before a crash exit.
 
-export type AlertKind = 'request_failed' | 'client_error' | 'unhandled_rejection' | 'uncaught_exception';
+export type AlertKind = 'request_failed' | 'client_error' | 'unhandled_rejection' | 'uncaught_exception' | 'web_app_down';
 
 export interface AlertEntry {
   kind: AlertKind;
@@ -33,6 +33,7 @@ const KIND_LABELS: Record<AlertKind, string> = {
   unhandled_rejection: 'Backend unhandled rejection',
   request_failed: 'Backend request failure (HTTP 500)',
   client_error: 'App crash/error report',
+  web_app_down: 'Web app or public page unreachable',
 };
 
 export class ErrorAlerter {
