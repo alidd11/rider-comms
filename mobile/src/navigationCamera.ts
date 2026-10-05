@@ -4,14 +4,17 @@
 // stays here because it operates on this app's {lat, lon} route-coordinate
 // shape, which the PWA's {lat, lng} Google Maps LatLng literal does not share.
 export {
+  navigationCameraAltitudeMeters,
   navigationCameraProfile,
-  navigationViewportBias,
+  navigationCentreAheadMeters,
+  offsetAlongHeading,
   stabilizeNavigationHeading,
 } from '@rider-comms/shared';
 
 export type {
   NavigationCameraProfile,
   NavigationCameraProfileInput,
+  NavigationCentreInput,
 } from '@rider-comms/shared';
 
 export interface NavigationCameraCoordinate {

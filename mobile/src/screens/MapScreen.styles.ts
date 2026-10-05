@@ -215,6 +215,7 @@ export const styles = StyleSheet.create({
     borderTopColor: colors.border,
     backgroundColor: colors.dangerSurface,
   },
+  navigationNoticeRowInfo: { backgroundColor: colors.surfaceRaised },
   navigationNotice: { ...type.caption, color: colors.textSecondary, flex: 1 },
   navigationEndButton: {
     width: MIN_TOUCH_TARGET,

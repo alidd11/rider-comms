@@ -51,7 +51,7 @@ import { useRideProfiles } from './useRideProfiles';
 import { useHazardReports } from './useHazardReports';
 import { useNavigationSummary } from './useNavigationSummary';
 import { usePresence } from './usePresence';
-import { useInAppNavigation } from './useInAppNavigation';
+import { ROUTE_UPDATED_NOTICE, useInAppNavigation } from './useInAppNavigation';
 
 const RIDE_MARKER_REFRESH_MS = 10_000;
 const RIDE_MARKER_STALE_MS = 20_000;
@@ -761,8 +761,12 @@ export function MapScreen(): React.JSX.Element {
             ) : null}
             <NavigationRoadAhead alerts={navigationRoadAlerts} unit={unitSystem} />
             {navigationNotice ? (
-              <View style={styles.navigationNoticeRow}>
-                <Ionicons name="warning-outline" size={16} color={colors.warning} />
+              <View style={[styles.navigationNoticeRow, navigationNotice === ROUTE_UPDATED_NOTICE && styles.navigationNoticeRowInfo]}>
+                <Ionicons
+                  name={navigationNotice === ROUTE_UPDATED_NOTICE ? 'checkmark-circle-outline' : 'warning-outline'}
+                  size={16}
+                  color={navigationNotice === ROUTE_UPDATED_NOTICE ? colors.accent : colors.warning}
+                />
                 <Text style={styles.navigationNotice}>{navigationNotice}</Text>
               </View>
             ) : null}

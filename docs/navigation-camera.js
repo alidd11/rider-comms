@@ -23,16 +23,15 @@
     speedMps,
     maneuverDistanceMeters,
     maneuver,
-    viewportBias = 1,
   }) {
     const speed = Number.isFinite(speedMps) ? Math.max(0, Number(speedMps)) : 8;
 
     let profile;
-    if (speed <= 1.5) profile = { zoom: 18.8, pitch: 52, lookAheadMeters: 90, centreAheadMeters: 42 };
-    else if (speed < 7) profile = { zoom: 18.7, pitch: 58, lookAheadMeters: 120, centreAheadMeters: 52 };
-    else if (speed < 14) profile = { zoom: 18.4, pitch: 60, lookAheadMeters: 165, centreAheadMeters: 70 };
-    else if (speed < 22) profile = { zoom: 18.0, pitch: 58, lookAheadMeters: 230, centreAheadMeters: 95 };
-    else profile = { zoom: 17.6, pitch: 54, lookAheadMeters: 310, centreAheadMeters: 125 };
+    if (speed <= 1.5) profile = { zoom: 18.8, pitch: 52, lookAheadMeters: 90 };
+    else if (speed < 7) profile = { zoom: 18.7, pitch: 58, lookAheadMeters: 120 };
+    else if (speed < 14) profile = { zoom: 18.4, pitch: 60, lookAheadMeters: 165 };
+    else if (speed < 22) profile = { zoom: 18.0, pitch: 58, lookAheadMeters: 230 };
+    else profile = { zoom: 17.6, pitch: 54, lookAheadMeters: 310 };
 
     const maneuverDistance = Number.isFinite(maneuverDistanceMeters)
       ? Math.max(0, Number(maneuverDistanceMeters))
@@ -43,7 +42,6 @@
         zoom: Math.min(profile.zoom, 18.0),
         pitch: Math.min(profile.pitch, 50),
         lookAheadMeters: Math.max(profile.lookAheadMeters, 220),
-        centreAheadMeters: Math.max(profile.centreAheadMeters, 80),
       };
     } else if (maneuverDistance <= 180) {
       const proximity = clamp((180 - maneuverDistance) / 160, 0, 1);
@@ -51,23 +49,56 @@
         zoom: Math.min(18.9, profile.zoom + 0.35 * proximity),
         pitch: Math.max(52, profile.pitch - 5 * proximity),
         lookAheadMeters: Math.max(140, profile.lookAheadMeters * (1 - 0.2 * proximity)),
-        centreAheadMeters: Math.max(55, profile.centreAheadMeters * (1 - 0.08 * proximity)),
       };
     }
 
-    return {
-      ...profile,
-      centreAheadMeters: profile.centreAheadMeters * clamp(viewportBias, 0.9, 1.3),
-    };
+    return profile;
   }
 
-  function navigationViewportBias(viewportHeight, topOcclusion, bottomOcclusion) {
-    if (!Number.isFinite(viewportHeight) || viewportHeight <= 0) return 1;
+  const RIDER_POSITION_IN_VISIBLE_MAP = 0.7;
+  const CAMERA_DISTANCE_IN_VIEWPORT_HEIGHTS = 1.5;
+  const METRES_PER_POINT_AT_ZOOM_0 = 156543.03392;
+
+  function navigationCentreAheadMeters({
+    viewportHeight,
+    topOcclusion,
+    bottomOcclusion,
+    zoom,
+    pitch,
+    latitude,
+  }) {
+    if (!Number.isFinite(viewportHeight) || viewportHeight <= 0 || !Number.isFinite(zoom)) return 0;
     const top = clamp(Number.isFinite(topOcclusion) ? topOcclusion : 0, 0, viewportHeight);
     const bottom = clamp(Number.isFinite(bottomOcclusion) ? bottomOcclusion : 0, 0, viewportHeight);
-    const occludedFraction = clamp((top + bottom) / viewportHeight, 0, 0.7);
-    const topDominance = clamp((top - bottom) / viewportHeight, -0.25, 0.25);
-    return clamp(1 + occludedFraction * 0.45 + topDominance * 0.35, 0.9, 1.3);
+    let visibleTop = top;
+    let visibleBottom = viewportHeight - bottom;
+    if (visibleBottom - visibleTop < viewportHeight * 0.2) {
+      visibleTop = 0;
+      visibleBottom = viewportHeight;
+    }
+    const riderY = visibleTop + (visibleBottom - visibleTop) * RIDER_POSITION_IN_VISIBLE_MAP;
+    const screenOffset = riderY - viewportHeight / 2;
+
+    const tilt = (clamp(Number.isFinite(pitch) ? pitch : 0, 0, 75) * Math.PI) / 180;
+    const cameraDistance = viewportHeight * CAMERA_DISTANCE_IN_VIEWPORT_HEIGHTS;
+    const denominator = Math.max(
+      cameraDistance * 0.25,
+      cameraDistance * Math.cos(tilt) + screenOffset * Math.sin(tilt),
+    );
+    const groundOffset = (screenOffset * cameraDistance) / denominator;
+    const lat = Number.isFinite(latitude) ? clamp(latitude, -85, 85) : 0;
+    const metresPerPoint = (METRES_PER_POINT_AT_ZOOM_0 * Math.cos((lat * Math.PI) / 180)) / 2 ** zoom;
+    return groundOffset * metresPerPoint;
+  }
+
+  function offsetAlongHeading(lat, lng, headingDegrees, meters) {
+    const heading = (headingDegrees * Math.PI) / 180;
+    const metresPerDegreeLat = 111320;
+    const metresPerDegreeLng = 111320 * Math.max(0.01, Math.cos((lat * Math.PI) / 180));
+    return {
+      lat: lat + (meters * Math.cos(heading)) / metresPerDegreeLat,
+      lng: lng + (meters * Math.sin(heading)) / metresPerDegreeLng,
+    };
   }
 
   function normaliseHeading(value) {
@@ -87,7 +118,8 @@
 
   root.RiderNavigationCamera = Object.freeze({
     navigationCameraProfile,
-    navigationViewportBias,
+    navigationCentreAheadMeters,
+    offsetAlongHeading,
     stabilizeNavigationHeading,
   });
 })(typeof window === 'undefined' ? globalThis : window);
