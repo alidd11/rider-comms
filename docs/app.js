@@ -3008,9 +3008,14 @@
   let voiceAudioContext;
   let voiceAnalyser;
   let voiceLevelFrame;
-  let voiceAttackTimer;
-  let voiceReleaseTimer;
-  let voiceLatestRms = 0;
+  // Shared VOX gate (voice-activity.js); a fresh one per voice session so it
+  // learns the current background noise.
+  let voiceActivityGate = null;
+  let voiceLastLevelAt = 0;
+  let voiceGateWatchdog;
+  // Playback graph for other riders' voices (see boostRemoteVoice).
+  let voicePlaybackContext;
+  const remoteVoiceBoosts = new WeakMap();
   let voiceManuallyMuted = false;
   let voiceIsSpeaking = false;
   let liveKitLoadPromise;
@@ -3026,12 +3031,9 @@
   const intentionalVoiceDisconnects = new WeakSet();
   const remoteVoiceElements = new WeakMap();
 
-  // More sensitive than the original 0.06 gate, but with hysteresis and a
-  // short attack hold so one wind/helmet bump does not immediately transmit.
-  const VOICE_SPEAKING_ATTACK_THRESHOLD = 0.035;
-  const VOICE_SPEAKING_RELEASE_THRESHOLD = 0.02;
-  const VOICE_ATTACK_HOLD_MS = 70;
-  const VOICE_RELEASE_HANGTIME_MS = 650;
+  // If the level meter stops (the page went to the background), never leave
+  // the mic transmitting: close it after this long without a sample.
+  const VOICE_LEVEL_STALE_MS = 1000;
 
   function microphoneAccessMessage(error) {
     if (!navigator.mediaDevices?.getUserMedia) return 'Microphone access is not supported by this browser.';
@@ -3116,6 +3118,10 @@
       voiceFailureNotified = false;
     }
 
+    if (voicePlaybackContext && voicePlaybackContext.state === 'suspended') {
+      void voicePlaybackContext.resume?.().catch(() => {});
+    }
+
     try {
       const permission = await navigator.permissions?.query({ name: 'microphone' });
       if (permission?.state === 'granted') {
@@ -3155,7 +3161,7 @@
   function cleanupRemoteVoiceAudio(room) {
     const elements = remoteVoiceElements.get(room);
     if (elements) {
-      for (const element of elements) element.remove();
+      for (const element of elements) releaseRemoteVoiceElement(element);
       elements.clear();
       remoteVoiceElements.delete(room);
     }
@@ -3385,6 +3391,58 @@
     });
   }
 
+  /** iPhones and iPads fix web audio elements at full volume, so other
+   * riders' voices can only be made louder through Web Audio. iOS applies
+   * echo cancellation to all output, so routing voice this way is safe
+   * there; other browsers keep plain audio elements. */
+  function voicePlaybackBoostSupported() {
+    const ua = navigator.userAgent || '';
+    return /iPhone|iPad|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  }
+
+  /** Plays a remote voice track about twice as loud, with a limiter so it
+   * never clips. Whenever the audio context isn't running (iOS suspends it
+   * on interruptions) the plain audio element plays instead, so a voice is
+   * never silent, just not boosted. */
+  function boostRemoteVoice(track, element) {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass || !track?.mediaStreamTrack || !voicePlaybackBoostSupported()) return;
+    try {
+      if (!voicePlaybackContext || voicePlaybackContext.state === 'closed') voicePlaybackContext = new AudioContextClass();
+      const context = voicePlaybackContext;
+      const source = context.createMediaStreamSource(new MediaStream([track.mediaStreamTrack]));
+      const gain = context.createGain();
+      gain.gain.value = globalThis.RiderVoiceActivity.VOICE_PLAYBACK_BOOST;
+      const limiter = context.createDynamicsCompressor();
+      limiter.threshold.value = -6;
+      limiter.knee.value = 6;
+      limiter.ratio.value = 12;
+      limiter.attack.value = 0.003;
+      limiter.release.value = 0.25;
+      source.connect(gain);
+      gain.connect(limiter);
+      limiter.connect(context.destination);
+      const sync = () => { element.muted = context.state === 'running'; };
+      context.addEventListener('statechange', sync);
+      sync();
+      void context.resume?.().catch(() => {});
+      remoteVoiceBoosts.set(element, () => {
+        context.removeEventListener('statechange', sync);
+        source.disconnect();
+        gain.disconnect();
+        limiter.disconnect();
+      });
+    } catch {
+      element.muted = false;
+    }
+  }
+
+  function releaseRemoteVoiceElement(element) {
+    remoteVoiceBoosts.get(element)?.();
+    remoteVoiceBoosts.delete(element);
+    element.remove();
+  }
+
   function wireVoiceRoomLifecycle(room, targetKey, peerId) {
     const events = window.LivekitClient?.RoomEvent;
     const Track = window.LivekitClient?.Track;
@@ -3405,6 +3463,7 @@
         element.dataset.riderCommsVoice = 'true';
         document.body.appendChild(element);
         audioElements.add(element);
+        boostRemoteVoice(track, element);
         // iOS/Safari may still require its audio context to be resumed. The
         // direct Go Live flow has already performed getUserMedia from the
         // rider's tap, so this succeeds in the normal test path; failures are
@@ -3417,7 +3476,7 @@
       room.on(events.TrackUnsubscribed, (track) => {
         for (const element of track.detach()) {
           audioElements.delete(element);
-          element.remove();
+          releaseRemoteVoiceElement(element);
         }
       });
     }
@@ -3560,40 +3619,17 @@
     renderVoiceStatus();
   }
 
+  /** One mic level sample from the analyser. The shared gate learns the
+   * background noise (wind, engine) and decides when to transmit. */
   function handleVoiceVolume(rms) {
-    voiceLatestRms = rms;
+    voiceLastLevelAt = performance.now();
     if (voiceManuallyMuted) {
-      if (voiceAttackTimer) { clearTimeout(voiceAttackTimer); voiceAttackTimer = undefined; }
-      if (voiceReleaseTimer) { clearTimeout(voiceReleaseTimer); voiceReleaseTimer = undefined; }
+      voiceActivityGate?.reset();
       setVoiceSpeaking(false);
       return;
     }
-
-    if (voiceIsSpeaking) {
-      if (voiceAttackTimer) { clearTimeout(voiceAttackTimer); voiceAttackTimer = undefined; }
-      if (rms > VOICE_SPEAKING_RELEASE_THRESHOLD) {
-        if (voiceReleaseTimer) { clearTimeout(voiceReleaseTimer); voiceReleaseTimer = undefined; }
-      } else if (!voiceReleaseTimer) {
-        voiceReleaseTimer = setTimeout(() => {
-          voiceReleaseTimer = undefined;
-          setVoiceSpeaking(false);
-        }, VOICE_RELEASE_HANGTIME_MS);
-      }
-      return;
-    }
-
-    if (voiceReleaseTimer) { clearTimeout(voiceReleaseTimer); voiceReleaseTimer = undefined; }
-    if (rms >= VOICE_SPEAKING_ATTACK_THRESHOLD) {
-      if (!voiceAttackTimer) {
-        voiceAttackTimer = setTimeout(() => {
-          voiceAttackTimer = undefined;
-          if (!voiceManuallyMuted && voiceLatestRms >= VOICE_SPEAKING_ATTACK_THRESHOLD) setVoiceSpeaking(true);
-        }, VOICE_ATTACK_HOLD_MS);
-      }
-    } else if (voiceAttackTimer) {
-      clearTimeout(voiceAttackTimer);
-      voiceAttackTimer = undefined;
-    }
+    if (!voiceActivityGate) voiceActivityGate = new globalThis.RiderVoiceActivity.VoiceActivityGate();
+    setVoiceSpeaking(voiceActivityGate.update(rms, voiceLastLevelAt));
   }
 
   /**
@@ -3629,7 +3665,30 @@
     const source = context.createMediaStreamSource(voiceMeterStream);
     voiceAnalyser = context.createAnalyser();
     voiceAnalyser.fftSize = 512;
-    source.connect(voiceAnalyser);
+    // Measure the speech band only: wind buffeting and engine rumble sit
+    // mostly below 150 Hz, and hiss above 4 kHz carries little speech.
+    if (typeof context.createBiquadFilter === 'function') {
+      const highPass = context.createBiquadFilter();
+      highPass.type = 'highpass';
+      highPass.frequency.value = 150;
+      const lowPass = context.createBiquadFilter();
+      lowPass.type = 'lowpass';
+      lowPass.frequency.value = 4000;
+      source.connect(highPass);
+      highPass.connect(lowPass);
+      lowPass.connect(voiceAnalyser);
+    } else {
+      source.connect(voiceAnalyser);
+    }
+    voiceActivityGate = null;
+    voiceLastLevelAt = performance.now();
+    clearInterval(voiceGateWatchdog);
+    voiceGateWatchdog = setInterval(() => {
+      if (voiceIsSpeaking && performance.now() - voiceLastLevelAt > VOICE_LEVEL_STALE_MS) {
+        voiceActivityGate?.reset();
+        setVoiceSpeaking(false);
+      }
+    }, 250);
     if (context.state !== 'running' && context.state !== 'closed') {
       void context.resume().catch(() => {});
     }
@@ -3793,9 +3852,9 @@
 
   function stopVoiceLevelLoop() {
     if (voiceLevelFrame) { cancelAnimationFrame(voiceLevelFrame); voiceLevelFrame = undefined; }
-    if (voiceAttackTimer) { clearTimeout(voiceAttackTimer); voiceAttackTimer = undefined; }
-    if (voiceReleaseTimer) { clearTimeout(voiceReleaseTimer); voiceReleaseTimer = undefined; }
-    voiceLatestRms = 0;
+    clearInterval(voiceGateWatchdog);
+    voiceGateWatchdog = undefined;
+    voiceActivityGate = null;
     voiceAnalyser = undefined;
     const context = voiceAudioContext;
     voiceAudioContext = undefined;

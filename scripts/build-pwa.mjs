@@ -11,7 +11,7 @@ await mkdir(destination, { recursive: true });
 // Deploy only the public application shell. Copying the entire docs folder
 // previously published internal product specifications alongside the PWA.
 const publicFiles = [
-  'index.html', 'app.css', 'app.js', 'avatar-system.js', 'navigation-road-events.js', 'navigation-guidance.js', 'navigation-camera.js', 'position-interpolation.js', 'movement-safety.js', 'message-state.js', 'config.js',
+  'index.html', 'app.css', 'app.js', 'avatar-system.js', 'navigation-road-events.js', 'navigation-guidance.js', 'navigation-camera.js', 'voice-activity.js', 'position-interpolation.js', 'movement-safety.js', 'message-state.js', 'config.js',
   'routes.css', 'routes.js', 'manifest.json', 'sw.js',
   // Staff-only dashboard (noindex); moderation.html redirects to it. The
   // backend enforces admin access on every request.
@@ -29,7 +29,7 @@ await cp(
   { recursive: true },
 );
 
-const required = ['index.html', 'app.css', 'app.js', 'avatar-system.js', 'navigation-road-events.js', 'navigation-guidance.js', 'navigation-camera.js', 'position-interpolation.js', 'movement-safety.js', 'message-state.js', 'config.js', 'manifest.json', 'sw.js'];
+const required = ['index.html', 'app.css', 'app.js', 'avatar-system.js', 'navigation-road-events.js', 'navigation-guidance.js', 'navigation-camera.js', 'voice-activity.js', 'position-interpolation.js', 'movement-safety.js', 'message-state.js', 'config.js', 'manifest.json', 'sw.js'];
 await Promise.all(required.map((file) => readFile(resolve(destination, file))));
 
 // Cache-busting the deployed app.css/app.js used to be a manually-bumped
@@ -77,7 +77,7 @@ for (const file of ['index.html', 'sw.js']) {
 }
 
 const html = await readFile(resolve(destination, 'index.html'), 'utf8');
-for (const asset of ['app.css', 'config.js', 'avatar-system.js', 'navigation-road-events.js', 'navigation-guidance.js', 'navigation-camera.js', 'position-interpolation.js', 'app.js', 'movement-safety.js', 'message-state.js', 'manifest.json', 'routes.css', 'routes.js']) {
+for (const asset of ['app.css', 'config.js', 'avatar-system.js', 'navigation-road-events.js', 'navigation-guidance.js', 'navigation-camera.js', 'voice-activity.js', 'position-interpolation.js', 'app.js', 'movement-safety.js', 'message-state.js', 'manifest.json', 'routes.css', 'routes.js']) {
   if (!html.includes(asset)) throw new Error(`PWA shell does not reference ${asset}`);
 }
 
@@ -113,7 +113,7 @@ if (!html.includes(`<meta name="theme-color" content="${lightChrome}" media="(pr
 // globals, so esbuild keeps their top-level names.
 const { transform } = await import('esbuild');
 const minified = [
-  'app.js', 'avatar-system.js', 'navigation-road-events.js', 'navigation-guidance.js', 'navigation-camera.js',
+  'app.js', 'avatar-system.js', 'navigation-road-events.js', 'navigation-guidance.js', 'navigation-camera.js', 'voice-activity.js',
   'position-interpolation.js', 'movement-safety.js', 'message-state.js', 'routes.js', 'admin.js',
   'app.css', 'routes.css', 'admin.css', 'legal.css',
 ];

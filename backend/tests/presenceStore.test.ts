@@ -62,6 +62,27 @@ describe('PresenceStore', { skip: !hasDatabase && 'DATABASE_URL not set; skippin
     assertHasTransition(left, 'a', 'b', 'left');
   });
 
+  it('keeps an existing pair a little past the radius so edge-of-range riders do not flicker', async () => {
+    const store = new PresenceStore(300_000);
+    const milesNorth = (miles: number) => 51.5 + miles / 69.05;
+    await store.updatePresence(rider('a', 51.5, -0.1, 1, 1000));
+    const entered = await store.updatePresence(rider('b', milesNorth(0.9), -0.1, 1, 2000));
+    assertHasTransition(entered.transitions, 'a', 'b', 'entered');
+
+    // 1.08 mi: past the 1-mile radius, inside the 15% exit margin.
+    const wobble = await store.updatePresence(rider('b', milesNorth(1.08), -0.1, 1, 20_000));
+    assert.deepEqual(wobble.transitions, []);
+    assert.deepEqual(await store.getCurrentPeerIds('a', 20_000), ['b']);
+
+    // A new rider at the same distance doesn't pair: the margin is only for staying.
+    const newcomer = await store.updatePresence(rider('c', milesNorth(-1.08), -0.1, 1, 21_000));
+    assert.equal(newcomer.transitions.some((t) => t.a === 'c' || t.b === 'c'), false);
+
+    // 1.2 mi: beyond the margin, the pair drops.
+    const left = await store.updatePresence(rider('b', milesNorth(1.2), -0.1, 1, 40_000));
+    assertHasTransition(left.transitions, 'a', 'b', 'left');
+  });
+
   it("does not disturb an unrelated pair's zone state when a third rider updates", async () => {
     const store = new PresenceStore();
     await store.updatePresence(rider('a', 51.5, -0.1, 5, 1000));

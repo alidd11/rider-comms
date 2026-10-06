@@ -1,4 +1,4 @@
-import { computeZonePairsFor, haversineMeters } from '@rider-comms/shared';
+import { computeZonePairsFor, haversineMeters, ZONE_EXIT_HYSTERESIS } from '@rider-comms/shared';
 import type { Rider, ZonePair, ZoneTransition } from '@rider-comms/shared';
 import type { PoolClient } from 'pg';
 import { ensureMigrated, getPool } from './db.ts';
@@ -103,7 +103,7 @@ export class PresenceStore {
   }
 
   private async loadCandidates(client: PoolClient, rider: Rider, cutoff: number): Promise<Rider[]> {
-    const box = latLonBoundingBox(rider.location, MAX_ZONE_RADIUS_MILES, 5);
+    const box = latLonBoundingBox(rider.location, MAX_ZONE_RADIUS_MILES * ZONE_EXIT_HYSTERESIS, 5);
     const { minLat, maxLat, longitudeClause } = box;
     const values: unknown[] = [rider.id, cutoff, minLat, maxLat, ...box.longitudeParams];
 
@@ -210,15 +210,17 @@ export class PresenceStore {
         [rider.id, rider.location.lat, rider.location.lon, rider.updatedAt]
       );
 
-      const candidates = await this.loadCandidates(client, rider, cutoff);
-      const desiredPairs = computeZonePairsFor(rider, candidates).map(canonicalPair);
-      const desiredKeys = new Set(desiredPairs.map(pairKey));
-
       const existing = await client.query<PairRow>(
         `SELECT rider_a, rider_b FROM presence_zone_pairs
          WHERE rider_a = $1 OR rider_b = $1`,
         [rider.id]
       );
+      const currentPartnerIds = new Set(existing.rows.map((row) => (row.rider_a === rider.id ? row.rider_b : row.rider_a)));
+      const candidates = await this.loadCandidates(client, rider, cutoff);
+      // Existing pairs get a little extra range before they drop (see
+      // ZONE_EXIT_HYSTERESIS), so riders at the edge don't flicker in and out.
+      const desiredPairs = computeZonePairsFor(rider, candidates, currentPartnerIds).map(canonicalPair);
+      const desiredKeys = new Set(desiredPairs.map(pairKey));
       const transitions: ZoneTransition[] = [];
 
       // Pair rows are always locked in one global order (by key), so two

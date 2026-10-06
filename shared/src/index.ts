@@ -11,3 +11,4 @@ export * from './hazards.ts';
 export * from './scenicRoutes.ts';
 export * from './navigationGuidance.ts';
 export * from './navigationCamera.ts';
+export * from './voiceActivity.ts';
