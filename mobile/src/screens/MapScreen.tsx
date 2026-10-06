@@ -69,7 +69,7 @@ export function MapScreen(): React.JSX.Element {
   const colorScheme = useColorScheme();
   const { client, riderId } = useAuth();
   const { activeRide, rideLocations, roster, shareRideLocation } = useRide();
-  const { shareLocation, setShareLocation, unitSystem, navigationProvider, avatarId, displayName } = useSettings();
+  const { shareLocation, setShareLocation, unitSystem, navigationProvider, routeAvoidance, avatarId, displayName } = useSettings();
   const { lockedForSafety, movementState, locationAccess, requestLocationAccess, openLocationSettings, refreshTracking } = useMovementSafety();
   const insets = useSafeAreaInsets();
   const { height: viewportHeight } = useWindowDimensions();
@@ -256,6 +256,7 @@ export function MapScreen(): React.JSX.Element {
     setSelectedPlace,
     setNavigationTarget,
     setSelectedHazardId,
+    routeAvoidance,
   );
 
   // During turn-by-turn guidance the selected rider avatar must follow the
@@ -398,7 +399,7 @@ export function MapScreen(): React.JSX.Element {
       const origin = currentLocationRef.current ?? await requestCurrentLocation(true);
       if (!origin || requestId !== destinationEtaRequestId.current) return;
       try {
-        const route = await client.getDrivingRoute({ lat: origin.lat, lon: origin.lon }, target);
+        const route = await client.getDrivingRoute({ lat: origin.lat, lon: origin.lon }, target, routeAvoidance);
         if (requestId === destinationEtaRequestId.current) {
           setDestinationEta({ distanceMeters: route.distanceMeters, durationSeconds: route.durationSeconds });
         }
@@ -408,7 +409,7 @@ export function MapScreen(): React.JSX.Element {
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDestination?.lat, selectedDestination?.lon, client]);
+  }, [selectedDestination?.lat, selectedDestination?.lon, client, routeAvoidance.highways, routeAvoidance.tolls]);
 
   async function openDirections(target: NavigationTarget): Promise<void> {
     if (navigationProvider === 'in_app') {

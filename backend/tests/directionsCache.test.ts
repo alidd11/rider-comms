@@ -67,6 +67,20 @@ describe('wrapDirectionsProviderWithCache', () => {
     assert.equal(calls, 1);
   });
 
+  it('keeps routes with different route options apart', async () => {
+    const seen: unknown[] = [];
+    const cache = new DirectionsCache();
+    const wrapped = wrapDirectionsProviderWithCache(async (_o, _d, avoid) => {
+      seen.push(avoid);
+      return route;
+    }, cache);
+
+    await wrapped(origin, destination);
+    await wrapped(origin, destination, { highways: true });
+    await wrapped(origin, destination, { highways: true });
+    assert.deepEqual(seen, [{}, { highways: true }]);
+  });
+
   it('does not cache a failed provider call', async () => {
     let calls = 0;
     const cache = new DirectionsCache();

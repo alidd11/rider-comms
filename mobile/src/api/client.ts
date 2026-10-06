@@ -99,10 +99,15 @@ export class RiderCommsClient {
     return this.request('POST', '/presence', { lat, lon, accuracyMeters, recordedAt, fixAgeMs });
   }
   leavePresence(): Promise<Record<string, never>> { return this.request('DELETE', '/presence'); }
-  getDrivingRoute(origin: RouteCoordinate, destination: RouteCoordinate): Promise<InAppNavigationRoute> {
+  getDrivingRoute(
+    origin: RouteCoordinate,
+    destination: RouteCoordinate,
+    avoid: { highways: boolean; tolls: boolean } = { highways: false, tolls: false },
+  ): Promise<InAppNavigationRoute> {
     return this.request('POST', '/directions', {
       origin: { lat: origin.lat, lon: origin.lon },
       destination: { lat: destination.lat, lon: destination.lon },
+      avoid: { highways: avoid.highways, tolls: avoid.tolls },
     }, 12_000);
   }
   searchPlaces(query: string, near: RouteCoordinate): Promise<{ places: PlaceSummary[] }> {

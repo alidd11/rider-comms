@@ -199,7 +199,7 @@ afterEach(() => {
 test('starts navigation from the current location and announces the first step', async () => {
   const { result, props } = await startNavigation();
 
-  expect(props.client.getDrivingRoute).toHaveBeenCalledWith({ lat: 51.5, lon: -0.1 }, DESTINATION);
+  expect(props.client.getDrivingRoute).toHaveBeenCalledWith({ lat: 51.5, lon: -0.1 }, DESTINATION, { highways: false, tolls: false });
   expect(props.requestCurrentLocation).not.toHaveBeenCalled();
   expect(result.current.activeRoute).toBe(ROUTE);
   expect(result.current.navigationDestination).toBe(DESTINATION);
@@ -343,7 +343,7 @@ test('reroutes only after staying off route for the grace period', async () => {
 
   expect(mockSpeakNavigationPrompt).toHaveBeenCalledWith('Rerouting.');
   expect(client.getDrivingRoute).toHaveBeenCalledTimes(2);
-  expect(client.getDrivingRoute).toHaveBeenLastCalledWith({ lat: 51.5005, lon: -0.097 }, DESTINATION);
+  expect(client.getDrivingRoute).toHaveBeenLastCalledWith({ lat: 51.5005, lon: -0.097 }, DESTINATION, { highways: false, tolls: false });
   expect(result.current.activeRoute).toBe(rerouted);
   expect(result.current.navigationStepIndex).toBe(0);
   expect(result.current.navigationNotice).toBe('Route updated.');

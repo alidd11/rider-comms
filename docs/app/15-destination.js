@@ -74,7 +74,7 @@
     const origin = { lat: position.coords.latitude, lng: position.coords.longitude };
     const destination = { lat: location.lat(), lng: location.lng() };
     getDirectionsService().route(
-      { origin, destination, travelMode: google.maps.TravelMode.DRIVING },
+      navigationRouteRequest(origin, destination),
       (result, status) => {
         if (token !== destinationEtaToken) return;
         const etaEl = $('#destinationCard [data-destination-eta]');

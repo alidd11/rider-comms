@@ -35,6 +35,7 @@ import { acquireNavigationAudioSession, releaseNavigationAudioSession } from '..
 import { watchNavigationLocation, type NavigationLocationWatch } from '../navigationLocationStream';
 import { bearingDegrees } from './mapMarkers';
 import type { UnitSystem } from '../settings/SettingsContext';
+import { DEFAULT_ROUTE_AVOIDANCE, type RouteAvoidance } from '../routeOptionsPreference';
 
 const NAV_STEP_ARRIVAL_RADIUS_M = 30;
 /** Shown briefly after a successful reroute; styled as information, not a warning. */
@@ -95,7 +96,11 @@ export function useInAppNavigation(
   setSelectedPlace: (place: null) => void,
   setNavigationTarget: (target: null) => void,
   setSelectedHazardId: (id: null) => void,
+  routeAvoidance: RouteAvoidance = DEFAULT_ROUTE_AVOIDANCE,
 ): InAppNavigation {
+  // Read through a ref so a settings change doesn't rebuild the route callbacks.
+  const routeAvoidanceRef = React.useRef(routeAvoidance);
+  routeAvoidanceRef.current = routeAvoidance;
   const [activeRoute, setActiveRoute] = React.useState<InAppNavigationRoute | null>(null);
   const [navigationDestination, setNavigationDestination] = React.useState<NavigationTarget | null>(null);
   const [navigationStepIndex, setNavigationStepIndex] = React.useState(0);
@@ -275,7 +280,7 @@ export function useInAppNavigation(
   const requestInAppRoute = React.useCallback(async (origin: { lat: number; lon: number }, target: NavigationTarget, rerouting = false) => {
     if (rerouting) navRerouting.current = true;
     try {
-      const nextRoute = await client.getDrivingRoute(origin, target);
+      const nextRoute = await client.getDrivingRoute(origin, target, routeAvoidanceRef.current);
       setActiveRoute(nextRoute);
       setNavigationDestination(target);
       setNavigationStepIndex(0);

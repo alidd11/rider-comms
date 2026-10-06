@@ -144,8 +144,9 @@
       privacy: () => ({ title: 'Privacy controls', body: `<div class="settings-sheet-section">${toggleMarkup('shareLocation', 'Live location', 'Visible to nearby riders only while you are live.', state.profile.shareLocation)}</div><div class="settings-sheet-section"><div class="form-field"><label for="sheetInstagramVisibility">Instagram visibility</label><select id="sheetInstagramVisibility"><option value="friends">Friends only</option><option value="public">Everyone</option><option value="private">Only me</option></select></div><div class="form-field"><label for="sheetTiktokVisibility">TikTok visibility</label><select id="sheetTiktokVisibility"><option value="friends">Friends only</option><option value="public">Everyone</option><option value="private">Only me</option></select></div><p class="caption">Choose who can see each connected profile independently.</p></div>`, ready: () => { const instagram = $('#sheetInstagramVisibility'); const tiktok = $('#sheetTiktokVisibility'); instagram.value = state.profile.instagramVisibility; tiktok.value = state.profile.tiktokVisibility; instagram.addEventListener('change', (event) => { void patchProfile({ instagramVisibility: event.target.value }); }); tiktok.addEventListener('change', (event) => { void patchProfile({ tiktokVisibility: event.target.value }); }); wireToggles(); } }),
       navigation: () => ({
         title: 'Navigation',
-        body: `<div class="choice-list" role="radiogroup" aria-label="Navigation preference">${Object.entries(NAVIGATION_PROVIDERS).map(([id, option]) => `<button data-navigation-option="${id}" role="radio" aria-checked="${navigationProvider(state.navigationProvider) === id}"><span><strong>${escapeHtml(option.label)}</strong><small>${escapeHtml(option.description)}</small></span><i></i></button>`).join('')}</div><div class="settings-note"><strong>Your choice applies to destination buttons</strong><p>Rider Comms navigation stays in the app. Google Maps, Waze and Apple Maps hand the destination to that provider.</p></div>`,
+        body: `<div class="choice-list" role="radiogroup" aria-label="Navigation preference">${Object.entries(NAVIGATION_PROVIDERS).map(([id, option]) => `<button data-navigation-option="${id}" role="radio" aria-checked="${navigationProvider(state.navigationProvider) === id}"><span><strong>${escapeHtml(option.label)}</strong><small>${escapeHtml(option.description)}</small></span><i></i></button>`).join('')}</div><div class="settings-note"><strong>Your choice applies to destination buttons</strong><p>Rider Comms navigation stays in the app. Google Maps, Waze and Apple Maps hand the destination to that provider.</p></div><div class="settings-sheet-section" aria-label="Route options">${toggleMarkup('avoidHighways', 'Avoid motorways', 'Plan Rider Comms routes on A and B roads where possible.', state.avoidHighways)}${toggleMarkup('avoidTolls', 'Avoid tolls', 'Skip toll roads and bridges where there is another way.', state.avoidTolls)}</div>`,
         ready: () => {
+          wireToggles();
           $$('[data-navigation-option]', $('#sheetBody')).forEach((button) => {
             button.addEventListener('click', () => {
               state.navigationProvider = navigationProvider(button.dataset.navigationOption);
@@ -289,6 +290,8 @@
         tiktokVisibility: 'friends',
       });
       state.navigationProvider = 'google_maps';
+      state.avoidHighways = false;
+      state.avoidTolls = false;
       applyRemoteProfile(profile);
       persist();
       openSheet('accountHub');
@@ -348,6 +351,14 @@
           stopMovementSafetyTracking();
           showToast('Automatic Ride Safe is off on this device.');
         }
+        return;
+      }
+      if (key === 'avoidHighways' || key === 'avoidTolls') {
+        state[key] = active;
+        persist();
+        button.setAttribute('aria-pressed', String(active));
+        const label = key === 'avoidHighways' ? 'motorways' : 'tolls';
+        showToast(active ? `New routes avoid ${label}.` : `New routes can use ${label}.`);
         return;
       }
       if (key === 'shareLocation') {

@@ -135,6 +135,17 @@
     applyManeuverSvg($('#navManeuverSvg'), maneuver);
   }
 
+  /** A Google Directions request with the rider's route options applied. */
+  function navigationRouteRequest(origin, destination) {
+    return {
+      origin,
+      destination,
+      travelMode: google.maps.TravelMode.DRIVING,
+      avoidHighways: state.avoidHighways === true,
+      avoidTolls: state.avoidTolls === true,
+    };
+  }
+
   function getDirectionsService() {
     if (!directionsService) directionsService = new google.maps.DirectionsService();
     return directionsService;
@@ -483,7 +494,7 @@
     const origin = { lat: position.coords.latitude, lng: position.coords.longitude };
     const destination = { lat: location.lat(), lng: location.lng() };
     getDirectionsService().route(
-      { origin, destination, travelMode: google.maps.TravelMode.DRIVING },
+      navigationRouteRequest(origin, destination),
       (result, status) => {
         if (status !== 'OK' || !result) {
           showToast('Could not calculate a route. Try again.');
@@ -710,7 +721,7 @@
     setNavStatusNotice('Rerouting…');
     if (!navMuted) speak('Rerouting.');
     getDirectionsService().route(
-      { origin: here, destination: { lat: navDestination.lat, lng: navDestination.lng }, travelMode: google.maps.TravelMode.DRIVING },
+      navigationRouteRequest(here, { lat: navDestination.lat, lng: navDestination.lng }),
       (result, status) => {
         navRerouting = false;
         if (status !== 'OK' || !result) {

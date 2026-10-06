@@ -57,6 +57,8 @@
         ...stored,
         rideSafeEnabled: stored.rideSafeEnabled !== false,
         navigationProvider: navigationProvider(stored.navigationProvider),
+        avoidHighways: stored.avoidHighways === true,
+        avoidTolls: stored.avoidTolls === true,
         unit: storedProfile.unitSystem === 'km' ? 'km' : storedProfile.unitSystem === 'mi' ? 'mi' : stored.unit === 'km' ? 'km' : 'mi',
         profile: {
           ...DEFAULT_STATE.profile,

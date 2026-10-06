@@ -70,6 +70,8 @@
     activeRide: null,
     unit: 'mi',
     navigationProvider: 'google_maps',
+    avoidHighways: false,
+    avoidTolls: false,
     rideSafeEnabled: true,
     profile: {
       riderId: '',
