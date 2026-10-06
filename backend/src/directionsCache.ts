@@ -1,4 +1,4 @@
-import type { DrivingRoute, RouteCoordinate } from './directionsProvider.ts';
+import type { DrivingRoute, RouteAvoidance, RouteCoordinate } from './directionsProvider.ts';
 
 const DEFAULT_TTL_MS = 5 * 60_000;
 const DEFAULT_MAX_ENTRIES = 500;
@@ -15,9 +15,10 @@ function roundCoordinate(value: number): number {
   return Math.round(value * factor) / factor;
 }
 
-function cacheKey(origin: RouteCoordinate, destination: RouteCoordinate): string {
+function cacheKey(origin: RouteCoordinate, destination: RouteCoordinate, avoid: RouteAvoidance = {}): string {
   return [origin, destination]
     .map((point) => `${roundCoordinate(point.lat)},${roundCoordinate(point.lon)}`)
+    .concat(`${avoid.highways ? 'h' : ''}${avoid.tolls ? 't' : ''}`)
     .join('|');
 }
 
@@ -42,8 +43,8 @@ export class DirectionsCache {
     this.maxEntries = maxEntries;
   }
 
-  get(origin: RouteCoordinate, destination: RouteCoordinate, now = Date.now()): DrivingRoute | null {
-    const key = cacheKey(origin, destination);
+  get(origin: RouteCoordinate, destination: RouteCoordinate, now = Date.now(), avoid: RouteAvoidance = {}): DrivingRoute | null {
+    const key = cacheKey(origin, destination, avoid);
     const entry = this.entries.get(key);
     if (!entry) return null;
     if (entry.expiresAt <= now) {
@@ -56,8 +57,8 @@ export class DirectionsCache {
     return entry.route;
   }
 
-  set(origin: RouteCoordinate, destination: RouteCoordinate, route: DrivingRoute, now = Date.now()): void {
-    const key = cacheKey(origin, destination);
+  set(origin: RouteCoordinate, destination: RouteCoordinate, route: DrivingRoute, now = Date.now(), avoid: RouteAvoidance = {}): void {
+    const key = cacheKey(origin, destination, avoid);
     this.entries.delete(key);
     if (this.entries.size >= this.maxEntries) {
       const oldestKey = this.entries.keys().next().value;
@@ -67,15 +68,21 @@ export class DirectionsCache {
   }
 }
 
+export type DirectionsProvider = (
+  origin: RouteCoordinate,
+  destination: RouteCoordinate,
+  avoid?: RouteAvoidance,
+) => Promise<DrivingRoute>;
+
 export function wrapDirectionsProviderWithCache(
-  provider: (origin: RouteCoordinate, destination: RouteCoordinate) => Promise<DrivingRoute>,
+  provider: DirectionsProvider,
   cache: Pick<DirectionsCache, 'get' | 'set'>,
-): (origin: RouteCoordinate, destination: RouteCoordinate) => Promise<DrivingRoute> {
-  return async (origin, destination) => {
-    const cached = cache.get(origin, destination);
+): DirectionsProvider {
+  return async (origin, destination, avoid = {}) => {
+    const cached = cache.get(origin, destination, Date.now(), avoid);
     if (cached) return cached;
-    const route = await provider(origin, destination);
-    cache.set(origin, destination, route);
+    const route = await provider(origin, destination, avoid);
+    cache.set(origin, destination, route, Date.now(), avoid);
     return route;
   };
 }

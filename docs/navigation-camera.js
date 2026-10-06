@@ -59,15 +59,8 @@
   const CAMERA_DISTANCE_IN_VIEWPORT_HEIGHTS = 1.5;
   const METRES_PER_POINT_AT_ZOOM_0 = 156543.03392;
 
-  function navigationCentreAheadMeters({
-    viewportHeight,
-    topOcclusion,
-    bottomOcclusion,
-    zoom,
-    pitch,
-    latitude,
-  }) {
-    if (!Number.isFinite(viewportHeight) || viewportHeight <= 0 || !Number.isFinite(zoom)) return 0;
+  function navigationRiderScreenOffset(viewportHeight, topOcclusion, bottomOcclusion) {
+    if (!Number.isFinite(viewportHeight) || viewportHeight <= 0) return 0;
     const top = clamp(Number.isFinite(topOcclusion) ? topOcclusion : 0, 0, viewportHeight);
     const bottom = clamp(Number.isFinite(bottomOcclusion) ? bottomOcclusion : 0, 0, viewportHeight);
     let visibleTop = top;
@@ -77,7 +70,24 @@
       visibleBottom = viewportHeight;
     }
     const riderY = visibleTop + (visibleBottom - visibleTop) * RIDER_POSITION_IN_VISIBLE_MAP;
-    const screenOffset = riderY - viewportHeight / 2;
+    return riderY - viewportHeight / 2;
+  }
+
+  function navigationMetresPerPoint(zoom, latitude) {
+    const lat = Number.isFinite(latitude) ? clamp(latitude, -85, 85) : 0;
+    return (METRES_PER_POINT_AT_ZOOM_0 * Math.cos((lat * Math.PI) / 180)) / 2 ** zoom;
+  }
+
+  function navigationCentreAheadMeters({
+    viewportHeight,
+    topOcclusion,
+    bottomOcclusion,
+    zoom,
+    pitch,
+    latitude,
+  }) {
+    if (!Number.isFinite(viewportHeight) || viewportHeight <= 0 || !Number.isFinite(zoom)) return 0;
+    const screenOffset = navigationRiderScreenOffset(viewportHeight, topOcclusion, bottomOcclusion);
 
     const tilt = (clamp(Number.isFinite(pitch) ? pitch : 0, 0, 75) * Math.PI) / 180;
     const cameraDistance = viewportHeight * CAMERA_DISTANCE_IN_VIEWPORT_HEIGHTS;
@@ -86,9 +96,18 @@
       cameraDistance * Math.cos(tilt) + screenOffset * Math.sin(tilt),
     );
     const groundOffset = (screenOffset * cameraDistance) / denominator;
-    const lat = Number.isFinite(latitude) ? clamp(latitude, -85, 85) : 0;
-    const metresPerPoint = (METRES_PER_POINT_AT_ZOOM_0 * Math.cos((lat * Math.PI) / 180)) / 2 ** zoom;
-    return groundOffset * metresPerPoint;
+    return groundOffset * navigationMetresPerPoint(zoom, latitude);
+  }
+
+  function nextNavigationCameraCorrection(current, sample) {
+    const base = Number.isFinite(current) && current > 0 ? current : 1;
+    const { targetOffset, measuredOffset, flatOffset, pitch } = sample;
+    if (![targetOffset, measuredOffset, flatOffset, pitch].every(Number.isFinite)) return base;
+    if (Math.abs(targetOffset) < 20 || Math.abs(measuredOffset) < 20) return base;
+    if (Math.sign(targetOffset) !== Math.sign(measuredOffset)) return base;
+    if (pitch > 20 && Math.abs(measuredOffset - flatOffset) <= Math.abs(flatOffset) * 0.03) return base;
+    const ratio = clamp(targetOffset / measuredOffset, 0.5, 2);
+    return clamp(base * (1 + (ratio - 1) * 0.5), 0.6, 1.8);
   }
 
   function offsetAlongHeading(lat, lng, headingDegrees, meters) {
@@ -119,6 +138,9 @@
   root.RiderNavigationCamera = Object.freeze({
     navigationCameraProfile,
     navigationCentreAheadMeters,
+    navigationMetresPerPoint,
+    navigationRiderScreenOffset,
+    nextNavigationCameraCorrection,
     offsetAlongHeading,
     stabilizeNavigationHeading,
   });

@@ -1,4 +1,4 @@
-import { DirectionsProviderError } from '../directionsProvider.ts';
+import { DirectionsProviderError, routeAvoidance } from '../directionsProvider.ts';
 import { PlacesProviderError, normalizePlaceQuery, normalizePlaceTypes } from '../placesProvider.ts';
 import type { PlaceSearchRequest } from '../placesProvider.ts';
 import { consumeRateLimit, rateLimitSubject, readJsonBody, routeCoordinate, sendJson } from '../serverHttp.ts';
@@ -16,7 +16,7 @@ export async function handleNavigationRoutes(ctx: RouteContext): Promise<unknown
     }
     if (!(await consumeRateLimit(res, rateLimitStore, rateLimitSubject('rider', actorId), 'directions'))) return;
     try {
-      return sendJson(res, 200, await directionsProvider(origin, destination));
+      return sendJson(res, 200, await directionsProvider(origin, destination, routeAvoidance(body.avoid)));
     } catch (error) {
       if (!(error instanceof DirectionsProviderError)) throw error;
       if (error.code === 'directions_invalid_request') return sendJson(res, 400, { error: error.code });

@@ -135,6 +135,17 @@
     applyManeuverSvg($('#navManeuverSvg'), maneuver);
   }
 
+  /** A Google Directions request with the rider's route options applied. */
+  function navigationRouteRequest(origin, destination) {
+    return {
+      origin,
+      destination,
+      travelMode: google.maps.TravelMode.DRIVING,
+      avoidHighways: state.avoidHighways === true,
+      avoidTolls: state.avoidTolls === true,
+    };
+  }
+
   function getDirectionsService() {
     if (!directionsService) directionsService = new google.maps.DirectionsService();
     return directionsService;
@@ -398,7 +409,7 @@
     // and the trip summary however tall those are.
     const occlusion = navigationViewportOcclusion();
     const aheadMeters = occlusion
-      ? navigationCamera.navigationCentreAheadMeters({
+      ? navCameraCorrection * navigationCamera.navigationCentreAheadMeters({
         viewportHeight: occlusion.height,
         topOcclusion: occlusion.top,
         bottomOcclusion: occlusion.bottom,
@@ -418,10 +429,47 @@
       map.setHeading?.(heading);
       map.setTilt?.(profile.pitch);
     }
+    if (occlusion) {
+      clearTimeout(navCameraFitTimer);
+      const token = navCameraAnimationToken;
+      navCameraFitTimer = setTimeout(() => {
+        if (token === navCameraAnimationToken && navFollowing) {
+          measureNavigationCameraFit(here, occlusion, aheadMeters, profile);
+        }
+      }, transitionDuration + 80);
+    }
     // In heading-up follow mode the map rotates underneath the rider's chosen
     // avatar, keeping their identity screen-upright while exposing more road
     // ahead in the pitched perspective.
     updateNavigationPositionIcon();
+  }
+
+  function navigationCameraProjection() {
+    if (!map || typeof google?.maps?.OverlayView !== 'function') return null;
+    if (!navCameraProjectionOverlay) {
+      // An empty overlay is the documented way to borrow the map's
+      // projection for converting coordinates to screen pixels.
+      navCameraProjectionOverlay = new google.maps.OverlayView();
+      navCameraProjectionOverlay.onAdd = () => {};
+      navCameraProjectionOverlay.draw = () => {};
+      navCameraProjectionOverlay.onRemove = () => {};
+      navCameraProjectionOverlay.setMap(map);
+    }
+    return navCameraProjectionOverlay.getProjection?.() ?? null;
+  }
+
+  /** After the camera settles, check where the map really drew the rider and
+   * nudge the learned correction so the next move lands on target. */
+  function measureNavigationCameraFit(here, occlusion, aheadMeters, profile) {
+    const point = navigationCameraProjection()?.fromLatLngToContainerPixel?.(new google.maps.LatLng(here.lat, here.lng));
+    if (!point || !Number.isFinite(point.y)) return;
+    const metresPerPoint = navigationCamera.navigationMetresPerPoint(profile.zoom, here.lat);
+    navCameraCorrection = navigationCamera.nextNavigationCameraCorrection(navCameraCorrection, {
+      targetOffset: navigationCamera.navigationRiderScreenOffset(occlusion.height, occlusion.top, occlusion.bottom),
+      measuredOffset: point.y - occlusion.height / 2,
+      flatOffset: metresPerPoint > 0 ? aheadMeters / metresPerPoint : Number.NaN,
+      pitch: profile.pitch,
+    });
   }
 
   function showNavigationOverview() {
@@ -483,7 +531,7 @@
     const origin = { lat: position.coords.latitude, lng: position.coords.longitude };
     const destination = { lat: location.lat(), lng: location.lng() };
     getDirectionsService().route(
-      { origin, destination, travelMode: google.maps.TravelMode.DRIVING },
+      navigationRouteRequest(origin, destination),
       (result, status) => {
         if (status !== 'OK' || !result) {
           showToast('Could not calculate a route. Try again.');
@@ -710,7 +758,7 @@
     setNavStatusNotice('Rerouting…');
     if (!navMuted) speak('Rerouting.');
     getDirectionsService().route(
-      { origin: here, destination: { lat: navDestination.lat, lng: navDestination.lng }, travelMode: google.maps.TravelMode.DRIVING },
+      navigationRouteRequest(here, { lat: navDestination.lat, lng: navDestination.lng }),
       (result, status) => {
         navRerouting = false;
         if (status !== 'OK' || !result) {
@@ -750,6 +798,7 @@
     navCurrentAccuracyMeters = null;
     navCurrentSpeedMps = null;
     navCameraHeading = null;
+    clearTimeout(navCameraFitTimer);
     const roadAhead = $('#navRoadAhead');
     if (roadAhead) {
       roadAhead.hidden = true;

@@ -1,7 +1,7 @@
 import type http from 'node:http';
 import type { AccountDeletionStore } from '../accountDeletionStore.ts';
 import type { AuthStore } from '../authStore.ts';
-import type { DrivingRoute, RouteCoordinate } from '../directionsProvider.ts';
+import type { DirectionsProvider } from '../directionsCache.ts';
 import type { FriendStore } from '../friendStore.ts';
 import type { HazardStore } from '../hazardStore.ts';
 import type { HideoutStore } from '../hideoutStore.ts';
@@ -53,7 +53,7 @@ export interface RouteDeps {
   socialActivityStore: Pick<SocialActivityStore, 'touch' | 'getFriendActivity'>;
   socialEventStore: Pick<SocialEventStore, 'waitForEvents'> & Partial<Pick<SocialEventStore, 'close'>>;
   readinessCheck: () => Promise<void>;
-  directionsProvider: (origin: RouteCoordinate, destination: RouteCoordinate) => Promise<DrivingRoute>;
+  directionsProvider: DirectionsProvider;
   placesProvider: (request: PlaceSearchRequest) => Promise<PlaceSummary[]>;
   liveKitCredentials: LiveKitCredentials | null | undefined;
   revokeRideVoiceParticipants: (rideId: string, riderIds: Iterable<string>) => Promise<void>;

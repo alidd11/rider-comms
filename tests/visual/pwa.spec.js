@@ -2168,6 +2168,29 @@ test('PWA navigation preference offers Rider Comms, Google Maps, Waze and Apple 
   await expect(page.locator('#navigationProviderSummary')).toHaveText('Waze');
 });
 
+test('PWA route options avoid motorways and tolls and survive a reload', async ({ page }) => {
+  await mockAuthenticatedApi(page);
+  await page.goto('/#settings');
+
+  await page.locator('[data-sheet="mapNavigation"]').click();
+  await page.locator('[data-settings-target="navigation"]').click();
+  const motorways = page.locator('[data-toggle="avoidHighways"]');
+  const tolls = page.locator('[data-toggle="avoidTolls"]');
+  await expect(motorways).toHaveAttribute('aria-pressed', 'false');
+  await expect(tolls).toHaveAttribute('aria-pressed', 'false');
+
+  await motorways.click();
+  await expect(motorways).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#toast')).toContainText('avoid motorways');
+  await assertNoViewportOverflow(page);
+
+  await page.reload();
+  await page.locator('[data-sheet="mapNavigation"]').click();
+  await page.locator('[data-settings-target="navigation"]').click();
+  await expect(page.locator('[data-toggle="avoidHighways"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('[data-toggle="avoidTolls"]')).toHaveAttribute('aria-pressed', 'false');
+});
+
 test('installed PWA cold start uses the full Home Screen canvas before any rotation', async ({ page }) => {
   await page.addInitScript(() => {
     Object.defineProperty(navigator, 'standalone', { configurable: true, value: true });

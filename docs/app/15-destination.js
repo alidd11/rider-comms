@@ -74,7 +74,7 @@
     const origin = { lat: position.coords.latitude, lng: position.coords.longitude };
     const destination = { lat: location.lat(), lng: location.lng() };
     getDirectionsService().route(
-      { origin, destination, travelMode: google.maps.TravelMode.DRIVING },
+      navigationRouteRequest(origin, destination),
       (result, status) => {
         if (token !== destinationEtaToken) return;
         const etaEl = $('#destinationCard [data-destination-eta]');
@@ -133,6 +133,11 @@
   let navCameraHeading = null;
   let navCameraAnimationFrame;
   let navCameraAnimationToken = 0;
+  // Learned per device: how far the map's real perspective is from the
+  // shared camera model. See measureNavigationCameraFit.
+  let navCameraCorrection = 1;
+  let navCameraFitTimer;
+  let navCameraProjectionOverlay = null;
   let navGpsWatchdog;
   let navLastFixAt = 0;
   let navGpsIssue = null;

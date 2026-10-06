@@ -2,8 +2,8 @@ import http from 'node:http';
 import { createLiveKitRoomAdmin, getLiveKitCredentialsFromEnv } from './liveKitToken.ts';
 import type { LiveKitCredentials, LiveKitRoomAdmin } from './liveKitToken.ts';
 import { fetchGoogleDrivingRoute } from './directionsProvider.ts';
-import type { DrivingRoute, RouteCoordinate } from './directionsProvider.ts';
 import { DirectionsCache, wrapDirectionsProviderWithCache } from './directionsCache.ts';
+import type { DirectionsProvider } from './directionsCache.ts';
 import { RetentionStore } from './retentionStore.ts';
 import { configureErrorAlerts, ErrorAlerter, flushErrorAlerts, reportOperationalError } from './errorAlerts.ts';
 import { DEFAULT_PUBLIC_APP_URL, sendOperationalEmail } from './email.ts';
@@ -78,7 +78,7 @@ export interface ApiServerOptions {
   liveKitRoomAdmin?: Partial<Pick<LiveKitRoomAdmin, 'revokeRideParticipant' | 'revokeProximityParticipant'>> | null;
   accountDeletionStore?: Pick<AccountDeletionStore, 'deleteRider'>;
   rateLimitStore?: Pick<RateLimitStore, 'consume'>;
-  directionsProvider?: (origin: RouteCoordinate, destination: RouteCoordinate) => Promise<DrivingRoute>;
+  directionsProvider?: DirectionsProvider;
   directionsCache?: Pick<DirectionsCache, 'get' | 'set'>;
   placesProvider?: (request: PlaceSearchRequest) => Promise<PlaceSummary[]>;
   socialRateLimitStore?: Pick<SocialRateLimitStore, 'consume'>;
@@ -181,7 +181,7 @@ export function createApp(options: CreateAppOptions = {}): http.Server {
   const readinessCheck = options.readinessCheck ?? checkDatabaseReady;
   const directionsCache = options.directionsCache ?? new DirectionsCache();
   const directionsProvider = wrapDirectionsProviderWithCache(
-    options.directionsProvider ?? ((origin: RouteCoordinate, destination: RouteCoordinate) => fetchGoogleDrivingRoute(origin, destination)),
+    options.directionsProvider ?? ((origin, destination, avoid) => fetchGoogleDrivingRoute(origin, destination, { avoid })),
     directionsCache,
   );
   const placesProvider = options.placesProvider ?? ((request: PlaceSearchRequest) => fetchGooglePlaces(request));

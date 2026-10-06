@@ -4,6 +4,7 @@ import {
   DirectionsProviderError,
   decodeGooglePolyline,
   fetchGoogleDrivingRoute,
+  routeAvoidance,
   stripGoogleNavigationInstruction,
 } from '../src/directionsProvider.ts';
 
@@ -63,6 +64,26 @@ describe('Google directions provider', () => {
       stripGoogleNavigationInstruction("Continue straight onto <b>St Paul's Rd / A1201</b><div>Continue to follow St Paul's Rd / A1201</div>"),
       "Continue straight onto St Paul's Rd / A1201. Continue to follow St Paul's Rd / A1201",
     );
+  });
+
+  it('passes the rider route options to Google as avoid=', async () => {
+    const urls: string[] = [];
+    const fetchImpl = (async (url: string | URL | Request) => {
+      urls.push(String(url));
+      return new Response(JSON.stringify({ status: 'ZERO_RESULTS', routes: [] }), { status: 200 });
+    }) as typeof fetch;
+    for (const avoid of [{}, { highways: true }, { highways: true, tolls: true }]) {
+      await fetchGoogleDrivingRoute(origin, destination, { apiKey: 'k', fetchImpl, avoid }).catch(() => {});
+    }
+    assert.equal(new URL(urls[0]!).searchParams.get('avoid'), null);
+    assert.equal(new URL(urls[1]!).searchParams.get('avoid'), 'highways');
+    assert.equal(new URL(urls[2]!).searchParams.get('avoid'), 'highways|tolls');
+  });
+
+  it('reads route options from a request body, treating anything but true as off', () => {
+    assert.deepEqual(routeAvoidance({ highways: true, tolls: 'yes' }), { highways: true, tolls: false });
+    assert.deepEqual(routeAvoidance(null), {});
+    assert.deepEqual(routeAvoidance(['highways']), {});
   });
 
   it('fails closed when the server credential is missing', async () => {

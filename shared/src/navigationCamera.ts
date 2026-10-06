@@ -91,6 +91,36 @@ const CAMERA_DISTANCE_IN_VIEWPORT_HEIGHTS = 1.5;
 const METRES_PER_POINT_AT_ZOOM_0 = 156_543.033_92;
 
 /**
+ * Where the rider should sit, in points below the centre of the map:
+ * 70% of the way down the part the banner and trip summary leave clear.
+ */
+export function navigationRiderScreenOffset(
+  viewportHeight: number,
+  topOcclusion: number,
+  bottomOcclusion: number,
+): number {
+  if (!Number.isFinite(viewportHeight) || viewportHeight <= 0) return 0;
+  const top = clamp(Number.isFinite(topOcclusion) ? topOcclusion : 0, 0, viewportHeight);
+  const bottom = clamp(Number.isFinite(bottomOcclusion) ? bottomOcclusion : 0, 0, viewportHeight);
+  let visibleTop = top;
+  let visibleBottom = viewportHeight - bottom;
+  // Landscape on a small phone can leave almost nothing clear; fall back to
+  // the whole map rather than squeezing the rider into a sliver.
+  if (visibleBottom - visibleTop < viewportHeight * 0.2) {
+    visibleTop = 0;
+    visibleBottom = viewportHeight;
+  }
+  const riderY = visibleTop + (visibleBottom - visibleTop) * RIDER_POSITION_IN_VISIBLE_MAP;
+  return riderY - viewportHeight / 2;
+}
+
+/** Metres per map point at a zoom level (256-point tiles). */
+export function navigationMetresPerPoint(zoom: number, latitude: number): number {
+  const lat = Number.isFinite(latitude) ? clamp(latitude, -85, 85) : 0;
+  return (METRES_PER_POINT_AT_ZOOM_0 * Math.cos((lat * Math.PI) / 180)) / 2 ** zoom;
+}
+
+/**
  * How far ahead of the rider, along the camera heading, to centre the map so
  * the rider's marker lands in the clear part of the screen.
  *
@@ -108,19 +138,7 @@ export function navigationCentreAheadMeters({
   latitude,
 }: NavigationCentreInput): number {
   if (!Number.isFinite(viewportHeight) || viewportHeight <= 0 || !Number.isFinite(zoom)) return 0;
-  const top = clamp(Number.isFinite(topOcclusion) ? topOcclusion : 0, 0, viewportHeight);
-  const bottom = clamp(Number.isFinite(bottomOcclusion) ? bottomOcclusion : 0, 0, viewportHeight);
-  let visibleTop = top;
-  let visibleBottom = viewportHeight - bottom;
-  // Landscape on a small phone can leave almost nothing clear; fall back to
-  // the whole map rather than squeezing the rider into a sliver.
-  if (visibleBottom - visibleTop < viewportHeight * 0.2) {
-    visibleTop = 0;
-    visibleBottom = viewportHeight;
-  }
-  const riderY = visibleTop + (visibleBottom - visibleTop) * RIDER_POSITION_IN_VISIBLE_MAP;
-  // Positive when the rider sits below the centre of the map.
-  const screenOffset = riderY - viewportHeight / 2;
+  const screenOffset = navigationRiderScreenOffset(viewportHeight, topOcclusion, bottomOcclusion);
 
   const tilt = (clamp(Number.isFinite(pitch) ? pitch : 0, 0, 75) * Math.PI) / 180;
   const cameraDistance = viewportHeight * CAMERA_DISTANCE_IN_VIEWPORT_HEIGHTS;
@@ -131,9 +149,39 @@ export function navigationCentreAheadMeters({
     cameraDistance * Math.cos(tilt) + screenOffset * Math.sin(tilt),
   );
   const groundOffset = (screenOffset * cameraDistance) / denominator;
-  const lat = Number.isFinite(latitude) ? clamp(latitude, -85, 85) : 0;
-  const metresPerPoint = (METRES_PER_POINT_AT_ZOOM_0 * Math.cos((lat * Math.PI) / 180)) / 2 ** zoom;
-  return groundOffset * metresPerPoint;
+  return groundOffset * navigationMetresPerPoint(zoom, latitude);
+}
+
+export interface NavigationCameraFitSample {
+  /** Where the rider should be, in points below the map centre. */
+  targetOffset: number;
+  /** Where the map actually drew the rider, in points below the map centre. */
+  measuredOffset: number;
+  /** The rider's distance from the centre in flat (untilted) map points. */
+  flatOffset: number;
+  pitch: number;
+}
+
+/**
+ * Next multiplier for navigationCentreAheadMeters after measuring where the
+ * map actually drew the rider. The camera model is an approximation (each
+ * map SDK uses its own field of view), so this nudges the offset until the
+ * rider lands where it should, and learns per device.
+ *
+ * Returns the current value unchanged when the sample can't be trusted:
+ * offsets too small to compare, opposite signs, or a projection that
+ * ignores tilt (it reports the flat offset even though the map is tilted).
+ */
+export function nextNavigationCameraCorrection(current: number, sample: NavigationCameraFitSample): number {
+  const base = Number.isFinite(current) && current > 0 ? current : 1;
+  const { targetOffset, measuredOffset, flatOffset, pitch } = sample;
+  if (![targetOffset, measuredOffset, flatOffset, pitch].every(Number.isFinite)) return base;
+  if (Math.abs(targetOffset) < 20 || Math.abs(measuredOffset) < 20) return base;
+  if (Math.sign(targetOffset) !== Math.sign(measuredOffset)) return base;
+  if (pitch > 20 && Math.abs(measuredOffset - flatOffset) <= Math.abs(flatOffset) * 0.03) return base;
+  const ratio = clamp(targetOffset / measuredOffset, 0.5, 2);
+  // Move half way each time so one noisy frame can't swing the camera.
+  return clamp(base * (1 + (ratio - 1) * 0.5), 0.6, 1.8);
 }
 
 /**
@@ -148,8 +196,7 @@ export function navigationCameraAltitudeMeters({
   latitude,
 }: Pick<NavigationCentreInput, 'viewportHeight' | 'zoom' | 'pitch' | 'latitude'>): number {
   const height = Number.isFinite(viewportHeight) && viewportHeight > 0 ? viewportHeight : 800;
-  const lat = Number.isFinite(latitude) ? clamp(latitude, -85, 85) : 0;
-  const metresPerPoint = (METRES_PER_POINT_AT_ZOOM_0 * Math.cos((lat * Math.PI) / 180)) / 2 ** zoom;
+  const metresPerPoint = navigationMetresPerPoint(zoom, latitude);
   const tilt = (clamp(Number.isFinite(pitch) ? pitch : 0, 0, 75) * Math.PI) / 180;
   // Altitude is the camera's height above the ground, not its distance
   // to the centre, so a pitched camera sits lower.

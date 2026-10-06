@@ -323,6 +323,8 @@ export function SettingsScreen(): React.JSX.Element {
     setShareLocation,
     navigationProvider,
     setNavigationProvider,
+    routeAvoidance,
+    setRouteAvoidance,
     rideSafeEnabled,
     setRideSafeEnabled,
     instagramUsername,
@@ -689,9 +691,15 @@ export function SettingsScreen(): React.JSX.Element {
         ) : null}
 
         {activeSheet === 'navigation' ? (
-          <View accessibilityRole="radiogroup" style={styles.settingsSheetSection}>
-            {NAVIGATION_PROVIDER_OPTIONS.map((option) => <NavigationProviderRow key={option.id} provider={option.id} selected={navigationProvider === option.id} onSelect={() => setNavigationProvider(option.id)} />)}
-          </View>
+          <>
+            <View accessibilityRole="radiogroup" style={styles.settingsSheetSection}>
+              {NAVIGATION_PROVIDER_OPTIONS.map((option) => <NavigationProviderRow key={option.id} provider={option.id} selected={navigationProvider === option.id} onSelect={() => setNavigationProvider(option.id)} />)}
+            </View>
+            <View style={styles.settingsSheetSection}>
+              <ToggleRow icon="speedometer-outline" label="Avoid motorways" value={routeAvoidance.highways} onValueChange={(highways) => setRouteAvoidance({ ...routeAvoidance, highways })} caption="Plan Rider Comms routes on A and B roads where possible." />
+              <ToggleRow icon="cash-outline" label="Avoid tolls" value={routeAvoidance.tolls} onValueChange={(tolls) => setRouteAvoidance({ ...routeAvoidance, tolls })} caption="Skip toll roads and bridges where there is another way." />
+            </View>
+          </>
         ) : null}
 
         {activeSheet === 'units' ? (

@@ -60,7 +60,21 @@ interface GoogleDirectionsResponse {
   }>;
 }
 
+/** Rider route options. Both default to false (Google's fastest route). */
+export interface RouteAvoidance {
+  highways?: boolean;
+  tolls?: boolean;
+}
+
+/** Reads `{ highways, tolls }` from a request body; anything else counts as false. */
+export function routeAvoidance(value: unknown): RouteAvoidance {
+  if (!value || Array.isArray(value) || typeof value !== 'object') return {};
+  const candidate = value as { highways?: unknown; tolls?: unknown };
+  return { highways: candidate.highways === true, tolls: candidate.tolls === true };
+}
+
 export interface GoogleDirectionsOptions {
+  avoid?: RouteAvoidance;
   apiKey?: string;
   fetchImpl?: typeof fetch;
   timeoutMs?: number;
@@ -206,6 +220,11 @@ export async function fetchGoogleDrivingRoute(
     mode: 'driving',
     key: apiKey,
   });
+  const avoid = [
+    options.avoid?.highways ? 'highways' : null,
+    options.avoid?.tolls ? 'tolls' : null,
+  ].filter((value): value is string => value !== null);
+  if (avoid.length) params.set('avoid', avoid.join('|'));
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
