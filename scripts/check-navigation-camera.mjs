@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import {
   navigationCameraProfile,
-  navigationViewportBias,
+  navigationCentreAheadMeters,
+  offsetAlongHeading,
   stabilizeNavigationHeading,
 } from '../shared/src/navigationCamera.ts';
 
@@ -24,14 +25,20 @@ const fixtures = {
     { speedMps: 10, maneuverDistanceMeters: 300, maneuver: 'roundabout-right' },
     { speedMps: 10, maneuverDistanceMeters: 90, maneuver: 'uturn-left' },
     { speedMps: 10, maneuverDistanceMeters: 90, maneuver: 'fork-left' },
-    { speedMps: 6, viewportBias: 1.25 },
   ],
-  viewportBias: [
-    [844, 0, 0],
-    [844, 180, 120],
-    [0, 0, 0],
-    [Number.NaN, 10, 10],
-    [844, Number.NaN, 50],
+  centre: [
+    { viewportHeight: 932, topOcclusion: 269, bottomOcclusion: 308, zoom: 18.9, pitch: 50.4, latitude: 51.5 },
+    { viewportHeight: 844, topOcclusion: 0, bottomOcclusion: 0, zoom: 18, pitch: 58, latitude: 40 },
+    { viewportHeight: 844, topOcclusion: 400, bottomOcclusion: 400, zoom: 18, pitch: 58, latitude: 40 },
+    { viewportHeight: 390, topOcclusion: 120, bottomOcclusion: 30, zoom: 17.6, pitch: 54, latitude: -33.9 },
+    { viewportHeight: 0, topOcclusion: 0, bottomOcclusion: 0, zoom: 18, pitch: 50, latitude: 51 },
+    { viewportHeight: 844, topOcclusion: Number.NaN, bottomOcclusion: 200, zoom: 18, pitch: Number.NaN, latitude: Number.NaN },
+  ],
+  offset: [
+    [51.5, -0.1, 0, 50],
+    [51.5, -0.1, 90, 50],
+    [-33.9, 151.2, 225, 120],
+    [51.5, -0.1, 30, -20],
   ],
   heading: [
     [null, 210, 0.4],
@@ -50,11 +57,19 @@ for (const input of fixtures.profile) {
   );
 }
 
-for (const [viewportHeight, topOcclusion, bottomOcclusion] of fixtures.viewportBias) {
+for (const input of fixtures.centre) {
   assert.equal(
-    browser.navigationViewportBias(viewportHeight, topOcclusion, bottomOcclusion),
-    navigationViewportBias(viewportHeight, topOcclusion, bottomOcclusion),
-    `PWA/native viewport bias drift at ${viewportHeight}, ${topOcclusion}, ${bottomOcclusion}`,
+    browser.navigationCentreAheadMeters(input),
+    navigationCentreAheadMeters(input),
+    `PWA/native camera centre drift for ${JSON.stringify(input)}`,
+  );
+}
+
+for (const args of fixtures.offset) {
+  assert.deepEqual(
+    browser.offsetAlongHeading(...args),
+    offsetAlongHeading(...args),
+    `PWA/native heading offset drift for ${JSON.stringify(args)}`,
   );
 }
 

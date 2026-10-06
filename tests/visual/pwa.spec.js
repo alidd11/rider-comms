@@ -600,8 +600,9 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
   // Map action buttons animate their background for 140 ms. Wait for the
   // settled provider-light chrome rather than capturing the first transition
   // frame and accidentally blessing a dark control in the light screenshot.
+  // Report stays hazard amber in both themes; Locate follows the light chrome.
   await expect.poll(() => page.locator('#reportHazardBtn').evaluate((button) => getComputedStyle(button).backgroundColor))
-    .toMatch(/255, 255, 255/);
+    .toMatch(/245, 165, 36/);
   await expect.poll(() => page.locator('#locateBtn').evaluate((button) => getComputedStyle(button).backgroundColor))
     .toMatch(/255, 255, 255/);
   await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-map-light-final.png'), fullPage: true });
@@ -3394,4 +3395,22 @@ test('goes live when iOS hands back fixes with an old timestamp', async ({ page 
   expect(presenceBodies.length).toBeGreaterThan(0);
   expect(presenceBodies[0].fixAgeMs).toBeLessThan(30_000);
   expect(Date.now() - presenceBodies[0].recordedAt).toBeGreaterThan(100_000);
+});
+
+test('the music button opens a picker that remembers the last app used', async ({ page }) => {
+  await mockAuthenticatedApi(page);
+  await page.goto('/');
+  await page.locator('#musicBtn').click();
+  const apps = page.locator('[data-music-app]');
+  await expect(page.locator('#sheetTitle')).toHaveText('Music');
+  await expect(apps.first()).toContainText('Spotify');
+  // Apple Music is offered only on Apple devices.
+  const apple = await page.evaluate(() => /iPhone|iPad|iPod/.test(navigator.userAgent));
+  await expect(page.locator('[data-music-app="apple-music"]')).toHaveCount(apple ? 1 : 0);
+
+  await page.locator('[data-music-app="youtube-music"]').click();
+  await expect(page.locator('#sheetBackdrop')).toBeHidden();
+  await page.locator('#musicBtn').click();
+  await expect(apps.first()).toHaveAttribute('data-music-app', 'youtube-music');
+  await expect(apps.first()).toContainText('Last used');
 });

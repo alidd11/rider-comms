@@ -18,8 +18,10 @@ import {
 } from '../navigationGuidance';
 import {
   combineNavigationCameraPaths,
+  navigationCameraAltitudeMeters,
   navigationCameraProfile,
-  navigationViewportBias,
+  navigationCentreAheadMeters,
+  offsetAlongHeading,
   stabilizeNavigationHeading,
 } from '../navigationCamera';
 import {
@@ -35,14 +37,11 @@ import { bearingDegrees } from './mapMarkers';
 import type { UnitSystem } from '../settings/SettingsContext';
 
 const NAV_STEP_ARRIVAL_RADIUS_M = 30;
+/** Shown briefly after a successful reroute; styled as information, not a warning. */
+export const ROUTE_UPDATED_NOTICE = 'Route updated.';
+const ROUTE_UPDATED_NOTICE_MS = 4000;
 const NAV_OFF_ROUTE_RADIUS_M = 60;
 const NAV_OFF_ROUTE_GRACE_MS = 10_000;
-// styles.navigationActions' own footprint: the dock now stacks vertically,
-// so its height is the worst case of all three 54px buttons showing with
-// two 8px gaps between them -- kept as a named constant here because the
-// adaptive camera's bottom-occlusion estimate needs to know it too, not
-// just the styles (in MapScreen.tsx) that position it.
-const NAVIGATION_ACTIONS_HEIGHT = 178;
 
 export interface InAppNavigation {
   activeRoute: InAppNavigationRoute | null;
@@ -131,10 +130,20 @@ export function useInAppNavigation(
     navigationCameraHeading.current = null;
     mapRef.current?.fitToCoordinates(
       nextRoute.coordinates.map((coordinate) => ({ latitude: coordinate.lat, longitude: coordinate.lon })),
-      { edgePadding: { top: 170, right: 64, bottom: 180, left: 64 }, animated: true }
+      {
+        // At least what the banner and trip summary cover, so the route's
+        // ends aren't drawn underneath them.
+        edgePadding: {
+          top: Math.max(170, insets.top + spacing.sm + navigationBannerHeight + 24),
+          right: 64,
+          bottom: Math.max(180, navigationSummaryHeight + 24),
+          left: 64,
+        },
+        animated: true,
+      }
     );
     mapRef.current?.animateCamera({ heading: 0, pitch: 0 }, { duration: 250 });
-  }, [mapRef, mapReady]);
+  }, [insets.top, mapRef, mapReady, navigationBannerHeight, navigationSummaryHeight, spacing.sm]);
 
   const focusNavigationCamera = React.useCallback((
     here: { lat: number; lon: number },
@@ -156,20 +165,10 @@ export function useInAppNavigation(
     if (cameraPath.length === 0) return;
 
     const maneuverDistance = remainingDistanceOnPathMeters(here, step.coordinates);
-    const topOcclusion = insets.top + spacing.sm + navigationBannerHeight;
-    // Was a flat 112px guess that predated the navigation control dock
-    // (Report/Mute/Overview-Follow) landing above the ETA summary bar --
-    // undercounting the real occluded height by the dock's own footprint
-    // pushed the rider's own puck down into that now-taller stack instead
-    // of keeping it clear of it, worst right when a maneuver's zoom/pitch
-    // changes amplify that same fixed offset in screen-pixel terms.
-    const bottomOcclusion = Math.max(insets.bottom, spacing.sm) + navigationSummaryHeight + spacing.md + NAVIGATION_ACTIONS_HEIGHT;
-    const viewportBias = navigationViewportBias(viewportHeight, topOcclusion, bottomOcclusion);
     const profile = navigationCameraProfile({
       speedMps,
       maneuverDistanceMeters: maneuverDistance,
       maneuver: upcomingStep?.maneuver,
-      viewportBias,
     });
 
     const headingTarget = lookAheadCoordinateOnPath(
@@ -193,23 +192,51 @@ export function useInAppNavigation(
     navigationCameraHeading.current = heading;
 
     if (!mapReady || !navigationFollowingRef.current) return;
-    const centre = lookAheadCoordinateOnPath(here, cameraPath, profile.centreAheadMeters);
+    // Centre straight ahead along the camera heading so the rider stays
+    // centred left-to-right and lands in the clear band between the banner
+    // and the trip summary. The control dock sits at the right edge, clear
+    // of a centred rider, so only the summary bounds the bottom.
+    const topOcclusion = insets.top + spacing.sm + navigationBannerHeight;
+    const aheadMeters = navigationCentreAheadMeters({
+      viewportHeight,
+      topOcclusion,
+      bottomOcclusion: navigationSummaryHeight,
+      zoom: profile.zoom,
+      pitch: profile.pitch,
+      latitude: here.lat,
+    });
+    const centre = offsetAlongHeading(here.lat, here.lon, heading, aheadMeters);
     const camera = {
-      center: { latitude: centre.lat, longitude: centre.lon },
+      center: { latitude: centre.lat, longitude: centre.lng },
       heading,
       pitch: profile.pitch,
+      // Google Maps (Android) reads zoom; Apple Maps (iPhone) reads altitude.
       zoom: profile.zoom,
+      altitude: navigationCameraAltitudeMeters({
+        viewportHeight,
+        zoom: profile.zoom,
+        pitch: profile.pitch,
+        latitude: here.lat,
+      }),
     };
     if (reduceMotionEnabled) {
       mapRef.current?.setCamera(camera);
     } else {
       mapRef.current?.animateCamera(camera, { duration: movingSpeed !== null && movingSpeed <= 1.5 ? 650 : 500 });
     }
-  }, [insets.bottom, insets.top, mapRef, mapReady, navigationBannerHeight, navigationSummaryHeight, reduceMotionEnabled, spacing.md, spacing.sm, viewportHeight]);
+  }, [insets.top, mapRef, mapReady, navigationBannerHeight, navigationSummaryHeight, reduceMotionEnabled, spacing.sm, viewportHeight]);
 
   React.useEffect(() => {
     navigationFollowingRef.current = navigationFollowing;
   }, [navigationFollowing]);
+
+  React.useEffect(() => {
+    if (navigationNotice !== ROUTE_UPDATED_NOTICE) return undefined;
+    const timer = setTimeout(() => {
+      setNavigationNotice((current) => (current === ROUTE_UPDATED_NOTICE ? null : current));
+    }, ROUTE_UPDATED_NOTICE_MS);
+    return () => clearTimeout(timer);
+  }, [navigationNotice]);
 
   React.useEffect(() => {
     navigationStepIndexRef.current = navigationStepIndex;
@@ -255,7 +282,7 @@ export function useInAppNavigation(
       announcedNavigationStep.current = null;
       navigationPromptProgress.current = null;
       finalNavigationPrompt.current = null;
-      setNavigationNotice(rerouting ? 'Route updated.' : null);
+      setNavigationNotice(rerouting ? ROUTE_UPDATED_NOTICE : null);
       navOffRouteSince.current = null;
       if (!rerouting) navigationCameraHeading.current = null;
       navigationFollowingRef.current = true;

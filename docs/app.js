@@ -2332,6 +2332,16 @@
         </div>`,
         ready: wireSettingsHubRows,
       }),
+      music: () => {
+        const apps = musicAppsInOrder();
+        const last = rememberedMusicApp();
+        return {
+          title: 'Music',
+          body: `<p class="caption music-sheet-note">Opens your music app. While riding, play, pause and skip with your helmet or headset buttons.</p>
+            <div class="settings-hub-list">${apps.map((app) => `<button data-music-app="${app.id}"><span class="setting-icon">${icon('music')}</span><span><strong>${escapeHtml(app.name)}</strong><small>${app.id === last ? 'Last used' : `Open ${escapeHtml(app.name)}`}</small></span>${icon('chevron')}</button>`).join('')}</div>`,
+          ready: () => $$('[data-music-app]').forEach((button) => button.addEventListener('click', () => openMusicApp(button.dataset.musicApp))),
+        };
+      },
       blocked: () => ({
         title: 'Blocked riders',
         body: '<div id="blockedRidersList" class="blocked-list" aria-live="polite"><p class="caption">Loading…</p></div>',
@@ -2733,6 +2743,42 @@
         showToast('Couldn’t unblock. Try again.');
       }
     }));
+  }
+
+  // Like Waze's music button, but a web app can't embed a player: it opens
+  // the rider's music app by its URL scheme and remembers which one.
+  const MUSIC_APPS = [
+    { id: 'spotify', name: 'Spotify', url: 'spotify:' },
+    { id: 'apple-music', name: 'Apple Music', url: 'music://', appleOnly: true },
+    { id: 'youtube-music', name: 'YouTube Music', url: 'youtubemusic://' },
+  ];
+  const MUSIC_APP_KEY = 'rider-comms-music-app';
+
+  function rememberedMusicApp() {
+    try { return localStorage.getItem(MUSIC_APP_KEY); } catch { return null; }
+  }
+
+  function musicAppsInOrder() {
+    const ua = navigator.userAgent;
+    const apple = /iPhone|iPad|iPod/.test(ua) || (ua.includes('Macintosh') && navigator.maxTouchPoints > 1);
+    const last = rememberedMusicApp();
+    return MUSIC_APPS
+      .filter((app) => !app.appleOnly || apple)
+      .sort((a, b) => Number(b.id === last) - Number(a.id === last));
+  }
+
+  function openMusicApp(id) {
+    const app = MUSIC_APPS.find((candidate) => candidate.id === id);
+    if (!app) return;
+    try { localStorage.setItem(MUSIC_APP_KEY, app.id); } catch { /* Ordering only. */ }
+    closeSheet();
+    // Opening the app hides this page. If it's still showing, the app
+    // probably isn't installed.
+    const notOpened = setTimeout(() => {
+      if (document.visibilityState === 'visible') showToast(`Couldn’t open ${app.name}. Is it installed?`);
+    }, 1600);
+    document.addEventListener('visibilitychange', () => clearTimeout(notOpened), { once: true });
+    window.location.href = app.url;
   }
 
   function closeSheet() {
@@ -4093,7 +4139,7 @@
       item.setAttribute('aria-disabled', String(locked));
       item.classList.toggle('safety-unavailable', locked);
     });
-    $$('#mapSearchSlot, #mapAvatarButton, #poiChipRow, #reportHazardBtn, #riderCard, #hazardCard, #rideJoinState, #shareRideBtn, .ride-code-card, #rideRoster, #openRideMap').forEach((item) => {
+    $$('#mapSearchSlot, #mapAvatarButton, #poiChipRow, #reportHazardBtn, #musicBtn, #riderCard, #hazardCard, #rideJoinState, #shareRideBtn, .ride-code-card, #rideRoster, #openRideMap').forEach((item) => {
       item.toggleAttribute('inert', locked);
       item.setAttribute('aria-disabled', String(locked));
     });
@@ -5073,101 +5119,27 @@
     return (toDeg(Math.atan2(y, x)) + 360) % 360;
   }
 
-  function navigationCameraProfile({
-    speedMps,
-    maneuverDistanceMeters,
-    maneuver,
-    viewportBias = 1,
-  }) {
-    const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
-    const speed = Number.isFinite(speedMps) ? Math.max(0, Number(speedMps)) : 8;
-    let profile;
+  // The camera maths is shared with the native app through
+  // navigation-camera.js (a port of shared/src/navigationCamera.ts).
+  const navigationCamera = globalThis.RiderNavigationCamera;
 
-    if (speed <= 1.5) profile = { zoom: 18.8, pitch: 52, lookAheadMeters: 90, centreAheadMeters: 42 };
-    else if (speed < 7) profile = { zoom: 18.7, pitch: 58, lookAheadMeters: 120, centreAheadMeters: 52 };
-    else if (speed < 14) profile = { zoom: 18.4, pitch: 60, lookAheadMeters: 165, centreAheadMeters: 70 };
-    else if (speed < 22) profile = { zoom: 18.0, pitch: 58, lookAheadMeters: 230, centreAheadMeters: 95 };
-    else profile = { zoom: 17.6, pitch: 54, lookAheadMeters: 310, centreAheadMeters: 125 };
-
-    const maneuverDistance = Number.isFinite(maneuverDistanceMeters)
-      ? Math.max(0, Number(maneuverDistanceMeters))
-      : Number.POSITIVE_INFINITY;
-    const complexManeuver = Boolean(maneuver && (
-      maneuver.includes('roundabout')
-      || maneuver.includes('uturn')
-      || maneuver.includes('fork')
-    ));
-
-    if (complexManeuver && maneuverDistance <= 260) {
-      profile = {
-        zoom: Math.min(profile.zoom, 18.0),
-        pitch: Math.min(profile.pitch, 50),
-        lookAheadMeters: Math.max(profile.lookAheadMeters, 220),
-        centreAheadMeters: Math.max(profile.centreAheadMeters, 80),
-      };
-    } else if (maneuverDistance <= 180) {
-      const proximity = clamp((180 - maneuverDistance) / 160, 0, 1);
-      profile = {
-        zoom: Math.min(18.9, profile.zoom + 0.35 * proximity),
-        pitch: Math.max(52, profile.pitch - 5 * proximity),
-        lookAheadMeters: Math.max(140, profile.lookAheadMeters * (1 - 0.2 * proximity)),
-        centreAheadMeters: Math.max(55, profile.centreAheadMeters * (1 - 0.08 * proximity)),
-      };
-    }
-
-    return {
-      ...profile,
-      centreAheadMeters: profile.centreAheadMeters * clamp(viewportBias, 0.9, 1.3),
-    };
-  }
-
-  function navigationViewportBias(viewportHeight, topOcclusion, bottomOcclusion) {
-    const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
-    if (!Number.isFinite(viewportHeight) || viewportHeight <= 0) return 1;
-    const top = clamp(Number.isFinite(topOcclusion) ? topOcclusion : 0, 0, viewportHeight);
-    const bottom = clamp(Number.isFinite(bottomOcclusion) ? bottomOcclusion : 0, 0, viewportHeight);
-    const occludedFraction = clamp((top + bottom) / viewportHeight, 0, 0.7);
-    const topDominance = clamp((top - bottom) / viewportHeight, -0.25, 0.25);
-    return clamp(1 + occludedFraction * 0.45 + topDominance * 0.35, 0.9, 1.3);
-  }
-
-  function currentNavigationViewportBias() {
+  /** How much of the map the navigation banner and the bottom stack cover. */
+  function navigationViewportOcclusion() {
     const mapElement = $('#googleMap');
-    const banner = $('#navBanner');
-    const summary = $('#navSummary');
-    // In nav mode the mute/overview control dock (.map-actions) floats
-    // above #navSummary, not inside it -- measuring only #navSummary's own
-    // top edge missed the dock's height entirely, understating how much of
-    // the bottom of the screen is actually occluded and letting the
-    // rider's own puck sit lower on screen than there was real clearance
-    // for, worst exactly when a maneuver's zoom/pitch change amplifies
-    // that same fixed offset in screen-pixel terms.
-    const controls = $('.map-actions');
-    if (!mapElement) return 1;
+    if (!mapElement) return null;
     const mapRect = mapElement.getBoundingClientRect();
-    if (mapRect.height <= 0) return 1;
-    const bannerRect = banner && !banner.hidden ? banner.getBoundingClientRect() : null;
-    const summaryRect = summary && !summary.hidden ? summary.getBoundingClientRect() : null;
-    const controlsRect = controls && !controls.hidden ? controls.getBoundingClientRect() : null;
-    const topOcclusion = bannerRect ? Math.max(0, bannerRect.bottom - mapRect.top) : 0;
-    const bottomEdge = Math.min(
-      summaryRect ? summaryRect.top : Number.POSITIVE_INFINITY,
-      controlsRect ? controlsRect.top : Number.POSITIVE_INFINITY,
-    );
-    const bottomOcclusion = Number.isFinite(bottomEdge) ? Math.max(0, mapRect.bottom - bottomEdge) : 0;
-    return navigationViewportBias(mapRect.height, topOcclusion, bottomOcclusion);
-  }
-
-  function stabilizeNavigationHeading(previousHeading, candidateHeading, speedMps) {
-    const normalise = (value) => ((value % 360) + 360) % 360;
-    const candidate = normalise(candidateHeading);
-    if (!Number.isFinite(previousHeading)) return candidate;
-    const previous = normalise(Number(previousHeading));
-    const speed = Number.isFinite(speedMps) ? Math.max(0, Number(speedMps)) : 8;
-    if (speed <= 1.5) return previous;
-    const delta = ((candidate - previous + 540) % 360) - 180;
-    const alpha = speed < 5 ? 0.22 : speed < 12 ? 0.34 : speed < 22 ? 0.46 : 0.56;
-    return normalise(previous + delta * alpha);
+    if (mapRect.height <= 0) return null;
+    const visibleRect = (element) => (element && !element.hidden ? element.getBoundingClientRect() : null);
+    const bannerRect = visibleRect($('#navBanner'));
+    // The mute/overview dock floats above the summary at the right edge.
+    // The rider is centred left-to-right, so the dock never covers them and
+    // only the summary's top edge bounds the clear map.
+    const summaryRect = visibleRect($('#navSummary'));
+    return {
+      height: mapRect.height,
+      top: bannerRect ? Math.max(0, bannerRect.bottom - mapRect.top) : 0,
+      bottom: summaryRect?.height ? Math.max(0, mapRect.bottom - summaryRect.top) : 0,
+    };
   }
 
   function combineNavigationCameraPaths(...paths) {
@@ -5605,7 +5577,7 @@
     if (overview) {
       overview.setAttribute('aria-label', navFollowing ? 'Show route overview' : 'Resume navigation follow mode');
       const use = $('use', overview);
-      if (use) use.setAttribute('href', navFollowing ? '#i-route' : '#i-target');
+      if (use) use.setAttribute('href', navFollowing ? '#i-route' : '#i-locate');
       overview.classList.toggle('active', !navFollowing);
     }
   }
@@ -5687,11 +5659,10 @@
     if (!cameraPath.length) return;
 
     const maneuverDistance = remainingDistanceOnPathMeters(here, currentPath);
-    const profile = navigationCameraProfile({
+    const profile = navigationCamera.navigationCameraProfile({
       speedMps,
       maneuverDistanceMeters: maneuverDistance,
       maneuver: upcomingStep?.maneuver,
-      viewportBias: currentNavigationViewportBias(),
     });
     const headingTarget = lookAheadCoordinateOnPath(
       here,
@@ -5706,11 +5677,25 @@
       && gpsHeading >= 0
       ? gpsHeading
       : routeHeading;
-    const heading = stabilizeNavigationHeading(navCameraHeading, candidateHeading, movingSpeed);
+    const heading = navigationCamera.stabilizeNavigationHeading(navCameraHeading, candidateHeading, movingSpeed);
     navCameraHeading = heading;
 
     if (!navFollowing) return;
-    const centre = lookAheadCoordinateOnPath(here, cameraPath, profile.centreAheadMeters);
+    // Centre straight ahead along the camera heading, so the rider stays
+    // centred left-to-right and lands in the clear band between the banner
+    // and the trip summary however tall those are.
+    const occlusion = navigationViewportOcclusion();
+    const aheadMeters = occlusion
+      ? navigationCamera.navigationCentreAheadMeters({
+        viewportHeight: occlusion.height,
+        topOcclusion: occlusion.top,
+        bottomOcclusion: occlusion.bottom,
+        zoom: profile.zoom,
+        pitch: profile.pitch,
+        latitude: here.lat,
+      })
+      : 0;
+    const centre = navigationCamera.offsetAlongHeading(here.lat, here.lng, heading, aheadMeters);
     const transitionDuration = movingSpeed !== null && movingSpeed <= 1.5 ? 650 : 500;
     if (!animateNavigationCamera(
       { center: centre, zoom: profile.zoom, heading, tilt: profile.pitch },
@@ -5736,7 +5721,21 @@
     map.setTilt?.(0);
     updateNavigationPositionIcon();
     const route = directionsRenderer?.getDirections?.()?.routes?.[0];
-    if (route?.bounds) map.fitBounds?.(route.bounds, { top: 170, right: 70, bottom: 150, left: 70 });
+    // Pad by what the banner and bottom stack actually cover; the old fixed
+    // 170/150 left the route's ends under a tall banner or the controls.
+    const occlusion = navigationViewportOcclusion();
+    if (route?.bounds) {
+      let top = (occlusion?.top ?? 150) + 24;
+      let bottom = (occlusion?.bottom ?? 130) + 24;
+      // Leave at least 120px of map for the route itself.
+      const available = (occlusion?.height ?? Number.POSITIVE_INFINITY) - 120;
+      if (top + bottom > available && available > 0) {
+        const scale = available / (top + bottom);
+        top *= scale;
+        bottom *= scale;
+      }
+      map.fitBounds?.(route.bounds, { top: Math.round(top), right: 70, bottom: Math.round(bottom), left: 70 });
+    }
     updateNavigationControls();
   }
 
@@ -5843,7 +5842,7 @@
     updateNavigationPositionIcon();
     updateNavigationControls();
     startNavTracking();
-    if (routeNotice) setNavStatusNotice(routeNotice);
+    if (routeNotice) setNavStatusNotice(routeNotice, { tone: 'info', clearAfterMs: 4000 });
     if (latestDevicePosition && navSteps[0]) {
       const here = { lat: latestDevicePosition.coords.latitude, lng: latestDevicePosition.coords.longitude };
       navCurrentPosition = here;
@@ -5856,12 +5855,24 @@
     }
   }
 
-  function setNavStatusNotice(message) {
+  let navStatusNoticeTimer;
+
+  /** `info` notices (a successful reroute) are styled neutrally and clear
+   * themselves; warnings stay until the problem is resolved. */
+  function setNavStatusNotice(message, { tone = 'warning', clearAfterMs = 0 } = {}) {
     navStatusNotice = message || null;
+    clearTimeout(navStatusNoticeTimer);
     const notice = $('#navGpsNotice');
     if (notice) {
       notice.textContent = navStatusNotice || '';
       notice.hidden = !navStatusNotice;
+      notice.dataset.tone = tone;
+    }
+    if (navStatusNotice && clearAfterMs > 0) {
+      const shown = navStatusNotice;
+      navStatusNoticeTimer = setTimeout(() => {
+        if (navStatusNotice === shown) setNavStatusNotice(null);
+      }, clearAfterMs);
     }
     requestAnimationFrame(syncNavigationOverlayGeometry);
   }

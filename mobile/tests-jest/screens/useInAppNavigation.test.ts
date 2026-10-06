@@ -486,7 +486,8 @@ test('fitRoute frames the whole route and pauses following', async () => {
 
   expect(map.fitToCoordinates).toHaveBeenCalledWith(
     ROUTE.coordinates.map((c) => ({ latitude: c.lat, longitude: c.lon })),
-    { edgePadding: { top: 170, right: 64, bottom: 180, left: 64 }, animated: true },
+    // Top clears the inset, banner and a 24pt margin (more than the 170 floor here).
+    { edgePadding: { top: 172, right: 64, bottom: 180, left: 64 }, animated: true },
   );
   expect(map.animateCamera).toHaveBeenCalledWith({ heading: 0, pitch: 0 }, { duration: 250 });
   expect(result.current.navigationFollowing).toBe(false);

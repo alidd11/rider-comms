@@ -289,7 +289,7 @@
     if (overview) {
       overview.setAttribute('aria-label', navFollowing ? 'Show route overview' : 'Resume navigation follow mode');
       const use = $('use', overview);
-      if (use) use.setAttribute('href', navFollowing ? '#i-route' : '#i-target');
+      if (use) use.setAttribute('href', navFollowing ? '#i-route' : '#i-locate');
       overview.classList.toggle('active', !navFollowing);
     }
   }
@@ -371,11 +371,10 @@
     if (!cameraPath.length) return;
 
     const maneuverDistance = remainingDistanceOnPathMeters(here, currentPath);
-    const profile = navigationCameraProfile({
+    const profile = navigationCamera.navigationCameraProfile({
       speedMps,
       maneuverDistanceMeters: maneuverDistance,
       maneuver: upcomingStep?.maneuver,
-      viewportBias: currentNavigationViewportBias(),
     });
     const headingTarget = lookAheadCoordinateOnPath(
       here,
@@ -390,11 +389,25 @@
       && gpsHeading >= 0
       ? gpsHeading
       : routeHeading;
-    const heading = stabilizeNavigationHeading(navCameraHeading, candidateHeading, movingSpeed);
+    const heading = navigationCamera.stabilizeNavigationHeading(navCameraHeading, candidateHeading, movingSpeed);
     navCameraHeading = heading;
 
     if (!navFollowing) return;
-    const centre = lookAheadCoordinateOnPath(here, cameraPath, profile.centreAheadMeters);
+    // Centre straight ahead along the camera heading, so the rider stays
+    // centred left-to-right and lands in the clear band between the banner
+    // and the trip summary however tall those are.
+    const occlusion = navigationViewportOcclusion();
+    const aheadMeters = occlusion
+      ? navigationCamera.navigationCentreAheadMeters({
+        viewportHeight: occlusion.height,
+        topOcclusion: occlusion.top,
+        bottomOcclusion: occlusion.bottom,
+        zoom: profile.zoom,
+        pitch: profile.pitch,
+        latitude: here.lat,
+      })
+      : 0;
+    const centre = navigationCamera.offsetAlongHeading(here.lat, here.lng, heading, aheadMeters);
     const transitionDuration = movingSpeed !== null && movingSpeed <= 1.5 ? 650 : 500;
     if (!animateNavigationCamera(
       { center: centre, zoom: profile.zoom, heading, tilt: profile.pitch },
@@ -420,7 +433,21 @@
     map.setTilt?.(0);
     updateNavigationPositionIcon();
     const route = directionsRenderer?.getDirections?.()?.routes?.[0];
-    if (route?.bounds) map.fitBounds?.(route.bounds, { top: 170, right: 70, bottom: 150, left: 70 });
+    // Pad by what the banner and bottom stack actually cover; the old fixed
+    // 170/150 left the route's ends under a tall banner or the controls.
+    const occlusion = navigationViewportOcclusion();
+    if (route?.bounds) {
+      let top = (occlusion?.top ?? 150) + 24;
+      let bottom = (occlusion?.bottom ?? 130) + 24;
+      // Leave at least 120px of map for the route itself.
+      const available = (occlusion?.height ?? Number.POSITIVE_INFINITY) - 120;
+      if (top + bottom > available && available > 0) {
+        const scale = available / (top + bottom);
+        top *= scale;
+        bottom *= scale;
+      }
+      map.fitBounds?.(route.bounds, { top: Math.round(top), right: 70, bottom: Math.round(bottom), left: 70 });
+    }
     updateNavigationControls();
   }
 
@@ -527,7 +554,7 @@
     updateNavigationPositionIcon();
     updateNavigationControls();
     startNavTracking();
-    if (routeNotice) setNavStatusNotice(routeNotice);
+    if (routeNotice) setNavStatusNotice(routeNotice, { tone: 'info', clearAfterMs: 4000 });
     if (latestDevicePosition && navSteps[0]) {
       const here = { lat: latestDevicePosition.coords.latitude, lng: latestDevicePosition.coords.longitude };
       navCurrentPosition = here;
@@ -540,12 +567,24 @@
     }
   }
 
-  function setNavStatusNotice(message) {
+  let navStatusNoticeTimer;
+
+  /** `info` notices (a successful reroute) are styled neutrally and clear
+   * themselves; warnings stay until the problem is resolved. */
+  function setNavStatusNotice(message, { tone = 'warning', clearAfterMs = 0 } = {}) {
     navStatusNotice = message || null;
+    clearTimeout(navStatusNoticeTimer);
     const notice = $('#navGpsNotice');
     if (notice) {
       notice.textContent = navStatusNotice || '';
       notice.hidden = !navStatusNotice;
+      notice.dataset.tone = tone;
+    }
+    if (navStatusNotice && clearAfterMs > 0) {
+      const shown = navStatusNotice;
+      navStatusNoticeTimer = setTimeout(() => {
+        if (navStatusNotice === shown) setNavStatusNotice(null);
+      }, clearAfterMs);
     }
     requestAnimationFrame(syncNavigationOverlayGeometry);
   }

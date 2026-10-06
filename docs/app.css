@@ -61,7 +61,7 @@ img,svg{-webkit-user-drag:none}
 .nav-road-ahead-event>span{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#cbd4d8;font-size:.72rem;font-weight:750}
 .nav-road-ahead-event strong{flex:none;color:#f3f6f7;font-size:.72rem;font-weight:850;white-space:nowrap}
 .nav-gps-notice{padding:10px 15px;border-top:1px solid rgb(255 255 255/.08);background:#2a171a;color:#ffb7c5;font-size:.76rem;font-weight:700;line-height:1.35}
-.nav-gps-notice[hidden]{display:none}
+.nav-gps-notice[hidden]{display:none}.nav-gps-notice[data-tone=info]{background:#14263d;color:#b9d6ff}
 .nav-speed-badge{position:absolute;z-index:13;top:calc(var(--safe-top) + 8px + var(--nav-banner-height,166px) + 10px);right:max(14px,var(--safe-right));width:76px;height:76px;display:flex;flex-direction:column;align-items:center;justify-content:center;border:2px solid rgb(255 255 255/.18);border-radius:38px;background:rgb(13 21 26/.94);box-shadow:0 10px 24px rgb(0 0 0/.34);backdrop-filter:blur(12px);color:#f5f4fb}
 .nav-speed-badge[hidden]{display:none}
 .nav-speed-badge:before{content:"";position:absolute;inset:7px;border:1px solid rgb(255 255 255/.08);border-radius:50%;pointer-events:none}
@@ -2726,3 +2726,39 @@ html.pwa-standalone:not(.keyboard-open) .chat-screen{top:0;bottom:auto;height:va
 .offline-banner{pointer-events:none}
 .offline-banner span{text-align:center}
 .update-banner:not([hidden])+.offline-banner{top:calc(var(--safe-top) + 66px)}
+
+/* Map actions: icons that say what they do. Music opens the rider's music
+   app; Report is the warm primary action, like Waze's; Go live shows a
+   clear, pulsing live state. Sizes and gaps match the rules above. */
+#app:not(.nav-mode) .screen-map .map-actions #musicBtn{
+  width:54px;
+  min-width:54px;
+  height:54px;
+  border-radius:50%;
+  border-color:rgb(255 255 255/.16);
+  background:var(--bg-elevated);
+  box-shadow:0 10px 24px rgb(0 0 0/.5),0 0 0 1px rgb(255 255 255/.04) inset;
+}
+#app:not(.nav-mode) .screen-map .map-actions #musicBtn svg{width:24px;height:24px}
+#app:not(.nav-mode) .screen-map .map-actions #reportHazardBtn{
+  background:#f5a524;
+  border-color:#f5a524;
+  color:#1f1300;
+}
+#app:not(.nav-mode) .screen-map .map-actions #reportHazardBtn svg{stroke-width:2.2}
+#app:not(.nav-mode) .screen-map .map-actions #locateBtn svg{color:var(--accent)}
+#app:not(.nav-mode) .screen-map #joinNearbyBtn[data-active=true]{
+  background:var(--success);
+  border-color:var(--success);
+  color:#04210f;
+  animation:live-ring 2s ease-out infinite;
+}
+@keyframes live-ring{
+  0%{box-shadow:0 10px 24px rgb(0 0 0/.5),0 0 0 0 rgb(66 197 138/.55)}
+  70%{box-shadow:0 10px 24px rgb(0 0 0/.5),0 0 0 12px rgb(66 197 138/0)}
+  100%{box-shadow:0 10px 24px rgb(0 0 0/.5),0 0 0 0 rgb(66 197 138/0)}
+}
+@media(prefers-reduced-motion:reduce){
+  #app:not(.nav-mode) .screen-map #joinNearbyBtn[data-active=true]{animation:none}
+}
+.music-sheet-note{margin:0 0 12px}
