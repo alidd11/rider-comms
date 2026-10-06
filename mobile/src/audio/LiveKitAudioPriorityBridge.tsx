@@ -1,5 +1,6 @@
 import * as React from 'react';
 import { useRemoteParticipants, useSpeakingParticipants } from '@livekit/react-native';
+import { VOICE_PLAYBACK_BOOST } from '@rider-comms/shared';
 import { audioEngine } from './audioEngine';
 
 /**
@@ -24,7 +25,9 @@ export function LiveKitAudioPriorityBridge({ sourceId }: { sourceId: string }): 
   }, []);
 
   React.useEffect(() => {
-    for (const participant of remoteParticipants) participant.setVolume(playbackGain);
+    // Riders hear each other about twice as loud as WebRTC's default, over
+    // wind and through helmet speakers. Navigation prompts still duck it.
+    for (const participant of remoteParticipants) participant.setVolume(playbackGain * VOICE_PLAYBACK_BOOST);
     return () => {
       // Never leave a surviving remote track ducked after this bridge no
       // longer owns it (room teardown, peer replacement, or unmount).

@@ -87,15 +87,23 @@ const muteIndex = voiceActivitySource.indexOf('await createdTrack.mute();');
 const publishIndex = voiceActivitySource.indexOf('await localParticipant.publishTrack(createdTrack);');
 assert.ok(muteIndex >= 0 && publishIndex > muteIndex, 'Native microphone track must be muted before publication');
 
+// Both clients decide when to transmit with the same adaptive gate:
+// shared/src/voiceActivity.ts natively, its browser port in the PWA
+// (behavioural parity is checked by scripts/check-voice-activity.mjs).
 assert.match(
   voiceActivitySource,
-  /SPEAKING_ATTACK_THRESHOLD\s*=\s*0\.035[\s\S]*SPEAKING_RELEASE_THRESHOLD\s*=\s*0\.02[\s\S]*SPEAKING_ATTACK_HOLD_MS\s*=\s*70[\s\S]*RELEASE_HANGTIME_MS\s*=\s*650/,
-  'Native VOX must keep the tuned sensitive gate, hysteresis and anti-spike attack hold',
+  /new VoiceActivityGate\(\)[\s\S]*gate\.current\?\.update\(latestVolume\.current, Date\.now\(\)\)/,
+  'Native VOX must use the shared adaptive VoiceActivityGate',
 );
 assert.match(
   pwaSource,
-  /VOICE_SPEAKING_ATTACK_THRESHOLD\s*=\s*0\.035[\s\S]*VOICE_SPEAKING_RELEASE_THRESHOLD\s*=\s*0\.02[\s\S]*VOICE_ATTACK_HOLD_MS\s*=\s*70[\s\S]*VOICE_RELEASE_HANGTIME_MS\s*=\s*650/,
-  'PWA VOX must stay aligned with the tuned native sensitivity envelope',
+  /new globalThis\.RiderVoiceActivity\.VoiceActivityGate\(\)[\s\S]*voiceActivityGate\.update\(rms, voiceLastLevelAt\)/,
+  'PWA VOX must use the shared adaptive VoiceActivityGate port',
+);
+assert.match(
+  pwaSource,
+  /voiceIsSpeaking && performance\.now\(\) - voiceLastLevelAt > VOICE_LEVEL_STALE_MS/,
+  'PWA VOX must close the mic when the level meter stops',
 );
 assert.match(
   audioSessionSource,

@@ -23,27 +23,18 @@
  *
  * WHAT'S REAL: the volume signal (native, on-device, from the actual mic
  * input), the mute/unmute calls (real LiveKit API, real track object), and
- * end-to-end voice operation confirmed on physical devices. The threshold,
- * hysteresis and hangtime below are the current tested baseline, but they
- * still need broader helmet/intercom, wind, engine and road-noise validation
- * before being considered production-final.
+ * end-to-end voice operation confirmed on physical devices. When to open
+ * and close the mic is decided by the shared VoiceActivityGate, which adapts
+ * to wind, engine and road noise.
  */
 import { useEffect, useRef, useState } from 'react';
 import { useConnectionState, useLocalParticipant, useTrackVolume } from '@livekit/react-native';
 import { ConnectionState, createLocalAudioTrack } from 'livekit-client';
 import type { LocalAudioTrack } from 'livekit-client';
+import { VoiceActivityGate } from '@rider-comms/shared';
 
-/** Start transmitting at a lower level than the original 0.06 threshold.
- * A short attack hold rejects single-sample bumps from wind/helmet movement. */
-const SPEAKING_ATTACK_THRESHOLD = 0.035;
-
-/** Once speech has opened the mic, keep it open through quieter syllables.
- * This hysteresis prevents rapid mute/unmute chatter around one threshold. */
-const SPEAKING_RELEASE_THRESHOLD = 0.02;
-const SPEAKING_ATTACK_HOLD_MS = 70;
-
-/** Keep transmitting through natural pauses so sentence tails are not clipped. */
-const RELEASE_HANGTIME_MS = 650;
+/** How often the gate reads the latest mic level. */
+const SAMPLE_INTERVAL_MS = 40;
 
 /**
  * Must be called from within a `<LiveKitRoom>` tree (it uses LiveKit's
@@ -62,12 +53,10 @@ export function useVoiceActivity(enabled: boolean, onError?: (message: string) =
   // the actual LocalAudioTrack the publication wraps.
   const volume = useTrackVolume(microphoneTrack?.track as LocalAudioTrack | undefined);
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const attackTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const releaseTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const latestVolume = useRef(0);
-  const enabledRef = useRef(enabled);
+  const gate = useRef<VoiceActivityGate | null>(null);
+  if (!gate.current) gate.current = new VoiceActivityGate();
   latestVolume.current = volume;
-  enabledRef.current = enabled;
 
   // Never let LiveKit auto-publish an open microphone. Once the room is
   // connected, create the local audio track ourselves, mute it BEFORE
@@ -101,64 +90,21 @@ export function useVoiceActivity(enabled: boolean, onError?: (message: string) =
     return () => { cancelled = true; };
   }, [connectionState, localParticipant, microphoneTrack?.track]);
 
+  // The shared gate learns the background noise and decides when to
+  // transmit (see shared/src/voiceActivity.ts). It samples on a steady clock
+  // so the hangtime runs even if the analyser stops reporting.
   useEffect(() => {
     if (!enabled) {
-      if (attackTimer.current) {
-        clearTimeout(attackTimer.current);
-        attackTimer.current = undefined;
-      }
-      if (releaseTimer.current) {
-        clearTimeout(releaseTimer.current);
-        releaseTimer.current = undefined;
-      }
+      gate.current?.reset();
       setIsSpeaking(false);
-      return;
+      return undefined;
     }
-
-    if (isSpeaking) {
-      if (attackTimer.current) {
-        clearTimeout(attackTimer.current);
-        attackTimer.current = undefined;
-      }
-      if (volume > SPEAKING_RELEASE_THRESHOLD) {
-        if (releaseTimer.current) {
-          clearTimeout(releaseTimer.current);
-          releaseTimer.current = undefined;
-        }
-      } else if (!releaseTimer.current) {
-        releaseTimer.current = setTimeout(() => {
-          releaseTimer.current = undefined;
-          setIsSpeaking(false);
-        }, RELEASE_HANGTIME_MS);
-      }
-      return;
-    }
-
-    if (releaseTimer.current) {
-      clearTimeout(releaseTimer.current);
-      releaseTimer.current = undefined;
-    }
-    if (volume >= SPEAKING_ATTACK_THRESHOLD) {
-      if (!attackTimer.current) {
-        attackTimer.current = setTimeout(() => {
-          attackTimer.current = undefined;
-          if (enabledRef.current && latestVolume.current >= SPEAKING_ATTACK_THRESHOLD) {
-            setIsSpeaking(true);
-          }
-        }, SPEAKING_ATTACK_HOLD_MS);
-      }
-    } else if (attackTimer.current) {
-      clearTimeout(attackTimer.current);
-      attackTimer.current = undefined;
-    }
-  }, [volume, enabled, isSpeaking]);
-
-  useEffect(() => {
-    return () => {
-      if (attackTimer.current) clearTimeout(attackTimer.current);
-      if (releaseTimer.current) clearTimeout(releaseTimer.current);
-    };
-  }, []);
+    const timer = setInterval(() => {
+      const speaking = gate.current?.update(latestVolume.current, Date.now()) ?? false;
+      setIsSpeaking((current) => (current === speaking ? current : speaking));
+    }, SAMPLE_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, [enabled]);
 
   useEffect(() => {
     const track = microphoneTrack?.track as LocalAudioTrack | undefined;

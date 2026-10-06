@@ -102,37 +102,61 @@ test('surfaces a specific error and stops the track when publishing setup fails'
   expect(track.stop).toHaveBeenCalled();
 });
 
-test('opens the mic after volume holds above the attack threshold for the hold window', async () => {
+/** The gate listens for 600 ms before it can open; let it learn a quiet room. */
+async function warmUp() {
+  await act(async () => {
+    jest.advanceTimersByTime(800);
+  });
+}
+
+async function openMic(rerender: (props: Props) => Promise<void> | void, props: Props = { enabled: true }) {
+  await warmUp();
+  mockUseTrackVolume.mockReturnValue(0.05);
+  await rerender(props);
+  await act(async () => {
+    jest.advanceTimersByTime(120);
+  });
+}
+
+test('opens the mic once speech holds above the learnt noise floor', async () => {
   const track = fakeTrack();
   setParticipant({ track });
   const { result, rerender } = await renderVoiceActivity({ enabled: true });
   expect(result.current).toBe(false);
 
-  mockUseTrackVolume.mockReturnValue(0.05);
-  await rerender({ enabled: true });
-  expect(result.current).toBe(false);
-
-  await act(async () => {
-    jest.advanceTimersByTime(70);
-  });
+  await openMic(rerender);
 
   expect(result.current).toBe(true);
   expect(track.unmute).toHaveBeenCalled();
 });
 
-test('does not open the mic if volume drops before the attack hold window elapses', async () => {
+test('does not open the mic for a bump shorter than the attack hold', async () => {
   const track = fakeTrack();
   setParticipant({ track });
   const { result, rerender } = await renderVoiceActivity({ enabled: true });
+  await warmUp();
 
   mockUseTrackVolume.mockReturnValue(0.05);
   await rerender({ enabled: true });
-
   mockUseTrackVolume.mockReturnValue(0);
   await rerender({ enabled: true });
 
   await act(async () => {
-    jest.advanceTimersByTime(70);
+    jest.advanceTimersByTime(200);
+  });
+
+  expect(result.current).toBe(false);
+  expect(track.unmute).not.toHaveBeenCalled();
+});
+
+test('stays closed through steady wind or engine noise', async () => {
+  const track = fakeTrack();
+  setParticipant({ track });
+  mockUseTrackVolume.mockReturnValue(0.045);
+  const { result } = await renderVoiceActivity({ enabled: true });
+
+  await act(async () => {
+    jest.advanceTimersByTime(6000);
   });
 
   expect(result.current).toBe(false);
@@ -143,25 +167,19 @@ test('keeps the mic open through the release hangtime, then closes it once volum
   const track = fakeTrack();
   setParticipant({ track });
   const { result, rerender } = await renderVoiceActivity({ enabled: true });
-
-  mockUseTrackVolume.mockReturnValue(0.05);
-  await rerender({ enabled: true });
-  await act(async () => {
-    jest.advanceTimersByTime(70);
-  });
+  await openMic(rerender);
   expect(result.current).toBe(true);
 
   mockUseTrackVolume.mockReturnValue(0);
   await rerender({ enabled: true });
-  expect(result.current).toBe(true);
 
   await act(async () => {
-    jest.advanceTimersByTime(649);
+    jest.advanceTimersByTime(800);
   });
   expect(result.current).toBe(true);
 
   await act(async () => {
-    jest.advanceTimersByTime(1);
+    jest.advanceTimersByTime(200);
   });
   expect(result.current).toBe(false);
   expect(track.mute).toHaveBeenCalledTimes(2); // once before publish, once on release
@@ -171,12 +189,7 @@ test('cancels the release hangtime and stays open if volume rises again in time'
   const track = fakeTrack();
   setParticipant({ track });
   const { result, rerender } = await renderVoiceActivity({ enabled: true });
-
-  mockUseTrackVolume.mockReturnValue(0.05);
-  await rerender({ enabled: true });
-  await act(async () => {
-    jest.advanceTimersByTime(70);
-  });
+  await openMic(rerender);
   expect(result.current).toBe(true);
 
   mockUseTrackVolume.mockReturnValue(0);
@@ -194,16 +207,11 @@ test('cancels the release hangtime and stays open if volume rises again in time'
   expect(result.current).toBe(true);
 });
 
-test('disabling immediately silences and clears pending timers regardless of volume', async () => {
+test('disabling immediately silences and stops sampling regardless of volume', async () => {
   const track = fakeTrack();
   setParticipant({ track });
   const { result, rerender } = await renderVoiceActivity({ enabled: true });
-
-  mockUseTrackVolume.mockReturnValue(0.05);
-  await rerender({ enabled: true });
-  await act(async () => {
-    jest.advanceTimersByTime(70);
-  });
+  await openMic(rerender);
   expect(result.current).toBe(true);
 
   await rerender({ enabled: false });
@@ -221,11 +229,7 @@ test('surfaces a specific error when unmuting the track fails', async () => {
   const onError = jest.fn();
   const { rerender } = await renderVoiceActivity({ enabled: true, onError });
 
-  mockUseTrackVolume.mockReturnValue(0.05);
-  await rerender({ enabled: true, onError });
-  await act(async () => {
-    jest.advanceTimersByTime(70);
-  });
+  await openMic(rerender, { enabled: true, onError });
 
   expect(onError).toHaveBeenCalledWith('unmute failed');
 });

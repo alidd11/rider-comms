@@ -43,17 +43,35 @@ export function computeZonePairs(riders: Rider[]): ZonePair[] {
 }
 
 /**
+ * Riders already paired stay paired until they're this much further apart
+ * than the radius that paired them. Without it, two riders right at the
+ * edge of range dropped in and out of Nearby Voice as their GPS fixes
+ * wobbled a few metres either side of the line.
+ */
+export const ZONE_EXIT_HYSTERESIS = 1.15;
+
+/**
  * The zone pairs one rider forms with a set of others: the same rule as
  * computeZonePairs, but linear. A presence update only needs the updating
  * rider's pairs, and computing all n^2 pairs among a dense crowd and then
  * discarding most of them was the server's main CPU cost under load.
+ *
+ * `currentPartnerIds` are riders this rider is already paired with; they
+ * keep the pair up to ZONE_EXIT_HYSTERESIS times the radius. The rule
+ * stays symmetric, since both riders' updates see the same existing pair.
  */
-export function computeZonePairsFor(rider: Rider, others: Rider[]): ZonePair[] {
+export function computeZonePairsFor(
+  rider: Rider,
+  others: Rider[],
+  currentPartnerIds: ReadonlySet<string> = new Set(),
+): ZonePair[] {
   const pairs: ZonePair[] = [];
   for (const other of others) {
     if (other.id === rider.id) continue;
     const distanceMiles = haversineMiles(rider.location, other.location);
-    if (distanceMiles <= Math.min(rider.radiusMiles, other.radiusMiles)) {
+    const radius = Math.min(rider.radiusMiles, other.radiusMiles);
+    const allowed = currentPartnerIds.has(other.id) ? radius * ZONE_EXIT_HYSTERESIS : radius;
+    if (distanceMiles <= allowed) {
       pairs.push({ a: rider.id, b: other.id, distanceMiles });
     }
   }

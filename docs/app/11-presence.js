@@ -197,9 +197,14 @@
   let voiceAudioContext;
   let voiceAnalyser;
   let voiceLevelFrame;
-  let voiceAttackTimer;
-  let voiceReleaseTimer;
-  let voiceLatestRms = 0;
+  // Shared VOX gate (voice-activity.js); a fresh one per voice session so it
+  // learns the current background noise.
+  let voiceActivityGate = null;
+  let voiceLastLevelAt = 0;
+  let voiceGateWatchdog;
+  // Playback graph for other riders' voices (see boostRemoteVoice).
+  let voicePlaybackContext;
+  const remoteVoiceBoosts = new WeakMap();
   let voiceManuallyMuted = false;
   let voiceIsSpeaking = false;
   let liveKitLoadPromise;
@@ -215,10 +220,7 @@
   const intentionalVoiceDisconnects = new WeakSet();
   const remoteVoiceElements = new WeakMap();
 
-  // More sensitive than the original 0.06 gate, but with hysteresis and a
-  // short attack hold so one wind/helmet bump does not immediately transmit.
-  const VOICE_SPEAKING_ATTACK_THRESHOLD = 0.035;
-  const VOICE_SPEAKING_RELEASE_THRESHOLD = 0.02;
-  const VOICE_ATTACK_HOLD_MS = 70;
-  const VOICE_RELEASE_HANGTIME_MS = 650;
+  // If the level meter stops (the page went to the background), never leave
+  // the mic transmitting: close it after this long without a sample.
+  const VOICE_LEVEL_STALE_MS = 1000;
 
