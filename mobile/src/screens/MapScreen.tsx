@@ -32,6 +32,9 @@ import { PlaceSearchBar } from './PlaceSearchBar';
 import type { PlaceResult } from '../api/places';
 import { HazardReportSheet } from './HazardReportSheet';
 import { HazardDetailCard } from '../components/HazardDetailCard';
+import { NowPlayingCard, useNowPlaying } from '../components/NowPlayingCard';
+import { useNavigationLiveActivity } from './useNavigationLiveActivity';
+import { mediaControls } from '../audio/mediaControlsNative';
 import { buildNavigationProviderUrl, navigationTargetFromValues, openNavigationUrl } from '../navigationLinks';
 import type { NavigationTarget } from '../navigationLinks';
 import { useMovementSafety } from '../safety/MovementSafetyContext';
@@ -341,6 +344,23 @@ export function MapScreen(): React.JSX.Element {
     ? 'In Rider Comms'
     : `Open in ${navigationProviderLabel(navigationProvider)}`;
 
+  const navigationArrivalLabel = new Date(Date.now() + remainingNavigationSeconds * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  useNavigationLiveActivity(
+    activeRoute && currentNavigationStep
+      ? {
+        maneuver: upcomingNavigationStep?.maneuver ?? 'arrive',
+        instruction: navigationGuidanceInstruction,
+        distanceLabel: formatNavigationDistance(distanceToCurrentStepEnd, unitSystem),
+        arrivalLabel: navigationArrivalLabel,
+        progress: activeRoute.distanceMeters > 0 ? 1 - remainingNavigationMeters / activeRoute.distanceMeters : 0,
+      }
+      : null,
+    navigationNotice === 'You have arrived.',
+  );
+
+  const musicCardVisible = segment === 'public' && !activeRoute && !activeRide && !selectedDestination && !selectedHazard;
+  const { nowPlaying, access: nowPlayingAccess, refresh: refreshNowPlaying } = useNowPlaying(musicCardVisible);
+
   React.useEffect(() => {
     navigation.setOptions({ tabBarStyle: activeRoute ? { display: 'none' } : undefined });
     return () => navigation.setOptions({ tabBarStyle: undefined });
@@ -357,6 +377,29 @@ export function MapScreen(): React.JSX.Element {
     focusCoordinate(location);
   }
 
+  async function showNowPlayingOnMap(): Promise<void> {
+    if (Platform.OS === 'android') {
+      // Prominent disclosure before the system's notification-access screen.
+      Alert.alert(
+        'Show what’s playing',
+        'To show the song and its artwork on the map, Android needs Rider Comms turned on under Notification access. Rider Comms only reads the music that’s playing, never your notifications. You can turn it off there at any time.',
+        [
+          { text: 'Not now', style: 'cancel' },
+          { text: 'Open settings', onPress: () => { void mediaControls.requestNowPlayingAccess().then(refreshNowPlaying); } },
+        ],
+      );
+      return;
+    }
+    const access = await mediaControls.requestNowPlayingAccess();
+    refreshNowPlaying();
+    if (access === 'denied') {
+      Alert.alert('Music access is off', 'To show what’s playing in the Music app, allow Media & Apple Music for Rider Comms in Settings.', [
+        { text: 'Not now', style: 'cancel' },
+        { text: 'Open settings', onPress: () => void Linking.openSettings() },
+      ]);
+    }
+  }
+
   async function openMusicPicker(): Promise<void> {
     const lastUsed = await AsyncStorage.getItem(MUSIC_APP_STORAGE_KEY).catch(() => null);
     const launch = async (app: MusicApp): Promise<void> => {
@@ -367,8 +410,11 @@ export function MapScreen(): React.JSX.Element {
         Alert.alert(`Couldn’t open ${app.name}`, 'Is it installed?');
       }
     };
+    // iOS can only show the Music app's track; Android shows any app's.
+    const offerNowPlaying = mediaControls.canShowNowPlaying && nowPlayingAccess !== 'granted';
     Alert.alert('Music', 'Opens your music app. While riding, play, pause and skip with your helmet or headset buttons.', [
       ...musicAppsFor(Platform.OS, lastUsed).map((app) => ({ text: app.name, onPress: () => void launch(app) })),
+      ...(offerNowPlaying ? [{ text: 'Show what’s playing on the map', onPress: () => void showNowPlayingOnMap() }] : []),
       { text: 'Cancel', style: 'cancel' as const },
     ]);
   }
@@ -653,6 +699,15 @@ export function MapScreen(): React.JSX.Element {
         onReport={handleReport}
       />
 
+      {musicCardVisible && nowPlaying && (
+        <NowPlayingCard
+          nowPlaying={nowPlaying}
+          controlsLocked={lockedForSafety}
+          onChanged={refreshNowPlaying}
+          style={{ left: spacing.md, right: spacing.md + 54 + spacing.md, bottom: insets.bottom + spacing.sm }}
+        />
+      )}
+
       {segment === 'public' && !activeRoute && selectedHazard && (
         <HazardDetailCard
           hazard={selectedHazard}
@@ -795,7 +850,7 @@ export function MapScreen(): React.JSX.Element {
             <View style={styles.navigationSummaryHandle} />
             <View style={styles.navigationSummaryContent}>
               <View style={styles.navigationSummaryPrimary}>
-                <Text style={styles.navigationArrival}>{new Date(Date.now() + remainingNavigationSeconds * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</Text>
+                <Text style={styles.navigationArrival}>{navigationArrivalLabel}</Text>
                 <Text style={styles.navigationSummaryLabel}>arrival</Text>
               </View>
               <View style={styles.navigationSummaryDivider} />
