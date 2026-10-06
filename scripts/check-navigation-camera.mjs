@@ -2,6 +2,9 @@ import assert from 'node:assert/strict';
 import {
   navigationCameraProfile,
   navigationCentreAheadMeters,
+  navigationMetresPerPoint,
+  navigationRiderScreenOffset,
+  nextNavigationCameraCorrection,
   offsetAlongHeading,
   stabilizeNavigationHeading,
 } from '../shared/src/navigationCamera.ts';
@@ -34,6 +37,15 @@ const fixtures = {
     { viewportHeight: 0, topOcclusion: 0, bottomOcclusion: 0, zoom: 18, pitch: 50, latitude: 51 },
     { viewportHeight: 844, topOcclusion: Number.NaN, bottomOcclusion: 200, zoom: 18, pitch: Number.NaN, latitude: Number.NaN },
   ],
+  correction: [
+    [1, { targetOffset: 80, measuredOffset: 120, flatOffset: 70, pitch: 50 }],
+    [1, { targetOffset: 80, measuredOffset: 40, flatOffset: 30, pitch: 50 }],
+    [1.4, { targetOffset: 80, measuredOffset: 80, flatOffset: 60, pitch: 50 }],
+    [1, { targetOffset: 80, measuredOffset: 70, flatOffset: 70, pitch: 50 }],
+    [1, { targetOffset: 10, measuredOffset: 70, flatOffset: 50, pitch: 50 }],
+    [1, { targetOffset: 80, measuredOffset: -70, flatOffset: 50, pitch: 50 }],
+    [Number.NaN, { targetOffset: 80, measuredOffset: 300, flatOffset: 50, pitch: 50 }],
+  ],
   offset: [
     [51.5, -0.1, 0, 50],
     [51.5, -0.1, 90, 50],
@@ -62,6 +74,27 @@ for (const input of fixtures.centre) {
     browser.navigationCentreAheadMeters(input),
     navigationCentreAheadMeters(input),
     `PWA/native camera centre drift for ${JSON.stringify(input)}`,
+  );
+}
+
+for (const input of fixtures.centre) {
+  assert.equal(
+    browser.navigationRiderScreenOffset(input.viewportHeight, input.topOcclusion, input.bottomOcclusion),
+    navigationRiderScreenOffset(input.viewportHeight, input.topOcclusion, input.bottomOcclusion),
+    `PWA/native rider offset drift for ${JSON.stringify(input)}`,
+  );
+  assert.equal(
+    browser.navigationMetresPerPoint(input.zoom, input.latitude),
+    navigationMetresPerPoint(input.zoom, input.latitude),
+    `PWA/native metres-per-point drift for ${JSON.stringify(input)}`,
+  );
+}
+
+for (const [current, sample] of fixtures.correction) {
+  assert.equal(
+    browser.nextNavigationCameraCorrection(current, sample),
+    nextNavigationCameraCorrection(current, sample),
+    `PWA/native camera correction drift for ${current}, ${JSON.stringify(sample)}`,
   );
 }
 

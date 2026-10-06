@@ -5,6 +5,7 @@ import {
   navigationCameraAltitudeMeters,
   navigationCameraProfile,
   navigationCentreAheadMeters,
+  nextNavigationCameraCorrection,
   offsetAlongHeading,
   stabilizeNavigationHeading,
 } from '../src/navigationCamera.ts';
@@ -91,6 +92,32 @@ describe('adaptive navigation camera', () => {
     assert.ok(close > 100 && close < 400, `altitude ${close}`);
     const pitched = navigationCameraAltitudeMeters({ ...base, zoom: 18.8, pitch: 60 });
     assert.ok(Math.abs(pitched / close - 0.5) < 1e-9);
+  });
+
+  it('learns how far off the camera model is and corrects towards the target', () => {
+    // The map drew the rider 50% further down than intended: pull the centre in.
+    const tooLow = nextNavigationCameraCorrection(1, { targetOffset: 80, measuredOffset: 120, flatOffset: 70, pitch: 50 });
+    assert.ok(tooLow < 1 && tooLow > 0.6);
+    // Too high: push it out.
+    assert.ok(nextNavigationCameraCorrection(1, { targetOffset: 80, measuredOffset: 40, flatOffset: 30, pitch: 50 }) > 1);
+    // On target: keep the learned value.
+    assert.equal(nextNavigationCameraCorrection(1.4, { targetOffset: 80, measuredOffset: 80, flatOffset: 60, pitch: 50 }), 1.4);
+    // Repeated samples converge without overshooting.
+    let correction = 1;
+    for (let i = 0; i < 12; i += 1) {
+      const measured = 120 * correction;
+      correction = nextNavigationCameraCorrection(correction, { targetOffset: 80, measuredOffset: measured, flatOffset: 70 * correction, pitch: 50 });
+    }
+    assert.ok(Math.abs(correction - 80 / 120) < 0.01, `converged to ${correction}`);
+  });
+
+  it('ignores samples it cannot trust', () => {
+    // A projection that ignores tilt reports the flat offset on a tilted map.
+    assert.equal(nextNavigationCameraCorrection(1, { targetOffset: 80, measuredOffset: 70, flatOffset: 70, pitch: 50 }), 1);
+    assert.equal(nextNavigationCameraCorrection(1, { targetOffset: 10, measuredOffset: 70, flatOffset: 50, pitch: 50 }), 1);
+    assert.equal(nextNavigationCameraCorrection(1, { targetOffset: 80, measuredOffset: -70, flatOffset: 50, pitch: 50 }), 1);
+    assert.equal(nextNavigationCameraCorrection(1, { targetOffset: 80, measuredOffset: Number.NaN, flatOffset: 50, pitch: 50 }), 1);
+    assert.equal(nextNavigationCameraCorrection(0.6, { targetOffset: 80, measuredOffset: 300, flatOffset: 50, pitch: 50 }), 0.6);
   });
 
   it('offsets along a heading by the requested distance', () => {

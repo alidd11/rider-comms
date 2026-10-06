@@ -133,6 +133,11 @@
   let navCameraHeading = null;
   let navCameraAnimationFrame;
   let navCameraAnimationToken = 0;
+  // Learned per device: how far the map's real perspective is from the
+  // shared camera model. See measureNavigationCameraFit.
+  let navCameraCorrection = 1;
+  let navCameraFitTimer;
+  let navCameraProjectionOverlay = null;
   let navGpsWatchdog;
   let navLastFixAt = 0;
   let navGpsIssue = null;

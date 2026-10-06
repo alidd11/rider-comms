@@ -7,6 +7,9 @@ export {
   navigationCameraAltitudeMeters,
   navigationCameraProfile,
   navigationCentreAheadMeters,
+  navigationMetresPerPoint,
+  navigationRiderScreenOffset,
+  nextNavigationCameraCorrection,
   offsetAlongHeading,
   stabilizeNavigationHeading,
 } from '@rider-comms/shared';
@@ -15,6 +18,7 @@ export type {
   NavigationCameraProfile,
   NavigationCameraProfileInput,
   NavigationCentreInput,
+  NavigationCameraFitSample,
 } from '@rider-comms/shared';
 
 export interface NavigationCameraCoordinate {

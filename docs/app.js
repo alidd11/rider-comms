@@ -5105,6 +5105,11 @@
   let navCameraHeading = null;
   let navCameraAnimationFrame;
   let navCameraAnimationToken = 0;
+  // Learned per device: how far the map's real perspective is from the
+  // shared camera model. See measureNavigationCameraFit.
+  let navCameraCorrection = 1;
+  let navCameraFitTimer;
+  let navCameraProjectionOverlay = null;
   let navGpsWatchdog;
   let navLastFixAt = 0;
   let navGpsIssue = null;
@@ -5712,7 +5717,7 @@
     // and the trip summary however tall those are.
     const occlusion = navigationViewportOcclusion();
     const aheadMeters = occlusion
-      ? navigationCamera.navigationCentreAheadMeters({
+      ? navCameraCorrection * navigationCamera.navigationCentreAheadMeters({
         viewportHeight: occlusion.height,
         topOcclusion: occlusion.top,
         bottomOcclusion: occlusion.bottom,
@@ -5732,10 +5737,47 @@
       map.setHeading?.(heading);
       map.setTilt?.(profile.pitch);
     }
+    if (occlusion) {
+      clearTimeout(navCameraFitTimer);
+      const token = navCameraAnimationToken;
+      navCameraFitTimer = setTimeout(() => {
+        if (token === navCameraAnimationToken && navFollowing) {
+          measureNavigationCameraFit(here, occlusion, aheadMeters, profile);
+        }
+      }, transitionDuration + 80);
+    }
     // In heading-up follow mode the map rotates underneath the rider's chosen
     // avatar, keeping their identity screen-upright while exposing more road
     // ahead in the pitched perspective.
     updateNavigationPositionIcon();
+  }
+
+  function navigationCameraProjection() {
+    if (!map || typeof google?.maps?.OverlayView !== 'function') return null;
+    if (!navCameraProjectionOverlay) {
+      // An empty overlay is the documented way to borrow the map's
+      // projection for converting coordinates to screen pixels.
+      navCameraProjectionOverlay = new google.maps.OverlayView();
+      navCameraProjectionOverlay.onAdd = () => {};
+      navCameraProjectionOverlay.draw = () => {};
+      navCameraProjectionOverlay.onRemove = () => {};
+      navCameraProjectionOverlay.setMap(map);
+    }
+    return navCameraProjectionOverlay.getProjection?.() ?? null;
+  }
+
+  /** After the camera settles, check where the map really drew the rider and
+   * nudge the learned correction so the next move lands on target. */
+  function measureNavigationCameraFit(here, occlusion, aheadMeters, profile) {
+    const point = navigationCameraProjection()?.fromLatLngToContainerPixel?.(new google.maps.LatLng(here.lat, here.lng));
+    if (!point || !Number.isFinite(point.y)) return;
+    const metresPerPoint = navigationCamera.navigationMetresPerPoint(profile.zoom, here.lat);
+    navCameraCorrection = navigationCamera.nextNavigationCameraCorrection(navCameraCorrection, {
+      targetOffset: navigationCamera.navigationRiderScreenOffset(occlusion.height, occlusion.top, occlusion.bottom),
+      measuredOffset: point.y - occlusion.height / 2,
+      flatOffset: metresPerPoint > 0 ? aheadMeters / metresPerPoint : Number.NaN,
+      pitch: profile.pitch,
+    });
   }
 
   function showNavigationOverview() {
@@ -6064,6 +6106,7 @@
     navCurrentAccuracyMeters = null;
     navCurrentSpeedMps = null;
     navCameraHeading = null;
+    clearTimeout(navCameraFitTimer);
     const roadAhead = $('#navRoadAhead');
     if (roadAhead) {
       roadAhead.hidden = true;

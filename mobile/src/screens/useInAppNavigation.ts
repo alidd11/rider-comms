@@ -21,6 +21,9 @@ import {
   navigationCameraAltitudeMeters,
   navigationCameraProfile,
   navigationCentreAheadMeters,
+  navigationMetresPerPoint,
+  navigationRiderScreenOffset,
+  nextNavigationCameraCorrection,
   offsetAlongHeading,
   stabilizeNavigationHeading,
 } from '../navigationCamera';
@@ -121,6 +124,10 @@ export function useInAppNavigation(
   const navigationStepIndexRef = React.useRef(0);
   const navigationMutedRef = React.useRef(false);
   const navigationCameraHeading = React.useRef<number | null>(null);
+  // Learned per device: how far the map SDK's real perspective is from the
+  // shared camera model (Apple Maps and Google Maps differ).
+  const navigationCameraCorrection = React.useRef(1);
+  const navigationCameraFitTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const navGpsTracker = React.useRef(new NavigationGpsTracker());
   const announcedNavigationStep = React.useRef<{ route: InAppNavigationRoute; index: number } | null>(null);
   const navigationPromptProgress = React.useRef<{ route: InAppNavigationRoute; targetIndex: number; stage: number } | null>(null);
@@ -202,7 +209,7 @@ export function useInAppNavigation(
     // and the trip summary. The control dock sits at the right edge, clear
     // of a centred rider, so only the summary bounds the bottom.
     const topOcclusion = insets.top + spacing.sm + navigationBannerHeight;
-    const aheadMeters = navigationCentreAheadMeters({
+    const aheadMeters = navigationCameraCorrection.current * navigationCentreAheadMeters({
       viewportHeight,
       topOcclusion,
       bottomOcclusion: navigationSummaryHeight,
@@ -224,16 +231,40 @@ export function useInAppNavigation(
         latitude: here.lat,
       }),
     };
+    const transitionDuration = movingSpeed !== null && movingSpeed <= 1.5 ? 650 : 500;
     if (reduceMotionEnabled) {
       mapRef.current?.setCamera(camera);
     } else {
       mapRef.current?.animateCamera(camera, { duration: movingSpeed !== null && movingSpeed <= 1.5 ? 650 : 500 });
     }
+    // Once the camera settles, check where the map really drew the rider
+    // and nudge the learned correction towards the target.
+    if (navigationCameraFitTimer.current) clearTimeout(navigationCameraFitTimer.current);
+    navigationCameraFitTimer.current = setTimeout(() => {
+      navigationCameraFitTimer.current = null;
+      if (!navigationFollowingRef.current) return;
+      const pointForCoordinate = mapRef.current?.pointForCoordinate;
+      if (typeof pointForCoordinate !== 'function') return;
+      void pointForCoordinate.call(mapRef.current, { latitude: here.lat, longitude: here.lon }).then((point) => {
+        if (!navigationFollowingRef.current || !Number.isFinite(point?.y)) return;
+        const metresPerPoint = navigationMetresPerPoint(profile.zoom, here.lat);
+        navigationCameraCorrection.current = nextNavigationCameraCorrection(navigationCameraCorrection.current, {
+          targetOffset: navigationRiderScreenOffset(viewportHeight, topOcclusion, navigationSummaryHeight),
+          measuredOffset: point.y - viewportHeight / 2,
+          flatOffset: metresPerPoint > 0 ? aheadMeters / metresPerPoint : Number.NaN,
+          pitch: profile.pitch,
+        });
+      }).catch(() => {});
+    }, (reduceMotionEnabled ? 0 : transitionDuration) + 80);
   }, [insets.top, mapRef, mapReady, navigationBannerHeight, navigationSummaryHeight, reduceMotionEnabled, spacing.sm, viewportHeight]);
 
   React.useEffect(() => {
     navigationFollowingRef.current = navigationFollowing;
   }, [navigationFollowing]);
+
+  React.useEffect(() => () => {
+    if (navigationCameraFitTimer.current) clearTimeout(navigationCameraFitTimer.current);
+  }, []);
 
   React.useEffect(() => {
     if (navigationNotice !== ROUTE_UPDATED_NOTICE) return undefined;
@@ -266,6 +297,8 @@ export function useInAppNavigation(
     navRerouting.current = false;
     navGpsTracker.current.reset();
     navigationCameraHeading.current = null;
+    if (navigationCameraFitTimer.current) clearTimeout(navigationCameraFitTimer.current);
+    navigationCameraFitTimer.current = null;
     navigationFollowingRef.current = true;
     setNavigationFollowing(true);
     setNavigationMuted(false);
