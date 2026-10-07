@@ -6447,13 +6447,13 @@
     $('#addFriendToggle').addEventListener('click', () => { $('#addFriendForm').hidden = !$('#addFriendForm').hidden; if (!$('#addFriendForm').hidden) $('#friendId').focus(); });
     $('#addFriendForm').addEventListener('submit', (event) => {
       event.preventDefault();
-      // A rider's handle (what they'd actually share, e.g. "@ali_rides")
-      // works alongside the raw Rider ID — see server.ts's
-      // /friends/requests handler, which resolves a handle server-side.
-      const input = $('#friendId').value.trim().toLowerCase();
+      // The @ is shown as a fixed prefix; preserve raw Rider IDs while
+      // normalising a typed or pasted handle to the server format.
+      const entered = $('#friendId').value.trim().toLowerCase().replace(/^@+/, '');
+      const input = entered.startsWith('rider_') ? entered : `@${entered}`;
       const isHandle = /^@[a-z0-9_]{3,24}$/.test(input);
       const isRiderId = /^rider_[a-z0-9_]{4,30}$/.test(input);
-      if (!isHandle && !isRiderId) { $('#friendFeedback').textContent = 'Enter their handle (starting with @) or their full Rider ID.'; return; }
+      if (!entered || (!isHandle && !isRiderId)) { $('#friendFeedback').textContent = 'Enter their handle or their full Rider ID.'; return; }
       if (input === state.profile.riderId || input === state.profile.handle.toLowerCase()) { $('#friendFeedback').textContent = FRIEND_REQUEST_ERROR_MESSAGES.cannot_friend_yourself; return; }
       $('#friendFeedback').textContent = 'Sending…';
       sendFriendRequest(input);
