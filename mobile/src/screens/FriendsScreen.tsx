@@ -116,6 +116,7 @@ function AddFriendCard(): React.JSX.Element {
       <View style={styles.addRow}>
         <TextInput
           style={styles.addInput}
+          accessibilityLabel="Friend handle or Rider ID"
           placeholder="@handle or Rider ID"
           placeholderTextColor={colors.textMuted}
           autoCapitalize="none"
@@ -581,6 +582,7 @@ export function FriendsScreen(): React.JSX.Element {
           <Ionicons name="search" size={19} color={colors.textMuted} />
           <TextInput
             style={styles.friendSearchInput}
+            accessibilityLabel="Search friends"
             value={query}
             onChangeText={setQuery}
             placeholder="Search friends"

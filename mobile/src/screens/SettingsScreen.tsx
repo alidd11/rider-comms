@@ -134,9 +134,9 @@ function SocialRow({ label, icon, username, visibility, onUsername, onVisibility
 
   return <View style={styles.socialRow}>
     <View style={styles.socialHeading}><Ionicons name={icon} size={20} color={colors.textSecondary}/><Text style={styles.toggleLabel}>{label}</Text></View>
-    <TextInput style={styles.socialInput} value={draft} onChangeText={(value) => { setDraft(value); setError(null); }} onBlur={commitUsername} onSubmitEditing={commitUsername} autoCapitalize="none" autoCorrect={false} maxLength={31} placeholder="username" placeholderTextColor={colors.textMuted}/>
+    <TextInput accessibilityLabel={`${label} username`} style={styles.socialInput} value={draft} onChangeText={(value) => { setDraft(value); setError(null); }} onBlur={commitUsername} onSubmitEditing={commitUsername} autoCapitalize="none" autoCorrect={false} maxLength={31} placeholder="username" placeholderTextColor={colors.textMuted}/>
     {error ? <Text accessibilityRole="alert" style={styles.socialError}>{error}</Text> : null}
-    <View style={styles.visibilityRow} accessibilityRole="radiogroup">{options.map((option) => <Pressable key={option} accessibilityRole="radio" accessibilityState={{ selected: visibility === option }} onPress={() => onVisibility(option)} style={[styles.visibilityChoice, visibility === option && styles.visibilityChoiceActive]}><Text style={[styles.visibilityText, visibility === option && styles.visibilityTextActive]}>{option === 'friends' ? 'Friends only' : option[0].toUpperCase() + option.slice(1)}</Text></Pressable>)}</View>
+    <View style={styles.visibilityRow} accessibilityRole="radiogroup" accessibilityLabel={`${label} visibility`}>{options.map((option) => { const optionLabel = option === 'friends' ? 'Friends only' : option[0].toUpperCase() + option.slice(1); return <Pressable key={option} accessibilityRole="radio" accessibilityLabel={optionLabel} accessibilityState={{ selected: visibility === option }} onPress={() => onVisibility(option)} style={[styles.visibilityChoice, visibility === option && styles.visibilityChoiceActive]}><Text style={[styles.visibilityText, visibility === option && styles.visibilityTextActive]}>{optionLabel}</Text></Pressable>; })}</View>
   </View>;
 }
 
@@ -617,9 +617,9 @@ export function SettingsScreen(): React.JSX.Element {
                 <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
               </Pressable>
               <Text style={styles.fieldLabel}>Display name</Text>
-              <TextInput style={styles.sheetInput} value={nameDraft} onChangeText={(value) => { setNameDraft(value); setProfileDraftError(null); }} onSubmitEditing={commitName} onBlur={commitName} maxLength={50} returnKeyType="done" placeholder="Rider name" placeholderTextColor={colors.textMuted} />
+              <TextInput accessibilityLabel="Rider name" style={styles.sheetInput} value={nameDraft} onChangeText={(value) => { setNameDraft(value); setProfileDraftError(null); }} onSubmitEditing={commitName} onBlur={commitName} maxLength={50} returnKeyType="done" placeholder="Rider name" placeholderTextColor={colors.textMuted} />
               <Text style={styles.fieldLabel}>Rider handle</Text>
-              <TextInput style={styles.sheetInput} value={handleDraft} onChangeText={(value) => { setHandleDraft(value); setProfileDraftError(null); }} onSubmitEditing={commitHandle} onBlur={commitHandle} maxLength={25} autoCapitalize="none" autoCorrect={false} returnKeyType="done" placeholder="@handle" placeholderTextColor={colors.textMuted} />
+              <TextInput accessibilityLabel="Rider handle" style={styles.sheetInput} value={handleDraft} onChangeText={(value) => { setHandleDraft(value); setProfileDraftError(null); }} onSubmitEditing={commitHandle} onBlur={commitHandle} maxLength={25} autoCapitalize="none" autoCorrect={false} returnKeyType="done" placeholder="@handle" placeholderTextColor={colors.textMuted} />
               <Text style={styles.sheetMetaBlock}>{verificationConfirmed ? 'Email verified' : 'Email verification pending · Nearby Voice requires verification'} · {riderId}</Text>
               {!verificationConfirmed ? (
                 <Pressable
@@ -757,4 +757,3 @@ export function SettingsScreen(): React.JSX.Element {
     </View>
   );
 }
-

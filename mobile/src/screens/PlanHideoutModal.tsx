@@ -87,6 +87,7 @@ export function PlanHideoutModal({
 
           <TextInput
             style={styles.modalInput}
+            accessibilityLabel="Hideout name"
             placeholder="Name (e.g. Gas station off Route 9)"
             placeholderTextColor={colors.textMuted}
             value={name}
