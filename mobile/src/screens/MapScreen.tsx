@@ -774,7 +774,10 @@ export function MapScreen(): React.JSX.Element {
           <Pressable
             style={styles.destinationPrimaryAction}
             accessibilityRole="button"
-            accessibilityLabel={`Start route to ${selectedDestination.label ?? 'selected place'}`}
+            accessibilityLabel={navigationLoading
+              ? `Starting route to ${selectedDestination.label ?? 'selected place'}`
+              : `Start route to ${selectedDestination.label ?? 'selected place'}`}
+            accessibilityState={{ disabled: navigationLoading, busy: navigationLoading }}
             onPress={() => void openDirections(selectedDestination)}
             disabled={navigationLoading}
           >
@@ -839,7 +842,11 @@ export function MapScreen(): React.JSX.Element {
             ) : null}
             <NavigationRoadAhead alerts={navigationRoadAlerts} unit={unitSystem} />
             {navigationNotice ? (
-              <View style={[styles.navigationNoticeRow, navigationNotice === ROUTE_UPDATED_NOTICE && styles.navigationNoticeRowInfo]}>
+              <View
+                style={[styles.navigationNoticeRow, navigationNotice === ROUTE_UPDATED_NOTICE && styles.navigationNoticeRowInfo]}
+                accessibilityLiveRegion="polite"
+                accessibilityLabel={navigationNotice}
+              >
                 <Ionicons
                   name={navigationNotice === ROUTE_UPDATED_NOTICE ? 'checkmark-circle-outline' : 'warning-outline'}
                   size={16}
