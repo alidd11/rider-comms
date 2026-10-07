@@ -144,6 +144,8 @@
       showToast('Controls stay locked until Rider Comms confirms you are stationary.');
     }
     state.screen = screen;
+    // Lets CSS adapt floating controls to the screen (e.g. the ride pill).
+    document.documentElement.dataset.activeScreen = screen;
     persist();
     [...document.querySelectorAll('.screen')].forEach((item) => item.classList.toggle('active', item.dataset.screen === screen));
     [...document.querySelectorAll('[data-nav]')].forEach((item) => {
@@ -154,6 +156,7 @@
     if (push && location.hash !== `#${screen}`) history.pushState({ screen }, '', `#${screen}`);
     document.title = `${screen === 'ride' ? 'Group Ride' : screen[0].toUpperCase() + screen.slice(1)} · Rider Comms`;
     window.scrollTo(0, 0);
+    syncMovementSafetyBanner();
     if (screen === 'map') { renderMapRiders(); refreshNearbyHazards(); }
     syncHazardRefresh(screen === 'map');
     if (screen === 'friends') loadFriendsData();

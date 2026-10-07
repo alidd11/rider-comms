@@ -11,6 +11,7 @@ import {
   Text,
   TextInput,
   View,
+  Image,
   ImageBackground,
   StatusBar,
 } from 'react-native';
@@ -19,7 +20,8 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { API_BASE_URL } from '../config';
 import { LEGAL_LINKS } from '../legalLinks';
-import { AUTH_HERO_IMAGE, AUTH_MUTED, AUTH_TEXT, styles } from './AuthContext.styles';
+import { AUTH_MUTED, AUTH_TEXT, styles } from './AuthContext.styles';
+import { AUTH_HERO_IMAGE, BRAND_MARK_IMAGE } from '../brandAssets';
 import { ApiError, RiderCommsClient } from '../api/client';
 import type { LoginSession } from '../api/client';
 
@@ -200,10 +202,10 @@ function AuthScreen({ onAuthenticated, restoreError, onRetryRestore }: {
 
   return (
     <ImageBackground
-      source={{ uri: AUTH_HERO_IMAGE }}
+      source={AUTH_HERO_IMAGE}
       style={styles.screen}
       imageStyle={styles.backgroundImage}
-      accessibilityLabel="Motorcyclist riding through mountains at dusk"
+      accessibilityLabel="A motorcyclist with their bike on a mountain road at night, under the stars"
     >
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
       <View style={styles.backgroundShade} />
@@ -447,11 +449,11 @@ function AuthScreen({ onAuthenticated, restoreError, onRetryRestore }: {
 function AuthSplash(): React.JSX.Element {
   const insets = useSafeAreaInsets();
   return (
-    <ImageBackground source={{ uri: AUTH_HERO_IMAGE }} style={styles.splash} imageStyle={styles.backgroundImage}>
+    <ImageBackground source={AUTH_HERO_IMAGE} style={styles.splash} imageStyle={styles.backgroundImage}>
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
       <View style={styles.splashShade} />
       <View style={[styles.splashCenter, { paddingTop: insets.top + 70 }]}>
-        <Text style={styles.splashMark}>R</Text>
+        <Image source={BRAND_MARK_IMAGE} style={styles.splashMark} accessibilityIgnoresInvertColors />
         <Text style={styles.splashName}>RIDER COMMS</Text>
         <Text style={styles.splashMotto}>{'RIDE TOGETHER\nSTAY CONNECTED'}</Text>
       </View>

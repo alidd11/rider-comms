@@ -1,8 +1,7 @@
 import { StyleSheet } from 'react-native';
 
-export const AUTH_HERO_IMAGE = 'https://images.unsplash.com/photo-1552306062-29a5560e1c31?auto=format&fit=crop&q=82&w=1400';
-export const AUTH_ACCENT = '#63F3D2';
-export const AUTH_ACCENT_DEEP = '#0D8C78';
+export const AUTH_ACCENT = '#5CC6EC';
+export const AUTH_ACCENT_DEEP = '#1A7EA6';
 export const AUTH_TEXT = '#F2F7F7';
 export const AUTH_MUTED = '#9DAAAD';
 const AUTH_SURFACE = 'rgba(7,15,18,0.58)';
@@ -40,7 +39,7 @@ export const styles = StyleSheet.create({
   rememberText: { color: '#D7E0E1', fontSize: 11, fontWeight: '500' },
   forgotButton: { minHeight: 30, justifyContent: 'center' },
   forgotText: { color: AUTH_ACCENT, fontSize: 11, fontWeight: '600' },
-  primaryButton: { minHeight: 46, marginTop: 5, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(101,246,211,0.38)', backgroundColor: AUTH_ACCENT_DEEP, alignItems: 'center', justifyContent: 'center', shadowColor: AUTH_ACCENT, shadowOpacity: 0.12, shadowRadius: 10 },
+  primaryButton: { minHeight: 46, marginTop: 5, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(92,198,236,0.38)', backgroundColor: AUTH_ACCENT_DEEP, alignItems: 'center', justifyContent: 'center', shadowColor: AUTH_ACCENT, shadowOpacity: 0.12, shadowRadius: 10 },
   primaryButtonPressed: { opacity: 0.88 },
   primaryButtonText: { color: AUTH_TEXT, fontSize: 13, fontWeight: '700' },
   buttonDisabled: { opacity: 0.62 },
@@ -61,7 +60,7 @@ export const styles = StyleSheet.create({
   splash: { flex: 1, backgroundColor: '#03090B' },
   splashShade: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(2,8,10,0.62)' },
   splashCenter: { alignItems: 'center' },
-  splashMark: { color: '#DFFCFF', fontSize: 76, lineHeight: 78, fontWeight: '200', fontStyle: 'italic', letterSpacing: -10, textShadowColor: 'rgba(99,243,210,0.28)', textShadowRadius: 16 },
+  splashMark: { width: 72, height: 72, marginBottom: 14 },
   splashName: { color: AUTH_TEXT, fontSize: 13, fontWeight: '500', letterSpacing: 6, marginTop: 10, marginLeft: 6 },
   splashMotto: { color: '#D2DDDF', fontSize: 9, lineHeight: 17, fontWeight: '500', letterSpacing: 4, textAlign: 'center', marginTop: 26, marginLeft: 4 },
   splashFooter: { position: 'absolute', left: 0, right: 0, color: '#899699', fontSize: 8, lineHeight: 14, letterSpacing: 3, textAlign: 'center' },

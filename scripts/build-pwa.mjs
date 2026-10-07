@@ -28,6 +28,9 @@ await cp(
   resolve(destination, 'assets', 'routes', 'cards'),
   { recursive: true },
 );
+// Sign-in and ride hero photos, self-hosted so they work offline and no
+// third-party image host sees riders' requests.
+await cp(resolve(source, 'assets', 'hero'), resolve(destination, 'assets', 'hero'), { recursive: true });
 
 const required = ['index.html', 'app.css', 'app.js', 'avatar-system.js', 'navigation-road-events.js', 'navigation-guidance.js', 'navigation-camera.js', 'voice-activity.js', 'position-interpolation.js', 'movement-safety.js', 'message-state.js', 'config.js', 'manifest.json', 'sw.js'];
 await Promise.all(required.map((file) => readFile(resolve(destination, file))));

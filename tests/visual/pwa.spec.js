@@ -307,7 +307,7 @@ test('login baseline matches the approved night-rider concept in day and night',
     });
 
     expect(visual.screenBackground).toBe('rgb(3, 9, 11)');
-    expect(visual.backgroundImage).toContain('photo-1552306062-29a5560e1c31');
+    expect(visual.backgroundImage).toContain('assets/hero/auth.jpg');
     expect(visual.inputHeight).toBeGreaterThanOrEqual(43);
     expect(visual.inputHeight).toBeLessThanOrEqual(47);
     expect(visual.inputRadius).toBeGreaterThanOrEqual(6);
@@ -1048,10 +1048,25 @@ test('PWA warns without hiding controls when movement cannot be verified', async
   const enableLocation = page.locator('#enableLocationBtn');
   await expect(enableLocation).toBeVisible();
   await expect(enableLocation).toHaveText('Location help');
+  // Location is blocked, which the rider has to fix, so the banner and its
+  // button follow them to other screens.
   await routesTab.click();
   await expect(page.locator('[data-screen="routes"]')).toHaveClass(/active/);
+  await expect(page.locator('#movementSafetyBanner')).toBeVisible();
   await enableLocation.click();
   await expect(page.locator('#toast')).toContainText('Location access is blocked');
+});
+
+test('PWA keeps the plain "waiting for a speed fix" notice on the map only', async ({ page }) => {
+  await mockAuthenticatedApi(page, 'recovering');
+  await page.goto('/');
+  await expect(page.locator('#movementSafetyBanner')).toBeVisible();
+  await expect(page.locator('#enableLocationBtn')).toBeHidden();
+  await page.locator('.bottom-nav [data-nav="routes"]').click();
+  await expect(page.locator('[data-screen="routes"]')).toHaveClass(/active/);
+  await expect(page.locator('#movementSafetyBanner')).toBeHidden();
+  await page.locator('.bottom-nav [data-nav="map"]').click();
+  await expect(page.locator('#movementSafetyBanner')).toBeVisible();
 });
 
 test('PWA GPS timeout recovers without another permission request or startup lock', async ({ page }) => {
@@ -2049,7 +2064,10 @@ test('PWA keeps private-ride speaker identity visible across tabs', async ({ pag
   await expect(page.locator('#createRideBtn')).toBeVisible();
   await page.locator('#createRideBtn').click();
 
-  await expect(page.locator('#ridePill')).toBeVisible();
+  // On the Ride screen its own voice chip names the speaker; the floating
+  // pill (a shortcut to this screen) is hidden here.
+  await expect(page.locator('#rideVoiceStatusText')).toHaveText('Maya speaking');
+  await expect(page.locator('#ridePill')).toBeHidden();
   await expect(page.locator('#ridePill small')).toHaveText('Maya speaking');
   await expect(page.locator('#ridePill')).toHaveAttribute('aria-label', 'Active ride · Maya speaking');
 
@@ -2196,6 +2214,7 @@ test('PWA settings sheets own the bottom edge without competing with app chrome'
   const app = page.locator('#app');
   const settingsScreen = page.locator('[data-screen="settings"]');
   await expect(nav).toBeVisible();
+  // Location is blocked in this mock, so the banner shows on Settings too.
   await expect(banner).toBeVisible();
 
   await page.locator('[data-sheet="communication"]').click();

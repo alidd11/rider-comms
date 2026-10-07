@@ -12,12 +12,12 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation';
 import { ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
+import { RIDE_HERO_IMAGE } from '../brandAssets';
 import { colors, spacing, radii, type, elevation } from '../theme';
 import { useRide } from './RideContext';
 import { RideRoster } from './RideRoster';
 import { microphoneErrorMessage, preflightVoiceMicrophone } from '../audio/microphone';
 
-const RIDE_HERO_IMAGE = 'https://images.unsplash.com/photo-1770614956862-a143fb5e4921?auto=format&fit=crop&q=80&w=1200';
 
 function JoinOrHostForm(): React.JSX.Element {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -73,7 +73,7 @@ function JoinOrHostForm(): React.JSX.Element {
       >
         <Text style={[styles.screenTitle, { marginTop: insets.top + 18 }]}>Ride</Text>
         <ImageBackground
-          source={{ uri: RIDE_HERO_IMAGE }}
+          source={RIDE_HERO_IMAGE}
           style={[styles.hero, { height: heroHeight }]}
           imageStyle={styles.heroImage}
           accessibilityRole="image"

@@ -528,6 +528,9 @@ export function FriendsScreen(): React.JSX.Element {
   const [query, setQuery] = React.useState('');
   const [selectedProfile, setSelectedProfile] = React.useState<FriendSummary | null>(null);
   const [addOpen, setAddOpen] = React.useState(false);
+  // Pending requests already fill the screen; the "build your circle"
+  // prompt is for a genuinely empty list (and a search still says so).
+  const hidesEmptyPrompt = incomingRequests.length + outgoingRequests.length > 0 && !query.trim();
   const filteredFriends = React.useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase();
     if (!normalized) return friends;
@@ -627,7 +630,7 @@ export function FriendsScreen(): React.JSX.Element {
 
         {loading && friends.length === 0 ? (
           <View style={styles.emptyState}><ActivityIndicator color={colors.accent} /></View>
-        ) : friends.length === 0 ? (
+        ) : friends.length === 0 && hidesEmptyPrompt ? null : friends.length === 0 ? (
           <View style={styles.emptyState}>
             <Ionicons name="people-outline" size={28} color={colors.textMuted} />
             <Text style={styles.emptyTitle}>Build your riding circle</Text>

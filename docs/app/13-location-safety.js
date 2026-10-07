@@ -102,23 +102,33 @@
     };
   }
 
+  // A lock shows everywhere, and so does a location problem the rider has to
+  // fix. "Waiting for a speed fix" on its own is only a notice: browsers often
+  // never report speed while still, so it stays on the map (as in the native
+  // app) instead of covering every screen.
+  function syncMovementSafetyBanner() {
+    const locked = state.rideSafeEnabled && window.RiderMovementSafety.isLockedForSafety(movementState);
+    const warning = state.rideSafeEnabled && movementState === 'unknown';
+    // A missing speed fix does not mean location permission is missing.
+    const needsLocation = warning && (movementAccessDenied || !(locationPermissionReady || movementPermissionStatus?.state === 'granted'));
+    const banner = $('#movementSafetyBanner');
+    if (banner) banner.hidden = !(locked || needsLocation || (warning && state.screen === 'map'));
+    const enableButton = $('#enableLocationBtn');
+    if (enableButton) {
+      enableButton.hidden = !needsLocation;
+      enableButton.textContent = movementAccessDenied || movementPermissionStatus?.state === 'denied' ? 'Location help' : 'Enable location';
+    }
+    return locked;
+  }
+
   function applyMovementState(nextState) {
     movementState = nextState;
-    const locked = state.rideSafeEnabled && window.RiderMovementSafety.isLockedForSafety(nextState);
-    const warning = state.rideSafeEnabled && nextState === 'unknown';
+    const locked = syncMovementSafetyBanner();
     $('#app')?.classList.toggle('safety-locked', locked);
-    const banner = $('#movementSafetyBanner');
-    if (banner) banner.hidden = !(locked || warning);
     const message = $('#movementSafetyMessage');
     if (message) message.textContent = nextState === 'moving'
       ? 'Distracting controls are locked until you are safely below 8 mph.'
       : 'Waiting for a reliable speed fix. Controls stay available.';
-    const enableButton = $('#enableLocationBtn');
-    if (enableButton) {
-      // A missing speed fix does not mean location permission is missing.
-      enableButton.hidden = !warning || (!movementAccessDenied && (locationPermissionReady || movementPermissionStatus?.state === 'granted'));
-      enableButton.textContent = movementAccessDenied || movementPermissionStatus?.state === 'denied' ? 'Location help' : 'Enable location';
-    }
     $$('[data-nav="routes"], [data-nav="friends"], [data-nav="settings"]').forEach((item) => {
       item.setAttribute('aria-disabled', String(locked));
       item.classList.toggle('safety-unavailable', locked);

@@ -677,7 +677,7 @@ body:has(#destinationCard:not([hidden])) .screen-map .map-actions{display:none}
 .ride-hero{
   position:relative;height:184px;overflow:hidden;border:1px solid var(--border);
   border-radius:var(--radius-lg);background-color:var(--surface);
-  background-image:linear-gradient(180deg,rgb(4 8 11/.06) 30%,rgb(4 8 11/.78) 100%),url("https://images.unsplash.com/photo-1770614956862-a143fb5e4921?auto=format&fit=crop&q=80&w=1200");
+  background-image:linear-gradient(180deg,rgb(4 8 11/.06) 30%,rgb(4 8 11/.78) 100%),url("assets/hero/ride.jpg");
   background-size:cover;background-position:center 56%;
 }
 .ride-hero-copy{position:absolute;z-index:1;left:15px;bottom:14px;color:#fff}
@@ -844,7 +844,7 @@ body:has(#sheetBackdrop:not([hidden])) #joinNearbyBtn{opacity:0;pointer-events:n
   border-radius:0;
   background:
     linear-gradient(180deg,rgb(3 7 9/.04) 28%,rgb(3 7 9/.22) 58%,rgb(3 7 9/.78) 100%),
-    url("https://images.unsplash.com/photo-1770614956862-a143fb5e4921?auto=format&fit=crop&q=82&w=1400");
+    url("assets/hero/ride.jpg");
   background-position:center 50%;
   background-size:cover;
 }
@@ -1109,7 +1109,7 @@ body:has(#sheetBackdrop:not([hidden])) #joinNearbyBtn{opacity:0;pointer-events:n
     border-radius:0;
     background-image:
       linear-gradient(180deg,rgb(3 7 9/.03) 28%,rgb(3 7 9/.18) 58%,rgb(3 7 9/.82) 100%),
-      url("https://images.unsplash.com/photo-1770614956862-a143fb5e4921?auto=format&fit=crop&q=82&w=1400");
+      url("assets/hero/ride.jpg");
     background-position:center 52%;
     background-size:cover;
   }
@@ -1494,6 +1494,11 @@ body:has(.content-screen.active) .movement-safety-banner{
     backdrop-filter:blur(14px);
     -webkit-backdrop-filter:blur(14px);
   }
+  /* With a ride on, the ride pill takes the space above the nav bar. */
+  html.ride-pill-visible body:has(.screen-map.active) .movement-safety-banner{bottom:calc(var(--bottom-nav-height) + 66px)}
+  /* The banner sits where toasts appear; lift toasts above it. */
+  body:has(.screen-map.active):has(#movementSafetyBanner:not([hidden])) .toast{bottom:calc(var(--bottom-nav-height) + 86px)}
+  html.ride-pill-visible body:has(.screen-map.active):has(#movementSafetyBanner:not([hidden])) .toast{bottom:calc(var(--bottom-nav-height) + 134px)}
   body:has(.screen-map.active) .movement-safety-banner svg{width:18px;height:18px}
   body:has(.screen-map.active) .movement-safety-banner strong{font-size:.72rem}
   body:has(.screen-map.active) .movement-safety-banner small{font-size:.62rem;line-height:1.25}
@@ -1527,8 +1532,8 @@ body:has(.content-screen.active) .movement-safety-banner{
    Authentication behaviour stays real; unsupported social providers are shown
    as intentionally disabled visual placeholders rather than fake sign-in. */
 .auth-screen{
-  --auth-accent:#63f3d2;
-  --auth-accent-deep:#0d8c78;
+  --auth-accent:#5cc6ec;
+  --auth-accent-deep:#1a7ea6;
   --auth-line:rgb(214 236 238/.22);
   --auth-text:#f2f7f7;
   --auth-muted:#9daaad;
@@ -1553,7 +1558,7 @@ body:has(.content-screen.active) .movement-safety-banner{
   border-radius:0;
   background:
     linear-gradient(180deg,rgb(1 7 10/.20) 0%,rgb(2 9 12/.36) 32%,rgb(2 8 10/.80) 67%,#03090b 100%),
-    url("https://images.unsplash.com/photo-1552306062-29a5560e1c31?auto=format&fit=crop&q=82&w=1400");
+    url("assets/hero/auth.jpg");
   background-position:center center;
   background-size:cover;
 }
@@ -1660,7 +1665,7 @@ body:has(.content-screen.active) .movement-safety-banner{
   outline:0;
   border-color:color-mix(in srgb,var(--auth-accent) 65%,transparent);
   background:rgb(7 15 18/.68);
-  box-shadow:0 0 0 2px rgb(99 243 210/.08);
+  box-shadow:0 0 0 2px rgb(92 198 236/.08);
 }
 .auth-screen .password-toggle{
   width:42px;
@@ -1716,13 +1721,13 @@ body:has(.content-screen.active) .movement-safety-banner{
 .auth-screen .auth-submit{
   min-height:46px;
   margin-top:5px;
-  border:1px solid rgb(101 246 211/.38);
+  border:1px solid rgb(92 198 236/.38);
   border-radius:8px;
-  background:linear-gradient(90deg,#087763 0%,#0b9d84 48%,#16bda0 100%);
+  background:linear-gradient(90deg,#12628a 0%,#1a7ea6 50%,#2389b3 100%);
   color:#f7ffff;
   font-size:.8rem;
   font-weight:700;
-  box-shadow:0 0 20px rgb(19 185 155/.15),inset 0 1px rgb(255 255 255/.12);
+  box-shadow:0 0 20px rgb(47 168 211/.15),inset 0 1px rgb(255 255 255/.12);
 }
 .auth-screen .auth-submit:hover{filter:brightness(1.06)}
 .auth-screen .auth-submit:disabled{opacity:.62}
@@ -1804,7 +1809,7 @@ body:has(.content-screen.active) .movement-safety-banner{
   overflow:hidden;
   background:
     linear-gradient(180deg,rgb(2 9 12/.34),rgb(2 9 12/.62) 55%,rgb(2 8 10/.92)),
-    url("https://images.unsplash.com/photo-1552306062-29a5560e1c31?auto=format&fit=crop&q=82&w=1400");
+    url("assets/hero/auth.jpg");
   background-size:cover;
   background-position:center center;
   color:#f4fafa;
@@ -1827,18 +1832,10 @@ body:has(.content-screen.active) .movement-safety-banner{
   display:grid;
   place-items:center;
   margin-bottom:14px;
-  color:#dffcff;
-  filter:drop-shadow(0 5px 18px rgb(65 229 213/.22));
+  color:#2fa8d3;
+  filter:drop-shadow(0 5px 18px rgb(47 168 211/.28));
 }
-.auth-brand-emblem span{
-  display:block;
-  font-size:4.5rem;
-  font-weight:200;
-  line-height:.8;
-  letter-spacing:-.16em;
-  transform:skewX(-11deg);
-  text-shadow:1px 0 #6fe9df,-1px 0 #fff;
-}
+.auth-brand-emblem svg{width:66px;height:66px}
 .auth-splash-centre>strong{
   font-size:.83rem;
   font-weight:520;
@@ -1881,7 +1878,7 @@ body:has(.content-screen.active) .movement-safety-banner{
   width:62%;
   height:100%;
   border-radius:inherit;
-  background:linear-gradient(90deg,#66f5d4,#b2ffff);
+  background:linear-gradient(90deg,#5cc6ec,#b9e9fb);
   box-shadow:0 0 12px rgb(92 238 213/.45);
 }
 
@@ -2502,16 +2499,16 @@ body:has(.friend-more-card) .sheet-body{gap:9px}
 .settings-hub-list{
   overflow:hidden;border:1px solid var(--border-soft);border-radius:8px;background:var(--surface)
 }
-.settings-hub-list>button{
+.settings-hub-list>button,.settings-hub-list>a{
   width:100%;min-height:54px;display:flex;align-items:center;gap:10px;padding:7px 12px;
-  border:0;border-bottom:1px solid var(--border-soft);background:transparent;color:var(--text);text-align:left
+  border:0;border-bottom:1px solid var(--border-soft);background:transparent;color:var(--text);text-align:left;text-decoration:none
 }
-.settings-hub-list>button:last-child{border-bottom:0}
-.settings-hub-list>button>span:nth-child(2){min-width:0;flex:1}
+.settings-hub-list>button:last-child,.settings-hub-list>a:last-child{border-bottom:0}
+.settings-hub-list>button>span:nth-child(2),.settings-hub-list>a>span:nth-child(2){min-width:0;flex:1}
 .settings-hub-list strong,.settings-hub-list small{display:block}
 .settings-hub-list strong{font-size:.84rem}
 .settings-hub-list small{margin-top:2px;overflow:hidden;color:var(--text-secondary);font-size:.69rem;text-overflow:ellipsis;white-space:nowrap}
-.settings-hub-list>button>svg{width:14px;height:14px;flex:none;color:var(--text-muted)}
+.settings-hub-list>button>svg,.settings-hub-list>a>svg{width:14px;height:14px;flex:none;color:var(--text-muted)}
 .settings-hub-list .setting-icon{width:28px;height:28px;border:0;background:transparent}
 .settings-hub-list .setting-icon svg{width:19px;height:19px}
 .settings-about-card{display:grid;gap:5px;padding:16px;border:1px solid var(--border-soft);border-radius:8px;background:var(--surface)}
@@ -2537,6 +2534,9 @@ body:has(.friend-more-card) .sheet-body{gap:9px}
 /* Compact focused road-report card. Keep map context visible while preserving
    48px rider-friendly action targets and parity with the native map card. */
 #hazardCard{
+  /* .rider-card lays out in a row; the road-report card stacks its header
+     above the vote buttons. */
+  flex-direction:column;
   align-items:stretch;
   gap:10px;
   padding:12px;
@@ -2695,13 +2695,18 @@ body:has(.friend-more-card) .sheet-body{gap:9px}
 .terms-gate-card{margin:auto}
 /* Clear the floating ride pill at the bottom of scrolling screens. */
 html.ride-pill-visible .screen{padding-bottom:calc(var(--bottom-nav-height) + 84px)}
+/* The ride pill opens the Ride screen, so it's hidden there; on the map the
+   action buttons move up to clear it. */
+html[data-active-screen="ride"] .ride-pill{display:none}
+html[data-active-screen="ride"].ride-pill-visible .screen{padding-bottom:calc(var(--bottom-nav-height) + 28px)}
+html.ride-pill-visible .screen-map .map-actions{transform:translateY(-58px)}
 /* Nearby Voice riders button sits top-left, clear of the right-hand map controls. */
 .voice-people-btn{right:auto;left:max(16px,var(--safe-left));top:calc(var(--safe-top) + 66px)}
 .roster-host-inline{display:none;font-weight:700;color:var(--success)}
 @media(max-width:400px){
   /* Small phones: keep rider names readable in the roster and voice list. */
   .roster-row{gap:8px;padding-inline:10px}
-  .roster-row .roster-status{width:10px;height:10px;flex:none;overflow:hidden;border-radius:50%;background:var(--success);font-size:0;color:transparent}
+  .roster-row .roster-status{display:none}
   .roster-safety{margin-right:2px}
   .roster-host-inline{display:inline}
   .voice-peer-row{flex-wrap:wrap;padding:8px 0}

@@ -662,6 +662,8 @@
       showToast('Controls stay locked until Rider Comms confirms you are stationary.');
     }
     state.screen = screen;
+    // Lets CSS adapt floating controls to the screen (e.g. the ride pill).
+    document.documentElement.dataset.activeScreen = screen;
     persist();
     [...document.querySelectorAll('.screen')].forEach((item) => item.classList.toggle('active', item.dataset.screen === screen));
     [...document.querySelectorAll('[data-nav]')].forEach((item) => {
@@ -672,6 +674,7 @@
     if (push && location.hash !== `#${screen}`) history.pushState({ screen }, '', `#${screen}`);
     document.title = `${screen === 'ride' ? 'Group Ride' : screen[0].toUpperCase() + screen.slice(1)} · Rider Comms`;
     window.scrollTo(0, 0);
+    syncMovementSafetyBanner();
     if (screen === 'map') { renderMapRiders(); refreshNearbyHazards(); }
     syncHazardRefresh(screen === 'map');
     if (screen === 'friends') loadFriendsData();
@@ -1183,7 +1186,9 @@
     const empty = $('#friendEmpty');
     $('#requestSection').hidden = !hasRequests;
     $('#friendSection').hidden = !hasVisibleFriends;
-    empty.hidden = hasVisibleFriends;
+    // Pending requests already fill the screen; the "build your circle"
+    // prompt is for a genuinely empty list.
+    empty.hidden = hasVisibleFriends || (hasRequests && !query);
     $('#friendEmptyTitle').textContent = query ? 'No matching friends' : 'Build your riding circle';
     $('#friendEmptyCopy').textContent = query
       ? 'Try a different name, handle or Rider ID.'
@@ -2118,7 +2123,9 @@
     $('#copyRideCode').disabled = !ride.code;
     $('#rideShareTop').disabled = !ride.code;
     $('#rideRole').textContent = ride.isHost ? 'host' : 'member';
-    $('#memberCount').textContent = String(members.length);
+    const riderCount = `${members.length} ${members.length === 1 ? 'rider' : 'riders'}`;
+    $('#memberCount').textContent = riderCount;
+    $('#rideRosterCount').textContent = riderCount;
     const pillCount = $('#ridePill .pill-count');
     if (pillCount) pillCount.textContent = String(members.length);
     $('#leaveRideBtn').textContent = ride.isHost ? 'End ride' : 'Leave ride';
@@ -2130,7 +2137,7 @@
       const safetyButton = person.riderId !== state.profile.riderId
         ? `<button type="button" class="roster-safety" data-rider-safety="${escapeHtml(person.riderId)}" aria-label="Report or block ${escapeHtml(person.displayName)}">${icon('shield')}</button>`
         : '';
-      return `<article class="roster-row">${avatar(person, 'small')}<div class="identity"><strong>${escapeHtml(person.displayName)}${person.riderId === state.profile.riderId ? ' · You' : ''}</strong><span>${escapeHtml(person.handle)}${person.riderId === ride.createdBy ? '<b class="roster-host-inline" aria-hidden="true"> · Host</b>' : ''}</span></div><span class="roster-status">${escapeHtml(person.riderId === ride.createdBy ? 'Host · connected' : 'Connected')}</span>${safetyButton}${removeButton}</article>`;
+      return `<article class="roster-row">${avatar(person, 'small')}<div class="identity"><strong>${escapeHtml(person.displayName)}${person.riderId === state.profile.riderId ? ' · You' : ''}</strong><span>${escapeHtml(person.handle)}${person.riderId === ride.createdBy ? '<b class="roster-host-inline" aria-hidden="true"> · Host</b>' : ''}</span></div><span class="roster-status">${person.riderId === ride.createdBy ? 'Host' : 'Member'}</span>${safetyButton}${removeButton}</article>`;
     }).join('');
     renderMapRiders();
   }
@@ -2374,6 +2381,7 @@
         body: `<div class="settings-hub-list">
           <button data-settings-target="safety"><span class="setting-icon">${icon('info')}</span><span><strong>Safety guidance</strong><small>Low-distraction and emergency guidance</small></span>${icon('chevron')}</button>
           <button data-settings-target="legal"><span class="setting-icon">${icon('shield')}</span><span><strong>Privacy, safety & terms</strong><small>Read Rider Comms legal and safety information</small></span>${icon('chevron')}</button>
+          <a href="support.html" target="_blank" rel="noopener"><span class="setting-icon">${icon('help')}</span><span><strong>Contact support</strong><small>Help, account deletion and how to reach us</small></span>${icon('chevron')}</a>
         </div>`,
         ready: wireSettingsHubRows,
       }),
@@ -4204,23 +4212,33 @@
     };
   }
 
+  // A lock shows everywhere, and so does a location problem the rider has to
+  // fix. "Waiting for a speed fix" on its own is only a notice: browsers often
+  // never report speed while still, so it stays on the map (as in the native
+  // app) instead of covering every screen.
+  function syncMovementSafetyBanner() {
+    const locked = state.rideSafeEnabled && window.RiderMovementSafety.isLockedForSafety(movementState);
+    const warning = state.rideSafeEnabled && movementState === 'unknown';
+    // A missing speed fix does not mean location permission is missing.
+    const needsLocation = warning && (movementAccessDenied || !(locationPermissionReady || movementPermissionStatus?.state === 'granted'));
+    const banner = $('#movementSafetyBanner');
+    if (banner) banner.hidden = !(locked || needsLocation || (warning && state.screen === 'map'));
+    const enableButton = $('#enableLocationBtn');
+    if (enableButton) {
+      enableButton.hidden = !needsLocation;
+      enableButton.textContent = movementAccessDenied || movementPermissionStatus?.state === 'denied' ? 'Location help' : 'Enable location';
+    }
+    return locked;
+  }
+
   function applyMovementState(nextState) {
     movementState = nextState;
-    const locked = state.rideSafeEnabled && window.RiderMovementSafety.isLockedForSafety(nextState);
-    const warning = state.rideSafeEnabled && nextState === 'unknown';
+    const locked = syncMovementSafetyBanner();
     $('#app')?.classList.toggle('safety-locked', locked);
-    const banner = $('#movementSafetyBanner');
-    if (banner) banner.hidden = !(locked || warning);
     const message = $('#movementSafetyMessage');
     if (message) message.textContent = nextState === 'moving'
       ? 'Distracting controls are locked until you are safely below 8 mph.'
       : 'Waiting for a reliable speed fix. Controls stay available.';
-    const enableButton = $('#enableLocationBtn');
-    if (enableButton) {
-      // A missing speed fix does not mean location permission is missing.
-      enableButton.hidden = !warning || (!movementAccessDenied && (locationPermissionReady || movementPermissionStatus?.state === 'granted'));
-      enableButton.textContent = movementAccessDenied || movementPermissionStatus?.state === 'denied' ? 'Location help' : 'Enable location';
-    }
     $$('[data-nav="routes"], [data-nav="friends"], [data-nav="settings"]').forEach((item) => {
       item.setAttribute('aria-disabled', String(locked));
       item.classList.toggle('safety-unavailable', locked);
@@ -4538,7 +4556,7 @@
   function disablePlaceSearch() {
     const input = $('#placeSearchInput');
     input.disabled = true;
-    input.placeholder = 'Search offline for now';
+    input.placeholder = 'Search unavailable right now';
     $('#mapSearchSlot')?.classList.add('offline');
     // The POI chips call the real Places JS API directly (nearbySearch) —
     // with no Google Maps loaded there's no Places library either, so
