@@ -234,7 +234,7 @@ test('polls the ride and clears local state when the server says it is gone', as
   await waitFor(() => expect(client.getRide).toHaveBeenCalledTimes(1));
 
   await act(async () => {
-    jest.advanceTimersByTime(5_000);
+    jest.advanceTimersByTime(10_000);
   });
 
   await waitFor(() => expect(result.current.activeRide).toBeNull());

@@ -5,6 +5,10 @@ import { useAuth } from '../auth/AuthContext';
 import { ApiError, type RideMemberLocation } from '../api/client';
 
 export const RIDE_LOCATION_REFRESH_MS = 10_000;
+// Membership changes are handled immediately by explicit actions. The
+// background reconciliation only needs to catch host removals/ends, so keep
+// it aligned with the location cadence instead of polling twice as often.
+export const RIDE_ROSTER_REFRESH_MS = 10_000;
 // Three failed ticks (~30 s), matching the web app's notice.
 const RIDE_UNREACHABLE_TICKS = 3;
 const RIDE_RESTORE_RETRY_MS = 10_000;
@@ -186,7 +190,7 @@ export function RideProvider({ children }: { children: React.ReactNode }): React
       }
     };
     void refresh();
-    const timer = setInterval(refresh, 5_000);
+    const timer = setInterval(refresh, RIDE_ROSTER_REFRESH_MS);
     const appStateSubscription = AppState.addEventListener('change', (nextState) => {
       if (nextState === 'active') void refresh();
     });
