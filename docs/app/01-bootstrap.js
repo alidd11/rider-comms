@@ -206,25 +206,30 @@
     };
   }
 
-  // Plans set the Nearby range; nothing is sold in the app (see mobile/src/settings/plans.ts).
+  // Plans set the Nearby range (keep in step with mobile/src/settings/plans.ts).
+  // Paid plans are App Store / Google Play subscriptions bought in the
+  // mobile app; the web app shows them but sells nothing.
   const PLAN_INFO = {
     free: {
       name: 'Free',
+      price: 'Free',
       blurb: 'Good for a stoplight-to-stoplight ride with riders close by.',
       radiusMiles: 1,
-      features: ['1 mi Nearby range', 'Group rides with a host code', 'Voice chat while riding'],
+      features: ['1 mi Nearby range', 'Group rides at any distance with a host code', 'Voice chat, navigation and road alerts'],
     },
     premium: {
       name: 'Premium',
+      price: '$4.99 / month',
       blurb: 'A wider range for group rides that spread out on the highway.',
       radiusMiles: 6,
-      features: ['6 mi Nearby range', 'Group rides with a host code', 'Voice chat while riding'],
+      features: ['6 mi Nearby range', 'Everything in Free'],
     },
     premium_plus: {
       name: 'Premium+',
+      price: '$9.99 / month',
       blurb: 'The widest range, for a convoy that has stretched way out.',
       radiusMiles: 20,
-      features: ['20 mi Nearby range', 'Group rides with a host code', 'Voice chat while riding'],
+      features: ['20 mi Nearby range', 'Everything in Free'],
     },
   };
   function planTier(value) {

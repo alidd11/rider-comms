@@ -23,6 +23,8 @@ import { AdminStatsStore } from './adminStatsStore.ts';
 import { HazardStore } from './hazardStore.ts';
 import { ScenicRouteStore } from './scenicRouteStore.ts';
 import { AccountDeletionStore } from './accountDeletionStore.ts';
+import { BillingStore } from './billingStore.ts';
+import { storeVerifiersFromEnv } from './storeBilling.ts';
 import { SocialRateLimitStore } from './socialRateLimitStore.ts';
 import { RateLimitStore } from './rateLimitStore.ts';
 import { SocialActivityStore } from './socialActivityStore.ts';
@@ -43,6 +45,7 @@ import { handleHazardRoutes } from './routes/hazards.ts';
 import { handleModerationRoutes } from './routes/moderation.ts';
 import { handleAdminRoutes } from './routes/admin.ts';
 import { handleScenicRouteRoutes } from './routes/scenicRoutes.ts';
+import { handleBillingNotificationRoutes, handleBillingRoutes } from './routes/billing.ts';
 import {
   applyCors,
   applyResponsePolicy,
@@ -66,6 +69,7 @@ const RATE_LIMIT_CLEANUP_INTERVAL_MS = 15 * 60 * 1000;
 const SOCIAL_RATE_CLEANUP_INTERVAL_MS = 15 * 60 * 1000;
 const SOCIAL_STATE_CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
 const RETENTION_SWEEP_INTERVAL_MS = 15 * 60 * 1000;
+const BILLING_SWEEP_INTERVAL_MS = 15 * 60 * 1000;
 
 export interface ApiServerOptions {
   allowedOrigins?: readonly string[];
@@ -77,6 +81,7 @@ export interface ApiServerOptions {
   liveKitCredentials?: LiveKitCredentials | null;
   liveKitRoomAdmin?: Partial<Pick<LiveKitRoomAdmin, 'revokeRideParticipant' | 'revokeProximityParticipant'>> | null;
   accountDeletionStore?: Pick<AccountDeletionStore, 'deleteRider'>;
+  billingStore?: Pick<BillingStore, 'status' | 'verifyPurchase' | 'refresh'>;
   rateLimitStore?: Pick<RateLimitStore, 'consume'>;
   directionsProvider?: DirectionsProvider;
   directionsCache?: Pick<DirectionsCache, 'get' | 'set'>;
@@ -174,6 +179,7 @@ export function createApp(options: CreateAppOptions = {}): http.Server {
     ? options.liveKitRoomAdmin
     : liveKitCredentials ? createLiveKitRoomAdmin(liveKitCredentials) : null;
   const accountDeletionStore = options.accountDeletionStore ?? new AccountDeletionStore();
+  const billingStore = options.billingStore ?? new BillingStore(storeVerifiersFromEnv(), profileStore);
   const rateLimitStore = options.rateLimitStore ?? new RateLimitStore();
   const socialRateLimitStore = options.socialRateLimitStore ?? new SocialRateLimitStore();
   const socialActivityStore = options.socialActivityStore ?? new SocialActivityStore();
@@ -237,7 +243,7 @@ export function createApp(options: CreateAppOptions = {}): http.Server {
   };
   const deps: RouteDeps = {
     rideStore, presenceStore, profileStore, friendStore, messageStore, hideoutStore, authStore,
-    moderationStore, adminStatsStore, hazardStore, scenicRouteStore, accountDeletionStore, rateLimitStore,
+    moderationStore, adminStatsStore, hazardStore, scenicRouteStore, billingStore, accountDeletionStore, rateLimitStore,
     socialRateLimitStore, socialActivityStore, socialEventStore, readinessCheck, directionsProvider,
     placesProvider, liveKitCredentials, revokeRideVoiceParticipants, revokeProximityVoiceParticipants,
     visibleRideLocationsFor,
@@ -260,12 +266,15 @@ export function createApp(options: CreateAppOptions = {}): http.Server {
       if (!applyCors(req, res, allowedOrigins)) return sendJson(res, 403, { error: 'origin_not_allowed' });
       if (req.method === 'OPTIONS') return sendEmpty(res, 204);
       if ((await handlePublicRoutes({ ...deps, req, res, url, address })) !== NOT_HANDLED) return;
+      if ((await handleBillingNotificationRoutes({ ...deps, req, res, url, address })) !== NOT_HANDLED) return;
       const actorId = await authRider(req, res, authStore);
       if (!actorId) return;
       const ctx: RouteContext = { ...deps, req, res, url, address, actorId, s: url.pathname.split('/').filter(Boolean) };
       await socialActivityStore.touch(actorId);
       if (!(await consumeRateLimit(res, rateLimitStore, rateLimitSubject('rider', actorId), 'api'))) return;
       if ((await handleAccountRoutes(ctx)) !== NOT_HANDLED) return;
+      // Before the verified-email gate: a purchase must always be recorded.
+      if ((await handleBillingRoutes(ctx)) !== NOT_HANDLED) return;
       if (requiresVerifiedEmail(req.method, url.pathname) && !(await requireVerifiedEmail(res, authStore, actorId, url.pathname))) return;
       if ((await handleLiveRoutes(ctx)) !== NOT_HANDLED) return;
       if ((await handleSafetyRoutes(ctx)) !== NOT_HANDLED) return;
@@ -335,8 +344,11 @@ async function startProductionServer(): Promise<void> {
   console.log(JSON.stringify({ level: 'info', event: 'social_activity_cleaned', deleted: initialSocialActivityCleanup }));
   console.log(JSON.stringify({ level: 'info', event: 'social_events_cleaned', deleted: initialSocialEventCleanup }));
   console.log(JSON.stringify({ level: 'info', event: 'retention_sweep_completed', ...initialRetentionSweep }));
+  const productionBillingStore = new BillingStore(storeVerifiersFromEnv());
+  console.log(JSON.stringify({ level: 'info', event: 'billing_configured', purchasesEnabled: productionBillingStore.purchasesEnabled }));
   const app = createApp({
     authStore: productionAuthStore,
+    billingStore: productionBillingStore,
     allowedOrigins,
     trustProxy: process.env.TRUST_PROXY === 'true',
     logger: (event) => console.log(JSON.stringify({ level: 'info', event: 'http_request', ...event })),
@@ -382,6 +394,13 @@ async function startProductionServer(): Promise<void> {
       .catch((error) => console.error(JSON.stringify({ level: 'error', event: 'retention_sweep_failed', message: error instanceof Error ? error.message : String(error) })));
   }, RETENTION_SWEEP_INTERVAL_MS);
   retentionSweepTimer.unref();
+  // Renewals and cancellations, whether or not store notifications arrive.
+  const billingSweepTimer = setInterval(() => {
+    void productionBillingStore.sweep()
+      .then((counts) => { if (counts.checked > 0) console.log(JSON.stringify({ level: 'info', event: 'billing_sweep_completed', ...counts })); })
+      .catch((error) => console.error(JSON.stringify({ level: 'error', event: 'billing_sweep_failed', message: error instanceof Error ? error.message : String(error) })));
+  }, BILLING_SWEEP_INTERVAL_MS);
+  billingSweepTimer.unref();
   // Daily active-rider snapshot for the staff dashboard (aggregate count only).
   const productionAdminStatsStore = new AdminStatsStore();
   const recordActiveRiders = () => void productionAdminStatsStore.recordActiveRiders()
@@ -409,6 +428,7 @@ async function startProductionServer(): Promise<void> {
     clearInterval(socialRateCleanupTimer);
     clearInterval(socialStateCleanupTimer);
     clearInterval(retentionSweepTimer);
+    clearInterval(billingSweepTimer);
     clearInterval(activeRidersTimer);
     clearInterval(siteMonitorTimer);
     void flushErrorAlerts();

@@ -29,6 +29,7 @@ representative, if required]
 | Messages, friend requests, hideouts | When you use them | To deliver them to the riders you choose | Contract |
 | Hazard reports and confirmations | When you submit them | To warn nearby riders; they expire within hours | Legitimate interest (road safety) |
 | Reports and blocks about other riders | When you report or block | To keep riders safe and enforce our rules | Legitimate interest / legal obligation |
+| Subscription details: which plan, the store's transaction or purchase ID, renewal date and status. We never see your card or payment details. | When you subscribe or restore a purchase | To give you the plan you paid for, and to keep it in step with renewals, cancellations and refunds | Contract |
 | Device name, sign-in times, session tokens (stored only as hashes) | Each sign-in | So you can see and sign out of your devices, and to protect your account | Contract / legitimate interest (security) |
 | IP address, request logs | Every request | Security, abuse prevention and troubleshooting. Rate limiting uses a one-way hash of your IP address. | Legitimate interest (security) |
 | Product usage: when you were last active, and when you first joined a group ride or went live on Nearby | As you use the app | To understand, in aggregate, whether new riders find the app useful. Our staff dashboard shows only totals. | Legitimate interest (improving the service) |
@@ -55,7 +56,7 @@ instructions:
 | Apple (Apple Maps, iOS app only) | Map views of the area you're looking at | The iOS app's base map. Android shows Google Maps. |
 | Resend | Your email address and the message | Verification and password-reset emails |
 | GitHub Pages | Standard web request data | Hosts the web app |
-| [Apple / Google app stores] | Per their own policies | App distribution |
+| Apple App Store and Google Play | Your purchase, under their own privacy policies. We send them the transaction ID to check a subscription, and a one-way code for your account so a purchase is tied to it. | App distribution, and selling and verifying subscriptions |
 
 We may also disclose data where the law requires it, or to protect someone
 from serious harm.
@@ -76,8 +77,8 @@ Summary of our retention schedule:
   ends them, or 30 days after creation at the latest.
 - **Sign-in sessions** last 30 days. Email-verification links last 24 hours,
   and password-reset links last 1 hour.
-- **Messages, friendships, profile and account data** are kept until you
-  delete your account. [Owner decision: add an age limit for messages?]
+- **Messages, friendships, profile and account data**, and **subscription
+  details**, are kept until you delete your account. [Owner decision: add an age limit for messages?]
 - **Reports and moderation decisions** about a rider are kept until that
   rider's account is deleted. [Owner decision: shorter limit?]
 - **Backups** are kept for 30 days, so deleted data can remain in a backup

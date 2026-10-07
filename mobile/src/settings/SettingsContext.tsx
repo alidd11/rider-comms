@@ -1,6 +1,6 @@
 import * as React from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { ProfileUpdate, RiderProfile, SocialVisibility, ZoneTier } from '@rider-comms/shared';
+import type { ProfileUpdate, RiderProfile, SocialVisibility } from '@rider-comms/shared';
 import { DEFAULT_AVATAR_ID } from './avatars';
 import { useAuth } from '../auth/AuthContext';
 import { ApiError } from '../api/client';
@@ -36,7 +36,7 @@ interface SettingsContextValue extends ProfileState {
   saving: boolean;
   profileError: string | null;
   clearProfileError: () => void;
-  setZoneTier: (v: ZoneTier) => void; setAvatarId: (v: string) => void; setDisplayName: (v: string) => void;
+  setAvatarId: (v: string) => void; setDisplayName: (v: string) => void;
   setHandle: (v: string) => void; setUnitSystem: (v: UnitSystem) => void; setShareLocation: (v: boolean) => void;
   setInstagramUsername: (v: string) => void; setInstagramVisibility: (v: SocialVisibility) => void;
   setTiktokUsername: (v: string) => void; setTiktokVisibility: (v: SocialVisibility) => void;
@@ -106,7 +106,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }): R
     }
   }, [client, riderId]);
 
-  const update = React.useCallback(<K extends keyof ProfileState>(key: K, value: ProfileState[K]) => {
+  const update = React.useCallback(<K extends keyof ProfileUpdate & keyof ProfileState>(key: K, value: ProfileState[K]) => {
     const previousValue = stateRef.current[key];
     const optimistic = { ...stateRef.current, [key]: value };
     stateRef.current = optimistic;
@@ -145,7 +145,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }): R
   }, [client, riderId]);
 
   const setters = React.useMemo(() => ({
-    setZoneTier: (v: ZoneTier) => update('zoneTier', v), setAvatarId: (v: string) => update('avatarId', v),
+    setAvatarId: (v: string) => update('avatarId', v),
     setDisplayName: (v: string) => update('displayName', v.trim() || 'Rider'), setHandle: (v: string) => update('handle', v.trim() || '@rider'),
     setUnitSystem: (v: UnitSystem) => update('unitSystem', v),
     setShareLocation: (v: boolean) => update('shareLocation', v), setInstagramUsername: (v: string) => update('instagramUsername', v.trim().replace(/^@/, '')),

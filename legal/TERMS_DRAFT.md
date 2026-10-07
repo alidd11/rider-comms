@@ -81,8 +81,27 @@ under their own terms.
 
 ## 7. Paid plans
 
-Rider Comms is currently free. If we introduce paid plans, they'll be sold
-through the App Store, and we'll update these terms before they launch.
+Rider Comms is free to use. Premium and Premium+ widen your Nearby range
+(to 6 and 20 miles; Free is 1 mile) and are sold only in the iPhone and
+Android apps, as auto-renewing monthly subscriptions through the Apple App
+Store or Google Play. The price is shown before you buy.
+
+- Payment is charged to your Apple Account or Google Play account when you
+  confirm the purchase.
+- A subscription renews automatically each month at the same price unless
+  you cancel it at least 24 hours before the end of the current period. Your
+  account is charged for the renewal within the 24 hours before the period
+  ends.
+- You can manage or cancel a subscription in your App Store or Google Play
+  account settings. Cancelling stops the next renewal; you keep your plan
+  until the end of the period you've paid for.
+- Refunds are handled by Apple or Google under their policies.
+- A subscription is linked to the Rider Comms account that first used it.
+  Use "Restore purchases" on the plan screen to link it again after
+  reinstalling. Deleting your Rider Comms account doesn't cancel a
+  subscription; cancel it in your store settings.
+- If we change a subscription's price, the store tells you first, as its
+  rules require.
 
 ## 8. Availability and changes
 

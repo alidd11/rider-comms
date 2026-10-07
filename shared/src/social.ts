@@ -28,7 +28,8 @@ export interface RiderProfile {
   updatedAt: number;
 }
 
-export type ProfileUpdate = Partial<Omit<RiderProfile, 'riderId' | 'updatedAt'>>;
+/** The zone tier isn't here: only verified store purchases change it. */
+export type ProfileUpdate = Partial<Omit<RiderProfile, 'riderId' | 'updatedAt' | 'zoneTier'>>;
 
 export type FriendRequestStatus = 'pending' | 'accepted' | 'declined';
 

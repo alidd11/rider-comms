@@ -36,7 +36,7 @@ Apple account, legal entity or a decision.
 | Support URL | https://alidd11.github.io/rider-comms/support.html |
 | Marketing URL (optional) | https://alidd11.github.io/rider-comms/ |
 | Category | Navigation (primary), Social Networking (secondary) |
-| Price | Free. No in-app purchases. |
+| Price | Free, with in-app purchases: Premium ($4.99/month) and Premium+ ($9.99/month) auto-renewing subscriptions. Setup steps are in `SUBSCRIPTIONS.md`. |
 | Sign-in required | Yes. Give the demo account in Review Notes. |
 | Encryption export | **Decide before the first upload** (see "Known judgement calls"). The build currently declares `ITSAppUsesNonExemptEncryption: false`. |
 | Content rights | The app shows riders' own content, plus Google and Apple maps under their terms. Route photos are licensed (`ROUTE_IMAGE_LICENSES.md`). |
@@ -151,6 +151,15 @@ take them from a TestFlight build rather than the PWA.
 > and it stops as soon as navigation ends. To see it: start navigation to
 > any place from the map, lock the phone, and move; the next turn is spoken.
 >
+> **Music card (optional):** on the map, the rider can choose to show the
+> song playing in the Music app, with play, pause and skip. This uses Media
+> & Apple Music access, asked for only when the rider taps the music
+> button. Nothing about the rider's library is read, changed or sent off
+> the phone.
+>
+> **Live Activity:** during navigation, the next turn shows on the Lock
+> Screen and in the Dynamic Island. It ends when navigation ends.
+>
 > **Safety and moderation (guideline 1.2):**
 > - Signing up requires agreeing to the Terms and Community Guidelines, which
 >   have zero tolerance for objectionable content.
@@ -164,8 +173,13 @@ take them from a TestFlight build rather than the PWA.
 > **Account deletion:** Settings → Account → Account and data → Delete
 > account.
 >
-> **No purchases:** the plan screen shows the rider's current Nearby range
-> only. Nothing is sold.
+> **Subscriptions:** Settings → Account → Your plan. Premium and Premium+
+> are auto-renewing monthly subscriptions in one subscription group; they
+> only widen the Nearby range (1 mi Free, 6 mi Premium, 20 mi Premium+).
+> The screen shows the price and period, the renewal terms, Restore
+> purchases, Manage subscription, and links to the Terms of Use and Privacy
+> Policy. Buy with a Sandbox account; the server verifies every purchase
+> with the App Store Server API, including sandbox purchases.
 >
 > Voice needs two devices to hear each other. To test Nearby, both accounts
 > must go live within a mile of each other.
@@ -181,7 +195,7 @@ These answers match what the app sends off the device.
 | Account deletion URL | https://alidd11.github.io/rider-comms/support.html. The "Delete your account" section covers deleting from the app, on the web without installing the app, and by email. |
 | Ads | No |
 | Target audience | 16 and over (the Terms' minimum age); not designed for children |
-| Content rating (IARC) | Users interact, shares location (opt-in), no purchases, no other mature content |
+| Content rating (IARC) | Users interact, shares location (opt-in), digital purchases (subscriptions), no other mature content |
 | App access | Sign-in required: give the same demo account as App Review |
 
 **Data safety.** Collected data is not shared with third parties: maps,
@@ -201,6 +215,7 @@ account and data.
 | App activity → App interactions | Analytics | Last active, first ride |
 | App activity → Other user-generated content | App functionality | Profiles, hideouts, hazard reports |
 | App info and performance → Crash logs | App functionality | Not linked to the rider |
+| Financial info → Purchase history | App functionality | Which plan, the purchase token and renewal date. Google Play handles payment details; the app never sees them. |
 
 **Foreground service declaration.** Two foreground services, each with a
 short video Play asks for. Record both on a test device.
@@ -217,6 +232,18 @@ short video Play asks for. Record both on a test device.
 The app doesn't request `ACCESS_BACKGROUND_LOCATION`, so Play's background
 location declaration doesn't apply.
 
+**Notification access.** The optional music card uses a
+`NotificationListenerService`, only so Android lists the active media
+session (title, artist, artwork). It never reads notifications, and nothing
+leaves the phone. Before opening the system settings, the app explains this
+in a prominent disclosure, and riders can turn it off there at any time. If
+Play asks, describe it as: "Shows the song playing in the rider's music app
+on the navigation map, with play/pause and skip."
+
+**Subscriptions.** Premium and Premium+ use Google Play Billing (product
+IDs `premium_monthly` and `premium_plus_monthly`). Setup steps are in
+`SUBSCRIPTIONS.md`.
+
 ## Rejection risks already handled in code
 
 - **2.1 completeness:**
@@ -225,7 +252,15 @@ location declaration doesn't apply.
   - The placeholder Apple, Google and Discord sign-in buttons were removed.
   - Hideouts use a map picker instead of typed coordinates.
   - All "test build" and "coming soon" wording is gone.
-- **3.1.1 payments:** no prices and no unbuyable plans are shown.
+- **3.1.1 / 3.1.2 payments:**
+  - Paid plans are sold only through StoreKit and Google Play Billing. The
+    web app lists the plans but has no buy button or link to buy elsewhere.
+  - The plan screen shows the title, length (monthly) and price of each
+    subscription, how auto-renewal works and how to cancel, Restore
+    purchases, Manage subscription, and Terms of Use (EULA) and Privacy
+    Policy links. Add the same two links to the App Store description.
+  - The server grants a plan only after the store confirms the purchase;
+    the app can't set its own plan.
 - **4.8 sign in with Apple:** not required, because there is no third-party sign-in.
 - **5.1.1 data and permissions:**
   - Permission strings explain each use.

@@ -62,10 +62,11 @@ describe('ProfileStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping
 
   it('creates a default profile first if updating an unseen rider', async () => {
     const store = new ProfileStore();
-    const result = await store.update('never-seen', { zoneTier: 'premium' });
+    const result = await store.update('never-seen', { unitSystem: 'km' });
     assert.equal(result.ok, true);
     if (result.ok) {
-      assert.equal(result.profile.zoneTier, 'premium');
+      assert.equal(result.profile.unitSystem, 'km');
+      assert.equal(result.profile.zoneTier, 'free');
       assert.equal(result.profile.displayName, 'Rider');
     }
   });
@@ -86,9 +87,9 @@ describe('ProfileStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping
     assert.equal(profile.instagramUsername, 'parallel_rides');
   });
 
-  it('rejects an invalid zoneTier without applying anything', async () => {
+  it('refuses a zoneTier change: only verified purchases set the plan', async () => {
     const store = new ProfileStore();
-    const result = await store.update('rider-1', { zoneTier: 'gold' as never });
+    const result = await store.update('rider-1', { zoneTier: 'premium_plus' } as never);
     assert.equal(result.ok, false);
     const profile = await store.getOrCreate('rider-1');
     assert.equal(profile.zoneTier, 'free');
@@ -137,7 +138,7 @@ describe('ProfileStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping
     const store = new ProfileStore();
     const result = await store.update('rider-1', {
       displayName: 'Should Not Stick',
-      zoneTier: 'invalid' as never,
+      unitSystem: 'invalid' as never,
     });
     assert.equal(result.ok, false);
     const profile = await store.getOrCreate('rider-1');
