@@ -10,7 +10,7 @@
 // mounting a second map instance, which keeps map billing/state predictable
 // and matches the PWA's tab-owned interaction model.
 import * as React from 'react';
-import { AccessibilityInfo, View, Text, Pressable, Alert, Linking, Platform, useColorScheme, useWindowDimensions } from 'react-native';
+import { AccessibilityInfo, ActivityIndicator, View, Text, Pressable, Alert, Linking, Platform, useColorScheme, useWindowDimensions } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
@@ -195,7 +195,7 @@ export function MapScreen(): React.JSX.Element {
     focusCoordinate(currentLocation);
   }, [currentLocation, focusCoordinate, mapReady, navigationTarget, segment, selectedPlace]);
 
-  const { publicLive, ridersInZone, handleNearbyToggle } = usePresence(
+  const { publicLive, ridersInZone, nearbyTogglePending, handleNearbyToggle } = usePresence(
     client,
     activeRide,
     shareLocation,
@@ -676,11 +676,16 @@ export function MapScreen(): React.JSX.Element {
             style={({ pressed }) => [styles.mapActionButton, publicLive && styles.mapLiveButtonActive, pressed && styles.mapActionButtonPressed]}
             onPress={() => void handleNearbyToggle()}
             accessibilityRole="switch"
-            accessibilityState={{ checked: publicLive }}
+            accessibilityState={{ checked: publicLive, busy: nearbyTogglePending, disabled: nearbyTogglePending }}
             accessibilityLabel={publicLive ? 'Stop live location and proximity voice' : 'Go live nearby and enable proximity voice'}
             accessibilityHint={publicLive ? 'Stops sharing your nearby presence' : 'Shares your nearby presence and enables proximity voice'}
+            disabled={nearbyTogglePending}
           >
-            <MaterialCommunityIcons name="access-point" size={26} color={publicLive ? '#04210F' : colors.accent} />
+            {nearbyTogglePending ? (
+              <ActivityIndicator color={publicLive ? '#04210F' : colors.accent} />
+            ) : (
+              <MaterialCommunityIcons name="access-point" size={26} color={publicLive ? '#04210F' : colors.accent} />
+            )}
           </Pressable>
         </View>
       )}
