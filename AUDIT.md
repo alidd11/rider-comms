@@ -121,7 +121,7 @@ Password recovery exists in code; production email delivery, sender/domain confi
 
 ### Store, policy and identity
 
-Store billing is intentionally not connected. Both clients show only the rider's current Nearby range; no prices or purchasable plans are shown, and Premium/Premium+ cannot be unlocked without verified App Store/Google Play purchase handling.
+Store billing is implemented with server-side App Store/Google Play verification, account binding, renewal refreshes and expiry handling (#411). It remains operationally disabled until store products, credentials and notification endpoints are configured; see `SUBSCRIPTIONS.md`.
 
 A complete privacy policy, terms, monitored support channel, store privacy/data-safety declarations, content ratings and account-deletion metadata remain operational requirements.
 
@@ -181,6 +181,14 @@ Still open:
 - Installed-iPhone PWA viewport/keyboard/safe-area behavior has repeatedly differed from desktop/WebKit simulation. Physical-device evidence takes precedence over a green synthetic geometry assertion.
 - Public Nearby voice on the installed PWA intentionally releases microphone capture while no authorised proximity peer is connected; the system microphone indicator may therefore disappear after the initial permission/preflight capture even though Nearby remains armed and location-visible. A physical iOS PWA test previously observed the mic indicator disappearing after roughly 4–5 seconds. Treat that as expected only in the “Nearby Voice · waiting for riders” state. With an authorised peer connected, the pair-isolated LiveKit room and independent VOX meter must remain active. The PWA now also fails closed if WebKit suspends the VOX AudioContext, attempts to resume it on foreground, and exposes a rider-tap “Resume voice” path when automatic recovery is not permitted. Public pair authorization is separately renewed from current server-side proximity/block state: the backend advertises a 20-second refresh cadence and 60-second authorization lease, and both PWA/native tear stale public rooms down if that lease cannot be renewed. Automated coverage holds a simulated public connection beyond five seconds, exercises the suspend/resume cycle, and verifies PWA lease expiry, but an installed-device two-rider test is still required.
 - The product specification contains aspirational architecture and future features. It is design intent, not evidence that a feature is implemented.
+
+## Addendum 2026-10-07: current repository pass
+
+- The latest `main` commit adds server-verified Premium/Premium+ subscriptions. Earlier README and audit wording that described billing as unimplemented was stale and has been corrected.
+- The current code-side subscription tests cover Apple/Google verification, sandbox fallback, expiry and grace periods, account binding, acknowledgement failures, duplicate purchase handling, notification refreshes and tier changes. Store-side credentials and real-device purchase flows still require owner setup.
+- The first audit attempt was blocked by the local npm cache and registry environment; after installing the locked dependencies with a task-local cache, the advisory graph was refreshed successfully. The previously documented `braces`/Expo tooling findings remain a tracked supply-chain item.
+- The full local verification now passes for lint, TypeScript, backend/shared/mobile tests and the PWA/native contract checks. Database-backed integration tests that require `DATABASE_URL` remain skipped locally; CI remains the authoritative full verification path for those tests.
+- With the locked dependencies installed on 2026-10-07, the full graph reported 65 advisories (13 moderate, 51 high, 1 critical). The backend production workspace reported 0 vulnerabilities; the remaining findings are reachable through the Expo/React Native and test/build graph, including `braces`, `node-forge`, `shell-quote`, `source-map-js`, `sprintf-js` and `uuid`. CI now enforces the clean backend production result without forcing a breaking native dependency upgrade.
 
 ## Release posture
 

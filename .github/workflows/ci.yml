@@ -62,6 +62,12 @@ jobs:
             npm-audit-all.json
             npm-audit-production.json
           if-no-files-found: error
+      # The mobile/Expo graph currently has upstream advisories without a
+      # compatible fix. Keep the server's production dependency policy strict:
+      # a new backend runtime vulnerability must not be hidden by the larger
+      # native tooling graph.
+      - name: Enforce backend production dependency audit
+        run: npm audit --omit=dev --workspace=@rider-comms/backend
       - run: npm run lint
       - run: npm run typecheck
       # Same suites as `npm test`, run once with coverage instrumentation.
