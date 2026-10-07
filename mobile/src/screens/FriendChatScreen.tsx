@@ -359,11 +359,16 @@ function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Elemen
       </View>
 
       {error && (
-        <View style={styles.errorBox}>
+        <View style={styles.errorBox} accessibilityRole="alert" accessibilityLiveRegion="assertive">
           <Ionicons name="alert-circle" size={18} color={colors.danger} />
           <Text style={styles.errorText}>{error}</Text>
           {!conversationUnavailable ? (
-            <Pressable accessibilityRole="button" onPress={() => void loadMessages(true)} hitSlop={8}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Retry loading conversation"
+              onPress={() => void loadMessages(true)}
+              hitSlop={8}
+            >
               <Text style={styles.retryText}>Retry</Text>
             </Pressable>
           ) : null}

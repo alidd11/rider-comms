@@ -136,7 +136,7 @@ function JoinOrHostForm(): React.JSX.Element {
               </View>
             </Pressable>
             {error ? (
-              <View style={styles.errorBox}>
+              <View style={styles.errorBox} accessibilityRole="alert" accessibilityLiveRegion="assertive">
                 <Ionicons name="alert-circle" size={17} color={colors.danger} />
                 <Text style={styles.errorText}>{error}</Text>
               </View>

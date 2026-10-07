@@ -73,7 +73,7 @@ function CreateRideScreenContent({ navigation }: Props): React.JSX.Element {
       </Pressable>
 
       {error && (
-        <View style={styles.errorBox}>
+        <View style={styles.errorBox} accessibilityRole="alert" accessibilityLiveRegion="assertive">
           <Ionicons name="alert-circle" size={18} color={colors.danger} />
           <Text style={styles.errorText}>{error}</Text>
         </View>

@@ -120,7 +120,7 @@ export function PlanHideoutModal({
           </View>
 
           {error && (
-            <View style={styles.modalErrorBox}>
+            <View style={styles.modalErrorBox} accessibilityRole="alert" accessibilityLiveRegion="assertive">
               <Ionicons name="alert-circle" size={16} color={colors.danger} />
               <Text style={styles.modalErrorText}>{error}</Text>
             </View>
