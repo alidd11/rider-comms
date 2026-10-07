@@ -3422,12 +3422,21 @@
       source.connect(gain);
       gain.connect(limiter);
       limiter.connect(context.destination);
-      const sync = () => { element.muted = context.state === 'running'; };
+      // Exactly one copy may play: the boosted one while the context runs,
+      // otherwise the element. LiveKit's room.startAudio() and re-attach
+      // unmute attached elements, which would play every voice twice (once
+      // plain, once boosted), so re-assert on every element mute change.
+      const sync = () => {
+        const muted = context.state === 'running';
+        if (element.muted !== muted) element.muted = muted;
+      };
       context.addEventListener('statechange', sync);
+      element.addEventListener('volumechange', sync);
       sync();
       void context.resume?.().catch(() => {});
       remoteVoiceBoosts.set(element, () => {
         context.removeEventListener('statechange', sync);
+        element.removeEventListener('volumechange', sync);
         source.disconnect();
         gain.disconnect();
         limiter.disconnect();

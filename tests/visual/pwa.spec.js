@@ -1809,6 +1809,142 @@ test('PWA attaches subscribed Nearby Voice audio after Go Live', async ({ page }
   await expect(page.locator('#joinNearbyBtn')).toHaveAttribute('data-active', 'true');
 });
 
+test('PWA boosts Nearby Voice on iPhone without playing each voice twice', async ({ page }) => {
+  await mockAuthenticatedApi(page, 'stationary', ({ url, request }) => {
+    if (url.pathname === `/riders/${RIDER_ID}/profile` && request.method() === 'PUT') {
+      return { body: { ...PROFILE, shareLocation: true } };
+    }
+    if (url.pathname === '/presence' && request.method() === 'POST') {
+      return {
+        body: {
+          inZoneWith: ['rider_peer01'],
+          transitions: [{ a: RIDER_ID, b: 'rider_peer01', type: 'entered' }],
+          radiusMiles: 1,
+        },
+      };
+    }
+    if (url.pathname === '/profiles/rider_peer01') {
+      return { body: { riderId: 'rider_peer01', displayName: 'Peer Rider', handle: '@peer', avatarId: 'ridge' } };
+    }
+    if (url.pathname === '/voice/token' && request.method() === 'POST') {
+      return {
+        body: {
+          connections: [{
+            peerId: 'rider_peer01',
+            token: 'visual-livekit-token',
+            url: 'wss://voice.example.test',
+          }],
+          refreshAfterMs: 20_000,
+        },
+      };
+    }
+    return null;
+  });
+
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'userAgent', { configurable: true, get: () => 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1' });
+    window.MediaStream = class { constructor(tracks) { this.tracks = tracks; } };
+    window.__voiceGain = null;
+    const fakeStream = { getTracks: () => [{ stop() {} }] };
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: { getUserMedia: async () => fakeStream },
+    });
+    class FakeAudioContext {
+      constructor() { this.state = 'running'; this.destination = {}; }
+      addEventListener() {}
+      removeEventListener() {}
+      resume() { return Promise.resolve(); }
+      createGain() { const node = { gain: { value: 1 }, connect() {}, disconnect() {} }; window.__voiceGain = node; return node; }
+      createDynamicsCompressor() {
+        const param = () => ({ value: 0 });
+        return { threshold: param(), knee: param(), ratio: param(), attack: param(), release: param(), connect() {}, disconnect() {} };
+      }
+      createMediaStreamSource() { return { connect() {}, disconnect() {} }; }
+      createAnalyser() {
+        return {
+          fftSize: 512,
+          frequencyBinCount: 32,
+          getByteTimeDomainData(data) { data.fill(128); },
+        };
+      }
+      close() { return Promise.resolve(); }
+    }
+    Object.defineProperty(window, 'AudioContext', { configurable: true, value: FakeAudioContext });
+  });
+
+  // These tests serve a fake LiveKit build, which the real SRI hash would
+  // reject; ignore the integrity attribute for the stub only.
+  await page.addInitScript(() => {
+    Object.defineProperty(HTMLScriptElement.prototype, 'integrity', { configurable: true, get() { return ''; }, set() {} });
+  });
+  await page.route('https://cdn.jsdelivr.net/npm/livekit-client@2.22.3/dist/livekit-client.umd.js', (route) => route.fulfill({
+    status: 200,
+    contentType: 'application/javascript',
+    body: `
+      (() => {
+        const RoomEvent = {
+          TrackSubscribed: 'trackSubscribed',
+          TrackUnsubscribed: 'trackUnsubscribed',
+          Reconnected: 'reconnected',
+          Disconnected: 'disconnected',
+        };
+        const Track = { Kind: { Audio: 'audio' } };
+        class Room {
+          constructor() {
+            this.handlers = new Map();
+            this.canPlaybackAudio = true;
+            this.localParticipant = { setMicrophoneEnabled: async () => {} };
+          }
+          on(event, handler) {
+            const handlers = this.handlers.get(event) || [];
+            handlers.push(handler);
+            this.handlers.set(event, handlers);
+            return this;
+          }
+          emit(event, ...args) {
+            for (const handler of this.handlers.get(event) || []) handler(...args);
+          }
+          async connect() {
+            const attached = [];
+            window.__attachedVoiceElements = attached;
+            const track = {
+              kind: 'audio',
+              mediaStreamTrack: { kind: 'audio' },
+              attach() {
+                const element = document.createElement('audio');
+                attached.push(element);
+                return element;
+              },
+              detach() { return attached.splice(0); },
+            };
+            this.emit(RoomEvent.TrackSubscribed, track, {}, { identity: 'rider_peer01' });
+          }
+          async startAudio() {
+            // Real LiveKit unmutes every attached element here.
+            for (const element of window.__attachedVoiceElements || []) element.muted = false;
+            this.canPlaybackAudio = true;
+          }
+          async disconnect() { this.emit(RoomEvent.Disconnected); }
+        }
+        window.LivekitClient = { Room, RoomEvent, Track };
+      })();
+    `,
+  }));
+
+  await page.goto('/');
+  await page.locator('#joinNearbyBtn').click();
+
+  await expect.poll(() => page.locator('audio[data-rider-comms-voice="true"]').count()).toBe(1);
+  await expect(page.locator('#joinNearbyBtn')).toHaveAttribute('data-active', 'true');
+  // The boosted Web Audio copy plays at twice the gain...
+  await expect.poll(() => page.evaluate(() => window.__voiceGain?.gain.value)).toBe(2);
+  // ...and the plain element stays muted even after startAudio() unmuted it,
+  // so each voice plays exactly once.
+  await page.waitForTimeout(200);
+  expect(await page.locator('audio[data-rider-comms-voice="true"]').evaluate((element) => element.muted)).toBe(true);
+});
+
 test('PWA keeps private-ride speaker identity visible across tabs', async ({ page }) => {
   let currentRide = null;
   await mockAuthenticatedApi(page, 'stationary', ({ url, request }) => {
