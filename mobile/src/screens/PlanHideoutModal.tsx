@@ -126,7 +126,9 @@ export function PlanHideoutModal({
             </View>
           )}
 
-          <Pressable accessibilityRole="button"
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={saving ? 'Saving hideout' : 'Save hideout'}
             style={[styles.modalDone, !canSubmit && styles.modalDoneDisabled]}
             onPress={handleCreate}
             disabled={!canSubmit}

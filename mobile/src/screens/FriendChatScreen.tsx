@@ -391,7 +391,13 @@ function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Elemen
           </>
         )}
         ListHeaderComponent={nextCursor ? (
-          <Pressable accessibilityRole="button" style={styles.loadOlderButton} onPress={() => void loadOlderMessages()} disabled={loadingOlder}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={loadingOlder ? 'Loading older messages' : 'Load older messages'}
+            style={styles.loadOlderButton}
+            onPress={() => void loadOlderMessages()}
+            disabled={loadingOlder}
+          >
             {loadingOlder ? <ActivityIndicator color={colors.accent} size="small" /> : <Text style={styles.loadOlderText}>Load older messages</Text>}
           </Pressable>
         ) : null}
@@ -440,7 +446,8 @@ function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Elemen
           disabled={!draft.trim() || sending || conversationUnavailable}
           accessibilityRole="button"
           accessibilityLabel="Send message"
-          accessibilityState={{ disabled: !draft.trim() || sending || conversationUnavailable }}
+          accessibilityHint={sending ? 'Sending message' : undefined}
+          accessibilityState={{ disabled: !draft.trim() || sending || conversationUnavailable, busy: sending }}
         >
           {sending ? (
             <ActivityIndicator color={colors.accentText} size="small" />
@@ -458,4 +465,3 @@ function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Elemen
     </KeyboardAvoidingView>
   );
 }
-
