@@ -239,6 +239,8 @@ export function PlaceSearchBar({
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel="Clear recent places"
+                    accessibilityHint="Removes saved recent places from this device"
+                    hitSlop={8}
                     onPress={() => void clearRecentPlaces()}
                   >
                     <Text style={styles.clearRecent}>Clear</Text>
@@ -253,7 +255,7 @@ export function PlaceSearchBar({
                     void rememberPlace(item);
                     close();
                   }}
-                  accessibilityLabel={`Recent place: ${item.name}, ${item.address}`}
+                  accessibilityLabel={`Recent place: ${item.name}, ${item.address}${near ? `, ${formatPlaceDistance(item.distanceMeters, unitSystem)} away` : ''}`}
                 >
                   <View style={styles.resultIcon}>
                     <Ionicons name="time-outline" size={19} color={colors.accent} />
@@ -295,7 +297,9 @@ export function PlaceSearchBar({
                 </View>
               }
               ListEmptyComponent={
-                !loading && searchError ? (
+                loading ? (
+                  <SearchState compact icon="search-outline" title="Searching…" copy="Looking for nearby places." />
+                ) : searchError ? (
                   <SearchState
                     compact
                     icon={searchError === 'network-error' ? 'cloud-offline-outline' : 'alert-circle-outline'}
