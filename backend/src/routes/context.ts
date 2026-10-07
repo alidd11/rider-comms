@@ -1,6 +1,7 @@
 import type http from 'node:http';
 import type { AccountDeletionStore } from '../accountDeletionStore.ts';
 import type { AuthStore } from '../authStore.ts';
+import type { BillingStore } from '../billingStore.ts';
 import type { DirectionsProvider } from '../directionsCache.ts';
 import type { FriendStore } from '../friendStore.ts';
 import type { HazardStore } from '../hazardStore.ts';
@@ -78,6 +79,7 @@ export interface RouteDeps {
   adminStatsStore: Pick<AdminStatsStore, 'overview' | 'searchRiders' | 'increment' | 'recordMilestone'>;
   hazardStore: HazardStore;
   scenicRouteStore: ScenicRouteStore;
+  billingStore: Pick<BillingStore, 'status' | 'verifyPurchase' | 'refresh'>;
   accountDeletionStore: Pick<AccountDeletionStore, 'deleteRider'>;
   rateLimitStore: Pick<RateLimitStore, 'consume'>;
   socialRateLimitStore: Pick<SocialRateLimitStore, 'consume'>;

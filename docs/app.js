@@ -206,25 +206,30 @@
     };
   }
 
-  // Plans set the Nearby range; nothing is sold in the app (see mobile/src/settings/plans.ts).
+  // Plans set the Nearby range (keep in step with mobile/src/settings/plans.ts).
+  // Paid plans are App Store / Google Play subscriptions bought in the
+  // mobile app; the web app shows them but sells nothing.
   const PLAN_INFO = {
     free: {
       name: 'Free',
+      price: 'Free',
       blurb: 'Good for a stoplight-to-stoplight ride with riders close by.',
       radiusMiles: 1,
-      features: ['1 mi Nearby range', 'Group rides with a host code', 'Voice chat while riding'],
+      features: ['1 mi Nearby range', 'Group rides at any distance with a host code', 'Voice chat, navigation and road alerts'],
     },
     premium: {
       name: 'Premium',
+      price: '$4.99 / month',
       blurb: 'A wider range for group rides that spread out on the highway.',
       radiusMiles: 6,
-      features: ['6 mi Nearby range', 'Group rides with a host code', 'Voice chat while riding'],
+      features: ['6 mi Nearby range', 'Everything in Free'],
     },
     premium_plus: {
       name: 'Premium+',
+      price: '$9.99 / month',
       blurb: 'The widest range, for a convoy that has stretched way out.',
       radiusMiles: 20,
-      features: ['20 mi Nearby range', 'Group rides with a host code', 'Voice chat while riding'],
+      features: ['20 mi Nearby range', 'Everything in Free'],
     },
   };
   function planTier(value) {
@@ -2410,7 +2415,7 @@
       }),
       account: () => ({
         title: 'Account and data',
-        body: `<div class="settings-note"><strong>Reset settings</strong><p>Reset your Rider Comms profile and synced preferences to their defaults, and restore Google Maps as the device navigation provider.</p></div><button class="button secondary wide" id="resetSettingsBtn">Reset settings</button><div class="settings-note"><strong>Delete Rider Comms account</strong><p>This permanently deletes your Rider Comms account and associated data. This cannot be undone.</p></div><button class="button danger wide" id="deleteAccountBtn">Delete account</button><p id="deleteAccountError" class="inline-error" hidden></p>`,
+        body: `<div class="settings-note"><strong>Reset settings</strong><p>Reset your Rider Comms profile and synced preferences to their defaults, and restore Google Maps as the device navigation provider.</p></div><button class="button secondary wide" id="resetSettingsBtn">Reset settings</button><div class="settings-note"><strong>Delete Rider Comms account</strong><p>This permanently deletes your Rider Comms account and associated data. This cannot be undone. It doesn’t cancel a Premium subscription bought in the app: cancel that in your App Store or Google Play subscription settings.</p></div><button class="button danger wide" id="deleteAccountBtn">Delete account</button><p id="deleteAccountError" class="inline-error" hidden></p>`,
         ready: () => {
           $('#resetSettingsBtn').addEventListener('click', () => void resetSettings());
           $('#deleteAccountBtn').addEventListener('click', () => void deleteCurrentAccount());
@@ -2418,34 +2423,18 @@
       }),
       plans: () => {
         const currentTier = planTier(state.profile.zoneTier);
+        const paid = currentTier !== 'free';
         return {
           title: 'Your plan',
-          body: (() => {
-            const plan = PLAN_INFO[currentTier];
-            return `<p class="billing-intro">Your plan sets how far away other riders can be and still appear in Nearby. Private group rides work at any distance, on every plan.</p>
-            <div class="plan-list"><article class="plan-card current" data-plan-tier="${currentTier}">
-              <div class="plan-top"><span><strong>${escapeHtml(plan.name)}</strong></span><span class="plan-pill">Current</span></div>
+          body: `<p class="billing-intro">Your plan sets how far away other riders can be and still appear in Nearby. Private group rides work at any distance, on every plan.</p>
+            <div class="plan-list">${Object.entries(PLAN_INFO).map(([tier, plan]) => `<article class="plan-card${tier === currentTier ? ' current' : ''}" data-plan-tier="${tier}">
+              <div class="plan-top"><span><strong>${escapeHtml(plan.name)}</strong><small class="plan-price">${escapeHtml(plan.price)}</small></span>${tier === currentTier ? '<span class="plan-pill">Current</span>' : ''}</div>
               <p>${escapeHtml(plan.blurb)}</p>
               <ul class="plan-features">${plan.features.map((feature) => `<li>${icon('plus')}<span>${escapeHtml(feature)}</span></li>`).join('')}</ul>
-              ${currentTier !== 'free' ? '<button class="button danger wide plan-return-free" id="returnToFreePlan">Return to Free</button>' : ''}
-            </article></div>`;
-          })(),
-          ready: () => {
-            const returnButton = $('#returnToFreePlan');
-            if (!returnButton) return;
-            returnButton.addEventListener('click', async () => {
-              if (!window.confirm('Return to the Free plan? Your nearby radius will change to 1 mile.')) return;
-              returnButton.disabled = true;
-              const ok = await patchProfile({ zoneTier: 'free' });
-              if (!ok) {
-                returnButton.disabled = false;
-                return;
-              }
-              renderProfile();
-              openSheet('plans');
-              showToast('Returned to the Free plan.');
-            });
-          },
+            </article>`).join('')}</div>
+            <div class="settings-note"><strong>${paid ? 'Manage your subscription' : 'Subscribe in the app'}</strong><p>${paid
+              ? 'Your plan works everywhere you sign in. To change or cancel it, use the App Store or Google Play subscription settings on the device you subscribed with.'
+              : 'Premium and Premium+ are monthly subscriptions in the Rider Comms app for iPhone and Android. Your plan then works here too when you sign in.'}</p></div>`,
         };
       },
       privacy: () => ({ title: 'Privacy controls', body: `<div class="settings-sheet-section">${toggleMarkup('shareLocation', 'Live location', 'Visible to nearby riders only while you are live.', state.profile.shareLocation)}</div><div class="settings-sheet-section"><div class="form-field"><label for="sheetInstagramVisibility">Instagram visibility</label><select id="sheetInstagramVisibility"><option value="friends">Friends only</option><option value="public">Everyone</option><option value="private">Only me</option></select></div><div class="form-field"><label for="sheetTiktokVisibility">TikTok visibility</label><select id="sheetTiktokVisibility"><option value="friends">Friends only</option><option value="public">Everyone</option><option value="private">Only me</option></select></div><p class="caption">Choose who can see each connected profile independently.</p></div>`, ready: () => { const instagram = $('#sheetInstagramVisibility'); const tiktok = $('#sheetTiktokVisibility'); instagram.value = state.profile.instagramVisibility; tiktok.value = state.profile.tiktokVisibility; instagram.addEventListener('change', (event) => { void patchProfile({ instagramVisibility: event.target.value }); }); tiktok.addEventListener('change', (event) => { void patchProfile({ tiktokVisibility: event.target.value }); }); wireToggles(); } }),

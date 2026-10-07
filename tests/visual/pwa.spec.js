@@ -2238,24 +2238,15 @@ test('PWA settings sheets own the bottom edge without competing with app chrome'
   await expect(banner).toBeVisible();
 });
 
-test('PWA plan screen shows only the current plan, with no prices', async ({ page }) => {
-  let profile = { ...PROFILE, zoneTier: 'premium' };
+test('PWA plan screen shows every plan and sends buying to the mobile app', async ({ page }) => {
   const updates = [];
-
   await mockAuthenticatedApi(page, 'stationary', async ({ request, url }) => {
     if (url.pathname === `/riders/${RIDER_ID}/profile`) {
-      if (request.method() === 'GET') return { body: profile };
-      if (request.method() === 'PUT') {
-        const update = JSON.parse(request.postData() || '{}');
-        updates.push(update);
-        profile = { ...profile, ...update };
-        return { body: profile };
-      }
+      if (request.method() === 'GET') return { body: { ...PROFILE, zoneTier: 'premium' } };
+      if (request.method() === 'PUT') updates.push(JSON.parse(request.postData() || '{}'));
     }
     return null;
   });
-
-  page.on('dialog', (dialog) => void dialog.accept());
   await page.goto('/#settings');
 
   await page.locator('[data-sheet="accountHub"]').click();
@@ -2264,22 +2255,18 @@ test('PWA plan screen shows only the current plan, with no prices', async ({ pag
 
   await page.locator('[data-settings-target="plans"]').click();
   await expect(page.locator('#sheetTitle')).toHaveText('Your plan');
-  // Nothing is sold in the app: no prices, and no plans the rider can't have.
-  await expect(page.locator('#sheetBody')).not.toContainText('$');
-  await expect(page.locator('.plan-card')).toHaveCount(1);
-  const premium = page.locator('[data-plan-tier="premium"]');
-  await expect(premium).toContainText('6 mi Nearby range');
-  await expect(premium.locator('.plan-pill')).toHaveText('Current');
-
-  await page.locator('#returnToFreePlan').click();
-  await expect.poll(() => updates).toEqual([{ zoneTier: 'free' }]);
-  await expect(page.locator('[data-plan-tier="free"] .plan-pill')).toHaveText('Current');
-  await expect(page.locator('#returnToFreePlan')).toHaveCount(0);
-  await page.locator('#closeSheet').click();
-  await page.locator('[data-sheet="accountHub"]').click();
-  await expect(page.locator('#planSummary')).toHaveText('Free plan · 1 mi Nearby range');
-  await expect(page.locator('#planPill')).toHaveText('Free');
-  await assertNoViewportOverflow(page);
+  await expect(page.locator('.plan-card')).toHaveCount(3);
+  await expect(page.locator('[data-plan-tier="free"]')).toContainText('1 mi Nearby range');
+  await expect(page.locator('[data-plan-tier="premium"]')).toContainText('$4.99 / month');
+  await expect(page.locator('[data-plan-tier="premium_plus"]')).toContainText('20 mi Nearby range');
+  await expect(page.locator('[data-plan-tier="premium_plus"]')).toContainText('$9.99 / month');
+  await expect(page.locator('[data-plan-tier="premium"] .plan-pill')).toHaveText('Current');
+  await expect(page.locator('.plan-pill', { hasText: 'Current' })).toHaveCount(1);
+  // Nothing is bought, cancelled or changed from the web.
+  await expect(page.locator('#sheetBody')).toContainText('App Store or Google Play subscription settings');
+  await expect(page.locator('#sheetBody button')).toHaveCount(0);
+  await expect(page.locator('#sheetBody a')).toHaveCount(0);
+  expect(updates).toEqual([]);
 });
 
 test('PWA navigation preference offers Rider Comms, Google Maps, Waze and Apple Maps', async ({ page }) => {

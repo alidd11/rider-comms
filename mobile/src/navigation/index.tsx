@@ -19,6 +19,7 @@ import { LegalScreen } from '../screens/LegalScreen';
 import { OnboardingScreen, ONBOARDING_COMPLETED_KEY } from '../screens/OnboardingScreen';
 import { RideProvider } from '../ride/RideContext';
 import { SettingsProvider } from '../settings/SettingsContext';
+import { BillingProvider } from '../billing/BillingContext';
 import { FriendsProvider, useFriends } from '../friends/FriendsContext';
 import { AuthProvider } from '../auth/AuthContext';
 import { parseNavigationLink } from '../navigationLinks';
@@ -311,6 +312,7 @@ export function AppNavigator(): React.JSX.Element {
     <SafeAreaProvider>
       <AuthProvider>
        <SettingsProvider>
+        <BillingProvider>
         <RideProvider>
           <FriendsProvider>
             <OnboardingGate>
@@ -354,6 +356,7 @@ export function AppNavigator(): React.JSX.Element {
             </OnboardingGate>
           </FriendsProvider>
         </RideProvider>
+        </BillingProvider>
        </SettingsProvider>
       </AuthProvider>
     </SafeAreaProvider>

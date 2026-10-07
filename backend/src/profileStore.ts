@@ -4,7 +4,6 @@ import type { ProfileUpdate, RiderProfile, UnitSystem, ZoneTier } from '@rider-c
 import { ensureMigrated, getPool } from './db.ts';
 import { appendSocialEventForRiders } from './socialEventStore.ts';
 
-const ZONE_TIERS: ZoneTier[] = ['free', 'premium', 'premium_plus'];
 const UNIT_SYSTEMS: UnitSystem[] = ['mi', 'km'];
 const SOCIAL_VISIBILITIES = ['public', 'friends', 'private'];
 const AVATAR_IDS = [
@@ -25,7 +24,7 @@ function isNonEmptyString(value: unknown): value is string {
 }
 
 const ALLOWED_UPDATE_FIELDS = new Set([
-  'displayName', 'handle', 'avatarId', 'zoneTier', 'unitSystem',
+  'displayName', 'handle', 'avatarId', 'unitSystem',
   'notifyNearby', 'notifyInvites', 'notifyChat', 'shareLocation',
   'instagramUsername', 'instagramVisibility', 'tiktokUsername', 'tiktokVisibility',
 ]);
@@ -76,9 +75,6 @@ export function validateProfileUpdate(body: Record<string, unknown>): string | n
   for (const key of ['displayName', 'handle', 'instagramUsername', 'tiktokUsername'] as const) {
     if (containsObjectionableText(body[key])) return OBJECTIONABLE_CONTENT;
   }
-  if ('zoneTier' in body && !ZONE_TIERS.includes(body.zoneTier as ZoneTier)) {
-    return `zoneTier must be one of: ${ZONE_TIERS.join(', ')}`;
-  }
   if ('unitSystem' in body && !UNIT_SYSTEMS.includes(body.unitSystem as UnitSystem)) {
     return `unitSystem must be one of: ${UNIT_SYSTEMS.join(', ')}`;
   }
@@ -96,6 +92,7 @@ interface RiderProfileRow {
   handle: string;
   avatar_id: string;
   zone_tier: string;
+  zone_tier_expires_at?: string | number | null;
   unit_system: string;
   notify_nearby: boolean;
   notify_invites: boolean;
@@ -108,13 +105,21 @@ interface RiderProfileRow {
   updated_at: string | number;
 }
 
+/** The paid tier holds until its period ends; after that the rider is on
+ * Free even if the renewal sweep hasn't caught up yet. */
+export function effectiveZoneTier(tier: string, expiresAt: string | number | null | undefined, now = Date.now()): ZoneTier {
+  if (tier !== 'premium' && tier !== 'premium_plus') return 'free';
+  if (expiresAt === null || expiresAt === undefined || Number(expiresAt) <= now) return 'free';
+  return tier;
+}
+
 function rowToProfile(row: RiderProfileRow): RiderProfile {
   return {
     riderId: row.rider_id,
     displayName: row.display_name,
     handle: row.handle,
     avatarId: row.avatar_id,
-    zoneTier: row.zone_tier as ZoneTier,
+    zoneTier: effectiveZoneTier(row.zone_tier, row.zone_tier_expires_at),
     unitSystem: row.unit_system as UnitSystem,
     notifyNearby: row.notify_nearby,
     notifyInvites: row.notify_invites,
@@ -162,11 +167,11 @@ export class ProfileStore {
          notify_nearby, notify_invites, notify_chat, share_location,
          instagram_username, instagram_visibility, tiktok_username, tiktok_visibility, updated_at
        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+       -- zone_tier is written only by BillingStore, from verified purchases.
        ON CONFLICT (rider_id) DO UPDATE SET
          display_name = EXCLUDED.display_name,
          handle = EXCLUDED.handle,
          avatar_id = EXCLUDED.avatar_id,
-         zone_tier = EXCLUDED.zone_tier,
          unit_system = EXCLUDED.unit_system,
          notify_nearby = EXCLUDED.notify_nearby,
          notify_invites = EXCLUDED.notify_invites,

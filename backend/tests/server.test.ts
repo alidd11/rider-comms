@@ -615,25 +615,16 @@ describe('authenticated API', () => {
     );
   });
 
-  it('blocks client paid-tier elevation but allows returning an existing paid test tier to Free', needsDb, async () => {
-    await ctx.profileStore.update('billing-rider', { zoneTier: 'premium' });
-
-    const elevate = await authenticatedFetch(ctx, 'billing-rider', '/riders/billing-rider/profile', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ zoneTier: 'premium_plus' }),
-    });
-    assert.equal(elevate.status, 403);
-    assert.deepEqual(await elevate.json(), { error: 'zone_tier_managed_by_billing' });
-    assert.equal((await ctx.profileStore.getOrCreate('billing-rider')).zoneTier, 'premium');
-
-    const downgrade = await authenticatedFetch(ctx, 'billing-rider', '/riders/billing-rider/profile', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ zoneTier: 'free' }),
-    });
-    assert.equal(downgrade.status, 200);
-    assert.equal((await downgrade.json() as { zoneTier: string }).zoneTier, 'free');
+  it('never lets the app change its own plan', needsDb, async () => {
+    for (const zoneTier of ['premium_plus', 'free']) {
+      const res = await authenticatedFetch(ctx, 'billing-rider', '/riders/billing-rider/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ zoneTier }),
+      });
+      assert.equal(res.status, 403);
+      assert.deepEqual(await res.json(), { error: 'zone_tier_managed_by_billing' });
+    }
     assert.equal((await ctx.profileStore.getOrCreate('billing-rider')).zoneTier, 'free');
   });
 

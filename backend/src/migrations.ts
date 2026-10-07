@@ -816,4 +816,29 @@ export const MIGRATIONS: Migration[] = [
         CHECK (action IN ('dismiss', 'suspend', 'unsuspend', 'verify_email'));
     `,
   },
+  {
+    // App Store and Google Play subscriptions, verified with the store. A
+    // rider's zone tier is the best active one; zone_tier_expires_at lets a
+    // read fall back to Free the moment a paid period ends, even before the
+    // renewal sweep has run.
+    name: '0048_create_store_subscriptions',
+    sql: `
+      CREATE TABLE IF NOT EXISTS store_subscriptions (
+        platform TEXT NOT NULL CHECK (platform IN ('apple', 'google')),
+        original_id TEXT NOT NULL,
+        rider_id TEXT NOT NULL,
+        product_id TEXT NOT NULL,
+        tier TEXT NOT NULL CHECK (tier IN ('premium', 'premium_plus')),
+        expires_at BIGINT NOT NULL,
+        active BOOLEAN NOT NULL,
+        will_renew BOOLEAN NOT NULL,
+        environment TEXT NOT NULL CHECK (environment IN ('production', 'sandbox')),
+        verified_at BIGINT NOT NULL,
+        PRIMARY KEY (platform, original_id)
+      );
+      CREATE INDEX IF NOT EXISTS store_subscriptions_rider_idx ON store_subscriptions (rider_id);
+      CREATE INDEX IF NOT EXISTS store_subscriptions_due_idx ON store_subscriptions (expires_at) WHERE active;
+      ALTER TABLE rider_profiles ADD COLUMN IF NOT EXISTS zone_tier_expires_at BIGINT;
+    `,
+  },
 ];

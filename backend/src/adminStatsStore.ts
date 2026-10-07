@@ -218,7 +218,12 @@ export class AdminStatsStore {
            (SELECT coalesce(sum(value), 0) FROM daily_metrics WHERE metric = 'filter_rejections' AND day >= $2::date) AS filter_rejections_7d`,
         [since(7 * DAY_MS), utcDay(now - 6 * DAY_MS)],
       ),
-      pool.query<{ zone_tier: string; n: string }>('SELECT zone_tier, count(*) AS n FROM rider_profiles GROUP BY zone_tier'),
+      // A paid tier whose period has ended counts as Free (as the profile reads).
+      pool.query<{ zone_tier: string; n: string }>(
+        `SELECT CASE WHEN zone_tier <> 'free' AND zone_tier_expires_at > $1 THEN zone_tier ELSE 'free' END AS zone_tier, count(*) AS n
+         FROM rider_profiles GROUP BY 1`,
+        [now],
+      ),
       pool.query(
         `SELECT
            (SELECT count(*) FROM users WHERE created_at >= to_timestamp($1 / 1000.0) AND created_at < to_timestamp($2 / 1000.0)) AS new_prev_7d,

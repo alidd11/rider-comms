@@ -1,4 +1,5 @@
 import type {
+  BillingStatus,
   DirectMessage,
   Difficulty,
   FriendActivity,
@@ -19,6 +20,9 @@ import type { InAppNavigationRoute, RouteCoordinate } from './directions';
 export type ScenicRouteInput = Omit<ScenicRoute, 'id' | 'createdBy' | 'createdAt'>;
 export interface ScenicRouteFilters { vehicleCategory?: VehicleCategory; roadType?: RoadType; maxDifficulty?: Difficulty }
 
+export type VerifyPurchaseRequest =
+  | { platform: 'apple'; transactionId: string }
+  | { platform: 'google'; purchaseToken: string; productId: string };
 export interface GuestSession { riderId: string; token: string }
 export interface LoginSession extends GuestSession { emailVerified: boolean; termsAccepted?: boolean }
 export interface SignUpSession extends LoginSession { emailVerificationSent: boolean }
@@ -82,6 +86,9 @@ export class RiderCommsClient {
   getSessions(): Promise<{ sessions: AccountSessionSummary[] }> { return this.request('GET', '/auth/sessions'); }
   revokeSession(id: string): Promise<void> { return this.request('DELETE', `/auth/sessions/${encodeURIComponent(id)}`); }
   deleteAccount(): Promise<Record<string, never>> { return this.request('DELETE', '/auth/me'); }
+  getBilling(): Promise<BillingStatus> { return this.request('GET', '/billing'); }
+  /** The store can be slow to answer the server, so this waits longer. */
+  verifyPurchase(request: VerifyPurchaseRequest): Promise<BillingStatus> { return this.request('POST', '/billing/verify', request, 20_000); }
   createRide(): Promise<CreateRideResponse> { return this.request('POST', '/rides', {}); }
   joinRide(code: string): Promise<JoinRideResponse> { return this.request('POST', '/rides/join', { code }); }
   getRide(id: string): Promise<RideResponse> { return this.request('GET', `/rides/${encodeURIComponent(id)}`); }

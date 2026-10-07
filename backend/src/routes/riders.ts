@@ -12,8 +12,8 @@ export async function handleRiderRoutes(ctx: RouteContext): Promise<unknown> {
       if (req.method === 'GET') return sendJson(res, 200, await profileStore.getOrCreate(actorId));
       if (req.method === 'PUT') {
         const body = await readJsonBody(req);
-        // Paid ranges can only be granted by verified store billing.
-        if ('zoneTier' in body && body.zoneTier !== 'free') return sendJson(res, 403, { error: 'zone_tier_managed_by_billing' });
+        // The plan comes only from verified store purchases (/billing).
+        if ('zoneTier' in body) return sendJson(res, 403, { error: 'zone_tier_managed_by_billing' });
         const r = await profileStore.update(actorId, body);
         if (!r.ok) {
           if (r.error === OBJECTIONABLE_CONTENT) countFilterRejection(adminStatsStore);
