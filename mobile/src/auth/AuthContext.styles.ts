@@ -1,12 +1,5 @@
-import type { ImageSourcePropType } from 'react-native';
 import { StyleSheet } from 'react-native';
 
-// Bundled so the sign-in screen looks right offline and on first launch.
-// eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro bundles images only through require().
-export const AUTH_HERO_IMAGE: ImageSourcePropType = require('../../assets/hero/auth.jpg');
-// The app icon's mark, for the splash.
-// eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro bundles images only through require().
-export const AUTH_MARK_IMAGE: ImageSourcePropType = require('../../assets/brand/splash-icon.png');
 export const AUTH_ACCENT = '#5CC6EC';
 export const AUTH_ACCENT_DEEP = '#1A7EA6';
 export const AUTH_TEXT = '#F2F7F7';

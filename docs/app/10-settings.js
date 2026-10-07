@@ -62,12 +62,9 @@
         body: `<div class="settings-hub-list">
           <button data-settings-target="safety"><span class="setting-icon">${icon('info')}</span><span><strong>Safety guidance</strong><small>Low-distraction and emergency guidance</small></span>${icon('chevron')}</button>
           <button data-settings-target="legal"><span class="setting-icon">${icon('shield')}</span><span><strong>Privacy, safety & terms</strong><small>Read Rider Comms legal and safety information</small></span>${icon('chevron')}</button>
-          <button id="contactSupportBtn"><span class="setting-icon">${icon('help')}</span><span><strong>Contact support</strong><small>Help, account deletion and how to reach us</small></span>${icon('chevron')}</button>
+          <a href="support.html" target="_blank" rel="noopener"><span class="setting-icon">${icon('help')}</span><span><strong>Contact support</strong><small>Help, account deletion and how to reach us</small></span>${icon('chevron')}</a>
         </div>`,
-        ready: () => {
-          wireSettingsHubRows();
-          $('#contactSupportBtn').addEventListener('click', () => window.open('support.html', '_blank', 'noopener'));
-        },
+        ready: wireSettingsHubRows,
       }),
       about: () => ({
         title: 'About',

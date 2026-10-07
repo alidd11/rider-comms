@@ -1048,10 +1048,21 @@ test('PWA warns without hiding controls when movement cannot be verified', async
   const enableLocation = page.locator('#enableLocationBtn');
   await expect(enableLocation).toBeVisible();
   await expect(enableLocation).toHaveText('Location help');
+  // Location is blocked, which the rider has to fix, so the banner and its
+  // button follow them to other screens.
+  await routesTab.click();
+  await expect(page.locator('[data-screen="routes"]')).toHaveClass(/active/);
+  await expect(page.locator('#movementSafetyBanner')).toBeVisible();
   await enableLocation.click();
   await expect(page.locator('#toast')).toContainText('Location access is blocked');
-  // Only a notice: it stays on the map instead of covering other screens.
-  await routesTab.click();
+});
+
+test('PWA keeps the plain "waiting for a speed fix" notice on the map only', async ({ page }) => {
+  await mockAuthenticatedApi(page, 'recovering');
+  await page.goto('/');
+  await expect(page.locator('#movementSafetyBanner')).toBeVisible();
+  await expect(page.locator('#enableLocationBtn')).toBeHidden();
+  await page.locator('.bottom-nav [data-nav="routes"]').click();
   await expect(page.locator('[data-screen="routes"]')).toHaveClass(/active/);
   await expect(page.locator('#movementSafetyBanner')).toBeHidden();
   await page.locator('.bottom-nav [data-nav="map"]').click();
@@ -2203,8 +2214,8 @@ test('PWA settings sheets own the bottom edge without competing with app chrome'
   const app = page.locator('#app');
   const settingsScreen = page.locator('[data-screen="settings"]');
   await expect(nav).toBeVisible();
-  // The "waiting for a speed fix" notice belongs to the map, not Settings.
-  await expect(banner).toBeHidden();
+  // Location is blocked in this mock, so the banner shows on Settings too.
+  await expect(banner).toBeVisible();
 
   await page.locator('[data-sheet="communication"]').click();
   await page.locator('[data-settings-target="privacy"]').click();
@@ -2243,7 +2254,7 @@ test('PWA settings sheets own the bottom edge without competing with app chrome'
   await expect(page.locator('html')).not.toHaveClass(/sheet-open/);
   await expect(app).not.toHaveAttribute('inert', '');
   await expect(nav).toBeVisible();
-  await expect(banner).toBeHidden();
+  await expect(banner).toBeVisible();
 });
 
 test('PWA plan screen shows every plan and sends buying to the mobile app', async ({ page }) => {

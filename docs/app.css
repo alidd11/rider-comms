@@ -2499,16 +2499,16 @@ body:has(.friend-more-card) .sheet-body{gap:9px}
 .settings-hub-list{
   overflow:hidden;border:1px solid var(--border-soft);border-radius:8px;background:var(--surface)
 }
-.settings-hub-list>button{
+.settings-hub-list>button,.settings-hub-list>a{
   width:100%;min-height:54px;display:flex;align-items:center;gap:10px;padding:7px 12px;
-  border:0;border-bottom:1px solid var(--border-soft);background:transparent;color:var(--text);text-align:left
+  border:0;border-bottom:1px solid var(--border-soft);background:transparent;color:var(--text);text-align:left;text-decoration:none
 }
-.settings-hub-list>button:last-child{border-bottom:0}
-.settings-hub-list>button>span:nth-child(2){min-width:0;flex:1}
+.settings-hub-list>button:last-child,.settings-hub-list>a:last-child{border-bottom:0}
+.settings-hub-list>button>span:nth-child(2),.settings-hub-list>a>span:nth-child(2){min-width:0;flex:1}
 .settings-hub-list strong,.settings-hub-list small{display:block}
 .settings-hub-list strong{font-size:.84rem}
 .settings-hub-list small{margin-top:2px;overflow:hidden;color:var(--text-secondary);font-size:.69rem;text-overflow:ellipsis;white-space:nowrap}
-.settings-hub-list>button>svg{width:14px;height:14px;flex:none;color:var(--text-muted)}
+.settings-hub-list>button>svg,.settings-hub-list>a>svg{width:14px;height:14px;flex:none;color:var(--text-muted)}
 .settings-hub-list .setting-icon{width:28px;height:28px;border:0;background:transparent}
 .settings-hub-list .setting-icon svg{width:19px;height:19px}
 .settings-about-card{display:grid;gap:5px;padding:16px;border:1px solid var(--border-soft);border-radius:8px;background:var(--surface)}

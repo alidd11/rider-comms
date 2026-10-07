@@ -9,17 +9,15 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import type { ImageSourcePropType } from 'react-native';
 import type { RootStackParamList } from '../navigation';
 import { ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
+import { RIDE_HERO_IMAGE } from '../brandAssets';
 import { colors, spacing, radii, type, elevation } from '../theme';
 import { useRide } from './RideContext';
 import { RideRoster } from './RideRoster';
 import { microphoneErrorMessage, preflightVoiceMicrophone } from '../audio/microphone';
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro bundles images only through require().
-const RIDE_HERO_IMAGE: ImageSourcePropType = require('../../assets/hero/ride.jpg');
 
 function JoinOrHostForm(): React.JSX.Element {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();

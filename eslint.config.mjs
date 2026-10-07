@@ -50,7 +50,7 @@ export default tseslint.config(
   },
   {
     // React Native bundles static images through require().
-    files: ['mobile/src/routes/routeCardAssets.ts'],
+    files: ['mobile/src/routes/routeCardAssets.ts', 'mobile/src/brandAssets.ts'],
     rules: { '@typescript-eslint/no-require-imports': 'off' },
   },
   {
