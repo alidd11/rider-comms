@@ -351,9 +351,13 @@ export function ProximityVoice({
           partialConnectionIssue ? styles.statusWarning : statusHasIssue && styles.statusError,
           pressed && voiceControlEnabled && styles.statusPressed,
         ]}
-      >
-        <View style={[styles.dot, partialConnectionIssue ? styles.dotWarning : statusHasIssue && styles.dotError]} />
-        <Text style={[styles.text, partialConnectionIssue ? styles.textWarning : statusHasIssue && styles.textError]}>
+        >
+          <View style={[styles.dot, partialConnectionIssue ? styles.dotWarning : statusHasIssue && styles.dotError]} />
+        <Text
+          numberOfLines={1}
+          ellipsizeMode="tail"
+          style={[styles.text, styles.statusText, partialConnectionIssue ? styles.textWarning : statusHasIssue && styles.textError]}
+        >
           {displayStatusText}
         </Text>
       </Pressable>
@@ -365,7 +369,7 @@ export function ProximityVoice({
           style={({ pressed }) => [styles.peopleButton, pressed && styles.statusPressed]}
         >
           <Ionicons name="people" size={16} color={colors.textSecondary} />
-          <Text style={styles.text}>{recentPeers.size}</Text>
+          <Text numberOfLines={1} style={styles.text}>{recentPeers.size} {recentPeers.size === 1 ? 'rider' : 'riders'}</Text>
         </Pressable>
       ) : null}
       <VoicePeopleSheet
@@ -451,6 +455,7 @@ const styles = StyleSheet.create({
   dotError: { backgroundColor: colors.danger },
   dotWarning: { backgroundColor: colors.warning },
   text: { ...type.caption, color: colors.textSecondary, fontWeight: '700' },
+  statusText: { maxWidth: '82%' },
   peopleButton: {
     alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginTop: spacing.xs,
     minHeight: MIN_TOUCH_TARGET, backgroundColor: colors.surfaceRaised, borderWidth: 1, borderColor: colors.border,
