@@ -86,16 +86,21 @@ function AddFriendCard(): React.JSX.Element {
     };
   }, []);
 
-  const canSubmit = riderId.trim().length > 0 && !sending;
+  const canSubmit = riderId.trim().replace(/^@+/, '').length > 0 && !sending;
 
   const handleChangeText = React.useCallback((text: string) => {
-    setRiderId(text);
+    // The @ is rendered as a fixed prefix, so avoid showing it twice when a
+    // rider types or pastes a conventional @handle.
+    setRiderId(text.replace(/^@+/, ''));
     setInlineError(null);
   }, []);
 
   const handleSend = React.useCallback(async () => {
-    const target = riderId.trim();
-    if (!target) return;
+    const entered = riderId.trim().replace(/^@+/, '');
+    if (!entered) return;
+    // Handles are stored with an @ prefix; Rider IDs are opaque values such
+    // as rider_123 and must remain unmodified.
+    const target = entered.startsWith('rider_') ? entered : `@${entered}`;
     setSending(true);
     setInlineError(null);
     setSentConfirmation(false);
@@ -114,18 +119,22 @@ function AddFriendCard(): React.JSX.Element {
   return (
     <View style={[styles.section, elevation.raised, styles.addCard]}>
       <View style={styles.addRow}>
-        <TextInput
-          style={styles.addInput}
-          accessibilityLabel="Friend handle or Rider ID"
-          placeholder="@handle or Rider ID"
-          placeholderTextColor={colors.textMuted}
-          autoCapitalize="none"
-          autoCorrect={false}
-          value={riderId}
-          onChangeText={handleChangeText}
-          onSubmitEditing={handleSend}
-          returnKeyType="send"
-        />
+        <View style={styles.addInputShell}>
+          <Text style={styles.addInputPrefix} accessible={false}>@</Text>
+          <TextInput
+            style={styles.addInput}
+            accessibilityLabel="Friend handle or Rider ID"
+            accessibilityHint="Enter a handle without the at sign, or paste a Rider ID"
+            placeholder="handle or Rider ID"
+            placeholderTextColor={colors.textMuted}
+            autoCapitalize="none"
+            autoCorrect={false}
+            value={riderId}
+            onChangeText={handleChangeText}
+            onSubmitEditing={handleSend}
+            returnKeyType="send"
+          />
+        </View>
         <Pressable
           style={({ pressed }) => [
             styles.addButton,
