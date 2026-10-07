@@ -1,6 +1,10 @@
 import type { DrivingRoute, RouteAvoidance, RouteCoordinate } from './directionsProvider.ts';
 
-const DEFAULT_TTL_MS = 5 * 60_000;
+// Routes are requested without departure_time, so they are static rather
+// than traffic-aware. Keep a successful route for 15 minutes to avoid
+// repeatedly paying for the same destination while a rider previews,
+// starts, or briefly revisits a route.
+const DEFAULT_TTL_MS = 15 * 60_000;
 const DEFAULT_MAX_ENTRIES = 500;
 // Google's Directions API here is called without departure_time, so it
 // returns a static (non-traffic-aware) route -- the same origin/destination
@@ -31,7 +35,7 @@ interface CacheEntry {
  * In-memory, per-instance cache in front of the Directions provider. This
  * exists purely to deduplicate near-identical requests within a short
  * window and reduce billed upstream calls -- not to serve stale data
- * indefinitely, so the TTL stays short.
+ * indefinitely, so the TTL remains bounded.
  */
 export class DirectionsCache {
   private readonly entries = new Map<string, CacheEntry>();

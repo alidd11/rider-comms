@@ -3,7 +3,10 @@ import { ensureMigrated, getPool } from './db.ts';
 
 export const SOCIAL_ONLINE_WINDOW_MS = 90_000;
 export const SOCIAL_ACTIVITY_RETENTION_MS = 30 * 24 * 60 * 60_000;
-const MIN_ACTIVITY_WRITE_INTERVAL_MS = 15_000;
+// Friend presence stays online for 90 seconds. Coalescing writes to 30s keeps
+// that user-facing window responsive while halving Postgres writes generated
+// by active riders (especially while a rider is live on Nearby at 8s cadence).
+const MIN_ACTIVITY_WRITE_INTERVAL_MS = 30_000;
 
 interface ActivityRow {
   rider_id: string;

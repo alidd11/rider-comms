@@ -26,7 +26,7 @@ describe('SocialActivityStore', { skip: !hasDatabase && 'DATABASE_URL not set; s
   it('coalesces frequent activity writes while keeping timestamps monotonic', async () => {
     const store = new SocialActivityStore();
     await store.touch('alice', 100_000);
-    await store.touch('alice', 105_000);
+    await store.touch('alice', 125_000);
 
     let { rows } = await getPool().query<{ last_seen_at: string | number }>(
       'SELECT last_seen_at FROM rider_activity WHERE rider_id = $1',
@@ -34,7 +34,7 @@ describe('SocialActivityStore', { skip: !hasDatabase && 'DATABASE_URL not set; s
     );
     assert.equal(Number(rows[0]?.last_seen_at), 100_000);
 
-    await store.touch('alice', 116_000);
+    await store.touch('alice', 130_000);
     await store.touch('alice', 90_000);
     ({ rows } = await getPool().query<{ last_seen_at: string | number }>(
       'SELECT last_seen_at FROM rider_activity WHERE rider_id = $1',
