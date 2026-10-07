@@ -664,6 +664,8 @@
     const value = String(message || '').trim();
     const isError = /couldn’t|could not|can't|cannot|failed|unavailable|blocked|expired|needed|try again|off\b/i.test(value);
     text.textContent = value;
+    notification.setAttribute('role', isError ? 'alert' : 'status');
+    notification.setAttribute('aria-live', isError ? 'assertive' : 'polite');
     notification.dataset.tone = isError ? 'error' : 'info';
     notification.hidden = false;
     clearTimeout(notificationTimer);
