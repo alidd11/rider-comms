@@ -602,7 +602,15 @@ export function FriendsScreen(): React.JSX.Element {
           <View style={styles.errorBox}>
             <Ionicons name="alert-circle" size={18} color={colors.danger} />
             <Text style={styles.errorText}>{error}</Text>
-            <Pressable accessibilityRole="button" onPress={() => void refresh()} hitSlop={8}><Text style={styles.retryText}>Retry</Text></Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Retry loading friends"
+              accessibilityHint="Reloads your friends and pending requests"
+              onPress={() => void refresh()}
+              hitSlop={8}
+            >
+              <Text style={styles.retryText}>Retry</Text>
+            </Pressable>
           </View>
         )}
 
@@ -629,7 +637,13 @@ export function FriendsScreen(): React.JSX.Element {
         )}
 
         {loading && friends.length === 0 ? (
-          <View style={styles.emptyState}><ActivityIndicator color={colors.accent} /></View>
+          <View
+            style={styles.emptyState}
+            accessibilityLabel="Loading friends"
+            accessibilityLiveRegion="polite"
+          >
+            <ActivityIndicator color={colors.accent} />
+          </View>
         ) : friends.length === 0 && hidesEmptyPrompt ? null : friends.length === 0 ? (
           <View style={styles.emptyState}>
             <Ionicons name="people-outline" size={28} color={colors.textMuted} />
@@ -679,4 +693,3 @@ export function FriendsScreen(): React.JSX.Element {
     </View>
   );
 }
-

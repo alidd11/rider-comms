@@ -30,11 +30,25 @@ export function BlockedRidersList({ client }: { client: Pick<RiderCommsClient, '
     return (
       <View style={styles.state}>
         <Text style={styles.stateText}>{error}</Text>
-        <Pressable accessibilityRole="button" onPress={load} style={styles.retry}><Text style={styles.action}>Retry</Text></Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Retry loading blocked riders"
+          accessibilityHint="Reloads your blocked riders"
+          onPress={load}
+          style={styles.retry}
+        >
+          <Text style={styles.action}>Retry</Text>
+        </Pressable>
       </View>
     );
   }
-  if (!blocked) return <ActivityIndicator style={styles.loader} color={colors.accent} />;
+  if (!blocked) {
+    return (
+      <View style={styles.loader} accessibilityLabel="Loading blocked riders" accessibilityLiveRegion="polite">
+        <ActivityIndicator color={colors.accent} />
+      </View>
+    );
+  }
   if (blocked.length === 0) {
     return <View style={styles.state}><Text style={styles.stateText}>You haven’t blocked anyone. Block a rider from their profile, a chat or the ride roster.</Text></View>;
   }
