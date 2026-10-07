@@ -641,7 +641,7 @@ export function MapScreen(): React.JSX.Element {
       {segment === 'public' && !selectedDestination && !activeRoute && (
         <View style={[styles.mapActions, { bottom: insets.bottom + spacing.sm }]}>
           {!lockedForSafety && <Pressable
-            style={styles.mapActionButton}
+            style={({ pressed }) => [styles.mapActionButton, pressed && styles.mapActionButtonPressed]}
             onPress={() => void openMusicPicker()}
             accessibilityRole="button"
             accessibilityLabel="Open your music app"
@@ -649,7 +649,7 @@ export function MapScreen(): React.JSX.Element {
             <Ionicons name="musical-notes" size={24} color={colors.textPrimary} />
           </Pressable>}
           {!lockedForSafety && <Pressable
-            style={[styles.mapActionButton, styles.mapReportButton]}
+            style={({ pressed }) => [styles.mapActionButton, styles.mapReportButton, pressed && styles.mapActionButtonPressed]}
             onPress={() => void openReportSheet()}
             accessibilityRole="button"
             accessibilityLabel="Report on the road"
@@ -657,7 +657,7 @@ export function MapScreen(): React.JSX.Element {
             <MaterialCommunityIcons name="alert-outline" size={26} color="#1F1300" />
           </Pressable>}
           <Pressable
-            style={styles.mapActionButton}
+            style={({ pressed }) => [styles.mapActionButton, pressed && styles.mapActionButtonPressed]}
             onPress={() => void centreOnCurrentLocation()}
             accessibilityRole="button"
             accessibilityLabel="Centre map on my location"
@@ -665,7 +665,7 @@ export function MapScreen(): React.JSX.Element {
             <Ionicons name="navigate-outline" size={24} color={colors.accent} />
           </Pressable>
           <Pressable
-            style={[styles.mapActionButton, publicLive && styles.mapLiveButtonActive]}
+            style={({ pressed }) => [styles.mapActionButton, publicLive && styles.mapLiveButtonActive, pressed && styles.mapActionButtonPressed]}
             onPress={() => void handleNearbyToggle()}
             accessibilityRole="button"
             accessibilityState={{ selected: publicLive }}
@@ -680,7 +680,7 @@ export function MapScreen(): React.JSX.Element {
         <View style={[styles.navigationActions, { bottom: navigationSummaryHeight + spacing.md }]}>
           {!lockedForSafety && (
             <Pressable
-              style={styles.navigationActionButton}
+              style={({ pressed }) => [styles.navigationActionButton, pressed && styles.navigationActionButtonPressed]}
               onPress={() => void openReportSheet()}
               accessibilityRole="button"
               accessibilityLabel="Report on the road"
@@ -689,7 +689,7 @@ export function MapScreen(): React.JSX.Element {
             </Pressable>
           )}
           <Pressable
-            style={[styles.navigationActionButton, navigationMuted && styles.navigationActionButtonActive]}
+            style={({ pressed }) => [styles.navigationActionButton, navigationMuted && styles.navigationActionButtonActive, pressed && styles.navigationActionButtonPressed]}
             onPress={() => setNavigationMuted((current) => !current)}
             accessibilityRole="button"
             accessibilityState={{ selected: navigationMuted }}
@@ -698,7 +698,7 @@ export function MapScreen(): React.JSX.Element {
             <Ionicons name={navigationMuted ? 'volume-mute' : 'volume-high'} size={24} color={navigationMuted ? colors.accentText : colors.textPrimary} />
           </Pressable>
           <Pressable
-            style={[styles.navigationActionButton, !navigationFollowing && styles.navigationActionButtonActive]}
+            style={({ pressed }) => [styles.navigationActionButton, !navigationFollowing && styles.navigationActionButtonActive, pressed && styles.navigationActionButtonPressed]}
             onPress={() => {
               if (navigationFollowing) fitRoute(activeRoute);
               else void centreOnCurrentLocation();

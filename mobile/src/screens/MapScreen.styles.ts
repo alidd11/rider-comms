@@ -35,6 +35,7 @@ export const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 6 },
     elevation: 8,
   },
+  mapActionButtonPressed: { transform: [{ scale: 0.96 }], opacity: 0.86 },
   mapActionButtonActive: {
     borderColor: colors.accent,
     backgroundColor: colors.accent,
@@ -168,6 +169,7 @@ export const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 6 },
     elevation: 8,
   },
+  navigationActionButtonPressed: { transform: [{ scale: 0.96 }], opacity: 0.86 },
   navigationActionButtonActive: {
     backgroundColor: colors.accent,
     borderColor: colors.accent,

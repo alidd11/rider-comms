@@ -429,7 +429,7 @@ export function RideBar({ controlsVisible = true }: { controlsVisible?: boolean 
         </View>
       ) : controlsVisible ? (
         <>
-          <Pressable accessibilityRole="button" style={({ pressed }) => [styles.bar, pressed && styles.barPressed]} onPress={() => setExpanded(true)}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Open ride controls" accessibilityHint="Shows voice, location sharing, music, and leave-ride controls" style={({ pressed }) => [styles.bar, pressed && styles.barPressed]} onPress={() => setExpanded(true)}>
             <View style={styles.liveDot} />
             <MaterialCommunityIcons name="motorbike" size={18} color={colors.accent} />
             <Text style={styles.barText}>In ride{activeRide.code ? ` · ${activeRide.code}` : ''}</Text>
@@ -577,4 +577,3 @@ export function RideBar({ controlsVisible = true }: { controlsVisible?: boolean 
     </LiveKitRoom>
   );
 }
-
