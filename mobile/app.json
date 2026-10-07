@@ -7,6 +7,15 @@
     "scheme": "ridercomms",
     "userInterfaceStyle": "automatic",
     "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 36,
+            "targetSdkVersion": 36
+          }
+        }
+      ],
       "@livekit/react-native-expo-plugin",
       [
         "@config-plugins/react-native-webrtc",
