@@ -39,6 +39,11 @@ describe('hazard reports API', { skip: !hasDatabase && 'DATABASE_URL not set; sk
     assert.equal(res.status, 400);
   });
 
+  it('rejects a nearby search with missing coordinates instead of searching (0, 0)', async () => {
+    assert.equal((await authenticatedFetch(ctx, 'reporter-missing', '/hazards/nearby')).status, 400);
+    assert.equal((await authenticatedFetch(ctx, 'reporter-missing', '/hazards/nearby?lat=40.0')).status, 400);
+  });
+
   it('creates a report and returns it from nearby', async () => {
     const created = await postJson(ctx, 'reporter-1', '/hazards', { type: 'police', lat: 40.0, lon: -74.0 });
     assert.equal(created.status, 201);

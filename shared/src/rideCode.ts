@@ -32,8 +32,8 @@ export function generateRideCode(length = DEFAULT_CODE_LENGTH): string {
  * Bits of entropy for a code of this length over this alphabet. Section 13
  * of the spec flags that a ride code is effectively a password to a live
  * voice room — this exists so brute-force resistance is a number you can
- * check, not a guess. 6 chars over a 32-symbol alphabet is 30 bits
- * (~1 billion combinations); paired with join-attempt rate limiting
+ * check, not a guess. 6 chars over the 31-symbol alphabet is about 29.7 bits
+ * (~887 million combinations); paired with join-attempt rate limiting
  * (see rateLimiter.ts) that's solid for a consumer product.
  */
 export function codeEntropyBits(length = DEFAULT_CODE_LENGTH): number {

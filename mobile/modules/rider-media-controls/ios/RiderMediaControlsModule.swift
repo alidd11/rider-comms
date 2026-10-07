@@ -9,7 +9,7 @@ import MediaPlayer
 // buttons.
 public class RiderMediaControlsModule: Module {
   // Artwork is encoded once per track, not on every 3 s poll.
-  private var artworkItemId: MPMediaEntityPersistentID?
+  private var artworkKey: String?
   private var artworkUri: String?
 
   public func definition() -> ModuleDefinition {
@@ -48,8 +48,11 @@ public class RiderMediaControlsModule: Module {
         "source": "apple-music",
         "appName": "Music",
       ]
-      if self.artworkItemId != item.persistentID {
-        self.artworkItemId = item.persistentID
+      // Streamed catalog tracks can share a persistentID (often 0), so key on
+      // the title and artist too, and keep looking until artwork arrives.
+      let key = "\(item.persistentID)|\(item.title ?? "")|\(item.artist ?? "")"
+      if self.artworkKey != key || self.artworkUri == nil {
+        self.artworkKey = key
         if let image = item.artwork?.image(at: CGSize(width: 96, height: 96)),
            let data = image.jpegData(compressionQuality: 0.7) {
           self.artworkUri = "data:image/jpeg;base64,\(data.base64EncodedString())"

@@ -16,6 +16,11 @@ describe('navigation guidance presentation', () => {
     assert.equal(formatNavigationDistance(1600, 'km'), '1.6 km');
     assert.equal(formatNavigationDistance(75, 'mi'), '250 ft');
     assert.equal(formatNavigationDistance(1609.344, 'mi'), '1.0 mi');
+    // Rounding never produces "1000 m" or "10.0 km".
+    assert.equal(formatNavigationDistance(997, 'km'), '1.0 km');
+    assert.equal(formatNavigationDistance(994, 'km'), '990 m');
+    assert.equal(formatNavigationDistance(9_960, 'km'), '10 km');
+    assert.equal(formatNavigationDistance(9.96 * 1609.344, 'mi'), '10 mi');
   });
 
   it('formats live GPS speed without implying a legal speed limit', () => {

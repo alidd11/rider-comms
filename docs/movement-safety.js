@@ -8,6 +8,9 @@
     confirmMovingMs: 2000,
     confirmStationaryMs: 6000,
     staleAfterMs: 20000,
+    // Keep a confirmed 'moving' lock through a GPS gap (tunnel, underpass)
+    // rather than unlocking while the bike is still moving.
+    holdMovingWhenStaleMs: 300000,
   };
 
   function validFix(fix) {
@@ -43,7 +46,16 @@
 
     addFix(fix) {
       if (!validFix(fix) || (this.lastGoodFix && fix.timestampMs <= this.lastGoodFix.timestampMs)) return this.state;
-      if (this.lastGoodFix && fix.timestampMs - this.lastGoodFix.timestampMs > this.config.staleAfterMs) this.reset();
+      if (this.lastGoodFix && fix.timestampMs - this.lastGoodFix.timestampMs > this.config.staleAfterMs) {
+        const gap = fix.timestampMs - this.lastGoodFix.timestampMs;
+        if (this.state === 'moving' && gap <= this.config.holdMovingWhenStaleMs) {
+          this.lastGoodFix = null;
+          this.movingSinceMs = null;
+          this.stationarySinceMs = null;
+        } else {
+          this.reset();
+        }
+      }
       if (fix.accuracyMeters > this.config.maxUsableAccuracyMeters) return this.state;
 
       let speed = fix.speedMps;
@@ -72,7 +84,15 @@
     }
 
     stateAt(nowMs) {
-      if (!Number.isFinite(nowMs) || !this.lastGoodFix || nowMs - this.lastGoodFix.timestampMs > this.config.staleAfterMs) this.reset();
+      if (!Number.isFinite(nowMs) || !this.lastGoodFix) {
+        if (this.state !== 'moving') this.reset();
+        return this.state;
+      }
+      const gap = nowMs - this.lastGoodFix.timestampMs;
+      if (gap > this.config.staleAfterMs) {
+        if (this.state === 'moving' && gap <= this.config.holdMovingWhenStaleMs) return this.state;
+        this.reset();
+      }
       return this.state;
     }
 

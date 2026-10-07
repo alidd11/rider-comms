@@ -256,6 +256,7 @@ export class FriendStore {
   async accept(requestId: string): Promise<ResolveRequestResult & { friend?: FriendSummary }> {
     await ensureMigrated();
     const client = await getPool().connect();
+    let released = false;
     try {
       await client.query('BEGIN');
       const pending = await client.query<FriendRequestRow>(
@@ -278,14 +279,19 @@ export class FriendStore {
       const request = rowToRequest(rows[0]);
       await this.addFriendship(client, request.fromRiderId, request.toRiderId);
       await appendSocialEventForRiders(client, [request.fromRiderId, request.toRiderId], 'friend_request_resolved', request.toRiderId, request.id);
-      const friend = await this.summaryFor(request.fromRiderId);
       await client.query('COMMIT');
+      client.release();
+      released = true;
+      // Built after commit: summaryFor takes its own pool connection, and
+      // holding this one (with an open transaction and the pair lock) while
+      // waiting for a second could exhaust the pool under a burst of accepts.
+      const friend = await this.summaryFor(request.fromRiderId);
       return { ok: true, request, friend };
     } catch (error) {
-      await client.query('ROLLBACK');
+      if (!released) await client.query('ROLLBACK');
       throw error;
     } finally {
-      client.release();
+      if (!released) client.release();
     }
   }
 

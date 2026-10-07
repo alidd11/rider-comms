@@ -11,7 +11,7 @@
     releaseOverNoise: 1.5,
     attackHoldMs: 40,
     hangtimeMs: 900,
-    maxNoiseFloor: 0.08,
+    maxNoiseFloor: 0.3,
   });
 
   const FLOOR_FALL_PER_SECOND = 2.5;

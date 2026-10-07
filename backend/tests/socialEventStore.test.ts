@@ -75,6 +75,14 @@ describe('SocialEventStore', { skip: !hasDatabase && 'DATABASE_URL not set; skip
     }
   });
 
+  it('answers a long poll with the empty page once the store is closing, instead of throwing', async () => {
+    const store = new SocialEventStore();
+    const baseline = await store.establishCursor('drain-rider');
+    await store.close();
+    const page = await store.waitForEvents('drain-rider', baseline.cursor, 10, 5_000);
+    assert.deepEqual(page.events, []);
+  });
+
   it('keeps event streams strictly recipient scoped', async () => {
     const store = new SocialEventStore();
     try {

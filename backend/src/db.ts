@@ -127,6 +127,9 @@ export function ensureMigrated(): Promise<void> {
         client.release();
       }
     })();
+    // A failure (database briefly unreachable) must not be cached for the
+    // life of the process: the next caller tries again.
+    migrationsRun.catch(() => { migrationsRun = undefined; });
   }
   return migrationsRun;
 }

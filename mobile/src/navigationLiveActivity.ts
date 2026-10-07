@@ -60,6 +60,12 @@ export function navigationLiveActivityContent(input: NavigationLiveActivityInput
   };
 }
 
+/** The instruction part of a "420 ft · Turn left onto …" title. */
+function instructionOf(title: string): string {
+  const separator = title.indexOf(' · ');
+  return separator >= 0 ? title.slice(separator + 3) : title;
+}
+
 export const NAVIGATION_LIVE_ACTIVITY_CONFIG = {
   backgroundColor: '#0E1418',
   titleColor: '#FFFFFF',
@@ -75,6 +81,8 @@ export const NAVIGATION_LIVE_ACTIVITY_CONFIG = {
 /** Distance ticks down on every GPS fix; the lock screen needn't. A new
  * turn (different arrow) still updates immediately. */
 export const LIVE_ACTIVITY_MIN_UPDATE_MS = 5000;
+/** After iOS refuses to start one, wait this long before trying again. */
+export const LIVE_ACTIVITY_START_RETRY_MS = 60_000;
 
 type TimerHandle = ReturnType<typeof setTimeout>;
 
@@ -95,6 +103,7 @@ export class NavigationLiveActivity {
   private lastSentAt = 0;
   private pending: NavigationLiveActivityContent | null = null;
   private pendingTimer: TimerHandle | null = null;
+  private startRefusedAt: number | null = null;
 
   constructor(
     api: LiveActivityApi | null,
@@ -114,16 +123,26 @@ export class NavigationLiveActivity {
     return this.id !== null;
   }
 
-  update(content: NavigationLiveActivityContent): void {
+  /**
+   * `urgent` (the turn is close) skips the throttle so the distance counts
+   * down live when it matters most.
+   */
+  update(content: NavigationLiveActivityContent, { urgent = false }: { urgent?: boolean } = {}): void {
     if (!this.api) return;
     const key = JSON.stringify(content);
     if (key === this.last) {
       this.cancelPending();
       return;
     }
-    const sameTurn = this.id !== null && this.lastContent?.imageName === content.imageName;
+    // iOS refused to start one (Live Activities off): don't retry every fix.
+    if (this.id === null && this.startRefusedAt !== null && this.now() - this.startRefusedAt < LIVE_ACTIVITY_START_RETRY_MS) return;
+    // Same maneuver *and* same instruction: two consecutive left turns share
+    // an arrow but are different steps, and the new one must show at once.
+    const sameTurn = this.id !== null && this.lastContent !== null
+      && this.lastContent.imageName === content.imageName
+      && instructionOf(this.lastContent.title) === instructionOf(content.title);
     const wait = LIVE_ACTIVITY_MIN_UPDATE_MS - (this.now() - this.lastSentAt);
-    if (sameTurn && wait > 0) {
+    if (sameTurn && !urgent && wait > 0) {
       // Keep only the newest content and send it once the interval passes.
       this.pending = content;
       this.pendingTimer ??= this.setTimer(() => {
@@ -146,30 +165,40 @@ export class NavigationLiveActivity {
 
   private send(content: NavigationLiveActivityContent, key: string): void {
     if (!this.api) return;
+    // Counted as an attempt even if it throws (Live Activities turned off,
+    // dismissed), so a failing native call is throttled too.
+    this.lastSentAt = this.now();
     try {
       if (this.id) {
         this.api.updateActivity(this.id, content);
       } else {
         const id = this.api.startActivity(content, NAVIGATION_LIVE_ACTIVITY_CONFIG);
-        if (typeof id !== 'string' || !id) return;
+        if (typeof id !== 'string' || !id) {
+          this.startRefusedAt = this.now();
+          return;
+        }
         this.id = id;
+        this.startRefusedAt = null;
       }
       this.last = key;
       this.lastContent = content;
-      this.lastSentAt = this.now();
     } catch {
       // Live Activities turned off in Settings, Expo Go, or an older iOS.
+      if (!this.id) this.startRefusedAt = this.now();
     }
   }
 
   stop(finalTitle?: string): void {
+    // The closing card shows the newest state, including one still waiting.
+    const latest = this.pending ?? this.lastContent;
     this.cancelPending();
+    this.startRefusedAt = null;
     if (!this.api || !this.id) return;
     const id = this.id;
     this.id = null;
     this.last = null;
-    const final = this.lastContent
-      ? { ...this.lastContent, ...(finalTitle ? { title: finalTitle, subtitle: '' } : {}) }
+    const final = latest
+      ? { ...latest, ...(finalTitle ? { title: finalTitle, subtitle: '' } : {}) }
       : { title: finalTitle ?? 'Navigation ended', subtitle: '', progressBar: { progress: 1 }, imageName: 'nav_arrive', dynamicIslandImageName: 'nav_arrive' };
     this.lastContent = null;
     try {

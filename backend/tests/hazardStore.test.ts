@@ -76,6 +76,14 @@ describe('HazardStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping 
     assert.equal(current.denials, 1);
   });
 
+  it('does not count a reporter voting on their own report', async () => {
+    const store = new HazardStore();
+    const report = await store.create('police', 40.0, -74.0, 'self-voter');
+    assert.deepEqual(await store.confirm(report.id, 'self-voter'), { ok: true });
+    const [current] = await store.nearby(40.0, -74.0, report.createdAt);
+    assert.equal(current.confirmations, 0);
+  });
+
   it('moves the aggregate when a rider changes their vote', async () => {
     const store = new HazardStore();
     const report = await store.create('accident', 40.0, -74.0, 'rider-1');

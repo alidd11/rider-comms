@@ -356,6 +356,8 @@ export function MapScreen(): React.JSX.Element {
       }
       : null,
     navigationNotice === 'You have arrived.',
+    // Within ~250 m of the turn, show every distance change.
+    distanceToCurrentStepEnd < 250,
   );
 
   const musicCardVisible = segment === 'public' && !activeRoute && !activeRide && !selectedDestination && !selectedHazard;

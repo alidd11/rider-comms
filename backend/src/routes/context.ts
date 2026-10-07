@@ -29,6 +29,37 @@ import type { SocialRateLimitStore } from '../socialRateLimitStore.ts';
  */
 export const NOT_HANDLED = Symbol('not_handled');
 
+export interface VoiceMemberships {
+  rideIds: string[];
+  pairedRiderIds: string[];
+}
+
+/** The voice rooms a rider may be connected to: every ride they belong to
+ * and every Nearby pair. Read before deleting their rows. */
+export async function voiceMembershipsOf(
+  deps: Pick<RouteDeps, 'rideStore' | 'presenceStore'>,
+  riderId: string,
+): Promise<VoiceMemberships> {
+  const [rideIds, pairedRiderIds] = await Promise.all([
+    deps.rideStore.getRideIdsForMember(riderId),
+    deps.presenceStore.getPairedRiderIds(riderId),
+  ]);
+  return { rideIds, pairedRiderIds };
+}
+
+/** Eject a rider from all of those rooms now. Token expiry alone doesn't
+ * disconnect an existing LiveKit connection. */
+export async function ejectFromVoice(
+  deps: Pick<RouteDeps, 'revokeRideVoiceParticipants' | 'revokeProximityVoiceParticipants'>,
+  riderId: string,
+  memberships: VoiceMemberships,
+): Promise<void> {
+  await Promise.all([
+    ...memberships.rideIds.map((rideId) => deps.revokeRideVoiceParticipants(rideId, [riderId])),
+    ...memberships.pairedRiderIds.map((peerId) => deps.revokeProximityVoiceParticipants(riderId, peerId)),
+  ]);
+}
+
 /** Counts a content-filter rejection for the staff dashboard. Never fails the request. */
 export function countFilterRejection(stats: Pick<AdminStatsStore, 'increment'>): void {
   void stats.increment('filter_rejections').catch(() => { /* A missed dashboard count must never fail a request. */ });

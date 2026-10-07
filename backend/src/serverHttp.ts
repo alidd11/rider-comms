@@ -91,14 +91,19 @@ export function sendEmpty(res: http.ServerResponse, status: number): void {
 
 export function readJsonBody(req: http.IncomingMessage): Promise<Record<string, unknown>> {
   return new Promise((resolve, reject) => {
-    let data = '', bytes = 0, tooLarge = false;
+    // Collect raw bytes and decode once: decoding each chunk on its own turns
+    // a multi-byte character (emoji, accented letter) split across two
+    // chunks into U+FFFD replacement characters.
+    const chunks: Buffer[] = [];
+    let bytes = 0, tooLarge = false;
     req.on('data', (chunk: Buffer) => {
       bytes += chunk.length;
       if (bytes > MAX_BODY_BYTES) tooLarge = true;
-      else data += chunk.toString('utf8');
+      else chunks.push(chunk);
     });
     req.on('end', () => {
       if (tooLarge) return reject(new RequestError(413, 'request body is too large'));
+      const data = Buffer.concat(chunks).toString('utf8');
       if (!data) return resolve({});
       let parsed: unknown;
       try {

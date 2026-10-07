@@ -82,7 +82,9 @@ class RiderMediaControlsModule : Module() {
         "appName" to appLabel(controller.packageName),
       )
       val key = "${controller.packageName}\u0000$title\u0000${result["artist"]}"
-      if (key != artworkKey) {
+      // Many apps publish the title first and the artwork a moment later, so
+      // keep looking until it arrives; only a found image is cached.
+      if (key != artworkKey || artworkUri == null) {
         artworkKey = key
         val art = metadata.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
           ?: metadata.getBitmap(MediaMetadata.METADATA_KEY_ART)

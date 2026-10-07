@@ -36,6 +36,13 @@ describe('adaptive navigation camera', () => {
     assert.ok(roundabout.lookAheadMeters > ordinary.lookAheadMeters);
   });
 
+  it('zooms in for an approaching turn but not on a straight-on step', () => {
+    const cruising = navigationCameraProfile({ speedMps: 10 });
+    assert.ok(navigationCameraProfile({ speedMps: 10, maneuverDistanceMeters: 60, maneuver: 'turn-left' }).zoom > cruising.zoom);
+    assert.deepEqual(navigationCameraProfile({ speedMps: 10, maneuverDistanceMeters: 60, maneuver: 'straight' }), cruising);
+    assert.deepEqual(navigationCameraProfile({ speedMps: 10, maneuverDistanceMeters: 60 }), cruising);
+  });
+
   it('keeps the rider in the clear map between the banner and the trip summary', () => {
     // The layout from a rider's screenshot: an iPhone 15 Pro Max map with a
     // tall banner (route notice showing) and the trip summary at the bottom.

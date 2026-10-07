@@ -28,6 +28,16 @@ assert.match(
 );
 assert.match(
   workerSource,
+  /isShellAsset && requestUrl\.searchParams\.has\('v'\)[\s\S]*caches\.match\(event\.request\)\.then\(\(cached\) => cached \|\| fetchAndCache\(\)\)/,
+  'versioned shell assets must be served cache-first so a weak signal cannot stall startup'
+);
+assert.match(
+  workerSource,
+  /Promise\.race\(\[network, timedOut\]\)/,
+  'the page itself must fall back to the cached shell when the network stalls'
+);
+assert.match(
+  workerSource,
   /event\.data\?\.type === 'SKIP_WAITING'/,
   'the explicit update action must still be able to activate a waiting worker'
 );

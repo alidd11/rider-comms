@@ -108,4 +108,62 @@ describe('navigation Live Activity', () => {
     assert.equal(calls.length, 3, 'a new turn updates straight away');
     assert.equal(calls[2]![1].imageName, 'nav_right');
   });
+
+  function throttledActivity() {
+    const { api, calls } = fakeApi();
+    const clock = { now: 0 };
+    const timers: Array<{ at: number; run: () => void }> = [];
+    const activity = new NavigationLiveActivity(api, {
+      now: () => clock.now,
+      setTimer: (run, ms) => { timers.push({ at: clock.now + ms, run }); return timers.length as unknown as ReturnType<typeof setTimeout>; },
+      clearTimer: () => { timers.length = 0; },
+    });
+    return { activity, calls, clock, timers };
+  }
+
+  it('shows the next step at once even when it has the same arrow', () => {
+    const { activity, calls, clock } = throttledActivity();
+    activity.update(navigationLiveActivityContent(input));
+    clock.now = 1000;
+    activity.update(navigationLiveActivityContent({ ...input, instruction: 'Turn left onto Windsor Rd', distanceLabel: '0.3 mi' }));
+    assert.equal(calls.length, 2);
+    assert.equal(calls[1]![1].title, '0.3 mi · Turn left onto Windsor Rd');
+  });
+
+  it('counts down every change when the turn is close', () => {
+    const { activity, calls, clock } = throttledActivity();
+    activity.update(navigationLiveActivityContent(input));
+    clock.now = 1000;
+    activity.update(navigationLiveActivityContent({ ...input, distanceLabel: '200 ft' }), { urgent: true });
+    clock.now = 2000;
+    activity.update(navigationLiveActivityContent({ ...input, distanceLabel: '100 ft' }), { urgent: true });
+    assert.equal(calls.length, 3);
+  });
+
+  it('closes with the newest state, including a throttled one', () => {
+    const { activity, calls, clock } = throttledActivity();
+    activity.update(navigationLiveActivityContent(input));
+    clock.now = 1000;
+    activity.update(navigationLiveActivityContent({ ...input, distanceLabel: '300 ft' }));
+    activity.stop();
+    assert.equal(calls.at(-1)![0], 'stop');
+    assert.equal(calls.at(-1)![1].title, '300 ft · Turn left onto Salterton Rd');
+  });
+
+  it('does not retry a refused start on every fix', () => {
+    let starts = 0;
+    let now = 0;
+    const activity = new NavigationLiveActivity({
+      startActivity: () => { starts += 1; throw new Error('Live Activities are off'); },
+      updateActivity: () => {},
+      stopActivity: () => {},
+    }, { now: () => now });
+    activity.update(navigationLiveActivityContent(input));
+    now = 2000;
+    activity.update(navigationLiveActivityContent({ ...input, distanceLabel: '300 ft' }));
+    assert.equal(starts, 1);
+    now = 61_000;
+    activity.update(navigationLiveActivityContent({ ...input, distanceLabel: '200 ft' }));
+    assert.equal(starts, 2);
+  });
 });

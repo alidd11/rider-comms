@@ -6,9 +6,11 @@
   // shared golden fixtures against both implementations to prevent drift.
   function formatNavigationDistance(metres, unit) {
     if (unit === 'km') {
-      if (metres < 1000) return `${Math.max(10, Math.round(metres / 10) * 10)} m`;
+      // Round first, then pick the unit, so 997 m reads "1.0 km", not "1000 m".
+      const roundedMetres = Math.max(10, Math.round(metres / 10) * 10);
+      if (roundedMetres < 1000) return `${roundedMetres} m`;
       const kilometres = metres / 1000;
-      return `${kilometres.toFixed(kilometres < 10 ? 1 : 0)} km`;
+      return `${kilometres.toFixed(kilometres < 9.95 ? 1 : 0)} km`;
     }
 
     const miles = metres / 1609.344;
@@ -16,7 +18,7 @@
       const feet = metres * 3.28084;
       return `${Math.max(10, Math.round(feet / 10) * 10)} ft`;
     }
-    return `${miles.toFixed(miles < 10 ? 1 : 0)} mi`;
+    return `${miles.toFixed(miles < 9.95 ? 1 : 0)} mi`;
   }
 
   function formatNavigationSpeed(speedMps, unit) {

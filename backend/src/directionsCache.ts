@@ -78,11 +78,23 @@ export function wrapDirectionsProviderWithCache(
   provider: DirectionsProvider,
   cache: Pick<DirectionsCache, 'get' | 'set'>,
 ): DirectionsProvider {
+  // Identical requests that arrive while one is still in flight (the ETA
+  // preview immediately followed by "Start route") share that one billed
+  // upstream call instead of each missing the cache.
+  const inFlight = new Map<string, Promise<DrivingRoute>>();
   return async (origin, destination, avoid = {}) => {
     const cached = cache.get(origin, destination, Date.now(), avoid);
     if (cached) return cached;
-    const route = await provider(origin, destination, avoid);
-    cache.set(origin, destination, route, Date.now(), avoid);
-    return route;
+    const key = cacheKey(origin, destination, avoid);
+    const pending = inFlight.get(key);
+    if (pending) return pending;
+    const request = provider(origin, destination, avoid)
+      .then((route) => {
+        cache.set(origin, destination, route, Date.now(), avoid);
+        return route;
+      })
+      .finally(() => inFlight.delete(key));
+    inFlight.set(key, request);
+    return request;
   };
 }

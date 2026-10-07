@@ -53,6 +53,24 @@ assert.deepEqual(
   ['server-1', 'server-2', 'local-pending', 'local-failed'],
   'refresh must retain only unsent local messages alongside server truth',
 );
+// A poll that already carries the delivered copy (sent before the POST
+// resolved, or a lost response) must not show it twice or leave a "failed"
+// copy that would be re-sent on retry.
+assert.deepEqual(
+  Array.from(
+    reconcile(
+      [
+        { id: 'local-a', fromRiderId: 'me', text: 'on my way', createdAt: 1_000_000, status: 'pending' },
+        { id: 'local-b', fromRiderId: 'me', text: 'on my way', createdAt: 1_000_500, status: 'failed' },
+        { id: 'local-c', fromRiderId: 'me', text: 'see you', createdAt: 1_001_000, status: 'failed' },
+      ],
+      [{ id: 'server-9', fromRiderId: 'me', text: 'on my way', createdAt: 1_000_800 }],
+    ),
+    (message) => message.id,
+  ),
+  ['local-b', 'server-9', 'local-c'],
+  'a delivered message replaces exactly one matching local copy; unmatched ones stay',
+);
 assert.deepEqual(
   Array.from(dedupe([{ id: '2', createdAt: 20 }, { id: '1', createdAt: 10 }, { id: '2', createdAt: 20 }]), (message) => message.id),
   ['1', '2'],

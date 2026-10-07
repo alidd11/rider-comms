@@ -11,6 +11,10 @@
     return Math.max(min, Math.min(max, value));
   }
 
+  function isTurnManeuver(maneuver) {
+    return Boolean(maneuver && /turn|ramp|keep/.test(maneuver));
+  }
+
   function isComplexManeuver(maneuver) {
     return Boolean(maneuver && (
       maneuver.includes('roundabout')
@@ -43,7 +47,7 @@
         pitch: Math.min(profile.pitch, 50),
         lookAheadMeters: Math.max(profile.lookAheadMeters, 220),
       };
-    } else if (maneuverDistance <= 180) {
+    } else if (maneuverDistance <= 180 && isTurnManeuver(maneuver)) {
       const proximity = clamp((180 - maneuverDistance) / 160, 0, 1);
       profile = {
         zoom: Math.min(18.9, profile.zoom + 0.35 * proximity),
