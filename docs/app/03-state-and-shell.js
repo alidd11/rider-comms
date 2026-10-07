@@ -1,4 +1,4 @@
-// Part of docs/app.js. 3 of 20: Marker animation, persisted state, avatars, toasts and tab navigation. Edit here, then run `npm run build:pwa-app`.
+// Part of docs/app.js. 3 of 20: Marker animation, persisted state, avatars and tab navigation. Edit here, then run `npm run build:pwa-app`.
   function tickAnimatedMarkers() {
     animatedMarkersFrame = undefined;
     if (animatedMarkers.size === 0) return;
@@ -129,13 +129,10 @@
     return `<svg aria-hidden="true"><use href="#i-${name}"></use></svg>`;
   }
 
-  function showToast(message) {
-    const toast = $('#toast');
-    toast.textContent = message;
-    toast.hidden = false;
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => { toast.hidden = true; }, 2400);
-  }
+  // Transient toasts are intentionally disabled while the proper notification
+  // surface is being introduced. Keep this compatibility shim so existing
+  // flows can be migrated without silently changing their control logic.
+  function showToast(_message) {}
 
   function navigate(screen, push = true) {
     if (!['map', 'ride', 'routes', 'friends', 'settings'].includes(screen)) screen = 'map';
@@ -221,4 +218,3 @@
       userMapMarker.setIcon?.(riderAvatarMapIcon(state.profile, true));
     }
   }
-

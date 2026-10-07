@@ -98,7 +98,6 @@
   }
 
   const state = loadState();
-  let toastTimer;
   let lastSheetTrigger = null;
   let map;
   let usingFallbackMap = true;
@@ -117,4 +116,3 @@
   // loop drives every animated marker on the map.
   const animatedMarkers = new Map();
   let animatedMarkersFrame;
-

@@ -1054,7 +1054,6 @@ test('PWA warns without hiding controls when movement cannot be verified', async
   await expect(page.locator('[data-screen="routes"]')).toHaveClass(/active/);
   await expect(page.locator('#movementSafetyBanner')).toBeVisible();
   await enableLocation.click();
-  await expect(page.locator('#toast')).toContainText('Location access is blocked');
 });
 
 test('PWA keeps the plain "waiting for a speed fix" notice on the map only', async ({ page }) => {
@@ -1298,13 +1297,11 @@ test('PWA Nearby handles server rejections during background refresh like the na
   await nearby.click();
   await expect(nearby).toHaveAttribute('data-active', 'true');
 
-  await expect(page.locator('#toast')).toContainText('Your location jumped unexpectedly');
   await expect.poll(() => presenceUpdates).toBeGreaterThanOrEqual(3);
   await expect(nearby).toHaveAttribute('data-active', 'true');
 
   sharingDisabledElsewhere = true;
   await expect(nearby).toHaveAttribute('data-active', 'false');
-  await expect(page.locator('#toast')).toContainText('Nearby location sharing is off');
   await expect.poll(() => presenceDeletes).toBeGreaterThan(0);
   const cached = await page.evaluate((riderId) =>
     JSON.parse(localStorage.getItem(`rider-comms-pwa-v4:${riderId}`) || '{}'), RIDER_ID);
@@ -2169,7 +2166,6 @@ test('PWA host can remove another rider from a private ride', async ({ page }) =
   await page.locator('[data-remove-ride-member="rider_guest01"]').click();
   await expect(page.locator('[data-remove-ride-member="rider_guest01"]')).toHaveCount(0);
   await expect(page.locator('#rideRoster')).not.toContainText('Guest Rider');
-  await expect(page.locator('#toast')).toContainText('removed from the ride');
 });
 
 test('PWA Settings matches the approved shallow mockup hierarchy', async ({ page }, testInfo) => {
@@ -2323,7 +2319,6 @@ test('PWA route options avoid motorways and tolls and survive a reload', async (
 
   await motorways.click();
   await expect(motorways).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.locator('#toast')).toContainText('avoid motorways');
   await assertNoViewportOverflow(page);
 
   await page.reload();
@@ -3375,7 +3370,6 @@ test('PWA ride roster offers report and block for other riders', async ({ page }
   await page.locator('#riderBlockBtn').click();
   await expect.poll(() => blocks.length).toBe(1);
   expect(blocks[0]).toEqual({ riderId: 'rider_guest01' });
-  await expect(page.locator('#toast')).toContainText('Guest Rider blocked.');
 });
 
 test('PWA Settings lists blocked riders and can unblock them', async ({ page }) => {

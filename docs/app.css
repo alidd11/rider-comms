@@ -153,7 +153,6 @@ img,svg{-webkit-user-drag:none}
   .bottom-nav>button span{font-size:.66rem}
   .bottom-nav>button i{top:5px;left:calc(50% + 7px)}
   .ride-pill{left:50%;bottom:calc(var(--bottom-nav-height) + 7px);width:min(calc(100% - 28px),480px);transform:translateX(-50%)}
-  .toast{bottom:calc(var(--bottom-nav-height) + 16px)}
 }
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
 /* Automatic light mode — follows the system/browser colour scheme, same as
@@ -484,7 +483,6 @@ html.pwa-standalone .auth-layout{
 html.pwa-standalone .sheet{
   max-height:min(88%,760px);
 }
-html.pwa-standalone .toast,
 html.pwa-standalone .movement-safety-banner,
 html.pwa-standalone .update-banner{
   position:absolute;
@@ -599,7 +597,7 @@ html.chat-open .bottom-nav,html.chat-open .ride-pill,html.chat-open .movement-sa
 .avatar{box-shadow:none}
 .search-screen .search-shell,.search-result-icon,.search-empty-icon{border-radius:var(--radius-lg)}
 .search-screen .poi-chip,.chip{border-radius:var(--radius-md)}
-.update-banner,.toast{border-radius:var(--radius-lg)}
+.update-banner{border-radius:var(--radius-lg)}
 @media(prefers-color-scheme:light){
   .content-screen{background:var(--bg);border-color:var(--border)}.glass{background:rgb(255 255 255/.92);border-color:var(--border)}
   .map-actions .icon-button,.search-slot{background:rgb(247 249 250/.94);border-color:var(--border)}
@@ -1496,9 +1494,6 @@ body:has(.content-screen.active) .movement-safety-banner{
   }
   /* With a ride on, the ride pill takes the space above the nav bar. */
   html.ride-pill-visible body:has(.screen-map.active) .movement-safety-banner{bottom:calc(var(--bottom-nav-height) + 66px)}
-  /* The banner sits where toasts appear; lift toasts above it. */
-  body:has(.screen-map.active):has(#movementSafetyBanner:not([hidden])) .toast{bottom:calc(var(--bottom-nav-height) + 86px)}
-  html.ride-pill-visible body:has(.screen-map.active):has(#movementSafetyBanner:not([hidden])) .toast{bottom:calc(var(--bottom-nav-height) + 134px)}
   body:has(.screen-map.active) .movement-safety-banner svg{width:18px;height:18px}
   body:has(.screen-map.active) .movement-safety-banner strong{font-size:.72rem}
   body:has(.screen-map.active) .movement-safety-banner small{font-size:.62rem;line-height:1.25}
