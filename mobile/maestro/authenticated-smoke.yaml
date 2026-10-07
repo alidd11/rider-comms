@@ -10,6 +10,8 @@ appId: com.ridercomms.app
     text: "Password"
 - inputText: ${TEST_PASSWORD}
 - tapOn: "Log in"
+- waitForAnimationToEnd
+- takeScreenshot: after-login
 - extendedWaitUntil:
     visible: "Map"
     timeout: 30000

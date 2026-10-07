@@ -126,7 +126,7 @@ jobs:
           export PATH="$HOME/.maestro/bin:$PATH"
           maestro test mobile/maestro/authenticated-smoke.yaml --format junit --output maestro-ios.xml
           mkdir -p maestro-ios-artifacts
-          find "$HOME/.maestro/tests" -type f -name 'authenticated-*.png' -exec cp {} maestro-ios-artifacts/ \; 2>/dev/null || true
+          find "$HOME/.maestro" -type f -name '*.png' -exec cp {} maestro-ios-artifacts/ \; 2>/dev/null || true
       - name: Upload authenticated iOS screenshots
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -237,7 +237,7 @@ jobs:
           export PATH="$HOME/.maestro/bin:$PATH"
           maestro test mobile/maestro/authenticated-smoke.yaml --format junit --output maestro-android.xml
           mkdir -p maestro-android-artifacts
-          find "$HOME/.maestro/tests" -type f -name 'authenticated-*.png' -exec cp {} maestro-android-artifacts/ \; 2>/dev/null || true
+          find "$HOME/.maestro" -type f -name '*.png' -exec cp {} maestro-android-artifacts/ \; 2>/dev/null || true
       - name: Upload authenticated Android screenshots
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
