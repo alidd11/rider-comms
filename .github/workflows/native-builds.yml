@@ -102,6 +102,40 @@ jobs:
             exit 1
           fi
           echo "::notice title=iOS launch::Rider Comms is running 30 s after launch on $(xcrun simctl list devices | grep "$udid" | sed 's/ (.*//' | xargs)"
+      - name: Create disposable native UI test account
+        id: test-account
+        env:
+          API_URL: https://backend-production-7fa0.up.railway.app
+        run: |
+          username="ci${GITHUB_RUN_ID}${GITHUB_RUN_ATTEMPT}"
+          password="RiderComms-${GITHUB_RUN_ID}-Test!"
+          payload="$(node -e 'console.log(JSON.stringify({username:process.argv[1],email:process.argv[1]+"@example.com",password:process.argv[2],deviceName:"GitHub iOS UI smoke",acceptTerms:true}))' "$username" "$password")"
+          response="$(curl --fail-with-body --silent --show-error --retry 3 --max-time 30 -X POST "$API_URL/auth/signup" -H 'content-type: application/json' -d "$payload")"
+          token="$(printf '%s' "$response" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const x=JSON.parse(s); if (!x.token) process.exit(1); process.stdout.write(x.token);})')"
+          trap 'curl --silent --max-time 15 -X DELETE "$API_URL/auth/me" -H "authorization: Bearer $token" >/dev/null || true' EXIT
+          {
+            echo "username=$username"
+            echo "password=$password"
+          } >> "$GITHUB_OUTPUT"
+      - name: Install Maestro and exercise authenticated iOS screens
+        env:
+          TEST_USERNAME: ${{ steps.test-account.outputs.username }}
+          TEST_PASSWORD: ${{ steps.test-account.outputs.password }}
+        run: |
+          curl -Ls https://get.maestro.mobile.dev | bash
+          export PATH="$HOME/.maestro/bin:$PATH"
+          maestro test mobile/maestro/authenticated-smoke.yaml --format junit --output maestro-ios.xml
+          mkdir -p maestro-ios-artifacts
+          find "$HOME/.maestro/tests" -type f -name 'authenticated-*.png' -exec cp {} maestro-ios-artifacts/ \; 2>/dev/null || true
+      - name: Upload authenticated iOS screenshots
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ios-authenticated-ux
+          path: |
+            maestro-ios-artifacts
+            maestro-ios.xml
+          if-no-files-found: ignore
       - name: Upload the launch screenshot
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -179,6 +213,40 @@ jobs:
           adb shell settings put global transition_animation_scale 0
           adb shell settings put global animator_duration_scale 0
           scripts/android-launch-check.sh
+      - name: Create disposable native UI test account
+        id: test-account
+        env:
+          API_URL: https://backend-production-7fa0.up.railway.app
+        run: |
+          username="ci${GITHUB_RUN_ID}${GITHUB_RUN_ATTEMPT}"
+          password="RiderComms-${GITHUB_RUN_ID}-Test!"
+          payload="$(node -e 'console.log(JSON.stringify({username:process.argv[1],email:process.argv[1]+"@example.com",password:process.argv[2],deviceName:"GitHub Android UI smoke",acceptTerms:true}))' "$username" "$password")"
+          response="$(curl --fail-with-body --silent --show-error --retry 3 --max-time 30 -X POST "$API_URL/auth/signup" -H 'content-type: application/json' -d "$payload")"
+          token="$(printf '%s' "$response" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const x=JSON.parse(s); if (!x.token) process.exit(1); process.stdout.write(x.token);})')"
+          trap 'curl --silent --max-time 15 -X DELETE "$API_URL/auth/me" -H "authorization: Bearer $token" >/dev/null || true' EXIT
+          {
+            echo "username=$username"
+            echo "password=$password"
+          } >> "$GITHUB_OUTPUT"
+      - name: Install Maestro and exercise authenticated Android screens
+        env:
+          TEST_USERNAME: ${{ steps.test-account.outputs.username }}
+          TEST_PASSWORD: ${{ steps.test-account.outputs.password }}
+        run: |
+          curl -Ls https://get.maestro.mobile.dev | bash
+          export PATH="$HOME/.maestro/bin:$PATH"
+          maestro test mobile/maestro/authenticated-smoke.yaml --format junit --output maestro-android.xml
+          mkdir -p maestro-android-artifacts
+          find "$HOME/.maestro/tests" -type f -name 'authenticated-*.png' -exec cp {} maestro-android-artifacts/ \; 2>/dev/null || true
+      - name: Upload authenticated Android screenshots
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: android-authenticated-ux
+          path: |
+            maestro-android-artifacts
+            maestro-android.xml
+          if-no-files-found: ignore
       - name: Upload the launch screenshot
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

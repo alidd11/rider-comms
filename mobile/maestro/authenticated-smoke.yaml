@@ -1,0 +1,28 @@
+appId: com.ridercomms.app
+
+---
+- launchApp:
+    clearState: true
+- tapOn:
+    text: "Username"
+- inputText: ${TEST_USERNAME}
+- tapOn:
+    text: "Password"
+- inputText: ${TEST_PASSWORD}
+- tapOn: "Log in"
+- extendedWaitUntil:
+    visible: "Map"
+    timeout: 30000
+- takeScreenshot: authenticated-map
+- tapOn: "Ride"
+- takeScreenshot: authenticated-ride
+- tapOn: "Friends"
+- takeScreenshot: authenticated-friends
+- tapOn: "Settings"
+- takeScreenshot: authenticated-settings
+- tapOn: "Account"
+- tapOn: "Your plan"
+- extendedWaitUntil:
+    visible: "Your plan"
+    timeout: 10000
+- takeScreenshot: authenticated-billing
