@@ -40,7 +40,9 @@ describe('SocialActivityStore', { skip: !hasDatabase && 'DATABASE_URL not set; s
       'SELECT last_seen_at FROM rider_activity WHERE rider_id = $1',
       ['alice'],
     ));
-    assert.equal(Number(rows[0]?.last_seen_at), 116_000);
+    // The second write is exactly one coalescing interval after the first,
+    // so it is allowed through; the older timestamp must not move it back.
+    assert.equal(Number(rows[0]?.last_seen_at), 130_000);
   });
 
   it('exposes online and last-seen state only for current unblocked friends', async () => {
