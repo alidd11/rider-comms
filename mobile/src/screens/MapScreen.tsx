@@ -629,7 +629,12 @@ export function MapScreen(): React.JSX.Element {
       )}
 
       {segment === 'public' && !activeRoute && ridersInZone.length > 0 && !selectedPlace && !selectedHazard && !locationUnavailable && !error && (
-        <View style={[styles.nearbyCount, { top: insets.top + spacing.sm + MIN_TOUCH_TARGET + spacing.sm }]}>
+        <View
+          style={[styles.nearbyCount, { top: insets.top + spacing.sm + MIN_TOUCH_TARGET + spacing.sm }]}
+          accessible
+          accessibilityRole="text"
+          accessibilityLabel={`${ridersInZone.length} ${ridersInZone.length === 1 ? 'rider' : 'riders'} nearby. Exact locations are private.`}
+        >
           <MaterialCommunityIcons name="account-multiple" size={16} color={colors.accent} />
           <Text style={styles.nearbyCountText}>
             {ridersInZone.length} {ridersInZone.length === 1 ? 'rider' : 'riders'} nearby · exact locations private
@@ -645,6 +650,7 @@ export function MapScreen(): React.JSX.Element {
             onPress={() => void openMusicPicker()}
             accessibilityRole="button"
             accessibilityLabel="Open your music app"
+            accessibilityHint="Choose a music app or show what is currently playing"
           >
             <Ionicons name="musical-notes" size={24} color={colors.textPrimary} />
           </Pressable>}
@@ -653,6 +659,7 @@ export function MapScreen(): React.JSX.Element {
             onPress={() => void openReportSheet()}
             accessibilityRole="button"
             accessibilityLabel="Report on the road"
+            accessibilityHint="Choose a road hazard to share with nearby riders"
           >
             <MaterialCommunityIcons name="alert-outline" size={26} color="#1F1300" />
           </Pressable>}
@@ -661,15 +668,17 @@ export function MapScreen(): React.JSX.Element {
             onPress={() => void centreOnCurrentLocation()}
             accessibilityRole="button"
             accessibilityLabel="Centre map on my location"
+            accessibilityHint="Moves the map back to your current position"
           >
             <Ionicons name="navigate-outline" size={24} color={colors.accent} />
           </Pressable>
           <Pressable
             style={({ pressed }) => [styles.mapActionButton, publicLive && styles.mapLiveButtonActive, pressed && styles.mapActionButtonPressed]}
             onPress={() => void handleNearbyToggle()}
-            accessibilityRole="button"
-            accessibilityState={{ selected: publicLive }}
+            accessibilityRole="switch"
+            accessibilityState={{ checked: publicLive }}
             accessibilityLabel={publicLive ? 'Stop live location and proximity voice' : 'Go live nearby and enable proximity voice'}
+            accessibilityHint={publicLive ? 'Stops sharing your nearby presence' : 'Shares your nearby presence and enables proximity voice'}
           >
             <MaterialCommunityIcons name="access-point" size={26} color={publicLive ? '#04210F' : colors.accent} />
           </Pressable>
@@ -694,6 +703,7 @@ export function MapScreen(): React.JSX.Element {
             accessibilityRole="button"
             accessibilityState={{ selected: navigationMuted }}
             accessibilityLabel={navigationMuted ? 'Unmute navigation guidance' : 'Mute navigation guidance'}
+            accessibilityHint={navigationMuted ? 'Restores spoken turn instructions' : 'Silences spoken turn instructions'}
           >
             <Ionicons name={navigationMuted ? 'volume-mute' : 'volume-high'} size={24} color={navigationMuted ? colors.accentText : colors.textPrimary} />
           </Pressable>
@@ -705,6 +715,7 @@ export function MapScreen(): React.JSX.Element {
             }}
             accessibilityRole="button"
             accessibilityLabel={navigationFollowing ? 'Show route overview' : 'Resume navigation follow mode'}
+            accessibilityHint={navigationFollowing ? 'Shows the full route on the map' : 'Keeps the map centred on your ride'}
           >
             <Ionicons
               name={navigationFollowing ? 'map-outline' : 'navigate'}
