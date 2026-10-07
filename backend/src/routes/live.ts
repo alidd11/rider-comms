@@ -104,7 +104,7 @@ export async function handleLiveRoutes(ctx: RouteContext): Promise<unknown> {
       return sendJson(res, 200, voiceToken);
     }
     if (body.target === 'channel') {
-      const peerIds = await presenceStore.getCurrentPeerIds(actorId);
+      const peerIds = await presenceStore.getCurrentPeerIds(actorId, Date.now(), MAX_PRESENCE_FIX_AGE_MS);
       const authorisedPeerIds = await moderationStore.filterAllowedPeerIds(actorId, peerIds);
       const connections = await Promise.all(authorisedPeerIds.map(async (peerId) => ({
         peerId,

@@ -13,7 +13,10 @@ export async function handleHazardRoutes(ctx: RouteContext): Promise<unknown> {
     return sendJson(res, 201, await hazardStore.create(body.type as HazardType, body.lat as number, body.lon as number, actorId));
   }
   if (req.method === 'GET' && url.pathname === '/hazards/nearby') {
-    const lat = Number(url.searchParams.get('lat')), lon = Number(url.searchParams.get('lon'));
+    // Number(null) is 0, so a missing parameter must be rejected explicitly or
+    // it silently searches the Gulf of Guinea (0, 0).
+    const latParam = url.searchParams.get('lat'), lonParam = url.searchParams.get('lon');
+    const lat = latParam ? Number(latParam) : Number.NaN, lon = lonParam ? Number(lonParam) : Number.NaN;
     if (!isCoordinate(lat, lon)) return sendJson(res, 400, { error: 'valid lat and lon are required' });
     // The reporter's rider ID is kept server-side (it authorises DELETE) and is
     // never published, so a hazard's location can't be tied to a rider.

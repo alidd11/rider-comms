@@ -35,6 +35,18 @@ describe('reconcileMessageThread', () => {
     assert.deepEqual(reconcileMessageThread(current, [message('confirmed', 2)]), [message('confirmed', 2)]);
   });
 
+  it('treats a server copy of a pending or failed message as delivered, once', () => {
+    const local = (id: string, createdAt: number, status: 'pending' | 'failed', text = 'on my way'): LocalDirectMessage => ({
+      id, fromRiderId: 'rider_one', toRiderId: 'rider_two', text, createdAt, status,
+    });
+    const delivered: DirectMessage = { id: 'server-9', fromRiderId: 'rider_one', toRiderId: 'rider_two', text: 'on my way', createdAt: 1_000_800 };
+    const result = reconcileMessageThread(
+      [local('local-a', 1_000_000, 'pending'), local('local-b', 1_000_500, 'failed'), local('local-c', 1_001_000, 'failed', 'see you')],
+      [delivered],
+    );
+    assert.deepEqual(result.map((m) => m.id), ['local-b', 'server-9', 'local-c']);
+  });
+
   it('sorts the combined thread deterministically', () => {
     const current: LocalDirectMessage[] = [{ ...message('local', 2), status: 'failed' }];
     assert.deepEqual(

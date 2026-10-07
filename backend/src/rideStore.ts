@@ -197,6 +197,16 @@ export class RideStore {
     return rows.map((row) => row.ride_id);
   }
 
+  /** Every ride the rider is a member of (they can belong to several). */
+  async getRideIdsForMember(riderId: string): Promise<string[]> {
+    await ensureMigrated();
+    const { rows } = await getPool().query<{ ride_id: string }>(
+      'SELECT ride_id FROM ride_members WHERE rider_id = $1 ORDER BY ride_id',
+      [riderId],
+    );
+    return rows.map((row) => row.ride_id);
+  }
+
   async getRideForMember(rideId: string, riderId: string): Promise<RideActionResult> {
     await ensureMigrated();
     const ride = await this.loadRide(rideId);

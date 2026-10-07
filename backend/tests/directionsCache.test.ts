@@ -81,6 +81,22 @@ describe('wrapDirectionsProviderWithCache', () => {
     assert.deepEqual(seen, [{}, { highways: true }]);
   });
 
+  it('shares one upstream call between identical requests in flight together', async () => {
+    let calls = 0;
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const wrapped = wrapDirectionsProviderWithCache(async () => {
+      calls += 1;
+      await gate;
+      return route;
+    }, new DirectionsCache());
+    const first = wrapped(origin, destination);
+    const second = wrapped(origin, destination);
+    release();
+    assert.deepEqual(await Promise.all([first, second]), [route, route]);
+    assert.equal(calls, 1);
+  });
+
   it('does not cache a failed provider call', async () => {
     let calls = 0;
     const cache = new DirectionsCache();

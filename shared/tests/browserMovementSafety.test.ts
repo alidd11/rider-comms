@@ -50,4 +50,17 @@ describe('browser movement safety adapter', () => {
     }
     assert.equal(state, 'moving');
   });
+
+  it('keeps controls locked through a GPS gap while riding, like the native tracker', () => {
+    const tracker = new browserSafety.MovementStateTracker();
+    const start = 1_800_000_000_000;
+    let state = 'unknown';
+    for (let index = 0; index <= 5; index += 1) {
+      state = tracker.addFix({ lat: 51.5 + index * 0.0002, lon: -0.12, timestampMs: start + index * 1000, accuracyMeters: 5, speedMps: 12 });
+    }
+    assert.equal(state, 'moving');
+    assert.equal(tracker.stateAt(start + 95_000), 'moving');
+    assert.equal(tracker.addFix({ lat: 51.52, lon: -0.12, timestampMs: start + 100_000, accuracyMeters: 5, speedMps: 12 }), 'moving');
+    assert.equal(tracker.stateAt(start + 100_000 + 301_000), 'unknown');
+  });
 });

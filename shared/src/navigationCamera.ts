@@ -13,6 +13,13 @@ export interface NavigationCameraProfile {
 const clamp = (value: number, min: number, max: number): number =>
   Math.max(min, Math.min(max, value));
 
+/** Maneuvers worth zooming in for as they approach. Straight-on steps,
+ * name changes and a missing maneuver keep the cruising view, so the camera
+ * doesn't pump in and out at every step boundary on a long straight road. */
+function isTurnManeuver(maneuver?: string | null): boolean {
+  return Boolean(maneuver && /turn|ramp|keep/.test(maneuver));
+}
+
 function isComplexManeuver(maneuver?: string | null): boolean {
   return Boolean(maneuver && (
     maneuver.includes('roundabout')
@@ -54,7 +61,7 @@ export function navigationCameraProfile({
       pitch: Math.min(profile.pitch, 50),
       lookAheadMeters: Math.max(profile.lookAheadMeters, 220),
     };
-  } else if (maneuverDistance <= 180) {
+  } else if (maneuverDistance <= 180 && isTurnManeuver(maneuver)) {
     // For an ordinary turn, progressively tighten the view while retaining
     // enough look-ahead to show the road after the junction.
     const proximity = clamp((180 - maneuverDistance) / 160, 0, 1);

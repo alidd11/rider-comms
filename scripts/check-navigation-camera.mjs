@@ -28,6 +28,9 @@ const fixtures = {
     { speedMps: 10, maneuverDistanceMeters: 300, maneuver: 'roundabout-right' },
     { speedMps: 10, maneuverDistanceMeters: 90, maneuver: 'uturn-left' },
     { speedMps: 10, maneuverDistanceMeters: 90, maneuver: 'fork-left' },
+    { speedMps: 10, maneuverDistanceMeters: 90, maneuver: 'straight' },
+    { speedMps: 10, maneuverDistanceMeters: 90 },
+    { speedMps: 10, maneuverDistanceMeters: 90, maneuver: 'ramp-right' },
   ],
   centre: [
     { viewportHeight: 932, topOcclusion: 269, bottomOcclusion: 308, zoom: 18.9, pitch: 50.4, latitude: 51.5 },

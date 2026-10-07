@@ -1,11 +1,11 @@
 import { MAX_MODERATION_NOTE_LENGTH, REPORT_RESOLUTIONS, REPORT_STATUSES } from '../moderationStore.ts';
 import type { ReportResolution, ReportStatus } from '../moderationStore.ts';
 import { readJsonBody, sendJson } from '../serverHttp.ts';
-import { NOT_HANDLED } from './context.ts';
+import { NOT_HANDLED, ejectFromVoice, voiceMembershipsOf } from './context.ts';
 import type { RouteContext } from './context.ts';
 
 export async function handleModerationRoutes(ctx: RouteContext): Promise<unknown> {
-  const { req, res, url, actorId, s, rideStore, authStore, moderationStore, revokeRideVoiceParticipants } = ctx;
+  const { req, res, url, actorId, s, authStore, moderationStore } = ctx;
   if (s[0] === 'moderation') {
     // Staff moderation queue. Admin status is re-read from Postgres on
     // every request (see ADMIN_RIDER_IDS / users.is_admin), never trusted
@@ -41,11 +41,10 @@ export async function handleModerationRoutes(ctx: RouteContext): Promise<unknown
       if (result.action.action === 'suspend') {
         const suspendedRiderId = result.action.targetRiderId;
         authStore.forgetRider(suspendedRiderId);
-        // Sessions are already revoked, so public Nearby voice fails its
-        // next authorization-lease renewal. Eject the rider from any
-        // private ride's voice room now rather than waiting for that.
-        const currentRide = await rideStore.getCurrentRideForMember(suspendedRiderId);
-        if (currentRide) await revokeRideVoiceParticipants(currentRide.ride.id, [suspendedRiderId]);
+        // Sessions are already revoked, but an existing LiveKit connection
+        // stays up until ejected: remove them from every ride they belong
+        // to (not just the newest) and every Nearby pair room, now.
+        await ejectFromVoice(ctx, suspendedRiderId, await voiceMembershipsOf(ctx, suspendedRiderId));
       }
       return sendJson(res, 200, result);
     }

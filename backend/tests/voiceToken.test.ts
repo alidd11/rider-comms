@@ -219,6 +219,35 @@ describe('POST /voice/token', () => {
       }
     });
 
+    it('ejects a deleted account from every ride it belongs to', needsDb, async () => {
+      const revocations: Array<{ rideId: string; riderId: string }> = [];
+      const isolated = startTestServer({
+        liveKitCredentials: FAKE_CREDS,
+        liveKitRoomAdmin: {
+          revokeRideParticipant: async (rideId, riderId) => { revocations.push({ rideId, riderId }); },
+        },
+      });
+      await isolated.ready;
+      try {
+        const first = await (await postJson(isolated, 'voice-delete-host-a', '/rides', {})).json() as { rideId: string; code: string };
+        const second = await (await postJson(isolated, 'voice-delete-host-b', '/rides', {})).json() as { rideId: string; code: string };
+        assert.equal((await postJson(isolated, 'voice-delete-member', '/rides/join', { code: first.code })).status, 200);
+        assert.equal((await postJson(isolated, 'voice-delete-member', '/rides/join', { code: second.code })).status, 200);
+
+        const deleted = await fetch(`${isolated.baseUrl()}/auth/me`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${isolated.authStore.createTestSession('voice-delete-member').token}` },
+        });
+        assert.equal(deleted.status, 200);
+        assert.deepEqual(
+          revocations.filter((entry) => entry.riderId === 'voice-delete-member').map((entry) => entry.rideId).sort(),
+          [first.rideId, second.rideId].sort(),
+        );
+      } finally {
+        await isolated.close();
+      }
+    });
+
     it('rejects an unknown target', async () => {
       const res = await postJson(ctx, 'bob', '/voice/token', { target: 'bogus' });
       assert.equal(res.status, 400);

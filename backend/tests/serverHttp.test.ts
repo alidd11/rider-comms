@@ -125,6 +125,19 @@ describe('readJsonBody', () => {
     assert.deepEqual(await readJsonBody(fakeBodyReq(['{"a":1,', '"b":2}'])), { a: 1, b: 2 });
   });
 
+  it('keeps a multi-byte character intact when it is split across chunks', async () => {
+    const bytes = Buffer.from('{"text":"café 🏍️ ride"}', 'utf8');
+    // Split inside the 4-byte motorcycle emoji.
+    const split = bytes.indexOf(0xf0) + 2;
+    const emitter = new EventEmitter();
+    queueMicrotask(() => {
+      emitter.emit('data', bytes.subarray(0, split));
+      emitter.emit('data', bytes.subarray(split));
+      emitter.emit('end');
+    });
+    assert.deepEqual(await readJsonBody(emitter as unknown as http.IncomingMessage), { text: 'café 🏍️ ride' });
+  });
+
   it('rejects with a 400 RequestError for invalid JSON', async () => {
     await assert.rejects(readJsonBody(fakeBodyReq(['not json'])), (error: unknown) => {
       assert.ok(error instanceof Error);

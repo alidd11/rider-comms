@@ -23,7 +23,9 @@ export interface VoiceActivityConfig {
   attackHoldMs: number;
   /** Keep transmitting through pauses this long, so sentence tails aren't clipped. */
   hangtimeMs: number;
-  /** The noise floor never rises above this, so shouting still always opens the mic. */
+  /** The noise floor never rises above this. High enough that even loud,
+   * steady wind is learnt (so it can't hold the mic open forever), low
+   * enough that speech close to the mic can still open it. */
   maxNoiseFloor: number;
 }
 
@@ -34,7 +36,7 @@ export const DEFAULT_VOICE_ACTIVITY_CONFIG: VoiceActivityConfig = {
   releaseOverNoise: 1.5,
   attackHoldMs: 40,
   hangtimeMs: 900,
-  maxNoiseFloor: 0.08,
+  maxNoiseFloor: 0.3,
 };
 
 // The floor follows quiet quickly (the rider stopped at lights) and noise

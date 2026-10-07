@@ -394,11 +394,22 @@
         const muted = context.state === 'running';
         if (element.muted !== muted) element.muted = muted;
       };
+      // If LiveKit swaps the underlying track (reconnect, resume), this
+      // source keeps reading the old, ended one: drop the boost and let the
+      // element play the new track at normal volume rather than go silent.
+      const sourceTrack = track.mediaStreamTrack;
+      const onEnded = () => {
+        remoteVoiceBoosts.get(element)?.();
+        remoteVoiceBoosts.delete(element);
+        element.muted = false;
+      };
+      sourceTrack.addEventListener?.('ended', onEnded);
       context.addEventListener('statechange', sync);
       element.addEventListener('volumechange', sync);
       sync();
       void context.resume?.().catch(() => {});
       remoteVoiceBoosts.set(element, () => {
+        sourceTrack.removeEventListener?.('ended', onEnded);
         context.removeEventListener('statechange', sync);
         element.removeEventListener('volumechange', sync);
         source.disconnect();
@@ -840,6 +851,9 @@
   }
 
   function disconnectVoice() {
+    // Nothing is playing through it any more: let iOS release the audio
+    // session (battery, and the rider's music app) until voice starts again.
+    if (voicePlaybackContext?.state === 'running') void voicePlaybackContext.suspend?.().catch(() => {});
     clearPublicVoiceRefresh();
     clearPublicVoiceAuthorizationLease();
     publicVoiceAuthorizationExpired = false;

@@ -114,10 +114,20 @@ export class HazardStore {
     const client = await getPool().connect();
     try {
       await client.query('BEGIN');
-      const report = await client.query('SELECT id FROM hazard_reports WHERE id = $1 FOR UPDATE', [id]);
+      const report = await client.query<{ reported_by: string }>(
+        'SELECT reported_by FROM hazard_reports WHERE id = $1 AND expires_at > $2 FOR UPDATE',
+        [id, Date.now()],
+      );
       if (!report.rowCount) {
         await client.query('ROLLBACK');
         return { ok: false, reason: 'not_found' };
+      }
+      // A reporter's own vote doesn't count: confirming your own report would
+      // let one rider outweigh an honest denial. Accepted silently, since the
+      // reporter's id is never published and the app can't hide the button.
+      if (report.rows[0]?.reported_by === riderId) {
+        await client.query('COMMIT');
+        return { ok: true };
       }
 
       const existing = await client.query<{ vote: 'confirm' | 'deny' }>(

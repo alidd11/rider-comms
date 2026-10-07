@@ -21,7 +21,11 @@ const api: LiveActivityApi | null = Platform.OS === 'ios'
  * navigation runs (it keeps updating with the screen locked, because the
  * navigation location feed keeps JS running). Ends when navigation does.
  */
-export function useNavigationLiveActivity(input: NavigationLiveActivityInput | null, arrived: boolean): void {
+export function useNavigationLiveActivity(
+  input: NavigationLiveActivityInput | null,
+  arrived: boolean,
+  turnIsClose = false,
+): void {
   const activity = React.useRef<NavigationLiveActivity | null>(null);
   if (!activity.current) activity.current = new NavigationLiveActivity(api);
   const arrivedRef = React.useRef(arrived);
@@ -29,7 +33,7 @@ export function useNavigationLiveActivity(input: NavigationLiveActivityInput | n
 
   const key = input ? JSON.stringify(navigationLiveActivityContent(input)) : null;
   React.useEffect(() => {
-    if (key && input) activity.current?.update(navigationLiveActivityContent(input));
+    if (key && input) activity.current?.update(navigationLiveActivityContent(input), { urgent: turnIsClose });
     else activity.current?.stop(arrivedRef.current ? 'You have arrived' : undefined);
     // `key` captures every field of `input` that reaches the lock screen.
     // eslint-disable-next-line react-hooks/exhaustive-deps

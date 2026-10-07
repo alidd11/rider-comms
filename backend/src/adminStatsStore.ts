@@ -167,6 +167,10 @@ export class AdminStatsStore {
     await ensureMigrated();
     const pool = getPool();
     const since = (ms: number) => now - ms;
+    // The daily series and funnel don't depend on the totals; run them in
+    // the same round of queries instead of afterwards.
+    const seriesPromise = this.series(now);
+    const funnelPromise = this.funnel(now);
     const [riders, activity, social, content, safety, tiers, previous] = await Promise.all([
       pool.query(
         `SELECT count(*) AS total,
@@ -254,8 +258,8 @@ export class AdminStatsStore {
         reports7d: count(p.reports_prev_7d),
       },
       zoneTiers: Object.fromEntries(tiers.rows.map((row) => [row.zone_tier, count(row.n)])),
-      series: await this.series(now),
-      funnel: await this.funnel(now),
+      series: await seriesPromise,
+      funnel: await funnelPromise,
     };
   }
 

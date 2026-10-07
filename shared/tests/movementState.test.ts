@@ -172,6 +172,53 @@ describe('MovementStateTracker', () => {
     expect(isLockedForSafety(tracker.currentState)).toBe(false);
   });
 
+  it('keeps controls locked through a GPS gap while riding (tunnel)', () => {
+    const tracker = new MovementStateTracker();
+    let atMs = START_MS;
+    for (let i = 0; i <= 5; i++) {
+      tracker.addFix(ridingFix(i, atMs));
+      atMs += 1000;
+    }
+    expect(tracker.currentState).toBe('moving');
+    // 90 s in a tunnel with no fixes: still locked.
+    expect(tracker.stateAt(atMs + 90_000)).toBe('moving');
+    expect(isLockedForSafety(tracker.currentState)).toBe(true);
+    // Out of the tunnel, still riding: stays locked without re-confirming.
+    atMs += 95_000;
+    tracker.addFix(ridingFix(0, atMs));
+    expect(tracker.currentState).toBe('moving');
+  });
+
+  it('only unlocks after a GPS gap once sustained slow evidence arrives', () => {
+    const tracker = new MovementStateTracker();
+    let atMs = START_MS;
+    for (let i = 0; i <= 5; i++) {
+      tracker.addFix(ridingFix(i, atMs));
+      atMs += 1000;
+    }
+    atMs += 60_000;
+    for (let i = 0; i <= 3; i++) {
+      tracker.addFix(stationaryFix(i, atMs));
+      atMs += 1000;
+    }
+    expect(tracker.currentState).toBe('moving');
+    for (let i = 4; i <= 8; i++) {
+      tracker.addFix(stationaryFix(i, atMs));
+      atMs += 1000;
+    }
+    expect(tracker.currentState).toBe('stationary');
+  });
+
+  it('gives up the held lock after a very long gap', () => {
+    const tracker = new MovementStateTracker();
+    let atMs = START_MS;
+    for (let i = 0; i <= 5; i++) {
+      tracker.addFix(ridingFix(i, atMs));
+      atMs += 1000;
+    }
+    expect(tracker.stateAt(atMs + 301_000)).toBe('unknown');
+  });
+
   it('rejects malformed, impossible and out-of-order fixes', () => {
     const tracker = new MovementStateTracker();
     tracker.addFix(stationaryFix(0, START_MS));

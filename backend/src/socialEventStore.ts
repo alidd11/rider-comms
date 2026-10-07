@@ -197,6 +197,10 @@ export class SocialEventStore {
 
     let page = await this.listAfter(riderId, afterSeq, limit);
     if (page.events.length > 0 || page.hasMore || boundedWaitMs === 0 || signal?.aborted) return page;
+    // Shutting down (a deploy): answer with the empty page instead of
+    // failing, so long-polls arriving during the drain don't become 500s
+    // and staff alert emails. The client simply polls again.
+    if (this.closed) return page;
 
     await this.ensureListener();
 

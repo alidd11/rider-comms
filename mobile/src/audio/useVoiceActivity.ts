@@ -107,9 +107,12 @@ export function useVoiceActivity(enabled: boolean, onError?: (message: string) =
     const timer = setInterval(() => {
       const now = Date.now();
       // A live mic level always flickers; one frozen above zero means the
-      // analyser stopped, so treat it as silence rather than speech.
+      // analyser stopped. Close the mic, but don't feed fake silence into the
+      // gate: that would teach it a zero noise floor and let wind open the
+      // mic the moment real levels return.
       const stale = latestVolume.current > 0 && now - lastVolumeChangeAt.current > LEVEL_STALE_MS;
-      const speaking = gate.current?.update(stale ? 0 : latestVolume.current, now) ?? false;
+      if (stale) gate.current?.reset();
+      const speaking = stale ? false : gate.current?.update(latestVolume.current, now) ?? false;
       setIsSpeaking((current) => (current === speaking ? current : speaking));
     }, SAMPLE_INTERVAL_MS);
     return () => clearInterval(timer);

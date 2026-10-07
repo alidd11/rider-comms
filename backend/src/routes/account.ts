@@ -1,6 +1,6 @@
 import { bearerToken, consumeRateLimit, rateLimitSubject, readJsonBody, sendEmpty, sendJson } from '../serverHttp.ts';
 import { TERMS_VERSION } from '../authStore.ts';
-import { NOT_HANDLED } from './context.ts';
+import { NOT_HANDLED, ejectFromVoice, voiceMembershipsOf } from './context.ts';
 import type { RouteContext } from './context.ts';
 
 export async function handleAccountRoutes(ctx: RouteContext): Promise<unknown> {
@@ -39,7 +39,12 @@ export async function handleAccountRoutes(ctx: RouteContext): Promise<unknown> {
     return sendJson(res, 200, result);
   }
   if (req.method === 'DELETE' && url.pathname === '/auth/me') {
+    // Read the voice rooms first: deletion removes the rows that say where
+    // the rider is connected.
+    const memberships = await voiceMembershipsOf(ctx, actorId);
     await accountDeletionStore.deleteRider(actorId);
+    // A deleted account must not stay audible in rides or Nearby pairs.
+    await ejectFromVoice(ctx, actorId, memberships);
     // Do not revoke the in-process token until the database transaction
     // commits. If deletion fails, the rider can retry instead of being
     // logged out while their durable account and data still exist.

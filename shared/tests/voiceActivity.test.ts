@@ -51,12 +51,23 @@ describe('VoiceActivityGate', () => {
     assert.equal(gate.state.speaking, false, 'closes once quiet for longer than the hangtime');
   });
 
-  it('never lets the noise floor rise so far that shouting cannot open the mic', () => {
+  it('caps the noise floor so speech close to the mic can still open it', () => {
     const gate = new VoiceActivityGate();
-    const t = feed(gate, 0.4, 20_000, 0).now;
-    assert.ok(gate.state.noiseFloor <= 0.08);
-    assert.ok(gate.state.attackLevel <= 0.08 * 2.2 + 1e-9);
-    assert.notEqual(feed(gate, 0.5, 200, t).openedAt, null);
+    const t = feed(gate, 0.5, 20_000, 0).now;
+    assert.ok(gate.state.noiseFloor <= 0.3 + 1e-9);
+    assert.ok(gate.state.attackLevel <= 0.3 * 2.2 + 1e-9);
+    assert.notEqual(feed(gate, 0.8, 200, t).openedAt, null);
+  });
+
+  it('closes again even when steady wind is louder than normal speech', () => {
+    const gate = new VoiceActivityGate();
+    let t = feed(gate, 0.004, 2000, 0).now;
+    // Highway wind on the helmet mic, far louder than the old 0.12 release ceiling.
+    const wind = feed(gate, 0.2, 30_000, t);
+    assert.notEqual(wind.openedAt, null, 'a sudden blast can open the mic');
+    assert.equal(gate.state.speaking, false, 'but it closes once the wind is learnt');
+    t = wind.now;
+    assert.equal(feed(gate, 0.2, 5000, t).openedAt, null, 'and stays closed');
   });
 
   it('forgets loud noise quickly once it gets quiet again', () => {

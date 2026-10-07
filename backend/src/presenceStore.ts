@@ -290,12 +290,27 @@ export class PresenceStore {
     return rows[0] ? rowToRider(rows[0]) : undefined;
   }
 
+  /** Every rider this rider is paired with, fresh or not: the set whose
+   * Nearby Voice pair rooms may still hold a connection. */
+  async getPairedRiderIds(riderId: string): Promise<string[]> {
+    await ensureMigrated();
+    const { rows } = await getPool().query<{ peer_id: string }>(
+      `SELECT CASE WHEN rider_a = $1 THEN rider_b ELSE rider_a END AS peer_id
+       FROM presence_zone_pairs WHERE rider_a = $1 OR rider_b = $1 ORDER BY peer_id`,
+      [riderId],
+    );
+    return rows.map((row) => row.peer_id);
+  }
+
   /** Returns only current, mutually matched proximity peers. The pair table
    * is the durable authorisation source and both endpoints must still have a
    * fresh presence fix before voice credentials can be minted. */
-  async getCurrentPeerIds(riderId: string, now = Date.now()): Promise<string[]> {
+  async getCurrentPeerIds(riderId: string, now = Date.now(), maxFixAgeMs = 0): Promise<string[]> {
     await ensureMigrated();
-    const cutoff = now - this.staleAfterMs;
+    // updated_at is when the fix was taken, which can already be up to
+    // maxFixAgeMs old when the server accepts it; allow for that so a fresh
+    // update doesn't count as stale moments later.
+    const cutoff = now - this.staleAfterMs - Math.max(0, maxFixAgeMs);
     const { rows } = await getPool().query<{ peer_id: string }>(
       `SELECT CASE WHEN pair.rider_a = $1 THEN pair.rider_b ELSE pair.rider_a END AS peer_id
        FROM presence_zone_pairs pair

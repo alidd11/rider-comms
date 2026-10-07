@@ -39,6 +39,11 @@ export interface MovementStateConfig {
   /** If no usable fix arrives within this long, the state decays to
    * 'unknown' rather than silently trusting stale data forever. */
   staleAfterMs: number;
+  /** A confirmed 'moving' state is held through a GPS gap this long (a
+   * tunnel, an underpass, a dropped fix) instead of decaying to 'unknown',
+   * which would unlock distracting controls while the bike is still moving.
+   * Unlocking still needs fresh, sustained below-threshold evidence. */
+  holdMovingWhenStaleMs: number;
 }
 
 export const DEFAULT_MOVEMENT_CONFIG: MovementStateConfig = {
@@ -54,6 +59,7 @@ export const DEFAULT_MOVEMENT_CONFIG: MovementStateConfig = {
   confirmMovingMs: 2_000,
   confirmStationaryMs: 6_000,
   staleAfterMs: 20_000,
+  holdMovingWhenStaleMs: 300_000,
 };
 
 /**
@@ -108,7 +114,7 @@ export class MovementStateTracker {
       return this.state;
     }
     if (this.lastGoodFix && fix.timestampMs - this.lastGoodFix.timestampMs > this.config.staleAfterMs) {
-      this.resetToUnknown();
+      this.handleGap(fix.timestampMs - this.lastGoodFix.timestampMs);
     }
 
     if (fix.accuracyMeters > this.config.maxUsableAccuracyMeters) {
@@ -127,7 +133,13 @@ export class MovementStateTracker {
    * unlocked forever.
    */
   stateAt(nowMs: number): MovementState {
-    if (!Number.isFinite(nowMs) || !this.lastGoodFix || nowMs - this.lastGoodFix.timestampMs > this.config.staleAfterMs) {
+    if (!Number.isFinite(nowMs) || !this.lastGoodFix) {
+      if (this.state !== 'moving') this.resetToUnknown();
+      return this.state;
+    }
+    const gapMs = nowMs - this.lastGoodFix.timestampMs;
+    if (gapMs > this.config.staleAfterMs) {
+      if (this.state === 'moving' && gapMs <= this.config.holdMovingWhenStaleMs) return this.state;
       this.resetToUnknown();
     }
     return this.state;
@@ -178,6 +190,19 @@ export class MovementStateTracker {
       this.movingSinceMs = null;
       this.stationarySinceMs = null;
     }
+  }
+
+  /** A gap between fixes: keep a confirmed 'moving' lock through a short
+   * GPS outage, otherwise start again from 'unknown'. Either way the old
+   * fix is too old to derive a speed from. */
+  private handleGap(gapMs: number): void {
+    if (this.state === 'moving' && gapMs <= this.config.holdMovingWhenStaleMs) {
+      this.lastGoodFix = null;
+      this.movingSinceMs = null;
+      this.stationarySinceMs = null;
+      return;
+    }
+    this.resetToUnknown();
   }
 
   private resetToUnknown(): void {

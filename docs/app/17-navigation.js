@@ -461,6 +461,16 @@
   /** After the camera settles, check where the map really drew the rider and
    * nudge the learned correction so the next move lands on target. */
   function measureNavigationCameraFit(here, occlusion, aheadMeters, profile) {
+    // Only learn from a settled camera on a visible page: a backgrounded or
+    // locked page pauses the animation frames while this timer still fires.
+    if (document.hidden || navCameraAnimationFrame !== undefined) return;
+    // The layout (rotation, banner height) may have changed since the move.
+    const current = navigationViewportOcclusion();
+    if (!current
+      || Math.abs(current.width - occlusion.width) > 2
+      || Math.abs(current.height - occlusion.height) > 2
+      || Math.abs(current.top - occlusion.top) > 2
+      || Math.abs(current.bottom - occlusion.bottom) > 2) return;
     const point = navigationCameraProjection()?.fromLatLngToContainerPixel?.(new google.maps.LatLng(here.lat, here.lng));
     if (!point || !Number.isFinite(point.y) || !Number.isFinite(point.x)) return;
     // The camera puts the rider straight ahead of centre, so a real
@@ -468,7 +478,7 @@
     // map's rotation doesn't; learning from it would push the rider off
     // the clear band, so skip the sample.
     const sideways = Math.abs(point.x - occlusion.width / 2);
-    if (sideways > Math.max(12, 0.25 * Math.abs(point.y - occlusion.height / 2))) return;
+    if (sideways > 4 + 0.1 * Math.abs(point.y - occlusion.height / 2)) return;
     const metresPerPoint = navigationCamera.navigationMetresPerPoint(profile.zoom, here.lat);
     navCameraCorrection = navigationCamera.nextNavigationCameraCorrection(navCameraCorrection, {
       targetOffset: navigationCamera.navigationRiderScreenOffset(occlusion.height, occlusion.top, occlusion.bottom),
