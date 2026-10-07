@@ -2,6 +2,7 @@ import * as React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LiveKitRoom } from '@livekit/react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ApiError, type ProximityVoiceConnection } from '../api/client';
 import { acquireVoiceAudioSession, releaseVoiceAudioSession } from '../audio/audioSession';
 import { LiveKitAudioPriorityBridge } from '../audio/LiveKitAudioPriorityBridge';
@@ -73,6 +74,7 @@ export function ProximityVoice({
   const [recentPeers, setRecentPeers] = React.useState<Map<string, string>>(new Map());
   const [peopleOpen, setPeopleOpen] = React.useState(false);
   const { lockedForSafety } = useMovementSafety();
+  const insets = useSafeAreaInsets();
   const authorizationLeaseTimer = React.useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const hasAuthorizedOnce = React.useRef(false);
   const peerRosterKey = React.useMemo(
@@ -339,7 +341,11 @@ export function ProximityVoice({
   };
 
   return (
-    <View pointerEvents="box-none" style={styles.host} accessibilityLiveRegion="polite">
+    <View
+      pointerEvents="box-none"
+      style={[styles.host, { top: insets.top + 72 }]}
+      accessibilityLiveRegion="polite"
+    >
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={voiceControlLabel}
@@ -441,7 +447,7 @@ export function ProximityVoice({
 }
 
 const styles = StyleSheet.create({
-  host: { position: 'absolute', left: spacing.lg, right: spacing.lg, bottom: 84, zIndex: 11 },
+  host: { position: 'absolute', left: spacing.lg, right: spacing.lg, zIndex: 11 },
   status: {
     alignSelf: 'stretch', minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
     backgroundColor: colors.surfaceRaised, borderWidth: 1, borderColor: colors.border,
