@@ -336,6 +336,7 @@ img,svg{-webkit-user-drag:none}
 .settings-sheet-section .form-field+.form-field{padding-top:12px;border-top:1px solid var(--border-soft)}
 .settings-sheet-section .toggle-row{min-height:48px}
 .settings-note{padding:13px;border:1px solid var(--border-soft);border-radius:10px;background:var(--surface)}
+.plan-renewal{display:block;margin-top:5px;color:var(--accent);font-size:.72rem;font-weight:750}
 .settings-note strong{font-size:.78rem}.settings-note p{margin:5px 0 0;color:var(--text-secondary);font-size:.72rem;line-height:1.45}
 .choice-list{overflow:hidden;border:1px solid var(--border-soft);border-radius:12px;background:var(--surface)}
 .choice-list>button{width:100%;min-height:62px;display:flex;align-items:center;gap:12px;padding:9px 14px;border:0;border-bottom:1px solid var(--border-soft);background:transparent;text-align:left}
