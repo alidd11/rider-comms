@@ -39,13 +39,14 @@ await Promise.all(required.map((file) => readFile(resolve(destination, file))));
 // since the request URL never changes. Deriving it from the actual file
 // contents instead means every real content change gets a fresh version
 // automatically; nothing to remember, nothing to get wrong.
-const [rawCss, rawJs, rawAvatarSystem, rawNavigationRoadEvents, rawNavigationGuidance, rawNavigationCamera, rawPositionInterpolation, rawMovementSafety, rawMessageState, rawRoutesCss, rawRoutesJs] = await Promise.all([
+const [rawCss, rawJs, rawAvatarSystem, rawNavigationRoadEvents, rawNavigationGuidance, rawNavigationCamera, rawVoiceActivity, rawPositionInterpolation, rawMovementSafety, rawMessageState, rawRoutesCss, rawRoutesJs] = await Promise.all([
   readFile(resolve(destination, 'app.css'), 'utf8'),
   readFile(resolve(destination, 'app.js'), 'utf8'),
   readFile(resolve(destination, 'avatar-system.js'), 'utf8'),
   readFile(resolve(destination, 'navigation-road-events.js'), 'utf8'),
   readFile(resolve(destination, 'navigation-guidance.js'), 'utf8'),
   readFile(resolve(destination, 'navigation-camera.js'), 'utf8'),
+  readFile(resolve(destination, 'voice-activity.js'), 'utf8'),
   readFile(resolve(destination, 'position-interpolation.js'), 'utf8'),
   readFile(resolve(destination, 'movement-safety.js'), 'utf8'),
   readFile(resolve(destination, 'message-state.js'), 'utf8'),
@@ -59,6 +60,7 @@ const version = createHash('sha256')
   .update(rawNavigationRoadEvents)
   .update(rawNavigationGuidance)
   .update(rawNavigationCamera)
+  .update(rawVoiceActivity)
   .update(rawPositionInterpolation)
   .update(rawMovementSafety)
   .update(rawMessageState)

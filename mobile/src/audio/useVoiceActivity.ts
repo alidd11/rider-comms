@@ -35,6 +35,9 @@ import { VoiceActivityGate } from '@rider-comms/shared';
 
 /** How often the gate reads the latest mic level. */
 const SAMPLE_INTERVAL_MS = 40;
+/** If the analyser stops reporting new levels (track swap, reconnect,
+ * background), never leave the mic open on the last loud value. */
+const LEVEL_STALE_MS = 1500;
 
 /**
  * Must be called from within a `<LiveKitRoom>` tree (it uses LiveKit's
@@ -54,8 +57,10 @@ export function useVoiceActivity(enabled: boolean, onError?: (message: string) =
   const volume = useTrackVolume(microphoneTrack?.track as LocalAudioTrack | undefined);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const latestVolume = useRef(0);
+  const lastVolumeChangeAt = useRef(Date.now());
   const gate = useRef<VoiceActivityGate | null>(null);
   if (!gate.current) gate.current = new VoiceActivityGate();
+  if (volume !== latestVolume.current) lastVolumeChangeAt.current = Date.now();
   latestVolume.current = volume;
 
   // Never let LiveKit auto-publish an open microphone. Once the room is
@@ -100,7 +105,11 @@ export function useVoiceActivity(enabled: boolean, onError?: (message: string) =
       return undefined;
     }
     const timer = setInterval(() => {
-      const speaking = gate.current?.update(latestVolume.current, Date.now()) ?? false;
+      const now = Date.now();
+      // A live mic level always flickers; one frozen above zero means the
+      // analyser stopped, so treat it as silence rather than speech.
+      const stale = latestVolume.current > 0 && now - lastVolumeChangeAt.current > LEVEL_STALE_MS;
+      const speaking = gate.current?.update(stale ? 0 : latestVolume.current, now) ?? false;
       setIsSpeaking((current) => (current === speaking ? current : speaking));
     }, SAMPLE_INTERVAL_MS);
     return () => clearInterval(timer);

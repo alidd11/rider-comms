@@ -8,6 +8,10 @@ import MediaPlayer
 // media library access. Spotify and other apps stay on helmet or headset
 // buttons.
 public class RiderMediaControlsModule: Module {
+  // Artwork is encoded once per track, not on every 3 s poll.
+  private var artworkItemId: MPMediaEntityPersistentID?
+  private var artworkUri: String?
+
   public func definition() -> ModuleDefinition {
     Name("RiderMediaControls")
 
@@ -44,9 +48,17 @@ public class RiderMediaControlsModule: Module {
         "source": "apple-music",
         "appName": "Music",
       ]
-      if let image = item.artwork?.image(at: CGSize(width: 96, height: 96)),
-         let data = image.jpegData(compressionQuality: 0.7) {
-        result["artworkUri"] = "data:image/jpeg;base64,\(data.base64EncodedString())"
+      if self.artworkItemId != item.persistentID {
+        self.artworkItemId = item.persistentID
+        if let image = item.artwork?.image(at: CGSize(width: 96, height: 96)),
+           let data = image.jpegData(compressionQuality: 0.7) {
+          self.artworkUri = "data:image/jpeg;base64,\(data.base64EncodedString())"
+        } else {
+          self.artworkUri = nil
+        }
+      }
+      if let uri = self.artworkUri {
+        result["artworkUri"] = uri
       }
       return result
     }.runOnQueue(.main)

@@ -27,6 +27,10 @@ import java.io.ByteArrayOutputStream
 // rider has turned on in system settings. Until then getNowPlaying returns
 // null and the buttons still work through media keys.
 class RiderMediaControlsModule : Module() {
+  // Artwork is encoded once per track, not on every 3 s poll.
+  private var artworkKey: String? = null
+  private var artworkUri: String? = null
+
   override fun definition() = ModuleDefinition {
     Name("RiderMediaControls")
 
@@ -77,15 +81,22 @@ class RiderMediaControlsModule : Module() {
         "source" to controller.packageName,
         "appName" to appLabel(controller.packageName),
       )
-      val art = metadata.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
-        ?: metadata.getBitmap(MediaMetadata.METADATA_KEY_ART)
-      art?.let { result["artworkUri"] = artworkDataUri(it) }
+      val key = "${controller.packageName}\u0000$title\u0000${result["artist"]}"
+      if (key != artworkKey) {
+        artworkKey = key
+        val art = metadata.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
+          ?: metadata.getBitmap(MediaMetadata.METADATA_KEY_ART)
+        artworkUri = art?.let { artworkDataUri(it) }
+      }
+      artworkUri?.let { result["artworkUri"] = it }
       result
     }
 
     AsyncFunction("controlNowPlaying") { key: String ->
-      val controls = activeController()?.transportControls ?: return@AsyncFunction sendKey(key)
-      val playing = activeController()?.playbackState?.state == PlaybackState.STATE_PLAYING
+      // One lookup, so the play/pause decision and the command go to the same app.
+      val controller = activeController() ?: return@AsyncFunction sendKey(key)
+      val controls = controller.transportControls
+      val playing = controller.playbackState?.state == PlaybackState.STATE_PLAYING
       when (key) {
         "playPause" -> if (playing) controls.pause() else controls.play()
         "next" -> controls.skipToNext()

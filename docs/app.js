@@ -3422,12 +3422,21 @@
       source.connect(gain);
       gain.connect(limiter);
       limiter.connect(context.destination);
-      const sync = () => { element.muted = context.state === 'running'; };
+      // Exactly one copy may play: the boosted one while the context runs,
+      // otherwise the element. LiveKit's room.startAudio() and re-attach
+      // unmute attached elements, which would play every voice twice (once
+      // plain, once boosted), so re-assert on every element mute change.
+      const sync = () => {
+        const muted = context.state === 'running';
+        if (element.muted !== muted) element.muted = muted;
+      };
       context.addEventListener('statechange', sync);
+      element.addEventListener('volumechange', sync);
       sync();
       void context.resume?.().catch(() => {});
       remoteVoiceBoosts.set(element, () => {
         context.removeEventListener('statechange', sync);
+        element.removeEventListener('volumechange', sync);
         source.disconnect();
         gain.disconnect();
         limiter.disconnect();
@@ -5215,6 +5224,7 @@
     // only the summary's top edge bounds the clear map.
     const summaryRect = visibleRect($('#navSummary'));
     return {
+      width: mapRect.width,
       height: mapRect.height,
       top: bannerRect ? Math.max(0, bannerRect.bottom - mapRect.top) : 0,
       bottom: summaryRect?.height ? Math.max(0, mapRect.bottom - summaryRect.top) : 0,
@@ -5829,7 +5839,13 @@
    * nudge the learned correction so the next move lands on target. */
   function measureNavigationCameraFit(here, occlusion, aheadMeters, profile) {
     const point = navigationCameraProjection()?.fromLatLngToContainerPixel?.(new google.maps.LatLng(here.lat, here.lng));
-    if (!point || !Number.isFinite(point.y)) return;
+    if (!point || !Number.isFinite(point.y) || !Number.isFinite(point.x)) return;
+    // The camera puts the rider straight ahead of centre, so a real
+    // projection reports them centred left-to-right. One that ignores the
+    // map's rotation doesn't; learning from it would push the rider off
+    // the clear band, so skip the sample.
+    const sideways = Math.abs(point.x - occlusion.width / 2);
+    if (sideways > Math.max(12, 0.25 * Math.abs(point.y - occlusion.height / 2))) return;
     const metresPerPoint = navigationCamera.navigationMetresPerPoint(profile.zoom, here.lat);
     navCameraCorrection = navigationCamera.nextNavigationCameraCorrection(navCameraCorrection, {
       targetOffset: navigationCamera.navigationRiderScreenOffset(occlusion.height, occlusion.top, occlusion.bottom),

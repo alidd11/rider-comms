@@ -66,26 +66,48 @@ export const NAVIGATION_LIVE_ACTIVITY_CONFIG = {
   subtitleColor: '#B5C2C9',
   progressViewTint: '#2FA8D3',
   progressViewLabelColor: '#FFFFFF',
-  deepLinkUrl: '/map',
   imagePosition: 'left',
   imageAlign: 'center',
   imageSize: { width: 44, height: 44 },
   contentFit: 'contain',
 } as const;
 
+/** Distance ticks down on every GPS fix; the lock screen needn't. A new
+ * turn (different arrow) still updates immediately. */
+export const LIVE_ACTIVITY_MIN_UPDATE_MS = 5000;
+
+type TimerHandle = ReturnType<typeof setTimeout>;
+
 /**
- * Starts the activity on the first update, skips identical updates, and ends
- * it when navigation stops. Every native call is guarded: a Live Activity is
- * a nice-to-have and must never break navigation.
+ * Starts the activity on the first update, skips identical updates, limits
+ * how often the distance refreshes, and ends it when navigation stops.
+ * Every native call is guarded: a Live Activity is a nice-to-have and must
+ * never break navigation.
  */
 export class NavigationLiveActivity {
   private readonly api: LiveActivityApi | null;
+  private readonly now: () => number;
+  private readonly setTimer: (callback: () => void, ms: number) => TimerHandle;
+  private readonly clearTimer: (handle: TimerHandle) => void;
   private id: string | null = null;
   private last: string | null = null;
   private lastContent: NavigationLiveActivityContent | null = null;
+  private lastSentAt = 0;
+  private pending: NavigationLiveActivityContent | null = null;
+  private pendingTimer: TimerHandle | null = null;
 
-  constructor(api: LiveActivityApi | null) {
+  constructor(
+    api: LiveActivityApi | null,
+    clock: {
+      now?: () => number;
+      setTimer?: (callback: () => void, ms: number) => TimerHandle;
+      clearTimer?: (handle: TimerHandle) => void;
+    } = {},
+  ) {
     this.api = api;
+    this.now = clock.now ?? Date.now;
+    this.setTimer = clock.setTimer ?? ((callback, ms) => setTimeout(callback, ms));
+    this.clearTimer = clock.clearTimer ?? ((handle) => clearTimeout(handle));
   }
 
   get active(): boolean {
@@ -95,7 +117,35 @@ export class NavigationLiveActivity {
   update(content: NavigationLiveActivityContent): void {
     if (!this.api) return;
     const key = JSON.stringify(content);
-    if (key === this.last) return;
+    if (key === this.last) {
+      this.cancelPending();
+      return;
+    }
+    const sameTurn = this.id !== null && this.lastContent?.imageName === content.imageName;
+    const wait = LIVE_ACTIVITY_MIN_UPDATE_MS - (this.now() - this.lastSentAt);
+    if (sameTurn && wait > 0) {
+      // Keep only the newest content and send it once the interval passes.
+      this.pending = content;
+      this.pendingTimer ??= this.setTimer(() => {
+        this.pendingTimer = null;
+        const next = this.pending;
+        this.pending = null;
+        if (next) this.update(next);
+      }, wait);
+      return;
+    }
+    this.cancelPending();
+    this.send(content, key);
+  }
+
+  private cancelPending(): void {
+    if (this.pendingTimer !== null) this.clearTimer(this.pendingTimer);
+    this.pendingTimer = null;
+    this.pending = null;
+  }
+
+  private send(content: NavigationLiveActivityContent, key: string): void {
+    if (!this.api) return;
     try {
       if (this.id) {
         this.api.updateActivity(this.id, content);
@@ -106,12 +156,14 @@ export class NavigationLiveActivity {
       }
       this.last = key;
       this.lastContent = content;
+      this.lastSentAt = this.now();
     } catch {
       // Live Activities turned off in Settings, Expo Go, or an older iOS.
     }
   }
 
   stop(finalTitle?: string): void {
+    this.cancelPending();
     if (!this.api || !this.id) return;
     const id = this.id;
     this.id = null;
