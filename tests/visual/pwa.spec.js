@@ -1048,10 +1048,14 @@ test('PWA warns without hiding controls when movement cannot be verified', async
   const enableLocation = page.locator('#enableLocationBtn');
   await expect(enableLocation).toBeVisible();
   await expect(enableLocation).toHaveText('Location help');
-  await routesTab.click();
-  await expect(page.locator('[data-screen="routes"]')).toHaveClass(/active/);
   await enableLocation.click();
   await expect(page.locator('#toast')).toContainText('Location access is blocked');
+  // Only a notice: it stays on the map instead of covering other screens.
+  await routesTab.click();
+  await expect(page.locator('[data-screen="routes"]')).toHaveClass(/active/);
+  await expect(page.locator('#movementSafetyBanner')).toBeHidden();
+  await page.locator('.bottom-nav [data-nav="map"]').click();
+  await expect(page.locator('#movementSafetyBanner')).toBeVisible();
 });
 
 test('PWA GPS timeout recovers without another permission request or startup lock', async ({ page }) => {
@@ -2049,7 +2053,10 @@ test('PWA keeps private-ride speaker identity visible across tabs', async ({ pag
   await expect(page.locator('#createRideBtn')).toBeVisible();
   await page.locator('#createRideBtn').click();
 
-  await expect(page.locator('#ridePill')).toBeVisible();
+  // On the Ride screen its own voice chip names the speaker; the floating
+  // pill (a shortcut to this screen) is hidden here.
+  await expect(page.locator('#rideVoiceStatusText')).toHaveText('Maya speaking');
+  await expect(page.locator('#ridePill')).toBeHidden();
   await expect(page.locator('#ridePill small')).toHaveText('Maya speaking');
   await expect(page.locator('#ridePill')).toHaveAttribute('aria-label', 'Active ride · Maya speaking');
 
@@ -2196,7 +2203,8 @@ test('PWA settings sheets own the bottom edge without competing with app chrome'
   const app = page.locator('#app');
   const settingsScreen = page.locator('[data-screen="settings"]');
   await expect(nav).toBeVisible();
-  await expect(banner).toBeVisible();
+  // The "waiting for a speed fix" notice belongs to the map, not Settings.
+  await expect(banner).toBeHidden();
 
   await page.locator('[data-sheet="communication"]').click();
   await page.locator('[data-settings-target="privacy"]').click();
@@ -2235,7 +2243,7 @@ test('PWA settings sheets own the bottom edge without competing with app chrome'
   await expect(page.locator('html')).not.toHaveClass(/sheet-open/);
   await expect(app).not.toHaveAttribute('inert', '');
   await expect(nav).toBeVisible();
-  await expect(banner).toBeVisible();
+  await expect(banner).toBeHidden();
 });
 
 test('PWA plan screen shows every plan and sends buying to the mobile app', async ({ page }) => {

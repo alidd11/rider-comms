@@ -27,7 +27,9 @@
     $('#copyRideCode').disabled = !ride.code;
     $('#rideShareTop').disabled = !ride.code;
     $('#rideRole').textContent = ride.isHost ? 'host' : 'member';
-    $('#memberCount').textContent = String(members.length);
+    const riderCount = `${members.length} ${members.length === 1 ? 'rider' : 'riders'}`;
+    $('#memberCount').textContent = riderCount;
+    $('#rideRosterCount').textContent = riderCount;
     const pillCount = $('#ridePill .pill-count');
     if (pillCount) pillCount.textContent = String(members.length);
     $('#leaveRideBtn').textContent = ride.isHost ? 'End ride' : 'Leave ride';
@@ -39,7 +41,7 @@
       const safetyButton = person.riderId !== state.profile.riderId
         ? `<button type="button" class="roster-safety" data-rider-safety="${escapeHtml(person.riderId)}" aria-label="Report or block ${escapeHtml(person.displayName)}">${icon('shield')}</button>`
         : '';
-      return `<article class="roster-row">${avatar(person, 'small')}<div class="identity"><strong>${escapeHtml(person.displayName)}${person.riderId === state.profile.riderId ? ' · You' : ''}</strong><span>${escapeHtml(person.handle)}${person.riderId === ride.createdBy ? '<b class="roster-host-inline" aria-hidden="true"> · Host</b>' : ''}</span></div><span class="roster-status">${escapeHtml(person.riderId === ride.createdBy ? 'Host · connected' : 'Connected')}</span>${safetyButton}${removeButton}</article>`;
+      return `<article class="roster-row">${avatar(person, 'small')}<div class="identity"><strong>${escapeHtml(person.displayName)}${person.riderId === state.profile.riderId ? ' · You' : ''}</strong><span>${escapeHtml(person.handle)}${person.riderId === ride.createdBy ? '<b class="roster-host-inline" aria-hidden="true"> · Host</b>' : ''}</span></div><span class="roster-status">${person.riderId === ride.createdBy ? 'Host' : 'Member'}</span>${safetyButton}${removeButton}</article>`;
     }).join('');
     renderMapRiders();
   }

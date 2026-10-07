@@ -102,13 +102,23 @@
     };
   }
 
+  // A lock shows everywhere. "Waiting for a speed fix" is only a notice, and
+  // browsers often never report speed while still, so it stays on the map
+  // (as in the native app) instead of covering every screen.
+  function syncMovementSafetyBanner() {
+    const banner = $('#movementSafetyBanner');
+    if (!banner) return;
+    const locked = state.rideSafeEnabled && window.RiderMovementSafety.isLockedForSafety(movementState);
+    const warning = state.rideSafeEnabled && movementState === 'unknown' && state.screen === 'map';
+    banner.hidden = !(locked || warning);
+  }
+
   function applyMovementState(nextState) {
     movementState = nextState;
     const locked = state.rideSafeEnabled && window.RiderMovementSafety.isLockedForSafety(nextState);
     const warning = state.rideSafeEnabled && nextState === 'unknown';
     $('#app')?.classList.toggle('safety-locked', locked);
-    const banner = $('#movementSafetyBanner');
-    if (banner) banner.hidden = !(locked || warning);
+    syncMovementSafetyBanner();
     const message = $('#movementSafetyMessage');
     if (message) message.textContent = nextState === 'moving'
       ? 'Distracting controls are locked until you are safely below 8 mph.'

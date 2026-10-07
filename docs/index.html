@@ -11,10 +11,10 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" id="statusBarStyleMeta">
   <meta name="apple-mobile-web-app-title" content="Rider Comms">
   <meta name="description" content="Rider Comms — nearby riders, private group rides and rider-first navigation.">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; object-src 'none'; form-action 'self'; script-src 'self' 'unsafe-eval' https://*.googleapis.com https://*.gstatic.com https://*.google.com https://*.ggpht.com https://*.googleusercontent.com https://cdn.jsdelivr.net/npm/livekit-client@2.22.3/dist/livekit-client.umd.js blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://maps.googleapis.com https://maps.gstatic.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https://*.googleapis.com https://*.gstatic.com https://*.google.com https://*.googleusercontent.com https://*.ggpht.com https://images.unsplash.com https://upload.wikimedia.org https://thumb.wikimedia.org; connect-src 'self' https://backend-production-7fa0.up.railway.app https://*.googleapis.com https://*.gstatic.com https://*.google.com data: blob: wss:; frame-src https://*.google.com; worker-src 'self' blob:; media-src 'self' blob:; manifest-src 'self'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; object-src 'none'; form-action 'self'; script-src 'self' 'unsafe-eval' https://*.googleapis.com https://*.gstatic.com https://*.google.com https://*.ggpht.com https://*.googleusercontent.com https://cdn.jsdelivr.net/npm/livekit-client@2.22.3/dist/livekit-client.umd.js blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://maps.googleapis.com https://maps.gstatic.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https://*.googleapis.com https://*.gstatic.com https://*.google.com https://*.googleusercontent.com https://*.ggpht.com https://upload.wikimedia.org https://thumb.wikimedia.org; connect-src 'self' https://backend-production-7fa0.up.railway.app https://*.googleapis.com https://*.gstatic.com https://*.google.com data: blob: wss:; frame-src https://*.google.com; worker-src 'self' blob:; media-src 'self' blob:; manifest-src 'self'">
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/icon-192.png">
-  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
@@ -33,6 +33,7 @@
     <symbol id="i-location" viewBox="0 0 24 24"><path d="M12 21s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12Z"/><circle cx="12" cy="9" r="2.5"/></symbol>
     <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
     <symbol id="i-share" viewBox="0 0 24 24"><path d="M12 16V3m0 0L7 8m5-5 5 5M5 13v7h14v-7"/></symbol>
+    <symbol id="i-send" viewBox="0 0 24 24"><path d="M21 3 10.5 13.5M21 3l-6.5 18-4-7.5L3 9.5 21 3Z"/></symbol>
     <symbol id="i-message" viewBox="0 0 24 24"><path d="M5 18.5 3.5 21l3.8-1.4A9 9 0 1 0 5 18.5Z"/></symbol>
     <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></symbol>
     <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></symbol>
@@ -102,7 +103,7 @@
   <div id="authScreen" class="auth-screen" hidden>
     <div id="authSplash" class="auth-splash" hidden aria-hidden="true">
       <div class="auth-splash-centre">
-        <div class="auth-brand-emblem" aria-hidden="true"><span>R</span></div>
+        <div class="auth-brand-emblem" aria-hidden="true"><svg viewBox="66 66 380 380"><g fill="none" stroke="currentColor" stroke-linecap="round"><path d="M118 238 A138 138 0 0 1 394 238" stroke-width="36"/><path d="M128 350 C138 404 186 420 232 420" stroke-width="22"/><path d="M226 252 V300 M256 228 V324 M286 252 V300" stroke-width="22"/></g><g fill="currentColor"><rect x="84" y="212" width="86" height="146" rx="38"/><rect x="342" y="212" width="86" height="146" rx="38"/><rect x="226" y="400" width="54" height="40" rx="20"/></g></svg></div>
         <strong>RIDER COMMS</strong>
         <small>RIDE TOGETHER<br>STAY CONNECTED</small>
       </div>
@@ -297,9 +298,9 @@
             <button id="rideJoinMode" class="ride-mode-return" type="button" data-ride-mode="join" hidden>Back to join</button>
           </div>
           <div id="rideActiveState" hidden>
-            <article class="ride-summary"><div><span class="status-chip"><span class="live-dot"></span>Ride live</span><p><span id="memberCount">3</span> riders · You are <span id="rideRole">host</span></p><button id="rideVoiceStatus" class="status-chip neutral" hidden><svg><use href="#i-mic"/></svg><span id="rideVoiceStatusText">Listening — hands-free</span></button></div><button id="shareRideBtn" class="button secondary"><svg><use href="#i-share"/></svg>Invite</button></article>
-            <div class="ride-code-card"><span>Invite code</span><button id="copyRideCode" aria-label="Copy ride code"><strong id="activeRideCode">K4XQPZ</strong><small>Tap to copy</small></button></div>
-            <div class="section-heading"><div><span class="eyebrow">Live roster</span><h2>Riders</h2></div><span class="status-chip neutral">3 connected</span></div>
+            <article class="ride-summary"><div><span class="status-chip"><span class="live-dot"></span>Ride live</span><p><span id="memberCount"></span> · You are <span id="rideRole">host</span></p><button id="rideVoiceStatus" class="status-chip neutral" hidden><svg><use href="#i-mic"/></svg><span id="rideVoiceStatusText">Listening — hands-free</span></button></div><button id="shareRideBtn" class="button secondary"><svg><use href="#i-share"/></svg>Invite</button></article>
+            <div class="ride-code-card"><span>Invite code</span><button id="copyRideCode" aria-label="Copy ride code"><strong id="activeRideCode"></strong><small>Tap to copy</small></button></div>
+            <div class="section-heading"><div><span class="eyebrow">Live roster</span><h2>Riders</h2></div><span id="rideRosterCount" class="status-chip neutral"></span></div>
             <div id="rideRoster" class="people-list"></div>
             <label class="ride-location-consent active"><input id="activeRideLocationConsent" type="checkbox"><span><strong>Share my live location</strong><small id="activeRideLocationStatus">Off — your position is not being uploaded to this ride.</small></span></label>
             <div class="ride-actions-row"><button id="openRideMap" class="button secondary">View on map</button><button id="leaveRideBtn" class="button danger">End ride</button></div>
@@ -327,7 +328,7 @@
 
       <section class="screen content-screen" data-screen="settings" aria-labelledby="settingsTitle">
         <div class="page-width settings-page"><header class="page-header"><div><h1 id="settingsTitle">Settings</h1></div></header>
-          <button id="editProfileBtn" class="profile-row settings-profile-row" type="button" aria-label="Open profile settings"><div class="avatar avatar-lg" data-avatar="AI">AI</div><div class="profile-copy"><strong id="profileName">Ali</strong><span id="profileHandle">@ali_rides</span></div><svg aria-hidden="true"><use href="#i-chevron"/></svg></button>
+          <button id="editProfileBtn" class="profile-row settings-profile-row" type="button" aria-label="Open profile settings"><div class="avatar avatar-lg" data-avatar="AI">AI</div><div class="profile-copy"><strong id="profileName"></strong><span id="profileHandle"></span></div><svg aria-hidden="true"><use href="#i-chevron"/></svg></button>
           <div class="settings-group settings-main-group">
             <button data-sheet="accountHub"><span class="setting-icon"><svg><use href="#i-user"/></svg></span><span><strong>Account</strong></span><svg><use href="#i-chevron"/></svg></button>
             <button data-sheet="communication"><span class="setting-icon"><svg><use href="#i-message"/></svg></span><span><strong>Communication</strong></span><svg><use href="#i-chevron"/></svg></button>
@@ -342,7 +343,7 @@
         </div>
       </section>
 
-      <button id="ridePill" class="ride-pill" hidden><span class="live-dot"></span><span><small>Active ride</small><strong id="ridePillCode">K4XQPZ</strong></span><span class="pill-count">3</span><svg><use href="#i-chevron"/></svg></button>
+      <button id="ridePill" class="ride-pill" hidden><span class="live-dot"></span><span><small>Active ride</small><strong id="ridePillCode"></strong></span><span class="pill-count"></span><svg><use href="#i-chevron"/></svg></button>
       <nav class="bottom-nav" aria-label="Primary navigation">
         <button class="active" data-nav="map"><svg><use href="#i-map"/></svg><span>Map</span></button>
         <button data-nav="ride"><svg><use href="#i-bike"/></svg><span>Ride</span></button>
@@ -374,14 +375,14 @@
     <form id="chatComposer" class="chat-composer">
       <label class="sr-only" for="chatInput">Message</label>
       <textarea id="chatInput" maxlength="1000" rows="1" placeholder="Message" enterkeyhint="send"></textarea>
-      <button id="chatSend" class="icon-button" type="submit" aria-label="Send message"><svg><use href="#i-share"/></svg></button>
+      <button id="chatSend" class="icon-button" type="submit" aria-label="Send message"><svg><use href="#i-send"/></svg></button>
     </form>
   </section>
 
   <div id="sheetBackdrop" class="sheet-backdrop" hidden><section class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle" tabindex="-1"><div class="sheet-handle"></div><header><h2 id="sheetTitle"></h2><button id="closeSheet" class="icon-button" aria-label="Close">×</button></header><div id="sheetBody" class="sheet-body"></div></section></div>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
   <div id="movementSafetyBanner" class="movement-safety-banner" role="status" aria-live="polite" hidden>
-    <svg aria-hidden="true"><use href="#i-ride"></use></svg>
+    <svg aria-hidden="true"><use href="#i-shield"></use></svg>
     <span><strong>Ride-safe mode</strong><small id="movementSafetyMessage">Waiting for a reliable stationary location fix.</small></span>
     <button id="enableLocationBtn" type="button">Enable location</button>
   </div>

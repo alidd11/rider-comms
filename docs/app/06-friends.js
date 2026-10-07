@@ -128,7 +128,9 @@
     const empty = $('#friendEmpty');
     $('#requestSection').hidden = !hasRequests;
     $('#friendSection').hidden = !hasVisibleFriends;
-    empty.hidden = hasVisibleFriends;
+    // Pending requests already fill the screen; the "build your circle"
+    // prompt is for a genuinely empty list.
+    empty.hidden = hasVisibleFriends || (hasRequests && !query);
     $('#friendEmptyTitle').textContent = query ? 'No matching friends' : 'Build your riding circle';
     $('#friendEmptyCopy').textContent = query
       ? 'Try a different name, handle or Rider ID.'

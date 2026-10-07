@@ -627,7 +627,9 @@ export function FriendsScreen(): React.JSX.Element {
 
         {loading && friends.length === 0 ? (
           <View style={styles.emptyState}><ActivityIndicator color={colors.accent} /></View>
-        ) : friends.length === 0 ? (
+        ) : friends.length === 0 && incomingRequests.length + outgoingRequests.length > 0 ? null : friends.length === 0 ? (
+          // Pending requests already fill the screen; this prompt is for a
+          // genuinely empty list.
           <View style={styles.emptyState}>
             <Ionicons name="people-outline" size={28} color={colors.textMuted} />
             <Text style={styles.emptyTitle}>Build your riding circle</Text>

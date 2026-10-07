@@ -210,7 +210,7 @@
       ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/brand/adaptive-foreground.png",
-        "backgroundColor": "#0B0D10"
+        "backgroundColor": "#080D10"
       }
     },
     "icon": "./assets/brand/icon.png"

@@ -102,7 +102,7 @@
   function disablePlaceSearch() {
     const input = $('#placeSearchInput');
     input.disabled = true;
-    input.placeholder = 'Search offline for now';
+    input.placeholder = 'Search unavailable right now';
     $('#mapSearchSlot')?.classList.add('offline');
     // The POI chips call the real Places JS API directly (nearbySearch) —
     // with no Google Maps loaded there's no Places library either, so

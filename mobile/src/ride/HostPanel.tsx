@@ -9,6 +9,7 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { ImageSourcePropType } from 'react-native';
 import type { RootStackParamList } from '../navigation';
 import { ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
@@ -17,7 +18,8 @@ import { useRide } from './RideContext';
 import { RideRoster } from './RideRoster';
 import { microphoneErrorMessage, preflightVoiceMicrophone } from '../audio/microphone';
 
-const RIDE_HERO_IMAGE = 'https://images.unsplash.com/photo-1770614956862-a143fb5e4921?auto=format&fit=crop&q=80&w=1200';
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro bundles images only through require().
+const RIDE_HERO_IMAGE: ImageSourcePropType = require('../../assets/hero/ride.jpg');
 
 function JoinOrHostForm(): React.JSX.Element {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -73,7 +75,7 @@ function JoinOrHostForm(): React.JSX.Element {
       >
         <Text style={[styles.screenTitle, { marginTop: insets.top + 18 }]}>Ride</Text>
         <ImageBackground
-          source={{ uri: RIDE_HERO_IMAGE }}
+          source={RIDE_HERO_IMAGE}
           style={[styles.hero, { height: heroHeight }]}
           imageStyle={styles.heroImage}
           accessibilityRole="image"

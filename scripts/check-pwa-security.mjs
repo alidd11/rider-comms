@@ -71,7 +71,6 @@ for (const source of [
   "'self'",
   'data:',
   'blob:',
-  'https://images.unsplash.com',
   'https://upload.wikimedia.org',
   'https://thumb.wikimedia.org',
 ]) {
