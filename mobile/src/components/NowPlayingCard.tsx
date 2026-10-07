@@ -7,6 +7,13 @@ import { colors, elevation, MIN_TOUCH_TARGET, spacing, type } from '../theme';
 
 const POLL_MS = 3000;
 
+function sameTrack(a: NowPlaying | null, b: NowPlaying | null): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return a.title === b.title && a.artist === b.artist && a.playing === b.playing
+    && a.source === b.source && a.appName === b.appName && a.artworkUri === b.artworkUri;
+}
+
 /**
  * What's playing, polled while the map is on screen and the app is in the
  * foreground. Null when nothing is playing, the rider hasn't allowed it, or
@@ -38,7 +45,11 @@ export function useNowPlaying(enabled: boolean): {
     }
     let cancelled = false;
     const read = () => {
-      void mediaControls.nowPlaying().then((value) => { if (!cancelled) setNowPlaying(value); });
+      // Keep the same object while nothing changed, so the card (and its
+      // artwork image) doesn't re-render on every poll.
+      void mediaControls.nowPlaying().then((value) => {
+        if (!cancelled) setNowPlaying((current) => (sameTrack(current, value) ? current : value));
+      });
     };
     read();
     const timer = setInterval(read, POLL_MS);

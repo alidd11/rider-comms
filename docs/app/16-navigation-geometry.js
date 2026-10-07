@@ -31,6 +31,7 @@
     // only the summary's top edge bounds the clear map.
     const summaryRect = visibleRect($('#navSummary'));
     return {
+      width: mapRect.width,
       height: mapRect.height,
       top: bannerRect ? Math.max(0, bannerRect.bottom - mapRect.top) : 0,
       bottom: summaryRect?.height ? Math.max(0, mapRect.bottom - summaryRect.top) : 0,

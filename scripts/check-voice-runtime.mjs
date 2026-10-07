@@ -92,7 +92,7 @@ assert.ok(muteIndex >= 0 && publishIndex > muteIndex, 'Native microphone track m
 // (behavioural parity is checked by scripts/check-voice-activity.mjs).
 assert.match(
   voiceActivitySource,
-  /new VoiceActivityGate\(\)[\s\S]*gate\.current\?\.update\(latestVolume\.current, Date\.now\(\)\)/,
+  /new VoiceActivityGate\(\)[\s\S]*gate\.current\?\.update\(stale \? 0 : latestVolume\.current, now\)/,
   'Native VOX must use the shared adaptive VoiceActivityGate',
 );
 assert.match(

@@ -235,7 +235,7 @@ export function useInAppNavigation(
     if (reduceMotionEnabled) {
       mapRef.current?.setCamera(camera);
     } else {
-      mapRef.current?.animateCamera(camera, { duration: movingSpeed !== null && movingSpeed <= 1.5 ? 650 : 500 });
+      mapRef.current?.animateCamera(camera, { duration: transitionDuration });
     }
     // Once the camera settles, check where the map really drew the rider
     // and nudge the learned correction towards the target.

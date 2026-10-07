@@ -462,7 +462,13 @@
    * nudge the learned correction so the next move lands on target. */
   function measureNavigationCameraFit(here, occlusion, aheadMeters, profile) {
     const point = navigationCameraProjection()?.fromLatLngToContainerPixel?.(new google.maps.LatLng(here.lat, here.lng));
-    if (!point || !Number.isFinite(point.y)) return;
+    if (!point || !Number.isFinite(point.y) || !Number.isFinite(point.x)) return;
+    // The camera puts the rider straight ahead of centre, so a real
+    // projection reports them centred left-to-right. One that ignores the
+    // map's rotation doesn't; learning from it would push the rider off
+    // the clear band, so skip the sample.
+    const sideways = Math.abs(point.x - occlusion.width / 2);
+    if (sideways > Math.max(12, 0.25 * Math.abs(point.y - occlusion.height / 2))) return;
     const metresPerPoint = navigationCamera.navigationMetresPerPoint(profile.zoom, here.lat);
     navCameraCorrection = navigationCamera.nextNavigationCameraCorrection(navCameraCorrection, {
       targetOffset: navigationCamera.navigationRiderScreenOffset(occlusion.height, occlusion.top, occlusion.bottom),

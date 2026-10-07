@@ -241,7 +241,7 @@ for (const [label, source, patterns] of [
     /AccessibilityInfo\.isReduceMotionEnabled\(\)/,
     /reduceMotionChanged/,
     /reduceMotionEnabled[\s\S]*setCamera\(camera\)[\s\S]*animateCamera\(camera/,
-    /animateCamera\(camera, \{ duration: movingSpeed !== null && movingSpeed <= 1\.5 \? 650 : 500 \}\)/,
+    /transitionDuration = movingSpeed !== null && movingSpeed <= 1\.5 \? 650 : 500[\s\S]*animateCamera\(camera, \{ duration: transitionDuration \}\)/,
     /if \(!navigationMutedRef\.current\) speakNavigationPrompt\('Rerouting\.'\)/,
     /setNavigationNotice\('Could not reroute\. Continue with caution\.'\)/,
     /showsTraffic=\{Boolean\(activeRoute\)\}/,

@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  LIVE_ACTIVITY_MIN_UPDATE_MS,
   NavigationLiveActivity,
   liveActivityImageForManeuver,
   navigationLiveActivityContent,
@@ -48,10 +49,13 @@ describe('navigation Live Activity', () => {
 
   it('starts once, skips identical updates and stops with a final state', () => {
     const { api, calls } = fakeApi();
-    const activity = new NavigationLiveActivity(api);
+    let now = 0;
+    const activity = new NavigationLiveActivity(api, { now: () => now });
+    now = 0;
     const first = navigationLiveActivityContent(input);
     activity.update(first);
     activity.update(first);
+    now = LIVE_ACTIVITY_MIN_UPDATE_MS;
     activity.update(navigationLiveActivityContent({ ...input, distanceLabel: '300 ft' }));
     assert.equal(activity.active, true);
     activity.stop('You have arrived');
@@ -75,5 +79,33 @@ describe('navigation Live Activity', () => {
     });
     assert.doesNotThrow(() => throwing.update(navigationLiveActivityContent(input)));
     assert.equal(throwing.active, false);
+  });
+
+  it('refreshes the distance at most every few seconds but a new turn immediately', () => {
+    const { api, calls } = fakeApi();
+    let now = 0;
+    const timers: Array<{ at: number; run: () => void }> = [];
+    const activity = new NavigationLiveActivity(api, {
+      now: () => now,
+      setTimer: (run, ms) => { timers.push({ at: now + ms, run }); return timers.length as unknown as ReturnType<typeof setTimeout>; },
+      clearTimer: () => { timers.length = 0; },
+    });
+    activity.update(navigationLiveActivityContent(input));
+    now = 1000;
+    activity.update(navigationLiveActivityContent({ ...input, distanceLabel: '400 ft' }));
+    now = 2000;
+    activity.update(navigationLiveActivityContent({ ...input, distanceLabel: '380 ft' }));
+    assert.equal(calls.length, 1, 'distance-only changes wait');
+    assert.equal(timers.length, 1);
+
+    now = timers[0]!.at;
+    timers.shift()!.run();
+    assert.equal(calls.length, 2);
+    assert.equal(calls[1]![1].title, '380 ft · Turn left onto Salterton Rd', 'the newest distance is sent');
+
+    now += 500;
+    activity.update(navigationLiveActivityContent({ ...input, maneuver: 'turn-right', instruction: 'Turn right', distanceLabel: '0.5 mi' }));
+    assert.equal(calls.length, 3, 'a new turn updates straight away');
+    assert.equal(calls[2]![1].imageName, 'nav_right');
   });
 });

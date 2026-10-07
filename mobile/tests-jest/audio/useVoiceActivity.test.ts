@@ -233,3 +233,22 @@ test('surfaces a specific error when unmuting the track fails', async () => {
 
   expect(onError).toHaveBeenCalledWith('unmute failed');
 });
+
+test('closes the mic when the level freezes on a loud value (analyser stopped)', async () => {
+  const track = fakeTrack();
+  setParticipant({ track });
+  const { result, rerender } = await renderVoiceActivity({ enabled: true });
+  await warmUp();
+  mockUseTrackVolume.mockReturnValue(0.15);
+  await rerender({ enabled: true });
+  await act(async () => {
+    jest.advanceTimersByTime(120);
+  });
+  expect(result.current).toBe(true);
+
+  // No further level updates arrive: the value stays frozen at 0.15.
+  await act(async () => {
+    jest.advanceTimersByTime(1500 + 900 + 200);
+  });
+  expect(result.current).toBe(false);
+});
