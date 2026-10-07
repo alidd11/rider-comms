@@ -608,6 +608,26 @@ export function MapScreen(): React.JSX.Element {
         </View>
       )}
 
+      {error && !activeRoute && (
+        <View
+          style={[styles.mapError, { top: insets.top + spacing.sm + MIN_TOUCH_TARGET + spacing.sm }]}
+          accessibilityLiveRegion="assertive"
+          accessibilityRole="alert"
+        >
+          <Ionicons name="warning-outline" size={20} color={colors.danger} />
+          <Text style={styles.mapErrorText}>{error}</Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Dismiss map message"
+            accessibilityHint="Hides this message without changing your map or ride settings"
+            style={styles.mapErrorDismiss}
+            onPress={() => setError(null)}
+          >
+            <Ionicons name="close" size={20} color={colors.textSecondary} />
+          </Pressable>
+        </View>
+      )}
+
       {segment === 'public' && !activeRoute && ridersInZone.length > 0 && !selectedPlace && !selectedHazard && !locationUnavailable && !error && (
         <View style={[styles.nearbyCount, { top: insets.top + spacing.sm + MIN_TOUCH_TARGET + spacing.sm }]}>
           <MaterialCommunityIcons name="account-multiple" size={16} color={colors.accent} />
