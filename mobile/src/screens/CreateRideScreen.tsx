@@ -56,9 +56,7 @@ function CreateRideScreenContent({ navigation }: Props): React.JSX.Element {
       </Text>
 
       <Pressable
-        accessibilityRole="switch"
-        accessibilityLabel="Share my live location with this ride"
-        accessibilityHint="Only riders in this private ride can see your recent position"
+        accessibilityRole="checkbox"
         accessibilityState={{ checked: shareRideLocation }}
         onPress={() => setShareRideLocation((value) => !value)}
         style={styles.consentRow}
@@ -84,7 +82,6 @@ function CreateRideScreenContent({ navigation }: Props): React.JSX.Element {
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={loading ? 'Creating ride' : 'Create ride'}
-        accessibilityState={{ disabled: loading, busy: loading }}
         style={({ pressed }) => [styles.button, pressed && styles.buttonPressed, loading && styles.buttonDisabled]}
         onPress={handleCreate}
         disabled={loading}

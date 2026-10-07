@@ -157,7 +157,7 @@
       errorEl.hidden = false;
     } finally {
       button.disabled = false;
-      button.textContent = 'Join Ride';
+      button.textContent = 'Join';
     }
   }
 
@@ -221,3 +221,4 @@
       if (error?.name !== 'AbortError') showToast('Could not open sharing.');
     }
   }
+

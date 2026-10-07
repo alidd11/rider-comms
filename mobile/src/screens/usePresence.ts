@@ -12,7 +12,6 @@ const PRESENCE_UPDATE_INTERVAL_MS = 8000;
 export interface Presence {
   publicLive: boolean;
   ridersInZone: string[];
-  nearbyTogglePending: boolean;
   handleNearbyToggle: () => Promise<void>;
 }
 
@@ -44,7 +43,6 @@ export function usePresence(
 ): Presence {
   const [publicLive, setPublicLive] = React.useState(false);
   const [ridersInZone, setRidersInZone] = React.useState<string[]>([]);
-  const [nearbyTogglePending, setNearbyTogglePending] = React.useState(false);
 
   React.useEffect(() => {
     // Public Nearby and private ride voice are mutually exclusive. Durable
@@ -111,53 +109,47 @@ export function usePresence(
   }, [client, publicLive, requestCurrentLocation, setError, setLocationUnavailable]);
 
   const handleNearbyToggle = React.useCallback(async () => {
-    if (nearbyTogglePending) return;
     if (publicLive) {
       setPublicLive(false);
       setShareLocation(false);
       return;
     }
-    setNearbyTogglePending(true);
-    try {
-      if (lockedForSafety) {
-        Alert.alert('Nearby Voice unavailable while moving', 'Stop safely before joining Nearby Voice. You can always leave or mute an active voice session while riding.');
-        return;
-      }
-      try {
-        const identity = await client.getMe();
-        if (!identity.emailVerified) {
-          Alert.alert('Verify your email', 'Verify your Rider Comms email before joining Nearby Voice.');
-          return;
-        }
-      } catch {
-        Alert.alert('Nearby Voice unavailable', 'Rider Comms could not confirm your account status. Check your connection and try again.');
-        return;
-      }
-      try {
-        await preflightVoiceMicrophone();
-      } catch (microphoneError) {
-        Alert.alert('Microphone unavailable', microphoneErrorMessage(microphoneError));
-        return;
-      }
-
-      try {
-        // The presence endpoint refuses a fix until the durable profile says
-        // shareLocation=true. Confirm that backend write BEFORE flipping the
-        // local setting; otherwise the presence effect can race the queued
-        // SettingsContext save and fail the first Go Live with a 403.
-        await client.updateProfile(riderId, { shareLocation: true });
-        setShareLocation(true);
-        setPublicLive(true);
-      } catch {
-        Alert.alert(
-          'Nearby Voice unavailable',
-          'Rider Comms could not enable Nearby Voice on the server. Check your connection and try again.',
-        );
-      }
-    } finally {
-      setNearbyTogglePending(false);
+    if (lockedForSafety) {
+      Alert.alert('Nearby Voice unavailable while moving', 'Stop safely before joining Nearby Voice. You can always leave or mute an active voice session while riding.');
+      return;
     }
-  }, [client, lockedForSafety, nearbyTogglePending, publicLive, riderId, setShareLocation]);
+    try {
+      const identity = await client.getMe();
+      if (!identity.emailVerified) {
+        Alert.alert('Verify your email', 'Verify your Rider Comms email before joining Nearby Voice.');
+        return;
+      }
+    } catch {
+      Alert.alert('Nearby Voice unavailable', 'Rider Comms could not confirm your account status. Check your connection and try again.');
+      return;
+    }
+    try {
+      await preflightVoiceMicrophone();
+    } catch (microphoneError) {
+      Alert.alert('Microphone unavailable', microphoneErrorMessage(microphoneError));
+      return;
+    }
 
-  return { publicLive, ridersInZone, nearbyTogglePending, handleNearbyToggle };
+    try {
+      // The presence endpoint refuses a fix until the durable profile says
+      // shareLocation=true. Confirm that backend write BEFORE flipping the
+      // local setting; otherwise the presence effect can race the queued
+      // SettingsContext save and fail the first Go Live with a 403.
+      await client.updateProfile(riderId, { shareLocation: true });
+      setShareLocation(true);
+      setPublicLive(true);
+    } catch {
+      Alert.alert(
+        'Nearby Voice unavailable',
+        'Rider Comms could not enable Nearby Voice on the server. Check your connection and try again.',
+      );
+    }
+  }, [client, lockedForSafety, publicLive, riderId, setShareLocation]);
+
+  return { publicLive, ridersInZone, handleNearbyToggle };
 }

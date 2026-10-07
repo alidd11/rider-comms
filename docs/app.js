@@ -2271,7 +2271,7 @@
       errorEl.hidden = false;
     } finally {
       button.disabled = false;
-      button.textContent = 'Join Ride';
+      button.textContent = 'Join';
     }
   }
 
@@ -2335,6 +2335,7 @@
       if (error?.name !== 'AbortError') showToast('Could not open sharing.');
     }
   }
+
   function wireSettingsHubRows() {
     $$('[data-settings-target]', $('#sheetBody')).forEach((button) => {
       button.addEventListener('click', () => openSheet(button.dataset.settingsTarget));
@@ -6383,10 +6384,8 @@
       if (!/^[A-Z2-9]{6}$/.test(code)) {
         $('#rideError').textContent = 'Enter a valid six-character ride code.';
         $('#rideError').hidden = false;
-        $('#rideCode').setAttribute('aria-invalid', 'true');
         return;
       }
-      $('#rideCode').setAttribute('aria-invalid', 'false');
       joinRideByCode(code);
     });
     const syncRideCodeSlots = () => {
@@ -6399,8 +6398,6 @@
     };
     $('#rideCode').addEventListener('input', (event) => {
       event.target.value = event.target.value.toUpperCase().replace(/[^A-Z2-9]/g, '').slice(0, 6);
-      event.target.setAttribute('aria-invalid', 'false');
-      $('#rideError').hidden = true;
       syncRideCodeSlots();
     });
     $('#rideCode').addEventListener('focus', syncRideCodeSlots);

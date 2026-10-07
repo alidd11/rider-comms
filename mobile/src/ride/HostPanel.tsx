@@ -92,8 +92,7 @@ function JoinOrHostForm(): React.JSX.Element {
               style={[styles.codeSlots, error && styles.codeSlotsError]}
               onPress={() => codeInputRef.current?.focus()}
               accessibilityRole="button"
-              accessibilityLabel={`Invite code, ${code.length} of 6 characters entered`}
-              accessibilityHint="Opens the keyboard to enter the six-character code"
+              accessibilityLabel="Enter six character ride code"
             >
               {Array.from({ length: 6 }, (_, index) => (
                 <View key={index} style={[styles.codeSlot, index > 0 && styles.codeSlotDivider, index === code.length && code.length < 6 && styles.codeSlotActive]}>
@@ -105,8 +104,6 @@ function JoinOrHostForm(): React.JSX.Element {
                 style={styles.codeInputOverlay}
                 autoCapitalize="characters"
                 autoCorrect={false}
-                keyboardType="ascii-capable"
-                returnKeyType="done"
                 maxLength={6}
                 value={code}
                 onChangeText={(text) => {
@@ -114,12 +111,9 @@ function JoinOrHostForm(): React.JSX.Element {
                   if (error) setError(null);
                 }}
                 accessibilityLabel="Ride invite code"
-                accessibilityHint="Enter the six-character code from the ride host"
               />
             </Pressable>
             <Pressable accessibilityRole="button"
-              accessibilityLabel={loading ? 'Joining ride' : 'Join ride'}
-              accessibilityState={{ disabled: !canSubmit, busy: loading }}
               style={({ pressed }) => [styles.button, pressed && canSubmit && styles.buttonPressed, !canSubmit && styles.buttonDisabled]}
               onPress={handleJoin}
               disabled={!canSubmit}
@@ -128,9 +122,7 @@ function JoinOrHostForm(): React.JSX.Element {
             </Pressable>
             <Text style={styles.joinHelp}>Ask the host for their six-character code.</Text>
             <Pressable
-              accessibilityRole="switch"
-              accessibilityLabel="Share my live location with this ride"
-              accessibilityHint="Only riders in this private ride can see your recent position"
+              accessibilityRole="checkbox"
               accessibilityState={{ checked: shareRideLocation }}
               onPress={() => setShareRideLocation((value) => !value)}
               style={styles.consentRow}
@@ -152,8 +144,6 @@ function JoinOrHostForm(): React.JSX.Element {
           </View>
 
           <Pressable accessibilityRole="button"
-            accessibilityLabel="Start a ride"
-            accessibilityHint="Create a private ride and invite your friends"
             onPress={() => navigation.navigate('CreateRide')}
             style={({ pressed }) => [styles.hostLink, pressed && styles.hostLinkPressed]}
           >

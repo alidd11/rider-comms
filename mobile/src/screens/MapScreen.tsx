@@ -10,7 +10,7 @@
 // mounting a second map instance, which keeps map billing/state predictable
 // and matches the PWA's tab-owned interaction model.
 import * as React from 'react';
-import { AccessibilityInfo, ActivityIndicator, View, Text, Pressable, Alert, Linking, Platform, useColorScheme, useWindowDimensions } from 'react-native';
+import { AccessibilityInfo, View, Text, Pressable, Alert, Linking, Platform, useColorScheme, useWindowDimensions } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
@@ -195,7 +195,7 @@ export function MapScreen(): React.JSX.Element {
     focusCoordinate(currentLocation);
   }, [currentLocation, focusCoordinate, mapReady, navigationTarget, segment, selectedPlace]);
 
-  const { publicLive, ridersInZone, nearbyTogglePending, handleNearbyToggle } = usePresence(
+  const { publicLive, ridersInZone, handleNearbyToggle } = usePresence(
     client,
     activeRide,
     shareLocation,
@@ -629,12 +629,7 @@ export function MapScreen(): React.JSX.Element {
       )}
 
       {segment === 'public' && !activeRoute && ridersInZone.length > 0 && !selectedPlace && !selectedHazard && !locationUnavailable && !error && (
-        <View
-          style={[styles.nearbyCount, { top: insets.top + spacing.sm + MIN_TOUCH_TARGET + spacing.sm }]}
-          accessible
-          accessibilityRole="text"
-          accessibilityLabel={`${ridersInZone.length} ${ridersInZone.length === 1 ? 'rider' : 'riders'} nearby. Exact locations are private.`}
-        >
+        <View style={[styles.nearbyCount, { top: insets.top + spacing.sm + MIN_TOUCH_TARGET + spacing.sm }]}>
           <MaterialCommunityIcons name="account-multiple" size={16} color={colors.accent} />
           <Text style={styles.nearbyCountText}>
             {ridersInZone.length} {ridersInZone.length === 1 ? 'rider' : 'riders'} nearby · exact locations private
@@ -650,7 +645,6 @@ export function MapScreen(): React.JSX.Element {
             onPress={() => void openMusicPicker()}
             accessibilityRole="button"
             accessibilityLabel="Open your music app"
-            accessibilityHint="Choose a music app or show what is currently playing"
           >
             <Ionicons name="musical-notes" size={24} color={colors.textPrimary} />
           </Pressable>}
@@ -659,7 +653,6 @@ export function MapScreen(): React.JSX.Element {
             onPress={() => void openReportSheet()}
             accessibilityRole="button"
             accessibilityLabel="Report on the road"
-            accessibilityHint="Choose a road hazard to share with nearby riders"
           >
             <MaterialCommunityIcons name="alert-outline" size={26} color="#1F1300" />
           </Pressable>}
@@ -668,24 +661,17 @@ export function MapScreen(): React.JSX.Element {
             onPress={() => void centreOnCurrentLocation()}
             accessibilityRole="button"
             accessibilityLabel="Centre map on my location"
-            accessibilityHint="Moves the map back to your current position"
           >
             <Ionicons name="navigate-outline" size={24} color={colors.accent} />
           </Pressable>
           <Pressable
             style={({ pressed }) => [styles.mapActionButton, publicLive && styles.mapLiveButtonActive, pressed && styles.mapActionButtonPressed]}
             onPress={() => void handleNearbyToggle()}
-            accessibilityRole="switch"
-            accessibilityState={{ checked: publicLive, busy: nearbyTogglePending, disabled: nearbyTogglePending }}
+            accessibilityRole="button"
+            accessibilityState={{ selected: publicLive }}
             accessibilityLabel={publicLive ? 'Stop live location and proximity voice' : 'Go live nearby and enable proximity voice'}
-            accessibilityHint={publicLive ? 'Stops sharing your nearby presence' : 'Shares your nearby presence and enables proximity voice'}
-            disabled={nearbyTogglePending}
           >
-            {nearbyTogglePending ? (
-              <ActivityIndicator color={publicLive ? '#04210F' : colors.accent} />
-            ) : (
-              <MaterialCommunityIcons name="access-point" size={26} color={publicLive ? '#04210F' : colors.accent} />
-            )}
+            <MaterialCommunityIcons name="access-point" size={26} color={publicLive ? '#04210F' : colors.accent} />
           </Pressable>
         </View>
       )}
@@ -708,7 +694,6 @@ export function MapScreen(): React.JSX.Element {
             accessibilityRole="button"
             accessibilityState={{ selected: navigationMuted }}
             accessibilityLabel={navigationMuted ? 'Unmute navigation guidance' : 'Mute navigation guidance'}
-            accessibilityHint={navigationMuted ? 'Restores spoken turn instructions' : 'Silences spoken turn instructions'}
           >
             <Ionicons name={navigationMuted ? 'volume-mute' : 'volume-high'} size={24} color={navigationMuted ? colors.accentText : colors.textPrimary} />
           </Pressable>
@@ -720,7 +705,6 @@ export function MapScreen(): React.JSX.Element {
             }}
             accessibilityRole="button"
             accessibilityLabel={navigationFollowing ? 'Show route overview' : 'Resume navigation follow mode'}
-            accessibilityHint={navigationFollowing ? 'Shows the full route on the map' : 'Keeps the map centred on your ride'}
           >
             <Ionicons
               name={navigationFollowing ? 'map-outline' : 'navigate'}
