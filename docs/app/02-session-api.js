@@ -98,6 +98,7 @@
   }
 
   const state = loadState();
+  let notificationTimer;
   let lastSheetTrigger = null;
   let map;
   let usingFallbackMap = true;

@@ -2319,6 +2319,7 @@ test('PWA route options avoid motorways and tolls and survive a reload', async (
 
   await motorways.click();
   await expect(motorways).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#appNotification')).toContainText('avoid motorways');
   await assertNoViewportOverflow(page);
 
   await page.reload();

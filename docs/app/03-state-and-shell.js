@@ -129,10 +129,31 @@
     return `<svg aria-hidden="true"><use href="#i-${name}"></use></svg>`;
   }
 
-  // Transient toasts are intentionally disabled while the proper notification
-  // surface is being introduced. Keep this compatibility shim so existing
-  // flows can be migrated without silently changing their control logic.
-  function showToast(_message) {}
+  function hideAppNotification() {
+    const notification = $('#appNotification');
+    if (!notification) return;
+    notification.hidden = true;
+    notification.dataset.tone = '';
+    clearTimeout(notificationTimer);
+  }
+
+  // Compatibility name retained while existing flows migrate. This is now a
+  // proper, accessible in-app notification rather than a transient toast.
+  function showToast(message) {
+    const notification = $('#appNotification');
+    if (!notification) return;
+    const text = notification.querySelector('[data-notification-message]');
+    if (!text) return;
+    const value = String(message || '').trim();
+    const isError = /couldn’t|could not|can't|cannot|failed|unavailable|blocked|expired|needed|try again|off\b/i.test(value);
+    text.textContent = value;
+    notification.dataset.tone = isError ? 'error' : 'info';
+    notification.hidden = false;
+    clearTimeout(notificationTimer);
+    notificationTimer = setTimeout(hideAppNotification, isError ? 7000 : 4500);
+  }
+
+  $('#closeAppNotification')?.addEventListener('click', hideAppNotification);
 
   function navigate(screen, push = true) {
     if (!['map', 'ride', 'routes', 'friends', 'settings'].includes(screen)) screen = 'map';
