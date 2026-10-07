@@ -181,6 +181,7 @@ export function PlaceSearchBar({
               <Ionicons name="search" size={19} color={colors.textMuted} />
               <TextInput
                 style={styles.input}
+                accessibilityLabel="Search for a place"
                 value={query}
                 onChangeText={updateQuery}
                 placeholder="Search for a place"
@@ -379,4 +380,3 @@ function SearchState({ icon, title, copy, compact = false, actionLabel, onAction
     </View>
   );
 }
-

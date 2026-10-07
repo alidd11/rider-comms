@@ -132,6 +132,7 @@ export function ScenicRoutesScreen(): React.JSX.Element {
               <Ionicons name="search" size={18} color={colors.textMuted} />
               <TextInput
                 style={styles.routeSearchInput}
+                accessibilityLabel="Search scenic routes"
                 value={query}
                 onChangeText={setQuery}
                 placeholder="Search routes or regions"
