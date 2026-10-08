@@ -88,6 +88,7 @@ async function mockAuthenticatedApi(page, movement = 'stationary', backendOverri
     }
     let body = {};
     if (url.pathname === '/auth/me') body = { riderId: RIDER_ID, emailVerified: true };
+    else if (url.pathname === '/billing') body = { tier: PROFILE.zoneTier, expiresAt: null, purchasesEnabled: false };
     else if (url.pathname === `/riders/${RIDER_ID}/profile`) body = PROFILE;
     else if (url.pathname === `/riders/${RIDER_ID}/friends`) body = {
       friends: [
@@ -2256,6 +2257,7 @@ test('PWA settings sheets own the bottom edge without competing with app chrome'
 test('PWA plan screen shows every plan and sends buying to the mobile app', async ({ page }) => {
   const updates = [];
   await mockAuthenticatedApi(page, 'stationary', async ({ request, url }) => {
+    if (url.pathname === '/billing') return { body: { tier: 'premium', expiresAt: null, purchasesEnabled: false } };
     if (url.pathname === `/riders/${RIDER_ID}/profile`) {
       if (request.method() === 'GET') return { body: { ...PROFILE, zoneTier: 'premium' } };
       if (request.method() === 'PUT') updates.push(JSON.parse(request.postData() || '{}'));
