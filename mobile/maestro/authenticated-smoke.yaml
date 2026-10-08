@@ -6,10 +6,11 @@ appId: com.ridercomms.app
 - tapOn:
     text: "Username"
 - inputText: ${TEST_USERNAME}
-- tapOn:
-    text: "Password"
-- inputText: ${TEST_PASSWORD}
-- tapOn: "Log in"
+    - tapOn:
+        text: "Password"
+    - inputText: ${TEST_PASSWORD}
+    - hideKeyboard
+    - tapOn: "Log in"
 - waitForAnimationToEnd
 - takeScreenshot: after-login
 - extendedWaitUntil:
