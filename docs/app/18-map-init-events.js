@@ -195,6 +195,10 @@
       if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); submitChatMessage(); }
     });
     $('#addFriendToggle').addEventListener('click', () => { $('#addFriendForm').hidden = !$('#addFriendForm').hidden; if (!$('#addFriendForm').hidden) $('#friendId').focus(); });
+    $('#friendEmptyAdd')?.addEventListener('click', () => {
+      $('#addFriendForm').hidden = false;
+      $('#friendId').focus();
+    });
     $('#addFriendForm').addEventListener('submit', (event) => {
       event.preventDefault();
       // The @ is shown as a fixed prefix; preserve raw Rider IDs while

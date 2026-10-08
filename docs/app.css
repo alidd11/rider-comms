@@ -2767,3 +2767,4 @@ html.pwa-standalone:not(.keyboard-open) .chat-screen{top:0;bottom:auto;height:va
 @media(prefers-reduced-transparency:reduce){.app-notification{background:var(--surface-raised)}}
 @media(prefers-reduced-motion:reduce){.app-notification button:active{transform:none}}
 .add-friend-field{align-items:center;padding-left:12px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--bg-elevated)}.add-friend-prefix{color:var(--text-muted)}.add-friend-field input{padding-left:0;border:0;border-radius:0;background:transparent}
+.network-empty .button{margin-top:16px;min-width:150px}

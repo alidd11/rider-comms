@@ -669,6 +669,10 @@
     const text = notification.querySelector('[data-notification-message]');
     if (!text) return;
     const value = String(message || '').trim();
+    // A GPS timeout can happen while browsing unrelated screens. Those
+    // screens already expose Ride-safe status at the bottom, so repeating it
+    // as a global alert obscures content and makes the app feel broken.
+    if (state.screen !== 'map' && /Finding your location took too long/i.test(value)) return;
     const isError = /couldn’t|could not|can't|cannot|failed|unavailable|blocked|expired|needed|try again|off\b/i.test(value);
     text.textContent = value;
     notification.setAttribute('role', isError ? 'alert' : 'status');
@@ -6462,6 +6466,10 @@
       if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); submitChatMessage(); }
     });
     $('#addFriendToggle').addEventListener('click', () => { $('#addFriendForm').hidden = !$('#addFriendForm').hidden; if (!$('#addFriendForm').hidden) $('#friendId').focus(); });
+    $('#friendEmptyAdd')?.addEventListener('click', () => {
+      $('#addFriendForm').hidden = false;
+      $('#friendId').focus();
+    });
     $('#addFriendForm').addEventListener('submit', (event) => {
       event.preventDefault();
       // The @ is shown as a fixed prefix; preserve raw Rider IDs while
