@@ -121,7 +121,7 @@ function BillingScreenContent({ navigation }: BillingProps): React.JSX.Element {
       </View>
 
       <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + spacing.xl }]} showsVerticalScrollIndicator={false}>
-        <Text style={styles.intro}>Your plan sets how far away other riders can be and still appear in Nearby. Private group rides work at any distance, on every plan.</Text>
+        <Text style={styles.intro}>Choose your Nearby range. Group rides, voice chat, navigation and road alerts are included on every plan.</Text>
 
         {billing.message ? (
           <Pressable accessibilityRole="alert" accessibilityHint="Dismisses the message" onPress={billing.clearMessage} style={styles.message}>

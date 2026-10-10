@@ -89,6 +89,14 @@
       tiktokVisibility: 'friends',
       shareLocation: false,
     },
+    // Billing is authoritative on the server. Keep a small cached snapshot
+    // so the PWA can render the same current-plan/availability state as the
+    // native client while a fresh request is in flight.
+    billing: {
+      tier: 'free',
+      expiresAt: null,
+      purchasesEnabled: false,
+    },
     friends: [],
     requests: [],
   };
@@ -397,4 +405,3 @@
       this.body = body;
     }
   }
-

@@ -35,6 +35,24 @@
     });
   }
 
+  async function loadBillingStatus() {
+    try {
+      const billing = await apiFetch('GET', '/billing');
+      if (!billing || typeof billing !== 'object') return;
+      state.billing = {
+        ...state.billing,
+        tier: planTier(billing.tier),
+        expiresAt: Number.isFinite(Number(billing.expiresAt)) ? Number(billing.expiresAt) : null,
+        purchasesEnabled: billing.purchasesEnabled === true,
+      };
+      state.profile.zoneTier = state.billing.tier;
+      persist();
+      renderProfile();
+    } catch {
+      // The cached profile remains usable when billing is temporarily offline.
+    }
+  }
+
   async function init() {
     const passwordResetToken = consumePasswordResetLink();
     if (passwordResetToken) {
@@ -92,6 +110,7 @@
     hideAuthScreen();
     startApp();
     await loadProfile();
+    await loadBillingStatus();
     if (verification) showToast(verification.message);
   }
 

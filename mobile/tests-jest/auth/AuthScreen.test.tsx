@@ -239,7 +239,7 @@ test('offers a retry when a saved session could not be restored', async () => {
   await act(async () => {
     jest.advanceTimersByTime(1_000);
   });
-  expect(await screen.findByText('We could not restore your saved session. You can retry or sign in again.')).toBeTruthy();
+  expect(await screen.findByText('We couldn’t check your saved session. Retry or sign in again.')).toBeTruthy();
 
   await press('Retry');
   await act(async () => {

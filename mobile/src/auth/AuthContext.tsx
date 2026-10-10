@@ -541,7 +541,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
         if (error instanceof ApiError && error.status === 401) {
           await SecureStore.deleteItemAsync(KEY);
         } else if (!cancelled) {
-          setRestoreError('We could not restore your saved session. You can retry or sign in again.');
+          setRestoreError('We couldn’t check your saved session. Retry or sign in again.');
         }
       } finally {
         const remainingSplashMs = Math.max(0, 900 - (Date.now() - splashStartedAt));
@@ -600,4 +600,3 @@ export function useAuth(): AuthValue {
   if (!value) throw new Error('useAuth() must be called within AuthProvider');
   return value;
 }
-

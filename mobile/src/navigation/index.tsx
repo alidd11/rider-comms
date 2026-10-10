@@ -204,7 +204,11 @@ function Tabs(): React.JSX.Element {
       <Tab.Screen
         name="Map"
         component={MapScreen}
-        options={{ title: 'Map', tabBarLabel: ({ children }) => <MapTabLabel>{children}</MapTabLabel> }}
+        options={{
+          title: 'Map',
+          tabBarLabel: ({ children }) => <MapTabLabel>{children}</MapTabLabel>,
+          tabBarAccessibilityLabel: 'Map',
+        }}
         listeners={({ navigation }) => ({
           tabPress: (e) => {
             e.preventDefault();
@@ -231,6 +235,7 @@ function Tabs(): React.JSX.Element {
         options={{
           title: 'Ride',
           tabBarLabel: ({ children }) => <GroupRideTabLabel>{children}</GroupRideTabLabel>,
+          tabBarAccessibilityLabel: 'Group Ride',
         }}
         listeners={({ navigation }) => ({
           tabPress: (e) => {
@@ -245,17 +250,26 @@ function Tabs(): React.JSX.Element {
           },
         })}
       />
-      <Tab.Screen name="Routes" component={lockedForSafety ? LockedTabScreen : ScenicRoutesScreen} options={{ title: 'Routes' }} />
+      <Tab.Screen
+        name="Routes"
+        component={lockedForSafety ? LockedTabScreen : ScenicRoutesScreen}
+        options={{ title: 'Routes', tabBarAccessibilityLabel: 'Routes' }}
+      />
       <Tab.Screen
         name="Friends"
         component={lockedForSafety ? LockedTabScreen : FriendsScreen}
         options={{
           title: 'Friends',
+          tabBarAccessibilityLabel: 'Friends',
           tabBarBadge: socialAttentionCount > 0 ? (socialAttentionCount > 99 ? '99+' : socialAttentionCount) : undefined,
           tabBarBadgeStyle: { backgroundColor: colors.accent, color: colors.accentText, fontSize: 10, fontWeight: '800' },
         }}
       />
-      <Tab.Screen name="Settings" component={lockedForSafety ? LockedTabScreen : SettingsScreen} options={{ title: 'Settings' }} />
+      <Tab.Screen
+        name="Settings"
+        component={lockedForSafety ? LockedTabScreen : SettingsScreen}
+        options={{ title: 'Settings', tabBarAccessibilityLabel: 'Settings' }}
+      />
     </Tab.Navigator>
   );
 }

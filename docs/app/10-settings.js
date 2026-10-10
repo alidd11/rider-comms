@@ -113,17 +113,25 @@
       plans: () => {
         const currentTier = planTier(state.profile.zoneTier);
         const paid = currentTier !== 'free';
+        const expiresAt = state.billing?.expiresAt ? new Date(state.billing.expiresAt) : null;
+        const expiryLabel = expiresAt && Number.isFinite(expiresAt.getTime())
+          ? `${state.billing?.purchasesEnabled ? 'Renews' : 'Ends'} ${expiresAt.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}`
+          : '';
+        const storeNote = state.billing?.purchasesEnabled
+          ? 'Subscriptions are purchased and managed in the native app. Your plan works here when you sign in.'
+          : 'Subscriptions are purchased in the native app. This browser shows your current plan and range.';
         return {
           title: 'Your plan',
-          body: `<p class="billing-intro">Your plan sets how far away other riders can be and still appear in Nearby. Private group rides work at any distance, on every plan.</p>
+          body: `<p class="billing-intro">Choose your Nearby range. Group rides, voice chat, navigation and road alerts are included on every plan.</p>
             <div class="plan-list">${Object.entries(PLAN_INFO).map(([tier, plan]) => `<article class="plan-card${tier === currentTier ? ' current' : ''}" data-plan-tier="${tier}">
               <div class="plan-top"><span><strong>${escapeHtml(plan.name)}</strong><small class="plan-price">${escapeHtml(plan.price)}</small></span>${tier === currentTier ? '<span class="plan-pill">Current</span>' : ''}</div>
+              ${tier === currentTier && expiryLabel ? `<small class="plan-renewal">${escapeHtml(expiryLabel)}</small>` : ''}
               <p>${escapeHtml(plan.blurb)}</p>
               <ul class="plan-features">${plan.features.map((feature) => `<li>${icon('plus')}<span>${escapeHtml(feature)}</span></li>`).join('')}</ul>
             </article>`).join('')}</div>
             <div class="settings-note"><strong>${paid ? 'Manage your subscription' : 'Subscribe in the app'}</strong><p>${paid
-              ? 'Your plan works everywhere you sign in. To change or cancel it, use the App Store or Google Play subscription settings on the device you subscribed with.'
-              : 'Premium and Premium+ are monthly subscriptions in the Rider Comms app for iPhone and Android. Your plan then works here too when you sign in.'}</p></div>`,
+              ? `${storeNote} To change or cancel it, use the App Store or Google Play subscription settings on the device you subscribed with.`
+              : storeNote}</p></div>`,
         };
       },
       privacy: () => ({ title: 'Privacy controls', body: `<div class="settings-sheet-section">${toggleMarkup('shareLocation', 'Live location', 'Visible to nearby riders only while you are live.', state.profile.shareLocation)}</div><div class="settings-sheet-section"><div class="form-field"><label for="sheetInstagramVisibility">Instagram visibility</label><select id="sheetInstagramVisibility"><option value="friends">Friends only</option><option value="public">Everyone</option><option value="private">Only me</option></select></div><div class="form-field"><label for="sheetTiktokVisibility">TikTok visibility</label><select id="sheetTiktokVisibility"><option value="friends">Friends only</option><option value="public">Everyone</option><option value="private">Only me</option></select></div><p class="caption">Choose who can see each connected profile independently.</p></div>`, ready: () => { const instagram = $('#sheetInstagramVisibility'); const tiktok = $('#sheetTiktokVisibility'); instagram.value = state.profile.instagramVisibility; tiktok.value = state.profile.tiktokVisibility; instagram.addEventListener('change', (event) => { void patchProfile({ instagramVisibility: event.target.value }); }); tiktok.addEventListener('change', (event) => { void patchProfile({ tiktokVisibility: event.target.value }); }); wireToggles(); } }),
@@ -487,4 +495,3 @@
   }
 
   let nearbyTogglePending = false;
-
