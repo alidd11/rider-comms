@@ -126,7 +126,10 @@ jobs:
           curl -Ls https://get.maestro.mobile.dev | bash
           export PATH="$HOME/.maestro/bin:$PATH"
           set +e
-          maestro test mobile/maestro/authenticated-smoke.yaml --format junit --output maestro-ios.xml
+          maestro test mobile/maestro/authenticated-smoke.yaml \
+            -e TEST_USERNAME="$TEST_USERNAME" \
+            -e TEST_PASSWORD="$TEST_PASSWORD" \
+            --format junit --output maestro-ios.xml
           test_status=$?
           set -e
           mkdir -p maestro-ios-artifacts
@@ -242,7 +245,10 @@ jobs:
           curl -Ls https://get.maestro.mobile.dev | bash
           export PATH="$HOME/.maestro/bin:$PATH"
           set +e
-          maestro test mobile/maestro/authenticated-smoke.yaml --format junit --output maestro-android.xml
+          maestro test mobile/maestro/authenticated-smoke.yaml \
+            -e TEST_USERNAME="$TEST_USERNAME" \
+            -e TEST_PASSWORD="$TEST_PASSWORD" \
+            --format junit --output maestro-android.xml
           test_status=$?
           set -e
           mkdir -p maestro-android-artifacts
