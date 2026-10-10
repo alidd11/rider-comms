@@ -50,6 +50,15 @@ jobs:
       - name: Generate the native project
         working-directory: mobile
         run: npx expo prebuild --clean --platform ios --no-install
+      - name: Cache CocoaPods dependencies
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            mobile/ios/Pods
+            ~/Library/Caches/CocoaPods
+          key: cocoapods-${{ runner.os }}-${{ hashFiles('package-lock.json', 'mobile/app.json', 'mobile/app.config.js') }}
+          restore-keys: |
+            cocoapods-${{ runner.os }}-
       - name: Install CocoaPods
         working-directory: mobile/ios
         run: pod install
