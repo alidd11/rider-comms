@@ -91,6 +91,9 @@ test('searches through the backend client after the debounce and shows results',
 
   expect(mockClient.searchPlaces).toHaveBeenCalledTimes(1);
   expect(mockClient.searchPlaces).toHaveBeenCalledWith('bike cafe', NEAR);
+  // The debounce callback resolves a promise; flush that microtask before
+  // querying the rendered result while fake timers are active.
+  await act(async () => {});
   expect(await screen.findByText('Bike Cafe')).toBeTruthy();
   expect(screen.getByText('1 closest')).toBeTruthy();
 });
