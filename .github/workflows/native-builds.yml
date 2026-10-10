@@ -36,6 +36,8 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
       - run: npm ci
       # Expo SDK 57's expo-modules-jsi puts SWIFT_RETURNS_RETAINED on C++
       # constructors, which every Xcode up to 26.3 rejects (macos-15 tops out
@@ -48,6 +50,15 @@ jobs:
       - name: Generate the native project
         working-directory: mobile
         run: npx expo prebuild --clean --platform ios --no-install
+      - name: Cache CocoaPods dependencies
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            mobile/ios/Pods
+            ~/Library/Caches/CocoaPods
+          key: cocoapods-${{ runner.os }}-${{ hashFiles('package-lock.json', 'mobile/app.json', 'mobile/app.config.js') }}
+          restore-keys: |
+            cocoapods-${{ runner.os }}-
       - name: Install CocoaPods
         working-directory: mobile/ios
         run: pod install
@@ -118,6 +129,7 @@ jobs:
             echo "password=$password"
           } >> "$GITHUB_OUTPUT"
       - name: Install Maestro and exercise authenticated iOS screens
+        timeout-minutes: 15
         env:
           TEST_USERNAME: ${{ steps.test-account.outputs.username }}
           TEST_PASSWORD: ${{ steps.test-account.outputs.password }}
@@ -125,7 +137,10 @@ jobs:
           curl -Ls https://get.maestro.mobile.dev | bash
           export PATH="$HOME/.maestro/bin:$PATH"
           set +e
-          maestro test mobile/maestro/authenticated-smoke.yaml --format junit --output maestro-ios.xml
+          maestro test mobile/maestro/authenticated-smoke.yaml \
+            -e TEST_USERNAME="$TEST_USERNAME" \
+            -e TEST_PASSWORD="$TEST_PASSWORD" \
+            --format junit --output maestro-ios.xml
           test_status=$?
           set -e
           mkdir -p maestro-ios-artifacts
@@ -158,10 +173,13 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
       - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
           distribution: temurin
           java-version: 17
+          cache: gradle
       - run: npm ci
       - name: Generate the native project
         working-directory: mobile
@@ -233,6 +251,7 @@ jobs:
             echo "password=$password"
           } >> "$GITHUB_OUTPUT"
       - name: Install Maestro and exercise authenticated Android screens
+        timeout-minutes: 15
         env:
           TEST_USERNAME: ${{ steps.test-account.outputs.username }}
           TEST_PASSWORD: ${{ steps.test-account.outputs.password }}
@@ -240,7 +259,10 @@ jobs:
           curl -Ls https://get.maestro.mobile.dev | bash
           export PATH="$HOME/.maestro/bin:$PATH"
           set +e
-          maestro test mobile/maestro/authenticated-smoke.yaml --format junit --output maestro-android.xml
+          maestro test mobile/maestro/authenticated-smoke.yaml \
+            -e TEST_USERNAME="$TEST_USERNAME" \
+            -e TEST_PASSWORD="$TEST_PASSWORD" \
+            --format junit --output maestro-android.xml
           test_status=$?
           set -e
           mkdir -p maestro-android-artifacts

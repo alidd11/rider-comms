@@ -1,18 +1,18 @@
 appId: com.ridercomms.app
 
 ---
-    - launchApp:
-        clearState: true
-    - takeScreenshot: before-login
+- launchApp:
+    clearState: true
+- takeScreenshot: before-login
 - tapOn:
-    text: "Username"
+    text: Username
 - inputText: ${TEST_USERNAME}
-    - tapOn:
-        text: "Password"
-    - inputText: ${TEST_PASSWORD}
-    - hideKeyboard
-    - takeScreenshot: before-submit
-    - tapOn: "Log in"
+- tapOn:
+    text: Password
+- inputText: ${TEST_PASSWORD}
+- hideKeyboard
+- takeScreenshot: before-submit
+- tapOn: Log in
 - waitForAnimationToEnd
 - takeScreenshot: after-login
 - extendedWaitUntil:
