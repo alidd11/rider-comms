@@ -36,6 +36,8 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
       - run: npm ci
       # Expo SDK 57's expo-modules-jsi puts SWIFT_RETURNS_RETAINED on C++
       # constructors, which every Xcode up to 26.3 rejects (macos-15 tops out
@@ -162,10 +164,13 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
       - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
           distribution: temurin
           java-version: 17
+          cache: gradle
       - run: npm ci
       - name: Generate the native project
         working-directory: mobile
