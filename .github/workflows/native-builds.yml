@@ -118,6 +118,7 @@ jobs:
             echo "password=$password"
           } >> "$GITHUB_OUTPUT"
       - name: Install Maestro and exercise authenticated iOS screens
+        timeout-minutes: 15
         env:
           TEST_USERNAME: ${{ steps.test-account.outputs.username }}
           TEST_PASSWORD: ${{ steps.test-account.outputs.password }}
@@ -233,6 +234,7 @@ jobs:
             echo "password=$password"
           } >> "$GITHUB_OUTPUT"
       - name: Install Maestro and exercise authenticated Android screens
+        timeout-minutes: 15
         env:
           TEST_USERNAME: ${{ steps.test-account.outputs.username }}
           TEST_PASSWORD: ${{ steps.test-account.outputs.password }}
