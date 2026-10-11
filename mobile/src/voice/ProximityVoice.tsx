@@ -10,6 +10,7 @@ import { useVoiceActivity } from '../audio/useVoiceActivity';
 import { ActiveSpeakerBridge } from './ActiveSpeakerBridge';
 import {
   DEFAULT_PROXIMITY_VOICE_REFRESH_MS,
+  formatActiveSpeakerSummary,
   proximityVoiceStatus,
   prunePeerSet,
   resolveProximityVoiceRetryDelay,
@@ -281,6 +282,7 @@ export function ProximityVoice({
 
   const speakingPeerIds = [...speakingPeers].filter((peerId) => connectedPeers.has(peerId));
   const speakingNames = speakingPeerIds.map((peerId) => peerNames.get(peerId) ?? 'Nearby rider');
+  const speakingSummary = formatActiveSpeakerSummary(speakingNames);
   const localSpeaking = [...localSpeakingPeers].some((peerId) => connectedPeers.has(peerId));
   const partialConnectionIssue = Boolean(error && connectedPeers.size > 0 && !audioSessionError && !authorizationExpired);
   const statusHasIssue = Boolean(error || audioSessionError || authorizationExpired);
@@ -367,6 +369,19 @@ export function ProximityVoice({
           {displayStatusText}
         </Text>
       </Pressable>
+      {speakingSummary ? (
+        <View
+          accessible
+          accessibilityRole="text"
+          accessibilityLabel={speakingSummary}
+          style={styles.speakingSummary}
+        >
+          <Ionicons name="mic" size={14} color={colors.accent} />
+          <Text numberOfLines={1} ellipsizeMode="tail" style={styles.speakingSummaryText}>
+            {speakingSummary}
+          </Text>
+        </View>
+      ) : null}
       {!lockedForSafety && recentPeers.size > 0 ? (
         <Pressable
           accessibilityRole="button"
@@ -457,6 +472,12 @@ const styles = StyleSheet.create({
   statusError: { borderColor: colors.danger },
   statusWarning: { borderColor: colors.warning },
   statusPressed: { opacity: 0.78 },
+  speakingSummary: {
+    alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: spacing.xs,
+    minHeight: 30, marginTop: spacing.xs, paddingHorizontal: spacing.sm, borderRadius: radii.pill,
+    backgroundColor: colors.accentSoft,
+  },
+  speakingSummaryText: { ...type.caption, color: colors.accentInk, fontWeight: '700', maxWidth: '88%' },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.success },
   dotError: { backgroundColor: colors.danger },
   dotWarning: { backgroundColor: colors.warning },

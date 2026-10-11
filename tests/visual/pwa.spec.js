@@ -528,6 +528,8 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
   });
   await page.goto('/');
   await expect(page.locator('#app')).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.__riderCommsTestMap?.options?.mapTypeId ?? null))
+    .toBe('roadmap');
 
   const mapGeometry = await page.evaluate(() => {
     const screen = document.querySelector('[data-screen="map"]');

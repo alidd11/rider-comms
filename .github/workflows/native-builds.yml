@@ -36,6 +36,8 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
       - run: npm ci
       # Expo SDK 57's expo-modules-jsi puts SWIFT_RETURNS_RETAINED on C++
       # constructors, which every Xcode up to 26.3 rejects (macos-15 tops out
@@ -45,13 +47,33 @@ jobs:
           xcode="$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)"
           sudo xcode-select -s "$xcode"
           echo "::notice title=Xcode::$(xcodebuild -version | tr '\n' ' ') (installed: $(ls /Applications | grep -E '^Xcode' | tr '\n' ' '))"
+      - name: Assert supported Xcode toolchain
+        run: |
+          xcode_version="$(xcodebuild -version | awk 'NR == 1 { print $2 }')"
+          case "$xcode_version" in
+            26.6*|26.7*|27.*) ;;
+            *)
+              echo "Xcode $xcode_version is unsupported for Expo SDK 57's Swift 6 native build. Use macos-26 with Xcode 26.6 or newer."
+              exit 1
+              ;;
+          esac
       - name: Generate the native project
         working-directory: mobile
         run: npx expo prebuild --clean --platform ios --no-install
+      - name: Cache CocoaPods dependencies
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            mobile/ios/Pods
+            ~/Library/Caches/CocoaPods
+          key: cocoapods-${{ runner.os }}-${{ hashFiles('package-lock.json', 'mobile/app.json', 'mobile/app.config.js') }}
+          restore-keys: |
+            cocoapods-${{ runner.os }}-
       - name: Install CocoaPods
         working-directory: mobile/ios
         run: pod install
       - name: Build for the iOS simulator
+        timeout-minutes: 30
         working-directory: mobile/ios
         # Release, so the JavaScript bundle is embedded and the app can start
         # without a Metro server. The full log is long; on failure the
@@ -83,6 +105,7 @@ jobs:
       # particular) run at startup and can crash the app before any screen
       # appears. Boot a simulator, launch, and check it is still running.
       - name: Launch in the iOS simulator
+        timeout-minutes: 10
         working-directory: mobile/ios
         run: |
           app="build/Build/Products/Release-iphonesimulator/RiderComms.app"
@@ -104,28 +127,30 @@ jobs:
           echo "::notice title=iOS launch::Rider Comms is running 30 s after launch on $(xcrun simctl list devices | grep "$udid" | sed 's/ (.*//' | xargs)"
       - name: Create disposable native UI test account
         id: test-account
-        env:
-          API_URL: https://backend-production-7fa0.up.railway.app
         run: |
           username="ci${GITHUB_RUN_ID}${GITHUB_RUN_ATTEMPT}"
-          password="RiderComms-${GITHUB_RUN_ID}-Test!"
-          payload="$(node -e 'console.log(JSON.stringify({username:process.argv[1],email:process.argv[1]+"@example.com",password:process.argv[2],deviceName:"GitHub iOS UI smoke",acceptTerms:true}))' "$username" "$password")"
-          response="$(curl --fail-with-body --silent --show-error --retry 3 --max-time 30 -X POST "$API_URL/auth/signup" -H 'content-type: application/json' -d "$payload")"
-          token="$(printf '%s' "$response" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const x=JSON.parse(s); if (!x.token) process.exit(1); process.stdout.write(x.token);})')"
-          trap 'curl --silent --max-time 15 -X DELETE "$API_URL/auth/me" -H "authorization: Bearer $token" >/dev/null || true' EXIT
+          email="${username}@example.com"
+          password="RiderComms-${GITHUB_RUN_ID}-TestA9"
           {
             echo "username=$username"
+            echo "email=$email"
             echo "password=$password"
           } >> "$GITHUB_OUTPUT"
       - name: Install Maestro and exercise authenticated iOS screens
+        timeout-minutes: 15
         env:
           TEST_USERNAME: ${{ steps.test-account.outputs.username }}
+          TEST_EMAIL: ${{ steps.test-account.outputs.email }}
           TEST_PASSWORD: ${{ steps.test-account.outputs.password }}
         run: |
           curl -Ls https://get.maestro.mobile.dev | bash
           export PATH="$HOME/.maestro/bin:$PATH"
           set +e
-          maestro test mobile/maestro/authenticated-smoke.yaml --format junit --output maestro-ios.xml
+          maestro test mobile/maestro/authenticated-smoke.yaml \
+            -e TEST_USERNAME="$TEST_USERNAME" \
+            -e TEST_EMAIL="$TEST_EMAIL" \
+            -e TEST_PASSWORD="$TEST_PASSWORD" \
+            --format junit --output maestro-ios.xml
           test_status=$?
           set -e
           mkdir -p maestro-ios-artifacts
@@ -158,15 +183,19 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
       - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
           distribution: temurin
           java-version: 17
+          cache: gradle
       - run: npm ci
       - name: Generate the native project
         working-directory: mobile
         run: npx expo prebuild --clean --platform android --no-install
       - name: Build a release APK
+        timeout-minutes: 30
         working-directory: mobile/android
         # Release embeds the JavaScript bundle (no Metro needed); the Expo
         # template signs it with the debug keystore, which is fine for CI.
@@ -219,28 +248,30 @@ jobs:
           scripts/android-launch-check.sh
       - name: Create disposable native UI test account
         id: test-account
-        env:
-          API_URL: https://backend-production-7fa0.up.railway.app
         run: |
           username="ci${GITHUB_RUN_ID}${GITHUB_RUN_ATTEMPT}"
-          password="RiderComms-${GITHUB_RUN_ID}-Test!"
-          payload="$(node -e 'console.log(JSON.stringify({username:process.argv[1],email:process.argv[1]+"@example.com",password:process.argv[2],deviceName:"GitHub Android UI smoke",acceptTerms:true}))' "$username" "$password")"
-          response="$(curl --fail-with-body --silent --show-error --retry 3 --max-time 30 -X POST "$API_URL/auth/signup" -H 'content-type: application/json' -d "$payload")"
-          token="$(printf '%s' "$response" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const x=JSON.parse(s); if (!x.token) process.exit(1); process.stdout.write(x.token);})')"
-          trap 'curl --silent --max-time 15 -X DELETE "$API_URL/auth/me" -H "authorization: Bearer $token" >/dev/null || true' EXIT
+          email="${username}@example.com"
+          password="RiderComms-${GITHUB_RUN_ID}-TestA9"
           {
             echo "username=$username"
+            echo "email=$email"
             echo "password=$password"
           } >> "$GITHUB_OUTPUT"
       - name: Install Maestro and exercise authenticated Android screens
+        timeout-minutes: 15
         env:
           TEST_USERNAME: ${{ steps.test-account.outputs.username }}
+          TEST_EMAIL: ${{ steps.test-account.outputs.email }}
           TEST_PASSWORD: ${{ steps.test-account.outputs.password }}
         run: |
           curl -Ls https://get.maestro.mobile.dev | bash
           export PATH="$HOME/.maestro/bin:$PATH"
           set +e
-          maestro test mobile/maestro/authenticated-smoke.yaml --format junit --output maestro-android.xml
+          maestro test mobile/maestro/authenticated-smoke.yaml \
+            -e TEST_USERNAME="$TEST_USERNAME" \
+            -e TEST_EMAIL="$TEST_EMAIL" \
+            -e TEST_PASSWORD="$TEST_PASSWORD" \
+            --format junit --output maestro-android.xml
           test_status=$?
           set -e
           mkdir -p maestro-android-artifacts
