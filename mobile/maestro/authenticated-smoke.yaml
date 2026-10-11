@@ -10,7 +10,6 @@ appId: com.ridercomms.app
 - tapOn:
     text: Password
 - inputText: ${TEST_PASSWORD}
-- hideKeyboard
 - takeScreenshot: before-submit
 - tapOn: Log in
 - waitForAnimationToEnd
