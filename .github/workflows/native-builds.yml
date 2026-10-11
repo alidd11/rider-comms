@@ -47,6 +47,16 @@ jobs:
           xcode="$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)"
           sudo xcode-select -s "$xcode"
           echo "::notice title=Xcode::$(xcodebuild -version | tr '\n' ' ') (installed: $(ls /Applications | grep -E '^Xcode' | tr '\n' ' '))"
+      - name: Assert supported Xcode toolchain
+        run: |
+          xcode_version="$(xcodebuild -version | awk 'NR == 1 { print $2 }')"
+          case "$xcode_version" in
+            26.6*|26.7*|27.*) ;;
+            *)
+              echo "Xcode $xcode_version is unsupported for Expo SDK 57's Swift 6 native build. Use macos-26 with Xcode 26.6 or newer."
+              exit 1
+              ;;
+          esac
       - name: Generate the native project
         working-directory: mobile
         run: npx expo prebuild --clean --platform ios --no-install
