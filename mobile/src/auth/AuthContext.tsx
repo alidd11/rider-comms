@@ -234,6 +234,7 @@ function AuthScreen({ onAuthenticated, restoreError, onRetryRestore }: {
               <View style={styles.fieldWrap}>
                 <MaterialCommunityIcons name="account-outline" size={18} color={AUTH_MUTED} style={styles.fieldIcon} />
                 <TextInput
+                  testID="auth-username"
                   accessibilityLabel="Username"
                   autoFocus={false}
                   autoCapitalize="none"
@@ -274,6 +275,7 @@ function AuthScreen({ onAuthenticated, restoreError, onRetryRestore }: {
               <View style={styles.fieldWrap}>
                 <MaterialCommunityIcons name="lock-outline" size={18} color={AUTH_MUTED} style={styles.fieldIcon} />
                 <TextInput
+                  testID="auth-password"
                   accessibilityLabel="Password"
                   autoCapitalize="none"
                   autoCorrect={false}
@@ -347,6 +349,7 @@ function AuthScreen({ onAuthenticated, restoreError, onRetryRestore }: {
               {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
 
               <Pressable
+                testID="auth-submit"
                 accessibilityRole="button"
                 disabled={busy}
                 onPress={() => void submit()}
