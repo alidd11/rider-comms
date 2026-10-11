@@ -104,6 +104,7 @@ jobs:
       # particular) run at startup and can crash the app before any screen
       # appears. Boot a simulator, launch, and check it is still running.
       - name: Launch in the iOS simulator
+        timeout-minutes: 10
         working-directory: mobile/ios
         run: |
           app="build/Build/Products/Release-iphonesimulator/RiderComms.app"
@@ -195,6 +196,7 @@ jobs:
         working-directory: mobile
         run: npx expo prebuild --clean --platform android --no-install
       - name: Build a release APK
+        timeout-minutes: 30
         working-directory: mobile/android
         # Release embeds the JavaScript bundle (no Metro needed); the Expo
         # template signs it with the debug keystore, which is fine for CI.
