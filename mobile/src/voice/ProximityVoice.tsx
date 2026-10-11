@@ -10,6 +10,7 @@ import { useVoiceActivity } from '../audio/useVoiceActivity';
 import { ActiveSpeakerBridge } from './ActiveSpeakerBridge';
 import {
   DEFAULT_PROXIMITY_VOICE_REFRESH_MS,
+  formatActiveSpeakerSummary,
   proximityVoiceStatus,
   prunePeerSet,
   resolveProximityVoiceRetryDelay,
@@ -281,13 +282,7 @@ export function ProximityVoice({
 
   const speakingPeerIds = [...speakingPeers].filter((peerId) => connectedPeers.has(peerId));
   const speakingNames = speakingPeerIds.map((peerId) => peerNames.get(peerId) ?? 'Nearby rider');
-  const speakingSummary = speakingNames.length === 0
-    ? null
-    : speakingNames.length === 1
-      ? `${speakingNames[0]} is speaking`
-      : speakingNames.length === 2
-        ? `${speakingNames[0]} and ${speakingNames[1]} are speaking`
-        : `${speakingNames[0]} and ${speakingNames.length - 1} others are speaking`;
+  const speakingSummary = formatActiveSpeakerSummary(speakingNames);
   const localSpeaking = [...localSpeakingPeers].some((peerId) => connectedPeers.has(peerId));
   const partialConnectionIssue = Boolean(error && connectedPeers.size > 0 && !audioSessionError && !authorizationExpired);
   const statusHasIssue = Boolean(error || audioSessionError || authorizationExpired);
