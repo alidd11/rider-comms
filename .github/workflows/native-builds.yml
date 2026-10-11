@@ -127,23 +127,20 @@ jobs:
           echo "::notice title=iOS launch::Rider Comms is running 30 s after launch on $(xcrun simctl list devices | grep "$udid" | sed 's/ (.*//' | xargs)"
       - name: Create disposable native UI test account
         id: test-account
-        env:
-          API_URL: https://backend-production-7fa0.up.railway.app
         run: |
           username="ci${GITHUB_RUN_ID}${GITHUB_RUN_ATTEMPT}"
+          email="${username}@example.com"
           password="RiderComms-${GITHUB_RUN_ID}-TestA9"
-          payload="$(node -e 'console.log(JSON.stringify({username:process.argv[1],email:process.argv[1]+"@example.com",password:process.argv[2],deviceName:"GitHub iOS UI smoke",acceptTerms:true}))' "$username" "$password")"
-          response="$(curl --fail-with-body --silent --show-error --retry 3 --max-time 30 -X POST "$API_URL/auth/signup" -H 'content-type: application/json' -d "$payload")"
-          token="$(printf '%s' "$response" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const x=JSON.parse(s); if (!x.token) process.exit(1); process.stdout.write(x.token);})')"
-          trap 'curl --silent --max-time 15 -X DELETE "$API_URL/auth/me" -H "authorization: Bearer $token" >/dev/null || true' EXIT
           {
             echo "username=$username"
+            echo "email=$email"
             echo "password=$password"
           } >> "$GITHUB_OUTPUT"
       - name: Install Maestro and exercise authenticated iOS screens
         timeout-minutes: 15
         env:
           TEST_USERNAME: ${{ steps.test-account.outputs.username }}
+          TEST_EMAIL: ${{ steps.test-account.outputs.email }}
           TEST_PASSWORD: ${{ steps.test-account.outputs.password }}
         run: |
           curl -Ls https://get.maestro.mobile.dev | bash
@@ -151,6 +148,7 @@ jobs:
           set +e
           maestro test mobile/maestro/authenticated-smoke.yaml \
             -e TEST_USERNAME="$TEST_USERNAME" \
+            -e TEST_EMAIL="$TEST_EMAIL" \
             -e TEST_PASSWORD="$TEST_PASSWORD" \
             --format junit --output maestro-ios.xml
           test_status=$?
@@ -250,23 +248,20 @@ jobs:
           scripts/android-launch-check.sh
       - name: Create disposable native UI test account
         id: test-account
-        env:
-          API_URL: https://backend-production-7fa0.up.railway.app
         run: |
           username="ci${GITHUB_RUN_ID}${GITHUB_RUN_ATTEMPT}"
+          email="${username}@example.com"
           password="RiderComms-${GITHUB_RUN_ID}-TestA9"
-          payload="$(node -e 'console.log(JSON.stringify({username:process.argv[1],email:process.argv[1]+"@example.com",password:process.argv[2],deviceName:"GitHub Android UI smoke",acceptTerms:true}))' "$username" "$password")"
-          response="$(curl --fail-with-body --silent --show-error --retry 3 --max-time 30 -X POST "$API_URL/auth/signup" -H 'content-type: application/json' -d "$payload")"
-          token="$(printf '%s' "$response" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const x=JSON.parse(s); if (!x.token) process.exit(1); process.stdout.write(x.token);})')"
-          trap 'curl --silent --max-time 15 -X DELETE "$API_URL/auth/me" -H "authorization: Bearer $token" >/dev/null || true' EXIT
           {
             echo "username=$username"
+            echo "email=$email"
             echo "password=$password"
           } >> "$GITHUB_OUTPUT"
       - name: Install Maestro and exercise authenticated Android screens
         timeout-minutes: 15
         env:
           TEST_USERNAME: ${{ steps.test-account.outputs.username }}
+          TEST_EMAIL: ${{ steps.test-account.outputs.email }}
           TEST_PASSWORD: ${{ steps.test-account.outputs.password }}
         run: |
           curl -Ls https://get.maestro.mobile.dev | bash
@@ -274,6 +269,7 @@ jobs:
           set +e
           maestro test mobile/maestro/authenticated-smoke.yaml \
             -e TEST_USERNAME="$TEST_USERNAME" \
+            -e TEST_EMAIL="$TEST_EMAIL" \
             -e TEST_PASSWORD="$TEST_PASSWORD" \
             --format junit --output maestro-android.xml
           test_status=$?

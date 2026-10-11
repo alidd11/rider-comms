@@ -255,6 +255,7 @@ function AuthScreen({ onAuthenticated, restoreError, onRetryRestore }: {
                 <View style={styles.fieldWrap}>
                   <MaterialCommunityIcons name="email-outline" size={18} color={AUTH_MUTED} style={styles.fieldIcon} />
                   <TextInput
+                    testID="auth-email"
                     accessibilityLabel="Email address"
                     autoCapitalize="none"
                     autoCorrect={false}
@@ -324,6 +325,7 @@ function AuthScreen({ onAuthenticated, restoreError, onRetryRestore }: {
                   <Text style={styles.requirements}>Username: 3–20 letters, numbers or underscores. Password: at least 8 characters.</Text>
                   <View style={styles.termsRow}>
                     <Pressable
+                      testID="auth-terms"
                       accessibilityRole="checkbox"
                       accessibilityState={{ checked: agreedToTerms }}
                       accessibilityLabel="I agree to the Terms of Service and Community Guidelines"

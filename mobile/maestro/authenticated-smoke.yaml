@@ -4,18 +4,27 @@ appId: com.ridercomms.app
 - launchApp:
     clearState: true
 - takeScreenshot: before-login
+- tapOn: Create account
 - tapOn:
     id: auth-username
 - inputText: ${TEST_USERNAME}
 - tapOn:
+    id: auth-email
+- inputText: ${TEST_EMAIL}
+- tapOn:
     id: auth-password
 - inputText: ${TEST_PASSWORD}
+- tapOn:
+    id: auth-terms
 - hideKeyboard
 - takeScreenshot: before-submit
 - tapOn:
     id: auth-submit
 - waitForAnimationToEnd
 - takeScreenshot: after-login
+- tapOn:
+    text: OK
+    optional: true
 - extendedWaitUntil:
     visible: "Get Started"
     timeout: 30000
@@ -49,3 +58,6 @@ appId: com.ridercomms.app
     visible: "Your plan"
     timeout: 10000
 - takeScreenshot: authenticated-billing
+- tapOn: "Account"
+- tapOn: "Delete account"
+- tapOn: "Delete account"
