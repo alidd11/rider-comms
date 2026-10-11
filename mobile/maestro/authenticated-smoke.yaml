@@ -14,6 +14,14 @@ appId: com.ridercomms.app
 - tapOn: Log in
 - waitForAnimationToEnd
 - takeScreenshot: after-login
+- tapOn: Get Started
+- tapOn: Continue
+- tapOn:
+    text: "Allow While Using App"
+    optional: true
+- tapOn:
+    text: "While using the app"
+    optional: true
 - extendedWaitUntil:
     visible: "Map"
     timeout: 30000
