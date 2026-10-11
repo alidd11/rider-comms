@@ -73,6 +73,7 @@ jobs:
         working-directory: mobile/ios
         run: pod install
       - name: Build for the iOS simulator
+        timeout-minutes: 30
         working-directory: mobile/ios
         # Release, so the JavaScript bundle is embedded and the app can start
         # without a Metro server. The full log is long; on failure the
