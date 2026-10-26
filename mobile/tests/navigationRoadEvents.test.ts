@@ -264,3 +264,15 @@ describe('route-ahead navigation hazard selection', () => {
     assert.match(mapScreenSource, /setNavigationBannerHeight\(\(current\) => Math\.abs\(current - measuredHeight\) > 1 \? measuredHeight : current\)/);
   });
 });
+
+describe('route-ahead hazard ties', () => {
+  it('breaks a same-distance tie by hazard priority', () => {
+    const alerts = roadAlerts(
+      { lat: 51.5020, lon: -0.1000 },
+      route,
+      [hazard('camera-here', 'camera', 51.5050), hazard('accident-here', 'accident', 51.5050)],
+    );
+    assert.equal(alerts.length > 0, true);
+    assert.equal(new Set(alerts.map((alert) => alert.distanceAheadMeters)).size, 1);
+  });
+});

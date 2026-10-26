@@ -37,3 +37,24 @@ describe('native in-app directions helpers', () => {
     assert.ok(lookAhead.lon > -0.1 && lookAhead.lon < -0.098);
   });
 });
+
+describe('route progress on multi-segment paths', () => {
+  const path = [
+    { lat: 51.5, lon: -0.1 },
+    { lat: 51.501, lon: -0.1 },
+    { lat: 51.501, lon: -0.1 },
+    { lat: 51.502, lon: -0.1 },
+  ];
+
+  it('measures what is left from the nearest later segment', () => {
+    const remaining = remainingDistanceOnPathMeters({ lat: 51.5015, lon: -0.1 }, path);
+    assert.ok(Math.abs(remaining - metersBetween({ lat: 51.5015, lon: -0.1 }, path[3]!)) < 2);
+  });
+
+  it('looks ahead past zero-length segments and stops at the end of the route', () => {
+    const ahead = lookAheadCoordinateOnPath({ lat: 51.5009, lon: -0.1 }, path, 50);
+    assert.ok(ahead.lat > 51.501 && ahead.lat < 51.502);
+    const beyond = lookAheadCoordinateOnPath({ lat: 51.5015, lon: -0.1 }, path, 5_000);
+    assert.deepEqual(beyond, path[3]);
+  });
+});

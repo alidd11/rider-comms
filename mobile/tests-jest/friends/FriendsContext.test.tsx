@@ -337,3 +337,90 @@ test('polls friend activity on a 30s interval', async () => {
     jest.useRealTimers();
   }
 });
+
+test('shows a load error when the first refresh fails, using a plain Error message or the fallback', async () => {
+  const { getSocialEvents } = deferredSocialEvents();
+  const client = baseClient({
+    getSocialEvents,
+    getFriends: jest.fn(async () => { throw new Error('socket closed'); }),
+  });
+  const { result } = await renderFriends(client);
+  await waitFor(() => expect(result.current.loading).toBe(false));
+  expect(result.current.error).toBe('socket closed');
+
+  const other = baseClient({
+    getSocialEvents: deferredSocialEvents().getSocialEvents,
+    getFriends: jest.fn(async () => { throw 'not an error'; }),
+  });
+  const second = await renderFriends(other);
+  await waitFor(() => expect(second.result.current.loading).toBe(false));
+  expect(second.result.current.error).toBe('Could not load friends.');
+});
+
+test('drains every page of a multi-page event batch before refreshing', async () => {
+  const { getSocialEvents, resolveNext } = deferredSocialEvents();
+  const client = baseClient({ getSocialEvents });
+  await renderFriends(client);
+  await resolveNext(page([], 'c1'));
+  await waitFor(() => expect(client.getFriends).toHaveBeenCalled());
+  const friendsBefore = (client.getFriends as jest.Mock).mock.calls.length;
+
+  await resolveNext({ events: [], cursor: 'c2', hasMore: true });
+  await resolveNext(page([socialEvent('friend_request', 'friend-1')], 'c3'));
+
+  await waitFor(() => expect(client.getFriends).toHaveBeenCalledTimes(friendsBefore + 1));
+  expect(getSocialEvents).toHaveBeenCalledWith({ after: 'c2', waitMs: 0, limit: 100 });
+});
+
+test('decline and cancel drop the request optimistically and report failures', async () => {
+  const { getSocialEvents } = deferredSocialEvents();
+  const incoming = friendRequest('in1', 'friend-1', ME);
+  const outgoing = friendRequest('out1', ME, 'friend-2');
+  const declineFriendRequest = jest.fn(async () => ({}));
+  const cancelFriendRequest = jest.fn(async () => ({}));
+  const client = baseClient({
+    getSocialEvents,
+    getFriendRequests: jest.fn(async () => ({ incoming: [incoming], outgoing: [outgoing], profiles: {}, nextCursor: null })),
+    declineFriendRequest,
+    cancelFriendRequest,
+  } as Partial<RiderCommsClient>);
+  const { result } = await renderFriends(client);
+  await waitFor(() => expect(result.current.incomingRequests).toHaveLength(1));
+
+  await act(async () => { await result.current.decline('in1'); });
+  await act(async () => { await result.current.cancel('out1'); });
+  expect(declineFriendRequest).toHaveBeenCalledWith('in1');
+  expect(cancelFriendRequest).toHaveBeenCalledWith('out1');
+  expect(result.current.error).toBeNull();
+
+  declineFriendRequest.mockRejectedValueOnce(new ApiError(429, { error: 'rate_limited' }));
+  await act(async () => { await result.current.decline('in1'); });
+  await waitFor(() => expect(result.current.error).toBe('Too many requests. Wait a moment and try again.'));
+
+  cancelFriendRequest.mockRejectedValueOnce(new ApiError(500, { error: 'server_error' }));
+  await act(async () => { await result.current.cancel('out1'); });
+  await waitFor(() => expect(result.current.error).toBe('Could not cancel that request.'));
+
+  declineFriendRequest.mockRejectedValueOnce(new ApiError(500, { error: 'server_error' }));
+  await act(async () => { await result.current.decline('in1'); });
+  await waitFor(() => expect(result.current.error).toBe('Could not decline that request.'));
+});
+
+test('remove drops the friend locally once the server confirms it', async () => {
+  const { getSocialEvents } = deferredSocialEvents();
+  const removeFriend = jest.fn(async () => ({}));
+  const client = baseClient({
+    getSocialEvents,
+    getFriends: jest.fn(async () => ({ friends: [friend('friend-1')], nextCursor: null })),
+    removeFriend,
+  } as Partial<RiderCommsClient>);
+  const { result } = await renderFriends(client);
+  await waitFor(() => expect(result.current.friends).toEqual([friend('friend-1')]));
+  (client.getFriends as jest.Mock).mockResolvedValue({ friends: [], nextCursor: null });
+
+  await act(async () => { await result.current.remove('friend-1'); });
+
+  expect(removeFriend).toHaveBeenCalledWith(ME, 'friend-1');
+  expect(result.current.friends).toEqual([]);
+  expect(result.current.error).toBeNull();
+});

@@ -277,3 +277,15 @@ test('go-live alerts and stays off when the server rejects the shareLocation upd
   expect(setShareLocation).not.toHaveBeenCalled();
   expect(result.current.publicLive).toBe(false);
 });
+
+test('go-live explains when the account status can’t be checked', async () => {
+  const client = { getMe: jest.fn(async () => { throw new Error('offline'); }) };
+  const { result } = await renderPresence({ client });
+
+  await act(async () => {
+    await result.current.handleNearbyToggle();
+  });
+
+  expect(Alert.alert).toHaveBeenCalledWith('Nearby Voice unavailable', expect.stringContaining('account status'));
+  expect(result.current.publicLive).toBe(false);
+});

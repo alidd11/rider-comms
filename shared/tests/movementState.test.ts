@@ -238,3 +238,12 @@ describe('MovementStateTracker', () => {
     expect(tracker.markUnavailable()).toBe('unknown');
   });
 });
+
+describe('MovementStateTracker.stateAt without usable input', () => {
+  it('reports unknown with no fix or an invalid clock, but keeps a confirmed moving lock', () => {
+    const tracker = new MovementStateTracker();
+    expect(tracker.stateAt(Number.NaN)).toBe('unknown');
+    for (let index = 0; index <= 3; index += 1) tracker.addFix(ridingFix(index, START_MS + index * 1000));
+    expect(tracker.stateAt(Number.NaN)).toBe('moving');
+  });
+});
