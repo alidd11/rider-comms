@@ -85,3 +85,18 @@ test('the combined menu leads to report and block', () => {
   press('Block rider');
   expect(Alert.alert).toHaveBeenLastCalledWith('Block this rider?', expect.any(String), expect.any(Array));
 });
+
+test('every report reason maps to the right category', async () => {
+  const api = client();
+  const reasons: Array<[string, string]> = [
+    ['Harassment or threats', 'harassment'],
+    ['Unsafe behaviour', 'unsafe'],
+    ['Something else', 'other'],
+  ];
+  for (const [label, reason] of reasons) {
+    openReportFlow(api as never, { riderId: 'rider-3', source: 'chat' });
+    press(label);
+    await flush();
+    expect(api.reportRider).toHaveBeenLastCalledWith('rider-3', reason, 'Reported from chat');
+  }
+});

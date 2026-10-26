@@ -247,3 +247,41 @@ test('offers a retry when a saved session could not be restored', async () => {
   });
   await screen.findByText('Signed in content');
 });
+
+test('submits from the keyboard and toggles password visibility on the login form', async () => {
+  await renderSignedOut();
+  await fillLogin('rider_one', 'correct-horse');
+  await fireEvent.press(screen.getByLabelText('Show password'));
+  expect(screen.getByLabelText('Hide password')).toBeTruthy();
+  await fireEvent.press(screen.getByLabelText('Hide password'));
+  await act(async () => {
+    await fireEvent(screen.getByLabelText('Password'), 'submitEditing');
+  });
+  expect(mockClientImpl.logIn).toHaveBeenCalledWith('rider_one', 'correct-horse');
+});
+
+test('opens the legal pages from signup and returns to log in from every form', async () => {
+  const { Linking } = jest.requireActual('react-native') as typeof import('react-native');
+  const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
+  await renderSignedOut();
+
+  await fireEvent.press(screen.getByText('Create account'));
+  await fireEvent.press(screen.getByText('Terms of Service'));
+  await fireEvent.press(screen.getByText('Community Guidelines'));
+  await fireEvent.press(screen.getByText('Privacy Policy'));
+  expect(openURL).toHaveBeenCalledTimes(3);
+  await fireEvent.press(screen.getByText('Back to log in'));
+  expect(screen.getByText('Forgot password?')).toBeTruthy();
+
+  await fireEvent.press(screen.getByText('Forgot password?'));
+  await fireEvent.press(screen.getByText('Back to log in'));
+  expect(screen.getByText('Forgot password?')).toBeTruthy();
+
+  await fireEvent.press(screen.getByText('Forgot password?'));
+  await fireEvent.changeText(screen.getByLabelText('Email address'), 'me@example.com');
+  await press('Send reset link');
+  await fireEvent.press(screen.getByLabelText('Show password'));
+  expect(screen.getByLabelText('Hide password')).toBeTruthy();
+  await fireEvent.press(screen.getByText('Back to log in'));
+  expect(screen.getByText('Forgot password?')).toBeTruthy();
+});

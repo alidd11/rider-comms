@@ -45,3 +45,15 @@ describe('navigation GPS health', () => {
     assert.equal(isNavigationGpsNotice(null), false);
   });
 });
+
+describe('NavigationGpsTracker.reset', () => {
+  it('returns to healthy after GPS was lost', () => {
+    const tracker = new NavigationGpsTracker();
+    tracker.begin(0);
+    tracker.markUnavailable(true);
+    assert.equal(tracker.stateAt(1_000), 'permission-denied');
+    tracker.reset();
+    assert.equal(tracker.recordFix(2_000), false);
+    assert.equal(tracker.stateAt(2_000), 'healthy');
+  });
+});

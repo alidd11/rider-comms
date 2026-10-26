@@ -94,3 +94,24 @@ test('a server error stays on screen', async () => {
   expect(screen.getByText('That name isn’t allowed.')).toBeTruthy();
   expect(onClose).not.toHaveBeenCalled();
 });
+
+test('“My location” explains when the position can’t be found, and the pin can be dragged', async () => {
+  location.requestForegroundPermissionsAsync.mockResolvedValue(permission(true));
+  location.getLastKnownPositionAsync.mockRejectedValueOnce(new Error('no fix'));
+  const { onCreate, onClose } = await renderModal();
+  await fireEvent.press(screen.getByLabelText('Use my current location'));
+  await act(async () => {});
+  expect(screen.getByText(/Could not find your location/)).toBeTruthy();
+
+  // Taps inside the sheet don't close it.
+  const stopPropagation = jest.fn();
+  await fireEvent.press(screen.getByText('Tap the map to choose a spot.'), { stopPropagation });
+  expect(stopPropagation).toHaveBeenCalled();
+  expect(onClose).not.toHaveBeenCalled();
+
+  await fireEvent(screen.getByTestId('hideout-map'), 'press', { nativeEvent: { coordinate: { latitude: 52, longitude: -1 } } });
+  await fireEvent(screen.getByTestId('hideout-pin'), 'dragEnd', { nativeEvent: { coordinate: { latitude: 53, longitude: -2 } } });
+  await fireEvent.changeText(screen.getByPlaceholderText(/Name/), 'Moved');
+  await fireEvent.press(saveButton());
+  expect(onCreate).toHaveBeenCalledWith('Moved', 53, -2);
+});

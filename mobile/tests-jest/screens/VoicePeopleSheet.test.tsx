@@ -74,3 +74,11 @@ test('close calls back', async () => {
   await fireEvent.press(screen.getByLabelText('Close'));
   expect(props.onClose).toHaveBeenCalled();
 });
+
+test('taps inside the sheet don’t close it', async () => {
+  const props = await renderSheet();
+  const stopPropagation = jest.fn();
+  await fireEvent.press(screen.getByText('Riders on Nearby Voice'), { stopPropagation });
+  expect(stopPropagation).toHaveBeenCalled();
+  expect(props.onClose).not.toHaveBeenCalled();
+});

@@ -67,3 +67,31 @@ describe('native navigation prompt controller', () => {
     assert.equal(engine.getGains().nav, 0);
   });
 });
+
+describe('native navigation prompt controller failures', () => {
+  it('keeps speaking when cancelling the old prompt throws', () => {
+    const engine = new AudioEngine();
+    const spoken: string[] = [];
+    let options: NavigationSpeechOptions | undefined;
+    const controller = new NavigationPromptController({
+      speak: (text, opts) => { spoken.push(text); options = opts; },
+      stop: () => { throw new Error('stop failed'); },
+    }, engine);
+    controller.speak('Turn right');
+    assert.deepEqual(spoken, ['Turn right']);
+    options?.onStart?.();
+    assert.equal(engine.getGains().nav, 1);
+  });
+
+  it('clears navigation priority when speaking or stopping fails', async () => {
+    const engine = new AudioEngine();
+    const controller = new NavigationPromptController({
+      speak: () => { throw new Error('tts unavailable'); },
+      stop: async () => { throw new Error('stop failed'); },
+    }, engine);
+    controller.speak('Turn left');
+    assert.equal(engine.getGains().nav, 0);
+    await controller.stop();
+    assert.equal(engine.getGains().nav, 0);
+  });
+});

@@ -287,3 +287,42 @@ test('refreshProfile waits for a queued local save instead of overwriting it', a
   await act(async () => { finishSave(); await refresh; });
   expect(result.current.displayName).toBe('Local edit');
 });
+
+test('falls back to defaults when stored preferences can’t be read', async () => {
+  const originalGetItem = AsyncStorage.getItem;
+  AsyncStorage.getItem = jest.fn(async () => { throw new Error('storage unavailable'); });
+  try {
+    const client = { getProfile: jest.fn(async () => fakeProfile()) };
+    const { result } = await renderSettings(client);
+    await waitFor(() => expect(result.current.rideSafeLoaded).toBe(true));
+    expect(result.current.rideSafeEnabled).toBe(true);
+    expect(result.current.navigationProvider).toBeTruthy();
+    expect(result.current.routeAvoidance).toEqual({ highways: false, tolls: false });
+  } finally {
+    AsyncStorage.getItem = originalGetItem;
+  }
+});
+
+test('saves units, social visibility and route options', async () => {
+  const client = {
+    getProfile: jest.fn(async () => fakeProfile()),
+    updateProfile: jest.fn(async () => fakeProfile()),
+  };
+  const { result } = await renderSettings(client);
+  await waitFor(() => expect(result.current.loaded).toBe(true));
+
+  await act(() => {
+    result.current.setUnitSystem('km');
+    result.current.setAvatarId('helmet-blue');
+    result.current.setInstagramVisibility('public');
+    result.current.setTiktokVisibility('private');
+    result.current.setRouteAvoidance({ highways: true, tolls: 'yes' as never });
+  });
+
+  await waitFor(() => expect(client.updateProfile).toHaveBeenCalledWith(RIDER_ID, { tiktokVisibility: 'private' }));
+  expect(client.updateProfile).toHaveBeenCalledWith(RIDER_ID, { unitSystem: 'km' });
+  expect(client.updateProfile).toHaveBeenCalledWith(RIDER_ID, { avatarId: 'helmet-blue' });
+  expect(client.updateProfile).toHaveBeenCalledWith(RIDER_ID, { instagramVisibility: 'public' });
+  expect(result.current.routeAvoidance).toEqual({ highways: true, tolls: false });
+  expect(JSON.parse((await AsyncStorage.getItem(`@rider-comms/settings/route-avoidance/${RIDER_ID}`)) ?? 'null')).toEqual({ highways: true, tolls: false });
+});
