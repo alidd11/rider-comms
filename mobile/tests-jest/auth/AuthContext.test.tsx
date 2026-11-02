@@ -226,3 +226,21 @@ test('keeps the Terms gate up with an error when saving the agreement fails, and
   expect(mockDeleteItemAsync).toHaveBeenCalledWith(KEY);
   openURL.mockRestore();
 });
+
+test('treats an unreadable saved session as signed out, without a restore error', async () => {
+  mockGetItemAsync.mockImplementation(async (key: string) => {
+    if (key === KEY) throw new Error('Could not decrypt the value');
+    return null;
+  });
+  await render(
+    <SafeAreaProvider initialMetrics={SAFE_AREA_METRICS}>
+      <AuthProvider><Text>Signed in content</Text></AuthProvider>
+    </SafeAreaProvider>,
+  );
+  await flushSplashDelay();
+
+  expect(await screen.findByLabelText('Username')).toBeTruthy();
+  expect(screen.queryByText('We couldn’t check your saved session. Retry or sign in again.')).toBeNull();
+  expect(mockDeleteItemAsync).toHaveBeenCalledWith(KEY);
+  expect(mockClientImpl.getMe).not.toHaveBeenCalled();
+});

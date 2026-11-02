@@ -528,7 +528,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
         // v1 stored auto-created guest identities. Account auth deliberately
         // does not migrate those disposable sessions into a real account.
         await SecureStore.deleteItemAsync(LEGACY_GUEST_KEY);
-        const cached = parse(await SecureStore.getItemAsync(KEY));
+        let stored: string | null;
+        try {
+          stored = await SecureStore.getItemAsync(KEY);
+        } catch {
+          // Unreadable, not unreachable: on Android, clearing app data can
+          // leave a value the keystore can no longer decrypt. There is no
+          // session to restore, so start signed out without an error.
+          await SecureStore.deleteItemAsync(KEY).catch(() => undefined);
+          return;
+        }
+        const cached = parse(stored);
         if (!cached) return;
         const client = new RiderCommsClient(API_BASE_URL, fetch, cached.token);
         const me = await client.getMe();

@@ -128,7 +128,8 @@ jobs:
           curl -Ls https://get.maestro.mobile.dev | bash
           export PATH="$HOME/.maestro/bin:$PATH"
           set +e
-          maestro test mobile/maestro/authenticated-smoke.yaml --format junit --output maestro-ios.xml
+          # Maestro fills ${…} in a flow from -e values, not the shell environment.
+          maestro test -e TEST_USERNAME="$TEST_USERNAME" -e TEST_PASSWORD="$TEST_PASSWORD" mobile/maestro/authenticated-smoke.yaml --format junit --output maestro-ios.xml
           test_status=$?
           if [ "$test_status" -ne 0 ]; then
             # What was on screen when the flow failed, readable in the job log.
@@ -260,7 +261,8 @@ jobs:
           curl -Ls https://get.maestro.mobile.dev | bash
           export PATH="$HOME/.maestro/bin:$PATH"
           set +e
-          maestro test mobile/maestro/authenticated-smoke.yaml --format junit --output maestro-android.xml
+          # Maestro fills ${…} in a flow from -e values, not the shell environment.
+          maestro test -e TEST_USERNAME="$TEST_USERNAME" -e TEST_PASSWORD="$TEST_PASSWORD" mobile/maestro/authenticated-smoke.yaml --format junit --output maestro-android.xml
           test_status=$?
           if [ "$test_status" -ne 0 ]; then
             # What was on screen when the flow failed, readable in the job log.
