@@ -39,10 +39,9 @@ appId: com.ridercomms.app
 - takeScreenshot: authenticated-friends
 - tapOn: "Settings(,.*)?"
 - takeScreenshot: authenticated-settings
-# iOS reads a settings row with its icons as ", Account, ".
-- tapOn: "(, )?Account(,.*)?"
-- tapOn: "(, )?Your plan(,.*)?"
+- tapOn: "Account(,.*)?"
+- tapOn: "Your plan(,.*)?"
 - extendedWaitUntil:
-    visible: "(, )?Your plan(,.*)?"
+    visible: "Your plan(,.*)?"
     timeout: 10000
 - takeScreenshot: authenticated-billing
