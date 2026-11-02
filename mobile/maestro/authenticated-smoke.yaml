@@ -14,6 +14,13 @@ appId: com.ridercomms.app
 - hideKeyboard
 - takeScreenshot: before-submit
 - tapOn: "Log in"
+# First launch shows the two-step onboarding (welcome, then location).
+- tapOn:
+    text: "Get Started"
+    optional: true
+- tapOn:
+    text: "Continue"
+    optional: true
 - extendedWaitUntil:
     visible: "Map"
     timeout: 30000
