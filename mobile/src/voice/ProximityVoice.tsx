@@ -50,9 +50,12 @@ function VoiceActivityBridge({
 export function ProximityVoice({
   enabled,
   peerIds = [],
+  summary,
 }: {
   enabled: boolean;
   peerIds?: string[];
+  /** Shown under the voice controls, in the same stack, so it can't overlap them. */
+  summary?: React.ReactNode;
 }): React.JSX.Element | null {
   const { client } = useAuth();
   const { activeRide } = useRide();
@@ -378,6 +381,7 @@ export function ProximityVoice({
           <Text numberOfLines={1} style={styles.text}>{recentPeers.size} {recentPeers.size === 1 ? 'rider' : 'riders'}</Text>
         </Pressable>
       ) : null}
+      {summary}
       <VoicePeopleSheet
         visible={peopleOpen && !lockedForSafety}
         onClose={() => setPeopleOpen(false)}

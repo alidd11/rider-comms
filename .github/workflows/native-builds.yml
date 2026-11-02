@@ -107,7 +107,7 @@ jobs:
         env:
           API_URL: https://backend-production-7fa0.up.railway.app
         run: |
-          username="ci${GITHUB_RUN_ID}${GITHUB_RUN_ATTEMPT}"
+          username="ci${GITHUB_RUN_ID}${GITHUB_RUN_ATTEMPT}i"
           password="RiderComms-${GITHUB_RUN_ID}-Test!"
           payload="$(node -e 'console.log(JSON.stringify({username:process.argv[1],email:process.argv[1]+"@example.com",password:process.argv[2],deviceName:"GitHub iOS UI smoke",acceptTerms:true}))' "$username" "$password")"
           response="$(curl --fail-with-body --silent --show-error --retry 3 --max-time 30 -X POST "$API_URL/auth/signup" -H 'content-type: application/json' -d "$payload")"
@@ -130,6 +130,12 @@ jobs:
           set +e
           maestro test mobile/maestro/authenticated-smoke.yaml --format junit --output maestro-ios.xml
           test_status=$?
+          if [ "$test_status" -ne 0 ]; then
+            # What was on screen when the flow failed, readable in the job log.
+            echo "::group::Screen at failure"
+            maestro hierarchy 2>/dev/null | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const texts=new Set();const walk=(n)=>{if(!n||typeof n!=="object")return;const a=n.attributes||{};for(const k of ["text","accessibilityText","hintText","resource-id"])if(a[k])texts.add(k+": "+a[k]);(n.children||[]).forEach(walk);};try{walk(JSON.parse(s));}catch{console.log(s.slice(0,4000));}console.log([...texts].join("\n"));})' || true
+            echo "::endgroup::"
+          fi
           set -e
           mkdir -p maestro-ios-artifacts
           find "$HOME/.maestro" -type f -name '*.png' -exec cp {} maestro-ios-artifacts/ \; 2>/dev/null || true
@@ -233,7 +239,7 @@ jobs:
         env:
           API_URL: https://backend-production-7fa0.up.railway.app
         run: |
-          username="ci${GITHUB_RUN_ID}${GITHUB_RUN_ATTEMPT}"
+          username="ci${GITHUB_RUN_ID}${GITHUB_RUN_ATTEMPT}a"
           password="RiderComms-${GITHUB_RUN_ID}-Test!"
           payload="$(node -e 'console.log(JSON.stringify({username:process.argv[1],email:process.argv[1]+"@example.com",password:process.argv[2],deviceName:"GitHub Android UI smoke",acceptTerms:true}))' "$username" "$password")"
           response="$(curl --fail-with-body --silent --show-error --retry 3 --max-time 30 -X POST "$API_URL/auth/signup" -H 'content-type: application/json' -d "$payload")"
@@ -256,6 +262,12 @@ jobs:
           set +e
           maestro test mobile/maestro/authenticated-smoke.yaml --format junit --output maestro-android.xml
           test_status=$?
+          if [ "$test_status" -ne 0 ]; then
+            # What was on screen when the flow failed, readable in the job log.
+            echo "::group::Screen at failure"
+            maestro hierarchy 2>/dev/null | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const texts=new Set();const walk=(n)=>{if(!n||typeof n!=="object")return;const a=n.attributes||{};for(const k of ["text","accessibilityText","hintText","resource-id"])if(a[k])texts.add(k+": "+a[k]);(n.children||[]).forEach(walk);};try{walk(JSON.parse(s));}catch{console.log(s.slice(0,4000));}console.log([...texts].join("\n"));})' || true
+            echo "::endgroup::"
+          fi
           set -e
           mkdir -p maestro-android-artifacts
           find "$HOME/.maestro" -type f -name '*.png' -exec cp {} maestro-android-artifacts/ \; 2>/dev/null || true

@@ -918,7 +918,23 @@ export function MapScreen(): React.JSX.Element {
       <View style={styles.rideBarSlot} pointerEvents="box-none">
         <RideBar controlsVisible={!activeRoute} />
       </View>
-      <ProximityVoice enabled={publicLive} peerIds={ridersInZone} />
+      <ProximityVoice
+        enabled={publicLive}
+        peerIds={ridersInZone}
+        summary={segment === 'public' && !activeRoute && ridersInZone.length > 0 && !selectedPlace && !selectedHazard && !error ? (
+          <View
+            style={styles.nearbyCount}
+            accessible
+            accessibilityRole="text"
+            accessibilityLabel={`${ridersInZone.length} ${ridersInZone.length === 1 ? 'rider' : 'riders'} nearby. Exact locations are private.`}
+          >
+            <MaterialCommunityIcons name="account-multiple" size={16} color={colors.accent} />
+            <Text style={styles.nearbyCountText}>
+              {ridersInZone.length} {ridersInZone.length === 1 ? 'rider' : 'riders'} nearby · exact locations private
+            </Text>
+          </View>
+        ) : undefined}
+      />
     </View>
   );
 }

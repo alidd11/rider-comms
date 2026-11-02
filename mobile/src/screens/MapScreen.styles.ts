@@ -48,6 +48,23 @@ export const styles = StyleSheet.create({
     borderColor: colors.success,
     backgroundColor: colors.success,
   },
+  // Under the Nearby Voice controls (rendered inside ProximityVoice's stack).
+  nearbyCount: {
+    alignSelf: 'center',
+    maxWidth: '100%',
+    minHeight: 34,
+    marginTop: spacing.xs,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    borderRadius: 17,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    ...elevation.raised,
+  },
+  nearbyCountText: { ...type.caption, color: colors.textSecondary, fontWeight: '700', flexShrink: 1 },
   mapError: {
     position: 'absolute',
     left: spacing.md,

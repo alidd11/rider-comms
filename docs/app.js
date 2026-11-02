@@ -2136,6 +2136,7 @@
     document.documentElement.classList.toggle('ride-pill-visible', active);
     syncRideLocationSharing();
     syncVoiceConnection();
+    syncRideRosterPolling();
     if (!active) return;
     const ride = state.activeRide;
     const locationToggle = $('#activeRideLocationConsent');
@@ -2189,9 +2190,34 @@
     renderRide();
   }
 
+  // While the Ride screen is open, keep its roster current: riders join with
+  // the invite code at any time, and nothing else tells the host unless
+  // location sharing or voice happens to be on. Profiles are only fetched
+  // again when the member list changes.
+  const RIDE_ROSTER_REFRESH_MS = 10_000;
+  let rideRosterTimer;
+  function syncRideRosterPolling() {
+    const wanted = Boolean(state.activeRide) && state.screen === 'ride' && document.visibilityState === 'visible';
+    if (wanted && !rideRosterTimer) {
+      rideRosterTimer = setInterval(() => {
+        if (!state.activeRide || state.screen !== 'ride' || document.visibilityState !== 'visible') {
+          clearInterval(rideRosterTimer);
+          rideRosterTimer = undefined;
+          return;
+        }
+        void refreshActiveRide({ poll: true });
+      }, RIDE_ROSTER_REFRESH_MS);
+    } else if (!wanted && rideRosterTimer) {
+      clearInterval(rideRosterTimer);
+      rideRosterTimer = undefined;
+    }
+  }
+
+  const sameMembers = (a = [], b = []) => a.length === b.length && a.every((riderId) => b.includes(riderId));
+
   // Reconcile membership, invite validity and private location consent from
   // the server. Cached ride details are never enough to resume sharing.
-  async function refreshActiveRide() {
+  async function refreshActiveRide({ poll = false } = {}) {
     const version = rideRefreshVersion;
     try {
       const previous = state.activeRide;
@@ -2210,8 +2236,9 @@
       }
       persist();
       renderRide();
-      if (ride) await loadRideRoster();
-      else if (previous) showToast('That ride is no longer active.');
+      const membersChanged = !previous?.members || previous.rideId !== ride?.rideId || !sameMembers(previous.memberIds, ride?.memberIds);
+      if (ride && (!poll || membersChanged)) await loadRideRoster();
+      else if (!ride && previous) showToast('That ride is no longer active.');
     } catch {
       // Transient failures leave the last verified state intact. A fresh
       // login starts with no verified ride and can retry from the Ride tab.
