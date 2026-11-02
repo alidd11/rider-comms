@@ -10,12 +10,14 @@ import { join } from 'node:path';
 // API client stopped being double-counted in the mobile reports, which then
 // read 98.5 / 91.6, and backend likewise stopped counting shared code at 95.1), so normal churn passes but a
 // real regression fails CI. Raise them as
-// coverage improves; never lower one to get a change through.
+// coverage improves; never lower one to get a change through. On
+// 2026-11-02 every package reached 100% line coverage; the floors now sit at
+// 99 so one untested line can't block a release but any real slide fails.
 const reports = [
-  ['shared', 'coverage/shared.lcov', 95],
-  ['backend', 'coverage/backend.lcov', 93],
-  ['mobile (node:test)', 'coverage/mobile-client.lcov', 96],
-  ['mobile (Jest)', 'coverage/jest/lcov.info', 89],
+  ['shared', 'coverage/shared.lcov', 99],
+  ['backend', 'coverage/backend.lcov', 99],
+  ['mobile (node:test)', 'coverage/mobile-client.lcov', 99],
+  ['mobile (Jest)', 'coverage/jest/lcov.info', 99],
 ];
 
 function totals(lcov) {

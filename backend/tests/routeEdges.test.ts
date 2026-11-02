@@ -81,6 +81,14 @@ describe('route edge cases', { skip: !hasDatabase && 'DATABASE_URL not set' }, (
     assert.equal(resend.status, 404);
   });
 
+  it('rejects a malformed friend-list cursor', async () => {
+    for (const list of ['friends', 'friend-requests']) {
+      const res = await authenticatedFetch(ctx, 'edge-rider', `/riders/edge-rider/${list}?before=not-a-cursor`);
+      assert.equal(res.status, 400);
+      assert.deepEqual(await res.json(), { error: 'invalid_cursor' });
+    }
+  });
+
   it('clears presence and refuses to delete a hideout that does not exist', async () => {
     const presence = await authenticatedFetch(ctx, 'edge-rider', '/presence', { method: 'DELETE' });
     assert.equal(presence.status, 200);

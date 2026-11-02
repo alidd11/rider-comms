@@ -1,7 +1,7 @@
 import { createHash, randomBytes, randomUUID, scrypt, timingSafeEqual } from 'node:crypto';
 import type { ScryptOptions } from 'node:crypto';
 import { generateRideCode } from '@rider-comms/shared';
-import { getPool, ensureMigrated } from './db.ts';
+import { getPool, ensureMigrated, withTransaction } from './db.ts';
 import { sendPasswordResetEmail, sendVerificationEmail } from './email.ts';
 import { containsObjectionableText } from './contentFilter.ts';
 
@@ -83,19 +83,17 @@ async function hashPassword(password: string, algorithm = PASSWORD_ALGORITHM): P
   return `${salt.toString('hex')}:${derivedKey.toString('hex')}`;
 }
 
+const STORED_PASSWORD_PATTERN = new RegExp(`^[0-9a-f]{32}:[0-9a-f]{${SCRYPT_KEYLEN * 2}}$`, 'i');
+
 async function verifyPassword(password: string, stored: string, algorithm: string): Promise<boolean> {
-  try {
-    const options = scryptOptionsForAlgorithm(algorithm);
-    if (!options) return false;
-    const [saltHex, keyHex, extra] = stored.split(':');
-    if (extra !== undefined || !saltHex || !keyHex || saltHex.length !== 32 || keyHex.length !== SCRYPT_KEYLEN * 2) return false;
-    const salt = Buffer.from(saltHex, 'hex');
-    const expectedKey = Buffer.from(keyHex, 'hex');
-    const derivedKey = await derivePassword(password, salt, expectedKey.length, options);
-    return derivedKey.length === expectedKey.length && timingSafeEqual(derivedKey, expectedKey);
-  } catch {
-    return false;
-  }
+  const options = scryptOptionsForAlgorithm(algorithm);
+  // Strict hex: Buffer.from(…, 'hex') silently drops non-hex input, and an
+  // empty expected key would compare equal to an empty derived key.
+  if (!options || !STORED_PASSWORD_PATTERN.test(stored)) return false;
+  const [saltHex, keyHex] = stored.split(':');
+  const expectedKey = Buffer.from(keyHex, 'hex');
+  const derivedKey = await derivePassword(password, Buffer.from(saltHex, 'hex'), expectedKey.length, options).catch(() => null);
+  return derivedKey !== null && timingSafeEqual(derivedKey, expectedKey);
 }
 
 export class AuthStore {
@@ -329,21 +327,13 @@ export class AuthStore {
     const user = rows[0];
     if (!user) return { accepted: true };
     const token = randomBytes(32).toString('base64url');
-    const client = await pool.connect();
-    try {
-      await client.query('BEGIN');
+    await withTransaction(async (client) => {
       await client.query('DELETE FROM password_resets WHERE user_id = $1', [user.id]);
       await client.query(
         'INSERT INTO password_resets (token_hash, user_id, expires_at) VALUES ($1, $2, $3)',
         [this.digest(token), user.id, new Date(Date.now() + PASSWORD_RESET_TOKEN_TTL_MS)]
       );
-      await client.query('COMMIT');
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
-    }
+    });
     await this.sendPasswordResetEmailFn(user.email, token);
     return { accepted: true };
   }
@@ -353,22 +343,17 @@ export class AuthStore {
     if (typeof token !== 'string' || !token) return { error: 'invalid_token' };
     await ensureMigrated();
     const passwordHash = await hashPassword(password);
-    const pool = getPool();
-    const client = await pool.connect();
-    try {
-      await client.query('BEGIN');
+    return withTransaction(async (client) => {
       const { rows } = await client.query<{ user_id: string; expires_at: Date }>(
         'SELECT user_id, expires_at FROM password_resets WHERE token_hash = $1 FOR UPDATE',
         [this.digest(token)]
       );
       const row = rows[0];
       if (!row) {
-        await client.query('ROLLBACK');
         return { error: 'invalid_token' };
       }
       await client.query('DELETE FROM password_resets WHERE user_id = $1', [row.user_id]);
       if (new Date(row.expires_at).getTime() < Date.now()) {
-        await client.query('COMMIT');
         return { error: 'expired_token' };
       }
       await client.query(
@@ -376,14 +361,8 @@ export class AuthStore {
         [passwordHash, PASSWORD_ALGORITHM, row.user_id]
       );
       await client.query('DELETE FROM account_sessions WHERE user_id = $1', [row.user_id]);
-      await client.query('COMMIT');
       return { reset: true };
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
-    }
+    });
   }
 
   async getIdentity(riderId: string): Promise<AccountIdentity | undefined> {
@@ -464,24 +443,16 @@ export class AuthStore {
    * repeatedly from every replica because each delete is idempotent. */
   async cleanupExpiredRecords(now = new Date()): Promise<{ sessions: number; verifications: number; passwordResets: number }> {
     await ensureMigrated();
-    const client = await getPool().connect();
-    try {
-      await client.query('BEGIN');
+    return withTransaction(async (client) => {
       const sessions = await client.query('DELETE FROM account_sessions WHERE expires_at <= $1', [now]);
       const verifications = await client.query('DELETE FROM email_verifications WHERE expires_at <= $1', [now]);
       const passwordResets = await client.query('DELETE FROM password_resets WHERE expires_at <= $1', [now]);
-      await client.query('COMMIT');
       return {
         sessions: sessions.rowCount ?? 0,
         verifications: verifications.rowCount ?? 0,
         passwordResets: passwordResets.rowCount ?? 0,
       };
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
-    }
+    });
   }
 }
 
