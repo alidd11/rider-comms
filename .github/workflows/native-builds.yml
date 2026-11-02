@@ -185,6 +185,12 @@ jobs:
       - run: npm ci
       - name: Generate the native project
         working-directory: mobile
+        env:
+          # Google Maps on Android aborts the app when no key is configured.
+          # CI has no real key; a placeholder lets the map screen open (its
+          # tiles stay blank) so the UI smoke test can run. Production builds
+          # refuse to build without the real key (app.config.js).
+          GOOGLE_MAPS_ANDROID_API_KEY: ci-placeholder-no-map-tiles
         run: npx expo prebuild --clean --platform android --no-install
       - name: Build a release APK
         working-directory: mobile/android
