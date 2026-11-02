@@ -95,6 +95,7 @@
     billing: {
       tier: 'free',
       expiresAt: null,
+      willRenew: false,
       purchasesEnabled: false,
     },
     friends: [],

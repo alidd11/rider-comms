@@ -112,10 +112,13 @@ jobs:
           payload="$(node -e 'console.log(JSON.stringify({username:process.argv[1],email:process.argv[1]+"@example.com",password:process.argv[2],deviceName:"GitHub iOS UI smoke",acceptTerms:true}))' "$username" "$password")"
           response="$(curl --fail-with-body --silent --show-error --retry 3 --max-time 30 -X POST "$API_URL/auth/signup" -H 'content-type: application/json' -d "$payload")"
           token="$(printf '%s' "$response" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const x=JSON.parse(s); if (!x.token) process.exit(1); process.stdout.write(x.token);})')"
-          trap 'curl --silent --max-time 15 -X DELETE "$API_URL/auth/me" -H "authorization: Bearer $token" >/dev/null || true' EXIT
+          # Deleted by the cleanup step at the end of the job, after the UI test has used it.
+          echo "::add-mask::$token"
+          echo "::add-mask::$password"
           {
             echo "username=$username"
             echo "password=$password"
+            echo "token=$token"
           } >> "$GITHUB_OUTPUT"
       - name: Install Maestro and exercise authenticated iOS screens
         env:
@@ -131,6 +134,14 @@ jobs:
           mkdir -p maestro-ios-artifacts
           find "$HOME/.maestro" -type f -name '*.png' -exec cp {} maestro-ios-artifacts/ \; 2>/dev/null || true
           exit "$test_status"
+      - name: Delete the disposable test account
+        if: always() && steps.test-account.outputs.token != ''
+        env:
+          API_URL: https://backend-production-7fa0.up.railway.app
+          TEST_TOKEN: ${{ steps.test-account.outputs.token }}
+        run: |
+          curl --silent --show-error --max-time 15 -X DELETE "$API_URL/auth/me" \
+            -H "authorization: Bearer $TEST_TOKEN" -o /dev/null -w 'Account deletion: HTTP %{http_code}\n' || true
       - name: Upload authenticated iOS screenshots
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -227,10 +238,13 @@ jobs:
           payload="$(node -e 'console.log(JSON.stringify({username:process.argv[1],email:process.argv[1]+"@example.com",password:process.argv[2],deviceName:"GitHub Android UI smoke",acceptTerms:true}))' "$username" "$password")"
           response="$(curl --fail-with-body --silent --show-error --retry 3 --max-time 30 -X POST "$API_URL/auth/signup" -H 'content-type: application/json' -d "$payload")"
           token="$(printf '%s' "$response" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const x=JSON.parse(s); if (!x.token) process.exit(1); process.stdout.write(x.token);})')"
-          trap 'curl --silent --max-time 15 -X DELETE "$API_URL/auth/me" -H "authorization: Bearer $token" >/dev/null || true' EXIT
+          # Deleted by the cleanup step at the end of the job, after the UI test has used it.
+          echo "::add-mask::$token"
+          echo "::add-mask::$password"
           {
             echo "username=$username"
             echo "password=$password"
+            echo "token=$token"
           } >> "$GITHUB_OUTPUT"
       - name: Install Maestro and exercise authenticated Android screens
         env:
@@ -246,6 +260,14 @@ jobs:
           mkdir -p maestro-android-artifacts
           find "$HOME/.maestro" -type f -name '*.png' -exec cp {} maestro-android-artifacts/ \; 2>/dev/null || true
           exit "$test_status"
+      - name: Delete the disposable test account
+        if: always() && steps.test-account.outputs.token != ''
+        env:
+          API_URL: https://backend-production-7fa0.up.railway.app
+          TEST_TOKEN: ${{ steps.test-account.outputs.token }}
+        run: |
+          curl --silent --show-error --max-time 15 -X DELETE "$API_URL/auth/me" \
+            -H "authorization: Bearer $TEST_TOKEN" -o /dev/null -w 'Account deletion: HTTP %{http_code}\n' || true
       - name: Upload authenticated Android screenshots
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

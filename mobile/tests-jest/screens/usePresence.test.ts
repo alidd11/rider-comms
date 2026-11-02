@@ -22,7 +22,6 @@ interface Props {
   lockedForSafety: boolean;
   riderId: string;
   requestCurrentLocation: jest.Mock;
-  setLocationUnavailable: jest.Mock;
   setError: jest.Mock;
 }
 
@@ -34,7 +33,6 @@ async function renderPresence(overrides: Partial<Props> = {}) {
     lockedForSafety: false,
     riderId: 'me',
     requestCurrentLocation: jest.fn(async () => FIX),
-    setLocationUnavailable: jest.fn(),
     setError: jest.fn(),
     ...overrides,
     client: {
@@ -55,7 +53,6 @@ async function renderPresence(overrides: Partial<Props> = {}) {
       p.lockedForSafety,
       p.riderId,
       p.requestCurrentLocation,
-      p.setLocationUnavailable,
       p.setError,
     ),
     { initialProps: props },

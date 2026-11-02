@@ -1,23 +1,23 @@
 appId: com.ridercomms.app
-
 ---
-    - launchApp:
-        clearState: true
-    - takeScreenshot: before-login
-- tapOn:
-    text: "Username"
+# Signs in with the disposable account CI creates, then opens each main tab
+# and the plan screen. Screenshots are uploaded as workflow artifacts.
+- launchApp:
+    clearState: true
+    permissions:
+      all: allow
+- takeScreenshot: before-login
+- tapOn: "Username"
 - inputText: ${TEST_USERNAME}
-    - tapOn:
-        text: "Password"
-    - inputText: ${TEST_PASSWORD}
-    - hideKeyboard
-    - takeScreenshot: before-submit
-    - tapOn: "Log in"
-- waitForAnimationToEnd
-- takeScreenshot: after-login
+- tapOn: "Password"
+- inputText: ${TEST_PASSWORD}
+- hideKeyboard
+- takeScreenshot: before-submit
+- tapOn: "Log in"
 - extendedWaitUntil:
     visible: "Map"
     timeout: 30000
+- waitForAnimationToEnd
 - takeScreenshot: authenticated-map
 - tapOn: "Ride"
 - takeScreenshot: authenticated-ride

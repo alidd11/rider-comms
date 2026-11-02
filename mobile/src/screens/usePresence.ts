@@ -39,7 +39,6 @@ export function usePresence(
     accuracy: Location.Accuracy,
     refreshMovementTracking: boolean,
   ) => Promise<{ lat: number; lon: number; accuracyMeters: number; recordedAt: number } | null>,
-  setLocationUnavailable: (value: boolean) => void,
   setError: (value: string | null) => void,
 ): Presence {
   const [publicLive, setPublicLive] = React.useState(false);
@@ -73,7 +72,6 @@ export function usePresence(
         const { inZoneWith } = await client.updatePresence(lat, lon, accuracyMeters, recordedAt);
         if (!cancelled) {
           setRidersInZone(inZoneWith);
-          setLocationUnavailable(false);
           setError(null);
         }
       } catch (err) {
@@ -81,7 +79,6 @@ export function usePresence(
           const code = err instanceof ApiError && typeof err.body === 'object' && err.body && 'error' in (err.body as Record<string, unknown>)
             ? String((err.body as Record<string, unknown>).error)
             : '';
-          setLocationUnavailable(false);
           setError(code === 'email_verification_required'
             ? 'Verify your email before using Nearby Voice.'
             : code === 'location_sharing_disabled'
@@ -108,7 +105,7 @@ export function usePresence(
       clearInterval(interval);
       void client.leavePresence();
     };
-  }, [client, publicLive, requestCurrentLocation, setError, setLocationUnavailable]);
+  }, [client, publicLive, requestCurrentLocation, setError]);
 
   const handleNearbyToggle = React.useCallback(async () => {
     if (nearbyTogglePending) return;

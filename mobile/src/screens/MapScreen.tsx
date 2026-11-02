@@ -79,12 +79,6 @@ export function MapScreen(): React.JSX.Element {
   const route = useRoute<RouteProp<TabParamList, 'Map'>>();
   const navigation = useNavigation<BottomTabNavigationProp<TabParamList, 'Map'>>();
   const [segment, setSegment] = React.useState<Segment>(route.params?.segment ?? 'public');
-  // "No location yet" (getCurrentLocation() failing — expected pre-GPS, see
-  // the TODO on that stub above) is a normal, non-alarming state, not a
-  // genuine error — kept separate from `error` so it renders with neutral
-  // styling instead of the red/danger treatment reserved for real failures
-  // (e.g. the presence API call itself failing below).
-  const [locationUnavailable, setLocationUnavailable] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [currentLocation, setCurrentLocation] = React.useState<{ lat: number; lon: number } | null>(null);
   const currentLocationRef = React.useRef<{ lat: number; lon: number } | null>(null);
@@ -142,7 +136,6 @@ export function MapScreen(): React.JSX.Element {
     try {
       const permission = await Location.requestForegroundPermissionsAsync();
       if (!permission.granted) {
-        setLocationUnavailable(true);
         if (!permission.canAskAgain && showSettingsPrompt) {
           Alert.alert(
             'Location is blocked',
@@ -165,10 +158,8 @@ export function MapScreen(): React.JSX.Element {
       currentLocationAccuracyRef.current = next.accuracyMeters;
       setCurrentLocation(next);
       if (refreshMovementTracking) await refreshTracking();
-      setLocationUnavailable(false);
       return next;
     } catch {
-      setLocationUnavailable(true);
       return null;
     }
     // refreshTracking forwards to the provider's latest start function through
@@ -203,7 +194,6 @@ export function MapScreen(): React.JSX.Element {
     lockedForSafety,
     riderId,
     requestCurrentLocation,
-    setLocationUnavailable,
     setError,
   );
 
@@ -627,21 +617,6 @@ export function MapScreen(): React.JSX.Element {
           </Pressable>
         </View>
       )}
-
-      {segment === 'public' && !activeRoute && ridersInZone.length > 0 && !selectedPlace && !selectedHazard && !locationUnavailable && !error && (
-        <View
-          style={[styles.nearbyCount, { top: insets.top + spacing.sm + MIN_TOUCH_TARGET + spacing.sm }]}
-          accessible
-          accessibilityRole="text"
-          accessibilityLabel={`${ridersInZone.length} ${ridersInZone.length === 1 ? 'rider' : 'riders'} nearby. Exact locations are private.`}
-        >
-          <MaterialCommunityIcons name="account-multiple" size={16} color={colors.accent} />
-          <Text style={styles.nearbyCountText}>
-            {ridersInZone.length} {ridersInZone.length === 1 ? 'rider' : 'riders'} nearby · exact locations private
-          </Text>
-        </View>
-      )}
-
 
       {segment === 'public' && !selectedDestination && !activeRoute && (
         <View style={[styles.mapActions, { bottom: insets.bottom + spacing.sm }]}>

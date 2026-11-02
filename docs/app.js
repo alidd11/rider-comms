@@ -95,6 +95,7 @@
     billing: {
       tier: 'free',
       expiresAt: null,
+      willRenew: false,
       purchasesEnabled: false,
     },
     friends: [],
@@ -2462,7 +2463,7 @@
         const paid = currentTier !== 'free';
         const expiresAt = state.billing?.expiresAt ? new Date(state.billing.expiresAt) : null;
         const expiryLabel = expiresAt && Number.isFinite(expiresAt.getTime())
-          ? `${state.billing?.purchasesEnabled ? 'Renews' : 'Ends'} ${expiresAt.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}`
+          ? `${state.billing?.willRenew ? 'Renews' : 'Ends'} ${expiresAt.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}`
           : '';
         const storeNote = state.billing?.purchasesEnabled
           ? 'Subscriptions are purchased and managed in the native app. Your plan works here when you sign in.'
@@ -6474,8 +6475,11 @@
       event.preventDefault();
       // The @ is shown as a fixed prefix; preserve raw Rider IDs while
       // normalising a typed or pasted handle to the server format.
-      const entered = $('#friendId').value.trim().toLowerCase().replace(/^@+/, '');
-      const input = entered.startsWith('rider_') ? entered : `@${entered}`;
+      const raw = $('#friendId').value.trim().toLowerCase();
+      const entered = raw.replace(/^@+/, '');
+      // A typed @ always means a handle (handles may themselves start with
+      // "rider_"); otherwise a Rider ID-shaped entry is taken as one.
+      const input = !raw.startsWith('@') && /^rider_[a-z0-9_]{4,30}$/.test(entered) ? entered : `@${entered}`;
       const isHandle = /^@[a-z0-9_]{3,24}$/.test(input);
       const isRiderId = /^rider_[a-z0-9_]{4,30}$/.test(input);
       if (!entered || (!isHandle && !isRiderId)) { $('#friendFeedback').textContent = 'Enter their handle or their full Rider ID.'; return; }
@@ -7005,10 +7009,15 @@
     try {
       const billing = await apiFetch('GET', '/billing');
       if (!billing || typeof billing !== 'object') return;
+      const tier = planTier(billing.tier);
+      const subscriptions = Array.isArray(billing.subscriptions) ? billing.subscriptions : [];
       state.billing = {
         ...state.billing,
-        tier: planTier(billing.tier),
-        expiresAt: Number.isFinite(Number(billing.expiresAt)) ? Number(billing.expiresAt) : null,
+        tier,
+        expiresAt: billing.expiresAt !== null && Number.isFinite(Number(billing.expiresAt)) ? Number(billing.expiresAt) : null,
+        // Whether the subscription behind the current plan renews: a cancelled
+        // one keeps working until it ends, and must say so.
+        willRenew: subscriptions.some((subscription) => subscription?.active === true && subscription.tier === tier && subscription.willRenew === true),
         purchasesEnabled: billing.purchasesEnabled === true,
       };
       state.profile.zoneTier = state.billing.tier;
