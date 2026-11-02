@@ -91,6 +91,12 @@ export class BillingStore {
     const verifier = this.verifiers[platform];
     if (!verifier) throw new StoreVerificationError('billing_unavailable', 503);
     const state = await verifier.verify(id, productId);
+    // The app tags every purchase with the buyer's account token. A purchase
+    // tagged for someone else can't be claimed by presenting its ID, even
+    // before its buyer has verified it.
+    if (state.accountToken && state.accountToken !== appAccountTokenFor(riderId)) {
+      throw new StoreVerificationError('subscription_linked_to_another_account', 409);
+    }
     // The tier is stored on the profile, so make sure there is one.
     await this.profiles.getOrCreate(riderId);
     await this.record(state, riderId);

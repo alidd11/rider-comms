@@ -124,6 +124,16 @@ describe('billing', { skip: !hasDatabase && 'DATABASE_URL not set; skipping Post
     assert.equal((await postJson(ctx, 'billing-owner', '/billing/verify', { platform: 'apple', transactionId: '3000' })).status, 200);
   });
 
+  it('refuses a purchase tagged with another account, even before its buyer verifies it', async () => {
+    apple.set('3100', { accountToken: appAccountTokenFor('billing-buyer') });
+    const claimed = await postJson(ctx, 'billing-claimer', '/billing/verify', { platform: 'apple', transactionId: '3100' });
+    assert.equal(claimed.status, 409);
+    assert.deepEqual(await claimed.json(), { error: 'subscription_linked_to_another_account' });
+    assert.equal(await profileTier('billing-claimer'), 'free');
+    assert.equal((await postJson(ctx, 'billing-buyer', '/billing/verify', { platform: 'apple', transactionId: '3100' })).status, 200);
+    assert.equal(await profileTier('billing-buyer'), 'premium');
+  });
+
   it('reads as Free once the paid period has ended, before any sweep', async () => {
     apple.set('4000', { expiresAt: Date.now() + 30 * DAY });
     await postJson(ctx, 'billing-lapse', '/billing/verify', { platform: 'apple', transactionId: '4000' });
