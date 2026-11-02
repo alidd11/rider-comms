@@ -9,7 +9,7 @@
     // scrollable screens room to clear it.
     document.documentElement.classList.toggle('ride-pill-visible', active);
     syncRideLocationSharing();
-    syncVoiceConnection();
+    syncVoiceConnection({ automatic: true });
     syncRideRosterPolling();
     if (!active) return;
     const ride = state.activeRide;
