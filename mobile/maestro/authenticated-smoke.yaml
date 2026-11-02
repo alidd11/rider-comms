@@ -20,6 +20,11 @@ appId: com.ridercomms.app
 - tapOn:
     text: "Get Started(,.*)?"
     optional: true
+# The location step slides in; wait for it before the optional tap.
+- extendedWaitUntil:
+    visible: "Continue(,.*)?"
+    timeout: 10000
+    optional: true
 - tapOn:
     text: "Continue(,.*)?"
     optional: true
