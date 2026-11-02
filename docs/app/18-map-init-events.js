@@ -203,8 +203,11 @@
       event.preventDefault();
       // The @ is shown as a fixed prefix; preserve raw Rider IDs while
       // normalising a typed or pasted handle to the server format.
-      const entered = $('#friendId').value.trim().toLowerCase().replace(/^@+/, '');
-      const input = entered.startsWith('rider_') ? entered : `@${entered}`;
+      const raw = $('#friendId').value.trim().toLowerCase();
+      const entered = raw.replace(/^@+/, '');
+      // A typed @ always means a handle (handles may themselves start with
+      // "rider_"); otherwise a Rider ID-shaped entry is taken as one.
+      const input = !raw.startsWith('@') && /^rider_[a-z0-9_]{4,30}$/.test(entered) ? entered : `@${entered}`;
       const isHandle = /^@[a-z0-9_]{3,24}$/.test(input);
       const isRiderId = /^rider_[a-z0-9_]{4,30}$/.test(input);
       if (!entered || (!isHandle && !isRiderId)) { $('#friendFeedback').textContent = 'Enter their handle or their full Rider ID.'; return; }

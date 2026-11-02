@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import { expect } from './testUtils.ts';
-import { haversineMiles } from '../src/distance.ts';
+import { haversineMeters, haversineMiles } from '../src/distance.ts';
 
 describe('haversineMiles', () => {
   it('returns 0 for the same point', () => {
@@ -29,5 +29,14 @@ describe('haversineMiles', () => {
     const distance = haversineMiles(a, b);
     expect(distance).toBeGreaterThan(0.9);
     expect(distance).toBeLessThan(1.1);
+  });
+});
+
+describe('haversineMeters', () => {
+  it('agrees with haversineMiles', () => {
+    const nyc = { lat: 40.7128, lon: -74.006 };
+    const la = { lat: 34.0522, lon: -118.2437 };
+    const ratio = haversineMeters(nyc, la) / haversineMiles(nyc, la);
+    expect(Math.abs(ratio - 1609.344)).toBeLessThan(1);
   });
 });

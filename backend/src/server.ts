@@ -8,6 +8,7 @@ import { RetentionStore } from './retentionStore.ts';
 import { configureErrorAlerts, ErrorAlerter, flushErrorAlerts, reportOperationalError } from './errorAlerts.ts';
 import { DEFAULT_PUBLIC_APP_URL, sendOperationalEmail } from './email.ts';
 import { SITE_CHECK_INTERVAL_MS, SiteMonitor } from './siteMonitor.ts';
+import { createShutdown, errorMessage, installCrashHandlers, runMaintenance, scheduleMaintenance } from './processLifecycle.ts';
 import { fetchGooglePlaces } from './placesProvider.ts';
 import type { PlaceSearchRequest, PlaceSummary } from './placesProvider.ts';
 import { AuthStore } from './authStore.ts';
@@ -327,31 +328,43 @@ async function startProductionServer(): Promise<void> {
   const productionSocialActivityStore = new SocialActivityStore();
   const productionSocialEventStore = new SocialEventStore();
   const productionRetentionStore = new RetentionStore();
+  const productionAdminStatsStore = new AdminStatsStore();
   configureErrorAlerts(new ErrorAlerter({
     recipients: () => productionAuthStore.listAlertRecipients(),
     send: (to, subject, text) => sendOperationalEmail(to, subject, text),
     environment: process.env.RAILWAY_ENVIRONMENT_NAME ?? 'production',
   }));
-  const initialCleanup = await productionAuthStore.cleanupExpiredRecords();
-  const initialRateCleanup = await productionRateLimitStore.cleanupExpired();
-  const initialSocialRateCleanup = await productionSocialRateLimitStore.cleanupExpired();
-  const initialSocialActivityCleanup = await productionSocialActivityStore.cleanupExpired();
-  const initialSocialEventCleanup = await productionSocialEventStore.cleanupExpired();
-  const initialRetentionSweep = await productionRetentionStore.sweep();
-  console.log(JSON.stringify({ level: 'info', event: 'auth_records_cleaned', ...initialCleanup }));
-  console.log(JSON.stringify({ level: 'info', event: 'rate_limit_events_cleaned', deleted: initialRateCleanup }));
-  console.log(JSON.stringify({ level: 'info', event: 'social_rate_events_cleaned', deleted: initialSocialRateCleanup }));
-  console.log(JSON.stringify({ level: 'info', event: 'social_activity_cleaned', deleted: initialSocialActivityCleanup }));
-  console.log(JSON.stringify({ level: 'info', event: 'social_events_cleaned', deleted: initialSocialEventCleanup }));
-  console.log(JSON.stringify({ level: 'info', event: 'retention_sweep_completed', ...initialRetentionSweep }));
   const productionBillingStore = new BillingStore(storeVerifiersFromEnv());
   console.log(JSON.stringify({ level: 'info', event: 'billing_configured', purchasesEnabled: productionBillingStore.purchasesEnabled }));
+  const logInfo = (event: string, fields: object) => console.log(JSON.stringify({ level: 'info', event, ...fields }));
+
+  // Each job runs once now and then on its interval. A failure in a cleanup
+  // that must succeed before serving aborts startup; later failures are logged.
+  const cleanAuthRecords = async () => logInfo('auth_records_cleaned', await productionAuthStore.cleanupExpiredRecords());
+  const cleanRateLimits = async () => logInfo('rate_limit_events_cleaned', { deleted: await productionRateLimitStore.cleanupExpired() });
+  const cleanSocialRates = async () => logInfo('social_rate_events_cleaned', { deleted: await productionSocialRateLimitStore.cleanupExpired() });
+  const cleanSocialState = async () => {
+    const [activity, events] = await Promise.all([productionSocialActivityStore.cleanupExpired(), productionSocialEventStore.cleanupExpired()]);
+    logInfo('social_state_cleaned', { activity, events });
+  };
+  const sweepRetention = async () => logInfo('retention_sweep_completed', await productionRetentionStore.sweep());
+  // Renewals and cancellations, whether or not store notifications arrive.
+  const sweepBilling = async () => {
+    const counts = await productionBillingStore.sweep();
+    if (counts.checked > 0) logInfo('billing_sweep_completed', counts);
+  };
+  // Daily active-rider snapshot for the staff dashboard (aggregate count only).
+  const recordActiveRiders = () => productionAdminStatsStore.recordActiveRiders();
+  for (const job of [cleanAuthRecords, cleanRateLimits, cleanSocialRates, cleanSocialState, sweepRetention]) await job();
+  void runMaintenance('billing_sweep_failed', sweepBilling);
+  void runMaintenance('active_riders_snapshot_failed', recordActiveRiders);
+
   const app = createApp({
     authStore: productionAuthStore,
     billingStore: productionBillingStore,
     allowedOrigins,
     trustProxy: process.env.TRUST_PROXY === 'true',
-    logger: (event) => console.log(JSON.stringify({ level: 'info', event: 'http_request', ...event })),
+    logger: (event) => logInfo('http_request', event),
     rateLimitStore: productionRateLimitStore,
     socialRateLimitStore: productionSocialRateLimitStore,
     socialActivityStore: productionSocialActivityStore,
@@ -361,53 +374,6 @@ async function startProductionServer(): Promise<void> {
   app.headersTimeout = 10_000;
   app.keepAliveTimeout = 5_000;
   app.maxRequestsPerSocket = 1_000;
-  const authCleanupTimer = setInterval(() => {
-    void productionAuthStore.cleanupExpiredRecords()
-      .then((counts) => console.log(JSON.stringify({ level: 'info', event: 'auth_records_cleaned', ...counts })))
-      .catch((error) => console.error(JSON.stringify({ level: 'error', event: 'auth_record_cleanup_failed', message: error instanceof Error ? error.message : String(error) })));
-  }, AUTH_CLEANUP_INTERVAL_MS);
-  authCleanupTimer.unref();
-  const rateLimitCleanupTimer = setInterval(() => {
-    void productionRateLimitStore.cleanupExpired()
-      .then((deleted) => console.log(JSON.stringify({ level: 'info', event: 'rate_limit_events_cleaned', deleted })))
-      .catch((error) => console.error(JSON.stringify({ level: 'error', event: 'rate_limit_cleanup_failed', message: error instanceof Error ? error.message : String(error) })));
-  }, RATE_LIMIT_CLEANUP_INTERVAL_MS);
-  rateLimitCleanupTimer.unref();
-  const socialRateCleanupTimer = setInterval(() => {
-    void productionSocialRateLimitStore.cleanupExpired()
-      .then((deleted) => console.log(JSON.stringify({ level: 'info', event: 'social_rate_events_cleaned', deleted })))
-      .catch((error) => console.error(JSON.stringify({ level: 'error', event: 'social_rate_cleanup_failed', message: error instanceof Error ? error.message : String(error) })));
-  }, SOCIAL_RATE_CLEANUP_INTERVAL_MS);
-  socialRateCleanupTimer.unref();
-  const socialStateCleanupTimer = setInterval(() => {
-    void Promise.all([
-      productionSocialActivityStore.cleanupExpired(),
-      productionSocialEventStore.cleanupExpired(),
-    ])
-      .then(([activity, events]) => console.log(JSON.stringify({ level: 'info', event: 'social_state_cleaned', activity, events })))
-      .catch((error) => console.error(JSON.stringify({ level: 'error', event: 'social_state_cleanup_failed', message: error instanceof Error ? error.message : String(error) })));
-  }, SOCIAL_STATE_CLEANUP_INTERVAL_MS);
-  socialStateCleanupTimer.unref();
-  const retentionSweepTimer = setInterval(() => {
-    void productionRetentionStore.sweep()
-      .then((counts) => console.log(JSON.stringify({ level: 'info', event: 'retention_sweep_completed', ...counts })))
-      .catch((error) => console.error(JSON.stringify({ level: 'error', event: 'retention_sweep_failed', message: error instanceof Error ? error.message : String(error) })));
-  }, RETENTION_SWEEP_INTERVAL_MS);
-  retentionSweepTimer.unref();
-  // Renewals and cancellations, whether or not store notifications arrive.
-  const billingSweepTimer = setInterval(() => {
-    void productionBillingStore.sweep()
-      .then((counts) => { if (counts.checked > 0) console.log(JSON.stringify({ level: 'info', event: 'billing_sweep_completed', ...counts })); })
-      .catch((error) => console.error(JSON.stringify({ level: 'error', event: 'billing_sweep_failed', message: error instanceof Error ? error.message : String(error) })));
-  }, BILLING_SWEEP_INTERVAL_MS);
-  billingSweepTimer.unref();
-  // Daily active-rider snapshot for the staff dashboard (aggregate count only).
-  const productionAdminStatsStore = new AdminStatsStore();
-  const recordActiveRiders = () => void productionAdminStatsStore.recordActiveRiders()
-    .catch((error) => console.error(JSON.stringify({ level: 'error', event: 'active_riders_snapshot_failed', message: error instanceof Error ? error.message : String(error) })));
-  recordActiveRiders();
-  const activeRidersTimer = setInterval(recordActiveRiders, RETENTION_SWEEP_INTERVAL_MS);
-  activeRidersTimer.unref();
   // The web app and the privacy page the stores link to. The first check
   // waits one interval, so a deploy restart never alerts.
   const publicAppUrl = new URL(process.env.PUBLIC_APP_URL ?? DEFAULT_PUBLIC_APP_URL);
@@ -416,69 +382,40 @@ async function startProductionServer(): Promise<void> {
     report: (summary) => reportOperationalError('web_app_down', summary),
     log: (entry) => console.log(JSON.stringify(entry)),
   });
-  const siteMonitorTimer = setInterval(() => void siteMonitor.check(), SITE_CHECK_INTERVAL_MS);
-  siteMonitorTimer.unref();
+  const timers = [
+    scheduleMaintenance(AUTH_CLEANUP_INTERVAL_MS, 'auth_record_cleanup_failed', cleanAuthRecords),
+    scheduleMaintenance(RATE_LIMIT_CLEANUP_INTERVAL_MS, 'rate_limit_cleanup_failed', cleanRateLimits),
+    scheduleMaintenance(SOCIAL_RATE_CLEANUP_INTERVAL_MS, 'social_rate_cleanup_failed', cleanSocialRates),
+    scheduleMaintenance(SOCIAL_STATE_CLEANUP_INTERVAL_MS, 'social_state_cleanup_failed', cleanSocialState),
+    scheduleMaintenance(RETENTION_SWEEP_INTERVAL_MS, 'retention_sweep_failed', sweepRetention),
+    scheduleMaintenance(BILLING_SWEEP_INTERVAL_MS, 'billing_sweep_failed', sweepBilling),
+    scheduleMaintenance(RETENTION_SWEEP_INTERVAL_MS, 'active_riders_snapshot_failed', recordActiveRiders),
+    scheduleMaintenance(SITE_CHECK_INTERVAL_MS, 'site_check_failed', () => siteMonitor.check()),
+  ];
 
-  let stopping = false;
-  const shutdown = (signal: NodeJS.Signals) => {
-    if (stopping) return;
-    stopping = true;
-    clearInterval(authCleanupTimer);
-    clearInterval(rateLimitCleanupTimer);
-    clearInterval(socialRateCleanupTimer);
-    clearInterval(socialStateCleanupTimer);
-    clearInterval(retentionSweepTimer);
-    clearInterval(billingSweepTimer);
-    clearInterval(activeRidersTimer);
-    clearInterval(siteMonitorTimer);
-    void flushErrorAlerts();
-    void productionSocialEventStore.close().catch((error) => console.error(JSON.stringify({ level: 'error', event: 'social_event_listener_shutdown_failed', message: error instanceof Error ? error.message : String(error) })));
-    console.log(JSON.stringify({ level: 'info', event: 'shutdown_started', signal }));
-    const forceExit = setTimeout(() => {
-      console.error(JSON.stringify({ level: 'error', event: 'shutdown_timeout', signal }));
-      process.exit(1);
-    }, 10_000);
-    forceExit.unref();
-    app.close(async (error) => {
-      if (error) {
-        console.error(JSON.stringify({ level: 'error', event: 'shutdown_failed', message: error.message }));
-        process.exitCode = 1;
-      }
-      try {
-        await productionSocialEventStore.close();
-        await closeDatabase();
-        console.log(JSON.stringify({ level: 'info', event: 'shutdown_complete', signal }));
-      } catch (databaseError) {
-        console.error(JSON.stringify({ level: 'error', event: 'database_shutdown_failed', message: databaseError instanceof Error ? databaseError.message : String(databaseError) }));
-        process.exitCode = 1;
-      } finally {
-        clearTimeout(forceExit);
-      }
-    });
-  };
-  // Last-resort crash logging. An unhandled rejection is logged and the
-  // process keeps serving; an uncaught exception leaves the process in an
-  // unknown state, so it is logged and the process exits for the host to
-  // restart it.
-  process.on('unhandledRejection', (reason) => {
-    const message = reason instanceof Error ? reason.message : String(reason);
-    console.error(JSON.stringify({ level: 'error', event: 'unhandled_rejection', message, stack: reason instanceof Error ? reason.stack : undefined }));
-    reportOperationalError('unhandled_rejection', message);
+  const shutdown = createShutdown({
+    server: app,
+    timers,
+    beforeClose: () => {
+      void flushErrorAlerts();
+      void productionSocialEventStore.close().catch((error) => console.error(JSON.stringify({ level: 'error', event: 'social_event_listener_shutdown_failed', message: errorMessage(error) })));
+    },
+    closeResources: async () => {
+      await productionSocialEventStore.close();
+      await closeDatabase();
+    },
+    exit: (code) => process.exit(code),
+    setExitCode: (code) => { process.exitCode = code; },
   });
-  process.on('uncaughtException', (error) => {
-    console.error(JSON.stringify({ level: 'fatal', event: 'uncaught_exception', message: error.message, stack: error.stack }));
-    reportOperationalError('uncaught_exception', error.message);
-    // Give the alert email a few seconds, then exit whatever happens.
-    void flushErrorAlerts().finally(() => process.exit(1));
-  });
+  installCrashHandlers(process, { report: reportOperationalError, flush: flushErrorAlerts, exit: (code) => process.exit(code) });
   process.once('SIGTERM', shutdown);
   process.once('SIGINT', shutdown);
-  app.listen(port, host, () => console.log(JSON.stringify({ level: 'info', event: 'server_started', host, port, allowedOrigins })));
+  app.listen(port, host, () => logInfo('server_started', { host, port, allowedOrigins }));
 }
 
 if (isMainModule) {
   void startProductionServer().catch(async (error) => {
-    console.error(JSON.stringify({ level: 'error', event: 'startup_failed', message: error instanceof Error ? error.message : String(error) }));
+    console.error(JSON.stringify({ level: 'error', event: 'startup_failed', message: errorMessage(error) }));
     process.exitCode = 1;
     try { await closeDatabase(); } catch { /* startup failure is already logged */ }
   });

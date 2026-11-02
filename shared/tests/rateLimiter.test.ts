@@ -41,3 +41,13 @@ describe('SlidingWindowRateLimiter', () => {
     expect(limiter.tryConsume('active', 1600)).toBe(false);
   });
 });
+
+describe('SlidingWindowRateLimiter.reset', () => {
+  it('clears one key so it can try again straight away', () => {
+    const limiter = new SlidingWindowRateLimiter(1, 1000);
+    expect(limiter.tryConsume('user-1', 0)).toBe(true);
+    expect(limiter.tryConsume('user-1', 10)).toBe(false);
+    limiter.reset('user-1');
+    expect(limiter.tryConsume('user-1', 20)).toBe(true);
+  });
+});

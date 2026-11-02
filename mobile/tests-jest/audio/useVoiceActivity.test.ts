@@ -252,3 +252,17 @@ test('closes the mic when the level freezes on a loud value (analyser stopped)',
   });
   expect(result.current).toBe(false);
 });
+
+test('stops a microphone track that finished creating after the screen closed', async () => {
+  let resolveTrack!: (track: ReturnType<typeof fakeTrack>) => void;
+  mockCreateLocalAudioTrack.mockReturnValue(new Promise((resolve) => { resolveTrack = resolve; }));
+  const publishTrack = setParticipant(undefined);
+  const track = fakeTrack();
+
+  const { unmount } = await renderVoiceActivity({ enabled: true });
+  await unmount();
+  await act(async () => { resolveTrack(track); });
+
+  expect(track.stop).toHaveBeenCalled();
+  expect(publishTrack).not.toHaveBeenCalled();
+});

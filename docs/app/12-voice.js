@@ -140,13 +140,19 @@
     void room.disconnect().catch(() => {});
   }
 
+  // Retries back off (2 s, 4 s, 8 s … up to a minute) so a voice outage
+  // doesn't have every rider asking for a token every two seconds. A
+  // successful connection starts the sequence again.
+  let voiceReconnectAttempts = 0;
   function scheduleVoiceReconnect(targetKey) {
     if (!targetKey || voiceReconnectTimer || !microphonePermissionReady) return;
+    const delayMs = Math.min(2000 * 2 ** voiceReconnectAttempts, 60_000);
+    voiceReconnectAttempts += 1;
     voiceReconnectTimer = setTimeout(() => {
       voiceReconnectTimer = undefined;
       if (currentVoiceTarget() !== targetKey) return;
       syncVoiceConnection();
-    }, 2000);
+    }, delayMs);
   }
 
   function clearPublicVoiceRefresh() {
@@ -795,6 +801,7 @@
       }
       if (!voiceRoom && !proximityVoiceRooms.size && voiceMeterStream) stopVoiceLevelLoop();
       voiceFailureNotified = false;
+      voiceReconnectAttempts = 0;
       renderVoiceStatus();
     } catch (error) {
       // A state change while connecting is an intentional cancellation rather
@@ -898,7 +905,10 @@
    * change to state.activeRide or state.publicLive rather than calling
    * connectVoice/disconnectVoice directly at each call site.
    */
-  function syncVoiceConnection() {
+  // `automatic` calls come from re-renders: while a retry is backing off they
+  // leave the connection to that retry. Any other call (a tap, going live)
+  // retries straight away.
+  function syncVoiceConnection({ automatic = false } = {}) {
     const desired = state.activeRide ? `ride:${state.activeRide.rideId}` : state.publicLive ? 'channel' : undefined;
     // Public proximity is refreshed even while already on `channel`: the
     // server returns the current authorised pair roster, and this call
@@ -909,6 +919,12 @@
     // A restored session must not make getUserMedia prompt during boot.
     // Create, Join and Go live set this only from their direct tap.
     if (desired && !microphonePermissionReady) return;
+    if (voiceReconnectTimer) {
+      if (automatic) return;
+      clearTimeout(voiceReconnectTimer);
+      voiceReconnectTimer = undefined;
+      voiceReconnectAttempts = 0;
+    }
     if (state.activeRide) void connectVoice('ride', state.activeRide.rideId);
     else if (state.publicLive) void connectVoice('channel');
   }

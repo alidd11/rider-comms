@@ -22,7 +22,6 @@ interface Props {
   lockedForSafety: boolean;
   riderId: string;
   requestCurrentLocation: jest.Mock;
-  setLocationUnavailable: jest.Mock;
   setError: jest.Mock;
 }
 
@@ -34,7 +33,6 @@ async function renderPresence(overrides: Partial<Props> = {}) {
     lockedForSafety: false,
     riderId: 'me',
     requestCurrentLocation: jest.fn(async () => FIX),
-    setLocationUnavailable: jest.fn(),
     setError: jest.fn(),
     ...overrides,
     client: {
@@ -55,7 +53,6 @@ async function renderPresence(overrides: Partial<Props> = {}) {
       p.lockedForSafety,
       p.riderId,
       p.requestCurrentLocation,
-      p.setLocationUnavailable,
       p.setError,
     ),
     { initialProps: props },
@@ -275,5 +272,17 @@ test('go-live alerts and stays off when the server rejects the shareLocation upd
 
   expect(Alert.alert).toHaveBeenCalledWith('Nearby Voice unavailable', expect.any(String));
   expect(setShareLocation).not.toHaveBeenCalled();
+  expect(result.current.publicLive).toBe(false);
+});
+
+test('go-live explains when the account status can’t be checked', async () => {
+  const client = { getMe: jest.fn(async () => { throw new Error('offline'); }) };
+  const { result } = await renderPresence({ client });
+
+  await act(async () => {
+    await result.current.handleNearbyToggle();
+  });
+
+  expect(Alert.alert).toHaveBeenCalledWith('Nearby Voice unavailable', expect.stringContaining('account status'));
   expect(result.current.publicLive).toBe(false);
 });

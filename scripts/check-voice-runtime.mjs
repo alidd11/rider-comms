@@ -291,7 +291,7 @@ assert.match(
 );
 assert.match(
   mapScreenSource,
-  /<ProximityVoice enabled=\{publicLive\} peerIds=\{ridersInZone\} \/>/,
+  /<ProximityVoice\s+enabled=\{publicLive\}\s+peerIds=\{ridersInZone\}[\s>]/,
   'Nearby Voice transport must be controlled by session-scoped live state, not durable profile consent',
 );
 assert.match(

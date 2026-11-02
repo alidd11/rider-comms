@@ -173,6 +173,14 @@ describe('profiles, social links, friends, and messages', { skip: !hasDatabase &
     const request = await made.json() as { toRiderId: string };
     assert.equal(request.toRiderId, 'carol');
   });
+  it('finds a handle that looks like a Rider ID when it arrives without its @', async () => {
+    ctx.authStore.createTestSession('gina');
+    await ctx.profileStore.update('gina', { handle: '@rider_gina' });
+    const made = await postJson(ctx, 'hank', '/friends/requests', { toRiderId: 'rider_gina' });
+    assert.equal(made.status, 201);
+    assert.equal((await made.json() as { toRiderId: string }).toRiderId, 'gina');
+    assert.equal((await postJson(ctx, 'hank', '/friends/requests', { toRiderId: 'rider_nobody' })).status, 404);
+  });
   it('404s a friend request by an unknown handle', async () => {
     assert.equal((await postJson(ctx, 'erin', '/friends/requests', { toRiderId: '@nobody_by_this_handle' })).status, 404);
   });

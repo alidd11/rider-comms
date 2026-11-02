@@ -39,10 +39,15 @@
     try {
       const billing = await apiFetch('GET', '/billing');
       if (!billing || typeof billing !== 'object') return;
+      const tier = planTier(billing.tier);
+      const subscriptions = Array.isArray(billing.subscriptions) ? billing.subscriptions : [];
       state.billing = {
         ...state.billing,
-        tier: planTier(billing.tier),
-        expiresAt: Number.isFinite(Number(billing.expiresAt)) ? Number(billing.expiresAt) : null,
+        tier,
+        expiresAt: billing.expiresAt !== null && Number.isFinite(Number(billing.expiresAt)) ? Number(billing.expiresAt) : null,
+        // Whether the subscription behind the current plan renews: a cancelled
+        // one keeps working until it ends, and must say so.
+        willRenew: subscriptions.some((subscription) => subscription?.active === true && subscription.tier === tier && subscription.willRenew === true),
         purchasesEnabled: billing.purchasesEnabled === true,
       };
       state.profile.zoneTier = state.billing.tier;

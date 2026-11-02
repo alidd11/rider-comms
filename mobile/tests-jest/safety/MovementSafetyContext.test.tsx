@@ -178,3 +178,37 @@ test('stops tracking and clears movement state when the app goes to the backgrou
   expect(remove).toHaveBeenCalled();
   expect(result.current.movementState).toBe('unknown');
 });
+
+test('a restarted watch drops the older subscription that resolved late', async () => {
+  const late = { remove: jest.fn() };
+  let resolveFirst!: (subscription: { remove: jest.Mock }) => void;
+  mockWatchPositionAsync
+    .mockReturnValueOnce(new Promise((resolve) => { resolveFirst = resolve; }))
+    .mockResolvedValue({ remove: jest.fn() });
+  const { result } = await renderMovementSafety();
+  await waitFor(() => expect(mockWatchPositionAsync).toHaveBeenCalledTimes(1));
+
+  await act(async () => { await result.current.refreshTracking(); });
+  await act(async () => { resolveFirst(late); });
+
+  expect(late.remove).toHaveBeenCalled();
+});
+
+test('explains when the permission request itself fails', async () => {
+  mockRequestForegroundPermissionsAsync.mockRejectedValue(new Error('no activity'));
+  const { result } = await renderMovementSafety();
+  await act(async () => { await result.current.requestLocationAccess(); });
+  expect(result.current.locationAccess).toBe('unavailable');
+  expect(result.current.trackingError).toBe('Location permission could not be requested.');
+});
+
+test('re-checks freshness on a timer so a lost GPS signal is noticed', async () => {
+  jest.useFakeTimers();
+  try {
+    const { result } = await renderMovementSafety();
+    await act(async () => { jest.advanceTimersByTime(2_100); });
+    expect(result.current.movementState).toBe('unknown');
+  } finally {
+    jest.useRealTimers();
+  }
+});

@@ -95,6 +95,7 @@
     billing: {
       tier: 'free',
       expiresAt: null,
+      willRenew: false,
       purchasesEnabled: false,
     },
     friends: [],
@@ -2134,7 +2135,8 @@
     // scrollable screens room to clear it.
     document.documentElement.classList.toggle('ride-pill-visible', active);
     syncRideLocationSharing();
-    syncVoiceConnection();
+    syncVoiceConnection({ automatic: true });
+    syncRideRosterPolling();
     if (!active) return;
     const ride = state.activeRide;
     const locationToggle = $('#activeRideLocationConsent');
@@ -2188,9 +2190,34 @@
     renderRide();
   }
 
+  // While the Ride screen is open, keep its roster current: riders join with
+  // the invite code at any time, and nothing else tells the host unless
+  // location sharing or voice happens to be on. Profiles are only fetched
+  // again when the member list changes.
+  const RIDE_ROSTER_REFRESH_MS = 10_000;
+  let rideRosterTimer;
+  function syncRideRosterPolling() {
+    const wanted = Boolean(state.activeRide) && state.screen === 'ride' && document.visibilityState === 'visible';
+    if (wanted && !rideRosterTimer) {
+      rideRosterTimer = setInterval(() => {
+        if (!state.activeRide || state.screen !== 'ride' || document.visibilityState !== 'visible') {
+          clearInterval(rideRosterTimer);
+          rideRosterTimer = undefined;
+          return;
+        }
+        void refreshActiveRide({ poll: true });
+      }, RIDE_ROSTER_REFRESH_MS);
+    } else if (!wanted && rideRosterTimer) {
+      clearInterval(rideRosterTimer);
+      rideRosterTimer = undefined;
+    }
+  }
+
+  const sameMembers = (a = [], b = []) => a.length === b.length && a.every((riderId) => b.includes(riderId));
+
   // Reconcile membership, invite validity and private location consent from
   // the server. Cached ride details are never enough to resume sharing.
-  async function refreshActiveRide() {
+  async function refreshActiveRide({ poll = false } = {}) {
     const version = rideRefreshVersion;
     try {
       const previous = state.activeRide;
@@ -2209,8 +2236,9 @@
       }
       persist();
       renderRide();
-      if (ride) await loadRideRoster();
-      else if (previous) showToast('That ride is no longer active.');
+      const membersChanged = !previous?.members || previous.rideId !== ride?.rideId || !sameMembers(previous.memberIds, ride?.memberIds);
+      if (ride && (!poll || membersChanged)) await loadRideRoster();
+      else if (!ride && previous) showToast('That ride is no longer active.');
     } catch {
       // Transient failures leave the last verified state intact. A fresh
       // login starts with no verified ride and can retry from the Ride tab.
@@ -2462,7 +2490,7 @@
         const paid = currentTier !== 'free';
         const expiresAt = state.billing?.expiresAt ? new Date(state.billing.expiresAt) : null;
         const expiryLabel = expiresAt && Number.isFinite(expiresAt.getTime())
-          ? `${state.billing?.purchasesEnabled ? 'Renews' : 'Ends'} ${expiresAt.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}`
+          ? `${state.billing?.willRenew ? 'Renews' : 'Ends'} ${expiresAt.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}`
           : '';
         const storeNote = state.billing?.purchasesEnabled
           ? 'Subscriptions are purchased and managed in the native app. Your plan works here when you sign in.'
@@ -3208,13 +3236,19 @@
     void room.disconnect().catch(() => {});
   }
 
+  // Retries back off (2 s, 4 s, 8 s … up to a minute) so a voice outage
+  // doesn't have every rider asking for a token every two seconds. A
+  // successful connection starts the sequence again.
+  let voiceReconnectAttempts = 0;
   function scheduleVoiceReconnect(targetKey) {
     if (!targetKey || voiceReconnectTimer || !microphonePermissionReady) return;
+    const delayMs = Math.min(2000 * 2 ** voiceReconnectAttempts, 60_000);
+    voiceReconnectAttempts += 1;
     voiceReconnectTimer = setTimeout(() => {
       voiceReconnectTimer = undefined;
       if (currentVoiceTarget() !== targetKey) return;
       syncVoiceConnection();
-    }, 2000);
+    }, delayMs);
   }
 
   function clearPublicVoiceRefresh() {
@@ -3863,6 +3897,7 @@
       }
       if (!voiceRoom && !proximityVoiceRooms.size && voiceMeterStream) stopVoiceLevelLoop();
       voiceFailureNotified = false;
+      voiceReconnectAttempts = 0;
       renderVoiceStatus();
     } catch (error) {
       // A state change while connecting is an intentional cancellation rather
@@ -3966,7 +4001,10 @@
    * change to state.activeRide or state.publicLive rather than calling
    * connectVoice/disconnectVoice directly at each call site.
    */
-  function syncVoiceConnection() {
+  // `automatic` calls come from re-renders: while a retry is backing off they
+  // leave the connection to that retry. Any other call (a tap, going live)
+  // retries straight away.
+  function syncVoiceConnection({ automatic = false } = {}) {
     const desired = state.activeRide ? `ride:${state.activeRide.rideId}` : state.publicLive ? 'channel' : undefined;
     // Public proximity is refreshed even while already on `channel`: the
     // server returns the current authorised pair roster, and this call
@@ -3977,6 +4015,12 @@
     // A restored session must not make getUserMedia prompt during boot.
     // Create, Join and Go live set this only from their direct tap.
     if (desired && !microphonePermissionReady) return;
+    if (voiceReconnectTimer) {
+      if (automatic) return;
+      clearTimeout(voiceReconnectTimer);
+      voiceReconnectTimer = undefined;
+      voiceReconnectAttempts = 0;
+    }
     if (state.activeRide) void connectVoice('ride', state.activeRide.rideId);
     else if (state.publicLive) void connectVoice('channel');
   }
@@ -6474,8 +6518,11 @@
       event.preventDefault();
       // The @ is shown as a fixed prefix; preserve raw Rider IDs while
       // normalising a typed or pasted handle to the server format.
-      const entered = $('#friendId').value.trim().toLowerCase().replace(/^@+/, '');
-      const input = entered.startsWith('rider_') ? entered : `@${entered}`;
+      const raw = $('#friendId').value.trim().toLowerCase();
+      const entered = raw.replace(/^@+/, '');
+      // A typed @ always means a handle (handles may themselves start with
+      // "rider_"); otherwise a Rider ID-shaped entry is taken as one.
+      const input = !raw.startsWith('@') && /^rider_[a-z0-9_]{4,30}$/.test(entered) ? entered : `@${entered}`;
       const isHandle = /^@[a-z0-9_]{3,24}$/.test(input);
       const isRiderId = /^rider_[a-z0-9_]{4,30}$/.test(input);
       if (!entered || (!isHandle && !isRiderId)) { $('#friendFeedback').textContent = 'Enter their handle or their full Rider ID.'; return; }
@@ -7005,10 +7052,15 @@
     try {
       const billing = await apiFetch('GET', '/billing');
       if (!billing || typeof billing !== 'object') return;
+      const tier = planTier(billing.tier);
+      const subscriptions = Array.isArray(billing.subscriptions) ? billing.subscriptions : [];
       state.billing = {
         ...state.billing,
-        tier: planTier(billing.tier),
-        expiresAt: Number.isFinite(Number(billing.expiresAt)) ? Number(billing.expiresAt) : null,
+        tier,
+        expiresAt: billing.expiresAt !== null && Number.isFinite(Number(billing.expiresAt)) ? Number(billing.expiresAt) : null,
+        // Whether the subscription behind the current plan renews: a cancelled
+        // one keeps working until it ends, and must say so.
+        willRenew: subscriptions.some((subscription) => subscription?.active === true && subscription.tier === tier && subscription.willRenew === true),
         purchasesEnabled: billing.purchasesEnabled === true,
       };
       state.profile.zoneTier = state.billing.tier;

@@ -48,11 +48,12 @@ export const styles = StyleSheet.create({
     borderColor: colors.success,
     backgroundColor: colors.success,
   },
+  // Under the Nearby Voice controls (rendered inside ProximityVoice's stack).
   nearbyCount: {
-    position: 'absolute',
-    left: spacing.lg,
-    maxWidth: '72%',
+    alignSelf: 'center',
+    maxWidth: '100%',
     minHeight: 34,
+    marginTop: spacing.xs,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
@@ -68,7 +69,8 @@ export const styles = StyleSheet.create({
     position: 'absolute',
     left: spacing.md,
     right: spacing.md,
-    zIndex: 11,
+    // Above the Nearby Voice status card (zIndex 11), which shares this spot: the error is dismissible.
+    zIndex: 12,
     minHeight: 48,
     flexDirection: 'row',
     alignItems: 'center',

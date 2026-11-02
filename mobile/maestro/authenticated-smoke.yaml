@@ -1,33 +1,47 @@
 appId: com.ridercomms.app
-
 ---
-    - launchApp:
-        clearState: true
-    - takeScreenshot: before-login
-- tapOn:
-    text: "Username"
+# Signs in with the disposable account CI creates, then opens each main tab
+# and the plan screen. Screenshots are uploaded as workflow artifacts.
+- launchApp:
+    clearState: true
+    permissions:
+      all: allow
+- takeScreenshot: before-login
+- tapOn: "Username"
 - inputText: ${TEST_USERNAME}
-    - tapOn:
-        text: "Password"
-    - inputText: ${TEST_PASSWORD}
-    - hideKeyboard
-    - takeScreenshot: before-submit
-    - tapOn: "Log in"
-- waitForAnimationToEnd
-- takeScreenshot: after-login
+- tapOn: "Password"
+- inputText: ${TEST_PASSWORD}
+- hideKeyboard
+- takeScreenshot: before-submit
+- tapOn: "Log in"
+# First launch shows the two-step onboarding (welcome, then location).
+# iOS adds to labels ("Get Started, ", "Group Ride, tab, 2 of 5"), so each
+# match allows a comma and more after the visible text.
+- tapOn:
+    text: "Get Started(,.*)?"
+    optional: true
+# The location step slides in; wait for it before the optional tap.
 - extendedWaitUntil:
-    visible: "Map"
+    visible: "Continue(,.*)?"
+    timeout: 10000
+    optional: true
+- tapOn:
+    text: "Continue(,.*)?"
+    optional: true
+- extendedWaitUntil:
+    visible: "Map(,.*)?"
     timeout: 30000
+- waitForAnimationToEnd
 - takeScreenshot: authenticated-map
-- tapOn: "Ride"
+- tapOn: "(Group )?Ride(,.*)?"
 - takeScreenshot: authenticated-ride
-- tapOn: "Friends"
+- tapOn: "Friends(,.*)?"
 - takeScreenshot: authenticated-friends
-- tapOn: "Settings"
+- tapOn: "Settings(,.*)?"
 - takeScreenshot: authenticated-settings
-- tapOn: "Account"
-- tapOn: "Your plan"
+- tapOn: "Account(,.*)?"
+- tapOn: "Your plan(,.*)?"
 - extendedWaitUntil:
-    visible: "Your plan"
+    visible: "Your plan(,.*)?"
     timeout: 10000
 - takeScreenshot: authenticated-billing

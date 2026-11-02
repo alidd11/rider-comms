@@ -501,3 +501,30 @@ test('fitRoute ignores degenerate routes', async () => {
   expect(props.mapRef.current!.fitToCoordinates).not.toHaveBeenCalled();
   expect(result.current.navigationFollowing).toBe(true);
 });
+
+test('measures where the map drew the rider once the camera settles', async () => {
+  const { props } = await startNavigation();
+  const map = props.mapRef.current! as ReturnType<typeof fakeMap> & { pointForCoordinate?: jest.Mock };
+  map.pointForCoordinate = jest.fn(async () => ({ x: 160, y: 520 }));
+
+  await sendFix(51.5005, -0.1);
+  await act(async () => { jest.advanceTimersByTime(1_000); });
+
+  expect(map.pointForCoordinate).toHaveBeenCalledWith({ latitude: 51.5005, longitude: -0.1 });
+  map.animateCamera.mockClear();
+  await sendFix(51.5006, -0.1);
+  expect(map.animateCamera).toHaveBeenCalledTimes(1);
+});
+
+test('the "Route updated." notice clears itself', async () => {
+  const rerouted: InAppNavigationRoute = { ...ROUTE, steps: ROUTE.steps.slice(1) };
+  const client = { getDrivingRoute: jest.fn().mockResolvedValueOnce(ROUTE).mockResolvedValueOnce(rerouted) };
+  const { result } = await startNavigation({ client });
+  await sendFix(51.5005, -0.097);
+  await act(async () => { jest.advanceTimersByTime(10_000); });
+  await sendFix(51.5005, -0.097);
+  expect(result.current.navigationNotice).toBe('Route updated.');
+
+  await act(async () => { jest.advanceTimersByTime(10_000); });
+  expect(result.current.navigationNotice).toBeNull();
+});

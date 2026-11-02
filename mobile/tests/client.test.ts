@@ -473,3 +473,25 @@ describe('RiderCommsClient directions', () => {
     );
   });
 });
+
+describe('RiderCommsClient places and friends', () => {
+  it('shapes place searches and paged friend lookups', async () => {
+    const calls: Array<{ url: string; method?: string; body?: unknown }> = [];
+    const client = new RiderCommsClient('http://example.test', fakeFetch((url, init) => {
+      calls.push({ url, method: init.method, body: init.body ? JSON.parse(init.body as string) : undefined });
+      return { status: 200, body: { places: [], incoming: [], outgoing: [], profiles: {}, friends: [], nextCursor: null } };
+    }));
+    await client.searchPlaces('fuel', { lat: 51.5, lon: -0.1 });
+    await client.searchNearbyPlaces(['gas_station'], { lat: 51.5, lon: -0.1 });
+    await client.getFriendRequests('rider 1', { before: 'cursor-1', limit: 20 });
+    await client.getFriends('rider 1', { before: 'cursor-2' });
+    await client.getFriends('rider 1');
+    assert.deepEqual(calls, [
+      { url: 'http://example.test/places/search', method: 'POST', body: { query: 'fuel', near: { lat: 51.5, lon: -0.1 } } },
+      { url: 'http://example.test/places/nearby', method: 'POST', body: { includedTypes: ['gas_station'], near: { lat: 51.5, lon: -0.1 } } },
+      { url: 'http://example.test/riders/rider%201/friend-requests?limit=20&before=cursor-1', method: 'GET', body: undefined },
+      { url: 'http://example.test/riders/rider%201/friends?limit=100&before=cursor-2', method: 'GET', body: undefined },
+      { url: 'http://example.test/riders/rider%201/friends?limit=100', method: 'GET', body: undefined },
+    ]);
+  });
+});

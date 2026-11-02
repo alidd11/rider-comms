@@ -95,3 +95,29 @@ describe('MediaControls now playing', () => {
     assert.deepEqual(sent, ['playPause']);
   });
 });
+
+describe('MediaControls when the native module fails', () => {
+  it('reports no access and falls back safely', async () => {
+    const throwing = {
+      isOtherAudioPlaying: () => false,
+      sendMediaKey: () => true,
+      nowPlayingAccess: () => { throw new Error('native crash'); },
+      requestNowPlayingAccess: async () => { throw new Error('native crash'); },
+      controlNowPlaying: async () => { throw new Error('native crash'); },
+    };
+    const controls = new MediaControls(throwing, true);
+    assert.equal(controls.nowPlayingAccess(), 'denied');
+    assert.equal(await controls.requestNowPlayingAccess(), 'denied');
+    assert.equal(await controls.control('next'), false);
+  });
+
+  it('passes through a granted request', async () => {
+    const controls = new MediaControls({
+      isOtherAudioPlaying: () => false,
+      sendMediaKey: () => true,
+      requestNowPlayingAccess: async () => 'granted',
+    }, true);
+    assert.equal(await controls.requestNowPlayingAccess(), 'granted');
+    assert.equal(await new MediaControls(null, true).requestNowPlayingAccess(), 'denied');
+  });
+});

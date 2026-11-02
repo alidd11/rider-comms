@@ -4,7 +4,7 @@ import {
   ttlMsForType,
 } from '@rider-comms/shared';
 import type { HazardReport, HazardType } from '@rider-comms/shared';
-import { ensureMigrated, getPool } from './db.ts';
+import { ensureMigrated, getPool, withTransaction } from './db.ts';
 import { latLonBoundingBox } from './geoBoundingBox.ts';
 
 export type VoteResult = { ok: true } | { ok: false; reason: 'not_found' };
@@ -111,22 +111,18 @@ export class HazardStore {
 
   private async vote(id: string, riderId: string, vote: 'confirm' | 'deny'): Promise<VoteResult> {
     await ensureMigrated();
-    const client = await getPool().connect();
-    try {
-      await client.query('BEGIN');
+    return withTransaction(async (client) => {
       const report = await client.query<{ reported_by: string }>(
         'SELECT reported_by FROM hazard_reports WHERE id = $1 AND expires_at > $2 FOR UPDATE',
         [id, Date.now()],
       );
       if (!report.rowCount) {
-        await client.query('ROLLBACK');
         return { ok: false, reason: 'not_found' };
       }
       // A reporter's own vote doesn't count: confirming your own report would
       // let one rider outweigh an honest denial. Accepted silently, since the
       // reporter's id is never published and the app can't hide the button.
       if (report.rows[0]?.reported_by === riderId) {
-        await client.query('COMMIT');
         return { ok: true };
       }
 
@@ -136,7 +132,6 @@ export class HazardStore {
       );
       const previousVote = existing.rows[0]?.vote;
       if (previousVote === vote) {
-        await client.query('COMMIT');
         return { ok: true };
       }
 
@@ -154,14 +149,8 @@ export class HazardStore {
          WHERE id = $1`,
         [id, confirmationDelta, denialDelta],
       );
-      await client.query('COMMIT');
       return { ok: true };
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
-    }
+    });
   }
 
   /** Only the reporter may remove their own report. */

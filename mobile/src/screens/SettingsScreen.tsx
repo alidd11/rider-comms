@@ -269,7 +269,13 @@ function SettingsRow({ icon, title, subtitle, right, danger = false, showChevron
   onPress: () => void;
 }): React.JSX.Element {
   return (
-    <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.settingRow, last && styles.settingRowLast, pressed && styles.settingRowPressed]}>
+    <Pressable
+      accessibilityRole="button"
+      // Only the words: otherwise screen readers also announce the icon glyphs.
+      accessibilityLabel={[title, subtitle, right].filter(Boolean).join(', ')}
+      onPress={onPress}
+      style={({ pressed }) => [styles.settingRow, last && styles.settingRowLast, pressed && styles.settingRowPressed]}
+    >
       <Ionicons name={icon} size={20} color={danger ? colors.danger : colors.textPrimary} style={styles.settingRowIcon} />
       <View style={styles.settingRowCopy}>
         <Text style={[styles.settingRowTitle, danger && styles.settingRowDanger]}>{title}</Text>

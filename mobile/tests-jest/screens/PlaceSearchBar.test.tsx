@@ -1,5 +1,6 @@
 import * as React from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ApiError } from '../../src/api/client';
@@ -193,4 +194,67 @@ test('lists and clears this rider’s recent places', async () => {
 
   expect(screen.queryByText('Old Haunt')).toBeNull();
   expect(await AsyncStorage.getItem(recentPlacesStorageKey(RIDER_ID))).toBeNull();
+});
+
+test('choosing a recent place opens it on the map', async () => {
+  await AsyncStorage.setItem(recentPlacesStorageKey(RIDER_ID), JSON.stringify([
+    { ...place('recent-2', 'Bike Night'), distanceMeters: 0 },
+  ]));
+  const props = await renderSearchBar();
+  await openSearch();
+  await fireEvent.press(await screen.findByLabelText(/^Recent place: Bike Night, Bike Night address/));
+  expect(props.onSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'recent-2' }));
+});
+
+test('shows no recent places when they can’t be read', async () => {
+  const originalGetItem = AsyncStorage.getItem;
+  AsyncStorage.getItem = jest.fn(async () => { throw new Error('storage unavailable'); });
+  try {
+    await renderSearchBar();
+    await openSearch();
+    expect(screen.queryByText('Recent places')).toBeNull();
+  } finally {
+    AsyncStorage.getItem = originalGetItem;
+  }
+});
+
+test('tapping the active category again clears it', async () => {
+  mockClient.searchNearbyPlaces.mockResolvedValue({ places: [place('f1', 'Fuel Co')] });
+  await renderSearchBar();
+  await openSearch();
+  await fireEvent.press(screen.getByText('Repair'));
+  await act(async () => { jest.advanceTimersByTime(PLACE_SEARCH_DEBOUNCE_MS); });
+  expect(await screen.findByText('Fuel Co')).toBeTruthy();
+  // The chip, not the search field now showing the same word.
+  await fireEvent.press(screen.getAllByText('Repair')[0]!);
+  expect(screen.queryByText('Fuel Co')).toBeNull();
+});
+
+test('a generic search failure says so, and location can be retried', async () => {
+  mockClient.searchPlaces.mockRejectedValue(new ApiError(500, { error: 'boom' }));
+  await renderSearchBar();
+  await openSearch();
+  await typeQuery('server error query');
+  expect(await screen.findByText('Place search failed')).toBeTruthy();
+});
+
+test('“Try location again” asks for location', async () => {
+  const props = await renderSearchBar({ near: null });
+  await openSearch();
+  await fireEvent.press(screen.getByText('Try location again'));
+  expect(props.onRequestLocation).toHaveBeenCalledTimes(2);
+});
+
+test('Android shows its own clear button', async () => {
+  Object.defineProperty(Platform, 'OS', { configurable: true, get: () => 'android' });
+  try {
+    mockClient.searchPlaces.mockResolvedValue({ places: [] });
+    await renderSearchBar();
+    await openSearch();
+    await fireEvent.changeText(screen.getByPlaceholderText('Search for a place'), 'clear me');
+    await fireEvent.press(screen.getByLabelText('Clear search'));
+    expect(screen.getByPlaceholderText('Search for a place').props.value).toBe('');
+  } finally {
+    Object.defineProperty(Platform, 'OS', { configurable: true, get: () => 'ios' });
+  }
 });

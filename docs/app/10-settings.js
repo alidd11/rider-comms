@@ -115,7 +115,7 @@
         const paid = currentTier !== 'free';
         const expiresAt = state.billing?.expiresAt ? new Date(state.billing.expiresAt) : null;
         const expiryLabel = expiresAt && Number.isFinite(expiresAt.getTime())
-          ? `${state.billing?.purchasesEnabled ? 'Renews' : 'Ends'} ${expiresAt.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}`
+          ? `${state.billing?.willRenew ? 'Renews' : 'Ends'} ${expiresAt.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}`
           : '';
         const storeNote = state.billing?.purchasesEnabled
           ? 'Subscriptions are purchased and managed in the native app. Your plan works here when you sign in.'

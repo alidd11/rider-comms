@@ -167,3 +167,13 @@ describe('navigation Live Activity', () => {
     assert.equal(starts, 2);
   });
 });
+
+describe('navigation Live Activity dismissed by the rider', () => {
+  it('ignores a failure to stop an activity the rider already dismissed', () => {
+    const { api, calls } = fakeApi();
+    const activity = new NavigationLiveActivity({ ...api, stopActivity: () => { throw new Error('already dismissed'); } });
+    activity.update(navigationLiveActivityContent(input));
+    assert.doesNotThrow(() => activity.stop());
+    assert.equal(calls[0]?.[0], 'start');
+  });
+});

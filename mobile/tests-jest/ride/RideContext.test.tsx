@@ -292,3 +292,57 @@ test('does not treat a 4xx answer as the backend being unreachable', async () =>
   }
   expect(result.current.rideLocationsUnreachable).toBe(false);
 });
+
+function captureAppState() {
+  const listeners: Array<(state: string) => void> = [];
+  jest.spyOn(AppState, 'addEventListener').mockImplementation((_type, listener) => {
+    listeners.push(listener as (state: string) => void);
+    return { remove: jest.fn() } as never;
+  });
+  return (state: string) => listeners.forEach((listener) => listener(state));
+}
+
+test('returning to the app retries a failed restore straight away', async () => {
+  const emit = captureAppState();
+  const client = {
+    getCurrentRide: jest.fn()
+      .mockRejectedValueOnce(new Error('network down'))
+      .mockResolvedValue({ ride: fakeRide() }),
+  };
+  const { result } = await renderRide(client);
+  await waitFor(() => expect(client.getCurrentRide).toHaveBeenCalledTimes(1));
+
+  await act(async () => { emit('background'); emit('active'); });
+  await waitFor(() => expect(result.current.activeRide?.rideId).toBe('ride-1'));
+  expect(client.getCurrentRide).toHaveBeenCalledTimes(2);
+});
+
+test('refreshes the ride and its locations when the app returns to the foreground', async () => {
+  const emit = captureAppState();
+  const client = {
+    getCurrentRide: jest.fn(async () => ({ ride: fakeRide({ shareRideLocation: true }) })),
+    getRide: jest.fn(async () => fakeRide({ shareRideLocation: true })),
+    updateRideLocation: jest.fn(async () => ({ locations: [] })),
+  };
+  const { result } = await renderRide(client);
+  await waitFor(() => expect(result.current.activeRide?.rideId).toBe('ride-1'));
+  await waitFor(() => expect(client.updateRideLocation).toHaveBeenCalled());
+  const rideCalls = client.getRide.mock.calls.length;
+  const locationCalls = client.updateRideLocation.mock.calls.length;
+
+  await act(async () => { emit('active'); });
+  await waitFor(() => expect(client.getRide.mock.calls.length).toBeGreaterThan(rideCalls));
+  await waitFor(() => expect(client.updateRideLocation.mock.calls.length).toBeGreaterThan(locationCalls));
+});
+
+test('setRideLocationSharing reports a server failure', async () => {
+  const client = {
+    getCurrentRide: jest.fn(async () => ({ ride: fakeRide() })),
+    setRideLocationSharing: jest.fn(async () => { throw new Error('offline'); }),
+  };
+  const { result } = await renderRide(client);
+  await waitFor(() => expect(result.current.activeRide?.rideId).toBe('ride-1'));
+  let ok = true;
+  await act(async () => { ok = await result.current.setRideLocationSharing(false); });
+  expect(ok).toBe(false);
+});

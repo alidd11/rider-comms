@@ -180,3 +180,51 @@ describe('BillingScreen', () => {
     expect(screen.getByText('Ride Safe is on')).toBeTruthy();
   });
 });
+
+describe('BillingScreen edge cases', () => {
+  const bought: StorePurchase = { platform: 'apple', productId: 'premium_monthly', transactionId: '1000', purchaseToken: null, raw: {} };
+
+  it('explains a purchase that belongs to another account, or couldn’t be confirmed', async () => {
+    const { store, deliver } = fakeStore();
+    mockClient.verifyPurchase
+      .mockRejectedValueOnce(Object.assign(new Error('409'), { status: 409, body: { error: 'subscription_linked_to_another_account' } }))
+      .mockRejectedValueOnce(new Error('offline'));
+    await renderScreen(store);
+    await screen.findByText('£4.49 / month');
+    await act(async () => { deliver(bought); });
+    expect(await screen.findByText(/already linked to another Rider Comms account/)).toBeTruthy();
+    await act(async () => { deliver(bought); });
+    expect(await screen.findByText(/couldn’t confirm your purchase/)).toBeTruthy();
+  });
+
+  it('loads prices at purchase time when they hadn’t loaded yet', async () => {
+    const loadProducts = jest.fn()
+      .mockRejectedValueOnce(new Error('store slow'))
+      .mockResolvedValue([{ id: 'premium_monthly', displayPrice: '£4.49' }]);
+    const { store } = fakeStore({ loadProducts });
+    await renderScreen(store);
+    await fireEvent.press(await screen.findByLabelText('Subscribe to Premium, $4.99 / month'));
+    await waitFor(() => expect(store.purchase).toHaveBeenCalledWith({ id: 'premium_monthly', displayPrice: '£4.49' }, expect.any(Object)));
+  });
+
+  it('explains when restore or manage can’t reach the store', async () => {
+    mockClient.getBilling.mockResolvedValue(PREMIUM);
+    const { store } = fakeStore({
+      availablePurchases: jest.fn(async () => { throw new Error('store down'); }),
+      manageSubscriptions: jest.fn(async () => { throw new Error('no deep link'); }),
+    });
+    await renderScreen(store);
+    await fireEvent.press(await screen.findByText('Restore purchases'));
+    expect(await screen.findByText(/couldn’t reach the store to restore/)).toBeTruthy();
+    await fireEvent.press(screen.getByText('Manage subscription'));
+    expect(await screen.findByText(/tap your name, then Subscriptions/)).toBeTruthy();
+  });
+
+  it('points Android riders to Google Play when manage fails', async () => {
+    mockClient.getBilling.mockResolvedValue(PREMIUM);
+    const { store } = fakeStore({ platform: 'google', manageSubscriptions: jest.fn(async () => { throw new Error('no deep link'); }) });
+    await renderScreen(store);
+    await fireEvent.press(await screen.findByText('Manage subscription'));
+    expect(await screen.findByText(/Open Google Play/)).toBeTruthy();
+  });
+});

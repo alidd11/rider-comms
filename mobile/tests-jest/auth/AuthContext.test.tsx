@@ -197,3 +197,66 @@ test('asks an existing account to agree to the current Terms before showing the 
   expect(mockClientImpl.acceptTerms).toHaveBeenCalledWith('2026-10-01');
   expect(await screen.findByText('Signed in content')).toBeTruthy();
 });
+
+test('keeps the Terms gate up with an error when saving the agreement fails, and offers the legal pages and sign-out', async () => {
+  const { Linking } = jest.requireActual('react-native') as typeof import('react-native');
+  const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
+  mockGetItemAsync.mockImplementation(async (key: string) => (key === KEY ? cachedSession({ emailVerified: true }) : null));
+  mockClientImpl.getMe.mockResolvedValue({ riderId: 'me', username: 'me', emailVerified: true, termsAccepted: false, termsVersion: '2026-10-01' });
+  mockClientImpl.acceptTerms = jest.fn(async () => { throw new Error('offline'); });
+  await render(
+    <SafeAreaProvider initialMetrics={SAFE_AREA_METRICS}>
+      <AuthProvider><Text>Signed in content</Text></AuthProvider>
+    </SafeAreaProvider>,
+  );
+  await flushSplashDelay();
+  await screen.findByText('Updated terms');
+
+  await act(async () => { await fireEvent.press(screen.getByText('I agree')); });
+  expect(await screen.findByText('Couldn’t save your agreement. Check your connection and try again.')).toBeTruthy();
+  expect(screen.queryByText('Signed in content')).toBeNull();
+
+  await fireEvent.press(screen.getByText('Terms of Service'));
+  await fireEvent.press(screen.getByText('Community Guidelines'));
+  await fireEvent.press(screen.getByText('Privacy Policy'));
+  expect(openURL).toHaveBeenCalledTimes(3);
+
+  await act(async () => { await fireEvent.press(screen.getByText('Sign out')); });
+  expect(mockClientImpl.logOut).toHaveBeenCalled();
+  expect(mockDeleteItemAsync).toHaveBeenCalledWith(KEY);
+  openURL.mockRestore();
+});
+
+test('treats an unreadable saved session as signed out, without a restore error', async () => {
+  mockGetItemAsync.mockImplementation(async (key: string) => {
+    if (key === KEY) throw new Error('Could not decrypt the value');
+    return null;
+  });
+  await render(
+    <SafeAreaProvider initialMetrics={SAFE_AREA_METRICS}>
+      <AuthProvider><Text>Signed in content</Text></AuthProvider>
+    </SafeAreaProvider>,
+  );
+  await flushSplashDelay();
+
+  expect(await screen.findByLabelText('Username')).toBeTruthy();
+  expect(screen.queryByText('We couldn’t check your saved session. Retry or sign in again.')).toBeNull();
+  expect(mockDeleteItemAsync).toHaveBeenCalledWith(KEY);
+  expect(mockClientImpl.getMe).not.toHaveBeenCalled();
+});
+
+test('logs out even when the saved session cannot be deleted', async () => {
+  const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+  mockGetItemAsync.mockImplementation(async (key: string) => (key === KEY ? cachedSession() : null));
+  mockDeleteItemAsync.mockRejectedValue(new Error('keychain unavailable'));
+  mockSetItemAsync.mockRejectedValue(new Error('keychain unavailable'));
+  const { result } = await renderAuth();
+  await flushSplashDelay();
+  await waitFor(() => expect(result.current?.riderId).toBe('me'));
+
+  await act(async () => { await result.current?.logOut(); });
+
+  expect(mockClientImpl.logOut).toHaveBeenCalled();
+  await waitFor(() => expect(screen.getByLabelText('Username')).toBeTruthy());
+  warn.mockRestore();
+});

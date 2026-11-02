@@ -54,3 +54,16 @@ describe('native AudioEngine chat-source aggregation', () => {
     assert.equal(changes, 2);
   });
 });
+
+describe('AudioEngine music state', () => {
+  it('recomputes gains only when music starts or stops', () => {
+    const engine = new AudioEngine();
+    const before = engine.getGains();
+    engine.setMusicPlaying(true);
+    const playing = engine.getGains();
+    engine.setMusicPlaying(true);
+    assert.deepEqual(engine.getGains(), playing);
+    engine.setMusicPlaying(false);
+    assert.deepEqual(engine.getGains(), before);
+  });
+});

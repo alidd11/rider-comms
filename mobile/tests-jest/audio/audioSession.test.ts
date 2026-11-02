@@ -5,6 +5,7 @@ const mockSetAppleAudioConfiguration = jest.fn(async (config: { audioCategory: s
 const mockStartAudioSession = jest.fn(async () => { mockCalls.push('start'); });
 const mockStopAudioSession = jest.fn(async () => { mockCalls.push('stop'); });
 const mockStartForegroundService = jest.fn(async () => { mockCalls.push('fgs:start'); });
+const mockStopForegroundService = jest.fn(async () => { mockCalls.push('fgs:stop'); });
 
 jest.mock('@livekit/react-native', () => ({
   AudioSession: {
@@ -17,7 +18,7 @@ jest.mock('@livekit/react-native', () => ({
 
 jest.mock('../../src/audio/voiceForegroundService', () => ({
   startAndroidVoiceForegroundService: () => mockStartForegroundService(),
-  stopAndroidVoiceForegroundService: async () => { mockCalls.push('fgs:stop'); },
+  stopAndroidVoiceForegroundService: () => mockStopForegroundService(),
 }));
 
 type AudioSessionModule = typeof import('../../src/audio/audioSession');
@@ -35,6 +36,9 @@ function loadAudioSession(): AudioSessionModule {
 beforeEach(() => {
   mockCalls.length = 0;
   mockStartForegroundService.mockImplementation(async () => { mockCalls.push('fgs:start'); });
+  mockStopForegroundService.mockImplementation(async () => { mockCalls.push('fgs:stop'); });
+  mockStartAudioSession.mockImplementation(async () => { mockCalls.push('start'); });
+  mockStopAudioSession.mockImplementation(async () => { mockCalls.push('stop'); });
 });
 
 test('navigation alone holds a mixing playback session so prompts play when locked', async () => {
@@ -109,3 +113,27 @@ test('rejects a blank voice owner', async () => {
   const session = loadAudioSession();
   await expect(session.acquireVoiceAudioSession('  ')).rejects.toThrow('owner is required');
 });
+
+test('a voice session that fails to start doesn’t strand the Android voice notification', async () => {
+  const session = loadAudioSession();
+  mockStartAudioSession.mockRejectedValueOnce(new Error('audio busy'));
+  await expect(session.acquireVoiceAudioSession('private-ride')).rejects.toThrow('audio busy');
+  expect(mockCalls).toContain('fgs:stop');
+});
+
+test('stopping voice still stops the notification when audio teardown fails', async () => {
+  const session = loadAudioSession();
+  await session.acquireVoiceAudioSession('private-ride');
+  mockCalls.length = 0;
+  mockStopAudioSession.mockRejectedValueOnce(new Error('teardown failed'));
+  mockStopForegroundService.mockRejectedValueOnce(new Error('service gone'));
+  await expect(session.releaseVoiceAudioSession('private-ride')).rejects.toThrow('teardown failed');
+});
+
+test('a failure to stop the notification is reported when audio stopped cleanly', async () => {
+  const session = loadAudioSession();
+  await session.acquireVoiceAudioSession('private-ride');
+  mockStopForegroundService.mockRejectedValueOnce(new Error('service gone'));
+  await expect(session.releaseVoiceAudioSession('private-ride')).rejects.toThrow('service gone');
+});
+

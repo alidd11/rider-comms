@@ -40,9 +40,15 @@ export async function handleSocialRoutes(ctx: RouteContext): Promise<unknown> {
     // nobody reads out loud. Resolve it to a riderId first so
     // everything downstream (self-check, block check, the request
     // itself) works exactly as it already does for a raw riderId.
-    const target = body.toRiderId.trim().startsWith('@')
-      ? await profileStore.findRiderIdByHandle(body.toRiderId.trim())
-      : body.toRiderId;
+    const requested = body.toRiderId.trim();
+    let target = requested.startsWith('@')
+      ? await profileStore.findRiderIdByHandle(requested)
+      : requested;
+    // The apps show the @ as a fixed prefix, so a handle that itself looks
+    // like a Rider ID ("rider_…") can arrive without it: fall back to it.
+    if (target && !requested.startsWith('@') && !(await authStore.hasRider(target))) {
+      target = await profileStore.findRiderIdByHandle(`@${requested}`);
+    }
     if (!target) return sendJson(res, 404, { error: 'rider_not_found' });
     if (actorId === target) return sendJson(res, 400, { error: 'cannot_friend_yourself' });
     if (!(await authStore.hasRider(target))) return sendJson(res, 404, { error: 'rider_not_found' });
