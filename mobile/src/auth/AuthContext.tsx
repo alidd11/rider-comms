@@ -76,6 +76,17 @@ function parse(raw: string | null): StoredSession | null {
   }
 }
 
+// The saved session only spares the rider signing in again on the next
+// launch. Secure storage can fail (some devices, and simulator builds without
+// keychain access), and that must never block signing in or out.
+async function savedSession(operation: () => Promise<unknown>): Promise<void> {
+  try {
+    await operation();
+  } catch (error) {
+    console.warn('[rider-comms] Saved session storage failed', error);
+  }
+}
+
 function authErrorMessage(error: unknown): string {
   if (!(error instanceof ApiError)) {
     return error instanceof Error && error.name === 'AbortError'
@@ -527,7 +538,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
       try {
         // v1 stored auto-created guest identities. Account auth deliberately
         // does not migrate those disposable sessions into a real account.
-        await SecureStore.deleteItemAsync(LEGACY_GUEST_KEY);
+        await savedSession(() => SecureStore.deleteItemAsync(LEGACY_GUEST_KEY));
         let stored: string | null;
         try {
           stored = await SecureStore.getItemAsync(KEY);
@@ -535,7 +546,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
           // Unreadable, not unreachable: on Android, clearing app data can
           // leave a value the keystore can no longer decrypt. There is no
           // session to restore, so start signed out without an error.
-          await SecureStore.deleteItemAsync(KEY).catch(() => undefined);
+          await savedSession(() => SecureStore.deleteItemAsync(KEY));
           return;
         }
         const cached = parse(stored);
@@ -545,11 +556,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
         if (me.riderId !== cached.riderId) throw new Error('Stored account identity did not match the server.');
         const refreshed = { ...cached, emailVerified: me.emailVerified, termsAccepted: me.termsAccepted ?? true };
         if (me.termsVersion) setTermsVersion(me.termsVersion);
-        await SecureStore.setItemAsync(KEY, JSON.stringify(refreshed));
+        await savedSession(() => SecureStore.setItemAsync(KEY, JSON.stringify(refreshed)));
         if (!cancelled) setSession(refreshed);
       } catch (error) {
         if (error instanceof ApiError && error.status === 401) {
-          await SecureStore.deleteItemAsync(KEY);
+          await savedSession(() => SecureStore.deleteItemAsync(KEY));
         } else if (!cancelled) {
           setRestoreError('We couldn’t check your saved session. Retry or sign in again.');
         }
@@ -563,8 +574,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
   }, [restoreAttempt]);
 
   const onAuthenticated = React.useCallback(async (nextSession: StoredSession, remember = true) => {
-    if (remember) await SecureStore.setItemAsync(KEY, JSON.stringify(nextSession));
-    else await SecureStore.deleteItemAsync(KEY);
+    await savedSession(() => (remember ? SecureStore.setItemAsync(KEY, JSON.stringify(nextSession)) : SecureStore.deleteItemAsync(KEY)));
     setSession(nextSession);
     setRestoreError(null);
   }, []);
@@ -573,7 +583,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
     if (!session) return null;
     const client = new RiderCommsClient(API_BASE_URL, fetch, session.token);
     const clearLocalSession = async () => {
-      await SecureStore.deleteItemAsync(KEY);
+      await savedSession(() => SecureStore.deleteItemAsync(KEY));
       setSession(null);
     };
     return {

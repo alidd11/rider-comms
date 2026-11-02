@@ -244,3 +244,19 @@ test('treats an unreadable saved session as signed out, without a restore error'
   expect(mockDeleteItemAsync).toHaveBeenCalledWith(KEY);
   expect(mockClientImpl.getMe).not.toHaveBeenCalled();
 });
+
+test('logs out even when the saved session cannot be deleted', async () => {
+  const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+  mockGetItemAsync.mockImplementation(async (key: string) => (key === KEY ? cachedSession() : null));
+  mockDeleteItemAsync.mockRejectedValue(new Error('keychain unavailable'));
+  mockSetItemAsync.mockRejectedValue(new Error('keychain unavailable'));
+  const { result } = await renderAuth();
+  await flushSplashDelay();
+  await waitFor(() => expect(result.current?.riderId).toBe('me'));
+
+  await act(async () => { await result.current?.logOut(); });
+
+  expect(mockClientImpl.logOut).toHaveBeenCalled();
+  await waitFor(() => expect(screen.getByLabelText('Username')).toBeTruthy());
+  warn.mockRestore();
+});

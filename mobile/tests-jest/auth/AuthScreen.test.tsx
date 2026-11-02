@@ -285,3 +285,19 @@ test('opens the legal pages from signup and returns to log in from every form', 
   await fireEvent.press(screen.getByText('Back to log in'));
   expect(screen.getByText('Forgot password?')).toBeTruthy();
 });
+
+test('signs in and out even when the device cannot save the session', async () => {
+  const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+  mockGetItemAsync.mockRejectedValue(new Error('keychain unavailable'));
+  mockSetItemAsync.mockRejectedValue(new Error('keychain unavailable'));
+  mockDeleteItemAsync.mockRejectedValue(new Error('keychain unavailable'));
+  await renderSignedOut();
+  expect(screen.queryByText('We couldn’t check your saved session. Retry or sign in again.')).toBeNull();
+
+  await fillLogin('rider_one', 'correct-horse');
+  await press('Log in');
+
+  expect(await screen.findByText('Signed in content')).toBeTruthy();
+  expect(screen.queryByText(/could not reach the account service/i)).toBeNull();
+  expect(warn).toHaveBeenCalled();
+});

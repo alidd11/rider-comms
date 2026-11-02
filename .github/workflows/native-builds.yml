@@ -122,6 +122,8 @@ jobs:
           } >> "$GITHUB_OUTPUT"
       - name: Install Maestro and exercise authenticated iOS screens
         env:
+          # Hosted simulators can take minutes to start Maestro's driver.
+          MAESTRO_DRIVER_STARTUP_TIMEOUT: '240000'
           TEST_USERNAME: ${{ steps.test-account.outputs.username }}
           TEST_PASSWORD: ${{ steps.test-account.outputs.password }}
         run: |
@@ -255,6 +257,8 @@ jobs:
           } >> "$GITHUB_OUTPUT"
       - name: Install Maestro and exercise authenticated Android screens
         env:
+          # Hosted simulators can take minutes to start Maestro's driver.
+          MAESTRO_DRIVER_STARTUP_TIMEOUT: '240000'
           TEST_USERNAME: ${{ steps.test-account.outputs.username }}
           TEST_PASSWORD: ${{ steps.test-account.outputs.password }}
         run: |
