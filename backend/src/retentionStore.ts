@@ -1,4 +1,4 @@
-import { ensureMigrated, getPool } from './db.ts';
+import { ensureMigrated, withTransaction } from './db.ts';
 import { MOVEMENT_ANCHOR_WINDOW_MS } from './presenceStore.ts';
 
 // Scheduled retention sweep for data that request paths only prune lazily.
@@ -36,9 +36,7 @@ export interface RetentionSweepCounts {
 export class RetentionStore {
   async sweep(now = Date.now()): Promise<RetentionSweepCounts> {
     await ensureMigrated();
-    const client = await getPool().connect();
-    try {
-      await client.query('BEGIN');
+    return withTransaction(async (client) => {
       const presence = await client.query(
         'DELETE FROM rider_presence WHERE updated_at < $1',
         [now - PRESENCE_RETENTION_MS],
@@ -55,7 +53,6 @@ export class RetentionStore {
       const rides = await client.query('DELETE FROM rides WHERE created_at < $1', [now - RIDE_RETENTION_MS]);
       // Votes cascade with their report (hazard_report_votes_report_fk).
       const hazardReports = await client.query('DELETE FROM hazard_reports WHERE expires_at <= $1', [now]);
-      await client.query('COMMIT');
       return {
         presence: presence.rowCount ?? 0,
         movementAnchors: movementAnchors.rowCount ?? 0,
@@ -64,11 +61,6 @@ export class RetentionStore {
         rides: rides.rowCount ?? 0,
         hazardReports: hazardReports.rowCount ?? 0,
       };
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
-    }
+    });
   }
 }

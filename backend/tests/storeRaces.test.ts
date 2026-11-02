@@ -42,7 +42,8 @@ describe('store race outcomes', { skip: !hasDatabase && 'DATABASE_URL not set' }
     } finally {
       fault.disarm();
     }
-    assert.ok(fault.statements.includes('ROLLBACK'));
+    const { rows } = await getPool().query(`SELECT 1 FROM friend_requests WHERE from_rider_id = 'race-a' AND to_rider_id = 'race-b'`);
+    assert.equal(rows.length, 0);
   });
 
   it('reports not_found when a request is resolved elsewhere mid-accept', async () => {

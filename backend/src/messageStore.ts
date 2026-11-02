@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { DirectMessage } from '@rider-comms/shared';
-import { ensureMigrated, getPool } from './db.ts';
+import { ensureMigrated, getPool, withTransaction } from './db.ts';
 import { appendSocialEventForRiders } from './socialEventStore.ts';
 
 interface DirectMessageRow {
@@ -104,22 +104,14 @@ export class MessageStore {
       text,
       createdAt: Date.now(),
     };
-    const client = await getPool().connect();
-    try {
-      await client.query('BEGIN');
+    return withTransaction(async (client) => {
       await client.query(
         'INSERT INTO direct_messages (id, from_rider_id, to_rider_id, text, created_at, conversation_key) VALUES ($1, $2, $3, $4, $5, $6)',
         [message.id, message.fromRiderId, message.toRiderId, message.text, message.createdAt, conversationKey(message.fromRiderId, message.toRiderId)]
       );
       await appendSocialEventForRiders(client, [fromRiderId, toRiderId], 'message', fromRiderId, message.id, message.createdAt);
-      await client.query('COMMIT');
       return message;
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
-    }
+    });
   }
 
   async getThread(riderId: string, withRiderId: string, limit = 100): Promise<DirectMessage[]> {
@@ -223,9 +215,7 @@ export class MessageStore {
   async markThreadRead(riderId: string, withRiderId: string): Promise<number> {
     await ensureMigrated();
     const key = conversationKey(riderId, withRiderId);
-    const client = await getPool().connect();
-    try {
-      await client.query('BEGIN');
+    return withTransaction(async (client) => {
       const latest = await client.query<{ id: string; seq: string | number }>(
         `SELECT id, seq
          FROM direct_messages
@@ -237,7 +227,6 @@ export class MessageStore {
       );
       const message = latest.rows[0];
       if (!message) {
-        await client.query('COMMIT');
         return 0;
       }
 
@@ -254,14 +243,8 @@ export class MessageStore {
       if (advanced.rows[0]) {
         await appendSocialEventForRiders(client, [riderId, withRiderId], 'message_read', riderId, message.id);
       }
-      await client.query('COMMIT');
       return Number(message.seq);
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
-    }
+    });
   }
 
   async getUnreadCount(riderId: string): Promise<number> {

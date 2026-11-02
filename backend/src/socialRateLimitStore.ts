@@ -1,5 +1,5 @@
 import type { PoolClient } from 'pg';
-import { ensureMigrated, getPool } from './db.ts';
+import { ensureMigrated, getPool, withTransaction } from './db.ts';
 
 export type SocialRateAction = 'friend_request' | 'direct_message' | 'safety_report';
 
@@ -54,9 +54,7 @@ export class SocialRateLimitStore {
     await ensureMigrated();
     const policy = SOCIAL_RATE_POLICIES[action];
     const cutoff = now - policy.windowMs;
-    const client = await getPool().connect();
-    try {
-      await client.query('BEGIN');
+    return withTransaction(async (client) => {
       await this.lockKey(client, actorId, action);
 
       // Keep the hot key bounded while it is active. A separate periodic
@@ -75,7 +73,6 @@ export class SocialRateLimitStore {
       const count = Number(rows[0]?.event_count ?? 0);
       const oldest = rows[0]?.oldest_created_at == null ? null : Number(rows[0].oldest_created_at);
       if (count >= policy.maxEvents) {
-        await client.query('COMMIT');
         const retryAfterMs = oldest == null ? policy.windowMs : oldest + policy.windowMs - now;
         return {
           allowed: false,
@@ -87,14 +84,8 @@ export class SocialRateLimitStore {
         'INSERT INTO social_rate_events (actor_id, action, created_at) VALUES ($1, $2, $3)',
         [actorId, action, now],
       );
-      await client.query('COMMIT');
       return { allowed: true, retryAfterSeconds: 0 };
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
-    }
+    });
   }
 
   async cleanupExpired(now = Date.now()): Promise<number> {

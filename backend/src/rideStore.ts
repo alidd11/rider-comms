@@ -4,7 +4,7 @@ import {
   isRideCodeExpired,
 } from '@rider-comms/shared';
 import type { RideCodeRecord } from '@rider-comms/shared';
-import { ensureMigrated, getPool } from './db.ts';
+import { ensureMigrated, getPool, withTransaction } from './db.ts';
 
 export interface Ride {
   id: string;
@@ -103,12 +103,10 @@ export class RideStore {
 
   async createRide(creatorId: string): Promise<{ ride: Ride; codeRecord: RideCodeRecord }> {
     await ensureMigrated();
-    const client = await getPool().connect();
     const id = randomUUID();
     const createdAt = Date.now();
     let codeRecord = createRideCodeRecord(id);
-    try {
-      await client.query('BEGIN');
+    await withTransaction(async (client) => {
       await client.query('INSERT INTO rides (id, created_by, created_at) VALUES ($1, $2, $3)', [id, creatorId, createdAt]);
       await client.query('INSERT INTO ride_members (ride_id, rider_id) VALUES ($1, $2)', [id, creatorId]);
 
@@ -125,13 +123,7 @@ export class RideStore {
         if (inserted.rowCount) break;
         codeRecord = createRideCodeRecord(id);
       }
-      await client.query('COMMIT');
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
-    }
+    });
 
     const ride: Ride = { id, createdBy: creatorId, createdAt, memberIds: new Set([creatorId]) };
     return { ride, codeRecord };
@@ -139,9 +131,7 @@ export class RideStore {
 
   async joinRide(code: string, riderId: string): Promise<JoinRideResult> {
     await ensureMigrated();
-    const client = await getPool().connect();
-    try {
-      await client.query('BEGIN');
+    return withTransaction(async (client) => {
       const { rows } = await client.query<RideCodeRow>(
         `SELECT code.* FROM ride_codes code
          INNER JOIN rides ride ON ride.id = code.ride_id
@@ -150,7 +140,6 @@ export class RideStore {
         [code.toUpperCase()]
       );
       if (!rows[0] || isRideCodeExpired(rowToCodeRecord(rows[0]))) {
-        await client.query('ROLLBACK');
         return { ok: false, reason: 'invalid_or_expired' };
       }
       const rideId = rows[0].ride_id;
@@ -164,19 +153,12 @@ export class RideStore {
           [rideId]
         );
         if (Number(count.rows[0]?.count ?? 0) >= MAX_RIDE_MEMBERS) {
-          await client.query('ROLLBACK');
           return { ok: false, reason: 'ride_full' };
         }
         await client.query('INSERT INTO ride_members (ride_id, rider_id) VALUES ($1, $2)', [rideId, riderId]);
       }
-      await client.query('COMMIT');
       return { ok: true, rideId };
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
-    }
+    });
   }
 
   async getRide(rideId: string): Promise<Ride | undefined> {
@@ -272,28 +254,19 @@ export class RideStore {
   ): Promise<RideActionResult> {
     const result = await this.getRideForMember(rideId, riderId);
     if (!result.ok) return result;
-    const client = await getPool().connect();
-    try {
-      await client.query('BEGIN');
+    return withTransaction(async (client) => {
       const updated = await client.query(
         'UPDATE ride_members SET location_sharing_enabled = $3 WHERE ride_id = $1 AND rider_id = $2 RETURNING rider_id',
         [rideId, riderId, enabled]
       );
       if (updated.rowCount === 0) {
-        await client.query('ROLLBACK');
         return { ok: false, reason: 'not_member' };
       }
       if (!enabled) {
         await client.query('DELETE FROM ride_locations WHERE ride_id = $1 AND rider_id = $2', [rideId, riderId]);
       }
-      await client.query('COMMIT');
       return result;
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
-    }
+    });
   }
 
   async endRide(rideId: string, actorId: string): Promise<RideActionResult> {

@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import { higherTier } from '@rider-comms/shared';
 import type { BillingPlatform, BillingStatus, BillingSubscription, PaidZoneTier, ZoneTier } from '@rider-comms/shared';
-import { ensureMigrated, getPool } from './db.ts';
+import { ensureMigrated, getPool, withTransaction } from './db.ts';
 import { ProfileStore } from './profileStore.ts';
 import { StoreVerificationError } from './storeBilling.ts';
 import type { StoreSubscriptionState, StoreVerifier } from './storeBilling.ts';
@@ -111,9 +111,7 @@ export class BillingStore {
    */
   async record(state: StoreSubscriptionState, riderId?: string): Promise<void> {
     await ensureMigrated();
-    const client = await getPool().connect();
-    try {
-      await client.query('BEGIN');
+    await withTransaction(async (client) => {
       await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))', [`billing:${state.platform}:${state.originalId}`]);
       const { rows } = await client.query<{ rider_id: string }>(
         'SELECT rider_id FROM store_subscriptions WHERE platform = $1 AND original_id = $2',
@@ -122,10 +120,7 @@ export class BillingStore {
       const owner = rows[0]?.rider_id;
       if (owner && riderId && owner !== riderId) throw new StoreVerificationError('subscription_linked_to_another_account', 409);
       const linkedRider = owner ?? riderId;
-      if (!linkedRider) {
-        await client.query('ROLLBACK');
-        return;
-      }
+      if (!linkedRider) return;
       await client.query(
         `INSERT INTO store_subscriptions
            (platform, original_id, rider_id, product_id, tier, expires_at, active, will_renew, environment, verified_at)
@@ -141,13 +136,7 @@ export class BillingStore {
         [state.platform, state.originalId, linkedRider, state.productId, state.tier, state.expiresAt, state.active, state.willRenew, state.environment, this.now()],
       );
       await this.applyTier(client, linkedRider);
-      await client.query('COMMIT');
-    } catch (error) {
-      await client.query('ROLLBACK').catch(() => undefined);
-      throw error;
-    } finally {
-      client.release();
-    }
+    });
   }
 
   /** Copy the rider's best active subscription onto their profile. */

@@ -1,7 +1,7 @@
 import type { Pool } from 'pg';
 import { containsObjectionableText } from './contentFilter.ts';
 import type { ProfileUpdate, RiderProfile, UnitSystem, ZoneTier } from '@rider-comms/shared';
-import { ensureMigrated, getPool } from './db.ts';
+import { ensureMigrated, getPool, withTransaction } from './db.ts';
 import { appendSocialEventForRiders } from './socialEventStore.ts';
 
 const UNIT_SYSTEMS: UnitSystem[] = ['mi', 'km'];
@@ -222,9 +222,7 @@ export class ProfileStore {
     }
 
     await ensureMigrated();
-    const client = await getPool().connect();
-    try {
-      await client.query('BEGIN');
+    return withTransaction(async (client) => {
       // Partial profile writes from two devices must not both read the same
       // old row and then overwrite each other's unrelated fields. A
       // transaction-scoped rider lock also covers the first-write/no-row case.
@@ -245,7 +243,8 @@ export class ProfileStore {
         await this.upsert(next, client);
       } catch (err) {
         if ((err as { code?: string }).code === '23505') {
-          await client.query('ROLLBACK');
+          // The failed insert aborted the transaction, so the COMMIT that
+          // follows is a rollback: nothing from this update is kept.
           return { ok: false, error: 'handle_taken' };
         }
         throw err;
@@ -271,14 +270,8 @@ export class ProfileStore {
         await appendSocialEventForRiders(client, recipients, 'social_refresh', riderId, 'profile', next.updatedAt);
       }
 
-      await client.query('COMMIT');
       return { ok: true, profile: next };
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
-    }
+    });
   }
 
   async findRiderIdByHandle(handle: string): Promise<string | undefined> {

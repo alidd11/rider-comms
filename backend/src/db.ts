@@ -75,7 +75,8 @@ export function getPool(): Pool {
 // int8 works, it just needs to be the same constant every time.
 const MIGRATION_LOCK_KEY = 8_218_004_211_733;
 
-async function runMigrations(client: PoolClient): Promise<void> {
+/** Exported for tests. */
+export async function runMigrations(client: PoolClient): Promise<void> {
   // ensureMigrated()'s in-memory promise only serializes callers within a
   // single process. That's not enough: multiple processes connecting to a
   // genuinely fresh database (every backend test file runs as its own
@@ -132,6 +133,30 @@ export function ensureMigrated(): Promise<void> {
     migrationsRun.catch(() => { migrationsRun = undefined; });
   }
   return migrationsRun;
+}
+
+/**
+ * Runs `work` in one transaction on one pooled connection: COMMIT when it
+ * returns, ROLLBACK (and rethrow) when it throws. Returning early without
+ * writing is fine; nothing is left to commit. `begin` replaces the opening
+ * statement when the transaction must start with more than BEGIN (e.g. an
+ * advisory lock taken in the same round trip).
+ */
+export async function withTransaction<T>(work: (client: PoolClient) => Promise<T>, begin = 'BEGIN'): Promise<T> {
+  const client = await getPool().connect();
+  try {
+    await client.query(begin);
+    const result = await work(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (error) {
+    // Rethrow the original failure even if the rollback itself fails (e.g. a
+    // dropped connection); the pool discards a broken client either way.
+    await client.query('ROLLBACK').catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 /** Readiness means both schema compatibility and a live database query. */

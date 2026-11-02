@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
-import { ensureMigrated, getPool } from './db.ts';
+import { ensureMigrated, getPool, withTransaction } from './db.ts';
 import { appendSocialEventForRiders } from './socialEventStore.ts';
 
 export const REPORT_REASONS = ['harassment', 'unsafe', 'spam', 'sexual', 'other'] as const;
@@ -110,9 +110,7 @@ export class ModerationStore {
    */
   async block(riderId: string, blockedRiderId: string): Promise<void> {
     await ensureMigrated();
-    const client = await getPool().connect();
-    try {
-      await client.query('BEGIN');
+    return withTransaction(async (client) => {
       await this.lockPair(client, riderId, blockedRiderId);
       const blockInserted = await client.query(
         'INSERT INTO rider_blocks (rider_id, blocked_rider_id, created_at) VALUES ($1, $2, $3) ON CONFLICT (rider_id, blocked_rider_id) DO NOTHING',
@@ -157,20 +155,12 @@ export class ModerationStore {
       if ((blockInserted.rowCount ?? 0) > 0) {
         await appendSocialEventForRiders(client, [riderId], 'social_refresh', riderId, 'blocks');
       }
-      await client.query('COMMIT');
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
-    }
+    });
   }
 
   async unblock(riderId: string, blockedRiderId: string): Promise<void> {
     await ensureMigrated();
-    const client = await getPool().connect();
-    try {
-      await client.query('BEGIN');
+    return withTransaction(async (client) => {
       const removed = await client.query(
         'DELETE FROM rider_blocks WHERE rider_id = $1 AND blocked_rider_id = $2',
         [riderId, blockedRiderId],
@@ -178,13 +168,7 @@ export class ModerationStore {
       if ((removed.rowCount ?? 0) > 0) {
         await appendSocialEventForRiders(client, [riderId], 'social_refresh', riderId, 'blocks');
       }
-      await client.query('COMMIT');
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
-    }
+    });
   }
 
   async getBlocked(riderId: string): Promise<string[]> {
@@ -318,27 +302,22 @@ export class ModerationStore {
     now = Date.now(),
   ): Promise<ResolveReportResult> {
     await ensureMigrated();
-    const client = await getPool().connect();
-    try {
-      await client.query('BEGIN');
+    return withTransaction(async (client) => {
       const { rows } = await client.query<{ reported_rider_id: string; status: ReportStatus }>(
         'SELECT reported_rider_id, status FROM safety_reports WHERE id = $1 FOR UPDATE',
         [reportId],
       );
       const report = rows[0];
       if (!report) {
-        await client.query('ROLLBACK');
         return { ok: false, error: 'not_found' };
       }
       if (report.status !== 'open') {
-        await client.query('ROLLBACK');
         return { ok: false, error: 'already_resolved' };
       }
       const targetRiderId = report.reported_rider_id;
       if (resolution === 'suspend') {
         const target = await client.query<{ is_admin: boolean }>('SELECT is_admin FROM users WHERE id = $1 FOR UPDATE', [targetRiderId]);
         if (targetRiderId === moderatorId || target.rows[0]?.is_admin === true) {
-          await client.query('ROLLBACK');
           return { ok: false, error: 'forbidden_target' };
         }
         await client.query('UPDATE users SET suspended_at = $2 WHERE id = $1 AND suspended_at IS NULL', [targetRiderId, now]);
@@ -353,43 +332,27 @@ export class ModerationStore {
         resolution === 'suspend' ? [reportId, now, moderatorId, targetRiderId] : [reportId, now, moderatorId],
       );
       const action = await this.recordAction(client, moderatorId, targetRiderId, reportId, resolution, note, now);
-      await client.query('COMMIT');
       return { ok: true, action, resolvedReportIds: resolved.rows.map((row) => row.id).sort() };
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
-    }
+    });
   }
 
   async unsuspend(riderId: string, moderatorId: string, note: string, now = Date.now()): Promise<UnsuspendResult> {
     await ensureMigrated();
-    const client = await getPool().connect();
-    try {
-      await client.query('BEGIN');
+    return withTransaction(async (client) => {
       const { rows } = await client.query<{ suspended_at: string | number | null }>(
         'SELECT suspended_at FROM users WHERE id = $1 FOR UPDATE',
         [riderId],
       );
       if (!rows[0]) {
-        await client.query('ROLLBACK');
         return { ok: false, error: 'not_found' };
       }
       if (rows[0].suspended_at === null) {
-        await client.query('ROLLBACK');
         return { ok: false, error: 'not_suspended' };
       }
       await client.query('UPDATE users SET suspended_at = NULL WHERE id = $1', [riderId]);
       const action = await this.recordAction(client, moderatorId, riderId, null, 'unsuspend', note, now);
-      await client.query('COMMIT');
       return { ok: true, action };
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
-    }
+    });
   }
 
   /**
@@ -399,31 +362,21 @@ export class ModerationStore {
    */
   async verifyEmail(riderId: string, moderatorId: string, note: string, now = Date.now()): Promise<VerifyEmailResult> {
     await ensureMigrated();
-    const client = await getPool().connect();
-    try {
-      await client.query('BEGIN');
+    return withTransaction(async (client) => {
       const { rows } = await client.query<{ email_verified_at: Date | null }>(
         'SELECT email_verified_at FROM users WHERE id = $1 FOR UPDATE',
         [riderId],
       );
       if (!rows[0]) {
-        await client.query('ROLLBACK');
         return { ok: false, error: 'not_found' };
       }
       if (rows[0].email_verified_at !== null) {
-        await client.query('ROLLBACK');
         return { ok: false, error: 'already_verified' };
       }
       await client.query('UPDATE users SET email_verified_at = now() WHERE id = $1', [riderId]);
       const action = await this.recordAction(client, moderatorId, riderId, null, 'verify_email', note, now);
-      await client.query('COMMIT');
       return { ok: true, action };
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
-    }
+    });
   }
 
   /** The moderation audit log, newest first, optionally for one rider. */
