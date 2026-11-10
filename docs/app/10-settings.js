@@ -1,34 +1,27 @@
 // Part of docs/app.js. 10 of 20: Settings sheets, account, notifications and profile. Edit here, then run `npm run build:pwa-app`.
-  function wireSettingsHubRows() {
-    $$('[data-settings-target]', $('#sheetBody')).forEach((button) => {
-      button.addEventListener('click', () => openSheet(button.dataset.settingsTarget));
-    });
-  }
+  // Each Settings option is its own full page with everything for it on the
+  // page, not a sheet holding another list of sheets. The older per-topic
+  // keys (profile, plans, navigation…) still work: they open the page that
+  // now holds them, scrolled to that section.
+  const SETTINGS_PAGES = {
+    accountHub: { title: 'Account', sections: [['Profile', 'profile'], ['Your plan', 'plans'], ['Signed-in devices', 'sessions'], ['Account and data', 'account']] },
+    communication: { title: 'Communication', sections: [['Privacy', 'privacy'], ['Blocked riders', 'blocked']] },
+    mapNavigation: { title: 'Map & Navigation', sections: [['Navigation app and route options', 'navigation'], ['Location', 'mapNote']] },
+    unitsPreferences: { title: 'Units & Preferences', sections: [['Distance units', 'units'], ['Ride Safe', 'rideSafe']] },
+    help: { title: 'Help & Support', sections: [['Riding safely', 'safetyGuidance'], ['Privacy, safety & terms', 'legal']] },
+    about: { title: 'About', sections: [['', 'aboutCard']] },
+  };
+  const SETTINGS_PAGE_FOR_SECTION = {
+    profile: 'accountHub', plans: 'accountHub', sessions: 'accountHub', account: 'accountHub',
+    privacy: 'communication', blocked: 'communication',
+    navigation: 'mapNavigation', map: 'mapNavigation',
+    units: 'unitsPreferences', safety: 'unitsPreferences',
+    legal: 'help',
+  };
+  let currentSettingsPage = null;
 
   function openSheet(type) {
     const templates = {
-      accountHub: () => {
-        const tier = planTier(state.profile.zoneTier);
-        const plan = PLAN_INFO[tier];
-        return {
-          title: 'Account',
-          body: `<div class="settings-hub-list">
-            <button data-settings-target="profile"><span class="setting-icon">${icon('user')}</span><span><strong>Profile</strong><small>Name, handle and connected profiles</small></span>${icon('chevron')}</button>
-            <button data-settings-target="plans"><span class="setting-icon">${icon('card')}</span><span><strong>Your plan</strong><small id="planSummary">${escapeHtml(plan.name)} plan · ${escapeHtml(plan.features[0])}</small></span><span id="planPill" class="plan-pill">${escapeHtml(plan.name)}</span>${icon('chevron')}</button>
-            <button data-settings-target="sessions"><span class="setting-icon">${icon('settings')}</span><span><strong>Signed-in devices</strong><small>Review and revoke account sessions</small></span>${icon('chevron')}</button>
-            <button data-settings-target="account"><span class="setting-icon">${icon('shield')}</span><span><strong>Account and data</strong><small>Account deletion and settings reset</small></span>${icon('chevron')}</button>
-          </div>`,
-          ready: wireSettingsHubRows,
-        };
-      },
-      communication: () => ({
-        title: 'Communication',
-        body: `<div class="settings-hub-list">
-          <button data-settings-target="privacy"><span class="setting-icon">${icon('shield')}</span><span><strong>Privacy controls</strong><small>Location visibility and connected profiles</small></span>${icon('chevron')}</button>
-          <button data-settings-target="blocked"><span class="setting-icon">${icon('close')}</span><span><strong>Blocked riders</strong><small>Review or undo blocks</small></span>${icon('chevron')}</button>
-        </div>`,
-        ready: wireSettingsHubRows,
-      }),
       music: () => {
         const apps = musicAppsInOrder();
         const last = rememberedMusicApp();
@@ -44,29 +37,20 @@
         body: '<div id="blockedRidersList" class="blocked-list" aria-live="polite"><p class="caption">Loading…</p></div>',
         ready: () => void renderBlockedRiders(),
       }),
-      mapNavigation: () => ({
-        title: 'Map & Navigation',
-        body: `<div class="settings-hub-list">
-          <button data-settings-target="map"><span class="setting-icon">${icon('location')}</span><span><strong>Location and map</strong><small>Location sharing and nearby riders</small></span>${icon('chevron')}</button>
-          <button data-settings-target="navigation"><span class="setting-icon">${icon('nav-arrow')}</span><span><strong>Navigation</strong><small id="navigationProviderSummary">${escapeHtml(NAVIGATION_PROVIDERS[navigationProvider(state.navigationProvider)].label)}</small></span>${icon('chevron')}</button>
-        </div>`,
-        ready: wireSettingsHubRows,
+      mapNote: () => ({
+        title: 'Location',
+        body: '<div class="settings-note"><strong>Location stays in your control</strong><p>Nearby rider visibility is in Communication. Private-ride location is chosen inside each ride and stays off unless you switch it on there.</p></div>',
       }),
-      unitsPreferences: () => ({
-        title: 'Units & Preferences',
-        body: `<div class="settings-hub-list"><button data-settings-target="units"><span class="setting-icon">${icon('units')}</span><span><strong>Distance units</strong><small id="distanceUnitsSummary">${state.profile.unitSystem === 'km' ? 'Kilometres' : 'Miles'}</small></span>${icon('chevron')}</button></div>`,
-        ready: wireSettingsHubRows,
+      rideSafe: () => ({
+        title: 'Ride Safe',
+        body: `<div class="settings-sheet-section">${toggleMarkup('rideSafeEnabled', 'Automatic Ride Safe', 'Uses device motion to lock distracting controls at 8 mph and above. Recommended while riding.', state.rideSafeEnabled)}</div><div class="settings-note"><strong>Device-only safety preference</strong><p>When off, Rider Comms stops its dedicated Ride Safe location watcher. Map, navigation and optional ride-location features request location separately. Only change this while safely stopped.</p></div>`,
+        ready: wireToggles,
       }),
-      help: () => ({
-        title: 'Help & Support',
-        body: `<div class="settings-hub-list">
-          <button data-settings-target="safety"><span class="setting-icon">${icon('info')}</span><span><strong>Safety guidance</strong><small>Low-distraction and emergency guidance</small></span>${icon('chevron')}</button>
-          <button data-settings-target="legal"><span class="setting-icon">${icon('shield')}</span><span><strong>Privacy, safety & terms</strong><small>Read Rider Comms legal and safety information</small></span>${icon('chevron')}</button>
-          <a href="support.html" target="_blank" rel="noopener"><span class="setting-icon">${icon('help')}</span><span><strong>Contact support</strong><small>Help, account deletion and how to reach us</small></span>${icon('chevron')}</a>
-        </div>`,
-        ready: wireSettingsHubRows,
+      safetyGuidance: () => ({
+        title: 'Riding safely',
+        body: '<div class="safety-guidance"><div><span class="setting-icon"><svg><use href="#i-ride"/></svg></span><span><strong>Set up while stationary</strong><small>Complete profile, route and group controls before moving.</small></span></div><div><span class="setting-icon"><svg><use href="#i-location"/></svg></span><span><strong>Control your location</strong><small>Nearby visibility can be stopped at any time.</small></span></div><div><span class="setting-icon"><svg><use href="#i-info"/></svg></span><span><strong>Not an emergency service</strong><small>Call the appropriate emergency service if you need urgent help.</small></span></div></div>',
       }),
-      about: () => ({
+      aboutCard: () => ({
         title: 'About',
         body: `<div class="settings-about-card"><strong>Rider Comms</strong><span>Version 0.3.0 · PWA</span><span>Signed in as ${escapeHtml(state.profile.displayName)} (${escapeHtml(state.profile.handle)})</span></div>`,
       }),
@@ -151,13 +135,7 @@
           });
         },
       }),
-      map: () => ({ title: 'Location and map', body: `<div class="settings-sheet-section">${toggleMarkup('shareLocation', 'Nearby rider visibility', 'Share your position only after you choose to go live.', state.profile.shareLocation)}</div><div class="settings-note"><strong>Location stays in your control</strong><p>Turning this off stops nearby-rider visibility. Private-ride location is controlled separately inside each ride and remains off unless you explicitly enable it.</p></div>`, ready: wireToggles }),
       units: () => ({ title: 'Distance units', body: `<div class="choice-list" role="radiogroup" aria-label="Distance units"><button data-unit-option="mi" role="radio"><span><strong>Miles</strong><small>Use miles and mph</small></span><i></i></button><button data-unit-option="km" role="radio"><span><strong>Kilometres</strong><small>Use kilometres and km/h</small></span><i></i></button></div>`, ready: () => { $$('[data-unit-option]', $('#sheetBody')).forEach((button) => { const active = button.dataset.unitOption === state.profile.unitSystem; button.setAttribute('aria-checked', String(active)); button.addEventListener('click', async () => { button.disabled = true; const next = button.dataset.unitOption; const ok = await patchProfile({ unitSystem: next }); if (ok) { openSheet('units'); showToast('Distance unit updated.'); } else button.disabled = false; }); }); } }),
-      safety: () => ({
-        title: 'Safety',
-        body: `<div class="settings-sheet-section">${toggleMarkup('rideSafeEnabled', 'Automatic Ride Safe', 'Uses device motion to lock distracting controls at 8 mph and above. Recommended while riding.', state.rideSafeEnabled)}</div><div class="settings-note"><strong>Device-only safety preference</strong><p>When off, Rider Comms stops its dedicated Ride Safe location watcher. Map, navigation and optional ride-location features request location separately. Only change this while safely stopped.</p></div><div class="safety-guidance"><div><span class="setting-icon"><svg><use href="#i-ride"/></svg></span><span><strong>Set up while stationary</strong><small>Complete profile, route and group controls before moving.</small></span></div><div><span class="setting-icon"><svg><use href="#i-location"/></svg></span><span><strong>Control your location</strong><small>Nearby visibility can be stopped at any time.</small></span></div><div><span class="setting-icon"><svg><use href="#i-info"/></svg></span><span><strong>Not an emergency service</strong><small>Call the appropriate emergency service if you need urgent help.</small></span></div></div>`,
-        ready: wireToggles,
-      }),
       reportHazard: () => ({
         title: 'Report on the road',
         body: `<p class="caption">Let nearby riders know what's ahead. Reports fade out over time.</p><div class="hazard-type-grid" id="hazardTypeChips">${HAZARD_TYPE_ORDER.map((t) => `<button type="button" class="hazard-type-tile" data-hazard-type="${t}" style="--hazard:${HAZARD_TYPES[t].color}">${hazardIconMarkup(t)}<span>${escapeHtml(HAZARD_TYPES[t].label)}</span></button>`).join('')}</div><p id="hazardFormError" class="inline-error" hidden></p>`,
@@ -167,14 +145,35 @@
         },
       }),
     };
+    const pageKey = SETTINGS_PAGES[type] ? type : SETTINGS_PAGE_FOR_SECTION[type];
+    if (pageKey) {
+      const page = SETTINGS_PAGES[pageKey];
+      const sameScrollable = !$('#sheetBackdrop').hidden && currentSettingsPage === pageKey ? $('.sheet') : null;
+      const keepScroll = sameScrollable ? sameScrollable.scrollTop : null;
+      const parts = page.sections.map(([heading, key]) => ({ heading, key, template: templates[key]() }));
+      const body = parts.map(({ heading, key, template }) => `<section class="settings-page-section" data-settings-section="${key}">${heading ? `<h3 class="settings-page-heading">${escapeHtml(heading)}</h3>` : ''}${template.body}</section>`).join('');
+      presentSheet(page.title, body, () => parts.forEach(({ template }) => template.ready?.()), { page: pageKey });
+      // Re-rendering the same page (after a change) keeps its place; opening
+      // it for one section scrolls to that section.
+      if (keepScroll !== null) $('.sheet').scrollTop = keepScroll;
+      else if (type !== pageKey) $(`[data-settings-section="${type}"]`)?.scrollIntoView({ block: 'start' });
+      return;
+    }
     const template = templates[type]?.();
     if (!template) return;
     presentSheet(template.title, template.body, template.ready);
   }
 
-  function presentSheet(title, body, ready) {
+  function presentSheet(title, body, ready, options = {}) {
     activeFriendProfileRiderId = null;
     if ($('#sheetBackdrop').hidden) lastSheetTrigger = document.activeElement;
+    // Settings pages are full screen with a back chevron; everything else
+    // stays a bottom sheet with a close button.
+    currentSettingsPage = options.page || null;
+    $('#sheetBackdrop').classList.toggle('settings-page-mode', Boolean(currentSettingsPage));
+    const close = $('#closeSheet');
+    close.innerHTML = currentSettingsPage ? '<svg class="icon-back" aria-hidden="true"><use href="#i-chevron"/></svg>' : '×';
+    close.setAttribute('aria-label', currentSettingsPage ? 'Back' : 'Close');
     $('#sheetTitle').textContent = title;
     $('#sheetBody').innerHTML = body;
     $('#sheetBackdrop').hidden = false;
@@ -329,7 +328,11 @@
   }
 
   function wireToggles() {
-    $$('[data-toggle]', $('#sheetBody')).forEach((button) => button.addEventListener('click', async () => {
+    // A settings page can hold several sections that each wire toggles;
+    // wire each button once so a tap doesn't flip it twice.
+    const unwired = $$('[data-toggle]:not([data-toggle-wired])', $('#sheetBody'));
+    unwired.forEach((button) => button.setAttribute('data-toggle-wired', ''));
+    unwired.forEach((button) => button.addEventListener('click', async () => {
       const key = button.dataset.toggle;
       const active = button.getAttribute('aria-pressed') !== 'true';
       if (key === 'rideSafeEnabled') {
@@ -486,6 +489,8 @@
     activeFriendProfileRiderId = null;
     const trigger = lastSheetTrigger;
     $('#sheetBackdrop').hidden = true;
+    $('#sheetBackdrop').classList.remove('settings-page-mode');
+    currentSettingsPage = null;
     document.documentElement.classList.remove('sheet-open');
     $('#app')?.removeAttribute('inert');
     $('#chatScreen')?.removeAttribute('inert');

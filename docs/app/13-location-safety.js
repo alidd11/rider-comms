@@ -129,7 +129,7 @@
     if (message) message.textContent = nextState === 'moving'
       ? 'Distracting controls are locked until you are safely below 8 mph.'
       : 'Waiting for a reliable speed fix. Controls stay available.';
-    $$('[data-nav="routes"], [data-nav="friends"], [data-nav="settings"]').forEach((item) => {
+    $$('[data-nav="friends"], [data-menu-nav]').forEach((item) => {
       item.setAttribute('aria-disabled', String(locked));
       item.classList.toggle('safety-unavailable', locked);
     });
@@ -140,6 +140,7 @@
     renderMapStatus();
     if (locked && !['map', 'ride'].includes(state.screen)) navigate(state.activeRide ? 'ride' : 'map', false);
     if (locked && activeChat) closeChat({ restoreFocus: false });
+    if (locked) closeAppMenu({ restoreFocus: false });
   }
 
   function stopMovementSafetyTracking() {

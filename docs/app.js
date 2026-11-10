@@ -747,16 +747,10 @@
     $('#profileHandle').textContent = state.profile.handle;
     const profileRiderId = $('#profileRiderId');
     if (profileRiderId) profileRiderId.textContent = state.profile.riderId;
-    const distanceUnitsSummary = $('#distanceUnitsSummary');
-    if (distanceUnitsSummary) distanceUnitsSummary.textContent = state.profile.unitSystem === 'km' ? 'Kilometres' : 'Miles';
-    const tier = planTier(state.profile.zoneTier);
-    const plan = PLAN_INFO[tier];
-    const planSummary = $('#planSummary');
-    if (planSummary) planSummary.textContent = `${plan.name} plan · ${plan.features[0]}`;
-    const planPill = $('#planPill');
-    if (planPill) planPill.textContent = plan.name;
-    const navigationSummary = $('#navigationProviderSummary');
-    if (navigationSummary) navigationSummary.textContent = NAVIGATION_PROVIDERS[navigationProvider(state.navigationProvider)].label;
+    // The menu behind the map avatar.
+    $('#appMenuName').textContent = state.profile.displayName;
+    $('#appMenuHandle').textContent = state.profile.handle;
+    $('#appMenuPlan').textContent = PLAN_INFO[planTier(state.profile.zoneTier)].name;
     const genericProfile = state.profile.displayName.trim().toLowerCase() === 'rider'
       || state.profile.handle.trim().toLowerCase() === '@rider';
     const completeProfilePrompt = $('#completeProfilePrompt');
@@ -2142,8 +2136,8 @@
     const locationToggle = $('#activeRideLocationConsent');
     locationToggle.checked = ride.shareRideLocation === true;
     $('#activeRideLocationStatus').textContent = ride.shareRideLocation
-      ? 'On — current ride members can see your recent position.'
-      : 'Off — your position is not being uploaded to this ride.';
+      ? 'On — riders in this ride can see where you are. It stops when you switch it off, leave the ride or the ride ends.'
+      : 'Off — riders in this ride can’t see where you are.';
     const members = (ride.members || ride.memberIds.map((riderId) => ({ riderId, displayName: riderId, handle: riderId })))
       // Show this rider from their own profile, never from a lookup fallback.
       .map((person) => (person.riderId === state.profile.riderId
@@ -2256,10 +2250,10 @@
   async function createRide() {
     const button = $('#createRideBtn');
     button.disabled = true;
-    button.textContent = 'Creating…';
+    button.textContent = 'Starting…';
     try {
       if (!(await preflightMicrophoneAccess())) return;
-      const shareRideLocation = $('#hostRideLocationConsent').checked;
+      // Live location is chosen inside the ride, once it exists.
       const result = await apiFetch('POST', '/rides', {});
       rideRefreshVersion += 1;
       state.activeRide = { rideId: result.rideId, code: result.code, isHost: true, createdBy: result.createdBy, memberIds: result.memberIds, shareRideLocation: false };
@@ -2270,12 +2264,11 @@
       navigate('ride');
       showToast('Your private ride is ready.');
       await loadRideRoster();
-      if (shareRideLocation) await setRideLocationSharing(true);
     } catch {
       showToast('Could not create a ride. Try again.');
     } finally {
       button.disabled = false;
-      button.textContent = 'Create private ride';
+      button.innerHTML = `${icon('plus')}<span>Start a ride</span>`;
     }
   }
 
@@ -2291,7 +2284,6 @@
     button.textContent = 'Joining…';
     try {
       if (!(await preflightMicrophoneAccess())) return;
-      const shareRideLocation = $('#joinRideLocationConsent').checked;
       const joined = await apiFetch('POST', '/rides/join', { code });
       const ride = await apiFetch('GET', `/rides/${encodeURIComponent(joined.rideId)}`);
       rideRefreshVersion += 1;
@@ -2303,14 +2295,14 @@
       navigate('ride');
       showToast('You joined the ride.');
       await loadRideRoster();
-      if (shareRideLocation) await setRideLocationSharing(true);
     } catch (error) {
       const code2 = error instanceof ApiError ? error.body?.error : undefined;
       errorEl.textContent = RIDE_ERROR_MESSAGES[code2] || 'Could not join that ride. Try again.';
       errorEl.hidden = false;
     } finally {
-      button.disabled = false;
-      button.textContent = 'Join Ride';
+      // The code stays in the field so the rider can fix one character.
+      button.textContent = 'Join ride';
+      syncRideJoinButton();
     }
   }
 
@@ -2363,7 +2355,7 @@
   async function shareRide() {
     if (!state.activeRide) return;
     if (!state.activeRide.code) return showToast('This invite has expired. Your ride remains active.');
-    const text = `Join my Rider Comms group ride with code ${state.activeRide.code}`;
+    const text = `Join my Rider Comms group ride with code ${state.activeRide.code}\n${rideInviteLink(state.activeRide.code)}`;
     try {
       if (navigator.share) await navigator.share({ title: 'Rider Comms invite', text });
       else {
@@ -2374,36 +2366,62 @@
       if (error?.name !== 'AbortError') showToast('Could not open sharing.');
     }
   }
-  function wireSettingsHubRows() {
-    $$('[data-settings-target]', $('#sheetBody')).forEach((button) => {
-      button.addEventListener('click', () => openSheet(button.dataset.settingsTarget));
-    });
+
+  // Ride invite codes as riders enter them: typed, pasted as "ABC 234" or
+  // "abc-234", pasted as the host's whole share message, or opened from an
+  // invite link (…/#ride/join/ABC234). Same rules as the native app's
+  // mobile/src/ride/rideInvite.ts.
+  const RIDE_CODE_PATTERN = /^[A-Z2-9]{6}$/;
+
+  function rideInviteLink(code) {
+    return `${location.origin}${location.pathname}#ride/join/${encodeURIComponent(code)}`;
   }
+
+  function rideCodeFromInviteText(text) {
+    const linked = String(text).match(/#ride\/join\/([A-Za-z2-9]{6})\b/) || String(text).match(/ridercomms:\/\/join\?code=([A-Za-z2-9]{6})\b/i);
+    return linked ? linked[1].toUpperCase() : null;
+  }
+
+  function normalizeRideCodeInput(text) {
+    const fromLink = rideCodeFromInviteText(text);
+    if (fromLink) return fromLink;
+    const compact = String(text).toUpperCase().replace(/[\s-]/g, '');
+    if (compact.length <= 6) return compact.replace(/[^A-Z2-9]/g, '');
+    const candidates = [...String(text).matchAll(/(?:^|[^A-Za-z0-9])([A-Za-z2-9]{3})[\s-]?([A-Za-z2-9]{3})(?=$|[^A-Za-z0-9])/g)];
+    const last = candidates[candidates.length - 1];
+    if (last) return `${last[1]}${last[2]}`.toUpperCase();
+    return compact.replace(/[^A-Z2-9]/g, '').slice(0, 6);
+  }
+
+  /** Join is only offered once all six characters are in. */
+  function syncRideJoinButton() {
+    const button = $('#joinRideForm button[type="submit"]');
+    if (!button || button.textContent === 'Joining…') return;
+    button.disabled = !RIDE_CODE_PATTERN.test($('#rideCode').value);
+  }
+  // Each Settings option is its own full page with everything for it on the
+  // page, not a sheet holding another list of sheets. The older per-topic
+  // keys (profile, plans, navigation…) still work: they open the page that
+  // now holds them, scrolled to that section.
+  const SETTINGS_PAGES = {
+    accountHub: { title: 'Account', sections: [['Profile', 'profile'], ['Your plan', 'plans'], ['Signed-in devices', 'sessions'], ['Account and data', 'account']] },
+    communication: { title: 'Communication', sections: [['Privacy', 'privacy'], ['Blocked riders', 'blocked']] },
+    mapNavigation: { title: 'Map & Navigation', sections: [['Navigation app and route options', 'navigation'], ['Location', 'mapNote']] },
+    unitsPreferences: { title: 'Units & Preferences', sections: [['Distance units', 'units'], ['Ride Safe', 'rideSafe']] },
+    help: { title: 'Help & Support', sections: [['Riding safely', 'safetyGuidance'], ['Privacy, safety & terms', 'legal']] },
+    about: { title: 'About', sections: [['', 'aboutCard']] },
+  };
+  const SETTINGS_PAGE_FOR_SECTION = {
+    profile: 'accountHub', plans: 'accountHub', sessions: 'accountHub', account: 'accountHub',
+    privacy: 'communication', blocked: 'communication',
+    navigation: 'mapNavigation', map: 'mapNavigation',
+    units: 'unitsPreferences', safety: 'unitsPreferences',
+    legal: 'help',
+  };
+  let currentSettingsPage = null;
 
   function openSheet(type) {
     const templates = {
-      accountHub: () => {
-        const tier = planTier(state.profile.zoneTier);
-        const plan = PLAN_INFO[tier];
-        return {
-          title: 'Account',
-          body: `<div class="settings-hub-list">
-            <button data-settings-target="profile"><span class="setting-icon">${icon('user')}</span><span><strong>Profile</strong><small>Name, handle and connected profiles</small></span>${icon('chevron')}</button>
-            <button data-settings-target="plans"><span class="setting-icon">${icon('card')}</span><span><strong>Your plan</strong><small id="planSummary">${escapeHtml(plan.name)} plan · ${escapeHtml(plan.features[0])}</small></span><span id="planPill" class="plan-pill">${escapeHtml(plan.name)}</span>${icon('chevron')}</button>
-            <button data-settings-target="sessions"><span class="setting-icon">${icon('settings')}</span><span><strong>Signed-in devices</strong><small>Review and revoke account sessions</small></span>${icon('chevron')}</button>
-            <button data-settings-target="account"><span class="setting-icon">${icon('shield')}</span><span><strong>Account and data</strong><small>Account deletion and settings reset</small></span>${icon('chevron')}</button>
-          </div>`,
-          ready: wireSettingsHubRows,
-        };
-      },
-      communication: () => ({
-        title: 'Communication',
-        body: `<div class="settings-hub-list">
-          <button data-settings-target="privacy"><span class="setting-icon">${icon('shield')}</span><span><strong>Privacy controls</strong><small>Location visibility and connected profiles</small></span>${icon('chevron')}</button>
-          <button data-settings-target="blocked"><span class="setting-icon">${icon('close')}</span><span><strong>Blocked riders</strong><small>Review or undo blocks</small></span>${icon('chevron')}</button>
-        </div>`,
-        ready: wireSettingsHubRows,
-      }),
       music: () => {
         const apps = musicAppsInOrder();
         const last = rememberedMusicApp();
@@ -2419,29 +2437,20 @@
         body: '<div id="blockedRidersList" class="blocked-list" aria-live="polite"><p class="caption">Loading…</p></div>',
         ready: () => void renderBlockedRiders(),
       }),
-      mapNavigation: () => ({
-        title: 'Map & Navigation',
-        body: `<div class="settings-hub-list">
-          <button data-settings-target="map"><span class="setting-icon">${icon('location')}</span><span><strong>Location and map</strong><small>Location sharing and nearby riders</small></span>${icon('chevron')}</button>
-          <button data-settings-target="navigation"><span class="setting-icon">${icon('nav-arrow')}</span><span><strong>Navigation</strong><small id="navigationProviderSummary">${escapeHtml(NAVIGATION_PROVIDERS[navigationProvider(state.navigationProvider)].label)}</small></span>${icon('chevron')}</button>
-        </div>`,
-        ready: wireSettingsHubRows,
+      mapNote: () => ({
+        title: 'Location',
+        body: '<div class="settings-note"><strong>Location stays in your control</strong><p>Nearby rider visibility is in Communication. Private-ride location is chosen inside each ride and stays off unless you switch it on there.</p></div>',
       }),
-      unitsPreferences: () => ({
-        title: 'Units & Preferences',
-        body: `<div class="settings-hub-list"><button data-settings-target="units"><span class="setting-icon">${icon('units')}</span><span><strong>Distance units</strong><small id="distanceUnitsSummary">${state.profile.unitSystem === 'km' ? 'Kilometres' : 'Miles'}</small></span>${icon('chevron')}</button></div>`,
-        ready: wireSettingsHubRows,
+      rideSafe: () => ({
+        title: 'Ride Safe',
+        body: `<div class="settings-sheet-section">${toggleMarkup('rideSafeEnabled', 'Automatic Ride Safe', 'Uses device motion to lock distracting controls at 8 mph and above. Recommended while riding.', state.rideSafeEnabled)}</div><div class="settings-note"><strong>Device-only safety preference</strong><p>When off, Rider Comms stops its dedicated Ride Safe location watcher. Map, navigation and optional ride-location features request location separately. Only change this while safely stopped.</p></div>`,
+        ready: wireToggles,
       }),
-      help: () => ({
-        title: 'Help & Support',
-        body: `<div class="settings-hub-list">
-          <button data-settings-target="safety"><span class="setting-icon">${icon('info')}</span><span><strong>Safety guidance</strong><small>Low-distraction and emergency guidance</small></span>${icon('chevron')}</button>
-          <button data-settings-target="legal"><span class="setting-icon">${icon('shield')}</span><span><strong>Privacy, safety & terms</strong><small>Read Rider Comms legal and safety information</small></span>${icon('chevron')}</button>
-          <a href="support.html" target="_blank" rel="noopener"><span class="setting-icon">${icon('help')}</span><span><strong>Contact support</strong><small>Help, account deletion and how to reach us</small></span>${icon('chevron')}</a>
-        </div>`,
-        ready: wireSettingsHubRows,
+      safetyGuidance: () => ({
+        title: 'Riding safely',
+        body: '<div class="safety-guidance"><div><span class="setting-icon"><svg><use href="#i-ride"/></svg></span><span><strong>Set up while stationary</strong><small>Complete profile, route and group controls before moving.</small></span></div><div><span class="setting-icon"><svg><use href="#i-location"/></svg></span><span><strong>Control your location</strong><small>Nearby visibility can be stopped at any time.</small></span></div><div><span class="setting-icon"><svg><use href="#i-info"/></svg></span><span><strong>Not an emergency service</strong><small>Call the appropriate emergency service if you need urgent help.</small></span></div></div>',
       }),
-      about: () => ({
+      aboutCard: () => ({
         title: 'About',
         body: `<div class="settings-about-card"><strong>Rider Comms</strong><span>Version 0.3.0 · PWA</span><span>Signed in as ${escapeHtml(state.profile.displayName)} (${escapeHtml(state.profile.handle)})</span></div>`,
       }),
@@ -2526,13 +2535,7 @@
           });
         },
       }),
-      map: () => ({ title: 'Location and map', body: `<div class="settings-sheet-section">${toggleMarkup('shareLocation', 'Nearby rider visibility', 'Share your position only after you choose to go live.', state.profile.shareLocation)}</div><div class="settings-note"><strong>Location stays in your control</strong><p>Turning this off stops nearby-rider visibility. Private-ride location is controlled separately inside each ride and remains off unless you explicitly enable it.</p></div>`, ready: wireToggles }),
       units: () => ({ title: 'Distance units', body: `<div class="choice-list" role="radiogroup" aria-label="Distance units"><button data-unit-option="mi" role="radio"><span><strong>Miles</strong><small>Use miles and mph</small></span><i></i></button><button data-unit-option="km" role="radio"><span><strong>Kilometres</strong><small>Use kilometres and km/h</small></span><i></i></button></div>`, ready: () => { $$('[data-unit-option]', $('#sheetBody')).forEach((button) => { const active = button.dataset.unitOption === state.profile.unitSystem; button.setAttribute('aria-checked', String(active)); button.addEventListener('click', async () => { button.disabled = true; const next = button.dataset.unitOption; const ok = await patchProfile({ unitSystem: next }); if (ok) { openSheet('units'); showToast('Distance unit updated.'); } else button.disabled = false; }); }); } }),
-      safety: () => ({
-        title: 'Safety',
-        body: `<div class="settings-sheet-section">${toggleMarkup('rideSafeEnabled', 'Automatic Ride Safe', 'Uses device motion to lock distracting controls at 8 mph and above. Recommended while riding.', state.rideSafeEnabled)}</div><div class="settings-note"><strong>Device-only safety preference</strong><p>When off, Rider Comms stops its dedicated Ride Safe location watcher. Map, navigation and optional ride-location features request location separately. Only change this while safely stopped.</p></div><div class="safety-guidance"><div><span class="setting-icon"><svg><use href="#i-ride"/></svg></span><span><strong>Set up while stationary</strong><small>Complete profile, route and group controls before moving.</small></span></div><div><span class="setting-icon"><svg><use href="#i-location"/></svg></span><span><strong>Control your location</strong><small>Nearby visibility can be stopped at any time.</small></span></div><div><span class="setting-icon"><svg><use href="#i-info"/></svg></span><span><strong>Not an emergency service</strong><small>Call the appropriate emergency service if you need urgent help.</small></span></div></div>`,
-        ready: wireToggles,
-      }),
       reportHazard: () => ({
         title: 'Report on the road',
         body: `<p class="caption">Let nearby riders know what's ahead. Reports fade out over time.</p><div class="hazard-type-grid" id="hazardTypeChips">${HAZARD_TYPE_ORDER.map((t) => `<button type="button" class="hazard-type-tile" data-hazard-type="${t}" style="--hazard:${HAZARD_TYPES[t].color}">${hazardIconMarkup(t)}<span>${escapeHtml(HAZARD_TYPES[t].label)}</span></button>`).join('')}</div><p id="hazardFormError" class="inline-error" hidden></p>`,
@@ -2542,14 +2545,35 @@
         },
       }),
     };
+    const pageKey = SETTINGS_PAGES[type] ? type : SETTINGS_PAGE_FOR_SECTION[type];
+    if (pageKey) {
+      const page = SETTINGS_PAGES[pageKey];
+      const sameScrollable = !$('#sheetBackdrop').hidden && currentSettingsPage === pageKey ? $('.sheet') : null;
+      const keepScroll = sameScrollable ? sameScrollable.scrollTop : null;
+      const parts = page.sections.map(([heading, key]) => ({ heading, key, template: templates[key]() }));
+      const body = parts.map(({ heading, key, template }) => `<section class="settings-page-section" data-settings-section="${key}">${heading ? `<h3 class="settings-page-heading">${escapeHtml(heading)}</h3>` : ''}${template.body}</section>`).join('');
+      presentSheet(page.title, body, () => parts.forEach(({ template }) => template.ready?.()), { page: pageKey });
+      // Re-rendering the same page (after a change) keeps its place; opening
+      // it for one section scrolls to that section.
+      if (keepScroll !== null) $('.sheet').scrollTop = keepScroll;
+      else if (type !== pageKey) $(`[data-settings-section="${type}"]`)?.scrollIntoView({ block: 'start' });
+      return;
+    }
     const template = templates[type]?.();
     if (!template) return;
     presentSheet(template.title, template.body, template.ready);
   }
 
-  function presentSheet(title, body, ready) {
+  function presentSheet(title, body, ready, options = {}) {
     activeFriendProfileRiderId = null;
     if ($('#sheetBackdrop').hidden) lastSheetTrigger = document.activeElement;
+    // Settings pages are full screen with a back chevron; everything else
+    // stays a bottom sheet with a close button.
+    currentSettingsPage = options.page || null;
+    $('#sheetBackdrop').classList.toggle('settings-page-mode', Boolean(currentSettingsPage));
+    const close = $('#closeSheet');
+    close.innerHTML = currentSettingsPage ? '<svg class="icon-back" aria-hidden="true"><use href="#i-chevron"/></svg>' : '×';
+    close.setAttribute('aria-label', currentSettingsPage ? 'Back' : 'Close');
     $('#sheetTitle').textContent = title;
     $('#sheetBody').innerHTML = body;
     $('#sheetBackdrop').hidden = false;
@@ -2704,7 +2728,11 @@
   }
 
   function wireToggles() {
-    $$('[data-toggle]', $('#sheetBody')).forEach((button) => button.addEventListener('click', async () => {
+    // A settings page can hold several sections that each wire toggles;
+    // wire each button once so a tap doesn't flip it twice.
+    const unwired = $$('[data-toggle]:not([data-toggle-wired])', $('#sheetBody'));
+    unwired.forEach((button) => button.setAttribute('data-toggle-wired', ''));
+    unwired.forEach((button) => button.addEventListener('click', async () => {
       const key = button.dataset.toggle;
       const active = button.getAttribute('aria-pressed') !== 'true';
       if (key === 'rideSafeEnabled') {
@@ -2861,6 +2889,8 @@
     activeFriendProfileRiderId = null;
     const trigger = lastSheetTrigger;
     $('#sheetBackdrop').hidden = true;
+    $('#sheetBackdrop').classList.remove('settings-page-mode');
+    currentSettingsPage = null;
     document.documentElement.classList.remove('sheet-open');
     $('#app')?.removeAttribute('inert');
     $('#chatScreen')?.removeAttribute('inert');
@@ -4318,7 +4348,7 @@
     if (message) message.textContent = nextState === 'moving'
       ? 'Distracting controls are locked until you are safely below 8 mph.'
       : 'Waiting for a reliable speed fix. Controls stay available.';
-    $$('[data-nav="routes"], [data-nav="friends"], [data-nav="settings"]').forEach((item) => {
+    $$('[data-nav="friends"], [data-menu-nav]').forEach((item) => {
       item.setAttribute('aria-disabled', String(locked));
       item.classList.toggle('safety-unavailable', locked);
     });
@@ -4329,6 +4359,7 @@
     renderMapStatus();
     if (locked && !['map', 'ride'].includes(state.screen)) navigate(state.activeRide ? 'ride' : 'map', false);
     if (locked && activeChat) closeChat({ restoreFocus: false });
+    if (locked) closeAppMenu({ restoreFocus: false });
   }
 
   function stopMovementSafetyTracking() {
@@ -6413,8 +6444,46 @@
     }).catch(() => {});
   }
 
+  // Waze-style menu behind the rider's avatar on the map: profile, Routes,
+  // plan, Settings and help. Routes and Settings aren't tabs any more.
+  let appMenuTrigger = null;
+  function openAppMenu() {
+    if (window.RiderMovementSafety.isLockedForSafety(movementState)) {
+      showToast('Controls stay locked until Rider Comms confirms you are stationary.');
+      return;
+    }
+    appMenuTrigger = document.activeElement;
+    renderProfile();
+    $('#appMenu').hidden = false;
+    $('#app')?.setAttribute('inert', '');
+    document.documentElement.classList.add('app-menu-open');
+    $('#closeAppMenu').focus({ preventScroll: true });
+  }
+
+  function closeAppMenu({ restoreFocus = true } = {}) {
+    if ($('#appMenu').hidden) return;
+    $('#appMenu').hidden = true;
+    $('#app')?.removeAttribute('inert');
+    document.documentElement.classList.remove('app-menu-open');
+    if (restoreFocus) appMenuTrigger?.focus?.();
+    appMenuTrigger = null;
+  }
+
   function bindEvents() {
     $$('[data-nav]').forEach((button) => button.addEventListener('click', () => navigate(button.dataset.nav)));
+    $('#mapAvatarButton').addEventListener('click', openAppMenu);
+    $('#closeAppMenu').addEventListener('click', () => closeAppMenu());
+    $('#appMenu').addEventListener('keydown', (event) => { if (event.key === 'Escape') closeAppMenu(); });
+    $('#appMenuViewProfile').addEventListener('click', () => { closeAppMenu({ restoreFocus: false }); openSheet('profile'); });
+    $$('[data-menu-nav]').forEach((button) => button.addEventListener('click', () => {
+      closeAppMenu({ restoreFocus: false });
+      navigate(button.dataset.menuNav);
+    }));
+    $$('[data-menu-sheet]').forEach((button) => button.addEventListener('click', () => {
+      closeAppMenu({ restoreFocus: false });
+      openSheet(button.dataset.menuSheet);
+    }));
+    $$('[data-back-to-map]').forEach((button) => button.addEventListener('click', () => navigate('map')));
     $('#enableLocationBtn').addEventListener('click', () => void requestMovementLocationAccess());
     $('#navMuteBtn')?.addEventListener('click', () => {
       navMuted = !navMuted;
@@ -6430,19 +6499,10 @@
       if (activeChat) closeChat();
       navigate(location.hash.split('/')[0].slice(1) || 'map', false);
     });
-    $$('[data-ride-mode]').forEach((button) => button.addEventListener('click', () => {
-      $$('[data-ride-mode]').forEach((item) => item.classList.toggle('active', item === button));
-      const host = button.dataset.rideMode === 'host';
-      $('#joinRideForm').hidden = host;
-      $('#hostRideForm').hidden = !host;
-      $('#rideHostMode').hidden = host;
-      $('#rideJoinMode').hidden = !host;
-      $('#rideEntryTitle').textContent = host ? 'Start a ride' : 'Join a ride';
-    }));
     $('#joinRideForm').addEventListener('submit', (event) => {
       event.preventDefault();
       const code = $('#rideCode').value.trim().toUpperCase();
-      if (!/^[A-Z2-9]{6}$/.test(code)) {
+      if (!RIDE_CODE_PATTERN.test(code)) {
         $('#rideError').textContent = 'Enter a valid six-character ride code.';
         $('#rideError').hidden = false;
         $('#rideCode').setAttribute('aria-invalid', 'true');
@@ -6454,19 +6514,37 @@
     const syncRideCodeSlots = () => {
       const code = $('#rideCode').value;
       $$('#rideCodeSlots span').forEach((slot, index) => {
-        slot.textContent = code[index] || '—';
+        slot.textContent = code[index] || '·';
         slot.classList.toggle('filled', Boolean(code[index]));
         slot.classList.toggle('active', index === code.length && code.length < 6);
       });
     };
     $('#rideCode').addEventListener('input', (event) => {
-      event.target.value = event.target.value.toUpperCase().replace(/[^A-Z2-9]/g, '').slice(0, 6);
+      // No maxlength: a pasted "ABC 234", share message or invite link is
+      // cleaned up here instead of being cut short first.
+      event.target.value = normalizeRideCodeInput(event.target.value);
       event.target.setAttribute('aria-invalid', 'false');
       $('#rideError').hidden = true;
       syncRideCodeSlots();
+      syncRideJoinButton();
     });
     $('#rideCode').addEventListener('focus', syncRideCodeSlots);
+    $('#rideCode').addEventListener('blur', syncRideCodeSlots);
     syncRideCodeSlots();
+    syncRideJoinButton();
+    // An invite link (…#ride/join/ABC234) opens the Ride page with the code
+    // filled in; the rider still taps Join.
+    const openRideInvite = () => {
+      const code = rideCodeFromInviteText(location.hash);
+      if (!code || state.activeRide) return;
+      $('#rideCode').value = code;
+      syncRideCodeSlots();
+      syncRideJoinButton();
+      history.replaceState({ screen: 'ride' }, '', '#ride');
+      navigate('ride', false);
+    };
+    openRideInvite();
+    window.addEventListener('hashchange', openRideInvite);
     $('#createRideBtn').addEventListener('click', createRide);
     $('#leaveRideBtn').addEventListener('click', endRide);
     $('#activeRideLocationConsent').addEventListener('change', (event) => {
@@ -6580,7 +6658,6 @@
     $('#voiceStatusBtn').addEventListener('click', toggleVoiceMute);
     $('#rideVoiceStatus').addEventListener('click', toggleVoiceMute);
     $('#endNavBtn').addEventListener('click', () => finishNavigation(false));
-    $('[aria-label="Open profile"]').addEventListener('click', () => navigate('settings'));
   }
 
   // --- Auth screen -----------------------------------------------------

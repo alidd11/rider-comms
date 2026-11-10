@@ -16,8 +16,8 @@
     const locationToggle = $('#activeRideLocationConsent');
     locationToggle.checked = ride.shareRideLocation === true;
     $('#activeRideLocationStatus').textContent = ride.shareRideLocation
-      ? 'On — current ride members can see your recent position.'
-      : 'Off — your position is not being uploaded to this ride.';
+      ? 'On — riders in this ride can see where you are. It stops when you switch it off, leave the ride or the ride ends.'
+      : 'Off — riders in this ride can’t see where you are.';
     const members = (ride.members || ride.memberIds.map((riderId) => ({ riderId, displayName: riderId, handle: riderId })))
       // Show this rider from their own profile, never from a lookup fallback.
       .map((person) => (person.riderId === state.profile.riderId
@@ -130,10 +130,10 @@
   async function createRide() {
     const button = $('#createRideBtn');
     button.disabled = true;
-    button.textContent = 'Creating…';
+    button.textContent = 'Starting…';
     try {
       if (!(await preflightMicrophoneAccess())) return;
-      const shareRideLocation = $('#hostRideLocationConsent').checked;
+      // Live location is chosen inside the ride, once it exists.
       const result = await apiFetch('POST', '/rides', {});
       rideRefreshVersion += 1;
       state.activeRide = { rideId: result.rideId, code: result.code, isHost: true, createdBy: result.createdBy, memberIds: result.memberIds, shareRideLocation: false };
@@ -144,12 +144,11 @@
       navigate('ride');
       showToast('Your private ride is ready.');
       await loadRideRoster();
-      if (shareRideLocation) await setRideLocationSharing(true);
     } catch {
       showToast('Could not create a ride. Try again.');
     } finally {
       button.disabled = false;
-      button.textContent = 'Create private ride';
+      button.innerHTML = `${icon('plus')}<span>Start a ride</span>`;
     }
   }
 
@@ -165,7 +164,6 @@
     button.textContent = 'Joining…';
     try {
       if (!(await preflightMicrophoneAccess())) return;
-      const shareRideLocation = $('#joinRideLocationConsent').checked;
       const joined = await apiFetch('POST', '/rides/join', { code });
       const ride = await apiFetch('GET', `/rides/${encodeURIComponent(joined.rideId)}`);
       rideRefreshVersion += 1;
@@ -177,14 +175,14 @@
       navigate('ride');
       showToast('You joined the ride.');
       await loadRideRoster();
-      if (shareRideLocation) await setRideLocationSharing(true);
     } catch (error) {
       const code2 = error instanceof ApiError ? error.body?.error : undefined;
       errorEl.textContent = RIDE_ERROR_MESSAGES[code2] || 'Could not join that ride. Try again.';
       errorEl.hidden = false;
     } finally {
-      button.disabled = false;
-      button.textContent = 'Join Ride';
+      // The code stays in the field so the rider can fix one character.
+      button.textContent = 'Join ride';
+      syncRideJoinButton();
     }
   }
 
@@ -237,7 +235,7 @@
   async function shareRide() {
     if (!state.activeRide) return;
     if (!state.activeRide.code) return showToast('This invite has expired. Your ride remains active.');
-    const text = `Join my Rider Comms group ride with code ${state.activeRide.code}`;
+    const text = `Join my Rider Comms group ride with code ${state.activeRide.code}\n${rideInviteLink(state.activeRide.code)}`;
     try {
       if (navigator.share) await navigator.share({ title: 'Rider Comms invite', text });
       else {
@@ -247,4 +245,37 @@
     } catch (error) {
       if (error?.name !== 'AbortError') showToast('Could not open sharing.');
     }
+  }
+
+  // Ride invite codes as riders enter them: typed, pasted as "ABC 234" or
+  // "abc-234", pasted as the host's whole share message, or opened from an
+  // invite link (…/#ride/join/ABC234). Same rules as the native app's
+  // mobile/src/ride/rideInvite.ts.
+  const RIDE_CODE_PATTERN = /^[A-Z2-9]{6}$/;
+
+  function rideInviteLink(code) {
+    return `${location.origin}${location.pathname}#ride/join/${encodeURIComponent(code)}`;
+  }
+
+  function rideCodeFromInviteText(text) {
+    const linked = String(text).match(/#ride\/join\/([A-Za-z2-9]{6})\b/) || String(text).match(/ridercomms:\/\/join\?code=([A-Za-z2-9]{6})\b/i);
+    return linked ? linked[1].toUpperCase() : null;
+  }
+
+  function normalizeRideCodeInput(text) {
+    const fromLink = rideCodeFromInviteText(text);
+    if (fromLink) return fromLink;
+    const compact = String(text).toUpperCase().replace(/[\s-]/g, '');
+    if (compact.length <= 6) return compact.replace(/[^A-Z2-9]/g, '');
+    const candidates = [...String(text).matchAll(/(?:^|[^A-Za-z0-9])([A-Za-z2-9]{3})[\s-]?([A-Za-z2-9]{3})(?=$|[^A-Za-z0-9])/g)];
+    const last = candidates[candidates.length - 1];
+    if (last) return `${last[1]}${last[2]}`.toUpperCase();
+    return compact.replace(/[^A-Z2-9]/g, '').slice(0, 6);
+  }
+
+  /** Join is only offered once all six characters are in. */
+  function syncRideJoinButton() {
+    const button = $('#joinRideForm button[type="submit"]');
+    if (!button || button.textContent === 'Joining…') return;
+    button.disabled = !RIDE_CODE_PATTERN.test($('#rideCode').value);
   }
