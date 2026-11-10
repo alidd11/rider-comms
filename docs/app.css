@@ -2872,3 +2872,17 @@ html.app-menu-open .bottom-nav,html.app-menu-open .ride-pill,html.app-menu-open 
 .my-profile-visibility{color:var(--text-secondary);font-size:.76rem;font-weight:750}
 /* Session rows show a device, not a settings cog. */
 .session-row .setting-icon svg{width:18px;height:18px}
+
+/* ===== iOS 26+ Home Screen app: keep the map's top controls out of the
+   system "scroll edge" blur (Nov 2026) =====
+   iOS lays its own blur over the status bar and a band just below it in an
+   installed web app, and no page setting turns it off. So in that case only
+   (standalone, iOS, portrait) the avatar + search row, and what is stacked
+   under it, move down until they sit clear of the band. Browser tabs,
+   Android and landscape keep the normal spacing. */
+@media (display-mode:standalone) and (orientation:portrait){@supports (-webkit-touch-callout:none){
+  :root{--edge-blur-clearance:26px}
+  .screen-map .map-header{top:calc(var(--safe-top) + 10px + var(--edge-blur-clearance))}
+  .screen-map .map-error{top:calc(var(--safe-top) + 68px + var(--edge-blur-clearance))}
+  .voice-people-btn{top:calc(var(--safe-top) + 66px + var(--edge-blur-clearance))}
+}}

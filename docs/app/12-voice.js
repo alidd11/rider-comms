@@ -267,7 +267,7 @@
       Object.assign(chip.style, {
         position: 'absolute',
         zIndex: '9',
-        top: 'calc(var(--safe-top) + 66px)',
+        top: 'calc(var(--safe-top) + 66px + var(--edge-blur-clearance, 0px))',
         right: 'max(16px,var(--safe-right))',
         maxWidth: 'min(70vw,260px)',
         overflow: 'hidden',
