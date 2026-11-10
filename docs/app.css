@@ -2819,7 +2819,7 @@ html[data-active-screen="map"] #app.safety-locked .map-canvas{inset:0}
 .app-menu-list span{flex:1}
 .app-menu-list small{color:var(--text-secondary);font-size:.85rem;font-weight:600}
 .app-menu-version{margin:auto 0 0;padding-top:28px;color:var(--text-muted);font-size:.78rem;text-align:center}
-html.app-menu-open .bottom-nav,html.app-menu-open .ride-pill{display:none}
+html.app-menu-open .bottom-nav,html.app-menu-open .ride-pill,html.app-menu-open .movement-safety-banner{display:none}
 
 /* Settings options as full pages (the sheet, full screen, with Back). */
 .sheet-backdrop.settings-page-mode{align-items:stretch;background:var(--bg);backdrop-filter:none}

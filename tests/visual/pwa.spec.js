@@ -241,6 +241,9 @@ async function openFromMenu(page, screen) {
   await page.locator('.bottom-nav [data-nav="map"]').click();
   await page.locator('#mapAvatarButton').click();
   await expect(page.locator('#appMenu')).toBeVisible();
+  // The menu is full screen: nothing else (the safety banner included) may
+  // sit on top of its rows.
+  await expect(page.locator('#movementSafetyBanner')).toBeHidden();
   await page.locator(`[data-menu-nav="${screen}"]`).click();
   await expect(page.locator('#appMenu')).toBeHidden();
 }
@@ -3173,8 +3176,6 @@ test('@viewport full-screen overlays and sheets share the stable standalone bott
 
   await openOwnProfile(page);
   await assertSheet('profile-page');
-  // On a small phone the safety banner overlaps the menu's lower rows.
-  await page.locator('#movementSafetyBanner').evaluate((element) => { element.hidden = true; });
   await openFromMenu(page, 'settings');
 
   // Settings options are full-screen pages; they share the same edge.
