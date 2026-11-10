@@ -317,7 +317,7 @@ export function SettingsScreen(): React.JSX.Element {
   const { logOut } = useAuth();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const openPage = (page: SettingsPageKey) => navigation.navigate('SettingsPage', { page });
+  const openPage = (page: SettingsPageKey) => navigation.push('SettingsPage', { page });
 
   function confirmLogOut() {
     Alert.alert(
@@ -389,7 +389,10 @@ function MyProfilePage(): React.JSX.Element {
       <Pressable
         accessibilityRole="button"
         style={({ pressed }) => [styles.myProfileEdit, pressed && styles.settingRowPressed]}
-        onPress={() => navigation.navigate('SettingsPage', { page: 'editProfile' })}
+        // push, not navigate: Profile is already a SettingsPage, and
+        // navigate() to the same route name would replace it, so Back from
+        // Edit profile would skip past your profile.
+        onPress={() => navigation.push('SettingsPage', { page: 'editProfile' })}
         testID="edit-profile"
       >
         <Text style={styles.myProfileEditText}>Edit profile</Text>

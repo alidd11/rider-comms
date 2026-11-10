@@ -47,6 +47,10 @@ describe('Settings mockup contract', () => {
       assert.ok(settingsSource.includes(`page === '${key}'`), `Missing Settings page: ${key}`);
       assert.ok(settingsSource.includes(`openPage('${key}')`), `Settings root does not open page: ${key}`);
     }
+    // Every page is the same SettingsPage route, so opening one must push a
+    // new screen (navigate() would replace the current page and break Back).
+    assert.ok(settingsSource.includes("navigation.push('SettingsPage', { page: 'editProfile' })"));
+    assert.ok(!settingsSource.includes("navigation.navigate('SettingsPage'"));
     // Opened from the avatar menu instead: View profile, Edit profile, Help.
     for (const key of ['myProfile', 'editProfile', 'help']) {
       assert.ok(settingsSource.includes(`page === '${key}'`), `Missing menu page: ${key}`);
