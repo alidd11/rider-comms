@@ -82,8 +82,12 @@ instructions:
 We may also disclose data where the law requires it, or to protect someone
 from serious harm.
 
-[International transfers: describe where each provider processes data and the
-safeguard used, e.g. Standard Contractual Clauses.]
+Some of these providers process data outside the UK, including in the United
+States. When data leaves the UK we rely on UK adequacy regulations (including
+the UK Extension to the EU–US Data Privacy Framework, where the provider is
+certified) or on the Information Commissioner's International Data Transfer
+Addendum to the EU Standard Contractual Clauses. Contact us for details of
+the safeguard used for a particular provider.
 
 ## How long we keep data
 

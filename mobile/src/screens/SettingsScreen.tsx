@@ -112,32 +112,21 @@ function ToggleRow({
   );
 }
 
-function SocialRow({ label, icon, username, visibility, onUsername, onVisibility }: { label: string; icon: React.ComponentProps<typeof Ionicons>['name']; username: string; visibility: SocialVisibility; onUsername: (value: string) => void; onVisibility: (value: SocialVisibility) => void }): React.JSX.Element {
-  const [draft, setDraft] = React.useState(username);
-  const [error, setError] = React.useState<string | null>(null);
-  React.useEffect(() => {
-    setDraft(username);
-    setError(null);
-  }, [username]);
+/** One connected profile on Edit profile: username and who can see it. Saved with the page. */
+function SocialField({ label, icon, draft, error, visibility, onDraft, onVisibility }: { label: string; icon: React.ComponentProps<typeof Ionicons>['name']; draft: string; error: string | null; visibility: SocialVisibility; onDraft: (value: string) => void; onVisibility: (value: SocialVisibility) => void }): React.JSX.Element {
   const options: SocialVisibility[] = ['public', 'friends', 'private'];
-
-  function commitUsername() {
-    const normalized = draft.trim().replace(/^@/, '');
-    if (!/^[a-z0-9._]{0,30}$/i.test(normalized)) {
-      setError('Use up to 30 letters, numbers, dots or underscores.');
-      return;
-    }
-    setError(null);
-    setDraft(normalized);
-    if (normalized !== username) onUsername(normalized);
-  }
-
   return <View style={styles.socialRow}>
     <View style={styles.socialHeading}><Ionicons name={icon} size={20} color={colors.textSecondary}/><Text style={styles.toggleLabel}>{label}</Text></View>
-    <TextInput accessibilityLabel={`${label} username`} style={styles.socialInput} value={draft} onChangeText={(value) => { setDraft(value); setError(null); }} onBlur={commitUsername} onSubmitEditing={commitUsername} autoCapitalize="none" autoCorrect={false} maxLength={31} placeholder="username" placeholderTextColor={colors.textMuted}/>
+    <TextInput accessibilityLabel={`${label} username`} style={styles.socialInput} value={draft} onChangeText={onDraft} autoCapitalize="none" autoCorrect={false} maxLength={31} placeholder="username" placeholderTextColor={colors.textMuted}/>
     {error ? <Text accessibilityRole="alert" style={styles.socialError}>{error}</Text> : null}
     <View style={styles.visibilityRow} accessibilityRole="radiogroup" accessibilityLabel={`${label} visibility`}>{options.map((option) => { const optionLabel = option === 'friends' ? 'Friends only' : option[0].toUpperCase() + option.slice(1); return <Pressable key={option} accessibilityRole="radio" accessibilityLabel={optionLabel} accessibilityState={{ selected: visibility === option }} onPress={() => onVisibility(option)} style={[styles.visibilityChoice, visibility === option && styles.visibilityChoiceActive]}><Text style={[styles.visibilityText, visibility === option && styles.visibilityTextActive]}>{optionLabel}</Text></Pressable>; })}</View>
   </View>;
+}
+
+/** Usernames for Instagram/TikTok: up to 30 letters, numbers, dots or underscores. */
+function normalizeSocialUsername(draft: string): { value: string; error: string | null } {
+  const value = draft.trim().replace(/^@/, '');
+  return /^[a-z0-9._]{0,30}$/i.test(value) ? { value, error: null } : { value, error: 'Use up to 30 letters, numbers, dots or underscores.' };
 }
 
 function AvatarPickerModal({
@@ -413,7 +402,11 @@ function MyProfilePage(): React.JSX.Element {
   );
 }
 
-/** Edit profile: avatar, name, handle and connected profiles. */
+/**
+ * Edit profile: avatar, name, handle and connected profiles. Like the PWA,
+ * fields are drafts until Save (the avatar applies as soon as it's picked);
+ * Save sends only what changed, then returns to your profile.
+ */
 function EditProfilePage(): React.JSX.Element {
   const {
     avatarId, setAvatarId, displayName, setDisplayName, handle, setHandle,
@@ -421,37 +414,57 @@ function EditProfilePage(): React.JSX.Element {
     tiktokUsername, setTiktokUsername, tiktokVisibility, setTiktokVisibility,
     saving, profileError,
   } = useSettings();
+  const navigation = useNavigation();
   const [pickerOpen, setPickerOpen] = React.useState(false);
   const [nameDraft, setNameDraft] = React.useState(displayName);
   const [handleDraft, setHandleDraft] = React.useState(handle);
+  const [instagramDraft, setInstagramDraft] = React.useState(instagramUsername);
+  const [tiktokDraft, setTiktokDraft] = React.useState(tiktokUsername);
+  const [instagramVisibilityDraft, setInstagramVisibilityDraft] = React.useState(instagramVisibility);
+  const [tiktokVisibilityDraft, setTiktokVisibilityDraft] = React.useState(tiktokVisibility);
   const [profileDraftError, setProfileDraftError] = React.useState<string | null>(null);
+  const [instagramError, setInstagramError] = React.useState<string | null>(null);
+  const [tiktokError, setTiktokError] = React.useState<string | null>(null);
+  const [submitted, setSubmitted] = React.useState(false);
 
-  React.useEffect(() => { setNameDraft(displayName); }, [displayName]);
-  React.useEffect(() => { setHandleDraft(handle); }, [handle]);
+  // Once the queued saves finish, go back to the profile unless one failed
+  // (the error then shows here and the rider can try again).
+  React.useEffect(() => {
+    if (!submitted || saving) return;
+    setSubmitted(false);
+    if (!profileError) navigation.goBack();
+  }, [navigation, profileError, saving, submitted]);
 
   const avatar = getAvatarPreset(avatarId);
 
-  function commitName() {
-    const next = nameDraft.trim();
-    if (!next) {
+  function save() {
+    const name = nameDraft.trim();
+    const rawHandle = handleDraft.trim();
+    const nextHandle = rawHandle.startsWith('@') ? rawHandle : `@${rawHandle}`;
+    const instagram = normalizeSocialUsername(instagramDraft);
+    const tiktok = normalizeSocialUsername(tiktokDraft);
+    setInstagramError(instagram.error);
+    setTiktokError(tiktok.error);
+    if (!name) {
       setProfileDraftError('Add a display name.');
       return;
     }
-    setProfileDraftError(null);
-    setNameDraft(next);
-    if (next !== displayName) setDisplayName(next);
-  }
-
-  function commitHandle() {
-    const raw = handleDraft.trim();
-    const next = raw.startsWith('@') ? raw : `@${raw}`;
-    if (!/^@[a-z0-9_]{3,24}$/i.test(next)) {
+    if (!/^@[a-z0-9_]{3,24}$/i.test(nextHandle)) {
       setProfileDraftError('Use 3–24 letters, numbers or underscores for your handle.');
       return;
     }
     setProfileDraftError(null);
-    setHandleDraft(next);
-    if (next !== handle) setHandle(next);
+    if (instagram.error || tiktok.error) return;
+
+    let changed = false;
+    if (name !== displayName) { setDisplayName(name); changed = true; }
+    if (nextHandle !== handle) { setHandle(nextHandle); changed = true; }
+    if (instagram.value !== instagramUsername) { setInstagramUsername(instagram.value); changed = true; }
+    if (instagramVisibilityDraft !== instagramVisibility) { setInstagramVisibility(instagramVisibilityDraft); changed = true; }
+    if (tiktok.value !== tiktokUsername) { setTiktokUsername(tiktok.value); changed = true; }
+    if (tiktokVisibilityDraft !== tiktokVisibility) { setTiktokVisibility(tiktokVisibilityDraft); changed = true; }
+    if (changed) setSubmitted(true);
+    else navigation.goBack();
   }
 
   return (
@@ -474,21 +487,31 @@ function EditProfilePage(): React.JSX.Element {
 
       <PageSection title="Name">
         <Text style={styles.fieldLabel}>Display name</Text>
-        <TextInput accessibilityLabel="Rider name" style={styles.sheetInput} value={nameDraft} onChangeText={(value) => { setNameDraft(value); setProfileDraftError(null); }} onSubmitEditing={commitName} onBlur={commitName} maxLength={50} returnKeyType="done" placeholder="Rider name" placeholderTextColor={colors.textMuted} />
+        <TextInput accessibilityLabel="Rider name" style={styles.sheetInput} value={nameDraft} onChangeText={(value) => { setNameDraft(value); setProfileDraftError(null); }} maxLength={50} returnKeyType="done" placeholder="Rider name" placeholderTextColor={colors.textMuted} />
         <Text style={styles.fieldLabel}>Rider handle</Text>
-        <TextInput accessibilityLabel="Rider handle" style={styles.sheetInput} value={handleDraft} onChangeText={(value) => { setHandleDraft(value); setProfileDraftError(null); }} onSubmitEditing={commitHandle} onBlur={commitHandle} maxLength={25} autoCapitalize="none" autoCorrect={false} returnKeyType="done" placeholder="@handle" placeholderTextColor={colors.textMuted} />
-        {(saving || profileDraftError || profileError) ? (
-          <View style={styles.sheetSaveStatus} accessibilityLiveRegion="polite">
-            {saving ? <><ActivityIndicator color={colors.accent} size="small" /><Text style={styles.profileSavingText}>Saving profile…</Text></> : null}
-            {profileDraftError || profileError ? <Text accessibilityRole="alert" style={styles.profileSaveError}>{profileDraftError ?? profileError}</Text> : null}
-          </View>
-        ) : null}
+        <TextInput accessibilityLabel="Rider handle" style={styles.sheetInput} value={handleDraft} onChangeText={(value) => { setHandleDraft(value); setProfileDraftError(null); }} maxLength={25} autoCapitalize="none" autoCorrect={false} returnKeyType="done" placeholder="@handle" placeholderTextColor={colors.textMuted} />
       </PageSection>
 
       <PageSection title="Connected profiles" note="Choose who can see each one on your Rider Comms profile.">
-        <SocialRow label="Instagram" icon="logo-instagram" username={instagramUsername} visibility={instagramVisibility} onUsername={setInstagramUsername} onVisibility={setInstagramVisibility}/>
-        <SocialRow label="TikTok" icon="logo-tiktok" username={tiktokUsername} visibility={tiktokVisibility} onUsername={setTiktokUsername} onVisibility={setTiktokVisibility}/>
+        <SocialField label="Instagram" icon="logo-instagram" draft={instagramDraft} error={instagramError} visibility={instagramVisibilityDraft} onDraft={(value) => { setInstagramDraft(value); setInstagramError(null); }} onVisibility={setInstagramVisibilityDraft}/>
+        <SocialField label="TikTok" icon="logo-tiktok" draft={tiktokDraft} error={tiktokError} visibility={tiktokVisibilityDraft} onDraft={(value) => { setTiktokDraft(value); setTiktokError(null); }} onVisibility={setTiktokVisibilityDraft}/>
       </PageSection>
+
+      {(saving || profileDraftError || profileError) ? (
+        <View style={styles.sheetSaveStatus} accessibilityLiveRegion="polite">
+          {saving ? <><ActivityIndicator color={colors.accent} size="small" /><Text style={styles.profileSavingText}>Saving profile…</Text></> : null}
+          {profileDraftError || profileError ? <Text accessibilityRole="alert" style={styles.profileSaveError}>{profileDraftError ?? profileError}</Text> : null}
+        </View>
+      ) : null}
+      <Pressable
+        accessibilityRole="button"
+        disabled={saving}
+        style={({ pressed }) => [styles.myProfileEdit, (pressed || saving) && styles.sheetActionDisabled]}
+        onPress={save}
+        testID="save-profile"
+      >
+        <Text style={styles.myProfileEditText}>{saving ? 'Saving…' : 'Save changes'}</Text>
+      </Pressable>
 
       <AvatarPickerModal visible={pickerOpen} currentId={avatarId} onSelect={setAvatarId} onClose={() => setPickerOpen(false)} />
     </>

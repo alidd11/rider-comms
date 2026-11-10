@@ -45,3 +45,8 @@ export function parseClientErrorReport(body: Record<string, unknown>): ClientErr
     context: boundedString(body.context, MAX_SHORT_FIELD_LENGTH).trim(),
   };
 }
+
+/** Google Maps JS's lazy module loader failing, e.g. `Error: Could not load "webgl".` */
+export function isGoogleMapsModuleLoadFailure(message: string): boolean {
+  return /^(?:Error: )?Could not load "[a-z0-9_-]+"\.?$/i.test(message.trim());
+}

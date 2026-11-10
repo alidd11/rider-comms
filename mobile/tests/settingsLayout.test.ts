@@ -79,7 +79,10 @@ describe('Settings mockup contract', () => {
   });
 
   it('validates and normalizes profile fields before syncing', () => {
-    assert.ok(settingsSource.includes("raw.startsWith('@') ? raw : `@${raw}`"));
+    assert.ok(settingsSource.includes("rawHandle.startsWith('@') ? rawHandle : `@${rawHandle}`"));
+    // Edit profile saves on Save, like the PWA, not field by field on blur.
+    assert.match(settingsSource, /function EditProfilePage\(\)[\s\S]*testID="save-profile"[\s\S]*Save changes/);
+    assert.doesNotMatch(settingsSource.slice(settingsSource.indexOf('function EditProfilePage()'), settingsSource.indexOf('function AccountPage()')), /onBlur=/);
     assert.match(settingsSource, /Use 3–24 letters, numbers or underscores for your handle\./);
     assert.ok(settingsSource.includes("draft.trim().replace(/^@/, '')"));
     assert.match(settingsSource, /Use up to 30 letters, numbers, dots or underscores\./);

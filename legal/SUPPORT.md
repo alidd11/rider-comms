@@ -9,7 +9,7 @@ reports made in the app are reviewed within 24 hours.
 email a reset link and code to the address on your account.
 
 **I didn't get the verification email.** Check your spam folder, then use
-*Resend verification email* in Settings → Account → Edit profile.
+*Resend verification email* in Settings → Account.
 
 **Someone is bothering me.** Report and block them from their profile, a
 chat, the ride roster, a friend request or the Nearby Voice rider list. See

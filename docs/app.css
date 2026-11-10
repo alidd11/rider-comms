@@ -314,16 +314,16 @@ img,svg{-webkit-user-drag:none}
 
 /* iOS 26+ lays a Liquid Glass "scroll edge" blur over the top ~40pt of a
    Home Screen web app (black-translucent), smearing the map and page titles
-   under the clock. No CSS or meta switch turns it off; WebKit skips it only
-   when a fixed box with a solid background sits across the top edge
-   (LocalFrameView::fixedContainerEdges). This real element is that box: it
-   reaches a few px past the status bar so WebKit's edge sample lands on it
-   (the old safe-area-tall ::before strip stopped exactly at the edge and was
-   ignored), and it only exists in the installed iOS app. Everything from
-   just under the status bar down is the page itself, unblurred. */
+   under the clock. No CSS or meta switch turns it off. iOS skips it when it
+   finds a painted fixed box at the very top edge, but a visibly solid band
+   only swapped the blur for a band with the blur below it. This box is 11px
+   tall with its colour clipped to text it doesn't have, so iOS sees a
+   painted edge while nothing is drawn: the map stays edge to edge under the
+   status bar, unblurred. Only in the installed iOS app. (Workaround from
+   tips.ojapp.app; experimental, re-check on new iOS releases.) */
 .status-bar-backdrop{display:none}
 @media (display-mode:standalone){@supports (-webkit-touch-callout:none){
-  .status-bar-backdrop{display:block;position:fixed;z-index:110;top:0;left:0;right:0;height:calc(var(--safe-top) + 6px);background:var(--system-chrome);pointer-events:none}
+  .status-bar-backdrop{display:block;position:fixed;z-index:110;top:0;left:0;right:0;height:11px;background:var(--system-chrome);-webkit-background-clip:text;background-clip:text;pointer-events:none}
 }}
 
 /* Settings use compact grouped surfaces with restrained corners. This keeps
