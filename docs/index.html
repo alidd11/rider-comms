@@ -326,15 +326,7 @@
 
       <section class="screen content-screen" data-screen="settings" aria-labelledby="settingsTitle">
         <div class="page-width settings-page"><header class="page-header"><button class="icon-button page-back" type="button" data-back-to-map aria-label="Back to map"><svg class="icon-back"><use href="#i-chevron"/></svg></button><div><h1 id="settingsTitle">Settings</h1></div></header>
-          <div class="settings-group settings-main-group">
-            <button data-sheet="accountHub"><span class="setting-icon"><svg><use href="#i-user"/></svg></span><span><strong>Account</strong></span><svg><use href="#i-chevron"/></svg></button>
-            <button data-sheet="communication"><span class="setting-icon"><svg><use href="#i-message"/></svg></span><span><strong>Communication</strong></span><svg><use href="#i-chevron"/></svg></button>
-            <button data-sheet="mapNavigation"><span class="setting-icon"><svg><use href="#i-map"/></svg></span><span><strong>Map &amp; Navigation</strong></span><svg><use href="#i-chevron"/></svg></button>
-            <button data-sheet="unitsPreferences"><span class="setting-icon"><svg><use href="#i-apps"/></svg></span><span><strong>Units &amp; Preferences</strong></span><svg><use href="#i-chevron"/></svg></button>
-          </div>
-          <div class="settings-group settings-secondary-group">
-            <button data-sheet="about"><span class="setting-icon"><svg><use href="#i-info"/></svg></span><span><strong>About</strong></span><svg><use href="#i-chevron"/></svg></button>
-          </div>
+          <div id="settingsList" class="settings-list"></div>
           <div class="settings-group settings-signout"><button id="logoutBtn"><span class="setting-icon danger-text"><svg><use href="#i-logout"/></svg></span><span><strong class="danger-text">Sign Out</strong></span></button></div>
         </div>
       </section>

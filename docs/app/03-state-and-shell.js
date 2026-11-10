@@ -192,6 +192,7 @@
     syncHazardRefresh(screen === 'map');
     if (screen === 'friends') loadFriendsData();
     if (screen === 'ride') refreshActiveRide();
+    if (screen === 'settings') renderSettingsList();
   }
 
   window.addEventListener('rider-comms:navigate-to', (event) => {
@@ -227,6 +228,7 @@
   function renderProfile() {
     const profileRiderId = $('#profileRiderId');
     if (profileRiderId) profileRiderId.textContent = state.profile.riderId;
+    if (state.screen === 'settings' && $('#sheetBackdrop')?.hidden !== false) renderSettingsList();
     // The menu behind the map avatar.
     $('#appMenuName').textContent = state.profile.displayName;
     $('#appMenuHandle').textContent = state.profile.handle;

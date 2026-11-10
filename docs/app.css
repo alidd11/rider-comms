@@ -2886,3 +2886,25 @@ html.app-menu-open .bottom-nav,html.app-menu-open .ride-pill,html.app-menu-open 
   .screen-map .map-error{top:calc(var(--safe-top) + 68px + var(--edge-blur-clearance))}
   .voice-people-btn{top:calc(var(--safe-top) + 66px + var(--edge-blur-clearance))}
 }}
+
+/* ===== Settings as a real settings list (Nov 2026) =====
+   Grouped sections of actual settings: switches act in place, choices show
+   their value and open a page, account actions sit at the end. */
+.settings-list{display:grid;gap:22px;margin-top:6px}
+.settings-section{display:grid;gap:7px}
+.settings-section-title{margin:0;padding:0 4px;color:var(--text-secondary);font-size:.72rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+.settings-rows{overflow:hidden;border:1px solid var(--border-soft);border-radius:12px;background:var(--surface)}
+.settings-list .settings-row{width:100%;min-height:54px;display:flex;align-items:center;gap:12px;padding:6px 14px;border:0;border-bottom:1px solid var(--border-soft);background:transparent;color:var(--text);font:inherit;text-align:left}
+.settings-list .settings-row:last-child{border-bottom:0}
+.settings-list button.settings-row:active{background:var(--surface-hover)}
+@media(hover:hover){.settings-list button.settings-row:hover{background:var(--surface-hover)}}
+.settings-list .setting-icon{width:22px;height:22px;flex:none;display:grid;place-items:center;color:var(--text-secondary)}
+.settings-list .setting-icon svg{width:20px;height:20px}
+.settings-row-label{flex:1;min-width:0;font-size:.95rem;font-weight:560}
+.settings-row-value{flex:none;max-width:45%;overflow:hidden;color:var(--text-secondary);font-size:.88rem;text-overflow:ellipsis;white-space:nowrap}
+.settings-row-chevron{flex:none;display:grid;color:var(--text-muted)}
+.settings-row-chevron svg{width:15px;height:15px}
+.settings-row-toggle .toggle{flex:none}
+.settings-list .settings-row-danger,.settings-list .settings-row-danger .setting-icon{color:var(--danger)}
+.settings-section-note{margin:0;padding:0 4px;color:var(--text-muted);font-size:.76rem;line-height:1.4}
+.settings-page .settings-signout{margin-top:22px;border-radius:12px}

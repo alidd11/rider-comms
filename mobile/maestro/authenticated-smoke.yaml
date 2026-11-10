@@ -59,11 +59,19 @@ appId: com.ridercomms.app
 - takeScreenshot: authenticated-menu
 - tapOn: "Settings(,.*)?"
 - takeScreenshot: authenticated-settings
-- tapOn: "Account(,.*)?"
-- takeScreenshot: authenticated-account
-# Account is sign-in, devices and data; the profile and the plan each have
-# one home in the menu. Back out to the map (Account → Settings → map).
+# Settings is a real settings list: open one of its pages and come back.
+- scrollUntilVisible:
+    element: "Signed-in devices(,.*)?"
+    direction: DOWN
+- tapOn: "Signed-in devices(,.*)?"
+- takeScreenshot: authenticated-devices
+# The profile and the plan each have one home in the menu. Back out to the
+# map (Devices → Settings → map). Settings keeps its scroll position, so
+# scroll back up to its header first.
 - tapOn: "Go back"
+- scrollUntilVisible:
+    element: "Go back"
+    direction: UP
 - tapOn: "Go back"
 - tapOn:
     id: open-menu

@@ -80,38 +80,6 @@ function NavigationProviderRow({
   );
 }
 
-function ToggleRow({
-  icon,
-  label,
-  value,
-  onValueChange,
-  caption,
-}: {
-  icon: React.ComponentProps<typeof Ionicons>['name'];
-  label: string;
-  value: boolean;
-  onValueChange: (next: boolean) => void;
-  caption?: string;
-}): React.JSX.Element {
-  return (
-    <View style={styles.toggleRow}>
-      <Ionicons name={icon} size={20} color={colors.textSecondary} style={styles.toggleIcon} />
-      <View style={styles.toggleInfo}>
-        <Text style={styles.toggleLabel}>{label}</Text>
-        {caption && <Text style={styles.toggleCaption}>{caption}</Text>}
-      </View>
-      <Switch
-        accessibilityLabel={label}
-        accessibilityHint={caption}
-        value={value}
-        onValueChange={onValueChange}
-        trackColor={{ false: colors.border, true: colors.accent }}
-        thumbColor={colors.textPrimary}
-      />
-    </View>
-  );
-}
-
 /** One connected profile on Edit profile: username and who can see it. Saved with the page. */
 function SocialField({ label, icon, draft, error, visibility, onDraft, onVisibility }: { label: string; icon: React.ComponentProps<typeof Ionicons>['name']; draft: string; error: string | null; visibility: SocialVisibility; onDraft: (value: string) => void; onVisibility: (value: SocialVisibility) => void }): React.JSX.Element {
   const options: SocialVisibility[] = ['public', 'friends', 'private'];
@@ -227,17 +195,19 @@ function AvatarPickerModal({
 }
 
 
-/** Each Settings option is its own page; these keys name them (and match
- * the PWA's settings sheet tokens, see scripts/check-client-parity.mjs). */
-export type SettingsPageKey = 'myProfile' | 'editProfile' | 'accountHub' | 'communication' | 'mapNavigation' | 'unitsPreferences' | 'help' | 'about';
+/** The pages a settings row opens (the Settings list itself holds the
+ * switches). Keys match the PWA's page tokens, see
+ * scripts/check-client-parity.mjs. */
+export type SettingsPageKey = 'myProfile' | 'editProfile' | 'navigationApp' | 'distanceUnits' | 'blockedRiders' | 'email' | 'devices' | 'help' | 'about';
 
 export const SETTINGS_PAGE_TITLES: Record<SettingsPageKey, string> = {
   myProfile: 'Profile',
   editProfile: 'Edit profile',
-  accountHub: 'Account',
-  communication: 'Communication',
-  mapNavigation: 'Map & Navigation',
-  unitsPreferences: 'Units & Preferences',
+  navigationApp: 'Navigation app',
+  distanceUnits: 'Distance units',
+  blockedRiders: 'Blocked riders',
+  email: 'Email',
+  devices: 'Signed-in devices',
   help: 'Help & Support',
   about: 'About',
 };
@@ -271,6 +241,42 @@ function SettingsRow({ icon, title, subtitle, right, danger = false, showChevron
   );
 }
 
+/** A settings-list row with a switch that acts in place. */
+function SettingsSwitchRow({ icon, title, value, onValueChange, last = false }: {
+  icon: React.ComponentProps<typeof Ionicons>['name'];
+  title: string;
+  value: boolean;
+  onValueChange: (next: boolean) => void;
+  last?: boolean;
+}): React.JSX.Element {
+  return (
+    <View style={[styles.settingRow, last && styles.settingRowLast]}>
+      <Ionicons name={icon} size={20} color={colors.textPrimary} style={styles.settingRowIcon} />
+      <View style={styles.settingRowCopy}>
+        <Text style={styles.settingRowTitle}>{title}</Text>
+      </View>
+      <Switch
+        accessibilityLabel={title}
+        value={value}
+        onValueChange={onValueChange}
+        trackColor={{ false: colors.border, true: colors.accent }}
+        thumbColor={colors.textPrimary}
+      />
+    </View>
+  );
+}
+
+/** One titled group on the Settings list, with an optional footnote. */
+function SettingsSection({ title, note, children }: { title: string; note?: string; children: React.ReactNode }): React.JSX.Element {
+  return (
+    <View style={styles.settingsSection}>
+      <Text style={styles.pageSectionTitle} accessibilityRole="header">{title}</Text>
+      <View style={styles.settingsGroup}>{children}</View>
+      {note ? <Text style={styles.pageSectionNote}>{note}</Text> : null}
+    </View>
+  );
+}
+
 /** A titled group of controls on a settings page. */
 function PageSection({ title, children, note }: { title?: string; children: React.ReactNode; note?: string }): React.JSX.Element {
   return (
@@ -301,12 +307,61 @@ function SettingsPageLayout({ title, children }: { title: string; children: Reac
   );
 }
 
+/**
+ * Settings is a real settings list, like the PWA's: switches act in place,
+ * choices show their current value and open a page, and account actions sit
+ * at the end.
+ */
 export function SettingsScreen(): React.JSX.Element {
-  const { profileError, clearProfileError } = useSettings();
-  const { logOut } = useAuth();
+  const {
+    profileError, clearProfileError, rideSafeEnabled, setRideSafeEnabled, unitSystem,
+    navigationProvider, routeAvoidance, setRouteAvoidance, shareLocation, setShareLocation, resetAll,
+  } = useSettings();
+  const { logOut, emailVerified, deleteAccount } = useAuth();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const openPage = (page: SettingsPageKey) => navigation.push('SettingsPage', { page });
+  const appVersion = Constants.expoConfig?.version ?? '0.1.0';
+  const navigationAppLabel = NAVIGATION_PROVIDER_OPTIONS.find((option) => option.id === navigationProvider)?.label ?? '';
+
+  function changeRideSafe(enabled: boolean) {
+    if (enabled) {
+      setRideSafeEnabled(true);
+      return;
+    }
+    Alert.alert(
+      'Turn off Automatic Ride Safe?',
+      'Distracting controls will no longer lock automatically while this device is moving. Only change this while safely stopped.',
+      [
+        { text: 'Keep on', style: 'cancel' },
+        { text: 'Turn off', style: 'destructive', onPress: () => setRideSafeEnabled(false) },
+      ]
+    );
+  }
+
+  function confirmReset() {
+    Alert.alert(
+      'Reset Rider Comms settings?',
+      'This resets your Rider Comms profile and synced preferences to their defaults, and clears this device’s saved navigation and Ride Safe preferences.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Reset settings', style: 'destructive', onPress: () => resetAll() },
+      ]
+    );
+  }
+
+  function confirmDeleteAccount() {
+    Alert.alert(
+      'Delete account?',
+      'This permanently deletes your Rider Comms account and associated data. This cannot be undone.\n\nIt doesn’t cancel a Premium subscription: cancel that in your App Store or Google Play subscription settings.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete account', style: 'destructive', onPress: () => {
+          void deleteAccount().catch(() => Alert.alert('Couldn’t delete account', 'Please check your connection and try again.'));
+        } },
+      ]
+    );
+  }
 
   function confirmLogOut() {
     Alert.alert(
@@ -324,7 +379,7 @@ export function SettingsScreen(): React.JSX.Element {
   return (
     <View style={styles.container}>
       <ScrollView
-        contentContainerStyle={[styles.scroll, { paddingTop: insets.top + spacing.lg, paddingBottom: insets.bottom + spacing.md }]}
+        contentContainerStyle={[styles.scroll, styles.pageScroll, { paddingTop: insets.top + spacing.lg, paddingBottom: insets.bottom + spacing.md }]}
         showsVerticalScrollIndicator={false}
       >
         <ScreenHeader title="Settings" onBack={() => navigation.goBack()} />
@@ -337,18 +392,34 @@ export function SettingsScreen(): React.JSX.Element {
           </View>
         ) : null}
 
+        <SettingsSection title="Riding" note="Ride Safe locks distracting controls at 8 mph and above. Only change it while safely stopped.">
+          <SettingsSwitchRow icon="shield-checkmark-outline" title="Ride Safe auto-lock" value={rideSafeEnabled} onValueChange={changeRideSafe} />
+          <SettingsRow icon="swap-horizontal-outline" title="Distance units" right={UNIT_LABELS[unitSystem].name} last onPress={() => openPage('distanceUnits')} />
+        </SettingsSection>
+
+        <SettingsSection title="Map & navigation" note="Route options apply to routes Rider Comms plans.">
+          <SettingsRow icon="flag-outline" title="Navigation app" right={navigationAppLabel} onPress={() => openPage('navigationApp')} />
+          <SettingsSwitchRow icon="map-outline" title="Avoid motorways" value={routeAvoidance.highways} onValueChange={(highways) => setRouteAvoidance({ ...routeAvoidance, highways })} />
+          <SettingsSwitchRow icon="card-outline" title="Avoid tolls" value={routeAvoidance.tolls} onValueChange={(tolls) => setRouteAvoidance({ ...routeAvoidance, tolls })} last />
+        </SettingsSection>
+
+        <SettingsSection title="Privacy" note="Nearby riders see you only while you’re live. Group-ride location is chosen inside each ride.">
+          <SettingsSwitchRow icon="location-outline" title="Nearby rider visibility" value={shareLocation} onValueChange={setShareLocation} />
+          <SettingsRow icon="eye-off-outline" title="Blocked riders" last onPress={() => openPage('blockedRiders')} />
+        </SettingsSection>
+
+        <SettingsSection title="Account">
+          <SettingsRow icon="mail-outline" title="Email" right={emailVerified ? 'Verified' : 'Not verified'} onPress={() => openPage('email')} />
+          <SettingsRow icon="phone-portrait-outline" title="Signed-in devices" onPress={() => openPage('devices')} />
+          <SettingsRow icon="refresh-outline" title="Reset settings" showChevron={false} onPress={confirmReset} />
+          <SettingsRow icon="trash-outline" title="Delete account" danger showChevron={false} last onPress={confirmDeleteAccount} />
+        </SettingsSection>
+
+        <SettingsSection title="About">
+          <SettingsRow icon="information-circle-outline" title="About" right={`Version ${appVersion}`} last onPress={() => openPage('about')} />
+        </SettingsSection>
+
         <View style={styles.settingsGroup}>
-          <SettingsRow icon="person-outline" title="Account" subtitle="Email, devices and data" onPress={() => openPage('accountHub')} />
-          <SettingsRow icon="chatbubble-ellipses-outline" title="Communication" subtitle="Live location and blocked riders" onPress={() => openPage('communication')} />
-          <SettingsRow icon="map-outline" title="Map & Navigation" subtitle="Navigation app and route options" onPress={() => openPage('mapNavigation')} />
-          <SettingsRow icon="apps-outline" title="Units & Preferences" last onPress={() => openPage('unitsPreferences')} />
-        </View>
-
-        <View style={[styles.settingsGroup, styles.secondarySettingsGroup]}>
-          <SettingsRow icon="information-circle-outline" title="About" last onPress={() => openPage('about')} />
-        </View>
-
-        <View style={[styles.settingsGroup, styles.signOutGroup]}>
           <SettingsRow icon="log-out-outline" title="Sign Out" danger showChevron={false} last onPress={confirmLogOut} />
         </View>
       </ScrollView>
@@ -518,40 +589,12 @@ function EditProfilePage(): React.JSX.Element {
   );
 }
 
-/** Account: sign-in email, signed-in devices, reset and delete. */
-function AccountPage(): React.JSX.Element {
-  const { resetAll } = useSettings();
-  const { emailVerified, client, deleteAccount } = useAuth();
-  const [sessions, setSessions] = React.useState<AccountSessionSummary[]>([]);
-  const [sessionsError, setSessionsError] = React.useState<string | null>(null);
-  const [sessionsLoading, setSessionsLoading] = React.useState(false);
+/** Email: verification status, and a new verification email if needed. */
+function EmailPage(): React.JSX.Element {
+  const { emailVerified, client } = useAuth();
   const [verificationConfirmed, setVerificationConfirmed] = React.useState(emailVerified);
   const [verificationSending, setVerificationSending] = React.useState(false);
-
-  const loadSessions = React.useCallback(async () => {
-    setSessionsLoading(true);
-    setSessionsError(null);
-    try {
-      const result = await client.getSessions();
-      setSessions(result.sessions);
-    } catch {
-      setSessionsError('Could not load signed-in devices.');
-    } finally {
-      setSessionsLoading(false);
-    }
-  }, [client]);
-
-  React.useEffect(() => { void loadSessions(); }, [loadSessions]);
   React.useEffect(() => { setVerificationConfirmed(emailVerified); }, [emailVerified]);
-
-  async function revokeSession(id: string) {
-    try {
-      await client.revokeSession(id);
-      setSessions((current) => current.filter((session) => session.id !== id));
-    } catch {
-      Alert.alert('Couldn’t revoke session', 'Please check your connection and try again.');
-    }
-  }
 
   async function resendVerificationEmail() {
     if (verificationSending) return;
@@ -577,33 +620,9 @@ function AccountPage(): React.JSX.Element {
     }
   }
 
-  function confirmReset() {
-    Alert.alert(
-      'Reset Rider Comms settings?',
-      'This resets your Rider Comms profile and synced preferences to their defaults, and clears this device’s saved navigation and Ride Safe preferences.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Reset settings', style: 'destructive', onPress: () => resetAll() },
-      ]
-    );
-  }
-
-  function confirmDeleteAccount() {
-    Alert.alert(
-      'Delete account?',
-      'This permanently deletes your Rider Comms account and associated data. This cannot be undone.\n\nIt doesn’t cancel a Premium subscription: cancel that in your App Store or Google Play subscription settings.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete account', style: 'destructive', onPress: () => {
-          void deleteAccount().catch(() => Alert.alert('Couldn’t delete account', 'Please check your connection and try again.'));
-        } },
-      ]
-    );
-  }
-
   return (
     <>
-      <PageSection title="Email">
+      <PageSection>
         <Text style={styles.sheetProfileName}>{verificationConfirmed ? 'Email verified' : 'Email not verified yet'}</Text>
         <Text style={styles.sheetBodyCopy}>{verificationConfirmed ? 'Your email is verified, so Nearby Voice is available.' : 'Nearby Voice needs a verified email. Open the link we emailed you, or send a new one.'}</Text>
         {!verificationConfirmed ? (
@@ -619,7 +638,44 @@ function AccountPage(): React.JSX.Element {
         ) : null}
       </PageSection>
 
-      <PageSection title="Signed-in devices" note="Sign out any device you don’t recognise.">
+    </>
+  );
+}
+
+/** Signed-in devices: every session on the account, and sign-out. */
+function DevicesPage(): React.JSX.Element {
+  const { client } = useAuth();
+  const [sessions, setSessions] = React.useState<AccountSessionSummary[]>([]);
+  const [sessionsError, setSessionsError] = React.useState<string | null>(null);
+  const [sessionsLoading, setSessionsLoading] = React.useState(false);
+
+  const loadSessions = React.useCallback(async () => {
+    setSessionsLoading(true);
+    setSessionsError(null);
+    try {
+      const result = await client.getSessions();
+      setSessions(result.sessions);
+    } catch {
+      setSessionsError('Could not load signed-in devices.');
+    } finally {
+      setSessionsLoading(false);
+    }
+  }, [client]);
+
+  React.useEffect(() => { void loadSessions(); }, [loadSessions]);
+
+  async function revokeSession(id: string) {
+    try {
+      await client.revokeSession(id);
+      setSessions((current) => current.filter((session) => session.id !== id));
+    } catch {
+      Alert.alert('Couldn’t revoke session', 'Please check your connection and try again.');
+    }
+  }
+
+  return (
+    <>
+      <PageSection note="Sign out any device you don’t recognise.">
         {sessions.map((session) => (
           <View key={session.id} style={styles.sessionRow}>
             <Ionicons name="phone-portrait-outline" size={20} color={colors.textSecondary} />
@@ -641,90 +697,39 @@ function AccountPage(): React.JSX.Element {
         <Pressable accessibilityRole="button" disabled={sessionsLoading} style={[styles.sheetSecondaryAction, sessionsLoading && styles.sheetActionDisabled]} onPress={() => void loadSessions()}><Text style={styles.sheetSecondaryActionText}>{sessionsLoading ? 'Refreshing…' : 'Refresh devices'}</Text></Pressable>
       </PageSection>
 
-      <PageSection title="Account and data">
-        <Text style={styles.sheetBodyCopy}>Reset your Rider Comms profile and preferences to their defaults, or permanently delete your account and associated data.</Text>
-        <Pressable accessibilityRole="button" style={styles.sheetSecondaryAction} onPress={confirmReset}><Text style={styles.sheetSecondaryActionText}>Reset settings</Text></Pressable>
-        <Pressable accessibilityRole="button" style={styles.sheetDangerAction} onPress={confirmDeleteAccount}><Text style={styles.sheetDangerActionText}>Delete account</Text></Pressable>
-      </PageSection>
     </>
   );
 }
 
-function CommunicationPage(): React.JSX.Element {
-  const { shareLocation, setShareLocation } = useSettings();
+function BlockedRidersPage(): React.JSX.Element {
   const { client } = useAuth();
   return (
-    <>
-      <PageSection
-        title="Live location"
-        note="Private-ride location is separate: you choose it inside each ride, and it’s off unless you switch it on."
-      >
-        <ToggleRow icon="location-outline" label="Nearby rider visibility" value={shareLocation} onValueChange={setShareLocation} caption="Nearby riders can see you only while you’re live." />
-      </PageSection>
-      <PageSection title="Blocked riders" note="Blocked riders can’t message you, see your location or hear you on voice.">
-        <BlockedRidersList client={client} />
-      </PageSection>
-    </>
+    <PageSection note="Blocked riders can’t message you, see your location or hear you on voice.">
+      <BlockedRidersList client={client} />
+    </PageSection>
   );
 }
 
-function MapNavigationPage(): React.JSX.Element {
-  const { navigationProvider, setNavigationProvider, routeAvoidance, setRouteAvoidance } = useSettings();
+function NavigationAppPage(): React.JSX.Element {
+  const { navigationProvider, setNavigationProvider } = useSettings();
   return (
-    <>
-      <View style={styles.pageSection}>
-        <Text style={styles.pageSectionTitle} accessibilityRole="header">Navigation app</Text>
-        <View accessibilityRole="radiogroup" style={styles.settingsSheetSection}>
-          {NAVIGATION_PROVIDER_OPTIONS.map((option) => <NavigationProviderRow key={option.id} provider={option.id} selected={navigationProvider === option.id} onSelect={() => setNavigationProvider(option.id)} />)}
-        </View>
+    <View style={styles.pageSection}>
+      <View accessibilityRole="radiogroup" style={styles.settingsSheetSection}>
+        {NAVIGATION_PROVIDER_OPTIONS.map((option) => <NavigationProviderRow key={option.id} provider={option.id} selected={navigationProvider === option.id} onSelect={() => setNavigationProvider(option.id)} />)}
       </View>
-      <PageSection title="Route options">
-        <ToggleRow icon="speedometer-outline" label="Avoid motorways" value={routeAvoidance.highways} onValueChange={(highways) => setRouteAvoidance({ ...routeAvoidance, highways })} caption="Plan Rider Comms routes on A and B roads where possible." />
-        <ToggleRow icon="cash-outline" label="Avoid tolls" value={routeAvoidance.tolls} onValueChange={(tolls) => setRouteAvoidance({ ...routeAvoidance, tolls })} caption="Skip toll roads and bridges where there is another way." />
-      </PageSection>
-    </>
+      <Text style={styles.pageSectionNote}>Rider Comms navigation stays in the app. Google Maps, Waze and Apple Maps hand the destination to that app.</Text>
+    </View>
   );
 }
 
-function UnitsPreferencesPage(): React.JSX.Element {
-  const { unitSystem, setUnitSystem, rideSafeEnabled, setRideSafeEnabled, loaded } = useSettings();
-
-  function changeRideSafePreference(enabled: boolean) {
-    if (enabled) {
-      setRideSafeEnabled(true);
-      return;
-    }
-    Alert.alert(
-      'Turn off Automatic Ride Safe?',
-      'Distracting controls will no longer lock automatically while this device is moving. Only change this while safely stopped.',
-      [
-        { text: 'Keep on', style: 'cancel' },
-        { text: 'Turn off', style: 'destructive', onPress: () => setRideSafeEnabled(false) },
-      ]
-    );
-  }
-
+function DistanceUnitsPage(): React.JSX.Element {
+  const { unitSystem, setUnitSystem, loaded } = useSettings();
   return (
-    <>
-      <View style={styles.pageSection}>
-        <Text style={styles.pageSectionTitle} accessibilityRole="header">Distance units</Text>
-        <View accessibilityRole="radiogroup" style={styles.settingsSheetSection}>
-          {loaded ? UNIT_ORDER.map((unit) => <UnitRow key={unit} unit={unit} selected={unitSystem === unit} onSelect={() => setUnitSystem(unit)} />) : <ActivityIndicator style={styles.sheetLoader} color={colors.accent} />}
-        </View>
+    <View style={styles.pageSection}>
+      <View accessibilityRole="radiogroup" style={styles.settingsSheetSection}>
+        {loaded ? UNIT_ORDER.map((unit) => <UnitRow key={unit} unit={unit} selected={unitSystem === unit} onSelect={() => setUnitSystem(unit)} />) : <ActivityIndicator style={styles.sheetLoader} color={colors.accent} />}
       </View>
-      <PageSection
-        title="Ride Safe"
-        note="When off, Rider Comms stops its dedicated Ride Safe location watcher. Map, navigation and optional ride-location features request location separately. Only change this while safely stopped."
-      >
-        <ToggleRow
-          icon="shield-checkmark-outline"
-          label="Automatic Ride Safe"
-          value={rideSafeEnabled}
-          onValueChange={changeRideSafePreference}
-          caption="Uses motion from this device to lock distracting controls at 8 mph and above. Recommended while riding."
-        />
-      </PageSection>
-    </>
+    </View>
   );
 }
 
@@ -770,10 +775,11 @@ export function SettingsPageScreen({ route }: SettingsPageProps): React.JSX.Elem
     <SettingsPageLayout title={SETTINGS_PAGE_TITLES[page]}>
       {page === 'myProfile' ? <MyProfilePage /> : null}
       {page === 'editProfile' ? <EditProfilePage /> : null}
-      {page === 'accountHub' ? <AccountPage /> : null}
-      {page === 'communication' ? <CommunicationPage /> : null}
-      {page === 'mapNavigation' ? <MapNavigationPage /> : null}
-      {page === 'unitsPreferences' ? <UnitsPreferencesPage /> : null}
+      {page === 'navigationApp' ? <NavigationAppPage /> : null}
+      {page === 'distanceUnits' ? <DistanceUnitsPage /> : null}
+      {page === 'blockedRiders' ? <BlockedRidersPage /> : null}
+      {page === 'email' ? <EmailPage /> : null}
+      {page === 'devices' ? <DevicesPage /> : null}
       {page === 'help' ? <HelpPage /> : null}
       {page === 'about' ? <AboutPage /> : null}
     </SettingsPageLayout>

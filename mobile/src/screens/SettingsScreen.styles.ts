@@ -192,6 +192,7 @@ export const styles = StyleSheet.create({
 
   // Full settings pages (one per Settings option).
   pageScroll: { gap: spacing.lg },
+  settingsSection: { gap: spacing.sm },
   pageSection: { gap: spacing.sm },
   pageSectionTitle: { ...type.label, color: colors.textSecondary, paddingHorizontal: spacing.xs },
   pageSectionNote: { ...type.caption, color: colors.textSecondary, lineHeight: 18, paddingHorizontal: spacing.xs },
