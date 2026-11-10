@@ -15,11 +15,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import MapView, { Marker, Polyline } from 'react-native-maps';
-import type { TabParamList } from '../navigation';
+import type { RootStackParamList, TabParamList } from '../navigation';
+import { HIDDEN_TAB_BAR_STYLE, TAB_BAR_STYLE } from '../navigation/tabBarStyle';
 import { useAuth } from '../auth/AuthContext';
 import { colors, spacing, MIN_TOUCH_TARGET } from '../theme';
 import { NAVIGATION_SUMMARY_BASE_HEIGHT, styles } from './MapScreen.styles';
@@ -78,6 +80,8 @@ export function MapScreen(): React.JSX.Element {
   const { height: viewportHeight } = useWindowDimensions();
   const route = useRoute<RouteProp<TabParamList, 'Map'>>();
   const navigation = useNavigation<BottomTabNavigationProp<TabParamList, 'Map'>>();
+  // The Menu is a root stack screen; Map sits in the tabs inside it.
+  const rootNavigation = navigation.getParent<NativeStackNavigationProp<RootStackParamList>>();
   const [segment, setSegment] = React.useState<Segment>(route.params?.segment ?? 'public');
   const [error, setError] = React.useState<string | null>(null);
   const [currentLocation, setCurrentLocation] = React.useState<{ lat: number; lon: number } | null>(null);
@@ -268,6 +272,12 @@ export function MapScreen(): React.JSX.Element {
     : ownRideLocation && !ownRideLocationFresh
       ? 'stale'
       : 'none';
+
+  // The tab bar gives the map the whole screen during turn-by-turn
+  // navigation (and while moving, see Tabs in navigation/index.tsx).
+  React.useEffect(() => {
+    navigation.setOptions({ tabBarStyle: activeRoute || lockedForSafety ? HIDDEN_TAB_BAR_STYLE : TAB_BAR_STYLE });
+  }, [activeRoute, lockedForSafety, navigation]);
 
   // Reacts to the "Group Ride" tab bar shortcut (see navigation/index.tsx),
   // which navigates here with a fresh `at` nonce each press so a repeat tap
@@ -589,12 +599,25 @@ export function MapScreen(): React.JSX.Element {
       )}
 
       {segment === 'public' && !lockedForSafety && !activeRoute && (
-        <View style={[styles.searchSlot, { top: insets.top + spacing.sm }]}>
-          <PlaceSearchBar
-            near={currentLocation}
-            onRequestLocation={async () => { await requestCurrentLocation(true); }}
-            onSelect={selectPlace}
-          />
+        <View style={[styles.searchSlot, styles.searchRow, { top: insets.top + spacing.sm }]}>
+          {/* The menu (Routes, Settings, plan, help), Waze-style. */}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Open menu"
+            accessibilityHint="Your profile, routes, settings and help"
+            testID="open-menu"
+            onPress={() => rootNavigation?.navigate('Menu')}
+            style={({ pressed }) => [styles.menuButton, pressed && styles.menuButtonPressed]}
+          >
+            <RiderAvatar avatarId={avatarId} size={44} mapMarker={false} status="none" />
+          </Pressable>
+          <View style={styles.searchFlex}>
+            <PlaceSearchBar
+              near={currentLocation}
+              onRequestLocation={async () => { await requestCurrentLocation(true); }}
+              onSelect={selectPlace}
+            />
+          </View>
         </View>
       )}
 

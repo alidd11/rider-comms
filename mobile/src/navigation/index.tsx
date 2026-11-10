@@ -9,7 +9,8 @@ import { ConnectionBanner } from '../components/ConnectionBanner';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { MapScreen } from '../screens/MapScreen';
-import { SettingsScreen } from '../screens/SettingsScreen';
+import { SettingsPageScreen, SettingsScreen, type SettingsPageKey } from '../screens/SettingsScreen';
+import { MenuScreen } from '../screens/MenuScreen';
 import { CreateRideScreen } from '../screens/CreateRideScreen';
 import { FriendsScreen } from '../screens/FriendsScreen';
 import { FriendChatScreen } from '../screens/FriendChatScreen';
@@ -24,6 +25,7 @@ import { FriendsProvider, useFriends } from '../friends/FriendsContext';
 import { AuthProvider } from '../auth/AuthContext';
 import { parseNavigationLink } from '../navigationLinks';
 import { colors, useConcreteThemeColors } from '../theme';
+import { HIDDEN_TAB_BAR_STYLE, TAB_BAR_STYLE } from './tabBarStyle';
 import { MovementSafetyProvider, useMovementSafety } from '../safety/MovementSafetyContext';
 import { RideSafeSurface } from '../safety/RideSafeSurface';
 
@@ -40,9 +42,7 @@ export type TabParamList = {
     label?: string;
   } | undefined;
   GroupRide: undefined;
-  Routes: undefined;
   Friends: undefined;
-  Settings: undefined;
 };
 
 export type RootStackParamList = {
@@ -51,6 +51,11 @@ export type RootStackParamList = {
   FriendChat: { riderId: string; displayName: string; avatarId: string };
   Billing: undefined;
   Legal: undefined;
+  // Opened from the rider's avatar on the map (Waze-style), not tabs.
+  Menu: undefined;
+  Routes: undefined;
+  Settings: undefined;
+  SettingsPage: { page: SettingsPageKey };
 };
 
 const Tab = createBottomTabNavigator<TabParamList>();
@@ -131,21 +136,11 @@ function GroupRideTabIcon({ size }: { size: number }): React.JSX.Element {
 const TAB_ICONS: Record<keyof TabParamList, (color: string, size: number, focused: boolean) => React.ReactNode> = {
   Map: (_color, size) => <MapTabIcon size={size} />,
   GroupRide: (_color, size) => <GroupRideTabIcon size={size} />,
-  Routes: (color, size, focused) => (
-    <TabIconShell active={focused}>
-      <MaterialCommunityIcons name="routes" size={size} color={color} />
-    </TabIconShell>
-  ),
   // Keep the entire tab bar in one icon family and distinguish the private
   // friend network from the active group-ride view.
   Friends: (color, size, focused) => (
     <TabIconShell active={focused}>
       <MaterialCommunityIcons name="account-multiple-outline" size={size} color={color} />
-    </TabIconShell>
-  ),
-  Settings: (color, size, focused) => (
-    <TabIconShell active={focused}>
-      <MaterialCommunityIcons name="cog-outline" size={size} color={color} />
     </TabIconShell>
   ),
 };
@@ -163,6 +158,20 @@ function GroupRideTabLabel({ children }: { children: string }): React.JSX.Elemen
 function LockedTabScreen(): React.JSX.Element {
   return <RideSafeSurface />;
 }
+
+/** Stack screens with distracting controls show the Ride Safe surface while
+ * the rider is moving, as their tabs used to. */
+function rideSafe<P extends object>(Screen: React.ComponentType<P>): React.ComponentType<P> {
+  function RideSafeScreen(props: P): React.JSX.Element {
+    const { lockedForSafety } = useMovementSafety();
+    return lockedForSafety ? <RideSafeSurface /> : <Screen {...props} />;
+  }
+  return RideSafeScreen;
+}
+const RoutesStackScreen = rideSafe(ScenicRoutesScreen);
+const SettingsStackScreen = rideSafe(SettingsScreen);
+const SettingsPageStackScreen = rideSafe(SettingsPageScreen);
+const MenuStackScreen = rideSafe(MenuScreen);
 
 function Tabs(): React.JSX.Element {
   const { lockedForSafety } = useMovementSafety();
@@ -185,11 +194,10 @@ function Tabs(): React.JSX.Element {
         // inset), so it needs to match the screens above it for one
         // continuous edge-to-edge surface instead of reading as a raised
         // panel with a seam under the home indicator.
-        tabBarStyle: {
-          backgroundColor: colors.background,
-          borderTopColor: colors.border,
-          borderTopWidth: StyleSheet.hairlineWidth,
-        },
+        // Hidden while the rider is moving (Ride Safe), so the map gets
+        // the whole screen when it matters; MapScreen also hides it during
+        // turn-by-turn navigation.
+        tabBarStyle: lockedForSafety ? HIDDEN_TAB_BAR_STYLE : TAB_BAR_STYLE,
         tabBarActiveTintColor: colors.accentInk,
         tabBarInactiveTintColor: colors.textMuted,
         tabBarLabelStyle: styles.defaultTabLabel,
@@ -251,11 +259,6 @@ function Tabs(): React.JSX.Element {
         })}
       />
       <Tab.Screen
-        name="Routes"
-        component={lockedForSafety ? LockedTabScreen : ScenicRoutesScreen}
-        options={{ title: 'Routes', tabBarAccessibilityLabel: 'Routes' }}
-      />
-      <Tab.Screen
         name="Friends"
         component={lockedForSafety ? LockedTabScreen : FriendsScreen}
         options={{
@@ -264,11 +267,6 @@ function Tabs(): React.JSX.Element {
           tabBarBadge: socialAttentionCount > 0 ? (socialAttentionCount > 99 ? '99+' : socialAttentionCount) : undefined,
           tabBarBadgeStyle: { backgroundColor: colors.accent, color: colors.accentText, fontSize: 10, fontWeight: '800' },
         }}
-      />
-      <Tab.Screen
-        name="Settings"
-        component={lockedForSafety ? LockedTabScreen : SettingsScreen}
-        options={{ title: 'Settings', tabBarAccessibilityLabel: 'Settings' }}
       />
     </Tab.Navigator>
   );
@@ -363,6 +361,14 @@ export function AppNavigator(): React.JSX.Element {
                     options={{ presentation: 'card', headerShown: false }}
                   />
                   <Stack.Screen name="Legal" component={LegalScreen} options={{ headerShown: false }} />
+                  <Stack.Screen
+                    name="Menu"
+                    component={MenuStackScreen}
+                    options={{ headerShown: false, presentation: 'fullScreenModal', animation: 'slide_from_left' }}
+                  />
+                  <Stack.Screen name="Routes" component={RoutesStackScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="Settings" component={SettingsStackScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="SettingsPage" component={SettingsPageStackScreen} options={{ headerShown: false }} />
                 </Stack.Navigator>
               </NavigationContainer>
               <ConnectionBanner />

@@ -3,7 +3,7 @@ import { View, Text, Pressable, TextInput, ScrollView, Modal, Switch, Alert, Act
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { NativeStackNavigationProp, NativeStackScreenProps } from '@react-navigation/native-stack';
 import Constants from 'expo-constants';
 import type { SocialVisibility } from '@rider-comms/shared';
 import { colors, spacing } from '../theme';
@@ -238,24 +238,17 @@ function AvatarPickerModal({
 }
 
 
-type SettingsSheetKey = 'accountHub' | 'communication' | 'mapNavigation' | 'unitsPreferences' | 'help' | 'about' | 'profile' | 'sessions' | 'account' | 'map' | 'navigation' | 'units' | 'privacy' | 'blocked' | 'safety';
+/** Each Settings option is its own page; these keys name them (and match
+ * the PWA's settings sheet tokens, see scripts/check-client-parity.mjs). */
+export type SettingsPageKey = 'accountHub' | 'communication' | 'mapNavigation' | 'unitsPreferences' | 'help' | 'about';
 
-const SETTINGS_SHEET_TITLES: Record<SettingsSheetKey, string> = {
+export const SETTINGS_PAGE_TITLES: Record<SettingsPageKey, string> = {
   accountHub: 'Account',
   communication: 'Communication',
   mapNavigation: 'Map & Navigation',
   unitsPreferences: 'Units & Preferences',
   help: 'Help & Support',
   about: 'About',
-  profile: 'Edit profile',
-  sessions: 'Signed-in devices',
-  account: 'Account and data',
-  map: 'Location and map',
-  navigation: 'Navigation',
-  units: 'Distance units',
-  privacy: 'Privacy controls',
-  blocked: 'Blocked riders',
-  safety: 'Safety',
 };
 
 function SettingsRow({ icon, title, subtitle, right, danger = false, showChevron = true, last = false, onPress }: {
@@ -287,72 +280,112 @@ function SettingsRow({ icon, title, subtitle, right, danger = false, showChevron
   );
 }
 
-function SettingsSheet({ visible, title, onClose, children }: {
-  visible: boolean;
-  title: string;
-  onClose: () => void;
-  children: React.ReactNode;
-}): React.JSX.Element {
-  const insets = useSafeAreaInsets();
+/** A titled group of controls on a settings page. */
+function PageSection({ title, children, note }: { title?: string; children: React.ReactNode; note?: string }): React.JSX.Element {
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <Pressable accessible={false} style={styles.modalBackdrop} onPress={onClose}>
-        <Pressable accessible={false} style={[styles.settingsSheet, { paddingBottom: Math.max(insets.bottom, spacing.md) }]} onPress={(event) => event.stopPropagation()}>
-          <View style={styles.modalHandle} />
-          <View style={styles.settingsSheetHeader}>
-            <Text style={styles.settingsSheetTitle}>{title}</Text>
-            <Pressable style={styles.modalClose} onPress={onClose} accessibilityRole="button" accessibilityLabel={'Close ' + title}>
-              <Ionicons name="close" size={20} color={colors.textPrimary} />
-            </Pressable>
-          </View>
-          <ScrollView contentContainerStyle={styles.settingsSheetBody} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets showsVerticalScrollIndicator={false}>
-            {children}
-          </ScrollView>
-        </Pressable>
-      </Pressable>
-    </Modal>
+    <View style={styles.pageSection}>
+      {title ? <Text style={styles.pageSectionTitle} accessibilityRole="header">{title}</Text> : null}
+      <View style={styles.settingsSheetSection}>{children}</View>
+      {note ? <Text style={styles.pageSectionNote}>{note}</Text> : null}
+    </View>
+  );
+}
+
+/** Full-screen settings page: back chevron, title, scrolling content. */
+function SettingsPageLayout({ title, children }: { title: string; children: React.ReactNode }): React.JSX.Element {
+  const insets = useSafeAreaInsets();
+  const navigation = useNavigation();
+  return (
+    <View style={styles.container}>
+      <ScrollView
+        contentContainerStyle={[styles.scroll, styles.pageScroll, { paddingTop: insets.top + spacing.lg, paddingBottom: insets.bottom + spacing.xl }]}
+        keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
+        showsVerticalScrollIndicator={false}
+      >
+        <ScreenHeader title={title} onBack={() => navigation.goBack()} />
+        {children}
+      </ScrollView>
+    </View>
   );
 }
 
 export function SettingsScreen(): React.JSX.Element {
-  const {
-    zoneTier,
-    avatarId,
-    setAvatarId,
-    displayName,
-    setDisplayName,
-    handle,
-    setHandle,
-    unitSystem,
-    setUnitSystem,
-    shareLocation,
-    setShareLocation,
-    navigationProvider,
-    setNavigationProvider,
-    routeAvoidance,
-    setRouteAvoidance,
-    rideSafeEnabled,
-    setRideSafeEnabled,
-    instagramUsername,
-    setInstagramUsername,
-    instagramVisibility,
-    setInstagramVisibility,
-    tiktokUsername,
-    setTiktokUsername,
-    tiktokVisibility,
-    setTiktokVisibility,
-    resetAll,
-    loaded,
-    saving,
-    profileError,
-    clearProfileError,
-  } = useSettings();
-  const { riderId, emailVerified, client, logOut, deleteAccount } = useAuth();
+  const { avatarId, displayName, handle, profileError, clearProfileError } = useSettings();
+  const { logOut } = useAuth();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const appVersion = Constants.expoConfig?.version ?? '0.1.0';
+  const openPage = (page: SettingsPageKey) => navigation.navigate('SettingsPage', { page });
+
+  function confirmLogOut() {
+    Alert.alert(
+      'Sign out?',
+      'You’ll need your username and password to sign in again.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Sign out', style: 'destructive', onPress: () => {
+          void logOut().catch(() => Alert.alert('Signed out on this device', 'Rider Comms could not contact the server to revoke the session, but it has been removed from this device.'));
+        } },
+      ]
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      <ScrollView
+        contentContainerStyle={[styles.scroll, { paddingTop: insets.top + spacing.lg, paddingBottom: insets.bottom + spacing.md }]}
+        showsVerticalScrollIndicator={false}
+      >
+        <ScreenHeader title="Settings" onBack={() => navigation.goBack()} />
+
+        <Pressable style={styles.profileCard} onPress={() => openPage('accountHub')} accessibilityRole="button" accessibilityLabel="Open profile settings">
+          <RiderAvatar avatarId={avatarId} size={72} />
+          <View style={styles.profileCopy}>
+            <Text numberOfLines={1} style={styles.name}>{displayName}</Text>
+            <Text numberOfLines={1} style={styles.handle}>{handle}</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={14} color={colors.textMuted} />
+        </Pressable>
+
+        {profileError ? (
+          <View style={styles.profileSaveStatus} accessibilityLiveRegion="polite">
+            <Ionicons name="alert-circle" size={17} color={colors.danger} />
+            <Text style={styles.profileSaveError}>{profileError}</Text>
+            <Pressable accessibilityRole="button" accessibilityLabel="Dismiss settings error" onPress={clearProfileError} hitSlop={8}><Ionicons name="close" size={18} color={colors.textMuted} /></Pressable>
+          </View>
+        ) : null}
+
+        <View style={styles.settingsGroup}>
+          <SettingsRow icon="person-outline" title="Account" subtitle="Profile, plan, devices and data" onPress={() => openPage('accountHub')} />
+          <SettingsRow icon="chatbubble-ellipses-outline" title="Communication" subtitle="Live location and blocked riders" onPress={() => openPage('communication')} />
+          <SettingsRow icon="map-outline" title="Map & Navigation" subtitle="Navigation app and route options" onPress={() => openPage('mapNavigation')} />
+          <SettingsRow icon="apps-outline" title="Units & Preferences" last onPress={() => openPage('unitsPreferences')} />
+        </View>
+
+        <View style={[styles.settingsGroup, styles.secondarySettingsGroup]}>
+          <SettingsRow icon="help-circle-outline" title="Help & Support" onPress={() => openPage('help')} />
+          <SettingsRow icon="information-circle-outline" title="About" last onPress={() => openPage('about')} />
+        </View>
+
+        <View style={[styles.settingsGroup, styles.signOutGroup]}>
+          <SettingsRow icon="log-out-outline" title="Sign Out" danger showChevron={false} last onPress={confirmLogOut} />
+        </View>
+      </ScrollView>
+      <RideBar />
+    </View>
+  );
+}
+
+function AccountPage(): React.JSX.Element {
+  const {
+    zoneTier, avatarId, setAvatarId, displayName, setDisplayName, handle, setHandle,
+    instagramUsername, setInstagramUsername, instagramVisibility, setInstagramVisibility,
+    tiktokUsername, setTiktokUsername, tiktokVisibility, setTiktokVisibility,
+    resetAll, saving, profileError,
+  } = useSettings();
+  const { riderId, emailVerified, client, deleteAccount } = useAuth();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [pickerOpen, setPickerOpen] = React.useState(false);
-  const [activeSheet, setActiveSheet] = React.useState<SettingsSheetKey | null>(null);
   const [nameDraft, setNameDraft] = React.useState(displayName);
   const [handleDraft, setHandleDraft] = React.useState(handle);
   const [profileDraftError, setProfileDraftError] = React.useState<string | null>(null);
@@ -375,9 +408,10 @@ export function SettingsScreen(): React.JSX.Element {
     }
   }, [client]);
 
-  React.useEffect(() => {
-    if (activeSheet === 'sessions') void loadSessions();
-  }, [activeSheet, loadSessions]);
+  React.useEffect(() => { void loadSessions(); }, [loadSessions]);
+  React.useEffect(() => { setNameDraft(displayName); }, [displayName]);
+  React.useEffect(() => { setHandleDraft(handle); }, [handle]);
+  React.useEffect(() => { setVerificationConfirmed(emailVerified); }, [emailVerified]);
 
   async function revokeSession(id: string) {
     try {
@@ -387,18 +421,6 @@ export function SettingsScreen(): React.JSX.Element {
       Alert.alert('Couldn’t revoke session', 'Please check your connection and try again.');
     }
   }
-
-  React.useEffect(() => {
-    setNameDraft(displayName);
-  }, [displayName]);
-
-  React.useEffect(() => {
-    setHandleDraft(handle);
-  }, [handle]);
-
-  React.useEffect(() => {
-    setVerificationConfirmed(emailVerified);
-  }, [emailVerified]);
 
   async function resendVerificationEmail() {
     if (verificationSending) return;
@@ -460,6 +482,147 @@ export function SettingsScreen(): React.JSX.Element {
     );
   }
 
+  function confirmDeleteAccount() {
+    Alert.alert(
+      'Delete account?',
+      'This permanently deletes your Rider Comms account and associated data. This cannot be undone.\n\nIt doesn’t cancel a Premium subscription: cancel that in your App Store or Google Play subscription settings.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete account', style: 'destructive', onPress: () => {
+          void deleteAccount().catch(() => Alert.alert('Couldn’t delete account', 'Please check your connection and try again.'));
+        } },
+      ]
+    );
+  }
+
+  return (
+    <>
+      <PageSection title="Profile">
+        <Text style={styles.fieldLabel}>Avatar</Text>
+        <Pressable
+          style={styles.sheetAvatarRow}
+          onPress={() => setPickerOpen(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Change profile avatar"
+        >
+          <RiderAvatar avatarId={avatarId} size={54} />
+          <View style={styles.sheetAvatarCopy}>
+            <Text style={styles.sheetProfileName}>{avatar.label}</Text>
+            <Text style={styles.sheetMeta}>{avatar.tagline} · Tap to choose another.</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+        </Pressable>
+        <Text style={styles.fieldLabel}>Display name</Text>
+        <TextInput accessibilityLabel="Rider name" style={styles.sheetInput} value={nameDraft} onChangeText={(value) => { setNameDraft(value); setProfileDraftError(null); }} onSubmitEditing={commitName} onBlur={commitName} maxLength={50} returnKeyType="done" placeholder="Rider name" placeholderTextColor={colors.textMuted} />
+        <Text style={styles.fieldLabel}>Rider handle</Text>
+        <TextInput accessibilityLabel="Rider handle" style={styles.sheetInput} value={handleDraft} onChangeText={(value) => { setHandleDraft(value); setProfileDraftError(null); }} onSubmitEditing={commitHandle} onBlur={commitHandle} maxLength={25} autoCapitalize="none" autoCorrect={false} returnKeyType="done" placeholder="@handle" placeholderTextColor={colors.textMuted} />
+        <Text style={styles.sheetMetaBlock}>{verificationConfirmed ? 'Email verified' : 'Email verification pending · Nearby Voice requires verification'} · {riderId}</Text>
+        {!verificationConfirmed ? (
+          <Pressable
+            disabled={verificationSending}
+            style={[styles.sheetSecondaryAction, verificationSending && styles.sheetActionDisabled]}
+            onPress={() => void resendVerificationEmail()}
+            accessibilityRole="button"
+            accessibilityLabel="Resend verification email"
+          >
+            <Text style={styles.sheetSecondaryActionText}>{verificationSending ? 'Sending…' : 'Resend verification email'}</Text>
+          </Pressable>
+        ) : null}
+        {(saving || profileDraftError || profileError) ? (
+          <View style={styles.sheetSaveStatus} accessibilityLiveRegion="polite">
+            {saving ? <><ActivityIndicator color={colors.accent} size="small" /><Text style={styles.profileSavingText}>Saving profile…</Text></> : null}
+            {profileDraftError || profileError ? <Text accessibilityRole="alert" style={styles.profileSaveError}>{profileDraftError ?? profileError}</Text> : null}
+          </View>
+        ) : null}
+      </PageSection>
+
+      <PageSection title="Connected profiles" note="Choose who can see each one on your Rider Comms profile.">
+        <SocialRow label="Instagram" icon="logo-instagram" username={instagramUsername} visibility={instagramVisibility} onUsername={setInstagramUsername} onVisibility={setInstagramVisibility}/>
+        <SocialRow label="TikTok" icon="logo-tiktok" username={tiktokUsername} visibility={tiktokVisibility} onUsername={setTiktokUsername} onVisibility={setTiktokVisibility}/>
+      </PageSection>
+
+      <PageSection title="Plan">
+        <SettingsRow
+          icon="card-outline"
+          title="Your plan"
+          subtitle={`${PLAN_INFO[zoneTier].name} plan · ${PLAN_INFO[zoneTier].features[0]}`}
+          right={PLAN_INFO[zoneTier].name}
+          last
+          onPress={() => navigation.navigate('Billing')}
+        />
+      </PageSection>
+
+      <PageSection title="Signed-in devices" note="Sign out any device you don’t recognise.">
+        {sessions.map((session) => (
+          <View key={session.id} style={styles.sessionRow}>
+            <View style={styles.sessionInfo}>
+              <Text style={styles.aboutLabel}>{session.deviceName}</Text>
+              <Text style={styles.aboutValue}>{session.current ? 'This device' : 'Active ' + new Date(session.lastSeenAt).toLocaleDateString()}</Text>
+            </View>
+            {!session.current ? <Pressable accessibilityRole="button" accessibilityLabel={'Sign out ' + session.deviceName} onPress={() => void revokeSession(session.id)} style={styles.sessionRevoke}><Text style={styles.sessionRevokeText}>Sign out</Text></Pressable> : null}
+          </View>
+        ))}
+        {sessionsLoading && sessions.length === 0 ? (
+          <View style={styles.sessionLoading} accessibilityLiveRegion="polite">
+            <ActivityIndicator color={colors.accent} size="small" />
+            <Text style={styles.sessionEmpty}>Loading signed-in devices…</Text>
+          </View>
+        ) : null}
+        {!sessionsLoading && sessions.length === 0 ? <Text style={styles.sessionEmpty}>{sessionsError ?? 'No account sessions found.'}</Text> : null}
+        {sessionsError && sessions.length > 0 ? <Text style={styles.sessionEmpty}>{sessionsError}</Text> : null}
+        <Pressable accessibilityRole="button" disabled={sessionsLoading} style={[styles.sheetSecondaryAction, sessionsLoading && styles.sheetActionDisabled]} onPress={() => void loadSessions()}><Text style={styles.sheetSecondaryActionText}>{sessionsLoading ? 'Refreshing…' : 'Refresh devices'}</Text></Pressable>
+      </PageSection>
+
+      <PageSection title="Account and data">
+        <Text style={styles.sheetBodyCopy}>Reset your Rider Comms profile and preferences to their defaults, or permanently delete your account and associated data.</Text>
+        <Pressable accessibilityRole="button" style={styles.sheetSecondaryAction} onPress={confirmReset}><Text style={styles.sheetSecondaryActionText}>Reset settings</Text></Pressable>
+        <Pressable accessibilityRole="button" style={styles.sheetDangerAction} onPress={confirmDeleteAccount}><Text style={styles.sheetDangerActionText}>Delete account</Text></Pressable>
+      </PageSection>
+
+      <AvatarPickerModal visible={pickerOpen} currentId={avatarId} onSelect={setAvatarId} onClose={() => setPickerOpen(false)} />
+    </>
+  );
+}
+
+function CommunicationPage(): React.JSX.Element {
+  const { shareLocation, setShareLocation } = useSettings();
+  const { client } = useAuth();
+  return (
+    <>
+      <PageSection
+        title="Live location"
+        note="Private-ride location is separate: you choose it inside each ride, and it’s off unless you switch it on."
+      >
+        <ToggleRow icon="location-outline" label="Nearby rider visibility" value={shareLocation} onValueChange={setShareLocation} caption="Nearby riders can see you only while you’re live." />
+      </PageSection>
+      <PageSection title="Blocked riders" note="Blocked riders can’t message you, see your location or hear you on voice.">
+        <BlockedRidersList client={client} />
+      </PageSection>
+    </>
+  );
+}
+
+function MapNavigationPage(): React.JSX.Element {
+  const { navigationProvider, setNavigationProvider, routeAvoidance, setRouteAvoidance } = useSettings();
+  return (
+    <>
+      <View style={styles.pageSection}>
+        <Text style={styles.pageSectionTitle} accessibilityRole="header">Navigation app</Text>
+        <View accessibilityRole="radiogroup" style={styles.settingsSheetSection}>
+          {NAVIGATION_PROVIDER_OPTIONS.map((option) => <NavigationProviderRow key={option.id} provider={option.id} selected={navigationProvider === option.id} onSelect={() => setNavigationProvider(option.id)} />)}
+        </View>
+      </View>
+      <PageSection title="Route options">
+        <ToggleRow icon="speedometer-outline" label="Avoid motorways" value={routeAvoidance.highways} onValueChange={(highways) => setRouteAvoidance({ ...routeAvoidance, highways })} caption="Plan Rider Comms routes on A and B roads where possible." />
+        <ToggleRow icon="cash-outline" label="Avoid tolls" value={routeAvoidance.tolls} onValueChange={(tolls) => setRouteAvoidance({ ...routeAvoidance, tolls })} caption="Skip toll roads and bridges where there is another way." />
+      </PageSection>
+    </>
+  );
+}
+
+function UnitsPreferencesPage(): React.JSX.Element {
+  const { unitSystem, setUnitSystem, rideSafeEnabled, setRideSafeEnabled, loaded } = useSettings();
+
   function changeRideSafePreference(enabled: boolean) {
     if (enabled) {
       setRideSafeEnabled(true);
@@ -475,291 +638,80 @@ export function SettingsScreen(): React.JSX.Element {
     );
   }
 
-  function confirmDeleteAccount() {
-    Alert.alert(
-      'Delete account?',
-      'This permanently deletes your Rider Comms account and associated data. This cannot be undone.\n\nIt doesn’t cancel a Premium subscription: cancel that in your App Store or Google Play subscription settings.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete account', style: 'destructive', onPress: () => {
-          void deleteAccount().catch(() => Alert.alert('Couldn’t delete account', 'Please check your connection and try again.'));
-        } },
-      ]
-    );
-  }
-
-  function confirmLogOut() {
-    Alert.alert(
-      'Sign out?',
-      'You’ll need your username and password to sign in again.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Sign out', style: 'destructive', onPress: () => {
-          void logOut().catch(() => Alert.alert('Signed out on this device', 'Rider Comms could not contact the server to revoke the session, but it has been removed from this device.'));
-        } },
-      ]
-    );
-  }
-
-
-  const navigationLabel = NAVIGATION_PROVIDER_OPTIONS.find((option) => option.id === navigationProvider)?.label ?? 'Rider Comms';
-  const sheetTitle = activeSheet ? SETTINGS_SHEET_TITLES[activeSheet] : '';
-
   return (
-    <View style={styles.container}>
-      <ScrollView
-        contentContainerStyle={[styles.scroll, { paddingTop: insets.top + spacing.lg, paddingBottom: insets.bottom + spacing.md }]}
-        showsVerticalScrollIndicator={false}
+    <>
+      <View style={styles.pageSection}>
+        <Text style={styles.pageSectionTitle} accessibilityRole="header">Distance units</Text>
+        <View accessibilityRole="radiogroup" style={styles.settingsSheetSection}>
+          {loaded ? UNIT_ORDER.map((unit) => <UnitRow key={unit} unit={unit} selected={unitSystem === unit} onSelect={() => setUnitSystem(unit)} />) : <ActivityIndicator style={styles.sheetLoader} color={colors.accent} />}
+        </View>
+      </View>
+      <PageSection
+        title="Ride Safe"
+        note="When off, Rider Comms stops its dedicated Ride Safe location watcher. Map, navigation and optional ride-location features request location separately. Only change this while safely stopped."
       >
-        <ScreenHeader title="Settings" />
+        <ToggleRow
+          icon="shield-checkmark-outline"
+          label="Automatic Ride Safe"
+          value={rideSafeEnabled}
+          onValueChange={changeRideSafePreference}
+          caption="Uses motion from this device to lock distracting controls at 8 mph and above. Recommended while riding."
+        />
+      </PageSection>
+    </>
+  );
+}
 
-        <Pressable style={styles.profileCard} onPress={() => setActiveSheet('profile')} accessibilityRole="button" accessibilityLabel="Open profile settings">
-          <RiderAvatar avatarId={avatarId} size={72} />
-          <View style={styles.profileCopy}>
-            <Text numberOfLines={1} style={styles.name}>{displayName}</Text>
-            <Text numberOfLines={1} style={styles.handle}>{handle}</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={14} color={colors.textMuted} />
-        </Pressable>
+function HelpPage(): React.JSX.Element {
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  return (
+    <>
+      <PageSection title="Riding safely">
+        <View style={styles.safetyRow}><Ionicons name="speedometer-outline" size={21} color={colors.accent} /><View style={styles.safetyCopyWrap}><Text style={styles.safetyTitle}>Set up while stationary</Text><Text style={styles.safetyCopy}>Complete profile, route and group controls before moving.</Text></View></View>
+        <View style={styles.safetyRow}><Ionicons name="location-outline" size={21} color={colors.accent} /><View style={styles.safetyCopyWrap}><Text style={styles.safetyTitle}>Control your location</Text><Text style={styles.safetyCopy}>Nearby visibility and private-ride sharing can be stopped independently.</Text></View></View>
+        <View style={styles.safetyRow}><Ionicons name="warning-outline" size={21} color={colors.warning} /><View style={styles.safetyCopyWrap}><Text style={styles.safetyTitle}>Not an emergency service</Text><Text style={styles.safetyCopy}>Use the appropriate emergency service when urgent help is needed.</Text></View></View>
+      </PageSection>
+      <PageSection title="Get help">
+        <SettingsRow icon="help-buoy-outline" title="Contact support" subtitle="Help, account deletion and how to reach us" onPress={() => { void Linking.openURL(LEGAL_LINKS.support).catch(() => undefined); }} />
+        <SettingsRow icon="document-text-outline" title="Privacy, safety & terms" subtitle="Read Rider Comms legal and safety information" last onPress={() => navigation.navigate('Legal')} />
+      </PageSection>
+    </>
+  );
+}
 
-        {profileError ? (
-          <View style={styles.profileSaveStatus} accessibilityLiveRegion="polite">
-            <Ionicons name="alert-circle" size={17} color={colors.danger} />
-            <Text style={styles.profileSaveError}>{profileError}</Text>
-            <Pressable accessibilityRole="button" accessibilityLabel="Dismiss settings error" onPress={clearProfileError} hitSlop={8}><Ionicons name="close" size={18} color={colors.textMuted} /></Pressable>
-          </View>
-        ) : null}
-
-        <View style={styles.settingsGroup}>
-          <SettingsRow icon="person-outline" title="Account" onPress={() => setActiveSheet('accountHub')} />
-          <SettingsRow icon="chatbubble-ellipses-outline" title="Communication" onPress={() => setActiveSheet('communication')} />
-          <SettingsRow icon="map-outline" title="Map & Navigation" onPress={() => setActiveSheet('mapNavigation')} />
-          <SettingsRow icon="apps-outline" title="Units & Preferences" last onPress={() => setActiveSheet('unitsPreferences')} />
+function AboutPage(): React.JSX.Element {
+  const { displayName, handle } = useSettings();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const appVersion = Constants.expoConfig?.version ?? '0.1.0';
+  return (
+    <>
+      <PageSection>
+        <View style={styles.aboutSummary}>
+          <Text style={styles.aboutTitle}>Rider Comms</Text>
+          <Text style={styles.aboutSummaryValue}>Version {appVersion} · Native</Text>
+          <Text style={styles.aboutSummaryValue}>Signed in as {displayName} ({handle})</Text>
         </View>
+      </PageSection>
+      <PageSection>
+        <SettingsRow icon="document-text-outline" title="Privacy, safety & terms" last onPress={() => navigation.navigate('Legal')} />
+      </PageSection>
+    </>
+  );
+}
 
-        <View style={[styles.settingsGroup, styles.secondarySettingsGroup]}>
-          <SettingsRow icon="help-circle-outline" title="Help & Support" onPress={() => setActiveSheet('help')} />
-          <SettingsRow icon="information-circle-outline" title="About" last onPress={() => setActiveSheet('about')} />
-        </View>
+type SettingsPageProps = NativeStackScreenProps<RootStackParamList, 'SettingsPage'>;
 
-        <View style={[styles.settingsGroup, styles.signOutGroup]}>
-          <SettingsRow icon="log-out-outline" title="Sign Out" danger showChevron={false} last onPress={confirmLogOut} />
-        </View>
-      </ScrollView>
-
-      <SettingsSheet visible={activeSheet !== null} title={sheetTitle} onClose={() => setActiveSheet(null)}>
-        {activeSheet === 'accountHub' ? (
-          <View style={styles.settingsSheetSection}>
-            <SettingsRow icon="person-outline" title="Profile" subtitle="Name, handle and connected profiles" onPress={() => setActiveSheet('profile')} />
-            <SettingsRow
-              icon="card-outline"
-              title="Your plan"
-              subtitle={`${PLAN_INFO[zoneTier].name} plan · ${PLAN_INFO[zoneTier].features[0]}`}
-              right={PLAN_INFO[zoneTier].name}
-              onPress={() => { setActiveSheet(null); navigation.navigate('Billing'); }}
-            />
-            <SettingsRow icon="phone-portrait-outline" title="Signed-in devices" subtitle="Review and revoke account sessions" onPress={() => setActiveSheet('sessions')} />
-            <SettingsRow icon="shield-checkmark-outline" title="Account and data" subtitle="Account deletion and local data" last onPress={() => setActiveSheet('account')} />
-          </View>
-        ) : null}
-
-        {activeSheet === 'communication' ? (
-          <View style={styles.settingsSheetSection}>
-            <SettingsRow icon="shield-checkmark-outline" title="Privacy controls" subtitle="Location visibility and connected profiles" onPress={() => setActiveSheet('privacy')} />
-            <SettingsRow icon="hand-left-outline" title="Blocked riders" subtitle="Review or undo blocks" last onPress={() => setActiveSheet('blocked')} />
-          </View>
-        ) : null}
-
-        {activeSheet === 'mapNavigation' ? (
-          <View style={styles.settingsSheetSection}>
-            <SettingsRow icon="location-outline" title="Location and map" subtitle="Location sharing and nearby riders" onPress={() => setActiveSheet('map')} />
-            <SettingsRow icon="navigate-outline" title="Navigation" subtitle={navigationLabel} last onPress={() => setActiveSheet('navigation')} />
-          </View>
-        ) : null}
-
-        {activeSheet === 'unitsPreferences' ? (
-          <View style={styles.settingsSheetSection}>
-            <SettingsRow icon="swap-horizontal-outline" title="Distance units" subtitle={UNIT_LABELS[unitSystem].name} last onPress={() => setActiveSheet('units')} />
-          </View>
-        ) : null}
-
-        {activeSheet === 'help' ? (
-          <View style={styles.settingsSheetSection}>
-            <SettingsRow icon="information-circle-outline" title="Safety guidance" subtitle="Low-distraction and emergency guidance" onPress={() => setActiveSheet('safety')} />
-            <SettingsRow icon="document-text-outline" title="Privacy, safety & terms" subtitle="Read Rider Comms legal and safety information" onPress={() => { setActiveSheet(null); navigation.navigate('Legal'); }} />
-            <SettingsRow icon="help-buoy-outline" title="Contact support" subtitle="Help, account deletion and how to reach us" last onPress={() => { void Linking.openURL(LEGAL_LINKS.support).catch(() => undefined); }} />
-          </View>
-        ) : null}
-
-        {activeSheet === 'about' ? (
-          <View style={styles.settingsSheetSection}>
-            <View style={styles.aboutSummary}>
-              <Text style={styles.aboutTitle}>Rider Comms</Text>
-              <Text style={styles.aboutSummaryValue}>Version {appVersion} · Native</Text>
-              <Text style={styles.aboutSummaryValue}>Signed in as {displayName} ({handle})</Text>
-            </View>
-          </View>
-        ) : null}
-
-        {activeSheet === 'profile' ? (
-          <>
-            <View style={styles.settingsSheetSection}>
-              <Text style={styles.sheetEyebrow}>Identity</Text>
-              <Text style={styles.fieldLabel}>Avatar</Text>
-              <Pressable
-                style={styles.sheetAvatarRow}
-                onPress={() => {
-                  setActiveSheet(null);
-                  setPickerOpen(true);
-                }}
-                accessibilityRole="button"
-                accessibilityLabel="Change profile avatar"
-              >
-                <RiderAvatar avatarId={avatarId} size={54} />
-                <View style={styles.sheetAvatarCopy}>
-                  <Text style={styles.sheetProfileName}>{avatar.label}</Text>
-                  <Text style={styles.sheetMeta}>{avatar.tagline} · Tap to choose another.</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-              </Pressable>
-              <Text style={styles.fieldLabel}>Display name</Text>
-              <TextInput accessibilityLabel="Rider name" style={styles.sheetInput} value={nameDraft} onChangeText={(value) => { setNameDraft(value); setProfileDraftError(null); }} onSubmitEditing={commitName} onBlur={commitName} maxLength={50} returnKeyType="done" placeholder="Rider name" placeholderTextColor={colors.textMuted} />
-              <Text style={styles.fieldLabel}>Rider handle</Text>
-              <TextInput accessibilityLabel="Rider handle" style={styles.sheetInput} value={handleDraft} onChangeText={(value) => { setHandleDraft(value); setProfileDraftError(null); }} onSubmitEditing={commitHandle} onBlur={commitHandle} maxLength={25} autoCapitalize="none" autoCorrect={false} returnKeyType="done" placeholder="@handle" placeholderTextColor={colors.textMuted} />
-              <Text style={styles.sheetMetaBlock}>{verificationConfirmed ? 'Email verified' : 'Email verification pending · Nearby Voice requires verification'} · {riderId}</Text>
-              {!verificationConfirmed ? (
-                <Pressable
-                  disabled={verificationSending}
-                  style={[styles.sheetSecondaryAction, verificationSending && styles.sheetActionDisabled]}
-                  onPress={() => void resendVerificationEmail()}
-                  accessibilityRole="button"
-                  accessibilityLabel="Resend verification email"
-                >
-                  <Text style={styles.sheetSecondaryActionText}>{verificationSending ? 'Sending…' : 'Resend verification email'}</Text>
-                </Pressable>
-              ) : null}
-              {(saving || profileDraftError || profileError) ? (
-                <View style={styles.sheetSaveStatus} accessibilityLiveRegion="polite">
-                  {saving ? <><ActivityIndicator color={colors.accent} size="small" /><Text style={styles.profileSavingText}>Saving profile…</Text></> : null}
-                  {profileDraftError || profileError ? <Text accessibilityRole="alert" style={styles.profileSaveError}>{profileDraftError ?? profileError}</Text> : null}
-                </View>
-              ) : null}
-            </View>
-            <View style={styles.settingsSheetSection}>
-              <Text style={styles.sheetEyebrow}>Connected profiles</Text>
-              <SocialRow label="Instagram" icon="logo-instagram" username={instagramUsername} visibility={instagramVisibility} onUsername={setInstagramUsername} onVisibility={setInstagramVisibility}/>
-              <SocialRow label="TikTok" icon="logo-tiktok" username={tiktokUsername} visibility={tiktokVisibility} onUsername={setTiktokUsername} onVisibility={setTiktokVisibility}/>
-            </View>
-          </>
-        ) : null}
-
-        {activeSheet === 'sessions' ? (
-          <View style={styles.settingsSheetSection}>
-            {sessions.map((session) => (
-              <View key={session.id} style={styles.sessionRow}>
-                <View style={styles.sessionInfo}>
-                  <Text style={styles.aboutLabel}>{session.deviceName}</Text>
-                  <Text style={styles.aboutValue}>{session.current ? 'This device' : 'Active ' + new Date(session.lastSeenAt).toLocaleDateString()}</Text>
-                </View>
-                {!session.current ? <Pressable accessibilityRole="button" accessibilityLabel={'Sign out ' + session.deviceName} onPress={() => void revokeSession(session.id)} style={styles.sessionRevoke}><Text style={styles.sessionRevokeText}>Sign out</Text></Pressable> : null}
-              </View>
-            ))}
-            {sessionsLoading && sessions.length === 0 ? (
-              <View style={styles.sessionLoading} accessibilityLiveRegion="polite">
-                <ActivityIndicator color={colors.accent} size="small" />
-                <Text style={styles.sessionEmpty}>Loading signed-in devices…</Text>
-              </View>
-            ) : null}
-            {!sessionsLoading && sessions.length === 0 ? <Text style={styles.sessionEmpty}>{sessionsError ?? 'No account sessions found.'}</Text> : null}
-            {sessionsError && sessions.length > 0 ? <Text style={styles.sessionEmpty}>{sessionsError}</Text> : null}
-            <Pressable accessibilityRole="button" disabled={sessionsLoading} style={[styles.sheetSecondaryAction, sessionsLoading && styles.sheetActionDisabled]} onPress={() => void loadSessions()}><Text style={styles.sheetSecondaryActionText}>{sessionsLoading ? 'Refreshing…' : 'Refresh devices'}</Text></Pressable>
-          </View>
-        ) : null}
-
-        {activeSheet === 'account' ? (
-          <View style={styles.settingsSheetSection}>
-            <Text style={styles.sheetBodyCopy}>Delete your Rider Comms account and associated data, or reset your Rider Comms profile and preferences to their defaults.</Text>
-            <Pressable accessibilityRole="button" style={styles.sheetSecondaryAction} onPress={confirmReset}><Text style={styles.sheetSecondaryActionText}>Reset settings</Text></Pressable>
-            <Pressable accessibilityRole="button" style={styles.sheetDangerAction} onPress={confirmDeleteAccount}><Text style={styles.sheetDangerActionText}>Delete account</Text></Pressable>
-          </View>
-        ) : null}
-
-        {activeSheet === 'map' ? (
-          <>
-            <View style={styles.settingsSheetSection}>
-              <ToggleRow icon="location-outline" label="Nearby rider visibility" value={shareLocation} onValueChange={setShareLocation} caption="Share your position only after you choose to go live." />
-            </View>
-            <View style={styles.sheetNote}>
-              <Text style={styles.sheetNoteTitle}>Location stays in your control</Text>
-              <Text style={styles.sheetNoteCopy}>Private-ride location is controlled separately inside each ride and remains off unless you explicitly enable it.</Text>
-            </View>
-          </>
-        ) : null}
-
-        {activeSheet === 'navigation' ? (
-          <>
-            <View accessibilityRole="radiogroup" style={styles.settingsSheetSection}>
-              {NAVIGATION_PROVIDER_OPTIONS.map((option) => <NavigationProviderRow key={option.id} provider={option.id} selected={navigationProvider === option.id} onSelect={() => setNavigationProvider(option.id)} />)}
-            </View>
-            <View style={styles.settingsSheetSection}>
-              <ToggleRow icon="speedometer-outline" label="Avoid motorways" value={routeAvoidance.highways} onValueChange={(highways) => setRouteAvoidance({ ...routeAvoidance, highways })} caption="Plan Rider Comms routes on A and B roads where possible." />
-              <ToggleRow icon="cash-outline" label="Avoid tolls" value={routeAvoidance.tolls} onValueChange={(tolls) => setRouteAvoidance({ ...routeAvoidance, tolls })} caption="Skip toll roads and bridges where there is another way." />
-            </View>
-          </>
-        ) : null}
-
-        {activeSheet === 'units' ? (
-          <View style={styles.settingsSheetSection}>
-            {loaded ? UNIT_ORDER.map((unit) => <UnitRow key={unit} unit={unit} selected={unitSystem === unit} onSelect={() => setUnitSystem(unit)} />) : <ActivityIndicator style={styles.sheetLoader} color={colors.accent} />}
-          </View>
-        ) : null}
-
-        {activeSheet === 'blocked' ? (
-          <View style={styles.settingsSheetSection}>
-            <BlockedRidersList client={client} />
-          </View>
-        ) : null}
-
-        {activeSheet === 'privacy' ? (
-          <>
-            <View style={styles.settingsSheetSection}>
-              <ToggleRow icon="location-outline" label="Live location" value={shareLocation} onValueChange={setShareLocation} caption="Visible to nearby riders only while you are live." />
-            </View>
-            <View style={styles.settingsSheetSection}>
-              <Text style={styles.sheetEyebrow}>Connected profile visibility</Text>
-              <SocialRow label="Instagram" icon="logo-instagram" username={instagramUsername} visibility={instagramVisibility} onUsername={setInstagramUsername} onVisibility={setInstagramVisibility}/>
-              <SocialRow label="TikTok" icon="logo-tiktok" username={tiktokUsername} visibility={tiktokVisibility} onUsername={setTiktokUsername} onVisibility={setTiktokVisibility}/>
-            </View>
-          </>
-        ) : null}
-
-        {activeSheet === 'safety' ? (
-          <>
-            <View style={styles.settingsSheetSection}>
-              <ToggleRow
-                icon="shield-checkmark-outline"
-                label="Automatic Ride Safe"
-                value={rideSafeEnabled}
-                onValueChange={changeRideSafePreference}
-                caption="Uses motion from this device to lock distracting controls at 8 mph and above. Recommended while riding."
-              />
-            </View>
-            <View style={styles.sheetNote}>
-              <Text style={styles.sheetNoteTitle}>Device-only safety preference</Text>
-              <Text style={styles.sheetNoteCopy}>When off, Rider Comms stops its dedicated Ride Safe location watcher. Map, navigation and optional ride-location features request location separately. Only change this while safely stopped.</Text>
-            </View>
-            <View style={styles.settingsSheetSection}>
-              <View style={styles.safetyRow}><Ionicons name="speedometer-outline" size={21} color={colors.accent} /><View style={styles.safetyCopyWrap}><Text style={styles.safetyTitle}>Set up while stationary</Text><Text style={styles.safetyCopy}>Complete profile, route and group controls before moving.</Text></View></View>
-              <View style={styles.safetyRow}><Ionicons name="location-outline" size={21} color={colors.accent} /><View style={styles.safetyCopyWrap}><Text style={styles.safetyTitle}>Control your location</Text><Text style={styles.safetyCopy}>Nearby visibility and private-ride sharing can be stopped independently.</Text></View></View>
-              <View style={styles.safetyRow}><Ionicons name="warning-outline" size={21} color={colors.warning} /><View style={styles.safetyCopyWrap}><Text style={styles.safetyTitle}>Not an emergency service</Text><Text style={styles.safetyCopy}>Use the appropriate emergency service when urgent help is needed.</Text></View></View>
-            </View>
-            <Pressable accessibilityRole="button" style={styles.sheetSecondaryActionStandalone} onPress={() => { setActiveSheet(null); navigation.navigate('Legal'); }}><Text style={styles.sheetSecondaryActionText}>Privacy, safety & terms</Text></Pressable>
-          </>
-        ) : null}
-      </SettingsSheet>
-
-      <AvatarPickerModal visible={pickerOpen} currentId={avatarId} onSelect={setAvatarId} onClose={() => setPickerOpen(false)} />
-      <RideBar />
-    </View>
+/** One full page per Settings option, everything for it shown directly. */
+export function SettingsPageScreen({ route }: SettingsPageProps): React.JSX.Element {
+  const { page } = route.params;
+  return (
+    <SettingsPageLayout title={SETTINGS_PAGE_TITLES[page]}>
+      {page === 'accountHub' ? <AccountPage /> : null}
+      {page === 'communication' ? <CommunicationPage /> : null}
+      {page === 'mapNavigation' ? <MapNavigationPage /> : null}
+      {page === 'unitsPreferences' ? <UnitsPreferencesPage /> : null}
+      {page === 'help' ? <HelpPage /> : null}
+      {page === 'about' ? <AboutPage /> : null}
+    </SettingsPageLayout>
   );
 }
