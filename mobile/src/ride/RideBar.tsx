@@ -23,6 +23,7 @@ import { ActiveSpeakerBridge } from '../voice/ActiveSpeakerBridge';
 import { colors } from '../theme';
 import { styles } from './RideBar.styles';
 import { useRide } from './RideContext';
+import { buildRideInviteLink } from './rideInvite';
 import { useMovementSafety } from '../safety/MovementSafetyContext';
 
 /**
@@ -317,7 +318,7 @@ export function RideBar({ controlsVisible = true }: { controlsVisible?: boolean 
     const code = activeRide.code;
     if (!code) return;
     try {
-      await Share.share({ message: `Join my Rider Comms group ride with code ${code}` });
+      await Share.share({ message: `Join my Rider Comms group ride with code ${code}\n${buildRideInviteLink(code)}` });
     } catch {
       // Ignore share-sheet dismissal; copy remains available separately.
     }

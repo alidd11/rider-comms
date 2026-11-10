@@ -29,6 +29,7 @@ import { RideBar } from '../ride/RideBar';
 import { useRide } from '../ride/RideContext';
 import { ProximityVoice } from '../voice/ProximityVoice';
 import { HostPanel } from '../ride/HostPanel';
+import { parseRideInviteLink } from '../ride/rideInvite';
 import { useSettings } from '../settings/SettingsContext';
 import { PlaceSearchBar } from './PlaceSearchBar';
 import type { PlaceResult } from '../api/places';
@@ -272,6 +273,21 @@ export function MapScreen(): React.JSX.Element {
     : ownRideLocation && !ownRideLocationFresh
       ? 'stale'
       : 'none';
+
+  // A ridercomms://join?code=… invite link (shared by a host) opens the Ride
+  // tab with the code filled in; the rider still taps Join.
+  const [inviteCode, setInviteCode] = React.useState<string | null>(null);
+  React.useEffect(() => {
+    const openInvite = (url: string | null) => {
+      const code = parseRideInviteLink(url);
+      if (!code) return;
+      setInviteCode(code);
+      navigation.setParams({ segment: 'host', at: Date.now() });
+    };
+    void Linking.getInitialURL().then(openInvite).catch(() => {});
+    const subscription = Linking.addEventListener('url', ({ url }) => openInvite(url));
+    return () => subscription.remove();
+  }, [navigation]);
 
   // The tab bar gives the map the whole screen during turn-by-turn
   // navigation (and while moving, see Tabs in navigation/index.tsx).
@@ -594,7 +610,7 @@ export function MapScreen(): React.JSX.Element {
         </View>
       ) : (
         <View style={styles.hostFill}>
-          <HostPanel />
+          <HostPanel inviteCode={inviteCode} />
         </View>
       )}
 
