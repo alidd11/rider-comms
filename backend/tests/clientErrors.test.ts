@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseClientErrorReport } from '../src/clientErrors.ts';
+import { isGoogleMapsModuleLoadFailure, parseClientErrorReport } from '../src/clientErrors.ts';
 import { startTestServer } from './httpTestUtils.ts';
 
 describe('parseClientErrorReport', () => {
@@ -95,6 +95,31 @@ describe('POST /client-errors', () => {
     const entry = JSON.parse(warnings.find((line) => line.includes('client_error'))!);
     assert.equal(entry.level, 'warn');
     assert.equal(entry.fatal, false);
+  });
+
+  it('logs Google Maps module-load failures without alerting staff', async () => {
+    for (const message of ['Error: Could not load "webgl".', 'Error: Could not load "marker".']) {
+      const ctx = startTestServer();
+      await ctx.ready;
+      const errors: string[] = [];
+      const warnings: string[] = [];
+      const originalError = console.error;
+      const originalWarn = console.warn;
+      console.error = (line: unknown) => { errors.push(String(line)); };
+      console.warn = (line: unknown) => { warnings.push(String(line)); };
+      try {
+        const res = await post(ctx, { platform: 'web', message, fatal: false, context: 'unhandledrejection' });
+        assert.equal(res.status, 202);
+      } finally {
+        console.error = originalError;
+        console.warn = originalWarn;
+        await ctx.close();
+      }
+      assert.equal(errors.some((line) => line.includes('client_error')), false, message);
+      assert.equal(JSON.parse(warnings.find((line) => line.includes('client_error'))!).level, 'warn');
+    }
+    assert.equal(isGoogleMapsModuleLoadFailure('Error: Could not load "webgl".'), true);
+    assert.equal(isGoogleMapsModuleLoadFailure('Error: Could not load the profile'), false);
   });
 
   it('is rate-limited per client address', async () => {

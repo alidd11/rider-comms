@@ -1068,8 +1068,9 @@ test('PWA utility viewport paints safe areas as one edge-to-edge canvas', async 
   expect(viewport.screenBackground).toBe('none');
   expect(viewport.backdropInBody).toBe('true');
   expect(viewport.backdropHiddenInTab).toBe('none');
-  expect(viewport.backdropRule).toContain('calc(var(--safe-top) + 6px)');
-  expect(viewport.backdropRule).toContain('var(--system-chrome)');
+  expect(viewport.backdropRule).toContain('height: 11px');
+  // Painted for iOS, invisible to the rider: the map stays edge to edge.
+  expect(viewport.backdropRule).toContain('background-clip: text');
   expect(parseFloat(viewport.paddingTop)).toBeGreaterThan(59);
   expect(parseFloat(viewport.paddingLeft)).toBeGreaterThanOrEqual(47);
   expect(parseFloat(viewport.navPaddingLeft)).toBeGreaterThanOrEqual(47);

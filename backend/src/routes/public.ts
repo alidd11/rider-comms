@@ -1,6 +1,6 @@
 import { reportOperationalError } from '../errorAlerts.ts';
 import { consumeRateLimit, rateLimitSubject, readJsonBody, sendJson } from '../serverHttp.ts';
-import { parseClientErrorReport } from '../clientErrors.ts';
+import { isGoogleMapsModuleLoadFailure, parseClientErrorReport } from '../clientErrors.ts';
 import { countFilterRejection, NOT_HANDLED } from './context.ts';
 import type { PublicRouteContext } from './context.ts';
 
@@ -83,7 +83,11 @@ export async function handlePublicRoutes(ctx: PublicRouteContext): Promise<unkno
     // extension) whose details the browser hides. Logged as a warning, but
     // nothing in it can be acted on, so it doesn't email staff. Checked here
     // too, because cached copies of the old PWA still send it as fatal.
-    if (report.message === 'Script error.' && !report.stack) {
+    // Google Maps loads parts of itself ("webgl", "marker"…) on demand; on a
+    // network blip or when iOS suspends the page one of those fetches fails
+    // with this message. The map keeps working and there's nothing to fix,
+    // so it's logged without emailing staff too.
+    if ((report.message === 'Script error.' && !report.stack) || isGoogleMapsModuleLoadFailure(report.message)) {
       console.warn(JSON.stringify({ level: 'warn', event: 'client_error', ...report, fatal: false }));
       return sendJson(res, 202, { received: true });
     }
