@@ -111,7 +111,8 @@ describe('BillingScreen', () => {
     expect(mockClient.verifyPurchase).toHaveBeenCalledWith({ platform: 'apple', transactionId: '1000' });
     expect(mockRefreshProfile).toHaveBeenCalled();
     expect(await screen.findByText('Manage subscription')).toBeTruthy();
-    expect(screen.getByText(/^Renews /)).toBeTruthy();
+    // The renewal date is part of the "You're on" summary.
+    expect(screen.getByText(/· Renews /)).toBeTruthy();
   });
 
   it('stays quiet when the rider cancels, and explains a failed purchase', async () => {
@@ -162,7 +163,7 @@ describe('BillingScreen', () => {
     const { store } = fakeStore({ connect: jest.fn(async () => false) });
     await renderScreen(store);
     expect(await screen.findByText(/can’t be bought right now/)).toBeTruthy();
-    expect(screen.getByLabelText('Subscribe to Premium, $4.99 / month').props.accessibilityState.disabled).toBe(true);
+    expect(screen.getByLabelText('Subscribe to Premium, £4.99 / month').props.accessibilityState.disabled).toBe(true);
   });
 
   it('explains a store failure while starting a purchase', async () => {
@@ -203,7 +204,7 @@ describe('BillingScreen edge cases', () => {
       .mockResolvedValue([{ id: 'premium_monthly', displayPrice: '£4.49' }]);
     const { store } = fakeStore({ loadProducts });
     await renderScreen(store);
-    await fireEvent.press(await screen.findByLabelText('Subscribe to Premium, $4.99 / month'));
+    await fireEvent.press(await screen.findByLabelText('Subscribe to Premium, £4.99 / month'));
     await waitFor(() => expect(store.purchase).toHaveBeenCalledWith({ id: 'premium_monthly', displayPrice: '£4.49' }, expect.any(Object)));
   });
 
