@@ -7,13 +7,28 @@ appId: com.ridercomms.app
     permissions:
       all: allow
 - takeScreenshot: before-login
-- tapOn: "Username"
-- inputText: ${TEST_USERNAME}
-- tapOn: "Password"
+# On the iOS simulator the first keystroke can bring up the AutoFill bar,
+# and Maestro's typing has then sometimes landed only the first character
+# ("c" instead of the whole username). Type into each field by test ID,
+# wait for the keyboard first, and check the username actually arrived
+# before moving on; retry the field if it didn't.
+- retry:
+    maxRetries: 3
+    commands:
+      - tapOn:
+          id: auth-username
+      - waitForAnimationToEnd
+      - eraseText: 30
+      - inputText: ${TEST_USERNAME}
+      - assertVisible: ${TEST_USERNAME}
+- tapOn:
+    id: auth-password
+- waitForAnimationToEnd
 - inputText: ${TEST_PASSWORD}
 - hideKeyboard
 - takeScreenshot: before-submit
-- tapOn: "Log in"
+- tapOn:
+    id: auth-submit
 # First launch shows the two-step onboarding (welcome, then location).
 # iOS adds to labels ("Get Started, ", "Group Ride, tab, 2 of 5"), so each
 # match allows a comma and more after the visible text.
