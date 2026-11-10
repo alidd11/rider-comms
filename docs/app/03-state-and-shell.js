@@ -222,16 +222,10 @@
     $('#profileHandle').textContent = state.profile.handle;
     const profileRiderId = $('#profileRiderId');
     if (profileRiderId) profileRiderId.textContent = state.profile.riderId;
-    const distanceUnitsSummary = $('#distanceUnitsSummary');
-    if (distanceUnitsSummary) distanceUnitsSummary.textContent = state.profile.unitSystem === 'km' ? 'Kilometres' : 'Miles';
-    const tier = planTier(state.profile.zoneTier);
-    const plan = PLAN_INFO[tier];
-    const planSummary = $('#planSummary');
-    if (planSummary) planSummary.textContent = `${plan.name} plan · ${plan.features[0]}`;
-    const planPill = $('#planPill');
-    if (planPill) planPill.textContent = plan.name;
-    const navigationSummary = $('#navigationProviderSummary');
-    if (navigationSummary) navigationSummary.textContent = NAVIGATION_PROVIDERS[navigationProvider(state.navigationProvider)].label;
+    // The menu behind the map avatar.
+    $('#appMenuName').textContent = state.profile.displayName;
+    $('#appMenuHandle').textContent = state.profile.handle;
+    $('#appMenuPlan').textContent = PLAN_INFO[planTier(state.profile.zoneTier)].name;
     const genericProfile = state.profile.displayName.trim().toLowerCase() === 'rider'
       || state.profile.handle.trim().toLowerCase() === '@rider';
     const completeProfilePrompt = $('#completeProfilePrompt');

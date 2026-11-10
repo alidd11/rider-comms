@@ -98,8 +98,46 @@
     }).catch(() => {});
   }
 
+  // Waze-style menu behind the rider's avatar on the map: profile, Routes,
+  // plan, Settings and help. Routes and Settings aren't tabs any more.
+  let appMenuTrigger = null;
+  function openAppMenu() {
+    if (window.RiderMovementSafety.isLockedForSafety(movementState)) {
+      showToast('Controls stay locked until Rider Comms confirms you are stationary.');
+      return;
+    }
+    appMenuTrigger = document.activeElement;
+    renderProfile();
+    $('#appMenu').hidden = false;
+    $('#app')?.setAttribute('inert', '');
+    document.documentElement.classList.add('app-menu-open');
+    $('#closeAppMenu').focus({ preventScroll: true });
+  }
+
+  function closeAppMenu({ restoreFocus = true } = {}) {
+    if ($('#appMenu').hidden) return;
+    $('#appMenu').hidden = true;
+    $('#app')?.removeAttribute('inert');
+    document.documentElement.classList.remove('app-menu-open');
+    if (restoreFocus) appMenuTrigger?.focus?.();
+    appMenuTrigger = null;
+  }
+
   function bindEvents() {
     $$('[data-nav]').forEach((button) => button.addEventListener('click', () => navigate(button.dataset.nav)));
+    $('#mapAvatarButton').addEventListener('click', openAppMenu);
+    $('#closeAppMenu').addEventListener('click', () => closeAppMenu());
+    $('#appMenu').addEventListener('keydown', (event) => { if (event.key === 'Escape') closeAppMenu(); });
+    $('#appMenuViewProfile').addEventListener('click', () => { closeAppMenu({ restoreFocus: false }); openSheet('profile'); });
+    $$('[data-menu-nav]').forEach((button) => button.addEventListener('click', () => {
+      closeAppMenu({ restoreFocus: false });
+      navigate(button.dataset.menuNav);
+    }));
+    $$('[data-menu-sheet]').forEach((button) => button.addEventListener('click', () => {
+      closeAppMenu({ restoreFocus: false });
+      openSheet(button.dataset.menuSheet);
+    }));
+    $$('[data-back-to-map]').forEach((button) => button.addEventListener('click', () => navigate('map')));
     $('#enableLocationBtn').addEventListener('click', () => void requestMovementLocationAccess());
     $('#navMuteBtn')?.addEventListener('click', () => {
       navMuted = !navMuted;
@@ -115,19 +153,10 @@
       if (activeChat) closeChat();
       navigate(location.hash.split('/')[0].slice(1) || 'map', false);
     });
-    $$('[data-ride-mode]').forEach((button) => button.addEventListener('click', () => {
-      $$('[data-ride-mode]').forEach((item) => item.classList.toggle('active', item === button));
-      const host = button.dataset.rideMode === 'host';
-      $('#joinRideForm').hidden = host;
-      $('#hostRideForm').hidden = !host;
-      $('#rideHostMode').hidden = host;
-      $('#rideJoinMode').hidden = !host;
-      $('#rideEntryTitle').textContent = host ? 'Start a ride' : 'Join a ride';
-    }));
     $('#joinRideForm').addEventListener('submit', (event) => {
       event.preventDefault();
       const code = $('#rideCode').value.trim().toUpperCase();
-      if (!/^[A-Z2-9]{6}$/.test(code)) {
+      if (!RIDE_CODE_PATTERN.test(code)) {
         $('#rideError').textContent = 'Enter a valid six-character ride code.';
         $('#rideError').hidden = false;
         $('#rideCode').setAttribute('aria-invalid', 'true');
@@ -139,19 +168,37 @@
     const syncRideCodeSlots = () => {
       const code = $('#rideCode').value;
       $$('#rideCodeSlots span').forEach((slot, index) => {
-        slot.textContent = code[index] || '—';
+        slot.textContent = code[index] || '·';
         slot.classList.toggle('filled', Boolean(code[index]));
         slot.classList.toggle('active', index === code.length && code.length < 6);
       });
     };
     $('#rideCode').addEventListener('input', (event) => {
-      event.target.value = event.target.value.toUpperCase().replace(/[^A-Z2-9]/g, '').slice(0, 6);
+      // No maxlength: a pasted "ABC 234", share message or invite link is
+      // cleaned up here instead of being cut short first.
+      event.target.value = normalizeRideCodeInput(event.target.value);
       event.target.setAttribute('aria-invalid', 'false');
       $('#rideError').hidden = true;
       syncRideCodeSlots();
+      syncRideJoinButton();
     });
     $('#rideCode').addEventListener('focus', syncRideCodeSlots);
+    $('#rideCode').addEventListener('blur', syncRideCodeSlots);
     syncRideCodeSlots();
+    syncRideJoinButton();
+    // An invite link (…#ride/join/ABC234) opens the Ride page with the code
+    // filled in; the rider still taps Join.
+    const openRideInvite = () => {
+      const code = rideCodeFromInviteText(location.hash);
+      if (!code || state.activeRide) return;
+      $('#rideCode').value = code;
+      syncRideCodeSlots();
+      syncRideJoinButton();
+      history.replaceState({ screen: 'ride' }, '', '#ride');
+      navigate('ride', false);
+    };
+    openRideInvite();
+    window.addEventListener('hashchange', openRideInvite);
     $('#createRideBtn').addEventListener('click', createRide);
     $('#leaveRideBtn').addEventListener('click', endRide);
     $('#activeRideLocationConsent').addEventListener('change', (event) => {
@@ -265,7 +312,6 @@
     $('#voiceStatusBtn').addEventListener('click', toggleVoiceMute);
     $('#rideVoiceStatus').addEventListener('click', toggleVoiceMute);
     $('#endNavBtn').addEventListener('click', () => finishNavigation(false));
-    $('[aria-label="Open profile"]').addEventListener('click', () => navigate('settings'));
   }
 
   // --- Auth screen -----------------------------------------------------
