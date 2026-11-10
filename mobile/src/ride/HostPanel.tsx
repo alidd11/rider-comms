@@ -4,7 +4,7 @@
 // once this app has a real map SDK behind it, which costs real money per
 // load. One persistent map, switched by a segment, keeps that to one.
 import * as React from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, ImageBackground, ScrollView, StatusBar, useWindowDimensions } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, ImageBackground, ScrollView, StatusBar, Switch, useWindowDimensions } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -16,50 +16,60 @@ import { RIDE_HERO_IMAGE } from '../brandAssets';
 import { colors, spacing, radii, type, elevation } from '../theme';
 import { useRide } from './RideContext';
 import { RideRoster } from './RideRoster';
+import { isCompleteRideCode, normalizeRideCodeInput } from './rideInvite';
 import { microphoneErrorMessage, preflightVoiceMicrophone } from '../audio/microphone';
 
 
-function JoinOrHostForm(): React.JSX.Element {
+function JoinOrHostForm({ inviteCode }: { inviteCode?: string | null }): React.JSX.Element {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const insets = useSafeAreaInsets();
   const { height: viewportHeight } = useWindowDimensions();
-  const heroHeight = viewportHeight <= 760
-    ? 194
-    : viewportHeight >= 820
-      ? Math.min(232, viewportHeight * 0.26)
-      : 210;
+  // About a third shorter than before, so Join and Start sit higher.
+  const heroHeight = viewportHeight <= 760 ? 124 : viewportHeight >= 820 ? 152 : 136;
   const { startRide } = useRide();
   const { client } = useAuth();
-  const [code, setCode] = React.useState('');
+  const [code, setCode] = React.useState(inviteCode ?? '');
   const [loading, setLoading] = React.useState(false);
-  const [shareRideLocation, setShareRideLocation] = React.useState(false);
+  const [codeFocused, setCodeFocused] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const codeInputRef = React.useRef<TextInput>(null);
 
+  // An invite link opened while the app is running fills in its code.
+  React.useEffect(() => {
+    if (inviteCode) {
+      setCode(inviteCode);
+      setError(null);
+    }
+  }, [inviteCode]);
+
   const handleJoin = React.useCallback(async () => {
+    if (!isCompleteRideCode(code)) return;
     setLoading(true);
     setError(null);
     try {
-      const normalizedCode = code.trim().toUpperCase();
       try {
         await preflightVoiceMicrophone();
       } catch (microphoneError) {
         setError(microphoneErrorMessage(microphoneError));
         return;
       }
-      const { rideId } = await client.joinRide(normalizedCode);
-      await startRide({ rideId, code: normalizedCode, isHost: false }, shareRideLocation);
+      const { rideId } = await client.joinRide(code);
+      // Location sharing is chosen inside the ride, once the rider can see
+      // who is in it; it always starts off.
+      await startRide({ rideId, code, isHost: false }, false);
     } catch (err) {
-      if (err instanceof ApiError && err.status === 429) setError('Too many attempts — wait a bit before trying again.');
-      else if (err instanceof ApiError && err.status === 404) setError("That code doesn't match an active ride.");
+      // The code stays in the field so the rider can fix one character.
+      if (err instanceof ApiError && err.status === 429) setError('Too many attempts. Wait a minute before trying again.');
+      else if (err instanceof ApiError && err.status === 404) setError("That code doesn't match an active ride. Check it with your host.");
       else if (err instanceof ApiError && err.status === 409) setError('This ride is full (20 riders max).');
-      else setError('Something went wrong joining the ride.');
+      else setError("Couldn't join the ride. Check your connection and try again.");
     } finally {
       setLoading(false);
     }
-  }, [client, code, shareRideLocation, startRide]);
+  }, [client, code, startRide]);
 
-  const canSubmit = !loading && code.length === 6;
+  const complete = isCompleteRideCode(code);
+  const canSubmit = !loading && complete;
 
   return (
     <>
@@ -71,7 +81,7 @@ function JoinOrHostForm(): React.JSX.Element {
         keyboardShouldPersistTaps="handled"
         contentInsetAdjustmentBehavior="never"
       >
-        <Text style={[styles.screenTitle, { marginTop: insets.top + 18 }]}>Ride</Text>
+        <Text style={[styles.screenTitle, { marginTop: insets.top + 18 }]} accessibilityRole="header">Ride</Text>
         <ImageBackground
           source={RIDE_HERO_IMAGE}
           style={[styles.hero, { height: heroHeight }]}
@@ -80,93 +90,141 @@ function JoinOrHostForm(): React.JSX.Element {
           accessibilityLabel="Motorcyclists riding together on a winding mountain road"
         >
           <View style={styles.heroShade} />
-          <View style={styles.heroFade} />
-          <Text style={styles.heroTitle}>{'Ride further.\ntogether.'}</Text>
+          <Text style={styles.heroTitle}>Ride further, together.</Text>
         </ImageBackground>
 
         <View style={styles.joinBody}>
-          <View style={styles.joinCard}>
-            <Text style={styles.joinTitle}>Join a ride</Text>
-            <Text style={styles.fieldLabel}>Enter invite code</Text>
+          <View style={styles.card}>
+            <Text style={styles.cardTitle} accessibilityRole="header">Join a ride</Text>
+            <Text style={styles.cardBody}>Enter the six-character code from your host.</Text>
             <Pressable
-              style={[styles.codeSlots, error && styles.codeSlotsError]}
+              style={[styles.codeSlots, codeFocused && styles.codeSlotsFocused, error && styles.codeSlotsError]}
               onPress={() => codeInputRef.current?.focus()}
               accessibilityRole="button"
               accessibilityLabel={`Invite code, ${code.length} of 6 characters entered`}
-              accessibilityHint="Opens the keyboard to enter the six-character code"
+              accessibilityHint="Opens the keyboard to enter or paste the six-character code"
             >
               {Array.from({ length: 6 }, (_, index) => (
-                <View key={index} style={[styles.codeSlot, index > 0 && styles.codeSlotDivider, index === code.length && code.length < 6 && styles.codeSlotActive]}>
-                  <Text style={[styles.codeSlotText, !code[index] && styles.codeSlotEmpty]}>{code[index] ?? '—'}</Text>
+                <View
+                  key={index}
+                  style={[
+                    styles.codeSlot,
+                    index === 3 && styles.codeSlotGroupGap,
+                    codeFocused && index === code.length && styles.codeSlotActive,
+                  ]}
+                >
+                  <Text style={[styles.codeSlotText, !code[index] && styles.codeSlotEmpty]}>{code[index] ?? '·'}</Text>
                 </View>
               ))}
+              {/* One real field over the boxes: typing, pasting a whole code
+                  or a whole invite message all land here. No maxLength, so a
+                  pasted "ABC 234" isn't cut short before it is cleaned up. */}
               <TextInput
                 ref={codeInputRef}
                 style={styles.codeInputOverlay}
                 autoCapitalize="characters"
                 autoCorrect={false}
+                autoComplete="off"
                 keyboardType="ascii-capable"
-                returnKeyType="done"
-                maxLength={6}
+                returnKeyType="go"
                 value={code}
+                onFocus={() => setCodeFocused(true)}
+                onBlur={() => setCodeFocused(false)}
                 onChangeText={(text) => {
-                  setCode(text.toUpperCase().replace(/[^A-Z2-9]/g, '').slice(0, 6));
+                  setCode(normalizeRideCodeInput(text));
                   if (error) setError(null);
                 }}
+                onSubmitEditing={() => { if (canSubmit) void handleJoin(); }}
                 accessibilityLabel="Ride invite code"
-                accessibilityHint="Enter the six-character code from the ride host"
+                accessibilityHint="Enter or paste the six-character code from the ride host"
               />
-            </Pressable>
-            <Pressable accessibilityRole="button"
-              accessibilityLabel={loading ? 'Joining ride' : 'Join ride'}
-              accessibilityState={{ disabled: !canSubmit, busy: loading }}
-              style={({ pressed }) => [styles.button, pressed && canSubmit && styles.buttonPressed, !canSubmit && styles.buttonDisabled]}
-              onPress={handleJoin}
-              disabled={!canSubmit}
-            >
-              {loading ? <ActivityIndicator color={colors.accentText} /> : <Text style={styles.buttonText}>Join Ride</Text>}
-            </Pressable>
-            <Text style={styles.joinHelp}>Ask the host for their six-character code.</Text>
-            <Pressable
-              accessibilityRole="switch"
-              accessibilityLabel="Share my live location with this ride"
-              accessibilityHint="Only riders in this private ride can see your recent position"
-              accessibilityState={{ checked: shareRideLocation }}
-              onPress={() => setShareRideLocation((value) => !value)}
-              style={styles.consentRow}
-            >
-              <View style={[styles.checkbox, shareRideLocation && styles.checkboxChecked]}>
-                {shareRideLocation && <Ionicons name="checkmark" size={13} color={colors.accentText} />}
-              </View>
-              <View style={styles.consentCopy}>
-                <Text style={styles.consentTitle}>Share my live location</Text>
-                <Text style={styles.consentBody}>Ride members only · cleared when you leave or switch this off.</Text>
-              </View>
             </Pressable>
             {error ? (
               <View style={styles.errorBox} accessibilityRole="alert" accessibilityLiveRegion="assertive">
-                <Ionicons name="alert-circle" size={17} color={colors.danger} />
+                <Ionicons name="alert-circle" size={18} color={colors.danger} />
                 <Text style={styles.errorText}>{error}</Text>
               </View>
             ) : null}
+            <Pressable accessibilityRole="button"
+              accessibilityLabel={loading ? 'Joining ride' : 'Join ride'}
+              accessibilityHint={complete ? undefined : 'Enter all six characters of the code first'}
+              accessibilityState={{ disabled: !canSubmit, busy: loading }}
+              style={({ pressed }) => [
+                styles.primaryButton,
+                !complete && !loading && styles.primaryButtonDisabled,
+                pressed && canSubmit && styles.primaryButtonPressed,
+              ]}
+              onPress={() => void handleJoin()}
+              disabled={!canSubmit}
+            >
+              {loading ? (
+                <View style={styles.buttonBusy}>
+                  <ActivityIndicator color={colors.accentText} />
+                  <Text style={styles.primaryButtonText}>Joining…</Text>
+                </View>
+              ) : (
+                <Text style={[styles.primaryButtonText, !complete && styles.primaryButtonTextDisabled]}>Join ride</Text>
+              )}
+            </Pressable>
           </View>
 
-          <Pressable accessibilityRole="button"
-            accessibilityLabel="Start a ride"
-            accessibilityHint="Create a private ride and invite your friends"
-            onPress={() => navigation.navigate('CreateRide')}
-            style={({ pressed }) => [styles.hostLink, pressed && styles.hostLinkPressed]}
-          >
-            <View style={styles.hostLinkIcon}><Ionicons name="people" size={19} color={colors.textSecondary} /></View>
-            <View style={styles.hostLinkCopy}>
-              <Text style={styles.hostLinkTitle}>Start a ride</Text>
-              <Text style={styles.hostLinkText}>Create a new ride and invite your friends.</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={17} color={colors.textMuted} />
-          </Pressable>
+          <View style={styles.card}>
+            <Text style={styles.cardTitle} accessibilityRole="header">Start a ride</Text>
+            <Text style={styles.cardBody}>Create a group and invite your friends with a code.</Text>
+            <Pressable accessibilityRole="button"
+              accessibilityLabel="Start a ride"
+              accessibilityHint="Create a private ride and invite your friends"
+              onPress={() => navigation.navigate('CreateRide')}
+              style={({ pressed }) => [styles.secondaryButton, pressed && styles.secondaryButtonPressed]}
+            >
+              <Ionicons name="add-circle-outline" size={20} color={colors.accentInk} />
+              <Text style={styles.secondaryButtonText}>Start a ride</Text>
+            </Pressable>
+          </View>
         </View>
       </ScrollView>
     </>
+  );
+}
+
+/** Live-location consent for the ride the rider is in: chosen here, where
+ * they can see who is in the ride, rather than before joining. */
+function RideLocationSharing(): React.JSX.Element {
+  const { shareRideLocation, setRideLocationSharing } = useRide();
+  const [busy, setBusy] = React.useState(false);
+  const [failed, setFailed] = React.useState(false);
+
+  const toggle = async () => {
+    setBusy(true);
+    setFailed(false);
+    const ok = await setRideLocationSharing(!shareRideLocation);
+    if (!ok) setFailed(true);
+    setBusy(false);
+  };
+
+  return (
+    <View style={styles.card}>
+      <View style={styles.locationRow}>
+        <View style={styles.locationCopy}>
+          <Text style={styles.locationTitle}>Share your live location with this ride</Text>
+          <Text style={styles.cardBody}>
+            {shareRideLocation
+              ? 'On. Riders in this ride can see where you are. It stops when you switch it off, leave the ride or the ride ends.'
+              : 'Off. Riders in this ride can’t see where you are.'}
+          </Text>
+        </View>
+        <Switch
+          value={shareRideLocation}
+          onValueChange={() => void toggle()}
+          disabled={busy}
+          trackColor={{ false: colors.surfaceRaised, true: colors.accent }}
+          accessibilityLabel="Share your live location with this ride"
+        />
+      </View>
+      {failed ? (
+        <Text style={styles.errorText} accessibilityRole="alert">Couldn’t change location sharing. Try again.</Text>
+      ) : null}
+    </View>
   );
 }
 
@@ -177,12 +235,12 @@ function HostRoster(): React.JSX.Element {
 
   return (
     <View style={styles.form}>
-      <Text style={styles.rootTitle}>Ride</Text>
+      <Text style={styles.rootTitle} accessibilityRole="header">Ride</Text>
       <View style={styles.codeCard}>
         <Text style={styles.codeLabel}>Share code</Text>
         <Text style={styles.codeValue}>{activeRide?.code}</Text>
       </View>
-
+      <RideLocationSharing />
       <Text style={styles.sectionLabel}>Riders ({roster.length})</Text>
       <RideRoster canRemove />
     </View>
@@ -193,78 +251,82 @@ function MemberCard(): React.JSX.Element {
   const { roster } = useRide();
   return (
     <View style={styles.form}>
-      <Text style={styles.rootTitle}>Ride</Text>
-      <View style={[styles.iconBadge, elevation.raised]}>
-        <MaterialCommunityIcons name="motorbike" size={32} color={colors.accent} />
+      <Text style={styles.rootTitle} accessibilityRole="header">Ride</Text>
+      <View style={styles.memberHeader}>
+        <View style={[styles.iconBadge, elevation.raised]}>
+          <MaterialCommunityIcons name="motorbike" size={28} color={colors.accent} />
+        </View>
+        <View style={styles.locationCopy}>
+          <Text style={styles.title}>You're in this ride</Text>
+          <Text style={styles.cardBody}>Only the host can add or remove riders.</Text>
+        </View>
       </View>
-      <Text style={styles.title}>You're in this ride</Text>
-      <Text style={styles.body}>Only the host can add or remove riders.</Text>
+      <RideLocationSharing />
       <Text style={styles.sectionLabel}>Riders ({roster.length})</Text>
       <RideRoster canRemove={false} />
     </View>
   );
 }
 
-export function HostPanel(): React.JSX.Element {
+export function HostPanel({ inviteCode }: { inviteCode?: string | null } = {}): React.JSX.Element {
   const { activeRide } = useRide();
   const insets = useSafeAreaInsets();
 
-  if (!activeRide) return <JoinOrHostForm />;
+  if (!activeRide) return <JoinOrHostForm inviteCode={inviteCode} />;
   return (
-    <View style={[styles.activePanel, { paddingTop: insets.top + spacing.lg, paddingBottom: insets.bottom + spacing.lg }]}>
+    <ScrollView
+      style={styles.activeScroll}
+      contentContainerStyle={[styles.activePanel, { paddingTop: insets.top + spacing.lg, paddingBottom: insets.bottom + spacing.lg }]}
+    >
       {activeRide.isHost ? <HostRoster /> : <MemberCard />}
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   joinScreen: { flex: 1, backgroundColor: colors.background },
   joinScroll: { flexGrow: 1, backgroundColor: colors.background },
-  joinBody: { gap: 8, paddingHorizontal: 20, paddingTop: 10 },
-  activePanel: { flex: 1, paddingHorizontal: spacing.lg, backgroundColor: colors.background },
+  joinBody: { gap: spacing.md, paddingHorizontal: 20, paddingTop: spacing.md },
+  activeScroll: { flex: 1, backgroundColor: colors.background },
+  activePanel: { flexGrow: 1, paddingHorizontal: spacing.lg },
   form: { flexGrow: 1, gap: spacing.md },
   rootTitle: { ...type.title, color: colors.textPrimary, fontSize: 28, lineHeight: 32, letterSpacing: -0.8 },
-  screenTitle: { ...type.title, color: colors.textPrimary, fontSize: 28, lineHeight: 30, letterSpacing: -0.9, marginHorizontal: 20, marginBottom: 13 },
+  screenTitle: { ...type.title, color: colors.textPrimary, fontSize: 28, lineHeight: 30, letterSpacing: -0.9, marginHorizontal: 20, marginBottom: 12 },
   hero: { marginHorizontal: 20, justifyContent: 'flex-end', overflow: 'hidden', borderRadius: radii.lg, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, backgroundColor: colors.surface },
   heroImage: { borderRadius: radii.lg },
-  heroShade: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(3,7,9,0.18)' },
-  heroFade: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 62, backgroundColor: 'rgba(3,7,9,0.30)' },
-  heroTitle: { color: '#FFFFFF', fontSize: 24, lineHeight: 23, fontWeight: '800', letterSpacing: -0.9, paddingHorizontal: 14, paddingBottom: 14, textShadowColor: 'rgba(0,0,0,0.48)', textShadowRadius: 8 },
-  joinCard: { gap: 7, padding: 11, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: radii.lg, backgroundColor: colors.surface },
-  joinTitle: { ...type.subheading, color: colors.textPrimary, fontSize: 14, lineHeight: 17, fontWeight: '800', marginBottom: 0 },
-  fieldLabel: { ...type.caption, color: colors.textSecondary, fontSize: 10, lineHeight: 13, fontWeight: '700' },
+  heroShade: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(3,7,9,0.34)' },
+  heroTitle: { color: '#FFFFFF', fontSize: 22, lineHeight: 26, fontWeight: '800', letterSpacing: -0.6, paddingHorizontal: 16, paddingBottom: 14, textShadowColor: 'rgba(0,0,0,0.5)', textShadowRadius: 8 },
+  card: { gap: spacing.sm, padding: spacing.md, borderWidth: 1, borderColor: colors.border, borderRadius: radii.lg, backgroundColor: colors.surface },
+  cardTitle: { ...type.subheading, color: colors.textPrimary, fontSize: 18, lineHeight: 22, fontWeight: '800' },
+  cardBody: { ...type.body, color: colors.textSecondary, fontSize: 14, lineHeight: 19 },
   iconBadge: { width: 48, height: 48, borderRadius: radii.lg, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
-  title: { ...type.heading, marginBottom: spacing.sm },
-  body: { ...type.body, marginBottom: spacing.lg },
-  codeSlots: { position: 'relative', minHeight: 38, flexDirection: 'row', gap: 0, overflow: 'hidden', borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: radii.lg, backgroundColor: colors.surfaceRaised },
+  memberHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  title: { ...type.heading, fontSize: 18, lineHeight: 22 },
+  codeSlots: { position: 'relative', minHeight: 56, flexDirection: 'row', gap: 6, marginTop: spacing.xs, padding: 4, borderWidth: 1.5, borderColor: colors.border, borderRadius: radii.lg, backgroundColor: colors.surfaceRaised },
+  codeSlotsFocused: { borderColor: colors.accent },
   codeSlotsError: { borderColor: colors.danger },
-  codeSlot: { flex: 1, minHeight: 38, alignItems: 'center', justifyContent: 'center', borderWidth: 0, borderRadius: 0, backgroundColor: 'transparent' },
-  codeSlotDivider: { borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: colors.border },
-  codeSlotActive: { backgroundColor: colors.accentSoft, borderBottomWidth: 2, borderBottomColor: colors.accent },
-  codeSlotText: { fontSize: 15, lineHeight: 18, fontWeight: '800', color: colors.textPrimary },
-  codeSlotEmpty: { color: colors.textMuted, fontWeight: '500' },
+  codeSlot: { flex: 1, minHeight: 46, alignItems: 'center', justifyContent: 'center', borderRadius: radii.md, backgroundColor: colors.surface },
+  codeSlotGroupGap: { marginLeft: 8 },
+  codeSlotActive: { borderWidth: 2, borderColor: colors.accent },
+  codeSlotText: { fontSize: 22, lineHeight: 26, fontWeight: '800', letterSpacing: 0.5, color: colors.textPrimary },
+  codeSlotEmpty: { color: colors.textMuted, fontWeight: '600' },
   codeInputOverlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, opacity: 0.01, color: 'transparent' },
-  joinHelp: { ...type.caption, color: colors.textMuted, fontSize: 9, lineHeight: 12, marginTop: -1 },
-  consentRow: { minHeight: 36, flexDirection: 'row', alignItems: 'center', gap: 7, paddingTop: 7, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
-  checkbox: { width: 17, height: 17, borderRadius: radii.md, borderWidth: 1.5, borderColor: colors.textMuted, alignItems: 'center', justifyContent: 'center', marginTop: 0 },
-  checkboxChecked: { backgroundColor: colors.accent, borderColor: colors.accent },
-  consentCopy: { flex: 1 },
-  consentTitle: { ...type.caption, color: colors.textPrimary, fontSize: 10, lineHeight: 13, fontWeight: '700' },
-  consentBody: { ...type.caption, color: colors.textMuted, fontSize: 9, lineHeight: 12, marginTop: 1 },
-  errorBox: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.dangerSurface, borderRadius: radii.lg, paddingHorizontal: 7, paddingVertical: 5 },
-  errorText: { ...type.caption, color: colors.danger, flex: 1, fontSize: 9, lineHeight: 12 },
-  hostLink: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 10, paddingVertical: 8, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: radii.lg, backgroundColor: colors.surface },
-  hostLinkPressed: { opacity: 0.82 },
-  hostLinkIcon: { width: 34, height: 34, borderRadius: radii.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceRaised },
-  hostLinkCopy: { flex: 1, minWidth: 0 },
-  hostLinkTitle: { ...type.body, color: colors.textPrimary, fontSize: 12, lineHeight: 15, fontWeight: '700' },
-  hostLinkText: { ...type.caption, color: colors.textMuted, fontSize: 9, lineHeight: 12, marginTop: 1 },
-  button: { minHeight: 42, backgroundColor: colors.accent, borderRadius: radii.lg, alignItems: 'center', justifyContent: 'center', marginTop: -1 },
-  buttonPressed: { backgroundColor: colors.accentPressed },
-  buttonDisabled: { opacity: 0.5 },
-  buttonText: { ...type.button, color: colors.accentText, fontSize: 12 },
-  codeCard: { backgroundColor: colors.surface, borderRadius: radii.lg, padding: spacing.md, alignItems: 'center', marginBottom: spacing.lg, ...elevation.raised },
+  errorBox: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm, backgroundColor: colors.dangerSurface, borderRadius: radii.md, padding: spacing.sm },
+  errorText: { ...type.body, color: colors.danger, flex: 1, fontSize: 14, lineHeight: 19 },
+  primaryButton: { minHeight: 50, marginTop: spacing.xs, backgroundColor: colors.accent, borderRadius: radii.lg, alignItems: 'center', justifyContent: 'center' },
+  primaryButtonPressed: { backgroundColor: colors.accentPressed },
+  primaryButtonDisabled: { backgroundColor: colors.surfaceRaised },
+  primaryButtonText: { ...type.button, color: colors.accentText, fontSize: 16 },
+  primaryButtonTextDisabled: { color: colors.textMuted },
+  buttonBusy: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  secondaryButton: { minHeight: 50, marginTop: spacing.xs, flexDirection: 'row', gap: spacing.sm, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: colors.accent, borderRadius: radii.lg, backgroundColor: colors.accentSoft },
+  secondaryButtonPressed: { opacity: 0.8 },
+  secondaryButtonText: { ...type.button, color: colors.accentInk, fontSize: 16 },
+  locationRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  locationCopy: { flex: 1, gap: 4 },
+  locationTitle: { ...type.body, color: colors.textPrimary, fontSize: 15, lineHeight: 20, fontWeight: '700' },
+  codeCard: { backgroundColor: colors.surface, borderRadius: radii.lg, padding: spacing.md, alignItems: 'center', ...elevation.raised },
   codeLabel: { ...type.label },
   codeValue: { fontSize: 32, fontWeight: '800', letterSpacing: 6, color: colors.accentInk, marginTop: spacing.xs },
-  sectionLabel: { ...type.label, marginBottom: spacing.sm },
+  sectionLabel: { ...type.label, marginTop: spacing.sm },
 });
