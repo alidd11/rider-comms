@@ -48,7 +48,7 @@ describe('RetentionStore', { skip: !hasDatabase && 'DATABASE_URL not set; skippi
 
   beforeEach(async () => {
     await getPool().query(
-      'TRUNCATE rider_presence, presence_zone_pairs, presence_movement_anchors, ride_locations, ride_codes, ride_members, rides, hazard_reports, hazard_report_votes',
+      'TRUNCATE rider_presence, presence_zone_pairs, presence_movement_anchors, ride_locations, ride_codes, ride_members, ride_removed_members, rides, hazard_reports, hazard_report_votes',
     );
   });
 

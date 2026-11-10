@@ -546,6 +546,10 @@ describe('authenticated API', () => {
     assert.equal((await authenticatedFetch(ctx, 'outsider', `/rides/${rideId}`)).status, 404);
     await authenticatedFetch(ctx, 'host', `/rides/${rideId}/members/member`, { method: 'DELETE' });
     assert.deepEqual(await (await authenticatedFetch(ctx, 'member', '/rides/current')).json(), { ride: null });
+    // The removed rider's copy of the code no longer gets them back in.
+    const rejoin = await postJson(ctx, 'member', '/rides/join', { code });
+    assert.equal(rejoin.status, 404);
+    assert.deepEqual(await rejoin.json(), { error: 'invalid_or_expired' });
   });
   it('shares ride-member locations only after explicit ride consent and only with fellow members', needsDb, async () => {
     const made = await postJson(ctx, 'host', '/rides', {}); const ride = await made.json() as { rideId: string; code: string };

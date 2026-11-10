@@ -21,7 +21,7 @@ export interface RideSession {
 
 export type JoinRideResult =
   | { ok: true; rideId: string }
-  | { ok: false; reason: 'invalid_or_expired' | 'ride_full' };
+  | { ok: false; reason: 'invalid_or_expired' | 'ride_full' | 'removed_by_host' };
 
 // Product rule: a private ride group is 2-20 riders. The lower bound isn't
 // something to reject on — a ride starts at 1 member (the creator) until
@@ -143,6 +143,12 @@ export class RideStore {
         return { ok: false, reason: 'invalid_or_expired' };
       }
       const rideId = rows[0].ride_id;
+      // Removal is a host decision; the code they already have doesn't undo it.
+      const removed = await client.query(
+        'SELECT 1 FROM ride_removed_members WHERE ride_id = $1 AND rider_id = $2',
+        [rideId, riderId]
+      );
+      if (removed.rowCount) return { ok: false, reason: 'removed_by_host' };
       const existing = await client.query(
         'SELECT 1 FROM ride_members WHERE ride_id = $1 AND rider_id = $2',
         [rideId, riderId]
@@ -242,7 +248,15 @@ export class RideStore {
     const ride = await this.loadRide(rideId);
     if (!ride) return { ok: false, reason: 'not_found' };
     if (ride.createdBy !== actorId || memberId === actorId) return { ok: false, reason: 'forbidden' };
-    await getPool().query('DELETE FROM ride_members WHERE ride_id = $1 AND rider_id = $2', [rideId, memberId]);
+    await withTransaction(async (client) => {
+      await client.query('DELETE FROM ride_members WHERE ride_id = $1 AND rider_id = $2', [rideId, memberId]);
+      await client.query('DELETE FROM ride_locations WHERE ride_id = $1 AND rider_id = $2', [rideId, memberId]);
+      await client.query(
+        `INSERT INTO ride_removed_members (ride_id, rider_id, removed_at) VALUES ($1, $2, $3)
+         ON CONFLICT (ride_id, rider_id) DO NOTHING`,
+        [rideId, memberId, Date.now()]
+      );
+    });
     ride.memberIds.delete(memberId);
     return { ok: true, ride };
   }

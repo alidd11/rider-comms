@@ -27,7 +27,9 @@ export async function handleLiveRoutes(ctx: RouteContext): Promise<unknown> {
     if (!(await consumeRateLimit(res, rateLimitStore, rateLimitSubject('ip', address), 'ride_join_ip'))) return;
     const result = await rideStore.joinRide(body.code, actorId);
     if (!result.ok) {
+      // A removed rider gets the same answer as a wrong code: nothing to retry.
       const status = result.reason === 'ride_full' ? 409 : 404;
+      if (result.reason === 'removed_by_host') return sendJson(res, 404, { error: 'invalid_or_expired' });
       return sendJson(res, status, { error: result.reason });
     }
     recordMilestone(adminStatsStore, actorId, 'ride');
@@ -85,6 +87,9 @@ export async function handleLiveRoutes(ctx: RouteContext): Promise<unknown> {
     });
   }
   if (req.method === 'DELETE' && url.pathname === '/presence') {
+    // Shares the presence budget: going offline and back on is otherwise a
+    // way to re-probe who is in range faster than the fix rate allows.
+    if (!(await consumeRateLimit(res, rateLimitStore, rateLimitSubject('rider', actorId), 'presence'))) return;
     await presenceStore.removeRider(actorId);
     return sendJson(res, 200, {});
   }
