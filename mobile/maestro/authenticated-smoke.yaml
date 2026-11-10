@@ -60,6 +60,9 @@ appId: com.ridercomms.app
 - tapOn: "Settings(,.*)?"
 - takeScreenshot: authenticated-settings
 # Settings is a real settings list: open one of its pages and come back.
+- scrollUntilVisible:
+    element: "Signed-in devices(,.*)?"
+    direction: DOWN
 - tapOn: "Signed-in devices(,.*)?"
 - takeScreenshot: authenticated-devices
 # The profile and the plan each have one home in the menu. Back out to the
