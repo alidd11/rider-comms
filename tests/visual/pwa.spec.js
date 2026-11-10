@@ -3320,7 +3320,7 @@ test('PWA signup requires agreeing to the Terms and sends the agreement', async 
   await page.locator('#signupEmail').fill('new@example.com');
   await page.locator('#signupPassword').fill('correct-horse');
   await page.locator('#signupSubmit').click();
-  await expect(page.locator('#signupError')).toHaveText('Agree to the Terms of Service and Community Guidelines to create an account.');
+  await expect(page.locator('#signupError')).toHaveText('Confirm you’re 16 or older and agree to the Terms of Service and Community Guidelines to create an account.');
   expect(signup).toBeNull();
   await page.locator('#signupTerms').check();
   await page.locator('#signupSubmit').click();

@@ -105,7 +105,7 @@ function authErrorMessage(error: unknown): string {
     invalid_token: 'That reset code is invalid or has already been used.',
     expired_token: 'That reset code has expired. Request a new one.',
     rate_limited: 'Too many attempts. Wait a moment and try again.',
-    terms_not_accepted: 'Agree to the Terms of Service and Community Guidelines to create an account.',
+    terms_not_accepted: 'Confirm you’re 16 or older and agree to the Terms of Service and Community Guidelines to create an account.',
     objectionable_username: 'That username isn’t allowed. Choose another.',
   };
   return code ? messages[code] ?? 'The account request could not be completed.' : 'The account request could not be completed.';
@@ -158,7 +158,7 @@ function AuthScreen({ onAuthenticated, restoreError, onRetryRestore }: {
       return;
     }
     if (isSignup && !agreedToTerms) {
-      setError('Agree to the Terms of Service and Community Guidelines to create an account.');
+      setError('Confirm you’re 16 or older and agree to the Terms of Service and Community Guidelines to create an account.');
       return;
     }
 
@@ -337,7 +337,7 @@ function AuthScreen({ onAuthenticated, restoreError, onRetryRestore }: {
                     <Pressable
                       accessibilityRole="checkbox"
                       accessibilityState={{ checked: agreedToTerms }}
-                      accessibilityLabel="I agree to the Terms of Service and Community Guidelines"
+                      accessibilityLabel="I’m 16 or older and agree to the Terms of Service and Community Guidelines"
                       onPress={() => setAgreedToTerms((value) => !value)}
                       style={styles.termsCheckbox}
                     >
@@ -346,7 +346,7 @@ function AuthScreen({ onAuthenticated, restoreError, onRetryRestore }: {
                       </View>
                     </Pressable>
                     <Text style={styles.termsText}>
-                      I agree to the{' '}
+                      I’m 16 or older and agree to the{' '}
                       <Text accessibilityRole="link" style={styles.termsLink} onPress={() => void Linking.openURL(LEGAL_LINKS.terms)}>Terms of Service</Text>
                       {' '}and{' '}
                       <Text accessibilityRole="link" style={styles.termsLink} onPress={() => void Linking.openURL(LEGAL_LINKS.guidelines)}>Community Guidelines</Text>

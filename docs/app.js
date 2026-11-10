@@ -6682,7 +6682,7 @@
     rate_limited: 'Too many attempts — please wait a moment and try again.',
     network_error: 'Could not reach Rider Comms. Check your connection and try again.',
     timed_out: 'The request timed out. Please try again.',
-    terms_not_accepted: 'Agree to the Terms of Service and Community Guidelines to create an account.',
+    terms_not_accepted: 'Confirm you’re 16 or older and agree to the Terms of Service and Community Guidelines to create an account.',
     objectionable_username: 'That username isn’t allowed. Choose another.',
   };
 
