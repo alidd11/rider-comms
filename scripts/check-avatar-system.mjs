@@ -60,12 +60,20 @@ for (const id of ids) {
 
 const sharedGeometry = [
   'M24 56h16L32 70 24 56Z',
-  'M9 32c1 16 9 25 23 29 14-4 22-13 23-29l-8 13-15 8-15-8-8-13Z',
-  'M10 27c5-6 39-6 44 0l-3 16c-7 5-31 5-38 0l-3-16Z',
-  'M17 16c7-7 19-9 29-4',
-  'M14 25c7-2 10-2 14 0M36 25c4-2 7-2 14 0',
-  'M28 36c0 10 1 20 4 22 3-2 4-12 4-22Z',
-  'M14 20h4v10h-4ZM46 20h4v10h-4ZM14 36h4v10h-4ZM46 36h4v10h-4Z',
+  'M14 46C11 40 10.5 33 12 27C14.5 17 23 11 33 11C43 11 51 16 54 25L56.5 35C57.2 38.5 56 42 53 44.5L47 48.5C44.5 50 41.5 49.6 39.5 47.5C37 45 33 43.6 29 44.2L20 46C18 46.4 15.5 46.8 14 46Z',
+  'M32.5 21.5C40 19.2 48 19.6 53.6 22.6L55.6 31.2C49 33.2 40.5 33.3 34.5 31.2C31.4 28.6 31 24.2 32.5 21.5Z',
+  'M14 46C16 44 22 42.5 29 42.3C33.5 42.2 37 43.5 39.5 45.7V47.5C37 45 33 43.6 29 44.2L20 46C18 46.4 15.5 46.8 14 46ZM12.5 27.5C10.4 26.4 9 24.6 9.2 22.4L13.8 21.2C14.2 23.4 13.7 25.6 12.5 27.5Z',
+  'M46.5 38.2L53.2 36.6M46.4 41.6L51.6 40.2M13.2 35.6L31.6 31.4',
+  'M18.5 19C22 15.2 27 13.2 33 13.2',
+  'M35 24C41 22.4 47.5 22.8 52.5 25',
+  'translate(8.5 15) scale(.42)',
+  'GROUND_Y = 49.5',
+  'REAR_WHEEL_X = 19',
+  'FRONT_WHEEL_X = 45',
+  'mixColour(preset.bg, \'#0B1419\', 0.78)',
+  'mixColour(preset.bg, \'#FFFFFF\', 0.38)',
+  '#7FA9B8',
+  'preset.wheelRadius',
 ];
 
 for (const geometry of sharedGeometry) {
@@ -136,6 +144,10 @@ for (const [id, bg] of Object.entries({
 })) {
   const preset = nativeCatalogue.find((entry) => entry.id === id);
   assert.equal(preset?.bg, bg, `existing helmet ${id} base colour must remain backwards-compatible`);
+}
+
+for (const preset of nativeCatalogue.filter((entry) => entry.family !== 'helmet')) {
+  assert.ok(preset.bodyPath, `${preset.id} needs side-on body artwork`);
 }
 
 console.log('Rider avatar parity valid: 32 deterministic helmet/motorbike/car identities share picker, navigation/map states and persistence rules');

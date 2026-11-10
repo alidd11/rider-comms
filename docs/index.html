@@ -23,12 +23,14 @@
   <title>Rider Comms</title>
 </head>
 <body>
+  <div class="status-bar-backdrop" aria-hidden="true"></div>
   <svg class="svg-defs" aria-hidden="true"><defs>
     <symbol id="i-map" viewBox="0 0 24 24"><path d="m3.5 6.5 5-2.5 7 2.5 5-2.5v13.5l-5 2.5-7-2.5-5 2.5zM8.5 4v13.5m7-11V20"/></symbol>
     <symbol id="i-ride" viewBox="0 0 24 24"><path d="M16 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM8 12a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm8 1c-3 0-5 1.7-5 4v2h10v-2c0-2.3-2-4-5-4ZM8 14c-3 0-5 1.5-5 3.8V19h6"/></symbol>
     <symbol id="i-bike" viewBox="0 0 24 24"><circle cx="6.5" cy="17" r="3.5"/><circle cx="17.5" cy="17" r="3.5"/><path d="M10 17h4.5l2.2-6H12l-2 3H6.5M11 8.5h3M14 8.5l2.7 2.5M8.5 10.5h2.2"/></symbol>
     <symbol id="i-users" viewBox="0 0 24 24"><circle cx="8" cy="8" r="3"/><circle cx="16.5" cy="9" r="2.5"/><path d="M2.5 20v-1.2C2.5 15.9 4.7 14 8 14s5.5 1.9 5.5 4.8V20M14 14.5c3.6-.5 6 1.2 6 4.1V20"/></symbol>
     <symbol id="i-friends" viewBox="0 0 24 24"><path d="M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm0 2c-4 0-7 2-7 5v2h10M18 8v8m-4-4h8"/></symbol>
+    <symbol id="i-phone" viewBox="0 0 24 24"><rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M11 18h2"/></symbol>
     <symbol id="i-settings" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2Z"/><circle cx="12" cy="12" r="3"/></symbol>
     <symbol id="i-location" viewBox="0 0 24 24"><path d="M12 21s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12Z"/><circle cx="12" cy="9" r="2.5"/></symbol>
     <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
@@ -325,7 +327,6 @@
 
       <section class="screen content-screen" data-screen="settings" aria-labelledby="settingsTitle">
         <div class="page-width settings-page"><header class="page-header"><button class="icon-button page-back" type="button" data-back-to-map aria-label="Back to map"><svg class="icon-back"><use href="#i-chevron"/></svg></button><div><h1 id="settingsTitle">Settings</h1></div></header>
-          <button id="editProfileBtn" class="profile-row settings-profile-row" type="button" aria-label="Open profile settings"><div class="avatar avatar-lg" data-avatar="AI">AI</div><div class="profile-copy"><strong id="profileName"></strong><span id="profileHandle"></span></div><svg aria-hidden="true"><use href="#i-chevron"/></svg></button>
           <div class="settings-group settings-main-group">
             <button data-sheet="accountHub"><span class="setting-icon"><svg><use href="#i-user"/></svg></span><span><strong>Account</strong></span><svg><use href="#i-chevron"/></svg></button>
             <button data-sheet="communication"><span class="setting-icon"><svg><use href="#i-message"/></svg></span><span><strong>Communication</strong></span><svg><use href="#i-chevron"/></svg></button>
@@ -333,7 +334,6 @@
             <button data-sheet="unitsPreferences"><span class="setting-icon"><svg><use href="#i-apps"/></svg></span><span><strong>Units &amp; Preferences</strong></span><svg><use href="#i-chevron"/></svg></button>
           </div>
           <div class="settings-group settings-secondary-group">
-            <button data-sheet="help"><span class="setting-icon"><svg><use href="#i-help"/></svg></span><span><strong>Help &amp; Support</strong></span><svg><use href="#i-chevron"/></svg></button>
             <button data-sheet="about"><span class="setting-icon"><svg><use href="#i-info"/></svg></span><span><strong>About</strong></span><svg><use href="#i-chevron"/></svg></button>
           </div>
           <div class="settings-group settings-signout"><button id="logoutBtn"><span class="setting-icon danger-text"><svg><use href="#i-logout"/></svg></span><span><strong class="danger-text">Sign Out</strong></span></button></div>

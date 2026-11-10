@@ -245,6 +245,20 @@ async function openFromMenu(page, screen) {
   await expect(page.locator('#appMenu')).toBeHidden();
 }
 
+// View profile in the avatar menu opens your profile page; Edit profile is a
+// page of its own behind it.
+async function openOwnProfile(page, { edit = false } = {}) {
+  await page.locator('.bottom-nav [data-nav="map"]').click();
+  await page.locator('#mapAvatarButton').click();
+  await expect(page.locator('#appMenu')).toBeVisible();
+  await page.locator('#appMenuViewProfile').click();
+  await expect(page.locator('#sheetTitle')).toHaveText('Profile');
+  if (edit) {
+    await page.locator('#editProfileFromView').click();
+    await expect(page.locator('#sheetTitle')).toHaveText('Edit profile');
+  }
+}
+
 function expectNear(actual, expected, tolerance = 1.5) {
   expect(Math.abs(actual - expected)).toBeLessThanOrEqual(tolerance);
 }
@@ -1030,24 +1044,29 @@ test('PWA utility viewport paints safe areas as one edge-to-edge canvas', async 
 
   const viewport = await page.locator('[data-screen="settings"]').evaluate((screen) => {
     const screenStyle = getComputedStyle(screen);
-    const shieldStyle = getComputedStyle(screen, '::before');
     const navStyle = getComputedStyle(document.querySelector('.bottom-nav'));
+    // iOS 26 blurs the top of a Home Screen app unless a solid fixed box
+    // covers the edge. That box exists only in the installed iOS app
+    // (display-mode: standalone), which Playwright can't emulate, so check
+    // the element and its rule rather than its computed style.
+    const readRules = (sheet) => { try { return [...sheet.cssRules].map((rule) => rule.cssText); } catch { return []; } };
+    const backdropRule = [...document.styleSheets].flatMap(readRules).find((text) => text.includes('display-mode: standalone') && text.includes('.status-bar-backdrop'));
     return {
       screenBackground: screenStyle.backgroundImage,
-      shieldBackground: shieldStyle.backgroundImage,
-      screenBackgroundColor: screenStyle.backgroundColor,
-      shieldBackgroundColor: shieldStyle.backgroundColor,
-      shieldHeight: shieldStyle.height,
+      backdropInBody: document.querySelector('body > .status-bar-backdrop')?.getAttribute('aria-hidden'),
+      backdropHiddenInTab: getComputedStyle(document.querySelector('.status-bar-backdrop')).display,
+      backdropRule: backdropRule || '',
       paddingTop: screenStyle.paddingTop,
       paddingLeft: screenStyle.paddingLeft,
       navPaddingLeft: navStyle.paddingLeft,
     };
   });
 
-  expect(viewport.shieldHeight).toBe('59px');
   expect(viewport.screenBackground).toBe('none');
-  expect(viewport.shieldBackground).toBe('none');
-  expect(viewport.shieldBackgroundColor).toBe(viewport.screenBackgroundColor);
+  expect(viewport.backdropInBody).toBe('true');
+  expect(viewport.backdropHiddenInTab).toBe('none');
+  expect(viewport.backdropRule).toContain('calc(var(--safe-top) + 6px)');
+  expect(viewport.backdropRule).toContain('var(--system-chrome)');
   expect(parseFloat(viewport.paddingTop)).toBeGreaterThan(59);
   expect(parseFloat(viewport.paddingLeft)).toBeGreaterThanOrEqual(47);
   expect(parseFloat(viewport.navPaddingLeft)).toBeGreaterThanOrEqual(47);
@@ -2194,24 +2213,19 @@ test('PWA Settings matches the approved shallow mockup hierarchy', async ({ page
 
   await expect(page.locator('.settings-page .group-title')).toHaveCount(0);
   await expect(page.locator('.settings-main-group > button')).toHaveCount(4);
-  await expect(page.locator('.settings-secondary-group > button')).toHaveCount(2);
+  await expect(page.locator('.settings-secondary-group > button')).toHaveCount(1);
   await expect(page.locator('.settings-main-group')).toContainText('Account');
   await expect(page.locator('.settings-main-group')).toContainText('Communication');
   await expect(page.locator('.settings-main-group')).toContainText('Map & Navigation');
   await expect(page.locator('.settings-main-group')).not.toContainText('Offline Maps');
   await expect(page.locator('.settings-main-group')).toContainText('Units & Preferences');
-  await expect(page.locator('.settings-secondary-group')).toContainText('Help & Support');
+  // Help & Support and the profile live in the avatar menu only: nothing on
+  // the Settings root repeats them.
+  await expect(page.locator('.settings-page')).not.toContainText('Help & Support');
+  await expect(page.locator('.settings-profile-row')).toHaveCount(0);
   await expect(page.locator('.settings-secondary-group')).toContainText('About');
   await expect(page.locator('#logoutBtn')).toHaveText('Sign Out');
   await expect(page.locator('#logoutBtn > svg')).toHaveCount(0);
-
-  const profile = await page.locator('.settings-profile-row').evaluate((element) => {
-    const style = getComputedStyle(element);
-    return { height: element.getBoundingClientRect().height, radius: parseFloat(style.borderTopLeftRadius) };
-  });
-  expect(profile.height).toBeGreaterThanOrEqual(96);
-  expect(profile.height).toBeLessThanOrEqual(108);
-  expect(profile.radius).toBeGreaterThanOrEqual(7);
 
   await page.locator('[data-sheet="about"]').click();
   await expect(page.locator('#sheetTitle')).toHaveText('About');
@@ -2284,9 +2298,19 @@ test('PWA plan screen shows every plan and sends buying to the mobile app', asyn
   });
   await page.goto('/#settings');
 
-  // The plan is a section of the Account page (and "Your plan" in the menu).
+  // The plan has exactly one home: "Your plan" in the avatar menu. Account
+  // settings no longer repeat it.
   await page.locator('[data-sheet="accountHub"]').click();
   await expect(page.locator('#sheetTitle')).toHaveText('Account');
+  await expect(page.locator('[data-settings-section="plans"]')).toHaveCount(0);
+  await expect(page.locator('#sheetBody .plan-card')).toHaveCount(0);
+  await page.locator('#closeSheet').click();
+
+  await page.locator('.bottom-nav [data-nav="map"]').click();
+  await page.locator('#mapAvatarButton').click();
+  await expect(page.locator('#appMenuPlan')).toHaveText('Premium');
+  await page.locator('[data-menu-sheet="plans"]').click();
+  await expect(page.locator('#sheetTitle')).toHaveText('Your plan');
   const planSection = page.locator('[data-settings-section="plans"]');
   await expect(planSection).toBeVisible();
   await expect(page.locator('.plan-card')).toHaveCount(3);
@@ -2300,15 +2324,6 @@ test('PWA plan screen shows every plan and sends buying to the mobile app', asyn
   await expect(planSection).toContainText('App Store or Google Play subscription settings');
   await expect(planSection.locator('button')).toHaveCount(0);
   await expect(planSection.locator('a')).toHaveCount(0);
-  await page.locator('#closeSheet').click();
-
-  // The menu's "Your plan" opens the same section.
-  await page.locator('.bottom-nav [data-nav="map"]').click();
-  await page.locator('#mapAvatarButton').click();
-  await expect(page.locator('#appMenuPlan')).toHaveText('Premium');
-  await page.locator('[data-menu-sheet="plans"]').click();
-  await expect(page.locator('#sheetTitle')).toHaveText('Account');
-  await expect(planSection).toBeVisible();
   expect(updates).toEqual([]);
 });
 
@@ -2938,6 +2953,42 @@ test('@viewport PWA chat stays pinned to the visible viewport when the keyboard 
   expectNear(restoredNavBox.y + restoredNavBox.height, baselineNavBox.y + baselineNavBox.height);
 });
 
+test('PWA View profile is your profile, separate from editing it and from Account settings', async ({ page }) => {
+  await mockAuthenticatedApi(page);
+  await page.goto('/');
+  await openOwnProfile(page);
+
+  const body = page.locator('#sheetBody');
+  await expect(page.locator('.my-profile-card')).toContainText(PROFILE.displayName);
+  await expect(page.locator('.my-profile-card .rider-avatar-svg')).toBeVisible();
+  await expect(body).toContainText('Connected profiles');
+  // Nothing from other pages is repeated here.
+  for (const absent of ['Signed-in devices', 'Delete account', 'Reset settings', 'Choose your Nearby range']) {
+    await expect(body).not.toContainText(absent);
+  }
+  await expect(body.locator('input, select')).toHaveCount(0);
+
+  await page.locator('#editProfileFromView').click();
+  await expect(page.locator('#sheetTitle')).toHaveText('Edit profile');
+  await expect(page.locator('#editName')).toHaveValue(PROFILE.displayName);
+  await expect(page.locator('#sheetInstagramVisibility')).toBeVisible();
+  await expect(body).not.toContainText('Signed-in devices');
+  // Back from Edit profile returns to the profile, not the map.
+  await page.locator('#closeSheet').click();
+  await expect(page.locator('#sheetTitle')).toHaveText('Profile');
+  await page.locator('#closeSheet').click();
+  await expect(page.locator('#sheetBackdrop')).toBeHidden();
+
+  // Account settings: sign-in, devices and data only.
+  await openFromMenu(page, 'settings');
+  await page.locator('[data-sheet="accountHub"]').click();
+  await expect(page.locator('#sheetTitle')).toHaveText('Account');
+  await expect(body).toContainText('Signed-in devices');
+  await expect(body).toContainText('Delete account');
+  await expect(page.locator('#editName')).toHaveCount(0);
+  await expect(page.locator('.plan-card')).toHaveCount(0);
+});
+
 test('PWA profile avatar families persist and render the selected identity', async ({ page }) => {
   let savedAvatar = 'ember';
   await mockAuthenticatedApi(page, 'stationary', async ({ request, url }) => {
@@ -2949,8 +3000,8 @@ test('PWA profile avatar families persist and render the selected identity', asy
     return null;
   });
 
-  await page.goto('/#settings');
-  await page.locator('#editProfileBtn').click();
+  await page.goto('/');
+  await openOwnProfile(page, { edit: true });
   await expect(page.locator('[data-avatar-family-tab="helmet"]')).toHaveAttribute('aria-selected', 'true');
   await expect(page.locator('[data-avatar-option="ember"]')).toHaveAttribute('aria-checked', 'true');
 
@@ -3120,8 +3171,9 @@ test('@viewport full-screen overlays and sheets share the stable standalone bott
     expectNear(restoredNav.y + restoredNav.height, baselineNavBottom);
   };
 
-  await page.locator('#editProfileBtn').click();
-  await assertSheet('edit-profile-sheet');
+  await openOwnProfile(page);
+  await assertSheet('profile-page');
+  await openFromMenu(page, 'settings');
 
   // Settings options are full-screen pages; they share the same edge.
   await page.locator('[data-sheet="mapNavigation"]').click();
@@ -3271,8 +3323,14 @@ test('PWA screens have no automatically detectable accessibility violations', as
     await expectNoAxeViolations(page, screen);
   }
   await page.locator('[data-sheet="accountHub"]').click();
-  await expect(page.locator('[data-settings-section="profile"]')).toBeVisible();
+  await expect(page.locator('[data-settings-section="sessions"]')).toBeVisible();
   await expectNoAxeViolations(page, 'settings-account-page');
+  await page.locator('#closeSheet').click();
+  await openOwnProfile(page, { edit: true });
+  await expect(page.locator('[data-settings-section="profile"]')).toBeVisible();
+  await expectNoAxeViolations(page, 'edit-profile-page');
+  await page.locator('#closeSheet').click();
+  await expectNoAxeViolations(page, 'profile-page');
   await page.locator('#closeSheet').click();
   await page.locator('.bottom-nav [data-nav="map"]').click();
   await page.locator('#mapAvatarButton').click();

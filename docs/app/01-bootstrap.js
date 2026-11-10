@@ -203,7 +203,7 @@
       : statusOverride || (current
         ? (state.profile.shareLocation || state.activeRide?.shareRideLocation ? 'online' : 'none')
         : 'online');
-    const svg = riderAvatarSvg(person.avatarId, { selected: current, mapMarker: !navigationMode, status });
+    const svg = riderAvatarSvg(person.avatarId, { selected: current, mapMarker: !navigationMode, status, standalone: true });
     const width = sizeOverride ?? (current ? 44 : 40);
     const height = navigationMode ? width : width * (72 / 64);
     return {
