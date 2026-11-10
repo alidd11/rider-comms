@@ -388,7 +388,11 @@
       const row = $('[data-settings-open="blockedRiders"]');
       if (!row) return;
       if (!blockedCount) { row.querySelector('.settings-row-value')?.remove(); return; }
-      if (!row.querySelector('.settings-row-value')) row.querySelector('.settings-row-chevron').insertAdjacentHTML('beforebegin', '<span class="settings-row-value"></span>');
+      if (!row.querySelector('.settings-row-value')) {
+        const value = document.createElement('span');
+        value.className = 'settings-row-value';
+        row.querySelector('.settings-row-chevron').before(value);
+      }
       row.querySelector('.settings-row-value').textContent = String(blockedCount);
     };
     show();
