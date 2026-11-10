@@ -53,3 +53,16 @@ Before a route image is admitted or replaced:
 ## Operational limitation
 
 Route-card photography is now shipped as controlled Rider Comms assets for both native and PWA clients. The larger route-overview hero remains Wikimedia-hosted during prototype validation and is loaded only after a rider opens a route. Before a production store release, move those larger hero assets to controlled hosting as well, retain this register and complete another source/licence review.
+
+## Brand photography (sign-in and Ride screens)
+
+Two photographs outside the route catalogue are bundled with the native apps (`mobile/assets/hero/`) and were previously hot-linked by the PWA. Both came from Unsplash (found in the history before #412, which bundled them) and are covered by the [Unsplash License](https://unsplash.com/license): free commercial use and modification, no attribution required, but they may not be sold unaltered or used to build a competing photo service.
+
+| Asset | Used on | Unsplash photo ID | Source |
+| --- | --- | --- | --- |
+| `mobile/assets/hero/auth.jpg` | Sign-in screen | `photo-1552306062-29a5560e1c31` | [images.unsplash.com](https://images.unsplash.com/photo-1552306062-29a5560e1c31) |
+| `mobile/assets/hero/ride.jpg` | Ride tab | `photo-1770614956862-a143fb5e4921` | [images.unsplash.com](https://images.unsplash.com/photo-1770614956862-a143fb5e4921) |
+
+Before release, open each photo's Unsplash page, confirm it is a standard (not Unsplash+) photo and record the photographer here. Unsplash doesn't require credit, but keeping it makes a takedown or licence question easy to answer.
+
+The Inter typeface in `docs/fonts/` is under the SIL Open Font License (`docs/fonts/Inter-LICENSE.txt`).
