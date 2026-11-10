@@ -636,6 +636,22 @@ describe('authenticated API', () => {
     assert.equal((await res.json() as { radiusMiles: number }).radiusMiles, 1);
   });
 
+  it('never tells a rider how far away a nearby rider is', needsDb, async () => {
+    await ctx.profileStore.update('distance-target', { shareLocation: true });
+    await ctx.profileStore.update('distance-prober', { shareLocation: true });
+    const recordedAt = Date.now() - 5_000;
+    assert.equal((await postJson(ctx, 'distance-target', '/presence', { lat: 40.4, lon: -3.7, accuracyMeters: 8, recordedAt })).status, 200);
+    // Away from the other tests' riders (London), so only the target is near.
+    const res = await postJson(ctx, 'distance-prober', '/presence', { lat: 40.405, lon: -3.7, accuracyMeters: 8, recordedAt: recordedAt + 1_000 });
+    assert.equal(res.status, 200);
+    const raw = await res.text();
+    const body = JSON.parse(raw) as { inZoneWith: string[]; transitions: Array<Record<string, unknown>> };
+    assert.deepEqual(body.inZoneWith, ['distance-target']);
+    assert.equal(body.transitions.length, 1);
+    assert.deepEqual(Object.keys(body.transitions[0]).sort(), ['a', 'b', 'type']);
+    assert.doesNotMatch(raw, /distanceMiles/);
+  });
+
   it('judges fix freshness by the device-measured age, so phone clock skew does not reject a fresh fix', needsDb, async () => {
     await ctx.profileStore.update('skewed', { shareLocation: true });
     const fix = { lat: 51.5, lon: -0.1, accuracyMeters: 8 };

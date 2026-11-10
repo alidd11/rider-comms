@@ -244,7 +244,7 @@ export class PresenceStore {
            RETURNING rider_a`,
           [pair.a, pair.b]
         );
-        if (removed.rowCount === 1) transitions.push({ ...pair, type: 'left' });
+        if (removed.rowCount === 1) transitions.push({ a: pair.a, b: pair.b, type: 'left' });
       }
 
       // Only pairs that are new need a write. Re-inserting every existing
@@ -262,7 +262,10 @@ export class PresenceStore {
            RETURNING rider_a`,
           [pair.a, pair.b, rider.updatedAt]
         );
-        if (inserted.rowCount === 1) transitions.push({ ...pair, type: 'entered' });
+        // Only the pair and the event: a ZonePair also carries the exact
+        // distance, which must never reach a client (three distances from
+        // three positions pinpoint the other rider).
+        if (inserted.rowCount === 1) transitions.push({ a: pair.a, b: pair.b, type: 'entered' });
       }
 
       await client.query('COMMIT');
