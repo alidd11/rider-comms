@@ -16,15 +16,25 @@
     blockedRiders: { title: 'Blocked riders', sections: [['', 'blocked']] },
     email: { title: 'Email', sections: [['', 'emailStatus']] },
     devices: { title: 'Signed-in devices', sections: [['', 'sessions']] },
-    help: { title: 'Help & Support', sections: [['Riding safely', 'safetyGuidance'], ['Privacy, safety & terms', 'legal']] },
+    help: { title: 'Help & Support', sections: [['', 'helpContact'], ['Common questions', 'faq'], ['Riding safely', 'safetyGuidance'], ['Legal', 'legalLinks']] },
     about: { title: 'About', sections: [['', 'aboutCard']] },
   };
   const SETTINGS_PAGE_FOR_SECTION = {
     profile: 'editProfile', profileView: 'myProfile', plans: 'plan',
     navigation: 'navigationApp', units: 'distanceUnits', blocked: 'blockedRiders',
-    emailStatus: 'email', sessions: 'devices', legal: 'help',
+    emailStatus: 'email', sessions: 'devices', legal: 'help', faq: 'help',
   };
   let currentSettingsPage = null;
+  // Help & Support's common questions. The native Help page has the same
+  // list (scripts/check-client-parity.mjs keeps them equal).
+  const HELP_FAQ = [
+    ['I can’t sign in', 'Use Forgot password? on the sign-in screen. We’ll email a reset link and code to the address on your account.'],
+    ['I didn’t get the verification email', 'Check your spam folder, then open Settings → Email and send a new one.'],
+    ['Voice isn’t connecting', 'Check that Rider Comms can use your microphone and that you have a data connection. Your map and ride keep working while voice reconnects.'],
+    ['My location isn’t showing', 'Location is only shared when you turn it on: Go live for Nearby, or the location switch in a group ride. Check that location access is allowed for Rider Comms.'],
+    ['Someone is bothering me', 'Report and block them from their profile, a chat, the ride roster or a friend request. Reports are reviewed within 24 hours.'],
+    ['How do I delete my account?', 'Settings → Delete account. It permanently deletes your account and its data straight away.'],
+  ];
 
   function openSheet(type) {
     const templates = {
@@ -51,15 +61,21 @@
         title: 'About',
         body: `<div class="settings-about-card"><strong>Rider Comms</strong><span>Version 0.3.0 · PWA</span><span>Signed in as ${escapeHtml(state.profile.displayName)} (${escapeHtml(state.profile.handle)})</span></div>`,
       }),
-      legal: () => ({
-        title: 'Privacy, safety & terms',
-        body: `<div class="settings-legal-list">
-          <section><strong>Your privacy</strong><p>Your sign-in is kept in this browser. Location is shared only when you choose: going live on Nearby, or switching it on for a group ride. Voice is carried live and never recorded. You can delete your account and its data at any time in Settings.</p></section>
-          <section><strong>Your choices</strong><p>Location sharing starts off. Instagram and TikTok usernames each have Public, Friends only or Private visibility.</p></section>
-          <section><strong>Rider safety and conduct</strong><p>Harassment, hate, sexual content, threats, stalking, spam and impersonation aren’t allowed. Report or block a rider from their profile or a chat. Reports are reviewed within 24 hours.</p></section>
-          <section><strong>Riding safety</strong><p>Don’t look at or touch your phone while moving. Stop somewhere safe first.</p></section>
-          <section class="settings-legal-links"><a href="privacy.html" target="_blank" rel="noopener">Privacy Policy</a><a href="terms.html" target="_blank" rel="noopener">Terms of Service</a><a href="guidelines.html" target="_blank" rel="noopener">Community Guidelines</a><a href="support.html" target="_blank" rel="noopener">Contact support</a></section>
-        </div>`,
+      helpContact: () => ({
+        title: 'Contact support',
+        body: `<a class="button primary wide help-contact" href="support.html" target="_blank" rel="noopener">${icon('message')}<span>Contact support</span></a><p class="caption help-contact-note">We reply within 2 working days. Safety reports made in the app are reviewed within 24 hours.</p>`,
+      }),
+      faq: () => ({
+        title: 'Common questions',
+        body: `<div class="faq-list">${HELP_FAQ.map(([question, answer]) => `<details class="faq-item"><summary><span>${escapeHtml(question)}</span>${icon('chevron')}</summary><p>${escapeHtml(answer)}</p></details>`).join('')}</div>`,
+      }),
+      legalLinks: () => ({
+        title: 'Legal',
+        body: `<div class="settings-list help-links"><div class="settings-rows">${[
+          ['privacy.html', 'lock', 'Privacy Policy'],
+          ['terms.html', 'info', 'Terms of Service'],
+          ['guidelines.html', 'friends', 'Community Guidelines'],
+        ].map(([href, iconName, label]) => `<a class="settings-row" href="${href}" target="_blank" rel="noopener"><span class="setting-icon">${icon(iconName)}</span><span class="settings-row-label">${label}</span><span class="settings-row-chevron">${icon('chevron')}</span></a>`).join('')}</div></div>`,
       }),
       profileView: () => {
         const plan = PLAN_INFO[planTier(state.profile.zoneTier)];
@@ -126,10 +142,10 @@
           : 'Subscriptions are purchased in the native app. This browser shows your current plan and range.';
         return {
           title: 'Your plan',
-          body: `<p class="billing-intro">Choose your Nearby range. Group rides, voice chat, navigation and road alerts are included on every plan.</p>
+          body: `<div class="plan-summary"><span>You’re on</span><strong>${escapeHtml(PLAN_INFO[currentTier].name)}</strong><small>${PLAN_INFO[currentTier].radiusMiles} mi Nearby range${expiryLabel ? ` · ${escapeHtml(expiryLabel)}` : ''}</small></div>
+            <p class="billing-intro">Plans change how far Nearby reaches. Group rides, voice chat, navigation and road alerts are included on every plan.</p>
             <div class="plan-list">${Object.entries(PLAN_INFO).map(([tier, plan]) => `<article class="plan-card${tier === currentTier ? ' current' : ''}" data-plan-tier="${tier}">
-              <div class="plan-top"><span><strong>${escapeHtml(plan.name)}</strong><small class="plan-price">${escapeHtml(plan.price)}</small></span>${tier === currentTier ? '<span class="plan-pill">Current</span>' : ''}</div>
-              ${tier === currentTier && expiryLabel ? `<small class="plan-renewal">${escapeHtml(expiryLabel)}</small>` : ''}
+              <div class="plan-top"><span><strong>${escapeHtml(plan.name)}</strong>${tier === 'free' ? '' : `<small class="plan-price">${escapeHtml(plan.price)}</small>`}</span>${tier === currentTier ? '<span class="plan-pill">Current</span>' : ''}</div>
               <p>${escapeHtml(plan.blurb)}</p>
               <ul class="plan-features">${plan.features.map((feature) => `<li>${icon('plus')}<span>${escapeHtml(feature)}</span></li>`).join('')}</ul>
             </article>`).join('')}</div>
@@ -350,7 +366,7 @@
         link('blockedRiders', 'eye-off', 'Blocked riders'),
       ], 'Nearby riders see you only while you’re live. Group-ride location is chosen inside each ride.'),
       section('Account', [
-        link('email', 'user', 'Email', session?.emailVerified ? 'Verified' : 'Not verified'),
+        link('email', 'mail', 'Email', session?.emailVerified ? 'Verified' : 'Not verified'),
         link('devices', 'phone', 'Signed-in devices'),
         action('resetSettingsBtn', 'reset', 'Reset settings'),
         action('deleteAccountBtn', 'alert', 'Delete account', true),
@@ -361,6 +377,32 @@
     $('#resetSettingsBtn').addEventListener('click', () => void resetSettings());
     $('#deleteAccountBtn').addEventListener('click', () => void deleteCurrentAccount());
     wireToggles(list);
+    void refreshBlockedCount();
+  }
+
+  // Blocked riders shows how many, fetched after the list draws so it never
+  // waits on the network.
+  let blockedCount = null;
+  async function refreshBlockedCount() {
+    const show = () => {
+      const row = $('[data-settings-open="blockedRiders"]');
+      if (!row) return;
+      if (!blockedCount) { row.querySelector('.settings-row-value')?.remove(); return; }
+      if (!row.querySelector('.settings-row-value')) {
+        const value = document.createElement('span');
+        value.className = 'settings-row-value';
+        row.querySelector('.settings-row-chevron').before(value);
+      }
+      row.querySelector('.settings-row-value').textContent = String(blockedCount);
+    };
+    show();
+    try {
+      const { blocked } = await apiFetch('GET', '/blocks');
+      blockedCount = Array.isArray(blocked) ? blocked.length : null;
+      show();
+    } catch {
+      // The row still opens the list; the count is a nicety.
+    }
   }
 
   /** Persists one profile field via PUT /riders/:id/profile immediately —

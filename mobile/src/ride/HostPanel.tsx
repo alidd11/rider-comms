@@ -217,7 +217,8 @@ function RideLocationSharing(): React.JSX.Element {
           value={shareRideLocation}
           onValueChange={() => void toggle()}
           disabled={busy}
-          trackColor={{ false: colors.surfaceRaised, true: colors.accent }}
+          trackColor={{ false: colors.switchTrackOff, true: colors.accent }}
+          ios_backgroundColor={colors.switchTrackOff}
           accessibilityLabel="Share your live location with this ride"
         />
       </View>

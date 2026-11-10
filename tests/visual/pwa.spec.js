@@ -237,8 +237,20 @@ async function standaloneGeometry(page) {
 
 // Routes and Settings live in the menu behind the rider's avatar on the
 // map (Map, Ride and Friends are the tabs).
+// Map, Ride and Friends are tabs. Routes and Settings open from the menu
+// behind the rider's avatar and hide the tabs, so leaving them goes through
+// their back arrow first.
+async function openTab(page, screen) {
+  const tab = page.locator(`.bottom-nav [data-nav="${screen}"]`);
+  if (!(await tab.isVisible())) {
+    await page.locator('.screen.active [data-back-to-map]').click();
+    if (screen === 'map') return;
+  }
+  await tab.click();
+}
+
 async function openFromMenu(page, screen) {
-  await page.locator('.bottom-nav [data-nav="map"]').click();
+  await openTab(page, 'map');
   await page.locator('#mapAvatarButton').click();
   await expect(page.locator('#appMenu')).toBeVisible();
   // The menu is full screen: nothing else (the safety banner included) may
@@ -251,7 +263,7 @@ async function openFromMenu(page, screen) {
 // View profile in the avatar menu opens your profile page; Edit profile is a
 // page of its own behind it.
 async function openOwnProfile(page, { edit = false } = {}) {
-  await page.locator('.bottom-nav [data-nav="map"]').click();
+  await openTab(page, 'map');
   await page.locator('#mapAvatarButton').click();
   await expect(page.locator('#appMenu')).toBeVisible();
   await page.locator('#appMenuViewProfile').click();
@@ -375,7 +387,7 @@ test('ride join baseline matches the approved compact-card hierarchy in day and 
     await page.goto('/');
     await page.evaluate(() => document.documentElement.style.setProperty('--safe-top', '59px'));
     await expect(page.locator('#app')).toBeVisible();
-    await page.locator('.bottom-nav [data-nav="ride"]').click();
+    await openTab(page, 'ride');
     await expect(page.locator('#rideJoinState')).toBeVisible();
     await page.locator('[data-screen="ride"]').evaluate(async (element) => {
       await Promise.all(element.getAnimations().map((animation) => animation.finished));
@@ -523,7 +535,7 @@ test('core PWA screens render without runtime errors or viewport overflow', asyn
 
   for (const [screen, readySelector] of screens) {
     if (screen === 'routes' || screen === 'settings') await openFromMenu(page, screen);
-    else await page.locator(`.bottom-nav [data-nav="${screen}"]`).click();
+    else await openTab(page, screen);
     await expect(page.locator(readySelector)).toBeVisible();
     await assertNoViewportOverflow(page);
     await page.screenshot({
@@ -532,7 +544,7 @@ test('core PWA screens render without runtime errors or viewport overflow', asyn
     });
   }
 
-  await page.locator('.bottom-nav [data-nav="map"]').click();
+  await openTab(page, 'map');
   await page.locator('#mapSearchSlot').click();
   await expect(page.locator('#searchScreen')).toBeVisible();
   await assertNoViewportOverflow(page);
@@ -662,7 +674,7 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
   await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-report-final.png'), fullPage: true });
   await page.locator('#closeSheet').click();
 
-  await page.locator('.bottom-nav [data-nav="ride"]').click();
+  await openTab(page, 'ride');
   await expect(page.locator('.ride-hero')).toBeVisible();
   await page.locator('[data-screen="ride"]').evaluate(async (element) => {
     await Promise.all(element.getAnimations().map((animation) => animation.finished));
@@ -714,7 +726,7 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
   expect(routeCardGeometry.statsHeight).toBeLessThanOrEqual(18);
   await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-routes-final.png'), fullPage: true });
 
-  await page.locator('.bottom-nav [data-nav="friends"]').click();
+  await openTab(page, 'friends');
   await expect(page.locator('#friendList [data-friend]').first()).toBeVisible();
   const friendsGeometry = await page.evaluate(() => {
     const search = document.querySelector('[data-screen="friends"] .search-row');
@@ -928,7 +940,7 @@ test('friend profile exposes only fresh consented private-ride location actions'
   await expect.poll(() => page.locator('#activeRideLocationConsent').isChecked()).toBe(true);
   await expect.poll(() => rideLocationReads).toBeGreaterThan(0);
 
-  await page.locator('.bottom-nav [data-nav="friends"]').click();
+  await openTab(page, 'friends');
   await page.locator('#friendList [data-friend="rider_friend01"]').click();
   await expect(page.locator('.friend-profile-card')).toBeVisible();
   await expect(page.locator('#shareFriendId')).toHaveCount(0);
@@ -1104,7 +1116,7 @@ test('PWA keeps the plain "waiting for a speed fix" notice on the map only', asy
   await openFromMenu(page, 'routes');
   await expect(page.locator('[data-screen="routes"]')).toHaveClass(/active/);
   await expect(page.locator('#movementSafetyBanner')).toBeHidden();
-  await page.locator('.bottom-nav [data-nav="map"]').click();
+  await openTab(page, 'map');
   await expect(page.locator('#movementSafetyBanner')).toBeVisible();
 });
 
@@ -1148,7 +1160,7 @@ test('PWA GPS timeout recovers without another permission request or startup loc
     });
   });
   await expect(page.locator('#movementSafetyBanner')).toBeHidden();
-  await page.locator('.bottom-nav [data-nav="friends"]').click();
+  await openTab(page, 'friends');
   await expect(page.locator('[data-screen="friends"]')).toHaveClass(/active/);
 });
 
@@ -2115,7 +2127,7 @@ test('PWA keeps private-ride speaker identity visible across tabs', async ({ pag
   });
   await page.goto('/');
   await initialRideRestore;
-  await page.locator('.bottom-nav [data-nav="ride"]').click();
+  await openTab(page, 'ride');
   // "Start a ride" sits beside "Join a ride" on the Ride page.
   await expect(page.locator('#createRideBtn')).toBeVisible();
   await page.locator('#createRideBtn').click();
@@ -2127,7 +2139,7 @@ test('PWA keeps private-ride speaker identity visible across tabs', async ({ pag
   await expect(page.locator('#ridePill small')).toHaveText('Maya speaking');
   await expect(page.locator('#ridePill')).toHaveAttribute('aria-label', 'Active ride · Maya speaking');
 
-  await page.locator('.bottom-nav [data-nav="friends"]').click();
+  await openTab(page, 'friends');
   await expect(page.locator('[data-screen="friends"]')).toHaveClass(/active/);
   await expect(page.locator('#ridePill')).toBeVisible();
   await expect(page.locator('#ridePill small')).toHaveText('Maya speaking');
@@ -2281,7 +2293,8 @@ test('PWA settings sheets own the bottom edge without competing with app chrome'
   const banner = page.locator('#movementSafetyBanner');
   const app = page.locator('#app');
   const settingsScreen = page.locator('[data-screen="settings"]');
-  await expect(nav).toBeVisible();
+  // Settings opens from the menu: no Map/Ride/Friends tabs on it.
+  await expect(nav).toBeHidden();
   // Location is blocked in this mock, so the banner shows on Settings too.
   await expect(banner).toBeVisible();
 
@@ -2311,7 +2324,7 @@ test('PWA settings sheets own the bottom edge without competing with app chrome'
   await page.locator('#closeSheet').click();
   await expect(page.locator('html')).not.toHaveClass(/sheet-open/);
   await expect(app).not.toHaveAttribute('inert', '');
-  await expect(nav).toBeVisible();
+  await expect(nav).toBeHidden();
   await expect(banner).toBeVisible();
 });
 
@@ -2332,7 +2345,7 @@ test('PWA plan screen shows every plan and sends buying to the mobile app', asyn
   await expect(page.locator('#settingsList')).not.toContainText('Your plan');
   await expect(page.locator('.plan-card')).toHaveCount(0);
 
-  await page.locator('.bottom-nav [data-nav="map"]').click();
+  await openTab(page, 'map');
   await page.locator('#mapAvatarButton').click();
   await expect(page.locator('#appMenuPlan')).toHaveText('Premium');
   await page.locator('[data-menu-sheet="plans"]').click();
@@ -2341,9 +2354,13 @@ test('PWA plan screen shows every plan and sends buying to the mobile app', asyn
   await expect(planSection).toBeVisible();
   await expect(page.locator('.plan-card')).toHaveCount(3);
   await expect(page.locator('[data-plan-tier="free"]')).toContainText('1 mi Nearby range');
-  await expect(page.locator('[data-plan-tier="premium"]')).toContainText('$4.99 / month');
+  // A summary of the current plan first; "Free" isn't repeated as a price.
+  await expect(page.locator('.plan-summary')).toContainText('Premium');
+  await expect(page.locator('.plan-summary')).toContainText('6 mi Nearby range');
+  await expect(page.locator('[data-plan-tier="free"] .plan-price')).toHaveCount(0);
+  await expect(page.locator('[data-plan-tier="premium"]')).toContainText('£4.99 / month');
   await expect(page.locator('[data-plan-tier="premium_plus"]')).toContainText('20 mi Nearby range');
-  await expect(page.locator('[data-plan-tier="premium_plus"]')).toContainText('$9.99 / month');
+  await expect(page.locator('[data-plan-tier="premium_plus"]')).toContainText('£9.99 / month');
   await expect(page.locator('[data-plan-tier="premium"] .plan-pill')).toHaveText('Current');
   await expect(page.locator('.plan-pill', { hasText: 'Current' })).toHaveCount(1);
   // Nothing is bought, cancelled or changed from the web.
@@ -2351,6 +2368,23 @@ test('PWA plan screen shows every plan and sends buying to the mobile app', asyn
   await expect(planSection.locator('button')).toHaveCount(0);
   await expect(planSection.locator('a')).toHaveCount(0);
   expect(updates).toEqual([]);
+});
+
+test('PWA Help & Support leads with contact, then questions, safety and legal pages', async ({ page }) => {
+  await mockAuthenticatedApi(page);
+  await page.goto('/');
+  await page.locator('#mapAvatarButton').click();
+  await page.locator('[data-menu-sheet="help"]').click();
+  await expect(page.locator('#sheetTitle')).toHaveText('Help & Support');
+  await expect(page.locator('.help-contact')).toHaveAttribute('href', 'support.html');
+  const questions = page.locator('.faq-item');
+  await expect(questions).toHaveCount(6);
+  await expect(questions.first().locator('p')).toBeHidden();
+  await questions.first().locator('summary').click();
+  await expect(questions.first().locator('p')).toBeVisible();
+  await expect(page.locator('.help-links .settings-row')).toHaveText(['Privacy Policy', 'Terms of Service', 'Community Guidelines']);
+  // No browser-only wording on a page the native app mirrors.
+  await expect(page.locator('#sheetBody')).not.toContainText('kept in this browser');
 });
 
 test('PWA navigation preference offers Rider Comms, Google Maps, Waze and Apple Maps', async ({ page }) => {
@@ -3087,7 +3121,7 @@ test('@viewport standalone canvas, navigation and scroll geometry remain coheren
 
   for (const [name, finalSelector] of screens) {
     if (name === 'routes' || name === 'settings') await openFromMenu(page, name);
-    else await page.locator(`.bottom-nav [data-nav="${name}"]`).click();
+    else await openTab(page, name);
     const screen = page.locator(`.screen[data-screen="${name}"]`);
     await expect(screen).toBeVisible();
 
@@ -3117,8 +3151,14 @@ test('@viewport standalone canvas, navigation and scroll geometry remain coheren
       await screen.evaluate((element) => { element.scrollTop = element.scrollHeight; });
       const [finalBox, navBox] = await Promise.all([final.boundingBox(), page.locator('.bottom-nav').boundingBox()]);
       expect(finalBox, `${name} final element has no geometry`).not.toBeNull();
-      expect(navBox).not.toBeNull();
-      expect(finalBox.y + finalBox.height, `${name} final element must clear persistent navigation`).toBeLessThanOrEqual(navBox.y + 1);
+      if (name === 'routes' || name === 'settings') {
+        // Menu pages have no tab bar: their last row clears the screen edge.
+        expect(navBox, `${name} must not show the Map/Ride/Friends tabs`).toBeNull();
+        expect(finalBox.y + finalBox.height, `${name} final element must clear the bottom edge`).toBeLessThanOrEqual(page.viewportSize().height + 1);
+      } else {
+        expect(navBox).not.toBeNull();
+        expect(finalBox.y + finalBox.height, `${name} final element must clear persistent navigation`).toBeLessThanOrEqual(navBox.y + 1);
+      }
     }
     await assertNoViewportOverflow(page);
 
@@ -3127,7 +3167,7 @@ test('@viewport standalone canvas, navigation and scroll geometry remain coheren
     }
   }
 
-  await page.locator('.bottom-nav [data-nav="map"]').click();
+  await openTab(page, 'map');
   const baseline = await standaloneGeometry(page);
   await page.evaluate(() => {
     document.querySelector('#movementSafetyBanner').hidden = false;
@@ -3159,7 +3199,8 @@ test('@viewport full-screen overlays and sheets share the stable standalone bott
   test.setTimeout(90_000);
   await installStandaloneFixture(page);
   await mockAuthenticatedApi(page, 'unknown');
-  await page.goto('/#settings');
+  // The tab bar's resting edge is measured on the map (menu pages hide it).
+  await page.goto('/#map');
   await waitForViewportSettled(page);
   await setSyntheticSafeArea(page, 50);
 
@@ -3190,6 +3231,11 @@ test('@viewport full-screen overlays and sheets share the stable standalone bott
     await page.locator('#closeSheet').click();
     await expect(page.locator('html')).not.toHaveClass(/sheet-open/);
     await expect(app).not.toHaveAttribute('inert', '');
+    const onMenuPage = await page.evaluate(() => ['settings', 'routes'].includes(document.documentElement.dataset.activeScreen));
+    if (onMenuPage) {
+      await expect(nav).toBeHidden();
+      return;
+    }
     await expect(nav).toBeVisible();
     const restoredNav = await nav.boundingBox();
     expectNear(restoredNav.y + restoredNav.height, baselineNavBottom);
@@ -3213,11 +3259,11 @@ test('@viewport full-screen overlays and sheets share the stable standalone bott
   await page.locator('[data-settings-open="navigationApp"]').click();
   await assertSheet('navigation-app-page-repeat');
 
-  await page.locator('.bottom-nav [data-nav="friends"]').click();
+  await openTab(page, 'friends');
   await page.locator('[data-friend="rider_friend01"]').click();
   await assertSheet('friend-detail-sheet');
 
-  await page.locator('.bottom-nav [data-nav="map"]').click();
+  await openTab(page, 'map');
   await page.locator('#movementSafetyBanner').evaluate((element) => { element.hidden = true; });
   await page.locator('#mapSearchSlot').click();
   const searchBox = await page.locator('#searchScreen').boundingBox();
@@ -3341,7 +3387,7 @@ test('PWA screens have no automatically detectable accessibility violations', as
     ['settings', '.settings-page'],
   ]) {
     if (screen === 'routes' || screen === 'settings') await openFromMenu(page, screen);
-    else await page.locator(`.bottom-nav [data-nav="${screen}"]`).click();
+    else await openTab(page, screen);
     await expect(page.locator(readySelector)).toBeVisible();
     await expectNoAxeViolations(page, screen);
   }
@@ -3355,7 +3401,7 @@ test('PWA screens have no automatically detectable accessibility violations', as
   await page.locator('#closeSheet').click();
   await expectNoAxeViolations(page, 'profile-page');
   await page.locator('#closeSheet').click();
-  await page.locator('.bottom-nav [data-nav="map"]').click();
+  await openTab(page, 'map');
   await page.locator('#mapAvatarButton').click();
   await expect(page.locator('#appMenu')).toBeVisible();
   await expectNoAxeViolations(page, 'menu');

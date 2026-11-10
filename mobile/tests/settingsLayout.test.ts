@@ -72,7 +72,12 @@ describe('Settings mockup contract', () => {
     // delivery and offline map downloads.
     assert.ok(!settingsSource.includes("'notifications'"));
     assert.ok(!settingsSource.includes('offlineMaps'));
-    assert.ok(settingsSource.includes("navigation.navigate('Legal')"));
+    // Help & Support: contact first, then common questions, riding safely,
+    // and the legal pages as rows.
+    assert.match(settingsSource, /function HelpPage\(\)[\s\S]*Contact support[\s\S]*title="Common questions"[\s\S]*title="Riding safely"[\s\S]*title="Legal"[\s\S]*title="Privacy Policy"[\s\S]*title="Terms of Service"[\s\S]*title="Community Guidelines"/);
+    assert.match(settingsSource, /accessibilityState=\{\{ expanded: open \}\}/);
+    // Off switches keep a visible track.
+    assert.match(settingsSource, /trackColor=\{\{ false: colors\.switchTrackOff/);
   });
 
   it('matches backend and PWA profile field limits', () => {

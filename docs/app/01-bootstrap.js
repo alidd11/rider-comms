@@ -228,14 +228,14 @@
     },
     premium: {
       name: 'Premium',
-      price: '$4.99 / month',
-      blurb: 'A wider range for group rides that spread out on the highway.',
+      price: '£4.99 / month',
+      blurb: 'A wider range for group rides that spread out on the motorway.',
       radiusMiles: 6,
       features: ['6 mi Nearby range', 'Everything in Free'],
     },
     premium_plus: {
       name: 'Premium+',
-      price: '$9.99 / month',
+      price: '£9.99 / month',
       blurb: 'The widest range, for a convoy that has stretched way out.',
       radiusMiles: 20,
       features: ['20 mi Nearby range', 'Everything in Free'],

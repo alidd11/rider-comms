@@ -4,7 +4,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, MIN_TOUCH_TARGET, radii, spacing, type } from '../theme';
 import { useSettings } from '../settings/SettingsContext';
-import { isPaidTier, planOptions, renewalLabel, type PlanOption } from '../settings/plans';
+import { isPaidTier, PLAN_INFO, planOptions, renewalLabel, type PlanOption } from '../settings/plans';
+import { TIER_RADIUS_MILES } from '@rider-comms/shared';
 import { useBilling } from '../billing/BillingContext';
 import { LEGAL_LINKS } from '../legalLinks';
 import { useMovementSafety } from '../safety/MovementSafetyContext';
@@ -20,13 +21,11 @@ const ACTION_LABEL: Record<PlanOption['action'], string> = {
 
 function PlanCard({
   option,
-  renewal,
   disabled,
   busy,
   onChoose,
 }: {
   option: PlanOption;
-  renewal: string | null;
   disabled: boolean;
   busy: boolean;
   onChoose: () => void;
@@ -38,7 +37,8 @@ function PlanCard({
       <View style={styles.planHeading}>
         <View style={styles.planCopy}>
           <Text style={styles.planName}>{option.info.name}</Text>
-          <Text style={styles.planPrice}>{option.priceLabel}</Text>
+          {/* "Free" is already the plan's name; only paid plans show a price. */}
+          {isPaidTier(option.tier) ? <Text style={styles.planPrice}>{option.priceLabel}</Text> : null}
         </View>
         {current ? (
           <View style={styles.statusBadge}>
@@ -46,7 +46,6 @@ function PlanCard({
           </View>
         ) : null}
       </View>
-      {current && renewal ? <Text style={styles.renewal}>{renewal}</Text> : null}
       <Text style={styles.planBlurb}>{option.info.blurb}</Text>
       <View style={styles.featureList}>
         {option.info.features.map((feature) => (
@@ -121,7 +120,12 @@ function BillingScreenContent({ navigation }: BillingProps): React.JSX.Element {
       </View>
 
       <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + spacing.xl }]} showsVerticalScrollIndicator={false}>
-        <Text style={styles.intro}>Choose your Nearby range. Group rides, voice chat, navigation and road alerts are included on every plan.</Text>
+        <View style={styles.summary} accessibilityLabel={`You're on ${PLAN_INFO[tier].name}, ${TIER_RADIUS_MILES[tier]} mile Nearby range${renewal ? `, ${renewal}` : ''}`}>
+          <Text style={styles.summaryEyebrow}>You’re on</Text>
+          <Text style={styles.summaryName}>{PLAN_INFO[tier].name}</Text>
+          <Text style={styles.summaryDetail}>{TIER_RADIUS_MILES[tier]} mi Nearby range{renewal ? ` · ${renewal}` : ''}</Text>
+        </View>
+        <Text style={styles.intro}>Plans change how far Nearby reaches. Group rides, voice chat, navigation and road alerts are included on every plan.</Text>
 
         {billing.message ? (
           <Pressable accessibilityRole="alert" accessibilityHint="Dismisses the message" onPress={billing.clearMessage} style={styles.message}>
@@ -138,7 +142,6 @@ function BillingScreenContent({ navigation }: BillingProps): React.JSX.Element {
             <PlanCard
               key={option.tier}
               option={option}
-              renewal={renewal}
               disabled={billing.busy !== null || (option.action !== 'manage' && unavailable)}
               busy={billing.busy === 'purchase' && choosing === option.tier}
               onChoose={() => choose(option)}
@@ -192,6 +195,10 @@ const styles = StyleSheet.create({
   headerSpacer: { width: MIN_TOUCH_TARGET },
   scroll: { width: '100%', maxWidth: 720, alignSelf: 'center', padding: spacing.lg },
   intro: { ...type.body, color: colors.textSecondary, marginBottom: spacing.lg },
+  summary: { gap: 2, padding: spacing.md, marginBottom: spacing.md, borderRadius: radii.md, borderWidth: 1, borderColor: colors.accent, backgroundColor: colors.accentSoft },
+  summaryEyebrow: { ...type.caption, color: colors.textSecondary, fontWeight: '700' },
+  summaryName: { ...type.title, color: colors.textPrimary, fontSize: 22, lineHeight: 27 },
+  summaryDetail: { ...type.caption, color: colors.textSecondary },
   message: {
     flexDirection: 'row',
     gap: spacing.sm,
@@ -218,7 +225,6 @@ const styles = StyleSheet.create({
   planPrice: { ...type.body, color: colors.textSecondary, marginTop: 2 },
   statusBadge: { minHeight: 28, justifyContent: 'center', paddingHorizontal: spacing.sm, borderRadius: radii.pill, backgroundColor: colors.accentSoft },
   statusText: { ...type.caption, color: colors.accentText, fontWeight: '800' },
-  renewal: { ...type.caption, color: colors.textSecondary, marginTop: spacing.xs },
   planBlurb: { ...type.body, color: colors.textSecondary, marginTop: spacing.md },
   featureList: { gap: spacing.xs, marginTop: spacing.md },
   featureRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },

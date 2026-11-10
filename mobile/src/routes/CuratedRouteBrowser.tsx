@@ -310,7 +310,7 @@ function CuratedRouteCard({
         <Text style={styles.cardRegion} numberOfLines={1}>{route.region}</Text>
         <View style={styles.cardStats}>
           <View style={styles.cardStatItem}><Ionicons name="navigate-outline" size={11} color={colors.textMuted} /><Text style={styles.cardStat}>{route.distanceMiles} mi</Text></View>
-          <View style={styles.cardStatItem}><Ionicons name="location-outline" size={11} color={colors.textMuted} /><Text style={styles.cardStat}>{route.roadType}</Text></View>
+          <View style={styles.cardStatItem}><Ionicons name="speedometer-outline" size={11} color={colors.textMuted} /><Text style={styles.cardStat}>{route.difficulty[0].toUpperCase() + route.difficulty.slice(1)}</Text></View>
           <View style={styles.cardStatItem}><Ionicons name="time-outline" size={11} color={colors.textMuted} /><Text style={styles.cardStat}>{route.estimatedDurationMinutes} min</Text></View>
         </View>
       </View>
