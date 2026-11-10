@@ -203,7 +203,7 @@
       : statusOverride || (current
         ? (state.profile.shareLocation || state.activeRide?.shareRideLocation ? 'online' : 'none')
         : 'online');
-    const svg = riderAvatarSvg(person.avatarId, { selected: current, mapMarker: !navigationMode, status });
+    const svg = riderAvatarSvg(person.avatarId, { selected: current, mapMarker: !navigationMode, status, standalone: true });
     const width = sizeOverride ?? (current ? 44 : 40);
     const height = navigationMode ? width : width * (72 / 64);
     return {
@@ -644,10 +644,17 @@
 
   async function selectProfileAvatar(avatarId) {
     if (!AVATAR_PRESET_BY_ID[avatarId] || avatarId === state.profile.avatarId) return;
+    // Re-rendering the page must not drop anything typed but not yet saved.
+    const draftIds = ['editName', 'editHandle', 'editInstagram', 'editTiktok', 'sheetInstagramVisibility', 'sheetTiktokVisibility'];
+    const drafts = Object.fromEntries(draftIds.map((id) => [id, document.getElementById(id)?.value]));
     const saved = await patchProfile({ avatarId });
     if (!saved) return;
     showToast('Avatar updated.');
     openSheet('profile');
+    for (const [id, value] of Object.entries(drafts)) {
+      const field = document.getElementById(id);
+      if (field && value !== undefined) field.value = value;
+    }
   }
 
   function icon(name) {
@@ -743,8 +750,6 @@
   });
 
   function renderProfile() {
-    $('#profileName').textContent = state.profile.displayName;
-    $('#profileHandle').textContent = state.profile.handle;
     const profileRiderId = $('#profileRiderId');
     if (profileRiderId) profileRiderId.textContent = state.profile.riderId;
     // The menu behind the map avatar.
@@ -2400,19 +2405,25 @@
     button.disabled = !RIDE_CODE_PATTERN.test($('#rideCode').value);
   }
   // Each Settings option is its own full page with everything for it on the
-  // page, not a sheet holding another list of sheets. The older per-topic
-  // keys (profile, plans, navigation…) still work: they open the page that
-  // now holds them, scrolled to that section.
+  // page, not a sheet holding another list of sheets. Every control lives in
+  // exactly one place: your public profile (View profile) and editing it are
+  // their own pages, the plan is only under "Your plan", and Account is
+  // sign-in, devices and data. The older per-topic keys (profile, plans,
+  // navigation…) still work: they open the page that now holds them.
   const SETTINGS_PAGES = {
-    accountHub: { title: 'Account', sections: [['Profile', 'profile'], ['Your plan', 'plans'], ['Signed-in devices', 'sessions'], ['Account and data', 'account']] },
-    communication: { title: 'Communication', sections: [['Privacy', 'privacy'], ['Blocked riders', 'blocked']] },
-    mapNavigation: { title: 'Map & Navigation', sections: [['Navigation app and route options', 'navigation'], ['Location', 'mapNote']] },
+    myProfile: { title: 'Profile', sections: [['', 'profileView']] },
+    editProfile: { title: 'Edit profile', sections: [['', 'profile']], back: 'myProfile' },
+    plan: { title: 'Your plan', sections: [['', 'plans']] },
+    accountHub: { title: 'Account', sections: [['Email', 'emailStatus'], ['Signed-in devices', 'sessions'], ['Account and data', 'account']] },
+    communication: { title: 'Communication', sections: [['Live location', 'privacy'], ['Blocked riders', 'blocked']] },
+    mapNavigation: { title: 'Map & Navigation', sections: [['Navigation app and route options', 'navigation']] },
     unitsPreferences: { title: 'Units & Preferences', sections: [['Distance units', 'units'], ['Ride Safe', 'rideSafe']] },
     help: { title: 'Help & Support', sections: [['Riding safely', 'safetyGuidance'], ['Privacy, safety & terms', 'legal']] },
     about: { title: 'About', sections: [['', 'aboutCard']] },
   };
   const SETTINGS_PAGE_FOR_SECTION = {
-    profile: 'accountHub', plans: 'accountHub', sessions: 'accountHub', account: 'accountHub',
+    profile: 'editProfile', profileView: 'myProfile', plans: 'plan',
+    emailStatus: 'accountHub', sessions: 'accountHub', account: 'accountHub',
     privacy: 'communication', blocked: 'communication',
     navigation: 'mapNavigation', map: 'mapNavigation',
     units: 'unitsPreferences', safety: 'unitsPreferences',
@@ -2437,10 +2448,6 @@
         body: '<div id="blockedRidersList" class="blocked-list" aria-live="polite"><p class="caption">Loading…</p></div>',
         ready: () => void renderBlockedRiders(),
       }),
-      mapNote: () => ({
-        title: 'Location',
-        body: '<div class="settings-note"><strong>Location stays in your control</strong><p>Nearby rider visibility is in Communication. Private-ride location is chosen inside each ride and stays off unless you switch it on there.</p></div>',
-      }),
       rideSafe: () => ({
         title: 'Ride Safe',
         body: `<div class="settings-sheet-section">${toggleMarkup('rideSafeEnabled', 'Automatic Ride Safe', 'Uses device motion to lock distracting controls at 8 mph and above. Recommended while riding.', state.rideSafeEnabled)}</div><div class="settings-note"><strong>Device-only safety preference</strong><p>When off, Rider Comms stops its dedicated Ride Safe location watcher. Map, navigation and optional ride-location features request location separately. Only change this while safely stopped.</p></div>`,
@@ -2464,12 +2471,30 @@
           <section class="settings-legal-links"><a href="privacy.html" target="_blank" rel="noopener">Privacy Policy</a><a href="terms.html" target="_blank" rel="noopener">Terms of Service</a><a href="guidelines.html" target="_blank" rel="noopener">Community Guidelines</a><a href="support.html" target="_blank" rel="noopener">Contact support</a></section>
         </div>`,
       }),
+      profileView: () => {
+        const plan = PLAN_INFO[planTier(state.profile.zoneTier)];
+        const visibilityLabel = { public: 'Everyone', friends: 'Friends only', private: 'Only me' };
+        const socialRow = (label, username, visibility) => `<div class="my-profile-social"><span><strong>${label}</strong><small>${username ? `@${escapeHtml(username)}` : 'Not added'}</small></span>${username ? `<span class="my-profile-visibility">${escapeHtml(visibilityLabel[visibility] || 'Friends only')}</span>` : ''}</div>`;
+        return {
+          title: 'Profile',
+          body: `<article class="my-profile-card">
+              <span class="my-profile-avatar">${avatar(state.profile, 'avatar-xl')}</span>
+              <strong class="my-profile-name">${escapeHtml(state.profile.displayName)}</strong>
+              <span class="my-profile-handle">${escapeHtml(state.profile.handle)}</span>
+              <span class="my-profile-plan">${escapeHtml(plan.name)} plan</span>
+            </article>
+            <button class="button primary wide" id="editProfileFromView" type="button">Edit profile</button>
+            <section class="my-profile-section" aria-label="Connected profiles"><h3 class="settings-page-heading">Connected profiles</h3><div class="my-profile-socials">${socialRow('Instagram', state.profile.instagram, state.profile.instagramVisibility)}${socialRow('TikTok', state.profile.tiktok, state.profile.tiktokVisibility)}</div><p class="caption">This is how riders see you. Each connected profile shows only to the people you choose.</p></section>`,
+          ready: () => $('#editProfileFromView').addEventListener('click', () => openSheet('editProfile')),
+        };
+      },
       profile: () => ({
         title: 'Edit profile',
-        body: `<div class="settings-sheet-section"><span class="settings-sheet-label">Identity</span><div class="form-field"><label>Avatar</label>${avatarOptionsMarkup(state.profile.avatarId)}</div><div class="form-field"><label for="editName">Display name</label><input id="editName" maxlength="50" value="${escapeHtml(state.profile.displayName)}"></div><div class="form-field"><label for="editHandle">Rider handle</label><input id="editHandle" maxlength="25" value="${escapeHtml(state.profile.handle)}"></div><p class="caption">${session?.emailVerified ? 'Email verified.' : 'Email verification pending. Nearby Voice requires a verified email.'}</p>${session?.emailVerified ? '' : '<button class="button secondary wide" id="resendVerificationBtn">Resend verification email</button>'}</div><div class="settings-sheet-section"><span class="settings-sheet-label">Connected profiles</span><div class="form-field"><label for="editInstagram">Instagram</label><input id="editInstagram" maxlength="31" value="${escapeHtml(state.profile.instagram)}" placeholder="Username"></div><div class="form-field"><label for="editTiktok">TikTok</label><input id="editTiktok" maxlength="31" value="${escapeHtml(state.profile.tiktok)}" placeholder="Username"></div><p class="caption">Control who can see these in Privacy controls.</p></div><p id="profileFormError" class="inline-error" hidden></p><button class="button primary wide" id="saveProfile">Save changes</button>`,
+        body: `<div class="settings-sheet-section"><span class="settings-sheet-label">Avatar</span>${avatarOptionsMarkup(state.profile.avatarId)}</div><div class="settings-sheet-section"><span class="settings-sheet-label">Name</span><div class="form-field"><label for="editName">Display name</label><input id="editName" maxlength="50" value="${escapeHtml(state.profile.displayName)}"></div><div class="form-field"><label for="editHandle">Rider handle</label><input id="editHandle" maxlength="25" value="${escapeHtml(state.profile.handle)}"></div></div><div class="settings-sheet-section"><span class="settings-sheet-label">Connected profiles</span><div class="form-field"><label for="editInstagram">Instagram</label><input id="editInstagram" maxlength="31" value="${escapeHtml(state.profile.instagram)}" placeholder="Username" autocapitalize="none" autocorrect="off"></div><div class="form-field"><label for="sheetInstagramVisibility">Who can see your Instagram</label><select id="sheetInstagramVisibility"><option value="friends">Friends only</option><option value="public">Everyone</option><option value="private">Only me</option></select></div><div class="form-field"><label for="editTiktok">TikTok</label><input id="editTiktok" maxlength="31" value="${escapeHtml(state.profile.tiktok)}" placeholder="Username" autocapitalize="none" autocorrect="off"></div><div class="form-field"><label for="sheetTiktokVisibility">Who can see your TikTok</label><select id="sheetTiktokVisibility"><option value="friends">Friends only</option><option value="public">Everyone</option><option value="private">Only me</option></select></div></div><p id="profileFormError" class="inline-error" hidden></p><button class="button primary wide" id="saveProfile">Save changes</button>`,
         ready: () => {
+          $('#sheetInstagramVisibility').value = state.profile.instagramVisibility;
+          $('#sheetTiktokVisibility').value = state.profile.tiktokVisibility;
           $('#saveProfile').addEventListener('click', saveProfile);
-          $('#resendVerificationBtn')?.addEventListener('click', () => void resendVerificationEmail());
           document.querySelectorAll('#sheetBody [data-avatar-option]').forEach((button) => {
             button.addEventListener('click', () => void selectProfileAvatar(button.dataset.avatarOption));
           });
@@ -2477,6 +2502,11 @@
             button.addEventListener('click', () => setAvatarPickerFamily(button.dataset.avatarFamilyTab));
           });
         },
+      }),
+      emailStatus: () => ({
+        title: 'Email',
+        body: `<div class="settings-note"><strong>${session?.emailVerified ? 'Email verified' : 'Email not verified yet'}</strong><p>${session?.emailVerified ? 'Your email is verified, so Nearby Voice is available.' : 'Nearby Voice needs a verified email. Open the link we emailed you, or send a new one.'}</p></div>${session?.emailVerified ? '' : '<button class="button secondary wide" id="resendVerificationBtn">Resend verification email</button>'}`,
+        ready: () => $('#resendVerificationBtn')?.addEventListener('click', () => void resendVerificationEmail()),
       }),
       sessions: () => ({
         title: 'Signed-in devices',
@@ -2518,7 +2548,11 @@
               : storeNote}</p></div>`,
         };
       },
-      privacy: () => ({ title: 'Privacy controls', body: `<div class="settings-sheet-section">${toggleMarkup('shareLocation', 'Live location', 'Visible to nearby riders only while you are live.', state.profile.shareLocation)}</div><div class="settings-sheet-section"><div class="form-field"><label for="sheetInstagramVisibility">Instagram visibility</label><select id="sheetInstagramVisibility"><option value="friends">Friends only</option><option value="public">Everyone</option><option value="private">Only me</option></select></div><div class="form-field"><label for="sheetTiktokVisibility">TikTok visibility</label><select id="sheetTiktokVisibility"><option value="friends">Friends only</option><option value="public">Everyone</option><option value="private">Only me</option></select></div><p class="caption">Choose who can see each connected profile independently.</p></div>`, ready: () => { const instagram = $('#sheetInstagramVisibility'); const tiktok = $('#sheetTiktokVisibility'); instagram.value = state.profile.instagramVisibility; tiktok.value = state.profile.tiktokVisibility; instagram.addEventListener('change', (event) => { void patchProfile({ instagramVisibility: event.target.value }); }); tiktok.addEventListener('change', (event) => { void patchProfile({ tiktokVisibility: event.target.value }); }); wireToggles(); } }),
+      privacy: () => ({
+        title: 'Live location',
+        body: `<div class="settings-sheet-section">${toggleMarkup('shareLocation', 'Nearby rider visibility', 'Nearby riders can see you only while you are live.', state.profile.shareLocation)}</div><p class="caption">Private-ride location is separate: you choose it inside each ride, and it’s off unless you switch it on.</p>`,
+        ready: wireToggles,
+      }),
       navigation: () => ({
         title: 'Navigation',
         body: `<div class="choice-list" role="radiogroup" aria-label="Navigation preference">${Object.entries(NAVIGATION_PROVIDERS).map(([id, option]) => `<button data-navigation-option="${id}" role="radio" aria-checked="${navigationProvider(state.navigationProvider) === id}"><span><strong>${escapeHtml(option.label)}</strong><small>${escapeHtml(option.description)}</small></span><i></i></button>`).join('')}</div><div class="settings-note"><strong>Your choice applies to destination buttons</strong><p>Rider Comms navigation stays in the app. Google Maps, Waze and Apple Maps hand the destination to that provider.</p></div><div class="settings-sheet-section" aria-label="Route options">${toggleMarkup('avoidHighways', 'Avoid motorways', 'Plan Rider Comms routes on A and B roads where possible.', state.avoidHighways)}${toggleMarkup('avoidTolls', 'Avoid tolls', 'Skip toll roads and bridges where there is another way.', state.avoidTolls)}</div>`,
@@ -2573,6 +2607,7 @@
     $('#sheetBackdrop').classList.toggle('settings-page-mode', Boolean(currentSettingsPage));
     const close = $('#closeSheet');
     close.innerHTML = currentSettingsPage ? '<svg class="icon-back" aria-hidden="true"><use href="#i-chevron"/></svg>' : '×';
+    close.dataset.backTo = SETTINGS_PAGES[currentSettingsPage]?.back || '';
     close.setAttribute('aria-label', currentSettingsPage ? 'Back' : 'Close');
     $('#sheetTitle').textContent = title;
     $('#sheetBody').innerHTML = body;
@@ -2606,7 +2641,7 @@
       if (identity.emailVerified) {
         saveSession({ ...session, emailVerified: true }, remember);
         showToast('Your email is already verified. Nearby Voice is available.');
-        openSheet('profile');
+        openSheet('accountHub');
         return;
       }
       const result = await apiFetch('POST', '/auth/resend-verification', {});
@@ -2640,7 +2675,7 @@
       }
       list.innerHTML = sessions.map((accountSession) => {
         const current = accountSession.current === true;
-        return `<article class="session-row"><span class="setting-icon">${icon('settings')}</span><span class="session-copy"><strong>${escapeHtml(accountSession.deviceName || 'Rider Comms device')}</strong><small>${current ? 'This device' : `Active ${escapeHtml(sessionDateLabel(accountSession.lastSeenAt))}`}</small></span>${current ? '<span class="plan-pill">Current</span>' : `<button class="button tertiary session-revoke" data-revoke-session="${escapeHtml(accountSession.id)}">Sign out</button>`}</article>`;
+        return `<article class="session-row"><span class="setting-icon">${icon('phone')}</span><span class="session-copy"><strong>${escapeHtml(accountSession.deviceName || 'Rider Comms device')}</strong><small>${current ? 'This device' : `Active ${escapeHtml(sessionDateLabel(accountSession.lastSeenAt))}`}</small></span>${current ? '<span class="plan-pill">Current</span>' : `<button class="button tertiary session-revoke" data-revoke-session="${escapeHtml(accountSession.id)}">Sign out</button>`}</article>`;
       }).join('');
       $$('[data-revoke-session]', list).forEach((button) => button.addEventListener('click', async () => {
         button.disabled = true;
@@ -2800,20 +2835,22 @@
         handle,
         instagramUsername: $('#editInstagram').value.trim().replace(/^@/, ''),
         tiktokUsername: $('#editTiktok').value.trim().replace(/^@/, ''),
-        instagramVisibility: state.profile.instagramVisibility,
-        tiktokVisibility: state.profile.tiktokVisibility,
+        instagramVisibility: $('#sheetInstagramVisibility')?.value || state.profile.instagramVisibility,
+        tiktokVisibility: $('#sheetTiktokVisibility')?.value || state.profile.tiktokVisibility,
       });
       applyRemoteProfile(profile);
       renderFallbackMarkers();
-      closeSheet();
+      openSheet('myProfile');
       showToast('Profile updated.');
     } catch (error) {
       const code = error instanceof ApiError ? error.body?.error : undefined;
       errorEl.textContent = typeof code === 'string' && code ? code.replace(/_/g, ' ') : 'Could not save your profile. Try again.';
       errorEl.hidden = false;
     } finally {
-      button.disabled = false;
-      button.textContent = 'Save profile';
+      if (button.isConnected) {
+        button.disabled = false;
+        button.textContent = 'Save changes';
+      }
     }
   }
 
@@ -2883,6 +2920,14 @@
     }, 1600);
     document.addEventListener('visibilitychange', () => clearTimeout(notOpened), { once: true });
     window.location.href = app.url;
+  }
+
+  // A settings page opened from another page (Edit profile from Profile)
+  // goes back to it; everything else closes.
+  function sheetBack() {
+    const backTo = $('#closeSheet').dataset.backTo;
+    if (currentSettingsPage && backTo) openSheet(backTo);
+    else closeSheet();
   }
 
   function closeSheet() {
@@ -6474,7 +6519,7 @@
     $('#mapAvatarButton').addEventListener('click', openAppMenu);
     $('#closeAppMenu').addEventListener('click', () => closeAppMenu());
     $('#appMenu').addEventListener('keydown', (event) => { if (event.key === 'Escape') closeAppMenu(); });
-    $('#appMenuViewProfile').addEventListener('click', () => { closeAppMenu({ restoreFocus: false }); openSheet('profile'); });
+    $('#appMenuViewProfile').addEventListener('click', () => { closeAppMenu({ restoreFocus: false }); openSheet('myProfile'); });
     $$('[data-menu-nav]').forEach((button) => button.addEventListener('click', () => {
       closeAppMenu({ restoreFocus: false });
       navigate(button.dataset.menuNav);
@@ -6611,19 +6656,18 @@
     });
     $$('[data-sheet]').forEach((button) => button.addEventListener('click', () => openSheet(button.dataset.sheet)));
     $('#completeProfilePrompt')?.addEventListener('click', () => openSheet('profile'));
-    $('#editProfileBtn').addEventListener('click', () => openSheet('profile'));
     $('#reportHazardBtn').addEventListener('click', () => {
       pendingHazardReportPosition = null;
       captureHazardReportPosition();
       openSheet('reportHazard');
     });
-    $('#closeSheet').addEventListener('click', closeSheet);
+    $('#closeSheet').addEventListener('click', sheetBack);
     $('#sheetBackdrop').addEventListener('click', (event) => { if (event.target === $('#sheetBackdrop')) closeSheet(); });
     document.addEventListener('keydown', (event) => {
       if ($('#sheetBackdrop').hidden) return;
       if (event.key === 'Escape') {
         event.preventDefault();
-        closeSheet();
+        sheetBack();
         return;
       }
       if (event.key !== 'Tab') return;

@@ -128,7 +128,7 @@
     $('#mapAvatarButton').addEventListener('click', openAppMenu);
     $('#closeAppMenu').addEventListener('click', () => closeAppMenu());
     $('#appMenu').addEventListener('keydown', (event) => { if (event.key === 'Escape') closeAppMenu(); });
-    $('#appMenuViewProfile').addEventListener('click', () => { closeAppMenu({ restoreFocus: false }); openSheet('profile'); });
+    $('#appMenuViewProfile').addEventListener('click', () => { closeAppMenu({ restoreFocus: false }); openSheet('myProfile'); });
     $$('[data-menu-nav]').forEach((button) => button.addEventListener('click', () => {
       closeAppMenu({ restoreFocus: false });
       navigate(button.dataset.menuNav);
@@ -265,19 +265,18 @@
     });
     $$('[data-sheet]').forEach((button) => button.addEventListener('click', () => openSheet(button.dataset.sheet)));
     $('#completeProfilePrompt')?.addEventListener('click', () => openSheet('profile'));
-    $('#editProfileBtn').addEventListener('click', () => openSheet('profile'));
     $('#reportHazardBtn').addEventListener('click', () => {
       pendingHazardReportPosition = null;
       captureHazardReportPosition();
       openSheet('reportHazard');
     });
-    $('#closeSheet').addEventListener('click', closeSheet);
+    $('#closeSheet').addEventListener('click', sheetBack);
     $('#sheetBackdrop').addEventListener('click', (event) => { if (event.target === $('#sheetBackdrop')) closeSheet(); });
     document.addEventListener('keydown', (event) => {
       if ($('#sheetBackdrop').hidden) return;
       if (event.key === 'Escape') {
         event.preventDefault();
-        closeSheet();
+        sheetBack();
         return;
       }
       if (event.key !== 'Tab') return;

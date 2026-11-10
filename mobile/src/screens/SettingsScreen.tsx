@@ -240,9 +240,11 @@ function AvatarPickerModal({
 
 /** Each Settings option is its own page; these keys name them (and match
  * the PWA's settings sheet tokens, see scripts/check-client-parity.mjs). */
-export type SettingsPageKey = 'accountHub' | 'communication' | 'mapNavigation' | 'unitsPreferences' | 'help' | 'about';
+export type SettingsPageKey = 'myProfile' | 'editProfile' | 'accountHub' | 'communication' | 'mapNavigation' | 'unitsPreferences' | 'help' | 'about';
 
 export const SETTINGS_PAGE_TITLES: Record<SettingsPageKey, string> = {
+  myProfile: 'Profile',
+  editProfile: 'Edit profile',
   accountHub: 'Account',
   communication: 'Communication',
   mapNavigation: 'Map & Navigation',
@@ -311,11 +313,11 @@ function SettingsPageLayout({ title, children }: { title: string; children: Reac
 }
 
 export function SettingsScreen(): React.JSX.Element {
-  const { avatarId, displayName, handle, profileError, clearProfileError } = useSettings();
+  const { profileError, clearProfileError } = useSettings();
   const { logOut } = useAuth();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const openPage = (page: SettingsPageKey) => navigation.navigate('SettingsPage', { page });
+  const openPage = (page: SettingsPageKey) => navigation.push('SettingsPage', { page });
 
   function confirmLogOut() {
     Alert.alert(
@@ -338,15 +340,6 @@ export function SettingsScreen(): React.JSX.Element {
       >
         <ScreenHeader title="Settings" onBack={() => navigation.goBack()} />
 
-        <Pressable style={styles.profileCard} onPress={() => openPage('accountHub')} accessibilityRole="button" accessibilityLabel="Open profile settings">
-          <RiderAvatar avatarId={avatarId} size={72} />
-          <View style={styles.profileCopy}>
-            <Text numberOfLines={1} style={styles.name}>{displayName}</Text>
-            <Text numberOfLines={1} style={styles.handle}>{handle}</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={14} color={colors.textMuted} />
-        </Pressable>
-
         {profileError ? (
           <View style={styles.profileSaveStatus} accessibilityLiveRegion="polite">
             <Ionicons name="alert-circle" size={17} color={colors.danger} />
@@ -356,14 +349,13 @@ export function SettingsScreen(): React.JSX.Element {
         ) : null}
 
         <View style={styles.settingsGroup}>
-          <SettingsRow icon="person-outline" title="Account" subtitle="Profile, plan, devices and data" onPress={() => openPage('accountHub')} />
+          <SettingsRow icon="person-outline" title="Account" subtitle="Email, devices and data" onPress={() => openPage('accountHub')} />
           <SettingsRow icon="chatbubble-ellipses-outline" title="Communication" subtitle="Live location and blocked riders" onPress={() => openPage('communication')} />
           <SettingsRow icon="map-outline" title="Map & Navigation" subtitle="Navigation app and route options" onPress={() => openPage('mapNavigation')} />
           <SettingsRow icon="apps-outline" title="Units & Preferences" last onPress={() => openPage('unitsPreferences')} />
         </View>
 
         <View style={[styles.settingsGroup, styles.secondarySettingsGroup]}>
-          <SettingsRow icon="help-circle-outline" title="Help & Support" onPress={() => openPage('help')} />
           <SettingsRow icon="information-circle-outline" title="About" last onPress={() => openPage('about')} />
         </View>
 
@@ -376,19 +368,137 @@ export function SettingsScreen(): React.JSX.Element {
   );
 }
 
-function AccountPage(): React.JSX.Element {
+const VISIBILITY_LABELS: Record<SocialVisibility, string> = { public: 'Everyone', friends: 'Friends only', private: 'Only me' };
+
+/** View profile: how other riders see you, with Edit profile. */
+function MyProfilePage(): React.JSX.Element {
+  const { avatarId, displayName, handle, zoneTier, instagramUsername, instagramVisibility, tiktokUsername, tiktokVisibility } = useSettings();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const socials: Array<{ label: string; icon: React.ComponentProps<typeof Ionicons>['name']; username: string; visibility: SocialVisibility }> = [
+    { label: 'Instagram', icon: 'logo-instagram', username: instagramUsername, visibility: instagramVisibility },
+    { label: 'TikTok', icon: 'logo-tiktok', username: tiktokUsername, visibility: tiktokVisibility },
+  ];
+  return (
+    <>
+      <View style={styles.myProfileCard}>
+        <RiderAvatar avatarId={avatarId} size={112} />
+        <Text numberOfLines={1} style={styles.myProfileName}>{displayName}</Text>
+        <Text numberOfLines={1} style={styles.myProfileHandle}>{handle}</Text>
+        <Text style={styles.myProfilePlan}>{PLAN_INFO[zoneTier].name} plan</Text>
+      </View>
+      <Pressable
+        accessibilityRole="button"
+        style={({ pressed }) => [styles.myProfileEdit, pressed && styles.settingRowPressed]}
+        // push, not navigate: Profile is already a SettingsPage, and
+        // navigate() to the same route name would replace it, so Back from
+        // Edit profile would skip past your profile.
+        onPress={() => navigation.push('SettingsPage', { page: 'editProfile' })}
+        testID="edit-profile"
+      >
+        <Text style={styles.myProfileEditText}>Edit profile</Text>
+      </Pressable>
+      <PageSection title="Connected profiles" note="This is how riders see you. Each connected profile shows only to the people you choose.">
+        {socials.map((social, index) => (
+          <View key={social.label} style={[styles.myProfileSocial, index === socials.length - 1 && styles.settingRowLast]}>
+            <Ionicons name={social.icon} size={20} color={colors.textSecondary} />
+            <View style={styles.settingRowCopy}>
+              <Text style={styles.settingRowTitle}>{social.label}</Text>
+              <Text style={styles.settingRowSubtitle}>{social.username ? `@${social.username}` : 'Not added'}</Text>
+            </View>
+            {social.username ? <Text style={styles.settingRowValue}>{VISIBILITY_LABELS[social.visibility]}</Text> : null}
+          </View>
+        ))}
+      </PageSection>
+    </>
+  );
+}
+
+/** Edit profile: avatar, name, handle and connected profiles. */
+function EditProfilePage(): React.JSX.Element {
   const {
-    zoneTier, avatarId, setAvatarId, displayName, setDisplayName, handle, setHandle,
+    avatarId, setAvatarId, displayName, setDisplayName, handle, setHandle,
     instagramUsername, setInstagramUsername, instagramVisibility, setInstagramVisibility,
     tiktokUsername, setTiktokUsername, tiktokVisibility, setTiktokVisibility,
-    resetAll, saving, profileError,
+    saving, profileError,
   } = useSettings();
-  const { riderId, emailVerified, client, deleteAccount } = useAuth();
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [pickerOpen, setPickerOpen] = React.useState(false);
   const [nameDraft, setNameDraft] = React.useState(displayName);
   const [handleDraft, setHandleDraft] = React.useState(handle);
   const [profileDraftError, setProfileDraftError] = React.useState<string | null>(null);
+
+  React.useEffect(() => { setNameDraft(displayName); }, [displayName]);
+  React.useEffect(() => { setHandleDraft(handle); }, [handle]);
+
+  const avatar = getAvatarPreset(avatarId);
+
+  function commitName() {
+    const next = nameDraft.trim();
+    if (!next) {
+      setProfileDraftError('Add a display name.');
+      return;
+    }
+    setProfileDraftError(null);
+    setNameDraft(next);
+    if (next !== displayName) setDisplayName(next);
+  }
+
+  function commitHandle() {
+    const raw = handleDraft.trim();
+    const next = raw.startsWith('@') ? raw : `@${raw}`;
+    if (!/^@[a-z0-9_]{3,24}$/i.test(next)) {
+      setProfileDraftError('Use 3–24 letters, numbers or underscores for your handle.');
+      return;
+    }
+    setProfileDraftError(null);
+    setHandleDraft(next);
+    if (next !== handle) setHandle(next);
+  }
+
+  return (
+    <>
+      <PageSection title="Avatar">
+        <Pressable
+          style={styles.sheetAvatarRow}
+          onPress={() => setPickerOpen(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Change profile avatar"
+        >
+          <RiderAvatar avatarId={avatarId} size={54} />
+          <View style={styles.sheetAvatarCopy}>
+            <Text style={styles.sheetProfileName}>{avatar.label}</Text>
+            <Text style={styles.sheetMeta}>{avatar.tagline} · Tap to choose another.</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+        </Pressable>
+      </PageSection>
+
+      <PageSection title="Name">
+        <Text style={styles.fieldLabel}>Display name</Text>
+        <TextInput accessibilityLabel="Rider name" style={styles.sheetInput} value={nameDraft} onChangeText={(value) => { setNameDraft(value); setProfileDraftError(null); }} onSubmitEditing={commitName} onBlur={commitName} maxLength={50} returnKeyType="done" placeholder="Rider name" placeholderTextColor={colors.textMuted} />
+        <Text style={styles.fieldLabel}>Rider handle</Text>
+        <TextInput accessibilityLabel="Rider handle" style={styles.sheetInput} value={handleDraft} onChangeText={(value) => { setHandleDraft(value); setProfileDraftError(null); }} onSubmitEditing={commitHandle} onBlur={commitHandle} maxLength={25} autoCapitalize="none" autoCorrect={false} returnKeyType="done" placeholder="@handle" placeholderTextColor={colors.textMuted} />
+        {(saving || profileDraftError || profileError) ? (
+          <View style={styles.sheetSaveStatus} accessibilityLiveRegion="polite">
+            {saving ? <><ActivityIndicator color={colors.accent} size="small" /><Text style={styles.profileSavingText}>Saving profile…</Text></> : null}
+            {profileDraftError || profileError ? <Text accessibilityRole="alert" style={styles.profileSaveError}>{profileDraftError ?? profileError}</Text> : null}
+          </View>
+        ) : null}
+      </PageSection>
+
+      <PageSection title="Connected profiles" note="Choose who can see each one on your Rider Comms profile.">
+        <SocialRow label="Instagram" icon="logo-instagram" username={instagramUsername} visibility={instagramVisibility} onUsername={setInstagramUsername} onVisibility={setInstagramVisibility}/>
+        <SocialRow label="TikTok" icon="logo-tiktok" username={tiktokUsername} visibility={tiktokVisibility} onUsername={setTiktokUsername} onVisibility={setTiktokVisibility}/>
+      </PageSection>
+
+      <AvatarPickerModal visible={pickerOpen} currentId={avatarId} onSelect={setAvatarId} onClose={() => setPickerOpen(false)} />
+    </>
+  );
+}
+
+/** Account: sign-in email, signed-in devices, reset and delete. */
+function AccountPage(): React.JSX.Element {
+  const { resetAll } = useSettings();
+  const { emailVerified, client, deleteAccount } = useAuth();
   const [sessions, setSessions] = React.useState<AccountSessionSummary[]>([]);
   const [sessionsError, setSessionsError] = React.useState<string | null>(null);
   const [sessionsLoading, setSessionsLoading] = React.useState(false);
@@ -409,8 +519,6 @@ function AccountPage(): React.JSX.Element {
   }, [client]);
 
   React.useEffect(() => { void loadSessions(); }, [loadSessions]);
-  React.useEffect(() => { setNameDraft(displayName); }, [displayName]);
-  React.useEffect(() => { setHandleDraft(handle); }, [handle]);
   React.useEffect(() => { setVerificationConfirmed(emailVerified); }, [emailVerified]);
 
   async function revokeSession(id: string) {
@@ -446,31 +554,6 @@ function AccountPage(): React.JSX.Element {
     }
   }
 
-  const avatar = getAvatarPreset(avatarId);
-
-  function commitName() {
-    const next = nameDraft.trim();
-    if (!next) {
-      setProfileDraftError('Add a display name.');
-      return;
-    }
-    setProfileDraftError(null);
-    setNameDraft(next);
-    if (next !== displayName) setDisplayName(next);
-  }
-
-  function commitHandle() {
-    const raw = handleDraft.trim();
-    const next = raw.startsWith('@') ? raw : `@${raw}`;
-    if (!/^@[a-z0-9_]{3,24}$/i.test(next)) {
-      setProfileDraftError('Use 3–24 letters, numbers or underscores for your handle.');
-      return;
-    }
-    setProfileDraftError(null);
-    setHandleDraft(next);
-    if (next !== handle) setHandle(next);
-  }
-
   function confirmReset() {
     Alert.alert(
       'Reset Rider Comms settings?',
@@ -497,26 +580,9 @@ function AccountPage(): React.JSX.Element {
 
   return (
     <>
-      <PageSection title="Profile">
-        <Text style={styles.fieldLabel}>Avatar</Text>
-        <Pressable
-          style={styles.sheetAvatarRow}
-          onPress={() => setPickerOpen(true)}
-          accessibilityRole="button"
-          accessibilityLabel="Change profile avatar"
-        >
-          <RiderAvatar avatarId={avatarId} size={54} />
-          <View style={styles.sheetAvatarCopy}>
-            <Text style={styles.sheetProfileName}>{avatar.label}</Text>
-            <Text style={styles.sheetMeta}>{avatar.tagline} · Tap to choose another.</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-        </Pressable>
-        <Text style={styles.fieldLabel}>Display name</Text>
-        <TextInput accessibilityLabel="Rider name" style={styles.sheetInput} value={nameDraft} onChangeText={(value) => { setNameDraft(value); setProfileDraftError(null); }} onSubmitEditing={commitName} onBlur={commitName} maxLength={50} returnKeyType="done" placeholder="Rider name" placeholderTextColor={colors.textMuted} />
-        <Text style={styles.fieldLabel}>Rider handle</Text>
-        <TextInput accessibilityLabel="Rider handle" style={styles.sheetInput} value={handleDraft} onChangeText={(value) => { setHandleDraft(value); setProfileDraftError(null); }} onSubmitEditing={commitHandle} onBlur={commitHandle} maxLength={25} autoCapitalize="none" autoCorrect={false} returnKeyType="done" placeholder="@handle" placeholderTextColor={colors.textMuted} />
-        <Text style={styles.sheetMetaBlock}>{verificationConfirmed ? 'Email verified' : 'Email verification pending · Nearby Voice requires verification'} · {riderId}</Text>
+      <PageSection title="Email">
+        <Text style={styles.sheetProfileName}>{verificationConfirmed ? 'Email verified' : 'Email not verified yet'}</Text>
+        <Text style={styles.sheetBodyCopy}>{verificationConfirmed ? 'Your email is verified, so Nearby Voice is available.' : 'Nearby Voice needs a verified email. Open the link we emailed you, or send a new one.'}</Text>
         {!verificationConfirmed ? (
           <Pressable
             disabled={verificationSending}
@@ -528,38 +594,17 @@ function AccountPage(): React.JSX.Element {
             <Text style={styles.sheetSecondaryActionText}>{verificationSending ? 'Sending…' : 'Resend verification email'}</Text>
           </Pressable>
         ) : null}
-        {(saving || profileDraftError || profileError) ? (
-          <View style={styles.sheetSaveStatus} accessibilityLiveRegion="polite">
-            {saving ? <><ActivityIndicator color={colors.accent} size="small" /><Text style={styles.profileSavingText}>Saving profile…</Text></> : null}
-            {profileDraftError || profileError ? <Text accessibilityRole="alert" style={styles.profileSaveError}>{profileDraftError ?? profileError}</Text> : null}
-          </View>
-        ) : null}
-      </PageSection>
-
-      <PageSection title="Connected profiles" note="Choose who can see each one on your Rider Comms profile.">
-        <SocialRow label="Instagram" icon="logo-instagram" username={instagramUsername} visibility={instagramVisibility} onUsername={setInstagramUsername} onVisibility={setInstagramVisibility}/>
-        <SocialRow label="TikTok" icon="logo-tiktok" username={tiktokUsername} visibility={tiktokVisibility} onUsername={setTiktokUsername} onVisibility={setTiktokVisibility}/>
-      </PageSection>
-
-      <PageSection title="Plan">
-        <SettingsRow
-          icon="card-outline"
-          title="Your plan"
-          subtitle={`${PLAN_INFO[zoneTier].name} plan · ${PLAN_INFO[zoneTier].features[0]}`}
-          right={PLAN_INFO[zoneTier].name}
-          last
-          onPress={() => navigation.navigate('Billing')}
-        />
       </PageSection>
 
       <PageSection title="Signed-in devices" note="Sign out any device you don’t recognise.">
         {sessions.map((session) => (
           <View key={session.id} style={styles.sessionRow}>
+            <Ionicons name="phone-portrait-outline" size={20} color={colors.textSecondary} />
             <View style={styles.sessionInfo}>
               <Text style={styles.aboutLabel}>{session.deviceName}</Text>
               <Text style={styles.aboutValue}>{session.current ? 'This device' : 'Active ' + new Date(session.lastSeenAt).toLocaleDateString()}</Text>
             </View>
-            {!session.current ? <Pressable accessibilityRole="button" accessibilityLabel={'Sign out ' + session.deviceName} onPress={() => void revokeSession(session.id)} style={styles.sessionRevoke}><Text style={styles.sessionRevokeText}>Sign out</Text></Pressable> : null}
+            {session.current ? <Text style={styles.settingRowValue}>Current</Text> : <Pressable accessibilityRole="button" accessibilityLabel={'Sign out ' + session.deviceName} onPress={() => void revokeSession(session.id)} style={styles.sessionRevoke}><Text style={styles.sessionRevokeText}>Sign out</Text></Pressable>}
           </View>
         ))}
         {sessionsLoading && sessions.length === 0 ? (
@@ -578,8 +623,6 @@ function AccountPage(): React.JSX.Element {
         <Pressable accessibilityRole="button" style={styles.sheetSecondaryAction} onPress={confirmReset}><Text style={styles.sheetSecondaryActionText}>Reset settings</Text></Pressable>
         <Pressable accessibilityRole="button" style={styles.sheetDangerAction} onPress={confirmDeleteAccount}><Text style={styles.sheetDangerActionText}>Delete account</Text></Pressable>
       </PageSection>
-
-      <AvatarPickerModal visible={pickerOpen} currentId={avatarId} onSelect={setAvatarId} onClose={() => setPickerOpen(false)} />
     </>
   );
 }
@@ -681,7 +724,6 @@ function HelpPage(): React.JSX.Element {
 
 function AboutPage(): React.JSX.Element {
   const { displayName, handle } = useSettings();
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const appVersion = Constants.expoConfig?.version ?? '0.1.0';
   return (
     <>
@@ -691,9 +733,6 @@ function AboutPage(): React.JSX.Element {
           <Text style={styles.aboutSummaryValue}>Version {appVersion} · Native</Text>
           <Text style={styles.aboutSummaryValue}>Signed in as {displayName} ({handle})</Text>
         </View>
-      </PageSection>
-      <PageSection>
-        <SettingsRow icon="document-text-outline" title="Privacy, safety & terms" last onPress={() => navigation.navigate('Legal')} />
       </PageSection>
     </>
   );
@@ -706,6 +745,8 @@ export function SettingsPageScreen({ route }: SettingsPageProps): React.JSX.Elem
   const { page } = route.params;
   return (
     <SettingsPageLayout title={SETTINGS_PAGE_TITLES[page]}>
+      {page === 'myProfile' ? <MyProfilePage /> : null}
+      {page === 'editProfile' ? <EditProfilePage /> : null}
       {page === 'accountHub' ? <AccountPage /> : null}
       {page === 'communication' ? <CommunicationPage /> : null}
       {page === 'mapNavigation' ? <MapNavigationPage /> : null}

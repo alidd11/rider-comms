@@ -119,10 +119,17 @@
 
   async function selectProfileAvatar(avatarId) {
     if (!AVATAR_PRESET_BY_ID[avatarId] || avatarId === state.profile.avatarId) return;
+    // Re-rendering the page must not drop anything typed but not yet saved.
+    const draftIds = ['editName', 'editHandle', 'editInstagram', 'editTiktok', 'sheetInstagramVisibility', 'sheetTiktokVisibility'];
+    const drafts = Object.fromEntries(draftIds.map((id) => [id, document.getElementById(id)?.value]));
     const saved = await patchProfile({ avatarId });
     if (!saved) return;
     showToast('Avatar updated.');
     openSheet('profile');
+    for (const [id, value] of Object.entries(drafts)) {
+      const field = document.getElementById(id);
+      if (field && value !== undefined) field.value = value;
+    }
   }
 
   function icon(name) {
@@ -218,8 +225,6 @@
   });
 
   function renderProfile() {
-    $('#profileName').textContent = state.profile.displayName;
-    $('#profileHandle').textContent = state.profile.handle;
     const profileRiderId = $('#profileRiderId');
     if (profileRiderId) profileRiderId.textContent = state.profile.riderId;
     // The menu behind the map avatar.

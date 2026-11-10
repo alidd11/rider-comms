@@ -61,9 +61,21 @@ appId: com.ridercomms.app
 - takeScreenshot: authenticated-settings
 - tapOn: "Account(,.*)?"
 - takeScreenshot: authenticated-account
-- scrollUntilVisible:
-    element: "Your plan(,.*)?"
-    direction: DOWN
+# Account is sign-in, devices and data; the profile and the plan each have
+# one home in the menu. Back out to the map (Account → Settings → map).
+- tapOn: "Go back"
+- tapOn: "Go back"
+- tapOn:
+    id: open-menu
+- tapOn: "View profile"
+- extendedWaitUntil:
+    visible:
+      id: edit-profile
+    timeout: 10000
+- takeScreenshot: authenticated-profile
+- tapOn: "Go back"
+- tapOn:
+    id: open-menu
 - tapOn: "Your plan(,.*)?"
 - extendedWaitUntil:
     visible: "Your plan(,.*)?"

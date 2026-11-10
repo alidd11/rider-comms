@@ -12,7 +12,6 @@ describe('Settings mockup contract', () => {
       'Communication',
       'Map & Navigation',
       'Units & Preferences',
-      'Help & Support',
       'About',
       'Sign Out',
     ];
@@ -29,12 +28,13 @@ describe('Settings mockup contract', () => {
   });
 
   it('keeps mockup card and row geometry compact', () => {
-    assert.match(settingsSource, /profileCard:\s*\{[\s\S]*?minHeight:\s*100[\s\S]*?marginBottom:\s*8[\s\S]*?borderRadius:\s*8/);
+    // The profile lives behind View profile in the menu, not on the root.
+    assert.ok(!settingsSource.includes('profileCard'));
+    assert.ok(!settingsSource.includes("openPage('help')"));
     assert.match(settingsSource, /paddingBottom: insets\.bottom \+ spacing\.md/);
     assert.match(settingsSource, /scroll: \{[^\n]*paddingHorizontal: spacing\.md/);
     assert.match(settingsSource, /settingsGroup: \{[^\n]*backgroundColor: colors\.surfaceRaised/);
-    assert.match(settingsSource, /backgroundColor: colors\.surfaceRaised,[\s\S]*?profileSaveStatus:/);
-    assert.match(settingsSource, /<RiderAvatar avatarId=\{avatarId\} size=\{72\} \/>/);
+    assert.match(settingsSource, /<RiderAvatar avatarId=\{avatarId\} size=\{112\} \/>/);
     assert.match(settingsSource, /<Ionicons name="chevron-forward" size=\{14\} color=\{colors\.textMuted\} \/>/);
     assert.match(settingsSource, /settingsGroup:\s*\{[^\n]*borderRadius:\s*8/);
     assert.match(settingsSource, /settingRow:\s*\{[^\n]*minHeight:\s*48/);
@@ -43,20 +43,33 @@ describe('Settings mockup contract', () => {
   });
 
   it('opens every category as its own full page with all of its controls', () => {
-    for (const key of ['accountHub', 'communication', 'mapNavigation', 'unitsPreferences', 'help', 'about']) {
+    for (const key of ['accountHub', 'communication', 'mapNavigation', 'unitsPreferences', 'about']) {
       assert.ok(settingsSource.includes(`page === '${key}'`), `Missing Settings page: ${key}`);
       assert.ok(settingsSource.includes(`openPage('${key}')`), `Settings root does not open page: ${key}`);
+    }
+    // Every page is the same SettingsPage route, so opening one must push a
+    // new screen (navigate() would replace the current page and break Back).
+    assert.ok(settingsSource.includes("navigation.push('SettingsPage', { page: 'editProfile' })"));
+    assert.ok(!settingsSource.includes("navigation.navigate('SettingsPage'"));
+    // Opened from the avatar menu instead: View profile, Edit profile, Help.
+    for (const key of ['myProfile', 'editProfile', 'help']) {
+      assert.ok(settingsSource.includes(`page === '${key}'`), `Missing menu page: ${key}`);
     }
     // No nested sheets: a category's controls are on its page.
     assert.ok(!settingsSource.includes('<SettingsSheet'));
     assert.ok(!settingsSource.includes('setActiveSheet('));
-    // Account page holds profile, plan, devices and data together.
-    assert.match(settingsSource, /function AccountPage\(\)[\s\S]*title="Profile"[\s\S]*title="Plan"[\s\S]*title="Signed-in devices"[\s\S]*title="Account and data"/);
+    // Every control in one place: the profile is viewed and edited on its
+    // own pages, the plan only on Billing, and Account is sign-in, devices
+    // and data.
+    assert.match(settingsSource, /function MyProfilePage\(\)[\s\S]*Edit profile[\s\S]*title="Connected profiles"/);
+    assert.match(settingsSource, /function EditProfilePage\(\)[\s\S]*title="Avatar"[\s\S]*title="Name"[\s\S]*title="Connected profiles"/);
+    assert.match(settingsSource, /function AccountPage\(\)[\s\S]*title="Email"[\s\S]*title="Signed-in devices"[\s\S]*title="Account and data"/);
+    const accountPage = settingsSource.slice(settingsSource.indexOf('function AccountPage()'), settingsSource.indexOf('function CommunicationPage()'));
+    assert.ok(!accountPage.includes('title="Plan"') && !accountPage.includes('Display name'));
     // No settings for features that don't work yet (App Review 2.1): push
     // delivery and offline map downloads.
     assert.ok(!settingsSource.includes("'notifications'"));
     assert.ok(!settingsSource.includes('offlineMaps'));
-    assert.ok(settingsSource.includes("navigation.navigate('Billing')"));
     assert.ok(settingsSource.includes("navigation.navigate('Legal')"));
   });
 

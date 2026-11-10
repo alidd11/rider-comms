@@ -65,7 +65,7 @@ export function MenuScreen({ navigation }: Props): React.JSX.Element {
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="View profile"
-              onPress={() => navigation.replace('SettingsPage', { page: 'accountHub' })}
+              onPress={() => navigation.replace('SettingsPage', { page: 'myProfile' })}
               style={({ pressed }) => [styles.profileButton, pressed && styles.rowPressed]}
             >
               <Text style={styles.profileButtonText}>View profile</Text>

@@ -50,6 +50,7 @@ const [
   nativeManeuverSource,
   nativeManeuverGlyphSource,
   nativeGuidanceSource,
+  nativeMenuSource,
 ] = await Promise.all([
   readFile(new URL('../docs/app.js', import.meta.url), 'utf8'),
   readFile(new URL('../docs/app.css', import.meta.url), 'utf8'),
@@ -64,6 +65,7 @@ const [
   readFile(new URL('../mobile/src/navigationManeuver.ts', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/components/NavigationManeuverGlyph.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/navigationGuidance.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../mobile/src/screens/MenuScreen.tsx', import.meta.url), 'utf8'),
 ]);
 // MapScreen.tsx delegates its map-marker rendering (HazardMarker,
 // SmoothSelfMarker, SmoothRideMemberMarker) to mapMarkers.tsx, its hazard
@@ -81,7 +83,6 @@ const SETTINGS_ROOT_LABELS = [
   'Communication',
   'Map & Navigation',
   'Units & Preferences',
-  'Help & Support',
   'About',
   'Sign Out',
 ];
@@ -94,18 +95,33 @@ for (const label of SETTINGS_ROOT_LABELS) {
     throw new Error(`Native Settings root is missing approved category: ${label}`);
   }
 }
-for (const token of ['accountHub', 'communication', 'mapNavigation', 'unitsPreferences', 'help', 'about']) {
+for (const token of ['accountHub', 'communication', 'mapNavigation', 'unitsPreferences', 'about']) {
   // Native opens each category as its own page (SettingsPageScreen); the
-  // PWA as a sheet. Both use the same category tokens.
+  // PWA as a full-screen sheet page. Both use the same category tokens.
   if (!pwaIndexSource.includes(`data-sheet="${token}"`) || !nativeSettingsSource.includes(`page === '${token}'`)) {
     throw new Error(`Settings hierarchy drifted for ${token}`);
   }
 }
+// Pages opened from the avatar menu rather than the Settings root: each
+// exists once, on both clients.
+for (const token of ['myProfile', 'editProfile', 'help']) {
+  if (!pwaMapSource.includes(`${token}: {`) || !nativeSettingsSource.includes(`page === '${token}'`)) {
+    throw new Error(`Menu page drifted for ${token}`);
+  }
+}
+if (!pwaMapSource.includes("openSheet('myProfile')") || !nativeMenuSource.includes("page: 'myProfile'")) {
+  throw new Error('View profile must open the profile page on both clients, not Account settings');
+}
+// No duplicates: Help lives in the menu only, the plan only under Your plan,
+// and the profile is not repeated on the Settings root.
+if (/data-sheet="help"|settings-profile-row/.test(pwaIndexSource) || /openPage\('help'\)|styles\.profileCard/.test(nativeSettingsSource)) {
+  throw new Error('Settings root must not repeat Help or the profile card from the menu');
+}
 if (/<h2 class="group-title">(?:Account|Preferences|Privacy and safety)<\/h2>/.test(pwaIndexSource)) {
   throw new Error('PWA Settings must not expose the legacy section-heavy root');
 }
-if (!/settings-profile-row/.test(pwaIndexSource) || !/settings-main-group/.test(pwaIndexSource) || !/settings-secondary-group/.test(pwaIndexSource)) {
-  throw new Error('PWA Settings must preserve the approved profile + grouped-card mockup hierarchy');
+if (!/settings-main-group/.test(pwaIndexSource) || !/settings-secondary-group/.test(pwaIndexSource)) {
+  throw new Error('PWA Settings must preserve the approved grouped-card hierarchy');
 }
 if (!/patchProfile\(\{ unitSystem: next \}\)/.test(pwaMapSource) || !nativeSettingsSource.includes("setUnitSystem(unit)")) {
   throw new Error('Distance units must persist through the rider profile on both clients');
