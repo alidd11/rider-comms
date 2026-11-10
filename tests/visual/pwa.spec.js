@@ -1048,17 +1048,11 @@ test('PWA utility viewport paints safe areas as one edge-to-edge canvas', async 
   const viewport = await page.locator('[data-screen="settings"]').evaluate((screen) => {
     const screenStyle = getComputedStyle(screen);
     const navStyle = getComputedStyle(document.querySelector('.bottom-nav'));
-    // iOS 26 blurs the top of a Home Screen app unless a solid fixed box
-    // covers the edge. That box exists only in the installed iOS app
-    // (display-mode: standalone), which Playwright can't emulate, so check
-    // the element and its rule rather than its computed style.
-    const readRules = (sheet) => { try { return [...sheet.cssRules].map((rule) => rule.cssText); } catch { return []; } };
-    const backdropRule = [...document.styleSheets].flatMap(readRules).find((text) => text.includes('display-mode: standalone') && text.includes('.status-bar-backdrop'));
     return {
       screenBackground: screenStyle.backgroundImage,
-      backdropInBody: document.querySelector('body > .status-bar-backdrop')?.getAttribute('aria-hidden'),
-      backdropHiddenInTab: getComputedStyle(document.querySelector('.status-bar-backdrop')).display,
-      backdropRule: backdropRule || '',
+      // Nothing is painted over the top edge: the page runs under the
+      // status bar (iOS 26's own blur there can't be switched off by a page).
+      statusBarCover: document.querySelectorAll('.status-bar-backdrop').length,
       paddingTop: screenStyle.paddingTop,
       paddingLeft: screenStyle.paddingLeft,
       navPaddingLeft: navStyle.paddingLeft,
@@ -1066,11 +1060,7 @@ test('PWA utility viewport paints safe areas as one edge-to-edge canvas', async 
   });
 
   expect(viewport.screenBackground).toBe('none');
-  expect(viewport.backdropInBody).toBe('true');
-  expect(viewport.backdropHiddenInTab).toBe('none');
-  expect(viewport.backdropRule).toContain('height: 11px');
-  // Painted for iOS, invisible to the rider: the map stays edge to edge.
-  expect(viewport.backdropRule).toContain('background-clip: text');
+  expect(viewport.statusBarCover).toBe(0);
   expect(parseFloat(viewport.paddingTop)).toBeGreaterThan(59);
   expect(parseFloat(viewport.paddingLeft)).toBeGreaterThanOrEqual(47);
   expect(parseFloat(viewport.navPaddingLeft)).toBeGreaterThanOrEqual(47);
@@ -1110,6 +1100,26 @@ test('PWA keeps the plain "waiting for a speed fix" notice on the map only', asy
   await expect(page.locator('#movementSafetyBanner')).toBeHidden();
   await page.locator('.bottom-nav [data-nav="map"]').click();
   await expect(page.locator('#movementSafetyBanner')).toBeVisible();
+});
+
+test('PWA hides the map\'s distracting controls while moving, like the native app', async ({ page }) => {
+  await mockAuthenticatedApi(page, 'recovering');
+  await page.goto('/');
+  await expect(page.locator('#app')).toBeVisible();
+  const moving = (speed) => page.evaluate((metresPerSecond) => {
+    const base = Date.now() - 7000;
+    for (let i = 0; i <= 7; i++) window.gpsTest.success({
+      timestamp: base + i * 1000,
+      coords: { latitude: 51.5074 + i * 0.0001 * metresPerSecond, longitude: -0.1278, accuracy: 5, speed: metresPerSecond },
+    });
+  }, speed);
+  await moving(12);
+  await expect(page.locator('#app')).toHaveClass(/safety-locked/);
+  // Gone, not half see-through over the map.
+  for (const selector of ['#mapSearchSlot', '#mapAvatarButton', '#musicBtn', '#reportHazardBtn']) {
+    await expect(page.locator(selector)).toBeHidden();
+  }
+  await expect(page.locator('#locateBtn')).toBeVisible();
 });
 
 test('PWA GPS timeout recovers without another permission request or startup lock', async ({ page }) => {
