@@ -1,9 +1,9 @@
 {
-  "_comment": "Fill these in, then run `npm run build:legal`. null keeps the placeholder visible in brackets; an empty string removes it.",
+  "_comment": "Fill these in, then run `npm run build:legal`. null keeps the placeholder visible (as a 'to be confirmed' marker); an empty string removes it.",
   "[date]": "1 October 2026",
-  "[Company legal name]": null,
+  "[Company legal name]": "Rider Comms",
   "[support email]": null,
-  "[postal address]": null,
+  "[postal address]": "",
   "[2 working days]": "2 working days",
   "[16 / the applicable minimum age]": "16",
   "[e.g. ICO in the UK]": "in the UK, the Information Commissioner's Office",
@@ -16,7 +16,7 @@
   "[Owner decision: shorter limit?]": "",
   "[confirm]": "",
   "[roles]": "authorised staff who need it",
-  "[Data Protection Officer or EU/UK representative, if required]": null,
+  "[Data Protection Officer or EU/UK representative, if required]": "",
   "[International transfers: describe where each provider processes data and the safeguard used, e.g. Standard Contractual Clauses.]": null,
   "[Legal review: police/camera report features and local law.]": null,
   "[Governing law, courts, and any consumer-protection carve-outs for users in other countries.]": null

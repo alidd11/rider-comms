@@ -29,7 +29,9 @@ behaviour.
   other riders and aren't verified. Always follow road signs, conditions and
   the law.
 - Don't use Rider Comms to coordinate illegal riding, racing, or evading
-  enforcement. [Legal review: police/camera report features and local law.]
+  enforcement. Police and speed camera reports are there to help riders slow
+  down and ride safely; don't use them to avoid being stopped for an offence,
+  or anywhere reporting them is against local law.
 
 ## 2. Your account
 
@@ -112,11 +114,19 @@ notice in the app of material changes.
 
 ## 9. Liability
 
-[Legal review required. Typical content: no warranties to the extent the law
-allows; no liability for indirect losses or for riders' own decisions on the
-road; a liability cap; nothing excludes liability that can't legally be
-excluded (for example, death or personal injury caused by negligence, or
-fraud); statutory consumer rights are unaffected.]
+- Nothing in these terms limits or excludes our liability for death or
+  personal injury caused by our negligence, for fraud or fraudulent
+  misrepresentation, or for anything else the law doesn't allow us to limit.
+  Your statutory rights as a consumer are not affected.
+- We're responsible for loss or damage you suffer that is a foreseeable result
+  of us breaking these terms or failing to use reasonable care and skill. We're
+  not responsible for loss that wasn't foreseeable, or for business losses:
+  Rider Comms is for personal, non-commercial use.
+- You're responsible for how you ride. We're not responsible for the
+  decisions you make on the road, including following a route, a hazard report
+  or another rider.
+- Where the law allows a cap, our total liability to you is limited to the
+  amount you paid us for Rider Comms in the 12 months before the claim.
 
 ## 10. Ending your use
 
@@ -126,8 +136,14 @@ should survive (for example 5, 9 and 11) continue after termination.
 
 ## 11. Governing law and disputes
 
-[Governing law, courts, and any consumer-protection carve-outs for users in
-other countries.]
+These terms are governed by the law of England and Wales. You can bring
+proceedings in the courts of England and Wales; if you live in Scotland or
+Northern Ireland, you can also bring them in your local courts. If you live
+outside the UK, you keep the protection of any mandatory consumer laws of the
+country you live in.
+
+If something goes wrong, contact us first: most problems can be put right
+quickly.
 
 ## Contact
 
