@@ -54,12 +54,16 @@ describe('PresenceStore', { skip: !hasDatabase && 'DATABASE_URL not set; skippin
 
     assert.equal(transitions.length, 1);
     assertHasTransition(transitions, 'a', 'b', 'entered');
+    // Never the distance: it is returned to clients, and three distances
+    // from three positions would pinpoint the other rider.
+    assert.deepEqual(Object.keys(transitions[0]).sort(), ['a', 'b', 'type']);
     assert.deepEqual(store.ridersInZoneWith('a', zonePairs), ['b']);
 
     // ~11 km in two minutes (~205 mph): outside both 5-mile radii.
     const { transitions: left } = await store.updatePresence(rider('b', 51.6, -0.1, 5, 121_001));
     assert.equal(left.length, 1);
     assertHasTransition(left, 'a', 'b', 'left');
+    assert.deepEqual(Object.keys(left[0]).sort(), ['a', 'b', 'type']);
   });
 
   it('keeps an existing pair a little past the radius so edge-of-range riders do not flicker', async () => {

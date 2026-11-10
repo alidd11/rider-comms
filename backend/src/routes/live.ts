@@ -76,7 +76,11 @@ export async function handleLiveRoutes(ctx: RouteContext): Promise<unknown> {
     const allowedPeerIds = new Set(await moderationStore.filterAllowedPeerIds(actorId, [...inZonePeerIds, ...transitionPeerIds]));
     return sendJson(res, 200, {
       inZoneWith: inZonePeerIds.filter((peerId) => allowedPeerIds.has(peerId)),
-      transitions: actorTransitions.filter((transition) => allowedPeerIds.has(transition.a === actorId ? transition.b : transition.a)),
+      // Rebuilt field by field so nothing but the pair and event type
+      // (never a distance) is ever serialised to the client.
+      transitions: actorTransitions
+        .filter((transition) => allowedPeerIds.has(transition.a === actorId ? transition.b : transition.a))
+        .map(({ a, b, type }) => ({ a, b, type })),
       radiusMiles: rider.radiusMiles,
     });
   }
