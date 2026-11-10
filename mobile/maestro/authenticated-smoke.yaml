@@ -52,9 +52,18 @@ appId: com.ridercomms.app
 - takeScreenshot: authenticated-ride
 - tapOn: "Friends(,.*)?"
 - takeScreenshot: authenticated-friends
+# Routes and Settings live in the menu behind the rider's avatar on the map.
+- tapOn: "Map(,.*)?"
+- tapOn:
+    id: open-menu
+- takeScreenshot: authenticated-menu
 - tapOn: "Settings(,.*)?"
 - takeScreenshot: authenticated-settings
 - tapOn: "Account(,.*)?"
+- takeScreenshot: authenticated-account
+- scrollUntilVisible:
+    element: "Your plan(,.*)?"
+    direction: DOWN
 - tapOn: "Your plan(,.*)?"
 - extendedWaitUntil:
     visible: "Your plan(,.*)?"

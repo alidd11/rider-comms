@@ -123,6 +123,16 @@ export class ModerationStore {
          RETURNING rider_id, friend_id`,
         [riderId, blockedRiderId],
       );
+      // Neither rider keeps seeing the other's planned meeting places: each
+      // leaves the Hideouts the other created.
+      await client.query(
+        `DELETE FROM hideout_participants participant
+         USING hideouts hideout
+         WHERE participant.hideout_id = hideout.id
+           AND ((hideout.created_by = $1 AND participant.rider_id = $2)
+             OR (hideout.created_by = $2 AND participant.rider_id = $1))`,
+        [riderId, blockedRiderId],
+      );
       const removedRequests = await client.query<{ id: string }>(
         `DELETE FROM friend_requests
          WHERE status = 'pending'

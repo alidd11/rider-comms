@@ -95,7 +95,9 @@ for (const label of SETTINGS_ROOT_LABELS) {
   }
 }
 for (const token of ['accountHub', 'communication', 'mapNavigation', 'unitsPreferences', 'help', 'about']) {
-  if (!pwaIndexSource.includes(`data-sheet="${token}"`) || !nativeSettingsSource.includes(`activeSheet === '${token}'`)) {
+  // Native opens each category as its own page (SettingsPageScreen); the
+  // PWA as a sheet. Both use the same category tokens.
+  if (!pwaIndexSource.includes(`data-sheet="${token}"`) || !nativeSettingsSource.includes(`page === '${token}'`)) {
     throw new Error(`Settings hierarchy drifted for ${token}`);
   }
 }
@@ -110,7 +112,7 @@ if (!/patchProfile\(\{ unitSystem: next \}\)/.test(pwaMapSource) || !nativeSetti
 }
 // Neither client offers settings for features that don't work yet: there is
 // no push delivery and no offline map download (App Review guideline 2.1).
-if (/data-settings-target="notifications"|setActiveSheet\('notifications'\)/.test(pwaMapSource + nativeSettingsSource)) {
+if (/data-settings-target="notifications"|setActiveSheet\('notifications'\)|page: 'notifications'/.test(pwaMapSource + nativeSettingsSource)) {
   throw new Error('Notification settings must stay hidden on both clients until push delivery exists');
 }
 if (!pwaMapSource.includes('Reset Rider Comms settings to their defaults?') || !nativeSettingsSource.includes('Reset Rider Comms settings?')) {

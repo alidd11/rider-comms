@@ -841,4 +841,25 @@ export const MIGRATIONS: Migration[] = [
       ALTER TABLE rider_profiles ADD COLUMN IF NOT EXISTS zone_tier_expires_at BIGINT;
     `,
   },
+  {
+    // A rider the host removed can't rejoin the same ride with its code.
+    // Two more rate-limited actions: purchase verification per rider (each
+    // costs App Store / Play API calls) and password-reset emails per
+    // account (so a reset flood can't be spread across many addresses).
+    name: '0049_ride_removed_members_and_limits',
+    sql: `
+      CREATE TABLE IF NOT EXISTS ride_removed_members (
+        ride_id TEXT NOT NULL REFERENCES rides (id) ON DELETE CASCADE,
+        rider_id TEXT NOT NULL,
+        removed_at BIGINT NOT NULL,
+        PRIMARY KEY (ride_id, rider_id)
+      );
+      CREATE INDEX IF NOT EXISTS ride_removed_members_rider_idx ON ride_removed_members (rider_id);
+      ALTER TABLE rate_limit_events DROP CONSTRAINT IF EXISTS rate_limit_events_action_check;
+      ALTER TABLE rate_limit_events ADD CONSTRAINT rate_limit_events_action_check
+        CHECK (
+          action IN ('auth', 'auth_account', 'signup_ip', 'api', 'ride_join_rider', 'ride_join_ip', 'hazard_create', 'directions', 'places', 'client_error', 'presence', 'verification_resend', 'password_reset_request', 'password_reset_account', 'billing_verify', 'ride_create', 'hideout_create')
+        );
+    `,
+  },
 ];

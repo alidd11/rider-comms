@@ -10,7 +10,7 @@ import { CuratedRouteBrowser } from '../routes/CuratedRouteBrowser';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { RIDE_WINDOWS, type RideWindow, type RiderCoordinate } from '../routes/routeDiscovery';
 import type { CuratedRoute } from '../routes/curatedRoutes';
-import type { TabParamList } from '../navigation';
+import type { RootStackParamList } from '../navigation';
 
 export type RouteCategory = 'all' | 'scenic' | 'mountain' | 'coastal' | 'near';
 
@@ -37,7 +37,7 @@ function FilterChip({ label, active, onPress }: { label: string; active: boolean
 
 export function ScenicRoutesScreen(): React.JSX.Element {
   const insets = useSafeAreaInsets();
-  const navigation = useNavigation<NavigationProp<TabParamList>>();
+  const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const [rideWindow, setRideWindow] = React.useState<RideWindow>('all');
   const [riderLocation, setRiderLocation] = React.useState<RiderCoordinate | null>(null);
   const [category, setCategory] = React.useState<RouteCategory>('all');
@@ -80,12 +80,16 @@ export function ScenicRoutesScreen(): React.JSX.Element {
   }, [riderLocation]);
 
   const guideToStart = React.useCallback((route: CuratedRoute) => {
-    navigation.navigate('Map', {
-      segment: 'public',
-      at: Date.now(),
-      lat: route.start.lat,
-      lon: route.start.lon,
-      label: `${route.name} start`,
+    // Routes is a stack screen opened from the menu; the map lives in Tabs.
+    navigation.navigate('Tabs', {
+      screen: 'Map',
+      params: {
+        segment: 'public',
+        at: Date.now(),
+        lat: route.start.lat,
+        lon: route.start.lon,
+        label: `${route.name} start`,
+      },
     });
   }, [navigation]);
 
@@ -98,6 +102,7 @@ export function ScenicRoutesScreen(): React.JSX.Element {
       >
         <ScreenHeader
           title="Routes"
+          onBack={navigation.canGoBack() ? () => navigation.goBack() : undefined}
           action={(
             <Pressable
               style={({ pressed }) => [styles.searchToggle, toolsOpen && styles.searchToggleActive, pressed && styles.searchTogglePressed]}

@@ -82,11 +82,12 @@ export async function handleBillingNotificationRoutes(ctx: PublicRouteContext): 
 
 /** The signed-in rider's plan, and verifying a purchase the app made. */
 export async function handleBillingRoutes(ctx: RouteContext): Promise<unknown> {
-  const { req, res, url, actorId, billingStore } = ctx;
+  const { req, res, url, actorId, billingStore, rateLimitStore } = ctx;
   if (url.pathname === '/billing' && req.method === 'GET') {
     return sendJson(res, 200, await billingStore.status(actorId));
   }
   if (url.pathname === '/billing/verify' && req.method === 'POST') {
+    if (!(await consumeRateLimit(res, rateLimitStore, rateLimitSubject('rider', actorId), 'billing_verify'))) return;
     const body = await readJsonBody(req);
     const platform = body.platform;
     if (platform !== 'apple' && platform !== 'google') return sendJson(res, 400, { error: 'platform must be apple or google' });
