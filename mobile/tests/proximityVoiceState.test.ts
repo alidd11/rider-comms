@@ -3,6 +3,7 @@ import { describe, it } from 'node:test';
 import {
   DEFAULT_PROXIMITY_VOICE_AUTHORIZATION_LEASE_MS,
   DEFAULT_PROXIMITY_VOICE_REFRESH_MS,
+  formatActiveSpeakerSummary,
   proximityVoiceStatus,
   prunePeerSet,
   resolveProximityVoiceRetryDelay,
@@ -41,6 +42,13 @@ describe('proximity voice state', () => {
       [...prunePeerSet(new Set(['a', 'b', 'c']), new Set(['b', 'd']))],
       ['b'],
     );
+  });
+
+  it('formats active-speaker summaries for one, two, and larger groups', () => {
+    assert.equal(formatActiveSpeakerSummary([]), null);
+    assert.equal(formatActiveSpeakerSummary([' Maya ']), 'Maya is speaking');
+    assert.equal(formatActiveSpeakerSummary(['Maya', 'Sam']), 'Maya and Sam are speaking');
+    assert.equal(formatActiveSpeakerSummary(['Maya', 'Sam', 'Lee', 'Alex']), 'Maya and 3 others are speaking');
   });
 
   it('prioritises local transmit state and reports lease expiry as reconnecting', () => {

@@ -51,6 +51,14 @@ export function prunePeerSet(current: ReadonlySet<string>, authorisedPeerIds: Re
   return next;
 }
 
+export function formatActiveSpeakerSummary(names: readonly string[]): string | null {
+  const visibleNames = names.map((name) => name.trim()).filter(Boolean);
+  if (visibleNames.length === 0) return null;
+  if (visibleNames.length === 1) return `${visibleNames[0]} is speaking`;
+  if (visibleNames.length === 2) return `${visibleNames[0]} and ${visibleNames[1]} are speaking`;
+  return `${visibleNames[0]} and ${visibleNames.length - 1} others are speaking`;
+}
+
 export function proximityVoiceStatus({
   error,
   authorizationExpired,
