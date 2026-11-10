@@ -19,7 +19,7 @@ describe('RideStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping Po
   });
 
   beforeEach(async () => {
-    await getPool().query('TRUNCATE rides, ride_members, ride_codes, ride_locations');
+    await getPool().query('TRUNCATE rides, ride_members, ride_removed_members, ride_codes, ride_locations');
   });
 
   after(async () => {
@@ -63,6 +63,18 @@ describe('RideStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping Po
 
     const rejoin = await store.joinRide(codeRecord.code, 'rider_0');
     assert.equal(rejoin.ok, true);
+  });
+
+  it('does not let a rider the host removed rejoin with the same code', async () => {
+    const store = new RideStore();
+    const { ride, codeRecord } = await store.createRide('host');
+    assert.equal((await store.joinRide(codeRecord.code, 'kicked')).ok, true);
+    assert.equal((await store.removeMember(ride.id, 'host', 'kicked')).ok, true);
+
+    assert.deepEqual(await store.joinRide(codeRecord.code, 'kicked'), { ok: false, reason: 'removed_by_host' });
+    assert.equal((await store.getRide(ride.id))?.memberIds.has('kicked'), false);
+    // Anyone else can still join.
+    assert.equal((await store.joinRide(codeRecord.code, 'newcomer')).ok, true);
   });
 
   it('requires explicit per-ride consent before sharing a member location', async () => {

@@ -1,6 +1,7 @@
 import { after, before, beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { ModerationStore } from '../src/moderationStore.ts';
+import { HideoutStore } from '../src/hideoutStore.ts';
 import { ensureMigrated, getPool, resetDbForTests } from '../src/db.ts';
 
 // ModerationStore is now Postgres-backed (see db.ts) — these tests need
@@ -25,6 +26,22 @@ describe('ModerationStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipp
 
   after(async () => {
     await resetDbForTests();
+  });
+
+  it('removes each rider from Hideouts the other created when one blocks the other', async () => {
+    const store = new ModerationStore();
+    const hideouts = new HideoutStore();
+    const alicePlan = await hideouts.create({ name: 'Coffee stop', lat: 51.5, lon: -0.1, createdBy: 'alice', participantIds: ['bob', 'carol'] });
+    const bobPlan = await hideouts.create({ name: 'Fuel stop', lat: 51.6, lon: -0.2, createdBy: 'bob', participantIds: ['alice'] });
+
+    await store.block('alice', 'bob');
+
+    const bobSees = (await hideouts.getForRider('bob')).map((hideout) => hideout.id);
+    const aliceSees = (await hideouts.getForRider('alice')).map((hideout) => hideout.id);
+    assert.equal(bobSees.includes(alicePlan.id), false);
+    assert.equal(aliceSees.includes(bobPlan.id), false);
+    // Other participants are untouched.
+    assert.ok((await hideouts.getForRider('carol')).some((hideout) => hideout.id === alicePlan.id));
   });
 
   it('treats a one-sided block as mutual communication isolation', async () => {

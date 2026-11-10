@@ -57,6 +57,13 @@ export async function handlePublicRoutes(ctx: PublicRouteContext): Promise<unkno
   if (req.method === 'POST' && url.pathname === '/auth/password-reset/request') {
     if (!(await consumeRateLimit(res, rateLimitStore, rateLimitSubject('ip', address), 'password_reset_request'))) return;
     const body = await readJsonBody(req);
+    // Per account too, so spreading requests over many addresses can't flood
+    // one inbox. Answered the same way as success: never says whether the
+    // address has an account.
+    if (typeof body.email === 'string' && body.email.trim()) {
+      const accountLimit = await rateLimitStore.consume(rateLimitSubject('account', `reset:${body.email.trim().toLowerCase()}`), 'password_reset_account');
+      if (!accountLimit.allowed) return sendJson(res, 202, { accepted: true });
+    }
     await authStore.requestPasswordReset(body.email);
     return sendJson(res, 202, { accepted: true });
   }
@@ -81,7 +88,9 @@ export async function handlePublicRoutes(ctx: PublicRouteContext): Promise<unkno
       return sendJson(res, 202, { received: true });
     }
     console.error(JSON.stringify({ level: report.fatal ? 'fatal' : 'error', event: 'client_error', ...report }));
-    reportOperationalError('client_error', `${report.platform}${report.fatal ? ' (fatal)' : ''}${report.appVersion ? ` v${report.appVersion}` : ''}: ${report.message}`);
+    // Anyone can post a crash report, so the alert marks its text as
+    // unverified: staff shouldn't act on instructions inside one.
+    reportOperationalError('client_error', `${report.platform}${report.fatal ? ' (fatal)' : ''}${report.appVersion ? ` v${report.appVersion}` : ''} [unverified client report]: ${report.message}`);
     return sendJson(res, 202, { received: true });
   }
   return NOT_HANDLED;

@@ -14,6 +14,8 @@ export type RateLimitAction =
   | 'presence'
   | 'verification_resend'
   | 'password_reset_request'
+  | 'password_reset_account'
+  | 'billing_verify'
   | 'ride_create'
   | 'hideout_create';
 
@@ -55,6 +57,12 @@ export const RATE_LIMIT_POLICIES: Readonly<Record<RateLimitAction, RateLimitPoli
   presence: { maxEvents: 20, windowMs: 60_000 },
   verification_resend: { maxEvents: 3, windowMs: 10 * 60_000 },
   password_reset_request: { maxEvents: 3, windowMs: 10 * 60_000 },
+  // Reset emails per account, from any address: stops a reset flood spread
+  // across many IPs from filling a rider's inbox.
+  password_reset_account: { maxEvents: 3, windowMs: 60 * 60_000 },
+  // Each purchase check is one or two App Store / Play API calls; the apps
+  // verify once per purchase or restore.
+  billing_verify: { maxEvents: 10, windowMs: 10 * 60_000 },
   // Each ride is a row, a join code and a voice room. A host starting over a
   // few times is normal; dozens in minutes is a script.
   ride_create: { maxEvents: 10, windowMs: 10 * 60_000 },
