@@ -2908,3 +2908,41 @@ html.app-menu-open .bottom-nav,html.app-menu-open .ride-pill,html.app-menu-open 
 .settings-list .settings-row-danger,.settings-list .settings-row-danger .setting-icon{color:var(--danger)}
 .settings-section-note{margin:0;padding:0 4px;color:var(--text-muted);font-size:.76rem;line-height:1.4}
 .settings-page .settings-signout{margin-top:22px;border-radius:12px}
+
+/* ===== Polish (Nov 2026): switches, menu pages, Help, plan ===== */
+/* An off switch keeps a visible track in both themes. */
+:root{--switch-off:#3a4850}
+@media(prefers-color-scheme:light){:root{--switch-off:#aebbc2}}
+.toggle:not([aria-pressed=true]){background:var(--switch-off)}
+
+/* Routes and Settings open from the avatar menu and have a back arrow; the
+   Map/Ride/Friends tabs (none of which is current there) stay off them,
+   as in the native app. */
+html[data-active-screen="routes"] .bottom-nav,
+html[data-active-screen="settings"] .bottom-nav{display:none}
+html[data-active-screen="routes"] .screen.active,
+html[data-active-screen="settings"] .screen.active{padding-bottom:calc(var(--safe-bottom) + 28px)}
+html[data-active-screen="routes"] .ride-pill,
+html[data-active-screen="settings"] .ride-pill{bottom:calc(var(--safe-bottom) + 12px)}
+
+/* Help & Support */
+.help-contact{display:flex;align-items:center;justify-content:center;gap:9px;text-decoration:none}
+.help-contact svg{width:19px;height:19px}
+.help-contact-note{margin:2px 4px 0}
+.faq-list{overflow:hidden;border:1px solid var(--border-soft);border-radius:12px;background:var(--surface)}
+.faq-item{border-bottom:1px solid var(--border-soft)}
+.faq-item:last-child{border-bottom:0}
+.faq-item summary{min-height:54px;display:flex;align-items:center;gap:12px;padding:8px 14px;cursor:pointer;list-style:none;font-size:.95rem;font-weight:600}
+.faq-item summary::-webkit-details-marker{display:none}
+.faq-item summary span{flex:1}
+.faq-item summary svg{width:15px;height:15px;flex:none;color:var(--text-muted);transform:rotate(90deg);transition:transform 150ms ease}
+.faq-item[open] summary svg{transform:rotate(-90deg)}
+.faq-item p{margin:0;padding:0 14px 14px;color:var(--text-secondary);font-size:.88rem;line-height:1.5}
+.help-links{margin-top:0}
+.help-links a.settings-row{text-decoration:none}
+
+/* Your plan */
+.plan-summary{display:grid;gap:2px;padding:16px;border:1px solid color-mix(in srgb,var(--accent) 45%,var(--border));border-radius:12px;background:var(--accent-soft)}
+.plan-summary span{color:var(--text-secondary);font-size:.78rem;font-weight:700}
+.plan-summary strong{font-size:1.35rem;font-weight:820}
+.plan-summary small{color:var(--text-secondary);font-size:.82rem}

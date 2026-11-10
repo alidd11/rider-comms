@@ -109,6 +109,13 @@ for (const token of ['navigationApp', 'distanceUnits', 'blockedRiders', 'email',
     throw new Error(`Settings page drifted for ${token}`);
   }
 }
+// Help & Support's common questions are the same on both clients.
+const nativeFaqBlock = nativeSettingsSource.slice(nativeSettingsSource.indexOf('export const HELP_FAQ'), nativeSettingsSource.indexOf('function FaqItem('));
+const nativeFaq = [...nativeFaqBlock.matchAll(/\['([^']+)', '([^']+)'\]/g)];
+if (nativeFaq.length < 5) throw new Error('Native Help & Support must list its common questions');
+for (const [, question, answer] of nativeFaq) {
+  if (!pwaMapSource.includes(`['${question}', '${answer}']`)) throw new Error(`Help question drifted between clients: ${question}`);
+}
 // Pages opened from the avatar menu rather than the Settings root: each
 // exists once, on both clients.
 for (const token of ['myProfile', 'editProfile', 'help']) {

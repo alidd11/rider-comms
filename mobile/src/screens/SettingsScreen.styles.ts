@@ -193,6 +193,11 @@ export const styles = StyleSheet.create({
   // Full settings pages (one per Settings option).
   pageScroll: { gap: spacing.lg },
   settingsSection: { gap: spacing.sm },
+  faqItem: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+  faqQuestion: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12 },
+  faqQuestionText: { flex: 1 },
+  faqAnswer: { ...type.caption, color: colors.textSecondary, lineHeight: 19, paddingHorizontal: 12, paddingBottom: 12 },
+  helpContact: { flexDirection: 'row', gap: spacing.sm },
   pageSection: { gap: spacing.sm },
   pageSectionTitle: { ...type.label, color: colors.textSecondary, paddingHorizontal: spacing.xs },
   pageSectionNote: { ...type.caption, color: colors.textSecondary, lineHeight: 18, paddingHorizontal: spacing.xs },

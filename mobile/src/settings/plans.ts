@@ -20,7 +20,7 @@ export const PLAN_INFO: Record<ZoneTier, PlanInfo> = {
   },
   premium: {
     name: 'Premium',
-    blurb: 'A wider range for group rides that spread out on the highway.',
+    blurb: 'A wider range for group rides that spread out on the motorway.',
     features: [`${TIER_RADIUS_MILES.premium} mi Nearby range`, 'Everything in Free'],
   },
   premium_plus: {
@@ -39,7 +39,7 @@ export type PlanAction = 'current' | 'subscribe' | 'upgrade' | 'downgrade' | 'ma
 export interface PlanOption {
   tier: ZoneTier;
   info: PlanInfo;
-  /** "$4.99 / month", or "Free". */
+  /** "£4.99 / month", or "Free". */
   priceLabel: string;
   action: PlanAction;
 }

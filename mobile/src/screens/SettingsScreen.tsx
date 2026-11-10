@@ -2,7 +2,7 @@ import * as React from 'react';
 import { View, Text, Pressable, TextInput, ScrollView, Modal, Switch, Alert, ActivityIndicator, Linking } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp, NativeStackScreenProps } from '@react-navigation/native-stack';
 import Constants from 'expo-constants';
 import type { SocialVisibility } from '@rider-comms/shared';
@@ -259,8 +259,9 @@ function SettingsSwitchRow({ icon, title, value, onValueChange, last = false }: 
         accessibilityLabel={title}
         value={value}
         onValueChange={onValueChange}
-        trackColor={{ false: colors.border, true: colors.accent }}
-        thumbColor={colors.textPrimary}
+        trackColor={{ false: colors.switchTrackOff, true: colors.accent }}
+        ios_backgroundColor={colors.switchTrackOff}
+        thumbColor="#FFFFFF"
       />
     </View>
   );
@@ -322,6 +323,15 @@ export function SettingsScreen(): React.JSX.Element {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const openPage = (page: SettingsPageKey) => navigation.push('SettingsPage', { page });
   const appVersion = Constants.expoConfig?.version ?? '0.1.0';
+  const { client } = useAuth();
+  // Blocked riders shows how many; refreshed whenever Settings comes back
+  // into view (an unblock on its page changes it).
+  const [blockedCount, setBlockedCount] = React.useState<number | null>(null);
+  useFocusEffect(React.useCallback(() => {
+    let active = true;
+    client.getBlockedRiders().then(({ blocked }) => { if (active) setBlockedCount(blocked.length); }).catch(() => undefined);
+    return () => { active = false; };
+  }, [client]));
   const navigationAppLabel = NAVIGATION_PROVIDER_OPTIONS.find((option) => option.id === navigationProvider)?.label ?? '';
 
   function changeRideSafe(enabled: boolean) {
@@ -405,7 +415,7 @@ export function SettingsScreen(): React.JSX.Element {
 
         <SettingsSection title="Privacy" note="Nearby riders see you only while you’re live. Group-ride location is chosen inside each ride.">
           <SettingsSwitchRow icon="location-outline" title="Nearby rider visibility" value={shareLocation} onValueChange={setShareLocation} />
-          <SettingsRow icon="eye-off-outline" title="Blocked riders" last onPress={() => openPage('blockedRiders')} />
+          <SettingsRow icon="eye-off-outline" title="Blocked riders" right={blockedCount ? String(blockedCount) : undefined} last onPress={() => openPage('blockedRiders')} />
         </SettingsSection>
 
         <SettingsSection title="Account">
@@ -733,19 +743,60 @@ function DistanceUnitsPage(): React.JSX.Element {
   );
 }
 
+// Help & Support's common questions; the PWA has the same list
+// (scripts/check-client-parity.mjs keeps them equal).
+export const HELP_FAQ: ReadonlyArray<readonly [string, string]> = [
+  ['I can’t sign in', 'Use Forgot password? on the sign-in screen. We’ll email a reset link and code to the address on your account.'],
+  ['I didn’t get the verification email', 'Check your spam folder, then open Settings → Email and send a new one.'],
+  ['Voice isn’t connecting', 'Check that Rider Comms can use your microphone and that you have a data connection. Your map and ride keep working while voice reconnects.'],
+  ['My location isn’t showing', 'Location is only shared when you turn it on: Go live for Nearby, or the location switch in a group ride. Check that location access is allowed for Rider Comms.'],
+  ['Someone is bothering me', 'Report and block them from their profile, a chat, the ride roster or a friend request. Reports are reviewed within 24 hours.'],
+  ['How do I delete my account?', 'Settings → Delete account. It permanently deletes your account and its data straight away.'],
+];
+
+function FaqItem({ question, answer, last }: { question: string; answer: string; last: boolean }): React.JSX.Element {
+  const [open, setOpen] = React.useState(false);
+  return (
+    <View style={[styles.faqItem, last && styles.settingRowLast]}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        accessibilityLabel={question}
+        onPress={() => setOpen((value) => !value)}
+        style={({ pressed }) => [styles.faqQuestion, pressed && styles.settingRowPressed]}
+      >
+        <Text style={[styles.settingRowTitle, styles.faqQuestionText]}>{question}</Text>
+        <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={15} color={colors.textMuted} />
+      </Pressable>
+      {open ? <Text style={styles.faqAnswer}>{answer}</Text> : null}
+    </View>
+  );
+}
+
 function HelpPage(): React.JSX.Element {
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const open = (url: string) => { void Linking.openURL(url).catch(() => undefined); };
   return (
     <>
+      <View style={styles.pageSection}>
+        <Pressable accessibilityRole="button" style={({ pressed }) => [styles.myProfileEdit, styles.helpContact, pressed && styles.sheetActionDisabled]} onPress={() => open(LEGAL_LINKS.support)}>
+          <Ionicons name="chatbubble-ellipses-outline" size={19} color={colors.accentText} />
+          <Text style={styles.myProfileEditText}>Contact support</Text>
+        </Pressable>
+        <Text style={styles.pageSectionNote}>We reply within 2 working days. Safety reports made in the app are reviewed within 24 hours.</Text>
+      </View>
+      <SettingsSection title="Common questions">
+        {HELP_FAQ.map(([question, answer], index) => <FaqItem key={question} question={question} answer={answer} last={index === HELP_FAQ.length - 1} />)}
+      </SettingsSection>
       <PageSection title="Riding safely">
         <View style={styles.safetyRow}><Ionicons name="speedometer-outline" size={21} color={colors.accent} /><View style={styles.safetyCopyWrap}><Text style={styles.safetyTitle}>Set up while stationary</Text><Text style={styles.safetyCopy}>Complete profile, route and group controls before moving.</Text></View></View>
         <View style={styles.safetyRow}><Ionicons name="location-outline" size={21} color={colors.accent} /><View style={styles.safetyCopyWrap}><Text style={styles.safetyTitle}>Control your location</Text><Text style={styles.safetyCopy}>Nearby visibility and private-ride sharing can be stopped independently.</Text></View></View>
         <View style={styles.safetyRow}><Ionicons name="warning-outline" size={21} color={colors.warning} /><View style={styles.safetyCopyWrap}><Text style={styles.safetyTitle}>Not an emergency service</Text><Text style={styles.safetyCopy}>Use the appropriate emergency service when urgent help is needed.</Text></View></View>
       </PageSection>
-      <PageSection title="Get help">
-        <SettingsRow icon="help-buoy-outline" title="Contact support" subtitle="Help, account deletion and how to reach us" onPress={() => { void Linking.openURL(LEGAL_LINKS.support).catch(() => undefined); }} />
-        <SettingsRow icon="document-text-outline" title="Privacy, safety & terms" subtitle="Read Rider Comms legal and safety information" last onPress={() => navigation.navigate('Legal')} />
-      </PageSection>
+      <SettingsSection title="Legal">
+        <SettingsRow icon="lock-closed-outline" title="Privacy Policy" onPress={() => open(LEGAL_LINKS.privacy)} />
+        <SettingsRow icon="document-text-outline" title="Terms of Service" onPress={() => open(LEGAL_LINKS.terms)} />
+        <SettingsRow icon="people-outline" title="Community Guidelines" last onPress={() => open(LEGAL_LINKS.guidelines)} />
+      </SettingsSection>
     </>
   );
 }

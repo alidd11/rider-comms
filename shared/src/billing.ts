@@ -12,10 +12,10 @@ export const SUBSCRIPTION_PRODUCT_IDS: Record<PaidZoneTier, string> = {
   premium_plus: 'premium_plus_monthly',
 };
 
-/** Fallback prices, shown only until the store returns the local price. */
+/** Fallback prices (UK), shown only until the store returns the local price. */
 export const SUBSCRIPTION_FALLBACK_PRICES: Record<PaidZoneTier, string> = {
-  premium: '$4.99',
-  premium_plus: '$9.99',
+  premium: '£4.99',
+  premium_plus: '£9.99',
 };
 
 const TIER_RANK: Record<ZoneTier, number> = { free: 0, premium: 1, premium_plus: 2 };

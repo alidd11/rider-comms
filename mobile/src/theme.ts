@@ -22,6 +22,8 @@ export const lightColors = {
   warning: '#97620F',
   asphalt: '#DDE5E8',
   laneLine: '#BBC7CD',
+  // An off switch's track: visible against surfaces in both themes.
+  switchTrackOff: '#AEBBC2',
 } as const;
 
 export const darkColors = {
@@ -43,6 +45,7 @@ export const darkColors = {
   warning: '#D39A42',
   asphalt: '#0D1317',
   laneLine: '#253139',
+  switchTrackOff: '#3A4850',
 } as const;
 
 export type ThemeColors = { [K in keyof typeof lightColors]: string };
@@ -80,6 +83,7 @@ export const colors: ThemeColors = {
   warning: adaptive(lightColors.warning, darkColors.warning),
   asphalt: adaptive(lightColors.asphalt, darkColors.asphalt),
   laneLine: adaptive(lightColors.laneLine, darkColors.laneLine),
+  switchTrackOff: adaptive(lightColors.switchTrackOff, darkColors.switchTrackOff),
 };
 
 export function useConcreteThemeColors(): ConcreteThemeColors {

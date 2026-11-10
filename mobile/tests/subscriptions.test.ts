@@ -64,12 +64,12 @@ function fakeApi(answer: (request: VerifyRequest) => BillingStatus | Error): Bil
 }
 
 describe('plan options', () => {
-  it('lists Free, Premium and Premium+ with store prices, falling back to US prices', () => {
+  it('lists Free, Premium and Premium+ with store prices, falling back to UK prices', () => {
     const options = planOptions('free', { premium_monthly: '£4.49' });
     assert.deepEqual(options.map((option) => [option.tier, option.priceLabel, option.action]), [
       ['free', 'Free', 'current'],
       ['premium', '£4.49 / month', 'subscribe'],
-      ['premium_plus', '$9.99 / month', 'subscribe'],
+      ['premium_plus', '£9.99 / month', 'subscribe'],
     ]);
     assert.equal(options[1].info.features[0], '6 mi Nearby range');
     assert.equal(PLAN_INFO.premium_plus.features[0], '20 mi Nearby range');
