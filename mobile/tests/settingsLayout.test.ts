@@ -42,18 +42,20 @@ describe('Settings mockup contract', () => {
     assert.match(settingsSource, /signOutGroup:\s*\{\s*marginTop:\s*12\s*\}/);
   });
 
-  it('preserves real controls behind the new category hierarchy', () => {
+  it('opens every category as its own full page with all of its controls', () => {
     for (const key of ['accountHub', 'communication', 'mapNavigation', 'unitsPreferences', 'help', 'about']) {
-      assert.ok(settingsSource.includes(`activeSheet === '${key}'`), `Missing Settings category sheet: ${key}`);
+      assert.ok(settingsSource.includes(`page === '${key}'`), `Missing Settings page: ${key}`);
+      assert.ok(settingsSource.includes(`openPage('${key}')`), `Settings root does not open page: ${key}`);
     }
-
-    assert.ok(settingsSource.includes("setActiveSheet('navigation')"));
+    // No nested sheets: a category's controls are on its page.
+    assert.ok(!settingsSource.includes('<SettingsSheet'));
+    assert.ok(!settingsSource.includes('setActiveSheet('));
+    // Account page holds profile, plan, devices and data together.
+    assert.match(settingsSource, /function AccountPage\(\)[\s\S]*title="Profile"[\s\S]*title="Plan"[\s\S]*title="Signed-in devices"[\s\S]*title="Account and data"/);
     // No settings for features that don't work yet (App Review 2.1): push
     // delivery and offline map downloads.
-    assert.ok(!settingsSource.includes("setActiveSheet('notifications')"));
-    assert.ok(!settingsSource.includes("setActiveSheet('offlineMaps')"));
-    assert.ok(settingsSource.includes("setActiveSheet('privacy')"));
-    assert.ok(settingsSource.includes("setActiveSheet('sessions')"));
+    assert.ok(!settingsSource.includes("'notifications'"));
+    assert.ok(!settingsSource.includes('offlineMaps'));
     assert.ok(settingsSource.includes("navigation.navigate('Billing')"));
     assert.ok(settingsSource.includes("navigation.navigate('Legal')"));
   });

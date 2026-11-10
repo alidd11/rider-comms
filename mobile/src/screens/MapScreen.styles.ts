@@ -14,6 +14,10 @@ export const styles = StyleSheet.create({
     right: spacing.md,
     zIndex: 9,
   },
+  searchRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  searchFlex: { flex: 1, minWidth: 0 },
+  menuButton: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
+  menuButtonPressed: { opacity: 0.8 },
   mapActions: {
     position: 'absolute',
     right: spacing.md,

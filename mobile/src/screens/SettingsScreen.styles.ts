@@ -206,4 +206,9 @@ export const styles = StyleSheet.create({
   safetyTitle: { ...type.body, color: colors.textPrimary, fontWeight: '700' },
   safetyCopy: { ...type.caption, color: colors.textSecondary, marginTop: 2 },
 
+  // Full settings pages (one per Settings option).
+  pageScroll: { gap: spacing.lg },
+  pageSection: { gap: spacing.sm },
+  pageSectionTitle: { ...type.label, color: colors.textSecondary, paddingHorizontal: spacing.xs },
+  pageSectionNote: { ...type.caption, color: colors.textSecondary, lineHeight: 18, paddingHorizontal: spacing.xs },
 });
