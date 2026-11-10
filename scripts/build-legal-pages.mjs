@@ -18,7 +18,7 @@ const PAGES = [
 ];
 // Placeholders without a value survive escaping as this sentinel, then
 // render as a neat marker.
-const PENDING = '\u0000PENDING:';
+const PENDING = '\uE000PENDING:';
 const LINK_TARGETS = Object.fromEntries(PAGES.map((page) => [page.source, page.output]));
 
 const slug = (text) => text.replace(/<[^>]+>/g, '').toLowerCase().replace(/&[a-z#0-9]+;/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -26,7 +26,7 @@ const escapeHtml = (text) => text.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<
 
 function inline(text) {
   return escapeHtml(text)
-    .replace(/\u0000PENDING:([^\u0000]+)\u0000/g, (_, label) => `<span class="pending" title="Not filled in yet">${label} to be confirmed</span>`)
+    .replace(/\uE000PENDING:([^\uE000]+)\uE000/g, (_, label) => `<span class="pending" title="Not filled in yet">${label} to be confirmed</span>`)
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.+?)\*/g, '<em>$1</em>')
     .replace(/`(.+?)`/g, '<code>$1</code>')
@@ -96,7 +96,7 @@ function prepare(markdown, details) {
     const value = details[key];
     if (typeof value === 'string') return value;
     unfilled.add(key);
-    return `${PENDING}${key.slice(1, -1)}\u0000`;
+    return `${PENDING}${key.slice(1, -1)}\uE000`;
   });
   // A removed field can leave "A ·  · B" or a trailing separator behind.
   return text
