@@ -312,19 +312,6 @@ img,svg{-webkit-user-drag:none}
 @media(min-width:430px){.content-screen{padding-inline:max(17px,var(--safe-left))}.content-screen .page-header h1{font-size:1.82rem}}
 @media(max-width:390px){.content-screen{padding-top:calc(var(--safe-top) + 12px)}.content-screen .page-header h1{font-size:1.58rem}.code-field{display:flex}.code-field .button{width:auto}.settings-group small{max-width:205px}}
 
-/* iOS 26+ lays a Liquid Glass "scroll edge" blur over the top ~40pt of a
-   Home Screen web app (black-translucent), smearing the map and page titles
-   under the clock. No CSS or meta switch turns it off. iOS skips it when it
-   finds a painted fixed box at the very top edge, but a visibly solid band
-   only swapped the blur for a band with the blur below it. This box is 11px
-   tall with its colour clipped to text it doesn't have, so iOS sees a
-   painted edge while nothing is drawn: the map stays edge to edge under the
-   status bar, unblurred. Only in the installed iOS app. (Workaround from
-   tips.ojapp.app; experimental, re-check on new iOS releases.) */
-.status-bar-backdrop{display:none}
-@media (display-mode:standalone){@supports (-webkit-touch-callout:none){
-  .status-bar-backdrop{display:block;position:fixed;z-index:110;top:0;left:0;right:0;height:11px;background:var(--system-chrome);-webkit-background-clip:text;background-clip:text;pointer-events:none}
-}}
 
 /* Settings use compact grouped surfaces with restrained corners. This keeps
    the information scannable without turning every row into a floating card. */
@@ -408,6 +395,13 @@ img,svg{-webkit-user-drag:none}
 .movement-safety-banner[hidden]{display:none}.movement-safety-banner svg{width:22px;height:22px;stroke:var(--accent);fill:none;stroke-width:1.8}.movement-safety-banner span{display:grid;gap:2px}.movement-safety-banner small{color:var(--muted)}
 .movement-safety-banner span{flex:1;min-width:0}.movement-safety-banner button{min-height:34px;padding:0 11px;border:0;border-radius:999px;background:var(--accent);color:#fff;font:700 11px/1 Inter,sans-serif;white-space:nowrap}
 .safety-locked [aria-disabled="true"]{opacity:.48}
+/* Moving: the map's distracting controls go away entirely, like the native
+   app, rather than sitting half see-through over the map. Centre-on-me and
+   Go live stay. */
+#app.safety-locked .screen-map #mapAvatarButton,
+#app.safety-locked .screen-map #mapSearchSlot,
+#app.safety-locked .screen-map #reportHazardBtn,
+#app.safety-locked .screen-map #musicBtn{display:none}
 .safety-locked .bottom-nav [aria-disabled="true"]{filter:saturate(.35)}
 @media(max-width:420px){.movement-safety-banner{left:12px;right:12px}.movement-safety-banner small{font-size:.7rem}.movement-safety-banner button{flex:none}}
 
