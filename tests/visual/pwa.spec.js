@@ -1053,6 +1053,10 @@ test('PWA utility viewport paints safe areas as one edge-to-edge canvas', async 
       // Nothing is painted over the top edge: the page runs under the
       // status bar (iOS 26's own blur there can't be switched off by a page).
       statusBarCover: document.querySelectorAll('.status-bar-backdrop').length,
+      // ...but in the installed iOS app the map's avatar + search row is
+      // moved down clear of that blur (Playwright can't emulate standalone,
+      // so check the rule).
+      edgeBlurRule: [...document.styleSheets].flatMap((sheet) => { try { return [...sheet.cssRules].map((rule) => rule.cssText); } catch { return []; } }).find((text) => text.includes('display-mode: standalone') && text.includes('--edge-blur-clearance')) || '',
       paddingTop: screenStyle.paddingTop,
       paddingLeft: screenStyle.paddingLeft,
       navPaddingLeft: navStyle.paddingLeft,
@@ -1061,6 +1065,8 @@ test('PWA utility viewport paints safe areas as one edge-to-edge canvas', async 
 
   expect(viewport.screenBackground).toBe('none');
   expect(viewport.statusBarCover).toBe(0);
+  expect(viewport.edgeBlurRule).toContain('.map-header');
+  expect(viewport.edgeBlurRule).toContain('orientation: portrait');
   expect(parseFloat(viewport.paddingTop)).toBeGreaterThan(59);
   expect(parseFloat(viewport.paddingLeft)).toBeGreaterThanOrEqual(47);
   expect(parseFloat(viewport.navPaddingLeft)).toBeGreaterThanOrEqual(47);
