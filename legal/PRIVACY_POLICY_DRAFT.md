@@ -40,6 +40,27 @@ across other apps or websites, and don't collect location in the background
 except during navigation you start. Your position is shared with other
 riders only while the app is open and sharing is on.
 
+## Cookies and storage on your device
+
+Rider Comms doesn't set cookies, and uses no analytics or advertising
+cookies or trackers. The apps keep a small amount of data on your device
+only so they work:
+
+- **Your sign-in**, if you tick "Remember me": in the device's secure
+  storage in the iOS and Android apps, or in the web app's local storage.
+  Without it, the web app forgets your sign-in when you close the tab and
+  the apps when they're closed.
+- **Preferences**: settings such as distance units, navigation app and
+  Ride Safe, your recent place searches and your chosen music app.
+
+This storage is strictly necessary for features you ask for, so it doesn't
+need a consent banner. You can clear it by signing out, clearing the app's
+data, or clearing your browser's site data.
+
+The web app loads Google Maps directly in your browser to show the map.
+Google may use its own cookies or storage for that, under
+[Google's privacy policy](https://policies.google.com/privacy).
+
 ## Who we share data with
 
 Other riders see only what the app shows them under your settings (for
