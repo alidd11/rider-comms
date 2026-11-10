@@ -3173,6 +3173,8 @@ test('@viewport full-screen overlays and sheets share the stable standalone bott
 
   await openOwnProfile(page);
   await assertSheet('profile-page');
+  // On a small phone the safety banner overlaps the menu's lower rows.
+  await page.locator('#movementSafetyBanner').evaluate((element) => { element.hidden = true; });
   await openFromMenu(page, 'settings');
 
   // Settings options are full-screen pages; they share the same edge.
