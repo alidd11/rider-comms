@@ -6,28 +6,37 @@ const settingsSource = await readFile(new URL('../src/screens/SettingsScreen.tsx
   + await readFile(new URL('../src/screens/SettingsScreen.styles.ts', import.meta.url), 'utf8');
 
 describe('Settings mockup contract', () => {
-  it('keeps the approved shallow root hierarchy in order', () => {
-    const labels = [
-      'Account',
-      'Communication',
-      'Map & Navigation',
-      'Units & Preferences',
-      'About',
-      'Sign Out',
+  it('is a real settings list: sections of actual settings, in order', () => {
+    const root = settingsSource.slice(settingsSource.indexOf('export function SettingsScreen()'), settingsSource.indexOf('const VISIBILITY_LABELS'));
+    const order = [
+      'title="Riding"', 'title="Ride Safe auto-lock"', 'title="Distance units"',
+      'title="Map & navigation"', 'title="Navigation app"', 'title="Avoid motorways"', 'title="Avoid tolls"',
+      'title="Privacy"', 'title="Nearby rider visibility"', 'title="Blocked riders"',
+      'title="Account"', 'title="Email"', 'title="Signed-in devices"', 'title="Reset settings"', 'title="Delete account"',
+      'title="About"', 'title="Sign Out"',
     ];
-
     let cursor = -1;
-    for (const label of labels) {
-      const next = settingsSource.indexOf(`title="${label}"`, cursor + 1);
-      assert.ok(next > cursor, `Expected Settings root label ${label} after the previous category`);
+    for (const label of order) {
+      const next = root.indexOf(label, cursor + 1);
+      assert.ok(next > cursor, `Expected ${label} after the previous Settings row`);
       cursor = next;
     }
-
-    assert.match(settingsSource, /icon="apps-outline" title="Units & Preferences" last/);
-    assert.match(settingsSource, /title="Sign Out" danger showChevron=\{false\} last/);
+    // Switches act in place; choices show their current value.
+    assert.equal((root.match(/<SettingsSwitchRow /g) ?? []).length, 4);
+    assert.match(root, /title="Distance units" right=\{UNIT_LABELS\[unitSystem\]\.name\}/);
+    assert.match(root, /title="Navigation app" right=\{navigationAppLabel\}/);
+    assert.match(root, /title="Email" right=\{emailVerified \? 'Verified' : 'Not verified'\}/);
+    // Turning Ride Safe off asks first; deleting the account asks first.
+    assert.match(root, /function changeRideSafe[\s\S]*Turn off Automatic Ride Safe\?/);
+    assert.match(root, /function confirmDeleteAccount[\s\S]*Delete account\?/);
+    assert.match(root, /title="Sign Out" danger showChevron=\{false\} last/);
+    // The old category hub is gone.
+    for (const old of ['Communication', 'Units & Preferences', 'accountHub', 'unitsPreferences', 'mapNavigation']) {
+      assert.ok(!settingsSource.includes(old), `Old Settings category still present: ${old}`);
+    }
   });
 
-  it('keeps mockup card and row geometry compact', () => {
+  it('keeps settings rows compact and consistent', () => {
     // The profile lives behind View profile in the menu, not on the root.
     assert.ok(!settingsSource.includes('profileCard'));
     assert.ok(!settingsSource.includes("openPage('help')"));
@@ -38,14 +47,12 @@ describe('Settings mockup contract', () => {
     assert.match(settingsSource, /<Ionicons name="chevron-forward" size=\{14\} color=\{colors\.textMuted\} \/>/);
     assert.match(settingsSource, /settingsGroup:\s*\{[^\n]*borderRadius:\s*8/);
     assert.match(settingsSource, /settingRow:\s*\{[^\n]*minHeight:\s*48/);
-    assert.match(settingsSource, /secondarySettingsGroup:\s*\{\s*marginTop:\s*12\s*\}/);
-    assert.match(settingsSource, /signOutGroup:\s*\{\s*marginTop:\s*12\s*\}/);
   });
 
-  it('opens every category as its own full page with all of its controls', () => {
-    for (const key of ['accountHub', 'communication', 'mapNavigation', 'unitsPreferences', 'about']) {
+  it('opens a page only for choices and lists', () => {
+    for (const key of ['navigationApp', 'distanceUnits', 'blockedRiders', 'email', 'devices', 'about']) {
       assert.ok(settingsSource.includes(`page === '${key}'`), `Missing Settings page: ${key}`);
-      assert.ok(settingsSource.includes(`openPage('${key}')`), `Settings root does not open page: ${key}`);
+      assert.ok(settingsSource.includes(`openPage('${key}')`), `Settings list does not open page: ${key}`);
     }
     // Every page is the same SettingsPage route, so opening one must push a
     // new screen (navigate() would replace the current page and break Back).
@@ -55,17 +62,12 @@ describe('Settings mockup contract', () => {
     for (const key of ['myProfile', 'editProfile', 'help']) {
       assert.ok(settingsSource.includes(`page === '${key}'`), `Missing menu page: ${key}`);
     }
-    // No nested sheets: a category's controls are on its page.
     assert.ok(!settingsSource.includes('<SettingsSheet'));
     assert.ok(!settingsSource.includes('setActiveSheet('));
-    // Every control in one place: the profile is viewed and edited on its
-    // own pages, the plan only on Billing, and Account is sign-in, devices
-    // and data.
     assert.match(settingsSource, /function MyProfilePage\(\)[\s\S]*Edit profile[\s\S]*title="Connected profiles"/);
     assert.match(settingsSource, /function EditProfilePage\(\)[\s\S]*title="Avatar"[\s\S]*title="Name"[\s\S]*title="Connected profiles"/);
-    assert.match(settingsSource, /function AccountPage\(\)[\s\S]*title="Email"[\s\S]*title="Signed-in devices"[\s\S]*title="Account and data"/);
-    const accountPage = settingsSource.slice(settingsSource.indexOf('function AccountPage()'), settingsSource.indexOf('function CommunicationPage()'));
-    assert.ok(!accountPage.includes('title="Plan"') && !accountPage.includes('Display name'));
+    assert.match(settingsSource, /function DevicesPage\(\)[\s\S]*Refresh devices/);
+    assert.match(settingsSource, /function EmailPage\(\)[\s\S]*Resend verification email/);
     // No settings for features that don't work yet (App Review 2.1): push
     // delivery and offline map downloads.
     assert.ok(!settingsSource.includes("'notifications'"));
@@ -99,7 +101,7 @@ describe('Settings mockup contract', () => {
   it('keeps Settings controls accessible', () => {
     assert.match(settingsSource, /accessibilityRole="radio"/);
     assert.match(settingsSource, /accessibilityState=\{\{ selected \}\}/);
-    assert.match(settingsSource, /accessibilityLabel=\{label\}/);
+    assert.match(settingsSource, /<Switch\s+accessibilityLabel=\{title\}/);
     assert.match(settingsSource, /accessibilityRole="radiogroup"/);
   });
 

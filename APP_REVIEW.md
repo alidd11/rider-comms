@@ -170,10 +170,10 @@ take them from a TestFlight build rather than the PWA.
 > - Reports reach a staffed moderation queue and are reviewed within 24 hours.
 >   Moderators can suspend accounts.
 >
-> **Account deletion:** Settings → Account → Account and data → Delete
+> **Account deletion:** tap your avatar on the map → Settings → Delete
 > account.
 >
-> **Subscriptions:** Settings → Account → Your plan. Premium and Premium+
+> **Subscriptions:** tap your avatar on the map → Your plan. Premium and Premium+
 > are auto-renewing monthly subscriptions in one subscription group; they
 > only widen the Nearby range (1 mi Free, 6 mi Premium, 20 mi Premium+).
 > The screen shows the price and period, the renewal terms, Restore

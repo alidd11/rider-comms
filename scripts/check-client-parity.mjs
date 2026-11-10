@@ -78,28 +78,35 @@ const [
 const nativeMapSource = nativeMapScreenSource + nativeMapScreenStylesSource + nativeMapMarkersSource + nativeHazardReportsSource + nativeNavigationSummarySource + nativeInAppNavigationSource;
 
 
-const SETTINGS_ROOT_LABELS = [
-  'Account',
-  'Communication',
-  'Map & Navigation',
-  'Units & Preferences',
+// Settings is a real settings list on both clients: the same sections and
+// rows, in the same order. The PWA builds it in renderSettingsList(); native
+// in SettingsScreen().
+const pwaSettingsList = pwaMapSource.slice(pwaMapSource.indexOf('function renderSettingsList()'));
+const nativeSettingsRoot = nativeSettingsSource.slice(nativeSettingsSource.indexOf('export function SettingsScreen()'));
+const SETTINGS_ROWS = [
+  'Riding', 'Ride Safe auto-lock', 'Distance units',
+  'Map & navigation', 'Navigation app', 'Avoid motorways', 'Avoid tolls',
+  'Privacy', 'Nearby rider visibility', 'Blocked riders',
+  'Account', 'Email', 'Signed-in devices', 'Reset settings', 'Delete account',
   'About',
-  'Sign Out',
 ];
-for (const label of SETTINGS_ROOT_LABELS) {
-  const escaped = label.replaceAll('&', '&amp;');
-  if (!pwaIndexSource.includes(`<strong${label === 'Sign Out' ? ' class="danger-text"' : ''}>${escaped}</strong>`)) {
-    throw new Error(`PWA Settings root is missing approved category: ${label}`);
-  }
-  if (!nativeSettingsSource.includes(`title="${label}"`)) {
-    throw new Error(`Native Settings root is missing approved category: ${label}`);
-  }
+let pwaCursor = -1;
+let nativeCursor = -1;
+for (const label of SETTINGS_ROWS) {
+  const pwaAt = pwaSettingsList.indexOf(`'${label}'`, pwaCursor + 1);
+  const nativeAt = nativeSettingsRoot.indexOf(`title="${label}"`, nativeCursor + 1);
+  if (pwaAt <= pwaCursor) throw new Error(`PWA Settings list is missing or misorders: ${label}`);
+  if (nativeAt <= nativeCursor) throw new Error(`Native Settings list is missing or misorders: ${label}`);
+  pwaCursor = pwaAt;
+  nativeCursor = nativeAt;
 }
-for (const token of ['accountHub', 'communication', 'mapNavigation', 'unitsPreferences', 'about']) {
-  // Native opens each category as its own page (SettingsPageScreen); the
-  // PWA as a full-screen sheet page. Both use the same category tokens.
-  if (!pwaIndexSource.includes(`data-sheet="${token}"`) || !nativeSettingsSource.includes(`page === '${token}'`)) {
-    throw new Error(`Settings hierarchy drifted for ${token}`);
+if (!pwaIndexSource.includes('id="settingsList"') || !/<strong class="danger-text">Sign Out<\/strong>/.test(pwaIndexSource) || !nativeSettingsRoot.includes('title="Sign Out"')) {
+  throw new Error('Settings must end with Sign Out on both clients');
+}
+// The pages a row opens, with the same tokens on both clients.
+for (const token of ['navigationApp', 'distanceUnits', 'blockedRiders', 'email', 'devices', 'about']) {
+  if (!pwaMapSource.includes(`${token}: {`) || !pwaSettingsList.includes(`'${token}'`) || !nativeSettingsSource.includes(`page === '${token}'`) || !nativeSettingsSource.includes(`openPage('${token}')`)) {
+    throw new Error(`Settings page drifted for ${token}`);
   }
 }
 // Pages opened from the avatar menu rather than the Settings root: each
@@ -119,9 +126,6 @@ if (/data-sheet="help"|settings-profile-row/.test(pwaIndexSource) || /openPage\(
 }
 if (/<h2 class="group-title">(?:Account|Preferences|Privacy and safety)<\/h2>/.test(pwaIndexSource)) {
   throw new Error('PWA Settings must not expose the legacy section-heavy root');
-}
-if (!/settings-main-group/.test(pwaIndexSource) || !/settings-secondary-group/.test(pwaIndexSource)) {
-  throw new Error('PWA Settings must preserve the approved grouped-card hierarchy');
 }
 if (!/patchProfile\(\{ unitSystem: next \}\)/.test(pwaMapSource) || !nativeSettingsSource.includes("setUnitSystem(unit)")) {
   throw new Error('Distance units must persist through the rider profile on both clients');

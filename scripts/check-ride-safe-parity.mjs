@@ -46,7 +46,8 @@ assert.ok(
   'PWA settings must confirm before disabling Ride Safe with matching copy',
 );
 
-const noteCopy = 'When off, Rider Comms stops its dedicated Ride Safe location watcher. Map, navigation and optional ride-location features request location separately. Only change this while safely stopped.';
+// The footnote under the Riding section on the Settings list.
+const noteCopy = 'Ride Safe locks distracting controls at 8 mph and above. Only change it while safely stopped.';
 assert.ok(settingsScreen.includes(noteCopy), 'native Ride Safe note copy has drifted');
 assert.ok(app.includes(noteCopy), 'PWA Ride Safe note copy has drifted');
 

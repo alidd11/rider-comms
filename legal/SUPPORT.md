@@ -9,7 +9,7 @@ reports made in the app are reviewed within 24 hours.
 email a reset link and code to the address on your account.
 
 **I didn't get the verification email.** Check your spam folder, then use
-*Resend verification email* in Settings → Account.
+*Resend verification email* in Settings → Email.
 
 **Someone is bothering me.** Report and block them from their profile, a
 chat, the ride roster, a friend request or the Nearby Voice rider list. See
@@ -26,7 +26,7 @@ location access is allowed for Rider Comms.
 ## Delete your account
 
 In the app, or [on the web](https://alidd11.github.io/rider-comms/) after
-signing in: **Settings → Account → Account and data → Delete account**. This
+signing in: **Settings → Delete account**. This
 permanently deletes your account, profile, messages, friendships, rides and
 reports straight away. Encrypted backups are kept for up to 30 days, then
 expire.
