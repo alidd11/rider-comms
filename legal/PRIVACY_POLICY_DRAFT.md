@@ -52,7 +52,7 @@ only so they work:
   Without it, the web app forgets your sign-in when you close the tab and
   the apps when they're closed.
 - **Preferences**: settings such as distance units, navigation app and
-  Ride Safe, your recent place searches and your chosen music app.
+  Ride Safe, your recent place searches and your saved Home and Work.
 
 This storage is strictly necessary for features you ask for, so it doesn't
 need a consent banner. You can clear it by signing out, clearing the app's

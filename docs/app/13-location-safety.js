@@ -116,7 +116,7 @@
       item.setAttribute('aria-disabled', String(locked));
       item.classList.toggle('safety-unavailable', locked);
     });
-    $$('#mapDrawer, #mapSearchSlot, #mapAvatarButton, #poiChipRow, #reportHazardBtn, #navReportBtn, #musicBtn, #riderCard, #hazardCard, #rideJoinState, #shareRideBtn, .ride-code-card, #rideRoster, #openRideMap').forEach((item) => {
+    $$('#mapDrawer, #mapSearchSlot, #mapAvatarButton, #poiChipRow, #reportHazardBtn, #navReportBtn, #riderCard, #hazardCard, #rideJoinState, #shareRideBtn, .ride-code-card, #rideRoster, #openRideMap').forEach((item) => {
       item.toggleAttribute('inert', locked);
       item.setAttribute('aria-disabled', String(locked));
     });

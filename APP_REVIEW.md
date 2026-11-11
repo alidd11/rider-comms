@@ -151,12 +151,6 @@ take them from a TestFlight build rather than the PWA.
 > and it stops as soon as navigation ends. To see it: start navigation to
 > any place from the map, lock the phone, and move; the next turn is spoken.
 >
-> **Music card (optional):** on the map, the rider can choose to show the
-> song playing in the Music app, with play, pause and skip. This uses Media
-> & Apple Music access, asked for only when the rider taps the music
-> button. Nothing about the rider's library is read, changed or sent off
-> the phone.
->
 > **Live Activity:** during navigation, the next turn shows on the Lock
 > Screen and in the Dynamic Island. It ends when navigation ends.
 >
@@ -231,14 +225,6 @@ short video Play asks for. Record both on a test device.
 
 The app doesn't request `ACCESS_BACKGROUND_LOCATION`, so Play's background
 location declaration doesn't apply.
-
-**Notification access.** The optional music card uses a
-`NotificationListenerService`, only so Android lists the active media
-session (title, artist, artwork). It never reads notifications, and nothing
-leaves the phone. Before opening the system settings, the app explains this
-in a prominent disclosure, and riders can turn it off there at any time. If
-Play asks, describe it as: "Shows the song playing in the rider's music app
-on the navigation map, with play/pause and skip."
 
 **Subscriptions.** Premium and Premium+ use Google Play Billing (product
 IDs `premium_monthly` and `premium_plus_monthly`). Setup steps are in

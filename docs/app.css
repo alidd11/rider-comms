@@ -370,8 +370,7 @@ img,svg{-webkit-user-drag:none}
 #app.safety-locked .screen-map #mapAvatarButton,
 #app.safety-locked .screen-map #mapSearchSlot,
 #app.safety-locked .screen-map #reportHazardBtn,
-#app.safety-locked .screen-map #navReportBtn,
-#app.safety-locked .screen-map #musicBtn{display:none}
+#app.safety-locked .screen-map #navReportBtn{display:none}
 
 
 /* Host-only private ride roster control. Kept compact so the connected
@@ -1417,8 +1416,7 @@ body:has(#sheetBackdrop:not([hidden])) #joinNearbyBtn{opacity:0;pointer-events:n
     background:rgb(255 255 255/.96);
     border-color:rgb(11 18 22/.12);
   }
-  #app:not(.nav-mode) .screen-map .map-actions #locateBtn,
-  #app:not(.nav-mode) .screen-map .map-actions #musicBtn{
+  #app:not(.nav-mode) .screen-map .map-actions #locateBtn{
     background:#fff;
     border-color:rgb(11 18 22/.12);
     box-shadow:0 10px 22px rgb(15 23 27/.22);
@@ -2630,19 +2628,10 @@ html.pwa-standalone:not(.keyboard-open) .chat-screen{top:0;bottom:auto;height:va
 .offline-banner span{text-align:center}
 .update-banner:not([hidden])+.offline-banner{top:calc(var(--safe-top) + 66px)}
 
-/* Map actions: icons that say what they do. Music opens the rider's music
-   app; Report is the warm primary action; Go live shows a
-   clear, pulsing live state. Sizes and gaps match the rules above. */
-#app:not(.nav-mode) .screen-map .map-actions #musicBtn{
-  width:46px;
-  min-width:46px;
-  height:46px;
-  border-radius:50%;
-  border-color:rgb(255 255 255/.16);
-  background:var(--bg-elevated);
-  box-shadow:0 10px 24px rgb(0 0 0/.5),0 0 0 1px rgb(255 255 255/.04) inset;
-}
-#app:not(.nav-mode) .screen-map .map-actions #musicBtn svg{width:20px;height:20px}
+/* Map actions: icons that say what they do. Report is the warm primary
+   action; Go live shows a clear, pulsing live state. Sizes and gaps match
+   the rules above. */
+
 #app:not(.nav-mode) .screen-map .map-actions #locateBtn svg{color:var(--accent)}
 #app:not(.nav-mode) .screen-map #joinNearbyBtn[data-active=true]{
   background:var(--success);
@@ -2658,7 +2647,7 @@ html.pwa-standalone:not(.keyboard-open) .chat-screen{top:0;bottom:auto;height:va
 @media(prefers-reduced-motion:reduce){
   #app:not(.nav-mode) .screen-map #joinNearbyBtn[data-active=true]{animation:none}
 }
-.music-sheet-note{margin:0 0 12px}
+
 .app-notification{position:fixed;z-index:75;top:calc(var(--safe-top) + 12px);left:50%;width:min(calc(100% - 28px),520px);display:grid;grid-template-columns:26px 1fr auto;align-items:center;gap:10px;padding:12px 12px 12px 14px;transform:translateX(-50%);border:1px solid color-mix(in srgb,var(--accent) 45%,var(--border));border-radius:16px;background:color-mix(in srgb,var(--surface-raised) 94%,var(--accent) 6%);box-shadow:var(--shadow-lg);color:var(--text);font-size:.8rem;font-weight:680;line-height:1.35}.app-notification[data-tone=error]{border-color:color-mix(in srgb,var(--danger) 55%,var(--border));background:color-mix(in srgb,var(--surface-raised) 94%,var(--danger) 6%)}.app-notification-icon{width:26px;height:26px;display:grid;place-items:center;border-radius:50%;background:var(--accent);color:var(--accent-text);font-size:.72rem;font-weight:900}.app-notification[data-tone=error] .app-notification-icon{background:var(--danger);color:#fff}.app-notification button{width:30px;height:30px;border:0;border-radius:50%;background:transparent;color:var(--text-secondary);font-size:1.25rem;line-height:1}.app-notification button:focus-visible{outline:2px solid var(--focus);outline-offset:2px}.app-notification button:active{transform:scale(.96)}
 @media(prefers-reduced-transparency:reduce){.app-notification{background:var(--surface-raised)}}
 @media(prefers-reduced-motion:reduce){.app-notification button:active{transform:none}}
@@ -2843,8 +2832,8 @@ html.ride-pill-visible[data-active-screen="settings"] .screen.active{padding-bot
 .plan-summary small{color:var(--text-secondary);font-size:.82rem}
 
 /* ===== Map screen and riding HUD (Nov 2026) =====
-   Parked: a status chip under the search bar; Music and Locate as small
-   buttons on the right; a bottom bar with Report (small, amber) and Go live
+   Parked: a status chip under the search bar; Locate as a small
+   button on the right; a bottom bar with Report (small, amber) and Go live
    (wide, labelled). Moving with Ride Safe on: the riding HUD replaces them
    with a Ride Safe chip, group chip, speed and two glove-sized buttons. */
 .map-status-chip{position:absolute;z-index:6;top:calc(var(--safe-top) + 66px);left:max(12px,var(--safe-left));display:inline-flex;align-items:center;gap:7px;max-width:calc(100% - 24px);padding:6px 12px;border-radius:999px;background:var(--surface-raised);border:1px solid var(--border-soft);color:var(--text-secondary);font-size:.78rem;font-weight:750;box-shadow:0 4px 14px rgb(0 0 0/.18)}
@@ -2887,7 +2876,7 @@ html.ride-pill-visible #app:not(.nav-mode) .screen-map .map-actions{bottom:146px
 .hud-button[aria-pressed="true"]{border-color:transparent;background:var(--danger);color:#fff}
 html.ride-pill-visible .riding-hud-actions{bottom:76px}
 html.ride-pill-visible .hud-speed{bottom:164px}
-html.riding-hud-active #musicBtn{display:none}
+
 html.riding-hud-active #app:not(.nav-mode) .screen-map .map-actions{bottom:102px}
 html.riding-hud-active.ride-pill-visible #app:not(.nav-mode) .screen-map .map-actions{bottom:164px}
 

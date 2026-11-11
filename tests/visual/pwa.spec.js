@@ -1115,7 +1115,7 @@ test('PWA hides the map\'s distracting controls while moving, like the native ap
   await moving(12);
   await expect(page.locator('#app')).toHaveClass(/safety-locked/);
   // Gone, not half see-through over the map.
-  for (const selector of ['#mapSearchSlot', '#mapAvatarButton', '#musicBtn', '#reportHazardBtn']) {
+  for (const selector of ['#mapSearchSlot', '#mapAvatarButton', '#reportHazardBtn']) {
     await expect(page.locator(selector)).toBeHidden();
   }
   await expect(page.locator('#locateBtn')).toBeVisible();
@@ -3930,22 +3930,4 @@ test('goes live when iOS hands back fixes with an old timestamp', async ({ page 
   expect(presenceBodies.length).toBeGreaterThan(0);
   expect(presenceBodies[0].fixAgeMs).toBeLessThan(30_000);
   expect(Date.now() - presenceBodies[0].recordedAt).toBeGreaterThan(100_000);
-});
-
-test('the music button opens a picker that remembers the last app used', async ({ page }) => {
-  await mockAuthenticatedApi(page);
-  await page.goto('/');
-  await page.locator('#musicBtn').click();
-  const apps = page.locator('[data-music-app]');
-  await expect(page.locator('#sheetTitle')).toHaveText('Music');
-  await expect(apps.first()).toContainText('Spotify');
-  // Apple Music is offered only on Apple devices.
-  const apple = await page.evaluate(() => /iPhone|iPad|iPod/.test(navigator.userAgent));
-  await expect(page.locator('[data-music-app="apple-music"]')).toHaveCount(apple ? 1 : 0);
-
-  await page.locator('[data-music-app="youtube-music"]').click();
-  await expect(page.locator('#sheetBackdrop')).toBeHidden();
-  await page.locator('#musicBtn').click();
-  await expect(apps.first()).toHaveAttribute('data-music-app', 'youtube-music');
-  await expect(apps.first()).toContainText('Last used');
 });

@@ -42,8 +42,7 @@ assert.ok(whenInUse.startsWith('Rider Comms') && whenInUse.includes('navigation'
 // An SDK links Photos, so App Store Connect requires this string even though
 // the app never reads the photo library (ITMS-90683).
 assert.ok(String(expo.ios?.infoPlist?.NSPhotoLibraryUsageDescription ?? '').startsWith('Rider Comms'), 'NSPhotoLibraryUsageDescription must say Rider Comms does not use photos');
-// The map's music card reads the Music app's now-playing item.
-assert.ok(String(expo.ios?.infoPlist?.NSAppleMusicUsageDescription ?? '').startsWith('Rider Comms'), 'NSAppleMusicUsageDescription must explain the music card');
+assert.equal(expo.ios?.infoPlist?.NSAppleMusicUsageDescription, undefined, 'Rider Comms no longer reads the Music app: drop NSAppleMusicUsageDescription');
 const localNetwork = String(expo.ios?.infoPlist?.NSLocalNetworkUsageDescription ?? '');
 assert.ok(localNetwork.startsWith('Rider Comms'), 'NSLocalNetworkUsageDescription must explain the voice connection');
 // Android 13+ hides foreground-service notifications without it, and the

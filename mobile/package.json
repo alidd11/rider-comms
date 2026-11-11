@@ -67,8 +67,7 @@
         "exclude": [
           "@supersami/rn-foreground-service",
           "@livekit/react-native-expo-plugin",
-          "expo-live-activity",
-          "rider-media-controls"
+          "expo-live-activity"
         ]
       }
     }
