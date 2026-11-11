@@ -17,7 +17,8 @@ describe('Settings mockup contract', () => {
       cursor = next;
     }
     assert.equal((root.match(/<CategoryRow /g) ?? []).length, 9);
-    assert.match(root, /Version \{appVersion\}/);
+    // The version is on the About page, not under the list.
+    assert.doesNotMatch(root, /Version \{appVersion\}/);
     // The pages, in the same order as the PWA's.
     const pages = settingsSource.slice(settingsSource.indexOf('function GeneralPage('), settingsSource.indexOf('const VISIBILITY_LABELS'));
     const rows = ['title="Distance units"', 'title="Navigation app"', 'title="Avoid motorways"', 'title="Avoid tolls"', 'title="Spoken directions"', 'title="Vehicle type"', 'title="Notifications on this device"', 'title="Friend requests"', 'title="Messages"', 'title="Ride Safe auto-lock"',
