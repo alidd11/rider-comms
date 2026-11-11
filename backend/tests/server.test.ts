@@ -171,13 +171,14 @@ describe('authenticated API', () => {
       ['/scenic-routes', {}],
       ['/presence', { lat: 51.5, lon: -0.1, accuracyMeters: 5, recordedAt: Date.now() }],
       ['/voice/token', { target: 'channel' }],
-      ['/rides', {}],
-      ['/rides/join', { code: 'ABCDEF' }],
     ] as const) {
       const response = await fetch(`${ctx.baseUrl()}${path}`, { method: 'POST', headers, body: JSON.stringify(body) });
       assert.equal(response.status, 403, path);
       assert.deepEqual(await response.json(), { error: 'email_verification_required' });
     }
+    // Starting a ride does not wait for email: delivery is not live yet.
+    const ride = await fetch(`${ctx.baseUrl()}/rides`, { method: 'POST', headers, body: JSON.stringify({}) });
+    assert.equal(ride.status, 201);
 
     await getPool().query('UPDATE users SET email_verified_at = now() WHERE id = $1', [session.riderId]);
     const afterVerification = await fetch(`${ctx.baseUrl()}/hazards`, {
