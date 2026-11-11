@@ -508,9 +508,14 @@ test('measures where the map drew the rider once the camera settles', async () =
   map.pointForCoordinate = jest.fn(async () => ({ x: 160, y: 520 }));
 
   await sendFix(51.5005, -0.1);
-  await act(async () => { jest.advanceTimersByTime(1_000); });
+  // The camera glides for a second with the puck, then checks where the
+  // map drew it: on the route, 8 m on at 8 m/s.
+  await act(async () => { jest.advanceTimersByTime(1_100); });
 
-  expect(map.pointForCoordinate).toHaveBeenCalledWith({ latitude: 51.5005, longitude: -0.1 });
+  expect(map.pointForCoordinate).toHaveBeenCalledWith({
+    latitude: expect.closeTo(51.5005 + 8 / 111_195, 6),
+    longitude: expect.closeTo(-0.1, 6),
+  });
   map.animateCamera.mockClear();
   await sendFix(51.5006, -0.1);
   expect(map.animateCamera).toHaveBeenCalledTimes(1);
