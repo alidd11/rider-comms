@@ -54,7 +54,7 @@ test('a tapped message opens that chat; a friend request opens Friends', async (
   await act(async () => { onTap?.(tapResponse('https://example.com')); });
   expect(navigation.navigate).not.toHaveBeenCalled();
 
-  view.unmount();
+  await view.unmount();
   expect(remove).toHaveBeenCalled();
 });
 
@@ -78,4 +78,22 @@ test('nothing opens until navigation is ready', async () => {
   await render(<PushNotificationRouter navigationRef={navigation as never} />);
   await act(async () => { onTap?.(tapResponse('#friends')); });
   expect(navigation.navigate).not.toHaveBeenCalled();
+});
+
+test('a launching tap waits for navigation to become ready', async () => {
+  jest.useFakeTimers();
+  try {
+    mocked.getLastNotificationResponseAsync.mockResolvedValue(tapResponse('#friends'));
+    mocked.addNotificationResponseReceivedListener.mockReturnValue({ remove: jest.fn() } as never);
+    let ready = false;
+    const navigation = { isReady: jest.fn(() => ready), navigate: jest.fn() };
+    await render(<PushNotificationRouter navigationRef={navigation as never} />);
+    await act(async () => { await jest.advanceTimersByTimeAsync(400); });
+    expect(navigation.navigate).not.toHaveBeenCalled();
+    ready = true;
+    await act(async () => { await jest.advanceTimersByTimeAsync(400); });
+    expect(navigation.navigate).toHaveBeenCalledWith('Tabs', { screen: 'Friends' });
+  } finally {
+    jest.useRealTimers();
+  }
 });

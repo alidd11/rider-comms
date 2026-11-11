@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
+import { Platform } from 'react-native';
 import {
   disablePush,
   enablePush,
@@ -94,4 +95,15 @@ test('startup re-registers a phone that has notifications on, and nothing else',
   // Signing out of an account that never registered is a no-op.
   await disablePush(client, 'someone-else');
   expect(client.unregisterPushToken).not.toHaveBeenCalled();
+});
+
+test('Android phones get a notification channel before the token', async () => {
+  const restore = jest.replaceProperty(Platform, 'OS', 'android');
+  try {
+    mocked.getPermissionsAsync.mockResolvedValue({ status: 'granted' } as never);
+    expect(await enablePush(fakeClient(), 'r1')).toBe(true);
+    expect(mocked.setNotificationChannelAsync).toHaveBeenCalledWith('default', expect.objectContaining({ name: 'Friend requests and messages' }));
+  } finally {
+    restore.restore();
+  }
 });
