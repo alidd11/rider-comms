@@ -53,6 +53,41 @@ describe('LiveKit room admin', () => {
     assert.equal(calls[1].body.identity, 'rider-b');
     assert.match(String(calls[1].body.room), /^proximity:/);
   });
+
+  it('treats a rider who is not in the call as already hung up', async () => {
+    const missing = http.createServer((req, res) => {
+      req.resume();
+      req.on('end', () => {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ code: 'not_found', msg: 'participant not found' }));
+      });
+    });
+    await new Promise<void>((resolve) => missing.listen(0, '127.0.0.1', resolve));
+    try {
+      const admin = createLiveKitRoomAdmin({ url: `ws://127.0.0.1:${(missing.address() as AddressInfo).port}`, apiKey: 'key', apiSecret: 'secret-secret-secret-secret-secret' });
+      await admin.revokeProximityParticipant('rider-a', 'rider-b', 'rider-a');
+      await admin.revokeRideParticipant('ride-1', 'rider-a');
+    } finally {
+      await new Promise<void>((resolve) => missing.close(() => resolve()));
+    }
+  });
+
+  it('still reports other LiveKit failures', async () => {
+    const broken = http.createServer((req, res) => {
+      req.resume();
+      req.on('end', () => {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ code: 'internal', msg: 'boom' }));
+      });
+    });
+    await new Promise<void>((resolve) => broken.listen(0, '127.0.0.1', resolve));
+    try {
+      const admin = createLiveKitRoomAdmin({ url: `ws://127.0.0.1:${(broken.address() as AddressInfo).port}`, apiKey: 'key', apiSecret: 'secret-secret-secret-secret-secret' });
+      await assert.rejects(admin.revokeRideParticipant('ride-1', 'rider-a'));
+    } finally {
+      await new Promise<void>((resolve) => broken.close(() => resolve()));
+    }
+  });
 });
 
 describe('migrations', () => {

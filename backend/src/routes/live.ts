@@ -6,13 +6,21 @@ import type { Rider } from '@rider-comms/shared';
 import { MAX_PRESENCE_ACCURACY_METERS, MAX_PRESENCE_FIX_AGE_MS, MAX_PRESENCE_FUTURE_SKEW_MS, NOT_HANDLED, PROXIMITY_VOICE_AUTHORIZATION_LEASE_MS, PROXIMITY_VOICE_REFRESH_MS, PROXIMITY_VOICE_TOKEN_TTL_SECONDS, rideBody } from './context.ts';
 import type { RouteContext } from './context.ts';
 
+/** Takes a rider off Nearby and hangs up every Nearby Voice call they were in. */
+export async function goOffline(ctx: Pick<RouteContext, 'presenceStore' | 'revokeProximityVoiceParticipants'>, riderId: string): Promise<void> {
+  // Pairs cascade away with the presence row, so read them first.
+  const peerIds = await ctx.presenceStore.getPairedRiderIds(riderId);
+  await ctx.presenceStore.removeRider(riderId);
+  for (const peerId of peerIds) void ctx.revokeProximityVoiceParticipants(riderId, peerId);
+}
+
 /** Dashboard funnel bookkeeping; a failure here must never fail the rider's request. */
 function recordMilestone(stats: RouteContext['adminStatsStore'], riderId: string, milestone: 'ride' | 'nearby'): void {
   void stats.recordMilestone(riderId, milestone).catch(() => {});
 }
 
 export async function handleLiveRoutes(ctx: RouteContext): Promise<unknown> {
-  const { req, res, url, address, actorId, rideStore, presenceStore, profileStore, moderationStore, rateLimitStore, liveKitCredentials, adminStatsStore } = ctx;
+  const { req, res, url, address, actorId, rideStore, presenceStore, profileStore, moderationStore, rateLimitStore, liveKitCredentials, adminStatsStore, revokeProximityVoiceParticipants } = ctx;
   if (req.method === 'POST' && url.pathname === '/rides') {
     if (!(await consumeRateLimit(res, rateLimitStore, rateLimitSubject('rider', actorId), 'ride_create'))) return;
     const { ride, codeRecord } = await rideStore.createRide(actorId);
@@ -59,7 +67,7 @@ export async function handleLiveRoutes(ctx: RouteContext): Promise<unknown> {
     }
     const profile = await profileStore.getOrCreate(actorId);
     if (!profile.shareLocation) {
-      await presenceStore.removeRider(actorId);
+      await goOffline(ctx, actorId);
       return sendJson(res, 403, { error: 'location_sharing_disabled' });
     }
     const rider: Rider = { id: actorId, location: { lat: body.lat as number, lon: body.lon as number }, radiusMiles: TIER_RADIUS_MILES[profile.zoneTier], updatedAt: recordedAt };
@@ -74,6 +82,11 @@ export async function handleLiveRoutes(ctx: RouteContext): Promise<unknown> {
     recordMilestone(adminStatsStore, actorId, 'nearby');
     const inZonePeerIds = presenceStore.ridersInZoneWith(actorId, presenceResult.zonePairs);
     const actorTransitions = presenceResult.transitions.filter((transition) => transition.a === actorId || transition.b === actorId);
+    // Out of range ends the call now, not when the apps next refresh. Both
+    // apps already drop the pair on this transition; this enforces it.
+    for (const { a, b } of actorTransitions.filter((transition) => transition.type === 'left')) {
+      void revokeProximityVoiceParticipants(a, b);
+    }
     const transitionPeerIds = actorTransitions.map((transition) => transition.a === actorId ? transition.b : transition.a);
     const allowedPeerIds = new Set(await moderationStore.filterAllowedPeerIds(actorId, [...inZonePeerIds, ...transitionPeerIds]));
     return sendJson(res, 200, {
@@ -90,7 +103,7 @@ export async function handleLiveRoutes(ctx: RouteContext): Promise<unknown> {
     // Shares the presence budget: going offline and back on is otherwise a
     // way to re-probe who is in range faster than the fix rate allows.
     if (!(await consumeRateLimit(res, rateLimitStore, rateLimitSubject('rider', actorId), 'presence'))) return;
-    await presenceStore.removeRider(actorId);
+    await goOffline(ctx, actorId);
     return sendJson(res, 200, {});
   }
   if (req.method === 'POST' && url.pathname === '/voice/token') {
@@ -104,6 +117,7 @@ export async function handleLiveRoutes(ctx: RouteContext): Promise<unknown> {
       if (await moderationStore.isBlockedByAny(actorId, otherMemberIds)) {
         return sendJson(res, 403, { error: 'blocked' });
       }
+      await rideStore.keepRideActive(result.ride.id);
       const voiceToken = await mintVoiceToken(
         liveKitCredentials,
         actorId,

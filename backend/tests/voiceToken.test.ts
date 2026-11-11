@@ -1,6 +1,6 @@
 import { after, before, beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { startTestServer, postJson } from './httpTestUtils.ts';
+import { authenticatedFetch, startTestServer, postJson } from './httpTestUtils.ts';
 import type { TestServer } from './httpTestUtils.ts';
 import { getPool } from '../src/db.ts';
 
@@ -146,6 +146,51 @@ describe('POST /voice/token', () => {
         const peerAfterBlock = await postJson(isolated, 'public-block-bob', '/voice/token', { target: 'channel' });
         assert.equal(peerAfterBlock.status, 200);
         assert.deepEqual((await peerAfterBlock.json() as { connections: unknown[] }).connections, []);
+      } finally {
+        await isolated.close();
+      }
+    });
+
+    it('hangs up a Nearby pair when they part, go offline, or stop sharing location', needsDb, async () => {
+      const revocations: Array<{ riderA: string; riderB: string; riderId: string }> = [];
+      const isolated = startTestServer({
+        liveKitCredentials: FAKE_CREDS,
+        liveKitRoomAdmin: {
+          revokeProximityParticipant: async (riderA, riderB, riderId) => { revocations.push({ riderA, riderB, riderId }); },
+        },
+      });
+      await isolated.ready;
+      const hungUp = async (a: string, b: string) => {
+        for (let attempt = 0; attempt < 40 && !revocations.some((entry) => [entry.riderA, entry.riderB].sort().join() === [a, b].sort().join()); attempt += 1) {
+          await new Promise((resolve) => setTimeout(resolve, 25));
+        }
+        const pair = revocations.filter((entry) => [entry.riderA, entry.riderB].sort().join() === [a, b].sort().join());
+        assert.deepEqual(pair.map((entry) => entry.riderId).sort(), [a, b].sort());
+        revocations.length = 0;
+      };
+      const fix = (rider: string, lat: number, fixAgeMs = 0) =>
+        postJson(isolated, rider, '/presence', { lat, lon: -0.1, accuracyMeters: 5, fixAgeMs });
+      try {
+        for (const rider of ['part-alice', 'part-bob', 'part-cara']) await isolated.profileStore.update(rider, { shareLocation: true });
+
+        // Out of range: about 1.2 miles apart on the free 1-mile radius.
+        assert.equal((await fix('part-alice', 51.5)).status, 200);
+        assert.equal((await fix('part-bob', 51.5001, 25_000)).status, 200);
+        assert.equal((await fix('part-bob', 51.518)).status, 200);
+        await hungUp('part-alice', 'part-bob');
+
+        // Go live off (DELETE /presence) hangs up every pair.
+        assert.equal((await fix('part-cara', 51.5002)).status, 200);
+        const offline = await authenticatedFetch(isolated, 'part-cara', '/presence', { method: 'DELETE' });
+        assert.equal(offline.status, 200);
+        await hungUp('part-alice', 'part-cara');
+
+        // Switching location sharing off does the same.
+        assert.equal((await fix('part-cara', 51.5002)).status, 200);
+        revocations.length = 0;
+        const put = await authenticatedFetch(isolated, 'part-cara', '/riders/part-cara/profile', { method: 'PUT', body: JSON.stringify({ shareLocation: false }) });
+        assert.equal(put.status, 200);
+        await hungUp('part-alice', 'part-cara');
       } finally {
         await isolated.close();
       }

@@ -194,6 +194,12 @@ export class RideStore {
     });
   }
 
+  /** Ride activity that isn't a read of the ride (location, voice) keeps it alive too. */
+  async keepRideActive(rideId: string): Promise<void> {
+    await ensureMigrated();
+    await slideRideCode(getPool(), rideId);
+  }
+
   async getRide(rideId: string): Promise<Ride | undefined> {
     await ensureMigrated();
     return this.loadRide(rideId);
@@ -366,6 +372,7 @@ export class RideStore {
       [rideId, riderId, lat, lon, Date.now()]
     );
     if (updated.rowCount === 0) return { ok: false, reason: 'location_sharing_disabled' };
+    await slideRideCode(pool, rideId);
     return { ...result, locations: await this.loadFreshMemberLocations(rideId) };
   }
 
