@@ -152,7 +152,6 @@
     }));
     $$('[data-back-to-map]').forEach((button) => button.addEventListener('click', () => navigate('map')));
     initMapDrawer();
-    $('#enableLocationBtn').addEventListener('click', () => void requestMovementLocationAccess());
     $('#navMuteBtn')?.addEventListener('click', () => {
       navMuted = !navMuted;
       if (navMuted) window.speechSynthesis?.cancel?.();

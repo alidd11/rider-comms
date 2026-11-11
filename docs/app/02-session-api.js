@@ -35,7 +35,6 @@
   let movementWatchId;
   let movementFreshnessTimer;
   let movementPermissionStatus;
-  let movementAccessDenied = false;
   let rideRefreshVersion = 0;
   let latestDevicePosition;
   let mapCentredOnLiveLocation = false;

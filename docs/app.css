@@ -363,9 +363,6 @@ img,svg{-webkit-user-drag:none}
 /* Movement safety blocks distracting interaction without making product
    areas disappear. Keeping the full navigation visible prevents an unknown
    GPS state from looking like a destructive feature rollback. */
-.movement-safety-banner{position:fixed;z-index:80;top:calc(env(safe-area-inset-top) + 10px);left:16px;right:16px;display:flex;align-items:center;gap:9px;padding:9px 11px;border:1px solid var(--border);border-radius:14px;background:var(--surface);box-shadow:var(--shadow);color:var(--text)}
-.movement-safety-banner[hidden]{display:none}.movement-safety-banner svg{width:22px;height:22px;stroke:var(--accent);fill:none;stroke-width:1.8}.movement-safety-banner span{display:grid;gap:2px}.movement-safety-banner small{color:var(--muted)}
-.movement-safety-banner span{flex:1;min-width:0}.movement-safety-banner button{min-height:34px;padding:0 11px;border:0;border-radius:999px;background:var(--accent);color:#fff;font:700 11px/1 Inter,sans-serif;white-space:nowrap}
 .safety-locked [aria-disabled="true"]{opacity:.48}
 /* Moving: the map's distracting controls go away entirely, like the native
    app, rather than sitting half see-through over the map. Centre-on-me and
@@ -375,7 +372,6 @@ img,svg{-webkit-user-drag:none}
 #app.safety-locked .screen-map #reportHazardBtn,
 #app.safety-locked .screen-map #navReportBtn,
 #app.safety-locked .screen-map #musicBtn{display:none}
-@media(max-width:420px){.movement-safety-banner{left:12px;right:12px}.movement-safety-banner small{font-size:.7rem}.movement-safety-banner button{flex:none}}
 
 
 /* Host-only private ride roster control. Kept compact so the connected
@@ -399,11 +395,6 @@ img,svg{-webkit-user-drag:none}
 /* Utility screens use the same semantic canvas colour as the fixed safe-top
    shield. No decorative filler layer is needed: viewport geometry remains
    owned by the existing screen and safe-area rules. */
-.movement-safety-banner{
-  top:calc(var(--safe-top) + 10px);
-  left:max(12px,var(--safe-left));
-  right:max(12px,var(--safe-right));
-}
 
 
 /* Bottom-sheet ownership
@@ -412,7 +403,7 @@ img,svg{-webkit-user-drag:none}
    prevents the persistent tab bar and ride pill from competing with the
    modal on installed iOS PWAs, and freezes the active scroll surface behind
    the sheet so rows cannot move under the modal or status chrome. */
-html.sheet-open .ride-pill,html.sheet-open .movement-safety-banner,html.sheet-open .update-banner{
+html.sheet-open .ride-pill,html.sheet-open .update-banner{
   opacity:0;
   visibility:hidden;
   pointer-events:none;
@@ -456,7 +447,6 @@ html.pwa-standalone .auth-layout{
 html.pwa-standalone .sheet{
   max-height:min(88%,760px);
 }
-html.pwa-standalone .movement-safety-banner,
 html.pwa-standalone .update-banner{
   position:absolute;
 }
@@ -506,7 +496,7 @@ html.keyboard-open .chat-screen{position:fixed;top:calc(var(--visual-viewport-to
 .chat-empty{padding-top:15vh}.chat-composer{grid-row:5;padding:10px max(12px,var(--safe-right)) calc(10px + var(--nav-safe-bottom)) max(12px,var(--safe-left));display:grid;grid-template-columns:minmax(0,1fr) 44px;align-items:end;gap:8px;border-top:1px solid var(--border-soft);background:var(--nav-chrome)}
 html.keyboard-open .chat-composer{padding-bottom:10px}
 .chat-composer textarea{min-height:44px;max-height:112px;resize:none;padding:11px 14px;border:1px solid var(--border);border-radius:20px;background:var(--surface);color:var(--text);font:inherit;user-select:text}.chat-composer textarea:focus{outline:2px solid color-mix(in srgb,var(--accent) 40%,transparent);border-color:var(--accent)}.chat-composer button{background:var(--accent);color:#fff}.chat-composer button:disabled,.chat-composer textarea:disabled{opacity:.45}
-html.chat-open .ride-pill,html.chat-open .movement-safety-banner,html.chat-open .update-banner{opacity:0;visibility:hidden;pointer-events:none}
+html.chat-open .ride-pill,html.chat-open .update-banner{opacity:0;visibility:hidden;pointer-events:none}
 @media(orientation:landscape) and (max-height:520px){.chat-header{min-height:calc(var(--safe-top) + 50px);padding-bottom:4px}.chat-hideout-list{max-height:82px}.chat-thread{padding-block:8px}.chat-composer{padding-top:6px}}
 
 
@@ -563,8 +553,6 @@ html.chat-open .ride-pill,html.chat-open .movement-safety-banner,html.chat-open 
 .sheet>header .icon-button{border-radius:var(--radius-lg)}
 .settings-sheet-section,.settings-note,.choice-list,.safety-guidance,.plan-card{border-radius:var(--radius-lg)}
 .avatar-picker-option{border-radius:var(--radius-lg)}
-.movement-safety-banner{border-radius:var(--radius-lg);background:color-mix(in srgb,var(--surface) 96%,transparent)}
-.movement-safety-banner button{border-radius:var(--radius-md);background:var(--accent);color:var(--accent-text)}
 .avatar{box-shadow:none}
 .search-screen .search-shell,.search-result-icon,.search-empty-icon{border-radius:var(--radius-lg)}
 .search-screen .poi-chip,.chip{border-radius:var(--radius-md)}
@@ -667,9 +655,6 @@ body:has(#destinationCard:not([hidden])) .screen-map .map-actions{display:none}
 .ride-mode-return{min-height:44px;justify-self:start;padding:0 4px;border:0;background:transparent;color:var(--accent);font-size:.75rem;font-weight:760}
 #friendsCountBadge{display:none}.network-summary{display:none}
 .settings-page .group-title{margin-top:16px}.settings-page .settings-group>button{min-height:52px}.settings-page .profile-row{padding:10px}
-.movement-safety-banner{top:calc(var(--safe-top) + 66px);left:auto;right:max(14px,var(--safe-right));width:min(320px,calc(100% - 28px - var(--safe-left) - var(--safe-right)));padding:8px 10px;box-shadow:0 8px 24px rgb(0 0 0/.28)}
-.movement-safety-banner svg{width:19px;height:19px}.movement-safety-banner strong{font-size:.76rem}.movement-safety-banner small{font-size:.66rem;line-height:1.3}.movement-safety-banner button{min-height:32px;padding-inline:9px}
-@media(max-width:390px){.movement-safety-banner{left:max(12px,var(--safe-left));right:max(12px,var(--safe-right));width:auto}}
 
 /* Mockup parity polish: borders recede behind content, modal surfaces own the
    foreground, and the five hazard actions form a balanced 3/2 grid. */
@@ -731,8 +716,6 @@ body:has(#sheetBackdrop:not([hidden])) #joinNearbyBtn{opacity:0;pointer-events:n
     background:var(--surface);
     border-color:var(--border-soft);
   }
-  .movement-safety-banner{background:rgb(247 249 250/.96);color:var(--text)}
-  .movement-safety-banner small{color:var(--text-secondary)}
 }
 
 
@@ -1359,20 +1342,6 @@ body:has(#sheetBackdrop:not([hidden])) #joinNearbyBtn{opacity:0;pointer-events:n
 /* Ride-safe status must never cover page actions. On content screens it behaves
    like a compact bottom status card above the tab bar; the map keeps the
    top-right placement where it does not obscure primary map chrome. */
-body:has(.content-screen.active) .movement-safety-banner{
-  top:auto;
-  bottom:calc(var(--bottom-nav-height) + max(12px,var(--safe-bottom)));
-  left:auto;
-  right:max(14px,var(--safe-right));
-  width:min(320px,calc(100% - 28px - var(--safe-left) - var(--safe-right)));
-}
-@media(max-width:699px){
-  body:has(.content-screen.active) .movement-safety-banner{
-    left:max(14px,var(--safe-left));
-    right:max(14px,var(--safe-right));
-    width:auto;
-  }
-}
 
 
 /* Map/Home provider-language pass: keep the basemap visually native to the
@@ -1441,32 +1410,7 @@ body:has(.content-screen.active) .movement-safety-banner{
     color:var(--accent-text);
     border-color:var(--accent);
   }
-  body:has(.screen-map.active) .movement-safety-banner{
-    top:auto;
-    right:auto;
-    bottom:calc(var(--bottom-nav-height) + 18px);
-    left:max(14px,var(--safe-left));
-    width:min(278px,calc(100% - 108px - var(--safe-left) - var(--safe-right)));
-    gap:7px;
-    padding:8px 9px;
-    border-radius:4px;
-    background:rgb(8 13 16/.9);
-    border-color:rgb(255 255 255/.15);
-    box-shadow:0 7px 24px rgb(0 0 0/.22);
-    backdrop-filter:blur(14px);
-    -webkit-backdrop-filter:blur(14px);
-  }
   /* With a ride on, the ride pill takes the space above the nav bar. */
-  html.ride-pill-visible body:has(.screen-map.active) .movement-safety-banner{bottom:calc(var(--bottom-nav-height) + 66px)}
-  body:has(.screen-map.active) .movement-safety-banner svg{width:18px;height:18px}
-  body:has(.screen-map.active) .movement-safety-banner strong{font-size:.72rem}
-  body:has(.screen-map.active) .movement-safety-banner small{font-size:.62rem;line-height:1.25}
-  body:has(.screen-map.active) .movement-safety-banner button{
-    min-height:30px;
-    padding-inline:8px;
-    border-radius:4px;
-    font-size:.62rem;
-  }
 }
 @media(max-width:699px) and (prefers-color-scheme:light){
   .screen-map .map-header .search-slot{
@@ -1478,10 +1422,6 @@ body:has(.content-screen.active) .movement-safety-banner{
     background:#fff;
     border-color:rgb(11 18 22/.12);
     box-shadow:0 10px 22px rgb(15 23 27/.22);
-  }
-  body:has(.screen-map.active) .movement-safety-banner{
-    background:rgb(247 249 250/.94);
-    border-color:rgb(11 18 22/.16);
   }
 }
 
@@ -2765,7 +2705,7 @@ html[data-active-screen="map"] #app.safety-locked .map-canvas{inset:0}
 .app-menu-list span{flex:1}
 .app-menu-list small{color:var(--text-secondary);font-size:.85rem;font-weight:600}
 .app-menu-version{margin:auto 0 0;padding-top:28px;color:var(--text-muted);font-size:.78rem;text-align:center}
-html.app-menu-open .ride-pill,html.app-menu-open .movement-safety-banner{display:none}
+html.app-menu-open .ride-pill{display:none}
 
 /* Settings options as full pages (the sheet, full screen, with Back). */
 .sheet-backdrop.settings-page-mode{align-items:stretch;background:var(--bg);backdrop-filter:none}
@@ -2947,7 +2887,7 @@ html.ride-pill-visible #app:not(.nav-mode) .screen-map .map-actions{bottom:146px
 .hud-button[aria-pressed="true"]{border-color:transparent;background:var(--danger);color:#fff}
 html.ride-pill-visible .riding-hud-actions{bottom:76px}
 html.ride-pill-visible .hud-speed{bottom:164px}
-html.riding-hud-active #musicBtn,html.riding-hud-active .movement-safety-banner{display:none}
+html.riding-hud-active #musicBtn{display:none}
 html.riding-hud-active #app:not(.nav-mode) .screen-map .map-actions{bottom:102px}
 html.riding-hud-active.ride-pill-visible #app:not(.nav-mode) .screen-map .map-actions{bottom:164px}
 
@@ -2958,8 +2898,6 @@ html.riding-hud-active.ride-pill-visible #app:not(.nav-mode) .screen-map .map-ac
 #app:not(.nav-mode) .screen-map #joinNearbyBtn.map-live-button svg{width:22px;height:22px;color:inherit}
 #app:not(.nav-mode) .screen-map #joinNearbyBtn.map-live-button[data-active=true]{background:#35e68a;color:#04210f}
 /* The speed-fix notice sits above the bottom bar, not on it. */
-body:has(.screen-map.active) .movement-safety-banner{bottom:calc(var(--bottom-nav-height) + 84px)}
-html.ride-pill-visible body:has(.screen-map.active) .movement-safety-banner{bottom:calc(var(--bottom-nav-height) + 146px)}
 /* Ride members' first names under their map markers. */
 .rider-map-label{padding:2px 7px;border-radius:999px;background:rgb(10 15 20/.82);box-shadow:0 2px 6px rgb(0 0 0/.3);white-space:nowrap}
 /* Settings (Nov 2026): grouped full-width rows on a darker page,

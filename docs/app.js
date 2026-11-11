@@ -487,7 +487,6 @@
   let movementWatchId;
   let movementFreshnessTimer;
   let movementPermissionStatus;
-  let movementAccessDenied = false;
   let rideRefreshVersion = 0;
   let latestDevicePosition;
   let mapCentredOnLiveLocation = false;
@@ -4752,7 +4751,6 @@
     deviceFixReceivedAt.set(position, Date.now());
     latestDevicePosition = position;
     locationPermissionReady = true;
-    movementAccessDenied = false;
     // A restored ride may have rendered before the first already-authorised
     // GPS fix. Resume its consented sharing as soon as that fix arrives.
     if (state.activeRide?.shareRideLocation && !rideLocationTimer) syncRideLocationSharing();
@@ -4800,33 +4798,16 @@
     };
   }
 
-  // A lock shows everywhere, and so does a location problem the rider has to
-  // fix. "Waiting for a speed fix" on its own is only a notice: browsers often
-  // never report speed while still, so it stays on the map (as in the native
-  // app) instead of covering every screen.
+  // Whether Ride Safe locks the distracting controls right now. There is no
+  // banner: the riding HUD's Ride Safe chip shows the lock.
   function syncMovementSafetyBanner() {
-    const locked = state.rideSafeEnabled && window.RiderMovementSafety.isLockedForSafety(movementState);
-    const warning = state.rideSafeEnabled && movementState === 'unknown';
-    // A missing speed fix does not mean location permission is missing.
-    const needsLocation = warning && (movementAccessDenied || !(locationPermissionReady || movementPermissionStatus?.state === 'granted'));
-    const banner = $('#movementSafetyBanner');
-    if (banner) banner.hidden = !(locked || needsLocation || (warning && state.screen === 'map'));
-    const enableButton = $('#enableLocationBtn');
-    if (enableButton) {
-      enableButton.hidden = !needsLocation;
-      enableButton.textContent = movementAccessDenied || movementPermissionStatus?.state === 'denied' ? 'Location help' : 'Enable location';
-    }
-    return locked;
+    return state.rideSafeEnabled && window.RiderMovementSafety.isLockedForSafety(movementState);
   }
 
   function applyMovementState(nextState) {
     movementState = nextState;
     const locked = syncMovementSafetyBanner();
     $('#app')?.classList.toggle('safety-locked', locked);
-    const message = $('#movementSafetyMessage');
-    if (message) message.textContent = nextState === 'moving'
-      ? 'Distracting controls are locked until you are safely below 8 mph.'
-      : 'Waiting for a reliable speed fix. Controls stay available.';
     // Ride stays reachable while moving, as it was from the tab bar.
     $$('[data-menu-nav]:not([data-menu-nav="ride"])').forEach((item) => {
       item.setAttribute('aria-disabled', String(locked));
@@ -4860,7 +4841,6 @@
       },
       (error) => {
         if (error.code === 1) {
-          movementAccessDenied = true;
           locationPermissionReady = false;
           stopMovementSafetyTracking();
         } else {
@@ -4884,7 +4864,6 @@
       const permission = await navigator.permissions?.query?.({ name: 'geolocation' });
       if (permission?.state === 'granted' || (!permission && locationPermissionReady)) startMovementSafetyTracking();
       if (permission && permission !== movementPermissionStatus) permission.addEventListener('change', () => {
-        movementAccessDenied = permission.state === 'denied';
         if (permission.state === 'granted') startMovementSafetyTracking();
         else {
           locationPermissionReady = false;
@@ -4892,22 +4871,11 @@
         }
       });
       movementPermissionStatus = permission;
-      movementAccessDenied = permission?.state === 'denied';
       applyMovementState(movementState);
     } catch {
       // Some browsers expose geolocation without the Permissions API.
       // Resume only after an actual successful location request in this session.
       if (locationPermissionReady) startMovementSafetyTracking();
-    }
-  }
-
-  async function requestMovementLocationAccess() {
-    try {
-      const position = await currentPosition();
-      applyMovementState(movementTracker.addFix(movementFix(position)));
-      showToast('Location enabled. Controls stay available until sustained movement at 8 mph.');
-    } catch (error) {
-      showToast(locationAccessMessage(error, 'enable ride-safe controls'));
     }
   }
 
@@ -7141,7 +7109,6 @@
     }));
     $$('[data-back-to-map]').forEach((button) => button.addEventListener('click', () => navigate('map')));
     initMapDrawer();
-    $('#enableLocationBtn').addEventListener('click', () => void requestMovementLocationAccess());
     $('#navMuteBtn')?.addEventListener('click', () => {
       navMuted = !navMuted;
       if (navMuted) window.speechSynthesis?.cancel?.();

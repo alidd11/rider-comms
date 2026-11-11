@@ -24,7 +24,7 @@ import type { RootStackParamList, TabParamList } from '../navigation';
 import { HIDDEN_TAB_BAR_STYLE, TAB_BAR_STYLE } from '../navigation/tabBarStyle';
 import { useAuth } from '../auth/AuthContext';
 import { colors, spacing, MIN_TOUCH_TARGET } from '../theme';
-import { BOTTOM_BAR_HEIGHT, HUD_ACTION_HEIGHT, MAP_ACTION_SIZE, NAVIGATION_SUMMARY_BASE_HEIGHT, styles } from './MapScreen.styles';
+import { BOTTOM_BAR_HEIGHT, HUD_ACTION_HEIGHT, NAVIGATION_SUMMARY_BASE_HEIGHT, styles } from './MapScreen.styles';
 import { RideBar } from '../ride/RideBar';
 import { useRide } from '../ride/RideContext';
 import { ProximityVoice } from '../voice/ProximityVoice';
@@ -80,7 +80,7 @@ export function MapScreen(): React.JSX.Element {
   const { client, riderId } = useAuth();
   const { activeRide, rideLocations, roster, shareRideLocation } = useRide();
   const { shareLocation, setShareLocation, unitSystem, navigationProvider, routeAvoidance, spokenDirections, avatarId, displayName } = useSettings();
-  const { lockedForSafety, movementState, speedMps, locationAccess, requestLocationAccess, openLocationSettings, refreshTracking } = useMovementSafety();
+  const { lockedForSafety, speedMps, refreshTracking } = useMovementSafety();
   const { muted: voiceMuted, toggleMuted: toggleVoiceMuted, voiceConnected } = useVoiceMute();
   const [rideBarHeight, setRideBarHeight] = React.useState(0);
   // The Where to drawer (PWA: #mapDrawer) and its resting height.
@@ -522,33 +522,6 @@ export function MapScreen(): React.JSX.Element {
   // group ride is showing.
   const bottomBarOffset = activeRide && rideBarHeight > 0 && !(drawerVisible && drawerOpen) ? rideBarHeight : bottomInset + spacing.sm;
 
-  // Ride-safe banner. On the map it floats above the controls; on the Ride
-  // page it sits in the page under the header, never over the back arrow.
-  const showSafetyBanner = !activeRoute && (segment === 'public' ? !lockedForSafety && movementState === 'unknown' && !selectedDestination : lockedForSafety || movementState === 'unknown');
-  const renderSafetyBanner = (placement: object): React.JSX.Element => (
-        <View style={[styles.safetyBanner, placement]} accessibilityLiveRegion="polite">
-          <MaterialCommunityIcons name="motorbike" size={20} color={colors.accent} />
-          <View style={styles.safetyBannerCopy}>
-            <Text style={styles.safetyBannerTitle}>Ride-safe mode</Text>
-            <Text style={styles.safetyBannerText}>
-              {movementState === 'moving'
-                ? 'Distracting controls are locked until you are safely below 8 mph.'
-                : 'Waiting for a reliable speed fix. Controls stay available.'}
-            </Text>
-          </View>
-          {movementState !== 'moving' && (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={locationAccess === 'blocked' || locationAccess === 'services_disabled' ? 'Open location settings' : 'Enable location'}
-              style={styles.safetyEnableButton}
-              onPress={() => void (locationAccess === 'blocked' || locationAccess === 'services_disabled' ? openLocationSettings() : requestLocationAccess())}
-            >
-              <Text style={styles.safetyEnableText}>{locationAccess === 'blocked' || locationAccess === 'services_disabled' ? 'Settings' : 'Enable'}</Text>
-            </Pressable>
-          )}
-        </View>
-  );
-
   return (
     <View style={styles.container}>
       {segment === 'public' || lockedForSafety ? (
@@ -668,11 +641,7 @@ export function MapScreen(): React.JSX.Element {
         </View>
       ) : (
         <View style={styles.hostFill}>
-          <HostPanel
-            inviteCode={inviteCode}
-            onBack={() => navigation.setParams({ segment: 'public', at: Date.now() })}
-            notice={showSafetyBanner ? renderSafetyBanner(styles.safetyBannerInline) : null}
-          />
+          <HostPanel inviteCode={inviteCode} onBack={() => navigation.setParams({ segment: 'public', at: Date.now() })} />
         </View>
       )}
 
@@ -1050,8 +1019,6 @@ export function MapScreen(): React.JSX.Element {
           </View>
         </>
       )}
-
-      {showSafetyBanner && segment === 'public' && renderSafetyBanner({ bottom: bottomBarOffset + BOTTOM_BAR_HEIGHT + spacing.sm, right: spacing.md + MAP_ACTION_SIZE + spacing.sm, left: spacing.md })}
 
       {drawerVisible && (
         <MapDrawer

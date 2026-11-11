@@ -21,7 +21,7 @@ import { isCompleteRideCode, normalizeRideCodeInput } from './rideInvite';
 import { microphoneErrorMessage, preflightVoiceMicrophone } from '../audio/microphone';
 
 
-function JoinOrHostForm({ inviteCode, onBack, notice }: { inviteCode?: string | null; onBack?: () => void; notice?: React.ReactNode }): React.JSX.Element {
+function JoinOrHostForm({ inviteCode, onBack }: { inviteCode?: string | null; onBack?: () => void }): React.JSX.Element {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const insets = useSafeAreaInsets();
   const { height: viewportHeight } = useWindowDimensions();
@@ -87,7 +87,6 @@ function JoinOrHostForm({ inviteCode, onBack, notice }: { inviteCode?: string | 
           <BackToMap onBack={onBack} />
           <Text style={styles.screenTitle} accessibilityRole="header">Ride</Text>
         </View>
-        {notice}
         <ImageBackground
           source={RIDE_HERO_IMAGE}
           style={[styles.hero, { height: heroHeight }]}
@@ -285,18 +284,17 @@ function BackToMap({ onBack }: { onBack?: () => void }): React.JSX.Element | nul
   );
 }
 
-export function HostPanel({ inviteCode, onBack, notice }: { inviteCode?: string | null; onBack?: () => void; notice?: React.ReactNode } = {}): React.JSX.Element {
+export function HostPanel({ inviteCode, onBack }: { inviteCode?: string | null; onBack?: () => void } = {}): React.JSX.Element {
   const { activeRide } = useRide();
   const insets = useSafeAreaInsets();
 
-  if (!activeRide) return <JoinOrHostForm inviteCode={inviteCode} onBack={onBack} notice={notice} />;
+  if (!activeRide) return <JoinOrHostForm inviteCode={inviteCode} onBack={onBack} />;
   return (
     <ScrollView
       style={styles.activeScroll}
       contentContainerStyle={[styles.activePanel, { paddingTop: insets.top + spacing.lg, paddingBottom: insets.bottom + spacing.lg }]}
     >
       <BackToMap onBack={onBack} />
-      {notice}
       {activeRide.isHost ? <HostRoster /> : <MemberCard />}
     </ScrollView>
   );

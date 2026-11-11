@@ -491,20 +491,15 @@ test('Rider Comms follows device day/night appearance with branded palettes', as
   await page.emulateMedia({ colorScheme: 'light' });
   const day = await page.evaluate(() => {
     const root = getComputedStyle(document.documentElement);
-    const banner = getComputedStyle(document.querySelector('#movementSafetyBanner'));
     return {
       background: root.getPropertyValue('--bg').trim().toLowerCase(),
       surface: root.getPropertyValue('--surface').trim().toLowerCase(),
       text: root.getPropertyValue('--text').trim().toLowerCase(),
-      bannerBackground: banner.backgroundColor,
-      bannerText: banner.color,
     };
   });
   expect(day.background).toBe('#e9eef0');
   expect(day.surface).toBe('#f7f9fa');
   expect(day.text).toBe('#0b1216');
-  expect(day.bannerBackground).not.toBe('rgb(17, 23, 27)');
-  expect(day.bannerText).toBe('rgb(11, 18, 22)');
 });
 
 test('core PWA screens render without runtime errors or viewport overflow', async ({ page }, testInfo) => {
@@ -1087,11 +1082,12 @@ test('PWA utility viewport paints safe areas as one edge-to-edge canvas', async 
   await assertNoViewportOverflow(page);
 });
 
-test('PWA warns without hiding controls when movement cannot be verified', async ({ page }) => {
+test('PWA keeps controls available when movement cannot be verified', async ({ page }) => {
   await mockAuthenticatedApi(page, 'unknown');
   await page.goto('/');
   await expect(page.locator('#app')).toBeVisible();
-  await expect(page.locator('#movementSafetyBanner')).toBeVisible();
+  // No Ride-safe banner at all, on any screen.
+  await expect(page.locator('#movementSafetyBanner')).toHaveCount(0);
   // Unverified movement doesn't lock anything: the menu (and Routes in it)
   // stays available.
   const menuButton = page.locator('#mapAvatarButton');
@@ -1099,27 +1095,8 @@ test('PWA warns without hiding controls when movement cannot be verified', async
   await expect(menuButton).toHaveAttribute('aria-disabled', 'false');
   await expect(page.locator('#mapSearchSlot')).toBeVisible();
   await expect(page.locator('.map-header')).not.toHaveAttribute('inert', '');
-  const enableLocation = page.locator('#enableLocationBtn');
-  await expect(enableLocation).toBeVisible();
-  await expect(enableLocation).toHaveText('Location help');
-  // Location is blocked, which the rider has to fix, so the banner and its
-  // button follow them to other screens.
   await openFromMenu(page, 'routes');
   await expect(page.locator('[data-screen="routes"]')).toHaveClass(/active/);
-  await expect(page.locator('#movementSafetyBanner')).toBeVisible();
-  await enableLocation.click();
-});
-
-test('PWA keeps the plain "waiting for a speed fix" notice on the map only', async ({ page }) => {
-  await mockAuthenticatedApi(page, 'recovering');
-  await page.goto('/');
-  await expect(page.locator('#movementSafetyBanner')).toBeVisible();
-  await expect(page.locator('#enableLocationBtn')).toBeHidden();
-  await openFromMenu(page, 'routes');
-  await expect(page.locator('[data-screen="routes"]')).toHaveClass(/active/);
-  await expect(page.locator('#movementSafetyBanner')).toBeHidden();
-  await openTab(page, 'map');
-  await expect(page.locator('#movementSafetyBanner')).toBeVisible();
 });
 
 test('PWA hides the map\'s distracting controls while moving, like the native app', async ({ page }) => {
@@ -1154,9 +1131,6 @@ test('PWA map has a labelled Go live bar when parked and a glanceable HUD while 
   // A wide, labelled primary action beside a smaller hazard button.
   expect(liveBox.width).toBeGreaterThan(hazardBox.width * 2);
   expect(liveBox.height).toBeGreaterThanOrEqual(56);
-  // The speed-fix notice sits above the bar instead of on it.
-  const banner = await page.locator('#movementSafetyBanner').boundingBox();
-  expect(banner.y + banner.height).toBeLessThanOrEqual(liveBox.y + 1);
   await expect(page.locator('#ridingHud')).toBeHidden();
 
   await page.evaluate(() => {
@@ -1230,8 +1204,6 @@ test('PWA GPS timeout recovers without another permission request or startup loc
   await mockAuthenticatedApi(page, 'recovering');
   await page.goto('/');
   await expect(page.locator('#app')).toBeVisible();
-  await expect(page.locator('#movementSafetyBanner')).toBeVisible();
-  await expect(page.locator('#enableLocationBtn')).toBeHidden();
   await expect(page.locator('[data-menu-nav="friends"]')).toHaveAttribute('aria-disabled', 'false');
   await expect(page.locator('[data-menu-nav="ride"]')).not.toHaveAttribute('aria-disabled', 'true');
   await page.evaluate(() => {
@@ -2412,20 +2384,16 @@ test('PWA settings sheets own the bottom edge without competing with app chrome'
   await page.evaluate(() => document.documentElement.style.setProperty('--safe-bottom', '34px'));
 
   const nav = page.locator('.bottom-nav');
-  const banner = page.locator('#movementSafetyBanner');
   const app = page.locator('#app');
   const settingsScreen = page.locator('[data-screen="settings"]');
   // Map, Ride and Friends are menu rows: there is no tab bar.
   await expect(nav).toHaveCount(0);
-  // Location is blocked in this mock, so the banner shows on Settings too.
-  await expect(banner).toBeVisible();
 
   await openSettingsPage(page, 'blockedRiders');
   await expect(page.locator('#sheetBackdrop')).toBeVisible();
   await expect(page.locator('html')).toHaveClass(/sheet-open/);
   await expect(app).toHaveAttribute('inert', '');
   await expect(nav).toBeHidden();
-  await expect(banner).toBeHidden();
   await expect(settingsScreen).toHaveCSS('overflow', 'hidden');
   await page.locator('.sheet').evaluate(async (element) => {
     await Promise.all(element.getAnimations().map((animation) => animation.finished));
@@ -2447,7 +2415,6 @@ test('PWA settings sheets own the bottom edge without competing with app chrome'
   await expect(page.locator('html')).not.toHaveClass(/sheet-open/);
   await expect(app).not.toHaveAttribute('inert', '');
   await expect(nav).toBeHidden();
-  await expect(banner).toBeVisible();
 });
 
 test('PWA plan screen shows every plan and sends buying to the mobile app', async ({ page }) => {
@@ -3246,7 +3213,6 @@ test('@viewport standalone canvas, navigation and scroll geometry remain coheren
   await openTab(page, 'map');
   const baseline = await standaloneGeometry(page);
   await page.evaluate(() => {
-    document.querySelector('#movementSafetyBanner').hidden = false;
     window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
     document.dispatchEvent(new Event('visibilitychange'));
   });
@@ -3329,7 +3295,6 @@ test('@viewport full-screen overlays and sheets share the stable standalone bott
   await assertSheet('friend-detail-sheet');
 
   await openTab(page, 'map');
-  await page.locator('#movementSafetyBanner').evaluate((element) => { element.hidden = true; });
   await page.locator('#mapSearchSlot').click();
   const searchBox = await page.locator('#searchScreen').boundingBox();
   expectNear(searchBox.y + searchBox.height, appBottom);
