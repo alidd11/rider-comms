@@ -1181,6 +1181,19 @@ test('PWA map has a labelled Go live bar when parked and a glanceable HUD while 
   await expect(page.locator('#hazardAutoClose')).toContainText('Closes in');
 });
 
+test('PWA loads the map-matched navigation puck', async ({ page }) => {
+  await mockAuthenticatedApi(page, 'recovering');
+  await page.goto('/');
+  const snapped = await page.evaluate(() => {
+    const puck = window.RiderNavigationPuck;
+    const path = puck.buildNavigationPathIndex([{ lat: 51.5, lon: -0.12 }, { lat: 51.505, lon: -0.12 }]);
+    // 8 m east of the road, heading north at 12 m/s.
+    const match = puck.matchFixToPath(path, { lat: 51.502, lon: -0.11988, accuracyMeters: 10, headingDegrees: 0, speedMps: 12 });
+    return { snapped: match.snapped, lon: match.lon };
+  });
+  expect(snapped).toEqual({ snapped: true, lon: -0.12 });
+});
+
 test('PWA GPS timeout recovers without another permission request or startup lock', async ({ page }) => {
   await mockAuthenticatedApi(page, 'recovering');
   await page.goto('/');

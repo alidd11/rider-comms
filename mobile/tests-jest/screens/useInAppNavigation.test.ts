@@ -508,9 +508,14 @@ test('measures where the map drew the rider once the camera settles', async () =
   map.pointForCoordinate = jest.fn(async () => ({ x: 160, y: 520 }));
 
   await sendFix(51.5005, -0.1);
-  await act(async () => { jest.advanceTimersByTime(1_000); });
+  // The camera glides for a second with the puck, then checks where the
+  // map drew it: on the route, 8 m on at 8 m/s.
+  await act(async () => { jest.advanceTimersByTime(1_100); });
 
-  expect(map.pointForCoordinate).toHaveBeenCalledWith({ latitude: 51.5005, longitude: -0.1 });
+  expect(map.pointForCoordinate).toHaveBeenCalledWith({
+    latitude: expect.closeTo(51.5005 + 8 / 111_195, 6),
+    longitude: expect.closeTo(-0.1, 6),
+  });
   map.animateCamera.mockClear();
   await sendFix(51.5006, -0.1);
   expect(map.animateCamera).toHaveBeenCalledTimes(1);
@@ -527,4 +532,27 @@ test('the "Route updated." notice clears itself', async () => {
 
   await act(async () => { jest.advanceTimersByTime(10_000); });
   expect(result.current.navigationNotice).toBeNull();
+});
+
+test('places the navigation puck on the route and ahead of a late fix', async () => {
+  const { result, props } = await startNavigation();
+  // 8 m east of the northbound road, heading north at 10 m/s, taken 1 s ago.
+  await act(async () => {
+    lastPositionCallback()({
+      timestamp: Date.now() - 1000,
+      coords: { latitude: 51.501, longitude: -0.09988, accuracy: 8, speed: 10, heading: 0 },
+    } as never);
+  });
+  // Off-route checks still see the raw fix.
+  expect(props.setCurrentLocation).toHaveBeenLastCalledWith({ lat: 51.501, lon: -0.09988 });
+  const puck = result.current.navigationPuck!;
+  expect(puck.glideMs).toBe(1000);
+  // Snapped onto the road...
+  expect(puck.now.lon).toBeCloseTo(-0.1, 6);
+  // ...10 m on for the fix's age, and 10 m more by the end of the glide.
+  expect((puck.now.lat - 51.501) * 111_195).toBeCloseTo(10, 0);
+  expect((puck.target.lat - 51.501) * 111_195).toBeCloseTo(20, 0);
+
+  await act(async () => { result.current.finishInAppNavigation(); });
+  expect(result.current.navigationPuck).toBeNull();
 });

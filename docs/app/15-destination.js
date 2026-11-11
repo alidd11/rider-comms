@@ -131,6 +131,15 @@
   let navCurrentAccuracyMeters = null;
   let navCurrentSpeedMps = null;
   let navCameraHeading = null;
+  // Map-matched, predicted puck (docs/navigation-puck.js): the route as one
+  // measured path, and how far along it the last fix matched.
+  const navigationPuck = globalThis.RiderNavigationPuck;
+  let navPuckPath = null;
+  let navPuckAlongMeters = null;
+  let navPuckPlaced = false;
+  // The puck and camera glide to where the rider will be when the next fix
+  // is due (fixes arrive about once a second), so motion never stops.
+  const NAV_PUCK_GLIDE_MS = 1000;
   let navCameraAnimationFrame;
   let navCameraAnimationToken = 0;
   // Learned per device: how far the map's real perspective is from the

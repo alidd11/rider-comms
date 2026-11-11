@@ -11,7 +11,7 @@ await mkdir(destination, { recursive: true });
 // Deploy only the public application shell. Copying the entire docs folder
 // previously published internal product specifications alongside the PWA.
 const publicFiles = [
-  'index.html', 'app.css', 'app.js', 'avatar-system.js', 'navigation-road-events.js', 'navigation-guidance.js', 'navigation-camera.js', 'voice-activity.js', 'position-interpolation.js', 'movement-safety.js', 'message-state.js', 'config.js',
+  'index.html', 'app.css', 'app.js', 'avatar-system.js', 'navigation-road-events.js', 'navigation-guidance.js', 'navigation-camera.js', 'navigation-puck.js', 'voice-activity.js', 'position-interpolation.js', 'movement-safety.js', 'message-state.js', 'config.js',
   'routes.css', 'routes.js', 'manifest.json', 'sw.js',
   // Staff-only dashboard (noindex); moderation.html redirects to it. The
   // backend enforces admin access on every request.
@@ -32,7 +32,7 @@ await cp(
 // third-party image host sees riders' requests.
 await cp(resolve(source, 'assets', 'hero'), resolve(destination, 'assets', 'hero'), { recursive: true });
 
-const required = ['index.html', 'app.css', 'app.js', 'avatar-system.js', 'navigation-road-events.js', 'navigation-guidance.js', 'navigation-camera.js', 'voice-activity.js', 'position-interpolation.js', 'movement-safety.js', 'message-state.js', 'config.js', 'manifest.json', 'sw.js'];
+const required = ['index.html', 'app.css', 'app.js', 'avatar-system.js', 'navigation-road-events.js', 'navigation-guidance.js', 'navigation-camera.js', 'navigation-puck.js', 'voice-activity.js', 'position-interpolation.js', 'movement-safety.js', 'message-state.js', 'config.js', 'manifest.json', 'sw.js'];
 await Promise.all(required.map((file) => readFile(resolve(destination, file))));
 
 // Cache-busting the deployed app.css/app.js used to be a manually-bumped
@@ -42,13 +42,14 @@ await Promise.all(required.map((file) => readFile(resolve(destination, file))));
 // since the request URL never changes. Deriving it from the actual file
 // contents instead means every real content change gets a fresh version
 // automatically; nothing to remember, nothing to get wrong.
-const [rawCss, rawJs, rawAvatarSystem, rawNavigationRoadEvents, rawNavigationGuidance, rawNavigationCamera, rawVoiceActivity, rawPositionInterpolation, rawMovementSafety, rawMessageState, rawRoutesCss, rawRoutesJs] = await Promise.all([
+const [rawCss, rawJs, rawAvatarSystem, rawNavigationRoadEvents, rawNavigationGuidance, rawNavigationCamera, rawNavigationPuck, rawVoiceActivity, rawPositionInterpolation, rawMovementSafety, rawMessageState, rawRoutesCss, rawRoutesJs] = await Promise.all([
   readFile(resolve(destination, 'app.css'), 'utf8'),
   readFile(resolve(destination, 'app.js'), 'utf8'),
   readFile(resolve(destination, 'avatar-system.js'), 'utf8'),
   readFile(resolve(destination, 'navigation-road-events.js'), 'utf8'),
   readFile(resolve(destination, 'navigation-guidance.js'), 'utf8'),
   readFile(resolve(destination, 'navigation-camera.js'), 'utf8'),
+  readFile(resolve(destination, 'navigation-puck.js'), 'utf8'),
   readFile(resolve(destination, 'voice-activity.js'), 'utf8'),
   readFile(resolve(destination, 'position-interpolation.js'), 'utf8'),
   readFile(resolve(destination, 'movement-safety.js'), 'utf8'),
@@ -63,6 +64,7 @@ const version = createHash('sha256')
   .update(rawNavigationRoadEvents)
   .update(rawNavigationGuidance)
   .update(rawNavigationCamera)
+  .update(rawNavigationPuck)
   .update(rawVoiceActivity)
   .update(rawPositionInterpolation)
   .update(rawMovementSafety)
@@ -82,7 +84,7 @@ for (const file of ['index.html', 'sw.js']) {
 }
 
 const html = await readFile(resolve(destination, 'index.html'), 'utf8');
-for (const asset of ['app.css', 'config.js', 'avatar-system.js', 'navigation-road-events.js', 'navigation-guidance.js', 'navigation-camera.js', 'voice-activity.js', 'position-interpolation.js', 'app.js', 'movement-safety.js', 'message-state.js', 'manifest.json', 'routes.css', 'routes.js']) {
+for (const asset of ['app.css', 'config.js', 'avatar-system.js', 'navigation-road-events.js', 'navigation-guidance.js', 'navigation-camera.js', 'navigation-puck.js', 'voice-activity.js', 'position-interpolation.js', 'app.js', 'movement-safety.js', 'message-state.js', 'manifest.json', 'routes.css', 'routes.js']) {
   if (!html.includes(asset)) throw new Error(`PWA shell does not reference ${asset}`);
 }
 
@@ -118,7 +120,7 @@ if (!html.includes(`<meta name="theme-color" content="${lightChrome}" media="(pr
 // globals, so esbuild keeps their top-level names.
 const { transform } = await import('esbuild');
 const minified = [
-  'app.js', 'avatar-system.js', 'navigation-road-events.js', 'navigation-guidance.js', 'navigation-camera.js', 'voice-activity.js',
+  'app.js', 'avatar-system.js', 'navigation-road-events.js', 'navigation-guidance.js', 'navigation-camera.js', 'navigation-puck.js', 'voice-activity.js',
   'position-interpolation.js', 'movement-safety.js', 'message-state.js', 'routes.js', 'admin.js',
   'app.css', 'routes.css', 'admin.css', 'legal.css',
 ];

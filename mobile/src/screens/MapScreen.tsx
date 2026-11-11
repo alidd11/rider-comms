@@ -54,7 +54,7 @@ import { RiderAvatar } from '../components/RiderAvatar';
 import { MUSIC_APP_STORAGE_KEY, musicAppsFor, type MusicApp } from '../musicApps';
 import { NavigationManeuverGlyph } from '../components/NavigationManeuverGlyph';
 import { NavigationRoadAhead } from '../components/NavigationRoadAhead';
-import { HazardMarker, SmoothSelfMarker, SmoothRideMemberMarker } from './mapMarkers';
+import { HazardMarker, NavigationPuckMarker, SmoothSelfMarker, SmoothRideMemberMarker } from './mapMarkers';
 import { useRideProfiles } from './useRideProfiles';
 import { useHazardReports } from './useHazardReports';
 import { useNavigationSummary } from './useNavigationSummary';
@@ -246,6 +246,7 @@ export function MapScreen(): React.JSX.Element {
     setNavigationMuted,
     navigationFollowing,
     navigationSpeedMps,
+    navigationPuck,
     currentNavigationStep,
     fitRoute,
     focusNavigationCamera,
@@ -533,16 +534,15 @@ export function MapScreen(): React.JSX.Element {
             onMapReady={() => setMapReady(true)}
           >
             {selfMapLocation && (activeRoute ? (
-              <Marker
+              <NavigationPuckMarker
                 key={`self-rider-${avatarId}-nav`}
-                coordinate={{ latitude: selfMapLocation.lat, longitude: selfMapLocation.lon }}
-                title={displayName || 'Your location'}
+                now={navigationPuck?.now ?? selfMapLocation}
+                target={navigationPuck?.target ?? selfMapLocation}
+                glideMs={navigationPuck?.glideMs ?? 0}
+                avatarId={avatarId}
+                displayName={displayName}
                 description={shareRideLocation ? 'Your live group-ride location' : 'Your location'}
-                anchor={{ x: 0.5, y: 0.5 }}
-                tracksViewChanges={false}
-              >
-                <RiderAvatar avatarId={avatarId} size={64} mapMarker={false} selected status="none" />
-              </Marker>
+              />
             ) : (
               // Turn-by-turn navigation already drives the marker above via
               // its own, more frequent watchPosition subscription tightly

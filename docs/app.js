@@ -5525,6 +5525,15 @@
   let navCurrentAccuracyMeters = null;
   let navCurrentSpeedMps = null;
   let navCameraHeading = null;
+  // Map-matched, predicted puck (docs/navigation-puck.js): the route as one
+  // measured path, and how far along it the last fix matched.
+  const navigationPuck = globalThis.RiderNavigationPuck;
+  let navPuckPath = null;
+  let navPuckAlongMeters = null;
+  let navPuckPlaced = false;
+  // The puck and camera glide to where the rider will be when the next fix
+  // is due (fixes arrive about once a second), so motion never stops.
+  const NAV_PUCK_GLIDE_MS = 1000;
   let navCameraAnimationFrame;
   let navCameraAnimationToken = 0;
   // Learned per device: how far the map's real perspective is from the
@@ -6052,7 +6061,7 @@
     }
   }
 
-  function animateNavigationCamera(target, durationMs = 500) {
+  function animateNavigationCamera(target, durationMs = 500, linear = false) {
     if (!map || typeof map.moveCamera !== 'function') return false;
     stopNavigationCameraAnimation();
 
@@ -6083,7 +6092,7 @@
       if (token !== navCameraAnimationToken || !navFollowing) return;
       if (startedAt === undefined) startedAt = timestamp;
       const progress = Math.min(1, Math.max(0, (timestamp - startedAt) / durationMs));
-      const eased = 1 - ((1 - progress) ** 3);
+      const eased = linear ? progress : 1 - ((1 - progress) ** 3);
       map.moveCamera({
         center: {
           lat: from.center.lat + (target.center.lat - from.center.lat) * eased,
@@ -6100,7 +6109,7 @@
     return true;
   }
 
-  function applyNavigationCamera(here, step, gpsHeading, speedMps) {
+  function applyNavigationCamera(here, step, gpsHeading, speedMps, glideMs = 0) {
     if (!map || !step) return;
     const currentPath = navigationStepPath(step);
     const upcomingStep = navSteps[navStepIndex + 1];
@@ -6150,10 +6159,14 @@
       })
       : 0;
     const centre = navigationCamera.offsetAlongHeading(here.lat, here.lng, heading, aheadMeters);
-    const transitionDuration = movingSpeed !== null && movingSpeed <= 1.5 ? 650 : 500;
+    // While moving, glide at a steady pace with the puck to its next
+    // predicted position; otherwise ease in as before.
+    const gliding = glideMs > 0 && movingSpeed !== null && movingSpeed > 1.5;
+    const transitionDuration = gliding ? glideMs : movingSpeed !== null && movingSpeed <= 1.5 ? 650 : 500;
     if (!animateNavigationCamera(
       { center: centre, zoom: profile.zoom, heading, tilt: profile.pitch },
       transitionDuration,
+      gliding,
     )) {
       map.panTo(centre);
       map.setZoom(profile.zoom);
@@ -6297,7 +6310,10 @@
     stopNavigationCameraAnimation();
     getDirectionsRenderer().setDirections(result);
     navSteps = leg.steps;
-    renderNavigationRouteLine(combineNavigationCameraPaths(...navSteps.map((step) => navigationStepPath(step))));
+    const routePath = combineNavigationCameraPaths(...navSteps.map((step) => navigationStepPath(step)));
+    renderNavigationRouteLine(routePath);
+    navPuckPath = navigationPuck.buildNavigationPathIndex(routePath.map((point) => ({ lat: point.lat, lon: point.lng })));
+    navPuckAlongMeters = null;
     navStepIndex = 0;
     navLastAnnouncedStep = -1;
     navPromptTargetIndex = -1;
@@ -6418,7 +6434,9 @@
     }
     navWatchId = navigator.geolocation.watchPosition(handleNavPosition, handleNavPositionError, {
       enableHighAccuracy: true,
-      maximumAge: 5000,
+      // Never a cached fix: a few seconds' old position puts the puck tens
+      // of metres behind a moving rider.
+      maximumAge: 0,
       timeout: 15000,
     });
     navGpsWatchdog = setInterval(() => {
@@ -6448,12 +6466,15 @@
       : null;
     renderNavSpeed();
     if (navRerouting) return;
-    const here = { lat: position.coords.latitude, lng: position.coords.longitude };
+    const raw = { lat: position.coords.latitude, lng: position.coords.longitude };
     navCurrentAccuracyMeters = Number.isFinite(position.coords.accuracy)
       ? Number(position.coords.accuracy)
       : null;
+    // Snap the fix onto the route and carry it forward by the rider's speed
+    // (see shared/src/navigationPuck.ts). Off-route checks keep the raw fix.
+    const placed = placeNavigationPuck(position);
+    const here = placed.now;
     navCurrentPosition = here;
-    userMapMarker?.setPosition?.(here);
 
     let effectiveIndex = navStepIndex;
     while (effectiveIndex < navSteps.length - 1) {
@@ -6477,8 +6498,44 @@
     const step = navSteps[navStepIndex];
     renderNavStep();
     maybeSpeakUpcomingNavigationPrompt(here, step);
-    applyNavigationCamera(here, step, position.coords.heading, position.coords.speed);
-    checkOffRoute(here, step);
+    applyNavigationCamera(placed.target, step, placed.heading, position.coords.speed, NAV_PUCK_GLIDE_MS);
+    checkOffRoute(raw, step);
+  }
+
+  /** Places the navigation puck for a new fix and returns where it is now
+   * and where it will be when the next fix is due. */
+  function placeNavigationPuck(position) {
+    const coords = position.coords;
+    const speed = Number.isFinite(coords.speed) && Number(coords.speed) >= 0 ? Number(coords.speed) : null;
+    const raw = { lat: coords.latitude, lng: coords.longitude };
+    if (!navigationPuck || !navPuckPath) {
+      userMapMarker?.setPosition?.(raw);
+      return { now: raw, target: raw, heading: coords.heading };
+    }
+    const nowMs = Date.now();
+    const match = navigationPuck.matchFixToPath(navPuckPath, {
+      lat: coords.latitude,
+      lon: coords.longitude,
+      accuracyMeters: coords.accuracy,
+      headingDegrees: coords.heading,
+      speedMps: speed,
+    }, navPuckAlongMeters);
+    navPuckAlongMeters = match.distanceAlongMeters;
+    const age = navigationPuck.navigationFixAgeSeconds(position.timestamp, nowMs);
+    const current = navigationPuck.predictNavigationPuck(navPuckPath, match, speed, age);
+    const ahead = navigationPuck.predictNavigationPuck(navPuckPath, match, speed, age + NAV_PUCK_GLIDE_MS / 1000);
+    const now = { lat: current.lat, lng: current.lon };
+    const target = { lat: ahead.lat, lng: ahead.lon };
+    if (userMapMarker) {
+      if (!navPuckPlaced) {
+        snapMarkerTo('self-nav', userMapMarker, now);
+        navPuckPlaced = true;
+      }
+      glideMarkerTo('self-nav', userMapMarker, target, NAV_PUCK_GLIDE_MS, nowMs);
+    }
+    // On the route, its direction is steadier than the GPS course.
+    const heading = match.snapped && Number.isFinite(ahead.bearingDegrees) ? ahead.bearingDegrees : coords.heading;
+    return { now, target, heading };
   }
 
   function checkOffRoute(here, step) {
@@ -6532,6 +6589,10 @@
     destinationMarker?.setMap(null);
     destinationMarker = undefined;
     navSteps = [];
+    navPuckPath = null;
+    navPuckAlongMeters = null;
+    navPuckPlaced = false;
+    removeAnimatedMarker('self-nav');
     navStepIndex = 0;
     navDestination = null;
     navLastAnnouncedStep = -1;
