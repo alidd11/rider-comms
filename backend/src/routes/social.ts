@@ -2,6 +2,7 @@ import { InvalidMessageCursorError } from '../messageStore.ts';
 import { consumeRateLimit, consumeSocialWrite, isCoordinate, rateLimitSubject, readJsonBody, sendJson } from '../serverHttp.ts';
 import { InvalidSocialEventCursorError, MAX_SOCIAL_EVENT_WAIT_MS } from '../socialEventStore.ts';
 import { countFilterRejection, NOT_HANDLED } from './context.ts';
+import { previewText } from '../pushNotifier.ts';
 import { containsSevereText } from '../contentFilter.ts';
 import type { RouteContext } from './context.ts';
 
@@ -9,7 +10,7 @@ import type { RouteContext } from './context.ts';
 export const MAX_HIDEOUT_PARTICIPANTS = 20;
 
 export async function handleSocialRoutes(ctx: RouteContext): Promise<unknown> {
-  const { req, res, url, actorId, s, profileStore, friendStore, messageStore, hideoutStore, authStore, moderationStore, socialRateLimitStore, socialActivityStore, socialEventStore, rateLimitStore, adminStatsStore } = ctx;
+  const { req, res, url, actorId, s, profileStore, friendStore, messageStore, hideoutStore, authStore, moderationStore, socialRateLimitStore, socialActivityStore, socialEventStore, rateLimitStore, adminStatsStore, pushNotifier } = ctx;
   if (req.method === 'GET' && url.pathname === '/friends/activity') {
     return sendJson(res, 200, { activity: await socialActivityStore.getFriendActivity(actorId) });
   }
@@ -55,6 +56,15 @@ export async function handleSocialRoutes(ctx: RouteContext): Promise<unknown> {
     if (await moderationStore.isBlockedBetween(actorId, target)) return sendJson(res, 403, { error: 'blocked' });
     if (!(await consumeSocialWrite(res, socialRateLimitStore, actorId, 'friend_request'))) return;
     const r = await friendStore.createRequest(actorId, target);
+    if (r.ok) {
+      const from = await profileStore.getOrCreate(actorId);
+      void pushNotifier.notify(target, 'friend_request', {
+        title: 'New friend request',
+        body: `${from.displayName} (${from.handle}) wants to be friends.`,
+        route: '#friends',
+        tag: `friend-request-${r.request.id}`,
+      });
+    }
     return r.ok
       ? sendJson(res, 201, r.request)
       : sendJson(res, r.error === 'blocked' ? 403 : 409, { error: r.error });
@@ -69,6 +79,15 @@ export async function handleSocialRoutes(ctx: RouteContext): Promise<unknown> {
     if (await moderationStore.isBlockedBetween(request.fromRiderId, request.toRiderId)) return sendJson(res, 403, { error: 'blocked' });
     if (s[3] === 'accept') {
       const r = await friendStore.accept(request.id);
+      if (r.ok) {
+        const by = await profileStore.getOrCreate(actorId);
+        void pushNotifier.notify(request.fromRiderId, 'friend_accepted', {
+          title: 'Friend request accepted',
+          body: `${by.displayName} (${by.handle}) accepted your friend request.`,
+          route: `#chat:${actorId}`,
+          tag: `friend-accepted-${request.id}`,
+        });
+      }
       return r.ok ? sendJson(res, 200, { friend: r.friend }) : sendJson(res, 404, { error: r.error });
     }
     if (s[3] === 'decline') {
@@ -109,7 +128,16 @@ export async function handleSocialRoutes(ctx: RouteContext): Promise<unknown> {
     if (await moderationStore.isBlockedBetween(actorId, body.toRiderId)) return sendJson(res, 403, { error: 'blocked' });
     if (!(await friendStore.isFriendOf(actorId, body.toRiderId))) return sendJson(res, 403, { error: 'not_friends' });
     if (!(await consumeSocialWrite(res, socialRateLimitStore, actorId, 'direct_message'))) return;
-    return sendJson(res, 201, await messageStore.create(actorId, body.toRiderId, text));
+    const message = await messageStore.create(actorId, body.toRiderId, text);
+    const from = await profileStore.getOrCreate(actorId);
+    // One notification per chat: a newer message replaces the last one.
+    void pushNotifier.notify(body.toRiderId, 'message', {
+      title: from.displayName,
+      body: previewText(text),
+      route: `#chat:${actorId}`,
+      tag: `chat-${actorId}`,
+    });
+    return sendJson(res, 201, message);
   }
   if (req.method === 'GET' && url.pathname === '/messages') {
     const other = url.searchParams.get('withRiderId');

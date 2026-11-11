@@ -32,7 +32,7 @@ const cacheKey = (riderId: string): string => `@rider-comms/settings/profile/${r
 export type UnitSystem = 'mi' | 'km';
 const DEFAULTS: Omit<RiderProfile, 'riderId' | 'updatedAt'> = {
   zoneTier: 'free', avatarId: DEFAULT_AVATAR_ID, displayName: 'Rider', handle: '@rider', unitSystem: 'mi',
-  notifyNearby: false, notifyInvites: false, notifyChat: false, shareLocation: false,
+  notifyNearby: false, notifyInvites: true, notifyChat: true, shareLocation: false,
   instagramUsername: '', instagramVisibility: 'friends', tiktokUsername: '', tiktokVisibility: 'friends',
 };
 type ProfileState = typeof DEFAULTS;
@@ -53,6 +53,7 @@ interface SettingsContextValue extends ProfileState {
   setHandle: (v: string) => void; setUnitSystem: (v: UnitSystem) => void; setShareLocation: (v: boolean) => void;
   setInstagramUsername: (v: string) => void; setInstagramVisibility: (v: SocialVisibility) => void;
   setTiktokUsername: (v: string) => void; setTiktokVisibility: (v: SocialVisibility) => void;
+  setNotifyInvites: (v: boolean) => void; setNotifyChat: (v: boolean) => void;
   setNavigationProvider: (v: NavigationProvider) => void; setRouteAvoidance: (v: RouteAvoidance) => void; setRideSafeEnabled: (v: boolean) => void; resetAll: () => void;
   refreshProfile: () => Promise<void>;
 }
@@ -178,6 +179,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }): R
     setShareLocation: (v: boolean) => update('shareLocation', v), setInstagramUsername: (v: string) => update('instagramUsername', v.trim().replace(/^@/, '')),
     setInstagramVisibility: (v: SocialVisibility) => update('instagramVisibility', v), setTiktokUsername: (v: string) => update('tiktokUsername', v.trim().replace(/^@/, '')),
     setTiktokVisibility: (v: SocialVisibility) => update('tiktokVisibility', v),
+    setNotifyInvites: (v: boolean) => update('notifyInvites', v), setNotifyChat: (v: boolean) => update('notifyChat', v),
   }), [update]);
   const setNavigationProvider = React.useCallback((value: NavigationProvider) => {
     const next = parseNavigationProvider(value);

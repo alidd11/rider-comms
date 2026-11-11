@@ -169,6 +169,9 @@ export class RiderCommsClient {
     return this.request('GET', `/social/events?${query.toString()}`, undefined, Math.max(10_000, waitMs + 5_000));
   }
   getBlockedRiders(): Promise<{ blocked: BlockedRider[] }> { return this.request('GET', '/blocks'); }
+  /** Push notifications on this phone (backend/src/routes/push.ts). */
+  registerPushToken(token: string): Promise<Record<string, never>> { return this.request('PUT', '/push/subscriptions', { kind: 'expo', token }); }
+  unregisterPushToken(token: string): Promise<Record<string, never>> { return this.request('DELETE', '/push/subscriptions', { address: token }); }
   blockRider(riderId: string): Promise<Record<string, never>> { return this.request('POST', '/blocks', { riderId }); }
   unblockRider(riderId: string): Promise<Record<string, never>> { return this.request('DELETE', `/blocks/${encodeURIComponent(riderId)}`); }
   reportRider(riderId: string, reason: 'harassment' | 'unsafe' | 'spam' | 'sexual' | 'other', details = ''): Promise<{ received: true }> { return this.request('POST', '/reports', { riderId, reason, details }); }

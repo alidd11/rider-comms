@@ -14,9 +14,17 @@
     void resumePreviouslyAllowedVoice();
     renderFallbackMarkers();
     renderHazardMarkers();
-    navigate(location.hash.slice(1) || state.screen || 'map', false);
+    // A notification can open the app straight into a chat.
+    if (/^#chat:/.test(location.hash)) {
+      const route = location.hash;
+      history.replaceState(null, '', '#friends');
+      void openAppRoute(route);
+    } else {
+      navigate(location.hash.slice(1) || state.screen || 'map', false);
+    }
     loadGoogleMaps();
     registerServiceWorker();
+    void syncPushSubscription();
     watchConnection();
     void loadFriendsData();
     startSocialEvents();

@@ -41,6 +41,9 @@ import { handleProfileRoutes } from './routes/profiles.ts';
 import { handleRideRoutes } from './routes/rides.ts';
 import { handleRiderRoutes } from './routes/riders.ts';
 import { handleSocialRoutes } from './routes/social.ts';
+import { handlePushRoutes } from './routes/push.ts';
+import { PushNotifier } from './pushNotifier.ts';
+import { PushStore } from './pushStore.ts';
 import { handleNavigationRoutes } from './routes/navigation.ts';
 import { handleHazardRoutes } from './routes/hazards.ts';
 import { handleModerationRoutes } from './routes/moderation.ts';
@@ -91,6 +94,9 @@ export interface ApiServerOptions {
   socialActivityStore?: Pick<SocialActivityStore, 'touch' | 'getFriendActivity'>;
   socialEventStore?: Pick<SocialEventStore, 'waitForEvents'> & Partial<Pick<SocialEventStore, 'close'>>;
   readinessCheck?: () => Promise<void>;
+  pushStore?: PushStore;
+  /** Tests pass a recorder; by default notifications are really sent. */
+  pushNotifier?: Pick<PushNotifier, 'notify'>;
 }
 
 /** Everything createApp can be given. Stores default to their Postgres-backed
@@ -185,6 +191,12 @@ export function createApp(options: CreateAppOptions = {}): http.Server {
   const socialRateLimitStore = options.socialRateLimitStore ?? new SocialRateLimitStore();
   const socialActivityStore = options.socialActivityStore ?? new SocialActivityStore();
   const socialEventStore = options.socialEventStore ?? new SocialEventStore();
+  const pushStore = options.pushStore ?? new PushStore();
+  const pushNotifier = options.pushNotifier ?? new PushNotifier({
+    store: pushStore,
+    getProfile: (riderId) => profileStore.getOrCreate(riderId),
+    expoAccessToken: process.env.EXPO_ACCESS_TOKEN?.trim() || undefined,
+  });
   const readinessCheck = options.readinessCheck ?? checkDatabaseReady;
   const directionsCache = options.directionsCache ?? new DirectionsCache();
   const directionsProvider = wrapDirectionsProviderWithCache(
@@ -243,7 +255,7 @@ export function createApp(options: CreateAppOptions = {}): http.Server {
       location.riderId === actorId || allowedPeerIds.has(location.riderId));
   };
   const deps: RouteDeps = {
-    rideStore, presenceStore, profileStore, friendStore, messageStore, hideoutStore, authStore,
+    rideStore, pushStore, pushNotifier, presenceStore, profileStore, friendStore, messageStore, hideoutStore, authStore,
     moderationStore, adminStatsStore, hazardStore, scenicRouteStore, billingStore, accountDeletionStore, rateLimitStore,
     socialRateLimitStore, socialActivityStore, socialEventStore, readinessCheck, directionsProvider,
     placesProvider, liveKitCredentials, revokeRideVoiceParticipants, revokeProximityVoiceParticipants,
@@ -274,6 +286,8 @@ export function createApp(options: CreateAppOptions = {}): http.Server {
       await socialActivityStore.touch(actorId);
       if (!(await consumeRateLimit(res, rateLimitStore, rateLimitSubject('rider', actorId), 'api'))) return;
       if ((await handleAccountRoutes(ctx)) !== NOT_HANDLED) return;
+      // Before the verified-email gate: any signed-in rider can get notifications.
+      if ((await handlePushRoutes(ctx)) !== NOT_HANDLED) return;
       // Before the verified-email gate: a purchase must always be recorded.
       if ((await handleBillingRoutes(ctx)) !== NOT_HANDLED) return;
       if (requiresVerifiedEmail(req.method, url.pathname) && !(await requireVerifiedEmail(res, authStore, actorId, url.pathname))) return;

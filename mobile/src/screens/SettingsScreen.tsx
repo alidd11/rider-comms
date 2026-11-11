@@ -23,6 +23,7 @@ import { NAVIGATION_PROVIDER_OPTIONS, type NavigationProvider } from '../navigat
 import { CategoryRow, CheckRow, PlainRow, SegmentedRow, SettingsGroup, SettingsHeader, SwitchRow, useSettingsPalette } from './SettingsListUi';
 import { RIDER_VEHICLE_OPTIONS } from '../riderPreferences';
 import { MotorbikeIcon } from '../components/MotorbikeIcon';
+import { disablePush, enablePush, pushEnabledOnDevice, pushPermission, PushNotConfiguredError, type PushPermission } from '../notifications/pushNotifications';
 
 const UNIT_LABELS: Record<UnitSystem, { name: string; blurb: string }> = {
   mi: { name: 'Miles', blurb: 'Use miles and mph.' },
@@ -200,7 +201,7 @@ function AvatarPickerModal({
 /** The pages a settings row opens (the Settings list itself holds the
  * switches). Keys match the PWA's page tokens, see
  * scripts/check-client-parity.mjs. */
-export type SettingsPageKey = 'myProfile' | 'editProfile' | 'general' | 'mapNavigation' | 'voiceSound' | 'rideSafe' | 'vehicle' | 'account' | 'privacy' | 'navigationApp' | 'distanceUnits' | 'blockedRiders' | 'email' | 'devices' | 'help' | 'about';
+export type SettingsPageKey = 'myProfile' | 'editProfile' | 'general' | 'mapNavigation' | 'voiceSound' | 'rideSafe' | 'vehicle' | 'notifications' | 'account' | 'privacy' | 'navigationApp' | 'distanceUnits' | 'blockedRiders' | 'email' | 'devices' | 'help' | 'about';
 
 export const SETTINGS_PAGE_TITLES: Record<SettingsPageKey, string> = {
   myProfile: 'Profile',
@@ -210,6 +211,7 @@ export const SETTINGS_PAGE_TITLES: Record<SettingsPageKey, string> = {
   voiceSound: 'Voice and sound',
   rideSafe: 'Ride Safe',
   vehicle: 'Vehicle details',
+  notifications: 'Notifications',
   account: 'Account and login',
   privacy: 'Privacy',
   navigationApp: 'Navigation app',
@@ -274,7 +276,7 @@ function PageSection({ title, children, note }: { title?: string; children: Reac
 
 // Pages reached from the Settings root get Waze's header (back, centred
 // title, X to close Settings); the category pages are full-width groups.
-const SETTINGS_CATEGORY_PAGES = new Set<SettingsPageKey>(['general', 'mapNavigation', 'voiceSound', 'rideSafe', 'vehicle', 'account', 'privacy']);
+const SETTINGS_CATEGORY_PAGES = new Set<SettingsPageKey>(['general', 'mapNavigation', 'voiceSound', 'rideSafe', 'vehicle', 'notifications', 'account', 'privacy']);
 const MENU_PAGES = new Set<SettingsPageKey>(['myProfile', 'editProfile', 'help']);
 
 /** Full-screen settings page: Waze's header (back, centred title, X),
@@ -335,6 +337,10 @@ export function SettingsScreen(): React.JSX.Element {
         <SettingsGroup title="Riding">
           <CategoryRow first icon="shield-checkmark" tint="#F2802A" title="Ride Safe" onPress={() => openPage('rideSafe')} />
           <CategoryRow customIcon={<MotorbikeIcon color="#FFFFFF" />} tint="#8E5CF6" title="Vehicle details" onPress={() => openPage('vehicle')} />
+        </SettingsGroup>
+
+        <SettingsGroup>
+          <CategoryRow first icon="notifications" tint="#EF4444" title="Notifications" onPress={() => openPage('notifications')} />
         </SettingsGroup>
 
         <SettingsGroup title="Account">
@@ -399,6 +405,64 @@ function VehiclePage(): React.JSX.Element {
   );
 }
 
+/** Notifications: this phone on or off, then which kinds (PWA: the same
+ * page, with Web Push). */
+function NotificationsPage(): React.JSX.Element {
+  const { notifyInvites, notifyChat, setNotifyInvites, setNotifyChat } = useSettings();
+  const { client, riderId } = useAuth();
+  const [deviceOn, setDeviceOn] = React.useState(false);
+  const [permission, setPermission] = React.useState<PushPermission>('undetermined');
+  const [busy, setBusy] = React.useState(false);
+  useFocusEffect(React.useCallback(() => {
+    let active = true;
+    void Promise.all([pushEnabledOnDevice(riderId), pushPermission()]).then(([on, status]) => {
+      if (!active) return;
+      setDeviceOn(on);
+      setPermission(status);
+    }).catch(() => undefined);
+    return () => { active = false; };
+  }, [riderId]));
+
+  async function changeDevice(next: boolean) {
+    setBusy(true);
+    try {
+      if (next) {
+        const ok = await enablePush(client, riderId);
+        setDeviceOn(ok);
+        if (!ok) {
+          setPermission(await pushPermission());
+          Alert.alert('Notifications are off', 'Allow notifications for Rider Comms in your phone’s Settings, then try again.', [
+            { text: 'Not now', style: 'cancel' },
+            { text: 'Open Settings', onPress: () => void Linking.openSettings() },
+          ]);
+        }
+      } else {
+        await disablePush(client, riderId);
+        setDeviceOn(false);
+      }
+    } catch (error) {
+      Alert.alert('Couldn’t change notifications', error instanceof PushNotConfiguredError ? error.message : 'Check your connection and try again.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const note = permission === 'denied'
+    ? 'Notifications are blocked for Rider Comms. Allow them in your phone’s Settings, then try again.'
+    : 'Get told about friend requests and messages, even when Rider Comms is closed.';
+  return (
+    <>
+      <SettingsGroup note={note}>
+        <SwitchRow first title="Notifications on this device" value={deviceOn} onValueChange={(next) => { if (!busy) void changeDevice(next); }} />
+      </SettingsGroup>
+      <SettingsGroup title="Notify me about" note="These apply on every device where notifications are on.">
+        <SwitchRow first title="Friend requests" value={notifyInvites} onValueChange={setNotifyInvites} />
+        <SwitchRow title="Messages" value={notifyChat} onValueChange={setNotifyChat} />
+      </SettingsGroup>
+    </>
+  );
+}
+
 /** Ride Safe: the automatic lock while moving. */
 function RideSafePage(): React.JSX.Element {
   const { rideSafeEnabled, setRideSafeEnabled } = useSettings();
@@ -447,7 +511,7 @@ function PrivacyPage(): React.JSX.Element {
 /** Account and login: email, devices, then sign out, reset and delete. */
 function AccountPage(): React.JSX.Element {
   const { resetAll } = useSettings();
-  const { logOut, emailVerified, deleteAccount } = useAuth();
+  const { logOut, emailVerified, deleteAccount, client, riderId } = useAuth();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
   function confirmReset() {
@@ -481,7 +545,9 @@ function AccountPage(): React.JSX.Element {
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Sign out', style: 'destructive', onPress: () => {
-          void logOut().catch(() => Alert.alert('Signed out on this device', 'Rider Comms could not contact the server to revoke the session, but it has been removed from this device.'));
+          // This phone stops getting the account's notifications first, while
+          // the session can still authorise removing it (PWA: signOut).
+          void disablePush(client, riderId).catch(() => undefined).then(() => logOut()).catch(() => Alert.alert('Signed out on this device', 'Rider Comms could not contact the server to revoke the session, but it has been removed from this device.'));
         } },
       ]
     );
@@ -799,6 +865,7 @@ function DistanceUnitsPage(): React.JSX.Element {
 export const HELP_FAQ: ReadonlyArray<readonly [string, string]> = [
   ['I can’t sign in', 'Use Forgot password? on the sign-in screen. We’ll email a reset link and code to the address on your account.'],
   ['I didn’t get the verification email', 'Check your spam folder, then open Settings → Account and login → Email and send a new one.'],
+  ['I’m not getting notifications', 'Open Settings → Notifications and turn on Notifications on this device, then check Rider Comms is allowed to send notifications in your phone’s settings. On iPhone, add the web app to your Home Screen first.'],
   ['Voice isn’t connecting', 'Check that Rider Comms can use your microphone and that you have a data connection. Your map and ride keep working while voice reconnects.'],
   ['My location isn’t showing', 'Location is only shared when you turn it on: Go live for Nearby, or the location switch in a group ride. Check that location access is allowed for Rider Comms.'],
   ['Someone is bothering me', 'Report and block them from their profile, a chat, the ride roster or a friend request. Reports are reviewed within 24 hours.'],
@@ -882,6 +949,7 @@ export function SettingsPageScreen({ route }: SettingsPageProps): React.JSX.Elem
       {page === 'voiceSound' ? <VoiceSoundPage /> : null}
       {page === 'rideSafe' ? <RideSafePage /> : null}
       {page === 'vehicle' ? <VehiclePage /> : null}
+      {page === 'notifications' ? <NotificationsPage /> : null}
       {page === 'account' ? <AccountPage /> : null}
       {page === 'privacy' ? <PrivacyPage /> : null}
       {page === 'navigationApp' ? <NavigationAppPage /> : null}

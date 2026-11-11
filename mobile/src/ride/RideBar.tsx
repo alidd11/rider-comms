@@ -261,7 +261,7 @@ export function RideBar({ controlsVisible = true }: { controlsVisible?: boolean 
     setManuallyMuted(false);
     if (audioSessionError) setAudioSessionRetryVersion((version) => version + 1);
     setVoiceRetryVersion((version) => version + 1);
-  }, [audioSessionError]);
+  }, [audioSessionError, setManuallyMuted]);
 
   // A token request can fail before LiveKitRoom ever exists, so neither
   // onError nor onDisconnected can start the normal reconnect loop. Retry

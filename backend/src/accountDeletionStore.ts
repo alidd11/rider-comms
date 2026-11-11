@@ -58,6 +58,7 @@ export class AccountDeletionStore {
       await client.query('DELETE FROM rider_presence WHERE rider_id = $1', [riderId]);
       await client.query('DELETE FROM presence_movement_anchors WHERE rider_id = $1', [riderId]);
       await client.query('DELETE FROM rider_activity WHERE rider_id = $1', [riderId]);
+      await client.query('DELETE FROM push_subscriptions WHERE rider_id = $1', [riderId]);
       await client.query('DELETE FROM social_events WHERE rider_id = $1 OR actor_id = $1', [riderId]);
       await client.query('DELETE FROM social_rate_events WHERE actor_id = $1', [riderId]);
       await client.query('DELETE FROM rider_profiles WHERE rider_id = $1', [riderId]);

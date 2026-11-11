@@ -237,3 +237,19 @@
     }
   }
 
+  // Opens an in-app route from a notification (see docs/sw.js):
+  // '#friends', or '#chat:<riderId>' for that friend's chat.
+  async function openAppRoute(route) {
+    const chat = /^#chat:([A-Za-z0-9_-]+)$/.exec(String(route || ''));
+    if (!chat) {
+      navigate(String(route || '#map').replace(/^#/, ''));
+      return;
+    }
+    navigate('friends');
+    let friend = state.friends.find((person) => person.riderId === chat[1]);
+    if (!friend) {
+      await loadFriendsData();
+      friend = state.friends.find((person) => person.riderId === chat[1]);
+    }
+    if (friend) openChat(friend);
+  }

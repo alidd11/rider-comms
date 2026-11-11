@@ -81,3 +81,39 @@ self.addEventListener('fetch', (event) => {
 self.addEventListener('message', (event) => {
   if (event.data?.type === 'SKIP_WAITING') self.skipWaiting();
 });
+
+// Push notifications (backend/src/pushNotifier.ts sends { title, body,
+// route, tag }). Tapping one opens the app at `route` ('#friends' or
+// '#chat:<riderId>'), focusing an open window rather than starting another.
+self.addEventListener('push', (event) => {
+  let message = {};
+  try {
+    message = event.data ? event.data.json() : {};
+  } catch {
+    message = { body: event.data ? event.data.text() : '' };
+  }
+  const route = typeof message.route === 'string' && /^#[A-Za-z0-9:_-]+$/.test(message.route) ? message.route : '#map';
+  event.waitUntil(self.registration.showNotification(message.title || 'Rider Comms', {
+    body: message.body || '',
+    tag: message.tag || undefined,
+    renotify: Boolean(message.tag),
+    icon: './icons/icon-192.png',
+    badge: './icons/icon-192.png',
+    data: { route },
+  }));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const route = event.notification.data?.route || '#map';
+  event.waitUntil((async () => {
+    const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    const open = windows.find((client) => new URL(client.url).origin === self.location.origin);
+    if (open) {
+      await open.focus();
+      open.postMessage({ type: 'open-route', route });
+      return;
+    }
+    await self.clients.openWindow(`./${route}`);
+  })());
+});

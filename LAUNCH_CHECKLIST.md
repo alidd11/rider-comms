@@ -87,12 +87,29 @@ nightly GitHub job passes with a warning and takes no copy.
    `cd mobile && npx eas-cli build --platform ios --profile production`,
    then `npx eas-cli submit --platform ios`. Build numbers increment
    automatically.
-4. Create two demo accounts with verified email that are friends with each
+4. Push notifications (friend requests and messages). The web app needs
+   nothing: the server makes and keeps its own Web Push keys. For the
+   iOS and Android apps:
+   - Link the app to an Expo project: `cd mobile && npx eas-cli init`,
+     then set its project id as the EAS environment variable
+     `EAS_PROJECT_ID` (or leave the `extra.eas.projectId` that `eas init`
+     writes into `app.json`).
+   - iOS: `npx eas-cli credentials`, choose iOS, and let it create a push
+     key (APNs). Build again so the app has the push entitlement.
+   - Android: create a Firebase project for `com.ridercomms.app`, upload its
+     FCM v1 service account key with `npx eas-cli credentials` (Android →
+     Google Service Account → push notifications), and add
+     `google-services.json` to the app config.
+   - Optional: if you turn on "enhanced push security" in Expo, set
+     `EXPO_ACCESS_TOKEN` on the server (Railway).
+   - Test on a real phone: Settings → Notifications → turn it on, then
+     send yourself a friend request and a message from another account.
+5. Create two demo accounts with verified email that are friends with each
    other, for App Review.
-5. Take screenshots from the TestFlight build (6.9" and 6.5" iPhone).
-6. Fill in App Store Connect from `APP_REVIEW.md`: listing copy, privacy
+6. Take screenshots from the TestFlight build (6.9" and 6.5" iPhone).
+7. Fill in App Store Connect from `APP_REVIEW.md`: listing copy, privacy
    label, age rating, and review notes with the demo accounts.
-7. Optional: to make shared links open the app, add the Apple Team ID and
+8. Optional: to make shared links open the app, add the Apple Team ID and
    the association file (README, "Native app links and maps handoff").
 
 ## 4. Google Play (optional for launch)

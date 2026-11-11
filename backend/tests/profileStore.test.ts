@@ -33,8 +33,9 @@ describe('ProfileStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping
     assert.equal(profile.zoneTier, 'free');
     assert.equal(profile.unitSystem, 'mi');
     assert.equal(profile.notifyNearby, false);
-    assert.equal(profile.notifyInvites, false);
-    assert.equal(profile.notifyChat, false);
+    // Friend-request and message notifications start on; the device prompt is the opt-in.
+    assert.equal(profile.notifyInvites, true);
+    assert.equal(profile.notifyChat, true);
     assert.equal(profile.shareLocation, false);
     assert.ok(profile.updatedAt > 0);
   });
@@ -179,7 +180,8 @@ describe('ProfileStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping
        VALUES ('rider-1', 'friend-1', 1), ('friend-1', 'rider-1', 1)`,
     );
 
-    const result = await store.update('rider-1', { notifyChat: true });
+    // Message notifications start on, so switching them off is the change.
+    const result = await store.update('rider-1', { notifyChat: false });
     assert.equal(result.ok, true);
 
     const { rows } = await getPool().query<{ rider_id: string; event_type: string; actor_id: string; entity_id: string }>(
