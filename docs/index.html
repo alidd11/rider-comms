@@ -308,14 +308,14 @@
 
       <section class="screen content-screen ride-screen" data-screen="ride" aria-labelledby="rideTitle">
         <div class="page-width">
-          <header class="page-header"><button class="icon-button page-back" type="button" data-back-to-map aria-label="Back to map"><svg class="icon-back"><use href="#i-chevron"/></svg></button><div><h1 id="rideTitle">Ride</h1></div><button class="icon-button" id="rideShareTop" aria-label="Share ride" hidden><svg><use href="#i-share"/></svg></button></header>
+          <header class="page-header"><button class="icon-button page-back" type="button" data-back-to-map aria-label="Back to map"><svg class="icon-back"><use href="#i-chevron"/></svg></button><div><h1 id="rideTitle">Ride</h1></div><button class="icon-button" id="rideShareTop" aria-label="Share ride code" hidden><svg><use href="#i-share"/></svg></button></header>
           <div id="rideJoinState">
             <div class="ride-hero" role="img" aria-label="Motorcyclists riding together on a winding mountain road">
               <div class="ride-hero-copy"><strong>Ride further, together.</strong></div>
             </div>
             <div class="ride-entry">
               <div class="ride-entry-heading"><h2 id="rideEntryTitle">Join a ride</h2></div>
-              <form id="joinRideForm" class="ride-form"><p id="rideHelp" class="support-copy ride-card-copy">Enter the six-character code from your host.</p><div class="ride-code-entry"><div id="rideCodeSlots" class="ride-code-slots" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span></div><input id="rideCode" class="ride-code-input" inputmode="text" autocapitalize="characters" enterkeyhint="go" autocomplete="off" spellcheck="false" aria-describedby="rideHelp rideError" aria-invalid="false" aria-label="Six-character ride code"></div><p id="rideError" class="inline-error" role="alert" aria-live="assertive" hidden></p><button class="button primary wide ride-join-button" type="submit" disabled>Join ride</button></form>
+              <form id="joinRideForm" class="ride-form"><p id="rideHelp" class="support-copy ride-card-copy">Enter the six-character code from your host.</p><div class="ride-code-entry"><div id="rideCodeSlots" class="ride-code-slots" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span></div><input id="rideCode" class="ride-code-input" inputmode="text" autocapitalize="characters" enterkeyhint="go" autocomplete="off" spellcheck="false" aria-describedby="rideHelp rideError" aria-invalid="false" aria-label="Ride invite code"></div><p id="rideError" class="inline-error" role="alert" aria-live="assertive" hidden></p><button class="button primary wide ride-join-button" type="submit" disabled>Join ride</button></form>
             </div>
             <div class="ride-entry ride-start-card">
               <div class="ride-entry-heading"><h2>Start a ride</h2></div>
@@ -341,7 +341,7 @@
       </section>
 
       <section class="screen content-screen" data-screen="friends" aria-labelledby="friendsTitle">
-        <div class="page-width"><header class="page-header"><button class="icon-button page-back" type="button" data-back-to-map aria-label="Back to map"><svg class="icon-back"><use href="#i-chevron"/></svg></button><div><h1 id="friendsTitle">Friends</h1></div><span id="friendsCountBadge" class="count-badge" hidden>0</span><button id="addFriendToggle" class="icon-button add-friend-toggle" aria-label="Add a rider" title="Add a rider &#8211; connect using their handle or Rider ID"><svg><use href="#i-friends"/></svg></button></header>
+        <div class="page-width"><header class="page-header"><button class="icon-button page-back" type="button" data-back-to-map aria-label="Back to map"><svg class="icon-back"><use href="#i-chevron"/></svg></button><div><h1 id="friendsTitle">Friends</h1></div><span id="friendsCountBadge" class="count-badge" hidden>0</span><button id="addFriendToggle" class="icon-button add-friend-toggle" aria-label="Add friend" title="Add a rider &#8211; connect using their handle or Rider ID"><svg><use href="#i-friends"/></svg></button></header>
           <div class="network-summary" aria-label="Network summary"><span><b id="networkFriendCount">0</b> friends</span><span><b id="networkRequestCount">0</b> requests</span></div>
           <div class="search-and-add"><div class="search-row"><svg><use href="#i-search"/></svg><input id="friendSearch" placeholder="Search friends" aria-label="Search friends" autocomplete="off"></div></div>
           <form id="addFriendForm" class="compact-form" hidden><label for="friendId">Handle or Rider ID</label><div class="add-friend-field"><span class="add-friend-prefix" aria-hidden="true">@</span><input id="friendId" placeholder="their_handle or Rider ID" autocomplete="off" aria-label="Friend handle or Rider ID"><button class="button primary">Send</button></div><p id="friendFeedback" class="support-copy"></p></form>

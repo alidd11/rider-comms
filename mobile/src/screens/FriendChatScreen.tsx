@@ -339,7 +339,7 @@ function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Elemen
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <View style={[styles.header, { paddingTop: insets.top + spacing.md }]}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Go back" onPress={() => navigation.goBack()} style={styles.backButton} hitSlop={8}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Back to friends" onPress={() => navigation.goBack()} style={styles.backButton} hitSlop={8}>
           <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
         </Pressable>
         <RiderAvatar avatarId={avatarId} size={40} />
@@ -353,7 +353,7 @@ function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Elemen
         >
           <MaterialCommunityIcons name="map-marker-plus-outline" size={20} color={colors.accent} />
         </Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel="Safety options" onPress={openSafetyActions} style={styles.safetyButton} hitSlop={8}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Report or block rider" onPress={openSafetyActions} style={styles.safetyButton} hitSlop={8}>
           <Ionicons name="shield-checkmark-outline" size={21} color={colors.textSecondary}/>
         </Pressable>
       </View>

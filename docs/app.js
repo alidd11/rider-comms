@@ -798,7 +798,7 @@
       else history.pushState(entry, '', `#${screen}`);
       onGuardEntry = false;
     }
-    document.title = `${screen === 'ride' ? 'Group Ride' : screen[0].toUpperCase() + screen.slice(1)} · Rider Comms`;
+    document.title = `${screen[0].toUpperCase() + screen.slice(1)} · Rider Comms`;
     window.scrollTo(0, 0);
     syncMovementSafetyBanner();
     if (screen === 'map') { renderMapRiders(); refreshNearbyHazards(); }

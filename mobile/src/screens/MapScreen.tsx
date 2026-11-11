@@ -724,7 +724,7 @@ export function MapScreen(): React.JSX.Element {
             style={({ pressed }) => [styles.mapActionButton, pressed && styles.mapActionButtonPressed]}
             onPress={() => void centreOnCurrentLocation()}
             accessibilityRole="button"
-            accessibilityLabel="Centre map on my location"
+            accessibilityLabel="Centre on my location"
             accessibilityHint="Moves the map back to your current position"
           >
             <Ionicons name="navigate-outline" size={22} color={colors.accent} />
@@ -748,7 +748,7 @@ export function MapScreen(): React.JSX.Element {
             onPress={() => void handleNearbyToggle()}
             accessibilityRole="switch"
             accessibilityState={{ checked: publicLive, busy: nearbyTogglePending, disabled: nearbyTogglePending }}
-            accessibilityLabel={publicLive ? 'Stop live location and proximity voice' : 'Go live nearby and enable proximity voice'}
+            accessibilityLabel={publicLive ? 'Leave nearby' : 'Go live nearby'}
             accessibilityHint={publicLive ? 'Stops sharing your nearby presence' : 'Shares your nearby presence and enables proximity voice'}
             disabled={nearbyTogglePending}
             testID="go-live-button"
