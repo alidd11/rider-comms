@@ -82,11 +82,22 @@ appId: com.ridercomms.app
 - tapOn: "Account and login"
 - takeScreenshot: authenticated-account
 - tapOn: "Signed-in devices(,.*)?"
+- waitForAnimationToEnd
 - takeScreenshot: authenticated-devices
 # The X closes every Settings level at once; back again returns to the map.
-# The profile and the plan each have one home in the menu.
+# A tap that lands mid-transition can leave one level open (an iOS run
+# stopped on Account and login), so go back until the map's menu shows.
 - tapOn: "Close settings"
-- tapOn: "Go back"
+- waitForAnimationToEnd
+- repeat:
+    while:
+      notVisible:
+        id: open-menu
+    times: 4
+    commands:
+      - tapOn: "Go back"
+      - waitForAnimationToEnd
+# The profile and the plan each have one home in the menu.
 - tapOn:
     id: open-menu
 - tapOn: "View profile"
@@ -95,6 +106,10 @@ appId: com.ridercomms.app
     timeout: 10000
 - takeScreenshot: authenticated-profile
 - tapOn: "Go back"
+- extendedWaitUntil:
+    visible:
+      id: open-menu
+    timeout: 10000
 - tapOn:
     id: open-menu
 - tapOn: "Your plan(,.*)?"
