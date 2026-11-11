@@ -2799,6 +2799,24 @@ test('PWA Friends remains usable when realtime transport is temporarily unavaila
   await expect(page.locator('#friendList')).toContainText('Jay');
 });
 
+test('PWA Friends shows a load failure on the page and Retry recovers', async ({ page }) => {
+  let failFriends = true;
+  await mockAuthenticatedApi(page, 'stationary', ({ url }) => {
+    if (failFriends && url.pathname === `/riders/${RIDER_ID}/friends`) return { status: 503, body: { error: 'temporarily_unavailable' } };
+    return null;
+  });
+  await page.goto('/#friends');
+  await expect(page.locator('#friendsError')).toBeVisible();
+  await expect(page.locator('#friendsError')).toContainText('Could not load friends');
+  // No "build your circle" prompt while the list is unknown.
+  await expect(page.locator('#friendEmpty')).toBeHidden();
+  failFriends = false;
+  await page.getByRole('button', { name: 'Retry loading friends' }).click();
+  await expect(page.locator('#friendsError')).toBeHidden();
+  await expect(page.locator('#friendsLoading')).toBeHidden();
+  await expect(page.locator('#friendList [data-friend]')).toHaveCount(2);
+});
+
 test('PWA preserves backend avatar presets on friend surfaces', async ({ page }) => {
   await mockAuthenticatedApi(page);
   await page.goto('/#friends');

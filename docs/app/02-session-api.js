@@ -44,6 +44,9 @@
   let chatHasLoadedOlder = false;
   let chatPeerReadThroughMessageId = null;
   let chatLoading = false;
+  // Whether this load shows "Loading conversation…" (a first open or Retry,
+  // not a background refresh).
+  let chatShowingLoading = false;
   let chatLoadPromise = null;
   let chatReturnFocus = null;
   let chatHideouts = [];

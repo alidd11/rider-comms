@@ -173,9 +173,13 @@
       // Apply either successful snapshot even when the other one is transiently
       // unavailable; realtime callers use the throwing functions directly.
       await Promise.all([refreshFriendNetwork(), refreshMessageSummaries()]);
+      friendsLoadState = 'ready';
+      friendsLoadError = '';
     } catch (error) {
-      showToast('Could not load friends. ' + authErrorMessage(error));
+      friendsLoadState = 'error';
+      friendsLoadError = 'Could not load friends. ' + authErrorMessage(error);
     }
+    renderFriends();
   }
 
   async function acceptRequest(requestId) {

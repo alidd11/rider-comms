@@ -83,6 +83,11 @@
     friendActivityTimer = setInterval(() => { void refreshFriendActivity(); }, 30_000);
   }
 
+  // 'loading' until the first answer, so the empty prompt never flashes
+  // before the list arrives; 'error' keeps the prompt hidden behind Retry.
+  let friendsLoadState = 'loading';
+  let friendsLoadError = '';
+
   function renderFriends() {
     const query = $('#friendSearch').value.trim().toLowerCase();
     const friends = state.friends
@@ -130,7 +135,13 @@
     $('#friendSection').hidden = !hasVisibleFriends;
     // Pending requests already fill the screen; the "build your circle"
     // prompt is for a genuinely empty list.
-    empty.hidden = hasVisibleFriends || (hasRequests && !query);
+    empty.hidden = hasVisibleFriends || (hasRequests && !query) || (!hasFriends && friendsLoadState !== 'ready');
+    const loading = friendsLoadState === 'loading' && !hasFriends && !hasRequests;
+    $('#friendsLoading').hidden = !loading;
+    $('#friendList').setAttribute('aria-busy', String(loading));
+    const loadError = $('#friendsError');
+    loadError.querySelector('span').textContent = friendsLoadError;
+    loadError.hidden = !friendsLoadError;
     $('#friendEmptyTitle').textContent = query ? 'No matching friends' : 'Build your riding circle';
     $('#friendEmptyCopy').textContent = query
       ? 'Try a different name, handle or Rider ID.'

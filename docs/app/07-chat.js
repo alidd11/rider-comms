@@ -216,6 +216,7 @@
         : `<div class="chat-bubble-row${mine ? ' mine' : ''}"><div class="chat-bubble">${body}</div></div>`);
     }).join('');
     $('#chatEmpty').hidden = chatLoading || chatMessages.length > 0;
+    $('#chatLoading').hidden = !(chatLoading && chatShowingLoading && chatMessages.length === 0);
     $('#chatLoadOlder').hidden = !chatNextCursor;
     $$('[data-retry-message]', messages).forEach((button) => button.addEventListener('click', () => void retryChatMessage(button.dataset.retryMessage)));
     renderChatHideouts();
@@ -246,8 +247,9 @@
     const run = (async () => {
       chatLoading = true;
       if (showLoading) {
-        setChatError('Loading messages…');
-        $('#chatRetry').hidden = true;
+        chatShowingLoading = true;
+        setChatError('');
+        renderChat();
       }
       try {
         const query = new URLSearchParams({ withRiderId: riderId, limit: '100' });
@@ -281,6 +283,7 @@
         if (throwOnError && !unavailable) throw error;
       } finally {
         chatLoading = false;
+        chatShowingLoading = false;
         renderChat();
       }
     })();
@@ -309,6 +312,7 @@
     chatHideoutsLoading = false;
     chatHideoutError = '';
     $('#chatTitle').textContent = friend.displayName;
+    $('#chatEmptyCopy').textContent = `Messages in this thread are only available to you and ${friend.displayName}.`;
     $('#chatHandle').textContent = friend.handle;
     $('#chatAvatar').outerHTML = avatar(friend, 'avatar-sm').replace('<span ', '<span id="chatAvatar" ');
     $('#chatScreen').hidden = false;

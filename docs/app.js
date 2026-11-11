@@ -496,6 +496,9 @@
   let chatHasLoadedOlder = false;
   let chatPeerReadThroughMessageId = null;
   let chatLoading = false;
+  // Whether this load shows "Loading conversation…" (a first open or Retry,
+  // not a background refresh).
+  let chatShowingLoading = false;
   let chatLoadPromise = null;
   let chatReturnFocus = null;
   let chatHideouts = [];
@@ -1260,6 +1263,11 @@
     friendActivityTimer = setInterval(() => { void refreshFriendActivity(); }, 30_000);
   }
 
+  // 'loading' until the first answer, so the empty prompt never flashes
+  // before the list arrives; 'error' keeps the prompt hidden behind Retry.
+  let friendsLoadState = 'loading';
+  let friendsLoadError = '';
+
   function renderFriends() {
     const query = $('#friendSearch').value.trim().toLowerCase();
     const friends = state.friends
@@ -1307,7 +1315,13 @@
     $('#friendSection').hidden = !hasVisibleFriends;
     // Pending requests already fill the screen; the "build your circle"
     // prompt is for a genuinely empty list.
-    empty.hidden = hasVisibleFriends || (hasRequests && !query);
+    empty.hidden = hasVisibleFriends || (hasRequests && !query) || (!hasFriends && friendsLoadState !== 'ready');
+    const loading = friendsLoadState === 'loading' && !hasFriends && !hasRequests;
+    $('#friendsLoading').hidden = !loading;
+    $('#friendList').setAttribute('aria-busy', String(loading));
+    const loadError = $('#friendsError');
+    loadError.querySelector('span').textContent = friendsLoadError;
+    loadError.hidden = !friendsLoadError;
     $('#friendEmptyTitle').textContent = query ? 'No matching friends' : 'Build your riding circle';
     $('#friendEmptyCopy').textContent = query
       ? 'Try a different name, handle or Rider ID.'
@@ -1663,6 +1677,7 @@
         : `<div class="chat-bubble-row${mine ? ' mine' : ''}"><div class="chat-bubble">${body}</div></div>`);
     }).join('');
     $('#chatEmpty').hidden = chatLoading || chatMessages.length > 0;
+    $('#chatLoading').hidden = !(chatLoading && chatShowingLoading && chatMessages.length === 0);
     $('#chatLoadOlder').hidden = !chatNextCursor;
     $$('[data-retry-message]', messages).forEach((button) => button.addEventListener('click', () => void retryChatMessage(button.dataset.retryMessage)));
     renderChatHideouts();
@@ -1693,8 +1708,9 @@
     const run = (async () => {
       chatLoading = true;
       if (showLoading) {
-        setChatError('Loading messages…');
-        $('#chatRetry').hidden = true;
+        chatShowingLoading = true;
+        setChatError('');
+        renderChat();
       }
       try {
         const query = new URLSearchParams({ withRiderId: riderId, limit: '100' });
@@ -1728,6 +1744,7 @@
         if (throwOnError && !unavailable) throw error;
       } finally {
         chatLoading = false;
+        chatShowingLoading = false;
         renderChat();
       }
     })();
@@ -1756,6 +1773,7 @@
     chatHideoutsLoading = false;
     chatHideoutError = '';
     $('#chatTitle').textContent = friend.displayName;
+    $('#chatEmptyCopy').textContent = `Messages in this thread are only available to you and ${friend.displayName}.`;
     $('#chatHandle').textContent = friend.handle;
     $('#chatAvatar').outerHTML = avatar(friend, 'avatar-sm').replace('<span ', '<span id="chatAvatar" ');
     $('#chatScreen').hidden = false;
@@ -2158,9 +2176,13 @@
       // Apply either successful snapshot even when the other one is transiently
       // unavailable; realtime callers use the throwing functions directly.
       await Promise.all([refreshFriendNetwork(), refreshMessageSummaries()]);
+      friendsLoadState = 'ready';
+      friendsLoadError = '';
     } catch (error) {
-      showToast('Could not load friends. ' + authErrorMessage(error));
+      friendsLoadState = 'error';
+      friendsLoadError = 'Could not load friends. ' + authErrorMessage(error);
     }
+    renderFriends();
   }
 
   async function acceptRequest(requestId) {
@@ -7329,6 +7351,12 @@
     $('#chatHideoutPlan').addEventListener('click', openPlanHideoutSheet);
     $('#chatSafety').addEventListener('click', () => { if (activeChat) openFriendSafetyActions(activeChat); });
     $('#chatRetry').addEventListener('click', () => void loadChatMessages({ showLoading: true }));
+    $('#friendsRetry').addEventListener('click', () => {
+      friendsLoadState = 'loading';
+      friendsLoadError = '';
+      renderFriends();
+      void loadFriendsData();
+    });
     $('#chatLoadOlder').addEventListener('click', () => void loadChatMessages({ older: true }));
     $('#chatComposer').addEventListener('submit', (event) => { event.preventDefault(); submitChatMessage(); });
     // Installed iOS can leave the document panned after the keyboard closes,

@@ -345,6 +345,8 @@
           <div class="network-summary" aria-label="Network summary"><span><b id="networkFriendCount">0</b> friends</span><span><b id="networkRequestCount">0</b> requests</span></div>
           <div class="search-and-add"><div class="search-row"><svg><use href="#i-search"/></svg><input id="friendSearch" placeholder="Search friends" aria-label="Search friends" autocomplete="off"></div></div>
           <form id="addFriendForm" class="compact-form" hidden><label for="friendId">Handle or Rider ID</label><div class="add-friend-field"><span class="add-friend-prefix" aria-hidden="true">@</span><input id="friendId" placeholder="their_handle or Rider ID" autocomplete="off" aria-label="Friend handle or Rider ID"><button class="button primary">Send</button></div><p id="friendFeedback" class="support-copy"></p></form>
+          <p id="friendsLoading" class="support-copy friends-loading" role="status">Loading friends…</p>
+          <p id="friendsError" class="chat-error friends-error" role="alert" hidden><span></span><button id="friendsRetry" type="button" aria-label="Retry loading friends">Retry</button></p>
           <section id="requestSection" hidden><div class="section-heading"><h2>Requests</h2><span id="requestsCountBadge" class="count-badge">0</span></div><div id="requestList" class="people-list"></div></section>
           <section id="friendSection" hidden><div class="section-heading"><h2>Your friends</h2></div><div id="friendList" class="people-list"></div></section>
           <div id="friendEmpty" class="empty-state network-empty" hidden><div class="hero-icon"><svg><use href="#i-friends"/></svg></div><h2 id="friendEmptyTitle">Build your riding circle</h2><p id="friendEmptyCopy">Use the add button above to connect by handle or Rider ID.</p><button id="friendEmptyAdd" class="button primary" type="button">Add a rider</button></div>
@@ -394,7 +396,8 @@
     <main id="chatThread" class="chat-thread" role="log" aria-live="polite" aria-label="Conversation">
       <button id="chatLoadOlder" class="button tertiary chat-load-older" type="button" hidden>Load older messages</button>
       <div id="chatMessages"></div>
-      <div id="chatEmpty" class="empty-state chat-empty" hidden><div class="hero-icon"><svg><use href="#i-friends"/></svg></div><h2>Start the conversation</h2><p>Messages are available between current friends.</p></div>
+      <p id="chatLoading" class="support-copy chat-loading" role="status" hidden>Loading conversation…</p>
+      <div id="chatEmpty" class="empty-state chat-empty" hidden><div class="hero-icon"><svg><use href="#i-friends"/></svg></div><h2>Start a private conversation</h2><p id="chatEmptyCopy">Messages in this thread are only available to you and your friend.</p></div>
     </main>
     <form id="chatComposer" class="chat-composer">
       <label class="sr-only" for="chatInput">Message</label>

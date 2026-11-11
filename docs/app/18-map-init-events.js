@@ -256,6 +256,12 @@
     $('#chatHideoutPlan').addEventListener('click', openPlanHideoutSheet);
     $('#chatSafety').addEventListener('click', () => { if (activeChat) openFriendSafetyActions(activeChat); });
     $('#chatRetry').addEventListener('click', () => void loadChatMessages({ showLoading: true }));
+    $('#friendsRetry').addEventListener('click', () => {
+      friendsLoadState = 'loading';
+      friendsLoadError = '';
+      renderFriends();
+      void loadFriendsData();
+    });
     $('#chatLoadOlder').addEventListener('click', () => void loadChatMessages({ older: true }));
     $('#chatComposer').addEventListener('submit', (event) => { event.preventDefault(); submitChatMessage(); });
     // Installed iOS can leave the document panned after the keyboard closes,
