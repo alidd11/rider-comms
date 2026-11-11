@@ -3,7 +3,7 @@ import { View, Text, Pressable, Modal, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { HazardType } from '@rider-comms/shared';
-import { colors, spacing, radii, type } from '../theme';
+import { colors, spacing, radii, type, pressedFeedback } from '../theme';
 import { HazardIcon } from '../components/HazardIcon';
 
 export const HAZARD_TYPE_META: Record<HazardType, { label: string; color: string }> = {
@@ -62,7 +62,7 @@ export function HazardReportSheet({
               <Text style={styles.title}>Report on the road</Text>
               <Text style={styles.subtitle}>Let nearby riders know what's ahead. Reports fade out over time.</Text>
             </View>
-            <Pressable style={styles.closeButton} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close report sheet">
+            <Pressable style={({ pressed }) => [styles.closeButton, pressed && pressedFeedback]} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close report sheet">
               <Ionicons name="close" size={20} color={colors.textPrimary} />
             </Pressable>
           </View>
@@ -132,7 +132,7 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
   },
-  typeButtonPressed: { opacity: 0.82 },
+  typeButtonPressed: { opacity: 0.7 },
   typeIcon: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   typeLabel: { ...type.caption, color: colors.textSecondary, textAlign: 'center', fontWeight: '700' },
 });

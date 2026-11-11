@@ -23,7 +23,7 @@ import MapView, { Marker, Polyline } from 'react-native-maps';
 import type { RootStackParamList, TabParamList } from '../navigation';
 import { HIDDEN_TAB_BAR_STYLE, TAB_BAR_STYLE } from '../navigation/tabBarStyle';
 import { useAuth } from '../auth/AuthContext';
-import { colors, spacing, MIN_TOUCH_TARGET } from '../theme';
+import { colors, spacing, MIN_TOUCH_TARGET, pressedFeedback } from '../theme';
 import { BOTTOM_BAR_HEIGHT, HUD_ACTION_HEIGHT, NAVIGATION_SUMMARY_BASE_HEIGHT, styles } from './MapScreen.styles';
 import { RideBar } from '../ride/RideBar';
 import { useRide } from '../ride/RideContext';
@@ -688,7 +688,7 @@ export function MapScreen(): React.JSX.Element {
             accessibilityRole="button"
             accessibilityLabel="Dismiss map message"
             accessibilityHint="Hides this message without changing your map or ride settings"
-            style={styles.mapErrorDismiss}
+            style={({ pressed }) => [styles.mapErrorDismiss, pressed && pressedFeedback]}
             onPress={() => setError(null)}
           >
             <Ionicons name="close" size={20} color={colors.textSecondary} />
@@ -892,7 +892,7 @@ export function MapScreen(): React.JSX.Element {
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Dismiss destination"
-              style={styles.destinationCardDismiss}
+              style={({ pressed }) => [styles.destinationCardDismiss, pressed && pressedFeedback]}
               onPress={() => {
                 setNavigationTarget(null);
                 setSelectedPlace(null);
@@ -910,7 +910,7 @@ export function MapScreen(): React.JSX.Element {
             </Text>
           </View>
           <Pressable
-            style={styles.destinationPrimaryAction}
+            style={({ pressed }) => [styles.destinationPrimaryAction, pressed && pressedFeedback]}
             accessibilityRole="button"
             accessibilityLabel={navigationLoading
               ? `Starting route to ${selectedDestination.label ?? 'selected place'}`
@@ -960,7 +960,7 @@ export function MapScreen(): React.JSX.Element {
                   {navigationGuidanceInstruction}
                 </Text>
               </View>
-              <Pressable accessibilityRole="button" accessibilityLabel="End navigation" onPress={() => finishInAppNavigation(false)} style={styles.navigationEndButton}>
+              <Pressable accessibilityRole="button" accessibilityLabel="End navigation" onPress={() => finishInAppNavigation(false)} style={({ pressed }) => [styles.navigationEndButton, pressed && pressedFeedback]}>
                 <Ionicons name="close" size={24} color={colors.textPrimary} />
               </Pressable>
             </View>

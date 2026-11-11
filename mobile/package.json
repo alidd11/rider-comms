@@ -29,6 +29,7 @@
     "expo-build-properties": "57.0.22",
     "expo-clipboard": "~57.0.2",
     "expo-constants": "~57.0.21",
+    "expo-haptics": "~57.0.3",
     "expo-iap": "5.8.2",
     "expo-live-activity": "0.4.2",
     "expo-location": "~57.0.20",

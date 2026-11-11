@@ -17,7 +17,7 @@ import {
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, spacing, elevation } from '../theme';
+import { colors, spacing, elevation, pressedFeedback } from '../theme';
 import { styles } from './PlaceSearchBar.styles';
 import { distanceBetweenMeters, formatPlaceDistance, isSearchQueryValid, PLACE_SEARCH_DEBOUNCE_MS, searchNearbyPlaces, searchPlaces } from '../api/places';
 import type { PlaceResult, PlaceSearchFailure } from '../api/places';
@@ -372,7 +372,7 @@ function SearchState({ icon, title, copy, compact = false, actionLabel, onAction
       <Text style={styles.stateCopy}>{copy}</Text>
       {actionLabel && onAction ? (
         <Pressable
-          style={styles.stateAction}
+          style={({ pressed }) => [styles.stateAction, pressed && pressedFeedback]}
           onPress={onAction}
           accessibilityRole="button"
           accessibilityLabel={actionLabel}

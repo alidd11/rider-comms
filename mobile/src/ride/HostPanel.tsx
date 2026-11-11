@@ -14,7 +14,7 @@ import { ApiError } from '../api/client';
 import { rideRefusalMessage } from './rideErrors';
 import { useAuth } from '../auth/AuthContext';
 import { RIDE_HERO_IMAGE } from '../brandAssets';
-import { colors, spacing, radii, type, elevation, MIN_TOUCH_TARGET } from '../theme';
+import { colors, spacing, radii, type, elevation, MIN_TOUCH_TARGET, pressedFeedback } from '../theme';
 import { useRide } from './RideContext';
 import { RideRoster } from './RideRoster';
 import { isCompleteRideCode, normalizeRideCodeInput } from './rideInvite';
@@ -278,7 +278,7 @@ function MemberCard(): React.JSX.Element {
 function BackToMap({ onBack }: { onBack?: () => void }): React.JSX.Element | null {
   if (!onBack) return null;
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel="Back to map" onPress={onBack} hitSlop={8} style={styles.backToMap} testID="ride-back">
+    <Pressable accessibilityRole="button" accessibilityLabel="Back to map" onPress={onBack} hitSlop={8} style={({ pressed }) => [styles.backToMap, pressed && pressedFeedback]} testID="ride-back">
       <Ionicons name="chevron-back" size={26} color={colors.textPrimary} />
     </Pressable>
   );
@@ -339,7 +339,7 @@ const styles = StyleSheet.create({
   primaryButtonTextDisabled: { color: colors.textMuted },
   buttonBusy: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   secondaryButton: { minHeight: 50, marginTop: spacing.xs, flexDirection: 'row', gap: spacing.sm, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: colors.accent, borderRadius: radii.lg, backgroundColor: colors.accentSoft },
-  secondaryButtonPressed: { opacity: 0.8 },
+  secondaryButtonPressed: { opacity: 0.7 },
   secondaryButtonText: { ...type.button, color: colors.accentInk, fontSize: 16 },
   locationRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   locationCopy: { flex: 1, gap: 4 },

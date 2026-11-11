@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { colors, MIN_TOUCH_TARGET, radii, spacing, type } from '../theme';
+import { colors, MIN_TOUCH_TARGET, radii, spacing, type, pressedFeedback } from '../theme';
 import { reportClientError } from './errorReporting';
 
 interface State {
@@ -34,7 +34,7 @@ export class AppErrorBoundary extends React.Component<{ children: React.ReactNod
         <Text style={styles.body}>
           Rider Comms hit an unexpected problem and has reported it. If you're riding, pull over somewhere safe before trying again.
         </Text>
-        <Pressable accessibilityRole="button" onPress={this.retry} style={styles.button}>
+        <Pressable accessibilityRole="button" onPress={this.retry} style={({ pressed }) => [styles.button, pressed && pressedFeedback]}>
           <Text style={styles.buttonText}>Try again</Text>
         </Pressable>
       </View>

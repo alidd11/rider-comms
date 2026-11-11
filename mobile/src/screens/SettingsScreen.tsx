@@ -6,7 +6,7 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp, NativeStackScreenProps } from '@react-navigation/native-stack';
 import Constants from 'expo-constants';
 import type { SocialVisibility } from '@rider-comms/shared';
-import { colors, spacing } from '../theme';
+import { colors, spacing, pressedFeedback } from '../theme';
 import { BlockedRidersList } from './BlockedRidersList';
 import { LEGAL_LINKS } from '../legalLinks';
 import { styles } from './SettingsScreen.styles';
@@ -130,7 +130,7 @@ function AvatarPickerModal({
               <Text style={styles.modalTitle}>Choose an avatar</Text>
               <Text style={styles.modalSubtitle}>Choose how you appear in Rider Comms and on authorised live ride maps.</Text>
             </View>
-            <Pressable style={styles.modalClose} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close avatar picker">
+            <Pressable style={({ pressed }) => [styles.modalClose, pressed && pressedFeedback]} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close avatar picker">
               <Ionicons name="close" size={20} color={colors.textPrimary} />
             </Pressable>
           </View>
@@ -188,7 +188,7 @@ function AvatarPickerModal({
             })}
           </ScrollView>
 
-          <Pressable accessibilityRole="button" style={styles.modalDone} onPress={onClose}>
+          <Pressable accessibilityRole="button" style={({ pressed }) => [styles.modalDone, pressed && pressedFeedback]} onPress={onClose}>
             <Text style={styles.modalDoneText}>Done</Text>
           </Pressable>
         </Pressable>
@@ -810,7 +810,7 @@ function DevicesPage(): React.JSX.Element {
               <Text style={styles.aboutLabel}>{session.deviceName}</Text>
               <Text style={styles.aboutValue}>{session.current ? 'This device' : 'Active ' + new Date(session.lastSeenAt).toLocaleDateString()}</Text>
             </View>
-            {session.current ? <Text style={styles.settingRowValue}>Current</Text> : <Pressable accessibilityRole="button" accessibilityLabel={'Sign out ' + session.deviceName} onPress={() => void revokeSession(session.id)} style={styles.sessionRevoke}><Text style={styles.sessionRevokeText}>Sign out</Text></Pressable>}
+            {session.current ? <Text style={styles.settingRowValue}>Current</Text> : <Pressable accessibilityRole="button" accessibilityLabel={'Sign out ' + session.deviceName} onPress={() => void revokeSession(session.id)} style={({ pressed }) => [styles.sessionRevoke, pressed && pressedFeedback]}><Text style={styles.sessionRevokeText}>Sign out</Text></Pressable>}
           </View>
         ))}
         {sessionsLoading && sessions.length === 0 ? (

@@ -2,7 +2,7 @@ import * as React from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { StyleProp, ViewStyle } from 'react-native';
-import { colors, MIN_TOUCH_TARGET, spacing, type } from '../theme';
+import { colors, MIN_TOUCH_TARGET, spacing, type, pressedFeedback } from '../theme';
 
 type ScreenHeaderProps = {
   title: string;
@@ -19,7 +19,7 @@ export function ScreenHeader({ title, action, style, onBack, backLabel = 'Go bac
   return (
     <View style={[styles.header, style]}>
       {onBack ? (
-        <Pressable accessibilityRole="button" accessibilityLabel={backLabel} onPress={onBack} hitSlop={8} style={styles.back}>
+        <Pressable accessibilityRole="button" accessibilityLabel={backLabel} onPress={onBack} hitSlop={8} style={({ pressed }) => [styles.back, pressed && pressedFeedback]}>
           <Ionicons name="chevron-back" size={26} color={colors.textPrimary} />
         </Pressable>
       ) : null}

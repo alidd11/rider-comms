@@ -2,11 +2,12 @@ import * as React from 'react';
 import { AccessibilityInfo, Animated, Easing, PanResponder, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { LayoutChangeEvent, StyleProp, ViewStyle } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Haptics from 'expo-haptics';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import type { PlaceResult } from '../api/places';
 import { useAuth } from '../auth/AuthContext';
 import { parseRecentPlaces, recentPlacesStorageKey } from '../search/recentPlaces';
-import { colors, MIN_TOUCH_TARGET, radii, spacing, type } from '../theme';
+import { colors, MIN_TOUCH_TARGET, radii, spacing, type, pressedFeedback } from '../theme';
 import { PlaceSearchBar } from './PlaceSearchBar';
 
 /** How far a slide has to travel before the drawer opens or closes. */
@@ -69,7 +70,7 @@ export function MapDrawer({
       visibleHeight.setValue(target);
       return;
     }
-    Animated.timing(visibleHeight, { toValue: target, duration: SETTLE_MS, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start();
+    Animated.timing(visibleHeight, { toValue: target, duration: SETTLE_MS, easing: Easing.bezier(0.2, 0.8, 0.2, 1), useNativeDriver: false }).start();
   }, [visibleHeight]);
 
   // Opened or closed from outside a slide (the handle, a shortcut, a place).
@@ -101,7 +102,11 @@ export function MapDrawer({
     onPanResponderRelease: (_event, gesture) => {
       const nextOpen = openRef.current ? gesture.dy < CLOSE_THRESHOLD : gesture.dy < -SLIDE_THRESHOLD;
       settleTo(nextOpen ? fullHeightRef.current : 0);
-      if (nextOpen !== openRef.current) onOpenChange(nextOpen);
+      if (nextOpen !== openRef.current) {
+        // A light tick when a slide snaps the drawer to its other rest.
+        void Haptics.selectionAsync().catch(() => {});
+        onOpenChange(nextOpen);
+      }
     },
     onPanResponderTerminate: () => settleTo(openRef.current ? fullHeightRef.current : 0),
   }), [onOpenChange, settleTo, visibleHeight]);
@@ -126,7 +131,7 @@ export function MapDrawer({
         accessibilityState={{ expanded: open }}
         onPress={() => onOpenChange(!open)}
         hitSlop={8}
-        style={styles.handleButton}
+        style={({ pressed }) => [styles.handleButton, pressed && pressedFeedback]}
         testID="map-drawer-handle"
       >
         <View style={styles.handle} />

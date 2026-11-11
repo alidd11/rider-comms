@@ -131,7 +131,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: colors.surface,
   },
-  votePressed: { opacity: 0.78 },
+  votePressed: { opacity: 0.7 },
   voteLabel: { ...type.caption, color: colors.textPrimary, fontWeight: '800' },
   count: {
     minWidth: 24,

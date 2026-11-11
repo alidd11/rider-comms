@@ -16,7 +16,7 @@ export const styles = StyleSheet.create({
     marginBottom: spacing.sm,
     ...elevation.raised,
   },
-  barPressed: { opacity: 0.85 },
+  barPressed: { opacity: 0.7 },
   barText: { ...type.body, color: colors.textPrimary, flex: 1 },
   speakerPill: {
     maxWidth: 160, flexDirection: 'row', alignItems: 'center', gap: 4,
@@ -114,7 +114,7 @@ export const styles = StyleSheet.create({
     marginTop: 'auto',
   },
   talkButtonActive: { backgroundColor: colors.accent, borderColor: colors.accent },
-  talkButtonPressed: { opacity: 0.85 },
+  talkButtonPressed: { opacity: 0.7 },
   talkButtonText: { ...type.button, color: colors.textPrimary },
   leaveButton: {
     flexDirection: 'row',

@@ -20,7 +20,7 @@ export const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   tierRowSelected: { backgroundColor: colors.surfaceRaised },
-  tierRowPressed: { opacity: 0.85 },
+  tierRowPressed: { opacity: 0.7 },
   tierRadio: {
     width: 22,
     height: 22,

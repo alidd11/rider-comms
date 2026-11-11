@@ -21,7 +21,7 @@ import { useMusicPlayback } from '../audio/useMusicPlayback';
 import { useVoiceActivity } from '../audio/useVoiceActivity';
 import { useAuth } from '../auth/AuthContext';
 import { ActiveSpeakerBridge } from '../voice/ActiveSpeakerBridge';
-import { colors } from '../theme';
+import { colors, pressedFeedback } from '../theme';
 import { styles } from './RideBar.styles';
 import { useRide } from './RideContext';
 import { buildRideInviteLink } from './rideInvite';
@@ -426,7 +426,7 @@ export function RideBar({ controlsVisible = true }: { controlsVisible?: boolean 
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Leave active ride"
-            style={styles.compactLeaveButton}
+            style={({ pressed }) => [styles.compactLeaveButton, pressed && pressedFeedback]}
             onPress={handleLeave}
           >
             <Ionicons name="exit-outline" size={20} color={colors.danger} />
@@ -471,7 +471,7 @@ export function RideBar({ controlsVisible = true }: { controlsVisible?: boolean 
                   <View style={styles.liveDot} />
                   <Text style={styles.statusText}>In ride</Text>
                 </View>
-                <Pressable accessibilityRole="button" accessibilityLabel="Collapse ride controls" onPress={() => setExpanded(false)} style={styles.closeButton}>
+                <Pressable accessibilityRole="button" accessibilityLabel="Collapse ride controls" onPress={() => setExpanded(false)} style={({ pressed }) => [styles.closeButton, pressed && pressedFeedback]}>
                   <Ionicons name="chevron-down" size={22} color={colors.textSecondary} />
                 </Pressable>
               </View>
@@ -482,7 +482,7 @@ export function RideBar({ controlsVisible = true }: { controlsVisible?: boolean 
                     <Text style={styles.codeLabel}>{codeCopied ? 'Copied to clipboard' : 'Share code'}</Text>
                     <View style={styles.codeCardActions}>
                       <Pressable
-                        style={styles.codeCardAction}
+                        style={({ pressed }) => [styles.codeCardAction, pressed && pressedFeedback]}
                         onPress={() => void handleCopyCode()}
                         accessibilityRole="button"
                         accessibilityLabel="Copy ride code"
@@ -490,7 +490,7 @@ export function RideBar({ controlsVisible = true }: { controlsVisible?: boolean 
                         <Ionicons name={codeCopied ? 'checkmark' : 'copy-outline'} size={18} color={codeCopied ? colors.success : colors.accent} />
                       </Pressable>
                       <Pressable
-                        style={styles.codeCardAction}
+                        style={({ pressed }) => [styles.codeCardAction, pressed && pressedFeedback]}
                         onPress={() => void handleShareCode()}
                         accessibilityRole="button"
                         accessibilityLabel="Share ride code"

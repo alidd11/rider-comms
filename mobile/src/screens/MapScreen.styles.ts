@@ -20,7 +20,7 @@ export const styles = StyleSheet.create({
   },
   searchRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   menuButton: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
-  menuButtonPressed: { opacity: 0.8 },
+  menuButtonPressed: { opacity: 0.7 },
   mapActions: {
     position: 'absolute',
     right: spacing.md,

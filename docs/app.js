@@ -5520,6 +5520,9 @@
       const dy = event.type === 'pointerup' ? event.clientY - current.startY : 0;
       // Open past a short pull up, or when mostly open and not pulled down.
       const open = current.wasOpen ? dy < 60 : dy < -30;
+      // A light tick when the slide snaps the drawer to its other rest, like
+      // the native app (where the browser supports it).
+      if (open !== current.wasOpen) navigator.vibrate?.(8);
       settleMapDrawer(open, current.height ?? current.startHeight);
     };
     drawer.addEventListener('pointerdown', (event) => {

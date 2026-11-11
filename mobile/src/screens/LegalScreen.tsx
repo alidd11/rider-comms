@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation';
-import { colors, MIN_TOUCH_TARGET, spacing, type } from '../theme';
+import { colors, MIN_TOUCH_TARGET, spacing, type, pressedFeedback } from '../theme';
 import { useMovementSafety } from '../safety/MovementSafetyContext';
 import { RideSafeSurface } from '../safety/RideSafeSurface';
 import { LEGAL_LINKS } from '../legalLinks';
@@ -34,7 +34,7 @@ function LegalScreenContent({ navigation }: Props): React.JSX.Element {
   const insets = useSafeAreaInsets();
   return <View style={styles.container}>
     <View style={[styles.header, { paddingTop: insets.top + spacing.md }]}>
-      <Pressable accessibilityRole="button" accessibilityLabel="Go back" onPress={() => navigation.goBack()} style={styles.back}><Ionicons name="chevron-back" size={24} color={colors.textPrimary}/></Pressable>
+      <Pressable accessibilityRole="button" accessibilityLabel="Go back" onPress={() => navigation.goBack()} style={({ pressed }) => [styles.back, pressed && pressedFeedback]}><Ionicons name="chevron-back" size={24} color={colors.textPrimary}/></Pressable>
       <Text style={styles.title}>Privacy, safety & terms</Text><View style={styles.spacer}/>
     </View>
     <ScrollView contentContainerStyle={styles.content}>

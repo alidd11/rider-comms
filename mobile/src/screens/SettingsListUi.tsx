@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { View, Text, Pressable, Switch, StyleSheet, useColorScheme } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors } from '../theme';
+import { colors, pressedFeedback } from '../theme';
 
 /**
  * Settings: grouped full-width rows on a darker page, coloured
@@ -30,12 +30,12 @@ export function SettingsHeader({ title, topInset, onBack, onClose }: {
   const palette = useSettingsPalette();
   return (
     <View style={[ui.header, { paddingTop: topInset + 6, backgroundColor: palette.group, borderBottomColor: palette.separator }]}>
-      <Pressable accessibilityRole="button" accessibilityLabel="Go back" onPress={onBack} hitSlop={8} style={ui.headerButton}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Go back" onPress={onBack} hitSlop={8} style={({ pressed }) => [ui.headerButton, pressed && pressedFeedback]}>
         <Ionicons name="chevron-back" size={26} color={colors.textPrimary} />
       </Pressable>
       <Text numberOfLines={1} style={ui.headerTitle} accessibilityRole="header">{title}</Text>
       {onClose ? (
-        <Pressable accessibilityRole="button" accessibilityLabel="Close settings" onPress={onClose} hitSlop={8} style={ui.headerButton}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Close settings" onPress={onClose} hitSlop={8} style={({ pressed }) => [ui.headerButton, pressed && pressedFeedback]}>
           <Ionicons name="close" size={26} color={colors.textPrimary} />
         </Pressable>
       ) : <View style={ui.headerButton} />}
@@ -190,7 +190,7 @@ const ui = StyleSheet.create({
   groupNote: { paddingHorizontal: 16, paddingTop: 10, fontSize: 13, lineHeight: 18, color: colors.textSecondary },
   row: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 16, paddingVertical: 8 },
   categoryRow: { minHeight: 64 },
-  pressed: { opacity: 0.6 },
+  pressed: { opacity: 0.7 },
   separator: { position: 'absolute', top: 0, right: 16, height: StyleSheet.hairlineWidth },
   categoryIcon: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   rowTitle: { flex: 1, fontSize: 17, fontWeight: '500', color: colors.textPrimary },

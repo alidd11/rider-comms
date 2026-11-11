@@ -8,7 +8,7 @@ export const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border,
   },
   collapsedText: { ...type.body, color: colors.textMuted, flex: 1, fontSize: 13 },
-  pressed: { opacity: 0.76 },
+  pressed: { opacity: 0.7 },
   screen: { flex: 1, backgroundColor: colors.background },
   header: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.md, paddingVertical: 10 },
   backButton: {

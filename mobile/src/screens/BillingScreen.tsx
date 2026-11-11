@@ -2,7 +2,7 @@ import * as React from 'react';
 import { ActivityIndicator, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, MIN_TOUCH_TARGET, radii, spacing, type } from '../theme';
+import { colors, MIN_TOUCH_TARGET, radii, spacing, type, pressedFeedback } from '../theme';
 import { useSettings } from '../settings/SettingsContext';
 import { isPaidTier, PLAN_INFO, planOptions, renewalLabel, type PlanOption } from '../settings/plans';
 import { TIER_RADIUS_MILES } from '@rider-comms/shared';
@@ -112,7 +112,7 @@ function BillingScreenContent({ navigation }: BillingProps): React.JSX.Element {
   return (
     <View style={styles.container}>
       <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Go back" onPress={navigation.goBack} style={styles.backButton}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Go back" onPress={navigation.goBack} style={({ pressed }) => [styles.backButton, pressed && pressedFeedback]}>
           <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
         </Pressable>
         <Text style={styles.headerTitle} accessibilityRole="header">Your plan</Text>
@@ -248,7 +248,7 @@ const styles = StyleSheet.create({
   },
   secondaryButtonText: { ...type.button, color: colors.textSecondary },
   buttonDisabled: { opacity: 0.45 },
-  buttonPressed: { opacity: 0.75 },
+  buttonPressed: { opacity: 0.7 },
   actions: { marginTop: spacing.lg, gap: spacing.xs },
   linkButton: { minHeight: MIN_TOUCH_TARGET, alignItems: 'center', justifyContent: 'center' },
   linkButtonText: { ...type.button, color: colors.textPrimary },

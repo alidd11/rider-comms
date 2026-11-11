@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { BlockedRider, RiderCommsClient } from '../api/client';
-import { colors, MIN_TOUCH_TARGET, spacing, type } from '../theme';
+import { colors, MIN_TOUCH_TARGET, spacing, type, pressedFeedback } from '../theme';
 
 /** Settings → Communication → Blocked riders: review and undo blocks. */
 export function BlockedRidersList({ client }: { client: Pick<RiderCommsClient, 'getBlockedRiders' | 'unblockRider'> }): React.JSX.Element {
@@ -35,7 +35,7 @@ export function BlockedRidersList({ client }: { client: Pick<RiderCommsClient, '
           accessibilityLabel="Retry loading blocked riders"
           accessibilityHint="Reloads your blocked riders"
           onPress={load}
-          style={styles.retry}
+          style={({ pressed }) => [styles.retry, pressed && pressedFeedback]}
         >
           <Text style={styles.action}>Retry</Text>
         </Pressable>
@@ -60,7 +60,7 @@ export function BlockedRidersList({ client }: { client: Pick<RiderCommsClient, '
             <Text style={styles.name} numberOfLines={1}>{rider.displayName}</Text>
             {rider.handle ? <Text style={styles.handle} numberOfLines={1}>{rider.handle}</Text> : null}
           </View>
-          <Pressable accessibilityRole="button" accessibilityLabel={`Unblock ${rider.displayName}`} onPress={() => confirmUnblock(rider)} style={styles.retry}>
+          <Pressable accessibilityRole="button" accessibilityLabel={`Unblock ${rider.displayName}`} onPress={() => confirmUnblock(rider)} style={({ pressed }) => [styles.retry, pressed && pressedFeedback]}>
             <Text style={styles.action}>Unblock</Text>
           </Pressable>
         </View>

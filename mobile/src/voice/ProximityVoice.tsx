@@ -484,7 +484,7 @@ const styles = StyleSheet.create({
   },
   statusError: { borderColor: colors.danger },
   statusWarning: { borderColor: colors.warning },
-  statusPressed: { opacity: 0.78 },
+  statusPressed: { opacity: 0.7 },
   speakingSummary: {
     alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: spacing.xs,
     minHeight: 30, marginTop: spacing.xs, paddingHorizontal: spacing.sm, borderRadius: radii.pill,

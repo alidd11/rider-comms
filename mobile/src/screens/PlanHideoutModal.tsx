@@ -5,7 +5,7 @@ import * as Location from 'expo-location';
 import MapView, { Marker } from 'react-native-maps';
 import type { MapPressEvent } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, spacing } from '../theme';
+import { colors, spacing, pressedFeedback } from '../theme';
 import { styles } from './FriendChatScreen.styles';
 
 /** Plan a hideout by tapping the map or using the rider's location. */
@@ -80,7 +80,7 @@ export function PlanHideoutModal({
               <Text style={styles.modalTitle}>Plan a hideout</Text>
               <Text style={styles.modalSubtitle}>Save a meeting point to plan around together.</Text>
             </View>
-            <Pressable style={styles.modalClose} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close hideout planner">
+            <Pressable style={({ pressed }) => [styles.modalClose, pressed && pressedFeedback]} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close hideout planner">
               <Ionicons name="close" size={20} color={colors.textPrimary} />
             </Pressable>
           </View>
@@ -113,7 +113,7 @@ export function PlanHideoutModal({
               accessibilityLabel="Use my current location"
               onPress={() => void locateRider(true)}
               disabled={locating}
-              style={styles.pickerLocate}
+              style={({ pressed }) => [styles.pickerLocate, pressed && pressedFeedback]}
             >
               {locating ? <ActivityIndicator color={colors.accentInk} /> : <Ionicons name="locate" size={18} color={colors.accentInk} />}
               <Text style={styles.pickerLocateText}>My location</Text>

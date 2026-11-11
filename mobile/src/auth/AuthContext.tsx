@@ -24,6 +24,7 @@ import { AUTH_MUTED, AUTH_TEXT, styles } from './AuthContext.styles';
 import { AUTH_HERO_IMAGE, BRAND_MARK_IMAGE } from '../brandAssets';
 import { ApiError, RiderCommsClient } from '../api/client';
 import type { LoginSession } from '../api/client';
+import { pressedFeedback } from '../theme';
 
 
 const KEY = '@rider-comms/auth-v2';
@@ -307,7 +308,7 @@ function AuthScreen({ onAuthenticated, restoreError, onRetryRestore }: {
                   accessibilityLabel={passwordVisible ? 'Hide password' : 'Show password'}
                   accessibilityState={{ selected: passwordVisible }}
                   onPress={() => setPasswordVisible((visible) => !visible)}
-                  style={styles.passwordToggle}
+                  style={({ pressed }) => [styles.passwordToggle, pressed && pressedFeedback]}
                 >
                   <MaterialCommunityIcons name={passwordVisible ? 'eye-off-outline' : 'eye-outline'} size={18} color={AUTH_MUTED} />
                 </Pressable>
@@ -319,14 +320,14 @@ function AuthScreen({ onAuthenticated, restoreError, onRetryRestore }: {
                     accessibilityRole="checkbox"
                     accessibilityState={{ checked: rememberMe }}
                     onPress={() => setRememberMe((value) => !value)}
-                    style={styles.rememberRow}
+                    style={({ pressed }) => [styles.rememberRow, pressed && pressedFeedback]}
                   >
                     <View style={[styles.checkbox, rememberMe && styles.checkboxChecked]}>
                       {rememberMe ? <View style={styles.checkboxInner} /> : null}
                     </View>
                     <Text style={styles.rememberText}>Remember me</Text>
                   </Pressable>
-                  <Pressable accessibilityRole="button" onPress={() => switchMode('recover')} style={styles.forgotButton}>
+                  <Pressable accessibilityRole="button" onPress={() => switchMode('recover')} style={({ pressed }) => [styles.forgotButton, pressed && pressedFeedback]}>
                     <Text style={styles.forgotText}>Forgot password?</Text>
                   </Pressable>
                 </View>
@@ -339,7 +340,7 @@ function AuthScreen({ onAuthenticated, restoreError, onRetryRestore }: {
                       accessibilityState={{ checked: agreedToTerms }}
                       accessibilityLabel="I’m 16 or older and agree to the Terms of Service and Community Guidelines"
                       onPress={() => setAgreedToTerms((value) => !value)}
-                      style={styles.termsCheckbox}
+                      style={({ pressed }) => [styles.termsCheckbox, pressed && pressedFeedback]}
                     >
                       <View style={[styles.checkbox, agreedToTerms && styles.checkboxChecked]}>
                         {agreedToTerms ? <View style={styles.checkboxInner} /> : null}
@@ -370,12 +371,12 @@ function AuthScreen({ onAuthenticated, restoreError, onRetryRestore }: {
               </Pressable>
 
               {isSignup ? (
-                <Pressable accessibilityRole="button" onPress={() => switchMode('login')} style={styles.createAccountButton}>
+                <Pressable accessibilityRole="button" onPress={() => switchMode('login')} style={({ pressed }) => [styles.createAccountButton, pressed && pressedFeedback]}>
                   <Text style={styles.createAccountText}>Back to log in</Text>
                 </Pressable>
               ) : (
                 <>
-                  <Pressable accessibilityRole="button" onPress={() => switchMode('signup')} style={styles.createAccountButton}>
+                  <Pressable accessibilityRole="button" onPress={() => switchMode('signup')} style={({ pressed }) => [styles.createAccountButton, pressed && pressedFeedback]}>
                     <Text style={styles.createAccountText}>Create account</Text>
                   </Pressable>
                 </>
@@ -402,10 +403,10 @@ function AuthScreen({ onAuthenticated, restoreError, onRetryRestore }: {
               </View>
               <Text style={styles.requirements}>For privacy, the response is the same whether or not an account exists.</Text>
               {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
-              <Pressable accessibilityRole="button" disabled={busy} onPress={() => void submit()} style={styles.primaryButton}>
+              <Pressable accessibilityRole="button" disabled={busy} onPress={() => void submit()} style={({ pressed }) => [styles.primaryButton, pressed && pressedFeedback]}>
                 {busy ? <ActivityIndicator color={AUTH_TEXT} /> : <Text style={styles.primaryButtonText}>Send reset link</Text>}
               </Pressable>
-              <Pressable accessibilityRole="button" onPress={() => switchMode('login')} style={styles.createAccountButton}><Text style={styles.createAccountText}>Back to log in</Text></Pressable>
+              <Pressable accessibilityRole="button" onPress={() => switchMode('login')} style={({ pressed }) => [styles.createAccountButton, pressed && pressedFeedback]}><Text style={styles.createAccountText}>Back to log in</Text></Pressable>
             </View>
           ) : (
             <View style={styles.form}>
@@ -440,16 +441,16 @@ function AuthScreen({ onAuthenticated, restoreError, onRetryRestore }: {
                   accessibilityRole="button"
                   accessibilityLabel={passwordVisible ? 'Hide password' : 'Show password'}
                   onPress={() => setPasswordVisible((visible) => !visible)}
-                  style={styles.passwordToggle}
+                  style={({ pressed }) => [styles.passwordToggle, pressed && pressedFeedback]}
                 >
                   <MaterialCommunityIcons name={passwordVisible ? 'eye-off-outline' : 'eye-outline'} size={18} color={AUTH_MUTED} />
                 </Pressable>
               </View>
               {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
-              <Pressable accessibilityRole="button" disabled={busy} onPress={() => void submit()} style={styles.primaryButton}>
+              <Pressable accessibilityRole="button" disabled={busy} onPress={() => void submit()} style={({ pressed }) => [styles.primaryButton, pressed && pressedFeedback]}>
                 {busy ? <ActivityIndicator color={AUTH_TEXT} /> : <Text style={styles.primaryButtonText}>Reset password</Text>}
               </Pressable>
-              <Pressable accessibilityRole="button" onPress={() => switchMode('login')} style={styles.createAccountButton}><Text style={styles.createAccountText}>Back to log in</Text></Pressable>
+              <Pressable accessibilityRole="button" onPress={() => switchMode('login')} style={({ pressed }) => [styles.createAccountButton, pressed && pressedFeedback]}><Text style={styles.createAccountText}>Back to log in</Text></Pressable>
             </View>
           )}
 
@@ -518,7 +519,7 @@ function TermsAgreementScreen({ client, knownVersion, onAccepted, onLogOut }: {
       <Pressable accessibilityRole="button" disabled={busy} onPress={() => void agree()} style={[styles.primaryButton, busy && styles.buttonDisabled]}>
         {busy ? <ActivityIndicator color={AUTH_TEXT} /> : <Text style={styles.primaryButtonText}>I agree</Text>}
       </Pressable>
-      <Pressable accessibilityRole="button" onPress={onLogOut} style={styles.createAccountButton}>
+      <Pressable accessibilityRole="button" onPress={onLogOut} style={({ pressed }) => [styles.createAccountButton, pressed && pressedFeedback]}>
         <Text style={styles.createAccountText}>Sign out</Text>
       </Pressable>
     </View>
