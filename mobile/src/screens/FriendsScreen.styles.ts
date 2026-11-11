@@ -38,7 +38,7 @@ export const styles = StyleSheet.create({
   requestAccept: { width: 44, height: 44, borderRadius: radii.md, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
   cancelRequestButton: { minHeight: MIN_TOUCH_TARGET, justifyContent: 'center', paddingHorizontal: spacing.sm },
   cancelRequestText: { ...type.caption, color: colors.textSecondary, fontWeight: '700' },
-  unreadPill: { minWidth: 24, height: 24, paddingHorizontal: 7, borderRadius: radii.pill, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
+  unreadPill: { minWidth: 24, minHeight: 24, paddingHorizontal: 7, borderRadius: radii.pill, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
   unreadPillText: { ...type.caption, color: colors.accentText, fontWeight: '800' },
   friendSearchRow: { minHeight: 42, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, backgroundColor: colors.surface, borderRadius: 4, paddingHorizontal: 11, marginBottom: 2 },
   friendSearchInput: { ...type.body, color: colors.textPrimary, flex: 1, minHeight: 42, fontSize: 14 },

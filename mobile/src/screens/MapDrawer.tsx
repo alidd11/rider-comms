@@ -232,7 +232,8 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     backgroundColor: colors.surface,
   },
-  handleButton: { alignSelf: 'center', width: 88, height: 24, alignItems: 'center', justifyContent: 'center', marginBottom: spacing.xs },
+  // 32 tall plus the 8pt hit slop on each side meets the 48pt touch minimum.
+  handleButton: { alignSelf: 'center', width: 88, height: 32, alignItems: 'center', justifyContent: 'center', marginBottom: spacing.xs },
   handle: { width: 40, height: 5, borderRadius: 3, backgroundColor: colors.border },
   shortcutsScroll: { marginTop: spacing.md, marginHorizontal: -spacing.md },
   shortcuts: { gap: 10, paddingHorizontal: spacing.md },
@@ -251,7 +252,7 @@ const styles = StyleSheet.create({
   live: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.success },
   liveText: { ...type.caption, fontWeight: '700', color: colors.textPrimary },
-  badge: { minWidth: 22, height: 22, paddingHorizontal: 6, borderRadius: radii.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.accent },
+  badge: { minWidth: 22, minHeight: 22, paddingHorizontal: 6, borderRadius: radii.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.accent },
   badgeText: { fontSize: 12, fontWeight: '800', color: colors.accentText },
   recentClip: { overflow: 'hidden' },
   recent: { position: 'absolute', top: 0, left: 0, right: 0, paddingTop: spacing.md },

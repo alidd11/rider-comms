@@ -54,6 +54,7 @@ function YourRiderIdCard(): React.JSX.Element {
         </View>
         <Pressable
           style={styles.yourIdCopyButton}
+          hitSlop={6}
           onPress={() => void handleCopy()}
           accessibilityRole="button"
           accessibilityLabel="Copy rider ID"
@@ -613,7 +614,7 @@ export function FriendsScreen(): React.JSX.Element {
         ) : null}
 
         {error && (
-          <View style={styles.errorBox}>
+          <View style={styles.errorBox} accessibilityRole="alert" accessibilityLiveRegion="assertive">
             <Ionicons name="alert-circle" size={18} color={colors.danger} />
             <Text style={styles.errorText}>{error}</Text>
             <Pressable
