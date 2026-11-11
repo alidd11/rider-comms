@@ -107,7 +107,14 @@ jobs:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
       - name: Install visual-test browser
-        run: npx playwright install --with-deps chromium webkit
+        # Browsers come from Playwright's CDN; their system libraries come from
+        # the Ubuntu mirror, which has been unreachable from runners at times.
+        # Bound that part so an outage can't eat the whole job, then carry on:
+        # the runner image already has most of what the browsers need.
+        run: |
+          npx playwright install chromium webkit
+          timeout 480 sudo -E env "PATH=$PATH" npx playwright install-deps chromium webkit \
+            || echo "::warning::Playwright system dependencies could not be installed (apt mirror unavailable?)"
       - name: Run PWA visual smoke audit
         run: npm run test:pwa:visual
       - name: Verify Android bundle
