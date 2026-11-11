@@ -1,9 +1,11 @@
 import * as React from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Alert } from 'react-native';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import type { PlaceResult } from '../../src/api/places';
 import { recentPlacesStorageKey } from '../../src/search/recentPlaces';
+import { savedPlacesStorageKey } from '../../src/search/savedPlaces';
 import { MapDrawer } from '../../src/screens/MapDrawer';
 import type { MapDrawerProps } from '../../src/screens/MapDrawer';
 
@@ -33,11 +35,6 @@ function Harness(overrides: Partial<MapDrawerProps>): React.JSX.Element {
         near={{ lat: 51.5, lon: -0.1 }}
         onRequestLocation={async () => undefined}
         onSelectPlace={jest.fn()}
-        onRide={jest.fn()}
-        onFriends={jest.fn()}
-        onRoutes={jest.fn()}
-        rideLive={false}
-        friendsCount={0}
         open={open}
         onOpenChange={setOpen}
         onPeekHeight={jest.fn()}
@@ -52,23 +49,52 @@ beforeEach(async () => {
   await AsyncStorage.clear();
 });
 
-it('rests with Where to? and the Ride, Friends and Routes shortcuts', async () => {
-  const onRide = jest.fn();
-  const onFriends = jest.fn();
-  const onRoutes = jest.fn();
-  await render(<Harness onRide={onRide} onFriends={onFriends} onRoutes={onRoutes} rideLive friendsCount={3} />);
+it('rests with Where to? and the Home, Work and Petrol shortcuts', async () => {
+  await render(<Harness />);
 
   expect(screen.getByLabelText('Where to?')).toBeTruthy();
-  expect(screen.getByText('Live')).toBeTruthy();
-  expect(screen.getByText('3')).toBeTruthy();
+  expect(screen.getByLabelText('Set Home')).toBeTruthy();
+  expect(screen.getByLabelText('Set Work')).toBeTruthy();
+  expect(screen.getByLabelText('Petrol stations nearby')).toBeTruthy();
   expect(screen.queryByTestId('map-drawer-recent')).toBeNull();
+});
 
-  await fireEvent.press(screen.getByLabelText('Ride, live'));
-  await fireEvent.press(screen.getByLabelText('Friends, 3 new'));
-  await fireEvent.press(screen.getByLabelText('Routes'));
-  expect(onRide).toHaveBeenCalledTimes(1);
-  expect(onFriends).toHaveBeenCalledTimes(1);
-  expect(onRoutes).toHaveBeenCalledTimes(1);
+it('chooses Home the first time, then shows it in one tap', async () => {
+  await AsyncStorage.setItem(recentPlacesStorageKey('rider-1'), JSON.stringify([ACE]));
+  const onSelectPlace = jest.fn();
+  await render(<Harness onSelectPlace={onSelectPlace} />);
+
+  await fireEvent.press(screen.getByLabelText('Set Home'));
+  expect(screen.getByText('Choose your Home')).toBeTruthy();
+  await fireEvent.press(await screen.findByLabelText(/^Recent place: Ace Cafe London/));
+  expect(onSelectPlace).toHaveBeenLastCalledWith(expect.objectContaining({ id: 'ace' }));
+  expect(JSON.parse(await AsyncStorage.getItem(savedPlacesStorageKey('rider-1')) ?? '{}').home.id).toBe('ace');
+
+  onSelectPlace.mockClear();
+  await fireEvent.press(screen.getByLabelText('Home, Ace Cafe London'));
+  expect(onSelectPlace).toHaveBeenCalledWith(expect.objectContaining({ id: 'ace' }));
+  expect(screen.queryByText('Choose your Home')).toBeNull();
+});
+
+it('changes or removes a saved place on a long press', async () => {
+  await AsyncStorage.setItem(savedPlacesStorageKey('rider-1'), JSON.stringify({ work: ACE }));
+  const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+  await render(<Harness />);
+
+  await fireEvent(await screen.findByLabelText('Work, Ace Cafe London'), 'longPress');
+  const buttons = alert.mock.calls[0][2] ?? [];
+  expect(buttons.map((button) => button.text)).toEqual(['Change Work', 'Remove Work', 'Cancel']);
+  await act(async () => { buttons[1].onPress?.(); });
+  expect(screen.getByLabelText('Set Work')).toBeTruthy();
+  expect(JSON.parse(await AsyncStorage.getItem(savedPlacesStorageKey('rider-1')) ?? '{}').work).toBeUndefined();
+  alert.mockRestore();
+});
+
+it('Petrol opens search on nearby petrol stations', async () => {
+  await render(<Harness />);
+  await fireEvent.press(screen.getByLabelText('Petrol stations nearby'));
+  expect(screen.getByText('Nearby')).toBeTruthy();
+  expect(screen.getByDisplayValue('Petrol')).toBeTruthy();
 });
 
 it('opens to recent places, and a chosen place closes it again', async () => {
@@ -91,8 +117,8 @@ it('says where recent places will appear before there are any', async () => {
   await fireEvent.press(screen.getByLabelText('Show recent places'));
   await act(async () => {});
   expect(screen.getByText('Places you search for show up here.')).toBeTruthy();
-  expect(screen.getByLabelText('Friends')).toBeTruthy();
-  expect(screen.getByLabelText('Ride')).toBeTruthy();
+  expect(screen.getByLabelText('Set Home')).toBeTruthy();
+  expect(screen.getByLabelText('Petrol stations nearby')).toBeTruthy();
 });
 
 it('reports its resting height so the map controls can sit above it', async () => {

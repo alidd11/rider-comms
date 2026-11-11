@@ -9,6 +9,8 @@ export const styles = StyleSheet.create({
   },
   collapsedText: { ...type.body, color: colors.textMuted, flex: 1, fontSize: 13 },
   pressed: { opacity: 0.7 },
+  saveBanner: { ...type.caption, fontWeight: '700', color: colors.textSecondary, paddingHorizontal: spacing.lg, paddingTop: spacing.sm },
+  hidden: { display: 'none' },
   screen: { flex: 1, backgroundColor: colors.background },
   header: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.md, paddingVertical: 10 },
   backButton: {

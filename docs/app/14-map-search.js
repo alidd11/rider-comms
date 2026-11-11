@@ -165,8 +165,95 @@
     renderRecentOrHint();
   }
 
-  function openSearchScreen() {
+  // Home and Work: one tap away in the drawer, kept on this device for this
+  // rider like recent searches (native: @rider-comms/saved-places).
+  const SAVED_PLACES_KEY = 'riderComms.savedPlaces';
+  const SAVED_PLACE_LABELS = { home: 'Home', work: 'Work' };
+  const savedPlacesStorageKey = () => session?.riderId ? `${SAVED_PLACES_KEY}:${session.riderId}` : null;
+  // The slot search is choosing a place for, if any.
+  let savingPlaceSlot = null;
+
+  function validSavedPlace(entry) {
+    return entry && typeof entry.placeId === 'string' && typeof entry.name === 'string'
+      && Number.isFinite(entry.lat) && Math.abs(entry.lat) <= 90 && Number.isFinite(entry.lng) && Math.abs(entry.lng) <= 180;
+  }
+
+  function loadSavedPlaces() {
+    try {
+      const key = savedPlacesStorageKey();
+      const raw = key ? JSON.parse(localStorage.getItem(key) || '{}') : {};
+      const saved = {};
+      for (const slot of Object.keys(SAVED_PLACE_LABELS)) if (validSavedPlace(raw?.[slot])) saved[slot] = raw[slot];
+      return saved;
+    } catch {
+      return {};
+    }
+  }
+
+  function setSavedPlace(slot, entry) {
+    try {
+      const key = savedPlacesStorageKey();
+      if (!key) return;
+      const saved = loadSavedPlaces();
+      if (entry) saved[slot] = { placeId: entry.placeId, name: entry.name, secondary: entry.secondary || '', lat: entry.lat, lng: entry.lng };
+      else delete saved[slot];
+      localStorage.setItem(key, JSON.stringify(saved));
+    } catch { /* A full or blocked store just means the shortcut asks again. */ }
+    renderSavedPlaceShortcuts();
+  }
+
+  function renderSavedPlaceShortcuts() {
+    const saved = loadSavedPlaces();
+    $$('[data-saved-place]').forEach((button) => {
+      const slot = button.dataset.savedPlace;
+      const place = saved[slot];
+      const label = SAVED_PLACE_LABELS[slot];
+      button.setAttribute('aria-label', place ? `${label}, ${place.name}` : `Set ${label}`);
+      button.title = place ? `${place.name}. Press and hold to change ${label}.` : `Choose your ${label.toLowerCase()} address`;
+    });
+  }
+
+  function showSavedPlace(place) {
+    panToPlace(place.lat, place.lng);
+    setDestinationMarker(new google.maps.LatLng(place.lat, place.lng), place.name, place.secondary);
+  }
+
+  function openSavedPlace(slot) {
+    const place = loadSavedPlaces()[slot];
+    if (place && window.google?.maps) showSavedPlace(place);
+    else if (!place) openSearchScreen({ saveAs: slot });
+  }
+
+  function editSavedPlace(slot) {
+    const place = loadSavedPlaces()[slot];
+    if (!place) { openSearchScreen({ saveAs: slot }); return; }
+    const label = SAVED_PLACE_LABELS[slot];
+    presentSheet(label, `<p class="caption saved-place-address"><strong>${escapeHtml(place.name)}</strong>${place.secondary ? `<br>${escapeHtml(place.secondary)}` : ''}</p>
+      <button class="button secondary wide" type="button" id="savedPlaceChange">Change ${label}</button>
+      <button class="button danger wide" type="button" id="savedPlaceRemove">Remove ${label}</button>`, () => {
+      $('#savedPlaceChange').addEventListener('click', () => { closeSheet(); openSearchScreen({ saveAs: slot }); });
+      $('#savedPlaceRemove').addEventListener('click', () => { setSavedPlace(slot, null); closeSheet(); showToast(`${label} removed.`); });
+    });
+  }
+
+  // A place chosen while search is choosing Home or Work is saved there too.
+  function rememberChosenPlace(entry) {
+    saveRecentSearch(entry);
+    if (!savingPlaceSlot) return;
+    setSavedPlace(savingPlaceSlot, entry);
+    showToast(`${SAVED_PLACE_LABELS[savingPlaceSlot]} saved. Press and hold it to change it.`);
+    savingPlaceSlot = null;
+  }
+
+  function openSearchScreen(options = {}) {
     if ($('#mapSearchSlot')?.classList.contains('offline')) return;
+    savingPlaceSlot = SAVED_PLACE_LABELS[options.saveAs] ? options.saveAs : null;
+    const saveLabel = savingPlaceSlot ? SAVED_PLACE_LABELS[savingPlaceSlot] : '';
+    $('#searchSaveBanner').hidden = !savingPlaceSlot;
+    $('#searchSaveBanner').textContent = savingPlaceSlot ? `Choose your ${saveLabel}` : '';
+    $('#poiChipRow').hidden = Boolean(savingPlaceSlot);
+    $('#searchScreenInput').placeholder = savingPlaceSlot ? `Your ${saveLabel.toLowerCase()} address` : 'Search for a place';
+    $('#searchScreenInput').setAttribute('aria-label', savingPlaceSlot ? `Search for your ${saveLabel.toLowerCase()} address` : 'Search for a place');
     clearPoiMarkers();
     pushOverlayGuard();
     $('#searchScreen').hidden = false;
@@ -186,6 +273,7 @@
   }
 
   function closeSearchScreen() {
+    savingPlaceSlot = null;
     searchRequestToken += 1;
     clearTimeout(searchDebounceTimer);
     $('#searchScreen').hidden = true;
@@ -458,10 +546,34 @@
       event.stopPropagation();
     }, true);
     $('#mapDrawerHandle').addEventListener('click', () => toggleMapDrawer(drawer.dataset.state !== 'open'));
-    $$('[data-drawer-nav]', drawer).forEach((button) => button.addEventListener('click', () => {
+    $$('[data-saved-place]', drawer).forEach((button) => {
+      const slot = button.dataset.savedPlace;
+      let holdTimer;
+      let held = false;
+      const cancelHold = () => clearTimeout(holdTimer);
+      button.addEventListener('pointerdown', () => {
+        held = false;
+        cancelHold();
+        holdTimer = setTimeout(() => { held = true; editSavedPlace(slot); }, 550);
+      });
+      ['pointerup', 'pointerleave', 'pointercancel'].forEach((type) => button.addEventListener(type, cancelHold));
+      button.addEventListener('contextmenu', (event) => {
+        event.preventDefault();
+        cancelHold();
+        if (!held) { held = true; editSavedPlace(slot); }
+      });
+      button.addEventListener('click', () => {
+        if (held) { held = false; return; }
+        setMapDrawerOpen(false);
+        openSavedPlace(slot);
+      });
+    });
+    $('#drawerPetrol').addEventListener('click', () => {
       setMapDrawerOpen(false);
-      navigate(button.dataset.drawerNav);
-    }));
+      openSearchScreen();
+      $('.poi-chip[data-poi-type="gas_station"]')?.click();
+    });
+    renderSavedPlaceShortcuts();
     drawer.addEventListener('keydown', (event) => {
       if (event.key === 'Escape' && drawer.dataset.state === 'open') {
         toggleMapDrawer(false);
@@ -480,7 +592,7 @@
 
   function selectRecentSearch(item) {
     if (!item) return;
-    saveRecentSearch(item);
+    rememberChosenPlace(item);
     panToPlace(item.lat, item.lng);
     // showDestinationCard/setDestinationMarker call location.lat()/.lng()
     // as methods (matching the real google.maps.LatLng that
@@ -498,7 +610,7 @@
     panToPlace(place.location.lat, place.location.lng);
     setDestinationMarker(location, place.name);
     if (place.placeId) {
-      saveRecentSearch({
+      rememberChosenPlace({
         placeId: place.placeId,
         name: place.name,
         secondary: place.address || '',
@@ -523,7 +635,7 @@
       panToPlace(lat, lng);
       setDestinationMarker(location, place.name, place.formatted_address);
       showToast(place.name ? `Centred on ${place.name}` : 'Centred on selected place.');
-      saveRecentSearch({ placeId, name: place.name || 'Selected place', secondary: place.formatted_address || '', lat, lng });
+      rememberChosenPlace({ placeId, name: place.name || 'Selected place', secondary: place.formatted_address || '', lat, lng });
       closeSearchScreen();
     });
   }

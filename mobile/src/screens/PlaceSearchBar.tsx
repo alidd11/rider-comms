@@ -24,6 +24,8 @@ import type { PlaceResult, PlaceSearchFailure } from '../api/places';
 import { nearbySearchCacheKey, PlacesCache, textSearchCacheKey, wrapPlacesSearchWithCache } from '../api/placesCache';
 import { useAuth } from '../auth/AuthContext';
 import { addRecentPlace, parseRecentPlaces, recentPlacesStorageKey } from '../search/recentPlaces';
+import { SAVED_PLACE_LABELS } from '../search/savedPlaces';
+import type { SavedPlaceSlot } from '../search/savedPlaces';
 import { useSettings } from '../settings/SettingsContext';
 
 // Module-level so the cache survives across searches within a session
@@ -41,21 +43,27 @@ const CATEGORIES = [
   { label: 'Repair', types: ['car_repair'], icon: 'wrench-outline' },
 ] as const;
 
-export function PlaceSearchBar({
-  near,
-  onSelect,
-  onRequestLocation,
-}: {
+export type SearchCategoryLabel = (typeof CATEGORIES)[number]['label'];
+
+/** Opens search from elsewhere: on a category, or to choose Home or Work. */
+export interface PlaceSearchHandle {
+  open: (options?: { category?: SearchCategoryLabel; saveAs?: SavedPlaceSlot }) => void;
+}
+
+export const PlaceSearchBar = React.forwardRef<PlaceSearchHandle, {
   near: { lat: number; lon: number } | null;
   onSelect: (place: PlaceResult) => void;
   onRequestLocation: () => Promise<void>;
-}): React.JSX.Element {
+  /** A place chosen while search was opened to choose Home or Work. */
+  onSave?: (slot: SavedPlaceSlot, place: PlaceResult) => void;
+}>(function PlaceSearchBar({ near, onSelect, onRequestLocation, onSave }, ref): React.JSX.Element {
   const insets = useSafeAreaInsets();
   const { client, riderId } = useAuth();
   const { unitSystem } = useSettings();
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState('');
   const [activeCategory, setActiveCategory] = React.useState<string | null>(null);
+  const [saveAs, setSaveAs] = React.useState<SavedPlaceSlot | null>(null);
   const [results, setResults] = React.useState<PlaceResult[]>([]);
   const [recentPlaces, setRecentPlaces] = React.useState<PlaceResult[]>([]);
   const [loading, setLoading] = React.useState(false);
@@ -128,9 +136,29 @@ export function PlaceSearchBar({
     };
   }, [query, activeCategory, near, client, retryToken]);
 
+  React.useImperativeHandle(ref, () => ({
+    open: (options) => {
+      setSaveAs(options?.saveAs ?? null);
+      if (options?.category) {
+        setActiveCategory(options.category);
+        setQuery(options.category);
+      }
+      setOpen(true);
+      if (!near) void onRequestLocation();
+    },
+  }), [near, onRequestLocation]);
+
+  function choose(place: PlaceResult): void {
+    if (saveAs) onSave?.(saveAs, place);
+    onSelect(place);
+    void rememberPlace(place);
+    close();
+  }
+
   function close(): void {
     requestRef.current += 1;
     setOpen(false);
+    setSaveAs(null);
     setQuery('');
     setActiveCategory(null);
     setResults([]);
@@ -180,10 +208,10 @@ export function PlaceSearchBar({
               <Ionicons name="search" size={19} color={colors.textMuted} />
               <TextInput
                 style={styles.input}
-                accessibilityLabel="Search for a place"
+                accessibilityLabel={saveAs ? `Search for your ${SAVED_PLACE_LABELS[saveAs].toLowerCase()} address` : 'Search for a place'}
                 value={query}
                 onChangeText={updateQuery}
-                placeholder="Search for a place"
+                placeholder={saveAs ? `Your ${SAVED_PLACE_LABELS[saveAs].toLowerCase()} address` : 'Search for a place'}
                 placeholderTextColor={colors.textMuted}
                 autoFocus
                 returnKeyType="search"
@@ -199,11 +227,15 @@ export function PlaceSearchBar({
             </View>
           </View>
 
+          {saveAs ? (
+            <Text style={styles.saveBanner} accessibilityRole="header">Choose your {SAVED_PLACE_LABELS[saveAs]}</Text>
+          ) : null}
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={styles.categories}
+            style={saveAs ? styles.hidden : undefined}
           >
             {CATEGORIES.map((category) => {
               const active = category.label === activeCategory;
@@ -249,11 +281,7 @@ export function PlaceSearchBar({
               renderItem={({ item }) => (
                 <Pressable accessibilityRole="button"
                   style={({ pressed }) => [styles.resultRow, pressed && styles.resultRowPressed]}
-                  onPress={() => {
-                    onSelect(item);
-                    void rememberPlace(item);
-                    close();
-                  }}
+                  onPress={() => choose(item)}
                   accessibilityLabel={`Recent place: ${item.name}, ${item.address}${near ? `, ${formatPlaceDistance(item.distanceMeters, unitSystem)} away` : ''}`}
                 >
                   <View style={styles.resultIcon}>
@@ -279,7 +307,11 @@ export function PlaceSearchBar({
               onAction={() => void onRequestLocation()}
             />
           ) : !query ? (
-            <SearchState icon="navigate-outline" title="Where do you want to go?" copy="Search by place or address, or choose a nearby category above." />
+            saveAs ? (
+              <SearchState icon={saveAs === 'home' ? 'home-outline' : 'briefcase-outline'} title={`Search for your ${SAVED_PLACE_LABELS[saveAs].toLowerCase()} address`} copy={`${SAVED_PLACE_LABELS[saveAs]} stays one tap away in Where to. Press and hold it there to change it.`} />
+            ) : (
+              <SearchState icon="navigate-outline" title="Where do you want to go?" copy="Search by place or address, or choose a nearby category above." />
+            )
           ) : (
             <FlatList
               data={results}
@@ -314,11 +346,7 @@ export function PlaceSearchBar({
               renderItem={({ item }) => (
                 <Pressable accessibilityRole="button"
                   style={({ pressed }) => [styles.resultRow, pressed && styles.resultRowPressed]}
-                  onPress={() => {
-                    onSelect(item);
-                    void rememberPlace(item);
-                    close();
-                  }}
+                  onPress={() => choose(item)}
                   accessibilityLabel={`${item.name}, ${item.address}`}
                 >
                   <View style={styles.resultIcon}>
@@ -342,7 +370,7 @@ export function PlaceSearchBar({
       </Modal>
     </>
   );
-}
+});
 
 function searchFailureCopy(failure: PlaceSearchFailure): { title: string; copy: string } {
   if (failure === 'rate-limited') {

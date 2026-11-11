@@ -531,6 +531,7 @@ export function MapScreen(): React.JSX.Element {
 
   // The drawer steps aside while navigating, while Ride Safe locks the
   // controls, and while a place or hazard card owns the bottom of the map.
+  const friendsAttention = incomingRequests.length + unreadMessageCount;
   const drawerVisible = segment === 'public' && !lockedForSafety && !activeRoute && !selectedDestination && !selectedHazard;
   const bottomInset = drawerVisible && drawerPeek > 0 ? drawerPeek : insets.bottom;
   // Bottom controls sit above the drawer, and above the ride bar while a
@@ -662,16 +663,22 @@ export function MapScreen(): React.JSX.Element {
 
       {segment === 'public' && !lockedForSafety && !activeRoute && (
         <View style={[styles.searchSlot, styles.searchRow, { top: insets.top + spacing.sm }]}>
-          {/* The menu (Routes, Settings, plan, help). */}
+          {/* The menu (Ride, Friends, Routes, Settings, plan, help). Friend
+              requests and unread messages show as a count on the avatar. */}
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Open menu"
-            accessibilityHint="Your profile, routes, settings and help"
+            accessibilityLabel={friendsAttention > 0 ? `Open menu, ${friendsAttention} new from friends` : 'Open menu'}
+            accessibilityHint="Ride, friends, routes, settings and help"
             testID="open-menu"
             onPress={() => rootNavigation?.navigate('Menu')}
             style={({ pressed }) => [styles.menuButton, pressed && styles.menuButtonPressed]}
           >
             <RiderAvatar avatarId={avatarId} size={44} mapMarker={false} status="none" />
+            {friendsAttention > 0 ? (
+              <View style={styles.menuBadge} testID="menu-badge">
+                <Text style={styles.menuBadgeText}>{friendsAttention > 99 ? '99+' : friendsAttention}</Text>
+              </View>
+            ) : null}
           </Pressable>
         </View>
       )}
@@ -1040,11 +1047,6 @@ export function MapScreen(): React.JSX.Element {
           near={currentLocation}
           onRequestLocation={async () => { await requestCurrentLocation(true); }}
           onSelectPlace={selectPlace}
-          onRide={() => { setDrawerOpen(false); navigation.setParams({ segment: 'host', at: Date.now() }); }}
-          onFriends={() => { setDrawerOpen(false); navigation.navigate('Friends'); }}
-          onRoutes={() => { setDrawerOpen(false); rootNavigation?.navigate('Routes'); }}
-          rideLive={Boolean(activeRide)}
-          friendsCount={incomingRequests.length + unreadMessageCount}
           open={drawerOpen}
           onOpenChange={setDrawerOpen}
           onPeekHeight={setDrawerPeek}

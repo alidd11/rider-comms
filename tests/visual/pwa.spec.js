@@ -160,7 +160,9 @@ async function mockAuthenticatedApi(page, movement = 'stationary', backendOverri
         RenderingType: { VECTOR: 'VECTOR', RASTER: 'RASTER' },
         Size: class Size { constructor(width, height) { this.width = width; this.height = height; } },
         Point: class Point { constructor(x, y) { this.x = x; this.y = y; } },
+        LatLng: class LatLng { constructor(lat, lng) { this.latValue = lat; this.lngValue = lng; } lat() { return this.latValue; } lng() { return this.lngValue; } },
         SymbolPath: { CIRCLE: 0 },
+        Animation: { BOUNCE: 1, DROP: 2 },
         places: {
           PlacesService: PlacesServiceMock,
           AutocompleteService: AutocompleteServiceMock,
@@ -3391,7 +3393,7 @@ test('PWA recent place history is scoped to the signed-in rider', async ({ page 
   await expect(page.locator('#searchScreenResults')).not.toContainText('My recent place');
 });
 
-test('PWA map drawer slides up to recent places and holds the shortcuts', async ({ page }) => {
+test('PWA map drawer slides up to recent places and holds Home, Work and Petrol', async ({ page }) => {
   await mockAuthenticatedApi(page);
   await page.addInitScript(({ riderId }) => {
     localStorage.setItem(`riderComms.recentSearches:${riderId}`, JSON.stringify([
@@ -3427,8 +3429,12 @@ test('PWA map drawer slides up to recent places and holds the shortcuts', async 
   await expect(page.locator('#mapDrawerRecent')).toContainText('Ace Cafe London');
   await expect(page.locator('#ridePill')).toBeHidden();
 
-  // A recent place puts it on the map and the drawer settles back down.
+  // A recent place puts it on the map; the drawer steps aside for its card
+  // and comes back, settled down, once the card is dismissed.
   await page.locator('[data-drawer-recent="0"]').click();
+  await expect(page.locator('#destinationCard')).toContainText('Ace Cafe London');
+  await page.locator('[data-dismiss-destination]').click();
+  await expect(drawer).toBeVisible();
   await expect(drawer).toHaveAttribute('data-state', 'peek');
 
   // Tapping the handle toggles it; Escape closes it.
@@ -3443,12 +3449,41 @@ test('PWA map drawer slides up to recent places and holds the shortcuts', async 
   await expect(page.locator('#searchScreen')).toBeVisible();
   await page.locator('#searchScreenBack').click();
 
-  // Ride and Friends are one tap away, and back returns to the map.
-  await page.locator('[data-drawer-nav="ride"]').click();
+  // Home the first time: search says it is choosing Home, without the
+  // category chips, and the chosen place is saved.
+  const home = page.locator('[data-saved-place="home"]');
+  await expect(home).toHaveAttribute('aria-label', 'Set Home');
+  await home.click();
+  await expect(page.locator('#searchScreen')).toBeVisible();
+  await expect(page.locator('#searchSaveBanner')).toHaveText('Choose your Home');
+  await expect(page.locator('#poiChipRow')).toBeHidden();
+  await page.locator('#searchScreenResults [data-recent-index="0"]').click();
+  await expect(page.locator('#searchScreen')).toBeHidden();
+  await expect(home).toHaveAttribute('aria-label', 'Home, Ace Cafe London');
+  await page.locator('[data-dismiss-destination]').click();
+  // Then one tap shows it, with no search.
+  await home.click();
+  await expect(page.locator('#searchScreen')).toBeHidden();
+  await expect(page.locator('#destinationCard')).toContainText('Ace Cafe London');
+  await page.locator('[data-dismiss-destination]').click();
+  // Press and hold (or right-click) to change or remove it.
+  await home.dispatchEvent('contextmenu');
+  await expect(page.locator('#sheetTitle')).toHaveText('Home');
+  await page.locator('#savedPlaceRemove').click();
+  await expect(home).toHaveAttribute('aria-label', 'Set Home');
+  await expect(page.locator('[data-saved-place="work"]')).toHaveAttribute('aria-label', 'Set Work');
+
+  // Petrol opens search on nearby petrol stations.
+  await page.locator('#drawerPetrol').click();
+  await expect(page.locator('#searchScreen')).toBeVisible();
+  await expect(page.locator('#searchSaveBanner')).toBeHidden();
+  await expect(page.locator('.poi-chip[data-poi-type="gas_station"]')).toHaveAttribute('aria-pressed', 'true');
+  await page.locator('#searchScreenBack').click();
+
+  // Ride and Friends live in the menu, and back returns to the map.
+  await page.locator('#mapAvatarButton').click();
+  await page.locator('[data-menu-nav="ride"]').click();
   await expect(page.locator('[data-screen="ride"]')).toBeVisible();
-  await page.locator('.screen.active [data-back-to-map]').click();
-  await page.locator('[data-drawer-nav="friends"]').click();
-  await expect(page.locator('[data-screen="friends"]')).toBeVisible();
   await page.locator('.screen.active [data-back-to-map]').click();
   await expect(drawer).toBeVisible();
 
@@ -3490,11 +3525,13 @@ test('PWA back gesture closes overlays first and the map stays one step back', a
   await onScreen('map');
 
   // Back to map steps back, so a later back never returns to Friends.
-  await page.locator('[data-drawer-nav="friends"]').click();
+  await page.locator('#mapAvatarButton').click();
+  await page.locator('[data-menu-nav="friends"]').click();
   await onScreen('friends');
   await page.locator('.screen.active [data-back-to-map]').click();
   await onScreen('map');
-  await page.locator('[data-drawer-nav="ride"]').click();
+  await page.locator('#mapAvatarButton').click();
+  await page.locator('[data-menu-nav="ride"]').click();
   await onScreen('ride');
   await page.goBack();
   await onScreen('map');

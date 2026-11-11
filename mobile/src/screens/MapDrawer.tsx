@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { AccessibilityInfo, Animated, Easing, PanResponder, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { AccessibilityInfo, Alert, Animated, Easing, PanResponder, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { LayoutChangeEvent, StyleProp, ViewStyle } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
@@ -7,8 +7,11 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import type { PlaceResult } from '../api/places';
 import { useAuth } from '../auth/AuthContext';
 import { parseRecentPlaces, recentPlacesStorageKey } from '../search/recentPlaces';
-import { colors, MIN_TOUCH_TARGET, radii, spacing, type, pressedFeedback } from '../theme';
+import { parseSavedPlaces, SAVED_PLACE_LABELS, SAVED_PLACE_SLOTS, savedPlacesStorageKey, withSavedPlace } from '../search/savedPlaces';
+import type { SavedPlaces, SavedPlaceSlot } from '../search/savedPlaces';
+import { colors, MIN_TOUCH_TARGET, spacing, type, pressedFeedback } from '../theme';
 import { PlaceSearchBar } from './PlaceSearchBar';
+import type { PlaceSearchHandle } from './PlaceSearchBar';
 
 /** How far a slide has to travel before the drawer opens or closes. */
 const SLIDE_THRESHOLD = 30;
@@ -22,12 +25,6 @@ export interface MapDrawerProps {
   near: { lat: number; lon: number } | null;
   onRequestLocation: () => Promise<void>;
   onSelectPlace: (place: PlaceResult) => void;
-  onRide: () => void;
-  onFriends: () => void;
-  onRoutes: () => void;
-  rideLive: boolean;
-  /** Friend requests plus unread messages. */
-  friendsCount: number;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** The drawer's resting height, so the map's controls can sit above it. */
@@ -38,15 +35,54 @@ export interface MapDrawerProps {
 
 /**
  * The Where to drawer at the bottom of the map (PWA: #mapDrawer). At rest:
- * search and shortcuts to Ride, Friends and Routes. Slide it up, or tap its
- * handle, for recent places.
+ * search and one-tap places: Home, Work and nearby petrol. Slide it up, or
+ * tap its handle, for recent places. Ride, Friends and Routes are in the
+ * menu behind the rider's avatar.
  */
 export function MapDrawer({
-  near, onRequestLocation, onSelectPlace, onRide, onFriends, onRoutes,
-  rideLive, friendsCount, open, onOpenChange, onPeekHeight, bottomInset, style,
+  near, onRequestLocation, onSelectPlace, open, onOpenChange, onPeekHeight, bottomInset, style,
 }: MapDrawerProps): React.JSX.Element {
   const { riderId } = useAuth();
   const [recentPlaces, setRecentPlaces] = React.useState<PlaceResult[]>([]);
+  const [savedPlaces, setSavedPlaces] = React.useState<SavedPlaces>({});
+  const searchRef = React.useRef<PlaceSearchHandle>(null);
+
+  React.useEffect(() => {
+    if (!riderId) return;
+    let cancelled = false;
+    AsyncStorage.getItem(savedPlacesStorageKey(riderId))
+      .then((raw) => { if (!cancelled) setSavedPlaces(parseSavedPlaces(raw)); })
+      .catch(() => { if (!cancelled) setSavedPlaces({}); });
+    return () => { cancelled = true; };
+  }, [riderId]);
+
+  const saveSavedPlace = React.useCallback((slot: SavedPlaceSlot, place: PlaceResult | null) => {
+    setSavedPlaces((current) => {
+      const next = withSavedPlace(current, slot, place);
+      if (riderId) void AsyncStorage.setItem(savedPlacesStorageKey(riderId), JSON.stringify(next)).catch(() => {});
+      return next;
+    });
+  }, [riderId]);
+
+  // Home and Work: show the place, or choose one the first time.
+  const openSavedPlace = (slot: SavedPlaceSlot) => {
+    const place = savedPlaces[slot];
+    if (place) onSelectPlace(place);
+    else searchRef.current?.open({ saveAs: slot });
+  };
+  const editSavedPlace = (slot: SavedPlaceSlot) => {
+    const label = SAVED_PLACE_LABELS[slot];
+    const place = savedPlaces[slot];
+    if (!place) {
+      searchRef.current?.open({ saveAs: slot });
+      return;
+    }
+    Alert.alert(label, `${place.name}${place.address ? `, ${place.address}` : ''}`, [
+      { text: `Change ${label}`, onPress: () => searchRef.current?.open({ saveAs: slot }) },
+      { text: `Remove ${label}`, style: 'destructive', onPress: () => saveSavedPlace(slot, null) },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  };
   const openRef = React.useRef(open);
   openRef.current = open;
   // The recent list is always laid out, so its full height is known before
@@ -116,7 +152,6 @@ export function MapDrawer({
     if (!openRef.current && currentHeight.current < 1) onPeekHeight(event.nativeEvent.layout.height);
   }, [onPeekHeight]);
 
-  const friendsLabel = friendsCount > 0 ? `Friends, ${friendsCount} new` : 'Friends';
   return (
     <View
       style={[styles.drawer, { paddingBottom: bottomInset + spacing.md }, style]}
@@ -137,49 +172,39 @@ export function MapDrawer({
         <View style={styles.handle} />
       </Pressable>
 
-      <PlaceSearchBar near={near} onRequestLocation={onRequestLocation} onSelect={onSelectPlace} />
+      <PlaceSearchBar ref={searchRef} near={near} onRequestLocation={onRequestLocation} onSelect={onSelectPlace} onSave={saveSavedPlace} />
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.shortcuts} style={styles.shortcutsScroll}>
+        {SAVED_PLACE_SLOTS.map((slot) => {
+          const label = SAVED_PLACE_LABELS[slot];
+          const place = savedPlaces[slot];
+          return (
+            <Pressable
+              key={slot}
+              accessibilityRole="button"
+              accessibilityLabel={place ? `${label}, ${place.name}` : `Set ${label}`}
+              accessibilityHint={place ? `Shows ${label.toLowerCase()} on the map. Press and hold to change it.` : `Choose your ${label.toLowerCase()} address`}
+              accessibilityActions={place ? [{ name: 'longpress', label: `Change or remove ${label}` }] : undefined}
+              onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === 'longpress') editSavedPlace(slot); }}
+              onPress={() => openSavedPlace(slot)}
+              onLongPress={() => editSavedPlace(slot)}
+              style={({ pressed }) => [styles.shortcut, pressed && styles.pressed]}
+              testID={`drawer-${slot}`}
+            >
+              <Ionicons name={slot === 'home' ? 'home-outline' : 'briefcase-outline'} size={20} color={colors.accentInk} />
+              <Text style={styles.shortcutText}>{label}</Text>
+            </Pressable>
+          );
+        })}
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={rideLive ? 'Ride, live' : 'Ride'}
-          onPress={onRide}
+          accessibilityLabel="Petrol stations nearby"
+          onPress={() => searchRef.current?.open({ category: 'Petrol' })}
           style={({ pressed }) => [styles.shortcut, pressed && styles.pressed]}
-          testID="drawer-ride"
+          testID="drawer-petrol"
         >
-          <MaterialCommunityIcons name="motorbike" size={21} color={colors.accentInk} />
-          <Text style={styles.shortcutText}>Ride</Text>
-          {rideLive ? (
-            <View style={styles.live}>
-              <View style={styles.liveDot} />
-              <Text style={styles.liveText}>Live</Text>
-            </View>
-          ) : null}
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={friendsLabel}
-          onPress={onFriends}
-          style={({ pressed }) => [styles.shortcut, pressed && styles.pressed]}
-          testID="drawer-friends"
-        >
-          <MaterialCommunityIcons name="account-multiple-outline" size={21} color={colors.accentInk} />
-          <Text style={styles.shortcutText}>Friends</Text>
-          {friendsCount > 0 ? (
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>{friendsCount > 99 ? '99+' : friendsCount}</Text>
-            </View>
-          ) : null}
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Routes"
-          onPress={onRoutes}
-          style={({ pressed }) => [styles.shortcut, pressed && styles.pressed]}
-          testID="drawer-routes"
-        >
-          <Ionicons name="flag-outline" size={20} color={colors.accentInk} />
-          <Text style={styles.shortcutText}>Routes</Text>
+          <MaterialCommunityIcons name="gas-station-outline" size={21} color={colors.accentInk} />
+          <Text style={styles.shortcutText}>Petrol</Text>
         </Pressable>
       </ScrollView>
 
@@ -254,11 +279,6 @@ const styles = StyleSheet.create({
   },
   pressed: { opacity: 0.7 },
   shortcutText: { ...type.body, fontSize: 16, fontWeight: '700', color: colors.textPrimary },
-  live: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.success },
-  liveText: { ...type.caption, fontWeight: '700', color: colors.textPrimary },
-  badge: { minWidth: 22, minHeight: 22, paddingHorizontal: 6, borderRadius: radii.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.accent },
-  badgeText: { fontSize: 12, fontWeight: '800', color: colors.accentText },
   recentClip: { overflow: 'hidden' },
   recent: { position: 'absolute', top: 0, left: 0, right: 0, paddingTop: spacing.md },
   recentScroll: { maxHeight: RECENT_MAX_HEIGHT - 48 },

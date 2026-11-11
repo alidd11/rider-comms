@@ -3014,11 +3014,13 @@ html[data-active-screen="map"]:not(.riding-hud-active):not(:has(#app.nav-mode)):
 .map-drawer-shortcuts button{position:relative;flex:none;min-height:48px;display:inline-flex;align-items:center;gap:9px;padding:0 16px;border:1px solid var(--border);border-radius:16px;background:transparent;color:var(--text);font-size:.95rem;font-weight:760}
 .map-drawer-shortcuts button svg{width:21px;height:21px;color:var(--accent-ink,var(--accent))}
 .map-drawer-shortcuts button:active,.map-drawer-shortcuts button:hover{background:var(--surface)}
-.map-drawer-live{display:inline-flex;align-items:center;gap:6px;color:var(--success);font-size:.8rem;font-weight:780}
-.map-drawer-live .live-dot{flex:none}
-.map-drawer-badge{min-width:22px;height:22px;display:inline-grid;place-items:center;padding:0 6px;border-radius:11px;background:var(--accent);color:var(--accent-text);font-size:.74rem;font-weight:800}
-.map-drawer-live[hidden],.map-drawer-badge[hidden],.map-drawer-recent[hidden]{display:none}
+
+
+
+.map-drawer-recent[hidden]{display:none}
 .map-drawer-recent{box-sizing:border-box;max-height:min(58vh,calc(var(--app-vh,100dvh) - 300px));padding-top:14px;overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y}
 .map-drawer-recent .search-result-row{width:100%}
 .map-drawer-empty{margin:6px 2px 4px;color:var(--text-secondary);font-size:.86rem;line-height:1.45}
 html.map-drawer-open #ridePill{display:none}
+
+.search-save-banner{margin:0;padding:6px 16px 2px;font-size:.82rem;font-weight:700;color:var(--text-secondary)}.search-save-banner[hidden]{display:none}.saved-place-address{margin:0 0 14px}#savedPlaceRemove{margin-top:10px}.map-avatar-badge{position:absolute;top:-3px;right:-5px;min-width:20px;height:20px;padding:0 5px;border-radius:999px;border:2px solid var(--surface);background:var(--accent);color:var(--accent-text,#fff);font-size:.68rem;font-weight:800;line-height:16px;text-align:center;pointer-events:none}.map-avatar-badge[hidden]{display:none}
