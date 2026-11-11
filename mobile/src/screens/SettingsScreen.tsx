@@ -17,7 +17,6 @@ import { PLAN_INFO } from '../settings/plans';
 import { RideBar } from '../ride/RideBar';
 import type { RootStackParamList } from '../navigation';
 import { useAuth } from '../auth/AuthContext';
-import { ScreenHeader } from '../components/ScreenHeader';
 import { RiderAvatar } from '../components/RiderAvatar';
 import type { AccountSessionSummary } from '../api/client';
 import { NAVIGATION_PROVIDER_OPTIONS, type NavigationProvider } from '../navigationPreference';
@@ -278,30 +277,19 @@ function PageSection({ title, children, note }: { title?: string; children: Reac
 const SETTINGS_CATEGORY_PAGES = new Set<SettingsPageKey>(['general', 'mapNavigation', 'voiceSound', 'rideSafe', 'vehicle', 'account', 'privacy']);
 const MENU_PAGES = new Set<SettingsPageKey>(['myProfile', 'editProfile', 'help']);
 
-/** Full-screen settings page: header, then scrolling content. */
+/** Full-screen settings page: Waze's header (back, centred title, X),
+ * then scrolling content. X closes back to Settings, or to the map for
+ * pages opened from the avatar menu. Category pages and Profile are
+ * full-width rows; the rest keep normal side margins. */
 function SettingsPageLayout({ title, page, children }: { title: string; page: SettingsPageKey; children: React.ReactNode }): React.JSX.Element {
   const insets = useSafeAreaInsets();
   const palette = useSettingsPalette();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  if (MENU_PAGES.has(page)) {
-    return (
-      <View style={styles.container}>
-        <ScrollView
-          contentContainerStyle={[styles.scroll, styles.pageScroll, { paddingTop: insets.top + spacing.lg, paddingBottom: insets.bottom + spacing.xl }]}
-          keyboardShouldPersistTaps="handled"
-          automaticallyAdjustKeyboardInsets
-          showsVerticalScrollIndicator={false}
-        >
-          <ScreenHeader title={title} onBack={() => navigation.goBack()} />
-          {children}
-        </ScrollView>
-      </View>
-    );
-  }
-  const fullWidth = SETTINGS_CATEGORY_PAGES.has(page);
+  const fullWidth = SETTINGS_CATEGORY_PAGES.has(page) || page === 'myProfile';
+  const close = MENU_PAGES.has(page) ? () => navigation.popToTop() : () => navigation.popTo('Settings');
   return (
     <View style={[styles.container, { backgroundColor: palette.page }]}>
-      <SettingsHeader title={title} topInset={insets.top} onBack={() => navigation.goBack()} onClose={() => navigation.popTo('Settings')} />
+      <SettingsHeader title={title} topInset={insets.top} onBack={() => navigation.goBack()} onClose={close} />
       <ScrollView
         contentContainerStyle={fullWidth
           ? { paddingBottom: insets.bottom + spacing.xl }
@@ -520,41 +508,28 @@ const VISIBILITY_LABELS: Record<SocialVisibility, string> = { public: 'Everyone'
 function MyProfilePage(): React.JSX.Element {
   const { avatarId, displayName, handle, zoneTier, instagramUsername, instagramVisibility, tiktokUsername, tiktokVisibility } = useSettings();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const socials: Array<{ label: string; icon: React.ComponentProps<typeof Ionicons>['name']; username: string; visibility: SocialVisibility }> = [
-    { label: 'Instagram', icon: 'logo-instagram', username: instagramUsername, visibility: instagramVisibility },
-    { label: 'TikTok', icon: 'logo-tiktok', username: tiktokUsername, visibility: tiktokVisibility },
-  ];
+  // push, not navigate: Profile is already a SettingsPage, and navigate() to
+  // the same route name would replace it, so Back from Edit profile would
+  // skip past your profile.
+  const editProfile = () => navigation.push('SettingsPage', { page: 'editProfile' });
+  // Connected profiles: who sees each, or Add; tapping opens Edit profile
+  // (PWA: socialValue in profileView).
+  const socialValue = (username: string, visibility: SocialVisibility) => username ? `@${username} · ${VISIBILITY_LABELS[visibility]}` : 'Add';
   return (
     <>
-      <View style={styles.myProfileCard}>
+      <View style={styles.myProfileHero}>
         <RiderAvatar avatarId={avatarId} size={112} />
         <Text numberOfLines={1} style={styles.myProfileName}>{displayName}</Text>
         <Text numberOfLines={1} style={styles.myProfileHandle}>{handle}</Text>
         <Text style={styles.myProfilePlan}>{PLAN_INFO[zoneTier].name} plan</Text>
       </View>
-      <Pressable
-        accessibilityRole="button"
-        style={({ pressed }) => [styles.myProfileEdit, pressed && styles.settingRowPressed]}
-        // push, not navigate: Profile is already a SettingsPage, and
-        // navigate() to the same route name would replace it, so Back from
-        // Edit profile would skip past your profile.
-        onPress={() => navigation.push('SettingsPage', { page: 'editProfile' })}
-        testID="edit-profile"
-      >
-        <Text style={styles.myProfileEditText}>Edit profile</Text>
-      </Pressable>
-      <PageSection title="Connected profiles" note="This is how riders see you. Each connected profile shows only to the people you choose.">
-        {socials.map((social, index) => (
-          <View key={social.label} style={[styles.myProfileSocial, index === socials.length - 1 && styles.settingRowLast]}>
-            <Ionicons name={social.icon} size={20} color={colors.textSecondary} />
-            <View style={styles.settingRowCopy}>
-              <Text style={styles.settingRowTitle}>{social.label}</Text>
-              <Text style={styles.settingRowSubtitle}>{social.username ? `@${social.username}` : 'Not added'}</Text>
-            </View>
-            {social.username ? <Text style={styles.settingRowValue}>{VISIBILITY_LABELS[social.visibility]}</Text> : null}
-          </View>
-        ))}
-      </PageSection>
+      <SettingsGroup>
+        <PlainRow first title="Edit profile" onPress={editProfile} />
+      </SettingsGroup>
+      <SettingsGroup title="Connected profiles" note="This is how riders see you. Each connected profile shows only to the people you choose.">
+        <PlainRow first title="Instagram" value={socialValue(instagramUsername, instagramVisibility)} onPress={editProfile} />
+        <PlainRow title="TikTok" value={socialValue(tiktokUsername, tiktokVisibility)} onPress={editProfile} />
+      </SettingsGroup>
     </>
   );
 }

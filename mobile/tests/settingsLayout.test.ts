@@ -39,7 +39,8 @@ describe('Settings mockup contract', () => {
     assert.match(pages, /function confirmDeleteAccount[\s\S]*Delete account\?/);
     assert.match(pages, /title="Delete account" danger chevron=\{false\}/);
     // Sub-pages have back and an X that closes every Settings level.
-    assert.match(settingsSource, /onClose=\{\(\) => navigation\.popTo\('Settings'\)\}/);
+    assert.match(settingsSource, /MENU_PAGES\.has\(page\) \? \(\) => navigation\.popToTop\(\) : \(\) => navigation\.popTo\('Settings'\)/);
+    assert.match(settingsSource, /onClose=\{close\}/);
     for (const old of ['Communication', 'Units & Preferences', 'accountHub', 'unitsPreferences']) {
       assert.ok(!settingsSource.includes(old), `Old Settings category still present: ${old}`);
     }
