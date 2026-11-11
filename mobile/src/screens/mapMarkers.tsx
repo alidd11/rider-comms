@@ -56,7 +56,7 @@ export function HazardMarker({
  * markers only ever move on a `rideLocations` poll tick that infrequent, so
  * without this a rider at speed visibly teleports ~200-300m across the map
  * every refresh instead of appearing to move continuously, the way Google
- * Maps/Waze/Apple Maps read even though their own underlying position
+ * map apps read even though their own underlying position
  * source is just as infrequent.
  *
  * `coordinate` is intentionally set only once, from the component's own

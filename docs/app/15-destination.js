@@ -53,7 +53,7 @@
   // A rider picking a destination could not previously tell how far or how
   // long the drive was until after committing to "Start route" -- fetch a
   // quick driving-time estimate for the card itself so that decision can be
-  // made up front, same as Google/Waze/Apple Maps' own place cards. Guarded
+  // made up front, same as other map apps' own place cards. Guarded
   // by a token since the card's destination can change (or be dismissed)
   // while this request is still in flight.
   let destinationEtaToken = 0;

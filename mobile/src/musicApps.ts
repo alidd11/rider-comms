@@ -1,6 +1,6 @@
 /**
  * The music button on the map (both apps): a web or React Native app can't
- * embed another app's player the way Waze embeds Spotify's SDK, so it opens
+ * embed another app's player (that needs each service's own SDK), so it opens
  * the rider's music app by its URL scheme, last-used first.
  */
 export interface MusicApp {

@@ -53,7 +53,7 @@ export type RootStackParamList = {
   FriendChat: { riderId: string; displayName: string; avatarId: string };
   Billing: undefined;
   Legal: undefined;
-  // Opened from the rider's avatar on the map (Waze-style), not tabs.
+  // Opened from the rider's avatar on the map, not tabs.
   Menu: undefined;
   Routes: undefined;
   Settings: undefined;

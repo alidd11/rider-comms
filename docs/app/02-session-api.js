@@ -114,7 +114,7 @@
   // every RIDE_LOCATION_REFRESH_MS/PRESENCE_REFRESH_MS, or a GPS fix every
   // couple of seconds -- so every marker glides toward each new fix over an
   // animation loop instead of snapping straight to it, the same way
-  // Google Maps/Waze/Apple Maps read as continuous motion despite an
+  // map apps read as continuous motion despite an
   // equally infrequent underlying position source. Keyed by an arbitrary
   // string ('self' for userMapMarker, riderId for everyone else) so one
   // loop drives every animated marker on the map.

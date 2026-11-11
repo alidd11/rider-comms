@@ -238,7 +238,7 @@ async function openTab(page, screen) {
 }
 
 const SETTINGS_PARENT = { navigationApp: 'mapNavigation', blockedRiders: 'privacy', devices: 'account', email: 'account' };
-/** Settings is Waze-style: open a category from the root, then its page. */
+/** Settings: open a category from the root, then its page. */
 async function openSettingsPage(page, key) {
   const parent = SETTINGS_PARENT[key];
   if (parent) {
@@ -628,7 +628,7 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
   expect(mapGeometry.locateAboveBar).toBeGreaterThanOrEqual(8);
   // The avatar beside search opens the menu.
   expect(mapGeometry.avatarDisplay).toBe('grid');
-  // Waze-style: search lives in the drawer at the bottom, and the map's
+  // Search lives in the drawer at the bottom, and the map's
   // floating controls rest above it.
   expect(mapGeometry.searchInDrawer).toBe(true);
   expect(mapGeometry.reportBottom).toBeLessThanOrEqual(mapGeometry.drawerTop);
@@ -887,7 +887,7 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
   await openFromMenu(page, 'settings');
   await expect(page.locator('.settings-page')).toBeVisible();
   await expect(page.locator('[data-screen="settings"] .page-subtitle')).toHaveCount(0);
-  // Waze-style: full-width groups of rows on a phone.
+  // Full-width groups of rows on a phone.
   const settingsGroup = await page.locator('#settingsList .settings-rows').first().evaluate((element) => ({
     radius: parseFloat(getComputedStyle(element).borderTopLeftRadius),
     width: element.getBoundingClientRect().width,
@@ -2335,7 +2335,7 @@ test('PWA Settings is a real settings list matching the native app', async ({ pa
   });
   await page.goto('/#settings');
 
-  // Waze-style: the root lists categories, each opening its own page.
+  // The root lists categories, each opening its own page.
   await expect(page.locator('#settingsList .settings-section-title')).toHaveText(['Riding', 'Account']);
   await expect(page.locator('#settingsList .settings-row-label')).toHaveText([
     'General', 'Map & navigation', 'Voice and sound', 'Ride Safe', 'Vehicle details', 'Notifications', 'Account and login', 'Privacy', 'About',

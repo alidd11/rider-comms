@@ -80,7 +80,7 @@ const [
 const nativeMapSource = nativeMapScreenSource + nativeMapScreenStylesSource + nativeMapMarkersSource + nativeHazardReportsSource + nativeNavigationSummarySource + nativeInAppNavigationSource;
 
 
-// Settings is Waze-style on both clients: the root lists categories (same
+// Settings works the same on both clients: the root lists categories (same
 // rows, order and icon tints), each opening a page with the same rows in
 // the same order. The PWA builds the root in renderSettingsList() and the
 // pages in openSheet()'s templates; native in SettingsScreen() and the

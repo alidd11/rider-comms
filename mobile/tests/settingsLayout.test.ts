@@ -7,7 +7,7 @@ const settingsSource = await readFile(new URL('../src/screens/SettingsScreen.tsx
   + await readFile(new URL('../src/screens/SettingsListUi.tsx', import.meta.url), 'utf8');
 
 describe('Settings mockup contract', () => {
-  it('is Waze-style: a root of categories, each opening its own page', () => {
+  it('has a root of categories, each opening its own page', () => {
     const root = settingsSource.slice(settingsSource.indexOf('export function SettingsScreen()'), settingsSource.indexOf('function GeneralPage('));
     const categories = ['title="General"', 'title="Map & navigation"', 'title="Voice and sound"', 'title="Riding"', 'title="Ride Safe"', 'title="Vehicle details"', 'title="Notifications"', 'title="Account"', 'title="Account and login"', 'title="Privacy"', 'title="About"'];
     let cursor = -1;

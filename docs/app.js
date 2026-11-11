@@ -112,7 +112,7 @@
     requests: [],
   };
 
-  // Waze-style crowdsourced road reports, backed for real by POST /hazards
+  // Crowdsourced road reports, backed for real by POST /hazards
   // and GET /hazards/nearby (see backend/src/hazardStore.ts for the TTL and
   // confirm/deny hide-threshold rules). This map is just UI metadata (icon,
   // label, colour) for the real HazardType values the backend returns —
@@ -375,7 +375,7 @@
   }
 
   function captureHazardReportPosition() {
-    // Match Waze's report flow: snapshot the location when reporting starts,
+    // The report flow snapshots the location when reporting starts,
     // not after the rider has spent time choosing a category. Reuse the
     // authoritative device fix; never infer or road-snap the incident.
     pendingHazardReportPosition = hazardReportPosition(latestDevicePosition);
@@ -566,7 +566,7 @@
   // every RIDE_LOCATION_REFRESH_MS/PRESENCE_REFRESH_MS, or a GPS fix every
   // couple of seconds -- so every marker glides toward each new fix over an
   // animation loop instead of snapping straight to it, the same way
-  // Google Maps/Waze/Apple Maps read as continuous motion despite an
+  // map apps read as continuous motion despite an
   // equally infrequent underlying position source. Keyed by an arbitrary
   // string ('self' for userMapMarker, riderId for everyone else) so one
   // loop drives every animated marker on the map.
@@ -754,11 +754,6 @@
     document.documentElement.dataset.activeScreen = screen;
     persist();
     [...document.querySelectorAll('.screen')].forEach((item) => item.classList.toggle('active', item.dataset.screen === screen));
-    [...document.querySelectorAll('[data-nav]')].forEach((item) => {
-      const active = item.dataset.nav === screen;
-      item.classList.toggle('active', active);
-      if (active) item.setAttribute('aria-current', 'page'); else item.removeAttribute('aria-current');
-    });
     if (push && location.hash !== `#${screen}`) history.pushState({ screen }, '', `#${screen}`);
     document.title = `${screen === 'ride' ? 'Group Ride' : screen[0].toUpperCase() + screen.slice(1)} · Rider Comms`;
     window.scrollTo(0, 0);
@@ -2495,7 +2490,7 @@
     plan: { title: 'Your plan', sections: [['', 'plans']] },
     // The Settings list holds the switches itself; these are the choices
     // and lists it opens.
-    // Waze-style: the Settings root lists categories, each its own page.
+    // The Settings root lists categories, each its own page.
     general: { title: 'General', sections: [['', 'generalSettings']], fullBleed: true },
     mapNavigation: { title: 'Map & navigation', sections: [['', 'mapNavigationSettings']], fullBleed: true },
     voiceSound: { title: 'Voice and sound', sections: [['', 'voiceSoundSettings']], fullBleed: true },
@@ -2817,7 +2812,7 @@
     close.innerHTML = currentSettingsPage ? '<svg class="icon-back" aria-hidden="true"><use href="#i-chevron"/></svg>' : '×';
     close.dataset.backTo = SETTINGS_PAGES[currentSettingsPage]?.back || '';
     close.setAttribute('aria-label', currentSettingsPage ? 'Back' : 'Close');
-    // Settings pages also get Waze's X, which closes every level at once.
+    // Settings pages also get an X, which closes every level at once.
     $('#closeSheetAll').hidden = !currentSettingsPage;
     $('#sheetTitle').textContent = title;
     $('#sheetBody').innerHTML = body;
@@ -2957,7 +2952,7 @@
   // The Settings screen is a real settings list: switches act in place,
   // choices show their current value and open a page to change it, and
   // only lists (devices, blocked riders) and account actions go further.
-  // Settings rows, Waze-style: grouped full-width rows, a coloured round
+  // Settings rows: grouped full-width rows, a coloured round
   // icon on category rows, values in grey before the chevron.
   function settingsRowsMarkup(rows, note = '') {
     return `<div class="settings-rows">${rows.join('')}</div>${note ? `<p class="settings-section-note">${escapeHtml(note)}</p>` : ''}`;
@@ -3264,7 +3259,7 @@
     }));
   }
 
-  // Like Waze's music button, but a web app can't embed a player: it opens
+  // A web app can't embed a player: it opens
   // the rider's music app by its URL scheme and remembers which one.
   const MUSIC_APPS = [
     { id: 'spotify', name: 'Spotify', url: 'spotify:' },
@@ -5175,7 +5170,7 @@
   let activePoiType;
   let nearbySearchResults = [];
 
-  // Recent-place shortcuts (Google Maps/Waze pattern: the empty search
+  // Recent-place shortcuts (the usual map-app pattern: the empty search
   // screen shows where you've been, not a blank page) — kept client-side
   // only, newest first, deduped by placeId, capped so the list stays a
   // quick glance rather than a scrollable history.
@@ -5733,7 +5728,7 @@
    * once scrolled partway, right-only at the start, left-only at the end,
    * and no fade at all if the row happens to fit without scrolling, e.g.
    * a wide viewport) so a partially-visible chip reads as "swipe for
-   * more" the way Google Maps/Waze's own category rows do.
+   * more" the way map apps' own category rows do.
    */
   function initPoiChipScrollFade() {
     const row = $('#poiChipRow');
@@ -5808,7 +5803,7 @@
   // A rider picking a destination could not previously tell how far or how
   // long the drive was until after committing to "Start route" -- fetch a
   // quick driving-time estimate for the card itself so that decision can be
-  // made up front, same as Google/Waze/Apple Maps' own place cards. Guarded
+  // made up front, same as other map apps' own place cards. Guarded
   // by a token since the card's destination can change (or be dismissed)
   // while this request is still in flight.
   let destinationEtaToken = 0;
@@ -7106,7 +7101,7 @@
     }).catch(() => {});
   }
 
-  // Waze-style menu behind the rider's avatar on the map: profile, Routes,
+  // The menu behind the rider's avatar on the map: profile, Routes,
   // plan, Settings and help. Routes and Settings aren't tabs any more.
   let appMenuTrigger = null;
   function openAppMenu() {
@@ -7132,7 +7127,6 @@
   }
 
   function bindEvents() {
-    $$('[data-nav]').forEach((button) => button.addEventListener('click', () => navigate(button.dataset.nav)));
     $('#mapAvatarButton').addEventListener('click', openAppMenu);
     $('#closeAppMenu').addEventListener('click', () => closeAppMenu());
     $('#appMenu').addEventListener('keydown', (event) => { if (event.key === 'Escape') closeAppMenu(); });

@@ -467,7 +467,7 @@ export function MapScreen(): React.JSX.Element {
   // A rider picking a destination could not previously tell how far or how
   // long the drive was until after committing to "Start route" -- fetch a
   // quick driving-time estimate for the destination card itself so that
-  // decision can be made up front, same as Google/Waze/Apple Maps' own
+  // decision can be made up front, same as other map apps' own
   // place cards. currentLocationRef (not the state value) keeps this from
   // refetching on every GPS tick; the request id guards against a stale
   // response landing after the destination changed or was dismissed.
@@ -635,7 +635,7 @@ export function MapScreen(): React.JSX.Element {
 
       {segment === 'public' && !lockedForSafety && !activeRoute && (
         <View style={[styles.searchSlot, styles.searchRow, { top: insets.top + spacing.sm }]}>
-          {/* The menu (Routes, Settings, plan, help), Waze-style. */}
+          {/* The menu (Routes, Settings, plan, help). */}
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Open menu"

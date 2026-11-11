@@ -125,7 +125,7 @@
   let activePoiType;
   let nearbySearchResults = [];
 
-  // Recent-place shortcuts (Google Maps/Waze pattern: the empty search
+  // Recent-place shortcuts (the usual map-app pattern: the empty search
   // screen shows where you've been, not a blank page) — kept client-side
   // only, newest first, deduped by placeId, capped so the list stays a
   // quick glance rather than a scrollable history.
@@ -683,7 +683,7 @@
    * once scrolled partway, right-only at the start, left-only at the end,
    * and no fade at all if the row happens to fit without scrolling, e.g.
    * a wide viewport) so a partially-visible chip reads as "swipe for
-   * more" the way Google Maps/Waze's own category rows do.
+   * more" the way map apps' own category rows do.
    */
   function initPoiChipScrollFade() {
     const row = $('#poiChipRow');

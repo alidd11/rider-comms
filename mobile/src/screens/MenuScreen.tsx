@@ -34,7 +34,7 @@ function MenuRow({ icon, label, detail, onPress }: {
 
 /**
  * Everything that isn't a main tab (Map, Ride, Friends): opened from the
- * rider's avatar on the map, like Waze's menu. Rows replace this screen
+ * rider's avatar on the map. Rows replace this screen
  * with their destination so Back returns to the map.
  */
 export function MenuScreen({ navigation }: Props): React.JSX.Element {

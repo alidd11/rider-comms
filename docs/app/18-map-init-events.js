@@ -112,7 +112,7 @@
     }).catch(() => {});
   }
 
-  // Waze-style menu behind the rider's avatar on the map: profile, Routes,
+  // The menu behind the rider's avatar on the map: profile, Routes,
   // plan, Settings and help. Routes and Settings aren't tabs any more.
   let appMenuTrigger = null;
   function openAppMenu() {
@@ -138,7 +138,6 @@
   }
 
   function bindEvents() {
-    $$('[data-nav]').forEach((button) => button.addEventListener('click', () => navigate(button.dataset.nav)));
     $('#mapAvatarButton').addEventListener('click', openAppMenu);
     $('#closeAppMenu').addEventListener('click', () => closeAppMenu());
     $('#appMenu').addEventListener('keydown', (event) => { if (event.key === 'Escape') closeAppMenu(); });

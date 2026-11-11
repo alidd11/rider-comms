@@ -11,7 +11,7 @@
     plan: { title: 'Your plan', sections: [['', 'plans']] },
     // The Settings list holds the switches itself; these are the choices
     // and lists it opens.
-    // Waze-style: the Settings root lists categories, each its own page.
+    // The Settings root lists categories, each its own page.
     general: { title: 'General', sections: [['', 'generalSettings']], fullBleed: true },
     mapNavigation: { title: 'Map & navigation', sections: [['', 'mapNavigationSettings']], fullBleed: true },
     voiceSound: { title: 'Voice and sound', sections: [['', 'voiceSoundSettings']], fullBleed: true },
@@ -333,7 +333,7 @@
     close.innerHTML = currentSettingsPage ? '<svg class="icon-back" aria-hidden="true"><use href="#i-chevron"/></svg>' : '×';
     close.dataset.backTo = SETTINGS_PAGES[currentSettingsPage]?.back || '';
     close.setAttribute('aria-label', currentSettingsPage ? 'Back' : 'Close');
-    // Settings pages also get Waze's X, which closes every level at once.
+    // Settings pages also get an X, which closes every level at once.
     $('#closeSheetAll').hidden = !currentSettingsPage;
     $('#sheetTitle').textContent = title;
     $('#sheetBody').innerHTML = body;
@@ -473,7 +473,7 @@
   // The Settings screen is a real settings list: switches act in place,
   // choices show their current value and open a page to change it, and
   // only lists (devices, blocked riders) and account actions go further.
-  // Settings rows, Waze-style: grouped full-width rows, a coloured round
+  // Settings rows: grouped full-width rows, a coloured round
   // icon on category rows, values in grey before the chevron.
   function settingsRowsMarkup(rows, note = '') {
     return `<div class="settings-rows">${rows.join('')}</div>${note ? `<p class="settings-section-note">${escapeHtml(note)}</p>` : ''}`;
@@ -780,7 +780,7 @@
     }));
   }
 
-  // Like Waze's music button, but a web app can't embed a player: it opens
+  // A web app can't embed a player: it opens
   // the rider's music app by its URL scheme and remembers which one.
   const MUSIC_APPS = [
     { id: 'spotify', name: 'Spotify', url: 'spotify:' },
