@@ -223,6 +223,7 @@ export function ProximityVoice({
     peerRosterKey,
     refreshVersion,
     renewAuthorizationLease,
+    setManuallyMuted,
   ]);
 
   React.useEffect(() => {
