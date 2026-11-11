@@ -27,6 +27,7 @@ import { parseNavigationLink } from '../navigationLinks';
 import { colors, useConcreteThemeColors } from '../theme';
 import { HIDDEN_TAB_BAR_STYLE, TAB_BAR_STYLE } from './tabBarStyle';
 import { MovementSafetyProvider, useMovementSafety } from '../safety/MovementSafetyContext';
+import { VoiceMuteProvider } from '../voice/VoiceMuteContext';
 import { RideSafeSurface } from '../safety/RideSafeSurface';
 
 export type TabParamList = {
@@ -329,6 +330,7 @@ export function AppNavigator(): React.JSX.Element {
           <FriendsProvider>
             <OnboardingGate>
               <MovementSafetyProvider>
+              <VoiceMuteProvider>
               <NavigationContainer theme={navigationTheme} linking={linking}>
                 <Stack.Navigator
                   screenOptions={{
@@ -372,6 +374,7 @@ export function AppNavigator(): React.JSX.Element {
                 </Stack.Navigator>
               </NavigationContainer>
               <ConnectionBanner />
+              </VoiceMuteProvider>
               </MovementSafetyProvider>
             </OnboardingGate>
           </FriendsProvider>

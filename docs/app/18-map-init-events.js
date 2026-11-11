@@ -265,11 +265,15 @@
     });
     $$('[data-sheet]').forEach((button) => button.addEventListener('click', () => openSheet(button.dataset.sheet)));
     $('#completeProfilePrompt')?.addEventListener('click', () => openSheet('profile'));
-    $('#reportHazardBtn').addEventListener('click', () => {
+    const openHazardReport = () => {
       pendingHazardReportPosition = null;
       captureHazardReportPosition();
       openSheet('reportHazard');
-    });
+    };
+    $('#reportHazardBtn').addEventListener('click', openHazardReport);
+    $('#hudHazardBtn').addEventListener('click', openHazardReport);
+    $('#navReportBtn').addEventListener('click', openHazardReport);
+    $('#hudMuteBtn').addEventListener('click', () => void toggleVoiceMute());
     $('#closeSheet').addEventListener('click', sheetBack);
     $('#sheetBackdrop').addEventListener('click', (event) => { if (event.target === $('#sheetBackdrop')) closeSheet(); });
     document.addEventListener('keydown', (event) => {

@@ -6,6 +6,7 @@
 // the real microphone track before publication so LiveKitRoom never
 // auto-publishes an open mic.
 import * as React from 'react';
+import { useVoiceMute } from '../voice/VoiceMuteContext';
 import { View, Text, Pressable, Modal, Alert, Share } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -198,7 +199,7 @@ export function RideBar({ controlsVisible = true }: { controlsVisible?: boolean 
   const [talking, setTalking] = React.useState(false);
   const [remoteSpeakerIds, setRemoteSpeakerIds] = React.useState<Set<string>>(new Set());
   const [memberNames, setMemberNames] = React.useState<Map<string, string>>(new Map());
-  const [manuallyMuted, setManuallyMuted] = React.useState(false);
+  const { muted: manuallyMuted, setMuted: setManuallyMuted, reportConnected } = useVoiceMute();
   const [locationShareBusy, setLocationShareBusy] = React.useState(false);
   const [locationShareError, setLocationShareError] = React.useState<string | null>(null);
   const [codeCopied, setCodeCopied] = React.useState(false);
@@ -213,6 +214,10 @@ export function RideBar({ controlsVisible = true }: { controlsVisible?: boolean 
   const [roomStatus, setRoomStatus] = React.useState<'connecting' | 'connected' | 'disconnected' | 'error'>('connecting');
   const [roomError, setRoomError] = React.useState<string | null>(null);
   const voiceConnected = Boolean(voice.token && voice.url && audioSession.ready);
+  React.useEffect(() => {
+    reportConnected('ride', voiceConnected);
+    return () => reportConnected('ride', false);
+  }, [reportConnected, voiceConnected]);
   const handleSpeakingChange = React.useCallback((speaking: boolean) => {
     // This is the local rider's VOX state. Remote speaking state comes from
     // LiveKit's room-level ActiveSpeakersChanged event below.

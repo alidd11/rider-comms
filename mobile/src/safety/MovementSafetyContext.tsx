@@ -12,6 +12,8 @@ import { useSettings } from '../settings/SettingsContext';
 type MovementSafetyValue = {
   movementState: MovementState;
   lockedForSafety: boolean;
+  /** Latest GPS speed in metres per second, or null without a usable fix. */
+  speedMps: number | null;
   locationAccess: 'checking' | 'promptable' | 'granted' | 'blocked' | 'services_disabled' | 'unavailable';
   trackingError: string | null;
   refreshTracking: () => Promise<void>;
@@ -22,6 +24,7 @@ type MovementSafetyValue = {
 const MovementSafetyContext = React.createContext<MovementSafetyValue>({
   movementState: 'unknown',
   lockedForSafety: false,
+  speedMps: null,
   locationAccess: 'checking',
   trackingError: null,
   refreshTracking: async () => {},
@@ -33,6 +36,7 @@ export function MovementSafetyProvider({ children }: { children: React.ReactNode
   const { rideSafeEnabled, rideSafeLoaded } = useSettings();
   const tracker = React.useRef(new MovementStateTracker()).current;
   const [movementState, setMovementState] = React.useState<MovementState>('unknown');
+  const [speedMps, setSpeedMps] = React.useState<number | null>(null);
   const [locationAccess, setLocationAccess] = React.useState<MovementSafetyValue['locationAccess']>('checking');
   const [trackingError, setTrackingError] = React.useState<string | null>(null);
   const startRef = React.useRef<() => Promise<void>>(async () => {});
@@ -85,6 +89,8 @@ export function MovementSafetyProvider({ children }: { children: React.ReactNode
           (position) => {
             if (!isCurrent()) return;
             const next = tracker.addFix(toMovementFix(position));
+            const speed = position.coords.speed;
+            setSpeedMps(typeof speed === 'number' && Number.isFinite(speed) && speed >= 0 ? speed : null);
             setMovementState(next);
           }
         );
@@ -150,12 +156,13 @@ export function MovementSafetyProvider({ children }: { children: React.ReactNode
   const value = React.useMemo(() => ({
     movementState,
     lockedForSafety: rideSafeEnabled && isLockedForSafety(movementState),
+    speedMps: movementState === 'unknown' ? null : speedMps,
     locationAccess,
     trackingError,
     refreshTracking: () => startRef.current(),
     requestLocationAccess: () => requestRef.current(),
     openLocationSettings: () => Linking.openSettings(),
-  }), [locationAccess, movementState, rideSafeEnabled, trackingError]);
+  }), [locationAccess, movementState, rideSafeEnabled, speedMps, trackingError]);
 
   return <MovementSafetyContext.Provider value={value}>{children}</MovementSafetyContext.Provider>;
 }

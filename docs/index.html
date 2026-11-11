@@ -242,13 +242,28 @@
           <header class="map-header"><div class="map-avatar-wrap"><button class="avatar avatar-sm" id="mapAvatarButton" data-avatar="AI" aria-label="Open menu" aria-haspopup="dialog" aria-controls="appMenu">AI</button><button id="voiceStatusBtn" class="voice-mute-badge" aria-label="Listening — hands-free" hidden><svg><use href="#i-mic"/></svg></button></div><div class="search-slot glass" id="mapSearchSlot"><svg><use href="#i-search"/></svg><input id="placeSearchInput" placeholder="Search for a place" aria-label="Search for a place" autocomplete="off" readonly><svg class="map-search-options" aria-hidden="true"><use href="#i-sliders"/></svg></div></header>
           <div id="fallbackMarkers" class="fallback-markers"></div>
           <div id="hazardMarkers" class="hazard-markers"></div>
+          <div id="mapStatusChip" class="map-status-chip" role="status" aria-live="polite"><span class="map-status-dot" aria-hidden="true"></span><span id="mapStatusText">Nearby off</span></div>
           <div class="map-actions">
-            <button id="musicBtn" class="icon-button glass map-action-button" data-sheet="music" aria-label="Open your music app"><svg><use href="#i-music"/></svg></button>
-            <button id="reportHazardBtn" class="icon-button glass map-action-button" aria-label="Report on the road"><svg><use href="#i-hazard-report"/></svg></button>
-            <button id="locateBtn" class="icon-button glass map-action-button" aria-label="Centre on my location"><svg><use href="#i-locate"/></svg></button>
+            <button id="musicBtn" class="icon-button glass map-action-button map-action-small" data-sheet="music" aria-label="Open your music app"><svg><use href="#i-music"/></svg></button>
+            <button id="locateBtn" class="icon-button glass map-action-button map-action-small" aria-label="Centre on my location"><svg><use href="#i-locate"/></svg></button>
+            <button id="navReportBtn" class="icon-button glass map-action-button nav-only-control" aria-label="Report on the road"><svg><use href="#i-hazard-report"/></svg></button>
             <button id="navMuteBtn" class="icon-button glass nav-only-control" aria-label="Mute navigation guidance"><svg><use href="#i-volume"/></svg></button>
             <button id="navOverviewBtn" class="icon-button glass nav-only-control" aria-label="Show route overview"><svg><use href="#i-route"/></svg></button>
-            <button id="joinNearbyBtn" class="icon-button glass map-action-button" aria-label="Go live nearby"><svg><use href="#i-live"/></svg></button>
+          </div>
+          <div id="mapBottomBar" class="map-bottom-bar">
+            <button id="reportHazardBtn" class="map-hazard-button" aria-label="Report on the road"><svg aria-hidden="true"><use href="#i-hazard-report"/></svg></button>
+            <button id="joinNearbyBtn" class="map-live-button" aria-label="Go live nearby" aria-pressed="false"><svg aria-hidden="true"><use href="#i-live"/></svg><span id="joinNearbyLabel">Go live</span></button>
+          </div>
+          <div id="ridingHud" class="riding-hud" hidden>
+            <div class="riding-hud-chips">
+              <span class="hud-chip hud-lock"><svg aria-hidden="true"><use href="#i-lock"/></svg>Ride Safe</span>
+              <span id="hudGroupChip" class="hud-chip hud-group" hidden></span>
+            </div>
+            <div id="hudSpeed" class="hud-speed" aria-label="Current speed unavailable"><strong id="hudSpeedValue">—</strong><span id="hudSpeedUnit">mph</span></div>
+            <div class="riding-hud-actions">
+              <button id="hudMuteBtn" class="hud-button" aria-pressed="false" hidden><svg aria-hidden="true"><use href="#i-mic"/></svg><span id="hudMuteLabel">Mute</span></button>
+              <button id="hudHazardBtn" class="hud-button hud-hazard" aria-label="Report on the road"><svg aria-hidden="true"><use href="#i-hazard-report"/></svg><span>Hazard</span></button>
+            </div>
           </div>
           <article id="riderCard" class="rider-card glass" hidden></article>
           <article id="hazardCard" class="rider-card glass" hidden></article>

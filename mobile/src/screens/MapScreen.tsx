@@ -24,7 +24,7 @@ import type { RootStackParamList, TabParamList } from '../navigation';
 import { HIDDEN_TAB_BAR_STYLE, TAB_BAR_STYLE } from '../navigation/tabBarStyle';
 import { useAuth } from '../auth/AuthContext';
 import { colors, spacing, MIN_TOUCH_TARGET } from '../theme';
-import { NAVIGATION_SUMMARY_BASE_HEIGHT, styles } from './MapScreen.styles';
+import { BOTTOM_BAR_HEIGHT, HUD_ACTION_HEIGHT, MAP_ACTION_SIZE, NAVIGATION_SUMMARY_BASE_HEIGHT, styles } from './MapScreen.styles';
 import { RideBar } from '../ride/RideBar';
 import { useRide } from '../ride/RideContext';
 import { ProximityVoice } from '../voice/ProximityVoice';
@@ -41,6 +41,7 @@ import { mediaControls } from '../audio/mediaControlsNative';
 import { buildNavigationProviderUrl, navigationTargetFromValues, openNavigationUrl } from '../navigationLinks';
 import type { NavigationTarget } from '../navigationLinks';
 import { useMovementSafety } from '../safety/MovementSafetyContext';
+import { useVoiceMute } from '../voice/VoiceMuteContext';
 import { navigationProviderLabel } from '../navigationPreference';
 import {
   formatNavigationDistance,
@@ -76,7 +77,9 @@ export function MapScreen(): React.JSX.Element {
   const { client, riderId } = useAuth();
   const { activeRide, rideLocations, roster, shareRideLocation } = useRide();
   const { shareLocation, setShareLocation, unitSystem, navigationProvider, routeAvoidance, avatarId, displayName } = useSettings();
-  const { lockedForSafety, movementState, locationAccess, requestLocationAccess, openLocationSettings, refreshTracking } = useMovementSafety();
+  const { lockedForSafety, movementState, speedMps, locationAccess, requestLocationAccess, openLocationSettings, refreshTracking } = useMovementSafety();
+  const { muted: voiceMuted, toggleMuted: toggleVoiceMuted, voiceConnected } = useVoiceMute();
+  const [rideBarHeight, setRideBarHeight] = React.useState(0);
   const insets = useSafeAreaInsets();
   const { height: viewportHeight } = useWindowDimensions();
   const route = useRoute<RouteProp<TabParamList, 'Map'>>();
@@ -201,6 +204,15 @@ export function MapScreen(): React.JSX.Element {
     requestCurrentLocation,
     setError,
   );
+  // Parked map status (PWA: renderMapChrome) and the riding HUD's speed.
+  const mapStatusText = activeRide
+    ? 'In a group ride'
+    : publicLive
+      ? `Live on Nearby${ridersInZone.length ? ` · ${ridersInZone.length} ${ridersInZone.length === 1 ? 'rider' : 'riders'} nearby` : ''}`
+      : 'Nearby off';
+  const hudSpeed = speedMps == null ? null : Math.round(speedMps * (unitSystem === 'km' ? 3.6 : 2.23694));
+  // Bottom controls sit above the ride bar while a group ride is showing.
+  const bottomBarOffset = activeRide && rideBarHeight > 0 ? rideBarHeight : insets.bottom + spacing.sm;
 
   const hasCurrentLocation = currentLocation !== null;
   const requestCurrentLocationForHazardReport = React.useCallback(
@@ -657,8 +669,21 @@ export function MapScreen(): React.JSX.Element {
         </View>
       )}
 
+      {segment === 'public' && !lockedForSafety && !activeRoute && !error && (
+        <View
+          style={[styles.mapStatusChip, { top: insets.top + spacing.sm + MIN_TOUCH_TARGET + spacing.sm }]}
+          accessible
+          accessibilityRole="text"
+          accessibilityLabel={mapStatusText}
+          testID="map-status-chip"
+        >
+          <View style={[styles.mapStatusDot, activeRide ? styles.mapStatusDotRide : publicLive ? styles.mapStatusDotLive : null]} />
+          <Text style={styles.mapStatusText} numberOfLines={1}>{mapStatusText}</Text>
+        </View>
+      )}
+
       {segment === 'public' && !selectedDestination && !activeRoute && (
-        <View style={[styles.mapActions, { bottom: insets.bottom + spacing.sm }]}>
+        <View style={[styles.mapActions, { bottom: bottomBarOffset + (lockedForSafety ? HUD_ACTION_HEIGHT : BOTTOM_BAR_HEIGHT) + spacing.sm }]}>
           {!lockedForSafety && <Pressable
             style={({ pressed }) => [styles.mapActionButton, pressed && styles.mapActionButtonPressed]}
             onPress={() => void openMusicPicker()}
@@ -666,16 +691,7 @@ export function MapScreen(): React.JSX.Element {
             accessibilityLabel="Open your music app"
             accessibilityHint="Choose a music app or show what is currently playing"
           >
-            <Ionicons name="musical-notes" size={24} color={colors.textPrimary} />
-          </Pressable>}
-          {!lockedForSafety && <Pressable
-            style={({ pressed }) => [styles.mapActionButton, styles.mapReportButton, pressed && styles.mapActionButtonPressed]}
-            onPress={() => void openReportSheet()}
-            accessibilityRole="button"
-            accessibilityLabel="Report on the road"
-            accessibilityHint="Choose a road hazard to share with nearby riders"
-          >
-            <MaterialCommunityIcons name="alert-outline" size={26} color="#1F1300" />
+            <Ionicons name="musical-notes" size={22} color={colors.textPrimary} />
           </Pressable>}
           <Pressable
             style={({ pressed }) => [styles.mapActionButton, pressed && styles.mapActionButtonPressed]}
@@ -684,24 +700,89 @@ export function MapScreen(): React.JSX.Element {
             accessibilityLabel="Centre map on my location"
             accessibilityHint="Moves the map back to your current position"
           >
-            <Ionicons name="navigate-outline" size={24} color={colors.accent} />
+            <Ionicons name="navigate-outline" size={22} color={colors.accent} />
+          </Pressable>
+        </View>
+      )}
+
+      {segment === 'public' && !selectedDestination && !activeRoute && !lockedForSafety && (
+        <View style={[styles.mapBottomBar, { bottom: bottomBarOffset }]} testID="map-bottom-bar">
+          <Pressable
+            style={({ pressed }) => [styles.mapHazardButton, pressed && styles.mapActionButtonPressed]}
+            onPress={() => void openReportSheet()}
+            accessibilityRole="button"
+            accessibilityLabel="Report on the road"
+            accessibilityHint="Choose a road hazard to share with nearby riders"
+          >
+            <MaterialCommunityIcons name="alert-outline" size={28} color="#1F1300" />
           </Pressable>
           <Pressable
-            style={({ pressed }) => [styles.mapActionButton, publicLive && styles.mapLiveButtonActive, pressed && styles.mapActionButtonPressed]}
+            style={({ pressed }) => [styles.mapLiveButton, publicLive && styles.mapLiveButtonActive, pressed && styles.mapActionButtonPressed]}
             onPress={() => void handleNearbyToggle()}
             accessibilityRole="switch"
             accessibilityState={{ checked: publicLive, busy: nearbyTogglePending, disabled: nearbyTogglePending }}
             accessibilityLabel={publicLive ? 'Stop live location and proximity voice' : 'Go live nearby and enable proximity voice'}
             accessibilityHint={publicLive ? 'Stops sharing your nearby presence' : 'Shares your nearby presence and enables proximity voice'}
             disabled={nearbyTogglePending}
+            testID="go-live-button"
           >
             {nearbyTogglePending ? (
-              <ActivityIndicator color={publicLive ? '#04210F' : colors.accent} />
+              <ActivityIndicator color={publicLive ? '#04210F' : '#04161D'} />
             ) : (
-              <MaterialCommunityIcons name="access-point" size={26} color={publicLive ? '#04210F' : colors.accent} />
+              <MaterialCommunityIcons name="access-point" size={24} color={publicLive ? '#04210F' : '#04161D'} />
             )}
+            <Text style={[styles.mapLiveButtonText, publicLive && styles.mapLiveButtonTextActive]}>{publicLive ? 'Live' : 'Go live'}</Text>
           </Pressable>
         </View>
+      )}
+
+      {segment === 'public' && lockedForSafety && !activeRoute && (
+        <>
+          <View style={[styles.hudChips, { top: insets.top + spacing.sm }]} pointerEvents="none">
+            <View style={styles.hudChip} accessible accessibilityRole="text" accessibilityLabel="Ride Safe is on. Distracting controls are locked while moving.">
+              <Ionicons name="lock-closed" size={15} color={colors.accent} />
+              <Text style={styles.hudChipText}>Ride Safe</Text>
+            </View>
+            {activeRide && (
+              <View style={styles.hudChip} accessible accessibilityRole="text">
+                <MaterialCommunityIcons name="account-group" size={16} color={colors.textPrimary} />
+                <Text style={styles.hudChipText}>{roster.length ? `${roster.length} in ride` : 'Group ride'}</Text>
+              </View>
+            )}
+          </View>
+          <View
+            style={[styles.hudSpeed, { bottom: bottomBarOffset + HUD_ACTION_HEIGHT + spacing.sm }]}
+            accessible
+            accessibilityRole="text"
+            accessibilityLabel={hudSpeed == null ? 'Current speed unavailable' : `Current speed ${hudSpeed} ${unitSystem === 'km' ? 'kilometres per hour' : 'miles per hour'}`}
+          >
+            <Text style={styles.hudSpeedValue}>{hudSpeed == null ? '—' : hudSpeed}</Text>
+            <Text style={styles.hudSpeedUnit}>{unitSystem === 'km' ? 'km/h' : 'mph'}</Text>
+          </View>
+          <View style={[styles.hudActions, { bottom: bottomBarOffset }]} testID="riding-hud">
+            {voiceConnected && (
+              <Pressable
+                style={({ pressed }) => [styles.hudButton, voiceMuted && styles.hudButtonActive, pressed && styles.mapActionButtonPressed]}
+                onPress={toggleVoiceMuted}
+                accessibilityRole="button"
+                accessibilityState={{ selected: voiceMuted }}
+                accessibilityLabel={voiceMuted ? 'Unmute your microphone' : 'Mute your microphone'}
+              >
+                <Ionicons name={voiceMuted ? 'mic-off' : 'mic'} size={28} color={colors.textPrimary} />
+                <Text style={styles.hudButtonText}>{voiceMuted ? 'Unmute' : 'Mute'}</Text>
+              </Pressable>
+            )}
+            <Pressable
+              style={({ pressed }) => [styles.hudButton, styles.hudHazardButton, pressed && styles.mapActionButtonPressed]}
+              onPress={() => void openReportSheet()}
+              accessibilityRole="button"
+              accessibilityLabel="Report on the road"
+            >
+              <MaterialCommunityIcons name="alert-outline" size={28} color="#1F1300" />
+              <Text style={[styles.hudButtonText, styles.hudHazardText]}>Hazard</Text>
+            </Pressable>
+          </View>
+        </>
       )}
 
       {activeRoute && currentNavigationStep && (
@@ -927,9 +1008,14 @@ export function MapScreen(): React.JSX.Element {
         </>
       )}
 
-      {!activeRoute && (lockedForSafety || movementState === 'unknown') && (
+      {!activeRoute && (segment === 'public' ? !lockedForSafety && movementState === 'unknown' && !selectedDestination : lockedForSafety || movementState === 'unknown') && (
         <View
-          style={[styles.safetyBanner, { top: insets.top + spacing.sm + (segment === 'public' ? MIN_TOUCH_TARGET + spacing.sm : 0) }]}
+          style={[
+            styles.safetyBanner,
+            segment === 'public'
+              ? { bottom: bottomBarOffset + BOTTOM_BAR_HEIGHT + spacing.sm, right: spacing.md + MAP_ACTION_SIZE + spacing.sm, left: spacing.md }
+              : { top: insets.top + spacing.sm },
+          ]}
           accessibilityLiveRegion="polite"
         >
           <MaterialCommunityIcons name="motorbike" size={20} color={colors.accent} />
@@ -954,7 +1040,11 @@ export function MapScreen(): React.JSX.Element {
         </View>
       )}
 
-      <View style={styles.rideBarSlot} pointerEvents="box-none">
+      <View
+        style={styles.rideBarSlot}
+        pointerEvents="box-none"
+        onLayout={(event) => setRideBarHeight(event.nativeEvent.layout.height)}
+      >
         <RideBar controlsVisible={!activeRoute} />
       </View>
       <ProximityVoice

@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { useVoiceMute } from './VoiceMuteContext';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LiveKitRoom } from '@livekit/react-native';
@@ -72,7 +73,7 @@ export function ProximityVoice({
   const [refreshVersion, setRefreshVersion] = React.useState(0);
   const [audioSessionRetryVersion, setAudioSessionRetryVersion] = React.useState(0);
   const [audioSessionReady, setAudioSessionReady] = React.useState(false);
-  const [manuallyMuted, setManuallyMuted] = React.useState(false);
+  const { muted: manuallyMuted, setMuted: setManuallyMuted, reportConnected } = useVoiceMute();
   // Riders this rider has chosen not to hear: their pair room isn't joined.
   const [mutedPeers, setMutedPeers] = React.useState<Set<string>>(new Set());
   const [recentPeers, setRecentPeers] = React.useState<Map<string, string>>(new Map());
@@ -280,6 +281,12 @@ export function ProximityVoice({
       void releaseVoiceAudioSession('proximity').catch(() => {});
     };
   }, [audioSessionRetryVersion, needsAudioSession]);
+
+  const proximityConnected = active && connectedPeers.size > 0;
+  React.useEffect(() => {
+    reportConnected('proximity', proximityConnected);
+    return () => reportConnected('proximity', false);
+  }, [proximityConnected, reportConnected]);
 
   if (!active) return null;
 

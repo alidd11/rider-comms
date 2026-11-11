@@ -401,6 +401,7 @@ img,svg{-webkit-user-drag:none}
 #app.safety-locked .screen-map #mapAvatarButton,
 #app.safety-locked .screen-map #mapSearchSlot,
 #app.safety-locked .screen-map #reportHazardBtn,
+#app.safety-locked .screen-map #navReportBtn,
 #app.safety-locked .screen-map #musicBtn{display:none}
 .safety-locked .bottom-nav [aria-disabled="true"]{filter:saturate(.35)}
 @media(max-width:420px){.movement-safety-banner{left:12px;right:12px}.movement-safety-banner small{font-size:.7rem}.movement-safety-banner button{flex:none}}
@@ -2700,7 +2701,7 @@ html[data-active-screen="ride"] .ride-pill{display:none}
 html[data-active-screen="ride"].ride-pill-visible .screen{padding-bottom:calc(var(--bottom-nav-height) + 28px)}
 html.ride-pill-visible .screen-map .map-actions{transform:translateY(-58px)}
 /* Nearby Voice riders button sits top-left, clear of the right-hand map controls. */
-.voice-people-btn{right:auto;left:max(16px,var(--safe-left));top:calc(var(--safe-top) + 66px)}
+.voice-people-btn{right:auto;left:max(16px,var(--safe-left));top:calc(var(--safe-top) + 104px)}
 .roster-host-inline{display:none;font-weight:700;color:var(--success)}
 @media(max-width:400px){
   /* Small phones: keep rider names readable in the roster and voice list. */
@@ -2883,8 +2884,10 @@ html.app-menu-open .bottom-nav,html.app-menu-open .ride-pill,html.app-menu-open 
 @media (display-mode:standalone) and (orientation:portrait){@supports (-webkit-touch-callout:none){
   :root{--edge-blur-clearance:26px}
   .screen-map .map-header{top:calc(var(--safe-top) + 10px + var(--edge-blur-clearance))}
-  .screen-map .map-error{top:calc(var(--safe-top) + 68px + var(--edge-blur-clearance))}
-  .voice-people-btn{top:calc(var(--safe-top) + 66px + var(--edge-blur-clearance))}
+  .screen-map .map-error{top:calc(var(--safe-top) + 106px + var(--edge-blur-clearance))}
+  .voice-people-btn{top:calc(var(--safe-top) + 104px + var(--edge-blur-clearance))}
+  .map-status-chip{top:calc(var(--safe-top) + 66px + var(--edge-blur-clearance))}
+  .riding-hud-chips{top:calc(var(--safe-top) + 14px + var(--edge-blur-clearance))}
 }}
 
 /* ===== Settings as a real settings list (Nov 2026) =====
@@ -2946,3 +2949,62 @@ html[data-active-screen="settings"] .ride-pill{bottom:calc(var(--safe-bottom) + 
 .plan-summary span{color:var(--text-secondary);font-size:.78rem;font-weight:700}
 .plan-summary strong{font-size:1.35rem;font-weight:820}
 .plan-summary small{color:var(--text-secondary);font-size:.82rem}
+
+/* ===== Map screen and riding HUD (Nov 2026) =====
+   Parked: a status chip under the search bar; Music and Locate as small
+   buttons on the right; a bottom bar with Report (small, amber) and Go live
+   (wide, labelled). Moving with Ride Safe on: the riding HUD replaces them
+   with a Ride Safe chip, group chip, speed and two glove-sized buttons. */
+.map-status-chip{position:absolute;z-index:6;top:calc(var(--safe-top) + 66px);left:max(12px,var(--safe-left));display:inline-flex;align-items:center;gap:7px;max-width:calc(100% - 24px);padding:6px 12px;border-radius:999px;background:var(--surface-raised);border:1px solid var(--border-soft);color:var(--text-secondary);font-size:.78rem;font-weight:750;box-shadow:0 4px 14px rgb(0 0 0/.18)}
+.map-status-dot{width:8px;height:8px;flex:none;border-radius:50%;background:var(--text-muted)}
+.map-status-chip[data-state="live"]{color:var(--text)}
+.map-status-chip[data-state="live"] .map-status-dot{background:#35e68a}
+.map-status-chip[data-state="ride"] .map-status-dot{background:var(--accent)}
+.screen-map .map-error{top:calc(var(--safe-top) + 106px)}
+#app:not(.nav-mode) .screen-map .map-actions{display:flex;flex-direction:column;gap:10px;position:absolute;z-index:6;right:max(12px,var(--safe-right));left:auto;top:auto;bottom:84px;transform:none}
+#app:not(.nav-mode) .screen-map .map-action-small{width:46px;height:46px;min-width:46px;min-height:46px;border-radius:50%}
+#app:not(.nav-mode) .screen-map .map-action-small svg{width:20px;height:20px}
+.map-bottom-bar{position:absolute;z-index:6;left:max(12px,var(--safe-left));right:max(12px,var(--safe-right));bottom:14px;display:flex;gap:10px}
+.map-hazard-button{width:56px;height:56px;flex:none;border:0;border-radius:16px;background:#f5a524;color:#1f1300;display:grid;place-items:center;box-shadow:0 6px 18px rgb(0 0 0/.25)}
+.map-hazard-button svg{width:26px;height:26px}
+.map-live-button{flex:1;min-width:0;height:56px;border:0;border-radius:16px;background:var(--accent);color:#04161d;display:flex;align-items:center;justify-content:center;gap:9px;font:inherit;font-size:1rem;font-weight:820;box-shadow:0 6px 18px rgb(0 0 0/.25)}
+.map-live-button svg{width:22px;height:22px}
+.map-live-button[data-active="true"]{background:#35e68a;color:#04210f}
+.map-live-button[aria-disabled="true"]{opacity:.55}
+.map-live-button[hidden]{display:none}
+html.ride-pill-visible .map-bottom-bar{bottom:76px}
+html.ride-pill-visible #app:not(.nav-mode) .screen-map .map-actions{bottom:146px;transform:none}
+.nav-mode .map-bottom-bar,.nav-mode .map-status-chip{display:none}
+.safety-locked .map-bottom-bar,.safety-locked .map-status-chip{display:none}
+
+.riding-hud{position:absolute;inset:0;z-index:7;pointer-events:none}
+.riding-hud-chips{position:absolute;top:calc(var(--safe-top) + 14px);left:max(12px,var(--safe-left));right:max(12px,var(--safe-right));display:flex;flex-wrap:wrap;gap:8px}
+.hud-chip{display:inline-flex;align-items:center;gap:6px;padding:8px 13px;border-radius:999px;background:var(--surface-raised);border:1px solid var(--border-soft);color:var(--text);font-size:.84rem;font-weight:800;box-shadow:0 4px 14px rgb(0 0 0/.2)}
+.hud-chip svg{width:15px;height:15px}
+.hud-lock{color:var(--accent)}
+.hud-group{color:var(--success)}
+.hud-chip[hidden]{display:none}
+.hud-speed{position:absolute;left:max(12px,var(--safe-left));bottom:102px;width:76px;height:76px;border-radius:50%;background:var(--surface-raised);border:1px solid var(--border-soft);display:grid;place-content:center;text-align:center;box-shadow:0 6px 18px rgb(0 0 0/.25)}
+.hud-speed strong{font-size:1.7rem;line-height:1;font-weight:850}
+.hud-speed span{color:var(--text-secondary);font-size:.72rem;font-weight:700}
+.riding-hud-actions{position:absolute;left:max(12px,var(--safe-left));right:max(12px,var(--safe-right));bottom:14px;display:flex;gap:10px;pointer-events:auto}
+.hud-button{flex:1;min-height:76px;border:1px solid var(--border-soft);border-radius:18px;background:var(--surface-raised);color:var(--text);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;font:inherit;font-size:.92rem;font-weight:820;box-shadow:0 6px 18px rgb(0 0 0/.25)}
+.hud-button svg{width:28px;height:28px}
+.hud-button[hidden]{display:none}
+.hud-hazard{border-color:transparent;background:#f5a524;color:#1f1300}
+.hud-button[aria-pressed="true"]{border-color:transparent;background:var(--danger);color:#fff}
+html.ride-pill-visible .riding-hud-actions{bottom:76px}
+html.ride-pill-visible .hud-speed{bottom:164px}
+html.riding-hud-active #musicBtn,html.riding-hud-active .movement-safety-banner{display:none}
+html.riding-hud-active #app:not(.nav-mode) .screen-map .map-actions{bottom:102px}
+html.riding-hud-active.ride-pill-visible #app:not(.nav-mode) .screen-map .map-actions{bottom:164px}
+
+/* Hazard picker: says it closes on its own. */
+.hazard-autoclose{margin:10px 2px 0;color:var(--text-muted);font-size:.78rem}
+/* The wide Go live button outranks the older round #joinNearbyBtn rules. */
+#app:not(.nav-mode) .screen-map #joinNearbyBtn.map-live-button{width:auto;min-width:0;height:56px;flex:1;border:0;border-radius:16px;background:var(--accent);color:#04161d;box-shadow:0 6px 18px rgb(0 0 0/.25);animation:none}
+#app:not(.nav-mode) .screen-map #joinNearbyBtn.map-live-button svg{width:22px;height:22px;color:inherit}
+#app:not(.nav-mode) .screen-map #joinNearbyBtn.map-live-button[data-active=true]{background:#35e68a;color:#04210f}
+/* The speed-fix notice sits above the bottom bar, not on it. */
+body:has(.screen-map.active) .movement-safety-banner{bottom:calc(var(--bottom-nav-height) + 84px)}
+html.ride-pill-visible body:has(.screen-map.active) .movement-safety-banner{bottom:calc(var(--bottom-nav-height) + 146px)}

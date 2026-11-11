@@ -2432,6 +2432,9 @@
     emailStatus: 'email', sessions: 'devices', legal: 'help', faq: 'help',
   };
   let currentSettingsPage = null;
+  // The hazard picker closes itself if nothing is picked (native mirrors).
+  const HAZARD_AUTO_CLOSE_SECONDS = 10;
+  let hazardAutoCloseTimer;
   // Help & Support's common questions. The native Help page has the same
   // list (scripts/check-client-parity.mjs keeps them equal).
   const HELP_FAQ = [
@@ -2579,10 +2582,24 @@
       units: () => ({ title: 'Distance units', body: `<div class="choice-list" role="radiogroup" aria-label="Distance units"><button data-unit-option="mi" role="radio"><span><strong>Miles</strong><small>Use miles and mph</small></span><i></i></button><button data-unit-option="km" role="radio"><span><strong>Kilometres</strong><small>Use kilometres and km/h</small></span><i></i></button></div>`, ready: () => { $$('[data-unit-option]', $('#sheetBody')).forEach((button) => { const active = button.dataset.unitOption === state.profile.unitSystem; button.setAttribute('aria-checked', String(active)); button.addEventListener('click', async () => { button.disabled = true; const next = button.dataset.unitOption; const ok = await patchProfile({ unitSystem: next }); if (ok) { openSheet('units'); showToast('Distance unit updated.'); } else button.disabled = false; }); }); } }),
       reportHazard: () => ({
         title: 'Report on the road',
-        body: `<p class="caption">Let nearby riders know what's ahead. Reports fade out over time.</p><div class="hazard-type-grid" id="hazardTypeChips">${HAZARD_TYPE_ORDER.map((t) => `<button type="button" class="hazard-type-tile" data-hazard-type="${t}" style="--hazard:${HAZARD_TYPES[t].color}">${hazardIconMarkup(t)}<span>${escapeHtml(HAZARD_TYPES[t].label)}</span></button>`).join('')}</div><p id="hazardFormError" class="inline-error" hidden></p>`,
+        body: `<p class="caption">Let nearby riders know what's ahead. Reports fade out over time.</p><div class="hazard-type-grid" id="hazardTypeChips">${HAZARD_TYPE_ORDER.map((t) => `<button type="button" class="hazard-type-tile" data-hazard-type="${t}" style="--hazard:${HAZARD_TYPES[t].color}">${hazardIconMarkup(t)}<span>${escapeHtml(HAZARD_TYPES[t].label)}</span></button>`).join('')}</div><p id="hazardFormError" class="inline-error" hidden></p><p id="hazardAutoClose" class="hazard-autoclose" aria-live="off">Closes in ${HAZARD_AUTO_CLOSE_SECONDS} seconds if you don’t pick one.</p>`,
         ready: () => {
           const chips = $$('[data-hazard-type]', $('#hazardTypeChips'));
-          chips.forEach((chip) => chip.addEventListener('click', () => createHazard(chip.dataset.hazardType, chips)));
+          // One tap to report; if nothing is picked the picker closes itself
+          // so it never sits over the map on a ride.
+          clearInterval(hazardAutoCloseTimer);
+          let remaining = HAZARD_AUTO_CLOSE_SECONDS;
+          hazardAutoCloseTimer = setInterval(() => {
+            if ($('#sheetBackdrop').hidden || !$('#hazardTypeChips')) { clearInterval(hazardAutoCloseTimer); return; }
+            remaining -= 1;
+            if (remaining <= 0) { clearInterval(hazardAutoCloseTimer); closeSheet(); return; }
+            $('#hazardAutoClose').textContent = `Closes in ${remaining} seconds if you don’t pick one.`;
+          }, 1000);
+          chips.forEach((chip) => chip.addEventListener('click', () => {
+            clearInterval(hazardAutoCloseTimer);
+            $('#hazardAutoClose').hidden = true;
+            createHazard(chip.dataset.hazardType, chips);
+          }));
         },
       }),
     };
@@ -3030,7 +3047,60 @@
     joinBtn.toggleAttribute('disabled', nearbyTogglePending);
     joinBtn.setAttribute('aria-disabled', String(unavailable));
     joinBtn.setAttribute('aria-busy', String(nearbyTogglePending));
+    $('#joinNearbyLabel').textContent = active ? 'Live' : 'Go live';
     renderVoiceStatus();
+    renderMapChrome();
+  }
+
+  function voiceIsConnected() {
+    return Boolean(voiceRoom || proximityVoiceRooms.size);
+  }
+
+  // Latest GPS speed (m/s) for the riding HUD; null when the fix has none.
+  let hudSpeedMps = null;
+
+  /**
+   * The map's own chrome. Parked: a status chip under the search bar and a
+   * bottom bar with Report (small) and Go live (wide, labelled). Moving with
+   * Ride Safe on (and not navigating, which has its own HUD): the riding
+   * HUD replaces both, with speed, a group chip and two glove-sized buttons,
+   * Mute and Hazard. The native MapScreen mirrors this.
+   */
+  function renderMapChrome() {
+    const live = state.publicLive && state.profile.shareLocation;
+    const chip = $('#mapStatusChip');
+    if (chip) {
+      const nearby = nearbyRiders.length;
+      chip.dataset.state = state.activeRide ? 'ride' : live ? 'live' : 'off';
+      $('#mapStatusText').textContent = state.activeRide
+        ? 'In a group ride'
+        : live
+          ? `Live on Nearby${nearby ? ` · ${nearby} ${nearby === 1 ? 'rider' : 'riders'} nearby` : ''}`
+          : 'Nearby off';
+    }
+    const hud = $('#ridingHud');
+    if (!hud) return;
+    const locked = window.RiderMovementSafety.isLockedForSafety(movementState);
+    const navigating = $('#app')?.classList.contains('nav-mode');
+    const showHud = locked && !navigating;
+    hud.hidden = !showHud;
+    document.documentElement.classList.toggle('riding-hud-active', showHud);
+    if (!showHud) return;
+    const members = state.activeRide?.members?.length || 0;
+    const group = $('#hudGroupChip');
+    group.hidden = !state.activeRide;
+    group.textContent = members ? `${members} in ride` : 'Group ride';
+    const connected = voiceIsConnected();
+    const mute = $('#hudMuteBtn');
+    mute.hidden = !connected;
+    mute.setAttribute('aria-pressed', String(voiceManuallyMuted));
+    mute.setAttribute('aria-label', voiceManuallyMuted ? 'Unmute your microphone' : 'Mute your microphone');
+    $('#hudMuteLabel').textContent = voiceManuallyMuted ? 'Unmute' : 'Mute';
+    const km = state.profile.unitSystem === 'km';
+    const speed = hudSpeedMps == null ? null : Math.round(hudSpeedMps * (km ? 3.6 : 2.23694));
+    $('#hudSpeedValue').textContent = speed == null ? '—' : String(speed);
+    $('#hudSpeedUnit').textContent = km ? 'km/h' : 'mph';
+    $('#hudSpeed').setAttribute('aria-label', speed == null ? 'Current speed unavailable' : `Current speed ${speed} ${km ? 'kilometres per hour' : 'miles per hour'}`);
   }
 
   // Presence has to be refreshed periodically while live — the backend
@@ -3509,7 +3579,7 @@
       Object.assign(chip.style, {
         position: 'absolute',
         zIndex: '9',
-        top: 'calc(var(--safe-top) + 66px + var(--edge-blur-clearance, 0px))',
+        top: 'calc(var(--safe-top) + 104px + var(--edge-blur-clearance, 0px))',
         right: 'max(16px,var(--safe-right))',
         maxWidth: 'min(70vw,260px)',
         overflow: 'hidden',
@@ -3780,6 +3850,7 @@
     const remoteSpeakerSummary = connected ? voiceSpeakerSummary() : '';
     renderMapVoiceSpeakerChip(remoteSpeakerSummary);
     renderVoicePeopleButton();
+    renderMapChrome();
     avatar.classList.toggle('voice-talking', connected && voiceIsSpeaking);
     avatar.classList.toggle('voice-muted', connected && voiceManuallyMuted);
     badge.hidden = !connected && !needsResume && !waitingForPublicPeer && !publicAuthorizationExpired;
@@ -4468,7 +4539,7 @@
       item.setAttribute('aria-disabled', String(locked));
       item.classList.toggle('safety-unavailable', locked);
     });
-    $$('#mapSearchSlot, #mapAvatarButton, #poiChipRow, #reportHazardBtn, #musicBtn, #riderCard, #hazardCard, #rideJoinState, #shareRideBtn, .ride-code-card, #rideRoster, #openRideMap').forEach((item) => {
+    $$('#mapSearchSlot, #mapAvatarButton, #poiChipRow, #reportHazardBtn, #navReportBtn, #musicBtn, #riderCard, #hazardCard, #rideJoinState, #shareRideBtn, .ride-code-card, #rideRoster, #openRideMap').forEach((item) => {
       item.toggleAttribute('inert', locked);
       item.setAttribute('aria-disabled', String(locked));
     });
@@ -4491,6 +4562,7 @@
     movementWatchId = navigator.geolocation.watchPosition(
       (position) => {
         applyDevicePosition(position);
+        hudSpeedMps = Number.isFinite(position.coords.speed) && position.coords.speed >= 0 ? position.coords.speed : null;
         applyMovementState(movementTracker.addFix(movementFix(position)));
       },
       (error) => {
@@ -6229,6 +6301,7 @@
     // screen are the route, the turn card, the ETA bar, and the controls a
     // rider actually needs mid-drive (report hazard, mute guidance, route overview/follow, end nav).
     $('#app').classList.add('nav-mode');
+    renderMapChrome();
     watchNavigationOverlayGeometry();
     setNavigationTrafficVisible(true);
     // Populate the first real maneuver before revealing the live region so
@@ -6455,6 +6528,7 @@
     $('#navSummary').hidden = true;
     $('#app').style.removeProperty('--nav-banner-height');
     $('#app').classList.remove('nav-mode');
+    renderMapChrome();
     if (arrived) {
       showToast('You have arrived.');
       if (announceArrival) speak('You have arrived at your destination.');
@@ -6727,11 +6801,15 @@
     });
     $$('[data-sheet]').forEach((button) => button.addEventListener('click', () => openSheet(button.dataset.sheet)));
     $('#completeProfilePrompt')?.addEventListener('click', () => openSheet('profile'));
-    $('#reportHazardBtn').addEventListener('click', () => {
+    const openHazardReport = () => {
       pendingHazardReportPosition = null;
       captureHazardReportPosition();
       openSheet('reportHazard');
-    });
+    };
+    $('#reportHazardBtn').addEventListener('click', openHazardReport);
+    $('#hudHazardBtn').addEventListener('click', openHazardReport);
+    $('#navReportBtn').addEventListener('click', openHazardReport);
+    $('#hudMuteBtn').addEventListener('click', () => void toggleVoiceMute());
     $('#closeSheet').addEventListener('click', sheetBack);
     $('#sheetBackdrop').addEventListener('click', (event) => { if (event.target === $('#sheetBackdrop')) closeSheet(); });
     document.addEventListener('keydown', (event) => {
