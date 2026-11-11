@@ -13,3 +13,4 @@ export * from './navigationGuidance.ts';
 export * from './navigationCamera.ts';
 export * from './voiceActivity.ts';
 export * from './billing.ts';
+export * from './daylight.ts';

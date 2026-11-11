@@ -600,8 +600,8 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
       nearbyWidth: nearby?.getBoundingClientRect().width ?? NaN,
       reportTransform: report ? getComputedStyle(report).transform : null,
       locateTransform: locate ? getComputedStyle(locate).transform : null,
-      firstGap: report && locate ? locate.getBoundingClientRect().top - report.getBoundingClientRect().bottom : NaN,
-      secondGap: locate && nearby ? nearby.getBoundingClientRect().top - locate.getBoundingClientRect().bottom : NaN,
+      barTopDelta: report && nearby ? nearby.getBoundingClientRect().top - report.getBoundingClientRect().top : NaN,
+      locateAboveBar: report && locate ? report.getBoundingClientRect().top - locate.getBoundingClientRect().bottom : NaN,
       avatarDisplay: avatarButton ? getComputedStyle(avatarButton).display : null,
       optionsGlyphWidth: optionsGlyph?.getBoundingClientRect().width ?? NaN,
       mapTypeId: window.__riderCommsTestMap?.options?.mapTypeId ?? null,
@@ -620,19 +620,22 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
   expect(mapGeometry.searchRadius).toBeGreaterThanOrEqual(20);
   expect(mapGeometry.searchRadius).toBeLessThanOrEqual(26);
   expect(mapGeometry.actionRadius).toBe('50%');
-  expect(mapGeometry.reportWidth).toBe(54);
-  expect(mapGeometry.locateWidth).toBe(54);
-  expect(mapGeometry.nearbyWidth).toBe(54);
+  // Hazard and a wide labelled Go live share the bottom bar; Music and
+  // Locate are small round buttons above it on the right.
+  expect(mapGeometry.reportWidth).toBe(56);
+  expect(mapGeometry.locateWidth).toBe(46);
+  expect(mapGeometry.nearbyWidth).toBeGreaterThan(mapGeometry.viewportWidth / 2);
   expect(mapGeometry.reportTransform).toBe('none');
   expect(mapGeometry.locateTransform).toBe('none');
-  expectNear(mapGeometry.firstGap, 8);
-  expectNear(mapGeometry.secondGap, 8);
+  expectNear(mapGeometry.barTopDelta, 0);
+  expect(mapGeometry.locateAboveBar).toBeGreaterThanOrEqual(8);
   // The avatar beside search opens the menu.
   expect(mapGeometry.avatarDisplay).toBe('grid');
   expect(mapGeometry.optionsGlyphWidth).toBeGreaterThanOrEqual(16);
   expect(mapGeometry.mapTypeId).toBe('roadmap');
   expect(mapGeometry.keyboardShortcuts).toBe(false);
-  expect(mapGeometry.mapColorScheme).toBe('FOLLOW_SYSTEM');
+  // Follows the phone, except from sunset to sunrise when it is always dark.
+  expect(['FOLLOW_SYSTEM', 'DARK']).toContain(mapGeometry.mapColorScheme);
   expect(mapGeometry.mapRenderingType).toBe('VECTOR');
   expect(mapGeometry.tiltInteractionEnabled).toBe(true);
   expect(mapGeometry.headingInteractionEnabled).toBe(true);
@@ -1138,6 +1141,44 @@ test('PWA hides the map\'s distracting controls while moving, like the native ap
     await expect(page.locator(selector)).toBeHidden();
   }
   await expect(page.locator('#locateBtn')).toBeVisible();
+});
+
+test('PWA map has a labelled Go live bar when parked and a glanceable HUD while riding', async ({ page }) => {
+  await mockAuthenticatedApi(page, 'recovering');
+  await page.goto('/');
+  await expect(page.locator('#app')).toBeVisible();
+  await expect(page.locator('#mapStatusText')).toHaveText('Nearby off');
+  const live = page.locator('#joinNearbyBtn');
+  await expect(live).toBeVisible();
+  await expect(page.locator('#joinNearbyLabel')).toHaveText('Go live');
+  const [liveBox, hazardBox] = await Promise.all([live.boundingBox(), page.locator('#reportHazardBtn').boundingBox()]);
+  // A wide, labelled primary action beside a smaller hazard button.
+  expect(liveBox.width).toBeGreaterThan(hazardBox.width * 2);
+  expect(liveBox.height).toBeGreaterThanOrEqual(56);
+  // The speed-fix notice sits above the bar instead of on it.
+  const banner = await page.locator('#movementSafetyBanner').boundingBox();
+  expect(banner.y + banner.height).toBeLessThanOrEqual(liveBox.y + 1);
+  await expect(page.locator('#ridingHud')).toBeHidden();
+
+  await page.evaluate(() => {
+    const base = Date.now() - 7000;
+    for (let i = 0; i <= 7; i++) window.gpsTest.success({
+      timestamp: base + i * 1000,
+      coords: { latitude: 51.5074 + i * 0.0012, longitude: -0.1278, accuracy: 5, speed: 12 },
+    });
+  });
+  await expect(page.locator('#ridingHud')).toBeVisible();
+  await expect(page.locator('#mapBottomBar')).toBeHidden();
+  await expect(page.locator('#movementSafetyBanner')).toBeHidden();
+  await expect(page.locator('#hudSpeedValue')).toHaveText('27');
+  const hudHazard = page.locator('#hudHazardBtn');
+  const hudBox = await hudHazard.boundingBox();
+  expect(hudBox.height).toBeGreaterThanOrEqual(64);
+  // Without a voice room there is nothing to mute.
+  await expect(page.locator('#hudMuteBtn')).toBeHidden();
+  await hudHazard.click();
+  await expect(page.locator('#hazardTypeChips')).toBeVisible();
+  await expect(page.locator('#hazardAutoClose')).toContainText('Closes in');
 });
 
 test('PWA GPS timeout recovers without another permission request or startup lock', async ({ page }) => {
@@ -2589,7 +2630,7 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
     const summary = document.querySelector('#navSummary');
     const banner = document.querySelector('#navBanner');
     const actions = document.querySelector('.screen-map .map-actions');
-    const report = document.querySelector('#reportHazardBtn');
+    const report = document.querySelector('#navReportBtn');
     const locate = document.querySelector('#locateBtn');
     const mute = document.querySelector('#navMuteBtn');
     const overview = document.querySelector('#navOverviewBtn');

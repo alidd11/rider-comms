@@ -13,7 +13,60 @@
     joinBtn.toggleAttribute('disabled', nearbyTogglePending);
     joinBtn.setAttribute('aria-disabled', String(unavailable));
     joinBtn.setAttribute('aria-busy', String(nearbyTogglePending));
+    $('#joinNearbyLabel').textContent = active ? 'Live' : 'Go live';
     renderVoiceStatus();
+    renderMapChrome();
+  }
+
+  function voiceIsConnected() {
+    return Boolean(voiceRoom || proximityVoiceRooms.size);
+  }
+
+  // Latest GPS speed (m/s) for the riding HUD; null when the fix has none.
+  let hudSpeedMps = null;
+
+  /**
+   * The map's own chrome. Parked: a status chip under the search bar and a
+   * bottom bar with Report (small) and Go live (wide, labelled). Moving with
+   * Ride Safe on (and not navigating, which has its own HUD): the riding
+   * HUD replaces both, with speed, a group chip and two glove-sized buttons,
+   * Mute and Hazard. The native MapScreen mirrors this.
+   */
+  function renderMapChrome() {
+    const live = state.publicLive && state.profile.shareLocation;
+    const chip = $('#mapStatusChip');
+    if (chip) {
+      const nearby = nearbyRiders.length;
+      chip.dataset.state = state.activeRide ? 'ride' : live ? 'live' : 'off';
+      $('#mapStatusText').textContent = state.activeRide
+        ? 'In a group ride'
+        : live
+          ? `Live on Nearby${nearby ? ` · ${nearby} ${nearby === 1 ? 'rider' : 'riders'} nearby` : ''}`
+          : 'Nearby off';
+    }
+    const hud = $('#ridingHud');
+    if (!hud) return;
+    const locked = window.RiderMovementSafety.isLockedForSafety(movementState);
+    const navigating = $('#app')?.classList.contains('nav-mode');
+    const showHud = locked && !navigating;
+    hud.hidden = !showHud;
+    document.documentElement.classList.toggle('riding-hud-active', showHud);
+    if (!showHud) return;
+    const members = state.activeRide?.members?.length || 0;
+    const group = $('#hudGroupChip');
+    group.hidden = !state.activeRide;
+    group.textContent = members ? `${members} in ride` : 'Group ride';
+    const connected = voiceIsConnected();
+    const mute = $('#hudMuteBtn');
+    mute.hidden = !connected;
+    mute.setAttribute('aria-pressed', String(voiceManuallyMuted));
+    mute.setAttribute('aria-label', voiceManuallyMuted ? 'Unmute your microphone' : 'Mute your microphone');
+    $('#hudMuteLabel').textContent = voiceManuallyMuted ? 'Unmute' : 'Mute';
+    const km = state.profile.unitSystem === 'km';
+    const speed = hudSpeedMps == null ? null : Math.round(hudSpeedMps * (km ? 3.6 : 2.23694));
+    $('#hudSpeedValue').textContent = speed == null ? '—' : String(speed);
+    $('#hudSpeedUnit').textContent = km ? 'km/h' : 'mph';
+    $('#hudSpeed').setAttribute('aria-label', speed == null ? 'Current speed unavailable' : `Current speed ${speed} ${km ? 'kilometres per hour' : 'miles per hour'}`);
   }
 
   // Presence has to be refreshed periodically while live — the backend

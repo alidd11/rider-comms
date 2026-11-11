@@ -9,6 +9,15 @@
       ? { lat: latestDevicePosition.coords.latitude, lng: latestDevicePosition.coords.longitude }
       : null;
     const centre = liveCentre || fallbackCentre;
+    // Dark basemap from sunset to sunrise. Without a fix yet, the time zone
+    // gives the longitude closely enough to place sunset. Maps JS reads
+    // colorScheme only here, so a map opened before sunset turns dark the
+    // next time the app opens.
+    const darkOutside = isDarkOutside(
+      liveCentre ? liveCentre.lat : fallbackCentre.lat,
+      liveCentre ? liveCentre.lng : -new Date().getTimezoneOffset() / 4,
+    );
+    const mapDark = prefersDarkMode() || darkOutside;
     map = new google.maps.Map($('#googleMap'), {
       center: centre,
       zoom: liveCentre ? 15 : 14,
@@ -28,8 +37,8 @@
       headingInteractionEnabled: true,
       isFractionalZoomEnabled: true,
       mapTypeId: 'roadmap',
-      colorScheme: 'FOLLOW_SYSTEM',
-      backgroundColor: prefersDarkMode() ? '#080d10' : '#f2f5f6',
+      colorScheme: darkOutside ? 'DARK' : 'FOLLOW_SYSTEM',
+      backgroundColor: mapDark ? '#080d10' : '#f2f5f6',
     });
     map.addListener?.('dragstart', () => {
       if (!navSteps.length) return;
@@ -60,6 +69,7 @@
       position,
       title: current ? 'Your location' : person.displayName,
       icon: riderAvatarMapIcon(person, current, status),
+      label: current ? null : { text: riderMapLabel(person.displayName), className: 'rider-map-label', color: '#ffffff', fontSize: '12px', fontWeight: '800' },
       zIndex: current ? 10 : 5,
     });
     marker.addListener('click', () => selectRider(person.riderId, visibleMapRiders()));
@@ -265,11 +275,15 @@
     });
     $$('[data-sheet]').forEach((button) => button.addEventListener('click', () => openSheet(button.dataset.sheet)));
     $('#completeProfilePrompt')?.addEventListener('click', () => openSheet('profile'));
-    $('#reportHazardBtn').addEventListener('click', () => {
+    const openHazardReport = () => {
       pendingHazardReportPosition = null;
       captureHazardReportPosition();
       openSheet('reportHazard');
-    });
+    };
+    $('#reportHazardBtn').addEventListener('click', openHazardReport);
+    $('#hudHazardBtn').addEventListener('click', openHazardReport);
+    $('#navReportBtn').addEventListener('click', openHazardReport);
+    $('#hudMuteBtn').addEventListener('click', () => void toggleVoiceMute());
     $('#closeSheet').addEventListener('click', sheetBack);
     $('#sheetBackdrop').addEventListener('click', (event) => { if (event.target === $('#sheetBackdrop')) closeSheet(); });
     document.addEventListener('keydown', (event) => {

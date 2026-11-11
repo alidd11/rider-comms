@@ -24,6 +24,8 @@ const HAZARD_TYPE_ORDER: HazardType[] = [
   'road_closure',
 ];
 
+export const HAZARD_AUTO_CLOSE_SECONDS = 10;
+
 export function HazardReportSheet({
   visible,
   onClose,
@@ -34,6 +36,22 @@ export function HazardReportSheet({
   onReport: (type: HazardType) => void;
 }): React.JSX.Element {
   const insets = useSafeAreaInsets();
+  // One tap to report; if nothing is picked the picker closes itself, so a
+  // rider never rides on with a sheet over the map. Same 10s as the PWA.
+  const [remaining, setRemaining] = React.useState(HAZARD_AUTO_CLOSE_SECONDS);
+  const onCloseRef = React.useRef(onClose);
+  onCloseRef.current = onClose;
+  React.useEffect(() => {
+    if (!visible) return undefined;
+    setRemaining(HAZARD_AUTO_CLOSE_SECONDS);
+    const timer = setInterval(() => {
+      setRemaining((current) => Math.max(0, current - 1));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [visible]);
+  React.useEffect(() => {
+    if (visible && remaining === 0) onCloseRef.current();
+  }, [remaining, visible]);
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <Pressable accessible={false} style={styles.backdrop} onPress={onClose}>
@@ -65,6 +83,9 @@ export function HazardReportSheet({
               );
             })}
           </View>
+          <Text style={styles.autoClose} accessibilityLiveRegion="none">
+            Closes in {remaining} seconds if you don’t pick one.
+          </Text>
         </Pressable>
       </Pressable>
     </Modal>
@@ -72,6 +93,7 @@ export function HazardReportSheet({
 }
 
 const styles = StyleSheet.create({
+  autoClose: { ...type.caption, textAlign: 'center', marginTop: spacing.md },
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
   sheet: {
     backgroundColor: colors.background,

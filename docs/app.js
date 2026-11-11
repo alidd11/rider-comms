@@ -197,18 +197,29 @@
     riderAvatarSvg,
   } = window.RiderAvatarSystem;
 
+  // The name under a ride member's map marker: first name, kept short so
+  // labels don't pile up (native: riderMapLabel in mapMarkers.tsx).
+  function riderMapLabel(displayName) {
+    const first = String(displayName || '').trim().split(/\s+/)[0] || 'Rider';
+    return first.length > 12 ? `${first.slice(0, 11)}…` : first;
+  }
+
   function riderAvatarMapIcon(person, current = false, statusOverride, sizeOverride, navigationMode = false) {
     const status = navigationMode
       ? 'none'
       : statusOverride || (current
         ? (state.profile.shareLocation || state.activeRide?.shareRideLocation ? 'online' : 'none')
         : 'online');
-    const svg = riderAvatarSvg(person.avatarId, { selected: current, mapMarker: !navigationMode, status, standalone: true });
+    // Other markers on the map are always group-ride members (Nearby riders
+    // never get exact locations), so they wear the group ring.
+    const groupRing = !current && !navigationMode;
+    const svg = riderAvatarSvg(person.avatarId, { selected: current, mapMarker: !navigationMode, status, standalone: true, groupRing });
     const width = sizeOverride ?? (current ? 44 : 40);
     const height = navigationMode ? width : width * (72 / 64);
     return {
       url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
       scaledSize: new google.maps.Size(width, height),
+      labelOrigin: new google.maps.Point(width / 2, height + 11),
       anchor: navigationMode
         ? new google.maps.Point(width / 2, height / 2)
         : new google.maps.Point(width / 2, height - 1),
@@ -253,6 +264,30 @@
   };
   function navigationProvider(value) {
     return Object.hasOwn(NAVIGATION_PROVIDERS, value) ? value : 'google_maps';
+  }
+
+  // Dark map from sunset to sunrise, even with the phone in light mode.
+  // Same NOAA solar position as shared/src/daylight.ts (keep in step).
+  function solarElevationDegrees(lat, lon, date) {
+    const DEG = Math.PI / 180;
+    const start = Date.UTC(date.getUTCFullYear(), 0, 1);
+    const dayOfYear = Math.floor((date.getTime() - start) / 86400000) + 1;
+    const hours = date.getUTCHours() + date.getUTCMinutes() / 60 + date.getUTCSeconds() / 3600;
+    const gamma = (2 * Math.PI / 365) * (dayOfYear - 1 + (hours - 12) / 24);
+    const equationOfTime = 229.18 * (0.000075 + 0.001868 * Math.cos(gamma) - 0.032077 * Math.sin(gamma)
+      - 0.014615 * Math.cos(2 * gamma) - 0.040849 * Math.sin(2 * gamma));
+    const declination = 0.006918 - 0.399912 * Math.cos(gamma) + 0.070257 * Math.sin(gamma)
+      - 0.006758 * Math.cos(2 * gamma) + 0.000907 * Math.sin(2 * gamma)
+      - 0.002697 * Math.cos(3 * gamma) + 0.00148 * Math.sin(3 * gamma);
+    const trueSolarMinutes = hours * 60 + equationOfTime + 4 * lon;
+    const hourAngle = (trueSolarMinutes / 4 - 180) * DEG;
+    const cosZenith = Math.sin(lat * DEG) * Math.sin(declination)
+      + Math.cos(lat * DEG) * Math.cos(declination) * Math.cos(hourAngle);
+    return 90 - Math.acos(Math.min(1, Math.max(-1, cosZenith))) / DEG;
+  }
+  function isDarkOutside(lat, lon, date = new Date()) {
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return false;
+    return solarElevationDegrees(lat, lon, date) < -0.833;
   }
 
   // Keep Google's current Roadmap visual language as the basemap rather than
@@ -2432,6 +2467,9 @@
     emailStatus: 'email', sessions: 'devices', legal: 'help', faq: 'help',
   };
   let currentSettingsPage = null;
+  // The hazard picker closes itself if nothing is picked (native mirrors).
+  const HAZARD_AUTO_CLOSE_SECONDS = 10;
+  let hazardAutoCloseTimer;
   // Help & Support's common questions. The native Help page has the same
   // list (scripts/check-client-parity.mjs keeps them equal).
   const HELP_FAQ = [
@@ -2579,10 +2617,24 @@
       units: () => ({ title: 'Distance units', body: `<div class="choice-list" role="radiogroup" aria-label="Distance units"><button data-unit-option="mi" role="radio"><span><strong>Miles</strong><small>Use miles and mph</small></span><i></i></button><button data-unit-option="km" role="radio"><span><strong>Kilometres</strong><small>Use kilometres and km/h</small></span><i></i></button></div>`, ready: () => { $$('[data-unit-option]', $('#sheetBody')).forEach((button) => { const active = button.dataset.unitOption === state.profile.unitSystem; button.setAttribute('aria-checked', String(active)); button.addEventListener('click', async () => { button.disabled = true; const next = button.dataset.unitOption; const ok = await patchProfile({ unitSystem: next }); if (ok) { openSheet('units'); showToast('Distance unit updated.'); } else button.disabled = false; }); }); } }),
       reportHazard: () => ({
         title: 'Report on the road',
-        body: `<p class="caption">Let nearby riders know what's ahead. Reports fade out over time.</p><div class="hazard-type-grid" id="hazardTypeChips">${HAZARD_TYPE_ORDER.map((t) => `<button type="button" class="hazard-type-tile" data-hazard-type="${t}" style="--hazard:${HAZARD_TYPES[t].color}">${hazardIconMarkup(t)}<span>${escapeHtml(HAZARD_TYPES[t].label)}</span></button>`).join('')}</div><p id="hazardFormError" class="inline-error" hidden></p>`,
+        body: `<p class="caption">Let nearby riders know what's ahead. Reports fade out over time.</p><div class="hazard-type-grid" id="hazardTypeChips">${HAZARD_TYPE_ORDER.map((t) => `<button type="button" class="hazard-type-tile" data-hazard-type="${t}" style="--hazard:${HAZARD_TYPES[t].color}">${hazardIconMarkup(t)}<span>${escapeHtml(HAZARD_TYPES[t].label)}</span></button>`).join('')}</div><p id="hazardFormError" class="inline-error" hidden></p><p id="hazardAutoClose" class="hazard-autoclose" aria-live="off">Closes in ${HAZARD_AUTO_CLOSE_SECONDS} seconds if you don’t pick one.</p>`,
         ready: () => {
           const chips = $$('[data-hazard-type]', $('#hazardTypeChips'));
-          chips.forEach((chip) => chip.addEventListener('click', () => createHazard(chip.dataset.hazardType, chips)));
+          // One tap to report; if nothing is picked the picker closes itself
+          // so it never sits over the map on a ride.
+          clearInterval(hazardAutoCloseTimer);
+          let remaining = HAZARD_AUTO_CLOSE_SECONDS;
+          hazardAutoCloseTimer = setInterval(() => {
+            if ($('#sheetBackdrop').hidden || !$('#hazardTypeChips')) { clearInterval(hazardAutoCloseTimer); return; }
+            remaining -= 1;
+            if (remaining <= 0) { clearInterval(hazardAutoCloseTimer); closeSheet(); return; }
+            $('#hazardAutoClose').textContent = `Closes in ${remaining} seconds if you don’t pick one.`;
+          }, 1000);
+          chips.forEach((chip) => chip.addEventListener('click', () => {
+            clearInterval(hazardAutoCloseTimer);
+            $('#hazardAutoClose').hidden = true;
+            createHazard(chip.dataset.hazardType, chips);
+          }));
         },
       }),
     };
@@ -3030,7 +3082,60 @@
     joinBtn.toggleAttribute('disabled', nearbyTogglePending);
     joinBtn.setAttribute('aria-disabled', String(unavailable));
     joinBtn.setAttribute('aria-busy', String(nearbyTogglePending));
+    $('#joinNearbyLabel').textContent = active ? 'Live' : 'Go live';
     renderVoiceStatus();
+    renderMapChrome();
+  }
+
+  function voiceIsConnected() {
+    return Boolean(voiceRoom || proximityVoiceRooms.size);
+  }
+
+  // Latest GPS speed (m/s) for the riding HUD; null when the fix has none.
+  let hudSpeedMps = null;
+
+  /**
+   * The map's own chrome. Parked: a status chip under the search bar and a
+   * bottom bar with Report (small) and Go live (wide, labelled). Moving with
+   * Ride Safe on (and not navigating, which has its own HUD): the riding
+   * HUD replaces both, with speed, a group chip and two glove-sized buttons,
+   * Mute and Hazard. The native MapScreen mirrors this.
+   */
+  function renderMapChrome() {
+    const live = state.publicLive && state.profile.shareLocation;
+    const chip = $('#mapStatusChip');
+    if (chip) {
+      const nearby = nearbyRiders.length;
+      chip.dataset.state = state.activeRide ? 'ride' : live ? 'live' : 'off';
+      $('#mapStatusText').textContent = state.activeRide
+        ? 'In a group ride'
+        : live
+          ? `Live on Nearby${nearby ? ` · ${nearby} ${nearby === 1 ? 'rider' : 'riders'} nearby` : ''}`
+          : 'Nearby off';
+    }
+    const hud = $('#ridingHud');
+    if (!hud) return;
+    const locked = window.RiderMovementSafety.isLockedForSafety(movementState);
+    const navigating = $('#app')?.classList.contains('nav-mode');
+    const showHud = locked && !navigating;
+    hud.hidden = !showHud;
+    document.documentElement.classList.toggle('riding-hud-active', showHud);
+    if (!showHud) return;
+    const members = state.activeRide?.members?.length || 0;
+    const group = $('#hudGroupChip');
+    group.hidden = !state.activeRide;
+    group.textContent = members ? `${members} in ride` : 'Group ride';
+    const connected = voiceIsConnected();
+    const mute = $('#hudMuteBtn');
+    mute.hidden = !connected;
+    mute.setAttribute('aria-pressed', String(voiceManuallyMuted));
+    mute.setAttribute('aria-label', voiceManuallyMuted ? 'Unmute your microphone' : 'Mute your microphone');
+    $('#hudMuteLabel').textContent = voiceManuallyMuted ? 'Unmute' : 'Mute';
+    const km = state.profile.unitSystem === 'km';
+    const speed = hudSpeedMps == null ? null : Math.round(hudSpeedMps * (km ? 3.6 : 2.23694));
+    $('#hudSpeedValue').textContent = speed == null ? '—' : String(speed);
+    $('#hudSpeedUnit').textContent = km ? 'km/h' : 'mph';
+    $('#hudSpeed').setAttribute('aria-label', speed == null ? 'Current speed unavailable' : `Current speed ${speed} ${km ? 'kilometres per hour' : 'miles per hour'}`);
   }
 
   // Presence has to be refreshed periodically while live — the backend
@@ -3509,7 +3614,7 @@
       Object.assign(chip.style, {
         position: 'absolute',
         zIndex: '9',
-        top: 'calc(var(--safe-top) + 66px + var(--edge-blur-clearance, 0px))',
+        top: 'calc(var(--safe-top) + 104px + var(--edge-blur-clearance, 0px))',
         right: 'max(16px,var(--safe-right))',
         maxWidth: 'min(70vw,260px)',
         overflow: 'hidden',
@@ -3780,6 +3885,7 @@
     const remoteSpeakerSummary = connected ? voiceSpeakerSummary() : '';
     renderMapVoiceSpeakerChip(remoteSpeakerSummary);
     renderVoicePeopleButton();
+    renderMapChrome();
     avatar.classList.toggle('voice-talking', connected && voiceIsSpeaking);
     avatar.classList.toggle('voice-muted', connected && voiceManuallyMuted);
     badge.hidden = !connected && !needsResume && !waitingForPublicPeer && !publicAuthorizationExpired;
@@ -4468,7 +4574,7 @@
       item.setAttribute('aria-disabled', String(locked));
       item.classList.toggle('safety-unavailable', locked);
     });
-    $$('#mapSearchSlot, #mapAvatarButton, #poiChipRow, #reportHazardBtn, #musicBtn, #riderCard, #hazardCard, #rideJoinState, #shareRideBtn, .ride-code-card, #rideRoster, #openRideMap').forEach((item) => {
+    $$('#mapSearchSlot, #mapAvatarButton, #poiChipRow, #reportHazardBtn, #navReportBtn, #musicBtn, #riderCard, #hazardCard, #rideJoinState, #shareRideBtn, .ride-code-card, #rideRoster, #openRideMap').forEach((item) => {
       item.toggleAttribute('inert', locked);
       item.setAttribute('aria-disabled', String(locked));
     });
@@ -4491,6 +4597,7 @@
     movementWatchId = navigator.geolocation.watchPosition(
       (position) => {
         applyDevicePosition(position);
+        hudSpeedMps = Number.isFinite(position.coords.speed) && position.coords.speed >= 0 ? position.coords.speed : null;
         applyMovementState(movementTracker.addFix(movementFix(position)));
       },
       (error) => {
@@ -6229,6 +6336,7 @@
     // screen are the route, the turn card, the ETA bar, and the controls a
     // rider actually needs mid-drive (report hazard, mute guidance, route overview/follow, end nav).
     $('#app').classList.add('nav-mode');
+    renderMapChrome();
     watchNavigationOverlayGeometry();
     setNavigationTrafficVisible(true);
     // Populate the first real maneuver before revealing the live region so
@@ -6455,6 +6563,7 @@
     $('#navSummary').hidden = true;
     $('#app').style.removeProperty('--nav-banner-height');
     $('#app').classList.remove('nav-mode');
+    renderMapChrome();
     if (arrived) {
       showToast('You have arrived.');
       if (announceArrival) speak('You have arrived at your destination.');
@@ -6471,6 +6580,15 @@
       ? { lat: latestDevicePosition.coords.latitude, lng: latestDevicePosition.coords.longitude }
       : null;
     const centre = liveCentre || fallbackCentre;
+    // Dark basemap from sunset to sunrise. Without a fix yet, the time zone
+    // gives the longitude closely enough to place sunset. Maps JS reads
+    // colorScheme only here, so a map opened before sunset turns dark the
+    // next time the app opens.
+    const darkOutside = isDarkOutside(
+      liveCentre ? liveCentre.lat : fallbackCentre.lat,
+      liveCentre ? liveCentre.lng : -new Date().getTimezoneOffset() / 4,
+    );
+    const mapDark = prefersDarkMode() || darkOutside;
     map = new google.maps.Map($('#googleMap'), {
       center: centre,
       zoom: liveCentre ? 15 : 14,
@@ -6490,8 +6608,8 @@
       headingInteractionEnabled: true,
       isFractionalZoomEnabled: true,
       mapTypeId: 'roadmap',
-      colorScheme: 'FOLLOW_SYSTEM',
-      backgroundColor: prefersDarkMode() ? '#080d10' : '#f2f5f6',
+      colorScheme: darkOutside ? 'DARK' : 'FOLLOW_SYSTEM',
+      backgroundColor: mapDark ? '#080d10' : '#f2f5f6',
     });
     map.addListener?.('dragstart', () => {
       if (!navSteps.length) return;
@@ -6522,6 +6640,7 @@
       position,
       title: current ? 'Your location' : person.displayName,
       icon: riderAvatarMapIcon(person, current, status),
+      label: current ? null : { text: riderMapLabel(person.displayName), className: 'rider-map-label', color: '#ffffff', fontSize: '12px', fontWeight: '800' },
       zIndex: current ? 10 : 5,
     });
     marker.addListener('click', () => selectRider(person.riderId, visibleMapRiders()));
@@ -6727,11 +6846,15 @@
     });
     $$('[data-sheet]').forEach((button) => button.addEventListener('click', () => openSheet(button.dataset.sheet)));
     $('#completeProfilePrompt')?.addEventListener('click', () => openSheet('profile'));
-    $('#reportHazardBtn').addEventListener('click', () => {
+    const openHazardReport = () => {
       pendingHazardReportPosition = null;
       captureHazardReportPosition();
       openSheet('reportHazard');
-    });
+    };
+    $('#reportHazardBtn').addEventListener('click', openHazardReport);
+    $('#hudHazardBtn').addEventListener('click', openHazardReport);
+    $('#navReportBtn').addEventListener('click', openHazardReport);
+    $('#hudMuteBtn').addEventListener('click', () => void toggleVoiceMute());
     $('#closeSheet').addEventListener('click', sheetBack);
     $('#sheetBackdrop').addEventListener('click', (event) => { if (event.target === $('#sheetBackdrop')) closeSheet(); });
     document.addEventListener('keydown', (event) => {

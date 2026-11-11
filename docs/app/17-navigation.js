@@ -605,6 +605,7 @@
     // screen are the route, the turn card, the ETA bar, and the controls a
     // rider actually needs mid-drive (report hazard, mute guidance, route overview/follow, end nav).
     $('#app').classList.add('nav-mode');
+    renderMapChrome();
     watchNavigationOverlayGeometry();
     setNavigationTrafficVisible(true);
     // Populate the first real maneuver before revealing the live region so
@@ -831,6 +832,7 @@
     $('#navSummary').hidden = true;
     $('#app').style.removeProperty('--nav-banner-height');
     $('#app').classList.remove('nav-mode');
+    renderMapChrome();
     if (arrived) {
       showToast('You have arrived.');
       if (announceArrival) speak('You have arrived at your destination.');

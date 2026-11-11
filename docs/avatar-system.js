@@ -136,11 +136,14 @@
   // `standalone` is for an svg that becomes its own document (a map-marker
   // data URL): its ids can't collide, and a stable string lets the map reuse
   // the same icon image.
-  function riderAvatarSvg(id, { selected = false, mapMarker = false, status = 'none', standalone = false } = {}) {
+  const GROUP_RING_COLOUR = '#A78BFA';
+
+  function riderAvatarSvg(id, { selected = false, mapMarker = false, status = 'none', standalone = false, groupRing = false } = {}) {
     const preset = avatarPreset(id);
     if (!standalone) renderCount += 1;
     const uid = standalone ? preset.id : `${preset.id}-${renderCount}`;
-    const stroke = selected ? '#22D3EE' : preset.bg;
+    // Group-ride members wear a violet ring on the map (native: groupRing).
+    const stroke = selected ? '#22D3EE' : groupRing ? GROUP_RING_COLOUR : preset.bg;
     const tailFill = selected ? '#22D3EE' : '#071015';
     const statusFill = status === 'online' ? '#35E68A' : status === 'stale' ? '#78909A' : '';
     const height = mapMarker ? 72 : 64;
@@ -158,7 +161,7 @@
         <clipPath id="rc-clip-${uid}"><circle cx="32" cy="32" r="28.5"/></clipPath>
       </defs>
       ${mapMarker ? `<path d="${MAP_TAIL_PATH}" fill="${tailFill}" stroke="#071015" stroke-width="2"/>` : ''}
-      <circle cx="32" cy="32" r="30" fill="url(#rc-disc-${uid})" stroke="${stroke}" stroke-width="${selected ? 3 : 2}"/>
+      <circle cx="32" cy="32" r="30" fill="url(#rc-disc-${uid})" stroke="${stroke}" stroke-width="${selected || groupRing ? 3 : 2}"/>
       ${selected ? '<circle cx="32" cy="32" r="27.5" fill="none" stroke="#22D3EE" stroke-width="1" opacity=".55"/>' : ''}
       <g clip-path="url(#rc-clip-${uid})">${artwork}</g>
       ${status === 'stale' ? '<circle cx="32" cy="32" r="26.5" fill="#071015" opacity=".44"/>' : ''}
@@ -171,6 +174,7 @@
     AVATAR_PRESETS,
     AVATAR_PRESET_BY_ID,
     MAP_TAIL_PATH,
+    GROUP_RING_COLOUR,
     HELMET_SHELL_PATH,
     HELMET_VISOR_PATH,
     HELMET_TRIM_PATH,

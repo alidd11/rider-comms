@@ -139,7 +139,7 @@ assert.match(
 );
 assert.match(
   proximitySource,
-  /const \[manuallyMuted, setManuallyMuted\][\s\S]*<Pressable[\s\S]*onPress=\{handleVoiceControlPress\}/,
+  /const \{ muted: manuallyMuted, setMuted: setManuallyMuted[^}]*\} = useVoiceMute\(\)[\s\S]*<Pressable[\s\S]*onPress=\{handleVoiceControlPress\}/,
   'Native public proximity voice must expose a rider-operated mute/recovery control instead of a status-only surface',
 );
 assert.match(

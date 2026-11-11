@@ -25,6 +25,9 @@
     emailStatus: 'email', sessions: 'devices', legal: 'help', faq: 'help',
   };
   let currentSettingsPage = null;
+  // The hazard picker closes itself if nothing is picked (native mirrors).
+  const HAZARD_AUTO_CLOSE_SECONDS = 10;
+  let hazardAutoCloseTimer;
   // Help & Support's common questions. The native Help page has the same
   // list (scripts/check-client-parity.mjs keeps them equal).
   const HELP_FAQ = [
@@ -172,10 +175,24 @@
       units: () => ({ title: 'Distance units', body: `<div class="choice-list" role="radiogroup" aria-label="Distance units"><button data-unit-option="mi" role="radio"><span><strong>Miles</strong><small>Use miles and mph</small></span><i></i></button><button data-unit-option="km" role="radio"><span><strong>Kilometres</strong><small>Use kilometres and km/h</small></span><i></i></button></div>`, ready: () => { $$('[data-unit-option]', $('#sheetBody')).forEach((button) => { const active = button.dataset.unitOption === state.profile.unitSystem; button.setAttribute('aria-checked', String(active)); button.addEventListener('click', async () => { button.disabled = true; const next = button.dataset.unitOption; const ok = await patchProfile({ unitSystem: next }); if (ok) { openSheet('units'); showToast('Distance unit updated.'); } else button.disabled = false; }); }); } }),
       reportHazard: () => ({
         title: 'Report on the road',
-        body: `<p class="caption">Let nearby riders know what's ahead. Reports fade out over time.</p><div class="hazard-type-grid" id="hazardTypeChips">${HAZARD_TYPE_ORDER.map((t) => `<button type="button" class="hazard-type-tile" data-hazard-type="${t}" style="--hazard:${HAZARD_TYPES[t].color}">${hazardIconMarkup(t)}<span>${escapeHtml(HAZARD_TYPES[t].label)}</span></button>`).join('')}</div><p id="hazardFormError" class="inline-error" hidden></p>`,
+        body: `<p class="caption">Let nearby riders know what's ahead. Reports fade out over time.</p><div class="hazard-type-grid" id="hazardTypeChips">${HAZARD_TYPE_ORDER.map((t) => `<button type="button" class="hazard-type-tile" data-hazard-type="${t}" style="--hazard:${HAZARD_TYPES[t].color}">${hazardIconMarkup(t)}<span>${escapeHtml(HAZARD_TYPES[t].label)}</span></button>`).join('')}</div><p id="hazardFormError" class="inline-error" hidden></p><p id="hazardAutoClose" class="hazard-autoclose" aria-live="off">Closes in ${HAZARD_AUTO_CLOSE_SECONDS} seconds if you don’t pick one.</p>`,
         ready: () => {
           const chips = $$('[data-hazard-type]', $('#hazardTypeChips'));
-          chips.forEach((chip) => chip.addEventListener('click', () => createHazard(chip.dataset.hazardType, chips)));
+          // One tap to report; if nothing is picked the picker closes itself
+          // so it never sits over the map on a ride.
+          clearInterval(hazardAutoCloseTimer);
+          let remaining = HAZARD_AUTO_CLOSE_SECONDS;
+          hazardAutoCloseTimer = setInterval(() => {
+            if ($('#sheetBackdrop').hidden || !$('#hazardTypeChips')) { clearInterval(hazardAutoCloseTimer); return; }
+            remaining -= 1;
+            if (remaining <= 0) { clearInterval(hazardAutoCloseTimer); closeSheet(); return; }
+            $('#hazardAutoClose').textContent = `Closes in ${remaining} seconds if you don’t pick one.`;
+          }, 1000);
+          chips.forEach((chip) => chip.addEventListener('click', () => {
+            clearInterval(hazardAutoCloseTimer);
+            $('#hazardAutoClose').hidden = true;
+            createHazard(chip.dataset.hazardType, chips);
+          }));
         },
       }),
     };
