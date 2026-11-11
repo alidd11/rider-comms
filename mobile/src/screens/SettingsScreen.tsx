@@ -17,7 +17,6 @@ import { PLAN_INFO } from '../settings/plans';
 import { RideBar } from '../ride/RideBar';
 import type { RootStackParamList } from '../navigation';
 import { useAuth } from '../auth/AuthContext';
-import { ScreenHeader } from '../components/ScreenHeader';
 import { RiderAvatar } from '../components/RiderAvatar';
 import type { AccountSessionSummary } from '../api/client';
 import { NAVIGATION_PROVIDER_OPTIONS, type NavigationProvider } from '../navigationPreference';
