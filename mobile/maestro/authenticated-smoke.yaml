@@ -60,6 +60,9 @@ appId: com.ridercomms.app
 - tapOn: "Settings(,.*)?"
 - takeScreenshot: authenticated-settings
 # Settings lists categories, Waze-style: open one, then one of its pages.
+- scrollUntilVisible:
+    element: "Account and login"
+    direction: DOWN
 - tapOn: "Account and login"
 - takeScreenshot: authenticated-account
 - tapOn: "Signed-in devices(,.*)?"
