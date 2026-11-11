@@ -6,7 +6,7 @@ import { goOffline } from './live.ts';
 import type { RouteContext } from './context.ts';
 
 export async function handleRiderRoutes(ctx: RouteContext): Promise<unknown> {
-  const { req, res, url, actorId, s, presenceStore, profileStore, friendStore, hideoutStore, moderationStore, adminStatsStore } = ctx;
+  const { req, res, url, actorId, s, profileStore, friendStore, hideoutStore, moderationStore, adminStatsStore } = ctx;
   if (s[0] === 'riders' && s[2]) {
     if (decodeURIComponent(s[1]) !== actorId) return sendJson(res, 403, { error: 'forbidden' });
     if (s[2] === 'profile') {
