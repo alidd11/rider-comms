@@ -600,8 +600,8 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
       nearbyWidth: nearby?.getBoundingClientRect().width ?? NaN,
       reportTransform: report ? getComputedStyle(report).transform : null,
       locateTransform: locate ? getComputedStyle(locate).transform : null,
-      firstGap: report && locate ? locate.getBoundingClientRect().top - report.getBoundingClientRect().bottom : NaN,
-      secondGap: locate && nearby ? nearby.getBoundingClientRect().top - locate.getBoundingClientRect().bottom : NaN,
+      barTopDelta: report && nearby ? nearby.getBoundingClientRect().top - report.getBoundingClientRect().top : NaN,
+      locateAboveBar: report && locate ? report.getBoundingClientRect().top - locate.getBoundingClientRect().bottom : NaN,
       avatarDisplay: avatarButton ? getComputedStyle(avatarButton).display : null,
       optionsGlyphWidth: optionsGlyph?.getBoundingClientRect().width ?? NaN,
       mapTypeId: window.__riderCommsTestMap?.options?.mapTypeId ?? null,
@@ -620,19 +620,22 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
   expect(mapGeometry.searchRadius).toBeGreaterThanOrEqual(20);
   expect(mapGeometry.searchRadius).toBeLessThanOrEqual(26);
   expect(mapGeometry.actionRadius).toBe('50%');
-  expect(mapGeometry.reportWidth).toBe(54);
-  expect(mapGeometry.locateWidth).toBe(54);
-  expect(mapGeometry.nearbyWidth).toBe(54);
+  // Hazard and a wide labelled Go live share the bottom bar; Music and
+  // Locate are small round buttons above it on the right.
+  expect(mapGeometry.reportWidth).toBe(56);
+  expect(mapGeometry.locateWidth).toBe(46);
+  expect(mapGeometry.nearbyWidth).toBeGreaterThan(mapGeometry.viewportWidth / 2);
   expect(mapGeometry.reportTransform).toBe('none');
   expect(mapGeometry.locateTransform).toBe('none');
-  expectNear(mapGeometry.firstGap, 8);
-  expectNear(mapGeometry.secondGap, 8);
+  expectNear(mapGeometry.barTopDelta, 0);
+  expect(mapGeometry.locateAboveBar).toBeGreaterThanOrEqual(8);
   // The avatar beside search opens the menu.
   expect(mapGeometry.avatarDisplay).toBe('grid');
   expect(mapGeometry.optionsGlyphWidth).toBeGreaterThanOrEqual(16);
   expect(mapGeometry.mapTypeId).toBe('roadmap');
   expect(mapGeometry.keyboardShortcuts).toBe(false);
-  expect(mapGeometry.mapColorScheme).toBe('FOLLOW_SYSTEM');
+  // Follows the phone, except from sunset to sunrise when it is always dark.
+  expect(['FOLLOW_SYSTEM', 'DARK']).toContain(mapGeometry.mapColorScheme);
   expect(mapGeometry.mapRenderingType).toBe('VECTOR');
   expect(mapGeometry.tiltInteractionEnabled).toBe(true);
   expect(mapGeometry.headingInteractionEnabled).toBe(true);

@@ -81,7 +81,7 @@ export const styles = StyleSheet.create({
     gap: 10,
   },
   mapHazardButton: {
-    width: 64,
+    width: BOTTOM_BAR_HEIGHT,
     height: BOTTOM_BAR_HEIGHT,
     borderRadius: 16,
     alignItems: 'center',
