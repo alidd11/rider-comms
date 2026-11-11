@@ -17,6 +17,9 @@ every PR push and again on `main` after each merge. Lessons from earlier PRs:
     `service postgresql start`, then
     `DATABASE_URL=postgres://postgres:postgres@localhost:5432/rider_comms_test npm test`
   - `npm run test:jest --workspace=mobile` and `npx tsc --noEmit -p mobile`
+  - `npm run test:coverage` (with `DATABASE_URL` set) when you add code: CI
+    fails any package under 99% line coverage, and a new component without
+    tests for its gestures or error paths drops the native Jest figure below it
   - after web changes: `npm run build:pwa-app && npm run build:web`, then
     `npx playwright test` for the affected spec files and a couple of projects
 - **Keep native and web work apart when it's cheap to.** A PR that touches

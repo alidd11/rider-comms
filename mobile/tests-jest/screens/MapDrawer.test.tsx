@@ -131,3 +131,84 @@ it('reports its resting height so the map controls can sit above it', async () =
   });
   expect(onPeekHeight).toHaveBeenCalledWith(190);
 });
+
+// The drawer's slide runs through PanResponder, which reads the responder
+// system's touch history; build one so a test can slide a finger.
+function touchAt(previousY: number, currentY: number, time: number) {
+  return {
+    nativeEvent: { touches: [], changedTouches: [] },
+    touchHistory: {
+      numberActiveTouches: 1,
+      indexOfSingleActiveTouch: 0,
+      mostRecentTimeStamp: time,
+      touchBank: [{
+        touchActive: true,
+        startPageX: 200, startPageY: 500, startTimeStamp: 0,
+        previousPageX: 200, previousPageY: previousY, previousTimeStamp: time - 1,
+        currentPageX: 200, currentPageY: currentY, currentTimeStamp: time,
+      }],
+    },
+  };
+}
+
+async function slide(dy: number): Promise<void> {
+  const drawer = screen.getByTestId('map-drawer');
+  await act(async () => {
+    const start = touchAt(500, 480, 1);
+    // The capture phase records the movement; the bubble phase decides.
+    drawer.props.onMoveShouldSetResponderCapture(start);
+    expect(drawer.props.onMoveShouldSetResponder(start)).toBe(true);
+    drawer.props.onResponderGrant(start);
+    const moved = touchAt(480, 500 + dy, 2);
+    drawer.props.onResponderMove(moved);
+    drawer.props.onResponderRelease(moved);
+  });
+}
+
+it('a slide follows the finger and snaps open or closed, with a haptic tick', async () => {
+  const Haptics = jest.requireMock('expo-haptics') as { selectionAsync: jest.Mock };
+  Haptics.selectionAsync.mockClear();
+  await render(<Harness />);
+
+  await slide(-120);
+  expect(screen.getByLabelText('Hide recent places')).toBeTruthy();
+  expect(Haptics.selectionAsync).toHaveBeenCalledTimes(1);
+
+  // A short pull down leaves it open, with no tick.
+  await slide(30);
+  expect(screen.getByLabelText('Hide recent places')).toBeTruthy();
+  expect(Haptics.selectionAsync).toHaveBeenCalledTimes(1);
+
+  await slide(140);
+  expect(screen.getByLabelText('Show recent places')).toBeTruthy();
+  expect(Haptics.selectionAsync).toHaveBeenCalledTimes(2);
+
+  // A slide the system takes away settles back where it was.
+  const drawer = screen.getByTestId('map-drawer');
+  await act(async () => {
+    const start = touchAt(500, 480, 3);
+    drawer.props.onMoveShouldSetResponderCapture(start);
+    drawer.props.onMoveShouldSetResponder(start);
+    drawer.props.onResponderGrant(start);
+    drawer.props.onResponderTerminate(touchAt(480, 400, 4));
+  });
+  expect(screen.getByLabelText('Show recent places')).toBeTruthy();
+});
+
+it('press and hold on an empty Home goes straight to choosing it, and Change reopens search', async () => {
+  await AsyncStorage.setItem(savedPlacesStorageKey('rider-1'), JSON.stringify({ work: ACE }));
+  const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+  await render(<Harness />);
+
+  await fireEvent(screen.getByLabelText('Set Home'), 'longPress');
+  expect(screen.getByText('Choose your Home')).toBeTruthy();
+  expect(alert).not.toHaveBeenCalled();
+  await fireEvent.press(screen.getByLabelText('Back to map'));
+
+  // Screen readers reach the same choice through an accessibility action.
+  await fireEvent(await screen.findByLabelText('Work, Ace Cafe London'), 'accessibilityAction', { nativeEvent: { actionName: 'longpress' } });
+  const buttons = alert.mock.calls[0][2] ?? [];
+  await act(async () => { buttons[0].onPress?.(); });
+  expect(screen.getByText('Choose your Work')).toBeTruthy();
+  alert.mockRestore();
+});
