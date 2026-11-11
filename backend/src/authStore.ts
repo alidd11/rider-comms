@@ -116,7 +116,7 @@ export class AuthStore {
     this.sendPasswordResetEmailFn = sendPasswordResetEmailFn;
   }
 
-  private digest(token: string): string { return createHash('sha256').update(token).digest('hex'); }
+  private digest(token: string): string { return sessionTokenHash(token); }
   private deviceName(value: unknown): string {
     if (typeof value !== 'string') return 'Unknown device';
     // eslint-disable-next-line no-control-regex -- stripping control characters is the point
@@ -161,6 +161,7 @@ export class AuthStore {
     if (!process.env.DATABASE_URL) return;
     await ensureMigrated();
     await getPool().query('DELETE FROM account_sessions WHERE token_hash = $1', [tokenHash]);
+    await getPool().query('DELETE FROM push_subscriptions WHERE session_token_hash = $1', [tokenHash]);
   }
   /** Removes process-local test/session state after durable deletion commits. */
   forgetRider(riderId: string): void {
@@ -361,6 +362,8 @@ export class AuthStore {
         [passwordHash, PASSWORD_ALGORITHM, row.user_id]
       );
       await client.query('DELETE FROM account_sessions WHERE user_id = $1', [row.user_id]);
+      // Every device signs in again, and re-registers for notifications then.
+      await client.query('DELETE FROM push_subscriptions WHERE rider_id = $1', [row.user_id]);
       return { reset: true };
     });
   }
@@ -434,8 +437,15 @@ export class AuthStore {
 
   async revokeSession(riderId: string, sessionId: string): Promise<boolean> {
     await ensureMigrated();
-    const result = await getPool().query('DELETE FROM account_sessions WHERE id = $1 AND user_id = $2', [sessionId, riderId]);
-    return result.rowCount === 1;
+    const result = await getPool().query<{ token_hash: string }>(
+      'DELETE FROM account_sessions WHERE id = $1 AND user_id = $2 RETURNING token_hash',
+      [sessionId, riderId],
+    );
+    const revoked = result.rows[0];
+    if (!revoked) return false;
+    // The revoked device stops getting notifications too.
+    await getPool().query('DELETE FROM push_subscriptions WHERE session_token_hash = $1', [revoked.token_hash]);
+    return true;
   }
 
   /** Removes abandoned authentication artefacts without waiting for their
@@ -447,6 +457,10 @@ export class AuthStore {
       const sessions = await client.query('DELETE FROM account_sessions WHERE expires_at <= $1', [now]);
       const verifications = await client.query('DELETE FROM email_verifications WHERE expires_at <= $1', [now]);
       const passwordResets = await client.query('DELETE FROM password_resets WHERE expires_at <= $1', [now]);
+      await client.query(
+        `DELETE FROM push_subscriptions p WHERE p.session_token_hash IS NOT NULL
+         AND NOT EXISTS (SELECT 1 FROM account_sessions s WHERE s.token_hash = p.session_token_hash)`,
+      );
       return {
         sessions: sessions.rowCount ?? 0,
         verifications: verifications.rowCount ?? 0,
@@ -454,6 +468,11 @@ export class AuthStore {
       };
     });
   }
+}
+
+/** How a bearer token is stored: account_sessions.token_hash and push_subscriptions.session_token_hash. */
+export function sessionTokenHash(token: string): string {
+  return createHash('sha256').update(token).digest('hex');
 }
 
 function isUniqueViolation(error: unknown): boolean {

@@ -888,4 +888,14 @@ export const MIGRATIONS: Migration[] = [
       UPDATE rider_profiles SET notify_invites = TRUE, notify_chat = TRUE;
     `,
   },
+  {
+    // Which sign-in registered each device, so revoking that session (a lost
+    // phone, a password reset, a suspension) also stops its lock-screen
+    // message previews. NULL for devices registered before this.
+    name: '0051_push_subscription_sessions',
+    sql: `
+      ALTER TABLE push_subscriptions ADD COLUMN IF NOT EXISTS session_token_hash TEXT;
+      CREATE INDEX IF NOT EXISTS push_subscriptions_session_idx ON push_subscriptions (session_token_hash);
+    `,
+  },
 ];
