@@ -11,6 +11,7 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation';
 import { ApiError } from '../api/client';
+import { rideRefusalMessage } from './rideErrors';
 import { useAuth } from '../auth/AuthContext';
 import { RIDE_HERO_IMAGE } from '../brandAssets';
 import { colors, spacing, radii, type, elevation } from '../theme';
@@ -62,6 +63,7 @@ function JoinOrHostForm({ inviteCode }: { inviteCode?: string | null }): React.J
       if (err instanceof ApiError && err.status === 429) setError('Too many attempts. Wait a minute before trying again.');
       else if (err instanceof ApiError && err.status === 404) setError("That code doesn't match an active ride. Check it with your host.");
       else if (err instanceof ApiError && err.status === 409) setError('This ride is full (20 riders max).');
+      else if (err instanceof ApiError && err.status === 403) setError(rideRefusalMessage(err));
       else setError("Couldn't join the ride. Check your connection and try again.");
     } finally {
       setLoading(false);

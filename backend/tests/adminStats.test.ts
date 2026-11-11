@@ -5,6 +5,7 @@ import type { TestServer } from './httpTestUtils.ts';
 import { ensureMigrated, getPool, resetDbForTests } from '../src/db.ts';
 import { AdminStatsStore, FUNNEL_COHORT_MAX_AGE_DAYS, SERIES_DAYS } from '../src/adminStatsStore.ts';
 import type { AdminOverview } from '../src/adminStatsStore.ts';
+import { TERMS_VERSION } from '../src/authStore.ts';
 
 const hasDatabase = Boolean(process.env.DATABASE_URL);
 
@@ -24,6 +25,11 @@ async function seedUsers(): Promise<void> {
        ($3, 'tst_stats_beta', 'beta@example.com', 'test-only', NULL, false, 123)`,
     [ADMIN, RIDER_A, RIDER_B],
   );
+}
+
+// Starting a ride needs a verified email and the current Terms.
+async function makeRideReady(riderId: string): Promise<void> {
+  await getPool().query('UPDATE users SET email_verified_at = now(), terms_version = $2 WHERE id = $1', [riderId, TERMS_VERSION]);
 }
 
 async function cleanup(): Promise<void> {
@@ -250,6 +256,7 @@ describe('admin dashboard API', { skip: !hasDatabase && 'DATABASE_URL not set; s
   });
 
   it('counts a started ride for the dashboard', async () => {
+    await makeRideReady(RIDER_A);
     const created = await postJson(ctx, RIDER_A, '/rides', {});
     assert.equal(created.status, 201);
     const today = new Date().toISOString().slice(0, 10);
@@ -265,6 +272,7 @@ describe('admin dashboard API', { skip: !hasDatabase && 'DATABASE_URL not set; s
   });
 
   it('records a rider\'s first ride for the growth funnel', async () => {
+    await makeRideReady(RIDER_B);
     assert.equal((await postJson(ctx, RIDER_B, '/rides', {})).status, 201);
     for (let attempt = 0; attempt < 20; attempt += 1) {
       const { rows } = await getPool().query('SELECT first_ride_at FROM users WHERE id = $1', [RIDER_B]);

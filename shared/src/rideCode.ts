@@ -1,7 +1,9 @@
 // Excludes 0/O, 1/I/L — ambiguous when read aloud or handwritten on a gas-station napkin.
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 const DEFAULT_CODE_LENGTH = 6;
-const DEFAULT_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours idle expiry
+/** A code lapses after 12 hours without ride activity (the backend slides it forward while the ride is in use). */
+export const RIDE_CODE_IDLE_TTL_MS = 12 * 60 * 60 * 1000;
+const DEFAULT_TTL_MS = RIDE_CODE_IDLE_TTL_MS;
 
 /**
  * Uses the Web Crypto API (crypto.getRandomValues) rather than Node's

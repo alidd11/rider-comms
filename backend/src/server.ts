@@ -137,6 +137,8 @@ function requiresVerifiedEmail(method: string | undefined, pathname: string): bo
   if ([
     '/presence',
     '/voice/token',
+    '/rides',
+    '/rides/join',
     '/reports',
     '/friends/requests',
     '/messages',

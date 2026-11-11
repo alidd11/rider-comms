@@ -124,6 +124,8 @@
     invalid_or_expired: 'That invite code is invalid or has expired.',
     ride_full: 'This ride is full (max 20 riders).',
     rate_limited: 'Too many attempts — please wait a moment and try again.',
+    email_verification_required: 'Verify your email first: open the link we sent you (Settings → Account and login → Email).',
+    terms_acceptance_required: 'Accept the latest Terms in Settings before riding with others.',
   };
 
   /** Creates a real private ride (POST /rides) — the backend returns the
@@ -145,8 +147,9 @@
       navigate('ride');
       showToast('Your private ride is ready.');
       await loadRideRoster();
-    } catch {
-      showToast('Could not create a ride. Try again.');
+    } catch (error) {
+      const reason = error instanceof ApiError ? error.body?.error : undefined;
+      showToast(RIDE_ERROR_MESSAGES[reason] || 'Could not create a ride. Try again.');
     } finally {
       button.disabled = false;
       button.innerHTML = `${icon('plus')}<span>Start a ride</span>`;

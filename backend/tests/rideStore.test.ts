@@ -77,6 +77,48 @@ describe('RideStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping Po
     assert.equal((await store.joinRide(codeRecord.code, 'newcomer')).ok, true);
   });
 
+  it('keeps riders apart when either has blocked someone already in the ride', async () => {
+    const store = new RideStore();
+    await getPool().query('DELETE FROM rider_blocks WHERE rider_id IN ($1, $2, $3)', ['block_host', 'block_member', 'block_joiner']);
+    const { ride, codeRecord } = await store.createRide('block_host');
+    assert.deepEqual(await store.joinRide(codeRecord.code, 'block_member'), { ok: true, rideId: ride.id });
+
+    // The joiner blocked a member: refused, with the same answer as a wrong code.
+    await getPool().query('INSERT INTO rider_blocks (rider_id, blocked_rider_id, created_at) VALUES ($1, $2, $3)', ['block_joiner', 'block_member', Date.now()]);
+    assert.deepEqual(await store.joinRide(codeRecord.code, 'block_joiner'), { ok: false, reason: 'invalid_or_expired' });
+    // A member blocked the joiner: refused the same way.
+    await getPool().query('DELETE FROM rider_blocks WHERE rider_id = $1', ['block_joiner']);
+    await getPool().query('INSERT INTO rider_blocks (rider_id, blocked_rider_id, created_at) VALUES ($1, $2, $3)', ['block_host', 'block_joiner', Date.now()]);
+    assert.deepEqual(await store.joinRide(codeRecord.code, 'block_joiner'), { ok: false, reason: 'invalid_or_expired' });
+    assert.equal((await store.getRide(ride.id))?.memberIds.has('block_joiner'), false);
+    // Once the block is lifted the code works.
+    await getPool().query('DELETE FROM rider_blocks WHERE rider_id = $1', ['block_host']);
+    assert.deepEqual(await store.joinRide(codeRecord.code, 'block_joiner'), { ok: true, rideId: ride.id });
+  });
+
+  it('keeps the invite code alive while the ride is in use, and lets it lapse when idle', async () => {
+    const store = new RideStore();
+    const { ride, codeRecord } = await store.createRide('idle_host');
+    const expiresAt = async () => Number((await getPool().query('SELECT expires_at FROM ride_codes WHERE code = $1', [codeRecord.code])).rows[0]?.expires_at);
+
+    // Two hours in, the ride is still being used: the code slides to 12 hours from now.
+    await getPool().query('UPDATE ride_codes SET expires_at = $2 WHERE code = $1', [codeRecord.code, Date.now() + 10 * 60 * 60 * 1000]);
+    await store.getMemberRideSession(ride.id, 'idle_host');
+    assert.ok(await expiresAt() > Date.now() + 11.9 * 60 * 60 * 1000);
+
+    // Joining keeps it alive too.
+    await getPool().query('UPDATE ride_codes SET expires_at = $2 WHERE code = $1', [codeRecord.code, Date.now() + 60 * 60 * 1000]);
+    assert.equal((await store.joinRide(codeRecord.code, 'idle_joiner')).ok, true);
+    assert.ok(await expiresAt() > Date.now() + 11.9 * 60 * 60 * 1000);
+
+    // Twelve idle hours: it lapsed, and reading the ride does not revive it.
+    await getPool().query('UPDATE ride_codes SET expires_at = $2 WHERE code = $1', [codeRecord.code, Date.now() - 1000]);
+    const session = await store.getMemberRideSession(ride.id, 'idle_host');
+    assert.equal(session?.code, null);
+    assert.ok(await expiresAt() < Date.now());
+    assert.deepEqual(await store.joinRide(codeRecord.code, 'late_joiner'), { ok: false, reason: 'invalid_or_expired' });
+  });
+
   it('requires explicit per-ride consent before sharing a member location', async () => {
     const store = new RideStore();
     const { ride, codeRecord } = await store.createRide('host');

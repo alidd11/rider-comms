@@ -171,6 +171,8 @@ describe('authenticated API', () => {
       ['/scenic-routes', {}],
       ['/presence', { lat: 51.5, lon: -0.1, accuracyMeters: 5, recordedAt: Date.now() }],
       ['/voice/token', { target: 'channel' }],
+      ['/rides', {}],
+      ['/rides/join', { code: 'ABCDEF' }],
     ] as const) {
       const response = await fetch(`${ctx.baseUrl()}${path}`, { method: 'POST', headers, body: JSON.stringify(body) });
       assert.equal(response.status, 403, path);
