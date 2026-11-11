@@ -80,7 +80,7 @@ appId: com.ridercomms.app
       - tapOn:
           id: drawer-friends
       - extendedWaitUntil:
-          visible: "Go back"
+          visible: "Back to map"
           timeout: 8000
 - takeScreenshot: authenticated-friends
 - tapOn: "Back to map"
