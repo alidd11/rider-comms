@@ -10,6 +10,8 @@ export interface PushSubscriptionRecord {
   address: string;
   p256dh: string | null;
   auth: string | null;
+  /** The sign-in that registered it; revoking that session removes the device. */
+  sessionTokenHash?: string | null;
 }
 
 interface SubscriptionRow {
@@ -58,12 +60,12 @@ export class PushStore {
     await ensureMigrated();
     const pool = getPool();
     await pool.query(
-      `INSERT INTO push_subscriptions (rider_id, kind, address, p256dh, auth, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $6)
+      `INSERT INTO push_subscriptions (rider_id, kind, address, p256dh, auth, session_token_hash, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $7)
        ON CONFLICT (address) DO UPDATE SET
          rider_id = EXCLUDED.rider_id, kind = EXCLUDED.kind, p256dh = EXCLUDED.p256dh,
-         auth = EXCLUDED.auth, updated_at = EXCLUDED.updated_at`,
-      [record.riderId, record.kind, record.address, record.p256dh, record.auth, now],
+         auth = EXCLUDED.auth, session_token_hash = EXCLUDED.session_token_hash, updated_at = EXCLUDED.updated_at`,
+      [record.riderId, record.kind, record.address, record.p256dh, record.auth, record.sessionTokenHash ?? null, now],
     );
     // Keep the newest few devices per rider; old browsers otherwise pile up.
     await pool.query(

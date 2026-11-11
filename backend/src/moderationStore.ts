@@ -332,6 +332,7 @@ export class ModerationStore {
         }
         await client.query('UPDATE users SET suspended_at = $2 WHERE id = $1 AND suspended_at IS NULL', [targetRiderId, now]);
         await client.query('DELETE FROM account_sessions WHERE user_id = $1', [targetRiderId]);
+        await client.query('DELETE FROM push_subscriptions WHERE rider_id = $1', [targetRiderId]);
       }
       const resolved = await client.query<{ id: string }>(
         resolution === 'suspend'

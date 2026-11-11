@@ -4,6 +4,7 @@ import { authenticatedFetch, clearSharedTestState, postJson, startTestServer } f
 import type { TestServer } from './httpTestUtils.ts';
 import { ensureMigrated, getPool, resetDbForTests } from '../src/db.ts';
 import { PushStore } from '../src/pushStore.ts';
+import { AuthStore, sessionTokenHash } from '../src/authStore.ts';
 import type { PushContent, PushEvent } from '../src/pushNotifier.ts';
 
 const hasDatabase = Boolean(process.env.DATABASE_URL);
@@ -79,5 +80,41 @@ describe('push notification devices and triggers', { skip: !hasDatabase && 'DATA
       event: 'message',
       content: { title: 'Sam', body: 'See you at the café?', route: '#chat:push-sam', tag: 'chat-push-sam' },
     });
+  });
+});
+
+describe('push devices follow the sign-in that registered them', { skip: !hasDatabase && 'DATABASE_URL not set' }, () => {
+  const store = new PushStore();
+  const auth = new AuthStore(async () => true, async () => true);
+  const device = (riderId: string, token: string, address: string) =>
+    store.upsert({ riderId, kind: 'expo', address, p256dh: null, auth: null, sessionTokenHash: sessionTokenHash(token) });
+  const signIn = async (username: string) => {
+    await getPool().query('DELETE FROM users WHERE username = $1', [username]);
+    const result = await auth.signUp(username, `${username}@example.com`, 'correct-horse-battery');
+    assert.ok('token' in result);
+    const second = await auth.logIn(username, 'correct-horse-battery');
+    assert.ok('token' in second);
+    return { riderId: result.riderId, first: result.token, second: second.token };
+  };
+
+  it('drops a device when its session is revoked from another device, or signs out', async () => {
+    const rider = await signIn('push_session');
+    await device(rider.riderId, rider.first, 'ExponentPushToken[lostphone001]');
+    await device(rider.riderId, rider.second, 'ExponentPushToken[keptphone001]');
+    const sessions = await auth.listSessions(rider.riderId, rider.second);
+    const lost = sessions.find((session) => !session.current)!;
+    assert.equal(await auth.revokeSession(rider.riderId, lost.id), true);
+    assert.deepEqual((await store.listForRider(rider.riderId)).map((d) => d.address), ['ExponentPushToken[keptphone001]']);
+    await auth.revokeToken(rider.second);
+    assert.deepEqual(await store.listForRider(rider.riderId), []);
+  });
+
+  it('drops devices whose session expired, and keeps ones registered before sessions were recorded', async () => {
+    const rider = await signIn('push_expiry');
+    await device(rider.riderId, rider.first, 'ExponentPushToken[expiredphone]');
+    await store.upsert({ riderId: rider.riderId, kind: 'expo', address: 'ExponentPushToken[legacyphone1]', p256dh: null, auth: null });
+    await getPool().query(`UPDATE account_sessions SET expires_at = now() - interval '1 minute' WHERE token_hash = $1`, [sessionTokenHash(rider.first)]);
+    await auth.cleanupExpiredRecords();
+    assert.deepEqual((await store.listForRider(rider.riderId)).map((d) => d.address), ['ExponentPushToken[legacyphone1]']);
   });
 });
