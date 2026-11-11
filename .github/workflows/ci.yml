@@ -77,8 +77,15 @@ jobs:
       # change rather than first exercised during an incident.
       - name: Backup and restore drill
         run: |
-          sudo apt-get update -q
-          sudo apt-get install -y -q age
+          # The Ubuntu apt mirror has been unreachable from runners at times;
+          # fall back to the Go module proxy (checksum-verified via sum.golang.org).
+          if ! (sudo apt-get update -q -o Acquire::Retries=3 && sudo apt-get install -y -q -o Acquire::Retries=3 age); then
+            echo "apt unavailable; installing age from the Go module proxy"
+            GOBIN=$HOME/go-tools go install filippo.io/age/cmd/...@v1.2.1
+            echo $HOME/go-tools >> "$GITHUB_PATH"
+            export PATH="$HOME/go-tools:$PATH"
+          fi
+          age --version
           scripts/backup-drill.sh
       - name: Upload coverage reports
         if: always()
