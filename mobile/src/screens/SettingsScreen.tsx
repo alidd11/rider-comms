@@ -511,7 +511,7 @@ function PrivacyPage(): React.JSX.Element {
 /** Account and login: email, devices, then sign out, reset and delete. */
 function AccountPage(): React.JSX.Element {
   const { resetAll } = useSettings();
-  const { logOut, emailVerified, deleteAccount } = useAuth();
+  const { logOut, emailVerified, deleteAccount, client, riderId } = useAuth();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
   function confirmReset() {
@@ -545,7 +545,9 @@ function AccountPage(): React.JSX.Element {
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Sign out', style: 'destructive', onPress: () => {
-          void logOut().catch(() => Alert.alert('Signed out on this device', 'Rider Comms could not contact the server to revoke the session, but it has been removed from this device.'));
+          // This phone stops getting the account's notifications first, while
+          // the session can still authorise removing it (PWA: signOut).
+          void disablePush(client, riderId).catch(() => undefined).then(() => logOut()).catch(() => Alert.alert('Signed out on this device', 'Rider Comms could not contact the server to revoke the session, but it has been removed from this device.'));
         } },
       ]
     );
