@@ -241,7 +241,7 @@
           <div id="googleMap" class="google-map" aria-hidden="true"></div>
           <div class="fallback-map" id="fallbackMap"><div class="road road-a"></div><div class="road road-b"></div><div class="road road-c"></div></div>
           <h1 id="mapTitle" class="sr-only">Rider map</h1>
-          <header class="map-header"><div class="map-avatar-wrap"><button class="avatar avatar-sm" id="mapAvatarButton" data-avatar="AI" aria-label="Open menu" aria-haspopup="dialog" aria-controls="appMenu">AI</button><button id="voiceStatusBtn" class="voice-mute-badge" aria-label="Listening — hands-free" hidden><svg><use href="#i-mic"/></svg></button></div><div class="search-slot glass" id="mapSearchSlot"><svg><use href="#i-search"/></svg><input id="placeSearchInput" placeholder="Search for a place" aria-label="Search for a place" autocomplete="off" readonly><svg class="map-search-options" aria-hidden="true"><use href="#i-sliders"/></svg></div><div class="map-status-row"><div id="mapStatusChip" class="map-status-chip" role="status" aria-live="polite"><span class="map-status-dot" aria-hidden="true"></span><span id="mapStatusText">Nearby off</span></div></div></header>
+          <header class="map-header"><div class="map-avatar-wrap"><button class="avatar avatar-sm" id="mapAvatarButton" data-avatar="AI" aria-label="Open menu" aria-haspopup="dialog" aria-controls="appMenu">AI</button><i id="mapMenuBadge" class="map-menu-badge" aria-hidden="true" hidden></i><button id="voiceStatusBtn" class="voice-mute-badge" aria-label="Listening — hands-free" hidden><svg><use href="#i-mic"/></svg></button></div><div class="search-slot glass" id="mapSearchSlot"><svg><use href="#i-search"/></svg><input id="placeSearchInput" placeholder="Search for a place" aria-label="Search for a place" autocomplete="off" readonly><svg class="map-search-options" aria-hidden="true"><use href="#i-sliders"/></svg></div><div class="map-status-row"><div id="mapStatusChip" class="map-status-chip" role="status" aria-live="polite"><span class="map-status-dot" aria-hidden="true"></span><span id="mapStatusText">Nearby off</span></div></div></header>
           <div id="fallbackMarkers" class="fallback-markers"></div>
           <div id="hazardMarkers" class="hazard-markers"></div>
           <div class="map-actions">
@@ -298,7 +298,7 @@
 
       <section class="screen content-screen ride-screen" data-screen="ride" aria-labelledby="rideTitle">
         <div class="page-width">
-          <header class="page-header"><div><h1 id="rideTitle">Ride</h1></div><button class="icon-button" id="rideShareTop" aria-label="Share ride" hidden><svg><use href="#i-share"/></svg></button></header>
+          <header class="page-header"><button class="icon-button page-back" type="button" data-back-to-map aria-label="Back to map"><svg class="icon-back"><use href="#i-chevron"/></svg></button><div><h1 id="rideTitle">Ride</h1></div><button class="icon-button" id="rideShareTop" aria-label="Share ride" hidden><svg><use href="#i-share"/></svg></button></header>
           <div id="rideJoinState">
             <div class="ride-hero" role="img" aria-label="Motorcyclists riding together on a winding mountain road">
               <div class="ride-hero-copy"><strong>Ride further, together.</strong></div>
@@ -331,7 +331,7 @@
       </section>
 
       <section class="screen content-screen" data-screen="friends" aria-labelledby="friendsTitle">
-        <div class="page-width"><header class="page-header"><div><h1 id="friendsTitle">Friends</h1></div><span id="friendsCountBadge" class="count-badge" hidden>0</span><button id="addFriendToggle" class="icon-button add-friend-toggle" aria-label="Add a rider" title="Add a rider &#8211; connect using their handle or Rider ID"><svg><use href="#i-friends"/></svg></button></header>
+        <div class="page-width"><header class="page-header"><button class="icon-button page-back" type="button" data-back-to-map aria-label="Back to map"><svg class="icon-back"><use href="#i-chevron"/></svg></button><div><h1 id="friendsTitle">Friends</h1></div><span id="friendsCountBadge" class="count-badge" hidden>0</span><button id="addFriendToggle" class="icon-button add-friend-toggle" aria-label="Add a rider" title="Add a rider &#8211; connect using their handle or Rider ID"><svg><use href="#i-friends"/></svg></button></header>
           <div class="network-summary" aria-label="Network summary"><span><b id="networkFriendCount">0</b> friends</span><span><b id="networkRequestCount">0</b> requests</span></div>
           <div class="search-and-add"><div class="search-row"><svg><use href="#i-search"/></svg><input id="friendSearch" placeholder="Search friends" aria-label="Search friends" autocomplete="off"></div></div>
           <form id="addFriendForm" class="compact-form" hidden><label for="friendId">Handle or Rider ID</label><div class="add-friend-field"><span class="add-friend-prefix" aria-hidden="true">@</span><input id="friendId" placeholder="their_handle or Rider ID" autocomplete="off" aria-label="Friend handle or Rider ID"><button class="button primary">Send</button></div><p id="friendFeedback" class="support-copy"></p></form>
@@ -348,11 +348,6 @@
       </section>
 
       <button id="ridePill" class="ride-pill" hidden><span class="live-dot"></span><span><small>Active ride</small><strong id="ridePillCode"></strong></span><span class="pill-count"></span><svg><use href="#i-chevron"/></svg></button>
-      <nav class="bottom-nav" aria-label="Primary navigation">
-        <button class="active" data-nav="map"><svg><use href="#i-map"/></svg><span>Map</span></button>
-        <button data-nav="ride"><svg><use href="#i-bike"/></svg><span>Ride</span></button>
-        <button data-nav="friends"><svg><use href="#i-users"/></svg><span>Friends</span><i id="friendsNavBadge" hidden>0</i></button>
-      </nav>
     </main>
   </div>
 
@@ -363,6 +358,8 @@
       <div class="app-menu-profile-copy"><strong id="appMenuName"></strong><span id="appMenuHandle"></span><button id="appMenuViewProfile" class="app-menu-profile-button" type="button">View profile</button></div>
     </div>
     <div class="app-menu-list">
+      <button type="button" data-menu-nav="ride"><svg><use href="#i-bike"/></svg><span>Ride</span><small id="appMenuRide" class="app-menu-live" hidden><span class="live-dot"></span>Live</small></button>
+      <button type="button" data-menu-nav="friends"><svg><use href="#i-users"/></svg><span>Friends</span><i id="friendsNavBadge" class="app-menu-badge" hidden>0</i></button>
       <button type="button" data-menu-nav="routes"><svg><use href="#i-route"/></svg><span>Routes</span></button>
       <button type="button" data-menu-sheet="plans"><svg><use href="#i-card"/></svg><span>Your plan</span><small id="appMenuPlan"></small></button>
       <button type="button" data-menu-nav="settings"><svg><use href="#i-settings"/></svg><span>Settings</span></button>

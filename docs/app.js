@@ -1289,6 +1289,12 @@
       navBadge.textContent = attentionCount > 99 ? '99+' : String(attentionCount);
       navBadge.hidden = attentionCount === 0;
     }
+    // Friends lives in the menu now, so the avatar that opens it carries the dot.
+    const menuBadge = $('#mapMenuBadge');
+    if (menuBadge) menuBadge.hidden = attentionCount === 0;
+    $('#mapAvatarButton')?.setAttribute('aria-label', attentionCount
+      ? `Open menu, ${attentionCount} new in Friends`
+      : 'Open menu');
     $$('[data-accept]').forEach((button) => button.addEventListener('click', () => acceptRequest(button.dataset.accept)));
     $$('[data-decline]').forEach((button) => button.addEventListener('click', () => declineRequest(button.dataset.decline)));
     $$('[data-request-safety]').forEach((button) => button.addEventListener('click', () => {
@@ -2198,6 +2204,8 @@
     $('#rideActiveState').hidden = !active;
     $('#rideShareTop').hidden = !active;
     $('#ridePill').hidden = !active;
+    const menuLive = $('#appMenuRide');
+    if (menuLive) menuLive.hidden = !active;
     // The floating ride pill covers the last ~50px of every screen; give
     // scrollable screens room to clear it.
     document.documentElement.classList.toggle('ride-pill-visible', active);
@@ -4821,7 +4829,8 @@
     if (message) message.textContent = nextState === 'moving'
       ? 'Distracting controls are locked until you are safely below 8 mph.'
       : 'Waiting for a reliable speed fix. Controls stay available.';
-    $$('[data-nav="friends"], [data-menu-nav]').forEach((item) => {
+    // Ride stays reachable while moving, as it was from the tab bar.
+    $$('[data-menu-nav]:not([data-menu-nav="ride"])').forEach((item) => {
       item.setAttribute('aria-disabled', String(locked));
       item.classList.toggle('safety-unavailable', locked);
     });

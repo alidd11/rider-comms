@@ -129,7 +129,8 @@
     if (message) message.textContent = nextState === 'moving'
       ? 'Distracting controls are locked until you are safely below 8 mph.'
       : 'Waiting for a reliable speed fix. Controls stay available.';
-    $$('[data-nav="friends"], [data-menu-nav]').forEach((item) => {
+    // Ride stays reachable while moving, as it was from the tab bar.
+    $$('[data-menu-nav]:not([data-menu-nav="ride"])').forEach((item) => {
       item.setAttribute('aria-disabled', String(locked));
       item.classList.toggle('safety-unavailable', locked);
     });

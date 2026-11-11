@@ -208,27 +208,17 @@ async function standaloneGeometry(page) {
     const root = document.documentElement;
     const app = document.querySelector('#app');
     const screen = document.querySelector('.screen.active');
-    const nav = document.querySelector('.bottom-nav');
-    const rail = nav?.querySelector('button');
     const map = document.querySelector('#mapCanvas');
     const box = (element) => element?.getBoundingClientRect();
     const appBox = box(app);
     const screenBox = box(screen);
-    const navBox = box(nav);
-    const railBox = box(rail);
     const mapBox = box(map);
-    const navStyle = getComputedStyle(nav);
     return {
       viewportHeight: root.clientHeight,
       viewportWidth: root.clientWidth,
       appTop: appBox?.top,
       appBottom: appBox?.bottom,
       screenBottom: screenBox?.bottom,
-      navTop: navBox?.top,
-      navBottom: navBox?.bottom,
-      navHeight: navBox?.height,
-      navPaddingBottom: parseFloat(navStyle.paddingBottom),
-      railBottom: railBox?.bottom,
       mapBottom: mapBox?.bottom,
       documentWidth: root.scrollWidth,
     };
@@ -237,16 +227,14 @@ async function standaloneGeometry(page) {
 
 // Routes and Settings live in the menu behind the rider's avatar on the
 // map (Map, Ride and Friends are the tabs).
-// Map, Ride and Friends are tabs. Routes and Settings open from the menu
-// behind the rider's avatar and hide the tabs, so leaving them goes through
-// their back arrow first.
+// There is no tab bar: the map is home, and Ride, Friends, Routes and
+// Settings open from the menu behind the rider's avatar. Every other page
+// goes back to the map with its back arrow.
 async function openTab(page, screen) {
-  const tab = page.locator(`.bottom-nav [data-nav="${screen}"]`);
-  if (!(await tab.isVisible())) {
-    await page.locator('.screen.active [data-back-to-map]').click();
-    if (screen === 'map') return;
-  }
-  await tab.click();
+  const back = page.locator('.screen.active [data-back-to-map]');
+  if (await back.isVisible()) await back.click();
+  if (screen === 'map') return;
+  await openFromMenu(page, screen);
 }
 
 const SETTINGS_PARENT = { navigationApp: 'mapNavigation', blockedRiders: 'privacy', devices: 'account', email: 'account' };
@@ -423,7 +411,6 @@ test('ride join baseline matches the approved compact-card hierarchy in day and 
       // Join and Start are matching cards; the hero is a compact intro.
       const start = screen.querySelector('.ride-start-card');
       const startButton = screen.querySelector('#createRideBtn');
-      const nav = document.querySelector('.bottom-nav');
       const box = (element) => element.getBoundingClientRect();
       const hero = getComputedStyle(heroElement);
       return {
@@ -450,9 +437,8 @@ test('ride join baseline matches the approved compact-card hierarchy in day and 
         startButtonHeight: box(startButton).height,
         startRadius: parseFloat(getComputedStyle(start).borderTopLeftRadius),
         startBottom: box(start).bottom,
-        navTop: box(nav).top,
         viewportWidth: window.innerWidth,
-        navGap: box(nav).top - box(start).bottom,
+        viewportHeight: window.innerHeight,
       };
     });
 
@@ -477,9 +463,7 @@ test('ride join baseline matches the approved compact-card hierarchy in day and 
     expect(visual.startHeight).toBeLessThanOrEqual(170);
     expect(visual.startButtonHeight).toBeGreaterThanOrEqual(44);
     expect(visual.startRadius).toBeLessThanOrEqual(4);
-    expect(visual.startBottom).toBeLessThanOrEqual(visual.navTop + 2);
-    expect(visual.navGap).toBeGreaterThanOrEqual(0);
-    expect(visual.navGap).toBeLessThanOrEqual(360);
+    expect(visual.startBottom).toBeLessThanOrEqual(visual.viewportHeight + 2);
 
     await page.screenshot({
       path: testInfo.outputPath(`iphone-17-pro-max-ride-${scheme}-baseline.png`),
@@ -1075,7 +1059,6 @@ test('PWA utility viewport paints safe areas as one edge-to-edge canvas', async 
 
   const viewport = await page.locator('[data-screen="settings"]').evaluate((screen) => {
     const screenStyle = getComputedStyle(screen);
-    const navStyle = getComputedStyle(document.querySelector('.bottom-nav'));
     return {
       screenBackground: screenStyle.backgroundImage,
       // Nothing is painted over the top edge: the page runs under the
@@ -1087,7 +1070,6 @@ test('PWA utility viewport paints safe areas as one edge-to-edge canvas', async 
       edgeBlurRule: [...document.styleSheets].flatMap((sheet) => { try { return [...sheet.cssRules].map((rule) => rule.cssText); } catch { return []; } }).find((text) => text.includes('display-mode: standalone') && text.includes('--edge-blur-clearance')) || '',
       paddingTop: screenStyle.paddingTop,
       paddingLeft: screenStyle.paddingLeft,
-      navPaddingLeft: navStyle.paddingLeft,
     };
   });
 
@@ -1097,7 +1079,6 @@ test('PWA utility viewport paints safe areas as one edge-to-edge canvas', async 
   expect(viewport.edgeBlurRule).toContain('orientation: portrait');
   expect(parseFloat(viewport.paddingTop)).toBeGreaterThan(59);
   expect(parseFloat(viewport.paddingLeft)).toBeGreaterThanOrEqual(47);
-  expect(parseFloat(viewport.navPaddingLeft)).toBeGreaterThanOrEqual(47);
   await assertNoViewportOverflow(page);
 });
 
@@ -1246,7 +1227,8 @@ test('PWA GPS timeout recovers without another permission request or startup loc
   await expect(page.locator('#app')).toBeVisible();
   await expect(page.locator('#movementSafetyBanner')).toBeVisible();
   await expect(page.locator('#enableLocationBtn')).toBeHidden();
-  await expect(page.locator('.bottom-nav [data-nav="friends"]')).toHaveAttribute('aria-disabled', 'false');
+  await expect(page.locator('[data-menu-nav="friends"]')).toHaveAttribute('aria-disabled', 'false');
+  await expect(page.locator('[data-menu-nav="ride"]')).not.toHaveAttribute('aria-disabled', 'true');
   await page.evaluate(() => {
     window.gpsTest.error({ code: 3 });
     window.gpsTest.error({ code: 2 });
@@ -2428,8 +2410,8 @@ test('PWA settings sheets own the bottom edge without competing with app chrome'
   const banner = page.locator('#movementSafetyBanner');
   const app = page.locator('#app');
   const settingsScreen = page.locator('[data-screen="settings"]');
-  // Settings opens from the menu: no Map/Ride/Friends tabs on it.
-  await expect(nav).toBeHidden();
+  // Map, Ride and Friends are menu rows: there is no tab bar.
+  await expect(nav).toHaveCount(0);
   // Location is blocked in this mock, so the banner shows on Settings too.
   await expect(banner).toBeVisible();
 
@@ -2590,90 +2572,56 @@ test('installed PWA cold start uses the full Home Screen canvas before any rotat
   const metrics = await page.evaluate(() => {
     const root = document.documentElement;
     const app = document.querySelector('#app');
-    const nav = document.querySelector('.bottom-nav');
     const appBox = app.getBoundingClientRect();
-    const navBox = nav.getBoundingClientRect();
-    const navStyle = getComputedStyle(nav);
+    const mapBox = document.querySelector('#mapCanvas').getBoundingClientRect();
     return {
       appVh: root.style.getPropertyValue('--app-vh'),
       clientHeight: root.clientHeight,
       innerHeight: window.innerHeight,
       appPosition: getComputedStyle(app).position,
       appBottom: appBox.bottom,
-      navPosition: navStyle.position,
-      navBottom: navBox.bottom,
-      navHeight: navBox.height,
-      navPaddingBottom: parseFloat(navStyle.paddingBottom),
+      mapBottom: mapBox.bottom,
     };
   });
 
   expect(metrics.appVh).toBe('100vh');
   expect(metrics.innerHeight).toBeLessThan(metrics.clientHeight);
   expect(metrics.appPosition).toBe('fixed');
-  expect(metrics.navPosition).toBe('absolute');
   expect(Math.abs(metrics.appBottom - metrics.clientHeight)).toBeLessThanOrEqual(1);
-  expect(Math.abs(metrics.navBottom - metrics.clientHeight)).toBeLessThanOrEqual(1);
-  expect(metrics.navHeight).toBe(58 + 34 + 1);
-  expect(metrics.navPaddingBottom).toBe(34);
+  // The map runs under the home indicator.
+  expect(Math.abs(metrics.mapBottom - metrics.clientHeight)).toBeLessThanOrEqual(1);
 });
 
-test('installed PWA tab rail keeps controls above the home indicator', async ({ page }) => {
+test('installed PWA map controls stay above the home indicator', async ({ page }) => {
   await page.addInitScript(() => {
     Object.defineProperty(navigator, 'standalone', { configurable: true, value: true });
   });
   await mockAuthenticatedApi(page);
-  await page.goto('/#friends');
+  await page.goto('/#map');
   await waitForViewportSettled(page);
   await page.evaluate(() => {
     document.documentElement.style.setProperty('--bottom-safe-area', '34px');
   });
 
-  const nav = page.locator('.bottom-nav');
-  const activeButton = page.locator('.bottom-nav [data-nav="friends"]');
-  const activeLabel = activeButton.locator('span');
-
-  const [navBox, buttonBox, labelBox] = await Promise.all([
-    nav.boundingBox(),
-    activeButton.boundingBox(),
-    activeLabel.boundingBox(),
-  ]);
-  const viewport = page.viewportSize();
   const chrome = await page.evaluate(() => {
-    const root = document.documentElement;
-    const nav = document.querySelector('.bottom-nav');
+    const root = getComputedStyle(document.documentElement);
     return {
-      navSafeBottom: getComputedStyle(root).getPropertyValue('--nav-safe-bottom').trim(),
-      bottomControlInset: getComputedStyle(root).getPropertyValue('--bottom-control-inset').trim(),
-      navigationControlInset: getComputedStyle(root).getPropertyValue('--navigation-control-inset').trim(),
-      navHeight: getComputedStyle(nav).height,
-      navPaddingBottom: getComputedStyle(nav).paddingBottom,
+      navSafeBottom: root.getPropertyValue('--nav-safe-bottom').trim(),
+      bottomControlInset: root.getPropertyValue('--bottom-control-inset').trim(),
+      navigationControlInset: root.getPropertyValue('--navigation-control-inset').trim(),
     };
   });
-
   expect(chrome.navSafeBottom).toBe('34px');
   expect(chrome.bottomControlInset).toBe('34px');
   expect(chrome.navigationControlInset).toBe('min(18px,34px)');
-  expect(parseFloat(chrome.navHeight)).toBe(58 + 34 + 1);
-  expect(parseFloat(chrome.navPaddingBottom)).toBe(34);
 
-  expect(navBox).not.toBeNull();
-  expect(buttonBox).not.toBeNull();
-  expect(labelBox).not.toBeNull();
-  expect(viewport).not.toBeNull();
-  expect(Math.abs((navBox.y + navBox.height) - viewport.height)).toBeLessThanOrEqual(1);
-
-  // The full-height app shell reaches the physical bottom immediately. Keep
-  // the 58px interaction rail above the real 34px home-indicator safe area.
-  expect(buttonBox.y).toBeGreaterThanOrEqual(navBox.y - 1);
-  expect(buttonBox.y + buttonBox.height).toBeLessThanOrEqual(navBox.y + 59);
-  expect(viewport.height - (buttonBox.y + buttonBox.height)).toBeGreaterThanOrEqual(34);
-  expect(viewport.height - (buttonBox.y + buttonBox.height)).toBeLessThanOrEqual(36);
-  const railBottom = navBox.y + 58;
-  const labelBottomGap = railBottom - (labelBox.y + labelBox.height);
-  // Visible controls sit near the safe boundary while the 58px button itself
-  // remains entirely outside the home-indicator region.
-  expect(labelBottomGap).toBeGreaterThanOrEqual(3);
-  expect(labelBottomGap).toBeLessThanOrEqual(7);
+  // No tab bar: the hazard button is the lowest control, and it stays
+  // entirely above the 34px home-indicator area.
+  await expect(page.locator('.bottom-nav')).toHaveCount(0);
+  const viewport = page.viewportSize();
+  const hazard = await page.locator('#reportHazardBtn').boundingBox();
+  expect(hazard).not.toBeNull();
+  expect(viewport.height - (hazard.y + hazard.height)).toBeGreaterThanOrEqual(34);
 });
 
 test('PWA navigation summary extends through the installed iPhone bottom safe area', async ({ page }, testInfo) => {
@@ -3048,7 +2996,6 @@ test('@viewport PWA chat stays pinned to the visible viewport when the keyboard 
   });
 
   await page.goto('/#friends');
-  const baselineNavBox = await page.locator('.bottom-nav').boundingBox();
   await page.locator('[data-friend="rider_friend01"]').click();
   await page.locator('#messageFriend').click();
   await expect(page.locator('#chatScreen')).toBeVisible();
@@ -3105,7 +3052,6 @@ test('@viewport PWA chat stays pinned to the visible viewport when the keyboard 
   expect(composerBottomGap).toBeGreaterThanOrEqual(-34);
   const openComposerPaddingBottom = await page.locator('#chatComposer').evaluate((element) => parseFloat(getComputedStyle(element).paddingBottom));
   expect(openComposerPaddingBottom).toBe(10);
-  await expect(page.locator('.bottom-nav')).toHaveCSS('visibility', 'hidden');
 
   await page.screenshot({
     path: testInfo.outputPath(`${testInfo.project.name}-chat-keyboard-viewport.png`),
@@ -3146,9 +3092,7 @@ test('@viewport PWA chat stays pinned to the visible viewport when the keyboard 
 
   await page.locator('#chatBack').click();
   await expect(page.locator('#chatScreen')).toBeHidden();
-  await expect(page.locator('.bottom-nav')).toBeVisible();
-  const restoredNavBox = await page.locator('.bottom-nav').boundingBox();
-  expectNear(restoredNavBox.y + restoredNavBox.height, baselineNavBox.y + baselineNavBox.height);
+  await expect(page.locator('[data-screen="friends"]')).toBeVisible();
 });
 
 test('PWA View profile is your profile, separate from editing it and from Account settings', async ({ page }) => {
@@ -3237,14 +3181,9 @@ test('@viewport standalone canvas, navigation and scroll geometry remain coheren
     // Keep this seam within 2 CSS px; app/nav bottom remain at the stricter
     // default tolerance immediately above/below.
     expectNear(geometry.screenBottom, geometry.appBottom, 2);
-    expectNear(geometry.navBottom, geometry.appBottom);
-    expectNear(geometry.navHeight, 58 + safeBottom + 1);
-    expect(geometry.navPaddingBottom).toBeGreaterThanOrEqual(safeBottom);
-    expect(geometry.railBottom).toBeLessThanOrEqual(geometry.appBottom - safeBottom + 1);
-    // Chromium at fractional DPR can also quantize the fixed map/nav seam to
-    // the adjacent device pixel. Keep that seam within 2 CSS px while still
-    // requiring the fixed app/nav bottom edges above to use the stricter bound.
-    expectNear(geometry.mapBottom, geometry.navTop, 2);
+    // No tab bar: the map runs to the bottom edge, under the home indicator.
+    // Fractional-DPR Chromium can quantize it to the adjacent device pixel.
+    expectNear(geometry.mapBottom, geometry.appBottom, 2);
     expect(geometry.documentWidth).toBeLessThanOrEqual(geometry.viewportWidth + 1);
   }
 
@@ -3259,8 +3198,7 @@ test('@viewport standalone canvas, navigation and scroll geometry remain coheren
   ];
 
   for (const [name, finalSelector] of screens) {
-    if (name === 'routes' || name === 'settings') await openFromMenu(page, name);
-    else await openTab(page, name);
+    await openTab(page, name);
     const screen = page.locator(`.screen[data-screen="${name}"]`);
     await expect(screen).toBeVisible();
 
@@ -3284,20 +3222,14 @@ test('@viewport standalone canvas, navigation and scroll geometry remain coheren
         : page.locator(finalSelector).last();
     if (name === 'map') {
       const mapGeometry = await standaloneGeometry(page);
-      expectNear(mapGeometry.mapBottom, mapGeometry.navTop);
+      expectNear(mapGeometry.mapBottom, mapGeometry.appBottom, 2);
     } else {
       await final.scrollIntoViewIfNeeded();
       await screen.evaluate((element) => { element.scrollTop = element.scrollHeight; });
-      const [finalBox, navBox] = await Promise.all([final.boundingBox(), page.locator('.bottom-nav').boundingBox()]);
+      const finalBox = await final.boundingBox();
       expect(finalBox, `${name} final element has no geometry`).not.toBeNull();
-      if (name === 'routes' || name === 'settings') {
-        // Menu pages have no tab bar: their last row clears the screen edge.
-        expect(navBox, `${name} must not show the Map/Ride/Friends tabs`).toBeNull();
-        expect(finalBox.y + finalBox.height, `${name} final element must clear the bottom edge`).toBeLessThanOrEqual(page.viewportSize().height + 1);
-      } else {
-        expect(navBox).not.toBeNull();
-        expect(finalBox.y + finalBox.height, `${name} final element must clear persistent navigation`).toBeLessThanOrEqual(navBox.y + 1);
-      }
+      // There is no tab bar: every page's last row clears the screen edge.
+      expect(finalBox.y + finalBox.height, `${name} final element must clear the bottom edge`).toBeLessThanOrEqual(page.viewportSize().height + 1);
     }
     await assertNoViewportOverflow(page);
 
@@ -3316,8 +3248,7 @@ test('@viewport standalone canvas, navigation and scroll geometry remain coheren
   await waitForViewportSettled(page);
   const resumed = await standaloneGeometry(page);
   expectNear(resumed.appBottom, baseline.appBottom);
-  expectNear(resumed.navBottom, baseline.navBottom);
-  // Chromium on fractional-DPR Android devices can round the fixed nav and\n  // map inset to adjacent device pixels. Keep this seam within 2 CSS px while\n  // the stricter app/nav bottom assertions above remain unchanged.\n  expectNear(resumed.mapBottom, resumed.navTop, 2);
+  expectNear(resumed.mapBottom, resumed.appBottom, 2);
 
   if (testInfo.project.name === 'viewport-iphone-17-pro-max-webkit-dark') {
     const original = page.viewportSize();
@@ -3329,8 +3260,7 @@ test('@viewport standalone canvas, navigation and scroll geometry remain coheren
     await waitForViewportSettled(page);
     const roundTrip = await standaloneGeometry(page);
     expectNear(roundTrip.appBottom, baseline.appBottom);
-    expectNear(roundTrip.navBottom, baseline.navBottom);
-    expectNear(roundTrip.mapBottom, roundTrip.navTop);
+    expectNear(roundTrip.mapBottom, roundTrip.appBottom, 2);
   }
 });
 
@@ -3338,15 +3268,12 @@ test('@viewport full-screen overlays and sheets share the stable standalone bott
   test.setTimeout(90_000);
   await installStandaloneFixture(page);
   await mockAuthenticatedApi(page, 'unknown');
-  // The tab bar's resting edge is measured on the map (menu pages hide it).
   await page.goto('/#map');
   await waitForViewportSettled(page);
   await setSyntheticSafeArea(page, 50);
 
   const app = page.locator('#app');
-  const nav = page.locator('.bottom-nav');
   const appBottom = (await app.boundingBox()).y + (await app.boundingBox()).height;
-  const baselineNavBottom = (await nav.boundingBox()).y + (await nav.boundingBox()).height;
   const captureEvidence = /iphone-17-pro-max|pixel-chromium|iphone-landscape|ipad-webkit/.test(testInfo.project.name);
 
   const assertSheet = async (screenshotName) => {
@@ -3354,7 +3281,6 @@ test('@viewport full-screen overlays and sheets share the stable standalone bott
     const sheet = page.locator('.sheet');
     await expect(page.locator('html')).toHaveClass(/sheet-open/);
     await expect(app).toHaveAttribute('inert', '');
-    await expect(nav).toBeHidden();
     await expect(page.locator('#ridePill')).toBeHidden();
     await expect(page.locator('#movementSafetyBanner')).toBeHidden();
     await expect(page.locator('#updateBanner')).toBeHidden();
@@ -3373,14 +3299,6 @@ test('@viewport full-screen overlays and sheets share the stable standalone bott
     else await page.locator('#closeSheet').click();
     await expect(page.locator('html')).not.toHaveClass(/sheet-open/);
     await expect(app).not.toHaveAttribute('inert', '');
-    const onMenuPage = await page.evaluate(() => ['settings', 'routes'].includes(document.documentElement.dataset.activeScreen));
-    if (onMenuPage) {
-      await expect(nav).toBeHidden();
-      return;
-    }
-    await expect(nav).toBeVisible();
-    const restoredNav = await nav.boundingBox();
-    expectNear(restoredNav.y + restoredNav.height, baselineNavBottom);
   };
 
   await openOwnProfile(page);
