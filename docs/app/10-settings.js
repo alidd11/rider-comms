@@ -601,8 +601,7 @@
   function renderSettingsList() {
     const list = $('#settingsList');
     if (!list) return;
-    list.innerHTML = SETTINGS_CATEGORIES.map(([title, rows]) => `<section class="settings-section"${title ? ` aria-label="${escapeHtml(title)}"` : ''}>${title ? `<h2 class="settings-section-title">${escapeHtml(title)}</h2>` : ''}<div class="settings-rows">${rows.map(([page, iconName, label, tint]) => `<button type="button" class="settings-row settings-row-category" data-settings-open="${page}"><span class="settings-category-icon" style="--tint:${tint}">${icon(iconName)}</span><span class="settings-row-label">${escapeHtml(label)}</span><span class="settings-row-chevron">${icon('chevron')}</span></button>`).join('')}</div></section>`).join('')
-      + '<p class="settings-version">Version 0.3.0</p>';
+    list.innerHTML = SETTINGS_CATEGORIES.map(([title, rows]) => `<section class="settings-section"${title ? ` aria-label="${escapeHtml(title)}"` : ''}>${title ? `<h2 class="settings-section-title">${escapeHtml(title)}</h2>` : ''}<div class="settings-rows">${rows.map(([page, iconName, label, tint]) => `<button type="button" class="settings-row settings-row-category" data-settings-open="${page}"><span class="settings-category-icon" style="--tint:${tint}">${icon(iconName)}</span><span class="settings-row-label">${escapeHtml(label)}</span><span class="settings-row-chevron">${icon('chevron')}</span></button>`).join('')}</div></section>`).join('');
     wireSettingsLinks(list);
   }
 

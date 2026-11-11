@@ -2315,7 +2315,17 @@ test('PWA Settings is a real settings list matching the native app', async ({ pa
     'General', 'Map & navigation', 'Voice and sound', 'Ride Safe', 'Vehicle details', 'Notifications', 'Account and login', 'Privacy', 'About',
   ]);
   await expect(page.locator('#settingsList .settings-category-icon')).toHaveCount(9);
-  await expect(page.locator('.settings-version')).toHaveText('Version 0.3.0');
+  // The version lives on the About page, not under the list.
+  await expect(page.locator('#settingsList')).not.toContainText('Version');
+  // On a full-height phone screen (the installed app) the list fits, so it
+  // stays still rather than scrolling.
+  if (testInfo.project.name === 'phone-modern') {
+    const size = page.viewportSize();
+    await page.setViewportSize({ width: 393, height: 852 });
+    const settingsScreen = page.locator('.screen[data-screen="settings"]');
+    await expect.poll(() => settingsScreen.evaluate((element) => element.scrollHeight - element.clientHeight)).toBeLessThanOrEqual(0);
+    await page.setViewportSize(size);
+  }
   await expect(page.locator('.settings-page')).not.toContainText('Offline Maps');
   await expect(page.locator('.settings-page')).not.toContainText('Communication');
   // Help & Support and the profile live in the avatar menu only.
@@ -3186,7 +3196,7 @@ test('@viewport standalone canvas, navigation and scroll geometry remain coheren
     ['ride', '#createRideBtn'],
     ['routes', '#curatedRouteList'],
     ['friends', '#friendList'],
-    ['settings', '.settings-version'],
+    ['settings', '#settingsList .settings-row'],
   ];
 
   for (const [name, finalSelector] of screens) {

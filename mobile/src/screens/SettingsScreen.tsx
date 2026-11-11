@@ -314,12 +314,19 @@ export function SettingsScreen(): React.JSX.Element {
   const palette = useSettingsPalette();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const openPage = (page: SettingsPageKey) => navigation.push('SettingsPage', { page });
-  const appVersion = Constants.expoConfig?.version ?? '0.1.0';
 
   return (
     <View style={[styles.container, { backgroundColor: palette.page }]}>
       <SettingsHeader title="Settings" topInset={insets.top} onBack={() => navigation.goBack()} />
-      <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + spacing.md }} showsVerticalScrollIndicator={false}>
+      {/* The categories fit on a phone, so the list stays still; it only
+          scrolls when it can't fit (very large text sizes). The version is
+          on the About page. */}
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: insets.bottom + spacing.md }}
+        showsVerticalScrollIndicator={false}
+        alwaysBounceVertical={false}
+        overScrollMode="never"
+      >
         {profileError ? (
           <View style={styles.profileSaveStatus} accessibilityLiveRegion="polite">
             <Ionicons name="alert-circle" size={17} color={colors.danger} />
@@ -328,31 +335,30 @@ export function SettingsScreen(): React.JSX.Element {
           </View>
         ) : null}
 
-        <SettingsGroup>
+        <SettingsGroup compact>
           <CategoryRow first icon="settings" tint="#1FB6D9" title="General" onPress={() => openPage('general')} />
           <CategoryRow icon="map" tint="#2FB35F" title="Map & navigation" onPress={() => openPage('mapNavigation')} />
           <CategoryRow icon="volume-high" tint="#3478F6" title="Voice and sound" onPress={() => openPage('voiceSound')} />
         </SettingsGroup>
 
-        <SettingsGroup title="Riding">
+        <SettingsGroup compact title="Riding">
           <CategoryRow first icon="shield-checkmark" tint="#F2802A" title="Ride Safe" onPress={() => openPage('rideSafe')} />
-          <CategoryRow customIcon={<MotorbikeIcon color="#FFFFFF" />} tint="#8E5CF6" title="Vehicle details" onPress={() => openPage('vehicle')} />
+          <CategoryRow customIcon={<MotorbikeIcon size={20} color="#FFFFFF" />} tint="#8E5CF6" title="Vehicle details" onPress={() => openPage('vehicle')} />
         </SettingsGroup>
 
-        <SettingsGroup>
+        <SettingsGroup compact>
           <CategoryRow first icon="notifications" tint="#EF4444" title="Notifications" onPress={() => openPage('notifications')} />
         </SettingsGroup>
 
-        <SettingsGroup title="Account">
+        <SettingsGroup compact title="Account">
           <CategoryRow first icon="person" tint="#2A8196" title="Account and login" onPress={() => openPage('account')} />
           <CategoryRow icon="lock-closed" tint="#1E95E8" title="Privacy" onPress={() => openPage('privacy')} />
         </SettingsGroup>
 
-        <SettingsGroup>
+        <SettingsGroup compact>
           <CategoryRow first icon="information" tint="#16A9D9" title="About" onPress={() => openPage('about')} />
         </SettingsGroup>
 
-        <Text style={styles.settingsVersion}>Version {appVersion}</Text>
       </ScrollView>
       <RideBar />
     </View>
