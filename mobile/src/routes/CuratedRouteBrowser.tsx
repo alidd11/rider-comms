@@ -16,9 +16,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Polyline } from 'react-native-svg';
 import { colors, spacing } from '../theme';
 import { styles } from './CuratedRouteBrowser.styles';
+import { useSettings } from '../settings/SettingsContext';
 import {
   CURATED_ROUTES,
   googleMapsDirectionsUrl,
+  routeMatchesVehicle,
   type CuratedRoute,
 } from './curatedRoutes';
 import {
@@ -345,12 +347,15 @@ export function CuratedRouteBrowser({
 }) {
   const { width: viewportWidth } = useWindowDimensions();
   const [selectedRoute, setSelectedRoute] = React.useState<CuratedRoute | null>(null);
+  // Settings → Vehicle details: only routes that suit what the rider rides.
+  const { riderVehicle } = useSettings();
   const routes = React.useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase();
     return sortRoutesForDiscovery(CURATED_ROUTES, rideWindow, category === 'near' ? riderLocation : null)
+      .filter((route) => routeMatchesVehicle(route, riderVehicle))
       .filter((route) => matchesRouteCategory(route, category))
       .filter((route) => !normalizedQuery || routeDiscoveryText(route).includes(normalizedQuery));
-  }, [category, query, rideWindow, riderLocation]);
+  }, [category, query, rideWindow, riderLocation, riderVehicle]);
   const contentWidth = Math.min(viewportWidth - spacing.lg * 2, 720);
   const cardWidth = contentWidth >= 620 ? (contentWidth - spacing.md) / 2 : contentWidth;
 

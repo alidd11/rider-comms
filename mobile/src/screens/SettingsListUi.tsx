@@ -61,8 +61,10 @@ function Separator({ inset }: { inset: number }): React.JSX.Element {
 }
 
 /** A Settings-root row: coloured round icon, title, chevron. */
-export function CategoryRow({ icon, tint, title, first = false, onPress }: {
-  icon: IconName;
+export function CategoryRow({ icon, customIcon, tint, title, first = false, onPress }: {
+  icon?: IconName;
+  /** For glyphs Ionicons lacks (the motorbike), drawn white at 22pt. */
+  customIcon?: React.ReactNode;
   tint: string;
   title: string;
   first?: boolean;
@@ -72,7 +74,7 @@ export function CategoryRow({ icon, tint, title, first = false, onPress }: {
     <Pressable accessibilityRole="button" accessibilityLabel={title} onPress={onPress} style={({ pressed }) => [ui.row, ui.categoryRow, pressed && ui.pressed]}>
       {first ? null : <Separator inset={68} />}
       <View style={[ui.categoryIcon, { backgroundColor: tint }]}>
-        <Ionicons name={icon} size={22} color="#FFFFFF" />
+        {customIcon ?? (icon ? <Ionicons name={icon} size={22} color="#FFFFFF" /> : null)}
       </View>
       <Text style={ui.rowTitle}>{title}</Text>
       <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
@@ -95,6 +97,22 @@ export function PlainRow({ title, value, danger = false, chevron = true, first =
       <Text style={[ui.rowTitle, danger && ui.danger]}>{title}</Text>
       {value ? <Text numberOfLines={1} style={ui.rowValue}>{value}</Text> : null}
       {chevron ? <Ionicons name="chevron-forward" size={16} color={colors.textMuted} /> : null}
+    </Pressable>
+  );
+}
+
+/** One choice of several: a tick on the selected row (Waze's pickers). */
+export function CheckRow({ title, selected, first = false, onPress }: {
+  title: string;
+  selected: boolean;
+  first?: boolean;
+  onPress: () => void;
+}): React.JSX.Element {
+  return (
+    <Pressable accessibilityRole="radio" accessibilityState={{ selected }} accessibilityLabel={title} onPress={onPress} style={({ pressed }) => [ui.row, pressed && ui.pressed]}>
+      {first ? null : <Separator inset={16} />}
+      <Text style={ui.rowTitle}>{title}</Text>
+      {selected ? <Ionicons name="checkmark" size={22} color={colors.accent} /> : null}
     </Pressable>
   );
 }

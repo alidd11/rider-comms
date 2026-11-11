@@ -118,7 +118,11 @@ export function useInAppNavigation(
   setNavigationTarget: (target: null) => void,
   setSelectedHazardId: (id: null) => void,
   routeAvoidance: RouteAvoidance = DEFAULT_ROUTE_AVOIDANCE,
+  spokenDirections = true,
 ): InAppNavigation {
+  // Settings → Voice and sound: each new route starts muted or not.
+  const spokenDirectionsRef = React.useRef(spokenDirections);
+  spokenDirectionsRef.current = spokenDirections;
   // Read through a ref so a settings change doesn't rebuild the route callbacks.
   const routeAvoidanceRef = React.useRef(routeAvoidance);
   routeAvoidanceRef.current = routeAvoidance;
@@ -345,7 +349,10 @@ export function useInAppNavigation(
       finalNavigationPrompt.current = null;
       setNavigationNotice(rerouting ? ROUTE_UPDATED_NOTICE : null);
       navOffRouteSince.current = null;
-      if (!rerouting) navigationCameraHeading.current = null;
+      if (!rerouting) {
+        navigationCameraHeading.current = null;
+        setNavigationMuted(!spokenDirectionsRef.current);
+      }
       navigationFollowingRef.current = true;
       setNavigationFollowing(true);
       if (nextRoute.steps[0]) focusNavigationCamera(origin, nextRoute, 0);

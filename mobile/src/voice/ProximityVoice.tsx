@@ -1,5 +1,6 @@
 import * as React from 'react';
 import { useVoiceMute } from './VoiceMuteContext';
+import { NearbyRidersIcon } from '../components/NearbyRidersIcon';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LiveKitRoom } from '@livekit/react-native';
@@ -399,7 +400,7 @@ export function ProximityVoice({
           onPress={() => setPeopleOpen(true)}
           style={({ pressed }) => [styles.peopleButton, pressed && styles.statusPressed]}
         >
-          <Ionicons name="people" size={16} color={colors.textSecondary} />
+          <NearbyRidersIcon size={16} color={colors.textSecondary} />
           <Text numberOfLines={1} style={styles.text}>{recentPeers.size} {recentPeers.size === 1 ? 'rider' : 'riders'}</Text>
         </Pressable>
       ) : null}

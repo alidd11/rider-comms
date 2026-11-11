@@ -581,7 +581,8 @@
     navLastNowPromptStep = -1;
     navOffRouteSince = null;
     navFollowing = true;
-    if (!preserveMute) navMuted = false;
+    // Settings → Voice and sound decides whether a new route starts muted.
+    if (!preserveMute) navMuted = state.spokenDirections === false;
     navCurrentPosition = null;
     navCurrentAccuracyMeters = null;
     navCurrentSpeedMps = Number.isFinite(latestDevicePosition?.coords?.speed) && Number(latestDevicePosition.coords.speed) >= 0

@@ -98,6 +98,9 @@
   }
 
   const state = loadState();
+  // docs/routes.js filters curated routes to suit the rider's vehicle.
+  window.riderVehicleCategory = state.vehicleCategory;
+  window.RiderCuratedRoutes?.setVehicle?.(state.vehicleCategory);
   let notificationTimer;
   let lastSheetTrigger = null;
   let map;

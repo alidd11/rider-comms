@@ -60,6 +60,8 @@
     <symbol id="i-report" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v6M12 16.5h.01"/></symbol>
     <symbol id="i-hazard-report" viewBox="0 0 24 24"><path d="M10.3 4.2a2 2 0 0 1 3.4 0l7.6 13.1a2 2 0 0 1-1.7 3H4.4a2 2 0 0 1-1.7-3Z"/><path d="M12 9.5v4.2M12 16.8h.01"/></symbol>
     <symbol id="i-locate" viewBox="0 0 24 24"><path d="M20.5 3.5 3.5 10.6l7.1 2.8 2.8 7.1Z"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+    <symbol id="i-nearby" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" opacity=".45"/><circle cx="12" cy="12" r="5.6"/><circle cx="12" cy="12" r="2" style="fill:currentColor;stroke:none"/><circle cx="19.1" cy="4.9" r="2.1" style="fill:currentColor;stroke:none"/><circle cx="4.9" cy="19.1" r="2.1" style="fill:currentColor;stroke:none"/></symbol>
     <symbol id="i-live" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2.2"/><path d="M8.5 15.5a5 5 0 0 1 0-7M15.5 8.5a5 5 0 0 1 0 7M5.6 18.4a9 9 0 0 1 0-12.8M18.4 5.6a9 9 0 0 1 0 12.8"/></symbol>
     <symbol id="i-music" viewBox="0 0 24 24"><path d="M9 18V5.5l11-2V16"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/></symbol>
     <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></symbol>
@@ -239,10 +241,9 @@
           <div id="googleMap" class="google-map" aria-hidden="true"></div>
           <div class="fallback-map" id="fallbackMap"><div class="road road-a"></div><div class="road road-b"></div><div class="road road-c"></div></div>
           <h1 id="mapTitle" class="sr-only">Rider map</h1>
-          <header class="map-header"><div class="map-avatar-wrap"><button class="avatar avatar-sm" id="mapAvatarButton" data-avatar="AI" aria-label="Open menu" aria-haspopup="dialog" aria-controls="appMenu">AI</button><button id="voiceStatusBtn" class="voice-mute-badge" aria-label="Listening — hands-free" hidden><svg><use href="#i-mic"/></svg></button></div><div class="search-slot glass" id="mapSearchSlot"><svg><use href="#i-search"/></svg><input id="placeSearchInput" placeholder="Search for a place" aria-label="Search for a place" autocomplete="off" readonly><svg class="map-search-options" aria-hidden="true"><use href="#i-sliders"/></svg></div></header>
+          <header class="map-header"><div class="map-avatar-wrap"><button class="avatar avatar-sm" id="mapAvatarButton" data-avatar="AI" aria-label="Open menu" aria-haspopup="dialog" aria-controls="appMenu">AI</button><button id="voiceStatusBtn" class="voice-mute-badge" aria-label="Listening — hands-free" hidden><svg><use href="#i-mic"/></svg></button></div><div class="search-slot glass" id="mapSearchSlot"><svg><use href="#i-search"/></svg><input id="placeSearchInput" placeholder="Search for a place" aria-label="Search for a place" autocomplete="off" readonly><svg class="map-search-options" aria-hidden="true"><use href="#i-sliders"/></svg></div><div class="map-status-row"><div id="mapStatusChip" class="map-status-chip" role="status" aria-live="polite"><span class="map-status-dot" aria-hidden="true"></span><span id="mapStatusText">Nearby off</span></div></div></header>
           <div id="fallbackMarkers" class="fallback-markers"></div>
           <div id="hazardMarkers" class="hazard-markers"></div>
-          <div id="mapStatusChip" class="map-status-chip" role="status" aria-live="polite"><span class="map-status-dot" aria-hidden="true"></span><span id="mapStatusText">Nearby off</span></div>
           <div class="map-actions">
             <button id="musicBtn" class="icon-button glass map-action-button map-action-small" data-sheet="music" aria-label="Open your music app"><svg><use href="#i-music"/></svg></button>
             <button id="locateBtn" class="icon-button glass map-action-button map-action-small" aria-label="Centre on my location"><svg><use href="#i-locate"/></svg></button>
@@ -252,7 +253,7 @@
           </div>
           <div id="mapBottomBar" class="map-bottom-bar">
             <button id="reportHazardBtn" class="map-hazard-button" aria-label="Report on the road"><svg aria-hidden="true"><use href="#i-hazard-report"/></svg></button>
-            <button id="joinNearbyBtn" class="map-live-button" aria-label="Go live nearby" aria-pressed="false"><svg aria-hidden="true"><use href="#i-live"/></svg><span id="joinNearbyLabel">Go live</span></button>
+            <button id="joinNearbyBtn" class="map-live-button" aria-label="Go live nearby" aria-pressed="false"><svg aria-hidden="true"><use href="#i-nearby"/></svg><span id="joinNearbyLabel">Go live</span></button>
           </div>
           <div id="ridingHud" class="riding-hud" hidden>
             <div class="riding-hud-chips">
