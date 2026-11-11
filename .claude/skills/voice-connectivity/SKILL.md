@@ -27,9 +27,12 @@ one pair room for each pair of riders in range.
   renewal fails the call fails closed and disconnects. A token's expiry alone
   doesn't eject a connected participant, so the lease is what ends a stale
   pair.
-- **The server ends pairs.** Out of range, either rider leaving Nearby, either
-  turning location sharing off, or a block all end the pair. A LiveKit "not
-  found" when removing a participant is expected, not an error.
+- **The server ends pairs.** Out of range, either rider leaving Nearby, or
+  either turning location sharing off ends the pair. A LiveKit "not found"
+  when removing a participant is expected, not an error.
+- **Blocks apply both ways.** Every list of peers that leads to a token or a
+  position goes through `moderationStore.filterAllowedPeerIds`, and ride voice
+  refuses a ride with a blocked member. A new path to peers must do the same.
 - **The closest riders win.** At most `MAX_NEARBY_VOICE_PEERS` calls are held
   at once.
 - **The microphone is held only while connected.** Wait for a peer before
