@@ -63,6 +63,13 @@
   // STORAGE_KEY's per-device UI preferences, so logging out never has to
   // touch (or accidentally nuke) unrelated local settings.
   const SESSION_KEY = 'rider-comms-session-v1';
+  // What the rider rides; Routes shows roads that suit it.
+  const RIDER_VEHICLE_OPTIONS = [
+    ['motorcycle_large', 'Motorcycle'],
+    ['motorcycle_small', 'Small motorcycle (up to 125cc)'],
+    ['scooter', 'Scooter'],
+  ];
+
   const DEFAULT_STATE = {
     screen: 'map',
     publicLive: false,
@@ -73,6 +80,9 @@
     avoidHighways: false,
     avoidTolls: false,
     rideSafeEnabled: true,
+    // Settings → Voice and sound / Vehicle details (native: riderPreferences.ts).
+    spokenDirections: true,
+    vehicleCategory: 'motorcycle_large',
     profile: {
       riderId: '',
       displayName: '',

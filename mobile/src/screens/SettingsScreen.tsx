@@ -21,7 +21,9 @@ import { ScreenHeader } from '../components/ScreenHeader';
 import { RiderAvatar } from '../components/RiderAvatar';
 import type { AccountSessionSummary } from '../api/client';
 import { NAVIGATION_PROVIDER_OPTIONS, type NavigationProvider } from '../navigationPreference';
-import { CategoryRow, PlainRow, SegmentedRow, SettingsGroup, SettingsHeader, SwitchRow, useSettingsPalette } from './SettingsListUi';
+import { CategoryRow, CheckRow, PlainRow, SegmentedRow, SettingsGroup, SettingsHeader, SwitchRow, useSettingsPalette } from './SettingsListUi';
+import { RIDER_VEHICLE_OPTIONS } from '../riderPreferences';
+import { MotorbikeIcon } from '../components/MotorbikeIcon';
 
 const UNIT_LABELS: Record<UnitSystem, { name: string; blurb: string }> = {
   mi: { name: 'Miles', blurb: 'Use miles and mph.' },
@@ -199,14 +201,16 @@ function AvatarPickerModal({
 /** The pages a settings row opens (the Settings list itself holds the
  * switches). Keys match the PWA's page tokens, see
  * scripts/check-client-parity.mjs. */
-export type SettingsPageKey = 'myProfile' | 'editProfile' | 'general' | 'mapNavigation' | 'rideSafe' | 'account' | 'privacy' | 'navigationApp' | 'distanceUnits' | 'blockedRiders' | 'email' | 'devices' | 'help' | 'about';
+export type SettingsPageKey = 'myProfile' | 'editProfile' | 'general' | 'mapNavigation' | 'voiceSound' | 'rideSafe' | 'vehicle' | 'account' | 'privacy' | 'navigationApp' | 'distanceUnits' | 'blockedRiders' | 'email' | 'devices' | 'help' | 'about';
 
 export const SETTINGS_PAGE_TITLES: Record<SettingsPageKey, string> = {
   myProfile: 'Profile',
   editProfile: 'Edit profile',
   general: 'General',
   mapNavigation: 'Map & navigation',
+  voiceSound: 'Voice and sound',
   rideSafe: 'Ride Safe',
+  vehicle: 'Vehicle details',
   account: 'Account and login',
   privacy: 'Privacy',
   navigationApp: 'Navigation app',
@@ -271,7 +275,7 @@ function PageSection({ title, children, note }: { title?: string; children: Reac
 
 // Pages reached from the Settings root get Waze's header (back, centred
 // title, X to close Settings); the category pages are full-width groups.
-const SETTINGS_CATEGORY_PAGES = new Set<SettingsPageKey>(['general', 'mapNavigation', 'rideSafe', 'account', 'privacy']);
+const SETTINGS_CATEGORY_PAGES = new Set<SettingsPageKey>(['general', 'mapNavigation', 'voiceSound', 'rideSafe', 'vehicle', 'account', 'privacy']);
 const MENU_PAGES = new Set<SettingsPageKey>(['myProfile', 'editProfile', 'help']);
 
 /** Full-screen settings page: header, then scrolling content. */
@@ -337,7 +341,12 @@ export function SettingsScreen(): React.JSX.Element {
         <SettingsGroup>
           <CategoryRow first icon="settings" tint="#1FB6D9" title="General" onPress={() => openPage('general')} />
           <CategoryRow icon="map" tint="#2FB35F" title="Map & navigation" onPress={() => openPage('mapNavigation')} />
-          <CategoryRow icon="shield-checkmark" tint="#F2802A" title="Ride Safe" onPress={() => openPage('rideSafe')} />
+          <CategoryRow icon="volume-high" tint="#3478F6" title="Voice and sound" onPress={() => openPage('voiceSound')} />
+        </SettingsGroup>
+
+        <SettingsGroup title="Riding">
+          <CategoryRow first icon="shield-checkmark" tint="#F2802A" title="Ride Safe" onPress={() => openPage('rideSafe')} />
+          <CategoryRow customIcon={<MotorbikeIcon color="#FFFFFF" />} tint="#8E5CF6" title="Vehicle details" onPress={() => openPage('vehicle')} />
         </SettingsGroup>
 
         <SettingsGroup title="Account">
@@ -376,6 +385,28 @@ function MapNavigationPage(): React.JSX.Element {
       <PlainRow first title="Navigation app" value={navigationAppLabel} onPress={() => navigation.push('SettingsPage', { page: 'navigationApp' })} />
       <SwitchRow title="Avoid motorways" value={routeAvoidance.highways} onValueChange={(highways) => setRouteAvoidance({ ...routeAvoidance, highways })} />
       <SwitchRow title="Avoid tolls" value={routeAvoidance.tolls} onValueChange={(tolls) => setRouteAvoidance({ ...routeAvoidance, tolls })} />
+    </SettingsGroup>
+  );
+}
+
+/** Voice and sound: whether turn-by-turn directions are spoken. */
+function VoiceSoundPage(): React.JSX.Element {
+  const { spokenDirections, setSpokenDirections } = useSettings();
+  return (
+    <SettingsGroup note="Each route starts with directions spoken or muted. You can still mute or unmute during a ride.">
+      <SwitchRow first title="Spoken directions" value={spokenDirections} onValueChange={setSpokenDirections} />
+    </SettingsGroup>
+  );
+}
+
+/** Vehicle details: what the rider rides; Routes shows roads that suit it. */
+function VehiclePage(): React.JSX.Element {
+  const { riderVehicle, setRiderVehicle } = useSettings();
+  return (
+    <SettingsGroup title="Vehicle type" note="Routes only shows roads that suit what you ride.">
+      {RIDER_VEHICLE_OPTIONS.map(([vehicle, label], index) => (
+        <CheckRow key={vehicle} first={index === 0} title={label} selected={riderVehicle === vehicle} onPress={() => setRiderVehicle(vehicle)} />
+      ))}
     </SettingsGroup>
   );
 }
@@ -873,7 +904,9 @@ export function SettingsPageScreen({ route }: SettingsPageProps): React.JSX.Elem
       {page === 'editProfile' ? <EditProfilePage /> : null}
       {page === 'general' ? <GeneralPage /> : null}
       {page === 'mapNavigation' ? <MapNavigationPage /> : null}
+      {page === 'voiceSound' ? <VoiceSoundPage /> : null}
       {page === 'rideSafe' ? <RideSafePage /> : null}
+      {page === 'vehicle' ? <VehiclePage /> : null}
       {page === 'account' ? <AccountPage /> : null}
       {page === 'privacy' ? <PrivacyPage /> : null}
       {page === 'navigationApp' ? <NavigationAppPage /> : null}

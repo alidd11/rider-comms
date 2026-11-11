@@ -51,6 +51,7 @@ const [
   nativeManeuverGlyphSource,
   nativeGuidanceSource,
   nativeMenuSource,
+  nativeRiderPreferencesSource,
 ] = await Promise.all([
   readFile(new URL('../docs/app.js', import.meta.url), 'utf8'),
   readFile(new URL('../docs/app.css', import.meta.url), 'utf8'),
@@ -66,6 +67,7 @@ const [
   readFile(new URL('../mobile/src/components/NavigationManeuverGlyph.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/navigationGuidance.ts', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/screens/MenuScreen.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../mobile/src/riderPreferences.ts', import.meta.url), 'utf8'),
 ]);
 // MapScreen.tsx delegates its map-marker rendering (HazardMarker,
 // SmoothSelfMarker, SmoothRideMemberMarker) to mapMarkers.tsx, its hazard
@@ -98,28 +100,36 @@ function assertSameOrder(labels, pwaSource, nativeSource, where) {
   }
 }
 assertSameOrder(
-  ['General', 'Map & navigation', 'Ride Safe', 'Account', 'Account and login', 'Privacy', 'About'],
+  ['General', 'Map & navigation', 'Voice and sound', 'Riding', 'Ride Safe', 'Vehicle details', 'Account', 'Account and login', 'Privacy', 'About'],
   pwaSettingsList,
   nativeSettingsRoot,
   'Settings root',
 );
-for (const tint of ['#1FB6D9', '#2FB35F', '#F2802A', '#2A8196', '#1E95E8', '#16A9D9']) {
+for (const tint of ['#1FB6D9', '#2FB35F', '#3478F6', '#F2802A', '#8E5CF6', '#2A8196', '#1E95E8', '#16A9D9']) {
   if (!pwaSettingsList.toUpperCase().includes(tint) || !nativeSettingsRoot.toUpperCase().includes(tint)) {
     throw new Error(`Settings category tint drifted: ${tint}`);
   }
 }
 assertSameOrder(
-  ['Distance units', 'Navigation app', 'Avoid motorways', 'Avoid tolls', 'Ride Safe auto-lock',
+  ['Distance units', 'Navigation app', 'Avoid motorways', 'Avoid tolls', 'Spoken directions', 'Ride Safe auto-lock',
     'Nearby rider visibility', 'Blocked riders', 'Email', 'Signed-in devices', 'Sign out', 'Reset settings', 'Delete account'],
   pwaMapSource.slice(pwaMapSource.indexOf('generalSettings: () =>')),
   nativeSettingsSource.slice(nativeSettingsSource.indexOf('function GeneralPage(')),
   'Settings pages',
 );
+// Vehicle types: same choices, labels and order on both clients.
+{
+  const pwaVehicles = [...pwaMapSource.matchAll(/\['(motorcycle_large|motorcycle_small|scooter)', '([^']+)'\]/g)].map((match) => `${match[1]}:${match[2]}`);
+  const nativeVehicles = [...nativeRiderPreferencesSource.matchAll(/\['(motorcycle_large|motorcycle_small|scooter)', '([^']+)'\]/g)].map((match) => `${match[1]}:${match[2]}`);
+  if (pwaVehicles.length !== 3 || pwaVehicles.join('|') !== nativeVehicles.join('|')) {
+    throw new Error(`Vehicle type choices drifted: PWA ${pwaVehicles.join(', ')} vs native ${nativeVehicles.join(', ')}`);
+  }
+}
 if (/id="logoutBtn"/.test(pwaIndexSource) || /title="Sign Out"/.test(nativeSettingsRoot)) {
   throw new Error('Sign out lives in Account and login on both clients, not on the Settings root');
 }
 // The pages the root and category pages open, with the same tokens.
-for (const token of ['general', 'mapNavigation', 'rideSafe', 'account', 'privacy', 'about']) {
+for (const token of ['general', 'mapNavigation', 'voiceSound', 'rideSafe', 'vehicle', 'account', 'privacy', 'about']) {
   if (!pwaMapSource.includes(`${token}: {`) || !pwaSettingsList.includes(`'${token}'`) || !nativeSettingsSource.includes(`page === '${token}'`) || !nativeSettingsSource.includes(`openPage('${token}')`)) {
     throw new Error(`Settings page drifted for ${token}`);
   }
@@ -255,7 +265,7 @@ for (const [label, source, patterns] of [
     /navigationPuck\.predictNavigationPuck\(/,
     /maximumAge: 0,/,
     /setNavigationTrafficVisible\(true\)/,
-    /if \(!preserveMute\) navMuted = false/,
+    /if \(!preserveMute\) navMuted = state\.spokenDirections === false/,
     /preserveMute: true/,
     /setNavStatusNotice\('Rerouting…'\)/,
     /if \(!navMuted\) speak\('Rerouting\.'\)/,
@@ -295,6 +305,7 @@ for (const [label, source, patterns] of [
     /reduceMotionEnabled[\s\S]*setCamera\(camera\)[\s\S]*animateCamera\(camera/,
     /transitionDuration = gliding \? glideMs : movingSpeed !== null && movingSpeed <= 1\.5 \? 650 : 500[\s\S]*animateCamera\(camera, \{ duration: transitionDuration \}\)/,
     /matchFixToPath\(puckPath,/,
+    /setNavigationMuted\(!spokenDirectionsRef\.current\)/,
     /predictNavigationPuck\(puckPath,/,
     /if \(!navigationMutedRef\.current\) speakNavigationPrompt\('Rerouting\.'\)/,
     /setNavigationNotice\('Could not reroute\. Continue with caution\.'\)/,

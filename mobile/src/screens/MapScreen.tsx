@@ -43,6 +43,7 @@ import type { NavigationTarget } from '../navigationLinks';
 import { useMovementSafety } from '../safety/MovementSafetyContext';
 import { useVoiceMute } from '../voice/VoiceMuteContext';
 import { useDarkOutside } from './useDarkOutside';
+import { NearbyRidersIcon } from '../components/NearbyRidersIcon';
 import { navigationProviderLabel } from '../navigationPreference';
 import {
   formatNavigationDistance,
@@ -77,7 +78,7 @@ export function MapScreen(): React.JSX.Element {
   const colorScheme = useColorScheme();
   const { client, riderId } = useAuth();
   const { activeRide, rideLocations, roster, shareRideLocation } = useRide();
-  const { shareLocation, setShareLocation, unitSystem, navigationProvider, routeAvoidance, avatarId, displayName } = useSettings();
+  const { shareLocation, setShareLocation, unitSystem, navigationProvider, routeAvoidance, spokenDirections, avatarId, displayName } = useSettings();
   const { lockedForSafety, movementState, speedMps, locationAccess, requestLocationAccess, openLocationSettings, refreshTracking } = useMovementSafety();
   const { muted: voiceMuted, toggleMuted: toggleVoiceMuted, voiceConnected } = useVoiceMute();
   const [rideBarHeight, setRideBarHeight] = React.useState(0);
@@ -273,6 +274,7 @@ export function MapScreen(): React.JSX.Element {
     setNavigationTarget,
     setSelectedHazardId,
     routeAvoidance,
+    spokenDirections,
   );
 
   // During turn-by-turn guidance the selected rider avatar must follow the
@@ -734,7 +736,7 @@ export function MapScreen(): React.JSX.Element {
             {nearbyTogglePending ? (
               <ActivityIndicator color={publicLive ? '#04210F' : '#04161D'} />
             ) : (
-              <MaterialCommunityIcons name="access-point" size={24} color={publicLive ? '#04210F' : '#04161D'} />
+              <NearbyRidersIcon size={24} color={publicLive ? '#04210F' : '#04161D'} />
             )}
             <Text style={[styles.mapLiveButtonText, publicLive && styles.mapLiveButtonTextActive]}>{publicLive ? 'Live' : 'Go live'}</Text>
           </Pressable>

@@ -1194,6 +1194,18 @@ test('PWA map has a labelled Go live bar when parked and a glanceable HUD while 
   await expect(page.locator('#hazardAutoClose')).toContainText('Closes in');
 });
 
+test('PWA Routes shows only roads that suit the rider’s vehicle', async ({ page }) => {
+  await mockAuthenticatedApi(page, 'stationary');
+  await page.goto('/');
+  await openFromMenu(page, 'routes');
+  const count = page.locator('.routes-count');
+  await expect(count).toHaveText('21 rides');
+  await page.evaluate(() => window.RiderCuratedRoutes.setVehicle('scooter'));
+  await expect(count).toHaveText('15 rides');
+  await page.evaluate(() => window.RiderCuratedRoutes.setVehicle('motorcycle_small'));
+  await expect(count).toHaveText('21 rides');
+});
+
 test('PWA loads the map-matched navigation puck', async ({ page }) => {
   await mockAuthenticatedApi(page, 'recovering');
   await page.goto('/');
@@ -2316,11 +2328,11 @@ test('PWA Settings is a real settings list matching the native app', async ({ pa
   await page.goto('/#settings');
 
   // Waze-style: the root lists categories, each opening its own page.
-  await expect(page.locator('#settingsList .settings-section-title')).toHaveText(['Account']);
+  await expect(page.locator('#settingsList .settings-section-title')).toHaveText(['Riding', 'Account']);
   await expect(page.locator('#settingsList .settings-row-label')).toHaveText([
-    'General', 'Map & navigation', 'Ride Safe', 'Account and login', 'Privacy', 'About',
+    'General', 'Map & navigation', 'Voice and sound', 'Ride Safe', 'Vehicle details', 'Account and login', 'Privacy', 'About',
   ]);
-  await expect(page.locator('#settingsList .settings-category-icon')).toHaveCount(6);
+  await expect(page.locator('#settingsList .settings-category-icon')).toHaveCount(8);
   await expect(page.locator('.settings-version')).toHaveText('Version 0.3.0');
   await expect(page.locator('.settings-page')).not.toContainText('Offline Maps');
   await expect(page.locator('.settings-page')).not.toContainText('Communication');
@@ -2350,6 +2362,28 @@ test('PWA Settings is a real settings list matching the native app', async ({ pa
   await expect(page.locator('#sheetTitle')).toHaveText('Map & navigation');
   await page.locator('#closeSheetAll').click();
   await expect(page.locator('#sheetBackdrop')).toBeHidden();
+
+  // Voice and sound: whether new routes speak directions.
+  await page.locator('[data-settings-open="voiceSound"]').click();
+  const spoken = page.locator('#sheetBody [data-toggle="spokenDirections"]');
+  await expect(spoken).toHaveAttribute('aria-pressed', 'true');
+  await spoken.click();
+  await expect(spoken).toHaveAttribute('aria-pressed', 'false');
+  await page.locator('#closeSheetAll').click();
+
+  // Vehicle details: a picker; Routes then shows only roads that suit it.
+  await page.locator('[data-settings-open="vehicle"]').click();
+  await expect(page.locator('#sheetBody [data-vehicle-option]')).toHaveText(['Motorcycle', 'Small motorcycle (up to 125cc)', 'Scooter']);
+  await expect(page.locator('[data-vehicle-option="motorcycle_large"]')).toHaveAttribute('aria-checked', 'true');
+  await page.locator('[data-vehicle-option="scooter"]').click();
+  await expect(page.locator('[data-vehicle-option="scooter"]')).toHaveAttribute('aria-checked', 'true');
+  await expect(page.locator('[data-vehicle-option="motorcycle_large"]')).toHaveAttribute('aria-checked', 'false');
+  const savedState = await page.evaluate(() => Object.keys(localStorage).map((key) => {
+    try { return JSON.parse(localStorage.getItem(key)); } catch { return null; }
+  }).find((value) => value && typeof value === 'object' && 'vehicleCategory' in value));
+  expect(savedState.vehicleCategory).toBe('scooter');
+  expect(savedState.spokenDirections).toBe(false);
+  await page.locator('#closeSheetAll').click();
 
   // Sign out lives in Account and login, with reset and delete.
   await page.locator('[data-settings-open="account"]').click();

@@ -3055,3 +3055,13 @@ html.ride-pill-visible body:has(.screen-map.active) .movement-safety-banner{bott
    strip under the status bar matches the header. */
 #app .screen.content-screen[data-screen="settings"]{padding-left:var(--safe-left,0px);padding-right:var(--safe-right,0px);padding-top:calc(var(--safe-top) + 4px);background:var(--settings-page-bg)}
 #app [data-screen="settings"] .settings-page>.page-header{margin-top:calc(-1 * (var(--safe-top) + 4px));padding-top:calc(var(--safe-top) + 10px)}
+/* The status chip rides in the map header on its own row, so it always
+   sits just under the search bar however the header is offset. */
+.map-header{flex-wrap:wrap;row-gap:8px}
+.map-status-row{flex:0 0 100%;display:flex;pointer-events:none}
+#app .map-header .map-status-chip{position:static;top:auto;left:auto;pointer-events:auto}
+.nav-mode .map-status-row,.safety-locked .map-status-row{display:none}
+/* Vehicle type: Waze-style picker, a tick on the chosen row. */
+.settings-row-check{display:grid;place-items:center;color:var(--accent);visibility:hidden}
+.settings-row-check svg{width:22px;height:22px;stroke-width:2.6}
+.settings-row[aria-checked=true] .settings-row-check{visibility:visible}

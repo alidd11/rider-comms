@@ -1386,9 +1386,15 @@
     return `${Math.round(miles)} mi from you`;
   };
 
+  // Settings → Vehicle details: only routes that suit what the rider rides
+  // (native: routeMatchesVehicle). The app sets it at start and on change.
+  let riderVehicle = null;
+  const matchesVehicle = (route) => !riderVehicle || route.vehicleSuitability.includes(riderVehicle);
+
   const visibleRoutes = () => {
     const normalizedQuery = searchQuery.trim().toLowerCase();
     const filtered = routes
+      .filter(matchesVehicle)
       .filter(matchesDuration)
       .filter(matchesCategory)
       .filter((route) => !normalizedQuery || routeDiscoveryText(route).includes(normalizedQuery));
@@ -1588,8 +1594,20 @@
     backdrop.querySelector('.route-detail-close').focus();
   }
 
+  let initialised = false;
+  window.RiderCuratedRoutes = Object.freeze({
+    setVehicle(vehicle) {
+      riderVehicle = typeof vehicle === 'string' ? vehicle : null;
+      if (!initialised) return;
+      renderHeading();
+      renderRoutes();
+    },
+  });
+
   function init() {
     if (!prepareLayout()) return;
+    initialised = true;
+    if (riderVehicle === null && typeof window.riderVehicleCategory === 'string') riderVehicle = window.riderVehicleCategory;
     renderFilters();
     renderHeading();
     renderRoutes();

@@ -316,7 +316,7 @@
     const visible = state.publicLive && !state.activeRide && recentVoicePeers.size > 0 && !locked;
     button.hidden = !visible;
     if (visible) {
-      button.innerHTML = `${icon('friends')}<span>${recentVoicePeers.size}</span>`;
+      button.innerHTML = `${icon('nearby')}<span>${recentVoicePeers.size}</span>`;
       button.setAttribute('aria-label', `Riders on Nearby Voice: ${recentVoicePeers.size}. Mute, report or block.`);
     }
   }

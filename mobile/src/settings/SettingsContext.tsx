@@ -12,6 +12,15 @@ import {
 } from '../navigationPreference';
 import { DEFAULT_RIDE_SAFE_ENABLED, parseRideSafeEnabled, rideSafeStorageKey } from '../rideSafePreference';
 import {
+  DEFAULT_RIDER_VEHICLE,
+  DEFAULT_SPOKEN_DIRECTIONS,
+  parseRiderVehicle,
+  parseSpokenDirections,
+  riderVehicleStorageKey,
+  spokenDirectionsStorageKey,
+  type RiderVehicle,
+} from '../riderPreferences';
+import {
   DEFAULT_ROUTE_AVOIDANCE,
   parseRouteAvoidance,
   routeAvoidanceStorageKey,
@@ -32,6 +41,10 @@ interface SettingsContextValue extends ProfileState {
   routeAvoidance: RouteAvoidance;
   rideSafeEnabled: boolean;
   rideSafeLoaded: boolean;
+  spokenDirections: boolean;
+  riderVehicle: RiderVehicle;
+  setSpokenDirections: (v: boolean) => void;
+  setRiderVehicle: (v: RiderVehicle) => void;
   loaded: boolean;
   saving: boolean;
   profileError: string | null;
@@ -53,6 +66,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }): R
   const [routeAvoidance, setRouteAvoidanceState] = React.useState<RouteAvoidance>(DEFAULT_ROUTE_AVOIDANCE);
   const [rideSafeEnabled, setRideSafeEnabledState] = React.useState(DEFAULT_RIDE_SAFE_ENABLED);
   const [rideSafeLoaded, setRideSafeLoaded] = React.useState(false);
+  const [spokenDirections, setSpokenDirectionsState] = React.useState(DEFAULT_SPOKEN_DIRECTIONS);
+  const [riderVehicle, setRiderVehicleState] = React.useState<RiderVehicle>(DEFAULT_RIDER_VEHICLE);
   const [saving, setSaving] = React.useState(false);
   const [profileError, setProfileError] = React.useState<string | null>(null);
   const saveQueue = React.useRef<Promise<void>>(Promise.resolve());
@@ -83,6 +98,18 @@ export function SettingsProvider({ children }: { children: React.ReactNode }): R
     AsyncStorage.getItem(rideSafeStorageKey(riderId))
       .then((value) => { if (!cancelled) { setRideSafeEnabledState(parseRideSafeEnabled(value)); setRideSafeLoaded(true); } })
       .catch(() => { if (!cancelled) { setRideSafeEnabledState(DEFAULT_RIDE_SAFE_ENABLED); setRideSafeLoaded(true); } });
+    return () => { cancelled = true; };
+  }, [riderId]);
+  React.useEffect(() => {
+    let cancelled = false;
+    setSpokenDirectionsState(DEFAULT_SPOKEN_DIRECTIONS);
+    setRiderVehicleState(DEFAULT_RIDER_VEHICLE);
+    AsyncStorage.getItem(spokenDirectionsStorageKey(riderId))
+      .then((value) => { if (!cancelled) setSpokenDirectionsState(parseSpokenDirections(value)); })
+      .catch(() => undefined);
+    AsyncStorage.getItem(riderVehicleStorageKey(riderId))
+      .then((value) => { if (!cancelled) setRiderVehicleState(parseRiderVehicle(value)); })
+      .catch(() => undefined);
     return () => { cancelled = true; };
   }, [riderId]);
   const refreshProfile = React.useCallback(async () => {
@@ -166,12 +193,25 @@ export function SettingsProvider({ children }: { children: React.ReactNode }): R
     setRideSafeEnabledState(value);
     void AsyncStorage.setItem(rideSafeStorageKey(riderId), String(value));
   }, [riderId]);
+  const setSpokenDirections = React.useCallback((value: boolean) => {
+    setSpokenDirectionsState(value);
+    void AsyncStorage.setItem(spokenDirectionsStorageKey(riderId), String(value));
+  }, [riderId]);
+  const setRiderVehicle = React.useCallback((value: RiderVehicle) => {
+    const next = parseRiderVehicle(value);
+    setRiderVehicleState(next);
+    void AsyncStorage.setItem(riderVehicleStorageKey(riderId), next);
+  }, [riderId]);
   const resetAll = React.useCallback(() => {
     stateRef.current = DEFAULTS;
     setState(DEFAULTS);
     setNavigationProviderState(DEFAULT_NAVIGATION_PROVIDER);
     setRouteAvoidanceState(DEFAULT_ROUTE_AVOIDANCE);
     setRideSafeEnabledState(DEFAULT_RIDE_SAFE_ENABLED);
+    setSpokenDirectionsState(DEFAULT_SPOKEN_DIRECTIONS);
+    setRiderVehicleState(DEFAULT_RIDER_VEHICLE);
+    void AsyncStorage.removeItem(spokenDirectionsStorageKey(riderId));
+    void AsyncStorage.removeItem(riderVehicleStorageKey(riderId));
     void AsyncStorage.removeItem(cacheKey(riderId));
     void AsyncStorage.removeItem(navigationProviderStorageKey(riderId));
     void AsyncStorage.removeItem(routeAvoidanceStorageKey(riderId));
@@ -179,7 +219,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }): R
     void client.updateProfile(riderId, DEFAULTS).catch(() => setProfileError('Your settings could not be reset on the server.'));
   }, [client, riderId]);
   const clearProfileError = React.useCallback(() => setProfileError(null), []);
-  const value = React.useMemo(() => ({ ...state, ...setters, navigationProvider, setNavigationProvider, routeAvoidance, setRouteAvoidance, rideSafeEnabled, rideSafeLoaded, setRideSafeEnabled, loaded, saving, profileError, clearProfileError, resetAll, refreshProfile }), [state, setters, navigationProvider, setNavigationProvider, routeAvoidance, setRouteAvoidance, rideSafeEnabled, rideSafeLoaded, setRideSafeEnabled, loaded, saving, profileError, clearProfileError, resetAll, refreshProfile]);
+  const value = React.useMemo(() => ({ ...state, ...setters, navigationProvider, setNavigationProvider, routeAvoidance, setRouteAvoidance, rideSafeEnabled, rideSafeLoaded, setRideSafeEnabled, spokenDirections, setSpokenDirections, riderVehicle, setRiderVehicle, loaded, saving, profileError, clearProfileError, resetAll, refreshProfile }), [state, setters, navigationProvider, setNavigationProvider, routeAvoidance, setRouteAvoidance, rideSafeEnabled, rideSafeLoaded, setRideSafeEnabled, spokenDirections, setSpokenDirections, riderVehicle, setRiderVehicle, loaded, saving, profileError, clearProfileError, resetAll, refreshProfile]);
   return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;
 }
 export function useSettings(): SettingsContextValue { const value = React.useContext(SettingsContext); if (!value) throw new Error('useSettings() must be called within SettingsProvider'); return value; }

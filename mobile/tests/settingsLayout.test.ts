@@ -9,18 +9,18 @@ const settingsSource = await readFile(new URL('../src/screens/SettingsScreen.tsx
 describe('Settings mockup contract', () => {
   it('is Waze-style: a root of categories, each opening its own page', () => {
     const root = settingsSource.slice(settingsSource.indexOf('export function SettingsScreen()'), settingsSource.indexOf('function GeneralPage('));
-    const categories = ['title="General"', 'title="Map & navigation"', 'title="Ride Safe"', 'title="Account"', 'title="Account and login"', 'title="Privacy"', 'title="About"'];
+    const categories = ['title="General"', 'title="Map & navigation"', 'title="Voice and sound"', 'title="Riding"', 'title="Ride Safe"', 'title="Vehicle details"', 'title="Account"', 'title="Account and login"', 'title="Privacy"', 'title="About"'];
     let cursor = -1;
     for (const label of categories) {
       const next = root.indexOf(label, cursor + 1);
       assert.ok(next > cursor, `Expected ${label} after the previous Settings category`);
       cursor = next;
     }
-    assert.equal((root.match(/<CategoryRow /g) ?? []).length, 6);
+    assert.equal((root.match(/<CategoryRow /g) ?? []).length, 8);
     assert.match(root, /Version \{appVersion\}/);
     // The pages, in the same order as the PWA's.
     const pages = settingsSource.slice(settingsSource.indexOf('function GeneralPage('), settingsSource.indexOf('const VISIBILITY_LABELS'));
-    const rows = ['title="Distance units"', 'title="Navigation app"', 'title="Avoid motorways"', 'title="Avoid tolls"', 'title="Ride Safe auto-lock"',
+    const rows = ['title="Distance units"', 'title="Navigation app"', 'title="Avoid motorways"', 'title="Avoid tolls"', 'title="Spoken directions"', 'title="Vehicle type"', 'title="Ride Safe auto-lock"',
       'title="Nearby rider visibility"', 'title="Blocked riders"', 'title="Login info"', 'title="Email"', 'title="Signed-in devices"',
       'title="Advanced"', 'title="Sign out"', 'title="Reset settings"', 'title="Delete account"'];
     cursor = -1;
@@ -29,7 +29,8 @@ describe('Settings mockup contract', () => {
       assert.ok(next > cursor, `Expected ${label} after the previous Settings row`);
       cursor = next;
     }
-    assert.equal((pages.match(/<SwitchRow /g) ?? []).length, 4);
+    assert.equal((pages.match(/<SwitchRow /g) ?? []).length, 5);
+    assert.match(pages, /RIDER_VEHICLE_OPTIONS\.map[\s\S]*<CheckRow /);
     assert.match(pages, /<SegmentedRow first title="Distance units"/);
     assert.match(pages, /title="Navigation app" value=\{navigationAppLabel\}/);
     assert.match(pages, /title="Email" value=\{emailVerified \? 'Verified' : 'Not verified'\}/);
@@ -58,7 +59,7 @@ describe('Settings mockup contract', () => {
   });
 
   it('opens a page only for choices and lists', () => {
-    for (const key of ['general', 'mapNavigation', 'rideSafe', 'account', 'privacy', 'about']) {
+    for (const key of ['general', 'mapNavigation', 'voiceSound', 'rideSafe', 'vehicle', 'account', 'privacy', 'about']) {
       assert.ok(settingsSource.includes(`page === '${key}'`), `Missing Settings page: ${key}`);
       assert.ok(settingsSource.includes(`openPage('${key}')`), `Settings root does not open page: ${key}`);
     }

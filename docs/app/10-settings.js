@@ -14,7 +14,9 @@
     // Waze-style: the Settings root lists categories, each its own page.
     general: { title: 'General', sections: [['', 'generalSettings']] },
     mapNavigation: { title: 'Map & navigation', sections: [['', 'mapNavigationSettings']] },
+    voiceSound: { title: 'Voice and sound', sections: [['', 'voiceSoundSettings']] },
     rideSafe: { title: 'Ride Safe', sections: [['', 'rideSafeSettings']] },
+    vehicle: { title: 'Vehicle details', sections: [['Vehicle type', 'vehicleSettings']] },
     account: { title: 'Account and login', sections: [['Login info', 'accountLogin'], ['Advanced', 'accountAdvanced']] },
     privacy: { title: 'Privacy', sections: [['', 'privacySettings']] },
     navigationApp: { title: 'Navigation app', sections: [['', 'navigation']], back: 'mapNavigation' },
@@ -199,6 +201,26 @@
           settingsToggle('avoidTolls', 'Avoid tolls', state.avoidTolls),
         ], 'Route options apply to routes Rider Comms plans.'),
         ready: () => { wireSettingsLinks($('#sheetBody')); wireToggles(); },
+      }),
+      voiceSoundSettings: () => ({
+        title: 'Voice and sound',
+        body: settingsRowsMarkup([
+          settingsToggle('spokenDirections', 'Spoken directions', state.spokenDirections !== false),
+        ], 'Each route starts with directions spoken or muted. You can still mute or unmute during a ride.'),
+        ready: () => wireToggles(),
+      }),
+      vehicleSettings: () => ({
+        title: 'Vehicle type',
+        body: settingsRowsMarkup(
+          RIDER_VEHICLE_OPTIONS.map(([vehicle, label]) => `<button type="button" class="settings-row" role="radio" data-vehicle-option="${vehicle}" aria-checked="${state.vehicleCategory === vehicle}"><span class="settings-row-label">${escapeHtml(label)}</span><span class="settings-row-check">${icon('check')}</span></button>`),
+          'Routes only shows roads that suit what you ride.',
+        ),
+        ready: () => $$('[data-vehicle-option]', $('#sheetBody')).forEach((button) => button.addEventListener('click', () => {
+          state.vehicleCategory = button.dataset.vehicleOption;
+          persist();
+          window.RiderCuratedRoutes?.setVehicle?.(state.vehicleCategory);
+          $$('[data-vehicle-option]', $('#sheetBody')).forEach((row) => row.setAttribute('aria-checked', String(row === button)));
+        })),
       }),
       rideSafeSettings: () => ({
         title: 'Ride Safe',
@@ -397,6 +419,9 @@
       state.navigationProvider = 'google_maps';
       state.avoidHighways = false;
       state.avoidTolls = false;
+      state.spokenDirections = true;
+      state.vehicleCategory = 'motorcycle_large';
+      window.RiderCuratedRoutes?.setVehicle?.(state.vehicleCategory);
       applyRemoteProfile(profile);
       persist();
       renderSettingsList();
@@ -457,7 +482,8 @@
 
   // The Settings root: categories only, each opening its own page.
   const SETTINGS_CATEGORIES = [
-    ['', [['general', 'settings', 'General', '#1fb6d9'], ['mapNavigation', 'map', 'Map & navigation', '#2fb35f'], ['rideSafe', 'shield', 'Ride Safe', '#f2802a']]],
+    ['', [['general', 'settings', 'General', '#1fb6d9'], ['mapNavigation', 'map', 'Map & navigation', '#2fb35f'], ['voiceSound', 'volume', 'Voice and sound', '#3478f6']]],
+    ['Riding', [['rideSafe', 'shield', 'Ride Safe', '#f2802a'], ['vehicle', 'bike', 'Vehicle details', '#8e5cf6']]],
     ['Account', [['account', 'user', 'Account and login', '#2a8196'], ['privacy', 'lock', 'Privacy', '#1e95e8']]],
     ['', [['about', 'info', 'About', '#16a9d9']]],
   ];
@@ -528,6 +554,13 @@
           stopMovementSafetyTracking();
           showToast('Automatic Ride Safe is off on this device.');
         }
+        return;
+      }
+      if (key === 'spokenDirections') {
+        state.spokenDirections = active;
+        persist();
+        button.setAttribute('aria-pressed', String(active));
+        showToast(active ? 'Directions will be spoken.' : 'Routes will start with directions muted.');
         return;
       }
       if (key === 'avoidHighways' || key === 'avoidTolls') {
