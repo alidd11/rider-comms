@@ -99,6 +99,25 @@ describe('RetentionStore', { skip: !hasDatabase && 'DATABASE_URL not set; skippi
     assert.deepEqual(await ids('SELECT code AS id FROM ride_codes'), ['LIVE01']);
   });
 
+  it('ends rides nobody has used for 12 hours, and keeps young or busy ones', async () => {
+    const twelveHours = 12 * 60 * 60 * 1000;
+    await insertRide('ride-idle', NOW - twelveHours - 60_000, ['host-idle', 'guest-idle']);
+    await insertRide('ride-busy', NOW - 2 * twelveHours, ['host-busy']);
+    await insertRide('ride-new', NOW - 60_000, ['host-new']);
+    await getPool().query(
+      `INSERT INTO ride_codes (code, ride_id, created_at, expires_at) VALUES
+         ('IDLE01', 'ride-idle', $1, $2),
+         ('BUSY01', 'ride-busy', $1, $3)`,
+      [NOW - twelveHours - 60_000, NOW - 1, NOW + twelveHours],
+    );
+
+    const counts = await new RetentionStore().sweep(NOW);
+
+    assert.equal(counts.idleRides, 1);
+    assert.deepEqual(await ids('SELECT id FROM rides'), ['ride-busy', 'ride-new']);
+    assert.deepEqual(await ids("SELECT rider_id AS id FROM ride_members WHERE ride_id = 'ride-idle'"), []);
+  });
+
   it('removes expired hazard reports along with their votes', async () => {
     await getPool().query(
       `INSERT INTO hazard_reports (id, type, lat, lon, reported_by, created_at, expires_at) VALUES
@@ -132,7 +151,7 @@ describe('RetentionStore', { skip: !hasDatabase && 'DATABASE_URL not set; skippi
   it('is a no-op on an already clean database', async () => {
     await insertPresence('rider-fresh', NOW);
     const counts = await new RetentionStore().sweep(NOW);
-    assert.deepEqual(counts, { presence: 0, movementAnchors: 0, rideLocations: 0, rideCodes: 0, rides: 0, hazardReports: 0 });
+    assert.deepEqual(counts, { presence: 0, movementAnchors: 0, rideLocations: 0, rideCodes: 0, rides: 0, idleRides: 0, hazardReports: 0 });
     assert.equal(await count('rider_presence'), 1);
   });
 });

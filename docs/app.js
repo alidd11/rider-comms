@@ -112,7 +112,7 @@
     requests: [],
   };
 
-  // Waze-style crowdsourced road reports, backed for real by POST /hazards
+  // Crowdsourced road reports, backed for real by POST /hazards
   // and GET /hazards/nearby (see backend/src/hazardStore.ts for the TTL and
   // confirm/deny hide-threshold rules). This map is just UI metadata (icon,
   // label, colour) for the real HazardType values the backend returns —
@@ -375,7 +375,7 @@
   }
 
   function captureHazardReportPosition() {
-    // Match Waze's report flow: snapshot the location when reporting starts,
+    // The report flow snapshots the location when reporting starts,
     // not after the rider has spent time choosing a category. Reuse the
     // authoritative device fix; never infer or road-snap the incident.
     pendingHazardReportPosition = hazardReportPosition(latestDevicePosition);
@@ -487,7 +487,6 @@
   let movementWatchId;
   let movementFreshnessTimer;
   let movementPermissionStatus;
-  let movementAccessDenied = false;
   let rideRefreshVersion = 0;
   let latestDevicePosition;
   let mapCentredOnLiveLocation = false;
@@ -566,7 +565,7 @@
   // every RIDE_LOCATION_REFRESH_MS/PRESENCE_REFRESH_MS, or a GPS fix every
   // couple of seconds -- so every marker glides toward each new fix over an
   // animation loop instead of snapping straight to it, the same way
-  // Google Maps/Waze/Apple Maps read as continuous motion despite an
+  // map apps read as continuous motion despite an
   // equally infrequent underlying position source. Keyed by an arbitrary
   // string ('self' for userMapMarker, riderId for everyone else) so one
   // loop drives every animated marker on the map.
@@ -754,11 +753,6 @@
     document.documentElement.dataset.activeScreen = screen;
     persist();
     [...document.querySelectorAll('.screen')].forEach((item) => item.classList.toggle('active', item.dataset.screen === screen));
-    [...document.querySelectorAll('[data-nav]')].forEach((item) => {
-      const active = item.dataset.nav === screen;
-      item.classList.toggle('active', active);
-      if (active) item.setAttribute('aria-current', 'page'); else item.removeAttribute('aria-current');
-    });
     if (push && location.hash !== `#${screen}`) history.pushState({ screen }, '', `#${screen}`);
     document.title = `${screen === 'ride' ? 'Group Ride' : screen[0].toUpperCase() + screen.slice(1)} · Rider Comms`;
     window.scrollTo(0, 0);
@@ -1289,6 +1283,13 @@
       navBadge.textContent = attentionCount > 99 ? '99+' : String(attentionCount);
       navBadge.hidden = attentionCount === 0;
     }
+    // The map's Friends shortcut carries the same count.
+    const drawerBadge = $('#drawerFriendsBadge');
+    if (drawerBadge) {
+      drawerBadge.textContent = attentionCount > 99 ? '99+' : String(attentionCount);
+      drawerBadge.hidden = attentionCount === 0;
+      drawerBadge.closest('button')?.setAttribute('aria-label', attentionCount ? `Friends, ${attentionCount} new` : 'Friends');
+    }
     $$('[data-accept]').forEach((button) => button.addEventListener('click', () => acceptRequest(button.dataset.accept)));
     $$('[data-decline]').forEach((button) => button.addEventListener('click', () => declineRequest(button.dataset.decline)));
     $$('[data-request-safety]').forEach((button) => button.addEventListener('click', () => {
@@ -1344,7 +1345,7 @@
         </article>
         <div class="friend-profile-actions" aria-label="Rider actions">
           <button id="messageFriend"><span class="friend-action-icon">${icon('message')}</span><strong>Message</strong></button>
-          <button id="shareFriendLocation"${shareLocationState}><span class="friend-action-icon">${icon('nav-arrow')}</span><strong>Share to Ride</strong></button>
+          <button id="shareFriendLocation"${shareLocationState}><span class="friend-action-icon">${icon('nav-arrow')}</span><strong>${inActiveRide && state.activeRide?.shareRideLocation === true ? 'Sharing my location' : 'Share my location'}</strong></button>
           <button id="friendMapAction"${mapActionState}><span class="friend-action-icon">${icon('location')}</span><strong>Map</strong></button>
           <button id="friendSafetyActions"><span class="friend-action-icon friend-action-more" aria-hidden="true">•••</span><strong>More</strong></button>
         </div>
@@ -2198,6 +2199,7 @@
     $('#rideActiveState').hidden = !active;
     $('#rideShareTop').hidden = !active;
     $('#ridePill').hidden = !active;
+    for (const live of [$('#appMenuRide'), $('#drawerRideLive')]) if (live) live.hidden = !active;
     // The floating ride pill covers the last ~50px of every screen; give
     // scrollable screens room to clear it.
     document.documentElement.classList.toggle('ride-pill-visible', active);
@@ -2316,6 +2318,8 @@
     invalid_or_expired: 'That invite code is invalid or has expired.',
     ride_full: 'This ride is full (max 20 riders).',
     rate_limited: 'Too many attempts — please wait a moment and try again.',
+    email_verification_required: 'Verify your email first: open the link we sent you (Settings → Account and login → Email).',
+    terms_acceptance_required: 'Accept the latest Terms in Settings before riding with others.',
   };
 
   /** Creates a real private ride (POST /rides) — the backend returns the
@@ -2337,8 +2341,9 @@
       navigate('ride');
       showToast('Your private ride is ready.');
       await loadRideRoster();
-    } catch {
-      showToast('Could not create a ride. Try again.');
+    } catch (error) {
+      const reason = error instanceof ApiError ? error.body?.error : undefined;
+      showToast(RIDE_ERROR_MESSAGES[reason] || 'Could not create a ride. Try again.');
     } finally {
       button.disabled = false;
       button.innerHTML = `${icon('plus')}<span>Start a ride</span>`;
@@ -2484,7 +2489,7 @@
     plan: { title: 'Your plan', sections: [['', 'plans']] },
     // The Settings list holds the switches itself; these are the choices
     // and lists it opens.
-    // Waze-style: the Settings root lists categories, each its own page.
+    // The Settings root lists categories, each its own page.
     general: { title: 'General', sections: [['', 'generalSettings']], fullBleed: true },
     mapNavigation: { title: 'Map & navigation', sections: [['', 'mapNavigationSettings']], fullBleed: true },
     voiceSound: { title: 'Voice and sound', sections: [['', 'voiceSoundSettings']], fullBleed: true },
@@ -2806,7 +2811,7 @@
     close.innerHTML = currentSettingsPage ? '<svg class="icon-back" aria-hidden="true"><use href="#i-chevron"/></svg>' : '×';
     close.dataset.backTo = SETTINGS_PAGES[currentSettingsPage]?.back || '';
     close.setAttribute('aria-label', currentSettingsPage ? 'Back' : 'Close');
-    // Settings pages also get Waze's X, which closes every level at once.
+    // Settings pages also get an X, which closes every level at once.
     $('#closeSheetAll').hidden = !currentSettingsPage;
     $('#sheetTitle').textContent = title;
     $('#sheetBody').innerHTML = body;
@@ -2946,7 +2951,7 @@
   // The Settings screen is a real settings list: switches act in place,
   // choices show their current value and open a page to change it, and
   // only lists (devices, blocked riders) and account actions go further.
-  // Settings rows, Waze-style: grouped full-width rows, a coloured round
+  // Settings rows: grouped full-width rows, a coloured round
   // icon on category rows, values in grey before the chevron.
   function settingsRowsMarkup(rows, note = '') {
     return `<div class="settings-rows">${rows.join('')}</div>${note ? `<p class="settings-section-note">${escapeHtml(note)}</p>` : ''}`;
@@ -3253,7 +3258,7 @@
     }));
   }
 
-  // Like Waze's music button, but a web app can't embed a player: it opens
+  // A web app can't embed a player: it opens
   // the rider's music app by its URL scheme and remembers which one.
   const MUSIC_APPS = [
     { id: 'spotify', name: 'Spotify', url: 'spotify:' },
@@ -4746,7 +4751,6 @@
     deviceFixReceivedAt.set(position, Date.now());
     latestDevicePosition = position;
     locationPermissionReady = true;
-    movementAccessDenied = false;
     // A restored ride may have rendered before the first already-authorised
     // GPS fix. Resume its consented sharing as soon as that fix arrives.
     if (state.activeRide?.shareRideLocation && !rideLocationTimer) syncRideLocationSharing();
@@ -4794,38 +4798,22 @@
     };
   }
 
-  // A lock shows everywhere, and so does a location problem the rider has to
-  // fix. "Waiting for a speed fix" on its own is only a notice: browsers often
-  // never report speed while still, so it stays on the map (as in the native
-  // app) instead of covering every screen.
+  // Whether Ride Safe locks the distracting controls right now. There is no
+  // banner: the riding HUD's Ride Safe chip shows the lock.
   function syncMovementSafetyBanner() {
-    const locked = state.rideSafeEnabled && window.RiderMovementSafety.isLockedForSafety(movementState);
-    const warning = state.rideSafeEnabled && movementState === 'unknown';
-    // A missing speed fix does not mean location permission is missing.
-    const needsLocation = warning && (movementAccessDenied || !(locationPermissionReady || movementPermissionStatus?.state === 'granted'));
-    const banner = $('#movementSafetyBanner');
-    if (banner) banner.hidden = !(locked || needsLocation || (warning && state.screen === 'map'));
-    const enableButton = $('#enableLocationBtn');
-    if (enableButton) {
-      enableButton.hidden = !needsLocation;
-      enableButton.textContent = movementAccessDenied || movementPermissionStatus?.state === 'denied' ? 'Location help' : 'Enable location';
-    }
-    return locked;
+    return state.rideSafeEnabled && window.RiderMovementSafety.isLockedForSafety(movementState);
   }
 
   function applyMovementState(nextState) {
     movementState = nextState;
     const locked = syncMovementSafetyBanner();
     $('#app')?.classList.toggle('safety-locked', locked);
-    const message = $('#movementSafetyMessage');
-    if (message) message.textContent = nextState === 'moving'
-      ? 'Distracting controls are locked until you are safely below 8 mph.'
-      : 'Waiting for a reliable speed fix. Controls stay available.';
-    $$('[data-nav="friends"], [data-menu-nav]').forEach((item) => {
+    // Ride stays reachable while moving, as it was from the tab bar.
+    $$('[data-menu-nav]:not([data-menu-nav="ride"])').forEach((item) => {
       item.setAttribute('aria-disabled', String(locked));
       item.classList.toggle('safety-unavailable', locked);
     });
-    $$('#mapSearchSlot, #mapAvatarButton, #poiChipRow, #reportHazardBtn, #navReportBtn, #musicBtn, #riderCard, #hazardCard, #rideJoinState, #shareRideBtn, .ride-code-card, #rideRoster, #openRideMap').forEach((item) => {
+    $$('#mapDrawer, #mapSearchSlot, #mapAvatarButton, #poiChipRow, #reportHazardBtn, #navReportBtn, #musicBtn, #riderCard, #hazardCard, #rideJoinState, #shareRideBtn, .ride-code-card, #rideRoster, #openRideMap').forEach((item) => {
       item.toggleAttribute('inert', locked);
       item.setAttribute('aria-disabled', String(locked));
     });
@@ -4853,7 +4841,6 @@
       },
       (error) => {
         if (error.code === 1) {
-          movementAccessDenied = true;
           locationPermissionReady = false;
           stopMovementSafetyTracking();
         } else {
@@ -4877,7 +4864,6 @@
       const permission = await navigator.permissions?.query?.({ name: 'geolocation' });
       if (permission?.state === 'granted' || (!permission && locationPermissionReady)) startMovementSafetyTracking();
       if (permission && permission !== movementPermissionStatus) permission.addEventListener('change', () => {
-        movementAccessDenied = permission.state === 'denied';
         if (permission.state === 'granted') startMovementSafetyTracking();
         else {
           locationPermissionReady = false;
@@ -4885,22 +4871,11 @@
         }
       });
       movementPermissionStatus = permission;
-      movementAccessDenied = permission?.state === 'denied';
       applyMovementState(movementState);
     } catch {
       // Some browsers expose geolocation without the Permissions API.
       // Resume only after an actual successful location request in this session.
       if (locationPermissionReady) startMovementSafetyTracking();
-    }
-  }
-
-  async function requestMovementLocationAccess() {
-    try {
-      const position = await currentPosition();
-      applyMovementState(movementTracker.addFix(movementFix(position)));
-      showToast('Location enabled. Controls stay available until sustained movement at 8 mph.');
-    } catch (error) {
-      showToast(locationAccessMessage(error, 'enable ride-safe controls'));
     }
   }
 
@@ -5163,7 +5138,7 @@
   let activePoiType;
   let nearbySearchResults = [];
 
-  // Recent-place shortcuts (Google Maps/Waze pattern: the empty search
+  // Recent-place shortcuts (the usual map-app pattern: the empty search
   // screen shows where you've been, not a blank page) — kept client-side
   // only, newest first, deduped by placeId, capped so the list stays a
   // quick glance rather than a scrollable history.
@@ -5345,6 +5320,104 @@
         <span class="search-result-trailing"><svg><use href="#i-chevron"/></svg></span>
       </button>`).join('')}`;
     $$('.search-result-row', results).forEach((row) => row.addEventListener('click', () => void selectSearchResult(row.dataset.placeId)));
+  }
+
+  // The Where to drawer on the map: search and shortcuts at rest, recent
+  // places once it is slid up.
+  function renderDrawerRecent() {
+    const list = $('#mapDrawerRecent');
+    if (!list) return;
+    if ($('#mapSearchSlot')?.classList.contains('offline')) {
+      list.innerHTML = '<p class="map-drawer-empty">Search is unavailable right now.</p>';
+      return;
+    }
+    const recent = loadRecentSearches();
+    if (!recent.length) {
+      list.innerHTML = '<p class="map-drawer-empty">Places you search for show up here.</p>';
+      return;
+    }
+    list.innerHTML = `<div class="search-results-heading"><div><strong>Recent</strong></div></div>${recent.map((item, index) => `
+        <button class="search-result-row" type="button" data-drawer-recent="${index}">
+          <span class="search-result-icon"><svg><use href="#i-history"/></svg></span>
+          <span class="search-result-copy"><strong>${escapeHtml(item.name)}</strong><span>${escapeHtml(item.secondary || '')}</span></span>
+        </button>`).join('')}`;
+    $$('[data-drawer-recent]', list).forEach((row) => row.addEventListener('click', () => {
+      setMapDrawerOpen(false);
+      selectRecentSearch(recent[Number(row.dataset.drawerRecent)]);
+    }));
+  }
+
+  function setMapDrawerOpen(open) {
+    const drawer = $('#mapDrawer');
+    if (!drawer) return;
+    drawer.dataset.state = open ? 'open' : 'peek';
+    $('#mapDrawerRecent').hidden = !open;
+    const handle = $('#mapDrawerHandle');
+    handle.setAttribute('aria-expanded', String(open));
+    handle.setAttribute('aria-label', open ? 'Hide recent places' : 'Show recent places');
+    document.documentElement.classList.toggle('map-drawer-open', open);
+    if (open) renderDrawerRecent();
+  }
+
+  // Slide up to open, down to close, tap the handle to toggle. A drag that
+  // starts on a button must not also press it.
+  function initMapDrawer() {
+    const drawer = $('#mapDrawer');
+    if (!drawer) return;
+    let startY = null;
+    let dragged = false;
+    // Follow the gesture on the window: a slide quickly leaves the drawer's
+    // own edge, and capturing the pointer would steal plain taps from its
+    // buttons.
+    const onMove = (event) => {
+      if (startY !== null && Math.abs(event.clientY - startY) > 8) dragged = true;
+    };
+    const onEnd = (event) => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onEnd);
+      window.removeEventListener('pointercancel', onEnd);
+      if (startY === null) return;
+      const dy = event.type === 'pointerup' ? event.clientY - startY : 0;
+      startY = null;
+      // A slide's own click (if any) follows straight after; never let a
+      // stale flag swallow a later, real tap.
+      setTimeout(() => { dragged = false; }, 0);
+      if (dy < -30) setMapDrawerOpen(true);
+      else if (dy > 30) setMapDrawerOpen(false);
+    };
+    drawer.addEventListener('pointerdown', (event) => {
+      if (event.target.closest('#mapDrawerRecent')) return;
+      startY = event.clientY;
+      dragged = false;
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onEnd);
+      window.addEventListener('pointercancel', onEnd);
+    });
+    window.addEventListener('click', (event) => {
+      if (!dragged) return;
+      dragged = false;
+      event.preventDefault();
+      event.stopPropagation();
+    }, true);
+    $('#mapDrawerHandle').addEventListener('click', () => setMapDrawerOpen(drawer.dataset.state !== 'open'));
+    $$('[data-drawer-nav]', drawer).forEach((button) => button.addEventListener('click', () => {
+      setMapDrawerOpen(false);
+      navigate(button.dataset.drawerNav);
+    }));
+    drawer.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && drawer.dataset.state === 'open') {
+        setMapDrawerOpen(false);
+        $('#mapDrawerHandle').focus();
+      }
+    });
+    // Keep the floating controls exactly above the drawer's resting height.
+    const peek = () => {
+      if (drawer.dataset.state !== 'peek' || !drawer.offsetHeight) return;
+      const inset = parseFloat(getComputedStyle(drawer).paddingBottom) - 14;
+      document.documentElement.style.setProperty('--map-drawer-peek', `${Math.round(drawer.offsetHeight - Math.max(0, inset))}px`);
+    };
+    if ('ResizeObserver' in window) new ResizeObserver(peek).observe(drawer);
+    peek();
   }
 
   function selectRecentSearch(item) {
@@ -5623,7 +5696,7 @@
    * once scrolled partway, right-only at the start, left-only at the end,
    * and no fade at all if the row happens to fit without scrolling, e.g.
    * a wide viewport) so a partially-visible chip reads as "swipe for
-   * more" the way Google Maps/Waze's own category rows do.
+   * more" the way map apps' own category rows do.
    */
   function initPoiChipScrollFade() {
     const row = $('#poiChipRow');
@@ -5698,7 +5771,7 @@
   // A rider picking a destination could not previously tell how far or how
   // long the drive was until after committing to "Start route" -- fetch a
   // quick driving-time estimate for the card itself so that decision can be
-  // made up front, same as Google/Waze/Apple Maps' own place cards. Guarded
+  // made up front, same as other map apps' own place cards. Guarded
   // by a token since the card's destination can change (or be dismissed)
   // while this request is still in flight.
   let destinationEtaToken = 0;
@@ -6996,7 +7069,7 @@
     }).catch(() => {});
   }
 
-  // Waze-style menu behind the rider's avatar on the map: profile, Routes,
+  // The menu behind the rider's avatar on the map: profile, Routes,
   // plan, Settings and help. Routes and Settings aren't tabs any more.
   let appMenuTrigger = null;
   function openAppMenu() {
@@ -7022,7 +7095,6 @@
   }
 
   function bindEvents() {
-    $$('[data-nav]').forEach((button) => button.addEventListener('click', () => navigate(button.dataset.nav)));
     $('#mapAvatarButton').addEventListener('click', openAppMenu);
     $('#closeAppMenu').addEventListener('click', () => closeAppMenu());
     $('#appMenu').addEventListener('keydown', (event) => { if (event.key === 'Escape') closeAppMenu(); });
@@ -7036,7 +7108,7 @@
       openSheet(button.dataset.menuSheet);
     }));
     $$('[data-back-to-map]').forEach((button) => button.addEventListener('click', () => navigate('map')));
-    $('#enableLocationBtn').addEventListener('click', () => void requestMovementLocationAccess());
+    initMapDrawer();
     $('#navMuteBtn')?.addEventListener('click', () => {
       navMuted = !navMuted;
       if (navMuted) window.speechSynthesis?.cancel?.();

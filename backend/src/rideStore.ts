@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import {
+  RIDE_CODE_IDLE_TTL_MS,
   createRideCodeRecord,
   isRideCodeExpired,
 } from '@rider-comms/shared';
@@ -49,6 +50,8 @@ export type RideLocationUpdateResult =
   | { ok: false; reason: 'not_found' | 'forbidden' | 'not_member' | 'location_sharing_disabled' };
 
 const RIDE_LOCATION_MAX_AGE_MS = 30_000;
+/** Slide the invite code forward at most this often, not on every poll. */
+const RIDE_CODE_SLIDE_STEP_MS = 10 * 60 * 1000;
 
 interface RideRow {
   id: string;
@@ -83,6 +86,16 @@ function rowToCodeRecord(row: RideCodeRow): RideCodeRecord {
  * Persisted in Postgres (see db.ts): `rides` + `ride_members` (one row per
  * member, rather than the in-memory Set) + `ride_codes`.
  */
+/** Pushes a still-valid invite code's expiry to 12 hours from now. */
+async function slideRideCode(db: { query: (sql: string, values: unknown[]) => Promise<unknown> }, rideId: string): Promise<void> {
+  const now = Date.now();
+  await db.query(
+    `UPDATE ride_codes SET expires_at = $2
+     WHERE ride_id = $1 AND expires_at > $3 AND expires_at < $4`,
+    [rideId, now + RIDE_CODE_IDLE_TTL_MS, now, now + RIDE_CODE_IDLE_TTL_MS - RIDE_CODE_SLIDE_STEP_MS]
+  );
+}
+
 export class RideStore {
 
   private async loadRide(rideId: string): Promise<Ride | undefined> {
@@ -149,6 +162,19 @@ export class RideStore {
         [rideId, riderId]
       );
       if (removed.rowCount) return { ok: false, reason: 'removed_by_host' };
+      // A block either way between the joiner and anyone already riding
+      // keeps them apart. The joiner hears the same answer as a wrong code,
+      // so the block itself is never revealed.
+      const blocked = await client.query(
+        `SELECT 1 FROM ride_members member
+         INNER JOIN rider_blocks block
+           ON (block.rider_id = $2 AND block.blocked_rider_id = member.rider_id)
+           OR (block.rider_id = member.rider_id AND block.blocked_rider_id = $2)
+         WHERE member.ride_id = $1 AND member.rider_id <> $2
+         LIMIT 1`,
+        [rideId, riderId]
+      );
+      if (blocked.rowCount) return { ok: false, reason: 'invalid_or_expired' };
       const existing = await client.query(
         'SELECT 1 FROM ride_members WHERE ride_id = $1 AND rider_id = $2',
         [rideId, riderId]
@@ -163,8 +189,15 @@ export class RideStore {
         }
         await client.query('INSERT INTO ride_members (ride_id, rider_id) VALUES ($1, $2)', [rideId, riderId]);
       }
+      await slideRideCode(client, rideId);
       return { ok: true, rideId };
     });
+  }
+
+  /** Ride activity that isn't a read of the ride (location, voice) keeps it alive too. */
+  async keepRideActive(rideId: string): Promise<void> {
+    await ensureMigrated();
+    await slideRideCode(getPool(), rideId);
   }
 
   async getRide(rideId: string): Promise<Ride | undefined> {
@@ -217,6 +250,9 @@ export class RideStore {
       [rideId, riderId, Date.now()]
     );
     if (!rows[0]) return null;
+    // Members' apps read this while the ride is in use, which keeps the
+    // invite code alive: it lapses only after 12 idle hours.
+    if (rows[0].code) await slideRideCode(getPool(), rideId);
     const ride = await this.loadRide(rideId);
     return ride?.memberIds.has(riderId) ? {
       ride, shareRideLocation: rows[0].location_sharing_enabled, code: rows[0].code,
@@ -336,6 +372,7 @@ export class RideStore {
       [rideId, riderId, lat, lon, Date.now()]
     );
     if (updated.rowCount === 0) return { ok: false, reason: 'location_sharing_disabled' };
+    await slideRideCode(pool, rideId);
     return { ...result, locations: await this.loadFreshMemberLocations(rideId) };
   }
 

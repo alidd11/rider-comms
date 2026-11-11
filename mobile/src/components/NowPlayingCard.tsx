@@ -68,7 +68,7 @@ export function useNowPlaying(enabled: boolean): {
 }
 
 /**
- * Waze-style music card on the map. While Ride Safe has the controls locked
+ * Music card on the map. While Ride Safe has the controls locked
  * it shows only the track, so there's nothing to tap; helmet or headset
  * buttons still work.
  */

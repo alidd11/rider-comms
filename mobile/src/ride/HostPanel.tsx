@@ -11,16 +11,17 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation';
 import { ApiError } from '../api/client';
+import { rideRefusalMessage } from './rideErrors';
 import { useAuth } from '../auth/AuthContext';
 import { RIDE_HERO_IMAGE } from '../brandAssets';
-import { colors, spacing, radii, type, elevation } from '../theme';
+import { colors, spacing, radii, type, elevation, MIN_TOUCH_TARGET } from '../theme';
 import { useRide } from './RideContext';
 import { RideRoster } from './RideRoster';
 import { isCompleteRideCode, normalizeRideCodeInput } from './rideInvite';
 import { microphoneErrorMessage, preflightVoiceMicrophone } from '../audio/microphone';
 
 
-function JoinOrHostForm({ inviteCode }: { inviteCode?: string | null }): React.JSX.Element {
+function JoinOrHostForm({ inviteCode, onBack }: { inviteCode?: string | null; onBack?: () => void }): React.JSX.Element {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const insets = useSafeAreaInsets();
   const { height: viewportHeight } = useWindowDimensions();
@@ -62,6 +63,7 @@ function JoinOrHostForm({ inviteCode }: { inviteCode?: string | null }): React.J
       if (err instanceof ApiError && err.status === 429) setError('Too many attempts. Wait a minute before trying again.');
       else if (err instanceof ApiError && err.status === 404) setError("That code doesn't match an active ride. Check it with your host.");
       else if (err instanceof ApiError && err.status === 409) setError('This ride is full (20 riders max).');
+      else if (err instanceof ApiError && err.status === 403) setError(rideRefusalMessage(err));
       else setError("Couldn't join the ride. Check your connection and try again.");
     } finally {
       setLoading(false);
@@ -81,7 +83,10 @@ function JoinOrHostForm({ inviteCode }: { inviteCode?: string | null }): React.J
         keyboardShouldPersistTaps="handled"
         contentInsetAdjustmentBehavior="never"
       >
-        <Text style={[styles.screenTitle, { marginTop: insets.top + 18 }]} accessibilityRole="header">Ride</Text>
+        <View style={[styles.titleRow, { marginTop: insets.top + 18 }]}>
+          <BackToMap onBack={onBack} />
+          <Text style={styles.screenTitle} accessibilityRole="header">Ride</Text>
+        </View>
         <ImageBackground
           source={RIDE_HERO_IMAGE}
           style={[styles.hero, { height: heroHeight }]}
@@ -269,16 +274,27 @@ function MemberCard(): React.JSX.Element {
   );
 }
 
-export function HostPanel({ inviteCode }: { inviteCode?: string | null } = {}): React.JSX.Element {
+/** Back to the map (PWA: the Ride page's back arrow). */
+function BackToMap({ onBack }: { onBack?: () => void }): React.JSX.Element | null {
+  if (!onBack) return null;
+  return (
+    <Pressable accessibilityRole="button" accessibilityLabel="Back to map" onPress={onBack} hitSlop={8} style={styles.backToMap} testID="ride-back">
+      <Ionicons name="chevron-back" size={26} color={colors.textPrimary} />
+    </Pressable>
+  );
+}
+
+export function HostPanel({ inviteCode, onBack }: { inviteCode?: string | null; onBack?: () => void } = {}): React.JSX.Element {
   const { activeRide } = useRide();
   const insets = useSafeAreaInsets();
 
-  if (!activeRide) return <JoinOrHostForm inviteCode={inviteCode} />;
+  if (!activeRide) return <JoinOrHostForm inviteCode={inviteCode} onBack={onBack} />;
   return (
     <ScrollView
       style={styles.activeScroll}
       contentContainerStyle={[styles.activePanel, { paddingTop: insets.top + spacing.lg, paddingBottom: insets.bottom + spacing.lg }]}
     >
+      <BackToMap onBack={onBack} />
       {activeRide.isHost ? <HostRoster /> : <MemberCard />}
     </ScrollView>
   );
@@ -286,6 +302,8 @@ export function HostPanel({ inviteCode }: { inviteCode?: string | null } = {}): 
 
 const styles = StyleSheet.create({
   joinScreen: { flex: 1, backgroundColor: colors.background },
+  titleRow: { flexDirection: 'row', alignItems: 'center' },
+  backToMap: { width: MIN_TOUCH_TARGET, height: MIN_TOUCH_TARGET, marginLeft: spacing.sm, marginRight: -spacing.xs, alignItems: 'center', justifyContent: 'center' },
   joinScroll: { flexGrow: 1, backgroundColor: colors.background },
   joinBody: { gap: spacing.md, paddingHorizontal: 20, paddingTop: spacing.md },
   activeScroll: { flex: 1, backgroundColor: colors.background },

@@ -47,11 +47,17 @@ export function createLiveKitRoomAdmin(credentials: LiveKitCredentials): LiveKit
     { requestTimeout: 5 },
   );
   const revokeParticipant = async (roomName: string, identity: string, revokedAt = Date.now()): Promise<void> => {
-    await rooms.removeParticipant(
-      roomName,
-      identity,
-      { revokeTokenTs: BigInt(Math.floor(revokedAt / 1000)) },
-    );
+    try {
+      await rooms.removeParticipant(
+        roomName,
+        identity,
+        { revokeTokenTs: BigInt(Math.floor(revokedAt / 1000)) },
+      );
+    } catch (error) {
+      // Not in that call (or the room is already gone): nothing to hang up.
+      if (isNotFound(error)) return;
+      throw error;
+    }
   };
   return {
     revokeRideParticipant: async (rideId, identity, revokedAt = Date.now()) => {
@@ -61,6 +67,12 @@ export function createLiveKitRoomAdmin(credentials: LiveKitCredentials): LiveKit
       await revokeParticipant(proximityRoomName(riderA, riderB), identity, revokedAt);
     },
   };
+}
+
+function isNotFound(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const { code, status } = error as { code?: unknown; status?: unknown };
+  return code === 'not_found' || status === 404;
 }
 
 export function getLiveKitCredentialsFromEnv(env: NodeJS.ProcessEnv = process.env): LiveKitCredentials | null {

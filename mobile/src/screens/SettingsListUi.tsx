@@ -4,10 +4,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme';
 
 /**
- * Settings, Waze-style: grouped full-width rows on a darker page, coloured
+ * Settings: grouped full-width rows on a darker page, coloured
  * round icons on the category list, a centred title between back and
  * close, values in grey before the chevron. The PWA mirrors this in
- * docs/app.css ("Settings, Waze-style").
+ * docs/app.css ("Settings (Nov 2026)").
  */
 const PALETTE = {
   dark: { page: '#000000', group: '#202124', separator: 'rgba(255,255,255,0.1)', segmentTrack: '#3A3B3F', segmentOn: '#000000' },
@@ -101,7 +101,7 @@ export function PlainRow({ title, value, danger = false, chevron = true, first =
   );
 }
 
-/** One choice of several: a tick on the selected row (Waze's pickers). */
+/** One choice of several: a tick on the selected row. */
 export function CheckRow({ title, selected, first = false, onPress }: {
   title: string;
   selected: boolean;
@@ -140,7 +140,7 @@ export function SwitchRow({ title, value, first = false, onValueChange }: {
   );
 }
 
-/** A label with a Waze-style segmented control underneath. */
+/** A label with a segmented control underneath. */
 export function SegmentedRow<T extends string>({ title, options, value, first = false, onChange }: {
   title: string;
   options: ReadonlyArray<readonly [T, string]>;

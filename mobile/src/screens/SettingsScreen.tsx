@@ -274,12 +274,12 @@ function PageSection({ title, children, note }: { title?: string; children: Reac
   );
 }
 
-// Pages reached from the Settings root get Waze's header (back, centred
+// Pages reached from the Settings root get one header (back, centred
 // title, X to close Settings); the category pages are full-width groups.
 const SETTINGS_CATEGORY_PAGES = new Set<SettingsPageKey>(['general', 'mapNavigation', 'voiceSound', 'rideSafe', 'vehicle', 'notifications', 'account', 'privacy']);
 const MENU_PAGES = new Set<SettingsPageKey>(['myProfile', 'editProfile', 'help']);
 
-/** Full-screen settings page: Waze's header (back, centred title, X),
+/** Full-screen settings page: a header (back, centred title, X),
  * then scrolling content. X closes back to Settings, or to the map for
  * pages opened from the avatar menu. Category pages and Profile are
  * full-width rows; the rest keep normal side margins. */
@@ -306,7 +306,7 @@ function SettingsPageLayout({ title, page, children }: { title: string; page: Se
   );
 }
 
-/** The Settings root, Waze-style: categories only, each opening its own
+/** The Settings root: categories only, each opening its own
  * page (the PWA's SETTINGS_CATEGORIES has the same rows and tints). */
 export function SettingsScreen(): React.JSX.Element {
   const { profileError, clearProfileError } = useSettings();

@@ -24,14 +24,15 @@ import type { RootStackParamList, TabParamList } from '../navigation';
 import { HIDDEN_TAB_BAR_STYLE, TAB_BAR_STYLE } from '../navigation/tabBarStyle';
 import { useAuth } from '../auth/AuthContext';
 import { colors, spacing, MIN_TOUCH_TARGET } from '../theme';
-import { BOTTOM_BAR_HEIGHT, HUD_ACTION_HEIGHT, MAP_ACTION_SIZE, NAVIGATION_SUMMARY_BASE_HEIGHT, styles } from './MapScreen.styles';
+import { BOTTOM_BAR_HEIGHT, HUD_ACTION_HEIGHT, NAVIGATION_SUMMARY_BASE_HEIGHT, styles } from './MapScreen.styles';
 import { RideBar } from '../ride/RideBar';
 import { useRide } from '../ride/RideContext';
 import { ProximityVoice } from '../voice/ProximityVoice';
 import { HostPanel } from '../ride/HostPanel';
 import { parseRideInviteLink } from '../ride/rideInvite';
 import { useSettings } from '../settings/SettingsContext';
-import { PlaceSearchBar } from './PlaceSearchBar';
+import { MapDrawer } from './MapDrawer';
+import { useFriends } from '../friends/FriendsContext';
 import type { PlaceResult } from '../api/places';
 import { HazardReportSheet } from './HazardReportSheet';
 import { HazardDetailCard } from '../components/HazardDetailCard';
@@ -79,9 +80,13 @@ export function MapScreen(): React.JSX.Element {
   const { client, riderId } = useAuth();
   const { activeRide, rideLocations, roster, shareRideLocation } = useRide();
   const { shareLocation, setShareLocation, unitSystem, navigationProvider, routeAvoidance, spokenDirections, avatarId, displayName } = useSettings();
-  const { lockedForSafety, movementState, speedMps, locationAccess, requestLocationAccess, openLocationSettings, refreshTracking } = useMovementSafety();
+  const { lockedForSafety, speedMps, refreshTracking } = useMovementSafety();
   const { muted: voiceMuted, toggleMuted: toggleVoiceMuted, voiceConnected } = useVoiceMute();
   const [rideBarHeight, setRideBarHeight] = React.useState(0);
+  // The Where to drawer (PWA: #mapDrawer) and its resting height.
+  const [drawerOpen, setDrawerOpen] = React.useState(false);
+  const [drawerPeek, setDrawerPeek] = React.useState(0);
+  const { incomingRequests, unreadMessageCount } = useFriends();
   const insets = useSafeAreaInsets();
   const { height: viewportHeight } = useWindowDimensions();
   const route = useRoute<RouteProp<TabParamList, 'Map'>>();
@@ -217,8 +222,6 @@ export function MapScreen(): React.JSX.Element {
       ? `Live on Nearby${ridersInZone.length ? ` · ${ridersInZone.length} ${ridersInZone.length === 1 ? 'rider' : 'riders'} nearby` : ''}`
       : 'Nearby off';
   const hudSpeed = speedMps == null ? null : Math.round(speedMps * (unitSystem === 'km' ? 3.6 : 2.23694));
-  // Bottom controls sit above the ride bar while a group ride is showing.
-  const bottomBarOffset = activeRide && rideBarHeight > 0 ? rideBarHeight : insets.bottom + spacing.sm;
 
   const hasCurrentLocation = currentLocation !== null;
   const requestCurrentLocationForHazardReport = React.useCallback(
@@ -322,6 +325,7 @@ export function MapScreen(): React.JSX.Element {
   React.useEffect(() => {
     if (route.params?.segment) {
       setSegment(route.params.segment);
+      setDrawerOpen(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [route.params?.at]);
@@ -467,7 +471,7 @@ export function MapScreen(): React.JSX.Element {
   // A rider picking a destination could not previously tell how far or how
   // long the drive was until after committing to "Start route" -- fetch a
   // quick driving-time estimate for the destination card itself so that
-  // decision can be made up front, same as Google/Waze/Apple Maps' own
+  // decision can be made up front, same as other map apps' own
   // place cards. currentLocationRef (not the state value) keeps this from
   // refetching on every GPS tick; the request id guards against a stale
   // response landing after the destination changed or was dismissed.
@@ -509,6 +513,14 @@ export function MapScreen(): React.JSX.Element {
       Alert.alert('Couldn’t open directions', `Rider Comms could not open ${navigationProviderLabel(navigationProvider)} on this device.`);
     }
   }
+
+  // The drawer steps aside while navigating, while Ride Safe locks the
+  // controls, and while a place or hazard card owns the bottom of the map.
+  const drawerVisible = segment === 'public' && !lockedForSafety && !activeRoute && !selectedDestination && !selectedHazard;
+  const bottomInset = drawerVisible && drawerPeek > 0 ? drawerPeek : insets.bottom;
+  // Bottom controls sit above the drawer, and above the ride bar while a
+  // group ride is showing.
+  const bottomBarOffset = activeRide && rideBarHeight > 0 && !(drawerVisible && drawerOpen) ? rideBarHeight : bottomInset + spacing.sm;
 
   return (
     <View style={styles.container}>
@@ -629,13 +641,13 @@ export function MapScreen(): React.JSX.Element {
         </View>
       ) : (
         <View style={styles.hostFill}>
-          <HostPanel inviteCode={inviteCode} />
+          <HostPanel inviteCode={inviteCode} onBack={() => navigation.setParams({ segment: 'public', at: Date.now() })} />
         </View>
       )}
 
       {segment === 'public' && !lockedForSafety && !activeRoute && (
         <View style={[styles.searchSlot, styles.searchRow, { top: insets.top + spacing.sm }]}>
-          {/* The menu (Routes, Settings, plan, help), Waze-style. */}
+          {/* The menu (Routes, Settings, plan, help). */}
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Open menu"
@@ -646,13 +658,6 @@ export function MapScreen(): React.JSX.Element {
           >
             <RiderAvatar avatarId={avatarId} size={44} mapMarker={false} status="none" />
           </Pressable>
-          <View style={styles.searchFlex}>
-            <PlaceSearchBar
-              near={currentLocation}
-              onRequestLocation={async () => { await requestCurrentLocation(true); }}
-              onSelect={selectPlace}
-            />
-          </View>
         </View>
       )}
 
@@ -844,7 +849,7 @@ export function MapScreen(): React.JSX.Element {
           nowPlaying={nowPlaying}
           controlsLocked={lockedForSafety}
           onChanged={refreshNowPlaying}
-          style={{ left: spacing.md, right: spacing.md + 54 + spacing.md, bottom: insets.bottom + spacing.sm }}
+          style={{ left: spacing.md, right: spacing.md + 54 + spacing.md, bottom: bottomInset + spacing.sm }}
         />
       )}
 
@@ -1015,41 +1020,28 @@ export function MapScreen(): React.JSX.Element {
         </>
       )}
 
-      {!activeRoute && (segment === 'public' ? !lockedForSafety && movementState === 'unknown' && !selectedDestination : lockedForSafety || movementState === 'unknown') && (
-        <View
-          style={[
-            styles.safetyBanner,
-            segment === 'public'
-              ? { bottom: bottomBarOffset + BOTTOM_BAR_HEIGHT + spacing.sm, right: spacing.md + MAP_ACTION_SIZE + spacing.sm, left: spacing.md }
-              : { top: insets.top + spacing.sm },
-          ]}
-          accessibilityLiveRegion="polite"
-        >
-          <MaterialCommunityIcons name="motorbike" size={20} color={colors.accent} />
-          <View style={styles.safetyBannerCopy}>
-            <Text style={styles.safetyBannerTitle}>Ride-safe mode</Text>
-            <Text style={styles.safetyBannerText}>
-              {movementState === 'moving'
-                ? 'Distracting controls are locked until you are safely below 8 mph.'
-                : 'Waiting for a reliable speed fix. Controls stay available.'}
-            </Text>
-          </View>
-          {movementState !== 'moving' && (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={locationAccess === 'blocked' || locationAccess === 'services_disabled' ? 'Open location settings' : 'Enable location'}
-              style={styles.safetyEnableButton}
-              onPress={() => void (locationAccess === 'blocked' || locationAccess === 'services_disabled' ? openLocationSettings() : requestLocationAccess())}
-            >
-              <Text style={styles.safetyEnableText}>{locationAccess === 'blocked' || locationAccess === 'services_disabled' ? 'Settings' : 'Enable'}</Text>
-            </Pressable>
-          )}
-        </View>
+      {drawerVisible && (
+        <MapDrawer
+          near={currentLocation}
+          onRequestLocation={async () => { await requestCurrentLocation(true); }}
+          onSelectPlace={selectPlace}
+          onRide={() => { setDrawerOpen(false); navigation.setParams({ segment: 'host', at: Date.now() }); }}
+          onFriends={() => { setDrawerOpen(false); navigation.navigate('Friends'); }}
+          onRoutes={() => { setDrawerOpen(false); rootNavigation?.navigate('Routes'); }}
+          rideLive={Boolean(activeRide)}
+          friendsCount={incomingRequests.length + unreadMessageCount}
+          open={drawerOpen}
+          onOpenChange={setDrawerOpen}
+          onPeekHeight={setDrawerPeek}
+          bottomInset={insets.bottom}
+        />
       )}
 
+      {/* Faded, not unmounted, while the drawer is open: the ride bar holds
+          the group voice connection. */}
       <View
-        style={styles.rideBarSlot}
-        pointerEvents="box-none"
+        style={[styles.rideBarSlot, { paddingBottom: bottomInset + spacing.sm }, drawerVisible && drawerOpen && styles.rideBarHidden]}
+        pointerEvents={drawerVisible && drawerOpen ? 'none' : 'box-none'}
         onLayout={(event) => setRideBarHeight(event.nativeEvent.layout.height)}
       >
         <RideBar controlsVisible={!activeRoute} />

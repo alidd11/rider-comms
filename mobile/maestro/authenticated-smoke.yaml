@@ -52,34 +52,67 @@ appId: com.ridercomms.app
 - tapOn:
     text: "Continue(,.*)?"
     optional: true
+# No tab bar: the map's Where to drawer holds Ride, Friends and Routes, and
+# each page has a back arrow to the map.
 - extendedWaitUntil:
-    visible: "Map(,.*)?"
+    visible:
+      id: drawer-ride
     timeout: 30000
 - waitForAnimationToEnd
 - takeScreenshot: authenticated-map
-- tapOn: "(Group )?Ride(,.*)?"
+# On the iOS simulator the first tap after onboarding has left the map
+# unchanged (the Ride page never opened), so tap again until the page shows.
+- retry:
+    maxRetries: 3
+    commands:
+      - tapOn:
+          id: drawer-ride
+      - extendedWaitUntil:
+          visible:
+            id: ride-back
+          timeout: 8000
 - takeScreenshot: authenticated-ride
-- tapOn: "Friends(,.*)?"
+- tapOn:
+    id: ride-back
+- retry:
+    maxRetries: 3
+    commands:
+      - tapOn:
+          id: drawer-friends
+      - extendedWaitUntil:
+          visible: "Go back"
+          timeout: 8000
 - takeScreenshot: authenticated-friends
+- tapOn: "Go back"
 # Routes and Settings live in the menu behind the rider's avatar on the map.
-- tapOn: "Map(,.*)?"
 - tapOn:
     id: open-menu
 - takeScreenshot: authenticated-menu
 - tapOn: "Settings(,.*)?"
 - takeScreenshot: authenticated-settings
-# Settings lists categories, Waze-style: open one, then one of its pages.
+# Settings lists categories: open one, then one of its pages.
 - scrollUntilVisible:
     element: "Account and login"
     direction: DOWN
 - tapOn: "Account and login"
 - takeScreenshot: authenticated-account
 - tapOn: "Signed-in devices(,.*)?"
+- waitForAnimationToEnd
 - takeScreenshot: authenticated-devices
 # The X closes every Settings level at once; back again returns to the map.
-# The profile and the plan each have one home in the menu.
+# A tap that lands mid-transition can leave one level open (an iOS run
+# stopped on Account and login), so go back until the map's menu shows.
 - tapOn: "Close settings"
-- tapOn: "Go back"
+- waitForAnimationToEnd
+- repeat:
+    while:
+      notVisible:
+        id: open-menu
+    times: 4
+    commands:
+      - tapOn: "Go back"
+      - waitForAnimationToEnd
+# The profile and the plan each have one home in the menu.
 - tapOn:
     id: open-menu
 - tapOn: "View profile"
@@ -88,6 +121,10 @@ appId: com.ridercomms.app
     timeout: 10000
 - takeScreenshot: authenticated-profile
 - tapOn: "Go back"
+- extendedWaitUntil:
+    visible:
+      id: open-menu
+    timeout: 10000
 - tapOn:
     id: open-menu
 - tapOn: "Your plan(,.*)?"

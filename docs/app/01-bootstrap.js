@@ -112,7 +112,7 @@
     requests: [],
   };
 
-  // Waze-style crowdsourced road reports, backed for real by POST /hazards
+  // Crowdsourced road reports, backed for real by POST /hazards
   // and GET /hazards/nearby (see backend/src/hazardStore.ts for the TTL and
   // confirm/deny hide-threshold rules). This map is just UI metadata (icon,
   // label, colour) for the real HazardType values the backend returns —
@@ -375,7 +375,7 @@
   }
 
   function captureHazardReportPosition() {
-    // Match Waze's report flow: snapshot the location when reporting starts,
+    // The report flow snapshots the location when reporting starts,
     // not after the rider has spent time choosing a category. Reuse the
     // authoritative device fix; never infer or road-snap the incident.
     pendingHazardReportPosition = hazardReportPosition(latestDevicePosition);

@@ -1,3 +1,4 @@
+import { RIDE_CODE_IDLE_TTL_MS } from '@rider-comms/shared';
 import { ensureMigrated, withTransaction } from './db.ts';
 import { MOVEMENT_ANCHOR_WINDOW_MS } from './presenceStore.ts';
 
@@ -30,6 +31,8 @@ export interface RetentionSweepCounts {
   rideLocations: number;
   rideCodes: number;
   rides: number;
+  /** Rides ended because nobody used them for RIDE_CODE_IDLE_TTL_MS. */
+  idleRides: number;
   hazardReports: number;
 }
 
@@ -51,6 +54,14 @@ export class RetentionStore {
       );
       const rideCodes = await client.query('DELETE FROM ride_codes WHERE expires_at <= $1', [now]);
       const rides = await client.query('DELETE FROM rides WHERE created_at < $1', [now - RIDE_RETENTION_MS]);
+      // A ride in use keeps its invite code sliding forward (rideStore), so
+      // a ride with no live code left has been idle for 12 hours: end it,
+      // rather than leaving it on members' screens until the 30-day sweep.
+      const idleRides = await client.query(
+        `DELETE FROM rides ride WHERE ride.created_at < $1
+         AND NOT EXISTS (SELECT 1 FROM ride_codes code WHERE code.ride_id = ride.id AND code.expires_at > $2)`,
+        [now - RIDE_CODE_IDLE_TTL_MS, now],
+      );
       // Votes cascade with their report (hazard_report_votes_report_fk).
       const hazardReports = await client.query('DELETE FROM hazard_reports WHERE expires_at <= $1', [now]);
       return {
@@ -59,6 +70,7 @@ export class RetentionStore {
         rideLocations: rideLocations.rowCount ?? 0,
         rideCodes: rideCodes.rowCount ?? 0,
         rides: rides.rowCount ?? 0,
+        idleRides: idleRides.rowCount ?? 0,
         hazardReports: hazardReports.rowCount ?? 0,
       };
     });

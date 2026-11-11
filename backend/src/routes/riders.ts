@@ -2,10 +2,11 @@ import { InvalidFriendCursorError } from '../friendStore.ts';
 import { OBJECTIONABLE_CONTENT } from '../profileStore.ts';
 import { readJsonBody, sendJson } from '../serverHttp.ts';
 import { countFilterRejection, NOT_HANDLED } from './context.ts';
+import { goOffline } from './live.ts';
 import type { RouteContext } from './context.ts';
 
 export async function handleRiderRoutes(ctx: RouteContext): Promise<unknown> {
-  const { req, res, url, actorId, s, presenceStore, profileStore, friendStore, hideoutStore, moderationStore, adminStatsStore } = ctx;
+  const { req, res, url, actorId, s, profileStore, friendStore, hideoutStore, moderationStore, adminStatsStore } = ctx;
   if (s[0] === 'riders' && s[2]) {
     if (decodeURIComponent(s[1]) !== actorId) return sendJson(res, 403, { error: 'forbidden' });
     if (s[2] === 'profile') {
@@ -20,7 +21,7 @@ export async function handleRiderRoutes(ctx: RouteContext): Promise<unknown> {
           return sendJson(res, 400, { error: r.error });
         }
         // Turning sharing off takes the rider off the Nearby map straight away.
-        if (body.shareLocation === false) await presenceStore.removeRider(actorId);
+        if (body.shareLocation === false) await goOffline(ctx, actorId);
         return sendJson(res, 200, r.profile);
       }
     }

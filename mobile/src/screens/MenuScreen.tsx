@@ -8,6 +8,8 @@ import type { RootStackParamList } from '../navigation';
 import { useSettings } from '../settings/SettingsContext';
 import { PLAN_INFO } from '../settings/plans';
 import { RiderAvatar } from '../components/RiderAvatar';
+import { useRide } from '../ride/RideContext';
+import { useFriends } from '../friends/FriendsContext';
 import { colors, MIN_TOUCH_TARGET, radii, spacing, type } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Menu'>;
@@ -33,14 +35,17 @@ function MenuRow({ icon, label, detail, onPress }: {
 }
 
 /**
- * Everything that isn't a main tab (Map, Ride, Friends): opened from the
- * rider's avatar on the map, like Waze's menu. Rows replace this screen
- * with their destination so Back returns to the map.
+ * Opened from the rider's avatar on the map (PWA: #appMenu). Ride and
+ * Friends go back to the tabs; the other rows replace this screen with
+ * their destination so Back returns to the map.
  */
 export function MenuScreen({ navigation }: Props): React.JSX.Element {
   const insets = useSafeAreaInsets();
   const { avatarId, displayName, handle, zoneTier } = useSettings();
   const appVersion = Constants.expoConfig?.version ?? '0.1.0';
+  const { activeRide } = useRide();
+  const { incomingRequests, unreadMessageCount } = useFriends();
+  const friendsCount = incomingRequests.length + unreadMessageCount;
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + spacing.sm }]}>
@@ -75,6 +80,8 @@ export function MenuScreen({ navigation }: Props): React.JSX.Element {
 
         <View style={styles.divider} />
 
+        <MenuRow icon="bicycle-outline" label="Ride" detail={activeRide ? 'Live' : undefined} onPress={() => navigation.navigate('Tabs', { screen: 'Map', params: { segment: 'host', at: Date.now() } })} />
+        <MenuRow icon="people-outline" label="Friends" detail={friendsCount > 0 ? `${friendsCount > 99 ? '99+' : friendsCount} new` : undefined} onPress={() => navigation.navigate('Tabs', { screen: 'Friends' })} />
         <MenuRow icon="flag-outline" label="Routes" onPress={() => navigation.replace('Routes')} />
         <MenuRow icon="card-outline" label="Your plan" detail={PLAN_INFO[zoneTier].name} onPress={() => navigation.replace('Billing')} />
         <MenuRow icon="settings-outline" label="Settings" onPress={() => navigation.replace('Settings')} />

@@ -1,13 +1,12 @@
 import * as React from 'react';
-import { Linking, View, Text, StyleSheet, useColorScheme } from 'react-native';
-import { DarkTheme, DefaultTheme, NavigationContainer, createNavigationContainerRef, useNavigationState } from '@react-navigation/native';
+import { Linking, View, StyleSheet, useColorScheme } from 'react-native';
+import { DarkTheme, DefaultTheme, NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import type { LinkingOptions, NavigatorScreenParams } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ConnectionBanner } from '../components/ConnectionBanner';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { MapScreen } from '../screens/MapScreen';
 import { SettingsPageScreen, SettingsScreen, type SettingsPageKey } from '../screens/SettingsScreen';
 import { MenuScreen } from '../screens/MenuScreen';
@@ -21,11 +20,10 @@ import { OnboardingScreen, ONBOARDING_COMPLETED_KEY } from '../screens/Onboardin
 import { RideProvider } from '../ride/RideContext';
 import { SettingsProvider } from '../settings/SettingsContext';
 import { BillingProvider } from '../billing/BillingContext';
-import { FriendsProvider, useFriends } from '../friends/FriendsContext';
+import { FriendsProvider } from '../friends/FriendsContext';
 import { AuthProvider } from '../auth/AuthContext';
 import { parseNavigationLink } from '../navigationLinks';
 import { colors, useConcreteThemeColors } from '../theme';
-import { HIDDEN_TAB_BAR_STYLE, TAB_BAR_STYLE } from './tabBarStyle';
 import { MovementSafetyProvider, useMovementSafety } from '../safety/MovementSafetyContext';
 import { VoiceMuteProvider } from '../voice/VoiceMuteContext';
 import { PushNotificationRouter } from '../notifications/PushNotificationRouter';
@@ -53,7 +51,7 @@ export type RootStackParamList = {
   FriendChat: { riderId: string; displayName: string; avatarId: string };
   Billing: undefined;
   Legal: undefined;
-  // Opened from the rider's avatar on the map (Waze-style), not tabs.
+  // Opened from the rider's avatar on the map, not tabs.
   Menu: undefined;
   Routes: undefined;
   Settings: undefined;
@@ -95,70 +93,6 @@ const linking: LinkingOptions<RootStackParamList> = {
   },
 };
 
-/**
- * Map and GroupRide share one mounted MapScreen instance (see the tabPress
- * listeners below) instead of being genuinely separate routes — so React
- * Navigation's own notion of which tab is "focused" only ever tracks Map,
- * even while the user is looking at the host view. This reads the Map
- * route's own `segment` param (the real source of truth for what's on
- * screen) out of the tab navigator's state, so both tabs' icon/label colors
- * can be driven by that instead of by the misleading built-in focus state.
- */
-function useMapSegment(): 'public' | 'host' {
-  return useNavigationState((state) => {
-    const mapRoute = state.routes.find((r) => r.name === 'Map');
-    return (mapRoute?.params as TabParamList['Map'])?.segment ?? 'public';
-  });
-}
-
-function segmentTintColor(active: boolean): string {
-  return active ? colors.accent : colors.textMuted;
-}
-
-function TabIconShell({ active, children }: { active: boolean; children: React.ReactNode }): React.JSX.Element {
-  return <View style={[styles.tabIconShell, active && styles.tabIconShellActive]}>{children}</View>;
-}
-
-function MapTabIcon({ size }: { size: number }): React.JSX.Element {
-  const active = useMapSegment() === 'public';
-  return (
-    <TabIconShell active={active}>
-      <MaterialCommunityIcons name="map-outline" size={size} color={segmentTintColor(active)} />
-    </TabIconShell>
-  );
-}
-
-function GroupRideTabIcon({ size }: { size: number }): React.JSX.Element {
-  const active = useMapSegment() === 'host';
-  return (
-    <TabIconShell active={active}>
-      <MaterialCommunityIcons name="motorbike" size={size} color={segmentTintColor(active)} />
-    </TabIconShell>
-  );
-}
-
-const TAB_ICONS: Record<keyof TabParamList, (color: string, size: number, focused: boolean) => React.ReactNode> = {
-  Map: (_color, size) => <MapTabIcon size={size} />,
-  GroupRide: (_color, size) => <GroupRideTabIcon size={size} />,
-  // Keep the entire tab bar in one icon family and distinguish the private
-  // friend network from the active group-ride view.
-  Friends: (color, size, focused) => (
-    <TabIconShell active={focused}>
-      <MaterialCommunityIcons name="account-multiple-outline" size={size} color={color} />
-    </TabIconShell>
-  ),
-};
-
-function MapTabLabel({ children }: { children: string }): React.JSX.Element {
-  const color = segmentTintColor(useMapSegment() === 'public');
-  return <Text style={[styles.tabLabel, { color }]}>{children}</Text>;
-}
-
-function GroupRideTabLabel({ children }: { children: string }): React.JSX.Element {
-  const color = segmentTintColor(useMapSegment() === 'host');
-  return <Text style={[styles.tabLabel, { color }]}>{children}</Text>;
-}
-
 function LockedTabScreen(): React.JSX.Element {
   return <RideSafeSurface />;
 }
@@ -177,101 +111,27 @@ const SettingsStackScreen = rideSafe(SettingsScreen);
 const SettingsPageStackScreen = rideSafe(SettingsPageScreen);
 const MenuStackScreen = rideSafe(MenuScreen);
 
+/**
+ * Map, Ride (the map's host segment) and Friends stay routes of their own,
+ * so links and notifications keep opening them, but there is no tab bar:
+ * the map's Where to drawer and the menu move between them, as in the PWA.
+ */
 function Tabs(): React.JSX.Element {
   const { lockedForSafety } = useMovementSafety();
-  const { incomingRequests, unreadMessageCount } = useFriends();
-  const socialAttentionCount = incomingRequests.length + unreadMessageCount;
   return (
-    <Tab.Navigator
-      screenOptions={({ route }) => ({
-        // The Stack screen wrapping this tab navigator already has its own
-        // header hidden (see `Tabs` below) — but bottom-tabs renders its
-        // OWN independent header unless told not to, so leaving this unset
-        // was still showing a plain title bar above every tab's content.
-        // Every tab screen here builds its own top chrome, so none of them
-        // need it.
-        headerShown: false,
-        // backgroundColor is the app background, not the surface color: the
-        // tab bar's own background fills the bottom safe-area inset (React
-        // Navigation + react-native-safe-area-context do this automatically
-        // as long as nothing above the navigator already consumes that
-        // inset), so it needs to match the screens above it for one
-        // continuous edge-to-edge surface instead of reading as a raised
-        // panel with a seam under the home indicator.
-        // Hidden while the rider is moving (Ride Safe), so the map gets
-        // the whole screen when it matters; MapScreen also hides it during
-        // turn-by-turn navigation.
-        tabBarStyle: lockedForSafety ? HIDDEN_TAB_BAR_STYLE : TAB_BAR_STYLE,
-        tabBarActiveTintColor: colors.accentInk,
-        tabBarInactiveTintColor: colors.textMuted,
-        tabBarLabelStyle: styles.defaultTabLabel,
-        tabBarIcon: ({ color, size, focused }) => TAB_ICONS[route.name](color, size, focused),
-      })}
-    >
-      {/* Tapping "Map" always forces the segment back to 'public', not just
-          "focus whatever the Map route was last showing" — otherwise
-          leaving it on Host (via the Group Ride tab, or the in-screen
-          toggle) makes the Map tab look permanently stuck on the host
-          form with no obvious way back. */}
-      <Tab.Screen
-        name="Map"
-        component={MapScreen}
-        options={{
-          title: 'Map',
-          tabBarLabel: ({ children }) => <MapTabLabel>{children}</MapTabLabel>,
-          tabBarAccessibilityLabel: 'Map',
-        }}
-        listeners={({ navigation }) => ({
-          tabPress: (e) => {
-            e.preventDefault();
-            navigation.navigate('Map', {
-              segment: 'public',
-              at: Date.now(),
-              lat: undefined,
-              lon: undefined,
-              label: undefined,
-            });
-          },
-        })}
-      />
-      {/* Not a second screen/mount: tapping this tab redirects straight to
-          the Map route with segment: 'host' params instead of navigating
-          here, so there's still only ever one mounted map instance. Its
-          icon/label color is driven by MapScreen's actual `segment` param
-          (via useMapSegment above), not by this tab's own (never-focused)
-          navigation state, so the tab bar correctly highlights "Group Ride"
-          while the user is looking at the host view. */}
+    <Tab.Navigator tabBar={() => null} screenOptions={{ headerShown: false }}>
+      <Tab.Screen name="Map" component={MapScreen} options={{ title: 'Map' }} />
+      {/* The Ride page is the map's host segment, one mounted map either
+          way; anything that opens this route lands there instead. */}
       <Tab.Screen
         name="GroupRide"
         component={MapScreen}
-        options={{
-          title: 'Ride',
-          tabBarLabel: ({ children }) => <GroupRideTabLabel>{children}</GroupRideTabLabel>,
-          tabBarAccessibilityLabel: 'Group Ride',
-        }}
+        options={{ title: 'Ride' }}
         listeners={({ navigation }) => ({
-          tabPress: (e) => {
-            e.preventDefault();
-            navigation.navigate('Map', {
-              segment: 'host',
-              at: Date.now(),
-              lat: undefined,
-              lon: undefined,
-              label: undefined,
-            });
-          },
+          focus: () => navigation.navigate('Map', { segment: 'host', at: Date.now() }),
         })}
       />
-      <Tab.Screen
-        name="Friends"
-        component={lockedForSafety ? LockedTabScreen : FriendsScreen}
-        options={{
-          title: 'Friends',
-          tabBarAccessibilityLabel: 'Friends',
-          tabBarBadge: socialAttentionCount > 0 ? (socialAttentionCount > 99 ? '99+' : socialAttentionCount) : undefined,
-          tabBarBadgeStyle: { backgroundColor: colors.accent, color: colors.accentText, fontSize: 10, fontWeight: '800' },
-        }}
-      />
+      <Tab.Screen name="Friends" component={lockedForSafety ? LockedTabScreen : FriendsScreen} options={{ title: 'Friends' }} />
     </Tab.Navigator>
   );
 }
@@ -392,14 +252,4 @@ export function AppNavigator(): React.JSX.Element {
 
 const styles = StyleSheet.create({
   blank: { flex: 1, backgroundColor: colors.background },
-  tabLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 0 },
-  defaultTabLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 0 },
-  tabIconShell: {
-    width: 38,
-    height: 28,
-    borderRadius: 4,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  tabIconShellActive: { backgroundColor: 'transparent' },
 });

@@ -3,7 +3,9 @@ import { View, Text, Pressable, StyleSheet, ActivityIndicator } from 'react-nati
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation';
+import { ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
+import { rideRefusalMessage } from '../ride/rideErrors';
 import { colors, spacing, radii, type, elevation, MIN_TOUCH_TARGET } from '../theme';
 import { useRide } from '../ride/RideContext';
 import { useMovementSafety } from '../safety/MovementSafetyContext';
@@ -38,7 +40,7 @@ function CreateRideScreenContent({ navigation }: Props): React.JSX.Element {
       await startRide({ rideId, code, isHost: true }, false);
       navigation.goBack();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong creating the ride.');
+      setError(err instanceof ApiError && err.status === 403 ? rideRefusalMessage(err) : 'Something went wrong creating the ride. Try again.');
     } finally {
       setLoading(false);
     }
