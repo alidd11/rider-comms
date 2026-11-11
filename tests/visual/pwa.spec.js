@@ -898,11 +898,13 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
   await openFromMenu(page, 'settings');
   await expect(page.locator('.settings-page')).toBeVisible();
   await expect(page.locator('[data-screen="settings"] .page-subtitle')).toHaveCount(0);
-  const settingsRadius = await page.locator('.settings-page .settings-group').first().evaluate((element) =>
-    parseFloat(getComputedStyle(element).borderTopLeftRadius)
-  );
-  expect(settingsRadius).toBeGreaterThanOrEqual(7);
-  expect(settingsRadius).toBeLessThanOrEqual(9);
+  // Waze-style: full-width groups of rows on a phone.
+  const settingsGroup = await page.locator('#settingsList .settings-rows').first().evaluate((element) => ({
+    radius: parseFloat(getComputedStyle(element).borderTopLeftRadius),
+    width: element.getBoundingClientRect().width,
+  }));
+  expect(settingsGroup.radius).toBe(0);
+  expectNear(settingsGroup.width, page.viewportSize().width, 1);
   await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-settings-final.png'), fullPage: true });
   await assertNoViewportOverflow(page);
 });
@@ -3198,7 +3200,7 @@ test('@viewport standalone canvas, navigation and scroll geometry remain coheren
     ['ride', '#createRideBtn'],
     ['routes', '#curatedRouteList'],
     ['friends', '#friendList'],
-    ['settings', '.settings-signout'],
+    ['settings', '.settings-version'],
   ];
 
   for (const [name, finalSelector] of screens) {
@@ -3310,7 +3312,10 @@ test('@viewport full-screen overlays and sheets share the stable standalone bott
     await sheet.evaluate((element) => { element.scrollTop = element.scrollHeight; });
     expectNear((await sheet.boundingBox()).y + (await sheet.boundingBox()).height, appBottom);
     if (captureEvidence) await page.screenshot({ path: testInfo.outputPath(`${testInfo.project.name}-${screenshotName}.png`) });
-    await page.locator('#closeSheet').click();
+    // Settings pages close every level with X; other sheets with close.
+    const closeAll = page.locator('#closeSheetAll');
+    if (await closeAll.isVisible()) await closeAll.click();
+    else await page.locator('#closeSheet').click();
     await expect(page.locator('html')).not.toHaveClass(/sheet-open/);
     await expect(app).not.toHaveAttribute('inert', '');
     const onMenuPage = await page.evaluate(() => ['settings', 'routes'].includes(document.documentElement.dataset.activeScreen));
