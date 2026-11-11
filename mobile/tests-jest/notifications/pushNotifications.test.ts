@@ -22,6 +22,9 @@ function fakeClient() {
 beforeEach(async () => {
   await AsyncStorage.clear();
   jest.clearAllMocks();
+  // Each test starts with a phone that hasn't been asked (mocks persist otherwise).
+  mocked.getPermissionsAsync.mockReset().mockResolvedValue({ status: 'undetermined' } as never);
+  mocked.requestPermissionsAsync.mockReset().mockResolvedValue({ status: 'denied' } as never);
   mockConstants.expoConfig = { extra: { eas: { projectId: 'project-1' } } };
 });
 
