@@ -32,10 +32,13 @@ export interface NavigationLocationWatch {
   remove: () => void;
 }
 
+// Navigation-grade fixes every second: the puck is map-matched and
+// predicted between fixes (shared/src/navigationPuck.ts), but it can only be
+// as current as the fixes it starts from.
 const FOREGROUND_OPTIONS: Location.LocationOptions = {
-  accuracy: Location.Accuracy.High,
-  timeInterval: 2000,
-  distanceInterval: 5,
+  accuracy: Location.Accuracy.BestForNavigation,
+  timeInterval: 1000,
+  distanceInterval: 0,
 };
 
 const BACKGROUND_OPTIONS: Location.LocationTaskOptions = {

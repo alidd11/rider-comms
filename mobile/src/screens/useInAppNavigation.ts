@@ -36,6 +36,12 @@ import {
 import { speakNavigationPrompt, stopNavigationPrompt } from '../audio/navigationSpeech';
 import { acquireNavigationAudioSession, releaseNavigationAudioSession } from '../audio/audioSession';
 import { watchNavigationLocation, type NavigationLocationWatch } from '../navigationLocationStream';
+import {
+  buildNavigationPathIndex,
+  matchFixToPath,
+  navigationFixAgeSeconds,
+  predictNavigationPuck,
+} from '@rider-comms/shared';
 import { bearingDegrees } from './mapMarkers';
 import type { UnitSystem } from '../settings/SettingsContext';
 import { DEFAULT_ROUTE_AVOIDANCE, type RouteAvoidance } from '../routeOptionsPreference';
@@ -46,6 +52,16 @@ export const ROUTE_UPDATED_NOTICE = 'Route updated.';
 const ROUTE_UPDATED_NOTICE_MS = 4000;
 const NAV_OFF_ROUTE_RADIUS_M = 60;
 const NAV_OFF_ROUTE_GRACE_MS = 10_000;
+/** The puck and camera glide to where the rider will be when the next fix
+ * is due (fixes arrive about once a second), so motion never stops. */
+export const NAV_PUCK_GLIDE_MS = 1000;
+
+/** Where to draw the navigation puck: now, and at the end of its glide. */
+export interface NavigationPuckPlacement {
+  now: { lat: number; lon: number };
+  target: { lat: number; lon: number };
+  glideMs: number;
+}
 
 export interface InAppNavigation {
   activeRoute: InAppNavigationRoute | null;
@@ -57,6 +73,7 @@ export interface InAppNavigation {
   setNavigationMuted: React.Dispatch<React.SetStateAction<boolean>>;
   navigationFollowing: boolean;
   navigationSpeedMps: number | null;
+  navigationPuck: NavigationPuckPlacement | null;
   currentNavigationStep: InAppNavigationRoute['steps'][number] | null;
   fitRoute: (nextRoute: InAppNavigationRoute) => void;
   focusNavigationCamera: (
@@ -65,6 +82,7 @@ export interface InAppNavigation {
     stepIndex: number,
     gpsHeading?: number | null,
     speedMps?: number | null,
+    glideMs?: number,
   ) => void;
   finishInAppNavigation: (arrived?: boolean) => void;
   startInAppNavigation: (target: NavigationTarget) => Promise<void>;
@@ -112,6 +130,7 @@ export function useInAppNavigation(
   const [navigationMuted, setNavigationMuted] = React.useState(false);
   const [navigationFollowing, setNavigationFollowing] = React.useState(true);
   const [navigationSpeedMps, setNavigationSpeedMps] = React.useState<number | null>(null);
+  const [navigationPuck, setNavigationPuck] = React.useState<NavigationPuckPlacement | null>(null);
   const navOffRouteSince = React.useRef<number | null>(null);
   const navRerouting = React.useRef(false);
   const navigationFollowingRef = React.useRef(true);
@@ -163,6 +182,7 @@ export function useInAppNavigation(
     stepIndex: number,
     gpsHeading?: number | null,
     speedMps?: number | null,
+    glideMs = 0,
   ) => {
     const step = routeForCamera.steps[stepIndex];
     if (!step || step.coordinates.length === 0) return;
@@ -231,7 +251,9 @@ export function useInAppNavigation(
         latitude: here.lat,
       }),
     };
-    const transitionDuration = movingSpeed !== null && movingSpeed <= 1.5 ? 650 : 500;
+    // While moving, glide with the puck to its next predicted position.
+    const gliding = glideMs > 0 && movingSpeed !== null && movingSpeed > 1.5;
+    const transitionDuration = gliding ? glideMs : movingSpeed !== null && movingSpeed <= 1.5 ? 650 : 500;
     if (reduceMotionEnabled) {
       mapRef.current?.setCamera(camera);
     } else {
@@ -288,6 +310,7 @@ export function useInAppNavigation(
 
   const finishInAppNavigation = React.useCallback((arrived = false) => {
     setActiveRoute(null);
+    setNavigationPuck(null);
     setNavigationDestination(null);
     setNavigationStepIndex(0);
     announcedNavigationStep.current = null;
@@ -413,6 +436,10 @@ export function useInAppNavigation(
     // step advance or mute toggle.
     let cancelled = false;
     let subscription: NavigationLocationWatch | null = null;
+    // Map matching (shared/src/navigationPuck.ts): the whole route as one
+    // measured path, and how far along it the last fix matched.
+    const puckPath = buildNavigationPathIndex(activeRoute.steps.flatMap((step) => step.coordinates));
+    let puckAlongMeters: number | null = null;
 
     // Keeps delivering fixes with the phone locked (see navigationLocationStream).
     void watchNavigationLocation(
@@ -422,12 +449,33 @@ export function useInAppNavigation(
         if (recovered) {
           setNavigationNotice((current) => isNavigationGpsNotice(current) ? null : current);
         }
-        const here = { lat: position.coords.latitude, lon: position.coords.longitude };
+        const raw = { lat: position.coords.latitude, lon: position.coords.longitude };
         currentLocationAccuracyRef.current = position.coords.accuracy ?? Number.POSITIVE_INFINITY;
-        setCurrentLocation(here);
-        setNavigationSpeedMps(Number.isFinite(position.coords.speed) && Number(position.coords.speed) >= 0
+        setCurrentLocation(raw);
+        const speed = Number.isFinite(position.coords.speed) && Number(position.coords.speed) >= 0
           ? Number(position.coords.speed)
-          : null);
+          : null;
+        setNavigationSpeedMps(speed);
+
+        // Snap the fix onto the route and carry it forward by the rider's
+        // speed. Off-route checks below keep using the raw fix.
+        const nowMs = Date.now();
+        const match = matchFixToPath(puckPath, {
+          lat: raw.lat,
+          lon: raw.lon,
+          accuracyMeters: position.coords.accuracy,
+          headingDegrees: position.coords.heading,
+          speedMps: speed,
+        }, puckAlongMeters);
+        puckAlongMeters = match.distanceAlongMeters;
+        const age = navigationFixAgeSeconds(position.timestamp, nowMs);
+        const current = predictNavigationPuck(puckPath, match, speed, age);
+        const ahead = predictNavigationPuck(puckPath, match, speed, age + NAV_PUCK_GLIDE_MS / 1000);
+        const here = { lat: current.lat, lon: current.lon };
+        const target = { lat: ahead.lat, lon: ahead.lon };
+        setNavigationPuck({ now: here, target, glideMs: NAV_PUCK_GLIDE_MS });
+        // On the route, its direction is steadier than the GPS course.
+        const cameraHeading = match.snapped && ahead.bearingDegrees !== null ? ahead.bearingDegrees : position.coords.heading;
 
         const stepIndex = navigationStepIndexRef.current;
         const startingStep = activeRoute.steps[stepIndex];
@@ -456,11 +504,12 @@ export function useInAppNavigation(
 
         const effectiveStep = activeRoute.steps[effectiveIndex]!;
         focusNavigationCamera(
-          here,
+          target,
           activeRoute,
           effectiveIndex,
-          position.coords.heading,
+          cameraHeading,
           position.coords.speed,
+          NAV_PUCK_GLIDE_MS,
         );
 
         const upcomingIndex = effectiveIndex + 1;
@@ -481,7 +530,7 @@ export function useInAppNavigation(
           }
         }
 
-        const distanceOffRoute = distanceToPathMeters(here, effectiveStep.coordinates);
+        const distanceOffRoute = distanceToPathMeters(raw, effectiveStep.coordinates);
         if (distanceOffRoute <= NAV_OFF_ROUTE_RADIUS_M) {
           navOffRouteSince.current = null;
           return;
@@ -496,7 +545,7 @@ export function useInAppNavigation(
         navOffRouteSince.current = null;
         setNavigationNotice('Rerouting…');
         if (!navigationMutedRef.current) speakNavigationPrompt('Rerouting.');
-        void requestInAppRoute(here, navigationDestination, true).catch(() => {
+        void requestInAppRoute(raw, navigationDestination, true).catch(() => {
           setNavigationNotice('Could not reroute. Continue with caution.');
         });
       }
@@ -546,6 +595,7 @@ export function useInAppNavigation(
     setNavigationMuted,
     navigationFollowing,
     navigationSpeedMps,
+    navigationPuck,
     currentNavigationStep,
     fitRoute,
     focusNavigationCamera,

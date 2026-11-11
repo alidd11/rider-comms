@@ -105,8 +105,8 @@ assert.match(
 );
 assert.ok(!pwaApp.includes('navigationPositionMapIcon('), 'PWA navigation must not reference a generic navigation chevron anywhere');
 assert.match(
-  nativeMap,
-  /size=\{64\}[\s\S]*mapMarker=\{false\}[\s\S]*selected/,
+  nativeMap + await readFile(new URL('../mobile/src/screens/mapMarkers.tsx', import.meta.url), 'utf8'),
+  /NavigationPuckMarker[\s\S]*size=\{64\}[\s\S]*mapMarker=\{false\}[\s\S]*selected/,
   'native navigation must keep the rider-selected avatar as the enlarged tail-free live self marker',
 );
 assert.ok(!nativeMap.includes('navigationPositionMarker'), 'native navigation must not replace the selected rider avatar with a generic chevron');

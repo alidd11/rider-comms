@@ -11,7 +11,7 @@ jest.mock('expo-location', () => ({
   stopLocationUpdatesAsync: (...args: unknown[]) => mockStopLocationUpdatesAsync(...args),
   hasStartedLocationUpdatesAsync: (...args: unknown[]) => mockHasStartedLocationUpdatesAsync(...args),
   watchPositionAsync: (...args: unknown[]) => mockWatchPositionAsync(...args),
-  Accuracy: { High: 4 },
+  Accuracy: { High: 4, BestForNavigation: 6 },
   ActivityType: { AutomotiveNavigation: 2 },
 }));
 
@@ -60,9 +60,9 @@ test('starts locked-screen updates and forwards every fix in order', async () =>
   expect(mockStartLocationUpdatesAsync).toHaveBeenCalledWith(
     stream.NAVIGATION_LOCATION_TASK,
     expect.objectContaining({
-      accuracy: 4,
-      timeInterval: 2000,
-      distanceInterval: 5,
+      accuracy: 6,
+      timeInterval: 1000,
+      distanceInterval: 0,
       activityType: 2,
       pausesUpdatesAutomatically: false,
       showsBackgroundLocationIndicator: true,
@@ -117,7 +117,7 @@ test('falls back to the foreground watcher when background updates are unavailab
   const watch = await stream.watchNavigationLocation(listener);
 
   expect(watch.background).toBe(false);
-  expect(mockWatchPositionAsync).toHaveBeenCalledWith({ accuracy: 4, timeInterval: 2000, distanceInterval: 5 }, listener);
+  expect(mockWatchPositionAsync).toHaveBeenCalledWith({ accuracy: 6, timeInterval: 1000, distanceInterval: 0 }, listener);
   // The failed start must not leave the listener receiving task batches.
   mockHasStartedLocationUpdatesAsync.mockResolvedValue(false);
   await runTask({ data: { locations: [fix(1)] } });

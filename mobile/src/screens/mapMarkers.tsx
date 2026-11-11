@@ -110,6 +110,51 @@ export function SmoothSelfMarker({
   );
 }
 
+/**
+ * The rider's own puck during turn-by-turn navigation. Each fix places it
+ * (map-matched and predicted, see useInAppNavigation) and it glides to
+ * where the rider will be when the next fix is due, so it keeps moving
+ * between fixes instead of jumping.
+ */
+export function NavigationPuckMarker({
+  now,
+  target,
+  glideMs,
+  avatarId,
+  displayName,
+  description,
+}: {
+  now: { lat: number; lon: number };
+  target: { lat: number; lon: number };
+  glideMs: number;
+  avatarId: string;
+  displayName: string;
+  description: string;
+}): React.JSX.Element {
+  const markerRef = React.useRef<React.ElementRef<typeof Marker> | null>(null);
+  const [initialCoordinate] = React.useState(() => ({ latitude: now.lat, longitude: now.lon }));
+
+  React.useEffect(() => {
+    markerRef.current?.animateMarkerToCoordinate(
+      { latitude: target.lat, longitude: target.lon },
+      glideMs,
+    );
+  }, [glideMs, target.lat, target.lon]);
+
+  return (
+    <Marker
+      ref={markerRef}
+      coordinate={initialCoordinate}
+      title={displayName || 'Your location'}
+      description={description}
+      anchor={{ x: 0.5, y: 0.5 }}
+      tracksViewChanges={false}
+    >
+      <RiderAvatar avatarId={avatarId} size={64} mapMarker={false} selected status="none" />
+    </Marker>
+  );
+}
+
 // The pin's tail tip sits on the rider's location; the name hangs below it.
 const MEMBER_AVATAR_HEIGHT = 40 * (72 / 64);
 const MEMBER_LABEL_HEIGHT = 18;
