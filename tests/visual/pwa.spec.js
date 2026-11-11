@@ -3471,10 +3471,19 @@ test('PWA map drawer slides up to recent places and holds Home, Work and Petrol'
   await expect(page.locator('#searchScreen')).toBeHidden();
   await expect(home).toHaveAttribute('aria-label', 'Home, Ace Cafe London');
   await page.locator('[data-dismiss-destination]').click();
-  // Then one tap shows it, with no search.
+  // Then one tap starts the route, with the rider's navigation app
+  // (Google Maps unless they chose another).
+  await page.evaluate(() => {
+    window.openedUrls = [];
+    window.open = (url) => { window.openedUrls.push(String(url)); return null; };
+  });
   await home.click();
   await expect(page.locator('#searchScreen')).toBeHidden();
   await expect(page.locator('#destinationCard')).toContainText('Ace Cafe London');
+  const opened = await page.evaluate(() => window.openedUrls);
+  expect(opened).toHaveLength(1);
+  expect(opened[0]).toContain('https://www.google.com/maps/dir/');
+  expect(opened[0]).toContain('51.541');
   await page.locator('[data-dismiss-destination]').click();
   // Press and hold (or right-click) to change or remove it.
   await home.dispatchEvent('contextmenu');
@@ -3500,6 +3509,43 @@ test('PWA map drawer slides up to recent places and holds Home, Work and Petrol'
   // Turn-by-turn navigation owns the bottom of the map: no drawer.
   await page.evaluate(() => document.querySelector('#app').classList.add('nav-mode'));
   await expect(drawer).toBeHidden();
+});
+
+test('PWA Settings sets Home and Work without moving the map, and can remove them', async ({ page }) => {
+  await mockAuthenticatedApi(page);
+  await page.addInitScript(({ riderId }) => {
+    localStorage.setItem(`riderComms.recentSearches:${riderId}`, JSON.stringify([
+      { placeId: 'ace', name: 'Ace Cafe London', secondary: 'North Circular Rd', lat: 51.541, lng: -0.277 },
+    ]));
+  }, { riderId: RIDER_ID });
+  await page.goto('/');
+  await openTab(page, 'settings');
+  await openSettingsPage(page, 'mapNavigation');
+  const homeRow = page.locator('[data-saved-place-setting="home"]');
+  await expect(homeRow).toContainText('Not set');
+  await expect(page.locator('#sheetBody')).toContainText('the route starts straight away');
+
+  // Choosing Home saves it and comes back to the page, with no map change.
+  await homeRow.click();
+  await expect(page.locator('#searchScreen')).toBeVisible();
+  await expect(page.locator('#searchSaveBanner')).toHaveText('Choose your Home');
+  await expect(page.locator('#searchSaveCurrent')).toBeHidden();
+  await page.locator('#searchScreenResults [data-recent-index="0"]').click();
+  await expect(page.locator('#searchScreen')).toBeHidden();
+  await expect(page.locator('[data-saved-place-setting="home"]')).toContainText('Ace Cafe London');
+  await expect(page.locator('#destinationCard')).toBeHidden();
+  await expect(page.locator('[data-saved-place="home"]')).toHaveAttribute('aria-label', 'Home, Ace Cafe London');
+
+  // Search shows the current place and can remove it.
+  await page.locator('[data-saved-place-setting="home"]').click();
+  await expect(page.locator('#searchSaveCurrent')).toContainText('Now: Ace Cafe London');
+  await page.locator('#searchSaveRemove').click();
+  await expect(page.locator('[data-saved-place-setting="home"]')).toContainText('Not set');
+
+  // Back from search returns to the page too.
+  await page.locator('[data-saved-place-setting="work"]').click();
+  await page.locator('#searchScreenBack').click();
+  await expect(page.locator('#sheetTitle')).toHaveText('Map & navigation');
 });
 
 test('PWA back gesture closes overlays first and the map stays one step back', async ({ page }) => {

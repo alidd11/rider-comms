@@ -983,6 +983,10 @@ export function MapScreen(): React.JSX.Element {
           near={currentLocation}
           onRequestLocation={async () => { await requestCurrentLocation(true); }}
           onSelectPlace={selectPlace}
+          onRouteToPlace={(place) => {
+            selectPlace(place);
+            void openDirections({ lat: place.lat, lon: place.lon, label: place.name });
+          }}
           open={drawerOpen}
           onOpenChange={setDrawerOpen}
           onPeekHeight={setDrawerPeek}

@@ -47,16 +47,18 @@ export type SearchCategoryLabel = (typeof CATEGORIES)[number]['label'];
 
 /** Opens search from elsewhere: on a category, or to choose Home or Work. */
 export interface PlaceSearchHandle {
-  open: (options?: { category?: SearchCategoryLabel; saveAs?: SavedPlaceSlot }) => void;
+  open: (options?: { category?: SearchCategoryLabel; saveAs?: SavedPlaceSlot; current?: PlaceResult }) => void;
 }
 
 export const PlaceSearchBar = React.forwardRef<PlaceSearchHandle, {
   near: { lat: number; lon: number } | null;
   onSelect: (place: PlaceResult) => void;
   onRequestLocation: () => Promise<void>;
-  /** A place chosen while search was opened to choose Home or Work. */
-  onSave?: (slot: SavedPlaceSlot, place: PlaceResult) => void;
-}>(function PlaceSearchBar({ near, onSelect, onRequestLocation, onSave }, ref): React.JSX.Element {
+  /** A place chosen (or null: removed) while search was choosing Home or Work. */
+  onSave?: (slot: SavedPlaceSlot, place: PlaceResult | null) => void;
+  /** False hides the Where to? bar, for search opened only from code (Settings). */
+  showBar?: boolean;
+}>(function PlaceSearchBar({ near, onSelect, onRequestLocation, onSave, showBar = true }, ref): React.JSX.Element {
   const insets = useSafeAreaInsets();
   const { client, riderId } = useAuth();
   const { unitSystem } = useSettings();
@@ -64,6 +66,7 @@ export const PlaceSearchBar = React.forwardRef<PlaceSearchHandle, {
   const [query, setQuery] = React.useState('');
   const [activeCategory, setActiveCategory] = React.useState<string | null>(null);
   const [saveAs, setSaveAs] = React.useState<SavedPlaceSlot | null>(null);
+  const [savedCurrent, setSavedCurrent] = React.useState<PlaceResult | null>(null);
   const [results, setResults] = React.useState<PlaceResult[]>([]);
   const [recentPlaces, setRecentPlaces] = React.useState<PlaceResult[]>([]);
   const [loading, setLoading] = React.useState(false);
@@ -139,6 +142,7 @@ export const PlaceSearchBar = React.forwardRef<PlaceSearchHandle, {
   React.useImperativeHandle(ref, () => ({
     open: (options) => {
       setSaveAs(options?.saveAs ?? null);
+      setSavedCurrent(options?.saveAs ? options.current ?? null : null);
       if (options?.category) {
         setActiveCategory(options.category);
         setQuery(options.category);
@@ -159,6 +163,7 @@ export const PlaceSearchBar = React.forwardRef<PlaceSearchHandle, {
     requestRef.current += 1;
     setOpen(false);
     setSaveAs(null);
+    setSavedCurrent(null);
     setQuery('');
     setActiveCategory(null);
     setResults([]);
@@ -183,17 +188,19 @@ export const PlaceSearchBar = React.forwardRef<PlaceSearchHandle, {
 
   return (
     <>
-      <Pressable accessibilityRole="button"
-        style={({ pressed }) => [styles.collapsed, elevation.raised, pressed && styles.pressed]}
-        onPress={() => {
-          setOpen(true);
-          if (!near) void onRequestLocation();
-        }}
-        accessibilityLabel="Where to?"
-      >
-        <Ionicons name="search" size={19} color={colors.textMuted} />
-        <Text style={styles.collapsedText}>Where to?</Text>
-      </Pressable>
+      {showBar ? (
+        <Pressable accessibilityRole="button"
+          style={({ pressed }) => [styles.collapsed, elevation.raised, pressed && styles.pressed]}
+          onPress={() => {
+            setOpen(true);
+            if (!near) void onRequestLocation();
+          }}
+          accessibilityLabel="Where to?"
+        >
+          <Ionicons name="search" size={19} color={colors.textMuted} />
+          <Text style={styles.collapsedText}>Where to?</Text>
+        </Pressable>
+      ) : null}
 
       <Modal visible={open} animationType="slide" presentationStyle="fullScreen" onRequestClose={close}>
         <KeyboardAvoidingView
@@ -229,6 +236,19 @@ export const PlaceSearchBar = React.forwardRef<PlaceSearchHandle, {
 
           {saveAs ? (
             <Text style={styles.saveBanner} accessibilityRole="header">Choose your {SAVED_PLACE_LABELS[saveAs]}</Text>
+          ) : null}
+          {saveAs && savedCurrent ? (
+            <View style={styles.saveCurrent}>
+              <Text style={styles.saveCurrentText} numberOfLines={1}>Now: {savedCurrent.name}</Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Remove ${SAVED_PLACE_LABELS[saveAs]}`}
+                hitSlop={8}
+                onPress={() => { onSave?.(saveAs, null); close(); }}
+              >
+                <Text style={styles.saveRemove}>Remove</Text>
+              </Pressable>
+            </View>
           ) : null}
           <ScrollView
             horizontal

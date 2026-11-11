@@ -2559,7 +2559,7 @@
     // and lists it opens.
     // The Settings root lists categories, each its own page.
     general: { title: 'General', sections: [['', 'generalSettings']], fullBleed: true },
-    mapNavigation: { title: 'Map & navigation', sections: [['', 'mapNavigationSettings']], fullBleed: true },
+    mapNavigation: { title: 'Map & navigation', sections: [['', 'mapNavigationSettings'], ['Saved places', 'savedPlacesSettings']], fullBleed: true },
     voiceSound: { title: 'Voice and sound', sections: [['', 'voiceSoundSettings']], fullBleed: true },
     rideSafe: { title: 'Ride Safe', sections: [['', 'rideSafeSettings']], fullBleed: true },
     vehicle: { title: 'Vehicle details', sections: [['Vehicle type', 'vehicleSettings']], fullBleed: true },
@@ -2744,6 +2744,14 @@
         ], 'Route options apply to routes Rider Comms plans.'),
         ready: () => { wireSettingsLinks($('#sheetBody')); wireToggles(); },
       }),
+      savedPlacesSettings: () => {
+        const saved = loadSavedPlaces();
+        return {
+          title: 'Saved places',
+          body: settingsRowsMarkup(Object.entries(SAVED_PLACE_LABELS).map(([slot, label]) => `<button type="button" class="settings-row" data-saved-place-setting="${slot}"><span class="settings-row-label">${escapeHtml(label)}</span><span class="settings-row-value">${escapeHtml(saved[slot]?.name || 'Not set')}</span><span class="settings-row-chevron">${icon('chevron')}</span></button>`), 'Tap Home or Work in Where to on the map and the route starts straight away.'),
+          ready: () => $$('[data-saved-place-setting]', $('#sheetBody')).forEach((button) => button.addEventListener('click', () => editSavedPlaceFromSettings(button.dataset.savedPlaceSetting))),
+        };
+      },
       voiceSoundSettings: () => ({
         title: 'Voice and sound',
         body: settingsRowsMarkup([
@@ -5209,6 +5217,9 @@
   const savedPlacesStorageKey = () => session?.riderId ? `${SAVED_PLACES_KEY}:${session.riderId}` : null;
   // The slot search is choosing a place for, if any.
   let savingPlaceSlot = null;
+  // Search opened from Settings saves the place without touching the map,
+  // then returns to that Settings page.
+  let savingFromSettingsPage = null;
 
   function validSavedPlace(entry) {
     return entry && typeof entry.placeId === 'string' && typeof entry.name === 'string'
@@ -5237,6 +5248,7 @@
       localStorage.setItem(key, JSON.stringify(saved));
     } catch { /* A full or blocked store just means the shortcut asks again. */ }
     renderSavedPlaceShortcuts();
+    if (currentSettingsPage === 'mapNavigation') openSheet('mapNavigation');
   }
 
   function renderSavedPlaceShortcuts() {
@@ -5246,7 +5258,7 @@
       const place = saved[slot];
       const label = SAVED_PLACE_LABELS[slot];
       button.setAttribute('aria-label', place ? `${label}, ${place.name}` : `Set ${label}`);
-      button.title = place ? `${place.name}. Press and hold to change ${label}.` : `Choose your ${label.toLowerCase()} address`;
+      button.title = place ? `Route to ${place.name}. Press and hold to change ${label}.` : `Choose your ${label.toLowerCase()} address`;
     });
   }
 
@@ -5255,10 +5267,29 @@
     setDestinationMarker(new google.maps.LatLng(place.lat, place.lng), place.name, place.secondary);
   }
 
+  // Home and Work start the route straight away, like other map apps: in
+  // Rider Comms, or handed to the rider's chosen navigation app.
+  function routeToSavedPlace(place) {
+    if (window.google?.maps) showSavedPlace(place);
+    const provider = navigationProvider(state.navigationProvider);
+    if (provider === 'in_app') {
+      if (window.google?.maps) void startInAppNavigation(new google.maps.LatLng(place.lat, place.lng), place.name);
+      return;
+    }
+    window.open(navigationHref(provider, place.lat, place.lng, place.name), '_blank', 'noopener');
+  }
+
   function openSavedPlace(slot) {
     const place = loadSavedPlaces()[slot];
-    if (place && window.google?.maps) showSavedPlace(place);
-    else if (!place) openSearchScreen({ saveAs: slot });
+    if (place) routeToSavedPlace(place);
+    else openSearchScreen({ saveAs: slot });
+  }
+
+  // Settings, Map & navigation: set, change or remove Home and Work.
+  function editSavedPlaceFromSettings(slot) {
+    const page = currentSettingsPage;
+    closeSheet();
+    openSearchScreen({ saveAs: slot, fromSettingsPage: page });
   }
 
   function editSavedPlace(slot) {
@@ -5274,17 +5305,29 @@
   }
 
   // A place chosen while search is choosing Home or Work is saved there too.
+  // Returns true when that is all it's for (search opened from Settings).
   function rememberChosenPlace(entry) {
     saveRecentSearch(entry);
-    if (!savingPlaceSlot) return;
+    if (!savingPlaceSlot) return false;
+    const label = SAVED_PLACE_LABELS[savingPlaceSlot];
     setSavedPlace(savingPlaceSlot, entry);
-    showToast(`${SAVED_PLACE_LABELS[savingPlaceSlot]} saved. Press and hold it to change it.`);
     savingPlaceSlot = null;
+    if (savingFromSettingsPage) {
+      showToast(`${label} saved.`);
+      closeSearchScreen();
+      return true;
+    }
+    showToast(`${label} saved. Tap it in Where to and the route starts.`);
+    return false;
   }
 
   function openSearchScreen(options = {}) {
     if ($('#mapSearchSlot')?.classList.contains('offline')) return;
     savingPlaceSlot = SAVED_PLACE_LABELS[options.saveAs] ? options.saveAs : null;
+    savingFromSettingsPage = savingPlaceSlot && typeof options.fromSettingsPage === 'string' ? options.fromSettingsPage : null;
+    const current = savingPlaceSlot ? loadSavedPlaces()[savingPlaceSlot] : null;
+    $('#searchSaveCurrent').hidden = !current;
+    $('#searchSaveCurrentName').textContent = current ? `Now: ${current.name}` : '';
     const saveLabel = savingPlaceSlot ? SAVED_PLACE_LABELS[savingPlaceSlot] : '';
     $('#searchSaveBanner').hidden = !savingPlaceSlot;
     $('#searchSaveBanner').textContent = savingPlaceSlot ? `Choose your ${saveLabel}` : '';
@@ -5311,6 +5354,9 @@
 
   function closeSearchScreen() {
     savingPlaceSlot = null;
+    const returnTo = savingFromSettingsPage;
+    savingFromSettingsPage = null;
+    if (returnTo) queueMicrotask(() => openSheet(returnTo));
     searchRequestToken += 1;
     clearTimeout(searchDebounceTimer);
     $('#searchScreen').hidden = true;
@@ -5605,6 +5651,13 @@
         openSavedPlace(slot);
       });
     });
+    $('#searchSaveRemove').addEventListener('click', () => {
+      const slot = savingPlaceSlot;
+      if (!slot) return;
+      setSavedPlace(slot, null);
+      showToast(`${SAVED_PLACE_LABELS[slot]} removed.`);
+      closeSearchScreen();
+    });
     $('#drawerPetrol').addEventListener('click', () => {
       setMapDrawerOpen(false);
       openSearchScreen();
@@ -5629,7 +5682,7 @@
 
   function selectRecentSearch(item) {
     if (!item) return;
-    rememberChosenPlace(item);
+    if (rememberChosenPlace(item)) return;
     panToPlace(item.lat, item.lng);
     // showDestinationCard/setDestinationMarker call location.lat()/.lng()
     // as methods (matching the real google.maps.LatLng that
@@ -5646,6 +5699,10 @@
     clearPoiMarkers();
     panToPlace(place.location.lat, place.location.lng);
     setDestinationMarker(location, place.name);
+    if (place.placeId && savingFromSettingsPage) {
+      rememberChosenPlace({ placeId: place.placeId, name: place.name, secondary: place.address || '', lat: place.location.lat, lng: place.location.lng });
+      return;
+    }
     if (place.placeId) {
       rememberChosenPlace({
         placeId: place.placeId,
@@ -5669,6 +5726,10 @@
       }
       const lat = location.lat();
       const lng = location.lng();
+      if (savingFromSettingsPage) {
+        rememberChosenPlace({ placeId, name: place.name || 'Selected place', secondary: place.formatted_address || '', lat, lng });
+        return;
+      }
       panToPlace(lat, lng);
       setDestinationMarker(location, place.name, place.formatted_address);
       showToast(place.name ? `Centred on ${place.name}` : 'Centred on selected place.');

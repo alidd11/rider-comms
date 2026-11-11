@@ -13,7 +13,7 @@
     // and lists it opens.
     // The Settings root lists categories, each its own page.
     general: { title: 'General', sections: [['', 'generalSettings']], fullBleed: true },
-    mapNavigation: { title: 'Map & navigation', sections: [['', 'mapNavigationSettings']], fullBleed: true },
+    mapNavigation: { title: 'Map & navigation', sections: [['', 'mapNavigationSettings'], ['Saved places', 'savedPlacesSettings']], fullBleed: true },
     voiceSound: { title: 'Voice and sound', sections: [['', 'voiceSoundSettings']], fullBleed: true },
     rideSafe: { title: 'Ride Safe', sections: [['', 'rideSafeSettings']], fullBleed: true },
     vehicle: { title: 'Vehicle details', sections: [['Vehicle type', 'vehicleSettings']], fullBleed: true },
@@ -198,6 +198,14 @@
         ], 'Route options apply to routes Rider Comms plans.'),
         ready: () => { wireSettingsLinks($('#sheetBody')); wireToggles(); },
       }),
+      savedPlacesSettings: () => {
+        const saved = loadSavedPlaces();
+        return {
+          title: 'Saved places',
+          body: settingsRowsMarkup(Object.entries(SAVED_PLACE_LABELS).map(([slot, label]) => `<button type="button" class="settings-row" data-saved-place-setting="${slot}"><span class="settings-row-label">${escapeHtml(label)}</span><span class="settings-row-value">${escapeHtml(saved[slot]?.name || 'Not set')}</span><span class="settings-row-chevron">${icon('chevron')}</span></button>`), 'Tap Home or Work in Where to on the map and the route starts straight away.'),
+          ready: () => $$('[data-saved-place-setting]', $('#sheetBody')).forEach((button) => button.addEventListener('click', () => editSavedPlaceFromSettings(button.dataset.savedPlaceSetting))),
+        };
+      },
       voiceSoundSettings: () => ({
         title: 'Voice and sound',
         body: settingsRowsMarkup([

@@ -35,6 +35,7 @@ function Harness(overrides: Partial<MapDrawerProps>): React.JSX.Element {
         near={{ lat: 51.5, lon: -0.1 }}
         onRequestLocation={async () => undefined}
         onSelectPlace={jest.fn()}
+        onRouteToPlace={jest.fn()}
         open={open}
         onOpenChange={setOpen}
         onPeekHeight={jest.fn()}
@@ -59,10 +60,11 @@ it('rests with Where to? and the Home, Work and Petrol shortcuts', async () => {
   expect(screen.queryByTestId('map-drawer-recent')).toBeNull();
 });
 
-it('chooses Home the first time, then shows it in one tap', async () => {
+it('chooses Home the first time, then starts the route there in one tap', async () => {
   await AsyncStorage.setItem(recentPlacesStorageKey('rider-1'), JSON.stringify([ACE]));
   const onSelectPlace = jest.fn();
-  await render(<Harness onSelectPlace={onSelectPlace} />);
+  const onRouteToPlace = jest.fn();
+  await render(<Harness onSelectPlace={onSelectPlace} onRouteToPlace={onRouteToPlace} />);
 
   await fireEvent.press(screen.getByLabelText('Set Home'));
   expect(screen.getByText('Choose your Home')).toBeTruthy();
@@ -72,7 +74,8 @@ it('chooses Home the first time, then shows it in one tap', async () => {
 
   onSelectPlace.mockClear();
   await fireEvent.press(screen.getByLabelText('Home, Ace Cafe London'));
-  expect(onSelectPlace).toHaveBeenCalledWith(expect.objectContaining({ id: 'ace' }));
+  expect(onRouteToPlace).toHaveBeenCalledWith(expect.objectContaining({ id: 'ace' }));
+  expect(onSelectPlace).not.toHaveBeenCalled();
   expect(screen.queryByText('Choose your Home')).toBeNull();
 });
 
@@ -210,5 +213,11 @@ it('press and hold on an empty Home goes straight to choosing it, and Change reo
   const buttons = alert.mock.calls[0][2] ?? [];
   await act(async () => { buttons[0].onPress?.(); });
   expect(screen.getByText('Choose your Work')).toBeTruthy();
+  // Search shows the place Work is now, and can remove it.
+  expect(screen.getByText('Now: Ace Cafe London')).toBeTruthy();
+  await fireEvent.press(screen.getByLabelText('Remove Work'));
+  expect(screen.queryByText('Choose your Work')).toBeNull();
+  expect(screen.getByLabelText('Set Work')).toBeTruthy();
+  expect(JSON.parse(await AsyncStorage.getItem(savedPlacesStorageKey('rider-1')) ?? '{}').work).toBeUndefined();
   alert.mockRestore();
 });

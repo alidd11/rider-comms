@@ -23,6 +23,11 @@ import { NAVIGATION_PROVIDER_OPTIONS, type NavigationProvider } from '../navigat
 import { CategoryRow, CheckRow, PlainRow, SegmentedRow, SettingsGroup, SettingsHeader, SwitchRow, useSettingsPalette } from './SettingsListUi';
 import { RIDER_VEHICLE_OPTIONS } from '../riderPreferences';
 import { MotorbikeIcon } from '../components/MotorbikeIcon';
+import * as Location from 'expo-location';
+import { PlaceSearchBar } from './PlaceSearchBar';
+import type { PlaceSearchHandle } from './PlaceSearchBar';
+import { SAVED_PLACE_LABELS, SAVED_PLACE_SLOTS } from '../search/savedPlaces';
+import { useSavedPlaces } from '../search/useSavedPlaces';
 import { disablePush, enablePush, pushEnabledOnDevice, pushPermission, PushNotConfiguredError, type PushPermission } from '../notifications/pushNotifications';
 
 const UNIT_LABELS: Record<UnitSystem, { name: string; blurb: string }> = {
@@ -381,10 +386,60 @@ function MapNavigationPage(): React.JSX.Element {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const navigationAppLabel = NAVIGATION_PROVIDER_OPTIONS.find((option) => option.id === navigationProvider)?.label ?? '';
   return (
-    <SettingsGroup note="Route options apply to routes Rider Comms plans.">
-      <PlainRow first title="Navigation app" value={navigationAppLabel} onPress={() => navigation.push('SettingsPage', { page: 'navigationApp' })} />
-      <SwitchRow title="Avoid motorways" value={routeAvoidance.highways} onValueChange={(highways) => setRouteAvoidance({ ...routeAvoidance, highways })} />
-      <SwitchRow title="Avoid tolls" value={routeAvoidance.tolls} onValueChange={(tolls) => setRouteAvoidance({ ...routeAvoidance, tolls })} />
+    <>
+      <SettingsGroup note="Route options apply to routes Rider Comms plans.">
+        <PlainRow first title="Navigation app" value={navigationAppLabel} onPress={() => navigation.push('SettingsPage', { page: 'navigationApp' })} />
+        <SwitchRow title="Avoid motorways" value={routeAvoidance.highways} onValueChange={(highways) => setRouteAvoidance({ ...routeAvoidance, highways })} />
+        <SwitchRow title="Avoid tolls" value={routeAvoidance.tolls} onValueChange={(tolls) => setRouteAvoidance({ ...routeAvoidance, tolls })} />
+      </SettingsGroup>
+      <SavedPlacesGroup />
+    </>
+  );
+}
+
+/** Home and Work: set here or from Where to; a tap there starts the route
+ * (PWA: the Saved places section of Map & navigation). */
+function SavedPlacesGroup(): React.JSX.Element {
+  const { riderId } = useAuth();
+  const { savedPlaces, setSavedPlace } = useSavedPlaces(riderId);
+  const searchRef = React.useRef<PlaceSearchHandle>(null);
+  const [near, setNear] = React.useState<{ lat: number; lon: number } | null>(null);
+
+  // Search ranks places near the rider; ask for a fix only when they search.
+  const locate = React.useCallback(async (prompt: boolean): Promise<void> => {
+    try {
+      const permission = prompt ? await Location.requestForegroundPermissionsAsync() : await Location.getForegroundPermissionsAsync();
+      if (!permission.granted) return;
+      const position = await Location.getLastKnownPositionAsync() ?? await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      setNear({ lat: position.coords.latitude, lon: position.coords.longitude });
+    } catch {
+      // Search says location is needed and offers to try again.
+    }
+  }, []);
+  React.useEffect(() => { void locate(false); }, [locate]);
+
+  return (
+    <SettingsGroup title="Saved places" note="Tap Home or Work in Where to on the map and the route starts straight away.">
+      {SAVED_PLACE_SLOTS.map((slot, index) => {
+        const place = savedPlaces[slot];
+        return (
+          <PlainRow
+            key={slot}
+            first={index === 0}
+            title={SAVED_PLACE_LABELS[slot]}
+            value={place?.name ?? 'Not set'}
+            onPress={() => searchRef.current?.open({ saveAs: slot, current: place })}
+          />
+        );
+      })}
+      <PlaceSearchBar
+        ref={searchRef}
+        showBar={false}
+        near={near}
+        onRequestLocation={() => locate(true)}
+        onSelect={() => {}}
+        onSave={setSavedPlace}
+      />
     </SettingsGroup>
   );
 }

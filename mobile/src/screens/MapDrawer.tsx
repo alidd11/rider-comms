@@ -7,8 +7,9 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import type { PlaceResult } from '../api/places';
 import { useAuth } from '../auth/AuthContext';
 import { parseRecentPlaces, recentPlacesStorageKey } from '../search/recentPlaces';
-import { parseSavedPlaces, SAVED_PLACE_LABELS, SAVED_PLACE_SLOTS, savedPlacesStorageKey, withSavedPlace } from '../search/savedPlaces';
-import type { SavedPlaces, SavedPlaceSlot } from '../search/savedPlaces';
+import { SAVED_PLACE_LABELS, SAVED_PLACE_SLOTS } from '../search/savedPlaces';
+import type { SavedPlaceSlot } from '../search/savedPlaces';
+import { useSavedPlaces } from '../search/useSavedPlaces';
 import { colors, MIN_TOUCH_TARGET, spacing, type, pressedFeedback } from '../theme';
 import { PlaceSearchBar } from './PlaceSearchBar';
 import type { PlaceSearchHandle } from './PlaceSearchBar';
@@ -25,6 +26,8 @@ export interface MapDrawerProps {
   near: { lat: number; lon: number } | null;
   onRequestLocation: () => Promise<void>;
   onSelectPlace: (place: PlaceResult) => void;
+  /** A saved Home or Work: start the route there, like other map apps. */
+  onRouteToPlace: (place: PlaceResult) => void;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** The drawer's resting height, so the map's controls can sit above it. */
@@ -40,34 +43,18 @@ export interface MapDrawerProps {
  * menu behind the rider's avatar.
  */
 export function MapDrawer({
-  near, onRequestLocation, onSelectPlace, open, onOpenChange, onPeekHeight, bottomInset, style,
+  near, onRequestLocation, onSelectPlace, onRouteToPlace, open, onOpenChange, onPeekHeight, bottomInset, style,
 }: MapDrawerProps): React.JSX.Element {
   const { riderId } = useAuth();
   const [recentPlaces, setRecentPlaces] = React.useState<PlaceResult[]>([]);
-  const [savedPlaces, setSavedPlaces] = React.useState<SavedPlaces>({});
+  const { savedPlaces, setSavedPlace: saveSavedPlace } = useSavedPlaces(riderId);
   const searchRef = React.useRef<PlaceSearchHandle>(null);
 
-  React.useEffect(() => {
-    if (!riderId) return;
-    let cancelled = false;
-    AsyncStorage.getItem(savedPlacesStorageKey(riderId))
-      .then((raw) => { if (!cancelled) setSavedPlaces(parseSavedPlaces(raw)); })
-      .catch(() => { if (!cancelled) setSavedPlaces({}); });
-    return () => { cancelled = true; };
-  }, [riderId]);
-
-  const saveSavedPlace = React.useCallback((slot: SavedPlaceSlot, place: PlaceResult | null) => {
-    setSavedPlaces((current) => {
-      const next = withSavedPlace(current, slot, place);
-      if (riderId) void AsyncStorage.setItem(savedPlacesStorageKey(riderId), JSON.stringify(next)).catch(() => {});
-      return next;
-    });
-  }, [riderId]);
-
-  // Home and Work: show the place, or choose one the first time.
+  // Home and Work: start the route, or choose the place the first time
+  // (they can also be set in Settings, Map & navigation).
   const openSavedPlace = (slot: SavedPlaceSlot) => {
     const place = savedPlaces[slot];
-    if (place) onSelectPlace(place);
+    if (place) onRouteToPlace(place);
     else searchRef.current?.open({ saveAs: slot });
   };
   const editSavedPlace = (slot: SavedPlaceSlot) => {
@@ -78,7 +65,7 @@ export function MapDrawer({
       return;
     }
     Alert.alert(label, `${place.name}${place.address ? `, ${place.address}` : ''}`, [
-      { text: `Change ${label}`, onPress: () => searchRef.current?.open({ saveAs: slot }) },
+      { text: `Change ${label}`, onPress: () => searchRef.current?.open({ saveAs: slot, current: place }) },
       { text: `Remove ${label}`, style: 'destructive', onPress: () => saveSavedPlace(slot, null) },
       { text: 'Cancel', style: 'cancel' },
     ]);
@@ -183,7 +170,7 @@ export function MapDrawer({
               key={slot}
               accessibilityRole="button"
               accessibilityLabel={place ? `${label}, ${place.name}` : `Set ${label}`}
-              accessibilityHint={place ? `Shows ${label.toLowerCase()} on the map. Press and hold to change it.` : `Choose your ${label.toLowerCase()} address`}
+              accessibilityHint={place ? `Starts the route to ${label.toLowerCase()}. Press and hold to change it.` : `Choose your ${label.toLowerCase()} address`}
               accessibilityActions={place ? [{ name: 'longpress', label: `Change or remove ${label}` }] : undefined}
               onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === 'longpress') editSavedPlace(slot); }}
               onPress={() => openSavedPlace(slot)}
