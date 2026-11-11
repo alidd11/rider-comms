@@ -10,9 +10,9 @@
 // mounting a second map instance, which keeps map billing/state predictable
 // and matches the PWA's tab-owned interaction model.
 import * as React from 'react';
-import { AccessibilityInfo, ActivityIndicator, View, Text, Pressable, Alert, Linking, Platform, useColorScheme, useWindowDimensions } from 'react-native';
+import { AccessibilityInfo, ActivityIndicator, BackHandler, View, Text, Pressable, Alert, Linking, Platform, useColorScheme, useWindowDimensions } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -513,6 +513,21 @@ export function MapScreen(): React.JSX.Element {
       Alert.alert('Couldn’t open directions', `Rider Comms could not open ${navigationProviderLabel(navigationProvider)} on this device.`);
     }
   }
+
+  useFocusEffect(React.useCallback(() => {
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (segment === 'host') {
+        navigation.setParams({ segment: 'public', at: Date.now() });
+        return true;
+      }
+      if (drawerOpen) {
+        setDrawerOpen(false);
+        return true;
+      }
+      return false;
+    });
+    return () => subscription.remove();
+  }, [drawerOpen, navigation, segment]));
 
   // The drawer steps aside while navigating, while Ride Safe locks the
   // controls, and while a place or hazard card owns the bottom of the map.

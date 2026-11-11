@@ -577,6 +577,7 @@ export function FriendsScreen(): React.JSX.Element {
         <ScreenHeader
           title="Friends"
           onBack={() => rootNavigation.navigate('Tabs', { screen: 'Map', params: { segment: 'public', at: Date.now() } })}
+          backLabel="Back to map"
           action={(
             <Pressable
               style={({ pressed }) => [styles.headerAdd, addOpen && styles.headerAddActive, pressed && styles.headerAddPressed]}

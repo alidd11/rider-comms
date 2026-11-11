@@ -168,6 +168,7 @@
   function openSearchScreen() {
     if ($('#mapSearchSlot')?.classList.contains('offline')) return;
     clearPoiMarkers();
+    pushOverlayGuard();
     $('#searchScreen').hidden = false;
     const input = $('#searchScreenInput');
     input.value = '';
@@ -337,6 +338,7 @@
   function setMapDrawerOpen(open) {
     const drawer = $('#mapDrawer');
     if (!drawer) return;
+    if (open && drawer.dataset.state !== 'open') pushOverlayGuard();
     drawer.dataset.state = open ? 'open' : 'peek';
     $('#mapDrawerRecent').hidden = !open;
     const handle = $('#mapDrawerHandle');

@@ -323,14 +323,17 @@
 
   function presentSheet(title, body, ready, options = {}) {
     activeFriendProfileRiderId = null;
-    if ($('#sheetBackdrop').hidden) lastSheetTrigger = document.activeElement;
+    if ($('#sheetBackdrop').hidden) {
+      lastSheetTrigger = document.activeElement;
+      pushOverlayGuard();
+    }
     // Settings pages are full screen with a back chevron; everything else
     // stays a bottom sheet with a close button.
     currentSettingsPage = options.page || null;
     $('#sheetBackdrop').classList.toggle('settings-page-mode', Boolean(currentSettingsPage));
     $('#sheetBackdrop').classList.toggle('settings-full-bleed', Boolean(currentSettingsPage && SETTINGS_PAGES[currentSettingsPage]?.fullBleed));
     const close = $('#closeSheet');
-    close.innerHTML = currentSettingsPage ? '<svg class="icon-back" aria-hidden="true"><use href="#i-chevron"/></svg>' : '×';
+    close.innerHTML = currentSettingsPage ? '<svg class="icon-back" aria-hidden="true"><use href="#i-chevron"/></svg>' : '<svg aria-hidden="true"><use href="#i-close"/></svg>';
     close.dataset.backTo = SETTINGS_PAGES[currentSettingsPage]?.back || '';
     close.setAttribute('aria-label', currentSettingsPage ? 'Back' : 'Close');
     // Settings pages also get an X, which closes every level at once.

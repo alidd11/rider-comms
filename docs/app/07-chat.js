@@ -323,6 +323,7 @@
     setChatError('');
     renderChat();
     history.pushState({ screen: 'friends', chat: friend.riderId }, '', '#friends/chat');
+    onGuardEntry = false;
     document.title = `${friend.displayName} · Rider Comms`;
     void loadChatMessages({ showLoading: true });
     void loadChatHideouts();

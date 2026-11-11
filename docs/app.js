@@ -742,18 +742,62 @@
 
   $('#closeAppNotification')?.addEventListener('click', hideAppNotification);
 
+  // History model: the map is home, and every other screen sits one step
+  // above it. Going back to the map steps back rather than stacking another
+  // map entry; moving between Ride, Friends, Routes and Settings replaces the
+  // entry. An open overlay (sheet, menu, search, the expanded drawer) adds a
+  // guard entry, so the phone's back gesture closes it before leaving.
+  let returningToMap = false;
+  // Whether the current history entry is an overlay guard. One left behind
+  // by an overlay closed with its own button is skipped on the next back.
+  let onGuardEntry = false;
+
+  function pushOverlayGuard() {
+    if (!history.state?.guard) history.pushState({ ...(history.state || { screen: state.screen }), guard: true }, '', location.href);
+    onGuardEntry = true;
+  }
+
+  function anyOverlayOpen() {
+    return !$('#sheetBackdrop').hidden || !$('#searchScreen').hidden || !$('#appMenu').hidden || $('#mapDrawer')?.dataset.state === 'open';
+  }
+
+  // Back closes the topmost overlay (a settings page steps up one level).
+  function closeTopOverlay() {
+    if (!$('#sheetBackdrop').hidden) sheetBack();
+    else if (!$('#searchScreen').hidden) closeSearchScreen();
+    else if (!$('#appMenu').hidden) closeAppMenu();
+    else if ($('#mapDrawer')?.dataset.state === 'open') toggleMapDrawer(false);
+    else return false;
+    if (anyOverlayOpen()) pushOverlayGuard();
+    return true;
+  }
+
   function navigate(screen, push = true) {
     if (!['map', 'ride', 'routes', 'friends', 'settings'].includes(screen)) screen = 'map';
     if (window.RiderMovementSafety.isLockedForSafety(movementState) && !['map', 'ride'].includes(screen)) {
       screen = state.activeRide ? 'ride' : 'map';
       showToast('Controls stay locked until Rider Comms confirms you are stationary.');
     }
+    const previous = state.screen;
+    if (push && screen === 'map' && previous !== 'map' && history.state?.overMap) {
+      // The map is the entry below: step back to it (popstate renders it).
+      returningToMap = true;
+      history.back();
+      return;
+    }
     state.screen = screen;
     // Lets CSS adapt floating controls to the screen (e.g. the ride pill).
     document.documentElement.dataset.activeScreen = screen;
     persist();
     [...document.querySelectorAll('.screen')].forEach((item) => item.classList.toggle('active', item.dataset.screen === screen));
-    if (push && location.hash !== `#${screen}`) history.pushState({ screen }, '', `#${screen}`);
+    if (push && location.hash !== `#${screen}`) {
+      const entry = { screen, overMap: screen !== 'map' && (previous === 'map' || Boolean(history.state?.overMap)) };
+      // Screen to screen above the map, or over a spent overlay entry:
+      // replace, so the map stays one step back.
+      if (history.state?.guard || (previous !== 'map' && screen !== 'map')) history.replaceState(entry, '', `#${screen}`);
+      else history.pushState(entry, '', `#${screen}`);
+      onGuardEntry = false;
+    }
     document.title = `${screen === 'ride' ? 'Group Ride' : screen[0].toUpperCase() + screen.slice(1)} · Rider Comms`;
     window.scrollTo(0, 0);
     syncMovementSafetyBanner();
@@ -1726,6 +1770,7 @@
     setChatError('');
     renderChat();
     history.pushState({ screen: 'friends', chat: friend.riderId }, '', '#friends/chat');
+    onGuardEntry = false;
     document.title = `${friend.displayName} · Rider Comms`;
     void loadChatMessages({ showLoading: true });
     void loadChatHideouts();
@@ -2801,14 +2846,17 @@
 
   function presentSheet(title, body, ready, options = {}) {
     activeFriendProfileRiderId = null;
-    if ($('#sheetBackdrop').hidden) lastSheetTrigger = document.activeElement;
+    if ($('#sheetBackdrop').hidden) {
+      lastSheetTrigger = document.activeElement;
+      pushOverlayGuard();
+    }
     // Settings pages are full screen with a back chevron; everything else
     // stays a bottom sheet with a close button.
     currentSettingsPage = options.page || null;
     $('#sheetBackdrop').classList.toggle('settings-page-mode', Boolean(currentSettingsPage));
     $('#sheetBackdrop').classList.toggle('settings-full-bleed', Boolean(currentSettingsPage && SETTINGS_PAGES[currentSettingsPage]?.fullBleed));
     const close = $('#closeSheet');
-    close.innerHTML = currentSettingsPage ? '<svg class="icon-back" aria-hidden="true"><use href="#i-chevron"/></svg>' : '×';
+    close.innerHTML = currentSettingsPage ? '<svg class="icon-back" aria-hidden="true"><use href="#i-chevron"/></svg>' : '<svg aria-hidden="true"><use href="#i-close"/></svg>';
     close.dataset.backTo = SETTINGS_PAGES[currentSettingsPage]?.back || '';
     close.setAttribute('aria-label', currentSettingsPage ? 'Back' : 'Close');
     // Settings pages also get an X, which closes every level at once.
@@ -5181,6 +5229,7 @@
   function openSearchScreen() {
     if ($('#mapSearchSlot')?.classList.contains('offline')) return;
     clearPoiMarkers();
+    pushOverlayGuard();
     $('#searchScreen').hidden = false;
     const input = $('#searchScreenInput');
     input.value = '';
@@ -5350,6 +5399,7 @@
   function setMapDrawerOpen(open) {
     const drawer = $('#mapDrawer');
     if (!drawer) return;
+    if (open && drawer.dataset.state !== 'open') pushOverlayGuard();
     drawer.dataset.state = open ? 'open' : 'peek';
     $('#mapDrawerRecent').hidden = !open;
     const handle = $('#mapDrawerHandle');
@@ -7145,6 +7195,7 @@
     }
     appMenuTrigger = document.activeElement;
     renderProfile();
+    pushOverlayGuard();
     $('#appMenu').hidden = false;
     $('#app')?.setAttribute('inert', '');
     document.documentElement.classList.add('app-menu-open');
@@ -7185,9 +7236,22 @@
       if (navFollowing) showNavigationOverview();
       else resumeNavigationFollowing();
     });
-    window.addEventListener('popstate', () => {
-      if (activeChat) closeChat();
-      navigate(location.hash.split('/')[0].slice(1) || 'map', false);
+    window.addEventListener('popstate', (event) => {
+      const leftGuard = onGuardEntry;
+      onGuardEntry = Boolean(event.state?.guard);
+      // Back closes an open sheet, search, menu or drawer before anything else.
+      if (closeTopOverlay()) return;
+      // Landed on the spent entry of an overlay that closed itself (a chat
+      // opened from a sheet): step past it to the screen below, and stop there.
+      if (event.state?.guard) { onGuardEntry = false; history.back(); return; }
+      // This press only removed the entry of an overlay already closed with
+      // its own button: keep going, so no press is wasted.
+      if (leftGuard) { history.back(); return; }
+      const screen = location.hash.split('/')[0].slice(1) || 'map';
+      if (returningToMap && screen !== 'map') { history.back(); return; }
+      returningToMap = false;
+      if (activeChat && location.hash !== '#friends/chat') closeChat();
+      navigate(screen, false);
     });
     $('#joinRideForm').addEventListener('submit', (event) => {
       event.preventDefault();

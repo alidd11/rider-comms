@@ -10,14 +10,16 @@ type ScreenHeaderProps = {
   style?: StyleProp<ViewStyle>;
   /** Shows a back chevron before the title (screens pushed on the stack). */
   onBack?: () => void;
+  /** What the back chevron says to screen readers. */
+  backLabel?: string;
 };
 
 /** Shared hierarchy for every non-map root screen. */
-export function ScreenHeader({ title, action, style, onBack }: ScreenHeaderProps): React.JSX.Element {
+export function ScreenHeader({ title, action, style, onBack, backLabel = 'Go back' }: ScreenHeaderProps): React.JSX.Element {
   return (
     <View style={[styles.header, style]}>
       {onBack ? (
-        <Pressable accessibilityRole="button" accessibilityLabel="Go back" onPress={onBack} hitSlop={8} style={styles.back}>
+        <Pressable accessibilityRole="button" accessibilityLabel={backLabel} onPress={onBack} hitSlop={8} style={styles.back}>
           <Ionicons name="chevron-back" size={26} color={colors.textPrimary} />
         </Pressable>
       ) : null}

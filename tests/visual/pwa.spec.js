@@ -3439,6 +3439,65 @@ test('PWA map drawer slides up to recent places and holds the shortcuts', async 
   await expect(drawer).toBeHidden();
 });
 
+test('PWA back gesture closes overlays first and the map stays one step back', async ({ page }) => {
+  await mockAuthenticatedApi(page);
+  await page.goto('/');
+  await expect(page.locator('#mapDrawer')).toBeVisible();
+  const onScreen = (name) => expect(page.locator(`.screen[data-screen="${name}"]`)).toHaveClass(/active/);
+
+  // The menu closes on back, leaving the map.
+  await page.locator('#mapAvatarButton').click();
+  await expect(page.locator('#appMenu')).toBeVisible();
+  await page.goBack();
+  await expect(page.locator('#appMenu')).toBeHidden();
+  await onScreen('map');
+
+  // A sheet opened from the menu closes on back.
+  await page.locator('#mapAvatarButton').click();
+  await page.locator('[data-menu-sheet="help"]').click();
+  await expect(page.locator('#sheetBackdrop')).toBeVisible();
+  await page.goBack();
+  await expect(page.locator('#sheetBackdrop')).toBeHidden();
+  await onScreen('map');
+
+  // Search and the expanded drawer close on back too.
+  await page.locator('#mapSearchSlot').click();
+  await expect(page.locator('#searchScreen')).toBeVisible();
+  await page.goBack();
+  await expect(page.locator('#searchScreen')).toBeHidden();
+  await page.locator('#mapDrawerHandle').click();
+  await expect(page.locator('#mapDrawer')).toHaveAttribute('data-state', 'open');
+  await page.goBack();
+  await expect(page.locator('#mapDrawer')).toHaveAttribute('data-state', 'peek');
+  await onScreen('map');
+
+  // Back to map steps back, so a later back never returns to Friends.
+  await page.locator('[data-drawer-nav="friends"]').click();
+  await onScreen('friends');
+  await page.locator('.screen.active [data-back-to-map]').click();
+  await onScreen('map');
+  await page.locator('[data-drawer-nav="ride"]').click();
+  await onScreen('ride');
+  await page.goBack();
+  await onScreen('map');
+
+  // A settings page steps up one level on back, then the screen goes back.
+  await page.locator('#mapAvatarButton').click();
+  await page.locator('[data-menu-nav="settings"]').click();
+  await onScreen('settings');
+  await page.locator('#settingsList [data-settings-open="general"]').click();
+  await expect(page.locator('#sheetBackdrop')).toBeVisible();
+  await page.goBack();
+  await expect(page.locator('#sheetBackdrop')).toBeHidden();
+  await onScreen('settings');
+  // A sheet closed with its own button leaves no dead back press behind.
+  await page.locator('#settingsList [data-settings-open="general"]').click();
+  await page.locator('#closeSheetAll').click();
+  await expect(page.locator('#sheetBackdrop')).toBeHidden();
+  await page.goBack();
+  await onScreen('map');
+});
+
 test('PWA password recovery is discoverable and enumeration-safe', async ({ page }) => {
   await page.route('https://backend-production-7fa0.up.railway.app/**', async (route) => {
     const pathname = new URL(route.request().url()).pathname;

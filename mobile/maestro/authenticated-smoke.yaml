@@ -83,7 +83,7 @@ appId: com.ridercomms.app
           visible: "Go back"
           timeout: 8000
 - takeScreenshot: authenticated-friends
-- tapOn: "Go back"
+- tapOn: "Back to map"
 # Routes and Settings live in the menu behind the rider's avatar on the map.
 - tapOn:
     id: open-menu

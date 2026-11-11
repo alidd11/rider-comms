@@ -170,18 +170,62 @@
 
   $('#closeAppNotification')?.addEventListener('click', hideAppNotification);
 
+  // History model: the map is home, and every other screen sits one step
+  // above it. Going back to the map steps back rather than stacking another
+  // map entry; moving between Ride, Friends, Routes and Settings replaces the
+  // entry. An open overlay (sheet, menu, search, the expanded drawer) adds a
+  // guard entry, so the phone's back gesture closes it before leaving.
+  let returningToMap = false;
+  // Whether the current history entry is an overlay guard. One left behind
+  // by an overlay closed with its own button is skipped on the next back.
+  let onGuardEntry = false;
+
+  function pushOverlayGuard() {
+    if (!history.state?.guard) history.pushState({ ...(history.state || { screen: state.screen }), guard: true }, '', location.href);
+    onGuardEntry = true;
+  }
+
+  function anyOverlayOpen() {
+    return !$('#sheetBackdrop').hidden || !$('#searchScreen').hidden || !$('#appMenu').hidden || $('#mapDrawer')?.dataset.state === 'open';
+  }
+
+  // Back closes the topmost overlay (a settings page steps up one level).
+  function closeTopOverlay() {
+    if (!$('#sheetBackdrop').hidden) sheetBack();
+    else if (!$('#searchScreen').hidden) closeSearchScreen();
+    else if (!$('#appMenu').hidden) closeAppMenu();
+    else if ($('#mapDrawer')?.dataset.state === 'open') toggleMapDrawer(false);
+    else return false;
+    if (anyOverlayOpen()) pushOverlayGuard();
+    return true;
+  }
+
   function navigate(screen, push = true) {
     if (!['map', 'ride', 'routes', 'friends', 'settings'].includes(screen)) screen = 'map';
     if (window.RiderMovementSafety.isLockedForSafety(movementState) && !['map', 'ride'].includes(screen)) {
       screen = state.activeRide ? 'ride' : 'map';
       showToast('Controls stay locked until Rider Comms confirms you are stationary.');
     }
+    const previous = state.screen;
+    if (push && screen === 'map' && previous !== 'map' && history.state?.overMap) {
+      // The map is the entry below: step back to it (popstate renders it).
+      returningToMap = true;
+      history.back();
+      return;
+    }
     state.screen = screen;
     // Lets CSS adapt floating controls to the screen (e.g. the ride pill).
     document.documentElement.dataset.activeScreen = screen;
     persist();
     [...document.querySelectorAll('.screen')].forEach((item) => item.classList.toggle('active', item.dataset.screen === screen));
-    if (push && location.hash !== `#${screen}`) history.pushState({ screen }, '', `#${screen}`);
+    if (push && location.hash !== `#${screen}`) {
+      const entry = { screen, overMap: screen !== 'map' && (previous === 'map' || Boolean(history.state?.overMap)) };
+      // Screen to screen above the map, or over a spent overlay entry:
+      // replace, so the map stays one step back.
+      if (history.state?.guard || (previous !== 'map' && screen !== 'map')) history.replaceState(entry, '', `#${screen}`);
+      else history.pushState(entry, '', `#${screen}`);
+      onGuardEntry = false;
+    }
     document.title = `${screen === 'ride' ? 'Group Ride' : screen[0].toUpperCase() + screen.slice(1)} · Rider Comms`;
     window.scrollTo(0, 0);
     syncMovementSafetyBanner();
