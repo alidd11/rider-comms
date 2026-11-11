@@ -13,6 +13,8 @@ import type { AdminStatsStore } from '../adminStatsStore.ts';
 import type { PlaceSearchRequest, PlaceSummary } from '../placesProvider.ts';
 import type { PresenceStore } from '../presenceStore.ts';
 import type { ProfileStore } from '../profileStore.ts';
+import type { PushNotifier } from '../pushNotifier.ts';
+import type { PushStore } from '../pushStore.ts';
 import type { RateLimitStore } from '../rateLimitStore.ts';
 import type { RideMemberLocation, RideStore } from '../rideStore.ts';
 import type { ScenicRouteStore } from '../scenicRouteStore.ts';
@@ -69,6 +71,8 @@ export function countFilterRejection(stats: Pick<AdminStatsStore, 'increment'>):
 /** Long-lived dependencies, built once per createApp call. */
 export interface RouteDeps {
   rideStore: RideStore;
+  pushStore: PushStore;
+  pushNotifier: Pick<PushNotifier, 'notify'>;
   presenceStore: PresenceStore;
   profileStore: ProfileStore;
   friendStore: FriendStore;

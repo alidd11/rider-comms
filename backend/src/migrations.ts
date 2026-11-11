@@ -861,5 +861,31 @@ export const MIGRATIONS: Migration[] = [
           action IN ('auth', 'auth_account', 'signup_ip', 'api', 'ride_join_rider', 'ride_join_ip', 'hazard_create', 'directions', 'places', 'client_error', 'presence', 'verification_resend', 'password_reset_request', 'password_reset_account', 'billing_verify', 'ride_create', 'hideout_create')
         );
     `,
+  },  {
+    // Push notifications. One row per device: a browser's Web Push
+    // subscription or a phone's Expo push token. server_keys holds this
+    // server's VAPID key pair, generated on first use. The notification
+    // preferences had no effect before (no push existed and their toggles
+    // were removed as dead features), so they start on for everyone; the
+    // device's own permission prompt is the real opt-in.
+    name: '0050_push_notifications',
+    sql: `
+      CREATE TABLE IF NOT EXISTS server_keys (
+        name TEXT PRIMARY KEY,
+        value JSONB NOT NULL,
+        created_at BIGINT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS push_subscriptions (
+        address TEXT PRIMARY KEY,
+        rider_id TEXT NOT NULL,
+        kind TEXT NOT NULL CHECK (kind IN ('web', 'expo')),
+        p256dh TEXT,
+        auth TEXT,
+        created_at BIGINT NOT NULL,
+        updated_at BIGINT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS push_subscriptions_rider_idx ON push_subscriptions (rider_id, updated_at DESC);
+      UPDATE rider_profiles SET notify_invites = TRUE, notify_chat = TRUE;
+    `,
   },
 ];

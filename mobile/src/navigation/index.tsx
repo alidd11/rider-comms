@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { Linking, View, Text, StyleSheet, useColorScheme } from 'react-native';
-import { DarkTheme, DefaultTheme, NavigationContainer, useNavigationState } from '@react-navigation/native';
+import { DarkTheme, DefaultTheme, NavigationContainer, createNavigationContainerRef, useNavigationState } from '@react-navigation/native';
 import type { LinkingOptions, NavigatorScreenParams } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -28,6 +28,7 @@ import { colors, useConcreteThemeColors } from '../theme';
 import { HIDDEN_TAB_BAR_STYLE, TAB_BAR_STYLE } from './tabBarStyle';
 import { MovementSafetyProvider, useMovementSafety } from '../safety/MovementSafetyContext';
 import { VoiceMuteProvider } from '../voice/VoiceMuteContext';
+import { PushNotificationRouter } from '../notifications/PushNotificationRouter';
 import { RideSafeSurface } from '../safety/RideSafeSurface';
 
 export type TabParamList = {
@@ -60,6 +61,8 @@ export type RootStackParamList = {
 };
 
 const Tab = createBottomTabNavigator<TabParamList>();
+// Lets a tapped notification open the right screen (PushNotificationRouter).
+const navigationRef = createNavigationContainerRef<RootStackParamList>();
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 const linking: LinkingOptions<RootStackParamList> = {
@@ -331,7 +334,7 @@ export function AppNavigator(): React.JSX.Element {
             <OnboardingGate>
               <MovementSafetyProvider>
               <VoiceMuteProvider>
-              <NavigationContainer theme={navigationTheme} linking={linking}>
+              <NavigationContainer ref={navigationRef} theme={navigationTheme} linking={linking}>
                 <Stack.Navigator
                   screenOptions={{
                     headerStyle: { backgroundColor: colors.surface },
@@ -374,6 +377,7 @@ export function AppNavigator(): React.JSX.Element {
                 </Stack.Navigator>
               </NavigationContainer>
               <ConnectionBanner />
+              <PushNotificationRouter navigationRef={navigationRef} />
               </VoiceMuteProvider>
               </MovementSafetyProvider>
             </OnboardingGate>

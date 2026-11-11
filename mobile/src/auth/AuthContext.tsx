@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { disablePush } from '../notifications/pushNotifications';
 import {
   ActivityIndicator,
   Alert,
@@ -594,6 +595,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
       emailVerified: session.emailVerified,
       client,
       logOut: async () => {
+        // This phone stops getting the account's notifications first, while
+        // the session can still authorise removing it.
+        await disablePush(client, session.riderId).catch(() => undefined);
         try { await client.logOut(); } finally { await clearLocalSession(); }
       },
       deleteAccount: async () => {

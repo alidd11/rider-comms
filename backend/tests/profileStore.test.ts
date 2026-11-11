@@ -33,8 +33,9 @@ describe('ProfileStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping
     assert.equal(profile.zoneTier, 'free');
     assert.equal(profile.unitSystem, 'mi');
     assert.equal(profile.notifyNearby, false);
-    assert.equal(profile.notifyInvites, false);
-    assert.equal(profile.notifyChat, false);
+    // Friend-request and message notifications start on; the device prompt is the opt-in.
+    assert.equal(profile.notifyInvites, true);
+    assert.equal(profile.notifyChat, true);
     assert.equal(profile.shareLocation, false);
     assert.ok(profile.updatedAt > 0);
   });

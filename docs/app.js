@@ -91,8 +91,8 @@
       zoneTier: 'free',
       unitSystem: 'mi',
       notifyNearby: false,
-      notifyInvites: false,
-      notifyChat: false,
+      notifyInvites: true,
+      notifyChat: true,
       instagram: '',
       tiktok: '',
       instagramVisibility: 'friends',
@@ -2176,6 +2176,22 @@
     }
   }
 
+  // Opens an in-app route from a notification (see docs/sw.js):
+  // '#friends', or '#chat:<riderId>' for that friend's chat.
+  async function openAppRoute(route) {
+    const chat = /^#chat:([A-Za-z0-9_-]+)$/.exec(String(route || ''));
+    if (!chat) {
+      navigate(String(route || '#map').replace(/^#/, ''));
+      return;
+    }
+    navigate('friends');
+    let friend = state.friends.find((person) => person.riderId === chat[1]);
+    if (!friend) {
+      await loadFriendsData();
+      friend = state.friends.find((person) => person.riderId === chat[1]);
+    }
+    if (friend) openChat(friend);
+  }
   function renderRide() {
     const active = Boolean(state.activeRide);
     $('#rideJoinState').hidden = active;
@@ -2683,6 +2699,21 @@
           $$('[data-vehicle-option]', $('#sheetBody')).forEach((row) => row.setAttribute('aria-checked', String(row === button)));
         })),
       }),
+      notificationDevice: () => ({
+        title: 'This device',
+        body: settingsRowsMarkup([
+          `<div class="settings-row settings-row-toggle"><span class="settings-row-label">${escapeHtml('Notifications on this device')}</span><button type="button" class="toggle" id="pushDeviceToggle" aria-label="Notifications on this device" aria-pressed="false"></button></div>`,
+        ], pushSupportNote()),
+        ready: () => void wirePushDeviceToggle(),
+      }),
+      notificationKinds: () => ({
+        title: 'Notify me about',
+        body: settingsRowsMarkup([
+          settingsToggle('notifyInvites', 'Friend requests', state.profile.notifyInvites !== false),
+          settingsToggle('notifyChat', 'Messages', state.profile.notifyChat !== false),
+        ], 'These apply on every device where notifications are on.'),
+        ready: () => wireToggles(),
+      }),
       rideSafeSettings: () => ({
         title: 'Ride Safe',
         body: settingsRowsMarkup([
@@ -2870,8 +2901,8 @@
         handle: '@rider',
         unitSystem: 'mi',
         notifyNearby: false,
-        notifyInvites: false,
-        notifyChat: false,
+        notifyInvites: true,
+        notifyChat: true,
         shareLocation: false,
         instagramUsername: '',
         instagramVisibility: 'friends',
@@ -2927,8 +2958,93 @@
   function settingsAction(id, label, danger = false) {
     return `<button type="button" class="settings-row${danger ? ' settings-row-danger' : ''}" id="${id}"><span class="settings-row-label">${escapeHtml(label)}</span></button>`;
   }
+  // Push notifications on this device (Web Push). The server's VAPID key
+  // comes from GET /push/web-key; backend/src/routes/push.ts stores the
+  // subscription. On iPhone, Safari only allows push in the installed app.
+  const pushSupported = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+  const iosNeedsInstall = () => /iPhone|iPad|iPod/.test(navigator.userAgent)
+    && !navigator.standalone && !window.matchMedia?.('(display-mode: standalone)').matches;
+
+  function pushSupportNote() {
+    if (iosNeedsInstall()) return 'On iPhone, add Rider Comms to your Home Screen first, then turn notifications on here.';
+    if (!pushSupported()) return 'This browser can’t show notifications.';
+    if (Notification.permission === 'denied') return 'Notifications are blocked for Rider Comms. Allow them in your browser or phone settings, then try again.';
+    return 'Get told about friend requests and messages, even when Rider Comms is closed.';
+  }
+
+  function base64UrlToBytes(value) {
+    const padded = value.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(value.length / 4) * 4, '=');
+    return Uint8Array.from(atob(padded), (character) => character.charCodeAt(0));
+  }
+
+  async function currentPushSubscription() {
+    if (!pushSupported()) return null;
+    const registration = await navigator.serviceWorker.ready;
+    return registration.pushManager.getSubscription();
+  }
+
+  async function savePushSubscription(subscription) {
+    const json = subscription.toJSON();
+    await apiFetch('PUT', '/push/subscriptions', { kind: 'web', endpoint: json.endpoint, keys: json.keys });
+  }
+
+  async function enablePushOnThisDevice() {
+    if (!pushSupported() || iosNeedsInstall()) return false;
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') return false;
+    const { publicKey } = await apiFetch('GET', '/push/web-key');
+    const registration = await navigator.serviceWorker.ready;
+    const subscription = await registration.pushManager.getSubscription()
+      ?? await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: base64UrlToBytes(publicKey) });
+    await savePushSubscription(subscription);
+    return true;
+  }
+
+  async function disablePushOnThisDevice() {
+    const subscription = await currentPushSubscription().catch(() => null);
+    if (!subscription) return;
+    await apiFetch('DELETE', '/push/subscriptions', { address: subscription.endpoint }).catch(() => undefined);
+    await subscription.unsubscribe().catch(() => undefined);
+  }
+
+  /** At startup: keep the server's record of this device current (a browser
+   * can rotate its subscription, or another account may have used it). */
+  async function syncPushSubscription() {
+    if (!session?.token || !pushSupported() || Notification.permission !== 'granted') return;
+    const subscription = await currentPushSubscription().catch(() => null);
+    if (subscription) await savePushSubscription(subscription).catch(() => undefined);
+  }
+
+  async function wirePushDeviceToggle() {
+    const toggle = $('#pushDeviceToggle');
+    if (!toggle) return;
+    const unavailable = !pushSupported() || iosNeedsInstall() || Notification.permission === 'denied';
+    toggle.disabled = unavailable;
+    toggle.setAttribute('aria-pressed', String(!unavailable && Notification.permission === 'granted' && Boolean(await currentPushSubscription().catch(() => null))));
+    toggle.addEventListener('click', async () => {
+      const turningOn = toggle.getAttribute('aria-pressed') !== 'true';
+      toggle.disabled = true;
+      try {
+        if (turningOn) {
+          const ok = await enablePushOnThisDevice();
+          toggle.setAttribute('aria-pressed', String(ok));
+          if (!ok) showToast(Notification.permission === 'denied' ? 'Notifications are blocked. Allow them in settings, then try again.' : 'Notifications weren’t turned on.');
+        } else {
+          await disablePushOnThisDevice();
+          toggle.setAttribute('aria-pressed', 'false');
+        }
+      } catch {
+        showToast('Couldn’t change notifications. Check your connection and try again.');
+      } finally {
+        toggle.disabled = !pushSupported();
+      }
+    });
+  }
+
   async function signOut() {
     if (!window.confirm('Sign out of Rider Comms on this device?')) return;
+    // This device stops getting the account's notifications.
+    await disablePushOnThisDevice();
     try {
       await apiFetch('POST', '/auth/logout');
     } catch {
@@ -2946,6 +3062,7 @@
   const SETTINGS_CATEGORIES = [
     ['', [['general', 'settings', 'General', '#1fb6d9'], ['mapNavigation', 'map', 'Map & navigation', '#2fb35f'], ['voiceSound', 'volume', 'Voice and sound', '#3478f6']]],
     ['Riding', [['rideSafe', 'shield', 'Ride Safe', '#f2802a'], ['vehicle', 'bike', 'Vehicle details', '#8e5cf6']]],
+    ['', [['notifications', 'bell', 'Notifications', '#ef4444']]],
     ['Account', [['account', 'user', 'Account and login', '#2a8196'], ['privacy', 'lock', 'Privacy', '#1e95e8']]],
     ['', [['about', 'info', 'About', '#16a9d9']]],
   ];
@@ -3016,6 +3133,13 @@
           stopMovementSafetyTracking();
           showToast('Automatic Ride Safe is off on this device.');
         }
+        return;
+      }
+      if (key === 'notifyInvites' || key === 'notifyChat') {
+        button.disabled = true;
+        const ok = await patchProfile({ [key]: active });
+        button.disabled = false;
+        if (ok) button.setAttribute('aria-pressed', String(active));
         return;
       }
       if (key === 'spokenDirections') {
@@ -6852,6 +6976,10 @@
       refreshing = true;
       location.reload();
     });
+    // Tapping a notification while the app is open (docs/sw.js).
+    navigator.serviceWorker.addEventListener('message', (event) => {
+      if (event.data?.type === 'open-route') void openAppRoute(event.data.route);
+    });
     navigator.serviceWorker.register('./sw.js').then((registration) => {
       if (registration.waiting && navigator.serviceWorker.controller) $('#updateBanner').hidden = false;
       const watch = (worker) => worker?.addEventListener('statechange', () => {
@@ -7519,9 +7647,17 @@
     void resumePreviouslyAllowedVoice();
     renderFallbackMarkers();
     renderHazardMarkers();
-    navigate(location.hash.slice(1) || state.screen || 'map', false);
+    // A notification can open the app straight into a chat.
+    if (/^#chat:/.test(location.hash)) {
+      const route = location.hash;
+      history.replaceState(null, '', '#friends');
+      void openAppRoute(route);
+    } else {
+      navigate(location.hash.slice(1) || state.screen || 'map', false);
+    }
     loadGoogleMaps();
     registerServiceWorker();
+    void syncPushSubscription();
     watchConnection();
     void loadFriendsData();
     startSocialEvents();

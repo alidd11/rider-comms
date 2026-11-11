@@ -44,6 +44,12 @@
       "react-native-maps",
       "expo-live-activity",
       "expo-iap",
+      [
+        "expo-notifications",
+        {
+          "color": "#22A2C9"
+        }
+      ],
       "./plugins/withAndroidVoiceForegroundService",
       "./plugins/withoutBackgroundFetch",
       [

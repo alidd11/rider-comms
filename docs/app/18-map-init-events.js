@@ -94,6 +94,10 @@
       refreshing = true;
       location.reload();
     });
+    // Tapping a notification while the app is open (docs/sw.js).
+    navigator.serviceWorker.addEventListener('message', (event) => {
+      if (event.data?.type === 'open-route') void openAppRoute(event.data.route);
+    });
     navigator.serviceWorker.register('./sw.js').then((registration) => {
       if (registration.waiting && navigator.serviceWorker.controller) $('#updateBanner').hidden = false;
       const watch = (worker) => worker?.addEventListener('statechange', () => {
