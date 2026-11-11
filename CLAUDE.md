@@ -13,7 +13,9 @@ every PR push and again on `main` after each merge. Lessons from earlier PRs:
   not returned).
 - **Run the checks locally first**, so CI confirms rather than discovers:
   - `npm run lint`
-  - `npm test` (needs Postgres: `service postgresql start`)
+  - `npm test` with the database, or 30 backend tests skip without saying so:
+    `service postgresql start`, then
+    `DATABASE_URL=postgres://postgres:postgres@localhost:5432/rider_comms_test npm test`
   - `npm run test:jest --workspace=mobile` and `npx tsc --noEmit -p mobile`
   - after web changes: `npm run build:pwa-app && npm run build:web`, then
     `npx playwright test` for the affected spec files and a couple of projects
