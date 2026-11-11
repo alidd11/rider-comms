@@ -42,6 +42,7 @@ import { buildNavigationProviderUrl, navigationTargetFromValues, openNavigationU
 import type { NavigationTarget } from '../navigationLinks';
 import { useMovementSafety } from '../safety/MovementSafetyContext';
 import { useVoiceMute } from '../voice/VoiceMuteContext';
+import { useDarkOutside } from './useDarkOutside';
 import { navigationProviderLabel } from '../navigationPreference';
 import {
   formatNavigationDistance,
@@ -204,6 +205,10 @@ export function MapScreen(): React.JSX.Element {
     requestCurrentLocation,
     setError,
   );
+  // Dark basemap from sunset to sunrise, even with the phone in light mode
+  // (PWA: isDarkOutside at map start). Re-checked each minute so the map
+  // turns dark mid-ride. Without a fix, the time zone gives the longitude.
+  const darkOutside = useDarkOutside(currentLocation);
   // Parked map status (PWA: renderMapChrome) and the riding HUD's speed.
   const mapStatusText = activeRide
     ? 'In a group ride'
@@ -514,7 +519,7 @@ export function MapScreen(): React.JSX.Element {
             loadingBackgroundColor={colors.background}
             loadingIndicatorColor={colors.accent}
             mapType="standard"
-            userInterfaceStyle={colorScheme === 'dark' ? 'dark' : 'light'}
+            userInterfaceStyle={colorScheme === 'dark' || darkOutside ? 'dark' : 'light'}
             showsCompass={false}
             showsMyLocationButton={false}
             showsTraffic={Boolean(activeRoute)}

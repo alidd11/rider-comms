@@ -14,29 +14,29 @@ describe('HazardReportSheet', () => {
   beforeEach(() => jest.useFakeTimers());
   afterEach(() => jest.useRealTimers());
 
-  it('closes itself when no hazard is picked, matching the PWA', () => {
+  it('closes itself when no hazard is picked, matching the PWA', async () => {
     const onClose = jest.fn();
-    render(
+    await render(
       <SafeAreaProvider initialMetrics={SAFE_AREA_METRICS}>
         <HazardReportSheet visible onClose={onClose} onReport={jest.fn()} />
       </SafeAreaProvider>,
     );
     expect(screen.getByText(`Closes in ${HAZARD_AUTO_CLOSE_SECONDS} seconds if you don’t pick one.`)).toBeTruthy();
-    act(() => { jest.advanceTimersByTime(3_000); });
+    await act(async () => { jest.advanceTimersByTime(3_000); });
     expect(screen.getByText(`Closes in ${HAZARD_AUTO_CLOSE_SECONDS - 3} seconds if you don’t pick one.`)).toBeTruthy();
     expect(onClose).not.toHaveBeenCalled();
-    act(() => { jest.advanceTimersByTime((HAZARD_AUTO_CLOSE_SECONDS - 3) * 1_000); });
+    await act(async () => { jest.advanceTimersByTime((HAZARD_AUTO_CLOSE_SECONDS - 3) * 1_000); });
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it('does not run the countdown while hidden', () => {
+  it('does not run the countdown while hidden', async () => {
     const onClose = jest.fn();
-    render(
+    await render(
       <SafeAreaProvider initialMetrics={SAFE_AREA_METRICS}>
         <HazardReportSheet visible={false} onClose={onClose} onReport={jest.fn()} />
       </SafeAreaProvider>,
     );
-    act(() => { jest.advanceTimersByTime(30_000); });
+    await act(async () => { jest.advanceTimersByTime(30_000); });
     expect(onClose).not.toHaveBeenCalled();
   });
 });
@@ -54,13 +54,13 @@ function MuteProbe(): React.JSX.Element {
 }
 
 describe('VoiceMuteContext', () => {
-  it('shares one mute across voice surfaces and tracks whether any room is connected', () => {
-    render(<VoiceMuteProvider><MuteProbe /></VoiceMuteProvider>);
+  it('shares one mute across voice surfaces and tracks whether any room is connected', async () => {
+    await render(<VoiceMuteProvider><MuteProbe /></VoiceMuteProvider>);
     expect(screen.getByText('muted:false connected:false')).toBeTruthy();
-    fireEvent.press(screen.getByText('ride-on'));
-    fireEvent.press(screen.getByText('toggle'));
+    await fireEvent.press(screen.getByText('ride-on'));
+    await fireEvent.press(screen.getByText('toggle'));
     expect(screen.getByText('muted:true connected:true')).toBeTruthy();
-    fireEvent.press(screen.getByText('ride-off'));
+    await fireEvent.press(screen.getByText('ride-off'));
     expect(screen.getByText('muted:true connected:false')).toBeTruthy();
   });
 });

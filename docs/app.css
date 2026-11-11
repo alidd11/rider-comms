@@ -3008,3 +3008,5 @@ html.riding-hud-active.ride-pill-visible #app:not(.nav-mode) .screen-map .map-ac
 /* The speed-fix notice sits above the bottom bar, not on it. */
 body:has(.screen-map.active) .movement-safety-banner{bottom:calc(var(--bottom-nav-height) + 84px)}
 html.ride-pill-visible body:has(.screen-map.active) .movement-safety-banner{bottom:calc(var(--bottom-nav-height) + 146px)}
+/* Ride members' first names under their map markers. */
+.rider-map-label{padding:2px 7px;border-radius:999px;background:rgb(10 15 20/.82);box-shadow:0 2px 6px rgb(0 0 0/.3);white-space:nowrap}

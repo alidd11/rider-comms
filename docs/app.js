@@ -197,18 +197,29 @@
     riderAvatarSvg,
   } = window.RiderAvatarSystem;
 
+  // The name under a ride member's map marker: first name, kept short so
+  // labels don't pile up (native: riderMapLabel in mapMarkers.tsx).
+  function riderMapLabel(displayName) {
+    const first = String(displayName || '').trim().split(/\s+/)[0] || 'Rider';
+    return first.length > 12 ? `${first.slice(0, 11)}…` : first;
+  }
+
   function riderAvatarMapIcon(person, current = false, statusOverride, sizeOverride, navigationMode = false) {
     const status = navigationMode
       ? 'none'
       : statusOverride || (current
         ? (state.profile.shareLocation || state.activeRide?.shareRideLocation ? 'online' : 'none')
         : 'online');
-    const svg = riderAvatarSvg(person.avatarId, { selected: current, mapMarker: !navigationMode, status, standalone: true });
+    // Other markers on the map are always group-ride members (Nearby riders
+    // never get exact locations), so they wear the group ring.
+    const groupRing = !current && !navigationMode;
+    const svg = riderAvatarSvg(person.avatarId, { selected: current, mapMarker: !navigationMode, status, standalone: true, groupRing });
     const width = sizeOverride ?? (current ? 44 : 40);
     const height = navigationMode ? width : width * (72 / 64);
     return {
       url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
       scaledSize: new google.maps.Size(width, height),
+      labelOrigin: new google.maps.Point(width / 2, height + 11),
       anchor: navigationMode
         ? new google.maps.Point(width / 2, height / 2)
         : new google.maps.Point(width / 2, height - 1),
@@ -253,6 +264,30 @@
   };
   function navigationProvider(value) {
     return Object.hasOwn(NAVIGATION_PROVIDERS, value) ? value : 'google_maps';
+  }
+
+  // Dark map from sunset to sunrise, even with the phone in light mode.
+  // Same NOAA solar position as shared/src/daylight.ts (keep in step).
+  function solarElevationDegrees(lat, lon, date) {
+    const DEG = Math.PI / 180;
+    const start = Date.UTC(date.getUTCFullYear(), 0, 1);
+    const dayOfYear = Math.floor((date.getTime() - start) / 86400000) + 1;
+    const hours = date.getUTCHours() + date.getUTCMinutes() / 60 + date.getUTCSeconds() / 3600;
+    const gamma = (2 * Math.PI / 365) * (dayOfYear - 1 + (hours - 12) / 24);
+    const equationOfTime = 229.18 * (0.000075 + 0.001868 * Math.cos(gamma) - 0.032077 * Math.sin(gamma)
+      - 0.014615 * Math.cos(2 * gamma) - 0.040849 * Math.sin(2 * gamma));
+    const declination = 0.006918 - 0.399912 * Math.cos(gamma) + 0.070257 * Math.sin(gamma)
+      - 0.006758 * Math.cos(2 * gamma) + 0.000907 * Math.sin(2 * gamma)
+      - 0.002697 * Math.cos(3 * gamma) + 0.00148 * Math.sin(3 * gamma);
+    const trueSolarMinutes = hours * 60 + equationOfTime + 4 * lon;
+    const hourAngle = (trueSolarMinutes / 4 - 180) * DEG;
+    const cosZenith = Math.sin(lat * DEG) * Math.sin(declination)
+      + Math.cos(lat * DEG) * Math.cos(declination) * Math.cos(hourAngle);
+    return 90 - Math.acos(Math.min(1, Math.max(-1, cosZenith))) / DEG;
+  }
+  function isDarkOutside(lat, lon, date = new Date()) {
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return false;
+    return solarElevationDegrees(lat, lon, date) < -0.833;
   }
 
   // Keep Google's current Roadmap visual language as the basemap rather than
@@ -6545,6 +6580,15 @@
       ? { lat: latestDevicePosition.coords.latitude, lng: latestDevicePosition.coords.longitude }
       : null;
     const centre = liveCentre || fallbackCentre;
+    // Dark basemap from sunset to sunrise. Without a fix yet, the time zone
+    // gives the longitude closely enough to place sunset. Maps JS reads
+    // colorScheme only here, so a map opened before sunset turns dark the
+    // next time the app opens.
+    const darkOutside = isDarkOutside(
+      liveCentre ? liveCentre.lat : fallbackCentre.lat,
+      liveCentre ? liveCentre.lng : -new Date().getTimezoneOffset() / 4,
+    );
+    const mapDark = prefersDarkMode() || darkOutside;
     map = new google.maps.Map($('#googleMap'), {
       center: centre,
       zoom: liveCentre ? 15 : 14,
@@ -6564,8 +6608,8 @@
       headingInteractionEnabled: true,
       isFractionalZoomEnabled: true,
       mapTypeId: 'roadmap',
-      colorScheme: 'FOLLOW_SYSTEM',
-      backgroundColor: prefersDarkMode() ? '#080d10' : '#f2f5f6',
+      colorScheme: darkOutside ? 'DARK' : 'FOLLOW_SYSTEM',
+      backgroundColor: mapDark ? '#080d10' : '#f2f5f6',
     });
     map.addListener?.('dragstart', () => {
       if (!navSteps.length) return;
@@ -6596,6 +6640,7 @@
       position,
       title: current ? 'Your location' : person.displayName,
       icon: riderAvatarMapIcon(person, current, status),
+      label: current ? null : { text: riderMapLabel(person.displayName), className: 'rider-map-label', color: '#ffffff', fontSize: '12px', fontWeight: '800' },
       zIndex: current ? 10 : 5,
     });
     marker.addListener('click', () => selectRider(person.riderId, visibleMapRiders()));

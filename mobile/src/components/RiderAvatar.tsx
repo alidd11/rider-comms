@@ -3,6 +3,8 @@ import { View, StyleSheet } from 'react-native';
 import Svg, { Circle, ClipPath, Defs, Ellipse, G, LinearGradient, Path, RadialGradient, Stop } from 'react-native-svg';
 import { getAvatarPreset, type AvatarPreset } from '../settings/avatars';
 
+export const GROUP_RING_COLOUR = '#A78BFA';
+
 export type RiderAvatarStatus = 'none' | 'online' | 'stale';
 
 interface RiderAvatarProps {
@@ -11,6 +13,8 @@ interface RiderAvatarProps {
   mapMarker?: boolean;
   selected?: boolean;
   status?: RiderAvatarStatus;
+  /** Group-ride members wear a violet ring on the map (PWA: groupRing). */
+  groupRing?: boolean;
 }
 
 // Shared side-on artwork geometry (64px master). docs/avatar-system.js
@@ -114,13 +118,14 @@ export function RiderAvatar({
   mapMarker = false,
   selected = false,
   status = 'none',
+  groupRing = false,
 }: RiderAvatarProps): React.JSX.Element {
   const preset = getAvatarPreset(avatarId);
   // Gradient ids only need to be unique inside this Svg.
   const uid = preset.id;
   const viewBoxHeight = mapMarker ? 72 : 64;
   const renderedHeight = size * (viewBoxHeight / 64);
-  const stroke = selected ? '#22D3EE' : preset.bg;
+  const stroke = selected ? '#22D3EE' : groupRing ? GROUP_RING_COLOUR : preset.bg;
   const tailFill = selected ? '#22D3EE' : '#071015';
   const statusFill = status === 'online' ? '#35E68A' : status === 'stale' ? '#78909A' : null;
 
@@ -147,7 +152,7 @@ export function RiderAvatar({
           </ClipPath>
         </Defs>
         {mapMarker ? <Path d={MAP_TAIL_PATH} fill={tailFill} stroke="#071015" strokeWidth="2" /> : null}
-        <Circle cx="32" cy="32" r="30" fill={`url(#rc-disc-${uid})`} stroke={stroke} strokeWidth={selected ? 3 : 2} />
+        <Circle cx="32" cy="32" r="30" fill={`url(#rc-disc-${uid})`} stroke={stroke} strokeWidth={selected || groupRing ? 3 : 2} />
         {selected ? <Circle cx="32" cy="32" r="27.5" fill="none" stroke="#22D3EE" strokeWidth="1" opacity="0.55" /> : null}
 
         <G clipPath={`url(#rc-clip-${uid})`}>

@@ -176,7 +176,7 @@ if (!nativeMapSource.includes('pendingHazardReportLocation.current = { lat: loca
 
 if (
   !/mapTypeId:\s*['"]roadmap['"]/.test(pwaMapSource)
-  || !/colorScheme:\s*['"]FOLLOW_SYSTEM['"]/.test(pwaMapSource)
+  || !/colorScheme:\s*(?:darkOutside \? ['"]DARK['"] : )?['"]FOLLOW_SYSTEM['"]/.test(pwaMapSource)
   || !/renderingType:\s*google\.maps\.RenderingType\.VECTOR/.test(pwaMapSource)
   || !/tiltInteractionEnabled:\s*true/.test(pwaMapSource)
   || !/headingInteractionEnabled:\s*true/.test(pwaMapSource)

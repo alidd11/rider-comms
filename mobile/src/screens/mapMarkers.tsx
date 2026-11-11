@@ -2,7 +2,7 @@
 // they have no dependency on MapScreen's own state/hooks -- each takes its
 // data as props and owns nothing beyond its own animation refs.
 import * as React from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, Text } from 'react-native';
 import { Marker } from 'react-native-maps';
 import type { HazardReport } from '@rider-comms/shared';
 import { RIDE_LOCATION_REFRESH_MS } from '../ride/RideContext';
@@ -110,6 +110,11 @@ export function SmoothSelfMarker({
   );
 }
 
+// The pin's tail tip sits on the rider's location; the name hangs below it.
+const MEMBER_AVATAR_HEIGHT = 40 * (72 / 64);
+const MEMBER_LABEL_HEIGHT = 18;
+const MEMBER_MARKER_ANCHOR = { x: 0.5, y: MEMBER_AVATAR_HEIGHT / (MEMBER_AVATAR_HEIGHT + 2 + MEMBER_LABEL_HEIGHT) };
+
 export function SmoothRideMemberMarker({
   location,
   avatarId,
@@ -142,15 +147,36 @@ export function SmoothRideMemberMarker({
       coordinate={initialCoordinate}
       title={displayName}
       description="Private ride member · live location"
-      anchor={{ x: 0.5, y: 1 }}
+      anchor={MEMBER_MARKER_ANCHOR}
       tracksViewChanges={false}
     >
-      <RiderAvatar avatarId={avatarId} size={40} mapMarker status={status} />
+      <View style={styles.memberMarker}>
+        <RiderAvatar avatarId={avatarId} size={40} mapMarker status={status} groupRing />
+        <View style={styles.memberLabel}>
+          <Text style={styles.memberLabelText} numberOfLines={1}>{riderMapLabel(displayName)}</Text>
+        </View>
+      </View>
     </Marker>
   );
 }
 
+/** The name under a ride member's map marker (PWA: riderMapLabel). */
+export function riderMapLabel(displayName: string): string {
+  const first = String(displayName || '').trim().split(/\s+/)[0] || 'Rider';
+  return first.length > 12 ? `${first.slice(0, 11)}…` : first;
+}
+
 const styles = StyleSheet.create({
+  memberMarker: { alignItems: 'center' },
+  memberLabel: {
+    marginTop: 2,
+    height: MEMBER_LABEL_HEIGHT,
+    justifyContent: 'center',
+    paddingHorizontal: 7,
+    borderRadius: 999,
+    backgroundColor: 'rgba(10,15,20,0.82)',
+  },
+  memberLabelText: { color: '#FFFFFF', fontSize: 12, fontWeight: '800' },
   hazardMarker: { alignItems: 'center', justifyContent: 'center' },
   hazardMarkerSelected: {
     shadowColor: '#35D6FF',
