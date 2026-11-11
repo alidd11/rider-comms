@@ -532,6 +532,7 @@ function FriendProfileModal({
 }
 
 export function FriendsScreen(): React.JSX.Element {
+  const rootNavigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { friends, incomingRequests, outgoingRequests, requestProfiles, activityByRider, conversations, friendProfileRevision, loading, error, refresh } = useFriends();
   const insets = useSafeAreaInsets();
   const { roster, rideLocations, shareRideLocation, setRideLocationSharing } = useRide();
@@ -575,6 +576,7 @@ export function FriendsScreen(): React.JSX.Element {
       >
         <ScreenHeader
           title="Friends"
+          onBack={() => rootNavigation.navigate('Tabs', { screen: 'Map', params: { segment: 'public', at: Date.now() } })}
           action={(
             <Pressable
               style={({ pressed }) => [styles.headerAdd, addOpen && styles.headerAddActive, pressed && styles.headerAddPressed]}
@@ -689,7 +691,9 @@ export function FriendsScreen(): React.JSX.Element {
         )}
       </ScrollView>
 
-      <RideBar />
+      <View style={{ paddingBottom: insets.bottom }}>
+        <RideBar />
+      </View>
       <FriendProfileModal
         friend={selectedFriend}
         activity={selectedFriend ? activityByRider[selectedFriend.riderId] : undefined}

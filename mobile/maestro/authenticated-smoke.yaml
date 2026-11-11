@@ -52,23 +52,30 @@ appId: com.ridercomms.app
 - tapOn:
     text: "Continue(,.*)?"
     optional: true
+# No tab bar: the map's Where to drawer holds Ride, Friends and Routes, and
+# each page has a back arrow to the map.
 - extendedWaitUntil:
-    visible: "Map(,.*)?"
+    visible:
+      id: drawer-ride
     timeout: 30000
 - waitForAnimationToEnd
 - takeScreenshot: authenticated-map
-- tapOn: "(Group )?Ride(,.*)?"
+- tapOn:
+    id: drawer-ride
 - takeScreenshot: authenticated-ride
-- tapOn: "Friends(,.*)?"
+- tapOn:
+    id: ride-back
+- tapOn:
+    id: drawer-friends
 - takeScreenshot: authenticated-friends
+- tapOn: "Go back"
 # Routes and Settings live in the menu behind the rider's avatar on the map.
-- tapOn: "Map(,.*)?"
 - tapOn:
     id: open-menu
 - takeScreenshot: authenticated-menu
 - tapOn: "Settings(,.*)?"
 - takeScreenshot: authenticated-settings
-# Settings lists categories, Waze-style: open one, then one of its pages.
+# Settings lists categories: open one, then one of its pages.
 - scrollUntilVisible:
     element: "Account and login"
     direction: DOWN

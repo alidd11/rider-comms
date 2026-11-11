@@ -161,11 +161,10 @@ export function PlaceSearchBar({
           setOpen(true);
           if (!near) void onRequestLocation();
         }}
-        accessibilityLabel="Search for a place"
+        accessibilityLabel="Where to?"
       >
         <Ionicons name="search" size={19} color={colors.textMuted} />
-        <Text style={styles.collapsedText}>Search for a place</Text>
-        <Ionicons name="options-outline" size={18} color={colors.textSecondary} />
+        <Text style={styles.collapsedText}>Where to?</Text>
       </Pressable>
 
       <Modal visible={open} animationType="slide" presentationStyle="fullScreen" onRequestClose={close}>

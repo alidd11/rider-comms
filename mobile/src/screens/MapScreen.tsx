@@ -31,7 +31,8 @@ import { ProximityVoice } from '../voice/ProximityVoice';
 import { HostPanel } from '../ride/HostPanel';
 import { parseRideInviteLink } from '../ride/rideInvite';
 import { useSettings } from '../settings/SettingsContext';
-import { PlaceSearchBar } from './PlaceSearchBar';
+import { MapDrawer } from './MapDrawer';
+import { useFriends } from '../friends/FriendsContext';
 import type { PlaceResult } from '../api/places';
 import { HazardReportSheet } from './HazardReportSheet';
 import { HazardDetailCard } from '../components/HazardDetailCard';
@@ -82,6 +83,10 @@ export function MapScreen(): React.JSX.Element {
   const { lockedForSafety, movementState, speedMps, locationAccess, requestLocationAccess, openLocationSettings, refreshTracking } = useMovementSafety();
   const { muted: voiceMuted, toggleMuted: toggleVoiceMuted, voiceConnected } = useVoiceMute();
   const [rideBarHeight, setRideBarHeight] = React.useState(0);
+  // The Where to drawer (PWA: #mapDrawer) and its resting height.
+  const [drawerOpen, setDrawerOpen] = React.useState(false);
+  const [drawerPeek, setDrawerPeek] = React.useState(0);
+  const { incomingRequests, unreadMessageCount } = useFriends();
   const insets = useSafeAreaInsets();
   const { height: viewportHeight } = useWindowDimensions();
   const route = useRoute<RouteProp<TabParamList, 'Map'>>();
@@ -217,8 +222,6 @@ export function MapScreen(): React.JSX.Element {
       ? `Live on Nearby${ridersInZone.length ? ` · ${ridersInZone.length} ${ridersInZone.length === 1 ? 'rider' : 'riders'} nearby` : ''}`
       : 'Nearby off';
   const hudSpeed = speedMps == null ? null : Math.round(speedMps * (unitSystem === 'km' ? 3.6 : 2.23694));
-  // Bottom controls sit above the ride bar while a group ride is showing.
-  const bottomBarOffset = activeRide && rideBarHeight > 0 ? rideBarHeight : insets.bottom + spacing.sm;
 
   const hasCurrentLocation = currentLocation !== null;
   const requestCurrentLocationForHazardReport = React.useCallback(
@@ -322,6 +325,7 @@ export function MapScreen(): React.JSX.Element {
   React.useEffect(() => {
     if (route.params?.segment) {
       setSegment(route.params.segment);
+      setDrawerOpen(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [route.params?.at]);
@@ -510,6 +514,14 @@ export function MapScreen(): React.JSX.Element {
     }
   }
 
+  // The drawer steps aside while navigating, while Ride Safe locks the
+  // controls, and while a place or hazard card owns the bottom of the map.
+  const drawerVisible = segment === 'public' && !lockedForSafety && !activeRoute && !selectedDestination && !selectedHazard;
+  const bottomInset = drawerVisible && drawerPeek > 0 ? drawerPeek : insets.bottom;
+  // Bottom controls sit above the drawer, and above the ride bar while a
+  // group ride is showing.
+  const bottomBarOffset = activeRide && rideBarHeight > 0 && !(drawerVisible && drawerOpen) ? rideBarHeight : bottomInset + spacing.sm;
+
   return (
     <View style={styles.container}>
       {segment === 'public' || lockedForSafety ? (
@@ -629,7 +641,7 @@ export function MapScreen(): React.JSX.Element {
         </View>
       ) : (
         <View style={styles.hostFill}>
-          <HostPanel inviteCode={inviteCode} />
+          <HostPanel inviteCode={inviteCode} onBack={() => navigation.setParams({ segment: 'public', at: Date.now() })} />
         </View>
       )}
 
@@ -646,13 +658,6 @@ export function MapScreen(): React.JSX.Element {
           >
             <RiderAvatar avatarId={avatarId} size={44} mapMarker={false} status="none" />
           </Pressable>
-          <View style={styles.searchFlex}>
-            <PlaceSearchBar
-              near={currentLocation}
-              onRequestLocation={async () => { await requestCurrentLocation(true); }}
-              onSelect={selectPlace}
-            />
-          </View>
         </View>
       )}
 
@@ -844,7 +849,7 @@ export function MapScreen(): React.JSX.Element {
           nowPlaying={nowPlaying}
           controlsLocked={lockedForSafety}
           onChanged={refreshNowPlaying}
-          style={{ left: spacing.md, right: spacing.md + 54 + spacing.md, bottom: insets.bottom + spacing.sm }}
+          style={{ left: spacing.md, right: spacing.md + 54 + spacing.md, bottom: bottomInset + spacing.sm }}
         />
       )}
 
@@ -1047,9 +1052,28 @@ export function MapScreen(): React.JSX.Element {
         </View>
       )}
 
+      {drawerVisible && (
+        <MapDrawer
+          near={currentLocation}
+          onRequestLocation={async () => { await requestCurrentLocation(true); }}
+          onSelectPlace={selectPlace}
+          onRide={() => { setDrawerOpen(false); navigation.setParams({ segment: 'host', at: Date.now() }); }}
+          onFriends={() => { setDrawerOpen(false); navigation.navigate('Friends'); }}
+          onRoutes={() => { setDrawerOpen(false); rootNavigation?.navigate('Routes'); }}
+          rideLive={Boolean(activeRide)}
+          friendsCount={incomingRequests.length + unreadMessageCount}
+          open={drawerOpen}
+          onOpenChange={setDrawerOpen}
+          onPeekHeight={setDrawerPeek}
+          bottomInset={insets.bottom}
+        />
+      )}
+
+      {/* Faded, not unmounted, while the drawer is open: the ride bar holds
+          the group voice connection. */}
       <View
-        style={styles.rideBarSlot}
-        pointerEvents="box-none"
+        style={[styles.rideBarSlot, { paddingBottom: bottomInset + spacing.sm }, drawerVisible && drawerOpen && styles.rideBarHidden]}
+        pointerEvents={drawerVisible && drawerOpen ? 'none' : 'box-none'}
         onLayout={(event) => setRideBarHeight(event.nativeEvent.layout.height)}
       >
         <RideBar controlsVisible={!activeRoute} />

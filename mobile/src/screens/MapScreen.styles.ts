@@ -19,7 +19,6 @@ export const styles = StyleSheet.create({
     zIndex: 9,
   },
   searchRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  searchFlex: { flex: 1, minWidth: 0 },
   menuButton: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
   menuButtonPressed: { opacity: 0.8 },
   mapActions: {
@@ -432,6 +431,7 @@ export const styles = StyleSheet.create({
   navigationSummaryValue: { ...type.heading, color: colors.textPrimary, fontSize: 21, lineHeight: 27, textAlign: 'center' },
   navigationSummaryLabel: { ...type.caption, color: colors.textMuted, marginTop: 2, textAlign: 'center', textTransform: 'uppercase' },
   rideBarSlot: { marginTop: 'auto', paddingHorizontal: spacing.lg, paddingBottom: spacing.lg },
+  rideBarHidden: { opacity: 0 },
   safetyBanner: {
     position: 'absolute', left: spacing.lg, right: spacing.lg,
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,

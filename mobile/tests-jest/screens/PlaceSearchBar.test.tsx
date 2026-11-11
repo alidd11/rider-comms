@@ -57,7 +57,7 @@ async function renderSearchBar(overrides: Partial<Props> = {}) {
 }
 
 async function openSearch() {
-  await fireEvent.press(screen.getByLabelText('Search for a place'));
+  await fireEvent.press(screen.getByLabelText('Where to?'));
 }
 
 async function typeQuery(value: string) {
