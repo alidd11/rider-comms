@@ -249,6 +249,17 @@ async function openTab(page, screen) {
   await tab.click();
 }
 
+const SETTINGS_PARENT = { navigationApp: 'mapNavigation', blockedRiders: 'privacy', devices: 'account', email: 'account' };
+/** Settings is Waze-style: open a category from the root, then its page. */
+async function openSettingsPage(page, key) {
+  const parent = SETTINGS_PARENT[key];
+  if (parent) {
+    if (await page.locator('#sheetBackdrop').isVisible()) await page.locator('#closeSheetAll').click();
+    await page.locator(`#settingsList [data-settings-open="${parent}"]`).click();
+  }
+  await page.locator(`#sheetBody [data-settings-open="${key}"], #settingsList [data-settings-open="${key}"]`).first().click();
+}
+
 async function openFromMenu(page, screen) {
   await openTab(page, 'map');
   await page.locator('#mapAvatarButton').click();
@@ -2302,34 +2313,47 @@ test('PWA Settings is a real settings list matching the native app', async ({ pa
   });
   await page.goto('/#settings');
 
-  // A real settings list: sections of actual settings, in order.
-  await expect(page.locator('#settingsList .settings-section-title')).toHaveText(['Riding', 'Map & navigation', 'Privacy', 'Account', 'About']);
+  // Waze-style: the root lists categories, each opening its own page.
+  await expect(page.locator('#settingsList .settings-section-title')).toHaveText(['Account']);
   await expect(page.locator('#settingsList .settings-row-label')).toHaveText([
-    'Ride Safe auto-lock', 'Distance units',
-    'Navigation app', 'Avoid motorways', 'Avoid tolls',
-    'Nearby rider visibility', 'Blocked riders',
-    'Email', 'Signed-in devices', 'Reset settings', 'Delete account',
-    'About',
+    'General', 'Map & navigation', 'Ride Safe', 'Account and login', 'Privacy', 'About',
   ]);
-  // Switches act in place; choices show their current value.
-  await expect(page.locator('#settingsList [data-toggle]')).toHaveCount(4);
-  await expect(page.locator('[data-settings-open="distanceUnits"] .settings-row-value')).toHaveText('Miles');
-  await expect(page.locator('[data-settings-open="navigationApp"] .settings-row-value')).toHaveText('Google Maps');
+  await expect(page.locator('#settingsList .settings-category-icon')).toHaveCount(6);
+  await expect(page.locator('.settings-version')).toHaveText('Version 0.3.0');
   await expect(page.locator('.settings-page')).not.toContainText('Offline Maps');
   await expect(page.locator('.settings-page')).not.toContainText('Communication');
   // Help & Support and the profile live in the avatar menu only.
   await expect(page.locator('.settings-page')).not.toContainText('Help & Support');
   await expect(page.locator('.settings-profile-row')).toHaveCount(0);
-  await expect(page.locator('#logoutBtn')).toHaveText('Sign Out');
-  await expect(page.locator('#logoutBtn > svg')).toHaveCount(0);
 
-  // A choice opens its page, and the list shows the new value on return.
-  await page.locator('[data-settings-open="distanceUnits"]').click();
-  await expect(page.locator('#sheetTitle')).toHaveText('Distance units');
-  await page.locator('[data-unit-option="km"]').click();
-  await expect(page.locator('[data-unit-option="km"]')).toHaveAttribute('aria-checked', 'true');
+  // Each page has a centred title between back and close.
+  await page.locator('[data-settings-open="general"]').click();
+  await expect(page.locator('#sheetTitle')).toHaveText('General');
+  await expect(page.locator('#closeSheetAll')).toBeVisible();
+  // Distance units is a segmented control that saves straight away.
+  await expect(page.locator('[data-unit-segment="mi"]')).toHaveAttribute('aria-checked', 'true');
+  await page.locator('[data-unit-segment="km"]').click();
+  await expect(page.locator('[data-unit-segment="km"]')).toHaveAttribute('aria-checked', 'true');
+  expect(profile.unitSystem).toBe('km');
   await page.locator('#closeSheet').click();
-  await expect(page.locator('[data-settings-open="distanceUnits"] .settings-row-value')).toHaveText('Kilometres');
+  await expect(page.locator('#sheetBackdrop')).toBeHidden();
+
+  // A page opened from a category page goes back to it; X closes them all.
+  await page.locator('[data-settings-open="mapNavigation"]').click();
+  await expect(page.locator('[data-settings-open="navigationApp"] .settings-row-value')).toHaveText('Google Maps');
+  await expect(page.locator('#sheetBody [data-toggle]')).toHaveCount(2);
+  await openSettingsPage(page, 'navigationApp');
+  await expect(page.locator('#sheetTitle')).toHaveText('Navigation app');
+  await page.locator('#closeSheet').click();
+  await expect(page.locator('#sheetTitle')).toHaveText('Map & navigation');
+  await page.locator('#closeSheetAll').click();
+  await expect(page.locator('#sheetBackdrop')).toBeHidden();
+
+  // Sign out lives in Account and login, with reset and delete.
+  await page.locator('[data-settings-open="account"]').click();
+  await expect(page.locator('#sheetBody .settings-page-heading')).toHaveText(['Login info', 'Advanced']);
+  await expect(page.locator('#sheetBody .settings-row-label')).toHaveText(['Email', 'Signed-in devices', 'Sign out', 'Reset settings', 'Delete account']);
+  await page.locator('#closeSheetAll').click();
 
   await page.locator('[data-settings-open="about"]').click();
   await expect(page.locator('#sheetTitle')).toHaveText('About');
@@ -2352,7 +2376,7 @@ test('PWA settings sheets own the bottom edge without competing with app chrome'
   // Location is blocked in this mock, so the banner shows on Settings too.
   await expect(banner).toBeVisible();
 
-  await page.locator('[data-settings-open="blockedRiders"]').click();
+  await openSettingsPage(page, 'blockedRiders');
   await expect(page.locator('#sheetBackdrop')).toBeVisible();
   await expect(page.locator('html')).toHaveClass(/sheet-open/);
   await expect(app).toHaveAttribute('inert', '');
@@ -2375,7 +2399,7 @@ test('PWA settings sheets own the bottom edge without competing with app chrome'
     fullPage: true,
   });
 
-  await page.locator('#closeSheet').click();
+  await page.locator('#closeSheetAll').click();
   await expect(page.locator('html')).not.toHaveClass(/sheet-open/);
   await expect(app).not.toHaveAttribute('inert', '');
   await expect(nav).toBeHidden();
@@ -2445,21 +2469,22 @@ test('PWA navigation preference offers Rider Comms, Google Maps, Waze and Apple 
   await mockAuthenticatedApi(page);
   await page.goto('/#settings');
 
-  await page.locator('[data-settings-open="navigationApp"]').click();
+  await openSettingsPage(page, 'navigationApp');
   const options = page.locator('[data-navigation-option]');
   await expect(options).toHaveCount(4);
   await expect(page.locator('[data-navigation-option="google_maps"]')).toHaveAttribute('aria-checked', 'true');
 
   await page.locator('[data-navigation-option="waze"]').click();
   await expect(page.locator('[data-navigation-option="waze"]')).toHaveAttribute('aria-checked', 'true');
+  // Back to Map & navigation, which shows the new choice.
   await page.locator('#closeSheet').click();
   await expect(page.locator('[data-settings-open="navigationApp"] .settings-row-value')).toHaveText('Waze');
-  await page.locator('[data-settings-open="navigationApp"]').click();
+  await openSettingsPage(page, 'navigationApp');
   await expect(page.locator('[data-navigation-option="waze"]')).toHaveAttribute('aria-checked', 'true');
   await page.locator('#closeSheet').click();
 
   await page.reload();
-  await page.locator('[data-settings-open="navigationApp"]').click();
+  await openSettingsPage(page, 'navigationApp');
   await expect(page.locator('[data-navigation-option="waze"]')).toHaveAttribute('aria-checked', 'true');
 });
 
@@ -2467,9 +2492,10 @@ test('PWA route options avoid motorways and tolls and survive a reload', async (
   await mockAuthenticatedApi(page);
   await page.goto('/#settings');
 
-  // The switches are on the Settings list itself.
-  const motorways = page.locator('#settingsList [data-toggle="avoidHighways"]');
-  const tolls = page.locator('#settingsList [data-toggle="avoidTolls"]');
+  // The switches are on the Map & navigation page.
+  await page.locator('[data-settings-open="mapNavigation"]').click();
+  const motorways = page.locator('#sheetBody [data-toggle="avoidHighways"]');
+  const tolls = page.locator('#sheetBody [data-toggle="avoidTolls"]');
   await expect(motorways).toHaveAttribute('aria-pressed', 'false');
   await expect(tolls).toHaveAttribute('aria-pressed', 'false');
 
@@ -2479,6 +2505,7 @@ test('PWA route options avoid motorways and tolls and survive a reload', async (
   await assertNoViewportOverflow(page);
 
   await page.reload();
+  await page.locator('[data-settings-open="mapNavigation"]').click();
   await expect(page.locator('[data-toggle="avoidHighways"]')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('[data-toggle="avoidTolls"]')).toHaveAttribute('aria-pressed', 'false');
 });
@@ -3095,8 +3122,9 @@ test('PWA View profile is your profile, separate from editing it and from Accoun
 
   // Settings has the account rows, never the profile or the plan.
   await openFromMenu(page, 'settings');
-  await expect(page.locator('#settingsList')).toContainText('Signed-in devices');
-  await expect(page.locator('#settingsList')).toContainText('Delete account');
+  await page.locator('[data-settings-open="account"]').click();
+  await expect(page.locator('#sheetBody')).toContainText('Signed-in devices');
+  await expect(page.locator('#sheetBody')).toContainText('Delete account');
   await expect(page.locator('#editName')).toHaveCount(0);
   await expect(page.locator('.plan-card')).toHaveCount(0);
 });
@@ -3300,17 +3328,17 @@ test('@viewport full-screen overlays and sheets share the stable standalone bott
   await openFromMenu(page, 'settings');
 
   // Settings options are full-screen pages; they share the same edge.
-  await page.locator('[data-settings-open="navigationApp"]').click();
+  await openSettingsPage(page, 'navigationApp');
   await assertSheet('navigation-app-page');
 
-  await page.locator('[data-settings-open="blockedRiders"]').click();
+  await openSettingsPage(page, 'blockedRiders');
   await assertSheet('blocked-riders-page');
 
-  await page.locator('[data-settings-open="devices"]').click();
+  await openSettingsPage(page, 'devices');
   await assertSheet('devices-page');
 
   // Repeat a page transition to catch accumulated bottom offsets.
-  await page.locator('[data-settings-open="navigationApp"]').click();
+  await openSettingsPage(page, 'navigationApp');
   await assertSheet('navigation-app-page-repeat');
 
   await openTab(page, 'friends');
@@ -3365,17 +3393,16 @@ test('PWA exposes session management and account deletion', async ({ page }) => 
   });
 
   await page.goto('/#settings');
-  await page.locator('[data-settings-open="devices"]').click();
+  await openSettingsPage(page, 'devices');
   await expect(page.locator('#sessionList')).toContainText('Other phone');
   await page.locator('[data-revoke-session="session-remote"]').click();
   await expect(page.locator('#sessionList')).not.toContainText('Other phone');
   expect(remoteRevoked).toBe(true);
 
+  // Back to Account and login, where delete sits under Advanced.
   await page.locator('#closeSheet').click();
   page.on('dialog', (dialog) => void dialog.accept());
-  await page.evaluate(() => {
-    document.querySelector('#deleteAccountBtn')?.click();
-  });
+  await page.locator('#deleteAccountBtn').click();
   await expect.poll(() => accountDeleted).toBe(true);
 });
 
@@ -3445,10 +3472,10 @@ test('PWA screens have no automatically detectable accessibility violations', as
     await expect(page.locator(readySelector)).toBeVisible();
     await expectNoAxeViolations(page, screen);
   }
-  await page.locator('[data-settings-open="devices"]').click();
+  await openSettingsPage(page, 'devices');
   await expect(page.locator('[data-settings-section="sessions"]')).toBeVisible();
   await expectNoAxeViolations(page, 'settings-devices-page');
-  await page.locator('#closeSheet').click();
+  await page.locator('#closeSheetAll').click();
   await openOwnProfile(page, { edit: true });
   await expect(page.locator('[data-settings-section="profile"]')).toBeVisible();
   await expectNoAxeViolations(page, 'edit-profile-page');
@@ -3599,7 +3626,7 @@ test('PWA Settings lists blocked riders and can unblock them', async ({ page }) 
   });
   page.on('dialog', (dialog) => void dialog.accept());
   await page.goto('/#settings');
-  await page.locator('[data-settings-open="blockedRiders"]').click();
+  await openSettingsPage(page, 'blockedRiders');
   await expect(page.locator('#blockedRidersList')).toContainText('Blocked Rider');
   await page.locator('[data-unblock="rider_blocked01"]').click();
   await expect.poll(() => unblocked).toEqual(['rider_blocked01']);

@@ -285,6 +285,7 @@
     $('#navReportBtn').addEventListener('click', openHazardReport);
     $('#hudMuteBtn').addEventListener('click', () => void toggleVoiceMute());
     $('#closeSheet').addEventListener('click', sheetBack);
+    $('#closeSheetAll').addEventListener('click', () => closeSheet());
     $('#sheetBackdrop').addEventListener('click', (event) => { if (event.target === $('#sheetBackdrop')) closeSheet(); });
     document.addEventListener('keydown', (event) => {
       if ($('#sheetBackdrop').hidden) return;
@@ -307,17 +308,6 @@
       } else if (!event.shiftKey && document.activeElement === last) {
         event.preventDefault();
         first.focus();
-      }
-    });
-    $('#logoutBtn').addEventListener('click', async () => {
-      if (!window.confirm('Sign out of Rider Comms on this device?')) return;
-      try {
-        await apiFetch('POST', '/auth/logout');
-      } catch {
-        // Local sign-out must still complete when the API is unavailable.
-      } finally {
-        clearSession();
-        location.reload();
       }
     });
     $('#locateBtn').addEventListener('click', locate);

@@ -2999,3 +2999,59 @@ body:has(.screen-map.active) .movement-safety-banner{bottom:calc(var(--bottom-na
 html.ride-pill-visible body:has(.screen-map.active) .movement-safety-banner{bottom:calc(var(--bottom-nav-height) + 146px)}
 /* Ride members' first names under their map markers. */
 .rider-map-label{padding:2px 7px;border-radius:999px;background:rgb(10 15 20/.82);box-shadow:0 2px 6px rgb(0 0 0/.3);white-space:nowrap}
+/* Settings, Waze-style (Nov 2026): grouped full-width rows on a darker page,
+   coloured round icons on the category list, centred titles with back and
+   close, values in grey before the chevron. Native: SettingsScreen.tsx. */
+[data-screen="settings"] .settings-page{padding-left:0;padding-right:0;background:var(--settings-page-bg)}
+:root{--settings-page-bg:#000;--settings-group-bg:#202124;--settings-separator:rgb(255 255 255/.1)}
+@media(prefers-color-scheme:light){:root{--settings-page-bg:#f2f2f7;--settings-group-bg:#fff;--settings-separator:rgb(0 0 0/.1)}}
+[data-screen="settings"]{background:var(--settings-page-bg)}
+[data-screen="settings"] .settings-page>.page-header{position:relative;display:grid;grid-template-columns:48px 1fr 48px;align-items:center;margin:0;padding:6px 4px 10px;background:var(--settings-group-bg);border-bottom:1px solid var(--settings-separator)}
+[data-screen="settings"] .settings-page>.page-header h1{margin:0;text-align:center;font-size:1.15rem;font-weight:700;letter-spacing:0}
+[data-screen="settings"] .settings-page>.page-header .page-back{border:0;background:transparent}
+#settingsList.settings-list,.settings-page-mode .settings-page-section{display:block;margin:0}
+#settingsList .settings-section{display:block;margin:0}
+#settingsList .settings-section+.settings-section{margin-top:28px}
+#settingsList .settings-section:first-child{margin-top:28px}
+#settingsList .settings-section-title,.settings-page-mode .settings-page-heading{margin:0;padding:0 16px 8px;color:var(--text-secondary);font-size:.95rem;font-weight:500;letter-spacing:0;text-transform:none}
+#settingsList .settings-rows,.settings-page-mode .settings-rows{border:0;border-top:1px solid var(--settings-separator);border-bottom:1px solid var(--settings-separator);border-radius:0;background:var(--settings-group-bg);overflow:hidden}
+#settingsList .settings-row,.settings-page-mode .settings-row{position:relative;width:100%;min-height:58px;display:flex;align-items:center;gap:14px;padding:8px 16px;border:0;background:transparent;color:var(--text);font:inherit;font-size:1.02rem;text-align:left}
+#settingsList .settings-row+.settings-row::before,.settings-page-mode .settings-row+.settings-row::before{content:"";position:absolute;top:0;left:16px;right:16px;border-top:1px solid var(--settings-separator)}
+#settingsList .settings-row-category{min-height:64px}
+#settingsList .settings-row-category+.settings-row-category::before{left:68px}
+.settings-category-icon{width:40px;height:40px;flex:none;display:grid;place-items:center;border-radius:50%;background:var(--tint);color:#fff}
+.settings-category-icon svg{width:22px;height:22px;color:#fff;stroke:currentColor}
+#settingsList .settings-row-label,.settings-page-mode .settings-row-label{flex:1;min-width:0;font-weight:500}
+.settings-page-mode .settings-row-label small{display:block;margin-top:2px;color:var(--text-secondary);font-size:.85rem;font-weight:400}
+#settingsList .settings-row-chevron svg,.settings-page-mode .settings-row-chevron svg{width:16px;height:16px;color:var(--text-muted)}
+.settings-page-mode .settings-row-value{color:var(--text-secondary);font-size:.95rem;white-space:nowrap}
+.settings-page-mode .settings-row-danger .settings-row-label{color:#f07474}
+.settings-page-mode .settings-section-note{margin:0;padding:10px 16px 0;color:var(--text-secondary);font-size:.85rem;line-height:1.4}
+.settings-version{margin:36px 0 calc(24px + var(--safe-bottom,0px));text-align:center;color:var(--text-muted);font-size:.9rem}
+/* Subpages: full-width groups and a centred title between back and close. */
+.sheet-backdrop.settings-page-mode{background:var(--settings-page-bg)}
+.sheet-backdrop.settings-page-mode .sheet{padding-left:0;padding-right:0;background:var(--settings-page-bg)}
+.settings-page-mode .sheet>header{display:grid;grid-template-columns:48px 1fr 48px;flex-direction:initial;align-items:center;gap:0;margin:calc(-1 * (var(--safe-top) + 8px)) 0 0;padding:calc(var(--safe-top) + 6px) 4px 10px;background:var(--settings-group-bg);border-bottom:1px solid var(--settings-separator)}
+.settings-page-mode #closeSheet{grid-column:1;grid-row:1;margin:0}
+.settings-page-mode #sheetTitle{grid-column:2;grid-row:1;margin:0;text-align:center;font-size:1.15rem;font-weight:700;letter-spacing:0}
+.settings-page-mode #closeSheetAll{grid-column:3;grid-row:1;width:40px;height:40px;border:0;background:transparent;color:var(--text)}
+.settings-page-mode #closeSheetAll svg{width:22px;height:22px}
+.settings-page-mode .sheet-body{width:100%;max-width:none;gap:28px;padding-top:28px}
+/* Distance units: a Waze-style segmented control under its label. */
+.settings-row-stack{flex-direction:column;align-items:stretch!important;gap:10px!important;padding-top:14px!important;padding-bottom:14px!important}
+.segmented{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;padding:3px;border-radius:999px;background:var(--surface-raised)}
+.segmented button{min-height:40px;border:0;border-radius:999px;background:transparent;color:var(--text-secondary);font:inherit;font-weight:600}
+.segmented button[aria-checked=true]{background:var(--settings-page-bg);color:var(--text);box-shadow:0 0 0 1px var(--settings-separator)}
+@media(min-width:700px){#settingsList .settings-rows,.settings-page-mode .settings-rows{max-width:640px;margin:0 auto;border:1px solid var(--settings-separator);border-radius:12px}#settingsList .settings-section-title,.settings-page-mode .settings-page-heading,.settings-page-mode .settings-section-note{max-width:640px;margin-left:auto;margin-right:auto}}
+#app [data-screen="settings"] .page-width.settings-page{width:100%;max-width:none;margin:0;padding-left:0;padding-right:0}
+#app [data-screen="settings"] .settings-page>.page-header{margin:0;border-radius:0}
+#app .screen.content-screen[data-screen="settings"]{padding-left:0;padding-right:0;padding-top:var(--safe-top);background:var(--settings-page-bg)}
+#app [data-screen="settings"] .settings-page>.page-header{padding-left:max(4px,var(--safe-left));padding-right:max(4px,var(--safe-right))}
+/* Older pages a category opens (Navigation app, Blocked riders…): their
+   notes and cards keep the same side margins as the rows. */
+.settings-page-mode .settings-page-section>:not(.settings-rows):not(.choice-list):not(.settings-section-note){margin-left:16px;margin-right:16px}
+.settings-page-mode .choice-list{border-radius:0;border-left:0;border-right:0}
+/* Full-width rows in portrait, but never under a notch in landscape; the
+   strip under the status bar matches the header. */
+#app .screen.content-screen[data-screen="settings"]{padding-left:var(--safe-left,0px);padding-right:var(--safe-right,0px);padding-top:calc(var(--safe-top) + 4px);background:var(--settings-page-bg)}
+#app [data-screen="settings"] .settings-page>.page-header{margin-top:calc(-1 * (var(--safe-top) + 4px));padding-top:calc(var(--safe-top) + 10px)}

@@ -13,7 +13,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Legal'>;
 
 const sections = [
   { title: 'Your privacy', text: 'Your sign-in is kept in your device’s secure storage. Location is shared only when you choose: going live on Nearby, or switching it on for a group ride. Voice is carried live and never recorded. You can delete your account and its data at any time in Settings.' },
-  { title: 'Your choices', text: 'Location sharing starts off. Instagram and TikTok usernames each have Public, Friends only or Private visibility. You can review and undo blocks in Settings → Blocked riders.' },
+  { title: 'Your choices', text: 'Location sharing starts off. Instagram and TikTok usernames each have Public, Friends only or Private visibility. You can review and undo blocks in Settings → Privacy → Blocked riders.' },
   { title: 'Rider safety and conduct', text: 'Harassment, hate, sexual content, threats, stalking, spam and impersonation aren’t allowed. Report or block a rider from their profile, a chat, the ride roster, a friend request or the Nearby Voice rider list. Reports are reviewed within 24 hours.' },
   { title: 'Riding safety', text: 'Don’t look at or touch your phone while moving. Rider Comms locks distracting controls when it detects you’re riding. Stop somewhere safe first.' },
 ];

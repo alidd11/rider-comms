@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { View, Text, Pressable, TextInput, ScrollView, Modal, Switch, Alert, ActivityIndicator, Linking } from 'react-native';
+import { View, Text, Pressable, TextInput, ScrollView, Modal, Alert, ActivityIndicator, Linking } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
@@ -21,6 +21,7 @@ import { ScreenHeader } from '../components/ScreenHeader';
 import { RiderAvatar } from '../components/RiderAvatar';
 import type { AccountSessionSummary } from '../api/client';
 import { NAVIGATION_PROVIDER_OPTIONS, type NavigationProvider } from '../navigationPreference';
+import { CategoryRow, PlainRow, SegmentedRow, SettingsGroup, SettingsHeader, SwitchRow, useSettingsPalette } from './SettingsListUi';
 
 const UNIT_LABELS: Record<UnitSystem, { name: string; blurb: string }> = {
   mi: { name: 'Miles', blurb: 'Use miles and mph.' },
@@ -198,11 +199,16 @@ function AvatarPickerModal({
 /** The pages a settings row opens (the Settings list itself holds the
  * switches). Keys match the PWA's page tokens, see
  * scripts/check-client-parity.mjs. */
-export type SettingsPageKey = 'myProfile' | 'editProfile' | 'navigationApp' | 'distanceUnits' | 'blockedRiders' | 'email' | 'devices' | 'help' | 'about';
+export type SettingsPageKey = 'myProfile' | 'editProfile' | 'general' | 'mapNavigation' | 'rideSafe' | 'account' | 'privacy' | 'navigationApp' | 'distanceUnits' | 'blockedRiders' | 'email' | 'devices' | 'help' | 'about';
 
 export const SETTINGS_PAGE_TITLES: Record<SettingsPageKey, string> = {
   myProfile: 'Profile',
   editProfile: 'Edit profile',
+  general: 'General',
+  mapNavigation: 'Map & navigation',
+  rideSafe: 'Ride Safe',
+  account: 'Account and login',
+  privacy: 'Privacy',
   navigationApp: 'Navigation app',
   distanceUnits: 'Distance units',
   blockedRiders: 'Blocked riders',
@@ -241,32 +247,6 @@ function SettingsRow({ icon, title, subtitle, right, danger = false, showChevron
   );
 }
 
-/** A settings-list row with a switch that acts in place. */
-function SettingsSwitchRow({ icon, title, value, onValueChange, last = false }: {
-  icon: React.ComponentProps<typeof Ionicons>['name'];
-  title: string;
-  value: boolean;
-  onValueChange: (next: boolean) => void;
-  last?: boolean;
-}): React.JSX.Element {
-  return (
-    <View style={[styles.settingRow, last && styles.settingRowLast]}>
-      <Ionicons name={icon} size={20} color={colors.textPrimary} style={styles.settingRowIcon} />
-      <View style={styles.settingRowCopy}>
-        <Text style={styles.settingRowTitle}>{title}</Text>
-      </View>
-      <Switch
-        accessibilityLabel={title}
-        value={value}
-        onValueChange={onValueChange}
-        trackColor={{ false: colors.switchTrackOff, true: colors.accent }}
-        ios_backgroundColor={colors.switchTrackOff}
-        thumbColor="#FFFFFF"
-      />
-    </View>
-  );
-}
-
 /** One titled group on the Settings list, with an optional footnote. */
 function SettingsSection({ title, note, children }: { title: string; note?: string; children: React.ReactNode }): React.JSX.Element {
   return (
@@ -289,51 +269,120 @@ function PageSection({ title, children, note }: { title?: string; children: Reac
   );
 }
 
-/** Full-screen settings page: back chevron, title, scrolling content. */
-function SettingsPageLayout({ title, children }: { title: string; children: React.ReactNode }): React.JSX.Element {
+// Pages reached from the Settings root get Waze's header (back, centred
+// title, X to close Settings); the category pages are full-width groups.
+const SETTINGS_CATEGORY_PAGES = new Set<SettingsPageKey>(['general', 'mapNavigation', 'rideSafe', 'account', 'privacy']);
+const MENU_PAGES = new Set<SettingsPageKey>(['myProfile', 'editProfile', 'help']);
+
+/** Full-screen settings page: header, then scrolling content. */
+function SettingsPageLayout({ title, page, children }: { title: string; page: SettingsPageKey; children: React.ReactNode }): React.JSX.Element {
   const insets = useSafeAreaInsets();
-  const navigation = useNavigation();
+  const palette = useSettingsPalette();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  if (MENU_PAGES.has(page)) {
+    return (
+      <View style={styles.container}>
+        <ScrollView
+          contentContainerStyle={[styles.scroll, styles.pageScroll, { paddingTop: insets.top + spacing.lg, paddingBottom: insets.bottom + spacing.xl }]}
+          keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets
+          showsVerticalScrollIndicator={false}
+        >
+          <ScreenHeader title={title} onBack={() => navigation.goBack()} />
+          {children}
+        </ScrollView>
+      </View>
+    );
+  }
+  const fullWidth = SETTINGS_CATEGORY_PAGES.has(page);
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: palette.page }]}>
+      <SettingsHeader title={title} topInset={insets.top} onBack={() => navigation.goBack()} onClose={() => navigation.popTo('Settings')} />
       <ScrollView
-        contentContainerStyle={[styles.scroll, styles.pageScroll, { paddingTop: insets.top + spacing.lg, paddingBottom: insets.bottom + spacing.xl }]}
+        contentContainerStyle={fullWidth
+          ? { paddingBottom: insets.bottom + spacing.xl }
+          : [styles.scroll, styles.pageScroll, { paddingTop: spacing.lg, paddingBottom: insets.bottom + spacing.xl }]}
         keyboardShouldPersistTaps="handled"
         automaticallyAdjustKeyboardInsets
         showsVerticalScrollIndicator={false}
       >
-        <ScreenHeader title={title} onBack={() => navigation.goBack()} />
         {children}
       </ScrollView>
     </View>
   );
 }
 
-/**
- * Settings is a real settings list, like the PWA's: switches act in place,
- * choices show their current value and open a page, and account actions sit
- * at the end.
- */
+/** The Settings root, Waze-style: categories only, each opening its own
+ * page (the PWA's SETTINGS_CATEGORIES has the same rows and tints). */
 export function SettingsScreen(): React.JSX.Element {
-  const {
-    profileError, clearProfileError, rideSafeEnabled, setRideSafeEnabled, unitSystem,
-    navigationProvider, routeAvoidance, setRouteAvoidance, shareLocation, setShareLocation, resetAll,
-  } = useSettings();
-  const { logOut, emailVerified, deleteAccount } = useAuth();
+  const { profileError, clearProfileError } = useSettings();
   const insets = useSafeAreaInsets();
+  const palette = useSettingsPalette();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const openPage = (page: SettingsPageKey) => navigation.push('SettingsPage', { page });
   const appVersion = Constants.expoConfig?.version ?? '0.1.0';
-  const { client } = useAuth();
-  // Blocked riders shows how many; refreshed whenever Settings comes back
-  // into view (an unblock on its page changes it).
-  const [blockedCount, setBlockedCount] = React.useState<number | null>(null);
-  useFocusEffect(React.useCallback(() => {
-    let active = true;
-    client.getBlockedRiders().then(({ blocked }) => { if (active) setBlockedCount(blocked.length); }).catch(() => undefined);
-    return () => { active = false; };
-  }, [client]));
-  const navigationAppLabel = NAVIGATION_PROVIDER_OPTIONS.find((option) => option.id === navigationProvider)?.label ?? '';
 
+  return (
+    <View style={[styles.container, { backgroundColor: palette.page }]}>
+      <SettingsHeader title="Settings" topInset={insets.top} onBack={() => navigation.goBack()} />
+      <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + spacing.md }} showsVerticalScrollIndicator={false}>
+        {profileError ? (
+          <View style={styles.profileSaveStatus} accessibilityLiveRegion="polite">
+            <Ionicons name="alert-circle" size={17} color={colors.danger} />
+            <Text style={styles.profileSaveError}>{profileError}</Text>
+            <Pressable accessibilityRole="button" accessibilityLabel="Dismiss settings error" onPress={clearProfileError} hitSlop={8}><Ionicons name="close" size={18} color={colors.textMuted} /></Pressable>
+          </View>
+        ) : null}
+
+        <SettingsGroup>
+          <CategoryRow first icon="settings" tint="#1FB6D9" title="General" onPress={() => openPage('general')} />
+          <CategoryRow icon="map" tint="#2FB35F" title="Map & navigation" onPress={() => openPage('mapNavigation')} />
+          <CategoryRow icon="shield-checkmark" tint="#F2802A" title="Ride Safe" onPress={() => openPage('rideSafe')} />
+        </SettingsGroup>
+
+        <SettingsGroup title="Account">
+          <CategoryRow first icon="person" tint="#2A8196" title="Account and login" onPress={() => openPage('account')} />
+          <CategoryRow icon="lock-closed" tint="#1E95E8" title="Privacy" onPress={() => openPage('privacy')} />
+        </SettingsGroup>
+
+        <SettingsGroup>
+          <CategoryRow first icon="information" tint="#16A9D9" title="About" onPress={() => openPage('about')} />
+        </SettingsGroup>
+
+        <Text style={styles.settingsVersion}>Version {appVersion}</Text>
+      </ScrollView>
+      <RideBar />
+    </View>
+  );
+}
+
+/** General: distance units as a segmented control. */
+function GeneralPage(): React.JSX.Element {
+  const { unitSystem, setUnitSystem } = useSettings();
+  return (
+    <SettingsGroup>
+      <SegmentedRow first title="Distance units" options={[['mi', 'Miles'], ['km', 'km']] as const} value={unitSystem} onChange={(unit) => setUnitSystem(unit)} />
+    </SettingsGroup>
+  );
+}
+
+/** Map & navigation: which app navigates, and route options. */
+function MapNavigationPage(): React.JSX.Element {
+  const { navigationProvider, routeAvoidance, setRouteAvoidance } = useSettings();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const navigationAppLabel = NAVIGATION_PROVIDER_OPTIONS.find((option) => option.id === navigationProvider)?.label ?? '';
+  return (
+    <SettingsGroup note="Route options apply to routes Rider Comms plans.">
+      <PlainRow first title="Navigation app" value={navigationAppLabel} onPress={() => navigation.push('SettingsPage', { page: 'navigationApp' })} />
+      <SwitchRow title="Avoid motorways" value={routeAvoidance.highways} onValueChange={(highways) => setRouteAvoidance({ ...routeAvoidance, highways })} />
+      <SwitchRow title="Avoid tolls" value={routeAvoidance.tolls} onValueChange={(tolls) => setRouteAvoidance({ ...routeAvoidance, tolls })} />
+    </SettingsGroup>
+  );
+}
+
+/** Ride Safe: the automatic lock while moving. */
+function RideSafePage(): React.JSX.Element {
+  const { rideSafeEnabled, setRideSafeEnabled } = useSettings();
   function changeRideSafe(enabled: boolean) {
     if (enabled) {
       setRideSafeEnabled(true);
@@ -348,6 +397,39 @@ export function SettingsScreen(): React.JSX.Element {
       ]
     );
   }
+  return (
+    <SettingsGroup note="Ride Safe locks distracting controls at 8 mph and above. Only change it while safely stopped.">
+      <SwitchRow first title="Ride Safe auto-lock" value={rideSafeEnabled} onValueChange={changeRideSafe} />
+    </SettingsGroup>
+  );
+}
+
+/** Privacy: Nearby visibility and blocked riders. */
+function PrivacyPage(): React.JSX.Element {
+  const { shareLocation, setShareLocation } = useSettings();
+  const { client } = useAuth();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  // Blocked riders shows how many; refreshed whenever this page comes back
+  // into view (an unblock on its page changes it).
+  const [blockedCount, setBlockedCount] = React.useState<number | null>(null);
+  useFocusEffect(React.useCallback(() => {
+    let active = true;
+    client.getBlockedRiders().then(({ blocked }) => { if (active) setBlockedCount(blocked.length); }).catch(() => undefined);
+    return () => { active = false; };
+  }, [client]));
+  return (
+    <SettingsGroup note="Nearby riders see you only while you’re live. Group-ride location is chosen inside each ride.">
+      <SwitchRow first title="Nearby rider visibility" value={shareLocation} onValueChange={setShareLocation} />
+      <PlainRow title="Blocked riders" value={blockedCount ? String(blockedCount) : undefined} onPress={() => navigation.push('SettingsPage', { page: 'blockedRiders' })} />
+    </SettingsGroup>
+  );
+}
+
+/** Account and login: email, devices, then sign out, reset and delete. */
+function AccountPage(): React.JSX.Element {
+  const { resetAll } = useSettings();
+  const { logOut, emailVerified, deleteAccount } = useAuth();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
   function confirmReset() {
     Alert.alert(
@@ -387,54 +469,17 @@ export function SettingsScreen(): React.JSX.Element {
   }
 
   return (
-    <View style={styles.container}>
-      <ScrollView
-        contentContainerStyle={[styles.scroll, styles.pageScroll, { paddingTop: insets.top + spacing.lg, paddingBottom: insets.bottom + spacing.md }]}
-        showsVerticalScrollIndicator={false}
-      >
-        <ScreenHeader title="Settings" onBack={() => navigation.goBack()} />
-
-        {profileError ? (
-          <View style={styles.profileSaveStatus} accessibilityLiveRegion="polite">
-            <Ionicons name="alert-circle" size={17} color={colors.danger} />
-            <Text style={styles.profileSaveError}>{profileError}</Text>
-            <Pressable accessibilityRole="button" accessibilityLabel="Dismiss settings error" onPress={clearProfileError} hitSlop={8}><Ionicons name="close" size={18} color={colors.textMuted} /></Pressable>
-          </View>
-        ) : null}
-
-        <SettingsSection title="Riding" note="Ride Safe locks distracting controls at 8 mph and above. Only change it while safely stopped.">
-          <SettingsSwitchRow icon="shield-checkmark-outline" title="Ride Safe auto-lock" value={rideSafeEnabled} onValueChange={changeRideSafe} />
-          <SettingsRow icon="swap-horizontal-outline" title="Distance units" right={UNIT_LABELS[unitSystem].name} last onPress={() => openPage('distanceUnits')} />
-        </SettingsSection>
-
-        <SettingsSection title="Map & navigation" note="Route options apply to routes Rider Comms plans.">
-          <SettingsRow icon="flag-outline" title="Navigation app" right={navigationAppLabel} onPress={() => openPage('navigationApp')} />
-          <SettingsSwitchRow icon="map-outline" title="Avoid motorways" value={routeAvoidance.highways} onValueChange={(highways) => setRouteAvoidance({ ...routeAvoidance, highways })} />
-          <SettingsSwitchRow icon="card-outline" title="Avoid tolls" value={routeAvoidance.tolls} onValueChange={(tolls) => setRouteAvoidance({ ...routeAvoidance, tolls })} last />
-        </SettingsSection>
-
-        <SettingsSection title="Privacy" note="Nearby riders see you only while you’re live. Group-ride location is chosen inside each ride.">
-          <SettingsSwitchRow icon="location-outline" title="Nearby rider visibility" value={shareLocation} onValueChange={setShareLocation} />
-          <SettingsRow icon="eye-off-outline" title="Blocked riders" right={blockedCount ? String(blockedCount) : undefined} last onPress={() => openPage('blockedRiders')} />
-        </SettingsSection>
-
-        <SettingsSection title="Account">
-          <SettingsRow icon="mail-outline" title="Email" right={emailVerified ? 'Verified' : 'Not verified'} onPress={() => openPage('email')} />
-          <SettingsRow icon="phone-portrait-outline" title="Signed-in devices" onPress={() => openPage('devices')} />
-          <SettingsRow icon="refresh-outline" title="Reset settings" showChevron={false} onPress={confirmReset} />
-          <SettingsRow icon="trash-outline" title="Delete account" danger showChevron={false} last onPress={confirmDeleteAccount} />
-        </SettingsSection>
-
-        <SettingsSection title="About">
-          <SettingsRow icon="information-circle-outline" title="About" right={`Version ${appVersion}`} last onPress={() => openPage('about')} />
-        </SettingsSection>
-
-        <View style={styles.settingsGroup}>
-          <SettingsRow icon="log-out-outline" title="Sign Out" danger showChevron={false} last onPress={confirmLogOut} />
-        </View>
-      </ScrollView>
-      <RideBar />
-    </View>
+    <>
+      <SettingsGroup title="Login info">
+        <PlainRow first title="Email" value={emailVerified ? 'Verified' : 'Not verified'} onPress={() => navigation.push('SettingsPage', { page: 'email' })} />
+        <PlainRow title="Signed-in devices" onPress={() => navigation.push('SettingsPage', { page: 'devices' })} />
+      </SettingsGroup>
+      <SettingsGroup title="Advanced" note="Deleting your account permanently removes it and its data straight away.">
+        <PlainRow first title="Sign out" chevron={false} onPress={confirmLogOut} />
+        <PlainRow title="Reset settings" chevron={false} onPress={confirmReset} />
+        <PlainRow title="Delete account" danger chevron={false} onPress={confirmDeleteAccount} />
+      </SettingsGroup>
+    </>
   );
 }
 
@@ -747,11 +792,11 @@ function DistanceUnitsPage(): React.JSX.Element {
 // (scripts/check-client-parity.mjs keeps them equal).
 export const HELP_FAQ: ReadonlyArray<readonly [string, string]> = [
   ['I can’t sign in', 'Use Forgot password? on the sign-in screen. We’ll email a reset link and code to the address on your account.'],
-  ['I didn’t get the verification email', 'Check your spam folder, then open Settings → Email and send a new one.'],
+  ['I didn’t get the verification email', 'Check your spam folder, then open Settings → Account and login → Email and send a new one.'],
   ['Voice isn’t connecting', 'Check that Rider Comms can use your microphone and that you have a data connection. Your map and ride keep working while voice reconnects.'],
   ['My location isn’t showing', 'Location is only shared when you turn it on: Go live for Nearby, or the location switch in a group ride. Check that location access is allowed for Rider Comms.'],
   ['Someone is bothering me', 'Report and block them from their profile, a chat, the ride roster or a friend request. Reports are reviewed within 24 hours.'],
-  ['How do I delete my account?', 'Settings → Delete account. It permanently deletes your account and its data straight away.'],
+  ['How do I delete my account?', 'Settings → Account and login → Delete account. It permanently deletes your account and its data straight away.'],
 ];
 
 function FaqItem({ question, answer, last }: { question: string; answer: string; last: boolean }): React.JSX.Element {
@@ -823,9 +868,14 @@ type SettingsPageProps = NativeStackScreenProps<RootStackParamList, 'SettingsPag
 export function SettingsPageScreen({ route }: SettingsPageProps): React.JSX.Element {
   const { page } = route.params;
   return (
-    <SettingsPageLayout title={SETTINGS_PAGE_TITLES[page]}>
+    <SettingsPageLayout title={SETTINGS_PAGE_TITLES[page]} page={page}>
       {page === 'myProfile' ? <MyProfilePage /> : null}
       {page === 'editProfile' ? <EditProfilePage /> : null}
+      {page === 'general' ? <GeneralPage /> : null}
+      {page === 'mapNavigation' ? <MapNavigationPage /> : null}
+      {page === 'rideSafe' ? <RideSafePage /> : null}
+      {page === 'account' ? <AccountPage /> : null}
+      {page === 'privacy' ? <PrivacyPage /> : null}
       {page === 'navigationApp' ? <NavigationAppPage /> : null}
       {page === 'distanceUnits' ? <DistanceUnitsPage /> : null}
       {page === 'blockedRiders' ? <BlockedRidersPage /> : null}
