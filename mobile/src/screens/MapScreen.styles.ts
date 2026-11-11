@@ -439,6 +439,7 @@ export const styles = StyleSheet.create({
     borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface,
     ...elevation.raised,
   },
+  safetyBannerInline: { position: 'relative', left: 0, right: 0, marginHorizontal: 20, marginBottom: spacing.md },
   safetyBannerCopy: { flex: 1 },
   safetyBannerTitle: { ...type.label, color: colors.textPrimary },
   safetyBannerText: { ...type.caption, color: colors.textSecondary, marginTop: 2 },

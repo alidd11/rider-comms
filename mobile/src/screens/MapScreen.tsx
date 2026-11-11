@@ -522,6 +522,33 @@ export function MapScreen(): React.JSX.Element {
   // group ride is showing.
   const bottomBarOffset = activeRide && rideBarHeight > 0 && !(drawerVisible && drawerOpen) ? rideBarHeight : bottomInset + spacing.sm;
 
+  // Ride-safe banner. On the map it floats above the controls; on the Ride
+  // page it sits in the page under the header, never over the back arrow.
+  const showSafetyBanner = !activeRoute && (segment === 'public' ? !lockedForSafety && movementState === 'unknown' && !selectedDestination : lockedForSafety || movementState === 'unknown');
+  const renderSafetyBanner = (placement: object): React.JSX.Element => (
+        <View style={[styles.safetyBanner, placement]} accessibilityLiveRegion="polite">
+          <MaterialCommunityIcons name="motorbike" size={20} color={colors.accent} />
+          <View style={styles.safetyBannerCopy}>
+            <Text style={styles.safetyBannerTitle}>Ride-safe mode</Text>
+            <Text style={styles.safetyBannerText}>
+              {movementState === 'moving'
+                ? 'Distracting controls are locked until you are safely below 8 mph.'
+                : 'Waiting for a reliable speed fix. Controls stay available.'}
+            </Text>
+          </View>
+          {movementState !== 'moving' && (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={locationAccess === 'blocked' || locationAccess === 'services_disabled' ? 'Open location settings' : 'Enable location'}
+              style={styles.safetyEnableButton}
+              onPress={() => void (locationAccess === 'blocked' || locationAccess === 'services_disabled' ? openLocationSettings() : requestLocationAccess())}
+            >
+              <Text style={styles.safetyEnableText}>{locationAccess === 'blocked' || locationAccess === 'services_disabled' ? 'Settings' : 'Enable'}</Text>
+            </Pressable>
+          )}
+        </View>
+  );
+
   return (
     <View style={styles.container}>
       {segment === 'public' || lockedForSafety ? (
@@ -641,7 +668,11 @@ export function MapScreen(): React.JSX.Element {
         </View>
       ) : (
         <View style={styles.hostFill}>
-          <HostPanel inviteCode={inviteCode} onBack={() => navigation.setParams({ segment: 'public', at: Date.now() })} />
+          <HostPanel
+            inviteCode={inviteCode}
+            onBack={() => navigation.setParams({ segment: 'public', at: Date.now() })}
+            notice={showSafetyBanner ? renderSafetyBanner(styles.safetyBannerInline) : null}
+          />
         </View>
       )}
 
@@ -1020,37 +1051,7 @@ export function MapScreen(): React.JSX.Element {
         </>
       )}
 
-      {!activeRoute && (segment === 'public' ? !lockedForSafety && movementState === 'unknown' && !selectedDestination : lockedForSafety || movementState === 'unknown') && (
-        <View
-          style={[
-            styles.safetyBanner,
-            segment === 'public'
-              ? { bottom: bottomBarOffset + BOTTOM_BAR_HEIGHT + spacing.sm, right: spacing.md + MAP_ACTION_SIZE + spacing.sm, left: spacing.md }
-              : { top: insets.top + spacing.sm },
-          ]}
-          accessibilityLiveRegion="polite"
-        >
-          <MaterialCommunityIcons name="motorbike" size={20} color={colors.accent} />
-          <View style={styles.safetyBannerCopy}>
-            <Text style={styles.safetyBannerTitle}>Ride-safe mode</Text>
-            <Text style={styles.safetyBannerText}>
-              {movementState === 'moving'
-                ? 'Distracting controls are locked until you are safely below 8 mph.'
-                : 'Waiting for a reliable speed fix. Controls stay available.'}
-            </Text>
-          </View>
-          {movementState !== 'moving' && (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={locationAccess === 'blocked' || locationAccess === 'services_disabled' ? 'Open location settings' : 'Enable location'}
-              style={styles.safetyEnableButton}
-              onPress={() => void (locationAccess === 'blocked' || locationAccess === 'services_disabled' ? openLocationSettings() : requestLocationAccess())}
-            >
-              <Text style={styles.safetyEnableText}>{locationAccess === 'blocked' || locationAccess === 'services_disabled' ? 'Settings' : 'Enable'}</Text>
-            </Pressable>
-          )}
-        </View>
-      )}
+      {showSafetyBanner && segment === 'public' && renderSafetyBanner({ bottom: bottomBarOffset + BOTTOM_BAR_HEIGHT + spacing.sm, right: spacing.md + MAP_ACTION_SIZE + spacing.sm, left: spacing.md })}
 
       {drawerVisible && (
         <MapDrawer
