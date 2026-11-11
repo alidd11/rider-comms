@@ -30,6 +30,7 @@ representative, if required]
 | Hazard reports and confirmations | When you submit them | To warn nearby riders; they expire within hours | Legitimate interest (road safety) |
 | Reports and blocks about other riders | When you report or block | To keep riders safe and enforce our rules | Legitimate interest / legal obligation |
 | Subscription details: which plan, the store's transaction or purchase ID, renewal date and status. We never see your card or payment details. | When you subscribe or restore a purchase | To give you the plan you paid for, and to keep it in step with renewals, cancellations and refunds | Contract |
+| Push notification address for each device where you turn notifications on (a push token from Apple or Google via Expo, or your browser's push subscription) and your notification choices | When you turn notifications on in Settings | To tell you about friend requests and messages. Removed when you turn notifications off for that device, sign out on it, or delete your account. | Consent (you turn them on, and can turn them off at any time) |
 | Device name, sign-in times, session tokens (stored only as hashes) | Each sign-in | So you can see and sign out of your devices, and to protect your account | Contract / legitimate interest (security) |
 | IP address, request logs | Every request | Security, abuse prevention and troubleshooting. Rate limiting uses a one-way hash of your IP address. | Legitimate interest (security) |
 | Product usage: when you were last active, and when you first joined a group ride or went live on Nearby | As you use the app | To understand, in aggregate, whether new riders find the app useful. Our staff dashboard shows only totals. | Legitimate interest (improving the service) |
@@ -76,6 +77,7 @@ instructions:
 | Google (Maps Platform) | Map views, search text and nearby coordinates, route start and end points | Maps, place search and navigation. Place searches and routes go through our servers, so Google sees our server, not your device. The web app loads Google Maps directly in your browser. |
 | Apple (Apple Maps, iOS app only) | Map views of the area you're looking at | The iOS app's base map. Android shows Google Maps. |
 | Resend | Your email address and the message | Verification and password-reset emails |
+| Expo, Apple (APNs) and Google (Firebase Cloud Messaging) for the apps; your browser's push service (Apple, Google, Mozilla or Microsoft) for the web app | The device's push address and the notification: who it's from and, for messages, a short preview | Delivering notifications you turned on. Notifications to the web app are encrypted so only your browser can read them. |
 | GitHub Pages | Standard web request data | Hosts the web app |
 | Apple App Store and Google Play | Your purchase, under their own privacy policies. We send them the transaction ID to check a subscription, and a one-way code for your account so a purchase is tied to it. | App distribution, and selling and verifying subscriptions |
 
@@ -100,6 +102,9 @@ Summary of our retention schedule:
 - **Hazard reports** expire after 1–8 hours depending on type.
 - **Ride join codes** expire after 12 hours. Rides are deleted when the host
   ends them, or 30 days after creation at the latest.
+- **Push notification addresses** are kept until you turn notifications
+  off on that device, sign out on it, or the push service tells us the
+  address no longer works.
 - **Sign-in sessions** last 30 days. Email-verification links last 24 hours,
   and password-reset links last 1 hour.
 - **Messages, friendships, profile and account data**, and **subscription

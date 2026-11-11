@@ -1194,6 +1194,27 @@ test('PWA map has a labelled Go live bar when parked and a glanceable HUD while 
   await expect(page.locator('#hazardAutoClose')).toContainText('Closes in');
 });
 
+test('PWA Notifications page: this device, then which kinds', async ({ page }) => {
+  let profile = { ...PROFILE, notifyInvites: true, notifyChat: true };
+  await mockAuthenticatedApi(page, 'stationary', async ({ request, url }) => {
+    if (url.pathname !== `/riders/${RIDER_ID}/profile`) return null;
+    if (request.method() === 'PUT') profile = { ...profile, ...JSON.parse(request.postData() || '{}') };
+    return { body: profile };
+  });
+  await page.goto('/');
+  await openFromMenu(page, 'settings');
+  await page.locator('[data-settings-open="notifications"]').click();
+  await expect(page.locator('#sheetTitle')).toHaveText('Notifications');
+  await expect(page.locator('#sheetBody .settings-row-label')).toHaveText(['Notifications on this device', 'Friend requests', 'Messages']);
+  await expect(page.locator('#pushDeviceToggle')).toHaveAttribute('aria-pressed', 'false');
+  // Both kinds start on; switching one off saves it to the profile.
+  const messages = page.locator('#sheetBody [data-toggle="notifyChat"]');
+  await expect(messages).toHaveAttribute('aria-pressed', 'true');
+  await messages.click();
+  await expect(messages).toHaveAttribute('aria-pressed', 'false');
+  expect(profile.notifyChat).toBe(false);
+});
+
 test('PWA Routes shows only roads that suit the rider’s vehicle', async ({ page }) => {
   await mockAuthenticatedApi(page, 'stationary');
   await page.goto('/');
@@ -2330,9 +2351,9 @@ test('PWA Settings is a real settings list matching the native app', async ({ pa
   // Waze-style: the root lists categories, each opening its own page.
   await expect(page.locator('#settingsList .settings-section-title')).toHaveText(['Riding', 'Account']);
   await expect(page.locator('#settingsList .settings-row-label')).toHaveText([
-    'General', 'Map & navigation', 'Voice and sound', 'Ride Safe', 'Vehicle details', 'Account and login', 'Privacy', 'About',
+    'General', 'Map & navigation', 'Voice and sound', 'Ride Safe', 'Vehicle details', 'Notifications', 'Account and login', 'Privacy', 'About',
   ]);
-  await expect(page.locator('#settingsList .settings-category-icon')).toHaveCount(8);
+  await expect(page.locator('#settingsList .settings-category-icon')).toHaveCount(9);
   await expect(page.locator('.settings-version')).toHaveText('Version 0.3.0');
   await expect(page.locator('.settings-page')).not.toContainText('Offline Maps');
   await expect(page.locator('.settings-page')).not.toContainText('Communication');
@@ -2492,7 +2513,7 @@ test('PWA Help & Support leads with contact, then questions, safety and legal pa
   await expect(page.locator('#sheetTitle')).toHaveText('Help & Support');
   await expect(page.locator('.help-contact')).toHaveAttribute('href', 'support.html');
   const questions = page.locator('.faq-item');
-  await expect(questions).toHaveCount(6);
+  await expect(questions).toHaveCount(7);
   await expect(questions.first().locator('p')).toBeHidden();
   await questions.first().locator('summary').click();
   await expect(questions.first().locator('p')).toBeVisible();
