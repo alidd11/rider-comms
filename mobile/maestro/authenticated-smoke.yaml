@@ -72,8 +72,7 @@ appId: com.ridercomms.app
     id: open-menu
 - tapOn: "View profile"
 - extendedWaitUntil:
-    visible:
-      id: edit-profile
+    visible: "Edit profile"
     timeout: 10000
 - takeScreenshot: authenticated-profile
 - tapOn: "Go back"

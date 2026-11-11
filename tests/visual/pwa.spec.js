@@ -280,7 +280,7 @@ async function openOwnProfile(page, { edit = false } = {}) {
   await page.locator('#appMenuViewProfile').click();
   await expect(page.locator('#sheetTitle')).toHaveText('Profile');
   if (edit) {
-    await page.locator('#editProfileFromView').click();
+    await page.locator('#sheetBody [data-settings-open="editProfile"]').first().click();
     await expect(page.locator('#sheetTitle')).toHaveText('Edit profile');
   }
 }
@@ -3136,8 +3136,8 @@ test('PWA View profile is your profile, separate from editing it and from Accoun
   await openOwnProfile(page);
 
   const body = page.locator('#sheetBody');
-  await expect(page.locator('.my-profile-card')).toContainText(PROFILE.displayName);
-  await expect(page.locator('.my-profile-card .rider-avatar-svg')).toBeVisible();
+  await expect(page.locator('.my-profile-hero')).toContainText(PROFILE.displayName);
+  await expect(page.locator('.my-profile-hero .rider-avatar-svg')).toBeVisible();
   await expect(body).toContainText('Connected profiles');
   // Nothing from other pages is repeated here.
   for (const absent of ['Signed-in devices', 'Delete account', 'Reset settings', 'Choose your Nearby range']) {
@@ -3145,7 +3145,7 @@ test('PWA View profile is your profile, separate from editing it and from Accoun
   }
   await expect(body.locator('input, select')).toHaveCount(0);
 
-  await page.locator('#editProfileFromView').click();
+  await page.locator('#sheetBody [data-settings-open="editProfile"]').first().click();
   await expect(page.locator('#sheetTitle')).toHaveText('Edit profile');
   await expect(page.locator('#editName')).toHaveValue(PROFILE.displayName);
   await expect(page.locator('#sheetInstagramVisibility')).toBeVisible();

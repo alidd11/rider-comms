@@ -3049,8 +3049,6 @@ html.ride-pill-visible body:has(.screen-map.active) .movement-safety-banner{bott
 #app [data-screen="settings"] .settings-page>.page-header{padding-left:max(4px,var(--safe-left));padding-right:max(4px,var(--safe-right))}
 /* Older pages a category opens (Navigation app, Blocked riders…): their
    notes and cards keep the same side margins as the rows. */
-.settings-page-mode .settings-page-section>:not(.settings-rows):not(.choice-list):not(.settings-section-note){margin-left:16px;margin-right:16px}
-.settings-page-mode .choice-list{border-radius:0;border-left:0;border-right:0}
 /* Full-width rows in portrait, but never under a notch in landscape; the
    strip under the status bar matches the header. */
 #app .screen.content-screen[data-screen="settings"]{padding-left:var(--safe-left,0px);padding-right:var(--safe-right,0px);padding-top:calc(var(--safe-top) + 4px);background:var(--settings-page-bg)}
@@ -3065,3 +3063,16 @@ html.ride-pill-visible body:has(.screen-map.active) .movement-safety-banner{bott
 .settings-row-check{display:grid;place-items:center;color:var(--accent);visibility:hidden}
 .settings-row-check svg{width:22px;height:22px;stroke-width:2.6}
 .settings-row[aria-checked=true] .settings-row-check{visibility:visible}
+/* Only pages built from full-width rows (the categories and Profile) run
+   edge to edge; other Settings pages keep normal side margins. */
+.settings-page-mode .sheet-body{padding-left:max(16px,var(--safe-left));padding-right:max(16px,var(--safe-right))}
+.settings-page-mode.settings-full-bleed .sheet-body{padding-left:var(--safe-left,0px);padding-right:var(--safe-right,0px)}
+.settings-page-mode:not(.settings-full-bleed) .settings-page-heading{padding:0 0 8px}
+/* Profile, Waze-style: you, centred on the page, then rows. */
+.my-profile-hero{display:flex;flex-direction:column;align-items:center;gap:4px;padding:4px 16px 0;text-align:center}
+.my-profile-hero .avatar-xl{width:112px;height:112px}
+.my-profile-hero .my-profile-name{margin-top:12px;font-size:1.5rem;font-weight:800;letter-spacing:-.02em}
+.my-profile-hero .my-profile-handle{color:var(--text-secondary)}
+.my-profile-hero .my-profile-plan{margin-top:8px;padding:4px 12px;border-radius:999px;background:var(--settings-group-bg);border:1px solid var(--settings-separator);color:var(--accent);font-size:.85rem;font-weight:700}
+.my-profile-hero{padding-bottom:28px}
+.my-profile-hero+.settings-rows+.my-profile-section{margin-top:28px}

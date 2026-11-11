@@ -2463,19 +2463,19 @@
   // sign-in, devices and data. The older per-topic keys (profile, plans,
   // navigation…) still work: they open the page that now holds them.
   const SETTINGS_PAGES = {
-    myProfile: { title: 'Profile', sections: [['', 'profileView']] },
+    myProfile: { title: 'Profile', sections: [['', 'profileView']], fullBleed: true },
     editProfile: { title: 'Edit profile', sections: [['', 'profile']], back: 'myProfile' },
     plan: { title: 'Your plan', sections: [['', 'plans']] },
     // The Settings list holds the switches itself; these are the choices
     // and lists it opens.
     // Waze-style: the Settings root lists categories, each its own page.
-    general: { title: 'General', sections: [['', 'generalSettings']] },
-    mapNavigation: { title: 'Map & navigation', sections: [['', 'mapNavigationSettings']] },
-    voiceSound: { title: 'Voice and sound', sections: [['', 'voiceSoundSettings']] },
-    rideSafe: { title: 'Ride Safe', sections: [['', 'rideSafeSettings']] },
-    vehicle: { title: 'Vehicle details', sections: [['Vehicle type', 'vehicleSettings']] },
-    account: { title: 'Account and login', sections: [['Login info', 'accountLogin'], ['Advanced', 'accountAdvanced']] },
-    privacy: { title: 'Privacy', sections: [['', 'privacySettings']] },
+    general: { title: 'General', sections: [['', 'generalSettings']], fullBleed: true },
+    mapNavigation: { title: 'Map & navigation', sections: [['', 'mapNavigationSettings']], fullBleed: true },
+    voiceSound: { title: 'Voice and sound', sections: [['', 'voiceSoundSettings']], fullBleed: true },
+    rideSafe: { title: 'Ride Safe', sections: [['', 'rideSafeSettings']], fullBleed: true },
+    vehicle: { title: 'Vehicle details', sections: [['Vehicle type', 'vehicleSettings']], fullBleed: true },
+    account: { title: 'Account and login', sections: [['Login info', 'accountLogin'], ['Advanced', 'accountAdvanced']], fullBleed: true },
+    privacy: { title: 'Privacy', sections: [['', 'privacySettings']], fullBleed: true },
     navigationApp: { title: 'Navigation app', sections: [['', 'navigation']], back: 'mapNavigation' },
     distanceUnits: { title: 'Distance units', sections: [['', 'units']], back: 'general' },
     blockedRiders: { title: 'Blocked riders', sections: [['', 'blocked']], back: 'privacy' },
@@ -2548,18 +2548,22 @@
       profileView: () => {
         const plan = PLAN_INFO[planTier(state.profile.zoneTier)];
         const visibilityLabel = { public: 'Everyone', friends: 'Friends only', private: 'Only me' };
-        const socialRow = (label, username, visibility) => `<div class="my-profile-social"><span><strong>${label}</strong><small>${username ? `@${escapeHtml(username)}` : 'Not added'}</small></span>${username ? `<span class="my-profile-visibility">${escapeHtml(visibilityLabel[visibility] || 'Friends only')}</span>` : ''}</div>`;
+        // Connected profiles: who sees each, or Add; tapping opens Edit profile.
+        const socialValue = (username, visibility) => username ? `@${username} · ${visibilityLabel[visibility] || 'Friends only'}` : 'Add';
         return {
           title: 'Profile',
-          body: `<article class="my-profile-card">
+          body: `<div class="my-profile-hero">
               <span class="my-profile-avatar">${avatar(state.profile, 'avatar-xl')}</span>
               <strong class="my-profile-name">${escapeHtml(state.profile.displayName)}</strong>
               <span class="my-profile-handle">${escapeHtml(state.profile.handle)}</span>
               <span class="my-profile-plan">${escapeHtml(plan.name)} plan</span>
-            </article>
-            <button class="button primary wide" id="editProfileFromView" type="button">Edit profile</button>
-            <section class="my-profile-section" aria-label="Connected profiles"><h3 class="settings-page-heading">Connected profiles</h3><div class="my-profile-socials">${socialRow('Instagram', state.profile.instagram, state.profile.instagramVisibility)}${socialRow('TikTok', state.profile.tiktok, state.profile.tiktokVisibility)}</div><p class="caption">This is how riders see you. Each connected profile shows only to the people you choose.</p></section>`,
-          ready: () => $('#editProfileFromView').addEventListener('click', () => openSheet('editProfile')),
+            </div>
+            ${settingsRowsMarkup([settingsLink('editProfile', 'Edit profile')])}
+            <section class="my-profile-section" aria-label="Connected profiles"><h3 class="settings-page-heading">Connected profiles</h3>${settingsRowsMarkup([
+              settingsLink('editProfile', 'Instagram', socialValue(state.profile.instagram, state.profile.instagramVisibility)),
+              settingsLink('editProfile', 'TikTok', socialValue(state.profile.tiktok, state.profile.tiktokVisibility)),
+            ], 'This is how riders see you. Each connected profile shows only to the people you choose.')}</section>`,
+          ready: () => wireSettingsLinks($('#sheetBody')),
         };
       },
       profile: () => ({
@@ -2764,6 +2768,7 @@
     // stays a bottom sheet with a close button.
     currentSettingsPage = options.page || null;
     $('#sheetBackdrop').classList.toggle('settings-page-mode', Boolean(currentSettingsPage));
+    $('#sheetBackdrop').classList.toggle('settings-full-bleed', Boolean(currentSettingsPage && SETTINGS_PAGES[currentSettingsPage]?.fullBleed));
     const close = $('#closeSheet');
     close.innerHTML = currentSettingsPage ? '<svg class="icon-back" aria-hidden="true"><use href="#i-chevron"/></svg>' : '×';
     close.dataset.backTo = SETTINGS_PAGES[currentSettingsPage]?.back || '';
@@ -3170,7 +3175,7 @@
     activeFriendProfileRiderId = null;
     const trigger = lastSheetTrigger;
     $('#sheetBackdrop').hidden = true;
-    $('#sheetBackdrop').classList.remove('settings-page-mode');
+    $('#sheetBackdrop').classList.remove('settings-page-mode', 'settings-full-bleed');
     currentSettingsPage = null;
     document.documentElement.classList.remove('sheet-open');
     $('#app')?.removeAttribute('inert');

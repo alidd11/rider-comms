@@ -3,6 +3,9 @@ import { colors, spacing, radii, type, MIN_TOUCH_TARGET } from '../theme';
 
 export const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
+  myProfileEdit: { minHeight: MIN_TOUCH_TARGET + 4, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.accent },
+  myProfileEditText: { ...type.button, color: colors.accentText },
+  myProfileHero: { alignItems: 'center', gap: 4, paddingTop: spacing.xl, paddingHorizontal: spacing.lg },
   settingsVersion: { marginTop: 36, textAlign: 'center', fontSize: 15, color: colors.textMuted },
   scroll: { width: '100%', maxWidth: 760, alignSelf: 'center', paddingHorizontal: spacing.md, paddingVertical: spacing.md, paddingTop: spacing.lg },
   profileSaveStatus: { minHeight: 24, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: -spacing.sm, marginBottom: spacing.sm, paddingHorizontal: spacing.xs },
@@ -202,11 +205,7 @@ export const styles = StyleSheet.create({
   pageSection: { gap: spacing.sm },
   pageSectionTitle: { ...type.label, color: colors.textSecondary, paddingHorizontal: spacing.xs },
   pageSectionNote: { ...type.caption, color: colors.textSecondary, lineHeight: 18, paddingHorizontal: spacing.xs },
-  myProfileCard: { alignItems: 'center', gap: 4, paddingVertical: spacing.lg, paddingHorizontal: spacing.md, borderRadius: 8, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, backgroundColor: colors.surfaceRaised },
   myProfileName: { ...type.title, color: colors.textPrimary, marginTop: spacing.sm, fontSize: 24, lineHeight: 29, maxWidth: '100%' },
   myProfileHandle: { ...type.body, color: colors.textSecondary, maxWidth: '100%' },
   myProfilePlan: { ...type.caption, color: colors.accentInk, fontWeight: '700', marginTop: spacing.xs, paddingHorizontal: 10, paddingVertical: 3, borderRadius: radii.pill, backgroundColor: colors.surface, overflow: 'hidden' },
-  myProfileEdit: { minHeight: MIN_TOUCH_TARGET + 4, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.accent },
-  myProfileEditText: { ...type.button, color: colors.accentText },
-  myProfileSocial: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
 });
