@@ -579,7 +579,7 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
     const locate = document.querySelector('#locateBtn');
     const nearby = document.querySelector('#joinNearbyBtn');
     const avatarButton = document.querySelector('#mapAvatarButton');
-    const optionsGlyph = document.querySelector('.map-search-options');
+    const drawer = document.querySelector('#mapDrawer');
     const screenBox = screen?.getBoundingClientRect();
     const canvasBox = canvas?.getBoundingClientRect();
     return {
@@ -598,7 +598,9 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
       barTopDelta: report && nearby ? nearby.getBoundingClientRect().top - report.getBoundingClientRect().top : NaN,
       locateAboveBar: report && locate ? report.getBoundingClientRect().top - locate.getBoundingClientRect().bottom : NaN,
       avatarDisplay: avatarButton ? getComputedStyle(avatarButton).display : null,
-      optionsGlyphWidth: optionsGlyph?.getBoundingClientRect().width ?? NaN,
+      drawerTop: drawer?.getBoundingClientRect().top ?? NaN,
+      searchInDrawer: Boolean(search?.closest('#mapDrawer')),
+      reportBottom: report?.getBoundingClientRect().bottom ?? NaN,
       mapTypeId: window.__riderCommsTestMap?.options?.mapTypeId ?? null,
       keyboardShortcuts: window.__riderCommsTestMap?.options?.keyboardShortcuts ?? null,
       mapColorScheme: window.__riderCommsTestMap?.options?.colorScheme ?? null,
@@ -626,7 +628,10 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
   expect(mapGeometry.locateAboveBar).toBeGreaterThanOrEqual(8);
   // The avatar beside search opens the menu.
   expect(mapGeometry.avatarDisplay).toBe('grid');
-  expect(mapGeometry.optionsGlyphWidth).toBeGreaterThanOrEqual(16);
+  // Waze-style: search lives in the drawer at the bottom, and the map's
+  // floating controls rest above it.
+  expect(mapGeometry.searchInDrawer).toBe(true);
+  expect(mapGeometry.reportBottom).toBeLessThanOrEqual(mapGeometry.drawerTop);
   expect(mapGeometry.mapTypeId).toBe('roadmap');
   expect(mapGeometry.keyboardShortcuts).toBe(false);
   // Follows the phone, except from sunset to sunrise when it is always dark.
@@ -3401,6 +3406,67 @@ test('PWA recent place history is scoped to the signed-in rider', async ({ page 
   await expect(page.locator('#searchScreenResults')).not.toContainText('Other account place');
   await page.locator('#searchRecentClearBtn').click();
   await expect(page.locator('#searchScreenResults')).not.toContainText('My recent place');
+});
+
+test('PWA map drawer slides up to recent places and holds the shortcuts', async ({ page }) => {
+  await mockAuthenticatedApi(page);
+  await page.addInitScript(({ riderId }) => {
+    localStorage.setItem(`riderComms.recentSearches:${riderId}`, JSON.stringify([
+      { placeId: 'ace', name: 'Ace Cafe London', secondary: 'North Circular Rd', lat: 51.541, lng: -0.277 },
+    ]));
+  }, { riderId: RIDER_ID });
+  await page.goto('/');
+  const drawer = page.locator('#mapDrawer');
+  const handle = page.locator('#mapDrawerHandle');
+  await expect(drawer).toBeVisible();
+  await expect(drawer).toHaveAttribute('data-state', 'peek');
+  await expect(page.locator('#mapDrawerRecent')).toBeHidden();
+  await expect(page.locator('#placeSearchInput')).toHaveAttribute('placeholder', 'Where to?');
+
+  // The floating controls rest above the drawer, inside the screen.
+  const [drawerBox, hazardBox] = await Promise.all([drawer.boundingBox(), page.locator('#reportHazardBtn').boundingBox()]);
+  expect(hazardBox.y + hazardBox.height).toBeLessThanOrEqual(drawerBox.y);
+  expect(drawerBox.y + drawerBox.height).toBeLessThanOrEqual(page.viewportSize().height + 1);
+
+  // Slide it up: recent places.
+  const start = await handle.boundingBox();
+  await page.mouse.move(start.x + start.width / 2, start.y + start.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(start.x + start.width / 2, start.y - 120, { steps: 6 });
+  await page.mouse.up();
+  await expect(drawer).toHaveAttribute('data-state', 'open');
+  await expect(handle).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.locator('#mapDrawerRecent')).toContainText('Ace Cafe London');
+  await expect(page.locator('#ridePill')).toBeHidden();
+
+  // A recent place puts it on the map and the drawer settles back down.
+  await page.locator('[data-drawer-recent="0"]').click();
+  await expect(drawer).toHaveAttribute('data-state', 'peek');
+
+  // Tapping the handle toggles it; Escape closes it.
+  await handle.click();
+  await expect(drawer).toHaveAttribute('data-state', 'open');
+  await page.keyboard.press('Escape');
+  await expect(drawer).toHaveAttribute('data-state', 'peek');
+  await expect(handle).toBeFocused();
+
+  // Tapping the search opens the full search page.
+  await page.locator('#mapSearchSlot').click();
+  await expect(page.locator('#searchScreen')).toBeVisible();
+  await page.locator('#searchScreenBack').click();
+
+  // Ride and Friends are one tap away, and back returns to the map.
+  await page.locator('[data-drawer-nav="ride"]').click();
+  await expect(page.locator('[data-screen="ride"]')).toBeVisible();
+  await page.locator('.screen.active [data-back-to-map]').click();
+  await page.locator('[data-drawer-nav="friends"]').click();
+  await expect(page.locator('[data-screen="friends"]')).toBeVisible();
+  await page.locator('.screen.active [data-back-to-map]').click();
+  await expect(drawer).toBeVisible();
+
+  // Turn-by-turn navigation owns the bottom of the map: no drawer.
+  await page.evaluate(() => document.querySelector('#app').classList.add('nav-mode'));
+  await expect(drawer).toBeHidden();
 });
 
 test('PWA password recovery is discoverable and enumeration-safe', async ({ page }) => {

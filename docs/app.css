@@ -3087,17 +3087,43 @@ html.ride-pill-visible body:has(.screen-map.active) .movement-safety-banner{bott
 .app-menu-list .app-menu-live{display:inline-flex;align-items:center;gap:7px;color:var(--success)}
 .app-menu-list .app-menu-live .live-dot{flex:none}
 .app-menu-badge{min-width:24px;height:24px;display:inline-grid;place-items:center;padding:0 7px;border-radius:12px;background:var(--accent);color:var(--accent-text);font-size:.78rem;font-style:normal;font-weight:800}
-.map-menu-badge{position:absolute;z-index:2;top:-1px;right:-1px;width:13px;height:13px;border:2px solid var(--bg);border-radius:50%;background:var(--accent);pointer-events:none}
-.app-menu-list .app-menu-live[hidden],.app-menu-badge[hidden],.map-menu-badge[hidden]{display:none}
+.app-menu-list .app-menu-live[hidden],.app-menu-badge[hidden]{display:none}
 /* No tab bar under the map: it runs to the bottom edge, under the home indicator. */
 .map-canvas{bottom:0}
-/* The map now reaches the screen edge, so its floating controls add the
-   home-indicator inset themselves (the tab bar used to provide it). */
-.map-bottom-bar{bottom:calc(14px + var(--bottom-control-inset))}
-html.ride-pill-visible .map-bottom-bar{bottom:calc(76px + var(--bottom-control-inset))}
-#app:not(.nav-mode) .screen-map .map-actions{bottom:calc(84px + var(--bottom-control-inset))}
-html.ride-pill-visible #app:not(.nav-mode) .screen-map .map-actions{bottom:calc(146px + var(--bottom-control-inset))}
+/* The map reaches the screen edge; its floating controls sit above the
+   Where to drawer (and the home indicator under it). While riding or
+   navigating the drawer is gone and they clear the home indicator only. */
+.map-bottom-bar{bottom:calc(14px + var(--bottom-nav-height))}
+html.ride-pill-visible .map-bottom-bar{bottom:calc(76px + var(--bottom-nav-height))}
+#app:not(.nav-mode) .screen-map .map-actions{bottom:calc(84px + var(--bottom-nav-height))}
+html.ride-pill-visible #app:not(.nav-mode) .screen-map .map-actions{bottom:calc(146px + var(--bottom-nav-height))}
 html.riding-hud-active #app:not(.nav-mode) .screen-map .map-actions{bottom:calc(102px + var(--bottom-control-inset))}
 html.riding-hud-active.ride-pill-visible #app:not(.nav-mode) .screen-map .map-actions{bottom:calc(164px + var(--bottom-control-inset))}
 .riding-hud-actions{bottom:calc(14px + var(--bottom-control-inset))}
 html.ride-pill-visible .riding-hud-actions{bottom:calc(76px + var(--bottom-control-inset))}
+/* Where to drawer (Waze-style): peeks at the bottom of the map with search
+   and shortcuts; slide it up for recent places. */
+:root{--map-drawer-peek:150px}
+html[data-active-screen="map"]:not(.riding-hud-active):not(:has(#app.nav-mode)):not(:has(#app.safety-locked)){--bottom-nav-height:calc(var(--map-drawer-peek) + var(--bottom-control-inset))}
+.map-drawer{position:absolute;z-index:9;right:0;bottom:0;left:0;max-width:560px;margin:0 auto;display:flex;flex-direction:column;padding:4px max(16px,var(--safe-right)) calc(14px + var(--bottom-control-inset)) max(16px,var(--safe-left));border:1px solid var(--border-soft);border-bottom:0;border-radius:24px 24px 0 0;background:var(--bg-elevated);box-shadow:0 -12px 32px rgb(0 0 0/.3);touch-action:none}
+.nav-mode .map-drawer,#app.safety-locked .map-drawer,html.riding-hud-active .map-drawer{display:none}
+.map-drawer-handle{align-self:center;width:88px;height:24px;display:grid;place-items:center;margin-bottom:4px;padding:0;border:0;background:transparent;cursor:grab}
+.map-drawer-handle span{width:40px;height:5px;border-radius:3px;background:var(--border)}
+.map-drawer-handle:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:12px}
+#app .map-drawer .map-drawer-search{flex:none;min-height:52px;gap:12px;padding:0 16px;border:1px solid var(--border-soft);border-radius:24px;background:var(--surface-raised);box-shadow:none;cursor:pointer}
+#app .map-drawer .map-drawer-search svg{width:21px;height:21px}
+#app .map-drawer .map-drawer-search input{font-size:1rem;font-weight:560;cursor:pointer}
+.map-drawer-shortcuts{display:flex;gap:10px;margin:12px calc(-1 * max(16px,var(--safe-right))) 0 calc(-1 * max(16px,var(--safe-left)));padding:0 max(16px,var(--safe-right)) 0 max(16px,var(--safe-left));overflow-x:auto;scrollbar-width:none}
+.map-drawer-shortcuts::-webkit-scrollbar{display:none}
+.map-drawer-shortcuts button{position:relative;flex:none;min-height:48px;display:inline-flex;align-items:center;gap:9px;padding:0 16px;border:1px solid var(--border);border-radius:16px;background:transparent;color:var(--text);font-size:.95rem;font-weight:760}
+.map-drawer-shortcuts button svg{width:21px;height:21px;color:var(--accent-ink,var(--accent))}
+.map-drawer-shortcuts button:active,.map-drawer-shortcuts button:hover{background:var(--surface)}
+.map-drawer-live{display:inline-flex;align-items:center;gap:6px;color:var(--success);font-size:.8rem;font-weight:780}
+.map-drawer-live .live-dot{flex:none}
+.map-drawer-badge{min-width:22px;height:22px;display:inline-grid;place-items:center;padding:0 6px;border-radius:11px;background:var(--accent);color:var(--accent-text);font-size:.74rem;font-weight:800}
+.map-drawer-live[hidden],.map-drawer-badge[hidden],.map-drawer-recent[hidden]{display:none}
+.map-drawer-recent{max-height:min(58vh,calc(var(--app-vh,100dvh) - 300px));margin-top:14px;overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y;animation:map-drawer-in 200ms ease-out}
+@keyframes map-drawer-in{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+.map-drawer-recent .search-result-row{width:100%}
+.map-drawer-empty{margin:6px 2px 4px;color:var(--text-secondary);font-size:.86rem;line-height:1.45}
+html.map-drawer-open #ridePill{display:none}

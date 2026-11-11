@@ -55,10 +55,11 @@ const requiredCssMarkers = [
   '--visual-vh:100dvh',
   '--bottom-control-inset:0px',
   '--navigation-control-inset:0px',
-  // No tab bar: screens clear only the home indicator, and the map's
-  // floating controls add it themselves.
+  // No tab bar: screens clear only the home indicator; on the map the
+  // Where to drawer takes its place and the floating controls rest above it.
   '--bottom-nav-height:var(--bottom-control-inset)',
-  '.map-bottom-bar{bottom:calc(14px + var(--bottom-control-inset))}',
+  '--bottom-nav-height:calc(var(--map-drawer-peek) + var(--bottom-control-inset))',
+  '.map-bottom-bar{bottom:calc(14px + var(--bottom-nav-height))}',
   '@media(display-mode:standalone){:root{--app-vh:100vh}}',
   'html.pwa-standalone{--app-vh:100vh;--nav-safe-bottom:var(--bottom-safe-area);--bottom-control-inset:var(--bottom-safe-area);--navigation-control-inset:min(18px,var(--bottom-safe-area))}',
   '.pwa-standalone .app-shell{',

@@ -1289,12 +1289,13 @@
       navBadge.textContent = attentionCount > 99 ? '99+' : String(attentionCount);
       navBadge.hidden = attentionCount === 0;
     }
-    // Friends lives in the menu now, so the avatar that opens it carries the dot.
-    const menuBadge = $('#mapMenuBadge');
-    if (menuBadge) menuBadge.hidden = attentionCount === 0;
-    $('#mapAvatarButton')?.setAttribute('aria-label', attentionCount
-      ? `Open menu, ${attentionCount} new in Friends`
-      : 'Open menu');
+    // The map's Friends shortcut carries the same count.
+    const drawerBadge = $('#drawerFriendsBadge');
+    if (drawerBadge) {
+      drawerBadge.textContent = attentionCount > 99 ? '99+' : String(attentionCount);
+      drawerBadge.hidden = attentionCount === 0;
+      drawerBadge.closest('button')?.setAttribute('aria-label', attentionCount ? `Friends, ${attentionCount} new` : 'Friends');
+    }
     $$('[data-accept]').forEach((button) => button.addEventListener('click', () => acceptRequest(button.dataset.accept)));
     $$('[data-decline]').forEach((button) => button.addEventListener('click', () => declineRequest(button.dataset.decline)));
     $$('[data-request-safety]').forEach((button) => button.addEventListener('click', () => {
@@ -2204,8 +2205,7 @@
     $('#rideActiveState').hidden = !active;
     $('#rideShareTop').hidden = !active;
     $('#ridePill').hidden = !active;
-    const menuLive = $('#appMenuRide');
-    if (menuLive) menuLive.hidden = !active;
+    for (const live of [$('#appMenuRide'), $('#drawerRideLive')]) if (live) live.hidden = !active;
     // The floating ride pill covers the last ~50px of every screen; give
     // scrollable screens room to clear it.
     document.documentElement.classList.toggle('ride-pill-visible', active);
@@ -4834,7 +4834,7 @@
       item.setAttribute('aria-disabled', String(locked));
       item.classList.toggle('safety-unavailable', locked);
     });
-    $$('#mapSearchSlot, #mapAvatarButton, #poiChipRow, #reportHazardBtn, #navReportBtn, #musicBtn, #riderCard, #hazardCard, #rideJoinState, #shareRideBtn, .ride-code-card, #rideRoster, #openRideMap').forEach((item) => {
+    $$('#mapDrawer, #mapSearchSlot, #mapAvatarButton, #poiChipRow, #reportHazardBtn, #navReportBtn, #musicBtn, #riderCard, #hazardCard, #rideJoinState, #shareRideBtn, .ride-code-card, #rideRoster, #openRideMap').forEach((item) => {
       item.toggleAttribute('inert', locked);
       item.setAttribute('aria-disabled', String(locked));
     });
@@ -5354,6 +5354,104 @@
         <span class="search-result-trailing"><svg><use href="#i-chevron"/></svg></span>
       </button>`).join('')}`;
     $$('.search-result-row', results).forEach((row) => row.addEventListener('click', () => void selectSearchResult(row.dataset.placeId)));
+  }
+
+  // The Where to drawer on the map: search and shortcuts at rest, recent
+  // places once it is slid up.
+  function renderDrawerRecent() {
+    const list = $('#mapDrawerRecent');
+    if (!list) return;
+    if ($('#mapSearchSlot')?.classList.contains('offline')) {
+      list.innerHTML = '<p class="map-drawer-empty">Search is unavailable right now.</p>';
+      return;
+    }
+    const recent = loadRecentSearches();
+    if (!recent.length) {
+      list.innerHTML = '<p class="map-drawer-empty">Places you search for show up here.</p>';
+      return;
+    }
+    list.innerHTML = `<div class="search-results-heading"><div><strong>Recent</strong></div></div>${recent.map((item, index) => `
+        <button class="search-result-row" type="button" data-drawer-recent="${index}">
+          <span class="search-result-icon"><svg><use href="#i-history"/></svg></span>
+          <span class="search-result-copy"><strong>${escapeHtml(item.name)}</strong><span>${escapeHtml(item.secondary || '')}</span></span>
+        </button>`).join('')}`;
+    $$('[data-drawer-recent]', list).forEach((row) => row.addEventListener('click', () => {
+      setMapDrawerOpen(false);
+      selectRecentSearch(recent[Number(row.dataset.drawerRecent)]);
+    }));
+  }
+
+  function setMapDrawerOpen(open) {
+    const drawer = $('#mapDrawer');
+    if (!drawer) return;
+    drawer.dataset.state = open ? 'open' : 'peek';
+    $('#mapDrawerRecent').hidden = !open;
+    const handle = $('#mapDrawerHandle');
+    handle.setAttribute('aria-expanded', String(open));
+    handle.setAttribute('aria-label', open ? 'Hide recent places' : 'Show recent places');
+    document.documentElement.classList.toggle('map-drawer-open', open);
+    if (open) renderDrawerRecent();
+  }
+
+  // Slide up to open, down to close, tap the handle to toggle. A drag that
+  // starts on a button must not also press it.
+  function initMapDrawer() {
+    const drawer = $('#mapDrawer');
+    if (!drawer) return;
+    let startY = null;
+    let dragged = false;
+    // Follow the gesture on the window: a slide quickly leaves the drawer's
+    // own edge, and capturing the pointer would steal plain taps from its
+    // buttons.
+    const onMove = (event) => {
+      if (startY !== null && Math.abs(event.clientY - startY) > 8) dragged = true;
+    };
+    const onEnd = (event) => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onEnd);
+      window.removeEventListener('pointercancel', onEnd);
+      if (startY === null) return;
+      const dy = event.type === 'pointerup' ? event.clientY - startY : 0;
+      startY = null;
+      // A slide's own click (if any) follows straight after; never let a
+      // stale flag swallow a later, real tap.
+      setTimeout(() => { dragged = false; }, 0);
+      if (dy < -30) setMapDrawerOpen(true);
+      else if (dy > 30) setMapDrawerOpen(false);
+    };
+    drawer.addEventListener('pointerdown', (event) => {
+      if (event.target.closest('#mapDrawerRecent')) return;
+      startY = event.clientY;
+      dragged = false;
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onEnd);
+      window.addEventListener('pointercancel', onEnd);
+    });
+    window.addEventListener('click', (event) => {
+      if (!dragged) return;
+      dragged = false;
+      event.preventDefault();
+      event.stopPropagation();
+    }, true);
+    $('#mapDrawerHandle').addEventListener('click', () => setMapDrawerOpen(drawer.dataset.state !== 'open'));
+    $$('[data-drawer-nav]', drawer).forEach((button) => button.addEventListener('click', () => {
+      setMapDrawerOpen(false);
+      navigate(button.dataset.drawerNav);
+    }));
+    drawer.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && drawer.dataset.state === 'open') {
+        setMapDrawerOpen(false);
+        $('#mapDrawerHandle').focus();
+      }
+    });
+    // Keep the floating controls exactly above the drawer's resting height.
+    const peek = () => {
+      if (drawer.dataset.state !== 'peek' || !drawer.offsetHeight) return;
+      const inset = parseFloat(getComputedStyle(drawer).paddingBottom) - 14;
+      document.documentElement.style.setProperty('--map-drawer-peek', `${Math.round(drawer.offsetHeight - Math.max(0, inset))}px`);
+    };
+    if ('ResizeObserver' in window) new ResizeObserver(peek).observe(drawer);
+    peek();
   }
 
   function selectRecentSearch(item) {
@@ -7045,6 +7143,7 @@
       openSheet(button.dataset.menuSheet);
     }));
     $$('[data-back-to-map]').forEach((button) => button.addEventListener('click', () => navigate('map')));
+    initMapDrawer();
     $('#enableLocationBtn').addEventListener('click', () => void requestMovementLocationAccess());
     $('#navMuteBtn')?.addEventListener('click', () => {
       navMuted = !navMuted;

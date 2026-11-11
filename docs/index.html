@@ -241,7 +241,7 @@
           <div id="googleMap" class="google-map" aria-hidden="true"></div>
           <div class="fallback-map" id="fallbackMap"><div class="road road-a"></div><div class="road road-b"></div><div class="road road-c"></div></div>
           <h1 id="mapTitle" class="sr-only">Rider map</h1>
-          <header class="map-header"><div class="map-avatar-wrap"><button class="avatar avatar-sm" id="mapAvatarButton" data-avatar="AI" aria-label="Open menu" aria-haspopup="dialog" aria-controls="appMenu">AI</button><i id="mapMenuBadge" class="map-menu-badge" aria-hidden="true" hidden></i><button id="voiceStatusBtn" class="voice-mute-badge" aria-label="Listening — hands-free" hidden><svg><use href="#i-mic"/></svg></button></div><div class="search-slot glass" id="mapSearchSlot"><svg><use href="#i-search"/></svg><input id="placeSearchInput" placeholder="Search for a place" aria-label="Search for a place" autocomplete="off" readonly><svg class="map-search-options" aria-hidden="true"><use href="#i-sliders"/></svg></div><div class="map-status-row"><div id="mapStatusChip" class="map-status-chip" role="status" aria-live="polite"><span class="map-status-dot" aria-hidden="true"></span><span id="mapStatusText">Nearby off</span></div></div></header>
+          <header class="map-header"><div class="map-avatar-wrap"><button class="avatar avatar-sm" id="mapAvatarButton" data-avatar="AI" aria-label="Open menu" aria-haspopup="dialog" aria-controls="appMenu">AI</button><button id="voiceStatusBtn" class="voice-mute-badge" aria-label="Listening — hands-free" hidden><svg><use href="#i-mic"/></svg></button></div><div class="map-status-row"><div id="mapStatusChip" class="map-status-chip" role="status" aria-live="polite"><span class="map-status-dot" aria-hidden="true"></span><span id="mapStatusText">Nearby off</span></div></div></header>
           <div id="fallbackMarkers" class="fallback-markers"></div>
           <div id="hazardMarkers" class="hazard-markers"></div>
           <div class="map-actions">
@@ -255,6 +255,16 @@
             <button id="reportHazardBtn" class="map-hazard-button" aria-label="Report on the road"><svg aria-hidden="true"><use href="#i-hazard-report"/></svg></button>
             <button id="joinNearbyBtn" class="map-live-button" aria-label="Go live nearby" aria-pressed="false"><svg aria-hidden="true"><use href="#i-nearby"/></svg><span id="joinNearbyLabel">Go live</span></button>
           </div>
+          <section id="mapDrawer" class="map-drawer" data-state="peek" aria-label="Where to">
+            <button id="mapDrawerHandle" class="map-drawer-handle" type="button" aria-controls="mapDrawerRecent" aria-expanded="false" aria-label="Show recent places"><span></span></button>
+            <div class="search-slot map-drawer-search" id="mapSearchSlot"><svg><use href="#i-search"/></svg><input id="placeSearchInput" placeholder="Where to?" aria-label="Where to?" autocomplete="off" readonly></div>
+            <div class="map-drawer-shortcuts" role="group" aria-label="Shortcuts">
+              <button type="button" data-drawer-nav="ride"><svg aria-hidden="true"><use href="#i-bike"/></svg><span>Ride</span><small id="drawerRideLive" class="map-drawer-live" hidden><i class="live-dot"></i>Live</small></button>
+              <button type="button" data-drawer-nav="friends"><svg aria-hidden="true"><use href="#i-users"/></svg><span>Friends</span><b id="drawerFriendsBadge" class="map-drawer-badge" hidden>0</b></button>
+              <button type="button" data-drawer-nav="routes"><svg aria-hidden="true"><use href="#i-route"/></svg><span>Routes</span></button>
+            </div>
+            <div id="mapDrawerRecent" class="map-drawer-recent" hidden></div>
+          </section>
           <div id="ridingHud" class="riding-hud" hidden>
             <div class="riding-hud-chips">
               <span class="hud-chip hud-lock"><svg aria-hidden="true"><use href="#i-lock"/></svg>Ride Safe</span>

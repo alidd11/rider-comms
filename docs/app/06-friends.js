@@ -150,12 +150,13 @@
       navBadge.textContent = attentionCount > 99 ? '99+' : String(attentionCount);
       navBadge.hidden = attentionCount === 0;
     }
-    // Friends lives in the menu now, so the avatar that opens it carries the dot.
-    const menuBadge = $('#mapMenuBadge');
-    if (menuBadge) menuBadge.hidden = attentionCount === 0;
-    $('#mapAvatarButton')?.setAttribute('aria-label', attentionCount
-      ? `Open menu, ${attentionCount} new in Friends`
-      : 'Open menu');
+    // The map's Friends shortcut carries the same count.
+    const drawerBadge = $('#drawerFriendsBadge');
+    if (drawerBadge) {
+      drawerBadge.textContent = attentionCount > 99 ? '99+' : String(attentionCount);
+      drawerBadge.hidden = attentionCount === 0;
+      drawerBadge.closest('button')?.setAttribute('aria-label', attentionCount ? `Friends, ${attentionCount} new` : 'Friends');
+    }
     $$('[data-accept]').forEach((button) => button.addEventListener('click', () => acceptRequest(button.dataset.accept)));
     $$('[data-decline]').forEach((button) => button.addEventListener('click', () => declineRequest(button.dataset.decline)));
     $$('[data-request-safety]').forEach((button) => button.addEventListener('click', () => {
