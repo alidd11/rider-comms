@@ -6,7 +6,9 @@ import {
   enablePush,
   notificationRoute,
   pushEnabledOnDevice,
+  pushPermission,
   PushNotConfiguredError,
+  syncPush,
 } from '../../src/notifications/pushNotifications';
 
 jest.mock('expo-constants', () => ({ __esModule: true, default: { expoConfig: null, easConfig: null } }));
@@ -14,6 +16,8 @@ jest.mock('expo-constants', () => ({ __esModule: true, default: { expoConfig: nu
 const mockConstants = Constants as unknown as { expoConfig: unknown };
 
 const mocked = Notifications as jest.Mocked<typeof Notifications>;
+// Captured before beforeEach clears mock calls: set once at import.
+const notificationHandler = mocked.setNotificationHandler.mock.calls[0]?.[0];
 
 function fakeClient() {
   return { registerPushToken: jest.fn(async () => ({})), unregisterPushToken: jest.fn(async () => ({})) };
@@ -62,4 +66,32 @@ test('notification routes open Friends or a chat, and nothing else', () => {
   expect(notificationRoute({ route: '#chat:rider_abc-1' })).toEqual({ screen: 'chat', riderId: 'rider_abc-1' });
   expect(notificationRoute({ route: 'https://evil.example' })).toBeNull();
   expect(notificationRoute(null)).toBeNull();
+});
+
+test('notifications show as a banner while the app is open too', async () => {
+  const behaviour = await notificationHandler?.handleNotification({} as never);
+  expect(behaviour).toEqual({ shouldShowBanner: true, shouldShowList: true, shouldPlaySound: true, shouldSetBadge: false });
+});
+
+test('permission reads as granted, denied or not asked yet', async () => {
+  mocked.getPermissionsAsync.mockResolvedValueOnce({ status: 'granted' } as never);
+  expect(await pushPermission()).toBe('granted');
+  mocked.getPermissionsAsync.mockResolvedValueOnce({ status: 'denied' } as never);
+  expect(await pushPermission()).toBe('denied');
+  expect(await pushPermission()).toBe('undetermined');
+});
+
+test('startup re-registers a phone that has notifications on, and nothing else', async () => {
+  const client = fakeClient();
+  await syncPush(client, 'r1');
+  expect(client.registerPushToken).not.toHaveBeenCalled();
+
+  mocked.getPermissionsAsync.mockResolvedValue({ status: 'granted' } as never);
+  await enablePush(client, 'r1');
+  client.registerPushToken.mockClear();
+  await syncPush(client, 'r1');
+  expect(client.registerPushToken).toHaveBeenCalledWith('ExponentPushToken[test-token-000]');
+  // Signing out of an account that never registered is a no-op.
+  await disablePush(client, 'someone-else');
+  expect(client.unregisterPushToken).not.toHaveBeenCalled();
 });
