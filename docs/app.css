@@ -2673,7 +2673,7 @@ html.pwa-standalone:not(.keyboard-open) .chat-screen{top:0;bottom:auto;height:va
 /* Map header: avatar (opens the menu) to the left of search. */
 .screen-map .map-header{justify-content:flex-start;gap:10px}
 .screen-map .map-avatar-wrap{flex:none;position:relative}
-.screen-map #mapAvatarButton{display:grid;width:48px!important;height:48px!important;cursor:pointer;box-shadow:0 6px 18px rgb(0 0 0/.35),0 0 0 2px var(--surface)}
+.screen-map #mapAvatarButton{display:grid;width:48px!important;height:48px!important;cursor:pointer;box-shadow:0 4px 14px rgb(0 0 0/.28),0 0 0 2px var(--surface)}
 .screen-map .search-slot{flex:1}
 
 /* While moving (Ride Safe) the map gets the whole screen; navigation mode
@@ -3024,3 +3024,4 @@ html[data-active-screen="map"]:not(.riding-hud-active):not(:has(#app.nav-mode)):
 html.map-drawer-open #ridePill{display:none}
 
 .search-save-banner{margin:0;padding:6px 16px 2px;font-size:.82rem;font-weight:700;color:var(--text-secondary)}.search-save-banner[hidden]{display:none}.saved-place-address{margin:0 0 14px}#savedPlaceRemove{margin-top:10px}.map-avatar-badge{position:absolute;top:-3px;right:-5px;min-width:20px;height:20px;padding:0 5px;border-radius:999px;border:2px solid var(--surface);background:var(--accent);color:var(--accent-text,#fff);font-size:.68rem;font-weight:800;line-height:16px;text-align:center;pointer-events:none}.map-avatar-badge[hidden]{display:none}
+.map-avatar-menu{position:absolute;right:-3px;bottom:-3px;width:22px;height:22px;display:grid;place-items:center;border-radius:50%;background:var(--surface-raised);border:2px solid var(--surface);color:var(--text);pointer-events:none}.map-avatar-menu svg{width:12px;height:12px;stroke:currentColor;stroke-width:2.4;fill:none}#voiceStatusBtn:not([hidden])~.map-avatar-menu{display:none}

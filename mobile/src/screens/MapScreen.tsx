@@ -673,7 +673,10 @@ export function MapScreen(): React.JSX.Element {
             onPress={() => rootNavigation?.navigate('Menu')}
             style={({ pressed }) => [styles.menuButton, pressed && styles.menuButtonPressed]}
           >
-            <RiderAvatar avatarId={avatarId} size={44} mapMarker={false} status="none" />
+            <RiderAvatar avatarId={avatarId} size={46} mapMarker={false} status="none" />
+            <View style={styles.menuHint} pointerEvents="none">
+              <Ionicons name="menu" size={12} color={colors.textPrimary} />
+            </View>
             {friendsAttention > 0 ? (
               <View style={styles.menuBadge} testID="menu-badge">
                 <Text style={styles.menuBadgeText}>{friendsAttention > 99 ? '99+' : friendsAttention}</Text>
