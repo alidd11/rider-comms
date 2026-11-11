@@ -3076,3 +3076,5 @@ html.ride-pill-visible body:has(.screen-map.active) .movement-safety-banner{bott
 .my-profile-hero .my-profile-plan{margin-top:8px;padding:4px 12px;border-radius:999px;background:var(--settings-group-bg);border:1px solid var(--settings-separator);color:var(--accent);font-size:.85rem;font-weight:700}
 .my-profile-hero{padding-bottom:28px}
 .my-profile-hero+.settings-rows+.my-profile-section{margin-top:28px}
+/* The plan pill's text needs the darker accent to meet 4.5:1 on white. */
+@media(prefers-color-scheme:light){.my-profile-hero .my-profile-plan{color:var(--accent-ink)}}
