@@ -343,7 +343,6 @@
       <section class="screen content-screen" data-screen="settings" aria-labelledby="settingsTitle">
         <div class="page-width settings-page"><header class="page-header"><button class="icon-button page-back" type="button" data-back-to-map aria-label="Back to map"><svg class="icon-back"><use href="#i-chevron"/></svg></button><div><h1 id="settingsTitle">Settings</h1></div></header>
           <div id="settingsList" class="settings-list"></div>
-          <div class="settings-group settings-signout"><button id="logoutBtn"><span class="setting-icon danger-text"><svg><use href="#i-logout"/></svg></span><span><strong class="danger-text">Sign Out</strong></span></button></div>
         </div>
       </section>
 
@@ -396,7 +395,7 @@
     </form>
   </section>
 
-  <div id="sheetBackdrop" class="sheet-backdrop" hidden><section class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle" tabindex="-1"><div class="sheet-handle"></div><header><h2 id="sheetTitle"></h2><button id="closeSheet" class="icon-button" aria-label="Close">×</button></header><div id="sheetBody" class="sheet-body"></div></section></div>
+  <div id="sheetBackdrop" class="sheet-backdrop" hidden><section class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle" tabindex="-1"><div class="sheet-handle"></div><header><h2 id="sheetTitle"></h2><button id="closeSheet" class="icon-button" aria-label="Close">×</button><button id="closeSheetAll" class="icon-button sheet-close-all" type="button" aria-label="Close settings" hidden><svg aria-hidden="true"><use href="#i-close"/></svg></button></header><div id="sheetBody" class="sheet-body"></div></section></div>
   <div id="appNotification" class="app-notification" role="status" aria-live="polite" aria-atomic="true" data-tone="" hidden><span class="app-notification-icon" aria-hidden="true">i</span><span data-notification-message></span><button id="closeAppNotification" type="button" aria-label="Dismiss notification">×</button></div>
   <div id="movementSafetyBanner" class="movement-safety-banner" role="status" aria-live="polite" hidden>
     <svg aria-hidden="true"><use href="#i-shield"></use></svg>

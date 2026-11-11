@@ -2453,11 +2453,17 @@
     plan: { title: 'Your plan', sections: [['', 'plans']] },
     // The Settings list holds the switches itself; these are the choices
     // and lists it opens.
-    navigationApp: { title: 'Navigation app', sections: [['', 'navigation']] },
-    distanceUnits: { title: 'Distance units', sections: [['', 'units']] },
-    blockedRiders: { title: 'Blocked riders', sections: [['', 'blocked']] },
-    email: { title: 'Email', sections: [['', 'emailStatus']] },
-    devices: { title: 'Signed-in devices', sections: [['', 'sessions']] },
+    // Waze-style: the Settings root lists categories, each its own page.
+    general: { title: 'General', sections: [['', 'generalSettings']] },
+    mapNavigation: { title: 'Map & navigation', sections: [['', 'mapNavigationSettings']] },
+    rideSafe: { title: 'Ride Safe', sections: [['', 'rideSafeSettings']] },
+    account: { title: 'Account and login', sections: [['Login info', 'accountLogin'], ['Advanced', 'accountAdvanced']] },
+    privacy: { title: 'Privacy', sections: [['', 'privacySettings']] },
+    navigationApp: { title: 'Navigation app', sections: [['', 'navigation']], back: 'mapNavigation' },
+    distanceUnits: { title: 'Distance units', sections: [['', 'units']], back: 'general' },
+    blockedRiders: { title: 'Blocked riders', sections: [['', 'blocked']], back: 'privacy' },
+    email: { title: 'Email', sections: [['', 'emailStatus']], back: 'account' },
+    devices: { title: 'Signed-in devices', sections: [['', 'sessions']], back: 'account' },
     help: { title: 'Help & Support', sections: [['', 'helpContact'], ['Common questions', 'faq'], ['Riding safely', 'safetyGuidance'], ['Legal', 'legalLinks']] },
     about: { title: 'About', sections: [['', 'aboutCard']] },
   };
@@ -2474,11 +2480,11 @@
   // list (scripts/check-client-parity.mjs keeps them equal).
   const HELP_FAQ = [
     ['I can’t sign in', 'Use Forgot password? on the sign-in screen. We’ll email a reset link and code to the address on your account.'],
-    ['I didn’t get the verification email', 'Check your spam folder, then open Settings → Email and send a new one.'],
+    ['I didn’t get the verification email', 'Check your spam folder, then open Settings → Account and login → Email and send a new one.'],
     ['Voice isn’t connecting', 'Check that Rider Comms can use your microphone and that you have a data connection. Your map and ride keep working while voice reconnects.'],
     ['My location isn’t showing', 'Location is only shared when you turn it on: Go live for Nearby, or the location switch in a group ride. Check that location access is allowed for Rider Comms.'],
     ['Someone is bothering me', 'Report and block them from their profile, a chat, the ride roster or a friend request. Reports are reviewed within 24 hours.'],
-    ['How do I delete my account?', 'Settings → Delete account. It permanently deletes your account and its data straight away.'],
+    ['How do I delete my account?', 'Settings → Account and login → Delete account. It permanently deletes your account and its data straight away.'],
   ];
 
   function openSheet(type) {
@@ -2615,6 +2621,63 @@
         },
       }),
       units: () => ({ title: 'Distance units', body: `<div class="choice-list" role="radiogroup" aria-label="Distance units"><button data-unit-option="mi" role="radio"><span><strong>Miles</strong><small>Use miles and mph</small></span><i></i></button><button data-unit-option="km" role="radio"><span><strong>Kilometres</strong><small>Use kilometres and km/h</small></span><i></i></button></div>`, ready: () => { $$('[data-unit-option]', $('#sheetBody')).forEach((button) => { const active = button.dataset.unitOption === state.profile.unitSystem; button.setAttribute('aria-checked', String(active)); button.addEventListener('click', async () => { button.disabled = true; const next = button.dataset.unitOption; const ok = await patchProfile({ unitSystem: next }); if (ok) { openSheet('units'); showToast('Distance unit updated.'); } else button.disabled = false; }); }); } }),
+      generalSettings: () => ({
+        title: 'General',
+        body: settingsRowsMarkup([
+          `<div class="settings-row settings-row-stack"><span class="settings-row-label">${escapeHtml('Distance units')}</span><div class="segmented" role="radiogroup" aria-label="Distance units">${[['mi', 'Miles'], ['km', 'km']].map(([unit, label]) => `<button type="button" role="radio" data-unit-segment="${unit}" aria-checked="${state.profile.unitSystem === unit}">${label}</button>`).join('')}</div></div>`,
+        ]),
+        ready: () => $$('[data-unit-segment]', $('#sheetBody')).forEach((button) => button.addEventListener('click', async () => {
+          const next = button.dataset.unitSegment;
+          if (next === state.profile.unitSystem) return;
+          const ok = await patchProfile({ unitSystem: next });
+          if (ok) openSheet('general');
+        })),
+      }),
+      mapNavigationSettings: () => ({
+        title: 'Map & navigation',
+        body: settingsRowsMarkup([
+          settingsLink('navigationApp', 'Navigation app', NAVIGATION_PROVIDERS[navigationProvider(state.navigationProvider)].label),
+          settingsToggle('avoidHighways', 'Avoid motorways', state.avoidHighways),
+          settingsToggle('avoidTolls', 'Avoid tolls', state.avoidTolls),
+        ], 'Route options apply to routes Rider Comms plans.'),
+        ready: () => { wireSettingsLinks($('#sheetBody')); wireToggles(); },
+      }),
+      rideSafeSettings: () => ({
+        title: 'Ride Safe',
+        body: settingsRowsMarkup([
+          settingsToggle('rideSafeEnabled', 'Ride Safe auto-lock', state.rideSafeEnabled),
+        ], 'Ride Safe locks distracting controls at 8 mph and above. Only change it while safely stopped.'),
+        ready: () => wireToggles(),
+      }),
+      privacySettings: () => ({
+        title: 'Privacy',
+        body: settingsRowsMarkup([
+          settingsToggle('shareLocation', 'Nearby rider visibility', state.profile.shareLocation),
+          settingsLink('blockedRiders', 'Blocked riders'),
+        ], 'Nearby riders see you only while you’re live. Group-ride location is chosen inside each ride.'),
+        ready: () => { wireSettingsLinks($('#sheetBody')); wireToggles(); void refreshBlockedCount(); },
+      }),
+      accountLogin: () => ({
+        title: 'Login info',
+        body: settingsRowsMarkup([
+          settingsLink('email', 'Email', session?.emailVerified ? 'Verified' : 'Not verified'),
+          settingsLink('devices', 'Signed-in devices'),
+        ]),
+        ready: () => wireSettingsLinks($('#sheetBody')),
+      }),
+      accountAdvanced: () => ({
+        title: 'Advanced',
+        body: settingsRowsMarkup([
+          settingsAction('logoutBtn', 'Sign out'),
+          settingsAction('resetSettingsBtn', 'Reset settings'),
+          settingsAction('deleteAccountBtn', 'Delete account', true),
+        ], 'Deleting your account permanently removes it and its data straight away.'),
+        ready: () => {
+          $('#logoutBtn').addEventListener('click', () => void signOut());
+          $('#resetSettingsBtn').addEventListener('click', () => void resetSettings());
+          $('#deleteAccountBtn').addEventListener('click', () => void deleteCurrentAccount());
+        },
+      }),
       reportHazard: () => ({
         title: 'Report on the road',
         body: `<p class="caption">Let nearby riders know what's ahead. Reports fade out over time.</p><div class="hazard-type-grid" id="hazardTypeChips">${HAZARD_TYPE_ORDER.map((t) => `<button type="button" class="hazard-type-tile" data-hazard-type="${t}" style="--hazard:${HAZARD_TYPES[t].color}">${hazardIconMarkup(t)}<span>${escapeHtml(HAZARD_TYPES[t].label)}</span></button>`).join('')}</div><p id="hazardFormError" class="inline-error" hidden></p><p id="hazardAutoClose" class="hazard-autoclose" aria-live="off">Closes in ${HAZARD_AUTO_CLOSE_SECONDS} seconds if you don’t pick one.</p>`,
@@ -2668,6 +2731,8 @@
     close.innerHTML = currentSettingsPage ? '<svg class="icon-back" aria-hidden="true"><use href="#i-chevron"/></svg>' : '×';
     close.dataset.backTo = SETTINGS_PAGES[currentSettingsPage]?.back || '';
     close.setAttribute('aria-label', currentSettingsPage ? 'Back' : 'Close');
+    // Settings pages also get Waze's X, which closes every level at once.
+    $('#closeSheetAll').hidden = !currentSettingsPage;
     $('#sheetTitle').textContent = title;
     $('#sheetBody').innerHTML = body;
     $('#sheetBackdrop').hidden = false;
@@ -2803,40 +2868,47 @@
   // The Settings screen is a real settings list: switches act in place,
   // choices show their current value and open a page to change it, and
   // only lists (devices, blocked riders) and account actions go further.
+  // Settings rows, Waze-style: grouped full-width rows, a coloured round
+  // icon on category rows, values in grey before the chevron.
+  function settingsRowsMarkup(rows, note = '') {
+    return `<div class="settings-rows">${rows.join('')}</div>${note ? `<p class="settings-section-note">${escapeHtml(note)}</p>` : ''}`;
+  }
+  function settingsLink(page, label, value = '', detail = '') {
+    return `<button type="button" class="settings-row" data-settings-open="${page}"><span class="settings-row-label">${escapeHtml(label)}${detail ? `<small>${escapeHtml(detail)}</small>` : ''}</span>${value ? `<span class="settings-row-value">${escapeHtml(value)}</span>` : ''}<span class="settings-row-chevron">${icon('chevron')}</span></button>`;
+  }
+  function settingsToggle(key, label, active) {
+    return `<div class="settings-row settings-row-toggle"><span class="settings-row-label">${escapeHtml(label)}</span><button type="button" class="toggle" data-toggle="${key}" aria-label="${escapeHtml(label)}" aria-pressed="${active}"></button></div>`;
+  }
+  function settingsAction(id, label, danger = false) {
+    return `<button type="button" class="settings-row${danger ? ' settings-row-danger' : ''}" id="${id}"><span class="settings-row-label">${escapeHtml(label)}</span></button>`;
+  }
+  async function signOut() {
+    if (!window.confirm('Sign out of Rider Comms on this device?')) return;
+    try {
+      await apiFetch('POST', '/auth/logout');
+    } catch {
+      // Local sign-out must still complete when the API is unavailable.
+    } finally {
+      clearSession();
+      location.reload();
+    }
+  }
+  function wireSettingsLinks(root) {
+    $$('[data-settings-open]', root).forEach((button) => button.addEventListener('click', () => openSheet(button.dataset.settingsOpen)));
+  }
+
+  // The Settings root: categories only, each opening its own page.
+  const SETTINGS_CATEGORIES = [
+    ['', [['general', 'settings', 'General', '#1fb6d9'], ['mapNavigation', 'map', 'Map & navigation', '#2fb35f'], ['rideSafe', 'shield', 'Ride Safe', '#f2802a']]],
+    ['Account', [['account', 'user', 'Account and login', '#2a8196'], ['privacy', 'lock', 'Privacy', '#1e95e8']]],
+    ['', [['about', 'info', 'About', '#16a9d9']]],
+  ];
   function renderSettingsList() {
     const list = $('#settingsList');
     if (!list) return;
-    const section = (title, rows, note = '') => `<section class="settings-section" aria-label="${escapeHtml(title)}"><h2 class="settings-section-title">${escapeHtml(title)}</h2><div class="settings-rows">${rows.join('')}</div>${note ? `<p class="settings-section-note">${escapeHtml(note)}</p>` : ''}</section>`;
-    const link = (page, iconName, label, value = '') => `<button type="button" class="settings-row" data-settings-open="${page}"><span class="setting-icon">${icon(iconName)}</span><span class="settings-row-label">${escapeHtml(label)}</span>${value ? `<span class="settings-row-value">${escapeHtml(value)}</span>` : ''}<span class="settings-row-chevron">${icon('chevron')}</span></button>`;
-    const toggle = (key, iconName, label, active) => `<div class="settings-row settings-row-toggle"><span class="setting-icon">${icon(iconName)}</span><span class="settings-row-label">${escapeHtml(label)}</span><button type="button" class="toggle" data-toggle="${key}" aria-label="${escapeHtml(label)}" aria-pressed="${active}"></button></div>`;
-    const action = (id, iconName, label, danger = false) => `<button type="button" class="settings-row${danger ? ' settings-row-danger' : ''}" id="${id}"><span class="setting-icon">${icon(iconName)}</span><span class="settings-row-label">${escapeHtml(label)}</span></button>`;
-    list.innerHTML = [
-      section('Riding', [
-        toggle('rideSafeEnabled', 'shield', 'Ride Safe auto-lock', state.rideSafeEnabled),
-        link('distanceUnits', 'units', 'Distance units', state.profile.unitSystem === 'km' ? 'Kilometres' : 'Miles'),
-      ], 'Ride Safe locks distracting controls at 8 mph and above. Only change it while safely stopped.'),
-      section('Map & navigation', [
-        link('navigationApp', 'route', 'Navigation app', NAVIGATION_PROVIDERS[navigationProvider(state.navigationProvider)].label),
-        toggle('avoidHighways', 'map', 'Avoid motorways', state.avoidHighways),
-        toggle('avoidTolls', 'card', 'Avoid tolls', state.avoidTolls),
-      ], 'Route options apply to routes Rider Comms plans.'),
-      section('Privacy', [
-        toggle('shareLocation', 'location', 'Nearby rider visibility', state.profile.shareLocation),
-        link('blockedRiders', 'eye-off', 'Blocked riders'),
-      ], 'Nearby riders see you only while you’re live. Group-ride location is chosen inside each ride.'),
-      section('Account', [
-        link('email', 'mail', 'Email', session?.emailVerified ? 'Verified' : 'Not verified'),
-        link('devices', 'phone', 'Signed-in devices'),
-        action('resetSettingsBtn', 'reset', 'Reset settings'),
-        action('deleteAccountBtn', 'alert', 'Delete account', true),
-      ]),
-      section('About', [link('about', 'info', 'About', 'Version 0.3.0')]),
-    ].join('');
-    $$('[data-settings-open]', list).forEach((button) => button.addEventListener('click', () => openSheet(button.dataset.settingsOpen)));
-    $('#resetSettingsBtn').addEventListener('click', () => void resetSettings());
-    $('#deleteAccountBtn').addEventListener('click', () => void deleteCurrentAccount());
-    wireToggles(list);
-    void refreshBlockedCount();
+    list.innerHTML = SETTINGS_CATEGORIES.map(([title, rows]) => `<section class="settings-section"${title ? ` aria-label="${escapeHtml(title)}"` : ''}>${title ? `<h2 class="settings-section-title">${escapeHtml(title)}</h2>` : ''}<div class="settings-rows">${rows.map(([page, iconName, label, tint]) => `<button type="button" class="settings-row settings-row-category" data-settings-open="${page}"><span class="settings-category-icon" style="--tint:${tint}">${icon(iconName)}</span><span class="settings-row-label">${escapeHtml(label)}</span><span class="settings-row-chevron">${icon('chevron')}</span></button>`).join('')}</div></section>`).join('')
+      + '<p class="settings-version">Version 0.3.0</p>';
+    wireSettingsLinks(list);
   }
 
   // Blocked riders shows how many, fetched after the list draws so it never
@@ -6917,6 +6989,7 @@
     $('#navReportBtn').addEventListener('click', openHazardReport);
     $('#hudMuteBtn').addEventListener('click', () => void toggleVoiceMute());
     $('#closeSheet').addEventListener('click', sheetBack);
+    $('#closeSheetAll').addEventListener('click', () => closeSheet());
     $('#sheetBackdrop').addEventListener('click', (event) => { if (event.target === $('#sheetBackdrop')) closeSheet(); });
     document.addEventListener('keydown', (event) => {
       if ($('#sheetBackdrop').hidden) return;
@@ -6939,17 +7012,6 @@
       } else if (!event.shiftKey && document.activeElement === last) {
         event.preventDefault();
         first.focus();
-      }
-    });
-    $('#logoutBtn').addEventListener('click', async () => {
-      if (!window.confirm('Sign out of Rider Comms on this device?')) return;
-      try {
-        await apiFetch('POST', '/auth/logout');
-      } catch {
-        // Local sign-out must still complete when the API is unavailable.
-      } finally {
-        clearSession();
-        location.reload();
       }
     });
     $('#locateBtn').addEventListener('click', locate);

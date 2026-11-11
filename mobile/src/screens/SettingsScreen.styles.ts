@@ -3,6 +3,7 @@ import { colors, spacing, radii, type, MIN_TOUCH_TARGET } from '../theme';
 
 export const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
+  settingsVersion: { marginTop: 36, textAlign: 'center', fontSize: 15, color: colors.textMuted },
   scroll: { width: '100%', maxWidth: 760, alignSelf: 'center', paddingHorizontal: spacing.md, paddingVertical: spacing.md, paddingTop: spacing.lg },
   profileSaveStatus: { minHeight: 24, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: -spacing.sm, marginBottom: spacing.sm, paddingHorizontal: spacing.xs },
   profileSavingText: { ...type.caption, color: colors.textSecondary },

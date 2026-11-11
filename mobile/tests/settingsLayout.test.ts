@@ -3,35 +3,43 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const settingsSource = await readFile(new URL('../src/screens/SettingsScreen.tsx', import.meta.url), 'utf8')
-  + await readFile(new URL('../src/screens/SettingsScreen.styles.ts', import.meta.url), 'utf8');
+  + await readFile(new URL('../src/screens/SettingsScreen.styles.ts', import.meta.url), 'utf8')
+  + await readFile(new URL('../src/screens/SettingsListUi.tsx', import.meta.url), 'utf8');
 
 describe('Settings mockup contract', () => {
-  it('is a real settings list: sections of actual settings, in order', () => {
-    const root = settingsSource.slice(settingsSource.indexOf('export function SettingsScreen()'), settingsSource.indexOf('const VISIBILITY_LABELS'));
-    const order = [
-      'title="Riding"', 'title="Ride Safe auto-lock"', 'title="Distance units"',
-      'title="Map & navigation"', 'title="Navigation app"', 'title="Avoid motorways"', 'title="Avoid tolls"',
-      'title="Privacy"', 'title="Nearby rider visibility"', 'title="Blocked riders"',
-      'title="Account"', 'title="Email"', 'title="Signed-in devices"', 'title="Reset settings"', 'title="Delete account"',
-      'title="About"', 'title="Sign Out"',
-    ];
+  it('is Waze-style: a root of categories, each opening its own page', () => {
+    const root = settingsSource.slice(settingsSource.indexOf('export function SettingsScreen()'), settingsSource.indexOf('function GeneralPage('));
+    const categories = ['title="General"', 'title="Map & navigation"', 'title="Ride Safe"', 'title="Account"', 'title="Account and login"', 'title="Privacy"', 'title="About"'];
     let cursor = -1;
-    for (const label of order) {
+    for (const label of categories) {
       const next = root.indexOf(label, cursor + 1);
+      assert.ok(next > cursor, `Expected ${label} after the previous Settings category`);
+      cursor = next;
+    }
+    assert.equal((root.match(/<CategoryRow /g) ?? []).length, 6);
+    assert.match(root, /Version \{appVersion\}/);
+    // The pages, in the same order as the PWA's.
+    const pages = settingsSource.slice(settingsSource.indexOf('function GeneralPage('), settingsSource.indexOf('const VISIBILITY_LABELS'));
+    const rows = ['title="Distance units"', 'title="Navigation app"', 'title="Avoid motorways"', 'title="Avoid tolls"', 'title="Ride Safe auto-lock"',
+      'title="Nearby rider visibility"', 'title="Blocked riders"', 'title="Login info"', 'title="Email"', 'title="Signed-in devices"',
+      'title="Advanced"', 'title="Sign out"', 'title="Reset settings"', 'title="Delete account"'];
+    cursor = -1;
+    for (const label of rows) {
+      const next = pages.indexOf(label, cursor + 1);
       assert.ok(next > cursor, `Expected ${label} after the previous Settings row`);
       cursor = next;
     }
-    // Switches act in place; choices show their current value.
-    assert.equal((root.match(/<SettingsSwitchRow /g) ?? []).length, 4);
-    assert.match(root, /title="Distance units" right=\{UNIT_LABELS\[unitSystem\]\.name\}/);
-    assert.match(root, /title="Navigation app" right=\{navigationAppLabel\}/);
-    assert.match(root, /title="Email" right=\{emailVerified \? 'Verified' : 'Not verified'\}/);
+    assert.equal((pages.match(/<SwitchRow /g) ?? []).length, 4);
+    assert.match(pages, /<SegmentedRow first title="Distance units"/);
+    assert.match(pages, /title="Navigation app" value=\{navigationAppLabel\}/);
+    assert.match(pages, /title="Email" value=\{emailVerified \? 'Verified' : 'Not verified'\}/);
     // Turning Ride Safe off asks first; deleting the account asks first.
-    assert.match(root, /function changeRideSafe[\s\S]*Turn off Automatic Ride Safe\?/);
-    assert.match(root, /function confirmDeleteAccount[\s\S]*Delete account\?/);
-    assert.match(root, /title="Sign Out" danger showChevron=\{false\} last/);
-    // The old category hub is gone.
-    for (const old of ['Communication', 'Units & Preferences', 'accountHub', 'unitsPreferences', 'mapNavigation']) {
+    assert.match(pages, /function changeRideSafe[\s\S]*Turn off Automatic Ride Safe\?/);
+    assert.match(pages, /function confirmDeleteAccount[\s\S]*Delete account\?/);
+    assert.match(pages, /title="Delete account" danger chevron=\{false\}/);
+    // Sub-pages have back and an X that closes every Settings level.
+    assert.match(settingsSource, /onClose=\{\(\) => navigation\.popTo\('Settings'\)\}/);
+    for (const old of ['Communication', 'Units & Preferences', 'accountHub', 'unitsPreferences']) {
       assert.ok(!settingsSource.includes(old), `Old Settings category still present: ${old}`);
     }
   });
@@ -50,9 +58,13 @@ describe('Settings mockup contract', () => {
   });
 
   it('opens a page only for choices and lists', () => {
-    for (const key of ['navigationApp', 'distanceUnits', 'blockedRiders', 'email', 'devices', 'about']) {
+    for (const key of ['general', 'mapNavigation', 'rideSafe', 'account', 'privacy', 'about']) {
       assert.ok(settingsSource.includes(`page === '${key}'`), `Missing Settings page: ${key}`);
-      assert.ok(settingsSource.includes(`openPage('${key}')`), `Settings list does not open page: ${key}`);
+      assert.ok(settingsSource.includes(`openPage('${key}')`), `Settings root does not open page: ${key}`);
+    }
+    for (const key of ['navigationApp', 'blockedRiders', 'email', 'devices']) {
+      assert.ok(settingsSource.includes(`page === '${key}'`), `Missing Settings page: ${key}`);
+      assert.ok(settingsSource.includes(`navigation.push('SettingsPage', { page: '${key}' })`), `No row opens page: ${key}`);
     }
     // Every page is the same SettingsPage route, so opening one must push a
     // new screen (navigate() would replace the current page and break Back).

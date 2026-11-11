@@ -78,34 +78,54 @@ const [
 const nativeMapSource = nativeMapScreenSource + nativeMapScreenStylesSource + nativeMapMarkersSource + nativeHazardReportsSource + nativeNavigationSummarySource + nativeInAppNavigationSource;
 
 
-// Settings is a real settings list on both clients: the same sections and
-// rows, in the same order. The PWA builds it in renderSettingsList(); native
-// in SettingsScreen().
-const pwaSettingsList = pwaMapSource.slice(pwaMapSource.indexOf('function renderSettingsList()'));
+// Settings is Waze-style on both clients: the root lists categories (same
+// rows, order and icon tints), each opening a page with the same rows in
+// the same order. The PWA builds the root in renderSettingsList() and the
+// pages in openSheet()'s templates; native in SettingsScreen() and the
+// *Page components.
+const pwaSettingsList = pwaMapSource.slice(pwaMapSource.indexOf('const SETTINGS_CATEGORIES'));
 const nativeSettingsRoot = nativeSettingsSource.slice(nativeSettingsSource.indexOf('export function SettingsScreen()'));
-const SETTINGS_ROWS = [
-  'Riding', 'Ride Safe auto-lock', 'Distance units',
-  'Map & navigation', 'Navigation app', 'Avoid motorways', 'Avoid tolls',
-  'Privacy', 'Nearby rider visibility', 'Blocked riders',
-  'Account', 'Email', 'Signed-in devices', 'Reset settings', 'Delete account',
-  'About',
-];
-let pwaCursor = -1;
-let nativeCursor = -1;
-for (const label of SETTINGS_ROWS) {
-  const pwaAt = pwaSettingsList.indexOf(`'${label}'`, pwaCursor + 1);
-  const nativeAt = nativeSettingsRoot.indexOf(`title="${label}"`, nativeCursor + 1);
-  if (pwaAt <= pwaCursor) throw new Error(`PWA Settings list is missing or misorders: ${label}`);
-  if (nativeAt <= nativeCursor) throw new Error(`Native Settings list is missing or misorders: ${label}`);
-  pwaCursor = pwaAt;
-  nativeCursor = nativeAt;
+function assertSameOrder(labels, pwaSource, nativeSource, where) {
+  let pwaCursor = -1;
+  let nativeCursor = -1;
+  for (const label of labels) {
+    const pwaAt = pwaSource.indexOf(`'${label}'`, pwaCursor + 1);
+    const nativeAt = nativeSource.indexOf(`title="${label}"`, nativeCursor + 1);
+    if (pwaAt <= pwaCursor) throw new Error(`PWA ${where} is missing or misorders: ${label}`);
+    if (nativeAt <= nativeCursor) throw new Error(`Native ${where} is missing or misorders: ${label}`);
+    pwaCursor = pwaAt;
+    nativeCursor = nativeAt;
+  }
 }
-if (!pwaIndexSource.includes('id="settingsList"') || !/<strong class="danger-text">Sign Out<\/strong>/.test(pwaIndexSource) || !nativeSettingsRoot.includes('title="Sign Out"')) {
-  throw new Error('Settings must end with Sign Out on both clients');
+assertSameOrder(
+  ['General', 'Map & navigation', 'Ride Safe', 'Account', 'Account and login', 'Privacy', 'About'],
+  pwaSettingsList,
+  nativeSettingsRoot,
+  'Settings root',
+);
+for (const tint of ['#1FB6D9', '#2FB35F', '#F2802A', '#2A8196', '#1E95E8', '#16A9D9']) {
+  if (!pwaSettingsList.toUpperCase().includes(tint) || !nativeSettingsRoot.toUpperCase().includes(tint)) {
+    throw new Error(`Settings category tint drifted: ${tint}`);
+  }
 }
-// The pages a row opens, with the same tokens on both clients.
-for (const token of ['navigationApp', 'distanceUnits', 'blockedRiders', 'email', 'devices', 'about']) {
+assertSameOrder(
+  ['Distance units', 'Navigation app', 'Avoid motorways', 'Avoid tolls', 'Ride Safe auto-lock',
+    'Nearby rider visibility', 'Blocked riders', 'Email', 'Signed-in devices', 'Sign out', 'Reset settings', 'Delete account'],
+  pwaMapSource.slice(pwaMapSource.indexOf('generalSettings: () =>')),
+  nativeSettingsSource.slice(nativeSettingsSource.indexOf('function GeneralPage(')),
+  'Settings pages',
+);
+if (/id="logoutBtn"/.test(pwaIndexSource) || /title="Sign Out"/.test(nativeSettingsRoot)) {
+  throw new Error('Sign out lives in Account and login on both clients, not on the Settings root');
+}
+// The pages the root and category pages open, with the same tokens.
+for (const token of ['general', 'mapNavigation', 'rideSafe', 'account', 'privacy', 'about']) {
   if (!pwaMapSource.includes(`${token}: {`) || !pwaSettingsList.includes(`'${token}'`) || !nativeSettingsSource.includes(`page === '${token}'`) || !nativeSettingsSource.includes(`openPage('${token}')`)) {
+    throw new Error(`Settings page drifted for ${token}`);
+  }
+}
+for (const token of ['navigationApp', 'blockedRiders', 'email', 'devices']) {
+  if (!pwaMapSource.includes(`${token}: {`) || !pwaMapSource.includes(`settingsLink('${token}'`) || !nativeSettingsSource.includes(`page === '${token}'`) || !nativeSettingsSource.includes(`page: '${token}'`)) {
     throw new Error(`Settings page drifted for ${token}`);
   }
 }

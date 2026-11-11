@@ -42,7 +42,7 @@ a guarantee, which is why reporting matters.
   request or the Nearby Voice rider list. Reports are confidential.
 - **Block** a rider from the same places. You'll stop hearing and seeing each
   other in Nearby, and they can't message you or send friend requests. They
-  aren't told. You can unblock in Settings → Blocked riders.
+  aren't told. You can unblock in Settings → Privacy → Blocked riders.
 - **Mute** a rider in Nearby Voice to stop hearing each other for the rest of
   the session.
 
