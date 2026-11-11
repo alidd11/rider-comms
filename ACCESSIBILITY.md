@@ -8,7 +8,7 @@ audit fixed, and what still needs a person.
 
 | Check | What it covers | Where |
 | --- | --- | --- |
-| axe-core, web app | Login, Map, Ride, Routes, Friends, Settings and Search, in light (Chromium) and dark (WebKit) | `tests/visual/pwa.spec.js` |
+| axe-core, web app | Login, Map, Ride, Routes, Friends, Settings and Search, in light (Chromium) and dark (WebKit) | `tests/visual/appearance.spec.js` |
 | axe-core, staff dashboard | Overview, Moderation, Riders and System, light and dark | `tests/visual/admin.spec.js` |
 | iPhone app controls | Every `Pressable` has an accessibility role; icon-only ones have a label; backdrops opt out with `accessible={false}` | `mobile/tests/pressableAccessibility.test.ts` |
 
