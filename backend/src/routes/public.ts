@@ -8,7 +8,11 @@ export async function handlePublicRoutes(ctx: PublicRouteContext): Promise<unkno
   const { req, res, url, address, profileStore, authStore, rateLimitStore, socialActivityStore, readinessCheck, adminStatsStore } = ctx;
   // Uptime monitors often probe with HEAD; Node drops the body for HEAD.
   const isProbe = req.method === 'GET' || req.method === 'HEAD';
-  if (isProbe && url.pathname === '/health') return sendJson(res, 200, { ok: true });
+  if (isProbe && url.pathname === '/health') {
+    // Which commit is live, so a deploy can be checked at a glance.
+    const commit = process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 12);
+    return sendJson(res, 200, commit ? { ok: true, commit } : { ok: true });
+  }
   if (isProbe && url.pathname === '/ready') {
     try {
       await readinessCheck();

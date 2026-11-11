@@ -4,13 +4,15 @@ name: Native builds
 # native modules, Swift/Objective-C) and Android in an emulator (Gradle).
 # The main CI job only checks the JavaScript bundle and the Expo config, so a
 # native dependency that fails to compile or crashes at startup would
-# otherwise first show up in an EAS build. Runs when the mobile app or its
-# dependencies change, weekly, and on demand. Neither build needs signing.
+# otherwise first show up in an EAS build. Runs when the mobile app, the
+# shared package or its dependencies change, weekly, and on demand. Neither build needs signing.
 
 on:
   pull_request:
     paths:
       - 'mobile/**'
+      # The app imports shared/ (ride codes, zones, navigation maths).
+      - 'shared/**'
       - 'package-lock.json'
       - '.github/workflows/native-builds.yml'
       - 'scripts/android-launch-check.sh'

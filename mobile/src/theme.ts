@@ -16,7 +16,7 @@ export const lightColors = {
   accentPressed: '#1F86AA',
   accentSoft: '#D5EBF2',
   accentText: '#031217',
-  success: '#268B64',
+  success: '#1D7553',
   danger: '#BE4A53',
   dangerSurface: '#F2DDDF',
   warning: '#97620F',

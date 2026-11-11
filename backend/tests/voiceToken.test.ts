@@ -1,6 +1,6 @@
 import { after, before, beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { authenticatedFetch, startTestServer, postJson } from './httpTestUtils.ts';
+import { authenticatedFetch, clearSharedTestState, startTestServer, postJson } from './httpTestUtils.ts';
 import type { TestServer } from './httpTestUtils.ts';
 import { getPool } from '../src/db.ts';
 
@@ -29,7 +29,9 @@ describe('POST /voice/token', () => {
 
   describe('with LiveKit configured', () => {
     let ctx: TestServer;
-    before(async () => { ctx = startTestServer({ liveKitCredentials: FAKE_CREDS, liveKitRoomAdmin: {} }); await ctx.ready; });
+    // Start from a clean slate: a run cut short can leave blocks or presence
+    // behind (alice blocked bob), which silently empties later Nearby results.
+    before(async () => { await clearSharedTestState(); ctx = startTestServer({ liveKitCredentials: FAKE_CREDS, liveKitRoomAdmin: {} }); await ctx.ready; });
     after(() => ctx.close());
 
     it('mints a ride token only for an actual member of that ride', needsDb, async () => {
@@ -194,6 +196,22 @@ describe('POST /voice/token', () => {
       } finally {
         await isolated.close();
       }
+    });
+
+    it('holds Nearby Voice calls with the closest riders only, at most eight', needsDb, async () => {
+      const riders = Array.from({ length: 10 }, (_, index) => `crowd-${String(index).padStart(2, '0')}`);
+      await ctx.profileStore.update('crowd-me', { shareLocation: true });
+      assert.equal((await postJson(ctx, 'crowd-me', '/presence', { lat: 51.5, lon: -0.1, accuracyMeters: 5, fixAgeMs: 0 })).status, 200);
+      // Listed out of order on purpose; the farthest is about 0.6 miles away.
+      for (const [index, rider] of [...riders].reverse().entries()) {
+        await ctx.profileStore.update(rider, { shareLocation: true });
+        const step = riders.length - index;
+        assert.equal((await postJson(ctx, rider, '/presence', { lat: 51.5 + step * 0.0009, lon: -0.1, accuracyMeters: 5, fixAgeMs: 0 })).status, 200);
+      }
+      const response = await postJson(ctx, 'crowd-me', '/voice/token', { target: 'channel' });
+      assert.equal(response.status, 200);
+      const { connections } = await response.json() as { connections: Array<{ peerId: string }> };
+      assert.deepEqual(connections.map((connection) => connection.peerId), riders.slice(0, 8));
     });
 
     it('ejects a blocked rider from shared private voice and denies a fresh token', needsDb, async () => {

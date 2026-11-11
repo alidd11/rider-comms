@@ -126,6 +126,9 @@ export const MAX_PRESENCE_ACCURACY_METERS = 100;
 export const MAX_PRESENCE_FIX_AGE_MS = 30_000;
 export const MAX_PRESENCE_FUTURE_SKEW_MS = 5_000;
 export const PROXIMITY_VOICE_TOKEN_TTL_SECONDS = 60;
+/** Nearby Voice calls a rider holds at once: the closest riders win. Each is
+ * its own pair room, so a crowd would otherwise mean one call per rider. */
+export const MAX_NEARBY_VOICE_PEERS = 8;
 export const PROXIMITY_VOICE_REFRESH_MS = 20_000;
 // LiveKit token expiry only gates joining; it does not eject an already
 // connected participant. Treat public proximity authorization as a renewable

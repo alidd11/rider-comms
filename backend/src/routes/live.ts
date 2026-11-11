@@ -3,7 +3,7 @@ import { PresenceStore, ImplausibleLocationJumpError, StaleLocationFixError } fr
 import { consumeRateLimit, isCoordinate, rateLimitSubject, readJsonBody, sendJson } from '../serverHttp.ts';
 import { TIER_RADIUS_MILES } from '@rider-comms/shared';
 import type { Rider } from '@rider-comms/shared';
-import { MAX_PRESENCE_ACCURACY_METERS, MAX_PRESENCE_FIX_AGE_MS, MAX_PRESENCE_FUTURE_SKEW_MS, NOT_HANDLED, PROXIMITY_VOICE_AUTHORIZATION_LEASE_MS, PROXIMITY_VOICE_REFRESH_MS, PROXIMITY_VOICE_TOKEN_TTL_SECONDS, rideBody } from './context.ts';
+import { MAX_NEARBY_VOICE_PEERS, MAX_PRESENCE_ACCURACY_METERS, MAX_PRESENCE_FIX_AGE_MS, MAX_PRESENCE_FUTURE_SKEW_MS, NOT_HANDLED, PROXIMITY_VOICE_AUTHORIZATION_LEASE_MS, PROXIMITY_VOICE_REFRESH_MS, PROXIMITY_VOICE_TOKEN_TTL_SECONDS, rideBody } from './context.ts';
 import type { RouteContext } from './context.ts';
 
 /** Takes a rider off Nearby and hangs up every Nearby Voice call they were in. */
@@ -128,7 +128,8 @@ export async function handleLiveRoutes(ctx: RouteContext): Promise<unknown> {
     }
     if (body.target === 'channel') {
       const peerIds = await presenceStore.getCurrentPeerIds(actorId, Date.now(), MAX_PRESENCE_FIX_AGE_MS);
-      const authorisedPeerIds = await moderationStore.filterAllowedPeerIds(actorId, peerIds);
+      // filterAllowedPeerIds keeps the closest-first order.
+      const authorisedPeerIds = (await moderationStore.filterAllowedPeerIds(actorId, peerIds)).slice(0, MAX_NEARBY_VOICE_PEERS);
       const connections = await Promise.all(authorisedPeerIds.map(async (peerId) => ({
         peerId,
         ...(await mintVoiceToken(
