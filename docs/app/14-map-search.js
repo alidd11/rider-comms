@@ -346,35 +346,101 @@
     if (open) renderDrawerRecent();
   }
 
-  // Slide up to open, down to close, tap the handle to toggle. A drag that
-  // starts on a button must not also press it.
+  const DRAWER_SETTLE_MS = 220;
+  const prefersReducedMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
+
+  // The recent list's full height when open (it scrolls past its max-height).
+  function drawerListHeight(list) {
+    const max = parseFloat(getComputedStyle(list).maxHeight);
+    return Math.min(list.scrollHeight, Number.isFinite(max) ? max : list.scrollHeight);
+  }
+
+  // Grows or shrinks the recent list from `from` px to open or closed, then
+  // hands the final state to setMapDrawerOpen.
+  let drawerSettleTimer;
+  function settleMapDrawer(open, from) {
+    const list = $('#mapDrawerRecent');
+    if (!list) return;
+    clearTimeout(drawerSettleTimer);
+    if (open) setMapDrawerOpen(true);
+    const clear = () => {
+      list.style.height = '';
+      list.style.overflow = '';
+      list.style.transition = '';
+    };
+    if (prefersReducedMotion()) {
+      clear();
+      if (!open) setMapDrawerOpen(false);
+      return;
+    }
+    list.hidden = false;
+    const target = open ? drawerListHeight(list) : 0;
+    list.style.overflow = 'hidden';
+    list.style.transition = 'none';
+    list.style.height = `${from}px`;
+    void list.offsetHeight;
+    list.style.transition = `height ${DRAWER_SETTLE_MS}ms cubic-bezier(.2,.8,.2,1)`;
+    list.style.height = `${target}px`;
+    drawerSettleTimer = setTimeout(() => {
+      clear();
+      if (!open) setMapDrawerOpen(false);
+    }, DRAWER_SETTLE_MS + 20);
+  }
+
+  function toggleMapDrawer(open) {
+    const list = $('#mapDrawerRecent');
+    const from = list && !list.hidden ? list.getBoundingClientRect().height : 0;
+    settleMapDrawer(open, from);
+  }
+
+  // The drawer follows the finger: the recent list grows or shrinks with the
+  // slide, then settles open or closed. A tap on the handle toggles it, and a
+  // slide that starts on a button must not also press it.
   function initMapDrawer() {
     const drawer = $('#mapDrawer');
     if (!drawer) return;
-    let startY = null;
+    const list = $('#mapDrawerRecent');
+    let drag = null;
     let dragged = false;
     // Follow the gesture on the window: a slide quickly leaves the drawer's
     // own edge, and capturing the pointer would steal plain taps from its
     // buttons.
     const onMove = (event) => {
-      if (startY !== null && Math.abs(event.clientY - startY) > 8) dragged = true;
+      if (!drag) return;
+      const dy = event.clientY - drag.startY;
+      if (!dragged) {
+        if (Math.abs(dy) <= 8) return;
+        dragged = true;
+        clearTimeout(drawerSettleTimer);
+        // Opening: show the list now, at no height, so it can grow.
+        if (!drag.wasOpen) setMapDrawerOpen(true);
+        drag.full = drawerListHeight(list);
+        list.style.overflow = 'hidden';
+        list.style.transition = 'none';
+      }
+      const height = Math.max(0, Math.min(drag.full, drag.startHeight - dy));
+      list.style.height = `${height}px`;
+      drag.height = height;
     };
     const onEnd = (event) => {
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onEnd);
       window.removeEventListener('pointercancel', onEnd);
-      if (startY === null) return;
-      const dy = event.type === 'pointerup' ? event.clientY - startY : 0;
-      startY = null;
+      const current = drag;
+      drag = null;
       // A slide's own click (if any) follows straight after; never let a
       // stale flag swallow a later, real tap.
       setTimeout(() => { dragged = false; }, 0);
-      if (dy < -30) setMapDrawerOpen(true);
-      else if (dy > 30) setMapDrawerOpen(false);
+      if (!current || !dragged) return;
+      const dy = event.type === 'pointerup' ? event.clientY - current.startY : 0;
+      // Open past a short pull up, or when mostly open and not pulled down.
+      const open = current.wasOpen ? dy < 60 : dy < -30;
+      settleMapDrawer(open, current.height ?? current.startHeight);
     };
     drawer.addEventListener('pointerdown', (event) => {
       if (event.target.closest('#mapDrawerRecent')) return;
-      startY = event.clientY;
+      const wasOpen = drawer.dataset.state === 'open';
+      drag = { startY: event.clientY, wasOpen, startHeight: wasOpen ? list.getBoundingClientRect().height : 0 };
       dragged = false;
       window.addEventListener('pointermove', onMove);
       window.addEventListener('pointerup', onEnd);
@@ -386,14 +452,14 @@
       event.preventDefault();
       event.stopPropagation();
     }, true);
-    $('#mapDrawerHandle').addEventListener('click', () => setMapDrawerOpen(drawer.dataset.state !== 'open'));
+    $('#mapDrawerHandle').addEventListener('click', () => toggleMapDrawer(drawer.dataset.state !== 'open'));
     $$('[data-drawer-nav]', drawer).forEach((button) => button.addEventListener('click', () => {
       setMapDrawerOpen(false);
       navigate(button.dataset.drawerNav);
     }));
     drawer.addEventListener('keydown', (event) => {
       if (event.key === 'Escape' && drawer.dataset.state === 'open') {
-        setMapDrawerOpen(false);
+        toggleMapDrawer(false);
         $('#mapDrawerHandle').focus();
       }
     });

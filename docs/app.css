@@ -3018,8 +3018,7 @@ html[data-active-screen="map"]:not(.riding-hud-active):not(:has(#app.nav-mode)):
 .map-drawer-live .live-dot{flex:none}
 .map-drawer-badge{min-width:22px;height:22px;display:inline-grid;place-items:center;padding:0 6px;border-radius:11px;background:var(--accent);color:var(--accent-text);font-size:.74rem;font-weight:800}
 .map-drawer-live[hidden],.map-drawer-badge[hidden],.map-drawer-recent[hidden]{display:none}
-.map-drawer-recent{max-height:min(58vh,calc(var(--app-vh,100dvh) - 300px));margin-top:14px;overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y;animation:map-drawer-in 200ms ease-out}
-@keyframes map-drawer-in{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+.map-drawer-recent{box-sizing:border-box;max-height:min(58vh,calc(var(--app-vh,100dvh) - 300px));padding-top:14px;overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y}
 .map-drawer-recent .search-result-row{width:100%}
 .map-drawer-empty{margin:6px 2px 4px;color:var(--text-secondary);font-size:.86rem;line-height:1.45}
 html.map-drawer-open #ridePill{display:none}

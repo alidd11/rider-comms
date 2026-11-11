@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { PanResponder, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { AccessibilityInfo, Animated, Easing, PanResponder, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { LayoutChangeEvent, StyleProp, ViewStyle } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -11,6 +11,11 @@ import { PlaceSearchBar } from './PlaceSearchBar';
 
 /** How far a slide has to travel before the drawer opens or closes. */
 const SLIDE_THRESHOLD = 30;
+/** An open drawer stays open unless pulled down further than this. */
+const CLOSE_THRESHOLD = 60;
+/** The recent list's tallest; it scrolls beyond this. */
+const RECENT_MAX_HEIGHT = 340;
+const SETTLE_MS = 220;
 
 export interface MapDrawerProps {
   near: { lat: number; lon: number } | null;
@@ -43,9 +48,37 @@ export function MapDrawer({
   const [recentPlaces, setRecentPlaces] = React.useState<PlaceResult[]>([]);
   const openRef = React.useRef(open);
   openRef.current = open;
+  // The recent list is always laid out, so its full height is known before
+  // a slide starts; its visible height follows the finger, then settles.
+  const [contentHeight, setContentHeight] = React.useState(0);
+  const fullHeight = Math.min(contentHeight, RECENT_MAX_HEIGHT);
+  const fullHeightRef = React.useRef(fullHeight);
+  fullHeightRef.current = fullHeight;
+  const visibleHeight = React.useRef(new Animated.Value(0)).current;
+  const currentHeight = React.useRef(0);
+  const reduceMotion = React.useRef(false);
 
   React.useEffect(() => {
-    if (!open || !riderId) return;
+    const listener = visibleHeight.addListener(({ value }) => { currentHeight.current = value; });
+    void AccessibilityInfo.isReduceMotionEnabled().then((enabled) => { reduceMotion.current = enabled; }).catch(() => {});
+    return () => visibleHeight.removeListener(listener);
+  }, [visibleHeight]);
+
+  const settleTo = React.useCallback((target: number) => {
+    if (reduceMotion.current) {
+      visibleHeight.setValue(target);
+      return;
+    }
+    Animated.timing(visibleHeight, { toValue: target, duration: SETTLE_MS, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start();
+  }, [visibleHeight]);
+
+  // Opened or closed from outside a slide (the handle, a shortcut, a place).
+  React.useEffect(() => {
+    settleTo(open ? fullHeight : 0);
+  }, [open, fullHeight, settleTo]);
+
+  React.useEffect(() => {
+    if (!riderId) return;
     let cancelled = false;
     AsyncStorage.getItem(recentPlacesStorageKey(riderId))
       .then((raw) => { if (!cancelled) setRecentPlaces(parseRecentPlaces(raw)); })
@@ -55,16 +88,27 @@ export function MapDrawer({
 
   // Only a real vertical slide claims the gesture, so taps still reach the
   // search field and the shortcut buttons.
+  const dragStart = React.useRef(0);
   const panResponder = React.useMemo(() => PanResponder.create({
     onMoveShouldSetPanResponder: (_event, gesture) => Math.abs(gesture.dy) > 8 && Math.abs(gesture.dy) > Math.abs(gesture.dx),
-    onPanResponderRelease: (_event, gesture) => {
-      if (gesture.dy < -SLIDE_THRESHOLD) onOpenChange(true);
-      else if (gesture.dy > SLIDE_THRESHOLD) onOpenChange(false);
+    onPanResponderGrant: () => {
+      visibleHeight.stopAnimation();
+      dragStart.current = currentHeight.current;
     },
-  }), [onOpenChange]);
+    onPanResponderMove: (_event, gesture) => {
+      visibleHeight.setValue(Math.max(0, Math.min(fullHeightRef.current, dragStart.current - gesture.dy)));
+    },
+    onPanResponderRelease: (_event, gesture) => {
+      const nextOpen = openRef.current ? gesture.dy < CLOSE_THRESHOLD : gesture.dy < -SLIDE_THRESHOLD;
+      settleTo(nextOpen ? fullHeightRef.current : 0);
+      if (nextOpen !== openRef.current) onOpenChange(nextOpen);
+    },
+    onPanResponderTerminate: () => settleTo(openRef.current ? fullHeightRef.current : 0),
+  }), [onOpenChange, settleTo, visibleHeight]);
 
   const measurePeek = React.useCallback((event: LayoutChangeEvent) => {
-    if (!openRef.current) onPeekHeight(event.nativeEvent.layout.height);
+    // Only the resting drawer sets the controls' height, never one mid-slide.
+    if (!openRef.current && currentHeight.current < 1) onPeekHeight(event.nativeEvent.layout.height);
   }, [onPeekHeight]);
 
   const friendsLabel = friendsCount > 0 ? `Friends, ${friendsCount} new` : 'Friends';
@@ -134,8 +178,13 @@ export function MapDrawer({
         </Pressable>
       </ScrollView>
 
-      {open ? (
-        <View style={styles.recent} testID="map-drawer-recent">
+      <Animated.View
+        style={[styles.recentClip, { height: visibleHeight }]}
+        accessibilityElementsHidden={!open}
+        importantForAccessibility={open ? 'auto' : 'no-hide-descendants'}
+        pointerEvents={open ? 'auto' : 'none'}
+      >
+        <View style={styles.recent} testID="map-drawer-recent" onLayout={(event) => setContentHeight(event.nativeEvent.layout.height)}>
           {recentPlaces.length === 0 ? (
             <Text style={styles.empty}>Places you search for show up here.</Text>
           ) : (
@@ -162,7 +211,7 @@ export function MapDrawer({
             </ScrollView>
           )}
         </View>
-      ) : null}
+      </Animated.View>
     </View>
   );
 }
@@ -204,8 +253,9 @@ const styles = StyleSheet.create({
   liveText: { ...type.caption, fontWeight: '700', color: colors.textPrimary },
   badge: { minWidth: 22, height: 22, paddingHorizontal: 6, borderRadius: radii.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.accent },
   badgeText: { fontSize: 12, fontWeight: '800', color: colors.accentText },
-  recent: { marginTop: spacing.md },
-  recentScroll: { maxHeight: 320 },
+  recentClip: { overflow: 'hidden' },
+  recent: { position: 'absolute', top: 0, left: 0, right: 0, paddingTop: spacing.md },
+  recentScroll: { maxHeight: RECENT_MAX_HEIGHT - 48 },
   recentTitle: { ...type.caption, fontWeight: '700', color: colors.textSecondary, marginBottom: spacing.xs },
   recentRow: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   recentCopy: { flex: 1, minWidth: 0 },
