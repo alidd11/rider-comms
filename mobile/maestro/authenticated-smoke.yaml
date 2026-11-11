@@ -60,13 +60,28 @@ appId: com.ridercomms.app
     timeout: 30000
 - waitForAnimationToEnd
 - takeScreenshot: authenticated-map
-- tapOn:
-    id: drawer-ride
+# On the iOS simulator the first tap after onboarding has left the map
+# unchanged (the Ride page never opened), so tap again until the page shows.
+- retry:
+    maxRetries: 3
+    commands:
+      - tapOn:
+          id: drawer-ride
+      - extendedWaitUntil:
+          visible:
+            id: ride-back
+          timeout: 8000
 - takeScreenshot: authenticated-ride
 - tapOn:
     id: ride-back
-- tapOn:
-    id: drawer-friends
+- retry:
+    maxRetries: 3
+    commands:
+      - tapOn:
+          id: drawer-friends
+      - extendedWaitUntil:
+          visible: "Go back"
+          timeout: 8000
 - takeScreenshot: authenticated-friends
 - tapOn: "Go back"
 # Routes and Settings live in the menu behind the rider's avatar on the map.
