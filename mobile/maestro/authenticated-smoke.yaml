@@ -21,11 +21,20 @@ appId: com.ridercomms.app
       - eraseText: 30
       - inputText: ${TEST_USERNAME}
       - assertVisible: ${TEST_USERNAME}
-- tapOn:
-    id: auth-password
-- waitForAnimationToEnd
-- inputText: ${TEST_PASSWORD}
-- hideKeyboard
+# The password is masked, so check it isn't a lone "•" (only the first
+# keystroke landed) rather than checking the text itself.
+- retry:
+    maxRetries: 3
+    commands:
+      - tapOn:
+          id: auth-password
+      - waitForAnimationToEnd
+      - eraseText: 40
+      - inputText: ${TEST_PASSWORD}
+      - waitForAnimationToEnd
+      - assertNotVisible: "•"
+- hideKeyboard:
+    optional: true
 - takeScreenshot: before-submit
 - tapOn:
     id: auth-submit
