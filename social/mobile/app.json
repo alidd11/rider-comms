@@ -1,0 +1,32 @@
+{
+  "expo": {
+    "name": "Social — Development",
+    "slug": "rider-social-dev",
+    "version": "0.0.1",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "scheme": "rider-social-dev",
+    "platforms": [
+      "ios",
+      "android",
+      "web"
+    ],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.ridercomms.social.dev",
+      "infoPlist": {
+        "UISupportedInterfaceOrientations": [
+          "UIInterfaceOrientationPortrait"
+        ]
+      }
+    },
+    "android": {
+      "package": "com.ridercomms.social.dev"
+    },
+    "web": {
+      "name": "Social — Development",
+      "shortName": "Social Dev",
+      "bundler": "metro"
+    }
+  }
+}
