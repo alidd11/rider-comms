@@ -44,7 +44,7 @@ const contentCandidates: Content[] = demoPosts.map((post, index) => ({
 const reels = [
   { id: 'r1', headline: 'The weekend edit', creator: '@nina', theme: '#66433D', icon: 'car-sport' as const, imageUrl: 'https://images.unsplash.com/photo-1625932197913-68755c94c51f?auto=format&fit=crop&w=1100&q=82' },
   { id: 'r2', headline: 'A road worth sharing', creator: '@alex', theme: '#1B5A63', icon: 'speedometer' as const, imageUrl: 'https://images.unsplash.com/photo-1558981806-ec527fa84c39?auto=format&fit=crop&w=1100&q=82' },
-  { id: 'r3', headline: 'Ride together', creator: '@jules', theme: '#3B664A', icon: 'bicycle' as const, imageUrl: 'https://images.unsplash.com/photo-1541625602330-2277b4c461de?auto=format&fit=crop&w=1100&q=82' },
+  { id: 'r3', headline: 'Ride together', creator: '@jules', theme: '#3B664A', icon: 'bicycle' as const, imageUrl: 'https://images.unsplash.com/photo-1517649763962-0c623066013b?auto=format&fit=crop&w=1100&q=82' },
 ];
 
 const reelCandidates: Content[] = reels.map((reel, index) => ({
