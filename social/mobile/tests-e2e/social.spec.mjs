@@ -1,4 +1,4 @@
-/* global document, window, getComputedStyle */
+/* global document, window, getComputedStyle, Event */
 import { test, expect } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import { Buffer } from 'node:buffer';
@@ -124,7 +124,8 @@ test('iPhone and desktop render true edge-to-edge background with safe content i
     };
   });
   expect(geometry.viewport).toContain('viewport-fit=cover');
-  expect(geometry.status).toBe('black');
+  expect(geometry.viewport).toContain('interactive-widget=resizes-content');
+  expect(geometry.status).toBe('black-translucent');
   expect(geometry.htmlBackground).toBe('rgb(8, 13, 19)');
   expect(geometry.bodyBackground).toBe('rgb(8, 13, 19)');
   expect(geometry.screenBackground).toBe('rgb(8, 13, 19)');
@@ -355,4 +356,60 @@ test('Comments open in a bottom sheet, accept preview text, and do not publish',
   await page.getByRole('button', { name: 'Comment on Reel r1' }).click();
   await expect(page.getByTestId('comments-overlay')).toBeVisible();
   await page.getByRole('button', { name: 'Close comments' }).click();
+});
+
+
+test('iPhone Dynamic Island inset keeps header below system controls', async ({ page }, testInfo) => {
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: 'Go to home' })).toBeVisible();
+  const css = await page.locator('#social-edge-to-edge').textContent();
+  expect(css).toContain('padding-top: env(safe-area-inset-top');
+  expect(css).not.toContain('#social-screen { padding-top: 0 !important; }');
+  await expect(page.locator('#social-viewport-sync')).toHaveCount(1);
+
+  // A forced iOS-like inset checks the layout independently of Chromium's
+  // inability to emulate the real Dynamic Island safe-area values.
+  await page.addStyleTag({ content: '#social-screen { padding-top: 59px !important; }' });
+  const first = await page.evaluate(() => {
+    const screen = document.getElementById('social-screen');
+    const header = document.querySelector('[aria-label="Go to home"]');
+    return {
+      inset: screen ? parseFloat(getComputedStyle(screen).paddingTop) : -1,
+      top: screen?.getBoundingClientRect().top ?? -1,
+      button: header?.getBoundingClientRect().top ?? -1,
+    };
+  });
+  expect(first.inset).toBe(59);
+  expect(first.button).toBeGreaterThanOrEqual(first.top + 59);
+  await page.setViewportSize({ width: 390, height: 730 });
+  await expect.poll(async () => page.evaluate(() => {
+    const h = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--app-vh'));
+    return Math.abs(h - Math.round(window.visualViewport?.height ?? window.innerHeight));
+  })).toBeLessThan(2);
+  const after = await page.getByRole('button', { name: 'Go to home' }).boundingBox();
+  expect(after?.y ?? -1).toBeGreaterThanOrEqual(59);
+  await mkdir('test-results/screenshots', { recursive: true });
+  await page.screenshot({ path: 'test-results/screenshots/' + testInfo.project.name + '-top-safe-inset.png' });
+});
+
+test('PWA viewport recalculates on rotation and resume without moving bottom tabs', async ({ page }) => {
+  await page.goto('/');
+  for (const size of [
+    { width: 390, height: 680 },
+    { width: 680, height: 390 },
+    { width: 390, height: 844 },
+  ]) {
+    await page.setViewportSize(size);
+    await page.evaluate(() => window.dispatchEvent(new Event('pageshow')));
+    await expect.poll(async () => page.evaluate(() => {
+      const setHeight = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--app-vh'));
+      return Math.abs(setHeight - Math.round(window.visualViewport?.height ?? window.innerHeight));
+    })).toBeLessThan(2);
+    const geometry = await page.evaluate(() => ({
+      bottom: document.getElementById('social-bottom-tabs')?.getBoundingClientRect().bottom ?? -1,
+      height: window.visualViewport?.height ?? window.innerHeight,
+    }));
+    expect(geometry.bottom).toBeGreaterThanOrEqual(geometry.height - 2);
+    expect(geometry.bottom).toBeLessThanOrEqual(geometry.height + 2);
+  }
 });

@@ -52,7 +52,7 @@ Independent social CI includes TypeScript, unit tests, static web export, mobile
 
 ## Edge-to-edge viewport and safe areas
 
-- The generated web HTML now requires `viewport-fit=cover` and non-translucent iOS standalone status-bar mode.
+- The generated web HTML requires `viewport-fit=cover` and a translucent iOS status bar with explicit safe-area insets.
 - `html`, `body`, and the React root are all dark to the physical viewport edges, including behind the notch/status bar.
 - Content has top/side insets using CSS `env(safe-area-inset-*)` on web and React Native safe-area values on iOS/Android.
 - The tab bar owns its bottom safe-area padding; no separately coloured spacer/band is rendered under it.
@@ -69,7 +69,7 @@ Before production, move media to a moderated, rights-checked and optimised conte
 
 ### Installed iPhone PWA bottom-gap corrective action (2026-11-12)
 
-The installed Social PWA now selects the iOS `black` status-bar mode instead of `black-translucent`. Current WebKit reports document a standalone iOS 26/27 viewport mismatch that can leave an unusable strip below an app with the translucent setting (WebKit bug 313800, related bug 236445). The root React Native Web wrapper is explicitly a full-height flex column and the tab bar is non-shrinking, with safe-bottom padding inside the bar. In non-translucent standalone mode, the status-bar is owned by iOS; the app avoids adding a duplicate top inset. A browser-only geometry check cannot prove physical iPhone Home Screen behaviour; verify on device before treating the visual regression as closed.
+The earlier non-translucent black status-bar experiment attempted to avoid a bottom-gap regression. An intermittent physical iPhone startup issue subsequently showed it could leave the header behind the Dynamic Island. The EclipseRBLX-based correction below supersedes this experiment.
 
 
 ## Immersive Home/Reels milestone
@@ -91,3 +91,12 @@ The Stories demo also uses a full-viewport image viewer with visible previous/ne
 - Creator discovery: tap an author or `View build & garage` for fictional public creator builds; open the corresponding club from that preview. Creator public garage is not the authenticated user's private garage and does not leak Rider Comms profile or location.
 - Reels video architecture: when a vetted video URL is supplied, expo-video mounts only the active Reel, plays muted/looped, pauses on transition and allows tap to pause. Present sample Reels remain still photos with an explicit indicator. No audio licensing or production video publishing is assumed.
 - Editorial references: [Expo video SDK](https://docs.expo.dev/versions/v58.0.0/sdk/video/), [TikTok recommendation explanation](https://support.tiktok.com/en/using-tiktok/exploring-videos/how-tiktok-recommends-content), and Meta's feed/product guidance. Production recommendation and trust features are separate backend milestones.
+
+
+### iPhone Dynamic Island / intermittent startup correction (2026-11-12)
+
+Compared the live EclipseRBLX `main` implementation at commit `c74ac789741b6e0d7918b99d2ea972f9d98ea646`. Eclipse sets `viewport-fit=cover` and `interactive-widget=resizes-content`, uses `black-translucent` status-bar mode, applies `env(safe-area-inset-top)` to the fixed header, and keeps `--app-vh` and the bottom inset in sync using `visualViewport`.
+
+Social previously had a conflicting standalone-only `padding-top: 0 !important` rule, allowing the header to appear behind the Dynamic Island. The Social fix keeps top safe-area padding in ALL display modes, synchronises the fixed shell on initial load, resize, orientation, resuming, and visual-viewport changes, and preserves bottom-safe padding inside the tab bar. No fake-colour spacer or transformed layout.
+
+Automated Chromium tests check a forced 59px top inset and viewport geometry. They do not reproduce real iOS Home Screen WebKit behaviour. Check the installed app on a physical iPhone. Because the status-bar configuration has changed, iOS may require deleting and adding the Home Screen PWA once. The URL remains unchanged; normal future builds still update without reinstalling.

@@ -10,9 +10,12 @@ const viewportTag = /<meta\s+name=["']viewport["']\s+content=["']([^"']*)["']\s*
 const viewportMatch = html.match(viewportTag);
 if (viewportMatch) {
   const content = viewportMatch[1].replace(/(?:^|,)\s*viewport-fit\s*=\s*[^,]*/ig, '').replace(/^\s*,\s*|,\s*$/g, '').trim();
-  html = html.replace(viewportTag, '<meta name="viewport" content="' + content + ', viewport-fit=cover" />');
+  const withCover = [content, 'viewport-fit=cover'].filter(Boolean).join(', ');
+  const withKeyboard = /interactive-widget\s*=/.test(withCover)
+    ? withCover : withCover + ', interactive-widget=resizes-content';
+  html = html.replace(viewportTag, '<meta name="viewport" content="' + withKeyboard + '" />');
 } else {
-  html = html.replace('</head>', '  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />\n</head>');
+  html = html.replace('</head>', '  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />\n</head>');
 }
 
 // Ensure the iOS status-bar background, page and React root have exactly the
@@ -27,9 +30,15 @@ const edgeToEdgeStyle = `<style id="social-edge-to-edge">
     background: #080D13 !important;
   }
   html, body, #root { overflow: hidden; overscroll-behavior: none; }
-  /* RN Web flex:1 needs a flex parent; otherwise the tabs can float above
-     the bottom with a large unused strip below the app. */
-  #root { display: flex !important; flex-direction: column !important; }
+  /* Eclipse PWA pattern: React's fixed shell tracks the actual visual viewport;
+     scrolling is owned by its individual content areas. */
+  #root {
+    display: flex !important;
+    flex-direction: column !important;
+    height: var(--app-vh, 100dvh);
+    min-height: 0;
+    max-height: var(--app-vh, 100dvh);
+  }
   #social-screen {
     flex: 1 1 auto !important; min-height: 0 !important;
     width: 100%; display: flex !important; flex-direction: column !important;
@@ -47,7 +56,12 @@ const edgeToEdgeStyle = `<style id="social-edge-to-edge">
     scroll-snap-stop: always;
   }
   @supports (height: 100dvh) {
-    html, body, #root { height: 100dvh; min-height: 100dvh; }
+    html, body { height: 100dvh; min-height: 100dvh; }
+    #root {
+      height: var(--app-vh, 100dvh);
+      min-height: 0;
+      max-height: var(--app-vh, 100dvh);
+    }
   }
   #social-screen {
     box-sizing: border-box;
@@ -59,13 +73,10 @@ const edgeToEdgeStyle = `<style id="social-edge-to-edge">
     flex-shrink: 0 !important;
     box-sizing: border-box;
     background: #080D13 !important;
-    padding-bottom: max(12px, env(safe-area-inset-bottom, 0px)) !important;
+    padding-bottom: max(12px, var(--bottom-safe-area, env(safe-area-inset-bottom, 0px))) !important;
   }
-  /* In normal black standalone mode, iOS reserves status-bar space.
-     Avoid double-insetting the top of the app. */
-  @media (display-mode: standalone) {
-    #social-screen { padding-top: 0 !important; }
-  }
+  /* Never reset the top safe-area inset in standalone mode: that override
+     allowed the header to start behind the iPhone Dynamic Island. */
 </style>`;
 
 if (!html.includes('id="social-edge-to-edge"')) {
@@ -74,11 +85,45 @@ if (!html.includes('id="social-edge-to-edge"')) {
 const extraHeadTags = [
   ['theme-color', '<meta name="theme-color" content="#080D13" />'],
   ['apple-mobile-web-app-capable', '<meta name="apple-mobile-web-app-capable" content="yes" />'],
-  ['apple-mobile-web-app-status-bar-style', '<meta name="apple-mobile-web-app-status-bar-style" content="black" />']
+  ['apple-mobile-web-app-status-bar-style', '<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />']
 ];
 for (const [name, tag] of extraHeadTags) {
   if (!html.includes('name="' + name + '"')) html = html.replace('</head>', tag + '\n</head>');
 }
+// Match EclipseRBLX's visualViewport and safe-area environment synchronisation.
+// Pre-paint setup + launch/resume/resize listeners address intermittent iOS PWA
+// viewport shifts. Never transform the app shell or the navigation bar.
+const viewportSyncScript = `<script id="social-viewport-sync">
+(function () {
+  var root = document.documentElement;
+  var displayMode = window.matchMedia('(display-mode: standalone)');
+  var viewport = window.visualViewport;
+  function sync() {
+    var height = viewport && viewport.height > 0 ? viewport.height : window.innerHeight;
+    if (Number.isFinite(height) && height > 0) {
+      root.style.setProperty('--app-vh', Math.round(height) + 'px');
+    }
+    var standalone = displayMode.matches || window.navigator.standalone === true;
+    root.style.setProperty('--bottom-safe-area',
+      standalone ? 'env(safe-area-inset-bottom, 0px)' : '0px');
+  }
+  sync();
+  window.addEventListener('resize', sync, { passive: true });
+  window.addEventListener('orientationchange', sync);
+  window.addEventListener('pageshow', sync);
+  document.addEventListener('visibilitychange', sync);
+  if (viewport) {
+    viewport.addEventListener('resize', sync);
+    viewport.addEventListener('scroll', sync);
+  }
+  if (displayMode.addEventListener) displayMode.addEventListener('change', sync);
+  else if (displayMode.addListener) displayMode.addListener(sync);
+})();
+</script>`;
+if (!html.includes('id="social-viewport-sync"')) {
+  html = html.replace('</head>', viewportSyncScript + '\n</head>');
+}
+
 if (!html.includes('<link rel="manifest"')) {
   html = html.replace('</head>', [
     '<link rel="manifest" href="/manifest.webmanifest" />',
