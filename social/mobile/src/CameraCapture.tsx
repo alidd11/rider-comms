@@ -175,7 +175,7 @@ export function CameraCapture({ mode, onCapture, onLibrary, onClose, disabled }:
         <View style={{ maxWidth: '52%', backgroundColor: DIM, borderRadius: 22,
           paddingVertical: 10, paddingHorizontal: 18 }}>
           <Text style={{ color: WHITE, fontWeight: '800', fontSize: 13 }}>
-            {isVideo ? 'Original audio' : mode === 'Story' ? 'Story camera' : 'Photo camera'}
+            {mode === 'Reel' ? 'New reel' : mode === 'Story' ? 'New story' : 'New post'}
           </Text>
         </View>
         <Pressable accessibilityRole="button" accessibilityLabel="Flip camera"
