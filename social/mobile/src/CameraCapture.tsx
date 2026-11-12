@@ -3,7 +3,6 @@ import { Platform, Pressable, Text, View } from 'react-native';
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
 import type { CameraType, FlashMode } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
-import { C } from './styles';
 import type { ComposerMedia, ComposerMode } from './upload';
 
 type CapturedMedia = Omit<ComposerMedia, 'id'>;
@@ -64,7 +63,6 @@ export function CameraCapture({ mode, onCapture, onLibrary, onClose, disabled }:
     if (isVideo) void recordVideo();
     else void takePhoto();
     // Each countdown ends with exactly one capture. The camera unmounts when editing begins.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [countdown]);
 
   async function takePhoto() {
