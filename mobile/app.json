@@ -15,7 +15,7 @@
             "targetSdkVersion": 36,
             "enableMinifyInReleaseBuilds": true,
             "enableShrinkResourcesInReleaseBuilds": true,
-            "extraProguardRules": "# R8 once stripped WorkManager's Room database, which Android loads by name, and the app crashed at launch.\n-keep class androidx.work.** { *; }\n-keep class androidx.room.** { *; }\n-keep class * extends androidx.room.RoomDatabase { *; }\n-keep class **_Impl { *; }\n# WebRTC and LiveKit cross the JNI boundary by class and method name.\n-keep class org.webrtc.** { *; }\n-keep class com.oney.WebRTCModule.** { *; }\n-keep class io.livekit.** { *; }\n-keep class livekit.** { *; }\n-dontwarn org.webrtc.**"
+            "extraProguardRules": "# R8 once stripped WorkManager's Room database, which Android loads by name, and the app crashed at launch.\n-keep class androidx.work.** { *; }\n-keep class androidx.room.** { *; }\n-keep class * extends androidx.room.RoomDatabase { *; }\n-keep class **_Impl { *; }\n# WebRTC and LiveKit cross the JNI boundary by class and method name.\n-keep class org.webrtc.** { *; }\n-keep class com.oney.WebRTCModule.** { *; }\n-keep class io.livekit.** { *; }\n-keep class livekit.** { *; }\n-dontwarn org.webrtc.**\n# WebRTC 150 refers to a JNI helper class it does not ship.\n-dontwarn livekit.org.jni_zero.**"
           }
         }
       ],
