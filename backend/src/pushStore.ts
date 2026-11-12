@@ -55,18 +55,33 @@ export class PushStore {
     return this.vapid;
   }
 
-  /** Saves a device for this rider. A device moving to another account moves with it. */
-  async upsert(record: PushSubscriptionRecord, now = Date.now()): Promise<void> {
+  /**
+   * Saves a device for this rider. A device moves to another account only
+   * when it has really changed hands: the sign-in that registered it has
+   * ended (signing out removes it anyway), or, for a browser, the request
+   * carries the subscription's secret auth key, which only that browser
+   * holds. Otherwise someone who learned a device's push address could
+   * pull it away from the rider still signed in there and redirect their
+   * notifications. Returns false when the address stays with its owner.
+   */
+  async upsert(record: PushSubscriptionRecord, now = Date.now()): Promise<boolean> {
     await ensureMigrated();
     const pool = getPool();
-    await pool.query(
-      `INSERT INTO push_subscriptions (rider_id, kind, address, p256dh, auth, session_token_hash, created_at, updated_at)
+    const saved = await pool.query(
+      `INSERT INTO push_subscriptions AS current (rider_id, kind, address, p256dh, auth, session_token_hash, created_at, updated_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $7)
        ON CONFLICT (address) DO UPDATE SET
          rider_id = EXCLUDED.rider_id, kind = EXCLUDED.kind, p256dh = EXCLUDED.p256dh,
-         auth = EXCLUDED.auth, session_token_hash = EXCLUDED.session_token_hash, updated_at = EXCLUDED.updated_at`,
+         auth = EXCLUDED.auth, session_token_hash = EXCLUDED.session_token_hash, updated_at = EXCLUDED.updated_at
+       WHERE current.rider_id = EXCLUDED.rider_id
+         OR (current.kind = 'web' AND EXCLUDED.kind = 'web' AND current.auth = EXCLUDED.auth)
+         OR NOT EXISTS (
+           SELECT 1 FROM account_sessions s
+           WHERE s.token_hash = current.session_token_hash AND s.expires_at > now()
+         )`,
       [record.riderId, record.kind, record.address, record.p256dh, record.auth, record.sessionTokenHash ?? null, now],
     );
+    if ((saved.rowCount ?? 0) === 0) return false;
     // Keep the newest few devices per rider; old browsers otherwise pile up.
     await pool.query(
       `DELETE FROM push_subscriptions WHERE rider_id = $1 AND address NOT IN (
@@ -74,6 +89,7 @@ export class PushStore {
        )`,
       [record.riderId, MAX_SUBSCRIPTIONS_PER_RIDER],
     );
+    return true;
   }
 
   /** Removes one of this rider's devices (signing out, or switching notifications off). */

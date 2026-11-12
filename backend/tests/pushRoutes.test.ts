@@ -58,6 +58,20 @@ describe('push notification devices and triggers', { skip: !hasDatabase && 'DATA
     assert.equal((await new PushStore().listForRider('push-a')).length, 0);
   });
 
+  it('answers 409 when a push address belongs to another signed-in rider', async () => {
+    const auth = new AuthStore(async () => true, async () => true);
+    await getPool().query("DELETE FROM users WHERE username = 'push_owner409'");
+    const owner = await auth.signUp('push_owner409', 'push_owner409@example.com', 'correct-horse-battery');
+    assert.ok('token' in owner);
+    await new PushStore().upsert({ riderId: owner.riderId, kind: 'expo', address: 'ExponentPushToken[ownerphone02]', p256dh: null, auth: null, sessionTokenHash: sessionTokenHash(owner.token) });
+    ctx.authStore.createTestSession('push-c');
+    const response = await authenticatedFetch(ctx, 'push-c', '/push/subscriptions', { method: 'PUT', body: JSON.stringify({ kind: 'expo', token: 'ExponentPushToken[ownerphone02]' }) });
+    assert.equal(response.status, 409);
+    assert.deepEqual(await response.json(), { error: 'push_address_in_use' });
+    // The owner keeps it.
+    assert.deepEqual((await new PushStore().listForRider(owner.riderId)).map((d) => d.address), ['ExponentPushToken[ownerphone02]']);
+  });
+
   it('notifies on a friend request, its acceptance and each message', async () => {
     ctx.authStore.createTestSession('push-sam');
     ctx.authStore.createTestSession('push-jo');
@@ -107,6 +121,27 @@ describe('push devices follow the sign-in that registered them', { skip: !hasDat
     assert.deepEqual((await store.listForRider(rider.riderId)).map((d) => d.address), ['ExponentPushToken[keptphone001]']);
     await auth.revokeToken(rider.second);
     assert.deepEqual(await store.listForRider(rider.riderId), []);
+  });
+
+  it('keeps a device with the rider signed in on it unless it has really changed hands', async () => {
+    const owner = await signIn('push_owner');
+    const other = await signIn('push_other');
+    const otherHash = sessionTokenHash(other.first);
+    // An Expo token another rider is still signed in with stays theirs.
+    await device(owner.riderId, owner.first, 'ExponentPushToken[ownerphone01]');
+    assert.equal(await store.upsert({ riderId: other.riderId, kind: 'expo', address: 'ExponentPushToken[ownerphone01]', p256dh: null, auth: null, sessionTokenHash: otherHash }), false);
+    assert.deepEqual((await store.listForRider(owner.riderId)).map((d) => d.address), ['ExponentPushToken[ownerphone01]']);
+    assert.deepEqual(await store.listForRider(other.riderId), []);
+    // A browser endpoint moves only with its own secret auth key.
+    const endpoint = 'https://fcm.googleapis.com/fcm/send/ownerbrowser';
+    await store.upsert({ riderId: owner.riderId, kind: 'web', address: endpoint, p256dh: P256DH, auth: AUTH, sessionTokenHash: sessionTokenHash(owner.first) });
+    assert.equal(await store.upsert({ riderId: other.riderId, kind: 'web', address: endpoint, p256dh: P256DH, auth: 'AAAAAAAAAAAAAAAAAAAAAA', sessionTokenHash: otherHash }), false);
+    assert.equal(await store.upsert({ riderId: other.riderId, kind: 'web', address: endpoint, p256dh: P256DH, auth: AUTH, sessionTokenHash: otherHash }), true);
+    assert.deepEqual((await store.listForRider(other.riderId)).map((d) => d.address), [endpoint]);
+    // Once the owner's sign-in has ended, the phone can move to whoever signs in on it.
+    await getPool().query(`UPDATE account_sessions SET expires_at = now() - interval '1 minute' WHERE token_hash = $1`, [sessionTokenHash(owner.first)]);
+    assert.equal(await store.upsert({ riderId: other.riderId, kind: 'expo', address: 'ExponentPushToken[ownerphone01]', p256dh: null, auth: null, sessionTokenHash: otherHash }), true);
+    assert.deepEqual(await store.listForRider(owner.riderId), []);
   });
 
   it('drops devices whose session expired, and keeps ones registered before sessions were recorded', async () => {

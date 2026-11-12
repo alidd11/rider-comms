@@ -5179,10 +5179,9 @@
     }
     window.__riderCommsMapReady = initialiseGoogleMap;
     const script = document.createElement('script');
-    // `libraries=places` is required for the search bar's Autocomplete
-    // below — it shares this same browser-restricted key (see
-    // RIDER_COMMS_CONFIG's own comment), no separate Places key needed.
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&libraries=places&callback=__riderCommsMapReady&v=weekly`;
+    // Place search goes through the backend's Places API (New) endpoints,
+    // like the native app, so the map script needs no Places library.
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&callback=__riderCommsMapReady&v=weekly`;
     script.async = true;
     script.onerror = handleGoogleMapsFailure;
     document.head.appendChild(script);
@@ -5193,20 +5192,17 @@
     input.disabled = true;
     input.placeholder = 'Search unavailable right now';
     $('#mapSearchSlot')?.classList.add('offline');
-    // The POI chips call the real Places JS API directly (nearbySearch) —
-    // with no Google Maps loaded there's no Places library either, so
-    // they'd just be dead buttons rather than a working offline feature.
+    // With no Google map there is nothing to show a found place on, so the
+    // POI chips would be dead buttons rather than a working offline feature.
     $('#poiChipRow').hidden = true;
   }
 
-  // Google's own Autocomplete widget renders as an unstyled white dropdown
-  // that can't be themed — it just gets bolted onto the page over whatever
-  // it's anchored to. This full-screen search page instead drives the same
-  // Places data (AutocompleteService for predictions, PlacesService for the
-  // chosen place's coordinates) but renders every row itself, so it matches
-  // the rest of the app instead of looking like a different product bolted
-  // onto this one.
-  let autocompleteService;
+  // This full-screen search page renders every row itself. Its data comes
+  // from the backend's Places API (New) endpoints, the same ones the native
+  // app uses: /places/autocomplete for suggestions as you type,
+  // /places/details for the one picked (which ends the billing session)
+  // and /places/nearby for the category chips. The key stays on the server
+  // and each rider's searches are rate limited there.
   let searchSessionToken;
   let searchDebounceTimer;
   let searchRequestToken = 0;
@@ -5494,36 +5490,44 @@
     }
   }
 
-  const PLACE_TYPE_ICONS = {
-    gas_station: 'i-fuel',
-    parking: 'i-parking',
-    restaurant: 'i-food',
-    meal_takeaway: 'i-food',
-    cafe: 'i-coffee',
-    car_repair: 'i-wrench',
-  };
-
-  function predictionIcon(prediction) {
-    const match = (prediction.types || []).find((type) => PLACE_TYPE_ICONS[type]);
-    return match ? PLACE_TYPE_ICONS[match] : 'i-location';
+  /** One Places billing session: suggestions as you type, then the pick
+   * (native: newPlaceSearchSession in api/places.ts). */
+  function newPlaceSearchSession() {
+    let token = 'rc';
+    for (let index = 0; index < 30; index += 1) token += Math.floor(Math.random() * 16).toString(16);
+    return token;
   }
 
-  function renderSearchResults(predictions) {
+  /** Where suggestions are ranked from: the middle of the map. */
+  function placeSearchCentre() {
+    const centre = map?.getCenter?.();
+    if (centre) return { lat: centre.lat(), lon: centre.lng() };
+    if (searchScreenPosition) return { lat: searchScreenPosition.lat, lon: searchScreenPosition.lng };
+    return null;
+  }
+
+  function placeSearchErrorCopy(error) {
+    if (error?.status === 429) return 'You’ve searched a lot in a short time. Try again in a minute.';
+    if (error?.status === 0) return 'Check your connection and try again.';
+    return 'Search could not be completed. Try again in a moment.';
+  }
+
+  function renderSearchResults(suggestions) {
     const results = $('#searchScreenResults');
-    if (!predictions.length) {
+    if (!suggestions.length) {
       renderSearchMessage('i-search', 'No matching places', 'Check the spelling or try a broader place name.', 'search-error-state');
       return;
     }
     results.innerHTML = `
-      <div class="search-results-heading"><div><span>Suggestions</span><strong>Places and addresses</strong></div><small>${predictions.length} results</small></div>
-      ${predictions.map((prediction, index) => `
-      <button class="search-result-row" data-place-id="${escapeHtml(prediction.place_id)}" data-result-index="${index}">
-        <span class="search-result-icon"><svg><use href="#${predictionIcon(prediction)}"/></svg></span>
+      <div class="search-results-heading"><div><span>Suggestions</span><strong>Places and addresses</strong></div><small>${suggestions.length} results</small></div>
+      ${suggestions.map((suggestion, index) => `
+      <button class="search-result-row" data-place-id="${escapeHtml(suggestion.id)}" data-result-index="${index}">
+        <span class="search-result-icon"><svg><use href="#i-location"/></svg></span>
         <span class="search-result-copy">
-          <strong>${escapeHtml(prediction.structured_formatting?.main_text || prediction.description)}</strong>
-          <span>${escapeHtml(prediction.structured_formatting?.secondary_text || '')}</span>
+          <strong>${escapeHtml(suggestion.name)}</strong>
+          <span>${escapeHtml(suggestion.address || '')}</span>
         </span>
-        <span class="search-result-trailing"><svg><use href="#i-chevron"/></svg></span>
+        <span class="search-result-trailing">${Number.isFinite(suggestion.distanceMeters) ? `<small>${escapeHtml(formatNavDistance(suggestion.distanceMeters))}</small>` : ''}<svg><use href="#i-chevron"/></svg></span>
       </button>`).join('')}`;
     $$('.search-result-row', results).forEach((row) => row.addEventListener('click', () => void selectSearchResult(row.dataset.placeId)));
   }
@@ -5788,53 +5792,55 @@
     closeSearchScreen();
   }
 
-  function selectSearchResult(placeId) {
-    if (!placesService) placesService = new google.maps.places.PlacesService(map);
-    placesService.getDetails({ placeId, fields: ['name', 'geometry', 'formatted_address'], sessionToken: searchSessionToken }, (place, status) => {
-      searchSessionToken = new google.maps.places.AutocompleteSessionToken();
-      const location = place?.geometry?.location;
-      if (status !== google.maps.places.PlacesServiceStatus.OK || !location) {
-        showToast('Could not open that place. Try again.');
-        return;
-      }
-      const lat = location.lat();
-      const lng = location.lng();
-      if (savingFromSettingsPage) {
-        rememberChosenPlace({ placeId, name: place.name || 'Selected place', secondary: place.formatted_address || '', lat, lng });
-        return;
-      }
-      panToPlace(lat, lng);
-      setDestinationMarker(location, place.name, place.formatted_address);
-      showToast(place.name ? `Centred on ${place.name}` : 'Centred on selected place.');
-      rememberChosenPlace({ placeId, name: place.name || 'Selected place', secondary: place.formatted_address || '', lat, lng });
-      closeSearchScreen();
-    });
+  async function selectSearchResult(placeId) {
+    // The pick ends this billing session; the next search starts a new one.
+    const sessionToken = searchSessionToken || newPlaceSearchSession();
+    searchSessionToken = null;
+    let place;
+    try {
+      ({ place } = await apiFetch('POST', '/places/details', { placeId, sessionToken }));
+    } catch {
+      place = null;
+    }
+    if (!place || !Number.isFinite(place.lat) || !Number.isFinite(place.lon)) {
+      showToast('Could not open that place. Try again.');
+      return;
+    }
+    const lat = place.lat;
+    const lng = place.lon;
+    if (savingFromSettingsPage) {
+      rememberChosenPlace({ placeId, name: place.name || 'Selected place', secondary: place.address || '', lat, lng });
+      return;
+    }
+    panToPlace(lat, lng);
+    setDestinationMarker(new google.maps.LatLng(lat, lng), place.name, place.address);
+    showToast(place.name ? `Centred on ${place.name}` : 'Centred on selected place.');
+    rememberChosenPlace({ placeId, name: place.name || 'Selected place', secondary: place.address || '', lat, lng });
+    closeSearchScreen();
   }
 
-  function searchPlaces(query) {
-    if (!query) {
+  async function searchPlaces(query) {
+    // The backend takes 2 to 200 characters (native: isSearchQueryValid).
+    if (query.length < 2) {
       renderRecentOrHint();
+      return;
+    }
+    const near = placeSearchCentre();
+    if (!near) {
+      renderSearchMessage('i-search', 'Search is unavailable', 'The map is still loading. Try again in a moment.', 'search-error-state');
       return;
     }
     renderSearchLoading();
     const requestToken = ++searchRequestToken;
-    if (!autocompleteService) autocompleteService = new google.maps.places.AutocompleteService();
-    if (!searchSessionToken) searchSessionToken = new google.maps.places.AutocompleteSessionToken();
-    autocompleteService.getPlacePredictions(
-      { input: query, sessionToken: searchSessionToken, locationBias: map?.getBounds() },
-      (predictions, status) => {
-        if (requestToken !== searchRequestToken) return; // a newer keystroke's request already landed
-        if (status === google.maps.places.PlacesServiceStatus.ZERO_RESULTS) {
-          renderSearchResults([]);
-          return;
-        }
-        if (status !== google.maps.places.PlacesServiceStatus.OK || !predictions) {
-          renderSearchMessage('i-search', 'Search is unavailable', 'Google Maps could not complete that search. Try again in a moment.', 'search-error-state');
-          return;
-        }
-        renderSearchResults(predictions);
-      }
-    );
+    if (!searchSessionToken) searchSessionToken = newPlaceSearchSession();
+    try {
+      const { suggestions } = await apiFetch('POST', '/places/autocomplete', { input: query.slice(0, 200), near, sessionToken: searchSessionToken });
+      if (requestToken !== searchRequestToken) return; // a newer keystroke's request already landed
+      renderSearchResults(Array.isArray(suggestions) ? suggestions : []);
+    } catch (error) {
+      if (requestToken !== searchRequestToken) return;
+      renderSearchMessage('i-search', 'Search is unavailable', placeSearchErrorCopy(error), 'search-error-state');
+    }
   }
 
   function initPlaceSearch() {
@@ -5873,13 +5879,13 @@
   }
 
   const POI_CATEGORIES = {
-    gas_station: { label: 'Petrol', plural: 'petrol stations', icon: 'i-fuel' },
-    parking: { label: 'Parking', plural: 'parking places', icon: 'i-parking' },
-    restaurant: { label: 'Restaurants', plural: 'restaurants', icon: 'i-food' },
-    cafe: { label: 'Coffee', plural: 'coffee shops', icon: 'i-coffee' },
-    car_repair: { label: 'Repair', plural: 'repair shops', icon: 'i-wrench' },
+    // types: the Places API (New) types each chip asks for (native: CATEGORIES in PlaceSearchBar).
+    gas_station: { label: 'Petrol', plural: 'petrol stations', icon: 'i-fuel', types: ['gas_station'] },
+    parking: { label: 'Parking', plural: 'parking places', icon: 'i-parking', types: ['parking'] },
+    restaurant: { label: 'Restaurants', plural: 'restaurants', icon: 'i-food', types: ['restaurant'] },
+    cafe: { label: 'Coffee', plural: 'coffee shops', icon: 'i-coffee', types: ['cafe', 'coffee_shop'] },
+    car_repair: { label: 'Repair', plural: 'repair shops', icon: 'i-wrench', types: ['car_repair'] },
   };
-  let placesService;
   let poiMarkers = [];
 
   function clearPoiMarkers() {
@@ -5887,7 +5893,7 @@
     poiMarkers = [];
   }
 
-  // nearbySearch is one of the pricier Places SKUs, and a rider commonly
+  // Nearby Search is one of the pricier Places SKUs, and a rider commonly
   // re-taps the same chip within a few minutes without having moved far
   // (toggling it off/on, or re-checking after glancing at the map) — none
   // of that needs a fresh billed request. Cache results per category,
@@ -5915,18 +5921,14 @@
     nearbySearchResults = places;
     results.innerHTML = `
       <div class="search-results-heading"><div><span>Nearby</span><strong>${escapeHtml(category.label)}</strong></div><small>${places.length} closest</small></div>
-      ${places.map((place, index) => {
-        const meta = [place.openNow === true ? 'Open' : place.openNow === false ? 'Closed' : '', place.rating ? `${place.rating.toFixed(1)} ★` : ''].filter(Boolean);
-        return `<button class="search-result-row nearby-result-row" data-nearby-index="${index}">
+      ${places.map((place, index) => `<button class="search-result-row nearby-result-row" data-nearby-index="${index}">
           <span class="search-result-icon category-icon"><svg><use href="#${category.icon}"/></svg></span>
           <span class="search-result-copy">
             <strong>${escapeHtml(place.name)}</strong>
             <span>${escapeHtml(place.address || 'Address unavailable')}</span>
-            ${meta.length ? `<small class="search-result-meta ${place.openNow === true ? 'is-open' : ''}">${escapeHtml(meta.join(' · '))}</small>` : ''}
           </span>
           <span class="search-result-trailing"><small>${escapeHtml(place.distanceLabel)}</small><svg><use href="#i-chevron"/></svg></span>
-        </button>`;
-      }).join('')}`;
+        </button>`).join('')}`;
     $$('.nearby-result-row', results).forEach((row) => {
       row.addEventListener('click', () => openNearbyPlace(nearbySearchResults[Number(row.dataset.nearbyIndex)]));
     });
@@ -5934,9 +5936,8 @@
 
   /**
    * "Petrol"/"Parking"/"Food"/"Coffee"/"Repair" chips below the search bar
-   * — real POI lookup via the classic Places JS API's nearbySearch (the
-   * same `libraries=places` script already loaded for Autocomplete covers
-   * this; no separate key or library needed). Free-text search alone
+   * — real POI lookup via the backend's /places/nearby (Places API (New)
+   * Nearby Search, nearest first within 5 km). Free-text search alone
    * technically could already find e.g. "petrol station near me", but a
    * rider glancing at their phone mid-ride shouldn't have to type — one
    * tap for the categories that actually matter on a ride.
@@ -5964,47 +5965,37 @@
       renderNearbyResults(type, cached.places);
       return;
     }
-    if (!placesService) placesService = new google.maps.places.PlacesService(map);
-    placesService.nearbySearch({
-      location: { lat, lng },
-      rankBy: google.maps.places.RankBy.DISTANCE,
-      type,
-    }, (results, status) => {
+    let found;
+    try {
+      ({ places: found } = await apiFetch('POST', '/places/nearby', { includedTypes: category.types, near: { lat, lon: lng } }));
+    } catch (error) {
       if (requestToken !== searchRequestToken || activePoiType !== type) return;
-      if (status !== google.maps.places.PlacesServiceStatus.OK && status !== google.maps.places.PlacesServiceStatus.ZERO_RESULTS) {
-        renderSearchMessage(category.icon, 'Nearby search is unavailable', 'Google Maps could not complete that search. Try again in a moment.', 'search-error-state');
-        return;
-      }
-      const places = status === google.maps.places.PlacesServiceStatus.OK && results?.length
-        ? results
-          .map((place) => {
-            if (place.business_status === google.maps.places.BusinessStatus.CLOSED_PERMANENTLY) return null;
-            const location = place.geometry?.location;
-            if (!location) return null;
-            const point = { lat: location.lat(), lng: location.lng() };
-            const distance = metersBetween({ lat, lng }, point);
-            return {
-              placeId: place.place_id,
-              location: point,
-              name: place.name || category.label,
-              address: place.vicinity || place.formatted_address || '',
-              rating: typeof place.rating === 'number' ? place.rating : undefined,
-              openNow: typeof place.opening_hours?.open_now === 'boolean' ? place.opening_hours.open_now : undefined,
-              distance,
-              distanceLabel: formatNavDistance(distance),
-            };
-          })
-          .filter(Boolean)
-          .filter((place) => place.distance <= 5000)
-          .sort((a, b) => a.distance - b.distance)
-          .slice(0, 8)
-        : [];
-      if (poiResultCache.size >= POI_CACHE_MAX_ENTRIES) {
-        poiResultCache.delete(poiResultCache.keys().next().value);
-      }
-      poiResultCache.set(cacheKey, { timestamp: Date.now(), places });
-      renderNearbyResults(type, places);
-    });
+      renderSearchMessage(category.icon, 'Nearby search is unavailable', placeSearchErrorCopy(error), 'search-error-state');
+      return;
+    }
+    if (requestToken !== searchRequestToken || activePoiType !== type) return;
+    const places = (Array.isArray(found) ? found : [])
+      .filter((place) => Number.isFinite(place?.lat) && Number.isFinite(place?.lon))
+      .map((place) => {
+        const point = { lat: place.lat, lng: place.lon };
+        const distance = metersBetween({ lat, lng }, point);
+        return {
+          placeId: place.id,
+          location: point,
+          name: place.name || category.label,
+          address: place.address || '',
+          distance,
+          distanceLabel: formatNavDistance(distance),
+        };
+      })
+      .filter((place) => place.distance <= 5000)
+      .sort((a, b) => a.distance - b.distance)
+      .slice(0, 8);
+    if (poiResultCache.size >= POI_CACHE_MAX_ENTRIES) {
+      poiResultCache.delete(poiResultCache.keys().next().value);
+    }
+    poiResultCache.set(cacheKey, { timestamp: Date.now(), places });
+    renderNearbyResults(type, places);
   }
 
   function initPoiChips() {

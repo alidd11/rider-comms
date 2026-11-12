@@ -106,7 +106,8 @@ assert.ok(stripHtml.includes('NAVIGATION_HTML_ENTITIES'), 'Provider navigation s
 
 for (const escapedExternalValue of [
   'escapeHtml(message.text)',
-  'escapeHtml(prediction.structured_formatting?.main_text || prediction.description)',
+  'escapeHtml(suggestion.name)',
+  "escapeHtml(suggestion.address || '')",
   'escapeHtml(place.name)',
   'escapeHtml(place.address || \'Address unavailable\')',
   'escapeHtml(person.displayName)',
