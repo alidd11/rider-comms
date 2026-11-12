@@ -20,6 +20,7 @@ export type ComposerMedia = {
 export type ComposerDraft = {
   mode: ComposerMode;
   caption: string;
+  title?: string;
   audience: Audience;
   category: 'cars' | 'motorcycles' | 'cycling';
   media: ComposerMedia[];
@@ -29,6 +30,7 @@ export const MAX_PHOTOS = 6;
 export const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
 export const MAX_VIDEO_BYTES = 200 * 1024 * 1024;
 export const MAX_CAPTION = 2200;
+export const MAX_TITLE = 100;
 
 export type Validated<T> = { ok: true; value: T } | { ok: false; error: string };
 
@@ -66,11 +68,14 @@ export function validateDraft(draft: ComposerDraft): Validated<ComposerDraft> {
   const validated = validateMedia(draft.mode, draft.media);
   if (!validated.ok) return validated;
   if (draft.caption.length > MAX_CAPTION) return { ok: false, error: 'Caption is too long.' };
+  if (typeof draft.title === 'string' && draft.title.length > MAX_TITLE)
+    return { ok: false, error: 'Title is too long.' };
   if (!['private', 'followers', 'public'].includes(draft.audience))
     return { ok: false, error: 'Choose who can see this post.' };
   if (!['cars', 'motorcycles', 'cycling'].includes(draft.category))
     return { ok: false, error: 'Choose a community category.' };
-  return { ok: true, value: { ...draft, caption: draft.caption.trim(), media: validated.value } };
+  return { ok: true, value: { ...draft, caption: draft.caption.trim(),
+    title: draft.title?.trim(), media: validated.value } };
 }
 
 export function moveMedia(items: readonly ComposerMedia[], id: string, direction: -1 | 1): ComposerMedia[] {
@@ -82,13 +87,16 @@ export function moveMedia(items: readonly ComposerMedia[], id: string, direction
   return arr;
 }
 
-export type TextDraft = Pick<ComposerDraft, 'mode' | 'caption' | 'audience' | 'category'>;
+export type TextDraft = Pick<ComposerDraft, 'mode' | 'title' | 'caption' | 'audience' | 'category'>;
 export function parseTextDraft(value: unknown): TextDraft | null {
   if (!value || typeof value !== 'object') return null;
   const draft = value as Partial<TextDraft>;
   if (!['Post', 'Story', 'Reel'].includes(draft.mode ?? '')
+    || (draft.title !== undefined && (typeof draft.title !== 'string' || draft.title.length > MAX_TITLE))
     || typeof draft.caption !== 'string' || draft.caption.length > MAX_CAPTION
     || !['private', 'followers', 'public'].includes(draft.audience ?? '')
     || !['cars', 'motorcycles', 'cycling'].includes(draft.category ?? '')) return null;
-  return { mode: draft.mode as ComposerMode, caption: draft.caption, audience: draft.audience as Audience, category: draft.category as TextDraft['category'] };
+  return { mode: draft.mode as ComposerMode, title: draft.title ?? '',
+    caption: draft.caption, audience: draft.audience as Audience,
+    category: draft.category as TextDraft['category'] };
 }
