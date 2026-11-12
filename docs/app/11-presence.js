@@ -13,7 +13,6 @@
     joinBtn.toggleAttribute('disabled', nearbyTogglePending);
     joinBtn.setAttribute('aria-disabled', String(unavailable));
     joinBtn.setAttribute('aria-busy', String(nearbyTogglePending));
-    $('#joinNearbyLabel').textContent = active ? 'Live' : 'Go live';
     renderVoiceStatus();
     renderMapChrome();
   }

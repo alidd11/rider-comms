@@ -693,7 +693,7 @@ export function MapScreen(): React.JSX.Element {
             accessibilityLabel="Report on the road"
             accessibilityHint="Choose a road hazard to share with nearby riders"
           >
-            <MaterialCommunityIcons name="alert-outline" size={28} color="#1F1300" />
+            <MaterialCommunityIcons name="alert-outline" size={26} color="#1F1300" />
           </Pressable>
           <Pressable
             style={({ pressed }) => [styles.mapLiveButton, publicLive && styles.mapLiveButtonActive, pressed && styles.mapActionButtonPressed]}
@@ -710,7 +710,6 @@ export function MapScreen(): React.JSX.Element {
             ) : (
               <NearbyRidersIcon size={26} color={publicLive ? '#04210F' : '#04161D'} />
             )}
-            <Text style={[styles.mapLiveButtonText, publicLive && styles.mapLiveButtonTextActive]}>{publicLive ? 'Live' : 'Go live'}</Text>
           </Pressable>
         </View>
       )}

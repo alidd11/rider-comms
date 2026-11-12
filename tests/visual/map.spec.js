@@ -71,18 +71,26 @@ test('PWA hides the map\'s distracting controls while moving, like the native ap
   await expect(page.locator('#locateBtn')).toBeVisible();
 });
 
-test('PWA map has a labelled Go live bar when parked and a glanceable HUD while riding', async ({ page }) => {
+test('PWA map has compact Report and Go live buttons when parked and a glanceable HUD while riding', async ({ page }) => {
   await mockAuthenticatedApi(page, 'recovering');
   await page.goto('/');
   await expect(page.locator('#app')).toBeVisible();
   await expect(page.locator('#mapStatusText')).toHaveText('Nearby off');
   const live = page.locator('#joinNearbyBtn');
   await expect(live).toBeVisible();
-  await expect(page.locator('#joinNearbyLabel')).toHaveText('Go live');
-  const [liveBox, hazardBox] = await Promise.all([live.boundingBox(), page.locator('#reportHazardBtn').boundingBox()]);
-  // A wide, labelled primary action beside a smaller hazard button.
-  expect(liveBox.width).toBeGreaterThan(hazardBox.width * 2);
-  expect(liveBox.height).toBeGreaterThanOrEqual(56);
+  await expect(live).toHaveAccessibleName('Go live nearby');
+  const [liveBox, hazardBox, locateBox] = await Promise.all([live.boundingBox(), page.locator('#reportHazardBtn').boundingBox(), page.locator('#locateBtn').boundingBox()]);
+  // One compact size for all three, above the touch minimum, so the map
+  // stays the main thing: Report bottom-left, Go live bottom-right with
+  // Centre on me above it.
+  for (const box of [liveBox, hazardBox, locateBox]) {
+    expect(box.width).toBeGreaterThanOrEqual(48);
+    expect(box.width).toBeLessThanOrEqual(56);
+    expect(Math.abs(box.width - box.height)).toBeLessThanOrEqual(1);
+  }
+  expect(hazardBox.x).toBeLessThan(liveBox.x - 150);
+  expect(Math.abs((locateBox.x + locateBox.width) - (liveBox.x + liveBox.width))).toBeLessThanOrEqual(2);
+  expect(locateBox.y + locateBox.height).toBeLessThanOrEqual(liveBox.y);
   await expect(page.locator('#ridingHud')).toBeHidden();
 
   await page.evaluate(() => {
