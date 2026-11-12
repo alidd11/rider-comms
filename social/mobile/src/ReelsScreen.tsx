@@ -1,6 +1,6 @@
 import React, { useCallback, useRef, useState } from 'react';
 import { ImageBackground, Platform, Pressable, ScrollView, Text, View } from 'react-native';
-import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
+import type { NativeScrollEvent, NativeSyntheticEvent, ScrollViewInstance } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { C } from './styles';
 
@@ -43,7 +43,7 @@ export function ReelsScreen({ items, followedAuthors, onToggleFollow, onCreateRe
   const [bookmarks, setBookmarks] = useState<Set<string>>(() => new Set());
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const [notice, setNotice] = useState<string | null>(null);
-  const scroller = useRef<ScrollView>(null);
+  const scroller = useRef<ScrollViewInstance>(null);
 
   const toggle = useCallback((setter: React.Dispatch<React.SetStateAction<Set<string>>>, key: string) => {
     setter(current => {
