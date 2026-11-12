@@ -367,3 +367,49 @@ test('PWA says when the connection drops and clears the notice when it returns',
   await context.setOffline(false);
   await expect(banner).toBeHidden();
 });
+
+test('PWA place search and the category chips use the backend Places endpoints, like the native app', async ({ page }) => {
+  const calls = [];
+  await mockAuthenticatedApi(page, 'stationary', async ({ request, url }) => {
+    if (!url.pathname.startsWith('/places/')) return null;
+    const body = JSON.parse(request.postData() || '{}');
+    calls.push({ path: url.pathname, body });
+    if (url.pathname === '/places/autocomplete') {
+      return { body: { suggestions: [{ id: 'place-ace', name: 'Ace Cafe London', address: 'North Circular Road, London', distanceMeters: 8200 }] } };
+    }
+    if (url.pathname === '/places/details') {
+      return { body: { place: { id: 'place-ace', name: 'Ace Cafe London', address: 'North Circular Road, London', lat: 51.5413, lon: -0.2796 } } };
+    }
+    return { body: { places: [
+      { id: 'fuel-far', name: 'Far Fuel', address: 'Far Road', lat: 51.52, lon: -0.1278 },
+      { id: 'fuel-near', name: 'Near Fuel', address: 'Near Road', lat: 51.508, lon: -0.1278 },
+    ] } };
+  });
+  await page.goto('/');
+  await expect.poll(() => page.evaluate(() => Boolean(window.__riderCommsTestMap))).toBe(true);
+  // No Places library on the map script any more.
+  expect(await page.evaluate(() => Boolean(window.google?.maps?.places?.AutocompleteService && document.querySelector('script[src*="libraries=places"]')))).toBe(false);
+
+  await page.locator('#mapSearchSlot').click();
+  await page.locator('#searchScreenInput').fill('ace');
+  const row = page.locator('#searchScreenResults [data-place-id="place-ace"]');
+  await expect(row).toContainText('Ace Cafe London');
+  await expect(row).toContainText('North Circular Road, London');
+  const suggest = calls.find((call) => call.path === '/places/autocomplete');
+  expect(suggest.body.input).toBe('ace');
+  expect(suggest.body.near).toEqual({ lat: 51.5074, lon: -0.1278 });
+  expect(suggest.body.sessionToken).toMatch(/^rc[0-9a-f]{30}$/);
+  await row.click();
+  await expect(page.locator('#searchScreen')).toBeHidden();
+  await expect(page.locator('#destinationCard')).toContainText('Ace Cafe London');
+  // The pick ends the same billing session the suggestions used.
+  const details = calls.find((call) => call.path === '/places/details');
+  expect(details.body).toEqual({ placeId: 'place-ace', sessionToken: suggest.body.sessionToken });
+  await page.locator('[data-dismiss-destination]').click();
+
+  // Petrol: nearest first.
+  await page.locator('#drawerPetrol').click();
+  await expect(page.locator('#searchScreenResults .nearby-result-row strong')).toHaveText(['Near Fuel', 'Far Fuel']);
+  const nearby = calls.find((call) => call.path === '/places/nearby');
+  expect(nearby.body.includedTypes).toEqual(['gas_station']);
+});

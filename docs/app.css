@@ -217,7 +217,7 @@ img,svg{-webkit-user-drag:none}
 .search-result-copy{min-width:0;flex:1}
 .search-result-copy strong,.search-result-copy span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .search-result-copy strong{font-size:.9rem;line-height:1.25}.search-result-copy span{margin-top:4px;color:var(--text-secondary);font-size:.73rem}
-.search-result-meta{display:block;margin-top:5px;color:var(--text-muted);font-size:.68rem;font-weight:720}.search-result-meta.is-open{color:var(--success)}
+
 .search-result-trailing{min-width:34px;display:flex;align-items:center;justify-content:flex-end;gap:5px;color:var(--text-muted)}.search-result-trailing small{font-size:.7rem;font-weight:700;white-space:nowrap}.search-result-trailing svg{width:15px;height:15px}
 .search-recent-clear{min-height:34px;padding:0 7px;border:0;background:transparent;color:var(--accent);font-size:.75rem;font-weight:780}
 .search-empty-state{min-height:280px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:36px 22px;text-align:center}.search-empty-icon{width:52px;height:52px;display:grid;place-items:center;margin-bottom:16px;border-radius:17px;background:var(--surface-raised);color:var(--text-secondary)}.search-empty-icon svg{width:23px;height:23px}.search-empty-state>strong{font-size:1.02rem}.search-empty-state p{max-width:310px;margin:7px 0 0;color:var(--text-secondary);font-size:.8rem;line-height:1.5}.search-empty-state .search-location-retry{margin-top:17px}.search-error-state .search-empty-icon{color:var(--accent)}
