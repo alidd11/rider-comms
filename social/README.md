@@ -35,3 +35,16 @@ The prototype uses Expo SDK 58 and React Native to target iOS, Android and web. 
 - No use of real businesses, usernames, actual user posts or copyrighted media as demo inventory without permission.
 
 See [PRODUCT_SPEC.md](PRODUCT_SPEC.md) for agreed product direction and release boundaries.
+
+
+## Preview interaction milestone
+
+The standalone PWA now contains local-only demonstration journeys for:
+- Editing the **Social** profile display name, biography and profile visibility (not Rider Comms identity or username).
+- Adding up to 12 vehicles (cars / motorcycles / bicycles) to a private-by-default garage, changing their visibility and removing them with confirmation.
+- Opening event details, reviewing organiser and venue privacy messaging, and recording **session-only** demo interest.
+- For You / Following, Reels, clubs and marketplace with deterministic v0 recommendation and eligibility filters.
+
+The social profile and garage demo state are stored in this device's app storage through AsyncStorage. Nothing is sent to the existing Rider Comms backend or to other users; clearing browser site data removes them. Do not use the preview as a backup or for sensitive data.
+
+Independent social CI includes TypeScript, unit tests, static web export, mobile/desktop Chromium interaction tests and screenshot artifacts. GitHub PR #449 remains a draft until reviewed. The live demonstration PWA is hosted separately from Rider Comms on Railway and automatically deploys this development branch. Root CI and existing Rider Comms native/web releases remain separate.

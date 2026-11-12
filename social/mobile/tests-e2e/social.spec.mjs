@@ -44,3 +44,47 @@ test('clubs, marketplace and profile have independent usable screens', async ({ 
   await mkdir('test-results/screenshots', { recursive: true });
   await page.screenshot({ path: 'test-results/screenshots/' + testInfo.project.name + '-profile.png' });
 });
+
+
+test('social profile and private garage edits survive reload without publishing', async ({ page }, testInfo) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Open profile' }).click();
+  await expect(page.getByText('Your garage starts here')).toBeVisible();
+  await page.getByRole('button', { name: 'Edit social profile' }).click();
+  await page.getByRole('textbox', { name: 'Social display name' }).fill('Weekend Rider');
+  await page.getByRole('textbox', { name: 'Social bio' }).fill('Cars, motorcycles and Sunday rides.');
+  await page.getByRole('button', { name: 'Save profile' }).click();
+  await expect(page.getByText('Weekend Rider')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Add vehicle to garage' }).click();
+  await page.getByRole('textbox', { name: 'Vehicle make' }).fill('Honda');
+  await page.getByRole('textbox', { name: 'Vehicle model' }).fill('PCX');
+  await page.getByRole('textbox', { name: 'Vehicle year' }).fill('2024');
+  await page.getByRole('button', { name: 'Save vehicle' }).click();
+  await expect(page.getByText('Honda PCX')).toBeVisible();
+  await expect(page.getByText('PRIVATE', { exact: true })).toBeVisible();
+
+  await page.reload();
+  await page.getByRole('button', { name: 'Open profile' }).click();
+  await expect(page.getByText('Weekend Rider')).toBeVisible();
+  await expect(page.getByText('Honda PCX')).toBeVisible();
+  await page.getByRole('button', { name: 'Toggle privacy for Honda PCX' }).click();
+  await expect(page.getByText('PUBLIC', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Remove Honda PCX' }).click();
+  await page.getByRole('button', { name: 'Confirm remove' }).click();
+  await expect(page.getByText('Your garage starts here')).toBeVisible();
+
+  await mkdir('test-results/screenshots', { recursive: true });
+  await page.screenshot({ path: 'test-results/screenshots/' + testInfo.project.name + '-garage.png' });
+});
+
+test('event detail includes only demo interest, not real RSVP', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('tab', { name: 'Clubs' }).click();
+  await page.getByRole('button', { name: 'View event Coffee & Cars' }).click();
+  await expect(page.getByText('The venue and attendance shown are fictional.', { exact: false })).toBeVisible();
+  await page.getByRole('button', { name: 'Mark interested in demo event' }).click();
+  await expect(page.getByRole('button', { name: 'Remove demo RSVP interest' })).toBeVisible();
+  await page.getByRole('button', { name: 'Back to clubs and events' }).click();
+  await expect(page.getByText('Upcoming events')).toBeVisible();
+});

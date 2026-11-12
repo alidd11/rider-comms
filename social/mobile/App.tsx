@@ -1,5 +1,5 @@
 import '@expo/metro-runtime';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StatusBar, Pressable, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
@@ -8,6 +8,9 @@ import { rankForYou, rankFollowing, rankReels, rankClubs, rankEvents, rankMarket
 import type { Content, Viewer, Topic, RankReason } from './src/recommendations';
 import type { FeedMode, FollowingOrder, SocialPost } from './src/domain';
 import { demoClubs, demoEvents, demoListings, demoPosts, demoStories, followingIds } from './src/sampleData';
+import { DEFAULT_PROFILE, EMPTY_GARAGE_DRAFT, addGarageEntry, createGarageEntry, removeGarageEntry, updateGarageVisibility, validateProfile } from './src/garage';
+import type { GarageDraft, GarageEntry, GarageKind, SocialProfileDraft } from './src/garage';
+import { loadLocalDemo, saveLocalDemo } from './src/demoStorage';
 
 type Screen = 'Home' | 'Reels' | 'Create' | 'Clubs' | 'Shop' | 'Profile' | 'Messages';
 type Icon = React.ComponentProps<typeof Ionicons>['name'];
@@ -125,12 +128,41 @@ export default function App(): React.JSX.Element {
   const [joined, setJoined] = useState<Set<string>>(() => new Set());
   const [going, setGoing] = useState<Set<string>>(() => new Set());
   const [selectedClub, setSelectedClub] = useState<string | null>(null);
+  const [selectedEvent, setSelectedEvent] = useState<string | null>(null);
+  const [profile, setProfile] = useState<SocialProfileDraft>(DEFAULT_PROFILE);
+  const [garage, setGarage] = useState<GarageEntry[]>([]);
+  const [localReady, setLocalReady] = useState(false);
+  const [profileEditor, setProfileEditor] = useState(false);
+  const [profileDraft, setProfileDraft] = useState<SocialProfileDraft>(DEFAULT_PROFILE);
+  const [garageEditor, setGarageEditor] = useState(false);
+  const [garageDraft, setGarageDraft] = useState<GarageDraft>({ ...EMPTY_GARAGE_DRAFT });
+  const [pendingGarageDelete, setPendingGarageDelete] = useState<string | null>(null);
   const [selectedStory, setSelectedStory] = useState<string | null>(null);
   const [reelIndex, setReelIndex] = useState(0);
   const [marketFilter, setMarketFilter] = useState('All');
   const [search, setSearch] = useState('');
   const [draft, setDraft] = useState('');
   const [notice, setNotice] = useState<string | null>(null);
+
+  // Preview-only, per-device data. Shared Rider Comms accounts and DMs are untouched.
+  useEffect(() => {
+    let mounted = true;
+    void loadLocalDemo().then((saved) => {
+      if (!mounted) return;
+      setProfile(saved.profile);
+      setGarage(saved.garage);
+      setLocalReady(true);
+    });
+    return () => { mounted = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!localReady) return;
+    void saveLocalDemo({ profile, garage }).catch(() => {
+      // Storage failures must not prevent the user from exploring the preview.
+      // The UI always identifies saved entries as local device-only data.
+    });
+  }, [localReady, profile, garage]);
 
   const viewer = useMemo<Viewer>(() => ({
     ...noViewer, userId: 'demo-viewer', ageFloor: 18, followedAuthors: followingIds,
@@ -180,11 +212,43 @@ export default function App(): React.JSX.Element {
     setScreen(to);
     setNotice(null);
     setSelectedClub(null);
+    setSelectedEvent(null);
     setSelectedStory(null);
+    setProfileEditor(false);
+    setGarageEditor(false);
+    setPendingGarageDelete(null);
   }
 
   function banner(message: string) {
     setNotice(message);
+  }
+
+  function openProfileEditor() {
+    setProfileDraft({ ...profile });
+    setProfileEditor(true);
+  }
+
+  function saveProfile() {
+    const result = validateProfile(profileDraft);
+    if (!result.ok) { banner(result.error); return; }
+    setProfile(result.value);
+    setProfileEditor(false);
+    banner('Social profile preview saved on this device only.');
+  }
+
+  function openGarageEditor() {
+    setGarageDraft({ ...EMPTY_GARAGE_DRAFT });
+    setGarageEditor(true);
+  }
+
+  function saveGarage() {
+    const parsed = createGarageEntry(garageDraft, 'preview-' + String(Date.now()), new Date().getFullYear());
+    if (!parsed.ok) { banner(parsed.error); return; }
+    const updated = addGarageEntry(garage, parsed.value);
+    if (!updated.ok) { banner(updated.error); return; }
+    setGarage(updated.value);
+    setGarageEditor(false);
+    banner('Vehicle added to your private/local preview garage.');
   }
 
   function renderPost(post: SocialPost, reason: RankReason) {
@@ -344,6 +408,32 @@ export default function App(): React.JSX.Element {
   }
 
   function renderClubs() {
+    const event = demoEvents.find((item) => item.id === selectedEvent);
+    if (event) return (
+      <>
+        <Pressable accessibilityRole="button" accessibilityLabel="Back to clubs and events" style={s.row} onPress={() => setSelectedEvent(null)}>
+          <Ionicons name="arrow-back" size={20} color={C.ink} /><Text style={s.ghostText}>Clubs & events</Text>
+        </Pressable>
+        <View style={s.card}>
+          <View style={[s.media, { height: 175, backgroundColor: event.accent }]}>
+            <Ionicons name="calendar-clear-outline" size={48} color={C.ink} />
+            <Text style={s.mediaCategory}>EVENT PREVIEW</Text>
+          </View>
+          <View style={s.pad}>
+            <Text style={s.title}>{event.title}</Text>
+            <Text style={s.muted}>{event.category} · {event.date}</Text>
+            <View style={s.row}><Ionicons name="people-outline" size={19} color={C.accent}/><Text style={s.body}>Organised by {event.organiser}</Text></View>
+            <View style={s.row}><Ionicons name="location-outline" size={19} color={C.accent}/><Text style={s.body}>{event.place}</Text></View>
+            <Text style={s.small}>The venue and attendance shown are fictional. Future private events will protect precise meeting details until participants have permission.</Text>
+            <Pressable accessibilityRole="button" accessibilityLabel={going.has(event.id) ? 'Remove demo RSVP interest' : 'Mark interested in demo event'} style={s.cta} onPress={() => toggle(setGoing, event.id)}>
+              <Text style={s.ctaText}>{going.has(event.id) ? 'Interested ✓ — demo' : 'Mark interested — demo'}</Text>
+            </Pressable>
+          </View>
+        </View>
+        <PreviewEmpty icon="chatbox-outline" heading="Event chat & RSVP" body="Guest lists, approval, capacity, notifications and event discussions will become real once safe backend services are integrated." />
+      </>
+    );
+
     const club = demoClubs.find((item) => item.id === selectedClub);
     if (club) return (
       <>
@@ -393,7 +483,10 @@ export default function App(): React.JSX.Element {
               </View>
             </View>
             <Text style={s.muted}>{event.place} · {event.organiser}</Text>
-            <Pressable accessibilityRole="button" style={s.ghost} onPress={() => toggle(setGoing, event.id)}><Text style={s.ghostText}>{going.has(event.id) ? 'Interested (demo)' : 'Interested · preview'}</Text></Pressable>
+            <View style={s.rowBetween}>
+              <Text style={s.small}>{going.has(event.id) ? 'Interest saved for this session' : 'No RSVP submitted'}</Text>
+              <Pressable accessibilityRole="button" accessibilityLabel={'View event ' + event.title} style={s.ghost} onPress={() => setSelectedEvent(event.id)}><Text style={s.ghostText}>Event details</Text></Pressable>
+            </View>
           </View>
         ))}
       </>
@@ -435,21 +528,113 @@ export default function App(): React.JSX.Element {
   function renderProfile() {
     return (
       <>
-        <Text style={s.eyebrow}>SOCIAL PROFILE</Text>
-        <Text style={s.title}>Make it yours.</Text>
+        <View style={{ gap: 6 }}>
+          <Text style={s.eyebrow}>SOCIAL PROFILE · PREVIEW</Text>
+          <Text style={s.title}>Your space, your story.</Text>
+          <Text style={s.muted}>Customise this social-only profile. Nothing here changes your Rider Comms riding profile.</Text>
+        </View>
         <View style={[s.card, s.pad]}>
-          <View style={s.row}>
-            <View style={[s.avatar, { width: 66, height: 66, borderRadius: 22 }]}><Ionicons name="person-outline" color={C.ink} size={32} /></View>
-            <View style={{ flex: 1, gap: 4 }}><Text style={s.cardHeading}>Your social profile</Text><Text style={s.small}>Separate from your Rider Comms riding profile</Text></View>
+          <View style={s.rowBetween}>
+            <View style={[s.row, { flex: 1 }]}>
+              <View style={[s.avatar, { width: 60, height: 60, borderRadius: 19 }]}><Ionicons name="person-outline" color={C.ink} size={30} /></View>
+              <View style={{ flex: 1, gap: 5 }}>
+                <Text style={s.cardHeading}>{profile.displayName}</Text>
+                <Text style={s.small}>{profile.visibility === 'private' ? 'Private social profile' : 'Public social profile (preview)'}</Text>
+              </View>
+            </View>
+            <Pressable accessibilityRole="button" accessibilityLabel="Edit social profile" style={s.ghost} onPress={openProfileEditor}>
+              <Text style={s.ghostText}>Edit</Text>
+            </Pressable>
           </View>
-          <Text style={s.muted}>A permanent ecosystem ID and @username will connect both apps. Profile photos, bios, garages and social privacy will remain independent.</Text>
+          <Text style={s.body}>{profile.bio}</Text>
+          <View style={s.row}><Ionicons name="lock-closed-outline" size={17} color={C.accent} /><Text style={s.small}>Local preview · no live account or public profile</Text></View>
         </View>
-        <HeaderLine heading="Personal garage" meta="Cars · Motorcycles · Bicycles" />
-        <View style={s.twoCol}>
-          <View style={[s.card, s.pad, s.split]}><Ionicons name="car-sport" color={C.accent} size={30} /><Text style={s.cardHeading}>Your builds</Text><Text style={s.small}>Photos, upgrades and linked posts</Text></View>
-          <View style={[s.card, s.pad, s.split]}><Ionicons name="bicycle" color={C.accent} size={30} /><Text style={s.cardHeading}>Your rides</Text><Text style={s.small}>Specifications and progress</Text></View>
+        {profileEditor ? (
+          <View style={[s.card, s.pad]}>
+            <Text style={s.cardHeading}>Edit your social profile</Text>
+            <Text style={s.small}>Display name · 2–40 characters</Text>
+            <TextInput accessibilityLabel="Social display name" style={s.input} value={profileDraft.displayName} maxLength={40} onChangeText={(displayName) => setProfileDraft((p) => ({ ...p, displayName }))} placeholder="Display name" placeholderTextColor={C.muted}/>
+            <Text style={s.small}>Bio · up to 160 characters</Text>
+            <TextInput accessibilityLabel="Social bio" style={[s.input, { minHeight: 85, textAlignVertical: 'top' }]} multiline maxLength={160} value={profileDraft.bio} onChangeText={(bio) => setProfileDraft((p) => ({ ...p, bio }))} placeholder="Tell your community about yourself" placeholderTextColor={C.muted}/>
+            <Text style={s.small}>Profile visibility (preview only)</Text>
+            <View style={s.row}>
+              <Pill label="Private profile" selected={profileDraft.visibility === 'private'} onPress={() => setProfileDraft((p) => ({ ...p, visibility: 'private' }))}/>
+              <Pill label="Public profile" selected={profileDraft.visibility === 'public'} onPress={() => setProfileDraft((p) => ({ ...p, visibility: 'public' }))}/>
+            </View>
+            <View style={s.twoCol}>
+              <Pressable accessibilityRole="button" style={[s.ghost, s.split]} onPress={() => setProfileEditor(false)}><Text style={s.ghostText}>Cancel</Text></Pressable>
+              <Pressable accessibilityRole="button" style={[s.cta, s.split]} onPress={saveProfile}><Text style={s.ctaText}>Save profile</Text></Pressable>
+            </View>
+          </View>
+        ) : null}
+        <View style={s.rowBetween}>
+          <HeaderLine heading="Personal garage" meta={String(garage.length) + ' / 12'} />
+          <Pressable accessibilityRole="button" accessibilityLabel="Add vehicle to garage" style={s.ghost} onPress={openGarageEditor}>
+            <View style={s.row}><Ionicons name="add" size={16} color={C.accent}/><Text style={s.ghostText}>Add</Text></View>
+          </Pressable>
         </View>
-        <PreviewEmpty icon="person-add-outline" heading="Account integration comes next" body="This is a demo profile. No live account, garage record or friend relationship is being created." />
+        <Text style={s.muted}>Cars, motorcycles and bicycles. Every new entry starts private. Nothing is published or shared with Rider Comms.</Text>
+        {garageEditor ? (
+          <View style={[s.card, s.pad]}>
+            <Text style={s.cardHeading}>Add to your garage</Text>
+            <Text style={s.small}>Vehicle type</Text>
+            <View style={[s.row, { flexWrap: 'wrap' }]}>
+              {(['Car', 'Motorcycle', 'Bicycle'] as GarageKind[]).map((kind) =>
+                <Pill key={kind} label={kind} selected={garageDraft.kind === kind} onPress={() => setGarageDraft((p) => ({ ...p, kind }))}/>)}
+            </View>
+            <TextInput accessibilityLabel="Vehicle make" style={s.input} maxLength={50} value={garageDraft.make} onChangeText={(make) => setGarageDraft((p) => ({ ...p, make }))} placeholder="Make · e.g. Honda" placeholderTextColor={C.muted}/>
+            <TextInput accessibilityLabel="Vehicle model" style={s.input} maxLength={60} value={garageDraft.model} onChangeText={(model) => setGarageDraft((p) => ({ ...p, model }))} placeholder="Model · e.g. PCX" placeholderTextColor={C.muted}/>
+            <TextInput accessibilityLabel="Vehicle year" style={s.input} maxLength={4} keyboardType="numeric" value={garageDraft.year} onChangeText={(year) => setGarageDraft((p) => ({ ...p, year }))} placeholder="Year (optional)" placeholderTextColor={C.muted}/>
+            <TextInput accessibilityLabel="Vehicle notes" multiline style={[s.input, { minHeight: 80, textAlignVertical: 'top' }]} maxLength={240} value={garageDraft.notes} onChangeText={(notes) => setGarageDraft((p) => ({ ...p, notes }))} placeholder="Modifications or build notes (optional)" placeholderTextColor={C.muted}/>
+            <Text style={s.small}>Vehicle visibility</Text>
+            <View style={s.row}>
+              <Pill label="Private vehicle" selected={garageDraft.visibility === 'private'} onPress={() => setGarageDraft((p) => ({ ...p, visibility: 'private' }))}/>
+              <Pill label="Public vehicle" selected={garageDraft.visibility === 'public'} onPress={() => setGarageDraft((p) => ({ ...p, visibility: 'public' }))}/>
+            </View>
+            <View style={s.twoCol}>
+              <Pressable accessibilityRole="button" style={[s.ghost, s.split]} onPress={() => setGarageEditor(false)}><Text style={s.ghostText}>Cancel</Text></Pressable>
+              <Pressable accessibilityRole="button" style={[s.cta, s.split]} onPress={saveGarage}><Text style={s.ctaText}>Save vehicle</Text></Pressable>
+            </View>
+          </View>
+        ) : null}
+        {garage.length ? garage.map((entry) => (
+          <View key={entry.id} style={[s.card, s.pad]}>
+            <View style={s.rowBetween}>
+              <View style={s.row}>
+                <View style={[s.avatar, { width: 48, height: 48 }]}>
+                  <Ionicons name={entry.kind === 'Car' ? 'car-sport' : entry.kind === 'Bicycle' ? 'bicycle' : 'speedometer'} size={25} color={C.accent}/>
+                </View>
+                <View style={{ flex: 1, gap: 4 }}>
+                  <Text style={s.cardHeading}>{entry.make} {entry.model}</Text>
+                  <Text style={s.small}>{entry.kind}{entry.year ? ' · ' + String(entry.year) : ''}</Text>
+                </View>
+              </View>
+              <View style={s.darkBadge}><Text style={s.badgeText}>{entry.visibility.toUpperCase()}</Text></View>
+            </View>
+            {entry.notes ? <Text style={s.muted}>{entry.notes}</Text> : null}
+            <View style={s.rowBetween}>
+              <Pressable accessibilityRole="button" accessibilityLabel={'Toggle privacy for ' + entry.make + ' ' + entry.model} style={s.ghost} onPress={() => setGarage((items) => updateGarageVisibility(items, entry.id, entry.visibility === 'private' ? 'public' : 'private'))}>
+                <Text style={s.ghostText}>{entry.visibility === 'private' ? 'Make public (demo)' : 'Make private (demo)'}</Text>
+              </Pressable>
+              <Pressable accessibilityRole="button" accessibilityLabel={'Remove ' + entry.make + ' ' + entry.model} onPress={() => setPendingGarageDelete(entry.id)}>
+                <Text style={[s.small, { color: '#F3A1A1' }]}>Remove</Text>
+              </Pressable>
+            </View>
+            {pendingGarageDelete === entry.id ? (
+              <View style={[s.card, s.pad, { backgroundColor: C.bg }]}>
+                <Text style={s.body}>Remove this vehicle from this device?</Text>
+                <View style={s.twoCol}>
+                  <Pressable accessibilityRole="button" style={[s.ghost, s.split]} onPress={() => setPendingGarageDelete(null)}><Text style={s.ghostText}>Keep vehicle</Text></Pressable>
+                  <Pressable accessibilityRole="button" style={[s.cta, s.split]} onPress={() => { setGarage((items) => removeGarageEntry(items, entry.id)); setPendingGarageDelete(null); }}><Text style={s.ctaText}>Confirm remove</Text></Pressable>
+                </View>
+              </View>
+            ) : null}
+          </View>
+        )) : <PreviewEmpty icon="car-sport-outline" heading="Your garage starts here" body="Add a car, motorcycle or bicycle to preview how your builds will appear. All entries are private by default." />}
+        <View style={[s.card, s.pad]}>
+          <View style={s.row}><Ionicons name="phone-portrait-outline" size={22} color={C.accent}/><Text style={s.cardHeading}>Saved on this device only</Text></View>
+          <Text style={s.muted}>Your demo profile and garage are stored locally in this app. They are not real user records, publicly searchable listings or connected to Rider Comms. Clearing site data removes them.</Text>
+        </View>
       </>
     );
   }
