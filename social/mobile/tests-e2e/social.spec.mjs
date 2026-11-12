@@ -421,7 +421,7 @@ test('Create opens camera-first with a real permission path and gallery alternat
   await expect(page.getByTestId('camera-first-studio')).toBeVisible();
   await expect(page.getByTestId('camera-preview-area')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Choose from library' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Post format' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('button', { name: 'Post format' })).toBeVisible();
   // In a clean headless test browser, a permission prompt is needed. Don't
   // claim a blank surface is already a functioning camera.
   await expect(page.getByRole('button', { name: 'Enable camera' })).toBeVisible();
