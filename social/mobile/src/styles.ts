@@ -15,7 +15,7 @@ export const C = {
 export const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: C.bg },
   root: { flex: 1, backgroundColor: C.bg, width: '100%', overflow: 'hidden' },
-  header: { paddingHorizontal: 20, paddingTop: 14, paddingBottom: 14, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottomWidth: 1, borderColor: C.border },
+  header: { paddingHorizontal: 18, paddingTop: 11, paddingBottom: 11, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottomWidth: 1, borderColor: C.border },
   wordmark: { color: C.accent, fontSize: 11, fontWeight: '900', letterSpacing: 3 },
   brandTitle: { color: C.ink, fontSize: 25, fontWeight: '800', letterSpacing: -0.7 },
   small: { color: C.muted, fontSize: 12, lineHeight: 18 },

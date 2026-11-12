@@ -107,3 +107,13 @@ Automated Chromium tests check a forced 59px top inset and viewport geometry. Th
 Shop now uses a commerce-first discovery layout: search, category filters, automotive interests, two-column media cards, saved listings, demo basket, example merchant storefronts and a standalone product detail screen. No fake ratings, sale discounts, order records or merchant verification statuses are generated. All prices and names are explicitly fictional; gallery photos are thematic illustrative media, not exact product photography. Vehicles and rentals remain enquiry-only and cannot enter checkout.
 
 Important: business verification, stock, consumer rights/returns, transaction fees, dispute handling, age/identity checks where applicable, payments and payout controls must all be enforced by authenticated backend services before public sales. Shop actions currently change local in-memory preview state only. This is a discovery design iteration, not a TikTok Shop commerce integration.
+
+
+## Social profile redesign (2026-11-12)
+
+- Removed the visible EARLY PREVIEW tagline from the global header, with a compact single-line Social wordmark. The installed iOS safe-area rules remain unchanged.
+- The Social profile is now avatar-led and shows display name, bio, privacy, Posts, Followers, Following, and Friends. Posts, Reels, and Garage are separate tabs, preserving the local profile and garage editing flow.
+- No fictional follower or mutual-friend counts are shown: these display a dash until the authenticated services exist. Friends will eventually use the shared Rider Comms mutual friendship graph, while followers are independent one-way Social follow relationships.
+- The Following panel opens interactive *example Social accounts* with sample follow/unfollow actions. These do not affect shared Rider Comms relationships.
+- Posts and Reels show empty states until the user's own publishing service goes live. The visible username is marked as unlinked; do not show a fictional handle as if it had been reserved.
+- Layout references: TikTok's official Friends Tab description and conventional Instagram-style tabbed personal profiles, without copying branded visual assets.

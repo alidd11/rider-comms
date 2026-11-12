@@ -44,6 +44,9 @@ test('clubs, marketplace and profile have independent usable screens', async ({ 
   await expect(page.getByText('Touring gloves')).toHaveCount(0);
 
   await page.getByRole('button', { name: 'Open profile' }).click();
+  await expect(page.getByTestId('social-profile-summary')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'View friends' })).toBeVisible();
+  await page.getByRole('tab', { name: 'Garage profile tab' }).click();
   await expect(page.getByText('Personal garage')).toBeVisible();
   await mkdir('test-results/screenshots', { recursive: true });
   await page.screenshot({ path: 'test-results/screenshots/' + testInfo.project.name + '-profile.png' });
@@ -53,13 +56,15 @@ test('clubs, marketplace and profile have independent usable screens', async ({ 
 test('social profile and private garage edits survive reload without publishing', async ({ page }, testInfo) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Open profile' }).click();
-  await expect(page.getByText('Your garage starts here')).toBeVisible();
+  await expect(page.getByText('Your posts will appear here')).toBeVisible();
   await page.getByRole('button', { name: 'Edit social profile' }).click();
   await page.getByRole('textbox', { name: 'Social display name' }).fill('Weekend Rider');
   await page.getByRole('textbox', { name: 'Social bio' }).fill('Cars, motorcycles and Sunday rides.');
   await page.getByRole('button', { name: 'Save profile' }).click();
   await expect(page.getByText('Weekend Rider')).toBeVisible();
 
+  await page.getByRole('tab', { name: 'Garage profile tab' }).click();
+  await expect(page.getByText('Your garage starts here')).toBeVisible();
   await page.getByRole('button', { name: 'Add vehicle to garage' }).click();
   await page.getByRole('textbox', { name: 'Vehicle make' }).fill('Honda');
   await page.getByRole('textbox', { name: 'Vehicle model' }).fill('PCX');
@@ -71,6 +76,7 @@ test('social profile and private garage edits survive reload without publishing'
   await page.reload();
   await page.getByRole('button', { name: 'Open profile' }).click();
   await expect(page.getByText('Weekend Rider')).toBeVisible();
+  await page.getByRole('tab', { name: 'Garage profile tab' }).click();
   await expect(page.getByText('Honda PCX')).toBeVisible();
   await page.getByRole('button', { name: 'Toggle privacy for Honda PCX' }).click();
   await expect(page.getByText('PUBLIC', { exact: true })).toBeVisible();
@@ -456,4 +462,37 @@ test('TikTok-style Shop discovery supports search, sample details, saved and bas
   await page.getByRole('button', { name: 'Shop saved' }).click();
   await expect(page.getByTestId('shop-card-l1')).toBeVisible();
   await expect(page.getByText('Road bicycle helmet')).toHaveCount(0);
+});
+
+
+test('Social profile has tabs, follower/friend panels and separately managed demo follows', async ({ page }, testInfo) => {
+  await page.goto('/');
+  await expect(page.getByText('EARLY PREVIEW')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Open profile' }).click();
+  await expect(page.getByTestId('social-profile-summary')).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Posts profile tab' })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Reels profile tab' })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Garage profile tab' })).toBeVisible();
+  await expect(page.getByText('@username · not linked')).toBeVisible();
+  await expect(page.getByText('Your posts will appear here')).toBeVisible();
+  await expect(page.getByText('Personal garage')).toHaveCount(0);
+  await page.getByRole('button', { name: 'View followers' }).click();
+  await expect(page.getByTestId('profile-connections-sheet')).toBeVisible();
+  await expect(page.getByText('Followers are not connected yet')).toBeVisible();
+  await page.getByRole('button', { name: 'Close connections' }).click();
+  await page.getByRole('button', { name: 'View friends' }).click();
+  await expect(page.getByText('Friends are not connected yet')).toBeVisible();
+  await page.getByRole('button', { name: 'Close connections' }).click();
+  await page.getByRole('button', { name: 'View following' }).click();
+  await expect(page.getByText('Alex Morgan')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Unfollow @alex' })).toBeVisible();
+  await page.getByRole('button', { name: 'Unfollow @alex' }).click();
+  await expect(page.getByRole('button', { name: 'Unfollow @alex' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Close connections' }).click();
+  await page.getByRole('tab', { name: 'Reels profile tab' }).click();
+  await expect(page.getByText('Your Reels will appear here')).toBeVisible();
+  await page.getByRole('tab', { name: 'Garage profile tab' }).click();
+  await expect(page.getByText('Personal garage')).toBeVisible();
+  await mkdir('test-results/screenshots', { recursive: true });
+  await page.screenshot({ path: 'test-results/screenshots/' + testInfo.project.name + '-social-profile-updated.png' });
 });

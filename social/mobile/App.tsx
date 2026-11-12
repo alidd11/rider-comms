@@ -20,6 +20,10 @@ import { FeedMedia } from './src/FeedMedia';
 import { CommentsSheet } from './src/CommentsSheet';
 import type { CommentPreview } from './src/CommentsSheet';
 import { demoCreators, publicGallery } from './src/demoCreators';
+import { ProfileSummary } from './src/ProfileSummary';
+import type { ProfileContentTab } from './src/ProfileSummary';
+import { ProfileConnectionsSheet } from './src/ProfileConnectionsSheet';
+import type { ConnectionKind } from './src/ProfileConnectionsSheet';
 
 type Screen = 'Home' | 'Reels' | 'Create' | 'Clubs' | 'Shop' | 'Profile' | 'Messages';
 type Icon = React.ComponentProps<typeof Ionicons>['name'];
@@ -177,6 +181,8 @@ export default function App(): React.JSX.Element {
   const [garage, setGarage] = useState<GarageEntry[]>([]);
   const [localReady, setLocalReady] = useState(false);
   const [profileEditor, setProfileEditor] = useState(false);
+  const [profileTab, setProfileTab] = useState<ProfileContentTab>('Posts');
+  const [connectionSheet, setConnectionSheet] = useState<ConnectionKind | null>(null);
   const [profileDraft, setProfileDraft] = useState<SocialProfileDraft>(DEFAULT_PROFILE);
   const [garageEditor, setGarageEditor] = useState(false);
   const [garageDraft, setGarageDraft] = useState<GarageDraft>({ ...EMPTY_GARAGE_DRAFT });
@@ -276,6 +282,7 @@ export default function App(): React.JSX.Element {
     setSelectedCreator(null);
     setCommentsFor(null);
     setProfileEditor(false);
+    setConnectionSheet(null);
     setGarageEditor(false);
     setPendingGarageDelete(null);
   }
@@ -551,24 +558,10 @@ export default function App(): React.JSX.Element {
 
   function renderProfile() {
     return (
-      <>
-        <View style={s.rowBetween}><Text style={s.title}>Profile</Text><Text style={[s.small,{color:C.accent}]}>Device preview</Text></View>
-        <View style={[s.card, s.pad]}>
-          <View style={s.rowBetween}>
-            <View style={[s.row, { flex: 1 }]}>
-              <View style={[s.avatar, { width: 60, height: 60, borderRadius: 19 }]}><Ionicons name="person-outline" color={C.ink} size={30} /></View>
-              <View style={{ flex: 1, gap: 5 }}>
-                <Text style={s.cardHeading}>{profile.displayName}</Text>
-                <Text style={s.small}>{profile.visibility === 'private' ? 'Private social profile' : 'Public social profile (preview)'}</Text>
-              </View>
-            </View>
-            <Pressable accessibilityRole="button" accessibilityLabel="Edit social profile" style={s.ghost} onPress={openProfileEditor}>
-              <Text style={s.ghostText}>Edit</Text>
-            </Pressable>
-          </View>
-          <Text style={s.body}>{profile.bio}</Text>
-          <View style={s.row}><Ionicons name="lock-closed-outline" size={16} color={C.accent} /><Text style={s.small}>Saved on this device</Text></View>
-        </View>
+      <View style={{ gap: 16 }}>
+        <ProfileSummary profile={profile} tab={profileTab}
+          followingCount={[...followed].filter(id => Boolean(demoCreators[id])).length}
+          onTab={setProfileTab} onConnections={setConnectionSheet} onEdit={openProfileEditor}/>
         {profileEditor ? (
           <View style={[s.card, s.pad]}>
             <Text style={s.cardHeading}>Edit your social profile</Text>
@@ -587,6 +580,25 @@ export default function App(): React.JSX.Element {
             </View>
           </View>
         ) : null}
+        {profileTab === 'Posts' ? <View style={{ alignItems: 'center', paddingVertical: 34, gap: 11 }}>
+          <Ionicons name="images-outline" size={33} color={C.accent}/>
+          <Text style={s.cardHeading}>Your posts will appear here</Text>
+          <Text style={[s.small, { textAlign: 'center' }]}>Photos and videos you share will appear on your profile</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel="Create first post" style={s.cta}
+            onPress={() => { navigate('Create'); setCreateMode('Post'); }}>
+            <Text style={s.ctaText}>Create post</Text>
+          </Pressable>
+        </View> : null}
+        {profileTab === 'Reels' ? <View style={{ alignItems: 'center', paddingVertical: 34, gap: 11 }}>
+          <Ionicons name="play-circle-outline" size={33} color={C.accent}/>
+          <Text style={s.cardHeading}>Your Reels will appear here</Text>
+          <Text style={[s.small, { textAlign: 'center' }]}>Short videos you share will appear here</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel="Create first Reel" style={s.cta}
+            onPress={() => { navigate('Create'); setCreateMode('Reel'); }}>
+            <Text style={s.ctaText}>Create Reel</Text>
+          </Pressable>
+        </View> : null}
+        {profileTab === 'Garage' ? <>
         <View style={s.rowBetween}>
           <HeaderLine heading="Personal garage" meta={String(garage.length) + ' / 12'} />
           <Pressable accessibilityRole="button" accessibilityLabel="Add vehicle to garage" style={s.ghost} onPress={openGarageEditor}>
@@ -651,8 +663,12 @@ export default function App(): React.JSX.Element {
             ) : null}
           </View>
         )) : <PreviewEmpty icon="car-sport-outline" heading="Your garage starts here" body="Add a car, motorcycle or bicycle to preview how your builds will appear. All entries are private by default." />}
-        <Text style={s.small}>Preview data stays on this device. Clearing site data removes it.</Text>
-      </>
+        <Text style={s.small}>Garage entries remain on this device.</Text>
+        </> : null}
+        <Text style={[s.small, { textAlign: 'center', paddingBottom: 8 }]}>
+          Preview profile · account and friendships not yet connected
+        </Text>
+      </View>
     );
   }
 
@@ -674,9 +690,8 @@ export default function App(): React.JSX.Element {
       <StatusBar barStyle="light-content" />
       <View style={s.root}>
         {screen !== 'Reels' && !story ? <View style={s.header}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Go to home" style={{ gap: 2 }} onPress={() => navigate('Home')}>
-            <Text style={[s.brandTitle, {fontSize:25}]}>Social<Text style={{ color: C.accent }}>.</Text></Text>
-            <Text style={[s.wordmark, {fontSize:8,letterSpacing:1.2}]}>EARLY PREVIEW</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel="Go to home" onPress={() => navigate('Home')}>
+            <Text style={s.brandTitle}>Social<Text style={{ color: C.accent }}>.</Text></Text>
           </Pressable>
           <View style={s.headerTools}>
             <IconButton name="chatbubble-ellipses-outline" label="Open messages" onPress={() => navigate('Messages')} />
@@ -725,6 +740,9 @@ export default function App(): React.JSX.Element {
           comments={localComments[commentsFor.id] ?? []}
           onSubmit={value => addComment(commentsFor.id, value)}
           onClose={() => setCommentsFor(null)}/> : null}
+        {connectionSheet ? <ProfileConnectionsSheet kind={connectionSheet}
+          followed={followed} onToggleFollow={toggleFollow}
+          onClose={() => setConnectionSheet(null)}/> : null}
       </View>
     </SafeAreaView>
     </SafeAreaProvider>
