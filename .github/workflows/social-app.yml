@@ -36,3 +36,12 @@ jobs:
       - run: npm test
       - run: npm run build:web
       - run: test -f dist/index.html
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - name: Upload social app UI screenshots and traces
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: social-ui-${{ github.run_id }}
+          path: social/mobile/test-results/
+          if-no-files-found: ignore

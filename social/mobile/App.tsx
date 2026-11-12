@@ -4,7 +4,8 @@ import { ScrollView, StatusBar, Pressable, Text, TextInput, View } from 'react-n
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { C, s } from './src/styles';
-import { selectDemoFeed } from './src/domain';
+import { rankForYou, rankFollowing, rankReels, rankClubs, rankEvents, rankMarketplace, explainReason, noViewer } from './src/recommendations';
+import type { Content, Viewer, Topic, RankReason } from './src/recommendations';
 import type { FeedMode, FollowingOrder, SocialPost } from './src/domain';
 import { demoClubs, demoEvents, demoListings, demoPosts, demoStories, followingIds } from './src/sampleData';
 
@@ -18,11 +19,64 @@ const primaryTabs: { name: Screen; icon: Icon; activeIcon: Icon }[] = [
   { name: 'Clubs', icon: 'people-outline', activeIcon: 'people' },
   { name: 'Shop', icon: 'bag-outline', activeIcon: 'bag' },
 ];
+const topics: { topic: Topic; label: string }[] = [
+  { topic: 'cars', label: 'Cars' },
+  { topic: 'motorcycles', label: 'Motorcycles' },
+  { topic: 'cycling', label: 'Cycling' },
+];
+
+const previewNow = Math.floor(Date.now() / 1000);
+const contentCandidates: Content[] = demoPosts.map((post, index) => ({
+  id: post.id, authorId: post.authorId,
+  clubId: post.clubAccess ? 'demo-private-club' : undefined,
+  clubPrivacy: post.clubAccess,
+  privacy: post.audience === 'members' ? 'members' : 'public',
+  authorPermitsDiscovery: post.audience === 'public',
+  state: 'published', minAge: 16, createdAt: previewNow - (index + 1) * 3600,
+  topics: [post.category === 'CARS' ? 'cars' : post.category === 'CYCLING' ? 'cycling' : 'motorcycles'],
+  quality: 0.8, likeCount: 12 + index, commentCount: 3, saveCount: 5,
+  impressions: 250, negativeFeedbackCount: 0, authorTotalImpressions: index * 250,
+}));
+
 const reels = [
   { id: 'r1', headline: 'The weekend edit', creator: '@nina', theme: '#66433D', icon: 'car-sport' as const },
   { id: 'r2', headline: 'A road worth sharing', creator: '@alex', theme: '#1B5A63', icon: 'speedometer' as const },
   { id: 'r3', headline: 'Ride together', creator: '@jules', theme: '#3B664A', icon: 'bicycle' as const },
 ];
+
+const reelCandidates: Content[] = reels.map((reel, index) => ({
+  id: reel.id, authorId: reel.creator, privacy: 'public', authorPermitsDiscovery: true,
+  state: 'published', minAge: 16, createdAt: previewNow - index * 4800,
+  topics: [reel.id === 'r1' ? 'cars' : reel.id === 'r2' ? 'motorcycles' : 'cycling'],
+  quality: 0.8, likeCount: 150, commentCount: 20, saveCount: 30,
+  impressions: 1000, negativeFeedbackCount: 1, authorTotalImpressions: index * 800,
+  completionRate: 0.7,
+}));
+
+const clubCandidates = demoClubs.map((club) => ({
+  id: club.id, name: club.name,
+  topics: [club.category === 'Cars' ? 'cars' : club.category === 'Cycling' ? 'cycling' : 'motorcycles'] as Topic[],
+  privacy: (club.privacy === 'Approval' ? 'approval' : 'public') as 'public' | 'approval',
+  state: 'active' as const, memberCount: club.members,
+  monthlyActiveMembers: Math.round(club.members * 0.3),
+  sharedConnectionCount: 3, minAge: 16 as const, region: club.city,
+}));
+
+const eventCandidates = demoEvents.map((event, index) => ({
+  id: event.id, title: event.title, topics: [index === 0 ? 'cars' : 'motorcycles'] as Topic[],
+  visibility: 'public' as const, state: 'active' as const,
+  startAt: previewNow + (index + 7) * 86400,
+  minAge: 16 as const, region: index === 0 ? 'London' : 'Sussex',
+  interestedCount: 40 + index * 12, organiserId: event.organiser,
+}));
+
+const listingCandidates = demoListings.map((listing) => ({
+  id: listing.id, merchantId: listing.merchant, title: listing.name,
+  topics: [listing.name.toLowerCase().includes('bicycle') ? 'cycling' : 'motorcycles'] as Topic[],
+  category: listing.category, available: true, state: 'active' as const,
+  merchant: { verified: true, approved: true, payoutsEnabled: true, suspended: false },
+  relevanceTerms: [listing.category, listing.type, listing.merchant], quality: 0.8, popularity: 100,
+}));
 
 function IconButton({ name, label, onPress }: { name: Icon; label: string; onPress: () => void }) {
   return (
@@ -62,6 +116,9 @@ function PreviewEmpty({ icon, heading, body }: { icon: Icon; heading: string; bo
 export default function App(): React.JSX.Element {
   const [screen, setScreen] = useState<Screen>('Home');
   const [feedMode, setFeedMode] = useState<FeedMode>('forYou');
+  const [personalisation, setPersonalisation] = useState(true);
+  const [hiddenPostIds, setHiddenPostIds] = useState<Set<string>>(() => new Set());
+  const [hiddenTopics, setHiddenTopics] = useState<Set<Topic>>(() => new Set());
   const [followingOrder, setFollowingOrder] = useState<FollowingOrder>('newest');
   const [liked, setLiked] = useState<Set<string>>(() => new Set());
   const [saved, setSaved] = useState<Set<string>>(() => new Set());
@@ -75,13 +132,42 @@ export default function App(): React.JSX.Element {
   const [draft, setDraft] = useState('');
   const [notice, setNotice] = useState<string | null>(null);
 
-  const visiblePosts = useMemo(() => selectDemoFeed(demoPosts, feedMode, followingIds, followingOrder), [feedMode, followingOrder]);
-  const filteredListings = useMemo(() => demoListings.filter((item) =>
-    (marketFilter === 'All' || item.category === marketFilter) &&
-    (item.name + ' ' + item.merchant).toLowerCase().includes(search.trim().toLowerCase())
-  ), [marketFilter, search]);
+  const viewer = useMemo<Viewer>(() => ({
+    ...noViewer, userId: 'demo-viewer', ageFloor: 18, followedAuthors: followingIds,
+    interests: { cars: 0.8, motorcycles: 0.9, cycling: 0.7 },
+    hiddenContentIds: hiddenPostIds, hiddenTopics,
+    selectedRegion: 'London', personalisationEnabled: personalisation,
+  }), [hiddenPostIds, hiddenTopics, personalisation]);
 
-  function toggle(setter: React.Dispatch<React.SetStateAction<Set<string>>>, key: string) {
+  const visiblePosts = useMemo(() => {
+    const ranked = feedMode === 'forYou'
+      ? rankForYou(contentCandidates, viewer, previewNow)
+      : rankFollowing(contentCandidates, viewer, previewNow, followingOrder);
+    return ranked.flatMap(({ item, reason }) => {
+      const post = demoPosts.find((p) => p.id === item.id);
+      return post ? [{ post, reason }] : [];
+    });
+  }, [viewer, feedMode, followingOrder]);
+
+  const recommendedReels = useMemo(() => rankReels(reelCandidates, viewer, previewNow), [viewer]);
+  const recommendedClubs = useMemo(() =>
+    rankClubs(clubCandidates, viewer).flatMap(({item}) => {
+      const club = demoClubs.find((c) => c.id === item.id);
+      return club ? [club] : [];
+    }), [viewer]);
+  const recommendedEvents = useMemo(() =>
+    rankEvents(eventCandidates, viewer, previewNow).flatMap(({item}) => {
+      const event = demoEvents.find((e) => e.id === item.id);
+      return event ? [event] : [];
+    }), [viewer]);
+  const filteredListings = useMemo(() =>
+    rankMarketplace(listingCandidates, viewer, search).map(({ item }) => item.id)
+      .flatMap((id) => {
+        const listing = demoListings.find((item) => item.id === id);
+        return listing && (marketFilter === 'All' || listing.category === marketFilter) ? [listing] : [];
+      }), [viewer, search, marketFilter]);
+
+  function toggle<T extends string>(setter: React.Dispatch<React.SetStateAction<Set<T>>>, key: T) {
     setter((current) => {
       const next = new Set(current);
       if (next.has(key)) next.delete(key);
@@ -101,7 +187,7 @@ export default function App(): React.JSX.Element {
     setNotice(message);
   }
 
-  function renderPost(post: SocialPost) {
+  function renderPost(post: SocialPost, reason: RankReason) {
     return (
       <View key={post.id} style={s.card}>
         <View style={s.pad}>
@@ -141,6 +227,14 @@ export default function App(): React.JSX.Element {
             </Pressable>
           </View>
           <Text style={s.body}>{post.body}</Text>
+          <View style={s.rowBetween}>
+            <Pressable accessibilityRole="button" accessibilityLabel={'Why seeing post by ' + post.author} onPress={() => banner(explainReason(reason) + ' · Demo recommendation, no personal data collected.')}>
+              <Text style={[s.small, { color: C.accent }]}>Why am I seeing this?</Text>
+            </Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel={'Not interested in post by ' + post.author} onPress={() => toggle(setHiddenPostIds, post.id)}>
+              <Text style={s.small}>Not interested</Text>
+            </Pressable>
+          </View>
           <Text style={s.small}>Example content · not published by real users</Text>
         </View>
       </View>
@@ -181,13 +275,27 @@ export default function App(): React.JSX.Element {
             <Pill label="Relevant" selected={followingOrder === 'relevant'} onPress={() => setFollowingOrder('relevant')} />
           </View>
         ) : null}
-        {visiblePosts.map(renderPost)}
+        <View style={{ gap: 8 }}>
+          <View style={s.rowBetween}>
+            <Text style={s.small}>YOUR INTERESTS · DEMO</Text>
+            <Pressable accessibilityRole="button" accessibilityLabel="Toggle personalised recommendations" onPress={() => setPersonalisation((p) => !p)}>
+              <Text style={{ color: C.accent, fontSize: 12, fontWeight: '800' }}>{personalisation ? 'Personalisation on' : 'Personalisation off'}</Text>
+            </Pressable>
+          </View>
+          <View style={s.row}>
+            {topics.map(({topic, label}) => <Pill key={topic} label={label} selected={!hiddenTopics.has(topic)} onPress={() => toggle(setHiddenTopics, topic)} />)}
+          </View>
+        </View>
+        {visiblePosts.length
+          ? visiblePosts.map(({post, reason}) => renderPost(post, reason))
+          : <PreviewEmpty icon="sparkles-outline" heading="No posts match these preferences" body="Try re-enabling an interest or changing your feed." />}
       </>
     );
   }
 
   function renderReels() {
-    const reel = reels[reelIndex];
+    const reelRank = recommendedReels[reelIndex];
+    const reel = reels.find((r) => r.id === reelRank?.item.id) ?? reels[0];
     return (
       <>
         <HeaderLine heading="Reels" meta="Full-screen video concept" />
@@ -199,12 +307,13 @@ export default function App(): React.JSX.Element {
           <Ionicons name={reel.icon} color="#D6F4EF" size={90} />
           <Text style={[s.mediaTitle, { fontSize: 29 }]}>{reel.headline}</Text>
           <Text style={[s.body, { textAlign: 'center', color: '#DDEAE8' }]}>{reel.creator}</Text>
+          <Text style={[s.small, { color: '#DDEAE8' }]}>{reelRank ? explainReason(reelRank.reason) : 'No eligible Reel'}</Text>
           <Text style={[s.small, { color: '#DDEAE8', textAlign: 'center' }]}>Video playback and uploads will be implemented with licensed, moderated media infrastructure.</Text>
         </View>
         <View style={s.rowBetween}>
           <Pressable accessibilityRole="button" accessibilityLabel="Previous reel" disabled={reelIndex === 0} style={[s.ghost, reelIndex === 0 && { opacity: 0.4 }]} onPress={() => setReelIndex((n) => Math.max(0, n - 1))}><Text style={s.ghostText}>Previous</Text></Pressable>
-          <Text style={s.small}>{reelIndex + 1} / {reels.length}</Text>
-          <Pressable accessibilityRole="button" accessibilityLabel="Next reel" disabled={reelIndex === reels.length - 1} style={[s.ghost, reelIndex === reels.length - 1 && { opacity: 0.4 }]} onPress={() => setReelIndex((n) => Math.min(reels.length - 1, n + 1))}><Text style={s.ghostText}>Next</Text></Pressable>
+          <Text style={s.small}>{Math.min(reelIndex + 1, recommendedReels.length)} / {recommendedReels.length}</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel="Next reel" disabled={reelIndex >= recommendedReels.length - 1} style={[s.ghost, reelIndex >= recommendedReels.length - 1 && { opacity: 0.4 }]} onPress={() => setReelIndex((n) => Math.min(recommendedReels.length - 1, n + 1))}><Text style={s.ghostText}>Next</Text></Pressable>
         </View>
       </>
     );
@@ -256,7 +365,7 @@ export default function App(): React.JSX.Element {
         <Text style={s.title}>Clubs & events</Text>
         <Text style={s.muted}>Car culture, two wheels and the communities worth joining.</Text>
         <HeaderLine heading="Explore clubs" meta="Example communities" />
-        {demoClubs.map((item) => (
+        {recommendedClubs.map((item) => (
           <View style={[s.card, s.pad]} key={item.id}>
             <View style={s.row}>
               <View style={[s.avatar, { backgroundColor: item.accent, width: 52, height: 52, borderRadius: 15 }]}><Ionicons name="people" color={C.ink} size={25} /></View>
@@ -274,7 +383,7 @@ export default function App(): React.JSX.Element {
           </View>
         ))}
         <HeaderLine heading="Upcoming events" meta="Example dates" />
-        {demoEvents.map((event) => (
+        {recommendedEvents.map((event) => (
           <View style={[s.card, s.pad]} key={event.id}>
             <View style={s.row}>
               <View style={[s.avatar, { width: 50, height: 50, borderRadius: 12, backgroundColor: event.accent }]}><Ionicons name="calendar-outline" color={C.ink} size={25} /></View>
