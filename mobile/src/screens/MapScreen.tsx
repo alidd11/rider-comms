@@ -996,7 +996,7 @@ export function MapScreen(): React.JSX.Element {
       {/* Faded, not unmounted, while the drawer is open: the ride bar holds
           the group voice connection. */}
       <View
-        style={[styles.rideBarSlot, { paddingBottom: bottomInset + spacing.sm }, drawerVisible && drawerOpen && styles.rideBarHidden]}
+        style={[styles.rideBarSlot, (segment === 'public' || lockedForSafety) && styles.rideBarSlotFloating, { paddingBottom: bottomInset + spacing.sm }, drawerVisible && drawerOpen && styles.rideBarHidden]}
         pointerEvents={drawerVisible && drawerOpen ? 'none' : 'box-none'}
         onLayout={(event) => setRideBarHeight(event.nativeEvent.layout.height)}
       >

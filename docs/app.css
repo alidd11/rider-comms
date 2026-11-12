@@ -2868,3 +2868,10 @@ html.map-drawer-open #ridePill{display:none}
 /* Pulled up, the drawer reaches just below the avatar; the list fills it and
    scrolls, leaving room below recent places for more. */
 .map-drawer-recent{height:var(--map-drawer-list-open,auto);max-height:none}
+/* Open, the list runs on through the drawer's bottom padding (it pulls that
+   padding in with a negative margin and pads its own content instead), so rows
+   scroll to the bottom edge rather than stopping above a blank band. The
+   drawer keeps its height: scripts add --map-drawer-flush to every list
+   height they set. */
+.map-drawer{--map-drawer-flush:calc(14px + var(--bottom-control-inset))}
+.map-drawer-recent{height:calc(var(--map-drawer-list-open,40vh) + var(--map-drawer-flush));margin-bottom:calc(-1 * var(--map-drawer-flush));padding-bottom:var(--map-drawer-flush)}
