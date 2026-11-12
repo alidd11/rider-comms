@@ -2608,6 +2608,14 @@ html.app-menu-open .ride-pill{display:none}
   .voice-people-btn{top:calc(var(--safe-top) + 104px + var(--edge-blur-clearance))}
   .map-status-chip{top:calc(var(--safe-top) + 66px + var(--edge-blur-clearance))}
   .riding-hud-chips{top:calc(var(--safe-top) + 14px + var(--edge-blur-clearance))}
+  /* In light mode that blur is tinted with the pale page colour and reads as
+     a milky haze, and iOS keeps the clock and icons white over it. A faint
+     dark fade behind the status bar gives the blur a darker tone and the
+     clock its contrast back, as over Apple Maps' own map. Map only: other
+     screens have a solid header there. */
+  @media (prefers-color-scheme:light){
+    .screen-map::before{content:"";position:absolute;z-index:7;top:0;left:0;right:0;height:calc(var(--safe-top) + var(--edge-blur-clearance) + 18px);background:linear-gradient(rgb(8 13 16/.34),rgb(8 13 16/.16) 55%,rgb(8 13 16/0));pointer-events:none}
+  }
 }}
 
 /* ===== Settings as a real settings list (Nov 2026) =====
