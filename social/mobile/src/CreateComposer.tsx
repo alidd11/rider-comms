@@ -95,7 +95,8 @@ export function CreateComposer({ initialMode = 'Post', onClose }: { initialMode?
       if (restored) {
         setCaption(restored.caption);
         setTitle(restored.title ?? '');
-        setMode(restored.mode);
+        // An explicit Reel entry point takes precedence over an older saved Post draft.
+        if (initialMode === 'Post') setMode(restored.mode);
         setCategory(restored.category);
         setAudience(restored.audience);
         setStatus('Text draft restored. Select media again.');
