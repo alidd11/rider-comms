@@ -32,10 +32,12 @@ export const styles = StyleSheet.create({
     zIndex: 10,
     gap: spacing.sm,
   },
+  // Rounded squares, like the hazard and Go live buttons, so the map's
+  // controls read as one set.
   mapActionButton: {
     width: MAP_ACTION_SIZE,
     height: MAP_ACTION_SIZE,
-    borderRadius: MAP_ACTION_SIZE / 2,
+    borderRadius: 14,
     backgroundColor: colors.surfaceRaised,
     alignItems: 'center',
     justifyContent: 'center',

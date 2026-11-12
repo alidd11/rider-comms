@@ -679,7 +679,7 @@ export function MapScreen(): React.JSX.Element {
             accessibilityLabel="Centre on my location"
             accessibilityHint="Moves the map back to your current position"
           >
-            <Ionicons name="navigate-outline" size={22} color={colors.accent} />
+            <Ionicons name="navigate" size={22} color={colors.accent} />
           </Pressable>
         </View>
       )}
@@ -708,7 +708,7 @@ export function MapScreen(): React.JSX.Element {
             {nearbyTogglePending ? (
               <ActivityIndicator color={publicLive ? '#04210F' : '#04161D'} />
             ) : (
-              <NearbyRidersIcon size={24} color={publicLive ? '#04210F' : '#04161D'} />
+              <NearbyRidersIcon size={26} color={publicLive ? '#04210F' : '#04161D'} />
             )}
             <Text style={[styles.mapLiveButtonText, publicLive && styles.mapLiveButtonTextActive]}>{publicLive ? 'Live' : 'Go live'}</Text>
           </Pressable>
