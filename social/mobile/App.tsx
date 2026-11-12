@@ -12,6 +12,8 @@ import { DEFAULT_PROFILE, EMPTY_GARAGE_DRAFT, addGarageEntry, createGarageEntry,
 import type { GarageDraft, GarageEntry, GarageKind, SocialProfileDraft } from './src/garage';
 import { loadLocalDemo, saveLocalDemo } from './src/demoStorage';
 import { CreateComposer } from './src/CreateComposer';
+import { ReelsScreen } from './src/ReelsScreen';
+import type { ReelPreview } from './src/ReelsScreen';
 
 type Screen = 'Home' | 'Reels' | 'Create' | 'Clubs' | 'Shop' | 'Profile' | 'Messages';
 type Icon = React.ComponentProps<typeof Ionicons>['name'];
@@ -49,7 +51,7 @@ const reels = [
 ];
 
 const reelCandidates: Content[] = reels.map((reel, index) => ({
-  id: reel.id, authorId: reel.creator, privacy: 'public', authorPermitsDiscovery: true,
+  id: reel.id, authorId: reel.creator.replace(/^@/, ''), privacy: 'public', authorPermitsDiscovery: true,
   state: 'published', minAge: 16, createdAt: previewNow - index * 4800,
   topics: [reel.id === 'r1' ? 'cars' : reel.id === 'r2' ? 'motorcycles' : 'cycling'],
   quality: 0.8, likeCount: 150, commentCount: 20, saveCount: 30,
@@ -146,7 +148,7 @@ function BottomTabs({ screen, onNavigate }: { screen: Screen; onNavigate: (next:
 
 export default function App(): React.JSX.Element {
   const { width: screenWidth } = useWindowDimensions();
-  const mediaHeight = Math.min(490, Math.max(330, Math.round(screenWidth * 0.94)));
+  const mediaHeight = Math.min(620, Math.max(330, Math.round(Math.min(screenWidth,620)*1.25)));
   const [screen, setScreen] = useState<Screen>('Home');
   const pageScrollEnabled = screen === 'Home' || screen === 'Clubs' || screen === 'Shop' || screen === 'Profile';
   const [feedMode, setFeedMode] = useState<FeedMode>('forYou');
@@ -159,6 +161,7 @@ export default function App(): React.JSX.Element {
   const [hiddenTopics, setHiddenTopics] = useState<Set<Topic>>(() => new Set());
   const [followingOrder, setFollowingOrder] = useState<FollowingOrder>('newest');
   const [liked, setLiked] = useState<Set<string>>(() => new Set());
+  const [followed, setFollowed] = useState<Set<string>>(() => new Set(followingIds));
   const [saved, setSaved] = useState<Set<string>>(() => new Set());
   const [joined, setJoined] = useState<Set<string>>(() => new Set());
   const [going, setGoing] = useState<Set<string>>(() => new Set());
@@ -173,7 +176,6 @@ export default function App(): React.JSX.Element {
   const [garageDraft, setGarageDraft] = useState<GarageDraft>({ ...EMPTY_GARAGE_DRAFT });
   const [pendingGarageDelete, setPendingGarageDelete] = useState<string | null>(null);
   const [selectedStory, setSelectedStory] = useState<string | null>(null);
-  const [reelIndex, setReelIndex] = useState(0);
   const [marketFilter, setMarketFilter] = useState('All');
   const [search, setSearch] = useState('');
   const [notice, setNotice] = useState<string | null>(null);
@@ -199,11 +201,11 @@ export default function App(): React.JSX.Element {
   }, [localReady, profile, garage]);
 
   const viewer = useMemo<Viewer>(() => ({
-    ...noViewer, userId: 'demo-viewer', ageFloor: 18, followedAuthors: followingIds,
+    ...noViewer, userId: 'demo-viewer', ageFloor: 18, followedAuthors: followed,
     interests: { cars: 0.8, motorcycles: 0.9, cycling: 0.7 },
     hiddenContentIds: hiddenPostIds, hiddenTopics,
     selectedRegion: 'London', personalisationEnabled: personalisation,
-  }), [hiddenPostIds, hiddenTopics, personalisation]);
+  }), [hiddenPostIds, hiddenTopics, personalisation, followed]);
 
   const visiblePosts = useMemo(() => {
     const ranked = feedMode === 'forYou'
@@ -216,6 +218,19 @@ export default function App(): React.JSX.Element {
   }, [viewer, feedMode, followingOrder]);
 
   const recommendedReels = useMemo(() => rankReels(reelCandidates, viewer, previewNow), [viewer]);
+  const reelPreviews = useMemo<ReelPreview[]>(() => recommendedReels.flatMap(({ item }) => {
+    const reel = reels.find(candidate => candidate.id === item.id);
+    if (!reel) return [];
+    return [{
+      id: reel.id,
+      authorId: reel.creator.replace(/^@/, ''),
+      handle: reel.creator,
+      title: reel.headline,
+      imageUrl: reel.imageUrl,
+      theme: reel.theme,
+      category: (reel.id === 'r1' ? 'CARS' : reel.id === 'r2' ? 'MOTORCYCLES' : 'CYCLING') as ReelPreview['category'],
+    }];
+  }), [recommendedReels]);
   const recommendedClubs = useMemo(() =>
     rankClubs(clubCandidates, viewer).flatMap(({item}) => {
       const club = demoClubs.find((c) => c.id === item.id);
@@ -253,6 +268,8 @@ export default function App(): React.JSX.Element {
     setGarageEditor(false);
     setPendingGarageDelete(null);
   }
+
+  function toggleFollow(authorId: string) { toggle(setFollowed, authorId); }
 
   function banner(message: string) {
     setNotice(message);
@@ -293,7 +310,15 @@ export default function App(): React.JSX.Element {
           <View style={[s.avatar, { backgroundColor: post.accent }]}><Text style={s.avatarText}>{post.author.split(' ').map(v=>v[0]).join('')}</Text></View>
           <View><Text style={s.cardHeading}>{post.author}</Text><Text style={s.small}>{post.handle} · {post.category.toLowerCase()}</Text></View>
         </View>
-        <IconButton name="ellipsis-horizontal" label={'Post options for ' + post.author} onPress={() => setActivePostMenu(id => id === post.id ? null : post.id)}/>
+        <View style={[s.row,{gap:9}]}>
+          {!followed.has(post.authorId) ? <Pressable accessibilityRole="button"
+            accessibilityLabel={'Follow '+post.handle}
+            onPress={() => toggleFollow(post.authorId)}>
+            <Text style={{color:C.accent,fontSize:12,fontWeight:'800'}}>Follow</Text>
+          </Pressable> : null}
+          <IconButton name="ellipsis-horizontal" label={'Post options for ' + post.author}
+            onPress={() => setActivePostMenu(id => id === post.id ? null : post.id)}/>
+        </View>
       </View>
       {activePostMenu === post.id ? <View style={s.feedOptions}>
         <Pressable accessibilityRole="button" accessibilityLabel={'Why seeing post by ' + post.author} onPress={() => { setActivePostMenu(null); banner(explainReason(reason) + ' · Sample recommendation'); }}>
@@ -331,7 +356,18 @@ export default function App(): React.JSX.Element {
   }
 
   function renderHome() {
-    return <>
+    return <View style={{width:'100%',maxWidth:640,alignSelf:'center'}}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.storyRail}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Create story" style={s.storyItem} onPress={()=>{navigate('Create');setCreateMode('Story');}}>
+          <View style={[s.storyCircle,{borderColor:C.border}]}><Ionicons name="add" color={C.accent} size={23}/></View>
+          <Text style={s.storyLabel}>Your story</Text>
+        </Pressable>
+        {demoStories.map(story=><Pressable key={story.id} accessibilityRole="button" accessibilityLabel={'View story by '+story.name}
+          onPress={()=>setSelectedStory(story.id)} style={s.storyItem}>
+          <View style={s.storyCircle}><Image source={{uri:story.imageUrl}} style={{width:49,height:49,borderRadius:17,backgroundColor:story.color}}/></View>
+          <Text style={s.storyLabel}>{story.name}</Text>
+        </Pressable>)}
+      </ScrollView>
       <View style={s.feedSwitchBar}>
         <View style={s.row}>
           <Pill label="For You" selected={feedMode==='forYou'} onPress={() => setFeedMode('forYou')}/>
@@ -353,43 +389,9 @@ export default function App(): React.JSX.Element {
         <Pill label="Newest" selected={followingOrder==='newest'} onPress={()=>setFollowingOrder('newest')}/>
         <Pill label="Relevant" selected={followingOrder==='relevant'} onPress={()=>setFollowingOrder('relevant')}/>
       </View> : null}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.storyRail}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Create story" style={s.storyItem} onPress={()=>{navigate('Create');setCreateMode('Story');}}>
-          <View style={[s.storyCircle,{borderColor:C.border}]}><Ionicons name="add" color={C.accent} size={23}/></View>
-          <Text style={s.storyLabel}>Your story</Text>
-        </Pressable>
-        {demoStories.map(story=><Pressable key={story.id} accessibilityRole="button" accessibilityLabel={'View story by '+story.name}
-          onPress={()=>setSelectedStory(story.id)} style={s.storyItem}>
-          <View style={s.storyCircle}><Image source={{uri:story.imageUrl}} style={{width:49,height:49,borderRadius:17,backgroundColor:story.color}}/></View>
-          <Text style={s.storyLabel}>{story.name}</Text>
-        </Pressable>)}
-      </ScrollView>
       {visiblePosts.length ? visiblePosts.map(({post,reason})=>renderPost(post,reason))
         : <PreviewEmpty icon="sparkles-outline" heading="Nothing to show" body="Change your interests to see more."/>}
-    </>;
-  }
-
-  function renderReels() {
-    const reelRank=recommendedReels[reelIndex];
-    const reel=reels.find(r=>r.id===reelRank?.item.id) ?? reels[0];
-    return <>
-      <View style={s.rowBetween}><Text style={s.sectionTitle}>Reels</Text><Text style={[s.small,{color:C.accent}]}>Preview</Text></View>
-      <ImageBackground source={{uri:reel.imageUrl}} resizeMode="cover" style={[s.reel,{flex:1,height:undefined,minHeight:0,backgroundColor:reel.theme}]}>
-        <View style={s.reelTop}><Text style={s.feedMediaTagText}>SAMPLE</Text></View>
-        <Pressable accessibilityRole="button" accessibilityLabel="Play sample Reel" onPress={()=>banner('Video playback is not connected yet.')} style={s.reelPlay}>
-          <Ionicons name="play" color={C.ink} size={32}/>
-        </Pressable>
-        <View style={s.reelCaption}><Text style={[s.mediaTitle,{fontSize:24,textAlign:'left'}]}>{reel.headline}</Text>
-          <Text style={[s.body,{color:C.ink}]}>{reel.creator}</Text></View>
-      </ImageBackground>
-      <View style={s.rowBetween}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Previous reel" disabled={reelIndex===0}
-          style={[s.ghost,reelIndex===0&&{opacity:0.4}]} onPress={()=>setReelIndex(n=>Math.max(0,n-1))}><Text style={s.ghostText}>Previous</Text></Pressable>
-        <Text style={s.small}>{Math.min(reelIndex+1,recommendedReels.length)} / {recommendedReels.length}</Text>
-        <Pressable accessibilityRole="button" accessibilityLabel="Next reel" disabled={reelIndex>=recommendedReels.length-1}
-          style={[s.ghost,reelIndex>=recommendedReels.length-1&&{opacity:0.4}]} onPress={()=>setReelIndex(n=>Math.min(recommendedReels.length-1,n+1))}><Text style={s.ghostText}>Next</Text></Pressable>
-      </View>
-    </>;
+    </View>;
   }
 
   function renderClubs() {
@@ -633,7 +635,7 @@ export default function App(): React.JSX.Element {
     <SafeAreaView nativeID="social-screen" edges={Platform.OS === 'web' ? [] : ['top', 'left', 'right']} style={s.safe}>
       <StatusBar barStyle="light-content" />
       <View style={s.root}>
-        <View style={s.header}>
+        {screen !== 'Reels' ? <View style={s.header}>
           <Pressable accessibilityRole="button" accessibilityLabel="Go to home" style={{ gap: 2 }} onPress={() => navigate('Home')}>
             <Text style={[s.brandTitle, {fontSize:25}]}>Social<Text style={{ color: C.accent }}>.</Text></Text>
             <Text style={[s.wordmark, {fontSize:8,letterSpacing:1.2}]}>EARLY PREVIEW</Text>
@@ -642,8 +644,8 @@ export default function App(): React.JSX.Element {
             <IconButton name="chatbubble-ellipses-outline" label="Open messages" onPress={() => navigate('Messages')} />
             <IconButton name="person-circle-outline" label="Open profile" onPress={() => navigate('Profile')} />
           </View>
-        </View>
-        {notice ? (
+        </View> : null}
+        {notice && screen !== 'Reels' ? (
           <Pressable style={s.notice} accessibilityRole="button" accessibilityLabel="Dismiss notice" onPress={() => setNotice(null)}>
             <View style={s.rowBetween}><Text style={[s.body, { color: '#C4FFEC', flex: 1 }]}>{notice}</Text><Ionicons name="close" size={17} color={C.accent} /></View>
           </Pressable>
@@ -672,8 +674,10 @@ export default function App(): React.JSX.Element {
             ) : screen === 'Create' ? (
               <CreateComposer initialMode={createMode} />
             ) : screen === 'Reels' ? (
-              <View testID="fixed-reels-screen" style={[s.content, { flex: 1, minHeight: 0, paddingBottom: 12 }]}>
-                {renderReels()}
+              <View testID="fixed-reels-screen" style={{ flex: 1, minHeight: 0, width: '100%', backgroundColor: '#020406' }}>
+                <ReelsScreen items={reelPreviews} followedAuthors={followed}
+                  onToggleFollow={toggleFollow}
+                  onCreateReel={() => { navigate('Create'); setCreateMode('Reel'); }} />
               </View>
             ) : (
               <View testID="fixed-messages-screen" style={[s.content,{flex:1,minHeight:0}]}>

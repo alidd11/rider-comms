@@ -35,6 +35,17 @@ const edgeToEdgeStyle = `<style id="social-edge-to-edge">
     width: 100%; display: flex !important; flex-direction: column !important;
   }
   #social-page-scroll, #composer-scroll { overscroll-behavior-y: contain; }
+  #social-reels-feed {
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    scroll-snap-type: y mandatory;
+    scrollbar-width: none;
+  }
+  #social-reels-feed::-webkit-scrollbar { display: none; }
+  [id^="social-reel-panel-"] {
+    scroll-snap-align: start;
+    scroll-snap-stop: always;
+  }
   @supports (height: 100dvh) {
     html, body, #root { height: 100dvh; min-height: 100dvh; }
   }

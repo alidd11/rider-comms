@@ -244,3 +244,24 @@ test('media editor has a dominant fixed canvas, real edit actions and a separate
   await page.screenshot({ path: 'test-results/screenshots/' + testInfo.project.name + '-composer-share.png' });
   await expect(page.getByRole('button', { name: 'Publish' })).toHaveCount(0);
 });
+
+
+test('Reels fills the content viewport, pages vertically and opens the Reel creator', async ({ page }, testInfo) => {
+  await page.goto('/');
+  await page.getByRole('tab', { name: 'Reels' }).click();
+  await expect(page.getByTestId('fixed-reels-screen')).toBeVisible();
+  await expect(page.getByTestId('reels-viewport')).toBeVisible();
+  await expect(page.getByTestId('reels-swipe-feed')).toBeVisible();
+  await expect(page.getByText('EARLY PREVIEW')).toHaveCount(0);
+  const viewport = await page.getByTestId('reels-viewport').boundingBox();
+  const first = await page.getByTestId('reel-slide-0').boundingBox();
+  expect(viewport?.height ?? 0).toBeGreaterThan(140);
+  expect(Math.abs((viewport?.height ?? 0) - (first?.height ?? 0))).toBeLessThan(3);
+  await page.getByRole('button', { name: 'Next Reel' }).click();
+  await expect.poll(async () => page.locator('#social-reels-feed').evaluate(el => el.scrollTop)).toBeGreaterThan(10);
+  await expect(page.getByRole('tab', { name: 'Reels' })).toBeVisible();
+  await mkdir('test-results/screenshots', { recursive: true });
+  await page.screenshot({ path: 'test-results/screenshots/' + testInfo.project.name + '-reels.png' });
+  await page.getByRole('button', { name: 'Create Reel' }).click();
+  await expect(page.getByText('New reel')).toBeVisible();
+});

@@ -70,3 +70,12 @@ Before production, move media to a moderated, rights-checked and optimised conte
 ### Installed iPhone PWA bottom-gap corrective action (2026-11-12)
 
 The installed Social PWA now selects the iOS `black` status-bar mode instead of `black-translucent`. Current WebKit reports document a standalone iOS 26/27 viewport mismatch that can leave an unusable strip below an app with the translucent setting (WebKit bug 313800, related bug 236445). The root React Native Web wrapper is explicitly a full-height flex column and the tab bar is non-shrinking, with safe-bottom padding inside the bar. In non-translucent standalone mode, the status-bar is owned by iOS; the app avoids adding a duplicate top inset. A browser-only geometry check cannot prove physical iPhone Home Screen behaviour; verify on device before treating the visual regression as closed.
+
+
+## Immersive Home/Reels milestone
+
+- Stories appear before the Home feed selector, and feed media uses a more immersive portrait canvas.
+- Demo follows update the independent Social following feed, without changing Rider Comms friendships.
+- Reels uses a stationary full-height surface, one snap-paginated card per item, creator actions, separate follow toggles, and a direct creation shortcut.
+- Reels currently displays **labelled photographs**, not real playable videos. Comments, shares, audio, livestreams, media publishing and the recommendation data pipeline are not live.
+- These are original automotive-oriented interactions informed by public Instagram/TikTok product behaviour; they are not a pixel-identical clone or competitive feature parity.
