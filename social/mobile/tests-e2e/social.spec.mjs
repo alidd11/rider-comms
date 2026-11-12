@@ -160,7 +160,7 @@ test('create flow shows only a private draft preview and no publishing control',
   await expect(page.getByText('Built for safer sharing')).toHaveCount(0);
   await page.getByRole('textbox', { name: 'Post draft' }).fill('Saturday meet preview');
   await page.getByRole('button', { name: 'Preview post' }).click();
-  await expect(page.getByText('Saturday meet preview')).toBeVisible();
+  await expect(page.getByText('Saturday meet preview').last()).toBeVisible();
   await expect(page.getByText('PRIVATE POST')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Publish' })).toHaveCount(0);
 });
