@@ -146,6 +146,8 @@ jobs:
           set -e
           mkdir -p maestro-ios-artifacts
           find "$HOME/.maestro" -type f -name '*.png' -exec cp {} maestro-ios-artifacts/ \; 2>/dev/null || true
+          # Each command's outcome and Maestro's log, to see which step went wrong.
+          find "$HOME/.maestro/tests" -type f \( -name 'commands-*.json' -o -name 'maestro.log' \) -exec cp {} maestro-ios-artifacts/ \; 2>/dev/null || true
           exit "$test_status"
       - name: Delete the disposable test account
         if: always() && steps.test-account.outputs.token != ''
