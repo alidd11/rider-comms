@@ -88,6 +88,14 @@ export function MapDrawer({
   const fullHeightRef = React.useRef(fullHeight);
   fullHeightRef.current = fullHeight;
   const visibleHeight = React.useRef(new Animated.Value(0)).current;
+  // Open, the recent list runs on into the drawer's bottom padding, so rows
+  // scroll right to the bottom edge instead of stopping above a blank band.
+  // It grows in with the opening, so a closed drawer shows none of the list.
+  const bottomPad = bottomInset + spacing.md;
+  const flushExtra = React.useMemo(
+    () => visibleHeight.interpolate({ inputRange: [0, bottomPad], outputRange: [0, bottomPad], extrapolate: 'clamp' }),
+    [visibleHeight, bottomPad],
+  );
   const currentHeight = React.useRef(0);
   const reduceMotion = React.useRef(false);
 
@@ -153,7 +161,7 @@ export function MapDrawer({
 
   return (
     <View
-      style={[styles.drawer, { paddingBottom: bottomInset + spacing.md }, style]}
+      style={[styles.drawer, { paddingBottom: bottomPad }, style]}
       onLayout={measurePeek}
       testID="map-drawer"
       accessibilityLabel="Where to"
@@ -208,16 +216,16 @@ export function MapDrawer({
       </ScrollView>
 
       <Animated.View
-        style={[styles.recentClip, { height: visibleHeight }]}
+        style={[styles.recentClip, { height: Animated.add(visibleHeight, flushExtra), marginBottom: Animated.multiply(flushExtra, -1) }]}
         accessibilityElementsHidden={!open}
         importantForAccessibility={open ? 'auto' : 'no-hide-descendants'}
         pointerEvents={open ? 'auto' : 'none'}
       >
-        <View style={[styles.recent, { height: fullHeight }]} testID="map-drawer-recent">
+        <View style={[styles.recent, { height: fullHeight + bottomPad }]} testID="map-drawer-recent">
           {recentPlaces.length === 0 ? (
             <Text style={styles.empty}>Places you search for show up here.</Text>
           ) : (
-            <ScrollView style={styles.recentScroll} keyboardShouldPersistTaps="handled">
+            <ScrollView style={styles.recentScroll} contentContainerStyle={{ paddingBottom: bottomPad }} keyboardShouldPersistTaps="handled">
               <Text style={styles.recentTitle} accessibilityRole="header">Recent</Text>
               {recentPlaces.map((place) => (
                 <Pressable

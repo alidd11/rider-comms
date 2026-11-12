@@ -482,6 +482,17 @@
   // places, then room for more below them (native: OPEN_TOP_CLEARANCE).
   const DRAWER_OPEN_GAP = 24;
   const DRAWER_MIN_OPEN = 240;
+  // The drawer's bottom padding, which the open list runs on through (CSS
+  // --map-drawer-flush): every list height set here adds it, every height read
+  // drops it, so the drawer itself keeps the height these numbers describe.
+  function drawerFlush() {
+    const drawer = $('#mapDrawer');
+    return drawer ? parseFloat(getComputedStyle(drawer).paddingBottom) || 0 : 0;
+  }
+  function drawerListVisibleHeight() {
+    const list = $('#mapDrawerRecent');
+    return list && !list.hidden ? Math.max(0, list.getBoundingClientRect().height - drawerFlush()) : 0;
+  }
   function drawerListHeight() {
     const drawer = $('#mapDrawer');
     const list = $('#mapDrawerRecent');
@@ -489,7 +500,7 @@
     const status = $('#mapStatusChip')?.getBoundingClientRect();
     const clear = Math.max(avatar?.bottom || 0, status?.bottom || 0) + DRAWER_OPEN_GAP;
     // The drawer's top when resting: its bottom edge less everything but the list.
-    const rest = drawer.getBoundingClientRect().bottom - (drawer.offsetHeight - (list.hidden ? 0 : list.offsetHeight));
+    const rest = drawer.getBoundingClientRect().bottom - (drawer.offsetHeight - (list.hidden ? 0 : list.offsetHeight - drawerFlush()));
     return Math.max(DRAWER_MIN_OPEN, Math.round(rest - clear));
   }
   function syncDrawerOpenHeight() {
@@ -518,12 +529,13 @@
     }
     list.hidden = false;
     const target = open ? drawerListHeight() : 0;
+    const flush = drawerFlush();
     list.style.overflow = 'hidden';
     list.style.transition = 'none';
-    list.style.height = `${from}px`;
+    list.style.height = `${from + flush}px`;
     void list.offsetHeight;
     list.style.transition = `height ${DRAWER_SETTLE_MS}ms cubic-bezier(.2,.8,.2,1)`;
-    list.style.height = `${target}px`;
+    list.style.height = `${target + flush}px`;
     drawerSettleTimer = setTimeout(() => {
       clear();
       if (!open) setMapDrawerOpen(false);
@@ -531,9 +543,7 @@
   }
 
   function toggleMapDrawer(open) {
-    const list = $('#mapDrawerRecent');
-    const from = list && !list.hidden ? list.getBoundingClientRect().height : 0;
-    settleMapDrawer(open, from);
+    settleMapDrawer(open, drawerListVisibleHeight());
   }
 
   // The drawer follows the finger: the recent list grows or shrinks with the
@@ -562,7 +572,7 @@
         list.style.transition = 'none';
       }
       const height = Math.max(0, Math.min(drag.full, drag.startHeight - dy));
-      list.style.height = `${height}px`;
+      list.style.height = `${height + drawerFlush()}px`;
       drag.height = height;
     };
     const onEnd = (event) => {
@@ -586,7 +596,7 @@
     drawer.addEventListener('pointerdown', (event) => {
       if (event.target.closest('#mapDrawerRecent')) return;
       const wasOpen = drawer.dataset.state === 'open';
-      drag = { startY: event.clientY, wasOpen, startHeight: wasOpen ? list.getBoundingClientRect().height : 0 };
+      drag = { startY: event.clientY, wasOpen, startHeight: wasOpen ? drawerListVisibleHeight() : 0 };
       dragged = false;
       window.addEventListener('pointermove', onMove);
       window.addEventListener('pointerup', onEnd);

@@ -193,11 +193,12 @@ test('PWA map drawer slides up to recent places and holds Home, Work and Petrol'
   const start = await handle.boundingBox();
   await page.mouse.move(start.x + start.width / 2, start.y + start.height / 2);
   await page.mouse.down();
-  // Part-way through, the list has grown by exactly the slide so far.
+  // Part-way through, the drawer has grown by exactly the slide so far (the
+  // list itself also runs on through the drawer's bottom padding).
   const pressY = start.y + start.height / 2;
   await page.mouse.move(start.x + start.width / 2, pressY - 40, { steps: 4 });
-  const midway = await page.locator('#mapDrawerRecent').evaluate((element) => element.getBoundingClientRect().height);
-  expect(Math.abs(midway - 40)).toBeLessThanOrEqual(2);
+  const midway = await drawer.evaluate((element) => element.getBoundingClientRect().height);
+  expect(Math.abs(midway - drawerBox.height - 40)).toBeLessThanOrEqual(2);
   await page.mouse.move(start.x + start.width / 2, start.y - 120, { steps: 6 });
   await page.mouse.up();
   await expect(drawer).toHaveAttribute('data-state', 'open');
