@@ -2,7 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { ApiError } from '../src/api/client.ts';
 import type { PlaceSummary } from '../src/api/client.ts';
-import { distanceBetweenMeters, formatPlaceDistance, isSearchQueryValid, MIN_PLACE_SEARCH_QUERY_LENGTH, PLACE_SEARCH_DEBOUNCE_MS, searchNearbyPlaces, searchPlaces } from '../src/api/places.ts';
+import { distanceBetweenMeters, formatPlaceDistance, isSearchQueryValid, MIN_PLACE_SEARCH_QUERY_LENGTH, newPlaceSearchSession, placeDetails, PLACE_SEARCH_DEBOUNCE_MS, PLACE_SUGGEST_DEBOUNCE_MS, searchNearbyPlaces, searchPlaces, suggestPlaces } from '../src/api/places.ts';
 import type { PlacesClient } from '../src/api/places.ts';
 import { addRecentPlace, parseRecentPlaces, recentPlacesStorageKey } from '../src/search/recentPlaces.ts';
 
@@ -20,6 +20,23 @@ function fakeClient(respond: () => Promise<{ places: unknown }>): { client: Plac
       calls.push({ kind: 'nearby', includedTypes, near });
       return respond() as Promise<{ places: PlaceSummary[] }>;
     },
+    suggestPlaces: async () => { throw new Error('not used here'); },
+    placeDetails: async () => { throw new Error('not used here'); },
+  };
+  return { client, calls };
+}
+
+/** A client for the search-as-you-type calls only. */
+function suggestClient(
+  suggest: () => Promise<unknown>,
+  details: () => Promise<unknown> = async () => { throw new Error('not used'); },
+): { client: PlacesClient; calls: unknown[][] } {
+  const calls: unknown[][] = [];
+  const client: PlacesClient = {
+    searchPlaces: async () => { throw new Error('not used'); },
+    searchNearbyPlaces: async () => { throw new Error('not used'); },
+    suggestPlaces: async (...args) => { calls.push(['suggest', ...args]); return suggest() as never; },
+    placeDetails: async (...args) => { calls.push(['details', ...args]); return details() as never; },
   };
   return { client, calls };
 }
@@ -183,5 +200,71 @@ describe('recent place history', () => {
       [a]
     );
     assert.deepEqual(parseRecentPlaces('{broken'), []);
+  });
+});
+
+describe('search as you type', () => {
+  const near = { lat: 51.5, lon: -0.1 };
+  const token = 'rc0123456789abcdef0123456789abcd';
+
+  it('waits less after typing than a category search does', () => {
+    assert.ok(PLACE_SUGGEST_DEBOUNCE_MS < PLACE_SEARCH_DEBOUNCE_MS);
+  });
+
+  it('starts each session with a fresh token the backend accepts', () => {
+    const first = newPlaceSearchSession();
+    assert.match(first, /^rc[0-9a-f]{30}$/);
+    assert.notEqual(newPlaceSearchSession(), first);
+    assert.equal(newPlaceSearchSession(() => 0), `rc${'0'.repeat(30)}`);
+  });
+
+  it('suggests places for the trimmed query in the session, dropping malformed ones', async () => {
+    const { client, calls } = suggestClient(async () => ({
+      suggestions: [
+        { id: 'a', name: 'Ace Cafe', address: 'North Circular Rd', distanceMeters: 1200 },
+        { id: 'b', name: 'Somewhere', address: '' },
+        { id: '', name: 'No id', address: '' },
+        { id: 'c', name: 'Bad distance', address: '', distanceMeters: -1 },
+        null,
+      ],
+    }));
+    const result = await suggestPlaces('  ace  ', near, token, client);
+    assert.deepEqual(calls, [['suggest', 'ace', near, token]]);
+    assert.deepEqual(result, {
+      status: 'ok',
+      suggestions: [
+        { id: 'a', name: 'Ace Cafe', address: 'North Circular Rd', distanceMeters: 1200 },
+        { id: 'b', name: 'Somewhere', address: '' },
+      ],
+    });
+  });
+
+  it('skips short queries and maps failures', async () => {
+    const short = suggestClient(async () => ({ suggestions: [] }));
+    assert.deepEqual(await suggestPlaces('a', near, token, short.client), { status: 'ok', suggestions: [] });
+    assert.equal(short.calls.length, 0);
+
+    assert.deepEqual(await suggestPlaces('ace', near, token, suggestClient(async () => { throw new ApiError(429, {}); }).client), { status: 'rate-limited', suggestions: [] });
+    assert.deepEqual(await suggestPlaces('ace', near, token, suggestClient(async () => { throw new TypeError('offline'); }).client), { status: 'network-error', suggestions: [] });
+    assert.deepEqual(await suggestPlaces('ace', near, token, suggestClient(async () => ({ suggestions: 'nope' })).client), { status: 'provider-error', suggestions: [] });
+  });
+
+  it('looks up the chosen place in the same session and measures it from the rider', async () => {
+    const { client, calls } = suggestClient(async () => ({}), async () => ({ place: place('a', 51.51, -0.1, 'Ace Cafe') }));
+    const result = await placeDetails('a', token, near, client);
+    assert.deepEqual(calls, [['details', 'a', token]]);
+    assert.equal(result.status, 'ok');
+    if (result.status !== 'ok') return;
+    assert.equal(result.place.name, 'Ace Cafe');
+    assert.equal(result.place.distanceMeters, distanceBetweenMeters(near, { lat: 51.51, lon: -0.1 }));
+
+    const noFix = await placeDetails('a', token, null, client);
+    assert.equal(noFix.status === 'ok' && noFix.place.distanceMeters, 0);
+  });
+
+  it('reports a failed or malformed details lookup', async () => {
+    assert.deepEqual(await placeDetails('a', token, near, suggestClient(async () => ({}), async () => { throw new ApiError(503, {}); }).client), { status: 'unavailable' });
+    assert.deepEqual(await placeDetails('a', token, near, suggestClient(async () => ({}), async () => ({ place: { id: 'a' } })).client), { status: 'provider-error' });
+    assert.deepEqual(await placeDetails('a', token, near, suggestClient(async () => ({}), async () => null).client), { status: 'provider-error' });
   });
 });

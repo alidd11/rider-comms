@@ -369,6 +369,62 @@ describe('authenticated API', () => {
     }
   });
 
+  it('serves search-as-you-type suggestions and the chosen place in one session', async () => {
+    const suggestionRequests: unknown[] = [];
+    const detailRequests: unknown[] = [];
+    const server = startTestServer({
+      placeSuggestionsProvider: async (request) => {
+        suggestionRequests.push(request);
+        return [{ id: 'abc_1', name: 'Ace Cafe', address: 'North Circular Rd', distanceMeters: 1200 }];
+      },
+      placeDetailsProvider: async (placeId, sessionToken) => {
+        detailRequests.push([placeId, sessionToken]);
+        return { id: placeId, name: 'Ace Cafe', address: 'North Circular Rd', lat: 51.541, lon: -0.277 };
+      },
+    });
+    await server.ready;
+    try {
+      const sessionToken = 'session-0123456789';
+      for (const body of [
+        { input: 'a', near: { lat: 51.5, lon: -0.1 }, sessionToken },
+        { input: 'ace', near: { lat: 51.5, lon: -0.1 } },
+        { input: 'ace', sessionToken },
+      ]) {
+        assert.equal((await postJson(server, 'places-rider', '/places/autocomplete', body)).status, 400);
+      }
+      assert.equal((await postJson(server, 'places-rider', '/places/details', { placeId: 'bad id!', sessionToken })).status, 400);
+      assert.equal((await postJson(server, 'places-rider', '/places/details', { placeId: 'abc_1' })).status, 400);
+      assert.equal(suggestionRequests.length + detailRequests.length, 0);
+
+      const suggestions = await postJson(server, 'places-rider', '/places/autocomplete', { input: ' ace ', near: { lat: 51.5, lon: -0.1 }, sessionToken });
+      assert.equal(suggestions.status, 200);
+      assert.deepEqual(await suggestions.json(), { suggestions: [{ id: 'abc_1', name: 'Ace Cafe', address: 'North Circular Rd', distanceMeters: 1200 }] });
+      assert.deepEqual(suggestionRequests, [{ input: 'ace', near: { lat: 51.5, lon: -0.1 }, sessionToken }]);
+
+      const details = await postJson(server, 'places-rider', '/places/details', { placeId: 'abc_1', sessionToken });
+      assert.equal(details.status, 200);
+      assert.deepEqual(await details.json(), { place: { id: 'abc_1', name: 'Ace Cafe', address: 'North Circular Rd', lat: 51.541, lon: -0.277 } });
+      assert.deepEqual(detailRequests, [['abc_1', sessionToken]]);
+    } finally {
+      await server.close();
+    }
+  });
+
+  it('maps suggestion and details provider failures to HTTP errors', async () => {
+    const server = startTestServer({
+      placeSuggestionsProvider: async () => { throw new PlacesProviderError('places_timeout'); },
+      placeDetailsProvider: async () => { throw new PlacesProviderError('places_unavailable'); },
+    });
+    await server.ready;
+    try {
+      const sessionToken = 'session-0123456789';
+      assert.equal((await postJson(server, 'places-rider', '/places/autocomplete', { input: 'ace', near: { lat: 51.5, lon: -0.1 }, sessionToken })).status, 504);
+      assert.equal((await postJson(server, 'places-rider', '/places/details', { placeId: 'abc_1', sessionToken })).status, 502);
+    } finally {
+      await server.close();
+    }
+  });
+
   it('proxies authenticated place searches without exposing the provider key', async () => {
     const requested: PlaceSearchRequest[] = [];
     const places = [{ id: 'p1', name: 'Bike Cafe', address: '1 High St', lat: 51.501, lon: -0.101 }];

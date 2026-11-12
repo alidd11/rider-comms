@@ -19,9 +19,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, spacing, elevation, pressedFeedback } from '../theme';
 import { styles } from './PlaceSearchBar.styles';
-import { distanceBetweenMeters, formatPlaceDistance, isSearchQueryValid, PLACE_SEARCH_DEBOUNCE_MS, searchNearbyPlaces, searchPlaces } from '../api/places';
-import type { PlaceResult, PlaceSearchFailure } from '../api/places';
-import { nearbySearchCacheKey, PlacesCache, textSearchCacheKey, wrapPlacesSearchWithCache } from '../api/placesCache';
+import { distanceBetweenMeters, formatPlaceDistance, isSearchQueryValid, newPlaceSearchSession, placeDetails, PLACE_SEARCH_DEBOUNCE_MS, PLACE_SUGGEST_DEBOUNCE_MS, searchNearbyPlaces, suggestPlaces } from '../api/places';
+import type { PlaceResult, PlaceSearchFailure, PlaceSuggestion } from '../api/places';
+import { nearbySearchCacheKey, PlacesCache, wrapPlacesSearchWithCache } from '../api/placesCache';
 import { useAuth } from '../auth/AuthContext';
 import { addRecentPlace, parseRecentPlaces, recentPlacesStorageKey } from '../search/recentPlaces';
 import { SAVED_PLACE_LABELS } from '../search/savedPlaces';
@@ -32,7 +32,6 @@ import { useSettings } from '../settings/SettingsContext';
 // (retyping, re-toggling a category chip) without persisting between app
 // launches.
 const placesCache = new PlacesCache();
-const cachedSearchPlaces = wrapPlacesSearchWithCache(searchPlaces, placesCache, textSearchCacheKey);
 const cachedSearchNearbyPlaces = wrapPlacesSearchWithCache(searchNearbyPlaces, placesCache, nearbySearchCacheKey);
 
 const CATEGORIES = [
@@ -68,6 +67,13 @@ export const PlaceSearchBar = React.forwardRef<PlaceSearchHandle, {
   const [saveAs, setSaveAs] = React.useState<SavedPlaceSlot | null>(null);
   const [savedCurrent, setSavedCurrent] = React.useState<PlaceResult | null>(null);
   const [results, setResults] = React.useState<PlaceResult[]>([]);
+  // Typing: suggestions within one search session; picking one fetches its
+  // details, which ends the session.
+  const [suggestions, setSuggestions] = React.useState<PlaceSuggestion[]>([]);
+  const [pickingId, setPickingId] = React.useState<string | null>(null);
+  const sessionRef = React.useRef<string | null>(null);
+  // Bumped when search closes, so a lookup still in flight then is ignored.
+  const pickRef = React.useRef(0);
   const [recentPlaces, setRecentPlaces] = React.useState<PlaceResult[]>([]);
   const [loading, setLoading] = React.useState(false);
   const [searchError, setSearchError] = React.useState<PlaceSearchFailure | null>(null);
@@ -113,27 +119,38 @@ export const PlaceSearchBar = React.forwardRef<PlaceSearchHandle, {
     const requestId = ++requestRef.current;
     if ((!activeCategory && !isSearchQueryValid(query)) || !near) {
       setResults([]);
+      setSuggestions([]);
       setSearchError(null);
       setLoading(false);
       return;
     }
     setSearchError(null);
     setLoading(true);
+    const category = CATEGORIES.find((item) => item.label === activeCategory);
     debounceRef.current = setTimeout(() => {
-      const category = CATEGORIES.find((item) => item.label === activeCategory);
-      const request = category
-        ? cachedSearchNearbyPlaces({ includedTypes: category.types }, near, client)
-        : cachedSearchPlaces(query, near, client);
-      request
+      if (category) {
+        cachedSearchNearbyPlaces({ includedTypes: category.types }, near, client)
+          .then((result) => {
+            if (requestId !== requestRef.current) return;
+            setResults(result.places);
+            setSearchError(result.status === 'ok' ? null : result.status);
+          })
+          .finally(() => {
+            if (requestId === requestRef.current) setLoading(false);
+          });
+        return;
+      }
+      sessionRef.current ??= newPlaceSearchSession();
+      suggestPlaces(query, near, sessionRef.current, client)
         .then((result) => {
           if (requestId !== requestRef.current) return;
-          setResults(result.places);
+          setSuggestions(result.suggestions);
           setSearchError(result.status === 'ok' ? null : result.status);
         })
         .finally(() => {
           if (requestId === requestRef.current) setLoading(false);
         });
-    }, PLACE_SEARCH_DEBOUNCE_MS);
+    }, category ? PLACE_SEARCH_DEBOUNCE_MS : PLACE_SUGGEST_DEBOUNCE_MS);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
@@ -152,6 +169,25 @@ export const PlaceSearchBar = React.forwardRef<PlaceSearchHandle, {
     },
   }), [near, onRequestLocation]);
 
+  async function chooseSuggestion(suggestion: PlaceSuggestion): Promise<void> {
+    if (pickingId) return;
+    const token = sessionRef.current ?? newPlaceSearchSession();
+    // The details call ends this session; the next search starts a new one.
+    sessionRef.current = null;
+    setPickingId(suggestion.id);
+    const pick = pickRef.current;
+    const result = await placeDetails(suggestion.id, token, near, client);
+    if (pick !== pickRef.current) return;
+    setPickingId(null);
+    if (result.status === 'ok') {
+      choose(result.place);
+      return;
+    }
+    // The error state shows in place of the list; Try again searches anew.
+    setSuggestions([]);
+    setSearchError(result.status);
+  }
+
   function choose(place: PlaceResult): void {
     if (saveAs) onSave?.(saveAs, place);
     onSelect(place);
@@ -167,6 +203,10 @@ export const PlaceSearchBar = React.forwardRef<PlaceSearchHandle, {
     setQuery('');
     setActiveCategory(null);
     setResults([]);
+    setSuggestions([]);
+    setPickingId(null);
+    sessionRef.current = null;
+    pickRef.current += 1;
     setSearchError(null);
     setLoading(false);
   }
@@ -334,7 +374,7 @@ export const PlaceSearchBar = React.forwardRef<PlaceSearchHandle, {
             )
           ) : (
             <FlatList
-              data={results}
+              data={activeCategory ? results : suggestions}
               keyExtractor={(item) => item.id}
               keyboardShouldPersistTaps="handled"
               contentContainerStyle={styles.resultsContent}
@@ -344,7 +384,7 @@ export const PlaceSearchBar = React.forwardRef<PlaceSearchHandle, {
                     <Text style={styles.resultsEyebrow}>{activeCategory ? 'Nearby' : 'Search results'}</Text>
                     <Text style={styles.resultsTitle}>{activeCategory ?? 'Places and addresses'}</Text>
                   </View>
-                  {!loading && results.length ? <Text style={styles.resultsCount}>{results.length} closest</Text> : null}
+                  {!loading && activeCategory && results.length ? <Text style={styles.resultsCount}>{results.length} closest</Text> : null}
                 </View>
               }
               ListEmptyComponent={
@@ -363,25 +403,33 @@ export const PlaceSearchBar = React.forwardRef<PlaceSearchHandle, {
                   <SearchState compact icon="search-outline" title="No matching places" copy="Check the spelling or try a broader place name." />
                 ) : null
               }
-              renderItem={({ item }) => (
-                <Pressable accessibilityRole="button"
-                  style={({ pressed }) => [styles.resultRow, pressed && styles.resultRowPressed]}
-                  onPress={() => choose(item)}
-                  accessibilityLabel={`${item.name}, ${item.address}`}
-                >
-                  <View style={styles.resultIcon}>
-                    <Ionicons name="location-outline" size={19} color={colors.accent} />
-                  </View>
-                  <View style={styles.resultInfo}>
-                    <Text style={styles.resultName} numberOfLines={1}>{item.name}</Text>
-                    {item.address ? <Text style={styles.resultAddress} numberOfLines={1}>{item.address}</Text> : null}
-                  </View>
-                  <View style={styles.resultTrailing}>
-                    <Text style={styles.resultDistance}>{formatPlaceDistance(item.distanceMeters, unitSystem)}</Text>
-                    <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
-                  </View>
-                </Pressable>
-              )}
+              renderItem={({ item }) => {
+                const picking = pickingId === item.id;
+                const distance = item.distanceMeters;
+                return (
+                  <Pressable accessibilityRole="button"
+                    style={({ pressed }) => [styles.resultRow, pressed && styles.resultRowPressed]}
+                    onPress={() => { if (isPlaceResult(item)) choose(item); else void chooseSuggestion(item); }}
+                    disabled={Boolean(pickingId)}
+                    accessibilityState={{ busy: picking, disabled: Boolean(pickingId) && !picking }}
+                    accessibilityLabel={`${item.name}${item.address ? `, ${item.address}` : ''}`}
+                  >
+                    <View style={styles.resultIcon}>
+                      <Ionicons name="location-outline" size={19} color={colors.accent} />
+                    </View>
+                    <View style={styles.resultInfo}>
+                      <Text style={styles.resultName} numberOfLines={1}>{item.name}</Text>
+                      {item.address ? <Text style={styles.resultAddress} numberOfLines={1}>{item.address}</Text> : null}
+                    </View>
+                    <View style={styles.resultTrailing}>
+                      {picking ? <ActivityIndicator size="small" color={colors.accent} /> : distance !== undefined ? (
+                        <Text style={styles.resultDistance}>{formatPlaceDistance(distance, unitSystem)}</Text>
+                      ) : null}
+                      <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
+                    </View>
+                  </Pressable>
+                );
+              }}
             />
           )}
 
@@ -391,6 +439,11 @@ export const PlaceSearchBar = React.forwardRef<PlaceSearchHandle, {
     </>
   );
 });
+
+/** A full place (category search) rather than a suggestion still to look up. */
+function isPlaceResult(item: PlaceResult | PlaceSuggestion): item is PlaceResult {
+  return typeof (item as PlaceResult).lat === 'number';
+}
 
 function searchFailureCopy(failure: PlaceSearchFailure): { title: string; copy: string } {
   if (failure === 'rate-limited') {

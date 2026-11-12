@@ -8,7 +8,7 @@ end). Prices and terms change; check the linked pages before committing.
 | Part | Native app | Web app |
 | --- | --- | --- |
 | Base map | `react-native-maps`, default provider: Apple Maps on iOS, Google Maps on Android | Google Maps JavaScript API |
-| Place search | Backend proxy to Google Places (`backend/src/placesProvider.ts`) | Google Places (legacy `AutocompleteService`, `PlacesService`) |
+| Place search | Backend proxy to Google Places (New) (`backend/src/placesProvider.ts`): Autocomplete while typing, in a session that ends with one Place Details call for the pick; Nearby Search for category chips | Google Places (legacy `AutocompleteService`, `PlacesService`) |
 | Routes | Backend proxy to the Google Directions API (`backend/src/directionsProvider.ts`) | The same backend proxy |
 | Guidance | Our own: route progress, snapping, rerouting, spoken prompts, camera, puck (`mobile/src/screens/useInAppNavigation.ts`, `shared/src/navigationGuidance.ts`, `shared/src/navigationCamera.ts`, `navigationRoadEvents`, `positionInterpolation`) | The same shared logic (`docs/navigation-*.js`) |
 | Hand-off | Google Maps, Waze, Apple Maps links (`mobile/src/navigationLinks.ts`) | The same links (`docs/app/15-destination.js`) |

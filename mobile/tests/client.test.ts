@@ -483,12 +483,16 @@ describe('RiderCommsClient places and friends', () => {
     }));
     await client.searchPlaces('fuel', { lat: 51.5, lon: -0.1 });
     await client.searchNearbyPlaces(['gas_station'], { lat: 51.5, lon: -0.1 });
+    await client.suggestPlaces('ace', { lat: 51.5, lon: -0.1 }, 'session-0123456789');
+    await client.placeDetails('abc_1', 'session-0123456789');
     await client.getFriendRequests('rider 1', { before: 'cursor-1', limit: 20 });
     await client.getFriends('rider 1', { before: 'cursor-2' });
     await client.getFriends('rider 1');
     assert.deepEqual(calls, [
       { url: 'http://example.test/places/search', method: 'POST', body: { query: 'fuel', near: { lat: 51.5, lon: -0.1 } } },
       { url: 'http://example.test/places/nearby', method: 'POST', body: { includedTypes: ['gas_station'], near: { lat: 51.5, lon: -0.1 } } },
+      { url: 'http://example.test/places/autocomplete', method: 'POST', body: { input: 'ace', near: { lat: 51.5, lon: -0.1 }, sessionToken: 'session-0123456789' } },
+      { url: 'http://example.test/places/details', method: 'POST', body: { placeId: 'abc_1', sessionToken: 'session-0123456789' } },
       { url: 'http://example.test/riders/rider%201/friend-requests?limit=20&before=cursor-1', method: 'GET', body: undefined },
       { url: 'http://example.test/riders/rider%201/friends?limit=100&before=cursor-2', method: 'GET', body: undefined },
       { url: 'http://example.test/riders/rider%201/friends?limit=100', method: 'GET', body: undefined },

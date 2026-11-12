@@ -4,8 +4,8 @@ import { Platform } from 'react-native';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ApiError } from '../../src/api/client';
-import type { PlaceSummary } from '../../src/api/client';
-import { PLACE_SEARCH_DEBOUNCE_MS } from '../../src/api/places';
+import type { PlaceSuggestionSummary, PlaceSummary } from '../../src/api/client';
+import { PLACE_SEARCH_DEBOUNCE_MS, PLACE_SUGGEST_DEBOUNCE_MS } from '../../src/api/places';
 import type { PlaceResult } from '../../src/api/places';
 import { recentPlacesStorageKey } from '../../src/search/recentPlaces';
 import { PlaceSearchBar } from '../../src/screens/PlaceSearchBar';
@@ -20,6 +20,8 @@ const SAFE_AREA_METRICS = {
 const mockClient = {
   searchPlaces: jest.fn<Promise<{ places: PlaceSummary[] }>, [string, { lat: number; lon: number }]>(),
   searchNearbyPlaces: jest.fn<Promise<{ places: PlaceSummary[] }>, [readonly string[], { lat: number; lon: number }]>(),
+  suggestPlaces: jest.fn<Promise<{ suggestions: PlaceSuggestionSummary[] }>, [string, { lat: number; lon: number }, string]>(),
+  placeDetails: jest.fn<Promise<{ place: PlaceSummary }>, [string, string]>(),
 };
 
 jest.mock('../../src/auth/AuthContext', () => ({
@@ -32,6 +34,10 @@ jest.mock('../../src/settings/SettingsContext', () => ({
 
 function place(id: string, name: string, lat = 51.501, lon = -0.1): PlaceSummary {
   return { id, name, address: `${name} address`, lat, lon };
+}
+
+function suggestion(id: string, name: string, distanceMeters?: number): PlaceSuggestionSummary {
+  return { id, name, address: `${name} address`, ...(distanceMeters === undefined ? {} : { distanceMeters }) };
 }
 
 interface Props {
@@ -62,13 +68,15 @@ async function openSearch() {
 
 async function typeQuery(value: string) {
   await fireEvent.changeText(screen.getByPlaceholderText('Search for a place'), value);
-  await act(async () => { jest.advanceTimersByTime(PLACE_SEARCH_DEBOUNCE_MS); });
+  await act(async () => { jest.advanceTimersByTime(PLACE_SUGGEST_DEBOUNCE_MS); });
 }
 
 beforeEach(async () => {
   jest.useFakeTimers();
   mockClient.searchPlaces.mockReset();
   mockClient.searchNearbyPlaces.mockReset();
+  mockClient.suggestPlaces.mockReset();
+  mockClient.placeDetails.mockReset();
   await AsyncStorage.clear();
 });
 
@@ -79,37 +87,74 @@ afterEach(() => {
 // PlaceSearchBar keeps a module-level session cache of successful searches,
 // so each test below uses its own query/category to avoid cross-test hits.
 
-test('searches through the backend client after the debounce and shows results', async () => {
-  mockClient.searchPlaces.mockResolvedValue({ places: [place('p1', 'Bike Cafe')] });
+test('suggests places as the rider types, after a short pause', async () => {
+  mockClient.suggestPlaces.mockResolvedValue({ suggestions: [suggestion('p1', 'Bike Cafe', 1200)] });
   await renderSearchBar();
   await openSearch();
 
   await fireEvent.changeText(screen.getByPlaceholderText('Search for a place'), 'bike ca');
   await fireEvent.changeText(screen.getByPlaceholderText('Search for a place'), 'bike cafe');
-  await act(async () => { jest.advanceTimersByTime(PLACE_SEARCH_DEBOUNCE_MS - 1); });
-  expect(mockClient.searchPlaces).not.toHaveBeenCalled();
+  await act(async () => { jest.advanceTimersByTime(PLACE_SUGGEST_DEBOUNCE_MS - 1); });
+  expect(mockClient.suggestPlaces).not.toHaveBeenCalled();
   await act(async () => { jest.advanceTimersByTime(1); });
 
-  expect(mockClient.searchPlaces).toHaveBeenCalledTimes(1);
-  expect(mockClient.searchPlaces).toHaveBeenCalledWith('bike cafe', NEAR);
-  // The debounce callback resolves a promise; flush that microtask before
-  // querying the rendered result while fake timers are active.
+  expect(mockClient.suggestPlaces).toHaveBeenCalledTimes(1);
+  expect(mockClient.suggestPlaces).toHaveBeenCalledWith('bike cafe', NEAR, expect.stringMatching(/^rc[0-9a-f]{30}$/));
+  expect(mockClient.searchPlaces).not.toHaveBeenCalled();
   await act(async () => {});
   expect(await screen.findByText('Bike Cafe')).toBeTruthy();
-  expect(screen.getByText('1 closest')).toBeTruthy();
+  expect(screen.getByText('1.2 km')).toBeTruthy();
 });
 
-test('selecting a result hands it to the map and remembers it', async () => {
-  mockClient.searchPlaces.mockResolvedValue({ places: [place('p2', 'Fuel Stop')] });
+test('picking a suggestion looks it up in the same session, hands it to the map and remembers it', async () => {
+  mockClient.suggestPlaces.mockResolvedValue({ suggestions: [suggestion('p2', 'Fuel Stop')] });
+  mockClient.placeDetails.mockResolvedValue({ place: place('p2', 'Fuel Stop') });
   const props = await renderSearchBar();
   await openSearch();
   await typeQuery('fuel stop');
 
   await fireEvent.press(await screen.findByLabelText('Fuel Stop, Fuel Stop address'));
+  await act(async () => {});
 
-  expect(props.onSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'p2', name: 'Fuel Stop' }));
+  const token = mockClient.suggestPlaces.mock.calls[0]![2];
+  expect(mockClient.placeDetails).toHaveBeenCalledWith('p2', token);
+  expect(props.onSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'p2', name: 'Fuel Stop', lat: 51.501 }));
   const stored = JSON.parse((await AsyncStorage.getItem(recentPlacesStorageKey(RIDER_ID)))!) as PlaceResult[];
   expect(stored.map((item) => item.id)).toEqual(['p2']);
+
+  // The pick ended that session: the next search starts a new one.
+  await openSearch();
+  await typeQuery('fuel again');
+  expect(mockClient.suggestPlaces.mock.calls[1]![2]).not.toBe(token);
+});
+
+test('closing search while a pick is still loading drops that pick', async () => {
+  mockClient.suggestPlaces.mockResolvedValue({ suggestions: [suggestion('p4', 'Slow Place')] });
+  let answer!: (value: { place: PlaceSummary }) => void;
+  mockClient.placeDetails.mockReturnValue(new Promise((resolve) => { answer = resolve; }));
+  const props = await renderSearchBar();
+  await openSearch();
+  await typeQuery('slow place');
+
+  await fireEvent.press(await screen.findByLabelText('Slow Place, Slow Place address'));
+  await fireEvent.press(screen.getByLabelText('Back to map'));
+  await act(async () => { answer({ place: place('p4', 'Slow Place') }); });
+
+  expect(props.onSelect).not.toHaveBeenCalled();
+});
+
+test('a failed lookup of the picked suggestion says so and stays on search', async () => {
+  mockClient.suggestPlaces.mockResolvedValue({ suggestions: [suggestion('p3', 'Lost Place')] });
+  mockClient.placeDetails.mockRejectedValue(new TypeError('Network request failed'));
+  const props = await renderSearchBar();
+  await openSearch();
+  await typeQuery('lost place');
+
+  await fireEvent.press(await screen.findByLabelText('Lost Place, Lost Place address'));
+  await act(async () => {});
+
+  expect(props.onSelect).not.toHaveBeenCalled();
+  expect(await screen.findByText('Can’t reach place search')).toBeTruthy();
 });
 
 test('category chips run a nearby type search', async () => {
@@ -121,15 +166,15 @@ test('category chips run a nearby type search', async () => {
   await act(async () => { jest.advanceTimersByTime(PLACE_SEARCH_DEBOUNCE_MS); });
 
   expect(mockClient.searchNearbyPlaces).toHaveBeenCalledWith(['cafe', 'coffee_shop'], NEAR);
-  expect(mockClient.searchPlaces).not.toHaveBeenCalled();
+  expect(mockClient.suggestPlaces).not.toHaveBeenCalled();
   expect(await screen.findByText('Corner Coffee')).toBeTruthy();
   expect(screen.getByText('Nearby')).toBeTruthy();
 });
 
 test('shows a busy state when the backend rate-limits, and retries on demand', async () => {
-  mockClient.searchPlaces
+  mockClient.suggestPlaces
     .mockRejectedValueOnce(new ApiError(429, { error: 'rate_limited' }))
-    .mockResolvedValueOnce({ places: [place('r1', 'Retry Diner')] });
+    .mockResolvedValueOnce({ suggestions: [suggestion('r1', 'Retry Diner')] });
   await renderSearchBar();
   await openSearch();
   await typeQuery('retry diner');
@@ -137,14 +182,14 @@ test('shows a busy state when the backend rate-limits, and retries on demand', a
   expect(await screen.findByText('Search is busy')).toBeTruthy();
 
   await fireEvent.press(screen.getByText('Try again'));
-  await act(async () => { jest.advanceTimersByTime(PLACE_SEARCH_DEBOUNCE_MS); });
+  await act(async () => { jest.advanceTimersByTime(PLACE_SUGGEST_DEBOUNCE_MS); });
 
-  expect(mockClient.searchPlaces).toHaveBeenCalledTimes(2);
+  expect(mockClient.suggestPlaces).toHaveBeenCalledTimes(2);
   expect(await screen.findByText('Retry Diner')).toBeTruthy();
 });
 
 test('shows an unavailable state when place search is not configured on the backend', async () => {
-  mockClient.searchPlaces.mockRejectedValue(new ApiError(503, { error: 'places_not_configured' }));
+  mockClient.suggestPlaces.mockRejectedValue(new ApiError(503, { error: 'places_not_configured' }));
   await renderSearchBar();
   await openSearch();
   await typeQuery('unconfigured');
@@ -153,7 +198,7 @@ test('shows an unavailable state when place search is not configured on the back
 });
 
 test('shows an offline state when the backend cannot be reached', async () => {
-  mockClient.searchPlaces.mockRejectedValue(new TypeError('Network request failed'));
+  mockClient.suggestPlaces.mockRejectedValue(new TypeError('Network request failed'));
   await renderSearchBar();
   await openSearch();
   await typeQuery('offline query');
@@ -162,7 +207,7 @@ test('shows an offline state when the backend cannot be reached', async () => {
 });
 
 test('shows a no-results state for a genuine empty search', async () => {
-  mockClient.searchPlaces.mockResolvedValue({ places: [] });
+  mockClient.suggestPlaces.mockResolvedValue({ suggestions: [] });
   await renderSearchBar();
   await openSearch();
   await typeQuery('zzzz nowhere');
@@ -178,7 +223,7 @@ test('asks for location instead of searching when none is known', async () => {
   expect(screen.getByText('Location needed')).toBeTruthy();
 
   await typeQuery('no location');
-  expect(mockClient.searchPlaces).not.toHaveBeenCalled();
+  expect(mockClient.suggestPlaces).not.toHaveBeenCalled();
 });
 
 test('lists and clears this rider’s recent places', async () => {
@@ -231,7 +276,7 @@ test('tapping the active category again clears it', async () => {
 });
 
 test('a generic search failure says so, and location can be retried', async () => {
-  mockClient.searchPlaces.mockRejectedValue(new ApiError(500, { error: 'boom' }));
+  mockClient.suggestPlaces.mockRejectedValue(new ApiError(500, { error: 'boom' }));
   await renderSearchBar();
   await openSearch();
   await typeQuery('server error query');
@@ -248,7 +293,7 @@ test('“Try location again” asks for location', async () => {
 test('Android shows its own clear button', async () => {
   Object.defineProperty(Platform, 'OS', { configurable: true, get: () => 'android' });
   try {
-    mockClient.searchPlaces.mockResolvedValue({ places: [] });
+    mockClient.suggestPlaces.mockResolvedValue({ suggestions: [] });
     await renderSearchBar();
     await openSearch();
     await fireEvent.changeText(screen.getByPlaceholderText('Search for a place'), 'clear me');

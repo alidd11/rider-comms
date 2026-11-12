@@ -290,6 +290,8 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
   });
   await page.goto('/');
   await expect(page.locator('#app')).toBeVisible();
+  // The app shows before the map is created; read its options once it is.
+  await page.waitForFunction(() => Boolean(window.__riderCommsTestMap?.options));
 
   const mapGeometry = await page.evaluate(() => {
     const screen = document.querySelector('[data-screen="map"]');
