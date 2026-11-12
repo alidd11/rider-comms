@@ -259,7 +259,10 @@ test('Reels fills the content viewport, pages vertically and opens the Reel crea
   expect(viewport?.height ?? 0).toBeGreaterThan(140);
   expect(Math.abs((viewport?.height ?? 0) - (first?.height ?? 0))).toBeLessThan(3);
   await page.getByRole('button', { name: 'Next Reel' }).click();
-  await expect.poll(async () => page.locator('#social-reels-feed').evaluate(el => el.scrollTop)).toBeGreaterThan(10);
+  await expect.poll(async () => page.locator('#social-reels-feed').evaluate(el => {
+    const panel = document.getElementById('social-reel-panel-r1');
+    return Math.abs(el.scrollTop - (panel?.getBoundingClientRect().height ?? 0));
+  })).toBeLessThan(3);
   await expect(page.getByRole('tab', { name: 'Reels' })).toBeVisible();
   await mkdir('test-results/screenshots', { recursive: true });
   await page.screenshot({ path: 'test-results/screenshots/' + testInfo.project.name + '-reels.png' });
@@ -325,6 +328,9 @@ test('Home photo carousel, double-tap like, and creator garage link work', async
   await expect(page.getByRole('button', { name: 'Unlike post' }).first()).toBeVisible();
   await page.getByRole('button', { name: 'View garage for @alex' }).click();
   await expect(page.getByText('Public preview')).toBeVisible();
+  const title = await page.getByText('Alex Morgan', { exact: true }).boundingBox();
+  const header = await page.getByRole('button', { name: 'Go to home' }).boundingBox();
+  expect(title?.y ?? -1).toBeGreaterThanOrEqual((header?.y ?? 0) + (header?.height ?? 0) - 2);
   await expect(page.getByRole('button', { name: 'Explore creator club' })).toBeVisible();
   await mkdir('test-results/screenshots', { recursive: true });
   await page.screenshot({ path: 'test-results/screenshots/' + testInfo.project.name + '-creator-garage.png' });

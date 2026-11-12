@@ -89,7 +89,9 @@ export function ReelsScreen({ items, followedAuthors, onToggleFollow, onOpenComm
 
   const moveTo = (index: number) => {
     const next = Math.max(0, Math.min(items.length - 1, index));
-    scroller.current?.scrollTo({ y: next * height, animated: true });
+    // Buttons should land on the next complete card immediately on web.
+    // Touch gestures remain paginated and animated by the scroll view.
+    scroller.current?.scrollTo({ y: next * height, animated: Platform.OS !== 'web' });
     setActiveIndex(next);
     setNotice(null);
   };
