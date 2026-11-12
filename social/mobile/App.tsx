@@ -11,6 +11,7 @@ import { demoClubs, demoEvents, demoListings, demoPosts, demoStories, followingI
 import { DEFAULT_PROFILE, EMPTY_GARAGE_DRAFT, addGarageEntry, createGarageEntry, removeGarageEntry, updateGarageVisibility, validateProfile } from './src/garage';
 import type { GarageDraft, GarageEntry, GarageKind, SocialProfileDraft } from './src/garage';
 import { loadLocalDemo, saveLocalDemo } from './src/demoStorage';
+import { CreateComposer } from './src/CreateComposer';
 
 type Screen = 'Home' | 'Reels' | 'Create' | 'Clubs' | 'Shop' | 'Profile' | 'Messages';
 type Icon = React.ComponentProps<typeof Ionicons>['name'];
@@ -147,12 +148,12 @@ export default function App(): React.JSX.Element {
   const { width: screenWidth } = useWindowDimensions();
   const mediaHeight = Math.min(490, Math.max(330, Math.round(screenWidth * 0.94)));
   const [screen, setScreen] = useState<Screen>('Home');
+  const pageScrollEnabled = screen === 'Home' || screen === 'Clubs' || screen === 'Shop' || screen === 'Profile';
   const [feedMode, setFeedMode] = useState<FeedMode>('forYou');
   const [feedPreferencesOpen, setFeedPreferencesOpen] = useState(false);
   const [activePostMenu, setActivePostMenu] = useState<string | null>(null);
   const [expandedCaptionId, setExpandedCaptionId] = useState<string | null>(null);
   const [createMode, setCreateMode] = useState<'Post' | 'Story' | 'Reel'>('Post');
-  const [draftPreview, setDraftPreview] = useState(false);
   const [personalisation, setPersonalisation] = useState(true);
   const [hiddenPostIds, setHiddenPostIds] = useState<Set<string>>(() => new Set());
   const [hiddenTopics, setHiddenTopics] = useState<Set<Topic>>(() => new Set());
@@ -175,7 +176,6 @@ export default function App(): React.JSX.Element {
   const [reelIndex, setReelIndex] = useState(0);
   const [marketFilter, setMarketFilter] = useState('All');
   const [search, setSearch] = useState('');
-  const [draft, setDraft] = useState('');
   const [notice, setNotice] = useState<string | null>(null);
 
   // Preview-only, per-device data. Shared Rider Comms accounts and DMs are untouched.
@@ -244,6 +244,7 @@ export default function App(): React.JSX.Element {
 
   function navigate(to: Screen) {
     setScreen(to);
+    if (to === 'Create') setCreateMode('Post');
     setNotice(null);
     setSelectedClub(null);
     setSelectedEvent(null);
@@ -373,7 +374,7 @@ export default function App(): React.JSX.Element {
     const reel=reels.find(r=>r.id===reelRank?.item.id) ?? reels[0];
     return <>
       <View style={s.rowBetween}><Text style={s.sectionTitle}>Reels</Text><Text style={[s.small,{color:C.accent}]}>Preview</Text></View>
-      <ImageBackground source={{uri:reel.imageUrl}} resizeMode="cover" style={[s.reel,{height:mediaHeight+75,backgroundColor:reel.theme}]}>
+      <ImageBackground source={{uri:reel.imageUrl}} resizeMode="cover" style={[s.reel,{flex:1,height:undefined,minHeight:0,backgroundColor:reel.theme}]}>
         <View style={s.reelTop}><Text style={s.feedMediaTagText}>SAMPLE</Text></View>
         <Pressable accessibilityRole="button" accessibilityLabel="Play sample Reel" onPress={()=>banner('Video playback is not connected yet.')} style={s.reelPlay}>
           <Ionicons name="play" color={C.ink} size={32}/>
@@ -388,25 +389,6 @@ export default function App(): React.JSX.Element {
         <Pressable accessibilityRole="button" accessibilityLabel="Next reel" disabled={reelIndex>=recommendedReels.length-1}
           style={[s.ghost,reelIndex>=recommendedReels.length-1&&{opacity:0.4}]} onPress={()=>setReelIndex(n=>Math.min(recommendedReels.length-1,n+1))}><Text style={s.ghostText}>Next</Text></Pressable>
       </View>
-    </>;
-  }
-
-  function renderCreate() {
-    return <>
-      <View style={s.rowBetween}><Text style={s.title}>Create</Text><Text style={[s.small,{color:C.accent}]}>Private draft</Text></View>
-      <View style={s.row}>{(['Post','Story','Reel'] as const).map(kind=><Pill key={kind} label={kind} selected={createMode===kind} onPress={()=>{setCreateMode(kind);setDraftPreview(false);}}/>)}</View>
-      <View style={[s.card,s.pad]}>
-        <TextInput multiline value={draft} onChangeText={v=>{setDraft(v);setDraftPreview(false);}}
-          placeholder="What's happening?" placeholderTextColor={C.muted} style={[s.input,{minHeight:125,textAlignVertical:'top'}]} accessibilityLabel="Post draft"/>
-        <View style={s.rowBetween}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Add media to draft" onPress={()=>banner('Media uploads will be added with the publishing service.')}>
-            <View style={s.row}><Ionicons name="image-outline" size={22} color={C.accent}/><Text style={s.ghostText}>Media</Text></View>
-          </Pressable>
-          <Pressable accessibilityRole="button" disabled={!draft.trim()} onPress={()=>setDraftPreview(true)}
-            style={[s.cta,!draft.trim()&&{opacity:0.5}]}><Text style={s.ctaText}>Preview {createMode.toLowerCase()}</Text></Pressable>
-        </View>
-      </View>
-      {draftPreview ? <View style={[s.card,s.pad]}><Text style={s.small}>PRIVATE {createMode.toUpperCase()}</Text><Text style={s.body}>{draft}</Text></View> : null}
     </>;
   }
 
@@ -677,15 +659,27 @@ export default function App(): React.JSX.Element {
           </View>
         ) : (
           <>
-            <ScrollView style={s.scroll} contentContainerStyle={screen === 'Home' ? { paddingBottom: 24 } : s.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} key={screen}>
-              {screen === 'Home' ? renderHome() : null}
-              {screen === 'Reels' ? renderReels() : null}
-              {screen === 'Create' ? renderCreate() : null}
-              {screen === 'Clubs' ? renderClubs() : null}
-              {screen === 'Shop' ? renderShop() : null}
-              {screen === 'Profile' ? renderProfile() : null}
-              {screen === 'Messages' ? renderMessages() : null}
-            </ScrollView>
+            {pageScrollEnabled ? (
+              <ScrollView nativeID="social-page-scroll" style={s.scroll}
+                contentContainerStyle={screen === 'Home' ? { paddingBottom: 24 } : s.content}
+                keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}
+                overScrollMode="never" bounces={false} key={screen}>
+                {screen === 'Home' ? renderHome() : null}
+                {screen === 'Clubs' ? renderClubs() : null}
+                {screen === 'Shop' ? renderShop() : null}
+                {screen === 'Profile' ? renderProfile() : null}
+              </ScrollView>
+            ) : screen === 'Create' ? (
+              <CreateComposer initialMode={createMode} />
+            ) : screen === 'Reels' ? (
+              <View testID="fixed-reels-screen" style={[s.content, { flex: 1, minHeight: 0, paddingBottom: 12 }]}>
+                {renderReels()}
+              </View>
+            ) : (
+              <View testID="fixed-messages-screen" style={[s.content,{flex:1,minHeight:0}]}>
+                {renderMessages()}
+              </View>
+            )}
             <BottomTabs screen={screen} onNavigate={navigate} />
           </>
         )}

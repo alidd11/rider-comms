@@ -1,6 +1,7 @@
 /* global document, window, getComputedStyle */
 import { test, expect } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
+import { Buffer } from 'node:buffer';
 
 test('feed switches, hides posts and explains recommendations', async ({ page }, testInfo) => {
   await page.goto('/');
@@ -154,13 +155,56 @@ test('media-first home removes intro and keeps content close to top', async ({ p
   await page.screenshot({ path: 'test-results/screenshots/' + testInfo.project.name + '-feed-first.png' });
 });
 
-test('create flow shows only a private draft preview and no publishing control', async ({ page }) => {
+test('device media selection, review and text-only draft are usable without publishing', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('tab', { name: 'Create' }).click();
-  await expect(page.getByText('Built for safer sharing')).toHaveCount(0);
-  await page.getByRole('textbox', { name: 'Post draft' }).fill('Saturday meet preview');
-  await page.getByRole('button', { name: 'Preview post' }).click();
-  await expect(page.getByText('Saturday meet preview').last()).toBeVisible();
-  await expect(page.getByText('PRIVATE POST')).toBeVisible();
+  await expect(page.getByText('New post')).toBeVisible();
+
+  const [chooser] = await Promise.all([
+    page.waitForEvent('filechooser'),
+    page.getByRole('button', { name: 'Choose from library' }).click()
+  ]);
+  await chooser.setFiles({
+    name: 'my-bike.png', mimeType: 'image/png',
+    buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO/jVf8AAAAASUVORK5CYII=', 'base64')
+  });
+  await expect(page.getByText('Edit post')).toBeVisible();
+  await expect(page.getByText('my-bike.png')).toBeVisible();
+  await page.getByRole('textbox', { name: 'Create caption' }).fill('Saturday meet preview');
+  await page.getByRole('button', { name: 'Review post' }).click();
+  await expect(page.getByText('Not published')).toBeVisible();
+  await expect(page.getByText('Saturday meet preview')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Publish' })).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Save text draft' }).click();
+  await expect(page.getByText(/Media is not saved/)).toBeVisible();
+  await page.reload();
+  await page.getByRole('tab', { name: 'Create' }).click();
+  await expect(page.getByText('Text draft restored. Select media again.')).toBeVisible();
+  await expect(page.getByText('New post')).toBeVisible();
+});
+
+test('fixed shell only scrolls the feed and content directories, never Reels or Messages', async ({ page }) => {
+  await page.goto('/');
+  const initial = await page.evaluate(() => ({
+    bodyOverflow: getComputedStyle(document.body).overflow,
+    pageScroll: document.getElementById('social-page-scroll')?.scrollHeight ?? 0,
+    pageHeight: document.getElementById('social-page-scroll')?.clientHeight ?? 0,
+    docOverflow: (document.scrollingElement?.scrollHeight ?? 0) - document.documentElement.clientHeight
+  }));
+  expect(initial.bodyOverflow).toBe('hidden');
+  expect(initial.pageScroll).toBeGreaterThan(initial.pageHeight);
+  expect(initial.docOverflow).toBeLessThanOrEqual(2);
+  await page.getByRole('tab', { name: 'Reels' }).click();
+  await expect(page.getByTestId('fixed-reels-screen')).toBeVisible();
+  await expect(page.locator('#social-page-scroll')).toHaveCount(0);
+  await expect(page.getByRole('tab', { name: 'Reels' })).toBeVisible();
+  await page.getByRole('button', { name: 'Open messages' }).click();
+  await expect(page.getByTestId('fixed-messages-screen')).toBeVisible();
+  await expect(page.locator('#social-page-scroll')).toHaveCount(0);
+  await page.getByRole('tab', { name: 'Clubs' }).click();
+  await expect(page.locator('#social-page-scroll')).toHaveCount(1);
+  await page.getByRole('tab', { name: 'Create' }).click();
+  await expect(page.locator('#social-page-scroll')).toHaveCount(0);
+  await expect(page.getByTestId('composer-scroll')).toBeVisible();
 });

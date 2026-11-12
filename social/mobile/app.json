@@ -27,6 +27,16 @@
       "name": "Social — Development",
       "shortName": "Social Dev",
       "bundler": "metro"
-    }
+    },
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Social Preview to select photos and videos you choose.",
+          "cameraPermission": "Allow Social Preview to use the camera when you select Camera.",
+          "microphonePermission": false
+        }
+      ]
+    ]
   }
 }

@@ -26,7 +26,8 @@ const edgeToEdgeStyle = `<style id="social-edge-to-edge">
     padding: 0;
     background: #080D13 !important;
   }
-  html, body { overflow-x: hidden; }
+  html, body, #root { overflow: hidden; overscroll-behavior: none; }
+  #social-page-scroll, #composer-scroll { overscroll-behavior-y: contain; }
   @supports (height: 100dvh) {
     html, body, #root { height: 100dvh; min-height: 100dvh; }
   }
