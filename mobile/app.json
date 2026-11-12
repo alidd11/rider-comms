@@ -13,8 +13,9 @@
           "android": {
             "compileSdkVersion": 37,
             "targetSdkVersion": 36,
-            "enableMinifyInReleaseBuilds": false,
-            "enableShrinkResourcesInReleaseBuilds": false
+            "enableMinifyInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true,
+            "extraProguardRules": "# R8 once stripped WorkManager's Room database, which Android loads by name, and the app crashed at launch.\n-keep class androidx.work.** { *; }\n-keep class androidx.room.** { *; }\n-keep class * extends androidx.room.RoomDatabase { *; }\n-keep class **_Impl { *; }\n# WebRTC and LiveKit cross the JNI boundary by class and method name.\n-keep class org.webrtc.** { *; }\n-keep class com.oney.WebRTCModule.** { *; }\n-keep class io.livekit.** { *; }\n-keep class livekit.** { *; }\n-dontwarn org.webrtc.**\n# WebRTC 150 refers to a JNI helper class it does not ship.\n-dontwarn livekit.org.jni_zero.**"
           }
         }
       ],
@@ -45,7 +46,12 @@
       "expo-status-bar",
       "react-native-maps",
       "expo-live-activity",
-      "expo-iap",
+      [
+        "expo-iap",
+        {
+          "android": { "store": "play" }
+        }
+      ],
       [
         "expo-notifications",
         {
@@ -54,6 +60,7 @@
       ],
       "./plugins/withAndroidVoiceForegroundService",
       "./plugins/withoutBackgroundFetch",
+      "./plugins/withAndroidThemeColors",
       [
         "expo-splash-screen",
         {
@@ -74,6 +81,7 @@
         "NSMicrophoneUsageDescription": "Rider Comms uses your microphone for hands-free voice chat with your group and nearby riders while you ride.",
         "NSLocalNetworkUsageDescription": "Rider Comms checks your network connections to find the best route for voice chat. It doesn't look for or connect to other devices on your network.",
         "NSPhotoLibraryUsageDescription": "Rider Comms doesn't use your photo library.",
+        "NSContactsUsageDescription": "Rider Comms doesn't use your contacts.",
         "UIBackgroundModes": [
           "audio",
           "location"

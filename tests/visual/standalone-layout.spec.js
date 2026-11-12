@@ -44,8 +44,15 @@ test('PWA utility viewport paints safe areas as one edge-to-edge canvas', async 
 test('installed PWA asks for a portrait lock where the browser allows one; a tab does not', async ({ page }) => {
   const stubLock = () => {
     window.lockCalls = [];
-    const orientation = window.screen.orientation;
-    if (orientation) orientation.lock = (value) => { window.lockCalls.push(value); return Promise.reject(new Error('not supported here')); };
+    const lock = (value) => { window.lockCalls.push(value); return Promise.reject(new Error('not supported here')); };
+    // On the prototype where there is one; a browser build without the
+    // Screen Orientation API gets a minimal one, so the test checks the
+    // app's own decision (installed or not), not the engine's API surface.
+    if (window.ScreenOrientation?.prototype) {
+      Object.defineProperty(window.ScreenOrientation.prototype, 'lock', { configurable: true, writable: true, value: lock });
+    } else {
+      Object.defineProperty(window.screen, 'orientation', { configurable: true, value: { type: 'portrait-primary', angle: 0, lock, addEventListener() {}, removeEventListener() {} } });
+    }
   };
   await mockAuthenticatedApi(page);
   await page.addInitScript(stubLock);

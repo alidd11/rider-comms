@@ -18,7 +18,7 @@ import { RideBar } from '../ride/RideBar';
 import type { RootStackParamList } from '../navigation';
 import { useAuth } from '../auth/AuthContext';
 import { RiderAvatar } from '../components/RiderAvatar';
-import type { AccountSessionSummary } from '../api/client';
+import { ApiError, type AccountSessionSummary } from '../api/client';
 import { NAVIGATION_PROVIDER_OPTIONS, type NavigationProvider } from '../navigationPreference';
 import { CategoryRow, CheckRow, InfoRow, PlainRow, SegmentedRow, SettingsGroup, SettingsHeader, SwitchRow, useSettingsPalette } from './SettingsListUi';
 import { RIDER_VEHICLE_GROUPS, RIDER_VEHICLE_OPTIONS, riderVehicleLabel } from '../riderPreferences';
@@ -512,7 +512,12 @@ function NotificationsPage(): React.JSX.Element {
         setDeviceOn(false);
       }
     } catch (error) {
-      Alert.alert('Couldn’t change notifications', error instanceof PushNotConfiguredError ? error.message : 'Check your connection and try again.');
+      // 409: the server keeps a device with the rider still signed in on it (PWA: wirePushDeviceToggle).
+      Alert.alert('Couldn’t change notifications', error instanceof PushNotConfiguredError
+        ? error.message
+        : error instanceof ApiError && error.status === 409
+          ? 'These notifications are linked to another Rider Comms account that’s still signed in on this device. Sign out of it, then try again.'
+          : 'Check your connection and try again.');
     } finally {
       setBusy(false);
     }
