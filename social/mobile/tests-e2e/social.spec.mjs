@@ -1,3 +1,4 @@
+/* global document, window, getComputedStyle */
 import { test, expect } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 
