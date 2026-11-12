@@ -256,6 +256,13 @@ export default function App(): React.JSX.Element {
       const event = demoEvents.find((e) => e.id === item.id);
       return event ? [event] : [];
     }), [viewer]);
+  // Saved items and preview basket must not disappear when discovery search/category changes.
+  // Keep the same merchant/policy eligibility checks as the discovery ranking.
+  const availableListings = useMemo(() =>
+    rankMarketplace(listingCandidates, viewer, '').flatMap(({ item }) => {
+      const listing = demoListings.find(candidate => candidate.id === item.id);
+      return listing ? [listing] : [];
+    }), [viewer]);
   const filteredListings = useMemo(() =>
     rankMarketplace(listingCandidates, viewer, search).map(({ item }) => item.id)
       .flatMap((id) => {
@@ -552,7 +559,7 @@ export default function App(): React.JSX.Element {
   }
 
   function renderShop() {
-    return <ShopScreen items={filteredListings} search={search} onSearch={setSearch}
+    return <ShopScreen items={filteredListings} collectionItems={availableListings} search={search} onSearch={setSearch}
       category={marketFilter} onCategory={setMarketFilter}
       onOpenProfile={() => navigate('Profile')}/>;
   }
