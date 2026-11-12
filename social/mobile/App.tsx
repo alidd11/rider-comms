@@ -2,7 +2,7 @@ import '@expo/metro-runtime';
 import React, { useMemo, useState } from 'react';
 import { ScrollView, StatusBar, Pressable, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { C, s } from './src/styles';
 import { rankForYou, rankFollowing, rankReels, rankClubs, rankEvents, rankMarketplace, explainReason, noViewer } from './src/recommendations';
 import type { Content, Viewer, Topic, RankReason } from './src/recommendations';
@@ -468,6 +468,7 @@ export default function App(): React.JSX.Element {
   const story = demoStories.find((item) => item.id === selectedStory);
 
   return (
+    <SafeAreaProvider>
     <SafeAreaView style={s.safe}>
       <StatusBar barStyle="light-content" />
       <View style={s.root}>
@@ -518,5 +519,6 @@ export default function App(): React.JSX.Element {
         )}
       </View>
     </SafeAreaView>
+    </SafeAreaProvider>
   );
 }
