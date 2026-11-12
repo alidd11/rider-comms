@@ -45,7 +45,7 @@ function ReelActionButton({
 }) {
   return <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress}
     style={{ alignItems: 'center', gap: 4, minWidth: 43, minHeight: 46, justifyContent: 'center' }}>
-    <Ionicons name={icon} size={27} color={active ? '#5CE4C1' : '#F7F8F9'} />
+    <Ionicons name={icon} size={27} color={active ? '#5CE4C1' : '#F7F8F9'} style={reelTextShadow} />
   </Pressable>;
 }
 
@@ -185,11 +185,13 @@ export function ReelsScreen({ items, followedAuthors, onToggleFollow, onOpenComm
                     style={[{ color: '#FFFFFF', fontSize: 14, fontWeight: '700', lineHeight: 20 }, reelTextShadow]}>
                     {reel.title} · {reel.category.toLowerCase()}
                   </Text>
-                  <Pressable accessibilityRole="button"
-                    accessibilityLabel={expanded.has(reel.id) ? 'Collapse Reel caption' : 'Expand Reel caption'}
-                    onPress={() => toggle(setExpanded, reel.id)}>
-                    <Text style={[{ color: '#FFFFFF', fontSize: 12, fontWeight: '700' }, reelTextShadow]}>{expanded.has(reel.id) ? 'Less' : 'More'}</Text>
-                  </Pressable>
+                  {(reel.title + ' · ' + reel.category.toLowerCase()).length > 82 ? (
+                    <Pressable accessibilityRole="button"
+                      accessibilityLabel={expanded.has(reel.id) ? 'Collapse Reel caption' : 'Expand Reel caption'}
+                      onPress={() => toggle(setExpanded, reel.id)}>
+                      <Text style={[{ color: '#FFFFFF', fontSize: 12, fontWeight: '700' }, reelTextShadow]}>{expanded.has(reel.id) ? 'Less' : 'More'}</Text>
+                    </Pressable>
+                  ) : null}
                   <Pressable accessibilityRole="button" accessibilityLabel={'View garage for ' + reel.handle}
                     onPress={() => onOpenCreator(reel.authorId)}>
                     <Text style={[{ color: '#D7FFF3', fontWeight: '800', fontSize: 12 }, reelTextShadow]}>View garage & build</Text>
@@ -221,7 +223,7 @@ export function ReelsScreen({ items, followedAuthors, onToggleFollow, onOpenComm
         <Text style={[{ color: '#FFFFFF', fontWeight: '800', fontSize: 20 }, reelTextShadow]}>Reels</Text>
         <Pressable accessibilityRole="button" accessibilityLabel="Create Reel"
           onPress={onCreateReel} style={{ minWidth: 40, minHeight: 40, alignItems: 'center', justifyContent: 'center' }}>
-          <Ionicons name="camera-outline" size={26} color="#FFFFFF" />
+          <Ionicons name="camera-outline" size={26} color="#FFFFFF" style={reelTextShadow} />
         </Pressable>
       </View>
       {notice ? <Pressable nativeID="social-reels-notice" accessibilityRole="button" accessibilityLabel="Dismiss Reel notice"
@@ -239,12 +241,12 @@ export function ReelsScreen({ items, followedAuthors, onToggleFollow, onOpenComm
         <Pressable accessibilityRole="button" accessibilityLabel="Previous Reel" disabled={activeIndex <= 0}
           onPress={() => moveTo(activeIndex - 1)}
           style={{ width: 34, height: 34, justifyContent: 'center', alignItems: 'center', opacity: activeIndex <= 0 ? 0.3 : 0.82 }}>
-          <Ionicons name="chevron-up" size={22} color="#FFFFFF" />
+          <Ionicons name="chevron-up" size={22} color="#FFFFFF" style={reelTextShadow} />
         </Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel="Next Reel" disabled={activeIndex >= items.length - 1}
           onPress={() => moveTo(activeIndex + 1)}
           style={{ width: 34, height: 34, justifyContent: 'center', alignItems: 'center', opacity: activeIndex >= items.length - 1 ? 0.3 : 0.82 }}>
-          <Ionicons name="chevron-down" size={22} color="#FFFFFF" />
+          <Ionicons name="chevron-down" size={22} color="#FFFFFF" style={reelTextShadow} />
         </Pressable>
       </View> : null}
     </View>
