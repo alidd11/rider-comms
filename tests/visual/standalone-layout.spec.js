@@ -374,6 +374,10 @@ test('@viewport standalone canvas, navigation and scroll geometry remain coheren
     await expect(screen).toBeVisible();
 
     if (name === 'friends') {
+      // The list is replaced when friends arrive; pad it only after that,
+      // or the padding (and the row this test scrolls to) is swapped out.
+      await expect(page.locator('#friendList')).toHaveAttribute('aria-busy', 'false');
+      await expect(page.locator('#friendList .friend-row').first()).toBeVisible();
       await page.evaluate(() => {
         const list = document.querySelector('#friendList');
         const source = list?.firstElementChild;
