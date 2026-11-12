@@ -212,6 +212,7 @@ export function CameraCapture({ mode, onCapture, onLibrary, onClose, disabled }:
           {([15, 60] as const).map(limit => <Pressable key={limit} accessibilityRole="button"
             accessibilityLabel={String(limit) + ' seconds'}
             accessibilityState={{ selected: recordLimit === limit }}
+            aria-pressed={recordLimit === limit}
             disabled={recording}
             onPress={() => setRecordLimit(limit)}>
             <Text style={{ color: recordLimit === limit ? WHITE : '#AEB2B9',
