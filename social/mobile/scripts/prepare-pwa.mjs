@@ -69,6 +69,21 @@ const edgeToEdgeStyle = `<style id="social-edge-to-edge">
     padding-right: env(safe-area-inset-right, 0px) !important;
     padding-left: env(safe-area-inset-left, 0px) !important;
   }
+  /* Reels video paints behind the Dynamic Island; only floating UI is inset.
+     The :has selector scopes this exception to Reels (not Home, Create or Shop).
+     No translated or artificially extended viewport: media truly starts at y=0. */
+  #social-screen:has(#social-reels-viewport) {
+    padding-top: 0 !important;
+  }
+  #social-reels-top-controls {
+    padding-top: calc(env(safe-area-inset-top, 0px) + 13px) !important;
+  }
+  #social-reels-notice {
+    top: calc(env(safe-area-inset-top, 0px) + 71px) !important;
+  }
+  #social-reels-swipe-buttons {
+    top: calc(env(safe-area-inset-top, 0px) + 72px) !important;
+  }
   #social-create-studio {
     padding-bottom: max(13px, var(--bottom-safe-area, env(safe-area-inset-bottom, 0px))) !important;
   }
