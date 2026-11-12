@@ -1,15 +1,22 @@
 // Native results are rendered list-first, then the selected place is focused
 // on the react-native-maps surface. Place search goes through the Rider Comms
-// backend (`POST /places/search` and `/places/nearby`), which holds the Google
-// Places key server-side and rate-limits per rider. The app bundle carries no
-// Places credential, the same model as in-app routing's `/directions` proxy.
+// backend, which holds the Google Places key server-side and rate-limits per
+// rider; the app bundle carries no Places credential, the same model as
+// in-app routing's `/directions` proxy.
+// - Typing: `/places/autocomplete` suggestions within one search session,
+//   then `/places/details` for the pick, which ends the session (the web app
+//   does the same with the Maps JavaScript API).
+// - Category chips: `/places/nearby`, which returns full places.
 import { haversineMeters } from '@rider-comms/shared';
 import { ApiError } from './client.ts';
-import type { PlaceSummary, RiderCommsClient } from './client.ts';
+import type { PlaceSuggestionSummary, PlaceSummary, RiderCommsClient } from './client.ts';
 
 const MAX_QUERY_LENGTH = 200;
 export const MIN_PLACE_SEARCH_QUERY_LENGTH = 2;
 export const PLACE_SEARCH_DEBOUNCE_MS = 500;
+/** Suggestions are cheap within a session, so typing gets a quicker answer
+ * (the web app waits 220ms). */
+export const PLACE_SUGGEST_DEBOUNCE_MS = 250;
 const NEARBY_RADIUS_METERS = 5_000;
 
 export interface PlaceResult {
@@ -57,7 +64,7 @@ export function formatPlaceDistance(meters: number, unit: 'mi' | 'km' = 'km'): s
   return `${(meters / 1_000).toFixed(meters < 10_000 ? 1 : 0)} km`;
 }
 
-export type PlacesClient = Pick<RiderCommsClient, 'searchPlaces' | 'searchNearbyPlaces'>;
+export type PlacesClient = Pick<RiderCommsClient, 'searchPlaces' | 'searchNearbyPlaces' | 'suggestPlaces' | 'placeDetails'>;
 
 /**
  * Searches places matching `query`, biased toward `near`, through the backend.
@@ -136,4 +143,91 @@ function mapPlaces(places: unknown[], near: { lat: number; lon: number }): Place
       lon: place.lon,
       distanceMeters: distanceBetweenMeters(near, place),
     }));
+}
+
+export interface PlaceSuggestion {
+  id: string;
+  name: string;
+  address: string;
+  /** From Google, measured from the rider, when it has one. */
+  distanceMeters?: number;
+}
+
+export type PlaceSuggestResult =
+  | { status: 'ok'; suggestions: PlaceSuggestion[] }
+  | { status: PlaceSearchFailure; suggestions: [] };
+
+export type PlaceDetailsResult =
+  | { status: 'ok'; place: PlaceResult }
+  | { status: PlaceSearchFailure };
+
+/** A new search session: suggestions share it, the details call ends it. */
+export function newPlaceSearchSession(random: () => number = Math.random): string {
+  let token = 'rc';
+  for (let index = 0; index < 30; index += 1) token += Math.floor(random() * 16).toString(16);
+  return token;
+}
+
+function isPlaceSuggestion(value: unknown): value is PlaceSuggestionSummary {
+  if (!value || typeof value !== 'object') return false;
+  const suggestion = value as Record<string, unknown>;
+  return typeof suggestion.id === 'string' && suggestion.id.length > 0
+    && typeof suggestion.name === 'string'
+    && typeof suggestion.address === 'string'
+    && (suggestion.distanceMeters === undefined
+      || (typeof suggestion.distanceMeters === 'number' && Number.isFinite(suggestion.distanceMeters) && suggestion.distanceMeters >= 0));
+}
+
+export async function suggestPlaces(
+  query: string,
+  near: { lat: number; lon: number },
+  sessionToken: string,
+  client: PlacesClient,
+): Promise<PlaceSuggestResult> {
+  if (!isSearchQueryValid(query)) return { status: 'ok', suggestions: [] };
+  let response: { suggestions?: unknown };
+  try {
+    response = await client.suggestPlaces(query.trim(), near, sessionToken);
+  } catch (error) {
+    return { status: searchFailureFor(error), suggestions: [] };
+  }
+  if (!response || typeof response !== 'object' || !Array.isArray(response.suggestions)) {
+    return { status: 'provider-error', suggestions: [] };
+  }
+  return {
+    status: 'ok',
+    suggestions: response.suggestions.filter(isPlaceSuggestion).map((suggestion) => ({
+      id: suggestion.id,
+      name: suggestion.name,
+      address: suggestion.address,
+      ...(suggestion.distanceMeters === undefined ? {} : { distanceMeters: suggestion.distanceMeters }),
+    })),
+  };
+}
+
+export async function placeDetails(
+  placeId: string,
+  sessionToken: string,
+  near: { lat: number; lon: number } | null,
+  client: PlacesClient,
+): Promise<PlaceDetailsResult> {
+  let response: { place?: unknown };
+  try {
+    response = await client.placeDetails(placeId, sessionToken);
+  } catch (error) {
+    return { status: searchFailureFor(error) };
+  }
+  const place = response && typeof response === 'object' ? response.place : undefined;
+  if (!isPlaceSummary(place)) return { status: 'provider-error' };
+  return {
+    status: 'ok',
+    place: {
+      id: place.id,
+      name: place.name,
+      address: place.address,
+      lat: place.lat,
+      lon: place.lon,
+      distanceMeters: near ? distanceBetweenMeters(near, place) : 0,
+    },
+  };
 }

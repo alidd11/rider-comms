@@ -10,6 +10,7 @@ export type RateLimitAction =
   | 'hazard_create'
   | 'directions'
   | 'places'
+  | 'place_suggestions'
   | 'client_error'
   | 'presence'
   | 'verification_resend'
@@ -48,6 +49,9 @@ export const RATE_LIMIT_POLICIES: Readonly<Record<RateLimitAction, RateLimitPoli
   // (500ms) and caches repeats in memory, so this bounds a scripted client
   // without getting in the way of a rider browsing a few categories/queries.
   places: { maxEvents: 120, windowMs: 10 * 60_000 },
+  // Search-as-you-type suggestions: one per pause in typing, cheap within a
+  // session that ends in one Place Details call (counted under places).
+  place_suggestions: { maxEvents: 400, windowMs: 10 * 60_000 },
   // Crash reports per client address: enough for a crash loop to be visible
   // in the logs without letting one client flood them.
   client_error: { maxEvents: 30, windowMs: 10 * 60_000 },

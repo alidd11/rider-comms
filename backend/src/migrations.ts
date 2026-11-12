@@ -898,4 +898,16 @@ export const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS push_subscriptions_session_idx ON push_subscriptions (session_token_hash);
     `,
   },
+  {
+    // Search-as-you-type suggestions get their own rate limit (cheap,
+    // frequent), separate from billed place searches and details.
+    name: '0052_rate_limit_place_suggestions',
+    sql: `
+      ALTER TABLE rate_limit_events DROP CONSTRAINT IF EXISTS rate_limit_events_action_check;
+      ALTER TABLE rate_limit_events ADD CONSTRAINT rate_limit_events_action_check
+        CHECK (
+          action IN ('auth', 'auth_account', 'signup_ip', 'api', 'ride_join_rider', 'ride_join_ip', 'hazard_create', 'directions', 'places', 'place_suggestions', 'client_error', 'presence', 'verification_resend', 'password_reset_request', 'password_reset_account', 'billing_verify', 'ride_create', 'hideout_create')
+        );
+    `,
+  },
 ];

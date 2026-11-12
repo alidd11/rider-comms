@@ -9,8 +9,8 @@ import { configureErrorAlerts, ErrorAlerter, flushErrorAlerts, reportOperational
 import { DEFAULT_PUBLIC_APP_URL, sendOperationalEmail } from './email.ts';
 import { SITE_CHECK_INTERVAL_MS, SiteMonitor } from './siteMonitor.ts';
 import { createShutdown, errorMessage, installCrashHandlers, runMaintenance, scheduleMaintenance } from './processLifecycle.ts';
-import { fetchGooglePlaces } from './placesProvider.ts';
-import type { PlaceSearchRequest, PlaceSummary } from './placesProvider.ts';
+import { fetchGooglePlaceDetails, fetchGooglePlaces, fetchGooglePlaceSuggestions } from './placesProvider.ts';
+import type { PlaceAutocompleteRequest, PlaceSearchRequest, PlaceSuggestion, PlaceSummary } from './placesProvider.ts';
 import { AuthStore } from './authStore.ts';
 import { RideStore } from './rideStore.ts';
 import type { RideMemberLocation } from './rideStore.ts';
@@ -90,6 +90,8 @@ export interface ApiServerOptions {
   directionsProvider?: DirectionsProvider;
   directionsCache?: Pick<DirectionsCache, 'get' | 'set'>;
   placesProvider?: (request: PlaceSearchRequest) => Promise<PlaceSummary[]>;
+  placeSuggestionsProvider?: (request: PlaceAutocompleteRequest) => Promise<PlaceSuggestion[]>;
+  placeDetailsProvider?: (placeId: string, sessionToken: string) => Promise<PlaceSummary>;
   socialRateLimitStore?: Pick<SocialRateLimitStore, 'consume'>;
   socialActivityStore?: Pick<SocialActivityStore, 'touch' | 'getFriendActivity'>;
   socialEventStore?: Pick<SocialEventStore, 'waitForEvents'> & Partial<Pick<SocialEventStore, 'close'>>;
@@ -204,6 +206,8 @@ export function createApp(options: CreateAppOptions = {}): http.Server {
     directionsCache,
   );
   const placesProvider = options.placesProvider ?? ((request: PlaceSearchRequest) => fetchGooglePlaces(request));
+  const placeSuggestionsProvider = options.placeSuggestionsProvider ?? ((request: PlaceAutocompleteRequest) => fetchGooglePlaceSuggestions(request));
+  const placeDetailsProvider = options.placeDetailsProvider ?? ((placeId: string, sessionToken: string) => fetchGooglePlaceDetails(placeId, sessionToken));
   const revokeRideVoiceParticipants = async (rideId: string, riderIds: Iterable<string>): Promise<void> => {
     const revokeRideParticipant = liveKitRoomAdmin?.revokeRideParticipant;
     if (!revokeRideParticipant) return;
@@ -258,7 +262,7 @@ export function createApp(options: CreateAppOptions = {}): http.Server {
     rideStore, pushStore, pushNotifier, presenceStore, profileStore, friendStore, messageStore, hideoutStore, authStore,
     moderationStore, adminStatsStore, hazardStore, scenicRouteStore, billingStore, accountDeletionStore, rateLimitStore,
     socialRateLimitStore, socialActivityStore, socialEventStore, readinessCheck, directionsProvider,
-    placesProvider, liveKitCredentials, revokeRideVoiceParticipants, revokeProximityVoiceParticipants,
+    placesProvider, placeSuggestionsProvider, placeDetailsProvider, liveKitCredentials, revokeRideVoiceParticipants, revokeProximityVoiceParticipants,
     visibleRideLocationsFor,
   };
   const app = http.createServer(async (req, res) => {

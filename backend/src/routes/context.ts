@@ -10,7 +10,7 @@ import type { LiveKitCredentials } from '../liveKitToken.ts';
 import type { MessageStore } from '../messageStore.ts';
 import type { ModerationStore } from '../moderationStore.ts';
 import type { AdminStatsStore } from '../adminStatsStore.ts';
-import type { PlaceSearchRequest, PlaceSummary } from '../placesProvider.ts';
+import type { PlaceAutocompleteRequest, PlaceSearchRequest, PlaceSuggestion, PlaceSummary } from '../placesProvider.ts';
 import type { PresenceStore } from '../presenceStore.ts';
 import type { ProfileStore } from '../profileStore.ts';
 import type { PushNotifier } from '../pushNotifier.ts';
@@ -92,6 +92,8 @@ export interface RouteDeps {
   readinessCheck: () => Promise<void>;
   directionsProvider: DirectionsProvider;
   placesProvider: (request: PlaceSearchRequest) => Promise<PlaceSummary[]>;
+  placeSuggestionsProvider: (request: PlaceAutocompleteRequest) => Promise<PlaceSuggestion[]>;
+  placeDetailsProvider: (placeId: string, sessionToken: string) => Promise<PlaceSummary>;
   liveKitCredentials: LiveKitCredentials | null | undefined;
   revokeRideVoiceParticipants: (rideId: string, riderIds: Iterable<string>) => Promise<void>;
   revokeProximityVoiceParticipants: (riderA: string, riderB: string) => Promise<void>;

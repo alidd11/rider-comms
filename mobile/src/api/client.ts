@@ -33,6 +33,13 @@ export interface RideResponse { rideId: string; createdBy: string; createdAt: nu
 export interface RideMemberLocation { riderId: string; lat: number; lon: number; updatedAt: number }
 export interface PresenceResponse { inZoneWith: string[]; transitions: Array<{ a: string; b: string; type: 'entered' | 'left' }>; radiusMiles: number }
 export interface PlaceSummary { id: string; name: string; address: string; lat: number; lon: number }
+
+export interface PlaceSuggestionSummary {
+  id: string;
+  name: string;
+  address: string;
+  distanceMeters?: number;
+}
 export interface VoiceTokenResponse { token: string; url: string }
 export interface ProximityVoiceConnection extends VoiceTokenResponse { peerId: string }
 export interface ProximityVoiceResponse { connections: ProximityVoiceConnection[]; refreshAfterMs: number; authorizationLeaseMs: number }
@@ -122,6 +129,14 @@ export class RiderCommsClient {
   }
   searchNearbyPlaces(includedTypes: readonly string[], near: RouteCoordinate): Promise<{ places: PlaceSummary[] }> {
     return this.request('POST', '/places/nearby', { includedTypes, near: { lat: near.lat, lon: near.lon } });
+  }
+  /** Search as you type: suggestions within one search session. */
+  suggestPlaces(input: string, near: RouteCoordinate, sessionToken: string): Promise<{ suggestions: PlaceSuggestionSummary[] }> {
+    return this.request('POST', '/places/autocomplete', { input, near: { lat: near.lat, lon: near.lon }, sessionToken });
+  }
+  /** The place a rider picked from suggestions; this ends the session. */
+  placeDetails(placeId: string, sessionToken: string): Promise<{ place: PlaceSummary }> {
+    return this.request('POST', '/places/details', { placeId, sessionToken });
   }
   getRideVoiceToken(rideId: string): Promise<VoiceTokenResponse> { return this.request('POST', '/voice/token', { target: 'ride', rideId }); }
   getChannelVoiceToken(): Promise<ProximityVoiceResponse> { return this.request('POST', '/voice/token', { target: 'channel' }); }

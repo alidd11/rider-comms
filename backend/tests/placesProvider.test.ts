@@ -1,8 +1,12 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  fetchGooglePlaceDetails,
   fetchGooglePlaces,
+  fetchGooglePlaceSuggestions,
+  normalizePlaceId,
   normalizePlaceQuery,
+  normalizeSessionToken,
   normalizePlaceTypes,
   PlacesProviderError,
 } from '../src/placesProvider.ts';
@@ -150,5 +154,87 @@ describe('Google places provider', () => {
     assert.equal(normalizePlaceTypes(['Cafe']), null);
     assert.equal(normalizePlaceTypes(['cafe; DROP']), null);
     assert.equal(normalizePlaceTypes('cafe'), null);
+  });
+});
+
+describe('Google place suggestions and details', () => {
+  const sessionToken = 'session-0123456789';
+
+  it('asks Autocomplete with the session token, biased and measured from the rider', async () => {
+    let requestedUrl = '';
+    let requestInit: RequestInit | undefined;
+    const fetchImpl = (async (url: string | URL | Request, init?: RequestInit) => {
+      requestedUrl = String(url);
+      requestInit = init;
+      return jsonResponse(200, {
+        suggestions: [
+          { placePrediction: { placeId: 'abc_1', text: { text: 'Ace Cafe, London' }, structuredFormat: { mainText: { text: 'Ace Cafe' }, secondaryText: { text: 'North Circular Rd' } }, distanceMeters: 1200 } },
+          { placePrediction: { placeId: 'only-text', text: { text: 'Somewhere' } } },
+          { placePrediction: { placeId: 'bad id!' } },
+          { queryPrediction: { text: { text: 'cafes near me' } } },
+          null,
+        ],
+      });
+    }) as typeof fetch;
+
+    const suggestions = await fetchGooglePlaceSuggestions({ input: 'ace', near, sessionToken }, { apiKey: 'server-secret', fetchImpl });
+
+    assert.equal(requestedUrl, 'https://places.googleapis.com/v1/places:autocomplete');
+    assert.equal((requestInit?.headers as Record<string, string>)['X-Goog-Api-Key'], 'server-secret');
+    const body = JSON.parse(String(requestInit?.body)) as Record<string, unknown>;
+    assert.equal(body.input, 'ace');
+    assert.equal(body.sessionToken, sessionToken);
+    assert.deepEqual(body.origin, { latitude: 51.5, longitude: -0.1 });
+    assert.deepEqual(suggestions, [
+      { id: 'abc_1', name: 'Ace Cafe', address: 'North Circular Rd', distanceMeters: 1200 },
+      { id: 'only-text', name: 'Somewhere', address: '' },
+    ]);
+  });
+
+  it('closes the session with one details call for the chosen place', async () => {
+    let requestedUrl = '';
+    let requestInit: RequestInit | undefined;
+    const fetchImpl = (async (url: string | URL | Request, init?: RequestInit) => {
+      requestedUrl = String(url);
+      requestInit = init;
+      return jsonResponse(200, { id: 'abc_1', displayName: { text: 'Ace Cafe' }, formattedAddress: 'North Circular Rd', location: { latitude: 51.541, longitude: -0.277 } });
+    }) as typeof fetch;
+
+    const place = await fetchGooglePlaceDetails('abc_1', sessionToken, { apiKey: 'server-secret', fetchImpl });
+
+    assert.equal(requestedUrl, `https://places.googleapis.com/v1/places/abc_1?sessionToken=${sessionToken}`);
+    assert.equal(requestInit?.method, 'GET');
+    assert.equal((requestInit?.headers as Record<string, string>)['X-Goog-FieldMask'], 'id,displayName,formattedAddress,location');
+    assert.deepEqual(place, { id: 'abc_1', name: 'Ace Cafe', address: 'North Circular Rd', lat: 51.541, lon: -0.277 });
+  });
+
+  it('rejects bad input before calling Google and maps failures to error codes', async () => {
+    const neverCalled = (async () => { throw new Error('should not be called'); }) as typeof fetch;
+    await assertProviderError(fetchGooglePlaceSuggestions({ input: 'a', near, sessionToken }, { apiKey: 'k', fetchImpl: neverCalled }), 'places_invalid_request');
+    await assertProviderError(fetchGooglePlaceSuggestions({ input: 'ace', near, sessionToken: 'x' }, { apiKey: 'k', fetchImpl: neverCalled }), 'places_invalid_request');
+    await assertProviderError(fetchGooglePlaceSuggestions({ input: 'ace', near: { lat: 99, lon: 0 }, sessionToken }, { apiKey: 'k', fetchImpl: neverCalled }), 'places_invalid_request');
+    await assertProviderError(fetchGooglePlaceDetails('bad id!', sessionToken, { apiKey: 'k', fetchImpl: neverCalled }), 'places_invalid_request');
+    await assertProviderError(fetchGooglePlaceDetails('abc', sessionToken, { apiKey: '', fetchImpl: neverCalled }), 'places_not_configured');
+
+    const status = (code: number) => (async () => jsonResponse(code, {})) as typeof fetch;
+    await assertProviderError(fetchGooglePlaceSuggestions({ input: 'ace', near, sessionToken }, { apiKey: 'k', fetchImpl: status(429) }), 'places_rate_limited');
+    await assertProviderError(fetchGooglePlaceSuggestions({ input: 'ace', near, sessionToken }, { apiKey: 'k', fetchImpl: status(500) }), 'places_unavailable');
+    await assertProviderError(fetchGooglePlaceSuggestions({ input: 'ace', near, sessionToken }, { apiKey: 'k', fetchImpl: (async () => new Response('not json')) as typeof fetch }), 'places_invalid_response');
+    await assertProviderError(fetchGooglePlaceSuggestions({ input: 'ace', near, sessionToken }, { apiKey: 'k', fetchImpl: (async () => jsonResponse(200, { suggestions: 'nope' })) as typeof fetch }), 'places_invalid_response');
+    assert.deepEqual(await fetchGooglePlaceSuggestions({ input: 'ace', near, sessionToken }, { apiKey: 'k', fetchImpl: (async () => jsonResponse(200, {})) as typeof fetch }), []);
+    await assertProviderError(fetchGooglePlaceDetails('abc', sessionToken, { apiKey: 'k', fetchImpl: (async () => jsonResponse(200, { id: 'abc' })) as typeof fetch }), 'places_invalid_response');
+    await assertProviderError(fetchGooglePlaceDetails('abc', sessionToken, { apiKey: 'k', fetchImpl: (async () => { throw new Error('offline'); }) as typeof fetch }), 'places_unavailable');
+    const slow = ((_url: string | URL | Request, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener('abort', () => reject(new Error('aborted')));
+    })) as typeof fetch;
+    await assertProviderError(fetchGooglePlaceDetails('abc', sessionToken, { apiKey: 'k', fetchImpl: slow, timeoutMs: 5 }), 'places_timeout');
+  });
+
+  it('validates session tokens and place ids', () => {
+    assert.equal(normalizeSessionToken('session-0123456789'), 'session-0123456789');
+    assert.equal(normalizeSessionToken('short'), null);
+    assert.equal(normalizeSessionToken(42), null);
+    assert.equal(normalizePlaceId('ChIJ_abc-123'), 'ChIJ_abc-123');
+    assert.equal(normalizePlaceId('../etc'), null);
   });
 });
