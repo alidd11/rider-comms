@@ -36,6 +36,15 @@
           "cameraPermission": "Allow Social Preview to use the camera when you select Camera.",
           "microphonePermission": false
         }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Social to access the camera for creating posts and Reels.",
+          "microphonePermission": "Allow Social to record sound when you choose to record a Reel.",
+          "recordAudioAndroid": true,
+          "barcodeScannerEnabled": false
+        }
       ]
     ]
   }

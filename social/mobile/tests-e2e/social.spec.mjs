@@ -413,3 +413,22 @@ test('PWA viewport recalculates on rotation and resume without moving bottom tab
     expect(geometry.bottom).toBeLessThanOrEqual(geometry.height + 2);
   }
 });
+
+
+test('Create opens camera-first with a real permission path and gallery alternative', async ({ page }, testInfo) => {
+  await page.goto('/');
+  await page.getByRole('tab', { name: 'Create' }).click();
+  await expect(page.getByTestId('camera-first-studio')).toBeVisible();
+  await expect(page.getByTestId('camera-preview-area')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Choose from library' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Post format' })).toHaveAttribute('aria-selected', 'true');
+  // In a clean headless test browser, a permission prompt is needed. Don't
+  // claim a blank surface is already a functioning camera.
+  await expect(page.getByRole('button', { name: 'Enable camera' })).toBeVisible();
+  await page.getByRole('button', { name: 'Reel format' }).click();
+  await expect(page.getByText('New reel')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Choose from library' })).toBeVisible();
+  await page.getByRole('button', { name: 'Post format' }).click();
+  await mkdir('test-results/screenshots', { recursive: true });
+  await page.screenshot({ path: 'test-results/screenshots/' + testInfo.project.name + '-camera-first-create.png' });
+});

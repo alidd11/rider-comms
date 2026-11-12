@@ -41,3 +41,12 @@ Based on public Meta [Instagram Reels creation documentation](https://about.fb.c
 
 Before release, add a real video timeline, reusable audio rights library, covers, text overlays, non-destructive edit graph, actual media draft persistence with user consent, and a secure multipart upload/resumable transcoding pipeline. Continue visual regression testing on iOS Safari and Android.
 
+
+
+## Camera-first creation (2026-11-12)
+
+- Create lands directly on the camera stage. When permission is already granted, Expo Camera mounts a real live preview. Otherwise the app asks the user to enable camera on a deliberate tap, with an always-visible Gallery alternative. Denied permission shows device/browser settings guidance.
+- The camera-first stage has a large preview, shutter, front/back switch and Post / Story / Reel modes. A captured photo flows into the existing crop/rotate editor and Share details. Native Reel recording supports stop and a 60-second maximum, requesting microphone permission separately at record time.
+- iOS Home Screen PWA camera preview requires OS/browser permission. Automated opening of a first-ever permission prompt may be blocked without an interaction; the explicit Enable camera control handles this correctly.
+- Browser Reel video recording is not falsely advertised as functional: Expo Camera does not provide consistent cross-browser video recording on iOS PWA, so the interface offers choosing a recorded Reel video from Gallery. Do not label this as full TikTok camera parity until web recording, video editing, audio and permissions have passed real-device tests.
+- Camera is mounted only on the Create select stage and unmounts in edit/share or when users leave Create. Media remains a private local preview and is never automatically uploaded.

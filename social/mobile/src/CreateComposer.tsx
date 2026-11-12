@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { VideoView, useVideoPlayer } from 'expo-video';
+import { CameraCapture } from './CameraCapture';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { C, s } from './styles';
 import { cropRect } from './imageEdit';
@@ -152,6 +153,20 @@ export function CreateComposer({ initialMode = 'Post' }: { initialMode?: Compose
     }
   }
 
+  function captureFromCamera(item: Omit<ComposerMedia, 'id'>) {
+    const now = Date.now();
+    const added: ComposerMedia = { ...item, id: 'camera-' + String(now) };
+    const next = mode === 'Post' ? [...media, added] : [added];
+    const validated = validateMedia(mode, next);
+    if (!validated.ok) { setStatus(validated.error); return; }
+    originals.current[added.id] = added;
+    setMedia(validated.value);
+    setActive(next.length - 1);
+    setRatio('original');
+    setStatus(null);
+    setStage('edit');
+  }
+
   function removeSelected() {
     if (!selected) return;
     delete originals.current[selected.id];
@@ -260,37 +275,22 @@ export function CreateComposer({ initialMode = 'Post' }: { initialMode?: Compose
     </Pressable> : null}
 
     {stage === 'select' ? <>
-      <View style={{ flex: 1, minHeight: 0, justifyContent: 'center', paddingHorizontal: 20, gap: 18 }}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Choose from library" disabled={selecting}
-          onPress={() => void chooseMedia()} style={{
-            backgroundColor: '#0E1720', borderRadius: 16, borderWidth: 1, borderColor: C.border,
-            flex: 1, maxHeight: 440, minHeight: 170, alignItems: 'center',
-            justifyContent: 'center', gap: 14, overflow: 'hidden',
-          }}>
-          <Ionicons name="images-outline" color={C.accent} size={50}/>
-          <Text style={{ color: C.ink, fontSize: 17, fontWeight: '900' }}>
-            {selecting ? 'Opening library…' : 'Choose from library'}
+      <CameraCapture mode={mode} disabled={selecting || processing}
+        onCapture={captureFromCamera} onLibrary={() => void chooseMedia()}/>
+      <View style={{
+        borderTopWidth: 1, borderColor: C.border,
+        paddingHorizontal: 15, paddingVertical: 9, gap: 8, backgroundColor: C.bg,
+      }}>
+        {media.length > 0 ? <Pressable accessibilityRole="button" accessibilityLabel="Continue editing"
+          onPress={() => setStage('edit')} style={{ alignItems: 'center', paddingVertical: 7 }}>
+          <Text style={{ color: C.accent, fontSize: 12, fontWeight: '800' }}>
+            Continue editing ({media.length})
           </Text>
-          <Text style={{ color: C.muted, fontSize: 12 }}>
-            {mode === 'Post' ? 'Up to 6 photos or videos' : mode === 'Story' ? 'Photo or video' : 'Select a video'}
-          </Text>
-        </Pressable>
-        {Platform.OS !== 'web' ? <Pressable accessibilityRole="button" accessibilityLabel="Use camera"
-          onPress={() => void chooseMedia(true)} style={s.ghost}>
-          <View style={[s.row, { justifyContent: 'center' }]}>
-            <Ionicons name="camera-outline" size={20} color={C.ink}/>
-            <Text style={s.ghostText}>Open camera</Text>
-          </View>
         </Pressable> : null}
-        {media.length ? <Pressable accessibilityRole="button" accessibilityLabel="Continue editing" onPress={() => setStage('edit')} style={s.cta}>
-          <Text style={s.ctaText}>Continue editing ({media.length})</Text>
-        </Pressable> : null}
-      </View>
-      <View style={{ paddingVertical: 14, borderTopWidth: 1, borderColor: C.border, gap: 11 }}>
-        <View style={[s.row, { justifyContent: 'center', gap: 22 }]}>
+        <View style={[s.row, { justifyContent: 'center', gap: 26 }]}>
           {formats.map(item => <Pressable key={item} accessibilityRole="button" accessibilityLabel={item + ' format'}
             accessibilityState={{ selected: mode === item }} onPress={() => changeMode(item)}
-            style={{ paddingVertical: 8, borderBottomWidth: 2, borderBottomColor: mode === item ? C.accent : 'transparent' }}>
+            style={{ paddingVertical: 7, borderBottomWidth: 2, borderBottomColor: mode === item ? C.accent : 'transparent' }}>
             <Text style={{ color: mode === item ? C.ink : C.muted, fontWeight: '900', fontSize: 14 }}>{item}</Text>
           </Pressable>)}
         </View>
