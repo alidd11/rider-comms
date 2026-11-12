@@ -69,6 +69,9 @@ const edgeToEdgeStyle = `<style id="social-edge-to-edge">
     padding-right: env(safe-area-inset-right, 0px) !important;
     padding-left: env(safe-area-inset-left, 0px) !important;
   }
+  #social-create-studio {
+    padding-bottom: max(13px, var(--bottom-safe-area, env(safe-area-inset-bottom, 0px))) !important;
+  }
   #social-bottom-tabs {
     flex-shrink: 0 !important;
     box-sizing: border-box;
