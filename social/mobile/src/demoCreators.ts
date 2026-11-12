@@ -1,4 +1,4 @@
-import { canEnterPublicDiscovery } from './domain';
+import { canEnterPublicDiscovery } from './domain.ts';
 import type { SocialPost, GalleryItem } from './domain';
 
 /** Fictional preview profiles; never infer these from Rider Comms accounts. */
