@@ -4,19 +4,21 @@ import { mkdir } from 'node:fs/promises';
 
 test('feed switches, hides posts and explains recommendations', async ({ page }, testInfo) => {
   await page.goto('/');
-  await expect(page.getByText('Your world, in motion.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Feed preferences' })).toBeVisible();
   await expect(page.getByText('Members-only event details')).toHaveCount(0);
   await expect(page.getByText('Sunday roads, no rush.')).toBeVisible();
 
+  await page.getByRole('button', { name: 'Post options for Alex Morgan' }).click();
   await page.getByRole('button', { name: 'Why seeing post by Alex Morgan' }).click();
-  await expect(page.getByText(/Demo recommendation/)).toBeVisible();
+  await expect(page.getByText(/Sample recommendation/)).toBeVisible();
   await page.getByRole('button', { name: 'Dismiss notice' }).click();
 
+  await page.getByRole('button', { name: 'Post options for Alex Morgan' }).click();
   await page.getByRole('button', { name: 'Not interested in post by Alex Morgan' }).click();
   await expect(page.getByText('Sunday roads, no rush.')).toHaveCount(0);
 
   await page.getByRole('button', { name: 'Following' }).click();
-  await expect(page.getByText('Sort:')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Newest' })).toBeVisible();
   await page.getByRole('button', { name: 'Newest' }).click();
   await expect(page.getByText('The early start was worth it.')).toBeVisible();
 
@@ -35,7 +37,7 @@ test('clubs, marketplace and profile have independent usable screens', async ({ 
 
   await page.getByRole('tab', { name: 'Shop' }).click();
   await expect(page.getByText('Marketplace')).toBeVisible();
-  await expect(page.getByText('Private sellers are not permitted.', { exact: false })).toBeVisible();
+  await expect(page.getByText('Verified only')).toBeVisible();
   await page.getByRole('textbox', { name: 'Search marketplace' }).fill('bicycle helmet');
   await expect(page.getByText('Road bicycle helmet')).toBeVisible();
   await expect(page.getByText('Touring gloves')).toHaveCount(0);
@@ -83,7 +85,7 @@ test('event detail includes only demo interest, not real RSVP', async ({ page })
   await page.goto('/');
   await page.getByRole('tab', { name: 'Clubs' }).click();
   await page.getByRole('button', { name: 'View event Coffee & Cars' }).click();
-  await expect(page.getByText('The venue and attendance shown are fictional.', { exact: false })).toBeVisible();
+  await expect(page.getByText('Preview event · private details stay protected')).toBeVisible();
   await page.getByRole('button', { name: 'Mark interested in demo event' }).click();
   await expect(page.getByRole('button', { name: 'Remove demo RSVP interest' })).toBeVisible();
   await page.getByRole('button', { name: 'Back to clubs and events' }).click();
@@ -93,7 +95,7 @@ test('event detail includes only demo interest, not real RSVP', async ({ page })
 
 test('iPhone and desktop render true edge-to-edge background with safe content insets', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByText('Your world, in motion.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Feed preferences' })).toBeVisible();
   const geometry = await page.evaluate(() => {
     const viewport = document.querySelector('meta[name="viewport"]')?.getAttribute('content') ?? '';
     const status = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]')?.getAttribute('content') ?? '';
@@ -132,4 +134,33 @@ test('iPhone and desktop render true edge-to-edge background with safe content i
   expect(geometry.tabsBottom).toBeGreaterThanOrEqual(geometry.viewportHeight - 2);
   expect(geometry.screenWidth).toBeGreaterThanOrEqual(geometry.viewportWidth - 2);
   expect(geometry.tabsPaddingBottom).toBeGreaterThanOrEqual(12);
+});
+
+
+test('media-first home removes intro and keeps content close to top', async ({ page }, testInfo) => {
+  await page.goto('/');
+  await expect(page.getByText('Your world, in motion.')).toHaveCount(0);
+  await expect(page.getByText('Visual placeholder · media integration pending')).toHaveCount(0);
+  const media = page.getByTestId('post-media-p1');
+  await expect(media).toBeVisible();
+  const rect = await media.boundingBox();
+  expect(rect).not.toBeNull();
+  expect(rect?.y).toBeLessThan(460);
+  await page.getByRole('button', { name: 'Feed preferences' }).click();
+  await expect(page.getByText('Feed preferences')).toBeVisible();
+  await page.getByRole('button', { name: 'Feed preferences' }).click();
+  await expect(page.getByText('Feed preferences')).toHaveCount(0);
+  await mkdir('test-results/screenshots', { recursive: true });
+  await page.screenshot({ path: 'test-results/screenshots/' + testInfo.project.name + '-feed-first.png' });
+});
+
+test('create flow shows only a private draft preview and no publishing control', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('tab', { name: 'Create' }).click();
+  await expect(page.getByText('Built for safer sharing')).toHaveCount(0);
+  await page.getByRole('textbox', { name: 'Post draft' }).fill('Saturday meet preview');
+  await page.getByRole('button', { name: 'Preview post' }).click();
+  await expect(page.getByText('Saturday meet preview')).toBeVisible();
+  await expect(page.getByText('PRIVATE POST')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Publish' })).toHaveCount(0);
 });

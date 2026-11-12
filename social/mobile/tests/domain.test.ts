@@ -5,7 +5,8 @@ import type { SocialPost } from '../src/domain.ts';
 
 const common = {
   author: 'Creator', handle: '@creator', heading: 'Post', body: 'Test content',
-  category: 'Cars', icon: 'car-sport' as const, accent: '#3868A0'
+  category: 'Cars', icon: 'car-sport' as const, accent: '#3868A0',
+  imageUrl: 'https://example.invalid/example.jpg', imageAlt: 'Demonstration image'
 };
 const posts: SocialPost[] = [
   { ...common, id: 'recent', authorId: 'followed', publishedAt: 30, discoveryScore: 1, audience: 'public' },

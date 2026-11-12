@@ -1,6 +1,6 @@
 import '@expo/metro-runtime';
 import React, { useEffect, useMemo, useState } from 'react';
-import { Platform, ScrollView, StatusBar, Pressable, Text, TextInput, View } from 'react-native';
+import { Image, ImageBackground, Platform, ScrollView, StatusBar, Pressable, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { C, s } from './src/styles';
@@ -42,9 +42,9 @@ const contentCandidates: Content[] = demoPosts.map((post, index) => ({
 }));
 
 const reels = [
-  { id: 'r1', headline: 'The weekend edit', creator: '@nina', theme: '#66433D', icon: 'car-sport' as const },
-  { id: 'r2', headline: 'A road worth sharing', creator: '@alex', theme: '#1B5A63', icon: 'speedometer' as const },
-  { id: 'r3', headline: 'Ride together', creator: '@jules', theme: '#3B664A', icon: 'bicycle' as const },
+  { id: 'r1', headline: 'The weekend edit', creator: '@nina', theme: '#66433D', icon: 'car-sport' as const, imageUrl: 'https://images.unsplash.com/photo-1625932197913-68755c94c51f?auto=format&fit=crop&w=1100&q=82' },
+  { id: 'r2', headline: 'A road worth sharing', creator: '@alex', theme: '#1B5A63', icon: 'speedometer' as const, imageUrl: 'https://images.unsplash.com/photo-1558981806-ec527fa84c39?auto=format&fit=crop&w=1100&q=82' },
+  { id: 'r3', headline: 'Ride together', creator: '@jules', theme: '#3B664A', icon: 'bicycle' as const, imageUrl: 'https://images.unsplash.com/photo-1541625602330-2277b4c461de?auto=format&fit=crop&w=1100&q=82' },
 ];
 
 const reelCandidates: Content[] = reels.map((reel, index) => ({
@@ -144,8 +144,15 @@ function BottomTabs({ screen, onNavigate }: { screen: Screen; onNavigate: (next:
 }
 
 export default function App(): React.JSX.Element {
+  const { width: screenWidth } = useWindowDimensions();
+  const mediaHeight = Math.min(490, Math.max(330, Math.round(screenWidth * 0.94)));
   const [screen, setScreen] = useState<Screen>('Home');
   const [feedMode, setFeedMode] = useState<FeedMode>('forYou');
+  const [feedPreferencesOpen, setFeedPreferencesOpen] = useState(false);
+  const [activePostMenu, setActivePostMenu] = useState<string | null>(null);
+  const [expandedCaptionId, setExpandedCaptionId] = useState<string | null>(null);
+  const [createMode, setCreateMode] = useState<'Post' | 'Story' | 'Reel'>('Post');
+  const [draftPreview, setDraftPreview] = useState(false);
   const [personalisation, setPersonalisation] = useState(true);
   const [hiddenPostIds, setHiddenPostIds] = useState<Set<string>>(() => new Set());
   const [hiddenTopics, setHiddenTopics] = useState<Set<Topic>>(() => new Set());
@@ -279,159 +286,128 @@ export default function App(): React.JSX.Element {
   }
 
   function renderPost(post: SocialPost, reason: RankReason) {
-    return (
-      <View key={post.id} style={s.card}>
-        <View style={s.pad}>
-          <View style={s.rowBetween}>
-            <View style={s.row}>
-              <View style={s.avatar}><Text style={s.avatarText}>{post.author.split(' ').map((v) => v[0]).join('')}</Text></View>
-              <View>
-                <Text style={s.cardHeading}>{post.author}</Text>
-                <Text style={s.small}>{post.handle} · {post.category.toLowerCase()}</Text>
-              </View>
-            </View>
-            <IconButton name="ellipsis-horizontal" label="Post options" onPress={() => banner('Demo preview: moderation and post options are not connected yet.')} />
-          </View>
+    return <View key={post.id} style={s.feedCard}>
+      <View style={s.feedAuthorRow}>
+        <View style={s.row}>
+          <View style={[s.avatar, { backgroundColor: post.accent }]}><Text style={s.avatarText}>{post.author.split(' ').map(v=>v[0]).join('')}</Text></View>
+          <View><Text style={s.cardHeading}>{post.author}</Text><Text style={s.small}>{post.handle} · {post.category.toLowerCase()}</Text></View>
         </View>
-        <View style={[s.media, { backgroundColor: post.accent }]}>
-          <Ionicons name={post.icon} color="#C5F0E5" size={58} />
-          <Text style={s.mediaCategory}>{post.category}</Text>
-          <Text style={s.mediaTitle}>{post.heading}</Text>
-          <Text style={[s.small, { color: '#D3E7E9' }]}>Visual placeholder · media integration pending</Text>
-        </View>
-        <View style={s.pad}>
-          <View style={s.rowBetween}>
-            <View style={s.actions}>
-              <Pressable onPress={() => toggle(setLiked, post.id)} accessibilityRole="button" accessibilityLabel={liked.has(post.id) ? 'Unlike post' : 'Like post'} style={s.row}>
-                <Ionicons name={liked.has(post.id) ? 'heart' : 'heart-outline'} color={liked.has(post.id) ? '#FF8192' : C.ink} size={21} />
-                <Text style={s.actionText}>{liked.has(post.id) ? 'Liked' : 'Like'}</Text>
-              </Pressable>
-              <Pressable onPress={() => banner('Comment threads are planned; not connected to a server.')} accessibilityRole="button" accessibilityLabel="Open comments" style={s.row}>
-                <Ionicons name="chatbubble-outline" color={C.ink} size={20} /><Text style={s.actionText}>Discuss</Text>
-              </Pressable>
-              <Pressable onPress={() => banner('Post sharing is not connected in this prototype.')} accessibilityRole="button" accessibilityLabel="Share post">
-                <Ionicons name="paper-plane-outline" color={C.ink} size={20} />
-              </Pressable>
-            </View>
-            <Pressable onPress={() => toggle(setSaved, post.id)} accessibilityRole="button" accessibilityLabel={saved.has(post.id) ? 'Unsave post' : 'Save post'}>
-              <Ionicons name={saved.has(post.id) ? 'bookmark' : 'bookmark-outline'} color={saved.has(post.id) ? C.accent : C.ink} size={21} />
-            </Pressable>
-          </View>
-          <Text style={s.body}>{post.body}</Text>
-          <View style={s.rowBetween}>
-            <Pressable accessibilityRole="button" accessibilityLabel={'Why seeing post by ' + post.author} onPress={() => banner(explainReason(reason) + ' · Demo recommendation, no personal data collected.')}>
-              <Text style={[s.small, { color: C.accent }]}>Why am I seeing this?</Text>
-            </Pressable>
-            <Pressable accessibilityRole="button" accessibilityLabel={'Not interested in post by ' + post.author} onPress={() => toggle(setHiddenPostIds, post.id)}>
-              <Text style={s.small}>Not interested</Text>
-            </Pressable>
-          </View>
-          <Text style={s.small}>Example content · not published by real users</Text>
-        </View>
+        <IconButton name="ellipsis-horizontal" label={'Post options for ' + post.author} onPress={() => setActivePostMenu(id => id === post.id ? null : post.id)}/>
       </View>
-    );
+      {activePostMenu === post.id ? <View style={s.feedOptions}>
+        <Pressable accessibilityRole="button" accessibilityLabel={'Why seeing post by ' + post.author} onPress={() => { setActivePostMenu(null); banner(explainReason(reason) + ' · Sample recommendation'); }}>
+          <View style={s.row}><Ionicons name="information-circle-outline" color={C.accent} size={20}/><Text style={s.ghostText}>Why this post?</Text></View>
+        </Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel={'Not interested in post by ' + post.author} onPress={() => { setActivePostMenu(null); toggle(setHiddenPostIds, post.id); }}>
+          <View style={s.row}><Ionicons name="eye-off-outline" color={C.muted} size={20}/><Text style={s.ghostText}>Not interested</Text></View>
+        </Pressable>
+      </View> : null}
+      <ImageBackground testID={'post-media-' + post.id} source={{uri:post.imageUrl}} resizeMode="cover" accessibilityLabel={post.imageAlt}
+        style={[s.feedMedia, { height:mediaHeight, backgroundColor:post.accent }]}>
+        <View style={s.feedMediaTag}><Text style={s.feedMediaTagText}>{post.category}</Text></View>
+      </ImageBackground>
+      <View style={s.feedActions}>
+        <View style={[s.row,{gap:20}]}>
+          <Pressable accessibilityRole="button" accessibilityLabel={liked.has(post.id) ? 'Unlike post' : 'Like post'} onPress={() => toggle(setLiked, post.id)}>
+            <Ionicons name={liked.has(post.id)?'heart':'heart-outline'} color={liked.has(post.id)?'#F18E99':C.ink} size={27}/>
+          </Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel="Open comments" onPress={() => banner('Comments are not live yet.')}><Ionicons name="chatbubble-outline" color={C.ink} size={25}/></Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel="Share post" onPress={() => banner('Sharing is not live yet.')}><Ionicons name="paper-plane-outline" color={C.ink} size={25}/></Pressable>
+        </View>
+        <Pressable accessibilityRole="button" accessibilityLabel={saved.has(post.id)?'Unsave post':'Save post'} onPress={() => toggle(setSaved,post.id)}>
+          <Ionicons name={saved.has(post.id)?'bookmark':'bookmark-outline'} color={saved.has(post.id)?C.accent:C.ink} size={25}/>
+        </Pressable>
+      </View>
+      <View style={s.feedCaption}>
+        <Text style={[s.body,{fontWeight:'800'}]}>{post.heading}</Text>
+        <Text style={s.muted} numberOfLines={expandedCaptionId === post.id ? undefined : 1}>{post.body}</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel={expandedCaptionId===post.id?'Show less caption':'Read full caption'}
+          onPress={() => setExpandedCaptionId(id => id===post.id ? null : post.id)}>
+          <Text style={[s.small,{color:C.accent}]}>{expandedCaptionId===post.id?'Less':'More'}</Text>
+        </Pressable>
+      </View>
+    </View>;
   }
 
   function renderHome() {
-    return (
-      <>
-        <View style={{ gap: 6 }}>
-          <Text style={s.eyebrow}>THE COMMUNITY STARTS HERE</Text>
-          <Text style={s.title}>Your world, in motion.</Text>
-          <Text style={s.muted}>Cars, motorcycles, cycling and the people behind them.</Text>
+    return <>
+      <View style={s.feedSwitchBar}>
+        <View style={s.row}>
+          <Pill label="For You" selected={feedMode==='forYou'} onPress={() => setFeedMode('forYou')}/>
+          <Pill label="Following" selected={feedMode==='following'} onPress={() => setFeedMode('following')}/>
         </View>
-        <View style={s.rowBetween}>
-          <Text style={s.sectionTitle}>Stories</Text>
-          <Text style={s.small}>24-hour format · demo</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel="Feed preferences" style={s.compactIcon} onPress={()=>setFeedPreferencesOpen(v=>!v)}>
+          <Ionicons name="options-outline" size={22} color={feedPreferencesOpen?C.accent:C.ink}/>
+        </Pressable>
+      </View>
+      {feedPreferencesOpen ? <View style={[s.card,s.pad,{marginHorizontal:15,marginBottom:8}]}>
+        <View style={s.rowBetween}><Text style={s.cardHeading}>Feed preferences</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel="Toggle personalised recommendations" onPress={()=>setPersonalisation(v=>!v)}>
+            <Text style={{color:C.accent,fontWeight:'800'}}>{personalisation?'Personalised':'Not personalised'}</Text>
+          </Pressable>
         </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 17 }}>
-          {demoStories.map((story) => (
-            <Pressable key={story.id} accessibilityRole="button" accessibilityLabel={'View story by ' + story.name} onPress={() => setSelectedStory(story.id)} style={{ gap: 7, alignItems: 'center' }}>
-              <View style={s.storyCircle}><View style={[s.avatar, { backgroundColor: story.color }]}><Text style={s.avatarText}>{story.initials}</Text></View></View>
-              <Text style={s.small}>{story.name}</Text>
-            </Pressable>
-          ))}
-        </ScrollView>
-        <View style={s.rowBetween}>
-          <View style={s.row}>
-            <Pill label="For You" selected={feedMode === 'forYou'} onPress={() => setFeedMode('forYou')} />
-            <Pill label="Following" selected={feedMode === 'following'} onPress={() => setFeedMode('following')} />
-          </View>
-          <Ionicons name="options-outline" color={C.muted} size={20} />
-        </View>
-        {feedMode === 'following' ? (
-          <View style={s.row}>
-            <Text style={s.small}>Sort:</Text>
-            <Pill label="Newest" selected={followingOrder === 'newest'} onPress={() => setFollowingOrder('newest')} />
-            <Pill label="Relevant" selected={followingOrder === 'relevant'} onPress={() => setFollowingOrder('relevant')} />
-          </View>
-        ) : null}
-        <View style={{ gap: 8 }}>
-          <View style={s.rowBetween}>
-            <Text style={s.small}>YOUR INTERESTS · DEMO</Text>
-            <Pressable accessibilityRole="button" accessibilityLabel="Toggle personalised recommendations" onPress={() => setPersonalisation((p) => !p)}>
-              <Text style={{ color: C.accent, fontSize: 12, fontWeight: '800' }}>{personalisation ? 'Personalisation on' : 'Personalisation off'}</Text>
-            </Pressable>
-          </View>
-          <View style={s.row}>
-            {topics.map(({topic, label}) => <Pill key={topic} label={label} selected={!hiddenTopics.has(topic)} onPress={() => toggle(setHiddenTopics, topic)} />)}
-          </View>
-        </View>
-        {visiblePosts.length
-          ? visiblePosts.map(({post, reason}) => renderPost(post, reason))
-          : <PreviewEmpty icon="sparkles-outline" heading="No posts match these preferences" body="Try re-enabling an interest or changing your feed." />}
-      </>
-    );
+        <View style={[s.row,{flexWrap:'wrap'}]}>{topics.map(({topic,label})=><Pill key={topic} label={label} selected={!hiddenTopics.has(topic)} onPress={()=>toggle(setHiddenTopics,topic)}/>)}</View>
+      </View> : null}
+      {feedMode==='following' ? <View style={[s.row,{paddingHorizontal:16,paddingBottom:8}]}>
+        <Pill label="Newest" selected={followingOrder==='newest'} onPress={()=>setFollowingOrder('newest')}/>
+        <Pill label="Relevant" selected={followingOrder==='relevant'} onPress={()=>setFollowingOrder('relevant')}/>
+      </View> : null}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.storyRail}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Create story" style={s.storyItem} onPress={()=>{navigate('Create');setCreateMode('Story');}}>
+          <View style={[s.storyCircle,{borderColor:C.border}]}><Ionicons name="add" color={C.accent} size={23}/></View>
+          <Text style={s.storyLabel}>Your story</Text>
+        </Pressable>
+        {demoStories.map(story=><Pressable key={story.id} accessibilityRole="button" accessibilityLabel={'View story by '+story.name}
+          onPress={()=>setSelectedStory(story.id)} style={s.storyItem}>
+          <View style={s.storyCircle}><Image source={{uri:story.imageUrl}} style={{width:49,height:49,borderRadius:17,backgroundColor:story.color}}/></View>
+          <Text style={s.storyLabel}>{story.name}</Text>
+        </Pressable>)}
+      </ScrollView>
+      {visiblePosts.length ? visiblePosts.map(({post,reason})=>renderPost(post,reason))
+        : <PreviewEmpty icon="sparkles-outline" heading="Nothing to show" body="Change your interests to see more."/>}
+    </>;
   }
 
   function renderReels() {
-    const reelRank = recommendedReels[reelIndex];
-    const reel = reels.find((r) => r.id === reelRank?.item.id) ?? reels[0];
-    return (
-      <>
-        <HeaderLine heading="Reels" meta="Full-screen video concept" />
-        <View style={[s.reel, { backgroundColor: reel.theme }]}>
-          <View style={[s.row, { alignSelf: 'flex-start' }]}>
-            <Ionicons name="radio-button-on" color="#F6E7E4" size={10} />
-            <Text style={[s.mediaCategory, { letterSpacing: 1.2 }]}>REEL PREVIEW</Text>
-          </View>
-          <Ionicons name={reel.icon} color="#D6F4EF" size={90} />
-          <Text style={[s.mediaTitle, { fontSize: 29 }]}>{reel.headline}</Text>
-          <Text style={[s.body, { textAlign: 'center', color: '#DDEAE8' }]}>{reel.creator}</Text>
-          <Text style={[s.small, { color: '#DDEAE8' }]}>{reelRank ? explainReason(reelRank.reason) : 'No eligible Reel'}</Text>
-          <Text style={[s.small, { color: '#DDEAE8', textAlign: 'center' }]}>Video playback and uploads will be implemented with licensed, moderated media infrastructure.</Text>
-        </View>
-        <View style={s.rowBetween}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Previous reel" disabled={reelIndex === 0} style={[s.ghost, reelIndex === 0 && { opacity: 0.4 }]} onPress={() => setReelIndex((n) => Math.max(0, n - 1))}><Text style={s.ghostText}>Previous</Text></Pressable>
-          <Text style={s.small}>{Math.min(reelIndex + 1, recommendedReels.length)} / {recommendedReels.length}</Text>
-          <Pressable accessibilityRole="button" accessibilityLabel="Next reel" disabled={reelIndex >= recommendedReels.length - 1} style={[s.ghost, reelIndex >= recommendedReels.length - 1 && { opacity: 0.4 }]} onPress={() => setReelIndex((n) => Math.min(recommendedReels.length - 1, n + 1))}><Text style={s.ghostText}>Next</Text></Pressable>
-        </View>
-      </>
-    );
+    const reelRank=recommendedReels[reelIndex];
+    const reel=reels.find(r=>r.id===reelRank?.item.id) ?? reels[0];
+    return <>
+      <View style={s.rowBetween}><Text style={s.sectionTitle}>Reels</Text><Text style={[s.small,{color:C.accent}]}>Preview</Text></View>
+      <ImageBackground source={{uri:reel.imageUrl}} resizeMode="cover" style={[s.reel,{height:mediaHeight+75,backgroundColor:reel.theme}]}>
+        <View style={s.reelTop}><Text style={s.feedMediaTagText}>SAMPLE</Text></View>
+        <Pressable accessibilityRole="button" accessibilityLabel="Play sample Reel" onPress={()=>banner('Video playback is not connected yet.')} style={s.reelPlay}>
+          <Ionicons name="play" color={C.ink} size={32}/>
+        </Pressable>
+        <View style={s.reelCaption}><Text style={[s.mediaTitle,{fontSize:24,textAlign:'left'}]}>{reel.headline}</Text>
+          <Text style={[s.body,{color:C.ink}]}>{reel.creator}</Text></View>
+      </ImageBackground>
+      <View style={s.rowBetween}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Previous reel" disabled={reelIndex===0}
+          style={[s.ghost,reelIndex===0&&{opacity:0.4}]} onPress={()=>setReelIndex(n=>Math.max(0,n-1))}><Text style={s.ghostText}>Previous</Text></Pressable>
+        <Text style={s.small}>{Math.min(reelIndex+1,recommendedReels.length)} / {recommendedReels.length}</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel="Next reel" disabled={reelIndex>=recommendedReels.length-1}
+          style={[s.ghost,reelIndex>=recommendedReels.length-1&&{opacity:0.4}]} onPress={()=>setReelIndex(n=>Math.min(recommendedReels.length-1,n+1))}><Text style={s.ghostText}>Next</Text></Pressable>
+      </View>
+    </>;
   }
 
   function renderCreate() {
-    return (
-      <>
-        <Text style={s.eyebrow}>CREATE</Text>
-        <Text style={s.title}>Tell your story.</Text>
-        <Text style={s.muted}>Posts, Reels, Stories and livestreams will share a permission-aware media pipeline. This screen is a local-only draft demonstration.</Text>
-        <View style={[s.card, s.pad]}>
-          <Text style={s.cardHeading}>Draft a post</Text>
-          <TextInput multiline value={draft} onChangeText={setDraft} placeholder="What's happening in your community?" placeholderTextColor={C.muted} style={[s.input, { minHeight: 115, textAlignVertical: 'top' }]} accessibilityLabel="Post draft" />
-          <View style={s.row}>
-            <Ionicons name="image-outline" color={C.muted} size={20} />
-            <Ionicons name="videocam-outline" color={C.muted} size={20} />
-            <Ionicons name="calendar-outline" color={C.muted} size={20} />
-            <Text style={s.small}>Media attachments planned</Text>
-          </View>
-          <Pressable style={[s.cta, !draft.trim() && { opacity: 0.5 }]} accessibilityRole="button" disabled={!draft.trim()} onPress={() => banner('Local preview only. Posting requires authentication, moderation and storage integration.')}>
-            <Text style={s.ctaText}>Preview draft</Text>
+    return <>
+      <View style={s.rowBetween}><Text style={s.title}>Create</Text><Text style={[s.small,{color:C.accent}]}>Private draft</Text></View>
+      <View style={s.row}>{(['Post','Story','Reel'] as const).map(kind=><Pill key={kind} label={kind} selected={createMode===kind} onPress={()=>{setCreateMode(kind);setDraftPreview(false);}}/>)}</View>
+      <View style={[s.card,s.pad]}>
+        <TextInput multiline value={draft} onChangeText={v=>{setDraft(v);setDraftPreview(false);}}
+          placeholder="What's happening?" placeholderTextColor={C.muted} style={[s.input,{minHeight:125,textAlignVertical:'top'}]} accessibilityLabel="Post draft"/>
+        <View style={s.rowBetween}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Add media to draft" onPress={()=>banner('Media uploads will be added with the publishing service.')}>
+            <View style={s.row}><Ionicons name="image-outline" size={22} color={C.accent}/><Text style={s.ghostText}>Media</Text></View>
           </Pressable>
+          <Pressable accessibilityRole="button" disabled={!draft.trim()} onPress={()=>setDraftPreview(true)}
+            style={[s.cta,!draft.trim()&&{opacity:0.5}]}><Text style={s.ctaText}>Preview {createMode.toLowerCase()}</Text></Pressable>
         </View>
-        <PreviewEmpty icon="shield-checkmark-outline" heading="Built for safer sharing" body="Publishing, creator eligibility, reporting and age-aware privacy will be verified before enabling uploads." />
-      </>
-    );
+      </View>
+      {draftPreview ? <View style={[s.card,s.pad]}><Text style={s.small}>PRIVATE {createMode.toUpperCase()}</Text><Text style={s.body}>{draft}</Text></View> : null}
+    </>;
   }
 
   function renderClubs() {
@@ -451,7 +427,7 @@ export default function App(): React.JSX.Element {
             <Text style={s.muted}>{event.category} · {event.date}</Text>
             <View style={s.row}><Ionicons name="people-outline" size={19} color={C.accent}/><Text style={s.body}>Organised by {event.organiser}</Text></View>
             <View style={s.row}><Ionicons name="location-outline" size={19} color={C.accent}/><Text style={s.body}>{event.place}</Text></View>
-            <Text style={s.small}>The venue and attendance shown are fictional. Future private events will protect precise meeting details until participants have permission.</Text>
+            <Text style={s.small}>Preview event · private details stay protected</Text>
             <Pressable accessibilityRole="button" accessibilityLabel={going.has(event.id) ? 'Remove demo RSVP interest' : 'Mark interested in demo event'} style={s.cta} onPress={() => toggle(setGoing, event.id)}>
               <Text style={s.ctaText}>{going.has(event.id) ? 'Interested ✓ — demo' : 'Mark interested — demo'}</Text>
             </Pressable>
@@ -478,10 +454,8 @@ export default function App(): React.JSX.Element {
     );
     return (
       <>
-        <Text style={s.eyebrow}>FIND YOUR PEOPLE</Text>
         <Text style={s.title}>Clubs & events</Text>
-        <Text style={s.muted}>Car culture, two wheels and the communities worth joining.</Text>
-        <HeaderLine heading="Explore clubs" meta="Example communities" />
+        <HeaderLine heading="Explore clubs" />
         {recommendedClubs.map((item) => (
           <View style={[s.card, s.pad]} key={item.id}>
             <View style={s.row}>
@@ -499,7 +473,7 @@ export default function App(): React.JSX.Element {
             </View>
           </View>
         ))}
-        <HeaderLine heading="Upcoming events" meta="Example dates" />
+        <HeaderLine heading="Upcoming events" />
         {recommendedEvents.map((event) => (
           <View style={[s.card, s.pad]} key={event.id}>
             <View style={s.row}>
@@ -523,30 +497,31 @@ export default function App(): React.JSX.Element {
   function renderShop() {
     return (
       <>
-        <Text style={s.eyebrow}>VERIFIED BUSINESSES ONLY</Text>
-        <Text style={s.title}>Marketplace</Text>
-        <Text style={s.muted}>Explore accessories, vehicles and rentals. Only approved merchants will be allowed to transact.</Text>
-        <View style={[s.card, s.pad, { backgroundColor: C.accentDark }]}>
-          <View style={s.row}><Ionicons name="shield-checkmark" color={C.accent} size={22} /><Text style={s.cardHeading}>Merchant-first trust</Text></View>
-          <Text style={s.muted}>Private sellers are not permitted. All listings below are fictional examples; checkout, reservations and payments are disabled.</Text>
+        <View style={s.rowBetween}>
+          <Text style={s.title}>Marketplace</Text>
+          <View style={s.row}><Ionicons name="shield-checkmark" color={C.accent} size={17} /><Text style={[s.small,{color:C.accent}]}>Verified only</Text></View>
         </View>
+        <Text style={s.small}>Sample listings · checkout unavailable</Text>
         <TextInput value={search} onChangeText={setSearch} style={s.input} placeholderTextColor={C.muted} placeholder="Search example listings or businesses" accessibilityLabel="Search marketplace" />
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 9 }}>
           {['All', 'Accessories', 'Vehicles', 'Rentals'].map((option) => <Pill key={option} label={option} selected={marketFilter === option} onPress={() => setMarketFilter(option)} />)}
         </ScrollView>
-        <HeaderLine heading="Discover" meta={String(filteredListings.length) + ' demo listings'} />
+        <HeaderLine heading="Discover" meta={String(filteredListings.length) + ' listings'} />
         {filteredListings.length ? filteredListings.map((item) => (
-          <View key={item.id} style={s.card}>
-            <View style={[s.media, { backgroundColor: item.accent, height: 155 }]}>
-              <Ionicons name={item.icon} color="#E3F7F2" size={49} />
-              <Text style={s.mediaCategory}>{item.category.toUpperCase()}</Text>
+          <Pressable key={item.id} style={[s.card, { flexDirection:'row', minHeight:112 }]} accessibilityRole="button"
+            accessibilityLabel={'View listing ' + item.name}
+            onPress={() => banner('This is a preview listing. Purchases are not yet available.')}>
+            <View style={{ width:105, backgroundColor:item.accent, alignItems:'center', justifyContent:'center' }}>
+              <Ionicons name={item.icon} color="#E3F7F2" size={38}/>
             </View>
-            <View style={s.pad}>
+            <View style={[s.pad,{ flex:1, gap:5 }]}>
               <Text style={s.cardHeading}>{item.name}</Text>
-              <View style={s.row}><Ionicons name="checkmark-circle" color={C.accent} size={16} /><Text style={s.small}>{item.merchant} · Demo merchant</Text></View>
-              <View style={s.rowBetween}><Text style={[s.cardHeading, { color: C.accent }]}>{item.price}</Text><Pressable style={s.ghost} accessibilityRole="button" onPress={() => banner('Demo listing only. Commerce requires merchant verification, consumer protections and payment integration.')}><Text style={s.ghostText}>View details</Text></Pressable></View>
+              <Text style={s.small}>{item.merchant} · {item.category}</Text>
+              <View style={s.rowBetween}><Text style={[s.cardHeading,{color:C.accent}]}>{item.price}</Text>
+                <Ionicons name="chevron-forward" color={C.muted} size={18}/>
+              </View>
             </View>
-          </View>
+          </Pressable>
         )) : <PreviewEmpty icon="search-outline" heading="No matching listings" body="Try a different term or marketplace category." />}
       </>
     );
@@ -555,11 +530,7 @@ export default function App(): React.JSX.Element {
   function renderProfile() {
     return (
       <>
-        <View style={{ gap: 6 }}>
-          <Text style={s.eyebrow}>SOCIAL PROFILE · PREVIEW</Text>
-          <Text style={s.title}>Your space, your story.</Text>
-          <Text style={s.muted}>Customise this social-only profile. Nothing here changes your Rider Comms riding profile.</Text>
-        </View>
+        <View style={s.rowBetween}><Text style={s.title}>Profile</Text><Text style={[s.small,{color:C.accent}]}>Device preview</Text></View>
         <View style={[s.card, s.pad]}>
           <View style={s.rowBetween}>
             <View style={[s.row, { flex: 1 }]}>
@@ -574,7 +545,7 @@ export default function App(): React.JSX.Element {
             </Pressable>
           </View>
           <Text style={s.body}>{profile.bio}</Text>
-          <View style={s.row}><Ionicons name="lock-closed-outline" size={17} color={C.accent} /><Text style={s.small}>Local preview · no live account or public profile</Text></View>
+          <View style={s.row}><Ionicons name="lock-closed-outline" size={16} color={C.accent} /><Text style={s.small}>Saved on this device</Text></View>
         </View>
         {profileEditor ? (
           <View style={[s.card, s.pad]}>
@@ -600,7 +571,7 @@ export default function App(): React.JSX.Element {
             <View style={s.row}><Ionicons name="add" size={16} color={C.accent}/><Text style={s.ghostText}>Add</Text></View>
           </Pressable>
         </View>
-        <Text style={s.muted}>Cars, motorcycles and bicycles. Every new entry starts private. Nothing is published or shared with Rider Comms.</Text>
+        <Text style={s.small}>Cars · Motorcycles · Bicycles · Private by default</Text>
         {garageEditor ? (
           <View style={[s.card, s.pad]}>
             <Text style={s.cardHeading}>Add to your garage</Text>
@@ -658,10 +629,7 @@ export default function App(): React.JSX.Element {
             ) : null}
           </View>
         )) : <PreviewEmpty icon="car-sport-outline" heading="Your garage starts here" body="Add a car, motorcycle or bicycle to preview how your builds will appear. All entries are private by default." />}
-        <View style={[s.card, s.pad]}>
-          <View style={s.row}><Ionicons name="phone-portrait-outline" size={22} color={C.accent}/><Text style={s.cardHeading}>Saved on this device only</Text></View>
-          <Text style={s.muted}>Your demo profile and garage are stored locally in this app. They are not real user records, publicly searchable listings or connected to Rider Comms. Clearing site data removes them.</Text>
-        </View>
+        <Text style={s.small}>Preview data stays on this device. Clearing site data removes it.</Text>
       </>
     );
   }
@@ -669,9 +637,8 @@ export default function App(): React.JSX.Element {
   function renderMessages() {
     return (
       <>
-        <Text style={s.eyebrow}>ECOSYSTEM CONVERSATIONS</Text>
         <Text style={s.title}>Messages</Text>
-        <PreviewEmpty icon="chatbox-ellipses-outline" heading="Your conversations, across both apps" body="The same direct-message threads will sync with Rider Comms. Social-only group chats, club channels and event discussions will live here. Integration is not active yet." />
+        <PreviewEmpty icon="chatbox-ellipses-outline" heading="No conversations yet" body="Messages will sync with Rider Comms after account integration." />
         <Pressable accessibilityRole="button" style={s.ghost} onPress={() => navigate('Home')}><Text style={s.ghostText}>Back to feed</Text></Pressable>
       </>
     );
@@ -686,8 +653,8 @@ export default function App(): React.JSX.Element {
       <View style={s.root}>
         <View style={s.header}>
           <Pressable accessibilityRole="button" accessibilityLabel="Go to home" style={{ gap: 2 }} onPress={() => navigate('Home')}>
-            <Text style={s.wordmark}>RIDER COMMS ECOSYSTEM</Text>
-            <Text style={s.brandTitle}>Social<Text style={{ color: C.accent }}>.</Text></Text>
+            <Text style={[s.brandTitle, {fontSize:25}]}>Social<Text style={{ color: C.accent }}>.</Text></Text>
+            <Text style={[s.wordmark, {fontSize:8,letterSpacing:1.2}]}>EARLY PREVIEW</Text>
           </Pressable>
           <View style={s.headerTools}>
             <IconButton name="chatbubble-ellipses-outline" label="Open messages" onPress={() => navigate('Messages')} />
@@ -710,7 +677,7 @@ export default function App(): React.JSX.Element {
           </View>
         ) : (
           <>
-            <ScrollView style={s.scroll} contentContainerStyle={s.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} key={screen}>
+            <ScrollView style={s.scroll} contentContainerStyle={screen === 'Home' ? { paddingBottom: 24 } : s.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} key={screen}>
               {screen === 'Home' ? renderHome() : null}
               {screen === 'Reels' ? renderReels() : null}
               {screen === 'Create' ? renderCreate() : null}

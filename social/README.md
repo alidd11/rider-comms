@@ -58,3 +58,10 @@ Independent social CI includes TypeScript, unit tests, static web export, mobile
 - The tab bar owns its bottom safe-area padding; no separately coloured spacer/band is rendered under it.
 - The Home indicator and status text remain under OS control. They must not be obscured by clickable controls.
 - Browser tests assert viewport metadata, full-width/full-height surfaces and uniform background colours. Only a physical iPhone Home Screen test can fully confirm status-bar rendering.
+
+
+## Visual demo photography
+
+The prototype uses externally hosted, free Unsplash photography to illustrate a media-first feed. These photographs are **sample imagery**, not user uploads. Fictional demo creators are not the real photographers and do not endorse the service.
+
+Before production, move media to a moderated, rights-checked and optimised content pipeline, preserve correct source and photographer metadata, and provide upload permissions. Source references: Unsplash motorcycle photograph (photo ID `1558981806-ec527fa84c39`), car photograph (ID `1625932197913-68755c94c51f`), cyclist photograph (ID `1541625602330-2277b4c461de`), garage photograph (ID `1511994298241-608e28f14fde`). Verify rights and any depicted trademarks/person releases before commercial launch.

@@ -13,6 +13,8 @@ export type SocialPost = {
   category: string;
   icon: 'car-sport' | 'bicycle' | 'speedometer' | 'images';
   accent: string;
+  imageUrl: string;
+  imageAlt: string;
   publishedAt: number;
   discoveryScore: number;
   audience: Audience;
