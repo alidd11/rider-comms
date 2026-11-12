@@ -553,7 +553,8 @@ export default function App(): React.JSX.Element {
 
   function renderShop() {
     return <ShopScreen items={filteredListings} search={search} onSearch={setSearch}
-      category={marketFilter} onCategory={setMarketFilter}/>;
+      category={marketFilter} onCategory={setMarketFilter}
+      onOpenProfile={() => navigate('Profile')}/>;
   }
 
   function renderProfile() {
@@ -689,7 +690,7 @@ export default function App(): React.JSX.Element {
     <SafeAreaView nativeID="social-screen" edges={Platform.OS === 'web' ? [] : ['top', 'left', 'right']} style={s.safe}>
       <StatusBar barStyle="light-content" />
       <View style={s.root}>
-        {screen !== 'Reels' && !story ? <View style={s.header}>
+        {!story && screen !== 'Reels' && screen !== 'Create' && screen !== 'Shop' ? <View style={s.header}>
           <Pressable accessibilityRole="button" accessibilityLabel="Go to home" onPress={() => navigate('Home')}>
             <Text style={s.brandTitle}>Social<Text style={{ color: C.accent }}>.</Text></Text>
           </Pressable>

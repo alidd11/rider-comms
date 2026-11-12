@@ -496,3 +496,18 @@ test('Social profile has tabs, follower/friend panels and separately managed dem
   await mkdir('test-results/screenshots', { recursive: true });
   await page.screenshot({ path: 'test-results/screenshots/' + testInfo.project.name + '-social-profile-updated.png' });
 });
+
+
+test('Create and Shop use immersive dedicated headers without losing profile navigation', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('tab', { name: 'Create' }).click();
+  await expect(page.getByTestId('create-studio')).toBeVisible();
+  await expect(page.getByText('EARLY PREVIEW')).toHaveCount(0);
+  await page.getByRole('tab', { name: 'Shop' }).click();
+  await expect(page.getByTestId('shop-discovery')).toBeVisible();
+  await expect(page.getByText('EARLY PREVIEW')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Open profile' }).click();
+  await expect(page.getByTestId('social-profile-summary')).toBeVisible();
+  await page.getByRole('tab', { name: 'Garage profile tab' }).click();
+  await expect(page.getByText('Personal garage')).toBeVisible();
+});

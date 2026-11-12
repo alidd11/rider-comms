@@ -9,12 +9,13 @@ type Page = 'discover' | 'saved' | 'basket' | 'orders';
 const categories = ['All', 'Accessories', 'Vehicles', 'Rentals'] as const;
 const interests = ['All', 'Cars', 'Motorcycles', 'Cycling'] as const;
 
-export function ShopScreen({ items, search, onSearch, category, onCategory }: {
+export function ShopScreen({ items, search, onSearch, category, onCategory, onOpenProfile }: {
   items: readonly Item[];
   search: string;
   onSearch: (value:string) => void;
   category: string;
   onCategory: (value:string) => void;
+  onOpenProfile: () => void;
 }) {
   const [section,setSection] = useState<Page>('discover');
   const [interest,setInterest] = useState<string>('All');
@@ -109,6 +110,10 @@ export function ShopScreen({ items, search, onSearch, category, onCategory }: {
           <Text style={{color:C.muted,fontSize:11}}>Marketplace · Example listings</Text>
         </View>
         <View style={{flexDirection:'row'}}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Open profile"
+            onPress={onOpenProfile} style={{padding:9}}>
+            <Ionicons name="person-circle-outline" color={C.ink} size={24}/>
+          </Pressable>
           <Pressable accessibilityRole="button" accessibilityLabel="Shop saved"
             onPress={()=>setSection('saved')} style={{padding:9}}>
             <Ionicons name="heart-outline" color={C.ink} size={24}/>
