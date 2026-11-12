@@ -316,9 +316,9 @@ test('Home photo carousel, double-tap like, and creator garage link work', async
   const gallery = page.getByTestId('post-gallery-p1');
   await expect(gallery).toBeVisible();
   await page.getByRole('button', { name: 'Next photo in post p1' }).click();
-  await expect(page.getByText('2/2')).toBeVisible();
+  await expect(page.getByTestId('post-media-p1').getByText('2/2')).toBeVisible();
   await page.getByRole('button', { name: 'Previous photo in post p1' }).click();
-  await expect(page.getByText('1/2')).toBeVisible();
+  await expect(page.getByTestId('post-media-p1').getByText('1/2')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Like post' }).first()).toBeVisible();
   const imageButton = page.getByRole('button', { name: 'Double tap to like photo 1 of 2' });
   await imageButton.dblclick();
