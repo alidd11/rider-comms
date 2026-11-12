@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ImageBackground, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeScrollEvent, NativeSyntheticEvent, ScrollViewInstance } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { C } from './styles';
@@ -17,6 +18,14 @@ export type ReelPreview = {
 };
 
 type ReelAction = 'share' | 'sound' | 'options';
+
+// Keep the image unobscured: caption legibility is provided by glyph shadows,
+// not a translucent rectangle that darkens the bottom third of each Reel.
+const reelTextShadow = {
+  textShadowColor: 'rgba(0,0,0,0.8)',
+  textShadowOffset: { width: 0, height: 1 },
+  textShadowRadius: 5,
+} as const;
 type Props = {
   items: readonly ReelPreview[];
   followedAuthors: ReadonlySet<string>;
@@ -70,6 +79,11 @@ function ReelVideo({ uri }: { uri: string }) {
 }
 
 export function ReelsScreen({ items, followedAuthors, onToggleFollow, onOpenComments, onOpenCreator, onCreateReel }: Props) {
+  const insets = useSafeAreaInsets();
+  // The image intentionally extends behind the status bar, but controls do not.
+  // For installed web PWAs the CSS env() inset is authoritative, not JS insets.
+  const safeTop = Platform.OS === 'web' ? 0 : insets.top;
+  const controlsTop = 13 + safeTop;
   const [height, setHeight] = useState(0);
   const [activeIndex, setActiveIndex] = useState(0);
   const [likes, setLikes] = useState<Set<string>>(() => new Set());
@@ -139,11 +153,8 @@ export function ReelsScreen({ items, followedAuthors, onToggleFollow, onOpenComm
               <ImageBackground source={{ uri: reel.imageUrl }} resizeMode="cover" accessibilityLabel={reel.title}
                 style={{ width: '100%', height: '100%', justifyContent: 'flex-end' }}>
                 {reel.videoUrl && index === activeIndex ? <ReelVideo uri={reel.videoUrl}/> : null}
-                <View pointerEvents="none" style={{
-                  position: 'absolute', bottom: 0, left: 0, right: 0, height: 212,
-                  backgroundColor: 'rgba(0,0,0,0.58)',
-                }} />
-                <View style={{ position: 'absolute', left: 16, bottom: 26, right: 80, gap: 9 }}>
+                <View testID={'reel-caption-' + reel.id}
+                  style={{ position: 'absolute', left: 16, bottom: 26, right: 80, gap: 9 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9, flexWrap: 'wrap' }}>
                     <View style={{
                       width: 36, height: 36, borderRadius: 18, backgroundColor: reel.theme,
@@ -155,7 +166,7 @@ export function ReelsScreen({ items, followedAuthors, onToggleFollow, onOpenComm
                     </View>
                     <Pressable accessibilityRole="button" accessibilityLabel={'View creator ' + reel.handle}
                       onPress={() => onOpenCreator(reel.authorId)}>
-                      <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '900' }}>{reel.handle}</Text>
+                      <Text style={[{ color: '#FFFFFF', fontSize: 15, fontWeight: '900' }, reelTextShadow]}>{reel.handle}</Text>
                     </Pressable>
                     <Pressable accessibilityRole="button"
                       accessibilityLabel={(followedAuthors.has(reel.authorId) ? 'Unfollow ' : 'Follow ') + reel.handle}
@@ -165,25 +176,25 @@ export function ReelsScreen({ items, followedAuthors, onToggleFollow, onOpenComm
                         borderColor: '#F4F6F7', borderRadius: 9,
                         backgroundColor: followedAuthors.has(reel.authorId) ? 'rgba(255,255,255,0.2)' : 'transparent',
                       }}>
-                      <Text style={{ color: '#FFFFFF', fontSize: 12, fontWeight: '800' }}>
+                      <Text style={[{ color: '#FFFFFF', fontSize: 12, fontWeight: '800' }, reelTextShadow]}>
                         {followedAuthors.has(reel.authorId) ? 'Following' : 'Follow'}
                       </Text>
                     </Pressable>
                   </View>
                   <Text numberOfLines={expanded.has(reel.id) ? undefined : 2}
-                    style={{ color: '#FFFFFF', fontSize: 14, fontWeight: '700', lineHeight: 20 }}>
+                    style={[{ color: '#FFFFFF', fontSize: 14, fontWeight: '700', lineHeight: 20 }, reelTextShadow]}>
                     {reel.title} · {reel.category.toLowerCase()}
                   </Text>
                   <Pressable accessibilityRole="button"
                     accessibilityLabel={expanded.has(reel.id) ? 'Collapse Reel caption' : 'Expand Reel caption'}
                     onPress={() => toggle(setExpanded, reel.id)}>
-                    <Text style={{ color: '#D7E5E7', fontSize: 12 }}>{expanded.has(reel.id) ? 'Less' : 'More'}</Text>
+                    <Text style={[{ color: '#FFFFFF', fontSize: 12, fontWeight: '700' }, reelTextShadow]}>{expanded.has(reel.id) ? 'Less' : 'More'}</Text>
                   </Pressable>
                   <Pressable accessibilityRole="button" accessibilityLabel={'View garage for ' + reel.handle}
                     onPress={() => onOpenCreator(reel.authorId)}>
-                    <Text style={{ color: '#5CE4C1', fontWeight: '800', fontSize: 12 }}>View garage & build</Text>
+                    <Text style={[{ color: '#D7FFF3', fontWeight: '800', fontSize: 12 }, reelTextShadow]}>View garage & build</Text>
                   </Pressable>
-                  {!reel.videoUrl ? <Text style={{ color: '#CFD8DE', fontSize: 11 }}>Preview photo · video coming soon</Text> : null}
+                  {!reel.videoUrl ? <Text style={[{ color: '#E8ECEF', fontSize: 11 }, reelTextShadow]}>Sample photo</Text> : null}
                 </View>
                 <View style={{ position: 'absolute', right: 9, bottom: 23, gap: 13, alignItems: 'center' }}>
                   <ReelActionButton label={'Like Reel ' + reel.id} icon={likes.has(reel.id) ? 'heart' : 'heart-outline'}
@@ -202,31 +213,28 @@ export function ReelsScreen({ items, followedAuthors, onToggleFollow, onOpenComm
           ))}
         </ScrollView>
       ) : null}
-      <View pointerEvents="box-none" style={{
+      <View nativeID="social-reels-top-controls" pointerEvents="box-none" style={{
         position: 'absolute', top: 0, right: 0, left: 0,
         flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-        paddingHorizontal: 18, paddingVertical: 13,
+        paddingHorizontal: 18, paddingTop: controlsTop, paddingBottom: 13,
       }}>
-        <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 9 }}>
-          <Text style={{ color: '#FFFFFF', fontWeight: '900', fontSize: 24 }}>Reels</Text>
-          <Text style={{ color: '#DDE5E9', fontWeight: '700', fontSize: 11 }}>DEMO</Text>
-        </View>
+        <Text style={[{ color: '#FFFFFF', fontWeight: '800', fontSize: 20 }, reelTextShadow]}>Reels</Text>
         <Pressable accessibilityRole="button" accessibilityLabel="Create Reel"
           onPress={onCreateReel} style={{ minWidth: 40, minHeight: 40, alignItems: 'center', justifyContent: 'center' }}>
           <Ionicons name="camera-outline" size={26} color="#FFFFFF" />
         </Pressable>
       </View>
-      {notice ? <Pressable accessibilityRole="button" accessibilityLabel="Dismiss Reel notice"
+      {notice ? <Pressable nativeID="social-reels-notice" accessibilityRole="button" accessibilityLabel="Dismiss Reel notice"
         onPress={() => setNotice(null)}
         style={{
-          position: 'absolute', top: 68, left: 12, right: 12,
+          position: 'absolute', top: 71 + safeTop, left: 12, right: 12,
           paddingHorizontal: 15, paddingVertical: 13, borderRadius: 12,
           backgroundColor: 'rgba(9,24,29,0.94)', borderWidth: 1, borderColor: '#27564F',
         }}>
         <Text style={{ color: '#EAFDF5', fontSize: 13 }}>{notice}</Text>
       </Pressable> : null}
-      {Platform.OS === 'web' ? <View pointerEvents="box-none" style={{
-        position: 'absolute', right: 10, top: 53, gap: 3,
+      {Platform.OS === 'web' ? <View nativeID="social-reels-swipe-buttons" pointerEvents="box-none" style={{
+        position: 'absolute', right: 10, top: 72, gap: 3,
       }}>
         <Pressable accessibilityRole="button" accessibilityLabel="Previous Reel" disabled={activeIndex <= 0}
           onPress={() => moveTo(activeIndex - 1)}
