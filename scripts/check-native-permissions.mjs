@@ -46,6 +46,8 @@ assert.equal(expo.orientation, 'portrait', 'The native app must be locked to por
 assert.deepEqual(expo.ios?.infoPlist?.UISupportedInterfaceOrientations, ['UIInterfaceOrientationPortrait'], 'iOS must allow upright portrait only');
 assert.equal(expo.ios?.supportsTablet, false, 'The iPad layout would allow rotation; keep supportsTablet off');
 assert.ok(String(expo.ios?.infoPlist?.NSPhotoLibraryUsageDescription ?? '').startsWith('Rider Comms'), 'NSPhotoLibraryUsageDescription must say Rider Comms does not use photos');
+// LiveKit's WebRTC 150 links Contacts.framework (check-ios-purpose-strings.sh); Rider Comms never reads contacts.
+assert.ok(String(expo.ios?.infoPlist?.NSContactsUsageDescription ?? '').startsWith('Rider Comms'), 'NSContactsUsageDescription must say Rider Comms does not use contacts');
 assert.equal(expo.ios?.infoPlist?.NSAppleMusicUsageDescription, undefined, 'Rider Comms no longer reads the Music app: drop NSAppleMusicUsageDescription');
 const localNetwork = String(expo.ios?.infoPlist?.NSLocalNetworkUsageDescription ?? '');
 assert.ok(localNetwork.startsWith('Rider Comms'), 'NSLocalNetworkUsageDescription must explain the voice connection');
