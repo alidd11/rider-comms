@@ -325,6 +325,8 @@ test('Reels media bleeds behind the status region while controls stay safe and c
   expect(layout.captionBackground).toMatch(/transparent|rgba\(0, 0, 0, 0\)/);
   expect(layout.hasSolidScrim).toBe(false);
   await expect(page.getByText('DEMO', { exact: true })).toHaveCount(0);
+  // A short description does not need a visible "More" control.
+  await expect(page.getByRole('button', { name: 'Expand Reel caption' })).toHaveCount(0);
 
   await mkdir('test-results/screenshots', { recursive: true });
   await page.screenshot({ path: 'test-results/screenshots/' + testInfo.project.name + '-reels-edge-to-edge.png' });
