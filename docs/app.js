@@ -3142,8 +3142,11 @@
           await disablePushOnThisDevice();
           toggle.setAttribute('aria-pressed', 'false');
         }
-      } catch {
-        showToast('Couldn’t change notifications. Check your connection and try again.');
+      } catch (error) {
+        // 409: the server keeps a device with the rider still signed in on it (native: NotificationsPage).
+        showToast(error?.status === 409
+          ? 'These notifications are linked to another Rider Comms account that’s still signed in on this device. Sign out of it, then try again.'
+          : 'Couldn’t change notifications. Check your connection and try again.');
       } finally {
         toggle.disabled = !pushSupported();
       }
