@@ -106,9 +106,11 @@ function rideSafe<P extends object>(Screen: React.ComponentType<P>): React.Compo
   }
   return RideSafeScreen;
 }
-/** Pages opened from the full-screen menu show as iOS sheets, which start
- * below the status bar. A provider of their own measures their real top
- * inset; the app-wide one would add the status bar's height again. */
+/** Each menu page measures its own insets. When the menu was a full-screen
+ * modal its pages showed as iOS sheets, which start below the status bar,
+ * and the app-wide insets added the status bar's height again (an empty
+ * band above the header). A provider of their own keeps that from coming
+ * back however a page is presented. */
 function ownSafeArea<P extends object>(Screen: React.ComponentType<P>): (props: P) => React.JSX.Element {
   function OwnSafeAreaScreen(props: P): React.JSX.Element {
     return <SafeAreaProvider><Screen {...props} /></SafeAreaProvider>;
