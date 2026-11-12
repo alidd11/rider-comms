@@ -682,7 +682,7 @@ export default function App(): React.JSX.Element {
   return (
     <SafeAreaProvider>
     <SafeAreaView nativeID="social-screen" edges={Platform.OS === 'web' ? [] : ['top', 'left', 'right']} style={s.safe}>
-      <StatusBar barStyle="light-content" backgroundColor={C.bg} translucent />
+      <StatusBar barStyle="light-content" />
       <View style={s.root}>
         <View style={s.header}>
           <Pressable accessibilityRole="button" accessibilityLabel="Go to home" style={{ gap: 2 }} onPress={() => navigate('Home')}>
