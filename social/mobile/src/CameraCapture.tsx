@@ -76,7 +76,8 @@ export function CameraCapture({ mode, onCapture, onLibrary, disabled }: Props) {
     }
   }
 
-  const shutterDisabled = disabled || busy || !canUseCamera;
+  const pickerReel = isVideo && Platform.OS === 'web';
+  const shutterDisabled = disabled || busy || (!canUseCamera && !pickerReel);
   return <View testID="camera-first-studio" style={{
     flex: 1, minHeight: 0, width: '100%', backgroundColor: '#020408',
   }}>
@@ -127,19 +128,20 @@ export function CameraCapture({ mode, onCapture, onLibrary, disabled }: Props) {
         <Text style={{ color: C.muted, fontSize: 11, fontWeight: '800' }}>Gallery</Text>
       </Pressable>
       <Pressable accessibilityRole="button"
-        accessibilityLabel={recording ? 'Stop recording' : isVideo ? 'Record Reel' : 'Take photo'}
-        disabled={shutterDisabled} onPress={() => void (isVideo ? video() : photo())}
+        accessibilityLabel={pickerReel ? 'Choose Reel video' : recording ? 'Stop recording' : isVideo ? 'Record Reel' : 'Take photo'}
+        disabled={shutterDisabled} onPress={() => { if (pickerReel) onLibrary(); else void (isVideo ? video() : photo()); }}
         style={{
           width: 76, height: 76, borderRadius: 38,
           borderWidth: 5, borderColor: shutterDisabled ? C.muted : '#FFFFFF',
           alignItems: 'center', justifyContent: 'center',
           opacity: shutterDisabled ? 0.45 : 1,
         }}>
+        {pickerReel ? <Ionicons name="videocam-outline" color="#FFFFFF" size={32}/> :
         <View style={{
           height: recording ? 25 : 58, width: recording ? 25 : 58,
           borderRadius: recording ? 6 : 30,
           backgroundColor: isVideo ? '#E64F62' : '#FFFFFF',
-        }}/>
+        }}/>} 
       </Pressable>
       <Pressable accessibilityRole="button" accessibilityLabel="Flip camera"
         disabled={!canUseCamera || recording} onPress={() => setFacing(current => current === 'back' ? 'front' : 'back')}

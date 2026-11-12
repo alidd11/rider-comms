@@ -50,3 +50,5 @@ Before release, add a real video timeline, reusable audio rights library, covers
 - iOS Home Screen PWA camera preview requires OS/browser permission. Automated opening of a first-ever permission prompt may be blocked without an interaction; the explicit Enable camera control handles this correctly.
 - Browser Reel video recording is not falsely advertised as functional: Expo Camera does not provide consistent cross-browser video recording on iOS PWA, so the interface offers choosing a recorded Reel video from Gallery. Do not label this as full TikTok camera parity until web recording, video editing, audio and permissions have passed real-device tests.
 - Camera is mounted only on the Create select stage and unmounts in edit/share or when users leave Create. Media remains a private local preview and is never automatically uploaded.
+
+- On the PWA, the Reel-mode centre control explicitly selects an existing video from the device rather than showing a fake Record button. Native app builds retain camera video recording. Live iOS-PWA video recording will require a separate tested browser capture path.
