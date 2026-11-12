@@ -21,6 +21,8 @@ npm test
 npm run web
 ```
 
+The independent GitHub Actions workflow at `.github/workflows/social-app.yml` checks the social package's TypeScript, domain tests and static web export. It deliberately does not build or modify the existing Rider Comms application.
+
 The prototype uses Expo SDK 58 and React Native to target iOS, Android and web. It is deliberately a separate npm package for now, **not a root workspace**, so Claude's existing root lockfile, workspace graph, CI and releases remain undisturbed. Pin dependencies in this package before commercial releases.
 
 ## Agent ownership / integration boundary

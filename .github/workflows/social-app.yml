@@ -1,0 +1,38 @@
+name: Social app checks
+
+on:
+  pull_request:
+    paths:
+      - 'social/**'
+      - '.github/workflows/social-app.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'social/**'
+      - '.github/workflows/social-app.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: social-app-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Social app TypeScript / tests / web export
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: social/mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      # Isolated package to avoid changing Claude's existing root npm lockfile.
+      - run: npm install --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build:web
+      - run: test -f dist/index.html

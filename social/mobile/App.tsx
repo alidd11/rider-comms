@@ -1,6 +1,8 @@
+import '@expo/metro-runtime';
 import React, { useMemo, useState } from 'react';
-import { SafeAreaView, ScrollView, StatusBar, Pressable, Text, TextInput, View } from 'react-native';
+import { ScrollView, StatusBar, Pressable, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { C, s } from './src/styles';
 import { selectDemoFeed } from './src/domain';
 import type { FeedMode, FollowingOrder, SocialPost } from './src/domain';
