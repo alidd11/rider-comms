@@ -404,7 +404,7 @@ export default function App(): React.JSX.Element {
         </View>
         <Text style={s.cardHeading}>{creator.vehicle}</Text>
         <View style={s.row}>
-          {creator.gallery.map((photo, i) => <Image key={photo.uri} source={{ uri: photo.uri }}
+          {creator.gallery.map(photo => <Image key={photo.uri} source={{ uri: photo.uri }}
             accessibilityLabel={photo.alt} resizeMode="cover"
             style={{ flex: 1, height: 120, borderRadius: 10, backgroundColor: C.bg }}/>)}
         </View>
