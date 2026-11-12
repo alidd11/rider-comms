@@ -14,7 +14,7 @@ export const C = {
 
 export const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: C.bg },
-  root: { flex: 1, backgroundColor: C.bg, alignSelf: 'center', width: '100%', maxWidth: 660 },
+  root: { flex: 1, backgroundColor: C.bg, width: '100%' },
   header: { paddingHorizontal: 20, paddingTop: 14, paddingBottom: 14, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottomWidth: 1, borderColor: C.border },
   wordmark: { color: C.accent, fontSize: 11, fontWeight: '900', letterSpacing: 3 },
   brandTitle: { color: C.ink, fontSize: 25, fontWeight: '800', letterSpacing: -0.7 },
@@ -52,7 +52,7 @@ export const s = StyleSheet.create({
   ghostText: { color: C.ink, fontSize: 13, fontWeight: '800' },
   input: { color: C.ink, backgroundColor: C.panel, borderColor: C.border, borderWidth: 1, borderRadius: 14, paddingHorizontal: 15, paddingVertical: 12, fontSize: 14 },
   notice: { marginHorizontal: 18, marginTop: 10, padding: 12, backgroundColor: C.accentDark, borderWidth: 1, borderColor: '#296856', borderRadius: 12 },
-  tabBar: { flexDirection: 'row', borderTopColor: C.border, borderTopWidth: 1, backgroundColor: C.bg, paddingTop: 8, paddingBottom: 10 },
+  tabBar: { flexDirection: 'row', borderTopColor: C.border, borderTopWidth: 1, backgroundColor: C.bg, paddingTop: 8, paddingBottom: 12 },
   tab: { flex: 1, alignItems: 'center', paddingVertical: 5, gap: 3 },
   tabLabel: { fontSize: 10, color: C.muted, fontWeight: '700' },
   darkBadge: { backgroundColor: '#1E3A35', borderRadius: 999, paddingHorizontal: 9, paddingVertical: 5 },

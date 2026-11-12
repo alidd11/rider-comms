@@ -48,3 +48,13 @@ The standalone PWA now contains local-only demonstration journeys for:
 The social profile and garage demo state are stored in this device's app storage through AsyncStorage. Nothing is sent to the existing Rider Comms backend or to other users; clearing browser site data removes them. Do not use the preview as a backup or for sensitive data.
 
 Independent social CI includes TypeScript, unit tests, static web export, mobile/desktop Chromium interaction tests and screenshot artifacts. GitHub PR #449 remains a draft until reviewed. The live demonstration PWA is hosted separately from Rider Comms on Railway and automatically deploys this development branch. Root CI and existing Rider Comms native/web releases remain separate.
+
+
+## Edge-to-edge viewport and safe areas
+
+- The generated web HTML now requires `viewport-fit=cover` and `black-translucent` iOS standalone status-bar mode.
+- `html`, `body`, and the React root are all dark to the physical viewport edges, including behind the notch/status bar.
+- Content has top/side insets using CSS `env(safe-area-inset-*)` on web and React Native safe-area values on iOS/Android.
+- The tab bar owns its bottom safe-area padding; no separately coloured spacer/band is rendered under it.
+- The Home indicator and status text remain under OS control. They must not be obscured by clickable controls.
+- Browser tests assert viewport metadata, full-width/full-height surfaces and uniform background colours. Only a physical iPhone Home Screen test can fully confirm status-bar rendering.

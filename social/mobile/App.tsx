@@ -1,8 +1,8 @@
 import '@expo/metro-runtime';
 import React, { useEffect, useMemo, useState } from 'react';
-import { ScrollView, StatusBar, Pressable, Text, TextInput, View } from 'react-native';
+import { Platform, ScrollView, StatusBar, Pressable, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { C, s } from './src/styles';
 import { rankForYou, rankFollowing, rankReels, rankClubs, rankEvents, rankMarketplace, explainReason, noViewer } from './src/recommendations';
 import type { Content, Viewer, Topic, RankReason } from './src/recommendations';
@@ -112,6 +112,33 @@ function PreviewEmpty({ icon, heading, body }: { icon: Icon; heading: string; bo
       <Ionicons name={icon} size={32} color={C.accent} />
       <Text style={s.cardHeading}>{heading}</Text>
       <Text style={[s.muted, { textAlign: 'center' }]}>{body}</Text>
+    </View>
+  );
+}
+
+
+/**
+ * The dark tab-bar background fills the iPhone home-indicator area.
+ * Safe-area spacing keeps navigation controls above the indicator.
+ * The web CSS handles env(safe-area-inset-bottom) because a standalone
+ * Safari PWA can report zero insets through the JS provider.
+ */
+function BottomTabs({ screen, onNavigate }: { screen: Screen; onNavigate: (next: Screen) => void }) {
+  const insets = useSafeAreaInsets();
+  return (
+    <View nativeID="social-bottom-tabs" style={[
+      s.tabBar,
+      { paddingBottom: Platform.OS === 'web' ? 12 : Math.max(12, insets.bottom) }
+    ]}>
+      {primaryTabs.map((tab) => (
+        <Pressable key={tab.name} accessibilityRole="tab"
+          accessibilityState={{ selected: tab.name === screen }}
+          accessibilityLabel={tab.name} style={s.tab} onPress={() => onNavigate(tab.name)}>
+          <Ionicons name={tab.name === screen ? tab.activeIcon : tab.icon} size={23}
+            color={tab.name === screen ? C.accent : C.muted} />
+          <Text style={[s.tabLabel, tab.name === screen && { color: C.accent }]}>{tab.name}</Text>
+        </Pressable>
+      ))}
     </View>
   );
 }
@@ -654,8 +681,8 @@ export default function App(): React.JSX.Element {
 
   return (
     <SafeAreaProvider>
-    <SafeAreaView style={s.safe}>
-      <StatusBar barStyle="light-content" />
+    <SafeAreaView nativeID="social-screen" edges={Platform.OS === 'web' ? [] : ['top', 'left', 'right']} style={s.safe}>
+      <StatusBar barStyle="light-content" backgroundColor={C.bg} translucent />
       <View style={s.root}>
         <View style={s.header}>
           <Pressable accessibilityRole="button" accessibilityLabel="Go to home" style={{ gap: 2 }} onPress={() => navigate('Home')}>
@@ -692,14 +719,7 @@ export default function App(): React.JSX.Element {
               {screen === 'Profile' ? renderProfile() : null}
               {screen === 'Messages' ? renderMessages() : null}
             </ScrollView>
-            <View style={s.tabBar}>
-              {primaryTabs.map((tab) => (
-                <Pressable key={tab.name} accessibilityRole="tab" accessibilityState={{ selected: tab.name === screen }} accessibilityLabel={tab.name} style={s.tab} onPress={() => navigate(tab.name)}>
-                  <Ionicons name={tab.name === screen ? tab.activeIcon : tab.icon} size={23} color={tab.name === screen ? C.accent : C.muted} />
-                  <Text style={[s.tabLabel, tab.name === screen && { color: C.accent }]}>{tab.name}</Text>
-                </Pressable>
-              ))}
-            </View>
+            <BottomTabs screen={screen} onNavigate={navigate} />
           </>
         )}
       </View>

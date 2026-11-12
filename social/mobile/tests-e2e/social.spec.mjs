@@ -88,3 +88,47 @@ test('event detail includes only demo interest, not real RSVP', async ({ page })
   await page.getByRole('button', { name: 'Back to clubs and events' }).click();
   await expect(page.getByText('Upcoming events')).toBeVisible();
 });
+
+
+test('iPhone and desktop render true edge-to-edge background with safe content insets', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByText('Your world, in motion.')).toBeVisible();
+  const geometry = await page.evaluate(() => {
+    const viewport = document.querySelector('meta[name="viewport"]')?.getAttribute('content') ?? '';
+    const status = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]')?.getAttribute('content') ?? '';
+    const root = document.getElementById('root');
+    const screen = document.getElementById('social-screen');
+    const tabs = document.getElementById('social-bottom-tabs');
+    const rootRect = root?.getBoundingClientRect();
+    const screenRect = screen?.getBoundingClientRect();
+    const tabsRect = tabs?.getBoundingClientRect();
+    return {
+      viewport, status,
+      htmlBackground: getComputedStyle(document.documentElement).backgroundColor,
+      bodyBackground: getComputedStyle(document.body).backgroundColor,
+      screenBackground: screen ? getComputedStyle(screen).backgroundColor : '',
+      tabsBackground: tabs ? getComputedStyle(tabs).backgroundColor : '',
+      rootBottom: rootRect?.bottom ?? -1,
+      screenBottom: screenRect?.bottom ?? -1,
+      tabsBottom: tabsRect?.bottom ?? -1,
+      viewportHeight: window.innerHeight,
+      screenWidth: screenRect?.width ?? -1,
+      viewportWidth: window.innerWidth,
+      screenPaddingTop: screen ? getComputedStyle(screen).paddingTop : '',
+      tabsPaddingBottom: tabs ? parseFloat(getComputedStyle(tabs).paddingBottom) : 0,
+      hasSafeAreaCss: !!document.getElementById('social-edge-to-edge')?.textContent?.includes('env(safe-area-inset-bottom'),
+    };
+  });
+  expect(geometry.viewport).toContain('viewport-fit=cover');
+  expect(geometry.status).toBe('black-translucent');
+  expect(geometry.htmlBackground).toBe('rgb(8, 13, 19)');
+  expect(geometry.bodyBackground).toBe('rgb(8, 13, 19)');
+  expect(geometry.screenBackground).toBe('rgb(8, 13, 19)');
+  expect(geometry.tabsBackground).toBe('rgb(8, 13, 19)');
+  expect(geometry.hasSafeAreaCss).toBe(true);
+  expect(geometry.rootBottom).toBeGreaterThanOrEqual(geometry.viewportHeight - 2);
+  expect(geometry.screenBottom).toBeGreaterThanOrEqual(geometry.viewportHeight - 2);
+  expect(geometry.tabsBottom).toBeGreaterThanOrEqual(geometry.viewportHeight - 2);
+  expect(geometry.screenWidth).toBeGreaterThanOrEqual(geometry.viewportWidth - 2);
+  expect(geometry.tabsPaddingBottom).toBeGreaterThanOrEqual(12);
+});
