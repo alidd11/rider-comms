@@ -235,7 +235,13 @@ export async function standaloneGeometry(page) {
 // goes back to the map with its back arrow.
 export async function openTab(page, screen) {
   const back = page.locator('.screen.active [data-back-to-map]');
-  if (await back.isVisible()) await back.click();
+  if (await back.isVisible()) {
+    // Back to map steps back through history; WebKit can leave Playwright
+    // waiting for a page load that a same-page history step never fires, so
+    // dispatch the click and wait for the map itself.
+    await back.dispatchEvent('click');
+    await expect(page.locator('.screen[data-screen="map"]')).toHaveClass(/active/);
+  }
   if (screen === 'map') return;
   await openFromMenu(page, screen);
 }

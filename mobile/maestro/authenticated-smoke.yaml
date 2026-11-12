@@ -136,10 +136,18 @@ appId: com.ridercomms.app
     visible:
       id: open-menu
     timeout: 10000
-- tapOn:
-    id: open-menu
-- tapOn: "Your plan(,.*)?"
-- extendedWaitUntil:
-    visible: "Your plan(,.*)?"
-    timeout: 10000
+# The menu slides in; a tap during that has been dropped on iOS. Wait for
+# the plan screen's own intro line, as "Your plan" is also the menu row's
+# label.
+- retry:
+    maxRetries: 3
+    commands:
+      - tapOn:
+          id: open-menu
+          optional: true
+      - waitForAnimationToEnd
+      - tapOn: "Your plan(,.*)?"
+      - extendedWaitUntil:
+          visible: "Plans change how far Nearby reaches.*"
+          timeout: 10000
 - takeScreenshot: authenticated-billing
