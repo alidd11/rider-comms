@@ -13,6 +13,7 @@ import type { GarageDraft, GarageEntry, GarageKind, SocialProfileDraft } from '.
 import { loadLocalDemo, saveLocalDemo } from './src/demoStorage';
 import { CreateComposer } from './src/CreateComposer';
 import { ReelsScreen } from './src/ReelsScreen';
+import { StoriesViewer } from './src/StoriesViewer';
 import type { ReelPreview } from './src/ReelsScreen';
 
 type Screen = 'Home' | 'Reels' | 'Create' | 'Clubs' | 'Shop' | 'Profile' | 'Messages';
@@ -635,7 +636,7 @@ export default function App(): React.JSX.Element {
     <SafeAreaView nativeID="social-screen" edges={Platform.OS === 'web' ? [] : ['top', 'left', 'right']} style={s.safe}>
       <StatusBar barStyle="light-content" />
       <View style={s.root}>
-        {screen !== 'Reels' ? <View style={s.header}>
+        {screen !== 'Reels' && !story ? <View style={s.header}>
           <Pressable accessibilityRole="button" accessibilityLabel="Go to home" style={{ gap: 2 }} onPress={() => navigate('Home')}>
             <Text style={[s.brandTitle, {fontSize:25}]}>Social<Text style={{ color: C.accent }}>.</Text></Text>
             <Text style={[s.wordmark, {fontSize:8,letterSpacing:1.2}]}>EARLY PREVIEW</Text>
@@ -651,14 +652,7 @@ export default function App(): React.JSX.Element {
           </Pressable>
         ) : null}
         {story ? (
-          <View style={{ flex: 1, padding: 20, gap: 16 }}>
-            <View style={s.rowBetween}><Text style={s.sectionTitle}>{story.name}'s Story</Text><IconButton name="close" label="Close story" onPress={() => setSelectedStory(null)} /></View>
-            <View style={[s.reel, { flex: 1, backgroundColor: story.color }]}>
-              <Ionicons name="images-outline" size={74} color={C.ink} />
-              <Text style={s.mediaTitle}>{story.category} story preview</Text>
-              <Text style={[s.body, { textAlign: 'center' }]}>Real Stories will expire after 24 hours and respect viewer permissions.</Text>
-            </View>
-          </View>
+          <StoriesViewer stories={demoStories} initialId={story.id} onClose={() => setSelectedStory(null)} />
         ) : (
           <>
             {pageScrollEnabled ? (

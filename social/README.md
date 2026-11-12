@@ -79,3 +79,6 @@ The installed Social PWA now selects the iOS `black` status-bar mode instead of 
 - Reels uses a stationary full-height surface, one snap-paginated card per item, creator actions, separate follow toggles, and a direct creation shortcut.
 - Reels currently displays **labelled photographs**, not real playable videos. Comments, shares, audio, livestreams, media publishing and the recommendation data pipeline are not live.
 - These are original automotive-oriented interactions informed by public Instagram/TikTok product behaviour; they are not a pixel-identical clone or competitive feature parity.
+
+
+The Stories demo also uses a full-viewport image viewer with visible previous/next regions, sequence markers, sample creator information and an exit control. It never submits replies or pretends that Story media has been published; the real 24-hour lifecycle requires authenticated backend services.

@@ -386,6 +386,7 @@ export function CreateComposer({ initialMode = 'Post' }: { initialMode?: Compose
           <Text style={s.cardHeading}>Audience</Text>
           {audiences.map(item => <Pressable key={item.value} accessibilityRole="radio"
             accessibilityLabel={'Audience ' + item.label} accessibilityState={{ checked: audience === item.value }}
+            aria-checked={audience === item.value}
             onPress={() => setAudience(item.value)} style={[s.rowBetween, { minHeight: 43 }]}>
             <View style={s.row}>
               <Ionicons name={item.icon} color={C.ink} size={20}/>

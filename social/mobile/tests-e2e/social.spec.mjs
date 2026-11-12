@@ -202,6 +202,7 @@ test('fixed shell only scrolls the feed and content directories, never Reels or 
   await expect(page.getByTestId('fixed-reels-screen')).toBeVisible();
   await expect(page.locator('#social-page-scroll')).toHaveCount(0);
   await expect(page.getByRole('tab', { name: 'Reels' })).toBeVisible();
+  await page.getByRole('tab', { name: 'Home' }).click();
   await page.getByRole('button', { name: 'Open messages' }).click();
   await expect(page.getByTestId('fixed-messages-screen')).toBeVisible();
   await expect(page.locator('#social-page-scroll')).toHaveCount(0);
@@ -264,4 +265,47 @@ test('Reels fills the content viewport, pages vertically and opens the Reel crea
   await page.screenshot({ path: 'test-results/screenshots/' + testInfo.project.name + '-reels.png' });
   await page.getByRole('button', { name: 'Create Reel' }).click();
   await expect(page.getByText('New reel')).toBeVisible();
+});
+
+
+test('Stories open in an immersive fixed viewport with previous/next and close controls', async ({ page }, testInfo) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'View story by Alex' }).click();
+  await expect(page.getByTestId('story-viewport')).toBeVisible();
+  await expect(page.getByText('Sample story · Motorcycles')).toBeVisible();
+  await expect(page.getByText('EARLY PREVIEW')).toHaveCount(0);
+  await expect(page.getByRole('tab', { name: 'Home' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Next story' }).click();
+  await expect(page.getByText('Sample story · Cars')).toBeVisible();
+  await page.getByRole('button', { name: 'Previous story' }).click();
+  await expect(page.getByText('Sample story · Motorcycles')).toBeVisible();
+  await mkdir('test-results/screenshots', { recursive: true });
+  await page.screenshot({ path: 'test-results/screenshots/' + testInfo.project.name + '-stories.png' });
+  await page.getByRole('button', { name: 'Close story' }).click();
+  await expect(page.getByRole('tab', { name: 'Home' })).toBeVisible();
+});
+
+
+test('bottom navigation remains against the viewport on each main app tab', async ({ page }, testInfo) => {
+  await page.goto('/');
+  for (const tab of ['Home','Reels','Create','Clubs','Shop']) {
+    await page.getByRole('tab', { name: tab }).click();
+    const bounds = await page.evaluate(() => {
+      const tabs = document.getElementById('social-bottom-tabs');
+      const root = document.getElementById('root');
+      const bar = tabs?.getBoundingClientRect();
+      return {
+        bottom: bar?.bottom ?? -1,
+        viewport: window.innerHeight,
+        rootDisplay: root ? getComputedStyle(root).display : '',
+        bodyOverflow: getComputedStyle(document.body).overflow,
+      };
+    });
+    expect(bounds.rootDisplay).toBe('flex');
+    expect(bounds.bodyOverflow).toBe('hidden');
+    expect(bounds.bottom).toBeGreaterThanOrEqual(bounds.viewport - 2);
+    expect(bounds.bottom).toBeLessThanOrEqual(bounds.viewport + 2);
+  }
+  await mkdir('test-results/screenshots', { recursive: true });
+  await page.screenshot({ path: 'test-results/screenshots/' + testInfo.project.name + '-nav-flush.png' });
 });
