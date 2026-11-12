@@ -459,9 +459,9 @@ test('Create is full-screen, has working mode controls and a real dismissal path
   await expect(page.getByRole('button', { name: 'Story format' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Reel format' })).toBeVisible();
   await page.getByRole('button', { name: 'Reel format' }).click();
-  await expect(page.getByRole('button', { name: '15 seconds' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('button', { name: '15 seconds' })).toHaveAttribute('aria-pressed', 'true');
   await page.getByRole('button', { name: '60 seconds' }).click();
-  await expect(page.getByRole('button', { name: '60 seconds' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('button', { name: '60 seconds' })).toHaveAttribute('aria-pressed', 'true');
   await page.getByRole('button', { name: 'Close Create' }).click();
   await expect(page.getByRole('tab', { name: 'Home' })).toBeVisible();
   await expect(page.locator('#social-bottom-tabs')).toHaveCount(1);
