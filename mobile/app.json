@@ -60,6 +60,7 @@
       ],
       "./plugins/withAndroidVoiceForegroundService",
       "./plugins/withoutBackgroundFetch",
+      "./plugins/withAndroidThemeColors",
       [
         "expo-splash-screen",
         {

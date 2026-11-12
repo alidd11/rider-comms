@@ -1,90 +1,48 @@
 import { DynamicColorIOS, Platform, PlatformColor, useColorScheme } from 'react-native';
+import palette from './themePalette.json';
 
-/** One product identity translated between two lighting conditions. */
-export const lightColors = {
-  background: '#E9EEF0',
-  surface: '#F7F9FA',
-  surfaceRaised: '#DFE7EA',
-  border: '#BCC8CE',
-  textPrimary: '#0B1216',
-  textSecondary: '#46545C',
-  textMuted: '#58666E',
-  accent: '#279FC8',
-  // Accent for text and small marks: the brand accent is only 2.6:1 on light
-  // surfaces, below WCAG AA.
-  accentInk: '#156E90',
-  accentPressed: '#1F86AA',
-  accentSoft: '#D5EBF2',
-  accentText: '#031217',
-  success: '#1D7553',
-  danger: '#BE4A53',
-  dangerSurface: '#F2DDDF',
-  warning: '#97620F',
-  asphalt: '#DDE5E8',
-  laneLine: '#BBC7CD',
-  // An off switch's track: visible against surfaces in both themes.
-  switchTrackOff: '#AEBBC2',
-} as const;
-
-export const darkColors = {
-  background: '#080D10',
-  surface: '#11171B',
-  surfaceRaised: '#182127',
-  border: '#202A30',
-  textPrimary: '#F3F6F7',
-  textSecondary: '#AAB5BA',
-  textMuted: '#85919A',
-  accent: '#2FA8D3',
-  accentInk: '#2FA8D3',
-  accentPressed: '#278DB1',
-  accentSoft: '#102D38',
-  accentText: '#041318',
-  success: '#42C58A',
-  danger: '#F0646B',
-  dangerSurface: '#2A171A',
-  warning: '#D39A42',
-  asphalt: '#0D1317',
-  laneLine: '#253139',
-  switchTrackOff: '#3A4850',
-} as const;
+/**
+ * One product identity translated between two lighting conditions. The
+ * values live in themePalette.json so the Android build can turn them into
+ * colour resources too (plugins/withAndroidThemeColors.js).
+ *
+ * Notes on particular colours:
+ * - accentInk: the accent for text and small marks; the brand accent is only
+ *   2.6:1 on light surfaces, below WCAG AA.
+ * - switchTrackOff: an off switch's track, visible against surfaces in both
+ *   themes.
+ */
+export const lightColors = palette.light;
+export const darkColors = palette.dark;
 
 export type ThemeColors = { [K in keyof typeof lightColors]: string };
 export type ConcreteThemeColors = typeof lightColors | typeof darkColors;
 
-function adaptive(light: string, dark: string, androidAttribute?: string): string {
+/** The Android colour resource for a token, e.g. textPrimary -> rider_text_primary. */
+export function androidColorResource(token: string): string {
+  return `rider_${token.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`)}`;
+}
+
+function adaptive(token: keyof typeof lightColors): string {
   // React Navigation still types colours as plain strings even though React
   // Native accepts semantic OpaqueColorValue objects in every colour prop.
-  if (Platform.OS === 'ios') return DynamicColorIOS({ light, dark }) as unknown as string;
-  if (Platform.OS === 'android' && androidAttribute) return PlatformColor(androidAttribute) as unknown as string;
-  return dark;
+  if (Platform.OS === 'ios') return DynamicColorIOS({ light: lightColors[token], dark: darkColors[token] }) as unknown as string;
+  // Android: the app's own colour resources, with a values-night copy, so
+  // they follow the system theme like DynamicColorIOS. Framework theme
+  // attributes such as ?android:attr/textColorPrimary must not be used:
+  // they point at colour state lists, which React Native reads as a raw
+  // number, and the text came out invisible.
+  if (Platform.OS === 'android') return PlatformColor(`@color/${androidColorResource(token)}`) as unknown as string;
+  return darkColors[token];
 }
 
 /**
- * Static styles and icon colours can consume these adaptive values directly.
- * iOS resolves DynamicColorIOS on every appearance change; Android resolves
- * framework theme attributes after userInterfaceStyle switches automatically.
+ * Static styles and icon colours can consume these adaptive values directly;
+ * both platforms resolve them for the current appearance.
  */
-export const colors: ThemeColors = {
-  background: adaptive(lightColors.background, darkColors.background, '?android:attr/colorBackground'),
-  surface: adaptive(lightColors.surface, darkColors.surface, '?android:attr/colorBackgroundFloating'),
-  surfaceRaised: adaptive(lightColors.surfaceRaised, darkColors.surfaceRaised, '?android:attr/colorBackgroundFloating'),
-  border: adaptive(lightColors.border, darkColors.border, '?android:attr/colorControlNormal'),
-  textPrimary: adaptive(lightColors.textPrimary, darkColors.textPrimary, '?android:attr/textColorPrimary'),
-  textSecondary: adaptive(lightColors.textSecondary, darkColors.textSecondary, '?android:attr/textColorSecondary'),
-  textMuted: adaptive(lightColors.textMuted, darkColors.textMuted, '?android:attr/textColorSecondary'),
-  accent: adaptive(lightColors.accent, darkColors.accent),
-  accentInk: adaptive(lightColors.accentInk, darkColors.accentInk),
-  accentPressed: adaptive(lightColors.accentPressed, darkColors.accentPressed),
-  accentSoft: adaptive(lightColors.accentSoft, darkColors.accentSoft),
-  accentText: adaptive(lightColors.accentText, darkColors.accentText),
-  success: adaptive(lightColors.success, darkColors.success),
-  danger: adaptive(lightColors.danger, darkColors.danger),
-  dangerSurface: adaptive(lightColors.dangerSurface, darkColors.dangerSurface),
-  warning: adaptive(lightColors.warning, darkColors.warning),
-  asphalt: adaptive(lightColors.asphalt, darkColors.asphalt),
-  laneLine: adaptive(lightColors.laneLine, darkColors.laneLine),
-  switchTrackOff: adaptive(lightColors.switchTrackOff, darkColors.switchTrackOff),
-};
+export const colors = Object.fromEntries(
+  (Object.keys(lightColors) as Array<keyof typeof lightColors>).map((token) => [token, adaptive(token)]),
+) as ThemeColors;
 
 export function useConcreteThemeColors(): ConcreteThemeColors {
   return useColorScheme() === 'light' ? lightColors : darkColors;

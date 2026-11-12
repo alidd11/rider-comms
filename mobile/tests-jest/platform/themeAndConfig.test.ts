@@ -28,9 +28,15 @@ describe('theme colours', () => {
       const { colors } = require('../../src/theme');
       return { colors, platformColor };
     });
-    expect(android.colors.background).toEqual({ attr: '?android:attr/colorBackground' });
-    // Colours without an Android attribute use the dark value.
-    expect(typeof android.colors.accent).toBe('string');
+    // The app's own colour resources (light and night), never framework
+    // attributes such as textColorPrimary, which rendered text invisible.
+    expect(android.colors.background).toEqual({ attr: '@color/rider_background' });
+    expect(android.colors.textPrimary).toEqual({ attr: '@color/rider_text_primary' });
+    expect(android.colors.switchTrackOff).toEqual({ attr: '@color/rider_switch_track_off' });
+    expect(android.platformColor.mock.calls.every(([name]) => String(name).startsWith('@color/rider_'))).toBe(true);
+
+    const web = withPlatform('web', () => require('../../src/theme'));
+    expect(web.colors.textPrimary).toBe(web.darkColors.textPrimary);
   });
 
   it('gives concrete colours for the current scheme', async () => {
