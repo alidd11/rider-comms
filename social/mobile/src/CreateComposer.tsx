@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Image, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Image, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -9,7 +10,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { C, s } from './styles';
 import { cropRect } from './imageEdit';
 import type { AspectPreset } from './imageEdit';
-import { MAX_CAPTION, moveMedia, parseTextDraft, validateDraft, validateMedia } from './upload';
+import { MAX_CAPTION, MAX_TITLE, moveMedia, parseTextDraft, validateDraft, validateMedia } from './upload';
 import type { Audience, ComposerDraft, ComposerMedia, ComposerMode } from './upload';
 
 type Stage = 'select' | 'edit' | 'share';
@@ -67,12 +68,17 @@ function Tool({ icon, label, onPress, disabled = false }: {
   </Pressable>;
 }
 
-export function CreateComposer({ initialMode = 'Post' }: { initialMode?: ComposerMode }) {
+export function CreateComposer({ initialMode = 'Post', onClose }: { initialMode?: ComposerMode; onClose: () => void }) {
+  const insets = useSafeAreaInsets();
   const [mode, setMode] = useState<ComposerMode>(initialMode);
   const [stage, setStage] = useState<Stage>('select');
   const [media, setMedia] = useState<ComposerMedia[]>([]);
   const [active, setActive] = useState(0);
   const [caption, setCaption] = useState('');
+  const [title, setTitle] = useState('');
+  const [paidContent, setPaidContent] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [pendingMode, setPendingMode] = useState<ComposerMode | null>(null);
   const [category, setCategory] = useState<Topic>('motorcycles');
   const [audience, setAudience] = useState<Audience>('private');
   const [status, setStatus] = useState<string | null>(null);
@@ -88,6 +94,8 @@ export function CreateComposer({ initialMode = 'Post' }: { initialMode?: Compose
       const restored = parseTextDraft(JSON.parse(raw) as unknown);
       if (restored) {
         setCaption(restored.caption);
+        setTitle(restored.title ?? '');
+        setMode(restored.mode);
         setCategory(restored.category);
         setAudience(restored.audience);
         setStatus('Text draft restored. Select media again.');
@@ -102,6 +110,12 @@ export function CreateComposer({ initialMode = 'Post' }: { initialMode?: Compose
 
   function changeMode(next: ComposerMode) {
     if (mode === next) return;
+    if (media.length) { setPendingMode(next); return; }
+    applyMode(next);
+  }
+
+  function applyMode(next: ComposerMode) {
+    setPendingMode(null);
     setMode(next);
     setStage('select');
     setMedia([]);
@@ -222,7 +236,7 @@ export function CreateComposer({ initialMode = 'Post' }: { initialMode?: Compose
   }
 
   function continueToShare() {
-    const result = validateDraft({ mode, caption, audience, category, media });
+    const result = validateDraft({ mode, title, caption, audience, category, media });
     if (!result.ok) { setStatus(result.error); return; }
     setStatus(null);
     setStage('share');
@@ -230,7 +244,7 @@ export function CreateComposer({ initialMode = 'Post' }: { initialMode?: Compose
 
   async function saveTextDraft() {
     try {
-      await AsyncStorage.setItem(DRAFT_KEY, JSON.stringify({ mode, caption, category, audience }));
+      await AsyncStorage.setItem(DRAFT_KEY, JSON.stringify({ mode, title, caption, category, audience }));
       setStatus('Text draft saved. Photos and videos are not saved; select them again next time.');
     } catch {
       setStatus('Text draft could not be saved on this device.');
@@ -239,185 +253,352 @@ export function CreateComposer({ initialMode = 'Post' }: { initialMode?: Compose
 
   function back() {
     setStatus(null);
+    if (previewOpen) { setPreviewOpen(false); return; }
     if (stage === 'share') setStage('edit');
     else if (stage === 'edit') setStage('select');
     else if (media.length || caption) setStatus('Use Clear to discard this draft.');
   }
 
-  const composerTitle = stage === 'share' ? 'New ' + mode.toLowerCase() :
+  const composerTitle = stage === 'share' ? 'Post details' :
     stage === 'edit' ? 'Edit ' + mode.toLowerCase() : 'New ' + mode.toLowerCase();
+  const bottomInset = Platform.OS === 'web' ? 13 : Math.max(13, insets.bottom);
+  const heroBg = '#050709';
+  const surface = '#141619';
+  const border = '#292D31';
+  const secondary = '#A5AAB0';
+  const white = '#FFFFFF';
 
-  return <View testID="create-studio" style={{ flex: 1, minHeight: 0, backgroundColor: C.bg }}>
-    <View style={{ paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderColor: C.border }}>
-      <View style={s.rowBetween}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Back in composer" onPress={back}
-          style={{ minWidth: 38, minHeight: 40, justifyContent: 'center' }}>
-          <Ionicons name="arrow-back" size={24} color={C.ink}/>
-        </Pressable>
-        <View style={{ alignItems: 'center', gap: 2 }}>
-          <Text style={{ color: C.ink, fontSize: 17, fontWeight: '900' }}>{composerTitle}</Text>
-          <Text style={{ color: C.accent, fontSize: 10, fontWeight: '700' }}>PRIVATE PREVIEW</Text>
-        </View>
-        {stage === 'edit'
-          ? <Pressable accessibilityRole="button" accessibilityLabel="Review post" disabled={processing}
-              onPress={continueToShare} style={{ minWidth: 48, minHeight: 40, justifyContent: 'center', alignItems: 'flex-end' }}>
-              <Text style={{ color: C.accent, fontSize: 15, fontWeight: '900' }}>Next</Text>
-            </Pressable>
-          : <View style={{ width: 48 }}/>}
-      </View>
-    </View>
-    {status ? <Pressable accessibilityRole="button" accessibilityLabel="Dismiss composer notice"
-      onPress={() => setStatus(null)} style={{
-        paddingHorizontal: 15, paddingVertical: 10, backgroundColor: C.accentDark,
-        borderBottomWidth: 1, borderColor: '#306F61',
-      }}>
-      <Text accessibilityRole="alert" style={{ color: '#C9F8E9', fontSize: 12 }}>{status}</Text>
-    </Pressable> : null}
+  return <View testID="create-studio" nativeID="social-create-studio"
+    style={{ flex: 1, minHeight: 0, backgroundColor: heroBg, paddingBottom: bottomInset }}>
 
     {stage === 'select' ? <>
       <CameraCapture mode={mode} disabled={selecting || processing}
-        onCapture={captureFromCamera} onLibrary={() => void chooseMedia()}/>
-      <View style={{
-        borderTopWidth: 1, borderColor: C.border,
-        paddingHorizontal: 15, paddingVertical: 9, gap: 8, backgroundColor: C.bg,
-      }}>
+        onCapture={captureFromCamera} onLibrary={() => void chooseMedia()} onClose={onClose}/>
+      <View style={{ backgroundColor: heroBg, paddingHorizontal: 12,
+        paddingTop: 11, paddingBottom: 5 }}>
         {media.length > 0 ? <Pressable accessibilityRole="button" accessibilityLabel="Continue editing"
-          onPress={() => setStage('edit')} style={{ alignItems: 'center', paddingVertical: 7 }}>
-          <Text style={{ color: C.accent, fontSize: 12, fontWeight: '800' }}>
-            Continue editing ({media.length})
+          onPress={() => setStage('edit')} style={{ alignSelf: 'center',
+            borderRadius: 20, paddingVertical: 9, paddingHorizontal: 17,
+            backgroundColor: surface, marginBottom: 4 }}>
+          <Text style={{ color: white, fontWeight: '800', fontSize: 13 }}>
+            Continue editing · {media.length} selected
           </Text>
         </Pressable> : null}
-        <View style={[s.row, { justifyContent: 'center', gap: 26 }]}>
-          {formats.map(item => <Pressable key={item} accessibilityRole="button" accessibilityLabel={item + ' format'}
-            accessibilityState={{ selected: mode === item }} onPress={() => changeMode(item)}
-            style={{ paddingVertical: 7, borderBottomWidth: 2, borderBottomColor: mode === item ? C.accent : 'transparent' }}>
-            <Text style={{ color: mode === item ? C.ink : C.muted, fontWeight: '900', fontSize: 14 }}>{item}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
+          {formats.map(item => <Pressable key={item} accessibilityRole="button"
+            accessibilityLabel={item + ' format'} accessibilityState={{ selected: mode === item }}
+            onPress={() => changeMode(item)} style={{
+              minWidth: 78, paddingVertical: 11, paddingHorizontal: 10,
+              justifyContent: 'center', alignItems: 'center',
+              borderBottomWidth: 2, borderBottomColor: item === mode ? white : 'transparent',
+            }}>
+            <Text style={{ color: item === mode ? white : secondary, fontSize: 13,
+              fontWeight: item === mode ? '900' : '600' }}>
+              {item}
+            </Text>
           </Pressable>)}
         </View>
       </View>
-    </> : null}
+    </> : <>
 
-    {stage === 'edit' && selected ? <>
-      <View testID="media-edit-canvas" style={{ flex: 1, minHeight: 140, backgroundColor: '#020408', position: 'relative' }}>
-        <MediaCanvas key={selected.id + selected.uri} item={selected}/>
-        <View style={{ position: 'absolute', top: 13, left: 13, paddingHorizontal: 9, paddingVertical: 6,
-          backgroundColor: 'rgba(5,9,12,0.72)', borderRadius: 8 }}>
-          <Text style={{ color: '#FFFFFF', fontSize: 12, fontWeight: '800' }}>{active + 1} / {media.length}</Text>
-        </View>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between',
+        alignItems: 'center', paddingHorizontal: 13, minHeight: 58, gap: 12 }}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Back in composer"
+          onPress={back} style={{ width: 42, height: 43, alignItems: 'center', justifyContent: 'center' }}>
+          <Ionicons name="chevron-back" size={29} color={white}/>
+        </Pressable>
+        <Text style={{ color: white, fontSize: 17, fontWeight: '800' }}>{composerTitle}</Text>
+        {stage === 'edit' ? <Pressable accessibilityRole="button" accessibilityLabel="Review post"
+          disabled={processing} onPress={continueToShare}
+          style={{ borderRadius: 22, backgroundColor: white, minWidth: 70,
+            minHeight: 37, alignItems: 'center', justifyContent: 'center',
+            opacity: processing ? 0.5 : 1 }}>
+          <Text style={{ color: heroBg, fontSize: 13, fontWeight: '900' }}>Next</Text>
+        </Pressable> : <Pressable accessibilityRole="button" accessibilityLabel="Preview post"
+          onPress={() => setPreviewOpen(true)}
+          style={{ minWidth: 70, minHeight: 42, justifyContent: 'center', alignItems: 'flex-end' }}>
+          <Text style={{ color: white, fontSize: 13, fontWeight: '700' }}>Preview</Text>
+        </Pressable>}
       </View>
-      <View style={{ paddingTop: 10, borderTopWidth: 1, borderColor: C.border, backgroundColor: C.bg, gap: 9 }}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: 13, alignItems: 'center', gap: 8 }}>
-          {media.map((item, i) => <Pressable key={item.id} accessibilityRole="button"
-            accessibilityLabel={'Select media ' + String(i + 1)} onPress={() => { setActive(i); setRatio('original'); }}
-            style={{ width: 58, height: 68, borderRadius: 9, overflow: 'hidden', borderWidth: 2,
-              borderColor: active === i ? C.accent : C.border, backgroundColor: C.panel }}>
-            {item.kind === 'image' ? <Image source={{ uri: item.uri }} resizeMode="cover"
-              style={{ width: '100%', height: '100%' }}/> :
-              <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-                <Ionicons name="videocam" color={C.ink} size={23}/>
-              </View>}
-          </Pressable>)}
-          {allowedMore ? <Pressable accessibilityRole="button" accessibilityLabel="Add more media"
-            onPress={() => void chooseMedia()} style={{ width: 54, height: 68,
-              borderRadius: 9, borderWidth: 1, borderColor: C.border,
-              justifyContent: 'center', alignItems: 'center' }}>
-            <Ionicons name="add" color={C.accent} size={26}/>
-          </Pressable> : null}
-        </ScrollView>
-        {selected.kind === 'image' ? <ScrollView horizontal showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: 12, alignItems: 'center', gap: 6 }}>
-          {ratios.filter(item => mode === 'Post' || item.value === 'original' || item.value === 'vertical')
-            .map(item => <Option key={item.value} label={item.label} selected={ratio === item.value}
-              onPress={() => void editImage({ ratio: item.value })}/>)}
-        </ScrollView> : <Text style={{ color: C.muted, fontSize: 12, paddingHorizontal: 16 }}>
-          Video preview · trim and audio editing not yet available
-        </Text>}
-        <View style={[s.row, { justifyContent: 'space-around', paddingBottom: 10, flexWrap: 'wrap' }]}>
-          {media.length > 1 ? <>
-            <Tool icon="arrow-back-outline" label="Earlier" disabled={active === 0}
-              onPress={() => {
-                setMedia(list => moveMedia(list, selected.id, -1));
-                setActive(index => Math.max(0, index - 1));
-              }}/>
-            <Tool icon="arrow-forward-outline" label="Later" disabled={active === media.length - 1}
-              onPress={() => {
-                setMedia(list => moveMedia(list, selected.id, 1));
-                setActive(index => Math.min(media.length - 1, index + 1));
-              }}/>
-          </> : null}
-          <Tool icon="refresh-outline" label="Rotate" onPress={() => void editImage({ rotate: true })}
-            disabled={isVideo || processing}/>
-          <Tool icon="trash-outline" label="Remove" onPress={removeSelected}/>
-          <Tool icon="images-outline" label="Library" onPress={() => void chooseMedia()} disabled={selecting || !allowedMore}/>
-          <Tool icon="bookmark-outline" label="Draft" onPress={() => void saveTextDraft()}/>
-        </View>
-      </View>
-    </> : null}
 
-    {stage === 'share' ? <>
-      <ScrollView nativeID="composer-scroll" testID="composer-scroll" style={{ flex: 1, minHeight: 0 }}
-        keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ padding: 16, gap: 18, paddingBottom: 24 }}>
-        <View style={[s.row, { alignItems: 'flex-start' }]}>
-          <View style={{ width: 100, height: 142, backgroundColor: '#020408', borderRadius: 12, overflow: 'hidden' }}>
-            {media[0]?.kind === 'image' ? <Image source={{ uri: media[0].uri }}
-              style={{ width: '100%', height: '100%' }} resizeMode="cover"/> :
-              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                <Ionicons name="videocam-outline" color={C.ink} size={31}/>
-              </View>}
-          </View>
-          <TextInput accessibilityLabel="Create caption" multiline value={caption}
-            maxLength={MAX_CAPTION} onChangeText={setCaption}
-            placeholder="Write a caption…" placeholderTextColor={C.muted}
-            style={{ flex: 1, color: C.ink, fontSize: 15, paddingVertical: 5, minHeight: 130, textAlignVertical: 'top' }}/>
-        </View>
-        <Text style={[s.small, { alignSelf: 'flex-end' }]}>{caption.length} / {MAX_CAPTION}</Text>
-        <View style={{ height: 1, backgroundColor: C.border }}/>
-        <View style={{ gap: 11 }}>
-          <Text style={s.cardHeading}>Community</Text>
-          <View style={[s.row, { flexWrap: 'wrap' }]}>
-            {topics.map(item => <Option key={item.value} label={item.label}
-              selected={category === item.value} onPress={() => setCategory(item.value)}/>)}
+      {stage === 'edit' && selected ? <>
+        <View testID="media-edit-canvas" style={{
+          flex: 1, minHeight: 140, backgroundColor: '#000000', overflow: 'hidden',
+          marginHorizontal: 7, borderRadius: 18, position: 'relative',
+        }}>
+          <MediaCanvas key={selected.id + selected.uri} item={selected}/>
+          <View style={{ position: 'absolute', top: 15, left: 15, borderRadius: 16,
+            backgroundColor: 'rgba(0,0,0,0.64)', paddingVertical: 6, paddingHorizontal: 11 }}>
+            <Text style={{ color: white, fontSize: 12, fontWeight: '800' }}>
+              {active + 1} / {media.length}
+            </Text>
           </View>
         </View>
-        <View style={{ height: 1, backgroundColor: C.border }}/>
-        <View style={{ gap: 12 }}>
-          <Text style={s.cardHeading}>Audience</Text>
-          {audiences.map(item => <Pressable key={item.value} accessibilityRole="radio"
-            accessibilityLabel={'Audience ' + item.label} accessibilityState={{ checked: audience === item.value }}
-            aria-checked={audience === item.value}
-            onPress={() => setAudience(item.value)} style={[s.rowBetween, { minHeight: 43 }]}>
-            <View style={s.row}>
-              <Ionicons name={item.icon} color={C.ink} size={20}/>
-              <Text style={s.body}>{item.label}</Text>
+        <View style={{ paddingTop: 12, paddingBottom: 6, gap: 11, backgroundColor: heroBg }}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingHorizontal: 16, alignItems: 'center', gap: 9 }}>
+            {media.map((item, i) => <Pressable key={item.id} accessibilityRole="button"
+              accessibilityLabel={'Select media ' + String(i + 1)} onPress={() => {
+                setActive(i); setRatio('original');
+              }} style={{ width: 57, height: 72, borderRadius: 10,
+                overflow: 'hidden', borderWidth: 2,
+                borderColor: active === i ? white : border, backgroundColor: surface }}>
+              {item.kind === 'image' ? <Image source={{ uri: item.uri }} resizeMode="cover"
+                style={{ width: '100%', height: '100%' }}/> :
+                <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                  <Ionicons name="videocam" color={white} size={23}/>
+                </View>}
+            </Pressable>)}
+            {allowedMore ? <Pressable accessibilityRole="button" accessibilityLabel="Add more media"
+              onPress={() => void chooseMedia()} style={{ width: 55, height: 72,
+                borderRadius: 10, borderWidth: 1, borderColor: border,
+                justifyContent: 'center', alignItems: 'center' }}>
+              <Ionicons name="add" color={white} size={29}/>
+            </Pressable> : null}
+          </ScrollView>
+          {selected.kind === 'image' ? <ScrollView horizontal showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingHorizontal: 16, alignItems: 'center', gap: 8 }}>
+            {ratios.filter(item => mode === 'Post' || item.value === 'original' || item.value === 'vertical')
+              .map(item => <Option key={item.value} label={item.label}
+                selected={ratio === item.value}
+                onPress={() => void editImage({ ratio: item.value })}/>)}
+          </ScrollView> : <Text style={{ color: secondary, fontSize: 12, paddingHorizontal: 17 }}>
+            Video preview · editing tools for video are not yet available
+          </Text>}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingHorizontal: 14, alignItems: 'center', gap: 14 }}>
+            {media.length > 1 ? <>
+              <Tool icon="arrow-back-outline" label="Earlier" disabled={active === 0}
+                onPress={() => {
+                  setMedia(list => moveMedia(list, selected.id, -1));
+                  setActive(index => Math.max(0, index - 1));
+                }}/>
+              <Tool icon="arrow-forward-outline" label="Later" disabled={active === media.length - 1}
+                onPress={() => {
+                  setMedia(list => moveMedia(list, selected.id, 1));
+                  setActive(index => Math.min(media.length - 1, index + 1));
+                }}/>
+            </> : null}
+            <Tool icon="refresh-outline" label="Rotate" onPress={() => void editImage({ rotate: true })}
+              disabled={isVideo || processing}/>
+            <Tool icon="trash-outline" label="Remove" onPress={removeSelected}/>
+            <Tool icon="images-outline" label="Library" onPress={() => void chooseMedia()}
+              disabled={selecting || !allowedMore}/>
+          </ScrollView>
+        </View>
+      </> : null}
+
+      {stage === 'share' ? <>
+        <ScrollView nativeID="composer-scroll" testID="composer-scroll" style={{
+          flex: 1, minHeight: 0, backgroundColor: heroBg,
+        }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal: 17, paddingTop: 10,
+            paddingBottom: 28, gap: 20 }}>
+          <View style={{ flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
+            <View style={{ width: 108, height: 147, borderRadius: 13,
+              overflow: 'hidden', backgroundColor: surface, position: 'relative' }}>
+              {media[0]?.kind === 'image'
+                ? <Image source={{ uri: media[0].uri }} resizeMode="cover"
+                    style={{ height: '100%', width: '100%' }}/>
+                : <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                    <Ionicons name="videocam-outline" color={white} size={30}/>
+                  </View>}
+              <View style={{ position: 'absolute', top: 7, left: 7, backgroundColor: 'rgba(0,0,0,0.6)',
+                borderRadius: 7, paddingHorizontal: 7, paddingVertical: 4 }}>
+                <Text style={{ color: white, fontSize: 10, fontWeight: '800' }}>Cover</Text>
+              </View>
             </View>
-            <Ionicons name={audience === item.value ? 'radio-button-on' : 'radio-button-off'}
-              color={audience === item.value ? C.accent : C.muted} size={21}/>
-          </Pressable>)}
-        </View>
-        <View style={{ height: 1, backgroundColor: C.border }}/>
-        <View style={[s.rowBetween, { paddingVertical: 6 }]}>
-          <View style={s.row}>
-            <Ionicons name="shield-checkmark-outline" color={C.accent} size={22}/>
-            <Text style={s.cardHeading}>Not published</Text>
+            <View style={{ flex: 1, minHeight: 140, gap: 9 }}>
+              <Text style={{ color: white, fontSize: 12, fontWeight: '700' }}>Add a title</Text>
+              <TextInput accessibilityLabel="Post title" maxLength={MAX_TITLE}
+                value={title} onChangeText={setTitle}
+                placeholder="Give your post a title"
+                placeholderTextColor="#777B81"
+                style={{ borderBottomWidth: 1, borderColor: border,
+                  color: white, fontSize: 16, fontWeight: '700', paddingBottom: 13,
+                  paddingHorizontal: 0, minHeight: 47 }}/>
+              <Text style={{ color: secondary, fontSize: 11 }}>
+                {mode} · {media.length} item{media.length === 1 ? '' : 's'} · Not published
+              </Text>
+              {allowedMore ? <Pressable accessibilityRole="button"
+                accessibilityLabel="Add more media" onPress={() => void chooseMedia()}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingTop: 10 }}>
+                <Ionicons name="add-circle-outline" color={white} size={21}/>
+                <Text style={{ color: white, fontSize: 12, fontWeight: '700' }}>
+                  Add photos
+                </Text>
+              </Pressable> : null}
+            </View>
           </View>
-          <Text style={s.small}>{mode} · {media.length} item{media.length === 1 ? '' : 's'}</Text>
-        </View>
-        <Text style={s.small}>This is a private development preview. No media is uploaded to a server.</Text>
-      </ScrollView>
-      <View style={{ borderTopWidth: 1, borderColor: C.border, padding: 13, gap: 9 }}>
-        <View style={s.row}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Back to edit" onPress={() => setStage('edit')}
-            style={[s.ghost, { flex: 1 }]}>
-            <Text style={s.ghostText}>Edit</Text>
+
+          <View style={{ gap: 10 }}>
+            <TextInput accessibilityLabel="Create caption" multiline value={caption}
+              maxLength={MAX_CAPTION} onChangeText={setCaption}
+              placeholder="Write a description…"
+              placeholderTextColor="#80858B"
+              style={{ color: white, fontSize: 15, lineHeight: 22,
+                minHeight: 140, textAlignVertical: 'top', padding: 0 }}/>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}>
+              <Pressable accessibilityRole="button" accessibilityLabel="Add hashtag"
+                onPress={() => setCaption(current => (current && !/\s$/.test(current) ? current + ' ' : current) + '#')}
+                style={{ backgroundColor: surface, borderRadius: 10,
+                  minWidth: 39, minHeight: 38, alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ color: white, fontSize: 21, fontWeight: '700' }}>#</Text>
+              </Pressable>
+              <Pressable accessibilityRole="button" accessibilityLabel="Add mention"
+                onPress={() => setCaption(current => (current && !/\s$/.test(current) ? current + ' ' : current) + '@')}
+                style={{ backgroundColor: surface, borderRadius: 10,
+                  minWidth: 39, minHeight: 38, alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ color: white, fontSize: 20, fontWeight: '700' }}>@</Text>
+              </Pressable>
+              <Text style={{ color: secondary, marginLeft: 'auto', fontSize: 11 }}>
+                {caption.length}/{MAX_CAPTION}
+              </Text>
+            </View>
+          </View>
+
+          <View style={{ height: 1, backgroundColor: border }}/>
+          <View style={{ gap: 12 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}>
+              <Ionicons name="people-outline" size={21} color={white}/>
+              <Text style={{ color: white, fontSize: 15, fontWeight: '800' }}>Community</Text>
+            </View>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 9 }}>
+              {topics.map(item => <Option key={item.value} label={item.label}
+                selected={category === item.value} onPress={() => setCategory(item.value)}/>)}
+            </View>
+          </View>
+
+          <View style={{ height: 1, backgroundColor: border }}/>
+          <View style={{ gap: 12 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}>
+              <Ionicons name="earth-outline" size={21} color={white}/>
+              <Text style={{ color: white, fontSize: 15, fontWeight: '800' }}>Who can view this post</Text>
+            </View>
+            {audiences.map(item => <Pressable key={item.value} accessibilityRole="radio"
+              accessibilityLabel={'Audience ' + item.label}
+              accessibilityState={{ checked: audience === item.value }}
+              aria-checked={audience === item.value}
+              onPress={() => setAudience(item.value)}
+              style={{ minHeight: 44, flexDirection: 'row', alignItems: 'center',
+                justifyContent: 'space-between' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                <Ionicons name={item.icon} color={secondary} size={20}/>
+                <Text style={{ color: white, fontSize: 14 }}>{item.label}</Text>
+              </View>
+              <Ionicons name={audience === item.value ? 'radio-button-on' : 'radio-button-off'}
+                color={audience === item.value ? C.accent : secondary} size={22}/>
+            </Pressable>)}
+          </View>
+
+          <View style={{ height: 1, backgroundColor: border }}/>
+          <Pressable accessibilityRole="checkbox"
+            accessibilityLabel="Contains paid promotion" accessibilityState={{ checked: paidContent }}
+            onPress={() => setPaidContent(current => !current)}
+            style={{ minHeight: 47, flexDirection: 'row',
+              alignItems: 'center', justifyContent: 'space-between' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <Ionicons name="megaphone-outline" size={22} color={white}/>
+              <Text style={{ color: white, fontSize: 14, fontWeight: '700' }}>Contains paid promotion</Text>
+            </View>
+            <Ionicons name={paidContent ? 'checkbox' : 'square-outline'} color={
+              paidContent ? C.accent : secondary} size={23}/>
           </Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel="Save text draft" onPress={() => void saveTextDraft()}
-            style={[s.cta, { flex: 2 }]}>
-            <Text style={s.ctaText}>Save text draft</Text>
+          <Text style={{ color: secondary, fontSize: 11, lineHeight: 17 }}>
+            This is a local preview setting. Sponsored content must be disclosed before it can be published.
+          </Text>
+
+          <View style={{ padding: 13, backgroundColor: surface, borderRadius: 13, gap: 5 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Ionicons name="lock-closed-outline" color={white} size={19}/>
+              <Text style={{ color: white, fontWeight: '800', fontSize: 13 }}>
+                Not published
+              </Text>
+            </View>
+            <Text style={{ color: secondary, fontSize: 12, lineHeight: 17 }}>
+              Your media stays on this device. Uploading and publishing are not available until accounts, safety checks and storage are connected.
+            </Text>
+          </View>
+        </ScrollView>
+
+        <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center',
+          backgroundColor: heroBg, paddingHorizontal: 15, paddingTop: 13, paddingBottom: 3,
+          borderTopWidth: 1, borderColor: border }}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Save text draft"
+            onPress={() => void saveTextDraft()}
+            style={{ flex: 1, borderRadius: 26, backgroundColor: '#26292C',
+              alignItems: 'center', justifyContent: 'center',
+              minHeight: 51, flexDirection: 'row', gap: 8 }}>
+            <Ionicons name="archive-outline" color={white} size={20}/>
+            <Text style={{ color: white, fontWeight: '800', fontSize: 14 }}>Drafts</Text>
+          </Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel="Post unavailable"
+            disabled accessibilityState={{ disabled: true }}
+            style={{ flex: 1.1, borderRadius: 26, backgroundColor: '#43494C',
+              alignItems: 'center', justifyContent: 'center',
+              minHeight: 51, flexDirection: 'row', gap: 8 }}>
+            <Ionicons name="arrow-up-circle" color="#ADB4B7" size={21}/>
+            <Text style={{ color: '#D3D7D9', fontWeight: '800', fontSize: 14 }}>Post unavailable</Text>
           </Pressable>
         </View>
+      </> : null}
+    </>}
+
+    {status ? <Pressable accessibilityRole="button" accessibilityLabel="Dismiss composer notice"
+      onPress={() => setStatus(null)}
+      style={{ position: 'absolute', left: 12, right: 12, top: stage === 'select' ? 65 : 57,
+        backgroundColor: '#24332F', borderRadius: 12, borderWidth: 1,
+        borderColor: '#415D54', padding: 12, zIndex: 15 }}>
+      <Text accessibilityRole="alert" style={{ color: '#EAFFF8', fontSize: 12, lineHeight: 18 }}>
+        {status}
+      </Text>
+    </Pressable> : null}
+
+    {pendingMode ? <View style={{ position: 'absolute', left: 12, right: 12,
+      bottom: bottomInset + 14, backgroundColor: surface, borderColor: border,
+      borderWidth: 1, borderRadius: 17, padding: 16, gap: 12, zIndex: 25 }}>
+      <Text style={{ color: white, fontSize: 16, fontWeight: '800' }}>Switch to {pendingMode}?</Text>
+      <Text style={{ color: secondary, fontSize: 12, lineHeight: 18 }}>
+        Switching formats will discard the selected media. Nothing has been uploaded.
+      </Text>
+      <View style={{ flexDirection: 'row', gap: 10 }}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Keep current format"
+          onPress={() => setPendingMode(null)}
+          style={{ flex: 1, borderRadius: 12, minHeight: 44, backgroundColor: '#292D31',
+            alignItems: 'center', justifyContent: 'center' }}>
+          <Text style={{ color: white, fontWeight: '800', fontSize: 13 }}>Cancel</Text>
+        </Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Discard and change format"
+          onPress={() => applyMode(pendingMode)}
+          style={{ flex: 1, borderRadius: 12, minHeight: 44, backgroundColor: white,
+            alignItems: 'center', justifyContent: 'center' }}>
+          <Text style={{ color: heroBg, fontWeight: '800', fontSize: 13 }}>Switch format</Text>
+        </Pressable>
       </View>
-    </> : null}
+    </View> : null}
+
+    {previewOpen && media[0] ? <View testID="post-preview" style={{
+      position: 'absolute', top: 0, bottom: 0, left: 0, right: 0,
+      backgroundColor: '#000000', zIndex: 40,
+    }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between',
+        paddingHorizontal: 16, minHeight: 54, alignItems: 'center' }}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Close post preview"
+          onPress={() => setPreviewOpen(false)}>
+          <Ionicons name="close" size={27} color={white}/>
+        </Pressable>
+        <Text style={{ color: white, fontWeight: '800', fontSize: 14 }}>Preview · Not published</Text>
+        <View style={{ width: 30 }}/>
+      </View>
+      <View style={{ flex: 1, minHeight: 0, position: 'relative' }}>
+        <MediaCanvas item={media[0]}/>
+        {caption ? <View style={{ position: 'absolute', left: 14, right: 14, bottom: 18,
+          padding: 12, borderRadius: 12, backgroundColor: 'rgba(0,0,0,0.7)' }}>
+          {title ? <Text style={{ color: white, fontSize: 15, fontWeight: '800',
+            marginBottom: 5 }}>{title}</Text> : null}
+          <Text style={{ color: white, fontSize: 13 }} numberOfLines={4}>{caption}</Text>
+        </View> : null}
+      </View>
+    </View> : null}
   </View>;
 }
