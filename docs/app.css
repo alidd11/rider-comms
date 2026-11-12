@@ -2611,10 +2611,12 @@ html.app-menu-open .ride-pill{display:none}
   /* In light mode that blur is tinted with the pale page colour and reads as
      a milky haze, and iOS keeps the clock and icons white over it. A faint
      dark fade behind the status bar gives the blur a darker tone and the
-     clock its contrast back, as over Apple Maps' own map. Map only: other
-     screens have a solid header there. */
+     clock its contrast back, as over Apple Maps' own map. Like Apple Maps it
+     stays behind the status bar and Dynamic Island, ending at the safe-area
+     line, well above the avatar. Map only: other screens have a solid
+     header there. */
   @media (prefers-color-scheme:light){
-    .screen-map::before{content:"";position:absolute;z-index:7;top:0;left:0;right:0;height:calc(var(--safe-top) + var(--edge-blur-clearance) + 18px);background:linear-gradient(rgb(8 13 16/.34),rgb(8 13 16/.16) 55%,rgb(8 13 16/0));pointer-events:none}
+    .screen-map::before{content:"";position:absolute;z-index:7;top:0;left:0;right:0;height:var(--safe-top);background:linear-gradient(rgb(8 13 16/.3),rgb(8 13 16/.14) 60%,rgb(8 13 16/0));pointer-events:none}
   }
 }}
 
