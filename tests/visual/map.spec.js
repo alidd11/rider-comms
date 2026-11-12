@@ -71,18 +71,26 @@ test('PWA hides the map\'s distracting controls while moving, like the native ap
   await expect(page.locator('#locateBtn')).toBeVisible();
 });
 
-test('PWA map has a labelled Go live bar when parked and a glanceable HUD while riding', async ({ page }) => {
+test('PWA map has compact Report and Go live buttons when parked and a glanceable HUD while riding', async ({ page }) => {
   await mockAuthenticatedApi(page, 'recovering');
   await page.goto('/');
   await expect(page.locator('#app')).toBeVisible();
   await expect(page.locator('#mapStatusText')).toHaveText('Nearby off');
   const live = page.locator('#joinNearbyBtn');
   await expect(live).toBeVisible();
-  await expect(page.locator('#joinNearbyLabel')).toHaveText('Go live');
-  const [liveBox, hazardBox] = await Promise.all([live.boundingBox(), page.locator('#reportHazardBtn').boundingBox()]);
-  // A wide, labelled primary action beside a smaller hazard button.
-  expect(liveBox.width).toBeGreaterThan(hazardBox.width * 2);
-  expect(liveBox.height).toBeGreaterThanOrEqual(56);
+  await expect(live).toHaveAccessibleName('Go live nearby');
+  const [liveBox, hazardBox, locateBox] = await Promise.all([live.boundingBox(), page.locator('#reportHazardBtn').boundingBox(), page.locator('#locateBtn').boundingBox()]);
+  // One compact size for all three, above the touch minimum, so the map
+  // stays the main thing: Report bottom-left, Go live bottom-right with
+  // Centre on me above it.
+  for (const box of [liveBox, hazardBox, locateBox]) {
+    expect(box.width).toBeGreaterThanOrEqual(48);
+    expect(box.width).toBeLessThanOrEqual(56);
+    expect(Math.abs(box.width - box.height)).toBeLessThanOrEqual(1);
+  }
+  expect(hazardBox.x).toBeLessThan(liveBox.x - 150);
+  expect(Math.abs((locateBox.x + locateBox.width) - (liveBox.x + liveBox.width))).toBeLessThanOrEqual(2);
+  expect(locateBox.y + locateBox.height).toBeLessThanOrEqual(liveBox.y);
   await expect(page.locator('#ridingHud')).toBeHidden();
 
   await page.evaluate(() => {
@@ -195,6 +203,18 @@ test('PWA map drawer slides up to recent places and holds Home, Work and Petrol'
   await expect(drawer).toHaveAttribute('data-state', 'open');
   await expect(handle).toHaveAttribute('aria-expanded', 'true');
   await expect(page.locator('#mapDrawerRecent')).toContainText('Ace Cafe London');
+  // Pulled up, it reaches to just below the avatar and the Nearby chip,
+  // leaving room under recent places for more. (A landscape phone is too
+  // short for both: the open drawer keeps a usable minimum height there.)
+  const viewport = page.viewportSize();
+  if (viewport.height > viewport.width) await expect.poll(async () => {
+    const [drawerTop, chipBottom] = await Promise.all([
+      drawer.evaluate((element) => element.getBoundingClientRect().top),
+      page.locator('#mapStatusChip').evaluate((element) => element.getBoundingClientRect().bottom),
+    ]);
+    return drawerTop - chipBottom;
+  }).toBeLessThanOrEqual(40);
+  if (viewport.height > viewport.width) expect(await drawer.evaluate((element) => element.getBoundingClientRect().top)).toBeGreaterThan(await page.locator('#mapStatusChip').evaluate((element) => element.getBoundingClientRect().bottom));
   await expect(page.locator('#ridePill')).toBeHidden();
 
   // A recent place puts it on the map; the drawer steps aside for its card

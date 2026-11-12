@@ -3,9 +3,11 @@ import { colors, spacing, type, elevation, MIN_TOUCH_TARGET, radii } from '../th
 
 export const NAVIGATION_SUMMARY_BASE_HEIGHT = 104;
 // Map screen controls (PWA: .map-bottom-bar, .map-action-small, .hud-button).
-export const BOTTOM_BAR_HEIGHT = 56;
+// The map's controls share one compact size (above the 48pt touch minimum)
+// so they don't take over the map.
+export const BOTTOM_BAR_HEIGHT = 52;
 export const HUD_ACTION_HEIGHT = 76;
-export const MAP_ACTION_SIZE = 46;
+export const MAP_ACTION_SIZE = 52;
 
 export const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
@@ -32,10 +34,12 @@ export const styles = StyleSheet.create({
     zIndex: 10,
     gap: spacing.sm,
   },
+  // Rounded squares, like the hazard and Go live buttons, so the map's
+  // controls read as one set.
   mapActionButton: {
     width: MAP_ACTION_SIZE,
     height: MAP_ACTION_SIZE,
-    borderRadius: MAP_ACTION_SIZE / 2,
+    borderRadius: 14,
     backgroundColor: colors.surfaceRaised,
     alignItems: 'center',
     justifyContent: 'center',
@@ -76,10 +80,12 @@ export const styles = StyleSheet.create({
   mapStatusDotLive: { backgroundColor: '#35E68A' },
   mapStatusDotRide: { backgroundColor: colors.accent },
   mapStatusText: { fontSize: 13, fontWeight: '700', color: colors.textSecondary },
+  // Report on the left, Go live on the right: the middle stays map.
   mapBottomBar: {
     position: 'absolute',
     left: spacing.md,
     right: spacing.md,
+    justifyContent: 'space-between',
     zIndex: 10,
     flexDirection: 'row',
     gap: 10,
@@ -87,7 +93,7 @@ export const styles = StyleSheet.create({
   mapHazardButton: {
     width: BOTTOM_BAR_HEIGHT,
     height: BOTTOM_BAR_HEIGHT,
-    borderRadius: 16,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#F5A524',
@@ -98,9 +104,9 @@ export const styles = StyleSheet.create({
     elevation: 8,
   },
   mapLiveButton: {
-    flex: 1,
+    width: BOTTOM_BAR_HEIGHT,
     height: BOTTOM_BAR_HEIGHT,
-    borderRadius: 16,
+    borderRadius: 14,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -113,8 +119,6 @@ export const styles = StyleSheet.create({
     elevation: 8,
   },
   mapLiveButtonActive: { backgroundColor: '#35E68A' },
-  mapLiveButtonText: { fontSize: 18, fontWeight: '800', color: '#04161D' },
-  mapLiveButtonTextActive: { color: '#04210F' },
   // Riding HUD: shown while Ride Safe has locked the map (moving, not navigating).
   hudChips: { position: 'absolute', left: spacing.md, right: spacing.md, zIndex: 10, flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   hudChip: {

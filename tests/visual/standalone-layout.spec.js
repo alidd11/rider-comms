@@ -41,6 +41,32 @@ test('PWA utility viewport paints safe areas as one edge-to-edge canvas', async 
   await assertNoViewportOverflow(page);
 });
 
+test('installed PWA asks for a portrait lock where the browser allows one; a tab does not', async ({ page }) => {
+  const stubLock = () => {
+    window.lockCalls = [];
+    const orientation = window.screen.orientation;
+    if (orientation) orientation.lock = (value) => { window.lockCalls.push(value); return Promise.reject(new Error('not supported here')); };
+  };
+  await mockAuthenticatedApi(page);
+  await page.addInitScript(stubLock);
+  await page.goto('/');
+  await expect(page.locator('#mapDrawer')).toBeVisible();
+  expect(await page.evaluate(() => window.lockCalls)).toEqual([]);
+
+  // Installed: locked at start and again on returning from the background,
+  // and a refusal (iOS, multitasking) leaves the app working.
+  await installStandaloneFixture(page);
+  await page.goto('/');
+  await expect(page.locator('#mapDrawer')).toBeVisible();
+  expect(await page.evaluate(() => window.lockCalls)).toEqual(['portrait-primary']);
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  expect(await page.evaluate(() => window.lockCalls)).toEqual(['portrait-primary', 'portrait-primary']);
+  await expect(page.locator('#mapDrawer')).toBeVisible();
+});
+
 test('installed PWA cold start uses the full Home Screen canvas before any rotation', async ({ page }) => {
   await page.addInitScript(() => {
     Object.defineProperty(navigator, 'standalone', { configurable: true, value: true });

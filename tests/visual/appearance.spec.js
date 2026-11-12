@@ -337,12 +337,13 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
   expectNear(mapGeometry.canvasRight, mapGeometry.viewportWidth);
   expect(mapGeometry.searchRadius).toBeGreaterThanOrEqual(20);
   expect(mapGeometry.searchRadius).toBeLessThanOrEqual(26);
-  expect(mapGeometry.actionRadius).toBe('50%');
-  // Hazard and a wide labelled Go live share the bottom bar; Music and
-  // Locate are small round buttons above it on the right.
-  expect(mapGeometry.reportWidth).toBe(56);
-  expect(mapGeometry.locateWidth).toBe(46);
-  expect(mapGeometry.nearbyWidth).toBeGreaterThan(mapGeometry.viewportWidth / 2);
+  // One set of map controls: rounded squares of one compact size. Hazard
+  // and the icon-only Go live share the bottom bar; Locate sits above it on
+  // the right.
+  expect(mapGeometry.actionRadius).toBe('14px');
+  expect(mapGeometry.reportWidth).toBe(52);
+  expect(mapGeometry.locateWidth).toBe(52);
+  expect(mapGeometry.nearbyWidth).toBe(52);
   expect(mapGeometry.reportTransform).toBe('none');
   expect(mapGeometry.locateTransform).toBe('none');
   expectNear(mapGeometry.barTopDelta, 0);
