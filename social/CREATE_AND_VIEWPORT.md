@@ -52,3 +52,16 @@ Before release, add a real video timeline, reusable audio rights library, covers
 - Camera is mounted only on the Create select stage and unmounts in edit/share or when users leave Create. Media remains a private local preview and is never automatically uploaded.
 
 - On the PWA, the Reel-mode centre control explicitly selects an existing video from the device rather than showing a fake Record button. Native app builds retain camera video recording. Live iOS-PWA video recording will require a separate tested browser capture path.
+
+
+## Camera → edit → details redesign (2026-11-12)
+
+The screenshot-driven Create redesign follows the familiar recording/editor/details structure of leading consumer social apps without imitating their branding.
+
+1. **Camera** is a full-viewport, rounded media surface. The app's five-tab navigation disappears while composing; Close returns to Home. Post, Story and Reel are real format choices. Photo capture, rear-camera flash, front/rear switching and a 3/10-second timer are functional. Native Reels can record up to 15 or 60 seconds; iOS PWA uses Gallery for video because Expo SDK 58's recordAsync is not available on web. No non-functional music, Live, beauty-filter or effects buttons are shown.
+2. **Edit** keeps media as the dominant view, preserves selected order, genuinely rotates/crops photos, supports additional media and rejects unsupported/oversized files. UI tools represent real operations only.
+3. **Post details** shows a cover, optional 100-character title, description, manual #/@ insertion, community and audience selection, paid-promotion declaration (local preview only), and a working full-screen post preview. A sticky Drafts action saves text-only information. The Post control stays visibly disabled until publication infrastructure exists; no UI pretends to publish media.
+4. **Safety and privacy**: photos/video URIs remain device-memory-only. Text drafts contain no media or tokens and restore mode, title, caption, category and audience. Switching formats after selecting media requires confirmation before discarding.
+5. **Viewport**: the Create route owns its safe-area bottom inset, while iOS Dynamic Island top inset remains owned by the outer shell. The app bottom navigation must not appear while the studio is open. Safe-area and interaction tests cover the PWA; actual iOS and Android recording/keyboard behaviour still requires real-device validation.
+
+**Non-negotiable experience rule**: user-facing screens must have a human-designed, AI-free feel. No artificial engagement metrics, AI-themed controls, generated-looking artwork, fabricated media, generic bot language or controls implying unimplemented actions. Use an original restrained identity rather than cloning TikTok visual assets.
