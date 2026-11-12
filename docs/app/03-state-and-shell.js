@@ -59,6 +59,7 @@
         navigationProvider: navigationProvider(stored.navigationProvider),
         avoidHighways: stored.avoidHighways === true,
         avoidTolls: stored.avoidTolls === true,
+        avoidFerries: stored.avoidFerries === true,
         spokenDirections: stored.spokenDirections !== false,
         vehicleCategory: RIDER_VEHICLE_OPTIONS.some(([option]) => option === stored.vehicleCategory) ? stored.vehicleCategory : 'motorcycle_large',
         unit: storedProfile.unitSystem === 'km' ? 'km' : storedProfile.unitSystem === 'mi' ? 'mi' : stored.unit === 'km' ? 'km' : 'mi',

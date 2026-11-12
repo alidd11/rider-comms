@@ -1374,6 +1374,34 @@ export const CURATED_ROUTES: readonly CuratedRoute[] = [
   }
 ];
 
+/** Route types on Routes, from each route's reviewed road type and
+ * difficulty rather than words in its description (PWA: routes.js
+ * categoryLabels and matchesCategory). */
+export type RouteCategory = 'all' | 'coastal' | 'mountain' | 'countryside' | 'relaxed' | 'challenging' | 'near';
+export const ROUTE_CATEGORIES: ReadonlyArray<{ value: RouteCategory; label: string }> = [
+  { value: 'all', label: 'All' },
+  { value: 'coastal', label: 'Coastal' },
+  { value: 'mountain', label: 'Mountains' },
+  { value: 'countryside', label: 'Countryside' },
+  { value: 'relaxed', label: 'Relaxed' },
+  { value: 'challenging', label: 'Challenging' },
+  { value: 'near', label: 'Near me' },
+];
+export const ROAD_TYPE_LABELS: Record<RoadType, string> = {
+  coastal: 'Coastal',
+  mountain: 'Mountain roads',
+  rural: 'Countryside',
+  mixed: 'Mixed roads',
+  urban: 'Town and city',
+};
+export function routeMatchesCategory(route: Pick<CuratedRoute, 'roadType' | 'difficulty'>, category: RouteCategory): boolean {
+  if (category === 'coastal' || category === 'mountain') return route.roadType === category;
+  if (category === 'countryside') return route.roadType === 'rural' || route.roadType === 'mixed';
+  if (category === 'relaxed') return route.difficulty !== 'challenging';
+  if (category === 'challenging') return route.difficulty === 'challenging';
+  return true;
+}
+
 export function routeMatchesVehicle(route: CuratedRoute, vehicle: VehicleCategory | null): boolean {
   return vehicle === null || route.vehicleSuitability.includes(vehicle);
 }

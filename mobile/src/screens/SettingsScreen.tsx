@@ -20,8 +20,8 @@ import { useAuth } from '../auth/AuthContext';
 import { RiderAvatar } from '../components/RiderAvatar';
 import type { AccountSessionSummary } from '../api/client';
 import { NAVIGATION_PROVIDER_OPTIONS, type NavigationProvider } from '../navigationPreference';
-import { CategoryRow, CheckRow, PlainRow, SegmentedRow, SettingsGroup, SettingsHeader, SwitchRow, useSettingsPalette } from './SettingsListUi';
-import { RIDER_VEHICLE_OPTIONS } from '../riderPreferences';
+import { CategoryRow, CheckRow, InfoRow, PlainRow, SegmentedRow, SettingsGroup, SettingsHeader, SwitchRow, useSettingsPalette } from './SettingsListUi';
+import { RIDER_VEHICLE_GROUPS, RIDER_VEHICLE_OPTIONS, riderVehicleLabel } from '../riderPreferences';
 import { MotorbikeIcon } from '../components/MotorbikeIcon';
 import * as Location from 'expo-location';
 import { PlaceSearchBar } from './PlaceSearchBar';
@@ -314,11 +314,12 @@ function SettingsPageLayout({ title, page, children }: { title: string; page: Se
 /** The Settings root: categories only, each opening its own
  * page (the PWA's SETTINGS_CATEGORIES has the same rows and tints). */
 export function SettingsScreen(): React.JSX.Element {
-  const { profileError, clearProfileError } = useSettings();
+  const { profileError, clearProfileError, unitSystem, navigationProvider, rideSafeEnabled, riderVehicle, zoneTier } = useSettings();
   const insets = useSafeAreaInsets();
   const palette = useSettingsPalette();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const openPage = (page: SettingsPageKey) => navigation.push('SettingsPage', { page });
+  const navigationAppLabel = NAVIGATION_PROVIDER_OPTIONS.find((option) => option.id === navigationProvider)?.label ?? '';
 
   return (
     <View style={[styles.container, { backgroundColor: palette.page }]}>
@@ -341,14 +342,14 @@ export function SettingsScreen(): React.JSX.Element {
         ) : null}
 
         <SettingsGroup compact>
-          <CategoryRow first icon="settings" tint="#1FB6D9" title="General" onPress={() => openPage('general')} />
-          <CategoryRow icon="map" tint="#2FB35F" title="Map & navigation" onPress={() => openPage('mapNavigation')} />
+          <CategoryRow first icon="settings" tint="#1FB6D9" title="General" value={UNIT_LABELS[unitSystem].name} onPress={() => openPage('general')} />
+          <CategoryRow icon="map" tint="#2FB35F" title="Map & navigation" value={navigationAppLabel} onPress={() => openPage('mapNavigation')} />
           <CategoryRow icon="volume-high" tint="#3478F6" title="Voice and sound" onPress={() => openPage('voiceSound')} />
         </SettingsGroup>
 
         <SettingsGroup compact title="Riding">
-          <CategoryRow first icon="shield-checkmark" tint="#F2802A" title="Ride Safe" onPress={() => openPage('rideSafe')} />
-          <CategoryRow customIcon={<MotorbikeIcon size={20} color="#FFFFFF" />} tint="#8E5CF6" title="Vehicle details" onPress={() => openPage('vehicle')} />
+          <CategoryRow first icon="shield-checkmark" tint="#F2802A" title="Ride Safe" value={rideSafeEnabled ? 'On' : 'Off'} onPress={() => openPage('rideSafe')} />
+          <CategoryRow customIcon={<MotorbikeIcon size={20} color="#FFFFFF" />} tint="#8E5CF6" title="Vehicle details" value={riderVehicleLabel(riderVehicle)} onPress={() => openPage('vehicle')} />
         </SettingsGroup>
 
         <SettingsGroup compact>
@@ -358,10 +359,12 @@ export function SettingsScreen(): React.JSX.Element {
         <SettingsGroup compact title="Account">
           <CategoryRow first icon="person" tint="#2A8196" title="Account and login" onPress={() => openPage('account')} />
           <CategoryRow icon="lock-closed" tint="#1E95E8" title="Privacy" onPress={() => openPage('privacy')} />
+          <CategoryRow icon="card" tint="#E0A100" title="Your plan" value={PLAN_INFO[zoneTier].name} onPress={() => navigation.push('Billing')} />
         </SettingsGroup>
 
-        <SettingsGroup compact>
-          <CategoryRow first icon="information" tint="#16A9D9" title="About" onPress={() => openPage('about')} />
+        <SettingsGroup compact title="Support">
+          <CategoryRow first icon="help-buoy" tint="#5E6AD2" title="Help & Support" onPress={() => openPage('help')} />
+          <CategoryRow icon="information" tint="#16A9D9" title="About" onPress={() => openPage('about')} />
         </SettingsGroup>
 
       </ScrollView>
@@ -387,10 +390,13 @@ function MapNavigationPage(): React.JSX.Element {
   const navigationAppLabel = NAVIGATION_PROVIDER_OPTIONS.find((option) => option.id === navigationProvider)?.label ?? '';
   return (
     <>
-      <SettingsGroup note="Route options apply to routes Rider Comms plans.">
+      <SettingsGroup note="Where a route opens when you tap Go.">
         <PlainRow first title="Navigation app" value={navigationAppLabel} onPress={() => navigation.push('SettingsPage', { page: 'navigationApp' })} />
-        <SwitchRow title="Avoid motorways" value={routeAvoidance.highways} onValueChange={(highways) => setRouteAvoidance({ ...routeAvoidance, highways })} />
+      </SettingsGroup>
+      <SettingsGroup title="Route options" note="Route options apply to routes Rider Comms plans.">
+        <SwitchRow first title="Avoid motorways" value={routeAvoidance.highways} onValueChange={(highways) => setRouteAvoidance({ ...routeAvoidance, highways })} />
         <SwitchRow title="Avoid tolls" value={routeAvoidance.tolls} onValueChange={(tolls) => setRouteAvoidance({ ...routeAvoidance, tolls })} />
+        <SwitchRow title="Avoid ferries" value={routeAvoidance.ferries} onValueChange={(ferries) => setRouteAvoidance({ ...routeAvoidance, ferries })} />
       </SettingsGroup>
       <SavedPlacesGroup />
     </>
@@ -458,11 +464,15 @@ function VoiceSoundPage(): React.JSX.Element {
 function VehiclePage(): React.JSX.Element {
   const { riderVehicle, setRiderVehicle } = useSettings();
   return (
-    <SettingsGroup title="Vehicle type" note="Routes only shows roads that suit what you ride.">
-      {RIDER_VEHICLE_OPTIONS.map(([vehicle, label], index) => (
-        <CheckRow key={vehicle} first={index === 0} title={label} selected={riderVehicle === vehicle} onPress={() => setRiderVehicle(vehicle)} />
+    <>
+      {RIDER_VEHICLE_GROUPS.map((group, groupIndex) => (
+        <SettingsGroup key={group} title={group} note={groupIndex === RIDER_VEHICLE_GROUPS.length - 1 ? 'Routes only shows roads we’ve checked suit what you drive or ride.' : undefined}>
+          {RIDER_VEHICLE_OPTIONS.filter(([, , optionGroup]) => optionGroup === group).map(([vehicle, label], index) => (
+            <CheckRow key={vehicle} first={index === 0} title={label} selected={riderVehicle === vehicle} onPress={() => setRiderVehicle(vehicle)} />
+          ))}
+        </SettingsGroup>
       ))}
-    </SettingsGroup>
+    </>
   );
 }
 
@@ -524,6 +534,12 @@ function NotificationsPage(): React.JSX.Element {
   );
 }
 
+/** What Ride Safe does while moving (PWA: RIDE_SAFE_SUMMARY). */
+const RIDE_SAFE_SUMMARY: ReadonlyArray<readonly [string, readonly string[]]> = [
+  ['Locked while you’re moving', ['Messages and friends', 'Map search and Where to', 'Routes, Settings and the menu', 'Starting a new ride']],
+  ['Still works', ['Group ride voice and Nearby Voice', 'Turn-by-turn directions and the map']],
+];
+
 /** Ride Safe: the automatic lock while moving. */
 function RideSafePage(): React.JSX.Element {
   const { rideSafeEnabled, setRideSafeEnabled } = useSettings();
@@ -542,9 +558,16 @@ function RideSafePage(): React.JSX.Element {
     );
   }
   return (
-    <SettingsGroup note="Ride Safe locks distracting controls at 8 mph and above. Only change it while safely stopped.">
-      <SwitchRow first title="Ride Safe auto-lock" value={rideSafeEnabled} onValueChange={changeRideSafe} />
-    </SettingsGroup>
+    <>
+      <SettingsGroup note="Ride Safe locks distracting controls at 8 mph and above. Only change it while safely stopped.">
+        <SwitchRow first title="Ride Safe auto-lock" value={rideSafeEnabled} onValueChange={changeRideSafe} />
+      </SettingsGroup>
+      {RIDE_SAFE_SUMMARY.map(([heading, items]) => (
+        <SettingsGroup key={heading} title={heading}>
+          {items.map((item, index) => <InfoRow key={item} first={index === 0} title={item} />)}
+        </SettingsGroup>
+      ))}
+    </>
   );
 }
 

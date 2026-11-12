@@ -22,7 +22,7 @@ function roundCoordinate(value: number): number {
 function cacheKey(origin: RouteCoordinate, destination: RouteCoordinate, avoid: RouteAvoidance = {}): string {
   return [origin, destination]
     .map((point) => `${roundCoordinate(point.lat)},${roundCoordinate(point.lon)}`)
-    .concat(`${avoid.highways ? 'h' : ''}${avoid.tolls ? 't' : ''}`)
+    .concat(`${avoid.highways ? 'h' : ''}${avoid.tolls ? 't' : ''}${avoid.ferries ? 'f' : ''}`)
     .join('|');
 }
 

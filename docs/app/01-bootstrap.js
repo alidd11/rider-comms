@@ -82,10 +82,13 @@
   // touch (or accidentally nuke) unrelated local settings.
   const SESSION_KEY = 'rider-comms-session-v1';
   // What the rider rides; Routes shows roads that suit it.
+  // Each choice with its Settings group (native: riderPreferences.ts).
   const RIDER_VEHICLE_OPTIONS = [
-    ['motorcycle_large', 'Motorcycle'],
-    ['motorcycle_small', 'Small motorcycle (up to 125cc)'],
-    ['scooter', 'Scooter'],
+    ['motorcycle_large', 'Motorcycle', 'Motorcycles'],
+    ['motorcycle_small', 'Small motorcycle (up to 125cc)', 'Motorcycles'],
+    ['scooter', 'Scooter or moped', 'Motorcycles'],
+    ['car', 'Car', 'Cars and vans'],
+    ['van', 'Van or motorhome', 'Cars and vans'],
   ];
 
   const DEFAULT_STATE = {
@@ -97,6 +100,7 @@
     navigationProvider: 'google_maps',
     avoidHighways: false,
     avoidTolls: false,
+    avoidFerries: false,
     rideSafeEnabled: true,
     // Settings → Voice and sound / Vehicle details (native: riderPreferences.ts).
     spokenDirections: true,

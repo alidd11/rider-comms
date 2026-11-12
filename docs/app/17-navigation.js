@@ -143,6 +143,7 @@
       travelMode: google.maps.TravelMode.DRIVING,
       avoidHighways: state.avoidHighways === true,
       avoidTolls: state.avoidTolls === true,
+      avoidFerries: state.avoidFerries === true,
     };
   }
 

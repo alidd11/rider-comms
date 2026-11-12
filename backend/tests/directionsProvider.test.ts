@@ -72,16 +72,17 @@ describe('Google directions provider', () => {
       urls.push(String(url));
       return new Response(JSON.stringify({ status: 'ZERO_RESULTS', routes: [] }), { status: 200 });
     }) as typeof fetch;
-    for (const avoid of [{}, { highways: true }, { highways: true, tolls: true }]) {
+    for (const avoid of [{}, { highways: true }, { highways: true, tolls: true }, { ferries: true }]) {
       await fetchGoogleDrivingRoute(origin, destination, { apiKey: 'k', fetchImpl, avoid }).catch(() => {});
     }
     assert.equal(new URL(urls[0]!).searchParams.get('avoid'), null);
     assert.equal(new URL(urls[1]!).searchParams.get('avoid'), 'highways');
     assert.equal(new URL(urls[2]!).searchParams.get('avoid'), 'highways|tolls');
+    assert.equal(new URL(urls[3]!).searchParams.get('avoid'), 'ferries');
   });
 
   it('reads route options from a request body, treating anything but true as off', () => {
-    assert.deepEqual(routeAvoidance({ highways: true, tolls: 'yes' }), { highways: true, tolls: false });
+    assert.deepEqual(routeAvoidance({ highways: true, tolls: 'yes', ferries: true }), { highways: true, tolls: false, ferries: true });
     assert.deepEqual(routeAvoidance(null), {});
     assert.deepEqual(routeAvoidance(['highways']), {});
   });

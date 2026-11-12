@@ -6,7 +6,7 @@
  * What lives here is the honest plumbing (types + strict validation) for
  * that future curation workflow.
  */
-export type VehicleCategory = 'motorcycle_small' | 'motorcycle_large' | 'scooter' | 'car';
+export type VehicleCategory = 'motorcycle_small' | 'motorcycle_large' | 'scooter' | 'car' | 'van';
 export type RoadType = 'rural' | 'mountain' | 'coastal' | 'urban' | 'mixed';
 export type Difficulty = 'easy' | 'moderate' | 'challenging';
 export type SurfaceQuality = 'excellent' | 'good' | 'fair' | 'poor';
@@ -33,7 +33,7 @@ export interface ScenicRoute {
   createdAt: number;
 }
 
-const VEHICLE_CATEGORIES: readonly VehicleCategory[] = ['motorcycle_small', 'motorcycle_large', 'scooter', 'car'];
+const VEHICLE_CATEGORIES: readonly VehicleCategory[] = ['motorcycle_small', 'motorcycle_large', 'scooter', 'car', 'van'];
 const ROAD_TYPES: readonly RoadType[] = ['rural', 'mountain', 'coastal', 'urban', 'mixed'];
 const DIFFICULTIES: readonly Difficulty[] = ['easy', 'moderate', 'challenging'];
 const SURFACE_QUALITIES: readonly SurfaceQuality[] = ['excellent', 'good', 'fair', 'poor'];

@@ -20,8 +20,11 @@ import { useSettings } from '../settings/SettingsContext';
 import {
   CURATED_ROUTES,
   googleMapsDirectionsUrl,
+  routeMatchesCategory,
   routeMatchesVehicle,
+  ROAD_TYPE_LABELS,
   type CuratedRoute,
+  type RouteCategory,
 } from './curatedRoutes';
 import {
   distanceMilesToRouteStart,
@@ -30,7 +33,6 @@ import {
   type RideWindow,
   type RiderCoordinate,
 } from './routeDiscovery';
-import type { RouteCategory } from '../screens/ScenicRoutesScreen';
 import { routeCardImageSource } from './routeCardAssets';
 import { routeCardImageUri, routeHeroImageUri } from './routeImages';
 
@@ -183,7 +185,7 @@ function RouteOverview({
 
             <Text style={styles.sectionTitle}>Why ride it</Text>
             <View style={styles.tagRow}>
-              <View style={styles.highlightTag}><Text style={styles.highlightText}>{route.roadType}</Text></View>
+              <View style={styles.highlightTag}><Text style={styles.highlightText}>{ROAD_TYPE_LABELS[route.roadType]}</Text></View>
               {route.highlights.map((highlight) => (
                 <View key={highlight} style={styles.highlightTag}><Text style={styles.highlightText}>{highlight}</Text></View>
               ))}
@@ -320,16 +322,9 @@ function CuratedRouteCard({
   );
 }
 
+
 function routeDiscoveryText(route: CuratedRoute): string {
   return [route.name, route.region, route.road, route.description, route.riderNote, ...route.highlights].join(' ').toLocaleLowerCase();
-}
-
-function matchesRouteCategory(route: CuratedRoute, category: RouteCategory): boolean {
-  if (category === 'all' || category === 'near') return true;
-  const text = routeDiscoveryText(route);
-  if (category === 'coastal') return /(coast|coastal|sea|shore|isle|island|ocean|causeway)/.test(text);
-  if (category === 'mountain') return /(mountain|pass|highland|cairngorm|snowdon|eryri|glencoe|hartside|hardknott|wrynose|buttertubs|moor|peak|bealach|black mountain)/.test(text);
-  return route.roadType === 'rural' || /(scenic|valley|forest|dale|loch|lake|moor|views|countryside)/.test(text);
 }
 
 export function CuratedRouteBrowser({
@@ -353,7 +348,7 @@ export function CuratedRouteBrowser({
     const normalizedQuery = query.trim().toLocaleLowerCase();
     return sortRoutesForDiscovery(CURATED_ROUTES, rideWindow, category === 'near' ? riderLocation : null)
       .filter((route) => routeMatchesVehicle(route, riderVehicle))
-      .filter((route) => matchesRouteCategory(route, category))
+      .filter((route) => routeMatchesCategory(route, category))
       .filter((route) => !normalizedQuery || routeDiscoveryText(route).includes(normalizedQuery));
   }, [category, query, rideWindow, riderLocation, riderVehicle]);
   const contentWidth = Math.min(viewportWidth - spacing.lg * 2, 720);
@@ -369,8 +364,19 @@ export function CuratedRouteBrowser({
       {routes.length === 0 ? (
         <View style={styles.emptyState}>
           <MaterialCommunityIcons name="routes" size={28} color={colors.textMuted} />
-          <Text style={styles.emptyTitle}>No curated rides match</Text>
-          <Text style={styles.emptyCopy}>Try another category, duration or search. Rider Comms only shows routes we have actually reviewed.</Text>
+          {/* A vehicle no reviewed route suits yet (a van or motorhome) gets
+              its own message: no filter change would help (PWA: renderRoutes). */}
+          {CURATED_ROUTES.some((route) => routeMatchesVehicle(route, riderVehicle)) ? (
+            <>
+              <Text style={styles.emptyTitle}>No curated rides match</Text>
+              <Text style={styles.emptyCopy}>Try another category, duration or search. Rider Comms only shows routes we have actually reviewed.</Text>
+            </>
+          ) : (
+            <>
+              <Text style={styles.emptyTitle}>No reviewed routes for your vehicle yet</Text>
+              <Text style={styles.emptyCopy}>We only list a route for a vehicle once we’ve checked it suits it. You can change your vehicle in Settings → Vehicle details.</Text>
+            </>
+          )}
         </View>
       ) : null}
       <RouteOverview

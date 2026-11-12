@@ -66,23 +66,26 @@ function Separator({ inset }: { inset: number }): React.JSX.Element {
   return <View style={[ui.separator, { left: inset, backgroundColor: palette.separator }]} />;
 }
 
-/** A Settings-root row: coloured round icon, title, chevron. */
-export function CategoryRow({ icon, customIcon, tint, title, first = false, onPress }: {
+/** A Settings-root row: coloured round icon, title, the current choice in
+ * grey when there is one, chevron. */
+export function CategoryRow({ icon, customIcon, tint, title, value, first = false, onPress }: {
   icon?: IconName;
   /** For glyphs Ionicons lacks (the motorbike), drawn white at 22pt. */
   customIcon?: React.ReactNode;
   tint: string;
   title: string;
+  value?: string;
   first?: boolean;
   onPress: () => void;
 }): React.JSX.Element {
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={title} onPress={onPress} style={({ pressed }) => [ui.row, ui.categoryRow, pressed && ui.pressed]}>
+    <Pressable accessibilityRole="button" accessibilityLabel={[title, value].filter(Boolean).join(', ')} onPress={onPress} style={({ pressed }) => [ui.row, ui.categoryRow, pressed && ui.pressed]}>
       {first ? null : <Separator inset={64} />}
       <View style={[ui.categoryIcon, { backgroundColor: tint }]}>
         {customIcon ?? (icon ? <Ionicons name={icon} size={20} color="#FFFFFF" /> : null)}
       </View>
       <Text style={ui.rowTitle}>{title}</Text>
+      {value ? <Text numberOfLines={1} style={ui.rowValue}>{value}</Text> : null}
       <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
     </Pressable>
   );
@@ -104,6 +107,16 @@ export function PlainRow({ title, value, danger = false, chevron = true, first =
       {value ? <Text numberOfLines={1} style={ui.rowValue}>{value}</Text> : null}
       {chevron ? <Ionicons name="chevron-forward" size={16} color={colors.textMuted} /> : null}
     </Pressable>
+  );
+}
+
+/** A line of information: no action, so not a button. */
+export function InfoRow({ title, first = false }: { title: string; first?: boolean }): React.JSX.Element {
+  return (
+    <View accessible accessibilityLabel={title} style={ui.row}>
+      {first ? null : <Separator inset={16} />}
+      <Text style={ui.rowTitle}>{title}</Text>
+    </View>
   );
 }
 

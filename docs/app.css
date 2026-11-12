@@ -2764,6 +2764,11 @@ html.riding-hud-active.ride-pill-visible #app:not(.nav-mode) .screen-map .map-ac
 .settings-page-mode .settings-row-value{color:var(--text-secondary);font-size:.95rem;white-space:nowrap}
 .settings-page-mode .settings-row-danger .settings-row-label{color:var(--danger)}
 .settings-page-mode .settings-section-note{margin:0;padding:10px 16px 0;color:var(--text-secondary);font-size:.85rem;line-height:1.4}
+/* A second group inside one section (Route options, Cars and vans, Ride Safe's list) gets the same gap as a new section. */
+.settings-page-mode .settings-page-section .settings-section-note+.settings-page-heading,.settings-page-mode .settings-page-section .settings-rows+.settings-page-heading,.settings-page-mode .settings-info-list+.settings-page-heading{margin-top:28px}
+.settings-info-list{margin:0;padding:0;list-style:none;border-top:1px solid var(--settings-separator);border-bottom:1px solid var(--settings-separator);background:var(--settings-group-bg)}
+.settings-info-list li{position:relative;min-height:48px;display:flex;align-items:center;padding:8px 16px;color:var(--text);font-size:1rem}
+.settings-info-list li+li::before{content:"";position:absolute;top:0;left:16px;right:16px;border-top:1px solid var(--settings-separator)}
 
 /* Subpages: full-width groups and a centred title between back and close. */
 .sheet-backdrop.settings-page-mode{background:var(--settings-page-bg)}
@@ -2779,7 +2784,7 @@ html.riding-hud-active.ride-pill-visible #app:not(.nav-mode) .screen-map .map-ac
 .segmented{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;padding:3px;border-radius:999px;background:var(--surface-raised)}
 .segmented button{min-height:40px;border:0;border-radius:999px;background:transparent;color:var(--text-secondary);font:inherit;font-weight:600}
 .segmented button[aria-checked=true]{background:var(--settings-page-bg);color:var(--text);box-shadow:0 0 0 1px var(--settings-separator)}
-@media(min-width:700px){#settingsList .settings-rows,.settings-page-mode .settings-rows{max-width:640px;margin:0 auto;border:1px solid var(--settings-separator);border-radius:12px}#settingsList .settings-section-title,.settings-page-mode .settings-page-heading,.settings-page-mode .settings-section-note{max-width:640px;margin-left:auto;margin-right:auto}}
+@media(min-width:700px){#settingsList .settings-rows,.settings-page-mode .settings-rows,.settings-info-list{max-width:640px;margin-left:auto;margin-right:auto;border:1px solid var(--settings-separator);border-radius:12px}#settingsList .settings-section-title,.settings-page-mode .settings-page-heading,.settings-page-mode .settings-section-note{max-width:640px;margin-left:auto;margin-right:auto}}
 #app [data-screen="settings"] .page-width.settings-page{width:100%;max-width:none;margin:0;padding-left:0;padding-right:0}
 #app [data-screen="settings"] .settings-page>.page-header{margin:0;border-radius:0}
 #app .screen.content-screen[data-screen="settings"]{padding-left:0;padding-right:0;padding-top:var(--safe-top);background:var(--settings-page-bg)}

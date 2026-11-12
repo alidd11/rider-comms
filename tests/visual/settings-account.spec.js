@@ -33,26 +33,30 @@ test('PWA Settings is a real settings list matching the native app', async ({ pa
   await page.goto('/#settings');
 
   // The root lists categories, each opening its own page.
-  await expect(page.locator('#settingsList .settings-section-title')).toHaveText(['Riding', 'Account']);
+  await expect(page.locator('#settingsList .settings-section-title')).toHaveText(['Riding', 'Account', 'Support']);
   await expect(page.locator('#settingsList .settings-row-label')).toHaveText([
-    'General', 'Map & navigation', 'Voice and sound', 'Ride Safe', 'Vehicle details', 'Notifications', 'Account and login', 'Privacy', 'About',
+    'General', 'Map & navigation', 'Voice and sound', 'Ride Safe', 'Vehicle details', 'Notifications', 'Account and login', 'Privacy', 'Your plan', 'Help & Support', 'About',
   ]);
-  await expect(page.locator('#settingsList .settings-category-icon')).toHaveCount(9);
+  await expect(page.locator('#settingsList .settings-category-icon')).toHaveCount(11);
+  // The current choice shows in grey beside its category.
+  await expect(page.locator('[data-settings-open="general"] .settings-row-value')).toHaveText('Miles');
+  await expect(page.locator('#settingsList [data-settings-open="mapNavigation"] .settings-row-value')).toHaveText('Google Maps');
+  await expect(page.locator('[data-settings-open="rideSafe"] .settings-row-value')).toHaveText('On');
+  await expect(page.locator('[data-settings-open="vehicle"] .settings-row-value')).toHaveText('Motorcycle');
+  await expect(page.locator('[data-settings-open="plan"] .settings-row-value')).toHaveText('Free');
   // The version lives on the About page, not under the list.
   await expect(page.locator('#settingsList')).not.toContainText('Version');
-  // On a full-height phone screen (the installed app) the list fits, so it
-  // stays still rather than scrolling.
+  // On a phone the list scrolls just enough to reach About at the bottom.
   if (testInfo.project.name === 'phone-modern') {
     const size = page.viewportSize();
     await page.setViewportSize({ width: 393, height: 852 });
-    const settingsScreen = page.locator('.screen[data-screen="settings"]');
-    await expect.poll(() => settingsScreen.evaluate((element) => element.scrollHeight - element.clientHeight)).toBeLessThanOrEqual(0);
+    await page.locator('#settingsList [data-settings-open="about"]').scrollIntoViewIfNeeded();
+    await expect(page.locator('#settingsList [data-settings-open="about"]')).toBeInViewport();
     await page.setViewportSize(size);
   }
   await expect(page.locator('.settings-page')).not.toContainText('Offline Maps');
   await expect(page.locator('.settings-page')).not.toContainText('Communication');
-  // Help & Support and the profile live in the avatar menu only.
-  await expect(page.locator('.settings-page')).not.toContainText('Help & Support');
+  // The profile lives in the avatar menu only.
   await expect(page.locator('.settings-profile-row')).toHaveCount(0);
 
   // Each page has a centred title between back and close.
@@ -70,7 +74,8 @@ test('PWA Settings is a real settings list matching the native app', async ({ pa
   // A page opened from a category page goes back to it; X closes them all.
   await page.locator('[data-settings-open="mapNavigation"]').click();
   await expect(page.locator('[data-settings-open="navigationApp"] .settings-row-value')).toHaveText('Google Maps');
-  await expect(page.locator('#sheetBody [data-toggle]')).toHaveCount(2);
+  await expect(page.locator('#sheetBody .settings-page-heading')).toHaveText(['Route options', 'Saved places']);
+  await expect(page.locator('#sheetBody [data-toggle]')).toHaveCount(3);
   await openSettingsPage(page, 'navigationApp');
   await expect(page.locator('#sheetTitle')).toHaveText('Navigation app');
   await page.locator('#closeSheet').click();
@@ -86,9 +91,16 @@ test('PWA Settings is a real settings list matching the native app', async ({ pa
   await expect(spoken).toHaveAttribute('aria-pressed', 'false');
   await page.locator('#closeSheetAll').click();
 
-  // Vehicle details: a picker; Routes then shows only roads that suit it.
+  // Ride Safe: the switch, then what it locks and what keeps working.
+  await page.locator('[data-settings-open="rideSafe"]').click();
+  await expect(page.locator('#sheetBody .settings-page-heading')).toHaveText(['Locked while you’re moving', 'Still works']);
+  await expect(page.locator('#sheetBody .settings-info-list li').first()).toHaveText('Messages and friends');
+  await page.locator('#closeSheetAll').click();
+
+  // Vehicle details: a picker in two groups; Routes then shows only roads that suit it.
   await page.locator('[data-settings-open="vehicle"]').click();
-  await expect(page.locator('#sheetBody [data-vehicle-option]')).toHaveText(['Motorcycle', 'Small motorcycle (up to 125cc)', 'Scooter']);
+  await expect(page.locator('#sheetBody .settings-page-heading')).toHaveText(['Motorcycles', 'Cars and vans']);
+  await expect(page.locator('#sheetBody [data-vehicle-option]')).toHaveText(['Motorcycle', 'Small motorcycle (up to 125cc)', 'Scooter or moped', 'Car', 'Van or motorhome']);
   await expect(page.locator('[data-vehicle-option="motorcycle_large"]')).toHaveAttribute('aria-checked', 'true');
   await page.locator('[data-vehicle-option="scooter"]').click();
   await expect(page.locator('[data-vehicle-option="scooter"]')).toHaveAttribute('aria-checked', 'true');
@@ -98,6 +110,17 @@ test('PWA Settings is a real settings list matching the native app', async ({ pa
   }).find((value) => value && typeof value === 'object' && 'vehicleCategory' in value));
   expect(savedState.vehicleCategory).toBe('scooter');
   expect(savedState.spokenDirections).toBe(false);
+  await page.locator('[data-vehicle-option="car"]').click();
+  await expect(page.locator('[data-vehicle-option="car"]')).toHaveAttribute('aria-checked', 'true');
+  await page.locator('#closeSheetAll').click();
+  await expect(page.locator('[data-settings-open="vehicle"] .settings-row-value')).toHaveText('Car');
+
+  // Your plan and Help & Support open the same pages as the menu.
+  await page.locator('#settingsList [data-settings-open="plan"]').click();
+  await expect(page.locator('#sheetTitle')).toHaveText('Your plan');
+  await page.locator('#closeSheetAll').click();
+  await page.locator('#settingsList [data-settings-open="help"]').click();
+  await expect(page.locator('#sheetTitle')).toHaveText('Help & Support');
   await page.locator('#closeSheetAll').click();
 
   // Sign out lives in Account and login, with reset and delete.
@@ -164,9 +187,9 @@ test('PWA plan screen shows every plan and sends buying to the mobile app', asyn
   });
   await page.goto('/#settings');
 
-  // The plan has exactly one home: "Your plan" in the avatar menu. Account
-  // settings no longer repeat it.
-  await expect(page.locator('#settingsList')).not.toContainText('Your plan');
+  // The plan's page is Your plan: the menu and the Settings root link to it,
+  // and Account settings don't repeat it.
+  await expect(page.locator('#settingsList [data-settings-open="plan"]')).toHaveCount(1);
   await expect(page.locator('.plan-card')).toHaveCount(0);
 
   await openTab(page, 'map');

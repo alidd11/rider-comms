@@ -60,17 +60,18 @@ interface GoogleDirectionsResponse {
   }>;
 }
 
-/** Rider route options. Both default to false (Google's fastest route). */
+/** Rider route options. All default to false (Google's fastest route). */
 export interface RouteAvoidance {
   highways?: boolean;
   tolls?: boolean;
+  ferries?: boolean;
 }
 
-/** Reads `{ highways, tolls }` from a request body; anything else counts as false. */
+/** Reads `{ highways, tolls, ferries }` from a request body; anything else counts as false. */
 export function routeAvoidance(value: unknown): RouteAvoidance {
   if (!value || Array.isArray(value) || typeof value !== 'object') return {};
-  const candidate = value as { highways?: unknown; tolls?: unknown };
-  return { highways: candidate.highways === true, tolls: candidate.tolls === true };
+  const candidate = value as { highways?: unknown; tolls?: unknown; ferries?: unknown };
+  return { highways: candidate.highways === true, tolls: candidate.tolls === true, ferries: candidate.ferries === true };
 }
 
 export interface GoogleDirectionsOptions {
@@ -223,6 +224,7 @@ export async function fetchGoogleDrivingRoute(
   const avoid = [
     options.avoid?.highways ? 'highways' : null,
     options.avoid?.tolls ? 'tolls' : null,
+    options.avoid?.ferries ? 'ferries' : null,
   ].filter((value): value is string => value !== null);
   if (avoid.length) params.set('avoid', avoid.join('|'));
 

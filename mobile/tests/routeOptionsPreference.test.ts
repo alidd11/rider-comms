@@ -5,12 +5,12 @@ import { DEFAULT_ROUTE_AVOIDANCE, parseRouteAvoidance, routeAvoidanceStorageKey 
 describe('route options preference', () => {
   it('defaults to the fastest route', () => {
     assert.deepEqual(parseRouteAvoidance(null), DEFAULT_ROUTE_AVOIDANCE);
-    assert.deepEqual(DEFAULT_ROUTE_AVOIDANCE, { highways: false, tolls: false });
+    assert.deepEqual(DEFAULT_ROUTE_AVOIDANCE, { highways: false, tolls: false, ferries: false });
   });
 
   it('reads stored options and ignores anything malformed', () => {
-    assert.deepEqual(parseRouteAvoidance('{"highways":true,"tolls":false}'), { highways: true, tolls: false });
-    assert.deepEqual(parseRouteAvoidance('{"highways":"yes","tolls":true}'), { highways: false, tolls: true });
+    assert.deepEqual(parseRouteAvoidance('{"highways":true,"tolls":false}'), { highways: true, tolls: false, ferries: false });
+    assert.deepEqual(parseRouteAvoidance('{"highways":"yes","tolls":true,"ferries":true}'), { highways: false, tolls: true, ferries: true });
     assert.deepEqual(parseRouteAvoidance('not json'), DEFAULT_ROUTE_AVOIDANCE);
     assert.deepEqual(parseRouteAvoidance('null'), DEFAULT_ROUTE_AVOIDANCE);
   });

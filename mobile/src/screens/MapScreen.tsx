@@ -448,7 +448,7 @@ export function MapScreen(): React.JSX.Element {
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDestination?.lat, selectedDestination?.lon, client, routeAvoidance.highways, routeAvoidance.tolls]);
+  }, [selectedDestination?.lat, selectedDestination?.lon, client, routeAvoidance.highways, routeAvoidance.tolls, routeAvoidance.ferries]);
 
   async function openDirections(target: NavigationTarget): Promise<void> {
     if (navigationProvider === 'in_app') {

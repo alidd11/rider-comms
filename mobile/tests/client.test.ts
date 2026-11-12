@@ -457,7 +457,7 @@ describe('RiderCommsClient directions', () => {
         assert.deepEqual(JSON.parse(init.body as string), {
           origin: { lat: 51.5, lon: -0.1 },
           destination: { lat: 51.51, lon: -0.11 },
-          avoid: { highways: false, tolls: false },
+          avoid: { highways: false, tolls: false, ferries: false },
         });
         return { status: 200, body: route };
       }),
