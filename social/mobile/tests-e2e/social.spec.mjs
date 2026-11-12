@@ -466,6 +466,27 @@ test('TikTok-style Shop discovery supports search, sample details, saved and bas
 });
 
 
+test('Shop saved and basket are not hidden by discovery filters', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('tab', { name: 'Shop' }).click();
+  await page.getByRole('button', { name: 'View listing Touring gloves' }).click();
+  await page.getByRole('button', { name: 'Save Touring gloves' }).click();
+  await page.getByRole('button', { name: 'Add to preview basket Touring gloves' }).click();
+  await page.getByRole('button', { name: 'Back to Shop' }).click();
+
+  // Filtering discovery to a different product must not erase a saved item or basket line.
+  await page.getByRole('textbox', { name: 'Search marketplace' }).fill('bicycle helmet');
+  await expect(page.getByTestId('shop-card-l1')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Shop category Vehicles' }).click();
+  await page.getByRole('button', { name: 'Shop interest Cycling' }).click();
+  await page.getByRole('button', { name: 'Shop basket' }).click();
+  await expect(page.getByTestId('shop-card-l1')).toBeVisible();
+  await page.getByRole('button', { name: 'Shop saved' }).click();
+  await expect(page.getByTestId('shop-card-l1')).toBeVisible();
+  await page.getByRole('button', { name: 'Shop section Discover' }).click();
+  await expect(page.getByTestId('shop-card-l1')).toHaveCount(0);
+});
+
 test('Social profile has tabs, follower/friend panels and separately managed demo follows', async ({ page }, testInfo) => {
   await page.goto('/');
   await expect(page.getByText('EARLY PREVIEW')).toHaveCount(0);
