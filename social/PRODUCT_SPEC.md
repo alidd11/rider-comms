@@ -40,6 +40,18 @@
 - Start transparent and simple; evaluate measured relevance, retention, community participation, diversity, safety, and small-creator discovery before advanced models.
 - Paid business subscriptions do not buy organic ranking or a verification badge.
 
+## Human-made product experience — non-negotiable
+
+**Hard acceptance rule:** Every user-facing Social screen must feel like a mature, human-designed consumer app, never an AI demo, template or assistant. This applies to camera, editor, feeds, profiles, Shop, onboarding, empty/error states, microcopy and all public content.
+
+- No AI-centric labels, generated-looking filler art, chatbot prompts, generic motivational cards, glossy sci-fi effects, gratuitous gradients or invented social proof.
+- Use familiar interactions, restrained motion, legible typography, real platform controls, coherent spacing and predictable navigation. Prioritise the content and the creator over UI chrome.
+- No fabricated creators, ratings, engagements, partnerships or testimonials in production. Demo data must be clearly isolated from real user content and never falsely presented as live.
+- Every visible action must work or be visibly unavailable with an accurate reason; never use decorative controls that pretend editing, recording, uploading or publishing succeeded.
+- Recommendation technology may operate behind the scenes with appropriate transparency and safety controls, but should not dominate the experience or present itself as an AI assistant.
+- Keep an original Social design identity: study established media-creation UX without copying TikTok/Instagram trademarks, branding or exact assets.
+- Require both automated interaction checks and actual-device visual review for camera, gallery, editing, details, safe areas, keyboard and tab transitions. No release on screenshots alone.
+
 ## UX and engineering acceptance
 
 - Separate iOS, Android and web release targets. Portrait-only native phone layout. Web orientation safeguards only where browser supports them.
