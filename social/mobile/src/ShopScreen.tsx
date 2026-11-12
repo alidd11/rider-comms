@@ -9,8 +9,9 @@ type Page = 'discover' | 'saved' | 'basket' | 'orders';
 const categories = ['All', 'Accessories', 'Vehicles', 'Rentals'] as const;
 const interests = ['All', 'Cars', 'Motorcycles', 'Cycling'] as const;
 
-export function ShopScreen({ items, search, onSearch, category, onCategory, onOpenProfile }: {
+export function ShopScreen({ items, collectionItems, search, onSearch, category, onCategory, onOpenProfile }: {
   items: readonly Item[];
+  collectionItems: readonly Item[];
   search: string;
   onSearch: (value:string) => void;
   category: string;
@@ -24,13 +25,13 @@ export function ShopScreen({ items, search, onSearch, category, onCategory, onOp
   const [saved,setSaved] = useState<Set<string>>(() => new Set());
   const [basket,setBasket] = useState<Set<string>>(() => new Set());
   const [message,setMessage] = useState<string|null>(null);
-  const item = selected ? demoListings.find(x => x.id === selected) : null;
-  const filtered = useMemo(() => items.filter(x =>
-    (interest === 'All' || x.topic === interest) &&
+  const item = selected ? collectionItems.find(x => x.id === selected) : null;
+  const filtered = useMemo(() => (section === 'discover' ? items : collectionItems).filter(x =>
+    (section !== 'discover' || interest === 'All' || x.topic === interest) &&
     (section !== 'saved' || saved.has(x.id)) &&
     (section !== 'basket' || basket.has(x.id)) &&
     (!shop || x.merchant === shop)
-  ),[items,interest,section,saved,basket,shop]);
+  ),[items,collectionItems,interest,section,saved,basket,shop]);
 
   function toggle(setter:React.Dispatch<React.SetStateAction<Set<string>>>,id:string) {
     setter(current => {
@@ -115,11 +116,11 @@ export function ShopScreen({ items, search, onSearch, category, onCategory, onOp
             <Ionicons name="person-circle-outline" color={C.ink} size={24}/>
           </Pressable>
           <Pressable accessibilityRole="button" accessibilityLabel="Shop saved"
-            onPress={()=>setSection('saved')} style={{padding:9}}>
+            onPress={()=>{setSection('saved');setShop(null);}} style={{padding:9}}>
             <Ionicons name="heart-outline" color={C.ink} size={24}/>
           </Pressable>
           <Pressable accessibilityRole="button" accessibilityLabel="Shop basket"
-            onPress={()=>setSection('basket')} style={{padding:9}}>
+            onPress={()=>{setSection('basket');setShop(null);}} style={{padding:9}}>
             <Ionicons name="bag-outline" color={C.ink} size={24}/>
             {basket.size>0?<Text style={{position:'absolute',right:0,top:0,color:C.accent,fontWeight:'900'}}>
               {basket.size}
