@@ -169,14 +169,14 @@ test('device media selection, review and text-only draft are usable without publ
     buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO/jVf8AAAAASUVORK5CYII=', 'base64')
   });
   await expect(page.getByText('Edit post')).toBeVisible();
-  await expect(page.getByText('my-bike.png')).toBeVisible();
+  await expect(page.getByLabel('Selected photo: my-bike.png')).toBeVisible();
   await mkdir('test-results/screenshots', { recursive: true });
   await page.screenshot({ path: 'test-results/screenshots/' + testInfo.project.name + '-media-edit.png' });
   await page.getByRole('textbox', { name: 'Create caption' }).fill('Saturday meet preview');
   await page.getByRole('button', { name: 'Review post' }).click();
   await expect(page.getByText('Not published')).toBeVisible();
   await page.screenshot({ path: 'test-results/screenshots/' + testInfo.project.name + '-media-review.png' });
-  await expect(page.getByText('Saturday meet preview')).toBeVisible();
+  await expect(page.getByRole('textbox', { name: 'Create caption' })).toHaveValue('Saturday meet preview');
   await expect(page.getByRole('button', { name: 'Publish' })).toHaveCount(0);
 
   await page.getByRole('button', { name: 'Save text draft' }).click();
@@ -209,5 +209,38 @@ test('fixed shell only scrolls the feed and content directories, never Reels or 
   await expect(page.locator('#social-page-scroll')).toHaveCount(1);
   await page.getByRole('tab', { name: 'Create' }).click();
   await expect(page.locator('#social-page-scroll')).toHaveCount(0);
-  await expect(page.getByTestId('composer-scroll')).toBeVisible();
+  await expect(page.getByTestId('create-studio')).toBeVisible();
+  await expect(page.locator('#composer-scroll')).toHaveCount(0);
+});
+
+
+test('media editor has a dominant fixed canvas, real edit actions and a separate sharing screen', async ({ page }, testInfo) => {
+  await page.goto('/');
+  await page.getByRole('tab', { name: 'Create' }).click();
+  await page.getByRole('button', { name: 'Story format' }).click();
+  await expect(page.getByText('New story')).toBeVisible();
+  await page.getByRole('button', { name: 'Post format' }).click();
+  const [chooser] = await Promise.all([
+    page.waitForEvent('filechooser'),
+    page.getByRole('button', { name: 'Choose from library' }).click()
+  ]);
+  await chooser.setFiles({
+    name: 'my-bike.png', mimeType: 'image/png',
+    buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO/jVf8AAAAASUVORK5CYII=', 'base64')
+  });
+  await expect(page.getByTestId('media-edit-canvas')).toBeVisible();
+  await expect(page.getByLabel('Selected photo: my-bike.png')).toBeVisible();
+  const panel = await page.getByTestId('media-edit-canvas').boundingBox();
+  expect(panel?.height ?? 0).toBeGreaterThan(140);
+  await expect(page.getByRole('button', { name: '1:1' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Rotate' })).toBeVisible();
+  await page.getByRole('button', { name: 'Review post' }).click();
+  await expect(page.getByText('Not published')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Audience Only me' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Audience Everyone' })).toBeVisible();
+  await page.getByRole('button', { name: 'Audience Everyone' }).click();
+  await expect(page.getByRole('button', { name: 'Audience Everyone' })).toHaveAttribute('aria-selected', 'true');
+  await mkdir('test-results/screenshots', { recursive: true });
+  await page.screenshot({ path: 'test-results/screenshots/' + testInfo.project.name + '-composer-share.png' });
+  await expect(page.getByRole('button', { name: 'Publish' })).toHaveCount(0);
 });
