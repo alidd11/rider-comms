@@ -1,3 +1,4 @@
+/* global URL */
 import { readFile, writeFile } from 'node:fs/promises';
 const path = new URL('../dist/index.html', import.meta.url);
 let html = await readFile(path, 'utf8');
