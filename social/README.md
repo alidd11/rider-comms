@@ -121,3 +121,12 @@ Important: business verification, stock, consumer rights/returns, transaction fe
 ### Shop example photography
 
 Demo listing media has been improved to match gloves, helmet and scooter themes rather than unrelated motorcycle lifestyle shots. Images come from free-to-use Unsplash photography by LouisMoto, Snapmaker, Alexander Simonsen and Raissa Lara Lütolf (-Fasel), used as illustrations rather than real merchant product images. Do not imply the photograph corresponds to a specific for-sale product. Replace these with each merchant's authorised listing photography and image rights metadata before production.
+
+
+### Camera-first composition and details screen (2026-11-12)
+
+The Create tab now opens a dedicated full-screen studio rather than retaining the main bottom navigation. Close returns to Home; switching formats after selection requires confirmation to avoid losing a draft. The camera can capture photos, flip lenses, toggle rear flash and use a timed shutter. Native Reel recording offers real 15/60-second caps; browser users select existing Reel video instead of being shown a non-working web record action.
+
+Media editing occupies the principal canvas, with genuine crop/rotate, reorder, remove and gallery controls. Details have an optional title, caption and manual hashtag/mention typing, an actual in-app preview, audience and community options, a paid-promotion declaration, and text-only drafts. The Post action remains disabled until moderated backend publishing exists. The Create route preserves iOS status-bar/home-indicator safe areas; physical device recording and keyboard review is still required.
+
+The social interface follows the hard human-designed, AI-free-feeling product requirement in PRODUCT_SPEC.md. This is an original app UI, not a branded TikTok copy.
