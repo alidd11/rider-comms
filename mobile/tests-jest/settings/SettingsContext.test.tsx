@@ -297,7 +297,7 @@ test('falls back to defaults when stored preferences can’t be read', async () 
     await waitFor(() => expect(result.current.rideSafeLoaded).toBe(true));
     expect(result.current.rideSafeEnabled).toBe(true);
     expect(result.current.navigationProvider).toBeTruthy();
-    expect(result.current.routeAvoidance).toEqual({ highways: false, tolls: false });
+    expect(result.current.routeAvoidance).toEqual({ highways: false, tolls: false, ferries: false });
   } finally {
     AsyncStorage.getItem = originalGetItem;
   }
@@ -316,13 +316,13 @@ test('saves units, social visibility and route options', async () => {
     result.current.setAvatarId('helmet-blue');
     result.current.setInstagramVisibility('public');
     result.current.setTiktokVisibility('private');
-    result.current.setRouteAvoidance({ highways: true, tolls: 'yes' as never });
+    result.current.setRouteAvoidance({ highways: true, tolls: 'yes' as never, ferries: true });
   });
 
   await waitFor(() => expect(client.updateProfile).toHaveBeenCalledWith(RIDER_ID, { tiktokVisibility: 'private' }));
   expect(client.updateProfile).toHaveBeenCalledWith(RIDER_ID, { unitSystem: 'km' });
   expect(client.updateProfile).toHaveBeenCalledWith(RIDER_ID, { avatarId: 'helmet-blue' });
   expect(client.updateProfile).toHaveBeenCalledWith(RIDER_ID, { instagramVisibility: 'public' });
-  expect(result.current.routeAvoidance).toEqual({ highways: true, tolls: false });
-  expect(JSON.parse((await AsyncStorage.getItem(`@rider-comms/settings/route-avoidance/${RIDER_ID}`)) ?? 'null')).toEqual({ highways: true, tolls: false });
+  expect(result.current.routeAvoidance).toEqual({ highways: true, tolls: false, ferries: true });
+  expect(JSON.parse((await AsyncStorage.getItem(`@rider-comms/settings/route-avoidance/${RIDER_ID}`)) ?? 'null')).toEqual({ highways: true, tolls: false, ferries: true });
 });

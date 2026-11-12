@@ -187,7 +187,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }): R
     void AsyncStorage.setItem(navigationProviderStorageKey(riderId), next);
   }, [riderId]);
   const setRouteAvoidance = React.useCallback((value: RouteAvoidance) => {
-    const next = { highways: value.highways === true, tolls: value.tolls === true };
+    const next = { highways: value.highways === true, tolls: value.tolls === true, ferries: value.ferries === true };
     setRouteAvoidanceState(next);
     void AsyncStorage.setItem(routeAvoidanceStorageKey(riderId), JSON.stringify(next));
   }, [riderId]);

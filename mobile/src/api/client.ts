@@ -116,12 +116,12 @@ export class RiderCommsClient {
   getDrivingRoute(
     origin: RouteCoordinate,
     destination: RouteCoordinate,
-    avoid: { highways: boolean; tolls: boolean } = { highways: false, tolls: false },
+    avoid: { highways: boolean; tolls: boolean; ferries?: boolean } = { highways: false, tolls: false, ferries: false },
   ): Promise<InAppNavigationRoute> {
     return this.request('POST', '/directions', {
       origin: { lat: origin.lat, lon: origin.lon },
       destination: { lat: destination.lat, lon: destination.lon },
-      avoid: { highways: avoid.highways, tolls: avoid.tolls },
+      avoid: { highways: avoid.highways, tolls: avoid.tolls, ferries: avoid.ferries === true },
     }, 12_000);
   }
   searchPlaces(query: string, near: RouteCoordinate): Promise<{ places: PlaceSummary[] }> {

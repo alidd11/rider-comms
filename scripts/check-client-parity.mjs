@@ -52,6 +52,8 @@ const [
   nativeGuidanceSource,
   nativeMenuSource,
   nativeRiderPreferencesSource,
+  pwaRoutesSource,
+  nativeCuratedRoutesSource,
 ] = await Promise.all([
   readFile(new URL('../docs/app.js', import.meta.url), 'utf8'),
   readFile(new URL('../docs/app.css', import.meta.url), 'utf8'),
@@ -68,6 +70,8 @@ const [
   readFile(new URL('../mobile/src/navigationGuidance.ts', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/screens/MenuScreen.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/riderPreferences.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../docs/routes.js', import.meta.url), 'utf8'),
+  readFile(new URL('../mobile/src/routes/curatedRoutes.ts', import.meta.url), 'utf8'),
 ]);
 // MapScreen.tsx delegates its map-marker rendering (HazardMarker,
 // SmoothSelfMarker, SmoothRideMemberMarker) to mapMarkers.tsx, its hazard
@@ -100,29 +104,53 @@ function assertSameOrder(labels, pwaSource, nativeSource, where) {
   }
 }
 assertSameOrder(
-  ['General', 'Map & navigation', 'Voice and sound', 'Riding', 'Ride Safe', 'Vehicle details', 'Notifications', 'Account', 'Account and login', 'Privacy', 'About'],
+  ['General', 'Map & navigation', 'Voice and sound', 'Riding', 'Ride Safe', 'Vehicle details', 'Notifications', 'Account', 'Account and login', 'Privacy', 'Your plan', 'Support', 'Help & Support', 'About'],
   pwaSettingsList,
   nativeSettingsRoot,
   'Settings root',
 );
-for (const tint of ['#1FB6D9', '#2FB35F', '#3478F6', '#F2802A', '#8E5CF6', '#EF4444', '#2A8196', '#1E95E8', '#16A9D9']) {
+for (const tint of ['#1FB6D9', '#2FB35F', '#3478F6', '#F2802A', '#8E5CF6', '#EF4444', '#2A8196', '#1E95E8', '#E0A100', '#5E6AD2', '#16A9D9']) {
   if (!pwaSettingsList.toUpperCase().includes(tint) || !nativeSettingsRoot.toUpperCase().includes(tint)) {
     throw new Error(`Settings category tint drifted: ${tint}`);
   }
 }
 assertSameOrder(
-  ['Distance units', 'Navigation app', 'Avoid motorways', 'Avoid tolls', 'Spoken directions', 'Notifications on this device', 'Friend requests', 'Messages', 'Ride Safe auto-lock',
+  ['Distance units', 'Navigation app', 'Avoid motorways', 'Avoid tolls', 'Avoid ferries', 'Spoken directions', 'Notifications on this device', 'Friend requests', 'Messages', 'Ride Safe auto-lock',
     'Nearby rider visibility', 'Blocked riders', 'Email', 'Signed-in devices', 'Sign out', 'Reset settings', 'Delete account'],
   pwaMapSource.slice(pwaMapSource.indexOf('generalSettings: () =>')),
   nativeSettingsSource.slice(nativeSettingsSource.indexOf('function GeneralPage(')),
   'Settings pages',
 );
-// Vehicle types: same choices, labels and order on both clients.
+// Vehicle types: same choices, labels, groups and order on both clients.
 {
-  const pwaVehicles = [...pwaMapSource.matchAll(/\['(motorcycle_large|motorcycle_small|scooter)', '([^']+)'\]/g)].map((match) => `${match[1]}:${match[2]}`);
-  const nativeVehicles = [...nativeRiderPreferencesSource.matchAll(/\['(motorcycle_large|motorcycle_small|scooter)', '([^']+)'\]/g)].map((match) => `${match[1]}:${match[2]}`);
-  if (pwaVehicles.length !== 3 || pwaVehicles.join('|') !== nativeVehicles.join('|')) {
+  const vehiclePattern = /\['(motorcycle_large|motorcycle_small|scooter|car|van)', '([^']+)', '([^']+)'\]/g;
+  const pwaVehicles = [...pwaMapSource.matchAll(vehiclePattern)].map((match) => match.slice(1).join(':'));
+  const nativeVehicles = [...nativeRiderPreferencesSource.matchAll(vehiclePattern)].map((match) => match.slice(1).join(':'));
+  if (pwaVehicles.length !== 5 || pwaVehicles.join('|') !== nativeVehicles.join('|')) {
     throw new Error(`Vehicle type choices drifted: PWA ${pwaVehicles.join(', ')} vs native ${nativeVehicles.join(', ')}`);
+  }
+}
+// Ride Safe's page lists the same locked and still-working items.
+{
+  const summary = (source) => {
+    const start = source.indexOf('= [', source.indexOf('const RIDE_SAFE_SUMMARY'));
+    return source.slice(start, source.indexOf('];', start)).replace(/\s+/g, ' ');
+  };
+  if (!summary(pwaMapSource).includes('Locked while') || summary(pwaMapSource) !== summary(nativeSettingsSource)) {
+    throw new Error('Ride Safe summary drifted between the PWA and native Settings');
+  }
+}
+// Route types on Routes: same keys, labels and order, from the same fields.
+{
+  const pwaCategories = [...(pwaRoutesSource.match(/const categoryLabels = \{([^}]+)\}/)?.[1] ?? '').matchAll(/(\w+): '([^']+)'/g)].map((match) => `${match[1]}:${match[2]}`);
+  const nativeCategories = [...nativeCuratedRoutesSource.matchAll(/\{ value: '(\w+)', label: '([^']+)' \}/g)].map((match) => `${match[1]}:${match[2]}`);
+  if (pwaCategories.length !== 7 || pwaCategories.join('|') !== nativeCategories.join('|')) {
+    throw new Error(`Route types drifted: PWA ${pwaCategories.join(', ')} vs native ${nativeCategories.join(', ')}`);
+  }
+  const pwaRoadTypes = pwaRoutesSource.match(/const roadTypeLabels = (\{[^}]+\})/)?.[1];
+  const nativeRoadTypes = nativeCuratedRoutesSource.match(/ROAD_TYPE_LABELS: Record<RoadType, string> = (\{[^}]+\})/)?.[1]?.replace(/\s+/g, ' ').replace(/, \}/, ' }');
+  if (!pwaRoadTypes || pwaRoadTypes !== nativeRoadTypes) {
+    throw new Error(`Road type labels drifted: PWA ${pwaRoadTypes} vs native ${nativeRoadTypes}`);
   }
 }
 if (/id="logoutBtn"/.test(pwaIndexSource) || /title="Sign Out"/.test(nativeSettingsRoot)) {
@@ -156,10 +184,14 @@ for (const token of ['myProfile', 'editProfile', 'help']) {
 if (!pwaMapSource.includes("openSheet('myProfile')") || !nativeMenuSource.includes("page: 'myProfile'")) {
   throw new Error('View profile must open the profile page on both clients, not Account settings');
 }
-// No duplicates: Help lives in the menu only, the plan only under Your plan,
-// and the profile is not repeated on the Settings root.
-if (/data-sheet="help"|settings-profile-row/.test(pwaIndexSource) || /openPage\('help'\)|styles\.profileCard/.test(nativeSettingsSource)) {
-  throw new Error('Settings root must not repeat Help or the profile card from the menu');
+// The Settings root links to Your plan and Help & Support (the same pages
+// the menu opens); the profile card stays in the menu only.
+if (/settings-profile-row/.test(pwaIndexSource) || /styles\.profileCard/.test(nativeSettingsSource)) {
+  throw new Error('Settings root must not repeat the profile card from the menu');
+}
+if (!pwaSettingsList.includes("['plan', 'card', 'Your plan'") || !nativeSettingsRoot.includes("navigation.push('Billing')")
+  || !pwaSettingsList.includes("['help', 'help', 'Help & Support'") || !nativeSettingsRoot.includes("openPage('help')")) {
+  throw new Error('Settings root must open Your plan and Help & Support on both clients');
 }
 if (/<h2 class="group-title">(?:Account|Preferences|Privacy and safety)<\/h2>/.test(pwaIndexSource)) {
   throw new Error('PWA Settings must not expose the legacy section-heavy root');

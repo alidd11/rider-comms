@@ -16,7 +16,7 @@
     mapNavigation: { title: 'Map & navigation', sections: [['', 'mapNavigationSettings'], ['Saved places', 'savedPlacesSettings']], fullBleed: true },
     voiceSound: { title: 'Voice and sound', sections: [['', 'voiceSoundSettings']], fullBleed: true },
     rideSafe: { title: 'Ride Safe', sections: [['', 'rideSafeSettings']], fullBleed: true },
-    vehicle: { title: 'Vehicle details', sections: [['Vehicle type', 'vehicleSettings']], fullBleed: true },
+    vehicle: { title: 'Vehicle details', sections: [['', 'vehicleSettings']], fullBleed: true },
     notifications: { title: 'Notifications', sections: [['', 'notificationDevice'], ['Notify me about', 'notificationKinds']], fullBleed: true },
     account: { title: 'Account and login', sections: [['Login info', 'accountLogin'], ['Advanced', 'accountAdvanced']], fullBleed: true },
     privacy: { title: 'Privacy', sections: [['', 'privacySettings']], fullBleed: true },
@@ -34,6 +34,12 @@
     emailStatus: 'email', sessions: 'devices', legal: 'help', faq: 'help',
   };
   let currentSettingsPage = null;
+  // What Ride Safe does while moving, shown on its page (native: the same
+  // list on RideSafePage).
+  const RIDE_SAFE_SUMMARY = [
+    ['Locked while you’re moving', ['Messages and friends', 'Map search and Where to', 'Routes, Settings and the menu', 'Starting a new ride']],
+    ['Still works', ['Group ride voice and Nearby Voice', 'Turn-by-turn directions and the map']],
+  ];
   // The hazard picker closes itself if nothing is picked (native mirrors).
   const HAZARD_AUTO_CLOSE_SECONDS = 10;
   let hazardAutoCloseTimer;
@@ -191,11 +197,13 @@
       }),
       mapNavigationSettings: () => ({
         title: 'Map & navigation',
-        body: settingsRowsMarkup([
+        body: `${settingsRowsMarkup([
           settingsLink('navigationApp', 'Navigation app', NAVIGATION_PROVIDERS[navigationProvider(state.navigationProvider)].label),
+        ], 'Where a route opens when you tap Go.')}<h3 class="settings-page-heading">Route options</h3>${settingsRowsMarkup([
           settingsToggle('avoidHighways', 'Avoid motorways', state.avoidHighways),
           settingsToggle('avoidTolls', 'Avoid tolls', state.avoidTolls),
-        ], 'Route options apply to routes Rider Comms plans.'),
+          settingsToggle('avoidFerries', 'Avoid ferries', state.avoidFerries),
+        ], 'Route options apply to routes Rider Comms plans.')}`,
         ready: () => { wireSettingsLinks($('#sheetBody')); wireToggles(); },
       }),
       savedPlacesSettings: () => {
@@ -215,10 +223,11 @@
       }),
       vehicleSettings: () => ({
         title: 'Vehicle type',
-        body: settingsRowsMarkup(
-          RIDER_VEHICLE_OPTIONS.map(([vehicle, label]) => `<button type="button" class="settings-row" role="radio" data-vehicle-option="${vehicle}" aria-checked="${state.vehicleCategory === vehicle}"><span class="settings-row-label">${escapeHtml(label)}</span><span class="settings-row-check">${icon('check')}</span></button>`),
-          'Routes only shows roads that suit what you ride.',
-        ),
+        // Grouped like native's VehiclePage: Motorcycles, then Cars and vans.
+        body: [...new Set(RIDER_VEHICLE_OPTIONS.map(([, , group]) => group))].map((group, index, groups) => `<h3 class="settings-page-heading">${escapeHtml(group)}</h3>${settingsRowsMarkup(
+          RIDER_VEHICLE_OPTIONS.filter(([, , optionGroup]) => optionGroup === group).map(([vehicle, label]) => `<button type="button" class="settings-row" role="radio" data-vehicle-option="${vehicle}" aria-checked="${state.vehicleCategory === vehicle}"><span class="settings-row-label">${escapeHtml(label)}</span><span class="settings-row-check">${icon('check')}</span></button>`),
+          index === groups.length - 1 ? 'Routes only shows roads we’ve checked suit what you drive or ride.' : '',
+        )}`).join(''),
         ready: () => $$('[data-vehicle-option]', $('#sheetBody')).forEach((button) => button.addEventListener('click', () => {
           state.vehicleCategory = button.dataset.vehicleOption;
           persist();
@@ -243,9 +252,9 @@
       }),
       rideSafeSettings: () => ({
         title: 'Ride Safe',
-        body: settingsRowsMarkup([
+        body: `${settingsRowsMarkup([
           settingsToggle('rideSafeEnabled', 'Ride Safe auto-lock', state.rideSafeEnabled),
-        ], 'Ride Safe locks distracting controls at 8 mph and above. Only change it while safely stopped.'),
+        ], 'Ride Safe locks distracting controls at 8 mph and above. Only change it while safely stopped.')}${RIDE_SAFE_SUMMARY.map(([heading, items]) => `<h3 class="settings-page-heading">${escapeHtml(heading)}</h3><ul class="settings-info-list">${items.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`).join('')}`,
         ready: () => wireToggles(),
       }),
       privacySettings: () => ({
@@ -442,6 +451,7 @@
       state.navigationProvider = 'google_maps';
       state.avoidHighways = false;
       state.avoidTolls = false;
+      state.avoidFerries = false;
       state.spokenDirections = true;
       state.vehicleCategory = 'motorcycle_large';
       window.RiderCuratedRoutes?.setVehicle?.(state.vehicleCategory);
@@ -588,18 +598,30 @@
     $$('[data-settings-open]', root).forEach((button) => button.addEventListener('click', () => openSheet(button.dataset.settingsOpen)));
   }
 
-  // The Settings root: categories only, each opening its own page.
+  // The Settings root: categories, each opening its own page, with the
+  // current choice in grey where there is one (native: SettingsScreen()).
   const SETTINGS_CATEGORIES = [
     ['', [['general', 'settings', 'General', '#1fb6d9'], ['mapNavigation', 'map', 'Map & navigation', '#2fb35f'], ['voiceSound', 'volume', 'Voice and sound', '#3478f6']]],
     ['Riding', [['rideSafe', 'shield', 'Ride Safe', '#f2802a'], ['vehicle', 'bike', 'Vehicle details', '#8e5cf6']]],
     ['', [['notifications', 'bell', 'Notifications', '#ef4444']]],
-    ['Account', [['account', 'user', 'Account and login', '#2a8196'], ['privacy', 'lock', 'Privacy', '#1e95e8']]],
-    ['', [['about', 'info', 'About', '#16a9d9']]],
+    ['Account', [['account', 'user', 'Account and login', '#2a8196'], ['privacy', 'lock', 'Privacy', '#1e95e8'], ['plan', 'card', 'Your plan', '#e0a100']]],
+    ['Support', [['help', 'help', 'Help & Support', '#5e6ad2'], ['about', 'info', 'About', '#16a9d9']]],
   ];
+  function settingsCategoryValue(page) {
+    if (page === 'general') return state.profile.unitSystem === 'km' ? 'Kilometres' : 'Miles';
+    if (page === 'mapNavigation') return NAVIGATION_PROVIDERS[navigationProvider(state.navigationProvider)].label;
+    if (page === 'rideSafe') return state.rideSafeEnabled ? 'On' : 'Off';
+    if (page === 'vehicle') return RIDER_VEHICLE_OPTIONS.find(([vehicle]) => vehicle === state.vehicleCategory)?.[1] || '';
+    if (page === 'plan') return PLAN_INFO[planTier(state.profile.zoneTier)].name;
+    return '';
+  }
   function renderSettingsList() {
     const list = $('#settingsList');
     if (!list) return;
-    list.innerHTML = SETTINGS_CATEGORIES.map(([title, rows]) => `<section class="settings-section"${title ? ` aria-label="${escapeHtml(title)}"` : ''}>${title ? `<h2 class="settings-section-title">${escapeHtml(title)}</h2>` : ''}<div class="settings-rows">${rows.map(([page, iconName, label, tint]) => `<button type="button" class="settings-row settings-row-category" data-settings-open="${page}"><span class="settings-category-icon" style="--tint:${tint}">${icon(iconName)}</span><span class="settings-row-label">${escapeHtml(label)}</span><span class="settings-row-chevron">${icon('chevron')}</span></button>`).join('')}</div></section>`).join('');
+    list.innerHTML = SETTINGS_CATEGORIES.map(([title, rows]) => `<section class="settings-section"${title ? ` aria-label="${escapeHtml(title)}"` : ''}>${title ? `<h2 class="settings-section-title">${escapeHtml(title)}</h2>` : ''}<div class="settings-rows">${rows.map(([page, iconName, label, tint]) => {
+      const value = settingsCategoryValue(page);
+      return `<button type="button" class="settings-row settings-row-category" data-settings-open="${page}"><span class="settings-category-icon" style="--tint:${tint}">${icon(iconName)}</span><span class="settings-row-label">${escapeHtml(label)}</span>${value ? `<span class="settings-row-value">${escapeHtml(value)}</span>` : ''}<span class="settings-row-chevron">${icon('chevron')}</span></button>`;
+    }).join('')}</div></section>`).join('');
     wireSettingsLinks(list);
   }
 
@@ -678,11 +700,11 @@
         showToast(active ? 'Directions will be spoken.' : 'Routes will start with directions muted.');
         return;
       }
-      if (key === 'avoidHighways' || key === 'avoidTolls') {
+      if (key === 'avoidHighways' || key === 'avoidTolls' || key === 'avoidFerries') {
         state[key] = active;
         persist();
         button.setAttribute('aria-pressed', String(active));
-        const label = key === 'avoidHighways' ? 'motorways' : 'tolls';
+        const label = { avoidHighways: 'motorways', avoidTolls: 'tolls', avoidFerries: 'ferries' }[key];
         showToast(active ? `New routes avoid ${label}.` : `New routes can use ${label}.`);
         return;
       }

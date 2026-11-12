@@ -117,7 +117,7 @@ export interface RouteContext extends PublicRouteContext {
 }
 
 export const HAZARD_TYPES = ['police', 'accident', 'road_closure', 'camera', 'hidden_police', 'police_checkpoint'] as const;
-export const VEHICLE_CATEGORIES = ['motorcycle_small', 'motorcycle_large', 'scooter', 'car'] as const;
+export const VEHICLE_CATEGORIES = ['motorcycle_small', 'motorcycle_large', 'scooter', 'car', 'van'] as const;
 export const ROAD_TYPES = ['rural', 'mountain', 'coastal', 'urban', 'mixed'] as const;
 export const DIFFICULTIES = ['easy', 'moderate', 'challenging'] as const;
 

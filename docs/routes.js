@@ -1219,7 +1219,11 @@
     }
   ];
 
-  const categoryLabels = { all: 'All', scenic: 'Scenic', mountain: 'Mountain', coastal: 'Coastal', near: 'Near me' };
+  // Route types come from each route's reviewed road type and difficulty,
+  // not words in its description (native: ROUTE_CATEGORIES and
+  // routeMatchesCategory in curatedRoutes.ts).
+  const categoryLabels = { all: 'All', coastal: 'Coastal', mountain: 'Mountains', countryside: 'Countryside', relaxed: 'Relaxed', challenging: 'Challenging', near: 'Near me' };
+  const roadTypeLabels = { coastal: 'Coastal', mountain: 'Mountain roads', rural: 'Countryside', mixed: 'Mixed roads', urban: 'Town and city' };
   const durationLabels = { all: 'All durations', quick: 'Under 90 min', half_day: '90 min–3 hr', day_trip: '3+ hr' };
   let category = 'all';
   let durationFilter = 'all';
@@ -1362,11 +1366,13 @@
   };
 
   const matchesCategory = (route) => {
-    if (category === 'all' || category === 'near') return true;
-    const text = routeDiscoveryText(route);
-    if (category === 'coastal') return /(coast|coastal|sea|shore|isle|island|ocean|causeway)/.test(text);
-    if (category === 'mountain') return /(mountain|pass|highland|cairngorm|snowdon|eryri|glencoe|hartside|hardknott|wrynose|buttertubs|moor|peak|bealach|black mountain)/.test(text);
-    return route.roadType === 'rural' || /(scenic|valley|forest|dale|loch|lake|moor|views|countryside)/.test(text);
+    const roadType = route.roadType.toLowerCase();
+    const difficulty = route.difficulty.toLowerCase();
+    if (category === 'coastal' || category === 'mountain') return roadType === category;
+    if (category === 'countryside') return roadType === 'rural' || roadType === 'mixed';
+    if (category === 'relaxed') return difficulty !== 'challenging';
+    if (category === 'challenging') return difficulty === 'challenging';
+    return true;
   };
 
   const haversineMiles = (a, b) => {
@@ -1523,7 +1529,11 @@
     if (!root) return;
     const visible = visibleRoutes();
     if (!visible.length) {
-      root.innerHTML = '<div class="route-discovery-empty"><svg><use href="#i-route"/></svg><strong>No curated rides match</strong><span>Try another category, duration or search. Rider Comms only shows routes we have actually reviewed.</span></div>';
+      // A vehicle no reviewed route suits yet (a van or motorhome) gets its
+      // own message: no filter change would help.
+      root.innerHTML = routes.some(matchesVehicle)
+        ? '<div class="route-discovery-empty"><svg><use href="#i-route"/></svg><strong>No curated rides match</strong><span>Try another category, duration or search. Rider Comms only shows routes we have actually reviewed.</span></div>'
+        : '<div class="route-discovery-empty"><svg><use href="#i-route"/></svg><strong>No reviewed routes for your vehicle yet</strong><span>We only list a route for a vehicle once we’ve checked it suits it. You can change your vehicle in Settings → Vehicle details.</span></div>';
       return;
     }
     root.innerHTML = visible.map((route, index) => {
@@ -1567,7 +1577,7 @@
       <div class="route-detail-body"><div class="route-detail-stats"><span><b>${route.distance} mi</b>route</span><span><b>${route.minutes} min</b>ride time*</span><span><b>${escapeHtml(route.difficulty)}</b>demand</span>${approach ? `<span><b>${escapeHtml(approach.replace(' from you', ''))}</b>to start</span>` : ''}</div>
       <div class="route-trace-panel"><div><h3>Route shape</h3><p>${route.waypoints.length} curated ${route.waypoints.length === 1 ? 'waypoint' : 'waypoints'}</p></div><span class="route-trace-detail">${routeTraceSvg(route, 156, 88)}</span></div>
       <p>${escapeHtml(route.description)}</p><div class="rider-note"><strong>Rider note</strong><p>${escapeHtml(route.note)}</p></div>
-      <div><h3>Why ride it</h3><div class="badge-row"><span class="badge">${escapeHtml(route.roadType)}</span>${route.highlights.map((item) => `<span class="badge">${escapeHtml(item)}</span>`).join('')}</div></div>
+      <div><h3>Why ride it</h3><div class="badge-row"><span class="badge">${escapeHtml(roadTypeLabels[route.roadType.toLowerCase()] || route.roadType)}</span>${route.highlights.map((item) => `<span class="badge">${escapeHtml(item)}</span>`).join('')}</div></div>
       <div class="safety-box"><svg><use href="#i-shield"/></svg><div><strong>Before you ride</strong>${route.safety.map((item) => `<p>${escapeHtml(item)}</p>`).join('')}</div></div>
       <button class="button primary wide" data-guide-route-start>Guide me to the start</button>
       <a class="button secondary wide" href="${mapsUrl(route)}" target="_blank" rel="noopener">Open full route in Maps</a>

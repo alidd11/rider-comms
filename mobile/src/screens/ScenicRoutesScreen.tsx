@@ -9,18 +9,10 @@ import { colors, radii, spacing, type } from '../theme';
 import { CuratedRouteBrowser } from '../routes/CuratedRouteBrowser';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { RIDE_WINDOWS, type RideWindow, type RiderCoordinate } from '../routes/routeDiscovery';
-import type { CuratedRoute } from '../routes/curatedRoutes';
+import { ROUTE_CATEGORIES, type CuratedRoute, type RouteCategory } from '../routes/curatedRoutes';
 import type { RootStackParamList } from '../navigation';
 
-export type RouteCategory = 'all' | 'scenic' | 'mountain' | 'coastal' | 'near';
-
-const ROUTE_CATEGORIES: ReadonlyArray<{ value: RouteCategory; label: string }> = [
-  { value: 'all', label: 'All' },
-  { value: 'scenic', label: 'Scenic' },
-  { value: 'mountain', label: 'Mountain' },
-  { value: 'coastal', label: 'Coastal' },
-  { value: 'near', label: 'Near me' },
-];
+export type { RouteCategory };
 
 function FilterChip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
   return (

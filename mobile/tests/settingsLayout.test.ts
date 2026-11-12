@@ -9,19 +9,22 @@ const settingsSource = await readFile(new URL('../src/screens/SettingsScreen.tsx
 describe('Settings mockup contract', () => {
   it('has a root of categories, each opening its own page', () => {
     const root = settingsSource.slice(settingsSource.indexOf('export function SettingsScreen()'), settingsSource.indexOf('function GeneralPage('));
-    const categories = ['title="General"', 'title="Map & navigation"', 'title="Voice and sound"', 'title="Riding"', 'title="Ride Safe"', 'title="Vehicle details"', 'title="Notifications"', 'title="Account"', 'title="Account and login"', 'title="Privacy"', 'title="About"'];
+    const categories = ['title="General"', 'title="Map & navigation"', 'title="Voice and sound"', 'title="Riding"', 'title="Ride Safe"', 'title="Vehicle details"', 'title="Notifications"', 'title="Account"', 'title="Account and login"', 'title="Privacy"', 'title="Your plan"', 'title="Support"', 'title="Help & Support"', 'title="About"'];
     let cursor = -1;
     for (const label of categories) {
       const next = root.indexOf(label, cursor + 1);
       assert.ok(next > cursor, `Expected ${label} after the previous Settings category`);
       cursor = next;
     }
-    assert.equal((root.match(/<CategoryRow /g) ?? []).length, 9);
+    assert.equal((root.match(/<CategoryRow /g) ?? []).length, 11);
+    // The root shows the current choice where there is one.
+    assert.match(root, /title="Vehicle details" value=\{riderVehicleLabel\(riderVehicle\)\}/);
+    assert.match(root, /title="Your plan" value=\{PLAN_INFO\[zoneTier\]\.name\} onPress=\{\(\) => navigation\.push\('Billing'\)\}/);
     // The version is on the About page, not under the list.
     assert.doesNotMatch(root, /Version \{appVersion\}/);
     // The pages, in the same order as the PWA's.
     const pages = settingsSource.slice(settingsSource.indexOf('function GeneralPage('), settingsSource.indexOf('const VISIBILITY_LABELS'));
-    const rows = ['title="Distance units"', 'title="Navigation app"', 'title="Avoid motorways"', 'title="Avoid tolls"', 'title="Spoken directions"', 'title="Vehicle type"', 'title="Notifications on this device"', 'title="Friend requests"', 'title="Messages"', 'title="Ride Safe auto-lock"',
+    const rows = ['title="Distance units"', 'title="Navigation app"', 'title="Route options"', 'title="Avoid motorways"', 'title="Avoid tolls"', 'title="Avoid ferries"', 'title="Spoken directions"', 'title={group}', 'title="Notifications on this device"', 'title="Friend requests"', 'title="Messages"', 'title="Ride Safe auto-lock"', 'title={heading}',
       'title="Nearby rider visibility"', 'title="Blocked riders"', 'title="Login info"', 'title="Email"', 'title="Signed-in devices"',
       'title="Advanced"', 'title="Sign out"', 'title="Reset settings"', 'title="Delete account"'];
     cursor = -1;
@@ -30,8 +33,8 @@ describe('Settings mockup contract', () => {
       assert.ok(next > cursor, `Expected ${label} after the previous Settings row`);
       cursor = next;
     }
-    assert.equal((pages.match(/<SwitchRow /g) ?? []).length, 8);
-    assert.match(pages, /RIDER_VEHICLE_OPTIONS\.map[\s\S]*<CheckRow /);
+    assert.equal((pages.match(/<SwitchRow /g) ?? []).length, 9);
+    assert.match(pages, /RIDER_VEHICLE_GROUPS\.map[\s\S]*RIDER_VEHICLE_OPTIONS\.filter[\s\S]*<CheckRow /);
     assert.match(pages, /<SegmentedRow first title="Distance units"/);
     assert.match(pages, /title="Navigation app" value=\{navigationAppLabel\}/);
     assert.match(pages, /title="Email" value=\{emailVerified \? 'Verified' : 'Not verified'\}/);
@@ -50,7 +53,8 @@ describe('Settings mockup contract', () => {
   it('keeps settings rows compact and consistent', () => {
     // The profile lives behind View profile in the menu, not on the root.
     assert.ok(!settingsSource.includes('profileCard'));
-    assert.ok(!settingsSource.includes("openPage('help')"));
+    // Help & Support opens from the root as well as the menu.
+    assert.ok(settingsSource.includes("openPage('help')"));
     assert.match(settingsSource, /paddingBottom: insets\.bottom \+ spacing\.md/);
     assert.match(settingsSource, /scroll: \{[^\n]*paddingHorizontal: spacing\.md/);
     assert.match(settingsSource, /settingsGroup: \{[^\n]*backgroundColor: colors\.surfaceRaised/);
