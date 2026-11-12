@@ -126,7 +126,7 @@ export function CameraCapture({ mode, onCapture, onLibrary, onClose, disabled }:
   }
 
   const shutterDisabled = disabled || busy || countdown !== null ||
-    ((!canUseCamera || !camera.current) && !webReel);
+    (!canUseCamera && !webReel);
   const shutterLabel = webReel ? 'Choose Reel video' : recording ? 'Stop recording'
     : isVideo ? 'Record Reel' : 'Take photo';
 
