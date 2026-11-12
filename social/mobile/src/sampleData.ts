@@ -28,8 +28,8 @@ export const demoEvents = [
 ];
 
 export const demoListings = [
-  { id: 'l1', name: 'Touring gloves', price: '£49', category: 'Accessories', merchant: 'Demo Rider Supply', type: 'Product', icon: 'hand-left' as const, accent: '#294C60' },
-  { id: 'l2', name: 'Road bicycle helmet', price: '£89', category: 'Accessories', merchant: 'Demo Cycle Studio', type: 'Product', icon: 'bicycle' as const, accent: '#3D614C' },
-  { id: 'l3', name: '125cc scooter — enquiry', price: 'Request quote', category: 'Vehicles', merchant: 'Demo Scooter Dealer', type: 'Vehicle', icon: 'speedometer' as const, accent: '#5C4B6F' },
-  { id: 'l4', name: 'Scooter rental — request', price: 'Check dates', category: 'Rentals', merchant: 'Demo Scooter Rental', type: 'Rental', icon: 'calendar' as const, accent: '#66523F' }
+  { id: 'l1', topic: 'Motorcycles', imageUrl: 'https://images.unsplash.com/photo-1558981806-ec527fa84c39?auto=format&fit=crop&w=900&q=80', imageAlt: 'Illustrative motorcycle photo for a sample riding gloves listing', name: 'Touring gloves', price: '£49', category: 'Accessories', merchant: 'Demo Rider Supply', type: 'Product', icon: 'hand-left' as const, accent: '#294C60' },
+  { id: 'l2', topic: 'Cycling', imageUrl: 'https://images.unsplash.com/photo-1517649763962-0c623066013b?auto=format&fit=crop&w=900&q=80', imageAlt: 'Illustrative cycling photo for a sample helmet listing', name: 'Road bicycle helmet', price: '£89', category: 'Accessories', merchant: 'Demo Cycle Studio', type: 'Product', icon: 'bicycle' as const, accent: '#3D614C' },
+  { id: 'l3', topic: 'Motorcycles', imageUrl: 'https://images.unsplash.com/photo-1568772585407-9361f9bf3a87?auto=format&fit=crop&w=900&q=80', imageAlt: 'Illustrative motorcycle photo for a sample scooter enquiry listing', name: '125cc scooter — enquiry', price: 'Request quote', category: 'Vehicles', merchant: 'Demo Scooter Dealer', type: 'Vehicle', icon: 'speedometer' as const, accent: '#5C4B6F' },
+  { id: 'l4', topic: 'Motorcycles', imageUrl: 'https://images.unsplash.com/photo-1558981806-ec527fa84c39?auto=format&fit=crop&w=900&q=80', imageAlt: 'Illustrative motorcycle photo for a sample scooter rental listing', name: 'Scooter rental — request', price: 'Check dates', category: 'Rentals', merchant: 'Demo Scooter Rental', type: 'Rental', icon: 'calendar' as const, accent: '#66523F' }
 ];

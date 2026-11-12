@@ -100,3 +100,10 @@ Compared the live EclipseRBLX `main` implementation at commit `c74ac789741b6e0d7
 Social previously had a conflicting standalone-only `padding-top: 0 !important` rule, allowing the header to appear behind the Dynamic Island. The Social fix keeps top safe-area padding in ALL display modes, synchronises the fixed shell on initial load, resize, orientation, resuming, and visual-viewport changes, and preserves bottom-safe padding inside the tab bar. No fake-colour spacer or transformed layout.
 
 Automated Chromium tests check a forced 59px top inset and viewport geometry. They do not reproduce real iOS Home Screen WebKit behaviour. Check the installed app on a physical iPhone. Because the status-bar configuration has changed, iOS may require deleting and adding the Home Screen PWA once. The URL remains unchanged; normal future builds still update without reinstalling.
+
+
+## TikTok-style Shop discovery milestone (2026-11-12)
+
+Shop now uses a commerce-first discovery layout: search, category filters, automotive interests, two-column media cards, saved listings, demo basket, example merchant storefronts and a standalone product detail screen. No fake ratings, sale discounts, order records or merchant verification statuses are generated. All prices and names are explicitly fictional; gallery photos are thematic illustrative media, not exact product photography. Vehicles and rentals remain enquiry-only and cannot enter checkout.
+
+Important: business verification, stock, consumer rights/returns, transaction fees, dispute handling, age/identity checks where applicable, payments and payout controls must all be enforced by authenticated backend services before public sales. Shop actions currently change local in-memory preview state only. This is a discovery design iteration, not a TikTok Shop commerce integration.

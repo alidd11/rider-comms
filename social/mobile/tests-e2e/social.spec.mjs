@@ -432,3 +432,28 @@ test('Create opens camera-first with a real permission path and gallery alternat
   await mkdir('test-results/screenshots', { recursive: true });
   await page.screenshot({ path: 'test-results/screenshots/' + testInfo.project.name + '-camera-first-create.png' });
 });
+
+
+test('TikTok-style Shop discovery supports search, sample details, saved and basket', async ({ page }, testInfo) => {
+  await page.goto('/');
+  await page.getByRole('tab', { name: 'Shop' }).click();
+  await expect(page.getByTestId('shop-discovery')).toBeVisible();
+  await expect(page.getByRole('textbox', { name: 'Search marketplace' })).toBeVisible();
+  await expect(page.getByTestId('shop-card-l1')).toBeVisible();
+  await expect(page.getByTestId('shop-card-l2')).toBeVisible();
+  await mkdir('test-results/screenshots', { recursive: true });
+  await page.screenshot({ path: 'test-results/screenshots/' + testInfo.project.name + '-shop-discovery.png' });
+  await page.getByRole('button', { name: 'View listing Touring gloves' }).click();
+  await expect(page.getByTestId('shop-product-details')).toBeVisible();
+  await expect(page.getByText('Illustrative listing only.', { exact: false })).toBeVisible();
+  await page.getByRole('button', { name: 'Add to preview basket Touring gloves' }).click();
+  await expect(page.getByText(/Added to your preview basket/)).toBeVisible();
+  await page.getByRole('button', { name: 'Save Touring gloves' }).click();
+  await page.getByRole('button', { name: 'Back to Shop' }).click();
+  await page.getByRole('button', { name: 'Shop basket' }).click();
+  await expect(page.getByTestId('shop-card-l1')).toBeVisible();
+  await expect(page.getByText(/Checkout is unavailable/)).toBeVisible();
+  await page.getByRole('button', { name: 'Shop saved' }).click();
+  await expect(page.getByTestId('shop-card-l1')).toBeVisible();
+  await expect(page.getByText('Road bicycle helmet')).toHaveCount(0);
+});

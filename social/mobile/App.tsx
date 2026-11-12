@@ -12,6 +12,7 @@ import { DEFAULT_PROFILE, EMPTY_GARAGE_DRAFT, addGarageEntry, createGarageEntry,
 import type { GarageDraft, GarageEntry, GarageKind, SocialProfileDraft } from './src/garage';
 import { loadLocalDemo, saveLocalDemo } from './src/demoStorage';
 import { CreateComposer } from './src/CreateComposer';
+import { ShopScreen } from './src/ShopScreen';
 import { ReelsScreen } from './src/ReelsScreen';
 import { StoriesViewer } from './src/StoriesViewer';
 import type { ReelPreview } from './src/ReelsScreen';
@@ -544,36 +545,8 @@ export default function App(): React.JSX.Element {
   }
 
   function renderShop() {
-    return (
-      <>
-        <View style={s.rowBetween}>
-          <Text style={s.title}>Marketplace</Text>
-          <View style={s.row}><Ionicons name="shield-checkmark" color={C.accent} size={17} /><Text style={[s.small,{color:C.accent}]}>Verified only</Text></View>
-        </View>
-        <Text style={s.small}>Sample listings · checkout unavailable</Text>
-        <TextInput value={search} onChangeText={setSearch} style={s.input} placeholderTextColor={C.muted} placeholder="Search example listings or businesses" accessibilityLabel="Search marketplace" />
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 9 }}>
-          {['All', 'Accessories', 'Vehicles', 'Rentals'].map((option) => <Pill key={option} label={option} selected={marketFilter === option} onPress={() => setMarketFilter(option)} />)}
-        </ScrollView>
-        <HeaderLine heading="Discover" meta={String(filteredListings.length) + ' listings'} />
-        {filteredListings.length ? filteredListings.map((item) => (
-          <Pressable key={item.id} style={[s.card, { flexDirection:'row', minHeight:112 }]} accessibilityRole="button"
-            accessibilityLabel={'View listing ' + item.name}
-            onPress={() => banner('This is a preview listing. Purchases are not yet available.')}>
-            <View style={{ width:105, backgroundColor:item.accent, alignItems:'center', justifyContent:'center' }}>
-              <Ionicons name={item.icon} color="#E3F7F2" size={38}/>
-            </View>
-            <View style={[s.pad,{ flex:1, gap:5 }]}>
-              <Text style={s.cardHeading}>{item.name}</Text>
-              <Text style={s.small}>{item.merchant} · {item.category}</Text>
-              <View style={s.rowBetween}><Text style={[s.cardHeading,{color:C.accent}]}>{item.price}</Text>
-                <Ionicons name="chevron-forward" color={C.muted} size={18}/>
-              </View>
-            </View>
-          </Pressable>
-        )) : <PreviewEmpty icon="search-outline" heading="No matching listings" body="Try a different term or marketplace category." />}
-      </>
-    );
+    return <ShopScreen items={filteredListings} search={search} onSearch={setSearch}
+      category={marketFilter} onCategory={setMarketFilter}/>;
   }
 
   function renderProfile() {
