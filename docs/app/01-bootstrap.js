@@ -44,13 +44,31 @@
       requestAnimationFrame(syncViewportEnvironment);
     });
   };
+  // Rider Comms is a portrait app. The manifest asks for portrait-primary,
+  // which installed Android apps honour; installed apps on browsers with the
+  // Screen Orientation API also lock it here, again after coming back from the
+  // background. Ordinary tabs and iOS can't be locked, so there the existing
+  // landscape layout stays as the fallback: nothing is clipped and navigation
+  // and voice carry on (see ACCESSIBILITY.md, Orientation).
+  function lockPortraitWhereSupported() {
+    const installed = standaloneMedia?.matches || window.navigator.standalone === true;
+    const lock = window.screen?.orientation?.lock;
+    if (!installed || typeof lock !== 'function') return;
+    lock.call(window.screen.orientation, 'portrait-primary').catch(() => {
+      // Not allowed here (iOS, multitasking, some tablets): keep the fallback.
+    });
+  }
+  lockPortraitWhereSupported();
   settleViewportEnvironment();
   window.addEventListener('resize', syncViewportEnvironment);
   window.addEventListener('orientationchange', settleViewportEnvironment);
   window.addEventListener('pageshow', settleViewportEnvironment);
   window.addEventListener('scroll', syncViewportEnvironment, { passive: true });
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') settleViewportEnvironment();
+    if (document.visibilityState === 'visible') {
+      settleViewportEnvironment();
+      lockPortraitWhereSupported();
+    }
   });
   visualViewport?.addEventListener?.('resize', syncViewportEnvironment);
   visualViewport?.addEventListener?.('scroll', syncViewportEnvironment);

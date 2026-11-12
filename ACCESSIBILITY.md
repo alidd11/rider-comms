@@ -42,6 +42,26 @@ page zoom fights the map's own pinch-to-zoom while riding, so axe's
 Revisit it if riders ask for larger text: honouring the browser's text-size
 setting would cover it without page zoom.
 
+## Deliberate exception: portrait only
+
+Rider Comms is used on a phone mounted on a motorcycle, where a layout that
+turns with every lean or bump is a distraction, so it is a portrait app. This
+is a deliberate exception to WCAG 1.3.4 (Orientation).
+
+- **iPhone (native):** upright portrait only (`UISupportedInterfaceOrientations`
+  in `mobile/app.json`). There is no iPad layout; on an iPad the iPhone app
+  runs upright too.
+- **Android (native):** portrait (`orientation` in `mobile/app.json`, which
+  sets the activity's `screenOrientation`).
+- **Installed web app:** the manifest asks for `portrait-primary`, which
+  installed Android apps honour, and the app asks the Screen Orientation API
+  to lock portrait where it allows it (again after coming back from the
+  background). iOS ignores both, and ordinary browser tabs can't be locked.
+  There the web app keeps its landscape layout as a fallback: nothing is
+  clipped, and navigation and voice carry on.
+
+`scripts/check-native-permissions.mjs` keeps the native settings in place.
+
 ## Still needs a person
 
 These can't be automated reliably. Check them before a public launch:
