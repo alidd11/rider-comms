@@ -106,10 +106,21 @@ function rideSafe<P extends object>(Screen: React.ComponentType<P>): React.Compo
   }
   return RideSafeScreen;
 }
-const RoutesStackScreen = rideSafe(ScenicRoutesScreen);
-const SettingsStackScreen = rideSafe(SettingsScreen);
-const SettingsPageStackScreen = rideSafe(SettingsPageScreen);
-const MenuStackScreen = rideSafe(MenuScreen);
+/** Pages opened from the full-screen menu show as iOS sheets, which start
+ * below the status bar. A provider of their own measures their real top
+ * inset; the app-wide one would add the status bar's height again. */
+function ownSafeArea<P extends object>(Screen: React.ComponentType<P>): (props: P) => React.JSX.Element {
+  function OwnSafeAreaScreen(props: P): React.JSX.Element {
+    return <SafeAreaProvider><Screen {...props} /></SafeAreaProvider>;
+  }
+  return OwnSafeAreaScreen;
+}
+const RoutesStackScreen = ownSafeArea(rideSafe(ScenicRoutesScreen));
+const SettingsStackScreen = ownSafeArea(rideSafe(SettingsScreen));
+const SettingsPageStackScreen = ownSafeArea(rideSafe(SettingsPageScreen));
+const MenuStackScreen = ownSafeArea(rideSafe(MenuScreen));
+const BillingStackScreen = ownSafeArea(BillingScreen);
+const LegalStackScreen = ownSafeArea(LegalScreen);
 
 /**
  * Map, Ride (the map's host segment) and Friends stay routes of their own,
@@ -222,10 +233,10 @@ export function AppNavigator(): React.JSX.Element {
                       reached from Settings' "Billing" row. */}
                   <Stack.Screen
                     name="Billing"
-                    component={BillingScreen}
+                    component={BillingStackScreen}
                     options={{ presentation: 'card', headerShown: false }}
                   />
-                  <Stack.Screen name="Legal" component={LegalScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="Legal" component={LegalStackScreen} options={{ headerShown: false }} />
                   {/* A page, not a full-screen modal: each menu row replaces
                       the menu with its page, and on iOS replacing a modal
                       with a page could leave the map showing (Your plan
