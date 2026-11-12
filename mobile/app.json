@@ -12,7 +12,9 @@
         {
           "android": {
             "compileSdkVersion": 37,
-            "targetSdkVersion": 36
+            "targetSdkVersion": 36,
+            "enableMinifyInReleaseBuilds": false,
+            "enableShrinkResourcesInReleaseBuilds": false
           }
         }
       ],
