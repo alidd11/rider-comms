@@ -697,9 +697,7 @@ export default function App(): React.JSX.Element {
     <SafeAreaView nativeID="social-screen"
       edges={Platform.OS === 'web' ? [] : screen === 'Reels' && !story ? ['left', 'right'] : ['top', 'left', 'right']}
       style={s.safe}>
-      <StatusBar barStyle="light-content"
-        translucent={screen === 'Reels' && !story}
-        backgroundColor={screen === 'Reels' && !story ? 'transparent' : C.bg} />
+      <StatusBar barStyle="light-content" />
       <View style={s.root}>
         {!story && screen !== 'Reels' && screen !== 'Create' && screen !== 'Shop' ? <View style={s.header}>
           <Pressable accessibilityRole="button" accessibilityLabel="Go to home" onPress={() => navigate('Home')}>
