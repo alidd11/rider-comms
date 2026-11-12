@@ -75,7 +75,8 @@ export function validateDraft(draft: ComposerDraft): Validated<ComposerDraft> {
   if (!['cars', 'motorcycles', 'cycling'].includes(draft.category))
     return { ok: false, error: 'Choose a community category.' };
   return { ok: true, value: { ...draft, caption: draft.caption.trim(),
-    title: draft.title?.trim(), media: validated.value } };
+    ...(draft.title !== undefined ? { title: draft.title.trim() } : {}),
+    media: validated.value } };
 }
 
 export function moveMedia(items: readonly ComposerMedia[], id: string, direction: -1 | 1): ComposerMedia[] {
@@ -96,7 +97,8 @@ export function parseTextDraft(value: unknown): TextDraft | null {
     || typeof draft.caption !== 'string' || draft.caption.length > MAX_CAPTION
     || !['private', 'followers', 'public'].includes(draft.audience ?? '')
     || !['cars', 'motorcycles', 'cycling'].includes(draft.category ?? '')) return null;
-  return { mode: draft.mode as ComposerMode, title: draft.title ?? '',
+  return { mode: draft.mode as ComposerMode,
+    ...(draft.title !== undefined ? { title: draft.title } : {}),
     caption: draft.caption, audience: draft.audience as Audience,
     category: draft.category as TextDraft['category'] };
 }
