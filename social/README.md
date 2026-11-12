@@ -52,7 +52,7 @@ Independent social CI includes TypeScript, unit tests, static web export, mobile
 
 ## Edge-to-edge viewport and safe areas
 
-- The generated web HTML now requires `viewport-fit=cover` and `black-translucent` iOS standalone status-bar mode.
+- The generated web HTML now requires `viewport-fit=cover` and non-translucent iOS standalone status-bar mode.
 - `html`, `body`, and the React root are all dark to the physical viewport edges, including behind the notch/status bar.
 - Content has top/side insets using CSS `env(safe-area-inset-*)` on web and React Native safe-area values on iOS/Android.
 - The tab bar owns its bottom safe-area padding; no separately coloured spacer/band is rendered under it.
@@ -65,3 +65,8 @@ Independent social CI includes TypeScript, unit tests, static web export, mobile
 The prototype uses externally hosted, free Unsplash photography to illustrate a media-first feed. These photographs are **sample imagery**, not user uploads. Fictional demo creators are not the real photographers and do not endorse the service.
 
 Before production, move media to a moderated, rights-checked and optimised content pipeline, preserve correct source and photographer metadata, and provide upload permissions. Source references: Unsplash motorcycle photograph (photo ID `1558981806-ec527fa84c39`), car photograph (ID `1625932197913-68755c94c51f`), cyclist photograph (ID `1517649763962-0c623066013b`), garage photograph (ID `1511994298241-608e28f14fde`). Verify rights and any depicted trademarks/person releases before commercial launch.
+
+
+### Installed iPhone PWA bottom-gap corrective action (2026-11-12)
+
+The installed Social PWA now selects the iOS `black` status-bar mode instead of `black-translucent`. Current WebKit reports document a standalone iOS 26/27 viewport mismatch that can leave an unusable strip below an app with the translucent setting (WebKit bug 313800, related bug 236445). The root React Native Web wrapper is explicitly a full-height flex column and the tab bar is non-shrinking, with safe-bottom padding inside the bar. In non-translucent standalone mode, the status-bar is owned by iOS; the app avoids adding a duplicate top inset. A browser-only geometry check cannot prove physical iPhone Home Screen behaviour; verify on device before treating the visual regression as closed.

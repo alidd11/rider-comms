@@ -124,7 +124,7 @@ test('iPhone and desktop render true edge-to-edge background with safe content i
     };
   });
   expect(geometry.viewport).toContain('viewport-fit=cover');
-  expect(geometry.status).toBe('black-translucent');
+  expect(geometry.status).toBe('black');
   expect(geometry.htmlBackground).toBe('rgb(8, 13, 19)');
   expect(geometry.bodyBackground).toBe('rgb(8, 13, 19)');
   expect(geometry.screenBackground).toBe('rgb(8, 13, 19)');
@@ -172,15 +172,15 @@ test('device media selection, review and text-only draft are usable without publ
   await expect(page.getByLabel('Selected photo: my-bike.png')).toBeVisible();
   await mkdir('test-results/screenshots', { recursive: true });
   await page.screenshot({ path: 'test-results/screenshots/' + testInfo.project.name + '-media-edit.png' });
-  await page.getByRole('textbox', { name: 'Create caption' }).fill('Saturday meet preview');
   await page.getByRole('button', { name: 'Review post' }).click();
+  await page.getByRole('textbox', { name: 'Create caption' }).fill('Saturday meet preview');
   await expect(page.getByText('Not published')).toBeVisible();
   await page.screenshot({ path: 'test-results/screenshots/' + testInfo.project.name + '-media-review.png' });
   await expect(page.getByRole('textbox', { name: 'Create caption' })).toHaveValue('Saturday meet preview');
   await expect(page.getByRole('button', { name: 'Publish' })).toHaveCount(0);
 
   await page.getByRole('button', { name: 'Save text draft' }).click();
-  await expect(page.getByText(/Media is not saved/)).toBeVisible();
+  await expect(page.getByText(/Photos and videos are not saved/)).toBeVisible();
   await page.reload();
   await page.getByRole('tab', { name: 'Create' }).click();
   await expect(page.getByText('Text draft restored. Select media again.')).toBeVisible();
@@ -236,10 +236,10 @@ test('media editor has a dominant fixed canvas, real edit actions and a separate
   await expect(page.getByRole('button', { name: 'Rotate' })).toBeVisible();
   await page.getByRole('button', { name: 'Review post' }).click();
   await expect(page.getByText('Not published')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Audience Only me' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Audience Everyone' })).toBeVisible();
-  await page.getByRole('button', { name: 'Audience Everyone' }).click();
-  await expect(page.getByRole('button', { name: 'Audience Everyone' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('radio', { name: 'Audience Only me' })).toBeVisible();
+  await expect(page.getByRole('radio', { name: 'Audience Everyone' })).toBeVisible();
+  await page.getByRole('radio', { name: 'Audience Everyone' }).click();
+  await expect(page.getByRole('radio', { name: 'Audience Everyone' })).toHaveAttribute('aria-checked', 'true');
   await mkdir('test-results/screenshots', { recursive: true });
   await page.screenshot({ path: 'test-results/screenshots/' + testInfo.project.name + '-composer-share.png' });
   await expect(page.getByRole('button', { name: 'Publish' })).toHaveCount(0);

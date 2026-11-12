@@ -27,6 +27,13 @@ const edgeToEdgeStyle = `<style id="social-edge-to-edge">
     background: #080D13 !important;
   }
   html, body, #root { overflow: hidden; overscroll-behavior: none; }
+  /* RN Web flex:1 needs a flex parent; otherwise the tabs can float above
+     the bottom with a large unused strip below the app. */
+  #root { display: flex !important; flex-direction: column !important; }
+  #social-screen {
+    flex: 1 1 auto !important; min-height: 0 !important;
+    width: 100%; display: flex !important; flex-direction: column !important;
+  }
   #social-page-scroll, #composer-scroll { overscroll-behavior-y: contain; }
   @supports (height: 100dvh) {
     html, body, #root { height: 100dvh; min-height: 100dvh; }
@@ -38,9 +45,15 @@ const edgeToEdgeStyle = `<style id="social-edge-to-edge">
     padding-left: env(safe-area-inset-left, 0px) !important;
   }
   #social-bottom-tabs {
+    flex-shrink: 0 !important;
     box-sizing: border-box;
     background: #080D13 !important;
     padding-bottom: max(12px, env(safe-area-inset-bottom, 0px)) !important;
+  }
+  /* In normal black standalone mode, iOS reserves status-bar space.
+     Avoid double-insetting the top of the app. */
+  @media (display-mode: standalone) {
+    #social-screen { padding-top: 0 !important; }
   }
 </style>`;
 
@@ -50,7 +63,7 @@ if (!html.includes('id="social-edge-to-edge"')) {
 const extraHeadTags = [
   ['theme-color', '<meta name="theme-color" content="#080D13" />'],
   ['apple-mobile-web-app-capable', '<meta name="apple-mobile-web-app-capable" content="yes" />'],
-  ['apple-mobile-web-app-status-bar-style', '<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />']
+  ['apple-mobile-web-app-status-bar-style', '<meta name="apple-mobile-web-app-status-bar-style" content="black" />']
 ];
 for (const [name, tag] of extraHeadTags) {
   if (!html.includes('name="' + name + '"')) html = html.replace('</head>', tag + '\n</head>');
