@@ -419,7 +419,7 @@ export function CreateComposer({ initialMode = 'Post', onClose }: { initialMode?
                   color: white, fontSize: 16, fontWeight: '700', paddingBottom: 13,
                   paddingHorizontal: 0, minHeight: 47 }}/>
               <Text style={{ color: secondary, fontSize: 11 }}>
-                {mode} · {media.length} item{media.length === 1 ? '' : 's'} · Not published
+                {mode} · {media.length} item{media.length === 1 ? '' : 's'} · Draft
               </Text>
               {allowedMore ? <Pressable accessibilityRole="button"
                 accessibilityLabel="Add more media" onPress={() => void chooseMedia()}
