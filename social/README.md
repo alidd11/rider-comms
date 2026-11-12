@@ -117,3 +117,7 @@ Important: business verification, stock, consumer rights/returns, transaction fe
 - The Following panel opens interactive *example Social accounts* with sample follow/unfollow actions. These do not affect shared Rider Comms relationships.
 - Posts and Reels show empty states until the user's own publishing service goes live. The visible username is marked as unlinked; do not show a fictional handle as if it had been reserved.
 - Layout references: TikTok's official Friends Tab description and conventional Instagram-style tabbed personal profiles, without copying branded visual assets.
+
+### Shop example photography
+
+Demo listing media has been improved to match gloves, helmet and scooter themes rather than unrelated motorcycle lifestyle shots. Images come from free-to-use Unsplash photography by LouisMoto, Snapmaker, Alexander Simonsen and Raissa Lara Lütolf (-Fasel), used as illustrations rather than real merchant product images. Do not imply the photograph corresponds to a specific for-sale product. Replace these with each merchant's authorised listing photography and image rights metadata before production.
