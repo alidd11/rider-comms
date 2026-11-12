@@ -13,8 +13,9 @@
           "android": {
             "compileSdkVersion": 37,
             "targetSdkVersion": 36,
-            "enableMinifyInReleaseBuilds": false,
-            "enableShrinkResourcesInReleaseBuilds": false
+            "enableMinifyInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true,
+            "extraProguardRules": "# R8 once stripped WorkManager's Room database, which Android loads by name, and the app crashed at launch.\n-keep class androidx.work.** { *; }\n-keep class androidx.room.** { *; }\n-keep class * extends androidx.room.RoomDatabase { *; }\n-keep class **_Impl { *; }\n# WebRTC and LiveKit cross the JNI boundary by class and method name.\n-keep class org.webrtc.** { *; }\n-keep class com.oney.WebRTCModule.** { *; }\n-keep class io.livekit.** { *; }\n-keep class livekit.** { *; }\n-dontwarn org.webrtc.**"
           }
         }
       ],
@@ -45,7 +46,12 @@
       "expo-status-bar",
       "react-native-maps",
       "expo-live-activity",
-      "expo-iap",
+      [
+        "expo-iap",
+        {
+          "android": { "store": "play" }
+        }
+      ],
       [
         "expo-notifications",
         {
