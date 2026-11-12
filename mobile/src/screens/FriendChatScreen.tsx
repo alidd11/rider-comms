@@ -405,7 +405,7 @@ function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Elemen
           >
             {loadingOlder ? <ActivityIndicator color={colors.accent} size="small" /> : <Text style={styles.loadOlderText}>Load older messages</Text>}
           </Pressable>
-        ) : null}
+        ) : undefined}
         contentContainerStyle={[styles.messageList, messages.length === 0 && styles.messageListEmpty]}
         inverted={false}
         maintainVisibleContentPosition={{ minIndexForVisible: 0 }}

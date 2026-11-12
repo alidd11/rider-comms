@@ -39,7 +39,7 @@ jobs:
         with:
           node-version: 22
       - run: npm ci
-      # Expo SDK 57's expo-modules-jsi puts SWIFT_RETURNS_RETAINED on C++
+      # Expo's expo-modules-jsi (SDK 57 on) puts SWIFT_RETURNS_RETAINED on C++
       # constructors, which every Xcode up to 26.3 rejects (macos-15 tops out
       # there), so this uses the newest Xcode on the macos-26 image.
       - name: Select Xcode

@@ -89,7 +89,7 @@ describe('BillingScreen', () => {
     expect(screen.getByText('Current')).toBeTruthy();
     expect(screen.getByText(/renews automatically at the same price each month/)).toBeTruthy();
     expect(screen.getByText('Restore purchases')).toBeTruthy();
-    const open = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
+    const open = jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
     await fireEvent.press(screen.getByText('Terms of Use'));
     await fireEvent.press(screen.getByText('Privacy Policy'));
     expect(open).toHaveBeenCalledWith(LEGAL_LINKS.terms);
