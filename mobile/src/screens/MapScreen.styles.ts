@@ -439,8 +439,10 @@ export const styles = StyleSheet.create({
   navigationArrival: { ...type.heading, color: colors.success, fontSize: 25, lineHeight: 30 },
   navigationSummaryValue: { ...type.heading, color: colors.textPrimary, fontSize: 21, lineHeight: 27, textAlign: 'center' },
   navigationSummaryLabel: { ...type.caption, color: colors.textMuted, marginTop: 2, textAlign: 'center', textTransform: 'uppercase' },
-  // Floats over the map: in the layout flow it took the drawer's height
+  rideBarSlot: { marginTop: 'auto', paddingHorizontal: spacing.lg, paddingBottom: spacing.lg },
+  // Over the map it floats: in the layout flow it took the drawer's height
   // from the map, leaving a band of background behind the drawer's corners.
-  rideBarSlot: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: spacing.lg, paddingBottom: spacing.lg },
+  // The Ride page keeps it in the flow, so it never covers the page's end.
+  rideBarSlotFloating: { position: 'absolute', left: 0, right: 0, bottom: 0 },
   rideBarHidden: { opacity: 0 },
 });

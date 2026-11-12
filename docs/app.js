@@ -5291,6 +5291,9 @@
     const provider = navigationProvider(state.navigationProvider);
     if (provider === 'in_app') {
       if (window.google?.maps) void startInAppNavigation(new google.maps.LatLng(place.lat, place.lng), place.name);
+      // Without the map nothing can route in the app: say so rather than
+      // leaving the tap without an answer.
+      else showToast('The map is still loading. Try again in a moment.');
       return;
     }
     window.open(navigationHref(provider, place.lat, place.lng, place.name), '_blank', 'noopener');

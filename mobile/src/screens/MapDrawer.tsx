@@ -96,6 +96,10 @@ export function MapDrawer({
     () => visibleHeight.interpolate({ inputRange: [0, bottomPad], outputRange: [0, bottomPad], extrapolate: 'clamp' }),
     [visibleHeight, bottomPad],
   );
+  const recentClipSize = React.useMemo(
+    () => ({ height: Animated.add(visibleHeight, flushExtra), marginBottom: Animated.multiply(flushExtra, -1) }),
+    [visibleHeight, flushExtra],
+  );
   const currentHeight = React.useRef(0);
   const reduceMotion = React.useRef(false);
 
@@ -216,7 +220,7 @@ export function MapDrawer({
       </ScrollView>
 
       <Animated.View
-        style={[styles.recentClip, { height: Animated.add(visibleHeight, flushExtra), marginBottom: Animated.multiply(flushExtra, -1) }]}
+        style={[styles.recentClip, recentClipSize]}
         accessibilityElementsHidden={!open}
         importantForAccessibility={open ? 'auto' : 'no-hide-descendants'}
         pointerEvents={open ? 'auto' : 'none'}
