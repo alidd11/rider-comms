@@ -155,7 +155,7 @@ test('media-first home removes intro and keeps content close to top', async ({ p
   await page.screenshot({ path: 'test-results/screenshots/' + testInfo.project.name + '-feed-first.png' });
 });
 
-test('device media selection, review and text-only draft are usable without publishing', async ({ page }) => {
+test('device media selection, review and text-only draft are usable without publishing', async ({ page }, testInfo) => {
   await page.goto('/');
   await page.getByRole('tab', { name: 'Create' }).click();
   await expect(page.getByText('New post')).toBeVisible();
@@ -170,9 +170,12 @@ test('device media selection, review and text-only draft are usable without publ
   });
   await expect(page.getByText('Edit post')).toBeVisible();
   await expect(page.getByText('my-bike.png')).toBeVisible();
+  await mkdir('test-results/screenshots', { recursive: true });
+  await page.screenshot({ path: 'test-results/screenshots/' + testInfo.project.name + '-media-edit.png' });
   await page.getByRole('textbox', { name: 'Create caption' }).fill('Saturday meet preview');
   await page.getByRole('button', { name: 'Review post' }).click();
   await expect(page.getByText('Not published')).toBeVisible();
+  await page.screenshot({ path: 'test-results/screenshots/' + testInfo.project.name + '-media-review.png' });
   await expect(page.getByText('Saturday meet preview')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Publish' })).toHaveCount(0);
 

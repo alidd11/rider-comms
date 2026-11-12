@@ -6,7 +6,7 @@ import { VideoView, useVideoPlayer } from 'expo-video';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { C, s } from './styles';
 import {
-  MAX_CAPTION, limitsFor, moveMedia, parseTextDraft, validateDraft, validateMedia,
+  MAX_CAPTION, moveMedia, parseTextDraft, validateDraft, validateMedia,
 } from './upload';
 import type { Audience, ComposerDraft, ComposerMedia, ComposerMode } from './upload';
 
