@@ -5522,9 +5522,24 @@
   const prefersReducedMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
 
   // The recent list's full height when open (it scrolls past its max-height).
-  function drawerListHeight(list) {
-    const max = parseFloat(getComputedStyle(list).maxHeight);
-    return Math.min(list.scrollHeight, Number.isFinite(max) ? max : list.scrollHeight);
+  // Pulled up, the drawer rises to just below the rider's avatar: recent
+  // places, then room for more below them (native: OPEN_TOP_CLEARANCE).
+  const DRAWER_OPEN_GAP = 24;
+  const DRAWER_MIN_OPEN = 240;
+  function drawerListHeight() {
+    const drawer = $('#mapDrawer');
+    const list = $('#mapDrawerRecent');
+    const avatar = $('.map-avatar-wrap')?.getBoundingClientRect();
+    const status = $('#mapStatusChip')?.getBoundingClientRect();
+    const clear = Math.max(avatar?.bottom || 0, status?.bottom || 0) + DRAWER_OPEN_GAP;
+    // The drawer's top when resting: its bottom edge less everything but the list.
+    const rest = drawer.getBoundingClientRect().bottom - (drawer.offsetHeight - (list.hidden ? 0 : list.offsetHeight));
+    return Math.max(DRAWER_MIN_OPEN, Math.round(rest - clear));
+  }
+  function syncDrawerOpenHeight() {
+    const drawer = $('#mapDrawer');
+    if (!drawer || drawer.dataset.state !== 'peek') return;
+    document.documentElement.style.setProperty('--map-drawer-list-open', `${drawerListHeight()}px`);
   }
 
   // Grows or shrinks the recent list from `from` px to open or closed, then
@@ -5546,7 +5561,7 @@
       return;
     }
     list.hidden = false;
-    const target = open ? drawerListHeight(list) : 0;
+    const target = open ? drawerListHeight() : 0;
     list.style.overflow = 'hidden';
     list.style.transition = 'none';
     list.style.height = `${from}px`;
@@ -5586,7 +5601,7 @@
         clearTimeout(drawerSettleTimer);
         // Opening: show the list now, at no height, so it can grow.
         if (!drag.wasOpen) setMapDrawerOpen(true);
-        drag.full = drawerListHeight(list);
+        drag.full = drawerListHeight();
         list.style.overflow = 'hidden';
         list.style.transition = 'none';
       }
@@ -5672,6 +5687,7 @@
     // Keep the floating controls exactly above the drawer's resting height.
     const peek = () => {
       if (drawer.dataset.state !== 'peek' || !drawer.offsetHeight) return;
+      syncDrawerOpenHeight();
       const inset = parseFloat(getComputedStyle(drawer).paddingBottom) - 14;
       document.documentElement.style.setProperty('--map-drawer-peek', `${Math.round(drawer.offsetHeight - Math.max(0, inset))}px`);
     };

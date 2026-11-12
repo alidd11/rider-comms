@@ -203,6 +203,18 @@ test('PWA map drawer slides up to recent places and holds Home, Work and Petrol'
   await expect(drawer).toHaveAttribute('data-state', 'open');
   await expect(handle).toHaveAttribute('aria-expanded', 'true');
   await expect(page.locator('#mapDrawerRecent')).toContainText('Ace Cafe London');
+  // Pulled up, it reaches to just below the avatar and the Nearby chip,
+  // leaving room under recent places for more. (A landscape phone is too
+  // short for both: the open drawer keeps a usable minimum height there.)
+  const viewport = page.viewportSize();
+  if (viewport.height > viewport.width) await expect.poll(async () => {
+    const [drawerTop, chipBottom] = await Promise.all([
+      drawer.evaluate((element) => element.getBoundingClientRect().top),
+      page.locator('#mapStatusChip').evaluate((element) => element.getBoundingClientRect().bottom),
+    ]);
+    return drawerTop - chipBottom;
+  }).toBeLessThanOrEqual(40);
+  if (viewport.height > viewport.width) expect(await drawer.evaluate((element) => element.getBoundingClientRect().top)).toBeGreaterThan(await page.locator('#mapStatusChip').evaluate((element) => element.getBoundingClientRect().bottom));
   await expect(page.locator('#ridePill')).toBeHidden();
 
   // A recent place puts it on the map; the drawer steps aside for its card

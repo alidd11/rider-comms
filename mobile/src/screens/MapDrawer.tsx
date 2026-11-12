@@ -1,5 +1,6 @@
 import * as React from 'react';
-import { AccessibilityInfo, Alert, Animated, Easing, PanResponder, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { AccessibilityInfo, Alert, Animated, Easing, PanResponder, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { LayoutChangeEvent, StyleProp, ViewStyle } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
@@ -19,7 +20,11 @@ const SLIDE_THRESHOLD = 30;
 /** An open drawer stays open unless pulled down further than this. */
 const CLOSE_THRESHOLD = 60;
 /** The recent list's tallest; it scrolls beyond this. */
-const RECENT_MAX_HEIGHT = 340;
+/** Pulled up, the drawer stops this far below the safe area, clear of the
+ * rider's avatar and the status chip (PWA: the same gap under the avatar). */
+const OPEN_TOP_CLEARANCE = 96;
+/** Short screens still get a usable open drawer. */
+const MIN_OPEN_HEIGHT = 240;
 const SETTLE_MS = 220;
 
 export interface MapDrawerProps {
@@ -72,10 +77,14 @@ export function MapDrawer({
   };
   const openRef = React.useRef(open);
   openRef.current = open;
-  // The recent list is always laid out, so its full height is known before
-  // a slide starts; its visible height follows the finger, then settles.
-  const [contentHeight, setContentHeight] = React.useState(0);
-  const fullHeight = Math.min(contentHeight, RECENT_MAX_HEIGHT);
+  // Pulled up, the drawer rises to just below the avatar: recent places, then
+  // room for more below them. The open area's height comes from the screen,
+  // so it is known before a slide starts; its visible height follows the
+  // finger, then settles.
+  const { height: windowHeight } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const [peekHeight, setPeekHeight] = React.useState(0);
+  const fullHeight = Math.max(MIN_OPEN_HEIGHT, Math.round(windowHeight - insets.top - OPEN_TOP_CLEARANCE - peekHeight));
   const fullHeightRef = React.useRef(fullHeight);
   fullHeightRef.current = fullHeight;
   const visibleHeight = React.useRef(new Animated.Value(0)).current;
@@ -136,7 +145,10 @@ export function MapDrawer({
 
   const measurePeek = React.useCallback((event: LayoutChangeEvent) => {
     // Only the resting drawer sets the controls' height, never one mid-slide.
-    if (!openRef.current && currentHeight.current < 1) onPeekHeight(event.nativeEvent.layout.height);
+    if (!openRef.current && currentHeight.current < 1) {
+      setPeekHeight(event.nativeEvent.layout.height);
+      onPeekHeight(event.nativeEvent.layout.height);
+    }
   }, [onPeekHeight]);
 
   return (
@@ -201,7 +213,7 @@ export function MapDrawer({
         importantForAccessibility={open ? 'auto' : 'no-hide-descendants'}
         pointerEvents={open ? 'auto' : 'none'}
       >
-        <View style={styles.recent} testID="map-drawer-recent" onLayout={(event) => setContentHeight(event.nativeEvent.layout.height)}>
+        <View style={[styles.recent, { height: fullHeight }]} testID="map-drawer-recent">
           {recentPlaces.length === 0 ? (
             <Text style={styles.empty}>Places you search for show up here.</Text>
           ) : (
@@ -268,7 +280,7 @@ const styles = StyleSheet.create({
   shortcutText: { ...type.body, fontSize: 16, fontWeight: '700', color: colors.textPrimary },
   recentClip: { overflow: 'hidden' },
   recent: { position: 'absolute', top: 0, left: 0, right: 0, paddingTop: spacing.md },
-  recentScroll: { maxHeight: RECENT_MAX_HEIGHT - 48 },
+  recentScroll: { flex: 1 },
   recentTitle: { ...type.caption, fontWeight: '700', color: colors.textSecondary, marginBottom: spacing.xs },
   recentRow: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   recentCopy: { flex: 1, minWidth: 0 },

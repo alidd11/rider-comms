@@ -2865,3 +2865,6 @@ html.map-drawer-open #ridePill{display:none}
 #app:not(.nav-mode) .screen-map #joinNearbyBtn.map-live-button{flex:none;width:52px;min-width:52px;height:52px;padding:0;border-radius:14px}
 #app:not(.nav-mode) .screen-map .map-action-small{width:52px;height:52px;min-width:52px;min-height:52px}#app:not(.nav-mode) .screen-map .map-action-small svg{width:22px;height:22px}
 #app:not(.nav-mode) .screen-map .map-actions{right:max(16px,var(--safe-right))}
+/* Pulled up, the drawer reaches just below the avatar; the list fills it and
+   scrolls, leaving room below recent places for more. */
+.map-drawer-recent{height:var(--map-drawer-list-open,auto);max-height:none}
