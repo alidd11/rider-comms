@@ -41,6 +41,10 @@ assert.ok(whenInUse.startsWith('Rider Comms') && whenInUse.includes('navigation'
 // prompt has no explanation.
 // An SDK links Photos, so App Store Connect requires this string even though
 // the app never reads the photo library (ITMS-90683).
+// The native app stays upright: no landscape, and no upside-down portrait.
+assert.equal(expo.orientation, 'portrait', 'The native app must be locked to portrait (expo.orientation)');
+assert.deepEqual(expo.ios?.infoPlist?.UISupportedInterfaceOrientations, ['UIInterfaceOrientationPortrait'], 'iOS must allow upright portrait only');
+assert.equal(expo.ios?.supportsTablet, false, 'The iPad layout would allow rotation; keep supportsTablet off');
 assert.ok(String(expo.ios?.infoPlist?.NSPhotoLibraryUsageDescription ?? '').startsWith('Rider Comms'), 'NSPhotoLibraryUsageDescription must say Rider Comms does not use photos');
 assert.equal(expo.ios?.infoPlist?.NSAppleMusicUsageDescription, undefined, 'Rider Comms no longer reads the Music app: drop NSAppleMusicUsageDescription');
 const localNetwork = String(expo.ios?.infoPlist?.NSLocalNetworkUsageDescription ?? '');
