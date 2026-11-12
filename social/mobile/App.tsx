@@ -727,7 +727,7 @@ export default function App(): React.JSX.Element {
                 {screen === 'Profile' ? renderProfile() : null}
               </ScrollView>
             ) : screen === 'Create' ? (
-              <CreateComposer initialMode={createMode} />
+              <CreateComposer initialMode={createMode} onClose={() => navigate('Home')} />
             ) : screen === 'Reels' ? (
               <View testID="fixed-reels-screen" style={{ flex: 1, minHeight: 0, width: '100%', backgroundColor: '#020406' }}>
                 <ReelsScreen items={reelPreviews} followedAuthors={followed}
@@ -741,7 +741,7 @@ export default function App(): React.JSX.Element {
                 {renderMessages()}
               </View>
             )}
-            <BottomTabs screen={screen} onNavigate={navigate} />
+            {screen !== 'Create' ? <BottomTabs screen={screen} onNavigate={navigate} /> : null}
           </>
         )}
         {commentsFor ? <CommentsSheet key={commentsFor.id} title={commentsFor.title}
