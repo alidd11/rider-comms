@@ -185,7 +185,7 @@ const styles = StyleSheet.create({
   filterRow: { gap: 7, paddingRight: spacing.md },
   searchToggle: { width: 38, height: 38, borderRadius: radii.md, alignItems: 'center', justifyContent: 'center', backgroundColor: 'transparent', borderWidth: 0 },
   searchToggleActive: { backgroundColor: colors.accent, borderColor: colors.accent },
-  searchTogglePressed: { opacity: 0.78 },
+  searchTogglePressed: { opacity: 0.7 },
   routeTools: { gap: spacing.sm, padding: spacing.sm, borderRadius: radii.md, backgroundColor: colors.surface, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
   routeSearch: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.sm, borderRadius: radii.md, backgroundColor: colors.background, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
   routeSearchInput: { ...type.body, flex: 1, minHeight: 44, color: colors.textPrimary, fontSize: 14 },
@@ -199,7 +199,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   chipActive: { backgroundColor: colors.accent },
-  chipPressed: { opacity: 0.78 },
+  chipPressed: { opacity: 0.7 },
   chipText: { ...type.body, color: colors.textSecondary, fontSize: 11, fontWeight: '700' },
   chipTextActive: { color: colors.accentText },
 });

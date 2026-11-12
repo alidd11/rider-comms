@@ -6,7 +6,6 @@ export const styles = StyleSheet.create({
   myProfileEdit: { minHeight: MIN_TOUCH_TARGET + 4, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.accent },
   myProfileEditText: { ...type.button, color: colors.accentText },
   myProfileHero: { alignItems: 'center', gap: 4, paddingTop: spacing.xl, paddingHorizontal: spacing.lg },
-  settingsVersion: { marginTop: 36, textAlign: 'center', fontSize: 15, color: colors.textMuted },
   scroll: { width: '100%', maxWidth: 760, alignSelf: 'center', paddingHorizontal: spacing.md, paddingVertical: spacing.md, paddingTop: spacing.lg },
   profileSaveStatus: { minHeight: 24, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: -spacing.sm, marginBottom: spacing.sm, paddingHorizontal: spacing.xs },
   profileSavingText: { ...type.caption, color: colors.textSecondary },
@@ -20,7 +19,7 @@ export const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   tierRowSelected: { backgroundColor: colors.surfaceRaised },
-  tierRowPressed: { opacity: 0.85 },
+  tierRowPressed: { opacity: 0.7 },
   tierRadio: {
     width: 22,
     height: 22,

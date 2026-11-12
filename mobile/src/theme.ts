@@ -16,7 +16,7 @@ export const lightColors = {
   accentPressed: '#1F86AA',
   accentSoft: '#D5EBF2',
   accentText: '#031217',
-  success: '#268B64',
+  success: '#1D7553',
   danger: '#BE4A53',
   dangerSurface: '#F2DDDF',
   warning: '#97620F',
@@ -134,6 +134,9 @@ export const type = {
 
 /** Minimum tap target height — comfortable with a gloved thumb at speed-zero. */
 export const MIN_TOUCH_TARGET = 48;
+
+/** How every button looks while pressed, so feedback is the same app-wide. */
+export const pressedFeedback = { opacity: 0.7 } as const;
 
 /**
  * Depth hierarchy: everything was the same flat surface with no signal for

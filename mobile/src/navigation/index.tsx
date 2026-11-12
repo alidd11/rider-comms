@@ -226,10 +226,14 @@ export function AppNavigator(): React.JSX.Element {
                     options={{ presentation: 'card', headerShown: false }}
                   />
                   <Stack.Screen name="Legal" component={LegalScreen} options={{ headerShown: false }} />
+                  {/* A page, not a full-screen modal: each menu row replaces
+                      the menu with its page, and on iOS replacing a modal
+                      with a page could leave the map showing (Your plan
+                      never opened). The X closes it. */}
                   <Stack.Screen
                     name="Menu"
                     component={MenuStackScreen}
-                    options={{ headerShown: false, presentation: 'fullScreenModal', animation: 'slide_from_left' }}
+                    options={{ headerShown: false, animation: 'slide_from_left', gestureEnabled: false }}
                   />
                   <Stack.Screen name="Routes" component={RoutesStackScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="Settings" component={SettingsStackScreen} options={{ headerShown: false }} />

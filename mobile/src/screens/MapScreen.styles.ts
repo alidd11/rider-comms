@@ -1,5 +1,5 @@
 import { StyleSheet } from 'react-native';
-import { colors, spacing, type, elevation, MIN_TOUCH_TARGET } from '../theme';
+import { colors, spacing, type, elevation, MIN_TOUCH_TARGET, radii } from '../theme';
 
 export const NAVIGATION_SUMMARY_BASE_HEIGHT = 104;
 // Map screen controls (PWA: .map-bottom-bar, .map-action-small, .hud-button).
@@ -19,8 +19,13 @@ export const styles = StyleSheet.create({
     zIndex: 9,
   },
   searchRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  menuButton: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
-  menuButtonPressed: { opacity: 0.8 },
+  // The rider's avatar in a thin light ring with a soft shadow; a small menu
+  // badge on its corner says it opens the menu (PWA: #mapAvatarButton).
+  menuButton: { width: 50, height: 50, borderRadius: 25, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, ...elevation.raised },
+  menuHint: { position: 'absolute', right: -3, bottom: -3, width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceRaised, borderWidth: 2, borderColor: colors.surface },
+  menuButtonPressed: { opacity: 0.7 },
+  menuBadge: { position: 'absolute', top: -2, right: -4, minWidth: 20, minHeight: 20, paddingHorizontal: 5, borderRadius: radii.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.accent, borderWidth: 2, borderColor: colors.surface },
+  menuBadgeText: { fontSize: 11, fontWeight: '800', color: colors.accentText },
   mapActions: {
     position: 'absolute',
     right: spacing.md,

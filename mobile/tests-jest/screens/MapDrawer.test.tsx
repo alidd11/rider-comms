@@ -1,9 +1,11 @@
 import * as React from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Alert } from 'react-native';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import type { PlaceResult } from '../../src/api/places';
 import { recentPlacesStorageKey } from '../../src/search/recentPlaces';
+import { savedPlacesStorageKey } from '../../src/search/savedPlaces';
 import { MapDrawer } from '../../src/screens/MapDrawer';
 import type { MapDrawerProps } from '../../src/screens/MapDrawer';
 
@@ -33,11 +35,7 @@ function Harness(overrides: Partial<MapDrawerProps>): React.JSX.Element {
         near={{ lat: 51.5, lon: -0.1 }}
         onRequestLocation={async () => undefined}
         onSelectPlace={jest.fn()}
-        onRide={jest.fn()}
-        onFriends={jest.fn()}
-        onRoutes={jest.fn()}
-        rideLive={false}
-        friendsCount={0}
+        onRouteToPlace={jest.fn()}
         open={open}
         onOpenChange={setOpen}
         onPeekHeight={jest.fn()}
@@ -52,23 +50,54 @@ beforeEach(async () => {
   await AsyncStorage.clear();
 });
 
-it('rests with Where to? and the Ride, Friends and Routes shortcuts', async () => {
-  const onRide = jest.fn();
-  const onFriends = jest.fn();
-  const onRoutes = jest.fn();
-  await render(<Harness onRide={onRide} onFriends={onFriends} onRoutes={onRoutes} rideLive friendsCount={3} />);
+it('rests with Where to? and the Home, Work and Petrol shortcuts', async () => {
+  await render(<Harness />);
 
   expect(screen.getByLabelText('Where to?')).toBeTruthy();
-  expect(screen.getByText('Live')).toBeTruthy();
-  expect(screen.getByText('3')).toBeTruthy();
+  expect(screen.getByLabelText('Set Home')).toBeTruthy();
+  expect(screen.getByLabelText('Set Work')).toBeTruthy();
+  expect(screen.getByLabelText('Petrol stations nearby')).toBeTruthy();
   expect(screen.queryByTestId('map-drawer-recent')).toBeNull();
+});
 
-  await fireEvent.press(screen.getByLabelText('Ride, live'));
-  await fireEvent.press(screen.getByLabelText('Friends, 3 new'));
-  await fireEvent.press(screen.getByLabelText('Routes'));
-  expect(onRide).toHaveBeenCalledTimes(1);
-  expect(onFriends).toHaveBeenCalledTimes(1);
-  expect(onRoutes).toHaveBeenCalledTimes(1);
+it('chooses Home the first time, then starts the route there in one tap', async () => {
+  await AsyncStorage.setItem(recentPlacesStorageKey('rider-1'), JSON.stringify([ACE]));
+  const onSelectPlace = jest.fn();
+  const onRouteToPlace = jest.fn();
+  await render(<Harness onSelectPlace={onSelectPlace} onRouteToPlace={onRouteToPlace} />);
+
+  await fireEvent.press(screen.getByLabelText('Set Home'));
+  expect(screen.getByText('Choose your Home')).toBeTruthy();
+  await fireEvent.press(await screen.findByLabelText(/^Recent place: Ace Cafe London/));
+  expect(onSelectPlace).toHaveBeenLastCalledWith(expect.objectContaining({ id: 'ace' }));
+  expect(JSON.parse(await AsyncStorage.getItem(savedPlacesStorageKey('rider-1')) ?? '{}').home.id).toBe('ace');
+
+  onSelectPlace.mockClear();
+  await fireEvent.press(screen.getByLabelText('Home, Ace Cafe London'));
+  expect(onRouteToPlace).toHaveBeenCalledWith(expect.objectContaining({ id: 'ace' }));
+  expect(onSelectPlace).not.toHaveBeenCalled();
+  expect(screen.queryByText('Choose your Home')).toBeNull();
+});
+
+it('changes or removes a saved place on a long press', async () => {
+  await AsyncStorage.setItem(savedPlacesStorageKey('rider-1'), JSON.stringify({ work: ACE }));
+  const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+  await render(<Harness />);
+
+  await fireEvent(await screen.findByLabelText('Work, Ace Cafe London'), 'longPress');
+  const buttons = alert.mock.calls[0][2] ?? [];
+  expect(buttons.map((button) => button.text)).toEqual(['Change Work', 'Remove Work', 'Cancel']);
+  await act(async () => { buttons[1].onPress?.(); });
+  expect(screen.getByLabelText('Set Work')).toBeTruthy();
+  expect(JSON.parse(await AsyncStorage.getItem(savedPlacesStorageKey('rider-1')) ?? '{}').work).toBeUndefined();
+  alert.mockRestore();
+});
+
+it('Petrol opens search on nearby petrol stations', async () => {
+  await render(<Harness />);
+  await fireEvent.press(screen.getByLabelText('Petrol stations nearby'));
+  expect(screen.getByText('Nearby')).toBeTruthy();
+  expect(screen.getByDisplayValue('Petrol')).toBeTruthy();
 });
 
 it('opens to recent places, and a chosen place closes it again', async () => {
@@ -91,8 +120,8 @@ it('says where recent places will appear before there are any', async () => {
   await fireEvent.press(screen.getByLabelText('Show recent places'));
   await act(async () => {});
   expect(screen.getByText('Places you search for show up here.')).toBeTruthy();
-  expect(screen.getByLabelText('Friends')).toBeTruthy();
-  expect(screen.getByLabelText('Ride')).toBeTruthy();
+  expect(screen.getByLabelText('Set Home')).toBeTruthy();
+  expect(screen.getByLabelText('Petrol stations nearby')).toBeTruthy();
 });
 
 it('reports its resting height so the map controls can sit above it', async () => {
@@ -104,4 +133,91 @@ it('reports its resting height so the map controls can sit above it', async () =
     screen.getByTestId('map-drawer').props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width: 390, height: 190 } } });
   });
   expect(onPeekHeight).toHaveBeenCalledWith(190);
+});
+
+// The drawer's slide runs through PanResponder, which reads the responder
+// system's touch history; build one so a test can slide a finger.
+function touchAt(previousY: number, currentY: number, time: number) {
+  return {
+    nativeEvent: { touches: [], changedTouches: [] },
+    touchHistory: {
+      numberActiveTouches: 1,
+      indexOfSingleActiveTouch: 0,
+      mostRecentTimeStamp: time,
+      touchBank: [{
+        touchActive: true,
+        startPageX: 200, startPageY: 500, startTimeStamp: 0,
+        previousPageX: 200, previousPageY: previousY, previousTimeStamp: time - 1,
+        currentPageX: 200, currentPageY: currentY, currentTimeStamp: time,
+      }],
+    },
+  };
+}
+
+async function slide(dy: number): Promise<void> {
+  const drawer = screen.getByTestId('map-drawer');
+  await act(async () => {
+    const start = touchAt(500, 480, 1);
+    // The capture phase records the movement; the bubble phase decides.
+    drawer.props.onMoveShouldSetResponderCapture(start);
+    expect(drawer.props.onMoveShouldSetResponder(start)).toBe(true);
+    drawer.props.onResponderGrant(start);
+    const moved = touchAt(480, 500 + dy, 2);
+    drawer.props.onResponderMove(moved);
+    drawer.props.onResponderRelease(moved);
+  });
+}
+
+it('a slide follows the finger and snaps open or closed, with a haptic tick', async () => {
+  const Haptics = jest.requireMock('expo-haptics') as { selectionAsync: jest.Mock };
+  Haptics.selectionAsync.mockClear();
+  await render(<Harness />);
+
+  await slide(-120);
+  expect(screen.getByLabelText('Hide recent places')).toBeTruthy();
+  expect(Haptics.selectionAsync).toHaveBeenCalledTimes(1);
+
+  // A short pull down leaves it open, with no tick.
+  await slide(30);
+  expect(screen.getByLabelText('Hide recent places')).toBeTruthy();
+  expect(Haptics.selectionAsync).toHaveBeenCalledTimes(1);
+
+  await slide(140);
+  expect(screen.getByLabelText('Show recent places')).toBeTruthy();
+  expect(Haptics.selectionAsync).toHaveBeenCalledTimes(2);
+
+  // A slide the system takes away settles back where it was.
+  const drawer = screen.getByTestId('map-drawer');
+  await act(async () => {
+    const start = touchAt(500, 480, 3);
+    drawer.props.onMoveShouldSetResponderCapture(start);
+    drawer.props.onMoveShouldSetResponder(start);
+    drawer.props.onResponderGrant(start);
+    drawer.props.onResponderTerminate(touchAt(480, 400, 4));
+  });
+  expect(screen.getByLabelText('Show recent places')).toBeTruthy();
+});
+
+it('press and hold on an empty Home goes straight to choosing it, and Change reopens search', async () => {
+  await AsyncStorage.setItem(savedPlacesStorageKey('rider-1'), JSON.stringify({ work: ACE }));
+  const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+  await render(<Harness />);
+
+  await fireEvent(screen.getByLabelText('Set Home'), 'longPress');
+  expect(screen.getByText('Choose your Home')).toBeTruthy();
+  expect(alert).not.toHaveBeenCalled();
+  await fireEvent.press(screen.getByLabelText('Back to map'));
+
+  // Screen readers reach the same choice through an accessibility action.
+  await fireEvent(await screen.findByLabelText('Work, Ace Cafe London'), 'accessibilityAction', { nativeEvent: { actionName: 'longpress' } });
+  const buttons = alert.mock.calls[0][2] ?? [];
+  await act(async () => { buttons[0].onPress?.(); });
+  expect(screen.getByText('Choose your Work')).toBeTruthy();
+  // Search shows the place Work is now, and can remove it.
+  expect(screen.getByText('Now: Ace Cafe London')).toBeTruthy();
+  await fireEvent.press(screen.getByLabelText('Remove Work'));
+  expect(screen.queryByText('Choose your Work')).toBeNull();
+  expect(screen.getByLabelText('Set Work')).toBeTruthy();
+  expect(JSON.parse(await AsyncStorage.getItem(savedPlacesStorageKey('rider-1')) ?? '{}').work).toBeUndefined();
+  alert.mockRestore();
 });

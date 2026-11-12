@@ -63,7 +63,6 @@
     <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
     <symbol id="i-nearby" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" opacity=".45"/><circle cx="12" cy="12" r="5.6"/><circle cx="12" cy="12" r="2" style="fill:currentColor;stroke:none"/><circle cx="19.1" cy="4.9" r="2.1" style="fill:currentColor;stroke:none"/><circle cx="4.9" cy="19.1" r="2.1" style="fill:currentColor;stroke:none"/></symbol>
     <symbol id="i-live" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2.2"/><path d="M8.5 15.5a5 5 0 0 1 0-7M15.5 8.5a5 5 0 0 1 0 7M5.6 18.4a9 9 0 0 1 0-12.8M18.4 5.6a9 9 0 0 1 0 12.8"/></symbol>
-    <symbol id="i-music" viewBox="0 0 24 24"><path d="M9 18V5.5l11-2V16"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/></symbol>
     <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></symbol>
     <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.8"/></symbol>
     <symbol id="i-eye-off" viewBox="0 0 24 24"><path d="M3 3l18 18M10.6 6.1A9.8 9.8 0 0 1 12 6c6 0 9.5 6 9.5 6a16 16 0 0 1-2.1 2.8M6.2 7.1C3.8 8.8 2.5 12 2.5 12s3.5 6 9.5 6c1.4 0 2.7-.3 3.8-.8M9.9 9.9a3 3 0 0 0 4.2 4.2"/></symbol>
@@ -99,7 +98,7 @@
     <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
     <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></symbol>
     <symbol id="i-close" viewBox="0 0 24 24"><path d="M5 5l14 14M19 5 5 19"/></symbol>
-    <symbol id="i-history" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></symbol>
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="M4 10.5 12 4l8 6.5"/><path d="M6 9v11h12V9"/><path d="M10 20v-5h4v5"/></symbol><symbol id="i-work" viewBox="0 0 24 24"><rect x="3.5" y="7.5" width="17" height="12" rx="2"/><path d="M9 7.5V6a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v1.5"/><path d="M3.5 12.5h17"/></symbol><symbol id="i-menu" viewBox="0 0 24 24"><path d="M5 7h14M5 12h14M5 17h14"/></symbol><symbol id="i-history" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></symbol>
     <symbol id="i-mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="m4 7 8 6 8-6"/></symbol>
     <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="11" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></symbol>
   </defs></svg>
@@ -223,7 +222,7 @@
         <button id="searchScreenClear" class="search-clear" aria-label="Clear search" hidden><svg><use href="#i-close"/></svg></button>
       </div>
     </header>
-    <div class="poi-chip-row" id="poiChipRow">
+    <p id="searchSaveBanner" class="search-save-banner" role="heading" aria-level="2" hidden></p><p id="searchSaveCurrent" class="search-save-current" hidden><span id="searchSaveCurrentName"></span><button id="searchSaveRemove" type="button">Remove</button></p><div class="poi-chip-row" id="poiChipRow">
       <button class="chip poi-chip" data-poi-type="gas_station" aria-pressed="false"><svg><use href="#i-fuel"/></svg><span>Petrol</span></button>
       <button class="chip poi-chip" data-poi-type="parking" aria-pressed="false"><svg><use href="#i-parking"/></svg><span>Parking</span></button>
       <button class="chip poi-chip" data-poi-type="restaurant" aria-pressed="false"><svg><use href="#i-food"/></svg><span>Restaurants</span></button>
@@ -241,11 +240,10 @@
           <div id="googleMap" class="google-map" aria-hidden="true"></div>
           <div class="fallback-map" id="fallbackMap"><div class="road road-a"></div><div class="road road-b"></div><div class="road road-c"></div></div>
           <h1 id="mapTitle" class="sr-only">Rider map</h1>
-          <header class="map-header"><div class="map-avatar-wrap"><button class="avatar avatar-sm" id="mapAvatarButton" data-avatar="AI" aria-label="Open menu" aria-haspopup="dialog" aria-controls="appMenu">AI</button><button id="voiceStatusBtn" class="voice-mute-badge" aria-label="Listening — hands-free" hidden><svg><use href="#i-mic"/></svg></button></div><div class="map-status-row"><div id="mapStatusChip" class="map-status-chip" role="status" aria-live="polite"><span class="map-status-dot" aria-hidden="true"></span><span id="mapStatusText">Nearby off</span></div></div></header>
+          <header class="map-header"><div class="map-avatar-wrap"><button class="avatar avatar-sm" id="mapAvatarButton" data-avatar="AI" aria-label="Open menu" aria-haspopup="dialog" aria-controls="appMenu">AI</button><b id="mapAvatarBadge" class="map-avatar-badge" aria-hidden="true" hidden>0</b><span class="map-avatar-menu" aria-hidden="true"><svg><use href="#i-menu"/></svg></span><button id="voiceStatusBtn" class="voice-mute-badge" aria-label="Listening — hands-free" hidden><svg><use href="#i-mic"/></svg></button></div><div class="map-status-row"><div id="mapStatusChip" class="map-status-chip" role="status" aria-live="polite"><span class="map-status-dot" aria-hidden="true"></span><span id="mapStatusText">Nearby off</span></div></div></header>
           <div id="fallbackMarkers" class="fallback-markers"></div>
           <div id="hazardMarkers" class="hazard-markers"></div>
           <div class="map-actions">
-            <button id="musicBtn" class="icon-button glass map-action-button map-action-small" data-sheet="music" aria-label="Open your music app"><svg><use href="#i-music"/></svg></button>
             <button id="locateBtn" class="icon-button glass map-action-button map-action-small" aria-label="Centre on my location"><svg><use href="#i-locate"/></svg></button>
             <button id="navReportBtn" class="icon-button glass map-action-button nav-only-control" aria-label="Report on the road"><svg><use href="#i-hazard-report"/></svg></button>
             <button id="navMuteBtn" class="icon-button glass nav-only-control" aria-label="Mute navigation guidance"><svg><use href="#i-volume"/></svg></button>
@@ -259,9 +257,9 @@
             <button id="mapDrawerHandle" class="map-drawer-handle" type="button" aria-controls="mapDrawerRecent" aria-expanded="false" aria-label="Show recent places"><span></span></button>
             <div class="search-slot map-drawer-search" id="mapSearchSlot"><svg><use href="#i-search"/></svg><input id="placeSearchInput" placeholder="Where to?" aria-label="Where to?" autocomplete="off" readonly></div>
             <div class="map-drawer-shortcuts" role="group" aria-label="Shortcuts">
-              <button type="button" data-drawer-nav="ride"><svg aria-hidden="true"><use href="#i-bike"/></svg><span>Ride</span><small id="drawerRideLive" class="map-drawer-live" hidden><i class="live-dot"></i>Live</small></button>
-              <button type="button" data-drawer-nav="friends"><svg aria-hidden="true"><use href="#i-users"/></svg><span>Friends</span><b id="drawerFriendsBadge" class="map-drawer-badge" hidden>0</b></button>
-              <button type="button" data-drawer-nav="routes"><svg aria-hidden="true"><use href="#i-route"/></svg><span>Routes</span></button>
+              <button type="button" data-saved-place="home" aria-label="Set Home"><svg aria-hidden="true"><use href="#i-home"/></svg><span>Home</span></button>
+              <button type="button" data-saved-place="work" aria-label="Set Work"><svg aria-hidden="true"><use href="#i-work"/></svg><span>Work</span></button>
+              <button type="button" id="drawerPetrol" aria-label="Petrol stations nearby"><svg aria-hidden="true"><use href="#i-fuel"/></svg><span>Petrol</span></button>
             </div>
             <div id="mapDrawerRecent" class="map-drawer-recent" hidden></div>
           </section>
@@ -308,14 +306,14 @@
 
       <section class="screen content-screen ride-screen" data-screen="ride" aria-labelledby="rideTitle">
         <div class="page-width">
-          <header class="page-header"><button class="icon-button page-back" type="button" data-back-to-map aria-label="Back to map"><svg class="icon-back"><use href="#i-chevron"/></svg></button><div><h1 id="rideTitle">Ride</h1></div><button class="icon-button" id="rideShareTop" aria-label="Share ride" hidden><svg><use href="#i-share"/></svg></button></header>
+          <header class="page-header"><button class="icon-button page-back" type="button" data-back-to-map aria-label="Back to map"><svg class="icon-back"><use href="#i-chevron"/></svg></button><div><h1 id="rideTitle">Ride</h1></div><button class="icon-button" id="rideShareTop" aria-label="Share ride code" hidden><svg><use href="#i-share"/></svg></button></header>
           <div id="rideJoinState">
             <div class="ride-hero" role="img" aria-label="Motorcyclists riding together on a winding mountain road">
               <div class="ride-hero-copy"><strong>Ride further, together.</strong></div>
             </div>
             <div class="ride-entry">
               <div class="ride-entry-heading"><h2 id="rideEntryTitle">Join a ride</h2></div>
-              <form id="joinRideForm" class="ride-form"><p id="rideHelp" class="support-copy ride-card-copy">Enter the six-character code from your host.</p><div class="ride-code-entry"><div id="rideCodeSlots" class="ride-code-slots" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span></div><input id="rideCode" class="ride-code-input" inputmode="text" autocapitalize="characters" enterkeyhint="go" autocomplete="off" spellcheck="false" aria-describedby="rideHelp rideError" aria-invalid="false" aria-label="Six-character ride code"></div><p id="rideError" class="inline-error" role="alert" aria-live="assertive" hidden></p><button class="button primary wide ride-join-button" type="submit" disabled>Join ride</button></form>
+              <form id="joinRideForm" class="ride-form"><p id="rideHelp" class="support-copy ride-card-copy">Enter the six-character code from your host.</p><div class="ride-code-entry"><div id="rideCodeSlots" class="ride-code-slots" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span></div><input id="rideCode" class="ride-code-input" inputmode="text" autocapitalize="characters" enterkeyhint="go" autocomplete="off" spellcheck="false" aria-describedby="rideHelp rideError" aria-invalid="false" aria-label="Ride invite code"></div><p id="rideError" class="inline-error" role="alert" aria-live="assertive" hidden></p><button class="button primary wide ride-join-button" type="submit" disabled>Join ride</button></form>
             </div>
             <div class="ride-entry ride-start-card">
               <div class="ride-entry-heading"><h2>Start a ride</h2></div>
@@ -341,10 +339,12 @@
       </section>
 
       <section class="screen content-screen" data-screen="friends" aria-labelledby="friendsTitle">
-        <div class="page-width"><header class="page-header"><button class="icon-button page-back" type="button" data-back-to-map aria-label="Back to map"><svg class="icon-back"><use href="#i-chevron"/></svg></button><div><h1 id="friendsTitle">Friends</h1></div><span id="friendsCountBadge" class="count-badge" hidden>0</span><button id="addFriendToggle" class="icon-button add-friend-toggle" aria-label="Add a rider" title="Add a rider &#8211; connect using their handle or Rider ID"><svg><use href="#i-friends"/></svg></button></header>
+        <div class="page-width"><header class="page-header"><button class="icon-button page-back" type="button" data-back-to-map aria-label="Back to map"><svg class="icon-back"><use href="#i-chevron"/></svg></button><div><h1 id="friendsTitle">Friends</h1></div><span id="friendsCountBadge" class="count-badge" hidden>0</span><button id="addFriendToggle" class="icon-button add-friend-toggle" aria-label="Add friend" title="Add a rider &#8211; connect using their handle or Rider ID"><svg><use href="#i-friends"/></svg></button></header>
           <div class="network-summary" aria-label="Network summary"><span><b id="networkFriendCount">0</b> friends</span><span><b id="networkRequestCount">0</b> requests</span></div>
           <div class="search-and-add"><div class="search-row"><svg><use href="#i-search"/></svg><input id="friendSearch" placeholder="Search friends" aria-label="Search friends" autocomplete="off"></div></div>
           <form id="addFriendForm" class="compact-form" hidden><label for="friendId">Handle or Rider ID</label><div class="add-friend-field"><span class="add-friend-prefix" aria-hidden="true">@</span><input id="friendId" placeholder="their_handle or Rider ID" autocomplete="off" aria-label="Friend handle or Rider ID"><button class="button primary">Send</button></div><p id="friendFeedback" class="support-copy"></p></form>
+          <p id="friendsLoading" class="support-copy friends-loading" role="status">Loading friends…</p>
+          <p id="friendsError" class="chat-error friends-error" role="alert" hidden><span></span><button id="friendsRetry" type="button" aria-label="Retry loading friends">Retry</button></p>
           <section id="requestSection" hidden><div class="section-heading"><h2>Requests</h2><span id="requestsCountBadge" class="count-badge">0</span></div><div id="requestList" class="people-list"></div></section>
           <section id="friendSection" hidden><div class="section-heading"><h2>Your friends</h2></div><div id="friendList" class="people-list"></div></section>
           <div id="friendEmpty" class="empty-state network-empty" hidden><div class="hero-icon"><svg><use href="#i-friends"/></svg></div><h2 id="friendEmptyTitle">Build your riding circle</h2><p id="friendEmptyCopy">Use the add button above to connect by handle or Rider ID.</p><button id="friendEmptyAdd" class="button primary" type="button">Add a rider</button></div>
@@ -394,7 +394,8 @@
     <main id="chatThread" class="chat-thread" role="log" aria-live="polite" aria-label="Conversation">
       <button id="chatLoadOlder" class="button tertiary chat-load-older" type="button" hidden>Load older messages</button>
       <div id="chatMessages"></div>
-      <div id="chatEmpty" class="empty-state chat-empty" hidden><div class="hero-icon"><svg><use href="#i-friends"/></svg></div><h2>Start the conversation</h2><p>Messages are available between current friends.</p></div>
+      <p id="chatLoading" class="support-copy chat-loading" role="status" hidden>Loading conversation…</p>
+      <div id="chatEmpty" class="empty-state chat-empty" hidden><div class="hero-icon"><svg><use href="#i-friends"/></svg></div><h2>Start a private conversation</h2><p id="chatEmptyCopy">Messages in this thread are only available to you and your friend.</p></div>
     </main>
     <form id="chatComposer" class="chat-composer">
       <label class="sr-only" for="chatInput">Message</label>

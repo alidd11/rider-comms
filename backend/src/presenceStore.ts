@@ -322,7 +322,9 @@ export class PresenceStore {
          ON peer.rider_id = CASE WHEN pair.rider_a = $1 THEN pair.rider_b ELSE pair.rider_a END
         AND peer.updated_at >= $2
        WHERE pair.rider_a = $1 OR pair.rider_b = $1
-       ORDER BY peer_id`,
+       -- Closest first (an equirectangular estimate is plenty within a
+       -- zone), so a capped caller keeps the riders that matter most.
+       ORDER BY power(peer.lat - actor.lat, 2) + power((peer.lon - actor.lon) * cos(radians(actor.lat)), 2), peer_id`,
       [riderId, cutoff]
     );
     return rows.map((row) => row.peer_id);

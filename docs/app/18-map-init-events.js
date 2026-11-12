@@ -122,6 +122,7 @@
     }
     appMenuTrigger = document.activeElement;
     renderProfile();
+    pushOverlayGuard();
     $('#appMenu').hidden = false;
     $('#app')?.setAttribute('inert', '');
     document.documentElement.classList.add('app-menu-open');
@@ -162,9 +163,22 @@
       if (navFollowing) showNavigationOverview();
       else resumeNavigationFollowing();
     });
-    window.addEventListener('popstate', () => {
-      if (activeChat) closeChat();
-      navigate(location.hash.split('/')[0].slice(1) || 'map', false);
+    window.addEventListener('popstate', (event) => {
+      const leftGuard = onGuardEntry;
+      onGuardEntry = Boolean(event.state?.guard);
+      // Back closes an open sheet, search, menu or drawer before anything else.
+      if (closeTopOverlay()) return;
+      // Landed on the spent entry of an overlay that closed itself (a chat
+      // opened from a sheet): step past it to the screen below, and stop there.
+      if (event.state?.guard) { onGuardEntry = false; history.back(); return; }
+      // This press only removed the entry of an overlay already closed with
+      // its own button: keep going, so no press is wasted.
+      if (leftGuard) { history.back(); return; }
+      const screen = location.hash.split('/')[0].slice(1) || 'map';
+      if (returningToMap && screen !== 'map') { history.back(); return; }
+      returningToMap = false;
+      if (activeChat && location.hash !== '#friends/chat') closeChat();
+      navigate(screen, false);
     });
     $('#joinRideForm').addEventListener('submit', (event) => {
       event.preventDefault();
@@ -242,6 +256,12 @@
     $('#chatHideoutPlan').addEventListener('click', openPlanHideoutSheet);
     $('#chatSafety').addEventListener('click', () => { if (activeChat) openFriendSafetyActions(activeChat); });
     $('#chatRetry').addEventListener('click', () => void loadChatMessages({ showLoading: true }));
+    $('#friendsRetry').addEventListener('click', () => {
+      friendsLoadState = 'loading';
+      friendsLoadError = '';
+      renderFriends();
+      void loadFriendsData();
+    });
     $('#chatLoadOlder').addEventListener('click', () => void loadChatMessages({ older: true }));
     $('#chatComposer').addEventListener('submit', (event) => { event.preventDefault(); submitChatMessage(); });
     // Installed iOS can leave the document panned after the keyboard closes,

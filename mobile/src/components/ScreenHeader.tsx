@@ -2,7 +2,7 @@ import * as React from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { StyleProp, ViewStyle } from 'react-native';
-import { colors, MIN_TOUCH_TARGET, spacing, type } from '../theme';
+import { colors, MIN_TOUCH_TARGET, spacing, type, pressedFeedback } from '../theme';
 
 type ScreenHeaderProps = {
   title: string;
@@ -10,14 +10,16 @@ type ScreenHeaderProps = {
   style?: StyleProp<ViewStyle>;
   /** Shows a back chevron before the title (screens pushed on the stack). */
   onBack?: () => void;
+  /** What the back chevron says to screen readers. */
+  backLabel?: string;
 };
 
 /** Shared hierarchy for every non-map root screen. */
-export function ScreenHeader({ title, action, style, onBack }: ScreenHeaderProps): React.JSX.Element {
+export function ScreenHeader({ title, action, style, onBack, backLabel = 'Go back' }: ScreenHeaderProps): React.JSX.Element {
   return (
     <View style={[styles.header, style]}>
       {onBack ? (
-        <Pressable accessibilityRole="button" accessibilityLabel="Go back" onPress={onBack} hitSlop={8} style={styles.back}>
+        <Pressable accessibilityRole="button" accessibilityLabel={backLabel} onPress={onBack} hitSlop={8} style={({ pressed }) => [styles.back, pressed && pressedFeedback]}>
           <Ionicons name="chevron-back" size={26} color={colors.textPrimary} />
         </Pressable>
       ) : null}

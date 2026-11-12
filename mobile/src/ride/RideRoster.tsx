@@ -2,7 +2,7 @@ import * as React from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '../auth/AuthContext';
-import { colors, elevation, radii, spacing, type } from '../theme';
+import { colors, elevation, radii, spacing, type, pressedFeedback } from '../theme';
 import { useRide } from './RideContext';
 import { useRideProfiles } from '../screens/useRideProfiles';
 import { openRiderSafetyMenu } from '../safety/riderSafetyActions';
@@ -40,14 +40,14 @@ export function RideRoster({ canRemove }: { canRemove: boolean }): React.JSX.Ele
                 accessibilityRole="button"
                 accessibilityLabel={`Report or block ${nameOf(id)}`}
                 onPress={() => openRiderSafetyMenu(client, { riderId: id, name: nameOf(id), source: 'the ride roster' })}
-                style={styles.removeButton}
+                style={({ pressed }) => [styles.removeButton, pressed && pressedFeedback]}
                 hitSlop={8}
               >
                 <Ionicons name="ellipsis-horizontal-circle-outline" size={22} color={colors.textSecondary} />
               </Pressable>
             )}
             {canRemove && id !== riderId && (
-              <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${nameOf(id)} from ride`} onPress={() => confirmRemove(id)} style={styles.removeButton} hitSlop={8}>
+              <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${nameOf(id)} from ride`} onPress={() => confirmRemove(id)} style={({ pressed }) => [styles.removeButton, pressed && pressedFeedback]} hitSlop={8}>
                 <Ionicons name="close-circle" size={22} color={colors.danger} />
               </Pressable>
             )}

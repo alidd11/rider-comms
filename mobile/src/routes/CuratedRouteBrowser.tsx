@@ -14,7 +14,7 @@ import {
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Polyline } from 'react-native-svg';
-import { colors, spacing } from '../theme';
+import { colors, spacing, pressedFeedback } from '../theme';
 import { styles } from './CuratedRouteBrowser.styles';
 import { useSettings } from '../settings/SettingsContext';
 import {
@@ -200,7 +200,7 @@ function RouteOverview({
             </View>
 
             <Pressable
-              style={styles.primaryButton}
+              style={({ pressed }) => [styles.primaryButton, pressed && pressedFeedback]}
               onPress={() => {
                 onClose();
                 onGuideToStart(route);
@@ -212,7 +212,7 @@ function RouteOverview({
               <Text style={styles.primaryButtonText}>Guide me to the start</Text>
             </Pressable>
             <Pressable
-              style={styles.secondaryButton}
+              style={({ pressed }) => [styles.secondaryButton, pressed && pressedFeedback]}
               onPress={() => void openExternalUrl(googleMapsDirectionsUrl(route), 'Try opening your maps app manually.')}
               accessibilityRole="button"
             >

@@ -496,6 +496,9 @@
   let chatHasLoadedOlder = false;
   let chatPeerReadThroughMessageId = null;
   let chatLoading = false;
+  // Whether this load shows "Loading conversation…" (a first open or Retry,
+  // not a background refresh).
+  let chatShowingLoading = false;
   let chatLoadPromise = null;
   let chatReturnFocus = null;
   let chatHideouts = [];
@@ -742,19 +745,63 @@
 
   $('#closeAppNotification')?.addEventListener('click', hideAppNotification);
 
+  // History model: the map is home, and every other screen sits one step
+  // above it. Going back to the map steps back rather than stacking another
+  // map entry; moving between Ride, Friends, Routes and Settings replaces the
+  // entry. An open overlay (sheet, menu, search, the expanded drawer) adds a
+  // guard entry, so the phone's back gesture closes it before leaving.
+  let returningToMap = false;
+  // Whether the current history entry is an overlay guard. One left behind
+  // by an overlay closed with its own button is skipped on the next back.
+  let onGuardEntry = false;
+
+  function pushOverlayGuard() {
+    if (!history.state?.guard) history.pushState({ ...(history.state || { screen: state.screen }), guard: true }, '', location.href);
+    onGuardEntry = true;
+  }
+
+  function anyOverlayOpen() {
+    return !$('#sheetBackdrop').hidden || !$('#searchScreen').hidden || !$('#appMenu').hidden || $('#mapDrawer')?.dataset.state === 'open';
+  }
+
+  // Back closes the topmost overlay (a settings page steps up one level).
+  function closeTopOverlay() {
+    if (!$('#sheetBackdrop').hidden) sheetBack();
+    else if (!$('#searchScreen').hidden) closeSearchScreen();
+    else if (!$('#appMenu').hidden) closeAppMenu();
+    else if ($('#mapDrawer')?.dataset.state === 'open') toggleMapDrawer(false);
+    else return false;
+    if (anyOverlayOpen()) pushOverlayGuard();
+    return true;
+  }
+
   function navigate(screen, push = true) {
     if (!['map', 'ride', 'routes', 'friends', 'settings'].includes(screen)) screen = 'map';
     if (window.RiderMovementSafety.isLockedForSafety(movementState) && !['map', 'ride'].includes(screen)) {
       screen = state.activeRide ? 'ride' : 'map';
       showToast('Controls stay locked until Rider Comms confirms you are stationary.');
     }
+    const previous = state.screen;
+    if (push && screen === 'map' && previous !== 'map' && history.state?.overMap) {
+      // The map is the entry below: step back to it (popstate renders it).
+      returningToMap = true;
+      history.back();
+      return;
+    }
     state.screen = screen;
     // Lets CSS adapt floating controls to the screen (e.g. the ride pill).
     document.documentElement.dataset.activeScreen = screen;
     persist();
     [...document.querySelectorAll('.screen')].forEach((item) => item.classList.toggle('active', item.dataset.screen === screen));
-    if (push && location.hash !== `#${screen}`) history.pushState({ screen }, '', `#${screen}`);
-    document.title = `${screen === 'ride' ? 'Group Ride' : screen[0].toUpperCase() + screen.slice(1)} · Rider Comms`;
+    if (push && location.hash !== `#${screen}`) {
+      const entry = { screen, overMap: screen !== 'map' && (previous === 'map' || Boolean(history.state?.overMap)) };
+      // Screen to screen above the map, or over a spent overlay entry:
+      // replace, so the map stays one step back.
+      if (history.state?.guard || (previous !== 'map' && screen !== 'map')) history.replaceState(entry, '', `#${screen}`);
+      else history.pushState(entry, '', `#${screen}`);
+      onGuardEntry = false;
+    }
+    document.title = `${screen[0].toUpperCase() + screen.slice(1)} · Rider Comms`;
     window.scrollTo(0, 0);
     syncMovementSafetyBanner();
     if (screen === 'map') { renderMapRiders(); refreshNearbyHazards(); }
@@ -1216,6 +1263,11 @@
     friendActivityTimer = setInterval(() => { void refreshFriendActivity(); }, 30_000);
   }
 
+  // 'loading' until the first answer, so the empty prompt never flashes
+  // before the list arrives; 'error' keeps the prompt hidden behind Retry.
+  let friendsLoadState = 'loading';
+  let friendsLoadError = '';
+
   function renderFriends() {
     const query = $('#friendSearch').value.trim().toLowerCase();
     const friends = state.friends
@@ -1263,7 +1315,13 @@
     $('#friendSection').hidden = !hasVisibleFriends;
     // Pending requests already fill the screen; the "build your circle"
     // prompt is for a genuinely empty list.
-    empty.hidden = hasVisibleFriends || (hasRequests && !query);
+    empty.hidden = hasVisibleFriends || (hasRequests && !query) || (!hasFriends && friendsLoadState !== 'ready');
+    const loading = friendsLoadState === 'loading' && !hasFriends && !hasRequests;
+    $('#friendsLoading').hidden = !loading;
+    $('#friendList').setAttribute('aria-busy', String(loading));
+    const loadError = $('#friendsError');
+    loadError.querySelector('span').textContent = friendsLoadError;
+    loadError.hidden = !friendsLoadError;
     $('#friendEmptyTitle').textContent = query ? 'No matching friends' : 'Build your riding circle';
     $('#friendEmptyCopy').textContent = query
       ? 'Try a different name, handle or Rider ID.'
@@ -1283,12 +1341,12 @@
       navBadge.textContent = attentionCount > 99 ? '99+' : String(attentionCount);
       navBadge.hidden = attentionCount === 0;
     }
-    // The map's Friends shortcut carries the same count.
-    const drawerBadge = $('#drawerFriendsBadge');
-    if (drawerBadge) {
-      drawerBadge.textContent = attentionCount > 99 ? '99+' : String(attentionCount);
-      drawerBadge.hidden = attentionCount === 0;
-      drawerBadge.closest('button')?.setAttribute('aria-label', attentionCount ? `Friends, ${attentionCount} new` : 'Friends');
+    // The avatar that opens the menu carries the same count.
+    const avatarBadge = $('#mapAvatarBadge');
+    if (avatarBadge) {
+      avatarBadge.textContent = attentionCount > 99 ? '99+' : String(attentionCount);
+      avatarBadge.hidden = attentionCount === 0;
+      $('#mapAvatarButton')?.setAttribute('aria-label', attentionCount ? `Open menu, ${attentionCount} new from friends` : 'Open menu');
     }
     $$('[data-accept]').forEach((button) => button.addEventListener('click', () => acceptRequest(button.dataset.accept)));
     $$('[data-decline]').forEach((button) => button.addEventListener('click', () => declineRequest(button.dataset.decline)));
@@ -1619,6 +1677,7 @@
         : `<div class="chat-bubble-row${mine ? ' mine' : ''}"><div class="chat-bubble">${body}</div></div>`);
     }).join('');
     $('#chatEmpty').hidden = chatLoading || chatMessages.length > 0;
+    $('#chatLoading').hidden = !(chatLoading && chatShowingLoading && chatMessages.length === 0);
     $('#chatLoadOlder').hidden = !chatNextCursor;
     $$('[data-retry-message]', messages).forEach((button) => button.addEventListener('click', () => void retryChatMessage(button.dataset.retryMessage)));
     renderChatHideouts();
@@ -1649,8 +1708,9 @@
     const run = (async () => {
       chatLoading = true;
       if (showLoading) {
-        setChatError('Loading messages…');
-        $('#chatRetry').hidden = true;
+        chatShowingLoading = true;
+        setChatError('');
+        renderChat();
       }
       try {
         const query = new URLSearchParams({ withRiderId: riderId, limit: '100' });
@@ -1684,6 +1744,7 @@
         if (throwOnError && !unavailable) throw error;
       } finally {
         chatLoading = false;
+        chatShowingLoading = false;
         renderChat();
       }
     })();
@@ -1712,6 +1773,7 @@
     chatHideoutsLoading = false;
     chatHideoutError = '';
     $('#chatTitle').textContent = friend.displayName;
+    $('#chatEmptyCopy').textContent = `Messages in this thread are only available to you and ${friend.displayName}.`;
     $('#chatHandle').textContent = friend.handle;
     $('#chatAvatar').outerHTML = avatar(friend, 'avatar-sm').replace('<span ', '<span id="chatAvatar" ');
     $('#chatScreen').hidden = false;
@@ -1726,6 +1788,7 @@
     setChatError('');
     renderChat();
     history.pushState({ screen: 'friends', chat: friend.riderId }, '', '#friends/chat');
+    onGuardEntry = false;
     document.title = `${friend.displayName} · Rider Comms`;
     void loadChatMessages({ showLoading: true });
     void loadChatHideouts();
@@ -2113,9 +2176,13 @@
       // Apply either successful snapshot even when the other one is transiently
       // unavailable; realtime callers use the throwing functions directly.
       await Promise.all([refreshFriendNetwork(), refreshMessageSummaries()]);
+      friendsLoadState = 'ready';
+      friendsLoadError = '';
     } catch (error) {
-      showToast('Could not load friends. ' + authErrorMessage(error));
+      friendsLoadState = 'error';
+      friendsLoadError = 'Could not load friends. ' + authErrorMessage(error);
     }
+    renderFriends();
   }
 
   async function acceptRequest(requestId) {
@@ -2199,7 +2266,8 @@
     $('#rideActiveState').hidden = !active;
     $('#rideShareTop').hidden = !active;
     $('#ridePill').hidden = !active;
-    for (const live of [$('#appMenuRide'), $('#drawerRideLive')]) if (live) live.hidden = !active;
+    const menuLive = $('#appMenuRide');
+    if (menuLive) menuLive.hidden = !active;
     // The floating ride pill covers the last ~50px of every screen; give
     // scrollable screens room to clear it.
     document.documentElement.classList.toggle('ride-pill-visible', active);
@@ -2491,7 +2559,7 @@
     // and lists it opens.
     // The Settings root lists categories, each its own page.
     general: { title: 'General', sections: [['', 'generalSettings']], fullBleed: true },
-    mapNavigation: { title: 'Map & navigation', sections: [['', 'mapNavigationSettings']], fullBleed: true },
+    mapNavigation: { title: 'Map & navigation', sections: [['', 'mapNavigationSettings'], ['Saved places', 'savedPlacesSettings']], fullBleed: true },
     voiceSound: { title: 'Voice and sound', sections: [['', 'voiceSoundSettings']], fullBleed: true },
     rideSafe: { title: 'Ride Safe', sections: [['', 'rideSafeSettings']], fullBleed: true },
     vehicle: { title: 'Vehicle details', sections: [['Vehicle type', 'vehicleSettings']], fullBleed: true },
@@ -2529,16 +2597,6 @@
 
   function openSheet(type) {
     const templates = {
-      music: () => {
-        const apps = musicAppsInOrder();
-        const last = rememberedMusicApp();
-        return {
-          title: 'Music',
-          body: `<p class="caption music-sheet-note">Opens your music app. While riding, play, pause and skip with your helmet or headset buttons.</p>
-            <div class="settings-hub-list">${apps.map((app) => `<button data-music-app="${app.id}"><span class="setting-icon">${icon('music')}</span><span><strong>${escapeHtml(app.name)}</strong><small>${app.id === last ? 'Last used' : `Open ${escapeHtml(app.name)}`}</small></span>${icon('chevron')}</button>`).join('')}</div>`,
-          ready: () => $$('[data-music-app]').forEach((button) => button.addEventListener('click', () => openMusicApp(button.dataset.musicApp))),
-        };
-      },
       blocked: () => ({
         title: 'Blocked riders',
         body: '<div id="blockedRidersList" class="blocked-list" aria-live="polite"><p class="caption">Loading…</p></div>',
@@ -2686,6 +2744,14 @@
         ], 'Route options apply to routes Rider Comms plans.'),
         ready: () => { wireSettingsLinks($('#sheetBody')); wireToggles(); },
       }),
+      savedPlacesSettings: () => {
+        const saved = loadSavedPlaces();
+        return {
+          title: 'Saved places',
+          body: settingsRowsMarkup(Object.entries(SAVED_PLACE_LABELS).map(([slot, label]) => `<button type="button" class="settings-row" data-saved-place-setting="${slot}"><span class="settings-row-label">${escapeHtml(label)}</span><span class="settings-row-value">${escapeHtml(saved[slot]?.name || 'Not set')}</span><span class="settings-row-chevron">${icon('chevron')}</span></button>`), 'Tap Home or Work in Where to on the map and the route starts straight away.'),
+          ready: () => $$('[data-saved-place-setting]', $('#sheetBody')).forEach((button) => button.addEventListener('click', () => editSavedPlaceFromSettings(button.dataset.savedPlaceSetting))),
+        };
+      },
       voiceSoundSettings: () => ({
         title: 'Voice and sound',
         body: settingsRowsMarkup([
@@ -2801,14 +2867,17 @@
 
   function presentSheet(title, body, ready, options = {}) {
     activeFriendProfileRiderId = null;
-    if ($('#sheetBackdrop').hidden) lastSheetTrigger = document.activeElement;
+    if ($('#sheetBackdrop').hidden) {
+      lastSheetTrigger = document.activeElement;
+      pushOverlayGuard();
+    }
     // Settings pages are full screen with a back chevron; everything else
     // stays a bottom sheet with a close button.
     currentSettingsPage = options.page || null;
     $('#sheetBackdrop').classList.toggle('settings-page-mode', Boolean(currentSettingsPage));
     $('#sheetBackdrop').classList.toggle('settings-full-bleed', Boolean(currentSettingsPage && SETTINGS_PAGES[currentSettingsPage]?.fullBleed));
     const close = $('#closeSheet');
-    close.innerHTML = currentSettingsPage ? '<svg class="icon-back" aria-hidden="true"><use href="#i-chevron"/></svg>' : '×';
+    close.innerHTML = currentSettingsPage ? '<svg class="icon-back" aria-hidden="true"><use href="#i-chevron"/></svg>' : '<svg aria-hidden="true"><use href="#i-close"/></svg>';
     close.dataset.backTo = SETTINGS_PAGES[currentSettingsPage]?.back || '';
     close.setAttribute('aria-label', currentSettingsPage ? 'Back' : 'Close');
     // Settings pages also get an X, which closes every level at once.
@@ -3076,8 +3145,7 @@
   function renderSettingsList() {
     const list = $('#settingsList');
     if (!list) return;
-    list.innerHTML = SETTINGS_CATEGORIES.map(([title, rows]) => `<section class="settings-section"${title ? ` aria-label="${escapeHtml(title)}"` : ''}>${title ? `<h2 class="settings-section-title">${escapeHtml(title)}</h2>` : ''}<div class="settings-rows">${rows.map(([page, iconName, label, tint]) => `<button type="button" class="settings-row settings-row-category" data-settings-open="${page}"><span class="settings-category-icon" style="--tint:${tint}">${icon(iconName)}</span><span class="settings-row-label">${escapeHtml(label)}</span><span class="settings-row-chevron">${icon('chevron')}</span></button>`).join('')}</div></section>`).join('')
-      + '<p class="settings-version">Version 0.3.0</p>';
+    list.innerHTML = SETTINGS_CATEGORIES.map(([title, rows]) => `<section class="settings-section"${title ? ` aria-label="${escapeHtml(title)}"` : ''}>${title ? `<h2 class="settings-section-title">${escapeHtml(title)}</h2>` : ''}<div class="settings-rows">${rows.map(([page, iconName, label, tint]) => `<button type="button" class="settings-row settings-row-category" data-settings-open="${page}"><span class="settings-category-icon" style="--tint:${tint}">${icon(iconName)}</span><span class="settings-row-label">${escapeHtml(label)}</span><span class="settings-row-chevron">${icon('chevron')}</span></button>`).join('')}</div></section>`).join('');
     wireSettingsLinks(list);
   }
 
@@ -3256,42 +3324,6 @@
         showToast('Couldn’t unblock. Try again.');
       }
     }));
-  }
-
-  // A web app can't embed a player: it opens
-  // the rider's music app by its URL scheme and remembers which one.
-  const MUSIC_APPS = [
-    { id: 'spotify', name: 'Spotify', url: 'spotify:' },
-    { id: 'apple-music', name: 'Apple Music', url: 'music://', appleOnly: true },
-    { id: 'youtube-music', name: 'YouTube Music', url: 'youtubemusic://' },
-  ];
-  const MUSIC_APP_KEY = 'rider-comms-music-app';
-
-  function rememberedMusicApp() {
-    try { return localStorage.getItem(MUSIC_APP_KEY); } catch { return null; }
-  }
-
-  function musicAppsInOrder() {
-    const ua = navigator.userAgent;
-    const apple = /iPhone|iPad|iPod/.test(ua) || (ua.includes('Macintosh') && navigator.maxTouchPoints > 1);
-    const last = rememberedMusicApp();
-    return MUSIC_APPS
-      .filter((app) => !app.appleOnly || apple)
-      .sort((a, b) => Number(b.id === last) - Number(a.id === last));
-  }
-
-  function openMusicApp(id) {
-    const app = MUSIC_APPS.find((candidate) => candidate.id === id);
-    if (!app) return;
-    try { localStorage.setItem(MUSIC_APP_KEY, app.id); } catch { /* Ordering only. */ }
-    closeSheet();
-    // Opening the app hides this page. If it's still showing, the app
-    // probably isn't installed.
-    const notOpened = setTimeout(() => {
-      if (document.visibilityState === 'visible') showToast(`Couldn’t open ${app.name}. Is it installed?`);
-    }, 1600);
-    document.addEventListener('visibilitychange', () => clearTimeout(notOpened), { once: true });
-    window.location.href = app.url;
   }
 
   // A settings page opened from another page (Edit profile from Profile)
@@ -4813,7 +4845,7 @@
       item.setAttribute('aria-disabled', String(locked));
       item.classList.toggle('safety-unavailable', locked);
     });
-    $$('#mapDrawer, #mapSearchSlot, #mapAvatarButton, #poiChipRow, #reportHazardBtn, #navReportBtn, #musicBtn, #riderCard, #hazardCard, #rideJoinState, #shareRideBtn, .ride-code-card, #rideRoster, #openRideMap').forEach((item) => {
+    $$('#mapDrawer, #mapSearchSlot, #mapAvatarButton, #poiChipRow, #reportHazardBtn, #navReportBtn, #riderCard, #hazardCard, #rideJoinState, #shareRideBtn, .ride-code-card, #rideRoster, #openRideMap').forEach((item) => {
       item.toggleAttribute('inert', locked);
       item.setAttribute('aria-disabled', String(locked));
     });
@@ -5178,9 +5210,132 @@
     renderRecentOrHint();
   }
 
-  function openSearchScreen() {
+  // Home and Work: one tap away in the drawer, kept on this device for this
+  // rider like recent searches (native: @rider-comms/saved-places).
+  const SAVED_PLACES_KEY = 'riderComms.savedPlaces';
+  const SAVED_PLACE_LABELS = { home: 'Home', work: 'Work' };
+  const savedPlacesStorageKey = () => session?.riderId ? `${SAVED_PLACES_KEY}:${session.riderId}` : null;
+  // The slot search is choosing a place for, if any.
+  let savingPlaceSlot = null;
+  // Search opened from Settings saves the place without touching the map,
+  // then returns to that Settings page.
+  let savingFromSettingsPage = null;
+
+  function validSavedPlace(entry) {
+    return entry && typeof entry.placeId === 'string' && typeof entry.name === 'string'
+      && Number.isFinite(entry.lat) && Math.abs(entry.lat) <= 90 && Number.isFinite(entry.lng) && Math.abs(entry.lng) <= 180;
+  }
+
+  function loadSavedPlaces() {
+    try {
+      const key = savedPlacesStorageKey();
+      const raw = key ? JSON.parse(localStorage.getItem(key) || '{}') : {};
+      const saved = {};
+      for (const slot of Object.keys(SAVED_PLACE_LABELS)) if (validSavedPlace(raw?.[slot])) saved[slot] = raw[slot];
+      return saved;
+    } catch {
+      return {};
+    }
+  }
+
+  function setSavedPlace(slot, entry) {
+    try {
+      const key = savedPlacesStorageKey();
+      if (!key) return;
+      const saved = loadSavedPlaces();
+      if (entry) saved[slot] = { placeId: entry.placeId, name: entry.name, secondary: entry.secondary || '', lat: entry.lat, lng: entry.lng };
+      else delete saved[slot];
+      localStorage.setItem(key, JSON.stringify(saved));
+    } catch { /* A full or blocked store just means the shortcut asks again. */ }
+    renderSavedPlaceShortcuts();
+    if (currentSettingsPage === 'mapNavigation') openSheet('mapNavigation');
+  }
+
+  function renderSavedPlaceShortcuts() {
+    const saved = loadSavedPlaces();
+    $$('[data-saved-place]').forEach((button) => {
+      const slot = button.dataset.savedPlace;
+      const place = saved[slot];
+      const label = SAVED_PLACE_LABELS[slot];
+      button.setAttribute('aria-label', place ? `${label}, ${place.name}` : `Set ${label}`);
+      button.title = place ? `Route to ${place.name}. Press and hold to change ${label}.` : `Choose your ${label.toLowerCase()} address`;
+    });
+  }
+
+  function showSavedPlace(place) {
+    panToPlace(place.lat, place.lng);
+    setDestinationMarker(new google.maps.LatLng(place.lat, place.lng), place.name, place.secondary);
+  }
+
+  // Home and Work start the route straight away, like other map apps: in
+  // Rider Comms, or handed to the rider's chosen navigation app.
+  function routeToSavedPlace(place) {
+    if (window.google?.maps) showSavedPlace(place);
+    const provider = navigationProvider(state.navigationProvider);
+    if (provider === 'in_app') {
+      if (window.google?.maps) void startInAppNavigation(new google.maps.LatLng(place.lat, place.lng), place.name);
+      return;
+    }
+    window.open(navigationHref(provider, place.lat, place.lng, place.name), '_blank', 'noopener');
+  }
+
+  function openSavedPlace(slot) {
+    const place = loadSavedPlaces()[slot];
+    if (place) routeToSavedPlace(place);
+    else openSearchScreen({ saveAs: slot });
+  }
+
+  // Settings, Map & navigation: set, change or remove Home and Work.
+  function editSavedPlaceFromSettings(slot) {
+    const page = currentSettingsPage;
+    closeSheet();
+    openSearchScreen({ saveAs: slot, fromSettingsPage: page });
+  }
+
+  function editSavedPlace(slot) {
+    const place = loadSavedPlaces()[slot];
+    if (!place) { openSearchScreen({ saveAs: slot }); return; }
+    const label = SAVED_PLACE_LABELS[slot];
+    presentSheet(label, `<p class="caption saved-place-address"><strong>${escapeHtml(place.name)}</strong>${place.secondary ? `<br>${escapeHtml(place.secondary)}` : ''}</p>
+      <button class="button secondary wide" type="button" id="savedPlaceChange">Change ${label}</button>
+      <button class="button danger wide" type="button" id="savedPlaceRemove">Remove ${label}</button>`, () => {
+      $('#savedPlaceChange').addEventListener('click', () => { closeSheet(); openSearchScreen({ saveAs: slot }); });
+      $('#savedPlaceRemove').addEventListener('click', () => { setSavedPlace(slot, null); closeSheet(); showToast(`${label} removed.`); });
+    });
+  }
+
+  // A place chosen while search is choosing Home or Work is saved there too.
+  // Returns true when that is all it's for (search opened from Settings).
+  function rememberChosenPlace(entry) {
+    saveRecentSearch(entry);
+    if (!savingPlaceSlot) return false;
+    const label = SAVED_PLACE_LABELS[savingPlaceSlot];
+    setSavedPlace(savingPlaceSlot, entry);
+    savingPlaceSlot = null;
+    if (savingFromSettingsPage) {
+      showToast(`${label} saved.`);
+      closeSearchScreen();
+      return true;
+    }
+    showToast(`${label} saved. Tap it in Where to and the route starts.`);
+    return false;
+  }
+
+  function openSearchScreen(options = {}) {
     if ($('#mapSearchSlot')?.classList.contains('offline')) return;
+    savingPlaceSlot = SAVED_PLACE_LABELS[options.saveAs] ? options.saveAs : null;
+    savingFromSettingsPage = savingPlaceSlot && typeof options.fromSettingsPage === 'string' ? options.fromSettingsPage : null;
+    const current = savingPlaceSlot ? loadSavedPlaces()[savingPlaceSlot] : null;
+    $('#searchSaveCurrent').hidden = !current;
+    $('#searchSaveCurrentName').textContent = current ? `Now: ${current.name}` : '';
+    const saveLabel = savingPlaceSlot ? SAVED_PLACE_LABELS[savingPlaceSlot] : '';
+    $('#searchSaveBanner').hidden = !savingPlaceSlot;
+    $('#searchSaveBanner').textContent = savingPlaceSlot ? `Choose your ${saveLabel}` : '';
+    $('#poiChipRow').hidden = Boolean(savingPlaceSlot);
+    $('#searchScreenInput').placeholder = savingPlaceSlot ? `Your ${saveLabel.toLowerCase()} address` : 'Search for a place';
+    $('#searchScreenInput').setAttribute('aria-label', savingPlaceSlot ? `Search for your ${saveLabel.toLowerCase()} address` : 'Search for a place');
     clearPoiMarkers();
+    pushOverlayGuard();
     $('#searchScreen').hidden = false;
     const input = $('#searchScreenInput');
     input.value = '';
@@ -5198,6 +5353,10 @@
   }
 
   function closeSearchScreen() {
+    savingPlaceSlot = null;
+    const returnTo = savingFromSettingsPage;
+    savingFromSettingsPage = null;
+    if (returnTo) queueMicrotask(() => openSheet(returnTo));
     searchRequestToken += 1;
     clearTimeout(searchDebounceTimer);
     $('#searchScreen').hidden = true;
@@ -5350,6 +5509,7 @@
   function setMapDrawerOpen(open) {
     const drawer = $('#mapDrawer');
     if (!drawer) return;
+    if (open && drawer.dataset.state !== 'open') pushOverlayGuard();
     drawer.dataset.state = open ? 'open' : 'peek';
     $('#mapDrawerRecent').hidden = !open;
     const handle = $('#mapDrawerHandle');
@@ -5359,35 +5519,104 @@
     if (open) renderDrawerRecent();
   }
 
-  // Slide up to open, down to close, tap the handle to toggle. A drag that
-  // starts on a button must not also press it.
+  const DRAWER_SETTLE_MS = 220;
+  const prefersReducedMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
+
+  // The recent list's full height when open (it scrolls past its max-height).
+  function drawerListHeight(list) {
+    const max = parseFloat(getComputedStyle(list).maxHeight);
+    return Math.min(list.scrollHeight, Number.isFinite(max) ? max : list.scrollHeight);
+  }
+
+  // Grows or shrinks the recent list from `from` px to open or closed, then
+  // hands the final state to setMapDrawerOpen.
+  let drawerSettleTimer;
+  function settleMapDrawer(open, from) {
+    const list = $('#mapDrawerRecent');
+    if (!list) return;
+    clearTimeout(drawerSettleTimer);
+    if (open) setMapDrawerOpen(true);
+    const clear = () => {
+      list.style.height = '';
+      list.style.overflow = '';
+      list.style.transition = '';
+    };
+    if (prefersReducedMotion()) {
+      clear();
+      if (!open) setMapDrawerOpen(false);
+      return;
+    }
+    list.hidden = false;
+    const target = open ? drawerListHeight(list) : 0;
+    list.style.overflow = 'hidden';
+    list.style.transition = 'none';
+    list.style.height = `${from}px`;
+    void list.offsetHeight;
+    list.style.transition = `height ${DRAWER_SETTLE_MS}ms cubic-bezier(.2,.8,.2,1)`;
+    list.style.height = `${target}px`;
+    drawerSettleTimer = setTimeout(() => {
+      clear();
+      if (!open) setMapDrawerOpen(false);
+    }, DRAWER_SETTLE_MS + 20);
+  }
+
+  function toggleMapDrawer(open) {
+    const list = $('#mapDrawerRecent');
+    const from = list && !list.hidden ? list.getBoundingClientRect().height : 0;
+    settleMapDrawer(open, from);
+  }
+
+  // The drawer follows the finger: the recent list grows or shrinks with the
+  // slide, then settles open or closed. A tap on the handle toggles it, and a
+  // slide that starts on a button must not also press it.
   function initMapDrawer() {
     const drawer = $('#mapDrawer');
     if (!drawer) return;
-    let startY = null;
+    const list = $('#mapDrawerRecent');
+    let drag = null;
     let dragged = false;
     // Follow the gesture on the window: a slide quickly leaves the drawer's
     // own edge, and capturing the pointer would steal plain taps from its
     // buttons.
     const onMove = (event) => {
-      if (startY !== null && Math.abs(event.clientY - startY) > 8) dragged = true;
+      if (!drag) return;
+      const dy = event.clientY - drag.startY;
+      if (!dragged) {
+        if (Math.abs(dy) <= 8) return;
+        dragged = true;
+        clearTimeout(drawerSettleTimer);
+        // Opening: show the list now, at no height, so it can grow.
+        if (!drag.wasOpen) setMapDrawerOpen(true);
+        drag.full = drawerListHeight(list);
+        list.style.overflow = 'hidden';
+        list.style.transition = 'none';
+      }
+      const height = Math.max(0, Math.min(drag.full, drag.startHeight - dy));
+      list.style.height = `${height}px`;
+      drag.height = height;
     };
     const onEnd = (event) => {
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onEnd);
       window.removeEventListener('pointercancel', onEnd);
-      if (startY === null) return;
-      const dy = event.type === 'pointerup' ? event.clientY - startY : 0;
-      startY = null;
+      const current = drag;
+      drag = null;
       // A slide's own click (if any) follows straight after; never let a
       // stale flag swallow a later, real tap.
       setTimeout(() => { dragged = false; }, 0);
-      if (dy < -30) setMapDrawerOpen(true);
-      else if (dy > 30) setMapDrawerOpen(false);
+      if (!current || !dragged) return;
+      const dy = event.type === 'pointerup' ? event.clientY - current.startY : 0;
+      // Open past a short pull up, or when mostly open and not pulled down.
+      const open = current.wasOpen ? dy < 60 : dy < -30;
+      // A light tick when the slide snaps the drawer to its other rest, like
+      // the native app (where the browser supports it).
+      if (open !== current.wasOpen) navigator.vibrate?.(8);
+      settleMapDrawer(open, current.height ?? current.startHeight);
     };
     drawer.addEventListener('pointerdown', (event) => {
       if (event.target.closest('#mapDrawerRecent')) return;
-      startY = event.clientY;
+      const wasOpen = drawer.dataset.state === 'open';
+      drag = { startY: event.clientY, wasOpen, startHeight: wasOpen ? list.getBoundingClientRect().height : 0 };
       dragged = false;
       window.addEventListener('pointermove', onMove);
       window.addEventListener('pointerup', onEnd);
@@ -5399,14 +5628,45 @@
       event.preventDefault();
       event.stopPropagation();
     }, true);
-    $('#mapDrawerHandle').addEventListener('click', () => setMapDrawerOpen(drawer.dataset.state !== 'open'));
-    $$('[data-drawer-nav]', drawer).forEach((button) => button.addEventListener('click', () => {
+    $('#mapDrawerHandle').addEventListener('click', () => toggleMapDrawer(drawer.dataset.state !== 'open'));
+    $$('[data-saved-place]', drawer).forEach((button) => {
+      const slot = button.dataset.savedPlace;
+      let holdTimer;
+      let held = false;
+      const cancelHold = () => clearTimeout(holdTimer);
+      button.addEventListener('pointerdown', () => {
+        held = false;
+        cancelHold();
+        holdTimer = setTimeout(() => { held = true; editSavedPlace(slot); }, 550);
+      });
+      ['pointerup', 'pointerleave', 'pointercancel'].forEach((type) => button.addEventListener(type, cancelHold));
+      button.addEventListener('contextmenu', (event) => {
+        event.preventDefault();
+        cancelHold();
+        if (!held) { held = true; editSavedPlace(slot); }
+      });
+      button.addEventListener('click', () => {
+        if (held) { held = false; return; }
+        setMapDrawerOpen(false);
+        openSavedPlace(slot);
+      });
+    });
+    $('#searchSaveRemove').addEventListener('click', () => {
+      const slot = savingPlaceSlot;
+      if (!slot) return;
+      setSavedPlace(slot, null);
+      showToast(`${SAVED_PLACE_LABELS[slot]} removed.`);
+      closeSearchScreen();
+    });
+    $('#drawerPetrol').addEventListener('click', () => {
       setMapDrawerOpen(false);
-      navigate(button.dataset.drawerNav);
-    }));
+      openSearchScreen();
+      $('.poi-chip[data-poi-type="gas_station"]')?.click();
+    });
+    renderSavedPlaceShortcuts();
     drawer.addEventListener('keydown', (event) => {
       if (event.key === 'Escape' && drawer.dataset.state === 'open') {
-        setMapDrawerOpen(false);
+        toggleMapDrawer(false);
         $('#mapDrawerHandle').focus();
       }
     });
@@ -5422,7 +5682,7 @@
 
   function selectRecentSearch(item) {
     if (!item) return;
-    saveRecentSearch(item);
+    if (rememberChosenPlace(item)) return;
     panToPlace(item.lat, item.lng);
     // showDestinationCard/setDestinationMarker call location.lat()/.lng()
     // as methods (matching the real google.maps.LatLng that
@@ -5439,8 +5699,12 @@
     clearPoiMarkers();
     panToPlace(place.location.lat, place.location.lng);
     setDestinationMarker(location, place.name);
+    if (place.placeId && savingFromSettingsPage) {
+      rememberChosenPlace({ placeId: place.placeId, name: place.name, secondary: place.address || '', lat: place.location.lat, lng: place.location.lng });
+      return;
+    }
     if (place.placeId) {
-      saveRecentSearch({
+      rememberChosenPlace({
         placeId: place.placeId,
         name: place.name,
         secondary: place.address || '',
@@ -5462,10 +5726,14 @@
       }
       const lat = location.lat();
       const lng = location.lng();
+      if (savingFromSettingsPage) {
+        rememberChosenPlace({ placeId, name: place.name || 'Selected place', secondary: place.formatted_address || '', lat, lng });
+        return;
+      }
       panToPlace(lat, lng);
       setDestinationMarker(location, place.name, place.formatted_address);
       showToast(place.name ? `Centred on ${place.name}` : 'Centred on selected place.');
-      saveRecentSearch({ placeId, name: place.name || 'Selected place', secondary: place.formatted_address || '', lat, lng });
+      rememberChosenPlace({ placeId, name: place.name || 'Selected place', secondary: place.formatted_address || '', lat, lng });
       closeSearchScreen();
     });
   }
@@ -7079,6 +7347,7 @@
     }
     appMenuTrigger = document.activeElement;
     renderProfile();
+    pushOverlayGuard();
     $('#appMenu').hidden = false;
     $('#app')?.setAttribute('inert', '');
     document.documentElement.classList.add('app-menu-open');
@@ -7119,9 +7388,22 @@
       if (navFollowing) showNavigationOverview();
       else resumeNavigationFollowing();
     });
-    window.addEventListener('popstate', () => {
-      if (activeChat) closeChat();
-      navigate(location.hash.split('/')[0].slice(1) || 'map', false);
+    window.addEventListener('popstate', (event) => {
+      const leftGuard = onGuardEntry;
+      onGuardEntry = Boolean(event.state?.guard);
+      // Back closes an open sheet, search, menu or drawer before anything else.
+      if (closeTopOverlay()) return;
+      // Landed on the spent entry of an overlay that closed itself (a chat
+      // opened from a sheet): step past it to the screen below, and stop there.
+      if (event.state?.guard) { onGuardEntry = false; history.back(); return; }
+      // This press only removed the entry of an overlay already closed with
+      // its own button: keep going, so no press is wasted.
+      if (leftGuard) { history.back(); return; }
+      const screen = location.hash.split('/')[0].slice(1) || 'map';
+      if (returningToMap && screen !== 'map') { history.back(); return; }
+      returningToMap = false;
+      if (activeChat && location.hash !== '#friends/chat') closeChat();
+      navigate(screen, false);
     });
     $('#joinRideForm').addEventListener('submit', (event) => {
       event.preventDefault();
@@ -7199,6 +7481,12 @@
     $('#chatHideoutPlan').addEventListener('click', openPlanHideoutSheet);
     $('#chatSafety').addEventListener('click', () => { if (activeChat) openFriendSafetyActions(activeChat); });
     $('#chatRetry').addEventListener('click', () => void loadChatMessages({ showLoading: true }));
+    $('#friendsRetry').addEventListener('click', () => {
+      friendsLoadState = 'loading';
+      friendsLoadError = '';
+      renderFriends();
+      void loadFriendsData();
+    });
     $('#chatLoadOlder').addEventListener('click', () => void loadChatMessages({ older: true }));
     $('#chatComposer').addEventListener('submit', (event) => { event.preventDefault(); submitChatMessage(); });
     // Installed iOS can leave the document panned after the keyboard closes,

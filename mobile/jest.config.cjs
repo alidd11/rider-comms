@@ -1,13 +1,13 @@
 const NODE_TESTED_MODULES = [
   'api/client.ts', 'api/directions.ts', 'api/places.ts', 'api/placesCache.ts',
-  'audio/audioEngine.ts', 'audio/mediaControls.ts', 'audio/navigationPromptController.ts',
+  'audio/audioEngine.ts', 'audio/navigationPromptController.ts',
   'billing/subscriptionFlow.ts',
   'friends/messageDay.ts', 'friends/messageState.ts', 'friends/requestState.ts', 'friends/socialEventState.ts', 'friends/socialRefresh.ts',
-  'musicApps.ts', 'navigationCamera.ts', 'navigationGpsHealth.ts', 'navigationGuidance.ts', 'navigationLinks.ts',
+  'navigationCamera.ts', 'navigationGpsHealth.ts', 'navigationGuidance.ts', 'navigationLinks.ts',
   'navigationLiveActivity.ts', 'navigationManeuver.ts', 'navigationPreference.ts', 'navigationRoadEvents.ts',
   'rideSafePreference.ts', 'routeOptionsPreference.ts',
   'routes/curatedRoutes.ts', 'routes/routeDiscovery.ts', 'routes/routeImages.ts',
-  'safety/movementAdapter.ts', 'search/recentPlaces.ts', 'settings/avatars.ts', 'settings/plans.ts',
+  'safety/movementAdapter.ts', 'search/recentPlaces.ts', 'search/savedPlaces.ts', 'settings/avatars.ts', 'settings/plans.ts',
   'voice/proximityVoiceState.ts',
 ];
 

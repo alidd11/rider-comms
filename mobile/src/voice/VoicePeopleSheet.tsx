@@ -3,7 +3,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { RiderCommsClient } from '../api/client';
-import { colors, MIN_TOUCH_TARGET, radii, spacing, type } from '../theme';
+import { colors, MIN_TOUCH_TARGET, radii, spacing, type, pressedFeedback } from '../theme';
 import { confirmBlock, openReportFlow } from '../safety/riderSafetyActions';
 
 export interface VoicePeopleSheetProps {
@@ -27,7 +27,7 @@ export function VoicePeopleSheet({ visible, onClose, client, peers, mutedPeers, 
         <Pressable accessible={false} style={[styles.sheet, { paddingBottom: insets.bottom + spacing.md }]} onPress={(event) => event.stopPropagation()}>
           <View style={styles.sheetHeader}>
             <Text style={styles.sheetTitle}>Riders on Nearby Voice</Text>
-            <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} style={styles.iconButton}>
+            <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} style={({ pressed }) => [styles.iconButton, pressed && pressedFeedback]}>
               <Ionicons name="close" size={22} color={colors.textPrimary} />
             </Pressable>
           </View>
@@ -46,18 +46,18 @@ export function VoicePeopleSheet({ visible, onClose, client, peers, mutedPeers, 
                     accessibilityRole="button"
                     accessibilityLabel={muted ? `Unmute ${name}` : `Mute ${name}`}
                     onPress={() => onToggleMute(peerId)}
-                    style={styles.iconButton}
+                    style={({ pressed }) => [styles.iconButton, pressed && pressedFeedback]}
                   >
                     <Ionicons name={muted ? 'volume-mute' : 'volume-high-outline'} size={20} color={colors.textSecondary} />
                   </Pressable>
-                  <Pressable accessibilityRole="button" accessibilityLabel={`Report ${name}`} onPress={() => openReportFlow(client, target)} style={styles.iconButton}>
+                  <Pressable accessibilityRole="button" accessibilityLabel={`Report ${name}`} onPress={() => openReportFlow(client, target)} style={({ pressed }) => [styles.iconButton, pressed && pressedFeedback]}>
                     <Ionicons name="flag-outline" size={20} color={colors.textSecondary} />
                   </Pressable>
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={`Block ${name}`}
                     onPress={() => confirmBlock(client, target, () => onBlocked(peerId))}
-                    style={styles.iconButton}
+                    style={({ pressed }) => [styles.iconButton, pressed && pressedFeedback]}
                   >
                     <Ionicons name="hand-left-outline" size={20} color={colors.danger} />
                   </Pressable>

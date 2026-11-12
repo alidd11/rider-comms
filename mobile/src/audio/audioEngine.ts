@@ -6,10 +6,9 @@
  * rooms subscribe to this engine through LiveKitAudioPriorityBridge so a
  * spoken navigation prompt can reduce real remote-chat playout volume.
  *
- * External music volume is still OS-managed: audioSession.ts configures
- * coexistence with other apps. useMusicPlayback reports whether music is
- * playing, so currentGains.music reflects reality, but no OS lets Rider Comms
- * set another app's volume.
+ * The rider's own music app is OS-managed: audioSession.ts lets it keep
+ * playing (ducked) under voice. Rider Comms has no music feature of its own,
+ * so nothing reports music playing and the music level stays at zero.
  */
 import { computeAudioGains } from '@rider-comms/shared';
 import type { AudioGainLevels, AudioSourceState } from '@rider-comms/shared';

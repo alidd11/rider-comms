@@ -776,6 +776,18 @@ describe('production HTTP boundary', () => {
     assert.equal(event.status, 200);
   });
 
+  it('says which commit is live on /health when the host provides it', async () => {
+    const saved = process.env.RAILWAY_GIT_COMMIT_SHA;
+    try {
+      delete process.env.RAILWAY_GIT_COMMIT_SHA;
+      assert.deepEqual(await (await fetch(`${ctx.baseUrl()}/health`)).json(), { ok: true });
+      process.env.RAILWAY_GIT_COMMIT_SHA = '0123456789abcdef0123';
+      assert.deepEqual(await (await fetch(`${ctx.baseUrl()}/health`)).json(), { ok: true, commit: '0123456789ab' });
+    } finally {
+      if (saved === undefined) delete process.env.RAILWAY_GIT_COMMIT_SHA; else process.env.RAILWAY_GIT_COMMIT_SHA = saved;
+    }
+  });
+
   it('answers HEAD probes on liveness and readiness', async () => {
     for (const path of ['/health', '/ready']) {
       const response = await fetch(`${ctx.baseUrl()}${path}`, { method: 'HEAD' });

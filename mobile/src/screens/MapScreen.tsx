@@ -10,9 +10,8 @@
 // mounting a second map instance, which keeps map billing/state predictable
 // and matches the PWA's tab-owned interaction model.
 import * as React from 'react';
-import { AccessibilityInfo, ActivityIndicator, View, Text, Pressable, Alert, Linking, Platform, useColorScheme, useWindowDimensions } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { AccessibilityInfo, ActivityIndicator, BackHandler, View, Text, Pressable, Alert, Linking, useColorScheme, useWindowDimensions } from 'react-native';
+import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -23,7 +22,7 @@ import MapView, { Marker, Polyline } from 'react-native-maps';
 import type { RootStackParamList, TabParamList } from '../navigation';
 import { HIDDEN_TAB_BAR_STYLE, TAB_BAR_STYLE } from '../navigation/tabBarStyle';
 import { useAuth } from '../auth/AuthContext';
-import { colors, spacing, MIN_TOUCH_TARGET } from '../theme';
+import { colors, spacing, MIN_TOUCH_TARGET, pressedFeedback } from '../theme';
 import { BOTTOM_BAR_HEIGHT, HUD_ACTION_HEIGHT, NAVIGATION_SUMMARY_BASE_HEIGHT, styles } from './MapScreen.styles';
 import { RideBar } from '../ride/RideBar';
 import { useRide } from '../ride/RideContext';
@@ -36,9 +35,7 @@ import { useFriends } from '../friends/FriendsContext';
 import type { PlaceResult } from '../api/places';
 import { HazardReportSheet } from './HazardReportSheet';
 import { HazardDetailCard } from '../components/HazardDetailCard';
-import { NowPlayingCard, useNowPlaying } from '../components/NowPlayingCard';
 import { useNavigationLiveActivity } from './useNavigationLiveActivity';
-import { mediaControls } from '../audio/mediaControlsNative';
 import { buildNavigationProviderUrl, navigationTargetFromValues, openNavigationUrl } from '../navigationLinks';
 import type { NavigationTarget } from '../navigationLinks';
 import { useMovementSafety } from '../safety/MovementSafetyContext';
@@ -53,7 +50,6 @@ import {
   navigationSpeedUnit,
 } from '../navigationGuidance';
 import { RiderAvatar } from '../components/RiderAvatar';
-import { MUSIC_APP_STORAGE_KEY, musicAppsFor, type MusicApp } from '../musicApps';
 import { NavigationManeuverGlyph } from '../components/NavigationManeuverGlyph';
 import { NavigationRoadAhead } from '../components/NavigationRoadAhead';
 import { HazardMarker, NavigationPuckMarker, SmoothSelfMarker, SmoothRideMemberMarker } from './mapMarkers';
@@ -400,9 +396,6 @@ export function MapScreen(): React.JSX.Element {
     distanceToCurrentStepEnd < 250,
   );
 
-  const musicCardVisible = segment === 'public' && !activeRoute && !activeRide && !selectedDestination && !selectedHazard;
-  const { nowPlaying, access: nowPlayingAccess, refresh: refreshNowPlaying } = useNowPlaying(musicCardVisible);
-
   React.useEffect(() => {
     navigation.setOptions({ tabBarStyle: activeRoute ? { display: 'none' } : undefined });
     return () => navigation.setOptions({ tabBarStyle: undefined });
@@ -417,48 +410,6 @@ export function MapScreen(): React.JSX.Element {
       return;
     }
     focusCoordinate(location);
-  }
-
-  async function showNowPlayingOnMap(): Promise<void> {
-    if (Platform.OS === 'android') {
-      // Prominent disclosure before the system's notification-access screen.
-      Alert.alert(
-        'Show what’s playing',
-        'To show the song and its artwork on the map, Android needs Rider Comms turned on under Notification access. Rider Comms only reads the music that’s playing, never your notifications. You can turn it off there at any time.',
-        [
-          { text: 'Not now', style: 'cancel' },
-          { text: 'Open settings', onPress: () => { void mediaControls.requestNowPlayingAccess().then(refreshNowPlaying); } },
-        ],
-      );
-      return;
-    }
-    const access = await mediaControls.requestNowPlayingAccess();
-    refreshNowPlaying();
-    if (access === 'denied') {
-      Alert.alert('Music access is off', 'To show what’s playing in the Music app, allow Media & Apple Music for Rider Comms in Settings.', [
-        { text: 'Not now', style: 'cancel' },
-        { text: 'Open settings', onPress: () => void Linking.openSettings() },
-      ]);
-    }
-  }
-
-  async function openMusicPicker(): Promise<void> {
-    const lastUsed = await AsyncStorage.getItem(MUSIC_APP_STORAGE_KEY).catch(() => null);
-    const launch = async (app: MusicApp): Promise<void> => {
-      await AsyncStorage.setItem(MUSIC_APP_STORAGE_KEY, app.id).catch(() => {});
-      try {
-        await Linking.openURL(app.url);
-      } catch {
-        Alert.alert(`Couldn’t open ${app.name}`, 'Is it installed?');
-      }
-    };
-    // iOS can only show the Music app's track; Android shows any app's.
-    const offerNowPlaying = mediaControls.canShowNowPlaying && nowPlayingAccess !== 'granted';
-    Alert.alert('Music', 'Opens your music app. While riding, play, pause and skip with your helmet or headset buttons.', [
-      ...musicAppsFor(Platform.OS, lastUsed).map((app) => ({ text: app.name, onPress: () => void launch(app) })),
-      ...(offerNowPlaying ? [{ text: 'Show what’s playing on the map', onPress: () => void showNowPlayingOnMap() }] : []),
-      { text: 'Cancel', style: 'cancel' as const },
-    ]);
   }
 
   function selectPlace(place: PlaceResult): void {
@@ -514,8 +465,24 @@ export function MapScreen(): React.JSX.Element {
     }
   }
 
+  useFocusEffect(React.useCallback(() => {
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (segment === 'host') {
+        navigation.setParams({ segment: 'public', at: Date.now() });
+        return true;
+      }
+      if (drawerOpen) {
+        setDrawerOpen(false);
+        return true;
+      }
+      return false;
+    });
+    return () => subscription.remove();
+  }, [drawerOpen, navigation, segment]));
+
   // The drawer steps aside while navigating, while Ride Safe locks the
   // controls, and while a place or hazard card owns the bottom of the map.
+  const friendsAttention = incomingRequests.length + unreadMessageCount;
   const drawerVisible = segment === 'public' && !lockedForSafety && !activeRoute && !selectedDestination && !selectedHazard;
   const bottomInset = drawerVisible && drawerPeek > 0 ? drawerPeek : insets.bottom;
   // Bottom controls sit above the drawer, and above the ride bar while a
@@ -647,16 +614,25 @@ export function MapScreen(): React.JSX.Element {
 
       {segment === 'public' && !lockedForSafety && !activeRoute && (
         <View style={[styles.searchSlot, styles.searchRow, { top: insets.top + spacing.sm }]}>
-          {/* The menu (Routes, Settings, plan, help). */}
+          {/* The menu (Ride, Friends, Routes, Settings, plan, help). Friend
+              requests and unread messages show as a count on the avatar. */}
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Open menu"
-            accessibilityHint="Your profile, routes, settings and help"
+            accessibilityLabel={friendsAttention > 0 ? `Open menu, ${friendsAttention} new from friends` : 'Open menu'}
+            accessibilityHint="Ride, friends, routes, settings and help"
             testID="open-menu"
             onPress={() => rootNavigation?.navigate('Menu')}
             style={({ pressed }) => [styles.menuButton, pressed && styles.menuButtonPressed]}
           >
-            <RiderAvatar avatarId={avatarId} size={44} mapMarker={false} status="none" />
+            <RiderAvatar avatarId={avatarId} size={46} mapMarker={false} status="none" />
+            <View style={styles.menuHint} pointerEvents="none">
+              <Ionicons name="menu" size={12} color={colors.textPrimary} />
+            </View>
+            {friendsAttention > 0 ? (
+              <View style={styles.menuBadge} testID="menu-badge">
+                <Text style={styles.menuBadgeText}>{friendsAttention > 99 ? '99+' : friendsAttention}</Text>
+              </View>
+            ) : null}
           </Pressable>
         </View>
       )}
@@ -673,7 +649,7 @@ export function MapScreen(): React.JSX.Element {
             accessibilityRole="button"
             accessibilityLabel="Dismiss map message"
             accessibilityHint="Hides this message without changing your map or ride settings"
-            style={styles.mapErrorDismiss}
+            style={({ pressed }) => [styles.mapErrorDismiss, pressed && pressedFeedback]}
             onPress={() => setError(null)}
           >
             <Ionicons name="close" size={20} color={colors.textSecondary} />
@@ -696,20 +672,11 @@ export function MapScreen(): React.JSX.Element {
 
       {segment === 'public' && !selectedDestination && !activeRoute && (
         <View style={[styles.mapActions, { bottom: bottomBarOffset + (lockedForSafety ? HUD_ACTION_HEIGHT : BOTTOM_BAR_HEIGHT) + spacing.sm }]}>
-          {!lockedForSafety && <Pressable
-            style={({ pressed }) => [styles.mapActionButton, pressed && styles.mapActionButtonPressed]}
-            onPress={() => void openMusicPicker()}
-            accessibilityRole="button"
-            accessibilityLabel="Open your music app"
-            accessibilityHint="Choose a music app or show what is currently playing"
-          >
-            <Ionicons name="musical-notes" size={22} color={colors.textPrimary} />
-          </Pressable>}
           <Pressable
             style={({ pressed }) => [styles.mapActionButton, pressed && styles.mapActionButtonPressed]}
             onPress={() => void centreOnCurrentLocation()}
             accessibilityRole="button"
-            accessibilityLabel="Centre map on my location"
+            accessibilityLabel="Centre on my location"
             accessibilityHint="Moves the map back to your current position"
           >
             <Ionicons name="navigate-outline" size={22} color={colors.accent} />
@@ -733,7 +700,7 @@ export function MapScreen(): React.JSX.Element {
             onPress={() => void handleNearbyToggle()}
             accessibilityRole="switch"
             accessibilityState={{ checked: publicLive, busy: nearbyTogglePending, disabled: nearbyTogglePending }}
-            accessibilityLabel={publicLive ? 'Stop live location and proximity voice' : 'Go live nearby and enable proximity voice'}
+            accessibilityLabel={publicLive ? 'Leave nearby' : 'Go live nearby'}
             accessibilityHint={publicLive ? 'Stops sharing your nearby presence' : 'Shares your nearby presence and enables proximity voice'}
             disabled={nearbyTogglePending}
             testID="go-live-button"
@@ -844,15 +811,6 @@ export function MapScreen(): React.JSX.Element {
         onReport={handleReport}
       />
 
-      {musicCardVisible && nowPlaying && (
-        <NowPlayingCard
-          nowPlaying={nowPlaying}
-          controlsLocked={lockedForSafety}
-          onChanged={refreshNowPlaying}
-          style={{ left: spacing.md, right: spacing.md + 54 + spacing.md, bottom: bottomInset + spacing.sm }}
-        />
-      )}
-
       {segment === 'public' && !activeRoute && selectedHazard && (
         <HazardDetailCard
           hazard={selectedHazard}
@@ -877,7 +835,7 @@ export function MapScreen(): React.JSX.Element {
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Dismiss destination"
-              style={styles.destinationCardDismiss}
+              style={({ pressed }) => [styles.destinationCardDismiss, pressed && pressedFeedback]}
               onPress={() => {
                 setNavigationTarget(null);
                 setSelectedPlace(null);
@@ -895,7 +853,7 @@ export function MapScreen(): React.JSX.Element {
             </Text>
           </View>
           <Pressable
-            style={styles.destinationPrimaryAction}
+            style={({ pressed }) => [styles.destinationPrimaryAction, pressed && pressedFeedback]}
             accessibilityRole="button"
             accessibilityLabel={navigationLoading
               ? `Starting route to ${selectedDestination.label ?? 'selected place'}`
@@ -945,7 +903,7 @@ export function MapScreen(): React.JSX.Element {
                   {navigationGuidanceInstruction}
                 </Text>
               </View>
-              <Pressable accessibilityRole="button" accessibilityLabel="End navigation" onPress={() => finishInAppNavigation(false)} style={styles.navigationEndButton}>
+              <Pressable accessibilityRole="button" accessibilityLabel="End navigation" onPress={() => finishInAppNavigation(false)} style={({ pressed }) => [styles.navigationEndButton, pressed && pressedFeedback]}>
                 <Ionicons name="close" size={24} color={colors.textPrimary} />
               </Pressable>
             </View>
@@ -1025,11 +983,10 @@ export function MapScreen(): React.JSX.Element {
           near={currentLocation}
           onRequestLocation={async () => { await requestCurrentLocation(true); }}
           onSelectPlace={selectPlace}
-          onRide={() => { setDrawerOpen(false); navigation.setParams({ segment: 'host', at: Date.now() }); }}
-          onFriends={() => { setDrawerOpen(false); navigation.navigate('Friends'); }}
-          onRoutes={() => { setDrawerOpen(false); rootNavigation?.navigate('Routes'); }}
-          rideLive={Boolean(activeRide)}
-          friendsCount={incomingRequests.length + unreadMessageCount}
+          onRouteToPlace={(place) => {
+            selectPlace(place);
+            void openDirections({ lat: place.lat, lon: place.lon, label: place.name });
+          }}
           open={drawerOpen}
           onOpenChange={setDrawerOpen}
           onPeekHeight={setDrawerPeek}

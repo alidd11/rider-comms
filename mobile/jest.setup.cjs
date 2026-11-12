@@ -16,6 +16,9 @@ jest.mock('expo-iap', () => ({
   purchaseErrorListener: jest.fn(() => ({ remove: jest.fn() })),
 }));
 
+// Haptics are native; tests only need the calls to resolve.
+jest.mock('expo-haptics', () => ({ selectionAsync: jest.fn(async () => undefined) }));
+
 // Push notifications are native; tests get a phone that hasn't been asked.
 jest.mock('expo-notifications', () => ({
   setNotificationHandler: jest.fn(),

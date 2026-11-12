@@ -165,9 +165,132 @@
     renderRecentOrHint();
   }
 
-  function openSearchScreen() {
+  // Home and Work: one tap away in the drawer, kept on this device for this
+  // rider like recent searches (native: @rider-comms/saved-places).
+  const SAVED_PLACES_KEY = 'riderComms.savedPlaces';
+  const SAVED_PLACE_LABELS = { home: 'Home', work: 'Work' };
+  const savedPlacesStorageKey = () => session?.riderId ? `${SAVED_PLACES_KEY}:${session.riderId}` : null;
+  // The slot search is choosing a place for, if any.
+  let savingPlaceSlot = null;
+  // Search opened from Settings saves the place without touching the map,
+  // then returns to that Settings page.
+  let savingFromSettingsPage = null;
+
+  function validSavedPlace(entry) {
+    return entry && typeof entry.placeId === 'string' && typeof entry.name === 'string'
+      && Number.isFinite(entry.lat) && Math.abs(entry.lat) <= 90 && Number.isFinite(entry.lng) && Math.abs(entry.lng) <= 180;
+  }
+
+  function loadSavedPlaces() {
+    try {
+      const key = savedPlacesStorageKey();
+      const raw = key ? JSON.parse(localStorage.getItem(key) || '{}') : {};
+      const saved = {};
+      for (const slot of Object.keys(SAVED_PLACE_LABELS)) if (validSavedPlace(raw?.[slot])) saved[slot] = raw[slot];
+      return saved;
+    } catch {
+      return {};
+    }
+  }
+
+  function setSavedPlace(slot, entry) {
+    try {
+      const key = savedPlacesStorageKey();
+      if (!key) return;
+      const saved = loadSavedPlaces();
+      if (entry) saved[slot] = { placeId: entry.placeId, name: entry.name, secondary: entry.secondary || '', lat: entry.lat, lng: entry.lng };
+      else delete saved[slot];
+      localStorage.setItem(key, JSON.stringify(saved));
+    } catch { /* A full or blocked store just means the shortcut asks again. */ }
+    renderSavedPlaceShortcuts();
+    if (currentSettingsPage === 'mapNavigation') openSheet('mapNavigation');
+  }
+
+  function renderSavedPlaceShortcuts() {
+    const saved = loadSavedPlaces();
+    $$('[data-saved-place]').forEach((button) => {
+      const slot = button.dataset.savedPlace;
+      const place = saved[slot];
+      const label = SAVED_PLACE_LABELS[slot];
+      button.setAttribute('aria-label', place ? `${label}, ${place.name}` : `Set ${label}`);
+      button.title = place ? `Route to ${place.name}. Press and hold to change ${label}.` : `Choose your ${label.toLowerCase()} address`;
+    });
+  }
+
+  function showSavedPlace(place) {
+    panToPlace(place.lat, place.lng);
+    setDestinationMarker(new google.maps.LatLng(place.lat, place.lng), place.name, place.secondary);
+  }
+
+  // Home and Work start the route straight away, like other map apps: in
+  // Rider Comms, or handed to the rider's chosen navigation app.
+  function routeToSavedPlace(place) {
+    if (window.google?.maps) showSavedPlace(place);
+    const provider = navigationProvider(state.navigationProvider);
+    if (provider === 'in_app') {
+      if (window.google?.maps) void startInAppNavigation(new google.maps.LatLng(place.lat, place.lng), place.name);
+      return;
+    }
+    window.open(navigationHref(provider, place.lat, place.lng, place.name), '_blank', 'noopener');
+  }
+
+  function openSavedPlace(slot) {
+    const place = loadSavedPlaces()[slot];
+    if (place) routeToSavedPlace(place);
+    else openSearchScreen({ saveAs: slot });
+  }
+
+  // Settings, Map & navigation: set, change or remove Home and Work.
+  function editSavedPlaceFromSettings(slot) {
+    const page = currentSettingsPage;
+    closeSheet();
+    openSearchScreen({ saveAs: slot, fromSettingsPage: page });
+  }
+
+  function editSavedPlace(slot) {
+    const place = loadSavedPlaces()[slot];
+    if (!place) { openSearchScreen({ saveAs: slot }); return; }
+    const label = SAVED_PLACE_LABELS[slot];
+    presentSheet(label, `<p class="caption saved-place-address"><strong>${escapeHtml(place.name)}</strong>${place.secondary ? `<br>${escapeHtml(place.secondary)}` : ''}</p>
+      <button class="button secondary wide" type="button" id="savedPlaceChange">Change ${label}</button>
+      <button class="button danger wide" type="button" id="savedPlaceRemove">Remove ${label}</button>`, () => {
+      $('#savedPlaceChange').addEventListener('click', () => { closeSheet(); openSearchScreen({ saveAs: slot }); });
+      $('#savedPlaceRemove').addEventListener('click', () => { setSavedPlace(slot, null); closeSheet(); showToast(`${label} removed.`); });
+    });
+  }
+
+  // A place chosen while search is choosing Home or Work is saved there too.
+  // Returns true when that is all it's for (search opened from Settings).
+  function rememberChosenPlace(entry) {
+    saveRecentSearch(entry);
+    if (!savingPlaceSlot) return false;
+    const label = SAVED_PLACE_LABELS[savingPlaceSlot];
+    setSavedPlace(savingPlaceSlot, entry);
+    savingPlaceSlot = null;
+    if (savingFromSettingsPage) {
+      showToast(`${label} saved.`);
+      closeSearchScreen();
+      return true;
+    }
+    showToast(`${label} saved. Tap it in Where to and the route starts.`);
+    return false;
+  }
+
+  function openSearchScreen(options = {}) {
     if ($('#mapSearchSlot')?.classList.contains('offline')) return;
+    savingPlaceSlot = SAVED_PLACE_LABELS[options.saveAs] ? options.saveAs : null;
+    savingFromSettingsPage = savingPlaceSlot && typeof options.fromSettingsPage === 'string' ? options.fromSettingsPage : null;
+    const current = savingPlaceSlot ? loadSavedPlaces()[savingPlaceSlot] : null;
+    $('#searchSaveCurrent').hidden = !current;
+    $('#searchSaveCurrentName').textContent = current ? `Now: ${current.name}` : '';
+    const saveLabel = savingPlaceSlot ? SAVED_PLACE_LABELS[savingPlaceSlot] : '';
+    $('#searchSaveBanner').hidden = !savingPlaceSlot;
+    $('#searchSaveBanner').textContent = savingPlaceSlot ? `Choose your ${saveLabel}` : '';
+    $('#poiChipRow').hidden = Boolean(savingPlaceSlot);
+    $('#searchScreenInput').placeholder = savingPlaceSlot ? `Your ${saveLabel.toLowerCase()} address` : 'Search for a place';
+    $('#searchScreenInput').setAttribute('aria-label', savingPlaceSlot ? `Search for your ${saveLabel.toLowerCase()} address` : 'Search for a place');
     clearPoiMarkers();
+    pushOverlayGuard();
     $('#searchScreen').hidden = false;
     const input = $('#searchScreenInput');
     input.value = '';
@@ -185,6 +308,10 @@
   }
 
   function closeSearchScreen() {
+    savingPlaceSlot = null;
+    const returnTo = savingFromSettingsPage;
+    savingFromSettingsPage = null;
+    if (returnTo) queueMicrotask(() => openSheet(returnTo));
     searchRequestToken += 1;
     clearTimeout(searchDebounceTimer);
     $('#searchScreen').hidden = true;
@@ -337,6 +464,7 @@
   function setMapDrawerOpen(open) {
     const drawer = $('#mapDrawer');
     if (!drawer) return;
+    if (open && drawer.dataset.state !== 'open') pushOverlayGuard();
     drawer.dataset.state = open ? 'open' : 'peek';
     $('#mapDrawerRecent').hidden = !open;
     const handle = $('#mapDrawerHandle');
@@ -346,35 +474,104 @@
     if (open) renderDrawerRecent();
   }
 
-  // Slide up to open, down to close, tap the handle to toggle. A drag that
-  // starts on a button must not also press it.
+  const DRAWER_SETTLE_MS = 220;
+  const prefersReducedMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
+
+  // The recent list's full height when open (it scrolls past its max-height).
+  function drawerListHeight(list) {
+    const max = parseFloat(getComputedStyle(list).maxHeight);
+    return Math.min(list.scrollHeight, Number.isFinite(max) ? max : list.scrollHeight);
+  }
+
+  // Grows or shrinks the recent list from `from` px to open or closed, then
+  // hands the final state to setMapDrawerOpen.
+  let drawerSettleTimer;
+  function settleMapDrawer(open, from) {
+    const list = $('#mapDrawerRecent');
+    if (!list) return;
+    clearTimeout(drawerSettleTimer);
+    if (open) setMapDrawerOpen(true);
+    const clear = () => {
+      list.style.height = '';
+      list.style.overflow = '';
+      list.style.transition = '';
+    };
+    if (prefersReducedMotion()) {
+      clear();
+      if (!open) setMapDrawerOpen(false);
+      return;
+    }
+    list.hidden = false;
+    const target = open ? drawerListHeight(list) : 0;
+    list.style.overflow = 'hidden';
+    list.style.transition = 'none';
+    list.style.height = `${from}px`;
+    void list.offsetHeight;
+    list.style.transition = `height ${DRAWER_SETTLE_MS}ms cubic-bezier(.2,.8,.2,1)`;
+    list.style.height = `${target}px`;
+    drawerSettleTimer = setTimeout(() => {
+      clear();
+      if (!open) setMapDrawerOpen(false);
+    }, DRAWER_SETTLE_MS + 20);
+  }
+
+  function toggleMapDrawer(open) {
+    const list = $('#mapDrawerRecent');
+    const from = list && !list.hidden ? list.getBoundingClientRect().height : 0;
+    settleMapDrawer(open, from);
+  }
+
+  // The drawer follows the finger: the recent list grows or shrinks with the
+  // slide, then settles open or closed. A tap on the handle toggles it, and a
+  // slide that starts on a button must not also press it.
   function initMapDrawer() {
     const drawer = $('#mapDrawer');
     if (!drawer) return;
-    let startY = null;
+    const list = $('#mapDrawerRecent');
+    let drag = null;
     let dragged = false;
     // Follow the gesture on the window: a slide quickly leaves the drawer's
     // own edge, and capturing the pointer would steal plain taps from its
     // buttons.
     const onMove = (event) => {
-      if (startY !== null && Math.abs(event.clientY - startY) > 8) dragged = true;
+      if (!drag) return;
+      const dy = event.clientY - drag.startY;
+      if (!dragged) {
+        if (Math.abs(dy) <= 8) return;
+        dragged = true;
+        clearTimeout(drawerSettleTimer);
+        // Opening: show the list now, at no height, so it can grow.
+        if (!drag.wasOpen) setMapDrawerOpen(true);
+        drag.full = drawerListHeight(list);
+        list.style.overflow = 'hidden';
+        list.style.transition = 'none';
+      }
+      const height = Math.max(0, Math.min(drag.full, drag.startHeight - dy));
+      list.style.height = `${height}px`;
+      drag.height = height;
     };
     const onEnd = (event) => {
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onEnd);
       window.removeEventListener('pointercancel', onEnd);
-      if (startY === null) return;
-      const dy = event.type === 'pointerup' ? event.clientY - startY : 0;
-      startY = null;
+      const current = drag;
+      drag = null;
       // A slide's own click (if any) follows straight after; never let a
       // stale flag swallow a later, real tap.
       setTimeout(() => { dragged = false; }, 0);
-      if (dy < -30) setMapDrawerOpen(true);
-      else if (dy > 30) setMapDrawerOpen(false);
+      if (!current || !dragged) return;
+      const dy = event.type === 'pointerup' ? event.clientY - current.startY : 0;
+      // Open past a short pull up, or when mostly open and not pulled down.
+      const open = current.wasOpen ? dy < 60 : dy < -30;
+      // A light tick when the slide snaps the drawer to its other rest, like
+      // the native app (where the browser supports it).
+      if (open !== current.wasOpen) navigator.vibrate?.(8);
+      settleMapDrawer(open, current.height ?? current.startHeight);
     };
     drawer.addEventListener('pointerdown', (event) => {
       if (event.target.closest('#mapDrawerRecent')) return;
-      startY = event.clientY;
+      const wasOpen = drawer.dataset.state === 'open';
+      drag = { startY: event.clientY, wasOpen, startHeight: wasOpen ? list.getBoundingClientRect().height : 0 };
       dragged = false;
       window.addEventListener('pointermove', onMove);
       window.addEventListener('pointerup', onEnd);
@@ -386,14 +583,45 @@
       event.preventDefault();
       event.stopPropagation();
     }, true);
-    $('#mapDrawerHandle').addEventListener('click', () => setMapDrawerOpen(drawer.dataset.state !== 'open'));
-    $$('[data-drawer-nav]', drawer).forEach((button) => button.addEventListener('click', () => {
+    $('#mapDrawerHandle').addEventListener('click', () => toggleMapDrawer(drawer.dataset.state !== 'open'));
+    $$('[data-saved-place]', drawer).forEach((button) => {
+      const slot = button.dataset.savedPlace;
+      let holdTimer;
+      let held = false;
+      const cancelHold = () => clearTimeout(holdTimer);
+      button.addEventListener('pointerdown', () => {
+        held = false;
+        cancelHold();
+        holdTimer = setTimeout(() => { held = true; editSavedPlace(slot); }, 550);
+      });
+      ['pointerup', 'pointerleave', 'pointercancel'].forEach((type) => button.addEventListener(type, cancelHold));
+      button.addEventListener('contextmenu', (event) => {
+        event.preventDefault();
+        cancelHold();
+        if (!held) { held = true; editSavedPlace(slot); }
+      });
+      button.addEventListener('click', () => {
+        if (held) { held = false; return; }
+        setMapDrawerOpen(false);
+        openSavedPlace(slot);
+      });
+    });
+    $('#searchSaveRemove').addEventListener('click', () => {
+      const slot = savingPlaceSlot;
+      if (!slot) return;
+      setSavedPlace(slot, null);
+      showToast(`${SAVED_PLACE_LABELS[slot]} removed.`);
+      closeSearchScreen();
+    });
+    $('#drawerPetrol').addEventListener('click', () => {
       setMapDrawerOpen(false);
-      navigate(button.dataset.drawerNav);
-    }));
+      openSearchScreen();
+      $('.poi-chip[data-poi-type="gas_station"]')?.click();
+    });
+    renderSavedPlaceShortcuts();
     drawer.addEventListener('keydown', (event) => {
       if (event.key === 'Escape' && drawer.dataset.state === 'open') {
-        setMapDrawerOpen(false);
+        toggleMapDrawer(false);
         $('#mapDrawerHandle').focus();
       }
     });
@@ -409,7 +637,7 @@
 
   function selectRecentSearch(item) {
     if (!item) return;
-    saveRecentSearch(item);
+    if (rememberChosenPlace(item)) return;
     panToPlace(item.lat, item.lng);
     // showDestinationCard/setDestinationMarker call location.lat()/.lng()
     // as methods (matching the real google.maps.LatLng that
@@ -426,8 +654,12 @@
     clearPoiMarkers();
     panToPlace(place.location.lat, place.location.lng);
     setDestinationMarker(location, place.name);
+    if (place.placeId && savingFromSettingsPage) {
+      rememberChosenPlace({ placeId: place.placeId, name: place.name, secondary: place.address || '', lat: place.location.lat, lng: place.location.lng });
+      return;
+    }
     if (place.placeId) {
-      saveRecentSearch({
+      rememberChosenPlace({
         placeId: place.placeId,
         name: place.name,
         secondary: place.address || '',
@@ -449,10 +681,14 @@
       }
       const lat = location.lat();
       const lng = location.lng();
+      if (savingFromSettingsPage) {
+        rememberChosenPlace({ placeId, name: place.name || 'Selected place', secondary: place.formatted_address || '', lat, lng });
+        return;
+      }
       panToPlace(lat, lng);
       setDestinationMarker(location, place.name, place.formatted_address);
       showToast(place.name ? `Centred on ${place.name}` : 'Centred on selected place.');
-      saveRecentSearch({ placeId, name: place.name || 'Selected place', secondary: place.formatted_address || '', lat, lng });
+      rememberChosenPlace({ placeId, name: place.name || 'Selected place', secondary: place.formatted_address || '', lat, lng });
       closeSearchScreen();
     });
   }

@@ -8,7 +8,12 @@ export const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border,
   },
   collapsedText: { ...type.body, color: colors.textMuted, flex: 1, fontSize: 13 },
-  pressed: { opacity: 0.76 },
+  pressed: { opacity: 0.7 },
+  saveBanner: { ...type.caption, fontWeight: '700', color: colors.textSecondary, paddingHorizontal: spacing.lg, paddingTop: spacing.sm },
+  hidden: { display: 'none' },
+  saveCurrent: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.lg, paddingTop: spacing.xs },
+  saveCurrentText: { ...type.caption, color: colors.textSecondary, flex: 1 },
+  saveRemove: { ...type.caption, fontWeight: '700', color: colors.danger },
   screen: { flex: 1, backgroundColor: colors.background },
   header: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.md, paddingVertical: 10 },
   backButton: {

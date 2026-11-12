@@ -6,7 +6,7 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp, NativeStackScreenProps } from '@react-navigation/native-stack';
 import Constants from 'expo-constants';
 import type { SocialVisibility } from '@rider-comms/shared';
-import { colors, spacing } from '../theme';
+import { colors, spacing, pressedFeedback } from '../theme';
 import { BlockedRidersList } from './BlockedRidersList';
 import { LEGAL_LINKS } from '../legalLinks';
 import { styles } from './SettingsScreen.styles';
@@ -23,6 +23,11 @@ import { NAVIGATION_PROVIDER_OPTIONS, type NavigationProvider } from '../navigat
 import { CategoryRow, CheckRow, PlainRow, SegmentedRow, SettingsGroup, SettingsHeader, SwitchRow, useSettingsPalette } from './SettingsListUi';
 import { RIDER_VEHICLE_OPTIONS } from '../riderPreferences';
 import { MotorbikeIcon } from '../components/MotorbikeIcon';
+import * as Location from 'expo-location';
+import { PlaceSearchBar } from './PlaceSearchBar';
+import type { PlaceSearchHandle } from './PlaceSearchBar';
+import { SAVED_PLACE_LABELS, SAVED_PLACE_SLOTS } from '../search/savedPlaces';
+import { useSavedPlaces } from '../search/useSavedPlaces';
 import { disablePush, enablePush, pushEnabledOnDevice, pushPermission, PushNotConfiguredError, type PushPermission } from '../notifications/pushNotifications';
 
 const UNIT_LABELS: Record<UnitSystem, { name: string; blurb: string }> = {
@@ -130,7 +135,7 @@ function AvatarPickerModal({
               <Text style={styles.modalTitle}>Choose an avatar</Text>
               <Text style={styles.modalSubtitle}>Choose how you appear in Rider Comms and on authorised live ride maps.</Text>
             </View>
-            <Pressable style={styles.modalClose} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close avatar picker">
+            <Pressable style={({ pressed }) => [styles.modalClose, pressed && pressedFeedback]} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close avatar picker">
               <Ionicons name="close" size={20} color={colors.textPrimary} />
             </Pressable>
           </View>
@@ -188,7 +193,7 @@ function AvatarPickerModal({
             })}
           </ScrollView>
 
-          <Pressable accessibilityRole="button" style={styles.modalDone} onPress={onClose}>
+          <Pressable accessibilityRole="button" style={({ pressed }) => [styles.modalDone, pressed && pressedFeedback]} onPress={onClose}>
             <Text style={styles.modalDoneText}>Done</Text>
           </Pressable>
         </Pressable>
@@ -314,12 +319,19 @@ export function SettingsScreen(): React.JSX.Element {
   const palette = useSettingsPalette();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const openPage = (page: SettingsPageKey) => navigation.push('SettingsPage', { page });
-  const appVersion = Constants.expoConfig?.version ?? '0.1.0';
 
   return (
     <View style={[styles.container, { backgroundColor: palette.page }]}>
       <SettingsHeader title="Settings" topInset={insets.top} onBack={() => navigation.goBack()} />
-      <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + spacing.md }} showsVerticalScrollIndicator={false}>
+      {/* The categories fit on a phone, so the list stays still; it only
+          scrolls when it can't fit (very large text sizes). The version is
+          on the About page. */}
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: insets.bottom + spacing.md }}
+        showsVerticalScrollIndicator={false}
+        alwaysBounceVertical={false}
+        overScrollMode="never"
+      >
         {profileError ? (
           <View style={styles.profileSaveStatus} accessibilityLiveRegion="polite">
             <Ionicons name="alert-circle" size={17} color={colors.danger} />
@@ -328,31 +340,30 @@ export function SettingsScreen(): React.JSX.Element {
           </View>
         ) : null}
 
-        <SettingsGroup>
+        <SettingsGroup compact>
           <CategoryRow first icon="settings" tint="#1FB6D9" title="General" onPress={() => openPage('general')} />
           <CategoryRow icon="map" tint="#2FB35F" title="Map & navigation" onPress={() => openPage('mapNavigation')} />
           <CategoryRow icon="volume-high" tint="#3478F6" title="Voice and sound" onPress={() => openPage('voiceSound')} />
         </SettingsGroup>
 
-        <SettingsGroup title="Riding">
+        <SettingsGroup compact title="Riding">
           <CategoryRow first icon="shield-checkmark" tint="#F2802A" title="Ride Safe" onPress={() => openPage('rideSafe')} />
-          <CategoryRow customIcon={<MotorbikeIcon color="#FFFFFF" />} tint="#8E5CF6" title="Vehicle details" onPress={() => openPage('vehicle')} />
+          <CategoryRow customIcon={<MotorbikeIcon size={20} color="#FFFFFF" />} tint="#8E5CF6" title="Vehicle details" onPress={() => openPage('vehicle')} />
         </SettingsGroup>
 
-        <SettingsGroup>
+        <SettingsGroup compact>
           <CategoryRow first icon="notifications" tint="#EF4444" title="Notifications" onPress={() => openPage('notifications')} />
         </SettingsGroup>
 
-        <SettingsGroup title="Account">
+        <SettingsGroup compact title="Account">
           <CategoryRow first icon="person" tint="#2A8196" title="Account and login" onPress={() => openPage('account')} />
           <CategoryRow icon="lock-closed" tint="#1E95E8" title="Privacy" onPress={() => openPage('privacy')} />
         </SettingsGroup>
 
-        <SettingsGroup>
+        <SettingsGroup compact>
           <CategoryRow first icon="information" tint="#16A9D9" title="About" onPress={() => openPage('about')} />
         </SettingsGroup>
 
-        <Text style={styles.settingsVersion}>Version {appVersion}</Text>
       </ScrollView>
       <RideBar />
     </View>
@@ -375,10 +386,60 @@ function MapNavigationPage(): React.JSX.Element {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const navigationAppLabel = NAVIGATION_PROVIDER_OPTIONS.find((option) => option.id === navigationProvider)?.label ?? '';
   return (
-    <SettingsGroup note="Route options apply to routes Rider Comms plans.">
-      <PlainRow first title="Navigation app" value={navigationAppLabel} onPress={() => navigation.push('SettingsPage', { page: 'navigationApp' })} />
-      <SwitchRow title="Avoid motorways" value={routeAvoidance.highways} onValueChange={(highways) => setRouteAvoidance({ ...routeAvoidance, highways })} />
-      <SwitchRow title="Avoid tolls" value={routeAvoidance.tolls} onValueChange={(tolls) => setRouteAvoidance({ ...routeAvoidance, tolls })} />
+    <>
+      <SettingsGroup note="Route options apply to routes Rider Comms plans.">
+        <PlainRow first title="Navigation app" value={navigationAppLabel} onPress={() => navigation.push('SettingsPage', { page: 'navigationApp' })} />
+        <SwitchRow title="Avoid motorways" value={routeAvoidance.highways} onValueChange={(highways) => setRouteAvoidance({ ...routeAvoidance, highways })} />
+        <SwitchRow title="Avoid tolls" value={routeAvoidance.tolls} onValueChange={(tolls) => setRouteAvoidance({ ...routeAvoidance, tolls })} />
+      </SettingsGroup>
+      <SavedPlacesGroup />
+    </>
+  );
+}
+
+/** Home and Work: set here or from Where to; a tap there starts the route
+ * (PWA: the Saved places section of Map & navigation). */
+function SavedPlacesGroup(): React.JSX.Element {
+  const { riderId } = useAuth();
+  const { savedPlaces, setSavedPlace } = useSavedPlaces(riderId);
+  const searchRef = React.useRef<PlaceSearchHandle>(null);
+  const [near, setNear] = React.useState<{ lat: number; lon: number } | null>(null);
+
+  // Search ranks places near the rider; ask for a fix only when they search.
+  const locate = React.useCallback(async (prompt: boolean): Promise<void> => {
+    try {
+      const permission = prompt ? await Location.requestForegroundPermissionsAsync() : await Location.getForegroundPermissionsAsync();
+      if (!permission.granted) return;
+      const position = await Location.getLastKnownPositionAsync() ?? await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      setNear({ lat: position.coords.latitude, lon: position.coords.longitude });
+    } catch {
+      // Search says location is needed and offers to try again.
+    }
+  }, []);
+  React.useEffect(() => { void locate(false); }, [locate]);
+
+  return (
+    <SettingsGroup title="Saved places" note="Tap Home or Work in Where to on the map and the route starts straight away.">
+      {SAVED_PLACE_SLOTS.map((slot, index) => {
+        const place = savedPlaces[slot];
+        return (
+          <PlainRow
+            key={slot}
+            first={index === 0}
+            title={SAVED_PLACE_LABELS[slot]}
+            value={place?.name ?? 'Not set'}
+            onPress={() => searchRef.current?.open({ saveAs: slot, current: place })}
+          />
+        );
+      })}
+      <PlaceSearchBar
+        ref={searchRef}
+        showBar={false}
+        near={near}
+        onRequestLocation={() => locate(true)}
+        onSelect={() => {}}
+        onSave={setSavedPlace}
+      />
     </SettingsGroup>
   );
 }
@@ -810,7 +871,7 @@ function DevicesPage(): React.JSX.Element {
               <Text style={styles.aboutLabel}>{session.deviceName}</Text>
               <Text style={styles.aboutValue}>{session.current ? 'This device' : 'Active ' + new Date(session.lastSeenAt).toLocaleDateString()}</Text>
             </View>
-            {session.current ? <Text style={styles.settingRowValue}>Current</Text> : <Pressable accessibilityRole="button" accessibilityLabel={'Sign out ' + session.deviceName} onPress={() => void revokeSession(session.id)} style={styles.sessionRevoke}><Text style={styles.sessionRevokeText}>Sign out</Text></Pressable>}
+            {session.current ? <Text style={styles.settingRowValue}>Current</Text> : <Pressable accessibilityRole="button" accessibilityLabel={'Sign out ' + session.deviceName} onPress={() => void revokeSession(session.id)} style={({ pressed }) => [styles.sessionRevoke, pressed && pressedFeedback]}><Text style={styles.sessionRevokeText}>Sign out</Text></Pressable>}
           </View>
         ))}
         {sessionsLoading && sessions.length === 0 ? (

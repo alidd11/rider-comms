@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { View, Text, Pressable, Switch, StyleSheet, useColorScheme } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors } from '../theme';
+import { colors, pressedFeedback } from '../theme';
 
 /**
  * Settings: grouped full-width rows on a darker page, coloured
@@ -30,12 +30,12 @@ export function SettingsHeader({ title, topInset, onBack, onClose }: {
   const palette = useSettingsPalette();
   return (
     <View style={[ui.header, { paddingTop: topInset + 6, backgroundColor: palette.group, borderBottomColor: palette.separator }]}>
-      <Pressable accessibilityRole="button" accessibilityLabel="Go back" onPress={onBack} hitSlop={8} style={ui.headerButton}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Go back" onPress={onBack} hitSlop={8} style={({ pressed }) => [ui.headerButton, pressed && pressedFeedback]}>
         <Ionicons name="chevron-back" size={26} color={colors.textPrimary} />
       </Pressable>
       <Text numberOfLines={1} style={ui.headerTitle} accessibilityRole="header">{title}</Text>
       {onClose ? (
-        <Pressable accessibilityRole="button" accessibilityLabel="Close settings" onPress={onClose} hitSlop={8} style={ui.headerButton}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Close settings" onPress={onClose} hitSlop={8} style={({ pressed }) => [ui.headerButton, pressed && pressedFeedback]}>
           <Ionicons name="close" size={26} color={colors.textPrimary} />
         </Pressable>
       ) : <View style={ui.headerButton} />}
@@ -44,10 +44,16 @@ export function SettingsHeader({ title, topInset, onBack, onClose }: {
 }
 
 /** A full-width group of rows, with an optional heading above and note below. */
-export function SettingsGroup({ title, note, children }: { title?: string; note?: string; children: React.ReactNode }): React.JSX.Element {
+export function SettingsGroup({ title, note, compact = false, children }: {
+  title?: string;
+  note?: string;
+  /** Tighter spacing, for the Settings home list so it fits without scrolling. */
+  compact?: boolean;
+  children: React.ReactNode;
+}): React.JSX.Element {
   const palette = useSettingsPalette();
   return (
-    <View style={ui.groupWrap}>
+    <View style={[ui.groupWrap, compact && ui.groupWrapCompact]}>
       {title ? <Text style={ui.groupTitle} accessibilityRole="header">{title}</Text> : null}
       <View style={[ui.group, { backgroundColor: palette.group, borderColor: palette.separator }]}>{children}</View>
       {note ? <Text style={ui.groupNote}>{note}</Text> : null}
@@ -72,9 +78,9 @@ export function CategoryRow({ icon, customIcon, tint, title, first = false, onPr
 }): React.JSX.Element {
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={title} onPress={onPress} style={({ pressed }) => [ui.row, ui.categoryRow, pressed && ui.pressed]}>
-      {first ? null : <Separator inset={68} />}
+      {first ? null : <Separator inset={64} />}
       <View style={[ui.categoryIcon, { backgroundColor: tint }]}>
-        {customIcon ?? (icon ? <Ionicons name={icon} size={22} color="#FFFFFF" /> : null)}
+        {customIcon ?? (icon ? <Ionicons name={icon} size={20} color="#FFFFFF" /> : null)}
       </View>
       <Text style={ui.rowTitle}>{title}</Text>
       <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
@@ -185,14 +191,15 @@ const ui = StyleSheet.create({
   headerButton: { width: 48, height: 40, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { flex: 1, textAlign: 'center', fontSize: 19, fontWeight: '700', color: colors.textPrimary },
   groupWrap: { marginTop: 28 },
+  groupWrapCompact: { marginTop: 20 },
   groupTitle: { paddingHorizontal: 16, paddingBottom: 8, fontSize: 15, color: colors.textSecondary },
   group: { borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth },
   groupNote: { paddingHorizontal: 16, paddingTop: 10, fontSize: 13, lineHeight: 18, color: colors.textSecondary },
   row: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 16, paddingVertical: 8 },
-  categoryRow: { minHeight: 64 },
-  pressed: { opacity: 0.6 },
+  categoryRow: { minHeight: 56, paddingVertical: 6 },
+  pressed: { opacity: 0.7 },
   separator: { position: 'absolute', top: 0, right: 16, height: StyleSheet.hairlineWidth },
-  categoryIcon: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  categoryIcon: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
   rowTitle: { flex: 1, fontSize: 17, fontWeight: '500', color: colors.textPrimary },
   rowValue: { maxWidth: '45%', fontSize: 15, color: colors.textSecondary },
   danger: { color: '#F07474' },

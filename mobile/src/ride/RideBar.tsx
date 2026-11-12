@@ -15,13 +15,10 @@ import { ApiError } from '../api/client';
 import { audioEngine } from '../audio/audioEngine';
 import { LiveKitAudioPriorityBridge } from '../audio/LiveKitAudioPriorityBridge';
 import { acquireVoiceAudioSession, releaseVoiceAudioSession } from '../audio/audioSession';
-import { mediaControls } from '../audio/mediaControlsNative';
-import type { MediaKey } from '../audio/mediaControls';
-import { useMusicPlayback } from '../audio/useMusicPlayback';
 import { useVoiceActivity } from '../audio/useVoiceActivity';
 import { useAuth } from '../auth/AuthContext';
 import { ActiveSpeakerBridge } from '../voice/ActiveSpeakerBridge';
-import { colors } from '../theme';
+import { colors, pressedFeedback } from '../theme';
 import { styles } from './RideBar.styles';
 import { useRide } from './RideContext';
 import { buildRideInviteLink } from './rideInvite';
@@ -110,49 +107,10 @@ function useRideVoiceToken(
   return state;
 }
 
-const CHANNELS: Array<{ key: 'nav' | 'chat' | 'music'; label: string; icon: keyof typeof Ionicons.glyphMap }> = [
+const CHANNELS: Array<{ key: 'nav' | 'chat'; label: string; icon: keyof typeof Ionicons.glyphMap }> = [
   { key: 'nav', label: 'Navigation', icon: 'navigate' },
   { key: 'chat', label: 'Group Chat', icon: 'people' },
-  { key: 'music', label: 'Music', icon: 'musical-notes' },
 ];
-
-/**
- * Play/pause and skip for the rider's music app where the platform allows it
- * (Android). iOS can't control other apps' music, so it says to use the
- * helmet or headset buttons instead. Only shown in the ride sheet, which
- * Ride Safe closes while moving.
- */
-function MusicControls({ playing, onChanged }: { playing: boolean | null; onChanged: () => void }): React.JSX.Element | null {
-  const { buttons, playbackState } = mediaControls.capabilities;
-  if (!buttons) {
-    return playbackState
-      ? <Text style={styles.musicHint}>Control music with your helmet or headset buttons, or your music app.</Text>
-      : null;
-  }
-  const press = (key: MediaKey) => {
-    if (mediaControls.send(key)) setTimeout(onChanged, 600);
-  };
-  const controls: Array<{ key: MediaKey; icon: keyof typeof Ionicons.glyphMap; label: string }> = [
-    { key: 'previous', icon: 'play-skip-back', label: 'Previous track' },
-    { key: 'playPause', icon: playing ? 'pause' : 'play', label: playing ? 'Pause music' : 'Play music' },
-    { key: 'next', icon: 'play-skip-forward', label: 'Next track' },
-  ];
-  return (
-    <View style={styles.musicControls}>
-      {controls.map(({ key, icon, label }) => (
-        <Pressable
-          key={key}
-          accessibilityRole="button"
-          accessibilityLabel={label}
-          onPress={() => press(key)}
-          style={({ pressed }) => [styles.musicButton, pressed && styles.musicButtonPressed]}
-        >
-          <Ionicons name={icon} size={22} color={colors.textPrimary} />
-        </Pressable>
-      ))}
-    </View>
-  );
-}
 
 function GainBar({ value }: { value: number }): React.JSX.Element {
   return (
@@ -186,7 +144,7 @@ function VoiceActivityBridge({
 
 /**
  * Floating "mini-player"-style bar for an active ride, visible over every
- * tab (à la a music app's now-playing bar) instead of taking over the whole
+ * tab (like a now-playing bar) instead of taking over the whole
  * screen — tap it to expand the full mixer + leave-ride controls.
  */
 export function RideBar({ controlsVisible = true }: { controlsVisible?: boolean } = {}): React.JSX.Element | null {
@@ -195,7 +153,6 @@ export function RideBar({ controlsVisible = true }: { controlsVisible?: boolean 
   const { lockedForSafety } = useMovementSafety();
   const [expanded, setExpanded] = React.useState(false);
   const [gains, setGains] = React.useState(audioEngine.getGains());
-  const music = useMusicPlayback(Boolean(activeRide));
   const [talking, setTalking] = React.useState(false);
   const [remoteSpeakerIds, setRemoteSpeakerIds] = React.useState<Set<string>>(new Set());
   const [memberNames, setMemberNames] = React.useState<Map<string, string>>(new Map());
@@ -426,7 +383,7 @@ export function RideBar({ controlsVisible = true }: { controlsVisible?: boolean 
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Leave active ride"
-            style={styles.compactLeaveButton}
+            style={({ pressed }) => [styles.compactLeaveButton, pressed && pressedFeedback]}
             onPress={handleLeave}
           >
             <Ionicons name="exit-outline" size={20} color={colors.danger} />
@@ -435,7 +392,7 @@ export function RideBar({ controlsVisible = true }: { controlsVisible?: boolean 
         </View>
       ) : controlsVisible ? (
         <>
-          <Pressable accessibilityRole="button" accessibilityLabel="Open ride controls" accessibilityHint="Shows voice, location sharing, music, and leave-ride controls" style={({ pressed }) => [styles.bar, pressed && styles.barPressed]} onPress={() => setExpanded(true)}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Open ride controls" accessibilityHint="Shows voice, location sharing and leave-ride controls" style={({ pressed }) => [styles.bar, pressed && styles.barPressed]} onPress={() => setExpanded(true)}>
             <View style={styles.liveDot} />
             <MaterialCommunityIcons name="motorbike" size={18} color={colors.accent} />
             <Text style={styles.barText}>In ride{activeRide.code ? ` · ${activeRide.code}` : ''}</Text>
@@ -471,7 +428,7 @@ export function RideBar({ controlsVisible = true }: { controlsVisible?: boolean 
                   <View style={styles.liveDot} />
                   <Text style={styles.statusText}>In ride</Text>
                 </View>
-                <Pressable accessibilityRole="button" accessibilityLabel="Collapse ride controls" onPress={() => setExpanded(false)} style={styles.closeButton}>
+                <Pressable accessibilityRole="button" accessibilityLabel="Collapse ride controls" onPress={() => setExpanded(false)} style={({ pressed }) => [styles.closeButton, pressed && pressedFeedback]}>
                   <Ionicons name="chevron-down" size={22} color={colors.textSecondary} />
                 </Pressable>
               </View>
@@ -482,7 +439,7 @@ export function RideBar({ controlsVisible = true }: { controlsVisible?: boolean 
                     <Text style={styles.codeLabel}>{codeCopied ? 'Copied to clipboard' : 'Share code'}</Text>
                     <View style={styles.codeCardActions}>
                       <Pressable
-                        style={styles.codeCardAction}
+                        style={({ pressed }) => [styles.codeCardAction, pressed && pressedFeedback]}
                         onPress={() => void handleCopyCode()}
                         accessibilityRole="button"
                         accessibilityLabel="Copy ride code"
@@ -490,7 +447,7 @@ export function RideBar({ controlsVisible = true }: { controlsVisible?: boolean 
                         <Ionicons name={codeCopied ? 'checkmark' : 'copy-outline'} size={18} color={codeCopied ? colors.success : colors.accent} />
                       </Pressable>
                       <Pressable
-                        style={styles.codeCardAction}
+                        style={({ pressed }) => [styles.codeCardAction, pressed && pressedFeedback]}
                         onPress={() => void handleShareCode()}
                         accessibilityRole="button"
                         accessibilityLabel="Share ride code"
@@ -528,7 +485,7 @@ export function RideBar({ controlsVisible = true }: { controlsVisible?: boolean 
               {locationShareError && <Text style={styles.voiceError}>{locationShareError}</Text>}
 
               <View style={styles.mixerCard}>
-                <Text style={styles.mixerLabel}>Audio priority — nav overrides chat overrides music</Text>
+                <Text style={styles.mixerLabel}>Audio priority — navigation overrides chat</Text>
                 {CHANNELS.map(({ key, label, icon }) => (
                   <View key={key} style={styles.gainRow}>
                     <Ionicons name={icon} size={18} color={colors.textSecondary} style={styles.gainIcon} />
@@ -536,7 +493,6 @@ export function RideBar({ controlsVisible = true }: { controlsVisible?: boolean 
                     <GainBar value={gains[key]} />
                   </View>
                 ))}
-                <MusicControls playing={music.playing} onChanged={music.refresh} />
               </View>
 
               <Pressable

@@ -52,21 +52,31 @@ appId: com.ridercomms.app
 - tapOn:
     text: "Continue(,.*)?"
     optional: true
-# No tab bar: the map's Where to drawer holds Ride, Friends and Routes, and
-# each page has a back arrow to the map.
+# No tab bar: the map's Where to drawer holds search and Home, Work and
+# Petrol; Ride, Friends, Routes and Settings are in the menu behind the
+# rider's avatar, and each page has a back arrow to the map.
 - extendedWaitUntil:
     visible:
-      id: drawer-ride
+      id: drawer-home
     timeout: 30000
 - waitForAnimationToEnd
 - takeScreenshot: authenticated-map
-# On the iOS simulator the first tap after onboarding has left the map
-# unchanged (the Ride page never opened), so tap again until the page shows.
+# Petrol opens search on nearby petrol stations.
+- tapOn:
+    id: drawer-petrol
+- waitForAnimationToEnd
+- takeScreenshot: authenticated-petrol
+- tapOn: "Back to map"
+- waitForAnimationToEnd
+# On the iOS simulator a first tap has left the screen unchanged, so open
+# the menu and tap Ride again until the Ride page shows.
 - retry:
     maxRetries: 3
     commands:
       - tapOn:
-          id: drawer-ride
+          id: open-menu
+          optional: true
+      - tapOn: "Ride(,.*)?"
       - extendedWaitUntil:
           visible:
             id: ride-back
@@ -78,13 +88,14 @@ appId: com.ridercomms.app
     maxRetries: 3
     commands:
       - tapOn:
-          id: drawer-friends
+          id: open-menu
+          optional: true
+      - tapOn: "Friends(,.*)?"
       - extendedWaitUntil:
-          visible: "Go back"
+          visible: "Back to map"
           timeout: 8000
 - takeScreenshot: authenticated-friends
-- tapOn: "Go back"
-# Routes and Settings live in the menu behind the rider's avatar on the map.
+- tapOn: "Back to map"
 - tapOn:
     id: open-menu
 - takeScreenshot: authenticated-menu
@@ -125,10 +136,18 @@ appId: com.ridercomms.app
     visible:
       id: open-menu
     timeout: 10000
-- tapOn:
-    id: open-menu
-- tapOn: "Your plan(,.*)?"
-- extendedWaitUntil:
-    visible: "Your plan(,.*)?"
-    timeout: 10000
+# The menu slides in; a tap during that has been dropped on iOS. Wait for
+# the plan screen's own intro line, as "Your plan" is also the menu row's
+# label.
+- retry:
+    maxRetries: 3
+    commands:
+      - tapOn:
+          id: open-menu
+          optional: true
+      - waitForAnimationToEnd
+      - tapOn: "Your plan(,.*)?"
+      - extendedWaitUntil:
+          visible: "Plans change how far Nearby reaches.*"
+          timeout: 10000
 - takeScreenshot: authenticated-billing

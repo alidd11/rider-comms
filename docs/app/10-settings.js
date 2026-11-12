@@ -13,7 +13,7 @@
     // and lists it opens.
     // The Settings root lists categories, each its own page.
     general: { title: 'General', sections: [['', 'generalSettings']], fullBleed: true },
-    mapNavigation: { title: 'Map & navigation', sections: [['', 'mapNavigationSettings']], fullBleed: true },
+    mapNavigation: { title: 'Map & navigation', sections: [['', 'mapNavigationSettings'], ['Saved places', 'savedPlacesSettings']], fullBleed: true },
     voiceSound: { title: 'Voice and sound', sections: [['', 'voiceSoundSettings']], fullBleed: true },
     rideSafe: { title: 'Ride Safe', sections: [['', 'rideSafeSettings']], fullBleed: true },
     vehicle: { title: 'Vehicle details', sections: [['Vehicle type', 'vehicleSettings']], fullBleed: true },
@@ -51,16 +51,6 @@
 
   function openSheet(type) {
     const templates = {
-      music: () => {
-        const apps = musicAppsInOrder();
-        const last = rememberedMusicApp();
-        return {
-          title: 'Music',
-          body: `<p class="caption music-sheet-note">Opens your music app. While riding, play, pause and skip with your helmet or headset buttons.</p>
-            <div class="settings-hub-list">${apps.map((app) => `<button data-music-app="${app.id}"><span class="setting-icon">${icon('music')}</span><span><strong>${escapeHtml(app.name)}</strong><small>${app.id === last ? 'Last used' : `Open ${escapeHtml(app.name)}`}</small></span>${icon('chevron')}</button>`).join('')}</div>`,
-          ready: () => $$('[data-music-app]').forEach((button) => button.addEventListener('click', () => openMusicApp(button.dataset.musicApp))),
-        };
-      },
       blocked: () => ({
         title: 'Blocked riders',
         body: '<div id="blockedRidersList" class="blocked-list" aria-live="polite"><p class="caption">Loading…</p></div>',
@@ -208,6 +198,14 @@
         ], 'Route options apply to routes Rider Comms plans.'),
         ready: () => { wireSettingsLinks($('#sheetBody')); wireToggles(); },
       }),
+      savedPlacesSettings: () => {
+        const saved = loadSavedPlaces();
+        return {
+          title: 'Saved places',
+          body: settingsRowsMarkup(Object.entries(SAVED_PLACE_LABELS).map(([slot, label]) => `<button type="button" class="settings-row" data-saved-place-setting="${slot}"><span class="settings-row-label">${escapeHtml(label)}</span><span class="settings-row-value">${escapeHtml(saved[slot]?.name || 'Not set')}</span><span class="settings-row-chevron">${icon('chevron')}</span></button>`), 'Tap Home or Work in Where to on the map and the route starts straight away.'),
+          ready: () => $$('[data-saved-place-setting]', $('#sheetBody')).forEach((button) => button.addEventListener('click', () => editSavedPlaceFromSettings(button.dataset.savedPlaceSetting))),
+        };
+      },
       voiceSoundSettings: () => ({
         title: 'Voice and sound',
         body: settingsRowsMarkup([
@@ -323,14 +321,17 @@
 
   function presentSheet(title, body, ready, options = {}) {
     activeFriendProfileRiderId = null;
-    if ($('#sheetBackdrop').hidden) lastSheetTrigger = document.activeElement;
+    if ($('#sheetBackdrop').hidden) {
+      lastSheetTrigger = document.activeElement;
+      pushOverlayGuard();
+    }
     // Settings pages are full screen with a back chevron; everything else
     // stays a bottom sheet with a close button.
     currentSettingsPage = options.page || null;
     $('#sheetBackdrop').classList.toggle('settings-page-mode', Boolean(currentSettingsPage));
     $('#sheetBackdrop').classList.toggle('settings-full-bleed', Boolean(currentSettingsPage && SETTINGS_PAGES[currentSettingsPage]?.fullBleed));
     const close = $('#closeSheet');
-    close.innerHTML = currentSettingsPage ? '<svg class="icon-back" aria-hidden="true"><use href="#i-chevron"/></svg>' : '×';
+    close.innerHTML = currentSettingsPage ? '<svg class="icon-back" aria-hidden="true"><use href="#i-chevron"/></svg>' : '<svg aria-hidden="true"><use href="#i-close"/></svg>';
     close.dataset.backTo = SETTINGS_PAGES[currentSettingsPage]?.back || '';
     close.setAttribute('aria-label', currentSettingsPage ? 'Back' : 'Close');
     // Settings pages also get an X, which closes every level at once.
@@ -598,8 +599,7 @@
   function renderSettingsList() {
     const list = $('#settingsList');
     if (!list) return;
-    list.innerHTML = SETTINGS_CATEGORIES.map(([title, rows]) => `<section class="settings-section"${title ? ` aria-label="${escapeHtml(title)}"` : ''}>${title ? `<h2 class="settings-section-title">${escapeHtml(title)}</h2>` : ''}<div class="settings-rows">${rows.map(([page, iconName, label, tint]) => `<button type="button" class="settings-row settings-row-category" data-settings-open="${page}"><span class="settings-category-icon" style="--tint:${tint}">${icon(iconName)}</span><span class="settings-row-label">${escapeHtml(label)}</span><span class="settings-row-chevron">${icon('chevron')}</span></button>`).join('')}</div></section>`).join('')
-      + '<p class="settings-version">Version 0.3.0</p>';
+    list.innerHTML = SETTINGS_CATEGORIES.map(([title, rows]) => `<section class="settings-section"${title ? ` aria-label="${escapeHtml(title)}"` : ''}>${title ? `<h2 class="settings-section-title">${escapeHtml(title)}</h2>` : ''}<div class="settings-rows">${rows.map(([page, iconName, label, tint]) => `<button type="button" class="settings-row settings-row-category" data-settings-open="${page}"><span class="settings-category-icon" style="--tint:${tint}">${icon(iconName)}</span><span class="settings-row-label">${escapeHtml(label)}</span><span class="settings-row-chevron">${icon('chevron')}</span></button>`).join('')}</div></section>`).join('');
     wireSettingsLinks(list);
   }
 
@@ -778,42 +778,6 @@
         showToast('Couldn’t unblock. Try again.');
       }
     }));
-  }
-
-  // A web app can't embed a player: it opens
-  // the rider's music app by its URL scheme and remembers which one.
-  const MUSIC_APPS = [
-    { id: 'spotify', name: 'Spotify', url: 'spotify:' },
-    { id: 'apple-music', name: 'Apple Music', url: 'music://', appleOnly: true },
-    { id: 'youtube-music', name: 'YouTube Music', url: 'youtubemusic://' },
-  ];
-  const MUSIC_APP_KEY = 'rider-comms-music-app';
-
-  function rememberedMusicApp() {
-    try { return localStorage.getItem(MUSIC_APP_KEY); } catch { return null; }
-  }
-
-  function musicAppsInOrder() {
-    const ua = navigator.userAgent;
-    const apple = /iPhone|iPad|iPod/.test(ua) || (ua.includes('Macintosh') && navigator.maxTouchPoints > 1);
-    const last = rememberedMusicApp();
-    return MUSIC_APPS
-      .filter((app) => !app.appleOnly || apple)
-      .sort((a, b) => Number(b.id === last) - Number(a.id === last));
-  }
-
-  function openMusicApp(id) {
-    const app = MUSIC_APPS.find((candidate) => candidate.id === id);
-    if (!app) return;
-    try { localStorage.setItem(MUSIC_APP_KEY, app.id); } catch { /* Ordering only. */ }
-    closeSheet();
-    // Opening the app hides this page. If it's still showing, the app
-    // probably isn't installed.
-    const notOpened = setTimeout(() => {
-      if (document.visibilityState === 'visible') showToast(`Couldn’t open ${app.name}. Is it installed?`);
-    }, 1600);
-    document.addEventListener('visibilitychange', () => clearTimeout(notOpened), { once: true });
-    window.location.href = app.url;
   }
 
   // A settings page opened from another page (Edit profile from Profile)

@@ -19,7 +19,7 @@ import type { Hideout } from '@rider-comms/shared';
 import type { RootStackParamList } from '../navigation';
 import { ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
-import { colors, spacing } from '../theme';
+import { colors, spacing, pressedFeedback } from '../theme';
 import { styles } from './FriendChatScreen.styles';
 import { PlanHideoutModal } from './PlanHideoutModal';
 import { buildNavigationProviderUrl, openNavigationUrl } from '../navigationLinks';
@@ -109,7 +109,7 @@ function HideoutRow({
         </Pressable>
       </View>
       {canDelete && (
-        <Pressable accessibilityRole="button" accessibilityLabel="Delete hideout" onPress={() => onDelete(hideout.id)} hitSlop={8} style={styles.hideoutDelete}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Delete hideout" onPress={() => onDelete(hideout.id)} hitSlop={8} style={({ pressed }) => [styles.hideoutDelete, pressed && pressedFeedback]}>
           <Ionicons name="trash-outline" size={18} color={colors.danger} />
         </Pressable>
       )}
@@ -339,7 +339,7 @@ function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Elemen
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <View style={[styles.header, { paddingTop: insets.top + spacing.md }]}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => navigation.goBack()} style={styles.backButton} hitSlop={8}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Back to friends" onPress={() => navigation.goBack()} style={({ pressed }) => [styles.backButton, pressed && pressedFeedback]} hitSlop={8}>
           <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
         </Pressable>
         <RiderAvatar avatarId={avatarId} size={40} />
@@ -348,12 +348,12 @@ function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Elemen
           accessibilityRole="button"
           accessibilityLabel="Plan a hideout"
           onPress={() => setPlanOpen(true)}
-          style={styles.planButton}
+          style={({ pressed }) => [styles.planButton, pressed && pressedFeedback]}
           hitSlop={8}
         >
           <MaterialCommunityIcons name="map-marker-plus-outline" size={20} color={colors.accent} />
         </Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel="Safety options" onPress={openSafetyActions} style={styles.safetyButton} hitSlop={8}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Report or block rider" onPress={openSafetyActions} style={({ pressed }) => [styles.safetyButton, pressed && pressedFeedback]} hitSlop={8}>
           <Ionicons name="shield-checkmark-outline" size={21} color={colors.textSecondary}/>
         </Pressable>
       </View>
@@ -399,7 +399,7 @@ function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Elemen
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={loadingOlder ? 'Loading older messages' : 'Load older messages'}
-            style={styles.loadOlderButton}
+            style={({ pressed }) => [styles.loadOlderButton, pressed && pressedFeedback]}
             onPress={() => void loadOlderMessages()}
             disabled={loadingOlder}
           >

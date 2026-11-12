@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { FriendActivity, FriendRequest, FriendSummary } from '@rider-comms/shared';
 import type { RootStackParamList } from '../navigation';
-import { colors, spacing, elevation } from '../theme';
+import { colors, spacing, elevation, pressedFeedback } from '../theme';
 import { styles } from './FriendsScreen.styles';
 import { useFriends } from '../friends/FriendsContext';
 import { useAuth } from '../auth/AuthContext';
@@ -53,7 +53,8 @@ function YourRiderIdCard(): React.JSX.Element {
           </Text>
         </View>
         <Pressable
-          style={styles.yourIdCopyButton}
+          style={({ pressed }) => [styles.yourIdCopyButton, pressed && pressedFeedback]}
+          hitSlop={6}
           onPress={() => void handleCopy()}
           accessibilityRole="button"
           accessibilityLabel="Copy rider ID"
@@ -191,15 +192,15 @@ function RequestRow({ request, profile }: { request: FriendRequest; profile?: Fr
         accessibilityRole="button"
         accessibilityLabel={`Report or block ${profile?.displayName ?? 'this rider'}`}
         onPress={() => openRiderSafetyMenu(client, { riderId: request.fromRiderId, name: profile?.displayName, source: 'an incoming friend request' }, () => { void refresh(); })}
-        style={styles.requestDecline}
+        style={({ pressed }) => [styles.requestDecline, pressed && pressedFeedback]}
         hitSlop={8}
       >
         <Ionicons name="ellipsis-horizontal" size={20} color={colors.textSecondary} />
       </Pressable>
-      <Pressable accessibilityRole="button" style={styles.requestDecline} onPress={() => void resolve('decline')} disabled={resolving !== null} accessibilityLabel={`Decline request from ${profile?.displayName ?? 'rider'}`} hitSlop={8}>
+      <Pressable accessibilityRole="button" style={({ pressed }) => [styles.requestDecline, pressed && pressedFeedback]} onPress={() => void resolve('decline')} disabled={resolving !== null} accessibilityLabel={`Decline request from ${profile?.displayName ?? 'rider'}`} hitSlop={8}>
         {resolving === 'decline' ? <ActivityIndicator color={colors.danger} size="small" /> : <Ionicons name="close" size={20} color={colors.danger} />}
       </Pressable>
-      <Pressable accessibilityRole="button" style={styles.requestAccept} onPress={() => void resolve('accept')} disabled={resolving !== null} accessibilityLabel={`Accept request from ${profile?.displayName ?? 'rider'}`} hitSlop={8}>
+      <Pressable accessibilityRole="button" style={({ pressed }) => [styles.requestAccept, pressed && pressedFeedback]} onPress={() => void resolve('accept')} disabled={resolving !== null} accessibilityLabel={`Accept request from ${profile?.displayName ?? 'rider'}`} hitSlop={8}>
         {resolving === 'accept' ? <ActivityIndicator color={colors.accentText} size="small" /> : <Ionicons name="checkmark" size={20} color={colors.accentText} />}
       </Pressable>
     </View>
@@ -220,7 +221,7 @@ function OutgoingRequestRow({ request, profile }: { request: FriendRequest; prof
         <Text style={styles.requestName}>{profile?.displayName ?? 'Pending request'}</Text>
         <Text style={styles.requestHandle}>{profile?.handle ?? request.toRiderId}</Text>
       </View>
-      <Pressable accessibilityRole="button" style={styles.cancelRequestButton} onPress={() => void handleCancel()} disabled={cancelling} accessibilityLabel={`Cancel request to ${profile?.displayName ?? 'rider'}`}>
+      <Pressable accessibilityRole="button" style={({ pressed }) => [styles.cancelRequestButton, pressed && pressedFeedback]} onPress={() => void handleCancel()} disabled={cancelling} accessibilityLabel={`Cancel request to ${profile?.displayName ?? 'rider'}`}>
         {cancelling ? <ActivityIndicator color={colors.textMuted} size="small" /> : <Text style={styles.cancelRequestText}>Cancel</Text>}
       </Pressable>
     </View>
@@ -384,7 +385,7 @@ function FriendProfileModal({
       <Pressable style={styles.modalBackdrop} onPress={onClose} accessible={false}>
         <Pressable style={[styles.profileModal, { paddingBottom: insets.bottom + spacing.md }]} onPress={(event) => event.stopPropagation()} accessible={false}>
           <View style={styles.modalHandle} />
-          <Pressable style={styles.modalClose} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close profile">
+          <Pressable style={({ pressed }) => [styles.modalClose, pressed && pressedFeedback]} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close profile">
             <Ionicons name="close" size={22} color={colors.textPrimary} />
           </Pressable>
 
@@ -498,14 +499,14 @@ function FriendProfileModal({
               <Text style={styles.profileSectionLabel}>Shared profiles</Text>
               <View style={styles.socialList}>
                 {profile.instagramUsername ? (
-                  <Pressable accessibilityRole="link" style={styles.socialRow} onPress={() => openSocial(`https://www.instagram.com/${encodeURIComponent(profile.instagramUsername)}/`)}>
+                  <Pressable accessibilityRole="link" style={({ pressed }) => [styles.socialRow, pressed && pressedFeedback]} onPress={() => openSocial(`https://www.instagram.com/${encodeURIComponent(profile.instagramUsername)}/`)}>
                     <Ionicons name="logo-instagram" size={20} color={colors.textPrimary} />
                     <Text style={styles.socialText}>@{profile.instagramUsername}</Text>
                     <Ionicons name="open-outline" size={18} color={colors.textMuted} />
                   </Pressable>
                 ) : null}
                 {profile.tiktokUsername ? (
-                  <Pressable accessibilityRole="link" style={styles.socialRow} onPress={() => openSocial(`https://www.tiktok.com/@${encodeURIComponent(profile.tiktokUsername)}`)}>
+                  <Pressable accessibilityRole="link" style={({ pressed }) => [styles.socialRow, pressed && pressedFeedback]} onPress={() => openSocial(`https://www.tiktok.com/@${encodeURIComponent(profile.tiktokUsername)}`)}>
                     <Ionicons name="logo-tiktok" size={20} color={colors.textPrimary} />
                     <Text style={styles.socialText}>@{profile.tiktokUsername}</Text>
                     <Ionicons name="open-outline" size={18} color={colors.textMuted} />
@@ -577,6 +578,7 @@ export function FriendsScreen(): React.JSX.Element {
         <ScreenHeader
           title="Friends"
           onBack={() => rootNavigation.navigate('Tabs', { screen: 'Map', params: { segment: 'public', at: Date.now() } })}
+          backLabel="Back to map"
           action={(
             <Pressable
               style={({ pressed }) => [styles.headerAdd, addOpen && styles.headerAddActive, pressed && styles.headerAddPressed]}
@@ -612,7 +614,7 @@ export function FriendsScreen(): React.JSX.Element {
         ) : null}
 
         {error && (
-          <View style={styles.errorBox}>
+          <View style={styles.errorBox} accessibilityRole="alert" accessibilityLiveRegion="assertive">
             <Ionicons name="alert-circle" size={18} color={colors.danger} />
             <Text style={styles.errorText}>{error}</Text>
             <Pressable

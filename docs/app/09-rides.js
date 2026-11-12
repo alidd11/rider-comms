@@ -5,7 +5,8 @@
     $('#rideActiveState').hidden = !active;
     $('#rideShareTop').hidden = !active;
     $('#ridePill').hidden = !active;
-    for (const live of [$('#appMenuRide'), $('#drawerRideLive')]) if (live) live.hidden = !active;
+    const menuLive = $('#appMenuRide');
+    if (menuLive) menuLive.hidden = !active;
     // The floating ride pill covers the last ~50px of every screen; give
     // scrollable screens room to clear it.
     document.documentElement.classList.toggle('ride-pill-visible', active);

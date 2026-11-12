@@ -40,7 +40,7 @@ export const styles = StyleSheet.create({
   forgotButton: { minHeight: 30, justifyContent: 'center' },
   forgotText: { color: AUTH_ACCENT, fontSize: 11, fontWeight: '600' },
   primaryButton: { minHeight: 46, marginTop: 5, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(92,198,236,0.38)', backgroundColor: AUTH_ACCENT_DEEP, alignItems: 'center', justifyContent: 'center', shadowColor: AUTH_ACCENT, shadowOpacity: 0.12, shadowRadius: 10 },
-  primaryButtonPressed: { opacity: 0.88 },
+  primaryButtonPressed: { opacity: 0.7 },
   primaryButtonText: { color: AUTH_TEXT, fontSize: 13, fontWeight: '700' },
   buttonDisabled: { opacity: 0.62 },
   requirements: { color: '#95A2A5', fontSize: 10, lineHeight: 14 },
