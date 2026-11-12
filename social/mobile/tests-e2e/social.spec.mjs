@@ -182,8 +182,18 @@ test('device media selection, review and text-only draft are usable without publ
   await page.getByRole('button', { name: 'Review post' }).click();
   await page.getByRole('textbox', { name: 'Create caption' }).fill('Saturday meet preview');
   await expect(page.getByText('Not published')).toBeVisible();
+  await expect(page.getByRole('textbox', { name: 'Post title' })).toBeVisible();
+  await page.getByRole('textbox', { name: 'Post title' }).fill('Sunday ride');
+  await page.getByRole('button', { name: 'Add hashtag' }).click();
+  await expect(page.getByRole('textbox', { name: 'Create caption' })).toHaveValue('Saturday meet preview #');
+  await page.getByRole('button', { name: 'Preview post' }).click();
+  await expect(page.getByTestId('post-preview')).toBeVisible();
+  await expect(page.getByText('Sunday ride')).toBeVisible();
+  await page.getByRole('button', { name: 'Close post preview' }).click();
+  await expect(page.getByTestId('post-preview')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Post unavailable' })).toBeDisabled();
   await page.screenshot({ path: 'test-results/screenshots/' + testInfo.project.name + '-media-review.png' });
-  await expect(page.getByRole('textbox', { name: 'Create caption' })).toHaveValue('Saturday meet preview');
+  await expect(page.getByRole('textbox', { name: 'Create caption' })).toHaveValue('Saturday meet preview #');
   await expect(page.getByRole('button', { name: 'Publish' })).toHaveCount(0);
 
   await page.getByRole('button', { name: 'Save text draft' }).click();
@@ -296,9 +306,9 @@ test('Stories open in an immersive fixed viewport with previous/next and close c
 });
 
 
-test('bottom navigation remains against the viewport on each main app tab', async ({ page }, testInfo) => {
+test('bottom navigation stays flush on every non-composer main screen', async ({ page }, testInfo) => {
   await page.goto('/');
-  for (const tab of ['Home','Reels','Create','Clubs','Shop']) {
+  for (const tab of ['Home','Reels','Clubs','Shop']) {
     await page.getByRole('tab', { name: tab }).click();
     const bounds = await page.evaluate(() => {
       const tabs = document.getElementById('social-bottom-tabs');
@@ -441,6 +451,24 @@ test('Create opens camera-first with a real permission path and gallery alternat
 });
 
 
+test('Create is full-screen, has working mode controls and a real dismissal path', async ({ page }, testInfo) => {
+  await page.goto('/');
+  await page.getByRole('tab', { name: 'Create' }).click();
+  await expect(page.locator('#social-bottom-tabs')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Close Create' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Story format' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Reel format' })).toBeVisible();
+  await page.getByRole('button', { name: 'Reel format' }).click();
+  await expect(page.getByRole('button', { name: '15 seconds' })).toHaveAttribute('aria-selected', 'true');
+  await page.getByRole('button', { name: '60 seconds' }).click();
+  await expect(page.getByRole('button', { name: '60 seconds' })).toHaveAttribute('aria-selected', 'true');
+  await page.getByRole('button', { name: 'Close Create' }).click();
+  await expect(page.getByRole('tab', { name: 'Home' })).toBeVisible();
+  await expect(page.locator('#social-bottom-tabs')).toHaveCount(1);
+  await mkdir('test-results/screenshots', { recursive: true });
+  await page.screenshot({ path: 'test-results/screenshots/' + testInfo.project.name + '-composer-closed.png' });
+});
+
 test('TikTok-style Shop discovery supports search, sample details, saved and basket', async ({ page }, testInfo) => {
   await page.goto('/');
   await page.getByRole('tab', { name: 'Shop' }).click();
@@ -525,6 +553,9 @@ test('Create and Shop use immersive dedicated headers without losing profile nav
   await page.getByRole('tab', { name: 'Create' }).click();
   await expect(page.getByTestId('create-studio')).toBeVisible();
   await expect(page.getByText('EARLY PREVIEW')).toHaveCount(0);
+  await expect(page.locator('#social-bottom-tabs')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Close Create' }).click();
+  await expect(page.getByRole('tab', { name: 'Shop' })).toBeVisible();
   await page.getByRole('tab', { name: 'Shop' }).click();
   await expect(page.getByTestId('shop-discovery')).toBeVisible();
   await expect(page.getByText('EARLY PREVIEW')).toHaveCount(0);
