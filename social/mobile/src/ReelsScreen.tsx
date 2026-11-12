@@ -1,8 +1,9 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ImageBackground, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import type { NativeScrollEvent, NativeSyntheticEvent, ScrollViewInstance } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { C } from './styles';
+import { useVideoPlayer, VideoView } from 'expo-video';
 
 export type ReelPreview = {
   id: string;
@@ -10,15 +11,18 @@ export type ReelPreview = {
   handle: string;
   title: string;
   imageUrl: string;
+  videoUrl?: string;
   theme: string;
   category: 'CARS' | 'MOTORCYCLES' | 'CYCLING';
 };
 
-type ReelAction = 'comments' | 'share' | 'sound' | 'options';
+type ReelAction = 'share' | 'sound' | 'options';
 type Props = {
   items: readonly ReelPreview[];
   followedAuthors: ReadonlySet<string>;
   onToggleFollow: (authorId: string) => void;
+  onOpenComments: (id: string, title: string) => void;
+  onOpenCreator: (authorId: string) => void;
   onCreateReel: () => void;
 };
 
@@ -36,7 +40,36 @@ function ReelActionButton({
   </Pressable>;
 }
 
-export function ReelsScreen({ items, followedAuthors, onToggleFollow, onCreateReel }: Props) {
+/** Video capability is active only when a verified media URL is supplied.
+ * Current demo Reels are stills and never imply a video is playing. */
+function ReelVideo({ uri }: { uri: string }) {
+  const player = useVideoPlayer(uri, instance => {
+    instance.loop = true;
+    instance.muted = true; // iOS / browser autoplay policy
+  });
+  const [playing, setPlaying] = useState(true);
+  useEffect(() => {
+    player.play();
+    return () => player.pause();
+  }, [player]);
+  const togglePlayback = () => {
+    if (playing) player.pause();
+    else player.play();
+    setPlaying(!playing);
+  };
+  return <View style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0 }}>
+    <VideoView player={player} style={{ flex: 1 }} contentFit="cover" nativeControls={false} playsInline/>
+    <Pressable accessibilityRole="button" accessibilityLabel={playing ? 'Pause Reel' : 'Play Reel'}
+      onPress={togglePlayback} style={{
+        position: 'absolute', top: '25%', left: 50, right: 50, bottom: '28%',
+        alignItems: 'center', justifyContent: 'center',
+      }}>
+      {!playing ? <Ionicons name="play-circle" color="#FFFFFF" size={52}/> : null}
+    </Pressable>
+  </View>;
+}
+
+export function ReelsScreen({ items, followedAuthors, onToggleFollow, onOpenComments, onOpenCreator, onCreateReel }: Props) {
   const [height, setHeight] = useState(0);
   const [activeIndex, setActiveIndex] = useState(0);
   const [likes, setLikes] = useState<Set<string>>(() => new Set());
@@ -72,7 +105,6 @@ export function ReelsScreen({ items, followedAuthors, onToggleFollow, onCreateRe
 
   const explain = (action: ReelAction) => {
     if (action === 'sound') setNotice('This sample is a photo. Sound controls become available for real videos.');
-    if (action === 'comments') setNotice('Comments are not connected in the development preview.');
     if (action === 'share') setNotice('Sharing is not connected in the development preview.');
     if (action === 'options') setNotice('Reel reporting and preferences require the moderation service.');
   };
@@ -104,6 +136,7 @@ export function ReelsScreen({ items, followedAuthors, onToggleFollow, onCreateRe
               }}>
               <ImageBackground source={{ uri: reel.imageUrl }} resizeMode="cover" accessibilityLabel={reel.title}
                 style={{ width: '100%', height: '100%', justifyContent: 'flex-end' }}>
+                {reel.videoUrl && index === activeIndex ? <ReelVideo uri={reel.videoUrl}/> : null}
                 <View pointerEvents="none" style={{
                   position: 'absolute', bottom: 0, left: 0, right: 0, height: 212,
                   backgroundColor: 'rgba(0,0,0,0.58)',
@@ -118,7 +151,10 @@ export function ReelsScreen({ items, followedAuthors, onToggleFollow, onCreateRe
                       <Ionicons name={reel.category === 'CYCLING' ? 'bicycle' : reel.category === 'CARS' ? 'car-sport' : 'speedometer'}
                         size={19} color={C.ink} />
                     </View>
-                    <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '900' }}>{reel.handle}</Text>
+                    <Pressable accessibilityRole="button" accessibilityLabel={'View creator ' + reel.handle}
+                      onPress={() => onOpenCreator(reel.authorId)}>
+                      <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '900' }}>{reel.handle}</Text>
+                    </Pressable>
                     <Pressable accessibilityRole="button"
                       accessibilityLabel={(followedAuthors.has(reel.authorId) ? 'Unfollow ' : 'Follow ') + reel.handle}
                       onPress={() => onToggleFollow(reel.authorId)}
@@ -141,13 +177,17 @@ export function ReelsScreen({ items, followedAuthors, onToggleFollow, onCreateRe
                     onPress={() => toggle(setExpanded, reel.id)}>
                     <Text style={{ color: '#D7E5E7', fontSize: 12 }}>{expanded.has(reel.id) ? 'Less' : 'More'}</Text>
                   </Pressable>
-                  <Text style={{ color: '#CFD8DE', fontSize: 11 }}>Preview photo · video coming soon</Text>
+                  <Pressable accessibilityRole="button" accessibilityLabel={'View garage for ' + reel.handle}
+                    onPress={() => onOpenCreator(reel.authorId)}>
+                    <Text style={{ color: '#5CE4C1', fontWeight: '800', fontSize: 12 }}>View garage & build</Text>
+                  </Pressable>
+                  {!reel.videoUrl ? <Text style={{ color: '#CFD8DE', fontSize: 11 }}>Preview photo · video coming soon</Text> : null}
                 </View>
                 <View style={{ position: 'absolute', right: 9, bottom: 23, gap: 13, alignItems: 'center' }}>
                   <ReelActionButton label={'Like Reel ' + reel.id} icon={likes.has(reel.id) ? 'heart' : 'heart-outline'}
                     active={likes.has(reel.id)} onPress={() => toggle(setLikes, reel.id)} />
                   <ReelActionButton label={'Comment on Reel ' + reel.id} icon="chatbubble-outline"
-                    onPress={() => explain('comments')} />
+                    onPress={() => onOpenComments(reel.id, reel.title)} />
                   <ReelActionButton label={'Share Reel ' + reel.id} icon="paper-plane-outline"
                     onPress={() => explain('share')} />
                   <ReelActionButton label={'Save Reel ' + reel.id} icon={bookmarks.has(reel.id) ? 'bookmark' : 'bookmark-outline'}

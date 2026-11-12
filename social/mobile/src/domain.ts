@@ -3,6 +3,8 @@ export type FollowingOrder = 'relevant' | 'newest';
 export type Audience = 'public' | 'members';
 export type ClubAccess = 'public' | 'approval' | 'private';
 
+export type GalleryItem = { uri: string; alt: string };
+
 export type SocialPost = {
   id: string;
   authorId: string;
@@ -15,6 +17,7 @@ export type SocialPost = {
   accent: string;
   imageUrl: string;
   imageAlt: string;
+  gallery?: GalleryItem[];
   publishedAt: number;
   discoveryScore: number;
   audience: Audience;

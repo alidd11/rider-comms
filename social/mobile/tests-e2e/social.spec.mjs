@@ -309,3 +309,44 @@ test('bottom navigation remains against the viewport on each main app tab', asyn
   await mkdir('test-results/screenshots', { recursive: true });
   await page.screenshot({ path: 'test-results/screenshots/' + testInfo.project.name + '-nav-flush.png' });
 });
+
+
+test('Home photo carousel, double-tap like, and creator garage link work', async ({ page }, testInfo) => {
+  await page.goto('/');
+  const gallery = page.getByTestId('post-gallery-p1');
+  await expect(gallery).toBeVisible();
+  await page.getByRole('button', { name: 'Next photo in post p1' }).click();
+  await expect(page.getByText('2/2')).toBeVisible();
+  await page.getByRole('button', { name: 'Previous photo in post p1' }).click();
+  await expect(page.getByText('1/2')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Like post' }).first()).toBeVisible();
+  const imageButton = page.getByRole('button', { name: 'Double tap to like photo 1 of 2' });
+  await imageButton.dblclick();
+  await expect(page.getByRole('button', { name: 'Unlike post' }).first()).toBeVisible();
+  await page.getByRole('button', { name: 'View garage for @alex' }).click();
+  await expect(page.getByText('Public preview')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Explore creator club' })).toBeVisible();
+  await mkdir('test-results/screenshots', { recursive: true });
+  await page.screenshot({ path: 'test-results/screenshots/' + testInfo.project.name + '-creator-garage.png' });
+  await page.getByRole('button', { name: 'Explore creator club' }).click();
+  await expect(page.getByText('South Coast Riders')).toBeVisible();
+});
+
+test('Comments open in a bottom sheet, accept preview text, and do not publish', async ({ page }, testInfo) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Open comments' }).first().click();
+  await expect(page.getByTestId('comments-overlay')).toBeVisible();
+  await expect(page.getByText('Start the conversation')).toBeVisible();
+  await page.getByRole('textbox', { name: 'Write a comment' }).fill('Great weekend route');
+  await page.getByRole('button', { name: 'Post local comment' }).click();
+  await expect(page.getByText('Great weekend route')).toBeVisible();
+  await expect(page.getByText('You · Preview')).toBeVisible();
+  await mkdir('test-results/screenshots', { recursive: true });
+  await page.screenshot({ path: 'test-results/screenshots/' + testInfo.project.name + '-comment-sheet.png' });
+  await page.getByRole('button', { name: 'Close comments' }).click();
+  await expect(page.getByTestId('comments-overlay')).toHaveCount(0);
+  await page.getByRole('tab', { name: 'Reels' }).click();
+  await page.getByRole('button', { name: 'Comment on Reel r1' }).click();
+  await expect(page.getByTestId('comments-overlay')).toBeVisible();
+  await page.getByRole('button', { name: 'Close comments' }).click();
+});

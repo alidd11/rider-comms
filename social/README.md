@@ -82,3 +82,12 @@ The installed Social PWA now selects the iOS `black` status-bar mode instead of 
 
 
 The Stories demo also uses a full-viewport image viewer with visible previous/next regions, sequence markers, sample creator information and an exit control. It never submits replies or pretends that Story media has been published; the real 24-hour lifecycle requires authenticated backend services.
+
+
+## Content interaction milestone — 2026-11-12
+
+- Home feed: swipeable up-to-six-image galleries with counters and visible next/previous affordances for accessibility, double-tap-to-like with brief heart feedback, and session-only likes/saves. Photos remain curated sample assets; they're not user uploads.
+- Comments: a reusable bottom sheet for both Home and Reels. Users can type a local preview comment without a server; no messages are published or represented as other users' comments. Backend ownership, reporting, rate limits, spam defence, blocks and ages must be enforced before publication.
+- Creator discovery: tap an author or `View build & garage` for fictional public creator builds; open the corresponding club from that preview. Creator public garage is not the authenticated user's private garage and does not leak Rider Comms profile or location.
+- Reels video architecture: when a vetted video URL is supplied, expo-video mounts only the active Reel, plays muted/looped, pauses on transition and allows tap to pause. Present sample Reels remain still photos with an explicit indicator. No audio licensing or production video publishing is assumed.
+- Editorial references: [Expo video SDK](https://docs.expo.dev/versions/v58.0.0/sdk/video/), [TikTok recommendation explanation](https://support.tiktok.com/en/using-tiktok/exploring-videos/how-tiktok-recommends-content), and Meta's feed/product guidance. Production recommendation and trust features are separate backend milestones.

@@ -1,6 +1,6 @@
 import '@expo/metro-runtime';
 import React, { useEffect, useMemo, useState } from 'react';
-import { Image, ImageBackground, Platform, ScrollView, StatusBar, Pressable, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { Image, Platform, ScrollView, StatusBar, Pressable, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { C, s } from './src/styles';
@@ -15,6 +15,10 @@ import { CreateComposer } from './src/CreateComposer';
 import { ReelsScreen } from './src/ReelsScreen';
 import { StoriesViewer } from './src/StoriesViewer';
 import type { ReelPreview } from './src/ReelsScreen';
+import { FeedMedia } from './src/FeedMedia';
+import { CommentsSheet } from './src/CommentsSheet';
+import type { CommentPreview } from './src/CommentsSheet';
+import { demoCreators, publicGallery } from './src/demoCreators';
 
 type Screen = 'Home' | 'Reels' | 'Create' | 'Clubs' | 'Shop' | 'Profile' | 'Messages';
 type Icon = React.ComponentProps<typeof Ionicons>['name'];
@@ -180,6 +184,9 @@ export default function App(): React.JSX.Element {
   const [marketFilter, setMarketFilter] = useState('All');
   const [search, setSearch] = useState('');
   const [notice, setNotice] = useState<string | null>(null);
+  const [selectedCreator, setSelectedCreator] = useState<string | null>(null);
+  const [commentsFor, setCommentsFor] = useState<{ id: string; title: string } | null>(null);
+  const [localComments, setLocalComments] = useState<Record<string, CommentPreview[]>>({});
 
   // Preview-only, per-device data. Shared Rider Comms accounts and DMs are untouched.
   useEffect(() => {
@@ -265,12 +272,27 @@ export default function App(): React.JSX.Element {
     setSelectedClub(null);
     setSelectedEvent(null);
     setSelectedStory(null);
+    setSelectedCreator(null);
+    setCommentsFor(null);
     setProfileEditor(false);
     setGarageEditor(false);
     setPendingGarageDelete(null);
   }
 
   function toggleFollow(authorId: string) { toggle(setFollowed, authorId); }
+  function openComments(id: string, title: string) { setCommentsFor({ id, title }); }
+  function addComment(id: string, value: string) {
+    setLocalComments(current => ({
+      ...current,
+      [id]: [...(current[id] ?? []), { id: 'local-' + Date.now() + '-' + String((current[id] ?? []).length), text: value }].slice(-50),
+    }));
+  }
+  function openCreator(id: string) {
+    setSelectedCreator(id);
+    setScreen('Home');
+    setNotice(null);
+  }
+
 
   function banner(message: string) {
     setNotice(message);
@@ -307,10 +329,11 @@ export default function App(): React.JSX.Element {
   function renderPost(post: SocialPost, reason: RankReason) {
     return <View key={post.id} style={s.feedCard}>
       <View style={s.feedAuthorRow}>
-        <View style={s.row}>
+        <Pressable accessibilityRole="button" accessibilityLabel={'View creator ' + post.handle}
+          style={s.row} onPress={() => openCreator(post.authorId)}>
           <View style={[s.avatar, { backgroundColor: post.accent }]}><Text style={s.avatarText}>{post.author.split(' ').map(v=>v[0]).join('')}</Text></View>
           <View><Text style={s.cardHeading}>{post.author}</Text><Text style={s.small}>{post.handle} · {post.category.toLowerCase()}</Text></View>
-        </View>
+        </Pressable>
         <View style={[s.row,{gap:9}]}>
           {!followed.has(post.authorId) ? <Pressable accessibilityRole="button"
             accessibilityLabel={'Follow '+post.handle}
@@ -329,16 +352,14 @@ export default function App(): React.JSX.Element {
           <View style={s.row}><Ionicons name="eye-off-outline" color={C.muted} size={20}/><Text style={s.ghostText}>Not interested</Text></View>
         </Pressable>
       </View> : null}
-      <ImageBackground testID={'post-media-' + post.id} source={{uri:post.imageUrl}} resizeMode="cover" accessibilityLabel={post.imageAlt}
-        style={[s.feedMedia, { height:mediaHeight, backgroundColor:post.accent }]}>
-        <View style={s.feedMediaTag}><Text style={s.feedMediaTagText}>{post.category}</Text></View>
-      </ImageBackground>
+      <FeedMedia id={post.id} images={publicGallery(post)} height={mediaHeight}
+        liked={liked.has(post.id)} onDoubleTap={() => { if (!liked.has(post.id)) toggle(setLiked, post.id); }}/>
       <View style={s.feedActions}>
         <View style={[s.row,{gap:20}]}>
           <Pressable accessibilityRole="button" accessibilityLabel={liked.has(post.id) ? 'Unlike post' : 'Like post'} onPress={() => toggle(setLiked, post.id)}>
             <Ionicons name={liked.has(post.id)?'heart':'heart-outline'} color={liked.has(post.id)?'#F18E99':C.ink} size={27}/>
           </Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel="Open comments" onPress={() => banner('Comments are not live yet.')}><Ionicons name="chatbubble-outline" color={C.ink} size={25}/></Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel="Open comments" onPress={() => openComments(post.id, post.heading)}><Ionicons name="chatbubble-outline" color={C.ink} size={25}/></Pressable>
           <Pressable accessibilityRole="button" accessibilityLabel="Share post" onPress={() => banner('Sharing is not live yet.')}><Ionicons name="paper-plane-outline" color={C.ink} size={25}/></Pressable>
         </View>
         <Pressable accessibilityRole="button" accessibilityLabel={saved.has(post.id)?'Unsave post':'Save post'} onPress={() => toggle(setSaved,post.id)}>
@@ -347,6 +368,10 @@ export default function App(): React.JSX.Element {
       </View>
       <View style={s.feedCaption}>
         <Text style={[s.body,{fontWeight:'800'}]}>{post.heading}</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel={'View garage for ' + post.handle}
+          onPress={() => openCreator(post.authorId)}>
+          <Text style={[s.small, { color: C.accent }]}>View build & garage</Text>
+        </Pressable>
         <Text style={s.muted} numberOfLines={expandedCaptionId === post.id ? undefined : 1}>{post.body}</Text>
         <Pressable accessibilityRole="button" accessibilityLabel={expandedCaptionId===post.id?'Show less caption':'Read full caption'}
           onPress={() => setExpandedCaptionId(id => id===post.id ? null : post.id)}>
@@ -357,6 +382,45 @@ export default function App(): React.JSX.Element {
   }
 
   function renderHome() {
+    const creator = selectedCreator ? demoCreators[selectedCreator] : undefined;
+    if (creator) return <View style={{ padding: 18, gap: 14 }}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Back to Home feed" onPress={() => setSelectedCreator(null)}>
+        <View style={s.row}><Ionicons name="arrow-back" size={22} color={C.ink}/><Text style={s.ghostText}>Feed</Text></View>
+      </Pressable>
+      <View style={[s.card, s.pad, { gap: 15 }]}>
+        <View style={s.row}>
+          <View style={[s.avatar, { width: 58, height: 58, borderRadius: 29 }]}>
+            <Ionicons name={creator.kind === 'Car' ? 'car-sport' : creator.kind === 'Bicycle' ? 'bicycle' : 'speedometer'} size={27} color={C.accent}/>
+          </View>
+          <View style={{ flex: 1, gap: 3 }}>
+            <Text style={s.title}>{creator.displayName}</Text>
+            <Text style={s.small}>{creator.handle} · Sample creator</Text>
+          </View>
+        </View>
+        <Text style={s.body}>{creator.about}</Text>
+        <View style={s.rowBetween}>
+          <Text style={s.cardHeading}>Garage</Text>
+          <Text style={s.small}>Public preview</Text>
+        </View>
+        <Text style={s.cardHeading}>{creator.vehicle}</Text>
+        <View style={s.row}>
+          {creator.gallery.map((photo, i) => <Image key={photo.uri} source={{ uri: photo.uri }}
+            accessibilityLabel={photo.alt} resizeMode="cover"
+            style={{ flex: 1, height: 120, borderRadius: 10, backgroundColor: C.bg }}/>)}
+        </View>
+        <Text style={s.small}>{creator.modifications.join(' · ')}</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel="Explore creator club" style={s.cta}
+          onPress={() => { navigate('Clubs'); setSelectedClub(creator.clubId); }}>
+          <Text style={s.ctaText}>Explore their club</Text>
+        </Pressable>
+        <Pressable accessibilityRole="button"
+          accessibilityLabel={(followed.has(creator.id) ? 'Unfollow ' : 'Follow ') + creator.handle}
+          style={s.ghost} onPress={() => toggleFollow(creator.id)}>
+          <Text style={s.ghostText}>{followed.has(creator.id) ? 'Following ✓' : 'Follow creator'}</Text>
+        </Pressable>
+      </View>
+      <Text style={s.small}>Fictional demo creator and example vehicle details. No Rider Comms personal data is accessed.</Text>
+    </View>;
     return <View style={{width:'100%',maxWidth:640,alignSelf:'center'}}>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.storyRail}>
         <Pressable accessibilityRole="button" accessibilityLabel="Create story" style={s.storyItem} onPress={()=>{navigate('Create');setCreateMode('Story');}}>
@@ -671,6 +735,8 @@ export default function App(): React.JSX.Element {
               <View testID="fixed-reels-screen" style={{ flex: 1, minHeight: 0, width: '100%', backgroundColor: '#020406' }}>
                 <ReelsScreen items={reelPreviews} followedAuthors={followed}
                   onToggleFollow={toggleFollow}
+                  onOpenComments={(id, title) => openComments('reel:' + id, title)}
+                  onOpenCreator={openCreator}
                   onCreateReel={() => { navigate('Create'); setCreateMode('Reel'); }} />
               </View>
             ) : (
@@ -681,6 +747,10 @@ export default function App(): React.JSX.Element {
             <BottomTabs screen={screen} onNavigate={navigate} />
           </>
         )}
+        {commentsFor ? <CommentsSheet key={commentsFor.id} title={commentsFor.title}
+          comments={localComments[commentsFor.id] ?? []}
+          onSubmit={value => addComment(commentsFor.id, value)}
+          onClose={() => setCommentsFor(null)}/> : null}
       </View>
     </SafeAreaView>
     </SafeAreaProvider>
