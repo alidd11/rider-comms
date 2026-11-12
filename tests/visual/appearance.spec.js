@@ -18,8 +18,11 @@ test('login baseline matches the approved night-rider concept in day and night',
     await expect(page.locator('#app')).toBeHidden();
 
     // Capture the separate branded entry state without coupling this visual
-    // audit to WebKit timer scheduling. The production splash still auto-hides
-    // after its brief cold-start dwell; the test owns visibility deterministically.
+    // audit to WebKit timer scheduling. The production splash auto-hides
+    // after its brief cold-start dwell; let that timer finish first so it
+    // can't hide the splash again between the test showing it and checking
+    // it (a main run failed that way), then the test owns visibility.
+    await expect(page.locator('#authSplash')).toBeHidden();
     await page.evaluate(() => {
       const splash = document.querySelector('#authSplash');
       if (splash) splash.hidden = false;
