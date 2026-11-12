@@ -62,10 +62,10 @@ function JoinOrHostForm({ inviteCode, onBack }: { inviteCode?: string | null; on
     } catch (err) {
       // The code stays in the field so the rider can fix one character.
       if (err instanceof ApiError && err.status === 429) setError('Too many attempts. Wait a minute before trying again.');
-      else if (err instanceof ApiError && err.status === 404) setError("That code doesn't match an active ride. Check it with your host.");
+      else if (err instanceof ApiError && err.status === 404) setError("That code doesn’t match an active ride. Check it with your host.");
       else if (err instanceof ApiError && err.status === 409) setError('This ride is full (20 riders max).');
       else if (err instanceof ApiError && err.status === 403) setError(rideRefusalMessage(err));
-      else setError("Couldn't join the ride. Check your connection and try again.");
+      else setError("Couldn’t join the ride. Check your connection and try again.");
     } finally {
       setLoading(false);
     }
@@ -95,8 +95,6 @@ function JoinOrHostForm({ inviteCode, onBack }: { inviteCode?: string | null; on
           accessibilityRole="image"
           accessibilityLabel="Motorcyclists riding together on a winding mountain road"
         >
-          <View style={styles.heroShade} />
-          <Text style={styles.heroTitle}>Ride further, together.</Text>
         </ImageBackground>
 
         <View style={styles.joinBody}>
@@ -264,7 +262,7 @@ function MemberCard(): React.JSX.Element {
           <MaterialCommunityIcons name="motorbike" size={28} color={colors.accent} />
         </View>
         <View style={styles.locationCopy}>
-          <Text style={styles.title}>You're in this ride</Text>
+          <Text style={styles.title}>You’re in this ride</Text>
           <Text style={styles.cardBody}>Only the host can add or remove riders.</Text>
         </View>
       </View>
@@ -314,8 +312,6 @@ const styles = StyleSheet.create({
   screenTitle: { ...type.title, color: colors.textPrimary, fontSize: 28, lineHeight: 30, letterSpacing: -0.9, marginHorizontal: 20, marginBottom: 12 },
   hero: { marginHorizontal: 20, justifyContent: 'flex-end', overflow: 'hidden', borderRadius: radii.lg, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, backgroundColor: colors.surface },
   heroImage: { borderRadius: radii.lg },
-  heroShade: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(3,7,9,0.34)' },
-  heroTitle: { color: '#FFFFFF', fontSize: 22, lineHeight: 26, fontWeight: '800', letterSpacing: -0.6, paddingHorizontal: 16, paddingBottom: 14, textShadowColor: 'rgba(0,0,0,0.5)', textShadowRadius: 8 },
   card: { gap: spacing.sm, padding: spacing.md, borderWidth: 1, borderColor: colors.border, borderRadius: radii.lg, backgroundColor: colors.surface },
   cardTitle: { ...type.subheading, color: colors.textPrimary, fontSize: 18, lineHeight: 22, fontWeight: '800' },
   cardBody: { ...type.body, color: colors.textSecondary, fontSize: 14, lineHeight: 19 },

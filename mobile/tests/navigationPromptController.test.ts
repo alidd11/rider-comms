@@ -36,7 +36,7 @@ describe('native navigation prompt controller', () => {
     assert.equal(engine.getGains().nav, 0);
   });
 
-  it('does not let a cancelled older prompt clear a newer prompt', () => {
+  it('doesn’t let a cancelled older prompt clear a newer prompt', () => {
     const speech = new FakeSpeech();
     const engine = new AudioEngine();
     const controller = new NavigationPromptController(speech, engine);

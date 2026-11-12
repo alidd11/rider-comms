@@ -1,6 +1,6 @@
 // Part of docs/app.js. 12 of 20: Voice: microphone, LiveKit rooms, VOX and speakers. Edit here, then run `npm run build:pwa-app`.
   function microphoneAccessMessage(error) {
-    if (!navigator.mediaDevices?.getUserMedia) return 'Microphone access is not supported by this browser.';
+    if (!navigator.mediaDevices?.getUserMedia) return 'Microphone access isn’t supported by this browser.';
     if (error?.name === 'NotAllowedError' || error?.name === 'SecurityError') {
       return 'Microphone access is blocked. Allow it in this site’s device settings.';
     }
@@ -547,7 +547,7 @@
     badge.classList.toggle('talking', voiceIsSpeaking);
     badge.classList.toggle('muted', voiceManuallyMuted);
     badge.classList.toggle('waiting', waitingForPublicPeer);
-    const label = voiceManuallyMuted ? 'Muted — tap to unmute' : voiceIsSpeaking ? 'Talking' : 'Listening — hands-free';
+    const label = voiceManuallyMuted ? 'Muted. Tap to unmute.' : voiceIsSpeaking ? 'Talking' : 'Listening hands-free';
     badge.setAttribute(
       'aria-label',
       publicAuthorizationExpired
@@ -557,10 +557,10 @@
           : waitingForPublicPeer
             ? 'Nearby Voice · waiting for riders'
             : voiceManuallyMuted
-            ? 'Proximity voice muted — tap to unmute'
+            ? 'Nearby Voice muted. Tap to unmute.'
             : voiceIsSpeaking
               ? 'Talking'
-              : 'Listening — hands-free',
+              : 'Listening hands-free',
     );
     // The Ride tab has no map header of its own (the glowing avatar above
     // only exists on the Map screen), so a rider parked on Ride while
@@ -763,7 +763,7 @@
           } catch (error) {
             lastPairError = error;
             disconnectManagedVoiceRoom(pairRoom);
-            console.warn('[rider-comms] Could not connect proximity peer', connection.peerId, error);
+            console.warn('[rider-comms] Couldn’t connect proximity peer', connection.peerId, error);
           }
         }
         if (currentVoiceTarget() !== requestedTarget) return;
@@ -811,7 +811,7 @@
         if (room) disconnectManagedVoiceRoom(room);
         return;
       }
-      console.warn('[rider-comms] Could not connect voice chat', error);
+      console.warn('[rider-comms] Couldn’t connect voice chat', error);
       const leasedPublicConnection = kind === 'channel'
         && proximityVoiceRooms.size > 0
         && !publicVoiceAuthorizationExpired;
@@ -939,7 +939,7 @@
       const resumed = await resumeVoiceMeterContext();
       if (!resumed) {
         voiceFailureNotified = true;
-        showToast('Voice could not resume. Check microphone access and try again.');
+        showToast('Voice couldn’t resume. Check microphone access and try again.');
         renderVoiceStatus();
         return;
       }
@@ -986,8 +986,8 @@
       if (state.publicLive) {
         const saved = await stopPublicNearby({ disableLocationSharing: true });
         showToast(saved
-          ? 'Nearby visibility and proximity voice are off.'
-          : 'Nearby is off, but the location-sharing preference could not be saved.');
+          ? 'Nearby visibility and Nearby Voice are off.'
+          : 'Nearby is off, but the location-sharing preference couldn’t be saved.');
         return;
       }
 
@@ -1073,7 +1073,7 @@
                   ? 'Nearby is updating too often. Try again in a moment.'
                   : code === 'location fix timestamp is stale or invalid'
                     ? 'Couldn’t get a fresh location. Check location is on for this app and try again.'
-                    : 'Could not go live. Try again.');
+                    : 'Couldn’t go live. Try again.');
         if (!['email_verification_required', 'location_sharing_disabled', 'rate_limited', 'implausible_location_jump', 'location accuracy must be between 0 and 100 metres'].includes(code)) {
           // Report why, without coordinates, so a failure like this is
           // diagnosable from the server logs.

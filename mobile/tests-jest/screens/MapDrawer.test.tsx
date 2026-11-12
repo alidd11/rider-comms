@@ -16,7 +16,7 @@ const SAFE_AREA_METRICS = {
 
 // One stable client: a new object per render would re-run the search bar's
 // effects forever.
-const mockAuth = { riderId: 'rider-1', client: { searchPlaces: jest.fn(), searchNearbyPlaces: jest.fn() } };
+const mockAuth = { riderId: 'rider-1', client: { searchNearbyPlaces: jest.fn() } };
 jest.mock('../../src/auth/AuthContext', () => ({
   useAuth: () => mockAuth,
 }));

@@ -111,7 +111,7 @@ function AddFriendCard(): React.JSX.Element {
       setSentConfirmation(true);
       confirmationTimeout.current = setTimeout(() => setSentConfirmation(false), 2500);
     } catch (err) {
-      setInlineError(err instanceof Error ? err.message : 'Could not send that friend request.');
+      setInlineError(err instanceof Error ? err.message : 'Couldn’t send that friend request.');
     } finally {
       setSending(false);
     }
@@ -321,7 +321,7 @@ function FriendProfileModal({
     setError(null);
     void client.getPublicProfile(friendRiderId)
       .then((next) => { if (!cancelled) setProfile(next); })
-      .catch(() => { if (!cancelled) setError('Could not refresh this profile.'); })
+      .catch(() => { if (!cancelled) setError('Couldn’t refresh this profile.'); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [client, friendRiderId, profileRevision]);
@@ -330,19 +330,19 @@ function FriendProfileModal({
   const activityCopy = activityLabel(activity);
   const sharedProfileCount = Number(Boolean(profile?.instagramUsername)) + Number(Boolean(profile?.tiktokUsername));
   const openSocial = (url: string) => {
-    void Linking.openURL(url).catch(() => Alert.alert('Couldn’t open link', 'This profile link could not be opened.'));
+    void Linking.openURL(url).catch(() => Alert.alert('Couldn’t open link', 'This profile link couldn’t be opened.'));
   };
   const report = (reason: 'harassment' | 'unsafe' | 'spam') => {
     void client.reportRider(friend.riderId, reason, 'Reported from the friend profile')
       .then(() => Alert.alert('Report received', 'Thank you. The report has been recorded for review.'))
-      .catch(() => Alert.alert('Couldn’t send report', 'Please try again when you have a connection.'));
+      .catch(() => Alert.alert('Couldn’t send report', 'Try again when you have a connection.'));
   };
   const confirmRemove = () => Alert.alert('Remove friend?', `${friend.displayName} will be removed from your friends list.`, [
     { text: 'Cancel', style: 'cancel' },
     { text: 'Remove', style: 'destructive', onPress: () => {
       void remove(friend.riderId)
         .then(onClose)
-        .catch(() => Alert.alert('Couldn’t remove friend', 'Please try again when you have a connection.'));
+        .catch(() => Alert.alert('Couldn’t remove friend', 'Try again when you have a connection.'));
     } },
   ]);
   const reportActions = () => Alert.alert('Report rider', 'Choose the reason that best describes the issue.', [
@@ -360,7 +360,7 @@ function FriendProfileModal({
     { text: 'Block rider', style: 'destructive', onPress: () => {
       void client.blockRider(friend.riderId)
         .then(async () => { await refresh(); onClose(); })
-        .catch(() => Alert.alert('Couldn’t block rider', 'Please try again.'));
+        .catch(() => Alert.alert('Couldn’t block rider', 'Check your connection and try again.'));
     } },
     { text: 'Cancel', style: 'cancel' },
   ]);
@@ -428,7 +428,7 @@ function FriendProfileModal({
                 void setRideLocationSharing(!shareRideLocation)
                   .then((ok) => {
                     if (!ok && !shareRideLocation) {
-                      Alert.alert('Location not shared', 'Rider Comms could not enable private ride location sharing. Check location permission and your connection.');
+                      Alert.alert('Location not shared', 'Couldn’t share your location with this ride. Check location permission and your connection.');
                     }
                   })
                   .finally(() => setLocationShareBusy(false));

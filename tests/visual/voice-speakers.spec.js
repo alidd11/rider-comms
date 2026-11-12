@@ -207,7 +207,7 @@ test('PWA retries a transient pre-connect voice failure and preserves VOX/speake
   await expect.poll(() => voiceTokenRequests, { timeout: 5_000 }).toBeGreaterThanOrEqual(2);
 
   const localVoiceButton = page.locator('#voiceStatusBtn');
-  await expect(localVoiceButton).toHaveAttribute('aria-label', 'Listening — hands-free');
+  await expect(localVoiceButton).toHaveAttribute('aria-label', 'Listening hands-free');
 
   // Physical iOS PWA testing previously reported the system microphone
   // indicator disappearing roughly 4–5 seconds after enabling public Nearby.
@@ -224,7 +224,7 @@ test('PWA retries a transient pre-connect voice failure and preserves VOX/speake
   expect(persistenceBefore.disconnectCount).toBe(0);
 
   await page.waitForTimeout(5_500);
-  await expect(localVoiceButton).toHaveAttribute('aria-label', 'Listening — hands-free');
+  await expect(localVoiceButton).toHaveAttribute('aria-label', 'Listening hands-free');
 
   const persistenceAfter = await page.evaluate(() => ({
     trackStopCount: window.__voiceTrackStopCount || 0,
@@ -240,7 +240,7 @@ test('PWA retries a transient pre-connect voice failure and preserves VOX/speake
   await page.waitForTimeout(30);
   await page.evaluate(() => { window.__voiceTestAmplitude = 0; });
   await page.waitForTimeout(120);
-  await expect(localVoiceButton).toHaveAttribute('aria-label', 'Listening — hands-free');
+  await expect(localVoiceButton).toHaveAttribute('aria-label', 'Listening hands-free');
 
   // The same level held as real speech should open the mic even though it is
   // still below the old 0.06 gate.
@@ -261,7 +261,7 @@ test('PWA retries a transient pre-connect voice failure and preserves VOX/speake
 
   await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
   await expect.poll(() => page.evaluate(() => window.__voiceAudioResumeCount)).toBeGreaterThanOrEqual(1);
-  await expect(localVoiceButton).toHaveAttribute('aria-label', 'Listening — hands-free');
+  await expect(localVoiceButton).toHaveAttribute('aria-label', 'Listening hands-free');
 
   // After the context has resumed, VOX must still be able to open again.
   await page.evaluate(() => { window.__voiceTestAmplitude = 5; });
@@ -272,7 +272,7 @@ test('PWA retries a transient pre-connect voice failure and preserves VOX/speake
   await page.evaluate(() => { window.__voiceTestAmplitude = 0; });
   await page.waitForTimeout(250);
   await expect(localVoiceButton).toHaveAttribute('aria-label', 'Talking');
-  await expect(localVoiceButton).toHaveAttribute('aria-label', 'Listening — hands-free', { timeout: 1_200 });
+  await expect(localVoiceButton).toHaveAttribute('aria-label', 'Listening hands-free', { timeout: 1_200 });
 
   const speakerChip = page.locator('#voiceSpeakerChip');
   await expect(speakerChip).toBeVisible();

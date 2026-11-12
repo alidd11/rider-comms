@@ -108,9 +108,7 @@
       <div class="auth-splash-centre">
         <div class="auth-brand-emblem" aria-hidden="true"><svg viewBox="66 66 380 380"><g fill="none" stroke="currentColor" stroke-linecap="round"><path d="M118 238 A138 138 0 0 1 394 238" stroke-width="36"/><path d="M128 350 C138 404 186 420 232 420" stroke-width="22"/><path d="M226 252 V300 M256 228 V324 M286 252 V300" stroke-width="22"/></g><g fill="currentColor"><rect x="84" y="212" width="86" height="146" rx="38"/><rect x="342" y="212" width="86" height="146" rx="38"/><rect x="226" y="400" width="54" height="40" rx="20"/></g></svg></div>
         <strong>RIDER COMMS</strong>
-        <small>RIDE TOGETHER<br>STAY CONNECTED</small>
       </div>
-      <p>A SAFER, STRONGER<br>RIDING COMMUNITY</p>
       <div class="auth-splash-progress" aria-hidden="true"><span></span></div>
     </div>
 
@@ -123,7 +121,7 @@
         <div class="auth-intro">
           <span class="eyebrow" id="authEyebrow"></span>
           <h1 id="authTitle">Welcome back</h1>
-          <p id="authDescription">Good to see you again.</p>
+          <p id="authDescription" hidden></p>
         </div>
 
         <div class="auth-segmented" role="tablist" aria-label="Account access">
@@ -207,7 +205,6 @@
           <button type="button" class="auth-create-link auth-back-login">Back to log in</button>
         </form>
 
-        <p class="auth-terms">RIDE TOGETHER. STAY CONNECTED.</p>
       </main>
       <footer class="auth-assurance" aria-hidden="true"></footer>
     </div>
@@ -240,7 +237,7 @@
           <div id="googleMap" class="google-map" aria-hidden="true"></div>
           <div class="fallback-map" id="fallbackMap"><div class="road road-a"></div><div class="road road-b"></div><div class="road road-c"></div></div>
           <h1 id="mapTitle" class="sr-only">Rider map</h1>
-          <header class="map-header"><div class="map-avatar-wrap"><button class="avatar avatar-sm" id="mapAvatarButton" data-avatar="AI" aria-label="Open menu" aria-haspopup="dialog" aria-controls="appMenu">AI</button><b id="mapAvatarBadge" class="map-avatar-badge" aria-hidden="true" hidden>0</b><span class="map-avatar-menu" aria-hidden="true"><svg><use href="#i-menu"/></svg></span><button id="voiceStatusBtn" class="voice-mute-badge" aria-label="Listening — hands-free" hidden><svg><use href="#i-mic"/></svg></button></div><div class="map-status-row"><div id="mapStatusChip" class="map-status-chip" role="status" aria-live="polite"><span class="map-status-dot" aria-hidden="true"></span><span id="mapStatusText">Nearby off</span></div></div></header>
+          <header class="map-header"><div class="map-avatar-wrap"><button class="avatar avatar-sm" id="mapAvatarButton" data-avatar aria-label="Open menu" aria-haspopup="dialog" aria-controls="appMenu"></button><b id="mapAvatarBadge" class="map-avatar-badge" aria-hidden="true" hidden>0</b><span class="map-avatar-menu" aria-hidden="true"><svg><use href="#i-menu"/></svg></span><button id="voiceStatusBtn" class="voice-mute-badge" aria-label="Listening hands-free" hidden><svg><use href="#i-mic"/></svg></button></div><div class="map-status-row"><div id="mapStatusChip" class="map-status-chip" role="status" aria-live="polite"><span class="map-status-dot" aria-hidden="true"></span><span id="mapStatusText">Nearby off</span></div></div></header>
           <div id="fallbackMarkers" class="fallback-markers"></div>
           <div id="hazardMarkers" class="hazard-markers"></div>
           <div class="map-actions">
@@ -309,7 +306,6 @@
           <header class="page-header"><button class="icon-button page-back" type="button" data-back-to-map aria-label="Back to map"><svg class="icon-back"><use href="#i-chevron"/></svg></button><div><h1 id="rideTitle">Ride</h1></div><button class="icon-button" id="rideShareTop" aria-label="Share ride code" hidden><svg><use href="#i-share"/></svg></button></header>
           <div id="rideJoinState">
             <div class="ride-hero" role="img" aria-label="Motorcyclists riding together on a winding mountain road">
-              <div class="ride-hero-copy"><strong>Ride further, together.</strong></div>
             </div>
             <div class="ride-entry">
               <div class="ride-entry-heading"><h2 id="rideEntryTitle">Join a ride</h2></div>
@@ -321,9 +317,9 @@
             </div>
           </div>
           <div id="rideActiveState" hidden>
-            <article class="ride-summary"><div><span class="status-chip"><span class="live-dot"></span>Ride live</span><p><span id="memberCount"></span> · You are <span id="rideRole">host</span></p><button id="rideVoiceStatus" class="status-chip neutral" hidden><svg><use href="#i-mic"/></svg><span id="rideVoiceStatusText">Listening — hands-free</span></button></div><button id="shareRideBtn" class="button secondary"><svg><use href="#i-share"/></svg>Invite</button></article>
+            <article class="ride-summary"><div><span class="status-chip"><span class="live-dot"></span>Ride live</span><p><span id="memberCount"></span> · You are <span id="rideRole">host</span></p><button id="rideVoiceStatus" class="status-chip neutral" hidden><svg><use href="#i-mic"/></svg><span id="rideVoiceStatusText">Listening hands-free</span></button></div><button id="shareRideBtn" class="button secondary"><svg><use href="#i-share"/></svg>Invite</button></article>
             <div class="ride-code-card"><span>Invite code</span><button id="copyRideCode" aria-label="Copy ride code"><strong id="activeRideCode"></strong><small>Tap to copy</small></button></div>
-            <label class="ride-location-switch"><span><strong>Share your live location with this ride</strong><small id="activeRideLocationStatus">Off — riders in this ride can’t see where you are.</small></span><input id="activeRideLocationConsent" type="checkbox" role="switch"></label>
+            <label class="ride-location-switch"><span><strong>Share your live location with this ride</strong><small id="activeRideLocationStatus">Off. Riders in this ride can’t see where you are.</small></span><input id="activeRideLocationConsent" type="checkbox" role="switch"></label>
             <div class="section-heading"><h2>Riders</h2><span id="rideRosterCount" class="status-chip neutral"></span></div>
             <div id="rideRoster" class="people-list"></div>
             <div class="ride-actions-row"><button id="openRideMap" class="button secondary">View on map</button><button id="leaveRideBtn" class="button danger">End ride</button></div>
@@ -364,7 +360,7 @@
   <section id="appMenu" class="app-menu" role="dialog" aria-modal="true" aria-label="Menu" hidden>
     <div class="app-menu-top"><button id="closeAppMenu" class="icon-button app-menu-close" type="button" aria-label="Close menu"><svg><use href="#i-close"/></svg></button></div>
     <div class="app-menu-profile">
-      <div id="appMenuAvatar" class="avatar avatar-lg" data-avatar="AI" aria-hidden="true">AI</div>
+      <div id="appMenuAvatar" class="avatar avatar-lg" data-avatar aria-hidden="true"></div>
       <div class="app-menu-profile-copy"><strong id="appMenuName"></strong><span id="appMenuHandle"></span><button id="appMenuViewProfile" class="app-menu-profile-button" type="button">View profile</button></div>
     </div>
     <div class="app-menu-list">

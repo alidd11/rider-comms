@@ -45,7 +45,7 @@ function messageFor(err: unknown, fallback: string): string {
       : '';
     const messages: Record<string, string> = {
       rider_not_found: 'No rider with that handle or Rider ID was found.',
-      cannot_friend_yourself: 'You cannot send a friend request to yourself.',
+      cannot_friend_yourself: 'You can’t send a friend request to yourself.',
       already_friends: 'You are already friends with this rider.',
       request_exists: 'A friend request is already pending between you.',
       blocked: 'This connection is unavailable.',
@@ -154,7 +154,7 @@ export function FriendsProvider({ children }: { children: React.ReactNode }): Re
       await refreshAuthoritative();
       setError(null);
     } catch (err) {
-      setError(messageFor(err, 'Could not load friends.'));
+      setError(messageFor(err, 'Couldn’t load friends.'));
     } finally {
       setLoading(false);
     }
@@ -253,7 +253,7 @@ export function FriendsProvider({ children }: { children: React.ReactNode }): Re
         const request = await client.sendFriendRequest(toRiderId);
         setOutgoingRequests((current) => appendUniqueFriendRequest(current, request));
       } catch (err) {
-        throw new Error(messageFor(err, 'Could not send that friend request.'));
+        throw new Error(messageFor(err, 'Couldn’t send that friend request.'));
       } finally {
         void refreshNetwork();
       }
@@ -277,7 +277,7 @@ export function FriendsProvider({ children }: { children: React.ReactNode }): Re
         setFriends((current) => (current.some((item) => item.riderId === friend.riderId) ? current : [...current, friend]));
         setError(null);
       } catch (err) {
-        setError(messageFor(err, 'Could not accept that request.'));
+        setError(messageFor(err, 'Couldn’t accept that request.'));
       } finally {
         void refreshNetwork();
       }
@@ -292,7 +292,7 @@ export function FriendsProvider({ children }: { children: React.ReactNode }): Re
         await client.declineFriendRequest(requestId);
         setError(null);
       } catch (err) {
-        setError(messageFor(err, 'Could not decline that request.'));
+        setError(messageFor(err, 'Couldn’t decline that request.'));
       } finally {
         void refreshNetwork();
       }
@@ -307,7 +307,7 @@ export function FriendsProvider({ children }: { children: React.ReactNode }): Re
         await client.cancelFriendRequest(requestId);
         setError(null);
       } catch (err) {
-        setError(messageFor(err, 'Could not cancel that request.'));
+        setError(messageFor(err, 'Couldn’t cancel that request.'));
       } finally {
         void refreshNetwork();
       }
@@ -322,7 +322,7 @@ export function FriendsProvider({ children }: { children: React.ReactNode }): Re
         setFriends((current) => current.filter((friend) => friend.riderId !== friendId));
         setError(null);
       } catch (err) {
-        const message = messageFor(err, 'Could not remove that friend.');
+        const message = messageFor(err, 'Couldn’t remove that friend.');
         setError(message);
         throw new Error(message);
       } finally {

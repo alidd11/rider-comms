@@ -40,7 +40,7 @@ test('login baseline matches the approved night-rider concept in day and night',
     await expect(page.locator('#loginUsername')).not.toBeFocused();
     await expect(page.locator('#loginPassword')).not.toBeFocused();
     await expect(page.locator('#authTitle')).toHaveText('Welcome back');
-    await expect(page.locator('#authDescription')).toHaveText('Good to see you again.');
+    await expect(page.locator('#authDescription')).toBeHidden();
     await expect(page.locator('#loginForm')).toBeVisible();
     await expect(page.locator('#signupForm')).toBeHidden();
     await expect(page.locator('.auth-segmented')).toBeHidden();
@@ -58,7 +58,8 @@ test('login baseline matches the approved night-rider concept in day and night',
       const button = getComputedStyle(document.querySelector('#loginSubmit'));
       const card = getComputedStyle(document.querySelector('.auth-card'));
       const intro = document.querySelector('.auth-intro').getBoundingClientRect();
-      const terms = document.querySelector('.auth-terms').getBoundingClientRect();
+      // The last control on the log-in card: it must sit on screen, below the title.
+      const terms = document.querySelector('#createAccountLink').getBoundingClientRect();
       return {
         screenBackground: getComputedStyle(screen).backgroundColor,
         backgroundImage: background.backgroundImage,
@@ -69,7 +70,7 @@ test('login baseline matches the approved night-rider concept in day and night',
         cardBackground: card.backgroundColor,
         cardBorder: parseFloat(card.borderTopWidth),
         introTop: intro.top,
-        termsTop: terms.top,
+        lastControlTop: terms.top,
         viewportHeight: window.innerHeight,
       };
     });
@@ -88,8 +89,8 @@ test('login baseline matches the approved night-rider concept in day and night',
     expect(visual.cardBorder).toBe(0);
     expect(visual.introTop).toBeGreaterThan(160);
     expect(visual.introTop).toBeLessThan(330);
-    expect(visual.termsTop).toBeLessThan(visual.viewportHeight);
-    expect(visual.termsTop).toBeGreaterThan(visual.introTop);
+    expect(visual.lastControlTop).toBeLessThan(visual.viewportHeight);
+    expect(visual.lastControlTop).toBeGreaterThan(visual.introTop);
 
     await page.screenshot({
       path: testInfo.outputPath(`iphone-17-pro-max-login-${scheme}-baseline.png`),

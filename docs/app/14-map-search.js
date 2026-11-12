@@ -72,7 +72,7 @@
         const response = await fetch(`${API_BASE_URL}/config`);
         if (response.ok) key = (await response.json())?.googleMapsApiKey;
       } catch (error) {
-        console.warn('[rider-comms] Could not reach the backend for /config', error);
+        console.warn('[rider-comms] Couldn’t reach the backend for /config', error);
       }
     }
     if (!key) {
@@ -420,7 +420,7 @@
   function placeSearchErrorCopy(error) {
     if (error?.status === 429) return 'You’ve searched a lot in a short time. Try again in a minute.';
     if (error?.status === 0) return 'Check your connection and try again.';
-    return 'Search could not be completed. Try again in a moment.';
+    return 'Search couldn’t be completed. Try again in a moment.';
   }
 
   function renderSearchResults(suggestions) {
@@ -714,7 +714,7 @@
       place = null;
     }
     if (!place || !Number.isFinite(place.lat) || !Number.isFinite(place.lon)) {
-      showToast('Could not open that place. Try again.');
+      showToast('Couldn’t open that place. Try again.');
       return;
     }
     const lat = place.lat;

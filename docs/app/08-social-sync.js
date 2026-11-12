@@ -177,7 +177,7 @@
       friendsLoadError = '';
     } catch (error) {
       friendsLoadState = 'error';
-      friendsLoadError = 'Could not load friends. ' + authErrorMessage(error);
+      friendsLoadError = 'Couldn’t load friends. ' + authErrorMessage(error);
     }
     renderFriends();
   }
@@ -193,7 +193,7 @@
       renderFriends();
       showToast(`${result.friend.displayName} added to friends.`);
     } catch {
-      showToast('Could not accept that request. Try again.');
+      showToast('Couldn’t accept that request. Try again.');
     }
   }
 
@@ -205,7 +205,7 @@
       renderFriends();
       showToast('Request declined.');
     } catch {
-      showToast('Could not decline that request. Try again.');
+      showToast('Couldn’t decline that request. Try again.');
     }
   }
 
@@ -216,12 +216,12 @@
       renderFriends();
       showToast('Request cancelled.');
     } catch {
-      showToast('Could not cancel that request. Try again.');
+      showToast('Couldn’t cancel that request. Try again.');
     }
   }
 
   const FRIEND_REQUEST_ERROR_MESSAGES = {
-    cannot_friend_yourself: 'You cannot send a friend request to yourself.',
+    cannot_friend_yourself: 'You can’t send a friend request to yourself.',
     rider_not_found: 'No rider with that handle or Rider ID was found.',
     blocked: 'This connection is unavailable.',
     request_exists: 'A friend request is already pending between you.',
@@ -237,7 +237,7 @@
       loadFriendsData();
     } catch (error) {
       const code = error instanceof ApiError ? error.body?.error : undefined;
-      $('#friendFeedback').textContent = FRIEND_REQUEST_ERROR_MESSAGES[code] || 'Could not send that request. Try again.';
+      $('#friendFeedback').textContent = FRIEND_REQUEST_ERROR_MESSAGES[code] || 'Couldn’t send that request. Try again.';
     }
   }
 

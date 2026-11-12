@@ -223,7 +223,7 @@ test('go-live blocks with an alert while locked for safety, without calling the 
   expect(result.current.publicLive).toBe(false);
 });
 
-test('go-live blocks with an alert when the email is not verified', async () => {
+test('go-live blocks with an alert when the email isn’t verified', async () => {
   const client = { getMe: jest.fn(async () => ({ riderId: 'me', username: 'me', emailVerified: false })) };
   const { result } = await renderPresence({ client });
 
@@ -283,6 +283,6 @@ test('go-live explains when the account status can’t be checked', async () => 
     await result.current.handleNearbyToggle();
   });
 
-  expect(Alert.alert).toHaveBeenCalledWith('Nearby Voice unavailable', expect.stringContaining('account status'));
+  expect(Alert.alert).toHaveBeenCalledWith('Nearby Voice unavailable', expect.stringContaining('Couldn’t check your account'));
   expect(result.current.publicLive).toBe(false);
 });

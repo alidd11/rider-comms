@@ -101,7 +101,7 @@ test('“My location” explains when the position can’t be found, and the pin
   const { onCreate, onClose } = await renderModal();
   await fireEvent.press(screen.getByLabelText('Use my current location'));
   await act(async () => {});
-  expect(screen.getByText(/Could not find your location/)).toBeTruthy();
+  expect(screen.getByText(/Couldn’t find your location/)).toBeTruthy();
 
   // Taps inside the sheet don't close it.
   const stopPropagation = jest.fn();

@@ -36,22 +36,22 @@ const AUTH_COPY = {
   login: {
     eyebrow: '',
     title: 'Welcome back',
-    description: 'Good to see you again.',
+    description: '',
   },
   signup: {
     eyebrow: 'NEW RIDER',
     title: 'Create your account',
-    description: 'Set up your Rider Comms identity and keep your rides and rider circle across devices.',
+    description: 'Your friends, rides and settings stay with your account on any phone.',
   },
   recover: {
     eyebrow: 'ACCOUNT RECOVERY',
     title: 'Get back in',
-    description: 'Request a one-hour reset link without revealing whether an account exists.',
+    description: 'Enter your email and we’ll send you a link to reset your password.',
   },
   reset: {
     eyebrow: 'SECURE RESET',
     title: 'Choose a new password',
-    description: 'Enter the one-hour code from your email. Every existing session will be signed out.',
+    description: 'Enter the code from your email. It works for an hour, and you’ll be signed out on your other devices.',
   },
 } as const;
 
@@ -92,7 +92,7 @@ function authErrorMessage(error: unknown): string {
   if (!(error instanceof ApiError)) {
     return error instanceof Error && error.name === 'AbortError'
       ? 'The request timed out. Check your connection and try again.'
-      : 'Rider Comms could not reach the account service. Check your connection and try again.';
+      : 'Couldn’t reach Rider Comms. Check your connection and try again.';
   }
   const code = (error.body as { error?: string } | null)?.error;
   const messages: Record<string, string> = {
@@ -109,7 +109,7 @@ function authErrorMessage(error: unknown): string {
     terms_not_accepted: 'Confirm you’re 16 or older and agree to the Terms of Service and Community Guidelines to create an account.',
     objectionable_username: 'That username isn’t allowed. Choose another.',
   };
-  return code ? messages[code] ?? 'The account request could not be completed.' : 'The account request could not be completed.';
+  return code ? messages[code] ?? 'The account request couldn’t be completed.' : 'The account request couldn’t be completed.';
 }
 
 function AuthScreen({ onAuthenticated, restoreError, onRetryRestore }: {
@@ -192,7 +192,7 @@ function AuthScreen({ onAuthenticated, restoreError, onRetryRestore }: {
           'Account created',
           result.emailVerificationSent
             ? 'Open the verification link we sent to your email to confirm your address.'
-            : 'Your account was created, but the verification email could not be sent. Features that require a verified email, including Nearby Voice, will stay unavailable until verification delivery is restored.'
+            : 'Account created, but the verification email couldn’t be sent. Resend it from Settings → Account and login → Email. Nearby Voice needs a verified email.'
         );
       } else {
         await onAuthenticated(await publicClient.logIn(normalizedUsername, password), rememberMe);
@@ -229,7 +229,7 @@ function AuthScreen({ onAuthenticated, restoreError, onRetryRestore }: {
         >
           <View style={styles.intro}>
             <Text style={styles.title}>{copy.title}</Text>
-            <Text style={styles.subtitle}>{copy.description}</Text>
+            {copy.description ? <Text style={styles.subtitle}>{copy.description}</Text> : null}
           </View>
 
           {restoreError ? (
@@ -454,7 +454,6 @@ function AuthScreen({ onAuthenticated, restoreError, onRetryRestore }: {
             </View>
           )}
 
-          <Text style={styles.footerTagline}>RIDE TOGETHER. STAY CONNECTED.</Text>
         </ScrollView>
       </KeyboardAvoidingView>
     </ImageBackground>
@@ -470,9 +469,7 @@ function AuthSplash(): React.JSX.Element {
       <View style={[styles.splashCenter, { paddingTop: insets.top + 70 }]}>
         <Image source={BRAND_MARK_IMAGE} style={styles.splashMark} accessibilityIgnoresInvertColors />
         <Text style={styles.splashName}>RIDER COMMS</Text>
-        <Text style={styles.splashMotto}>{'RIDE TOGETHER\nSTAY CONNECTED'}</Text>
       </View>
-      <Text style={[styles.splashFooter, { bottom: insets.bottom + 58 }]}>{'A SAFER, STRONGER\nRIDING COMMUNITY'}</Text>
       <View style={[styles.splashProgress, { bottom: insets.bottom + 20 }]}><View style={styles.splashProgressFill} /></View>
     </ImageBackground>
   );
@@ -507,7 +504,7 @@ function TermsAgreementScreen({ client, knownVersion, onAccepted, onLogOut }: {
     <View style={[styles.termsGate, { paddingTop: insets.top + 48, paddingBottom: insets.bottom + 24 }]}>
       <Text style={styles.title}>Updated terms</Text>
       <Text style={styles.subtitle}>
-        To keep riding with others on Rider Comms, please read and agree to our Terms of Service and Community Guidelines.
+        To keep riding with others on Rider Comms, read and agree to our Terms of Service and Community Guidelines.
         Abusive or objectionable content and behaviour aren’t tolerated, and anyone can report or block another rider.
       </Text>
       <View style={styles.termsGateLinks}>
@@ -557,7 +554,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
         if (!cached) return;
         const client = new RiderCommsClient(API_BASE_URL, fetch, cached.token);
         const me = await client.getMe();
-        if (me.riderId !== cached.riderId) throw new Error('Stored account identity did not match the server.');
+        if (me.riderId !== cached.riderId) throw new Error('Stored account identity didn’t match the server.');
         const refreshed = { ...cached, emailVerified: me.emailVerified, termsAccepted: me.termsAccepted ?? true };
         if (me.termsVersion) setTermsVersion(me.termsVersion);
         await savedSession(() => SecureStore.setItemAsync(KEY, JSON.stringify(refreshed)));

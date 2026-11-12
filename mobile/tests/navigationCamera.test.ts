@@ -118,7 +118,7 @@ describe('adaptive navigation camera', () => {
     assert.ok(Math.abs(correction - 80 / 120) < 0.01, `converged to ${correction}`);
   });
 
-  it('ignores samples it cannot trust', () => {
+  it('ignores samples it can’t trust', () => {
     // A projection that ignores tilt reports the flat offset on a tilted map.
     assert.equal(nextNavigationCameraCorrection(1, { targetOffset: 80, measuredOffset: 70, flatOffset: 70, pitch: 50 }), 1);
     assert.equal(nextNavigationCameraCorrection(1, { targetOffset: 10, measuredOffset: 70, flatOffset: 50, pitch: 50 }), 1);

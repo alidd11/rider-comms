@@ -2,7 +2,6 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   distanceToPathMeters,
-  distanceToSegmentMeters,
   lookAheadCoordinateOnPath,
   metersBetween,
   remainingDistanceOnPathMeters,
@@ -11,11 +10,7 @@ import {
 describe('native in-app directions helpers', () => {
   it('measures route proximity in metres', () => {
     assert.ok(metersBetween({ lat: 51.5, lon: -0.1 }, { lat: 51.5009, lon: -0.1 }) > 90);
-    assert.ok(distanceToSegmentMeters(
-      { lat: 51.5002, lon: -0.1 },
-      { lat: 51.5, lon: -0.101 },
-      { lat: 51.5, lon: -0.099 },
-    ) > 15);
+    assert.ok(distanceToPathMeters({ lat: 51.5002, lon: -0.1 }, [{ lat: 51.5, lon: -0.101 }, { lat: 51.5, lon: -0.099 }]) > 15);
   });
 
   it('tracks curved route geometry instead of the straight step chord', () => {
@@ -26,7 +21,7 @@ describe('native in-app directions helpers', () => {
     ];
     const atBend = path[1]!;
 
-    assert.ok(distanceToSegmentMeters(atBend, path[0]!, path[2]!) > 40);
+    assert.ok(distanceToPathMeters(atBend, [path[0]!, path[2]!]) > 40);
     assert.equal(distanceToPathMeters(atBend, path), 0);
 
     const remaining = remainingDistanceOnPathMeters(atBend, path);

@@ -379,10 +379,10 @@ export function useInAppNavigation(
         ? String((routeError.body as Record<string, unknown>).error)
         : routeError instanceof Error ? routeError.message : '';
       const message = routeErrorCode === 'directions_not_configured'
-        ? 'In-app navigation is not configured on the Rider Comms server yet. Choose Google Maps, Waze or Apple Maps in Settings.'
+        ? 'Rider Comms navigation isn’t available right now. Choose Google Maps, Waze or Apple Maps in Settings → Map & navigation.'
         : routeErrorCode === 'directions_no_route'
           ? 'No driving route was found for that destination.'
-          : 'Rider Comms could not calculate that route. Try again or choose another navigation app.';
+          : 'Couldn’t plan that route. Try again or choose another navigation app.';
       Alert.alert('Couldn’t start navigation', message);
     } finally {
       setNavigationLoading(false);
@@ -553,7 +553,7 @@ export function useInAppNavigation(
         setNavigationNotice('Rerouting…');
         if (!navigationMutedRef.current) speakNavigationPrompt('Rerouting.');
         void requestInAppRoute(raw, navigationDestination, true).catch(() => {
-          setNavigationNotice('Could not reroute. Continue with caution.');
+          setNavigationNotice('Couldn’t reroute. Continue with caution.');
         });
       }
     ).then((value) => {

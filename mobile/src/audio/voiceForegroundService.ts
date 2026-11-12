@@ -80,7 +80,7 @@ export async function startAndroidVoiceForegroundService(): Promise<void> {
   }
 
   await service.stopServiceAll().catch(() => {});
-  throw new Error('Android background voice service could not start.');
+  throw new Error('Android background voice service couldn’t start.');
 }
 
 export async function stopAndroidVoiceForegroundService(): Promise<void> {

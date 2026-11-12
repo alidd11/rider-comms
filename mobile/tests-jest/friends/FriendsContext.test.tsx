@@ -282,7 +282,7 @@ test('accept sets the error banner on failure, and the authoritative refresh res
     await result.current.accept('r1');
   });
 
-  await waitFor(() => expect(result.current.error).toBe('Could not accept that request.'));
+  await waitFor(() => expect(result.current.error).toBe('Couldn’t accept that request.'));
   expect(result.current.incomingRequests).toEqual([request]);
 });
 
@@ -311,8 +311,8 @@ test('remove re-throws a specific message and sets the error banner on failure',
   });
 
   expect(thrown).toBeInstanceOf(Error);
-  expect((thrown as Error).message).toBe('Could not remove that friend.');
-  expect(result.current.error).toBe('Could not remove that friend.');
+  expect((thrown as Error).message).toBe('Couldn’t remove that friend.');
+  expect(result.current.error).toBe('Couldn’t remove that friend.');
   // remove() only filters `friends` locally after a successful removeFriend
   // call, so on failure the list is untouched (still whatever getFriends()
   // returns) rather than optimistically cleared.
@@ -354,7 +354,7 @@ test('shows a load error when the first refresh fails, using a plain Error messa
   });
   const second = await renderFriends(other);
   await waitFor(() => expect(second.result.current.loading).toBe(false));
-  expect(second.result.current.error).toBe('Could not load friends.');
+  expect(second.result.current.error).toBe('Couldn’t load friends.');
 });
 
 test('drains every page of a multi-page event batch before refreshing', async () => {
@@ -399,11 +399,11 @@ test('decline and cancel drop the request optimistically and report failures', a
 
   cancelFriendRequest.mockRejectedValueOnce(new ApiError(500, { error: 'server_error' }));
   await act(async () => { await result.current.cancel('out1'); });
-  await waitFor(() => expect(result.current.error).toBe('Could not cancel that request.'));
+  await waitFor(() => expect(result.current.error).toBe('Couldn’t cancel that request.'));
 
   declineFriendRequest.mockRejectedValueOnce(new ApiError(500, { error: 'server_error' }));
   await act(async () => { await result.current.decline('in1'); });
-  await waitFor(() => expect(result.current.error).toBe('Could not decline that request.'));
+  await waitFor(() => expect(result.current.error).toBe('Couldn’t decline that request.'));
 });
 
 test('remove drops the friend locally once the server confirms it', async () => {

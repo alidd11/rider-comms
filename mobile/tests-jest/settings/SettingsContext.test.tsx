@@ -136,7 +136,7 @@ test('rolls back an optimistic change and surfaces a specific alert when the han
   expect(result.current.profileError).toBe('That handle is already in use. Choose another one.');
 });
 
-test('does not roll back a field the rider has since changed again', async () => {
+test('doesn’t roll back a field the rider has since changed again', async () => {
   await seedCache({ displayName: 'Original' });
   // The first save is deferred (see above) so the second edit can land
   // optimistically while it is still in flight -- proving the update is
@@ -240,7 +240,7 @@ test('normalises names, handles and social usernames before saving', async () =>
 
 test.each([
   [new ApiError(400, { error: 'handle must start with @' }), 'Use a handle that starts with @ and contains only letters, numbers, or underscores.'],
-  [new Error('offline'), 'Your profile change could not be saved. Check your connection and try again.'],
+  [new Error('offline'), 'Your profile change couldn’t be saved. Check your connection and try again.'],
 ])('explains a failed save (%s) and rolls it back', async (error, message) => {
   await seedCache({ handle: '@alex' });
   const updateProfile = jest.fn(async () => { throw error; });

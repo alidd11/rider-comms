@@ -155,7 +155,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }): R
           ? 'That handle is already in use. Choose another one.'
           : code.startsWith('handle ')
             ? 'Use a handle that starts with @ and contains only letters, numbers, or underscores.'
-            : 'Your profile change could not be saved. Check your connection and try again.');
+            : 'Your profile change couldn’t be saved. Check your connection and try again.');
         setState((current) => {
           // Only roll this field back when the rider has not typed a newer
           // value while the failed request was queued.
@@ -218,7 +218,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }): R
     void AsyncStorage.removeItem(navigationProviderStorageKey(riderId));
     void AsyncStorage.removeItem(routeAvoidanceStorageKey(riderId));
     void AsyncStorage.removeItem(rideSafeStorageKey(riderId));
-    void client.updateProfile(riderId, DEFAULTS).catch(() => setProfileError('Your settings could not be reset on the server.'));
+    void client.updateProfile(riderId, DEFAULTS).catch(() => setProfileError('Couldn’t reset your settings. Check your connection and try again.'));
   }, [client, riderId]);
   const clearProfileError = React.useCallback(() => setProfileError(null), []);
   const value = React.useMemo(() => ({ ...state, ...setters, navigationProvider, setNavigationProvider, routeAvoidance, setRouteAvoidance, rideSafeEnabled, rideSafeLoaded, setRideSafeEnabled, spokenDirections, setSpokenDirections, riderVehicle, setRiderVehicle, loaded, saving, profileError, clearProfileError, resetAll, refreshProfile }), [state, setters, navigationProvider, setNavigationProvider, routeAvoidance, setRouteAvoidance, rideSafeEnabled, rideSafeLoaded, setRideSafeEnabled, spokenDirections, setSpokenDirections, riderVehicle, setRiderVehicle, loaded, saving, profileError, clearProfileError, resetAll, refreshProfile]);

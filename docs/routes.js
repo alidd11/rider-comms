@@ -1223,6 +1223,8 @@
   // not words in its description (native: ROUTE_CATEGORIES and
   // routeMatchesCategory in curatedRoutes.ts).
   const categoryLabels = { all: 'All', coastal: 'Coastal', mountain: 'Mountains', countryside: 'Countryside', relaxed: 'Relaxed', challenging: 'Challenging', near: 'Near me' };
+  // What the list shows, as the heading above it.
+  const listHeadings = { all: 'All routes', coastal: 'Coastal routes', mountain: 'Mountain routes', countryside: 'Countryside routes', relaxed: 'Relaxed routes', challenging: 'Challenging routes', near: 'Routes near you' };
   const roadTypeLabels = { coastal: 'Coastal', mountain: 'Mountain roads', rural: 'Countryside', mixed: 'Mixed roads', urban: 'Town and city' };
   const durationLabels = { all: 'All durations', quick: 'Under 90 min', half_day: '90 min–3 hr', day_trip: '3+ hr' };
   let category = 'all';
@@ -1498,7 +1500,7 @@
     const copy = document.querySelector('#routesDiscoveryCopy');
     if (!root || !copy) return;
     const count = visibleRoutes().length;
-    root.innerHTML = `<div><span class="eyebrow">${category === 'near' ? 'Nearest first' : 'Rider Comms picks'}</span><h2>Roads worth the ride</h2></div><span class="routes-count">${count} ${count === 1 ? 'ride' : 'rides'}</span>`;
+    root.innerHTML = `<div>${category === 'near' ? '<span class="eyebrow">Nearest first</span>' : ''}<h2>${listHeadings[category]}</h2></div><span class="routes-count">${count} ${count === 1 ? 'ride' : 'rides'}</span>`;
     copy.textContent = 'Verified UK routes with real photography, route shape, road character and planning notes.';
   }
 

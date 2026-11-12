@@ -229,7 +229,7 @@ test('keeps the Terms gate up with an error when saving the agreement fails, and
 
 test('treats an unreadable saved session as signed out, without a restore error', async () => {
   mockGetItemAsync.mockImplementation(async (key: string) => {
-    if (key === KEY) throw new Error('Could not decrypt the value');
+    if (key === KEY) throw new Error('Couldn’t decrypt the value');
     return null;
   });
   await render(
@@ -245,7 +245,7 @@ test('treats an unreadable saved session as signed out, without a restore error'
   expect(mockClientImpl.getMe).not.toHaveBeenCalled();
 });
 
-test('logs out even when the saved session cannot be deleted', async () => {
+test('logs out even when the saved session can’t be deleted', async () => {
   const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
   mockGetItemAsync.mockImplementation(async (key: string) => (key === KEY ? cachedSession() : null));
   mockDeleteItemAsync.mockRejectedValue(new Error('keychain unavailable'));

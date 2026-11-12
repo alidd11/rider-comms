@@ -22,7 +22,7 @@ export function openReportFlow(client: SafetyClient, target: RiderSafetyTarget):
   const send = (reason: ReportReason) => {
     void client.reportRider(target.riderId, reason, `Reported from ${target.source}`)
       .then(() => Alert.alert('Report received', 'Thank you. Our team reviews reports within 24 hours and acts on anything that breaks the Community Guidelines.'))
-      .catch(() => Alert.alert('Couldn’t send report', 'Please try again when you have a connection.'));
+      .catch(() => Alert.alert('Couldn’t send report', 'Try again when you have a connection.'));
   };
   Alert.alert('Report rider', 'Choose the reason that best describes the issue.', [
     { text: 'Harassment or threats', onPress: () => send('harassment') },
@@ -41,7 +41,7 @@ export function confirmBlock(client: SafetyClient, target: RiderSafetyTarget, on
     { text: 'Block', style: 'destructive', onPress: () => {
       void client.blockRider(target.riderId)
         .then(() => onBlocked?.())
-        .catch(() => Alert.alert('Couldn’t block rider', 'Please try again when you have a connection.'));
+        .catch(() => Alert.alert('Couldn’t block rider', 'Try again when you have a connection.'));
     } },
   ]);
 }

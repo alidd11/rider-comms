@@ -362,7 +362,7 @@ export const PlaceSearchBar = React.forwardRef<PlaceSearchHandle, {
             <SearchState
               icon="location-outline"
               title="Location needed"
-              copy="Allow location to search nearby. Your position is not shared with other riders unless you turn sharing on."
+              copy="Allow location to search nearby. Your position isn’t shared with other riders unless you turn sharing on."
               actionLabel="Try location again"
               onAction={() => void onRequestLocation()}
             />
@@ -455,7 +455,7 @@ function searchFailureCopy(failure: PlaceSearchFailure): { title: string; copy: 
   if (failure === 'unavailable') {
     return { title: 'Search unavailable', copy: 'Place search isn’t available right now. Try again later.' };
   }
-  return { title: 'Place search failed', copy: 'The place service could not complete this search. Try again shortly.' };
+  return { title: 'Place search failed', copy: 'Search isn’t working right now. Try again in a moment.' };
 }
 
 function SearchState({ icon, title, copy, compact = false, actionLabel, onAction }: {

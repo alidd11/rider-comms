@@ -112,7 +112,7 @@ test('logs in, remembers the session by default and shows the app', async () => 
   expect(mockSetItemAsync).toHaveBeenCalledWith(KEY, JSON.stringify({ riderId: 'rider_me', token: 'tok', emailVerified: true }));
 });
 
-test('does not store the session when Remember me is turned off', async () => {
+test('doesn’t store the session when Remember me is turned off', async () => {
   await renderSignedOut();
   await fireEvent.press(screen.getByText('Remember me'));
   await fillLogin('rider_one', 'correct-horse');
@@ -127,9 +127,9 @@ test.each([
   [new ApiError(401, { error: 'invalid_credentials' }), 'The username or password is incorrect.'],
   [new ApiError(403, { error: 'account_suspended' }), 'This account has been suspended for breaking the community rules. Contact support if you think this is a mistake.'],
   [new ApiError(429, { error: 'rate_limited' }), 'Too many attempts. Wait a moment and try again.'],
-  [new ApiError(500, { error: 'something_new' }), 'The account request could not be completed.'],
+  [new ApiError(500, { error: 'something_new' }), 'The account request couldn’t be completed.'],
   [Object.assign(new Error('aborted'), { name: 'AbortError' }), 'The request timed out. Check your connection and try again.'],
-  [new TypeError('Network request failed'), 'Rider Comms could not reach the account service. Check your connection and try again.'],
+  [new TypeError('Network request failed'), 'Couldn’t reach Rider Comms. Check your connection and try again.'],
 ])('explains a failed login (%s)', async (error, message) => {
   mockClientImpl.logIn.mockRejectedValueOnce(error);
   await renderSignedOut();
@@ -176,7 +176,7 @@ test('still signs the rider in when the optional first profile write fails', asy
   await press('Create account');
 
   await screen.findByText('Signed in content');
-  expect(Alert.alert).toHaveBeenCalledWith('Account created', expect.stringContaining('verification email could not be sent'));
+  expect(Alert.alert).toHaveBeenCalledWith('Account created', expect.stringContaining('verification email couldn’t be sent'));
 });
 
 test('explains a signup conflict', async () => {
@@ -226,7 +226,7 @@ test('explains an expired reset code', async () => {
   expect(await screen.findByRole('alert')).toHaveTextContent('That reset code has expired. Request a new one.');
 });
 
-test('offers a retry when a saved session could not be restored', async () => {
+test('offers a retry when a saved session couldn’t be restored', async () => {
   mockGetItemAsync.mockResolvedValue(JSON.stringify({ riderId: 'rider_me', token: 'tok', emailVerified: true }));
   mockClientImpl.getMe
     .mockRejectedValueOnce(new ApiError(503, { error: 'unavailable' }))
@@ -286,7 +286,7 @@ test('opens the legal pages from signup and returns to log in from every form', 
   expect(screen.getByText('Forgot password?')).toBeTruthy();
 });
 
-test('signs in and out even when the device cannot save the session', async () => {
+test('signs in and out even when the device can’t save the session', async () => {
   const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
   mockGetItemAsync.mockRejectedValue(new Error('keychain unavailable'));
   mockSetItemAsync.mockRejectedValue(new Error('keychain unavailable'));

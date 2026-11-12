@@ -481,7 +481,6 @@ describe('RiderCommsClient places and friends', () => {
       calls.push({ url, method: init.method, body: init.body ? JSON.parse(init.body as string) : undefined });
       return { status: 200, body: { places: [], incoming: [], outgoing: [], profiles: {}, friends: [], nextCursor: null } };
     }));
-    await client.searchPlaces('fuel', { lat: 51.5, lon: -0.1 });
     await client.searchNearbyPlaces(['gas_station'], { lat: 51.5, lon: -0.1 });
     await client.suggestPlaces('ace', { lat: 51.5, lon: -0.1 }, 'session-0123456789');
     await client.placeDetails('abc_1', 'session-0123456789');
@@ -489,7 +488,6 @@ describe('RiderCommsClient places and friends', () => {
     await client.getFriends('rider 1', { before: 'cursor-2' });
     await client.getFriends('rider 1');
     assert.deepEqual(calls, [
-      { url: 'http://example.test/places/search', method: 'POST', body: { query: 'fuel', near: { lat: 51.5, lon: -0.1 } } },
       { url: 'http://example.test/places/nearby', method: 'POST', body: { includedTypes: ['gas_station'], near: { lat: 51.5, lon: -0.1 } } },
       { url: 'http://example.test/places/autocomplete', method: 'POST', body: { input: 'ace', near: { lat: 51.5, lon: -0.1 }, sessionToken: 'session-0123456789' } },
       { url: 'http://example.test/places/details', method: 'POST', body: { placeId: 'abc_1', sessionToken: 'session-0123456789' } },

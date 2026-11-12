@@ -76,7 +76,7 @@
         && hideout.participantIds.includes(riderId)
       );
     } catch {
-      if (activeChat?.riderId === riderId) chatHideoutError = 'Could not load hideouts';
+      if (activeChat?.riderId === riderId) chatHideoutError = 'Couldn’t load hideouts';
     } finally {
       chatHideoutsLoading = false;
       renderChatHideouts();
@@ -90,7 +90,7 @@
     if (provider !== 'in_app') {
       const href = navigationHref(provider, hideout.lat, hideout.lon, hideout.name);
       if (!href) {
-        showToast('Could not open directions.');
+        showToast('Couldn’t open directions.');
         return;
       }
       const opened = window.open(href, '_blank');
@@ -120,7 +120,7 @@
       renderChatHideouts();
       showToast('Hideout deleted.');
     } catch {
-      chatHideoutError = 'Could not delete hideout';
+      chatHideoutError = 'Couldn’t delete hideout';
       renderChatHideouts();
     }
   }
@@ -131,7 +131,7 @@
     presentSheet('Plan a hideout', `
       <form id="planHideoutForm" class="form-field">
         <label for="hideoutName">Name</label>
-        <input id="hideoutName" maxlength="100" autocomplete="off" placeholder="e.g. Petrol station meeting point">
+        <input id="hideoutName" maxlength="100" autocomplete="off" placeholder="Name, like Petrol station on the A40">
         <div class="hideout-coordinate-grid">
           <label>Latitude<input id="hideoutLat" inputmode="decimal" autocomplete="off" placeholder="51.5074"></label>
           <label>Longitude<input id="hideoutLon" inputmode="decimal" autocomplete="off" placeholder="-0.1278"></label>
@@ -182,7 +182,7 @@
           const code = error instanceof ApiError ? error.body?.error : '';
           errorEl.textContent = code === 'participants_must_be_friends'
             ? 'Hideouts can only be shared with current friends.'
-            : 'Could not save that hideout. Try again.';
+            : 'Couldn’t save that hideout. Try again.';
           errorEl.hidden = false;
           save.disabled = false;
           save.textContent = 'Save hideout';
@@ -206,7 +206,7 @@
       const status = message.status === 'pending'
         ? '<small>Sending…</small>'
         : failed
-          ? '<small>Failed — tap to retry</small>'
+          ? '<small>Not sent. Tap to retry.</small>'
           : mine && message.id === chatPeerReadThroughMessageId
             ? '<small>Read</small>'
             : '';
@@ -276,7 +276,7 @@
         if (!older) requestAnimationFrame(() => { $('#chatThread').scrollTop = $('#chatThread').scrollHeight; });
       } catch (error) {
         const unavailable = error instanceof ApiError && error.status === 403;
-        setChatError(unavailable ? 'This conversation is no longer available.' : 'Could not refresh messages. Check your connection and try again.', unavailable);
+        setChatError(unavailable ? 'This conversation is no longer available.' : 'Couldn’t refresh messages. Check your connection and try again.', unavailable);
         // A 403 is authoritative relationship state, not a transport failure.
         // Transient failures must escape realtime callers so they rebaseline
         // instead of advancing the durable cursor with a stale open thread.
@@ -482,7 +482,7 @@
       void Promise.all([refreshFriendNetwork(), refreshMessageSummaries()]).catch(() => {});
     } catch {
       button.disabled = false;
-      error.textContent = 'Could not remove that friend. Check your connection and try again.';
+      error.textContent = 'Couldn’t remove that friend. Check your connection and try again.';
       error.hidden = false;
     }
   }
@@ -500,7 +500,7 @@
       closeSheet();
       showToast('Report received. Thank you.');
     } catch {
-      error.textContent = 'Could not send that report. Check your connection and try again.';
+      error.textContent = 'Couldn’t send that report. Check your connection and try again.';
       error.hidden = false;
       $$('[data-report-rider]', $('#sheetBody')).forEach((button) => { button.disabled = false; });
     }
@@ -529,7 +529,7 @@
     } catch {
       if (button) button.disabled = false;
       if (error) {
-        error.textContent = 'Could not block that rider. Check your connection and try again.';
+        error.textContent = 'Couldn’t block that rider. Check your connection and try again.';
         error.hidden = false;
       }
     }

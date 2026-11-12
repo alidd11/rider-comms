@@ -269,10 +269,10 @@ test('PWA Nearby Voice waits without holding the mic, then connects when a rider
 
   peerInRange = true;
   await expect.poll(() => page.evaluate(() => window.__nearbyVoiceRoomsCreated)).toBe(1);
-  await expect(voice).toHaveAttribute('aria-label', 'Listening — hands-free');
+  await expect(voice).toHaveAttribute('aria-label', 'Listening hands-free');
 });
 
-test('PWA public voice fails closed when proximity authorization cannot be renewed', async ({ page }) => {
+test('PWA public voice fails closed when proximity authorization can’t be renewed', async ({ page }) => {
   let shareLocation = false;
   let voiceTokenRequests = 0;
 
@@ -362,7 +362,7 @@ test('PWA public voice fails closed when proximity authorization cannot be renew
 
   await nearby.click();
   await expect(nearby).toHaveAttribute('data-active', 'true');
-  await expect(voice).toHaveAttribute('aria-label', 'Listening — hands-free');
+  await expect(voice).toHaveAttribute('aria-label', 'Listening hands-free');
   await expect.poll(() => voiceTokenRequests).toBeGreaterThanOrEqual(2);
 
   // A transient refresh miss keeps the still-valid pair alive until the

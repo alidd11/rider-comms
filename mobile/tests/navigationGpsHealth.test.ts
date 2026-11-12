@@ -41,7 +41,7 @@ describe('navigation GPS health', () => {
     assert.equal(isNavigationGpsNotice(NAV_GPS_STALE_NOTICE), true);
     assert.equal(isNavigationGpsNotice(NAV_GPS_UNAVAILABLE_NOTICE), true);
     assert.equal(isNavigationGpsNotice(NAV_GPS_PERMISSION_NOTICE), true);
-    assert.equal(isNavigationGpsNotice('Could not reroute. Continue with caution.'), false);
+    assert.equal(isNavigationGpsNotice('Couldn’t reroute. Continue with caution.'), false);
     assert.equal(isNavigationGpsNotice(null), false);
   });
 });

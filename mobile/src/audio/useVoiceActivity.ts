@@ -126,7 +126,7 @@ export function useVoiceActivity(enabled: boolean, onError?: (message: string) =
     // setMicrophoneEnabled(true) to create a new un-gated microphone.
     const operation = isSpeaking ? track.unmute() : track.mute();
     void operation.catch((error) => {
-      onErrorRef.current?.(error instanceof Error ? error.message : 'Could not update microphone state.');
+      onErrorRef.current?.(error instanceof Error ? error.message : 'Couldn’t update microphone state.');
     });
   }, [isSpeaking, microphoneTrack?.track]);
 

@@ -41,7 +41,7 @@ test('PWA utility viewport paints safe areas as one edge-to-edge canvas', async 
   await assertNoViewportOverflow(page);
 });
 
-test('installed PWA asks for a portrait lock where the browser allows one; a tab does not', async ({ page }) => {
+test('installed PWA asks for a portrait lock where the browser allows one; a tab doesn’t', async ({ page }) => {
   const stubLock = () => {
     window.lockCalls = [];
     const lock = (value) => { window.lockCalls.push(value); return Promise.reject(new Error('not supported here')); };

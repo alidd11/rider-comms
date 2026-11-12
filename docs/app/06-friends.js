@@ -207,7 +207,7 @@
       const profileAvatar = avatar({ ...currentFriend, avatarId: profile.avatarId || currentFriend.avatarId });
       const mapActionState = liveRideLocation
         ? ' aria-label="View rider on map"'
-        : ' disabled aria-disabled="true" aria-label="Rider location not shared" title="This rider is not sharing a fresh private-ride location."';
+        : ' disabled aria-disabled="true" aria-label="Rider location not shared" title="This rider isn’t sharing a fresh private-ride location."';
       const shareLocationState = inActiveRide
         ? ` aria-pressed="${state.activeRide?.shareRideLocation === true}" aria-label="${state.activeRide?.shareRideLocation === true ? 'Stop sharing your location with this group ride' : 'Share your location with this group ride'}" title="Shares your location with everyone in your current group ride, not just this rider."`
         : ' disabled aria-disabled="true" aria-label="Share location unavailable outside a shared group ride" title="Available when you are in the same group ride."';
@@ -235,7 +235,7 @@
         ${loading
           ? '<p class="friend-profile-note friend-profile-note-quiet">Refreshing shared profile…</p>'
           : refreshError
-            ? '<p class="friend-profile-note friend-profile-note-quiet">Could not refresh shared profile. Reopen this rider to try again.</p>'
+            ? '<p class="friend-profile-note friend-profile-note-quiet">Couldn’t refresh shared profile. Reopen this rider to try again.</p>'
             : socialLinks
               ? `<div class="friend-profile-social"><span class="friend-profile-section-label">Shared profiles</span><div class="social-links">${socialLinks}</div></div>`
               : ''}

@@ -102,7 +102,7 @@
         wireAuthForms();
         showAuthScreen();
         const notice = $('#authNotice');
-        notice.textContent = 'Your saved session could not be checked. Check your connection and try again.';
+        notice.textContent = 'Your saved session couldn’t be checked. Check your connection and try again.';
         notice.classList.add('error');
         notice.hidden = false;
       }

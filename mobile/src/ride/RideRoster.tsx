@@ -17,7 +17,7 @@ export function RideRoster({ canRemove }: { canRemove: boolean }): React.JSX.Ele
   const confirmRemove = (id: string) => Alert.alert(`Remove ${nameOf(id)}?`, 'They leave the ride and its voice channel straight away.', [
     { text: 'Cancel', style: 'cancel' },
     { text: 'Remove', style: 'destructive', onPress: () => {
-      void removeRider(id).catch(() => Alert.alert('Couldn’t remove rider', 'Please try again when you have a connection.'));
+      void removeRider(id).catch(() => Alert.alert('Couldn’t remove rider', 'Try again when you have a connection.'));
     } },
   ]);
 

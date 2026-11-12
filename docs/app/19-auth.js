@@ -33,7 +33,7 @@
       gate.innerHTML = `
         <div class="terms-gate-card">
           <h1 id="termsGateTitle">Updated terms</h1>
-          <p>To keep riding with others on Rider Comms, please read and agree to our Terms of Service and Community Guidelines. Abusive or objectionable content and behaviour aren’t tolerated, and anyone can report or block another rider.</p>
+          <p>To keep riding with others on Rider Comms, read and agree to our Terms of Service and Community Guidelines. Abusive or objectionable content and behaviour aren’t tolerated, and anyone can report or block another rider.</p>
           <p class="terms-gate-links"><a href="terms.html" target="_blank" rel="noopener">Terms of Service</a><a href="guidelines.html" target="_blank" rel="noopener">Community Guidelines</a><a href="privacy.html" target="_blank" rel="noopener">Privacy Policy</a></p>
           <p class="inline-error" role="alert" hidden></p>
           <button type="button" class="button primary wide" data-terms-agree>I agree</button>
@@ -87,16 +87,16 @@
     account_suspended: 'This account has been suspended for breaking the community rules. Contact support if you think this is a mistake.',
     invalid_token: 'That reset code is invalid or has already been used.',
     expired_token: 'That reset code has expired. Request a new one.',
-    rate_limited: 'Too many attempts — please wait a moment and try again.',
-    network_error: 'Could not reach Rider Comms. Check your connection and try again.',
-    timed_out: 'The request timed out. Please try again.',
+    rate_limited: 'Too many attempts. Wait a moment and try again.',
+    network_error: 'Couldn’t reach Rider Comms. Check your connection and try again.',
+    timed_out: 'That took too long. Try again.',
     terms_not_accepted: 'Confirm you’re 16 or older and agree to the Terms of Service and Community Guidelines to create an account.',
     objectionable_username: 'That username isn’t allowed. Choose another.',
   };
 
   function authErrorMessage(error) {
     const code = error instanceof ApiError ? error.body?.error : undefined;
-    return AUTH_ERROR_MESSAGES[code] || 'Something went wrong. Please try again.';
+    return AUTH_ERROR_MESSAGES[code] || 'That didn’t work. Try again.';
   }
 
   function applyAuthenticatedIdentity(riderId, username) {
@@ -139,7 +139,7 @@
       await refreshProfileAuthoritative();
       return true;
     } catch {
-      showToast('Could not load your profile from the server.');
+      showToast('Couldn’t load your profile. Check your connection.');
       return false;
     }
   }
@@ -162,8 +162,8 @@
       // Logged loudly (not just swallowed) since a silent failure here is
       // exactly how an account ends up permanently stuck on the generic
       // "Rider"/"@rider" default with no visible trace of why.
-      console.warn('[rider-comms] Could not seed a real display name after signup', error);
-      showToast('Account created — set your display name in Settings.');
+      console.warn('[rider-comms] Couldn’t seed a real display name after signup', error);
+      showToast('Account created. Add your name in Edit profile.');
     }
   }
 
@@ -225,7 +225,7 @@
       startApp();
       showToast(result.emailVerificationSent
         ? 'Account created. Check your email to verify it.'
-        : 'Account created, but the verification email could not be sent. Verified-only features such as Nearby Voice will remain unavailable until email delivery is restored.');
+        : 'Account created, but the verification email couldn’t be sent. Resend it from Settings → Account and login → Email. Nearby Voice needs a verified email.');
       await seedProfileFromUsername(username);
     } catch (error) {
       errorEl.textContent = authErrorMessage(error);
@@ -300,22 +300,22 @@
       login: {
         eyebrow: '',
         title: 'Welcome back',
-        description: 'Good to see you again.',
+        description: '',
       },
       signup: {
         eyebrow: 'New rider',
         title: 'Create your account',
-        description: 'Set up your Rider Comms identity and keep your rides and rider circle across devices.',
+        description: 'Your friends, rides and settings stay with your account on any phone.',
       },
       recover: {
         eyebrow: 'Account recovery',
         title: 'Get back in',
-        description: 'Request a one-hour reset link without revealing whether an account exists.',
+        description: 'Enter your email and we’ll send you a link to reset your password.',
       },
       reset: {
         eyebrow: 'Secure reset',
         title: 'Choose a new password',
-        description: 'Enter the one-hour code from your email. Every existing session will be signed out.',
+        description: 'Enter the code from your email. It works for an hour, and you’ll be signed out on your other devices.',
       },
     };
 
@@ -337,6 +337,7 @@
       $('#authEyebrow').textContent = copy.eyebrow;
       $('#authTitle').textContent = copy.title;
       $('#authDescription').textContent = copy.description;
+      $('#authDescription').hidden = !copy.description;
       const focusTarget = { login: $('#loginUsername'), signup: $('#signupUsername'), recover: $('#recoverEmail'), reset: $('#resetToken') }[mode];
       if (moveFocus) focusTarget.focus();
     };
@@ -415,7 +416,7 @@
           ? 'That verification link has expired. Sign in and request a new one.'
           : code === 'invalid_token'
             ? 'That verification link is invalid or has already been used.'
-            : 'Email verification could not be completed. Check your connection and try the link again.',
+            : 'Email verification couldn’t be completed. Check your connection and try the link again.',
       };
     }
   }

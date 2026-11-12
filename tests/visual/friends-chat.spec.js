@@ -21,7 +21,7 @@ test('PWA Friends shows a load failure on the page and Retry recovers', async ({
   });
   await page.goto('/#friends');
   await expect(page.locator('#friendsError')).toBeVisible();
-  await expect(page.locator('#friendsError')).toContainText('Could not load friends');
+  await expect(page.locator('#friendsError')).toContainText('Couldn’t load friends');
   // No "build your circle" prompt while the list is unknown.
   await expect(page.locator('#friendEmpty')).toBeHidden();
   failFriends = false;

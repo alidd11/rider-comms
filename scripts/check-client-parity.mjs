@@ -211,7 +211,7 @@ if (/offlineMaps/.test(pwaMapSource + pwaIndexSource + nativeSettingsSource)) {
   throw new Error('Offline Maps must stay hidden on both clients until downloads exist');
 }
 
-const HAZARD_EMAIL_VERIFICATION_COPY = 'Verify your email in Settings → Account → Edit profile to report or confirm road hazards.';
+const HAZARD_EMAIL_VERIFICATION_COPY = 'Verify your email to report road hazards: Settings → Account and login → Email.';
 if (!pwaMapSource.includes('email_verification_required: HAZARD_EMAIL_VERIFICATION_MESSAGE')
   || !pwaMapSource.includes(HAZARD_EMAIL_VERIFICATION_COPY)) {
   throw new Error('PWA hazard reporting must explain the verified-email requirement');
@@ -301,7 +301,7 @@ for (const [label, source, patterns] of [
     /preserveMute: true/,
     /setNavStatusNotice\('Rerouting…'\)/,
     /if \(!navMuted\) speak\('Rerouting\.'\)/,
-    /setNavStatusNotice\('Could not reroute\. Continue with caution\.'\)/,
+    /setNavStatusNotice\('Couldn’t reroute\. Continue with caution\.'\)/,
     /routeNotice: 'Route updated\.'/,
     /visibleMapRiders\(\)/,
   ]],
@@ -340,7 +340,7 @@ for (const [label, source, patterns] of [
     /setNavigationMuted\(!spokenDirectionsRef\.current\)/,
     /predictNavigationPuck\(puckPath,/,
     /if \(!navigationMutedRef\.current\) speakNavigationPrompt\('Rerouting\.'\)/,
-    /setNavigationNotice\('Could not reroute\. Continue with caution\.'\)/,
+    /setNavigationNotice\('Couldn’t reroute\. Continue with caution\.'\)/,
     /showsTraffic=\{Boolean\(activeRoute\)\}/,
     /fitRoute\(activeRoute\)/,
     /rideLocations[\s\S]*Private ride member · live location/,

@@ -29,7 +29,7 @@ describe('HazardReportSheet', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it('does not run the countdown while hidden', async () => {
+  it('doesn’t run the countdown while hidden', async () => {
     const onClose = jest.fn();
     await render(
       <SafeAreaProvider initialMetrics={SAFE_AREA_METRICS}>

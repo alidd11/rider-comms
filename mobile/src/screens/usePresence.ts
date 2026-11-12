@@ -92,7 +92,7 @@ export function usePresence(
                     : code === 'location fix timestamp is stale or invalid'
                       ? 'Waiting for a fresh location. Trying again shortly.'
                       // Other refusals: a readable line, not the raw API error.
-                      : err instanceof ApiError || !(err instanceof Error) ? 'Could not update your zone. Trying again shortly.' : err.message);
+                      : err instanceof ApiError || !(err instanceof Error) ? 'Couldn’t update your zone. Trying again shortly.' : err.message);
           if (code === 'email_verification_required' || code === 'location_sharing_disabled') setPublicLive(false);
         }
       }
@@ -127,7 +127,7 @@ export function usePresence(
           return;
         }
       } catch {
-        Alert.alert('Nearby Voice unavailable', 'Rider Comms could not confirm your account status. Check your connection and try again.');
+        Alert.alert('Nearby Voice unavailable', 'Couldn’t check your account. Check your connection and try again.');
         return;
       }
       try {
@@ -148,7 +148,7 @@ export function usePresence(
       } catch {
         Alert.alert(
           'Nearby Voice unavailable',
-          'Rider Comms could not enable Nearby Voice on the server. Check your connection and try again.',
+          'Couldn’t turn on Nearby Voice. Check your connection and try again.',
         );
       }
     } finally {

@@ -198,7 +198,7 @@ export function ProximityVoice({
           ? resolveProximityVoiceRetryDelay(consecutiveRefreshFailures, normalRefreshMs)
           : normalRefreshMs;
         if (!cancelled && !hasAuthorizedOnce.current) {
-          setError(cause instanceof Error ? cause.message : 'Proximity voice is unavailable.');
+          setError(cause instanceof Error ? cause.message : 'Nearby Voice isn’t available.');
         }
         // If a previous authorization is still leased, preserve that existing
         // pair through a transient backend miss. Retry sooner at first, then
@@ -311,19 +311,19 @@ export function ProximityVoice({
     });
   const voiceControlEnabled = connectedPeers.size > 0 || statusHasIssue;
   const voiceControlLabel = audioSessionError
-    ? 'Nearby Voice unavailable — tap to retry audio'
+    ? 'Nearby Voice unavailable. Tap to retry.'
     : authorizationExpired
-      ? 'Nearby Voice reconnecting — tap to retry'
+      ? 'Nearby Voice reconnecting. Tap to retry.'
       : error
         ? connectedPeers.size > 0
           ? `${statusText} — tap to retry disconnected riders`
-          : 'Nearby Voice unavailable — tap to retry'
+          : 'Nearby Voice unavailable. Tap to retry.'
         : connectedPeers.size > 0
           ? manuallyMuted
             ? `${statusText} — tap to unmute microphone`
             : speakingNames.length > 0
               ? `${statusText} — tap to mute microphone`
-              : 'Listening — hands-free — tap to mute microphone'
+              : 'Listening hands-free. Tap to mute.'
           : statusText;
   const displayStatusText = statusHasIssue
     ? `${statusText} · Tap to retry`
@@ -453,7 +453,7 @@ export function ProximityVoice({
           }}
           onDisconnected={retryPeer}
           onError={() => {
-            setError('Could not connect to proximity voice.');
+            setError('Couldn’t connect to Nearby Voice.');
             retryPeer();
           }}
           onMediaDeviceFailure={() => setAudioSessionError('Microphone or audio device became unavailable.')}

@@ -65,7 +65,7 @@ assert.match(
 );
 assert.match(
   foregroundServiceSource,
-  /startService\([\s\S]*service\.isRunning\(\)[\s\S]*stopServiceAll\(\)[\s\S]*Android background voice service could not start/,
+  /startService\([\s\S]*service\.isRunning\(\)[\s\S]*stopServiceAll\(\)[\s\S]*Android background voice service couldn’t start/,
   'Native voice must confirm Android actually entered foreground-service state before LiveKit becomes ready',
 );
 

@@ -229,16 +229,16 @@ test('asks for a location fix when none is known, and stops if none is available
 test.each([
   [
     new ApiError(503, { error: 'directions_not_configured' }),
-    'In-app navigation is not configured on the Rider Comms server yet. Choose Google Maps, Waze or Apple Maps in Settings.',
+    'Rider Comms navigation isn’t available right now. Choose Google Maps, Waze or Apple Maps in Settings → Map & navigation.',
   ],
   [new ApiError(404, { error: 'directions_no_route' }), 'No driving route was found for that destination.'],
   [
     new ApiError(500, { error: 'upstream_failed' }),
-    'Rider Comms could not calculate that route. Try again or choose another navigation app.',
+    'Couldn’t plan that route. Try again or choose another navigation app.',
   ],
   [
     new Error('network down'),
-    'Rider Comms could not calculate that route. Try again or choose another navigation app.',
+    'Couldn’t plan that route. Try again or choose another navigation app.',
   ],
 ])('maps a route failure (%p) to a user-facing alert', async (error, message) => {
   const client = { getDrivingRoute: jest.fn(async () => { throw error; }) };
@@ -375,7 +375,7 @@ test('shows a caution notice when a reroute request fails', async () => {
   await sendFix(51.5005, -0.097);
 
   expect(result.current.activeRoute).toBe(ROUTE);
-  expect(result.current.navigationNotice).toBe('Could not reroute. Continue with caution.');
+  expect(result.current.navigationNotice).toBe('Couldn’t reroute. Continue with caution.');
 });
 
 test('flags a stale GPS signal and clears the notice when fixes resume', async () => {

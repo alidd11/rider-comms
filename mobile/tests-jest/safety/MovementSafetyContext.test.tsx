@@ -55,7 +55,7 @@ test('reports services_disabled when Location Services are off', async () => {
   expect(mockGetForegroundPermissionsAsync).not.toHaveBeenCalled();
 });
 
-test('reports promptable when permission has not been granted yet', async () => {
+test('reports promptable when permission hasn’t been granted yet', async () => {
   mockGetForegroundPermissionsAsync.mockResolvedValue({ granted: false, canAskAgain: true });
   const { result } = await renderMovementSafety();
 
@@ -70,7 +70,7 @@ test('reports blocked when permission was permanently denied', async () => {
   await waitFor(() => expect(result.current.locationAccess).toBe('blocked'));
 });
 
-test('does not start tracking while Ride Safe is disabled, even with permission granted', async () => {
+test('doesn’t start tracking while Ride Safe is disabled, even with permission granted', async () => {
   mockSettingsValue = { rideSafeEnabled: false, rideSafeLoaded: true };
   const { result } = await renderMovementSafety();
 
@@ -108,7 +108,7 @@ test('surfaces a specific message and stays unavailable when starting tracking t
   const { result } = await renderMovementSafety();
 
   await waitFor(() => expect(result.current.locationAccess).toBe('unavailable'));
-  expect(result.current.trackingError).toBe('Location tracking could not start. Try again or check device settings.');
+  expect(result.current.trackingError).toBe('Location tracking couldn’t start. Try again or check device settings.');
   expect(result.current.movementState).toBe('unknown');
 });
 
@@ -199,7 +199,7 @@ test('explains when the permission request itself fails', async () => {
   const { result } = await renderMovementSafety();
   await act(async () => { await result.current.requestLocationAccess(); });
   expect(result.current.locationAccess).toBe('unavailable');
-  expect(result.current.trackingError).toBe('Location permission could not be requested.');
+  expect(result.current.trackingError).toBe('Location permission couldn’t be requested.');
 });
 
 test('re-checks freshness on a timer so a lost GPS signal is noticed', async () => {

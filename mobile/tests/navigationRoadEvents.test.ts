@@ -147,7 +147,7 @@ describe('route-ahead navigation hazard selection', () => {
     assert.equal(alerts[0]!.distanceAheadMeters, 0);
   });
 
-  it('does not surface route reports beyond the road-ahead lookahead window', () => {
+  it('doesn’t surface route reports beyond the road-ahead lookahead window', () => {
     const longRoute = [
       { lat: 51.5000, lon: -0.1000 },
       { lat: 51.5500, lon: -0.1000 },
@@ -238,7 +238,7 @@ describe('route-ahead navigation hazard selection', () => {
     assert.equal(navigationHazardCompactLabel('police_checkpoint'), 'Checkpoint');
   });
 
-  it('does not turn the high-frequency navigation GPS watcher into a hazard API poll', () => {
+  it('doesn’t turn the high-frequency navigation GPS watcher into a hazard API poll', () => {
     assert.match(mapScreenSource, /const currentLocationRef = React\.useRef/);
     assert.match(hazardReportsHookSource, /const HAZARD_REFRESH_INTERVAL_MS = 60_000/);
     assert.match(hazardReportsHookSource, /client\.getNearbyHazards\(location\.lat, location\.lon\)/);
@@ -258,7 +258,7 @@ describe('route-ahead navigation hazard selection', () => {
     );
   });
 
-  it('uses the measured navigation banner height so road-ahead alerts cannot hide the route camera target', () => {
+  it('uses the measured navigation banner height so road-ahead alerts can’t hide the route camera target', () => {
     assert.match(mapScreenSource, /const \[navigationBannerHeight, setNavigationBannerHeight\] = React\.useState\(166\)/);
     assert.match(inAppNavigationHookSource, /const topOcclusion = insets\.top \+ spacing\.sm \+ navigationBannerHeight/);
     assert.match(mapScreenSource, /setNavigationBannerHeight\(\(current\) => Math\.abs\(current - measuredHeight\) > 1 \? measuredHeight : current\)/);

@@ -555,7 +555,7 @@
       navigationRouteRequest(origin, destination),
       (result, status) => {
         if (status !== 'OK' || !result) {
-          showToast('Could not calculate a route. Try again.');
+          showToast('Couldn’t calculate a route. Try again.');
           return;
         }
         applyRoute(result, destination, label);
@@ -567,7 +567,7 @@
   // bottom safe area. Do not recolour browser/system chrome to hide a gap.
   function applyRoute(result, destination, label, { preserveMute = false, routeNotice = null } = {}) {
     const leg = result.routes[0]?.legs[0];
-    if (!leg) { showToast('Could not calculate a route. Try again.'); return; }
+    if (!leg) { showToast('Couldn’t calculate a route. Try again.'); return; }
     stopNavigationCameraAnimation();
     getDirectionsRenderer().setDirections(result);
     navSteps = leg.steps;
@@ -829,7 +829,7 @@
       (result, status) => {
         navRerouting = false;
         if (status !== 'OK' || !result) {
-          setNavStatusNotice('Could not reroute. Continue with caution.');
+          setNavStatusNotice('Couldn’t reroute. Continue with caution.');
           return;
         }
         applyRoute(
