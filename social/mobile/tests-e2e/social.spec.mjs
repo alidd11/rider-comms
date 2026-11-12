@@ -288,6 +288,57 @@ test('Reels fills the content viewport, pages vertically and opens the Reel crea
 });
 
 
+test('Reels media bleeds behind the status region while controls stay safe and captions have no band', async ({ page }, testInfo) => {
+  await page.goto('/');
+  await page.addStyleTag({ content: [
+    '#social-screen { padding-top: 59px !important; }',
+    '#social-reels-top-controls { padding-top: 72px !important; }',
+  ].join('\n') });
+  await page.getByRole('tab', { name: 'Reels' }).click();
+  await expect(page.getByTestId('reels-viewport')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Create Reel' })).toBeVisible();
+
+  const layout = await page.evaluate(() => {
+    const screen = document.getElementById('social-screen');
+    const reel = document.querySelector('[data-testid="reel-slide-0"]');
+    const controls = document.getElementById('social-reels-top-controls');
+    const camera = document.querySelector('[aria-label="Create Reel"]');
+    const caption = document.querySelector('[data-testid^="reel-caption-"]');
+    const screenTop = screen?.getBoundingClientRect().top ?? -1;
+    return {
+      screenTop,
+      screenPaddingTop: screen ? parseFloat(getComputedStyle(screen).paddingTop) : -1,
+      mediaTop: reel?.getBoundingClientRect().top ?? -1,
+      mediaHeight: reel?.getBoundingClientRect().height ?? -1,
+      viewportHeight: document.getElementById('social-reels-viewport')?.getBoundingClientRect().height ?? -1,
+      controlsPaddingTop: controls ? parseFloat(getComputedStyle(controls).paddingTop) : -1,
+      cameraTop: camera?.getBoundingClientRect().top ?? -1,
+      captionBackground: caption ? getComputedStyle(caption).backgroundColor : '',
+      hasSolidScrim: !!document.querySelector('[data-testid="reel-bottom-scrim"]'),
+    };
+  });
+  expect(layout.screenPaddingTop).toBe(0);
+  expect(Math.abs(layout.mediaTop - layout.screenTop)).toBeLessThanOrEqual(2);
+  expect(Math.abs(layout.mediaHeight - layout.viewportHeight)).toBeLessThanOrEqual(3);
+  expect(layout.controlsPaddingTop).toBeGreaterThanOrEqual(72);
+  expect(layout.cameraTop).toBeGreaterThanOrEqual(layout.screenTop + 59);
+  expect(layout.captionBackground).toMatch(/transparent|rgba\(0, 0, 0, 0\)/);
+  expect(layout.hasSolidScrim).toBe(false);
+  await expect(page.getByText('DEMO', { exact: true })).toHaveCount(0);
+
+  await mkdir('test-results/screenshots', { recursive: true });
+  await page.screenshot({ path: 'test-results/screenshots/' + testInfo.project.name + '-reels-edge-to-edge.png' });
+
+  // The exception must not bring the normal Home header behind the island.
+  await page.getByRole('tab', { name: 'Home' }).click();
+  const home = await page.evaluate(() => ({
+    inset: parseFloat(getComputedStyle(document.getElementById('social-screen')).paddingTop),
+    headerTop: document.querySelector('[aria-label="Go to home"]')?.getBoundingClientRect().top ?? -1,
+  }));
+  expect(home.inset).toBe(59);
+  expect(home.headerTop).toBeGreaterThanOrEqual(59);
+});
+
 test('Stories open in an immersive fixed viewport with previous/next and close controls', async ({ page }, testInfo) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'View story by Alex' }).click();
