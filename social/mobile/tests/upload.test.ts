@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { limitsFor, validateMedia, validateDraft, moveMedia, parseTextDraft, MAX_IMAGE_BYTES } from '../src/upload.ts';
+import { limitsFor, validateMedia, validateDraft, moveMedia, parseTextDraft, MAX_IMAGE_BYTES, MAX_TITLE } from '../src/upload.ts';
 import type { ComposerMedia, ComposerDraft } from '../src/upload.ts';
 
 const pic: ComposerMedia = { id:'1',uri:'blob:local-photo',kind:'image',fileName:'photo.jpg',mimeType:'image/jpeg',fileSize:2_048 };
@@ -28,6 +28,8 @@ test('review validates audience, category and caption before a future upload',()
   const draft: ComposerDraft={mode:'Post',caption:' My build ',audience:'private',category:'motorcycles',media:[pic]};
   assert.deepEqual(validateDraft(draft),{ok:true,value:{...draft,caption:'My build'}});
   assert.equal(validateDraft({...draft,caption:'x'.repeat(2201)}).ok,false);
+  assert.equal(validateDraft({...draft,title:'x'.repeat(MAX_TITLE+1)}).ok,false);
+  assert.equal(validateDraft({...draft,title:'Garage day'}).ok,true);
   assert.equal(validateDraft({...draft,audience:'everyone' as 'public'}).ok,false);
 });
 
@@ -40,6 +42,8 @@ test('media reordering stays local and cannot change unknown media',()=>{
 test('only valid text-only drafts may be restored; never persist file objects',()=>{
   const valid={mode:'Story',caption:'Test',audience:'private',category:'cars'};
   assert.deepEqual(parseTextDraft(valid),valid);
+  assert.deepEqual(parseTextDraft({ ...valid, title:'Sunday ride' }),{...valid,title:'Sunday ride'});
+  assert.equal(parseTextDraft({ ...valid, title:'x'.repeat(MAX_TITLE+1) }),null);
   assert.equal(parseTextDraft({ ...valid, audience:'all' }),null);
   assert.equal(parseTextDraft({ ...valid, caption:20 }),null);
 });
