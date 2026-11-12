@@ -333,7 +333,19 @@ export function CreateComposer({ initialMode = 'Post' }: { initialMode?: Compose
         </ScrollView> : <Text style={{ color: C.muted, fontSize: 12, paddingHorizontal: 16 }}>
           Video preview · trim and audio editing not yet available
         </Text>}
-        <View style={[s.row, { justifyContent: 'space-around', paddingBottom: 10 }]}>
+        <View style={[s.row, { justifyContent: 'space-around', paddingBottom: 10, flexWrap: 'wrap' }]}>
+          {media.length > 1 ? <>
+            <Tool icon="arrow-back-outline" label="Earlier" disabled={active === 0}
+              onPress={() => {
+                setMedia(list => moveMedia(list, selected.id, -1));
+                setActive(index => Math.max(0, index - 1));
+              }}/>
+            <Tool icon="arrow-forward-outline" label="Later" disabled={active === media.length - 1}
+              onPress={() => {
+                setMedia(list => moveMedia(list, selected.id, 1));
+                setActive(index => Math.min(media.length - 1, index + 1));
+              }}/>
+          </> : null}
           <Tool icon="refresh-outline" label="Rotate" onPress={() => void editImage({ rotate: true })}
             disabled={isVideo || processing}/>
           <Tool icon="trash-outline" label="Remove" onPress={removeSelected}/>
