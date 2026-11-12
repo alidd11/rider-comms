@@ -262,7 +262,7 @@ test('submits from the keyboard and toggles password visibility on the login for
 
 test('opens the legal pages from signup and returns to log in from every form', async () => {
   const { Linking } = jest.requireActual('react-native') as typeof import('react-native');
-  const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
+  const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
   await renderSignedOut();
 
   await fireEvent.press(screen.getByText('Create account'));

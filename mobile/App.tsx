@@ -28,7 +28,7 @@ export default function App(): React.JSX.Element {
 
   return (
     <>
-      <StatusBar barStyle={scheme === 'light' ? 'dark-content' : 'light-content'} translucent backgroundColor="transparent" />
+      <StatusBar barStyle={scheme === 'light' ? 'dark-content' : 'light-content'} />
       <AppErrorBoundary>
         <AppNavigator />
       </AppErrorBoundary>

@@ -200,7 +200,7 @@ test('asks an existing account to agree to the current Terms before showing the 
 
 test('keeps the Terms gate up with an error when saving the agreement fails, and offers the legal pages and sign-out', async () => {
   const { Linking } = jest.requireActual('react-native') as typeof import('react-native');
-  const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
+  const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
   mockGetItemAsync.mockImplementation(async (key: string) => (key === KEY ? cachedSession({ emailVerified: true }) : null));
   mockClientImpl.getMe.mockResolvedValue({ riderId: 'me', username: 'me', emailVerified: true, termsAccepted: false, termsVersion: '2026-10-01' });
   mockClientImpl.acceptTerms = jest.fn(async () => { throw new Error('offline'); });

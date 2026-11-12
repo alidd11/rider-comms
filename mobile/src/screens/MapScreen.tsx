@@ -297,7 +297,7 @@ export function MapScreen(): React.JSX.Element {
   // tab with the code filled in; the rider still taps Join.
   const [inviteCode, setInviteCode] = React.useState<string | null>(null);
   React.useEffect(() => {
-    const openInvite = (url: string | null) => {
+    const openInvite = (url: string | null | undefined) => {
       const code = parseRideInviteLink(url);
       if (!code) return;
       setInviteCode(code);

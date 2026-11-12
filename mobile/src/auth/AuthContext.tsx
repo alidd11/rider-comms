@@ -219,7 +219,7 @@ function AuthScreen({ onAuthenticated, restoreError, onRetryRestore }: {
       imageStyle={styles.backgroundImage}
       accessibilityLabel="A motorcyclist with their bike on a mountain road at night, under the stars"
     >
-      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+      <StatusBar barStyle="light-content" />
       <View style={styles.backgroundShade} />
       <KeyboardAvoidingView style={styles.keyboard} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView
@@ -465,7 +465,7 @@ function AuthSplash(): React.JSX.Element {
   const insets = useSafeAreaInsets();
   return (
     <ImageBackground source={AUTH_HERO_IMAGE} style={styles.splash} imageStyle={styles.backgroundImage}>
-      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+      <StatusBar barStyle="light-content" />
       <View style={styles.splashShade} />
       <View style={[styles.splashCenter, { paddingTop: insets.top + 70 }]}>
         <Image source={BRAND_MARK_IMAGE} style={styles.splashMark} accessibilityIgnoresInvertColors />

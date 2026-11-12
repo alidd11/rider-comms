@@ -401,7 +401,7 @@ export const PlaceSearchBar = React.forwardRef<PlaceSearchHandle, {
                   />
                 ) : !loading && isSearchQueryValid(query) ? (
                   <SearchState compact icon="search-outline" title="No matching places" copy="Check the spelling or try a broader place name." />
-                ) : null
+                ) : undefined
               }
               renderItem={({ item }) => {
                 const picking = pickingId === item.id;

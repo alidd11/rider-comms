@@ -5,6 +5,7 @@
 // load. One persistent map, switched by a segment, keeps that to one.
 import * as React from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, ImageBackground, ScrollView, StatusBar, Switch, useWindowDimensions } from 'react-native';
+import type { TextInputInstance } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -33,7 +34,7 @@ function JoinOrHostForm({ inviteCode, onBack }: { inviteCode?: string | null; on
   const [loading, setLoading] = React.useState(false);
   const [codeFocused, setCodeFocused] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
-  const codeInputRef = React.useRef<TextInput>(null);
+  const codeInputRef = React.useRef<TextInputInstance>(null);
 
   // An invite link opened while the app is running fills in its code.
   React.useEffect(() => {
@@ -75,7 +76,7 @@ function JoinOrHostForm({ inviteCode, onBack }: { inviteCode?: string | null; on
 
   return (
     <>
-      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+      <StatusBar barStyle="light-content" />
       <ScrollView
         style={styles.joinScreen}
         contentContainerStyle={[styles.joinScroll, { paddingBottom: insets.bottom + 20 }]}
