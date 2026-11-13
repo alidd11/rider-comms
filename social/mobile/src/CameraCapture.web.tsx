@@ -57,6 +57,17 @@ export function CameraCapture({ mode, onCapture, onLibrary, onClose, disabled }:
     setCountdown(null);
   }
 
+  // A Reel on the PWA can only be selected from Gallery. Never leave the
+  // microphone or camera hardware running for a mode with no web recording.
+  useEffect(() => {
+    if (!isReel) return;
+    requestSerial.current += 1;
+    stopStream();
+    cancelCountdown();
+    setRequesting(false);
+    setError(null);
+  }, [isReel]);
+
   useEffect(() => {
     mounted.current = true;
     const handleVisibility = () => {
@@ -200,10 +211,11 @@ export function CameraCapture({ mode, onCapture, onLibrary, onClose, disabled }:
         <Text style={{ color: WHITE, fontSize: 21, fontWeight: '800' }}>Your camera</Text>
         <Text style={{ color: '#B4BBC4', fontSize: 13, lineHeight: 19,
           maxWidth: 290, textAlign: 'center' }}>
-          {requesting ? 'Opening camera…' :
-            'Enable your camera to take a photo, or select one from your gallery.'}
+          {isReel ? 'Choose a recorded video from Gallery to create your Reel.' :
+            requesting ? 'Opening camera…' :
+              'Enable your camera to take a photo, or select one from your gallery.'}
         </Text>
-        <Pressable accessibilityRole="button" accessibilityLabel="Enable camera"
+        {!isReel ? <Pressable accessibilityRole="button" accessibilityLabel="Enable camera"
           disabled={requesting || disabled}
           onPress={() => { void enableCamera(); }}
           style={{ backgroundColor: WHITE, borderRadius: 22,
@@ -212,7 +224,7 @@ export function CameraCapture({ mode, onCapture, onLibrary, onClose, disabled }:
           <Text style={{ color: BLACK, fontSize: 14, fontWeight: '800' }}>
             {requesting ? 'Opening camera…' : 'Enable camera'}
           </Text>
-        </Pressable>
+        </Pressable> : null}
         <Pressable accessibilityRole="button" accessibilityLabel="Open Gallery"
           disabled={disabled} onPress={onLibrary} style={{ padding: 9 }}>
           <Text style={{ color: WHITE, fontSize: 13, fontWeight: '700' }}>
