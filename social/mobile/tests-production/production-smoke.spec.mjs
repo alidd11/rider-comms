@@ -125,7 +125,7 @@ test('production: every major route and empty state is visible, navigable and er
   await expect(page.getByTestId('shop-vehicle-filters')).toBeVisible();
   await page.getByRole('button', { name: 'Shop interest Motorcycles' }).click();
   await expect(page.getByTestId('shop-launch-state')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Clear all Shop filters' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Reset marketplace search' })).toBeVisible();
   for (const section of ['Saved', 'Basket', 'Orders']) {
     await page.getByRole('button', { name: 'Shop section ' + section }).click();
     await expect(page.getByText(section === 'Orders' ? 'No orders yet' :
@@ -133,8 +133,8 @@ test('production: every major route and empty state is visible, navigable and er
     await verifyScreen(page, testInfo, 'shop-' + section.toLowerCase());
   }
   await page.getByRole('button', { name: 'Shop section Discover' }).click();
-  await page.getByRole('button', { name: 'Clear all Shop filters' }).click();
-  await expect(page.getByRole('button', { name: 'Clear all Shop filters' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Reset marketplace search' }).click();
+  await expect(page.getByRole('button', { name: 'Reset marketplace search' })).toHaveCount(0);
   await page.getByRole('button', { name: 'Explore clubs from Shop' }).click();
   await expect(page.getByRole('tab', { name: 'Clubs' })).toHaveAttribute('aria-selected', 'true');
   await page.getByRole('tab', { name: 'Shop' }).click();
