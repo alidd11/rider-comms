@@ -2,6 +2,7 @@
 import { test, expect } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import { URL } from 'node:url';
+import { mkdir } from 'node:fs/promises';
 
 const origin = 'https://backend-production-7fa0.up.railway.app';
 const fakeAccount = {
@@ -148,7 +149,7 @@ test('Social begins with Rider Comms sign-in and rejects invalid credentials', a
   await expect(page.getByText('Username or password is incorrect.')).toBeVisible();
   await expect(page.getByRole('tab', { name: 'Home' })).toHaveCount(0);
 });
-test('Settings clears private device drafts without deleting the Rider Comms account', async ({ page }) => {
+test('Settings clears private device drafts without deleting the Rider Comms account', async ({ page }, testInfo) => {
   await fakeBackend(page);
   await page.goto('/');
   await page.getByRole('textbox', { name: 'Username' }).fill('sample-rider');
@@ -166,6 +167,9 @@ test('Settings clears private device drafts without deleting the Rider Comms acc
   await page.getByRole('button', { name: 'Open settings and privacy' }).click();
   await expect(page.getByTestId('social-settings')).toBeVisible();
   await expect(page.getByRole('link', { name: 'Privacy policy' })).toBeVisible();
+  await mkdir('test-results/screenshots', { recursive: true });
+  await page.screenshot({ path: 'test-results/screenshots/' +
+    testInfo.project.name + '-settings-privacy.png' });
   await page.getByRole('button', { name: 'Clear local Social drafts' }).click();
   await expect(page.getByTestId('confirm-clear-social-drafts')).toBeVisible();
   await page.getByRole('button', { name: 'Confirm clear local drafts' }).click();
