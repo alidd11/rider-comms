@@ -188,7 +188,7 @@ export function SharedMessagesScreen({
           fontSize: 13, lineHeight: 19 }}>{threadError}</Text>
         {threadLoadFailed ? <Pressable accessibilityRole="button"
           accessibilityLabel="Retry loading messages"
-          disabled={threadLoading} onPress={() => setThreadAttempt(count => count + 1)}
+          accessibilityState={{ disabled: threadLoading }} disabled={threadLoading} onPress={() => setThreadAttempt(count => count + 1)}
           style={{ alignSelf: 'flex-start', minHeight: 44, minWidth: 100,
             justifyContent: 'center', flexDirection: 'row', alignItems: 'center', gap: 7 }}>
           <Ionicons name="refresh" size={17} color={C.accent}/>
@@ -205,11 +205,12 @@ export function SharedMessagesScreen({
           style={[s.input, { flex: 1, minHeight: 46, maxHeight: 118,
             fontSize: 16, textAlignVertical: 'top' }]}/>
         <Pressable accessibilityRole="button" accessibilityLabel="Send message"
+          accessibilityState={{ disabled: !emailVerified || sending || threadLoading || threadLoadFailed || !draft.trim() || draft.trim().length > 1000 }}
           disabled={!emailVerified || sending || threadLoading || threadLoadFailed || !draft.trim() || draft.trim().length > 1000}
           onPress={() => void send()}
           style={{ width: 46, height: 46, borderRadius: 23,
             alignItems: 'center', justifyContent: 'center',
-            backgroundColor: C.accentDark, opacity: !emailVerified || sending || threadLoading || !draft.trim() ? 0.5 : 1 }}>
+            backgroundColor: C.accentDark, opacity: !emailVerified || sending || threadLoading || threadLoadFailed || !draft.trim() || draft.trim().length > 1000 ? 0.5 : 1 }}>
           <Ionicons name="arrow-up" color={C.accent} size={22}/>
         </Pressable>
       </View>
@@ -219,7 +220,7 @@ export function SharedMessagesScreen({
     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
       <Text style={s.title}>Messages</Text>
       <Pressable accessibilityRole="button" accessibilityLabel="Refresh shared messages"
-        disabled={loading} onPress={() => void onRefresh()}
+        accessibilityState={{ disabled: loading }} disabled={loading} onPress={() => void onRefresh()}
         style={{ paddingVertical: 9, paddingHorizontal: 12 }}>
         <Text style={{ color: C.accent, fontSize: 13, fontWeight: '700' }}>
           {loading ? 'Loading…' : 'Refresh'}
