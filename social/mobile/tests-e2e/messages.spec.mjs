@@ -207,3 +207,56 @@ test('server-revoked friendship closes the former private conversation after ref
   await expect(page.getByRole('textbox', { name: 'Write a message' })).toHaveCount(0);
   await expect(page.getByTestId('social-app-recovery')).toHaveCount(0);
 });
+
+
+test('a friend can start a conversation even when the inbox has no previous messages', async ({ page }) => {
+  await installFixture(page);
+  await page.route(backend + '/conversations?*', async route => {
+    await route.fulfill({ status: 200, contentType: 'application/json',
+      headers: cors, body: JSON.stringify({ conversations: [], nextCursor: null }) });
+  });
+  await page.route(backend + '/messages?*', async route => {
+    await route.fulfill({ status: 200, contentType: 'application/json',
+      headers: cors, body: JSON.stringify({ messages: [], nextCursor: null }) });
+  });
+  const uncaught = [];
+  page.on('pageerror', error => uncaught.push(error.message));
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Open messages' }).click();
+  await expect(page.getByText('No conversations yet')).toBeVisible();
+  await expect(page.getByTestId('message-start-friends')).toBeVisible();
+  await page.getByRole('button', { name: 'Start conversation with Alice Rider' }).click();
+  await expect(page.getByTestId('shared-message-thread')).toBeVisible();
+  await expect(page.getByText('No messages yet.')).toBeVisible();
+  await page.getByRole('textbox', { name: 'Write a message' }).fill('Hi Alice');
+  await page.getByRole('button', { name: 'Send message' }).click();
+  await expect(page.getByText('Message sent while navigating')).toBeVisible();
+  await expect(page.getByTestId('social-app-recovery')).toHaveCount(0);
+  expect(uncaught).toEqual([]);
+});
+
+test('a failed individual message thread offers an actionable retry', async ({ page }) => {
+  await installFixture(page);
+  let requests = 0;
+  await page.route(backend + '/messages?*', async route => {
+    requests += 1;
+    if (requests === 1) return await route.abort('failed');
+    await route.fulfill({ status: 200, contentType: 'application/json',
+      headers: cors, body: JSON.stringify({ messages: [aliceMessage], nextCursor: null }) });
+  });
+  const uncaught = [];
+  page.on('pageerror', error => uncaught.push(error.message));
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Open messages' }).click();
+  await page.getByRole('button', { name: 'Open conversation with Alice Rider' }).click();
+  const retry = page.getByRole('button', { name: 'Retry loading messages' });
+  await expect(retry).toBeVisible();
+  await expect(page.getByText('Alice private message')).toHaveCount(0);
+  await retry.click();
+  await expect(page.getByText('Alice private message')).toBeVisible();
+  await expect(retry).toHaveCount(0);
+  await expect(page.getByRole('textbox', { name: 'Write a message' })).toBeEditable();
+  await expect(page.getByTestId('social-app-recovery')).toHaveCount(0);
+  expect(requests).toBe(2);
+  expect(uncaught).toEqual([]);
+});
