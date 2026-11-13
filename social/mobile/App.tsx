@@ -899,10 +899,52 @@ class CreateRecoveryBoundary extends React.Component<
   }
 }
 
+/**
+ * Final safety net for account, navigation, profile and feed render errors.
+ * A failed feature must never leave the whole PWA as a blank dark canvas.
+ * This does not hide failures from the browser smoke suite, which checks
+ * that the recovery UI is absent on every normal route.
+ */
+class SocialAppRecoveryBoundary extends React.Component<
+  { children: React.ReactNode },
+  { failed: boolean }
+> {
+  state = { failed: false };
+
+  static getDerivedStateFromError(): { failed: boolean } {
+    return { failed: true };
+  }
+
+  render() {
+    if (!this.state.failed) return this.props.children;
+    return <View testID="social-app-recovery" style={{
+      flex: 1, backgroundColor: '#080D13', justifyContent: 'center',
+      alignItems: 'center', gap: 17, paddingHorizontal: 28,
+    }}>
+      <Ionicons name="alert-circle-outline" size={44} color="#FFFFFF"/>
+      <Text style={{ color: '#FFFFFF', fontSize: 22, fontWeight: '800',
+        textAlign: 'center' }}>Social couldn't open this screen</Text>
+      <Text style={{ color: '#B4BBC4', fontSize: 14, lineHeight: 21,
+        textAlign: 'center' }}>
+        This screen encountered a problem. You can restart the Social app without
+        deleting your account or local drafts.
+      </Text>
+      <Pressable accessibilityRole="button" accessibilityLabel="Restart Social"
+        onPress={() => this.setState({ failed: false })}
+        style={{ minHeight: 48, borderRadius: 25, backgroundColor: '#FFFFFF',
+          paddingHorizontal: 26, justifyContent: 'center' }}>
+        <Text style={{ color: '#050709', fontWeight: '800' }}>Restart Social</Text>
+      </Pressable>
+    </View>;
+  }
+}
+
 export default function App(): React.JSX.Element {
-  return <SafeAreaProvider>
-    <SocialAuthGate>
-      <AuthenticatedSocialApp/>
-    </SocialAuthGate>
-  </SafeAreaProvider>;
+  return <SocialAppRecoveryBoundary>
+    <SafeAreaProvider>
+      <SocialAuthGate>
+        <AuthenticatedSocialApp/>
+      </SocialAuthGate>
+    </SafeAreaProvider>
+  </SocialAppRecoveryBoundary>;
 }
