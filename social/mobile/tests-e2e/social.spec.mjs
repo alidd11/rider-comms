@@ -95,7 +95,7 @@ test('For You and Following remain visible as Home feed tabs while feed content 
   await page.getByRole('button', { name: 'Feed preferences' }).click();
   await expect(page.getByTestId('home-feed-preferences')).toBeVisible();
   await expect.poll(() => page.locator('#social-page-scroll').evaluate(el => el.scrollTop)).toBe(0);
-  await page.getByRole('button', { name: 'Close Feed preferences' }).click();
+  await page.getByRole('button', { name: 'Close feed settings' }).click();
   await expect(page.getByTestId('home-feed-preferences')).toHaveCount(0);
   await page.locator('#social-page-scroll').evaluate(el => { el.scrollTop = el.scrollHeight; });
   await following.click();
