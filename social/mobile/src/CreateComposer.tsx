@@ -49,7 +49,7 @@ function MediaCanvas({ item }: { item: ComposerMedia }) {
 }
 
 function Option({ label, selected, onPress, disabled = false }: { label: string; selected: boolean; onPress: () => void; disabled?: boolean }) {
-  return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ selected }}
+  return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ selected, disabled }}
     disabled={disabled} onPress={onPress}
     style={[s.pill, selected && s.pillActive, { paddingVertical: 8, paddingHorizontal: 13, opacity: disabled ? 0.45 : 1 }]}>
     <Text style={[s.pillText, selected && s.pillTextActive]}>{label}</Text>
@@ -62,7 +62,7 @@ function Tool({ icon, label, onPress, disabled = false }: {
   onPress: () => void;
   disabled?: boolean;
 }) {
-  return <Pressable accessibilityRole="button" accessibilityLabel={label} disabled={disabled} onPress={onPress}
+  return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled }} disabled={disabled} onPress={onPress}
     style={{ minWidth: 54, minHeight: 46, opacity: disabled ? 0.3 : 1, gap: 3,
       alignItems: 'center', justifyContent: 'center' }}>
     <Ionicons name={icon} size={22} color={C.ink}/>
