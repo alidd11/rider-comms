@@ -137,3 +137,61 @@ test('slow outgoing response cannot append a private message to a different conv
     pendingSend.resolve();
   }
 });
+
+
+test('a failed inbox refresh clears stale private previews until a new successful fetch', async ({ page }) => {
+  await installFixture(page);
+  let refreshes = 0;
+  // Override the fixture for this endpoint only.
+  await page.route(backend + '/conversations', async route => {
+    refreshes += 1;
+    if (refreshes > 1) {
+      await route.abort('failed');
+    } else {
+      await route.fulfill({ status: 200, contentType: 'application/json',
+        headers: cors, body: JSON.stringify({ conversations: [
+          { friend: alice, lastMessage: aliceMessage, unreadCount: 0 },
+          { friend: bob, lastMessage: bobMessage, unreadCount: 0 },
+        ], nextCursor: null }) });
+    }
+  });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Open messages' }).click();
+  await expect(page.getByText('Alice private message')).toBeVisible();
+  await page.getByRole('button', { name: 'Refresh shared messages' }).click();
+  await expect(page.getByText('Can’t load your Rider Comms conversations. Try again.')).toBeVisible();
+  await expect(page.getByText('Alice private message')).toHaveCount(0);
+  await expect(page.getByText('Bob private message')).toHaveCount(0);
+  await expect(page.getByTestId('social-app-recovery')).toHaveCount(0);
+  expect(refreshes).toBe(2);
+});
+
+test('server-revoked friendship closes the former private conversation after refresh', async ({ page }) => {
+  await installFixture(page);
+  let refreshes = 0;
+  const initial = [
+    { friend: alice, lastMessage: aliceMessage, unreadCount: 0 },
+  ];
+  await page.route(backend + '/conversations', async route => {
+    refreshes += 1;
+    await route.fulfill({ status: 200, contentType: 'application/json',
+      headers: cors,
+      body: JSON.stringify({ conversations: refreshes === 1 ? initial : [], nextCursor: null }) });
+  });
+  await page.route(backend + '/riders/' + ownId + '/friends', async route => {
+    await route.fulfill({ status: 200, contentType: 'application/json',
+      headers: cors,
+      body: JSON.stringify({ friends: refreshes <= 1 ? [alice] : [], nextCursor: null }) });
+  });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Open messages' }).click();
+  await page.getByRole('button', { name: 'Open conversation with Alice Rider' }).click();
+  await expect(page.getByText('Alice private message')).toBeVisible();
+  await page.getByRole('textbox', { name: 'Write a message' }).fill('Checking friendship refresh');
+  await page.getByRole('button', { name: 'Send message' }).click();
+  await expect.poll(() => refreshes).toBe(2);
+  await expect(page.getByTestId('shared-message-inbox')).toBeVisible();
+  await expect(page.getByText('Alice private message')).toHaveCount(0);
+  await expect(page.getByRole('textbox', { name: 'Write a message' })).toHaveCount(0);
+  await expect(page.getByTestId('social-app-recovery')).toHaveCount(0);
+});
