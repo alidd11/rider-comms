@@ -504,6 +504,16 @@ function AuthenticatedSocialApp(): React.JSX.Element {
     </View>;
   }
 
+  function switchFeed(next: FeedMode) {
+    if (feedMode === next) return;
+    setFeedMode(next);
+    // A feed switch is navigation, not a filter inside the current scroll
+    // position. Closing open menus prevents stale post actions crossing feeds.
+    setFeedPreferencesOpen(false);
+    setActivePostMenu(null);
+    setExpandedCaptionId(null);
+  }
+
   function renderHome() {
     const creator = selectedCreator ? demoCreators[selectedCreator] : undefined;
     if (creator) return <View style={{ padding: 18, gap: 14 }}>
@@ -545,46 +555,75 @@ function AuthenticatedSocialApp(): React.JSX.Element {
       <Text style={s.small}>Fictional demo creator and example vehicle details. No Rider Comms personal data is accessed.</Text>
     </View>;
     return <View style={{width:'100%',maxWidth:640,alignSelf:'center'}}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.storyRail}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Create story" style={s.storyItem} onPress={()=>{navigate('Create');setCreateMode('Story');}}>
-          <View style={[s.storyCircle,{borderColor:C.border}]}><Ionicons name="add" color={C.accent} size={23}/></View>
+      {feedMode === 'forYou' ? <ScrollView horizontal showsHorizontalScrollIndicator={false}
+        contentContainerStyle={s.storyRail}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Create story"
+          style={s.storyItem} onPress={()=>{setCreateMode('Story');navigate('Create');}}>
+          <View style={[s.storyCircle,{borderColor:C.border}]}>
+            <Ionicons name="add" color={C.accent} size={23}/>
+          </View>
           <Text style={s.storyLabel}>Your story</Text>
         </Pressable>
-        {demoStories.map(story=><Pressable key={story.id} accessibilityRole="button" accessibilityLabel={'View story by '+story.name}
+        {demoStories.map(story=><Pressable key={story.id} accessibilityRole="button"
+          accessibilityLabel={'View story by '+story.name}
           onPress={()=>setSelectedStory(story.id)} style={s.storyItem}>
-          <View style={s.storyCircle}><Image source={{uri:story.imageUrl}} style={{width:49,height:49,borderRadius:17,backgroundColor:story.color}}/></View>
+          <View style={s.storyCircle}><Image source={{uri:story.imageUrl}}
+            style={{width:49,height:49,borderRadius:17,backgroundColor:story.color}}/></View>
           <Text style={s.storyLabel}>{story.name}</Text>
         </Pressable>)}
-      </ScrollView>
-      <View style={s.feedSwitchBar}>
-        <View style={s.row}>
-          <Pill label="For You" selected={feedMode==='forYou'} onPress={() => setFeedMode('forYou')}/>
-          <Pill label="Following" selected={feedMode==='following'} onPress={() => setFeedMode('following')}/>
-        </View>
-        <View style={[s.row, { gap: 4 }]}>
-          {socialFixturesEnabled ? <Text style={[s.small, { fontSize: 10 }]}>Sample feed</Text> : null}
-          <Pressable accessibilityRole="button" accessibilityLabel="Feed preferences" style={s.compactIcon} onPress={()=>setFeedPreferencesOpen(v=>!v)}>
-            <Ionicons name="options-outline" size={22} color={feedPreferencesOpen?C.accent:C.ink}/>
+      </ScrollView> : null}
+      {socialFixturesEnabled ? <Text style={[s.small,{
+        paddingHorizontal:16,paddingTop:7,paddingBottom:5,fontSize:11
+      }]}>Sample feed</Text> : null}
+      {feedPreferencesOpen ? <View testID="home-feed-preferences"
+        style={[s.card,s.pad,{marginHorizontal:16,marginTop:9,marginBottom:12,gap:13}]}>
+        <View style={s.rowBetween}>
+          <Text style={[s.cardHeading,{fontSize:16}]}>Feed preferences</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel="Close Feed preferences"
+            onPress={()=>setFeedPreferencesOpen(false)}
+            style={{minWidth:44,minHeight:44,justifyContent:'center',alignItems:'center'}}>
+            <Ionicons name="close" color={C.muted} size={21}/>
           </Pressable>
         </View>
-      </View>
-      {feedPreferencesOpen ? <View style={[s.card,s.pad,{marginHorizontal:15,marginBottom:8}]}>
-        <View style={s.rowBetween}><Text style={s.cardHeading}>Feed preferences</Text>
-          <Pressable accessibilityRole="button" accessibilityLabel="Toggle personalised recommendations" onPress={()=>setPersonalisation(v=>!v)}>
-            <Text style={{color:C.accent,fontWeight:'800'}}>{personalisation?'Personalised':'Not personalised'}</Text>
-          </Pressable>
-        </View>
-        <View style={[s.row,{flexWrap:'wrap'}]}>{topics.map(({topic,label})=><Pill key={topic} label={label} selected={!hiddenTopics.has(topic)} onPress={()=>toggle(setHiddenTopics,topic)}/>)}</View>
-      </View> : null}
-      {feedMode==='following' ? <View style={[s.row,{paddingHorizontal:16,paddingBottom:8}]}>
-        <Pill label="Newest" selected={followingOrder==='newest'} onPress={()=>setFollowingOrder('newest')}/>
-        <Pill label="Relevant" selected={followingOrder==='relevant'} onPress={()=>setFollowingOrder('relevant')}/>
+        {feedMode==='forYou' ? <>
+          <View style={s.rowBetween}>
+            <Text style={[s.body,{flex:1}]}>Personalised recommendations</Text>
+            <Pressable accessibilityRole="button" accessibilityLabel="Toggle personalised recommendations"
+              accessibilityState={{checked:personalisation}}
+              onPress={()=>setPersonalisation(v=>!v)}
+              style={{minHeight:44,justifyContent:'center',paddingHorizontal:4}}>
+              <Text style={{color:C.accent,fontWeight:'800',fontSize:13}}>
+                {personalisation?'On':'Off'}
+              </Text>
+            </Pressable>
+          </View>
+          <Text style={s.small}>Topics you would like to see</Text>
+          <View style={[s.row,{flexWrap:'wrap'}]}>
+            {topics.map(({topic,label})=><Pill key={topic} label={label}
+              selected={!hiddenTopics.has(topic)} onPress={()=>toggle(setHiddenTopics,topic)}/>)}
+          </View>
+        </> : <>
+          <Text style={s.small}>Posts from accounts you follow</Text>
+          <Text style={[s.body,{fontWeight:'700'}]}>Sort posts</Text>
+          <View style={[s.row,{flexWrap:'wrap'}]}>
+            <Pill label="Newest first" selected={followingOrder==='newest'}
+              onPress={()=>setFollowingOrder('newest')}/>
+            <Pill label="Relevant" selected={followingOrder==='relevant'}
+              onPress={()=>setFollowingOrder('relevant')}/>
+          </View>
+          <Text style={s.small}>Newest first shows recent followed posts before older ones.</Text>
+        </>}
       </View> : null}
       {visiblePosts.length ? visiblePosts.map(({post,reason})=>renderPost(post,reason))
-        : <PreviewEmpty icon="images-outline" heading="No posts yet"
-          body="Choose a photo or video to preview your first post. Nothing is published yet."
-          actionLabel="Create a post"
-          onAction={() => { setCreateMode('Post'); navigate('Create'); }}/>} 
+        : feedMode==='following'
+          ? <PreviewEmpty icon="people-outline" heading="No posts from followed creators"
+              body="Posts from accounts you follow will appear here when sharing is available."
+              actionLabel="Go to For You"
+              onAction={()=>switchFeed('forYou')}/>
+          : <PreviewEmpty icon="images-outline" heading="No posts yet"
+              body="Choose a photo or video to preview your first post. Nothing is published yet."
+              actionLabel="Create a post"
+              onAction={() => { setCreateMode('Post'); navigate('Create'); }}/>} 
     </View>;
   }
 
@@ -850,6 +889,30 @@ function AuthenticatedSocialApp(): React.JSX.Element {
             <IconButton name="person-circle-outline" label="Open profile" onPress={() => navigate('Profile')} />
           </View>
         </View> : null}
+        {!story && screen === 'Home' && !selectedCreator ? <View
+          testID="home-feed-tabs" nativeID="social-home-feed-tabs" style={s.feedSwitchBar}>
+          <View style={{width:44}}/>
+          <View style={{flex:1,flexDirection:'row',justifyContent:'center',gap:18}}>
+            {([
+              {mode:'forYou' as const,label:'For You'},
+              {mode:'following' as const,label:'Following'},
+            ]).map(item => <Pressable key={item.mode} accessibilityRole="tab"
+              accessibilityLabel={item.label} accessibilityState={{selected:feedMode===item.mode}}
+              onPress={()=>switchFeed(item.mode)}
+              style={[s.feedModeTab,feedMode===item.mode && s.feedModeTabActive]}>
+              <Text style={[s.feedModeText,feedMode===item.mode && s.feedModeTextActive]}>
+                {item.label}
+              </Text>
+            </Pressable>)}
+          </View>
+          <Pressable accessibilityRole="button" accessibilityLabel="Feed preferences"
+            accessibilityState={{expanded:feedPreferencesOpen}}
+            onPress={()=>setFeedPreferencesOpen(v=>!v)}
+            style={s.compactIcon}>
+            <Ionicons name="options-outline" size={21}
+              color={feedPreferencesOpen?C.accent:C.muted}/>
+          </Pressable>
+        </View> : null}
         {notice && screen !== 'Reels' ? (
           <Pressable style={s.notice} accessibilityRole="button" accessibilityLabel="Dismiss notice" onPress={() => setNotice(null)}>
             <View style={s.rowBetween}><Text style={[s.body, { color: '#C4FFEC', flex: 1 }]}>{notice}</Text><Ionicons name="close" size={17} color={C.accent} /></View>
@@ -865,7 +928,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
                   screen === 'Shop' ? { paddingBottom: 28 } : s.content}
                 keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}
                 overScrollMode="never" bounces={false}
-                key={screen === 'Home' ? 'Home-' + (selectedCreator ?? 'feed') :
+                key={screen === 'Home' ? 'Home-' + (selectedCreator ?? 'feed') + '-' + feedMode :
                   screen === 'Profile' ? 'Profile-' + (settingsOpen ? 'settings' : profileTab) : screen}>
                 {screen === 'Home' ? renderHome() : null}
                 {screen === 'Clubs' ? renderClubs() : null}
