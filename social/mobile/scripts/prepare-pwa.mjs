@@ -101,6 +101,19 @@ const edgeToEdgeStyle = `<style id="social-edge-to-edge">
     outline: none !important;
     box-shadow: inset 0 -2px 0 0 #5CE4C1 !important;
   }
+  /* iOS WebKit can paint a bright yellow system autofill surface above the
+     React Native background. Override the autofill layer as well as the input.
+     The caret, bullets and selected password stay visible on dark backgrounds. */
+  #social-account-gate input:-webkit-autofill,
+  #social-account-gate input:-webkit-autofill:hover,
+  #social-account-gate input:-webkit-autofill:focus,
+  #social-account-gate input:-webkit-autofill:active {
+    -webkit-text-fill-color: #F4F7FB !important;
+    caret-color: #F4F7FB !important;
+    -webkit-box-shadow: inset 0 0 0 1000px #080D13 !important;
+    box-shadow: inset 0 0 0 1000px #080D13 !important;
+    transition: background-color 999999s ease-in-out 0s;
+  }
 
   /* Reels video paints behind the Dynamic Island; only floating UI is inset.
      The :has selector scopes this exception to Reels (not Home, Create or Shop).
