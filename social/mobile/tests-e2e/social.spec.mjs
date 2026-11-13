@@ -17,9 +17,9 @@ test.beforeEach(async ({ page }) => {
     };
     if (method === 'OPTIONS') return route.fulfill({ status: 204, headers });
     const body = pathname === '/auth/me'
-      ? { riderId: 'rider-e2e-001', username: 'fixture-rider', emailVerified: true,
+      ? { riderId: 'rider_abcd1234', username: 'fixture-rider', emailVerified: true,
           termsAccepted: true, termsVersion: 'terms-fixture' }
-      : pathname === '/riders/rider-e2e-001/friends' || pathname === '/conversations'
+      : pathname === '/riders/rider_abcd1234/friends' || pathname === '/conversations'
         ? pathname === '/conversations'
           ? { conversations: [], nextCursor: null }
           : { friends: [], nextCursor: null }
@@ -30,7 +30,7 @@ test.beforeEach(async ({ page }) => {
   });
   await page.addInitScript(() => {
     window.sessionStorage.setItem('rider_social_account_session_v1', 'synthetic-e2e-only');
-    window.sessionStorage.setItem('rider_social_age_ack_v1', 'rider-e2e-001');
+    window.sessionStorage.setItem('rider_social_age_ack_v1', 'rider_abcd1234');
   });
 });
 
