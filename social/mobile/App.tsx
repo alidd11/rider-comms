@@ -665,7 +665,8 @@ function AuthenticatedSocialApp(): React.JSX.Element {
       category={marketFilter} onCategory={setMarketFilter}
       saved={shopSaved} basket={shopBasket}
       onToggleSaved={(id) => toggle(setShopSaved, id)}
-      onAddBasket={(id) => setShopBasket(current => new Set(current).add(id))}/>;
+      onAddBasket={(id) => setShopBasket(current => new Set(current).add(id))}
+      onExploreClubs={() => navigate('Clubs')}/>;
   }
 
   async function clearDeviceDrafts(): Promise<void> {
@@ -827,7 +828,8 @@ function AuthenticatedSocialApp(): React.JSX.Element {
       <View style={s.root}>
         {!story && screen !== 'Reels' && screen !== 'Create' ? <View style={s.header}>
           <Pressable accessibilityRole="button" accessibilityLabel="Go to home" onPress={() => navigate('Home')}>
-            <Text style={s.brandTitle}>Social<Text style={{ color: C.accent }}>.</Text></Text>
+            <Text style={s.brandTitle}>{screen === 'Shop' ? 'Shop' :
+              <>Social<Text style={{ color: C.accent }}>.</Text></>}</Text>
           </Pressable>
           <View style={s.headerTools}>
             <IconButton name="chatbubble-ellipses-outline" label="Open messages" onPress={() => navigate('Messages')} />
@@ -845,7 +847,8 @@ function AuthenticatedSocialApp(): React.JSX.Element {
           <>
             {pageScrollEnabled ? (
               <ScrollView nativeID="social-page-scroll" style={s.scroll}
-                contentContainerStyle={screen === 'Home' ? { paddingBottom: 24 } : s.content}
+                contentContainerStyle={screen === 'Home' ? { paddingBottom: 24 } :
+                  screen === 'Shop' ? { paddingBottom: 28 } : s.content}
                 keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}
                 overScrollMode="never" bounces={false}
                 key={screen === 'Home' ? 'Home-' + (selectedCreator ?? 'feed') :
