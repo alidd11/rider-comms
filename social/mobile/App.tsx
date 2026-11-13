@@ -807,7 +807,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
                 {screen === 'Profile' ? renderProfile() : null}
               </ScrollView>
             ) : screen === 'Create' ? (
-              <CreateComposer initialMode={createMode} onClose={() => navigate('Home')} />
+              <CreateComposer initialMode={createMode} riderId={identity.riderId} onClose={() => navigate('Home')} />
             ) : screen === 'Reels' ? (
               <View testID="fixed-reels-screen" style={{ flex: 1, minHeight: 0, width: '100%', backgroundColor: '#020406' }}>
                 <ReelsScreen items={reelPreviews} followedAuthors={followed}
