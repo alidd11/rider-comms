@@ -185,7 +185,8 @@ export function MapDrawer({
 
       <PlaceSearchBar ref={searchRef} near={near} onRequestLocation={onRequestLocation} onSelect={onSelectPlace} onSave={saveSavedPlace} />
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.shortcuts} style={styles.shortcutsScroll}>
+      {/* Three equal buttons that always fit, even on a 320pt phone. */}
+      <View style={styles.shortcuts}>
         {SAVED_PLACE_SLOTS.map((slot) => {
           const label = SAVED_PLACE_LABELS[slot];
           const place = savedPlaces[slot];
@@ -217,7 +218,7 @@ export function MapDrawer({
           <MaterialCommunityIcons name="gas-station-outline" size={21} color={colors.accentInk} />
           <Text style={styles.shortcutText}>Petrol</Text>
         </Pressable>
-      </ScrollView>
+      </View>
 
       <Animated.View
         style={[styles.recentClip, recentClipSize]}
@@ -276,14 +277,15 @@ const styles = StyleSheet.create({
   // 32 tall plus the 8pt hit slop on each side meets the 48pt touch minimum.
   handleButton: { alignSelf: 'center', width: 88, height: 32, alignItems: 'center', justifyContent: 'center', marginBottom: spacing.xs },
   handle: { width: 40, height: 5, borderRadius: 3, backgroundColor: colors.border },
-  shortcutsScroll: { marginTop: spacing.md, marginHorizontal: -spacing.md },
-  shortcuts: { gap: 10, paddingHorizontal: spacing.md },
+  shortcuts: { flexDirection: 'row', gap: 8, marginTop: spacing.md },
   shortcut: {
+    flex: 1,
     minHeight: MIN_TOUCH_TARGET + 4,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 9,
-    paddingHorizontal: spacing.md,
+    justifyContent: 'center',
+    gap: 7,
+    paddingHorizontal: spacing.xs,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: colors.border,

@@ -2730,3 +2730,8 @@ html.map-drawer-open #ridePill{display:none}
    labels on cards that touch. */
 .settings-page-mode .settings-sheet-label{display:block;margin-bottom:10px;color:var(--text-secondary);font-size:.95rem;font-weight:500;letter-spacing:0;text-transform:none}
 .settings-page-mode .settings-sheet-section+.settings-sheet-section{margin-top:16px}
+
+/* Home, Work and Petrol share the drawer width equally, so all three fit
+   on a 320px phone instead of scrolling "Petrol" off the edge. */
+.map-drawer-shortcuts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-left:0;margin-right:0;padding:0;overflow:visible}
+.map-drawer-shortcuts button{min-width:0;justify-content:center;gap:7px;padding:0 6px}
