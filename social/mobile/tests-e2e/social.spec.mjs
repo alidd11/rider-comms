@@ -3,6 +3,36 @@ import { test, expect } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import { Buffer } from 'node:buffer';
 
+// This fixture is an entirely synthetic session, never a real Rider Comms credential.
+// It prevents the screenshot suite from sending any account requests to production.
+test.beforeEach(async ({ page }) => {
+  await page.route('https://backend-production-7fa0.up.railway.app/**', async route => {
+    const pathname = new URL(route.request().url()).pathname;
+    const method = route.request().method();
+    const headers = {
+      'access-control-allow-origin': '*',
+      'access-control-allow-headers': 'authorization,content-type',
+      'access-control-allow-methods': 'GET,POST,OPTIONS',
+    };
+    if (method === 'OPTIONS') return route.fulfill({ status: 204, headers });
+    const body = pathname === '/auth/me'
+      ? { riderId: 'rider-e2e-001', username: 'fixture-rider', emailVerified: true,
+          termsAccepted: true, termsVersion: 'terms-fixture' }
+      : pathname === '/riders/rider-e2e-001/friends' || pathname === '/conversations'
+        ? pathname === '/conversations'
+          ? { conversations: [], nextCursor: null }
+          : { friends: [], nextCursor: null }
+        : { error: 'not_found' };
+    return route.fulfill({ status: pathname === '/auth/me' || pathname.includes('friends') ||
+      pathname === '/conversations' ? 200 : 404,
+      contentType: 'application/json', headers, body: JSON.stringify(body) });
+  });
+  await page.addInitScript(() => {
+    window.sessionStorage.setItem('rider_social_account_session_v1', 'synthetic-e2e-only');
+    window.sessionStorage.setItem('rider_social_age_ack_v1', 'rider-e2e-001');
+  });
+});
+
 test('feed switches, hides posts and explains recommendations', async ({ page }, testInfo) => {
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'Feed preferences' })).toBeVisible();
@@ -388,10 +418,21 @@ test('Home photo carousel, double-tap like, and creator garage link work', async
   await page.goto('/');
   const gallery = page.getByTestId('post-gallery-p1');
   await expect(gallery).toBeVisible();
-  await page.getByRole('button', { name: 'Next photo in post p1' }).click();
+  await gallery.evaluate(element => {
+    element.scrollLeft = element.clientWidth;
+    element.dispatchEvent(new Event('scroll', { bubbles: true }));
+  });
   await expect(page.getByTestId('post-media-p1').getByText('2/2')).toBeVisible();
-  await page.getByRole('button', { name: 'Previous photo in post p1' }).click();
+  await gallery.evaluate(element => {
+    element.scrollLeft = 0;
+    element.dispatchEvent(new Event('scroll', { bubbles: true }));
+  });
   await expect(page.getByTestId('post-media-p1').getByText('1/2')).toBeVisible();
+  const dots = page.getByTestId('post-media-p1').locator('[data-testid="gallery-dots"]');
+  await expect(dots).toHaveCount(0);
+  if ((page.viewportSize()?.width ?? 0) < 720) {
+    await expect(page.getByRole('button', { name: 'Next photo in post p1' })).toHaveCount(0);
+  }
   await expect(page.getByRole('button', { name: 'Like post' }).first()).toBeVisible();
   const imageButton = page.getByTestId('post-media-p1').getByRole('button', { name: 'Double tap to like photo 1 of 2' });
   await imageButton.dblclick();
@@ -576,7 +617,7 @@ test('Social profile has tabs, follower/friend panels and separately managed dem
   await expect(page.getByRole('tab', { name: 'Posts profile tab' })).toBeVisible();
   await expect(page.getByRole('tab', { name: 'Reels profile tab' })).toBeVisible();
   await expect(page.getByRole('tab', { name: 'Garage profile tab' })).toBeVisible();
-  await expect(page.getByText('@username · not linked')).toBeVisible();
+  await expect(page.getByText('@fixture-rider · Rider Comms account')).toBeVisible();
   await expect(page.getByText('Your posts will appear here')).toBeVisible();
   await expect(page.getByText('Personal garage')).toHaveCount(0);
   await page.getByRole('button', { name: 'View followers' }).click();
@@ -584,7 +625,7 @@ test('Social profile has tabs, follower/friend panels and separately managed dem
   await expect(page.getByText('Followers are not connected yet')).toBeVisible();
   await page.getByRole('button', { name: 'Close connections' }).click();
   await page.getByRole('button', { name: 'View friends' }).click();
-  await expect(page.getByText('Friends are not connected yet')).toBeVisible();
+  await expect(page.getByText('No friends found')).toBeVisible();
   await page.getByRole('button', { name: 'Close connections' }).click();
   await page.getByRole('button', { name: 'View following' }).click();
   await expect(page.getByText('Alex Morgan')).toBeVisible();
