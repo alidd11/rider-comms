@@ -249,6 +249,36 @@
   const PUCK_CONE_ARROW_PATH = 'M48 1.5 L58 15 L48 11 L38 15 Z';
   const PUCK_CONE_COLOR = '#1f8fbf';
 
+  /** A ride's elapsed time and distance, for the arrival summary. */
+
+  /** Fixes less certain than this, or moves shorter than this (GPS drift while
+   * stopped), don't add to the trip's distance. */
+  const TRIP_MAX_ACCURACY_M = 50;
+  const TRIP_MIN_STEP_M = 5;
+
+  function startNavigationTrip(nowMs) {
+    return { startedAt: nowMs, distanceMeters: 0, last: null };
+  }
+
+  /** Adds a raw GPS fix to the trip (returns a new trip). */
+  function recordNavigationTripFix(
+    trip,
+    fix,
+  ) {
+    if (!Number.isFinite(fix.lat) || !Number.isFinite(fix.lon)) return trip;
+    if (Number.isFinite(fix.accuracyMeters) && Number(fix.accuracyMeters) > TRIP_MAX_ACCURACY_M) return trip;
+    const here = { lat: fix.lat, lon: fix.lon };
+    if (!trip.last) return { ...trip, last: here };
+    const step = metersBetween(trip.last, here);
+    if (step < TRIP_MIN_STEP_M) return trip;
+    return { ...trip, distanceMeters: trip.distanceMeters + step, last: here };
+  }
+
+  /** Whole seconds since the trip started. */
+  function navigationTripSeconds(trip, nowMs) {
+    return Math.max(0, Math.round((nowMs - trip.startedAt) / 1000));
+  }
+
   root.RiderNavigationPuck = Object.freeze({
     PUCK_MIN_SNAP_METERS,
     PUCK_MAX_SNAP_METERS,
@@ -271,5 +301,10 @@
     PUCK_CONE_BEAM_PATH,
     PUCK_CONE_ARROW_PATH,
     PUCK_CONE_COLOR,
+    TRIP_MAX_ACCURACY_M,
+    TRIP_MIN_STEP_M,
+    startNavigationTrip,
+    recordNavigationTripFix,
+    navigationTripSeconds,
   });
 })(typeof window !== 'undefined' ? window : globalThis);

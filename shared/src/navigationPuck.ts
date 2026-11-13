@@ -297,3 +297,38 @@ export const PUCK_CONE_BEAM_PATH = 'M48 48 L26.7 6.1 A47 47 0 0 1 69.3 6.1 Z';
 /** A solid arrowhead just outside the avatar, readable in sunlight. */
 export const PUCK_CONE_ARROW_PATH = 'M48 1.5 L58 15 L48 11 L38 15 Z';
 export const PUCK_CONE_COLOR = '#1f8fbf';
+
+/** A ride's elapsed time and distance, for the arrival summary. */
+export interface NavigationTrip {
+  startedAt: number;
+  distanceMeters: number;
+  last: PuckCoordinate | null;
+}
+
+/** Fixes less certain than this, or moves shorter than this (GPS drift while
+ * stopped), don't add to the trip's distance. */
+export const TRIP_MAX_ACCURACY_M = 50;
+export const TRIP_MIN_STEP_M = 5;
+
+export function startNavigationTrip(nowMs: number): NavigationTrip {
+  return { startedAt: nowMs, distanceMeters: 0, last: null };
+}
+
+/** Adds a raw GPS fix to the trip (returns a new trip). */
+export function recordNavigationTripFix(
+  trip: NavigationTrip,
+  fix: { lat: number; lon: number; accuracyMeters?: number | null },
+): NavigationTrip {
+  if (!Number.isFinite(fix.lat) || !Number.isFinite(fix.lon)) return trip;
+  if (Number.isFinite(fix.accuracyMeters) && Number(fix.accuracyMeters) > TRIP_MAX_ACCURACY_M) return trip;
+  const here = { lat: fix.lat, lon: fix.lon };
+  if (!trip.last) return { ...trip, last: here };
+  const step = metersBetween(trip.last, here);
+  if (step < TRIP_MIN_STEP_M) return trip;
+  return { ...trip, distanceMeters: trip.distanceMeters + step, last: here };
+}
+
+/** Whole seconds since the trip started. */
+export function navigationTripSeconds(trip: NavigationTrip, nowMs: number): number {
+  return Math.max(0, Math.round((nowMs - trip.startedAt) / 1000));
+}

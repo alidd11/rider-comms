@@ -625,7 +625,10 @@
     navCurrentSpeedMps = Number.isFinite(latestDevicePosition?.coords?.speed) && Number(latestDevicePosition.coords.speed) >= 0
       ? Number(latestDevicePosition.coords.speed)
       : null;
-    if (!preserveMute) navCameraHeading = null;
+    if (!preserveMute) {
+      navCameraHeading = null;
+      navTrip = navigationPuck.startNavigationTrip(Date.now());
+    }
     navDestination = { ...destination, label };
     hideDestinationCard();
     destinationMarker?.setMap(null);
@@ -765,6 +768,9 @@
     renderNavSpeed();
     if (navRerouting) return;
     const raw = { lat: position.coords.latitude, lng: position.coords.longitude };
+    if (navTrip) {
+      navTrip = navigationPuck.recordNavigationTripFix(navTrip, { lat: raw.lat, lon: raw.lng, accuracyMeters: position.coords.accuracy });
+    }
     navCurrentAccuracyMeters = Number.isFinite(position.coords.accuracy)
       ? Number(position.coords.accuracy)
       : null;
@@ -889,6 +895,12 @@
 
   function finishNavigation(arrived) {
     const announceArrival = Boolean(arrived && !navMuted);
+    const arrival = arrived && navTrip ? {
+      label: navDestination?.label || '',
+      seconds: navigationPuck.navigationTripSeconds(navTrip, Date.now()),
+      distanceMeters: navTrip.distanceMeters,
+    } : null;
+    navTrip = null;
     stopNavigationCameraAnimation();
     stopNavTracking();
     directionsRenderer?.setMap(null);
@@ -934,8 +946,21 @@
     $('#app').classList.remove('nav-mode');
     renderMapChrome();
     if (arrived) {
-      showToast('You’ve arrived.');
+      if (arrival) showArrivalCard(arrival);
+      else showToast('You’ve arrived.');
       if (announceArrival) speak('You’ve arrived.');
     }
+  }
+
+  /** "You’ve arrived", the place, and the ride's time and distance. */
+  function showArrivalCard({ label, seconds, distanceMeters }) {
+    const card = $('#destinationCard');
+    card.innerHTML = `<div class="destination-card-head"><span class="destination-card-icon" aria-hidden="true"><svg><use href="#i-flag"/></svg></span><div class="rider-card-copy"><strong>You’ve arrived</strong>${label ? `<span>${escapeHtml(label)}</span>` : ''}</div></div><p class="arrival-stats">${escapeHtml(`${formatNavDuration(seconds)} · ${formatNavDistance(distanceMeters)}`)}</p><div class="destination-card-actions"><button type="button" class="destination-primary-action" data-dismiss-arrival><strong>Done</strong></button></div>`;
+    card.dataset.arrival = 'true';
+    card.setAttribute('role', 'status');
+    card.hidden = false;
+    $('[data-dismiss-arrival]', card).addEventListener('click', () => {
+      hideDestinationCard();
+    });
   }
 

@@ -5,6 +5,9 @@ import {
   matchFixToPath,
   navigationFixAgeSeconds,
   navigationPuckConeDegrees,
+  navigationTripSeconds,
+  recordNavigationTripFix,
+  startNavigationTrip,
   navigationPathPointAt,
   predictNavigationPuck,
   type PuckCoordinate,
@@ -162,4 +165,21 @@ test('the cone points the way the rider travels relative to the rotated map', ()
   assert.equal(navigationPuckConeDegrees(-1, 0), null);
   assert.equal(navigationPuckConeDegrees(null, 0), null);
   assert.equal(navigationPuckConeDegrees(Number.NaN, 0), null);
+});
+
+test('the trip adds up distance from confident fixes and ignores drift', () => {
+  let trip = startNavigationTrip(1_000);
+  trip = recordNavigationTripFix(trip, { ...at(0, 0), accuracyMeters: 8 });
+  assert.equal(trip.distanceMeters, 0);
+  trip = recordNavigationTripFix(trip, { ...at(0, 100), accuracyMeters: 8 });
+  assert.ok(Math.abs(trip.distanceMeters - 100) < 0.5);
+  // Drift while stopped, an uncertain fix and a broken one add nothing.
+  trip = recordNavigationTripFix(trip, { ...at(2, 101), accuracyMeters: 8 });
+  trip = recordNavigationTripFix(trip, { ...at(0, 900), accuracyMeters: 120 });
+  trip = recordNavigationTripFix(trip, { lat: Number.NaN, lon: 0 });
+  assert.ok(Math.abs(trip.distanceMeters - 100) < 0.5);
+  trip = recordNavigationTripFix(trip, { ...at(100, 100), accuracyMeters: null });
+  assert.ok(Math.abs(trip.distanceMeters - 200) < 0.5);
+  assert.equal(navigationTripSeconds(trip, 61_400), 60);
+  assert.equal(navigationTripSeconds(trip, 0), 0);
 });

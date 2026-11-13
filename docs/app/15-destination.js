@@ -32,7 +32,10 @@
   }
 
   function hideDestinationCard() {
-    $('#destinationCard').hidden = true;
+    const card = $('#destinationCard');
+    card.hidden = true;
+    delete card.dataset.arrival;
+    card.removeAttribute('role');
   }
 
   function showDestinationCard(location, label, address) {
@@ -41,6 +44,8 @@
     const lat = location.lat();
     const lng = location.lng();
     const card = $('#destinationCard');
+    delete card.dataset.arrival;
+    card.removeAttribute('role');
     const secondary = address || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
     const provider = navigationProvider(state.navigationProvider);
     const providerInfo = NAVIGATION_PROVIDERS[provider];
@@ -165,6 +170,9 @@
   let navPuckPlaced = false;
   // The rider's direction of travel at the last fix, for the puck's cone.
   let navPuckTravelHeading = null;
+  // Time and distance since the route started (reroutes included), for the
+  // arrival card (shared startNavigationTrip / recordNavigationTripFix).
+  let navTrip = null;
   // The puck and camera glide to where the rider will be when the next fix
   // is due (fixes arrive about once a second), so motion never stops.
   const NAV_PUCK_GLIDE_MS = 1000;

@@ -308,6 +308,34 @@ test('advances steps as the rider reaches each maneuver, and arrives at the dest
   expect(mockRemove).toHaveBeenCalled();
 });
 
+test('arriving shows the ride time and the distance actually ridden, until dismissed', async () => {
+  const { result } = await startNavigation();
+  expect(result.current.navigationArrival).toBeNull();
+  await act(async () => { jest.advanceTimersByTime(60_000); });
+  await sendFix(51.5, -0.1);
+  await sendFix(51.502, -0.1);
+  await sendFix(51.502, -0.097);
+  await act(async () => { jest.advanceTimersByTime(5 * 60_000); });
+  await sendFix(51.5039, -0.097);
+
+  const arrival = result.current.navigationArrival!;
+  expect(arrival.label).toBe(DESTINATION.label ?? null);
+  expect(arrival.seconds).toBe(6 * 60);
+  // 222 m north, 208 m east, 211 m north again.
+  expect(arrival.distanceMeters).toBeGreaterThan(600);
+  expect(arrival.distanceMeters).toBeLessThan(680);
+
+  await act(async () => { result.current.dismissNavigationArrival(); });
+  expect(result.current.navigationArrival).toBeNull();
+});
+
+test('stopping a route early shows no arrival card', async () => {
+  const { result } = await startNavigation();
+  await sendFix(51.5, -0.1);
+  await act(async () => { result.current.finishInAppNavigation(); });
+  expect(result.current.navigationArrival).toBeNull();
+});
+
 test('muting silences prompts and stops speech without re-subscribing GPS', async () => {
   const { result } = await startNavigation();
   mockStopNavigationPrompt.mockClear();

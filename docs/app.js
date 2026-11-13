@@ -6190,7 +6190,10 @@
   }
 
   function hideDestinationCard() {
-    $('#destinationCard').hidden = true;
+    const card = $('#destinationCard');
+    card.hidden = true;
+    delete card.dataset.arrival;
+    card.removeAttribute('role');
   }
 
   function showDestinationCard(location, label, address) {
@@ -6199,6 +6202,8 @@
     const lat = location.lat();
     const lng = location.lng();
     const card = $('#destinationCard');
+    delete card.dataset.arrival;
+    card.removeAttribute('role');
     const secondary = address || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
     const provider = navigationProvider(state.navigationProvider);
     const providerInfo = NAVIGATION_PROVIDERS[provider];
@@ -6323,6 +6328,9 @@
   let navPuckPlaced = false;
   // The rider's direction of travel at the last fix, for the puck's cone.
   let navPuckTravelHeading = null;
+  // Time and distance since the route started (reroutes included), for the
+  // arrival card (shared startNavigationTrip / recordNavigationTripFix).
+  let navTrip = null;
   // The puck and camera glide to where the rider will be when the next fix
   // is due (fixes arrive about once a second), so motion never stops.
   const NAV_PUCK_GLIDE_MS = 1000;
@@ -7156,7 +7164,10 @@
     navCurrentSpeedMps = Number.isFinite(latestDevicePosition?.coords?.speed) && Number(latestDevicePosition.coords.speed) >= 0
       ? Number(latestDevicePosition.coords.speed)
       : null;
-    if (!preserveMute) navCameraHeading = null;
+    if (!preserveMute) {
+      navCameraHeading = null;
+      navTrip = navigationPuck.startNavigationTrip(Date.now());
+    }
     navDestination = { ...destination, label };
     hideDestinationCard();
     destinationMarker?.setMap(null);
@@ -7296,6 +7307,9 @@
     renderNavSpeed();
     if (navRerouting) return;
     const raw = { lat: position.coords.latitude, lng: position.coords.longitude };
+    if (navTrip) {
+      navTrip = navigationPuck.recordNavigationTripFix(navTrip, { lat: raw.lat, lon: raw.lng, accuracyMeters: position.coords.accuracy });
+    }
     navCurrentAccuracyMeters = Number.isFinite(position.coords.accuracy)
       ? Number(position.coords.accuracy)
       : null;
@@ -7420,6 +7434,12 @@
 
   function finishNavigation(arrived) {
     const announceArrival = Boolean(arrived && !navMuted);
+    const arrival = arrived && navTrip ? {
+      label: navDestination?.label || '',
+      seconds: navigationPuck.navigationTripSeconds(navTrip, Date.now()),
+      distanceMeters: navTrip.distanceMeters,
+    } : null;
+    navTrip = null;
     stopNavigationCameraAnimation();
     stopNavTracking();
     directionsRenderer?.setMap(null);
@@ -7465,9 +7485,22 @@
     $('#app').classList.remove('nav-mode');
     renderMapChrome();
     if (arrived) {
-      showToast('You’ve arrived.');
+      if (arrival) showArrivalCard(arrival);
+      else showToast('You’ve arrived.');
       if (announceArrival) speak('You’ve arrived.');
     }
+  }
+
+  /** "You’ve arrived", the place, and the ride's time and distance. */
+  function showArrivalCard({ label, seconds, distanceMeters }) {
+    const card = $('#destinationCard');
+    card.innerHTML = `<div class="destination-card-head"><span class="destination-card-icon" aria-hidden="true"><svg><use href="#i-flag"/></svg></span><div class="rider-card-copy"><strong>You’ve arrived</strong>${label ? `<span>${escapeHtml(label)}</span>` : ''}</div></div><p class="arrival-stats">${escapeHtml(`${formatNavDuration(seconds)} · ${formatNavDistance(distanceMeters)}`)}</p><div class="destination-card-actions"><button type="button" class="destination-primary-action" data-dismiss-arrival><strong>Done</strong></button></div>`;
+    card.dataset.arrival = 'true';
+    card.setAttribute('role', 'status');
+    card.hidden = false;
+    $('[data-dismiss-arrival]', card).addEventListener('click', () => {
+      hideDestinationCard();
+    });
   }
 
   function initialiseGoogleMap() {
