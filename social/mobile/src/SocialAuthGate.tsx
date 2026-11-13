@@ -25,6 +25,7 @@ const ink = '#F4F7FB';
 const muted = '#91A4B5';
 const bg = '#080D13';
 const border = '#23303C';
+const SESSION_CHECK_FAILED = 'Couldn’t check your account. Check your connection and try again.';
 
 function deviceName() {
   return Platform.OS === 'ios' ? 'Rider Social on iPhone'
@@ -146,7 +147,7 @@ export function SocialAuthGate({ children }: { children: React.ReactNode }) {
           setAgeAcknowledged(window.sessionStorage.getItem('rider_social_age_ack_v1') === result.riderId);
         } catch { /* Protected browser mode requires re-acknowledgement. */ }
       }
-    }).catch(() => { if (alive) setError('Couldn’t check your account. Check your connection and try again.'); })
+    }).catch(() => { if (alive) setError(SESSION_CHECK_FAILED); })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; client.setSessionExpiredHandler(null); };
   }, [client]);
@@ -234,7 +235,7 @@ export function SocialAuthGate({ children }: { children: React.ReactNode }) {
   const retry = () => {
     setLoading(true); setError('');
     void client.restore().then(result => setIdentity(result))
-      .catch(() => setError('Couldn’t check your account. Check your connection and try again.'))
+      .catch(() => setError(SESSION_CHECK_FAILED))
       .finally(() => setLoading(false));
   };
   const resendVerification = () => client.resendVerification();
@@ -351,8 +352,9 @@ export function SocialAuthGate({ children }: { children: React.ReactNode }) {
           {error ? <View style={{ gap: 7 }}>
             <InlineMessage message={error}
               label={error.startsWith('Signed out on this device') ? 'Session safety'
-                : error.includes('unreachable') ? 'Connection unavailable' : 'Sign-in problem'}/>
-            {mode === 'login' && error.includes('verify your session') ? <Pressable
+                : error.includes('unreachable') || error === SESSION_CHECK_FAILED
+                  ? 'Connection unavailable' : 'Sign-in problem'}/>
+            {mode === 'login' && error === SESSION_CHECK_FAILED ? <Pressable
               accessibilityRole="button" accessibilityLabel="Retry session check" onPress={retry}
               style={{ paddingVertical: 8 }}>
               <Text style={{ color: accent, fontSize: 13, fontWeight: '800' }}>Retry session check</Text>
