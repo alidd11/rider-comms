@@ -115,6 +115,15 @@ export function CameraCapture({ mode, onCapture, onLibrary, onClose, disabled }:
     }
   }
 
+  function openLibrary() {
+    if (recording || busy || disabled) return;
+    // A native media picker may take over the screen without unmounting
+    // CameraCapture. Cancel a pending shutter countdown first, so it cannot
+    // fire while the user is choosing a file or dismissing the picker.
+    setCountdown(null);
+    onLibrary();
+  }
+
   function pressShutter() {
     if (recording) { void recordVideo(); return; }
     if (webReel) { onLibrary(); return; }
@@ -157,7 +166,7 @@ export function CameraCapture({ mode, onCapture, onLibrary, onClose, disabled }:
             <Text style={{ color: BLACK, fontSize: 14, fontWeight: '800' }}>Enable camera</Text>
           </Pressable> : null}
           <Pressable accessibilityRole="button" accessibilityLabel="Open Gallery"
-            onPress={onLibrary} style={{ padding: 9 }}>
+            onPress={openLibrary} style={{ padding: 9 }}>
             <Text style={{ color: WHITE, fontSize: 13, fontWeight: '700' }}>Choose from Gallery</Text>
           </Pressable>
         </View>}
@@ -165,7 +174,7 @@ export function CameraCapture({ mode, onCapture, onLibrary, onClose, disabled }:
       <View style={{ position: 'absolute', top: 12, left: 13, right: 13,
         flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <Pressable accessibilityRole="button" accessibilityLabel="Close Create"
-          disabled={recording} onPress={onClose}
+          disabled={recording || busy} onPress={onClose}
           style={{ backgroundColor: DIM, width: 43, height: 43, borderRadius: 22,
             justifyContent: 'center', alignItems: 'center' }}>
           <Ionicons name="close" color={WHITE} size={27}/>
@@ -224,7 +233,7 @@ export function CameraCapture({ mode, onCapture, onLibrary, onClose, disabled }:
         <View style={{ paddingHorizontal: 15, flexDirection: 'row',
           alignItems: 'center', justifyContent: 'space-between' }}>
           <Pressable accessibilityRole="button" accessibilityLabel="Choose from library"
-            onPress={onLibrary} disabled={disabled || recording}
+            onPress={openLibrary} disabled={disabled || recording || busy}
             style={{ width: 64, height: 66, alignItems: 'center', justifyContent: 'center',
               gap: 5, backgroundColor: DIM, borderRadius: 16 }}>
             <Ionicons name="images-outline" size={25} color={WHITE}/>
