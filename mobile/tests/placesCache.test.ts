@@ -3,12 +3,13 @@ import assert from 'node:assert/strict';
 import {
   nearbySearchCacheKey,
   PlacesCache,
-  textSearchCacheKey,
   wrapPlacesSearchWithCache,
 } from '../src/api/placesCache.ts';
 import type { PlaceSearchResult } from '../src/api/places.ts';
 
 const near = { lat: 51.5, lon: -0.1 };
+/** A key per place type, like the category chips use. */
+const typeKey = (type: string, at: { lat: number; lon: number }) => nearbySearchCacheKey({ includedTypes: [type] }, at);
 const okResult: PlaceSearchResult = {
   status: 'ok',
   places: [{ id: 'p1', name: 'Cafe', address: '1 Main St', lat: 51.5, lon: -0.1, distanceMeters: 10 }],
@@ -17,30 +18,30 @@ const okResult: PlaceSearchResult = {
 describe('PlacesCache', () => {
   it('serves a cache hit for the same query rounded to ~111m', () => {
     const cache = new PlacesCache();
-    const key = textSearchCacheKey('coffee', near);
+    const key = typeKey('coffee', near);
     cache.set(key, okResult, 0);
     assert.deepEqual(
-      cache.get(textSearchCacheKey('coffee', { lat: near.lat + 0.0001, lon: near.lon - 0.0001 }), 1000),
+      cache.get(typeKey('coffee', { lat: near.lat + 0.0001, lon: near.lon - 0.0001 }), 1000),
       okResult,
     );
   });
 
   it('misses for a genuinely different query', () => {
     const cache = new PlacesCache();
-    cache.set(textSearchCacheKey('coffee', near), okResult, 0);
-    assert.equal(cache.get(textSearchCacheKey('petrol', near), 1000), null);
+    cache.set(typeKey('coffee', near), okResult, 0);
+    assert.equal(cache.get(typeKey('petrol', near), 1000), null);
   });
 
-  it('does not cache a non-ok result', () => {
+  it('doesn’t cache a non-ok result', () => {
     const cache = new PlacesCache();
-    const key = textSearchCacheKey('coffee', near);
+    const key = typeKey('coffee', near);
     cache.set(key, { status: 'rate-limited', places: [] }, 0);
     assert.equal(cache.get(key, 0), null);
   });
 
   it('expires entries after the configured TTL', () => {
     const cache = new PlacesCache(60_000);
-    const key = textSearchCacheKey('coffee', near);
+    const key = typeKey('coffee', near);
     cache.set(key, okResult, 0);
     assert.deepEqual(cache.get(key, 59_999), okResult);
     assert.equal(cache.get(key, 60_000), null);
@@ -74,7 +75,7 @@ describe('wrapPlacesSearchWithCache', () => {
         return okResult;
       },
       cache,
-      textSearchCacheKey,
+      typeKey,
     );
 
     assert.deepEqual(await wrapped('coffee', near), okResult);
@@ -82,7 +83,7 @@ describe('wrapPlacesSearchWithCache', () => {
     assert.equal(calls, 1);
   });
 
-  it('does not cache a failed or non-ok search, so a retry hits the network again', async () => {
+  it('doesn’t cache a failed or non-ok search, so a retry hits the network again', async () => {
     let calls = 0;
     const cache = new PlacesCache();
     const wrapped = wrapPlacesSearchWithCache(
@@ -91,7 +92,7 @@ describe('wrapPlacesSearchWithCache', () => {
         return { status: 'network-error', places: [] };
       },
       cache,
-      textSearchCacheKey,
+      typeKey,
     );
 
     await wrapped('coffee', near);

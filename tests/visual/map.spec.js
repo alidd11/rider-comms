@@ -34,7 +34,7 @@ test('PWA map uses an already-granted live location instead of showing the Londo
   expect(mapState.ownMarkerEverUsedFallback).toBe(false);
 });
 
-test('PWA keeps controls available when movement cannot be verified', async ({ page }) => {
+test('PWA keeps controls available when movement can’t be verified', async ({ page }) => {
   await mockAuthenticatedApi(page, 'unknown');
   await page.goto('/');
   await expect(page.locator('#app')).toBeVisible();

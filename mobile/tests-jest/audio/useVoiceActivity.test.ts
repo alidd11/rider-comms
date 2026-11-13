@@ -72,7 +72,7 @@ test('creates, mutes, and publishes a fresh microphone track when connected with
   expect(publishTrack).toHaveBeenCalledWith(track);
 });
 
-test('does not create a track when one is already published', async () => {
+test('doesn’t create a track when one is already published', async () => {
   setParticipant({ track: fakeTrack() });
 
   await renderVoiceActivity({ enabled: true });
@@ -81,7 +81,7 @@ test('does not create a track when one is already published', async () => {
   expect(mockCreateLocalAudioTrack).not.toHaveBeenCalled();
 });
 
-test('does not create a track while disconnected', async () => {
+test('doesn’t create a track while disconnected', async () => {
   mockUseConnectionState.mockReturnValue(DISCONNECTED);
 
   await renderVoiceActivity({ enabled: true });
@@ -130,7 +130,7 @@ test('opens the mic once speech holds above the learnt noise floor', async () =>
   expect(track.unmute).toHaveBeenCalled();
 });
 
-test('does not open the mic for a bump shorter than the attack hold', async () => {
+test('doesn’t open the mic for a bump shorter than the attack hold', async () => {
   const track = fakeTrack();
   setParticipant({ track });
   const { result, rerender } = await renderVoiceActivity({ enabled: true });

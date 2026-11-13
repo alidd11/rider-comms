@@ -183,7 +183,7 @@
   }
 
   function locationAccessMessage(error, purpose = 'use your location') {
-    if (!navigator.geolocation) return 'Location is not supported by this browser.';
+    if (!navigator.geolocation) return 'Location isn’t supported by this browser.';
     if (error?.code === 1 || error?.name === 'NotAllowedError') {
       // An installed iOS PWA holds its OWN location permission, separate
       // from Safari's -- granting it in one never carries over to the
@@ -192,12 +192,12 @@
       // different instructions here.
       const isStandalone = document.documentElement.classList.contains('pwa-standalone');
       return isStandalone
-        ? `Location access is blocked for the installed app. To ${purpose}, allow it in Settings → Rider Comms → Location (or Settings → Privacy & Security → Location Services if it's off entirely).`
+        ? `Location access is blocked for the installed app. To ${purpose}, allow it in Settings → Rider Comms → Location (or Settings → Privacy & Security → Location Services if it’s off entirely).`
         : `Location access is blocked. To ${purpose}, allow it in Settings → Safari → Location, or tap the "AA" icon in the address bar → Website Settings → Location.`;
     }
     if (error?.code === 2) return 'Your location is unavailable right now. Check location services and try again.';
     if (error?.code === 3) return 'Finding your location took too long. Try again in a clearer area.';
-    return `Could not access your location to ${purpose}.`;
+    return `Couldn’t access your location to ${purpose}.`;
   }
 
   async function preflightRideLocationAccess() {
@@ -206,7 +206,7 @@
       await currentPosition();
       return true;
     } catch (error) {
-      showToast(locationAccessMessage(error, 'share your position with your private ride'));
+      showToast(locationAccessMessage(error, 'share your position with your private ride'), 'error');
       return false;
     }
   }
@@ -236,11 +236,11 @@
       if (!enabled) rideMemberLocations.delete(state.profile.riderId);
       persist();
       renderRide();
-      showToast(enabled ? 'Live location is shared with this ride.' : 'Ride location sharing is off and your saved position was removed.');
+      showToast(enabled ? 'Live location is shared with this ride.' : 'Ride location sharing is off and your saved position was removed.', 'info');
       return true;
     } catch {
       renderRide();
-      showToast('Could not update ride location sharing. Try again.');
+      showToast('Couldn’t update ride location sharing. Try again.');
       return false;
     } finally {
       toggle.disabled = false;
@@ -300,7 +300,7 @@
           if (!unreachable) return;
           rideUnreachableTicks += 1;
           if (rideUnreachableTicks === RIDE_UNREACHABLE_TICKS) {
-            showToast("Can't reach Rider Comms. Group positions may be out of date; voice keeps working if it's connected.");
+            showToast("Can’t reach Rider Comms. Group positions may be out of date; voice keeps working if it’s connected.");
           }
         }
       };

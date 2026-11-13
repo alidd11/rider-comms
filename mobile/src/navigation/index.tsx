@@ -220,7 +220,7 @@ export function AppNavigator(): React.JSX.Element {
                   <Stack.Screen
                     name="CreateRide"
                     component={CreateRideScreen}
-                    options={{ title: 'Start a Ride', presentation: 'modal' }}
+                    options={{ title: 'Start a ride', presentation: 'modal' }}
                   />
                   {/* A normal push, not a modal — this is primary navigation from
                       the Friends list, not a transient action sheet. This app

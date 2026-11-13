@@ -71,7 +71,7 @@ describe('acknowledgeOptimisticMessage', () => {
     );
   });
 
-  it('still inserts the acknowledged server message when realtime has not delivered it yet', () => {
+  it('still inserts the acknowledged server message when realtime hasn’t delivered it yet', () => {
     const sent = message('server-ack', 30);
     const current: LocalDirectMessage[] = [
       message('server-1', 10),

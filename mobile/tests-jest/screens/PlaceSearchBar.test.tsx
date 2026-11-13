@@ -18,7 +18,6 @@ const SAFE_AREA_METRICS = {
 };
 
 const mockClient = {
-  searchPlaces: jest.fn<Promise<{ places: PlaceSummary[] }>, [string, { lat: number; lon: number }]>(),
   searchNearbyPlaces: jest.fn<Promise<{ places: PlaceSummary[] }>, [readonly string[], { lat: number; lon: number }]>(),
   suggestPlaces: jest.fn<Promise<{ suggestions: PlaceSuggestionSummary[] }>, [string, { lat: number; lon: number }, string]>(),
   placeDetails: jest.fn<Promise<{ place: PlaceSummary }>, [string, string]>(),
@@ -73,7 +72,6 @@ async function typeQuery(value: string) {
 
 beforeEach(async () => {
   jest.useFakeTimers();
-  mockClient.searchPlaces.mockReset();
   mockClient.searchNearbyPlaces.mockReset();
   mockClient.suggestPlaces.mockReset();
   mockClient.placeDetails.mockReset();
@@ -100,7 +98,6 @@ test('suggests places as the rider types, after a short pause', async () => {
 
   expect(mockClient.suggestPlaces).toHaveBeenCalledTimes(1);
   expect(mockClient.suggestPlaces).toHaveBeenCalledWith('bike cafe', NEAR, expect.stringMatching(/^rc[0-9a-f]{30}$/));
-  expect(mockClient.searchPlaces).not.toHaveBeenCalled();
   await act(async () => {});
   expect(await screen.findByText('Bike Cafe')).toBeTruthy();
   expect(screen.getByText('1.2 km')).toBeTruthy();
@@ -188,7 +185,7 @@ test('shows a busy state when the backend rate-limits, and retries on demand', a
   expect(await screen.findByText('Retry Diner')).toBeTruthy();
 });
 
-test('shows an unavailable state when place search is not configured on the backend', async () => {
+test('shows an unavailable state when place search isn’t configured on the backend', async () => {
   mockClient.suggestPlaces.mockRejectedValue(new ApiError(503, { error: 'places_not_configured' }));
   await renderSearchBar();
   await openSearch();
@@ -197,7 +194,7 @@ test('shows an unavailable state when place search is not configured on the back
   expect(await screen.findByText('Search unavailable')).toBeTruthy();
 });
 
-test('shows an offline state when the backend cannot be reached', async () => {
+test('shows an offline state when the backend can’t be reached', async () => {
   mockClient.suggestPlaces.mockRejectedValue(new TypeError('Network request failed'));
   await renderSearchBar();
   await openSearch();

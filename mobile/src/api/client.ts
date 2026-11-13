@@ -124,9 +124,6 @@ export class RiderCommsClient {
       avoid: { highways: avoid.highways, tolls: avoid.tolls, ferries: avoid.ferries === true },
     }, 12_000);
   }
-  searchPlaces(query: string, near: RouteCoordinate): Promise<{ places: PlaceSummary[] }> {
-    return this.request('POST', '/places/search', { query, near: { lat: near.lat, lon: near.lon } });
-  }
   searchNearbyPlaces(includedTypes: readonly string[], near: RouteCoordinate): Promise<{ places: PlaceSummary[] }> {
     return this.request('POST', '/places/nearby', { includedTypes, near: { lat: near.lat, lon: near.lon } });
   }

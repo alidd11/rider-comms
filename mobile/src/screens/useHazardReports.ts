@@ -104,8 +104,8 @@ export function useHazardReports(
       Alert.alert(
         code === 'email_verification_required' ? 'Verify your email' : 'Couldn’t report hazard',
         code === 'email_verification_required'
-          ? 'Verify your email in Settings → Account → Edit profile to report or confirm road hazards.'
-          : 'Rider Comms could not send that road report. Check your connection and try again.',
+          ? 'Verify your email to report road hazards: Settings → Account and login → Email.'
+          : 'Couldn’t send that road report. Check your connection and try again.',
       );
     }
   }, [client, currentLocationRef]);
@@ -126,8 +126,8 @@ export function useHazardReports(
       Alert.alert(
         code === 'email_verification_required' ? 'Verify your email' : 'Couldn’t update road report',
         code === 'email_verification_required'
-          ? 'Verify your email in Settings → Account → Edit profile to report or confirm road hazards.'
-          : 'Rider Comms could not update that road report. Check your connection and try again.',
+          ? 'Verify your email to report road hazards: Settings → Account and login → Email.'
+          : 'Couldn’t update that road report. Check your connection and try again.',
       );
     }
     setSelectedHazardId(null);

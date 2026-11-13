@@ -120,7 +120,7 @@ function BillingScreenContent({ navigation }: BillingProps): React.JSX.Element {
       </View>
 
       <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + spacing.xl }]} showsVerticalScrollIndicator={false}>
-        <View style={styles.summary} accessibilityLabel={`You're on ${PLAN_INFO[tier].name}, ${TIER_RADIUS_MILES[tier]} mile Nearby range${renewal ? `, ${renewal}` : ''}`}>
+        <View style={styles.summary} accessibilityLabel={`You’re on ${PLAN_INFO[tier].name}, ${TIER_RADIUS_MILES[tier]} mile Nearby range${renewal ? `, ${renewal}` : ''}`}>
           <Text style={styles.summaryEyebrow}>You’re on</Text>
           <Text style={styles.summaryName}>{PLAN_INFO[tier].name}</Text>
           <Text style={styles.summaryDetail}>{TIER_RADIUS_MILES[tier]} mi Nearby range{renewal ? ` · ${renewal}` : ''}</Text>

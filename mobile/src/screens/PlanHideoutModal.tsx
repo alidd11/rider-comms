@@ -44,7 +44,7 @@ export function PlanHideoutModal({
       setError(null);
       mapRef.current?.animateToRegion({ ...next, latitudeDelta: 0.02, longitudeDelta: 0.02 }, 250);
     } catch {
-      if (prompt) setError('Could not find your location. Tap the map to choose a spot.');
+      if (prompt) setError('Couldn’t find your location. Tap the map to choose a spot.');
     } finally {
       setLocating(false);
     }
@@ -64,7 +64,7 @@ export function PlanHideoutModal({
       setPin(null);
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not create that hideout.');
+      setError(err instanceof Error ? err.message : 'Couldn’t create that hideout.');
     } finally {
       setSaving(false);
     }
@@ -88,7 +88,7 @@ export function PlanHideoutModal({
           <TextInput
             style={styles.modalInput}
             accessibilityLabel="Hideout name"
-            placeholder="Name (e.g. Gas station off Route 9)"
+            placeholder="Name, like Petrol station on the A40"
             placeholderTextColor={colors.textMuted}
             value={name}
             onChangeText={setName}

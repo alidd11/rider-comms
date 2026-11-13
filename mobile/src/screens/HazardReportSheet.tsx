@@ -60,7 +60,7 @@ export function HazardReportSheet({
           <View style={styles.header}>
             <View style={styles.headerCopy}>
               <Text style={styles.title}>Report on the road</Text>
-              <Text style={styles.subtitle}>Let nearby riders know what's ahead. Reports fade out over time.</Text>
+              <Text style={styles.subtitle}>Let nearby riders know what’s ahead. Reports fade out over time.</Text>
             </View>
             <Pressable style={({ pressed }) => [styles.closeButton, pressed && pressedFeedback]} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close report sheet">
               <Ionicons name="close" size={20} color={colors.textPrimary} />

@@ -18,8 +18,8 @@
     const locationToggle = $('#activeRideLocationConsent');
     locationToggle.checked = ride.shareRideLocation === true;
     $('#activeRideLocationStatus').textContent = ride.shareRideLocation
-      ? 'On — riders in this ride can see where you are. It stops when you switch it off, leave the ride or the ride ends.'
-      : 'Off — riders in this ride can’t see where you are.';
+      ? 'On. Riders in this ride can see where you are. It stops when you switch it off, leave the ride or the ride ends.'
+      : 'Off. Riders in this ride can’t see where you are.';
     const members = (ride.members || ride.memberIds.map((riderId) => ({ riderId, displayName: riderId, handle: riderId })))
       // Show this rider from their own profile, never from a lookup fallback.
       .map((person) => (person.riderId === state.profile.riderId
@@ -124,7 +124,7 @@
   const RIDE_ERROR_MESSAGES = {
     invalid_or_expired: 'That invite code is invalid or has expired.',
     ride_full: 'This ride is full (max 20 riders).',
-    rate_limited: 'Too many attempts — please wait a moment and try again.',
+    rate_limited: 'Too many attempts. Wait a moment and try again.',
     email_verification_required: 'Verify your email first: open the link we sent you (Settings → Account and login → Email).',
     terms_acceptance_required: 'Accept the latest Terms in Settings before riding with others.',
   };
@@ -150,7 +150,7 @@
       await loadRideRoster();
     } catch (error) {
       const reason = error instanceof ApiError ? error.body?.error : undefined;
-      showToast(RIDE_ERROR_MESSAGES[reason] || 'Could not create a ride. Try again.');
+      showToast(RIDE_ERROR_MESSAGES[reason] || 'Couldn’t create a ride. Try again.', 'error');
     } finally {
       button.disabled = false;
       button.innerHTML = `${icon('plus')}<span>Start a ride</span>`;
@@ -182,7 +182,7 @@
       await loadRideRoster();
     } catch (error) {
       const code2 = error instanceof ApiError ? error.body?.error : undefined;
-      errorEl.textContent = RIDE_ERROR_MESSAGES[code2] || 'Could not join that ride. Try again.';
+      errorEl.textContent = RIDE_ERROR_MESSAGES[code2] || 'Couldn’t join that ride. Try again.';
       errorEl.hidden = false;
     } finally {
       // The code stays in the field so the rider can fix one character.
@@ -212,7 +212,7 @@
       renderMapRiders();
       showToast(ride.isHost ? 'Ride ended.' : 'You left the ride.');
     } catch {
-      showToast(ride.isHost ? 'Could not end the ride. Try again.' : 'Could not leave the ride. Try again.');
+      showToast(ride.isHost ? 'Couldn’t end the ride. Try again.' : 'Couldn’t leave the ride. Try again.');
     }
   }
 
@@ -233,7 +233,7 @@
       renderMapRiders();
       showToast(`${label} was removed from the ride.`);
     } catch {
-      showToast('Could not remove that rider. Try again.');
+      showToast('Couldn’t remove that rider. Try again.');
     }
   }
 
@@ -248,7 +248,7 @@
         showToast('Ride code copied.');
       }
     } catch (error) {
-      if (error?.name !== 'AbortError') showToast('Could not open sharing.');
+      if (error?.name !== 'AbortError') showToast('Couldn’t open sharing.');
     }
   }
 

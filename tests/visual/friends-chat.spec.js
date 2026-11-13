@@ -21,7 +21,7 @@ test('PWA Friends shows a load failure on the page and Retry recovers', async ({
   });
   await page.goto('/#friends');
   await expect(page.locator('#friendsError')).toBeVisible();
-  await expect(page.locator('#friendsError')).toContainText('Could not load friends');
+  await expect(page.locator('#friendsError')).toContainText('Couldn’t load friends');
   // No "build your circle" prompt while the list is unknown.
   await expect(page.locator('#friendEmpty')).toBeHidden();
   failFriends = false;
@@ -329,7 +329,9 @@ test('PWA chat labels each day and keeps the composer on screen', async ({ page 
   await mockAuthenticatedApi(page, 'stationary', ({ request, url }) => {
     if (url.pathname === '/messages' && request.method() === 'GET') return { body: { messages: [
       { id: 'm1', fromRiderId: RIDER_ID, toRiderId: 'rider_friend01', text: 'Yoo', createdAt: yesterday },
-      { id: 'm2', fromRiderId: RIDER_ID, toRiderId: 'rider_friend01', text: 'Still on for Sunday?', createdAt: now - 60_000 },
+      // Stamped now, not a minute ago: just after midnight a minute ago is
+      // yesterday, and the chat would rightly show a single day.
+      { id: 'm2', fromRiderId: RIDER_ID, toRiderId: 'rider_friend01', text: 'Still on for Sunday?', createdAt: now },
     ], nextCursor: null, peerReadThroughMessageId: null } };
     if (url.pathname === '/profiles/rider_friend01') return { body: { riderId: 'rider_friend01', displayName: 'Maya', handle: '@maya_moto', avatarId: 'ridge' } };
     return null;

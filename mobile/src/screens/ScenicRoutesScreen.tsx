@@ -67,7 +67,7 @@ export function ScenicRoutesScreen(): React.JSX.Element {
       setRiderLocation({ lat: position.coords.latitude, lon: position.coords.longitude });
       setCategory('near');
     } catch {
-      Alert.alert('Location unavailable', 'Rider Comms could not get a current location fix.');
+      Alert.alert('Location unavailable', 'Couldn’t find your current location.');
     }
   }, [riderLocation]);
 

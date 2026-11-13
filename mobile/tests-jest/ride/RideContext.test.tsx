@@ -279,7 +279,7 @@ test('flags group positions as unreachable after repeated network failures, and 
   expect(result.current.rideLocations).toHaveLength(1);
 });
 
-test('does not treat a 4xx answer as the backend being unreachable', async () => {
+test('doesn’t treat a 4xx answer as the backend being unreachable', async () => {
   const client = {
     getCurrentRide: jest.fn(async () => ({ ride: fakeRide({ shareRideLocation: true }) })),
     getRide: jest.fn(async () => fakeRide({ shareRideLocation: true })),

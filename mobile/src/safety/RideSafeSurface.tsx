@@ -18,7 +18,7 @@ export function RideSafeSurface(): React.JSX.Element {
       <Text style={styles.body}>
         {movementState === 'moving'
           ? 'Keep your eyes on the road. These controls unlock after you have safely stopped.'
-          : 'Rider Comms cannot confirm that you are stationary. Open the Map and enable location, or stop safely and wait for a reliable fix.'}
+          : 'Can’t tell whether you’ve stopped. Turn on location from the map, or stop somewhere safe and wait for a GPS fix.'}
       </Text>
       <View style={styles.status} accessibilityLiveRegion="polite">
         <View style={styles.statusDot} />

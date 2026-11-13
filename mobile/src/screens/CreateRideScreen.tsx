@@ -40,7 +40,7 @@ function CreateRideScreenContent({ navigation }: Props): React.JSX.Element {
       await startRide({ rideId, code, isHost: true }, false);
       navigation.goBack();
     } catch (err) {
-      setError(err instanceof ApiError && err.status === 403 ? rideRefusalMessage(err) : 'Something went wrong creating the ride. Try again.');
+      setError(err instanceof ApiError && err.status === 403 ? rideRefusalMessage(err) : 'Couldn’t create the ride. Try again.');
     } finally {
       setLoading(false);
     }
@@ -53,7 +53,7 @@ function CreateRideScreenContent({ navigation }: Props): React.JSX.Element {
       </View>
       <Text style={styles.title}>Host a ride</Text>
       <Text style={styles.body}>
-        You'll get a code to share with the riders joining you, and can add or remove riders as host. It
+        You’ll get a code to share with the riders joining you, and can add or remove riders as host. It
         expires automatically after 12 hours of inactivity. You can choose whether to share your live location
         once the ride has started.
       </Text>

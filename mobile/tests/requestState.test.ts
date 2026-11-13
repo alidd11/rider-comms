@@ -12,7 +12,7 @@ const request = (id: string): FriendRequest => ({
 });
 
 describe('appendUniqueFriendRequest', () => {
-  it('does not duplicate a request already delivered by realtime', () => {
+  it('doesn’t duplicate a request already delivered by realtime', () => {
     const existing = request('request-1');
     assert.deepEqual(
       appendUniqueFriendRequest([existing], existing).map((item) => item.id),
@@ -20,7 +20,7 @@ describe('appendUniqueFriendRequest', () => {
     );
   });
 
-  it('appends a newly acknowledged request when realtime has not delivered it', () => {
+  it('appends a newly acknowledged request when realtime hasn’t delivered it', () => {
     assert.deepEqual(
       appendUniqueFriendRequest([], request('request-1')).map((item) => item.id),
       ['request-1'],

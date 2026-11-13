@@ -20,5 +20,5 @@ export function microphoneErrorMessage(error: unknown): string {
   if (message.includes('device') || message.includes('notfound')) {
     return 'No microphone is available. Check your helmet/headset connection and try again.';
   }
-  return 'Rider Comms could not open the microphone. Check your microphone or Bluetooth connection and try again.';
+  return 'Couldn’t open the microphone. Check your headset or Bluetooth connection and try again.';
 }

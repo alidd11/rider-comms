@@ -46,14 +46,6 @@ function projectToSegment(
   };
 }
 
-export function distanceToSegmentMeters(
-  point: RouteCoordinate,
-  segmentStart: RouteCoordinate,
-  segmentEnd: RouteCoordinate
-): number {
-  return projectToSegment(point, segmentStart, segmentEnd).distanceMeters;
-}
-
 export function distanceToPathMeters(point: RouteCoordinate, path: readonly RouteCoordinate[]): number {
   if (path.length === 0) return Number.POSITIVE_INFINITY;
   if (path.length === 1) return metersBetween(point, path[0]!);

@@ -150,7 +150,7 @@ describe('navigation Live Activity', () => {
     assert.equal(calls.at(-1)![1].title, '300 ft · Turn left onto Salterton Rd');
   });
 
-  it('does not retry a refused start on every fix', () => {
+  it('doesn’t retry a refused start on every fix', () => {
     let starts = 0;
     let now = 0;
     const activity = new NavigationLiveActivity({

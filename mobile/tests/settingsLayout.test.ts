@@ -67,7 +67,7 @@ describe('Settings mockup contract', () => {
   it('opens a page only for choices and lists', () => {
     for (const key of ['general', 'mapNavigation', 'voiceSound', 'rideSafe', 'vehicle', 'notifications', 'account', 'privacy', 'about']) {
       assert.ok(settingsSource.includes(`page === '${key}'`), `Missing Settings page: ${key}`);
-      assert.ok(settingsSource.includes(`openPage('${key}')`), `Settings root does not open page: ${key}`);
+      assert.ok(settingsSource.includes(`openPage('${key}')`), `Settings root doesn’t open page: ${key}`);
     }
     for (const key of ['navigationApp', 'blockedRiders', 'email', 'devices']) {
       assert.ok(settingsSource.includes(`page === '${key}'`), `Missing Settings page: ${key}`);
@@ -136,7 +136,7 @@ describe('Settings mockup contract', () => {
     assert.ok(settingsSource.includes("blurb: 'Use kilometres and km/h.'"));
   });
 
-  it('does not advertise offline map downloads that do not exist', () => {
+  it('doesn’t advertise offline map downloads that don’t exist', () => {
     assert.ok(!settingsSource.includes('Offline Maps'));
   });
 });

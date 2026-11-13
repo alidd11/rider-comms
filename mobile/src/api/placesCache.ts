@@ -61,10 +61,6 @@ export class PlacesCache {
   }
 }
 
-export function textSearchCacheKey(query: string, near: { lat: number; lon: number }): string {
-  return `text|${query.trim().toLowerCase()}|${nearKey(near)}`;
-}
-
 export function nearbySearchCacheKey(category: PlaceCategory, near: { lat: number; lon: number }): string {
   return `nearby|${category.includedTypes.join(',')}|${nearKey(near)}`;
 }

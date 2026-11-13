@@ -69,7 +69,7 @@ function MessageBubble({
       </View>
       {mine && message.status === 'pending' && <Text style={styles.bubbleStatusCaption}>Sending…</Text>}
       {mine && !message.status && readByPeer && <Text style={styles.bubbleStatusCaption}>Read</Text>}
-      {failed && <Text style={styles.bubbleStatusCaptionFailed}>Failed — tap to retry</Text>}
+      {failed && <Text style={styles.bubbleStatusCaptionFailed}>Not sent. Tap to retry.</Text>}
     </View>
   );
 
@@ -170,7 +170,7 @@ function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Elemen
         setConversationUnavailable(true);
         setError('This conversation is no longer available.');
       } else {
-        setError('Could not refresh messages. Check your connection and try again.');
+        setError('Couldn’t refresh messages. Check your connection and try again.');
       }
     } finally {
       setLoading(false);
@@ -194,7 +194,7 @@ function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Elemen
         setConversationUnavailable(true);
         setError('This conversation is no longer available.');
       } else {
-        setError('Could not load older messages. Check your connection and try again.');
+        setError('Couldn’t load older messages. Check your connection and try again.');
       }
     } finally {
       setLoadingOlder(false);
@@ -285,12 +285,12 @@ function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Elemen
       navigationProvider
     );
     if (!url) {
-      Alert.alert('Location unavailable', 'This location cannot be opened because its coordinates are invalid.');
+      Alert.alert('Location unavailable', 'This location can’t be opened because its coordinates are invalid.');
       return;
     }
 
     if (!(await openNavigationUrl(url, Linking))) {
-      Alert.alert('Couldn’t open directions', `Rider Comms could not open ${navigationProviderLabel(navigationProvider)} on this device.`);
+      Alert.alert('Couldn’t open directions', `Couldn’t open ${navigationProviderLabel(navigationProvider)} on this device.`);
     }
   }, [navigation, navigationProvider]);
 
@@ -308,7 +308,7 @@ function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Elemen
         await client.deleteHideout(hideoutId);
         await loadHideouts();
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Could not delete that hideout.');
+        setError(err instanceof Error ? err.message : 'Couldn’t delete that hideout.');
       }
     },
     [client, loadHideouts]
@@ -317,7 +317,7 @@ function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Elemen
   const reportRider = React.useCallback((reason: 'harassment' | 'unsafe' | 'spam' | 'sexual' | 'other') => {
     void client.reportRider(riderId, reason, 'Reported from the direct-message screen')
       .then(() => Alert.alert('Report received', 'Thank you. The report has been recorded for review.'))
-      .catch(() => Alert.alert('Couldn’t send report', 'Please try again when you have a connection.'));
+      .catch(() => Alert.alert('Couldn’t send report', 'Try again when you have a connection.'));
   }, [client, riderId]);
 
   const openSafetyActions = React.useCallback(() => {
@@ -327,7 +327,7 @@ function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Elemen
       { text: 'Block rider', style: 'destructive', onPress: () => {
         void client.blockRider(riderId)
           .then(async () => { await refreshFriends(); navigation.goBack(); })
-          .catch(() => Alert.alert('Couldn’t block rider', 'Please try again.'));
+          .catch(() => Alert.alert('Couldn’t block rider', 'Check your connection and try again.'));
       } },
       { text: 'Cancel', style: 'cancel' },
     ]);

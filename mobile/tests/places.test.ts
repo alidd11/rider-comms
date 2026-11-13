@@ -2,20 +2,15 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { ApiError } from '../src/api/client.ts';
 import type { PlaceSummary } from '../src/api/client.ts';
-import { distanceBetweenMeters, formatPlaceDistance, isSearchQueryValid, MIN_PLACE_SEARCH_QUERY_LENGTH, newPlaceSearchSession, placeDetails, PLACE_SEARCH_DEBOUNCE_MS, PLACE_SUGGEST_DEBOUNCE_MS, searchNearbyPlaces, searchPlaces, suggestPlaces } from '../src/api/places.ts';
+import { distanceBetweenMeters, formatPlaceDistance, isSearchQueryValid, MIN_PLACE_SEARCH_QUERY_LENGTH, newPlaceSearchSession, placeDetails, PLACE_SEARCH_DEBOUNCE_MS, PLACE_SUGGEST_DEBOUNCE_MS, searchNearbyPlaces, suggestPlaces } from '../src/api/places.ts';
 import type { PlacesClient } from '../src/api/places.ts';
 import { addRecentPlace, parseRecentPlaces, recentPlacesStorageKey } from '../src/search/recentPlaces.ts';
 
-type SearchCall = { kind: 'text'; query: string; near: { lat: number; lon: number } }
-  | { kind: 'nearby'; includedTypes: readonly string[]; near: { lat: number; lon: number } };
+type SearchCall = { kind: 'nearby'; includedTypes: readonly string[]; near: { lat: number; lon: number } };
 
 function fakeClient(respond: () => Promise<{ places: unknown }>): { client: PlacesClient; calls: SearchCall[] } {
   const calls: SearchCall[] = [];
   const client = {
-    searchPlaces: async (query: string, near: { lat: number; lon: number }) => {
-      calls.push({ kind: 'text', query, near });
-      return respond() as Promise<{ places: PlaceSummary[] }>;
-    },
     searchNearbyPlaces: async (includedTypes: readonly string[], near: { lat: number; lon: number }) => {
       calls.push({ kind: 'nearby', includedTypes, near });
       return respond() as Promise<{ places: PlaceSummary[] }>;
@@ -33,7 +28,6 @@ function suggestClient(
 ): { client: PlacesClient; calls: unknown[][] } {
   const calls: unknown[][] = [];
   const client: PlacesClient = {
-    searchPlaces: async () => { throw new Error('not used'); },
     searchNearbyPlaces: async () => { throw new Error('not used'); },
     suggestPlaces: async (...args) => { calls.push(['suggest', ...args]); return suggest() as never; },
     placeDetails: async (...args) => { calls.push(['details', ...args]); return details() as never; },
@@ -64,58 +58,34 @@ describe('isSearchQueryValid', () => {
   });
 });
 
-describe('searchPlaces', () => {
+describe('place search results', () => {
   const near = { lat: 51.5, lon: -0.1 };
-
-  it('returns an empty successful result for an invalid query without calling the backend', async () => {
-    const { client, calls } = fakeClient(async () => ({ places: [] }));
-    assert.deepEqual(await searchPlaces('   ', near, client), { status: 'ok', places: [] });
-    assert.equal(calls.length, 0);
-  });
-
-  it('sends the trimmed query and location to the backend and adds distances', async () => {
-    const { client, calls } = fakeClient(async () => ({ places: [place('p1', 51.501, -0.1, 'Bike Cafe')] }));
-
-    const result = await searchPlaces('  coffee shop ', near, client);
-
-    assert.deepEqual(calls, [{ kind: 'text', query: 'coffee shop', near }]);
-    assert.equal(result.status, 'ok');
-    assert.equal(result.places.length, 1);
-    assert.equal(result.places[0]!.name, 'Bike Cafe');
-    assert.equal(result.places[0]!.address, 'Bike Cafe address');
-    assert.ok(Math.abs(result.places[0]!.distanceMeters - 111) < 2);
-  });
-
-  it('preserves backend relevance order for text results', async () => {
-    const { client } = fakeClient(async () => ({ places: [place('far', 51.52, -0.1), place('near', 51.501, -0.1)] }));
-    const result = await searchPlaces('coffee', near, client);
-    assert.deepEqual(result.places.map((p) => p.id), ['far', 'near']);
-  });
+  const petrol = { includedTypes: ['gas_station'] };
 
   it('distinguishes quota, configuration and provider failures from zero results', async () => {
     const failing = (status: number) => fakeClient(async () => { throw new ApiError(status, { error: 'x' }); }).client;
-    assert.deepEqual(await searchPlaces('coffee', near, failing(429)), { status: 'rate-limited', places: [] });
-    assert.deepEqual(await searchPlaces('coffee', near, failing(503)), { status: 'unavailable', places: [] });
-    assert.deepEqual(await searchPlaces('coffee', near, failing(502)), { status: 'provider-error', places: [] });
-    assert.deepEqual(await searchPlaces('coffee', near, failing(401)), { status: 'provider-error', places: [] });
+    assert.deepEqual(await searchNearbyPlaces(petrol, near, failing(429)), { status: 'rate-limited', places: [] });
+    assert.deepEqual(await searchNearbyPlaces(petrol, near, failing(503)), { status: 'unavailable', places: [] });
+    assert.deepEqual(await searchNearbyPlaces(petrol, near, failing(502)), { status: 'provider-error', places: [] });
+    assert.deepEqual(await searchNearbyPlaces(petrol, near, failing(401)), { status: 'provider-error', places: [] });
   });
 
   it('distinguishes network failures and timeouts from zero results', async () => {
     const offline = fakeClient(async () => { throw new TypeError('Network request failed'); }).client;
-    assert.deepEqual(await searchPlaces('coffee', near, offline), { status: 'network-error', places: [] });
+    assert.deepEqual(await searchNearbyPlaces(petrol, near, offline), { status: 'network-error', places: [] });
     const aborted = fakeClient(async () => { throw new DOMException('aborted', 'AbortError'); }).client;
-    assert.deepEqual(await searchPlaces('coffee', near, aborted), { status: 'network-error', places: [] });
+    assert.deepEqual(await searchNearbyPlaces(petrol, near, aborted), { status: 'network-error', places: [] });
   });
 
   it('reports a malformed backend response', async () => {
     const { client } = fakeClient(async () => ({ places: 'nope' }));
-    assert.deepEqual(await searchPlaces('coffee', near, client), { status: 'provider-error', places: [] });
+    assert.deepEqual(await searchNearbyPlaces(petrol, near, client), { status: 'provider-error', places: [] });
   });
 
-  it('drops malformed and out-of-range places safely', async () => {
+  it('drops malformed and out-of-range places safely, with distances added', async () => {
     const { client } = fakeClient(async () => ({
       places: [
-        place('ok', 51.501, -0.1),
+        place('ok', 51.501, -0.1, 'Bike Cafe'),
         { id: 'no-coords', name: 'x', address: '' },
         { ...place('bad-lat', 91, 0) },
         { ...place('bad-lon', 0, 181) },
@@ -124,8 +94,10 @@ describe('searchPlaces', () => {
         null,
       ],
     }));
-    const result = await searchPlaces('coffee', near, client);
+    const result = await searchNearbyPlaces(petrol, near, client);
     assert.deepEqual(result.places.map((p) => p.id), ['ok']);
+    assert.equal(result.places[0]!.address, 'Bike Cafe address');
+    assert.ok(Math.abs(result.places[0]!.distanceMeters - 111) < 2);
   });
 });
 

@@ -617,11 +617,11 @@ function AccountPage(): React.JSX.Element {
   function confirmDeleteAccount() {
     Alert.alert(
       'Delete account?',
-      'This permanently deletes your Rider Comms account and associated data. This cannot be undone.\n\nIt doesn’t cancel a Premium subscription: cancel that in your App Store or Google Play subscription settings.',
+      'This permanently deletes your Rider Comms account and associated data. This can’t be undone.\n\nIt doesn’t cancel a Premium subscription: cancel that in your App Store or Google Play subscription settings.',
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Delete account', style: 'destructive', onPress: () => {
-          void deleteAccount().catch(() => Alert.alert('Couldn’t delete account', 'Please check your connection and try again.'));
+          void deleteAccount().catch(() => Alert.alert('Couldn’t delete account', 'Check your connection and try again.'));
         } },
       ]
     );
@@ -636,7 +636,7 @@ function AccountPage(): React.JSX.Element {
         { text: 'Sign out', style: 'destructive', onPress: () => {
           // This phone stops getting the account's notifications first, while
           // the session can still authorise removing it (PWA: signOut).
-          void disablePush(client, riderId).catch(() => undefined).then(() => logOut()).catch(() => Alert.alert('Signed out on this device', 'Rider Comms could not contact the server to revoke the session, but it has been removed from this device.'));
+          void disablePush(client, riderId).catch(() => undefined).then(() => logOut()).catch(() => Alert.alert('Signed out on this device', 'You’re signed out here, but the session couldn’t be ended everywhere. End it from Signed-in devices on another phone.'));
         } },
       ]
     );
@@ -766,7 +766,7 @@ function EditProfilePage(): React.JSX.Element {
           <RiderAvatar avatarId={avatarId} size={54} />
           <View style={styles.sheetAvatarCopy}>
             <Text style={styles.sheetProfileName}>{avatar.label}</Text>
-            <Text style={styles.sheetMeta}>{avatar.tagline} · Tap to choose another.</Text>
+            <Text style={styles.sheetMeta}>Tap to choose another.</Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
         </Pressable>
@@ -827,10 +827,10 @@ function EmailPage(): React.JSX.Element {
         result.sent ? 'Verification email sent' : 'Verification email unavailable',
         result.sent
           ? 'Open the new verification link in your email, then return to Rider Comms.'
-          : 'Rider Comms could not send a verification email because email delivery is not configured or temporarily unavailable. Nearby Voice remains unavailable until your email is verified.',
+          : 'The verification email couldn’t be sent right now. Try again later. Nearby Voice needs a verified email.',
       );
     } catch {
-      Alert.alert('Couldn’t resend verification', 'Please check your connection, wait a moment if you recently requested another email, and try again.');
+      Alert.alert('Couldn’t resend verification', 'Check your connection, wait a moment if you’ve just asked for another email, and try again.');
     } finally {
       setVerificationSending(false);
     }
@@ -872,7 +872,7 @@ function DevicesPage(): React.JSX.Element {
       const result = await client.getSessions();
       setSessions(result.sessions);
     } catch {
-      setSessionsError('Could not load signed-in devices.');
+      setSessionsError('Couldn’t load signed-in devices.');
     } finally {
       setSessionsLoading(false);
     }
@@ -885,7 +885,7 @@ function DevicesPage(): React.JSX.Element {
       await client.revokeSession(id);
       setSessions((current) => current.filter((session) => session.id !== id));
     } catch {
-      Alert.alert('Couldn’t revoke session', 'Please check your connection and try again.');
+      Alert.alert('Couldn’t revoke session', 'Check your connection and try again.');
     }
   }
 

@@ -22,7 +22,7 @@ export function BlockedRidersList({ client }: { client: Pick<RiderCommsClient, '
     { text: 'Unblock', onPress: () => {
       void client.unblockRider(rider.riderId)
         .then(() => setBlocked((current) => current?.filter((entry) => entry.riderId !== rider.riderId) ?? null))
-        .catch(() => Alert.alert('Couldn’t unblock', 'Please try again when you have a connection.'));
+        .catch(() => Alert.alert('Couldn’t unblock', 'Try again when you have a connection.'));
     } },
   ]);
 

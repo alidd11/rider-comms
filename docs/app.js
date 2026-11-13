@@ -746,7 +746,9 @@
 
   // Compatibility name retained while existing flows migrate. This is now a
   // proper, accessible in-app notification rather than a transient toast.
-  function showToast(message) {
+  /** tone: 'error' or 'info'. Pass it whenever the wording could mislead
+   * the guess below ("Maya blocked." is a success, not an error). */
+  function showToast(message, tone) {
     const notification = $('#appNotification');
     if (!notification) return;
     const text = notification.querySelector('[data-notification-message]');
@@ -756,7 +758,7 @@
     // screens already expose Ride-safe status at the bottom, so repeating it
     // as a global alert obscures content and makes the app feel broken.
     if (state.screen !== 'map' && /Finding your location took too long/i.test(value)) return;
-    const isError = /couldn’t|could not|can't|cannot|failed|unavailable|blocked|expired|needed|try again|off\b/i.test(value);
+    const isError = tone ? tone === 'error' : /couldn’t|could not|can’t|can't|cannot|isn’t|failed|unavailable|blocked|expired|needed|try again|off\b/i.test(value);
     text.textContent = value;
     notification.setAttribute('role', isError ? 'alert' : 'status');
     notification.setAttribute('aria-live', isError ? 'assertive' : 'polite');
@@ -1021,7 +1023,7 @@
       if (hazard) { if (direction === 'confirm') hazard.confirmations += 1; else hazard.denials += 1; }
       $('#hazardCard').hidden = true;
       renderHazardMarkers();
-      showToast(direction === 'confirm' ? 'Thanks — marked as still there.' : 'Thanks — we’ll clear it once a few riders agree.');
+      showToast(direction === 'confirm' ? 'Thanks. Marked as still there.' : 'Thanks. It clears once a few riders agree.');
     } catch (error) {
       const code = error instanceof ApiError ? error.body?.error : undefined;
       if (code === 'not_found') {
@@ -1032,7 +1034,7 @@
       } else if (code === 'email_verification_required') {
         showToast(HAZARD_EMAIL_VERIFICATION_MESSAGE);
       } else {
-        showToast('Could not record your vote. Try again.');
+        showToast('Couldn’t record your vote. Try again.');
       }
     }
   }
@@ -1090,10 +1092,10 @@
     }
   }
 
-  const HAZARD_EMAIL_VERIFICATION_MESSAGE = 'Verify your email in Settings → Account → Edit profile to report or confirm road hazards.';
+  const HAZARD_EMAIL_VERIFICATION_MESSAGE = 'Verify your email to report road hazards: Settings → Account and login → Email.';
   const HAZARD_ERROR_MESSAGES = {
     email_verification_required: HAZARD_EMAIL_VERIFICATION_MESSAGE,
-    rate_limited: 'Too many reports — please wait a few minutes and try again.',
+    rate_limited: 'Too many reports. Wait a few minutes and try again.',
   };
 
   /** Reports a real hazard (POST /hazards) at the rider's live GPS
@@ -1113,7 +1115,7 @@
       }
     }
     if (!reportPosition) {
-      if (errorEl) { errorEl.textContent = 'Rider Comms could not get a valid location for that report.'; errorEl.hidden = false; }
+      if (errorEl) { errorEl.textContent = 'Couldn’t get your location for that report.'; errorEl.hidden = false; }
       return;
     }
     chips?.forEach((chip) => { chip.disabled = true; });
@@ -1129,7 +1131,7 @@
       if (nearbyHazards.some((entry) => entry.id === hazard.id)) selectHazard(hazard.id);
     } catch (error) {
       const code = error instanceof ApiError ? error.body?.error : undefined;
-      if (errorEl) { errorEl.textContent = HAZARD_ERROR_MESSAGES[code] || 'Could not report that hazard. Try again.'; errorEl.hidden = false; }
+      if (errorEl) { errorEl.textContent = HAZARD_ERROR_MESSAGES[code] || 'Couldn’t report that hazard. Try again.'; errorEl.hidden = false; }
     } finally {
       chips?.forEach((chip) => { chip.disabled = false; });
     }
@@ -1410,7 +1412,7 @@
       const profileAvatar = avatar({ ...currentFriend, avatarId: profile.avatarId || currentFriend.avatarId });
       const mapActionState = liveRideLocation
         ? ' aria-label="View rider on map"'
-        : ' disabled aria-disabled="true" aria-label="Rider location not shared" title="This rider is not sharing a fresh private-ride location."';
+        : ' disabled aria-disabled="true" aria-label="Rider location not shared" title="This rider isn’t sharing a fresh private-ride location."';
       const shareLocationState = inActiveRide
         ? ` aria-pressed="${state.activeRide?.shareRideLocation === true}" aria-label="${state.activeRide?.shareRideLocation === true ? 'Stop sharing your location with this group ride' : 'Share your location with this group ride'}" title="Shares your location with everyone in your current group ride, not just this rider."`
         : ' disabled aria-disabled="true" aria-label="Share location unavailable outside a shared group ride" title="Available when you are in the same group ride."';
@@ -1438,7 +1440,7 @@
         ${loading
           ? '<p class="friend-profile-note friend-profile-note-quiet">Refreshing shared profile…</p>'
           : refreshError
-            ? '<p class="friend-profile-note friend-profile-note-quiet">Could not refresh shared profile. Reopen this rider to try again.</p>'
+            ? '<p class="friend-profile-note friend-profile-note-quiet">Couldn’t refresh shared profile. Reopen this rider to try again.</p>'
             : socialLinks
               ? `<div class="friend-profile-social"><span class="friend-profile-section-label">Shared profiles</span><div class="social-links">${socialLinks}</div></div>`
               : ''}
@@ -1560,7 +1562,7 @@
         && hideout.participantIds.includes(riderId)
       );
     } catch {
-      if (activeChat?.riderId === riderId) chatHideoutError = 'Could not load hideouts';
+      if (activeChat?.riderId === riderId) chatHideoutError = 'Couldn’t load hideouts';
     } finally {
       chatHideoutsLoading = false;
       renderChatHideouts();
@@ -1574,7 +1576,7 @@
     if (provider !== 'in_app') {
       const href = navigationHref(provider, hideout.lat, hideout.lon, hideout.name);
       if (!href) {
-        showToast('Could not open directions.');
+        showToast('Couldn’t open directions.');
         return;
       }
       const opened = window.open(href, '_blank');
@@ -1587,7 +1589,7 @@
     navigate('map');
     requestAnimationFrame(() => {
       if (typeof google === 'undefined' || !map || usingFallbackMap) {
-        showToast('Rider Comms navigation needs the live map.');
+        showToast('Rider Comms navigation needs the live map.', 'error');
         return;
       }
       const location = new google.maps.LatLng(hideout.lat, hideout.lon);
@@ -1604,7 +1606,7 @@
       renderChatHideouts();
       showToast('Hideout deleted.');
     } catch {
-      chatHideoutError = 'Could not delete hideout';
+      chatHideoutError = 'Couldn’t delete hideout';
       renderChatHideouts();
     }
   }
@@ -1615,7 +1617,7 @@
     presentSheet('Plan a hideout', `
       <form id="planHideoutForm" class="form-field">
         <label for="hideoutName">Name</label>
-        <input id="hideoutName" maxlength="100" autocomplete="off" placeholder="e.g. Petrol station meeting point">
+        <input id="hideoutName" maxlength="100" autocomplete="off" placeholder="Name, like Petrol station on the A40">
         <div class="hideout-coordinate-grid">
           <label>Latitude<input id="hideoutLat" inputmode="decimal" autocomplete="off" placeholder="51.5074"></label>
           <label>Longitude<input id="hideoutLon" inputmode="decimal" autocomplete="off" placeholder="-0.1278"></label>
@@ -1633,7 +1635,7 @@
           $('#hideoutLat').value = position.coords.latitude.toFixed(5);
           $('#hideoutLon').value = position.coords.longitude.toFixed(5);
         } catch (error) {
-          showToast(locationAccessMessage(error, 'use your location for a hideout'));
+          showToast(locationAccessMessage(error, 'use your location for a hideout'), 'error');
         } finally {
           button.disabled = false;
         }
@@ -1666,7 +1668,7 @@
           const code = error instanceof ApiError ? error.body?.error : '';
           errorEl.textContent = code === 'participants_must_be_friends'
             ? 'Hideouts can only be shared with current friends.'
-            : 'Could not save that hideout. Try again.';
+            : 'Couldn’t save that hideout. Try again.';
           errorEl.hidden = false;
           save.disabled = false;
           save.textContent = 'Save hideout';
@@ -1690,7 +1692,7 @@
       const status = message.status === 'pending'
         ? '<small>Sending…</small>'
         : failed
-          ? '<small>Failed — tap to retry</small>'
+          ? '<small>Not sent. Tap to retry.</small>'
           : mine && message.id === chatPeerReadThroughMessageId
             ? '<small>Read</small>'
             : '';
@@ -1760,7 +1762,7 @@
         if (!older) requestAnimationFrame(() => { $('#chatThread').scrollTop = $('#chatThread').scrollHeight; });
       } catch (error) {
         const unavailable = error instanceof ApiError && error.status === 403;
-        setChatError(unavailable ? 'This conversation is no longer available.' : 'Could not refresh messages. Check your connection and try again.', unavailable);
+        setChatError(unavailable ? 'This conversation is no longer available.' : 'Couldn’t refresh messages. Check your connection and try again.', unavailable);
         // A 403 is authoritative relationship state, not a transport failure.
         // Transient failures must escape realtime callers so they rebaseline
         // instead of advancing the durable cursor with a stale open thread.
@@ -1966,7 +1968,7 @@
       void Promise.all([refreshFriendNetwork(), refreshMessageSummaries()]).catch(() => {});
     } catch {
       button.disabled = false;
-      error.textContent = 'Could not remove that friend. Check your connection and try again.';
+      error.textContent = 'Couldn’t remove that friend. Check your connection and try again.';
       error.hidden = false;
     }
   }
@@ -1984,7 +1986,7 @@
       closeSheet();
       showToast('Report received. Thank you.');
     } catch {
-      error.textContent = 'Could not send that report. Check your connection and try again.';
+      error.textContent = 'Couldn’t send that report. Check your connection and try again.';
       error.hidden = false;
       $$('[data-report-rider]', $('#sheetBody')).forEach((button) => { button.disabled = false; });
     }
@@ -2009,11 +2011,11 @@
       if (activeChat?.riderId === person.riderId) closeChat({ restoreFocus: false });
       closeSheet();
       onBlocked?.();
-      showToast(`${person.displayName} blocked.`);
+      showToast(`${person.displayName} blocked.`, 'info');
     } catch {
       if (button) button.disabled = false;
       if (error) {
-        error.textContent = 'Could not block that rider. Check your connection and try again.';
+        error.textContent = 'Couldn’t block that rider. Check your connection and try again.';
         error.hidden = false;
       }
     }
@@ -2203,7 +2205,7 @@
       friendsLoadError = '';
     } catch (error) {
       friendsLoadState = 'error';
-      friendsLoadError = 'Could not load friends. ' + authErrorMessage(error);
+      friendsLoadError = 'Couldn’t load friends. ' + authErrorMessage(error);
     }
     renderFriends();
   }
@@ -2219,7 +2221,7 @@
       renderFriends();
       showToast(`${result.friend.displayName} added to friends.`);
     } catch {
-      showToast('Could not accept that request. Try again.');
+      showToast('Couldn’t accept that request. Try again.');
     }
   }
 
@@ -2231,7 +2233,7 @@
       renderFriends();
       showToast('Request declined.');
     } catch {
-      showToast('Could not decline that request. Try again.');
+      showToast('Couldn’t decline that request. Try again.');
     }
   }
 
@@ -2242,12 +2244,12 @@
       renderFriends();
       showToast('Request cancelled.');
     } catch {
-      showToast('Could not cancel that request. Try again.');
+      showToast('Couldn’t cancel that request. Try again.');
     }
   }
 
   const FRIEND_REQUEST_ERROR_MESSAGES = {
-    cannot_friend_yourself: 'You cannot send a friend request to yourself.',
+    cannot_friend_yourself: 'You can’t send a friend request to yourself.',
     rider_not_found: 'No rider with that handle or Rider ID was found.',
     blocked: 'This connection is unavailable.',
     request_exists: 'A friend request is already pending between you.',
@@ -2263,7 +2265,7 @@
       loadFriendsData();
     } catch (error) {
       const code = error instanceof ApiError ? error.body?.error : undefined;
-      $('#friendFeedback').textContent = FRIEND_REQUEST_ERROR_MESSAGES[code] || 'Could not send that request. Try again.';
+      $('#friendFeedback').textContent = FRIEND_REQUEST_ERROR_MESSAGES[code] || 'Couldn’t send that request. Try again.';
     }
   }
 
@@ -2302,8 +2304,8 @@
     const locationToggle = $('#activeRideLocationConsent');
     locationToggle.checked = ride.shareRideLocation === true;
     $('#activeRideLocationStatus').textContent = ride.shareRideLocation
-      ? 'On — riders in this ride can see where you are. It stops when you switch it off, leave the ride or the ride ends.'
-      : 'Off — riders in this ride can’t see where you are.';
+      ? 'On. Riders in this ride can see where you are. It stops when you switch it off, leave the ride or the ride ends.'
+      : 'Off. Riders in this ride can’t see where you are.';
     const members = (ride.members || ride.memberIds.map((riderId) => ({ riderId, displayName: riderId, handle: riderId })))
       // Show this rider from their own profile, never from a lookup fallback.
       .map((person) => (person.riderId === state.profile.riderId
@@ -2408,7 +2410,7 @@
   const RIDE_ERROR_MESSAGES = {
     invalid_or_expired: 'That invite code is invalid or has expired.',
     ride_full: 'This ride is full (max 20 riders).',
-    rate_limited: 'Too many attempts — please wait a moment and try again.',
+    rate_limited: 'Too many attempts. Wait a moment and try again.',
     email_verification_required: 'Verify your email first: open the link we sent you (Settings → Account and login → Email).',
     terms_acceptance_required: 'Accept the latest Terms in Settings before riding with others.',
   };
@@ -2434,7 +2436,7 @@
       await loadRideRoster();
     } catch (error) {
       const reason = error instanceof ApiError ? error.body?.error : undefined;
-      showToast(RIDE_ERROR_MESSAGES[reason] || 'Could not create a ride. Try again.');
+      showToast(RIDE_ERROR_MESSAGES[reason] || 'Couldn’t create a ride. Try again.', 'error');
     } finally {
       button.disabled = false;
       button.innerHTML = `${icon('plus')}<span>Start a ride</span>`;
@@ -2466,7 +2468,7 @@
       await loadRideRoster();
     } catch (error) {
       const code2 = error instanceof ApiError ? error.body?.error : undefined;
-      errorEl.textContent = RIDE_ERROR_MESSAGES[code2] || 'Could not join that ride. Try again.';
+      errorEl.textContent = RIDE_ERROR_MESSAGES[code2] || 'Couldn’t join that ride. Try again.';
       errorEl.hidden = false;
     } finally {
       // The code stays in the field so the rider can fix one character.
@@ -2496,7 +2498,7 @@
       renderMapRiders();
       showToast(ride.isHost ? 'Ride ended.' : 'You left the ride.');
     } catch {
-      showToast(ride.isHost ? 'Could not end the ride. Try again.' : 'Could not leave the ride. Try again.');
+      showToast(ride.isHost ? 'Couldn’t end the ride. Try again.' : 'Couldn’t leave the ride. Try again.');
     }
   }
 
@@ -2517,7 +2519,7 @@
       renderMapRiders();
       showToast(`${label} was removed from the ride.`);
     } catch {
-      showToast('Could not remove that rider. Try again.');
+      showToast('Couldn’t remove that rider. Try again.');
     }
   }
 
@@ -2532,7 +2534,7 @@
         showToast('Ride code copied.');
       }
     } catch (error) {
-      if (error?.name !== 'AbortError') showToast('Could not open sharing.');
+      if (error?.name !== 'AbortError') showToast('Couldn’t open sharing.');
     }
   }
 
@@ -2706,7 +2708,7 @@
       }),
       account: () => ({
         title: 'Account and data',
-        body: `<div class="settings-note"><strong>Reset settings</strong><p>Reset your Rider Comms profile and synced preferences to their defaults, and restore Google Maps as the device navigation provider.</p></div><button class="button secondary wide" id="resetSettingsBtn">Reset settings</button><div class="settings-note"><strong>Delete Rider Comms account</strong><p>This permanently deletes your Rider Comms account and associated data. This cannot be undone. It doesn’t cancel a Premium subscription bought in the app: cancel that in your App Store or Google Play subscription settings.</p></div><button class="button danger wide" id="deleteAccountBtn">Delete account</button><p id="deleteAccountError" class="inline-error" hidden></p>`,
+        body: `<div class="settings-note"><strong>Reset settings</strong><p>Reset your Rider Comms profile and synced preferences to their defaults, and restore Google Maps as the device navigation provider.</p></div><button class="button secondary wide" id="resetSettingsBtn">Reset settings</button><div class="settings-note"><strong>Delete Rider Comms account</strong><p>This permanently deletes your Rider Comms account and associated data. This can’t be undone. It doesn’t cancel a Premium subscription bought in the app: cancel that in your App Store or Google Play subscription settings.</p></div><button class="button danger wide" id="deleteAccountBtn">Delete account</button><p id="deleteAccountError" class="inline-error" hidden></p>`,
         ready: () => {
           $('#resetSettingsBtn').addEventListener('click', () => void resetSettings());
           $('#deleteAccountBtn').addEventListener('click', () => void deleteCurrentAccount());
@@ -2857,7 +2859,7 @@
       }),
       reportHazard: () => ({
         title: 'Report on the road',
-        body: `<p class="caption">Let nearby riders know what's ahead. Reports fade out over time.</p><div class="hazard-type-grid" id="hazardTypeChips">${HAZARD_TYPE_ORDER.map((t) => `<button type="button" class="hazard-type-tile" data-hazard-type="${t}" style="--hazard:${HAZARD_TYPES[t].color}">${hazardIconMarkup(t)}<span>${escapeHtml(HAZARD_TYPES[t].label)}</span></button>`).join('')}</div><p id="hazardFormError" class="inline-error" hidden></p><p id="hazardAutoClose" class="hazard-autoclose" aria-live="off">Closes in ${HAZARD_AUTO_CLOSE_SECONDS} seconds if you don’t pick one.</p>`,
+        body: `<p class="caption">Let nearby riders know what’s ahead. Reports fade out over time.</p><div class="hazard-type-grid" id="hazardTypeChips">${HAZARD_TYPE_ORDER.map((t) => `<button type="button" class="hazard-type-tile" data-hazard-type="${t}" style="--hazard:${HAZARD_TYPES[t].color}">${hazardIconMarkup(t)}<span>${escapeHtml(HAZARD_TYPES[t].label)}</span></button>`).join('')}</div><p id="hazardFormError" class="inline-error" hidden></p><p id="hazardAutoClose" class="hazard-autoclose" aria-live="off">Closes in ${HAZARD_AUTO_CLOSE_SECONDS} seconds if you don’t pick one.</p>`,
         ready: () => {
           const chips = $$('[data-hazard-type]', $('#hazardTypeChips'));
           // One tap to report; if nothing is picked the picker closes itself
@@ -2948,12 +2950,12 @@
       const result = await apiFetch('POST', '/auth/resend-verification', {});
       showToast(result.sent
         ? 'Verification email sent. Open the new link, then return to Rider Comms.'
-        : 'Verification email could not be sent. Email delivery is not configured or is temporarily unavailable.');
+        : 'The verification email couldn’t be sent right now. Try again later. Nearby Voice needs a verified email.');
     } catch (error) {
       const code = error instanceof ApiError ? error.body?.error : undefined;
       showToast(code === 'rate_limited'
         ? 'Too many verification requests. Wait a moment and try again.'
-        : 'Could not resend verification. Check your connection and try again.');
+        : 'Couldn’t resend verification. Check your connection and try again.');
     } finally {
       if (button?.isConnected) {
         button.disabled = false;
@@ -2986,11 +2988,11 @@
           showToast('That device was signed out.');
         } catch {
           button.disabled = false;
-          showToast('Could not sign out that device. Try again.');
+          showToast('Couldn’t sign out that device. Try again.');
         }
       }));
     } catch {
-      list.innerHTML = '<p class="inline-error">Could not load signed-in devices. Check your connection and try again.</p>';
+      list.innerHTML = '<p class="inline-error">Couldn’t load signed-in devices. Check your connection and try again.</p>';
     } finally {
       if (refresh) refresh.disabled = false;
     }
@@ -3029,13 +3031,13 @@
       renderSettingsList();
       showToast('Settings reset.');
     } catch {
-      showToast('Could not reset settings. Try again.');
+      showToast('Couldn’t reset settings. Try again.');
     }
   }
 
   async function deleteCurrentAccount() {
     if (!window.confirm('Permanently delete your Rider Comms account and associated data? This doesn’t cancel a Premium subscription bought in the app: cancel that in your App Store or Google Play subscription settings.')) return;
-    if (!window.confirm('This cannot be undone. Delete the account?')) return;
+    if (!window.confirm('This can’t be undone. Delete the account?')) return;
     const button = $('#deleteAccountBtn');
     if (button) button.disabled = true;
     try {
@@ -3045,7 +3047,7 @@
       clearSession();
       location.reload();
     } catch {
-      showToast('Could not delete your account. Check your connection and try again.');
+      showToast('Couldn’t delete your account. Check your connection and try again.');
       if (button) button.disabled = false;
     }
   }
@@ -3231,7 +3233,7 @@
       applyRemoteProfile(profile);
       return true;
     } catch {
-      showToast('Could not save that change. Try again.');
+      showToast('Couldn’t save that change. Try again.');
       return false;
     }
   }
@@ -3286,14 +3288,14 @@
           const ok = await stopPublicNearby({ disableLocationSharing: true });
           button.disabled = false;
           button.setAttribute('aria-pressed', String(state.profile.shareLocation));
-          if (ok) showToast('Nearby visibility and proximity voice are off.');
+          if (ok) showToast('Nearby visibility and Nearby Voice are off.', 'info');
           return;
         }
         try {
           await currentPosition();
         } catch (error) {
           button.disabled = false;
-          showToast(locationAccessMessage(error, 'share your location'));
+          showToast(locationAccessMessage(error, 'share your location'), 'error');
           return;
         }
         const ok = await patchProfile({ shareLocation: true });
@@ -3332,7 +3334,7 @@
       showToast('Profile updated.');
     } catch (error) {
       const code = error instanceof ApiError ? error.body?.error : undefined;
-      errorEl.textContent = typeof code === 'string' && code ? code.replace(/_/g, ' ') : 'Could not save your profile. Try again.';
+      errorEl.textContent = typeof code === 'string' && code ? code.replace(/_/g, ' ') : 'Couldn’t save your profile. Try again.';
       errorEl.hidden = false;
     } finally {
       if (button.isConnected) {
@@ -3365,7 +3367,7 @@
       button.disabled = true;
       try {
         await apiFetch('DELETE', `/blocks/${encodeURIComponent(rider.riderId)}`);
-        showToast(`${rider.displayName} unblocked.`);
+        showToast(`${rider.displayName} unblocked.`, 'info');
         void renderBlockedRiders();
       } catch {
         button.disabled = false;
@@ -3507,7 +3509,7 @@
       await stopPublicNearby();
       showToast(code === 'location_sharing_disabled'
         ? 'Nearby location sharing is off. Tap Go live to enable it again.'
-        : 'Verify your email before joining Nearby Voice.');
+        : 'Verify your email before joining Nearby Voice.', 'error');
       return;
     }
     const message = code === 'implausible_location_jump'
@@ -3682,7 +3684,7 @@
   const VOICE_LEVEL_STALE_MS = 1000;
 
   function microphoneAccessMessage(error) {
-    if (!navigator.mediaDevices?.getUserMedia) return 'Microphone access is not supported by this browser.';
+    if (!navigator.mediaDevices?.getUserMedia) return 'Microphone access isn’t supported by this browser.';
     if (error?.name === 'NotAllowedError' || error?.name === 'SecurityError') {
       return 'Microphone access is blocked. Allow it in this site’s device settings.';
     }
@@ -3709,7 +3711,7 @@
   async function preflightMicrophoneAccess() {
     if (microphonePermissionReady) return true;
     if (!navigator.mediaDevices?.getUserMedia) {
-      showToast(microphoneAccessMessage());
+      showToast(microphoneAccessMessage(), 'error');
       return false;
     }
     let stream;
@@ -3718,7 +3720,7 @@
       microphonePermissionReady = true;
       return true;
     } catch (error) {
-      showToast(microphoneAccessMessage(error));
+      showToast(microphoneAccessMessage(error), 'error');
       return false;
     } finally {
       stream?.getTracks().forEach((track) => track.stop());
@@ -4229,7 +4231,7 @@
     badge.classList.toggle('talking', voiceIsSpeaking);
     badge.classList.toggle('muted', voiceManuallyMuted);
     badge.classList.toggle('waiting', waitingForPublicPeer);
-    const label = voiceManuallyMuted ? 'Muted — tap to unmute' : voiceIsSpeaking ? 'Talking' : 'Listening — hands-free';
+    const label = voiceManuallyMuted ? 'Muted. Tap to unmute.' : voiceIsSpeaking ? 'Talking' : 'Listening hands-free';
     badge.setAttribute(
       'aria-label',
       publicAuthorizationExpired
@@ -4239,10 +4241,10 @@
           : waitingForPublicPeer
             ? 'Nearby Voice · waiting for riders'
             : voiceManuallyMuted
-            ? 'Proximity voice muted — tap to unmute'
+            ? 'Nearby Voice muted. Tap to unmute.'
             : voiceIsSpeaking
               ? 'Talking'
-              : 'Listening — hands-free',
+              : 'Listening hands-free',
     );
     // The Ride tab has no map header of its own (the glowing avatar above
     // only exists on the Map screen), so a rider parked on Ride while
@@ -4445,7 +4447,7 @@
           } catch (error) {
             lastPairError = error;
             disconnectManagedVoiceRoom(pairRoom);
-            console.warn('[rider-comms] Could not connect proximity peer', connection.peerId, error);
+            console.warn('[rider-comms] Couldn’t connect proximity peer', connection.peerId, error);
           }
         }
         if (currentVoiceTarget() !== requestedTarget) return;
@@ -4493,7 +4495,7 @@
         if (room) disconnectManagedVoiceRoom(room);
         return;
       }
-      console.warn('[rider-comms] Could not connect voice chat', error);
+      console.warn('[rider-comms] Couldn’t connect voice chat', error);
       const leasedPublicConnection = kind === 'channel'
         && proximityVoiceRooms.size > 0
         && !publicVoiceAuthorizationExpired;
@@ -4503,7 +4505,7 @@
           ? 'Verify your email before using voice chat.'
           : error?.name === 'NotAllowedError' || error?.name === 'SecurityError'
             ? microphoneAccessMessage(error)
-            : 'Voice chat is unavailable right now. Your ride and map still work.');
+            : 'Voice chat is unavailable right now. Your ride and map still work.', 'error');
         voiceFailureNotified = true;
       }
       if (room) disconnectManagedVoiceRoom(room);
@@ -4621,7 +4623,7 @@
       const resumed = await resumeVoiceMeterContext();
       if (!resumed) {
         voiceFailureNotified = true;
-        showToast('Voice could not resume. Check microphone access and try again.');
+        showToast('Voice couldn’t resume. Check microphone access and try again.');
         renderVoiceStatus();
         return;
       }
@@ -4668,8 +4670,8 @@
       if (state.publicLive) {
         const saved = await stopPublicNearby({ disableLocationSharing: true });
         showToast(saved
-          ? 'Nearby visibility and proximity voice are off.'
-          : 'Nearby is off, but the location-sharing preference could not be saved.');
+          ? 'Nearby visibility and Nearby Voice are off.'
+          : 'Nearby is off, but the location-sharing preference couldn’t be saved.', saved ? 'info' : 'error');
         return;
       }
 
@@ -4677,7 +4679,7 @@
       // Init refreshes this value from /auth/me, so fail before asking for
       // microphone/location when the account is not eligible.
       if (session?.emailVerified === false) {
-        showToast('Verify your email before joining Nearby Voice.');
+        showToast('Verify your email before joining Nearby Voice.', 'error');
         return;
       }
       if (!(await preflightMicrophoneAccess())) return;
@@ -4686,7 +4688,7 @@
       try {
         position = await currentPublicPresencePosition();
       } catch (error) {
-        showToast(locationAccessMessage(error, 'join riders nearby'));
+        showToast(locationAccessMessage(error, 'join riders nearby'), 'error');
         return;
       }
 
@@ -4755,7 +4757,7 @@
                   ? 'Nearby is updating too often. Try again in a moment.'
                   : code === 'location fix timestamp is stale or invalid'
                     ? 'Couldn’t get a fresh location. Check location is on for this app and try again.'
-                    : 'Could not go live. Try again.');
+                    : 'Couldn’t go live. Try again.', 'error');
         if (!['email_verification_required', 'location_sharing_disabled', 'rate_limited', 'implausible_location_jump', 'location accuracy must be between 0 and 100 metres'].includes(code)) {
           // Report why, without coordinates, so a failure like this is
           // diagnosable from the server logs.
@@ -4959,7 +4961,7 @@
   }
 
   function locationAccessMessage(error, purpose = 'use your location') {
-    if (!navigator.geolocation) return 'Location is not supported by this browser.';
+    if (!navigator.geolocation) return 'Location isn’t supported by this browser.';
     if (error?.code === 1 || error?.name === 'NotAllowedError') {
       // An installed iOS PWA holds its OWN location permission, separate
       // from Safari's -- granting it in one never carries over to the
@@ -4968,12 +4970,12 @@
       // different instructions here.
       const isStandalone = document.documentElement.classList.contains('pwa-standalone');
       return isStandalone
-        ? `Location access is blocked for the installed app. To ${purpose}, allow it in Settings → Rider Comms → Location (or Settings → Privacy & Security → Location Services if it's off entirely).`
+        ? `Location access is blocked for the installed app. To ${purpose}, allow it in Settings → Rider Comms → Location (or Settings → Privacy & Security → Location Services if it’s off entirely).`
         : `Location access is blocked. To ${purpose}, allow it in Settings → Safari → Location, or tap the "AA" icon in the address bar → Website Settings → Location.`;
     }
     if (error?.code === 2) return 'Your location is unavailable right now. Check location services and try again.';
     if (error?.code === 3) return 'Finding your location took too long. Try again in a clearer area.';
-    return `Could not access your location to ${purpose}.`;
+    return `Couldn’t access your location to ${purpose}.`;
   }
 
   async function preflightRideLocationAccess() {
@@ -4982,7 +4984,7 @@
       await currentPosition();
       return true;
     } catch (error) {
-      showToast(locationAccessMessage(error, 'share your position with your private ride'));
+      showToast(locationAccessMessage(error, 'share your position with your private ride'), 'error');
       return false;
     }
   }
@@ -5012,11 +5014,11 @@
       if (!enabled) rideMemberLocations.delete(state.profile.riderId);
       persist();
       renderRide();
-      showToast(enabled ? 'Live location is shared with this ride.' : 'Ride location sharing is off and your saved position was removed.');
+      showToast(enabled ? 'Live location is shared with this ride.' : 'Ride location sharing is off and your saved position was removed.', 'info');
       return true;
     } catch {
       renderRide();
-      showToast('Could not update ride location sharing. Try again.');
+      showToast('Couldn’t update ride location sharing. Try again.');
       return false;
     } finally {
       toggle.disabled = false;
@@ -5076,7 +5078,7 @@
           if (!unreachable) return;
           rideUnreachableTicks += 1;
           if (rideUnreachableTicks === RIDE_UNREACHABLE_TICKS) {
-            showToast("Can't reach Rider Comms. Group positions may be out of date; voice keeps working if it's connected.");
+            showToast("Can’t reach Rider Comms. Group positions may be out of date; voice keeps working if it’s connected.");
           }
         }
       };
@@ -5097,7 +5099,7 @@
       centreMap(position.coords.latitude, position.coords.longitude);
       syncRideLocationSharing();
     } catch (error) {
-      showToast(locationAccessMessage(error, 'centre the map'));
+      showToast(locationAccessMessage(error, 'centre the map'), 'error');
     }
   }
 
@@ -5164,7 +5166,7 @@
         const response = await fetch(`${API_BASE_URL}/config`);
         if (response.ok) key = (await response.json())?.googleMapsApiKey;
       } catch (error) {
-        console.warn('[rider-comms] Could not reach the backend for /config', error);
+        console.warn('[rider-comms] Couldn’t reach the backend for /config', error);
       }
     }
     if (!key) {
@@ -5512,7 +5514,7 @@
   function placeSearchErrorCopy(error) {
     if (error?.status === 429) return 'You’ve searched a lot in a short time. Try again in a minute.';
     if (error?.status === 0) return 'Check your connection and try again.';
-    return 'Search could not be completed. Try again in a moment.';
+    return 'Search couldn’t be completed. Try again in a moment.';
   }
 
   function renderSearchResults(suggestions) {
@@ -5806,7 +5808,7 @@
       place = null;
     }
     if (!place || !Number.isFinite(place.lat) || !Number.isFinite(place.lon)) {
-      showToast('Could not open that place. Try again.');
+      showToast('Couldn’t open that place. Try again.');
       return;
     }
     const lat = place.lat;
@@ -6954,7 +6956,7 @@
       navigationRouteRequest(origin, destination),
       (result, status) => {
         if (status !== 'OK' || !result) {
-          showToast('Could not calculate a route. Try again.');
+          showToast('Couldn’t calculate a route. Try again.');
           return;
         }
         applyRoute(result, destination, label);
@@ -6966,7 +6968,7 @@
   // bottom safe area. Do not recolour browser/system chrome to hide a gap.
   function applyRoute(result, destination, label, { preserveMute = false, routeNotice = null } = {}) {
     const leg = result.routes[0]?.legs[0];
-    if (!leg) { showToast('Could not calculate a route. Try again.'); return; }
+    if (!leg) { showToast('Couldn’t calculate a route. Try again.'); return; }
     stopNavigationCameraAnimation();
     getDirectionsRenderer().setDirections(result);
     navSteps = leg.steps;
@@ -7228,7 +7230,7 @@
       (result, status) => {
         navRerouting = false;
         if (status !== 'OK' || !result) {
-          setNavStatusNotice('Could not reroute. Continue with caution.');
+          setNavStatusNotice('Couldn’t reroute. Continue with caution.');
           return;
         }
         applyRoute(
@@ -7675,7 +7677,7 @@
       gate.innerHTML = `
         <div class="terms-gate-card">
           <h1 id="termsGateTitle">Updated terms</h1>
-          <p>To keep riding with others on Rider Comms, please read and agree to our Terms of Service and Community Guidelines. Abusive or objectionable content and behaviour aren’t tolerated, and anyone can report or block another rider.</p>
+          <p>To keep riding with others on Rider Comms, read and agree to our Terms of Service and Community Guidelines. Abusive or objectionable content and behaviour aren’t tolerated, and anyone can report or block another rider.</p>
           <p class="terms-gate-links"><a href="terms.html" target="_blank" rel="noopener">Terms of Service</a><a href="guidelines.html" target="_blank" rel="noopener">Community Guidelines</a><a href="privacy.html" target="_blank" rel="noopener">Privacy Policy</a></p>
           <p class="inline-error" role="alert" hidden></p>
           <button type="button" class="button primary wide" data-terms-agree>I agree</button>
@@ -7729,16 +7731,16 @@
     account_suspended: 'This account has been suspended for breaking the community rules. Contact support if you think this is a mistake.',
     invalid_token: 'That reset code is invalid or has already been used.',
     expired_token: 'That reset code has expired. Request a new one.',
-    rate_limited: 'Too many attempts — please wait a moment and try again.',
-    network_error: 'Could not reach Rider Comms. Check your connection and try again.',
-    timed_out: 'The request timed out. Please try again.',
+    rate_limited: 'Too many attempts. Wait a moment and try again.',
+    network_error: 'Couldn’t reach Rider Comms. Check your connection and try again.',
+    timed_out: 'That took too long. Try again.',
     terms_not_accepted: 'Confirm you’re 16 or older and agree to the Terms of Service and Community Guidelines to create an account.',
     objectionable_username: 'That username isn’t allowed. Choose another.',
   };
 
   function authErrorMessage(error) {
     const code = error instanceof ApiError ? error.body?.error : undefined;
-    return AUTH_ERROR_MESSAGES[code] || 'Something went wrong. Please try again.';
+    return AUTH_ERROR_MESSAGES[code] || 'That didn’t work. Try again.';
   }
 
   function applyAuthenticatedIdentity(riderId, username) {
@@ -7781,7 +7783,7 @@
       await refreshProfileAuthoritative();
       return true;
     } catch {
-      showToast('Could not load your profile from the server.');
+      showToast('Couldn’t load your profile. Check your connection.');
       return false;
     }
   }
@@ -7804,8 +7806,8 @@
       // Logged loudly (not just swallowed) since a silent failure here is
       // exactly how an account ends up permanently stuck on the generic
       // "Rider"/"@rider" default with no visible trace of why.
-      console.warn('[rider-comms] Could not seed a real display name after signup', error);
-      showToast('Account created — set your display name in Settings.');
+      console.warn('[rider-comms] Couldn’t seed a real display name after signup', error);
+      showToast('Account created. Add your name in Edit profile.');
     }
   }
 
@@ -7867,7 +7869,7 @@
       startApp();
       showToast(result.emailVerificationSent
         ? 'Account created. Check your email to verify it.'
-        : 'Account created, but the verification email could not be sent. Verified-only features such as Nearby Voice will remain unavailable until email delivery is restored.');
+        : 'Account created, but the verification email couldn’t be sent. Resend it from Settings → Account and login → Email. Nearby Voice needs a verified email.');
       await seedProfileFromUsername(username);
     } catch (error) {
       errorEl.textContent = authErrorMessage(error);
@@ -7942,22 +7944,22 @@
       login: {
         eyebrow: '',
         title: 'Welcome back',
-        description: 'Good to see you again.',
+        description: '',
       },
       signup: {
         eyebrow: 'New rider',
         title: 'Create your account',
-        description: 'Set up your Rider Comms identity and keep your rides and rider circle across devices.',
+        description: 'Your friends, rides and settings stay with your account on any phone.',
       },
       recover: {
         eyebrow: 'Account recovery',
         title: 'Get back in',
-        description: 'Request a one-hour reset link without revealing whether an account exists.',
+        description: 'Enter your email and we’ll send you a link to reset your password.',
       },
       reset: {
         eyebrow: 'Secure reset',
         title: 'Choose a new password',
-        description: 'Enter the one-hour code from your email. Every existing session will be signed out.',
+        description: 'Enter the code from your email. It works for an hour, and you’ll be signed out on your other devices.',
       },
     };
 
@@ -7979,6 +7981,7 @@
       $('#authEyebrow').textContent = copy.eyebrow;
       $('#authTitle').textContent = copy.title;
       $('#authDescription').textContent = copy.description;
+      $('#authDescription').hidden = !copy.description;
       const focusTarget = { login: $('#loginUsername'), signup: $('#signupUsername'), recover: $('#recoverEmail'), reset: $('#resetToken') }[mode];
       if (moveFocus) focusTarget.focus();
     };
@@ -8057,7 +8060,7 @@
           ? 'That verification link has expired. Sign in and request a new one.'
           : code === 'invalid_token'
             ? 'That verification link is invalid or has already been used.'
-            : 'Email verification could not be completed. Check your connection and try the link again.',
+            : 'Email verification couldn’t be completed. Check your connection and try the link again.',
       };
     }
   }
@@ -8165,7 +8168,7 @@
         wireAuthForms();
         showAuthScreen();
         const notice = $('#authNotice');
-        notice.textContent = 'Your saved session could not be checked. Check your connection and try again.';
+        notice.textContent = 'Your saved session couldn’t be checked. Check your connection and try again.';
         notice.classList.add('error');
         notice.hidden = false;
       }

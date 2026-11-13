@@ -135,7 +135,7 @@
       if (hazard) { if (direction === 'confirm') hazard.confirmations += 1; else hazard.denials += 1; }
       $('#hazardCard').hidden = true;
       renderHazardMarkers();
-      showToast(direction === 'confirm' ? 'Thanks — marked as still there.' : 'Thanks — we’ll clear it once a few riders agree.');
+      showToast(direction === 'confirm' ? 'Thanks. Marked as still there.' : 'Thanks. It clears once a few riders agree.');
     } catch (error) {
       const code = error instanceof ApiError ? error.body?.error : undefined;
       if (code === 'not_found') {
@@ -146,7 +146,7 @@
       } else if (code === 'email_verification_required') {
         showToast(HAZARD_EMAIL_VERIFICATION_MESSAGE);
       } else {
-        showToast('Could not record your vote. Try again.');
+        showToast('Couldn’t record your vote. Try again.');
       }
     }
   }
@@ -204,10 +204,10 @@
     }
   }
 
-  const HAZARD_EMAIL_VERIFICATION_MESSAGE = 'Verify your email in Settings → Account → Edit profile to report or confirm road hazards.';
+  const HAZARD_EMAIL_VERIFICATION_MESSAGE = 'Verify your email to report road hazards: Settings → Account and login → Email.';
   const HAZARD_ERROR_MESSAGES = {
     email_verification_required: HAZARD_EMAIL_VERIFICATION_MESSAGE,
-    rate_limited: 'Too many reports — please wait a few minutes and try again.',
+    rate_limited: 'Too many reports. Wait a few minutes and try again.',
   };
 
   /** Reports a real hazard (POST /hazards) at the rider's live GPS
@@ -227,7 +227,7 @@
       }
     }
     if (!reportPosition) {
-      if (errorEl) { errorEl.textContent = 'Rider Comms could not get a valid location for that report.'; errorEl.hidden = false; }
+      if (errorEl) { errorEl.textContent = 'Couldn’t get your location for that report.'; errorEl.hidden = false; }
       return;
     }
     chips?.forEach((chip) => { chip.disabled = true; });
@@ -243,7 +243,7 @@
       if (nearbyHazards.some((entry) => entry.id === hazard.id)) selectHazard(hazard.id);
     } catch (error) {
       const code = error instanceof ApiError ? error.body?.error : undefined;
-      if (errorEl) { errorEl.textContent = HAZARD_ERROR_MESSAGES[code] || 'Could not report that hazard. Try again.'; errorEl.hidden = false; }
+      if (errorEl) { errorEl.textContent = HAZARD_ERROR_MESSAGES[code] || 'Couldn’t report that hazard. Try again.'; errorEl.hidden = false; }
     } finally {
       chips?.forEach((chip) => { chip.disabled = false; });
     }

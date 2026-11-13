@@ -137,7 +137,7 @@
       }),
       account: () => ({
         title: 'Account and data',
-        body: `<div class="settings-note"><strong>Reset settings</strong><p>Reset your Rider Comms profile and synced preferences to their defaults, and restore Google Maps as the device navigation provider.</p></div><button class="button secondary wide" id="resetSettingsBtn">Reset settings</button><div class="settings-note"><strong>Delete Rider Comms account</strong><p>This permanently deletes your Rider Comms account and associated data. This cannot be undone. It doesn’t cancel a Premium subscription bought in the app: cancel that in your App Store or Google Play subscription settings.</p></div><button class="button danger wide" id="deleteAccountBtn">Delete account</button><p id="deleteAccountError" class="inline-error" hidden></p>`,
+        body: `<div class="settings-note"><strong>Reset settings</strong><p>Reset your Rider Comms profile and synced preferences to their defaults, and restore Google Maps as the device navigation provider.</p></div><button class="button secondary wide" id="resetSettingsBtn">Reset settings</button><div class="settings-note"><strong>Delete Rider Comms account</strong><p>This permanently deletes your Rider Comms account and associated data. This can’t be undone. It doesn’t cancel a Premium subscription bought in the app: cancel that in your App Store or Google Play subscription settings.</p></div><button class="button danger wide" id="deleteAccountBtn">Delete account</button><p id="deleteAccountError" class="inline-error" hidden></p>`,
         ready: () => {
           $('#resetSettingsBtn').addEventListener('click', () => void resetSettings());
           $('#deleteAccountBtn').addEventListener('click', () => void deleteCurrentAccount());
@@ -288,7 +288,7 @@
       }),
       reportHazard: () => ({
         title: 'Report on the road',
-        body: `<p class="caption">Let nearby riders know what's ahead. Reports fade out over time.</p><div class="hazard-type-grid" id="hazardTypeChips">${HAZARD_TYPE_ORDER.map((t) => `<button type="button" class="hazard-type-tile" data-hazard-type="${t}" style="--hazard:${HAZARD_TYPES[t].color}">${hazardIconMarkup(t)}<span>${escapeHtml(HAZARD_TYPES[t].label)}</span></button>`).join('')}</div><p id="hazardFormError" class="inline-error" hidden></p><p id="hazardAutoClose" class="hazard-autoclose" aria-live="off">Closes in ${HAZARD_AUTO_CLOSE_SECONDS} seconds if you don’t pick one.</p>`,
+        body: `<p class="caption">Let nearby riders know what’s ahead. Reports fade out over time.</p><div class="hazard-type-grid" id="hazardTypeChips">${HAZARD_TYPE_ORDER.map((t) => `<button type="button" class="hazard-type-tile" data-hazard-type="${t}" style="--hazard:${HAZARD_TYPES[t].color}">${hazardIconMarkup(t)}<span>${escapeHtml(HAZARD_TYPES[t].label)}</span></button>`).join('')}</div><p id="hazardFormError" class="inline-error" hidden></p><p id="hazardAutoClose" class="hazard-autoclose" aria-live="off">Closes in ${HAZARD_AUTO_CLOSE_SECONDS} seconds if you don’t pick one.</p>`,
         ready: () => {
           const chips = $$('[data-hazard-type]', $('#hazardTypeChips'));
           // One tap to report; if nothing is picked the picker closes itself
@@ -379,12 +379,12 @@
       const result = await apiFetch('POST', '/auth/resend-verification', {});
       showToast(result.sent
         ? 'Verification email sent. Open the new link, then return to Rider Comms.'
-        : 'Verification email could not be sent. Email delivery is not configured or is temporarily unavailable.');
+        : 'The verification email couldn’t be sent right now. Try again later. Nearby Voice needs a verified email.');
     } catch (error) {
       const code = error instanceof ApiError ? error.body?.error : undefined;
       showToast(code === 'rate_limited'
         ? 'Too many verification requests. Wait a moment and try again.'
-        : 'Could not resend verification. Check your connection and try again.');
+        : 'Couldn’t resend verification. Check your connection and try again.');
     } finally {
       if (button?.isConnected) {
         button.disabled = false;
@@ -417,11 +417,11 @@
           showToast('That device was signed out.');
         } catch {
           button.disabled = false;
-          showToast('Could not sign out that device. Try again.');
+          showToast('Couldn’t sign out that device. Try again.');
         }
       }));
     } catch {
-      list.innerHTML = '<p class="inline-error">Could not load signed-in devices. Check your connection and try again.</p>';
+      list.innerHTML = '<p class="inline-error">Couldn’t load signed-in devices. Check your connection and try again.</p>';
     } finally {
       if (refresh) refresh.disabled = false;
     }
@@ -460,13 +460,13 @@
       renderSettingsList();
       showToast('Settings reset.');
     } catch {
-      showToast('Could not reset settings. Try again.');
+      showToast('Couldn’t reset settings. Try again.');
     }
   }
 
   async function deleteCurrentAccount() {
     if (!window.confirm('Permanently delete your Rider Comms account and associated data? This doesn’t cancel a Premium subscription bought in the app: cancel that in your App Store or Google Play subscription settings.')) return;
-    if (!window.confirm('This cannot be undone. Delete the account?')) return;
+    if (!window.confirm('This can’t be undone. Delete the account?')) return;
     const button = $('#deleteAccountBtn');
     if (button) button.disabled = true;
     try {
@@ -476,7 +476,7 @@
       clearSession();
       location.reload();
     } catch {
-      showToast('Could not delete your account. Check your connection and try again.');
+      showToast('Couldn’t delete your account. Check your connection and try again.');
       if (button) button.disabled = false;
     }
   }
@@ -662,7 +662,7 @@
       applyRemoteProfile(profile);
       return true;
     } catch {
-      showToast('Could not save that change. Try again.');
+      showToast('Couldn’t save that change. Try again.');
       return false;
     }
   }
@@ -717,14 +717,14 @@
           const ok = await stopPublicNearby({ disableLocationSharing: true });
           button.disabled = false;
           button.setAttribute('aria-pressed', String(state.profile.shareLocation));
-          if (ok) showToast('Nearby visibility and proximity voice are off.');
+          if (ok) showToast('Nearby visibility and Nearby Voice are off.', 'info');
           return;
         }
         try {
           await currentPosition();
         } catch (error) {
           button.disabled = false;
-          showToast(locationAccessMessage(error, 'share your location'));
+          showToast(locationAccessMessage(error, 'share your location'), 'error');
           return;
         }
         const ok = await patchProfile({ shareLocation: true });
@@ -763,7 +763,7 @@
       showToast('Profile updated.');
     } catch (error) {
       const code = error instanceof ApiError ? error.body?.error : undefined;
-      errorEl.textContent = typeof code === 'string' && code ? code.replace(/_/g, ' ') : 'Could not save your profile. Try again.';
+      errorEl.textContent = typeof code === 'string' && code ? code.replace(/_/g, ' ') : 'Couldn’t save your profile. Try again.';
       errorEl.hidden = false;
     } finally {
       if (button.isConnected) {
@@ -796,7 +796,7 @@
       button.disabled = true;
       try {
         await apiFetch('DELETE', `/blocks/${encodeURIComponent(rider.riderId)}`);
-        showToast(`${rider.displayName} unblocked.`);
+        showToast(`${rider.displayName} unblocked.`, 'info');
         void renderBlockedRiders();
       } catch {
         button.disabled = false;

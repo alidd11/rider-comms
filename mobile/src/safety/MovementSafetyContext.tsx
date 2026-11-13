@@ -99,7 +99,7 @@ export function MovementSafetyProvider({ children }: { children: React.ReactNode
       } catch {
         if (!isCurrent()) return;
         setLocationAccess('unavailable');
-        setTrackingError('Location tracking could not start. Try again or check device settings.');
+        setTrackingError('Location tracking couldn’t start. Try again or check device settings.');
         setMovementState(tracker.markUnavailable());
       }
     };
@@ -110,7 +110,7 @@ export function MovementSafetyProvider({ children }: { children: React.ReactNode
         if (!mounted) return;
         if (!permission.granted) {
           setLocationAccess(permission.canAskAgain ? 'promptable' : 'blocked');
-          setTrackingError(permission.canAskAgain ? 'Location access was not granted.' : 'Location access is blocked in device settings.');
+          setTrackingError(permission.canAskAgain ? 'Location access wasn’t granted.' : 'Location access is blocked in device settings.');
           setMovementState(tracker.markUnavailable());
           return;
         }
@@ -118,7 +118,7 @@ export function MovementSafetyProvider({ children }: { children: React.ReactNode
       } catch {
         if (!mounted) return;
         setLocationAccess('unavailable');
-        setTrackingError('Location permission could not be requested.');
+        setTrackingError('Location permission couldn’t be requested.');
         setMovementState(tracker.markUnavailable());
       }
     };

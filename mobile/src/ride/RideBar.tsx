@@ -97,7 +97,7 @@ function useRideVoiceToken(
         setState({
           error: code === 'email_verification_required'
             ? 'Verify your email before using ride voice.'
-            : err instanceof Error ? err.message : 'Could not connect to voice',
+            : err instanceof Error ? err.message : 'Couldn’t connect to voice',
           retryable,
         });
       });
@@ -298,7 +298,7 @@ export function RideBar({ controlsVisible = true }: { controlsVisible?: boolean 
   const handleLeave = () => {
     Alert.alert(
       'Leave ride?',
-      "You'll stop sharing your location with this group.",
+      "You’ll stop sharing your location with this group.",
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -317,7 +317,7 @@ export function RideBar({ controlsVisible = true }: { controlsVisible?: boolean 
     setLocationShareBusy(true);
     setLocationShareError(null);
     const ok = await setRideLocationSharing(!shareRideLocation);
-    if (!ok) setLocationShareError('Could not update ride location sharing. Check location permission and try again.');
+    if (!ok) setLocationShareError('Couldn’t update ride location sharing. Check location permission and try again.');
     setLocationShareBusy(false);
   };
 
@@ -356,7 +356,7 @@ export function RideBar({ controlsVisible = true }: { controlsVisible?: boolean 
         scheduleVoiceRetry();
       }}
       onError={(error) => {
-        handleVoiceRuntimeError(error.message || 'Could not connect to voice.');
+        handleVoiceRuntimeError(error.message || 'Couldn’t connect to voice.');
         scheduleVoiceRetry();
       }}
       onMediaDeviceFailure={() => handleVoiceRuntimeError('Microphone or audio device became unavailable.')}
@@ -467,8 +467,8 @@ export function RideBar({ controlsVisible = true }: { controlsVisible?: boolean 
                   <Text style={styles.locationCardTitle}>Share my live location</Text>
                   <Text style={styles.locationCardBody}>
                     {shareRideLocation
-                      ? 'On — current ride members can see your recent position.'
-                      : 'Off — your position is not being uploaded to this ride.'}
+                      ? 'On. Riders in this ride can see where you are.'
+                      : 'Off. Riders in this ride can’t see where you are.'}
                   </Text>
                 </View>
                 <Pressable
@@ -485,7 +485,7 @@ export function RideBar({ controlsVisible = true }: { controlsVisible?: boolean 
               {locationShareError && <Text style={styles.voiceError}>{locationShareError}</Text>}
 
               <View style={styles.mixerCard}>
-                <Text style={styles.mixerLabel}>Audio priority — navigation overrides chat</Text>
+                <Text style={styles.mixerLabel}>Directions play over voice chat</Text>
                 {CHANNELS.map(({ key, label, icon }) => (
                   <View key={key} style={styles.gainRow}>
                     <Ionicons name={icon} size={18} color={colors.textSecondary} style={styles.gainIcon} />
@@ -521,10 +521,10 @@ export function RideBar({ controlsVisible = true }: { controlsVisible?: boolean 
                   {voiceFailure
                     ? 'Retry voice'
                     : manuallyMuted
-                      ? 'Muted — tap to unmute'
+                      ? 'Muted. Tap to unmute.'
                       : talking
                         ? 'Talking'
-                        : 'Listening — hands-free'}
+                        : 'Listening hands-free'}
                 </Text>
               </Pressable>
 

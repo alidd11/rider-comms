@@ -461,7 +461,7 @@ export function MapScreen(): React.JSX.Element {
       return;
     }
     if (!(await openNavigationUrl(url, Linking))) {
-      Alert.alert('Couldn’t open directions', `Rider Comms could not open ${navigationProviderLabel(navigationProvider)} on this device.`);
+      Alert.alert('Couldn’t open directions', `Couldn’t open ${navigationProviderLabel(navigationProvider)} on this device.`);
     }
   }
 
@@ -701,7 +701,7 @@ export function MapScreen(): React.JSX.Element {
             accessibilityRole="switch"
             accessibilityState={{ checked: publicLive, busy: nearbyTogglePending, disabled: nearbyTogglePending }}
             accessibilityLabel={publicLive ? 'Leave nearby' : 'Go live nearby'}
-            accessibilityHint={publicLive ? 'Stops sharing your nearby presence' : 'Shares your nearby presence and enables proximity voice'}
+            accessibilityHint={publicLive ? 'Stops sharing your nearby presence' : 'Shows you to nearby riders and turns on Nearby Voice'}
             disabled={nearbyTogglePending}
             testID="go-live-button"
           >

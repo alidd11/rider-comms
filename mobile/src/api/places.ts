@@ -64,21 +64,7 @@ export function formatPlaceDistance(meters: number, unit: 'mi' | 'km' = 'km'): s
   return `${(meters / 1_000).toFixed(meters < 10_000 ? 1 : 0)} km`;
 }
 
-export type PlacesClient = Pick<RiderCommsClient, 'searchPlaces' | 'searchNearbyPlaces' | 'suggestPlaces' | 'placeDetails'>;
-
-/**
- * Searches places matching `query`, biased toward `near`, through the backend.
- * Returns a typed result so callers never present quota, provider,
- * configuration, or network failures as a genuine zero-result search.
- */
-export async function searchPlaces(
-  query: string,
-  near: { lat: number; lon: number },
-  client: PlacesClient,
-): Promise<PlaceSearchResult> {
-  if (!isSearchQueryValid(query)) return { status: 'ok', places: [] };
-  return runSearch(() => client.searchPlaces(query.trim(), near), near);
-}
+export type PlacesClient = Pick<RiderCommsClient, 'searchNearbyPlaces' | 'suggestPlaces' | 'placeDetails'>;
 
 /** Category chips use a nearby type search rather than a text query, so the
  * category is an actual type filter, results stay inside the rider's local

@@ -32,7 +32,7 @@ export class AppErrorBoundary extends React.Component<{ children: React.ReactNod
       <View style={styles.container} accessibilityRole="alert">
         <Text style={styles.title}>Something went wrong</Text>
         <Text style={styles.body}>
-          Rider Comms hit an unexpected problem and has reported it. If you're riding, pull over somewhere safe before trying again.
+          Rider Comms hit an unexpected problem and has reported it. If you’re riding, pull over somewhere safe before trying again.
         </Text>
         <Pressable accessibilityRole="button" onPress={this.retry} style={({ pressed }) => [styles.button, pressed && pressedFeedback]}>
           <Text style={styles.buttonText}>Try again</Text>
