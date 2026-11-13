@@ -825,7 +825,9 @@ function AuthenticatedSocialApp(): React.JSX.Element {
                 {screen === 'Profile' ? renderProfile() : null}
               </ScrollView>
             ) : screen === 'Create' ? (
-              <CreateComposer initialMode={createMode} riderId={identity.riderId} onClose={() => navigate('Home')} />
+              <CreateRecoveryBoundary key={createMode} onClose={() => navigate('Home')}>
+                <CreateComposer initialMode={createMode} riderId={identity.riderId} onClose={() => navigate('Home')} />
+              </CreateRecoveryBoundary>
             ) : screen === 'Reels' ? (
               <View testID="fixed-reels-screen" style={{ flex: 1, minHeight: 0, width: '100%', backgroundColor: '#020406' }}>
                 <ReelsScreen items={reelPreviews} followedAuthors={followed}
@@ -852,6 +854,49 @@ function AuthenticatedSocialApp(): React.JSX.Element {
       </View>
     </SafeAreaView>
   );
+}
+
+/**
+ * A single Create-screen exception must not unmount the entire authenticated
+ * PWA. Safari may throw during media permission or browser API setup, and a
+ * blank full-screen app offers no way to exit or report the problem.
+ */
+class CreateRecoveryBoundary extends React.Component<
+  { children: React.ReactNode; onClose: () => void },
+  { failed: boolean }
+> {
+  state = { failed: false };
+
+  static getDerivedStateFromError(): { failed: boolean } {
+    return { failed: true };
+  }
+
+  render() {
+    if (!this.state.failed) return this.props.children;
+    return <View testID="create-recovery" style={{
+      flex: 1, minHeight: 0, backgroundColor: '#050709',
+      alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28, gap: 17,
+    }}>
+      <Ionicons name="camera-outline" color="#FFFFFF" size={45}/>
+      <Text style={{ color: '#FFFFFF', fontSize: 22, fontWeight: '800',
+        textAlign: 'center' }}>Couldn’t open Create</Text>
+      <Text style={{ color: '#B4BBC4', fontSize: 14, lineHeight: 21,
+        textAlign: 'center' }}>
+        The camera screen encountered a problem. You can try again or return home.
+      </Text>
+      <Pressable accessibilityRole="button" accessibilityLabel="Retry Create"
+        onPress={() => this.setState({ failed: false })}
+        style={{ minHeight: 46, paddingHorizontal: 26, borderRadius: 24,
+          backgroundColor: '#FFFFFF', justifyContent: 'center' }}>
+        <Text style={{ color: '#050709', fontWeight: '800' }}>Try again</Text>
+      </Pressable>
+      <Pressable accessibilityRole="button" accessibilityLabel="Return Home"
+        onPress={this.props.onClose}
+        style={{ minHeight: 44, justifyContent: 'center' }}>
+        <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>Return home</Text>
+      </Pressable>
+    </View>;
+  }
 }
 
 export default function App(): React.JSX.Element {
