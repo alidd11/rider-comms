@@ -565,6 +565,8 @@ test('places the navigation puck on the route and ahead of a late fix', async ()
   // ...10 m on for the fix's age, and 10 m more by the end of the glide.
   expect((puck.now.lat - 51.501) * 111_195).toBeCloseTo(10, 0);
   expect((puck.target.lat - 51.501) * 111_195).toBeCloseTo(20, 0);
+  // Riding north with the map turned heading-up, the cone points straight up.
+  expect(puck.coneDegrees).toBe(0);
 
   await act(async () => { result.current.finishInAppNavigation(); });
   expect(result.current.navigationPuck).toBeNull();

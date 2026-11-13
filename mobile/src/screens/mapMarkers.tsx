@@ -4,7 +4,15 @@
 import * as React from 'react';
 import { View, StyleSheet, Text } from 'react-native';
 import { Marker } from 'react-native-maps';
-import type { HazardReport } from '@rider-comms/shared';
+import Svg, { Defs, G, LinearGradient, Path, Stop } from 'react-native-svg';
+import {
+  PUCK_AVATAR_SIZE,
+  PUCK_BOX_SIZE,
+  PUCK_CONE_ARROW_PATH,
+  PUCK_CONE_BEAM_PATH,
+  PUCK_CONE_COLOR,
+  type HazardReport,
+} from '@rider-comms/shared';
 import { RIDE_LOCATION_REFRESH_MS } from '../ride/RideContext';
 import { RiderAvatar } from '../components/RiderAvatar';
 import type { RiderAvatarStatus } from '../components/RiderAvatar';
@@ -114,12 +122,15 @@ export function SmoothSelfMarker({
  * The rider's own puck during turn-by-turn navigation. Each fix places it
  * (map-matched and predicted, see useInAppNavigation) and it glides to
  * where the rider will be when the next fix is due, so it keeps moving
- * between fixes instead of jumping.
+ * between fixes instead of jumping. The avatar stays upright; a cone
+ * around it points the way the rider is travelling (coneDegrees, clockwise
+ * from screen-up; null hides it).
  */
 export function NavigationPuckMarker({
   now,
   target,
   glideMs,
+  coneDegrees,
   avatarId,
   displayName,
   description,
@@ -127,12 +138,21 @@ export function NavigationPuckMarker({
   now: { lat: number; lon: number };
   target: { lat: number; lon: number };
   glideMs: number;
+  coneDegrees: number | null;
   avatarId: string;
   displayName: string;
   description: string;
 }): React.JSX.Element {
   const markerRef = React.useRef<React.ElementRef<typeof Marker> | null>(null);
   const [initialCoordinate] = React.useState(() => ({ latitude: now.lat, longitude: now.lon }));
+  // Markers are drawn once as a bitmap; redraw briefly when the cone turns
+  // (it moves in 5 degree steps, so this is rare while riding straight).
+  const [redrawing, setRedrawing] = React.useState(true);
+  React.useEffect(() => {
+    setRedrawing(true);
+    const timer = setTimeout(() => setRedrawing(false), 300);
+    return () => clearTimeout(timer);
+  }, [coneDegrees]);
 
   React.useEffect(() => {
     markerRef.current?.animateMarkerToCoordinate(
@@ -148,9 +168,31 @@ export function NavigationPuckMarker({
       title={displayName || 'Your location'}
       description={description}
       anchor={{ x: 0.5, y: 0.5 }}
-      tracksViewChanges={false}
+      tracksViewChanges={redrawing}
     >
-      <RiderAvatar avatarId={avatarId} size={64} mapMarker={false} selected status="none" />
+      <View style={styles.navigationPuck}>
+        {coneDegrees !== null && (
+          <Svg
+            testID="navigation-puck-cone"
+            width={PUCK_BOX_SIZE}
+            height={PUCK_BOX_SIZE}
+            viewBox={`0 0 ${PUCK_BOX_SIZE} ${PUCK_BOX_SIZE}`}
+            style={StyleSheet.absoluteFill}
+          >
+            <Defs>
+              <LinearGradient id="navigationPuckBeam" x1="0" y1="1" x2="0" y2="0">
+                <Stop offset="0.3" stopColor={PUCK_CONE_COLOR} stopOpacity={0.5} />
+                <Stop offset="1" stopColor={PUCK_CONE_COLOR} stopOpacity={0} />
+              </LinearGradient>
+            </Defs>
+            <G rotation={coneDegrees} origin={`${PUCK_BOX_SIZE / 2}, ${PUCK_BOX_SIZE / 2}`}>
+              <Path d={PUCK_CONE_BEAM_PATH} fill="url(#navigationPuckBeam)" />
+              <Path d={PUCK_CONE_ARROW_PATH} fill={PUCK_CONE_COLOR} stroke="#ffffff" strokeWidth={2} strokeLinejoin="round" />
+            </G>
+          </Svg>
+        )}
+        <RiderAvatar avatarId={avatarId} size={PUCK_AVATAR_SIZE} mapMarker={false} selected status="none" />
+      </View>
     </Marker>
   );
 }
@@ -212,6 +254,12 @@ export function riderMapLabel(displayName: string): string {
 }
 
 const styles = StyleSheet.create({
+  navigationPuck: {
+    width: PUCK_BOX_SIZE,
+    height: PUCK_BOX_SIZE,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   memberMarker: { alignItems: 'center' },
   memberLabel: {
     marginTop: 2,

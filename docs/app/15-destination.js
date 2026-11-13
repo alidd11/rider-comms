@@ -137,6 +137,8 @@
   let navPuckPath = null;
   let navPuckAlongMeters = null;
   let navPuckPlaced = false;
+  // The rider's direction of travel at the last fix, for the puck's cone.
+  let navPuckTravelHeading = null;
   // The puck and camera glide to where the rider will be when the next fix
   // is due (fixes arrive about once a second), so motion never stops.
   const NAV_PUCK_GLIDE_MS = 1000;

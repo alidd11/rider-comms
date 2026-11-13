@@ -522,6 +522,7 @@ export function MapScreen(): React.JSX.Element {
                 now={navigationPuck?.now ?? selfMapLocation}
                 target={navigationPuck?.target ?? selfMapLocation}
                 glideMs={navigationPuck?.glideMs ?? 0}
+                coneDegrees={navigationPuck?.coneDegrees ?? null}
                 avatarId={avatarId}
                 displayName={displayName}
                 description={shareRideLocation ? 'Your live group-ride location' : 'Your location'}
