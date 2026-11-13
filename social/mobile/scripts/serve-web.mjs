@@ -30,6 +30,9 @@ const securityHeaders = {
     "frame-ancestors 'none'"
   ].join('; '),
   'Referrer-Policy': 'no-referrer',
+  // This deployment is a private-testing preview, not a searchable product.
+  'X-Robots-Tag': 'noindex, nofollow, noarchive',
+  'Cross-Origin-Resource-Policy': 'same-origin',
   'X-Frame-Options': 'DENY',
   'X-Content-Type-Options': 'nosniff',
   'Strict-Transport-Security': 'max-age=31536000',
