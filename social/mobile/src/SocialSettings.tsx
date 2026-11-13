@@ -99,7 +99,7 @@ export function SocialSettings({ username, emailVerified, onClose, onClearDrafts
             <Text style={s.ghostText}>Keep drafts</Text>
           </Pressable>
           <Pressable accessibilityRole="button" accessibilityLabel="Confirm clear local drafts"
-            disabled={clearing} onPress={() => void clear()}
+            accessibilityState={{ disabled: clearing }} disabled={clearing} onPress={() => void clear()}
             style={[s.ghost, { flex: 1, minHeight: 44, opacity: clearing ? 0.6 : 1 }]}>
             <Text style={[s.ghostText, { color: '#F1B7BE' }]}>
               {clearing ? 'Clearing…' : 'Delete drafts'}
@@ -154,12 +154,12 @@ export function SocialSettings({ username, emailVerified, onClose, onClearDrafts
           style={s.input}/>
         <View style={{flexDirection:'row',gap:10}}>
           <Pressable accessibilityRole="button" accessibilityLabel="Cancel account deletion"
-            disabled={deleting} onPress={()=>{setConfirmDelete(false);setDeletePhrase('');setDeleteError('');}}
+            accessibilityState={{ disabled: deleting }} disabled={deleting} onPress={()=>{setConfirmDelete(false);setDeletePhrase('');setDeleteError('');}}
             style={[s.ghost,{flex:1,minHeight:48}]}>
             <Text style={s.ghostText}>Cancel</Text>
           </Pressable>
           <Pressable accessibilityRole="button" accessibilityLabel="Confirm permanent account deletion"
-            disabled={deleting || deletePhrase !== 'DELETE'} onPress={()=>void deleteAccount()}
+            accessibilityState={{ disabled: deleting || deletePhrase !== 'DELETE' }} disabled={deleting || deletePhrase !== 'DELETE'} onPress={()=>void deleteAccount()}
             style={[s.ghost,{flex:1,minHeight:48,borderColor:'#6A3F45',
               opacity:deleting || deletePhrase !== 'DELETE'?0.45:1}]}>
             <Text style={{color:'#F1B7BE',fontSize:13,fontWeight:'800'}}>
