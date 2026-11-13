@@ -18,7 +18,7 @@ test.beforeEach(async ({ page }) => {
     const me = path === '/auth/me';
     const connections = path === '/conversations' || path.endsWith('/friends');
     const body = me
-      ? { riderId: 'rider-webkit-fixture', username: 'webkit-fixture',
+      ? { riderId: 'rider_abcd1234', username: 'webkit-fixture',
           emailVerified: true, termsAccepted: true, termsVersion: 'terms-fixture' }
       : connections ? { conversations: [], friends: [], nextCursor: null }
         : { error: 'not_found' };
@@ -34,7 +34,7 @@ test.beforeEach(async ({ page }) => {
       value: { getUserMedia: async () => { throw new Error('permission denied fixture'); } },
     });
     window.sessionStorage.setItem('rider_social_account_session_v1', 'synthetic-webkit-test');
-    window.sessionStorage.setItem('rider_social_age_ack_v1', 'rider-webkit-fixture');
+    window.sessionStorage.setItem('rider_social_age_ack_v1', 'rider_abcd1234');
   });
 });
 
