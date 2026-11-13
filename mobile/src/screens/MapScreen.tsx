@@ -55,6 +55,7 @@ import { NavigationManeuverGlyph } from '../components/NavigationManeuverGlyph';
 import { NavigationRoadAhead } from '../components/NavigationRoadAhead';
 import { HazardMarker, NavigationPuckMarker, SmoothSelfMarker, SmoothRideMemberMarker } from './mapMarkers';
 import { RegroupChip, RegroupMarker, isRegroupSpot, regroupTitle } from './RegroupPoint';
+import { RIDE_LOCATION_FRESH_MS, rideMemberLastSeenAgo } from '@rider-comms/shared';
 import { useRideProfiles } from './useRideProfiles';
 import { useHazardReports } from './useHazardReports';
 import { useNavigationSummary } from './useNavigationSummary';
@@ -62,7 +63,6 @@ import { usePresence } from './usePresence';
 import { ROUTE_UPDATED_NOTICE, useInAppNavigation } from './useInAppNavigation';
 
 const RIDE_MARKER_REFRESH_MS = 10_000;
-const RIDE_MARKER_STALE_MS = 20_000;
 const DEFAULT_REGION = {
   latitude: 51.5074,
   longitude: -0.1278,
@@ -290,7 +290,7 @@ export function MapScreen(): React.JSX.Element {
       ? { lat: ownRideLocation.lat, lon: ownRideLocation.lon }
       : currentLocation;
   const ownRideLocationFresh = Boolean(
-    ownRideLocation && markerNow - ownRideLocation.updatedAt <= RIDE_MARKER_STALE_MS,
+    ownRideLocation && markerNow - ownRideLocation.updatedAt <= RIDE_LOCATION_FRESH_MS,
   );
   const selfMapStatus = publicLive || (shareRideLocation && ownRideLocationFresh)
     ? 'online'
@@ -579,15 +579,18 @@ export function MapScreen(): React.JSX.Element {
               .filter((location) => location.riderId !== riderId)
               .map((location) => {
                 const profile = rideProfiles[location.riderId];
-                const fresh = markerNow - location.updatedAt <= RIDE_MARKER_STALE_MS;
-                const markerStatus = fresh ? 'online' : 'stale';
+                // Stopped updating (lost signal, phone locked): grey, with
+                // how long ago, for up to the 10 minutes the server keeps it.
+                const lastSeen = rideMemberLastSeenAgo(location.updatedAt, markerNow);
+                const markerStatus = lastSeen ? 'stale' : 'online';
                 return (
                   <SmoothRideMemberMarker
-                    key={`ride-location-${location.riderId}-${profile?.avatarId ?? 'ember'}-${markerStatus}`}
+                    key={`ride-location-${location.riderId}-${profile?.avatarId ?? 'ember'}-${markerStatus}-${lastSeen ?? ''}`}
                     location={{ lat: location.lat, lon: location.lon }}
                     avatarId={profile?.avatarId ?? 'ember'}
                     displayName={profile?.displayName ?? 'Ride member'}
                     status={markerStatus}
+                    lastSeen={lastSeen}
                   />
                 );
               })}

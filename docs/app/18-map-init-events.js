@@ -69,7 +69,7 @@
       position,
       title: current ? 'Your location' : person.displayName,
       icon: riderAvatarMapIcon(person, current, status),
-      label: current ? null : { text: riderMapLabel(person.displayName), className: 'rider-map-label', color: '#ffffff', fontSize: '12px', fontWeight: '800' },
+      label: current ? null : riderMarkerLabel(person.displayName, null),
       zIndex: current ? 10 : 5,
     });
     marker.addListener('click', () => selectRider(person.riderId, visibleMapRiders()));

@@ -263,8 +263,9 @@ export function RideProvider({ children }: { children: React.ReactNode }): React
           setRideLocationsUnreachable(false);
         }
       } catch {
-        // A missed foreground tick is retried. The backend expires locations
-        // after 30s, so stale coordinates are never kept authoritative.
+        // A missed foreground tick is retried. The backend keeps a member's
+        // last position for 10 minutes (shown as "last seen"), and only while
+        // they are still sharing.
       }
     };
 

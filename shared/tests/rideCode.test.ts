@@ -6,6 +6,7 @@ import {
   generateRideCode,
   isRideCodeExpired,
   normalizeRegroupLabel,
+  rideMemberLastSeenAgo,
 } from '../src/rideCode.ts';
 
 describe('generateRideCode', () => {
@@ -62,5 +63,17 @@ describe('regroup labels', () => {
     expect(normalizeRegroupLabel('x'.repeat(100))).toHaveLength(80);
     expect(normalizeRegroupLabel(undefined)).toBe('');
     expect(normalizeRegroupLabel(42)).toBe('');
+  });
+});
+
+describe('ride member last seen', () => {
+  it('is null while updates arrive, then says how long ago in seconds or minutes', () => {
+    const now = 1_000_000;
+    expect(rideMemberLastSeenAgo(now - 5_000, now)).toBe(null);
+    expect(rideMemberLastSeenAgo(now - 20_000, now)).toBe(null);
+    expect(rideMemberLastSeenAgo(now - 45_000, now)).toBe('40 s ago');
+    expect(rideMemberLastSeenAgo(now - 60_000, now)).toBe('1 min ago');
+    expect(rideMemberLastSeenAgo(now - 9.5 * 60_000, now)).toBe('9 min ago');
+    expect(rideMemberLastSeenAgo(Number.NaN, now)).toBe(null);
   });
 });

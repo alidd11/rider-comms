@@ -5,6 +5,20 @@
       .filter((member) => member.riderId !== state.profile.riderId && rideMemberLocations.has(member.riderId));
   }
 
+  // Mirrors shared rideMemberLastSeenAgo (shared/src/rideCode.ts);
+  // scripts/check-client-parity.mjs runs both on the same ages.
+  const RIDE_LOCATION_FRESH_MS = 20_000;
+  function rideMemberLastSeenAgo(updatedAt, now) {
+    const age = now - updatedAt;
+    if (!Number.isFinite(age) || age <= RIDE_LOCATION_FRESH_MS) return null;
+    if (age < 60_000) return `${Math.floor(age / 10_000) * 10} s ago`;
+    return `${Math.floor(age / 60_000)} min ago`;
+  }
+
+  function riderMarkerLabel(displayName, lastSeen) {
+    return { text: `${riderMapLabel(displayName)}${lastSeen ? ` · ${lastSeen}` : ''}`, className: 'rider-map-label', color: '#ffffff', fontSize: '12px', fontWeight: '800' };
+  }
+
   function renderMapRiders() {
     renderHazardMarkers();
     renderRegroupPoint();
@@ -25,13 +39,15 @@
     for (const person of riders) {
       seenRiderIds.add(person.riderId);
       const real = rideMemberLocations.get(person.riderId);
-      const fresh = now - real.updatedAt <= RIDE_LOCATION_REFRESH_MS * 2;
-      const status = fresh ? 'online' : 'stale';
+      // Stopped updating (lost signal, phone locked): grey, with how long
+      // ago, for up to the 10 minutes the server keeps a last-seen position.
+      const lastSeen = rideMemberLastSeenAgo(real.updatedAt, now);
+      const status = lastSeen ? 'stale' : 'online';
       const latLng = { lat: real.lat, lng: real.lon };
       const existing = mapMarkers.get(person.riderId);
       if (!existing) {
         const marker = addMapMarker(person, latLng, false, status);
-        mapMarkers.set(person.riderId, { marker, status });
+        mapMarkers.set(person.riderId, { marker, status, lastSeen: null });
         snapMarkerTo(person.riderId, marker, latLng);
       } else {
         if (existing.status !== status) {
@@ -39,6 +55,12 @@
           existing.marker.setIcon(riderAvatarMapIcon(person, false, status));
         }
         glideMarkerTo(person.riderId, existing.marker, latLng, RIDE_LOCATION_REFRESH_MS, now);
+      }
+      const entry = mapMarkers.get(person.riderId);
+      if (entry.lastSeen !== lastSeen) {
+        entry.lastSeen = lastSeen;
+        entry.marker.setLabel?.(riderMarkerLabel(person.displayName, lastSeen));
+        entry.marker.setTitle?.(lastSeen ? `${person.displayName} · last seen ${lastSeen}` : person.displayName);
       }
     }
     for (const [riderId, existing] of mapMarkers) {

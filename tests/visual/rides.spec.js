@@ -454,3 +454,24 @@ test('PWA tells the host when the regroup point could not be saved', async ({ pa
   await expect(page.locator('#destinationCard')).toContainText('Couldn’t reach Rider Comms. Check your connection and try again.');
   await expect(page.getByRole('button', { name: 'Clear the regroup point' })).toBeEnabled();
 });
+
+test('PWA greys out a ride member whose updates stopped and says when they were last seen', async ({ page }) => {
+  const other = { riderId: 'rider_quiet01', displayName: 'Quiet Rider', handle: '@quiet' };
+  await mockAuthenticatedApi(page, 'stationary', ({ request, url }) => {
+    if (url.pathname === '/rides/current') return { body: { ride: {
+      rideId: 'ride-quiet-1', code: 'ABCDEF', createdBy: RIDER_ID,
+      memberIds: [RIDER_ID, other.riderId], shareRideLocation: true,
+    } } };
+    if (url.pathname === `/profiles/${other.riderId}`) return { body: other };
+    if (url.pathname === '/rides/ride-quiet-1/location' && request.method() === 'POST') return { body: { ok: true } };
+    if (url.pathname === '/rides/ride-quiet-1/locations') return { body: { locations: [
+      { riderId: other.riderId, lat: 51.51, lon: -0.13, updatedAt: Date.now() - 3 * 60_000 - 5_000 },
+    ] } };
+    return null;
+  });
+  await page.goto('/');
+  await expect.poll(() => page.evaluate(() => (window.__riderCommsTestMarkers || [])
+    .find((marker) => marker.position?.lat === 51.51)?.label?.text)).toBe('Quiet · 3 min ago');
+  expect(await page.evaluate(() => (window.__riderCommsTestMarkers || [])
+    .find((marker) => marker.position?.lat === 51.51)?.title)).toBe('Quiet Rider · last seen 3 min ago');
+});

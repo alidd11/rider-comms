@@ -1,6 +1,6 @@
 import { after, before, beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { RideStore } from '../src/rideStore.ts';
+import { RIDE_LOCATION_LAST_SEEN_MS, RideStore } from '../src/rideStore.ts';
 import { ensureMigrated, getPool, resetDbForTests } from '../src/db.ts';
 
 // RideStore is now Postgres-backed (see db.ts) — these tests need
@@ -203,15 +203,24 @@ describe('RideStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping Po
     assert.equal(count.rows[0]?.count, '0');
   });
 
-  it('does not return or retain stale ride locations', async () => {
+  it('keeps a last-seen position for 10 minutes, then neither returns nor retains it', async () => {
     const store = new RideStore();
     const { ride, codeRecord } = await store.createRide('host');
     await store.joinRide(codeRecord.code, 'guest');
     await store.setMemberLocationSharing(ride.id, 'guest', true);
     await store.updateMemberLocation(ride.id, 'guest', 51.5, -0.1);
+    const lastSeen = Date.now() - 5 * 60_000;
     await getPool().query(
       'UPDATE ride_locations SET updated_at = $3 WHERE ride_id = $1 AND rider_id = $2',
-      [ride.id, 'guest', Date.now() - 60_000]
+      [ride.id, 'guest', lastSeen]
+    );
+    const recent = await store.getMemberLocations(ride.id, 'host');
+    assert.ok(recent.ok);
+    if (recent.ok) assert.deepEqual(recent.locations, [{ riderId: 'guest', lat: 51.5, lon: -0.1, updatedAt: lastSeen }]);
+
+    await getPool().query(
+      'UPDATE ride_locations SET updated_at = $3 WHERE ride_id = $1 AND rider_id = $2',
+      [ride.id, 'guest', Date.now() - RIDE_LOCATION_LAST_SEEN_MS - 1000]
     );
 
     const read = await store.getMemberLocations(ride.id, 'host');

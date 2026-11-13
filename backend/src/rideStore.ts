@@ -50,7 +50,10 @@ export type RideLocationUpdateResult =
   | { ok: true; ride: Ride; locations: RideMemberLocation[] }
   | { ok: false; reason: 'not_found' | 'forbidden' | 'not_member' | 'location_sharing_disabled' };
 
-const RIDE_LOCATION_MAX_AGE_MS = 30_000;
+/** How long a member's last position stays visible to the ride after their
+ * updates stop (lost signal, phone locked), so the group can see where they
+ * were last seen. Turning sharing off or leaving deletes it straight away. */
+export const RIDE_LOCATION_LAST_SEEN_MS = 10 * 60 * 1000;
 /** Slide the invite code forward at most this often, not on every poll. */
 const RIDE_CODE_SLIDE_STEP_MS = 10 * 60 * 1000;
 
@@ -361,7 +364,7 @@ export class RideStore {
 
   private async loadFreshMemberLocations(rideId: string): Promise<RideMemberLocation[]> {
     const pool = getPool();
-    const freshSince = Date.now() - RIDE_LOCATION_MAX_AGE_MS;
+    const freshSince = Date.now() - RIDE_LOCATION_LAST_SEEN_MS;
     await pool.query('DELETE FROM ride_locations WHERE ride_id = $1 AND updated_at < $2', [rideId, freshSince]);
     const { rows } = await pool.query<{ rider_id: string; lat: number; lon: number; updated_at: string | number }>(
       `SELECT location.rider_id, location.lat, location.lon, location.updated_at

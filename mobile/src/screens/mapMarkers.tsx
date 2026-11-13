@@ -207,11 +207,14 @@ export function SmoothRideMemberMarker({
   avatarId,
   displayName,
   status,
+  lastSeen = null,
 }: {
   location: { lat: number; lon: number };
   avatarId: string;
   displayName: string;
   status: RiderAvatarStatus;
+  /** "2 min ago" once their updates stop (shared rideMemberLastSeenAgo). */
+  lastSeen?: string | null;
 }): React.JSX.Element {
   const markerRef = React.useRef<React.ElementRef<typeof Marker> | null>(null);
   const hasMounted = React.useRef(false);
@@ -233,14 +236,16 @@ export function SmoothRideMemberMarker({
       ref={markerRef}
       coordinate={initialCoordinate}
       title={displayName}
-      description="Private ride member · live location"
+      description={lastSeen ? `Last seen ${lastSeen}` : 'Private ride member · live location'}
       anchor={MEMBER_MARKER_ANCHOR}
       tracksViewChanges={false}
     >
       <View style={styles.memberMarker}>
         <RiderAvatar avatarId={avatarId} size={40} mapMarker status={status} groupRing />
         <View style={styles.memberLabel}>
-          <Text style={styles.memberLabelText} numberOfLines={1}>{riderMapLabel(displayName)}</Text>
+          <Text style={styles.memberLabelText} numberOfLines={1}>
+            {riderMapLabel(displayName)}{lastSeen ? <Text style={styles.memberLabelLastSeen}>{` · ${lastSeen}`}</Text> : null}
+          </Text>
         </View>
       </View>
     </Marker>
@@ -270,6 +275,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(10,15,20,0.82)',
   },
   memberLabelText: { color: '#FFFFFF', fontSize: 12, fontWeight: '800' },
+  memberLabelLastSeen: { color: '#C9D3D7', fontWeight: '700' },
   hazardMarker: { alignItems: 'center', justifyContent: 'center' },
   hazardMarkerSelected: {
     shadowColor: '#35D6FF',
