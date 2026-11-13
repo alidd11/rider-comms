@@ -225,6 +225,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
   const [sharedError, setSharedError] = useState<string | null>(null);
   const [verificationNotice, setVerificationNotice] = useState<string | null>(null);
   const [localDraftOwner, setLocalDraftOwner] = useState<string | null>(null);
+  const pendingLocalSaveNotice = useRef<string | null>(null);
 
   // Rider Comms controls the real name, handle and avatar identity. Local
   // Social edits never replace authoritative account profile values.
@@ -253,9 +254,15 @@ function AuthenticatedSocialApp(): React.JSX.Element {
 
   useEffect(() => {
     if (!localReady || localDraftOwner !== identity.riderId) return;
-    void saveLocalDemo(identity.riderId, { profile, garage }).catch(() => {
-      // Storage failures must not prevent the user from exploring the preview.
-      // The UI always identifies saved entries as local device-only data.
+    const successNotice = pendingLocalSaveNotice.current;
+    pendingLocalSaveNotice.current = null;
+    void saveLocalDemo(identity.riderId, { profile, garage }).then(() => {
+      // Never claim a private draft was saved before device storage confirms it.
+      if (successNotice) setNotice(successNotice);
+    }).catch(() => {
+      // Private browser mode, storage quotas or unavailable storage can make
+      // a local-only edit disappear on reload. Don't conceal that failure.
+      setNotice('Could not save on this device. Changes may be lost when you close the app.');
     });
   }, [identity.riderId, localReady, localDraftOwner, profile, garage]);
 
@@ -412,9 +419,9 @@ function AuthenticatedSocialApp(): React.JSX.Element {
   function saveProfile() {
     const result = validateProfile(profileDraft);
     if (!result.ok) { banner(result.error); return; }
+    pendingLocalSaveNotice.current = 'Social profile preview saved on this device only.';
     setProfile(result.value);
     setProfileEditor(false);
-    banner('Social profile preview saved on this device only.');
   }
 
   function openGarageEditor() {
@@ -427,9 +434,9 @@ function AuthenticatedSocialApp(): React.JSX.Element {
     if (!parsed.ok) { banner(parsed.error); return; }
     const updated = addGarageEntry(garage, parsed.value);
     if (!updated.ok) { banner(updated.error); return; }
+    pendingLocalSaveNotice.current = 'Vehicle added to your private/local preview garage.';
     setGarage(updated.value);
     setGarageEditor(false);
-    banner('Vehicle added to your private/local preview garage.');
   }
 
   function renderPost(post: SocialPost, reason: RankReason) {
