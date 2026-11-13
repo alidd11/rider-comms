@@ -169,19 +169,31 @@ test('a failed inbox refresh clears stale private previews until a new successfu
 test('server-revoked friendship closes the former private conversation after refresh', async ({ page }) => {
   await installFixture(page);
   let refreshes = 0;
+  let revoked = false;
   const initial = [
     { friend: alice, lastMessage: aliceMessage, unreadCount: 0 },
   ];
+  // Revoke between the send response and the following graph refresh.
+  // Do not rely on nondeterministic ordering of concurrent HTTP requests.
+  await page.route(backend + '/messages', async route => {
+    if (route.request().method() !== 'POST') {
+      await route.fallback();
+      return;
+    }
+    revoked = true;
+    await route.fulfill({ status: 200, contentType: 'application/json',
+      headers: cors, body: JSON.stringify(sentMessage) });
+  });
   await page.route(backend + '/conversations', async route => {
     refreshes += 1;
     await route.fulfill({ status: 200, contentType: 'application/json',
       headers: cors,
-      body: JSON.stringify({ conversations: refreshes === 1 ? initial : [], nextCursor: null }) });
+      body: JSON.stringify({ conversations: revoked ? [] : initial, nextCursor: null }) });
   });
   await page.route(backend + '/riders/' + ownId + '/friends', async route => {
     await route.fulfill({ status: 200, contentType: 'application/json',
       headers: cors,
-      body: JSON.stringify({ friends: refreshes <= 1 ? [alice] : [], nextCursor: null }) });
+      body: JSON.stringify({ friends: revoked ? [] : [alice], nextCursor: null }) });
   });
   await page.goto('/');
   await page.getByRole('button', { name: 'Open messages' }).click();
