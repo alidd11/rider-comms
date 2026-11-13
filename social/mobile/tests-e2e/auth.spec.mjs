@@ -45,6 +45,52 @@ async function fakeBackend(page, options = {}) {
       headers: cors, body: JSON.stringify(body) });
   });
 }
+
+test('sign-in stays top anchored while iPhone keyboard viewport changes', async ({ page }) => {
+  await fakeBackend(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  const form = page.locator('#social-auth-form');
+  const loginScroll = page.locator('#social-auth-scroll');
+  await expect(form).toBeVisible();
+  const start = await form.boundingBox();
+  const username = page.getByRole('textbox', { name: 'Username' });
+  await username.focus();
+  const inputSize = await username.evaluate(input => parseFloat(getComputedStyle(input).fontSize));
+  expect(inputSize).toBeGreaterThanOrEqual(16);
+  await page.setViewportSize({ width: 390, height: 545 });
+  const focused = await form.boundingBox();
+  expect(Math.abs((focused?.y ?? -100) - (start?.y ?? -200))).toBeLessThan(10);
+  expect(await loginScroll.evaluate(scroll => scroll.scrollTop)).toBe(0);
+  await page.setViewportSize({ width: 390, height: 844 });
+  const restored = await form.boundingBox();
+  expect(Math.abs((restored?.y ?? -100) - (start?.y ?? -200))).toBeLessThan(10);
+});
+
+test('login errors sit beside the affected input instead of shifting the page header', async ({ page }) => {
+  await fakeBackend(page, { accountResult: 'invalid' });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await expect(page.getByTestId('auth-field-error-username')).toHaveText('Enter your Rider Comms username.');
+  const username = page.getByRole('textbox', { name: 'Username' });
+  await username.fill('sample-rider');
+  await expect(page.getByTestId('auth-field-error-username')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await expect(page.getByTestId('auth-field-error-password')).toHaveText('Enter your password.');
+  await page.getByRole('textbox', { name: 'Password' }).fill(randomUUID());
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  const message = page.getByTestId('auth-field-error-password');
+  await expect(message).toHaveText('Username or password is incorrect.');
+  const password = await page.getByTestId('auth-field-password').boundingBox();
+  const feedback = await message.boundingBox();
+  expect(feedback?.y ?? -1).toBeGreaterThan(password?.y ?? 10000);
+  expect((feedback?.y ?? 10000) - ((password?.y ?? 0) + (password?.height ?? 0))).toBeLessThan(26);
+  await page.getByRole('button', { name: 'Show password' }).click();
+  await expect(page.getByRole('button', { name: 'Hide password' })).toBeVisible();
+  await page.getByRole('button', { name: 'Hide password' }).click();
+  await expect(page.getByRole('button', { name: 'Show password' })).toBeVisible();
+});
+
 test('Social begins with Rider Comms sign-in and rejects invalid credentials', async ({ page }) => {
   await fakeBackend(page, { accountResult: 'invalid' });
   await page.goto('/');
