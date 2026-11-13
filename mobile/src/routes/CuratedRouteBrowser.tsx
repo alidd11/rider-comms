@@ -164,7 +164,7 @@ function RouteOverview({
             <View style={styles.metaStrip}>
               <MetaItem icon="navigate-outline" value={`${route.distanceMiles} mi`} label="Route" />
               <MetaItem icon="time-outline" value={`${route.estimatedDurationMinutes} min`} label="Ride time*" />
-              <MetaItem icon="speedometer-outline" value={route.difficulty} label="Demand" />
+              <MetaItem icon="speedometer-outline" value={route.difficulty} label="Difficulty" />
               {approach ? <MetaItem icon="locate-outline" value={approach.replace(' from you', '')} label="To start" /> : null}
             </View>
 
@@ -221,7 +221,7 @@ function RouteOverview({
               <MaterialCommunityIcons name="map-marker-path" size={19} color={colors.textPrimary} />
               <Text style={styles.secondaryButtonText}>Open full route in Maps</Text>
             </Pressable>
-            <Text style={styles.estimateNote}>Rider Comms guides you to the route start. “Open full route” preserves the curated waypoints. *Ride time is an editorial planning estimate, not live traffic.</Text>
+            <Text style={styles.estimateNote}>*Ride time is an estimate without stops or traffic.</Text>
 
             <View style={styles.sourceBlock}>
               <Text style={styles.sectionTitle}>Sources & image rights</Text>

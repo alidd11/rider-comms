@@ -1,6 +1,19 @@
 import * as React from 'react';
 import { View, StyleSheet } from 'react-native';
 import Svg, { Circle, ClipPath, Defs, Ellipse, G, LinearGradient, Path, RadialGradient, Stop } from 'react-native-svg';
+import {
+  MAP_TAIL_PATH,
+  HELMET_SHELL_PATH,
+  HELMET_VISOR_PATH,
+  HELMET_TRIM_PATH,
+  HELMET_VENT_PATH,
+  HELMET_GLOSS_PATH,
+  HELMET_VISOR_GLINT_PATH,
+  HELMET_MOTIF_TRANSFORM,
+  GROUND_Y,
+  REAR_WHEEL_X,
+  FRONT_WHEEL_X,
+} from '@rider-comms/shared';
 import { getAvatarPreset, type AvatarPreset } from '../settings/avatars';
 
 export const GROUP_RING_COLOUR = '#A78BFA';
@@ -16,20 +29,6 @@ interface RiderAvatarProps {
   /** Group-ride members wear a violet ring on the map (PWA: groupRing). */
   groupRing?: boolean;
 }
-
-// Shared side-on artwork geometry (64px master). docs/avatar-system.js
-// mirrors these constants; scripts/check-avatar-system.mjs keeps them equal.
-const MAP_TAIL_PATH = 'M24 56h16L32 70 24 56Z';
-const HELMET_SHELL_PATH = 'M14 46C11 40 10.5 33 12 27C14.5 17 23 11 33 11C43 11 51 16 54 25L56.5 35C57.2 38.5 56 42 53 44.5L47 48.5C44.5 50 41.5 49.6 39.5 47.5C37 45 33 43.6 29 44.2L20 46C18 46.4 15.5 46.8 14 46Z';
-const HELMET_VISOR_PATH = 'M32.5 21.5C40 19.2 48 19.6 53.6 22.6L55.6 31.2C49 33.2 40.5 33.3 34.5 31.2C31.4 28.6 31 24.2 32.5 21.5Z';
-const HELMET_TRIM_PATH = 'M14 46C16 44 22 42.5 29 42.3C33.5 42.2 37 43.5 39.5 45.7V47.5C37 45 33 43.6 29 44.2L20 46C18 46.4 15.5 46.8 14 46ZM12.5 27.5C10.4 26.4 9 24.6 9.2 22.4L13.8 21.2C14.2 23.4 13.7 25.6 12.5 27.5Z';
-const HELMET_VENT_PATH = 'M46.5 38.2L53.2 36.6M46.4 41.6L51.6 40.2M13.2 35.6L31.6 31.4';
-const HELMET_GLOSS_PATH = 'M18.5 19C22 15.2 27 13.2 33 13.2';
-const HELMET_VISOR_GLINT_PATH = 'M35 24C41 22.4 47.5 22.8 52.5 25';
-const HELMET_MOTIF_TRANSFORM = 'translate(8.5 15) scale(.42)';
-const GROUND_Y = 49.5;
-const REAR_WHEEL_X = 19;
-const FRONT_WHEEL_X = 45;
 
 export function mixColour(hex: string, toward: string, amount: number): string {
   const a = parseInt(hex.slice(1), 16);

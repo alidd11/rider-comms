@@ -14,7 +14,7 @@ const [
   pwaIndex,
   backendProfiles,
 ] = await Promise.all([
-  readFile(new URL('../mobile/src/settings/avatars.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../shared/src/avatars.ts', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/components/RiderAvatar.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/screens/SettingsScreen.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/screens/MapScreen.tsx', import.meta.url), 'utf8'),
@@ -30,6 +30,8 @@ const [
 // useRideProfiles hook -- checked together since assertions below don't
 // care which file a given literal lives in.
 const nativeMap = nativeMapScreen + nativeRideProfilesHook;
+// The native renderer imports its geometry from shared/src/avatars.ts.
+const nativeArtwork = nativeRenderer + nativePresets;
 
 function extractArray(source, declaration, endMarker) {
   const start = source.indexOf(declaration);
@@ -77,7 +79,7 @@ const sharedGeometry = [
 ];
 
 for (const geometry of sharedGeometry) {
-  assert.ok(nativeRenderer.includes(geometry), `native renderer is missing shared avatar geometry ${geometry}`);
+  assert.ok(nativeArtwork.includes(geometry), `native renderer is missing shared avatar geometry ${geometry}`);
   assert.ok(pwaAvatarSystem.includes(geometry), `PWA renderer is missing shared avatar geometry ${geometry}`);
 }
 

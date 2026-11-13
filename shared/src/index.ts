@@ -15,3 +15,4 @@ export * from './voiceActivity.ts';
 export * from './billing.ts';
 export * from './daylight.ts';
 export * from './navigationPuck.ts';
+export * from './avatars.ts';
