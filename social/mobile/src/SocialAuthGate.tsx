@@ -93,7 +93,7 @@ function Field({ label, value, onChangeText, secureTextEntry = false, keyboardTy
         onSubmitEditing={onSubmitEditing}
         placeholder={label} placeholderTextColor="#758392"
         style={{ flex: 1, paddingHorizontal: 14, paddingVertical: 11,
-          color: ink, minHeight: 49, fontSize: 15 }}/>
+          color: ink, minHeight: 49, fontSize: 16 }}/>
       {secureTextEntry ? <Pressable accessibilityRole="button"
         accessibilityLabel={reveal ? 'Hide password' : 'Show password'}
         onPress={() => setReveal(v => !v)}
