@@ -835,6 +835,28 @@ test('Shop saved and basket are not hidden by discovery filters', async ({ page 
   await expect(page.getByTestId('shop-card-l1')).toBeVisible();
 });
 
+test('a blocked local-storage write never reports an unsaved profile as saved', async ({ page }) => {
+  await page.addInitScript(() => {
+    const originalSetItem = window.Storage.prototype.setItem;
+    window.Storage.prototype.setItem = function (key, value) {
+      if (this === window.localStorage && String(key).includes('@rider-comms/social-demo/v2/'))
+        throw new Error('simulated storage quota failure');
+      return originalSetItem.call(this, key, value);
+    };
+  });
+  const uncaught = [];
+  page.on('pageerror', error => uncaught.push(error.message));
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Open profile' }).click();
+  await page.getByRole('button', { name: 'Edit social profile' }).click();
+  await page.getByRole('textbox', { name: 'Social bio' }).fill('Storage-failure test');
+  await page.getByRole('button', { name: 'Save profile' }).click();
+  await expect(page.getByText('Could not save on this device. Changes may be lost when you close the app.')).toBeVisible();
+  await expect(page.getByText('Social profile preview saved on this device only.')).toHaveCount(0);
+  await expect(page.getByTestId('social-app-recovery')).toHaveCount(0);
+  expect(uncaught).toEqual([]);
+});
+
 test('Social profile has tabs, follower/friend panels and separately managed demo follows', async ({ page }, testInfo) => {
   await page.goto('/');
   await expect(page.getByText('EARLY PREVIEW')).toHaveCount(0);
