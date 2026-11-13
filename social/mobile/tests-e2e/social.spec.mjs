@@ -712,6 +712,14 @@ test('Shop saved and basket are not hidden by discovery filters', async ({ page 
   await expect(page.getByTestId('shop-card-l1')).toBeVisible();
   await page.getByRole('button', { name: 'Shop section Discover' }).click();
   await expect(page.getByTestId('shop-card-l1')).toHaveCount(0);
+
+  // Preview selections are session-local and must survive leaving Shop.
+  await page.getByRole('tab', { name: 'Home' }).click();
+  await page.getByRole('tab', { name: 'Shop' }).click();
+  await page.getByRole('button', { name: 'Shop section Basket' }).click();
+  await expect(page.getByTestId('shop-card-l1')).toBeVisible();
+  await page.getByRole('button', { name: 'Shop section Saved' }).click();
+  await expect(page.getByTestId('shop-card-l1')).toBeVisible();
 });
 
 test('Social profile has tabs, follower/friend panels and separately managed demo follows', async ({ page }, testInfo) => {
