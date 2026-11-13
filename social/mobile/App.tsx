@@ -735,9 +735,13 @@ function AuthenticatedSocialApp(): React.JSX.Element {
             </View>
             {entry.notes ? <Text style={s.muted}>{entry.notes}</Text> : null}
             <View style={s.rowBetween}>
-              <Pressable accessibilityRole="button" accessibilityLabel={'Toggle privacy for ' + entry.make + ' ' + entry.model} style={s.ghost} onPress={() => setGarage((items) => updateGarageVisibility(items, entry.id, entry.visibility === 'private' ? 'public' : 'private'))}>
+              {socialFixturesEnabled ? <Pressable accessibilityRole="button"
+                accessibilityLabel={'Toggle privacy for ' + entry.make + ' ' + entry.model}
+                style={s.ghost}
+                onPress={() => setGarage((items) => updateGarageVisibility(items, entry.id,
+                  entry.visibility === 'private' ? 'public' : 'private'))}>
                 <Text style={s.ghostText}>{entry.visibility === 'private' ? 'Make public (demo)' : 'Make private (demo)'}</Text>
-              </Pressable>
+              </Pressable> : <Text style={s.small}>On this device only</Text>}
               <Pressable accessibilityRole="button" accessibilityLabel={'Remove ' + entry.make + ' ' + entry.model} onPress={() => setPendingGarageDelete(entry.id)}>
                 <Text style={[s.small, { color: '#F3A1A1' }]}>Remove</Text>
               </Pressable>
