@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { AVATAR_FAMILIES, AVATAR_PRESETS, getAvatarFamily, getAvatarPreset } from '../src/settings/avatars.ts';
+import { AVATAR_FAMILIES, AVATAR_PRESETS, getAvatarFamily, getAvatarPreset } from '../src/avatars.ts';
 
 test('avatar collection keeps the approved 8/12/12 family split', () => {
   assert.deepEqual(AVATAR_FAMILIES.map((family) => family.id), ['helmet', 'motorbike', 'car']);
