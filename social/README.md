@@ -2,12 +2,18 @@
 
 This directory contains the **new, independently installed social application** within the existing Rider Comms monorepo. It is intentionally independent of the Rider Comms navigation application.
 
+## Account integration
+
+Social signs in with the same Rider Comms account; there is no second credential database. iOS/Android session secrets are held in expo-secure-store, while web uses memory plus tab-level sessionStorage. A full username-bearing identity from `GET /auth/me` is required, and a separate 16+ self-declaration applies to the development preview.
+
+The backend needs the Social preview browser origin on its CORS allowlist before web sign-in can be tested manually. Exact origin, routes, security rules, testing and backend requests: [ACCOUNT_INTEGRATION.md](ACCOUNT_INTEGRATION.md).
+
 ## Scope and current status
 
 - Social-focused: For You / Following, Reels, Stories, clubs, events, garages, verified-business commerce, creator features.
-- Shared ecosystem *later*: accounts, unique username, friendships and direct messages.
+- Shared ecosystem **now for authentication and read-only data**: Rider Comms account login, registration, validated sessions, existing usernames, friend lists and conversation summaries. Posting, social follows and message writes still need backend contracts.
 - Existing Rider Comms client, PWA and backend are **not changed** by this foundation.
-- `mobile/` is a **UI foundation using local demonstration data only**. No real accounts, payments, video streaming, uploads, age checks, messages, merchant verification or persistence are implemented. The demo interface labels unconnected actions as previews.
+- `mobile/` now authenticates directly against the **existing Rider Comms account backend**. Demo feeds, Reels, local draft profiles, local garages, commerce and comments remain previews only. Social publishing, secure media persistence, verified age assurance, merchant payments and messaging writes are not implemented.
 - Neither app is required to install the other. Both will eventually have separate release pipelines and app-store identities.
 
 ## Run independently
@@ -15,13 +21,13 @@ This directory contains the **new, independently installed social application** 
 From `social/mobile/`:
 
 ```sh
-npm install
+npm ci
 npm run typecheck
 npm test
 npm run web
 ```
 
-The independent GitHub Actions workflow at `.github/workflows/social-app.yml` checks the social package's TypeScript, domain tests and static web export. It deliberately does not build or modify the existing Rider Comms application.
+The independent GitHub Actions workflow at `.github/workflows/social-app.yml` uses its pinned actions and its dedicated committed lockfile to check TypeScript, mocked auth tests, domain tests, web export and Playwright screenshots. It deliberately does not build or modify the existing Rider Comms application.
 
 The prototype uses Expo SDK 58 and React Native to target iOS, Android and web. It is deliberately a separate npm package for now, **not a root workspace**, so Claude's existing root lockfile, workspace graph, CI and releases remain undisturbed. Pin dependencies in this package before commercial releases.
 
@@ -30,7 +36,7 @@ The prototype uses Expo SDK 58 and React Native to target iOS, Android and web. 
 - Only modify `social/**` for this workstream until explicitly coordinated.
 - Do not import Rider Comms' backend implementation or change shared migrations to make the prototype run.
 - Treat private ride, location, presence, navigation and live voice information as **never available to the social app by default**.
-- Future shared auth, friend graph and DMs need versioned APIs, permission checks, migration design and cross-client tests; keep social-specific content and user profile data in social-specific resources.
+- Authentication now uses existing Rider Comms API routes. Shared friends and conversation summaries are read-only. Actual messaging, Social followers, posts, age assurance and transactions still need versioned backend contracts, permission checks and cross-client tests.
 - Check open PRs and exact-head CI before integration; do not change Claude's branches.
 - No use of real businesses, usernames, actual user posts or copyrighted media as demo inventory without permission.
 
