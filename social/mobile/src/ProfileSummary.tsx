@@ -11,7 +11,7 @@ import { IdentityAvatar } from './IdentityAvatar';
 export type ProfileContentTab = 'Posts' | 'Reels' | 'Garage';
 
 export function ProfileSummary({
-  profile, accountProfile, username, tab, friendCount, followingCount, onTab, onConnections, onEdit,
+  profile, accountProfile, username, tab, friendCount, followingCount, onTab, onConnections, onEdit, onSettings,
 }: {
   profile: SocialProfileDraft;
   accountProfile: RiderProfile | null;
@@ -22,6 +22,7 @@ export function ProfileSummary({
   onTab: (next: ProfileContentTab) => void;
   onConnections: (kind: ConnectionKind) => void;
   onEdit: () => void;
+  onSettings: () => void;
 }) {
   const stats: { name: string; value: string; label: string; action: () => void }[] = [
     {name:'View posts',value:'0',label:'Posts',action:()=>onTab('Posts')},
@@ -37,11 +38,8 @@ export function ProfileSummary({
     <View style={s.rowBetween}>
       <Text style={s.sectionTitle}>Profile</Text>
       <View style={[s.row,{gap:5}]}>
-        <Ionicons name={profile.visibility==='private'?'lock-closed-outline':'earth-outline'}
-          color={C.accent} size={16}/>
-        <Text style={[s.small,{color:C.accent}]}>
-          {profile.visibility==='private'?'Private':'Public · preview'}
-        </Text>
+        <Ionicons name="lock-closed-outline" color={C.muted} size={15}/>
+        <Text style={s.small}>Device-only drafts</Text>
       </View>
     </View>
     <View style={{paddingHorizontal:2,gap:15}}>
@@ -66,8 +64,8 @@ export function ProfileSummary({
           onPress={onEdit} style={[s.ghost,{flex:1,minHeight:42,paddingVertical:9}]}>
           <Text style={s.ghostText}>Edit profile</Text>
         </Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel="Profile privacy settings"
-          onPress={onEdit} style={[s.ghost,{minHeight:42,minWidth:49,paddingVertical:9}]}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Open settings and privacy"
+          onPress={onSettings} style={[s.ghost,{minHeight:42,minWidth:49,paddingVertical:9}]}>
           <Ionicons name="settings-outline" color={C.ink} size={20}/>
         </Pressable>
       </View>
