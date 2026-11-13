@@ -12,6 +12,8 @@ test('Social beta sends a strict static content policy and privacy headers', asy
   const headers = response.headers();
   expect(headers['cache-control']).toBe('no-store');
   expect(headers['referrer-policy']).toBe('no-referrer');
+  expect(headers['x-robots-tag']).toBe('noindex, nofollow, noarchive');
+  expect(headers['cross-origin-resource-policy']).toBe('same-origin');
   expect(headers['x-frame-options']).toBe('DENY');
   expect(headers['x-content-type-options']).toBe('nosniff');
   expect(headers['cross-origin-opener-policy']).toBe('same-origin');
@@ -27,6 +29,7 @@ test('Social beta sends a strict static content policy and privacy headers', asy
   // Every trusted inline script in the exported PWA must be authorised by
   // its *exact* SHA-256 hash rather than all arbitrary inline scripts.
   const html = await response.text();
+  expect(html).toContain('name="robots" content="noindex, nofollow, noarchive"');
   const inlineScripts = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)]
     .map(match => match[1]).filter(Boolean);
   expect(inlineScripts.length).toBeGreaterThan(0);
