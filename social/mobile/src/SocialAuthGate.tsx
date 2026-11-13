@@ -153,8 +153,13 @@ export function SocialAuthGate({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     setError('');
+    let revocationUnconfirmed = false;
     try { await client.logout(); }
-    catch { /* Local credentials are already cleared, even after network failure. */ }
+    catch {
+      // Local credentials are cleared regardless, but a live server session
+      // might survive until the user revokes it from Rider Comms.
+      revocationUnconfirmed = true;
+    }
     if (Platform.OS === 'web') {
       try { window.sessionStorage.removeItem('rider_social_age_ack_v1'); } catch { /* no storage */ }
     }
@@ -163,6 +168,9 @@ export function SocialAuthGate({ children }: { children: React.ReactNode }) {
     setAgeChecked(false);
     setPassword('');
     setNotice('');
+    if (revocationUnconfirmed) setError(
+      'Signed out on this device. The server session may still be active. Revoke it from Rider Comms when connected.'
+    );
   };
   const submit = async () => {
     if (busy) return;
@@ -342,7 +350,8 @@ export function SocialAuthGate({ children }: { children: React.ReactNode }) {
           </> : null}
           {error ? <View style={{ gap: 7 }}>
             <InlineMessage message={error}
-              label={error.includes('unreachable') ? 'Connection unavailable' : 'Sign-in problem'}/>
+              label={error.startsWith('Signed out on this device') ? 'Session safety'
+                : error.includes('unreachable') ? 'Connection unavailable' : 'Sign-in problem'}/>
             {mode === 'login' && error.includes('verify your session') ? <Pressable
               accessibilityRole="button" accessibilityLabel="Retry session check" onPress={retry}
               style={{ paddingVertical: 8 }}>
