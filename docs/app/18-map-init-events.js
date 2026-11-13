@@ -248,6 +248,7 @@
     $('#copyRideCode').addEventListener('click', async () => { try { await navigator.clipboard.writeText(state.activeRide.code); showToast('Ride code copied.'); } catch { shareRide(); } });
     $('#openRideMap').addEventListener('click', () => navigate('map'));
     $('#ridePill').addEventListener('click', () => navigate('ride'));
+    $('#regroupChip')?.addEventListener('click', showRegroupPoint);
     $('#friendSearch').addEventListener('input', renderFriends);
     $('#chatBack').addEventListener('click', () => {
       if (location.hash === '#friends/chat') history.back();

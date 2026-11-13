@@ -40,6 +40,7 @@ import {
   buildNavigationPathIndex,
   matchFixToPath,
   navigationFixAgeSeconds,
+  navigationPuckConeDegrees,
   navigationRouteStatus,
   predictNavigationPuck,
 } from '@rider-comms/shared';
@@ -61,6 +62,8 @@ export interface NavigationPuckPlacement {
   now: { lat: number; lon: number };
   target: { lat: number; lon: number };
   glideMs: number;
+  /** Screen direction of the cone around the puck; null hides it. */
+  coneDegrees: number | null;
 }
 
 export interface InAppNavigation {
@@ -147,6 +150,9 @@ export function useInAppNavigation(
   const navigationStepIndexRef = React.useRef(0);
   const navigationMutedRef = React.useRef(false);
   const navigationCameraHeading = React.useRef<number | null>(null);
+  // The map's rotation as last set by the app (heading-up follow, or north
+  // up for the overview), for the puck's direction cone.
+  const mapHeadingRef = React.useRef(0);
   // Learned per device: how far the map SDK's real perspective is from the
   // shared camera model (Apple Maps and Google Maps differ).
   const navigationCameraCorrection = React.useRef(1);
@@ -163,6 +169,7 @@ export function useInAppNavigation(
     navigationFollowingRef.current = false;
     setNavigationFollowing(false);
     navigationCameraHeading.current = null;
+    mapHeadingRef.current = 0;
     mapRef.current?.fitToCoordinates(
       nextRoute.coordinates.map((coordinate) => ({ latitude: coordinate.lat, longitude: coordinate.lon })),
       {
@@ -258,6 +265,7 @@ export function useInAppNavigation(
     // While moving, glide with the puck to its next predicted position.
     const gliding = glideMs > 0 && movingSpeed !== null && movingSpeed > 1.5;
     const transitionDuration = gliding ? glideMs : movingSpeed !== null && movingSpeed <= 1.5 ? 650 : 500;
+    mapHeadingRef.current = heading;
     if (reduceMotionEnabled) {
       mapRef.current?.setCamera(camera);
     } else {
@@ -480,13 +488,23 @@ export function useInAppNavigation(
         const ahead = predictNavigationPuck(puckPath, match, speed, age + NAV_PUCK_GLIDE_MS / 1000);
         const here = { lat: current.lat, lon: current.lon };
         const target = { lat: ahead.lat, lon: ahead.lon };
-        setNavigationPuck({ now: here, target, glideMs: NAV_PUCK_GLIDE_MS });
         // On the route, its direction is steadier than the GPS course.
         const cameraHeading = match.snapped && ahead.bearingDegrees !== null ? ahead.bearingDegrees : position.coords.heading;
+        // Placed after the camera moves, so the cone is measured against the
+        // map's new rotation.
+        const placePuck = () => setNavigationPuck({
+          now: here,
+          target,
+          glideMs: NAV_PUCK_GLIDE_MS,
+          coneDegrees: navigationPuckConeDegrees(cameraHeading, mapHeadingRef.current),
+        });
 
         const stepIndex = navigationStepIndexRef.current;
         const startingStep = activeRoute.steps[stepIndex];
-        if (!startingStep) return;
+        if (!startingStep) {
+          placePuck();
+          return;
+        }
 
         if (
           stepIndex === activeRoute.steps.length - 1 &&
@@ -518,6 +536,7 @@ export function useInAppNavigation(
           position.coords.speed,
           NAV_PUCK_GLIDE_MS,
         );
+        placePuck();
 
         const upcomingIndex = effectiveIndex + 1;
         const upcomingStep = activeRoute.steps[upcomingIndex];

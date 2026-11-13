@@ -1,9 +1,11 @@
 import { isCoordinate, readJsonBody, sendJson } from '../serverHttp.ts';
-import { NOT_HANDLED, rideBody } from './context.ts';
+import { normalizeRegroupLabel } from '@rider-comms/shared';
+import { containsSevereText } from '../contentFilter.ts';
+import { NOT_HANDLED, countFilterRejection, rideBody } from './context.ts';
 import type { RouteContext } from './context.ts';
 
 export async function handleRideRoutes(ctx: RouteContext): Promise<unknown> {
-  const { req, res, url, actorId, s, rideStore, revokeRideVoiceParticipants, visibleRideLocationsFor } = ctx;
+  const { req, res, url, actorId, s, rideStore, revokeRideVoiceParticipants, visibleRideLocationsFor, adminStatsStore } = ctx;
   if (req.method === 'GET' && url.pathname === '/rides/current') {
     const current = await rideStore.getCurrentRideForMember(actorId);
     return sendJson(res, 200, { ride: current ? {
@@ -31,6 +33,22 @@ export async function handleRideRoutes(ctx: RouteContext): Promise<unknown> {
       const r = await rideStore.removeMember(id, actorId, memberId);
       if (r.ok) await revokeRideVoiceParticipants(id, [memberId]);
       return r.ok ? sendJson(res, 200, rideBody(r.ride)) : sendJson(res, r.reason === 'not_found' ? 404 : 403, { error: r.reason });
+    }
+    // The host's regroup point: a place every member sees on the map.
+    if (s[2] === 'regroup' && s.length === 3 && (req.method === 'PUT' || req.method === 'DELETE')) {
+      let point = null;
+      if (req.method === 'PUT') {
+        const body = await readJsonBody(req);
+        if (!isCoordinate(body.lat, body.lon)) return sendJson(res, 400, { error: 'valid lat and lon are required' });
+        const label = normalizeRegroupLabel(body.label);
+        if (containsSevereText(label)) {
+          countFilterRejection(adminStatsStore);
+          return sendJson(res, 400, { error: 'objectionable_content' });
+        }
+        point = { lat: body.lat as number, lon: body.lon as number, label };
+      }
+      const r = await rideStore.setRegroupPoint(id, actorId, point);
+      return r.ok ? sendJson(res, 200, { regroup: r.ride.regroup }) : sendJson(res, r.reason === 'not_found' ? 404 : 403, { error: r.reason });
     }
     if (req.method === 'PUT' && s[2] === 'location-sharing') {
       const body = await readJsonBody(req);

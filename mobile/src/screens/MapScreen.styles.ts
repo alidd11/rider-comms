@@ -268,6 +268,20 @@ export const styles = StyleSheet.create({
   },
   destinationPrimaryTitle: { ...type.button, color: colors.accentText, lineHeight: 19 },
   destinationPrimarySubtitle: { ...type.caption, color: colors.accentText, opacity: 0.72, marginTop: 1 },
+  // The ride host's "Regroup here" / "Clear regroup point".
+  destinationSecondaryAction: {
+    minHeight: MIN_TOUCH_TARGET,
+    marginTop: spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  destinationSecondaryTitle: { ...type.button, color: colors.textPrimary },
+  destinationActionError: { ...type.caption, color: colors.danger, marginTop: spacing.xs, textAlign: 'center' },
   navigationActions: {
     position: 'absolute',
     right: spacing.md,

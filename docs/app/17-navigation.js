@@ -318,10 +318,33 @@
 
   function updateNavigationPositionIcon() {
     if (!userMapMarker || !navSteps.length) return;
-    // Navigation keeps the rider's persisted identity instead of replacing it
-    // with a generic blue chevron. Heading-up mode rotates the provider map
-    // beneath this marker, so the chosen avatar can remain screen-upright.
-    userMapMarker.setIcon?.(riderAvatarMapIcon(state.profile, true, undefined, 64, true));
+    // Navigation keeps the rider's chosen avatar, upright on screen, and adds
+    // a cone pointing the way they are travelling (shared
+    // navigationPuckConeDegrees): up while the map follows heading-up, turned
+    // when the rider has panned or opened the overview.
+    const mapHeading = navFollowing && Number.isFinite(navCameraHeading) ? navCameraHeading : map?.getHeading?.();
+    const cone = navigationPuck?.navigationPuckConeDegrees(navPuckTravelHeading, mapHeading) ?? null;
+    const key = `${state.profile.avatarId}:${cone}`;
+    if (userMapMarker.getIcon?.()?.navPuckKey === key) return;
+    userMapMarker.setIcon?.(navigationPuckIcon(cone, key));
+  }
+
+  function navigationPuckIcon(cone, key) {
+    const puck = navigationPuck;
+    const box = puck?.PUCK_BOX_SIZE ?? 64;
+    const avatarSize = puck?.PUCK_AVATAR_SIZE ?? 64;
+    const inset = (box - avatarSize) / 2;
+    const avatar = riderAvatarSvg(state.profile.avatarId, { selected: true, mapMarker: false, status: 'none', standalone: true, groupRing: false })
+      .replace('<svg ', `<svg x="${inset}" y="${inset}" width="${avatarSize}" height="${avatarSize}" `);
+    const centre = box / 2;
+    const coneSvg = cone === null || !puck ? '' : `<defs><linearGradient id="navPuckBeam" x1="0" y1="1" x2="0" y2="0"><stop offset=".3" stop-color="${puck.PUCK_CONE_COLOR}" stop-opacity=".5"/><stop offset="1" stop-color="${puck.PUCK_CONE_COLOR}" stop-opacity="0"/></linearGradient></defs><g transform="rotate(${cone} ${centre} ${centre})"><path d="${puck.PUCK_CONE_BEAM_PATH}" fill="url(#navPuckBeam)"/><path d="${puck.PUCK_CONE_ARROW_PATH}" fill="${puck.PUCK_CONE_COLOR}" stroke="#fff" stroke-width="2" stroke-linejoin="round"/></g>`;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${box}" height="${box}" viewBox="0 0 ${box} ${box}">${coneSvg}${avatar}</svg>`;
+    return {
+      url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
+      scaledSize: new google.maps.Size(box, box),
+      anchor: new google.maps.Point(centre, centre),
+      navPuckKey: key,
+    };
   }
 
   function stopNavigationCameraAnimation() {
@@ -414,7 +437,10 @@
     const heading = navigationCamera.stabilizeNavigationHeading(navCameraHeading, candidateHeading, movingSpeed);
     navCameraHeading = heading;
 
-    if (!navFollowing) return;
+    if (!navFollowing) {
+      updateNavigationPositionIcon();
+      return;
+    }
     // Centre straight ahead along the camera heading, so the rider stays
     // centred left-to-right and lands in the clear band between the banner
     // and the trip summary however tall those are.
@@ -782,6 +808,7 @@
     const raw = { lat: coords.latitude, lng: coords.longitude };
     if (!navigationPuck || !navPuckPath) {
       userMapMarker?.setPosition?.(raw);
+      navPuckTravelHeading = coords.heading;
       return { now: raw, target: raw, heading: coords.heading };
     }
     const nowMs = Date.now();
@@ -807,6 +834,7 @@
     }
     // On the route, its direction is steadier than the GPS course.
     const heading = match.snapped && Number.isFinite(ahead.bearingDegrees) ? ahead.bearingDegrees : coords.heading;
+    navPuckTravelHeading = heading;
     return { now, target, heading };
   }
 
@@ -871,6 +899,7 @@
     navPuckPath = null;
     navPuckAlongMeters = null;
     navPuckPlaced = false;
+    navPuckTravelHeading = null;
     removeAnimatedMarker('self-nav');
     navStepIndex = 0;
     navDestination = null;

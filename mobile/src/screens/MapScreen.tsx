@@ -54,6 +54,7 @@ import { RiderAvatar } from '../components/RiderAvatar';
 import { NavigationManeuverGlyph } from '../components/NavigationManeuverGlyph';
 import { NavigationRoadAhead } from '../components/NavigationRoadAhead';
 import { HazardMarker, NavigationPuckMarker, SmoothSelfMarker, SmoothRideMemberMarker } from './mapMarkers';
+import { RegroupChip, RegroupMarker, isRegroupSpot, regroupTitle } from './RegroupPoint';
 import { useRideProfiles } from './useRideProfiles';
 import { useHazardReports } from './useHazardReports';
 import { useNavigationSummary } from './useNavigationSummary';
@@ -75,7 +76,10 @@ type Segment = 'public' | 'host';
 export function MapScreen(): React.JSX.Element {
   const colorScheme = useColorScheme();
   const { client, riderId } = useAuth();
-  const { activeRide, rideLocations, roster, shareRideLocation } = useRide();
+  const { activeRide, rideLocations, roster, shareRideLocation, setRegroupPoint } = useRide();
+  const regroup = activeRide?.regroup ?? null;
+  const [regroupError, setRegroupError] = React.useState(false);
+  const [regroupSaving, setRegroupSaving] = React.useState(false);
   const { shareLocation, setShareLocation, unitSystem, navigationProvider, routeAvoidance, spokenDirections, avatarId, displayName } = useSettings();
   const { lockedForSafety, speedMps, refreshTracking } = useMovementSafety();
   const { muted: voiceMuted, toggleMuted: toggleVoiceMuted, voiceConnected } = useVoiceMute();
@@ -375,9 +379,12 @@ export function MapScreen(): React.JSX.Element {
   const selectedDestination: NavigationTarget | null = navigationTarget ?? (selectedPlace
     ? { lat: selectedPlace.lat, lon: selectedPlace.lon, label: selectedPlace.name }
     : null);
-  const selectedDestinationSubtitle = navigationTarget
-    ? `${navigationTarget.lat.toFixed(5)}, ${navigationTarget.lon.toFixed(5)}`
-    : selectedPlace?.address ?? '';
+  const selectedIsRegroup = isRegroupSpot(regroup, selectedDestination);
+  const selectedDestinationSubtitle = selectedIsRegroup
+    ? 'Regroup point · set by the host'
+    : navigationTarget
+      ? `${navigationTarget.lat.toFixed(5)}, ${navigationTarget.lon.toFixed(5)}`
+      : selectedPlace?.address ?? '';
   const selectedDestinationProvider = navigationProvider === 'in_app'
     ? 'In Rider Comms'
     : `Open in ${navigationProviderLabel(navigationProvider)}`;
@@ -412,6 +419,32 @@ export function MapScreen(): React.JSX.Element {
       return;
     }
     focusCoordinate(location);
+  }
+
+  // A failed regroup attempt's message belongs to that place only.
+  React.useEffect(() => {
+    setRegroupError(false);
+  }, [selectedDestination?.lat, selectedDestination?.lon]);
+
+  /** Shows the regroup point in the destination card (one tap to route). */
+  function showRegroupPoint(): void {
+    if (!regroup) return;
+    setSegment('public');
+    setSelectedHazardId(null);
+    setSelectedPlace(null);
+    setNavigationTarget({ lat: regroup.lat, lon: regroup.lon, label: regroupTitle(regroup) });
+  }
+
+  async function toggleRegroupPoint(destination: NavigationTarget, clear: boolean): Promise<void> {
+    setRegroupSaving(true);
+    setRegroupError(false);
+    const saved = await setRegroupPoint(clear ? null : {
+      lat: destination.lat,
+      lon: destination.lon,
+      label: destination.label ?? '',
+    });
+    setRegroupSaving(false);
+    setRegroupError(!saved);
   }
 
   function selectPlace(place: PlaceResult): void {
@@ -522,6 +555,7 @@ export function MapScreen(): React.JSX.Element {
                 now={navigationPuck?.now ?? selfMapLocation}
                 target={navigationPuck?.target ?? selfMapLocation}
                 glideMs={navigationPuck?.glideMs ?? 0}
+                coneDegrees={navigationPuck?.coneDegrees ?? null}
                 avatarId={avatarId}
                 displayName={displayName}
                 description={shareRideLocation ? 'Your live group-ride location' : 'Your location'}
@@ -598,6 +632,7 @@ export function MapScreen(): React.JSX.Element {
                 ) : null}
               </>
             )}
+            {regroup ? <RegroupMarker point={regroup} onPress={showRegroupPoint} /> : null}
             {visibleMapHazards.map((hazard) => (
               <HazardMarker
                 key={hazard.id}
@@ -670,6 +705,17 @@ export function MapScreen(): React.JSX.Element {
           <View style={[styles.mapStatusDot, activeRide ? styles.mapStatusDotRide : publicLive ? styles.mapStatusDotLive : null]} />
           <Text style={styles.mapStatusText} numberOfLines={1}>{mapStatusText}</Text>
         </View>
+      )}
+
+      {segment === 'public' && regroup && !activeRoute && !selectedDestination && !selectedHazard && (
+        <RegroupChip
+          point={regroup}
+          from={currentLocation}
+          unitSystem={unitSystem}
+          // Under the Nearby status chip, which hides while riding.
+          top={insets.top + spacing.sm + MIN_TOUCH_TARGET + spacing.sm + (lockedForSafety || error ? 0 : 38)}
+          onPress={showRegroupPoint}
+        />
       )}
 
       {segment === 'public' && !selectedDestination && !activeRoute && (
@@ -825,7 +871,7 @@ export function MapScreen(): React.JSX.Element {
         <View style={[styles.destinationCard, { bottom: insets.bottom + spacing.sm }]} accessibilityLiveRegion="polite">
           <View style={styles.destinationCardHead}>
             <View style={styles.destinationCardIcon}>
-              <Ionicons name="location" size={20} color={colors.accent} />
+              <Ionicons name={selectedIsRegroup ? 'flag' : 'location'} size={20} color={colors.accent} />
             </View>
             <View style={styles.destinationCardCopy}>
               <Text numberOfLines={2} style={styles.destinationCardTitle}>
@@ -869,6 +915,25 @@ export function MapScreen(): React.JSX.Element {
               <Text style={styles.destinationPrimarySubtitle}>{selectedDestinationProvider}</Text>
             </View>
           </Pressable>
+          {activeRide?.isHost ? (
+            <Pressable
+              testID="regroup-action"
+              style={({ pressed }) => [styles.destinationSecondaryAction, pressed && pressedFeedback]}
+              accessibilityRole="button"
+              accessibilityLabel={selectedIsRegroup ? 'Clear the regroup point' : `Ask the group to regroup at ${selectedDestination.label ?? 'this place'}`}
+              accessibilityState={{ disabled: regroupSaving, busy: regroupSaving }}
+              disabled={regroupSaving}
+              onPress={() => void toggleRegroupPoint(selectedDestination, selectedIsRegroup)}
+            >
+              <Ionicons name={selectedIsRegroup ? 'close' : 'flag'} size={18} color={colors.textPrimary} />
+              <Text style={styles.destinationSecondaryTitle}>{selectedIsRegroup ? 'Clear regroup point' : 'Regroup here'}</Text>
+            </Pressable>
+          ) : null}
+          {activeRide?.isHost && regroupError ? (
+            <Text style={styles.destinationActionError} accessibilityLiveRegion="polite">
+              Couldn’t reach Rider Comms. Check your connection and try again.
+            </Text>
+          ) : null}
         </View>
       )}
 

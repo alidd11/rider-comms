@@ -910,4 +910,15 @@ export const MIGRATIONS: Migration[] = [
         );
     `,
   },
+  {
+    // The host's regroup point for the group (a place, not anyone's
+    // position); it goes when the ride ends, with the row.
+    name: '0053_ride_regroup_point',
+    sql: `
+      ALTER TABLE rides ADD COLUMN IF NOT EXISTS regroup_lat DOUBLE PRECISION;
+      ALTER TABLE rides ADD COLUMN IF NOT EXISTS regroup_lon DOUBLE PRECISION;
+      ALTER TABLE rides ADD COLUMN IF NOT EXISTS regroup_label TEXT;
+      ALTER TABLE rides ADD COLUMN IF NOT EXISTS regroup_set_at BIGINT;
+    `,
+  },
 ];

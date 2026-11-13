@@ -2,6 +2,7 @@ import * as React from 'react';
 import * as Location from 'expo-location';
 import { AppState } from 'react-native';
 import { useAuth } from '../auth/AuthContext';
+import type { RegroupPoint } from '@rider-comms/shared';
 import { ApiError, type RideMemberLocation } from '../api/client';
 
 export const RIDE_LOCATION_REFRESH_MS = 10_000;
@@ -18,6 +19,8 @@ export interface ActiveRide {
   code?: string;
   isHost: boolean;
   shareRideLocation?: boolean;
+  /** Where the host has asked the group to meet up. */
+  regroup?: RegroupPoint | null;
 }
 
 interface Value {
@@ -32,6 +35,8 @@ interface Value {
   rideLocationsUnreachable: boolean;
   shareRideLocation: boolean;
   setRideLocationSharing: (enabled: boolean) => Promise<boolean>;
+  /** Host only: sets (or with null clears) the group's regroup point. */
+  setRegroupPoint: (point: { lat: number; lon: number; label: string } | null) => Promise<boolean>;
 }
 
 const RideContext = React.createContext<Value | null>(null);
@@ -78,6 +83,7 @@ export function RideProvider({ children }: { children: React.ReactNode }): React
           code: ride.code || undefined,
           isHost: ride.createdBy === riderId,
           shareRideLocation: ride.shareRideLocation === true,
+          regroup: ride.regroup ?? null,
         } : null);
         setRoster(ride?.memberIds ?? []);
         if (!ride?.shareRideLocation) setRideLocations([]);
@@ -136,6 +142,20 @@ export function RideProvider({ children }: { children: React.ReactNode }): React
     return setSharingForRide(activeRide.rideId, enabled);
   }, [activeRide, setSharingForRide]);
 
+  const setRegroupPoint = React.useCallback(async (point: { lat: number; lon: number; label: string } | null) => {
+    const ride = activeRide;
+    if (!ride?.isHost) return false;
+    try {
+      const { regroup } = point
+        ? await client.setRideRegroup(ride.rideId, point)
+        : await client.clearRideRegroup(ride.rideId);
+      setActiveRide((current) => current?.rideId === ride.rideId ? { ...current, regroup } : current);
+      return true;
+    } catch {
+      return false;
+    }
+  }, [activeRide, client]);
+
   const leaveRide = React.useCallback(async () => {
     const ride = activeRide;
     if (!ride) return;
@@ -177,6 +197,7 @@ export function RideProvider({ children }: { children: React.ReactNode }): React
             ...current, isHost: ride.createdBy === riderId,
             shareRideLocation: ride.shareRideLocation === true,
             code: ride.code || undefined,
+            regroup: ride.regroup ?? null,
           } : current);
         }
       } catch (error) {
@@ -269,7 +290,8 @@ export function RideProvider({ children }: { children: React.ReactNode }): React
     rideLocationsUnreachable,
     shareRideLocation: activeRide?.shareRideLocation === true,
     setRideLocationSharing,
-  }), [activeRide, startRide, leaveRide, roster, removeRider, rideLocations, rideLocationsUnreachable, setRideLocationSharing]);
+    setRegroupPoint,
+  }), [activeRide, startRide, leaveRide, roster, removeRider, rideLocations, rideLocationsUnreachable, setRideLocationSharing, setRegroupPoint]);
 
   return <RideContext.Provider value={value}>{children}</RideContext.Provider>;
 }

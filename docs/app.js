@@ -235,25 +235,21 @@
     return first.length > 12 ? `${first.slice(0, 11)}…` : first;
   }
 
-  function riderAvatarMapIcon(person, current = false, statusOverride, sizeOverride, navigationMode = false) {
-    const status = navigationMode
-      ? 'none'
-      : statusOverride || (current
-        ? (state.profile.shareLocation || state.activeRide?.shareRideLocation ? 'online' : 'none')
-        : 'online');
+  function riderAvatarMapIcon(person, current = false, statusOverride) {
+    const status = statusOverride || (current
+      ? (state.profile.shareLocation || state.activeRide?.shareRideLocation ? 'online' : 'none')
+      : 'online');
     // Other markers on the map are always group-ride members (Nearby riders
     // never get exact locations), so they wear the group ring.
-    const groupRing = !current && !navigationMode;
-    const svg = riderAvatarSvg(person.avatarId, { selected: current, mapMarker: !navigationMode, status, standalone: true, groupRing });
-    const width = sizeOverride ?? (current ? 44 : 40);
-    const height = navigationMode ? width : width * (72 / 64);
+    const groupRing = !current;
+    const svg = riderAvatarSvg(person.avatarId, { selected: current, mapMarker: true, status, standalone: true, groupRing });
+    const width = current ? 44 : 40;
+    const height = width * (72 / 64);
     return {
       url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
       scaledSize: new google.maps.Size(width, height),
       labelOrigin: new google.maps.Point(width / 2, height + 11),
-      anchor: navigationMode
-        ? new google.maps.Point(width / 2, height / 2)
-        : new google.maps.Point(width / 2, height - 1),
+      anchor: new google.maps.Point(width / 2, height - 1),
     };
   }
 
@@ -1144,6 +1140,7 @@
 
   function renderMapRiders() {
     renderHazardMarkers();
+    renderRegroupPoint();
     const riders = visibleMapRiders();
     if (!map || usingFallbackMap) return renderFallbackMarkers([]);
     if (userMapMarker) {
@@ -2298,7 +2295,10 @@
     syncRideLocationSharing();
     syncVoiceConnection({ automatic: true });
     syncRideRosterPolling();
-    if (!active) return;
+    if (!active) {
+      renderRegroupPoint();
+      return;
+    }
     const ride = state.activeRide;
     const locationToggle = $('#activeRideLocationConsent');
     locationToggle.checked = ride.shareRideLocation === true;
@@ -2388,6 +2388,7 @@
         rideId: ride.rideId, code: ride.code, isHost: ride.createdBy === state.profile.riderId,
         createdBy: ride.createdBy, memberIds: ride.memberIds,
         shareRideLocation: ride.shareRideLocation === true,
+        regroup: ride.regroup ?? null,
         members: previous?.rideId === ride.rideId ? previous.members : undefined,
       } : null;
       if (ride) await stopPublicPresenceForRide();
@@ -2571,6 +2572,82 @@
     const button = $('#joinRideForm button[type="submit"]');
     if (!button || button.textContent === 'Joining…') return;
     button.disabled = !RIDE_CODE_PATTERN.test($('#rideCode').value);
+  }
+
+  // The group's regroup point (set by the host; GET /rides/current carries
+  // it): a flag on the map and a chip saying where and how far, one tap from
+  // the route there. The native MapScreen mirrors this (RegroupPoint.tsx).
+  let regroupMarker;
+  const REGROUP_FALLBACK_LABEL = 'Regroup point';
+
+  function regroupTitle(point) {
+    return point.label || REGROUP_FALLBACK_LABEL;
+  }
+
+  function isRegroupSpot(point, place) {
+    if (!point || !place) return false;
+    return metersBetween({ lat: point.lat, lng: point.lon }, place) < 10;
+  }
+
+  function regroupIcon() {
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="17" fill="#d39a42" stroke="#fff" stroke-width="3"/><path d="M14 29V12m0 0h12l-2.5 4.5L26 21H14" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    return {
+      url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
+      scaledSize: new google.maps.Size(40, 40),
+      anchor: new google.maps.Point(20, 20),
+    };
+  }
+
+  function renderRegroupPoint() {
+    const point = state.activeRide?.regroup || null;
+    const chip = $('#regroupChip');
+    if (chip) {
+      chip.hidden = !point;
+      if (point) {
+        const here = userMapMarker?.getPosition?.();
+        const distance = here ? formatNavDistance(metersBetween({ lat: here.lat(), lng: here.lng() }, { lat: point.lat, lng: point.lon })) : '';
+        $('#regroupChipText').textContent = ` · ${regroupTitle(point)}${distance ? ` · ${distance}` : ''}`;
+        chip.setAttribute('aria-label', `Regroup at ${regroupTitle(point)}${distance ? `, ${distance} away` : ''}`);
+      }
+    }
+    if (!map || usingFallbackMap || typeof google?.maps?.Marker !== 'function') return;
+    if (!point) {
+      regroupMarker?.setMap(null);
+      regroupMarker = undefined;
+      return;
+    }
+    if (!regroupMarker) {
+      regroupMarker = new google.maps.Marker({ map, icon: regroupIcon(), zIndex: 11 });
+      regroupMarker.addListener('click', showRegroupPoint);
+    }
+    regroupMarker.setPosition({ lat: point.lat, lng: point.lon });
+    regroupMarker.setTitle?.(`Regroup: ${regroupTitle(point)}`);
+  }
+
+  /** Shows the regroup point in the destination card (one tap to route). */
+  function showRegroupPoint() {
+    const point = state.activeRide?.regroup;
+    if (!point || typeof google?.maps?.LatLng !== 'function') return;
+    const location = new google.maps.LatLng(point.lat, point.lon);
+    map?.panTo?.(location);
+    showDestinationCard(location, regroupTitle(point), 'Regroup point · set by the host');
+  }
+
+  /** Host only: sets the regroup point at a place, or clears it. */
+  async function setRegroupPoint(point) {
+    const ride = state.activeRide;
+    if (!ride?.isHost) return false;
+    try {
+      const { regroup } = point
+        ? await apiFetch('PUT', `/rides/${encodeURIComponent(ride.rideId)}/regroup`, point)
+        : await apiFetch('DELETE', `/rides/${encodeURIComponent(ride.rideId)}/regroup`);
+      if (state.activeRide?.rideId === ride.rideId) state.activeRide.regroup = regroup;
+      persist();
+      renderRegroupPoint();
+      return true;
+    } catch {
+      return false;
+    }
   }
   // Each Settings option is its own full page with everything for it on the
   // page, not a sheet holding another list of sheets. Every control lives in
@@ -6081,6 +6158,15 @@
     return null;
   }
 
+  // The ride host's "Regroup here" / "Clear regroup point" (09-rides.js).
+  function regroupAction(lat, lng) {
+    if (!state.activeRide?.isHost) return '';
+    const atRegroup = isRegroupSpot(state.activeRide.regroup, { lat, lng });
+    return atRegroup
+      ? '<button type="button" class="destination-secondary-action" data-regroup-action="clear" aria-label="Clear the regroup point"><svg aria-hidden="true"><use href="#i-close"/></svg><span>Clear regroup point</span></button>'
+      : '<button type="button" class="destination-secondary-action" data-regroup-action="set"><svg aria-hidden="true"><use href="#i-flag"/></svg><span>Regroup here</span></button>';
+  }
+
   function hideDestinationCard() {
     $('#destinationCard').hidden = true;
   }
@@ -6098,8 +6184,25 @@
     const action = provider === 'in_app'
       ? `<button class="destination-primary-action" data-start-in-app-navigation aria-label="Start route in Rider Comms"><svg><use href="#i-nav-arrow"/></svg><span><strong>Start route</strong><small>In Rider Comms</small></span></button>`
       : `<a class="destination-primary-action" href="${navigationHref(provider, lat, lng, label)}" target="_blank" rel="noopener noreferrer" aria-label="Start route in ${escapeHtml(providerInfo.label)}"><svg><use href="#i-nav-arrow"/></svg><span><strong>Start route</strong><small>${escapeHtml(providerCaption)}</small></span></a>`;
-    card.innerHTML = `<div class="destination-card-head"><span class="destination-card-icon" aria-hidden="true"><svg><use href="#i-location"/></svg></span><div class="rider-card-copy"><strong>${escapeHtml(label || 'Selected place')}</strong><span>${escapeHtml(secondary)}</span></div><button class="destination-card-dismiss" aria-label="Dismiss destination" data-dismiss-destination>×</button></div><div class="destination-card-eta" data-destination-eta><svg aria-hidden="true"><use href="#i-route"/></svg><span>Calculating route…</span></div><div class="destination-card-actions">${action}</div>`;
+    card.innerHTML = `<div class="destination-card-head"><span class="destination-card-icon" aria-hidden="true"><svg><use href="#${isRegroupSpot(state.activeRide?.regroup, { lat, lng }) ? 'i-flag' : 'i-location'}"/></svg></span><div class="rider-card-copy"><strong>${escapeHtml(label || 'Selected place')}</strong><span>${escapeHtml(secondary)}</span></div><button class="destination-card-dismiss" aria-label="Dismiss destination" data-dismiss-destination>×</button></div><div class="destination-card-eta" data-destination-eta><svg aria-hidden="true"><use href="#i-route"/></svg><span>Calculating route…</span></div><div class="destination-card-actions">${action}${regroupAction(lat, lng)}</div>`;
     card.hidden = false;
+    $('[data-regroup-action]', card)?.addEventListener('click', async (event) => {
+      const button = event.currentTarget;
+      const clear = button.dataset.regroupAction === 'clear';
+      button.disabled = true;
+      $('.destination-action-error', card)?.remove();
+      const saved = await setRegroupPoint(clear ? null : { lat, lon: lng, label: label || '' });
+      if (!saved) {
+        button.disabled = false;
+        const message = document.createElement('p');
+        message.className = 'destination-action-error';
+        message.setAttribute('role', 'status');
+        message.textContent = 'Couldn’t reach Rider Comms. Check your connection and try again.';
+        button.after(message);
+        return;
+      }
+      showDestinationCard(location, label, address);
+    });
     $('[data-start-in-app-navigation]', card)?.addEventListener('click', () => void startInAppNavigation(location, label));
     $('[data-dismiss-destination]', card).addEventListener('click', () => {
       hideDestinationCard();
@@ -6196,6 +6299,8 @@
   let navPuckPath = null;
   let navPuckAlongMeters = null;
   let navPuckPlaced = false;
+  // The rider's direction of travel at the last fix, for the puck's cone.
+  let navPuckTravelHeading = null;
   // The puck and camera glide to where the rider will be when the next fix
   // is due (fixes arrive about once a second), so motion never stops.
   const NAV_PUCK_GLIDE_MS = 1000;
@@ -6722,10 +6827,33 @@
 
   function updateNavigationPositionIcon() {
     if (!userMapMarker || !navSteps.length) return;
-    // Navigation keeps the rider's persisted identity instead of replacing it
-    // with a generic blue chevron. Heading-up mode rotates the provider map
-    // beneath this marker, so the chosen avatar can remain screen-upright.
-    userMapMarker.setIcon?.(riderAvatarMapIcon(state.profile, true, undefined, 64, true));
+    // Navigation keeps the rider's chosen avatar, upright on screen, and adds
+    // a cone pointing the way they are travelling (shared
+    // navigationPuckConeDegrees): up while the map follows heading-up, turned
+    // when the rider has panned or opened the overview.
+    const mapHeading = navFollowing && Number.isFinite(navCameraHeading) ? navCameraHeading : map?.getHeading?.();
+    const cone = navigationPuck?.navigationPuckConeDegrees(navPuckTravelHeading, mapHeading) ?? null;
+    const key = `${state.profile.avatarId}:${cone}`;
+    if (userMapMarker.getIcon?.()?.navPuckKey === key) return;
+    userMapMarker.setIcon?.(navigationPuckIcon(cone, key));
+  }
+
+  function navigationPuckIcon(cone, key) {
+    const puck = navigationPuck;
+    const box = puck?.PUCK_BOX_SIZE ?? 64;
+    const avatarSize = puck?.PUCK_AVATAR_SIZE ?? 64;
+    const inset = (box - avatarSize) / 2;
+    const avatar = riderAvatarSvg(state.profile.avatarId, { selected: true, mapMarker: false, status: 'none', standalone: true, groupRing: false })
+      .replace('<svg ', `<svg x="${inset}" y="${inset}" width="${avatarSize}" height="${avatarSize}" `);
+    const centre = box / 2;
+    const coneSvg = cone === null || !puck ? '' : `<defs><linearGradient id="navPuckBeam" x1="0" y1="1" x2="0" y2="0"><stop offset=".3" stop-color="${puck.PUCK_CONE_COLOR}" stop-opacity=".5"/><stop offset="1" stop-color="${puck.PUCK_CONE_COLOR}" stop-opacity="0"/></linearGradient></defs><g transform="rotate(${cone} ${centre} ${centre})"><path d="${puck.PUCK_CONE_BEAM_PATH}" fill="url(#navPuckBeam)"/><path d="${puck.PUCK_CONE_ARROW_PATH}" fill="${puck.PUCK_CONE_COLOR}" stroke="#fff" stroke-width="2" stroke-linejoin="round"/></g>`;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${box}" height="${box}" viewBox="0 0 ${box} ${box}">${coneSvg}${avatar}</svg>`;
+    return {
+      url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
+      scaledSize: new google.maps.Size(box, box),
+      anchor: new google.maps.Point(centre, centre),
+      navPuckKey: key,
+    };
   }
 
   function stopNavigationCameraAnimation() {
@@ -6818,7 +6946,10 @@
     const heading = navigationCamera.stabilizeNavigationHeading(navCameraHeading, candidateHeading, movingSpeed);
     navCameraHeading = heading;
 
-    if (!navFollowing) return;
+    if (!navFollowing) {
+      updateNavigationPositionIcon();
+      return;
+    }
     // Centre straight ahead along the camera heading, so the rider stays
     // centred left-to-right and lands in the clear band between the banner
     // and the trip summary however tall those are.
@@ -7186,6 +7317,7 @@
     const raw = { lat: coords.latitude, lng: coords.longitude };
     if (!navigationPuck || !navPuckPath) {
       userMapMarker?.setPosition?.(raw);
+      navPuckTravelHeading = coords.heading;
       return { now: raw, target: raw, heading: coords.heading };
     }
     const nowMs = Date.now();
@@ -7211,6 +7343,7 @@
     }
     // On the route, its direction is steadier than the GPS course.
     const heading = match.snapped && Number.isFinite(ahead.bearingDegrees) ? ahead.bearingDegrees : coords.heading;
+    navPuckTravelHeading = heading;
     return { now, target, heading };
   }
 
@@ -7275,6 +7408,7 @@
     navPuckPath = null;
     navPuckAlongMeters = null;
     navPuckPlaced = false;
+    navPuckTravelHeading = null;
     removeAnimatedMarker('self-nav');
     navStepIndex = 0;
     navDestination = null;
@@ -7563,6 +7697,7 @@
     $('#copyRideCode').addEventListener('click', async () => { try { await navigator.clipboard.writeText(state.activeRide.code); showToast('Ride code copied.'); } catch { shareRide(); } });
     $('#openRideMap').addEventListener('click', () => navigate('map'));
     $('#ridePill').addEventListener('click', () => navigate('ride'));
+    $('#regroupChip')?.addEventListener('click', showRegroupPoint);
     $('#friendSearch').addEventListener('input', renderFriends);
     $('#chatBack').addEventListener('click', () => {
       if (location.hash === '#friends/chat') history.back();

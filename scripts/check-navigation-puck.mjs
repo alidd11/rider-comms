@@ -43,5 +43,8 @@ for (const distance of [-5, 0, 250, 500, 999, 2000]) {
   assert.deepEqual(browser.navigationPathPointAt(browserIndex, distance), shared.navigationPathPointAt(sharedIndex, distance));
 }
 assert.equal(browser.navigationFixAgeSeconds(1_000, 1_800), shared.navigationFixAgeSeconds(1_000, 1_800));
+for (const [travel, mapHeading] of [[87, 87], [10, 350], [358, 0], [45, null], [-1, 0], [null, 0]]) {
+  assert.equal(browser.navigationPuckConeDegrees(travel, mapHeading), shared.navigationPuckConeDegrees(travel, mapHeading), `cone ${travel}/${mapHeading}`);
+}
 
-console.log('Navigation puck PWA/native parity valid: map matching, route prediction and fix age agree');
+console.log('Navigation puck PWA/native parity valid: map matching, route prediction, fix age and heading cone agree');

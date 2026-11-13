@@ -397,3 +397,60 @@ test('PWA join failures say what to do next and keep the code to fix', async ({ 
   await page.locator('#joinRideForm button[type="submit"]').click();
   await expect(error).toHaveText('Couldn’t reach Rider Comms. Check your connection and try again.');
 });
+
+test('PWA shows the host’s regroup point to the group, and the host can clear and set it', async ({ page }) => {
+  const esso = { lat: 51.52, lon: -0.11, label: 'Esso, A1', setAt: 1 };
+  let regroup = esso;
+  const requests = [];
+  await mockAuthenticatedApi(page, 'stationary', ({ request, url }) => {
+    if (url.pathname === '/rides/current') return { body: { ride: {
+      rideId: 'ride-regroup-1', code: 'ABCDEF', createdBy: RIDER_ID,
+      memberIds: [RIDER_ID], shareRideLocation: false, regroup,
+    } } };
+    if (url.pathname === '/rides/ride-regroup-1/regroup') {
+      const body = request.postDataJSON?.() ?? null;
+      requests.push({ method: request.method(), body });
+      regroup = request.method() === 'PUT' ? { ...body, setAt: 2 } : null;
+      return { body: { regroup } };
+    }
+    return null;
+  });
+  await page.goto('/');
+  const chip = page.locator('#regroupChip');
+  await expect(chip).toBeVisible();
+  await expect(chip).toContainText('Regroup · Esso, A1');
+  expect((await chip.boundingBox()).height).toBeGreaterThanOrEqual(44);
+  await expect.poll(() => page.evaluate(() => (window.__riderCommsTestMarkers || [])
+    .some((marker) => marker.position?.lat === 51.52 && marker.position?.lng === -0.11))).toBe(true);
+
+  // One tap shows the place with its route; the host can clear it.
+  await chip.click();
+  const card = page.locator('#destinationCard');
+  await expect(card).toContainText('Esso, A1');
+  await expect(card).toContainText('Regroup point · set by the host');
+  await card.getByRole('button', { name: 'Clear the regroup point' }).click();
+  await expect(chip).toBeHidden();
+  expect(requests).toEqual([{ method: 'DELETE', body: null }]);
+
+  // With no regroup point the same place offers "Regroup here".
+  await card.getByRole('button', { name: 'Regroup here' }).click();
+  await expect(chip).toBeVisible();
+  expect(requests[1]).toEqual({ method: 'PUT', body: { lat: 51.52, lon: -0.11, label: 'Esso, A1' } });
+});
+
+test('PWA tells the host when the regroup point could not be saved', async ({ page }) => {
+  await mockAuthenticatedApi(page, 'stationary', ({ url }) => {
+    if (url.pathname === '/rides/current') return { body: { ride: {
+      rideId: 'ride-regroup-2', code: 'ABCDEF', createdBy: RIDER_ID, memberIds: [RIDER_ID], shareRideLocation: false,
+      regroup: { lat: 51.52, lon: -0.11, label: '', setAt: 1 },
+    } } };
+    if (url.pathname === '/rides/ride-regroup-2/regroup') return { status: 503, body: { error: 'unavailable' } };
+    return null;
+  });
+  await page.goto('/');
+  await expect(page.locator('#regroupChip')).toContainText('Regroup · Regroup point');
+  await page.locator('#regroupChip').click();
+  await page.getByRole('button', { name: 'Clear the regroup point' }).click();
+  await expect(page.locator('#destinationCard')).toContainText('Couldn’t reach Rider Comms. Check your connection and try again.');
+  await expect(page.getByRole('button', { name: 'Clear the regroup point' })).toBeEnabled();
+});

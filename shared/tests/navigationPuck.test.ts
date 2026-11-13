@@ -4,6 +4,7 @@ import {
   buildNavigationPathIndex,
   matchFixToPath,
   navigationFixAgeSeconds,
+  navigationPuckConeDegrees,
   navigationPathPointAt,
   predictNavigationPuck,
   type PuckCoordinate,
@@ -144,4 +145,21 @@ test('off-route needs a confident fix away from both the current and next step',
   assert.equal(navigationRouteStatus(140, 140, 85), 'unknown');
   // No accuracy reported: judge on distance alone.
   assert.equal(navigationRouteStatus(140, Number.NaN, undefined), 'off');
+});
+
+test('the cone points the way the rider travels relative to the rotated map', () => {
+  // Heading-up follow: the map turns with the rider, so the cone points up.
+  assert.equal(navigationPuckConeDegrees(87, 87), 0);
+  assert.equal(navigationPuckConeDegrees(90, 0), 90);
+  assert.equal(navigationPuckConeDegrees(10, 350), 20);
+  assert.equal(navigationPuckConeDegrees(350, 10), 340);
+  // Rounded to 5 degrees, and 358 wraps to straight up.
+  assert.equal(navigationPuckConeDegrees(92, 0), 90);
+  assert.equal(navigationPuckConeDegrees(358, 0), 0);
+  // An unknown map rotation counts as north-up.
+  assert.equal(navigationPuckConeDegrees(45, null), 45);
+  // No trustworthy direction hides the cone (iOS reports -1 when stopped).
+  assert.equal(navigationPuckConeDegrees(-1, 0), null);
+  assert.equal(navigationPuckConeDegrees(null, 0), null);
+  assert.equal(navigationPuckConeDegrees(Number.NaN, 0), null);
 });

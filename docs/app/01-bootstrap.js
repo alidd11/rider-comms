@@ -235,25 +235,21 @@
     return first.length > 12 ? `${first.slice(0, 11)}…` : first;
   }
 
-  function riderAvatarMapIcon(person, current = false, statusOverride, sizeOverride, navigationMode = false) {
-    const status = navigationMode
-      ? 'none'
-      : statusOverride || (current
-        ? (state.profile.shareLocation || state.activeRide?.shareRideLocation ? 'online' : 'none')
-        : 'online');
+  function riderAvatarMapIcon(person, current = false, statusOverride) {
+    const status = statusOverride || (current
+      ? (state.profile.shareLocation || state.activeRide?.shareRideLocation ? 'online' : 'none')
+      : 'online');
     // Other markers on the map are always group-ride members (Nearby riders
     // never get exact locations), so they wear the group ring.
-    const groupRing = !current && !navigationMode;
-    const svg = riderAvatarSvg(person.avatarId, { selected: current, mapMarker: !navigationMode, status, standalone: true, groupRing });
-    const width = sizeOverride ?? (current ? 44 : 40);
-    const height = navigationMode ? width : width * (72 / 64);
+    const groupRing = !current;
+    const svg = riderAvatarSvg(person.avatarId, { selected: current, mapMarker: true, status, standalone: true, groupRing });
+    const width = current ? 44 : 40;
+    const height = width * (72 / 64);
     return {
       url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
       scaledSize: new google.maps.Size(width, height),
       labelOrigin: new google.maps.Point(width / 2, height + 11),
-      anchor: navigationMode
-        ? new google.maps.Point(width / 2, height / 2)
-        : new google.maps.Point(width / 2, height - 1),
+      anchor: new google.maps.Point(width / 2, height - 1),
     };
   }
 

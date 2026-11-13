@@ -7,6 +7,7 @@
 
   function renderMapRiders() {
     renderHazardMarkers();
+    renderRegroupPoint();
     const riders = visibleMapRiders();
     if (!map || usingFallbackMap) return renderFallbackMarkers([]);
     if (userMapMarker) {

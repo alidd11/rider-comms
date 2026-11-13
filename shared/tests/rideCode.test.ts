@@ -5,6 +5,7 @@ import {
   createRideCodeRecord,
   generateRideCode,
   isRideCodeExpired,
+  normalizeRegroupLabel,
 } from '../src/rideCode.ts';
 
 describe('generateRideCode', () => {
@@ -52,5 +53,14 @@ describe('ride code expiration', () => {
   it('is not expired one millisecond before the TTL', () => {
     const record = createRideCodeRecord('ride-1', 1000);
     expect(isRideCodeExpired(record, record.createdAt + 999)).toBe(false);
+  });
+});
+
+describe('regroup labels', () => {
+  it('are one trimmed line of at most 80 characters, or empty', () => {
+    expect(normalizeRegroupLabel('  Esso,\n  A1 ')).toBe('Esso, A1');
+    expect(normalizeRegroupLabel('x'.repeat(100))).toHaveLength(80);
+    expect(normalizeRegroupLabel(undefined)).toBe('');
+    expect(normalizeRegroupLabel(42)).toBe('');
   });
 });

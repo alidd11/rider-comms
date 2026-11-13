@@ -46,10 +46,11 @@ test('native restores ride membership and consent from the server and ignores la
   });
   exports.RideProvider!({ children: null });
   const cleanup = effects[0]();
-  response({ rideId: 'server-ride', code: 'ABCDEF', createdBy: 'rider-a', memberIds: ['rider-a'], shareRideLocation: true });
+  const regroup = { lat: 51.6, lon: -0.2, label: 'Esso, A1', setAt: 1 };
+  response({ rideId: 'server-ride', code: 'ABCDEF', createdBy: 'rider-a', memberIds: ['rider-a'], shareRideLocation: true, regroup });
   await new Promise(resolve => setImmediate(resolve));
   assert.deepEqual({ ...(values.get(0) as Record<string, unknown>) }, {
-    rideId: 'server-ride', code: 'ABCDEF', isHost: true, shareRideLocation: true,
+    rideId: 'server-ride', code: 'ABCDEF', isHost: true, shareRideLocation: true, regroup,
   });
   assert.deepEqual(values.get(1), ['rider-a']);
   cleanup();

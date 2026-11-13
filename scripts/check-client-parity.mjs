@@ -263,7 +263,7 @@ for (const [label, source, patterns] of [
   ['PWA navigation', pwaMapSource, [
     /navFollowing/,
     /navMuted/,
-    /riderAvatarMapIcon\(state\.profile, true, undefined, 64, true\)/,
+    /navigationPuckIcon\(cone, key\)/,
     /applyNavigationCamera/,
     /showNavigationOverview/,
     /navMuteBtn/,
@@ -312,7 +312,7 @@ for (const [label, source, patterns] of [
   ['Native navigation', nativeMapSource, [
     /navigationFollowing/,
     /navigationMuted/,
-    /size=\{64\}/,
+    /size=\{PUCK_AVATAR_SIZE\}/,
     /size=\{44\}/,
     /focusNavigationCamera/,
     /navigationPromptProgress/,
@@ -505,8 +505,13 @@ if (!/navigationDestination \? \([\s\S]*flag-checkered[\s\S]*navigationDestinati
 if (!/mapMarker=\{false\}[\s\S]{0,40}selected status="none"/.test(nativeMapSource)) {
   throw new Error('Native navigation avatar must switch from a map pin to a clean navigation avatar');
 }
-if (!/mapMarker: !navigationMode/.test(pwaMapSource) || !/anchor: navigationMode/.test(pwaMapSource)) {
+if (!/function navigationPuckIcon[\s\S]*mapMarker: false[\s\S]*anchor: new google\.maps\.Point\(centre, centre\)/.test(pwaMapSource)) {
   throw new Error('PWA navigation avatar must switch from a map pin to a clean centred navigation avatar');
+}
+// Both apps point the puck's cone the same way (shared navigationPuckConeDegrees).
+if (!/navigationPuck\?\.navigationPuckConeDegrees\(navPuckTravelHeading, mapHeading\)/.test(pwaMapSource)
+  || !/navigationPuckConeDegrees\(cameraHeading, mapHeadingRef\.current\)/.test(await readFile(new URL('../mobile/src/screens/useInAppNavigation.ts', import.meta.url), 'utf8'))) {
+  throw new Error('Both apps must draw the navigation cone from the shared navigationPuckConeDegrees');
 }
 
 if (/translateY\(-32vh\)/.test(pwaCssSource)) {
@@ -551,6 +556,20 @@ if (!/navigationSummaryHeight \+ spacing\.md/.test(nativeMapSource)) {
 }
 if (!/onLayout=\{\(event\) => \{[\s\S]*setNavigationSummaryHeight/.test(nativeMapSource)) {
   throw new Error('Native navigation controls must follow the real ETA summary height including safe-area and text growth');
+}
+
+// The host's regroup point: a chip and a flag for every member, "Regroup
+// here" / "Clear regroup point" for the host, in both apps.
+{
+  const nativeRegroupSource = await readFile(new URL('../mobile/src/screens/RegroupPoint.tsx', import.meta.url), 'utf8');
+  for (const [label, source, patterns] of [
+    ['PWA', pwaMapSource + pwaIndexSource, [/id="regroupChip"/, /function renderRegroupPoint/, />Regroup here</, />Clear regroup point</, /Regroup point · set by the host/, /\/regroup`/]],
+    ['Native', nativeMapScreenSource + nativeRegroupSource, [/<RegroupChip/, /<RegroupMarker/, /'Regroup here'/, /'Clear regroup point'/, /Regroup point · set by the host/]],
+  ]) {
+    for (const pattern of patterns) {
+      if (!pattern.test(source)) throw new Error(`${label} regroup point is missing ${pattern}`);
+    }
+  }
 }
 
 console.log(`Client parity manifest valid: ${manifest.capabilities.length} capabilities tracked; map basemaps, navigation control dock, route-ahead alerts, maneuver glanceability, live speed and adaptive dedicated navigation aligned`);

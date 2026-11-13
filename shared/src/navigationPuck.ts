@@ -266,3 +266,34 @@ export function navigationRouteStatus(
     : Math.min(distanceToStepMeters, distanceToNextStepMeters);
   return nearest > NAV_OFF_ROUTE_RADIUS_M ? 'off' : 'on';
 }
+
+/** The cone turns in steps this size, so the marker is redrawn only when the
+ * change is visible. */
+export const PUCK_CONE_STEP_DEGREES = 5;
+
+/**
+ * Which way, clockwise from screen-up, the cone on the navigation puck points:
+ * the rider's direction of travel less the map's rotation. The avatar itself
+ * stays upright; the cone shows where the rider is heading, as Google and
+ * Apple Maps do. Null hides the cone (no trustworthy direction yet).
+ */
+export function navigationPuckConeDegrees(
+  travelHeadingDegrees: number | null | undefined,
+  mapHeadingDegrees: number | null | undefined,
+): number | null {
+  if (!Number.isFinite(travelHeadingDegrees) || Number(travelHeadingDegrees) < 0) return null;
+  const mapHeading = Number.isFinite(mapHeadingDegrees) ? Number(mapHeadingDegrees) : 0;
+  const relative = (((Number(travelHeadingDegrees) - mapHeading) % 360) + 360) % 360;
+  return (Math.round(relative / PUCK_CONE_STEP_DEGREES) * PUCK_CONE_STEP_DEGREES) % 360;
+}
+
+/** The navigation puck's drawing box (square, points); the avatar sits in the
+ * middle at PUCK_AVATAR_SIZE and the cone around it. */
+export const PUCK_BOX_SIZE = 96;
+export const PUCK_AVATAR_SIZE = 64;
+/** A soft beam either side of the direction of travel, drawn pointing up from
+ * the centre of the box and rotated by navigationPuckConeDegrees. */
+export const PUCK_CONE_BEAM_PATH = 'M48 48 L26.7 6.1 A47 47 0 0 1 69.3 6.1 Z';
+/** A solid arrowhead just outside the avatar, readable in sunlight. */
+export const PUCK_CONE_ARROW_PATH = 'M48 1.5 L58 15 L48 11 L38 15 Z';
+export const PUCK_CONE_COLOR = '#1f8fbf';
