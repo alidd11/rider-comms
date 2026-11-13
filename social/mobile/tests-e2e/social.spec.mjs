@@ -712,3 +712,44 @@ test('Create and Shop use immersive dedicated headers without losing profile nav
   await page.getByRole('tab', { name: 'Garage profile tab' }).click();
   await expect(page.getByText('Personal garage')).toBeVisible();
 });
+
+test('visual inventory captures each Social screen at mobile and desktop sizes', async ({ page }, testInfo) => {
+  // Every capture uses a synthetic auth session and isolated fixture media.
+  // The production preview deliberately hides fictional creators and listings.
+  await page.goto('/');
+  await mkdir('test-results/screenshots', { recursive: true });
+  const capture = async (screen) => page.screenshot({
+    path: 'test-results/screenshots/' + testInfo.project.name + '-inventory-' + screen + '.png',
+    animations: 'disabled',
+  });
+  await expect(page.getByRole('button', { name: 'Feed preferences' })).toBeVisible();
+  await capture('home');
+
+  await page.getByRole('tab', { name: 'Reels' }).click();
+  await expect(page.getByTestId('fixed-reels-screen')).toBeVisible();
+  await capture('reels');
+
+  await page.getByRole('tab', { name: 'Clubs' }).click();
+  await expect(page.getByText('Clubs & events')).toBeVisible();
+  await capture('clubs');
+
+  await page.getByRole('tab', { name: 'Shop' }).click();
+  await expect(page.getByTestId('shop-discovery')).toBeVisible();
+  await capture('shop');
+
+  await page.getByRole('button', { name: 'Open profile' }).click();
+  await expect(page.getByTestId('social-profile-summary')).toBeVisible();
+  await capture('profile-posts');
+  await page.getByRole('tab', { name: 'Reels profile tab' }).click();
+  await capture('profile-reels');
+  await page.getByRole('tab', { name: 'Garage profile tab' }).click();
+  await capture('profile-garage');
+
+  await page.getByRole('button', { name: 'Open messages' }).click();
+  await expect(page.getByTestId('shared-message-inbox')).toBeVisible();
+  await capture('messages');
+
+  await page.getByRole('tab', { name: 'Create' }).click();
+  await expect(page.getByTestId('create-studio')).toBeVisible();
+  await capture('create');
+});
