@@ -419,7 +419,8 @@ test('PWA shows the host’s regroup point to the group, and the host can clear 
   const chip = page.locator('#regroupChip');
   await expect(chip).toBeVisible();
   await expect(chip).toContainText('Regroup · Esso, A1');
-  expect((await chip.boundingBox()).height).toBeGreaterThanOrEqual(44);
+  // Layout can land a hair under a whole pixel (43.99999 on CI); round first.
+  expect(Math.round((await chip.boundingBox()).height)).toBeGreaterThanOrEqual(44);
   await expect.poll(() => page.evaluate(() => (window.__riderCommsTestMarkers || [])
     .some((marker) => marker.position?.lat === 51.52 && marker.position?.lng === -0.11))).toBe(true);
 
@@ -493,7 +494,7 @@ test('PWA ride ticket shows the code large with Copy code and Share invite', asy
   await expect.poll(() => page.evaluate(() => window.__copied)).toBe('K7Q2MX');
   await expect(page.getByRole('button', { name: 'Share invite' })).toBeVisible();
   for (const button of await ticket.locator('.ride-ticket-actions .button').all()) {
-    expect((await button.boundingBox()).height).toBeGreaterThanOrEqual(44);
+    expect(Math.round((await button.boundingBox()).height)).toBeGreaterThanOrEqual(44);
   }
 });
 
