@@ -1,4 +1,4 @@
-import { DEFAULT_PROFILE } from './garage';
+import { DEFAULT_PROFILE } from './garage.ts';
 import type { SocialProfileDraft } from './garage';
 
 /** Never present the original demo biography or public-draft flag as a real
