@@ -1,4 +1,4 @@
-/* global document, window, getComputedStyle, Event */
+/* global document, window, getComputedStyle, Event, navigator, requestAnimationFrame */
 import { test, expect } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import { Buffer } from 'node:buffer';
