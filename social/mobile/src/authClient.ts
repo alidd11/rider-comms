@@ -26,16 +26,15 @@ export interface TokenStorage {
   clear(): Promise<void>;
 }
 export interface SharedFriend {
-  riderId?: string;
-  id?: string;
-  handle?: string;
-  displayName?: string;
+  riderId: string;
+  handle: string;
+  displayName: string;
+  avatarId?: string;
 }
 export interface SharedConversation {
-  withRiderId?: string;
-  riderId?: string;
-  lastMessage?: string;
-  unreadCount?: number;
+  friend: SharedFriend;
+  lastMessage: { id: string; text: string; fromRiderId: string; toRiderId: string; createdAt: number };
+  unreadCount: number;
 }
 export class AccountApiError extends Error {
   readonly code: string;
