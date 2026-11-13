@@ -104,12 +104,12 @@ function assertSameOrder(labels, pwaSource, nativeSource, where) {
   }
 }
 assertSameOrder(
-  ['General', 'Map & navigation', 'Voice and sound', 'Riding', 'Ride Safe', 'Vehicle details', 'Notifications', 'Account', 'Account and login', 'Privacy', 'Your plan', 'Support', 'Help & Support', 'About'],
+  ['General', 'Map & navigation', 'Voice and sound', 'Notifications', 'Riding', 'Ride Safe', 'Vehicle details', 'Account', 'Account and login', 'Privacy', 'Your plan', 'Help & Support'],
   pwaSettingsList,
   nativeSettingsRoot,
   'Settings root',
 );
-for (const tint of ['#1FB6D9', '#2FB35F', '#3478F6', '#F2802A', '#8E5CF6', '#EF4444', '#2A8196', '#1E95E8', '#E0A100', '#5E6AD2', '#16A9D9']) {
+for (const tint of ['#1FB6D9', '#2FB35F', '#3478F6', '#EF4444', '#F2802A', '#8E5CF6', '#2A8196', '#1E95E8', '#E0A100', '#5E6AD2']) {
   if (!pwaSettingsList.toUpperCase().includes(tint) || !nativeSettingsRoot.toUpperCase().includes(tint)) {
     throw new Error(`Settings category tint drifted: ${tint}`);
   }
@@ -157,7 +157,7 @@ if (/id="logoutBtn"/.test(pwaIndexSource) || /title="Sign Out"/.test(nativeSetti
   throw new Error('Sign out lives in Account and login on both clients, not on the Settings root');
 }
 // The pages the root and category pages open, with the same tokens.
-for (const token of ['general', 'mapNavigation', 'voiceSound', 'rideSafe', 'vehicle', 'notifications', 'account', 'privacy', 'about']) {
+for (const token of ['general', 'mapNavigation', 'voiceSound', 'rideSafe', 'vehicle', 'notifications', 'account', 'privacy']) {
   if (!pwaMapSource.includes(`${token}: {`) || !pwaSettingsList.includes(`'${token}'`) || !nativeSettingsSource.includes(`page === '${token}'`) || !nativeSettingsSource.includes(`openPage('${token}')`)) {
     throw new Error(`Settings page drifted for ${token}`);
   }
@@ -166,6 +166,10 @@ for (const token of ['navigationApp', 'blockedRiders', 'email', 'devices']) {
   if (!pwaMapSource.includes(`${token}: {`) || !pwaMapSource.includes(`settingsLink('${token}'`) || !nativeSettingsSource.includes(`page === '${token}'`) || !nativeSettingsSource.includes(`page: '${token}'`)) {
     throw new Error(`Settings page drifted for ${token}`);
   }
+}
+// About is the last section of Help & Support on both clients.
+if (!pwaMapSource.includes("['Legal', 'legalLinks'], ['About', 'aboutCard']") || !nativeSettingsSource.includes('<AboutPage title="About" />')) {
+  throw new Error('About must close Help & Support on both clients');
 }
 // Help & Support's common questions are the same on both clients.
 const nativeFaqBlock = nativeSettingsSource.slice(nativeSettingsSource.indexOf('export const HELP_FAQ'), nativeSettingsSource.indexOf('function FaqItem('));

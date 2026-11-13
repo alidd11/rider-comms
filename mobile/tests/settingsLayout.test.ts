@@ -9,14 +9,14 @@ const settingsSource = await readFile(new URL('../src/screens/SettingsScreen.tsx
 describe('Settings mockup contract', () => {
   it('has a root of categories, each opening its own page', () => {
     const root = settingsSource.slice(settingsSource.indexOf('export function SettingsScreen()'), settingsSource.indexOf('function GeneralPage('));
-    const categories = ['title="General"', 'title="Map & navigation"', 'title="Voice and sound"', 'title="Riding"', 'title="Ride Safe"', 'title="Vehicle details"', 'title="Notifications"', 'title="Account"', 'title="Account and login"', 'title="Privacy"', 'title="Your plan"', 'title="Support"', 'title="Help & Support"', 'title="About"'];
+    const categories = ['title="General"', 'title="Map & navigation"', 'title="Voice and sound"', 'title="Notifications"', 'title="Riding"', 'title="Ride Safe"', 'title="Vehicle details"', 'title="Account"', 'title="Account and login"', 'title="Privacy"', 'title="Your plan"', 'title="Help & Support"'];
     let cursor = -1;
     for (const label of categories) {
       const next = root.indexOf(label, cursor + 1);
       assert.ok(next > cursor, `Expected ${label} after the previous Settings category`);
       cursor = next;
     }
-    assert.equal((root.match(/<CategoryRow /g) ?? []).length, 11);
+    assert.equal((root.match(/<CategoryRow /g) ?? []).length, 10);
     // The root shows the current choice where there is one.
     assert.match(root, /title="Vehicle details" value=\{riderVehicleLabel\(riderVehicle\)\}/);
     assert.match(root, /title="Your plan" value=\{PLAN_INFO\[zoneTier\]\.name\} onPress=\{\(\) => navigation\.push\('Billing'\)\}/);
@@ -65,10 +65,12 @@ describe('Settings mockup contract', () => {
   });
 
   it('opens a page only for choices and lists', () => {
-    for (const key of ['general', 'mapNavigation', 'voiceSound', 'rideSafe', 'vehicle', 'notifications', 'account', 'privacy', 'about']) {
+    for (const key of ['general', 'mapNavigation', 'voiceSound', 'rideSafe', 'vehicle', 'notifications', 'account', 'privacy']) {
       assert.ok(settingsSource.includes(`page === '${key}'`), `Missing Settings page: ${key}`);
       assert.ok(settingsSource.includes(`openPage('${key}')`), `Settings root doesn’t open page: ${key}`);
     }
+    // About closes Help & Support rather than taking a row on the root.
+    assert.ok(settingsSource.includes('<AboutPage title="About" />'), 'Help & Support must end with About');
     for (const key of ['navigationApp', 'blockedRiders', 'email', 'devices']) {
       assert.ok(settingsSource.includes(`page === '${key}'`), `Missing Settings page: ${key}`);
       assert.ok(settingsSource.includes(`navigation.push('SettingsPage', { page: '${key}' })`), `No row opens page: ${key}`);

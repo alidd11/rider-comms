@@ -122,11 +122,14 @@
   }
 
   const RIDE_ERROR_MESSAGES = {
-    invalid_or_expired: 'That invite code is invalid or has expired.',
-    ride_full: 'This ride is full (max 20 riders).',
-    rate_limited: 'Too many attempts. Wait a moment and try again.',
+    invalid_or_expired: 'That code doesn’t match an active ride. Check it with your host.',
+    ride_full: 'This ride is full (20 riders max). Ask the host to start another.',
+    rate_limited: 'Too many attempts. Wait a minute before trying again.',
     email_verification_required: 'Verify your email first: open the link we sent you (Settings → Account and login → Email).',
     terms_acceptance_required: 'Accept the latest Terms in Settings before riding with others.',
+    // No signal is a different problem from a bad code (start and join share these).
+    network_error: 'Couldn’t reach Rider Comms. Check your connection and try again.',
+    timed_out: 'Couldn’t reach Rider Comms. Check your connection and try again.',
   };
 
   /** Creates a real private ride (POST /rides) — the backend returns the

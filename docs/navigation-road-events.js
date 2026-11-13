@@ -220,18 +220,6 @@
     }
   }
 
-  function navigationHazardCompactLabel(type) {
-    switch (type) {
-      case 'camera': return 'Mobile camera';
-      case 'police': return 'Police';
-      case 'hidden_police': return 'Hidden police';
-      case 'police_checkpoint': return 'Checkpoint';
-      case 'accident': return 'Accident';
-      case 'road_closure': return 'Road closure';
-      default: return 'Road alert';
-    }
-  }
-
   globalThis.RiderNavigationRoadEvents = Object.freeze({
     NAVIGATION_ALERT_ROUTE_CORRIDOR_METERS,
     NAVIGATION_ALERT_LOOKAHEAD_METERS,
@@ -241,7 +229,6 @@
     NAVIGATION_ALERT_MAX_LOCATION_ACCURACY_METERS,
     NAVIGATION_ALERT_DUPLICATE_ROUTE_GAP_METERS,
     HIDE_NET_DENIAL_THRESHOLD,
-    navigationHazardCompactLabel,
     navigationHazardLabel,
     navigationHazardsAhead,
   });

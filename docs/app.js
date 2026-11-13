@@ -213,7 +213,6 @@
     };
   }
   const {
-    navigationHazardCompactLabel,
     navigationHazardLabel,
     navigationHazardsAhead,
   } = window.RiderNavigationRoadEvents;
@@ -2408,11 +2407,14 @@
   }
 
   const RIDE_ERROR_MESSAGES = {
-    invalid_or_expired: 'That invite code is invalid or has expired.',
-    ride_full: 'This ride is full (max 20 riders).',
-    rate_limited: 'Too many attempts. Wait a moment and try again.',
+    invalid_or_expired: 'That code doesn’t match an active ride. Check it with your host.',
+    ride_full: 'This ride is full (20 riders max). Ask the host to start another.',
+    rate_limited: 'Too many attempts. Wait a minute before trying again.',
     email_verification_required: 'Verify your email first: open the link we sent you (Settings → Account and login → Email).',
     terms_acceptance_required: 'Accept the latest Terms in Settings before riding with others.',
+    // No signal is a different problem from a bad code (start and join share these).
+    network_error: 'Couldn’t reach Rider Comms. Check your connection and try again.',
+    timed_out: 'Couldn’t reach Rider Comms. Check your connection and try again.',
   };
 
   /** Creates a real private ride (POST /rides) — the backend returns the
@@ -2596,7 +2598,7 @@
     blockedRiders: { title: 'Blocked riders', sections: [['', 'blocked']], back: 'privacy' },
     email: { title: 'Email', sections: [['', 'emailStatus']], back: 'account' },
     devices: { title: 'Signed-in devices', sections: [['', 'sessions']], back: 'account' },
-    help: { title: 'Help & Support', sections: [['', 'helpContact'], ['Common questions', 'faq'], ['Riding safely', 'safetyGuidance'], ['Legal', 'legalLinks']] },
+    help: { title: 'Help & Support', sections: [['', 'helpContact'], ['Common questions', 'faq'], ['Riding safely', 'safetyGuidance'], ['Legal', 'legalLinks'], ['About', 'aboutCard']] },
     about: { title: 'About', sections: [['', 'aboutCard']] },
   };
   const SETTINGS_PAGE_FOR_SECTION = {
@@ -3175,11 +3177,12 @@
   // The Settings root: categories, each opening its own page, with the
   // current choice in grey where there is one (native: SettingsScreen()).
   const SETTINGS_CATEGORIES = [
-    ['', [['general', 'settings', 'General', '#1fb6d9'], ['mapNavigation', 'map', 'Map & navigation', '#2fb35f'], ['voiceSound', 'volume', 'Voice and sound', '#3478f6']]],
+    // Ten rows in four groups, so the list fits a phone screen without
+    // scrolling. About sits at the bottom of Help & Support.
+    ['', [['general', 'settings', 'General', '#1fb6d9'], ['mapNavigation', 'map', 'Map & navigation', '#2fb35f'], ['voiceSound', 'volume', 'Voice and sound', '#3478f6'], ['notifications', 'bell', 'Notifications', '#ef4444']]],
     ['Riding', [['rideSafe', 'shield', 'Ride Safe', '#f2802a'], ['vehicle', 'bike', 'Vehicle details', '#8e5cf6']]],
-    ['', [['notifications', 'bell', 'Notifications', '#ef4444']]],
     ['Account', [['account', 'user', 'Account and login', '#2a8196'], ['privacy', 'lock', 'Privacy', '#1e95e8'], ['plan', 'card', 'Your plan', '#e0a100']]],
-    ['Support', [['help', 'help', 'Help & Support', '#5e6ad2'], ['about', 'info', 'About', '#16a9d9']]],
+    ['', [['help', 'help', 'Help & Support', '#5e6ad2']]],
   ];
   function settingsCategoryValue(page) {
     if (page === 'general') return state.profile.unitSystem === 'km' ? 'Kilometres' : 'Miles';
@@ -6618,9 +6621,8 @@
 
     container.innerHTML = `<span class="nav-road-ahead-label">Reports ahead</span><span class="nav-road-ahead-events">${alerts.map((alert) => {
       const label = navigationHazardLabel(alert.hazard.type);
-      const displayLabel = navigationHazardCompactLabel(alert.hazard.type);
       const distance = formatNavDistance(alert.distanceAheadMeters);
-      return `<span class="nav-road-ahead-event" aria-label="${escapeHtml(label)}, ${escapeHtml(distance)} ahead">${hazardNavigationIconMarkup(alert.hazard.type)}<span>${escapeHtml(displayLabel)}</span><strong>${escapeHtml(distance)}</strong></span>`;
+      return `<span class="nav-road-ahead-event" aria-label="${escapeHtml(label)}, ${escapeHtml(distance)} ahead">${hazardNavigationIconMarkup(alert.hazard.type)}<strong>${escapeHtml(distance)}</strong></span>`;
     }).join('')}</span>`;
   }
 
@@ -7289,8 +7291,8 @@
     $('#app').classList.remove('nav-mode');
     renderMapChrome();
     if (arrived) {
-      showToast('You have arrived.');
-      if (announceArrival) speak('You have arrived at your destination.');
+      showToast('You’ve arrived.');
+      if (announceArrival) speak('You’ve arrived.');
     }
   }
 

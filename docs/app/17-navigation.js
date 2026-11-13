@@ -217,9 +217,8 @@
 
     container.innerHTML = `<span class="nav-road-ahead-label">Reports ahead</span><span class="nav-road-ahead-events">${alerts.map((alert) => {
       const label = navigationHazardLabel(alert.hazard.type);
-      const displayLabel = navigationHazardCompactLabel(alert.hazard.type);
       const distance = formatNavDistance(alert.distanceAheadMeters);
-      return `<span class="nav-road-ahead-event" aria-label="${escapeHtml(label)}, ${escapeHtml(distance)} ahead">${hazardNavigationIconMarkup(alert.hazard.type)}<span>${escapeHtml(displayLabel)}</span><strong>${escapeHtml(distance)}</strong></span>`;
+      return `<span class="nav-road-ahead-event" aria-label="${escapeHtml(label)}, ${escapeHtml(distance)} ahead">${hazardNavigationIconMarkup(alert.hazard.type)}<strong>${escapeHtml(distance)}</strong></span>`;
     }).join('')}</span>`;
   }
 
@@ -888,8 +887,8 @@
     $('#app').classList.remove('nav-mode');
     renderMapChrome();
     if (arrived) {
-      showToast('You have arrived.');
-      if (announceArrival) speak('You have arrived at your destination.');
+      showToast('You’ve arrived.');
+      if (announceArrival) speak('You’ve arrived.');
     }
   }
 

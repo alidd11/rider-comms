@@ -345,15 +345,12 @@ export function SettingsScreen(): React.JSX.Element {
           <CategoryRow first icon="settings" tint="#1FB6D9" title="General" value={UNIT_LABELS[unitSystem].name} onPress={() => openPage('general')} />
           <CategoryRow icon="map" tint="#2FB35F" title="Map & navigation" value={navigationAppLabel} onPress={() => openPage('mapNavigation')} />
           <CategoryRow icon="volume-high" tint="#3478F6" title="Voice and sound" onPress={() => openPage('voiceSound')} />
+          <CategoryRow icon="notifications" tint="#EF4444" title="Notifications" onPress={() => openPage('notifications')} />
         </SettingsGroup>
 
         <SettingsGroup compact title="Riding">
           <CategoryRow first icon="shield-checkmark" tint="#F2802A" title="Ride Safe" value={rideSafeEnabled ? 'On' : 'Off'} onPress={() => openPage('rideSafe')} />
-          <CategoryRow customIcon={<MotorbikeIcon size={20} color="#FFFFFF" />} tint="#8E5CF6" title="Vehicle details" value={riderVehicleLabel(riderVehicle)} onPress={() => openPage('vehicle')} />
-        </SettingsGroup>
-
-        <SettingsGroup compact>
-          <CategoryRow first icon="notifications" tint="#EF4444" title="Notifications" onPress={() => openPage('notifications')} />
+          <CategoryRow customIcon={<MotorbikeIcon size={18} color="#FFFFFF" />} tint="#8E5CF6" title="Vehicle details" value={riderVehicleLabel(riderVehicle)} onPress={() => openPage('vehicle')} />
         </SettingsGroup>
 
         <SettingsGroup compact title="Account">
@@ -362,9 +359,10 @@ export function SettingsScreen(): React.JSX.Element {
           <CategoryRow icon="card" tint="#E0A100" title="Your plan" value={PLAN_INFO[zoneTier].name} onPress={() => navigation.push('Billing')} />
         </SettingsGroup>
 
-        <SettingsGroup compact title="Support">
+        {/* About is the last section of Help & Support, so the ten rows fit
+            a phone screen. */}
+        <SettingsGroup compact>
           <CategoryRow first icon="help-buoy" tint="#5E6AD2" title="Help & Support" onPress={() => openPage('help')} />
-          <CategoryRow icon="information" tint="#16A9D9" title="About" onPress={() => openPage('about')} />
         </SettingsGroup>
 
       </ScrollView>
@@ -1004,16 +1002,17 @@ function HelpPage(): React.JSX.Element {
         <SettingsRow icon="document-text-outline" title="Terms of Service" onPress={() => open(LEGAL_LINKS.terms)} />
         <SettingsRow icon="people-outline" title="Community Guidelines" last onPress={() => open(LEGAL_LINKS.guidelines)} />
       </SettingsSection>
+      <AboutPage title="About" />
     </>
   );
 }
 
-function AboutPage(): React.JSX.Element {
+function AboutPage({ title }: { title?: string } = {}): React.JSX.Element {
   const { displayName, handle } = useSettings();
   const appVersion = Constants.expoConfig?.version ?? '0.1.0';
   return (
     <>
-      <PageSection>
+      <PageSection title={title}>
         <View style={styles.aboutSummary}>
           <Text style={styles.aboutTitle}>Rider Comms</Text>
           <Text style={styles.aboutSummaryValue}>Version {appVersion} · Native</Text>

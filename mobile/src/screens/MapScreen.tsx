@@ -391,7 +391,7 @@ export function MapScreen(): React.JSX.Element {
         progress: activeRoute.distanceMeters > 0 ? 1 - remainingNavigationMeters / activeRoute.distanceMeters : 0,
       }
       : null,
-    navigationNotice === 'You have arrived.',
+    navigationNotice === 'You’ve arrived.',
     // Within ~250 m of the turn, show every distance change.
     distanceToCurrentStepEnd < 250,
   );
@@ -898,7 +898,8 @@ export function MapScreen(): React.JSX.Element {
                 >
                   {navigationGlanceAction}
                 </Text>
-                <Text numberOfLines={1} accessible={false} style={styles.navigationProviderInstruction}>
+                {/* Two lines, so the road name after "onto" shows instead of an ellipsis. */}
+                <Text numberOfLines={2} accessible={false} style={styles.navigationProviderInstruction}>
                   {navigationGuidanceInstruction}
                 </Text>
               </View>
