@@ -195,6 +195,13 @@ export class RiderAccountClient {
       await this.storage.write(session.token);
       return identity;
     } catch (error) {
+      // Login may have created a live 30-day server session even if /auth/me
+      // fails validation. Best-effort revoke it rather than leave an orphan.
+      // Never log or retain its bearer value if revocation is unavailable.
+      if (this.token) {
+        try { await this.request('POST', '/auth/logout', {}, true); }
+        catch { /* No credentials survive this failed account validation. */ }
+      }
       await this.clear();
       throw error;
     }
@@ -224,6 +231,11 @@ export class RiderAccountClient {
   async logout(): Promise<void> {
     try {
       if (this.token) await this.request('POST', '/auth/logout', {}, true);
+    } catch (error) {
+      // An already invalid or revoked server session is effectively logged out.
+      // A transport/server failure is different: callers must warn that server
+      // revocation was not confirmed, although local credentials are cleared.
+      if (!(error instanceof AccountApiError && error.status === 401)) throw error;
     } finally { await this.clear(); }
   }
   async friends(): Promise<{ friends: SharedFriend[]; nextCursor?: string | null }> {
