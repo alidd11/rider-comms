@@ -345,6 +345,8 @@ function AuthenticatedSocialApp(): React.JSX.Element {
   function navigate(to: Screen) {
     setScreen(to);
     if (to === 'Create') setCreateMode('Post');
+    // Opening another section dismisses the Home feed settings panel.
+    if (to !== 'Home') setFeedPreferencesOpen(false);
     setNotice(null);
     setSelectedClub(null);
     setSelectedEvent(null);
@@ -558,7 +560,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
       {feedMode === 'forYou' ? <ScrollView horizontal showsHorizontalScrollIndicator={false}
         contentContainerStyle={s.storyRail}>
         <Pressable accessibilityRole="button" accessibilityLabel="Create story"
-          style={s.storyItem} onPress={()=>{setCreateMode('Story');navigate('Create');}}>
+          style={s.storyItem} onPress={()=>{navigate('Create');setCreateMode('Story');}}>
           <View style={[s.storyCircle,{borderColor:C.border}]}>
             <Ionicons name="add" color={C.accent} size={23}/>
           </View>
