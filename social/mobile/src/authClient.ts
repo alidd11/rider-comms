@@ -81,11 +81,18 @@ export class RiderAccountClient {
   private token: string | null = null;
   private user: AccountIdentity | null = null;
   private onExpired: (() => void) | null = null;
+  private readonly storage: TokenStorage;
+  private readonly transport: Fetcher;
+  private readonly origin: string;
   constructor(
-    private readonly storage: TokenStorage,
-    private readonly transport: Fetcher = (url, init) => fetch(url, init),
-    private readonly origin: string = RIDER_API_ORIGIN,
-  ) {}
+    storage: TokenStorage,
+    transport: Fetcher = (url, init) => fetch(url, init),
+    origin: string = RIDER_API_ORIGIN,
+  ) {
+    this.storage = storage;
+    this.transport = transport;
+    this.origin = origin;
+  }
   get identity(): AccountIdentity | null { return this.user; }
   setSessionExpiredHandler(handler: (() => void) | null) { this.onExpired = handler; }
   private async clear(): Promise<void> {
