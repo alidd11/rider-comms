@@ -53,7 +53,7 @@ test('Social account deletion requires explicit irreversible confirmation and cl
   await page.route(origin + '/auth/me', async route => {
     if (route.request().method() !== 'DELETE') return route.fallback();
     deletions += 1;
-    await route.fulfill({ status: 204, headers: cors });
+    await route.fulfill({ status: 200, contentType: 'application/json', headers: cors, body: '{}' });
   });
   await page.addInitScript((id) => {
     window.sessionStorage.setItem('rider_social_account_session_v1', 'synthetic-deletion-token');
