@@ -29,6 +29,7 @@
     { "id": "proximity-voice", "pwa": true, "native": true, "status": "parity" },
     { "id": "group-ride", "pwa": true, "native": true, "status": "parity" },
     { "id": "host-remove-rider", "pwa": true, "native": true, "status": "parity" },
+    { "id": "regroup-point", "pwa": true, "native": true, "status": "parity" },
     { "id": "private-ride-location", "pwa": true, "native": true, "status": "parity" },
     { "id": "hazards", "pwa": true, "native": true, "status": "parity" },
     { "id": "place-search", "pwa": true, "native": true, "status": "parity" },

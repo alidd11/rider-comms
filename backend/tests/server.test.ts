@@ -610,6 +610,38 @@ describe('authenticated API', () => {
     assert.equal(rejoin.status, 404);
     assert.deepEqual(await rejoin.json(), { error: 'invalid_or_expired' });
   });
+  it('lets the host set a regroup point that every member, and only members, see', needsDb, async () => {
+    const made = await postJson(ctx, 'regroup-host', '/rides', {});
+    const { rideId, code } = await made.json() as { rideId: string; code: string };
+    await postJson(ctx, 'regroup-member', '/rides/join', { code });
+    const put = (rider: string, body: unknown) => authenticatedFetch(ctx, rider, `/rides/${rideId}/regroup`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    assert.equal((await put('regroup-member', { lat: 51.6, lon: -0.2, label: 'Esso' })).status, 403);
+    assert.equal((await put('regroup-outsider', { lat: 51.6, lon: -0.2, label: 'Esso' })).status, 403);
+    assert.equal((await put('regroup-host', { lat: 200, lon: -0.2 })).status, 400);
+    const slur = await put('regroup-host', { lat: 51.6, lon: -0.2, label: 'you f a g o t' });
+    assert.deepEqual([slur.status, await slur.json()], [400, { error: 'objectionable_content' }]);
+    const set = await put('regroup-host', { lat: 51.6, lon: -0.2, label: '  Esso,\n  A1  ' });
+    assert.equal(set.status, 200);
+    const { regroup } = await set.json() as { regroup: { lat: number; lon: number; label: string; setAt: number } };
+    assert.deepEqual({ lat: regroup.lat, lon: regroup.lon, label: regroup.label }, { lat: 51.6, lon: -0.2, label: 'Esso, A1' });
+    assert.ok(regroup.setAt > 0);
+    const seen = await (await authenticatedFetch(ctx, 'regroup-member', `/rides/${rideId}`)).json() as { regroup: unknown };
+    assert.deepEqual(seen.regroup, regroup);
+    const current = await (await authenticatedFetch(ctx, 'regroup-member', '/rides/current')).json() as { ride: { regroup: unknown } };
+    assert.deepEqual(current.ride.regroup, regroup);
+    assert.equal((await authenticatedFetch(ctx, 'regroup-outsider', `/rides/${rideId}`)).status, 404);
+    // A dropped pin has no name.
+    const pin = await put('regroup-host', { lat: 51.61, lon: -0.21 });
+    assert.equal((await pin.json() as { regroup: { label: string } }).regroup.label, '');
+    assert.equal((await authenticatedFetch(ctx, 'regroup-member', `/rides/${rideId}/regroup`, { method: 'DELETE' })).status, 403);
+    const cleared = await authenticatedFetch(ctx, 'regroup-host', `/rides/${rideId}/regroup`, { method: 'DELETE' });
+    assert.deepEqual(await cleared.json(), { regroup: null });
+    assert.equal((await (await authenticatedFetch(ctx, 'regroup-member', `/rides/${rideId}`)).json() as { regroup: unknown }).regroup, null);
+    assert.equal((await authenticatedFetch(ctx, 'regroup-host', '/rides/no-such-ride/regroup', { method: 'DELETE' })).status, 404);
+    await authenticatedFetch(ctx, 'regroup-host', `/rides/${rideId}`, { method: 'DELETE' });
+  });
   it('shares ride-member locations only after explicit ride consent and only with fellow members', needsDb, async () => {
     const made = await postJson(ctx, 'host', '/rides', {}); const ride = await made.json() as { rideId: string; code: string };
     await postJson(ctx, 'member', '/rides/join', { code: ride.code });

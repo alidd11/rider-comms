@@ -68,3 +68,20 @@ export function isRideCodeExpired(
 ): boolean {
   return now >= record.expiresAt;
 }
+
+/** Where the host has asked the group to meet up, e.g. a petrol station. */
+export interface RegroupPoint {
+  lat: number;
+  lon: number;
+  /** The place's name, or empty for a point dropped on the map. */
+  label: string;
+  setAt: number;
+}
+
+export const REGROUP_LABEL_MAX_LENGTH = 80;
+
+/** A regroup label as stored: one line, trimmed, at most 80 characters. */
+export function normalizeRegroupLabel(label: unknown): string {
+  if (typeof label !== 'string') return '';
+  return label.replace(/\s+/g, ' ').trim().slice(0, REGROUP_LABEL_MAX_LENGTH);
+}

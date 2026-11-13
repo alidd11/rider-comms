@@ -558,4 +558,18 @@ if (!/onLayout=\{\(event\) => \{[\s\S]*setNavigationSummaryHeight/.test(nativeMa
   throw new Error('Native navigation controls must follow the real ETA summary height including safe-area and text growth');
 }
 
+// The host's regroup point: a chip and a flag for every member, "Regroup
+// here" / "Clear regroup point" for the host, in both apps.
+{
+  const nativeRegroupSource = await readFile(new URL('../mobile/src/screens/RegroupPoint.tsx', import.meta.url), 'utf8');
+  for (const [label, source, patterns] of [
+    ['PWA', pwaMapSource + pwaIndexSource, [/id="regroupChip"/, /function renderRegroupPoint/, />Regroup here</, />Clear regroup point</, /Regroup point · set by the host/, /\/regroup`/]],
+    ['Native', nativeMapScreenSource + nativeRegroupSource, [/<RegroupChip/, /<RegroupMarker/, /'Regroup here'/, /'Clear regroup point'/, /Regroup point · set by the host/]],
+  ]) {
+    for (const pattern of patterns) {
+      if (!pattern.test(source)) throw new Error(`${label} regroup point is missing ${pattern}`);
+    }
+  }
+}
+
 console.log(`Client parity manifest valid: ${manifest.capabilities.length} capabilities tracked; map basemaps, navigation control dock, route-ahead alerts, maneuver glanceability, live speed and adaptive dedicated navigation aligned`);

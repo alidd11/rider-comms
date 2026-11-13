@@ -4,7 +4,7 @@ import {
   createRideCodeRecord,
   isRideCodeExpired,
 } from '@rider-comms/shared';
-import type { RideCodeRecord } from '@rider-comms/shared';
+import type { RegroupPoint, RideCodeRecord } from '@rider-comms/shared';
 import { ensureMigrated, getPool, withTransaction } from './db.ts';
 
 export interface Ride {
@@ -12,6 +12,7 @@ export interface Ride {
   createdBy: string;
   createdAt: number;
   memberIds: Set<string>;
+  regroup: RegroupPoint | null;
 }
 
 export interface RideSession {
@@ -57,6 +58,15 @@ interface RideRow {
   id: string;
   created_by: string;
   created_at: string | number;
+  regroup_lat: number | null;
+  regroup_lon: number | null;
+  regroup_label: string | null;
+  regroup_set_at: string | number | null;
+}
+
+function regroupFromRow(row: RideRow): RegroupPoint | null {
+  if (row.regroup_lat === null || row.regroup_lon === null || row.regroup_set_at === null) return null;
+  return { lat: row.regroup_lat, lon: row.regroup_lon, label: row.regroup_label ?? '', setAt: Number(row.regroup_set_at) };
 }
 
 interface RideCodeRow {
@@ -111,6 +121,7 @@ export class RideStore {
       createdBy: rows[0].created_by,
       createdAt: Number(rows[0].created_at),
       memberIds: new Set(memberRows.map((row) => row.rider_id)),
+      regroup: regroupFromRow(rows[0]),
     };
   }
 
@@ -138,7 +149,7 @@ export class RideStore {
       }
     });
 
-    const ride: Ride = { id, createdBy: creatorId, createdAt, memberIds: new Set([creatorId]) };
+    const ride: Ride = { id, createdBy: creatorId, createdAt, memberIds: new Set([creatorId]), regroup: null };
     return { ride, codeRecord };
   }
 
@@ -317,6 +328,25 @@ export class RideStore {
       }
       return result;
     });
+  }
+
+  /** Sets (or, with null, clears) the group's regroup point. Host only. */
+  async setRegroupPoint(
+    rideId: string,
+    actorId: string,
+    point: Omit<RegroupPoint, 'setAt'> | null,
+  ): Promise<RideActionResult> {
+    await ensureMigrated();
+    const ride = await this.loadRide(rideId);
+    if (!ride) return { ok: false, reason: 'not_found' };
+    if (!ride.memberIds.has(actorId)) return { ok: false, reason: 'not_member' };
+    if (ride.createdBy !== actorId) return { ok: false, reason: 'forbidden' };
+    const regroup = point ? { ...point, setAt: Date.now() } : null;
+    await getPool().query(
+      'UPDATE rides SET regroup_lat = $2, regroup_lon = $3, regroup_label = $4, regroup_set_at = $5 WHERE id = $1',
+      [rideId, regroup?.lat ?? null, regroup?.lon ?? null, regroup?.label ?? null, regroup?.setAt ?? null],
+    );
+    return { ok: true, ride: { ...ride, regroup } };
   }
 
   async endRide(rideId: string, actorId: string): Promise<RideActionResult> {

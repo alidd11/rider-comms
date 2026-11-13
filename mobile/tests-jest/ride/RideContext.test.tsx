@@ -346,3 +346,47 @@ test('setRideLocationSharing reports a server failure', async () => {
   await act(async () => { ok = await result.current.setRideLocationSharing(false); });
   expect(ok).toBe(false);
 });
+
+test('the host sets and clears the regroup point; members and failures change nothing', async () => {
+  const regroup = { lat: 51.6, lon: -0.2, label: 'Esso, A1', setAt: 5 };
+  const client = {
+    getCurrentRide: jest.fn(async () => ({ ride: fakeRide() })),
+    getRide: jest.fn(async () => fakeRide()),
+    setRideRegroup: jest.fn(async () => ({ regroup })),
+    clearRideRegroup: jest.fn(async () => ({ regroup: null })),
+  };
+  const { result } = await renderRide(client);
+  await waitFor(() => expect(result.current.activeRide?.isHost).toBe(true));
+
+  await act(async () => {
+    expect(await result.current.setRegroupPoint({ lat: 51.6, lon: -0.2, label: 'Esso, A1' })).toBe(true);
+  });
+  expect(client.setRideRegroup).toHaveBeenCalledWith('ride-1', { lat: 51.6, lon: -0.2, label: 'Esso, A1' });
+  expect(result.current.activeRide?.regroup).toEqual(regroup);
+
+  client.clearRideRegroup.mockRejectedValueOnce(new ApiError(0, { error: 'network_error' }));
+  await act(async () => {
+    expect(await result.current.setRegroupPoint(null)).toBe(false);
+  });
+  expect(result.current.activeRide?.regroup).toEqual(regroup);
+
+  await act(async () => {
+    expect(await result.current.setRegroupPoint(null)).toBe(true);
+  });
+  expect(result.current.activeRide?.regroup).toBeNull();
+});
+
+test('a member cannot set the regroup point, and sees the host’s from the server', async () => {
+  const regroup = { lat: 51.6, lon: -0.2, label: '', setAt: 5 };
+  const client = {
+    getCurrentRide: jest.fn(async () => ({ ride: fakeRide({ createdBy: 'host', regroup }) })),
+    getRide: jest.fn(async () => fakeRide({ createdBy: 'host', regroup })),
+    setRideRegroup: jest.fn(),
+  };
+  const { result } = await renderRide(client);
+  await waitFor(() => expect(result.current.activeRide?.regroup).toEqual(regroup));
+  await act(async () => {
+    expect(await result.current.setRegroupPoint({ lat: 1, lon: 2, label: 'x' })).toBe(false);
+  });
+  expect(client.setRideRegroup).not.toHaveBeenCalled();
+});

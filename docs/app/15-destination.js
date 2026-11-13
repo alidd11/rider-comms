@@ -22,6 +22,15 @@
     return null;
   }
 
+  // The ride host's "Regroup here" / "Clear regroup point" (09-rides.js).
+  function regroupAction(lat, lng) {
+    if (!state.activeRide?.isHost) return '';
+    const atRegroup = isRegroupSpot(state.activeRide.regroup, { lat, lng });
+    return atRegroup
+      ? '<button type="button" class="destination-secondary-action" data-regroup-action="clear" aria-label="Clear the regroup point"><svg aria-hidden="true"><use href="#i-close"/></svg><span>Clear regroup point</span></button>'
+      : '<button type="button" class="destination-secondary-action" data-regroup-action="set"><svg aria-hidden="true"><use href="#i-flag"/></svg><span>Regroup here</span></button>';
+  }
+
   function hideDestinationCard() {
     $('#destinationCard').hidden = true;
   }
@@ -39,8 +48,25 @@
     const action = provider === 'in_app'
       ? `<button class="destination-primary-action" data-start-in-app-navigation aria-label="Start route in Rider Comms"><svg><use href="#i-nav-arrow"/></svg><span><strong>Start route</strong><small>In Rider Comms</small></span></button>`
       : `<a class="destination-primary-action" href="${navigationHref(provider, lat, lng, label)}" target="_blank" rel="noopener noreferrer" aria-label="Start route in ${escapeHtml(providerInfo.label)}"><svg><use href="#i-nav-arrow"/></svg><span><strong>Start route</strong><small>${escapeHtml(providerCaption)}</small></span></a>`;
-    card.innerHTML = `<div class="destination-card-head"><span class="destination-card-icon" aria-hidden="true"><svg><use href="#i-location"/></svg></span><div class="rider-card-copy"><strong>${escapeHtml(label || 'Selected place')}</strong><span>${escapeHtml(secondary)}</span></div><button class="destination-card-dismiss" aria-label="Dismiss destination" data-dismiss-destination>×</button></div><div class="destination-card-eta" data-destination-eta><svg aria-hidden="true"><use href="#i-route"/></svg><span>Calculating route…</span></div><div class="destination-card-actions">${action}</div>`;
+    card.innerHTML = `<div class="destination-card-head"><span class="destination-card-icon" aria-hidden="true"><svg><use href="#${isRegroupSpot(state.activeRide?.regroup, { lat, lng }) ? 'i-flag' : 'i-location'}"/></svg></span><div class="rider-card-copy"><strong>${escapeHtml(label || 'Selected place')}</strong><span>${escapeHtml(secondary)}</span></div><button class="destination-card-dismiss" aria-label="Dismiss destination" data-dismiss-destination>×</button></div><div class="destination-card-eta" data-destination-eta><svg aria-hidden="true"><use href="#i-route"/></svg><span>Calculating route…</span></div><div class="destination-card-actions">${action}${regroupAction(lat, lng)}</div>`;
     card.hidden = false;
+    $('[data-regroup-action]', card)?.addEventListener('click', async (event) => {
+      const button = event.currentTarget;
+      const clear = button.dataset.regroupAction === 'clear';
+      button.disabled = true;
+      $('.destination-action-error', card)?.remove();
+      const saved = await setRegroupPoint(clear ? null : { lat, lon: lng, label: label || '' });
+      if (!saved) {
+        button.disabled = false;
+        const message = document.createElement('p');
+        message.className = 'destination-action-error';
+        message.setAttribute('role', 'status');
+        message.textContent = 'Couldn’t reach Rider Comms. Check your connection and try again.';
+        button.after(message);
+        return;
+      }
+      showDestinationCard(location, label, address);
+    });
     $('[data-start-in-app-navigation]', card)?.addEventListener('click', () => void startInAppNavigation(location, label));
     $('[data-dismiss-destination]', card).addEventListener('click', () => {
       hideDestinationCard();

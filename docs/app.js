@@ -1140,6 +1140,7 @@
 
   function renderMapRiders() {
     renderHazardMarkers();
+    renderRegroupPoint();
     const riders = visibleMapRiders();
     if (!map || usingFallbackMap) return renderFallbackMarkers([]);
     if (userMapMarker) {
@@ -2294,7 +2295,10 @@
     syncRideLocationSharing();
     syncVoiceConnection({ automatic: true });
     syncRideRosterPolling();
-    if (!active) return;
+    if (!active) {
+      renderRegroupPoint();
+      return;
+    }
     const ride = state.activeRide;
     const locationToggle = $('#activeRideLocationConsent');
     locationToggle.checked = ride.shareRideLocation === true;
@@ -2384,6 +2388,7 @@
         rideId: ride.rideId, code: ride.code, isHost: ride.createdBy === state.profile.riderId,
         createdBy: ride.createdBy, memberIds: ride.memberIds,
         shareRideLocation: ride.shareRideLocation === true,
+        regroup: ride.regroup ?? null,
         members: previous?.rideId === ride.rideId ? previous.members : undefined,
       } : null;
       if (ride) await stopPublicPresenceForRide();
@@ -2567,6 +2572,82 @@
     const button = $('#joinRideForm button[type="submit"]');
     if (!button || button.textContent === 'Joining…') return;
     button.disabled = !RIDE_CODE_PATTERN.test($('#rideCode').value);
+  }
+
+  // The group's regroup point (set by the host; GET /rides/current carries
+  // it): a flag on the map and a chip saying where and how far, one tap from
+  // the route there. The native MapScreen mirrors this (RegroupPoint.tsx).
+  let regroupMarker;
+  const REGROUP_FALLBACK_LABEL = 'Regroup point';
+
+  function regroupTitle(point) {
+    return point.label || REGROUP_FALLBACK_LABEL;
+  }
+
+  function isRegroupSpot(point, place) {
+    if (!point || !place) return false;
+    return metersBetween({ lat: point.lat, lng: point.lon }, place) < 10;
+  }
+
+  function regroupIcon() {
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="17" fill="#d39a42" stroke="#fff" stroke-width="3"/><path d="M14 29V12m0 0h12l-2.5 4.5L26 21H14" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    return {
+      url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
+      scaledSize: new google.maps.Size(40, 40),
+      anchor: new google.maps.Point(20, 20),
+    };
+  }
+
+  function renderRegroupPoint() {
+    const point = state.activeRide?.regroup || null;
+    const chip = $('#regroupChip');
+    if (chip) {
+      chip.hidden = !point;
+      if (point) {
+        const here = userMapMarker?.getPosition?.();
+        const distance = here ? formatNavDistance(metersBetween({ lat: here.lat(), lng: here.lng() }, { lat: point.lat, lng: point.lon })) : '';
+        $('#regroupChipText').textContent = ` · ${regroupTitle(point)}${distance ? ` · ${distance}` : ''}`;
+        chip.setAttribute('aria-label', `Regroup at ${regroupTitle(point)}${distance ? `, ${distance} away` : ''}`);
+      }
+    }
+    if (!map || usingFallbackMap || typeof google?.maps?.Marker !== 'function') return;
+    if (!point) {
+      regroupMarker?.setMap(null);
+      regroupMarker = undefined;
+      return;
+    }
+    if (!regroupMarker) {
+      regroupMarker = new google.maps.Marker({ map, icon: regroupIcon(), zIndex: 11 });
+      regroupMarker.addListener('click', showRegroupPoint);
+    }
+    regroupMarker.setPosition({ lat: point.lat, lng: point.lon });
+    regroupMarker.setTitle?.(`Regroup: ${regroupTitle(point)}`);
+  }
+
+  /** Shows the regroup point in the destination card (one tap to route). */
+  function showRegroupPoint() {
+    const point = state.activeRide?.regroup;
+    if (!point || typeof google?.maps?.LatLng !== 'function') return;
+    const location = new google.maps.LatLng(point.lat, point.lon);
+    map?.panTo?.(location);
+    showDestinationCard(location, regroupTitle(point), 'Regroup point · set by the host');
+  }
+
+  /** Host only: sets the regroup point at a place, or clears it. */
+  async function setRegroupPoint(point) {
+    const ride = state.activeRide;
+    if (!ride?.isHost) return false;
+    try {
+      const { regroup } = point
+        ? await apiFetch('PUT', `/rides/${encodeURIComponent(ride.rideId)}/regroup`, point)
+        : await apiFetch('DELETE', `/rides/${encodeURIComponent(ride.rideId)}/regroup`);
+      if (state.activeRide?.rideId === ride.rideId) state.activeRide.regroup = regroup;
+      persist();
+      renderRegroupPoint();
+      return true;
+    } catch {
+      return false;
+    }
   }
   // Each Settings option is its own full page with everything for it on the
   // page, not a sheet holding another list of sheets. Every control lives in
@@ -6077,6 +6158,15 @@
     return null;
   }
 
+  // The ride host's "Regroup here" / "Clear regroup point" (09-rides.js).
+  function regroupAction(lat, lng) {
+    if (!state.activeRide?.isHost) return '';
+    const atRegroup = isRegroupSpot(state.activeRide.regroup, { lat, lng });
+    return atRegroup
+      ? '<button type="button" class="destination-secondary-action" data-regroup-action="clear" aria-label="Clear the regroup point"><svg aria-hidden="true"><use href="#i-close"/></svg><span>Clear regroup point</span></button>'
+      : '<button type="button" class="destination-secondary-action" data-regroup-action="set"><svg aria-hidden="true"><use href="#i-flag"/></svg><span>Regroup here</span></button>';
+  }
+
   function hideDestinationCard() {
     $('#destinationCard').hidden = true;
   }
@@ -6094,8 +6184,25 @@
     const action = provider === 'in_app'
       ? `<button class="destination-primary-action" data-start-in-app-navigation aria-label="Start route in Rider Comms"><svg><use href="#i-nav-arrow"/></svg><span><strong>Start route</strong><small>In Rider Comms</small></span></button>`
       : `<a class="destination-primary-action" href="${navigationHref(provider, lat, lng, label)}" target="_blank" rel="noopener noreferrer" aria-label="Start route in ${escapeHtml(providerInfo.label)}"><svg><use href="#i-nav-arrow"/></svg><span><strong>Start route</strong><small>${escapeHtml(providerCaption)}</small></span></a>`;
-    card.innerHTML = `<div class="destination-card-head"><span class="destination-card-icon" aria-hidden="true"><svg><use href="#i-location"/></svg></span><div class="rider-card-copy"><strong>${escapeHtml(label || 'Selected place')}</strong><span>${escapeHtml(secondary)}</span></div><button class="destination-card-dismiss" aria-label="Dismiss destination" data-dismiss-destination>×</button></div><div class="destination-card-eta" data-destination-eta><svg aria-hidden="true"><use href="#i-route"/></svg><span>Calculating route…</span></div><div class="destination-card-actions">${action}</div>`;
+    card.innerHTML = `<div class="destination-card-head"><span class="destination-card-icon" aria-hidden="true"><svg><use href="#${isRegroupSpot(state.activeRide?.regroup, { lat, lng }) ? 'i-flag' : 'i-location'}"/></svg></span><div class="rider-card-copy"><strong>${escapeHtml(label || 'Selected place')}</strong><span>${escapeHtml(secondary)}</span></div><button class="destination-card-dismiss" aria-label="Dismiss destination" data-dismiss-destination>×</button></div><div class="destination-card-eta" data-destination-eta><svg aria-hidden="true"><use href="#i-route"/></svg><span>Calculating route…</span></div><div class="destination-card-actions">${action}${regroupAction(lat, lng)}</div>`;
     card.hidden = false;
+    $('[data-regroup-action]', card)?.addEventListener('click', async (event) => {
+      const button = event.currentTarget;
+      const clear = button.dataset.regroupAction === 'clear';
+      button.disabled = true;
+      $('.destination-action-error', card)?.remove();
+      const saved = await setRegroupPoint(clear ? null : { lat, lon: lng, label: label || '' });
+      if (!saved) {
+        button.disabled = false;
+        const message = document.createElement('p');
+        message.className = 'destination-action-error';
+        message.setAttribute('role', 'status');
+        message.textContent = 'Couldn’t reach Rider Comms. Check your connection and try again.';
+        button.after(message);
+        return;
+      }
+      showDestinationCard(location, label, address);
+    });
     $('[data-start-in-app-navigation]', card)?.addEventListener('click', () => void startInAppNavigation(location, label));
     $('[data-dismiss-destination]', card).addEventListener('click', () => {
       hideDestinationCard();
@@ -7590,6 +7697,7 @@
     $('#copyRideCode').addEventListener('click', async () => { try { await navigator.clipboard.writeText(state.activeRide.code); showToast('Ride code copied.'); } catch { shareRide(); } });
     $('#openRideMap').addEventListener('click', () => navigate('map'));
     $('#ridePill').addEventListener('click', () => navigate('ride'));
+    $('#regroupChip')?.addEventListener('click', showRegroupPoint);
     $('#friendSearch').addEventListener('input', renderFriends);
     $('#chatBack').addEventListener('click', () => {
       if (location.hash === '#friends/chat') history.back();
