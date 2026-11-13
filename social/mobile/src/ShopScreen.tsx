@@ -62,7 +62,7 @@ export function ShopScreen({ items, collectionItems, search, onSearch, category,
   const filterButton = (label:string,active:boolean,onPress:()=>void,prefix:string) =>
     <Pressable key={label} accessibilityRole="button" accessibilityLabel={prefix+label}
       accessibilityState={{selected:active}} onPress={onPress}
-      style={{borderRadius:999,minHeight:40,paddingVertical:9,paddingHorizontal:16,
+      style={{borderRadius:999,minHeight:44,paddingVertical:9,paddingHorizontal:16,
         justifyContent:'center',borderWidth:1,
         borderColor:active?C.accent:C.border,backgroundColor:active?C.accentDark:C.panel}}>
       <Text style={{color:active?C.accent:C.ink,fontSize:13,fontWeight:'700'}}>{label}</Text>
@@ -180,7 +180,7 @@ export function ShopScreen({ items, collectionItems, search, onSearch, category,
         <Pressable accessibilityRole="button" accessibilityLabel="Shop filters"
           accessibilityState={{expanded:filtersOpen}}
           onPress={()=>setFiltersOpen(v=>!v)}
-          style={{height:42,minWidth:44,paddingHorizontal:12,borderRadius:14,
+          style={{height:44,minWidth:44,paddingHorizontal:12,borderRadius:14,
             borderWidth:1,borderColor:filtersOpen||interest!=='All'?C.accent:C.border,
             backgroundColor:filtersOpen||interest!=='All'?C.accentDark:C.panel,
             flexDirection:'row',alignItems:'center',justifyContent:'center',gap:7}}>
@@ -312,7 +312,7 @@ export function ShopScreen({ items, collectionItems, search, onSearch, category,
               accessibilityLabel={(saved.has(product.id)?'Unsave ':'Save ')+product.name}
               onPress={()=>onToggleSaved(product.id)}
               style={{position:'absolute',right:9,top:9,backgroundColor:'rgba(3,8,12,0.84)',
-                borderRadius:22,width:42,height:42,justifyContent:'center',alignItems:'center'}}>
+                borderRadius:22,width:44,height:44,justifyContent:'center',alignItems:'center'}}>
               <Ionicons name={saved.has(product.id)?'heart':'heart-outline'}
                 size={21} color={saved.has(product.id)?C.accent:'#FFFFFF'}/>
             </Pressable>
