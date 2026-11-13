@@ -118,13 +118,19 @@ test('production: every major route and empty state is visible, navigable and er
   await expect(page.getByTestId('shop-discovery')).toBeVisible();
   await expect(page.getByTestId('shop-launch-state')).toBeVisible();
   await expect(page.getByText('The marketplace is getting ready')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Explore clubs from Shop' })).toBeEnabled();
-  await expect(page.getByText('No products, orders or payments are live.')).toBeVisible();
+  const exploreClubs = page.getByRole('button', { name: 'Explore clubs from Shop' });
+  await expect(exploreClubs).toBeEnabled();
+  // The empty Shop must have an immediately accessible real CTA above the
+  // bottom tab bar, rather than burying it below unhelpful empty filters.
+  const ctaRect = await exploreClubs.boundingBox();
+  const bottomTabRect = await page.getByRole('tab', { name: 'Shop' }).boundingBox();
+  expect(ctaRect).not.toBeNull();
+  expect(bottomTabRect).not.toBeNull();
+  expect((ctaRect?.y ?? 9999) + (ctaRect?.height ?? 9999))
+    .toBeLessThanOrEqual((bottomTabRect?.y ?? 0) + 2);
+  await expect(page.getByRole('button', { name: 'Shop filters' })).toHaveCount(0);
   await verifyScreen(page, testInfo, 'shop-empty');
-  await page.getByRole('button', { name: 'Shop filters' }).click();
-  await expect(page.getByTestId('shop-vehicle-filters')).toBeVisible();
-  await page.getByRole('button', { name: 'Shop interest Motorcycles' }).click();
-  await expect(page.getByTestId('shop-launch-state')).toBeVisible();
+  await page.getByRole('textbox', { name: 'Search marketplace' }).fill('helmet');
   await expect(page.getByRole('button', { name: 'Reset marketplace search' })).toBeVisible();
   for (const section of ['Saved', 'Basket', 'Orders']) {
     await page.getByRole('button', { name: 'Shop section ' + section }).click();
