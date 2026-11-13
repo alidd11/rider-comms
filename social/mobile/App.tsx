@@ -523,7 +523,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
           <Pill label="Following" selected={feedMode==='following'} onPress={() => setFeedMode('following')}/>
         </View>
         <View style={[s.row, { gap: 4 }]}>
-          <Text style={[s.small, { fontSize: 10 }]}>Sample feed</Text>
+          {socialFixturesEnabled ? <Text style={[s.small, { fontSize: 10 }]}>Sample feed</Text> : null}
           <Pressable accessibilityRole="button" accessibilityLabel="Feed preferences" style={s.compactIcon} onPress={()=>setFeedPreferencesOpen(v=>!v)}>
             <Ionicons name="options-outline" size={22} color={feedPreferencesOpen?C.accent:C.ink}/>
           </Pressable>
