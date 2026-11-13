@@ -37,7 +37,7 @@ function ValuePropStep({ onNext }: { onNext: () => void }): React.JSX.Element {
           See which riders in your group are nearby, host or join a ride, and talk over group audio while you ride.
         </Text>
       </View>
-      <PrimaryButton label="Get Started" onPress={onNext} />
+      <PrimaryButton label="Get started" onPress={onNext} />
     </View>
   );
 }
@@ -52,8 +52,8 @@ function LocationPrimingStep({ onContinue }: { onContinue: () => Promise<void> }
       <View style={styles.copyBlock}>
         <Text style={styles.title}>Your location</Text>
         <Text style={styles.body}>
-          Rider Comms needs your location to show you which riders are nearby and to share your position during a
-          ride.
+          Rider Comms uses your location to show riders near you and to share your position in a group ride. Nearby
+          riders see you only while you’re live.
         </Text>
       </View>
       <PrimaryButton label="Continue" onPress={() => { void onContinue(); }} />

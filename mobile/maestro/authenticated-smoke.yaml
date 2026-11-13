@@ -46,10 +46,10 @@ appId: com.ridercomms.app
       - tapOn:
           id: auth-submit
 # First launch shows the two-step onboarding (welcome, then location).
-# iOS adds to labels ("Get Started, ", "Group Ride, tab, 2 of 5"), so each
+# iOS adds to labels ("Get started, ", "Group Ride, tab, 2 of 5"), so each
 # match allows a comma and more after the visible text.
 - tapOn:
-    text: "Get Started(,.*)?"
+    text: "Get [Ss]tarted(,.*)?"
     optional: true
 # The location step slides in; wait for it before the optional tap.
 - extendedWaitUntil:
