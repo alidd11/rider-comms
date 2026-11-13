@@ -661,7 +661,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
           friendCount={sharedFriends.length}
           followingCount={[...followed].filter(id => Boolean(demoCreators[id])).length}
           onTab={setProfileTab} onConnections={setConnectionSheet} onEdit={openProfileEditor}
-          onSettings={() => setSettingsOpen(true)}/>
+          onSettings={() => { setNotice(null); setSettingsOpen(true); }}/>
         {profileEditor ? (
           <View style={[s.card, s.pad]}>
             <Text style={s.cardHeading}>Edit your social profile</Text>
