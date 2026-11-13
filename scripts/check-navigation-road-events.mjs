@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { readNativeMapScreenSource } from './native-map-screen-source.mjs';
 
 await import('../docs/navigation-road-events.js');
 
@@ -109,7 +110,7 @@ assert.deepEqual(staleAlerts.map((alert) => alert.hazard.id), ['active']);
 
 const [nativeSource, nativeMapScreenSource, nativeNavigationSummarySource, pwaAppSource, sharedHazardSource] = await Promise.all([
   readFile(new URL('../mobile/src/navigationRoadEvents.ts', import.meta.url), 'utf8'),
-  readFile(new URL('../mobile/src/screens/MapScreen.tsx', import.meta.url), 'utf8'),
+  readNativeMapScreenSource(),
   readFile(new URL('../mobile/src/screens/useNavigationSummary.ts', import.meta.url), 'utf8'),
   readFile(new URL('../docs/app.js', import.meta.url), 'utf8'),
   readFile(new URL('../shared/src/hazards.ts', import.meta.url), 'utf8'),

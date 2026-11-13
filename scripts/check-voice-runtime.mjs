@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { readdir, readFile } from 'node:fs/promises';
+import { readNativeMapScreenSource } from './native-map-screen-source.mjs';
 
 const [appConfigSource, mobilePackageSource, appSource, rideBarSource, proximitySource, proximityStateSource, voiceActivitySource, audioSessionSource, foregroundServiceSource, foregroundPluginSource, activeSpeakerSource, mapScreenOwnSource, presenceHookSource, mobileClientSource, settingsScreenSource, pwaSource, serverSource] = await Promise.all([
   readFile(new URL('../mobile/app.json', import.meta.url), 'utf8'),
@@ -13,7 +14,7 @@ const [appConfigSource, mobilePackageSource, appSource, rideBarSource, proximity
   readFile(new URL('../mobile/src/audio/voiceForegroundService.ts', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/plugins/withAndroidVoiceForegroundService.js', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/voice/ActiveSpeakerBridge.tsx', import.meta.url), 'utf8'),
-  readFile(new URL('../mobile/src/screens/MapScreen.tsx', import.meta.url), 'utf8'),
+  readNativeMapScreenSource(),
   readFile(new URL('../mobile/src/screens/usePresence.ts', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/api/client.ts', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/screens/SettingsScreen.tsx', import.meta.url), 'utf8'),
