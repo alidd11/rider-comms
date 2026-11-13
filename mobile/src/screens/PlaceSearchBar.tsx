@@ -295,7 +295,7 @@ export const PlaceSearchBar = React.forwardRef<PlaceSearchHandle, {
             showsHorizontalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={styles.categories}
-            style={saveAs ? styles.hidden : undefined}
+            style={saveAs ? styles.hidden : styles.categoryStrip}
           >
             {CATEGORIES.map((category) => {
               const active = category.label === activeCategory;
