@@ -895,7 +895,7 @@ function DevicesPage(): React.JSX.Element {
             <Ionicons name="phone-portrait-outline" size={20} color={colors.textSecondary} />
             <View style={styles.sessionInfo}>
               <Text style={styles.aboutLabel}>{session.deviceName}</Text>
-              <Text style={styles.aboutValue}>{session.current ? 'This device' : 'Active ' + new Date(session.lastSeenAt).toLocaleDateString()}</Text>
+              <Text style={styles.aboutValue}>{session.current ? 'This device' : 'Active ' + new Date(session.lastSeenAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}</Text>
             </View>
             {session.current ? <Text style={styles.settingRowValue}>Current</Text> : <Pressable accessibilityRole="button" accessibilityLabel={'Sign out ' + session.deviceName} onPress={() => void revokeSession(session.id)} style={({ pressed }) => [styles.sessionRevoke, pressed && pressedFeedback]}><Text style={styles.sessionRevokeText}>Sign out</Text></Pressable>}
           </View>
