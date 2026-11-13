@@ -165,7 +165,10 @@ export function mayViewContent(content: Content, viewer: Viewer, surface: 'disco
 }
 
 function recentScore(createdAt: number, now: number, horizonHours: number): number {
-  // Future timestamps should not earn a ranking bonus.
+  // Treat malformed future timestamps as ineligible for recency boosts.
+  // Otherwise max(0, now - createdAt) gives future-dated posts the *maximum*
+  // freshness score and permits ranking manipulation by clock skew.
+  if (!Number.isFinite(createdAt) || createdAt > now) return 0;
   const elapsedHours = Math.max(0, now - createdAt) / 3600;
   return 1 / (1 + elapsedHours / horizonHours);
 }
