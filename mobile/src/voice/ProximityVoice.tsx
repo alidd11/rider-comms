@@ -1,3 +1,4 @@
+import { userFacingError } from '../errors/userFacingError';
 import * as React from 'react';
 import { useVoiceMute } from './VoiceMuteContext';
 import { NearbyRidersIcon } from '../components/NearbyRidersIcon';
@@ -198,7 +199,7 @@ export function ProximityVoice({
           ? resolveProximityVoiceRetryDelay(consecutiveRefreshFailures, normalRefreshMs)
           : normalRefreshMs;
         if (!cancelled && !hasAuthorizedOnce.current) {
-          setError(cause instanceof Error ? cause.message : 'Nearby Voice isn’t available.');
+          setError(userFacingError(cause, 'Nearby Voice isn’t available.'));
         }
         // If a previous authorization is still leased, preserve that existing
         // pair through a transient backend miss. Retry sooner at first, then

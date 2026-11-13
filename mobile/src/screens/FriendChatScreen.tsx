@@ -1,3 +1,4 @@
+import { userFacingError } from '../errors/userFacingError';
 import * as React from 'react';
 import {
   View,
@@ -308,7 +309,7 @@ function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Elemen
         await client.deleteHideout(hideoutId);
         await loadHideouts();
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Couldn’t delete that hideout.');
+        setError(userFacingError(err, 'Couldn’t delete that hideout.'));
       }
     },
     [client, loadHideouts]

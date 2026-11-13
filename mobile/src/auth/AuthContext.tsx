@@ -109,7 +109,10 @@ function authErrorMessage(error: unknown): string {
     terms_not_accepted: 'Confirm you’re 16 or older and agree to the Terms of Service and Community Guidelines to create an account.',
     objectionable_username: 'That username isn’t allowed. Choose another.',
   };
-  return code ? messages[code] ?? 'The account request couldn’t be completed.' : 'The account request couldn’t be completed.';
+  if (code && messages[code]) return messages[code]!;
+  return error.status >= 500
+    ? 'Rider Comms isn’t responding right now. Try again in a moment.'
+    : 'That didn’t work. Try again.';
 }
 
 function AuthScreen({ onAuthenticated, restoreError, onRetryRestore }: {

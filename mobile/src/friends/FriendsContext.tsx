@@ -2,7 +2,7 @@ import * as React from 'react';
 import type { FriendActivity, FriendRequest, FriendSummary } from '@rider-comms/shared';
 import { ApiError, type ConversationSummary, type RiderCommsClient } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
-import { refreshAuthoritativeSocialSnapshot } from './socialRefresh';
+import { refreshAuthoritativeSocialSnapshot, socialRefreshErrorMessage } from './socialRefresh';
 import { useSettings } from '../settings/SettingsContext';
 import { appendUniqueFriendRequest } from './requestState';
 import {
@@ -38,7 +38,9 @@ interface FriendsContextValue {
 
 const FriendsContext = React.createContext<FriendsContextValue | null>(null);
 
-function messageFor(err: unknown, fallback: string): string {
+// A failure with no server answer reads as `offline` (a pointer to the
+// connection by default), never as raw text like "Network request failed".
+function messageFor(err: unknown, fallback: string, offline = `${fallback} Check your connection and try again.`): string {
   if (err instanceof ApiError) {
     const code = typeof err.body === 'object' && err.body && 'error' in (err.body as Record<string, unknown>)
       ? String((err.body as Record<string, unknown>).error)
@@ -54,7 +56,7 @@ function messageFor(err: unknown, fallback: string): string {
     };
     return messages[code] ?? fallback;
   }
-  return err instanceof Error ? err.message : fallback;
+  return offline;
 }
 
 async function loadAllFriends(client: RiderCommsClient, riderId: string): Promise<FriendSummary[]> {
@@ -154,7 +156,7 @@ export function FriendsProvider({ children }: { children: React.ReactNode }): Re
       await refreshAuthoritative();
       setError(null);
     } catch (err) {
-      setError(messageFor(err, 'Couldn’t load friends.'));
+      setError(socialRefreshErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -237,7 +239,7 @@ export function FriendsProvider({ children }: { children: React.ReactNode }): Re
           // any transport/state-refresh failure. This avoids sitting on a
           // valid cursor with a stale local snapshot after recovery.
           cursor = undefined;
-          setError(messageFor(err, 'Live social updates paused. Reconnecting…'));
+          setError(messageFor(err, 'Live social updates paused. Reconnecting…', 'Live social updates paused. Reconnecting…'));
           await new Promise<void>((resolve) => setTimeout(resolve, SOCIAL_EVENT_RETRY_MS));
         }
       }

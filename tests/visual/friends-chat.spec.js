@@ -13,6 +13,17 @@ test('PWA Friends remains usable when realtime transport is temporarily unavaila
   await expect(page.locator('#friendList')).toContainText('Jay');
 });
 
+test('PWA Friends keeps the list when only messages fail, and says messages failed', async ({ page }) => {
+  await mockAuthenticatedApi(page, 'stationary', ({ url }) => {
+    if (url.pathname === '/conversations') return { status: 400, body: { error: 'bad_request' } };
+    return null;
+  });
+  await page.goto('/#friends');
+  await expect(page.locator('#friendList [data-friend]')).toHaveCount(2);
+  await expect(page.locator('#friendsError')).toContainText('Couldn’t load your messages. Try again.');
+  await expect(page.locator('#friendsError')).not.toContainText('friends');
+});
+
 test('PWA Friends shows a load failure on the page and Retry recovers', async ({ page }) => {
   let failFriends = true;
   await mockAuthenticatedApi(page, 'stationary', ({ url }) => {
@@ -21,7 +32,7 @@ test('PWA Friends shows a load failure on the page and Retry recovers', async ({
   });
   await page.goto('/#friends');
   await expect(page.locator('#friendsError')).toBeVisible();
-  await expect(page.locator('#friendsError')).toContainText('Couldn’t load friends');
+  await expect(page.locator('#friendsError')).toContainText('Couldn’t load friends. Check your connection and try again.');
   // No "build your circle" prompt while the list is unknown.
   await expect(page.locator('#friendEmpty')).toBeHidden();
   failFriends = false;

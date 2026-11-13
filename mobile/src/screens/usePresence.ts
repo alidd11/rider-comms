@@ -92,7 +92,7 @@ export function usePresence(
                     : code === 'location fix timestamp is stale or invalid'
                       ? 'Waiting for a fresh location. Trying again shortly.'
                       // Other refusals: a readable line, not the raw API error.
-                      : err instanceof ApiError || !(err instanceof Error) ? 'Couldn’t update your zone. Trying again shortly.' : err.message);
+                      : err instanceof ApiError ? 'Couldn’t update your zone. Trying again shortly.' : 'Couldn’t reach Rider Comms. Trying again shortly.');
           if (code === 'email_verification_required' || code === 'location_sharing_disabled') setPublicLive(false);
         }
       }

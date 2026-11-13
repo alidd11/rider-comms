@@ -2214,18 +2214,23 @@
 
   async function loadFriendsData() {
     if (!state.profile.riderId) return;
-    try {
-      // Network and message summaries are independent authoritative resources.
-      // Apply either successful snapshot even when the other one is transiently
-      // unavailable; realtime callers use the throwing functions directly.
-      await Promise.all([refreshFriendNetwork(), refreshMessageSummaries()]);
-      friendsLoadState = 'ready';
-      friendsLoadError = '';
-    } catch (error) {
-      friendsLoadState = 'error';
-      friendsLoadError = 'Couldn’t load friends. ' + authErrorMessage(error);
-    }
+    // Network and message summaries are independent authoritative resources:
+    // apply either successful snapshot even when the other one fails, and say
+    // which one didn't load. Realtime callers use the throwing functions directly.
+    const [network, messages] = await Promise.allSettled([refreshFriendNetwork(), refreshMessageSummaries()]);
+    const failed = network.status === 'rejected' ? network : messages.status === 'rejected' ? messages : null;
+    friendsLoadState = failed ? 'error' : 'ready';
+    friendsLoadError = failed ? friendsLoadErrorMessage(failed === network ? 'friends' : 'messages', failed.reason) : '';
     renderFriends();
+  }
+
+  /** One sentence: what didn't load, then what to do (native:
+   * socialRefreshErrorMessage). No answer at all, or a server error, points
+   * at the connection. */
+  function friendsLoadErrorMessage(part, error) {
+    const status = typeof error?.status === 'number' ? error.status : 0;
+    const what = part === 'messages' ? 'Couldn’t load your messages.' : 'Couldn’t load friends.';
+    return status === 0 || status >= 500 ? `${what} Check your connection and try again.` : `${what} Try again.`;
   }
 
   async function acceptRequest(requestId) {
@@ -7994,23 +7999,26 @@
   const AUTH_ERROR_MESSAGES = {
     username_taken: 'That username is already taken.',
     email_taken: 'That email is already registered.',
-    invalid_username: 'Usernames must be 3–20 letters, numbers or underscores.',
+    invalid_username: 'Use 3–20 letters, numbers, or underscores.',
     invalid_email: 'Enter a valid email address.',
-    weak_password: 'Passwords must be at least 8 characters.',
-    invalid_credentials: 'Incorrect username or password.',
+    weak_password: 'Use a password between 8 and 128 characters.',
+    invalid_credentials: 'The username or password is incorrect.',
     account_suspended: 'This account has been suspended for breaking the community rules. Contact support if you think this is a mistake.',
     invalid_token: 'That reset code is invalid or has already been used.',
     expired_token: 'That reset code has expired. Request a new one.',
     rate_limited: 'Too many attempts. Wait a moment and try again.',
     network_error: 'Couldn’t reach Rider Comms. Check your connection and try again.',
-    timed_out: 'That took too long. Try again.',
+    timed_out: 'The request timed out. Check your connection and try again.',
     terms_not_accepted: 'Confirm you’re 16 or older and agree to the Terms of Service and Community Guidelines to create an account.',
     objectionable_username: 'That username isn’t allowed. Choose another.',
   };
 
   function authErrorMessage(error) {
     const code = error instanceof ApiError ? error.body?.error : undefined;
-    return AUTH_ERROR_MESSAGES[code] || 'That didn’t work. Try again.';
+    if (AUTH_ERROR_MESSAGES[code]) return AUTH_ERROR_MESSAGES[code];
+    return error instanceof ApiError && error.status >= 500
+      ? 'Rider Comms isn’t responding right now. Try again in a moment.'
+      : 'That didn’t work. Try again.';
   }
 
   function applyAuthenticatedIdentity(riderId, username) {

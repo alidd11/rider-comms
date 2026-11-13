@@ -181,9 +181,7 @@ test('recovers from a long-poll failure by rebaselining after a short delay', as
     await waitFor(() => expect(result.current.error).toBeNull());
 
     // An ApiError with a code the friendly-message map doesn't recognize
-    // falls through to the fallback text below -- a plain Error would
-    // instead surface its own .message verbatim (messageFor only applies
-    // the fallback when the thrown value isn't an Error at all).
+    // falls through to the fallback text below; so does a dropped connection.
     await rejectNext(new ApiError(500, { error: 'server_error' }));
     await waitFor(() => expect(result.current.error).toBe('Live social updates paused. Reconnecting…'));
 
@@ -238,6 +236,20 @@ test('sendRequest surfaces a specific message and still refreshes the network on
   })).rejects.toThrow('You are already friends with this rider.');
 
   await waitFor(() => expect(client.getFriends).toHaveBeenCalledTimes(friendsBefore + 1));
+});
+
+test('sendRequest with no answer from the server points to the connection, never raw error text', async () => {
+  const { getSocialEvents } = deferredSocialEvents();
+  const client = baseClient({
+    getSocialEvents,
+    sendFriendRequest: jest.fn(async () => { throw new Error('Network request failed'); }),
+  });
+  const { result } = await renderFriends(client);
+  await waitFor(() => expect(result.current.loading).toBe(false));
+
+  await expect(act(async () => {
+    await result.current.sendRequest('friend-1');
+  })).rejects.toThrow('Couldn’t send that friend request. Check your connection and try again.');
 });
 
 test('accept optimistically removes the request and settles on the new friend once the server confirms it', async () => {
@@ -338,7 +350,7 @@ test('polls friend activity on a 30s interval', async () => {
   }
 });
 
-test('shows a load error when the first refresh fails, using a plain Error message or the fallback', async () => {
+test('shows a plain load error when the first refresh fails, never the raw error text', async () => {
   const { getSocialEvents } = deferredSocialEvents();
   const client = baseClient({
     getSocialEvents,
@@ -346,7 +358,7 @@ test('shows a load error when the first refresh fails, using a plain Error messa
   });
   const { result } = await renderFriends(client);
   await waitFor(() => expect(result.current.loading).toBe(false));
-  expect(result.current.error).toBe('socket closed');
+  expect(result.current.error).toBe('Couldn’t load friends. Check your connection and try again.');
 
   const other = baseClient({
     getSocialEvents: deferredSocialEvents().getSocialEvents,
@@ -354,7 +366,7 @@ test('shows a load error when the first refresh fails, using a plain Error messa
   });
   const second = await renderFriends(other);
   await waitFor(() => expect(second.result.current.loading).toBe(false));
-  expect(second.result.current.error).toBe('Couldn’t load friends.');
+  expect(second.result.current.error).toBe('Couldn’t load friends. Check your connection and try again.');
 });
 
 test('drains every page of a multi-page event batch before refreshing', async () => {

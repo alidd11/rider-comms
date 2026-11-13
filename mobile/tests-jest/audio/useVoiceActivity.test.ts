@@ -98,7 +98,7 @@ test('surfaces a specific error and stops the track when publishing setup fails'
   await renderVoiceActivity({ enabled: true, onError });
   await act(async () => {});
 
-  expect(onError).toHaveBeenCalledWith('mute failed');
+  expect(onError).toHaveBeenCalledWith('Couldn’t open the microphone. Check your headset or Bluetooth connection and try again.');
   expect(track.stop).toHaveBeenCalled();
 });
 
@@ -231,7 +231,7 @@ test('surfaces a specific error when unmuting the track fails', async () => {
 
   await openMic(rerender, { enabled: true, onError });
 
-  expect(onError).toHaveBeenCalledWith('unmute failed');
+  expect(onError).toHaveBeenCalledWith('Couldn’t open the microphone. Check your headset or Bluetooth connection and try again.');
 });
 
 test('closes the mic when the level freezes on a loud value (analyser stopped)', async () => {

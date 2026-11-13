@@ -1,3 +1,4 @@
+import { userFacingError } from '../errors/userFacingError';
 // Public/private LiveKit voice and hands-free VOX have been confirmed on
 // physical devices. The current sensitivity envelope is intentionally
 // conservative for helmet/intercom use; broader wind/engine/headset testing
@@ -97,7 +98,7 @@ function useRideVoiceToken(
         setState({
           error: code === 'email_verification_required'
             ? 'Verify your email before using ride voice.'
-            : err instanceof Error ? err.message : 'Couldn’t connect to voice',
+            : userFacingError(err, 'Couldn’t connect to voice.'),
           retryable,
         });
       });
@@ -356,7 +357,9 @@ export function RideBar({ controlsVisible = true }: { controlsVisible?: boolean 
         scheduleVoiceRetry();
       }}
       onError={(error) => {
-        handleVoiceRuntimeError(error.message || 'Couldn’t connect to voice.');
+        // The room's own error text is technical; a retry is already scheduled.
+        void error;
+        handleVoiceRuntimeError('Voice connection dropped. Reconnecting…');
         scheduleVoiceRetry();
       }}
       onMediaDeviceFailure={() => handleVoiceRuntimeError('Microphone or audio device became unavailable.')}
