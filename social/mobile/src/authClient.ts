@@ -46,8 +46,19 @@ export class AccountApiError extends Error {
     this.status = status;
   }
 }
+/** Browser CORS denials and offline transport errors are indistinguishable to fetch.
+ * Never mislabel either as invalid credentials or expose low-level error strings.
+ */
+export class AccountConnectionError extends Error {
+  constructor() {
+    super('Rider Comms could not be reached');
+    this.name = 'AccountConnectionError';
+  }
+}
 export function accountErrorMessage(error: unknown): string {
-  if (!(error instanceof AccountApiError)) return 'Could not connect to Rider Comms. Check your connection and try again.';
+  if (error instanceof AccountConnectionError)
+    return 'Rider Comms could not be reached. Check your connection or try again later.';
+  if (!(error instanceof AccountApiError)) return 'Something went wrong. Try again.';
   const messages: Record<string, string> = {
     invalid_credentials: 'Username or password is incorrect.',
     account_suspended: 'This account is suspended. Contact Rider Comms support.',
@@ -107,10 +118,17 @@ export class RiderAccountClient {
     if (body !== undefined) headers['Content-Type'] = 'application/json';
     if (required) headers.Authorization = 'Bearer ' + this.token;
     // Redirects are disabled to prevent forwarding an Authorization header.
-    const response = await this.transport(this.origin + path, {
-      method, headers, ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
-      credentials: 'omit', cache: 'no-store', redirect: 'error',
-    });
+    // Network/CORS failures do not have an HTTP status and must not appear as
+    // invalid credentials. Do not print, wrap or log the raw exception.
+    let response: Response;
+    try {
+      response = await this.transport(this.origin + path, {
+        method, headers, ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+        credentials: 'omit', cache: 'no-store', redirect: 'error',
+      });
+    } catch {
+      throw new AccountConnectionError();
+    }
     if (response.status === 401 && required) await this.clear();
     if (!response.ok) {
       let code = 'request_failed';
