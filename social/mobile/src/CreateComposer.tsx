@@ -94,6 +94,10 @@ export function CreateComposer({ initialMode = 'Post', onClose, riderId }: { ini
   const pickerSequence = useRef(0);
   const pickerPending = useRef(false);
   const editSequence = useRef(0);
+  // A slow device-storage read must not overwrite text or choices entered
+  // after Create opened. This is especially important when restoring a draft
+  // from a previous session on a busy iPhone.
+  const userEditedDraft = useRef(false);
 
   useEffect(() => {
     mounted.current = true;
@@ -112,7 +116,7 @@ export function CreateComposer({ initialMode = 'Post', onClose, riderId }: { ini
     // Delete that unscoped cache rather than exposing someone else's words.
     void AsyncStorage.removeItem(LEGACY_UNSCOPED_TEXT_DRAFT).catch(() => {});
     void AsyncStorage.getItem(draftKey).then(raw => {
-      if (!mounted || !raw) return;
+      if (!mounted || !raw || userEditedDraft.current) return;
       const restored = parseTextDraft(JSON.parse(raw) as unknown);
       if (restored) {
         setCaption(restored.caption);
@@ -134,6 +138,7 @@ export function CreateComposer({ initialMode = 'Post', onClose, riderId }: { ini
   function changeMode(next: ComposerMode) {
     if (selecting || processing || pickerPending.current) return;
     if (mode === next) return;
+    userEditedDraft.current = true;
     if (media.length) { setPendingMode(next); return; }
     applyMode(next);
   }
@@ -155,6 +160,7 @@ export function CreateComposer({ initialMode = 'Post', onClose, riderId }: { ini
   async function chooseMedia(camera = false) {
     if (selecting || processing || pickerPending.current) return;
     pickerPending.current = true;
+    userEditedDraft.current = true;
     const request = ++pickerSequence.current;
     const requestedMode = mode;
     setSelecting(true);
@@ -203,6 +209,7 @@ export function CreateComposer({ initialMode = 'Post', onClose, riderId }: { ini
 
   function captureFromCamera(item: Omit<ComposerMedia, 'id'>) {
     if (!mounted.current || pickerPending.current || processing) return;
+    userEditedDraft.current = true;
     const now = Date.now();
     const added: ComposerMedia = { ...item, id: 'camera-' + String(now) };
     const next = mode === 'Post' ? [...media, added] : [added];
@@ -454,7 +461,7 @@ export function CreateComposer({ initialMode = 'Post', onClose, riderId }: { ini
             <View style={{ flex: 1, minHeight: 140, gap: 9 }}>
               <Text style={{ color: white, fontSize: 12, fontWeight: '700' }}>Add a title</Text>
               <TextInput accessibilityLabel="Post title" maxLength={MAX_TITLE}
-                value={title} onChangeText={setTitle}
+                value={title} onChangeText={value => { userEditedDraft.current = true; setTitle(value); }}
                 placeholder="Give your post a title"
                 placeholderTextColor="#777B81"
                 style={{ borderBottomWidth: 1, borderColor: border,
@@ -476,20 +483,20 @@ export function CreateComposer({ initialMode = 'Post', onClose, riderId }: { ini
 
           <View style={{ gap: 10 }}>
             <TextInput accessibilityLabel="Create caption" multiline value={caption}
-              maxLength={MAX_CAPTION} onChangeText={setCaption}
+              maxLength={MAX_CAPTION} onChangeText={value => { userEditedDraft.current = true; setCaption(value); }}
               placeholder="Write a description…"
               placeholderTextColor="#80858B"
               style={{ color: white, fontSize: 15, lineHeight: 22,
                 minHeight: 140, textAlignVertical: 'top', padding: 0 }}/>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}>
               <Pressable accessibilityRole="button" accessibilityLabel="Add hashtag"
-                onPress={() => setCaption(current => (current && !/\s$/.test(current) ? current + ' ' : current) + '#')}
+                onPress={() => { userEditedDraft.current = true; setCaption(current => (current && !/\s$/.test(current) ? current + ' ' : current) + '#'); }}
                 style={{ backgroundColor: surface, borderRadius: 10,
                   minWidth: 39, minHeight: 38, alignItems: 'center', justifyContent: 'center' }}>
                 <Text style={{ color: white, fontSize: 21, fontWeight: '700' }}>#</Text>
               </Pressable>
               <Pressable accessibilityRole="button" accessibilityLabel="Add mention"
-                onPress={() => setCaption(current => (current && !/\s$/.test(current) ? current + ' ' : current) + '@')}
+                onPress={() => { userEditedDraft.current = true; setCaption(current => (current && !/\s$/.test(current) ? current + ' ' : current) + '@'); }}
                 style={{ backgroundColor: surface, borderRadius: 10,
                   minWidth: 39, minHeight: 38, alignItems: 'center', justifyContent: 'center' }}>
                 <Text style={{ color: white, fontSize: 20, fontWeight: '700' }}>@</Text>
@@ -508,7 +515,7 @@ export function CreateComposer({ initialMode = 'Post', onClose, riderId }: { ini
             </View>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 9 }}>
               {topics.map(item => <Option key={item.value} label={item.label}
-                selected={category === item.value} onPress={() => setCategory(item.value)}/>)}
+                selected={category === item.value} onPress={() => { userEditedDraft.current = true; setCategory(item.value); }}/>)}
             </View>
           </View>
 
@@ -522,7 +529,7 @@ export function CreateComposer({ initialMode = 'Post', onClose, riderId }: { ini
               accessibilityLabel={'Audience ' + item.label}
               accessibilityState={{ checked: audience === item.value }}
               aria-checked={audience === item.value}
-              onPress={() => setAudience(item.value)}
+              onPress={() => { userEditedDraft.current = true; setAudience(item.value); }}
               style={{ minHeight: 44, flexDirection: 'row', alignItems: 'center',
                 justifyContent: 'space-between' }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
@@ -537,7 +544,7 @@ export function CreateComposer({ initialMode = 'Post', onClose, riderId }: { ini
           <View style={{ height: 1, backgroundColor: border }}/>
           <Pressable accessibilityRole="checkbox"
             accessibilityLabel="Contains paid promotion" accessibilityState={{ checked: paidContent }}
-            onPress={() => setPaidContent(current => !current)}
+            onPress={() => { userEditedDraft.current = true; setPaidContent(current => !current); }}
             style={{ minHeight: 47, flexDirection: 'row',
               alignItems: 'center', justifyContent: 'space-between' }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
