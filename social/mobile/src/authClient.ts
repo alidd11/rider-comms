@@ -140,7 +140,7 @@ export class RiderAccountClient {
     this.user = null;
     try { await this.storage.clear(); } finally { this.onExpired?.(); }
   }
-  private async request<T>(method: 'GET' | 'POST', path: string, body?: unknown, required = false): Promise<T> {
+  private async request<T>(method: 'GET' | 'POST' | 'DELETE', path: string, body?: unknown, required = false): Promise<T> {
     if (required && !this.token) throw new AccountApiError(401, 'not_signed_in');
     const headers: Record<string, string> = { Accept: 'application/json' };
     if (body !== undefined) headers['Content-Type'] = 'application/json';
@@ -260,6 +260,16 @@ export class RiderAccountClient {
       // revocation was not confirmed, although local credentials are cleared.
       if (!(error instanceof AccountApiError && error.status === 401)) throw error;
     } finally { await this.clear(); }
+  }
+  /**
+   * Permanently deletes the shared Rider Comms account across both apps.
+   * Only clear the local authenticated session after the backend confirms
+   * deletion. An offline or 5xx response must NOT falsely report success.
+   */
+  async deleteAccount(): Promise<void> {
+    if (!this.token || !this.user) throw new AccountApiError(401, 'not_signed_in');
+    await this.request<void>('DELETE', '/auth/me', undefined, true);
+    await this.clear();
   }
   async friends(): Promise<{ friends: SharedFriend[]; nextCursor?: string | null }> {
     const riderId = this.user?.riderId;
