@@ -82,7 +82,18 @@ appId: com.ridercomms.app
           timeout: 8000
 - waitForAnimationToEnd
 - takeScreenshot: authenticated-petrol
-- tapOn: "Back to map"
+# Every tap below that leaves a screen is retried until the next screen
+# shows: the iOS simulator drops taps (see #461, #463).
+- retry:
+    maxRetries: 3
+    commands:
+      - tapOn:
+          text: "Back to map"
+          optional: true
+      - extendedWaitUntil:
+          visible:
+            id: drawer-home
+          timeout: 8000
 - waitForAnimationToEnd
 # On the iOS simulator a first tap has left the screen unchanged, so open
 # the menu and tap Ride again until the Ride page shows.
@@ -98,8 +109,16 @@ appId: com.ridercomms.app
             id: ride-back
           timeout: 8000
 - takeScreenshot: authenticated-ride
-- tapOn:
-    id: ride-back
+- retry:
+    maxRetries: 3
+    commands:
+      - tapOn:
+          id: ride-back
+          optional: true
+      - extendedWaitUntil:
+          visible:
+            id: open-menu
+          timeout: 8000
 - retry:
     maxRetries: 3
     commands:
@@ -111,17 +130,48 @@ appId: com.ridercomms.app
           visible: "Back to map"
           timeout: 8000
 - takeScreenshot: authenticated-friends
-- tapOn: "Back to map"
-- tapOn:
-    id: open-menu
+- retry:
+    maxRetries: 3
+    commands:
+      - tapOn:
+          text: "Back to map"
+          optional: true
+      - extendedWaitUntil:
+          visible:
+            id: open-menu
+          timeout: 8000
+- retry:
+    maxRetries: 3
+    commands:
+      - tapOn:
+          id: open-menu
+      - extendedWaitUntil:
+          visible: "Settings(,.*)?"
+          timeout: 8000
 - takeScreenshot: authenticated-menu
-- tapOn: "Settings(,.*)?"
+- retry:
+    maxRetries: 3
+    commands:
+      - tapOn:
+          text: "Settings(,.*)?"
+          optional: true
+      - extendedWaitUntil:
+          visible: "Close settings"
+          timeout: 8000
 - takeScreenshot: authenticated-settings
 # Settings lists categories: open one, then one of its pages.
 - scrollUntilVisible:
     element: "Account and login"
     direction: DOWN
-- tapOn: "Account and login"
+- retry:
+    maxRetries: 3
+    commands:
+      - tapOn:
+          text: "Account and login"
+          optional: true
+      - extendedWaitUntil:
+          visible: "Signed-in devices(,.*)?"
+          timeout: 8000
 - takeScreenshot: authenticated-account
 - tapOn: "Signed-in devices(,.*)?"
 - waitForAnimationToEnd
@@ -140,18 +190,28 @@ appId: com.ridercomms.app
       - tapOn: "Go back"
       - waitForAnimationToEnd
 # The profile and the plan each have one home in the menu.
-- tapOn:
-    id: open-menu
-- tapOn: "View profile"
-- extendedWaitUntil:
-    visible: "Edit profile"
-    timeout: 10000
+- retry:
+    maxRetries: 3
+    commands:
+      - tapOn:
+          id: open-menu
+          optional: true
+      - waitForAnimationToEnd
+      - tapOn: "View profile"
+      - extendedWaitUntil:
+          visible: "Edit profile"
+          timeout: 10000
 - takeScreenshot: authenticated-profile
-- tapOn: "Go back"
-- extendedWaitUntil:
-    visible:
-      id: open-menu
-    timeout: 10000
+- retry:
+    maxRetries: 3
+    commands:
+      - tapOn:
+          text: "Go back"
+          optional: true
+      - extendedWaitUntil:
+          visible:
+            id: open-menu
+          timeout: 10000
 # The menu slides in; a tap during that has been dropped on iOS. Wait for
 # the plan screen's own intro line, as "Your plan" is also the menu row's
 # label.
