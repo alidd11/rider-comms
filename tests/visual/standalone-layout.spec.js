@@ -1,5 +1,6 @@
 // The installed (Home Screen) app: canvas, safe areas and viewport geometry.
 import { expect, test } from '@playwright/test';
+import { AXE_PROJECTS, expectNoAxeViolations } from './axe.js';
 import { mockAuthenticatedApi, assertNoViewportOverflow, waitForViewportSettled, installStandaloneFixture, setSyntheticSafeArea, standaloneGeometry, openTab, openSettingsPage, openFromMenu, openOwnProfile, expectNear } from './helpers.js';
 
 test('PWA utility viewport paints safe areas as one edge-to-edge canvas', async ({ page }) => {
@@ -339,6 +340,9 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
   expect(Math.abs((summaryBox.y + summaryBox.height) - viewport.height)).toBeLessThanOrEqual(3);
   expect(await page.evaluate(() => document.documentElement.style.getPropertyValue('--app-vh'))).toBe('100vh');
   await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-navigation-controls-final.png'), fullPage: true });
+  // The banner and summary are read at a glance while riding: contrast and
+  // labels hold in both palettes (light on Chromium, dark on WebKit).
+  if (AXE_PROJECTS.has(testInfo.project.name)) await expectNoAxeViolations(page, 'navigation');
 });
 
 test('@viewport standalone canvas, navigation and scroll geometry remain coherent', async ({ page }, testInfo) => {
