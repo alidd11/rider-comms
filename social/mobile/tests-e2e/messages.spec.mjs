@@ -143,7 +143,7 @@ test('a failed inbox refresh clears stale private previews until a new successfu
   await installFixture(page);
   let refreshes = 0;
   // Override the fixture for this endpoint only.
-  await page.route(backend + '/conversations', async route => {
+  await page.route(backend + '/conversations?*', async route => {
     refreshes += 1;
     if (refreshes > 1) {
       await route.abort('failed');
@@ -184,13 +184,13 @@ test('server-revoked friendship closes the former private conversation after ref
     await route.fulfill({ status: 200, contentType: 'application/json',
       headers: cors, body: JSON.stringify(sentMessage) });
   });
-  await page.route(backend + '/conversations', async route => {
+  await page.route(backend + '/conversations?*', async route => {
     refreshes += 1;
     await route.fulfill({ status: 200, contentType: 'application/json',
       headers: cors,
       body: JSON.stringify({ conversations: revoked ? [] : initial, nextCursor: null }) });
   });
-  await page.route(backend + '/riders/' + ownId + '/friends', async route => {
+  await page.route(backend + '/riders/' + ownId + '/friends?*', async route => {
     await route.fulfill({ status: 200, contentType: 'application/json',
       headers: cors,
       body: JSON.stringify({ friends: revoked ? [] : [alice], nextCursor: null }) });
