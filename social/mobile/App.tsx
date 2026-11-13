@@ -615,8 +615,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
 
   function renderShop() {
     return <ShopScreen items={filteredListings} collectionItems={availableListings} search={search} onSearch={setSearch}
-      category={marketFilter} onCategory={setMarketFilter}
-      onOpenProfile={() => navigate('Profile')}/>;
+      category={marketFilter} onCategory={setMarketFilter}/>;
   }
 
   function renderProfile() {
