@@ -108,6 +108,13 @@ test('For You and Following remain visible as Home feed tabs while feed content 
   await forYou.click();
   await expect(page.getByTestId('home-feed-preferences')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Create story' })).toBeVisible();
+
+  // The Story shortcut must not be reset to Post by the shared navigator.
+  await page.getByRole('button', { name: 'Create story' }).click();
+  await expect(page.getByTestId('camera-first-studio')).toBeVisible();
+  await expect(page.getByText('New story')).toBeVisible();
+  await page.getByRole('button', { name: 'Close Create' }).click();
+  await expect(page.getByTestId('home-feed-tabs')).toBeVisible();
 });
 
 test('clubs, marketplace and profile have independent usable screens', async ({ page }, testInfo) => {
