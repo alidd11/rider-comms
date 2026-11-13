@@ -68,7 +68,7 @@ test('failed browser connection is distinct from invalid credentials and never p
     error instanceof AccountConnectionError && !(error instanceof AccountApiError));
   assert.equal(stored, null);
   assert.equal(requests, 1);
-  assert.match(accountErrorMessage(new AccountConnectionError()), /could not be reached/i);
+  assert.match(accountErrorMessage(new AccountConnectionError()), /can’t connect/i);
 });
 test('login errors map backend response codes, including rate limits and suspended accounts', async () => {
   const codes: Array<[number, string]> = [
