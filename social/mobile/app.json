@@ -30,6 +30,12 @@
     },
     "plugins": [
       [
+        "expo-secure-store",
+        {
+          "configureAndroidBackup": true
+        }
+      ],
+      [
         "expo-image-picker",
         {
           "photosPermission": "Allow Social Preview to select photos and videos you choose.",
