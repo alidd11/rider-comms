@@ -9,21 +9,26 @@ type Page = 'discover' | 'saved' | 'basket' | 'orders';
 const categories = ['All', 'Accessories', 'Vehicles', 'Rentals'] as const;
 const interests = ['All', 'Cars', 'Motorcycles', 'Cycling'] as const;
 
-export function ShopScreen({ items, collectionItems, search, onSearch, category, onCategory }: {
+export function ShopScreen({ items, collectionItems, search, onSearch, category, onCategory,
+  saved, basket, onToggleSaved, onAddBasket }: {
   items: readonly Item[];
   collectionItems: readonly Item[];
   search: string;
   onSearch: (value:string) => void;
   category: string;
   onCategory: (value:string) => void;
+  // Session-local preview selections live above the screen so tab navigation
+  // cannot silently discard them. Nothing is persisted or purchased.
+  saved: ReadonlySet<string>;
+  basket: ReadonlySet<string>;
+  onToggleSaved: (id: string) => void;
+  onAddBasket: (id: string) => void;
 }) {
   const [section,setSection] = useState<Page>('discover');
   const [interest,setInterest] = useState<string>('All');
   const [filtersOpen,setFiltersOpen] = useState(false);
   const [selected,setSelected] = useState<string|null>(null);
   const [shop,setShop] = useState<string|null>(null);
-  const [saved,setSaved] = useState<Set<string>>(() => new Set());
-  const [basket,setBasket] = useState<Set<string>>(() => new Set());
   const [message,setMessage] = useState<string|null>(null);
   const item = selected ? collectionItems.find(x => x.id === selected) : null;
   const filtered = useMemo(() => (section === 'discover' ? items : collectionItems).filter(x =>
@@ -33,20 +38,13 @@ export function ShopScreen({ items, collectionItems, search, onSearch, category,
     (!shop || x.merchant === shop)
   ),[items,collectionItems,interest,section,saved,basket,shop]);
 
-  function toggle(setter:React.Dispatch<React.SetStateAction<Set<string>>>,id:string) {
-    setter(current => {
-      const next = new Set(current);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  }
   function openProduct(product:Item) { setSelected(product.id);setMessage(null); }
   function addProduct(product:Item) {
     if (product.type !== 'Product') {
       setMessage('Enquiries and rental bookings require verified businesses. This is only a preview.');
       return;
     }
-    setBasket(previous => new Set(previous).add(product.id));
+    onAddBasket(product.id);
     setMessage('Added to your preview basket. No payment or order was created.');
   }
   function browse() { setSelected(null);setShop(null);setSection('discover');setMessage(null); }
@@ -91,7 +89,7 @@ export function ShopScreen({ items, collectionItems, search, onSearch, category,
       {message?<Text accessibilityRole="alert" style={{color:C.accent,fontSize:12}}>{message}</Text>:null}
       <View style={{flexDirection:'row',gap:10}}>
         <Pressable accessibilityRole="button" accessibilityLabel={(saved.has(item.id)?'Unsave ':'Save ')+item.name}
-          onPress={()=>toggle(setSaved,item.id)} style={[s.ghost,{justifyContent:'center',minWidth:54}]}>
+          onPress={()=>onToggleSaved(item.id)} style={[s.ghost,{justifyContent:'center',minWidth:54}]}>
           <Ionicons name={saved.has(item.id)?'heart':'heart-outline'} size={21} color={C.accent}/>
         </Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel={'Add to preview basket '+item.name}
@@ -205,7 +203,7 @@ export function ShopScreen({ items, collectionItems, search, onSearch, category,
           </Pressable>
           <Pressable accessibilityRole="button"
             accessibilityLabel={(saved.has(product.id)?'Unsave ':'Save ')+product.name}
-            onPress={()=>toggle(setSaved,product.id)}
+            onPress={()=>onToggleSaved(product.id)}
             style={{position:'absolute',right:7,top:7,backgroundColor:'rgba(0,0,0,0.77)',
               borderRadius:20,width:33,height:33,justifyContent:'center',alignItems:'center'}}>
             <Ionicons name={saved.has(product.id)?'heart':'heart-outline'}
