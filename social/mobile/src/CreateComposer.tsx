@@ -9,13 +9,13 @@ import { CameraCapture } from './CameraCapture';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { C, s } from './styles';
 import { cropRect } from './imageEdit';
+import { accountTextDraftKey, LEGACY_UNSCOPED_TEXT_DRAFT } from './createDraftKey';
 import type { AspectPreset } from './imageEdit';
 import { MAX_CAPTION, MAX_TITLE, moveMedia, parseTextDraft, validateDraft, validateMedia } from './upload';
 import type { Audience, ComposerDraft, ComposerMedia, ComposerMode } from './upload';
 
 type Stage = 'select' | 'edit' | 'share';
 type Topic = ComposerDraft['category'];
-const DRAFT_KEY = '@rider-comms/social/create-text-draft-v1';
 const formats: ComposerMode[] = ['Post', 'Story', 'Reel'];
 const topics: { value: Topic; label: string }[] = [
   { value: 'cars', label: 'Cars' },
@@ -68,7 +68,8 @@ function Tool({ icon, label, onPress, disabled = false }: {
   </Pressable>;
 }
 
-export function CreateComposer({ initialMode = 'Post', onClose }: { initialMode?: ComposerMode; onClose: () => void }) {
+export function CreateComposer({ initialMode = 'Post', onClose, riderId }: { initialMode?: ComposerMode; onClose: () => void; riderId: string }) {
+  const draftKey = accountTextDraftKey(riderId);
   const insets = useSafeAreaInsets();
   const [mode, setMode] = useState<ComposerMode>(initialMode);
   const [stage, setStage] = useState<Stage>('select');
@@ -89,7 +90,10 @@ export function CreateComposer({ initialMode = 'Post', onClose }: { initialMode?
 
   useEffect(() => {
     let mounted = true;
-    void AsyncStorage.getItem(DRAFT_KEY).then(raw => {
+    // A previous preview used one draft for every account on this device.
+    // Delete that unscoped cache rather than exposing someone else's words.
+    void AsyncStorage.removeItem(LEGACY_UNSCOPED_TEXT_DRAFT).catch(() => {});
+    void AsyncStorage.getItem(draftKey).then(raw => {
       if (!mounted || !raw) return;
       const restored = parseTextDraft(JSON.parse(raw) as unknown);
       if (restored) {
@@ -103,7 +107,7 @@ export function CreateComposer({ initialMode = 'Post', onClose }: { initialMode?
       }
     }).catch(() => {});
     return () => { mounted = false; };
-  }, []);
+  }, [draftKey, initialMode]);
 
   const selected = media[active] ?? null;
   const isVideo = selected?.kind === 'video';
@@ -245,7 +249,7 @@ export function CreateComposer({ initialMode = 'Post', onClose }: { initialMode?
 
   async function saveTextDraft() {
     try {
-      await AsyncStorage.setItem(DRAFT_KEY, JSON.stringify({ mode, title, caption, category, audience }));
+      await AsyncStorage.setItem(draftKey, JSON.stringify({ mode, title, caption, category, audience }));
       setStatus('Text draft saved. Photos and videos are not saved; select them again next time.');
     } catch {
       setStatus('Text draft could not be saved on this device.');
