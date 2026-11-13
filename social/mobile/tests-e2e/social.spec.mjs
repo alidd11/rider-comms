@@ -605,6 +605,29 @@ test('existing comments and connections sheets respect the home-indicator inset'
   await page.getByRole('button', { name: 'Close connections' }).click();
 });
 
+test('Create locks format changes while Gallery selection is still pending', async ({ page }) => {
+  const uncaught = [];
+  page.on('pageerror', error => uncaught.push(error.message));
+  await page.goto('/');
+  await page.getByRole('tab', { name: 'Create' }).click();
+  const chooserPromise = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Choose from library' }).click();
+  const chooser = await chooserPromise;
+  // The original race allowed a mode change while Expo's picker was waiting,
+  // then installed the old file selection into a different format.
+  await expect(page.getByRole('button', { name: 'Story format' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Reel format' })).toBeDisabled();
+  await chooser.setFiles({
+    name: 'pending-picker.png', mimeType: 'image/png',
+    buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO/jVf8AAAAASUVORK5CYII=', 'base64'),
+  });
+  await expect(page.getByTestId('media-edit-canvas')).toBeVisible();
+  await expect(page.getByLabel('Selected photo: pending-picker.png')).toBeVisible();
+  await expect(page.getByText('Edit post')).toBeVisible();
+  await expect(page.getByTestId('create-recovery')).toHaveCount(0);
+  expect(uncaught).toEqual([]);
+});
+
 test('Create opens camera-first with a real permission path and gallery alternative', async ({ page }, testInfo) => {
   await page.goto('/');
   await page.getByRole('tab', { name: 'Create' }).click();
