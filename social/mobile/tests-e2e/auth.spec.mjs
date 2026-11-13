@@ -167,6 +167,7 @@ test('Settings clears private device drafts without deleting the Rider Comms acc
   await page.getByRole('button', { name: 'Open settings and privacy' }).click();
   await expect(page.getByTestId('social-settings')).toBeVisible();
   await expect(page.getByRole('link', { name: 'Privacy policy' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Dismiss notice' })).toHaveCount(0);
   await mkdir('test-results/screenshots', { recursive: true });
   await page.screenshot({ path: 'test-results/screenshots/' +
     testInfo.project.name + '-settings-privacy.png' });
