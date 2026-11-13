@@ -68,9 +68,18 @@ appId: com.ridercomms.app
     timeout: 30000
 - waitForAnimationToEnd
 - takeScreenshot: authenticated-map
-# Petrol opens search on nearby petrol stations.
-- tapOn:
-    id: drawer-petrol
+# Petrol opens search on nearby petrol stations. The iOS simulator has
+# dropped this first tap and left the map unchanged, so tap until the
+# search page shows.
+- retry:
+    maxRetries: 3
+    commands:
+      - tapOn:
+          id: drawer-petrol
+          optional: true
+      - extendedWaitUntil:
+          visible: "Back to map"
+          timeout: 8000
 - waitForAnimationToEnd
 - takeScreenshot: authenticated-petrol
 - tapOn: "Back to map"
