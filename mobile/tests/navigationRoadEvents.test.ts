@@ -13,6 +13,7 @@ const route = [
 ];
 
 const mapScreenSource = await readFile(new URL('../src/screens/MapScreen.tsx', import.meta.url), 'utf8');
+const navigationOverlaySource = await readFile(new URL('../src/screens/NavigationOverlay.tsx', import.meta.url), 'utf8');
 const hazardReportsHookSource = await readFile(new URL('../src/screens/useHazardReports.ts', import.meta.url), 'utf8');
 const navigationSummaryHookSource = await readFile(new URL('../src/screens/useNavigationSummary.ts', import.meta.url), 'utf8');
 const inAppNavigationHookSource = await readFile(new URL('../src/screens/useInAppNavigation.ts', import.meta.url), 'utf8');
@@ -258,7 +259,10 @@ describe('route-ahead navigation hazard selection', () => {
   it('uses the measured navigation banner height so road-ahead alerts can’t hide the route camera target', () => {
     assert.match(mapScreenSource, /const \[navigationBannerHeight, setNavigationBannerHeight\] = React\.useState\(166\)/);
     assert.match(inAppNavigationHookSource, /const topOcclusion = insets\.top \+ spacing\.sm \+ navigationBannerHeight/);
-    assert.match(mapScreenSource, /setNavigationBannerHeight\(\(current\) => Math\.abs\(current - measuredHeight\) > 1 \? measuredHeight : current\)/);
+    // The banner (NavigationOverlay) measures itself and reports through onHeight.
+    assert.match(mapScreenSource, /onHeight=\{setNavigationBannerHeight\}/);
+    assert.match(navigationOverlaySource, /onHeight\(\(current\) => Math\.abs\(current - height\) > 1 \? height : current\)/);
+    assert.match(navigationOverlaySource, /function NavigationBanner[\s\S]*?onLayout=\{measured\(onHeight\)\}/);
   });
 });
 

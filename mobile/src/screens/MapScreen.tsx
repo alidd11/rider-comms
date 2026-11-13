@@ -43,24 +43,19 @@ import { useVoiceMute } from '../voice/VoiceMuteContext';
 import { useDarkOutside } from './useDarkOutside';
 import { NearbyRidersIcon } from '../components/NearbyRidersIcon';
 import { navigationProviderLabel } from '../navigationPreference';
-import {
-  formatNavigationDistance,
-  formatNavigationDuration,
-  formatNavigationSpeed,
-  navigationInstructionRoad,
-  navigationSpeedUnit,
-} from '../navigationGuidance';
+import { formatNavigationDistance } from '../navigationGuidance';
 import { RiderAvatar } from '../components/RiderAvatar';
-import { NavigationManeuverGlyph } from '../components/NavigationManeuverGlyph';
-import { NavigationRoadAhead } from '../components/NavigationRoadAhead';
 import { HazardMarker, NavigationPuckMarker, SmoothSelfMarker, SmoothRideMemberMarker } from './mapMarkers';
 import { RegroupChip, RegroupMarker, isRegroupSpot, regroupTitle } from './RegroupPoint';
+import { RidingHud } from './RidingHud';
+import { NavigationBanner, NavigationControls, NavigationSpeedBadge, NavigationTripSummary } from './NavigationOverlay';
+import { ArrivalCard, DestinationCard } from './MapPlaceCards';
 import { RIDE_LOCATION_FRESH_MS, rideMemberLastSeenAgo } from '@rider-comms/shared';
 import { useRideProfiles } from './useRideProfiles';
 import { useHazardReports } from './useHazardReports';
 import { useNavigationSummary } from './useNavigationSummary';
 import { usePresence } from './usePresence';
-import { ROUTE_UPDATED_NOTICE, useInAppNavigation } from './useInAppNavigation';
+import { useInAppNavigation } from './useInAppNavigation';
 
 const RIDE_MARKER_REFRESH_MS = 10_000;
 const DEFAULT_REGION = {
@@ -774,93 +769,33 @@ export function MapScreen(): React.JSX.Element {
       )}
 
       {segment === 'public' && lockedForSafety && !activeRoute && (
-        <>
-          <View style={[styles.hudChips, { top: insets.top + spacing.sm }]} pointerEvents="none">
-            <View style={styles.hudChip} accessible accessibilityRole="text" accessibilityLabel="Ride Safe is on. Distracting controls are locked while moving.">
-              <Ionicons name="lock-closed" size={15} color={colors.accent} />
-              <Text style={styles.hudChipText}>Ride Safe</Text>
-            </View>
-            {activeRide && (
-              <View style={styles.hudChip} accessible accessibilityRole="text">
-                <MaterialCommunityIcons name="account-group" size={16} color={colors.textPrimary} />
-                <Text style={styles.hudChipText}>{roster.length ? `${roster.length} in ride` : 'Group ride'}</Text>
-              </View>
-            )}
-          </View>
-          <View
-            style={[styles.hudSpeed, { bottom: bottomBarOffset + HUD_ACTION_HEIGHT + spacing.sm }]}
-            accessible
-            accessibilityRole="text"
-            accessibilityLabel={hudSpeed == null ? 'Current speed unavailable' : `Current speed ${hudSpeed} ${unitSystem === 'km' ? 'kilometres per hour' : 'miles per hour'}`}
-          >
-            <Text style={styles.hudSpeedValue}>{hudSpeed == null ? '—' : hudSpeed}</Text>
-            <Text style={styles.hudSpeedUnit}>{unitSystem === 'km' ? 'km/h' : 'mph'}</Text>
-          </View>
-          <View style={[styles.hudActions, { bottom: bottomBarOffset }]} testID="riding-hud">
-            {voiceConnected && (
-              <Pressable
-                style={({ pressed }) => [styles.hudButton, voiceMuted && styles.hudButtonActive, pressed && styles.mapActionButtonPressed]}
-                onPress={toggleVoiceMuted}
-                accessibilityRole="button"
-                accessibilityState={{ selected: voiceMuted }}
-                accessibilityLabel={voiceMuted ? 'Unmute your microphone' : 'Mute your microphone'}
-              >
-                <Ionicons name={voiceMuted ? 'mic-off' : 'mic'} size={28} color={colors.textPrimary} />
-                <Text style={styles.hudButtonText}>{voiceMuted ? 'Unmute' : 'Mute'}</Text>
-              </Pressable>
-            )}
-            <Pressable
-              style={({ pressed }) => [styles.hudButton, styles.hudHazardButton, pressed && styles.mapActionButtonPressed]}
-              onPress={() => void openReportSheet()}
-              accessibilityRole="button"
-              accessibilityLabel="Report on the road"
-            >
-              <MaterialCommunityIcons name="alert-outline" size={28} color="#1F1300" />
-              <Text style={[styles.hudButtonText, styles.hudHazardText]}>Hazard</Text>
-            </Pressable>
-          </View>
-        </>
+        <RidingHud
+          top={insets.top + spacing.sm}
+          bottom={bottomBarOffset}
+          inRide={Boolean(activeRide)}
+          rosterCount={roster.length}
+          speed={hudSpeed}
+          unitSystem={unitSystem}
+          voiceConnected={voiceConnected}
+          voiceMuted={voiceMuted}
+          onToggleMute={toggleVoiceMuted}
+          onReport={() => void openReportSheet()}
+        />
       )}
 
       {activeRoute && currentNavigationStep && (
-        <View style={[styles.navigationActions, { bottom: navigationSummaryHeight + spacing.md }]}>
-          {!lockedForSafety && (
-            <Pressable
-              style={({ pressed }) => [styles.navigationActionButton, pressed && styles.navigationActionButtonPressed]}
-              onPress={() => void openReportSheet()}
-              accessibilityRole="button"
-              accessibilityLabel="Report on the road"
-            >
-              <MaterialCommunityIcons name="alert-plus" size={24} color={colors.textPrimary} />
-            </Pressable>
-          )}
-          <Pressable
-            style={({ pressed }) => [styles.navigationActionButton, navigationMuted && styles.navigationActionButtonActive, pressed && styles.navigationActionButtonPressed]}
-            onPress={() => setNavigationMuted((current) => !current)}
-            accessibilityRole="button"
-            accessibilityState={{ selected: navigationMuted }}
-            accessibilityLabel={navigationMuted ? 'Unmute navigation guidance' : 'Mute navigation guidance'}
-            accessibilityHint={navigationMuted ? 'Restores spoken turn instructions' : 'Silences spoken turn instructions'}
-          >
-            <Ionicons name={navigationMuted ? 'volume-mute' : 'volume-high'} size={24} color={navigationMuted ? colors.accentText : colors.textPrimary} />
-          </Pressable>
-          <Pressable
-            style={({ pressed }) => [styles.navigationActionButton, !navigationFollowing && styles.navigationActionButtonActive, pressed && styles.navigationActionButtonPressed]}
-            onPress={() => {
-              if (navigationFollowing) fitRoute(activeRoute);
-              else void centreOnCurrentLocation();
-            }}
-            accessibilityRole="button"
-            accessibilityLabel={navigationFollowing ? 'Show route overview' : 'Resume navigation follow mode'}
-            accessibilityHint={navigationFollowing ? 'Shows the full route on the map' : 'Keeps the map centred on your ride'}
-          >
-            <Ionicons
-              name={navigationFollowing ? 'map-outline' : 'navigate'}
-              size={24}
-              color={navigationFollowing ? colors.textPrimary : colors.accentText}
-            />
-          </Pressable>
-        </View>
+        <NavigationControls
+          bottom={navigationSummaryHeight + spacing.md}
+          canReport={!lockedForSafety}
+          muted={navigationMuted}
+          following={navigationFollowing}
+          onReport={() => void openReportSheet()}
+          onToggleMute={() => setNavigationMuted((current) => !current)}
+          onOverviewOrFollow={() => {
+            if (navigationFollowing) fitRoute(activeRoute);
+            else void centreOnCurrentLocation();
+          }}
+        />
       )}
 
       <HazardReportSheet
@@ -879,214 +814,65 @@ export function MapScreen(): React.JSX.Element {
       )}
 
       {segment === 'public' && !activeRoute && navigationArrival && !selectedDestination && !selectedHazard && (
-        <View
-          testID="navigation-arrival"
-          style={[styles.destinationCard, { bottom: insets.bottom + spacing.sm }]}
-          accessibilityLiveRegion="polite"
-        >
-          <View style={styles.destinationCardHead}>
-            <View style={styles.destinationCardIcon}>
-              <MaterialCommunityIcons name="flag-checkered" size={20} color={colors.accent} />
-            </View>
-            <View style={styles.destinationCardCopy}>
-              <Text style={styles.destinationCardTitle}>You’ve arrived</Text>
-              {navigationArrival.label ? (
-                <Text numberOfLines={2} style={styles.destinationCardCoords}>{navigationArrival.label}</Text>
-              ) : null}
-            </View>
-          </View>
-          <Text style={styles.arrivalStats}>
-            {`${formatNavigationDuration(navigationArrival.seconds)} · ${formatNavigationDistance(navigationArrival.distanceMeters, unitSystem)}`}
-          </Text>
-          <Pressable
-            style={({ pressed }) => [styles.destinationPrimaryAction, pressed && pressedFeedback]}
-            accessibilityRole="button"
-            onPress={dismissNavigationArrival}
-          >
-            <Text style={styles.destinationPrimaryTitle}>Done</Text>
-          </Pressable>
-        </View>
+        <ArrivalCard
+          bottom={insets.bottom + spacing.sm}
+          arrival={navigationArrival}
+          unitSystem={unitSystem}
+          onDone={dismissNavigationArrival}
+        />
       )}
 
       {segment === 'public' && !activeRoute && selectedDestination && !selectedHazard && (
-        <View style={[styles.destinationCard, { bottom: insets.bottom + spacing.sm }]} accessibilityLiveRegion="polite">
-          <View style={styles.destinationCardHead}>
-            <View style={styles.destinationCardIcon}>
-              <Ionicons name={selectedIsRegroup ? 'flag' : 'location'} size={20} color={colors.accent} />
-            </View>
-            <View style={styles.destinationCardCopy}>
-              <Text numberOfLines={2} style={styles.destinationCardTitle}>
-                {selectedDestination.label ?? 'Selected place'}
-              </Text>
-              <Text numberOfLines={2} style={styles.destinationCardCoords}>{selectedDestinationSubtitle}</Text>
-            </View>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Dismiss destination"
-              style={({ pressed }) => [styles.destinationCardDismiss, pressed && pressedFeedback]}
-              onPress={() => {
-                setNavigationTarget(null);
-                setSelectedPlace(null);
-              }}
-            >
-              <Ionicons name="close" size={20} color={colors.textSecondary} />
-            </Pressable>
-          </View>
-          <View style={styles.destinationCardEta}>
-            <Ionicons name="map-outline" size={15} color={colors.accent} />
-            <Text style={styles.destinationCardEtaText}>
-              {destinationEta
-                ? `${formatNavigationDistance(destinationEta.distanceMeters, unitSystem)} · ${formatNavigationDuration(destinationEta.durationSeconds)}`
-                : 'Calculating route…'}
-            </Text>
-          </View>
-          <Pressable
-            style={({ pressed }) => [styles.destinationPrimaryAction, pressed && pressedFeedback]}
-            accessibilityRole="button"
-            accessibilityLabel={navigationLoading
-              ? `Starting route to ${selectedDestination.label ?? 'selected place'}`
-              : `Start route to ${selectedDestination.label ?? 'selected place'}`}
-            accessibilityState={{ disabled: navigationLoading, busy: navigationLoading }}
-            onPress={() => void openDirections(selectedDestination)}
-            disabled={navigationLoading}
-          >
-            <Ionicons name="navigate" size={18} color={colors.accentText} />
-            <View>
-              <Text style={styles.destinationPrimaryTitle}>{navigationLoading ? 'Starting…' : 'Start route'}</Text>
-              <Text style={styles.destinationPrimarySubtitle}>{selectedDestinationProvider}</Text>
-            </View>
-          </Pressable>
-          {activeRide?.isHost ? (
-            <Pressable
-              testID="regroup-action"
-              style={({ pressed }) => [styles.destinationSecondaryAction, pressed && pressedFeedback]}
-              accessibilityRole="button"
-              accessibilityLabel={selectedIsRegroup ? 'Clear the regroup point' : `Ask the group to regroup at ${selectedDestination.label ?? 'this place'}`}
-              accessibilityState={{ disabled: regroupSaving, busy: regroupSaving }}
-              disabled={regroupSaving}
-              onPress={() => void toggleRegroupPoint(selectedDestination, selectedIsRegroup)}
-            >
-              <Ionicons name={selectedIsRegroup ? 'close' : 'flag'} size={18} color={colors.textPrimary} />
-              <Text style={styles.destinationSecondaryTitle}>{selectedIsRegroup ? 'Clear regroup point' : 'Regroup here'}</Text>
-            </Pressable>
-          ) : null}
-          {activeRide?.isHost && regroupError ? (
-            <Text style={styles.destinationActionError} accessibilityLiveRegion="polite">
-              Couldn’t reach Rider Comms. Check your connection and try again.
-            </Text>
-          ) : null}
-        </View>
+        <DestinationCard
+          bottom={insets.bottom + spacing.sm}
+          destination={selectedDestination}
+          subtitle={selectedDestinationSubtitle}
+          isRegroup={selectedIsRegroup}
+          eta={destinationEta}
+          unitSystem={unitSystem}
+          providerLabel={selectedDestinationProvider}
+          loading={navigationLoading}
+          isHost={activeRide?.isHost === true}
+          regroupSaving={regroupSaving}
+          regroupError={regroupError}
+          onDismiss={() => {
+            setNavigationTarget(null);
+            setSelectedPlace(null);
+          }}
+          onStartRoute={() => void openDirections(selectedDestination)}
+          onToggleRegroup={() => void toggleRegroupPoint(selectedDestination, selectedIsRegroup)}
+        />
       )}
 
       {activeRoute && currentNavigationStep && (
         <>
-          <View
-            style={[styles.navigationBanner, { top: insets.top + spacing.sm }]}
-            onLayout={(event) => {
-              const measuredHeight = Math.ceil(event.nativeEvent.layout.height);
-              setNavigationBannerHeight((current) => Math.abs(current - measuredHeight) > 1 ? measuredHeight : current);
-            }}
-          >
-            <View style={styles.navigationBannerMain}>
-              <View style={styles.navigationManeuver}>
-                <NavigationManeuverGlyph
-                  maneuver={upcomingNavigationStep?.maneuver ?? 'arrive'}
-                  size={66}
-                  color={colors.textPrimary}
-                  secondaryColor={colors.textMuted}
-                />
-              </View>
-              <View style={styles.navigationBannerCopy}>
-                <Text style={styles.navigationDistance}>{formatNavigationDistance(distanceToCurrentStepEnd, unitSystem)}</Text>
-                {/* As in Google and Apple Maps: the distance, then the road the
-                    turn leads onto in large type (the arrow shows the turn).
-                    Without a named road, the action and full instruction show. */}
-                <Text
-                  numberOfLines={navigationRoadName ? 2 : 1}
-                  style={[styles.navigationInstruction, navigationRoadName ? styles.navigationRoad : null]}
-                  accessibilityLiveRegion="polite"
-                  accessibilityLabel={navigationGuidanceInstruction}
-                >
-                  {navigationRoadName ?? navigationGlanceAction}
-                </Text>
-                {navigationRoadName ? null : (
-                  <Text numberOfLines={2} accessible={false} style={styles.navigationProviderInstruction}>
-                    {navigationGuidanceInstruction}
-                  </Text>
-                )}
-              </View>
-              <Pressable accessibilityRole="button" accessibilityLabel="End navigation" onPress={() => finishInAppNavigation(false)} style={({ pressed }) => [styles.navigationEndButton, pressed && pressedFeedback]}>
-                <Ionicons name="close" size={24} color={colors.textPrimary} />
-              </Pressable>
-            </View>
-            {followingNavigationStep ? (
-              <View style={styles.navigationNextPreview}>
-                <View style={styles.navigationNextGlyph}>
-                  <NavigationManeuverGlyph
-                    maneuver={followingNavigationStep.maneuver}
-                    size={30}
-                    color={colors.textSecondary}
-                    secondaryColor={colors.textMuted}
-                  />
-                </View>
-                <Text style={styles.navigationNextLabel}>Then</Text>
-                <Text numberOfLines={1} style={styles.navigationNextInstruction} accessibilityLabel={followingNavigationStep.instruction}>{navigationInstructionRoad(followingNavigationStep.instruction) ?? followingNavigationStep.instruction}</Text>
-              </View>
-            ) : null}
-            <NavigationRoadAhead alerts={navigationRoadAlerts} unit={unitSystem} />
-            {navigationNotice ? (
-              <View
-                style={[styles.navigationNoticeRow, navigationNotice === ROUTE_UPDATED_NOTICE && styles.navigationNoticeRowInfo]}
-                accessibilityLiveRegion="polite"
-                accessibilityLabel={navigationNotice}
-              >
-                <Ionicons
-                  name={navigationNotice === ROUTE_UPDATED_NOTICE ? 'checkmark-circle-outline' : 'warning-outline'}
-                  size={16}
-                  color={navigationNotice === ROUTE_UPDATED_NOTICE ? colors.accent : colors.warning}
-                />
-                <Text style={styles.navigationNotice}>{navigationNotice}</Text>
-              </View>
-            ) : null}
-          </View>
-          <View
-            style={[
-              styles.navigationSpeedBadge,
-              { top: insets.top + spacing.sm + navigationBannerHeight + spacing.sm },
-            ]}
-            accessible
-            accessibilityLabel={navigationSpeedMps == null
-              ? 'Current speed unavailable'
-              : `Current speed ${formatNavigationSpeed(navigationSpeedMps, unitSystem)} ${navigationSpeedUnit(unitSystem)}`}
-          >
-            <Text style={styles.navigationSpeedBadgeValue}>{formatNavigationSpeed(navigationSpeedMps, unitSystem)}</Text>
-            <Text style={styles.navigationSpeedBadgeUnit}>{navigationSpeedUnit(unitSystem)}</Text>
-          </View>
-          <View
-            style={[styles.navigationSummary, { paddingBottom: Math.max(insets.bottom, spacing.sm) }]}
-            onLayout={(event) => {
-              const measuredHeight = Math.ceil(event.nativeEvent.layout.height);
-              setNavigationSummaryHeight((current) => Math.abs(current - measuredHeight) > 1 ? measuredHeight : current);
-            }}
-          >
-            <View style={styles.navigationSummaryHandle} />
-            <View style={styles.navigationSummaryContent}>
-              <View style={styles.navigationSummaryPrimary}>
-                <Text style={styles.navigationArrival}>{navigationArrivalLabel}</Text>
-                <Text style={styles.navigationSummaryLabel}>arrival</Text>
-              </View>
-              <View style={styles.navigationSummaryDivider} />
-              <View style={styles.navigationSummaryStat}>
-                <Text style={styles.navigationSummaryValue}>{formatNavigationDuration(remainingNavigationSeconds)}</Text>
-                <Text style={styles.navigationSummaryLabel}>left</Text>
-              </View>
-              <View style={styles.navigationSummaryDivider} />
-              <View style={styles.navigationSummaryStat}>
-                <Text style={styles.navigationSummaryValue}>{formatNavigationDistance(remainingNavigationMeters, unitSystem)}</Text>
-                <Text style={styles.navigationSummaryLabel}>away</Text>
-              </View>
-            </View>
-          </View>
+          <NavigationBanner
+            top={insets.top + spacing.sm}
+            upcomingStep={upcomingNavigationStep}
+            followingStep={followingNavigationStep}
+            distanceToStepEnd={distanceToCurrentStepEnd}
+            unitSystem={unitSystem}
+            roadName={navigationRoadName}
+            glanceAction={navigationGlanceAction}
+            guidanceInstruction={navigationGuidanceInstruction}
+            roadAlerts={navigationRoadAlerts}
+            notice={navigationNotice}
+            onHeight={setNavigationBannerHeight}
+            onEnd={() => finishInAppNavigation(false)}
+          />
+          <NavigationSpeedBadge
+            top={insets.top + spacing.sm + navigationBannerHeight + spacing.sm}
+            navigationSpeedMps={navigationSpeedMps}
+            unitSystem={unitSystem}
+          />
+          <NavigationTripSummary
+            bottomPadding={Math.max(insets.bottom, spacing.sm)}
+            arrivalLabel={navigationArrivalLabel}
+            remainingSeconds={remainingNavigationSeconds}
+            remainingMeters={remainingNavigationMeters}
+            unitSystem={unitSystem}
+            onHeight={setNavigationSummaryHeight}
+          />
         </>
       )}
 

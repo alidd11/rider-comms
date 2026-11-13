@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { readNativeMapScreenSource } from './native-map-screen-source.mjs';
 
 const [
   nativePresets,
@@ -17,7 +18,7 @@ const [
   readFile(new URL('../shared/src/avatars.ts', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/components/RiderAvatar.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/screens/SettingsScreen.tsx', import.meta.url), 'utf8'),
-  readFile(new URL('../mobile/src/screens/MapScreen.tsx', import.meta.url), 'utf8'),
+  readNativeMapScreenSource(),
   readFile(new URL('../mobile/src/screens/useRideProfiles.ts', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/ride/RideContext.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../docs/avatar-system.js', import.meta.url), 'utf8'),

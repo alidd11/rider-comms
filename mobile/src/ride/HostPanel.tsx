@@ -4,9 +4,10 @@
 // once this app has a real map SDK behind it, which costs real money per
 // load. One persistent map, switched by a segment, keeps that to one.
 import * as React from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, ImageBackground, ScrollView, StatusBar, Switch, useWindowDimensions } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, ImageBackground, ScrollView, Share, StatusBar, Switch, useWindowDimensions } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import type { TextInputInstance } from 'react-native';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -18,7 +19,8 @@ import { RIDE_HERO_IMAGE } from '../brandAssets';
 import { colors, spacing, radii, type, elevation, MIN_TOUCH_TARGET, pressedFeedback } from '../theme';
 import { useRide } from './RideContext';
 import { RideRoster } from './RideRoster';
-import { isCompleteRideCode, normalizeRideCodeInput } from './rideInvite';
+import { buildRideInviteLink, isCompleteRideCode, normalizeRideCodeInput } from './rideInvite';
+import { useMovementSafety } from '../safety/MovementSafetyContext';
 import { microphoneErrorMessage, preflightVoiceMicrophone } from '../audio/microphone';
 
 
@@ -210,7 +212,7 @@ function RideLocationSharing(): React.JSX.Element {
     <View style={styles.card}>
       <View style={styles.locationRow}>
         <View style={styles.locationCopy}>
-          <Text style={styles.locationTitle}>Share your live location with this ride</Text>
+          <Text style={styles.locationTitle}>Share my location</Text>
           <Text style={styles.cardBody}>
             {shareRideLocation
               ? 'On. Riders in this ride can see where you are. It stops when you switch it off, leave the ride or the ride ends.'
@@ -223,7 +225,7 @@ function RideLocationSharing(): React.JSX.Element {
           disabled={busy}
           trackColor={{ false: colors.switchTrackOff, true: colors.accent }}
           ios_backgroundColor={colors.switchTrackOff}
-          accessibilityLabel="Share your live location with this ride"
+          accessibilityLabel="Share my location with this ride"
         />
       </View>
       {failed ? (
@@ -233,42 +235,90 @@ function RideLocationSharing(): React.JSX.Element {
   );
 }
 
-/** Everyone in the ride by name, with report/block on each other rider and
- * (for the host) a confirmed remove. */
-function HostRoster(): React.JSX.Element {
+/** The ride ticket (PWA: .ride-ticket): live status, the invite code large,
+ * and Copy / Share. Anyone in the ride can invite; locked while moving. */
+function RideTicket(): React.JSX.Element {
   const { activeRide, roster } = useRide();
+  const { lockedForSafety } = useMovementSafety();
+  const [copied, setCopied] = React.useState(false);
+  const copiedTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  React.useEffect(() => () => {
+    if (copiedTimer.current) clearTimeout(copiedTimer.current);
+  }, []);
+  const code = activeRide?.code ?? null;
+  const riders = `${roster.length} ${roster.length === 1 ? 'rider' : 'riders'}`;
+  const disabled = !code || lockedForSafety;
+
+  const copy = async () => {
+    if (!code) return;
+    await Clipboard.setStringAsync(code);
+    setCopied(true);
+    if (copiedTimer.current) clearTimeout(copiedTimer.current);
+    copiedTimer.current = setTimeout(() => setCopied(false), 2000);
+  };
+  const share = async () => {
+    if (!code) return;
+    try {
+      await Share.share({ message: `Join my Rider Comms group ride with code ${code}\n${buildRideInviteLink(code)}` });
+    } catch {
+      // A dismissed share sheet needs no message; Copy code still works.
+    }
+  };
 
   return (
-    <View style={styles.form}>
-      <Text style={styles.rootTitle} accessibilityRole="header">Ride</Text>
-      <View style={styles.codeCard}>
-        <Text style={styles.codeLabel}>Share code</Text>
-        <Text style={styles.codeValue}>{activeRide?.code}</Text>
+    <View style={styles.ticket} testID="ride-ticket">
+      <View style={styles.ticketStatus}>
+        <View style={styles.liveChip}>
+          <View style={styles.liveDot} />
+          <Text style={styles.liveChipText}>Ride live</Text>
+        </View>
+        <Text style={styles.ticketMeta}>{`${riders} · You are ${activeRide?.isHost ? 'host' : 'a member'}`}</Text>
       </View>
-      <RideLocationSharing />
-      <Text style={styles.sectionLabel}>Riders ({roster.length})</Text>
-      <RideRoster canRemove />
+      <View style={styles.codeCard} accessible accessibilityLabel={code ? `Invite code ${code.split('').join(' ')}` : 'Invite expired'}>
+        <Text style={styles.codeLabel}>Invite code</Text>
+        <Text style={styles.codeValue}>{code ?? 'Expired'}</Text>
+      </View>
+      <View style={styles.ticketActions}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={copied ? 'Ride code copied' : 'Copy ride code'}
+          accessibilityState={{ disabled }}
+          disabled={disabled}
+          onPress={() => void copy()}
+          style={({ pressed }) => [styles.ticketButton, styles.ticketButtonSecondary, disabled && styles.ticketButtonDisabled, pressed && pressedFeedback]}
+        >
+          <Ionicons name={copied ? 'checkmark' : 'copy-outline'} size={18} color={colors.textPrimary} />
+          <Text style={styles.ticketButtonSecondaryText}>{copied ? 'Copied' : 'Copy code'}</Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Share invite"
+          accessibilityState={{ disabled }}
+          disabled={disabled}
+          onPress={() => void share()}
+          style={({ pressed }) => [styles.ticketButton, styles.ticketButtonPrimary, disabled && styles.ticketButtonDisabled, pressed && pressedFeedback]}
+        >
+          <Ionicons name="share-outline" size={18} color={colors.accentText} />
+          <Text style={styles.primaryButtonText}>Share invite</Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
 
-function MemberCard(): React.JSX.Element {
+/** The active ride: the ticket, location consent, and everyone in the ride
+ * by name, with report/block on each other rider and (for the host) a
+ * confirmed remove. */
+function ActiveRide({ isHost }: { isHost: boolean }): React.JSX.Element {
   const { roster } = useRide();
   return (
     <View style={styles.form}>
       <Text style={styles.rootTitle} accessibilityRole="header">Ride</Text>
-      <View style={styles.memberHeader}>
-        <View style={[styles.iconBadge, elevation.raised]}>
-          <MaterialCommunityIcons name="motorbike" size={28} color={colors.accent} />
-        </View>
-        <View style={styles.locationCopy}>
-          <Text style={styles.title}>You’re in this ride</Text>
-          <Text style={styles.cardBody}>Only the host can add or remove riders.</Text>
-        </View>
-      </View>
+      <RideTicket />
       <RideLocationSharing />
       <Text style={styles.sectionLabel}>Riders ({roster.length})</Text>
-      <RideRoster canRemove={false} />
+      {isHost ? null : <Text style={styles.cardBody}>Only the host can add or remove riders.</Text>}
+      <RideRoster canRemove={isHost} />
     </View>
   );
 }
@@ -294,7 +344,7 @@ export function HostPanel({ inviteCode, onBack }: { inviteCode?: string | null; 
       contentContainerStyle={[styles.activePanel, { paddingTop: insets.top + spacing.lg, paddingBottom: insets.bottom + spacing.lg }]}
     >
       <BackToMap onBack={onBack} />
-      {activeRide.isHost ? <HostRoster /> : <MemberCard />}
+      <ActiveRide isHost={activeRide.isHost} />
     </ScrollView>
   );
 }
@@ -315,9 +365,6 @@ const styles = StyleSheet.create({
   card: { gap: spacing.sm, padding: spacing.md, borderWidth: 1, borderColor: colors.border, borderRadius: radii.lg, backgroundColor: colors.surface },
   cardTitle: { ...type.subheading, color: colors.textPrimary, fontSize: 18, lineHeight: 22, fontWeight: '800' },
   cardBody: { ...type.body, color: colors.textSecondary, fontSize: 14, lineHeight: 19 },
-  iconBadge: { width: 48, height: 48, borderRadius: radii.lg, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
-  memberHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  title: { ...type.heading, fontSize: 18, lineHeight: 22 },
   codeSlots: { position: 'relative', minHeight: 56, flexDirection: 'row', gap: 6, marginTop: spacing.xs, padding: 4, borderWidth: 1.5, borderColor: colors.border, borderRadius: radii.lg, backgroundColor: colors.surfaceRaised },
   codeSlotsFocused: { borderColor: colors.accent },
   codeSlotsError: { borderColor: colors.danger },
@@ -339,8 +386,20 @@ const styles = StyleSheet.create({
   locationRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   locationCopy: { flex: 1, gap: 4 },
   locationTitle: { ...type.body, color: colors.textPrimary, fontSize: 15, lineHeight: 20, fontWeight: '700' },
-  codeCard: { backgroundColor: colors.surface, borderRadius: radii.lg, padding: spacing.md, alignItems: 'center', ...elevation.raised },
+  ticket: { gap: 14, padding: spacing.md, borderWidth: 1, borderColor: colors.border, borderRadius: 16, backgroundColor: colors.surface, ...elevation.raised },
+  ticketStatus: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10 },
+  liveChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 5, borderRadius: radii.md, backgroundColor: 'rgba(66,197,138,0.14)' },
+  liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.success },
+  liveChipText: { fontSize: 13, fontWeight: '800', color: colors.success },
+  ticketMeta: { ...type.body, fontSize: 14, fontWeight: '600', color: colors.textSecondary },
+  codeCard: { alignItems: 'center', gap: 4, paddingVertical: 14, paddingHorizontal: spacing.sm, borderWidth: 1, borderStyle: 'dashed', borderColor: colors.border, borderRadius: 12, backgroundColor: colors.background },
   codeLabel: { ...type.label },
-  codeValue: { fontSize: 32, fontWeight: '800', letterSpacing: 6, color: colors.accentInk, marginTop: spacing.xs },
+  codeValue: { fontSize: 34, lineHeight: 40, fontWeight: '800', letterSpacing: 6, color: colors.accentInk, fontVariant: ['tabular-nums'] },
+  ticketActions: { flexDirection: 'row', gap: 10 },
+  ticketButton: { flex: 1, minHeight: MIN_TOUCH_TARGET, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, borderRadius: radii.lg },
+  ticketButtonPrimary: { backgroundColor: colors.accent },
+  ticketButtonSecondary: { borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceRaised },
+  ticketButtonSecondaryText: { ...type.button, color: colors.textPrimary },
+  ticketButtonDisabled: { opacity: 0.48 },
   sectionLabel: { ...type.label, marginTop: spacing.sm },
 });

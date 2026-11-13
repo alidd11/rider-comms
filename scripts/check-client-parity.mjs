@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import { readNativeMapScreenSource } from './native-map-screen-source.mjs';
 
 const raw = await readFile(new URL('../client-parity.json', import.meta.url), 'utf8');
 const manifest = JSON.parse(raw);
@@ -58,7 +59,7 @@ const [
   readFile(new URL('../docs/app.js', import.meta.url), 'utf8'),
   readFile(new URL('../docs/app.css', import.meta.url), 'utf8'),
   readFile(new URL('../docs/index.html', import.meta.url), 'utf8'),
-  readFile(new URL('../mobile/src/screens/MapScreen.tsx', import.meta.url), 'utf8'),
+  readNativeMapScreenSource(),
   readFile(new URL('../mobile/src/screens/MapScreen.styles.ts', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/screens/mapMarkers.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/screens/useHazardReports.ts', import.meta.url), 'utf8'),
@@ -368,7 +369,9 @@ for (const [label, source, patterns] of [
 if (!/id="navInstruction"[^>]*role="status"[^>]*aria-live="polite"[^>]*aria-atomic="true"/.test(pwaIndexSource)) {
   throw new Error('PWA navigation maneuver instruction must be a polite atomic live region');
 }
-if (!/style=\{\[?styles\.navigationInstruction\b[\s\S]{0,220}?accessibilityLiveRegion="polite"[\s\S]{0,220}?accessibilityLabel=\{navigationGuidanceInstruction\}/.test(nativeMapSource)) {
+// NavigationOverlay's banner takes the full instruction as guidanceInstruction.
+if (!/style=\{\[?styles\.navigationInstruction\b[\s\S]{0,220}?accessibilityLiveRegion="polite"[\s\S]{0,220}?accessibilityLabel=\{guidanceInstruction\}/.test(nativeMapSource)
+  || !/guidanceInstruction=\{navigationGuidanceInstruction\}/.test(nativeMapSource)) {
   throw new Error('Native navigation maneuver instruction must remain a polite live region with the full provider instruction as its accessible label');
 }
 
@@ -554,7 +557,8 @@ if (/bottom: insets\.bottom \+ 116/.test(nativeMapSource)) {
 if (!/navigationSummaryHeight \+ spacing\.md/.test(nativeMapSource)) {
   throw new Error('Native navigation controls must stay directly above the measured navigation summary');
 }
-if (!/onLayout=\{\(event\) => \{[\s\S]*setNavigationSummaryHeight/.test(nativeMapSource)) {
+// NavigationTripSummary measures itself and reports through onHeight.
+if (!/function NavigationTripSummary[\s\S]*?onLayout=\{measured\(onHeight\)\}/.test(nativeMapSource) || !/onHeight=\{setNavigationSummaryHeight\}/.test(nativeMapSource)) {
   throw new Error('Native navigation controls must follow the real ETA summary height including safe-area and text growth');
 }
 

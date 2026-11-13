@@ -35,7 +35,8 @@
     $('#rideRole').textContent = ride.isHost ? 'host' : 'member';
     const riderCount = `${members.length} ${members.length === 1 ? 'rider' : 'riders'}`;
     $('#memberCount').textContent = riderCount;
-    $('#rideRosterCount').textContent = riderCount;
+    $('#rideRosterCount').textContent = String(members.length);
+    $('#rideRosterCount').setAttribute('aria-label', riderCount);
     const pillCount = $('#ridePill .pill-count');
     if (pillCount) pillCount.textContent = String(members.length);
     $('#leaveRideBtn').textContent = ride.isHost ? 'End ride' : 'Leave ride';

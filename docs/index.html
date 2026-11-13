@@ -49,6 +49,7 @@
     <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.7 9a2.4 2.4 0 1 1 3.6 2.1c-.9.5-1.3 1-1.3 2M12 17h.01"/></symbol>
     <symbol id="i-apps" viewBox="0 0 24 24"><circle cx="8" cy="8" r="2.5"/><circle cx="16" cy="8" r="2.5"/><circle cx="8" cy="16" r="2.5"/><circle cx="16" cy="16" r="2.5"/></symbol>
     <symbol id="i-route" viewBox="0 0 24 24"><path d="M6 3v18M6 4h10l-3 4 3 4H6"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h3"/></symbol>
     <symbol id="i-flag" viewBox="0 0 24 24"><path d="M5 21V4m0 0h12l-2.5 4.5L17 13H5"/></symbol>
     <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 3.5 14.5 9l6 .8-4.3 4.1 1 5.9L12 17l-5.2 2.8 1-5.9L3.5 9.8l6-.8Z"/></symbol>
     <symbol id="i-camera" viewBox="0 0 24 24"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13" r="3.4"/></symbol>
@@ -318,10 +319,14 @@
             </div>
           </div>
           <div id="rideActiveState" hidden>
-            <article class="ride-summary"><div><span class="status-chip"><span class="live-dot"></span>Ride live</span><p><span id="memberCount"></span> · You are <span id="rideRole">host</span></p><button id="rideVoiceStatus" class="status-chip neutral" hidden><svg><use href="#i-mic"/></svg><span id="rideVoiceStatusText">Listening hands-free</span></button></div><button id="shareRideBtn" class="button secondary"><svg><use href="#i-share"/></svg>Invite</button></article>
-            <div class="ride-code-card"><span>Invite code</span><button id="copyRideCode" aria-label="Copy ride code"><strong id="activeRideCode"></strong><small>Tap to copy</small></button></div>
-            <label class="ride-location-switch"><span><strong>Share your live location with this ride</strong><small id="activeRideLocationStatus">Off. Riders in this ride can’t see where you are.</small></span><input id="activeRideLocationConsent" type="checkbox" role="switch"></label>
-            <div class="section-heading"><h2>Riders</h2><span id="rideRosterCount" class="status-chip neutral"></span></div>
+            <article class="ride-ticket" aria-labelledby="rideTicketCodeLabel">
+              <div class="ride-ticket-status"><span class="status-chip"><span class="live-dot"></span>Ride live</span><span class="ride-ticket-meta"><span id="memberCount"></span> · You are <span id="rideRole">host</span></span></div>
+              <div class="ride-code-card"><span id="rideTicketCodeLabel">Invite code</span><strong id="activeRideCode"></strong></div>
+              <div class="ride-ticket-actions"><button id="copyRideCode" class="button secondary" type="button" aria-label="Copy ride code"><svg aria-hidden="true"><use href="#i-copy"/></svg>Copy code</button><button id="shareRideBtn" class="button primary" type="button"><svg aria-hidden="true"><use href="#i-share"/></svg>Share invite</button></div>
+              <button id="rideVoiceStatus" class="status-chip neutral ride-ticket-voice" hidden><svg><use href="#i-mic"/></svg><span id="rideVoiceStatusText">Listening hands-free</span></button>
+            </article>
+            <label class="ride-location-switch"><span><strong>Share my location</strong><small id="activeRideLocationStatus">Off. Riders in this ride can’t see where you are.</small></span><input id="activeRideLocationConsent" type="checkbox" role="switch"></label>
+            <div class="section-heading"><h2>Riders</h2><span id="rideRosterCount" class="count-badge"></span></div>
             <div id="rideRoster" class="people-list"></div>
             <div class="ride-actions-row"><button id="openRideMap" class="button secondary">View on map</button><button id="leaveRideBtn" class="button danger">End ride</button></div>
           </div>
