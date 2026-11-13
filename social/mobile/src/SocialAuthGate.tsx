@@ -2,7 +2,7 @@ import React from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { RiderAccountClient, AccountApiError, accountErrorMessage, RESET_SENT_TEXT, SOCIAL_TERMS_URL, SOCIAL_GUIDELINES_URL } from './authClient';
+import { RiderAccountClient, AccountApiError, AccountConnectionError, accountErrorMessage, RESET_SENT_TEXT, SOCIAL_TERMS_URL, SOCIAL_GUIDELINES_URL } from './authClient';
 import type { AccountIdentity } from './authClient';
 import { accountTokenStorage } from './authStorage';
 import { ukPlanningPolicy } from './policy';
@@ -55,16 +55,17 @@ function fieldFor(error: unknown): AuthField | null {
 function InlineMessage({ message, type = 'error', label }: {
   message: string; type?: 'error' | 'success'; label?: string;
 }) {
-  return <View testID={type === 'error' ? 'auth-error' : 'auth-notice'}
+  const danger = type === 'error';
+  return <View testID={danger ? 'auth-error' : 'auth-notice'}
     accessibilityRole="alert"
     style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8,
-      borderRadius: 11, backgroundColor: type === 'error' ? '#2B1C23' : '#12362F',
-      paddingVertical: 10, paddingHorizontal: 12 }}>
-    <Ionicons name={type === 'error' ? 'alert-circle-outline' : 'checkmark-circle-outline'}
-      size={18} color={type === 'error' ? '#FFB6C1' : accent}/>
-    <View style={{ flex: 1 }}>
-      {label ? <Text style={{ color: ink, fontSize: 12, fontWeight: '800', marginBottom: 2 }}>{label}</Text> : null}
-      <Text style={{ color: type === 'error' ? '#FFC9D2' : '#B2F5E2', fontSize: 12, lineHeight: 18 }}>
+      borderLeftWidth: 2, borderLeftColor: danger ? '#ECA4B0' : accent,
+      paddingVertical: 5, paddingLeft: 10, paddingRight: 3 }}>
+    <Ionicons name={danger ? 'alert-circle-outline' : 'checkmark-circle-outline'}
+      size={17} color={danger ? '#ECA4B0' : accent}/>
+    <View style={{ flex: 1, gap: 2 }}>
+      {label ? <Text style={{ color: ink, fontSize: 12, fontWeight: '800' }}>{label}</Text> : null}
+      <Text style={{ color: danger ? '#DABAC2' : '#B2F5E2', fontSize: 12, lineHeight: 18 }}>
         {message}
       </Text>
     </View>
@@ -196,7 +197,12 @@ export function SocialAuthGate({ children }: { children: React.ReactNode }) {
         setPassword('');
       }
     } catch (cause) {
-      const message = accountErrorMessage(cause);
+      // Browsers expose both CORS denials and offline errors as failed fetches.
+      // Keep the message useful without blaming the password or claiming CORS
+      // is definitely at fault.
+      const message = cause instanceof AccountConnectionError && Platform.OS === 'web'
+        ? 'Rider Comms is unreachable. Check your connection; this preview may also need web access enabled.'
+        : accountErrorMessage(cause);
       const field = fieldFor(cause);
       if (field) setFieldErrors({ [field]: message });
       else setError(message);
@@ -335,7 +341,8 @@ export function SocialAuthGate({ children }: { children: React.ReactNode }) {
             </Text> : null}
           </> : null}
           {error ? <View style={{ gap: 7 }}>
-            <InlineMessage message={error} label="Could not sign in"/>
+            <InlineMessage message={error}
+              label={error.includes('unreachable') ? 'Connection unavailable' : 'Sign-in problem'}/>
             {mode === 'login' && error.includes('verify your session') ? <Pressable
               accessibilityRole="button" accessibilityLabel="Retry session check" onPress={retry}
               style={{ paddingVertical: 8 }}>
