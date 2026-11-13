@@ -154,12 +154,12 @@ test('shared-account login requires separate Social age acknowledgment and signs
   await page.getByRole('textbox', { name: 'Username' }).fill('sample-rider');
   await page.getByRole('textbox', { name: 'Password' }).fill(randomUUID());
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Enter Social preview' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Continue to Social' })).toBeDisabled();
   await page.getByRole('checkbox', { name: 'I confirm I am at least 16' }).click();
-  await page.getByRole('button', { name: 'Enter Social preview' }).click();
+  await page.getByRole('button', { name: 'Continue to Social' }).click();
   await expect(page.getByRole('tab', { name: 'Home' })).toBeVisible();
   await page.getByRole('button', { name: 'Open profile' }).click();
-  await expect(page.getByText('@sample-rider · Rider Comms account')).toBeVisible();
+  await expect(page.getByText('@sample-rider')).toBeVisible();
   await page.getByRole('button', { name: 'Sign out of Social' }).click();
   await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeVisible();
   const stored = await page.evaluate(() => window.sessionStorage.getItem('rider_social_account_session_v1'));
@@ -190,10 +190,10 @@ test('signup never submits without accepting Terms and Guidelines', async ({ pag
   await page.getByRole('textbox', { name: 'Email' }).fill('example@invalid.test');
   await page.getByRole('textbox', { name: 'Password' }).fill(randomUUID());
   await page.getByRole('button', { name: 'Create Rider Comms account' }).click();
-  await expect(page.getByText('Please accept the Terms and Community Guidelines.')).toBeVisible();
+  await expect(page.getByText('Accept the Terms and Community Guidelines to continue.')).toBeVisible();
   expect(signupRequests).toBe(0);
   await page.getByRole('checkbox', { name: 'Accept Terms and Guidelines' }).click();
   await page.getByRole('button', { name: 'Create Rider Comms account' }).click();
-  await expect(page.getByRole('button', { name: 'Enter Social preview' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Continue to Social' })).toBeVisible();
   expect(signupRequests).toBe(1);
 });
