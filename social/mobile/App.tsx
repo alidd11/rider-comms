@@ -1,6 +1,6 @@
 import '@expo/metro-runtime';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Image, Platform, ScrollView, StatusBar, Pressable, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -221,6 +221,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
   const [ownProfile, setOwnProfile] = useState<RiderProfile | null>(null);
   const [sharedProfiles, setSharedProfiles] = useState<Record<string, RiderProfile>>({});
   const [sharedLoading, setSharedLoading] = useState(false);
+  const sharedRefreshInFlight = useRef(false);
   const [sharedError, setSharedError] = useState<string | null>(null);
   const [verificationNotice, setVerificationNotice] = useState<string | null>(null);
   const [localDraftOwner, setLocalDraftOwner] = useState<string | null>(null);
@@ -349,7 +350,10 @@ function AuthenticatedSocialApp(): React.JSX.Element {
     }));
   }
   async function loadSharedReadOnly(): Promise<void> {
-    if (sharedLoading) return;
+    // A state-based guard can be stale during rapid navigation or repeated
+    // taps. Never run overlapping account-scoped refreshes.
+    if (sharedRefreshInFlight.current) return;
+    sharedRefreshInFlight.current = true;
     setSharedLoading(true);
     setSharedError(null);
     try {
@@ -362,13 +366,27 @@ function AuthenticatedSocialApp(): React.JSX.Element {
       ])].filter(Boolean);
       if (peerIds.length) {
         try { setSharedProfiles(await client.riderProfiles(peerIds.slice(0, 100))); }
-        catch { /* Conversation identity remains available from the existing friend API. */ }
+        catch {
+          // A failed profile lookup must not retain names from an earlier
+          // friendship graph; the current friend API remains authoritative.
+          setSharedProfiles({});
+        }
+      } else {
+        setSharedProfiles({});
       }
     } catch (cause) {
+      // Do not keep rendering stale conversation previews after refresh fails.
+      // The friendship graph may have changed while the client was offline.
+      setSharedFriends([]);
+      setSharedConversations([]);
+      setSharedProfiles({});
       setSharedError(cause instanceof Error && 'status' in cause && cause.status === 403
         ? 'Verify your email to message riders.'
         : 'Can’t load your Rider Comms conversations. Try again.');
-    } finally { setSharedLoading(false); }
+    } finally {
+      sharedRefreshInFlight.current = false;
+      setSharedLoading(false);
+    }
   }
   useEffect(() => {
     if (screen !== 'Messages' && screen !== 'Profile') return;
