@@ -1,3 +1,4 @@
+/* global process */
 /**
  * UI screenshots and automated domain tests may use fictional content, but the
  * regular production/social preview bundle must never represent invented users,
