@@ -87,6 +87,21 @@ export function CreateComposer({ initialMode = 'Post', onClose, riderId }: { ini
   const [processing, setProcessing] = useState(false);
   const [ratio, setRatio] = useState<AspectPreset>('original');
   const originals = useRef<Record<string, ComposerMedia>>({});
+  const mounted = useRef(true);
+  const pickerSequence = useRef(0);
+  const pickerPending = useRef(false);
+  const editSequence = useRef(0);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      // File pickers and image manipulation can outlive this screen. Never
+      // apply their results to a discarded draft or an unmounted composer.
+      mounted.current = false;
+      pickerSequence.current++;
+      editSequence.current++;
+    };
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -114,12 +129,15 @@ export function CreateComposer({ initialMode = 'Post', onClose, riderId }: { ini
   const allowedMore = mode === 'Post' && media.length < 6;
 
   function changeMode(next: ComposerMode) {
+    if (selecting || processing || pickerPending.current) return;
     if (mode === next) return;
     if (media.length) { setPendingMode(next); return; }
     applyMode(next);
   }
 
   function applyMode(next: ComposerMode) {
+    pickerSequence.current++;
+    editSequence.current++;
     setPendingMode(null);
     setMode(next);
     setStage('select');
@@ -132,7 +150,10 @@ export function CreateComposer({ initialMode = 'Post', onClose, riderId }: { ini
 
   // Safari requires the picker to open immediately after a direct user tap.
   async function chooseMedia(camera = false) {
-    if (selecting || processing) return;
+    if (selecting || processing || pickerPending.current) return;
+    pickerPending.current = true;
+    const request = ++pickerSequence.current;
+    const requestedMode = mode;
     setSelecting(true);
     setStatus(null);
     try {
@@ -145,6 +166,7 @@ export function CreateComposer({ initialMode = 'Post', onClose, riderId }: { ini
       const result = camera
         ? await ImagePicker.launchCameraAsync({ mediaTypes: options.mediaTypes, quality: 0.9 })
         : await ImagePicker.launchImageLibraryAsync(options);
+      if (!mounted.current || request !== pickerSequence.current || requestedMode !== mode) return;
       if (result.canceled || !result.assets?.length) return;
       const stamp = Date.now();
       const incoming: ComposerMedia[] = result.assets.map((asset, i) => ({
@@ -166,13 +188,18 @@ export function CreateComposer({ initialMode = 'Post', onClose, riderId }: { ini
       setRatio('original');
       setStage('edit');
     } catch {
-      setStatus('Could not open your media library. Check permissions and try again.');
+      if (mounted.current && request === pickerSequence.current)
+        setStatus('Could not open your media library. Check permissions and try again.');
     } finally {
-      setSelecting(false);
+      if (request === pickerSequence.current) {
+        pickerPending.current = false;
+        if (mounted.current) setSelecting(false);
+      }
     }
   }
 
   function captureFromCamera(item: Omit<ComposerMedia, 'id'>) {
+    if (!mounted.current || pickerPending.current || processing) return;
     const now = Date.now();
     const added: ComposerMedia = { ...item, id: 'camera-' + String(now) };
     const next = mode === 'Post' ? [...media, added] : [added];
@@ -187,7 +214,7 @@ export function CreateComposer({ initialMode = 'Post', onClose, riderId }: { ini
   }
 
   function removeSelected() {
-    if (!selected) return;
+    if (!selected || processing || pickerPending.current) return;
     delete originals.current[selected.id];
     const next = media.filter(item => item.id !== selected.id);
     setMedia(next);
@@ -197,7 +224,8 @@ export function CreateComposer({ initialMode = 'Post', onClose, riderId }: { ini
   }
 
   async function editImage(operation: { ratio: AspectPreset } | { rotate: true }) {
-    if (!selected || selected.kind !== 'image' || processing) return;
+    if (!selected || selected.kind !== 'image' || processing || pickerPending.current) return;
+    const operationId = ++editSequence.current;
     const currentId = selected.id;
     const base = originals.current[currentId] ?? selected;
     setProcessing(true);
@@ -219,6 +247,7 @@ export function CreateComposer({ initialMode = 'Post', onClose, riderId }: { ini
       const updated = await ImageManipulator.manipulateAsync(base.uri, actions, {
         compress: 0.92, format: ImageManipulator.SaveFormat.JPEG,
       });
+      if (!mounted.current || operationId !== editSequence.current) return;
       const newItem: ComposerMedia = {
         ...selected, uri: updated.uri,
         mimeType: 'image/jpeg', fileName: selected.fileName.replace(/\.[^.]+$/, '') + '-edit.jpg',
@@ -234,9 +263,10 @@ export function CreateComposer({ initialMode = 'Post', onClose, riderId }: { ini
         setStatus('Photo cropped to ' + operation.ratio + '.');
       }
     } catch {
-      setStatus('Photo editing failed. Your original image is unchanged.');
+      if (mounted.current && operationId === editSequence.current)
+        setStatus('Photo editing failed. Your original image is unchanged.');
     } finally {
-      setProcessing(false);
+      if (mounted.current && operationId === editSequence.current) setProcessing(false);
     }
   }
 
@@ -257,6 +287,7 @@ export function CreateComposer({ initialMode = 'Post', onClose, riderId }: { ini
   }
 
   function back() {
+    if (processing || selecting || pickerPending.current) return;
     setStatus(null);
     if (previewOpen) { setPreviewOpen(false); return; }
     if (stage === 'share') setStage('edit');
@@ -292,7 +323,8 @@ export function CreateComposer({ initialMode = 'Post', onClose, riderId }: { ini
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
           {formats.map(item => <Pressable key={item} accessibilityRole="button"
             accessibilityLabel={item + ' format'} accessibilityState={{ selected: mode === item }}
-            onPress={() => changeMode(item)} style={{
+            disabled={selecting || processing}
+          onPress={() => changeMode(item)} style={{
               minWidth: 78, paddingVertical: 11, paddingHorizontal: 10,
               justifyContent: 'center', alignItems: 'center',
               borderBottomWidth: 2, borderBottomColor: item === mode ? white : 'transparent',
@@ -309,6 +341,7 @@ export function CreateComposer({ initialMode = 'Post', onClose, riderId }: { ini
       <View style={{ flexDirection: 'row', justifyContent: 'space-between',
         alignItems: 'center', paddingHorizontal: 13, minHeight: 58, gap: 12 }}>
         <Pressable accessibilityRole="button" accessibilityLabel="Back in composer"
+          disabled={processing || selecting}
           onPress={back} style={{ width: 42, height: 43, alignItems: 'center', justifyContent: 'center' }}>
           <Ionicons name="chevron-back" size={29} color={white}/>
         </Pressable>
@@ -343,7 +376,8 @@ export function CreateComposer({ initialMode = 'Post', onClose, riderId }: { ini
           <ScrollView horizontal showsHorizontalScrollIndicator={false}
             contentContainerStyle={{ paddingHorizontal: 16, alignItems: 'center', gap: 9 }}>
             {media.map((item, i) => <Pressable key={item.id} accessibilityRole="button"
-              accessibilityLabel={'Select media ' + String(i + 1)} onPress={() => {
+              accessibilityLabel={'Select media ' + String(i + 1)}
+              disabled={processing || selecting} onPress={() => {
                 setActive(i); setRatio('original');
               }} style={{ width: 57, height: 72, borderRadius: 10,
                 overflow: 'hidden', borderWidth: 2,
@@ -366,6 +400,7 @@ export function CreateComposer({ initialMode = 'Post', onClose, riderId }: { ini
             {ratios.filter(item => mode === 'Post' || item.value === 'original' || item.value === 'vertical')
               .map(item => <Option key={item.value} label={item.label}
                 selected={ratio === item.value}
+                disabled={processing || selecting}
                 onPress={() => void editImage({ ratio: item.value })}/>)}
           </ScrollView> : <Text style={{ color: secondary, fontSize: 12, paddingHorizontal: 17 }}>
             Video preview · editing tools for video are not yet available
@@ -373,12 +408,12 @@ export function CreateComposer({ initialMode = 'Post', onClose, riderId }: { ini
           <ScrollView horizontal showsHorizontalScrollIndicator={false}
             contentContainerStyle={{ paddingHorizontal: 14, alignItems: 'center', gap: 14 }}>
             {media.length > 1 ? <>
-              <Tool icon="arrow-back-outline" label="Earlier" disabled={active === 0}
+              <Tool icon="arrow-back-outline" label="Earlier" disabled={active === 0 || processing || selecting}
                 onPress={() => {
                   setMedia(list => moveMedia(list, selected.id, -1));
                   setActive(index => Math.max(0, index - 1));
                 }}/>
-              <Tool icon="arrow-forward-outline" label="Later" disabled={active === media.length - 1}
+              <Tool icon="arrow-forward-outline" label="Later" disabled={active === media.length - 1 || processing || selecting}
                 onPress={() => {
                   setMedia(list => moveMedia(list, selected.id, 1));
                   setActive(index => Math.min(media.length - 1, index + 1));
@@ -386,9 +421,9 @@ export function CreateComposer({ initialMode = 'Post', onClose, riderId }: { ini
             </> : null}
             <Tool icon="refresh-outline" label="Rotate" onPress={() => void editImage({ rotate: true })}
               disabled={isVideo || processing}/>
-            <Tool icon="trash-outline" label="Remove" onPress={removeSelected}/>
+            <Tool icon="trash-outline" label="Remove" disabled={processing || selecting} onPress={removeSelected}/>
             <Tool icon="images-outline" label="Library" onPress={() => void chooseMedia()}
-              disabled={selecting || !allowedMore}/>
+              disabled={selecting || processing || !allowedMore}/>
           </ScrollView>
         </View>
       </> : null}
