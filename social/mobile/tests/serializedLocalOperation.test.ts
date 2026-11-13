@@ -11,14 +11,16 @@ function deferred() {
 test('account draft deletion waits for an in-flight save and cannot be undone by it', async () => {
   const key = 'draft-rider-test-a';
   const hold = deferred();
+  const started = deferred();
   const writes: string[] = [];
   const save = serializeLocalOperation(key, async () => {
     writes.push('save-start');
+    started.resolve();
     await hold.promise;
     writes.push('save-finish');
   });
   const clear = serializeLocalOperation(key, async () => { writes.push('delete'); });
-  await Promise.resolve();
+  await started.promise;
   assert.deepEqual(writes, ['save-start']);
   hold.resolve();
   await Promise.all([save, clear]);
