@@ -33,11 +33,11 @@ test('PWA Settings is a real settings list matching the native app', async ({ pa
   await page.goto('/#settings');
 
   // The root lists categories, each opening its own page.
-  await expect(page.locator('#settingsList .settings-section-title')).toHaveText(['Riding', 'Account', 'Support']);
+  await expect(page.locator('#settingsList .settings-section-title')).toHaveText(['Riding', 'Account']);
   await expect(page.locator('#settingsList .settings-row-label')).toHaveText([
-    'General', 'Map & navigation', 'Voice and sound', 'Ride Safe', 'Vehicle details', 'Notifications', 'Account and login', 'Privacy', 'Your plan', 'Help & Support', 'About',
+    'General', 'Map & navigation', 'Voice and sound', 'Notifications', 'Ride Safe', 'Vehicle details', 'Account and login', 'Privacy', 'Your plan', 'Help & Support',
   ]);
-  await expect(page.locator('#settingsList .settings-category-icon')).toHaveCount(11);
+  await expect(page.locator('#settingsList .settings-category-icon')).toHaveCount(10);
   // The current choice shows in grey beside its category.
   await expect(page.locator('[data-settings-open="general"] .settings-row-value')).toHaveText('Miles');
   await expect(page.locator('#settingsList [data-settings-open="mapNavigation"] .settings-row-value')).toHaveText('Google Maps');
@@ -46,12 +46,16 @@ test('PWA Settings is a real settings list matching the native app', async ({ pa
   await expect(page.locator('[data-settings-open="plan"] .settings-row-value')).toHaveText('Free');
   // The version lives on the About page, not under the list.
   await expect(page.locator('#settingsList')).not.toContainText('Version');
-  // On a phone the list scrolls just enough to reach About at the bottom.
+  // The whole list fits a phone screen without scrolling: an installed app
+  // on an iPhone SE (375 x 667) and on a 6.1-inch iPhone (393 x 852).
   if (testInfo.project.name === 'phone-modern') {
     const size = page.viewportSize();
-    await page.setViewportSize({ width: 393, height: 852 });
-    await page.locator('#settingsList [data-settings-open="about"]').scrollIntoViewIfNeeded();
-    await expect(page.locator('#settingsList [data-settings-open="about"]')).toBeInViewport();
+    for (const viewport of [{ width: 375, height: 667 }, { width: 393, height: 852 }]) {
+      await page.setViewportSize(viewport);
+      const overflow = await page.locator('.screen[data-screen="settings"]').evaluate((screen) => screen.scrollHeight - screen.clientHeight);
+      expect(overflow, `Settings scrolls by ${overflow}px at ${viewport.width}x${viewport.height}`).toBeLessThanOrEqual(0);
+      await expect(page.locator('#settingsList [data-settings-open="help"]')).toBeInViewport({ ratio: 1 });
+    }
     await page.setViewportSize(size);
   }
   await expect(page.locator('.settings-page')).not.toContainText('Offline Maps');
@@ -129,8 +133,9 @@ test('PWA Settings is a real settings list matching the native app', async ({ pa
   await expect(page.locator('#sheetBody .settings-row-label')).toHaveText(['Email', 'Signed-in devices', 'Sign out', 'Reset settings', 'Delete account']);
   await page.locator('#closeSheetAll').click();
 
-  await page.locator('[data-settings-open="about"]').click();
-  await expect(page.locator('#sheetTitle')).toHaveText('About');
+  // About is the last section of Help & Support.
+  await page.locator('#settingsList [data-settings-open="help"]').click();
+  await expect(page.locator('#sheetBody .settings-page-heading').last()).toHaveText('About');
   await expect(page.locator('#sheetBody')).toContainText('Version 0.3.0 · PWA');
   await page.screenshot({ path: testInfo.outputPath('settings-approved-mockup-parity.png'), fullPage: true });
   await assertNoViewportOverflow(page);

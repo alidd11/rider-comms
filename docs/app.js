@@ -2596,7 +2596,7 @@
     blockedRiders: { title: 'Blocked riders', sections: [['', 'blocked']], back: 'privacy' },
     email: { title: 'Email', sections: [['', 'emailStatus']], back: 'account' },
     devices: { title: 'Signed-in devices', sections: [['', 'sessions']], back: 'account' },
-    help: { title: 'Help & Support', sections: [['', 'helpContact'], ['Common questions', 'faq'], ['Riding safely', 'safetyGuidance'], ['Legal', 'legalLinks']] },
+    help: { title: 'Help & Support', sections: [['', 'helpContact'], ['Common questions', 'faq'], ['Riding safely', 'safetyGuidance'], ['Legal', 'legalLinks'], ['About', 'aboutCard']] },
     about: { title: 'About', sections: [['', 'aboutCard']] },
   };
   const SETTINGS_PAGE_FOR_SECTION = {
@@ -3175,11 +3175,12 @@
   // The Settings root: categories, each opening its own page, with the
   // current choice in grey where there is one (native: SettingsScreen()).
   const SETTINGS_CATEGORIES = [
-    ['', [['general', 'settings', 'General', '#1fb6d9'], ['mapNavigation', 'map', 'Map & navigation', '#2fb35f'], ['voiceSound', 'volume', 'Voice and sound', '#3478f6']]],
+    // Ten rows in four groups, so the list fits a phone screen without
+    // scrolling. About sits at the bottom of Help & Support.
+    ['', [['general', 'settings', 'General', '#1fb6d9'], ['mapNavigation', 'map', 'Map & navigation', '#2fb35f'], ['voiceSound', 'volume', 'Voice and sound', '#3478f6'], ['notifications', 'bell', 'Notifications', '#ef4444']]],
     ['Riding', [['rideSafe', 'shield', 'Ride Safe', '#f2802a'], ['vehicle', 'bike', 'Vehicle details', '#8e5cf6']]],
-    ['', [['notifications', 'bell', 'Notifications', '#ef4444']]],
     ['Account', [['account', 'user', 'Account and login', '#2a8196'], ['privacy', 'lock', 'Privacy', '#1e95e8'], ['plan', 'card', 'Your plan', '#e0a100']]],
-    ['Support', [['help', 'help', 'Help & Support', '#5e6ad2'], ['about', 'info', 'About', '#16a9d9']]],
+    ['', [['help', 'help', 'Help & Support', '#5e6ad2']]],
   ];
   function settingsCategoryValue(page) {
     if (page === 'general') return state.profile.unitSystem === 'km' ? 'Kilometres' : 'Miles';

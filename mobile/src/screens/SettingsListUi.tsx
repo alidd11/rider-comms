@@ -80,9 +80,9 @@ export function CategoryRow({ icon, customIcon, tint, title, value, first = fals
 }): React.JSX.Element {
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={[title, value].filter(Boolean).join(', ')} onPress={onPress} style={({ pressed }) => [ui.row, ui.categoryRow, pressed && ui.pressed]}>
-      {first ? null : <Separator inset={64} />}
+      {first ? null : <Separator inset={60} />}
       <View style={[ui.categoryIcon, { backgroundColor: tint }]}>
-        {customIcon ?? (icon ? <Ionicons name={icon} size={20} color="#FFFFFF" /> : null)}
+        {customIcon ?? (icon ? <Ionicons name={icon} size={17} color="#FFFFFF" /> : null)}
       </View>
       <Text style={ui.rowTitle}>{title}</Text>
       {value ? <Text numberOfLines={1} style={ui.rowValue}>{value}</Text> : null}
@@ -204,15 +204,16 @@ const ui = StyleSheet.create({
   headerButton: { width: 48, height: 40, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { flex: 1, textAlign: 'center', fontSize: 19, fontWeight: '700', color: colors.textPrimary },
   groupWrap: { marginTop: 28 },
-  groupWrapCompact: { marginTop: 20 },
+  groupWrapCompact: { marginTop: 16 },
   groupTitle: { paddingHorizontal: 16, paddingBottom: 8, fontSize: 15, color: colors.textSecondary },
   group: { borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth },
   groupNote: { paddingHorizontal: 16, paddingTop: 10, fontSize: 13, lineHeight: 18, color: colors.textSecondary },
   row: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 16, paddingVertical: 8 },
-  categoryRow: { minHeight: 56, paddingVertical: 6 },
+  // 44pt rows (Apple's minimum touch height) keep the Settings root on one screen.
+  categoryRow: { minHeight: 44, paddingVertical: 4 },
   pressed: { opacity: 0.7 },
   separator: { position: 'absolute', top: 0, right: 16, height: StyleSheet.hairlineWidth },
-  categoryIcon: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  categoryIcon: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
   rowTitle: { flex: 1, fontSize: 17, fontWeight: '500', color: colors.textPrimary },
   rowValue: { maxWidth: '45%', fontSize: 15, color: colors.textSecondary },
   danger: { color: '#F07474' },
