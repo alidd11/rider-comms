@@ -39,7 +39,7 @@ jobs:
         env:
           EXPO_PUBLIC_SOCIAL_TEST_FIXTURES: 'true'
       - run: test -f dist/index.html
-      - run: npx playwright install --with-deps chromium
+      - run: npx playwright install --with-deps chromium webkit
       - run: npm run test:e2e
       # A vulnerable runtime dependency blocks beta promotion even when the UI
       # looks correct. Keep dev-only test tooling out of the runtime scope.
