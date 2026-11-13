@@ -1,6 +1,7 @@
 import React from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { C } from './styles';
 import { demoCreators } from './demoCreators';
 import type { SharedFriend } from './authClient';
@@ -23,11 +24,13 @@ type Props = {
  * Never manufacture real counts, names or cross-app relationships.
  */
 export function ProfileConnectionsSheet({ kind, followed, friends, onToggleFollow, onClose }: Props) {
+  const insets = useSafeAreaInsets();
   const people = Object.values(demoCreators).filter(person => followed.has(person.id));
   const isFollowing = kind === 'Following';
-  return <View testID="profile-connections-sheet" style={{
+  return <View testID="profile-connections-sheet" nativeID="social-connections-overlay" style={{
     position: 'absolute', left: 0, right: 0, top: 0, bottom: 0,
     zIndex: 50, justifyContent: 'flex-end',
+    paddingBottom: Platform.OS === 'web' ? 0 : insets.bottom,
   }}>
     <Pressable accessibilityRole="button" accessibilityLabel="Dismiss connections"
       onPress={onClose} style={{
