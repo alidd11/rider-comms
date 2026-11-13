@@ -269,12 +269,42 @@ test('transient restore failure offers Retry and preserves the valid device sess
     window.sessionStorage.getItem('rider_social_account_session_v1'))).toBe('synthetic-restore-token');
 });
 
+test('retry restores the same session-scoped age confirmation after a temporary outage', async ({ page }) => {
+  await fakeBackend(page);
+  let checks = 0;
+  await page.route(origin + '/auth/me', async route => {
+    checks += 1;
+    if (checks === 1) {
+      await route.abort('failed');
+      return;
+    }
+    await route.fulfill({
+      status: 200, headers: cors, contentType: 'application/json',
+      body: JSON.stringify(fakeAccount),
+    });
+  });
+  await page.addInitScript((riderId) => {
+    window.sessionStorage.setItem('rider_social_account_session_v1', 'synthetic-restore-token');
+    window.sessionStorage.setItem('rider_social_age_ack_v1', riderId);
+  }, fakeAccount.riderId);
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: 'Retry session check' })).toBeVisible();
+  await page.getByRole('button', { name: 'Retry session check' }).click();
+  await expect(page.getByRole('tab', { name: 'Home' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Continue to Social' })).toHaveCount(0);
+  expect(checks).toBe(2);
+});
+
 test('server 401 during session restore clears local credential and shows sign-in', async ({ page }) => {
   await fakeBackend(page, { accountResult: 'expired' });
-  await page.addInitScript(() => window.sessionStorage.setItem('rider_social_account_session_v1', 'not-a-real-session'));
+  await page.addInitScript((riderId) => {
+    window.sessionStorage.setItem('rider_social_account_session_v1', 'not-a-real-session');
+    window.sessionStorage.setItem('rider_social_age_ack_v1', riderId);
+  }, fakeAccount.riderId);
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeVisible();
   expect(await page.evaluate(() => window.sessionStorage.getItem('rider_social_account_session_v1'))).toBeNull();
+  expect(await page.evaluate(() => window.sessionStorage.getItem('rider_social_age_ack_v1'))).toBeNull();
 });
 test('signup never submits without accepting Terms and Guidelines', async ({ page }) => {
   await fakeBackend(page);
