@@ -496,6 +496,52 @@ test('stale visualViewport dimensions cannot leave a large black strip below tab
   expect(Math.abs(navGap)).toBeLessThanOrEqual(2);
 });
 
+test('Home photo carousel keeps its active photo aligned through mobile viewport resize', async ({ page }) => {
+  const errors = [];
+  page.on('pageerror', e => errors.push(e.message));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  const gallery = page.getByTestId('post-gallery-p1');
+  await expect(gallery).toBeVisible();
+  await gallery.evaluate(el => {
+    el.scrollLeft = el.clientWidth;
+    el.dispatchEvent(new Event('scroll', { bubbles: true }));
+  });
+  await expect(page.getByTestId('post-media-p1').getByText('2/2')).toBeVisible();
+  await page.setViewportSize({ width: 430, height: 730 });
+  await expect.poll(() => gallery.evaluate(el => Math.abs(el.scrollLeft - el.clientWidth)))
+    .toBeLessThan(4);
+  await expect(page.getByTestId('post-media-p1').getByText('2/2')).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect.poll(() => gallery.evaluate(el => Math.abs(el.scrollLeft - el.clientWidth)))
+    .toBeLessThan(4);
+  await expect(page.getByTestId('post-media-p1').getByText('2/2')).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test('repeated Home, Reels, Shop, Profile, Messages and Create navigation never blanks the app', async ({ page }) => {
+  const errors = [];
+  page.on('pageerror', e => errors.push(e.message));
+  await page.goto('/');
+  for (let i = 0; i < 3; i++) {
+    await page.getByRole('tab', { name: 'Reels' }).click();
+    await expect(page.getByTestId('fixed-reels-screen')).toBeVisible();
+    await page.getByRole('tab', { name: 'Shop' }).click();
+    await expect(page.getByRole('textbox', { name: 'Search products' })).toBeVisible();
+    await page.getByRole('button', { name: 'Open profile' }).click();
+    await expect(page.getByTestId('social-profile-summary')).toBeVisible();
+    await page.getByRole('button', { name: 'Open messages' }).click();
+    await expect(page.getByTestId('shared-message-inbox')).toBeVisible();
+    await page.getByRole('tab', { name: 'Create' }).click();
+    await expect(page.getByTestId('camera-first-studio')).toBeVisible();
+    await page.getByRole('button', { name: 'Close Create' }).click();
+    await expect(page.getByRole('tab', { name: 'Home' })).toBeVisible();
+    await expect(page.getByTestId('create-recovery')).toHaveCount(0);
+    await expect(page.getByTestId('social-app-recovery')).toHaveCount(0);
+  }
+  expect(errors).toEqual([]);
+});
+
 test('Home photo carousel, double-tap like, and creator garage link work', async ({ page }, testInfo) => {
   await page.goto('/');
   const gallery = page.getByTestId('post-gallery-p1');
