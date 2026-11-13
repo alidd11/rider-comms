@@ -55,6 +55,21 @@ export function SharedMessagesScreen({
   };
 
   useEffect(() => {
+    if (!active || loading) return;
+    const stillAvailable = friends.some(item => item.riderId === active) ||
+      conversations.some(item => item.friend.riderId === active);
+    if (!error && stillAvailable) return;
+    // A refresh can revoke friendship access or fail while the server state
+    // has changed. Close the old thread rather than displaying stale private
+    // messages or allowing another send based on an outdated relationship.
+    requestId.current += 1;
+    setActive(null);
+    setThread([]);
+    setThreadOwner(null);
+    setDraft('');
+  }, [active, loading, error, friends, conversations]);
+
+  useEffect(() => {
     // Prevent a slow response from an older thread from appearing under a
     // newly selected rider. No credentials, message bodies or request URLs logged.
     const id = ++requestId.current;
