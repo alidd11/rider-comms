@@ -209,7 +209,8 @@ function AuthenticatedSocialApp(): React.JSX.Element {
     let mounted = true;
     void loadLocalDemo(identity.riderId).then((saved) => {
       if (!mounted) return;
-      setProfile(saved.profile);
+      setProfile(saved.profile.displayName === DEFAULT_PROFILE.displayName
+        ? { ...saved.profile, displayName: identity.username } : saved.profile);
       setGarage(saved.garage);
       setLocalDraftOwner(identity.riderId);
       setLocalReady(true);
@@ -330,7 +331,6 @@ function AuthenticatedSocialApp(): React.JSX.Element {
     if (screen !== 'Messages' && screen !== 'Profile') return;
     void loadSharedReadOnly();
     // Only request on screen entry; explicit refresh action reloads.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [screen, client]);
   function openCreator(id: string) {
     setSelectedCreator(id);
@@ -705,7 +705,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
         <Text style={s.small}>Garage entries remain on this device.</Text>
         </> : null}
         <View style={{ gap: 10, paddingVertical: 13 }}>
-          <Text style={s.small}>Signed in as @ {identity.username.replace(/^@/, '')} with your Rider Comms account.</Text>
+          <Text style={s.small}>Signed in as @{identity.username.replace(/^@/, '')} with your Rider Comms account.</Text>
           {!identity.emailVerified ? <Pressable accessibilityRole="button"
             accessibilityLabel="Resend verification email"
             onPress={() => { void resendVerification().then(
