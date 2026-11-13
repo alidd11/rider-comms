@@ -483,9 +483,12 @@ function AuthenticatedSocialApp(): React.JSX.Element {
           <Pill label="For You" selected={feedMode==='forYou'} onPress={() => setFeedMode('forYou')}/>
           <Pill label="Following" selected={feedMode==='following'} onPress={() => setFeedMode('following')}/>
         </View>
-        <Pressable accessibilityRole="button" accessibilityLabel="Feed preferences" style={s.compactIcon} onPress={()=>setFeedPreferencesOpen(v=>!v)}>
-          <Ionicons name="options-outline" size={22} color={feedPreferencesOpen?C.accent:C.ink}/>
-        </Pressable>
+        <View style={[s.row, { gap: 4 }]}>
+          <Text style={[s.small, { fontSize: 10 }]}>Sample feed</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel="Feed preferences" style={s.compactIcon} onPress={()=>setFeedPreferencesOpen(v=>!v)}>
+            <Ionicons name="options-outline" size={22} color={feedPreferencesOpen?C.accent:C.ink}/>
+          </Pressable>
+        </View>
       </View>
       {feedPreferencesOpen ? <View style={[s.card,s.pad,{marginHorizontal:15,marginBottom:8}]}>
         <View style={s.rowBetween}><Text style={s.cardHeading}>Feed preferences</Text>
