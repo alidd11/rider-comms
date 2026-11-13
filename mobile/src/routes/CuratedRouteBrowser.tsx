@@ -164,7 +164,7 @@ function RouteOverview({
             <View style={styles.metaStrip}>
               <MetaItem icon="navigate-outline" value={`${route.distanceMiles} mi`} label="Route" />
               <MetaItem icon="time-outline" value={`${route.estimatedDurationMinutes} min`} label="Ride time*" />
-              <MetaItem icon="speedometer-outline" value={route.difficulty} label="Demand" />
+              <MetaItem icon="speedometer-outline" value={route.difficulty} label="Difficulty" />
               {approach ? <MetaItem icon="locate-outline" value={approach.replace(' from you', '')} label="To start" /> : null}
             </View>
 
