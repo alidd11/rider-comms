@@ -117,7 +117,20 @@ const viewportSyncScript = `<script id="social-viewport-sync">
   var displayMode = window.matchMedia('(display-mode: standalone)');
   var viewport = window.visualViewport;
   function sync() {
-    var height = viewport && viewport.height > 0 ? viewport.height : window.innerHeight;
+    // A suspended iOS Home Screen PWA can report a visualViewport height that
+    // excludes a stale bottom browser/UI region. That creates a large empty
+    // gap *below* the entire tab bar even when the bar reaches #root's bottom.
+    // Only honour the smaller visual viewport while an actual editable input
+    // has focus and an on-screen keyboard is likely visible.
+    var full = Math.max(window.innerHeight || 0, root.clientHeight || 0);
+    var focused = document.activeElement;
+    var editing = focused && (
+      focused.tagName === 'INPUT' || focused.tagName === 'TEXTAREA' ||
+      focused.isContentEditable === true
+    );
+    var visible = viewport && viewport.height > 0 ? viewport.height : full;
+    var keyboard = editing && full - visible > 100;
+    var height = keyboard ? visible : full;
     if (Number.isFinite(height) && height > 0) {
       root.style.setProperty('--app-vh', Math.round(height) + 'px');
     }
