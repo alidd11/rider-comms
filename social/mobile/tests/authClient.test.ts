@@ -206,3 +206,30 @@ test('terms acceptance uses only current /auth/me termsVersion', async () => {
   assert.equal(accepted.termsAccepted, true);
   assert.deepEqual(env.calls.slice(-2).map(c => c.pathname), ['/auth/accept-terms', '/auth/me']);
 });
+
+test('stalled cold-start request times out, shows a connection error and preserves saved token', async () => {
+  const token = randomUUID();
+  let stored: string | null = token;
+  let aborted = 0;
+  const storage: TokenStorage = {
+    read: async () => stored,
+    write: async value => { stored = value; },
+    clear: async () => { stored = null; },
+  };
+  const hangingTransport = (_url: string, init: RequestInit): Promise<Response> =>
+    new Promise((_resolve, reject) => {
+      const signal = init.signal;
+      if (signal?.aborted) { reject(Error('synthetic timeout')); return; }
+      signal?.addEventListener('abort', () => {
+        aborted += 1;
+        reject(Error('synthetic timeout'));
+      }, { once: true });
+    });
+  const client = new RiderAccountClient(storage, hangingTransport,
+    'https://fixture.invalid', 25);
+  await assert.rejects(client.restore(),
+    (error: unknown) => error instanceof AccountConnectionError);
+  assert.equal(aborted, 1);
+  // A network outage is never proof that the account is revoked.
+  assert.equal(stored, token);
+});
