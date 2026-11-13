@@ -163,9 +163,9 @@ function lastPositionCallback(): PositionCallback {
   return calls[calls.length - 1]![0] as PositionCallback;
 }
 
-async function sendFix(lat: number, lon: number, speed: number | null = 8, heading: number | null = 0) {
+async function sendFix(lat: number, lon: number, speed: number | null = 8, heading: number | null = 0, accuracy: number | null = 5) {
   await act(async () => {
-    lastPositionCallback()({ coords: { latitude: lat, longitude: lon, accuracy: 5, speed, heading } });
+    lastPositionCallback()({ coords: { latitude: lat, longitude: lon, accuracy, speed, heading } });
   });
 }
 
@@ -350,6 +350,19 @@ test('reroutes only after staying off route for the grace period', async () => {
   // The new route restarts the GPS feed, but the prompt audio session stays up.
   expect(mockReleaseNavigationAudioSession).not.toHaveBeenCalled();
   expect(mockAcquireNavigationAudioSession).toHaveBeenCalledTimes(1);
+});
+
+test('a fix too uncertain to judge (tunnel, tall buildings) never reroutes', async () => {
+  const { props, result } = await startNavigation();
+
+  // The same 200m-off position as above, but with 85m accuracy throughout.
+  for (let i = 0; i < 4; i += 1) {
+    await sendFix(51.5005, -0.097, 8, 0, 85);
+    await act(async () => { jest.advanceTimersByTime(5_000); });
+  }
+
+  expect(props.client.getDrivingRoute).toHaveBeenCalledTimes(1);
+  expect(result.current.navigationNotice).not.toBe('Rerouting…');
 });
 
 test('returning to the route resets the off-route grace timer', async () => {

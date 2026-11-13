@@ -760,7 +760,7 @@
     renderNavStep();
     maybeSpeakUpcomingNavigationPrompt(here, step);
     applyNavigationCamera(placed.target, step, placed.heading, position.coords.speed, NAV_PUCK_GLIDE_MS);
-    checkOffRoute(raw, step);
+    checkOffRoute(raw, step, navSteps[navStepIndex + 1], navCurrentAccuracyMeters);
   }
 
   /** Places the navigation puck for a new fix and returns where it is now
@@ -799,9 +799,16 @@
     return { now, target, heading };
   }
 
-  function checkOffRoute(here, step) {
-    const distanceToRoute = distanceToPathMeters(here, navigationStepPath(step));
-    if (distanceToRoute > NAV_OFF_ROUTE_RADIUS_M) {
+  /** Off the route for longer than the grace period reroutes. A fix too
+   * uncertain to judge (shared navigationRouteStatus) leaves the timer as is. */
+  function checkOffRoute(here, step, nextStep, accuracyMeters) {
+    const status = navigationPuck.navigationRouteStatus(
+      distanceToPathMeters(here, navigationStepPath(step)),
+      nextStep ? distanceToPathMeters(here, navigationStepPath(nextStep)) : null,
+      accuracyMeters,
+    );
+    if (status === 'unknown') return;
+    if (status === 'off') {
       if (!navOffRouteSince) navOffRouteSince = Date.now();
       else if (Date.now() - navOffRouteSince > NAV_OFF_ROUTE_GRACE_MS) {
         navOffRouteSince = null;

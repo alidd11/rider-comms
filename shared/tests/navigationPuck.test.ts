@@ -133,3 +133,15 @@ test('replayed ride: the puck sits much closer to the rider than raw GPS', () =>
   assert.ok(puckError < 2, `puck error ${puckError.toFixed(1)} m`);
   if (process.env.PUCK_REPORT) console.log(`raw ${rawError.toFixed(1)} m, puck ${puckError.toFixed(1)} m`);
 });
+
+test('off-route needs a confident fix away from both the current and next step', async () => {
+  const { navigationRouteStatus, NAV_OFF_ROUTE_RADIUS_M } = await import('../src/navigationPuck.ts');
+  assert.equal(navigationRouteStatus(20, 200, 8), 'on');
+  assert.equal(navigationRouteStatus(NAV_OFF_ROUTE_RADIUS_M + 1, null, 8), 'off');
+  // Already turned at the junction: far from this step, on the next one.
+  assert.equal(navigationRouteStatus(90, 12, 8), 'on');
+  // A tunnel or urban-canyon fix can't decide either way.
+  assert.equal(navigationRouteStatus(140, 140, 85), 'unknown');
+  // No accuracy reported: judge on distance alone.
+  assert.equal(navigationRouteStatus(140, Number.NaN, undefined), 'off');
+});

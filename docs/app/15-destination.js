@@ -153,7 +153,6 @@
   let navStatusNotice = null;
 
   const NAV_STEP_ARRIVAL_RADIUS_M = 30;
-  const NAV_OFF_ROUTE_RADIUS_M = 60;
   const NAV_OFF_ROUTE_GRACE_MS = 10_000;
   const NAV_GPS_STALE_MS = 12_000;
   const NAV_GPS_CHECK_MS = 2_000;
