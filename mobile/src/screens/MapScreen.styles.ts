@@ -335,6 +335,8 @@ export const styles = StyleSheet.create({
   navigationBannerCopy: { flex: 1, minWidth: 0 },
   navigationDistance: { color: colors.accentInk, fontSize: 39, lineHeight: 42, fontWeight: '800', letterSpacing: -0.9 },
   navigationInstruction: { ...type.body, color: colors.textPrimary, marginTop: 1, fontSize: 18, lineHeight: 21, fontWeight: '800' },
+  // The road the turn leads onto: the banner's second-largest line.
+  navigationRoad: { fontSize: 24, lineHeight: 28, letterSpacing: -0.3 },
   navigationProviderInstruction: { ...type.caption, minWidth: 0, color: colors.textSecondary, marginTop: 4, fontSize: 13, lineHeight: 17, fontWeight: '600' },
   navigationNextPreview: {
     minHeight: 50,

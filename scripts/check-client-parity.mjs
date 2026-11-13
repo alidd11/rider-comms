@@ -368,7 +368,7 @@ for (const [label, source, patterns] of [
 if (!/id="navInstruction"[^>]*role="status"[^>]*aria-live="polite"[^>]*aria-atomic="true"/.test(pwaIndexSource)) {
   throw new Error('PWA navigation maneuver instruction must be a polite atomic live region');
 }
-if (!/style=\{styles\.navigationInstruction\}[\s\S]{0,220}?accessibilityLiveRegion="polite"[\s\S]{0,220}?accessibilityLabel=\{navigationGuidanceInstruction\}/.test(nativeMapSource)) {
+if (!/style=\{\[?styles\.navigationInstruction\b[\s\S]{0,220}?accessibilityLiveRegion="polite"[\s\S]{0,220}?accessibilityLabel=\{navigationGuidanceInstruction\}/.test(nativeMapSource)) {
   throw new Error('Native navigation maneuver instruction must remain a polite live region with the full provider instruction as its accessible label');
 }
 
@@ -479,11 +479,19 @@ if (!/navigationManeuverAction/.test(nativeGuidanceSource)
   || !/\{navigationGuidanceInstruction\}/.test(nativeMapSource)) {
   throw new Error('Native navigation header must pair a structured maneuver action with untouched provider instruction text');
 }
+// The banner may show the road a turn leads onto, but only as quoted by the
+// shared navigationInstructionRoad (text after "onto"/"on", verbatim, null
+// otherwise). Synthesised route badges, exit or junction numbers and
+// roundabout actions stay banned in both clients.
 if (/function navGlanceInstruction\(|function navGlanceSummary\(/.test(pwaMapSource)
   || /navRouteBadge|navRoadName/.test(pwaIndexSource)
   || /roadFromInstruction|roundaboutAction|navigationGlanceInstruction|navigationGlanceSummary/.test(nativeGuidanceSource)
-  || /navigationRouteBadge|navigationRoadName/.test(nativeMapSource)) {
-  throw new Error('Navigation must not reconstruct route, road, exit or junction metadata from free-form provider instructions');
+  || /navigationRouteBadge/.test(nativeMapSource)) {
+  throw new Error('Navigation must not reconstruct route, exit or junction metadata from free-form provider instructions');
+}
+if (!/navigationGuidance\.navigationInstructionRoad\(fullInstruction\)/.test(pwaMapSource)
+  || !/navigationInstructionRoad\(upcomingNavigationStep\.instruction\)/.test(nativeNavigationSummarySource)) {
+  throw new Error('The banner road must come only from the shared navigationInstructionRoad, in both clients');
 }
 
 if (!/function routeFinishIcon\(\)/.test(pwaMapSource)

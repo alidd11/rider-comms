@@ -233,18 +233,29 @@
     const fullInstruction = upcomingStep
       ? stripHtml(upcomingStep.instructions)
       : `Arrive at ${navDestination?.label || 'destination'}`;
+    // As in Google and Apple Maps: the distance, then the road the turn
+    // leads onto in large type (the arrow shows the turn). Without a named
+    // road, the action and the full instruction show.
+    const roadName = upcomingStep ? navigationGuidance.navigationInstructionRoad(fullInstruction) : null;
     const instruction = $('#navInstruction');
-    instruction.textContent = navGlanceAction(upcomingStep?.maneuver || 'arrive');
+    instruction.textContent = roadName || navGlanceAction(upcomingStep?.maneuver || 'arrive');
+    instruction.classList.toggle('nav-instruction-road', Boolean(roadName));
     instruction.setAttribute('aria-label', fullInstruction);
     const providerInstruction = $('#navProviderInstruction');
-    if (providerInstruction) providerInstruction.textContent = fullInstruction;
+    if (providerInstruction) {
+      providerInstruction.textContent = fullInstruction;
+      providerInstruction.hidden = Boolean(roadName);
+    }
     // Keep the provider-authored next instruction intact. The maneuver glyph
     // supplies the glanceable geometry without reconstructing road metadata.
     const followingStep = navSteps[navStepIndex + 2];
     $('#navNextPreview').hidden = !followingStep;
     if (followingStep) {
       applyManeuverSvg($('#navNextManeuverSvg'), followingStep.maneuver);
-      $('#navNextInstruction').textContent = stripHtml(followingStep.instructions);
+      const nextFull = stripHtml(followingStep.instructions);
+      const nextInstruction = $('#navNextInstruction');
+      nextInstruction.textContent = navigationGuidance.navigationInstructionRoad(nextFull) || nextFull;
+      nextInstruction.setAttribute('aria-label', nextFull);
     }
     let remainingMeters = turnDistance;
     const currentStepDistance = Math.max(1, step.distance.value);

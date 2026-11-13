@@ -43,6 +43,23 @@ export function normalizeNavigationInstructionText(value: string): string {
   return value.replace(/\s+/g, ' ').trim();
 }
 
+/**
+ * The road a step leads onto, quoted from the provider's own instruction
+ * ("Turn right onto Camden Rd/A503" -> "Camden Rd / A503"), for the banner's
+ * large line as in Google and Apple Maps. Nothing is reconstructed: the text
+ * after "onto" or "on" in the first sentence is used as written, and null
+ * comes back when the instruction names no road, so the banner falls back to
+ * the full instruction.
+ */
+export function navigationInstructionRoad(instruction: string): string | null {
+  const firstSentence = normalizeNavigationInstructionText(instruction).split(/(?<=[a-z0-9)])\.\s+/i)[0] ?? '';
+  const match = firstSentence.match(/\bonto\s+(.+)$/i) ?? firstSentence.match(/\bon\s+(.+)$/i);
+  if (!match) return null;
+  const road = match[1]!.replace(/\s+toward\b.*$/i, '').replace(/\.$/, '').replace(/\s*\/\s*/g, ' / ').trim();
+  if (!road || /^the (left|right)\b/i.test(road)) return null;
+  return road;
+}
+
 export function formatNavigationDistance(metres: number, unit: NavigationUnit): string {
   if (unit === 'km') {
     // Round first, then pick the unit, so 997 m reads "1.0 km", not "1000 m".
@@ -101,7 +118,7 @@ const GLANCE_ACTIONS: Readonly<Record<string, string>> = {
 };
 
 // Only structured maneuver metadata is simplified. Provider instruction text
-// remains intact and is never parsed into synthetic road/route/junction data.
+// is never rewritten; navigationInstructionRoad only quotes the road it names.
 export function navigationManeuverAction(maneuver?: string): string {
   if (!maneuver) return 'Continue';
   const maneuverKey = maneuver;

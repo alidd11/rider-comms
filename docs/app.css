@@ -2735,3 +2735,8 @@ html.map-drawer-open #ridePill{display:none}
    on a 320px phone instead of scrolling "Petrol" off the edge. */
 .map-drawer-shortcuts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-left:0;margin-right:0;padding:0;overflow:visible}
 .map-drawer-shortcuts button{min-width:0;justify-content:center;gap:7px;padding:0 6px}
+
+/* The road the next turn leads onto: the banner's second-largest line,
+   wrapping to two lines rather than clipping. */
+#navInstruction.nav-instruction-road{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden;white-space:normal;font-size:1.5rem;line-height:1.15;letter-spacing:-.01em}
+#navProviderInstruction[hidden]{display:none}

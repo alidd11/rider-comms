@@ -3,7 +3,7 @@ import type { HazardReport } from '@rider-comms/shared';
 import { remainingDistanceOnPathMeters, type InAppNavigationRoute } from '../api/directions';
 import type { NavigationTarget } from '../navigationLinks';
 import { combineNavigationCameraPaths } from '../navigationCamera';
-import { navigationManeuverAction } from '../navigationGuidance';
+import { navigationInstructionRoad, navigationManeuverAction } from '../navigationGuidance';
 import { isNavigationGpsNotice } from '../navigationGpsHealth';
 import { navigationHazardsAhead, type NavigationRouteHazard } from '../navigationRoadEvents';
 
@@ -14,6 +14,8 @@ export interface NavigationSummary {
   navigationRoadAlerts: NavigationRouteHazard[];
   navigationGuidanceInstruction: string;
   navigationGlanceAction: string;
+  /** The road the next turn leads onto, quoted from the instruction, or null. */
+  navigationRoadName: string | null;
   distanceToCurrentStepEnd: number;
   remainingNavigationMeters: number;
   remainingNavigationSeconds: number;
@@ -57,6 +59,7 @@ export function useNavigationSummary(
   const navigationGuidanceInstruction = upcomingNavigationStep?.instruction
     ?? `Arrive at ${navigationDestination?.label ?? 'destination'}`;
   const navigationGlanceAction = navigationManeuverAction(upcomingNavigationStep?.maneuver ?? 'arrive');
+  const navigationRoadName = upcomingNavigationStep ? navigationInstructionRoad(upcomingNavigationStep.instruction) : null;
   const distanceToCurrentStepEnd = currentNavigationStep && currentLocation
     ? remainingDistanceOnPathMeters(currentLocation, currentNavigationStep.coordinates)
     : currentNavigationStep?.distanceMeters ?? 0;
@@ -79,6 +82,7 @@ export function useNavigationSummary(
     navigationRoadAlerts,
     navigationGuidanceInstruction,
     navigationGlanceAction,
+    navigationRoadName,
     distanceToCurrentStepEnd,
     remainingNavigationMeters,
     remainingNavigationSeconds,

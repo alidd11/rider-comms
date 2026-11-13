@@ -7,6 +7,7 @@ export {
   formatNavigationDuration,
   formatNavigationSpeed,
   maneuverIcon,
+  navigationInstructionRoad,
   navigationManeuverAction,
   navigationPromptStageForDistance,
   navigationPromptText,

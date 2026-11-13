@@ -4,6 +4,7 @@ import {
   formatNavigationDuration,
   formatNavigationSpeed,
   maneuverIcon,
+  navigationInstructionRoad,
   navigationManeuverAction,
   normalizeNavigationInstructionText,
   navigationPromptStageForDistance,
@@ -44,6 +45,11 @@ const fixtures = {
     '  Continue   to follow  St Paul\'s Rd / A1201 ',
     'Keep right, then merge',
     '',
+    'Turn right onto Camden Rd/A503',
+    'At the roundabout, take the 2nd exit onto Holloway Rd',
+    'Head north on Camden Rd toward Kentish Town Rd',
+    'Turn left onto Caledonian Rd. Destination will be on the right',
+    'Your destination is on the left',
   ],
 };
 
@@ -92,6 +98,7 @@ for (const instruction of fixtures.instruction) {
     browser.normalizeNavigationInstructionText(instruction),
     normalizeNavigationInstructionText(instruction),
   );
+  assert.equal(browser.navigationInstructionRoad(instruction), navigationInstructionRoad(instruction));
 }
 
 console.log('Navigation guidance PWA/native parity valid');
