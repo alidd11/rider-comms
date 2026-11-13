@@ -25,6 +25,7 @@ import type { CommentPreview } from './src/CommentsSheet';
 import { demoCreators, publicGallery } from './src/demoCreators';
 import { ProfileSummary } from './src/ProfileSummary';
 import { SocialSettings } from './src/SocialSettings';
+import { profileForRider } from './src/profileDisplay';
 import type { ProfileContentTab } from './src/ProfileSummary';
 import { ProfileConnectionsSheet } from './src/ProfileConnectionsSheet';
 import { SocialAuthGate, useSocialAccount } from './src/SocialAuthGate';
@@ -237,8 +238,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
     let mounted = true;
     void loadLocalDemo(identity.riderId).then((saved) => {
       if (!mounted) return;
-      setProfile(saved.profile.displayName === DEFAULT_PROFILE.displayName
-        ? { ...saved.profile, displayName: identity.username } : saved.profile);
+      setProfile(profileForRider(saved.profile, identity.username, socialFixturesEnabled));
       setGarage(saved.garage);
       setLocalDraftOwner(identity.riderId);
       setLocalReady(true);
@@ -641,7 +641,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
     // The same rider's pending saves are serialised by demoStorage.
     await clearLocalDemo(identity.riderId);
     await AsyncStorage.removeItem(accountTextDraftKey(identity.riderId));
-    const empty = { ...DEFAULT_PROFILE, displayName: identity.username };
+    const empty = profileForRider(DEFAULT_PROFILE, identity.username, socialFixturesEnabled);
     setProfile(empty);
     setProfileDraft(empty);
     setGarage([]);
