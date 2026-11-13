@@ -3,12 +3,14 @@ import { Pressable, ScrollView, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { C } from './styles';
 import { demoCreators } from './demoCreators';
+import type { SharedFriend } from './authClient';
 
 export type ConnectionKind = 'Followers' | 'Following' | 'Friends';
 
 type Props = {
   kind: ConnectionKind;
   followed: ReadonlySet<string>;
+  friends: readonly SharedFriend[];
   onToggleFollow: (id: string) => void;
   onClose: () => void;
 };
@@ -20,7 +22,7 @@ type Props = {
  * - friends must come from the shared Rider Comms friendship service.
  * Never manufacture real counts, names or cross-app relationships.
  */
-export function ProfileConnectionsSheet({ kind, followed, onToggleFollow, onClose }: Props) {
+export function ProfileConnectionsSheet({ kind, followed, friends, onToggleFollow, onClose }: Props) {
   const people = Object.values(demoCreators).filter(person => followed.has(person.id));
   const isFollowing = kind === 'Following';
   return <View testID="profile-connections-sheet" style={{
@@ -52,7 +54,14 @@ export function ProfileConnectionsSheet({ kind, followed, onToggleFollow, onClos
         </Pressable>
       </View>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 19, gap: 15 }}>
-        {isFollowing && people.length > 0 ? people.map(person => (
+        {kind === 'Friends' && friends.length > 0 ? friends.map(friend => <View
+          key={friend.riderId} style={{ flexDirection: 'row', alignItems: 'center', gap: 11, minHeight: 49 }}>
+          <Ionicons name="person-circle-outline" size={32} color={C.accent}/>
+          <View style={{ gap: 3 }}>
+            <Text style={{ color: C.ink, fontWeight: '800' }}>{friend.displayName}</Text>
+            <Text style={{ color: C.muted, fontSize: 12 }}>{friend.handle}</Text>
+          </View>
+        </View>) : isFollowing && people.length > 0 ? people.map(person => (
           <View key={person.id} style={{
             flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56,
           }}>
@@ -81,12 +90,12 @@ export function ProfileConnectionsSheet({ kind, followed, onToggleFollow, onClos
             : kind === 'Followers' ? 'person-add-outline' : 'person-outline'}
             size={36} color={C.accent}/>
           <Text style={{ color: C.ink, fontSize: 16, fontWeight: '800', textAlign: 'center' }}>
-            {kind === 'Friends' ? 'Friends are not connected yet'
+            {kind === 'Friends' ? 'No friends found'
               : kind === 'Followers' ? 'Followers are not connected yet' : 'No example follows'}
           </Text>
           <Text style={{ color: C.muted, fontSize: 13, lineHeight: 19, textAlign: 'center' }}>
             {kind === 'Friends'
-              ? 'Your mutual friendships will sync securely from Rider Comms once shared account integration is enabled.'
+              ? 'Your Rider Comms friends appear here. You can manage friendships from Rider Comms.'
               : kind === 'Followers'
                 ? 'Followers and incoming follow requests will appear after Social accounts are connected.'
                 : 'Follow a sample creator from the Home feed to see them here.'}
