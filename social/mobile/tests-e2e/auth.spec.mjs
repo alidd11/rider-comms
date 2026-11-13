@@ -165,6 +165,24 @@ test('shared-account login requires separate Social age acknowledgment and signs
   const stored = await page.evaluate(() => window.sessionStorage.getItem('rider_social_account_session_v1'));
   expect(stored).toBeNull();
 });
+test('failed server logout clears the device session and explains how to revoke it', async ({ page }) => {
+  await fakeBackend(page);
+  // The most recently installed route overrides the normal successful logout.
+  await page.route(origin + '/auth/logout', route => route.abort('failed'));
+  await page.goto('/');
+  await page.getByRole('textbox', { name: 'Username' }).fill('sample-rider');
+  await page.getByRole('textbox', { name: 'Password' }).fill(randomUUID());
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await page.getByRole('checkbox', { name: 'I confirm I am at least 16' }).click();
+  await page.getByRole('button', { name: 'Continue to Social' }).click();
+  await page.getByRole('button', { name: 'Open profile' }).click();
+  await page.getByRole('button', { name: 'Sign out of Social' }).click();
+  await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeVisible();
+  await expect(page.getByTestId('auth-error')).toContainText('Session safety');
+  await expect(page.getByTestId('auth-error')).toContainText('Revoke it from Rider Comms');
+  expect(await page.evaluate(() => window.sessionStorage.getItem('rider_social_account_session_v1'))).toBeNull();
+});
+
 test('a guest identity with null username is not accepted into Social', async ({ page }) => {
   await fakeBackend(page, { identity: { ...fakeAccount, username: null } });
   await page.addInitScript(() => window.sessionStorage.setItem('rider_social_account_session_v1', 'not-a-real-session'));
