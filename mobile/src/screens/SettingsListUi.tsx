@@ -84,8 +84,8 @@ export function CategoryRow({ icon, customIcon, tint, title, value, first = fals
       <View style={[ui.categoryIcon, { backgroundColor: tint }]}>
         {customIcon ?? (icon ? <Ionicons name={icon} size={17} color="#FFFFFF" /> : null)}
       </View>
-      <Text style={ui.rowTitle}>{title}</Text>
-      {value ? <Text numberOfLines={1} style={ui.rowValue}>{value}</Text> : null}
+      <Text numberOfLines={1} style={[ui.rowTitle, ui.categoryTitle]}>{title}</Text>
+      {value ? <Text numberOfLines={1} style={[ui.rowValue, ui.categoryValue]}>{value}</Text> : null}
       <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
     </Pressable>
   );
@@ -216,6 +216,10 @@ const ui = StyleSheet.create({
   categoryIcon: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
   rowTitle: { flex: 1, fontSize: 17, fontWeight: '500', color: colors.textPrimary },
   rowValue: { maxWidth: '45%', fontSize: 15, color: colors.textSecondary },
+  // On a narrow phone the grey value gives way ("Google M…") and the title
+  // stays on one line, as in iOS Settings, so every row keeps its height.
+  categoryTitle: { flex: undefined, flexGrow: 1, flexShrink: 0, flexBasis: 'auto' },
+  categoryValue: { flexShrink: 1, maxWidth: undefined },
   danger: { color: '#F07474' },
   stackRow: { flexDirection: 'column', alignItems: 'stretch', gap: 10, paddingVertical: 14 },
   segmented: { flexDirection: 'row', padding: 3, borderRadius: 999 },
