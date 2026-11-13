@@ -57,6 +57,18 @@ export function CameraCapture({ mode, onCapture, onLibrary, onClose, disabled }:
     setCountdown(null);
   }
 
+  function openLibrary() {
+    // Safari's file picker may leave the PWA visible: visibilitychange is
+    // not guaranteed. Release hardware BEFORE opening the picker, even if
+    // the user cancels. Also invalidate a permission prompt still pending.
+    requestSerial.current += 1;
+    stopStream();
+    cancelCountdown();
+    setRequesting(false);
+    setError(null);
+    onLibrary();
+  }
+
   // A Reel on the PWA can only be selected from Gallery. Never leave the
   // microphone or camera hardware running for a mode with no web recording.
   useEffect(() => {
@@ -105,11 +117,29 @@ export function CameraCapture({ mode, onCapture, onLibrary, onClose, disabled }:
       return;
     }
     let nextStream: MediaStream | null = null;
+    let permissionTimer: ReturnType<typeof setTimeout> | null = null;
+    let requestExpired = false;
     try {
-      nextStream = await navigator.mediaDevices.getUserMedia({
+      // getUserMedia is allowed to remain pending forever when the user
+      // ignores the permission dialog. Never leave Create in an infinite
+      // loading state; dispose any stream granted after a timeout/cancel.
+      const permission = navigator.mediaDevices.getUserMedia({
         audio: false,
         video: { facingMode: { ideal: nextFacing } },
       });
+      void permission.then(stream => {
+        if (requestExpired || !mounted.current || requestId !== requestSerial.current)
+          stream.getTracks().forEach(track => track.stop());
+      }).catch(() => {});
+      nextStream = await Promise.race([
+        permission,
+        new Promise<never>((_, reject) => {
+          permissionTimer = setTimeout(() => {
+            requestExpired = true;
+            reject(new Error('camera_permission_timeout'));
+          }, 20000);
+        }),
+      ]);
       if (!mounted.current || requestId !== requestSerial.current) {
         nextStream.getTracks().forEach(track => track.stop());
         return;
@@ -129,9 +159,13 @@ export function CameraCapture({ mode, onCapture, onLibrary, onClose, disabled }:
     } catch {
       nextStream?.getTracks().forEach(track => track.stop());
       if (mounted.current && requestId === requestSerial.current) {
-        setError('Camera access was blocked or could not start. Allow camera access in your browser settings, or choose Gallery.');
+        setError(requestExpired
+          ? 'The camera permission request timed out. Try again or choose Gallery.'
+          : 'Camera access was blocked or could not start. Allow camera access in your browser settings, or choose Gallery.');
       }
     } finally {
+      requestExpired = true;
+      if (permissionTimer !== null) clearTimeout(permissionTimer);
       if (mounted.current && requestId === requestSerial.current) setRequesting(false);
     }
   }
@@ -226,7 +260,7 @@ export function CameraCapture({ mode, onCapture, onLibrary, onClose, disabled }:
           </Text>
         </Pressable> : null}
         <Pressable accessibilityRole="button" accessibilityLabel="Open Gallery"
-          disabled={disabled} onPress={onLibrary} style={{ padding: 9 }}>
+          disabled={disabled} onPress={openLibrary} style={{ padding: 9 }}>
           <Text style={{ color: WHITE, fontSize: 13, fontWeight: '700' }}>
             Choose from Gallery
           </Text>
@@ -288,7 +322,7 @@ export function CameraCapture({ mode, onCapture, onLibrary, onClose, disabled }:
         <View style={{ paddingHorizontal: 15, flexDirection: 'row',
           alignItems: 'center', justifyContent: 'space-between' }}>
           <Pressable accessibilityRole="button" accessibilityLabel="Choose from library"
-            onPress={onLibrary} disabled={disabled}
+            onPress={openLibrary} disabled={disabled}
             style={{ width: 64, height: 66, alignItems: 'center',
               justifyContent: 'center', gap: 5, backgroundColor: DIM, borderRadius: 16 }}>
             <Ionicons name="images-outline" size={25} color={WHITE}/>
@@ -297,7 +331,7 @@ export function CameraCapture({ mode, onCapture, onLibrary, onClose, disabled }:
           <Pressable accessibilityRole="button"
             accessibilityLabel={isReel ? 'Choose Reel video' : 'Take photo'}
             disabled={disabled || requesting || countdown !== null || (!live && !isReel)}
-            onPress={isReel ? onLibrary : startCountdown}
+            onPress={isReel ? openLibrary : startCountdown}
             style={{ width: 81, height: 81, borderRadius: 42, borderWidth: 5,
               borderColor: WHITE, backgroundColor: DIM,
               alignItems: 'center', justifyContent: 'center',
