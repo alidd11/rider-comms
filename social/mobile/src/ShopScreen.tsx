@@ -107,7 +107,7 @@ export function ShopScreen({ items, collectionItems, search, onSearch, category,
     <View style={{paddingHorizontal:16,paddingTop:7,gap:13}}>
       <View style={{gap:2}}>
         <Text style={{color:C.ink,fontSize:24,fontWeight:'900'}}>Shop</Text>
-        <Text style={{color:C.muted,fontSize:11}}>Sample marketplace</Text>
+        <Text style={{color:C.muted,fontSize:11}}>{collectionItems.length ? 'Sample marketplace' : 'Marketplace preview'}</Text>
       </View>
       <View style={{backgroundColor:'transparent',borderBottomWidth:1,borderBottomColor:'#3B4752',
         paddingHorizontal:0,minHeight:48,flexDirection:'row',alignItems:'center',gap:10}}>
@@ -150,7 +150,7 @@ export function ShopScreen({ items, collectionItems, search, onSearch, category,
       <View style={{flexDirection:'row',alignItems:'center',gap:6}}>
         <Ionicons name="shield-checkmark-outline" color={C.accent} size={15}/>
         <Text style={{fontSize:11,color:C.accent,fontWeight:'800'}}>Verified only</Text>
-        <Text style={{fontSize:11,color:C.muted}}>at launch · Demo merchants shown</Text>
+        <Text style={{fontSize:11,color:C.muted}}>{collectionItems.length ? 'at launch · Demo merchants shown' : 'Listings pending'}</Text>
       </View>
     </View>
     <ScrollView horizontal showsHorizontalScrollIndicator={false}
