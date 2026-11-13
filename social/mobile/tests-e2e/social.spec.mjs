@@ -334,6 +334,29 @@ test('media editor has a dominant fixed canvas, real edit actions and a separate
 });
 
 
+test('Reels keeps the selected page aligned when the iPhone viewport height changes', async ({ page }) => {
+  const errors = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.getByRole('tab', { name: 'Reels' }).click();
+  await expect(page.getByTestId('reels-swipe-feed')).toBeVisible();
+  await page.getByRole('button', { name: 'Next Reel' }).click();
+  await expect.poll(() => page.locator('#social-reels-feed').evaluate(element =>
+    Math.abs(element.scrollTop - element.clientHeight))).toBeLessThan(4);
+
+  // A resumed iOS PWA can receive a smaller visual viewport without a new
+  // swipe. Keep the selected second Reel, not a partial page or first Reel.
+  await page.setViewportSize({ width: 390, height: 650 });
+  await expect.poll(() => page.locator('#social-reels-feed').evaluate(element =>
+    Math.abs(element.scrollTop - element.clientHeight))).toBeLessThan(4);
+  await expect(page.getByRole('button', { name: 'Previous Reel' })).toBeEnabled();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect.poll(() => page.locator('#social-reels-feed').evaluate(element =>
+    Math.abs(element.scrollTop - element.clientHeight))).toBeLessThan(4);
+  expect(errors).toEqual([]);
+});
+
 test('Reels fills the content viewport, pages vertically and opens the Reel creator', async ({ page }, testInfo) => {
   await page.goto('/');
   await page.getByRole('tab', { name: 'Reels' }).click();
