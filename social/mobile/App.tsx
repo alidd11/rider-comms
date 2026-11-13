@@ -812,7 +812,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
           onSubmit={value => addComment(commentsFor.id, value)}
           onClose={() => setCommentsFor(null)}/> : null}
         {connectionSheet ? <ProfileConnectionsSheet kind={connectionSheet}
-          followed={followed} onToggleFollow={toggleFollow}
+          followed={followed} friends={sharedFriends} onToggleFollow={toggleFollow}
           onClose={() => setConnectionSheet(null)}/> : null}
       </View>
     </SafeAreaView>
