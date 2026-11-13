@@ -1,5 +1,4 @@
 import '@expo/metro-runtime';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Image, Platform, ScrollView, StatusBar, Pressable, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
