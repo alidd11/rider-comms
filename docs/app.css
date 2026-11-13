@@ -2834,3 +2834,9 @@ html.map-drawer-open #ridePill{display:none}
 #settingsList .settings-category-icon{width:30px;height:30px}
 #settingsList .settings-category-icon svg{width:17px;height:17px}
 #settingsList .settings-row-category+.settings-row-category::before{left:60px}
+
+/* Navigation reads at a glance: the full instruction wraps to two lines so
+   the road name after "onto" shows, and reports ahead are icon + distance
+   (the full name stays in each chip's label for screen readers). */
+#navProviderInstruction{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;white-space:normal}
+.nav-road-ahead-event{flex:none;gap:8px;padding:5px 10px}

@@ -4,7 +4,6 @@ import { colors } from '../theme';
 import { HazardNavigationIcon } from './HazardIcon';
 import { formatNavigationDistance, type NavigationUnit } from '../navigationGuidance';
 import {
-  navigationHazardCompactLabel,
   navigationHazardLabel,
   type NavigationRouteHazard,
 } from '../navigationRoadEvents';
@@ -24,7 +23,6 @@ export function NavigationRoadAhead({
       <View style={styles.events}>
         {alerts.slice(0, 2).map((alert) => {
           const label = navigationHazardLabel(alert.hazard.type);
-          const displayLabel = navigationHazardCompactLabel(alert.hazard.type);
           const distance = formatNavigationDistance(alert.distanceAheadMeters, unit);
           return (
             <View
@@ -34,7 +32,6 @@ export function NavigationRoadAhead({
               accessibilityLabel={`${label}, ${distance} ahead`}
             >
               <HazardNavigationIcon type={alert.hazard.type} size={22} />
-              <Text numberOfLines={1} style={styles.eventLabel}>{displayLabel}</Text>
               <Text numberOfLines={1} style={styles.distance}>{distance}</Text>
             </View>
           );
@@ -82,14 +79,6 @@ const styles = StyleSheet.create({
     minHeight: 32,
     borderRadius: 9,
     backgroundColor: colors.surfaceRaised,
-  },
-  eventLabel: {
-    minWidth: 0,
-    flex: 1,
-    color: colors.textSecondary,
-    fontSize: 12,
-    lineHeight: 15,
-    fontWeight: '700',
   },
   distance: {
     flexShrink: 0,

@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import type { HazardReport } from '@rider-comms/shared';
 import {
-  navigationHazardCompactLabel,
   navigationHazardLabel,
   navigationHazardsAhead,
 } from '../src/navigationRoadEvents.ts';
@@ -234,8 +233,6 @@ describe('route-ahead navigation hazard selection', () => {
     assert.equal(navigationHazardLabel('hidden_police'), 'Hidden police reported');
     assert.equal(navigationHazardLabel('police_checkpoint'), 'Police checkpoint reported');
     assert.equal(navigationHazardLabel('road_closure'), 'Road closure reported');
-    assert.equal(navigationHazardCompactLabel('camera'), 'Mobile camera');
-    assert.equal(navigationHazardCompactLabel('police_checkpoint'), 'Checkpoint');
   });
 
   it('doesn’t turn the high-frequency navigation GPS watcher into a hazard API poll', () => {

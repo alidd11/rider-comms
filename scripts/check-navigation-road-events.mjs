@@ -77,8 +77,6 @@ assert.equal(pwa.navigationHazardLabel('camera'), 'Mobile speed camera reported'
 assert.equal(pwa.navigationHazardLabel('police'), 'Police reported');
 assert.equal(pwa.navigationHazardLabel('hidden_police'), 'Hidden police reported');
 assert.equal(pwa.navigationHazardLabel('police_checkpoint'), 'Police checkpoint reported');
-assert.equal(pwa.navigationHazardCompactLabel('camera'), 'Mobile camera');
-assert.equal(pwa.navigationHazardCompactLabel('police_checkpoint'), 'Checkpoint');
 
 const newTypeAlerts = pwa.navigationHazardsAhead(
   { lat: 51.5020, lng: -0.1000 },

@@ -188,14 +188,3 @@ export function navigationHazardLabel(type: HazardType): string {
     case 'road_closure': return 'Road closure reported';
   }
 }
-
-export function navigationHazardCompactLabel(type: HazardType): string {
-  switch (type) {
-    case 'camera': return 'Mobile camera';
-    case 'police': return 'Police';
-    case 'hidden_police': return 'Hidden police';
-    case 'police_checkpoint': return 'Checkpoint';
-    case 'accident': return 'Accident';
-    case 'road_closure': return 'Road closure';
-  }
-}

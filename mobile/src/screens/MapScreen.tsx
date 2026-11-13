@@ -898,7 +898,8 @@ export function MapScreen(): React.JSX.Element {
                 >
                   {navigationGlanceAction}
                 </Text>
-                <Text numberOfLines={1} accessible={false} style={styles.navigationProviderInstruction}>
+                {/* Two lines, so the road name after "onto" shows instead of an ellipsis. */}
+                <Text numberOfLines={2} accessible={false} style={styles.navigationProviderInstruction}>
                   {navigationGuidanceInstruction}
                 </Text>
               </View>

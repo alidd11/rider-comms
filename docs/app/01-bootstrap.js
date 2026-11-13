@@ -213,7 +213,6 @@
     };
   }
   const {
-    navigationHazardCompactLabel,
     navigationHazardLabel,
     navigationHazardsAhead,
   } = window.RiderNavigationRoadEvents;
