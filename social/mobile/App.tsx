@@ -183,7 +183,7 @@ function BottomTabs({ screen, onNavigate }: { screen: Screen; onNavigate: (next:
 }
 
 function AuthenticatedSocialApp(): React.JSX.Element {
-  const { identity, client, logout, resendVerification } = useSocialAccount();
+  const { identity, client, logout, deleteAccount, resendVerification } = useSocialAccount();
   const { width: screenWidth } = useWindowDimensions();
   const mediaHeight = Math.min(620, Math.max(330, Math.round(Math.min(screenWidth,620)*1.25)));
   const [screen, setScreen] = useState<Screen>('Home');
@@ -744,7 +744,8 @@ function AuthenticatedSocialApp(): React.JSX.Element {
       emailVerified={identity.emailVerified}
       onClose={() => setSettingsOpen(false)}
       onClearDrafts={clearDeviceDrafts}
-      onSignOut={logout}/>;
+      onSignOut={logout}
+      onDeleteAccount={deleteAccount}/>;
     return (
       <View style={{ gap: 16 }}>
         <ProfileSummary profile={profile} accountProfile={ownProfile} tab={profileTab} username={identity.username}
