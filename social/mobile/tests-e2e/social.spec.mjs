@@ -273,6 +273,9 @@ test('device media selection, review and text-only draft are usable without publ
 
 test('fixed shell only scrolls the feed and content directories, never Reels or Messages', async ({ page }) => {
   await page.goto('/');
+  // Auth restoration and the first React frame are asynchronous. Verify the
+  // feed has actually rendered before asserting document scroll ownership.
+  await expect(page.getByText('Sunday roads, no rush.')).toBeVisible();
   const initial = await page.evaluate(() => ({
     bodyOverflow: getComputedStyle(document.body).overflow,
     pageScroll: document.getElementById('social-page-scroll')?.scrollHeight ?? 0,
