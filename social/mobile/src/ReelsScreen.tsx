@@ -91,6 +91,20 @@ export function ReelsScreen({ items, followedAuthors, onToggleFollow, onOpenComm
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const [notice, setNotice] = useState<string | null>(null);
   const scroller = useRef<ScrollViewInstance>(null);
+  const lastPageHeight = useRef(0);
+
+  useEffect(() => {
+    if (!height || !items.length) return;
+    const safeIndex = Math.min(activeIndex, items.length - 1);
+    // WebKit can resize the available viewport after a PWA resume, orientation
+    // change or keyboard dismissal. Pixel scroll offsets from the old page
+    // height otherwise leave the reader between Reels or on the wrong item.
+    if (lastPageHeight.current !== height || safeIndex !== activeIndex) {
+      lastPageHeight.current = height;
+      if (safeIndex !== activeIndex) setActiveIndex(safeIndex);
+      scroller.current?.scrollTo({ y: safeIndex * height, animated: false });
+    }
+  }, [activeIndex, height, items.length]);
 
   const toggle = useCallback((setter: React.Dispatch<React.SetStateAction<Set<string>>>, key: string) => {
     setter(current => {
