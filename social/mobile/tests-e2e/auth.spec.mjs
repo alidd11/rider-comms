@@ -238,6 +238,37 @@ test('a guest identity with null username is not accepted into Social', async ({
   await expect(page.getByRole('tab', { name: 'Home' })).toHaveCount(0);
   expect(await page.evaluate(() => window.sessionStorage.getItem('rider_social_account_session_v1'))).toBeNull();
 });
+test('transient restore failure offers Retry and preserves the valid device session', async ({ page }) => {
+  await fakeBackend(page);
+  let sessionChecks = 0;
+  // Override just /auth/me, leaving the normal fixture for other requests.
+  await page.route(origin + '/auth/me', async route => {
+    sessionChecks += 1;
+    if (sessionChecks === 1) {
+      await route.abort('failed');
+      return;
+    }
+    await route.fulfill({
+      status: 200, headers: cors, contentType: 'application/json',
+      body: JSON.stringify(fakeAccount),
+    });
+  });
+  await page.addInitScript(() => {
+    window.sessionStorage.setItem('rider_social_account_session_v1', 'synthetic-restore-token');
+  });
+  await page.goto('/');
+  await expect(page.getByTestId('auth-error')).toContainText('Connection unavailable');
+  await expect(page.getByRole('button', { name: 'Retry session check' })).toBeVisible();
+  expect(await page.evaluate(() =>
+    window.sessionStorage.getItem('rider_social_account_session_v1'))).toBe('synthetic-restore-token');
+
+  await page.getByRole('button', { name: 'Retry session check' }).click();
+  await expect(page.getByRole('button', { name: 'Continue to Social' })).toBeVisible();
+  expect(sessionChecks).toBe(2);
+  expect(await page.evaluate(() =>
+    window.sessionStorage.getItem('rider_social_account_session_v1'))).toBe('synthetic-restore-token');
+});
+
 test('server 401 during session restore clears local credential and shows sign-in', async ({ page }) => {
   await fakeBackend(page, { accountResult: 'expired' });
   await page.addInitScript(() => window.sessionStorage.setItem('rider_social_account_session_v1', 'not-a-real-session'));
