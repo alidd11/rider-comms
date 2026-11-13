@@ -6,6 +6,7 @@ import {
   generateRideCode,
   isRideCodeExpired,
   normalizeRegroupLabel,
+  regroupAnnouncement,
   rideMemberLastSeenAgo,
 } from '../src/rideCode.ts';
 
@@ -75,5 +76,19 @@ describe('ride member last seen', () => {
     expect(rideMemberLastSeenAgo(now - 60_000, now)).toBe('1 min ago');
     expect(rideMemberLastSeenAgo(now - 9.5 * 60_000, now)).toBe('9 min ago');
     expect(rideMemberLastSeenAgo(Number.NaN, now)).toBe(null);
+  });
+});
+
+describe('regroup announcement', () => {
+  const esso = { lat: 51.6, lon: -0.2, label: 'Esso, A1', setAt: 1 };
+  it('speaks a new or moved point to members only', () => {
+    expect(regroupAnnouncement(null, esso, false)).toBe('Regroup at Esso, A1.');
+    expect(regroupAnnouncement(esso, { ...esso, setAt: 2, label: '' }, false)).toBe('Regroup point set. It’s on your map.');
+    expect(regroupAnnouncement(null, esso, true)).toBe(null);
+  });
+  it('stays quiet for an unchanged, cleared or already-known point', () => {
+    expect(regroupAnnouncement(esso, esso, false)).toBe(null);
+    expect(regroupAnnouncement(esso, null, false)).toBe(null);
+    expect(regroupAnnouncement(undefined, esso, false)).toBe(null);
   });
 });

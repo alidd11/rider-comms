@@ -496,3 +496,27 @@ test('PWA ride ticket shows the code large with Copy code and Share invite', asy
     expect((await button.boundingBox()).height).toBeGreaterThanOrEqual(44);
   }
 });
+
+test('PWA tells a member, on screen and aloud, when the host sets a regroup point', async ({ page }) => {
+  let regroup = null;
+  await mockAuthenticatedApi(page, 'stationary', ({ url }) => url.pathname === '/rides/current'
+    ? { body: { ride: { rideId: 'ride-announce-1', code: 'ABCDEF', createdBy: 'rider_host01', memberIds: [RIDER_ID, 'rider_host01'], shareRideLocation: false, regroup } } }
+    : null);
+  await page.addInitScript(() => {
+    window.__spoken = [];
+    window.SpeechSynthesisUtterance = function SpeechSynthesisUtterance(text) { this.text = text; };
+    Object.defineProperty(window, 'speechSynthesis', { value: { cancel() {}, speak(utterance) { window.__spoken.push(utterance.text); } } });
+  });
+  await page.clock.install();
+  await page.goto('/');
+  await expect(page.locator('#regroupChip')).toBeHidden();
+  // The host sets a point; the member's next ride poll picks it up.
+  regroup = { lat: 51.52, lon: -0.11, label: 'Esso, A1', setAt: 5 };
+  await page.clock.runFor(11_000);
+  await expect(page.locator('#regroupChip')).toContainText('Esso, A1');
+  await expect(page.getByText('Regroup at Esso, A1.')).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.__spoken)).toEqual(['Regroup at Esso, A1.']);
+  // The same point on the next poll says nothing more.
+  await page.clock.runFor(11_000);
+  expect(await page.evaluate(() => window.__spoken)).toEqual(['Regroup at Esso, A1.']);
+});
