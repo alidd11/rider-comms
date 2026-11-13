@@ -193,7 +193,10 @@ function AuthenticatedSocialApp(): React.JSX.Element {
   const [activePostMenu, setActivePostMenu] = useState<string | null>(null);
   const [expandedCaptionId, setExpandedCaptionId] = useState<string | null>(null);
   const [createMode, setCreateMode] = useState<'Post' | 'Story' | 'Reel'>('Post');
-  const [personalisation, setPersonalisation] = useState(true);
+  // The pilot may be accessed by 16–17-year-olds. No behavioural
+  // recommendations opt-in is assumed; default to contextual ranking until
+  // the user explicitly enables personalisation (UK Children's Code).
+  const [personalisation, setPersonalisation] = useState(false);
   const [hiddenPostIds, setHiddenPostIds] = useState<Set<string>>(() => new Set());
   const [hiddenTopics, setHiddenTopics] = useState<Set<Topic>>(() => new Set());
   const [followingOrder, setFollowingOrder] = useState<FollowingOrder>('newest');
