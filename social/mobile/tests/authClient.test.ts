@@ -131,14 +131,28 @@ test('403 read-only feature errors never clear an otherwise valid session', asyn
   assert.notEqual(env.stored, null);
   assert.match(accountErrorMessage(new AccountApiError(403, 'not_verified')), /Verify your email/);
 });
+test('failed full-account validation revokes the newly issued server session and clears local credentials', async () => {
+  const env = environment();
+  const issuedId = 'rider-test-001';
+  env.queue.push(
+    response(200, { riderId: issuedId, token: randomUUID(), emailVerified: true, termsAccepted: true }),
+    response(200, identity({ riderId: issuedId, username: null })),
+    response(204, null),
+  );
+  await assert.rejects(env.client.login('rider', randomUUID(), 'Test device'),
+    (error: unknown) => error instanceof AccountApiError && error.code === 'full_account_required');
+  assert.equal(env.stored, null);
+  assert.equal(env.client.identity, null);
+  assert.deepEqual(env.calls.map(call => call.pathname), ['/auth/login', '/auth/me', '/auth/logout']);
+});
 test('logout revokes server token and always deletes local token, including server errors', async () => {
-  for (const status of [204, 500]) {
+  for (const status of [204, 401, 500]) {
     const env = environment(randomUUID());
     env.queue.push(response(200, identity()));
     await env.client.restore();
     env.queue.push(response(status, status === 204 ? null : { error: 'unavailable' }));
-    if (status === 204) await env.client.logout();
-    else await assert.rejects(env.client.logout());
+    if (status === 500) await assert.rejects(env.client.logout());
+    else await env.client.logout();
     assert.equal(env.stored, null);
     assert.equal(env.client.identity, null);
     assert.equal(env.calls.at(-1)?.pathname, '/auth/logout');
