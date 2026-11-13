@@ -2,7 +2,7 @@ import React from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { RiderAccountClient, accountErrorMessage, RESET_SENT_TEXT, SOCIAL_TERMS_URL, SOCIAL_GUIDELINES_URL } from './authClient';
+import { RiderAccountClient, AccountApiError, accountErrorMessage, RESET_SENT_TEXT, SOCIAL_TERMS_URL, SOCIAL_GUIDELINES_URL } from './authClient';
 import type { AccountIdentity } from './authClient';
 import { accountTokenStorage } from './authStorage';
 import { ukPlanningPolicy } from './policy';
@@ -36,26 +36,75 @@ function Action({ label, onPress, disabled = false }: {
 }) {
   return <Pressable accessibilityRole="button" accessibilityLabel={label}
     disabled={disabled} onPress={onPress} style={{
-      borderRadius: 14, paddingVertical: 14, backgroundColor: disabled ? '#305248' : accent,
-      alignItems: 'center', justifyContent: 'center', minHeight: 49,
+      borderRadius: 14, paddingVertical: 13, backgroundColor: disabled ? '#305248' : accent,
+      alignItems: 'center', justifyContent: 'center', minHeight: 50,
+      opacity: disabled ? 0.75 : 1,
     }}>
     <Text style={{ color: '#091814', fontSize: 15, fontWeight: '800' }}>{label}</Text>
   </Pressable>;
 }
-function Field({ label, value, onChangeText, secureTextEntry = false, keyboardType, autoComplete }: {
+type AuthField = 'username' | 'email' | 'password' | 'terms';
+type FieldErrors = Partial<Record<AuthField, string>>;
+function fieldFor(error: unknown): AuthField | null {
+  if (!(error instanceof AccountApiError)) return null;
+  if (['invalid_username', 'username_taken'].includes(error.code)) return 'username';
+  if (['invalid_email', 'email_taken'].includes(error.code)) return 'email';
+  if (['weak_password', 'invalid_credentials'].includes(error.code)) return 'password';
+  if (error.code === 'terms_not_accepted') return 'terms';
+  return null;
+}
+function InlineMessage({ message, type = 'error', label }: {
+  message: string; type?: 'error' | 'success'; label?: string;
+}) {
+  return <View testID={type === 'error' ? 'auth-error' : 'auth-notice'}
+    accessibilityRole="alert"
+    style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8,
+      borderRadius: 11, backgroundColor: type === 'error' ? '#2B1C23' : '#12362F',
+      paddingVertical: 10, paddingHorizontal: 12 }}>
+    <Ionicons name={type === 'error' ? 'alert-circle-outline' : 'checkmark-circle-outline'}
+      size={18} color={type === 'error' ? '#FFB6C1' : accent}/>
+    <View style={{ flex: 1 }}>
+      {label ? <Text style={{ color: ink, fontSize: 12, fontWeight: '800', marginBottom: 2 }}>{label}</Text> : null}
+      <Text style={{ color: type === 'error' ? '#FFC9D2' : '#B2F5E2', fontSize: 12, lineHeight: 18 }}>
+        {message}
+      </Text>
+    </View>
+  </View>;
+}
+function Field({ label, value, onChangeText, secureTextEntry = false, keyboardType,
+  autoComplete, error, onSubmitEditing }: {
   label: string; value: string; onChangeText: (text: string) => void;
   secureTextEntry?: boolean; keyboardType?: 'email-address' | 'default';
   autoComplete?: 'email' | 'username' | 'password' | 'new-password';
+  error?: string; onSubmitEditing?: () => void;
 }) {
-  return <View style={{ gap: 7 }}>
-    <Text style={{ color: ink, fontSize: 13, fontWeight: '700' }}>{label}</Text>
-    <TextInput accessibilityLabel={label} value={value} onChangeText={onChangeText}
-      autoCapitalize="none" autoCorrect={false} autoComplete={autoComplete}
-      keyboardType={keyboardType ?? 'default'} secureTextEntry={secureTextEntry}
-      placeholder={label} placeholderTextColor="#6A7A89"
-      style={{ borderWidth: 1, borderColor: border, backgroundColor: panel,
-        borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, color: ink,
-        minHeight: 48, fontSize: 15 }}/>
+  const [reveal, setReveal] = React.useState(false);
+  return <View style={{ gap: 6 }} testID={'auth-field-' + label.toLowerCase()}>
+    <Text style={{ color: ink, fontSize: 12, fontWeight: '700' }}>{label}</Text>
+    <View style={{
+      flexDirection: 'row', alignItems: 'center',
+      borderWidth: 1, borderColor: error ? '#E9869B' : border,
+      backgroundColor: panel, borderRadius: 12, minHeight: 50,
+    }}>
+      <TextInput accessibilityLabel={label} value={value} onChangeText={onChangeText}
+        autoCapitalize="none" autoCorrect={false} autoComplete={autoComplete}
+        keyboardType={keyboardType ?? 'default'} secureTextEntry={secureTextEntry && !reveal}
+        returnKeyType={secureTextEntry ? 'go' : 'next'}
+        onSubmitEditing={onSubmitEditing}
+        placeholder={label} placeholderTextColor="#758392"
+        style={{ flex: 1, paddingHorizontal: 14, paddingVertical: 11,
+          color: ink, minHeight: 49, fontSize: 15 }}/>
+      {secureTextEntry ? <Pressable accessibilityRole="button"
+        accessibilityLabel={reveal ? 'Hide password' : 'Show password'}
+        onPress={() => setReveal(v => !v)}
+        style={{ width: 48, height: 48, alignItems: 'center', justifyContent: 'center' }}>
+        <Ionicons name={reveal ? 'eye-off-outline' : 'eye-outline'} size={20} color={muted}/>
+      </Pressable> : null}
+    </View>
+    {error ? <Text accessibilityRole="alert" testID={'auth-field-error-' + label.toLowerCase()}
+      style={{ color: '#FFB6C1', fontSize: 12, lineHeight: 18, paddingHorizontal: 2 }}>
+      {error}
+    </Text> : null}
   </View>;
 }
 /** Shared identity, independent device session. No Social password database. */
@@ -74,6 +123,7 @@ export function SocialAuthGate({ children }: { children: React.ReactNode }) {
   const [ageAcknowledged, setAgeAcknowledged] = React.useState(false);
   const [notice, setNotice] = React.useState('');
   const [error, setError] = React.useState('');
+  const [fieldErrors, setFieldErrors] = React.useState<FieldErrors>({});
   React.useEffect(() => {
     let alive = true;
     client.setSessionExpiredHandler(() => {
@@ -111,10 +161,21 @@ export function SocialAuthGate({ children }: { children: React.ReactNode }) {
   };
   const submit = async () => {
     if (busy) return;
-    setError(''); setNotice('');
-    if (!username.trim() && mode !== 'recover') { setError('Enter your Rider Comms username.'); return; }
+    setError(''); setNotice(''); setFieldErrors({});
+    if (!username.trim() && mode !== 'recover') {
+      setFieldErrors({ username: 'Enter your Rider Comms username.' }); return;
+    }
+    if (mode === 'recover' && !email.trim()) {
+      setFieldErrors({ email: 'Enter your email address.' }); return;
+    }
+    if (mode === 'signup' && !email.trim()) {
+      setFieldErrors({ email: 'Enter your email address.' }); return;
+    }
+    if (mode !== 'recover' && !password) {
+      setFieldErrors({ password: 'Enter your password.' }); return;
+    }
     if (mode === 'signup' && !termsChecked) {
-      setError('Please accept the Terms and Community Guidelines.'); return;
+      setFieldErrors({ terms: 'Please accept the Terms and Community Guidelines.' }); return;
     }
     setBusy(true);
     try {
@@ -130,8 +191,12 @@ export function SocialAuthGate({ children }: { children: React.ReactNode }) {
         setAgeChecked(false);
         setPassword('');
       }
-    } catch (cause) { setError(accountErrorMessage(cause)); }
-    finally { setBusy(false); }
+    } catch (cause) {
+      const message = accountErrorMessage(cause);
+      const field = fieldFor(cause);
+      if (field) setFieldErrors({ [field]: message });
+      else setError(message);
+    } finally { setBusy(false); }
   };
   const acknowledgeAge = () => {
     if (!ageChecked || !identity) return;
@@ -167,16 +232,24 @@ export function SocialAuthGate({ children }: { children: React.ReactNode }) {
 
   const isTermsReview = Boolean(identity && !identity.termsAccepted);
   const isAgeReview = Boolean(identity && identity.termsAccepted && !ageAcknowledged);
-  return <KeyboardAvoidingView testID="social-account-gate" style={{ flex: 1, backgroundColor: bg }}
+  // Avoid vertically centering the entire form: iOS keyboard opening reduces the
+  // visible viewport, which otherwise jerks every control upward by half its height.
+  // Native iOS uses KeyboardAvoidingView; the PWA already resizes its viewport.
+  return <KeyboardAvoidingView nativeID="social-account-gate" testID="social-account-gate"
+    style={{ flex: 1, backgroundColor: bg }}
     behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-    <ScrollView keyboardShouldPersistTaps="handled"
-      contentContainerStyle={{ flexGrow: 1, justifyContent: 'center',
-        paddingHorizontal: 23, paddingTop: Math.max(28, insets.top), paddingBottom: Math.max(20, insets.bottom) }}
+    <ScrollView nativeID="social-auth-scroll" testID="social-auth-scroll"
+      keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
+      contentContainerStyle={{ flexGrow: 1, justifyContent: 'flex-start',
+        paddingHorizontal: 23,
+        paddingTop: Platform.OS === 'web' ? 30 : Math.max(28, insets.top + 18),
+        paddingBottom: Platform.OS === 'web' ? 28 : Math.max(28, insets.bottom + 18) }}
       showsVerticalScrollIndicator={false}>
-      <View style={{ width: '100%', maxWidth: 430, alignSelf: 'center', gap: 20 }}>
-        <View style={{ gap: 5, paddingBottom: 5 }}>
-          <Text style={{ fontSize: 26, color: ink, fontWeight: '900' }}>Social<Text style={{ color: accent }}>.</Text></Text>
-          <Text style={{ fontSize: 15, color: muted, lineHeight: 23 }}>
+      <View nativeID="social-auth-form" style={{ width: '100%', maxWidth: 430,
+        alignSelf: 'center', gap: 17 }}>
+        <View style={{ gap: 5, paddingBottom: 9 }}>
+          <Text style={{ fontSize: 29, letterSpacing: -0.7, color: ink, fontWeight: '900' }}>Social<Text style={{ color: accent }}>.</Text></Text>
+          <Text style={{ fontSize: 14, color: muted, lineHeight: 21 }}>
             {isTermsReview ? 'Review the Rider Comms Terms'
               : isAgeReview ? 'One more thing'
                 : mode === 'signup' ? 'Use one account across both apps.'
@@ -184,14 +257,10 @@ export function SocialAuthGate({ children }: { children: React.ReactNode }) {
                 : 'Sign in with Rider Comms.'}
           </Text>
         </View>
-        {error ? <View accessibilityRole="alert" style={{ backgroundColor: '#302022', padding: 12, borderRadius: 11 }}>
-          <Text style={{ color: '#FFC3C3', lineHeight: 19 }}>{error}</Text>
-          {mode === 'login' && error.includes('verify your session') ? <Pressable accessibilityRole="button"
-            accessibilityLabel="Retry session check" onPress={retry}>
-            <Text style={{ color: ink, paddingTop: 7 }}>Retry</Text>
-          </Pressable> : null}
-        </View> : null}
-        {notice ? <Text accessibilityRole="alert" style={{ color: accent, lineHeight: 20 }}>{notice}</Text> : null}
+        {isTermsReview || isAgeReview ? <>
+          {error ? <InlineMessage message={error}/> : null}
+          {notice ? <InlineMessage type="success" message={notice}/> : null}
+        </> : null}
 
         {isTermsReview ? <>
           <Text style={{ color: ink, lineHeight: 23 }}>
@@ -231,11 +300,15 @@ export function SocialAuthGate({ children }: { children: React.ReactNode }) {
             <Text style={{ color: muted, textAlign: 'center' }}>Sign out</Text>
           </Pressable>
         </> : <>
-          {mode !== 'recover' ? <Field label="Username" value={username} onChangeText={setUsername}
-            autoComplete="username"/> : null}
-          {mode === 'signup' || mode === 'recover' ? <Field label="Email" value={email} onChangeText={setEmail}
-            keyboardType="email-address" autoComplete="email"/> : null}
-          {mode !== 'recover' ? <Field label="Password" value={password} onChangeText={setPassword}
+          {mode !== 'recover' ? <Field label="Username" value={username}
+            onChangeText={value => { setUsername(value); setFieldErrors(e => ({ ...e, username: undefined })); }}
+            error={fieldErrors.username} autoComplete="username"/> : null}
+          {mode === 'signup' || mode === 'recover' ? <Field label="Email" value={email}
+            onChangeText={value => { setEmail(value); setFieldErrors(e => ({ ...e, email: undefined })); }}
+            error={fieldErrors.email} keyboardType="email-address" autoComplete="email"/> : null}
+          {mode !== 'recover' ? <Field label="Password" value={password}
+            onChangeText={value => { setPassword(value); setFieldErrors(e => ({ ...e, password: undefined })); }}
+            error={fieldErrors.password} onSubmitEditing={() => void submit()}
             autoComplete={mode === 'signup' ? 'new-password' : 'password'} secureTextEntry/> : null}
           {mode === 'signup' ? <>
             <Pressable accessibilityRole="link" accessibilityLabel="Read Rider Comms Terms"
@@ -248,26 +321,38 @@ export function SocialAuthGate({ children }: { children: React.ReactNode }) {
             </Pressable>
             <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: termsChecked }}
               accessibilityLabel="Accept Terms and Guidelines"
-              onPress={() => setTermsChecked(v => !v)}
+              onPress={() => { setTermsChecked(v => !v); setFieldErrors(e => ({ ...e, terms: undefined })); }}
               style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
               <Ionicons name={termsChecked ? 'checkbox' : 'square-outline'} size={24} color={accent}/>
               <Text style={{ color: ink, flex: 1 }}>I agree to the Rider Comms Terms and Community Guidelines</Text>
             </Pressable>
+            {fieldErrors.terms ? <Text accessibilityRole="alert" style={{ color: '#FFB6C1', fontSize: 12 }}>
+              {fieldErrors.terms}
+            </Text> : null}
           </> : null}
+          {error ? <View style={{ gap: 7 }}>
+            <InlineMessage message={error} label="Could not sign in"/>
+            {mode === 'login' && error.includes('verify your session') ? <Pressable
+              accessibilityRole="button" accessibilityLabel="Retry session check" onPress={retry}
+              style={{ paddingVertical: 8 }}>
+              <Text style={{ color: accent, fontSize: 13, fontWeight: '800' }}>Retry session check</Text>
+            </Pressable> : null}
+          </View> : null}
+          {notice ? <InlineMessage type="success" message={notice}/> : null}
           <Action label={mode === 'signup' ? 'Create Rider Comms account'
             : mode === 'recover' ? 'Send reset link' : 'Sign in'}
             disabled={busy} onPress={() => void submit()}/>
           {mode === 'login' ? <>
             <Pressable accessibilityRole="button" accessibilityLabel="Create account"
-              onPress={() => { setMode('signup'); setError(''); setNotice(''); setTermsChecked(false); }}>
+              onPress={() => { setMode('signup'); setError(''); setFieldErrors({}); setNotice(''); setTermsChecked(false); }}>
               <Text style={{ textAlign: 'center', color: ink }}>New here? <Text style={{ color: accent, fontWeight: '800' }}>Create account</Text></Text>
             </Pressable>
             <Pressable accessibilityRole="button" accessibilityLabel="Forgot password"
-              onPress={() => { setMode('recover'); setError(''); setNotice(''); }}>
+              onPress={() => { setMode('recover'); setError(''); setFieldErrors({}); setNotice(''); }}>
               <Text style={{ textAlign: 'center', color: muted }}>Forgot password?</Text>
             </Pressable>
           </> : <Pressable accessibilityRole="button" accessibilityLabel="Back to sign in"
-            onPress={() => { setMode('login'); setError(''); setNotice(''); }}>
+            onPress={() => { setMode('login'); setError(''); setFieldErrors({}); setNotice(''); }}>
             <Text style={{ textAlign: 'center', color: accent }}>Back to sign in</Text>
           </Pressable>}
           <Text style={{ textAlign: 'center', color: muted, fontSize: 11, lineHeight: 17 }}>
