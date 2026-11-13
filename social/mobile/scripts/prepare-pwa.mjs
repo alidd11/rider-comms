@@ -85,6 +85,22 @@ const edgeToEdgeStyle = `<style id="social-edge-to-edge">
   /* iOS Safari enlarges pages when a focused input is below 16px. */
   #social-account-gate input,
   #social-account-gate textarea { font-size: 16px !important; }
+  /* No blue, shaded, outlined input blocks on any Social screen. Focus is
+     a restrained underline, not a browser-default blue rectangular halo. */
+  #social-account-gate input,
+  #social-account-gate textarea,
+  #social-screen input,
+  #social-screen textarea {
+    background-color: transparent !important;
+    box-shadow: none;
+  }
+  #social-account-gate input:focus,
+  #social-account-gate textarea:focus,
+  #social-screen input:focus,
+  #social-screen textarea:focus {
+    outline: none !important;
+    box-shadow: inset 0 -2px 0 0 #5CE4C1 !important;
+  }
 
   /* Reels video paints behind the Dynamic Island; only floating UI is inset.
      The :has selector scopes this exception to Reels (not Home, Create or Shop).
