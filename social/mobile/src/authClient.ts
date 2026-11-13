@@ -195,12 +195,16 @@ export class RiderAccountClient {
       await this.storage.write(session.token);
       return identity;
     } catch (error) {
-      // Login may have created a live 30-day server session even if /auth/me
-      // fails validation. Best-effort revoke it rather than leave an orphan.
-      // Never log or retain its bearer value if revocation is unavailable.
-      if (this.token) {
+      // readIdentity() clears local credentials when a server returns an
+      // invalid/guest account. We must still revoke the newly issued server
+      // session in that case; otherwise a 30-day token could remain active.
+      // A genuine 401 has already rejected that token: do not retry it.
+      const alreadyRejected = error instanceof AccountApiError &&
+        error.status === 401 && error.code !== 'full_account_required';
+      if (!alreadyRejected) {
+        this.token = session.token;
         try { await this.request('POST', '/auth/logout', {}, true); }
-        catch { /* No credentials survive this failed account validation. */ }
+        catch { /* Best-effort revoke; never log or retain the credential. */ }
       }
       await this.clear();
       throw error;
