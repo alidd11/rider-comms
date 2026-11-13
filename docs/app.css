@@ -2721,3 +2721,6 @@ html.map-drawer-open #ridePill{display:none}
    (the full name stays in each chip's label for screen readers). */
 #navProviderInstruction{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;white-space:normal}
 .nav-road-ahead-event{flex:none;gap:8px;padding:5px 10px}
+
+/* Friend actions: a two-word label wraps under its icon rather than clipping. */
+.friend-profile-actions strong{max-width:100%;white-space:normal;text-align:center;line-height:1.15}

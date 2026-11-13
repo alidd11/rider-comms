@@ -504,7 +504,7 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
   await expect(page.locator('#sheetBackdrop')).toBeVisible();
   await expect(page.locator('.friend-profile-card')).toBeVisible();
   await expect(page.locator('#shareFriendId')).toHaveCount(0);
-  await expect(page.locator('#shareFriendLocation')).toContainText('Share my location');
+  await expect(page.locator('#shareFriendLocation')).toContainText('Share location');
   await expect(page.locator('#shareFriendLocation')).toBeDisabled();
   await expect(page.locator('#friendMapAction')).toContainText('Map');
   await expect(page.locator('#friendMapAction')).toBeDisabled();

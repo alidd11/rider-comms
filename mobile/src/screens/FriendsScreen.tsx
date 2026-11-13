@@ -446,7 +446,7 @@ function FriendProfileModal({
               accessibilityHint={inActiveRide ? 'Shares your location with everyone in your current group ride, not just this rider.' : 'Available when you are in the same group ride.'}
             >
               <Ionicons name="navigate-outline" size={21} color={inActiveRide ? colors.accent : colors.textMuted} />
-              <Text style={styles.profileActionText}>{inActiveRide && shareRideLocation ? 'Sharing my location' : 'Share my location'}</Text>
+              <Text style={styles.profileActionText}>{inActiveRide && shareRideLocation ? 'Sharing location' : 'Share location'}</Text>
             </Pressable>
             <Pressable
               style={({ pressed }) => [styles.profileAction, !rideLocation && styles.profileActionDisabled, pressed && rideLocation && styles.profileActionPressed]}
