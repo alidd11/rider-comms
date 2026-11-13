@@ -10,6 +10,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { C, s } from './styles';
 import { cropRect } from './imageEdit';
 import { accountTextDraftKey, LEGACY_UNSCOPED_TEXT_DRAFT } from './createDraftKey';
+import { loadAccountTextDraft, saveAccountTextDraft } from './textDraftStorage';
 import type { AspectPreset } from './imageEdit';
 import { MAX_CAPTION, MAX_TITLE, moveMedia, parseTextDraft, validateDraft, validateMedia } from './upload';
 import type { Audience, ComposerDraft, ComposerMedia, ComposerMode } from './upload';
@@ -115,7 +116,7 @@ export function CreateComposer({ initialMode = 'Post', onClose, riderId }: { ini
     // A previous preview used one draft for every account on this device.
     // Delete that unscoped cache rather than exposing someone else's words.
     void AsyncStorage.removeItem(LEGACY_UNSCOPED_TEXT_DRAFT).catch(() => {});
-    void AsyncStorage.getItem(draftKey).then(raw => {
+    void loadAccountTextDraft(riderId).then(raw => {
       if (!mounted || !raw || userEditedDraft.current) return;
       const restored = parseTextDraft(JSON.parse(raw) as unknown);
       if (restored) {
@@ -289,7 +290,7 @@ export function CreateComposer({ initialMode = 'Post', onClose, riderId }: { ini
 
   async function saveTextDraft() {
     try {
-      await AsyncStorage.setItem(draftKey, JSON.stringify({ mode, title, caption, category, audience }));
+      await saveAccountTextDraft(riderId, JSON.stringify({ mode, title, caption, category, audience }));
       setStatus('Text draft saved. Photos and videos are not saved; select them again next time.');
     } catch {
       setStatus('Text draft could not be saved on this device.');
