@@ -116,20 +116,28 @@ test('production: every major route and empty state is visible, navigable and er
 
   await page.getByRole('tab', { name: 'Shop' }).click();
   await expect(page.getByTestId('shop-discovery')).toBeVisible();
-  await expect(page.getByText('Marketplace preview')).toBeVisible();
-  await expect(page.getByText('Sample marketplace')).toHaveCount(0);
-  await expect(page.getByText('Nothing to show')).toBeVisible();
+  await expect(page.getByTestId('shop-launch-state')).toBeVisible();
+  await expect(page.getByText('The marketplace is getting ready')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Explore clubs from Shop' })).toBeEnabled();
+  await expect(page.getByText('No products, orders or payments are live.')).toBeVisible();
   await verifyScreen(page, testInfo, 'shop-empty');
   await page.getByRole('button', { name: 'Shop filters' }).click();
   await expect(page.getByTestId('shop-vehicle-filters')).toBeVisible();
   await page.getByRole('button', { name: 'Shop interest Motorcycles' }).click();
-  await expect(page.getByText('Nothing to show')).toBeVisible();
+  await expect(page.getByTestId('shop-launch-state')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Clear all Shop filters' })).toBeVisible();
   for (const section of ['Saved', 'Basket', 'Orders']) {
     await page.getByRole('button', { name: 'Shop section ' + section }).click();
-    await expect(page.getByText(section === 'Orders' ? 'No orders yet' : 'Nothing to show')).toBeVisible();
+    await expect(page.getByText(section === 'Orders' ? 'No orders yet' :
+      section === 'Saved' ? 'No saved items yet' : 'Your basket is empty')).toBeVisible();
     await verifyScreen(page, testInfo, 'shop-' + section.toLowerCase());
   }
   await page.getByRole('button', { name: 'Shop section Discover' }).click();
+  await page.getByRole('button', { name: 'Clear all Shop filters' }).click();
+  await expect(page.getByRole('button', { name: 'Clear all Shop filters' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Explore clubs from Shop' }).click();
+  await expect(page.getByRole('tab', { name: 'Clubs' })).toHaveAttribute('aria-selected', 'true');
+  await page.getByRole('tab', { name: 'Shop' }).click();
 
   await page.getByRole('button', { name: 'Open profile' }).click();
   await expect(page.getByTestId('social-profile-summary')).toBeVisible();
