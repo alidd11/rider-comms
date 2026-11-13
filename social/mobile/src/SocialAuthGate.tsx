@@ -24,7 +24,6 @@ const accent = '#5CE4C1';
 const ink = '#F4F7FB';
 const muted = '#91A4B5';
 const bg = '#080D13';
-const panel = '#121E29';
 const border = '#23303C';
 
 function deviceName() {
@@ -79,21 +78,26 @@ function Field({ label, value, onChangeText, secureTextEntry = false, keyboardTy
   error?: string; onSubmitEditing?: () => void;
 }) {
   const [reveal, setReveal] = React.useState(false);
+  const [focused, setFocused] = React.useState(false);
   return <View style={{ gap: 6 }} testID={'auth-field-' + label.toLowerCase()}>
     <Text style={{ color: ink, fontSize: 12, fontWeight: '700' }}>{label}</Text>
     <View style={{
       flexDirection: 'row', alignItems: 'center',
-      borderWidth: 1, borderColor: error ? '#E9869B' : border,
-      backgroundColor: panel, borderRadius: 12, minHeight: 50,
+      // No filled/outlined input rectangles. A single accessible underline
+      // gives focus feedback without the blue boxed-field appearance.
+      borderBottomWidth: focused ? 2 : 1,
+      borderBottomColor: error ? '#E9869B' : focused ? accent : border,
+      backgroundColor: 'transparent', minHeight: 50,
     }}>
       <TextInput accessibilityLabel={label} value={value} onChangeText={onChangeText}
         autoCapitalize="none" autoCorrect={false} autoComplete={autoComplete}
         keyboardType={keyboardType ?? 'default'} secureTextEntry={secureTextEntry && !reveal}
         returnKeyType={secureTextEntry ? 'go' : 'next'}
+        onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
         onSubmitEditing={onSubmitEditing}
         placeholder={label} placeholderTextColor="#758392"
-        style={{ flex: 1, paddingHorizontal: 14, paddingVertical: 11,
-          color: ink, minHeight: 49, fontSize: 16 }}/>
+        style={{ flex: 1, paddingHorizontal: 0, paddingVertical: 11,
+          backgroundColor: 'transparent', color: ink, minHeight: 49, fontSize: 16 }}/>
       {secureTextEntry ? <Pressable accessibilityRole="button"
         accessibilityLabel={reveal ? 'Hide password' : 'Show password'}
         onPress={() => setReveal(v => !v)}
