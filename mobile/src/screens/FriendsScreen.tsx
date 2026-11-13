@@ -662,7 +662,7 @@ export function FriendsScreen(): React.JSX.Element {
         ) : friends.length === 0 && hidesEmptyPrompt ? null : friends.length === 0 ? (
           <View style={styles.emptyState}>
             <Ionicons name="people-outline" size={28} color={colors.textMuted} />
-            <Text style={styles.emptyTitle}>Build your riding circle</Text>
+            <Text style={styles.emptyTitle}>No friends yet</Text>
             <Text style={styles.emptyText}>Use the add button above to connect by handle or Rider ID.</Text>
           </View>
         ) : filteredFriends.length === 0 ? (

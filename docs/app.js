@@ -1346,7 +1346,7 @@
     const loadError = $('#friendsError');
     loadError.querySelector('span').textContent = friendsLoadError;
     loadError.hidden = !friendsLoadError;
-    $('#friendEmptyTitle').textContent = query ? 'No matching friends' : 'Build your riding circle';
+    $('#friendEmptyTitle').textContent = query ? 'No matching friends' : 'No friends yet';
     $('#friendEmptyCopy').textContent = query
       ? 'Try a different name, handle or Rider ID.'
       : 'Use the add button above to connect by handle or Rider ID.';
