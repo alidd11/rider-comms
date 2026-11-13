@@ -117,6 +117,20 @@ test('For You and Following remain visible as Home feed tabs while feed content 
   await expect(page.getByTestId('home-feed-tabs')).toBeVisible();
 });
 
+test('recommendation personalisation is off by default until explicitly enabled', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Feed preferences' }).click();
+  const toggle = page.getByRole('button', { name: 'Toggle personalised recommendations' });
+  await expect(toggle).toBeVisible();
+  await expect(toggle).toContainText('Off');
+  await toggle.click();
+  await expect(toggle).toContainText('On');
+  await page.getByRole('button', { name: 'Close feed settings' }).click();
+  await page.getByRole('tab', { name: 'Following' }).click();
+  await page.getByRole('button', { name: 'Feed preferences' }).click();
+  await expect(toggle).toHaveCount(0);
+});
+
 test('clubs, marketplace and profile have independent usable screens', async ({ page }, testInfo) => {
   await page.goto('/');
   await page.getByRole('tab', { name: 'Clubs' }).click();
