@@ -101,6 +101,7 @@ export function SharedMessagesScreen({
     scrollToLatestRef.current = true;
     void client.messageThread(active).then(page => {
       if (requestId.current !== id) return;
+      scrollToLatestRef.current = true;
       setThread(page.messages);
       setThreadOwner(active);
     }).catch(cause => {
