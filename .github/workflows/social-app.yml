@@ -38,6 +38,18 @@ jobs:
           name: social-dependency-lock-${{ github.run_id }}
           path: social/mobile/package-lock.json
           if-no-files-found: error
+      # One-time lockfile transfer for committing the isolated dependency graph.
+      # Only package metadata/integrity hashes are emitted, never user credentials.
+      - name: Emit lockfile metadata for repository commit
+        if: github.head_ref == 'feat/social-app-foundation-20261112'
+        run: |
+          node --input-type=commonjs - <<'NODE'
+          const content = require('node:fs').readFileSync('package-lock.json', 'utf8');
+          for (let n = 0; n < content.length; n += 1200) {
+            process.stdout.write('SOCIAL_LOCK_PART:' + String(n / 1200).padStart(4, '0') + ':' +
+              JSON.stringify(content.slice(n, n + 1200)) + '\n');
+          }
+          NODE
       - run: npm run typecheck
       - run: npm test
       - run: npm run build:web
