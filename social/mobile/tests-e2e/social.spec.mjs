@@ -84,6 +84,42 @@ test('clubs, marketplace and profile have independent usable screens', async ({ 
 });
 
 
+test('Shop, comments, profile and garage text fields have no blue filled boxes', async ({ page }, testInfo) => {
+  await page.goto('/');
+  async function assertUnboxed(label) {
+    const field = page.getByRole('textbox', { name: label });
+    await expect(field).toBeVisible();
+    const appearance = await field.evaluate(input => {
+      const style = window.getComputedStyle(input);
+      return { fill: style.backgroundColor, size: parseFloat(style.fontSize),
+        outline: style.outlineStyle };
+    });
+    expect(['transparent', 'rgba(0, 0, 0, 0)']).toContain(appearance.fill);
+    expect(appearance.size).toBeGreaterThanOrEqual(16);
+  }
+  await page.getByRole('tab', { name: 'Shop' }).click();
+  await assertUnboxed('Search marketplace');
+
+  await page.getByRole('tab', { name: 'Home' }).click();
+  await page.getByRole('button', { name: 'Open comments' }).first().click();
+  await assertUnboxed('Write a comment');
+  await page.getByRole('button', { name: 'Close comments' }).click();
+
+  await page.getByRole('button', { name: 'Open profile' }).click();
+  await page.getByRole('button', { name: 'Edit social profile' }).click();
+  await assertUnboxed('Social display name');
+  await assertUnboxed('Social bio');
+  await page.getByRole('button', { name: 'Cancel' }).click();
+  await page.getByRole('tab', { name: 'Garage profile tab' }).click();
+  await page.getByRole('button', { name: 'Add vehicle to garage' }).click();
+  await assertUnboxed('Vehicle make');
+  await assertUnboxed('Vehicle model');
+  await assertUnboxed('Vehicle year');
+  await assertUnboxed('Vehicle notes');
+  await mkdir('test-results/screenshots', { recursive: true });
+  await page.screenshot({ path: 'test-results/screenshots/' + testInfo.project.name + '-unboxed-fields.png' });
+});
+
 test('social profile and private garage edits survive reload without publishing', async ({ page }, testInfo) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Open profile' }).click();
