@@ -475,3 +475,24 @@ test('PWA greys out a ride member whose updates stopped and says when they were 
   expect(await page.evaluate(() => (window.__riderCommsTestMarkers || [])
     .find((marker) => marker.position?.lat === 51.51)?.title)).toBe('Quiet Rider · last seen 3 min ago');
 });
+
+test('PWA ride ticket shows the code large with Copy code and Share invite', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']).catch(() => {});
+  await mockAuthenticatedApi(page, 'stationary', ({ url }) => url.pathname === '/rides/current'
+    ? { body: { ride: { rideId: 'ride-ticket-1', code: 'K7Q2MX', createdBy: 'rider_host01', memberIds: [RIDER_ID, 'rider_host01'], shareRideLocation: false } } }
+    : null);
+  await page.addInitScript(() => { Object.defineProperty(navigator, 'clipboard', { value: { writeText: async (text) => { window.__copied = text; } } }); });
+  await page.goto('/');
+  await openTab(page, 'ride');
+  const ticket = page.locator('.ride-ticket');
+  await expect(ticket).toContainText('Ride live');
+  await expect(ticket).toContainText('2 riders · You are member');
+  await expect(page.locator('#activeRideCode')).toHaveText('K7Q2MX');
+  await expect(page.locator('#rideRosterCount')).toHaveText('2');
+  await page.getByRole('button', { name: 'Copy ride code' }).click();
+  await expect.poll(() => page.evaluate(() => window.__copied)).toBe('K7Q2MX');
+  await expect(page.getByRole('button', { name: 'Share invite' })).toBeVisible();
+  for (const button of await ticket.locator('.ride-ticket-actions .button').all()) {
+    expect((await button.boundingBox()).height).toBeGreaterThanOrEqual(44);
+  }
+});
