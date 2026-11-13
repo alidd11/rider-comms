@@ -145,6 +145,33 @@ test('failed full-account validation revokes the newly issued server session and
   assert.equal(env.client.identity, null);
   assert.deepEqual(env.calls.map(call => call.pathname), ['/auth/login', '/auth/me', '/auth/logout']);
 });
+test('rejected login token does not trigger an extra revoke request after a server 401', async () => {
+  const env = environment();
+  env.queue.push(
+    response(200, { riderId: 'rider-test-001', token: randomUUID(),
+      emailVerified: true, termsAccepted: true }),
+    response(401, { error: 'invalid_session' }),
+  );
+  await assert.rejects(env.client.login('rider', randomUUID(), 'Test device'),
+    (error: unknown) => error instanceof AccountApiError && error.status === 401);
+  assert.equal(env.stored, null);
+  assert.equal(env.client.identity, null);
+  assert.deepEqual(env.calls.map(call => call.pathname), ['/auth/login', '/auth/me']);
+});
+test('identity mismatch revokes newly issued login token before local clear', async () => {
+  const env = environment();
+  env.queue.push(
+    response(200, { riderId: 'rider-test-001', token: randomUUID(),
+      emailVerified: true, termsAccepted: true }),
+    response(200, identity({ riderId: 'different-rider-002' })),
+    response(204, null),
+  );
+  await assert.rejects(env.client.login('rider', randomUUID(), 'Test device'),
+    (error: unknown) => error instanceof AccountApiError && error.code === 'identity_mismatch');
+  assert.equal(env.stored, null);
+  assert.equal(env.client.identity, null);
+  assert.deepEqual(env.calls.map(call => call.pathname), ['/auth/login', '/auth/me', '/auth/logout']);
+});
 test('logout revokes server token and always deletes local token, including server errors', async () => {
   for (const status of [204, 401, 500]) {
     const env = environment(randomUUID());
