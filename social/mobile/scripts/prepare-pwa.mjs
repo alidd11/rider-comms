@@ -133,6 +133,12 @@ const edgeToEdgeStyle = `<style id="social-edge-to-edge">
   #social-create-studio {
     padding-bottom: max(13px, var(--bottom-safe-area, env(safe-area-inset-bottom, 0px))) !important;
   }
+  /* Bottom sheets sit above the iPhone home indicator, not behind it.
+     Keep the dimmed scrim full-screen while padding the sheet container. */
+  #social-comments-overlay, #social-connections-overlay {
+    box-sizing: border-box;
+    padding-bottom: var(--bottom-safe-area, env(safe-area-inset-bottom, 0px)) !important;
+  }
   #social-bottom-tabs {
     flex-shrink: 0 !important;
     box-sizing: border-box;
