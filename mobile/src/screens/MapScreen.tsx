@@ -50,7 +50,8 @@ import { RegroupChip, RegroupMarker, isRegroupSpot, regroupTitle } from './Regro
 import { RidingHud } from './RidingHud';
 import { NavigationBanner, NavigationControls, NavigationSpeedBadge, NavigationTripSummary } from './NavigationOverlay';
 import { ArrivalCard, DestinationCard } from './MapPlaceCards';
-import { RIDE_LOCATION_FRESH_MS, rideMemberLastSeenAgo } from '@rider-comms/shared';
+import { RIDE_LOCATION_FRESH_MS, regroupAnnouncement, rideMemberLastSeenAgo, type RegroupPoint } from '@rider-comms/shared';
+import { speakNavigationPrompt } from '../audio/navigationSpeech';
 import { useRideProfiles } from './useRideProfiles';
 import { useHazardReports } from './useHazardReports';
 import { useNavigationSummary } from './useNavigationSummary';
@@ -417,6 +418,20 @@ export function MapScreen(): React.JSX.Element {
     }
     focusCoordinate(location);
   }
+
+  // A new regroup point from the host is spoken to members with headsets
+  // (shared regroupAnnouncement), unless spoken directions are off or the
+  // rider has muted navigation. The chip and flag show it on screen too.
+  const lastRegroup = React.useRef<{ rideId: string | null; point: RegroupPoint | null | undefined }>({ rideId: null, point: undefined });
+  React.useEffect(() => {
+    const rideId = activeRide?.rideId ?? null;
+    const known = lastRegroup.current.rideId === rideId ? lastRegroup.current.point : undefined;
+    lastRegroup.current = { rideId, point: rideId ? regroup : undefined };
+    const announcement = regroupAnnouncement(known, regroup, activeRide?.isHost === true);
+    if (announcement && spokenDirections && !(activeRoute && navigationMuted)) speakNavigationPrompt(announcement);
+    // Only a change to the ride or its regroup point should speak.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeRide?.rideId, regroup?.setAt]);
 
   // Picking another place replaces the arrival card.
   const hasSelectedDestination = selectedDestination !== null;

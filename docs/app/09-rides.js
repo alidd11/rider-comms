@@ -70,17 +70,18 @@
     renderRide();
   }
 
-  // While the Ride screen is open, keep its roster current: riders join with
-  // the invite code at any time, and nothing else tells the host unless
-  // location sharing or voice happens to be on. Profiles are only fetched
-  // again when the member list changes.
+  // While the app is open in a ride, keep the ride current on every screen,
+  // as the native app does (RIDE_ROSTER_REFRESH_MS in RideContext): riders
+  // join with the invite code at any time, the host can remove someone or
+  // set a regroup point, and nothing else tells a rider on the map. Profiles
+  // are only fetched again when the member list changes.
   const RIDE_ROSTER_REFRESH_MS = 10_000;
   let rideRosterTimer;
   function syncRideRosterPolling() {
-    const wanted = Boolean(state.activeRide) && state.screen === 'ride' && document.visibilityState === 'visible';
+    const wanted = Boolean(state.activeRide) && document.visibilityState === 'visible';
     if (wanted && !rideRosterTimer) {
       rideRosterTimer = setInterval(() => {
-        if (!state.activeRide || state.screen !== 'ride' || document.visibilityState !== 'visible') {
+        if (!state.activeRide || document.visibilityState !== 'visible') {
           clearInterval(rideRosterTimer);
           rideRosterTimer = undefined;
           return;
@@ -110,6 +111,7 @@
         regroup: ride.regroup ?? null,
         members: previous?.rideId === ride.rideId ? previous.members : undefined,
       } : null;
+      announceRegroup(previous?.rideId === ride?.rideId ? previous?.regroup : undefined, ride?.regroup ?? null, ride?.createdBy === state.profile.riderId);
       if (ride) await stopPublicPresenceForRide();
       if (!ride) {
         state.selectedRiderId = null;
@@ -367,4 +369,21 @@
     } catch {
       return false;
     }
+  }
+
+  // Mirrors shared regroupAnnouncement (shared/src/rideCode.ts);
+  // scripts/check-client-parity.mjs runs both on the same cases.
+  function regroupAnnouncement(previous, next, isHost) {
+    if (isHost || !next || previous === undefined) return null;
+    if (previous && previous.setAt === next.setAt) return null;
+    return next.label ? `Regroup at ${next.label}.` : 'Regroup point set. It’s on your map.';
+  }
+
+  /** A new regroup point from the host: a toast, and spoken unless spoken
+   * directions are off or navigation is muted (speak() checks navMuted). */
+  function announceRegroup(previous, next, isHost) {
+    const announcement = regroupAnnouncement(previous, next, isHost);
+    if (!announcement) return;
+    showToast(announcement);
+    if (state.spokenDirections !== false) speak(announcement);
   }

@@ -101,3 +101,19 @@ export function rideMemberLastSeenAgo(updatedAt: number, now: number): string | 
   if (age < 60_000) return `${Math.floor(age / 10_000) * 10} s ago`;
   return `${Math.floor(age / 60_000)} min ago`;
 }
+
+/**
+ * What a member hears when the host sets or moves the regroup point, or null
+ * when there's nothing new to say: no point, the host's own change, or a
+ * point that was already there when the app learned about the ride
+ * (`previous` undefined means "not known yet").
+ */
+export function regroupAnnouncement(
+  previous: RegroupPoint | null | undefined,
+  next: RegroupPoint | null | undefined,
+  isHost: boolean,
+): string | null {
+  if (isHost || !next || previous === undefined) return null;
+  if (previous && previous.setAt === next.setAt) return null;
+  return next.label ? `Regroup at ${next.label}.` : 'Regroup point set. It’s on your map.';
+}

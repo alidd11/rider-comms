@@ -579,6 +579,23 @@ if (!/function NavigationTripSummary[\s\S]*?onLayout=\{measured\(onHeight\)\}/.t
   }
 }
 
+// What members hear when the host sets a regroup point.
+{
+  const shared = await import('../shared/src/rideCode.ts');
+  const body = pwaMapSource.match(/function regroupAnnouncement\(previous, next, isHost\) \{[\s\S]*?\n {2}\}/)?.[0];
+  if (!body) throw new Error('PWA must define regroupAnnouncement');
+  const pwaAnnouncement = new Function(`${body}; return regroupAnnouncement;`)();
+  const esso = { lat: 51.6, lon: -0.2, label: 'Esso, A1', setAt: 1 };
+  for (const [previous, next, isHost] of [[null, esso, false], [esso, { ...esso, setAt: 2, label: '' }, false], [null, esso, true], [esso, esso, false], [esso, null, false], [undefined, esso, false]]) {
+    if (pwaAnnouncement(previous, next, isHost) !== shared.regroupAnnouncement(previous, next, isHost)) {
+      throw new Error('PWA and shared regroupAnnouncement disagree');
+    }
+  }
+  if (!/regroupAnnouncement\(known, regroup, activeRide\?\.isHost === true\)/.test(nativeMapScreenSource)) {
+    throw new Error('Native map must announce regroup points with the shared regroupAnnouncement');
+  }
+}
+
 // The host's regroup point: a chip and a flag for every member, "Regroup
 // here" / "Clear regroup point" for the host, in both apps.
 {
