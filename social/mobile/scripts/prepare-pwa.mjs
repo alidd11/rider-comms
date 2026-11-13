@@ -147,6 +147,7 @@ if (!html.includes('id="social-edge-to-edge"')) {
   html = html.replace('</head>', edgeToEdgeStyle + '\n</head>');
 }
 const extraHeadTags = [
+  ['robots', '<meta name="robots" content="noindex, nofollow, noarchive" />'],
   ['theme-color', '<meta name="theme-color" content="#080D13" />'],
   ['apple-mobile-web-app-capable', '<meta name="apple-mobile-web-app-capable" content="yes" />'],
   ['apple-mobile-web-app-status-bar-style', '<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />']
