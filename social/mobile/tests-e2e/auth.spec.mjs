@@ -1,6 +1,7 @@
 /* global window */
 import { test, expect } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
+import { URL } from 'node:url';
 
 const origin = 'https://backend-production-7fa0.up.railway.app';
 const fakeAccount = {
