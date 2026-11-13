@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import type { ScrollViewInstance } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { C, s } from './styles';
 import { IdentityAvatar } from './IdentityAvatar';
@@ -44,7 +45,7 @@ export function SharedMessagesScreen({
   const [threadLoadFailed, setThreadLoadFailed] = useState(false);
   const [threadAttempt, setThreadAttempt] = useState(0);
   const requestId = useRef(0);
-  const messageScrollRef = useRef<ScrollView>(null);
+  const messageScrollRef = useRef<ScrollViewInstance>(null);
   const scrollToLatestRef = useRef(false);
   const otherFriends = friends.filter(person =>
     !conversations.some(entry => entry.friend.riderId === person.riderId)
