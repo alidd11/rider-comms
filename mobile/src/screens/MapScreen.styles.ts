@@ -268,6 +268,8 @@ export const styles = StyleSheet.create({
   },
   destinationPrimaryTitle: { ...type.button, color: colors.accentText, lineHeight: 19 },
   destinationPrimarySubtitle: { ...type.caption, color: colors.accentText, opacity: 0.72, marginTop: 1 },
+  // The arrival card's ride time and distance, read at a glance.
+  arrivalStats: { ...type.heading, fontVariant: ['tabular-nums'] },
   // The ride host's "Regroup here" / "Clear regroup point".
   destinationSecondaryAction: {
     minHeight: MIN_TOUCH_TARGET,

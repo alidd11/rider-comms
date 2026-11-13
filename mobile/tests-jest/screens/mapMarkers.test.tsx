@@ -88,8 +88,11 @@ test('self and ride-member markers glide to each new fix, not on first draw', as
   const member = await render(<SmoothRideMemberMarker location={HERE} avatarId="ember" displayName="Alex Rider" status="online" />);
   expect(mockAnimateMarkerToCoordinate).not.toHaveBeenCalled();
   expect(member.getByText('Alex')).toBeTruthy();
-  await member.rerender(<SmoothRideMemberMarker location={AHEAD} avatarId="ember" displayName="Alex Rider" status="stale" />);
+  await member.rerender(<SmoothRideMemberMarker location={AHEAD} avatarId="ember" displayName="Alex Rider" status="stale" lastSeen="3 min ago" />);
   expect(mockAnimateMarkerToCoordinate).toHaveBeenCalledTimes(1);
+  // Updates stopped: the label and callout say when they were last seen.
+  expect(member.getByText(/Alex.*· 3 min ago/)).toBeTruthy();
+  expect(member.getByTestId('marker').props.description).toBe('Last seen 3 min ago');
 });
 
 test('every avatar draws as a ride-member marker', async () => {

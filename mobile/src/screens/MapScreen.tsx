@@ -55,6 +55,7 @@ import { NavigationManeuverGlyph } from '../components/NavigationManeuverGlyph';
 import { NavigationRoadAhead } from '../components/NavigationRoadAhead';
 import { HazardMarker, NavigationPuckMarker, SmoothSelfMarker, SmoothRideMemberMarker } from './mapMarkers';
 import { RegroupChip, RegroupMarker, isRegroupSpot, regroupTitle } from './RegroupPoint';
+import { RIDE_LOCATION_FRESH_MS, rideMemberLastSeenAgo } from '@rider-comms/shared';
 import { useRideProfiles } from './useRideProfiles';
 import { useHazardReports } from './useHazardReports';
 import { useNavigationSummary } from './useNavigationSummary';
@@ -62,7 +63,6 @@ import { usePresence } from './usePresence';
 import { ROUTE_UPDATED_NOTICE, useInAppNavigation } from './useInAppNavigation';
 
 const RIDE_MARKER_REFRESH_MS = 10_000;
-const RIDE_MARKER_STALE_MS = 20_000;
 const DEFAULT_REGION = {
   latitude: 51.5074,
   longitude: -0.1278,
@@ -256,6 +256,8 @@ export function MapScreen(): React.JSX.Element {
     fitRoute,
     focusNavigationCamera,
     finishInAppNavigation,
+    navigationArrival,
+    dismissNavigationArrival,
     startInAppNavigation,
     stopFollowingRoute,
     resumeFollowingRoute,
@@ -290,7 +292,7 @@ export function MapScreen(): React.JSX.Element {
       ? { lat: ownRideLocation.lat, lon: ownRideLocation.lon }
       : currentLocation;
   const ownRideLocationFresh = Boolean(
-    ownRideLocation && markerNow - ownRideLocation.updatedAt <= RIDE_MARKER_STALE_MS,
+    ownRideLocation && markerNow - ownRideLocation.updatedAt <= RIDE_LOCATION_FRESH_MS,
   );
   const selfMapStatus = publicLive || (shareRideLocation && ownRideLocationFresh)
     ? 'online'
@@ -421,6 +423,12 @@ export function MapScreen(): React.JSX.Element {
     focusCoordinate(location);
   }
 
+  // Picking another place replaces the arrival card.
+  const hasSelectedDestination = selectedDestination !== null;
+  React.useEffect(() => {
+    if (hasSelectedDestination) dismissNavigationArrival();
+  }, [dismissNavigationArrival, hasSelectedDestination]);
+
   // A failed regroup attempt's message belongs to that place only.
   React.useEffect(() => {
     setRegroupError(false);
@@ -518,7 +526,7 @@ export function MapScreen(): React.JSX.Element {
   // The drawer steps aside while navigating, while Ride Safe locks the
   // controls, and while a place or hazard card owns the bottom of the map.
   const friendsAttention = incomingRequests.length + unreadMessageCount;
-  const drawerVisible = segment === 'public' && !lockedForSafety && !activeRoute && !selectedDestination && !selectedHazard;
+  const drawerVisible = segment === 'public' && !lockedForSafety && !activeRoute && !selectedDestination && !selectedHazard && !navigationArrival;
   const bottomInset = drawerVisible && drawerPeek > 0 ? drawerPeek : insets.bottom;
   // Bottom controls sit above the drawer, and above the ride bar while a
   // group ride is showing.
@@ -579,15 +587,18 @@ export function MapScreen(): React.JSX.Element {
               .filter((location) => location.riderId !== riderId)
               .map((location) => {
                 const profile = rideProfiles[location.riderId];
-                const fresh = markerNow - location.updatedAt <= RIDE_MARKER_STALE_MS;
-                const markerStatus = fresh ? 'online' : 'stale';
+                // Stopped updating (lost signal, phone locked): grey, with
+                // how long ago, for up to the 10 minutes the server keeps it.
+                const lastSeen = rideMemberLastSeenAgo(location.updatedAt, markerNow);
+                const markerStatus = lastSeen ? 'stale' : 'online';
                 return (
                   <SmoothRideMemberMarker
-                    key={`ride-location-${location.riderId}-${profile?.avatarId ?? 'ember'}-${markerStatus}`}
+                    key={`ride-location-${location.riderId}-${profile?.avatarId ?? 'ember'}-${markerStatus}-${lastSeen ?? ''}`}
                     location={{ lat: location.lat, lon: location.lon }}
                     avatarId={profile?.avatarId ?? 'ember'}
                     displayName={profile?.displayName ?? 'Ride member'}
                     status={markerStatus}
+                    lastSeen={lastSeen}
                   />
                 );
               })}
@@ -718,7 +729,7 @@ export function MapScreen(): React.JSX.Element {
         />
       )}
 
-      {segment === 'public' && !selectedDestination && !activeRoute && (
+      {segment === 'public' && !selectedDestination && !activeRoute && !navigationArrival && (
         <View style={[styles.mapActions, { bottom: bottomBarOffset + (lockedForSafety ? HUD_ACTION_HEIGHT : BOTTOM_BAR_HEIGHT) + spacing.sm }]}>
           <Pressable
             style={({ pressed }) => [styles.mapActionButton, pressed && styles.mapActionButtonPressed]}
@@ -732,7 +743,7 @@ export function MapScreen(): React.JSX.Element {
         </View>
       )}
 
-      {segment === 'public' && !selectedDestination && !activeRoute && !lockedForSafety && (
+      {segment === 'public' && !selectedDestination && !activeRoute && !navigationArrival && !lockedForSafety && (
         <View style={[styles.mapBottomBar, { bottom: bottomBarOffset }]} testID="map-bottom-bar">
           <Pressable
             style={({ pressed }) => [styles.mapHazardButton, pressed && styles.mapActionButtonPressed]}
@@ -865,6 +876,36 @@ export function MapScreen(): React.JSX.Element {
           onDismiss={() => setSelectedHazardId(null)}
           onVote={handleVote}
         />
+      )}
+
+      {segment === 'public' && !activeRoute && navigationArrival && !selectedDestination && !selectedHazard && (
+        <View
+          testID="navigation-arrival"
+          style={[styles.destinationCard, { bottom: insets.bottom + spacing.sm }]}
+          accessibilityLiveRegion="polite"
+        >
+          <View style={styles.destinationCardHead}>
+            <View style={styles.destinationCardIcon}>
+              <MaterialCommunityIcons name="flag-checkered" size={20} color={colors.accent} />
+            </View>
+            <View style={styles.destinationCardCopy}>
+              <Text style={styles.destinationCardTitle}>You’ve arrived</Text>
+              {navigationArrival.label ? (
+                <Text numberOfLines={2} style={styles.destinationCardCoords}>{navigationArrival.label}</Text>
+              ) : null}
+            </View>
+          </View>
+          <Text style={styles.arrivalStats}>
+            {`${formatNavigationDuration(navigationArrival.seconds)} · ${formatNavigationDistance(navigationArrival.distanceMeters, unitSystem)}`}
+          </Text>
+          <Pressable
+            style={({ pressed }) => [styles.destinationPrimaryAction, pressed && pressedFeedback]}
+            accessibilityRole="button"
+            onPress={dismissNavigationArrival}
+          >
+            <Text style={styles.destinationPrimaryTitle}>Done</Text>
+          </Pressable>
+        </View>
       )}
 
       {segment === 'public' && !activeRoute && selectedDestination && !selectedHazard && (

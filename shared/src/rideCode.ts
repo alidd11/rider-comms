@@ -85,3 +85,19 @@ export function normalizeRegroupLabel(label: unknown): string {
   if (typeof label !== 'string') return '';
   return label.replace(/\s+/g, ' ').trim().slice(0, REGROUP_LABEL_MAX_LENGTH);
 }
+
+/** A member's ride position counts as live while updates keep arriving (two
+ * 10 s location ticks); after that it is where they were last seen. */
+export const RIDE_LOCATION_FRESH_MS = 20_000;
+
+/**
+ * How long ago a member's position was last updated, for the map ("2 min
+ * ago"), or null while it is live. The server keeps a last-seen position for
+ * 10 minutes, and only while the member is still sharing.
+ */
+export function rideMemberLastSeenAgo(updatedAt: number, now: number): string | null {
+  const age = now - updatedAt;
+  if (!Number.isFinite(age) || age <= RIDE_LOCATION_FRESH_MS) return null;
+  if (age < 60_000) return `${Math.floor(age / 10_000) * 10} s ago`;
+  return `${Math.floor(age / 60_000)} min ago`;
+}

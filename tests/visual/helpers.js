@@ -151,6 +151,8 @@ export async function mockAuthenticatedApi(page, movement = 'stationary', backen
         addListener() {}
         setMap() {}
         setPosition(position) { this.position = position; }
+        setTitle(title) { this.title = title; }
+        setLabel(label) { this.label = label; }
       }
       class PlacesServiceMock {}
       class AutocompleteServiceMock {}

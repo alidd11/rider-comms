@@ -42,6 +42,10 @@ import {
   navigationFixAgeSeconds,
   navigationPuckConeDegrees,
   navigationRouteStatus,
+  navigationTripSeconds,
+  recordNavigationTripFix,
+  startNavigationTrip,
+  type NavigationTrip,
   predictNavigationPuck,
 } from '@rider-comms/shared';
 import { bearingDegrees } from './mapMarkers';
@@ -66,6 +70,13 @@ export interface NavigationPuckPlacement {
   coneDegrees: number | null;
 }
 
+/** What the arrival card shows once the rider reaches the destination. */
+export interface NavigationArrival {
+  label: string | null;
+  seconds: number;
+  distanceMeters: number;
+}
+
 export interface InAppNavigation {
   activeRoute: InAppNavigationRoute | null;
   navigationDestination: NavigationTarget | null;
@@ -88,6 +99,9 @@ export interface InAppNavigation {
     glideMs?: number,
   ) => void;
   finishInAppNavigation: (arrived?: boolean) => void;
+  /** Set on arrival until the rider dismisses it or starts another route. */
+  navigationArrival: NavigationArrival | null;
+  dismissNavigationArrival: () => void;
   startInAppNavigation: (target: NavigationTarget) => Promise<void>;
   stopFollowingRoute: () => void;
   resumeFollowingRoute: () => void;
@@ -153,6 +167,9 @@ export function useInAppNavigation(
   // The map's rotation as last set by the app (heading-up follow, or north
   // up for the overview), for the puck's direction cone.
   const mapHeadingRef = React.useRef(0);
+  // Time and distance since the route started (reroutes included).
+  const tripRef = React.useRef<{ trip: NavigationTrip; label: string | null } | null>(null);
+  const [navigationArrival, setNavigationArrival] = React.useState<NavigationArrival | null>(null);
   // Learned per device: how far the map SDK's real perspective is from the
   // shared camera model (Apple Maps and Google Maps differ).
   const navigationCameraCorrection = React.useRef(1);
@@ -339,6 +356,13 @@ export function useInAppNavigation(
     setNavigationMuted(false);
     setNavigationSpeedMps(null);
     setNavigationNotice(arrived ? 'You’ve arrived.' : null);
+    const trip = tripRef.current;
+    tripRef.current = null;
+    setNavigationArrival(arrived && trip ? {
+      label: trip.label,
+      seconds: navigationTripSeconds(trip.trip, Date.now()),
+      distanceMeters: trip.trip.distanceMeters,
+    } : null);
     mapRef.current?.animateCamera({ heading: 0, pitch: 0 }, { duration: 350 });
     void stopNavigationPrompt().finally(() => {
       if (arrived && !navigationMutedRef.current) speakNavigationPrompt('You’ve arrived.');
@@ -360,6 +384,8 @@ export function useInAppNavigation(
       if (!rerouting) {
         navigationCameraHeading.current = null;
         setNavigationMuted(!spokenDirectionsRef.current);
+        tripRef.current = { trip: startNavigationTrip(Date.now()), label: target.label ?? null };
+        setNavigationArrival(null);
       }
       navigationFollowingRef.current = true;
       setNavigationFollowing(true);
@@ -465,6 +491,12 @@ export function useInAppNavigation(
           setNavigationNotice((current) => isNavigationGpsNotice(current) ? null : current);
         }
         const raw = { lat: position.coords.latitude, lon: position.coords.longitude };
+        if (tripRef.current) {
+          tripRef.current = {
+            ...tripRef.current,
+            trip: recordNavigationTripFix(tripRef.current.trip, { ...raw, accuracyMeters: position.coords.accuracy }),
+          };
+        }
         currentLocationAccuracyRef.current = position.coords.accuracy ?? Number.POSITIVE_INFINITY;
         setCurrentLocation(raw);
         const speed = Number.isFinite(position.coords.speed) && Number(position.coords.speed) >= 0
@@ -609,6 +641,8 @@ export function useInAppNavigation(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeRoute, currentLocationAccuracyRef, finishInAppNavigation, focusNavigationCamera, navigationDestination, requestInAppRoute, setCurrentLocation, unitSystem]);
 
+  const dismissNavigationArrival = React.useCallback(() => setNavigationArrival(null), []);
+
   const stopFollowingRoute = React.useCallback(() => {
     navigationFollowingRef.current = false;
     setNavigationFollowing(false);
@@ -634,6 +668,8 @@ export function useInAppNavigation(
     fitRoute,
     focusNavigationCamera,
     finishInAppNavigation,
+    navigationArrival,
+    dismissNavigationArrival,
     startInAppNavigation,
     stopFollowingRoute,
     resumeFollowingRoute,

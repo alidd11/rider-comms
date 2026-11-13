@@ -47,4 +47,15 @@ for (const [travel, mapHeading] of [[87, 87], [10, 350], [358, 0], [45, null], [
   assert.equal(browser.navigationPuckConeDegrees(travel, mapHeading), shared.navigationPuckConeDegrees(travel, mapHeading), `cone ${travel}/${mapHeading}`);
 }
 
+{
+  let a = shared.startNavigationTrip(0);
+  let b = browser.startNavigationTrip(0);
+  for (const fix of [{ ...at(0, 0), accuracyMeters: 5 }, { ...at(0, 3), accuracyMeters: 5 }, { ...at(0, 80), accuracyMeters: 90 }, { ...at(40, 80), accuracyMeters: 9 }]) {
+    a = shared.recordNavigationTripFix(a, fix);
+    b = browser.recordNavigationTripFix(b, fix);
+    assert.deepEqual(b, a, 'trip');
+  }
+  assert.equal(browser.navigationTripSeconds(b, 90_400), shared.navigationTripSeconds(a, 90_400));
+}
+
 console.log('Navigation puck PWA/native parity valid: map matching, route prediction, fix age and heading cone agree');

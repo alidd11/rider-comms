@@ -558,6 +558,23 @@ if (!/onLayout=\{\(event\) => \{[\s\S]*setNavigationSummaryHeight/.test(nativeMa
   throw new Error('Native navigation controls must follow the real ETA summary height including safe-area and text growth');
 }
 
+// A ride member's "last seen" wording is the same in both apps.
+{
+  const shared = await import('../shared/src/rideCode.ts');
+  const body = pwaMapSource.match(/const RIDE_LOCATION_FRESH_MS = (\d[\d_]*);\s*function rideMemberLastSeenAgo\(updatedAt, now\) \{[\s\S]*?\n {2}\}/)?.[0];
+  if (!body) throw new Error('PWA must define rideMemberLastSeenAgo next to RIDE_LOCATION_FRESH_MS');
+  const pwaLastSeen = new Function(`${body}; return rideMemberLastSeenAgo;`)();
+  for (const age of [0, 20_000, 20_001, 45_000, 59_999, 60_000, 125_000, 9.5 * 60_000, Number.NaN]) {
+    const now = 10_000_000;
+    if (pwaLastSeen(now - age, now) !== shared.rideMemberLastSeenAgo(now - age, now)) {
+      throw new Error(`PWA and shared rideMemberLastSeenAgo disagree at ${age} ms`);
+    }
+  }
+  if (!/rideMemberLastSeenAgo\(location\.updatedAt, markerNow\)/.test(nativeMapScreenSource)) {
+    throw new Error('Native ride markers must use the shared rideMemberLastSeenAgo');
+  }
+}
+
 // The host's regroup point: a chip and a flag for every member, "Regroup
 // here" / "Clear regroup point" for the host, in both apps.
 {
