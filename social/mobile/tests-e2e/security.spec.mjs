@@ -1,4 +1,3 @@
-/* global process */
 import { test, expect } from '@playwright/test';
 import { createHash } from 'node:crypto';
 
