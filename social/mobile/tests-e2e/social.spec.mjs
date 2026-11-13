@@ -601,6 +601,48 @@ test('Create opens camera-first with a real permission path and gallery alternat
 });
 
 
+test('Create captures an actual web media stream into the existing photo editor', async ({ page }) => {
+  // Exercise the granted-camera path without uploading media, using a
+  // synthetic camera stream instead of hardware or a private test account.
+  await page.addInitScript(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 640;
+    canvas.height = 480;
+    const context = canvas.getContext('2d');
+    let frame = 0;
+    const draw = () => {
+      if (!context) return;
+      context.fillStyle = frame++ % 2 ? '#314E69' : '#486283';
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.fillStyle = '#FFFFFF';
+      context.fillRect(45, 60, 180, 95);
+      requestAnimationFrame(draw);
+    };
+    draw();
+    const stream = canvas.captureStream(10);
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: { getUserMedia: async () => stream },
+    });
+  });
+  const errors = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.goto('/');
+  await page.getByRole('tab', { name: 'Create' }).click();
+  await page.getByRole('button', { name: 'Enable camera' }).click();
+  await expect(page.getByRole('button', { name: 'Take photo' })).toBeEnabled();
+  await page.waitForFunction(() => {
+    const preview = document.querySelector('[aria-label="Live camera preview"]');
+    return preview && preview.readyState >= 2 && preview.videoWidth > 0;
+  });
+  await page.getByRole('button', { name: 'Take photo' }).click();
+  await expect(page.getByTestId('media-edit-canvas')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Review post' })).toBeVisible();
+  await expect(page.getByTestId('create-recovery')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+
 test('Create is full-screen, has working mode controls and a real dismissal path', async ({ page }, testInfo) => {
   await page.goto('/');
   await page.getByRole('tab', { name: 'Create' }).click();
