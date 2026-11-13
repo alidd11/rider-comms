@@ -969,6 +969,13 @@ test('Social profile has tabs, follower/friend panels and separately managed dem
   await expect(page.getByRole('tab', { name: 'Posts profile tab' })).toBeVisible();
   await expect(page.getByRole('tab', { name: 'Reels profile tab' })).toBeVisible();
   await expect(page.getByRole('tab', { name: 'Garage profile tab' })).toBeVisible();
+  for (const name of ['Posts', 'Reels', 'Garage']) {
+    const tab = page.getByRole('tab', { name: name + ' profile tab' });
+    await expect(tab).toContainText(name);
+    const rect = await tab.boundingBox();
+    expect(rect, name + ' profile tab bounds').not.toBeNull();
+    expect(rect.height).toBeGreaterThanOrEqual(56);
+  }
   await expect(page.getByText('@fixture-rider', { exact: true })).toBeVisible();
   await expect(page.getByText('Your posts will appear here')).toBeVisible();
   await expect(page.getByText('Personal garage')).toHaveCount(0);
