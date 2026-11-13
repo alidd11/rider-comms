@@ -8,9 +8,11 @@ import type { ConnectionKind } from './ProfileConnectionsSheet';
 export type ProfileContentTab = 'Posts' | 'Reels' | 'Garage';
 
 export function ProfileSummary({
-  profile, tab, followingCount, onTab, onConnections, onEdit,
+  profile, tab, username, friendCount, followingCount, onTab, onConnections, onEdit,
 }: {
   profile: SocialProfileDraft;
+  username: string;
+  friendCount: number;
   tab: ProfileContentTab;
   followingCount: number;
   onTab: (next: ProfileContentTab) => void;
@@ -21,7 +23,7 @@ export function ProfileSummary({
     {name:'View posts',value:'0',label:'Posts',action:()=>onTab('Posts')},
     {name:'View followers',value:'—',label:'Followers',action:()=>onConnections('Followers')},
     {name:'View following',value:String(followingCount),label:'Following',action:()=>onConnections('Following')},
-    {name:'View friends',value:'—',label:'Friends',action:()=>onConnections('Friends')},
+    {name:'View friends',value:String(friendCount),label:'Friends',action:()=>onConnections('Friends')},
   ];
   const tabs: { name: ProfileContentTab; icon: React.ComponentProps<typeof Ionicons>['name'] }[] = [
     {name:'Posts',icon:'grid-outline'},
@@ -56,7 +58,7 @@ export function ProfileSummary({
       </View>
       <View style={{gap:4}}>
         <Text style={{color:C.ink,fontWeight:'900',fontSize:17}}>{profile.displayName}</Text>
-        <Text style={s.small}>@username · not linked</Text>
+        <Text style={s.small}>@{username.replace(/^@/, '')} · Rider Comms account</Text>
         {profile.bio ? <Text style={s.body}>{profile.bio}</Text> : null}
       </View>
       <View style={[s.row,{gap:10}]}>
