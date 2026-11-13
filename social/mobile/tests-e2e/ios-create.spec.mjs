@@ -1,5 +1,6 @@
 /* global navigator, window */
 import { test, expect } from '@playwright/test';
+import { URL } from 'node:url';
 
 test.beforeEach(async ({ page }) => {
   await page.route('https://backend-production-7fa0.up.railway.app/**', async route => {
