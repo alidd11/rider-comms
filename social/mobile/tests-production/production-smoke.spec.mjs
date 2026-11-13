@@ -10,7 +10,8 @@ import { mkdir } from 'node:fs/promises';
  * fixture-heavy CI failed to verify before the reported blank Create screen.
  */
 const backend = 'https://backend-production-7fa0.up.railway.app';
-const testRiderId = 'rider-prod-smoke-001';
+// Real account ID shape from backend/src/authStore.ts (generated, never a customer ID).
+const testRiderId = 'rider_abcd1234';
 const cors = {
   'access-control-allow-origin': '*',
   'access-control-allow-headers': 'authorization,content-type',
