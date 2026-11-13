@@ -69,6 +69,23 @@ const edgeToEdgeStyle = `<style id="social-edge-to-edge">
     padding-right: env(safe-area-inset-right, 0px) !important;
     padding-left: env(safe-area-inset-left, 0px) !important;
   }
+  /* Standalone authentication is outside #social-screen; give it its own
+     Dynamic Island/home-indicator insets. Never center it vertically:
+     keyboard resize must leave the username field at its original y-position. */
+  #social-account-gate {
+    box-sizing: border-box;
+    min-height: 0;
+    padding-top: env(safe-area-inset-top, 0px) !important;
+    padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+  }
+  #social-auth-scroll {
+    overscroll-behavior-y: contain;
+    overflow-anchor: none;
+  }
+  /* iOS Safari enlarges pages when a focused input is below 16px. */
+  #social-account-gate input,
+  #social-account-gate textarea { font-size: 16px !important; }
+
   /* Reels video paints behind the Dynamic Island; only floating UI is inset.
      The :has selector scopes this exception to Reels (not Home, Create or Shop).
      No translated or artificially extended viewport: media truly starts at y=0. */
