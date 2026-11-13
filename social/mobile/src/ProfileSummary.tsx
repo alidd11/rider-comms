@@ -4,13 +4,17 @@ import { Ionicons } from '@expo/vector-icons';
 import { C, s } from './styles';
 import type { SocialProfileDraft } from './garage';
 import type { ConnectionKind } from './ProfileConnectionsSheet';
+import type { RiderProfile } from './authClient';
+import { handleWithAt } from './identityDisplay';
+import { IdentityAvatar } from './IdentityAvatar';
 
 export type ProfileContentTab = 'Posts' | 'Reels' | 'Garage';
 
 export function ProfileSummary({
-  profile, tab, username, friendCount, followingCount, onTab, onConnections, onEdit,
+  profile, accountProfile, username, tab, friendCount, followingCount, onTab, onConnections, onEdit,
 }: {
   profile: SocialProfileDraft;
+  accountProfile: RiderProfile | null;
   username: string;
   friendCount: number;
   tab: ProfileContentTab;
@@ -21,7 +25,6 @@ export function ProfileSummary({
 }) {
   const stats: { name: string; value: string; label: string; action: () => void }[] = [
     {name:'View posts',value:'0',label:'Posts',action:()=>onTab('Posts')},
-    {name:'View followers',value:'—',label:'Followers',action:()=>onConnections('Followers')},
     {name:'View following',value:String(followingCount),label:'Following',action:()=>onConnections('Following')},
     {name:'View friends',value:String(friendCount),label:'Friends',action:()=>onConnections('Friends')},
   ];
@@ -43,10 +46,7 @@ export function ProfileSummary({
     </View>
     <View style={{paddingHorizontal:2,gap:15}}>
       <View style={[s.rowBetween,{gap:11}]}>
-        <View style={{
-          width:77,height:77,borderRadius:39,borderWidth:2,borderColor:C.border,
-          backgroundColor:C.accentDark,alignItems:'center',justifyContent:'center',
-        }}><Ionicons name="person-outline" color={C.accent} size={35}/></View>
+        <IdentityAvatar name={accountProfile?.displayName || username} size={77}/>
         <View style={[s.row,{flex:1,justifyContent:'space-between',gap:3}]}>
           {stats.map(stat=><Pressable key={stat.name} accessibilityRole="button"
             accessibilityLabel={stat.name} onPress={stat.action}
@@ -57,8 +57,8 @@ export function ProfileSummary({
         </View>
       </View>
       <View style={{gap:4}}>
-        <Text style={{color:C.ink,fontWeight:'900',fontSize:17}}>{profile.displayName}</Text>
-        <Text style={s.small}>@{username.replace(/^@/, '')} · Rider Comms account</Text>
+        <Text style={{color:C.ink,fontWeight:'900',fontSize:17}}>{accountProfile?.displayName || username}</Text>
+        <Text style={s.small}>{handleWithAt(accountProfile?.handle || username)}</Text>
         {profile.bio ? <Text style={s.body}>{profile.bio}</Text> : null}
       </View>
       <View style={[s.row,{gap:10}]}>
