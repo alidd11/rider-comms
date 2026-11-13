@@ -478,6 +478,33 @@ test('PWA asks existing accounts to agree to the current Terms before the app op
   await expect(page.locator('#app')).toBeVisible();
 });
 
+test('PWA sign-in explains each failure in plain words', async ({ page }) => {
+  const replies = [
+    { status: 401, body: { error: 'invalid_credentials' } },
+    { status: 503, body: {} },
+    { status: 400, body: {} },
+  ];
+  await page.route('https://backend-production-7fa0.up.railway.app/**', async (route) => {
+    const request = route.request();
+    const headers = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Authorization,Content-Type', 'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS' };
+    if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers, body: '' });
+    if (new URL(request.url()).pathname === '/auth/login') {
+      const reply = replies.shift();
+      return route.fulfill({ status: reply.status, headers, contentType: 'application/json', body: JSON.stringify(reply.body) });
+    }
+    return route.fulfill({ status: 404, headers, contentType: 'application/json', body: '{}' });
+  });
+  await page.goto('/');
+  await page.locator('#loginUsername').fill('rider');
+  await page.locator('#loginPassword').fill('wrong-password');
+  await page.locator('#loginSubmit').click();
+  await expect(page.locator('#loginError')).toHaveText('The username or password is incorrect.');
+  await page.locator('#loginSubmit').click();
+  await expect(page.locator('#loginError')).toHaveText('Rider Comms isn’t responding right now. Try again in a moment.');
+  await page.locator('#loginSubmit').click();
+  await expect(page.locator('#loginError')).toHaveText('That didn’t work. Try again.');
+});
+
 test('PWA signup requires agreeing to the Terms and sends the agreement', async ({ page }) => {
   let signup = null;
   await page.route('https://backend-production-7fa0.up.railway.app/**', async (route) => {

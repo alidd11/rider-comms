@@ -127,7 +127,8 @@ test.each([
   [new ApiError(401, { error: 'invalid_credentials' }), 'The username or password is incorrect.'],
   [new ApiError(403, { error: 'account_suspended' }), 'This account has been suspended for breaking the community rules. Contact support if you think this is a mistake.'],
   [new ApiError(429, { error: 'rate_limited' }), 'Too many attempts. Wait a moment and try again.'],
-  [new ApiError(500, { error: 'something_new' }), 'The account request couldn’t be completed.'],
+  [new ApiError(500, { error: 'something_new' }), 'Rider Comms isn’t responding right now. Try again in a moment.'],
+  [new ApiError(400, {}), 'That didn’t work. Try again.'],
   [Object.assign(new Error('aborted'), { name: 'AbortError' }), 'The request timed out. Check your connection and try again.'],
   [new TypeError('Network request failed'), 'Couldn’t reach Rider Comms. Check your connection and try again.'],
 ])('explains a failed login (%s)', async (error, message) => {

@@ -32,6 +32,7 @@ import { useConnectionState, useLocalParticipant, useTrackVolume } from '@liveki
 import { ConnectionState, createLocalAudioTrack } from 'livekit-client';
 import type { LocalAudioTrack } from 'livekit-client';
 import { VoiceActivityGate } from '@rider-comms/shared';
+import { microphoneErrorMessage } from './microphone';
 
 /** How often the gate reads the latest mic level. */
 const SAMPLE_INTERVAL_MS = 40;
@@ -85,7 +86,7 @@ export function useVoiceActivity(enabled: boolean, onError?: (message: string) =
       } catch (error) {
         createdTrack?.stop();
         if (!cancelled) {
-          onErrorRef.current?.(error instanceof Error ? error.message : 'Microphone is unavailable.');
+          onErrorRef.current?.(microphoneErrorMessage(error));
         }
       } finally {
         publishingRef.current = false;
@@ -126,7 +127,7 @@ export function useVoiceActivity(enabled: boolean, onError?: (message: string) =
     // setMicrophoneEnabled(true) to create a new un-gated microphone.
     const operation = isSpeaking ? track.unmute() : track.mute();
     void operation.catch((error) => {
-      onErrorRef.current?.(error instanceof Error ? error.message : 'Couldn’t update microphone state.');
+      onErrorRef.current?.(microphoneErrorMessage(error));
     });
   }, [isSpeaking, microphoneTrack?.track]);
 
