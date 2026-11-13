@@ -137,6 +137,10 @@ export function SocialAuthGate({ children }: { children: React.ReactNode }) {
         setIdentity(null);
         setAgeAcknowledged(false);
         setAgeChecked(false);
+        if (Platform.OS === 'web') {
+          try { window.sessionStorage.removeItem('rider_social_age_ack_v1'); }
+          catch { /* Session storage may be unavailable. */ }
+        }
       }
     });
     void client.restore().then(result => {
@@ -234,8 +238,18 @@ export function SocialAuthGate({ children }: { children: React.ReactNode }) {
   };
   const retry = () => {
     setLoading(true); setError('');
-    void client.restore().then(result => setIdentity(result))
-      .catch(() => setError(SESSION_CHECK_FAILED))
+    void client.restore().then(result => {
+      setIdentity(result);
+      // A transient connection error must not silently discard the prior
+      // session's age acknowledgement. Re-check the account-scoped key, just
+      // as the initial restoration path does.
+      let acknowledged = false;
+      if (result && Platform.OS === 'web') {
+        try { acknowledged = window.sessionStorage.getItem('rider_social_age_ack_v1') === result.riderId; }
+        catch { /* Browser may disallow session storage. */ }
+      }
+      setAgeAcknowledged(acknowledged);
+    }).catch(() => setError(SESSION_CHECK_FAILED))
       .finally(() => setLoading(false));
   };
   const resendVerification = () => client.resendVerification();
