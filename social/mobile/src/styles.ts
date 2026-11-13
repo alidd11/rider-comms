@@ -78,5 +78,7 @@ export const s = StyleSheet.create({
   reelCaption: { alignSelf: 'stretch', gap: 6, backgroundColor: 'rgba(0,0,0,0.46)', padding: 12, borderRadius: 13 },
   twoCol: { flexDirection: 'row', gap: 10 },
   split: { flex: 1 },
-  empty: { borderWidth: 1, borderStyle: 'dashed', borderColor: C.border, borderRadius: 20, padding: 24, alignItems: 'center', gap: 12 }
+  empty: { borderWidth: 1, borderColor: C.border, backgroundColor: C.panel,
+    borderRadius: 20, paddingHorizontal: 20, paddingVertical: 28,
+    alignItems: 'center', justifyContent: 'center', gap: 10 }
 });
