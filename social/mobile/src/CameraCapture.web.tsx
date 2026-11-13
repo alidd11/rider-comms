@@ -118,6 +118,7 @@ export function CameraCapture({ mode, onCapture, onLibrary, onClose, disabled }:
     }
     let nextStream: MediaStream | null = null;
     let permissionTimer: ReturnType<typeof setTimeout> | null = null;
+    let playTimer: ReturnType<typeof setTimeout> | null = null;
     let requestExpired = false;
     try {
       // getUserMedia is allowed to remain pending forever when the user
@@ -144,20 +145,30 @@ export function CameraCapture({ mode, onCapture, onLibrary, onClose, disabled }:
         nextStream.getTracks().forEach(track => track.stop());
         return;
       }
+      if (permissionTimer !== null) clearTimeout(permissionTimer);
+      permissionTimer = null;
       const preview = videoRef.current;
       if (!preview) throw Error('Missing camera preview');
       preview.muted = true;
       preview.playsInline = true;
       preview.srcObject = nextStream;
-      await preview.play();
+      // Capture ownership BEFORE awaiting play(): Gallery/Close/Background
+      // must be able to stop the active hardware even if Safari stalls here.
+      streamRef.current = nextStream;
+      await Promise.race([
+        preview.play(),
+        new Promise<never>((_, reject) => {
+          playTimer = setTimeout(() => reject(new Error('camera_preview_timeout')), 8000);
+        }),
+      ]);
       if (!mounted.current || requestId !== requestSerial.current) {
         nextStream.getTracks().forEach(track => track.stop());
         return;
       }
-      streamRef.current = nextStream;
       setLive(true);
     } catch {
       nextStream?.getTracks().forEach(track => track.stop());
+      if (streamRef.current === nextStream) streamRef.current = null;
       if (mounted.current && requestId === requestSerial.current) {
         setError(requestExpired
           ? 'The camera permission request timed out. Try again or choose Gallery.'
@@ -166,6 +177,7 @@ export function CameraCapture({ mode, onCapture, onLibrary, onClose, disabled }:
     } finally {
       requestExpired = true;
       if (permissionTimer !== null) clearTimeout(permissionTimer);
+      if (playTimer !== null) clearTimeout(playTimer);
       if (mounted.current && requestId === requestSerial.current) setRequesting(false);
     }
   }
