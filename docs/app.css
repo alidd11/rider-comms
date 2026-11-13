@@ -2625,7 +2625,10 @@ html.ride-pill-visible .hud-speed{bottom:164px}
    edge to edge; other Settings pages keep normal side margins. */
 .settings-page-mode .sheet-body{padding-left:max(16px,var(--safe-left));padding-right:max(16px,var(--safe-right))}
 .settings-page-mode.settings-full-bleed .sheet-body{padding-left:var(--safe-left,0px);padding-right:var(--safe-right,0px)}
-.settings-page-mode:not(.settings-full-bleed) .settings-page-heading{padding:0 0 8px}
+.settings-page-mode:not(.settings-full-bleed) .settings-page-heading{padding:0 0 2px}
+/* Their blocks (summary, intro, cards, notes, buttons) keep a gap between
+   them; the page-mode rule above turns the section into a plain block. */
+.settings-page-mode:not(.settings-full-bleed) .settings-page-section{display:grid;gap:12px}
 /* Profile: you, centred on the page, then rows. */
 .my-profile-hero{display:flex;flex-direction:column;align-items:center;gap:4px;padding:4px 16px 0;text-align:center}
 .my-profile-hero .avatar-xl{width:112px;height:112px}

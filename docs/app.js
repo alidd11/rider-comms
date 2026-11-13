@@ -3100,7 +3100,7 @@
     try {
       const { sessions } = await apiFetch('GET', '/auth/sessions');
       if (!Array.isArray(sessions) || sessions.length === 0) {
-        list.innerHTML = '<p class="caption">No account sessions found.</p>';
+        list.innerHTML = '<p class="caption">No signed-in devices to show.</p>';
         return;
       }
       list.innerHTML = sessions.map((accountSession) => {
