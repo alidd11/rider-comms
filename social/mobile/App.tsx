@@ -1,4 +1,5 @@
 import '@expo/metro-runtime';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Image, Platform, ScrollView, StatusBar, Pressable, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -11,7 +12,8 @@ import { demoClubs as fixtureClubs, demoEvents as fixtureEvents, demoListings as
 import { socialFixturesEnabled } from './src/testFixtureMode';
 import { DEFAULT_PROFILE, EMPTY_GARAGE_DRAFT, addGarageEntry, createGarageEntry, removeGarageEntry, updateGarageVisibility, validateProfile } from './src/garage';
 import type { GarageDraft, GarageEntry, GarageKind, SocialProfileDraft } from './src/garage';
-import { loadLocalDemo, saveLocalDemo } from './src/demoStorage';
+import { loadLocalDemo, saveLocalDemo, clearLocalDemo } from './src/demoStorage';
+import { accountTextDraftKey } from './src/createDraftKey';
 import { CreateComposer } from './src/CreateComposer';
 import { ShopScreen } from './src/ShopScreen';
 import { ReelsScreen } from './src/ReelsScreen';
@@ -22,6 +24,7 @@ import { CommentsSheet } from './src/CommentsSheet';
 import type { CommentPreview } from './src/CommentsSheet';
 import { demoCreators, publicGallery } from './src/demoCreators';
 import { ProfileSummary } from './src/ProfileSummary';
+import { SocialSettings } from './src/SocialSettings';
 import type { ProfileContentTab } from './src/ProfileSummary';
 import { ProfileConnectionsSheet } from './src/ProfileConnectionsSheet';
 import { SocialAuthGate, useSocialAccount } from './src/SocialAuthGate';
@@ -194,6 +197,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
   const [garage, setGarage] = useState<GarageEntry[]>([]);
   const [localReady, setLocalReady] = useState(false);
   const [profileEditor, setProfileEditor] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [profileTab, setProfileTab] = useState<ProfileContentTab>('Posts');
   const [connectionSheet, setConnectionSheet] = useState<ConnectionKind | null>(null);
   const [profileDraft, setProfileDraft] = useState<SocialProfileDraft>(DEFAULT_PROFILE);
@@ -324,6 +328,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
     setSelectedCreator(null);
     setCommentsFor(null);
     setProfileEditor(false);
+    setSettingsOpen(false);
     setConnectionSheet(null);
     setGarageEditor(false);
     setPendingGarageDelete(null);
@@ -630,13 +635,31 @@ function AuthenticatedSocialApp(): React.JSX.Element {
       category={marketFilter} onCategory={setMarketFilter}/>;
   }
 
+  async function clearDeviceDrafts(): Promise<void> {
+    // The same rider's pending saves are serialised by demoStorage.
+    await clearLocalDemo(identity.riderId);
+    await AsyncStorage.removeItem(accountTextDraftKey(identity.riderId));
+    const empty = { ...DEFAULT_PROFILE, displayName: identity.username };
+    setProfile(empty);
+    setProfileDraft(empty);
+    setGarage([]);
+    setGarageDraft({ ...EMPTY_GARAGE_DRAFT });
+    setPendingGarageDelete(null);
+  }
+
   function renderProfile() {
+    if (settingsOpen) return <SocialSettings username={identity.username}
+      emailVerified={identity.emailVerified}
+      onClose={() => setSettingsOpen(false)}
+      onClearDrafts={clearDeviceDrafts}
+      onSignOut={logout}/>;
     return (
       <View style={{ gap: 16 }}>
         <ProfileSummary profile={profile} accountProfile={ownProfile} tab={profileTab} username={identity.username}
           friendCount={sharedFriends.length}
           followingCount={[...followed].filter(id => Boolean(demoCreators[id])).length}
-          onTab={setProfileTab} onConnections={setConnectionSheet} onEdit={openProfileEditor}/>
+          onTab={setProfileTab} onConnections={setConnectionSheet} onEdit={openProfileEditor}
+          onSettings={() => setSettingsOpen(true)}/>
         {profileEditor ? (
           <View style={[s.card, s.pad]}>
             <Text style={s.cardHeading}>Edit your social profile</Text>
@@ -644,11 +667,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
             <TextInput accessibilityLabel="Social display name" style={s.input} value={profileDraft.displayName} maxLength={40} onChangeText={(displayName) => setProfileDraft((p) => ({ ...p, displayName }))} placeholder="Display name" placeholderTextColor={C.muted}/>
             <Text style={s.small}>Bio · up to 160 characters</Text>
             <TextInput accessibilityLabel="Social bio" style={[s.input, { minHeight: 85, textAlignVertical: 'top' }]} multiline maxLength={160} value={profileDraft.bio} onChangeText={(bio) => setProfileDraft((p) => ({ ...p, bio }))} placeholder="Tell your community about yourself" placeholderTextColor={C.muted}/>
-            <Text style={s.small}>Profile visibility (preview only)</Text>
-            <View style={s.row}>
-              <Pill label="Private profile" selected={profileDraft.visibility === 'private'} onPress={() => setProfileDraft((p) => ({ ...p, visibility: 'private' }))}/>
-              <Pill label="Public profile" selected={profileDraft.visibility === 'public'} onPress={() => setProfileDraft((p) => ({ ...p, visibility: 'public' }))}/>
-            </View>
+            <Text style={s.small}>Changes stay on this device. Public profile visibility isn’t available yet.</Text>
             <View style={s.twoCol}>
               <Pressable accessibilityRole="button" style={[s.ghost, s.split]} onPress={() => setProfileEditor(false)}><Text style={s.ghostText}>Cancel</Text></Pressable>
               <Pressable accessibilityRole="button" style={[s.cta, s.split]} onPress={saveProfile}><Text style={s.ctaText}>Save profile</Text></Pressable>
@@ -693,11 +712,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
             <TextInput accessibilityLabel="Vehicle model" style={s.input} maxLength={60} value={garageDraft.model} onChangeText={(model) => setGarageDraft((p) => ({ ...p, model }))} placeholder="Model · e.g. PCX" placeholderTextColor={C.muted}/>
             <TextInput accessibilityLabel="Vehicle year" style={s.input} maxLength={4} keyboardType="numeric" value={garageDraft.year} onChangeText={(year) => setGarageDraft((p) => ({ ...p, year }))} placeholder="Year (optional)" placeholderTextColor={C.muted}/>
             <TextInput accessibilityLabel="Vehicle notes" multiline style={[s.input, { minHeight: 80, textAlignVertical: 'top' }]} maxLength={240} value={garageDraft.notes} onChangeText={(notes) => setGarageDraft((p) => ({ ...p, notes }))} placeholder="Modifications or build notes (optional)" placeholderTextColor={C.muted}/>
-            <Text style={s.small}>Vehicle visibility</Text>
-            <View style={s.row}>
-              <Pill label="Private vehicle" selected={garageDraft.visibility === 'private'} onPress={() => setGarageDraft((p) => ({ ...p, visibility: 'private' }))}/>
-              <Pill label="Public vehicle" selected={garageDraft.visibility === 'public'} onPress={() => setGarageDraft((p) => ({ ...p, visibility: 'public' }))}/>
-            </View>
+            <Text style={s.small}>Saved privately on this device. Public sharing isn’t available yet.</Text>
             <View style={s.twoCol}>
               <Pressable accessibilityRole="button" style={[s.ghost, s.split]} onPress={() => setGarageEditor(false)}><Text style={s.ghostText}>Cancel</Text></Pressable>
               <Pressable accessibilityRole="button" style={[s.cta, s.split]} onPress={saveGarage}><Text style={s.ctaText}>Save vehicle</Text></Pressable>
@@ -751,11 +766,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
             <Text style={s.ghostText}>Resend verification email</Text>
           </Pressable> : null}
           {verificationNotice ? <Text accessibilityRole="alert" style={s.small}>{verificationNotice}</Text> : null}
-          <Pressable accessibilityRole="button" accessibilityLabel="Sign out of Social"
-            onPress={() => void logout()} style={s.ghost}>
-            <Text style={s.ghostText}>Sign out</Text>
-          </Pressable>
-          <Text style={s.small}>Profile and garage changes are stored only on this device. Demo follows and posts are not shared.</Text>
+          <Text style={s.small}>Profile and garage drafts stay on this device. Open Settings & privacy to manage drafts or sign out.</Text>
         </View>
       </View>
     );
