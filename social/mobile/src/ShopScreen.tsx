@@ -128,12 +128,12 @@ export function ShopScreen({ items, collectionItems, search, onSearch, category,
           </Pressable>
         </View>
       </View>
-      <View style={{backgroundColor:C.panel,borderRadius:13,borderWidth:1,borderColor:C.border,
-        paddingHorizontal:13,minHeight:48,flexDirection:'row',alignItems:'center',gap:10}}>
+      <View style={{backgroundColor:'transparent',borderBottomWidth:1,borderBottomColor:'#3B4752',
+        paddingHorizontal:0,minHeight:48,flexDirection:'row',alignItems:'center',gap:10}}>
         <Ionicons name="search" color={C.muted} size={20}/>
         <TextInput accessibilityLabel="Search marketplace" value={search} onChangeText={onSearch}
           placeholder="Search products and businesses…" placeholderTextColor={C.muted}
-          style={{flex:1,color:C.ink,fontSize:14,minHeight:43}}/>
+          style={{flex:1,color:C.ink,backgroundColor:'transparent',fontSize:16,minHeight:43}}/>
         {search.length>0?<Pressable accessibilityRole="button" accessibilityLabel="Clear Shop search" onPress={()=>onSearch('')}>
           <Ionicons name="close-circle" size={21} color={C.muted}/>
         </Pressable>:null}
