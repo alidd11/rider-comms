@@ -527,7 +527,7 @@ test('repeated Home, Reels, Shop, Profile, Messages and Create navigation never 
     await page.getByRole('tab', { name: 'Reels' }).click();
     await expect(page.getByTestId('fixed-reels-screen')).toBeVisible();
     await page.getByRole('tab', { name: 'Shop' }).click();
-    await expect(page.getByRole('textbox', { name: 'Search products' })).toBeVisible();
+    await expect(page.getByRole('textbox', { name: 'Search marketplace' })).toBeVisible();
     await page.getByRole('button', { name: 'Open profile' }).click();
     await expect(page.getByTestId('social-profile-summary')).toBeVisible();
     await page.getByRole('button', { name: 'Open messages' }).click();
