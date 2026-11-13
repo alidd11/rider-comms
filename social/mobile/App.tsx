@@ -817,7 +817,8 @@ function AuthenticatedSocialApp(): React.JSX.Element {
                 contentContainerStyle={screen === 'Home' ? { paddingBottom: 24 } : s.content}
                 keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}
                 overScrollMode="never" bounces={false}
-                key={screen === 'Home' ? 'Home-' + (selectedCreator ?? 'feed') : screen}>
+                key={screen === 'Home' ? 'Home-' + (selectedCreator ?? 'feed') :
+                  screen === 'Profile' ? 'Profile-' + (settingsOpen ? 'settings' : profileTab) : screen}>
                 {screen === 'Home' ? renderHome() : null}
                 {screen === 'Clubs' ? renderClubs() : null}
                 {screen === 'Shop' ? renderShop() : null}
