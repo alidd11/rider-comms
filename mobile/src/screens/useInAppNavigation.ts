@@ -41,6 +41,7 @@ import {
   matchFixToPath,
   navigationFixAgeSeconds,
   navigationPuckConeDegrees,
+  navigationPuckTravelHeading,
   navigationRouteStatus,
   navigationTripSeconds,
   recordNavigationTripFix,
@@ -528,7 +529,10 @@ export function useInAppNavigation(
           now: here,
           target,
           glideMs: NAV_PUCK_GLIDE_MS,
-          coneDegrees: navigationPuckConeDegrees(cameraHeading, mapHeadingRef.current),
+          coneDegrees: navigationPuckConeDegrees(
+            navigationPuckTravelHeading(match.snapped, ahead.bearingDegrees, position.coords.heading, speed),
+            mapHeadingRef.current,
+          ),
         });
 
         const stepIndex = navigationStepIndexRef.current;

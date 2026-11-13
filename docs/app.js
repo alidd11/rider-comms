@@ -6324,6 +6324,10 @@
   // native app already uses.
   let navRouteOutline;
   let navRouteLine;
+  // The white turn arrow at the next maneuver (shared navigationManeuverArrow).
+  let navArrowOutline;
+  let navArrowLine;
+  let navArrowKey = null;
   let navSteps = [];
   let navStepIndex = 0;
   let navWatchId;
@@ -6738,6 +6742,40 @@
   function clearNavigationRouteLine() {
     navRouteOutline?.setMap(null);
     navRouteLine?.setMap(null);
+    clearNavigationManeuverArrow();
+  }
+
+  /** Draws the white turn arrow on the road at the upcoming maneuver, as
+   * Google and Apple Maps do; redrawn only when the step changes. */
+  function renderNavigationManeuverArrow() {
+    if (!map || typeof google?.maps?.Polyline !== 'function' || !navigationPuck) return;
+    const step = navSteps[navStepIndex];
+    const next = navSteps[navStepIndex + 1];
+    const key = step && next ? `${navStepIndex}:${navSteps.length}` : null;
+    if (key === navArrowKey) return;
+    navArrowKey = key;
+    const toPuck = (path) => path.map((point) => ({ lat: point.lat, lon: point.lng }));
+    const arrow = key ? navigationPuck.navigationManeuverArrow(toPuck(navigationStepPath(step)), toPuck(navigationStepPath(next))) : null;
+    if (!arrow) {
+      navArrowOutline?.setMap(null);
+      navArrowLine?.setMap(null);
+      return;
+    }
+    if (!navArrowOutline) {
+      navArrowOutline = new google.maps.Polyline({ strokeColor: '#0b1216', strokeOpacity: 1, strokeWeight: 13, zIndex: 8, clickable: false });
+      navArrowLine = new google.maps.Polyline({ strokeColor: '#ffffff', strokeOpacity: 1, strokeWeight: 8, zIndex: 9, clickable: false });
+    }
+    const path = arrow.path.map((point) => ({ lat: point.lat, lng: point.lon }));
+    navArrowOutline.setPath(path);
+    navArrowLine.setPath(path);
+    navArrowOutline.setMap(map);
+    navArrowLine.setMap(map);
+  }
+
+  function clearNavigationManeuverArrow() {
+    navArrowOutline?.setMap(null);
+    navArrowLine?.setMap(null);
+    navArrowKey = null;
   }
 
   function setNavigationTrafficVisible(visible) {
@@ -6784,6 +6822,7 @@
   function renderNavStep() {
     const step = navSteps[navStepIndex];
     if (!step) return;
+    renderNavigationManeuverArrow();
     const upcomingStep = navSteps[navStepIndex + 1];
     applyManeuverIcon(upcomingStep?.maneuver || 'arrive');
     const stepPath = navigationStepPath(step);
@@ -7171,6 +7210,7 @@
     navPuckPath = navigationPuck.buildNavigationPathIndex(routePath.map((point) => ({ lat: point.lat, lon: point.lng })));
     navPuckAlongMeters = null;
     navStepIndex = 0;
+    navArrowKey = null;
     navLastAnnouncedStep = -1;
     navPromptTargetIndex = -1;
     navPromptStage = 0;
@@ -7373,7 +7413,7 @@
     const raw = { lat: coords.latitude, lng: coords.longitude };
     if (!navigationPuck || !navPuckPath) {
       userMapMarker?.setPosition?.(raw);
-      navPuckTravelHeading = coords.heading;
+      navPuckTravelHeading = navigationPuck?.navigationPuckTravelHeading(false, null, coords.heading, speed) ?? null;
       return { now: raw, target: raw, heading: coords.heading };
     }
     const nowMs = Date.now();
@@ -7399,7 +7439,7 @@
     }
     // On the route, its direction is steadier than the GPS course.
     const heading = match.snapped && Number.isFinite(ahead.bearingDegrees) ? ahead.bearingDegrees : coords.heading;
-    navPuckTravelHeading = heading;
+    navPuckTravelHeading = navigationPuck.navigationPuckTravelHeading(match.snapped, ahead.bearingDegrees, coords.heading, speed);
     return { now, target, heading };
   }
 

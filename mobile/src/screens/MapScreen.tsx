@@ -50,7 +50,7 @@ import { RegroupChip, RegroupMarker, isRegroupSpot, regroupTitle } from './Regro
 import { RidingHud } from './RidingHud';
 import { NavigationBanner, NavigationControls, NavigationSpeedBadge, NavigationTripSummary } from './NavigationOverlay';
 import { ArrivalCard, DestinationCard } from './MapPlaceCards';
-import { RIDE_LOCATION_FRESH_MS, regroupAnnouncement, rideMemberLastSeenAgo, type RegroupPoint } from '@rider-comms/shared';
+import { RIDE_LOCATION_FRESH_MS, navigationManeuverArrow, regroupAnnouncement, rideMemberLastSeenAgo, type RegroupPoint } from '@rider-comms/shared';
 import { speakNavigationPrompt } from '../audio/navigationSpeech';
 import { useRideProfiles } from './useRideProfiles';
 import { useHazardReports } from './useHazardReports';
@@ -433,6 +433,15 @@ export function MapScreen(): React.JSX.Element {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeRide?.rideId, regroup?.setAt]);
 
+  const maneuverArrowPath = React.useMemo(() => {
+    if (!activeRoute) return null;
+    const arrow = navigationManeuverArrow(
+      activeRoute.steps[navigationStepIndex]?.coordinates ?? [],
+      activeRoute.steps[navigationStepIndex + 1]?.coordinates,
+    );
+    return arrow ? arrow.path.map((point) => ({ latitude: point.lat, longitude: point.lon })) : null;
+  }, [activeRoute, navigationStepIndex]);
+
   // Picking another place replaces the arrival card.
   const hasSelectedDestination = selectedDestination !== null;
   React.useEffect(() => {
@@ -639,6 +648,13 @@ export function MapScreen(): React.JSX.Element {
                   strokeColor="#4285F4"
                   strokeWidth={6}
                 />
+                {/* The white turn arrow at the next maneuver (PWA: navArrowLine). */}
+                {maneuverArrowPath ? (
+                  <>
+                    <Polyline coordinates={maneuverArrowPath} strokeColor="#0B1216" strokeWidth={13} lineCap="round" lineJoin="round" zIndex={8} />
+                    <Polyline coordinates={maneuverArrowPath} strokeColor="#FFFFFF" strokeWidth={8} lineCap="round" lineJoin="round" zIndex={9} />
+                  </>
+                ) : null}
                 {navigationDestination ? (
                   <Marker
                     coordinate={{ latitude: navigationDestination.lat, longitude: navigationDestination.lon }}
