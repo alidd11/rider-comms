@@ -41,7 +41,14 @@ export function SharedMessagesScreen({
   const [sending, setSending] = useState(false);
   const [draft, setDraft] = useState('');
   const [threadError, setThreadError] = useState<string | null>(null);
+  const [threadLoadFailed, setThreadLoadFailed] = useState(false);
+  const [threadAttempt, setThreadAttempt] = useState(0);
   const requestId = useRef(0);
+  const messageScrollRef = useRef<ScrollView>(null);
+  const scrollToLatestRef = useRef(false);
+  const otherFriends = friends.filter(person =>
+    !conversations.some(entry => entry.friend.riderId === person.riderId)
+  );
 
   const friend = (riderId: string): SharedFriend | undefined =>
     friends.find(item => item.riderId === riderId) ||
@@ -77,6 +84,7 @@ export function SharedMessagesScreen({
       setThreadOwner(null);
       setThread([]);
       setThreadError(null);
+      setThreadLoadFailed(false);
       setThreadLoading(false);
       setSending(false);
       return;
@@ -88,7 +96,9 @@ export function SharedMessagesScreen({
     setThreadLoading(true);
     setSending(false);
     setThreadError(null);
+    setThreadLoadFailed(false);
     setDraft('');
+    scrollToLatestRef.current = true;
     void client.messageThread(active).then(page => {
       if (requestId.current !== id) return;
       setThread(page.messages);
@@ -96,9 +106,10 @@ export function SharedMessagesScreen({
     }).catch(cause => {
       if (requestId.current !== id) return;
       setThreadError(messageText(cause, emailVerified));
+      setThreadLoadFailed(true);
     }).finally(() => { if (requestId.current === id) setThreadLoading(false); });
     return () => { requestId.current += 1; };
-  }, [active, client, emailVerified]);
+  }, [active, client, emailVerified, threadAttempt]);
 
   async function send(): Promise<void> {
     if (!active || sending || !emailVerified) return;
@@ -115,6 +126,7 @@ export function SharedMessagesScreen({
     try {
       const sent = await client.sendMessage(recipientId, message);
       if (requestId.current !== threadRequestId) return;
+      scrollToLatestRef.current = true;
       setThread(previous => previous.some(item => item.id === sent.id) ? previous : [...previous, sent]);
       setThreadOwner(recipientId);
       setDraft('');
@@ -146,9 +158,15 @@ export function SharedMessagesScreen({
           {rider.handle ? <Text style={s.small}>{handleWithAt(rider.handle)}</Text> : null}
         </View>
       </View>
-      <ScrollView testID="shared-message-bubbles" style={{ flex: 1, minHeight: 0 }}
+      <ScrollView ref={messageScrollRef} testID="shared-message-bubbles"
+        style={{ flex: 1, minHeight: 0 }}
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={{ paddingVertical: 12, gap: 10 }}
+        onContentSizeChange={() => {
+          if (!scrollToLatestRef.current) return;
+          scrollToLatestRef.current = false;
+          messageScrollRef.current?.scrollToEnd({ animated: false });
+        }}
         showsVerticalScrollIndicator={false}>
         {threadLoading ? <ActivityIndicator color={C.accent}/> : null}
         {!threadLoading && !threadError && threadOwner === active && !visibleThread.length ? <Text style={s.muted}>
@@ -163,19 +181,29 @@ export function SharedMessagesScreen({
           </View>;
         })}
       </ScrollView>
-      {threadError ? <Text accessibilityRole="alert" style={{ color: '#F2B0BA',
-        fontSize: 12, lineHeight: 18, paddingHorizontal: 6 }}>{threadError}</Text> : null}
+      {threadError ? <View style={{ gap: 8, paddingHorizontal: 6 }}>
+        <Text accessibilityRole="alert" style={{ color: '#F2B0BA',
+          fontSize: 13, lineHeight: 19 }}>{threadError}</Text>
+        {threadLoadFailed ? <Pressable accessibilityRole="button"
+          accessibilityLabel="Retry loading messages"
+          disabled={threadLoading} onPress={() => setThreadAttempt(count => count + 1)}
+          style={{ alignSelf: 'flex-start', minHeight: 44, minWidth: 100,
+            justifyContent: 'center', flexDirection: 'row', alignItems: 'center', gap: 7 }}>
+          <Ionicons name="refresh" size={17} color={C.accent}/>
+          <Text style={{ color: C.accent, fontSize: 14, fontWeight: '800' }}>Try again</Text>
+        </Pressable> : null}
+      </View> : null}
       {!emailVerified ? <Text style={{ color: C.muted, fontSize: 12 }}>
         Verify your email to message riders.
       </Text> : null}
       <View style={{ flexDirection: 'row', gap: 10, alignItems: 'flex-end', paddingBottom: 5 }}>
         <TextInput accessibilityLabel="Write a message"
-          value={draft} onChangeText={setDraft} editable={emailVerified && !sending && !threadLoading}
+          value={draft} onChangeText={setDraft} editable={emailVerified && !sending && !threadLoading && !threadLoadFailed}
           placeholder="Message" placeholderTextColor={C.muted} multiline maxLength={1000}
           style={[s.input, { flex: 1, minHeight: 46, maxHeight: 118,
             fontSize: 16, textAlignVertical: 'top' }]}/>
         <Pressable accessibilityRole="button" accessibilityLabel="Send message"
-          disabled={!emailVerified || sending || threadLoading || !draft.trim() || draft.trim().length > 1000}
+          disabled={!emailVerified || sending || threadLoading || threadLoadFailed || !draft.trim() || draft.trim().length > 1000}
           onPress={() => void send()}
           style={{ width: 46, height: 46, borderRadius: 23,
             alignItems: 'center', justifyContent: 'center',
@@ -231,6 +259,30 @@ export function SharedMessagesScreen({
           <Ionicons name="chevron-forward" color={C.muted} size={17}/>
         </Pressable>;
       })}
+      {!loading && !error && otherFriends.length > 0 ? <View testID="message-start-friends"
+        style={{ paddingTop: 20, gap: 6 }}>
+        <Text style={{ color: C.ink, fontSize: 16, fontWeight: '800', paddingBottom: 6 }}>
+          Start a message
+        </Text>
+        <Text style={{ color: C.muted, fontSize: 13, lineHeight: 19, paddingBottom: 8 }}>
+          Message someone you’re already friends with on Rider Comms.
+        </Text>
+        {otherFriends.map(person => {
+          const name = display(person.riderId).displayName;
+          return <Pressable key={person.riderId} accessibilityRole="button"
+            accessibilityLabel={'Start conversation with ' + name}
+            onPress={() => setActive(person.riderId)}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 12,
+              minHeight: 58, paddingVertical: 8, borderBottomWidth: 1, borderColor: C.border }}>
+            <IdentityAvatar name={name} size={42}/>
+            <View style={{ flex: 1, gap: 3 }}>
+              <Text style={{ color: C.ink, fontWeight: '700', fontSize: 15 }}>{name}</Text>
+              {person.handle ? <Text style={s.small}>{handleWithAt(person.handle)}</Text> : null}
+            </View>
+            <Ionicons name="chatbubble-ellipses-outline" size={22} color={C.accent}/>
+          </Pressable>;
+        })}
+      </View> : null}
     </ScrollView>
   </View>;
 }
