@@ -782,7 +782,7 @@ test('Create opens camera-first with a real permission path and gallery alternat
   await expect(page.getByRole('button', { name: 'Enable camera' })).toBeVisible();
   await page.getByRole('button', { name: 'Reel format' }).click();
   await expect(page.getByText('New reel')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Choose from library' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Choose from library' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Choose Reel video' })).toBeEnabled();
   await page.getByRole('button', { name: 'Post format' }).click();
   await mkdir('test-results/screenshots', { recursive: true });

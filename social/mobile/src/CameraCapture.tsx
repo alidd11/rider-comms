@@ -165,10 +165,6 @@ export function CameraCapture({ mode, onCapture, onLibrary, onClose, disabled }:
             style={{ backgroundColor: WHITE, borderRadius: 22, paddingVertical: 12, paddingHorizontal: 24 }}>
             <Text style={{ color: BLACK, fontSize: 14, fontWeight: '800' }}>Enable camera</Text>
           </Pressable> : null}
-          <Pressable accessibilityRole="button" accessibilityLabel="Open Gallery"
-            onPress={openLibrary} style={{ padding: 9 }}>
-            <Text style={{ color: WHITE, fontSize: 13, fontWeight: '700' }}>Choose from Gallery</Text>
-          </Pressable>
         </View>}
 
       <View style={{ position: 'absolute', top: 12, left: 13, right: 13,
