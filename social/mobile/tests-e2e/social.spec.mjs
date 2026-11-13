@@ -646,6 +646,75 @@ test('Create captures an actual web media stream into the existing photo editor'
 });
 
 
+test('opening Gallery releases live camera hardware before displaying the picker', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__cameraStreams = [];
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: { getUserMedia: async () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = 480; canvas.height = 640;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#556677';
+        ctx.fillRect(0, 0, 480, 640);
+        const stream = canvas.captureStream(10);
+        window.__cameraStreams.push(stream);
+        return stream;
+      } },
+    });
+  });
+  const errors = [];
+  page.on('pageerror', e => errors.push(e.message));
+  await page.goto('/');
+  await page.getByRole('tab', { name: 'Create' }).click();
+  await page.getByRole('button', { name: 'Enable camera' }).click();
+  await expect(page.getByRole('button', { name: 'Take photo' })).toBeEnabled();
+  const fileChooser = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Choose from library' }).click();
+  await fileChooser;
+  await expect.poll(() => page.evaluate(() =>
+    window.__cameraStreams[0]?.getTracks().every(track => track.readyState === 'ended')
+  )).toBe(true);
+  await expect(page.getByTestId('create-recovery')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test('late camera permission after Gallery cancellation is immediately released', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__cameraStreams = [];
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: { getUserMedia: () => new Promise(resolve => {
+        window.__grantLateCamera = () => {
+          const canvas = document.createElement('canvas');
+          canvas.width = 480; canvas.height = 640;
+          const ctx = canvas.getContext('2d');
+          ctx.fillStyle = '#556677';
+          ctx.fillRect(0, 0, 480, 640);
+          const stream = canvas.captureStream(10);
+          window.__cameraStreams.push(stream);
+          resolve(stream);
+        };
+      }) },
+    });
+  });
+  const errors = [];
+  page.on('pageerror', e => errors.push(e.message));
+  await page.goto('/');
+  await page.getByRole('tab', { name: 'Create' }).click();
+  await page.getByRole('button', { name: 'Enable camera' }).click();
+  await expect(page.getByText('Opening camera…').first()).toBeVisible();
+  const fileChooser = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Choose from library' }).click();
+  await fileChooser;
+  await page.evaluate(() => window.__grantLateCamera());
+  await expect.poll(() => page.evaluate(() =>
+    window.__cameraStreams[0]?.getTracks().every(track => track.readyState === 'ended')
+  )).toBe(true);
+  await expect(page.getByTestId('create-recovery')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
 test('Create is full-screen, has working mode controls and a real dismissal path', async ({ page }, testInfo) => {
   await page.goto('/');
   await page.getByRole('tab', { name: 'Create' }).click();
