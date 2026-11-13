@@ -49,13 +49,57 @@ test('feed switches, hides posts and explains recommendations', async ({ page },
   await page.getByRole('button', { name: 'Not interested in post by Alex Morgan' }).click();
   await expect(page.getByText('Sunday roads, no rush.')).toHaveCount(0);
 
-  await page.getByRole('button', { name: 'Following' }).click();
-  await expect(page.getByRole('button', { name: 'Newest' })).toBeVisible();
-  await page.getByRole('button', { name: 'Newest' }).click();
+  await page.getByRole('tab', { name: 'Following' }).click();
+  await expect(page.getByTestId('home-feed-tabs')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Newest first' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Feed preferences' }).click();
+  await expect(page.getByRole('button', { name: 'Newest first' })).toBeVisible();
+  await page.getByRole('button', { name: 'Newest first' }).click();
   await expect(page.getByText('The early start was worth it.')).toBeVisible();
+  await page.getByRole('tab', { name: 'For You' }).click();
+  await expect(page.getByTestId('home-feed-preferences')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Create story' })).toBeVisible();
 
   await mkdir('test-results/screenshots', { recursive: true });
   await page.screenshot({ path: 'test-results/screenshots/' + testInfo.project.name + '-feed.png' });
+});
+
+test('For You and Following remain visible as Home feed tabs while feed content scrolls', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 690 });
+  await page.goto('/');
+  const bar = page.getByTestId('home-feed-tabs');
+  const forYou = page.getByRole('tab', { name: 'For You' });
+  const following = page.getByRole('tab', { name: 'Following' });
+  await expect(bar).toBeVisible();
+  await expect(forYou).toBeVisible();
+  await expect(following).toBeVisible();
+  const top = await bar.boundingBox();
+  const first = await forYou.boundingBox();
+  const second = await following.boundingBox();
+  expect(top).not.toBeNull();
+  expect(first).not.toBeNull();
+  expect(second).not.toBeNull();
+  expect(first.height).toBeGreaterThanOrEqual(44);
+  expect(second.height).toBeGreaterThanOrEqual(44);
+  expect(Math.abs(first.y - second.y)).toBeLessThan(2);
+
+  // Feed mode is navigation: it must remain at the top of the viewport, not
+  // scroll away with Stories or leave the user halfway down another feed.
+  await page.locator('#social-page-scroll').evaluate(el => { el.scrollTop = el.scrollHeight; });
+  const scrolled = await page.locator('#social-page-scroll').evaluate(el => el.scrollTop);
+  expect(scrolled).toBeGreaterThan(0);
+  const afterScroll = await bar.boundingBox();
+  expect(Math.abs(afterScroll.y - top.y)).toBeLessThan(2);
+  await following.click();
+  await expect(page.locator('#social-page-scroll')).toBeVisible();
+  await expect.poll(() => page.locator('#social-page-scroll').evaluate(el => el.scrollTop)).toBe(0);
+  await expect(page.getByRole('button', { name: 'Create story' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Feed preferences' }).click();
+  await expect(page.getByRole('button', { name: 'Newest first' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Toggle personalised recommendations' })).toHaveCount(0);
+  await forYou.click();
+  await expect(page.getByTestId('home-feed-preferences')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Create story' })).toBeVisible();
 });
 
 test('clubs, marketplace and profile have independent usable screens', async ({ page }, testInfo) => {
