@@ -2485,7 +2485,7 @@ html.ride-pill-visible[data-active-screen="settings"] .screen.active{padding-bot
 /* Help & Support */
 .help-contact{display:flex;align-items:center;justify-content:center;gap:9px;text-decoration:none}
 .help-contact svg{width:19px;height:19px}
-.help-contact-note{margin:2px 4px 0}
+.help-contact-note{margin:10px 4px 0}
 .faq-list{overflow:hidden;border:1px solid var(--border-soft);border-radius:12px;background:var(--surface)}
 .faq-item{border-bottom:1px solid var(--border-soft)}
 .faq-item:last-child{border-bottom:0}
