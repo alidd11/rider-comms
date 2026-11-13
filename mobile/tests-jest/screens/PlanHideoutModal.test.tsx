@@ -1,3 +1,4 @@
+import { ApiError } from '../../src/api/client';
 import * as React from 'react';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -86,12 +87,12 @@ test('“My location” asks for permission and explains a refusal', async () =>
   expect(screen.getByText(/Allow location access in Settings/)).toBeTruthy();
 });
 
-test('a server error stays on screen', async () => {
-  const { onClose } = await renderModal(jest.fn(async () => { throw new Error('That name isn’t allowed.'); }));
+test('a refusal stays on screen in plain words, and no answer points at the connection', async () => {
+  const { onClose } = await renderModal(jest.fn(async () => { throw new ApiError(400, { error: 'objectionable_content' }); }));
   await fireEvent.changeText(screen.getByPlaceholderText(/Name/), 'Spot');
   await fireEvent(screen.getByTestId('hideout-map'), 'press', { nativeEvent: { coordinate: { latitude: 52, longitude: -1 } } });
   await fireEvent.press(saveButton());
-  expect(screen.getByText('That name isn’t allowed.')).toBeTruthy();
+  expect(screen.getByText('That isn’t allowed here. Try different wording.')).toBeTruthy();
   expect(onClose).not.toHaveBeenCalled();
 });
 

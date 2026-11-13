@@ -1,3 +1,4 @@
+import { userFacingError } from '../errors/userFacingError';
 import * as React from 'react';
 import { ActivityIndicator, Modal, Pressable, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -64,7 +65,7 @@ export function PlanHideoutModal({
       setPin(null);
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Couldn’t create that hideout.');
+      setError(userFacingError(err, 'Couldn’t create that hideout.'));
     } finally {
       setSaving(false);
     }

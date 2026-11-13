@@ -129,7 +129,7 @@ test('ends the live session when a private ride starts', async () => {
   await waitFor(() => expect(result.current.publicLive).toBe(false));
 });
 
-test('surfaces a friendly message and stays live when a presence tick fails generically', async () => {
+test('says it can’t reach Rider Comms, never the raw error, and stays live when a presence tick gets no answer', async () => {
   const setError = jest.fn();
   const client = { updatePresence: jest.fn(async () => { throw new Error('network down'); }) };
   const { result } = await renderPresence({ client, setError });
@@ -138,7 +138,7 @@ test('surfaces a friendly message and stays live when a presence tick fails gene
     await result.current.handleNearbyToggle();
   });
 
-  await waitFor(() => expect(setError).toHaveBeenCalledWith('network down'));
+  await waitFor(() => expect(setError).toHaveBeenCalledWith('Couldn’t reach Rider Comms. Trying again shortly.'));
   expect(result.current.publicLive).toBe(true);
 });
 
