@@ -134,12 +134,23 @@ function HeaderLine({ heading, meta }: { heading: string; meta?: string }) {
   );
 }
 
-function PreviewEmpty({ icon, heading, body }: { icon: Icon; heading: string; body: string }) {
+function PreviewEmpty({ icon, heading, body, actionLabel, onAction }: {
+  icon: Icon; heading: string; body: string;
+  actionLabel?: string; onAction?: () => void;
+}) {
   return (
     <View style={s.empty}>
-      <Ionicons name={icon} size={32} color={C.accent} />
-      <Text style={s.cardHeading}>{heading}</Text>
-      <Text style={[s.muted, { textAlign: 'center' }]}>{body}</Text>
+      <View style={{ width: 50, height: 50, borderRadius: 17, backgroundColor: C.accentDark,
+        alignItems: 'center', justifyContent: 'center' }}>
+        <Ionicons name={icon} size={25} color={C.accent}/>
+      </View>
+      <Text style={[s.cardHeading,{fontSize:17,textAlign:'center'}]}>{heading}</Text>
+      <Text style={[s.muted, { textAlign: 'center', maxWidth: 330 }]}>{body}</Text>
+      {actionLabel && onAction ? <Pressable accessibilityRole="button"
+        accessibilityLabel={actionLabel} onPress={onAction}
+        style={[s.cta,{marginTop:8,minWidth:158,minHeight:48}]}>
+        <Text style={s.ctaText}>{actionLabel}</Text>
+      </Pressable> : null}
     </View>
   );
 }
@@ -570,7 +581,10 @@ function AuthenticatedSocialApp(): React.JSX.Element {
         <Pill label="Relevant" selected={followingOrder==='relevant'} onPress={()=>setFollowingOrder('relevant')}/>
       </View> : null}
       {visiblePosts.length ? visiblePosts.map(({post,reason})=>renderPost(post,reason))
-        : <PreviewEmpty icon="images-outline" heading="No posts yet" body="Posts will appear here when sharing is available."/>}
+        : <PreviewEmpty icon="images-outline" heading="No posts yet"
+          body="Choose a photo or video to preview your first post. Nothing is published yet."
+          actionLabel="Create a post"
+          onAction={() => { setCreateMode('Post'); navigate('Create'); }}/>} 
     </View>;
   }
 
