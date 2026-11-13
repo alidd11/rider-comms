@@ -48,6 +48,8 @@ const fixtures = {
     'Turn right onto Camden Rd/A503',
     'At the roundabout, take the 2nd exit onto Holloway Rd',
     'Head north on Camden Rd toward Kentish Town Rd',
+    'Turn left towards Leisure Wy',
+    'Turn right onto High Rd towards Barnet',
     'Turn left onto Caledonian Rd. Destination will be on the right',
     'Your destination is on the left',
   ],

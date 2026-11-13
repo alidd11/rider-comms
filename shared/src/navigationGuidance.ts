@@ -53,9 +53,14 @@ export function normalizeNavigationInstructionText(value: string): string {
  */
 export function navigationInstructionRoad(instruction: string): string | null {
   const firstSentence = normalizeNavigationInstructionText(instruction).split(/(?<=[a-z0-9)])\.\s+/i)[0] ?? '';
-  const match = firstSentence.match(/\bonto\s+(.+)$/i) ?? firstSentence.match(/\bon\s+(.+)$/i);
+  // "onto" and "on" name the road; failing those, "towards" names where the
+  // turn heads ("Turn left towards Leisure Wy"), which is what Google and
+  // Apple Maps show large too.
+  const match = firstSentence.match(/\bonto\s+(.+)$/i)
+    ?? firstSentence.match(/\bon\s+(.+)$/i)
+    ?? firstSentence.match(/\btowards?\s+(.+)$/i);
   if (!match) return null;
-  const road = match[1]!.replace(/\s+toward\b.*$/i, '').replace(/\.$/, '').replace(/\s*\/\s*/g, ' / ').trim();
+  const road = match[1]!.replace(/\s+towards?\b.*$/i, '').replace(/\.$/, '').replace(/\s*\/\s*/g, ' / ').trim();
   if (!road || /^the (left|right)\b/i.test(road)) return null;
   return road;
 }

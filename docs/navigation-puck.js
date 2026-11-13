@@ -279,6 +279,97 @@
     return Math.max(0, Math.round((nowMs - trip.startedAt) / 1000));
   }
 
+  /**
+   * The direction of travel the puck's cone should show, or null to hide it.
+   * Below PUCK_HEADING_TRUST_SPEED_MPS (or with no speed) the phone can't tell
+   * which way the rider faces (GPS course is noise when stopped, and the first
+   * route segment may point anywhere), so the cone hides rather than guess.
+   * Moving: the route's direction when snapped to it, else the GPS course.
+   */
+  function navigationPuckTravelHeading(
+    snapped,
+    routeBearingDegrees,
+    gpsHeadingDegrees,
+    speedMps,
+  ) {
+    if (!Number.isFinite(speedMps) || Number(speedMps) < PUCK_HEADING_TRUST_SPEED_MPS) return null;
+    if (snapped && Number.isFinite(routeBearingDegrees)) return Number(routeBearingDegrees);
+    if (Number.isFinite(gpsHeadingDegrees) && Number(gpsHeadingDegrees) >= 0) return Number(gpsHeadingDegrees);
+    return null;
+  }
+
+  /** A turn arrow drawn on the road at the next maneuver, as Google and Apple
+   * Maps do: the last stretch before the turn and the first stretch after it,
+   * ending in an arrowhead. `path` is one polyline: the shaft, then the head
+   * drawn as left barb → tip → right barb. */
+
+  const MANEUVER_ARROW_BEFORE_M = 35;
+  const MANEUVER_ARROW_AFTER_M = 25;
+  const MANEUVER_ARROW_HEAD_M = 9;
+
+  function cleanPath(path) {
+    return path.filter((point) => Number.isFinite(point?.lat) && Number.isFinite(point?.lon))
+      .map((point) => ({ lat: point.lat, lon: point.lon }));
+  }
+
+  function pointAlong(a, b, fraction) {
+    return { lat: a.lat + (b.lat - a.lat) * fraction, lon: a.lon + (b.lon - a.lon) * fraction };
+  }
+
+  /** Up to `metres` of `path` from its start, cut part-way through a segment. */
+  function leadingStretch(path, metres) {
+    const out = [];
+    let left = metres;
+    for (let index = 0; index < path.length; index += 1) {
+      const point = path[index];
+      if (index === 0) { out.push(point); continue; }
+      const previous = path[index - 1];
+      const length = metersBetween(previous, point);
+      if (length >= left) {
+        if (length > 0) out.push(pointAlong(previous, point, left / length));
+        return out;
+      }
+      out.push(point);
+      left -= length;
+    }
+    return out;
+  }
+
+  function offsetPoint(point, bearingDegrees, metres) {
+    const bearing = bearingDegrees * DEG;
+    return {
+      lat: point.lat + (Math.cos(bearing) * metres / EARTH_RADIUS_M) / DEG,
+      lon: point.lon + (Math.sin(bearing) * metres / (EARTH_RADIUS_M * Math.cos(point.lat * DEG))) / DEG,
+    };
+  }
+
+  /** The turn arrow from the current step into the next, or null without a next step. */
+  function navigationManeuverArrow(
+    stepPath,
+    nextStepPath,
+  ) {
+    const step = cleanPath(stepPath);
+    const next = cleanPath(nextStepPath ?? []);
+    if (step.length < 2 || next.length < 2) return null;
+    const before = leadingStretch([...step].reverse(), MANEUVER_ARROW_BEFORE_M).reverse();
+    const after = leadingStretch(next, MANEUVER_ARROW_AFTER_M);
+    const shaft = [...before];
+    for (const point of after) {
+      const last = shaft[shaft.length - 1];
+      if (metersBetween(last, point) > 0.5) shaft.push(point);
+    }
+    if (shaft.length < 2) return null;
+    const tip = shaft[shaft.length - 1];
+    // Aim the head along the last metre or more of the shaft.
+    let from = shaft[shaft.length - 2];
+    for (let index = shaft.length - 2; index >= 0 && metersBetween(shaft[index], tip) < 1; index -= 1) from = shaft[index];
+    const back = (bearingBetween(from, tip) + 180) % 360;
+    return {
+      path: [...shaft, offsetPoint(tip, back - 35, MANEUVER_ARROW_HEAD_M), tip, offsetPoint(tip, back + 35, MANEUVER_ARROW_HEAD_M)],
+      tip,
+    };
+  }
+
   root.RiderNavigationPuck = Object.freeze({
     PUCK_MIN_SNAP_METERS,
     PUCK_MAX_SNAP_METERS,
@@ -306,5 +397,10 @@
     startNavigationTrip,
     recordNavigationTripFix,
     navigationTripSeconds,
+    navigationPuckTravelHeading,
+    MANEUVER_ARROW_BEFORE_M,
+    MANEUVER_ARROW_AFTER_M,
+    MANEUVER_ARROW_HEAD_M,
+    navigationManeuverArrow,
   });
 })(typeof window !== 'undefined' ? window : globalThis);

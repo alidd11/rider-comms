@@ -146,6 +146,10 @@
   // native app already uses.
   let navRouteOutline;
   let navRouteLine;
+  // The white turn arrow at the next maneuver (shared navigationManeuverArrow).
+  let navArrowOutline;
+  let navArrowLine;
+  let navArrowKey = null;
   let navSteps = [];
   let navStepIndex = 0;
   let navWatchId;

@@ -83,6 +83,9 @@ describe('navigationInstructionRoad', () => {
     assert.equal(navigationInstructionRoad('Head north on Camden Rd toward Kentish Town Rd'), 'Camden Rd');
     assert.equal(navigationInstructionRoad('Keep left to stay on M25'), 'M25');
     assert.equal(navigationInstructionRoad('Turn left onto Caledonian Rd. Destination will be on the right'), 'Caledonian Rd');
+    assert.equal(navigationInstructionRoad('Turn left towards Leisure Wy'), 'Leisure Wy');
+    assert.equal(navigationInstructionRoad('Slight right toward Leisure Wy'), 'Leisure Wy');
+    assert.equal(navigationInstructionRoad('Turn right onto High Rd towards Barnet'), 'High Rd');
     assert.equal(navigationInstructionRoad('Turn left'), null);
     assert.equal(navigationInstructionRoad('Your destination is on the left'), null);
     assert.equal(navigationInstructionRoad(''), null);

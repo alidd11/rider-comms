@@ -513,8 +513,9 @@ if (!/function navigationPuckIcon[\s\S]*mapMarker: false[\s\S]*anchor: new googl
 }
 // Both apps point the puck's cone the same way (shared navigationPuckConeDegrees).
 if (!/navigationPuck\?\.navigationPuckConeDegrees\(navPuckTravelHeading, mapHeading\)/.test(pwaMapSource)
-  || !/navigationPuckConeDegrees\(cameraHeading, mapHeadingRef\.current\)/.test(await readFile(new URL('../mobile/src/screens/useInAppNavigation.ts', import.meta.url), 'utf8'))) {
-  throw new Error('Both apps must draw the navigation cone from the shared navigationPuckConeDegrees');
+  || !/navigationPuck\.navigationPuckTravelHeading\(match\.snapped, ahead\.bearingDegrees, coords\.heading, speed\)/.test(pwaMapSource)
+  || !/navigationPuckConeDegrees\(\s*navigationPuckTravelHeading\(match\.snapped, ahead\.bearingDegrees, position\.coords\.heading, speed\),\s*mapHeadingRef\.current,?\s*\)/.test(await readFile(new URL('../mobile/src/screens/useInAppNavigation.ts', import.meta.url), 'utf8'))) {
+  throw new Error('Both apps must draw the navigation cone from the shared navigationPuckTravelHeading and navigationPuckConeDegrees');
 }
 
 if (/translateY\(-32vh\)/.test(pwaCssSource)) {
@@ -594,6 +595,11 @@ if (!/function NavigationTripSummary[\s\S]*?onLayout=\{measured\(onHeight\)\}/.t
   if (!/regroupAnnouncement\(known, regroup, activeRide\?\.isHost === true\)/.test(nativeMapScreenSource)) {
     throw new Error('Native map must announce regroup points with the shared regroupAnnouncement');
   }
+}
+
+// Both apps draw the white turn arrow from the shared geometry.
+if (!/navigationPuck\.navigationManeuverArrow\(/.test(pwaMapSource) || !/navigationManeuverArrow\(\s*activeRoute\.steps\[navigationStepIndex\]/.test(nativeMapScreenSource)) {
+  throw new Error('Both apps must draw the turn arrow with the shared navigationManeuverArrow');
 }
 
 // The host's regroup point: a chip and a flag for every member, "Regroup

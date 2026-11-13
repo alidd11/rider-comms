@@ -5,6 +5,8 @@ import {
   matchFixToPath,
   navigationFixAgeSeconds,
   navigationPuckConeDegrees,
+  navigationPuckTravelHeading,
+  navigationManeuverArrow,
   navigationTripSeconds,
   recordNavigationTripFix,
   startNavigationTrip,
@@ -182,4 +184,38 @@ test('the trip adds up distance from confident fixes and ignores drift', () => {
   assert.ok(Math.abs(trip.distanceMeters - 200) < 0.5);
   assert.equal(navigationTripSeconds(trip, 61_400), 60);
   assert.equal(navigationTripSeconds(trip, 0), 0);
+});
+
+test('the cone hides when stopped or crawling, and follows the route when moving on it', () => {
+  // Stopped in a car park: no trustworthy direction, whatever GPS reports.
+  assert.equal(navigationPuckTravelHeading(true, 225, 40, 0), null);
+  assert.equal(navigationPuckTravelHeading(false, null, 40, 1.5), null);
+  assert.equal(navigationPuckTravelHeading(true, 225, 40, null), null);
+  // Moving: the route's direction on it, the GPS course off it.
+  assert.equal(navigationPuckTravelHeading(true, 225, 40, 8), 225);
+  assert.equal(navigationPuckTravelHeading(false, null, 40, 8), 40);
+  assert.equal(navigationPuckTravelHeading(false, null, -1, 8), null);
+});
+
+test('the turn arrow runs 35 m into the turn and 25 m out of it, ending in a head', () => {
+  // North for 200 m, then a right turn heading east.
+  const arrow = navigationManeuverArrow([at(0, 0), at(0, 200)], [at(0, 200), at(150, 200)])!;
+  const local = arrow.path.map(toLocal);
+  assert.ok(Math.abs(local[0]!.north - 165) < 0.5 && Math.abs(local[0]!.east) < 0.5);
+  const tip = toLocal(arrow.tip);
+  assert.ok(Math.abs(tip.east - 25) < 0.5 && Math.abs(tip.north - 200) < 0.5);
+  // The head: two barbs behind the tip, either side of the eastbound shaft.
+  const [left, , right] = local.slice(-3);
+  assert.ok(left!.east < 25 && right!.east < 25);
+  assert.ok(Math.min(left!.north, right!.north) < 200 && Math.max(left!.north, right!.north) > 200);
+  // The turn point itself is on the shaft.
+  assert.ok(local.some((p) => Math.abs(p.north - 200) < 0.5 && Math.abs(p.east) < 0.5));
+});
+
+test('no turn arrow without a next step or with broken geometry', () => {
+  assert.equal(navigationManeuverArrow([at(0, 0), at(0, 200)], null), null);
+  assert.equal(navigationManeuverArrow([at(0, 0)], [at(0, 0), at(10, 0)]), null);
+  // A short final step still draws what there is.
+  const short = navigationManeuverArrow([at(0, 0), at(0, 10)], [at(0, 10), at(0, 10.2), at(5, 10)])!;
+  assert.ok(short.path.length >= 5);
 });
