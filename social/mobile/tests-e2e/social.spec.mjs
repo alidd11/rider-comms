@@ -2,6 +2,7 @@
 import { test, expect } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import { Buffer } from 'node:buffer';
+import { URL } from 'node:url';
 
 // This fixture is an entirely synthetic session, never a real Rider Comms credential.
 // It prevents the screenshot suite from sending any account requests to production.
