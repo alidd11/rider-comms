@@ -30,26 +30,8 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22'
-      # Bootstrap the independent Social lockfile; switch to npm ci after capturing it.
-      - run: npm install --no-audit --no-fund
-      - name: Upload generated independent dependency lock
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: social-dependency-lock-${{ github.run_id }}
-          path: social/mobile/package-lock.json
-          if-no-files-found: error
-      # One-time lockfile transfer for committing the isolated dependency graph.
-      # Only package metadata/integrity hashes are emitted, never user credentials.
-      - name: Emit lockfile metadata for repository commit
-        if: github.head_ref == 'feat/social-app-foundation-20261112'
-        run: |
-          node --input-type=commonjs - <<'NODE'
-          const content = require('node:fs').readFileSync('package-lock.json', 'utf8');
-          for (let n = 0; n < content.length; n += 1200) {
-            process.stdout.write('SOCIAL_LOCK_PART:' + String(n / 1200).padStart(4, '0') + ':' +
-              JSON.stringify(content.slice(n, n + 1200)) + '\n');
-          }
-          NODE
+      # Dedicated lockfile; never mutate the root workspace or its lockfile.
+      - run: npm ci --no-audit --no-fund
       - run: npm run typecheck
       - run: npm test
       - run: npm run build:web
