@@ -5,6 +5,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RiderAccountClient, AccountApiError, AccountConnectionError, accountErrorMessage, RESET_SENT_TEXT, SOCIAL_TERMS_URL, SOCIAL_GUIDELINES_URL } from './authClient';
 import type { AccountIdentity } from './authClient';
 import { accountTokenStorage } from './authStorage';
+import { clearLocalDemo } from './demoStorage';
+import { clearAccountTextDraft } from './textDraftStorage';
 import { ukPlanningPolicy } from './policy';
 
 type Mode = 'login' | 'signup' | 'recover';
@@ -12,6 +14,7 @@ type SocialAccountContextValue = {
   identity: AccountIdentity;
   client: RiderAccountClient;
   logout(): Promise<void>;
+  deleteAccount(): Promise<void>;
   resendVerification(): Promise<void>;
 };
 const Context = React.createContext<SocialAccountContextValue | null>(null);
@@ -177,6 +180,21 @@ export function SocialAuthGate({ children }: { children: React.ReactNode }) {
       'Signed out on this device. The server session may still be active. Revoke it from Rider Comms when connected.'
     );
   };
+  const deleteAccount = async () => {
+    if (!identity) throw new AccountApiError(401, 'not_signed_in');
+    const riderId = identity.riderId;
+    // A failed DELETE leaves the session and local drafts untouched; only
+    // a server-acknowledged deletion signs out this and other devices.
+    await client.deleteAccount();
+    const cleared = await Promise.allSettled([
+      clearLocalDemo(riderId), clearAccountTextDraft(riderId),
+    ]);
+    await signOut();
+    const failedLocalClear = cleared.some(result => result.status === 'rejected');
+    setNotice(failedLocalClear
+      ? 'Account deleted. Device-only Social drafts could not be fully cleared; clear this app’s site storage.'
+      : 'Your Rider Comms account was deleted. You have been signed out.');
+  };
   const submit = async () => {
     if (busy) return;
     setError(''); setNotice(''); setFieldErrors({});
@@ -258,7 +276,7 @@ export function SocialAuthGate({ children }: { children: React.ReactNode }) {
   }}><ActivityIndicator color={accent} size="large"/></View>;
 
   if (identity && identity.termsAccepted && ageAcknowledged) {
-    return <Context.Provider value={{ identity, client, logout: signOut, resendVerification }}>
+    return <Context.Provider value={{ identity, client, logout: signOut, deleteAccount, resendVerification }}>
       {children}
     </Context.Provider>;
   }
