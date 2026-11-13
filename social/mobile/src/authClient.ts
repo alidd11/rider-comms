@@ -118,14 +118,20 @@ export class RiderAccountClient {
   private readonly storage: TokenStorage;
   private readonly transport: Fetcher;
   private readonly origin: string;
+  private readonly requestTimeoutMs: number;
   constructor(
     storage: TokenStorage,
     transport: Fetcher = (url, init) => fetch(url, init),
     origin: string = RIDER_API_ORIGIN,
+    requestTimeoutMs = 12000,
   ) {
     this.storage = storage;
     this.transport = transport;
     this.origin = origin;
+    // A stalled iOS PWA connection must never leave the login spinner forever.
+    // Allow an injectable shorter deadline in unit tests, never unbounded waits.
+    this.requestTimeoutMs = Number.isFinite(requestTimeoutMs)
+      ? Math.min(60000, Math.max(10, requestTimeoutMs)) : 12000;
   }
   get identity(): AccountIdentity | null { return this.user; }
   setSessionExpiredHandler(handler: (() => void) | null) { this.onExpired = handler; }
@@ -139,29 +145,42 @@ export class RiderAccountClient {
     const headers: Record<string, string> = { Accept: 'application/json' };
     if (body !== undefined) headers['Content-Type'] = 'application/json';
     if (required) headers.Authorization = 'Bearer ' + this.token;
-    // Redirects are disabled to prevent forwarding an Authorization header.
-    // Network/CORS failures do not have an HTTP status and must not appear as
-    // invalid credentials. Do not print, wrap or log the raw exception.
-    let response: Response;
+    // A network stall on iPhone Home Screen or a blocked response stream
+    // must resolve to a recoverable connection notice, never a frozen spinner.
+    // Redirects remain disabled so Authorization cannot leak to a new origin.
+    const controller = new AbortController();
+    const deadline = setTimeout(() => controller.abort(), this.requestTimeoutMs);
     try {
-      response = await this.transport(this.origin + path, {
-        method, headers, ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
-        credentials: 'omit', cache: 'no-store', redirect: 'error',
-      });
-    } catch {
-      throw new AccountConnectionError();
-    }
-    if (response.status === 401 && required) await this.clear();
-    if (!response.ok) {
-      let code = 'request_failed';
+      let response: Response;
       try {
-        const parsed = await response.json() as { error?: unknown };
-        if (typeof parsed?.error === 'string') code = parsed.error;
-      } catch { /* A non-JSON error is still a failed request. */ }
-      throw new AccountApiError(response.status, code);
+        response = await this.transport(this.origin + path, {
+          method, headers, ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+          credentials: 'omit', cache: 'no-store', redirect: 'error',
+          signal: controller.signal,
+        });
+      } catch {
+        // Do not retain or log the token or browser/network error details.
+        throw new AccountConnectionError();
+      }
+      if (response.status === 401 && required) await this.clear();
+      if (!response.ok) {
+        let code = 'request_failed';
+        try {
+          const parsed = await response.json() as { error?: unknown };
+          if (typeof parsed?.error === 'string') code = parsed.error;
+        } catch { /* A non-JSON error is still a failed request. */ }
+        throw new AccountApiError(response.status, code);
+      }
+      if (response.status === 204) return undefined as T;
+      try {
+        return await response.json() as T;
+      } catch {
+        // Malformed or interrupted response content is not bad credentials.
+        throw new AccountConnectionError();
+      }
+    } finally {
+      clearTimeout(deadline);
     }
-    if (response.status === 204) return undefined as T;
-    return response.json() as Promise<T>;
   }
   private async readIdentity(): Promise<AccountIdentity> {
     const raw = await this.request<RawIdentity>('GET', '/auth/me', undefined, true);
