@@ -136,7 +136,9 @@ test('production: every major route and empty state is visible, navigable and er
   await page.getByRole('button', { name: 'Reset marketplace search' }).click();
   await expect(page.getByRole('button', { name: 'Reset marketplace search' })).toHaveCount(0);
   await page.getByRole('button', { name: 'Explore clubs from Shop' }).click();
-  await expect(page.getByRole('tab', { name: 'Clubs' })).toHaveAttribute('aria-selected', 'true');
+  // React Native Web may omit aria-selected on tabs; verify the destination
+  // content is actually shown instead of checking a platform-specific detail.
+  await expect(page.getByText('Clubs & events')).toBeVisible();
   await page.getByRole('tab', { name: 'Shop' }).click();
 
   await page.getByRole('button', { name: 'Open profile' }).click();
