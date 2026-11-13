@@ -146,7 +146,7 @@ export function SocialAuthGate({ children }: { children: React.ReactNode }) {
           setAgeAcknowledged(window.sessionStorage.getItem('rider_social_age_ack_v1') === result.riderId);
         } catch { /* Protected browser mode requires re-acknowledgement. */ }
       }
-    }).catch(() => { if (alive) setError('Could not verify your session. Check your connection and retry.'); })
+    }).catch(() => { if (alive) setError('Couldn’t check your account. Check your connection and try again.'); })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; client.setSessionExpiredHandler(null); };
   }, [client]);
@@ -180,7 +180,7 @@ export function SocialAuthGate({ children }: { children: React.ReactNode }) {
       setFieldErrors({ password: 'Enter your password.' }); return;
     }
     if (mode === 'signup' && !termsChecked) {
-      setFieldErrors({ terms: 'Please accept the Terms and Community Guidelines.' }); return;
+      setFieldErrors({ terms: 'Accept the Terms and Community Guidelines to continue.' }); return;
     }
     setBusy(true);
     try {
@@ -226,7 +226,7 @@ export function SocialAuthGate({ children }: { children: React.ReactNode }) {
   const retry = () => {
     setLoading(true); setError('');
     void client.restore().then(result => setIdentity(result))
-      .catch(() => setError('Could not verify your session. Check your connection and retry.'))
+      .catch(() => setError('Couldn’t check your account. Check your connection and try again.'))
       .finally(() => setLoading(false));
   };
   const resendVerification = () => client.resendVerification();
@@ -293,10 +293,10 @@ export function SocialAuthGate({ children }: { children: React.ReactNode }) {
           </Pressable>
         </> : isAgeReview ? <>
           <Text style={{ color: ink, lineHeight: 23 }}>
-            Social is for people aged {ukPlanningPolicy.minimumSocialAge} and over.
+            Social is for riders aged {ukPlanningPolicy.minimumSocialAge} and over.
           </Text>
           <Text style={{ color: muted, lineHeight: 21, fontSize: 13 }}>
-            Rider Comms does not currently verify age. This is a self-declaration for the development preview, not verified age assurance. Public posting and other restricted features remain unavailable.
+            Confirm your age before continuing. Some features will stay unavailable until your account is eligible.
           </Text>
           <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: ageChecked }}
             accessibilityLabel="I confirm I am at least 16"
@@ -305,7 +305,7 @@ export function SocialAuthGate({ children }: { children: React.ReactNode }) {
             <Ionicons name={ageChecked ? 'checkbox' : 'square-outline'} size={24} color={accent}/>
             <Text style={{ color: ink, flex: 1 }}>I am at least 16 years old</Text>
           </Pressable>
-          <Action label="Enter Social preview" disabled={!ageChecked} onPress={acknowledgeAge}/>
+          <Action label="Continue to Social" disabled={!ageChecked} onPress={acknowledgeAge}/>
           <Pressable accessibilityRole="button" accessibilityLabel="Sign out" onPress={() => void signOut()}>
             <Text style={{ color: muted, textAlign: 'center' }}>Sign out</Text>
           </Pressable>
