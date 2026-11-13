@@ -64,6 +64,7 @@ export function accountErrorMessage(error: unknown): string {
     full_account_required: 'Sign in to a full Rider Comms account to use Social.',
   };
   if (error.status === 429) return 'Too many attempts. Try again in a few minutes.';
+  if (error.code === 'invalid_credentials') return messages.invalid_credentials;
   if (error.status === 401) return 'Your session has ended. Sign in again.';
   if (error.status === 403) return messages[error.code] ?? 'Verify your email to message riders.';
   return messages[error.code] ?? 'Could not complete this request. Try again.';
