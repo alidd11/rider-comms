@@ -7,7 +7,8 @@ import { C, s } from './src/styles';
 import { rankForYou, rankFollowing, rankReels, rankClubs, rankEvents, rankMarketplace, explainReason, noViewer } from './src/recommendations';
 import type { Content, Viewer, Topic, RankReason } from './src/recommendations';
 import type { FeedMode, FollowingOrder, SocialPost } from './src/domain';
-import { demoClubs, demoEvents, demoListings, demoPosts, demoStories, followingIds } from './src/sampleData';
+import { demoClubs as fixtureClubs, demoEvents as fixtureEvents, demoListings as fixtureListings, demoPosts as fixturePosts, demoStories as fixtureStories, followingIds as fixtureFollowingIds } from './src/sampleData';
+import { socialFixturesEnabled } from './src/testFixtureMode';
 import { DEFAULT_PROFILE, EMPTY_GARAGE_DRAFT, addGarageEntry, createGarageEntry, removeGarageEntry, updateGarageVisibility, validateProfile } from './src/garage';
 import type { GarageDraft, GarageEntry, GarageKind, SocialProfileDraft } from './src/garage';
 import { loadLocalDemo, saveLocalDemo } from './src/demoStorage';
@@ -44,6 +45,14 @@ const topics: { topic: Topic; label: string }[] = [
   { topic: 'cycling', label: 'Cycling' },
 ];
 
+// Production ships with no fictional accounts, social proof, merchant listings or posts.
+// CI enables isolated fixtures only in its browser-test export.
+const demoClubs = socialFixturesEnabled ? fixtureClubs : [];
+const demoEvents = socialFixturesEnabled ? fixtureEvents : [];
+const demoListings = socialFixturesEnabled ? fixtureListings : [];
+const demoPosts = socialFixturesEnabled ? fixturePosts : [];
+const demoStories = socialFixturesEnabled ? fixtureStories : [];
+const followingIds = socialFixturesEnabled ? fixtureFollowingIds : new Set<string>();
 const previewNow = Math.floor(Date.now() / 1000);
 const contentCandidates: Content[] = demoPosts.map((post, index) => ({
   id: post.id, authorId: post.authorId,
@@ -57,11 +66,11 @@ const contentCandidates: Content[] = demoPosts.map((post, index) => ({
   impressions: 250, negativeFeedbackCount: 0, authorTotalImpressions: index * 250,
 }));
 
-const reels = [
+const reels = socialFixturesEnabled ? [
   { id: 'r1', headline: 'The weekend edit', creator: '@nina', theme: '#66433D', icon: 'car-sport' as const, imageUrl: 'https://images.unsplash.com/photo-1625932197913-68755c94c51f?auto=format&fit=crop&w=1100&q=82' },
   { id: 'r2', headline: 'A road worth sharing', creator: '@alex', theme: '#1B5A63', icon: 'speedometer' as const, imageUrl: 'https://images.unsplash.com/photo-1558981806-ec527fa84c39?auto=format&fit=crop&w=1100&q=82' },
   { id: 'r3', headline: 'Ride together', creator: '@jules', theme: '#3B664A', icon: 'bicycle' as const, imageUrl: 'https://images.unsplash.com/photo-1517649763962-0c623066013b?auto=format&fit=crop&w=1100&q=82' },
-];
+] : [];
 
 const reelCandidates: Content[] = reels.map((reel, index) => ({
   id: reel.id, authorId: reel.creator.replace(/^@/, ''), privacy: 'public', authorPermitsDiscovery: true,
@@ -526,7 +535,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
         <Pill label="Relevant" selected={followingOrder==='relevant'} onPress={()=>setFollowingOrder('relevant')}/>
       </View> : null}
       {visiblePosts.length ? visiblePosts.map(({post,reason})=>renderPost(post,reason))
-        : <PreviewEmpty icon="sparkles-outline" heading="Nothing to show" body="Change your interests to see more."/>}
+        : <PreviewEmpty icon="images-outline" heading="No posts yet" body="Posts will appear here when sharing is available."/>}
     </View>;
   }
 
@@ -592,7 +601,10 @@ function AuthenticatedSocialApp(): React.JSX.Element {
             </View>
           </View>
         ))}
+        {!recommendedClubs.length ? <PreviewEmpty icon="people-outline" heading="No clubs yet"
+          body="Clubs will appear here when the community is ready."/> : null}
         <HeaderLine heading="Upcoming events" />
+        {!recommendedEvents.length ? <Text style={s.muted}>No upcoming events.</Text> : null}
         {recommendedEvents.map((event) => (
           <View style={[s.card, s.pad]} key={event.id}>
             <View style={s.row}>
