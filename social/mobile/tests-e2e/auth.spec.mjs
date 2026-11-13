@@ -159,7 +159,7 @@ test('shared-account login requires separate Social age acknowledgment and signs
   await page.getByRole('button', { name: 'Continue to Social' }).click();
   await expect(page.getByRole('tab', { name: 'Home' })).toBeVisible();
   await page.getByRole('button', { name: 'Open profile' }).click();
-  await expect(page.getByText('@sample-rider')).toBeVisible();
+  await expect(page.getByTestId('social-profile-summary').getByText('@sample-rider', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Sign out of Social' }).click();
   await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeVisible();
   const stored = await page.evaluate(() => window.sessionStorage.getItem('rider_social_account_session_v1'));
