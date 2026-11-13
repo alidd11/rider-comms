@@ -579,7 +579,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
         style={[s.card,s.pad,{marginHorizontal:16,marginTop:9,marginBottom:12,gap:13}]}>
         <View style={s.rowBetween}>
           <Text style={[s.cardHeading,{fontSize:16}]}>Feed preferences</Text>
-          <Pressable accessibilityRole="button" accessibilityLabel="Close Feed preferences"
+          <Pressable accessibilityRole="button" accessibilityLabel="Close feed settings"
             onPress={()=>setFeedPreferencesOpen(false)}
             style={{minWidth:44,minHeight:44,justifyContent:'center',alignItems:'center'}}>
             <Ionicons name="close" color={C.muted} size={21}/>
