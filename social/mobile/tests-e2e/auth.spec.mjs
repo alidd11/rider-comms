@@ -148,6 +148,38 @@ test('Social begins with Rider Comms sign-in and rejects invalid credentials', a
   await expect(page.getByText('Username or password is incorrect.')).toBeVisible();
   await expect(page.getByRole('tab', { name: 'Home' })).toHaveCount(0);
 });
+test('Settings clears private device drafts without deleting the Rider Comms account', async ({ page }) => {
+  await fakeBackend(page);
+  await page.goto('/');
+  await page.getByRole('textbox', { name: 'Username' }).fill('sample-rider');
+  await page.getByRole('textbox', { name: 'Password' }).fill(randomUUID());
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await page.getByRole('checkbox', { name: 'I confirm I am at least 16' }).click();
+  await page.getByRole('button', { name: 'Continue to Social' }).click();
+  await page.getByRole('button', { name: 'Open profile' }).click();
+  await page.getByRole('tab', { name: 'Garage profile tab' }).click();
+  await page.getByRole('button', { name: 'Add vehicle to garage' }).click();
+  await page.getByRole('textbox', { name: 'Vehicle make' }).fill('PrivacyTest');
+  await page.getByRole('textbox', { name: 'Vehicle model' }).fill('Temporary');
+  await page.getByRole('button', { name: 'Save vehicle' }).click();
+  await expect(page.getByText('PrivacyTest Temporary')).toBeVisible();
+  await page.getByRole('button', { name: 'Open settings and privacy' }).click();
+  await expect(page.getByTestId('social-settings')).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Privacy policy' })).toBeVisible();
+  await page.getByRole('button', { name: 'Clear local Social drafts' }).click();
+  await expect(page.getByTestId('confirm-clear-social-drafts')).toBeVisible();
+  await page.getByRole('button', { name: 'Confirm clear local drafts' }).click();
+  await expect(page.getByText('Device-only drafts cleared.')).toBeVisible();
+  await page.getByRole('button', { name: 'Back to profile' }).click();
+  await expect(page.getByText('PrivacyTest Temporary')).toHaveCount(0);
+  await expect(page.getByText('Your garage starts here')).toBeVisible();
+  await page.reload();
+  await page.getByRole('button', { name: 'Open profile' }).click();
+  await page.getByRole('tab', { name: 'Garage profile tab' }).click();
+  await expect(page.getByText('PrivacyTest Temporary')).toHaveCount(0);
+  await expect(page.getByTestId('social-profile-summary')).toBeVisible();
+});
+
 test('shared-account login requires separate Social age acknowledgment and signs out', async ({ page }) => {
   await fakeBackend(page);
   await page.goto('/');
