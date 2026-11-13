@@ -258,7 +258,9 @@ function AuthenticatedSocialApp(): React.JSX.Element {
     ...noViewer, userId: identity.riderId, ageFloor: 16, followedAuthors: followed,
     interests: { cars: 0.8, motorcycles: 0.9, cycling: 0.7 },
     hiddenContentIds: hiddenPostIds, hiddenTopics,
-    selectedRegion: 'London', personalisationEnabled: personalisation,
+    // Broad-area discovery requires the rider's explicit choice, not a guessed home region.
+    ...(socialFixturesEnabled ? { selectedRegion: 'London' } : {}),
+    personalisationEnabled: personalisation,
   }), [identity.riderId, hiddenPostIds, hiddenTopics, personalisation, followed]);
 
   const visiblePosts = useMemo(() => {
