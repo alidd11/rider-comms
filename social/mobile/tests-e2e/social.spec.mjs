@@ -869,6 +869,12 @@ test('Shop mobile hierarchy fits narrow phones and search clear restores discove
   await expect(page.getByRole('textbox', { name: 'Search marketplace' })).toHaveValue('');
   await expect(page.getByTestId('shop-card-l1')).toBeVisible();
   await expect(page.getByTestId('shop-card-l2')).toBeVisible();
+  const firstCard = await page.getByTestId('shop-card-l1').boundingBox();
+  const secondCard = await page.getByTestId('shop-card-l2').boundingBox();
+  expect(firstCard).not.toBeNull();
+  expect(secondCard).not.toBeNull();
+  // Two-column browsing must remain intact even at a 320px viewport.
+  expect(Math.abs((firstCard?.y ?? 0) - (secondCard?.y ?? 1000))).toBeLessThan(5);
   await expect(page.getByText('No matching listings')).toHaveCount(0);
   await expect(page.getByTestId('social-app-recovery')).toHaveCount(0);
   expect(errors).toEqual([]);
