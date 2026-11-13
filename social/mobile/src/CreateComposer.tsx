@@ -47,9 +47,10 @@ function MediaCanvas({ item }: { item: ComposerMedia }) {
     style={{ flex: 1, width: '100%', backgroundColor: '#020408' }} />;
 }
 
-function Option({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
+function Option({ label, selected, onPress, disabled = false }: { label: string; selected: boolean; onPress: () => void; disabled?: boolean }) {
   return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ selected }}
-    onPress={onPress} style={[s.pill, selected && s.pillActive, { paddingVertical: 8, paddingHorizontal: 13 }]}>
+    disabled={disabled} onPress={onPress}
+    style={[s.pill, selected && s.pillActive, { paddingVertical: 8, paddingHorizontal: 13, opacity: disabled ? 0.45 : 1 }]}>
     <Text style={[s.pillText, selected && s.pillTextActive]}>{label}</Text>
   </Pressable>;
 }
@@ -87,6 +88,8 @@ export function CreateComposer({ initialMode = 'Post', onClose, riderId }: { ini
   const [processing, setProcessing] = useState(false);
   const [ratio, setRatio] = useState<AspectPreset>('original');
   const originals = useRef<Record<string, ComposerMedia>>({});
+  const currentMode = useRef(mode);
+  currentMode.current = mode;
   const mounted = useRef(true);
   const pickerSequence = useRef(0);
   const pickerPending = useRef(false);
@@ -166,7 +169,7 @@ export function CreateComposer({ initialMode = 'Post', onClose, riderId }: { ini
       const result = camera
         ? await ImagePicker.launchCameraAsync({ mediaTypes: options.mediaTypes, quality: 0.9 })
         : await ImagePicker.launchImageLibraryAsync(options);
-      if (!mounted.current || request !== pickerSequence.current || requestedMode !== mode) return;
+      if (!mounted.current || request !== pickerSequence.current || requestedMode !== currentMode.current) return;
       if (result.canceled || !result.assets?.length) return;
       const stamp = Date.now();
       const incoming: ComposerMedia[] = result.assets.map((asset, i) => ({
