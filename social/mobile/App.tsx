@@ -190,6 +190,10 @@ function AuthenticatedSocialApp(): React.JSX.Element {
   const [liked, setLiked] = useState<Set<string>>(() => new Set());
   const [followed, setFollowed] = useState<Set<string>>(() => new Set(followingIds));
   const [saved, setSaved] = useState<Set<string>>(() => new Set());
+  // Shop selections are session-only, but must survive navigating to Home,
+  // Profile or Messages and back; ShopScreen itself unmounts between tabs.
+  const [shopSaved, setShopSaved] = useState<Set<string>>(() => new Set());
+  const [shopBasket, setShopBasket] = useState<Set<string>>(() => new Set());
   const [joined, setJoined] = useState<Set<string>>(() => new Set());
   const [going, setGoing] = useState<Set<string>>(() => new Set());
   const [selectedClub, setSelectedClub] = useState<string | null>(null);
@@ -634,7 +638,10 @@ function AuthenticatedSocialApp(): React.JSX.Element {
 
   function renderShop() {
     return <ShopScreen items={filteredListings} collectionItems={availableListings} search={search} onSearch={setSearch}
-      category={marketFilter} onCategory={setMarketFilter}/>;
+      category={marketFilter} onCategory={setMarketFilter}
+      saved={shopSaved} basket={shopBasket}
+      onToggleSaved={(id) => toggle(setShopSaved, id)}
+      onAddBasket={(id) => setShopBasket(current => new Set(current).add(id))}/>;
   }
 
   async function clearDeviceDrafts(): Promise<void> {
