@@ -9,17 +9,17 @@ type Page = 'discover' | 'saved' | 'basket' | 'orders';
 const categories = ['All', 'Accessories', 'Vehicles', 'Rentals'] as const;
 const interests = ['All', 'Cars', 'Motorcycles', 'Cycling'] as const;
 
-export function ShopScreen({ items, collectionItems, search, onSearch, category, onCategory, onOpenProfile }: {
+export function ShopScreen({ items, collectionItems, search, onSearch, category, onCategory }: {
   items: readonly Item[];
   collectionItems: readonly Item[];
   search: string;
   onSearch: (value:string) => void;
   category: string;
   onCategory: (value:string) => void;
-  onOpenProfile: () => void;
 }) {
   const [section,setSection] = useState<Page>('discover');
   const [interest,setInterest] = useState<string>('All');
+  const [filtersOpen,setFiltersOpen] = useState(false);
   const [selected,setSelected] = useState<string|null>(null);
   const [shop,setShop] = useState<string|null>(null);
   const [saved,setSaved] = useState<Set<string>>(() => new Set());
@@ -105,28 +105,9 @@ export function ShopScreen({ items, collectionItems, search, onSearch, category,
 
   return <View testID="shop-discovery" style={{gap:15,paddingBottom:26,width:'100%',maxWidth:850,alignSelf:'center'}}>
     <View style={{paddingHorizontal:16,paddingTop:7,gap:13}}>
-      <View style={{flexDirection:'row',alignItems:'center',justifyContent:'space-between'}}>
-        <View style={{gap:2}}>
-          <Text style={{color:C.ink,fontSize:27,fontWeight:'900'}}>Shop</Text>
-          <Text style={{color:C.muted,fontSize:11}}>Marketplace · Example listings</Text>
-        </View>
-        <View style={{flexDirection:'row'}}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Open profile"
-            onPress={onOpenProfile} style={{padding:9}}>
-            <Ionicons name="person-circle-outline" color={C.ink} size={24}/>
-          </Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel="Shop saved"
-            onPress={()=>{setSection('saved');setShop(null);}} style={{padding:9}}>
-            <Ionicons name="heart-outline" color={C.ink} size={24}/>
-          </Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel="Shop basket"
-            onPress={()=>{setSection('basket');setShop(null);}} style={{padding:9}}>
-            <Ionicons name="bag-outline" color={C.ink} size={24}/>
-            {basket.size>0?<Text style={{position:'absolute',right:0,top:0,color:C.accent,fontWeight:'900'}}>
-              {basket.size}
-            </Text>:null}
-          </Pressable>
-        </View>
+      <View style={{gap:2}}>
+        <Text style={{color:C.ink,fontSize:24,fontWeight:'900'}}>Shop</Text>
+        <Text style={{color:C.muted,fontSize:11}}>Sample marketplace</Text>
       </View>
       <View style={{backgroundColor:'transparent',borderBottomWidth:1,borderBottomColor:'#3B4752',
         paddingHorizontal:0,minHeight:48,flexDirection:'row',alignItems:'center',gap:10}}>
@@ -141,13 +122,31 @@ export function ShopScreen({ items, collectionItems, search, onSearch, category,
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap:8}}>
         {categories.map(x=>filterButton(x,category===x,()=>{onCategory(x);setSection('discover');},'Shop category '))}
       </ScrollView>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap:16}}>
-        {interests.map(x=> <Pressable key={x} accessibilityRole="button" accessibilityLabel={'Shop interest '+x}
-          onPress={()=>setInterest(x)} style={{paddingVertical:6,borderBottomWidth:2,
-            borderBottomColor:interest===x?C.accent:'transparent'}}>
-          <Text style={{color:interest===x?C.ink:C.muted,fontWeight:'800',fontSize:12}}>{x}</Text>
-        </Pressable>)}
-      </ScrollView>
+      <View style={{alignItems:'flex-end'}}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Shop filters"
+          accessibilityState={{ expanded: filtersOpen }} onPress={()=>setFiltersOpen(value=>!value)}
+          style={{flexDirection:'row',gap:7,alignItems:'center',minHeight:40}}>
+          <Ionicons name="options-outline" color={C.ink} size={18}/>
+          <Text style={{color:C.ink,fontSize:13,fontWeight:'800'}}>
+            {interest==='All'?'Filters':interest}
+          </Text>
+          <Ionicons name={filtersOpen?'chevron-up':'chevron-down'} color={C.muted} size={15}/>
+        </Pressable>
+      </View>
+      {filtersOpen ? <View testID="shop-vehicle-filters" style={{
+        borderTopWidth:1,borderBottomWidth:1,borderColor:C.border,paddingVertical:10,gap:9}}>
+        <Text style={{fontSize:12,color:C.muted}}>Vehicle type</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap:12}}>
+          {interests.map(x=> <Pressable key={x} accessibilityRole="button"
+            accessibilityLabel={'Shop interest '+x}
+            accessibilityState={{selected:interest===x}}
+            onPress={()=>{setInterest(x);setFiltersOpen(false);}}
+            style={{paddingHorizontal:12,paddingVertical:9,borderRadius:12,
+              borderWidth:1,borderColor:interest===x?C.accent:C.border}}>
+            <Text style={{color:interest===x?C.accent:C.ink,fontSize:12,fontWeight:'700'}}>{x}</Text>
+          </Pressable>)}
+        </ScrollView>
+      </View> : null}
       <View style={{flexDirection:'row',alignItems:'center',gap:6}}>
         <Ionicons name="shield-checkmark-outline" color={C.accent} size={15}/>
         <Text style={{fontSize:11,color:C.accent,fontWeight:'800'}}>Verified only</Text>
