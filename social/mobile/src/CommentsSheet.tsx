@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { C } from './styles';
 
 export type CommentPreview = { id: string; text: string };
@@ -13,6 +14,7 @@ export function CommentsSheet({
   onSubmit: (value: string) => void;
   onClose: () => void;
 }) {
+  const insets = useSafeAreaInsets();
   const [draft, setDraft] = useState('');
   const submit = () => {
     const text = draft.trim();
@@ -20,9 +22,12 @@ export function CommentsSheet({
     onSubmit(text);
     setDraft('');
   };
-  return <View testID="comments-overlay" style={{
+  return <View testID="comments-overlay" nativeID="social-comments-overlay" style={{
     position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, zIndex: 50,
     justifyContent: 'flex-end',
+    // Native gesture-bar inset. Web receives its own viewport env() value
+    // from prepare-pwa.mjs, avoiding a doubled inset in Safari.
+    paddingBottom: Platform.OS === 'web' ? 0 : insets.bottom,
   }}>
     <Pressable accessibilityRole="button" accessibilityLabel="Dismiss comments"
       onPress={onClose} style={{
