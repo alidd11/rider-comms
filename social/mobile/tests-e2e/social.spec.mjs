@@ -584,6 +584,27 @@ test('PWA viewport recalculates on rotation and resume without moving bottom tab
 });
 
 
+test('existing comments and connections sheets respect the home-indicator inset', async ({ page }) => {
+  await page.goto('/');
+  // Headless browsers have no hardware home indicator. Simulate the exact
+  // safe-area CSS variable installed iOS PWAs provide in real use.
+  await page.addStyleTag({ content: 'html { --bottom-safe-area: 34px !important; }' });
+  await page.getByRole('button', { name: 'Open comments' }).first().click();
+  await expect(page.getByTestId('comments-overlay')).toBeVisible();
+  const commentInset = await page.locator('#social-comments-overlay')
+    .evaluate(element => parseFloat(getComputedStyle(element).paddingBottom));
+  expect(commentInset).toBe(34);
+  await page.getByRole('button', { name: 'Close comments' }).click();
+
+  await page.getByRole('button', { name: 'Open profile' }).click();
+  await page.getByRole('button', { name: 'View friends' }).click();
+  await expect(page.getByTestId('profile-connections-sheet')).toBeVisible();
+  const connectionsInset = await page.locator('#social-connections-overlay')
+    .evaluate(element => parseFloat(getComputedStyle(element).paddingBottom));
+  expect(connectionsInset).toBe(34);
+  await page.getByRole('button', { name: 'Close connections' }).click();
+});
+
 test('Create opens camera-first with a real permission path and gallery alternative', async ({ page }, testInfo) => {
   await page.goto('/');
   await page.getByRole('tab', { name: 'Create' }).click();
