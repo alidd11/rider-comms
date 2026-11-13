@@ -156,9 +156,9 @@ export function ShopScreen({ items, collectionItems, search, onSearch, category,
     width:'100%',maxWidth:850,alignSelf:'center',paddingBottom:28,
   }}>
     <View style={{paddingHorizontal:18,paddingTop:10,gap:14}}>
-      <Text style={{color:C.muted,fontSize:13,lineHeight:18}}>
+      {!noLiveInventory?<Text style={{color:C.muted,fontSize:13,lineHeight:18}}>
         Gear, vehicles & rentals
-      </Text>
+      </Text>:null}
       <View style={{backgroundColor:C.panel,borderColor:C.border,borderWidth:1,borderRadius:16,
         flexDirection:'row',alignItems:'center',paddingLeft:15,minHeight:52,gap:11}}>
         <Ionicons name="search-outline" size={21} color={C.muted}/>
@@ -171,7 +171,7 @@ export function ShopScreen({ items, collectionItems, search, onSearch, category,
           <Ionicons name="close-circle" size={22} color={C.muted}/>
         </Pressable>:null}
       </View>
-      <View style={{flexDirection:'row',alignItems:'center',gap:9}}>
+      {!noLiveInventory?<View style={{flexDirection:'row',alignItems:'center',gap:9}}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{flex:1}}
           contentContainerStyle={{gap:8,paddingVertical:1}}>
           {categories.map(x=>filterButton(x,category===x,
@@ -189,8 +189,8 @@ export function ShopScreen({ items, collectionItems, search, onSearch, category,
           <Text style={{fontSize:13,fontWeight:'700',
             color:filtersOpen||interest!=='All'?C.accent:C.ink}}>Filter</Text>
         </Pressable>
-      </View>
-      {filtersOpen?<View testID="shop-vehicle-filters" style={{
+      </View>:null}
+      {filtersOpen&&!noLiveInventory?<View testID="shop-vehicle-filters" style={{
         backgroundColor:C.panel,borderColor:C.border,borderWidth:1,
         borderRadius:16,padding:14,gap:11}}>
         <Text style={{color:C.ink,fontSize:14,fontWeight:'700'}}>Vehicle type</Text>
@@ -240,19 +240,19 @@ export function ShopScreen({ items, collectionItems, search, onSearch, category,
     </View>:null}
 
     {section==='discover' && noLiveInventory ? <View testID="shop-launch-state"
-      style={{marginHorizontal:18,marginTop:22,borderRadius:23,
+      style={{marginHorizontal:18,marginTop:16,borderRadius:21,
         backgroundColor:C.panel,borderWidth:1,borderColor:C.border,
-        paddingHorizontal:22,paddingTop:26,paddingBottom:24,gap:13}}>
-      <View style={{height:56,width:56,borderRadius:18,backgroundColor:C.accentDark,
+        paddingHorizontal:20,paddingTop:20,paddingBottom:20,gap:10}}> 
+      <View style={{height:48,width:48,borderRadius:16,backgroundColor:C.accentDark,
         alignItems:'center',justifyContent:'center'}}>
-        <Ionicons name="storefront-outline" size={27} color={C.accent}/>
+        <Ionicons name="storefront-outline" size={24} color={C.accent}/>
       </View>
       <Text style={{color:C.accent,fontWeight:'800',fontSize:11,letterSpacing:1.2}}>
         MARKETPLACE PREVIEW
       </Text>
-      <Text style={{color:C.ink,fontWeight:'800',fontSize:23,lineHeight:29,
-        letterSpacing:-0.55}}>The marketplace is getting ready</Text>
-      <Text style={{color:C.muted,fontSize:14,lineHeight:21}}>
+      <Text style={{color:C.ink,fontWeight:'800',fontSize:21,lineHeight:26,
+        letterSpacing:-0.4}}>The marketplace is getting ready</Text>
+      <Text style={{color:C.muted,fontSize:13,lineHeight:19}}>
         {emptyDescription}
       </Text>
       {hasDiscoveryFilters?<Pressable accessibilityRole="button" accessibilityLabel="Reset marketplace search"
@@ -264,13 +264,10 @@ export function ShopScreen({ items, collectionItems, search, onSearch, category,
       <Pressable accessibilityRole="button" accessibilityLabel="Explore clubs from Shop"
         onPress={onExploreClubs} style={{backgroundColor:C.accent,
           borderRadius:14,minHeight:49,alignItems:'center',justifyContent:'center',
-          flexDirection:'row',gap:8,marginTop:4}}>
+          flexDirection:'row',gap:8,marginTop:2}}>
         <Text style={{fontSize:15,fontWeight:'800',color:'#0B1D1C'}}>Explore clubs</Text>
         <Ionicons name="arrow-forward" size={18} color="#0B1D1C"/>
       </Pressable>
-      <Text style={{color:C.muted,fontSize:12,lineHeight:18,textAlign:'center'}}>
-        No products, orders or payments are live.
-      </Text>
     </View> : <>
       <View style={{paddingHorizontal:18,paddingTop:22,paddingBottom:13,
         flexDirection:'row',alignItems:'baseline',justifyContent:'space-between',gap:12}}>
