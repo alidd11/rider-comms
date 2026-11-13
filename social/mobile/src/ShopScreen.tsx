@@ -283,8 +283,9 @@ export function ShopScreen({ items, collectionItems, search, onSearch, category,
       {section!=='orders' && filtered.length>0 ?
         <View style={{flexDirection:'row',flexWrap:'wrap',gap:10,paddingHorizontal:16}}>
           {filtered.map(product=><View key={product.id} testID={'shop-card-'+product.id}
-            style={{width:'48%',backgroundColor:C.panel,
-              borderRadius:17,overflow:'hidden',borderWidth:1,borderColor:C.border}}>
+            style={{flexBasis:'42%',flexGrow:1,maxWidth:'49%',minWidth:0,
+              backgroundColor:C.panel,borderRadius:17,overflow:'hidden',
+              borderWidth:1,borderColor:C.border}}>
             <Pressable accessibilityRole="button" accessibilityLabel={'View listing '+product.name}
               onPress={()=>openProduct(product)} style={{flex:1}}>
               <View style={{aspectRatio:0.98,backgroundColor:product.accent}}>
