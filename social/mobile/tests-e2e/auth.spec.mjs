@@ -82,8 +82,8 @@ test('sign-in textboxes have no filled blue rectangle and keep a visible focus u
       bottomWidth: parseFloat(wrapper.borderBottomWidth),
     };
   });
-  expect(look.fill).toMatch(/transparent|rgba\\(0, 0, 0, 0\\)/);
-  expect(look.wrapperFill).toMatch(/transparent|rgba\\(0, 0, 0, 0\\)/);
+  expect(['transparent', 'rgba(0, 0, 0, 0)']).toContain(look.fill);
+  expect(['transparent', 'rgba(0, 0, 0, 0)']).toContain(look.wrapperFill);
   expect(look.topWidth).toBe(0);
   expect(look.bottomWidth).toBeGreaterThan(0);
   await input.focus();
