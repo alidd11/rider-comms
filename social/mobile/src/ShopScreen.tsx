@@ -281,7 +281,7 @@ export function ShopScreen({ items, collectionItems, search, onSearch, category,
         </Text>:null}
       </View>
       {section!=='orders' && filtered.length>0 ?
-        <View style={{flexDirection:'row',flexWrap:'wrap',gap:12,paddingHorizontal:16}}>
+        <View style={{flexDirection:'row',flexWrap:'wrap',gap:10,paddingHorizontal:16}}>
           {filtered.map(product=><View key={product.id} testID={'shop-card-'+product.id}
             style={{width:'48%',backgroundColor:C.panel,
               borderRadius:17,overflow:'hidden',borderWidth:1,borderColor:C.border}}>
