@@ -15,7 +15,7 @@ const cors = {
   'access-control-allow-methods': 'GET,POST,OPTIONS',
 };
 async function fakeBackend(page, options = {}) {
-  const { identity = fakeAccount, accountResult = 'ok' } = options;
+  const { identity = fakeAccount, accountResult = 'ok', pilotResult = 'allowed' } = options;
   await page.route(origin + '/**', async route => {
     const method = route.request().method();
     const pathname = new URL(route.request().url()).pathname;
@@ -33,6 +33,13 @@ async function fakeBackend(page, options = {}) {
     } else if (pathname === '/auth/me') {
       status = accountResult === 'expired' ? 401 : 200;
       body = status === 401 ? { error: 'unauthorized' } : identity;
+    } else if (pathname === '/social/bootstrap') {
+      status = pilotResult === 'denied' ? 403 : pilotResult === 'unavailable' ? 503 : 200;
+      body = pilotResult === 'allowed' ? { entitlement: 'pilot', policyVersion: 'social-pilot-v1', capabilities: {
+  mediaUpload: false, privatePosting: false, publicPosting: false,
+  liveStreaming: false, marketplaceCheckout: false, creatorPayouts: false } }
+        : pilotResult === 'malformed' ? { entitlement: 'pilot' }
+          : { error: status === 403 ? 'social_beta_not_enabled' : 'service_unavailable' };
     } else if (pathname === '/auth/logout') {
       return route.fulfill({ status: 204, headers: cors });
     } else if (pathname === '/auth/accept-terms') {
@@ -388,4 +395,31 @@ test('signup never submits without accepting Terms and Guidelines', async ({ pag
   await page.getByRole('button', { name: 'Create Rider Comms account' }).click();
   await expect(page.getByRole('button', { name: 'Continue to Social' })).toBeVisible();
   expect(signupRequests).toBe(1);
+});
+
+test('non-pilot cannot enter Social but can still manage and delete their account', async ({ page }) => {
+  await fakeBackend(page, { pilotResult: 'denied' });
+  await page.addInitScript(riderId => {
+    window.sessionStorage.setItem('rider_social_account_session_v1', 'synthetic-non-pilot');
+    window.sessionStorage.setItem('rider_social_age_ack_v1', riderId);
+  }, fakeAccount.riderId);
+  await page.goto('/');
+  await expect(page.getByText('Social is currently invite-only')).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Home' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Account settings' }).click();
+  await expect(page.getByRole('button', { name: 'Delete Rider Comms account' })).toBeVisible();
+  await page.getByRole('button', { name: 'Back to profile' }).click();
+  await page.getByRole('button', { name: 'Sign out of Social' }).click();
+  await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeVisible();
+});
+test('Social bootstrap outage cannot reveal the feed or Create screen', async ({ page }) => {
+  await fakeBackend(page, { pilotResult: 'unavailable' });
+  await page.addInitScript(riderId => {
+    window.sessionStorage.setItem('rider_social_account_session_v1', 'synthetic-pilot-outage');
+    window.sessionStorage.setItem('rider_social_age_ack_v1', riderId);
+  }, fakeAccount.riderId);
+  await page.goto('/');
+  await expect(page.getByText('Social is temporarily unavailable')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Retry Social access check' })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Home' })).toHaveCount(0);
 });

@@ -27,10 +27,14 @@ test.beforeEach(async ({ page }) => {
       return;
     }
     const isMe = pathname === '/auth/me';
+    const isPilot = pathname === '/social/bootstrap';
     const isFriends = pathname === '/riders/' + testRiderId + '/friends';
     const isConversations = pathname === '/conversations';
-    const status = isMe || isFriends || isConversations ? 200 : 404;
-    const body = isMe
+    const status = isMe || isPilot || isFriends || isConversations ? 200 : 404;
+    const body = isPilot ? { entitlement: 'pilot', policyVersion: 'social-pilot-v1', capabilities: {
+  mediaUpload: false, privatePosting: false, publicPosting: false,
+  liveStreaming: false, marketplaceCheckout: false, creatorPayouts: false } }
+      : isMe
       ? { riderId: testRiderId, username: 'production-smoke', emailVerified: true,
           termsAccepted: true, termsVersion: 'terms-test-only' }
       : isFriends ? { friends: [], nextCursor: null }

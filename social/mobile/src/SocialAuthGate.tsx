@@ -8,6 +8,7 @@ import { accountTokenStorage } from './authStorage';
 import { clearLocalDemo } from './demoStorage';
 import { clearAccountTextDraft } from './textDraftStorage';
 import { ukPlanningPolicy } from './policy';
+import { SocialPilotGate } from './SocialPilotGate';
 
 type Mode = 'login' | 'signup' | 'recover';
 type SocialAccountContextValue = {
@@ -277,7 +278,8 @@ export function SocialAuthGate({ children }: { children: React.ReactNode }) {
 
   if (identity && identity.termsAccepted && ageAcknowledged) {
     return <Context.Provider value={{ identity, client, logout: signOut, deleteAccount, resendVerification }}>
-      {children}
+      <SocialPilotGate key={identity.riderId} identity={identity} client={client}
+        onSignOut={signOut} onDeleteAccount={deleteAccount}>{children}</SocialPilotGate>
     </Context.Provider>;
   }
 
