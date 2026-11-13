@@ -47,6 +47,72 @@ async function fakeBackend(page, options = {}) {
   });
 }
 
+test('Social account deletion requires explicit irreversible confirmation and clears its session', async ({ page }) => {
+  await fakeBackend(page, { identity: { ...fakeAccount, emailVerified: true } });
+  let deletions = 0;
+  await page.route(origin + '/auth/me', async route => {
+    if (route.request().method() !== 'DELETE') return route.fallback();
+    deletions += 1;
+    await route.fulfill({ status: 204, headers: cors });
+  });
+  await page.addInitScript((id) => {
+    window.sessionStorage.setItem('rider_social_account_session_v1', 'synthetic-deletion-token');
+    window.sessionStorage.setItem('rider_social_age_ack_v1', id);
+    window.localStorage.setItem('@rider-comms/social-demo/v2/' + id, '{"profile":{},"garage":[]}');
+  }, fakeAccount.riderId);
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Open profile' }).click();
+  await page.getByRole('button', { name: 'Open settings and privacy' }).click();
+  await expect(page.getByRole('button', { name: 'Clear local Social drafts' })).toBeVisible();
+  await page.getByRole('button', { name: 'Delete Rider Comms account' }).click();
+  const confirm = page.getByRole('button', { name: 'Confirm permanent account deletion' });
+  await expect(confirm).toBeDisabled();
+  await page.getByRole('textbox', { name: 'Type DELETE to confirm account deletion' }).fill('NOT YET');
+  await expect(confirm).toBeDisabled();
+  await page.getByRole('button', { name: 'Cancel account deletion' }).click();
+  expect(deletions).toBe(0);
+  await page.getByRole('button', { name: 'Delete Rider Comms account' }).click();
+  await page.getByRole('textbox', { name: 'Type DELETE to confirm account deletion' }).fill('DELETE');
+  await expect(confirm).toBeEnabled();
+  await confirm.click();
+  await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeVisible();
+  expect(deletions).toBe(1);
+  const remaining = await page.evaluate(() => ({
+    token: window.sessionStorage.getItem('rider_social_account_session_v1'),
+    age: window.sessionStorage.getItem('rider_social_age_ack_v1'),
+    localDraft: window.localStorage.getItem('@rider-comms/social-demo/v2/rider-auth-e2e'),
+  }));
+  expect(remaining.token).toBeNull();
+  expect(remaining.age).toBeNull();
+  expect(remaining.localDraft).toBeNull();
+});
+
+test('account deletion server failure keeps the signed-in account and displays a retryable error', async ({ page }) => {
+  await fakeBackend(page, { identity: { ...fakeAccount, emailVerified: true } });
+  let deletions = 0;
+  await page.route(origin + '/auth/me', async route => {
+    if (route.request().method() !== 'DELETE') return route.fallback();
+    deletions += 1;
+    await route.fulfill({ status: 503, contentType: 'application/json', headers: cors,
+      body: JSON.stringify({ error: 'server_unavailable' }) });
+  });
+  await page.addInitScript((id) => {
+    window.sessionStorage.setItem('rider_social_account_session_v1', 'synthetic-deletion-token');
+    window.sessionStorage.setItem('rider_social_age_ack_v1', id);
+  }, fakeAccount.riderId);
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Open profile' }).click();
+  await page.getByRole('button', { name: 'Open settings and privacy' }).click();
+  await page.getByRole('button', { name: 'Delete Rider Comms account' }).click();
+  await page.getByRole('textbox', { name: 'Type DELETE to confirm account deletion' }).fill('DELETE');
+  await page.getByRole('button', { name: 'Confirm permanent account deletion' }).click();
+  await expect(page.getByText(/Account deletion was not confirmed/)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Delete Rider Comms account' })).toBeVisible();
+  expect(deletions).toBe(1);
+  expect(await page.evaluate(() =>
+    window.sessionStorage.getItem('rider_social_account_session_v1'))).toBe('synthetic-deletion-token');
+});
+
 test('sign-in stays top anchored while iPhone keyboard viewport changes', async ({ page }) => {
   await fakeBackend(page);
   await page.setViewportSize({ width: 390, height: 844 });
