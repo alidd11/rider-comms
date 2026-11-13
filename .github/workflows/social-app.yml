@@ -41,6 +41,10 @@ jobs:
       - run: test -f dist/index.html
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
+      # A vulnerable runtime dependency blocks beta promotion even when the UI
+      # looks correct. Keep dev-only test tooling out of the runtime scope.
+      - name: Audit production dependency vulnerabilities
+        run: npm audit --omit=dev --audit-level=high
       - name: Upload social app UI screenshots and traces
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
