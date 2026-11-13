@@ -31,9 +31,27 @@ export interface SharedFriend {
   displayName: string;
   avatarId?: string;
 }
+export interface RiderProfile {
+  riderId: string;
+  displayName: string;
+  handle: string;
+  avatarId?: string;
+}
+export interface DirectMessage {
+  id: string;
+  fromRiderId: string;
+  toRiderId: string;
+  text: string;
+  createdAt: number;
+}
+export interface MessageThreadPage {
+  messages: DirectMessage[];
+  nextCursor: string | null;
+  peerReadThroughMessageId?: string | null;
+}
 export interface SharedConversation {
   friend: SharedFriend;
-  lastMessage: { id: string; text: string; fromRiderId: string; toRiderId: string; createdAt: number };
+  lastMessage: DirectMessage;
   unreadCount: number;
 }
 export class AccountApiError extends Error {
@@ -57,7 +75,7 @@ export class AccountConnectionError extends Error {
 }
 export function accountErrorMessage(error: unknown): string {
   if (error instanceof AccountConnectionError)
-    return 'Rider Comms could not be reached. Check your connection or try again later.';
+    return 'Can’t connect right now. Check your connection and try again.';
   if (!(error instanceof AccountApiError)) return 'Something went wrong. Try again.';
   const messages: Record<string, string> = {
     invalid_credentials: 'Username or password is incorrect.',
@@ -68,17 +86,21 @@ export function accountErrorMessage(error: unknown): string {
     invalid_email: 'Enter a valid email address.',
     weak_password: 'Choose a stronger password.',
     objectionable_username: 'That username is not allowed.',
-    terms_not_accepted: 'Please accept the Terms and Community Guidelines.',
+    terms_not_accepted: 'Accept the Terms and Community Guidelines to continue.',
     invalid_terms_version: 'The Terms have changed. Review the latest version and try again.',
     terms_version_mismatch: 'The Terms have changed. Review the latest version and try again.',
-    not_verified: 'Verify your email before using this feature.',
-    full_account_required: 'Sign in to a full Rider Comms account to use Social.',
+    not_verified: 'Verify your email to message riders.',
+    not_friends: 'You can only message your Rider Comms friends.',
+    blocked: 'You can’t message this rider.',
+    objectionable_content: 'That message can’t be sent.',
+    invalid_message: 'Enter a message between 1 and 1,000 characters.',
+    full_account_required: 'Sign in with a Rider Comms account to use Social.',
   };
   if (error.status === 429) return 'Too many attempts. Try again in a few minutes.';
   if (error.code === 'invalid_credentials') return messages.invalid_credentials;
   if (error.status === 401) return 'Your session has ended. Sign in again.';
   if (error.status === 403) return messages[error.code] ?? 'Verify your email to message riders.';
-  return messages[error.code] ?? 'Could not complete this request. Try again.';
+  return messages[error.code] ?? 'That didn’t work. Try again.';
 }
 type Fetcher = (url: string, init: RequestInit) => Promise<Response>;
 type RawIdentity = Partial<AccountIdentity> & { username?: unknown };
@@ -211,5 +233,36 @@ export class RiderAccountClient {
   }
   async conversations(): Promise<{ conversations: SharedConversation[]; nextCursor?: string | null }> {
     return this.request('GET', '/conversations?limit=50', undefined, true);
+  }
+  /** Profile identity always comes from Rider Comms, never a local Social alias. */
+  async ownProfile(): Promise<RiderProfile> {
+    const riderId = this.user?.riderId;
+    if (!riderId) throw new AccountApiError(401, 'not_signed_in');
+    return this.request('GET', '/riders/' + encodeURIComponent(riderId) + '/profile', undefined, true);
+  }
+  async riderProfile(riderId: string): Promise<RiderProfile> {
+    if (!riderId.trim()) throw new AccountApiError(400, 'invalid_rider_id');
+    return this.request('GET', '/profiles/' + encodeURIComponent(riderId), undefined, true);
+  }
+  async riderProfiles(riderIds: readonly string[]): Promise<Record<string, RiderProfile>> {
+    const ids = [...new Set(riderIds.filter(id => typeof id === 'string' && id.trim()))];
+    if (ids.length === 0) return {};
+    if (ids.length > 100) throw new AccountApiError(400, 'too_many_rider_ids');
+    const page = await this.request<{ profiles: Record<string, RiderProfile> }>('POST',
+      '/profiles/batch', { riderIds: ids }, true);
+    return page.profiles;
+  }
+  async messageThread(withRiderId: string): Promise<MessageThreadPage> {
+    if (!withRiderId.trim()) throw new AccountApiError(400, 'invalid_rider_id');
+    return this.request('GET', '/messages?withRiderId=' +
+      encodeURIComponent(withRiderId) + '&limit=50', undefined, true);
+  }
+  async sendMessage(toRiderId: string, text: string): Promise<DirectMessage> {
+    const message = text.trim();
+    if (!toRiderId.trim() || message.length < 1 || message.length > 1000)
+      throw new AccountApiError(400, 'invalid_message');
+    if (!this.user?.emailVerified)
+      throw new AccountApiError(403, 'not_verified');
+    return this.request('POST', '/messages', { toRiderId, text: message }, true);
   }
 }
