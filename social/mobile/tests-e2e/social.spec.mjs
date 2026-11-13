@@ -869,8 +869,12 @@ test('Shop mobile hierarchy fits narrow phones and search clear restores discove
   await expect(page.getByRole('textbox', { name: 'Search marketplace' })).toHaveValue('');
   await expect(page.getByTestId('shop-card-l1')).toBeVisible();
   await expect(page.getByTestId('shop-card-l2')).toBeVisible();
-  const firstCard = await page.getByTestId('shop-card-l1').boundingBox();
-  const secondCard = await page.getByTestId('shop-card-l2').boundingBox();
+  // Discovery ranks sample listings; l1/l2 are not necessarily adjacent.
+  // Measure the first two *rendered* product cards instead of assuming IDs
+  // and sort order match the first grid row.
+  const displayedCards = page.locator('[data-testid^="shop-card-"]');
+  const firstCard = await displayedCards.nth(0).boundingBox();
+  const secondCard = await displayedCards.nth(1).boundingBox();
   expect(firstCard).not.toBeNull();
   expect(secondCard).not.toBeNull();
   // Two-column browsing must remain intact even at a 320px viewport.
