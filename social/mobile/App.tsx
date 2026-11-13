@@ -726,7 +726,9 @@ function AuthenticatedSocialApp(): React.JSX.Element {
   }
 
   function renderMessages() {
-    return <View style={{ gap: 14 }}>
+    return <ScrollView style={{ flex: 1, minHeight: 0 }}
+      contentContainerStyle={{ gap: 14, paddingBottom: 20 }}
+      showsVerticalScrollIndicator={false}>
       <View style={s.rowBetween}>
         <Text style={s.title}>Messages</Text>
         <Pressable accessibilityRole="button" accessibilityLabel="Refresh shared messages"
@@ -749,7 +751,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
       <Pressable accessibilityRole="button" style={s.ghost} onPress={() => navigate('Home')}>
         <Text style={s.ghostText}>Back to feed</Text>
       </Pressable>
-    </View>;
+    </ScrollView>;
   }
 
   const story = demoStories.find((item) => item.id === selectedStory);
