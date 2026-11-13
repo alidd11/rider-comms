@@ -19,6 +19,20 @@ export function FeedMedia({
   const scroller = useRef<ScrollViewInstance>(null);
   const [width, setWidth] = useState(0);
   const [index, setIndex] = useState(0);
+  const priorWidth = useRef(0);
+
+  useEffect(() => {
+    if (width <= 0) return;
+    const page = Math.min(index, Math.max(0, images.length - 1));
+    // A Home Screen PWA can change width on rotation, split view or resume.
+    // Recalculate the existing photo's pixel position instead of leaving a
+    // partially visible image and an incorrect gallery counter.
+    if (priorWidth.current !== width || page !== index) {
+      priorWidth.current = width;
+      if (page !== index) setIndex(page);
+      scroller.current?.scrollTo({ x: page * width, animated: false });
+    }
+  }, [width, images.length, index]);
   const lastTap = useRef(0);
   const [heart, setHeart] = useState(false);
   useEffect(() => {
