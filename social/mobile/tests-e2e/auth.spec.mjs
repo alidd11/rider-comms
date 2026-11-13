@@ -160,6 +160,8 @@ test('shared-account login requires separate Social age acknowledgment and signs
   await expect(page.getByRole('tab', { name: 'Home' })).toBeVisible();
   await page.getByRole('button', { name: 'Open profile' }).click();
   await expect(page.getByTestId('social-profile-summary').getByText('@sample-rider', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Open settings and privacy' }).click();
+  await expect(page.getByTestId('social-settings')).toBeVisible();
   await page.getByRole('button', { name: 'Sign out of Social' }).click();
   await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeVisible();
   const stored = await page.evaluate(() => window.sessionStorage.getItem('rider_social_account_session_v1'));
@@ -176,6 +178,8 @@ test('failed server logout clears the device session and explains how to revoke 
   await page.getByRole('checkbox', { name: 'I confirm I am at least 16' }).click();
   await page.getByRole('button', { name: 'Continue to Social' }).click();
   await page.getByRole('button', { name: 'Open profile' }).click();
+  await page.getByRole('button', { name: 'Open settings and privacy' }).click();
+  await expect(page.getByTestId('social-settings')).toBeVisible();
   await page.getByRole('button', { name: 'Sign out of Social' }).click();
   await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeVisible();
   await expect(page.getByTestId('auth-error')).toContainText('Session safety');
