@@ -115,6 +115,29 @@ test('login errors sit beside the affected input instead of shifting the page he
   await expect(page.getByRole('button', { name: 'Show password' })).toBeVisible();
 });
 
+test('unavailable account service presents compact non-password error and stays on sign-in', async ({ page }) => {
+  await page.route(origin + '/**', async route => route.abort('failed'));
+  await page.goto('/');
+  await page.getByRole('textbox', { name: 'Username' }).fill('sample-rider');
+  await page.getByRole('textbox', { name: 'Password' }).fill(randomUUID());
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  const error = page.getByTestId('auth-error');
+  await expect(error).toContainText('Connection unavailable');
+  await expect(error).toContainText('Rider Comms is unreachable');
+  await expect(error).toContainText('web access enabled');
+  await expect(page.getByTestId('auth-field-error-password')).toHaveCount(0);
+  await expect(page.getByRole('tab', { name: 'Home' })).toHaveCount(0);
+  const look = await error.evaluate(node => {
+    const css = window.getComputedStyle(node);
+    return { fill: css.backgroundColor, borderLeft: parseFloat(css.borderLeftWidth) };
+  });
+  expect(['transparent', 'rgba(0, 0, 0, 0)']).toContain(look.fill);
+  expect(look.borderLeft).toBeGreaterThan(0);
+  const injectedCss = await page.locator('#social-edge-to-edge').textContent();
+  expect(injectedCss).toContain('input:-webkit-autofill');
+  expect(injectedCss).toContain('-webkit-text-fill-color');
+});
+
 test('Social begins with Rider Comms sign-in and rejects invalid credentials', async ({ page }) => {
   await fakeBackend(page, { accountResult: 'invalid' });
   await page.goto('/');
