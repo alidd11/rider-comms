@@ -255,7 +255,7 @@ export function ShopScreen({ items, collectionItems, search, onSearch, category,
       <Text style={{color:C.muted,fontSize:14,lineHeight:21}}>
         {emptyDescription}
       </Text>
-      {hasDiscoveryFilters?<Pressable accessibilityRole="button" accessibilityLabel="Clear all Shop filters"
+      {hasDiscoveryFilters?<Pressable accessibilityRole="button" accessibilityLabel="Reset marketplace search"
         onPress={resetDiscovery} style={{backgroundColor:C.accentDark,
           borderWidth:1,borderColor:C.accent,borderRadius:13,minHeight:46,
           alignItems:'center',justifyContent:'center',paddingHorizontal:18}}>
@@ -332,7 +332,7 @@ export function ShopScreen({ items, collectionItems, search, onSearch, category,
             {emptyDescription}
           </Text>
           {section==='discover' && hasDiscoveryFilters?
-            <Pressable accessibilityRole="button" accessibilityLabel="Clear all Shop filters"
+            <Pressable accessibilityRole="button" accessibilityLabel="Reset marketplace search"
               onPress={resetDiscovery} style={{minHeight:46,paddingHorizontal:22,
                 backgroundColor:C.accent,borderRadius:13,
                 justifyContent:'center',alignItems:'center',marginTop:5}}>
