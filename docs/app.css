@@ -2724,3 +2724,9 @@ html.map-drawer-open #ridePill{display:none}
 
 /* Friend actions: a two-word label wraps under its icon rather than clipping. */
 .friend-profile-actions strong{max-width:100%;white-space:normal;text-align:center;line-height:1.15}
+
+/* Edit profile: section labels and spacing match the other Settings pages
+   (sentence-case grey heading, a gap between groups) instead of all-caps
+   labels on cards that touch. */
+.settings-page-mode .settings-sheet-label{display:block;margin-bottom:10px;color:var(--text-secondary);font-size:.95rem;font-weight:500;letter-spacing:0;text-transform:none}
+.settings-page-mode .settings-sheet-section+.settings-sheet-section{margin-top:16px}
