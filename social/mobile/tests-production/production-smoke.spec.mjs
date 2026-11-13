@@ -94,6 +94,8 @@ test('production: every major route and empty state is visible, navigable and er
   await expect(page.getByText('New story')).toBeVisible();
   await page.getByRole('button', { name: 'Reel format' }).click();
   await expect(page.getByRole('button', { name: 'Choose Reel video' })).toBeEnabled();
+  // Browser Reel mode must not activate an unusable camera or microphone.
+  await expect(page.getByRole('button', { name: 'Enable camera' })).toHaveCount(0);
   await verifyScreen(page, testInfo, 'create-reel');
   await page.getByRole('button', { name: 'Close Create' }).click();
   await expect(page.getByText('No posts yet')).toBeVisible();
