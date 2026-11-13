@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import test from 'node:test';
-import { AccountApiError, RiderAccountClient, accountErrorMessage, RESET_SENT_TEXT } from '../src/authClient.ts';
+import { AccountApiError, AccountConnectionError, RiderAccountClient, accountErrorMessage, RESET_SENT_TEXT } from '../src/authClient.ts';
 import type { TokenStorage } from '../src/authClient.ts';
 
 function response(code: number, body: unknown) {
@@ -51,6 +51,24 @@ test('shared account login validates /auth/me and persists token only after full
   assert.equal(env.calls[1].authenticated, true);
   assert.equal((env.calls[0].body as Record<string, unknown>).deviceName, 'Rider Social on web');
   assert.equal((env.calls[0].body as Record<string, unknown>).password, secret);
+});
+test('failed browser connection is distinct from invalid credentials and never persists a token', async () => {
+  let stored: string | null = null;
+  const storage: TokenStorage = {
+    read: async () => stored,
+    write: async value => { stored = value; },
+    clear: async () => { stored = null; },
+  };
+  let requests = 0;
+  const client = new RiderAccountClient(storage, async () => {
+    requests += 1;
+    throw new TypeError('Failed to fetch');
+  });
+  await assert.rejects(client.login('sample-rider', randomUUID(), 'Test device'), error =>
+    error instanceof AccountConnectionError && !(error instanceof AccountApiError));
+  assert.equal(stored, null);
+  assert.equal(requests, 1);
+  assert.match(accountErrorMessage(new AccountConnectionError()), /could not be reached/i);
 });
 test('login errors map backend response codes, including rate limits and suspended accounts', async () => {
   const codes: Array<[number, string]> = [
