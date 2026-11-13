@@ -1583,7 +1583,7 @@
       <div class="safety-box"><svg><use href="#i-shield"/></svg><div><strong>Before you ride</strong>${route.safety.map((item) => `<p>${escapeHtml(item)}</p>`).join('')}</div></div>
       <button class="button primary wide" data-guide-route-start>Guide me to the start</button>
       <a class="button secondary wide" href="${mapsUrl(route)}" target="_blank" rel="noopener">Open full route in Maps</a>
-      <p class="caption route-action-note">Rider Comms guides you to the route start. “Open full route” preserves the curated waypoints. *Ride time is a planning estimate, not live traffic.</p>
+      <p class="caption route-action-note">*Ride time is an estimate without stops or traffic.</p>
       <div class="route-links"><a href="${route.conditions}" target="_blank" rel="noopener">Live conditions</a><a href="${route.routeSource}" target="_blank" rel="noopener">Route source</a><a href="${route.source}" target="_blank" rel="noopener">Photo: ${escapeHtml(route.credit)}</a><a href="${route.license}" target="_blank" rel="noopener">Photo licence</a></div></div>
     </section>`;
     document.body.append(backdrop);

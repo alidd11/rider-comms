@@ -2502,7 +2502,7 @@ html.app-menu-open .ride-pill{display:none}
 #rideJoinState .ride-code-slots span:nth-child(4){margin-left:8px}
 #rideJoinState .ride-join-button{margin-top:12px}
 #rideJoinState .ride-join-button:disabled{opacity:1;background:var(--surface-raised);border-color:var(--border);color:var(--text-muted);box-shadow:none;cursor:not-allowed}
-.ride-start-button{min-height:50px;display:flex;align-items:center;justify-content:center;gap:8px;border:1.5px solid var(--accent)!important;background:color-mix(in srgb,var(--accent) 12%,transparent)!important;color:var(--accent-ink,var(--accent))!important;font-weight:800}
+.ride-start-button{min-height:50px;display:flex;align-items:center;justify-content:center;gap:8px;font-weight:800}
 .ride-start-button svg{width:20px;height:20px}
 #rideJoinState .inline-error{margin:10px 0 0}
 

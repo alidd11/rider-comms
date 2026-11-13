@@ -179,10 +179,10 @@ function JoinOrHostForm({ inviteCode, onBack }: { inviteCode?: string | null; on
               accessibilityLabel="Start a ride"
               accessibilityHint="Create a private ride and invite your friends"
               onPress={() => navigation.navigate('CreateRide')}
-              style={({ pressed }) => [styles.secondaryButton, pressed && styles.secondaryButtonPressed]}
+              style={({ pressed }) => [styles.primaryButton, styles.buttonWithIcon, pressed && styles.primaryButtonPressed]}
             >
-              <Ionicons name="add-circle-outline" size={20} color={colors.accentInk} />
-              <Text style={styles.secondaryButtonText}>Start a ride</Text>
+              <Ionicons name="add-circle-outline" size={20} color={colors.accentText} />
+              <Text style={styles.primaryButtonText}>Start a ride</Text>
             </Pressable>
           </View>
         </View>
@@ -335,9 +335,7 @@ const styles = StyleSheet.create({
   primaryButtonText: { ...type.button, color: colors.accentText, fontSize: 16 },
   primaryButtonTextDisabled: { color: colors.textMuted },
   buttonBusy: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  secondaryButton: { minHeight: 50, marginTop: spacing.xs, flexDirection: 'row', gap: spacing.sm, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: colors.accent, borderRadius: radii.lg, backgroundColor: colors.accentSoft },
-  secondaryButtonPressed: { opacity: 0.7 },
-  secondaryButtonText: { ...type.button, color: colors.accentInk, fontSize: 16 },
+  buttonWithIcon: { flexDirection: 'row', gap: spacing.sm },
   locationRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   locationCopy: { flex: 1, gap: 4 },
   locationTitle: { ...type.body, color: colors.textPrimary, fontSize: 15, lineHeight: 20, fontWeight: '700' },
