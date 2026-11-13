@@ -155,8 +155,9 @@ appId: com.ridercomms.app
       - tapOn:
           text: "Settings(,.*)?"
           optional: true
+      # The Settings root's first row; its back control is "Go back".
       - extendedWaitUntil:
-          visible: "Close settings"
+          visible: "General(,.*)?"
           timeout: 8000
 - takeScreenshot: authenticated-settings
 # Settings lists categories: open one, then one of its pages.
