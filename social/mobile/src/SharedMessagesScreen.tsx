@@ -57,8 +57,20 @@ export function SharedMessagesScreen({
     // Prevent a slow response from an older thread from appearing under a
     // newly selected rider. No credentials, message bodies or request URLs logged.
     const id = ++requestId.current;
-    if (!active) { setThread([]); setThreadError(null); return; }
-    setThreadLoading(true); setThreadError(null); setDraft('');
+    if (!active) {
+      setThread([]);
+      setThreadError(null);
+      setThreadLoading(false);
+      setSending(false);
+      return;
+    }
+    // Clear the previous rider's messages before loading the next thread.
+    // A delayed response must never appear beneath another rider's name.
+    setThread([]);
+    setThreadLoading(true);
+    setSending(false);
+    setThreadError(null);
+    setDraft('');
     void client.messageThread(active).then(page => {
       if (requestId.current !== id) return;
       setThread(page.messages);
@@ -76,15 +88,23 @@ export function SharedMessagesScreen({
       setThreadError('Enter a message between 1 and 1,000 characters.');
       return;
     }
+    // If the rider navigates to a different conversation while a send is
+    // in flight, never insert the old rider's message/error into that thread.
+    const threadRequestId = requestId.current;
+    const recipientId = active;
     setSending(true); setThreadError(null);
     try {
-      const sent = await client.sendMessage(active, message);
+      const sent = await client.sendMessage(recipientId, message);
+      if (requestId.current !== threadRequestId) return;
       setThread(previous => previous.some(item => item.id === sent.id) ? previous : [...previous, sent]);
       setDraft('');
       void onRefresh();
     } catch (cause) {
-      setThreadError(messageText(cause, emailVerified));
-    } finally { setSending(false); }
+      if (requestId.current === threadRequestId)
+        setThreadError(messageText(cause, emailVerified));
+    } finally {
+      if (requestId.current === threadRequestId) setSending(false);
+    }
   }
 
   if (active) {
