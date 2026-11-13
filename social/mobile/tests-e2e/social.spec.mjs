@@ -849,6 +849,31 @@ test('Create is full-screen, has working mode controls and a real dismissal path
   await page.screenshot({ path: 'test-results/screenshots/' + testInfo.project.name + '-composer-closed.png' });
 });
 
+test('Shop mobile hierarchy fits narrow phones and search clear restores discovery', async ({ page }) => {
+  const errors = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.setViewportSize({ width: 320, height: 690 });
+  await page.goto('/');
+  await page.getByRole('tab', { name: 'Shop' }).click();
+  await expect(page.getByRole('button', { name: 'Go to home' })).toContainText('Shop');
+  await expect(page.getByRole('textbox', { name: 'Search marketplace' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Shop filters' })).toBeVisible();
+  const height = await page.getByRole('button', { name: 'Shop filters' }).evaluate(
+    element => element.getBoundingClientRect().height
+  );
+  expect(height).toBeGreaterThanOrEqual(40);
+
+  await page.getByRole('textbox', { name: 'Search marketplace' }).fill('no-matching-product-exists');
+  await expect(page.getByText('No matching listings')).toBeVisible();
+  await page.getByRole('button', { name: 'Clear all Shop filters' }).click();
+  await expect(page.getByRole('textbox', { name: 'Search marketplace' })).toHaveValue('');
+  await expect(page.getByTestId('shop-card-l1')).toBeVisible();
+  await expect(page.getByTestId('shop-card-l2')).toBeVisible();
+  await expect(page.getByText('No matching listings')).toHaveCount(0);
+  await expect(page.getByTestId('social-app-recovery')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
 test('TikTok-style Shop discovery supports search, sample details, saved and basket', async ({ page }, testInfo) => {
   await page.goto('/');
   await page.getByRole('tab', { name: 'Shop' }).click();
