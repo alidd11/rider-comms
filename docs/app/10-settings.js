@@ -358,7 +358,8 @@
 
   function sessionDateLabel(value) {
     const date = new Date(value);
-    return Number.isFinite(date.getTime()) ? date.toLocaleDateString() : 'Recently active';
+    // A month name, so the date can't be read day-first or month-first.
+    return Number.isFinite(date.getTime()) ? date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : 'Recently active';
   }
 
   async function resendVerificationEmail() {

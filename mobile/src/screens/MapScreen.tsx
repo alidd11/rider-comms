@@ -47,6 +47,7 @@ import {
   formatNavigationDistance,
   formatNavigationDuration,
   formatNavigationSpeed,
+  navigationInstructionRoad,
   navigationSpeedUnit,
 } from '../navigationGuidance';
 import { RiderAvatar } from '../components/RiderAvatar';
@@ -351,6 +352,7 @@ export function MapScreen(): React.JSX.Element {
     navigationRoadAlerts,
     navigationGuidanceInstruction,
     navigationGlanceAction,
+    navigationRoadName,
     distanceToCurrentStepEnd,
     remainingNavigationMeters,
     remainingNavigationSeconds,
@@ -890,18 +892,22 @@ export function MapScreen(): React.JSX.Element {
               </View>
               <View style={styles.navigationBannerCopy}>
                 <Text style={styles.navigationDistance}>{formatNavigationDistance(distanceToCurrentStepEnd, unitSystem)}</Text>
+                {/* As in Google and Apple Maps: the distance, then the road the
+                    turn leads onto in large type (the arrow shows the turn).
+                    Without a named road, the action and full instruction show. */}
                 <Text
-                  numberOfLines={1}
-                  style={styles.navigationInstruction}
+                  numberOfLines={navigationRoadName ? 2 : 1}
+                  style={[styles.navigationInstruction, navigationRoadName ? styles.navigationRoad : null]}
                   accessibilityLiveRegion="polite"
                   accessibilityLabel={navigationGuidanceInstruction}
                 >
-                  {navigationGlanceAction}
+                  {navigationRoadName ?? navigationGlanceAction}
                 </Text>
-                {/* Two lines, so the road name after "onto" shows instead of an ellipsis. */}
-                <Text numberOfLines={2} accessible={false} style={styles.navigationProviderInstruction}>
-                  {navigationGuidanceInstruction}
-                </Text>
+                {navigationRoadName ? null : (
+                  <Text numberOfLines={2} accessible={false} style={styles.navigationProviderInstruction}>
+                    {navigationGuidanceInstruction}
+                  </Text>
+                )}
               </View>
               <Pressable accessibilityRole="button" accessibilityLabel="End navigation" onPress={() => finishInAppNavigation(false)} style={({ pressed }) => [styles.navigationEndButton, pressed && pressedFeedback]}>
                 <Ionicons name="close" size={24} color={colors.textPrimary} />
@@ -918,7 +924,7 @@ export function MapScreen(): React.JSX.Element {
                   />
                 </View>
                 <Text style={styles.navigationNextLabel}>Then</Text>
-                <Text numberOfLines={1} style={styles.navigationNextInstruction}>{followingNavigationStep.instruction}</Text>
+                <Text numberOfLines={1} style={styles.navigationNextInstruction} accessibilityLabel={followingNavigationStep.instruction}>{navigationInstructionRoad(followingNavigationStep.instruction) ?? followingNavigationStep.instruction}</Text>
               </View>
             ) : null}
             <NavigationRoadAhead alerts={navigationRoadAlerts} unit={unitSystem} />

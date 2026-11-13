@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  navigationInstructionRoad,
   formatNavigationDistance,
   formatNavigationSpeed,
   maneuverIcon,
@@ -72,5 +73,18 @@ describe('navigation guidance presentation', () => {
     assert.equal(maneuverIcon(undefined), 'navigate');
     assert.equal(maneuverIcon('provider-future-value'), 'navigate');
     assert.equal(maneuverIcon('straight'), 'arrow-up');
+  });
+});
+
+describe('navigationInstructionRoad', () => {
+  it('quotes the road the instruction names, or returns null', () => {
+    assert.equal(navigationInstructionRoad('Turn right onto Camden Rd/A503'), 'Camden Rd / A503');
+    assert.equal(navigationInstructionRoad('At the roundabout, take the 2nd exit onto Holloway Rd'), 'Holloway Rd');
+    assert.equal(navigationInstructionRoad('Head north on Camden Rd toward Kentish Town Rd'), 'Camden Rd');
+    assert.equal(navigationInstructionRoad('Keep left to stay on M25'), 'M25');
+    assert.equal(navigationInstructionRoad('Turn left onto Caledonian Rd. Destination will be on the right'), 'Caledonian Rd');
+    assert.equal(navigationInstructionRoad('Turn left'), null);
+    assert.equal(navigationInstructionRoad('Your destination is on the left'), null);
+    assert.equal(navigationInstructionRoad(''), null);
   });
 });
