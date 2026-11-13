@@ -90,6 +90,14 @@ test('For You and Following remain visible as Home feed tabs while feed content 
   expect(scrolled).toBeGreaterThan(0);
   const afterScroll = await bar.boundingBox();
   expect(Math.abs(afterScroll.y - top.y)).toBeLessThan(2);
+  // The fixed settings icon must reveal settings in view even when the
+  // reader opens them from halfway down the recommendations feed.
+  await page.getByRole('button', { name: 'Feed preferences' }).click();
+  await expect(page.getByTestId('home-feed-preferences')).toBeVisible();
+  await expect.poll(() => page.locator('#social-page-scroll').evaluate(el => el.scrollTop)).toBe(0);
+  await page.getByRole('button', { name: 'Close Feed preferences' }).click();
+  await expect(page.getByTestId('home-feed-preferences')).toHaveCount(0);
+  await page.locator('#social-page-scroll').evaluate(el => { el.scrollTop = el.scrollHeight; });
   await following.click();
   await expect(page.locator('#social-page-scroll')).toBeVisible();
   await expect.poll(() => page.locator('#social-page-scroll').evaluate(el => el.scrollTop)).toBe(0);
