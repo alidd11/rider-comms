@@ -188,3 +188,41 @@ test('production: signed-out sign-in, signup and recovery remain accessible', as
   await expect(page.getByTestId('social-app-recovery')).toHaveCount(0);
   expect(uncaught).toEqual([]);
 });
+
+test('production: real rider_ account IDs persist and clear profile and garage drafts', async ({ page }) => {
+  const uncaught = [];
+  page.on('pageerror', e => uncaught.push(e.message));
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Open profile' }).click();
+  await page.getByRole('button', { name: 'Edit social profile' }).click();
+  await page.getByRole('textbox', { name: 'Social bio' })
+    .fill('Production identity persistence check');
+  await page.getByRole('button', { name: 'Save profile' }).click();
+  await expect(page.getByText('Production identity persistence check')).toBeVisible();
+
+  await page.getByRole('tab', { name: 'Garage profile tab' }).click();
+  await page.getByRole('button', { name: 'Add vehicle to garage' }).click();
+  await page.getByRole('textbox', { name: 'Vehicle make' }).fill('Honda');
+  await page.getByRole('textbox', { name: 'Vehicle model' }).fill('PCX');
+  await page.getByRole('button', { name: 'Save vehicle' }).click();
+  await expect(page.getByText('Honda PCX')).toBeVisible();
+
+  await page.reload();
+  await page.getByRole('button', { name: 'Open profile' }).click();
+  await expect(page.getByText('Production identity persistence check')).toBeVisible();
+  await page.getByRole('tab', { name: 'Garage profile tab' }).click();
+  await expect(page.getByText('Honda PCX')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Open settings and privacy' }).click();
+  await page.getByRole('button', { name: 'Clear local Social drafts' }).click();
+  await page.getByRole('button', { name: 'Confirm clear local drafts' }).click();
+  await expect(page.getByText('Device-only drafts cleared.')).toBeVisible();
+
+  await page.reload();
+  await page.getByRole('button', { name: 'Open profile' }).click();
+  await expect(page.getByText('Production identity persistence check')).toHaveCount(0);
+  await page.getByRole('tab', { name: 'Garage profile tab' }).click();
+  await expect(page.getByText('Your garage starts here')).toBeVisible();
+  await expect(page.getByTestId('social-app-recovery')).toHaveCount(0);
+  expect(uncaught).toEqual([]);
+});
