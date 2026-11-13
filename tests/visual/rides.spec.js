@@ -367,3 +367,33 @@ test('PWA ride roster shows this rider from their own profile', async ({ page })
   await expect(page.locator('#rideRoster')).toContainText(`${PROFILE.displayName} · You`);
   await expect(page.locator('#rideRoster')).not.toContainText(RIDER_ID);
 });
+
+test('PWA join failures say what to do next and keep the code to fix', async ({ page }) => {
+  let reply = { status: 404, body: { error: 'invalid_or_expired' } };
+  await mockAuthenticatedApi(page, 'stationary', ({ request, url }) => (
+    url.pathname === '/rides/join' && request.method() === 'POST' ? reply : null
+  ));
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: { getUserMedia: async () => ({ getTracks: () => [{ stop() {} }] }) },
+    });
+  });
+  await page.goto('/');
+  await openTab(page, 'ride');
+  const code = page.locator('#rideCode');
+  const error = page.locator('#rideError');
+  await code.fill('ABC234');
+  await page.locator('#joinRideForm button[type="submit"]').click();
+  await expect(error).toHaveText('That code doesn’t match an active ride. Check it with your host.');
+  await expect(code).toHaveValue('ABC234');
+
+  reply = { status: 409, body: { error: 'ride_full' } };
+  await page.locator('#joinRideForm button[type="submit"]').click();
+  await expect(error).toHaveText('This ride is full (20 riders max). Ask the host to start another.');
+
+  // No connection is a different problem from a bad code.
+  await page.route('https://backend-production-7fa0.up.railway.app/rides/join', (route) => route.abort('internetdisconnected'));
+  await page.locator('#joinRideForm button[type="submit"]').click();
+  await expect(error).toHaveText('Couldn’t reach Rider Comms. Check your connection and try again.');
+});
