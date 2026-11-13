@@ -13,7 +13,7 @@ import { socialFixturesEnabled } from './src/testFixtureMode';
 import { DEFAULT_PROFILE, EMPTY_GARAGE_DRAFT, addGarageEntry, createGarageEntry, removeGarageEntry, updateGarageVisibility, validateProfile } from './src/garage';
 import type { GarageDraft, GarageEntry, GarageKind, SocialProfileDraft } from './src/garage';
 import { loadLocalDemo, saveLocalDemo, clearLocalDemo } from './src/demoStorage';
-import { accountTextDraftKey } from './src/createDraftKey';
+import { clearAccountTextDraft } from './src/textDraftStorage';
 import { CreateComposer } from './src/CreateComposer';
 import { ShopScreen } from './src/ShopScreen';
 import { ReelsScreen } from './src/ReelsScreen';
@@ -672,7 +672,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
   async function clearDeviceDrafts(): Promise<void> {
     // The same rider's pending saves are serialised by demoStorage.
     await clearLocalDemo(identity.riderId);
-    await AsyncStorage.removeItem(accountTextDraftKey(identity.riderId));
+    await clearAccountTextDraft(identity.riderId);
     const empty = profileForRider(DEFAULT_PROFILE, identity.username, socialFixturesEnabled);
     setProfile(empty);
     setProfileDraft(empty);
