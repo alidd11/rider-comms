@@ -17,6 +17,11 @@ export default defineConfig({
       use: { ...devices['iPhone 13'], browserName: 'chromium' },
     },
     {
+      name: 'ios-webkit',
+      testMatch: /ios-create\.spec\.mjs$/,
+      use: { ...devices['iPhone 13'], browserName: 'webkit' },
+    },
+    {
       name: 'desktop-chromium',
       use: { ...devices['Desktop Chrome'], viewport: { width: 1365, height: 800 } },
     }
