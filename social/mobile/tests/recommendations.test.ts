@@ -83,6 +83,18 @@ test('Not interested topics and personalisation off are respected', () => {
   assert.equal(nonPersonal.find((v) => v.item.id === 'cars')?.reason, 'recent');
 });
 
+test('future-dated content never receives a freshness bonus', () => {
+  const current = content({ id: 'current', authorId: 'normal', createdAt: now, quality: 0,
+    likeCount: 0, commentCount: 0, saveCount: 0, authorTotalImpressions: 10000,
+    topics: ['other'] });
+  const future = { ...current, id: 'future', authorId: 'clock-manipulator', createdAt: now + 86400 };
+  const result = rankForYou([future, current], viewer({
+    followedAuthors: new Set(), interests: {}, personalisationEnabled: false
+  }), now);
+  assert.deepEqual(result.map(entry => entry.item.id), ['current', 'future']);
+  assert.equal(result.find(entry => entry.item.id === 'future')?.reason, 'discover');
+});
+
 test('small authors get a chance and one creator cannot monopolise initial slots', () => {
   const items = [
     content({ id: 'x1', authorId: 'big', quality: 1, authorTotalImpressions: 100000 }),
