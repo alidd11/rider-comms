@@ -50,7 +50,8 @@ export const s = StyleSheet.create({
   ctaText: { fontSize: 13, fontWeight: '900', color: '#0B1D1C' },
   ghost: { borderColor: C.border, borderWidth: 1, backgroundColor: C.panel, paddingHorizontal: 15, paddingVertical: 11, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   ghostText: { color: C.ink, fontSize: 13, fontWeight: '800' },
-  input: { color: C.ink, backgroundColor: C.panel, borderColor: C.border, borderWidth: 1, borderRadius: 14, paddingHorizontal: 15, paddingVertical: 12, fontSize: 14 },
+  // All form inputs use a transparent field with one quiet baseline, never a filled blue box.
+  input: { color: C.ink, backgroundColor: 'transparent', borderWidth: 0, borderBottomWidth: 1, borderBottomColor: '#3B4752', borderRadius: 0, paddingHorizontal: 0, paddingVertical: 12, minHeight: 48, fontSize: 16 },
   notice: { marginHorizontal: 18, marginTop: 10, padding: 12, backgroundColor: C.accentDark, borderWidth: 1, borderColor: '#296856', borderRadius: 12 },
   tabBar: { flexDirection: 'row', borderTopColor: C.border, borderTopWidth: 1, backgroundColor: C.bg, paddingTop: 8, paddingBottom: 12 },
   tab: { flex: 1, alignItems: 'center', paddingVertical: 5, gap: 3 },
