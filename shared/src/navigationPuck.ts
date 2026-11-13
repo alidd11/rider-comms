@@ -243,3 +243,26 @@ export function navigationFixAgeSeconds(fixTimestampMs: number | null | undefine
   if (!Number.isFinite(fixTimestampMs)) return 0;
   return Math.max(0, Math.min(PUCK_MAX_PREDICTION_SECONDS, (nowMs - Number(fixTimestampMs)) / 1000));
 }
+
+/** A fix farther than this from the route (current or next step) is off it. */
+export const NAV_OFF_ROUTE_RADIUS_M = 60;
+/** A fix less certain than this can't tell on-route from off-route, so it
+ * neither starts nor clears the off-route timer (tunnels, urban canyons). */
+export const NAV_OFF_ROUTE_MAX_ACCURACY_M = 50;
+
+/**
+ * Whether a raw fix shows the rider on the route, off it, or can't say.
+ * Distances are to the current step's path and to the next step's, since a
+ * rider who has already turned at a junction is on the next step.
+ */
+export function navigationRouteStatus(
+  distanceToStepMeters: number,
+  distanceToNextStepMeters: number | null,
+  accuracyMeters: number | null | undefined,
+): 'on' | 'off' | 'unknown' {
+  if (Number.isFinite(accuracyMeters) && Number(accuracyMeters) > NAV_OFF_ROUTE_MAX_ACCURACY_M) return 'unknown';
+  const nearest = distanceToNextStepMeters === null || !Number.isFinite(distanceToNextStepMeters)
+    ? distanceToStepMeters
+    : Math.min(distanceToStepMeters, distanceToNextStepMeters);
+  return nearest > NAV_OFF_ROUTE_RADIUS_M ? 'off' : 'on';
+}

@@ -195,6 +195,29 @@
     return Math.max(0, Math.min(PUCK_MAX_PREDICTION_SECONDS, (nowMs - Number(fixTimestampMs)) / 1000));
   }
 
+  /** A fix farther than this from the route (current or next step) is off it. */
+  const NAV_OFF_ROUTE_RADIUS_M = 60;
+  /** A fix less certain than this can't tell on-route from off-route, so it
+   * neither starts nor clears the off-route timer (tunnels, urban canyons). */
+  const NAV_OFF_ROUTE_MAX_ACCURACY_M = 50;
+
+  /**
+   * Whether a raw fix shows the rider on the route, off it, or can't say.
+   * Distances are to the current step's path and to the next step's, since a
+   * rider who has already turned at a junction is on the next step.
+   */
+  function navigationRouteStatus(
+    distanceToStepMeters,
+    distanceToNextStepMeters,
+    accuracyMeters,
+  ) {
+    if (Number.isFinite(accuracyMeters) && Number(accuracyMeters) > NAV_OFF_ROUTE_MAX_ACCURACY_M) return 'unknown';
+    const nearest = distanceToNextStepMeters === null || !Number.isFinite(distanceToNextStepMeters)
+      ? distanceToStepMeters
+      : Math.min(distanceToStepMeters, distanceToNextStepMeters);
+    return nearest > NAV_OFF_ROUTE_RADIUS_M ? 'off' : 'on';
+  }
+
   root.RiderNavigationPuck = Object.freeze({
     PUCK_MIN_SNAP_METERS,
     PUCK_MAX_SNAP_METERS,
@@ -207,5 +230,8 @@
     matchFixToPath,
     predictNavigationPuck,
     navigationFixAgeSeconds,
+    NAV_OFF_ROUTE_RADIUS_M,
+    NAV_OFF_ROUTE_MAX_ACCURACY_M,
+    navigationRouteStatus,
   });
 })(typeof window !== 'undefined' ? window : globalThis);

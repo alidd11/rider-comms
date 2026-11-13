@@ -40,6 +40,7 @@ import {
   buildNavigationPathIndex,
   matchFixToPath,
   navigationFixAgeSeconds,
+  navigationRouteStatus,
   predictNavigationPuck,
 } from '@rider-comms/shared';
 import { bearingDegrees } from './mapMarkers';
@@ -50,7 +51,6 @@ const NAV_STEP_ARRIVAL_RADIUS_M = 30;
 /** Shown briefly after a successful reroute; styled as information, not a warning. */
 export const ROUTE_UPDATED_NOTICE = 'Route updated.';
 const ROUTE_UPDATED_NOTICE_MS = 4000;
-const NAV_OFF_ROUTE_RADIUS_M = 60;
 const NAV_OFF_ROUTE_GRACE_MS = 10_000;
 /** The puck and camera glide to where the rider will be when the next fix
  * is due (fixes arrive about once a second), so motion never stops. */
@@ -537,8 +537,16 @@ export function useInAppNavigation(
           }
         }
 
-        const distanceOffRoute = distanceToPathMeters(raw, effectiveStep.coordinates);
-        if (distanceOffRoute <= NAV_OFF_ROUTE_RADIUS_M) {
+        // A fix too uncertain to judge (tunnel, urban canyon) leaves the
+        // off-route timer as it is; a rider who has turned is on the next step.
+        const nextRouteStep = activeRoute.steps[effectiveIndex + 1];
+        const routeStatus = navigationRouteStatus(
+          distanceToPathMeters(raw, effectiveStep.coordinates),
+          nextRouteStep ? distanceToPathMeters(raw, nextRouteStep.coordinates) : null,
+          position.coords.accuracy,
+        );
+        if (routeStatus === 'unknown') return;
+        if (routeStatus === 'on') {
           navOffRouteSince.current = null;
           return;
         }
