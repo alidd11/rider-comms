@@ -68,8 +68,8 @@ test('clubs, marketplace and profile have independent usable screens', async ({ 
   await expect(page.getByRole('button', { name: 'Leave demo club' })).toBeVisible();
 
   await page.getByRole('tab', { name: 'Shop' }).click();
-  await expect(page.getByText('Sample marketplace')).toBeVisible();
-  await expect(page.getByText('Verified only')).toBeVisible();
+  await expect(page.getByText(/Sample listings for testing/)).toBeVisible();
+  await expect(page.getByText(/Verified businesses only/)).toBeVisible();
   await page.getByRole('textbox', { name: 'Search marketplace' }).fill('bicycle helmet');
   await expect(page.getByText('Road bicycle helmet')).toBeVisible();
   await expect(page.getByText('Touring gloves')).toHaveCount(0);
@@ -865,7 +865,7 @@ test('Shop mobile hierarchy fits narrow phones and search clear restores discove
 
   await page.getByRole('textbox', { name: 'Search marketplace' }).fill('no-matching-product-exists');
   await expect(page.getByText('No matching listings')).toBeVisible();
-  await page.getByRole('button', { name: 'Clear all Shop filters' }).click();
+  await page.getByRole('button', { name: 'Reset marketplace search' }).click();
   await expect(page.getByRole('textbox', { name: 'Search marketplace' })).toHaveValue('');
   await expect(page.getByTestId('shop-card-l1')).toBeVisible();
   await expect(page.getByTestId('shop-card-l2')).toBeVisible();
