@@ -41,6 +41,15 @@ jobs:
       - run: test -f dist/index.html
       - run: npx playwright install --with-deps chromium webkit
       - run: npm run test:e2e
+      # The preview deployed to Railway has NO demo fixtures. Re-export it and
+      # smoke every real empty/auth/error screen on iPhone WebKit and Chromium.
+      # A green synthetic screenshot suite alone cannot certify the live UI.
+      - name: Export actual production-mode Social web bundle
+        run: npm run build:web
+        env:
+          EXPO_PUBLIC_SOCIAL_TEST_FIXTURES: 'false'
+      - name: Smoke real production screens, including iPhone WebKit
+        run: npx playwright test --config=playwright.production.config.mjs
       # A vulnerable runtime dependency blocks beta promotion even when the UI
       # looks correct. Keep dev-only test tooling out of the runtime scope.
       - name: Audit production dependency vulnerabilities
