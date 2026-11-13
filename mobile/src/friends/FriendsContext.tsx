@@ -2,7 +2,7 @@ import * as React from 'react';
 import type { FriendActivity, FriendRequest, FriendSummary } from '@rider-comms/shared';
 import { ApiError, type ConversationSummary, type RiderCommsClient } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
-import { refreshAuthoritativeSocialSnapshot } from './socialRefresh';
+import { refreshAuthoritativeSocialSnapshot, socialRefreshErrorMessage } from './socialRefresh';
 import { useSettings } from '../settings/SettingsContext';
 import { appendUniqueFriendRequest } from './requestState';
 import {
@@ -154,7 +154,7 @@ export function FriendsProvider({ children }: { children: React.ReactNode }): Re
       await refreshAuthoritative();
       setError(null);
     } catch (err) {
-      setError(messageFor(err, 'Couldn’t load friends.'));
+      setError(socialRefreshErrorMessage(err));
     } finally {
       setLoading(false);
     }

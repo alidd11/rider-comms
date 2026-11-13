@@ -338,7 +338,7 @@ test('polls friend activity on a 30s interval', async () => {
   }
 });
 
-test('shows a load error when the first refresh fails, using a plain Error message or the fallback', async () => {
+test('shows a plain load error when the first refresh fails, never the raw error text', async () => {
   const { getSocialEvents } = deferredSocialEvents();
   const client = baseClient({
     getSocialEvents,
@@ -346,7 +346,7 @@ test('shows a load error when the first refresh fails, using a plain Error messa
   });
   const { result } = await renderFriends(client);
   await waitFor(() => expect(result.current.loading).toBe(false));
-  expect(result.current.error).toBe('socket closed');
+  expect(result.current.error).toBe('Couldn’t load friends. Check your connection and try again.');
 
   const other = baseClient({
     getSocialEvents: deferredSocialEvents().getSocialEvents,
@@ -354,7 +354,7 @@ test('shows a load error when the first refresh fails, using a plain Error messa
   });
   const second = await renderFriends(other);
   await waitFor(() => expect(second.result.current.loading).toBe(false));
-  expect(second.result.current.error).toBe('Couldn’t load friends.');
+  expect(second.result.current.error).toBe('Couldn’t load friends. Check your connection and try again.');
 });
 
 test('drains every page of a multi-page event batch before refreshing', async () => {

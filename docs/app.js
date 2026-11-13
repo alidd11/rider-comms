@@ -2214,18 +2214,23 @@
 
   async function loadFriendsData() {
     if (!state.profile.riderId) return;
-    try {
-      // Network and message summaries are independent authoritative resources.
-      // Apply either successful snapshot even when the other one is transiently
-      // unavailable; realtime callers use the throwing functions directly.
-      await Promise.all([refreshFriendNetwork(), refreshMessageSummaries()]);
-      friendsLoadState = 'ready';
-      friendsLoadError = '';
-    } catch (error) {
-      friendsLoadState = 'error';
-      friendsLoadError = 'Couldn’t load friends. ' + authErrorMessage(error);
-    }
+    // Network and message summaries are independent authoritative resources:
+    // apply either successful snapshot even when the other one fails, and say
+    // which one didn't load. Realtime callers use the throwing functions directly.
+    const [network, messages] = await Promise.allSettled([refreshFriendNetwork(), refreshMessageSummaries()]);
+    const failed = network.status === 'rejected' ? network : messages.status === 'rejected' ? messages : null;
+    friendsLoadState = failed ? 'error' : 'ready';
+    friendsLoadError = failed ? friendsLoadErrorMessage(failed === network ? 'friends' : 'messages', failed.reason) : '';
     renderFriends();
+  }
+
+  /** One sentence: what didn't load, then what to do (native:
+   * socialRefreshErrorMessage). No answer at all, or a server error, points
+   * at the connection. */
+  function friendsLoadErrorMessage(part, error) {
+    const status = typeof error?.status === 'number' ? error.status : 0;
+    const what = part === 'messages' ? 'Couldn’t load your messages.' : 'Couldn’t load friends.';
+    return status === 0 || status >= 500 ? `${what} Check your connection and try again.` : `${what} Try again.`;
   }
 
   async function acceptRequest(requestId) {
