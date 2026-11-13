@@ -23,6 +23,8 @@ import { demoCreators, publicGallery } from './src/demoCreators';
 import { ProfileSummary } from './src/ProfileSummary';
 import type { ProfileContentTab } from './src/ProfileSummary';
 import { ProfileConnectionsSheet } from './src/ProfileConnectionsSheet';
+import { SocialAuthGate, useSocialAccount } from './src/SocialAuthGate';
+import type { SharedFriend, SharedConversation } from './src/authClient';
 import type { ConnectionKind } from './src/ProfileConnectionsSheet';
 
 type Screen = 'Home' | 'Reels' | 'Create' | 'Clubs' | 'Shop' | 'Profile' | 'Messages';
@@ -156,7 +158,8 @@ function BottomTabs({ screen, onNavigate }: { screen: Screen; onNavigate: (next:
   );
 }
 
-export default function App(): React.JSX.Element {
+function AuthenticatedSocialApp(): React.JSX.Element {
+  const { identity, client, logout, resendVerification } = useSocialAccount();
   const { width: screenWidth } = useWindowDimensions();
   const mediaHeight = Math.min(620, Math.max(330, Math.round(Math.min(screenWidth,620)*1.25)));
   const [screen, setScreen] = useState<Screen>('Home');
@@ -194,33 +197,40 @@ export default function App(): React.JSX.Element {
   const [selectedCreator, setSelectedCreator] = useState<string | null>(null);
   const [commentsFor, setCommentsFor] = useState<{ id: string; title: string } | null>(null);
   const [localComments, setLocalComments] = useState<Record<string, CommentPreview[]>>({});
+  const [sharedFriends, setSharedFriends] = useState<SharedFriend[]>([]);
+  const [sharedConversations, setSharedConversations] = useState<SharedConversation[]>([]);
+  const [sharedLoading, setSharedLoading] = useState(false);
+  const [sharedError, setSharedError] = useState<string | null>(null);
+  const [verificationNotice, setVerificationNotice] = useState<string | null>(null);
+  const [localDraftOwner, setLocalDraftOwner] = useState<string | null>(null);
 
   // Preview-only, per-device data. Shared Rider Comms accounts and DMs are untouched.
   useEffect(() => {
     let mounted = true;
-    void loadLocalDemo().then((saved) => {
+    void loadLocalDemo(identity.riderId).then((saved) => {
       if (!mounted) return;
       setProfile(saved.profile);
       setGarage(saved.garage);
+      setLocalDraftOwner(identity.riderId);
       setLocalReady(true);
     });
     return () => { mounted = false; };
-  }, []);
+  }, [identity.riderId]);
 
   useEffect(() => {
-    if (!localReady) return;
-    void saveLocalDemo({ profile, garage }).catch(() => {
+    if (!localReady || localDraftOwner !== identity.riderId) return;
+    void saveLocalDemo(identity.riderId, { profile, garage }).catch(() => {
       // Storage failures must not prevent the user from exploring the preview.
       // The UI always identifies saved entries as local device-only data.
     });
-  }, [localReady, profile, garage]);
+  }, [identity.riderId, localReady, localDraftOwner, profile, garage]);
 
   const viewer = useMemo<Viewer>(() => ({
-    ...noViewer, userId: 'demo-viewer', ageFloor: 18, followedAuthors: followed,
+    ...noViewer, userId: identity.riderId, ageFloor: 16, followedAuthors: followed,
     interests: { cars: 0.8, motorcycles: 0.9, cycling: 0.7 },
     hiddenContentIds: hiddenPostIds, hiddenTopics,
     selectedRegion: 'London', personalisationEnabled: personalisation,
-  }), [hiddenPostIds, hiddenTopics, personalisation, followed]);
+  }), [identity.riderId, hiddenPostIds, hiddenTopics, personalisation, followed]);
 
   const visiblePosts = useMemo(() => {
     const ranked = feedMode === 'forYou'
@@ -302,6 +312,26 @@ export default function App(): React.JSX.Element {
       [id]: [...(current[id] ?? []), { id: 'local-' + Date.now() + '-' + String((current[id] ?? []).length), text: value }].slice(-50),
     }));
   }
+  async function loadSharedReadOnly(): Promise<void> {
+    if (sharedLoading) return;
+    setSharedLoading(true);
+    setSharedError(null);
+    try {
+      const [friends, conversations] = await Promise.all([client.friends(), client.conversations()]);
+      setSharedFriends(friends.friends);
+      setSharedConversations(conversations.conversations);
+    } catch (cause) {
+      setSharedError(cause instanceof Error && 'status' in cause && cause.status === 403
+        ? 'Verify your email to message riders.'
+        : 'Could not load friends and conversations. Pull to refresh later or try again.');
+    } finally { setSharedLoading(false); }
+  }
+  useEffect(() => {
+    if (screen !== 'Messages' && screen !== 'Profile') return;
+    void loadSharedReadOnly();
+    // Only request on screen entry; explicit refresh action reloads.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screen, client]);
   function openCreator(id: string) {
     setSelectedCreator(id);
     setScreen('Home');
@@ -567,7 +597,8 @@ export default function App(): React.JSX.Element {
   function renderProfile() {
     return (
       <View style={{ gap: 16 }}>
-        <ProfileSummary profile={profile} tab={profileTab}
+        <ProfileSummary profile={profile} tab={profileTab} username={identity.username}
+          friendCount={sharedFriends.length}
           followingCount={[...followed].filter(id => Boolean(demoCreators[id])).length}
           onTab={setProfileTab} onConnections={setConnectionSheet} onEdit={openProfileEditor}/>
         {profileEditor ? (
@@ -673,27 +704,57 @@ export default function App(): React.JSX.Element {
         )) : <PreviewEmpty icon="car-sport-outline" heading="Your garage starts here" body="Add a car, motorcycle or bicycle to preview how your builds will appear. All entries are private by default." />}
         <Text style={s.small}>Garage entries remain on this device.</Text>
         </> : null}
-        <Text style={[s.small, { textAlign: 'center', paddingBottom: 8 }]}>
-          Preview profile · account and friendships not yet connected
-        </Text>
+        <View style={{ gap: 10, paddingVertical: 13 }}>
+          <Text style={s.small}>Signed in as @ {identity.username.replace(/^@/, '')} with your Rider Comms account.</Text>
+          {!identity.emailVerified ? <Pressable accessibilityRole="button"
+            accessibilityLabel="Resend verification email"
+            onPress={() => { void resendVerification().then(
+              () => setVerificationNotice('Verification email requested. Check your inbox.'),
+              () => setVerificationNotice('Could not resend verification. Please try again later.'),
+            ); }} style={s.ghost}>
+            <Text style={s.ghostText}>Resend verification email</Text>
+          </Pressable> : null}
+          {verificationNotice ? <Text accessibilityRole="alert" style={s.small}>{verificationNotice}</Text> : null}
+          <Pressable accessibilityRole="button" accessibilityLabel="Sign out of Social"
+            onPress={() => void logout()} style={s.ghost}>
+            <Text style={s.ghostText}>Sign out</Text>
+          </Pressable>
+          <Text style={s.small}>Profile and garage changes are stored only on this device. Demo follows and posts are not shared.</Text>
+        </View>
       </View>
     );
   }
 
   function renderMessages() {
-    return (
-      <>
+    return <View style={{ gap: 14 }}>
+      <View style={s.rowBetween}>
         <Text style={s.title}>Messages</Text>
-        <PreviewEmpty icon="chatbox-ellipses-outline" heading="No conversations yet" body="Messages will sync with Rider Comms after account integration." />
-        <Pressable accessibilityRole="button" style={s.ghost} onPress={() => navigate('Home')}><Text style={s.ghostText}>Back to feed</Text></Pressable>
-      </>
-    );
+        <Pressable accessibilityRole="button" accessibilityLabel="Refresh shared messages"
+          onPress={() => void loadSharedReadOnly()} style={s.ghost}>
+          <Text style={s.ghostText}>{sharedLoading ? 'Loading…' : 'Refresh'}</Text>
+        </Pressable>
+      </View>
+      <Text style={s.small}>Rider Comms conversations · read-only</Text>
+      {sharedError ? <Text accessibilityRole="alert" style={s.muted}>{sharedError}</Text> : null}
+      {!identity.emailVerified ? <Text style={s.muted}>Verify your email to message riders.</Text> : null}
+      {!sharedLoading && !sharedError && sharedConversations.length === 0
+        ? <PreviewEmpty icon="chatbox-ellipses-outline" heading="No conversations yet" body="Your existing Rider Comms conversations will appear here."/>
+        : null}
+      {sharedConversations.map((entry, index) => <View key={entry.friend?.riderId ?? String(index)}
+        style={[s.card, s.pad, { gap: 5 }]}>
+        <Text style={s.cardHeading}>{entry.friend?.displayName ?? 'Rider'}</Text>
+        <Text style={s.small}>{entry.friend?.handle ?? ''} · {entry.unreadCount ?? 0} unread</Text>
+        <Text numberOfLines={2} style={s.body}>{entry.lastMessage?.text ?? 'No message preview'}</Text>
+      </View>)}
+      <Pressable accessibilityRole="button" style={s.ghost} onPress={() => navigate('Home')}>
+        <Text style={s.ghostText}>Back to feed</Text>
+      </Pressable>
+    </View>;
   }
 
   const story = demoStories.find((item) => item.id === selectedStory);
 
   return (
-    <SafeAreaProvider>
     <SafeAreaView nativeID="social-screen"
       edges={Platform.OS === 'web' ? [] : screen === 'Reels' && !story ? ['left', 'right'] : ['top', 'left', 'right']}
       style={s.safe}>
@@ -755,6 +816,13 @@ export default function App(): React.JSX.Element {
           onClose={() => setConnectionSheet(null)}/> : null}
       </View>
     </SafeAreaView>
-    </SafeAreaProvider>
   );
+}
+
+export default function App(): React.JSX.Element {
+  return <SafeAreaProvider>
+    <SocialAuthGate>
+      <AuthenticatedSocialApp/>
+    </SocialAuthGate>
+  </SafeAreaProvider>;
 }
