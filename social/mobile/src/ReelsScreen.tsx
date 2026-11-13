@@ -126,8 +126,25 @@ export function ReelsScreen({ items, followedAuthors, onToggleFollow, onOpenComm
   };
 
   if (!items.length) {
-    return <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: C.bg }}>
-      <Text style={{ color: C.ink, fontWeight: '800' }}>No Reels available</Text>
+    // A new account has no published videos. Give this full-screen route a
+    // usable exit to Create instead of a nearly empty dark viewport.
+    return <View testID="reels-empty-state" style={{
+      flex: 1, justifyContent: 'center', alignItems: 'center',
+      backgroundColor: C.bg, paddingHorizontal: 32, gap: 14,
+    }}>
+      <Ionicons name="videocam-outline" size={42} color={C.ink}/>
+      <Text style={{ color: C.ink, fontWeight: '800', fontSize: 20 }}>
+        No Reels yet
+      </Text>
+      <Text style={{ color: '#AEB8C4', fontSize: 14, textAlign: 'center', lineHeight: 21 }}>
+        Choose a video to preview your first Reel. Nothing will be published yet.
+      </Text>
+      <Pressable accessibilityRole="button" accessibilityLabel="Create Reel"
+        onPress={onCreateReel}
+        style={{ minHeight: 47, paddingHorizontal: 24, borderRadius: 24,
+          backgroundColor: '#FFFFFF', justifyContent: 'center', marginTop: 9 }}>
+        <Text style={{ color: '#050709', fontWeight: '800' }}>Create a Reel</Text>
+      </Pressable>
     </View>;
   }
 
