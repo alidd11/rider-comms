@@ -887,8 +887,8 @@
     $('#app').classList.remove('nav-mode');
     renderMapChrome();
     if (arrived) {
-      showToast('You have arrived.');
-      if (announceArrival) speak('You have arrived at your destination.');
+      showToast('You’ve arrived.');
+      if (announceArrival) speak('You’ve arrived.');
     }
   }
 

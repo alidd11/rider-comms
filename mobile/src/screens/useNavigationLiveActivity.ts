@@ -34,7 +34,7 @@ export function useNavigationLiveActivity(
   const key = input ? JSON.stringify(navigationLiveActivityContent(input)) : null;
   React.useEffect(() => {
     if (key && input) activity.current?.update(navigationLiveActivityContent(input), { urgent: turnIsClose });
-    else activity.current?.stop(arrivedRef.current ? 'You have arrived' : undefined);
+    else activity.current?.stop(arrivedRef.current ? 'You’ve arrived' : undefined);
     // `key` captures every field of `input` that reaches the lock screen.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);

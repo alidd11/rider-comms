@@ -330,10 +330,10 @@ export function useInAppNavigation(
     setNavigationFollowing(true);
     setNavigationMuted(false);
     setNavigationSpeedMps(null);
-    setNavigationNotice(arrived ? 'You have arrived.' : null);
+    setNavigationNotice(arrived ? 'You’ve arrived.' : null);
     mapRef.current?.animateCamera({ heading: 0, pitch: 0 }, { duration: 350 });
     void stopNavigationPrompt().finally(() => {
-      if (arrived && !navigationMutedRef.current) speakNavigationPrompt('You have arrived at your destination.');
+      if (arrived && !navigationMutedRef.current) speakNavigationPrompt('You’ve arrived.');
     });
   }, [mapRef]);
 

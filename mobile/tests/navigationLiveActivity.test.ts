@@ -58,9 +58,9 @@ describe('navigation Live Activity', () => {
     now = LIVE_ACTIVITY_MIN_UPDATE_MS;
     activity.update(navigationLiveActivityContent({ ...input, distanceLabel: '300 ft' }));
     assert.equal(activity.active, true);
-    activity.stop('You have arrived');
+    activity.stop('You’ve arrived');
     assert.deepEqual(calls.map(([kind]) => kind), ['start', 'update', 'stop']);
-    assert.equal(calls[2]![1].title, 'You have arrived');
+    assert.equal(calls[2]![1].title, 'You’ve arrived');
     assert.equal(activity.active, false);
     activity.stop();
     assert.equal(calls.length, 3);

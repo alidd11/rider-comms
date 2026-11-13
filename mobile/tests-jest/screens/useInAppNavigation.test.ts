@@ -302,9 +302,9 @@ test('advances steps as the rider reaches each maneuver, and arrives at the dest
   expect(result.current.activeRoute).toBeNull();
   expect(result.current.navigationDestination).toBeNull();
   expect(result.current.navigationStepIndex).toBe(0);
-  expect(result.current.navigationNotice).toBe('You have arrived.');
+  expect(result.current.navigationNotice).toBe('You’ve arrived.');
   expect(mockStopNavigationPrompt).toHaveBeenCalled();
-  expect(mockSpeakNavigationPrompt).toHaveBeenCalledWith('You have arrived at your destination.');
+  expect(mockSpeakNavigationPrompt).toHaveBeenCalledWith('You’ve arrived.');
   expect(mockRemove).toHaveBeenCalled();
 });
 
