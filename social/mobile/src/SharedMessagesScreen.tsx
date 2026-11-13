@@ -36,6 +36,7 @@ export function SharedMessagesScreen({
 }: Props) {
   const [active, setActive] = useState<string | null>(null);
   const [thread, setThread] = useState<DirectMessage[]>([]);
+  const [threadOwner, setThreadOwner] = useState<string | null>(null);
   const [threadLoading, setThreadLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [draft, setDraft] = useState('');
@@ -58,6 +59,7 @@ export function SharedMessagesScreen({
     // newly selected rider. No credentials, message bodies or request URLs logged.
     const id = ++requestId.current;
     if (!active) {
+      setThreadOwner(null);
       setThread([]);
       setThreadError(null);
       setThreadLoading(false);
@@ -66,6 +68,7 @@ export function SharedMessagesScreen({
     }
     // Clear the previous rider's messages before loading the next thread.
     // A delayed response must never appear beneath another rider's name.
+    setThreadOwner(null);
     setThread([]);
     setThreadLoading(true);
     setSending(false);
@@ -74,6 +77,7 @@ export function SharedMessagesScreen({
     void client.messageThread(active).then(page => {
       if (requestId.current !== id) return;
       setThread(page.messages);
+      setThreadOwner(active);
     }).catch(cause => {
       if (requestId.current !== id) return;
       setThreadError(messageText(cause, emailVerified));
@@ -97,6 +101,7 @@ export function SharedMessagesScreen({
       const sent = await client.sendMessage(recipientId, message);
       if (requestId.current !== threadRequestId) return;
       setThread(previous => previous.some(item => item.id === sent.id) ? previous : [...previous, sent]);
+      setThreadOwner(recipientId);
       setDraft('');
       void onRefresh();
     } catch (cause) {
@@ -109,6 +114,9 @@ export function SharedMessagesScreen({
 
   if (active) {
     const rider = display(active);
+    // Prevent a single render frame of a previous rider's private messages
+    // before the active-thread effect has a chance to clear its state.
+    const visibleThread = threadOwner === active ? thread : [];
     return <View testID="shared-message-thread" style={{ flex: 1, minHeight: 0, gap: 8 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingBottom: 8,
         borderBottomWidth: 1, borderColor: C.border }}>
@@ -128,10 +136,10 @@ export function SharedMessagesScreen({
         contentContainerStyle={{ paddingVertical: 12, gap: 10 }}
         showsVerticalScrollIndicator={false}>
         {threadLoading ? <ActivityIndicator color={C.accent}/> : null}
-        {!threadLoading && !threadError && !thread.length ? <Text style={s.muted}>
+        {!threadLoading && !threadError && threadOwner === active && !visibleThread.length ? <Text style={s.muted}>
           No messages yet.
         </Text> : null}
-        {thread.map(item => {
+        {visibleThread.map(item => {
           const mine = item.fromRiderId === ownRiderId;
           return <View key={item.id} style={{ alignSelf: mine ? 'flex-end' : 'flex-start',
             maxWidth: '84%', borderRadius: 16, paddingHorizontal: 13,
@@ -147,16 +155,16 @@ export function SharedMessagesScreen({
       </Text> : null}
       <View style={{ flexDirection: 'row', gap: 10, alignItems: 'flex-end', paddingBottom: 5 }}>
         <TextInput accessibilityLabel="Write a message"
-          value={draft} onChangeText={setDraft} editable={emailVerified && !sending}
+          value={draft} onChangeText={setDraft} editable={emailVerified && !sending && !threadLoading}
           placeholder="Message" placeholderTextColor={C.muted} multiline maxLength={1000}
           style={[s.input, { flex: 1, minHeight: 46, maxHeight: 118,
             fontSize: 16, textAlignVertical: 'top' }]}/>
         <Pressable accessibilityRole="button" accessibilityLabel="Send message"
-          disabled={!emailVerified || sending || !draft.trim() || draft.trim().length > 1000}
+          disabled={!emailVerified || sending || threadLoading || !draft.trim() || draft.trim().length > 1000}
           onPress={() => void send()}
           style={{ width: 46, height: 46, borderRadius: 23,
             alignItems: 'center', justifyContent: 'center',
-            backgroundColor: C.accentDark, opacity: !emailVerified || sending || !draft.trim() ? 0.5 : 1 }}>
+            backgroundColor: C.accentDark, opacity: !emailVerified || sending || threadLoading || !draft.trim() ? 0.5 : 1 }}>
           <Ionicons name="arrow-up" color={C.accent} size={22}/>
         </Pressable>
       </View>
