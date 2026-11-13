@@ -2,6 +2,7 @@
 import { test, expect } from '@playwright/test';
 import { URL } from 'node:url';
 import { mkdir } from 'node:fs/promises';
+import { Buffer } from 'node:buffer';
 
 /**
  * Production app checks must use the real export with NO synthetic content.
@@ -226,5 +227,69 @@ test('production: real rider_ account IDs persist and clear profile and garage d
   await page.getByRole('tab', { name: 'Garage profile tab' }).click();
   await expect(page.getByText('Your garage starts here')).toBeVisible();
   await expect(page.getByTestId('social-app-recovery')).toHaveCount(0);
+  expect(uncaught).toEqual([]);
+});
+
+
+test('production: existing Create editor remains usable with an iPhone keyboard-sized viewport', async ({ page }) => {
+  const uncaught = [];
+  page.on('pageerror', e => uncaught.push(e.message));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.getByRole('tab', { name: 'Create' }).click();
+  const chooser = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Choose from library' }).click();
+  await (await chooser).setFiles({
+    name: 'viewport-test.png', mimeType: 'image/png',
+    buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO/jVf8AAAAASUVORK5CYII=', 'base64'),
+  });
+  await expect(page.getByTestId('media-edit-canvas')).toBeVisible();
+  await page.getByRole('button', { name: 'Review post' }).click();
+  await expect(page.getByRole('textbox', { name: 'Create caption' })).toBeVisible();
+
+  // Playwright cannot show the actual iOS keyboard; shrinking the visual
+  // viewport models the constrained available height without using hardware.
+  await page.setViewportSize({ width: 390, height: 505 });
+  await page.getByRole('textbox', { name: 'Create caption' })
+    .fill('Preview note with the keyboard open');
+  const save = page.getByRole('button', { name: 'Save text draft' });
+  await expect(save).toBeVisible();
+  const bottom = await save.boundingBox();
+  expect(bottom, 'Save draft must remain laid out with the keyboard').not.toBeNull();
+  expect((bottom?.y ?? 0) + (bottom?.height ?? 1000)).toBeLessThanOrEqual(508);
+  await page.getByRole('radio', { name: 'Audience Only me' }).scrollIntoViewIfNeeded();
+  await expect(page.getByRole('radio', { name: 'Audience Only me' })).toBeVisible();
+  await save.click();
+  await expect(page.getByText(/Text draft saved/)).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.getByTestId('create-recovery')).toHaveCount(0);
+  await expect(page.getByTestId('social-app-recovery')).toHaveCount(0);
+  expect(uncaught).toEqual([]);
+});
+
+test('production: offline message refresh recovers on the same screen without leaking data', async ({ page }) => {
+  const uncaught = [];
+  page.on('pageerror', e => uncaught.push(e.message));
+  let attempts = 0;
+  await page.route(backend + '/conversations?*', async route => {
+    attempts += 1;
+    if (attempts === 1) {
+      await route.abort('failed');
+      return;
+    }
+    await route.fulfill({ status: 200, headers: cors,
+      contentType: 'application/json',
+      body: JSON.stringify({ conversations: [], nextCursor: null }) });
+  });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Open messages' }).click();
+  await expect(page.getByText('Can’t load your Rider Comms conversations. Try again.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Refresh shared messages' })).toBeEnabled();
+  await page.getByRole('button', { name: 'Refresh shared messages' }).click();
+  await expect(page.getByText('No conversations yet')).toBeVisible();
+  await expect(page.getByText('Can’t load your Rider Comms conversations. Try again.')).toHaveCount(0);
+  await expect(page.getByTestId('shared-message-inbox')).toBeVisible();
+  await expect(page.getByTestId('social-app-recovery')).toHaveCount(0);
+  expect(attempts).toBe(2);
   expect(uncaught).toEqual([]);
 });
