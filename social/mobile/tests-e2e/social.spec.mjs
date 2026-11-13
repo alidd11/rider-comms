@@ -982,6 +982,24 @@ test('TikTok-style Shop discovery supports search, sample details, saved and bas
 });
 
 
+test('Shop storefront ignores stale discovery filters when opened from saved products', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('tab', { name: 'Shop' }).click();
+  await page.getByRole('button', { name: 'View listing Touring gloves' }).click();
+  await page.getByRole('button', { name: 'Save Touring gloves' }).click();
+  await page.getByRole('button', { name: 'Back to Shop' }).click();
+  await page.getByRole('textbox', { name: 'Search marketplace' }).fill('bicycle helmet');
+  await page.getByRole('button', { name: 'Shop category Vehicles' }).click();
+  await page.getByRole('button', { name: 'Shop filters' }).click();
+  await page.getByRole('button', { name: 'Shop interest Cycling' }).click();
+  await page.getByRole('button', { name: 'Shop section Saved' }).click();
+  await page.getByRole('button', { name: 'View listing Touring gloves' }).click();
+  await page.getByRole('button', { name: /^Visit store / }).click();
+  await expect(page.getByRole('textbox', { name: 'Search marketplace' })).toHaveValue('');
+  await expect(page.getByTestId('shop-card-l1')).toBeVisible();
+  await expect(page.getByText('No matching listings')).toHaveCount(0);
+});
+
 test('Shop saved and basket are not hidden by discovery filters', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('tab', { name: 'Shop' }).click();

@@ -62,3 +62,11 @@ The backend [MODERATION.md](https://github.com/alidd11/rider-comms/blob/main/MOD
 - Confirm operational response capacity, abuse escalation, legal preservation and appeal staffing before enabling UGC.
 
 **Do not publish this audit document as the app’s legal terms.**
+
+## Takeover verification — 13 November 2026 (Shop controls and current Ofcom codes)
+
+- Social-only UI follow-up: when the marketplace contains no eligible live inventory, hide an inert product-search field. The independent empty-state CTA still navigates to Clubs, and the existing production smoke test explicitly verifies the search is absent.
+- Storefront navigation follow-up: opening a merchant from a saved product must discard unrelated discovery search, category and vehicle filters, so an approved product is not falsely presented as unavailable. Test this path using isolated fictional listings only; do not imply production commerce exists.
+- **Current Ofcom guidance:** the published user-to-user illegal content and protection-of-children Codes of Practice were updated on **2 November 2026**. The prior versions are identified as superseded on Ofcom's regulatory documents page: https://www.ofcom.org.uk/online-safety/illegal-and-harmful-content/online-safety-regulatory-documents . The legal and safety owners must assess applicability against these current versions, rather than relying on pre-November 2026 references.
+- **Account deletion:** the Social UI now initiates shared-account deletion, but this still requires a disposable-account end-to-end verification. Google Play additionally requires a functional external web deletion-request resource and accurate Play Console data deletion declarations: https://support.google.com/googleplay/android-developer/answer/13327111?hl=en-GB . Neither is established merely by the in-app button.
+- No change to the public-UGC release blockers: verified pilot entitlement, media upload/scanning/removal, server-side privacy and moderation, rights/privacy documents, real-device tests and operational approval remain prerequisites.

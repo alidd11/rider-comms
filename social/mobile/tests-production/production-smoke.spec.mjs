@@ -143,9 +143,10 @@ test('production: every major route and empty state is visible, navigable and er
   expect((ctaRect?.y ?? 9999) + (ctaRect?.height ?? 9999))
     .toBeLessThanOrEqual((bottomTabRect?.y ?? 0) + 2);
   await expect(page.getByRole('button', { name: 'Shop filters' })).toHaveCount(0);
+  // With no inventory, a search box cannot produce any results and is a dead control.
+  await expect(page.getByRole('textbox', { name: 'Search marketplace' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Reset marketplace search' })).toHaveCount(0);
   await verifyScreen(page, testInfo, 'shop-empty');
-  await page.getByRole('textbox', { name: 'Search marketplace' }).fill('helmet');
-  await expect(page.getByRole('button', { name: 'Reset marketplace search' })).toBeVisible();
   for (const section of ['Saved', 'Basket', 'Orders']) {
     await page.getByRole('button', { name: 'Shop section ' + section }).click();
     await expect(page.getByText(section === 'Orders' ? 'No orders yet' :
@@ -153,7 +154,7 @@ test('production: every major route and empty state is visible, navigable and er
     await verifyScreen(page, testInfo, 'shop-' + section.toLowerCase());
   }
   await page.getByRole('button', { name: 'Shop section Discover' }).click();
-  await page.getByRole('button', { name: 'Reset marketplace search' }).click();
+  await expect(page.getByTestId('shop-launch-state')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Reset marketplace search' })).toHaveCount(0);
   await page.getByRole('button', { name: 'Explore clubs from Shop' }).click();
   // React Native Web may omit aria-selected on tabs; verify the destination

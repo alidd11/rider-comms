@@ -40,6 +40,19 @@ export function ShopScreen({ items, collectionItems, search, onSearch, category,
   ),[items,collectionItems,interest,section,saved,basket,shop]);
 
   function openProduct(product:Item) { setSelected(product.id);setMessage(null); }
+  function visitStore(product: Item) {
+    // A saved item remains accessible while discovery search and category filters
+    // are active. Opening its merchant must not inherit those unrelated filters
+    // and incorrectly suggest the storefront has no products.
+    onSearch('');
+    onCategory('All');
+    setInterest('All');
+    setFiltersOpen(false);
+    setShop(product.merchant);
+    setSection('discover');
+    setSelected(null);
+    setMessage(null);
+  }
   function addProduct(product:Item) {
     if (product.type !== 'Product') {
       setMessage('Enquiries and rental bookings require verified businesses. This is only a preview.');
@@ -88,7 +101,7 @@ export function ShopScreen({ items, collectionItems, search, onSearch, category,
         letterSpacing:-0.45,fontWeight:'800'}}>{item.name}</Text>
       <Text style={{color:C.ink,fontSize:28,fontWeight:'900'}}>{item.price}</Text>
       <Pressable accessibilityRole="button" accessibilityLabel={'Visit store '+item.merchant}
-        onPress={()=>{setShop(item.merchant);setSection('discover');setSelected(null);}}
+        onPress={()=>visitStore(item)}
         style={{borderTopWidth:1,borderBottomWidth:1,borderColor:C.border,
           minHeight:62,flexDirection:'row',alignItems:'center',justifyContent:'space-between'}}>
         <View style={{gap:4}}>
@@ -159,7 +172,7 @@ export function ShopScreen({ items, collectionItems, search, onSearch, category,
       {!noLiveInventory?<Text style={{color:C.muted,fontSize:13,lineHeight:18}}>
         Gear, vehicles & rentals
       </Text>:null}
-      <View style={{backgroundColor:C.panel,borderColor:C.border,borderWidth:1,borderRadius:16,
+      {!noLiveInventory ? <View style={{backgroundColor:C.panel,borderColor:C.border,borderWidth:1,borderRadius:16,
         flexDirection:'row',alignItems:'center',paddingLeft:15,minHeight:52,gap:11}}>
         <Ionicons name="search-outline" size={21} color={C.muted}/>
         <TextInput accessibilityLabel="Search marketplace" value={search}
@@ -170,7 +183,7 @@ export function ShopScreen({ items, collectionItems, search, onSearch, category,
           onPress={()=>onSearch('')} style={{width:44,height:48,alignItems:'center',justifyContent:'center'}}>
           <Ionicons name="close-circle" size={22} color={C.muted}/>
         </Pressable>:null}
-      </View>
+      </View> : null}
       {!noLiveInventory?<View style={{flexDirection:'row',alignItems:'center',gap:9}}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{flex:1}}
           contentContainerStyle={{gap:8,paddingVertical:1}}>
