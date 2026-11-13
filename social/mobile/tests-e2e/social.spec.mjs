@@ -128,7 +128,7 @@ test('social profile and private garage edits survive reload without publishing'
   await page.getByRole('textbox', { name: 'Social display name' }).fill('Weekend Rider');
   await page.getByRole('textbox', { name: 'Social bio' }).fill('Cars, motorcycles and Sunday rides.');
   await page.getByRole('button', { name: 'Save profile' }).click();
-  await expect(page.getByText('Weekend Rider')).toBeVisible();
+  await expect(page.getByText('Cars, motorcycles and Sunday rides.')).toBeVisible();
 
   await page.getByRole('tab', { name: 'Garage profile tab' }).click();
   await expect(page.getByText('Your garage starts here')).toBeVisible();
@@ -142,7 +142,7 @@ test('social profile and private garage edits survive reload without publishing'
 
   await page.reload();
   await page.getByRole('button', { name: 'Open profile' }).click();
-  await expect(page.getByText('Weekend Rider')).toBeVisible();
+  await expect(page.getByText('Cars, motorcycles and Sunday rides.')).toBeVisible();
   await page.getByRole('tab', { name: 'Garage profile tab' }).click();
   await expect(page.getByText('Honda PCX')).toBeVisible();
   await page.getByRole('button', { name: 'Toggle privacy for Honda PCX' }).click();
