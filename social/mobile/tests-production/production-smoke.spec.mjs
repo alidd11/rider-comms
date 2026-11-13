@@ -76,6 +76,9 @@ test('production: every major route and empty state is visible, navigable and er
   page.on('pageerror', e => uncaught.push(e.message));
   await page.goto('/');
   await expect(page.getByText('No posts yet')).toBeVisible();
+  await expect(page.getByTestId('home-feed-tabs')).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'For You' })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Following' })).toBeVisible();
   await expect(page.getByText('Sample feed')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Create a post' })).toBeVisible();
   await verifyScreen(page, testInfo, 'home-empty');
@@ -85,9 +88,14 @@ test('production: every major route and empty state is visible, navigable and er
   await page.getByRole('button', { name: 'Close Create' }).click();
   await expect(page.getByText('No posts yet')).toBeVisible();
 
-  await page.getByRole('button', { name: 'Following' }).click();
-  await expect(page.getByText('No posts yet')).toBeVisible();
+  await page.getByRole('tab', { name: 'Following' }).click();
+  await expect(page.getByText('No posts from followed creators')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Create story' })).toHaveCount(0);
+  await expect(page.getByTestId('home-feed-tabs')).toBeVisible();
   await verifyScreen(page, testInfo, 'following-empty');
+  await page.getByRole('button', { name: 'Go to For You' }).click();
+  await expect(page.getByText('No posts yet')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Create story' })).toBeVisible();
 
   await page.getByRole('tab', { name: 'Create' }).click();
   await expect(page.getByTestId('camera-first-studio')).toBeVisible();
