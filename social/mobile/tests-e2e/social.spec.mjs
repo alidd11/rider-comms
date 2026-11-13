@@ -68,7 +68,7 @@ test('clubs, marketplace and profile have independent usable screens', async ({ 
   await expect(page.getByRole('button', { name: 'Leave demo club' })).toBeVisible();
 
   await page.getByRole('tab', { name: 'Shop' }).click();
-  await expect(page.getByText('Marketplace')).toBeVisible();
+  await expect(page.getByText('Sample marketplace')).toBeVisible();
   await expect(page.getByText('Verified only')).toBeVisible();
   await page.getByRole('textbox', { name: 'Search marketplace' }).fill('bicycle helmet');
   await expect(page.getByText('Road bicycle helmet')).toBeVisible();
@@ -635,10 +635,10 @@ test('TikTok-style Shop discovery supports search, sample details, saved and bas
   await expect(page.getByText(/Added to your preview basket/)).toBeVisible();
   await page.getByRole('button', { name: 'Save Touring gloves' }).click();
   await page.getByRole('button', { name: 'Back to Shop' }).click();
-  await page.getByRole('button', { name: 'Shop basket' }).click();
+  await page.getByRole('button', { name: 'Shop section Basket' }).click();
   await expect(page.getByTestId('shop-card-l1')).toBeVisible();
   await expect(page.getByText(/Checkout is unavailable/)).toBeVisible();
-  await page.getByRole('button', { name: 'Shop saved' }).click();
+  await page.getByRole('button', { name: 'Shop section Saved' }).click();
   await expect(page.getByTestId('shop-card-l1')).toBeVisible();
   await expect(page.getByText('Road bicycle helmet')).toHaveCount(0);
 });
@@ -656,10 +656,11 @@ test('Shop saved and basket are not hidden by discovery filters', async ({ page 
   await page.getByRole('textbox', { name: 'Search marketplace' }).fill('bicycle helmet');
   await expect(page.getByTestId('shop-card-l1')).toHaveCount(0);
   await page.getByRole('button', { name: 'Shop category Vehicles' }).click();
+  await page.getByRole('button', { name: 'Shop filters' }).click();
   await page.getByRole('button', { name: 'Shop interest Cycling' }).click();
-  await page.getByRole('button', { name: 'Shop basket' }).click();
+  await page.getByRole('button', { name: 'Shop section Basket' }).click();
   await expect(page.getByTestId('shop-card-l1')).toBeVisible();
-  await page.getByRole('button', { name: 'Shop saved' }).click();
+  await page.getByRole('button', { name: 'Shop section Saved' }).click();
   await expect(page.getByTestId('shop-card-l1')).toBeVisible();
   await page.getByRole('button', { name: 'Shop section Discover' }).click();
   await expect(page.getByTestId('shop-card-l1')).toHaveCount(0);
@@ -673,13 +674,10 @@ test('Social profile has tabs, follower/friend panels and separately managed dem
   await expect(page.getByRole('tab', { name: 'Posts profile tab' })).toBeVisible();
   await expect(page.getByRole('tab', { name: 'Reels profile tab' })).toBeVisible();
   await expect(page.getByRole('tab', { name: 'Garage profile tab' })).toBeVisible();
-  await expect(page.getByText('@fixture-rider · Rider Comms account')).toBeVisible();
+  await expect(page.getByText('@fixture-rider', { exact: true })).toBeVisible();
   await expect(page.getByText('Your posts will appear here')).toBeVisible();
   await expect(page.getByText('Personal garage')).toHaveCount(0);
-  await page.getByRole('button', { name: 'View followers' }).click();
-  await expect(page.getByTestId('profile-connections-sheet')).toBeVisible();
-  await expect(page.getByText('Followers are not connected yet')).toBeVisible();
-  await page.getByRole('button', { name: 'Close connections' }).click();
+  await expect(page.getByRole('button', { name: 'View followers' })).toHaveCount(0);
   await page.getByRole('button', { name: 'View friends' }).click();
   await expect(page.getByText('No friends found')).toBeVisible();
   await page.getByRole('button', { name: 'Close connections' }).click();
