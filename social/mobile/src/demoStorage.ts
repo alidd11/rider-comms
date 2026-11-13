@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DEFAULT_PROFILE, parsePreviewState } from './garage';
 import type { PreviewState } from './garage';
+import { isSafeRiderStorageId } from './createDraftKey';
 
 /** Device-only profile and garage notes are never shared with the backend.
  * Each Rider Comms account gets a separate storage key. Clearing data waits
@@ -8,7 +9,7 @@ import type { PreviewState } from './garage';
  */
 const pending = new Map<string, Promise<void>>();
 function keyFor(riderId: string): string {
-  if (!/^[a-zA-Z0-9-]{8,80}$/.test(riderId)) throw Error('Invalid Rider Comms account identifier');
+  if (!isSafeRiderStorageId(riderId)) throw Error('Invalid Rider Comms account identifier');
   return '@rider-comms/social-demo/v2/' + riderId;
 }
 function writeAfterPrior(key: string, operation: () => Promise<void>): Promise<void> {
