@@ -402,17 +402,36 @@ test('bottom navigation stays flush on every non-composer main screen', async ({
         viewport: window.innerHeight,
         rootDisplay: root ? getComputedStyle(root).display : '',
         bodyOverflow: getComputedStyle(document.body).overflow,
+        labelGap: bar ? bar.bottom - Math.max(...Array.from(tabs.querySelectorAll('[role="tab"]'))
+          .map(node => node.getBoundingClientRect().bottom)) : -1,
       };
     });
     expect(bounds.rootDisplay).toBe('flex');
     expect(bounds.bodyOverflow).toBe('hidden');
     expect(bounds.bottom).toBeGreaterThanOrEqual(bounds.viewport - 2);
     expect(bounds.bottom).toBeLessThanOrEqual(bounds.viewport + 2);
+    // The outer bar being flush is insufficient if icons sit far above it.
+    expect(bounds.labelGap).toBeGreaterThanOrEqual(0);
+    expect(bounds.labelGap).toBeLessThan(80);
   }
   await mkdir('test-results/screenshots', { recursive: true });
   await page.screenshot({ path: 'test-results/screenshots/' + testInfo.project.name + '-nav-flush.png' });
 });
 
+
+test('stale visualViewport dimensions cannot leave a large black strip below tabs', async ({ page }) => {
+  await page.goto('/');
+  await page.evaluate(() => {
+    document.documentElement.style.setProperty('--app-vh', String(window.innerHeight - 135) + 'px');
+    window.dispatchEvent(new Event('resize'));
+  });
+  await expect.poll(() => page.evaluate(() =>
+    parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--app-vh'))
+  )).toBeGreaterThanOrEqual((page.viewportSize()?.height ?? 1) - 2);
+  const navGap = await page.evaluate(() =>
+    window.innerHeight - (document.getElementById('social-bottom-tabs')?.getBoundingClientRect().bottom ?? 0));
+  expect(Math.abs(navGap)).toBeLessThanOrEqual(2);
+});
 
 test('Home photo carousel, double-tap like, and creator garage link work', async ({ page }, testInfo) => {
   await page.goto('/');
