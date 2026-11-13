@@ -67,6 +67,30 @@ test('sign-in stays top anchored while iPhone keyboard viewport changes', async 
   expect(Math.abs((restored?.y ?? -100) - (start?.y ?? -200))).toBeLessThan(10);
 });
 
+test('sign-in textboxes have no filled blue rectangle and keep a visible focus underline', async ({ page }) => {
+  await fakeBackend(page);
+  await page.goto('/');
+  const field = page.getByTestId('auth-field-username');
+  const input = field.locator('input');
+  const look = await input.evaluate(node => {
+    const own = window.getComputedStyle(node);
+    const wrapper = window.getComputedStyle(node.parentElement);
+    return {
+      fill: own.backgroundColor,
+      wrapperFill: wrapper.backgroundColor,
+      topWidth: parseFloat(wrapper.borderTopWidth),
+      bottomWidth: parseFloat(wrapper.borderBottomWidth),
+    };
+  });
+  expect(look.fill).toMatch(/transparent|rgba\\(0, 0, 0, 0\\)/);
+  expect(look.wrapperFill).toMatch(/transparent|rgba\\(0, 0, 0, 0\\)/);
+  expect(look.topWidth).toBe(0);
+  expect(look.bottomWidth).toBeGreaterThan(0);
+  await input.focus();
+  const focused = await input.evaluate(node => window.getComputedStyle(node).boxShadow);
+  expect(focused).not.toBe('none');
+});
+
 test('login errors sit beside the affected input instead of shifting the page header', async ({ page }) => {
   await fakeBackend(page, { accountResult: 'invalid' });
   await page.goto('/');
