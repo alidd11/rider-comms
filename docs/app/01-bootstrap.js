@@ -264,7 +264,7 @@
     free: {
       name: 'Free',
       price: 'Free',
-      blurb: 'Good for a stoplight-to-stoplight ride with riders close by.',
+      blurb: 'Good for riding around town with friends close by.',
       radiusMiles: 1,
       features: ['1 mi Nearby range', 'Group rides at any distance with a host code', 'Voice chat, navigation and road alerts'],
     },
@@ -278,7 +278,7 @@
     premium_plus: {
       name: 'Premium+',
       price: '£9.99 / month',
-      blurb: 'The widest range, for a convoy that has stretched way out.',
+      blurb: 'The widest range, for a long convoy spread over miles.',
       radiusMiles: 20,
       features: ['20 mi Nearby range', 'Everything in Free'],
     },

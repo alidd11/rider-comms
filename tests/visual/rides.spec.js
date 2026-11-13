@@ -54,7 +54,7 @@ test('friend profile exposes only fresh consented private-ride location actions'
   await expect(page.locator('#shareFriendId')).toHaveCount(0);
   await expect(page.locator('#shareFriendLocation')).toBeEnabled();
   await expect(page.locator('#shareFriendLocation')).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.locator('#shareFriendLocation')).toContainText('Sharing my location');
+  await expect(page.locator('#shareFriendLocation')).toContainText('Sharing location');
   await expect(page.locator('#shareFriendLocation')).toHaveAttribute('aria-label', 'Stop sharing your location with this group ride');
   await expect(page.locator('#shareFriendLocation')).toHaveAttribute('title', 'Shares your location with everyone in your current group ride, not just this rider.');
   await expect(page.locator('#friendMapAction')).toBeEnabled();

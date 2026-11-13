@@ -15,7 +15,7 @@ export const PLAN_ORDER: ZoneTier[] = ['free', 'premium', 'premium_plus'];
 export const PLAN_INFO: Record<ZoneTier, PlanInfo> = {
   free: {
     name: 'Free',
-    blurb: 'Good for a stoplight-to-stoplight ride with riders close by.',
+    blurb: 'Good for riding around town with friends close by.',
     features: [`${TIER_RADIUS_MILES.free} mi Nearby range`, 'Group rides at any distance with a host code', 'Voice chat, navigation and road alerts'],
   },
   premium: {
@@ -25,7 +25,7 @@ export const PLAN_INFO: Record<ZoneTier, PlanInfo> = {
   },
   premium_plus: {
     name: 'Premium+',
-    blurb: 'The widest range, for a convoy that has stretched way out.',
+    blurb: 'The widest range, for a long convoy spread over miles.',
     features: [`${TIER_RADIUS_MILES.premium_plus} mi Nearby range`, 'Everything in Free'],
   },
 };

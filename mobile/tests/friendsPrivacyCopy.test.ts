@@ -6,7 +6,7 @@ const friendsSource = await readFile(new URL('../src/screens/FriendsScreen.tsx',
 
 describe('Friend profile privacy copy', () => {
   it('makes group-ride location sharing explicit', () => {
-    assert.match(friendsSource, /'Sharing my location' : 'Share my location'/);
+    assert.match(friendsSource, /'Sharing location' : 'Share location'/);
     assert.match(
       friendsSource,
       /Shares your location with everyone in your current group ride, not just this rider\./,

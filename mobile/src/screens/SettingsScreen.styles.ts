@@ -202,7 +202,8 @@ export const styles = StyleSheet.create({
   faqAnswer: { ...type.caption, color: colors.textSecondary, lineHeight: 19, paddingHorizontal: 12, paddingBottom: 12 },
   helpContact: { flexDirection: 'row', gap: spacing.sm },
   pageSection: { gap: spacing.sm },
-  pageSectionTitle: { ...type.label, color: colors.textSecondary, paddingHorizontal: spacing.xs },
+  // Sentence-case grey heading, as on the Settings root and category pages.
+  pageSectionTitle: { fontSize: 15, lineHeight: 20, color: colors.textSecondary, paddingHorizontal: spacing.xs },
   pageSectionNote: { ...type.caption, color: colors.textSecondary, lineHeight: 18, paddingHorizontal: spacing.xs },
   myProfileName: { ...type.title, color: colors.textPrimary, marginTop: spacing.sm, fontSize: 24, lineHeight: 29, maxWidth: '100%' },
   myProfileHandle: { ...type.body, color: colors.textSecondary, maxWidth: '100%' },

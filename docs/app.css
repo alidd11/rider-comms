@@ -2485,7 +2485,7 @@ html.ride-pill-visible[data-active-screen="settings"] .screen.active{padding-bot
 /* Help & Support */
 .help-contact{display:flex;align-items:center;justify-content:center;gap:9px;text-decoration:none}
 .help-contact svg{width:19px;height:19px}
-.help-contact-note{margin:2px 4px 0}
+.help-contact-note{margin:10px 4px 0}
 .faq-list{overflow:hidden;border:1px solid var(--border-soft);border-radius:12px;background:var(--surface)}
 .faq-item{border-bottom:1px solid var(--border-soft)}
 .faq-item:last-child{border-bottom:0}
@@ -2721,3 +2721,12 @@ html.map-drawer-open #ridePill{display:none}
    (the full name stays in each chip's label for screen readers). */
 #navProviderInstruction{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;white-space:normal}
 .nav-road-ahead-event{flex:none;gap:8px;padding:5px 10px}
+
+/* Friend actions: a two-word label wraps under its icon rather than clipping. */
+.friend-profile-actions strong{max-width:100%;white-space:normal;text-align:center;line-height:1.15}
+
+/* Edit profile: section labels and spacing match the other Settings pages
+   (sentence-case grey heading, a gap between groups) instead of all-caps
+   labels on cards that touch. */
+.settings-page-mode .settings-sheet-label{display:block;margin-bottom:10px;color:var(--text-secondary);font-size:.95rem;font-weight:500;letter-spacing:0;text-transform:none}
+.settings-page-mode .settings-sheet-section+.settings-sheet-section{margin-top:16px}
