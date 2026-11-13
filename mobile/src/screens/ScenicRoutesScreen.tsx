@@ -111,6 +111,7 @@ export function ScenicRoutesScreen(): React.JSX.Element {
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.filterRow}
+          style={styles.chipStrip}
           accessibilityRole="tablist"
         >
           {ROUTE_CATEGORIES.map((filter) => (
@@ -139,7 +140,7 @@ export function ScenicRoutesScreen(): React.JSX.Element {
               />
               {query ? <Pressable accessibilityRole="button" accessibilityLabel="Clear search" onPress={() => setQuery('')} hitSlop={8}><Ionicons name="close-circle" size={18} color={colors.textMuted} /></Pressable> : null}
             </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.durationRow}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.durationRow} style={styles.chipStrip}>
               {RIDE_WINDOWS.map((filter) => (
                 <FilterChip
                   key={filter.value}
@@ -165,6 +166,8 @@ export function ScenicRoutesScreen(): React.JSX.Element {
 }
 
 const styles = StyleSheet.create({
+  // A chip strip takes only its chips' height (see PlaceSearchBar).
+  chipStrip: { flexGrow: 0, flexShrink: 0 },
   container: { flex: 1, backgroundColor: colors.background },
   scroll: {
     width: '100%',

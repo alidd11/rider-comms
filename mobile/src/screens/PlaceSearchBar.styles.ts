@@ -26,7 +26,11 @@ export const styles = StyleSheet.create({
     borderWidth: 1, borderColor: colors.border, ...elevation.raised,
   },
   input: { flex: 1, ...type.body, color: colors.textPrimary, paddingVertical: 0 },
-  categories: { gap: spacing.sm, paddingHorizontal: spacing.md, paddingTop: 3, paddingBottom: 12 },
+  // The strip takes only its chips' height: without flexGrow 0 a horizontal
+  // ScrollView fills the spare column height and stretches every chip into
+  // a tall oval (Android, and taller than intended on iOS).
+  categoryStrip: { flexGrow: 0, flexShrink: 0 },
+  categories: { gap: spacing.sm, paddingHorizontal: spacing.md, paddingTop: 3, paddingBottom: 12, alignItems: 'center' },
   category: {
     minHeight: 42, flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 14,
     borderRadius: radii.pill, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface,
