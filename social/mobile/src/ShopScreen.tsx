@@ -68,13 +68,14 @@ export function ShopScreen({ items, collectionItems, search, onSearch, category,
       <Text style={{color:active?C.accent:C.ink,fontSize:13,fontWeight:'700'}}>{label}</Text>
     </Pressable>;
 
-  if (item) return <View testID="shop-product-details" style={{gap:15,paddingBottom:24}}>
+  if (item) return <View testID="shop-product-details" style={{
+    width:'100%',maxWidth:850,alignSelf:'center',gap:0,paddingBottom:30}}> 
     <Pressable accessibilityRole="button" accessibilityLabel="Back to Shop" onPress={()=>setSelected(null)}
-      style={{paddingHorizontal:16,minHeight:44,flexDirection:'row',alignItems:'center',gap:9}}>
+      style={{paddingHorizontal:18,minHeight:52,flexDirection:'row',alignItems:'center',gap:9}}> 
       <Ionicons name="arrow-back" color={C.ink} size={22}/>
-      <Text style={{color:C.ink,fontWeight:'800'}}>Shop</Text>
+      <Text style={{color:C.ink,fontWeight:'700',fontSize:15}}>Back to Shop</Text>
     </Pressable>
-    <View style={{aspectRatio:1,maxHeight:560,backgroundColor:item.accent}}>
+    <View style={{aspectRatio:1,maxHeight:560,backgroundColor:item.accent}}> 
       <Image source={{uri:item.imageUrl}} accessibilityLabel={item.imageAlt}
         resizeMode="cover" style={{width:'100%',height:'100%'}}/>
       <View style={{position:'absolute',top:12,left:12,backgroundColor:'rgba(0,0,0,0.76)',
@@ -82,34 +83,44 @@ export function ShopScreen({ items, collectionItems, search, onSearch, category,
         <Text style={{color:'#FFFFFF',fontSize:11,fontWeight:'900'}}>SAMPLE PRODUCT</Text>
       </View>
     </View>
-    <View style={{paddingHorizontal:16,gap:13}}>
-      <Text style={{color:C.ink,fontSize:22,fontWeight:'900'}}>{item.name}</Text>
-      <Text style={{color:C.ink,fontSize:24,fontWeight:'900'}}>{item.price}</Text>
+    <View style={{paddingHorizontal:18,paddingTop:20,gap:14}}> 
+      <Text style={{color:C.ink,fontSize:24,lineHeight:30,
+        letterSpacing:-0.45,fontWeight:'800'}}>{item.name}</Text>
+      <Text style={{color:C.ink,fontSize:28,fontWeight:'900'}}>{item.price}</Text>
       <Pressable accessibilityRole="button" accessibilityLabel={'Visit store '+item.merchant}
         onPress={()=>{setShop(item.merchant);setSection('discover');setSelected(null);}}
         style={{borderTopWidth:1,borderBottomWidth:1,borderColor:C.border,
           minHeight:62,flexDirection:'row',alignItems:'center',justifyContent:'space-between'}}>
         <View style={{gap:4}}>
-          <Text style={{color:C.ink,fontWeight:'800',fontSize:14}}>{item.merchant}</Text>
-          <Text style={{color:C.muted,fontSize:11}}>Example storefront · not an approved merchant</Text>
+          <Text style={{color:C.ink,fontWeight:'800',fontSize:15}}>{item.merchant}</Text>
+          <Text style={{color:C.muted,fontSize:12}}>Sample storefront · Not an approved merchant</Text>
         </View>
         <Ionicons name="chevron-forward" size={20} color={C.muted}/>
       </Pressable>
-      <Text style={{color:C.muted,fontSize:13,lineHeight:19}}>
+      <Text style={{color:C.muted,fontSize:14,lineHeight:21}}>
         Illustrative listing only. Stock, delivery, reviews, seller credentials and pricing are not verified.
       </Text>
       {message?<Text accessibilityRole="alert" style={{color:C.accent,fontSize:12}}>{message}</Text>:null}
       <View style={{flexDirection:'row',gap:10}}>
         <Pressable accessibilityRole="button" accessibilityLabel={(saved.has(item.id)?'Unsave ':'Save ')+item.name}
-          onPress={()=>onToggleSaved(item.id)} style={[s.ghost,{justifyContent:'center',minWidth:54}]}>
-          <Ionicons name={saved.has(item.id)?'heart':'heart-outline'} size={21} color={C.accent}/>
+          onPress={()=>onToggleSaved(item.id)} style={[s.ghost,{
+            justifyContent:'center',minWidth:85,minHeight:51,flexDirection:'row',gap:7}]}>
+          <Ionicons name={saved.has(item.id)?'heart':'heart-outline'} size={19} color={C.accent}/>
+          <Text style={{fontSize:14,fontWeight:'800',color:C.ink}}>
+            {saved.has(item.id)?'Saved':'Save'}
+          </Text>
         </Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel={'Add to preview basket '+item.name}
-          onPress={()=>addProduct(item)} style={[s.cta,{flex:1,alignItems:'center'}]}>
-          <Text style={s.ctaText}>{item.type==='Product'?'Add to basket':'Enquire (preview)'}</Text>
+          onPress={()=>addProduct(item)} style={[s.cta,{
+            flex:1,minHeight:51,alignItems:'center'}]}>
+          <Text style={[s.ctaText,{fontSize:14}]}>
+            {item.type==='Product'?'Add to preview basket':'Enquire (preview)'}
+          </Text>
         </Pressable>
       </View>
-      <Text style={{color:C.muted,fontSize:11}}>No live checkout or booking is available.</Text>
+      <Text style={{color:C.muted,fontSize:12,lineHeight:18}}>
+        No live checkout or booking is available.
+      </Text>
     </View>
   </View>;
 
