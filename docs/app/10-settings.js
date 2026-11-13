@@ -717,14 +717,14 @@
           const ok = await stopPublicNearby({ disableLocationSharing: true });
           button.disabled = false;
           button.setAttribute('aria-pressed', String(state.profile.shareLocation));
-          if (ok) showToast('Nearby visibility and Nearby Voice are off.');
+          if (ok) showToast('Nearby visibility and Nearby Voice are off.', 'info');
           return;
         }
         try {
           await currentPosition();
         } catch (error) {
           button.disabled = false;
-          showToast(locationAccessMessage(error, 'share your location'));
+          showToast(locationAccessMessage(error, 'share your location'), 'error');
           return;
         }
         const ok = await patchProfile({ shareLocation: true });
@@ -796,7 +796,7 @@
       button.disabled = true;
       try {
         await apiFetch('DELETE', `/blocks/${encodeURIComponent(rider.riderId)}`);
-        showToast(`${rider.displayName} unblocked.`);
+        showToast(`${rider.displayName} unblocked.`, 'info');
         void renderBlockedRiders();
       } catch {
         button.disabled = false;

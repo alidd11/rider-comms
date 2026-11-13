@@ -103,7 +103,7 @@
     navigate('map');
     requestAnimationFrame(() => {
       if (typeof google === 'undefined' || !map || usingFallbackMap) {
-        showToast('Rider Comms navigation needs the live map.');
+        showToast('Rider Comms navigation needs the live map.', 'error');
         return;
       }
       const location = new google.maps.LatLng(hideout.lat, hideout.lon);
@@ -149,7 +149,7 @@
           $('#hideoutLat').value = position.coords.latitude.toFixed(5);
           $('#hideoutLon').value = position.coords.longitude.toFixed(5);
         } catch (error) {
-          showToast(locationAccessMessage(error, 'use your location for a hideout'));
+          showToast(locationAccessMessage(error, 'use your location for a hideout'), 'error');
         } finally {
           button.disabled = false;
         }
@@ -525,7 +525,7 @@
       if (activeChat?.riderId === person.riderId) closeChat({ restoreFocus: false });
       closeSheet();
       onBlocked?.();
-      showToast(`${person.displayName} blocked.`);
+      showToast(`${person.displayName} blocked.`, 'info');
     } catch {
       if (button) button.disabled = false;
       if (error) {

@@ -5,7 +5,7 @@
       centreMap(position.coords.latitude, position.coords.longitude);
       syncRideLocationSharing();
     } catch (error) {
-      showToast(locationAccessMessage(error, 'centre the map'));
+      showToast(locationAccessMessage(error, 'centre the map'), 'error');
     }
   }
 

@@ -27,7 +27,7 @@
   async function preflightMicrophoneAccess() {
     if (microphonePermissionReady) return true;
     if (!navigator.mediaDevices?.getUserMedia) {
-      showToast(microphoneAccessMessage());
+      showToast(microphoneAccessMessage(), 'error');
       return false;
     }
     let stream;
@@ -36,7 +36,7 @@
       microphonePermissionReady = true;
       return true;
     } catch (error) {
-      showToast(microphoneAccessMessage(error));
+      showToast(microphoneAccessMessage(error), 'error');
       return false;
     } finally {
       stream?.getTracks().forEach((track) => track.stop());
@@ -821,7 +821,7 @@
           ? 'Verify your email before using voice chat.'
           : error?.name === 'NotAllowedError' || error?.name === 'SecurityError'
             ? microphoneAccessMessage(error)
-            : 'Voice chat is unavailable right now. Your ride and map still work.');
+            : 'Voice chat is unavailable right now. Your ride and map still work.', 'error');
         voiceFailureNotified = true;
       }
       if (room) disconnectManagedVoiceRoom(room);
@@ -987,7 +987,7 @@
         const saved = await stopPublicNearby({ disableLocationSharing: true });
         showToast(saved
           ? 'Nearby visibility and Nearby Voice are off.'
-          : 'Nearby is off, but the location-sharing preference couldn’t be saved.');
+          : 'Nearby is off, but the location-sharing preference couldn’t be saved.', saved ? 'info' : 'error');
         return;
       }
 
@@ -995,7 +995,7 @@
       // Init refreshes this value from /auth/me, so fail before asking for
       // microphone/location when the account is not eligible.
       if (session?.emailVerified === false) {
-        showToast('Verify your email before joining Nearby Voice.');
+        showToast('Verify your email before joining Nearby Voice.', 'error');
         return;
       }
       if (!(await preflightMicrophoneAccess())) return;
@@ -1004,7 +1004,7 @@
       try {
         position = await currentPublicPresencePosition();
       } catch (error) {
-        showToast(locationAccessMessage(error, 'join riders nearby'));
+        showToast(locationAccessMessage(error, 'join riders nearby'), 'error');
         return;
       }
 
@@ -1073,7 +1073,7 @@
                   ? 'Nearby is updating too often. Try again in a moment.'
                   : code === 'location fix timestamp is stale or invalid'
                     ? 'Couldn’t get a fresh location. Check location is on for this app and try again.'
-                    : 'Couldn’t go live. Try again.');
+                    : 'Couldn’t go live. Try again.', 'error');
         if (!['email_verification_required', 'location_sharing_disabled', 'rate_limited', 'implausible_location_jump', 'location accuracy must be between 0 and 100 metres'].includes(code)) {
           // Report why, without coordinates, so a failure like this is
           // diagnosable from the server logs.

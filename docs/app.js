@@ -746,7 +746,9 @@
 
   // Compatibility name retained while existing flows migrate. This is now a
   // proper, accessible in-app notification rather than a transient toast.
-  function showToast(message) {
+  /** tone: 'error' or 'info'. Pass it whenever the wording could mislead
+   * the guess below ("Maya blocked." is a success, not an error). */
+  function showToast(message, tone) {
     const notification = $('#appNotification');
     if (!notification) return;
     const text = notification.querySelector('[data-notification-message]');
@@ -756,7 +758,7 @@
     // screens already expose Ride-safe status at the bottom, so repeating it
     // as a global alert obscures content and makes the app feel broken.
     if (state.screen !== 'map' && /Finding your location took too long/i.test(value)) return;
-    const isError = /couldn’t|could not|can't|cannot|failed|unavailable|blocked|expired|needed|try again|off\b/i.test(value);
+    const isError = tone ? tone === 'error' : /couldn’t|could not|can’t|can't|cannot|isn’t|failed|unavailable|blocked|expired|needed|try again|off\b/i.test(value);
     text.textContent = value;
     notification.setAttribute('role', isError ? 'alert' : 'status');
     notification.setAttribute('aria-live', isError ? 'assertive' : 'polite');
@@ -1587,7 +1589,7 @@
     navigate('map');
     requestAnimationFrame(() => {
       if (typeof google === 'undefined' || !map || usingFallbackMap) {
-        showToast('Rider Comms navigation needs the live map.');
+        showToast('Rider Comms navigation needs the live map.', 'error');
         return;
       }
       const location = new google.maps.LatLng(hideout.lat, hideout.lon);
@@ -1633,7 +1635,7 @@
           $('#hideoutLat').value = position.coords.latitude.toFixed(5);
           $('#hideoutLon').value = position.coords.longitude.toFixed(5);
         } catch (error) {
-          showToast(locationAccessMessage(error, 'use your location for a hideout'));
+          showToast(locationAccessMessage(error, 'use your location for a hideout'), 'error');
         } finally {
           button.disabled = false;
         }
@@ -2009,7 +2011,7 @@
       if (activeChat?.riderId === person.riderId) closeChat({ restoreFocus: false });
       closeSheet();
       onBlocked?.();
-      showToast(`${person.displayName} blocked.`);
+      showToast(`${person.displayName} blocked.`, 'info');
     } catch {
       if (button) button.disabled = false;
       if (error) {
@@ -2434,7 +2436,7 @@
       await loadRideRoster();
     } catch (error) {
       const reason = error instanceof ApiError ? error.body?.error : undefined;
-      showToast(RIDE_ERROR_MESSAGES[reason] || 'Couldn’t create a ride. Try again.');
+      showToast(RIDE_ERROR_MESSAGES[reason] || 'Couldn’t create a ride. Try again.', 'error');
     } finally {
       button.disabled = false;
       button.innerHTML = `${icon('plus')}<span>Start a ride</span>`;
@@ -3286,14 +3288,14 @@
           const ok = await stopPublicNearby({ disableLocationSharing: true });
           button.disabled = false;
           button.setAttribute('aria-pressed', String(state.profile.shareLocation));
-          if (ok) showToast('Nearby visibility and Nearby Voice are off.');
+          if (ok) showToast('Nearby visibility and Nearby Voice are off.', 'info');
           return;
         }
         try {
           await currentPosition();
         } catch (error) {
           button.disabled = false;
-          showToast(locationAccessMessage(error, 'share your location'));
+          showToast(locationAccessMessage(error, 'share your location'), 'error');
           return;
         }
         const ok = await patchProfile({ shareLocation: true });
@@ -3365,7 +3367,7 @@
       button.disabled = true;
       try {
         await apiFetch('DELETE', `/blocks/${encodeURIComponent(rider.riderId)}`);
-        showToast(`${rider.displayName} unblocked.`);
+        showToast(`${rider.displayName} unblocked.`, 'info');
         void renderBlockedRiders();
       } catch {
         button.disabled = false;
@@ -3507,7 +3509,7 @@
       await stopPublicNearby();
       showToast(code === 'location_sharing_disabled'
         ? 'Nearby location sharing is off. Tap Go live to enable it again.'
-        : 'Verify your email before joining Nearby Voice.');
+        : 'Verify your email before joining Nearby Voice.', 'error');
       return;
     }
     const message = code === 'implausible_location_jump'
@@ -3709,7 +3711,7 @@
   async function preflightMicrophoneAccess() {
     if (microphonePermissionReady) return true;
     if (!navigator.mediaDevices?.getUserMedia) {
-      showToast(microphoneAccessMessage());
+      showToast(microphoneAccessMessage(), 'error');
       return false;
     }
     let stream;
@@ -3718,7 +3720,7 @@
       microphonePermissionReady = true;
       return true;
     } catch (error) {
-      showToast(microphoneAccessMessage(error));
+      showToast(microphoneAccessMessage(error), 'error');
       return false;
     } finally {
       stream?.getTracks().forEach((track) => track.stop());
@@ -4503,7 +4505,7 @@
           ? 'Verify your email before using voice chat.'
           : error?.name === 'NotAllowedError' || error?.name === 'SecurityError'
             ? microphoneAccessMessage(error)
-            : 'Voice chat is unavailable right now. Your ride and map still work.');
+            : 'Voice chat is unavailable right now. Your ride and map still work.', 'error');
         voiceFailureNotified = true;
       }
       if (room) disconnectManagedVoiceRoom(room);
@@ -4669,7 +4671,7 @@
         const saved = await stopPublicNearby({ disableLocationSharing: true });
         showToast(saved
           ? 'Nearby visibility and Nearby Voice are off.'
-          : 'Nearby is off, but the location-sharing preference couldn’t be saved.');
+          : 'Nearby is off, but the location-sharing preference couldn’t be saved.', saved ? 'info' : 'error');
         return;
       }
 
@@ -4677,7 +4679,7 @@
       // Init refreshes this value from /auth/me, so fail before asking for
       // microphone/location when the account is not eligible.
       if (session?.emailVerified === false) {
-        showToast('Verify your email before joining Nearby Voice.');
+        showToast('Verify your email before joining Nearby Voice.', 'error');
         return;
       }
       if (!(await preflightMicrophoneAccess())) return;
@@ -4686,7 +4688,7 @@
       try {
         position = await currentPublicPresencePosition();
       } catch (error) {
-        showToast(locationAccessMessage(error, 'join riders nearby'));
+        showToast(locationAccessMessage(error, 'join riders nearby'), 'error');
         return;
       }
 
@@ -4755,7 +4757,7 @@
                   ? 'Nearby is updating too often. Try again in a moment.'
                   : code === 'location fix timestamp is stale or invalid'
                     ? 'Couldn’t get a fresh location. Check location is on for this app and try again.'
-                    : 'Couldn’t go live. Try again.');
+                    : 'Couldn’t go live. Try again.', 'error');
         if (!['email_verification_required', 'location_sharing_disabled', 'rate_limited', 'implausible_location_jump', 'location accuracy must be between 0 and 100 metres'].includes(code)) {
           // Report why, without coordinates, so a failure like this is
           // diagnosable from the server logs.
@@ -4982,7 +4984,7 @@
       await currentPosition();
       return true;
     } catch (error) {
-      showToast(locationAccessMessage(error, 'share your position with your private ride'));
+      showToast(locationAccessMessage(error, 'share your position with your private ride'), 'error');
       return false;
     }
   }
@@ -5012,7 +5014,7 @@
       if (!enabled) rideMemberLocations.delete(state.profile.riderId);
       persist();
       renderRide();
-      showToast(enabled ? 'Live location is shared with this ride.' : 'Ride location sharing is off and your saved position was removed.');
+      showToast(enabled ? 'Live location is shared with this ride.' : 'Ride location sharing is off and your saved position was removed.', 'info');
       return true;
     } catch {
       renderRide();
@@ -5097,7 +5099,7 @@
       centreMap(position.coords.latitude, position.coords.longitude);
       syncRideLocationSharing();
     } catch (error) {
-      showToast(locationAccessMessage(error, 'centre the map'));
+      showToast(locationAccessMessage(error, 'centre the map'), 'error');
     }
   }
 

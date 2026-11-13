@@ -150,7 +150,7 @@
       await loadRideRoster();
     } catch (error) {
       const reason = error instanceof ApiError ? error.body?.error : undefined;
-      showToast(RIDE_ERROR_MESSAGES[reason] || 'Couldn’t create a ride. Try again.');
+      showToast(RIDE_ERROR_MESSAGES[reason] || 'Couldn’t create a ride. Try again.', 'error');
     } finally {
       button.disabled = false;
       button.innerHTML = `${icon('plus')}<span>Start a ride</span>`;

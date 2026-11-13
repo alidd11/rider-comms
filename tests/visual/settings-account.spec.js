@@ -519,6 +519,11 @@ test('PWA Settings lists blocked riders and can unblock them', async ({ page }) 
   await page.locator('[data-unblock="rider_blocked01"]').click();
   await expect.poll(() => unblocked).toEqual(['rider_blocked01']);
   await expect(page.locator('#blockedRidersList')).not.toContainText('Blocked Rider');
+  // "Blocked Rider unblocked." is a success: a polite status, not an alert.
+  const notice = page.locator('#appNotification');
+  await expect(notice).toContainText('Blocked Rider unblocked.');
+  await expect(notice).toHaveAttribute('data-tone', 'info');
+  await expect(notice).toHaveAttribute('role', 'status');
 });
 
 test('PWA terms prompt scrolls on short landscape screens', async ({ page }) => {

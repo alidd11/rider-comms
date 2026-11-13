@@ -206,7 +206,7 @@
       await currentPosition();
       return true;
     } catch (error) {
-      showToast(locationAccessMessage(error, 'share your position with your private ride'));
+      showToast(locationAccessMessage(error, 'share your position with your private ride'), 'error');
       return false;
     }
   }
@@ -236,7 +236,7 @@
       if (!enabled) rideMemberLocations.delete(state.profile.riderId);
       persist();
       renderRide();
-      showToast(enabled ? 'Live location is shared with this ride.' : 'Ride location sharing is off and your saved position was removed.');
+      showToast(enabled ? 'Live location is shared with this ride.' : 'Ride location sharing is off and your saved position was removed.', 'info');
       return true;
     } catch {
       renderRide();

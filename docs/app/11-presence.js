@@ -102,7 +102,7 @@
       await stopPublicNearby();
       showToast(code === 'location_sharing_disabled'
         ? 'Nearby location sharing is off. Tap Go live to enable it again.'
-        : 'Verify your email before joining Nearby Voice.');
+        : 'Verify your email before joining Nearby Voice.', 'error');
       return;
     }
     const message = code === 'implausible_location_jump'

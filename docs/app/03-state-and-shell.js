@@ -149,7 +149,9 @@
 
   // Compatibility name retained while existing flows migrate. This is now a
   // proper, accessible in-app notification rather than a transient toast.
-  function showToast(message) {
+  /** tone: 'error' or 'info'. Pass it whenever the wording could mislead
+   * the guess below ("Maya blocked." is a success, not an error). */
+  function showToast(message, tone) {
     const notification = $('#appNotification');
     if (!notification) return;
     const text = notification.querySelector('[data-notification-message]');
@@ -159,7 +161,7 @@
     // screens already expose Ride-safe status at the bottom, so repeating it
     // as a global alert obscures content and makes the app feel broken.
     if (state.screen !== 'map' && /Finding your location took too long/i.test(value)) return;
-    const isError = /couldn’t|could not|can't|cannot|failed|unavailable|blocked|expired|needed|try again|off\b/i.test(value);
+    const isError = tone ? tone === 'error' : /couldn’t|could not|can’t|can't|cannot|isn’t|failed|unavailable|blocked|expired|needed|try again|off\b/i.test(value);
     text.textContent = value;
     notification.setAttribute('role', isError ? 'alert' : 'status');
     notification.setAttribute('aria-live', isError ? 'assertive' : 'polite');
