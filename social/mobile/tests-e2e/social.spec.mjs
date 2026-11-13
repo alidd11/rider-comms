@@ -609,9 +609,12 @@ test('Create is full-screen, has working mode controls and a real dismissal path
   await expect(page.getByRole('button', { name: 'Story format' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Reel format' })).toBeVisible();
   await page.getByRole('button', { name: 'Reel format' }).click();
-  await expect(page.getByRole('button', { name: '15 seconds' })).toHaveAttribute('aria-pressed', 'true');
-  await page.getByRole('button', { name: '60 seconds' }).click();
-  await expect(page.getByRole('button', { name: '60 seconds' })).toHaveAttribute('aria-pressed', 'true');
+  // WebKit/Chromium PWAs cannot record a Reel through expo-camera's native
+  // recording API. The web composer must offer real Gallery video selection,
+  // not native-only recording duration controls that would never work.
+  await expect(page.getByRole('button', { name: 'Choose Reel video' })).toBeEnabled();
+  await expect(page.getByRole('button', { name: '15 seconds' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '60 seconds' })).toHaveCount(0);
   await page.getByRole('button', { name: 'Close Create' }).click();
   await expect(page.getByRole('tab', { name: 'Home' })).toBeVisible();
   await expect(page.locator('#social-bottom-tabs')).toHaveCount(1);
