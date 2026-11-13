@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Image, Pressable, ScrollView, Text, View } from 'react-native';
+import { Image, Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native';
 import type { NativeSyntheticEvent, NativeScrollEvent, ScrollViewInstance } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { C } from './styles';
@@ -14,6 +14,8 @@ export function FeedMedia({
   liked: boolean;
   onDoubleTap: () => void;
 }) {
+  const { width: viewportWidth } = useWindowDimensions();
+  const showDesktopArrows = viewportWidth >= 720;
   const scroller = useRef<ScrollViewInstance>(null);
   const [width, setWidth] = useState(0);
   const [index, setIndex] = useState(0);
@@ -48,7 +50,8 @@ export function FeedMedia({
     {width > 0 ? <ScrollView ref={scroller} nativeID={'social-post-gallery-' + id}
       testID={'post-gallery-' + id} horizontal pagingEnabled
       showsHorizontalScrollIndicator={false} bounces={false}
-      onMomentumScrollEnd={scrolled} scrollEventThrottle={16}
+      onScroll={scrolled} onMomentumScrollEnd={scrolled} onScrollEndDrag={scrolled}
+      scrollEventThrottle={16}
       style={{ flex: 1 }}>
       {images.map((item, i) =>
         <Pressable key={item.uri + '-' + i} accessibilityRole="button"
@@ -66,23 +69,16 @@ export function FeedMedia({
         position: 'absolute', right: 12, top: 12, backgroundColor: 'rgba(0,0,0,0.72)',
         borderRadius: 13, paddingHorizontal: 10, paddingVertical: 5,
       }}><Text style={{ color: C.ink, fontSize: 11, fontWeight: '800' }}>{index + 1}/{images.length}</Text></View>
-      {index > 0 ? <Pressable accessibilityRole="button" accessibilityLabel={'Previous photo in post ' + id}
+      {showDesktopArrows && index > 0 ? <Pressable accessibilityRole="button" accessibilityLabel={'Previous photo in post ' + id}
         onPress={() => move(-1)} style={{
           position: 'absolute', top: '48%', left: 9, backgroundColor: 'rgba(0,0,0,0.54)',
           borderRadius: 20, width: 34, height: 34, alignItems: 'center', justifyContent: 'center',
         }}><Ionicons name="chevron-back" size={22} color={C.ink}/></Pressable> : null}
-      {index < images.length - 1 ? <Pressable accessibilityRole="button" accessibilityLabel={'Next photo in post ' + id}
+      {showDesktopArrows && index < images.length - 1 ? <Pressable accessibilityRole="button" accessibilityLabel={'Next photo in post ' + id}
         onPress={() => move(1)} style={{
           position: 'absolute', top: '48%', right: 9, backgroundColor: 'rgba(0,0,0,0.54)',
           borderRadius: 20, width: 34, height: 34, alignItems: 'center', justifyContent: 'center',
         }}><Ionicons name="chevron-forward" size={22} color={C.ink}/></Pressable> : null}
-      <View pointerEvents="none" style={{
-        position: 'absolute', bottom: 12, left: 0, right: 0,
-        flexDirection: 'row', justifyContent: 'center', gap: 5,
-      }}>{images.map((_, i) => <View key={i} style={{
-        width: i === index ? 7 : 5, height: i === index ? 7 : 5,
-        borderRadius: 6, backgroundColor: i === index ? C.accent : 'rgba(255,255,255,0.6)',
-      }}/>)}</View>
     </> : null}
   </View>;
 }
