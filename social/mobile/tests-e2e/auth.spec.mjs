@@ -56,7 +56,7 @@ test('sign-in stays top anchored while iPhone keyboard viewport changes', async 
   const start = await form.boundingBox();
   const username = page.getByRole('textbox', { name: 'Username' });
   await username.focus();
-  const inputSize = await username.evaluate(input => parseFloat(getComputedStyle(input).fontSize));
+  const inputSize = await username.evaluate(input => parseFloat(window.getComputedStyle(input).fontSize));
   expect(inputSize).toBeGreaterThanOrEqual(16);
   await page.setViewportSize({ width: 390, height: 545 });
   const focused = await form.boundingBox();
