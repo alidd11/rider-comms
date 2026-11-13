@@ -77,7 +77,13 @@ test('production: every major route and empty state is visible, navigable and er
   await page.goto('/');
   await expect(page.getByText('No posts yet')).toBeVisible();
   await expect(page.getByText('Sample feed')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Create a post' })).toBeVisible();
   await verifyScreen(page, testInfo, 'home-empty');
+  await page.getByRole('button', { name: 'Create a post' }).click();
+  await expect(page.getByTestId('camera-first-studio')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Post format' })).toBeVisible();
+  await page.getByRole('button', { name: 'Close Create' }).click();
+  await expect(page.getByText('No posts yet')).toBeVisible();
 
   await page.getByRole('button', { name: 'Following' }).click();
   await expect(page.getByText('No posts yet')).toBeVisible();
