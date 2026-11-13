@@ -24,7 +24,8 @@ import { ProfileSummary } from './src/ProfileSummary';
 import type { ProfileContentTab } from './src/ProfileSummary';
 import { ProfileConnectionsSheet } from './src/ProfileConnectionsSheet';
 import { SocialAuthGate, useSocialAccount } from './src/SocialAuthGate';
-import type { SharedFriend, SharedConversation } from './src/authClient';
+import { SharedMessagesScreen } from './src/SharedMessagesScreen';
+import type { SharedFriend, SharedConversation, RiderProfile } from './src/authClient';
 import type { ConnectionKind } from './src/ProfileConnectionsSheet';
 
 type Screen = 'Home' | 'Reels' | 'Create' | 'Clubs' | 'Shop' | 'Profile' | 'Messages';
@@ -199,10 +200,24 @@ function AuthenticatedSocialApp(): React.JSX.Element {
   const [localComments, setLocalComments] = useState<Record<string, CommentPreview[]>>({});
   const [sharedFriends, setSharedFriends] = useState<SharedFriend[]>([]);
   const [sharedConversations, setSharedConversations] = useState<SharedConversation[]>([]);
+  const [ownProfile, setOwnProfile] = useState<RiderProfile | null>(null);
+  const [sharedProfiles, setSharedProfiles] = useState<Record<string, RiderProfile>>({});
   const [sharedLoading, setSharedLoading] = useState(false);
   const [sharedError, setSharedError] = useState<string | null>(null);
   const [verificationNotice, setVerificationNotice] = useState<string | null>(null);
   const [localDraftOwner, setLocalDraftOwner] = useState<string | null>(null);
+
+  // Rider Comms controls the real name, handle and avatar identity. Local
+  // Social edits never replace authoritative account profile values.
+  useEffect(() => {
+    let mounted = true;
+    void client.ownProfile().then(result => {
+      if (mounted) setOwnProfile(result);
+    }).catch(() => {
+      // Preserve the authenticated /auth/me username if profile API is temporarily offline.
+    });
+    return () => { mounted = false; };
+  }, [client, identity.riderId]);
 
   // Preview-only, per-device data. Shared Rider Comms accounts and DMs are untouched.
   useEffect(() => {
@@ -321,10 +336,18 @@ function AuthenticatedSocialApp(): React.JSX.Element {
       const [friends, conversations] = await Promise.all([client.friends(), client.conversations()]);
       setSharedFriends(friends.friends);
       setSharedConversations(conversations.conversations);
+      const peerIds = [...new Set([
+        ...friends.friends.map(item => item.riderId),
+        ...conversations.conversations.map(item => item.friend.riderId),
+      ])].filter(Boolean);
+      if (peerIds.length) {
+        try { setSharedProfiles(await client.riderProfiles(peerIds.slice(0, 100))); }
+        catch { /* Conversation identity remains available from the existing friend API. */ }
+      }
     } catch (cause) {
       setSharedError(cause instanceof Error && 'status' in cause && cause.status === 403
         ? 'Verify your email to message riders.'
-        : 'Could not load friends and conversations. Pull to refresh later or try again.');
+        : 'Can’t load your Rider Comms conversations. Try again.');
     } finally { setSharedLoading(false); }
   }
   useEffect(() => {
@@ -543,7 +566,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
           <Text style={s.title}>{club.name}</Text>
           <Text style={s.muted}>{club.category} · {club.city} · {club.members.toLocaleString()} members</Text>
           <Text style={s.body}>{club.description}</Text>
-          <Text style={s.small}>{club.privacy} community · demo membership state</Text>
+          <Text style={s.small}>{club.privacy === 'Approval' ? 'Request to join' : 'Open to all'} · sample club</Text>
           <Pressable accessibilityRole="button" style={s.cta} onPress={() => toggle(setJoined, club.id)}><Text style={s.ctaText}>{joined.has(club.id) ? 'Leave demo club' : 'Join demo club'}</Text></Pressable>
         </View>
         <PreviewEmpty icon="chatbubbles-outline" heading="Club feed and channels" body="Real club posts, permissions, subscriptions and discussions will appear here after the backend is integrated. Private club content remains protected." />
@@ -552,7 +575,6 @@ function AuthenticatedSocialApp(): React.JSX.Element {
     return (
       <>
         <Text style={s.title}>Clubs & events</Text>
-        <HeaderLine heading="Explore clubs" />
         {recommendedClubs.map((item) => (
           <View style={[s.card, s.pad]} key={item.id}>
             <View style={s.row}>
@@ -565,7 +587,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
             </View>
             <Text style={s.muted}>{item.description}</Text>
             <View style={s.rowBetween}>
-              <View style={s.darkBadge}><Text style={s.badgeText}>{item.privacy.toUpperCase()}</Text></View>
+              <View style={s.darkBadge}><Text style={s.badgeText}>{item.privacy === 'Approval' ? 'Request to join' : 'Open to all'}</Text></View>
               <Pressable accessibilityRole="button" style={s.ghost} onPress={() => setSelectedClub(item.id)}><Text style={s.ghostText}>View club</Text></Pressable>
             </View>
           </View>
@@ -600,7 +622,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
   function renderProfile() {
     return (
       <View style={{ gap: 16 }}>
-        <ProfileSummary profile={profile} tab={profileTab} username={identity.username}
+        <ProfileSummary profile={profile} accountProfile={ownProfile} tab={profileTab} username={identity.username}
           friendCount={sharedFriends.length}
           followingCount={[...followed].filter(id => Boolean(demoCreators[id])).length}
           onTab={setProfileTab} onConnections={setConnectionSheet} onEdit={openProfileEditor}/>
@@ -729,32 +751,11 @@ function AuthenticatedSocialApp(): React.JSX.Element {
   }
 
   function renderMessages() {
-    return <ScrollView style={{ flex: 1, minHeight: 0 }}
-      contentContainerStyle={{ gap: 14, paddingBottom: 20 }}
-      showsVerticalScrollIndicator={false}>
-      <View style={s.rowBetween}>
-        <Text style={s.title}>Messages</Text>
-        <Pressable accessibilityRole="button" accessibilityLabel="Refresh shared messages"
-          onPress={() => void loadSharedReadOnly()} style={s.ghost}>
-          <Text style={s.ghostText}>{sharedLoading ? 'Loading…' : 'Refresh'}</Text>
-        </Pressable>
-      </View>
-      <Text style={s.small}>Rider Comms conversations · read-only</Text>
-      {sharedError ? <Text accessibilityRole="alert" style={s.muted}>{sharedError}</Text> : null}
-      {!identity.emailVerified ? <Text style={s.muted}>Verify your email to message riders.</Text> : null}
-      {!sharedLoading && !sharedError && sharedConversations.length === 0
-        ? <PreviewEmpty icon="chatbox-ellipses-outline" heading="No conversations yet" body="Your existing Rider Comms conversations will appear here."/>
-        : null}
-      {sharedConversations.map((entry, index) => <View key={entry.friend?.riderId ?? String(index)}
-        style={[s.card, s.pad, { gap: 5 }]}>
-        <Text style={s.cardHeading}>{entry.friend?.displayName ?? 'Rider'}</Text>
-        <Text style={s.small}>{entry.friend?.handle ?? ''} · {entry.unreadCount ?? 0} unread</Text>
-        <Text numberOfLines={2} style={s.body}>{entry.lastMessage?.text ?? 'No message preview'}</Text>
-      </View>)}
-      <Pressable accessibilityRole="button" style={s.ghost} onPress={() => navigate('Home')}>
-        <Text style={s.ghostText}>Back to feed</Text>
-      </Pressable>
-    </ScrollView>;
+    return <SharedMessagesScreen ownRiderId={identity.riderId}
+      emailVerified={identity.emailVerified} client={client}
+      conversations={sharedConversations} friends={sharedFriends} profiles={sharedProfiles}
+      loading={sharedLoading} error={sharedError}
+      onRefresh={loadSharedReadOnly}/>;
   }
 
   const story = demoStories.find((item) => item.id === selectedStory);
@@ -765,7 +766,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
       style={s.safe}>
       <StatusBar barStyle="light-content" />
       <View style={s.root}>
-        {!story && screen !== 'Reels' && screen !== 'Create' && screen !== 'Shop' ? <View style={s.header}>
+        {!story && screen !== 'Reels' && screen !== 'Create' ? <View style={s.header}>
           <Pressable accessibilityRole="button" accessibilityLabel="Go to home" onPress={() => navigate('Home')}>
             <Text style={s.brandTitle}>Social<Text style={{ color: C.accent }}>.</Text></Text>
           </Pressable>
