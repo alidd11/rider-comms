@@ -432,6 +432,39 @@ test('media editor has a dominant fixed canvas, real edit actions and a separate
 });
 
 
+
+test('Reels For You and Following have separate visible creator sets and Saved survives navigation', async ({ page }) => {
+  const errors = [];
+  page.on('pageerror', e => errors.push(e.message));
+  await page.goto('/');
+  await page.getByRole('tab', { name: 'Reels' }).click();
+  await expect(page.getByRole('tab', { name: 'For You reels' })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Following reels' })).toBeVisible();
+  await expect(page.locator('#social-reel-panel-r1')).toHaveCount(1);
+  await page.getByRole('tab', { name: 'Following reels' }).click();
+  await expect(page.locator('#social-reel-panel-r1')).toHaveCount(0);
+  await expect(page.locator('#social-reel-panel-r2')).toHaveCount(1);
+  await expect(page.locator('#social-reel-panel-r3')).toHaveCount(1);
+  await page.getByRole('tab', { name: 'For You reels' }).click();
+  await page.getByRole('button', { name: 'Save Reel r2' }).click();
+  await page.getByRole('tab', { name: 'Home' }).click();
+  await page.getByRole('button', { name: 'Open profile' }).click();
+  await page.getByRole('tab', { name: 'Saved profile tab' }).click();
+  await expect(page.getByRole('button', { name: 'Watch saved Reel r2' })).toBeVisible();
+  await page.getByRole('button', { name: 'Watch saved Reel r2' }).click();
+  await expect(page.getByTestId('reels-viewport')).toBeVisible();
+  await expect.poll(() => page.locator('#social-reels-feed').evaluate(el => {
+    const second = document.getElementById('social-reel-panel-r2');
+    return second ? Math.abs(el.scrollTop - second.offsetTop) : 9999;
+  })).toBeLessThan(5);
+  await page.getByRole('button', { name: 'Save Reel r2' }).click();
+  await page.getByRole('tab', { name: 'Home' }).click();
+  await page.getByRole('button', { name: 'Open profile' }).click();
+  await page.getByRole('tab', { name: 'Saved profile tab' }).click();
+  await expect(page.getByText('No saved Reels yet')).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
 test('Reels keeps the selected page aligned when the iPhone viewport height changes', async ({ page }) => {
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
@@ -1086,8 +1119,9 @@ test('Social profile has tabs, follower/friend panels and separately managed dem
   await expect(page.getByTestId('social-profile-summary')).toBeVisible();
   await expect(page.getByRole('tab', { name: 'Posts profile tab' })).toBeVisible();
   await expect(page.getByRole('tab', { name: 'Reels profile tab' })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Saved profile tab' })).toBeVisible();
   await expect(page.getByRole('tab', { name: 'Garage profile tab' })).toBeVisible();
-  for (const name of ['Posts', 'Reels', 'Garage']) {
+  for (const name of ['Posts', 'Reels', 'Saved', 'Garage']) {
     const tab = page.getByRole('tab', { name: name + ' profile tab' });
     await expect(tab).toContainText(name);
     const rect = await tab.boundingBox();
@@ -1109,6 +1143,8 @@ test('Social profile has tabs, follower/friend panels and separately managed dem
   await page.getByRole('button', { name: 'Close connections' }).click();
   await page.getByRole('tab', { name: 'Reels profile tab' }).click();
   await expect(page.getByText('Your Reels will appear here')).toBeVisible();
+  await page.getByRole('tab', { name: 'Saved profile tab' }).click();
+  await expect(page.getByText('No saved Reels yet')).toBeVisible();
   await page.getByRole('tab', { name: 'Garage profile tab' }).click();
   await expect(page.getByText('Personal garage')).toBeVisible();
   await mkdir('test-results/screenshots', { recursive: true });
@@ -1162,6 +1198,8 @@ test('visual inventory captures each Social screen at mobile and desktop sizes',
   await capture('profile-posts');
   await page.getByRole('tab', { name: 'Reels profile tab' }).click();
   await capture('profile-reels');
+  await page.getByRole('tab', { name: 'Saved profile tab' }).click();
+  await capture('profile-saved');
   await page.getByRole('tab', { name: 'Garage profile tab' }).click();
   await capture('profile-garage');
 
