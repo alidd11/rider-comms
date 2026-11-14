@@ -54,7 +54,7 @@ export function authorizeSocialPrivatePlayback(
       ctx.viewerAgeEligible !== true || ctx.ownerModerationClear !== true ||
       ctx.mediaModerationClear !== true || ctx.postDeleted !== false ||
       ctx.postExpired !== false || ctx.ownerAllowsViewer !== true ||
-      ctx.viewerAllowsOwner !== true) {
+      ctx.viewerAllowsOwner !== true || typeof ctx.viewerFollowsOwner !== 'boolean') {
     return { allowed: false, reason: 'forbidden' };
   }
   if (ctx.viewerId === ctx.ownerId) return { allowed: true };
