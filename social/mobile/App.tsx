@@ -694,7 +694,12 @@ function AuthenticatedSocialApp(): React.JSX.Element {
     );
     return (
       <>
-        <Text style={s.title}>Clubs & events</Text>
+        <View style={{ gap: 5, paddingBottom: 1 }}>
+          <Text style={[s.title, { fontSize: 28, letterSpacing: -0.75 }]}>Clubs & events</Text>
+          <Text style={[s.muted, { fontSize: 14, lineHeight: 21 }]}>
+            Discover riding communities and meets when they become available.
+          </Text>
+        </View>
         {recommendedClubs.map((item) => (
           <View style={[s.card, s.pad]} key={item.id}>
             <View style={s.row}>
@@ -715,7 +720,20 @@ function AuthenticatedSocialApp(): React.JSX.Element {
         {!recommendedClubs.length ? <PreviewEmpty icon="people-outline" heading="No clubs yet"
           body="Clubs will appear here when the community is ready."/> : null}
         <HeaderLine heading="Upcoming events" />
-        {!recommendedEvents.length ? <Text style={s.muted}>No upcoming events.</Text> : null}
+        {!recommendedEvents.length ? <View testID="clubs-empty-events"
+          style={{ flexDirection: 'row', gap: 13, alignItems: 'center',
+            backgroundColor: C.panel, borderRadius: 18, padding: 17 }}>
+          <View style={{ width: 48, height: 48, borderRadius: 15,
+            backgroundColor: C.accentDark, justifyContent: 'center', alignItems: 'center' }}>
+            <Ionicons name="calendar-outline" color={C.accent} size={23}/>
+          </View>
+          <View style={{ flex: 1, gap: 5 }}>
+            <Text style={[s.cardHeading, { fontSize: 15 }]}>No upcoming events.</Text>
+            <Text style={[s.muted, { fontSize: 12, lineHeight: 18 }]}>
+              Scheduled meets from clubs will show here when they're ready.
+            </Text>
+          </View>
+        </View> : null}
         {recommendedEvents.map((event) => (
           <View style={[s.card, s.pad]} key={event.id}>
             <View style={s.row}>
