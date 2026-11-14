@@ -43,7 +43,8 @@
 
 
   function navigationPromptStageForDistance(meters) {
-    return navigationGuidance.navigationPromptStageForDistance(meters);
+    // Earlier at speed (shared): about a mile ahead at 70 mph.
+    return navigationGuidance.navigationPromptStageForDistance(meters, navCurrentSpeedMps);
   }
 
   function navigationPromptText(instruction, meters, stage) {
@@ -310,7 +311,10 @@
     requestAnimationFrame(syncNavigationOverlayGeometry);
     if (!navMuted && navLastAnnouncedStep !== navStepIndex) {
       navLastAnnouncedStep = navStepIndex;
-      if (navLastNowPromptStep !== navStepIndex) speak(stripHtml(step.instructions));
+      // The instruction (unless said at the turn), then "Continue for 12 mi."
+      // on a long road (shared navigationStepStartPrompt).
+      const prompt = navigationGuidance.navigationStepStartPrompt(stripHtml(step.instructions), step.distance?.value, state.unit, navLastNowPromptStep === navStepIndex);
+      if (prompt) speak(prompt);
     }
   }
 
@@ -383,6 +387,30 @@
       navPuckKey: key,
     };
   }
+
+  // The screen stays on while navigating, as in Google Maps, Waze and Apple
+  // Maps (native: expo-keep-awake in useInAppNavigation). Browsers drop the
+  // lock whenever the app is hidden, so it's taken again on return. Where the
+  // browser has no Screen Wake Lock, the screen just sleeps as before.
+  let navWakeLock = null;
+  async function keepScreenOnForNavigation(on) {
+    if (!on) {
+      const lock = navWakeLock;
+      navWakeLock = null;
+      try { await lock?.release(); } catch { /* Already released. */ }
+      return;
+    }
+    if (navWakeLock || document.visibilityState !== 'visible' || !navigator.wakeLock?.request) return;
+    try {
+      const lock = await navigator.wakeLock.request('screen');
+      if (!$('#app').classList.contains('nav-mode')) { await lock.release(); return; }
+      navWakeLock = lock;
+      lock.addEventListener?.('release', () => { if (navWakeLock === lock) navWakeLock = null; });
+    } catch { /* Low battery mode or no permission: the screen sleeps as usual. */ }
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && $('#app').classList.contains('nav-mode')) void keepScreenOnForNavigation(true);
+  });
 
   function stopNavigationCameraAnimation() {
     navCameraAnimationToken += 1;
@@ -689,6 +717,7 @@
     // screen are the route, the turn card, the ETA bar, and the controls a
     // rider actually needs mid-drive (report hazard, mute guidance, route overview/follow, end nav).
     $('#app').classList.add('nav-mode');
+    void keepScreenOnForNavigation(true);
     renderMapChrome();
     watchNavigationOverlayGeometry();
     setNavigationTrafficVisible(true);
@@ -981,6 +1010,7 @@
     $('#navSummary').hidden = true;
     $('#app').style.removeProperty('--nav-banner-height');
     $('#app').classList.remove('nav-mode');
+    void keepScreenOnForNavigation(false);
     renderMapChrome();
     if (arrived) {
       if (arrival) showArrivalCard(arrival);

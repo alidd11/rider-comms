@@ -1,6 +1,7 @@
 import * as React from 'react';
 import { Alert } from 'react-native';
 import * as Location from 'expo-location';
+import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import type MapView from 'react-native-maps';
 import { ApiError } from '../api/client';
 import type { RiderCommsClient } from '../api/client';
@@ -14,6 +15,7 @@ import {
 } from '../api/directions';
 import {
   navigationPromptStageForDistance,
+  navigationStepStartPrompt,
   navigationPromptText,
 } from '../navigationGuidance';
 import {
@@ -117,6 +119,8 @@ export interface InAppNavigation {
  * further, to avoid restructuring the callback wiring between pieces that
  * depend tightly on each other's timing.
  */
+export const NAVIGATION_KEEP_AWAKE_TAG = 'rider-comms-navigation';
+
 export function useInAppNavigation(
   client: RiderCommsClient,
   mapRef: React.RefObject<MapView | null>,
@@ -145,6 +149,15 @@ export function useInAppNavigation(
   const routeAvoidanceRef = React.useRef(routeAvoidance);
   routeAvoidanceRef.current = routeAvoidance;
   const [activeRoute, setActiveRoute] = React.useState<InAppNavigationRoute | null>(null);
+  // The screen stays on while navigating, as in Google Maps, Waze and Apple
+  // Maps: a rider glancing down mustn't find a locked phone (PWA: Screen
+  // Wake Lock in 17-navigation.js).
+  const navigating = activeRoute !== null;
+  React.useEffect(() => {
+    if (!navigating) return;
+    activateKeepAwakeAsync(NAVIGATION_KEEP_AWAKE_TAG).catch(() => {});
+    return () => { deactivateKeepAwake(NAVIGATION_KEEP_AWAKE_TAG).catch(() => {}); };
+  }, [navigating]);
   const [navigationDestination, setNavigationDestination] = React.useState<NavigationTarget | null>(null);
   const [navigationStepIndex, setNavigationStepIndex] = React.useState(0);
   const [navigationLoading, setNavigationLoading] = React.useState(false);
@@ -431,7 +444,12 @@ export function useInAppNavigation(
     announcedNavigationStep.current = { route: activeRoute, index: navigationStepIndex };
     const finalPrompt = finalNavigationPrompt.current;
     const alreadySpokenAtTurn = finalPrompt?.route === activeRoute && finalPrompt.index === navigationStepIndex;
-    if (!alreadySpokenAtTurn) speakNavigationPrompt(currentNavigationStep.instruction);
+    // The instruction (unless said at the turn), then "Continue for 12 mi."
+    // on a long road (shared navigationStepStartPrompt).
+    const prompt = navigationStepStartPrompt(currentNavigationStep.instruction, currentNavigationStep.distanceMeters, unitSystem, alreadySpokenAtTurn);
+    if (prompt) speakNavigationPrompt(prompt);
+    // A change of units mid-route isn't a new step to announce.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeRoute, currentNavigationStep, navigationMuted, navigationStepIndex]);
 
   React.useEffect(() => {
@@ -585,7 +603,8 @@ export function useInAppNavigation(
             navigationPromptProgress.current = progress;
           }
           const maneuverDistance = remainingDistanceOnPathMeters(here, effectiveStep.coordinates);
-          const promptStage = navigationPromptStageForDistance(maneuverDistance);
+          // Earlier at speed (shared): about a mile ahead at 70 mph.
+          const promptStage = navigationPromptStageForDistance(maneuverDistance, speed);
           if (!navigationMutedRef.current && promptStage > progress.stage) {
             navigationPromptProgress.current = { ...progress, stage: promptStage };
             if (promptStage === 3) finalNavigationPrompt.current = { route: activeRoute, index: upcomingIndex };

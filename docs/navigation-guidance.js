@@ -69,11 +69,29 @@
       : glanceActions[maneuverKey] || 'Continue';
   }
 
-  function navigationPromptStageForDistance(metres) {
-    if (!Number.isFinite(metres) || metres > 500) return 0;
-    if (metres > 150) return 1;
-    if (metres > 40) return 2;
+  function navigationPromptStageForDistance(metres, speedMps = null) {
+    const speed = typeof speedMps === 'number' && Number.isFinite(speedMps) && speedMps > 0 ? speedMps : 0;
+    const ahead = (seconds, floor, ceiling) => Math.min(ceiling, Math.max(floor, speed * seconds));
+    if (!Number.isFinite(metres) || metres > ahead(50, 500, 3200)) return 0;
+    if (metres > ahead(15, 150, 800)) return 1;
+    if (metres > ahead(3, 40, 120)) return 2;
     return 3;
+  }
+
+  const NAVIGATION_CONTINUE_PROMPT_METERS = 2000;
+
+  function navigationStepStartPrompt(instruction, stepMeters, unit, alreadySpokenAtTurn) {
+    const parts = [];
+    const cleaned = normalizeNavigationInstructionText(instruction);
+    if (cleaned && !alreadySpokenAtTurn) parts.push(cleaned.replace(/[.!]$/, ''));
+    if (Number.isFinite(stepMeters) && stepMeters >= NAVIGATION_CONTINUE_PROMPT_METERS) {
+      parts.push(`Continue for ${formatNavigationDistance(stepMeters, unit)}`);
+    }
+    // A lone instruction is said as it comes; with "Continue for …" each
+    // part is its own sentence.
+    if (parts.length === 0) return '';
+    if (cleaned && !alreadySpokenAtTurn && parts.length === 1) return cleaned;
+    return `${parts.join('. ')}.`;
   }
 
   function normalizeNavigationInstructionText(value) {
@@ -97,7 +115,7 @@
     const cleaned = normalizeNavigationInstructionText(instruction);
     if (!cleaned || stage === 0) return '';
     if (stage === 3) return cleaned;
-    return `In ${formatNavigationDistance(metres, unit)}, ${cleaned}`;
+    return `In ${formatNavigationDistance(metres, unit)}, ${cleaned.replace(/^[A-Z](?=[a-z])/, (letter) => letter.toLowerCase())}`;
   }
 
   function maneuverIcon(maneuver) {
@@ -143,6 +161,7 @@
     normalizeNavigationInstructionText,
     navigationPromptStageForDistance,
     navigationPromptText,
+    navigationStepStartPrompt,
     navigationSpeedUnit,
   });
 })(typeof window === 'undefined' ? globalThis : window);

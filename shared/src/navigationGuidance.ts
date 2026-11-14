@@ -134,11 +134,48 @@ export function navigationManeuverAction(maneuver?: string): string {
 
 export type NavigationPromptStage = 0 | 1 | 2 | 3;
 
-export function navigationPromptStageForDistance(metres: number): NavigationPromptStage {
-  if (!Number.isFinite(metres) || metres > 500) return 0;
-  if (metres > 150) return 1;
-  if (metres > 40) return 2;
+/**
+ * Which spoken prompt is due this far before a turn. The warnings come by
+ * time, not just distance, as in Google Maps and Waze: at least 500 m, 150 m
+ * and 40 m ahead, but 50, 15 and 3 seconds ahead at speed, so a motorway
+ * exit at 70 mph is announced about a mile out (never more than 2 miles),
+ * not 16 seconds before it. Unknown speed keeps the distance-only thresholds.
+ */
+export function navigationPromptStageForDistance(metres: number, speedMps: number | null = null): NavigationPromptStage {
+  const speed = typeof speedMps === 'number' && Number.isFinite(speedMps) && speedMps > 0 ? speedMps : 0;
+  const ahead = (seconds: number, floor: number, ceiling: number) => Math.min(ceiling, Math.max(floor, speed * seconds));
+  if (!Number.isFinite(metres) || metres > ahead(50, 500, 3200)) return 0;
+  if (metres > ahead(15, 150, 800)) return 1;
+  if (metres > ahead(3, 40, 120)) return 2;
   return 3;
+}
+
+/** A step this long gets "Continue for …" when it begins (Google Maps and
+ * Waze do the same on long roads), so the rider knows nothing is coming. */
+export const NAVIGATION_CONTINUE_PROMPT_METERS = 2000;
+
+/**
+ * What's said as a new step begins: its instruction (unless it was already
+ * said at the turn), then, on a long road, how far until the next one:
+ * "Turn left onto A3. Continue for 12 mi."
+ */
+export function navigationStepStartPrompt(
+  instruction: string,
+  stepMeters: number,
+  unit: NavigationUnit,
+  alreadySpokenAtTurn: boolean,
+): string {
+  const parts: string[] = [];
+  const cleaned = normalizeNavigationInstructionText(instruction);
+  if (cleaned && !alreadySpokenAtTurn) parts.push(cleaned.replace(/[.!]$/, ''));
+  if (Number.isFinite(stepMeters) && stepMeters >= NAVIGATION_CONTINUE_PROMPT_METERS) {
+    parts.push(`Continue for ${formatNavigationDistance(stepMeters, unit)}`);
+  }
+  // A lone instruction is said as it comes; with "Continue for …" each
+  // part is its own sentence.
+  if (parts.length === 0) return '';
+  if (cleaned && !alreadySpokenAtTurn && parts.length === 1) return cleaned;
+  return `${parts.join('. ')}.`;
 }
 
 export function navigationPromptText(
@@ -150,7 +187,8 @@ export function navigationPromptText(
   const cleaned = normalizeNavigationInstructionText(instruction);
   if (!cleaned || stage === 0) return '';
   if (stage === 3) return cleaned;
-  return `In ${formatNavigationDistance(metres, unit)}, ${cleaned}`;
+  // "In 500 ft, turn left", not "In 500 ft, Turn left".
+  return `In ${formatNavigationDistance(metres, unit)}, ${cleaned.replace(/^[A-Z](?=[a-z])/, (letter) => letter.toLowerCase())}`;
 }
 
 export function maneuverIcon(maneuver?: string): NavigationManeuverIcon {

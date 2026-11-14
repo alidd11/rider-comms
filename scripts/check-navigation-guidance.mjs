@@ -10,6 +10,7 @@ import {
   navigationPromptStageForDistance,
   navigationPromptText,
   navigationSpeedUnit,
+  navigationStepStartPrompt,
 } from '../shared/src/navigationGuidance.ts';
 
 await import('../docs/navigation-guidance.js');
@@ -31,7 +32,7 @@ const fixtures = {
     'roundabout-right', 'ferry', 'ferry-train', 'depart', 'name-change',
     'arrive', 'provider-future-value',
   ],
-  promptDistance: [Number.NaN, 800, 501, 500, 151, 150, 41, 40, 0],
+  promptDistance: [Number.NaN, 4000, 3200, 1600, 940, 800, 501, 500, 320, 151, 150, 100, 41, 40, 0],
   prompt: [
     ['Turn left onto A1', 480, 'km', 1],
     ['Turn left onto A1', 140, 'mi', 2],
@@ -82,10 +83,22 @@ for (const maneuver of fixtures.maneuver) {
 }
 
 for (const metres of fixtures.promptDistance) {
-  assert.equal(
-    browser.navigationPromptStageForDistance(metres),
-    navigationPromptStageForDistance(metres),
-  );
+  for (const speed of [undefined, null, -1, 0, 8, 31.3, 60, Number.NaN]) {
+    assert.equal(
+      browser.navigationPromptStageForDistance(metres, speed),
+      navigationPromptStageForDistance(metres, speed),
+    );
+  }
+}
+for (const args of [
+  ['Turn left onto A3', 19_312, 'mi', false],
+  ['Turn left onto A3.', 19_312, 'km', true],
+  ['Turn left onto A3', 900, 'mi', false],
+  ['', 900, 'mi', false],
+  ['  Keep   right  ', 2000, 'mi', false],
+  ['Turn right', Number.NaN, 'km', false],
+]) {
+  assert.equal(browser.navigationStepStartPrompt(...args), navigationStepStartPrompt(...args));
 }
 
 for (const [instruction, metres, unit, stage] of fixtures.prompt) {

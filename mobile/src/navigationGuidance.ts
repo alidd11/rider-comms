@@ -12,6 +12,7 @@ export {
   navigationPromptStageForDistance,
   navigationPromptText,
   navigationSpeedUnit,
+  navigationStepStartPrompt,
 } from '@rider-comms/shared';
 
 export type {

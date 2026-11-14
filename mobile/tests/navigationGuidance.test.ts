@@ -9,6 +9,7 @@ import {
   navigationPromptStageForDistance,
   navigationPromptText,
   navigationSpeedUnit,
+  navigationStepStartPrompt,
 } from '../src/navigationGuidance.ts';
 
 describe('navigation guidance presentation', () => {
@@ -54,10 +55,34 @@ describe('navigation guidance presentation', () => {
     assert.equal(navigationPromptStageForDistance(150), 2);
     assert.equal(navigationPromptStageForDistance(40), 3);
 
-    assert.equal(navigationPromptText('Turn left onto A1', 480, 'km', 1), 'In 480 m, Turn left onto A1');
-    assert.equal(navigationPromptText('Turn left onto A1', 140, 'mi', 2), 'In 460 ft, Turn left onto A1');
+    assert.equal(navigationPromptText('Turn left onto A1', 480, 'km', 1), 'In 480 m, turn left onto A1');
+    assert.equal(navigationPromptText('Turn left onto A1', 140, 'mi', 2), 'In 460 ft, turn left onto A1');
+    // A road name first keeps its capitals.
+    assert.equal(navigationPromptText('A1 towards Barnet', 140, 'mi', 2), 'In 460 ft, A1 towards Barnet');
     assert.equal(navigationPromptText('Turn left onto A1', 30, 'mi', 3), 'Turn left onto A1');
     assert.equal(navigationPromptText('Turn left onto A1', 800, 'mi', 0), '');
+  });
+
+  it('warns earlier at speed, as Google Maps and Waze do', () => {
+    // 70 mph: the first warning about a mile out, not 500 m.
+    assert.equal(navigationPromptStageForDistance(1600, 31.3), 0);
+    assert.equal(navigationPromptStageForDistance(1500, 31.3), 1);
+    assert.equal(navigationPromptStageForDistance(460, 31.3), 2);
+    assert.equal(navigationPromptStageForDistance(90, 31.3), 3);
+    // Never earlier than 2 miles, however fast.
+    assert.equal(navigationPromptStageForDistance(3300, 200), 0);
+    // Slow or unknown speed keeps the distance thresholds.
+    assert.equal(navigationPromptStageForDistance(800, 5), 0);
+    assert.equal(navigationPromptStageForDistance(500, null), 1);
+    assert.equal(navigationPromptStageForDistance(500, -1), 1);
+  });
+
+  it('says how far a long road goes when its step begins', () => {
+    assert.equal(navigationStepStartPrompt('Turn left onto A3', 19_312, 'mi', false), 'Turn left onto A3. Continue for 12 mi.');
+    assert.equal(navigationStepStartPrompt('Turn left onto A3.', 19_312, 'km', true), 'Continue for 19 km.');
+    assert.equal(navigationStepStartPrompt('Turn left onto A3', 900, 'mi', false), 'Turn left onto A3');
+    assert.equal(navigationStepStartPrompt('Turn left onto A3', 900, 'mi', true), '');
+    assert.equal(navigationStepStartPrompt('', Number.NaN, 'mi', false), '');
   });
 
   it('maps Google maneuver values to directional native icons', () => {

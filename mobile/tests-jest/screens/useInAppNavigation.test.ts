@@ -9,7 +9,7 @@ import {
   NAV_GPS_STALE_AFTER_MS,
   NAV_GPS_STALE_NOTICE,
 } from '../../src/navigationGpsHealth';
-import { useInAppNavigation } from '../../src/screens/useInAppNavigation';
+import { NAVIGATION_KEEP_AWAKE_TAG, useInAppNavigation } from '../../src/screens/useInAppNavigation';
 
 const mockSpeakNavigationPrompt = jest.fn();
 const mockStopNavigationPrompt = jest.fn(async () => undefined);
@@ -33,6 +33,13 @@ const mockWatchNavigationLocation = jest.fn();
 const mockGetForegroundPermissionsAsync = jest.fn();
 const mockAcquireNavigationAudioSession = jest.fn(async () => undefined);
 const mockReleaseNavigationAudioSession = jest.fn(async () => undefined);
+
+const mockActivateKeepAwake = jest.fn(async (_tag: string) => undefined);
+const mockDeactivateKeepAwake = jest.fn(async (_tag: string) => undefined);
+jest.mock('expo-keep-awake', () => ({
+  activateKeepAwakeAsync: (tag: string) => mockActivateKeepAwake(tag),
+  deactivateKeepAwake: (tag: string) => mockDeactivateKeepAwake(tag),
+}));
 
 jest.mock('expo-location', () => ({
   getForegroundPermissionsAsync: (...args: unknown[]) => mockGetForegroundPermissionsAsync(...args),
@@ -216,6 +223,23 @@ test('starts navigation from the current location and announces the first step',
   expect(mockAcquireNavigationAudioSession).toHaveBeenCalledTimes(1);
 });
 
+test('a long first road says how far it goes', async () => {
+  const longRoute = { ...ROUTE, steps: [{ ...ROUTE.steps[0]!, distanceMeters: 19_312 }, ...ROUTE.steps.slice(1)] };
+  await startNavigation({ client: { getDrivingRoute: jest.fn(async () => longRoute) } as never });
+  expect(mockSpeakNavigationPrompt).toHaveBeenCalledWith('Head north on Mill Lane. Continue for 19 km.');
+});
+
+test('keeps the screen on while navigating, and lets it sleep again after', async () => {
+  mockActivateKeepAwake.mockClear();
+  mockDeactivateKeepAwake.mockClear();
+  mockActivateKeepAwake.mockRejectedValueOnce(new Error('unavailable'));
+  const { result } = await startNavigation();
+  expect(mockActivateKeepAwake).toHaveBeenCalledWith(NAVIGATION_KEEP_AWAKE_TAG);
+  expect(mockDeactivateKeepAwake).not.toHaveBeenCalled();
+  await act(async () => { result.current.finishInAppNavigation(); });
+  expect(mockDeactivateKeepAwake).toHaveBeenCalledWith(NAVIGATION_KEEP_AWAKE_TAG);
+});
+
 test('asks for a location fix when none is known, and stops if none is available', async () => {
   const requestCurrentLocation = jest.fn(async () => null);
   const { result, props } = await startNavigation({ currentLocation: null, requestCurrentLocation });
@@ -271,7 +295,7 @@ test('speaks staged distance prompts for the upcoming turn once per stage', asyn
   // ~222m to the turn: stage 1.
   await sendFix(51.5, -0.1);
   expect(mockSpeakNavigationPrompt).toHaveBeenCalledTimes(1);
-  expect(mockSpeakNavigationPrompt.mock.calls[0]![0]).toMatch(/^In .*Turn right onto High Street$/);
+  expect(mockSpeakNavigationPrompt.mock.calls[0]![0]).toMatch(/^In .*turn right onto High Street$/);
 
   // Still stage 1: no repeat.
   await sendFix(51.5001, -0.1);
@@ -280,7 +304,7 @@ test('speaks staged distance prompts for the upcoming turn once per stage', asyn
   // ~89m to the turn: stage 2.
   await sendFix(51.5012, -0.1);
   expect(mockSpeakNavigationPrompt).toHaveBeenCalledTimes(2);
-  expect(mockSpeakNavigationPrompt.mock.calls[1]![0]).toMatch(/^In .*Turn right onto High Street$/);
+  expect(mockSpeakNavigationPrompt.mock.calls[1]![0]).toMatch(/^In .*turn right onto High Street$/);
 });
 
 test('advances steps as the rider reaches each maneuver, and arrives at the destination', async () => {
