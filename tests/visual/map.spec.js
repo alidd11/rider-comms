@@ -425,6 +425,57 @@ test('PWA place search and the category chips use the backend Places endpoints, 
   expect(byName.body).toEqual({ query: 'motorcycle parking', near: { lat: 51.5074, lon: -0.1278 } });
 });
 
+test('PWA voice search: the mic fills the search box, and stays hidden without speech recognition', async ({ page }) => {
+  const calls = [];
+  await page.addInitScript(() => {
+    class FakeRecognition {
+      constructor() { window.__voice = this; this.started = false; }
+      start() { this.started = true; }
+      abort() { this.started = false; this.onend?.(); }
+      say(words) { this.onresult?.({ results: [[{ transcript: words }]] }); this.onend?.(); }
+    }
+    window.SpeechRecognition = FakeRecognition;
+    window.webkitSpeechRecognition = FakeRecognition;
+  });
+  await mockAuthenticatedApi(page, 'stationary', async ({ request, url }) => {
+    if (url.pathname !== '/places/autocomplete') return null;
+    calls.push(JSON.parse(request.postData() || '{}'));
+    return { body: { suggestions: [{ id: 'place-ace', name: 'Ace Cafe London', address: 'North Circular Road, London' }] } };
+  });
+  await page.goto('/');
+  await page.locator('#mapSearchSlot').click();
+  const mic = page.locator('#searchScreenVoice');
+  await expect(mic).toBeVisible();
+  await mic.click();
+  await expect(mic).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#searchScreenInput')).toHaveAttribute('placeholder', 'Listening…');
+  expect(await page.evaluate(() => window.__voice.started)).toBe(true);
+  await page.evaluate(() => window.__voice.say('ace cafe'));
+  await expect(page.locator('#searchScreenInput')).toHaveValue('ace cafe');
+  await expect(mic).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.locator('#searchScreenResults [data-place-id="place-ace"]')).toContainText('Ace Cafe London');
+  expect(calls.at(-1).input).toBe('ace cafe');
+
+  // Tapping the mic again while it listens stops it.
+  await mic.click();
+  await expect(mic).toHaveAttribute('aria-pressed', 'true');
+  await mic.click();
+  await expect(mic).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.locator('#searchScreenInput')).toHaveAttribute('placeholder', 'Where to?');
+
+  // A refused microphone says so.
+  await mic.click();
+  await page.evaluate(() => window.__voice.onerror({ error: 'not-allowed' }));
+  await expect(page.getByText('Allow the microphone to search by voice')).toBeVisible();
+  await expect(mic).toHaveAttribute('aria-pressed', 'false');
+
+  // Without speech recognition there is no mic.
+  await page.evaluate(() => { window.SpeechRecognition = undefined; window.webkitSpeechRecognition = undefined; });
+  await page.locator('#searchScreenBack').click();
+  await page.locator('#mapSearchSlot').click();
+  await expect(mic).toBeHidden();
+});
+
 test('PWA map and navigation cards turn dark when sunset passes while the app stays open', async ({ page }) => {
   // 15:00 in London on 13 Nov: daylight. Sunset is about 16:15.
   await page.clock.install({ time: new Date('2026-11-13T15:00:00Z') });

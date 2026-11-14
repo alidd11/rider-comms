@@ -5904,6 +5904,71 @@
     input.focus();
     searchScreenPosition = undefined;
     void acquireSearchPosition();
+    $('#searchScreenVoice').hidden = !voiceSearchSupported();
+  }
+
+  // Voice search, like the mic in Google Maps and Waze: say where to and the
+  // words land in the search box. The browser's own speech recognition; an
+  // installed iPhone app has none that works, so the mic only shows where it
+  // can listen (native: expo-speech-recognition).
+  let voiceRecognition = null;
+
+  function voiceSearchSupported() {
+    const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    return typeof Recognition === 'function' && window.navigator.standalone !== true;
+  }
+
+  function setVoiceListening(listening) {
+    const button = $('#searchScreenVoice');
+    button.setAttribute('aria-pressed', String(listening));
+    button.setAttribute('aria-label', listening ? 'Stop listening' : 'Search by voice');
+    $('#searchScreenInput').placeholder = listening ? 'Listening…' : (savingPlaceSlot ? `Your ${SAVED_PLACE_LABELS[savingPlaceSlot].toLowerCase()} address` : 'Where to?');
+  }
+
+  function stopVoiceSearch() {
+    const recognition = voiceRecognition;
+    voiceRecognition = null;
+    if (recognition) {
+      try { recognition.abort(); } catch { /* already stopped */ }
+    }
+    setVoiceListening(false);
+  }
+
+  function startVoiceSearch() {
+    if (voiceRecognition) { stopVoiceSearch(); return; }
+    const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (typeof Recognition !== 'function') return;
+    const recognition = new Recognition();
+    recognition.lang = navigator.language || 'en-GB';
+    recognition.interimResults = true;
+    recognition.maxAlternatives = 1;
+    recognition.onresult = (event) => {
+      if (voiceRecognition !== recognition) return;
+      const words = Array.from(event.results || []).map((result) => result[0]?.transcript || '').join('').trim();
+      if (!words) return;
+      const input = $('#searchScreenInput');
+      input.value = words;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    };
+    recognition.onerror = (event) => {
+      if (voiceRecognition !== recognition) return;
+      stopVoiceSearch();
+      if (event?.error === 'not-allowed' || event?.error === 'service-not-allowed') {
+        showToast('Allow the microphone to search by voice');
+      } else if (event?.error !== 'no-speech' && event?.error !== 'aborted') {
+        showToast('Couldn’t hear that. Try again or type instead.');
+      }
+    };
+    recognition.onend = () => {
+      if (voiceRecognition === recognition) stopVoiceSearch();
+    };
+    voiceRecognition = recognition;
+    setVoiceListening(true);
+    try {
+      recognition.start();
+    } catch {
+      stopVoiceSearch();
+    }
   }
 
   function closeSearchScreen() {
@@ -5913,6 +5978,7 @@
     if (returnTo) queueMicrotask(() => openSheet(returnTo));
     searchRequestToken += 1;
     clearTimeout(searchDebounceTimer);
+    stopVoiceSearch();
     $('#searchScreen').hidden = true;
     $('#searchScreenInput').blur();
   }
@@ -6357,6 +6423,7 @@
   function initPlaceSearch() {
     $('#mapSearchSlot').addEventListener('click', openSearchScreen);
     $('#searchScreenBack').addEventListener('click', closeSearchScreen);
+    $('#searchScreenVoice').addEventListener('click', startVoiceSearch);
     $('#searchScreenInput').addEventListener('input', (event) => {
       const query = event.target.value.trim();
       $('#searchScreenClear').hidden = !query;
