@@ -141,3 +141,8 @@ The social interface follows the hard human-designed, AI-free-feeling product re
 ## Home / Reels navigation separation (14 November 2026)
 
 Home is the photo, Stories and community-updates timeline with one stable feed and compact contextual preferences. Reels is the **only** full-screen viewer with `For You` / `Following` selectors. This avoids duplicating TikTok-like feed tabs across both surfaces, and the Home preference controls do not silently switch the Reels video stream. The production Home empty state remains explicit about unpublished backend content, while isolated Playwright fixtures still exercise card interactions and layout.
+
+
+### Open-beta empty-state clarity
+
+When no real posts exist, Home uses a compact editorial starter panel rather than a large fake feed card. The only primary action opens the private draft studio; it does not claim uploading is live. Secondary links to Reels and existing friend Messages are real navigation. The profile chip says “Profile preview” (rather than “Private preview”), which avoids implying that the publicly accessible beta is invite-only. Production smoke tests confirm these navigation paths and text claims.
