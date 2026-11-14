@@ -16,6 +16,8 @@ export const PLACE_BADGES = {
   food: { icon: 'silverware-fork-knife', color: '#d9480f' },
   coffee: { icon: 'coffee', color: '#8d5a3b' },
   repair: { icon: 'wrench', color: '#5f6b73' },
+  moto: { icon: 'motorbike', color: '#c2410c' },
+  ev: { icon: 'ev-station', color: '#0e7c86' },
   pin: { icon: 'map-marker', color: colors.accent },
   recent: { icon: 'clock-outline', color: colors.surfaceRaised },
 } as const;

@@ -28,6 +28,7 @@ import { SAVED_PLACE_LABELS } from '../search/savedPlaces';
 import type { SavedPlaceSlot } from '../search/savedPlaces';
 import { useSettings } from '../settings/SettingsContext';
 import { PLACE_BADGES, PlaceBadge } from '../components/PlaceBadge';
+import type { PlaceBadgeKind } from '../components/PlaceBadge';
 
 // Module-level so the cache survives across searches within a session
 // (retyping, re-toggling a category chip) without persisting between app
@@ -35,15 +36,20 @@ import { PLACE_BADGES, PlaceBadge } from '../components/PlaceBadge';
 const placesCache = new PlacesCache();
 const cachedSearchNearbyPlaces = wrapPlacesSearchWithCache(searchNearbyPlaces, placesCache, nearbySearchCacheKey);
 
-const CATEGORIES = [
+export type SearchCategoryLabel = 'Petrol' | 'Bike parking' | 'Bike shops' | 'EV charging' | 'Parking' | 'Restaurants' | 'Coffee' | 'Repair';
+
+// Google has no place type for motorcycle parking or shops, so those search
+// by name and are sorted by distance over a wider area (PWA: POI_CATEGORIES).
+const CATEGORIES: readonly { label: SearchCategoryLabel; types: readonly string[]; query?: string; icon: 'gas-station' | 'motorbike' | 'ev-station' | 'parking' | 'silverware-fork-knife' | 'coffee' | 'wrench'; badge: PlaceBadgeKind }[] = [
   { label: 'Petrol', types: ['gas_station'], icon: 'gas-station', badge: 'fuel' },
+  { label: 'Bike parking', types: [], query: 'motorcycle parking', icon: 'motorbike', badge: 'moto' },
+  { label: 'Bike shops', types: [], query: 'motorcycle shop', icon: 'motorbike', badge: 'moto' },
+  { label: 'EV charging', types: ['electric_vehicle_charging_station'], icon: 'ev-station', badge: 'ev' },
   { label: 'Parking', types: ['parking'], icon: 'parking', badge: 'parking' },
   { label: 'Restaurants', types: ['restaurant'], icon: 'silverware-fork-knife', badge: 'food' },
   { label: 'Coffee', types: ['cafe', 'coffee_shop'], icon: 'coffee', badge: 'coffee' },
   { label: 'Repair', types: ['car_repair'], icon: 'wrench', badge: 'repair' },
-] as const;
-
-export type SearchCategoryLabel = (typeof CATEGORIES)[number]['label'];
+];
 
 /** Opens search from elsewhere: on a category, or to choose Home or Work. */
 export interface PlaceSearchHandle {
@@ -130,7 +136,7 @@ export const PlaceSearchBar = React.forwardRef<PlaceSearchHandle, {
     const category = CATEGORIES.find((item) => item.label === activeCategory);
     debounceRef.current = setTimeout(() => {
       if (category) {
-        cachedSearchNearbyPlaces({ includedTypes: category.types }, near, client)
+        cachedSearchNearbyPlaces({ includedTypes: category.types, query: category.query }, near, client)
           .then((result) => {
             if (requestId !== requestRef.current) return;
             setResults(result.places);

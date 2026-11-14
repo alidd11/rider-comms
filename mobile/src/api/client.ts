@@ -135,6 +135,10 @@ export class RiderCommsClient {
   searchAlongRoute(query: string, path: readonly RouteCoordinate[]): Promise<{ places: PlaceAlongRoute[] }> {
     return this.request('POST', '/places/along-route', { query, path: path.map((point) => ({ lat: point.lat, lon: point.lon })) });
   }
+  /** Places by name, biased towards the rider (for kinds Google has no type for). */
+  searchPlaces(query: string, near: RouteCoordinate): Promise<{ places: PlaceSummary[] }> {
+    return this.request('POST', '/places/search', { query, near: { lat: near.lat, lon: near.lon } });
+  }
   searchNearbyPlaces(includedTypes: readonly string[], near: RouteCoordinate): Promise<{ places: PlaceSummary[] }> {
     return this.request('POST', '/places/nearby', { includedTypes, near: { lat: near.lat, lon: near.lon } });
   }

@@ -18,6 +18,8 @@ export const PLACE_SEARCH_DEBOUNCE_MS = 500;
  * (the web app waits 220ms). */
 export const PLACE_SUGGEST_DEBOUNCE_MS = 250;
 const NEARBY_RADIUS_METERS = 5_000;
+/** Searches by name reach further: motorcycle parking is sparse. */
+const QUERY_RADIUS_METERS = 15_000;
 
 export interface PlaceResult {
   id: string;
@@ -43,6 +45,8 @@ export function isSearchQueryValid(query: string): boolean {
 
 export interface PlaceCategory {
   includedTypes: readonly string[];
+  /** For kinds Google has no type for (motorcycle parking): search by name. */
+  query?: string;
 }
 
 export function distanceBetweenMeters(
@@ -64,7 +68,7 @@ export function formatPlaceDistance(meters: number, unit: 'mi' | 'km' = 'km'): s
   return `${(meters / 1_000).toFixed(meters < 10_000 ? 1 : 0)} km`;
 }
 
-export type PlacesClient = Pick<RiderCommsClient, 'searchNearbyPlaces' | 'suggestPlaces' | 'placeDetails'>;
+export type PlacesClient = Pick<RiderCommsClient, 'searchPlaces' | 'searchNearbyPlaces' | 'suggestPlaces' | 'placeDetails'>;
 
 /** Category chips use a nearby type search rather than a text query, so the
  * category is an actual type filter, results stay inside the rider's local
@@ -74,13 +78,18 @@ export async function searchNearbyPlaces(
   near: { lat: number; lon: number },
   client: PlacesClient,
 ): Promise<PlaceSearchResult> {
-  if (category.includedTypes.length === 0) return { status: 'ok', places: [] };
-  const result = await runSearch(() => client.searchNearbyPlaces(category.includedTypes, near), near);
+  const { query } = category;
+  if (!query && category.includedTypes.length === 0) return { status: 'ok', places: [] };
+  const result = await runSearch(
+    () => (query ? client.searchPlaces(query, near) : client.searchNearbyPlaces(category.includedTypes, near)),
+    near,
+  );
   if (result.status !== 'ok') return result;
+  const radius = query ? QUERY_RADIUS_METERS : NEARBY_RADIUS_METERS;
   return {
     status: 'ok',
     places: result.places
-      .filter((place) => place.distanceMeters <= NEARBY_RADIUS_METERS)
+      .filter((place) => place.distanceMeters <= radius)
       .sort((a, b) => a.distanceMeters - b.distanceMeters),
   };
 }

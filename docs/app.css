@@ -2818,7 +2818,7 @@ html.map-day .nav-route-choices button[aria-checked="true"]{border-color:var(--a
 /* Place badges: filled icons on a colour per kind of place, so Home, Work
    and Petrol read at a glance (as in Google Maps and Waze). Every colour
    keeps at least 3:1 contrast with the white icon. */
-:root{--place-home:#2f7fd3;--place-work:#8a5cd6;--place-fuel:#1f9d63;--place-parking:#3b5bdb;--place-food:#d9480f;--place-coffee:#8d5a3b}
+:root{--place-home:#2f7fd3;--place-work:#8a5cd6;--place-fuel:#1f9d63;--place-parking:#3b5bdb;--place-food:#d9480f;--place-coffee:#8d5a3b;--place-moto:#c2410c;--place-ev:#0e7c86}
 .place-badge{flex:none;width:32px;height:32px;border-radius:50%;display:grid;place-items:center;color:#fff;background:var(--accent)}
 .place-badge svg{width:18px;height:18px}
 .place-badge-home{background:var(--place-home)}

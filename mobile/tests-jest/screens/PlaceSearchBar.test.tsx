@@ -18,6 +18,7 @@ const SAFE_AREA_METRICS = {
 };
 
 const mockClient = {
+  searchPlaces: jest.fn<Promise<{ places: PlaceSummary[] }>, [string, { lat: number; lon: number }]>(),
   searchNearbyPlaces: jest.fn<Promise<{ places: PlaceSummary[] }>, [readonly string[], { lat: number; lon: number }]>(),
   suggestPlaces: jest.fn<Promise<{ suggestions: PlaceSuggestionSummary[] }>, [string, { lat: number; lon: number }, string]>(),
   placeDetails: jest.fn<Promise<{ place: PlaceSummary }>, [string, string]>(),
@@ -72,6 +73,7 @@ async function typeQuery(value: string) {
 
 beforeEach(async () => {
   jest.useFakeTimers();
+  mockClient.searchPlaces.mockReset();
   mockClient.searchNearbyPlaces.mockReset();
   mockClient.suggestPlaces.mockReset();
   mockClient.placeDetails.mockReset();
@@ -258,6 +260,19 @@ test('shows no recent places when they can’t be read', async () => {
   } finally {
     AsyncStorage.getItem = originalGetItem;
   }
+});
+
+test('rider categories search by name: motorcycle parking', async () => {
+  mockClient.searchPlaces.mockResolvedValue({ places: [place('m1', 'Bike Bay')] });
+  await renderSearchBar();
+  await openSearch();
+
+  await fireEvent.press(screen.getByText('Bike parking'));
+  await act(async () => { jest.advanceTimersByTime(PLACE_SEARCH_DEBOUNCE_MS); });
+
+  expect(mockClient.searchPlaces).toHaveBeenCalledWith('motorcycle parking', NEAR);
+  expect(mockClient.searchNearbyPlaces).not.toHaveBeenCalled();
+  expect(await screen.findByText('Bike Bay')).toBeTruthy();
 });
 
 test('tapping the active category again clears it', async () => {

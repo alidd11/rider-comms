@@ -6,11 +6,17 @@ import { distanceBetweenMeters, formatPlaceDistance, isSearchQueryValid, MIN_PLA
 import type { PlacesClient } from '../src/api/places.ts';
 import { addRecentPlace, parseRecentPlaces, recentPlacesStorageKey } from '../src/search/recentPlaces.ts';
 
-type SearchCall = { kind: 'nearby'; includedTypes: readonly string[]; near: { lat: number; lon: number } };
+type SearchCall =
+  | { kind: 'nearby'; includedTypes: readonly string[]; near: { lat: number; lon: number } }
+  | { kind: 'text'; query: string; near: { lat: number; lon: number } };
 
 function fakeClient(respond: () => Promise<{ places: unknown }>): { client: PlacesClient; calls: SearchCall[] } {
   const calls: SearchCall[] = [];
   const client = {
+    searchPlaces: async (query: string, near: { lat: number; lon: number }) => {
+      calls.push({ kind: 'text', query, near });
+      return respond() as Promise<{ places: PlaceSummary[] }>;
+    },
     searchNearbyPlaces: async (includedTypes: readonly string[], near: { lat: number; lon: number }) => {
       calls.push({ kind: 'nearby', includedTypes, near });
       return respond() as Promise<{ places: PlaceSummary[] }>;
@@ -28,6 +34,7 @@ function suggestClient(
 ): { client: PlacesClient; calls: unknown[][] } {
   const calls: unknown[][] = [];
   const client: PlacesClient = {
+    searchPlaces: async () => { throw new Error('not used'); },
     searchNearbyPlaces: async () => { throw new Error('not used'); },
     suggestPlaces: async (...args) => { calls.push(['suggest', ...args]); return suggest() as never; },
     placeDetails: async (...args) => { calls.push(['details', ...args]); return details() as never; },
@@ -111,6 +118,22 @@ describe('searchNearbyPlaces', () => {
   });
 
   it('skips the backend for an empty category', async () => {
+    const { client, calls } = fakeClient(async () => ({ places: [] }));
+    assert.deepEqual(await searchNearbyPlaces({ includedTypes: [] }, near, client), { status: 'ok', places: [] });
+    assert.equal(calls.length, 0);
+  });
+
+  it('searches by name for kinds Google has no type for, over 15 km, nearest first', async () => {
+    const { client, calls } = fakeClient(async () => ({
+      places: [place('far', 51.6, -0.1), place('too far', 51.7, -0.1), place('near', 51.501, -0.1)],
+    }));
+    const result = await searchNearbyPlaces({ includedTypes: [], query: 'motorcycle parking' }, near, client);
+    assert.deepEqual(calls, [{ kind: 'text', query: 'motorcycle parking', near }]);
+    assert.equal(result.status, 'ok');
+    assert.deepEqual(result.places.map((found) => found.id), ['near', 'far']);
+  });
+
+  it('asks nothing for a category with neither types nor a query', async () => {
     const { client, calls } = fakeClient(async () => ({ places: [] }));
     assert.deepEqual(await searchNearbyPlaces({ includedTypes: [] }, near, client), { status: 'ok', places: [] });
     assert.equal(calls.length, 0);

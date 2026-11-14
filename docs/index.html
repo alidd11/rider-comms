@@ -77,6 +77,8 @@
     <symbol id="i-parking" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M10 8v8M10 8h2.6a2.4 2.4 0 0 1 0 4.8H10"/></symbol>
     <symbol id="i-food" viewBox="0 0 24 24"><path d="M6 2v8a2 2 0 0 0 4 0V2M8 10v12"/><path d="M17 2c-1.5 2.3-1.5 4.7 0 7s1.5 4.7 0 7v6"/></symbol>
     <symbol id="i-coffee" viewBox="0 0 24 24"><path d="M4 8h13v6a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4V8Z"/><path d="M17 9h1.5a2 2 0 0 1 0 4H17"/><path d="M7 3c0 1-1 1-1 2M11 3c0 1-1 1-1 2"/></symbol>
+    <symbol id="i-motorbike" viewBox="0 0 24 24"><circle cx="5.5" cy="16.5" r="3.5"/><circle cx="18.5" cy="16.5" r="3.5"/><path d="M5.5 16.5 9 10h5l4.5 6.5"/><path d="M14 10l-1.5-4H10"/><path d="M15 6h2.5"/></symbol>
+    <symbol id="i-ev" viewBox="0 0 24 24"><path d="M5 21V6a2 2 0 0 1 2-2h5a2 2 0 0 1 2 2v15"/><path d="M4 21h11"/><path d="M10.5 7.5 8.5 11.5h3l-2 4"/><path d="M14 10h2.5a2 2 0 0 1 2 2v3.2a1.5 1.5 0 0 0 3 0V8.5L18.5 5.5"/></symbol>
     <symbol id="i-wrench" viewBox="0 0 24 24"><path d="M14.7 6.3a4 4 0 1 0-4.4 6.4L4 19l1 1 6.3-6.3a4 4 0 0 0 6.4-4.4l-1.4 1.4-2-2Z"/></symbol>
     <symbol id="i-nav-straight" viewBox="0 0 64 64"><path stroke-width="5.5" d="M32 54V15M21 26 32 15 43 26"/></symbol>
     <symbol id="i-nav-slight-left" viewBox="0 0 64 64"><path stroke-width="5.5" d="M40 54V43c0-9-4-13-12-18l-9-5M31 18 19 20l4 12"/></symbol>
@@ -223,6 +225,9 @@
     </header>
     <p id="searchSaveBanner" class="search-save-banner" role="heading" aria-level="2" hidden></p><p id="searchSaveCurrent" class="search-save-current" hidden><span id="searchSaveCurrentName"></span><button id="searchSaveRemove" type="button">Remove</button></p><div class="poi-chip-row" id="poiChipRow">
       <button class="chip poi-chip" data-poi-type="gas_station" aria-pressed="false" style="--place:var(--place-fuel)"><svg><use href="#i-fuel-fill"/></svg><span>Petrol</span></button>
+      <button class="chip poi-chip" data-poi-type="moto_parking" aria-pressed="false" style="--place:var(--place-moto)"><svg><use href="#i-motorbike"/></svg><span>Bike parking</span></button>
+      <button class="chip poi-chip" data-poi-type="moto_shop" aria-pressed="false" style="--place:var(--place-moto)"><svg><use href="#i-motorbike"/></svg><span>Bike shops</span></button>
+      <button class="chip poi-chip" data-poi-type="ev_charging" aria-pressed="false" style="--place:var(--place-ev)"><svg><use href="#i-ev"/></svg><span>EV charging</span></button>
       <button class="chip poi-chip" data-poi-type="parking" aria-pressed="false" style="--place:var(--place-parking)"><svg><use href="#i-parking-fill"/></svg><span>Parking</span></button>
       <button class="chip poi-chip" data-poi-type="restaurant" aria-pressed="false" style="--place:var(--place-food)"><svg><use href="#i-food-fill"/></svg><span>Restaurants</span></button>
       <button class="chip poi-chip" data-poi-type="cafe" aria-pressed="false" style="--place:var(--place-coffee)"><svg><use href="#i-coffee-fill"/></svg><span>Coffee</span></button>

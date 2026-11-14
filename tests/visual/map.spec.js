@@ -416,6 +416,13 @@ test('PWA place search and the category chips use the backend Places endpoints, 
   await expect(page.locator('#searchScreenResults .nearby-result-row strong')).toHaveText(['Near Fuel', 'Far Fuel']);
   const nearby = calls.find((call) => call.path === '/places/nearby');
   expect(nearby.body.includedTypes).toEqual(['gas_station']);
+
+  // Bike parking has no Google type: a search by name, still nearest first.
+  await page.locator('.poi-chip[data-poi-type="moto_parking"]').click();
+  await expect(page.locator('.poi-chip[data-poi-type="moto_parking"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#searchScreenResults .nearby-result-row strong')).toHaveText(['Near Fuel', 'Far Fuel']);
+  const byName = calls.find((call) => call.path === '/places/search');
+  expect(byName.body).toEqual({ query: 'motorcycle parking', near: { lat: 51.5074, lon: -0.1278 } });
 });
 
 test('PWA map and navigation cards turn dark when sunset passes while the app stays open', async ({ page }) => {

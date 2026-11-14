@@ -6396,7 +6396,14 @@
     restaurant: { label: 'Restaurants', plural: 'restaurants', icon: 'i-food', types: ['restaurant'] },
     cafe: { label: 'Coffee', plural: 'coffee shops', icon: 'i-coffee', types: ['cafe', 'coffee_shop'] },
     car_repair: { label: 'Repair', plural: 'repair shops', icon: 'i-wrench', types: ['car_repair'] },
+    // Google has no place type for these, so they search by name and are
+    // sorted by distance here, over a wider area (native: the same CATEGORIES).
+    moto_parking: { label: 'Bike parking', plural: 'motorcycle parking places', icon: 'i-motorbike', query: 'motorcycle parking' },
+    moto_shop: { label: 'Bike shops', plural: 'motorcycle shops', icon: 'i-motorbike', query: 'motorcycle shop' },
+    ev_charging: { label: 'EV charging', plural: 'charging points', icon: 'i-ev', types: ['electric_vehicle_charging_station'] },
   };
+  const POI_RADIUS_M = 5000;
+  const POI_QUERY_RADIUS_M = 15000;
   let poiMarkers = [];
 
   function clearPoiMarkers() {
@@ -6446,7 +6453,7 @@
   }
 
   /**
-   * "Petrol"/"Parking"/"Food"/"Coffee"/"Repair" chips below the search bar
+   * "Petrol"/"Bike parking"/"Parking"/"Food"/"Coffee"/"Repair" chips below the search bar
    * — real POI lookup via the backend's /places/nearby (Places API (New)
    * Nearby Search, nearest first within 5 km). Free-text search alone
    * technically could already find e.g. "petrol station near me", but a
@@ -6478,7 +6485,9 @@
     }
     let found;
     try {
-      ({ places: found } = await apiFetch('POST', '/places/nearby', { includedTypes: category.types, near: { lat, lon: lng } }));
+      ({ places: found } = category.query
+        ? await apiFetch('POST', '/places/search', { query: category.query, near: { lat, lon: lng } })
+        : await apiFetch('POST', '/places/nearby', { includedTypes: category.types, near: { lat, lon: lng } }));
     } catch (error) {
       if (requestToken !== searchRequestToken || activePoiType !== type) return;
       renderSearchMessage(category.icon, 'Nearby search is unavailable', placeSearchErrorCopy(error), 'search-error-state');
@@ -6499,7 +6508,7 @@
           distanceLabel: formatNavDistance(distance),
         };
       })
-      .filter((place) => place.distance <= 5000)
+      .filter((place) => place.distance <= (category.query ? POI_QUERY_RADIUS_M : POI_RADIUS_M))
       .sort((a, b) => a.distance - b.distance)
       .slice(0, 8);
     if (poiResultCache.size >= POI_CACHE_MAX_ENTRIES) {
