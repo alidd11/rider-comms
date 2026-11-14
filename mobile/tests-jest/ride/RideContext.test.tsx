@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { AppState } from 'react-native';
+import { Alert, AppState } from 'react-native';
 import { act, renderHook, waitFor } from '@testing-library/react-native';
 import { ApiError } from '../../src/api/client';
 import type { RiderCommsClient, RideResponse } from '../../src/api/client';
@@ -22,6 +22,11 @@ let mockAuthValue: { riderId: string; client: Partial<RiderCommsClient> } | null
 
 jest.mock('../../src/auth/AuthContext', () => ({
   useAuth: () => mockAuthValue,
+}));
+
+let mockUnitSystem: 'mi' | 'km' = 'mi';
+jest.mock('../../src/settings/SettingsContext', () => ({
+  useSettings: () => ({ unitSystem: mockUnitSystem }),
 }));
 
 function setAuthClient(client: Partial<RiderCommsClient>): void {
@@ -49,6 +54,8 @@ async function renderRide(client: Partial<RiderCommsClient>) {
 
 beforeEach(() => {
   jest.useFakeTimers();
+  mockUnitSystem = 'mi';
+  jest.spyOn(Alert, 'alert').mockImplementation(() => {});
   AppState.currentState = 'active';
   mockRequestForegroundPermissionsAsync.mockReset().mockResolvedValue({ granted: true });
   mockGetForegroundPermissionsAsync.mockReset().mockResolvedValue({ granted: true });
@@ -57,6 +64,7 @@ beforeEach(() => {
 
 afterEach(() => {
   jest.useRealTimers();
+  jest.restoreAllMocks();
 });
 
 test('restores an active ride from the server on mount', async () => {
@@ -389,4 +397,46 @@ test('a member cannot set the regroup point, and sees the host’s from the serv
     expect(await result.current.setRegroupPoint({ lat: 1, lon: 2, label: 'x' })).toBe(false);
   });
   expect(client.setRideRegroup).not.toHaveBeenCalled();
+});
+
+test('ending a ride shows how long it lasted, how many rode and how far this rider went', async () => {
+  mockUnitSystem = 'km';
+  const startedAt = Date.now() - 42 * 60_000;
+  let fix = 0;
+  mockGetCurrentPositionAsync.mockImplementation(async () => {
+    fix += 1;
+    return { coords: { latitude: 51.5 + fix * 0.01, longitude: -0.1, accuracy: 10 } };
+  });
+  const client = {
+    getCurrentRide: jest.fn(async () => ({ ride: fakeRide({ createdAt: startedAt, shareRideLocation: true, memberIds: [RIDER_ID, 'sam', 'jo'] }) })),
+    getRide: jest.fn(async () => fakeRide({ createdAt: startedAt, shareRideLocation: true, memberIds: [RIDER_ID, 'sam', 'jo'] })),
+    updateRideLocation: jest.fn(async () => ({ locations: [] })),
+    endRide: jest.fn(async () => ({})),
+  };
+  const { result } = await renderRide(client);
+  await waitFor(() => expect(result.current.activeRide?.rideId).toBe('ride-1'));
+  await waitFor(() => expect(client.updateRideLocation).toHaveBeenCalledTimes(1));
+  await act(async () => { jest.advanceTimersByTime(10_000); });
+  await waitFor(() => expect(client.updateRideLocation).toHaveBeenCalledTimes(2));
+
+  await act(async () => { await result.current.leaveRide(); });
+  expect(Alert.alert).toHaveBeenCalledWith('Ride over', expect.stringMatching(/^4[23] min · 3 riders · 1\.1 km$/));
+});
+
+test('a member whose ride ends hears it, without a distance when they never shared', async () => {
+  let call = 0;
+  const client = {
+    getCurrentRide: jest.fn(async () => ({ ride: fakeRide({ createdBy: 'host', memberIds: [RIDER_ID, 'host'] }) })),
+    getRide: jest.fn(async () => {
+      call += 1;
+      if (call === 2) throw new ApiError(404, { error: 'not_found' });
+      return fakeRide({ createdBy: 'host', memberIds: [RIDER_ID, 'host'] });
+    }),
+  };
+  const { result } = await renderRide(client);
+  await waitFor(() => expect(result.current.activeRide?.rideId).toBe('ride-1'));
+  await waitFor(() => expect(client.getRide).toHaveBeenCalledTimes(1));
+  await act(async () => { jest.advanceTimersByTime(10_000); });
+  await waitFor(() => expect(result.current.activeRide).toBeNull());
+  expect(Alert.alert).toHaveBeenCalledWith('Your ride has ended', expect.stringMatching(/ · 2 riders$/));
 });

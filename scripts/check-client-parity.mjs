@@ -627,6 +627,17 @@ if (!/function NavigationTripSummary[\s\S]*?onLayout=\{measured\(onHeight\)\}/.t
   }
 }
 
+// The end-of-ride summary reads the same in both apps.
+{
+  const shared = await import('../shared/src/rideCode.ts');
+  const body = pwaMapSource.match(/function rideSummary\(durationMs, riders, distanceMeters, unit\) \{[\s\S]*?\n {2}\}/)?.[0];
+  if (!body) throw new Error('PWA must define rideSummary');
+  const pwaSummary = new Function(`${body}; return rideSummary;`)();
+  for (const args of [[102 * 60_000, 4, 61_472, 'mi'], [120 * 60_000, 2, 12_345, 'km'], [25 * 60_000, 1, null, 'mi'], [20_000, 3, 50, 'mi'], [Number.NaN, 2, Number.NaN, 'km']]) {
+    if (pwaSummary(...args) !== shared.rideSummary(...args)) throw new Error('PWA and shared rideSummary disagree');
+  }
+}
+
 // Both apps draw the white turn arrow from the shared geometry.
 if (!/navigationPuck\.navigationManeuverArrow\(/.test(pwaMapSource) || !/navigationManeuverArrow\(\s*activeRoute\.steps\[navigationStepIndex\]/.test(nativeMapScreenSource)) {
   throw new Error('Both apps must draw the turn arrow with the shared navigationManeuverArrow');

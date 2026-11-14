@@ -2423,7 +2423,9 @@
         shareRideLocation: ride.shareRideLocation === true,
         regroup: ride.regroup ?? null,
         members: previous?.rideId === ride.rideId ? previous.members : undefined,
+        createdAt: ride.createdAt,
       } : null;
+      noteRideStats(state.activeRide);
       announceRegroup(previous?.rideId === ride?.rideId ? previous?.regroup : undefined, ride?.regroup ?? null, ride?.createdBy === state.profile.riderId);
       if (ride) await stopPublicPresenceForRide();
       if (!ride) {
@@ -2434,7 +2436,7 @@
       renderRide();
       const membersChanged = !previous?.members || previous.rideId !== ride?.rideId || !sameMembers(previous.memberIds, ride?.memberIds);
       if (ride && (!poll || membersChanged)) await loadRideRoster();
-      else if (!ride && previous) showToast('That ride is no longer active.');
+      else if (!ride && previous) showToast(`That ride has ended. ${rideEndSummary(previous.rideId)}`.trim());
     } catch {
       // Transient failures leave the last verified state intact. A fresh
       // login starts with no verified ride and can retry from the Ride tab.
@@ -2534,7 +2536,7 @@
       persist();
       renderRide();
       renderMapRiders();
-      showToast(ride.isHost ? 'Ride ended.' : 'You left the ride.');
+      showToast(`${ride.isHost ? 'Ride ended.' : 'You left the ride.'} ${rideEndSummary(ride.rideId)}`.trim());
     } catch {
       showToast(ride.isHost ? 'Couldn’t end the ride. Try again.' : 'Couldn’t leave the ride. Try again.');
     }
@@ -2691,6 +2693,43 @@
     if (isHost || !next || previous === undefined) return null;
     if (previous && previous.setAt === next.setAt) return null;
     return next.label ? `Regroup at ${next.label}.` : 'Regroup point set. It’s on your map.';
+  }
+
+  // Mirrors shared rideSummary (shared/src/rideCode.ts);
+  // scripts/check-client-parity.mjs runs both on the same cases.
+  function rideSummary(durationMs, riders, distanceMeters, unit) {
+    const minutes = Math.max(0, Math.round((Number.isFinite(durationMs) ? durationMs : 0) / 60_000));
+    const duration = minutes < 1
+      ? 'Under a minute'
+      : minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)} h${minutes % 60 ? ` ${minutes % 60} min` : ''}`;
+    const parts = [duration, riders > 1 ? `${riders} riders` : 'Just you'];
+    const distance = distanceMeters != null && Number.isFinite(distanceMeters)
+      ? distanceMeters / (unit === 'km' ? 1000 : 1609.344)
+      : 0;
+    if (distance >= 0.1) parts.push(`${distance.toFixed(1)} ${unit}`);
+    return parts.join(' · ');
+  }
+
+  // What the end-of-ride summary needs: when it started, the most riders at
+  // once, and how far this rider went while sharing their position.
+  let rideStats = { rideId: null, startedAt: 0, riders: 1, trip: null };
+  function noteRideStats(ride) {
+    if (!ride) return;
+    if (rideStats.rideId !== ride.rideId) rideStats = { rideId: ride.rideId, startedAt: Date.now(), riders: 1, trip: null };
+    if (Number.isFinite(ride.createdAt) && ride.createdAt > 0) rideStats.startedAt = ride.createdAt;
+    rideStats.riders = Math.max(rideStats.riders, (ride.memberIds || []).length);
+  }
+  function noteRideDistance(rideId, position) {
+    if (rideStats.rideId !== rideId || !navigationPuck) return;
+    rideStats.trip = navigationPuck.recordNavigationTripFix(rideStats.trip || navigationPuck.startNavigationTrip(Date.now()), {
+      lat: position.coords.latitude, lon: position.coords.longitude, accuracyMeters: position.coords.accuracy,
+    });
+  }
+  function rideEndSummary(rideId) {
+    if (rideStats.rideId !== rideId) return '';
+    const summary = rideSummary(Date.now() - rideStats.startedAt, rideStats.riders, rideStats.trip ? rideStats.trip.distanceMeters : null, state.unit === 'km' ? 'km' : 'mi');
+    rideStats = { rideId: null, startedAt: 0, riders: 1, trip: null };
+    return summary;
   }
 
   // Mirrors shared rideDropAnnouncements (shared/src/rideCode.ts);
@@ -5280,6 +5319,8 @@
         try {
           const position = await currentPosition();
           if (state.activeRide?.rideId !== ride.rideId || !state.activeRide.shareRideLocation || !session) return;
+          noteRideStats(state.activeRide);
+          noteRideDistance(ride.rideId, position);
           await apiFetch('POST', `/rides/${encodeURIComponent(ride.rideId)}/location`, {
             lat: position.coords.latitude,
             lon: position.coords.longitude,

@@ -155,3 +155,27 @@ export function rideDropAnnouncements(
   }
   return { state, announcements };
 }
+
+/**
+ * The line a rider sees when their ride ends: how long it lasted, how many
+ * rode, and how far this rider went when their position was shared
+ * ("1 h 42 min · 4 riders · 38.2 mi"). Distance under 0.1 of a unit, or not
+ * measured, is left out rather than shown as nothing.
+ */
+export function rideSummary(
+  durationMs: number,
+  riders: number,
+  distanceMeters: number | null,
+  unit: 'mi' | 'km',
+): string {
+  const minutes = Math.max(0, Math.round((Number.isFinite(durationMs) ? durationMs : 0) / 60_000));
+  const duration = minutes < 1
+    ? 'Under a minute'
+    : minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)} h${minutes % 60 ? ` ${minutes % 60} min` : ''}`;
+  const parts = [duration, riders > 1 ? `${riders} riders` : 'Just you'];
+  const distance = distanceMeters != null && Number.isFinite(distanceMeters)
+    ? distanceMeters / (unit === 'km' ? 1000 : 1609.344)
+    : 0;
+  if (distance >= 0.1) parts.push(`${distance.toFixed(1)} ${unit}`);
+  return parts.join(' · ');
+}

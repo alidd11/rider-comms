@@ -9,6 +9,7 @@ import {
   regroupAnnouncement,
   rideDropAnnouncements,
   rideMemberLastSeenAgo,
+  rideSummary,
 } from '../src/rideCode.ts';
 
 describe('generateRideCode', () => {
@@ -127,5 +128,17 @@ describe('dropped rider announcements', () => {
   it('names an unknown rider plainly', () => {
     const step = rideDropAnnouncements({ x: 'fresh' }, [{ riderId: 'x', updatedAt: now - 130_000 }], {}, now);
     expect(step.announcements).toEqual(['A rider’s position hasn’t updated for 2 minutes.']);
+  });
+});
+
+describe('ride summary', () => {
+  it('reads the length, the group and the distance', () => {
+    expect(rideSummary(102 * 60_000, 4, 61_472, 'mi')).toBe('1 h 42 min · 4 riders · 38.2 mi');
+    expect(rideSummary(120 * 60_000, 2, 12_345, 'km')).toBe('2 h · 2 riders · 12.3 km');
+    expect(rideSummary(25 * 60_000, 1, null, 'mi')).toBe('25 min · Just you');
+  });
+  it('leaves out a distance too small to mean anything and copes with odd input', () => {
+    expect(rideSummary(20_000, 3, 50, 'mi')).toBe('Under a minute · 3 riders');
+    expect(rideSummary(Number.NaN, 2, Number.NaN, 'km')).toBe('Under a minute · 2 riders');
   });
 });

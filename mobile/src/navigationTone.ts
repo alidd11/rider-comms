@@ -13,3 +13,11 @@ export function useNavigationPalette(): { night: boolean; palette: ThemeColors }
   const night = React.useContext(NavigationNightContext);
   return { night, palette: night ? darkColors : colors };
 }
+
+/**
+ * The most the rider's text-size setting enlarges navigation and riding
+ * text. Those screens are already set large for a glance at speed, in
+ * fixed bands over the map; past this they would push the turn off screen.
+ * Everywhere else text scales freely.
+ */
+export const GLANCE_TEXT_MAX_SCALE = 1.4;

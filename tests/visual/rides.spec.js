@@ -564,3 +564,22 @@ test('PWA tells the group aloud (and in a toast) when a rider\'s position stops 
     'Sam’s position is updating again.',
   ]);
 });
+
+test('PWA sums up a ride when it ends: how long, how many rode', async ({ page }) => {
+  const startedAt = Date.now() - 42 * 60_000;
+  let ended = false;
+  await mockAuthenticatedApi(page, 'stationary', ({ request, url }) => {
+    if (url.pathname === '/rides/current') return { body: { ride: ended ? null : {
+      rideId: 'ride-sum-1', code: 'ABCDEF', createdBy: RIDER_ID, createdAt: startedAt,
+      memberIds: [RIDER_ID, 'rider_a', 'rider_b'], shareRideLocation: false,
+    } } };
+    if (url.pathname === '/rides/ride-sum-1' && request.method() === 'DELETE') { ended = true; return { body: {} }; }
+    return null;
+  });
+  page.on('dialog', (dialog) => dialog.accept());
+  await page.goto('/');
+  await openTab(page, 'ride');
+  await expect(page.locator('#leaveRideBtn')).toHaveText('End ride');
+  await page.locator('#leaveRideBtn').click();
+  await expect(page.locator('[data-notification-message]')).toHaveText(/^Ride ended\. 4[23] min · 3 riders$/);
+});

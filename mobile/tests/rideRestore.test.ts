@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import vm from 'node:vm';
 import ts from 'typescript';
+import * as sharedModule from '../../shared/src/index.ts';
 
 test('native restores ride membership and consent from the server and ignores late responses after logout', async () => {
   const effects: Array<() => () => void> = [];
@@ -41,6 +42,8 @@ test('native restores ride membership and consent from the server and ignores la
       } };
       if (name === '../auth/AuthContext') return { useAuth: () => ({ client, riderId: 'rider-a' }) };
       if (name === '../api/client') return { ApiError: class {} };
+      if (name === '@rider-comms/shared') return sharedModule;
+      if (name === '../settings/SettingsContext') return { useSettings: () => ({ unitSystem: 'mi' }) };
       throw new Error(`Unexpected import: ${name}`);
     },
   });
@@ -107,6 +110,8 @@ test('native stops polling after an authoritative no-ride restore and retries on
         } };
         if (name === '../auth/AuthContext') return { useAuth: () => ({ client, riderId: 'rider-a' }) };
         if (name === '../api/client') return { ApiError: class {} };
+      if (name === '@rider-comms/shared') return sharedModule;
+      if (name === '../settings/SettingsContext') return { useSettings: () => ({ unitSystem: 'mi' }) };
         throw new Error(`Unexpected import: ${name}`);
       },
     });

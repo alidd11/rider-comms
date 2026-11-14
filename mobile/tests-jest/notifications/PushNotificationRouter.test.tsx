@@ -45,6 +45,10 @@ test('a tapped message opens that chat; a friend request opens Friends', async (
   await act(async () => { onTap?.(tapResponse('#friends')); });
   expect(navigation.navigate).toHaveBeenLastCalledWith('Tabs', { screen: 'Friends' });
 
+  // A regroup point from the ride's host opens the map.
+  await act(async () => { onTap?.(tapResponse('#map')); });
+  expect(navigation.navigate).toHaveBeenLastCalledWith('Tabs', { screen: 'Map' });
+
   // A chat with someone no longer a friend falls back to Friends.
   await act(async () => { onTap?.(tapResponse('#chat:gone')); });
   expect(navigation.navigate).toHaveBeenLastCalledWith('Tabs', { screen: 'Friends' });

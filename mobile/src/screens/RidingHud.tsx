@@ -6,6 +6,7 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import type { UnitSystem } from '../settings/SettingsContext';
 import { colors, spacing } from '../theme';
 import { HUD_ACTION_HEIGHT, styles } from './MapScreen.styles';
+import { GLANCE_TEXT_MAX_SCALE } from '../navigationTone';
 
 export function RidingHud({
   top,
@@ -35,12 +36,12 @@ export function RidingHud({
       <View style={[styles.hudChips, { top }]} pointerEvents="none">
         <View style={styles.hudChip} accessible accessibilityRole="text" accessibilityLabel="Ride Safe is on. Distracting controls are locked while moving.">
           <Ionicons name="lock-closed" size={15} color={colors.accent} />
-          <Text style={styles.hudChipText}>Ride Safe</Text>
+          <Text maxFontSizeMultiplier={GLANCE_TEXT_MAX_SCALE} style={styles.hudChipText}>Ride Safe</Text>
         </View>
         {inRide && (
           <View style={styles.hudChip} accessible accessibilityRole="text">
             <MaterialCommunityIcons name="account-group" size={16} color={colors.textPrimary} />
-            <Text style={styles.hudChipText}>{rosterCount ? `${rosterCount} in ride` : 'Group ride'}</Text>
+            <Text maxFontSizeMultiplier={GLANCE_TEXT_MAX_SCALE} style={styles.hudChipText}>{rosterCount ? `${rosterCount} in ride` : 'Group ride'}</Text>
           </View>
         )}
       </View>
@@ -50,8 +51,8 @@ export function RidingHud({
         accessibilityRole="text"
         accessibilityLabel={speed == null ? 'Current speed unavailable' : `Current speed ${speed} ${unitSystem === 'km' ? 'kilometres per hour' : 'miles per hour'}`}
       >
-        <Text style={styles.hudSpeedValue}>{speed == null ? '—' : speed}</Text>
-        <Text style={styles.hudSpeedUnit}>{unitSystem === 'km' ? 'km/h' : 'mph'}</Text>
+        <Text maxFontSizeMultiplier={GLANCE_TEXT_MAX_SCALE} style={styles.hudSpeedValue}>{speed == null ? '—' : speed}</Text>
+        <Text maxFontSizeMultiplier={GLANCE_TEXT_MAX_SCALE} style={styles.hudSpeedUnit}>{unitSystem === 'km' ? 'km/h' : 'mph'}</Text>
       </View>
       <View style={[styles.hudActions, { bottom }]} testID="riding-hud">
         {voiceConnected && (
@@ -63,7 +64,7 @@ export function RidingHud({
             accessibilityLabel={voiceMuted ? 'Unmute your microphone' : 'Mute your microphone'}
           >
             <Ionicons name={voiceMuted ? 'mic-off' : 'mic'} size={28} color={colors.textPrimary} />
-            <Text style={styles.hudButtonText}>{voiceMuted ? 'Unmute' : 'Mute'}</Text>
+            <Text maxFontSizeMultiplier={GLANCE_TEXT_MAX_SCALE} style={styles.hudButtonText}>{voiceMuted ? 'Unmute' : 'Mute'}</Text>
           </Pressable>
         )}
         <Pressable
@@ -73,7 +74,7 @@ export function RidingHud({
           accessibilityLabel="Report on the road"
         >
           <MaterialCommunityIcons name="alert-outline" size={28} color="#1F1300" />
-          <Text style={[styles.hudButtonText, styles.hudHazardText]}>Hazard</Text>
+          <Text maxFontSizeMultiplier={GLANCE_TEXT_MAX_SCALE} style={[styles.hudButtonText, styles.hudHazardText]}>Hazard</Text>
         </Pressable>
       </View>
     </>
