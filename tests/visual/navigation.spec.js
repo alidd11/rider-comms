@@ -1,4 +1,5 @@
 // Turn-by-turn navigation in the web app, against a mocked Google route.
+/* global google */
 import { expect, test } from '@playwright/test';
 import { RIDER_ID, mockAuthenticatedApi } from './helpers.js';
 
