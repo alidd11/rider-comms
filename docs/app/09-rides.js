@@ -410,14 +410,22 @@
   // signal never reads as everyone else dropping.
   let rideDropState = {};
   let rideDropRideId = null;
+  // Names are remembered once loaded: a refresh can land while the roster
+  // is being reloaded, and before profiles load a member's name is their ID
+  // (said as "A rider" rather than read out).
+  let rideDropNames = {};
   function announceDroppedRiders(locations) {
     const ride = state.activeRide;
     if (!ride) return;
     if (rideDropRideId !== ride.rideId) {
       rideDropRideId = ride.rideId;
       rideDropState = {};
+      rideDropNames = {};
     }
-    const names = Object.fromEntries((ride.members || []).map((member) => [member.riderId, member.displayName]));
+    for (const member of ride.members || []) {
+      if (member.displayName && member.displayName !== member.riderId) rideDropNames[member.riderId] = member.displayName;
+    }
+    const names = rideDropNames;
     const others = locations.filter((entry) => entry.riderId !== state.profile.riderId);
     const step = rideDropAnnouncements(rideDropState, others, names, Date.now());
     rideDropState = step.state;
