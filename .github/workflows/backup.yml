@@ -5,8 +5,8 @@ name: Database backup
 # PRODUCTION_DATABASE_URL (an externally reachable URL, with sslmode=require)
 # and BACKUP_AGE_RECIPIENT (an age public key). The matching private key must
 # NOT be stored in GitHub. This is the off-provider copy; the daily Railway
-# db-backup service (ops/backup/) is the primary one. Until both secrets exist
-# the job passes with a warning instead of taking a copy. See
+# db-backup service (ops/backup/) is the primary one. A missing off-provider
+# backup MUST fail this workflow, never report a misleading green run. See
 # BACKUP_RESTORE.md.
 
 on:
@@ -51,10 +51,10 @@ jobs:
         id: config
         run: |
           if [ -z "$PRODUCTION_DATABASE_URL" ] || [ -z "$BACKUP_AGE_RECIPIENT" ]; then
-            echo "::warning::No off-provider copy taken: set the PRODUCTION_DATABASE_URL and BACKUP_AGE_RECIPIENT repository secrets (see BACKUP_RESTORE.md). The daily Railway db-backup service still runs."
-          else
-            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "::error title=Encrypted off-provider backup missing::Set PRODUCTION_DATABASE_URL (TLS-protected read-only connection) and BACKUP_AGE_RECIPIENT (age public key) secrets. No off-provider copy was taken. See BACKUP_RESTORE.md."
+            exit 1
           fi
+          echo "enabled=true" >> "$GITHUB_OUTPUT"
       - if: steps.config.outputs.enabled == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install Postgres client and age
