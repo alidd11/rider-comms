@@ -126,6 +126,7 @@ test('production: every major route and empty state is visible, navigable and er
   await expect(page.getByTestId('reels-empty-state')).toBeVisible();
   await expect(page.getByTestId('reels-empty-studio-art')).toBeVisible();
   await expect(page.getByText('No Reels yet')).toBeVisible();
+  await expect(page.getByText(/Nothing is published yet/)).toBeVisible();
   await verifyScreen(page, testInfo, 'reels-empty');
   await page.getByRole('button', { name: 'Create Reel' }).click();
   await expect(page.getByRole('button', { name: 'Choose Reel video' })).toBeVisible();

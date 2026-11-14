@@ -177,7 +177,7 @@ export function ReelsScreen({ items, followedAuthors, onToggleFollow, onOpenComm
         letterSpacing: -0.6, textAlign: 'center' }}>No Reels yet</Text>
       <Text style={{ color: '#ABB6BE', fontSize: 14, textAlign: 'center',
         lineHeight: 21, maxWidth: 310 }}>
-        Bring a video into your Reel studio to preview and save a draft.
+        Choose a video to preview it in your Reel studio.
         Nothing is published yet.
       </Text>
       <Pressable accessibilityRole="button" accessibilityLabel="Create Reel"

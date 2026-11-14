@@ -237,6 +237,7 @@ export function SharedMessagesScreen({
       contentContainerStyle={{ gap: 2, paddingBottom: 20, flexGrow: 1 }}>
       {!loading && !error && !conversations.length ? <View testID="messages-empty-visual"
         style={{ alignItems: 'center', justifyContent: 'center', minHeight: 285,
+          flexGrow: otherFriends.length === 0 ? 1 : 0,
           paddingVertical: 35, paddingHorizontal: 15, gap: 13 }}>
         <View style={{ width: 80, height: 80, borderRadius: 28,
           backgroundColor: '#1B262B', alignItems: 'center', justifyContent: 'center' }}>
