@@ -59,7 +59,6 @@ export function ProfileSummary({
       </View>
       <View style={{gap:4}}>
         <Text style={{color:C.ink,fontWeight:'900',fontSize:18,letterSpacing:-0.3}}>{accountProfile?.displayName || username}</Text>
-        <Text style={s.small}>{handleWithAt(accountProfile?.handle || username)}</Text>
         {profile.bio ? <Text style={s.body}>{profile.bio}</Text> : null}
       </View>
       <View style={[s.row,{gap:10}]}>

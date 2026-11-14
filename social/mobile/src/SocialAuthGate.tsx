@@ -24,9 +24,9 @@ export function useSocialAccount(): SocialAccountContextValue {
   return context;
 }
 const accent = '#5CE4C1';
-const ink = '#F4F7FB';
+const ink = '#F7F9FA';
 const muted = '#91A4B5';
-const bg = '#080D13';
+const bg = '#080A0E';
 const border = '#23303C';
 const SESSION_CHECK_FAILED = 'Couldn’t check your account. Check your connection and try again.';
 
