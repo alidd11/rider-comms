@@ -1,26 +1,23 @@
 // Part of docs/app.js. 18 of 20: Google Map setup, service worker and UI event wiring. Edit here, then run `npm run build:pwa-app`.
-  function initialiseGoogleMap() {
-    // Render immediately even when GPS is unavailable, but never present the
-    // London fallback as the rider's own position. If the already-granted
-    // location watcher resolved before Maps finished loading, start directly
-    // from that real fix instead.
-    const fallbackCentre = { lat: 51.564, lng: -0.106 };
-    const liveCentre = latestDevicePosition
-      ? { lat: latestDevicePosition.coords.latitude, lng: latestDevicePosition.coords.longitude }
-      : null;
-    const centre = liveCentre || fallbackCentre;
-    // Dark basemap from sunset to sunrise. Without a fix yet, the time zone
-    // gives the longitude closely enough to place sunset. Maps JS reads
-    // colorScheme only here, so a map opened before sunset turns dark the
-    // next time the app opens.
-    const darkOutside = isDarkOutside(
-      liveCentre ? liveCentre.lat : fallbackCentre.lat,
-      liveCentre ? liveCentre.lng : -new Date().getTimezoneOffset() / 4,
-    );
-    const mapDark = prefersDarkMode() || darkOutside;
-    map = new google.maps.Map($('#googleMap'), {
-      center: centre,
-      zoom: liveCentre ? 15 : 14,
+  // Maps JS reads colorScheme only when a map is created, and a home-screen
+  // app can stay open from the afternoon into the night. So the map records
+  // which way it was built, and when sunset or sunrise passes it is rebuilt
+  // in place: same camera, same markers and route, new colours.
+  let mapBuiltDarkOutside = false;
+  let mapSchemeTimer;
+  // Weak references: a marker the app has let go of drops out by itself,
+  // while a route line kept for reuse is still found when it's re-attached.
+  const mapOverlays = new Set();
+  /** Remembers a marker, line or layer so a rebuilt map can take it over. */
+  function trackMapOverlay(overlay) {
+    if (overlay) mapOverlays.add(typeof WeakRef === 'function' ? new WeakRef(overlay) : { deref: () => overlay });
+    return overlay;
+  }
+
+  function createGoogleMap(element, camera, darkOutside) {
+    mapBuiltDarkOutside = darkOutside;
+    const created = new google.maps.Map(element, {
+      ...camera,
       disableDefaultUI: true,
       // The web map does not need hardware-keyboard navigation. Disabling it
       // also removes Google's optional "Keyboard shortcuts" footer control
@@ -37,16 +34,74 @@
       headingInteractionEnabled: true,
       isFractionalZoomEnabled: true,
       mapTypeId: 'roadmap',
+      // Dark basemap from sunset to sunrise, whatever the phone's theme.
       colorScheme: darkOutside ? 'DARK' : 'FOLLOW_SYSTEM',
-      backgroundColor: mapDark ? '#080d10' : '#f2f5f6',
+      backgroundColor: prefersDarkMode() || darkOutside ? '#080d10' : '#f2f5f6',
     });
-    map.addListener?.('dragstart', () => {
+    created.addListener?.('dragstart', () => {
       if (!navSteps.length) return;
       navFollowing = false;
       stopNavigationCameraAnimation();
       updateNavigationPositionIcon();
       updateNavigationControls();
     });
+    return created;
+  }
+
+  function refreshMapColorScheme() {
+    if (!map || usingFallbackMap || !window.google?.maps?.Map) return;
+    const here = latestDevicePosition?.coords;
+    const darkOutside = isDarkOutside(
+      Number.isFinite(here?.latitude) ? here.latitude : 51.564,
+      Number.isFinite(here?.longitude) ? here.longitude : -new Date().getTimezoneOffset() / 4,
+    );
+    if (darkOutside === mapBuiltDarkOutside) return;
+    // A phone in dark mode already has a dark map either way.
+    if (prefersDarkMode()) { mapBuiltDarkOutside = darkOutside; return; }
+    const previous = map;
+    const centre = previous.getCenter?.();
+    const camera = {
+      center: centre ? { lat: centre.lat(), lng: centre.lng() } : { lat: 51.564, lng: -0.106 },
+      zoom: previous.getZoom?.() ?? previous.zoom ?? 15,
+      heading: previous.getHeading?.() ?? 0,
+      tilt: previous.getTilt?.() ?? 0,
+    };
+    const element = $('#googleMap');
+    const fresh = element.cloneNode(false);
+    element.replaceWith(fresh);
+    map = createGoogleMap(fresh, camera, darkOutside);
+    for (const ref of mapOverlays) {
+      const overlay = ref.deref();
+      if (!overlay) mapOverlays.delete(ref);
+      else if (overlay.getMap?.() === previous) overlay.setMap(map);
+    }
+    window.google.maps.event?.clearInstanceListeners?.(previous);
+  }
+
+  function initialiseGoogleMap() {
+    // Render immediately even when GPS is unavailable, but never present the
+    // London fallback as the rider's own position. If the already-granted
+    // location watcher resolved before Maps finished loading, start directly
+    // from that real fix instead.
+    const fallbackCentre = { lat: 51.564, lng: -0.106 };
+    const liveCentre = latestDevicePosition
+      ? { lat: latestDevicePosition.coords.latitude, lng: latestDevicePosition.coords.longitude }
+      : null;
+    const centre = liveCentre || fallbackCentre;
+    // Dark basemap from sunset to sunrise. Without a fix yet, the time zone
+    // gives the longitude closely enough to place sunset; refreshMapColorScheme
+    // rebuilds the map when sunset or sunrise passes while it is open.
+    const darkOutside = isDarkOutside(
+      liveCentre ? liveCentre.lat : fallbackCentre.lat,
+      liveCentre ? liveCentre.lng : -new Date().getTimezoneOffset() / 4,
+    );
+    map = createGoogleMap($('#googleMap'), { center: centre, zoom: liveCentre ? 15 : 14 }, darkOutside);
+    if (!mapSchemeTimer) {
+      mapSchemeTimer = setInterval(refreshMapColorScheme, 60_000);
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') refreshMapColorScheme();
+      });
+    }
     usingFallbackMap = false;
     $('#fallbackMap').hidden = true;
     $('#fallbackMarkers').hidden = true;
@@ -64,14 +119,14 @@
   }
 
   function addMapMarker(person, position, current, status) {
-    const marker = new google.maps.Marker({
+    const marker = trackMapOverlay(new google.maps.Marker({
       map,
       position,
       title: current ? 'Your location' : person.displayName,
       icon: riderAvatarMapIcon(person, current, status),
       label: current ? null : riderMarkerLabel(person.displayName, null),
       zIndex: current ? 10 : 5,
-    });
+    }));
     marker.addListener('click', () => selectRider(person.riderId, visibleMapRiders()));
     return marker;
   }

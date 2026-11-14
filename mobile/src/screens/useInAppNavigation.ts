@@ -569,7 +569,9 @@ export function useInAppNavigation(
           activeRoute,
           effectiveIndex,
           cameraHeading,
-          position.coords.speed,
+          // iOS reports -1 when it doesn't know the speed: pass "unknown",
+          // not "stopped", so the camera keeps its riding zoom.
+          speed,
           NAV_PUCK_GLIDE_MS,
         );
         placePuck();

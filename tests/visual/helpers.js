@@ -129,7 +129,9 @@ export async function mockAuthenticatedApi(page, movement = 'stationary', backen
           this.zoom = options.zoom;
           this.options = { ...options };
           window.__riderCommsTestMap = this;
+          window.__riderCommsTestMaps = [...(window.__riderCommsTestMaps || []), this];
         }
+        getZoom() { return this.zoom; }
         panTo(centre) { this.centre = centre; }
         setZoom(zoom) { this.zoom = zoom; }
         setOptions(options) { this.options = { ...this.options, ...options }; }
@@ -145,11 +147,13 @@ export async function mockAuthenticatedApi(page, movement = 'stationary', backen
         constructor(options) {
           this.position = options.position;
           this.title = options.title;
+          this.map = options.map;
           window.__riderCommsTestMarkers = window.__riderCommsTestMarkers || [];
           window.__riderCommsTestMarkers.push(this);
         }
         addListener() {}
-        setMap() {}
+        setMap(map) { this.map = map; }
+        getMap() { return this.map; }
         setPosition(position) { this.position = position; }
         setTitle(title) { this.title = title; }
         setLabel(label) { this.label = label; }

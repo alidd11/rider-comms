@@ -28,13 +28,13 @@
 
   function addHazardMapMarker(hazard) {
     const meta = HAZARD_TYPES[hazard.type];
-    const marker = new google.maps.Marker({
+    const marker = trackMapOverlay(new google.maps.Marker({
       map,
       position: { lat: hazard.lat, lng: hazard.lon },
       title: meta.label,
       icon: hazardPinIcon(hazard.type),
       zIndex: 6,
-    });
+    }));
     marker.addListener('click', () => selectHazard(hazard.id));
     return { id: hazard.id, type: hazard.type, marker };
   }

@@ -43,6 +43,49 @@
     });
   }
 
+  // Safari often reports no speed (null, or -1) even while moving, which
+  // left the navigation speed reading "—". Work it out from GPS fixes at
+  // least two seconds apart instead: good fixes only, and a fix that stays
+  // within its own accuracy counts as standing still.
+  const SPEED_MIN_INTERVAL_S = 2;
+  const SPEED_MAX_INTERVAL_S = 15;
+  const SPEED_MAX_ACCURACY_M = 50;
+  let speedAnchor = null;
+  let derivedSpeedMps = null;
+  const speedByPosition = new WeakMap();
+  /** The rider's speed for a fix in m/s: the device's own figure, else one
+   * worked out from recent fixes; null when it can't be known. */
+  function positionSpeedMps(position) {
+    const coords = position?.coords;
+    if (!coords) return null;
+    if (Number.isFinite(coords.speed) && coords.speed >= 0) return Number(coords.speed);
+    if (speedByPosition.has(position)) return speedByPosition.get(position);
+    const at = position.timestamp || Date.now();
+    const here = { lat: coords.latitude, lng: coords.longitude, accuracy: Number(coords.accuracy) };
+    let speed = derivedSpeedMps;
+    if (!(here.accuracy <= SPEED_MAX_ACCURACY_M) || !Number.isFinite(here.lat) || !Number.isFinite(here.lng)) {
+      speed = null;
+    } else if (!speedAnchor || at <= speedAnchor.at) {
+      if (!speedAnchor) speedAnchor = { ...here, at };
+    } else {
+      const seconds = (at - speedAnchor.at) / 1000;
+      if (seconds > SPEED_MAX_INTERVAL_S) {
+        speedAnchor = { ...here, at };
+        speed = null;
+      } else if (seconds >= SPEED_MIN_INTERVAL_S) {
+        const moved = metersBetween(speedAnchor, here);
+        const jitter = Math.min(10, Math.max(3, (here.accuracy + speedAnchor.accuracy) / 4));
+        const measured = moved < jitter ? 0 : moved / seconds;
+        // Smooth while moving; standing still reads 0 straight away.
+        speed = measured === 0 || derivedSpeedMps == null ? measured : derivedSpeedMps * 0.4 + measured * 0.6;
+        speedAnchor = { ...here, at };
+      }
+    }
+    derivedSpeedMps = speed;
+    speedByPosition.set(position, speed);
+    return speed;
+  }
+
   let locationPermissionReady = false;
 
   function applyDevicePosition(position) {
@@ -139,7 +182,7 @@
     movementWatchId = navigator.geolocation.watchPosition(
       (position) => {
         applyDevicePosition(position);
-        hudSpeedMps = Number.isFinite(position.coords.speed) && position.coords.speed >= 0 ? position.coords.speed : null;
+        hudSpeedMps = positionSpeedMps(position);
         applyMovementState(movementTracker.addFix(movementFix(position)));
       },
       (error) => {

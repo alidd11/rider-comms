@@ -413,3 +413,62 @@ test('PWA place search and the category chips use the backend Places endpoints, 
   const nearby = calls.find((call) => call.path === '/places/nearby');
   expect(nearby.body.includedTypes).toEqual(['gas_station']);
 });
+
+test('PWA map turns dark when sunset passes while the app stays open', async ({ page }) => {
+  // 15:00 in London on 13 Nov: daylight. Sunset is about 16:15.
+  await page.clock.install({ time: new Date('2026-11-13T15:00:00Z') });
+  await page.emulateMedia({ colorScheme: 'light' });
+  await mockAuthenticatedApi(page);
+  await page.goto('/');
+  await expect.poll(() => page.evaluate(() => window.__riderCommsTestMap?.options?.colorScheme ?? null)).toBe('FOLLOW_SYSTEM');
+  const before = await page.evaluate(() => (window.__riderCommsTestMaps || []).length);
+
+  // 22:39 the same evening: the open map is rebuilt dark, keeping its markers.
+  await page.clock.setSystemTime(new Date('2026-11-13T22:39:00Z'));
+  await page.clock.runFor(61_000);
+  await expect.poll(() => page.evaluate(() => window.__riderCommsTestMap?.options?.colorScheme ?? null)).toBe('DARK');
+  const after = await page.evaluate(() => {
+    const maps = window.__riderCommsTestMaps || [];
+    const current = maps[maps.length - 1];
+    const markers = window.__riderCommsTestMarkers || [];
+    return {
+      count: maps.length,
+      onOldMap: markers.filter((marker) => marker.map && marker.map !== current).length,
+      background: current.options.backgroundColor,
+    };
+  });
+  expect(after.count).toBe(before + 1);
+  expect(after.onOldMap).toBe(0);
+  expect(after.background).toBe('#080d10');
+
+  // Another minute at night changes nothing.
+  await page.clock.runFor(61_000);
+  expect(await page.evaluate(() => (window.__riderCommsTestMaps || []).length)).toBe(after.count);
+});
+
+test('PWA works out the riding speed from GPS fixes when Safari reports none', async ({ page }) => {
+  await mockAuthenticatedApi(page, 'recovering');
+  await page.goto('/');
+  await expect(page.locator('#app')).toBeVisible();
+  // Fixes two seconds apart, 22 m further north each time (about 25 mph),
+  // with no speed of their own, as iOS Safari often sends them.
+  await page.evaluate(() => {
+    const base = Date.now() - 14_000;
+    for (let i = 0; i <= 7; i++) window.gpsTest.success({
+      timestamp: base + i * 2000,
+      coords: { latitude: 51.5074 + i * 0.0002, longitude: -0.1278, accuracy: 5, speed: null },
+    });
+  });
+  await expect(page.locator('#ridingHud')).toBeVisible();
+  await expect(page.locator('#hudSpeedValue')).toHaveText('25');
+
+  // Standing still, with the fix wandering inside its accuracy: 0, not a guess.
+  await page.evaluate(() => {
+    const base = Date.now();
+    for (let i = 1; i <= 4; i++) window.gpsTest.success({
+      timestamp: base + i * 2000,
+      coords: { latitude: 51.5088 + (i % 2) * 0.00001, longitude: -0.1278, accuracy: 8, speed: -1 },
+    });
+  });
+  await expect(page.locator('#hudSpeedValue')).toHaveText('0');
+});
