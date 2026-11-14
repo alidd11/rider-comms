@@ -384,22 +384,25 @@ test('@viewport standalone canvas, navigation and scroll geometry remain coheren
     const screen = page.locator(`.screen[data-screen="${name}"]`);
     await expect(screen).toBeVisible();
 
-    if (name === 'friends') {
-      // The list is replaced when friends arrive; pad it only after that,
-      // or the padding (and the row this test scrolls to) is swapped out.
+    // Friends updates may replace the list even after aria-busy becomes false.
+    // Recreate the long-list fixture if an asynchronous refresh detaches it,
+    // without relaxing any of the real viewport geometry assertions below.
+    const seedFriendsRows = async () => {
       await expect(page.locator('#friendList')).toHaveAttribute('aria-busy', 'false');
       await expect(page.locator('#friendList .friend-row').first()).toBeVisible();
       await page.evaluate(() => {
         const list = document.querySelector('#friendList');
         const source = list?.firstElementChild;
-        if (!list || !source) return;
+        if (!list || !source || list.querySelector('[data-friend="viewport-friend-0"]')) return;
         for (let index = 0; index < 16; index += 1) {
           const clone = source.cloneNode(true);
           clone.dataset.friend = `viewport-friend-${index}`;
           list.append(clone);
         }
       });
-    }
+      await expect(page.locator('#friendList [data-friend^="viewport-friend-"]')).toHaveCount(16);
+    };
+    if (name === 'friends') await seedFriendsRows();
 
     const final = name === 'routes'
       ? page.locator('[data-curated-route]').last()
@@ -410,9 +413,23 @@ test('@viewport standalone canvas, navigation and scroll geometry remain coheren
       const mapGeometry = await standaloneGeometry(page);
       expectNear(mapGeometry.mapBottom, mapGeometry.appBottom, 2);
     } else {
-      await final.scrollIntoViewIfNeeded();
-      await screen.evaluate((element) => { element.scrollTop = element.scrollHeight; });
-      const finalBox = await final.boundingBox();
+      let finalBox = null;
+      // Only Friends has a known asynchronous list replacement. Limit retries
+      // to that DOM-detachment race; never suppress other interaction failures.
+      for (let attempt = 0; attempt < (name === 'friends' ? 3 : 1); attempt += 1) {
+        try {
+          if (name === 'friends' && attempt > 0) await seedFriendsRows();
+          await final.scrollIntoViewIfNeeded();
+          await screen.evaluate((element) => { element.scrollTop = element.scrollHeight; });
+          finalBox = await final.boundingBox();
+          if (finalBox && (name !== 'friends' ||
+            await page.locator('#friendList [data-friend^="viewport-friend-"]').count() === 16)) break;
+          finalBox = null;
+        } catch (error) {
+          if (name !== 'friends' || attempt === 2 ||
+            !String(error).includes('not attached to the DOM')) throw error;
+        }
+      }
       expect(finalBox, `${name} final element has no geometry`).not.toBeNull();
       // There is no tab bar: every page's last row clears the screen edge.
       expect(finalBox.y + finalBox.height, `${name} final element must clear the bottom edge`).toBeLessThanOrEqual(page.viewportSize().height + 1);
