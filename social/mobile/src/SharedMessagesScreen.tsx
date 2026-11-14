@@ -177,8 +177,8 @@ export function SharedMessagesScreen({
         {visibleThread.map(item => {
           const mine = item.fromRiderId === ownRiderId;
           return <View key={item.id} style={{ alignSelf: mine ? 'flex-end' : 'flex-start',
-            maxWidth: '84%', borderRadius: 16, paddingHorizontal: 13,
-            paddingVertical: 10, backgroundColor: mine ? C.accentDark : C.panel }}>
+            maxWidth: '84%', borderRadius: 19, paddingHorizontal: 15,
+            paddingVertical: 11, backgroundColor: mine ? '#21433A' : '#242A32' }}>
             <Text style={{ color: C.ink, fontSize: 14, lineHeight: 20 }}>{item.text}</Text>
           </View>;
         })}
@@ -198,33 +198,35 @@ export function SharedMessagesScreen({
       {!emailVerified ? <Text style={{ color: C.muted, fontSize: 12 }}>
         Verify your email to message riders.
       </Text> : null}
-      <View style={{ flexDirection: 'row', gap: 10, alignItems: 'flex-end', paddingBottom: 5 }}>
+      <View style={{ flexDirection: 'row', gap: 10, alignItems: 'flex-end',
+        paddingTop: 9, paddingBottom: 7, borderTopWidth: 1, borderTopColor: '#242A32' }}>
         <TextInput accessibilityLabel="Write a message"
           value={draft} onChangeText={setDraft} editable={emailVerified && !sending && !threadLoading && !threadLoadFailed}
           placeholder="Message" placeholderTextColor={C.muted} multiline maxLength={1000}
-          style={[s.input, { flex: 1, minHeight: 46, maxHeight: 118,
-            fontSize: 16, textAlignVertical: 'top' }]}/>
+          style={[s.input, { flex: 1, minHeight: 48, maxHeight: 118,
+            fontSize: 16, textAlignVertical: 'top', borderBottomWidth: 0,
+            borderRadius: 22, backgroundColor: C.panel, paddingHorizontal: 15,
+            paddingVertical: 12 }]}/>
         <Pressable accessibilityRole="button" accessibilityLabel="Send message"
           accessibilityState={{ disabled: !emailVerified || sending || threadLoading || threadLoadFailed || !draft.trim() || draft.trim().length > 1000 }}
           disabled={!emailVerified || sending || threadLoading || threadLoadFailed || !draft.trim() || draft.trim().length > 1000}
           onPress={() => void send()}
           style={{ width: 46, height: 46, borderRadius: 23,
             alignItems: 'center', justifyContent: 'center',
-            backgroundColor: C.accentDark, opacity: !emailVerified || sending || threadLoading || threadLoadFailed || !draft.trim() || draft.trim().length > 1000 ? 0.5 : 1 }}>
-          <Ionicons name="arrow-up" color={C.accent} size={22}/>
+            backgroundColor: C.accent, opacity: !emailVerified || sending || threadLoading || threadLoadFailed || !draft.trim() || draft.trim().length > 1000 ? 0.45 : 1 }}>
+          <Ionicons name="arrow-up" color="#080A0E" size={22}/>
         </Pressable>
       </View>
     </View>;
   }
   return <View testID="shared-message-inbox" style={{ flex: 1, minHeight: 0, gap: 10 }}>
     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-      <Text style={s.title}>Messages</Text>
+      <Text style={[s.title, { fontSize: 27, letterSpacing: -0.8 }]}>Messages</Text>
       <Pressable accessibilityRole="button" accessibilityLabel="Refresh shared messages"
         accessibilityState={{ disabled: loading }} disabled={loading} onPress={() => void onRefresh()}
-        style={{ paddingVertical: 9, paddingHorizontal: 12 }}>
-        <Text style={{ color: C.accent, fontSize: 13, fontWeight: '700' }}>
-          {loading ? 'Loading…' : 'Refresh'}
-        </Text>
+        style={{ width: 44, height: 44, borderRadius: 22,
+          backgroundColor: C.panel, alignItems: 'center', justifyContent: 'center' }}>
+        <Ionicons name="refresh" size={20} color={loading ? C.muted : C.ink}/>
       </Pressable>
     </View>
     {error ? <Text accessibilityRole="alert" style={{ color: '#F2B0BA', fontSize: 12 }}>{error}</Text> : null}
@@ -232,13 +234,19 @@ export function SharedMessagesScreen({
       Verify your email to message riders.
     </Text> : null}
     <ScrollView style={{ flex: 1, minHeight: 0 }} showsVerticalScrollIndicator={false}
-      contentContainerStyle={{ gap: 2, paddingBottom: 20 }}>
-      {!loading && !error && !conversations.length ? <View style={{
-        alignItems: 'center', paddingVertical: 48, gap: 10 }}>
-        <Ionicons name="chatbubble-ellipses-outline" color={C.muted} size={33}/>
-        <Text style={s.cardHeading}>No conversations yet</Text>
-        <Text style={[s.small, { textAlign: 'center' }]}>
-          Your Rider Comms conversations will appear here.
+      contentContainerStyle={{ gap: 2, paddingBottom: 20, flexGrow: 1 }}>
+      {!loading && !error && !conversations.length ? <View testID="messages-empty-visual"
+        style={{ alignItems: 'center', justifyContent: 'center', minHeight: 285,
+          paddingVertical: 35, paddingHorizontal: 15, gap: 13 }}>
+        <View style={{ width: 80, height: 80, borderRadius: 28,
+          backgroundColor: '#1B262B', alignItems: 'center', justifyContent: 'center' }}>
+          <Ionicons name="chatbubbles-outline" color={C.accent} size={36}/>
+        </View>
+        <Text style={[s.cardHeading, { fontSize: 20, fontWeight: '900',
+          letterSpacing: -0.4 }]}>No conversations yet</Text>
+        <Text style={[s.small, { textAlign: 'center', maxWidth: 290,
+          fontSize: 14, lineHeight: 21 }]}>
+          Private chats with your Rider Comms friends will appear here.
         </Text>
       </View> : null}
       {conversations.map(entry => {
@@ -247,12 +255,13 @@ export function SharedMessagesScreen({
         return <Pressable key={riderId} accessibilityRole="button"
           accessibilityLabel={'Open conversation with ' + rider.displayName}
           onPress={() => setActive(riderId)}
-          style={{ flexDirection: 'row', alignItems: 'center', gap: 12,
-            paddingVertical: 13, borderBottomWidth: 1, borderColor: C.border }}>
-          <IdentityAvatar name={rider.displayName} size={44}/>
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 13,
+            paddingVertical: 13, minHeight: 76, borderBottomWidth: 1,
+            borderColor: '#1F252C' }}>
+          <IdentityAvatar name={rider.displayName} size={48}/>
           <View style={{ flex: 1, gap: 5 }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Text style={{ color: C.ink, fontSize: 14, fontWeight: '800' }}>{rider.displayName}</Text>
+              <Text style={{ color: C.ink, fontSize: 15, fontWeight: '800' }}>{rider.displayName}</Text>
               {entry.unreadCount > 0 ? <Text style={{ color: C.accent, fontSize: 12 }}>
                 {entry.unreadCount} new
               </Text> : null}

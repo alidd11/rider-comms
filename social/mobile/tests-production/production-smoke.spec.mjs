@@ -124,6 +124,7 @@ test('production: every major route and empty state is visible, navigable and er
 
   await page.getByRole('tab', { name: 'Reels' }).click();
   await expect(page.getByTestId('reels-empty-state')).toBeVisible();
+  await expect(page.getByTestId('reels-empty-studio-art')).toBeVisible();
   await expect(page.getByText('No Reels yet')).toBeVisible();
   await verifyScreen(page, testInfo, 'reels-empty');
   await page.getByRole('button', { name: 'Create Reel' }).click();
@@ -188,6 +189,7 @@ test('production: every major route and empty state is visible, navigable and er
 
   await page.getByRole('button', { name: 'Open messages' }).click();
   await expect(page.getByTestId('shared-message-inbox')).toBeVisible();
+  await expect(page.getByTestId('messages-empty-visual')).toBeVisible();
   await verifyScreen(page, testInfo, 'messages-empty');
   await page.getByRole('button', { name: 'Refresh shared messages' }).click();
   await expect(page.getByTestId('shared-message-inbox')).toBeVisible();
