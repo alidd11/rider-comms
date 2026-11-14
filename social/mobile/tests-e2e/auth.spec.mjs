@@ -389,3 +389,27 @@ test('signup never submits without accepting Terms and Guidelines', async ({ pag
   await expect(page.getByRole('button', { name: 'Continue to Social' })).toBeVisible();
   expect(signupRequests).toBe(1);
 });
+
+test('policy links show a selectable URL when the external browser rejects them', async ({ page }) => {
+  await fakeBackend(page, { identity: { ...fakeAccount, emailVerified: true } });
+  await page.addInitScript(riderId => {
+    // Only synthetic browser failure; never open a real account or external site.
+    Object.defineProperty(window, 'open', {
+      configurable: true,
+      value: () => { throw new Error('External browser unavailable in test'); },
+    });
+    window.sessionStorage.setItem('rider_social_account_session_v1', 'synthetic-policy-test');
+    window.sessionStorage.setItem('rider_social_age_ack_v1', riderId);
+  }, fakeAccount.riderId);
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Open profile' }).click();
+  await page.getByRole('button', { name: 'Open settings and privacy' }).click();
+  await page.getByRole('link', { name: 'Privacy policy' }).click();
+  await expect(page.getByTestId('policy-link-fallback')).toBeVisible();
+  await expect(page.getByText(/Couldn't open Privacy policy/)).toBeVisible();
+  await expect(page.getByLabel('Policy website address')).toHaveText(
+    'https://alidd11.github.io/rider-comms/privacy.html');
+  await page.getByRole('button', { name: 'Dismiss policy link error' }).click();
+  await expect(page.getByTestId('policy-link-fallback')).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Terms of service' })).toBeVisible();
+});
