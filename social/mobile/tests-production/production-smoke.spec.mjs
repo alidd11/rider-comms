@@ -76,27 +76,22 @@ test('production: every major route and empty state is visible, navigable and er
   page.on('pageerror', e => uncaught.push(e.message));
   await page.goto('/');
   await expect(page.getByText('Your next story starts here')).toBeVisible();
-  await expect(page.getByTestId('home-feed-tabs')).toBeVisible();
-  await expect(page.getByRole('tab', { name: 'For You' })).toBeVisible();
-  await expect(page.getByRole('tab', { name: 'Following' })).toBeVisible();
+  await expect(page.getByTestId('home-editorial-heading')).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'For You', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('tab', { name: 'Following', exact: true })).toHaveCount(0);
   await expect(page.getByText('Sample feed')).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Create a post' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Open studio' })).toBeVisible();
   // The main Compose CTA is visually prominent without changing the tab API.
   await expect(page.getByTestId('social-create-tab-symbol')).toBeVisible();
   await verifyScreen(page, testInfo, 'home-empty');
-  await page.getByRole('button', { name: 'Create a post' }).click();
+  await page.getByRole('button', { name: 'Open studio' }).click();
   await expect(page.getByTestId('camera-first-studio')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Post format' })).toBeVisible();
   await page.getByRole('button', { name: 'Close Create' }).click();
   await expect(page.getByText('Your next story starts here')).toBeVisible();
 
-  await page.getByRole('tab', { name: 'Following' }).click();
-  await expect(page.getByText('Your following feed')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Create story' })).toHaveCount(0);
-  await expect(page.getByTestId('home-feed-tabs')).toBeVisible();
-  await verifyScreen(page, testInfo, 'following-empty');
-  await page.getByRole('button', { name: 'Explore For You' }).click();
-  await expect(page.getByText('Your next story starts here')).toBeVisible();
+  // For You / Following now belong exclusively to Reels, not this Home feed.
+  await expect(page.getByTestId('home-editorial-heading')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Create story' })).toBeVisible();
 
   await page.getByRole('tab', { name: 'Create' }).click();
@@ -130,6 +125,7 @@ test('production: every major route and empty state is visible, navigable and er
   await expect(page.getByRole('tab', { name: 'Following videos' })).toBeVisible();
   await page.getByRole('tab', { name: 'Following videos' }).click();
   await expect(page.getByText('No followed Reels yet')).toBeVisible();
+  await verifyScreen(page, testInfo, 'following-empty');
   await page.getByRole('button', { name: 'Explore For You Reels' }).click();
   await expect(page.getByText('No Reels yet')).toBeVisible();
   await expect(page.getByText(/Nothing is published yet/)).toBeVisible();
