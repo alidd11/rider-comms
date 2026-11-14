@@ -49,12 +49,12 @@ import { HazardMarker, NavigationPuckMarker, SmoothSelfMarker, SmoothRideMemberM
 import { RegroupChip, RegroupMarker, isRegroupSpot, regroupTitle } from './RegroupPoint';
 import { RidingHud } from './RidingHud';
 import { NavigationBanner, NavigationControls, NavigationSpeedBadge, NavigationTripSummary } from './NavigationOverlay';
-import { NavigationNightContext } from '../navigationTone';
+import { GLANCE_TEXT_MAX_SCALE, NavigationNightContext } from '../navigationTone';
 import { ArrivalCard, DestinationCard } from './MapPlaceCards';
 import { RIDE_LOCATION_FRESH_MS, navigationManeuverArrow, regroupAnnouncement, rideDropAnnouncements, rideMemberLastSeenAgo, type RegroupPoint, type RideDropState } from '@rider-comms/shared';
 import { speakNavigationPrompt } from '../audio/navigationSpeech';
 import { useRideProfiles } from './useRideProfiles';
-import { useHazardReports } from './useHazardReports';
+import { queuedReportsText, useHazardReports } from './useHazardReports';
 import { useNavigationSummary } from './useNavigationSummary';
 import { usePresence } from './usePresence';
 import { useInAppNavigation } from './useInAppNavigation';
@@ -216,6 +216,13 @@ export function MapScreen(): React.JSX.Element {
   const hudSpeed = speedMps == null ? null : Math.round(speedMps * (unitSystem === 'km' ? 3.6 : 2.23694));
 
   const hasCurrentLocation = currentLocation !== null;
+  // Report confirmations are spoken too, like other riding prompts, since
+  // riders often report from the riding display without looking down.
+  const hazardSpeech = React.useRef({ speak: spokenDirections });
+  const announceHazardReport = React.useCallback((text: string) => {
+    AccessibilityInfo.announceForAccessibility(text);
+    if (hazardSpeech.current.speak) speakNavigationPrompt(text);
+  }, []);
   const requestCurrentLocationForHazardReport = React.useCallback(
     () => requestCurrentLocation(true),
     [requestCurrentLocation],
@@ -231,7 +238,8 @@ export function MapScreen(): React.JSX.Element {
     handleReport,
     handleVote,
     reportNotice: hazardReportNotice,
-  } = useHazardReports(client, hasCurrentLocation, currentLocationRef, requestCurrentLocationForHazardReport);
+    queuedReportCount,
+  } = useHazardReports(client, hasCurrentLocation, currentLocationRef, requestCurrentLocationForHazardReport, announceHazardReport);
 
   const {
     activeRoute,
@@ -423,6 +431,8 @@ export function MapScreen(): React.JSX.Element {
     }
     focusCoordinate(location);
   }
+
+  hazardSpeech.current.speak = spokenDirections && !(activeRoute && navigationMuted);
 
   // A new regroup point from the host is spoken to members with headsets
   // (shared regroupAnnouncement), unless spoken directions are off or the
@@ -784,6 +794,17 @@ export function MapScreen(): React.JSX.Element {
           top={insets.top + spacing.sm + MIN_TOUCH_TARGET + spacing.sm + (lockedForSafety || error ? 0 : 38)}
           onPress={showRegroupPoint}
         />
+      )}
+
+      {segment === 'public' && !selectedDestination && !activeRoute && !navigationArrival && queuedReportCount > 0 && (
+        <View
+          pointerEvents="none"
+          style={[styles.queuedReports, { bottom: bottomBarOffset + (lockedForSafety ? HUD_ACTION_HEIGHT : BOTTOM_BAR_HEIGHT) + spacing.sm }]}
+          testID="queued-hazard-reports"
+        >
+          <Ionicons name="cloud-upload-outline" size={16} color={colors.warning} />
+          <Text style={styles.queuedReportsText} maxFontSizeMultiplier={GLANCE_TEXT_MAX_SCALE}>{queuedReportsText(queuedReportCount)}</Text>
+        </View>
       )}
 
       {segment === 'public' && !selectedDestination && !activeRoute && !navigationArrival && (

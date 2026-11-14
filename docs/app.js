@@ -1094,6 +1094,58 @@
     rate_limited: 'Too many reports. Wait a few minutes and try again.',
   };
 
+  // Reports made with no signal are kept and retried, because riders lose
+  // signal on exactly the roads worth reporting. After half an hour the
+  // hazard may be gone, so an unsent report is dropped. Native:
+  // useHazardReports (QUEUED_REPORT_RETRY_MS, QUEUED_REPORT_MAX_AGE_MS).
+  const QUEUED_REPORT_RETRY_MS = 15_000;
+  const QUEUED_REPORT_MAX_AGE_MS = 30 * 60_000;
+  let queuedHazardReports = [];
+  let queuedHazardTimer = null;
+  let sendingQueuedHazards = false;
+
+  function sayHazardReport(message) {
+    showToast(message, 'info');
+    if (state.spokenDirections !== false) speak(message);
+  }
+
+  function queueHazardReport(type, position) {
+    queuedHazardReports.push({ type, lat: position.lat, lon: position.lon, queuedAt: Date.now() });
+    sayHazardReport(`No signal. Your ${HAZARD_TYPES[type].label.toLowerCase()} report will send when you’re back in signal.`);
+    if (!queuedHazardTimer) queuedHazardTimer = setInterval(sendQueuedHazardReports, QUEUED_REPORT_RETRY_MS);
+  }
+
+  /** Sends each waiting report once; one the server turns down, or that
+   * has waited too long, is dropped. Stops at the first with no answer. */
+  async function sendQueuedHazardReports() {
+    if (sendingQueuedHazards) return;
+    sendingQueuedHazards = true;
+    try {
+      while (queuedHazardReports.length) {
+        const report = queuedHazardReports[0];
+        const label = HAZARD_TYPES[report.type].label;
+        if (Date.now() - report.queuedAt > QUEUED_REPORT_MAX_AGE_MS) {
+          sayHazardReport(`Couldn’t send your earlier ${label.toLowerCase()} report. There was no signal for too long.`);
+        } else {
+          try {
+            const hazard = await apiFetch('POST', '/hazards', { type: report.type, lat: report.lat, lon: report.lon });
+            nearbyHazards = [hazard, ...nearbyHazards.filter((entry) => entry.id !== hazard.id)];
+            renderHazardMarkers();
+            sayHazardReport(`${label} report sent.`);
+          } catch (error) {
+            if (!(error instanceof ApiError) || error.status === 0) return;
+          }
+        }
+        queuedHazardReports.shift();
+      }
+      clearInterval(queuedHazardTimer);
+      queuedHazardTimer = null;
+    } finally {
+      sendingQueuedHazards = false;
+    }
+  }
+  window.addEventListener('online', () => { if (queuedHazardReports.length) void sendQueuedHazardReports(); });
+
   /** Reports a real hazard (POST /hazards) at the rider's live GPS
    * position — reuses currentPosition(), the same geolocation helper the
    * locate/go-live buttons use. The backend requires a real coordinate, so
@@ -1125,10 +1177,18 @@
       renderHazardMarkers();
       closeSheet();
       selectHazard(hazard.id);
-      showToast(alreadyReported ? `${HAZARD_TYPES[type].label} already reported here. Thanks for confirming it.` : `${HAZARD_TYPES[type].label} reported.`);
+      sayHazardReport(alreadyReported ? `${HAZARD_TYPES[type].label} already reported here. Thanks for confirming it.` : `${HAZARD_TYPES[type].label} reported.`);
       await loadNearbyHazards(hazard.lat, hazard.lon);
       if (nearbyHazards.some((entry) => entry.id === hazard.id)) selectHazard(hazard.id);
     } catch (error) {
+      if (error instanceof ApiError && error.status === 0) {
+        // No answer from the server: keep the report and send it once
+        // there's signal, rather than holding the rider at the sheet.
+        pendingHazardReportPosition = null;
+        closeSheet();
+        queueHazardReport(type, reportPosition);
+        return;
+      }
       const code = error instanceof ApiError ? error.body?.error : undefined;
       if (errorEl) { errorEl.textContent = HAZARD_ERROR_MESSAGES[code] || 'Couldn’t report that hazard. Try again.'; errorEl.hidden = false; }
     } finally {

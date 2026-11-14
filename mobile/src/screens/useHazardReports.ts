@@ -8,6 +8,18 @@ import { HAZARD_TYPE_META } from './HazardReportSheet';
 // Navigation updates GPS frequently; keep the hazard network refresh on a
 // one-minute cadence while recomputing route-relative distance locally.
 const HAZARD_REFRESH_INTERVAL_MS = 60_000;
+// A report made with no signal is kept and retried, because riders lose
+// signal on exactly the roads worth reporting. After half an hour the
+// hazard may be gone, so an unsent report is dropped.
+export const QUEUED_REPORT_RETRY_MS = 15_000;
+export const QUEUED_REPORT_MAX_AGE_MS = 30 * 60_000;
+
+interface QueuedReport { hazardType: HazardType; lat: number; lon: number; queuedAt: number }
+
+/** Shown on the map while reports wait for signal (PWA: the same toast). */
+export function queuedReportsText(count: number): string {
+  return count === 1 ? 'Road report waiting for signal.' : `${count} road reports waiting for signal.`;
+}
 
 function apiErrorCode(error: unknown): string {
   return error instanceof ApiError
@@ -30,6 +42,8 @@ export interface HazardReports {
   handleVote: (hazardId: string, direction: 'confirm' | 'deny') => Promise<void>;
   /** Confirms the rider's own report on its card (PWA: the report toast). */
   reportNotice: { hazardId: string; text: string } | null;
+  /** Reports made with no signal, still waiting to be sent. */
+  queuedReportCount: number;
 }
 
 /**
@@ -43,6 +57,7 @@ export function useHazardReports(
   hasCurrentLocation: boolean,
   currentLocationRef: React.RefObject<{ lat: number; lon: number } | null>,
   requestCurrentLocation: () => Promise<{ lat: number; lon: number } | null>,
+  announce: (text: string) => void = (text) => AccessibilityInfo.announceForAccessibility(text),
 ): HazardReports {
   const [hazards, setHazards] = React.useState<HazardReport[]>([]);
   const [selectedHazardId, setSelectedHazardId] = React.useState<string | null>(null);
@@ -51,6 +66,11 @@ export function useHazardReports(
   const [reportNotice, setReportNotice] = React.useState<{ hazardId: string; text: string } | null>(null);
   const hazardsRef = React.useRef(hazards);
   hazardsRef.current = hazards;
+  const [queuedReports, setQueuedReports] = React.useState<QueuedReport[]>([]);
+  const queuedReportsRef = React.useRef(queuedReports);
+  queuedReportsRef.current = queuedReports;
+  const announceRef = React.useRef(announce);
+  announceRef.current = announce;
 
   React.useEffect(() => {
     if (!hasCurrentLocation) { setHazards([]); return; }
@@ -101,27 +121,69 @@ export function useHazardReports(
     pendingHazardReportLocation.current = null;
     setReportSheetOpen(false);
     if (!reportLocation) return;
+    const label = HAZARD_TYPE_META[hazardType].label;
     try {
       const created = await client.createHazard(hazardType, reportLocation.lat, reportLocation.lon);
       // The server folds a report of the same hazard close by into the
       // existing one, counting this rider's sighting as a confirmation.
       const alreadyReported = hazardsRef.current.some((hazard) => hazard.id === created.id);
-      const label = HAZARD_TYPE_META[hazardType].label;
       const text = alreadyReported ? `${label} already reported here. Thanks for confirming it.` : `${label} reported.`;
       setReportNotice({ hazardId: created.id, text });
-      AccessibilityInfo.announceForAccessibility(text);
+      announceRef.current(text);
       setHazards((current) => [created, ...current.filter((hazard) => hazard.id !== created.id)]);
       setSelectedHazardId(created.id);
     } catch (error) {
+      if (!(error instanceof ApiError)) {
+        // No answer from the server: keep the report and send it once
+        // there's signal, rather than stopping the rider with an alert.
+        setQueuedReports((current) => [...current, { hazardType, lat: reportLocation.lat, lon: reportLocation.lon, queuedAt: Date.now() }]);
+        announceRef.current(`No signal. Your ${label.toLowerCase()} report will send when you’re back in signal.`);
+        return;
+      }
       const code = apiErrorCode(error);
       Alert.alert(
         code === 'email_verification_required' ? 'Verify your email' : 'Couldn’t report hazard',
         code === 'email_verification_required'
           ? 'Verify your email to report road hazards: Settings → Account and login → Email.'
-          : 'Couldn’t send that road report. Check your connection and try again.',
+          : 'Couldn’t send that road report. Try again.',
       );
     }
   }, [client, currentLocationRef]);
+
+  // Retry reports made with no signal. Each is sent once; one that the
+  // server turns down, or that has waited too long, is dropped.
+  const hasQueuedReports = queuedReports.length > 0;
+  React.useEffect(() => {
+    if (!hasQueuedReports) return;
+    let sending = false;
+    const interval = setInterval(() => {
+      if (sending) return;
+      sending = true;
+      void (async () => {
+        try {
+          for (const report of queuedReportsRef.current) {
+            const label = HAZARD_TYPE_META[report.hazardType].label;
+            if (Date.now() - report.queuedAt > QUEUED_REPORT_MAX_AGE_MS) {
+              announceRef.current(`Couldn’t send your earlier ${label.toLowerCase()} report. There was no signal for too long.`);
+            } else {
+              try {
+                const created = await client.createHazard(report.hazardType, report.lat, report.lon);
+                setHazards((current) => [created, ...current.filter((hazard) => hazard.id !== created.id)]);
+                announceRef.current(`${label} report sent.`);
+              } catch (error) {
+                // Still no signal: try again on the next tick.
+                if (!(error instanceof ApiError)) break;
+              }
+            }
+            setQueuedReports((current) => current.filter((entry) => entry !== report));
+          }
+        } finally {
+          sending = false;
+        }
+      })();
+    }, QUEUED_REPORT_RETRY_MS);
+    return () => clearInterval(interval);
+  }, [client, hasQueuedReports]);
 
   const handleVote = React.useCallback(async (hazardId: string, direction: 'confirm' | 'deny'): Promise<void> => {
     try {
@@ -157,5 +219,6 @@ export function useHazardReports(
     handleReport,
     handleVote,
     reportNotice: reportNotice && reportNotice.hazardId === selectedHazardId ? reportNotice : null,
+    queuedReportCount: queuedReports.length,
   };
 }
