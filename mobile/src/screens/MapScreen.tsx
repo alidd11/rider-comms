@@ -49,6 +49,7 @@ import { HazardMarker, NavigationPuckMarker, SmoothSelfMarker, SmoothRideMemberM
 import { RegroupChip, RegroupMarker, isRegroupSpot, regroupTitle } from './RegroupPoint';
 import { RidingHud } from './RidingHud';
 import { NavigationBanner, NavigationControls, NavigationSpeedBadge, NavigationTripSummary } from './NavigationOverlay';
+import { NavigationNightContext } from '../navigationTone';
 import { ArrivalCard, DestinationCard } from './MapPlaceCards';
 import { RIDE_LOCATION_FRESH_MS, navigationManeuverArrow, regroupAnnouncement, rideMemberLastSeenAgo, type RegroupPoint } from '@rider-comms/shared';
 import { speakNavigationPrompt } from '../audio/navigationSpeech';
@@ -879,7 +880,7 @@ export function MapScreen(): React.JSX.Element {
       )}
 
       {activeRoute && currentNavigationStep && (
-        <>
+        <NavigationNightContext.Provider value={darkOutside && colorScheme !== 'dark'}>
           <NavigationBanner
             top={insets.top + spacing.sm}
             upcomingStep={upcomingNavigationStep}
@@ -907,7 +908,7 @@ export function MapScreen(): React.JSX.Element {
             unitSystem={unitSystem}
             onHeight={setNavigationSummaryHeight}
           />
-        </>
+        </NavigationNightContext.Provider>
       )}
 
       {drawerVisible && (
