@@ -210,3 +210,60 @@ export function rideSummary(
   if (distance >= 0.1) parts.push(`${distance.toFixed(1)} ${unit}`);
   return parts.join(' · ');
 }
+
+/** A finished ride, kept on the rider's device for "Recent rides". */
+export interface RideHistoryEntry {
+  endedAt: number;
+  durationMs: number;
+  riders: number;
+  distanceMeters: number | null;
+}
+
+/** How many finished rides "Recent rides" keeps. */
+export const RIDE_HISTORY_MAX = 10;
+
+/** Rides shorter than this (a ride started and ended by mistake) aren't kept. */
+export const RIDE_HISTORY_MIN_MS = 60_000;
+
+/** The device key for a rider's recent rides (both apps). */
+export function rideHistoryStorageKey(riderId: string): string {
+  return `riderComms.rideHistory.${riderId}`;
+}
+
+/** Reads saved recent rides, newest first, dropping anything malformed. */
+export function parseRideHistory(raw: string | null | undefined): RideHistoryEntry[] {
+  let value: unknown;
+  try { value = JSON.parse(raw ?? '[]'); } catch { return []; }
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((entry): entry is RideHistoryEntry => Boolean(entry) && typeof entry === 'object'
+      && Number.isFinite(entry.endedAt)
+      && Number.isFinite(entry.durationMs) && entry.durationMs >= 0
+      && Number.isInteger(entry.riders) && entry.riders >= 1
+      && (entry.distanceMeters === null || (Number.isFinite(entry.distanceMeters) && entry.distanceMeters >= 0)))
+    .map(({ endedAt, durationMs, riders, distanceMeters }) => ({ endedAt, durationMs, riders, distanceMeters }))
+    .sort((a, b) => b.endedAt - a.endedAt)
+    .slice(0, RIDE_HISTORY_MAX);
+}
+
+/** Adds a finished ride to the front, keeping the newest RIDE_HISTORY_MAX.
+ * A ride under a minute is left out. */
+export function withRideHistoryEntry(history: readonly RideHistoryEntry[], entry: RideHistoryEntry): RideHistoryEntry[] {
+  if (!(entry.durationMs >= RIDE_HISTORY_MIN_MS)) return [...history];
+  return [entry, ...history].slice(0, RIDE_HISTORY_MAX);
+}
+
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** One "Recent rides" row in the device's local time:
+ * "Today · 1 h 42 min · 4 riders · 38.2 mi", "Yesterday · …" or "Sat 14 Nov · …". */
+export function rideHistoryLine(entry: RideHistoryEntry, unit: 'mi' | 'km', now: number): string {
+  const ended = new Date(entry.endedAt);
+  const dayStart = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  const daysAgo = Math.round((dayStart(new Date(now)) - dayStart(ended)) / 86_400_000);
+  const day = daysAgo === 0 ? 'Today'
+    : daysAgo === 1 ? 'Yesterday'
+      : `${WEEKDAYS[ended.getDay()]} ${ended.getDate()} ${MONTHS[ended.getMonth()]}`;
+  return `${day} · ${rideSummary(entry.durationMs, entry.riders, entry.distanceMeters, unit)}`;
+}

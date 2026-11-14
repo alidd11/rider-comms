@@ -8,6 +8,11 @@ import {
   normalizeRegroupLabel,
   regroupAnnouncement,
   isRideBatteryLow,
+  parseRideHistory,
+  rideHistoryLine,
+  RIDE_HISTORY_MAX,
+  rideHistoryStorageKey,
+  withRideHistoryEntry,
   rideBatteryAnnouncements,
   rideDropAnnouncements,
   rideMemberLastSeenAgo,
@@ -168,5 +173,44 @@ describe('low battery announcements', () => {
     expect(step.state).toEqual({});
     step = rideBatteryAnnouncements(step.state, [{ riderId: 'sam', batteryLow: true }], names);
     expect(step.announcements).toEqual(['Sam’s phone battery is low.']);
+  });
+});
+
+describe('recent rides', () => {
+  const ride = (endedAt: number, durationMs = 3_600_000) => ({ endedAt, durationMs, riders: 3, distanceMeters: 40_000 });
+  it('keeps the newest rides first, at most ten, and skips rides under a minute', () => {
+    let history = withRideHistoryEntry([], ride(1));
+    history = withRideHistoryEntry(history, ride(2, 59_000));
+    expect(history).toEqual([ride(1)]);
+    for (let i = 2; i <= 12; i += 1) history = withRideHistoryEntry(history, ride(i));
+    expect(history).toHaveLength(RIDE_HISTORY_MAX);
+    expect(history[0]!.endedAt).toBe(12);
+    expect(history.at(-1)!.endedAt).toBe(3);
+  });
+  it('reads saved rides back, dropping anything malformed', () => {
+    expect(parseRideHistory(null)).toEqual([]);
+    expect(parseRideHistory('nope')).toEqual([]);
+    expect(parseRideHistory('{}')).toEqual([]);
+    const saved = JSON.stringify([
+      ride(1),
+      { ...ride(5), distanceMeters: null, extra: 'x' },
+      null,
+      { ...ride(2), riders: 0 },
+      { ...ride(3), durationMs: -1 },
+      { ...ride(4), distanceMeters: 'far' },
+      { riders: 2 },
+    ]);
+    expect(parseRideHistory(saved)).toEqual([{ ...ride(5), distanceMeters: null }, ride(1)]);
+    expect(rideHistoryStorageKey('me')).toBe('riderComms.rideHistory.me');
+  });
+});
+
+describe('recent ride rows', () => {
+  it('say when, in local days, then the ride summary', () => {
+    const now = new Date(2026, 10, 14, 18, 0).getTime();
+    const entry = (endedAt: number) => ({ endedAt, durationMs: 6_120_000, riders: 4, distanceMeters: 61_476 });
+    expect(rideHistoryLine(entry(new Date(2026, 10, 14, 0, 5).getTime()), 'mi', now)).toBe('Today · 1 h 42 min · 4 riders · 38.2 mi');
+    expect(rideHistoryLine(entry(new Date(2026, 10, 13, 23, 55).getTime()), 'km', now)).toBe('Yesterday · 1 h 42 min · 4 riders · 61.5 km');
+    expect(rideHistoryLine(entry(new Date(2026, 10, 7, 12).getTime()), 'mi', now)).toBe('Sat 7 Nov · 1 h 42 min · 4 riders · 38.2 mi');
   });
 });

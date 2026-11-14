@@ -2787,3 +2787,4 @@ html.map-day .nav-speed-badge span,html.map-day .nav-summary-eta span,html.map-d
 html.map-day .nav-summary:before{background:#9aa6ac}
 html.map-day .nav-summary-stat{border-left-color:rgb(11 18 22/.1)}
 .roster-battery-low{font-weight:780;color:var(--warning)}
+.recent-rides-list{margin:0;padding:8px 12px 14px;list-style:none;display:grid;gap:8px;color:var(--text-secondary);font-size:.86rem;line-height:1.4}

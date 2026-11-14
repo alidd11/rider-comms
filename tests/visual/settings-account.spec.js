@@ -353,6 +353,14 @@ test('PWA profile avatar families persist and render the selected identity', asy
 });
 
 test('PWA exposes session management and account deletion', async ({ page }) => {
+  await page.addInitScript((riderId) => {
+    if (sessionStorage.getItem('seeded')) return;
+    sessionStorage.setItem('seeded', '1');
+    localStorage.setItem(`riderComms.rideHistory.${riderId}`, '[]');
+    localStorage.setItem(`riderComms.queuedHazardReports.${riderId}`, '[]');
+    localStorage.setItem(`riderComms.savedPlaces:${riderId}`, '{}');
+    localStorage.setItem('riderComms.rideHistory.rider_other', '[]');
+  }, RIDER_ID);
   let remoteRevoked = false;
   let accountDeleted = false;
 
@@ -393,6 +401,10 @@ test('PWA exposes session management and account deletion', async ({ page }) => 
   page.on('dialog', (dialog) => void dialog.accept());
   await page.locator('#deleteAccountBtn').click();
   await expect.poll(() => accountDeleted).toBe(true);
+  // Nothing of the deleted rider stays on the device; other riders' data does.
+  // (The app reloads after deleting, so a read can land mid-navigation.)
+  await expect.poll(() => page.evaluate(() => Object.keys(localStorage).filter((key) => key.includes('rider_')).sort()).catch(() => null))
+    .toEqual(['riderComms.rideHistory.rider_other']);
 });
 
 test('PWA Settings sets Home and Work without moving the map, and can remove them', async ({ page }) => {

@@ -582,6 +582,23 @@ test('PWA sums up a ride when it ends: how long, how many rode', async ({ page }
   await expect(page.locator('#leaveRideBtn')).toHaveText('End ride');
   await page.locator('#leaveRideBtn').click();
   await expect(page.locator('[data-notification-message]')).toHaveText(/^Ride ended\. 4[23] min · 3 riders$/);
+  // Kept under "Recent rides", and still there after a reload.
+  await expect(page.locator('#recentRides')).toBeVisible();
+  await expect(page.locator('#recentRidesList li')).toHaveText([/^Today · 4[23] min · 3 riders$/]);
+  await page.reload();
+  await openTab(page, 'ride');
+  await expect(page.locator('#recentRidesList li')).toHaveText([/^Today · 4[23] min · 3 riders$/]);
+});
+
+test('PWA shows no Recent rides before the first ride, and only this rider\'s', async ({ page }) => {
+  await mockAuthenticatedApi(page, 'stationary');
+  await page.addInitScript(() => {
+    localStorage.setItem('riderComms.rideHistory.rider_other', JSON.stringify([{ endedAt: Date.now(), durationMs: 3_600_000, riders: 2, distanceMeters: null }]));
+  });
+  await page.goto('/');
+  await openTab(page, 'ride');
+  await expect(page.locator('#rideJoinState')).toBeVisible();
+  await expect(page.locator('#recentRides')).toBeHidden();
 });
 
 test('PWA sends its low battery with the ride position and says once when another rider\'s is low', async ({ page }) => {

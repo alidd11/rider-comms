@@ -2,7 +2,8 @@ import * as React from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Text } from 'react-native';
 import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react-native';
-import { AuthProvider, useAuth } from '../../src/auth/AuthContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { AuthProvider, forgetRiderOnDevice, useAuth } from '../../src/auth/AuthContext';
 
 const SAFE_AREA_METRICS = {
   insets: { top: 0, left: 0, right: 0, bottom: 0 },
@@ -163,6 +164,27 @@ test('deleteAccount clears the local session only after the server call succeeds
 
   expect(mockClientImpl.deleteAccount).toHaveBeenCalled();
   expect(mockDeleteItemAsync).toHaveBeenCalledWith(KEY);
+});
+
+test('deleting an account forgets that rider\'s data on the phone, and nobody else\'s', async () => {
+  await AsyncStorage.multiSet([
+    ['riderComms.rideHistory.me', '[]'],
+    ['riderComms.queuedHazardReports.me', '[]'],
+    ['@rider-comms/saved-places/me', '{}'],
+    ['riderComms.rideHistory.someone', '[]'],
+    ['riderComms.onboarded', '1'],
+  ]);
+  mockGetItemAsync.mockImplementation(async (key: string) => (key === KEY ? cachedSession() : null));
+  const { result } = await renderAuth();
+  await flushSplashDelay();
+  await waitFor(() => expect(result.current.riderId).toBe('me'));
+  await act(async () => { await result.current.deleteAccount(); });
+  expect([...await AsyncStorage.getAllKeys()].sort()).toEqual(['riderComms.onboarded', 'riderComms.rideHistory.someone']);
+});
+
+test('forgetting a rider on the phone never throws', async () => {
+  jest.spyOn(AsyncStorage, 'getAllKeys').mockRejectedValueOnce(new Error('disk'));
+  await expect(forgetRiderOnDevice('me')).resolves.toBeUndefined();
 });
 
 test('deleteAccount leaves the local session intact when the server call fails', async () => {

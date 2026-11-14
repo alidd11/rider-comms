@@ -2,6 +2,7 @@
   function renderRide() {
     const active = Boolean(state.activeRide);
     $('#rideJoinState').hidden = active;
+    if (!active) renderRecentRides();
     $('#rideActiveState').hidden = !active;
     $('#rideShareTop').hidden = !active;
     $('#ridePill').hidden = !active;
@@ -414,9 +415,72 @@
   }
   function rideEndSummary(rideId) {
     if (rideStats.rideId !== rideId) return '';
-    const summary = rideSummary(Date.now() - rideStats.startedAt, rideStats.riders, rideStats.trip ? rideStats.trip.distanceMeters : null, state.unit === 'km' ? 'km' : 'mi');
+    const durationMs = Date.now() - rideStats.startedAt;
+    const distanceMeters = rideStats.trip ? rideStats.trip.distanceMeters : null;
+    const summary = rideSummary(durationMs, rideStats.riders, distanceMeters, state.unit === 'km' ? 'km' : 'mi');
+    recordRideHistory({ endedAt: Date.now(), durationMs, riders: rideStats.riders, distanceMeters });
+    renderRecentRides();
     rideStats = { rideId: null, startedAt: 0, riders: 1, trip: null };
     return summary;
+  }
+
+  // Mirrors shared parseRideHistory, withRideHistoryEntry and
+  // rideHistoryLine (shared/src/rideCode.ts); scripts/check-client-parity.mjs
+  // runs both. Finished rides are kept on this device per rider (native:
+  // rideHistory.ts, same key) for "Recent rides" on the Ride screen.
+  const RIDE_HISTORY_MAX = 10;
+  const RIDE_HISTORY_MIN_MS = 60_000;
+  function parseRideHistory(raw) {
+    let value;
+    try { value = JSON.parse(raw ?? '[]'); } catch { return []; }
+    if (!Array.isArray(value)) return [];
+    return value
+      .filter((entry) => Boolean(entry) && typeof entry === 'object'
+        && Number.isFinite(entry.endedAt)
+        && Number.isFinite(entry.durationMs) && entry.durationMs >= 0
+        && Number.isInteger(entry.riders) && entry.riders >= 1
+        && (entry.distanceMeters === null || (Number.isFinite(entry.distanceMeters) && entry.distanceMeters >= 0)))
+      .map(({ endedAt, durationMs, riders, distanceMeters }) => ({ endedAt, durationMs, riders, distanceMeters }))
+      .sort((a, b) => b.endedAt - a.endedAt)
+      .slice(0, RIDE_HISTORY_MAX);
+  }
+  function withRideHistoryEntry(history, entry) {
+    if (!(entry.durationMs >= RIDE_HISTORY_MIN_MS)) return [...history];
+    return [entry, ...history].slice(0, RIDE_HISTORY_MAX);
+  }
+  const RIDE_HISTORY_WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const RIDE_HISTORY_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  function rideHistoryLine(entry, unit, now) {
+    const ended = new Date(entry.endedAt);
+    const dayStart = (date) => new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+    const daysAgo = Math.round((dayStart(new Date(now)) - dayStart(ended)) / 86_400_000);
+    const day = daysAgo === 0 ? 'Today'
+      : daysAgo === 1 ? 'Yesterday'
+        : `${RIDE_HISTORY_WEEKDAYS[ended.getDay()]} ${ended.getDate()} ${RIDE_HISTORY_MONTHS[ended.getMonth()]}`;
+    return `${day} · ${rideSummary(entry.durationMs, entry.riders, entry.distanceMeters, unit)}`;
+  }
+
+  function rideHistoryKey() {
+    return session?.riderId ? `riderComms.rideHistory.${session.riderId}` : null;
+  }
+  function loadRideHistory() {
+    const key = rideHistoryKey();
+    if (!key) return [];
+    try { return parseRideHistory(localStorage.getItem(key)); } catch { return []; }
+  }
+  function recordRideHistory(entry) {
+    const key = rideHistoryKey();
+    if (!key) return;
+    try { localStorage.setItem(key, JSON.stringify(withRideHistoryEntry(loadRideHistory(), entry))); } catch { /* Private browsing. */ }
+  }
+  function renderRecentRides() {
+    const card = $('#recentRides');
+    const list = $('#recentRidesList');
+    if (!card || !list) return;
+    const history = loadRideHistory();
+    card.hidden = history.length === 0;
+    const now = Date.now();
+    list.innerHTML = history.map((entry) => `<li>${escapeHtml(rideHistoryLine(entry, state.unit === 'km' ? 'km' : 'mi', now))}</li>`).join('');
   }
 
   // Mirrors shared rideDropAnnouncements (shared/src/rideCode.ts);
