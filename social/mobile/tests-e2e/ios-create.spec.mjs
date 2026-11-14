@@ -54,6 +54,9 @@ test('iPhone WebKit Create never becomes an empty viewport after camera refusal'
   await expect(page.getByRole('button', { name: 'Choose from library' })).toBeVisible();
   await page.getByRole('button', { name: 'Reel format' }).click();
   await expect(page.getByRole('button', { name: 'Choose Reel video' })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Choose Reel video' })).toHaveCount(1);
+  await expect(page.getByRole('button', { name: 'Flip camera' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Take photo' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Choose from library' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Enable camera' })).toHaveCount(0);
   await expect(page.getByText('Create a Reel')).toBeVisible();
