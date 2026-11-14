@@ -130,6 +130,10 @@ describe('Private Social object store (server only)', () => {
       /invalid_processed_media/);
     assert.throws(() => signSocialObjectRequest(config, 'PUT', KEY, JPEG, 'application/pdf'),
       /invalid_processed_media/);
+    assert.throws(() => signSocialObjectRequest(config, 'PUT', KEY, JPEG, 'video/mp4'),
+      /invalid_processed_media/);
+    assert.throws(() => signSocialObjectRequest(config, 'PUT', KEY, JPEG, 'image/png'),
+      /invalid_processed_media/);
     assert.throws(() => signSocialObjectRequest(config, 'PUT', KEY,
       new Uint8Array(80 * 1024 * 1024 + 1), 'video/mp4'), /invalid_processed_media/);
   });

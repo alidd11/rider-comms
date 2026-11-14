@@ -17,7 +17,9 @@ const OBJECT_KEY = /^social\/processed\/[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12
 const BUCKET_NAME = /^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/;
 const MAX_PROCESSED_BYTES = 80 * 1024 * 1024;
 const SHA256_EMPTY = createHash('sha256').update('').digest('hex');
-const MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'video/mp4']);
+const MIME_EXTENSIONS: Readonly<Record<string, string>> = Object.freeze({
+  'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'video/mp4': 'mp4',
+});
 
 export function createProcessedObjectKey(extension: string, id = randomUUID()): string {
   const key = 'social/processed/' + id + '.' + extension;
@@ -84,7 +86,8 @@ export function signSocialObjectRequest(
   }
   if (method === 'PUT' &&
     (!data.byteLength || data.byteLength > MAX_PROCESSED_BYTES ||
-      !contentType || !MIME_TYPES.has(contentType))) {
+      !contentType ||
+      MIME_EXTENSIONS[contentType] !== key.slice(key.lastIndexOf('.') + 1))) {
     throw new Error('invalid_processed_media');
   }
   const url = new URL(config.endpoint);
