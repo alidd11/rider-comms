@@ -49,3 +49,19 @@ token in query string, or client-only rider allowlist is created.
 
 No customer ID or secret is committed in this change. This is a security
 foundation, **not** issue #466 completion or a release approval.
+
+## Open testing beta (14 November 2026 owner decision)
+
+The owner has explicitly authorised **open testing for authenticated Rider Comms accounts** instead of an ownership/management-only pilot. Configure `SOCIAL_OPEN_BETA_ENABLED=true` **on the backend service only**, after the code change is tested and deployed. No rider ID list is necessary in this mode.
+
+- The server still authenticates every request with its existing Rider Comms session. Invalid or revoked credentials receive 401.
+- `GET /social/bootstrap` then returns `entitlement: "beta"`, `policyVersion: "social-open-beta-v1"` and all six existing capabilities **false**.
+- The reserved `/social/*` product routes still return 404 until individually implemented, validated and security-reviewed. This flag is **not** an instruction to enable unmoderated publishing or unchecked uploads.
+- Without this explicit setting, the original allowlist fail-closed behaviour is unchanged. To pause open testing, remove or set the variable to `false` and redeploy; existing pilot allowlist rules then apply.
+- Existing routes such as `/social/events`, `/messages` and `/auth/*` retain their independently enforced policies.
+
+### Storage plumbing (not a publishing feature)
+
+A private Railway S3-compatible bucket named `social-private-media` is provisioned in the existing Rider Comms backend project's production environment. Five `SOCIAL_MEDIA_S3_*` variables (`ENDPOINT`, `BUCKET`, `REGION`, `ACCESS_KEY_ID`, `SECRET_ACCESS_KEY`) reference bucket credentials **only on the backend service**. They were set with deployment skipped because the current backend does not yet consume them.
+
+Do not copy secret values to the Social static Expo bundle, GitHub or logs. This connection alone does not provide upload signing, media validation, scanning, transcoding, privacy-safe playback or deletion. Keep `mediaUpload` and publishing capabilities disabled until the secure implementation passes tests.
