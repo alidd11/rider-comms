@@ -225,8 +225,43 @@
     if (state.spokenDirections !== false) speak(message);
   }
 
+  // Waiting reports are kept per rider (native: queuedReportsStorageKey),
+  // so closing the app doesn't lose them and a report is never sent from a
+  // different account after a sign-out.
+  function queuedHazardStorageKey() {
+    return session?.riderId ? `riderComms.queuedHazardReports.${session.riderId}` : null;
+  }
+  function saveQueuedHazardReports() {
+    const key = queuedHazardStorageKey();
+    if (!key) return;
+    try {
+      if (queuedHazardReports.length) {
+        localStorage.setItem(key, JSON.stringify(queuedHazardReports.map(({ type, lat, lon, queuedAt }) => ({ hazardType: type, lat, lon, queuedAt }))));
+      } else {
+        localStorage.removeItem(key);
+      }
+    } catch { /* Private browsing: the queue just lasts while the app is open. */ }
+  }
+  /** Picks up reports still waiting when the app was last closed. */
+  function restoreQueuedHazardReports() {
+    const key = queuedHazardStorageKey();
+    if (!key) return;
+    let saved = [];
+    try { saved = JSON.parse(localStorage.getItem(key) || '[]'); } catch { saved = []; }
+    if (!Array.isArray(saved)) return;
+    queuedHazardReports = saved.filter((entry) => entry
+      && Object.hasOwn(HAZARD_TYPES, entry.hazardType)
+      && Number.isFinite(entry.lat) && Math.abs(entry.lat) <= 90
+      && Number.isFinite(entry.lon) && Math.abs(entry.lon) <= 180
+      && Number.isFinite(entry.queuedAt))
+      .slice(0, 20)
+      .map((entry) => ({ type: entry.hazardType, lat: entry.lat, lon: entry.lon, queuedAt: entry.queuedAt }));
+    if (queuedHazardReports.length && !queuedHazardTimer) queuedHazardTimer = setInterval(sendQueuedHazardReports, QUEUED_REPORT_RETRY_MS);
+  }
+
   function queueHazardReport(type, position) {
     queuedHazardReports.push({ type, lat: position.lat, lon: position.lon, queuedAt: Date.now() });
+    saveQueuedHazardReports();
     sayHazardReport(`No signal. Your ${HAZARD_TYPES[type].label.toLowerCase()} report will send when you’re back in signal.`);
     if (!queuedHazardTimer) queuedHazardTimer = setInterval(sendQueuedHazardReports, QUEUED_REPORT_RETRY_MS);
   }
@@ -253,6 +288,7 @@
           }
         }
         queuedHazardReports.shift();
+        saveQueuedHazardReports();
       }
       clearInterval(queuedHazardTimer);
       queuedHazardTimer = null;

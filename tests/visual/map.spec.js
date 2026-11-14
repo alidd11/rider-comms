@@ -526,3 +526,35 @@ test('PWA keeps a road report made with no signal and sends it when signal retur
   await page.clock.runFor(30_000);
   expect(sent).toEqual(['police']);
 });
+
+test('PWA sends a road report still waiting from when the app was last closed, then forgets it', async ({ page }) => {
+  const sent = [];
+  await mockAuthenticatedApi(page, 'stationary', async ({ request, url }) => {
+    if (url.pathname === '/hazards' && request.method() === 'POST') {
+      const report = request.postDataJSON();
+      sent.push(report);
+      return { status: 201, body: { id: 'hz_saved', ...report, reportedBy: RIDER_ID, createdAt: Date.now(), expiresAt: Date.now() + 3_600_000, confirmations: 0, denials: 0 } };
+    }
+    return null;
+  });
+  await page.addInitScript(({ riderId }) => {
+    if (sessionStorage.getItem('seeded')) return;
+    sessionStorage.setItem('seeded', '1');
+    localStorage.setItem(`riderComms.queuedHazardReports.${riderId}`, JSON.stringify([
+      { hazardType: 'road_closure', lat: 51.49, lon: -0.12, queuedAt: Date.now() },
+      { hazardType: 'not-a-hazard', lat: 1, lon: 1, queuedAt: Date.now() },
+    ]));
+    // Someone else's waiting report on this browser is never sent.
+    localStorage.setItem('riderComms.queuedHazardReports.rider_other', JSON.stringify([
+      { hazardType: 'police', lat: 51, lon: 0, queuedAt: Date.now() },
+    ]));
+  }, { riderId: RIDER_ID });
+  await page.clock.install();
+  await page.goto('/');
+  await expect(page.locator('#reportHazardBtn')).toBeVisible();
+  await page.clock.runFor(16_000);
+  await expect.poll(() => sent).toEqual([{ type: 'road_closure', lat: 51.49, lon: -0.12 }]);
+  await expect(page.locator('#appNotification')).toContainText('Road closure report sent.');
+  expect(await page.evaluate((riderId) => localStorage.getItem(`riderComms.queuedHazardReports.${riderId}`), RIDER_ID)).toBeNull();
+  expect(await page.evaluate(() => localStorage.getItem('riderComms.queuedHazardReports.rider_other'))).not.toBeNull();
+});

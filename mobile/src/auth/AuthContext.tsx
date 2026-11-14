@@ -1,4 +1,5 @@
 import * as React from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   ActivityIndicator,
   Alert,
@@ -526,6 +527,19 @@ function TermsAgreementScreen({ client, knownVersion, onAccepted, onLogOut }: {
   );
 }
 
+/** A deleted account leaves nothing of its rider on this phone: Home and
+ * Work, recent rides, reports waiting for signal (every key that ends in
+ * the rider's ID). PWA: deleteCurrentAccount does the same. */
+export async function forgetRiderOnDevice(riderId: string): Promise<void> {
+  try {
+    const keys = await AsyncStorage.getAllKeys();
+    const mine = keys.filter((key) => [`.${riderId}`, `:${riderId}`, `/${riderId}`].some((end) => key.endsWith(end)));
+    if (mine.length) await AsyncStorage.multiRemove(mine);
+  } catch {
+    // The account is already gone; leftovers are only ever read for it.
+  }
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }): React.JSX.Element {
   const [session, setSession] = React.useState<StoredSession | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -599,6 +613,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
       },
       deleteAccount: async () => {
         await client.deleteAccount();
+        await forgetRiderOnDevice(session.riderId);
         await clearLocalSession();
       },
     };

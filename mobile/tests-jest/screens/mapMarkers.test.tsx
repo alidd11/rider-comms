@@ -95,6 +95,12 @@ test('self and ride-member markers glide to each new fix, not on first draw', as
   expect(member.getByTestId('marker').props.description).toBe('Last seen 3 min ago');
 });
 
+test('a ride member on a low battery says so on their marker', async () => {
+  const member = await render(<SmoothRideMemberMarker location={HERE} avatarId="ember" displayName="Alex Rider" status="online" batteryLow />);
+  expect(member.getByText(/Alex.*· low battery/)).toBeTruthy();
+  expect(member.getByTestId('marker').props.description).toBe('Private ride member · live location · low battery');
+});
+
 test('every avatar draws as a ride-member marker', async () => {
   const view = await render(
     <View>

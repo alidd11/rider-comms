@@ -208,6 +208,7 @@ export function SmoothRideMemberMarker({
   displayName,
   status,
   lastSeen = null,
+  batteryLow = false,
 }: {
   location: { lat: number; lon: number };
   avatarId: string;
@@ -215,6 +216,8 @@ export function SmoothRideMemberMarker({
   status: RiderAvatarStatus;
   /** "2 min ago" once their updates stop (shared rideMemberLastSeenAgo). */
   lastSeen?: string | null;
+  /** Their phone says its battery is nearly flat (PWA: the same label). */
+  batteryLow?: boolean;
 }): React.JSX.Element {
   const markerRef = React.useRef<React.ElementRef<typeof Marker> | null>(null);
   const hasMounted = React.useRef(false);
@@ -236,7 +239,7 @@ export function SmoothRideMemberMarker({
       ref={markerRef}
       coordinate={initialCoordinate}
       title={displayName}
-      description={lastSeen ? `Last seen ${lastSeen}` : 'Private ride member · live location'}
+      description={`${lastSeen ? `Last seen ${lastSeen}` : 'Private ride member · live location'}${batteryLow ? ' · low battery' : ''}`}
       anchor={MEMBER_MARKER_ANCHOR}
       tracksViewChanges={false}
     >
@@ -245,6 +248,7 @@ export function SmoothRideMemberMarker({
         <View style={styles.memberLabel}>
           <Text style={styles.memberLabelText} numberOfLines={1}>
             {riderMapLabel(displayName)}{lastSeen ? <Text style={styles.memberLabelLastSeen}>{` · ${lastSeen}`}</Text> : null}
+            {batteryLow ? <Text style={styles.memberLabelBattery}>{' · low battery'}</Text> : null}
           </Text>
         </View>
       </View>
@@ -276,6 +280,7 @@ const styles = StyleSheet.create({
   },
   memberLabelText: { color: '#FFFFFF', fontSize: 12, fontWeight: '800' },
   memberLabelLastSeen: { color: '#C9D3D7', fontWeight: '700' },
+  memberLabelBattery: { color: '#F5A524', fontWeight: '800' },
   hazardMarker: { alignItems: 'center', justifyContent: 'center' },
   hazardMarkerSelected: {
     shadowColor: '#35D6FF',

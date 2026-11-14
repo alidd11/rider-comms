@@ -239,7 +239,7 @@ export function MapScreen(): React.JSX.Element {
     handleVote,
     reportNotice: hazardReportNotice,
     queuedReportCount,
-  } = useHazardReports(client, hasCurrentLocation, currentLocationRef, requestCurrentLocationForHazardReport, announceHazardReport);
+  } = useHazardReports(client, hasCurrentLocation, currentLocationRef, requestCurrentLocationForHazardReport, announceHazardReport, riderId);
 
   const {
     activeRoute,
@@ -654,12 +654,13 @@ export function MapScreen(): React.JSX.Element {
                 const markerStatus = lastSeen ? 'stale' : 'online';
                 return (
                   <SmoothRideMemberMarker
-                    key={`ride-location-${location.riderId}-${profile?.avatarId ?? 'ember'}-${markerStatus}-${lastSeen ?? ''}`}
+                    key={`ride-location-${location.riderId}-${profile?.avatarId ?? 'ember'}-${markerStatus}-${lastSeen ?? ''}-${location.batteryLow ? 'battery-low' : ''}`}
                     location={{ lat: location.lat, lon: location.lon }}
                     avatarId={profile?.avatarId ?? 'ember'}
                     displayName={profile?.displayName ?? 'Ride member'}
                     status={markerStatus}
                     lastSeen={lastSeen}
+                    batteryLow={location.batteryLow === true}
                   />
                 );
               })}

@@ -6,6 +6,7 @@ import { useAuth } from '../auth/AuthContext';
 import { isRideBatteryLow, recordNavigationTripFix, rideSummary, startNavigationTrip } from '@rider-comms/shared';
 import type { NavigationTrip, RegroupPoint } from '@rider-comms/shared';
 import { useSettings } from '../settings/SettingsContext';
+import { recordRideHistory } from './rideHistory';
 import { ApiError, type RideMemberLocation } from '../api/client';
 
 export const RIDE_LOCATION_REFRESH_MS = 10_000;
@@ -77,9 +78,13 @@ export function RideProvider({ children }: { children: React.ReactNode }): React
   const showRideSummary = React.useCallback((title: string) => {
     const stats = rideStats.current;
     if (!stats.rideId) return;
-    Alert.alert(title, rideSummary(Date.now() - stats.startedAt, stats.riders, stats.trip?.distanceMeters ?? null, unitSystem === 'km' ? 'km' : 'mi'));
+    const durationMs = Date.now() - stats.startedAt;
+    const distanceMeters = stats.trip?.distanceMeters ?? null;
+    Alert.alert(title, rideSummary(durationMs, stats.riders, distanceMeters, unitSystem === 'km' ? 'km' : 'mi'));
+    // Kept for "Recent rides" on the Ride screen.
+    if (riderId) void recordRideHistory(riderId, { endedAt: Date.now(), durationMs, riders: stats.riders, distanceMeters });
     rideStats.current = { rideId: null, startedAt: 0, riders: 1, trip: null };
-  }, [unitSystem]);
+  }, [riderId, unitSystem]);
   rideStats.current.riders = Math.max(rideStats.current.riders, roster.length);
 
   React.useEffect(() => {

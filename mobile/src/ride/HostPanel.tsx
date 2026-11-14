@@ -19,6 +19,7 @@ import { RIDE_HERO_IMAGE } from '../brandAssets';
 import { colors, spacing, radii, type, elevation, MIN_TOUCH_TARGET, pressedFeedback } from '../theme';
 import { useRide } from './RideContext';
 import { RideRoster } from './RideRoster';
+import { RecentRides } from './RecentRides';
 import { buildRideInviteLink, isCompleteRideCode, normalizeRideCodeInput } from './rideInvite';
 import { useMovementSafety } from '../safety/MovementSafetyContext';
 import { microphoneErrorMessage, preflightVoiceMicrophone } from '../audio/microphone';
@@ -187,6 +188,8 @@ function JoinOrHostForm({ inviteCode, onBack }: { inviteCode?: string | null; on
               <Text style={styles.primaryButtonText}>Start a ride</Text>
             </Pressable>
           </View>
+
+          <RecentRides />
         </View>
       </ScrollView>
     </>
