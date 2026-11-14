@@ -264,6 +264,51 @@ describe('authenticated API', () => {
     }
   });
 
+  it('routes through a stop on the way, and finds places along the rest of the route', async () => {
+    const options: unknown[] = [];
+    const searches: unknown[] = [];
+    const route = {
+      coordinates: [{ lat: 51.5, lon: -0.1 }, { lat: 51.51, lon: -0.11 }],
+      steps: [], distanceMeters: 1200, durationSeconds: 300,
+    };
+    const server = startTestServer({
+      directionsProvider: async (_origin, _destination, avoid) => { options.push(avoid); return route; },
+      placesAlongRouteProvider: async (request) => {
+        searches.push(request);
+        return [{ id: 'p1', name: 'Shell', address: 'A3', lat: 51.505, lon: -0.105, travelSeconds: 900 }];
+      },
+    });
+    await server.ready;
+    try {
+      const trip = { origin: { lat: 51.5, lon: -0.1 }, destination: { lat: 51.51, lon: -0.11 } };
+      assert.equal((await postJson(server, 'stop-rider', '/directions', { ...trip, via: { lat: 'x' } })).status, 400);
+      assert.equal((await postJson(server, 'stop-rider', '/directions', { ...trip, via: { lat: 51.505, lon: -0.105 }, avoid: { tolls: true } })).status, 200);
+      assert.deepEqual(options, [{ highways: false, tolls: true, ferries: false, via: { lat: 51.505, lon: -0.105 } }]);
+
+      const path = [{ lat: 51.5, lon: -0.1 }, { lat: 51.51, lon: -0.11 }];
+      for (const body of [{ query: 'p', path }, { query: 'petrol', path: path.slice(0, 1) }, { query: 'petrol', path: [{ lat: 91, lon: 0 }, path[1]] }]) {
+        assert.equal((await postJson(server, 'stop-rider', '/places/along-route', body)).status, 400);
+      }
+      const found = await postJson(server, 'stop-rider', '/places/along-route', { query: ' petrol station ', path });
+      assert.equal(found.status, 200);
+      assert.deepEqual(await found.json(), { places: [{ id: 'p1', name: 'Shell', address: 'A3', lat: 51.505, lon: -0.105, travelSeconds: 900 }] });
+      assert.deepEqual(searches, [{ query: 'petrol station', path }]);
+    } finally {
+      await server.close();
+    }
+  });
+
+  it('says why a search along the route failed', async () => {
+    const server = startTestServer({ placesAlongRouteProvider: async () => { throw new PlacesProviderError('places_timeout'); } });
+    await server.ready;
+    try {
+      const response = await postJson(server, 'stop-rider-2', '/places/along-route', { query: 'petrol', path: [{ lat: 51.5, lon: -0.1 }, { lat: 51.51, lon: -0.11 }] });
+      assert.equal(response.status, 504);
+    } finally {
+      await server.close();
+    }
+  });
+
   it('caches directions responses to avoid re-billing near-identical requests', async () => {
     let providerCalls = 0;
     const route = {

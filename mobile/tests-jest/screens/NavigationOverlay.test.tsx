@@ -4,7 +4,7 @@ import { fireEvent, render } from '@testing-library/react-native';
 import { NavigationRoadAhead } from '../../src/components/NavigationRoadAhead';
 import { NavigationNightContext } from '../../src/navigationTone';
 import { darkColors } from '../../src/theme';
-import { NavigationBanner, NavigationSpeedBadge, NavigationTripSummary } from '../../src/screens/NavigationOverlay';
+import { NavigationBanner, NavigationControls, NavigationSpeedBadge, NavigationTripSummary } from '../../src/screens/NavigationOverlay';
 jest.mock('../../src/screens/useInAppNavigation', () => ({ ROUTE_UPDATED_NOTICE: 'Route updated.' }));
 const ROUTE_UPDATED_NOTICE = 'Route updated.';
 
@@ -85,4 +85,16 @@ test('the trip card offers the other ways there, and says when traffic adds time
   await view.rerender(<NavigationTripSummary bottomPadding={0} arrivalLabel="11:08" remainingSeconds={1380} remainingMeters={7400} unitSystem="mi" onHeight={() => {}} routeChoices={[choices[0]]} onChooseRoute={onChooseRoute} />);
   expect(view.queryByTestId('navigation-route-choices')).toBeNull();
   expect(view.queryByTestId('navigation-traffic')).toBeNull();
+});
+
+test('the petrol-on-the-way button shows only where reporting is allowed', async () => {
+  const onFindStops = jest.fn();
+  const controls = (canReport: boolean) => (
+    <NavigationControls bottom={0} canReport={canReport} muted={false} following onReport={() => {}} onToggleMute={() => {}} onOverviewOrFollow={() => {}} onFindStops={onFindStops} />
+  );
+  const view = await render(controls(true));
+  await fireEvent.press(view.getByLabelText('Find petrol and stops on the way'));
+  expect(onFindStops).toHaveBeenCalled();
+  await view.rerender(controls(false));
+  expect(view.queryByLabelText('Find petrol and stops on the way')).toBeNull();
 });

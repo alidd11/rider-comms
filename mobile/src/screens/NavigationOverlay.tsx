@@ -252,6 +252,7 @@ export function NavigationControls({
   onReport,
   onToggleMute,
   onOverviewOrFollow,
+  onFindStops,
 }: {
   bottom: number;
   canReport: boolean;
@@ -260,9 +261,21 @@ export function NavigationControls({
   onReport: () => void;
   onToggleMute: () => void;
   onOverviewOrFollow: () => void;
+  /** Petrol, cafés or food on the way; parked only, like reporting. */
+  onFindStops?: () => void;
 }): React.JSX.Element {
   return (
     <View style={[styles.navigationActions, { bottom }]}>
+      {canReport && onFindStops && (
+        <Pressable
+          style={({ pressed }) => [styles.navigationActionButton, pressed && styles.navigationActionButtonPressed]}
+          onPress={onFindStops}
+          accessibilityRole="button"
+          accessibilityLabel="Find petrol and stops on the way"
+        >
+          <MaterialCommunityIcons name="gas-station" size={24} color={colors.textPrimary} />
+        </Pressable>
+      )}
       {canReport && (
         <Pressable
           style={({ pressed }) => [styles.navigationActionButton, pressed && styles.navigationActionButtonPressed]}

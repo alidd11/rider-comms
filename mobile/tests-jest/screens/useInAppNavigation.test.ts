@@ -428,6 +428,56 @@ test('switches to a faster route found in live traffic, and says so', async () =
   expect(mockSpeakNavigationPrompt).toHaveBeenCalledWith(expect.stringMatching(/^Faster route found\. Saves \d+ min\.$/));
 });
 
+test('finds stops along the rest of the route and routes through one until the rider gets there', async () => {
+  const viaRoute: InAppNavigationRoute = { ...ROUTE, durationSeconds: 400 };
+  const client = {
+    getDrivingRoute: jest.fn().mockResolvedValueOnce(ROUTE).mockResolvedValueOnce(viaRoute).mockRejectedValueOnce(new Error('no signal')),
+    searchAlongRoute: jest.fn(async () => ({ places: [
+      { id: 'far', name: 'BP', address: '', lat: 51.503, lon: -0.097, travelSeconds: 900 },
+      { id: 'near', name: 'Shell', address: '', lat: 51.502, lon: -0.099, travelSeconds: 100 },
+    ] })),
+  };
+  const { result } = await startNavigation({ client: client as never });
+  await sendFix(51.5, -0.1);
+
+  let stops: Awaited<ReturnType<typeof result.current.findStopsOnTheWay>> = [];
+  await act(async () => { stops = await result.current.findStopsOnTheWay('petrol station'); });
+  expect(client.searchAlongRoute).toHaveBeenCalledWith('petrol station', expect.arrayContaining([{ lat: 51.5, lon: -0.1 }]));
+  expect(stops.map((stop) => stop.place.name)).toEqual(['Shell', 'BP']);
+
+  mockSpeakNavigationPrompt.mockClear();
+  let added = false;
+  await act(async () => { added = await result.current.addNavigationStop({ lat: 51.502, lon: -0.099, name: 'Shell' }); });
+  expect(added).toBe(true);
+  expect(client.getDrivingRoute).toHaveBeenLastCalledWith({ lat: 51.5, lon: -0.1 }, DESTINATION, expect.anything(), { lat: 51.502, lon: -0.099, label: 'Shell' });
+  expect(result.current.activeRoute).toBe(viaRoute);
+  expect(result.current.navigationStop).toEqual({ lat: 51.502, lon: -0.099, label: 'Shell' });
+  expect(mockSpeakNavigationPrompt).toHaveBeenCalledWith('Stop added: Shell.');
+
+  // Reaching it says so and clears it.
+  await sendFix(51.502, -0.099);
+  expect(result.current.navigationStop).toBeNull();
+  expect(mockSpeakNavigationPrompt).toHaveBeenCalledWith('You’ve reached Shell.');
+
+  // A stop that can't be routed leaves things as they were.
+  await act(async () => { added = await result.current.addNavigationStop({ lat: 51.503, lon: -0.097, name: 'BP' }); });
+  expect(added).toBe(false);
+  expect(result.current.navigationStop).toBeNull();
+  expect(result.current.navigationNotice).toBe('Couldn’t add that stop. Try again.');
+});
+
+test('finding or adding stops needs a route and a position', async () => {
+  const { result } = await renderNavigation({ currentLocation: null });
+  let stops: unknown[] = ['x'];
+  let added = true;
+  await act(async () => {
+    stops = await result.current.findStopsOnTheWay('cafe');
+    added = await result.current.addNavigationStop({ lat: 1, lon: 1, name: 'X' });
+  });
+  expect(stops).toEqual([]);
+  expect(added).toBe(false);
+});
+
 test('reroutes only after staying off route for the grace period', async () => {
   const rerouted: InAppNavigationRoute = { ...ROUTE, steps: ROUTE.steps.slice(1) };
   const client = { getDrivingRoute: jest.fn().mockResolvedValueOnce(ROUTE).mockResolvedValueOnce(rerouted) };

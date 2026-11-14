@@ -11,7 +11,7 @@ import {
   navigationSpeedUnit,
   navigationStepStartPrompt,
 } from '../src/navigationGuidance.ts';
-import { fasterRouteAnnouncement, fasterRouteSavingSeconds, routeChoices, routeTrafficDelayText, routeTwistiness } from '@rider-comms/shared';
+import { fasterRouteAnnouncement, fasterRouteSavingSeconds, routeAheadPath, stopsOnTheWay, routeChoices, routeTrafficDelayText, routeTwistiness } from '@rider-comms/shared';
 
 describe('navigation guidance presentation', () => {
   it('formats metric and imperial distances consistently for navigation', () => {
@@ -163,5 +163,22 @@ describe('navigationInstructionRoad', () => {
     assert.equal(fasterRouteSavingSeconds(600, 0), 0);
     assert.equal(fasterRouteSavingSeconds(Number.NaN, 100), 0);
     assert.equal(fasterRouteAnnouncement(360), 'Faster route found. Saves 6 min.');
+  });
+
+  it('sends only the rest of the route, thinned, to search along', () => {
+    const line = Array.from({ length: 500 }, (_, i) => ({ lat: 51.5 + i * 0.0005, lon: -0.1 }));
+    const ahead = routeAheadPath(line, { lat: 51.55, lon: -0.1001 });
+    assert.equal(ahead.length, 200);
+    assert.deepEqual(ahead[0], { lat: 51.55, lon: -0.1001 });
+    assert.deepEqual(ahead.at(-1), line.at(-1));
+    assert.equal(routeAheadPath(line.slice(0, 5), line[4]!).length, 0);
+    assert.equal(routeAheadPath([], line[0]!).length, 0);
+    assert.equal(routeAheadPath(line.slice(0, 5), line[0]!).length, 5);
+  });
+
+  it('orders stops on the way by what they add', () => {
+    const stops = stopsOnTheWay([{ id: 'a', travelSeconds: 1500 }, { id: 'b' }, { id: 'c', travelSeconds: 1230 }, { id: 'd', travelSeconds: 1000 }], 1200);
+    assert.deepEqual(stops.map((stop) => [stop.place.id, stop.text]), [['d', 'On the way'], ['c', 'On the way'], ['a', '+5 min'], ['b', '']]);
+    assert.deepEqual(stopsOnTheWay([{ id: 'a', travelSeconds: 10 }], null).map((stop) => stop.text), ['']);
   });
 });

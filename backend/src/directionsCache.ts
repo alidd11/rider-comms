@@ -24,6 +24,7 @@ function cacheKey(origin: RouteCoordinate, destination: RouteCoordinate, avoid: 
   return [origin, destination]
     .map((point) => `${roundCoordinate(point.lat)},${roundCoordinate(point.lon)}`)
     .concat(`${avoid.highways ? 'h' : ''}${avoid.tolls ? 't' : ''}${avoid.ferries ? 'f' : ''}`)
+    .concat(avoid.via ? [`via:${roundCoordinate(avoid.via.lat)},${roundCoordinate(avoid.via.lon)}`] : [])
     .join('|');
 }
 

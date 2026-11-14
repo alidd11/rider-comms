@@ -14,8 +14,10 @@ import {
   FASTER_ROUTE_CHECK_MS,
   fasterRouteAnnouncement,
   fasterRouteSavingSeconds,
+  routeAheadPath,
   routeChoices,
   routeTrafficDelayText,
+  stopsOnTheWay,
   routeTwistiness,
 } from '../shared/src/navigationGuidance.ts';
 
@@ -150,3 +152,14 @@ for (const [remaining, fresh] of [[1800, 1400], [1800, 1650], [7200, 6600], [720
   assert.equal(browser.fasterRouteSavingSeconds(remaining, fresh), fasterRouteSavingSeconds(remaining, fresh));
 }
 for (const saving of [180, 360, 3700]) assert.equal(browser.fasterRouteAnnouncement(saving), fasterRouteAnnouncement(saving));
+
+{
+  const line = Array.from({ length: 500 }, (_, i) => ({ lat: 51.5 + i * 0.0005, lon: -0.1 }));
+  for (const [points, here, max] of [[line, { lat: 51.55, lon: -0.1001 }, 200], [line, line[0], 50], [line.slice(0, 5), line[4], 200], [[], line[0], 200], [line, line.at(-1), 200]]) {
+    assert.deepEqual(browser.routeAheadPath(points, here, max), routeAheadPath(points, here, max));
+  }
+  const places = [{ id: 'a', travelSeconds: 1300 }, { id: 'b' }, { id: 'c', travelSeconds: 1230 }, { id: 'd', travelSeconds: 1000 }];
+  for (const remaining of [1200, null, Number.NaN]) {
+    assert.deepEqual(browser.stopsOnTheWay(places, remaining), stopsOnTheWay(places, remaining));
+  }
+}

@@ -173,3 +173,57 @@ test('PWA switches to a faster route found in live traffic, and says so', async 
   await expect.poll(() => page.evaluate(() => window.__spoken.find((text) => text.startsWith('Faster')))).toMatch(/^Faster route found\. Saves \d+ min\.$/);
   await expect(page.locator('#navGpsNotice')).toContainText('Faster route found');
 });
+
+test('PWA finds petrol along the rest of the route and routes through it', async ({ page }) => {
+  const searches = [];
+  await page.addInitScript(() => {
+    window.__spoken = [];
+    window.SpeechSynthesisUtterance = function SpeechSynthesisUtterance(text) { this.text = text; };
+    Object.defineProperty(window, 'speechSynthesis', { value: { cancel() {}, speak(utterance) { window.__spoken.push(utterance.text); } } });
+  });
+  await mockAuthenticatedApi(page, 'stationary', ({ request, url }) => {
+    if (url.pathname !== '/places/along-route') return null;
+    const body = request.postDataJSON();
+    searches.push(body);
+    return { body: { places: body.query === 'cafe' ? [] : [
+      { id: 'bp', name: 'BP', address: 'A1', lat: 51.515, lon: -0.1, travelSeconds: 900 },
+      { id: 'shell', name: 'Shell', address: 'Mill Lane', lat: 51.505, lon: -0.1, travelSeconds: 30 },
+    ] } };
+  });
+  await page.addInitScript(({ riderId, home }) => {
+    localStorage.setItem(`riderComms.savedPlaces:${riderId}`, JSON.stringify({ home }));
+    localStorage.setItem(`rider-comms-pwa-v4:${riderId}`, JSON.stringify({ navigationProvider: 'in_app', spokenDirections: true }));
+  }, { riderId: RIDER_ID, home: HOME });
+  await page.goto('/');
+  await page.waitForFunction(() => Boolean(window.google?.maps?.LatLng && window.__riderCommsTestMap));
+  await provideRoute(page);
+  await page.locator('[data-saved-place="home"]').click();
+  await expect(page.locator('#app')).toHaveClass(/nav-mode/);
+
+  await page.locator('#navStopsBtn').click();
+  await expect(page.locator('#sheetTitle')).toHaveText('On the way');
+  const rows = page.locator('#stopList [data-stop-index]');
+  await expect(rows).toHaveCount(2);
+  // Ordered by what each adds to the trip.
+  await expect(rows.first()).toContainText('Shell');
+  await expect(rows.first()).toContainText('On the way');
+  await expect(rows.nth(1)).toContainText('BP');
+  expect(searches[0].query).toBe('petrol station');
+  // From the rider, along the rest of the route.
+  expect(searches[0].path.length).toBeGreaterThanOrEqual(2);
+  expect(searches[0].path.at(-1)).toEqual({ lat: 51.52, lon: -0.1 });
+
+  await page.locator('[data-stop-kind="cafes"]').click();
+  await expect(page.locator('#stopList')).toContainText('No cafés found along the rest of the route.');
+  await page.locator('[data-stop-kind="petrol"]').click();
+  await expect(rows).toHaveCount(2);
+
+  await page.evaluate(() => { window.__riderCommsTestRouteRequests = []; });
+  await rows.first().click();
+  await expect(page.locator('#sheetBackdrop')).toBeHidden();
+  const request = await page.evaluate(() => window.__riderCommsTestRouteRequests[0]);
+  expect(request.waypoints).toEqual([{ location: { lat: 51.505, lng: -0.1 }, stopover: true }]);
+  expect(request.provideRouteAlternatives).toBe(false);
+  await expect(page.locator('#navGpsNotice')).toHaveText('Stop added: Shell.');
+  await expect.poll(() => page.evaluate(() => window.__spoken)).toContain('Stop added: Shell.');
+});

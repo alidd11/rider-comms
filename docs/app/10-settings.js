@@ -286,6 +286,17 @@
           $('#deleteAccountBtn').addEventListener('click', () => void deleteCurrentAccount());
         },
       }),
+      stopsOnTheWay: () => ({
+        title: 'On the way',
+        body: `<div class="stop-kinds" role="radiogroup" aria-label="What to find">${STOP_KINDS.map((kind, index) => `<button type="button" role="radio" aria-checked="${index === 0}" data-stop-kind="${kind.key}">${escapeHtml(kind.label)}</button>`).join('')}</div><div id="stopList" class="stop-list" aria-live="polite"></div>`,
+        ready: () => {
+          $$('[data-stop-kind]').forEach((button) => button.addEventListener('click', () => {
+            $$('[data-stop-kind]').forEach((other) => other.setAttribute('aria-checked', String(other === button)));
+            void renderStopsOnTheWay(button.dataset.stopKind);
+          }));
+          void renderStopsOnTheWay(STOP_KINDS[0].key);
+        },
+      }),
       reportHazard: () => ({
         title: 'Report on the road',
         body: `<p class="caption">Let nearby riders know what’s ahead. Reports fade out over time.</p><div class="hazard-type-grid" id="hazardTypeChips">${HAZARD_TYPE_ORDER.map((t) => `<button type="button" class="hazard-type-tile" data-hazard-type="${t}" style="--hazard:${HAZARD_TYPES[t].color}">${hazardIconMarkup(t)}<span>${escapeHtml(HAZARD_TYPES[t].label)}</span></button>`).join('')}</div><p id="hazardFormError" class="inline-error" hidden></p><p id="hazardAutoClose" class="hazard-autoclose" aria-live="off">Closes in ${HAZARD_AUTO_CLOSE_SECONDS} seconds if you don’t pick one.</p>`,

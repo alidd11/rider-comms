@@ -148,8 +148,30 @@
       avoidFerries: state.avoidFerries === true,
       // Live traffic and the other ways there, as in Google Maps and Waze
       // (native: the backend's Routes API request).
-      provideRouteAlternatives: true,
+      // Google offers no alternatives for a trip with a stop.
+      provideRouteAlternatives: !navStop,
       drivingOptions: { departureTime: new Date(), trafficModel: google.maps.TrafficModel?.BEST_GUESS ?? 'bestguess' },
+      ...(navStop ? { waypoints: [{ location: { lat: navStop.lat, lng: navStop.lng }, stopover: true }] } : {}),
+    };
+  }
+
+  // A stop on the way (petrol found along the route): every route asked for
+  // goes through it until the rider gets there (native: navigationStop).
+  let navStop = null;
+  const NAV_STOP_REACHED_RADIUS_M = 80;
+
+  /** A trip with a stop comes back in legs: ride them as one. */
+  function routeTrip(route) {
+    const legs = route?.legs || [];
+    if (legs.length <= 1) return legs[0];
+    const sum = (field) => legs.reduce((total, leg) => total + (leg[field]?.value ?? leg.duration?.value ?? 0), 0);
+    return {
+      ...legs[0],
+      steps: legs.flatMap((leg) => leg.steps || []),
+      distance: { value: legs.reduce((total, leg) => total + (leg.distance?.value || 0), 0) },
+      duration: { value: sum('duration') },
+      duration_in_traffic: { value: sum('duration_in_traffic') },
+      end_location: legs.at(-1).end_location,
     };
   }
 
@@ -171,7 +193,7 @@
     const routes = navRouteResult?.routes || [];
     if (routes.length < 2) { box.hidden = true; box.innerHTML = ''; return; }
     const choices = navigationGuidance.routeChoices(routes.map((route) => ({
-      durationSeconds: routeLegSeconds(route.legs?.[0]),
+      durationSeconds: routeLegSeconds(routeTrip(route)),
       coordinates: (route.overview_path || []).map((point) => ({ lat: point.lat(), lon: point.lng() })),
     })));
     box.innerHTML = choices.map((choice) => `<button type="button" role="radio" aria-checked="${choice.index === navRouteIndex}" data-route-choice="${choice.index}">${escapeHtml(choice.text)}</button>`).join('');
@@ -706,7 +728,7 @@
   // Navigation now extends the real app surface through the installed-iPhone
   // bottom safe area. Do not recolour browser/system chrome to hide a gap.
   function applyRoute(result, destination, label, { preserveMute = false, routeNotice = null, routeIndex = 0 } = {}) {
-    const leg = result.routes[routeIndex]?.legs[0];
+    const leg = routeTrip(result.routes[routeIndex]);
     if (!leg) { showToast('Couldn’t calculate a route. Try again.'); return; }
     stopNavigationCameraAnimation();
     getDirectionsRenderer().setDirections(result);
@@ -896,6 +918,7 @@
     // (see shared/src/navigationPuck.ts). Off-route checks keep the raw fix.
     const placed = placeNavigationPuck(position);
     const here = placed.now;
+    checkNavStopReached(here);
     navCurrentPosition = here;
 
     let effectiveIndex = navStepIndex;
@@ -1022,12 +1045,86 @@
     const label = navDestination.label;
     getDirectionsService().route(navigationRouteRequest(navCurrentPosition, destination), (result, status) => {
       if (status !== 'OK' || !result || navRerouting || !navDestination) return;
-      const saving = navigationGuidance.fasterRouteSavingSeconds(remaining, routeLegSeconds(result.routes[0]?.legs?.[0]));
+      const saving = navigationGuidance.fasterRouteSavingSeconds(remaining, routeLegSeconds(routeTrip(result.routes[0])));
       if (saving <= 0) return;
       const announcement = navigationGuidance.fasterRouteAnnouncement(saving);
       applyRoute(result, destination, label, { preserveMute: true, routeNotice: announcement });
       if (!navMuted) speak(announcement);
     });
+  }
+
+  const STOP_KINDS = [
+    { key: 'petrol', label: 'Petrol', query: 'petrol station' },
+    { key: 'cafes', label: 'Cafés', query: 'cafe' },
+    { key: 'food', label: 'Food', query: 'restaurant' },
+  ];
+  let stopSearch = 0;
+
+  function navHere() {
+    if (navCurrentPosition) return navCurrentPosition;
+    return latestDevicePosition ? { lat: latestDevicePosition.coords.latitude, lng: latestDevicePosition.coords.longitude } : null;
+  }
+
+  /** Petrol, cafés or food along the rest of the route, ordered by what each
+   * adds (shared routeAheadPath and stopsOnTheWay). */
+  async function renderStopsOnTheWay(kindKey) {
+    const list = $('#stopList');
+    const kind = STOP_KINDS.find((entry) => entry.key === kindKey) || STOP_KINDS[0];
+    if (!list || !navSteps.length) return;
+    const search = ++stopSearch;
+    list.innerHTML = '<p class="caption">Searching along the route…</p>';
+    const here = navHere();
+    const points = navSteps.flatMap((step) => navigationStepPath(step)).map((point) => ({ lat: point.lat, lon: point.lng }));
+    const path = here ? navigationGuidance.routeAheadPath(points, { lat: here.lat, lon: here.lng }) : [];
+    let stops = [];
+    try {
+      if (path.length >= 2) ({ places: stops } = await apiFetch('POST', '/places/along-route', { query: kind.query, path }));
+    } catch {
+      if (search === stopSearch) list.innerHTML = '<p class="caption">Couldn’t search along the route. Try again.</p>';
+      return;
+    }
+    if (search !== stopSearch || !$('#stopList')) return;
+    const ordered = navigationGuidance.stopsOnTheWay(stops || [], navRemainingSeconds);
+    if (!ordered.length) {
+      list.innerHTML = `<p class="caption">No ${escapeHtml(kind.label.toLowerCase())} found along the rest of the route.</p>`;
+      return;
+    }
+    list.innerHTML = ordered.map(({ place, text }, index) => `<button type="button" data-stop-index="${index}" aria-label="${escapeHtml([place.name, place.address, text].filter(Boolean).join(', '))}"><span><strong>${escapeHtml(place.name)}</strong>${place.address ? `<small>${escapeHtml(place.address)}</small>` : ''}</span>${text ? `<em>${escapeHtml(text)}</em>` : ''}</button>`).join('');
+    $$('[data-stop-index]', list).forEach((button) => button.addEventListener('click', () => {
+      closeSheet();
+      addNavStop(ordered[Number(button.dataset.stopIndex)].place);
+    }));
+  }
+
+  /** Routes through a stop on the way, keeping the destination. */
+  function addNavStop(place) {
+    const here = navHere();
+    if (!navDestination || !here) return;
+    const previous = navStop;
+    navStop = { lat: place.lat, lng: place.lon, label: place.name };
+    const destination = { lat: navDestination.lat, lng: navDestination.lng };
+    const label = navDestination.label;
+    navRerouting = true;
+    getDirectionsService().route(navigationRouteRequest(here, destination), (result, status) => {
+      navRerouting = false;
+      if (status !== 'OK' || !result) {
+        navStop = previous;
+        setNavStatusNotice('Couldn’t add that stop. Try again.');
+        return;
+      }
+      const added = `Stop added: ${place.name}.`;
+      applyRoute(result, destination, label, { preserveMute: true, routeNotice: added });
+      if (!navMuted) speak(added);
+    });
+  }
+
+  /** At the stop: say so, and route straight on from here. */
+  function checkNavStopReached(here) {
+    if (!navStop || distanceToPathMeters(here, [navStop, navStop]) > NAV_STOP_REACHED_RADIUS_M) return;
+    const reached = `You’ve reached ${navStop.label}.`;
+    navStop = null;
+    setNavStatusNotice(reached, { tone: 'info', clearAfterMs: 6000 });
+    if (!navMuted) speak(reached);
   }
 
   function finishNavigation(arrived) {
@@ -1086,6 +1183,7 @@
     fasterRouteTimer = null;
     navRouteResult = null;
     navTrafficScale = 1;
+    navStop = null;
     renderNavRouteChoices();
     const traffic = $('#navTraffic');
     if (traffic) traffic.hidden = true;

@@ -55,6 +55,7 @@ import { RIDE_LOCATION_FRESH_MS, navigationManeuverArrow, regroupAnnouncement, r
 import { speakNavigationPrompt } from '../audio/navigationSpeech';
 import { useRideProfiles } from './useRideProfiles';
 import { queuedReportsText, useHazardReports } from './useHazardReports';
+import { StopsOnTheWaySheet } from './StopsOnTheWaySheet';
 import { useNavigationSummary } from './useNavigationSummary';
 import { usePresence } from './usePresence';
 import { useInAppNavigation } from './useInAppNavigation';
@@ -216,6 +217,7 @@ export function MapScreen(): React.JSX.Element {
   const hudSpeed = speedMps == null ? null : Math.round(speedMps * (unitSystem === 'km' ? 3.6 : 2.23694));
 
   const hasCurrentLocation = currentLocation !== null;
+  const [stopsSheetOpen, setStopsSheetOpen] = React.useState(false);
   // Report confirmations are spoken too, like other riding prompts, since
   // riders often report from the riding display without looking down.
   const hazardSpeech = React.useRef({ speak: spokenDirections });
@@ -264,6 +266,8 @@ export function MapScreen(): React.JSX.Element {
     routeChoices: navigationRouteChoices,
     chosenRouteIndex,
     chooseRoute,
+    findStopsOnTheWay,
+    addNavigationStop,
   } = useInAppNavigation(
     client,
     mapRef,
@@ -878,6 +882,7 @@ export function MapScreen(): React.JSX.Element {
           muted={navigationMuted}
           following={navigationFollowing}
           onReport={() => void openReportSheet()}
+          onFindStops={() => setStopsSheetOpen(true)}
           onToggleMute={() => setNavigationMuted((current) => !current)}
           onOverviewOrFollow={() => {
             if (navigationFollowing) fitRoute(activeRoute);
@@ -885,6 +890,16 @@ export function MapScreen(): React.JSX.Element {
           }}
         />
       )}
+
+      <StopsOnTheWaySheet
+        visible={stopsSheetOpen && Boolean(activeRoute) && !lockedForSafety}
+        onClose={() => setStopsSheetOpen(false)}
+        findStops={findStopsOnTheWay}
+        onChoose={(place) => {
+          setStopsSheetOpen(false);
+          void addNavigationStop(place);
+        }}
+      />
 
       <HazardReportSheet
         visible={reportSheetOpen}

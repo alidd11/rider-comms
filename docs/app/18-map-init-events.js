@@ -368,6 +368,7 @@
     $('#reportHazardBtn').addEventListener('click', openHazardReport);
     $('#hudHazardBtn').addEventListener('click', openHazardReport);
     $('#navReportBtn').addEventListener('click', openHazardReport);
+    $('#navStopsBtn')?.addEventListener('click', () => openSheet('stopsOnTheWay'));
     $('#hudMuteBtn').addEventListener('click', () => void toggleVoiceMute());
     $('#closeSheet').addEventListener('click', sheetBack);
     $('#closeSheetAll').addEventListener('click', () => closeSheet());

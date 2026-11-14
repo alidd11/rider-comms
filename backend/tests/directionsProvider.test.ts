@@ -265,3 +265,38 @@ describe('Google Routes API provider', () => {
     assert.equal(await code(fetchGoogleRoutes(origin, destination, { apiKey: 'k', fetchImpl: hang, timeoutMs: 5 })), 'directions_timeout');
   });
 });
+
+describe('a stop on the way', () => {
+  it('asks the Routes API to go through it, without alternatives, and rides its legs as one', async () => {
+    let body: Record<string, unknown> = {};
+    const fetchImpl = (async (_url: string | URL | Request, init?: RequestInit) => {
+      body = JSON.parse(String(init!.body));
+      return new Response(JSON.stringify({ routes: [{
+        distanceMeters: 1200, duration: '200s', staticDuration: '200s', polyline: { encodedPolyline },
+        legs: [{ steps: [routesStep()] }, { steps: [routesStep({ navigationInstruction: { maneuver: 'TURN_RIGHT', instructions: 'Turn right' } })] }],
+      }] }), { status: 200 });
+    }) as typeof fetch;
+    const route = await fetchGoogleRoutes(origin, destination, { apiKey: 'k', fetchImpl, avoid: { via: { lat: 51.505, lon: -0.105 } } });
+    assert.deepEqual(body.intermediates, [{ location: { latLng: { latitude: 51.505, longitude: -0.105 } } }]);
+    assert.equal(body.computeAlternativeRoutes, false);
+    assert.deepEqual(route.steps.map((step) => step.instruction), ['Turn slightly left onto A1', 'Turn right']);
+  });
+
+  it('asks the Directions API to stop there too, adding up its legs', async () => {
+    let requested = '';
+    const leg = (instruction: string) => ({
+      distance: { value: 500 }, duration: { value: 60 },
+      steps: [{ html_instructions: instruction, distance: { value: 500 }, duration: { value: 60 },
+        start_location: { lat: 51.5, lng: -0.1 }, end_location: { lat: 51.51, lng: -0.11 }, polyline: { points: encodedPolyline } }],
+    });
+    const fetchImpl = (async (url: string | URL | Request) => {
+      requested = String(url);
+      return new Response(JSON.stringify({ status: 'OK', routes: [{ overview_polyline: { points: encodedPolyline }, legs: [leg('Head north'), leg('Turn left')] }] }), { status: 200 });
+    }) as typeof fetch;
+    const route = await fetchGoogleDrivingRoute(origin, destination, { apiKey: 'k', fetchImpl, avoid: { via: { lat: 51.505, lon: -0.105 } } });
+    assert.match(requested, /waypoints=51\.505%2C-0\.105/);
+    assert.equal(route.distanceMeters, 1000);
+    assert.equal(route.durationSeconds, 120);
+    assert.deepEqual(route.steps.map((step) => step.instruction), ['Head north', 'Turn left']);
+  });
+});

@@ -322,3 +322,49 @@ export function fasterRouteSavingSeconds(remainingSeconds: number, newRouteSecon
 export function fasterRouteAnnouncement(savingSeconds: number): string {
   return `Faster route found. Saves ${formatNavigationDuration(savingSeconds)}.`;
 }
+
+/** The rest of a route from the point nearest the rider, thinned to at most
+ * `maxPoints`, for searching along the way. */
+export function routeAheadPath(
+  points: readonly RouteChoicePoint[],
+  here: RouteChoicePoint,
+  maxPoints = 200,
+): RouteChoicePoint[] {
+  if (points.length < 2) return [];
+  let nearest = 0;
+  let best = Infinity;
+  points.forEach((point, index) => {
+    const dLat = point.lat - here.lat;
+    const dLon = (point.lon - here.lon) * Math.cos(here.lat * Math.PI / 180);
+    const distance = dLat * dLat + dLon * dLon;
+    if (distance < best) { best = distance; nearest = index; }
+  });
+  const ahead = [{ lat: here.lat, lon: here.lon }, ...points.slice(nearest + 1)];
+  if (ahead.length < 2) return [];
+  if (ahead.length <= maxPoints) return ahead;
+  const step = (ahead.length - 1) / (maxPoints - 1);
+  return Array.from({ length: maxPoints }, (_, i) => ahead[Math.round(i * step)]!);
+}
+
+/** A place on the way, as the rider sees it in the list. */
+export interface StopOnTheWay<T> { place: T; text: string; detourSeconds: number | null }
+
+/**
+ * Orders places found along the route by how much each adds to the trip
+ * (the time via the place, less the time left), and says so: "+3 min", or
+ * "On the way" under a minute. Places Google gave no time for go last.
+ */
+export function stopsOnTheWay<T extends { travelSeconds?: number }>(
+  places: readonly T[],
+  remainingSeconds: number | null,
+): StopOnTheWay<T>[] {
+  return places
+    .map((place) => {
+      const detour = typeof place.travelSeconds === 'number' && typeof remainingSeconds === 'number' && Number.isFinite(remainingSeconds)
+        ? Math.max(0, place.travelSeconds - remainingSeconds)
+        : null;
+      const text = detour === null ? '' : detour < 60 ? 'On the way' : `+${formatNavigationDuration(detour)}`;
+      return { place, text, detourSeconds: detour };
+    })
+    .sort((a, b) => (a.detourSeconds ?? Infinity) - (b.detourSeconds ?? Infinity));
+}

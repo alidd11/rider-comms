@@ -484,6 +484,8 @@ describe('RiderCommsClient places and friends', () => {
     await client.searchNearbyPlaces(['gas_station'], { lat: 51.5, lon: -0.1 });
     await client.suggestPlaces('ace', { lat: 51.5, lon: -0.1 }, 'session-0123456789');
     await client.placeDetails('abc_1', 'session-0123456789');
+    await client.searchAlongRoute('petrol station', [{ lat: 51.5, lon: -0.1 }, { lat: 51.6, lon: -0.2 }]);
+    await client.getDrivingRoute({ lat: 51.5, lon: -0.1 }, { lat: 51.6, lon: -0.2 }, undefined, { lat: 51.55, lon: -0.15 });
     await client.getFriendRequests('rider 1', { before: 'cursor-1', limit: 20 });
     await client.getFriends('rider 1', { before: 'cursor-2' });
     await client.getFriends('rider 1');
@@ -491,6 +493,8 @@ describe('RiderCommsClient places and friends', () => {
       { url: 'http://example.test/places/nearby', method: 'POST', body: { includedTypes: ['gas_station'], near: { lat: 51.5, lon: -0.1 } } },
       { url: 'http://example.test/places/autocomplete', method: 'POST', body: { input: 'ace', near: { lat: 51.5, lon: -0.1 }, sessionToken: 'session-0123456789' } },
       { url: 'http://example.test/places/details', method: 'POST', body: { placeId: 'abc_1', sessionToken: 'session-0123456789' } },
+      { url: 'http://example.test/places/along-route', method: 'POST', body: { query: 'petrol station', path: [{ lat: 51.5, lon: -0.1 }, { lat: 51.6, lon: -0.2 }] } },
+      { url: 'http://example.test/directions', method: 'POST', body: { origin: { lat: 51.5, lon: -0.1 }, destination: { lat: 51.6, lon: -0.2 }, avoid: { highways: false, tolls: false, ferries: false }, via: { lat: 51.55, lon: -0.15 } } },
       { url: 'http://example.test/riders/rider%201/friend-requests?limit=20&before=cursor-1', method: 'GET', body: undefined },
       { url: 'http://example.test/riders/rider%201/friends?limit=100&before=cursor-2', method: 'GET', body: undefined },
       { url: 'http://example.test/riders/rider%201/friends?limit=100', method: 'GET', body: undefined },

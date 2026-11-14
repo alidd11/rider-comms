@@ -70,10 +70,12 @@ export interface RouteAvoidance {
   highways?: boolean;
   tolls?: boolean;
   ferries?: boolean;
+  /** A stop on the way (petrol, a café): the route goes through it. */
+  via?: RouteCoordinate;
 }
 
 /** Reads `{ highways, tolls, ferries }` from a request body; anything else counts as false. */
-export function routeAvoidance(value: unknown): RouteAvoidance {
+export function routeAvoidance(value: unknown): Omit<RouteAvoidance, 'via'> {
   if (!value || Array.isArray(value) || typeof value !== 'object') return {};
   const candidate = value as { highways?: unknown; tolls?: unknown; ferries?: unknown };
   return { highways: candidate.highways === true, tolls: candidate.tolls === true, ferries: candidate.ferries === true };
@@ -160,7 +162,15 @@ function parseGoogleResponse(payload: GoogleDirectionsResponse): DrivingRoute {
   if (payload.status !== 'OK') throw new DirectionsProviderError('directions_unavailable');
 
   const route = payload.routes?.[0];
-  const leg = route?.legs?.[0];
+  const legs = route?.legs ?? [];
+  // A stop on the way splits the trip into legs: ride them as one route.
+  const leg = legs.length > 1
+    ? {
+      steps: legs.flatMap((part) => part.steps ?? []),
+      distance: { value: legs.reduce((sum, part) => sum + (part.distance?.value ?? Number.NaN), 0) },
+      duration: { value: legs.reduce((sum, part) => sum + (part.duration?.value ?? Number.NaN), 0) },
+    }
+    : legs[0];
   const encoded = route?.overview_polyline?.points;
   if (!route || !leg || typeof encoded !== 'string' || !Array.isArray(leg.steps) || leg.steps.length === 0) {
     throw new DirectionsProviderError('directions_invalid_response');
@@ -232,6 +242,8 @@ export async function fetchGoogleDrivingRoute(
     options.avoid?.ferries ? 'ferries' : null,
   ].filter((value): value is string => value !== null);
   if (avoid.length) params.set('avoid', avoid.join('|'));
+  const via = options.avoid?.via;
+  if (via && isCoordinate(via)) params.set('waypoints', `${via.lat},${via.lon}`);
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
@@ -323,7 +335,8 @@ export function routesManeuver(value: unknown): string | undefined {
 
 function parseRoutesRoute(route: RoutesRoute): DrivingRoute {
   const encoded = route.polyline?.encodedPolyline;
-  const rawSteps = route.legs?.[0]?.steps;
+  // A stop on the way splits the trip into legs: ride them as one route.
+  const rawSteps = route.legs?.length ? route.legs.flatMap((leg) => leg.steps ?? []) : undefined;
   if (typeof encoded !== 'string' || !Array.isArray(rawSteps) || rawSteps.length === 0) {
     throw new DirectionsProviderError('directions_invalid_response');
   }
@@ -378,7 +391,9 @@ export async function fetchGoogleRoutes(
     destination: point(destination),
     travelMode: 'DRIVE',
     routingPreference: 'TRAFFIC_AWARE',
-    computeAlternativeRoutes: true,
+    // Google offers no alternatives for a trip with a stop.
+    computeAlternativeRoutes: !options.avoid?.via,
+    ...(options.avoid?.via && isCoordinate(options.avoid.via) ? { intermediates: [point(options.avoid.via)] } : {}),
     routeModifiers: {
       avoidHighways: options.avoid?.highways === true,
       avoidTolls: options.avoid?.tolls === true,
