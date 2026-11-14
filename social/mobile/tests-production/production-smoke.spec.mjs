@@ -101,6 +101,7 @@ test('production: every major route and empty state is visible, navigable and er
   await expect(page.getByTestId('camera-first-studio')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Enable camera' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Choose from library' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Open Gallery' })).toHaveCount(0);
   await verifyScreen(page, testInfo, 'create-camera');
   await page.getByRole('button', { name: 'Enable camera' }).click();
   await expect(page.getByText(/Camera access was blocked or could not start/)).toBeVisible();
@@ -109,6 +110,7 @@ test('production: every major route and empty state is visible, navigable and er
   await expect(page.getByText('New story')).toBeVisible();
   await page.getByRole('button', { name: 'Reel format' }).click();
   await expect(page.getByRole('button', { name: 'Choose Reel video' })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Choose from library' })).toHaveCount(0);
   // Browser Reel mode must not activate an unusable camera or microphone.
   await expect(page.getByRole('button', { name: 'Enable camera' })).toHaveCount(0);
   await verifyScreen(page, testInfo, 'create-reel');

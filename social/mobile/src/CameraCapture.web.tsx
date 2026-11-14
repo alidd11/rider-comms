@@ -253,11 +253,13 @@ export function CameraCapture({ mode, onCapture, onLibrary, onClose, disabled }:
           transform: facing === 'user' ? 'scaleX(-1)' : undefined }} />
       {!live ? <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center',
         gap: 14, paddingHorizontal: 27, backgroundColor: '#15181D' }}>
-        <Ionicons name="camera-outline" size={44} color={WHITE}/>
-        <Text style={{ color: WHITE, fontSize: 21, fontWeight: '800' }}>Your camera</Text>
+        <Ionicons name={isReel ? 'videocam-outline' : 'camera-outline'} size={44} color={WHITE}/>
+        <Text style={{ color: WHITE, fontSize: 21, fontWeight: '800' }}>
+          {isReel ? 'Create a Reel' : 'Your camera'}
+        </Text>
         <Text style={{ color: '#B4BBC4', fontSize: 13, lineHeight: 19,
           maxWidth: 290, textAlign: 'center' }}>
-          {isReel ? 'Choose a recorded video from Gallery to create your Reel.' :
+          {isReel ? 'Select a video from Gallery to review your Reel before posting.' :
             requesting ? 'Opening camera…' :
               'Enable your camera to take a photo, or select one from your gallery.'}
         </Text>
@@ -271,12 +273,6 @@ export function CameraCapture({ mode, onCapture, onLibrary, onClose, disabled }:
             {requesting ? 'Opening camera…' : 'Enable camera'}
           </Text>
         </Pressable> : null}
-        <Pressable accessibilityRole="button" accessibilityLabel="Open Gallery"
-          disabled={disabled} onPress={openLibrary} style={{ padding: 9 }}>
-          <Text style={{ color: WHITE, fontSize: 13, fontWeight: '700' }}>
-            Choose from Gallery
-          </Text>
-        </Pressable>
         {error ? <Text accessibilityRole="alert" style={{
           color: '#F5B7C5', fontSize: 12, textAlign: 'center', lineHeight: 18,
         }}>{error}</Text> : null}
@@ -333,13 +329,13 @@ export function CameraCapture({ mode, onCapture, onLibrary, onClose, disabled }:
       <View style={{ position: 'absolute', bottom: 14, left: 0, right: 0 }}>
         <View style={{ paddingHorizontal: 15, flexDirection: 'row',
           alignItems: 'center', justifyContent: 'space-between' }}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Choose from library"
+          {!isReel ? <Pressable accessibilityRole="button" accessibilityLabel="Choose from library"
             onPress={openLibrary} disabled={disabled}
             style={{ width: 64, height: 66, alignItems: 'center',
               justifyContent: 'center', gap: 5, backgroundColor: DIM, borderRadius: 16 }}>
             <Ionicons name="images-outline" size={25} color={WHITE}/>
             <Text style={{ fontSize: 10, fontWeight: '700', color: WHITE }}>Gallery</Text>
-          </Pressable>
+          </Pressable> : <View style={{ width: 64 }} />}
           <Pressable accessibilityRole="button"
             accessibilityLabel={isReel ? 'Choose Reel video' : 'Take photo'}
             disabled={disabled || requesting || countdown !== null || (!live && !isReel)}
@@ -356,7 +352,7 @@ export function CameraCapture({ mode, onCapture, onLibrary, onClose, disabled }:
             <Ionicons name={isReel ? 'videocam-outline' : 'image-outline'}
               size={22} color={WHITE}/>
             <Text style={{ color: WHITE, fontSize: 10, marginTop: 4 }}>
-              {isReel ? 'Gallery video' : 'Photo'}
+              {isReel ? 'From Gallery' : 'Photo'}
             </Text>
           </View>
         </View>
