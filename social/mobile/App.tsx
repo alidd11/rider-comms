@@ -134,21 +134,34 @@ function HeaderLine({ heading, meta }: { heading: string; meta?: string }) {
   );
 }
 
-function PreviewEmpty({ icon, heading, body, actionLabel, onAction }: {
+function PreviewEmpty({ icon, heading, body, actionLabel, onAction, featured = false }: {
   icon: Icon; heading: string; body: string;
-  actionLabel?: string; onAction?: () => void;
+  actionLabel?: string; onAction?: () => void; featured?: boolean;
 }) {
   return (
-    <View style={s.empty}>
-      <View style={{ width: 50, height: 50, borderRadius: 17, backgroundColor: C.accentDark,
+    <View style={[s.empty, featured && {
+      minHeight: 300, marginHorizontal: 15, marginTop: 13, paddingVertical: 39,
+      overflow: 'hidden', backgroundColor: '#12171D',
+    }]}>
+      {featured ? <View pointerEvents="none" style={{
+        position: 'absolute', top: -88, right: -66,
+        width: 225, height: 225, borderRadius: 113,
+        backgroundColor: '#193B35', opacity: 0.33,
+      }}/> : null}
+      <View style={{ width: featured ? 66 : 52, height: featured ? 66 : 52,
+        borderRadius: featured ? 23 : 18, backgroundColor: C.accentDark,
         alignItems: 'center', justifyContent: 'center' }}>
-        <Ionicons name={icon} size={25} color={C.accent}/>
+        <Ionicons name={icon} size={featured ? 29 : 25} color={C.accent}/>
       </View>
-      <Text style={[s.cardHeading,{fontSize:17,textAlign:'center'}]}>{heading}</Text>
-      <Text style={[s.muted, { textAlign: 'center', maxWidth: 330 }]}>{body}</Text>
+      <Text style={[s.cardHeading,{
+        fontSize: featured ? 23 : 18, letterSpacing: featured ? -0.7 : -0.3,
+        lineHeight: featured ? 29 : 24, textAlign: 'center',
+      }]}>{heading}</Text>
+      <Text style={[s.muted, { textAlign: 'center', maxWidth: 300,
+        fontSize: featured ? 14 : 13, lineHeight: 21 }]}>{body}</Text>
       {actionLabel && onAction ? <Pressable accessibilityRole="button"
         accessibilityLabel={actionLabel} onPress={onAction}
-        style={[s.cta,{marginTop:8,minWidth:158,minHeight:48}]}>
+        style={[s.cta,{marginTop:11,minWidth:186,minHeight:49}]}>
         <Text style={s.ctaText}>{actionLabel}</Text>
       </Pressable> : null}
     </View>
@@ -173,9 +186,14 @@ function BottomTabs({ screen, onNavigate }: { screen: Screen; onNavigate: (next:
         <Pressable key={tab.name} accessibilityRole="tab"
           accessibilityState={{ selected: tab.name === screen }}
           accessibilityLabel={tab.name} style={s.tab} onPress={() => onNavigate(tab.name)}>
-          <Ionicons name={tab.name === screen ? tab.activeIcon : tab.icon} size={23}
-            color={tab.name === screen ? C.accent : C.muted} />
-          <Text style={[s.tabLabel, tab.name === screen && { color: C.accent }]}>{tab.name}</Text>
+          {tab.name === 'Create' ? <View testID="social-create-tab-symbol" style={{
+            width: 49, height: 33, borderRadius: 11, backgroundColor: C.ink,
+            alignItems: 'center', justifyContent: 'center',
+          }}>
+            <Ionicons name="add" size={27} color={C.bg}/>
+          </View> : <Ionicons name={tab.name === screen ? tab.activeIcon : tab.icon} size={24}
+            color={tab.name === screen ? C.ink : C.muted} />}
+          <Text style={[s.tabLabel, tab.name === screen && { color: C.ink }]}>{tab.name}</Text>
         </Pressable>
       ))}
     </View>
@@ -573,7 +591,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
           accessibilityLabel={'View story by '+story.name}
           onPress={()=>setSelectedStory(story.id)} style={s.storyItem}>
           <View style={s.storyCircle}><Image source={{uri:story.imageUrl}}
-            style={{width:49,height:49,borderRadius:17,backgroundColor:story.color}}/></View>
+            style={{width:54,height:54,borderRadius:27,backgroundColor:story.color}}/></View>
           <Text style={s.storyLabel}>{story.name}</Text>
         </Pressable>)}
       </ScrollView> : null}
@@ -621,12 +639,12 @@ function AuthenticatedSocialApp(): React.JSX.Element {
       </View> : null}
       {visiblePosts.length ? visiblePosts.map(({post,reason})=>renderPost(post,reason))
         : feedMode==='following'
-          ? <PreviewEmpty icon="people-outline" heading="No posts from followed creators"
-              body="Posts from accounts you follow will appear here when sharing is available."
-              actionLabel="Go to For You"
+          ? <PreviewEmpty featured icon="people-outline" heading="Your following feed"
+              body="Posts from creators you follow will appear here when they're ready to share."
+              actionLabel="Explore For You"
               onAction={()=>switchFeed('forYou')}/>
-          : <PreviewEmpty icon="images-outline" heading="No posts yet"
-              body="Choose a photo or video to preview your first post. Nothing is published yet."
+          : <PreviewEmpty featured icon="images-outline" heading="Your next story starts here"
+              body="Capture a photo, put together a Reel or save a draft. Nothing is published yet."
               actionLabel="Create a post"
               onAction={() => { setCreateMode('Post'); navigate('Create'); }}/>} 
     </View>;

@@ -253,19 +253,19 @@ export function ShopScreen({ items, collectionItems, search, onSearch, category,
     </View>:null}
 
     {section==='discover' && noLiveInventory ? <View testID="shop-launch-state"
-      style={{marginHorizontal:18,marginTop:16,borderRadius:21,
-        backgroundColor:C.panel,borderWidth:1,borderColor:C.border,
-        paddingHorizontal:20,paddingTop:20,paddingBottom:20,gap:10}}> 
-      <View style={{height:48,width:48,borderRadius:16,backgroundColor:C.accentDark,
+      style={{marginHorizontal:16,marginTop:18,borderRadius:22,
+        backgroundColor:C.panel,
+        paddingHorizontal:22,paddingTop:31,paddingBottom:27,gap:13}}> 
+      <View style={{height:62,width:62,borderRadius:21,backgroundColor:C.accentDark,
         alignItems:'center',justifyContent:'center'}}>
-        <Ionicons name="storefront-outline" size={24} color={C.accent}/>
+        <Ionicons name="storefront-outline" size={29} color={C.accent}/>
       </View>
       <Text style={{color:C.accent,fontWeight:'800',fontSize:11,letterSpacing:1.2}}>
         MARKETPLACE PREVIEW
       </Text>
-      <Text style={{color:C.ink,fontWeight:'800',fontSize:21,lineHeight:26,
-        letterSpacing:-0.4}}>The marketplace is getting ready</Text>
-      <Text style={{color:C.muted,fontSize:13,lineHeight:19}}>
+      <Text style={{color:C.ink,fontWeight:'900',fontSize:24,lineHeight:30,
+        letterSpacing:-0.75}}>The marketplace is getting ready</Text>
+      <Text style={{color:C.muted,fontSize:14,lineHeight:21}}>
         {emptyDescription}
       </Text>
       {hasDiscoveryFilters?<Pressable accessibilityRole="button" accessibilityLabel="Reset marketplace search"

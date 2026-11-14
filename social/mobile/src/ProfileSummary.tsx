@@ -34,53 +34,57 @@ export function ProfileSummary({
     {name:'Reels',icon:'play-outline'},
     {name:'Garage',icon:'car-sport-outline'},
   ];
-  return <View testID="social-profile-summary" style={{ gap: 14 }}>
+  return <View testID="social-profile-summary" style={{ gap: 15 }}>
     <View style={s.rowBetween}>
-      <Text style={s.sectionTitle}>Profile</Text>
-      <View style={[s.row,{gap:5}]}>
-        <Ionicons name="lock-closed-outline" color={C.muted} size={15}/>
-        <Text style={[s.small,{fontSize:12}]}>Private preview</Text>
+      <Text style={[s.sectionTitle,{fontSize:19}]}>{handleWithAt(accountProfile?.handle || username)}</Text>
+      <View style={[s.row,{gap:5,backgroundColor:C.panel,borderRadius:999,
+        paddingHorizontal:11,paddingVertical:7}]}>
+        <Ionicons name="lock-closed-outline" color={C.muted} size={14}/>
+        <Text style={[s.small,{fontSize:11,fontWeight:'700'}]}>Private preview</Text>
       </View>
     </View>
-    <View style={{paddingHorizontal:2,gap:15}}>
-      <View style={[s.rowBetween,{gap:11}]}>
-        <IdentityAvatar name={accountProfile?.displayName || username} size={77}/>
+    <View style={{paddingHorizontal:2,gap:16}}>
+      <View style={[s.rowBetween,{gap:13}]}>
+        <View style={{borderWidth:2,borderColor:'#396B5F',borderRadius:48,padding:3}}>
+          <IdentityAvatar name={accountProfile?.displayName || username} size={78}/>
+        </View>
         <View style={[s.row,{flex:1,justifyContent:'space-between',gap:3}]}>
           {stats.map(stat=><Pressable key={stat.name} accessibilityRole="button"
             accessibilityLabel={stat.name} onPress={stat.action}
-            style={{flex:1,alignItems:'center',gap:5,minHeight:52,justifyContent:'center'}}>
-            <Text style={{color:C.ink,fontWeight:'800',fontSize:18}}>{stat.value}</Text>
-            <Text style={{color:C.muted,fontWeight:'600',fontSize:12}}>{stat.label}</Text>
+            style={{flex:1,alignItems:'center',gap:4,minHeight:58,justifyContent:'center'}}>
+            <Text style={{color:C.ink,fontWeight:'900',fontSize:20,letterSpacing:-0.5}}>{stat.value}</Text>
+            <Text style={{color:C.muted,fontWeight:'600',fontSize:11}}>{stat.label}</Text>
           </Pressable>)}
         </View>
       </View>
       <View style={{gap:4}}>
-        <Text style={{color:C.ink,fontWeight:'900',fontSize:17}}>{accountProfile?.displayName || username}</Text>
+        <Text style={{color:C.ink,fontWeight:'900',fontSize:18,letterSpacing:-0.3}}>{accountProfile?.displayName || username}</Text>
         <Text style={s.small}>{handleWithAt(accountProfile?.handle || username)}</Text>
         {profile.bio ? <Text style={s.body}>{profile.bio}</Text> : null}
       </View>
       <View style={[s.row,{gap:10}]}>
         <Pressable accessibilityRole="button" accessibilityLabel="Edit social profile"
-          onPress={onEdit} style={[s.ghost,{flex:1,minHeight:46,paddingVertical:9}]}>
+          onPress={onEdit} style={[s.ghost,{flex:1,minHeight:46,paddingVertical:9,backgroundColor:'#252B33'}]}>
           <Text style={s.ghostText}>Edit profile</Text>
         </Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel="Open settings and privacy"
-          onPress={onSettings} style={[s.ghost,{minHeight:46,minWidth:49,paddingVertical:9}]}>
+          onPress={onSettings} style={[s.ghost,{minHeight:46,minWidth:49,paddingVertical:9,backgroundColor:'#252B33'}]}>
           <Ionicons name="settings-outline" color={C.ink} size={20}/>
         </Pressable>
       </View>
     </View>
     <View style={{
       flexDirection:'row',alignItems:'center',borderBottomWidth:1,borderColor:C.border,
+      borderTopWidth:1,paddingTop:3,
     }}>
       {tabs.map(item=><Pressable key={item.name} accessibilityRole="tab"
         accessibilityLabel={item.name+' profile tab'}
         accessibilityState={{selected:tab===item.name}} onPress={()=>onTab(item.name)}
         style={{
-          flex:1,minHeight:59,justifyContent:'center',alignItems:'center',
-          gap:4,borderBottomWidth:2,borderBottomColor:tab===item.name?C.accent:'transparent',
+          flex:1,minHeight:56,justifyContent:'center',alignItems:'center',
+          gap:3,borderBottomWidth:2,borderBottomColor:tab===item.name?C.ink:'transparent',
         }}>
-        <Ionicons name={item.icon} color={tab===item.name?C.accent:C.muted} size={21}/>
+        <Ionicons name={item.icon} color={tab===item.name?C.ink:C.muted} size={22}/>
         <Text style={{color:tab===item.name?C.ink:C.muted,
           fontSize:12,fontWeight:tab===item.name?'800':'600'}}>{item.name}</Text>
       </Pressable>)}
