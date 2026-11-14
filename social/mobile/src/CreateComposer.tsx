@@ -133,7 +133,6 @@ export function CreateComposer({ initialMode = 'Post', onClose, riderId }: { ini
   }, [draftKey, initialMode]);
 
   const selected = media[active] ?? null;
-  const isVideo = selected?.kind === 'video';
   const allowedMore = mode === 'Post' && media.length < 6;
 
   function changeMode(next: ComposerMode) {
