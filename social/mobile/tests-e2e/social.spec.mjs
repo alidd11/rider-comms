@@ -344,6 +344,31 @@ test('device media selection, review and text-only draft are usable without publ
   await expect(page.getByText('New post')).toBeVisible();
 });
 
+test('Story editor can replace its chosen image without an extra Remove step', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('tab', { name: 'Create' }).click();
+  await page.getByRole('button', { name: 'Story format' }).click();
+  const firstChooser = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Choose from library' }).click();
+  await (await firstChooser).setFiles({
+    name: 'original-story.png', mimeType: 'image/png',
+    buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO/jVf8AAAAASUVORK5CYII=', 'base64'),
+  });
+  await expect(page.getByText('Edit story')).toBeVisible();
+  await expect(page.getByLabel('Selected photo: original-story.png')).toBeVisible();
+  const replacement = page.getByRole('button', { name: 'Replace media' });
+  await expect(replacement).toBeEnabled();
+  const secondChooser = page.waitForEvent('filechooser');
+  await replacement.click();
+  await (await secondChooser).setFiles({
+    name: 'new-story.png', mimeType: 'image/png',
+    buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO/jVf8AAAAASUVORK5CYII=', 'base64'),
+  });
+  await expect(page.getByLabel('Selected photo: new-story.png')).toBeVisible();
+  await expect(page.getByLabel('Selected photo: original-story.png')).toHaveCount(0);
+  await expect(page.getByText('1 / 1')).toBeVisible();
+});
+
 test('fixed shell only scrolls the feed and content directories, never Reels or Messages', async ({ page }) => {
   await page.goto('/');
   // Auth restoration and the first React frame are asynchronous. Verify the
