@@ -94,6 +94,10 @@ test('installed PWA cold start uses the full Home Screen canvas before any rotat
   });
   await expect(page.locator('#app')).toBeVisible();
   await expect(page.locator('html')).toHaveClass(/pwa-standalone/);
+  // Measured once the screen's 3px slide-in has finished.
+  await page.locator('[data-screen="map"]').evaluate(async (element) => {
+    await Promise.all(element.getAnimations().map((animation) => animation.finished));
+  });
 
   const metrics = await page.evaluate(() => {
     const root = document.documentElement;
@@ -287,7 +291,10 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
   expect(metrics.instructionAriaLabel).toBe('Turn sharp left onto Holloway Road / A1');
   expect(metrics.providerInstruction).toBe('Turn sharp left onto Holloway Road / A1');
   expect(metrics.endRadius).toBe('50%');
-  expect(metrics.dockDirection).toBe('column');
+  // Short landscape screens put the buttons in a row above the trip card:
+  // as a column they slid under the turn banner.
+  const shortLandscape = viewport.width > viewport.height && viewport.height <= 520;
+  expect(metrics.dockDirection).toBe(shortLandscape ? 'row' : 'column');
   expectNear(metrics.dockGap, 8, 0.5);
   expect(metrics.dockPadding).toBe(0);
   expect(metrics.dockRadius).toBe(0);
@@ -296,14 +303,24 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
   expect(metrics.muteSize).toBe(54);
   expect(metrics.overviewSize).toBe(54);
   expect(metrics.muteRadius).toBe('50%');
-  expectNear(metrics.reportLeft, metrics.muteLeft, 1);
-  expectNear(metrics.muteLeft, metrics.overviewLeft, 1);
-  expect(metrics.reportTop).toBeLessThan(metrics.muteTop);
-  expect(metrics.muteTop).toBeLessThan(metrics.overviewTop);
-  expectNear(metrics.muteTop - metrics.reportBottom, 8, 1);
-  expectNear(metrics.overviewTop - metrics.muteBottom, 8, 1);
-  expect(metrics.overviewBottom).toBeLessThan(metrics.summaryTop);
-  expectNear(metrics.summaryTop - metrics.dockBottom, 18, 2);
+  if (shortLandscape) {
+    expectNear(metrics.reportTop, metrics.muteTop, 1);
+    expectNear(metrics.muteTop, metrics.overviewTop, 1);
+    expect(metrics.reportLeft).toBeLessThan(metrics.muteLeft);
+    expect(metrics.muteLeft).toBeLessThan(metrics.overviewLeft);
+    expectNear(metrics.overviewLeft - metrics.muteRight, 8, 1);
+    expect(metrics.overviewBottom).toBeLessThan(metrics.summaryTop);
+    expectNear(metrics.summaryTop - metrics.dockBottom, 10, 2);
+  } else {
+    expectNear(metrics.reportLeft, metrics.muteLeft, 1);
+    expectNear(metrics.muteLeft, metrics.overviewLeft, 1);
+    expect(metrics.reportTop).toBeLessThan(metrics.muteTop);
+    expect(metrics.muteTop).toBeLessThan(metrics.overviewTop);
+    expectNear(metrics.muteTop - metrics.reportBottom, 8, 1);
+    expectNear(metrics.overviewTop - metrics.muteBottom, 8, 1);
+    expect(metrics.overviewBottom).toBeLessThan(metrics.summaryTop);
+    expectNear(metrics.summaryTop - metrics.dockBottom, 18, 2);
+  }
   expect(metrics.maneuverWidth).toBe(70);
   expect(metrics.maneuverHeight).toBe(78);
   expect(metrics.maneuverRadius).toBe(0);
