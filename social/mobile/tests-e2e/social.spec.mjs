@@ -272,10 +272,10 @@ test('iPhone and desktop render true edge-to-edge background with safe content i
   expect(geometry.viewport).toContain('viewport-fit=cover');
   expect(geometry.viewport).toContain('interactive-widget=resizes-content');
   expect(geometry.status).toBe('black-translucent');
-  expect(geometry.htmlBackground).toBe('rgb(8, 13, 19)');
-  expect(geometry.bodyBackground).toBe('rgb(8, 13, 19)');
-  expect(geometry.screenBackground).toBe('rgb(8, 13, 19)');
-  expect(geometry.tabsBackground).toBe('rgb(8, 13, 19)');
+  expect(geometry.htmlBackground).toBe('rgb(8, 10, 14)');
+  expect(geometry.bodyBackground).toBe('rgb(8, 10, 14)');
+  expect(geometry.screenBackground).toBe('rgb(8, 10, 14)');
+  expect(geometry.tabsBackground).toBe('rgb(8, 10, 14)');
   expect(geometry.hasSafeAreaCss).toBe(true);
   expect(geometry.rootBottom).toBeGreaterThanOrEqual(geometry.viewportHeight - 2);
   expect(geometry.screenBottom).toBeGreaterThanOrEqual(geometry.viewportHeight - 2);

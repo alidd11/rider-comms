@@ -27,7 +27,7 @@ const edgeToEdgeStyle = `<style id="social-edge-to-edge">
     min-height: 100%;
     margin: 0;
     padding: 0;
-    background: #080D13 !important;
+    background: #080A0E !important;
   }
   html, body, #root { overflow: hidden; overscroll-behavior: none; }
   /* Eclipse PWA pattern: React's fixed shell tracks the actual visual viewport;
@@ -108,10 +108,10 @@ const edgeToEdgeStyle = `<style id="social-edge-to-edge">
   #social-account-gate input:-webkit-autofill:hover,
   #social-account-gate input:-webkit-autofill:focus,
   #social-account-gate input:-webkit-autofill:active {
-    -webkit-text-fill-color: #F4F7FB !important;
-    caret-color: #F4F7FB !important;
-    -webkit-box-shadow: inset 0 0 0 1000px #080D13 !important;
-    box-shadow: inset 0 0 0 1000px #080D13 !important;
+    -webkit-text-fill-color: #F7F9FA !important;
+    caret-color: #F7F9FA !important;
+    -webkit-box-shadow: inset 0 0 0 1000px #080A0E !important;
+    box-shadow: inset 0 0 0 1000px #080A0E !important;
     transition: background-color 999999s ease-in-out 0s;
   }
 
@@ -142,7 +142,7 @@ const edgeToEdgeStyle = `<style id="social-edge-to-edge">
   #social-bottom-tabs {
     flex-shrink: 0 !important;
     box-sizing: border-box;
-    background: #080D13 !important;
+    background: #080A0E !important;
     padding-bottom: max(12px, var(--bottom-safe-area, env(safe-area-inset-bottom, 0px))) !important;
   }
   /* Never reset the top safe-area inset in standalone mode: that override
@@ -154,7 +154,7 @@ if (!html.includes('id="social-edge-to-edge"')) {
 }
 const extraHeadTags = [
   ['robots', '<meta name="robots" content="noindex, nofollow, noarchive" />'],
-  ['theme-color', '<meta name="theme-color" content="#080D13" />'],
+  ['theme-color', '<meta name="theme-color" content="#080A0E" />'],
   ['apple-mobile-web-app-capable', '<meta name="apple-mobile-web-app-capable" content="yes" />'],
   ['apple-mobile-web-app-status-bar-style', '<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />']
 ];
