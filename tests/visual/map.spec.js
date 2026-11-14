@@ -414,7 +414,7 @@ test('PWA place search and the category chips use the backend Places endpoints, 
   expect(nearby.body.includedTypes).toEqual(['gas_station']);
 });
 
-test('PWA map turns dark when sunset passes while the app stays open', async ({ page }) => {
+test('PWA map and navigation cards turn dark when sunset passes while the app stays open', async ({ page }) => {
   // 15:00 in London on 13 Nov: daylight. Sunset is about 16:15.
   await page.clock.install({ time: new Date('2026-11-13T15:00:00Z') });
   await page.emulateMedia({ colorScheme: 'light' });
@@ -422,6 +422,9 @@ test('PWA map turns dark when sunset passes while the app stays open', async ({ 
   await page.goto('/');
   await expect.poll(() => page.evaluate(() => window.__riderCommsTestMap?.options?.colorScheme ?? null)).toBe('FOLLOW_SYSTEM');
   const before = await page.evaluate(() => (window.__riderCommsTestMaps || []).length);
+  // Navigation cards are white over the day map.
+  await expect(page.locator('html')).toHaveClass(/map-day/);
+  expect(await page.locator('#navSummary').evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(255, 255, 255)');
 
   // 22:39 the same evening: the open map is rebuilt dark, keeping its markers.
   await page.clock.setSystemTime(new Date('2026-11-13T22:39:00Z'));
@@ -440,6 +443,9 @@ test('PWA map turns dark when sunset passes while the app stays open', async ({ 
   expect(after.count).toBe(before + 1);
   expect(after.onOldMap).toBe(0);
   expect(after.background).toBe('#080d10');
+  // ...and dark again over the night map.
+  await expect(page.locator('html')).not.toHaveClass(/map-day/);
+  expect(await page.locator('#navSummary').evaluate((el) => getComputedStyle(el).backgroundColor)).not.toBe('rgb(255, 255, 255)');
 
   // Another minute at night changes nothing.
   await page.clock.runFor(61_000);

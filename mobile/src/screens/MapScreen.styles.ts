@@ -401,9 +401,11 @@ export const styles = StyleSheet.create({
     borderRadius: 38,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(13,21,26,0.94)',
+    // Follows the theme like the banner: a fixed dark disc put the
+    // theme's dark text on dark in light mode.
+    backgroundColor: colors.surface,
     borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.18)',
+    borderColor: colors.border,
     ...elevation.raised,
   },
   navigationSpeedBadgeValue: {

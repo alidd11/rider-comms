@@ -340,6 +340,7 @@
     map?.setOptions({
       backgroundColor: prefersDarkMode() ? '#080d10' : '#e9eef0',
     });
+    if (map) syncMapDayClass();
   }
   darkModeQuery?.addEventListener('change', applyColorScheme);
 
@@ -7631,8 +7632,14 @@
     return overlay;
   }
 
+  /** Navigation cards match the map: white by day, dark at night. */
+  function syncMapDayClass() {
+    document.documentElement.classList.toggle('map-day', !prefersDarkMode() && !mapBuiltDarkOutside);
+  }
+
   function createGoogleMap(element, camera, darkOutside) {
     mapBuiltDarkOutside = darkOutside;
+    syncMapDayClass();
     const created = new google.maps.Map(element, {
       ...camera,
       disableDefaultUI: true,
@@ -7674,7 +7681,7 @@
     );
     if (darkOutside === mapBuiltDarkOutside) return;
     // A phone in dark mode already has a dark map either way.
-    if (prefersDarkMode()) { mapBuiltDarkOutside = darkOutside; return; }
+    if (prefersDarkMode()) { mapBuiltDarkOutside = darkOutside; syncMapDayClass(); return; }
     const previous = map;
     const centre = previous.getCenter?.();
     const camera = {

@@ -340,6 +340,7 @@
     map?.setOptions({
       backgroundColor: prefersDarkMode() ? '#080d10' : '#e9eef0',
     });
+    if (map) syncMapDayClass();
   }
   darkModeQuery?.addEventListener('change', applyColorScheme);
 
