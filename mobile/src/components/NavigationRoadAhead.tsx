@@ -1,6 +1,7 @@
 import * as React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { colors } from '../theme';
+import { colors, darkColors } from '../theme';
+import { useNavigationPalette } from '../navigationTone';
 import { HazardNavigationIcon } from './HazardIcon';
 import { formatNavigationDistance, type NavigationUnit } from '../navigationGuidance';
 import {
@@ -15,11 +16,12 @@ export function NavigationRoadAhead({
   alerts: readonly NavigationRouteHazard[];
   unit: NavigationUnit;
 }): React.JSX.Element | null {
+  const { night: isNight } = useNavigationPalette();
   if (alerts.length === 0) return null;
 
   return (
-    <View style={styles.container} accessibilityRole="summary">
-      <Text style={styles.eyebrow}>Reports ahead</Text>
+    <View style={[styles.container, isNight && night.container]} accessibilityRole="summary">
+      <Text style={[styles.eyebrow, isNight && night.eyebrow]}>Reports ahead</Text>
       <View style={styles.events}>
         {alerts.slice(0, 2).map((alert) => {
           const label = navigationHazardLabel(alert.hazard.type);
@@ -27,12 +29,12 @@ export function NavigationRoadAhead({
           return (
             <View
               key={alert.hazard.id}
-              style={styles.event}
+              style={[styles.event, isNight && night.event]}
               accessible
               accessibilityLabel={`${label}, ${distance} ahead`}
             >
               <HazardNavigationIcon type={alert.hazard.type} size={22} />
-              <Text numberOfLines={1} style={styles.distance}>{distance}</Text>
+              <Text numberOfLines={1} style={[styles.distance, isNight && night.distance]}>{distance}</Text>
             </View>
           );
         })}
@@ -87,4 +89,12 @@ const styles = StyleSheet.create({
     lineHeight: 15,
     fontWeight: '800',
   },
+});
+
+// Over the night map while the phone is in light mode (navigationTone.ts).
+const night = StyleSheet.create({
+  container: { borderTopColor: darkColors.border, backgroundColor: darkColors.background },
+  eyebrow: { color: darkColors.textMuted },
+  event: { backgroundColor: darkColors.surfaceRaised },
+  distance: { color: darkColors.textPrimary },
 });

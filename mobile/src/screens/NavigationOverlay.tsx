@@ -2,7 +2,7 @@
 // #navSummary and the navigation control dock). MapScreen owns the state;
 // these only draw it.
 import * as React from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import type { InAppNavigationRoute } from '../api/directions';
 import type { NavigationRouteHazard } from '../navigationRoadEvents';
@@ -14,11 +14,29 @@ import {
   navigationSpeedUnit,
 } from '../navigationGuidance';
 import type { UnitSystem } from '../settings/SettingsContext';
-import { colors, pressedFeedback } from '../theme';
+import { colors, darkColors, pressedFeedback } from '../theme';
+import { useNavigationPalette } from '../navigationTone';
 import { NavigationManeuverGlyph } from '../components/NavigationManeuverGlyph';
 import { NavigationRoadAhead } from '../components/NavigationRoadAhead';
 import { styles } from './MapScreen.styles';
 import { ROUTE_UPDATED_NOTICE } from './useInAppNavigation';
+
+// The night look over a dark map while the phone is in light mode (see
+// navigationTone.ts): the same shapes in the dark theme's colours.
+const night = StyleSheet.create({
+  card: { backgroundColor: darkColors.surface, borderColor: darkColors.border },
+  distance: { color: darkColors.accentInk },
+  primaryText: { color: darkColors.textPrimary },
+  secondaryText: { color: darkColors.textSecondary },
+  mutedText: { color: darkColors.textMuted },
+  endButton: { backgroundColor: darkColors.surfaceRaised },
+  nextPreview: { backgroundColor: darkColors.background, borderTopColor: darkColors.border },
+  notice: { backgroundColor: darkColors.dangerSurface, borderTopColor: darkColors.border },
+  noticeInfo: { backgroundColor: darkColors.surfaceRaised },
+  handle: { backgroundColor: darkColors.textMuted },
+  arrival: { color: darkColors.success },
+  divider: { backgroundColor: darkColors.border },
+});
 
 type Step = InAppNavigationRoute['steps'][number];
 
@@ -57,67 +75,68 @@ export function NavigationBanner({
   onHeight: React.Dispatch<React.SetStateAction<number>>;
   onEnd: () => void;
 }): React.JSX.Element {
+  const { night: isNight, palette } = useNavigationPalette();
   return (
-    <View testID="navigation-banner" style={[styles.navigationBanner, { top }]} onLayout={measured(onHeight)}>
+    <View testID="navigation-banner" style={[styles.navigationBanner, isNight && night.card, { top }]} onLayout={measured(onHeight)}>
       <View style={styles.navigationBannerMain}>
         <View style={styles.navigationManeuver}>
           <NavigationManeuverGlyph
             maneuver={upcomingStep?.maneuver ?? 'arrive'}
             size={66}
-            color={colors.textPrimary}
-            secondaryColor={colors.textMuted}
+            color={palette.textPrimary}
+            secondaryColor={palette.textMuted}
           />
         </View>
         <View style={styles.navigationBannerCopy}>
-          <Text style={styles.navigationDistance}>{formatNavigationDistance(distanceToStepEnd, unitSystem)}</Text>
+          <Text style={[styles.navigationDistance, isNight && night.distance]}>{formatNavigationDistance(distanceToStepEnd, unitSystem)}</Text>
           {/* As in Google and Apple Maps: the distance, then the road the
               turn leads onto in large type (the arrow shows the turn).
               Without a named road, the action and full instruction show. */}
           <Text
             numberOfLines={roadName ? 2 : 1}
-            style={[styles.navigationInstruction, roadName ? styles.navigationRoad : null]}
+            style={[styles.navigationInstruction, roadName ? styles.navigationRoad : null, isNight && night.primaryText]}
             accessibilityLiveRegion="polite"
             accessibilityLabel={guidanceInstruction}
           >
             {roadName ?? glanceAction}
           </Text>
           {roadName ? null : (
-            <Text numberOfLines={2} accessible={false} style={styles.navigationProviderInstruction}>
+            <Text numberOfLines={2} accessible={false} style={[styles.navigationProviderInstruction, isNight && night.secondaryText]}>
               {guidanceInstruction}
             </Text>
           )}
         </View>
-        <Pressable accessibilityRole="button" accessibilityLabel="End navigation" onPress={onEnd} style={({ pressed }) => [styles.navigationEndButton, pressed && pressedFeedback]}>
-          <Ionicons name="close" size={24} color={colors.textPrimary} />
+        <Pressable accessibilityRole="button" accessibilityLabel="End navigation" onPress={onEnd} style={({ pressed }) => [styles.navigationEndButton, isNight && night.endButton, pressed && pressedFeedback]}>
+          <Ionicons name="close" size={24} color={palette.textPrimary} />
         </Pressable>
       </View>
       {followingStep ? (
-        <View style={styles.navigationNextPreview}>
+        <View style={[styles.navigationNextPreview, isNight && night.nextPreview]}>
           <View style={styles.navigationNextGlyph}>
             <NavigationManeuverGlyph
               maneuver={followingStep.maneuver}
               size={30}
-              color={colors.textSecondary}
-              secondaryColor={colors.textMuted}
+              color={palette.textSecondary}
+              secondaryColor={palette.textMuted}
             />
           </View>
-          <Text style={styles.navigationNextLabel}>Then</Text>
-          <Text numberOfLines={1} style={styles.navigationNextInstruction} accessibilityLabel={followingStep.instruction}>{navigationInstructionRoad(followingStep.instruction) ?? followingStep.instruction}</Text>
+          <Text style={[styles.navigationNextLabel, isNight && night.mutedText]}>Then</Text>
+          <Text numberOfLines={1} style={[styles.navigationNextInstruction, isNight && night.secondaryText]} accessibilityLabel={followingStep.instruction}>{navigationInstructionRoad(followingStep.instruction) ?? followingStep.instruction}</Text>
         </View>
       ) : null}
       <NavigationRoadAhead alerts={roadAlerts} unit={unitSystem} />
       {notice ? (
         <View
-          style={[styles.navigationNoticeRow, notice === ROUTE_UPDATED_NOTICE && styles.navigationNoticeRowInfo]}
+          style={[styles.navigationNoticeRow, isNight && night.notice, notice === ROUTE_UPDATED_NOTICE && styles.navigationNoticeRowInfo, isNight && notice === ROUTE_UPDATED_NOTICE && night.noticeInfo]}
           accessibilityLiveRegion="polite"
           accessibilityLabel={notice}
         >
           <Ionicons
             name={notice === ROUTE_UPDATED_NOTICE ? 'checkmark-circle-outline' : 'warning-outline'}
             size={16}
-            color={notice === ROUTE_UPDATED_NOTICE ? colors.accent : colors.warning}
+            color={notice === ROUTE_UPDATED_NOTICE ? palette.accent : palette.warning}
           />
-          <Text style={styles.navigationNotice}>{notice}</Text>
+          <Text style={[styles.navigationNotice, isNight && night.secondaryText]}>{notice}</Text>
         </View>
       ) : null}
     </View>
@@ -129,16 +148,17 @@ export function NavigationSpeedBadge({ top, navigationSpeedMps, unitSystem }: {
   navigationSpeedMps: number | null;
   unitSystem: UnitSystem;
 }): React.JSX.Element {
+  const { night: isNight } = useNavigationPalette();
   return (
     <View
-      style={[styles.navigationSpeedBadge, { top }]}
+      style={[styles.navigationSpeedBadge, isNight && night.card, { top }]}
       accessible
       accessibilityLabel={navigationSpeedMps == null
         ? 'Current speed unavailable'
         : `Current speed ${formatNavigationSpeed(navigationSpeedMps, unitSystem)} ${navigationSpeedUnit(unitSystem)}`}
     >
-      <Text style={styles.navigationSpeedBadgeValue}>{formatNavigationSpeed(navigationSpeedMps, unitSystem)}</Text>
-      <Text style={styles.navigationSpeedBadgeUnit}>{navigationSpeedUnit(unitSystem)}</Text>
+      <Text style={[styles.navigationSpeedBadgeValue, isNight && night.primaryText]}>{formatNavigationSpeed(navigationSpeedMps, unitSystem)}</Text>
+      <Text style={[styles.navigationSpeedBadgeUnit, isNight && night.mutedText]}>{navigationSpeedUnit(unitSystem)}</Text>
     </View>
   );
 }
@@ -158,23 +178,27 @@ export function NavigationTripSummary({
   unitSystem: UnitSystem;
   onHeight: React.Dispatch<React.SetStateAction<number>>;
 }): React.JSX.Element {
+  const { night: isNight } = useNavigationPalette();
+  const label = [styles.navigationSummaryLabel, isNight && night.mutedText];
+  const value = [styles.navigationSummaryValue, isNight && night.primaryText];
+  const divider = [styles.navigationSummaryDivider, isNight && night.divider];
   return (
-    <View testID="navigation-summary" style={[styles.navigationSummary, { paddingBottom: bottomPadding }]} onLayout={measured(onHeight)}>
-      <View style={styles.navigationSummaryHandle} />
+    <View testID="navigation-summary" style={[styles.navigationSummary, isNight && night.card, { paddingBottom: bottomPadding }]} onLayout={measured(onHeight)}>
+      <View style={[styles.navigationSummaryHandle, isNight && night.handle]} />
       <View style={styles.navigationSummaryContent}>
         <View style={styles.navigationSummaryPrimary}>
-          <Text style={styles.navigationArrival}>{arrivalLabel}</Text>
-          <Text style={styles.navigationSummaryLabel}>arrival</Text>
+          <Text style={[styles.navigationArrival, isNight && night.arrival]}>{arrivalLabel}</Text>
+          <Text style={label}>arrival</Text>
         </View>
-        <View style={styles.navigationSummaryDivider} />
+        <View style={divider} />
         <View style={styles.navigationSummaryStat}>
-          <Text style={styles.navigationSummaryValue}>{formatNavigationDuration(remainingSeconds)}</Text>
-          <Text style={styles.navigationSummaryLabel}>left</Text>
+          <Text style={value}>{formatNavigationDuration(remainingSeconds)}</Text>
+          <Text style={label}>left</Text>
         </View>
-        <View style={styles.navigationSummaryDivider} />
+        <View style={divider} />
         <View style={styles.navigationSummaryStat}>
-          <Text style={styles.navigationSummaryValue}>{formatNavigationDistance(remainingMeters, unitSystem)}</Text>
-          <Text style={styles.navigationSummaryLabel}>away</Text>
+          <Text style={value}>{formatNavigationDistance(remainingMeters, unitSystem)}</Text>
+          <Text style={label}>away</Text>
         </View>
       </View>
     </View>
