@@ -252,3 +252,25 @@ test('surfaces a generic alert and still clears selection when a vote fails', as
   expect(result.current.selectedHazardId).toBeNull();
   expect(result.current.hazards[0]!.confirmations).toBe(0);
 });
+
+test('confirms the rider\'s report on its card, and says when it was already there', async () => {
+  const { result } = await renderHazards({
+    client: {
+      getNearbyHazards: jest.fn(async () => ({ hazards: [fakeHazard('existing', 'accident')] })),
+      createHazard: jest.fn(async (type: HazardType) => fakeHazard(type === 'accident' ? 'existing' : 'fresh', type)),
+    },
+  });
+  await waitFor(() => expect(result.current.hazards).toHaveLength(1));
+
+  await act(async () => { await result.current.openReportSheet(); });
+  await act(async () => { await result.current.handleReport('police'); });
+  expect(result.current.reportNotice).toEqual({ hazardId: 'fresh', text: 'Police reported.' });
+
+  await act(async () => { await result.current.openReportSheet(); });
+  await act(async () => { await result.current.handleReport('accident'); });
+  expect(result.current.reportNotice?.text).toBe('Accident already reported here. Thanks for confirming it.');
+
+  // Selecting another report hides the confirmation.
+  await act(async () => { result.current.setSelectedHazardId('fresh'); });
+  expect(result.current.reportNotice).toBeNull();
+});

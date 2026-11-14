@@ -321,6 +321,7 @@
           const { locations } = await apiFetch('GET', `/rides/${encodeURIComponent(ride.rideId)}/locations`);
           if (state.activeRide?.rideId !== ride.rideId || !state.activeRide.shareRideLocation || !session) return;
           rideMemberLocations = new Map(locations.map((entry) => [entry.riderId, entry]));
+          announceDroppedRiders(locations);
           if (rideUnreachableTicks >= RIDE_UNREACHABLE_TICKS) showToast('Reconnected. Group positions are live again.');
           rideUnreachableTicks = 0;
           if (state.activeRide) {

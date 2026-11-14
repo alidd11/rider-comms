@@ -150,6 +150,15 @@ test('the notifier honours each preference and removes devices that are gone', a
   await notifier.notify('r', 'friend_request', { title: 'New friend request', body: 'x', route: '#friends', tag: 't' });
   assert.equal(calls.length, 0);
 
+  // A regroup point isn't behind either preference.
+  prefs = { notifyInvites: false, notifyChat: false };
+  calls.length = 0;
+  removed.length = 0;
+  const regroupFetch: typeof fetchImpl = async (url) => { calls.push(url); return { status: 200, text: async () => JSON.stringify({ data: [{ status: 'ok' }] }) }; };
+  const regroupNotifier = new PushNotifier({ store: store as never, getProfile: async () => prefs, fetchImpl: regroupFetch });
+  await regroupNotifier.notify('r', 'regroup', { title: 'Regroup point', body: 'Regroup at Esso.', route: '#map', tag: 'regroup:x' });
+  assert.ok(calls.length > 0);
+
   // A failure never escapes into the request that triggered it.
   prefs = { notifyInvites: true, notifyChat: true };
   const broken = new PushNotifier({ store: store as never, getProfile: async () => prefs, fetchImpl: async () => { throw new Error('offline'); } });

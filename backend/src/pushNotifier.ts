@@ -4,7 +4,7 @@ import type { PushStore, PushSubscriptionRecord } from './pushStore.ts';
 import { sendWebPush, type FetchLike } from './webPush.ts';
 
 /** What happened, which decides the rider's preference that applies. */
-export type PushEvent = 'friend_request' | 'friend_accepted' | 'message';
+export type PushEvent = 'friend_request' | 'friend_accepted' | 'message' | 'regroup';
 
 export interface PushContent {
   title: string;
@@ -16,10 +16,13 @@ export interface PushContent {
 }
 
 // Settings → Notifications: Friend requests (notifyInvites), Messages (notifyChat).
-const PREFERENCE: Record<PushEvent, 'notifyInvites' | 'notifyChat'> = {
+// A regroup point goes only to riders in that ride, while they ride, so it
+// isn't behind a preference: it's the group calling them in.
+const PREFERENCE: Record<PushEvent, 'notifyInvites' | 'notifyChat' | null> = {
   friend_request: 'notifyInvites',
   friend_accepted: 'notifyInvites',
   message: 'notifyChat',
+  regroup: null,
 };
 
 export interface PushNotifierOptions {
@@ -49,8 +52,8 @@ export class PushNotifier {
 
   async notify(riderId: string, event: PushEvent, content: PushContent): Promise<void> {
     try {
-      const profile = await this.options.getProfile(riderId);
-      if (!profile[PREFERENCE[event]]) return;
+      const preference = PREFERENCE[event];
+      if (preference && !(await this.options.getProfile(riderId))[preference]) return;
       const devices = await this.options.store.listForRider(riderId);
       if (devices.length === 0) return;
       const gone = await this.deliver(devices, event, content);

@@ -380,6 +380,53 @@
     return next.label ? `Regroup at ${next.label}.` : 'Regroup point set. It’s on your map.';
   }
 
+  // Mirrors shared rideDropAnnouncements (shared/src/rideCode.ts);
+  // scripts/check-client-parity.mjs runs both on the same cases.
+  const RIDE_DROPPED_ALERT_MS = 120_000;
+  function rideDropAnnouncements(previous, locations, names, now) {
+    const state = {};
+    const announcements = [];
+    for (const { riderId, updatedAt } of locations) {
+      const age = now - updatedAt;
+      const was = previous[riderId];
+      const name = names[riderId] || 'A rider';
+      if (Number.isFinite(age) && age <= RIDE_LOCATION_FRESH_MS) {
+        if (was === 'dropped') announcements.push(`${name}’s position is updating again.`);
+        state[riderId] = 'fresh';
+      } else if (was === 'fresh' && Number.isFinite(age) && age >= RIDE_DROPPED_ALERT_MS) {
+        announcements.push(`${name}’s position hasn’t updated for 2 minutes.`);
+        state[riderId] = 'dropped';
+      } else if (was) {
+        state[riderId] = was;
+      }
+    }
+    return { state, announcements };
+  }
+
+  // A rider whose position stops updating mid-ride (no signal, flat battery,
+  // a fall) is called out to the group once, and again when they're back:
+  // a toast, and spoken unless spoken directions are off or navigation is
+  // muted. Only checked after a successful refresh, so this rider's own lost
+  // signal never reads as everyone else dropping.
+  let rideDropState = {};
+  let rideDropRideId = null;
+  function announceDroppedRiders(locations) {
+    const ride = state.activeRide;
+    if (!ride) return;
+    if (rideDropRideId !== ride.rideId) {
+      rideDropRideId = ride.rideId;
+      rideDropState = {};
+    }
+    const names = Object.fromEntries((ride.members || []).map((member) => [member.riderId, member.displayName]));
+    const others = locations.filter((entry) => entry.riderId !== state.profile.riderId);
+    const step = rideDropAnnouncements(rideDropState, others, names, Date.now());
+    rideDropState = step.state;
+    if (!step.announcements.length) return;
+    const message = step.announcements.join(' ');
+    showToast(message);
+    if (state.spokenDirections !== false) speak(message);
+  }
+
   /** A new regroup point from the host: a toast, and spoken unless spoken
    * directions are off or navigation is muted (speak() checks navMuted). */
   function announceRegroup(previous, next, isHost) {

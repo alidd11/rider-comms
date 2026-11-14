@@ -95,6 +95,23 @@ describe('push notification devices and triggers', { skip: !hasDatabase && 'DATA
       content: { title: 'Sam', body: 'See you at the café?', route: '#chat:push-sam', tag: 'chat-push-sam' },
     });
   });
+
+  it('tells every other ride member about a new regroup point, and not the host', async () => {
+    sent.length = 0;
+    const made = await postJson(ctx, 'push-host', '/rides', {});
+    const { rideId, code } = await made.json() as { rideId: string; code: string };
+    await postJson(ctx, 'push-rider', '/rides/join', { code });
+    const put = (body: unknown) => authenticatedFetch(ctx, 'push-host', `/rides/${rideId}/regroup`, { method: 'PUT', body: JSON.stringify(body) });
+    await put({ lat: 51.6, lon: -0.2, label: 'Esso, A1' });
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.deepEqual(sent, [{ riderId: 'push-rider', event: 'regroup', content: { title: 'Regroup point', body: 'Regroup at Esso, A1.', route: '#map', tag: `regroup:${rideId}` } }]);
+    // Clearing the point sends nothing.
+    sent.length = 0;
+    await authenticatedFetch(ctx, 'push-host', `/rides/${rideId}/regroup`, { method: 'DELETE' });
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.deepEqual(sent, []);
+    await authenticatedFetch(ctx, 'push-host', `/rides/${rideId}`, { method: 'DELETE' });
+  });
 });
 
 describe('push devices follow the sign-in that registered them', { skip: !hasDatabase && 'DATABASE_URL not set' }, () => {

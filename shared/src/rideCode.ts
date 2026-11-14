@@ -117,3 +117,41 @@ export function regroupAnnouncement(
   if (previous && previous.setAt === next.setAt) return null;
   return next.label ? `Regroup at ${next.label}.` : 'Regroup point set. It’s on your map.';
 }
+
+/** After this long without a position update, the group hears that a rider
+ * has dropped off (lost signal, flat battery, a crash). */
+export const RIDE_DROPPED_ALERT_MS = 120_000;
+
+/** Per rider: last heard live ('fresh'), or already announced as dropped. */
+export type RideDropState = Readonly<Record<string, 'fresh' | 'dropped'>>;
+
+/**
+ * What the group hears as other riders' positions stop or start updating.
+ * Only a rider seen live in this session is announced, once per drop, and
+ * again when their position comes back. A rider who stops sharing leaves
+ * `locations` altogether and is not announced: that was their choice.
+ */
+export function rideDropAnnouncements(
+  previous: RideDropState,
+  locations: ReadonlyArray<{ riderId: string; updatedAt: number }>,
+  names: Readonly<Record<string, string>>,
+  now: number,
+): { state: RideDropState; announcements: string[] } {
+  const state: Record<string, 'fresh' | 'dropped'> = {};
+  const announcements: string[] = [];
+  for (const { riderId, updatedAt } of locations) {
+    const age = now - updatedAt;
+    const was = previous[riderId];
+    const name = names[riderId] || 'A rider';
+    if (Number.isFinite(age) && age <= RIDE_LOCATION_FRESH_MS) {
+      if (was === 'dropped') announcements.push(`${name}’s position is updating again.`);
+      state[riderId] = 'fresh';
+    } else if (was === 'fresh' && Number.isFinite(age) && age >= RIDE_DROPPED_ALERT_MS) {
+      announcements.push(`${name}’s position hasn’t updated for 2 minutes.`);
+      state[riderId] = 'dropped';
+    } else if (was) {
+      state[riderId] = was;
+    }
+  }
+  return { state, announcements };
+}

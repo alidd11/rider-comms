@@ -1,8 +1,9 @@
 import * as React from 'react';
-import { Alert } from 'react-native';
+import { AccessibilityInfo, Alert } from 'react-native';
 import type { HazardReport, HazardType } from '@rider-comms/shared';
 import { ApiError } from '../api/client';
 import type { RiderCommsClient } from '../api/client';
+import { HAZARD_TYPE_META } from './HazardReportSheet';
 
 // Navigation updates GPS frequently; keep the hazard network refresh on a
 // one-minute cadence while recomputing route-relative distance locally.
@@ -27,6 +28,8 @@ export interface HazardReports {
   closeReportSheet: () => void;
   handleReport: (hazardType: HazardType) => Promise<void>;
   handleVote: (hazardId: string, direction: 'confirm' | 'deny') => Promise<void>;
+  /** Confirms the rider's own report on its card (PWA: the report toast). */
+  reportNotice: { hazardId: string; text: string } | null;
 }
 
 /**
@@ -45,6 +48,9 @@ export function useHazardReports(
   const [selectedHazardId, setSelectedHazardId] = React.useState<string | null>(null);
   const pendingHazardReportLocation = React.useRef<{ lat: number; lon: number } | null>(null);
   const [reportSheetOpen, setReportSheetOpen] = React.useState(false);
+  const [reportNotice, setReportNotice] = React.useState<{ hazardId: string; text: string } | null>(null);
+  const hazardsRef = React.useRef(hazards);
+  hazardsRef.current = hazards;
 
   React.useEffect(() => {
     if (!hasCurrentLocation) { setHazards([]); return; }
@@ -97,6 +103,13 @@ export function useHazardReports(
     if (!reportLocation) return;
     try {
       const created = await client.createHazard(hazardType, reportLocation.lat, reportLocation.lon);
+      // The server folds a report of the same hazard close by into the
+      // existing one, counting this rider's sighting as a confirmation.
+      const alreadyReported = hazardsRef.current.some((hazard) => hazard.id === created.id);
+      const label = HAZARD_TYPE_META[hazardType].label;
+      const text = alreadyReported ? `${label} already reported here. Thanks for confirming it.` : `${label} reported.`;
+      setReportNotice({ hazardId: created.id, text });
+      AccessibilityInfo.announceForAccessibility(text);
       setHazards((current) => [created, ...current.filter((hazard) => hazard.id !== created.id)]);
       setSelectedHazardId(created.id);
     } catch (error) {
@@ -143,5 +156,6 @@ export function useHazardReports(
     closeReportSheet,
     handleReport,
     handleVote,
+    reportNotice: reportNotice && reportNotice.hazardId === selectedHazardId ? reportNotice : null,
   };
 }

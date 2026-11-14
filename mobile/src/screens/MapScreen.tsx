@@ -51,7 +51,7 @@ import { RidingHud } from './RidingHud';
 import { NavigationBanner, NavigationControls, NavigationSpeedBadge, NavigationTripSummary } from './NavigationOverlay';
 import { NavigationNightContext } from '../navigationTone';
 import { ArrivalCard, DestinationCard } from './MapPlaceCards';
-import { RIDE_LOCATION_FRESH_MS, navigationManeuverArrow, regroupAnnouncement, rideMemberLastSeenAgo, type RegroupPoint } from '@rider-comms/shared';
+import { RIDE_LOCATION_FRESH_MS, navigationManeuverArrow, regroupAnnouncement, rideDropAnnouncements, rideMemberLastSeenAgo, type RegroupPoint, type RideDropState } from '@rider-comms/shared';
 import { speakNavigationPrompt } from '../audio/navigationSpeech';
 import { useRideProfiles } from './useRideProfiles';
 import { useHazardReports } from './useHazardReports';
@@ -230,6 +230,7 @@ export function MapScreen(): React.JSX.Element {
     closeReportSheet,
     handleReport,
     handleVote,
+    reportNotice: hazardReportNotice,
   } = useHazardReports(client, hasCurrentLocation, currentLocationRef, requestCurrentLocationForHazardReport);
 
   const {
@@ -436,6 +437,32 @@ export function MapScreen(): React.JSX.Element {
     // Only a change to the ride or its regroup point should speak.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeRide?.rideId, regroup?.setAt]);
+
+  // A rider whose position stops updating mid-ride (no signal, flat
+  // battery, a fall) is called out once, and again when they're back
+  // (shared rideDropAnnouncements). Checked only when a fresh set of
+  // positions arrives, so this rider's own lost signal never reads as
+  // everyone else dropping.
+  const rideDrops = React.useRef<{ rideId: string | null; state: RideDropState }>({ rideId: null, state: {} });
+  React.useEffect(() => {
+    const rideId = activeRide?.rideId ?? null;
+    if (rideDrops.current.rideId !== rideId) rideDrops.current = { rideId, state: {} };
+    if (!rideId) return;
+    const names = Object.fromEntries(Object.entries(rideProfiles).map(([id, profile]) => [id, profile.displayName]));
+    const step = rideDropAnnouncements(
+      rideDrops.current.state,
+      rideLocations.filter((location) => location.riderId !== riderId),
+      names,
+      Date.now(),
+    );
+    rideDrops.current.state = step.state;
+    if (step.announcements.length === 0) return;
+    const message = step.announcements.join(' ');
+    AccessibilityInfo.announceForAccessibility(message);
+    if (spokenDirections && !(activeRoute && navigationMuted)) speakNavigationPrompt(message);
+    // Only a new set of positions should be checked.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rideLocations, activeRide?.rideId]);
 
   const maneuverArrowPath = React.useMemo(() => {
     if (!activeRoute) return null;
@@ -845,6 +872,7 @@ export function MapScreen(): React.JSX.Element {
           bottomInset={insets.bottom + spacing.sm}
           onDismiss={() => setSelectedHazardId(null)}
           onVote={handleVote}
+          notice={hazardReportNotice?.text ?? null}
         />
       )}
 

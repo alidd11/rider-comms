@@ -597,6 +597,36 @@ if (!/function NavigationTripSummary[\s\S]*?onLayout=\{measured\(onHeight\)\}/.t
   }
 }
 
+// What the group hears when a rider's position stops, or starts, updating.
+{
+  const shared = await import('../shared/src/rideCode.ts');
+  const body = pwaMapSource.match(/const RIDE_DROPPED_ALERT_MS = (\d[\d_]*);\s*function rideDropAnnouncements\(previous, locations, names, now\) \{[\s\S]*?\n {2}\}/);
+  if (!body) throw new Error('PWA must define rideDropAnnouncements next to RIDE_DROPPED_ALERT_MS');
+  if (Number(body[1].replaceAll('_', '')) !== shared.RIDE_DROPPED_ALERT_MS) throw new Error('PWA RIDE_DROPPED_ALERT_MS must match shared');
+  const pwaDrop = new Function('RIDE_LOCATION_FRESH_MS', `${body[0]}; return rideDropAnnouncements;`)(shared.RIDE_LOCATION_FRESH_MS);
+  const now = 1_000_000;
+  const names = { sam: 'Sam' };
+  const cases = [
+    [{}, [{ riderId: 'sam', updatedAt: now }]],
+    [{ sam: 'fresh' }, [{ riderId: 'sam', updatedAt: now - 60_000 }]],
+    [{ sam: 'fresh' }, [{ riderId: 'sam', updatedAt: now - 120_000 }]],
+    [{ sam: 'dropped' }, [{ riderId: 'sam', updatedAt: now - 200_000 }]],
+    [{ sam: 'dropped' }, [{ riderId: 'sam', updatedAt: now - 1000 }]],
+    [{}, [{ riderId: 'sam', updatedAt: now - 300_000 }]],
+    [{ x: 'fresh' }, [{ riderId: 'x', updatedAt: Number.NaN }]],
+    [{ x: 'fresh' }, [{ riderId: 'x', updatedAt: now - 130_000 }]],
+    [{ sam: 'fresh' }, []],
+  ];
+  for (const [previous, locations] of cases) {
+    if (JSON.stringify(pwaDrop(previous, locations, names, now)) !== JSON.stringify(shared.rideDropAnnouncements(previous, locations, names, now))) {
+      throw new Error('PWA and shared rideDropAnnouncements disagree');
+    }
+  }
+  if (!/rideDropAnnouncements\(/.test(nativeMapScreenSource)) {
+    throw new Error('Native map must announce dropped riders with the shared rideDropAnnouncements');
+  }
+}
+
 // Both apps draw the white turn arrow from the shared geometry.
 if (!/navigationPuck\.navigationManeuverArrow\(/.test(pwaMapSource) || !/navigationManeuverArrow\(\s*activeRoute\.steps\[navigationStepIndex\]/.test(nativeMapScreenSource)) {
   throw new Error('Both apps must draw the turn arrow with the shared navigationManeuverArrow');
