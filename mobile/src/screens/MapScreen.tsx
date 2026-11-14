@@ -122,12 +122,6 @@ export function MapScreen(): React.JSX.Element {
     };
   }, []);
 
-  React.useEffect(() => {
-    if (!rideLocations.length) return;
-    setMarkerNow(Date.now());
-    const timer = setInterval(() => setMarkerNow(Date.now()), RIDE_MARKER_REFRESH_MS);
-    return () => clearInterval(timer);
-  }, [rideLocations.length]);
 
   const ownRideLocation = rideLocations.find((location) => location.riderId === riderId);
 
@@ -282,6 +276,15 @@ export function MapScreen(): React.JSX.Element {
   // During turn-by-turn guidance the selected rider avatar must follow the
   // device's live high-accuracy fix, not the slower ride-location round trip.
   // Other riders still use the consented private-ride location feed below.
+  // Ride markers age with the clock, and so does the arrival time while
+  // the rider waits at lights with no new fix.
+  const navigatingNow = Boolean(activeRoute);
+  React.useEffect(() => {
+    if (!rideLocations.length && !navigatingNow) return;
+    setMarkerNow(Date.now());
+    const timer = setInterval(() => setMarkerNow(Date.now()), RIDE_MARKER_REFRESH_MS);
+    return () => clearInterval(timer);
+  }, [rideLocations.length, navigatingNow]);
   const selfMapLocation = activeRoute && currentLocation
     ? currentLocation
     : ownRideLocation

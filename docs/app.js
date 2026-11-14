@@ -6705,6 +6705,7 @@
     navBannerResizeObserver.observe(banner);
   }
 
+  let navRemainingSeconds = null;
   function formatArrivalTime(remainingSeconds) {
     return new Date(Date.now() + remainingSeconds * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   }
@@ -6914,6 +6915,7 @@
     }
     $('#navDistance').textContent = formatNavDistance(remainingMeters);
     $('#navEta').textContent = formatNavDuration(remainingSeconds);
+    navRemainingSeconds = remainingSeconds;
     $('#navArrival').textContent = formatArrivalTime(remainingSeconds);
     renderNavSpeed();
     renderNavigationRoadAhead();
@@ -7387,6 +7389,9 @@
       timeout: 15000,
     });
     navGpsWatchdog = setInterval(() => {
+      // Waiting at lights brings no new fix, but the arrival time still
+      // moves on with the clock.
+      if (navSteps.length && Number.isFinite(navRemainingSeconds)) $('#navArrival').textContent = formatArrivalTime(navRemainingSeconds);
       if (!navSteps.length || navGpsIssue || !navLastFixAt) return;
       if (Date.now() - navLastFixAt > NAV_GPS_STALE_MS) setNavGpsIssue(NAV_GPS_STALE_NOTICE);
     }, NAV_GPS_CHECK_MS);
