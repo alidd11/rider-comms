@@ -5915,7 +5915,10 @@
 
   function voiceSearchSupported() {
     const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    return typeof Recognition === 'function' && window.navigator.standalone !== true;
+    // Hidden while a voice room is connected: the room keeps the microphone
+    // (native: voiceConnected).
+    const inVoice = Boolean(voiceRoom) || proximityVoiceRooms.size > 0;
+    return typeof Recognition === 'function' && window.navigator.standalone !== true && !inVoice;
   }
 
   function setVoiceListening(listening) {

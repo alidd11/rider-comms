@@ -28,6 +28,8 @@ import { SAVED_PLACE_LABELS } from '../search/savedPlaces';
 import type { SavedPlaceSlot } from '../search/savedPlaces';
 import { useSettings } from '../settings/SettingsContext';
 import { PLACE_BADGES, PlaceBadge } from '../components/PlaceBadge';
+import { useVoiceSearch } from '../search/voiceSearch';
+import { useVoiceMute } from '../voice/VoiceMuteContext';
 import type { PlaceBadgeKind } from '../components/PlaceBadge';
 
 // Module-level so the cache survives across searches within a session
@@ -233,6 +235,21 @@ export const PlaceSearchBar = React.forwardRef<PlaceSearchHandle, {
     setQuery(value);
   }
 
+  const { voiceConnected } = useVoiceMute();
+  const [voiceProblem, setVoiceProblem] = React.useState<string | null>(null);
+  const voice = useVoiceSearch(
+    React.useCallback((words: string) => { setVoiceProblem(null); setActiveCategory(null); setQuery(words); }, []),
+    setVoiceProblem,
+  );
+  // Hidden while a voice room is connected: the room keeps the microphone.
+  const showMic = voice.available && !voiceConnected;
+  const { listening: voiceListening, toggle: toggleVoice } = voice;
+  // Stop listening when search closes or a voice room connects.
+  React.useEffect(() => {
+    if ((!open || voiceConnected) && voiceListening) toggleVoice();
+    if (!open) setVoiceProblem(null);
+  }, [open, toggleVoice, voiceConnected, voiceListening]);
+
   return (
     <>
       {showBar ? (
@@ -278,9 +295,22 @@ export const PlaceSearchBar = React.forwardRef<PlaceSearchHandle, {
                   <Ionicons name="close-circle" size={20} color={colors.textMuted} />
                 </Pressable>
               ) : null}
+              {showMic ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={voice.listening ? 'Stop listening' : 'Search by voice'}
+                  accessibilityState={{ selected: voice.listening }}
+                  onPress={() => { setVoiceProblem(null); voice.toggle(); }}
+                  hitSlop={8}
+                  style={[styles.micButton, voice.listening && styles.micButtonListening]}
+                >
+                  <Ionicons name="mic" size={20} color={voice.listening ? colors.accentText : colors.textSecondary} />
+                </Pressable>
+              ) : null}
             </View>
           </View>
 
+          {voiceProblem ? <Text style={styles.voiceProblem} accessibilityLiveRegion="polite">{voiceProblem}</Text> : null}
           {saveAs ? (
             <Text style={styles.saveBanner} accessibilityRole="header">Choose your {SAVED_PLACE_LABELS[saveAs]}</Text>
           ) : null}
