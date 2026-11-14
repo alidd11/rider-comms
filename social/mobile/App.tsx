@@ -23,6 +23,7 @@ import { CommentsSheet } from './src/CommentsSheet';
 import type { CommentPreview } from './src/CommentsSheet';
 import { demoCreators, publicGallery } from './src/demoCreators';
 import { ProfileSummary } from './src/ProfileSummary';
+import { ProfileEditor } from './src/ProfileEditor';
 import { SocialSettings } from './src/SocialSettings';
 import { profileForRider } from './src/profileDisplay';
 import type { ProfileContentTab } from './src/ProfileSummary';
@@ -666,26 +667,6 @@ function AuthenticatedSocialApp(): React.JSX.Element {
           <Text style={s.storyLabel}>{story.name}</Text>
         </Pressable>)}
       </ScrollView>
-      <View testID="home-editorial-heading" style={{
-        flexDirection:'row',alignItems:'center',justifyContent:'space-between',
-        paddingHorizontal:16,paddingTop:19,paddingBottom:12,gap:12,
-      }}>
-        <View style={{ flex:1,gap:4 }}>
-          <Text style={{color:C.ink,fontSize:21,fontWeight:'900',letterSpacing:-0.6}}>Community feed</Text>
-          <Text style={[s.small,{fontSize:12}]}>Photos & updates from the community</Text>
-        </View>
-        <Pressable accessibilityRole="button" accessibilityLabel="Feed preferences"
-          accessibilityState={{ expanded: feedPreferencesOpen }}
-          onPress={() => setFeedPreferencesOpen(value=>!value)}
-          style={{
-            width:44,height:44,borderRadius:14,backgroundColor:C.panel,
-            borderWidth:1,borderColor:C.border,
-            alignItems:'center',justifyContent:'center',
-          }}>
-          <Ionicons name="options-outline" size={21}
-            color={feedPreferencesOpen ? C.accent : C.ink}/>
-        </Pressable>
-      </View>
       {socialFixturesEnabled ? <Text style={[s.small,{
         paddingHorizontal:16,paddingTop:7,paddingBottom:5,fontSize:11
       }]}>Sample feed</Text> : null}
@@ -855,6 +836,11 @@ function AuthenticatedSocialApp(): React.JSX.Element {
       onClearDrafts={clearDeviceDrafts}
       onSignOut={logout}
       onDeleteAccount={deleteAccount}/>;
+    if (profileEditor) return <ProfileEditor draft={profileDraft}
+      onName={(displayName) => setProfileDraft(current => ({ ...current, displayName }))}
+      onBio={(bio) => setProfileDraft(current => ({ ...current, bio }))}
+      onCancel={() => setProfileEditor(false)}
+      onSave={saveProfile}/>;
     return (
       <View style={{ gap: 16 }}>
         <ProfileSummary profile={profile} accountProfile={ownProfile} tab={profileTab} username={identity.username}
@@ -862,33 +848,17 @@ function AuthenticatedSocialApp(): React.JSX.Element {
           followingCount={[...followed].filter(id => Boolean(demoCreators[id])).length}
           onTab={setProfileTab} onConnections={setConnectionSheet} onEdit={openProfileEditor}
           onSettings={() => { setNotice(null); setSettingsOpen(true); }}/>
-        {profileEditor ? (
-          <View style={[s.card, s.pad]}>
-            <Text style={s.cardHeading}>Edit your social profile</Text>
-            <Text style={s.small}>Display name · 2–40 characters</Text>
-            <TextInput accessibilityLabel="Social display name" style={s.input} value={profileDraft.displayName} maxLength={40} onChangeText={(displayName) => setProfileDraft((p) => ({ ...p, displayName }))} placeholder="Display name" placeholderTextColor={C.muted}/>
-            <Text style={s.small}>Bio · up to 160 characters</Text>
-            <TextInput accessibilityLabel="Social bio" style={[s.input, { minHeight: 85, textAlignVertical: 'top' }]} multiline maxLength={160} value={profileDraft.bio} onChangeText={(bio) => setProfileDraft((p) => ({ ...p, bio }))} placeholder="Tell your community about yourself" placeholderTextColor={C.muted}/>
-            <Text style={s.small}>Changes stay on this device. Public profile visibility isn’t available yet.</Text>
-            <View style={s.twoCol}>
-              <Pressable accessibilityRole="button" style={[s.ghost, s.split]} onPress={() => setProfileEditor(false)}><Text style={s.ghostText}>Cancel</Text></Pressable>
-              <Pressable accessibilityRole="button" style={[s.cta, s.split]} onPress={saveProfile}><Text style={s.ctaText}>Save profile</Text></Pressable>
-            </View>
-          </View>
-        ) : null}
-        {profileTab === 'Posts' ? <View style={{ alignItems: 'center', paddingVertical: 34, gap: 11 }}>
+        {profileTab === 'Posts' ? <View style={{ alignItems: 'center', paddingVertical: 44, gap: 12 }}>
           <Ionicons name="images-outline" size={33} color={C.accent}/>
           <Text style={s.cardHeading}>Your posts will appear here</Text>
-          <Text style={[s.small, { textAlign: 'center' }]}>Photos and videos you share will appear on your profile</Text>
           <Pressable accessibilityRole="button" accessibilityLabel="Create first post" style={s.cta}
             onPress={() => { navigate('Create'); setCreateMode('Post'); }}>
             <Text style={s.ctaText}>Create post</Text>
           </Pressable>
         </View> : null}
-        {profileTab === 'Reels' ? <View style={{ alignItems: 'center', paddingVertical: 34, gap: 11 }}>
+        {profileTab === 'Reels' ? <View style={{ alignItems: 'center', paddingVertical: 44, gap: 12 }}>
           <Ionicons name="play-circle-outline" size={33} color={C.accent}/>
           <Text style={s.cardHeading}>Your Reels will appear here</Text>
-          <Text style={[s.small, { textAlign: 'center' }]}>Short videos you share will appear here</Text>
           <Pressable accessibilityRole="button" accessibilityLabel="Create first Reel" style={s.cta}
             onPress={() => { navigate('Create'); setCreateMode('Reel'); }}>
             <Text style={s.ctaText}>Create Reel</Text>
@@ -998,7 +968,6 @@ function AuthenticatedSocialApp(): React.JSX.Element {
         <Text style={s.small}>Garage entries remain on this device.</Text>
         </> : null}
         <View style={{ gap: 10, paddingVertical: 13 }}>
-          <Text style={s.small}>Signed in as @{identity.username.replace(/^@/, '')} with your Rider Comms account.</Text>
           {!identity.emailVerified ? <Pressable accessibilityRole="button"
             accessibilityLabel="Resend verification email"
             onPress={() => { void resendVerification().then(
@@ -1008,7 +977,6 @@ function AuthenticatedSocialApp(): React.JSX.Element {
             <Text style={s.ghostText}>Resend verification email</Text>
           </Pressable> : null}
           {verificationNotice ? <Text accessibilityRole="alert" style={s.small}>{verificationNotice}</Text> : null}
-          <Text style={s.small}>Profile and garage drafts stay on this device. Open Settings & privacy to manage drafts or sign out.</Text>
         </View>
       </View>
     );
@@ -1030,12 +998,16 @@ function AuthenticatedSocialApp(): React.JSX.Element {
       style={s.safe}>
       <StatusBar barStyle="light-content" />
       <View style={s.root}>
-        {!story && screen !== 'Reels' && screen !== 'Create' ? <View style={s.header}>
+        {!story && screen !== 'Reels' && screen !== 'Create' &&
+          !(screen === 'Profile' && profileEditor) ? <View style={s.header}>
           <Pressable accessibilityRole="button" accessibilityLabel="Go to home" onPress={() => navigate('Home')}>
             <Text style={s.brandTitle}>{screen === 'Shop' ? 'Shop' :
               <>Social<Text style={{ color: C.accent }}>.</Text></>}</Text>
           </Pressable>
           <View style={s.headerTools}>
+            {screen === 'Home' && !selectedCreator ?
+              <IconButton name="options-outline" label="Feed preferences"
+                onPress={() => setFeedPreferencesOpen(value => !value)} /> : null}
             <IconButton name="chatbubble-ellipses-outline" label="Open messages" onPress={() => navigate('Messages')} />
             <IconButton name="person-circle-outline" label="Open profile" onPress={() => navigate('Profile')} />
           </View>
@@ -1057,7 +1029,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
                 overScrollMode="never" bounces={false}
                 key={screen === 'Home' ? 'Home-' + (selectedCreator ?? 'feed') +
                   (feedPreferencesOpen ? '-preferences' : '-content') :
-                  screen === 'Profile' ? 'Profile-' + (settingsOpen ? 'settings' : profileTab) : screen}>
+                  screen === 'Profile' ? 'Profile-' + (settingsOpen ? 'settings' : profileEditor ? 'edit' : profileTab) : screen}>
                 {screen === 'Home' ? renderHome() : null}
                 {screen === 'Clubs' ? renderClubs() : null}
                 {screen === 'Shop' ? renderShop() : null}
@@ -1082,7 +1054,8 @@ function AuthenticatedSocialApp(): React.JSX.Element {
                 {renderMessages()}
               </View>
             )}
-            {screen !== 'Create' ? <BottomTabs screen={screen} onNavigate={navigate} /> : null}
+            {screen !== 'Create' && !(screen === 'Profile' && profileEditor) ?
+              <BottomTabs screen={screen} onNavigate={navigate} /> : null}
           </>
         )}
         {commentsFor ? <CommentsSheet key={commentsFor.id} title={commentsFor.title}

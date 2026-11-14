@@ -62,8 +62,8 @@ test('Home feed hides posts and explains recommendations', async ({ page }, test
 test('Home has one editorial feed while Reels owns For You and Following', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 690 });
   await page.goto('/');
-  await expect(page.getByTestId('home-editorial-heading')).toBeVisible();
-  await expect(page.getByText('Community feed')).toBeVisible();
+  await expect(page.getByTestId('home-editorial-heading')).toHaveCount(0);
+  await expect(page.getByText('Community feed')).toHaveCount(0);
   await expect(page.getByRole('tab', { name: 'For You', exact: true })).toHaveCount(0);
   await expect(page.getByRole('tab', { name: 'Following', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Create story' })).toBeVisible();
@@ -81,7 +81,7 @@ test('Home has one editorial feed while Reels owns For You and Following', async
   await expect(page.getByTestId('camera-first-studio')).toBeVisible();
   await expect(page.getByText('New story')).toBeVisible();
   await page.getByRole('button', { name: 'Close Create' }).click();
-  await expect(page.getByTestId('home-editorial-heading')).toBeVisible();
+  await expect(page.getByTestId('home-editorial-heading')).toHaveCount(0);
 
   await page.getByRole('tab', { name: 'Reels' }).click();
   await expect(page.getByRole('tab', { name: 'For You videos' })).toBeVisible();
@@ -99,7 +99,7 @@ test('Home recommendation personalisation is off by default and never switches R
   await page.getByRole('tab', { name: 'Reels' }).click();
   await expect(page.getByRole('tab', { name: 'Following videos' })).toBeVisible();
   await page.getByRole('tab', { name: 'Home' }).click();
-  await expect(page.getByTestId('home-editorial-heading')).toBeVisible();
+  await expect(page.getByTestId('home-editorial-heading')).toHaveCount(0);
 });
 
 test('clubs, marketplace and profile have independent usable screens', async ({ page }, testInfo) => {
@@ -151,9 +151,14 @@ test('Shop, comments, profile and garage text fields have no blue filled boxes',
 
   await page.getByRole('button', { name: 'Open profile' }).click();
   await page.getByRole('button', { name: 'Edit social profile' }).click();
+  await expect(page.getByTestId('profile-editor')).toBeVisible();
+  await expect(page.getByTestId('social-profile-summary')).toHaveCount(0);
+  await expect(page.locator('#social-bottom-tabs')).toHaveCount(0);
   await assertUnboxed('Social display name');
   await assertUnboxed('Social bio');
   await page.getByRole('button', { name: 'Cancel' }).click();
+  await expect(page.getByTestId('profile-editor')).toHaveCount(0);
+  await expect(page.getByTestId('social-profile-summary')).toBeVisible();
   await page.getByRole('tab', { name: 'Garage profile tab' }).click();
   await page.getByRole('button', { name: 'Add vehicle to garage' }).click();
   await assertUnboxed('Vehicle make');
@@ -172,6 +177,8 @@ test('social profile and private garage edits survive reload without publishing'
   await page.getByRole('textbox', { name: 'Social display name' }).fill('Weekend Rider');
   await page.getByRole('textbox', { name: 'Social bio' }).fill('Cars, motorcycles and Sunday rides.');
   await page.getByRole('button', { name: 'Save profile' }).click();
+  await expect(page.getByTestId('profile-editor')).toHaveCount(0);
+  await expect(page.getByTestId('profile-display-name')).toHaveText('Weekend Rider');
   await expect(page.getByText('Cars, motorcycles and Sunday rides.')).toBeVisible();
 
   await page.getByRole('tab', { name: 'Garage profile tab' }).click();
@@ -213,7 +220,7 @@ test('event detail includes only demo interest, not real RSVP', async ({ page })
 
 test('iPhone and desktop render true edge-to-edge background with safe content insets', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByTestId('home-editorial-heading')).toBeVisible();
+  await expect(page.getByTestId('home-editorial-heading')).toHaveCount(0);
   const geometry = await page.evaluate(() => {
     const viewport = document.querySelector('meta[name="viewport"]')?.getAttribute('content') ?? '';
     const status = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]')?.getAttribute('content') ?? '';
@@ -1108,7 +1115,7 @@ test('Social profile has tabs, follower/friend panels and separately managed dem
   await expect(page.getByRole('tab', { name: 'Garage profile tab' })).toBeVisible();
   for (const name of ['Posts', 'Reels', 'Saved', 'Garage']) {
     const tab = page.getByRole('tab', { name: name + ' profile tab' });
-    await expect(tab).toContainText(name);
+    await expect(tab).toHaveAttribute('aria-label', name + ' profile tab');
     const rect = await tab.boundingBox();
     expect(rect, name + ' profile tab bounds').not.toBeNull();
     expect(rect.height).toBeGreaterThanOrEqual(56);

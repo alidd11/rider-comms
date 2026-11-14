@@ -146,3 +146,21 @@ Home is the photo, Stories and community-updates timeline with one stable feed a
 ### Open-beta empty-state clarity
 
 When no real posts exist, Home uses a compact editorial starter panel rather than a large fake feed card. The only primary action opens the private draft studio; it does not claim uploading is live. Secondary links to Reels and existing friend Messages are real navigation. The profile chip says “Profile preview” (rather than “Private preview”), which avoids implying that the publicly accessible beta is invite-only. Production smoke tests confirm these navigation paths and text claims.
+
+## Profile layout refresh — 14 November 2026
+
+The own-account profile now uses a compact handle, real account avatar, verified
+Rider Comms friend count and clearly scoped device-only Social content. Duplicate
+display-name text is suppressed when it equals the handle. Profile tabs are
+icon-first with fully accessible names; real Posts, Reels and synced Saved
+content remain unavailable until their secured backend is integrated.
+
+**Edit profile** is a separate screen, not an inline card beneath the media
+tabs. It hides the global bottom navigation while editing and provides
+Cancel/Save controls. Only the Social name and bio device drafts may change;
+Rider Comms identity and public profile data are never overwritten. The Home
+Community feed heading/subtitle is removed, while feed preferences remain
+accessible from the top action bar.
+
+Production screenshot smoke tests and fixture interaction tests verify the
+dedicated editor, concise profile, accessible tabs, and return navigation.
