@@ -35,7 +35,7 @@ export function StoriesViewer({
 
   return <View testID="story-viewport" style={{ flex: 1, minHeight: 0, width: '100%', backgroundColor: '#020406' }}>
     <ImageBackground source={{ uri: story.imageUrl }} resizeMode="cover"
-      accessibilityLabel={story.name + ' sample story'}
+      accessibilityLabel={story.name + (story.id.startsWith('brand-story-') ? ' editorial story' : ' sample story')}
       style={{ flex: 1, justifyContent: 'space-between', backgroundColor: story.color }}>
       <View style={{
         paddingTop: 12, paddingHorizontal: 12, paddingBottom: 17,
@@ -58,7 +58,9 @@ export function StoriesViewer({
             </View>
             <View style={{ gap: 2 }}>
               <Text style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 15 }}>{story.name}</Text>
-              <Text style={{ color: '#DFE8EE', fontSize: 11 }}>Sample story · {story.category}</Text>
+              <Text style={{ color: '#DFE8EE', fontSize: 11 }}>
+                {story.id.startsWith('brand-story-') ? 'Editorial preview' : 'Sample story'} · {story.category}
+              </Text>
             </View>
           </View>
           <Pressable accessibilityRole="button" accessibilityLabel="Close story" onPress={onClose}
@@ -85,7 +87,7 @@ export function StoriesViewer({
           {story.category}
         </Text>
         <Text style={{ color: '#DEE8EB', fontSize: 12, marginTop: 4 }}>
-          Preview photo · Replies are not enabled
+          Editorial preview · Replies are not enabled
         </Text>
       </View>
     </ImageBackground>

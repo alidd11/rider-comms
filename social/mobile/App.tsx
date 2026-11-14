@@ -23,6 +23,8 @@ import { CommentsSheet } from './src/CommentsSheet';
 import type { CommentPreview } from './src/CommentsSheet';
 import { demoCreators, publicGallery } from './src/demoCreators';
 import { ProfileSummary } from './src/ProfileSummary';
+import { RiderBrandPage, RiderBrandHome } from './src/RiderBrandPage';
+import { RIDER_BRAND_ID, brandStories, brandReels } from './src/brandEditorial';
 import { ProfileEditor } from './src/ProfileEditor';
 import { SocialSettings } from './src/SocialSettings';
 import { profileForRider } from './src/profileDisplay';
@@ -294,6 +296,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
   const [search, setSearch] = useState('');
   const [notice, setNotice] = useState<string | null>(null);
   const [selectedCreator, setSelectedCreator] = useState<string | null>(null);
+  const [brandPageOpen, setBrandPageOpen] = useState(false);
   const [commentsFor, setCommentsFor] = useState<{ id: string; title: string } | null>(null);
   const [localComments, setLocalComments] = useState<Record<string, CommentPreview[]>>({});
   const [sharedFriends, setSharedFriends] = useState<SharedFriend[]>([]);
@@ -366,7 +369,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
   }, [viewer]);
 
   const recommendedReels = useMemo(() => rankReels(reelCandidates, viewer, previewNow), [viewer]);
-  const reelPreviews = useMemo<ReelPreview[]>(() => recommendedReels.flatMap(({ item }) => {
+  const reelPreviews = useMemo<ReelPreview[]>(() => [...recommendedReels.flatMap(({ item }) => {
     const reel = reels.find(candidate => candidate.id === item.id);
     if (!reel) return [];
     return [{
@@ -378,7 +381,12 @@ function AuthenticatedSocialApp(): React.JSX.Element {
       theme: reel.theme,
       category: (reel.id === 'r1' ? 'CARS' : reel.id === 'r2' ? 'MOTORCYCLES' : 'CYCLING') as ReelPreview['category'],
     }];
-  }), [recommendedReels]);
+  }), ...(socialFixturesEnabled ? [] : brandReels.map(reel => ({
+    id: reel.id, authorId: RIDER_BRAND_ID, handle: '@ridercomms',
+    title: reel.title, imageUrl: reel.imageUrl, theme: reel.theme,
+    category: reel.category, editorialPreview: true,
+    clipSourceUrl: reel.sourceUrl,
+  })))], [recommendedReels]);
   // Following is a separate, access-filtered video timeline, not the For You
   // order with cosmetic labels. Server-side follows/visibility must replace
   // these fixture candidates before public UGC is permitted.
@@ -455,6 +463,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
     setSelectedEvent(null);
     setSelectedStory(null);
     setSelectedCreator(null);
+    setBrandPageOpen(false);
     setCommentsFor(null);
     setProfileEditor(false);
     setSettingsOpen(false);
@@ -516,6 +525,11 @@ function AuthenticatedSocialApp(): React.JSX.Element {
     // Only request on screen entry; explicit refresh action reloads.
   }, [screen, client]);
   function openCreator(id: string) {
+    if (id === RIDER_BRAND_ID) {
+      navigate('Home');
+      setBrandPageOpen(true);
+      return;
+    }
     setSelectedCreator(id);
     setScreen('Home');
     setNotice(null);
@@ -610,6 +624,11 @@ function AuthenticatedSocialApp(): React.JSX.Element {
   }
 
   function renderHome() {
+    if (brandPageOpen) return <View style={{ paddingHorizontal: 15, paddingTop: 5 }}>
+      <RiderBrandPage onBack={() => setBrandPageOpen(false)}
+        onStory={() => setSelectedStory(brandStories[0].id)}
+        onReel={(id) => { navigate('Reels'); setReelStartId(id); }} />
+    </View>;
     const creator = selectedCreator ? demoCreators[selectedCreator] : undefined;
     if (creator) return <View style={{ padding: 18, gap: 14 }}>
       <Pressable accessibilityRole="button" accessibilityLabel="Back to Home feed" onPress={() => setSelectedCreator(null)}>
@@ -659,7 +678,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
           </View>
           <Text style={s.storyLabel}>Your story</Text>
         </Pressable>
-        {demoStories.map(story=><Pressable key={story.id} accessibilityRole="button"
+        {(socialFixturesEnabled ? demoStories : brandStories.slice(0, 1)).map(story=><Pressable key={story.id} accessibilityRole="button"
           accessibilityLabel={'View story by '+story.name}
           onPress={()=>setSelectedStory(story.id)} style={s.storyItem}>
           <View style={s.storyCircle}><Image source={{uri:story.imageUrl}}
@@ -696,6 +715,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
         </View>
         <Text style={s.small}>Reels has its own For You and Following video feeds.</Text>
       </View> : null}
+      {!socialFixturesEnabled ? <RiderBrandHome onOpen={() => setBrandPageOpen(true)} /> : null}
       {visiblePosts.length ? visiblePosts.map(({post,reason})=>renderPost(post,reason))
         : <HomeEmpty
             onCreate={() => { setCreateMode('Post'); navigate('Create'); }}
@@ -990,7 +1010,8 @@ function AuthenticatedSocialApp(): React.JSX.Element {
       onRefresh={loadSharedReadOnly}/>;
   }
 
-  const story = demoStories.find((item) => item.id === selectedStory);
+  const activeStories = socialFixturesEnabled ? demoStories : brandStories;
+  const story = activeStories.find((item) => item.id === selectedStory);
 
   return (
     <SafeAreaView nativeID="social-screen"
@@ -1018,7 +1039,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
           </Pressable>
         ) : null}
         {story ? (
-          <StoriesViewer stories={demoStories} initialId={story.id} onClose={() => setSelectedStory(null)} />
+          <StoriesViewer stories={activeStories} initialId={story.id} onClose={() => setSelectedStory(null)} />
         ) : (
           <>
             {pageScrollEnabled ? (
@@ -1027,7 +1048,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
                   screen === 'Shop' ? { paddingBottom: 28 } : s.content}
                 keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}
                 overScrollMode="never" bounces={false}
-                key={screen === 'Home' ? 'Home-' + (selectedCreator ?? 'feed') +
+                key={screen === 'Home' ? 'Home-' + (brandPageOpen ? 'brand' : selectedCreator ?? 'feed') +
                   (feedPreferencesOpen ? '-preferences' : '-content') :
                   screen === 'Profile' ? 'Profile-' + (settingsOpen ? 'settings' : profileEditor ? 'edit' : profileTab) : screen}>
                 {screen === 'Home' ? renderHome() : null}
