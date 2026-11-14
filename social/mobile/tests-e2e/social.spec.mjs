@@ -16,7 +16,11 @@ test.beforeEach(async ({ page }) => {
       'access-control-allow-methods': 'GET,POST,OPTIONS',
     };
     if (method === 'OPTIONS') return route.fulfill({ status: 204, headers });
-    const body = pathname === '/auth/me'
+    const pilot = pathname === '/social/bootstrap';
+    const body = pilot ? { entitlement: 'pilot', policyVersion: 'social-pilot-v1', capabilities: {
+  mediaUpload: false, privatePosting: false, publicPosting: false,
+  liveStreaming: false, marketplaceCheckout: false, creatorPayouts: false } }
+      : pathname === '/auth/me'
       ? { riderId: 'rider_abcd1234', username: 'fixture-rider', emailVerified: true,
           termsAccepted: true, termsVersion: 'terms-fixture' }
       : pathname === '/riders/rider_abcd1234/friends' || pathname === '/conversations'
@@ -24,7 +28,7 @@ test.beforeEach(async ({ page }) => {
           ? { conversations: [], nextCursor: null }
           : { friends: [], nextCursor: null }
         : { error: 'not_found' };
-    return route.fulfill({ status: pathname === '/auth/me' || pathname.includes('friends') ||
+    return route.fulfill({ status: pilot || pathname === '/auth/me' || pathname.includes('friends') ||
       pathname === '/conversations' ? 200 : 404,
       contentType: 'application/json', headers, body: JSON.stringify(body) });
   });
