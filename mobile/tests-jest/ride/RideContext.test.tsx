@@ -1,5 +1,7 @@
 import * as React from 'react';
 import { Alert, AppState } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { parseRideHistory, rideHistoryStorageKey } from '@rider-comms/shared';
 import { act, renderHook, waitFor } from '@testing-library/react-native';
 import { ApiError } from '../../src/api/client';
 import type { RiderCommsClient, RideResponse } from '../../src/api/client';
@@ -443,6 +445,10 @@ test('ending a ride shows how long it lasted, how many rode and how far this rid
 
   await act(async () => { await result.current.leaveRide(); });
   expect(Alert.alert).toHaveBeenCalledWith('Ride over', expect.stringMatching(/^4[23] min · 3 riders · 1\.1 km$/));
+  // Kept for "Recent rides".
+  await waitFor(async () => expect(parseRideHistory(await AsyncStorage.getItem(rideHistoryStorageKey(RIDER_ID)))).toEqual([
+    expect.objectContaining({ riders: 3, distanceMeters: expect.any(Number) }),
+  ]));
 });
 
 test('a member whose ride ends hears it, without a distance when they never shared', async () => {

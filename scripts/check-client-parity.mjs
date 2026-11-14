@@ -654,6 +654,32 @@ if (!/function NavigationTripSummary[\s\S]*?onLayout=\{measured\(onHeight\)\}/.t
   }
 }
 
+// "Recent rides" are read, kept and worded the same in both apps.
+{
+  const shared = await import('../shared/src/rideCode.ts');
+  const body = pwaMapSource.match(/const RIDE_HISTORY_MAX = (\d+);\s*const RIDE_HISTORY_MIN_MS = ([\d_]+);[\s\S]*?function rideHistoryLine\(entry, unit, now\) \{[\s\S]*?\n {2}\}/);
+  if (!body) throw new Error('PWA must define parseRideHistory, withRideHistoryEntry and rideHistoryLine next to RIDE_HISTORY_MAX');
+  if (Number(body[1]) !== shared.RIDE_HISTORY_MAX) throw new Error('PWA RIDE_HISTORY_MAX must match shared');
+  if (Number(body[2].replaceAll('_', '')) !== shared.RIDE_HISTORY_MIN_MS) throw new Error('PWA RIDE_HISTORY_MIN_MS must match shared');
+  const pwa = new Function('rideSummary', `${body[0]}; return { parseRideHistory, withRideHistoryEntry, rideHistoryLine };`)(shared.rideSummary);
+  const same = (a, b, what) => { if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error(`PWA and shared ${what} disagree`); };
+  const ride = (endedAt, durationMs = 3_600_000, distanceMeters = 40_000) => ({ endedAt, durationMs, riders: 3, distanceMeters });
+  for (const raw of [null, 'nope', '{}', JSON.stringify([ride(1), ride(5, 10, null), null, { ...ride(2), riders: 0 }, { ...ride(3), durationMs: -1 }])]) {
+    same(pwa.parseRideHistory(raw), shared.parseRideHistory(raw), 'parseRideHistory');
+  }
+  const full = Array.from({ length: 10 }, (_, i) => ride(i));
+  for (const [history, entry] of [[[], ride(1)], [[], ride(1, 59_000)], [full, ride(99)]]) {
+    same(pwa.withRideHistoryEntry(history, entry), shared.withRideHistoryEntry(history, entry), 'withRideHistoryEntry');
+  }
+  const now = new Date(2026, 10, 14, 18).getTime();
+  for (const endedAt of [new Date(2026, 10, 14, 1).getTime(), new Date(2026, 10, 13, 23).getTime(), new Date(2026, 9, 2).getTime()]) {
+    for (const unit of ['mi', 'km']) same(pwa.rideHistoryLine(ride(endedAt), unit, now), shared.rideHistoryLine(ride(endedAt), unit, now), 'rideHistoryLine');
+  }
+  if (!/rideHistoryStorageKey\(/.test(await readFile(new URL('../mobile/src/ride/rideHistory.ts', import.meta.url), 'utf8'))) {
+    throw new Error('Native ride history must use the shared rideHistoryStorageKey');
+  }
+}
+
 // The end-of-ride summary reads the same in both apps.
 {
   const shared = await import('../shared/src/rideCode.ts');

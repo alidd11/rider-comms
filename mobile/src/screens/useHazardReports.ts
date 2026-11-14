@@ -1,5 +1,6 @@
 import * as React from 'react';
 import { AccessibilityInfo, Alert } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { HazardReport, HazardType } from '@rider-comms/shared';
 import { ApiError } from '../api/client';
 import type { RiderCommsClient } from '../api/client';
@@ -15,6 +16,32 @@ export const QUEUED_REPORT_RETRY_MS = 15_000;
 export const QUEUED_REPORT_MAX_AGE_MS = 30 * 60_000;
 
 interface QueuedReport { hazardType: HazardType; lat: number; lon: number; queuedAt: number }
+
+/** Waiting reports are kept on the device per rider (PWA: the same key in
+ * localStorage), so closing the app doesn't lose them, and a report is
+ * never sent from a different account after a sign-out. */
+export function queuedReportsStorageKey(riderId: string): string {
+  return `riderComms.queuedHazardReports.${riderId}`;
+}
+
+/** Reads saved reports, dropping anything malformed. Expired ones are kept
+ * so the retry can say they couldn't be sent. */
+export function parseQueuedReports(raw: string | null): QueuedReport[] {
+  try {
+    const value: unknown = JSON.parse(raw ?? '[]');
+    if (!Array.isArray(value)) return [];
+    return value.filter((entry): entry is QueuedReport => Boolean(entry)
+      && typeof entry === 'object'
+      && Object.hasOwn(HAZARD_TYPE_META, entry.hazardType)
+      && Number.isFinite(entry.lat) && Math.abs(entry.lat) <= 90
+      && Number.isFinite(entry.lon) && Math.abs(entry.lon) <= 180
+      && Number.isFinite(entry.queuedAt))
+      .slice(0, 20)
+      .map(({ hazardType, lat, lon, queuedAt }) => ({ hazardType, lat, lon, queuedAt }));
+  } catch {
+    return [];
+  }
+}
 
 /** Shown on the map while reports wait for signal (PWA: the same toast). */
 export function queuedReportsText(count: number): string {
@@ -58,6 +85,7 @@ export function useHazardReports(
   currentLocationRef: React.RefObject<{ lat: number; lon: number } | null>,
   requestCurrentLocation: () => Promise<{ lat: number; lon: number } | null>,
   announce: (text: string) => void = (text) => AccessibilityInfo.announceForAccessibility(text),
+  riderId: string | null = null,
 ): HazardReports {
   const [hazards, setHazards] = React.useState<HazardReport[]>([]);
   const [selectedHazardId, setSelectedHazardId] = React.useState<string | null>(null);
@@ -69,6 +97,29 @@ export function useHazardReports(
   const [queuedReports, setQueuedReports] = React.useState<QueuedReport[]>([]);
   const queuedReportsRef = React.useRef(queuedReports);
   queuedReportsRef.current = queuedReports;
+  // The saved queue is read once per rider before anything is written back,
+  // so an empty queue at start-up never wipes reports saved last time.
+  const [queueLoadedFor, setQueueLoadedFor] = React.useState<string | null>(null);
+  React.useEffect(() => {
+    setQueuedReports([]);
+    setQueueLoadedFor(null);
+    if (!riderId) return;
+    let cancelled = false;
+    AsyncStorage.getItem(queuedReportsStorageKey(riderId))
+      .then((raw) => {
+        if (cancelled) return;
+        const saved = parseQueuedReports(raw);
+        setQueuedReports((current) => [...saved, ...current]);
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setQueueLoadedFor(riderId); });
+    return () => { cancelled = true; };
+  }, [riderId]);
+  React.useEffect(() => {
+    if (!riderId || queueLoadedFor !== riderId) return;
+    const key = queuedReportsStorageKey(riderId);
+    (queuedReports.length ? AsyncStorage.setItem(key, JSON.stringify(queuedReports)) : AsyncStorage.removeItem(key)).catch(() => {});
+  }, [queuedReports, queueLoadedFor, riderId]);
   const announceRef = React.useRef(announce);
   announceRef.current = announce;
 

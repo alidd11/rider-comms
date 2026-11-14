@@ -1109,8 +1109,43 @@
     if (state.spokenDirections !== false) speak(message);
   }
 
+  // Waiting reports are kept per rider (native: queuedReportsStorageKey),
+  // so closing the app doesn't lose them and a report is never sent from a
+  // different account after a sign-out.
+  function queuedHazardStorageKey() {
+    return session?.riderId ? `riderComms.queuedHazardReports.${session.riderId}` : null;
+  }
+  function saveQueuedHazardReports() {
+    const key = queuedHazardStorageKey();
+    if (!key) return;
+    try {
+      if (queuedHazardReports.length) {
+        localStorage.setItem(key, JSON.stringify(queuedHazardReports.map(({ type, lat, lon, queuedAt }) => ({ hazardType: type, lat, lon, queuedAt }))));
+      } else {
+        localStorage.removeItem(key);
+      }
+    } catch { /* Private browsing: the queue just lasts while the app is open. */ }
+  }
+  /** Picks up reports still waiting when the app was last closed. */
+  function restoreQueuedHazardReports() {
+    const key = queuedHazardStorageKey();
+    if (!key) return;
+    let saved = [];
+    try { saved = JSON.parse(localStorage.getItem(key) || '[]'); } catch { saved = []; }
+    if (!Array.isArray(saved)) return;
+    queuedHazardReports = saved.filter((entry) => entry
+      && Object.hasOwn(HAZARD_TYPES, entry.hazardType)
+      && Number.isFinite(entry.lat) && Math.abs(entry.lat) <= 90
+      && Number.isFinite(entry.lon) && Math.abs(entry.lon) <= 180
+      && Number.isFinite(entry.queuedAt))
+      .slice(0, 20)
+      .map((entry) => ({ type: entry.hazardType, lat: entry.lat, lon: entry.lon, queuedAt: entry.queuedAt }));
+    if (queuedHazardReports.length && !queuedHazardTimer) queuedHazardTimer = setInterval(sendQueuedHazardReports, QUEUED_REPORT_RETRY_MS);
+  }
+
   function queueHazardReport(type, position) {
     queuedHazardReports.push({ type, lat: position.lat, lon: position.lon, queuedAt: Date.now() });
+    saveQueuedHazardReports();
     sayHazardReport(`No signal. Your ${HAZARD_TYPES[type].label.toLowerCase()} report will send when you’re back in signal.`);
     if (!queuedHazardTimer) queuedHazardTimer = setInterval(sendQueuedHazardReports, QUEUED_REPORT_RETRY_MS);
   }
@@ -1137,6 +1172,7 @@
           }
         }
         queuedHazardReports.shift();
+        saveQueuedHazardReports();
       }
       clearInterval(queuedHazardTimer);
       queuedHazardTimer = null;
@@ -1212,8 +1248,8 @@
     return `${Math.floor(age / 60_000)} min ago`;
   }
 
-  function riderMarkerLabel(displayName, lastSeen) {
-    return { text: `${riderMapLabel(displayName)}${lastSeen ? ` · ${lastSeen}` : ''}`, className: 'rider-map-label', color: '#ffffff', fontSize: '12px', fontWeight: '800' };
+  function riderMarkerLabel(displayName, lastSeen, batteryLow = false) {
+    return { text: `${riderMapLabel(displayName)}${lastSeen ? ` · ${lastSeen}` : ''}${batteryLow ? ' · low battery' : ''}`, className: 'rider-map-label', color: '#ffffff', fontSize: '12px', fontWeight: '800' };
   }
 
   function renderMapRiders() {
@@ -1244,7 +1280,7 @@
       const existing = mapMarkers.get(person.riderId);
       if (!existing) {
         const marker = addMapMarker(person, latLng, false, status);
-        mapMarkers.set(person.riderId, { marker, status, lastSeen: null });
+        mapMarkers.set(person.riderId, { marker, status, lastSeen: null, batteryLow: false });
         snapMarkerTo(person.riderId, marker, latLng);
       } else {
         if (existing.status !== status) {
@@ -1254,10 +1290,13 @@
         glideMarkerTo(person.riderId, existing.marker, latLng, RIDE_LOCATION_REFRESH_MS, now);
       }
       const entry = mapMarkers.get(person.riderId);
-      if (entry.lastSeen !== lastSeen) {
+      // A rider whose phone says its battery is nearly flat says so too.
+      const batteryLow = real.batteryLow === true;
+      if (entry.lastSeen !== lastSeen || entry.batteryLow !== batteryLow) {
         entry.lastSeen = lastSeen;
-        entry.marker.setLabel?.(riderMarkerLabel(person.displayName, lastSeen));
-        entry.marker.setTitle?.(lastSeen ? `${person.displayName} · last seen ${lastSeen}` : person.displayName);
+        entry.batteryLow = batteryLow;
+        entry.marker.setLabel?.(riderMarkerLabel(person.displayName, lastSeen, batteryLow));
+        entry.marker.setTitle?.(`${lastSeen ? `${person.displayName} · last seen ${lastSeen}` : person.displayName}${batteryLow ? ' · low battery' : ''}`);
       }
     }
     for (const [riderId, existing] of mapMarkers) {
@@ -2375,6 +2414,7 @@
   function renderRide() {
     const active = Boolean(state.activeRide);
     $('#rideJoinState').hidden = active;
+    if (!active) renderRecentRides();
     $('#rideActiveState').hidden = !active;
     $('#rideShareTop').hidden = !active;
     $('#ridePill').hidden = !active;
@@ -2421,7 +2461,7 @@
       const safetyButton = person.riderId !== state.profile.riderId
         ? `<button type="button" class="roster-safety" data-rider-safety="${escapeHtml(person.riderId)}" aria-label="Report or block ${escapeHtml(person.displayName)}">${icon('shield')}</button>`
         : '';
-      return `<article class="roster-row">${avatar(person, 'small')}<div class="identity"><strong>${escapeHtml(person.displayName)}${person.riderId === state.profile.riderId ? ' · You' : ''}</strong><span>${escapeHtml(person.handle)}${person.riderId === ride.createdBy ? '<b class="roster-host-inline" aria-hidden="true"> · Host</b>' : ''}</span></div><span class="roster-status">${person.riderId === ride.createdBy ? 'Host' : 'Member'}</span>${safetyButton}${removeButton}</article>`;
+      return `<article class="roster-row">${avatar(person, 'small')}<div class="identity"><strong>${escapeHtml(person.displayName)}${person.riderId === state.profile.riderId ? ' · You' : ''}</strong><span>${escapeHtml(person.handle)}${person.riderId === ride.createdBy ? '<b class="roster-host-inline" aria-hidden="true"> · Host</b>' : ''}${rideMemberLocations.get(person.riderId)?.batteryLow === true ? '<b class="roster-battery-low"> · Low battery</b>' : ''}</span></div><span class="roster-status">${person.riderId === ride.createdBy ? 'Host' : 'Member'}</span>${safetyButton}${removeButton}</article>`;
     }).join('');
     renderMapRiders();
   }
@@ -2787,9 +2827,72 @@
   }
   function rideEndSummary(rideId) {
     if (rideStats.rideId !== rideId) return '';
-    const summary = rideSummary(Date.now() - rideStats.startedAt, rideStats.riders, rideStats.trip ? rideStats.trip.distanceMeters : null, state.unit === 'km' ? 'km' : 'mi');
+    const durationMs = Date.now() - rideStats.startedAt;
+    const distanceMeters = rideStats.trip ? rideStats.trip.distanceMeters : null;
+    const summary = rideSummary(durationMs, rideStats.riders, distanceMeters, state.unit === 'km' ? 'km' : 'mi');
+    recordRideHistory({ endedAt: Date.now(), durationMs, riders: rideStats.riders, distanceMeters });
+    renderRecentRides();
     rideStats = { rideId: null, startedAt: 0, riders: 1, trip: null };
     return summary;
+  }
+
+  // Mirrors shared parseRideHistory, withRideHistoryEntry and
+  // rideHistoryLine (shared/src/rideCode.ts); scripts/check-client-parity.mjs
+  // runs both. Finished rides are kept on this device per rider (native:
+  // rideHistory.ts, same key) for "Recent rides" on the Ride screen.
+  const RIDE_HISTORY_MAX = 10;
+  const RIDE_HISTORY_MIN_MS = 60_000;
+  function parseRideHistory(raw) {
+    let value;
+    try { value = JSON.parse(raw ?? '[]'); } catch { return []; }
+    if (!Array.isArray(value)) return [];
+    return value
+      .filter((entry) => Boolean(entry) && typeof entry === 'object'
+        && Number.isFinite(entry.endedAt)
+        && Number.isFinite(entry.durationMs) && entry.durationMs >= 0
+        && Number.isInteger(entry.riders) && entry.riders >= 1
+        && (entry.distanceMeters === null || (Number.isFinite(entry.distanceMeters) && entry.distanceMeters >= 0)))
+      .map(({ endedAt, durationMs, riders, distanceMeters }) => ({ endedAt, durationMs, riders, distanceMeters }))
+      .sort((a, b) => b.endedAt - a.endedAt)
+      .slice(0, RIDE_HISTORY_MAX);
+  }
+  function withRideHistoryEntry(history, entry) {
+    if (!(entry.durationMs >= RIDE_HISTORY_MIN_MS)) return [...history];
+    return [entry, ...history].slice(0, RIDE_HISTORY_MAX);
+  }
+  const RIDE_HISTORY_WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const RIDE_HISTORY_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  function rideHistoryLine(entry, unit, now) {
+    const ended = new Date(entry.endedAt);
+    const dayStart = (date) => new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+    const daysAgo = Math.round((dayStart(new Date(now)) - dayStart(ended)) / 86_400_000);
+    const day = daysAgo === 0 ? 'Today'
+      : daysAgo === 1 ? 'Yesterday'
+        : `${RIDE_HISTORY_WEEKDAYS[ended.getDay()]} ${ended.getDate()} ${RIDE_HISTORY_MONTHS[ended.getMonth()]}`;
+    return `${day} · ${rideSummary(entry.durationMs, entry.riders, entry.distanceMeters, unit)}`;
+  }
+
+  function rideHistoryKey() {
+    return session?.riderId ? `riderComms.rideHistory.${session.riderId}` : null;
+  }
+  function loadRideHistory() {
+    const key = rideHistoryKey();
+    if (!key) return [];
+    try { return parseRideHistory(localStorage.getItem(key)); } catch { return []; }
+  }
+  function recordRideHistory(entry) {
+    const key = rideHistoryKey();
+    if (!key) return;
+    try { localStorage.setItem(key, JSON.stringify(withRideHistoryEntry(loadRideHistory(), entry))); } catch { /* Private browsing. */ }
+  }
+  function renderRecentRides() {
+    const card = $('#recentRides');
+    const list = $('#recentRidesList');
+    if (!card || !list) return;
+    const history = loadRideHistory();
+    card.hidden = history.length === 0;
+    const now = Date.now();
+    list.innerHTML = history.map((entry) => `<li>${escapeHtml(rideHistoryLine(entry, state.unit === 'km' ? 'km' : 'mi', now))}</li>`).join('');
   }
 
   // Mirrors shared rideDropAnnouncements (shared/src/rideCode.ts);
@@ -2874,7 +2977,10 @@
     // A rider whose phone is nearly flat is called out once too, so the
     // group knows why they may go quiet.
     const battery = rideBatteryAnnouncements(rideBatteryState, others, names);
+    const batteryChanged = Object.keys(battery.state).sort().join() !== Object.keys(rideBatteryState).sort().join();
     rideBatteryState = battery.state;
+    // The roster says who is on a low battery, so redraw it when that changes.
+    if (batteryChanged) renderRide();
     const said = [...step.announcements, ...battery.announcements];
     if (!said.length) return;
     const message = said.join(' ');
@@ -3363,8 +3469,16 @@
     if (button) button.disabled = true;
     try {
       const localStateKey = stateStorageKey();
+      const riderId = session?.riderId;
       await apiFetch('DELETE', '/auth/me');
       localStorage.removeItem(localStateKey);
+      // Nothing of the deleted rider stays on this device: saved places,
+      // recent rides, reports waiting for signal (native: forgetRiderOnDevice).
+      if (riderId) {
+        for (const key of Object.keys(localStorage)) {
+          if ([`.${riderId}`, `:${riderId}`, `/${riderId}`].some((end) => key.endsWith(end))) localStorage.removeItem(key);
+        }
+      }
       clearSession();
       location.reload();
     } catch {
@@ -8769,6 +8883,7 @@
     }
     hideAuthScreen();
     startApp();
+    restoreQueuedHazardReports();
     await loadProfile();
     await loadBillingStatus();
     if (verification) showToast(verification.message);

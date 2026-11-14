@@ -1,9 +1,10 @@
 import { Alert } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { act, renderHook, waitFor } from '@testing-library/react-native';
 import type { HazardReport, HazardType } from '@rider-comms/shared';
 import { ApiError } from '../../src/api/client';
 import type { RiderCommsClient } from '../../src/api/client';
-import { QUEUED_REPORT_MAX_AGE_MS, QUEUED_REPORT_RETRY_MS, queuedReportsText, useHazardReports } from '../../src/screens/useHazardReports';
+import { QUEUED_REPORT_MAX_AGE_MS, QUEUED_REPORT_RETRY_MS, parseQueuedReports, queuedReportsStorageKey, queuedReportsText, useHazardReports } from '../../src/screens/useHazardReports';
 
 function fakeHazard(id: string, type: HazardType = 'police'): HazardReport {
   return {
@@ -334,5 +335,69 @@ describe('a report made with no signal', () => {
   test('the map text counts the waiting reports', () => {
     expect(queuedReportsText(1)).toBe('Road report waiting for signal.');
     expect(queuedReportsText(3)).toBe('3 road reports waiting for signal.');
+  });
+});
+
+describe('waiting reports are kept on the device', () => {
+  const location = { current: { lat: 51.5, lon: -0.1 } };
+  function renderFor(riderId: string | null, createHazard: jest.Mock) {
+    const client = { getNearbyHazards: jest.fn(async () => ({ hazards: [] })), createHazard } as Partial<RiderCommsClient>;
+    return renderHook(({ id }: { id: string | null }) => useHazardReports(
+      client as RiderCommsClient, true, location, jest.fn(), jest.fn(), id,
+    ), { initialProps: { id: riderId } });
+  }
+
+  beforeEach(async () => { await AsyncStorage.clear(); });
+
+  test('a report waiting when the app closed is sent after it reopens', async () => {
+    await AsyncStorage.setItem(queuedReportsStorageKey('me'), JSON.stringify([
+      { hazardType: 'accident', lat: 51.4, lon: -0.2, queuedAt: Date.now() },
+    ]));
+    const createHazard = jest.fn(async () => fakeHazard('sent', 'accident'));
+    const { result } = await renderFor('me', createHazard);
+    await waitFor(() => expect(result.current.queuedReportCount).toBe(1));
+    await act(async () => { await jest.advanceTimersByTimeAsync(QUEUED_REPORT_RETRY_MS); });
+    expect(createHazard).toHaveBeenCalledWith('accident', 51.4, -0.2);
+    expect(result.current.queuedReportCount).toBe(0);
+    await waitFor(async () => expect(await AsyncStorage.getItem(queuedReportsStorageKey('me'))).toBeNull());
+  });
+
+  test('a report made with no signal is saved for this rider only', async () => {
+    const createHazard = jest.fn(async () => { throw new TypeError('Network request failed'); });
+    const view = await renderFor('me', createHazard);
+    await waitFor(() => expect(AsyncStorage.getItem).toHaveBeenCalledWith(queuedReportsStorageKey('me')));
+    await act(async () => { await view.result.current.openReportSheet(); });
+    await act(async () => { await view.result.current.handleReport('police'); });
+    await waitFor(async () => expect(parseQueuedReports(await AsyncStorage.getItem(queuedReportsStorageKey('me')))).toEqual([
+      expect.objectContaining({ hazardType: 'police', lat: 51.5, lon: -0.1 }),
+    ]));
+    // Another rider signing in on this phone doesn't inherit it.
+    await view.rerender({ id: 'someone-else' });
+    await waitFor(() => expect(view.result.current.queuedReportCount).toBe(0));
+    await view.rerender({ id: null });
+    expect(view.result.current.queuedReportCount).toBe(0);
+  });
+
+  test('saved reports that are malformed are ignored', () => {
+    expect(parseQueuedReports(null)).toEqual([]);
+    expect(parseQueuedReports('not json')).toEqual([]);
+    expect(parseQueuedReports('{"a":1}')).toEqual([]);
+    expect(parseQueuedReports(JSON.stringify([
+      null,
+      { hazardType: 'tank', lat: 1, lon: 1, queuedAt: 1 },
+      { hazardType: 'police', lat: 91, lon: 1, queuedAt: 1 },
+      { hazardType: 'police', lat: 1, lon: 181, queuedAt: 1 },
+      { hazardType: 'police', lat: 1, lon: 1 },
+      { hazardType: 'camera', lat: 1, lon: 2, queuedAt: 3, extra: true },
+    ]))).toEqual([{ hazardType: 'camera', lat: 1, lon: 2, queuedAt: 3 }]);
+  });
+
+  test('a storage failure leaves reporting working', async () => {
+    jest.spyOn(AsyncStorage, 'getItem').mockRejectedValueOnce(new Error('disk'));
+    const createHazard = jest.fn(async () => fakeHazard('ok'));
+    const { result } = await renderFor('me', createHazard);
+    await act(async () => { await result.current.openReportSheet(); });
+    await act(async () => { await result.current.handleReport('police'); });
+    expect(createHazard).toHaveBeenCalled();
   });
 });

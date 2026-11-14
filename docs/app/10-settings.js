@@ -472,8 +472,16 @@
     if (button) button.disabled = true;
     try {
       const localStateKey = stateStorageKey();
+      const riderId = session?.riderId;
       await apiFetch('DELETE', '/auth/me');
       localStorage.removeItem(localStateKey);
+      // Nothing of the deleted rider stays on this device: saved places,
+      // recent rides, reports waiting for signal (native: forgetRiderOnDevice).
+      if (riderId) {
+        for (const key of Object.keys(localStorage)) {
+          if ([`.${riderId}`, `:${riderId}`, `/${riderId}`].some((end) => key.endsWith(end))) localStorage.removeItem(key);
+        }
+      }
       clearSession();
       location.reload();
     } catch {

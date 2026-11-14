@@ -44,6 +44,7 @@ test('native restores ride membership and consent from the server and ignores la
       if (name === '../auth/AuthContext') return { useAuth: () => ({ client, riderId: 'rider-a' }) };
       if (name === '../api/client') return { ApiError: class {} };
       if (name === '@rider-comms/shared') return sharedModule;
+      if (name === './rideHistory') return { recordRideHistory: async () => {} };
       if (name === '../settings/SettingsContext') return { useSettings: () => ({ unitSystem: 'mi' }) };
       throw new Error(`Unexpected import: ${name}`);
     },
@@ -114,6 +115,7 @@ test('native stops polling after an authoritative no-ride restore and retries on
         if (name === '../auth/AuthContext') return { useAuth: () => ({ client, riderId: 'rider-a' }) };
         if (name === '../api/client') return { ApiError: class {} };
       if (name === '@rider-comms/shared') return sharedModule;
+      if (name === './rideHistory') return { recordRideHistory: async () => {} };
       if (name === '../settings/SettingsContext') return { useSettings: () => ({ unitSystem: 'mi' }) };
         throw new Error(`Unexpected import: ${name}`);
       },
