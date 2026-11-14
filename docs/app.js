@@ -5322,6 +5322,12 @@
     deviceFixReceivedAt.set(position, Date.now());
     latestDevicePosition = position;
     locationPermissionReady = true;
+    // Home and Work say how far they are: refresh that on the first fix and
+    // then every half minute, not on every one.
+    if (Date.now() - shortcutDistancesAt > 30_000) {
+      shortcutDistancesAt = Date.now();
+      renderSavedPlaceShortcuts();
+    }
     // A restored ride may have rendered before the first already-authorised
     // GPS fix. Resume its consented sharing as soon as that fix arrives.
     if (state.activeRide?.shareRideLocation && !rideLocationTimer) syncRideLocationSharing();
@@ -5790,13 +5796,19 @@
     if (currentSettingsPage === 'mapNavigation') openSheet('mapNavigation');
   }
 
+  let shortcutDistancesAt = 0;
   function renderSavedPlaceShortcuts() {
     const saved = loadSavedPlaces();
     $$('[data-saved-place]').forEach((button) => {
       const slot = button.dataset.savedPlace;
       const place = saved[slot];
       const label = SAVED_PLACE_LABELS[slot];
-      button.setAttribute('aria-label', place ? `${label}, ${place.name}` : `Set ${label}`);
+      // Like Google Maps: how far it is, or that it still needs setting.
+      const here = latestDevicePosition?.coords;
+      const distance = place && here ? formatNavDistance(metersBetween({ lat: here.latitude, lng: here.longitude }, { lat: place.lat, lng: place.lng })) : '';
+      const detail = $('[data-shortcut-detail]', button);
+      if (detail) detail.textContent = place ? distance || place.secondary || '' : `Set ${label.toLowerCase()}`;
+      button.setAttribute('aria-label', place ? `${label}, ${place.name}${distance ? `, ${distance}` : ''}` : `Set ${label}`);
       button.title = place ? `Route to ${place.name}. Press and hold to change ${label}.` : `Choose your ${label.toLowerCase()} address`;
     });
   }
@@ -5874,8 +5886,8 @@
     $('#searchSaveBanner').hidden = !savingPlaceSlot;
     $('#searchSaveBanner').textContent = savingPlaceSlot ? `Choose your ${saveLabel}` : '';
     $('#poiChipRow').hidden = Boolean(savingPlaceSlot);
-    $('#searchScreenInput').placeholder = savingPlaceSlot ? `Your ${saveLabel.toLowerCase()} address` : 'Search for a place';
-    $('#searchScreenInput').setAttribute('aria-label', savingPlaceSlot ? `Search for your ${saveLabel.toLowerCase()} address` : 'Search for a place');
+    $('#searchScreenInput').placeholder = savingPlaceSlot ? `Your ${saveLabel.toLowerCase()} address` : 'Where to?';
+    $('#searchScreenInput').setAttribute('aria-label', savingPlaceSlot ? `Search for your ${saveLabel.toLowerCase()} address` : 'Where to?');
     clearPoiMarkers();
     pushOverlayGuard();
     $('#searchScreen').hidden = false;
@@ -5923,10 +5935,10 @@
       return;
     }
     results.innerHTML = `
-      <div class="search-results-heading"><div><span>History</span><strong>Recent places</strong></div><button class="search-recent-clear" id="searchRecentClearBtn" type="button">Clear</button></div>
+      <div class="search-results-heading"><div><strong>Recent</strong></div><button class="search-recent-clear" id="searchRecentClearBtn" type="button">Clear</button></div>
       ${recent.map((item, index) => `
         <button class="search-result-row" data-recent-index="${index}">
-          <span class="search-result-icon"><svg><use href="#i-history"/></svg></span>
+          <span class="place-badge place-badge-recent" aria-hidden="true"><svg><use href="#i-recent-fill"/></svg></span>
           <span class="search-result-copy">
             <strong>${escapeHtml(item.name)}</strong>
             <span>${escapeHtml(item.secondary || '')}</span>
@@ -6047,7 +6059,7 @@
     }
     list.innerHTML = `<div class="search-results-heading"><div><strong>Recent</strong></div></div>${recent.map((item, index) => `
         <button class="search-result-row" type="button" data-drawer-recent="${index}">
-          <span class="search-result-icon"><svg><use href="#i-history"/></svg></span>
+          <span class="place-badge place-badge-recent" aria-hidden="true"><svg><use href="#i-recent-fill"/></svg></span>
           <span class="search-result-copy"><strong>${escapeHtml(item.name)}</strong><span>${escapeHtml(item.secondary || '')}</span></span>
         </button>`).join('')}`;
     $$('[data-drawer-recent]', list).forEach((row) => row.addEventListener('click', () => {

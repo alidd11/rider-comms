@@ -27,6 +27,7 @@ import { addRecentPlace, parseRecentPlaces, recentPlacesStorageKey } from '../se
 import { SAVED_PLACE_LABELS } from '../search/savedPlaces';
 import type { SavedPlaceSlot } from '../search/savedPlaces';
 import { useSettings } from '../settings/SettingsContext';
+import { PLACE_BADGES, PlaceBadge } from '../components/PlaceBadge';
 
 // Module-level so the cache survives across searches within a session
 // (retyping, re-toggling a category chip) without persisting between app
@@ -35,11 +36,11 @@ const placesCache = new PlacesCache();
 const cachedSearchNearbyPlaces = wrapPlacesSearchWithCache(searchNearbyPlaces, placesCache, nearbySearchCacheKey);
 
 const CATEGORIES = [
-  { label: 'Petrol', types: ['gas_station'], icon: 'gas-station-outline' },
-  { label: 'Parking', types: ['parking'], icon: 'parking' },
-  { label: 'Restaurants', types: ['restaurant'], icon: 'silverware-fork-knife' },
-  { label: 'Coffee', types: ['cafe', 'coffee_shop'], icon: 'coffee-outline' },
-  { label: 'Repair', types: ['car_repair'], icon: 'wrench-outline' },
+  { label: 'Petrol', types: ['gas_station'], icon: 'gas-station', badge: 'fuel' },
+  { label: 'Parking', types: ['parking'], icon: 'parking', badge: 'parking' },
+  { label: 'Restaurants', types: ['restaurant'], icon: 'silverware-fork-knife', badge: 'food' },
+  { label: 'Coffee', types: ['cafe', 'coffee_shop'], icon: 'coffee', badge: 'coffee' },
+  { label: 'Repair', types: ['car_repair'], icon: 'wrench', badge: 'repair' },
 ] as const;
 
 export type SearchCategoryLabel = (typeof CATEGORIES)[number]['label'];
@@ -307,7 +308,7 @@ export const PlaceSearchBar = React.forwardRef<PlaceSearchHandle, {
                   accessibilityRole="button"
                   accessibilityState={{ selected: active }}
                 >
-                  <MaterialCommunityIcons name={category.icon} size={17} color={active ? colors.accentText : colors.textSecondary} />
+                  <MaterialCommunityIcons name={category.icon} size={17} color={active ? colors.accentText : PLACE_BADGES[category.badge].color} />
                   <Text style={[styles.categoryText, active && styles.categoryTextActive]}>{category.label}</Text>
                 </Pressable>
               );
@@ -344,9 +345,7 @@ export const PlaceSearchBar = React.forwardRef<PlaceSearchHandle, {
                   onPress={() => choose(item)}
                   accessibilityLabel={`Recent place: ${item.name}, ${item.address}${near ? `, ${formatPlaceDistance(item.distanceMeters, unitSystem)} away` : ''}`}
                 >
-                  <View style={styles.resultIcon}>
-                    <Ionicons name="time-outline" size={19} color={colors.accent} />
-                  </View>
+                  <PlaceBadge kind="recent" />
                   <View style={styles.resultInfo}>
                     <Text style={styles.resultName} numberOfLines={1}>{item.name}</Text>
                     {item.address ? <Text style={styles.resultAddress} numberOfLines={1}>{item.address}</Text> : null}
@@ -414,9 +413,7 @@ export const PlaceSearchBar = React.forwardRef<PlaceSearchHandle, {
                     accessibilityState={{ busy: picking, disabled: Boolean(pickingId) && !picking }}
                     accessibilityLabel={`${item.name}${item.address ? `, ${item.address}` : ''}`}
                   >
-                    <View style={styles.resultIcon}>
-                      <Ionicons name="location-outline" size={19} color={colors.accent} />
-                    </View>
+                    <PlaceBadge kind="pin" />
                     <View style={styles.resultInfo}>
                       <Text style={styles.resultName} numberOfLines={1}>{item.name}</Text>
                       {item.address ? <Text style={styles.resultAddress} numberOfLines={1}>{item.address}</Text> : null}

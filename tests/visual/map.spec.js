@@ -252,7 +252,7 @@ test('PWA map drawer slides up to recent places and holds Home, Work and Petrol'
   await expect(page.locator('#poiChipRow')).toBeHidden();
   await page.locator('#searchScreenResults [data-recent-index="0"]').click();
   await expect(page.locator('#searchScreen')).toBeHidden();
-  await expect(home).toHaveAttribute('aria-label', 'Home, Ace Cafe London');
+  await expect(home).toHaveAttribute('aria-label', /^Home, Ace Cafe London(, [\d.]+ (mi|km|ft|m))?$/);
   await page.locator('[data-dismiss-destination]').click();
   // Then one tap starts the route, with the rider's navigation app
   // (Google Maps unless they chose another).

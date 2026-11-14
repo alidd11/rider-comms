@@ -97,6 +97,12 @@
     deviceFixReceivedAt.set(position, Date.now());
     latestDevicePosition = position;
     locationPermissionReady = true;
+    // Home and Work say how far they are: refresh that on the first fix and
+    // then every half minute, not on every one.
+    if (Date.now() - shortcutDistancesAt > 30_000) {
+      shortcutDistancesAt = Date.now();
+      renderSavedPlaceShortcuts();
+    }
     // A restored ride may have rendered before the first already-authorised
     // GPS fix. Resume its consented sharing as soon as that fix arrives.
     if (state.activeRide?.shareRideLocation && !rideLocationTimer) syncRideLocationSharing();
