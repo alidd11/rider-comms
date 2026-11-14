@@ -77,7 +77,7 @@ test('production: every major route and empty state is visible, navigable and er
   await page.goto('/');
   await expect(page.getByText('Your next story starts here')).toBeVisible();
   await expect(page.getByTestId('home-empty-onboarding')).toBeVisible();
-  await expect(page.getByTestId('home-editorial-heading')).toBeVisible();
+  await expect(page.getByTestId('home-editorial-heading')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Browse Reels from Home' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Go to inbox from Home' })).toBeVisible();
   await expect(page.getByRole('tab', { name: 'For You', exact: true })).toHaveCount(0);
@@ -94,7 +94,7 @@ test('production: every major route and empty state is visible, navigable and er
   await expect(page.getByText('Your next story starts here')).toBeVisible();
 
   // For You / Following now belong exclusively to Reels, not this Home feed.
-  await expect(page.getByTestId('home-editorial-heading')).toBeVisible();
+  await expect(page.getByTestId('home-editorial-heading')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Create story' })).toBeVisible();
 
   await page.getByRole('tab', { name: 'Create' }).click();
@@ -179,9 +179,16 @@ test('production: every major route and empty state is visible, navigable and er
 
   await page.getByRole('button', { name: 'Open profile' }).click();
   await expect(page.getByTestId('social-profile-summary')).toBeVisible();
-  await expect(page.getByText('Profile preview')).toBeVisible();
+  await expect(page.getByText('Profile preview')).toHaveCount(0);
   await expect(page.getByText('Your posts will appear here')).toBeVisible();
   await verifyScreen(page, testInfo, 'profile-posts');
+  await page.getByRole('button', { name: 'Edit social profile' }).click();
+  await expect(page.getByTestId('profile-editor')).toBeVisible();
+  await expect(page.getByTestId('social-profile-summary')).toHaveCount(0);
+  await expect(page.locator('#social-bottom-tabs')).toHaveCount(0);
+  await verifyScreen(page, testInfo, 'profile-editor');
+  await page.getByRole('button', { name: 'Cancel' }).click();
+  await expect(page.getByTestId('social-profile-summary')).toBeVisible();
   await page.getByRole('tab', { name: 'Reels profile tab' }).click();
   await expect(page.getByText('Your Reels will appear here')).toBeVisible();
   await verifyScreen(page, testInfo, 'profile-reels');
