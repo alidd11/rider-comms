@@ -2762,3 +2762,27 @@ body:has(#destinationCard:not([hidden])) .screen-map .map-bottom-bar{display:non
 .ride-ticket-actions .button{min-height:48px;gap:8px}
 .ride-ticket-actions svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .ride-ticket-voice{justify-self:start}
+/* Navigation by day: white cards over the day map, as Google Maps and
+   Apple Maps do. html.map-day is set while the map is in its day colours
+   (light phone theme, before sunset); at night the dark cards stay. */
+html.map-day .nav-banner,html.map-day .nav-summary{background:#fff;color:#0b1216;border-color:rgb(11 18 22/.08);box-shadow:0 12px 32px rgb(22 38 46/.18)}
+html.map-day .nav-summary{box-shadow:0 -10px 30px rgb(22 38 46/.14)}
+html.map-day .nav-maneuver-icon{color:#0b1216}
+html.map-day .nav-banner-copy strong,html.map-day .nav-summary-eta strong{color:var(--accent-ink,#156e90)}
+html.map-day .nav-banner-copy>span,html.map-day .nav-summary-stat strong{color:#0b1216}
+html.map-day .nav-provider-instruction{color:#46545c}
+html.map-day #endNavBtn{background:rgb(11 18 22/.06);border-color:rgb(11 18 22/.08);color:#1b262c}
+html.map-day .nav-next-preview{background:#f1f4f5;border-top-color:rgb(11 18 22/.08);color:#46545c}
+html.map-day .nav-next-preview span:last-child{color:#0b1216}
+html.map-day .nav-road-ahead{background:#f5f7f8;border-top-color:rgb(11 18 22/.08)}
+html.map-day .nav-road-ahead-label{color:#58666e}
+html.map-day .nav-road-ahead-event{background:rgb(11 18 22/.05)}
+html.map-day .nav-road-ahead-event>span{color:#33424a}
+html.map-day .nav-road-ahead-event strong{color:#0b1216}
+html.map-day .nav-gps-notice{background:#fdecef;border-top-color:rgb(11 18 22/.08);color:#8e1d31}
+html.map-day .nav-gps-notice[data-tone=info]{background:#e7f0fc;color:#1d4f91}
+html.map-day .nav-speed-badge{background:rgb(255 255 255/.96);border-color:rgb(11 18 22/.14);color:#0b1216;box-shadow:0 8px 20px rgb(22 38 46/.2)}
+html.map-day .nav-speed-badge:before{border-color:rgb(11 18 22/.08)}
+html.map-day .nav-speed-badge span,html.map-day .nav-summary-eta span,html.map-day .nav-summary-stat>span{color:#58666e}
+html.map-day .nav-summary:before{background:#9aa6ac}
+html.map-day .nav-summary-stat{border-left-color:rgb(11 18 22/.1)}

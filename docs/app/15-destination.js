@@ -120,14 +120,14 @@
 
   function setDestinationMarker(location, label, address) {
     destinationMarker?.setMap(null);
-    destinationMarker = new google.maps.Marker({
+    destinationMarker = trackMapOverlay(new google.maps.Marker({
       map,
       position: location,
       title: label || 'Selected place',
       icon: pinIcon('#2fa8d3'),
       animation: google.maps.Animation.DROP,
       zIndex: 9,
-    });
+    }));
     destinationMarker.addListener('click', () => showDestinationCard(location, label, address));
     showDestinationCard(location, label, address);
   }

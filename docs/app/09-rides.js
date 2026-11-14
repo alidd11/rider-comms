@@ -339,7 +339,7 @@
       return;
     }
     if (!regroupMarker) {
-      regroupMarker = new google.maps.Marker({ map, icon: regroupIcon(), zIndex: 11 });
+      regroupMarker = trackMapOverlay(new google.maps.Marker({ map, icon: regroupIcon(), zIndex: 11 }));
       regroupMarker.addListener('click', showRegroupPoint);
     }
     regroupMarker.setPosition({ lat: point.lat, lng: point.lon });

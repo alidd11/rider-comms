@@ -93,6 +93,7 @@
     navBannerResizeObserver.observe(banner);
   }
 
+  let navRemainingSeconds = null;
   function formatArrivalTime(remainingSeconds) {
     return new Date(Date.now() + remainingSeconds * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   }
@@ -154,11 +155,11 @@
 
   function getDirectionsRenderer() {
     if (!directionsRenderer) {
-      directionsRenderer = new google.maps.DirectionsRenderer({
+      directionsRenderer = trackMapOverlay(new google.maps.DirectionsRenderer({
         suppressMarkers: true,
         suppressPolylines: true,
         preserveViewport: true,
-      });
+      }));
     }
     directionsRenderer.setMap(map);
     return directionsRenderer;
@@ -167,8 +168,8 @@
   function renderNavigationRouteLine(path) {
     if (!Array.isArray(path) || path.length < 2) return;
     if (!navRouteOutline) {
-      navRouteOutline = new google.maps.Polyline({ strokeColor: '#174EA6', strokeWeight: 10, zIndex: 6 });
-      navRouteLine = new google.maps.Polyline({ strokeColor: '#4285F4', strokeWeight: 6, zIndex: 7 });
+      navRouteOutline = trackMapOverlay(new google.maps.Polyline({ strokeColor: '#174EA6', strokeWeight: 10, zIndex: 6 }));
+      navRouteLine = trackMapOverlay(new google.maps.Polyline({ strokeColor: '#4285F4', strokeWeight: 6, zIndex: 7 }));
     }
     navRouteOutline.setPath(path);
     navRouteLine.setPath(path);
@@ -199,8 +200,8 @@
       return;
     }
     if (!navArrowOutline) {
-      navArrowOutline = new google.maps.Polyline({ strokeColor: '#0b1216', strokeOpacity: 1, strokeWeight: 13, zIndex: 8, clickable: false });
-      navArrowLine = new google.maps.Polyline({ strokeColor: '#ffffff', strokeOpacity: 1, strokeWeight: 8, zIndex: 9, clickable: false });
+      navArrowOutline = trackMapOverlay(new google.maps.Polyline({ strokeColor: '#0b1216', strokeOpacity: 1, strokeWeight: 13, zIndex: 8, clickable: false }));
+      navArrowLine = trackMapOverlay(new google.maps.Polyline({ strokeColor: '#ffffff', strokeOpacity: 1, strokeWeight: 8, zIndex: 9, clickable: false }));
     }
     const path = arrow.path.map((point) => ({ lat: point.lat, lng: point.lon }));
     navArrowOutline.setPath(path);
@@ -217,7 +218,7 @@
 
   function setNavigationTrafficVisible(visible) {
     if (!map || typeof google?.maps?.TrafficLayer !== 'function') return;
-    if (!navigationTrafficLayer) navigationTrafficLayer = new google.maps.TrafficLayer();
+    if (!navigationTrafficLayer) navigationTrafficLayer = trackMapOverlay(new google.maps.TrafficLayer());
     navigationTrafficLayer.setMap(visible ? map : null);
   }
 
@@ -302,6 +303,7 @@
     }
     $('#navDistance').textContent = formatNavDistance(remainingMeters);
     $('#navEta').textContent = formatNavDuration(remainingSeconds);
+    navRemainingSeconds = remainingSeconds;
     $('#navArrival').textContent = formatArrivalTime(remainingSeconds);
     renderNavSpeed();
     renderNavigationRoadAhead();
@@ -525,7 +527,7 @@
     if (!navCameraProjectionOverlay) {
       // An empty overlay is the documented way to borrow the map's
       // projection for converting coordinates to screen pixels.
-      navCameraProjectionOverlay = new google.maps.OverlayView();
+      navCameraProjectionOverlay = trackMapOverlay(new google.maps.OverlayView());
       navCameraProjectionOverlay.onAdd = () => {};
       navCameraProjectionOverlay.draw = () => {};
       navCameraProjectionOverlay.onRemove = () => {};
@@ -604,7 +606,7 @@
       here,
       navSteps[navStepIndex],
       latestDevicePosition.coords.heading,
-      latestDevicePosition.coords.speed,
+      positionSpeedMps(latestDevicePosition),
     );
   }
 
@@ -658,9 +660,7 @@
     if (!preserveMute) navMuted = state.spokenDirections === false;
     navCurrentPosition = null;
     navCurrentAccuracyMeters = null;
-    navCurrentSpeedMps = Number.isFinite(latestDevicePosition?.coords?.speed) && Number(latestDevicePosition.coords.speed) >= 0
-      ? Number(latestDevicePosition.coords.speed)
-      : null;
+    navCurrentSpeedMps = latestDevicePosition ? positionSpeedMps(latestDevicePosition) : null;
     if (!preserveMute) {
       navCameraHeading = null;
       navTrip = navigationPuck.startNavigationTrip(Date.now());
@@ -668,13 +668,13 @@
     navDestination = { ...destination, label };
     hideDestinationCard();
     destinationMarker?.setMap(null);
-    destinationMarker = new google.maps.Marker({
+    destinationMarker = trackMapOverlay(new google.maps.Marker({
       map,
       position: destination,
       title: label ? `Destination: ${label}` : 'Route destination',
       icon: routeFinishIcon(),
       zIndex: 11,
-    });
+    }));
     // Any POI category the rider had tapped before starting nav (fuel,
     // parking, food…) leaves its markers on the map otherwise — clutter
     // that has nothing to do with the route and makes driving mode look
@@ -711,7 +711,7 @@
         here,
         navSteps[0],
         latestDevicePosition.coords.heading,
-        latestDevicePosition.coords.speed,
+        positionSpeedMps(latestDevicePosition),
       );
     }
   }
@@ -777,6 +777,9 @@
       timeout: 15000,
     });
     navGpsWatchdog = setInterval(() => {
+      // Waiting at lights brings no new fix, but the arrival time still
+      // moves on with the clock.
+      if (navSteps.length && Number.isFinite(navRemainingSeconds)) $('#navArrival').textContent = formatArrivalTime(navRemainingSeconds);
       if (!navSteps.length || navGpsIssue || !navLastFixAt) return;
       if (Date.now() - navLastFixAt > NAV_GPS_STALE_MS) setNavGpsIssue(NAV_GPS_STALE_NOTICE);
     }, NAV_GPS_CHECK_MS);
@@ -798,9 +801,7 @@
     navLastFixAt = Date.now();
     clearNavGpsIssue();
     if (!navSteps.length) return;
-    navCurrentSpeedMps = Number.isFinite(position.coords.speed) && Number(position.coords.speed) >= 0
-      ? Number(position.coords.speed)
-      : null;
+    navCurrentSpeedMps = positionSpeedMps(position);
     renderNavSpeed();
     if (navRerouting) return;
     const raw = { lat: position.coords.latitude, lng: position.coords.longitude };
@@ -838,7 +839,7 @@
     const step = navSteps[navStepIndex];
     renderNavStep();
     maybeSpeakUpcomingNavigationPrompt(here, step);
-    applyNavigationCamera(placed.target, step, placed.heading, position.coords.speed, NAV_PUCK_GLIDE_MS);
+    applyNavigationCamera(placed.target, step, placed.heading, navCurrentSpeedMps, NAV_PUCK_GLIDE_MS);
     checkOffRoute(raw, step, navSteps[navStepIndex + 1], navCurrentAccuracyMeters);
   }
 
@@ -846,7 +847,7 @@
    * and where it will be when the next fix is due. */
   function placeNavigationPuck(position) {
     const coords = position.coords;
-    const speed = Number.isFinite(coords.speed) && Number(coords.speed) >= 0 ? Number(coords.speed) : null;
+    const speed = positionSpeedMps(position);
     const raw = { lat: coords.latitude, lng: coords.longitude };
     if (!navigationPuck || !navPuckPath) {
       userMapMarker?.setPosition?.(raw);

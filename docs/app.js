@@ -340,6 +340,7 @@
     map?.setOptions({
       backgroundColor: prefersDarkMode() ? '#080d10' : '#e9eef0',
     });
+    if (map) syncMapDayClass();
   }
   darkModeQuery?.addEventListener('change', applyColorScheme);
 
@@ -911,13 +912,13 @@
 
   function addHazardMapMarker(hazard) {
     const meta = HAZARD_TYPES[hazard.type];
-    const marker = new google.maps.Marker({
+    const marker = trackMapOverlay(new google.maps.Marker({
       map,
       position: { lat: hazard.lat, lng: hazard.lon },
       title: meta.label,
       icon: hazardPinIcon(hazard.type),
       zIndex: 6,
-    });
+    }));
     marker.addListener('click', () => selectHazard(hazard.id));
     return { id: hazard.id, type: hazard.type, marker };
   }
@@ -1116,12 +1117,15 @@
     chips?.forEach((chip) => { chip.disabled = true; });
     try {
       const hazard = await apiFetch('POST', '/hazards', { type, lat: reportPosition.lat, lon: reportPosition.lon });
+      // The server merges a report of the same hazard close by into the
+      // existing one, counting this rider's sighting as a confirmation.
+      const alreadyReported = nearbyHazards.some((entry) => entry.id === hazard.id);
       pendingHazardReportPosition = null;
       nearbyHazards = [hazard, ...nearbyHazards.filter((entry) => entry.id !== hazard.id)];
       renderHazardMarkers();
       closeSheet();
       selectHazard(hazard.id);
-      showToast(`${HAZARD_TYPES[type].label} reported.`);
+      showToast(alreadyReported ? `${HAZARD_TYPES[type].label} already reported here. Thanks for confirming it.` : `${HAZARD_TYPES[type].label} reported.`);
       await loadNearbyHazards(hazard.lat, hazard.lon);
       if (nearbyHazards.some((entry) => entry.id === hazard.id)) selectHazard(hazard.id);
     } catch (error) {
@@ -2648,7 +2652,7 @@
       return;
     }
     if (!regroupMarker) {
-      regroupMarker = new google.maps.Marker({ map, icon: regroupIcon(), zIndex: 11 });
+      regroupMarker = trackMapOverlay(new google.maps.Marker({ map, icon: regroupIcon(), zIndex: 11 }));
       regroupMarker.addListener('click', showRegroupPoint);
     }
     regroupMarker.setPosition({ lat: point.lat, lng: point.lon });
@@ -4950,6 +4954,49 @@
     });
   }
 
+  // Safari often reports no speed (null, or -1) even while moving, which
+  // left the navigation speed reading "—". Work it out from GPS fixes at
+  // least two seconds apart instead: good fixes only, and a fix that stays
+  // within its own accuracy counts as standing still.
+  const SPEED_MIN_INTERVAL_S = 2;
+  const SPEED_MAX_INTERVAL_S = 15;
+  const SPEED_MAX_ACCURACY_M = 50;
+  let speedAnchor = null;
+  let derivedSpeedMps = null;
+  const speedByPosition = new WeakMap();
+  /** The rider's speed for a fix in m/s: the device's own figure, else one
+   * worked out from recent fixes; null when it can't be known. */
+  function positionSpeedMps(position) {
+    const coords = position?.coords;
+    if (!coords) return null;
+    if (Number.isFinite(coords.speed) && coords.speed >= 0) return Number(coords.speed);
+    if (speedByPosition.has(position)) return speedByPosition.get(position);
+    const at = position.timestamp || Date.now();
+    const here = { lat: coords.latitude, lng: coords.longitude, accuracy: Number(coords.accuracy) };
+    let speed = derivedSpeedMps;
+    if (!(here.accuracy <= SPEED_MAX_ACCURACY_M) || !Number.isFinite(here.lat) || !Number.isFinite(here.lng)) {
+      speed = null;
+    } else if (!speedAnchor || at <= speedAnchor.at) {
+      if (!speedAnchor) speedAnchor = { ...here, at };
+    } else {
+      const seconds = (at - speedAnchor.at) / 1000;
+      if (seconds > SPEED_MAX_INTERVAL_S) {
+        speedAnchor = { ...here, at };
+        speed = null;
+      } else if (seconds >= SPEED_MIN_INTERVAL_S) {
+        const moved = metersBetween(speedAnchor, here);
+        const jitter = Math.min(10, Math.max(3, (here.accuracy + speedAnchor.accuracy) / 4));
+        const measured = moved < jitter ? 0 : moved / seconds;
+        // Smooth while moving; standing still reads 0 straight away.
+        speed = measured === 0 || derivedSpeedMps == null ? measured : derivedSpeedMps * 0.4 + measured * 0.6;
+        speedAnchor = { ...here, at };
+      }
+    }
+    derivedSpeedMps = speed;
+    speedByPosition.set(position, speed);
+    return speed;
+  }
+
   let locationPermissionReady = false;
 
   function applyDevicePosition(position) {
@@ -5046,7 +5093,7 @@
     movementWatchId = navigator.geolocation.watchPosition(
       (position) => {
         applyDevicePosition(position);
-        hudSpeedMps = Number.isFinite(position.coords.speed) && position.coords.speed >= 0 ? position.coords.speed : null;
+        hudSpeedMps = positionSpeedMps(position);
         applyMovementState(movementTracker.addFix(movementFix(position)));
       },
       (error) => {
@@ -6304,14 +6351,14 @@
 
   function setDestinationMarker(location, label, address) {
     destinationMarker?.setMap(null);
-    destinationMarker = new google.maps.Marker({
+    destinationMarker = trackMapOverlay(new google.maps.Marker({
       map,
       position: location,
       title: label || 'Selected place',
       icon: pinIcon('#2fa8d3'),
       animation: google.maps.Animation.DROP,
       zIndex: 9,
-    });
+    }));
     destinationMarker.addListener('click', () => showDestinationCard(location, label, address));
     showDestinationCard(location, label, address);
   }
@@ -6662,6 +6709,7 @@
     navBannerResizeObserver.observe(banner);
   }
 
+  let navRemainingSeconds = null;
   function formatArrivalTime(remainingSeconds) {
     return new Date(Date.now() + remainingSeconds * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   }
@@ -6723,11 +6771,11 @@
 
   function getDirectionsRenderer() {
     if (!directionsRenderer) {
-      directionsRenderer = new google.maps.DirectionsRenderer({
+      directionsRenderer = trackMapOverlay(new google.maps.DirectionsRenderer({
         suppressMarkers: true,
         suppressPolylines: true,
         preserveViewport: true,
-      });
+      }));
     }
     directionsRenderer.setMap(map);
     return directionsRenderer;
@@ -6736,8 +6784,8 @@
   function renderNavigationRouteLine(path) {
     if (!Array.isArray(path) || path.length < 2) return;
     if (!navRouteOutline) {
-      navRouteOutline = new google.maps.Polyline({ strokeColor: '#174EA6', strokeWeight: 10, zIndex: 6 });
-      navRouteLine = new google.maps.Polyline({ strokeColor: '#4285F4', strokeWeight: 6, zIndex: 7 });
+      navRouteOutline = trackMapOverlay(new google.maps.Polyline({ strokeColor: '#174EA6', strokeWeight: 10, zIndex: 6 }));
+      navRouteLine = trackMapOverlay(new google.maps.Polyline({ strokeColor: '#4285F4', strokeWeight: 6, zIndex: 7 }));
     }
     navRouteOutline.setPath(path);
     navRouteLine.setPath(path);
@@ -6768,8 +6816,8 @@
       return;
     }
     if (!navArrowOutline) {
-      navArrowOutline = new google.maps.Polyline({ strokeColor: '#0b1216', strokeOpacity: 1, strokeWeight: 13, zIndex: 8, clickable: false });
-      navArrowLine = new google.maps.Polyline({ strokeColor: '#ffffff', strokeOpacity: 1, strokeWeight: 8, zIndex: 9, clickable: false });
+      navArrowOutline = trackMapOverlay(new google.maps.Polyline({ strokeColor: '#0b1216', strokeOpacity: 1, strokeWeight: 13, zIndex: 8, clickable: false }));
+      navArrowLine = trackMapOverlay(new google.maps.Polyline({ strokeColor: '#ffffff', strokeOpacity: 1, strokeWeight: 8, zIndex: 9, clickable: false }));
     }
     const path = arrow.path.map((point) => ({ lat: point.lat, lng: point.lon }));
     navArrowOutline.setPath(path);
@@ -6786,7 +6834,7 @@
 
   function setNavigationTrafficVisible(visible) {
     if (!map || typeof google?.maps?.TrafficLayer !== 'function') return;
-    if (!navigationTrafficLayer) navigationTrafficLayer = new google.maps.TrafficLayer();
+    if (!navigationTrafficLayer) navigationTrafficLayer = trackMapOverlay(new google.maps.TrafficLayer());
     navigationTrafficLayer.setMap(visible ? map : null);
   }
 
@@ -6871,6 +6919,7 @@
     }
     $('#navDistance').textContent = formatNavDistance(remainingMeters);
     $('#navEta').textContent = formatNavDuration(remainingSeconds);
+    navRemainingSeconds = remainingSeconds;
     $('#navArrival').textContent = formatArrivalTime(remainingSeconds);
     renderNavSpeed();
     renderNavigationRoadAhead();
@@ -7094,7 +7143,7 @@
     if (!navCameraProjectionOverlay) {
       // An empty overlay is the documented way to borrow the map's
       // projection for converting coordinates to screen pixels.
-      navCameraProjectionOverlay = new google.maps.OverlayView();
+      navCameraProjectionOverlay = trackMapOverlay(new google.maps.OverlayView());
       navCameraProjectionOverlay.onAdd = () => {};
       navCameraProjectionOverlay.draw = () => {};
       navCameraProjectionOverlay.onRemove = () => {};
@@ -7173,7 +7222,7 @@
       here,
       navSteps[navStepIndex],
       latestDevicePosition.coords.heading,
-      latestDevicePosition.coords.speed,
+      positionSpeedMps(latestDevicePosition),
     );
   }
 
@@ -7227,9 +7276,7 @@
     if (!preserveMute) navMuted = state.spokenDirections === false;
     navCurrentPosition = null;
     navCurrentAccuracyMeters = null;
-    navCurrentSpeedMps = Number.isFinite(latestDevicePosition?.coords?.speed) && Number(latestDevicePosition.coords.speed) >= 0
-      ? Number(latestDevicePosition.coords.speed)
-      : null;
+    navCurrentSpeedMps = latestDevicePosition ? positionSpeedMps(latestDevicePosition) : null;
     if (!preserveMute) {
       navCameraHeading = null;
       navTrip = navigationPuck.startNavigationTrip(Date.now());
@@ -7237,13 +7284,13 @@
     navDestination = { ...destination, label };
     hideDestinationCard();
     destinationMarker?.setMap(null);
-    destinationMarker = new google.maps.Marker({
+    destinationMarker = trackMapOverlay(new google.maps.Marker({
       map,
       position: destination,
       title: label ? `Destination: ${label}` : 'Route destination',
       icon: routeFinishIcon(),
       zIndex: 11,
-    });
+    }));
     // Any POI category the rider had tapped before starting nav (fuel,
     // parking, food…) leaves its markers on the map otherwise — clutter
     // that has nothing to do with the route and makes driving mode look
@@ -7280,7 +7327,7 @@
         here,
         navSteps[0],
         latestDevicePosition.coords.heading,
-        latestDevicePosition.coords.speed,
+        positionSpeedMps(latestDevicePosition),
       );
     }
   }
@@ -7346,6 +7393,9 @@
       timeout: 15000,
     });
     navGpsWatchdog = setInterval(() => {
+      // Waiting at lights brings no new fix, but the arrival time still
+      // moves on with the clock.
+      if (navSteps.length && Number.isFinite(navRemainingSeconds)) $('#navArrival').textContent = formatArrivalTime(navRemainingSeconds);
       if (!navSteps.length || navGpsIssue || !navLastFixAt) return;
       if (Date.now() - navLastFixAt > NAV_GPS_STALE_MS) setNavGpsIssue(NAV_GPS_STALE_NOTICE);
     }, NAV_GPS_CHECK_MS);
@@ -7367,9 +7417,7 @@
     navLastFixAt = Date.now();
     clearNavGpsIssue();
     if (!navSteps.length) return;
-    navCurrentSpeedMps = Number.isFinite(position.coords.speed) && Number(position.coords.speed) >= 0
-      ? Number(position.coords.speed)
-      : null;
+    navCurrentSpeedMps = positionSpeedMps(position);
     renderNavSpeed();
     if (navRerouting) return;
     const raw = { lat: position.coords.latitude, lng: position.coords.longitude };
@@ -7407,7 +7455,7 @@
     const step = navSteps[navStepIndex];
     renderNavStep();
     maybeSpeakUpcomingNavigationPrompt(here, step);
-    applyNavigationCamera(placed.target, step, placed.heading, position.coords.speed, NAV_PUCK_GLIDE_MS);
+    applyNavigationCamera(placed.target, step, placed.heading, navCurrentSpeedMps, NAV_PUCK_GLIDE_MS);
     checkOffRoute(raw, step, navSteps[navStepIndex + 1], navCurrentAccuracyMeters);
   }
 
@@ -7415,7 +7463,7 @@
    * and where it will be when the next fix is due. */
   function placeNavigationPuck(position) {
     const coords = position.coords;
-    const speed = Number.isFinite(coords.speed) && Number(coords.speed) >= 0 ? Number(coords.speed) : null;
+    const speed = positionSpeedMps(position);
     const raw = { lat: coords.latitude, lng: coords.longitude };
     if (!navigationPuck || !navPuckPath) {
       userMapMarker?.setPosition?.(raw);
@@ -7569,28 +7617,31 @@
     });
   }
 
-  function initialiseGoogleMap() {
-    // Render immediately even when GPS is unavailable, but never present the
-    // London fallback as the rider's own position. If the already-granted
-    // location watcher resolved before Maps finished loading, start directly
-    // from that real fix instead.
-    const fallbackCentre = { lat: 51.564, lng: -0.106 };
-    const liveCentre = latestDevicePosition
-      ? { lat: latestDevicePosition.coords.latitude, lng: latestDevicePosition.coords.longitude }
-      : null;
-    const centre = liveCentre || fallbackCentre;
-    // Dark basemap from sunset to sunrise. Without a fix yet, the time zone
-    // gives the longitude closely enough to place sunset. Maps JS reads
-    // colorScheme only here, so a map opened before sunset turns dark the
-    // next time the app opens.
-    const darkOutside = isDarkOutside(
-      liveCentre ? liveCentre.lat : fallbackCentre.lat,
-      liveCentre ? liveCentre.lng : -new Date().getTimezoneOffset() / 4,
-    );
-    const mapDark = prefersDarkMode() || darkOutside;
-    map = new google.maps.Map($('#googleMap'), {
-      center: centre,
-      zoom: liveCentre ? 15 : 14,
+  // Maps JS reads colorScheme only when a map is created, and a home-screen
+  // app can stay open from the afternoon into the night. So the map records
+  // which way it was built, and when sunset or sunrise passes it is rebuilt
+  // in place: same camera, same markers and route, new colours.
+  let mapBuiltDarkOutside = false;
+  let mapSchemeTimer;
+  // Weak references: a marker the app has let go of drops out by itself,
+  // while a route line kept for reuse is still found when it's re-attached.
+  const mapOverlays = new Set();
+  /** Remembers a marker, line or layer so a rebuilt map can take it over. */
+  function trackMapOverlay(overlay) {
+    if (overlay) mapOverlays.add(typeof WeakRef === 'function' ? new WeakRef(overlay) : { deref: () => overlay });
+    return overlay;
+  }
+
+  /** Navigation cards match the map: white by day, dark at night. */
+  function syncMapDayClass() {
+    document.documentElement.classList.toggle('map-day', !prefersDarkMode() && !mapBuiltDarkOutside);
+  }
+
+  function createGoogleMap(element, camera, darkOutside) {
+    mapBuiltDarkOutside = darkOutside;
+    syncMapDayClass();
+    const created = new google.maps.Map(element, {
+      ...camera,
       disableDefaultUI: true,
       // The web map does not need hardware-keyboard navigation. Disabling it
       // also removes Google's optional "Keyboard shortcuts" footer control
@@ -7607,16 +7658,74 @@
       headingInteractionEnabled: true,
       isFractionalZoomEnabled: true,
       mapTypeId: 'roadmap',
+      // Dark basemap from sunset to sunrise, whatever the phone's theme.
       colorScheme: darkOutside ? 'DARK' : 'FOLLOW_SYSTEM',
-      backgroundColor: mapDark ? '#080d10' : '#f2f5f6',
+      backgroundColor: prefersDarkMode() || darkOutside ? '#080d10' : '#f2f5f6',
     });
-    map.addListener?.('dragstart', () => {
+    created.addListener?.('dragstart', () => {
       if (!navSteps.length) return;
       navFollowing = false;
       stopNavigationCameraAnimation();
       updateNavigationPositionIcon();
       updateNavigationControls();
     });
+    return created;
+  }
+
+  function refreshMapColorScheme() {
+    if (!map || usingFallbackMap || !window.google?.maps?.Map) return;
+    const here = latestDevicePosition?.coords;
+    const darkOutside = isDarkOutside(
+      Number.isFinite(here?.latitude) ? here.latitude : 51.564,
+      Number.isFinite(here?.longitude) ? here.longitude : -new Date().getTimezoneOffset() / 4,
+    );
+    if (darkOutside === mapBuiltDarkOutside) return;
+    // A phone in dark mode already has a dark map either way.
+    if (prefersDarkMode()) { mapBuiltDarkOutside = darkOutside; syncMapDayClass(); return; }
+    const previous = map;
+    const centre = previous.getCenter?.();
+    const camera = {
+      center: centre ? { lat: centre.lat(), lng: centre.lng() } : { lat: 51.564, lng: -0.106 },
+      zoom: previous.getZoom?.() ?? previous.zoom ?? 15,
+      heading: previous.getHeading?.() ?? 0,
+      tilt: previous.getTilt?.() ?? 0,
+    };
+    const element = $('#googleMap');
+    const fresh = element.cloneNode(false);
+    element.replaceWith(fresh);
+    map = createGoogleMap(fresh, camera, darkOutside);
+    for (const ref of mapOverlays) {
+      const overlay = ref.deref();
+      if (!overlay) mapOverlays.delete(ref);
+      else if (overlay.getMap?.() === previous) overlay.setMap(map);
+    }
+    window.google.maps.event?.clearInstanceListeners?.(previous);
+  }
+
+  function initialiseGoogleMap() {
+    // Render immediately even when GPS is unavailable, but never present the
+    // London fallback as the rider's own position. If the already-granted
+    // location watcher resolved before Maps finished loading, start directly
+    // from that real fix instead.
+    const fallbackCentre = { lat: 51.564, lng: -0.106 };
+    const liveCentre = latestDevicePosition
+      ? { lat: latestDevicePosition.coords.latitude, lng: latestDevicePosition.coords.longitude }
+      : null;
+    const centre = liveCentre || fallbackCentre;
+    // Dark basemap from sunset to sunrise. Without a fix yet, the time zone
+    // gives the longitude closely enough to place sunset; refreshMapColorScheme
+    // rebuilds the map when sunset or sunrise passes while it is open.
+    const darkOutside = isDarkOutside(
+      liveCentre ? liveCentre.lat : fallbackCentre.lat,
+      liveCentre ? liveCentre.lng : -new Date().getTimezoneOffset() / 4,
+    );
+    map = createGoogleMap($('#googleMap'), { center: centre, zoom: liveCentre ? 15 : 14 }, darkOutside);
+    if (!mapSchemeTimer) {
+      mapSchemeTimer = setInterval(refreshMapColorScheme, 60_000);
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') refreshMapColorScheme();
+      });
+    }
     usingFallbackMap = false;
     $('#fallbackMap').hidden = true;
     $('#fallbackMarkers').hidden = true;
@@ -7634,14 +7743,14 @@
   }
 
   function addMapMarker(person, position, current, status) {
-    const marker = new google.maps.Marker({
+    const marker = trackMapOverlay(new google.maps.Marker({
       map,
       position,
       title: current ? 'Your location' : person.displayName,
       icon: riderAvatarMapIcon(person, current, status),
       label: current ? null : riderMarkerLabel(person.displayName, null),
       zIndex: current ? 10 : 5,
-    });
+    }));
     marker.addListener('click', () => selectRider(person.riderId, visibleMapRiders()));
     return marker;
   }
