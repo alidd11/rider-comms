@@ -184,7 +184,11 @@ test('PWA map drawer slides up to recent places and holds Home, Work and Petrol'
   await expect(page.locator('#mapDrawerRecent')).toBeHidden();
   await expect(page.locator('#placeSearchInput')).toHaveAttribute('placeholder', 'Where to?');
 
-  // The floating controls rest above the drawer, inside the screen.
+  // The floating controls rest above the drawer, inside the screen,
+  // measured once the screen's 3px slide-in has finished.
+  await page.locator('[data-screen="map"]').evaluate(async (element) => {
+    await Promise.all(element.getAnimations().map((animation) => animation.finished));
+  });
   const [drawerBox, hazardBox] = await Promise.all([drawer.boundingBox(), page.locator('#reportHazardBtn').boundingBox()]);
   expect(hazardBox.y + hazardBox.height).toBeLessThanOrEqual(drawerBox.y);
   expect(drawerBox.y + drawerBox.height).toBeLessThanOrEqual(page.viewportSize().height + 1);
