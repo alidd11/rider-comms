@@ -57,19 +57,30 @@ describe('requestId', () => {
 });
 
 describe('clientAddress', () => {
-  it('uses the socket address when trustProxy is false, even with a forwarded header', () => {
-    const req = fakeReq({ 'x-forwarded-for': '203.0.113.5' }, { remoteAddress: '10.0.0.1' });
+  it('uses the socket when trustProxy is false even if an IP header is supplied', () => {
+    const req = fakeReq({ 'x-real-ip': '203.0.113.5', 'x-forwarded-for': '198.51.100.12' },
+      { remoteAddress: '10.0.0.1' });
     assert.equal(clientAddress(req, false), '10.0.0.1');
   });
 
-  it('trusts the first forwarded IP when trustProxy is true', () => {
-    const req = fakeReq({ 'x-forwarded-for': '203.0.113.5, 10.0.0.1' }, { remoteAddress: '10.0.0.1' });
+  it('uses the Railway edge X-Real-IP and ignores an attacker-controlled forwarded chain', () => {
+    const req = fakeReq({ 'x-real-ip': '203.0.113.5',
+      'x-forwarded-for': '192.0.2.77, 198.51.100.2, 203.0.113.5' },
+      { remoteAddress: '10.0.0.1' });
     assert.equal(clientAddress(req, true), '203.0.113.5');
   });
 
-  it('falls back to the socket address when the forwarded header is not a valid IP', () => {
-    const req = fakeReq({ 'x-forwarded-for': 'not-an-ip' }, { remoteAddress: '10.0.0.1' });
-    assert.equal(clientAddress(req, true), '10.0.0.1');
+  it('accepts a valid IPv6 edge IP', () => {
+    const req = fakeReq({ 'x-real-ip': '2001:db8::15' }, { remoteAddress: '10.0.0.1' });
+    assert.equal(clientAddress(req, true), '2001:db8::15');
+  });
+
+  it('never accepts spoofable X-Forwarded-For as a fallback to a bad edge IP', () => {
+    for (const bad of [undefined, 'not-an-ip', '203.0.113.5, 203.0.113.6', ['203.0.113.5']]) {
+      const req = fakeReq({ 'x-real-ip': bad, 'x-forwarded-for': '192.0.2.10' },
+        { remoteAddress: '10.0.0.1' });
+      assert.equal(clientAddress(req, true), '10.0.0.1');
+    }
   });
 
   it('falls back to "unknown" when neither is available', () => {

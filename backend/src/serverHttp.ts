@@ -22,9 +22,16 @@ export function requestId(req: http.IncomingMessage, pattern: RegExp): string {
 
 export function clientAddress(req: http.IncomingMessage, trustProxy: boolean): string {
   if (trustProxy) {
-    const forwarded = req.headers['x-forwarded-for'];
-    const candidate = (Array.isArray(forwarded) ? forwarded[0] : forwarded)?.split(',')[0]?.trim();
-    if (candidate && isIP(candidate)) return candidate;
+    // Railway's public HTTP edge replaces X-Real-IP with the actual peer
+    // address. X-Forwarded-For is a multi-hop chain whose position must not
+    // determine authentication rate-limit identity. Never use a caller-sent
+    // Forwarded/CF-Connecting-IP/X-Forwarded-For value as a fallback.
+    //
+    // Only enable TRUST_PROXY for a Railway edge-facing service whose other
+    // private-network callers are trusted; private service-to-service traffic
+    // bypasses the edge's header sanitisation.
+    const realIp = req.headers['x-real-ip'];
+    if (typeof realIp === 'string' && isIP(realIp)) return realIp;
   }
   return req.socket.remoteAddress ?? 'unknown';
 }
