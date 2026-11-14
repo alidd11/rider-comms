@@ -27,14 +27,10 @@ test.beforeEach(async ({ page }) => {
       return;
     }
     const isMe = pathname === '/auth/me';
-    const isPilot = pathname === '/social/bootstrap';
     const isFriends = pathname === '/riders/' + testRiderId + '/friends';
     const isConversations = pathname === '/conversations';
-    const status = isMe || isPilot || isFriends || isConversations ? 200 : 404;
-    const body = isPilot ? { entitlement: 'pilot', policyVersion: 'social-pilot-v1', capabilities: {
-  mediaUpload: false, privatePosting: false, publicPosting: false,
-  liveStreaming: false, marketplaceCheckout: false, creatorPayouts: false } }
-      : isMe
+    const status = isMe || isFriends || isConversations ? 200 : 404;
+    const body = isMe
       ? { riderId: testRiderId, username: 'production-smoke', emailVerified: true,
           termsAccepted: true, termsVersion: 'terms-test-only' }
       : isFriends ? { friends: [], nextCursor: null }
@@ -105,6 +101,7 @@ test('production: every major route and empty state is visible, navigable and er
   await expect(page.getByTestId('camera-first-studio')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Enable camera' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Choose from library' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Open Gallery' })).toHaveCount(0);
   await verifyScreen(page, testInfo, 'create-camera');
   await page.getByRole('button', { name: 'Enable camera' }).click();
   await expect(page.getByText(/Camera access was blocked or could not start/)).toBeVisible();
@@ -113,6 +110,10 @@ test('production: every major route and empty state is visible, navigable and er
   await expect(page.getByText('New story')).toBeVisible();
   await page.getByRole('button', { name: 'Reel format' }).click();
   await expect(page.getByRole('button', { name: 'Choose Reel video' })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Choose Reel video' })).toHaveCount(1);
+  await expect(page.getByRole('button', { name: 'Flip camera' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Take photo' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Choose from library' })).toHaveCount(0);
   // Browser Reel mode must not activate an unusable camera or microphone.
   await expect(page.getByRole('button', { name: 'Enable camera' })).toHaveCount(0);
   await verifyScreen(page, testInfo, 'create-reel');

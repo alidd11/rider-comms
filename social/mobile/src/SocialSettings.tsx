@@ -6,9 +6,28 @@ import { SOCIAL_TERMS_URL, SOCIAL_GUIDELINES_URL } from './authClient';
 
 const PRIVACY_URL = 'https://alidd11.github.io/rider-comms/privacy.html';
 
-function PolicyLink({ label, url }: { label: string; url: string }) {
+function PolicyLink({ label, url, onOpenError }: {
+  label: string;
+  url: string;
+  onOpenError: (label: string, url: string) => void;
+}) {
+  const [opening, setOpening] = useState(false);
+  async function openPolicy() {
+    if (opening) return;
+    setOpening(true);
+    try {
+      await Linking.openURL(url);
+    } catch {
+      // External-browser handoffs can fail on iOS Home Screen, blocked popups
+      // and offline devices. Never leave an unhandled rejection or a dead CTA.
+      onOpenError(label, url);
+    } finally {
+      setOpening(false);
+    }
+  }
   return <Pressable accessibilityRole="link" accessibilityLabel={label}
-    onPress={() => void Linking.openURL(url)}
+    accessibilityState={{ disabled: opening }} disabled={opening}
+    onPress={() => { void openPolicy(); }}
     style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
       minHeight: 50, paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: C.border }}>
     <Text style={{ color: C.ink, fontSize: 14, fontWeight: '600' }}>{label}</Text>
@@ -31,6 +50,7 @@ export function SocialSettings({ username, emailVerified, onClose, onClearDrafts
   const [deleting, setDeleting] = useState(false);
   const [deletePhrase, setDeletePhrase] = useState('');
   const [deleteError, setDeleteError] = useState('');
+  const [failedPolicy, setFailedPolicy] = useState<{ label: string; url: string } | null>(null);
   async function deleteAccount() {
     if (deleting || deletePhrase !== 'DELETE') return;
     setDeleting(true);
@@ -113,9 +133,30 @@ export function SocialSettings({ username, emailVerified, onClose, onClearDrafts
 
     <View style={{ gap: 4 }}>
       <Text style={s.cardHeading}>Legal & policies</Text>
-      <PolicyLink label="Privacy policy" url={PRIVACY_URL}/>
-      <PolicyLink label="Terms of service" url={SOCIAL_TERMS_URL}/>
-      <PolicyLink label="Community guidelines" url={SOCIAL_GUIDELINES_URL}/>
+      <PolicyLink label="Privacy policy" url={PRIVACY_URL}
+        onOpenError={(label, url) => setFailedPolicy({ label, url })}/>
+      <PolicyLink label="Terms of service" url={SOCIAL_TERMS_URL}
+        onOpenError={(label, url) => setFailedPolicy({ label, url })}/>
+      <PolicyLink label="Community guidelines" url={SOCIAL_GUIDELINES_URL}
+        onOpenError={(label, url) => setFailedPolicy({ label, url })}/>
+      {failedPolicy ? <View testID="policy-link-fallback" style={{
+        padding: 12, borderRadius: 12, backgroundColor: C.panel,
+        borderColor: C.border, borderWidth: 1, gap: 8,
+      }}>
+        <Text accessibilityRole="alert" style={{ color: '#F1B7BE', fontSize: 13, lineHeight: 19 }}>
+          Couldn't open {failedPolicy.label}. Select and copy the address below
+          to open it manually in your browser.
+        </Text>
+        <Text selectable accessibilityLabel="Policy website address"
+          style={{ color: C.ink, fontSize: 12, lineHeight: 19, flexShrink: 1 }}>
+          {failedPolicy.url}
+        </Text>
+        <Pressable accessibilityRole="button" accessibilityLabel="Dismiss policy link error"
+          onPress={() => setFailedPolicy(null)} style={{ minHeight: 44,
+            alignSelf: 'flex-start', justifyContent: 'center', paddingHorizontal: 6 }}>
+          <Text style={{ color: C.accent, fontWeight: '800', fontSize: 13 }}>Dismiss</Text>
+        </Pressable>
+      </View> : null}
       <Text style={[s.small, { paddingTop: 6, lineHeight: 18 }]}>
         These are the current Rider Comms documents. Social-specific publishing and commercial terms
         must be approved before those features launch.

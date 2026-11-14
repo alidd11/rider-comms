@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import test from 'node:test';
-import { AccountApiError, AccountConnectionError, RiderAccountClient, accountErrorMessage, RESET_SENT_TEXT, isSocialPilotBootstrap } from '../src/authClient.ts';
+import { AccountApiError, AccountConnectionError, RiderAccountClient, accountErrorMessage, RESET_SENT_TEXT } from '../src/authClient.ts';
 import type { TokenStorage } from '../src/authClient.ts';
 
 function response(code: number, body: unknown) {
@@ -232,30 +232,4 @@ test('stalled cold-start request times out, shows a connection error and preserv
   assert.equal(aborted, 1);
   // A network outage is never proof that the account is revoked.
   assert.equal(stored, token);
-});
-
-test('pilot bootstrap requires an exact contract, keeps a 403 session signed in', async () => {
-  const valid = { entitlement: 'pilot', policyVersion: 'social-pilot-v1', capabilities: {
-  mediaUpload: false, privatePosting: false, publicPosting: false,
-  liveStreaming: false, marketplaceCheckout: false, creatorPayouts: false } };
-  assert.equal(isSocialPilotBootstrap(valid), true);
-  for (const bad of [null, [], { ...valid, entitlement: 'public' },
-    { ...valid, policyVersion: 'wrong' }, { ...valid, capabilities: null },
-    { ...valid, capabilities: [] }, { ...valid, capabilities: { ...valid.capabilities, publicPosting: true } },
-    { ...valid, capabilities: { ...valid.capabilities, creatorPayouts: undefined } }])
-    assert.equal(isSocialPilotBootstrap(bad), false);
-  const env = environment(randomUUID());
-  env.queue.push(response(200, identity()), response(200, valid));
-  await env.client.restore();
-  assert.deepEqual(await env.client.socialBootstrap(), valid);
-  assert.equal(env.calls.at(-1)?.pathname, '/social/bootstrap');
-  assert.equal(env.calls.at(-1)?.authenticated, true);
-  env.queue.push(response(403, { error: 'social_beta_not_enabled' }));
-  await assert.rejects(env.client.socialBootstrap(), (err: unknown) =>
-    err instanceof AccountApiError && err.status === 403 && err.code === 'social_beta_not_enabled');
-  assert.notEqual(env.stored, null);
-  env.queue.push(response(200, { entitlement: 'pilot' }));
-  await assert.rejects(env.client.socialBootstrap(), (err: unknown) =>
-    err instanceof AccountApiError && err.code === 'invalid_social_bootstrap');
-  assert.notEqual(env.stored, null);
 });

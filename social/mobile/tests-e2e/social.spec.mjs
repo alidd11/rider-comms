@@ -16,11 +16,7 @@ test.beforeEach(async ({ page }) => {
       'access-control-allow-methods': 'GET,POST,OPTIONS',
     };
     if (method === 'OPTIONS') return route.fulfill({ status: 204, headers });
-    const pilot = pathname === '/social/bootstrap';
-    const body = pilot ? { entitlement: 'pilot', policyVersion: 'social-pilot-v1', capabilities: {
-  mediaUpload: false, privatePosting: false, publicPosting: false,
-  liveStreaming: false, marketplaceCheckout: false, creatorPayouts: false } }
-      : pathname === '/auth/me'
+    const body = pathname === '/auth/me'
       ? { riderId: 'rider_abcd1234', username: 'fixture-rider', emailVerified: true,
           termsAccepted: true, termsVersion: 'terms-fixture' }
       : pathname === '/riders/rider_abcd1234/friends' || pathname === '/conversations'
@@ -28,7 +24,7 @@ test.beforeEach(async ({ page }) => {
           ? { conversations: [], nextCursor: null }
           : { friends: [], nextCursor: null }
         : { error: 'not_found' };
-    return route.fulfill({ status: pilot || pathname === '/auth/me' || pathname.includes('friends') ||
+    return route.fulfill({ status: pathname === '/auth/me' || pathname.includes('friends') ||
       pathname === '/conversations' ? 200 : 404,
       contentType: 'application/json', headers, body: JSON.stringify(body) });
   });
@@ -786,8 +782,10 @@ test('Create opens camera-first with a real permission path and gallery alternat
   await expect(page.getByRole('button', { name: 'Enable camera' })).toBeVisible();
   await page.getByRole('button', { name: 'Reel format' }).click();
   await expect(page.getByText('New reel')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Choose from library' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Choose from library' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Choose Reel video' })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Flip camera' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Take photo' })).toHaveCount(0);
   await page.getByRole('button', { name: 'Post format' }).click();
   await mkdir('test-results/screenshots', { recursive: true });
   await page.screenshot({ path: 'test-results/screenshots/' + testInfo.project.name + '-camera-first-create.png' });
