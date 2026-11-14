@@ -135,6 +135,7 @@ test('production: every major route and empty state is visible, navigable and er
   await page.getByRole('tab', { name: 'Clubs' }).click();
   await expect(page.getByText('No clubs yet')).toBeVisible();
   await expect(page.getByText('No upcoming events.')).toBeVisible();
+  await expect(page.getByTestId('clubs-empty-events')).toBeVisible();
   await verifyScreen(page, testInfo, 'clubs-empty');
 
   await page.getByRole('tab', { name: 'Shop' }).click();
