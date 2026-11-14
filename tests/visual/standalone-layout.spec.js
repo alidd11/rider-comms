@@ -71,8 +71,9 @@ test('installed PWA asks for a portrait lock where the browser allows one; a tab
     Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' });
     document.dispatchEvent(new Event('visibilitychange'));
   });
-  // WebKit can dispatch the resume handler on the next event-loop turn.
-  // Assert that it actually relocks, without racing the synthetic event.
+  // The resume handler can queue the second orientation request on WebKit's
+  // event loop. Poll for the exact calls instead of inspecting synchronously
+  // in the same task as the synthetic visibilitychange dispatch.
   await expect.poll(() => page.evaluate(() => window.lockCalls)).toEqual(
     ['portrait-primary', 'portrait-primary'],
   );
