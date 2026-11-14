@@ -852,7 +852,8 @@ describe('production HTTP boundary', () => {
 
   it('does not reflect malformed request IDs and logs a trusted proxy address', async () => {
     const response = await fetch(`${ctx.baseUrl()}/ready`, {
-      headers: { 'X-Request-ID': 'bad', 'X-Forwarded-For': '203.0.113.8, 10.0.0.1' },
+      headers: { 'X-Request-ID': 'bad', 'X-Real-IP': '203.0.113.8',
+        'X-Forwarded-For': '192.0.2.44, 10.0.0.1' },
     });
     const generatedId = response.headers.get('x-request-id') ?? '';
     assert.match(generatedId, /^[0-9a-f-]{36}$/);
