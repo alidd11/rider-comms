@@ -15,8 +15,8 @@
     return `${Math.floor(age / 60_000)} min ago`;
   }
 
-  function riderMarkerLabel(displayName, lastSeen) {
-    return { text: `${riderMapLabel(displayName)}${lastSeen ? ` · ${lastSeen}` : ''}`, className: 'rider-map-label', color: '#ffffff', fontSize: '12px', fontWeight: '800' };
+  function riderMarkerLabel(displayName, lastSeen, batteryLow = false) {
+    return { text: `${riderMapLabel(displayName)}${lastSeen ? ` · ${lastSeen}` : ''}${batteryLow ? ' · low battery' : ''}`, className: 'rider-map-label', color: '#ffffff', fontSize: '12px', fontWeight: '800' };
   }
 
   function renderMapRiders() {
@@ -47,7 +47,7 @@
       const existing = mapMarkers.get(person.riderId);
       if (!existing) {
         const marker = addMapMarker(person, latLng, false, status);
-        mapMarkers.set(person.riderId, { marker, status, lastSeen: null });
+        mapMarkers.set(person.riderId, { marker, status, lastSeen: null, batteryLow: false });
         snapMarkerTo(person.riderId, marker, latLng);
       } else {
         if (existing.status !== status) {
@@ -57,10 +57,13 @@
         glideMarkerTo(person.riderId, existing.marker, latLng, RIDE_LOCATION_REFRESH_MS, now);
       }
       const entry = mapMarkers.get(person.riderId);
-      if (entry.lastSeen !== lastSeen) {
+      // A rider whose phone says its battery is nearly flat says so too.
+      const batteryLow = real.batteryLow === true;
+      if (entry.lastSeen !== lastSeen || entry.batteryLow !== batteryLow) {
         entry.lastSeen = lastSeen;
-        entry.marker.setLabel?.(riderMarkerLabel(person.displayName, lastSeen));
-        entry.marker.setTitle?.(lastSeen ? `${person.displayName} · last seen ${lastSeen}` : person.displayName);
+        entry.batteryLow = batteryLow;
+        entry.marker.setLabel?.(riderMarkerLabel(person.displayName, lastSeen, batteryLow));
+        entry.marker.setTitle?.(`${lastSeen ? `${person.displayName} · last seen ${lastSeen}` : person.displayName}${batteryLow ? ' · low battery' : ''}`);
       }
     }
     for (const [riderId, existing] of mapMarkers) {

@@ -2786,3 +2786,4 @@ html.map-day .nav-speed-badge:before{border-color:rgb(11 18 22/.08)}
 html.map-day .nav-speed-badge span,html.map-day .nav-summary-eta span,html.map-day .nav-summary-stat>span{color:#58666e}
 html.map-day .nav-summary:before{background:#9aa6ac}
 html.map-day .nav-summary-stat{border-left-color:rgb(11 18 22/.1)}
+.roster-battery-low{font-weight:780;color:var(--warning)}

@@ -122,6 +122,7 @@
     }
     hideAuthScreen();
     startApp();
+    restoreQueuedHazardReports();
     await loadProfile();
     await loadBillingStatus();
     if (verification) showToast(verification.message);

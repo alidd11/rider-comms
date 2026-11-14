@@ -48,7 +48,7 @@
       const safetyButton = person.riderId !== state.profile.riderId
         ? `<button type="button" class="roster-safety" data-rider-safety="${escapeHtml(person.riderId)}" aria-label="Report or block ${escapeHtml(person.displayName)}">${icon('shield')}</button>`
         : '';
-      return `<article class="roster-row">${avatar(person, 'small')}<div class="identity"><strong>${escapeHtml(person.displayName)}${person.riderId === state.profile.riderId ? ' · You' : ''}</strong><span>${escapeHtml(person.handle)}${person.riderId === ride.createdBy ? '<b class="roster-host-inline" aria-hidden="true"> · Host</b>' : ''}</span></div><span class="roster-status">${person.riderId === ride.createdBy ? 'Host' : 'Member'}</span>${safetyButton}${removeButton}</article>`;
+      return `<article class="roster-row">${avatar(person, 'small')}<div class="identity"><strong>${escapeHtml(person.displayName)}${person.riderId === state.profile.riderId ? ' · You' : ''}</strong><span>${escapeHtml(person.handle)}${person.riderId === ride.createdBy ? '<b class="roster-host-inline" aria-hidden="true"> · Host</b>' : ''}${rideMemberLocations.get(person.riderId)?.batteryLow === true ? '<b class="roster-battery-low"> · Low battery</b>' : ''}</span></div><span class="roster-status">${person.riderId === ride.createdBy ? 'Host' : 'Member'}</span>${safetyButton}${removeButton}</article>`;
     }).join('');
     renderMapRiders();
   }
@@ -501,7 +501,10 @@
     // A rider whose phone is nearly flat is called out once too, so the
     // group knows why they may go quiet.
     const battery = rideBatteryAnnouncements(rideBatteryState, others, names);
+    const batteryChanged = Object.keys(battery.state).sort().join() !== Object.keys(rideBatteryState).sort().join();
     rideBatteryState = battery.state;
+    // The roster says who is on a low battery, so redraw it when that changes.
+    if (batteryChanged) renderRide();
     const said = [...step.announcements, ...battery.announcements];
     if (!said.length) return;
     const message = said.join(' ');
