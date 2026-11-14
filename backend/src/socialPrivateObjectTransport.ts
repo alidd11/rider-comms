@@ -131,10 +131,13 @@ type StorageFetcher = (url: string, init: RequestInit) => Promise<Response>;
  * is not sufficient. No public route calls these methods.
  */
 export class SocialPrivateObjectTransport {
-  constructor(
-    private readonly config: SocialS3Config,
-    private readonly fetcher: StorageFetcher = fetch,
-  ) {}
+  private readonly config: SocialS3Config;
+  private readonly fetcher: StorageFetcher;
+
+  constructor(config: SocialS3Config, fetcher: StorageFetcher = fetch) {
+    this.config = config;
+    this.fetcher = fetcher;
+  }
 
   async putProcessed(key: string, processedBytes: Uint8Array, mime: string): Promise<void> {
     const req = signSocialObjectRequest(this.config, 'PUT', key, processedBytes, mime);
