@@ -45,20 +45,35 @@ appId: com.ridercomms.app
     commands:
       - tapOn:
           id: auth-submit
-# First launch shows the two-step onboarding (welcome, then location).
-# iOS adds to labels ("Get started, ", "Group Ride, tab, 2 of 5"), so each
-# match allows a comma and more after the visible text.
-- tapOn:
-    text: "Get [Ss]tarted(,.*)?"
-    optional: true
-# The location step slides in; wait for it before the optional tap.
+# First launch (clearState) shows the two-step onboarding: welcome, then
+# location. iOS adds to labels ("Get started, ", "Group Ride, tab, 2 of 5"),
+# so each match allows a comma and more after the visible text. Sign-in can
+# take a moment, so wait for the welcome step, then retry each tap until the
+# next step shows: the iOS simulator drops taps (see #461, #463), and a
+# dropped "Get started" once left the run on this screen. Only forms used
+# elsewhere in this flow appear here.
 - extendedWaitUntil:
-    visible: "Continue(,.*)?"
-    timeout: 10000
-    optional: true
-- tapOn:
-    text: "Continue(,.*)?"
-    optional: true
+    visible: "Get [Ss]tarted(,.*)?"
+    timeout: 15000
+- retry:
+    maxRetries: 3
+    commands:
+      - tapOn:
+          text: "Get [Ss]tarted(,.*)?"
+          optional: true
+      - extendedWaitUntil:
+          visible: "Continue(,.*)?"
+          timeout: 5000
+- retry:
+    maxRetries: 3
+    commands:
+      - tapOn:
+          text: "Continue(,.*)?"
+          optional: true
+      - extendedWaitUntil:
+          visible:
+            id: drawer-home
+          timeout: 10000
 # No tab bar: the map's Where to drawer holds search and Home, Work and
 # Petrol; Ride, Friends, Routes and Settings are in the menu behind the
 # rider's avatar, and each page has a back arrow to the map.

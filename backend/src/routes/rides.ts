@@ -1,11 +1,11 @@
 import { isCoordinate, readJsonBody, sendJson } from '../serverHttp.ts';
-import { normalizeRegroupLabel } from '@rider-comms/shared';
+import { normalizeRegroupLabel, regroupAnnouncement } from '@rider-comms/shared';
 import { containsSevereText } from '../contentFilter.ts';
 import { NOT_HANDLED, countFilterRejection, rideBody } from './context.ts';
 import type { RouteContext } from './context.ts';
 
 export async function handleRideRoutes(ctx: RouteContext): Promise<unknown> {
-  const { req, res, url, actorId, s, rideStore, revokeRideVoiceParticipants, visibleRideLocationsFor, adminStatsStore } = ctx;
+  const { req, res, url, actorId, s, rideStore, revokeRideVoiceParticipants, visibleRideLocationsFor, adminStatsStore, pushNotifier } = ctx;
   if (req.method === 'GET' && url.pathname === '/rides/current') {
     const current = await rideStore.getCurrentRideForMember(actorId);
     return sendJson(res, 200, { ride: current ? {
@@ -48,6 +48,17 @@ export async function handleRideRoutes(ctx: RouteContext): Promise<unknown> {
         point = { lat: body.lat as number, lon: body.lon as number, label };
       }
       const r = await rideStore.setRegroupPoint(id, actorId, point);
+      // Riders with the app in a pocket hear about it too: the same words
+      // the app speaks, on every other member's devices. One per ride, so a
+      // moved point replaces the last one.
+      const regroup = r.ok ? r.ride.regroup : null;
+      const body = regroup ? regroupAnnouncement(null, regroup, false) : null;
+      if (r.ok && body) {
+        for (const memberId of r.ride.memberIds) {
+          if (memberId === actorId) continue;
+          void pushNotifier.notify(memberId, 'regroup', { title: 'Regroup point', body, route: '#map', tag: `regroup:${id}` });
+        }
+      }
       return r.ok ? sendJson(res, 200, { regroup: r.ride.regroup }) : sendJson(res, r.reason === 'not_found' ? 404 : 403, { error: r.reason });
     }
     if (req.method === 'PUT' && s[2] === 'location-sharing') {

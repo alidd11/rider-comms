@@ -7,6 +7,7 @@ import {
   isRideCodeExpired,
   normalizeRegroupLabel,
   regroupAnnouncement,
+  rideDropAnnouncements,
   rideMemberLastSeenAgo,
 } from '../src/rideCode.ts';
 
@@ -90,5 +91,41 @@ describe('regroup announcement', () => {
     expect(regroupAnnouncement(esso, esso, false)).toBe(null);
     expect(regroupAnnouncement(esso, null, false)).toBe(null);
     expect(regroupAnnouncement(undefined, esso, false)).toBe(null);
+  });
+});
+
+describe('dropped rider announcements', () => {
+  const now = 1_000_000;
+  const names = { sam: 'Sam', jo: 'Jo' };
+  it('announces a rider seen live once their position stops for two minutes, then once when it returns', () => {
+    let step = rideDropAnnouncements({}, [{ riderId: 'sam', updatedAt: now }], names, now);
+    expect(step.announcements).toEqual([]);
+    expect(step.state).toEqual({ sam: 'fresh' });
+    // Quiet while merely late.
+    step = rideDropAnnouncements(step.state, [{ riderId: 'sam', updatedAt: now }], names, now + 60_000);
+    expect(step.announcements).toEqual([]);
+    step = rideDropAnnouncements(step.state, [{ riderId: 'sam', updatedAt: now }], names, now + 120_000);
+    expect(step.announcements).toEqual(['Sam’s position hasn’t updated for 2 minutes.']);
+    // Said once per drop.
+    step = rideDropAnnouncements(step.state, [{ riderId: 'sam', updatedAt: now }], names, now + 180_000);
+    expect(step.announcements).toEqual([]);
+    step = rideDropAnnouncements(step.state, [{ riderId: 'sam', updatedAt: now + 200_000 }], names, now + 205_000);
+    expect(step.announcements).toEqual(['Sam’s position is updating again.']);
+    expect(step.state).toEqual({ sam: 'fresh' });
+  });
+  it('stays quiet for a rider never seen live, one who stopped sharing, or a bad timestamp', () => {
+    const stale = rideDropAnnouncements({}, [{ riderId: 'jo', updatedAt: now - 300_000 }], names, now);
+    expect(stale.announcements).toEqual([]);
+    expect(stale.state).toEqual({});
+    const left = rideDropAnnouncements({ jo: 'fresh' }, [], names, now);
+    expect(left.announcements).toEqual([]);
+    expect(left.state).toEqual({});
+    const odd = rideDropAnnouncements({ jo: 'fresh' }, [{ riderId: 'jo', updatedAt: Number.NaN }], names, now);
+    expect(odd.announcements).toEqual([]);
+    expect(odd.state).toEqual({ jo: 'fresh' });
+  });
+  it('names an unknown rider plainly', () => {
+    const step = rideDropAnnouncements({ x: 'fresh' }, [{ riderId: 'x', updatedAt: now - 130_000 }], {}, now);
+    expect(step.announcements).toEqual(['A rider’s position hasn’t updated for 2 minutes.']);
   });
 });

@@ -18,8 +18,11 @@ export function HazardDetailCard({
   bottomInset,
   onDismiss,
   onVote,
+  notice,
 }: {
   hazard: HazardReport;
+  /** Confirms the rider's own report, e.g. "Accident reported." */
+  notice?: string | null;
   bottomInset: number;
   onDismiss: () => void;
   onVote: (hazardId: string, direction: 'confirm' | 'deny') => void | Promise<void>;
@@ -49,6 +52,12 @@ export function HazardDetailCard({
           <Ionicons name="close" size={19} color={colors.textSecondary} />
         </Pressable>
       </View>
+      {notice ? (
+        <View style={styles.notice}>
+          <Ionicons name="checkmark-circle" size={16} color={colors.success} />
+          <Text style={styles.noticeText}>{notice}</Text>
+        </View>
+      ) : null}
       <View style={styles.actions}>
         <Pressable
           accessibilityRole="button"
@@ -117,6 +126,8 @@ const styles = StyleSheet.create({
   },
   dismissPressed: { backgroundColor: colors.surfaceRaised },
   actions: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  notice: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  noticeText: { ...type.caption, flex: 1, color: colors.textPrimary, fontWeight: '700' },
   voteButton: {
     minWidth: 0,
     minHeight: MIN_TOUCH_TARGET,

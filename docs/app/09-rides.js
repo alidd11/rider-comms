@@ -380,6 +380,61 @@
     return next.label ? `Regroup at ${next.label}.` : 'Regroup point set. It’s on your map.';
   }
 
+  // Mirrors shared rideDropAnnouncements (shared/src/rideCode.ts);
+  // scripts/check-client-parity.mjs runs both on the same cases.
+  const RIDE_DROPPED_ALERT_MS = 120_000;
+  function rideDropAnnouncements(previous, locations, names, now) {
+    const state = {};
+    const announcements = [];
+    for (const { riderId, updatedAt } of locations) {
+      const age = now - updatedAt;
+      const was = previous[riderId];
+      const name = names[riderId] || 'A rider';
+      if (Number.isFinite(age) && age <= RIDE_LOCATION_FRESH_MS) {
+        if (was === 'dropped') announcements.push(`${name}’s position is updating again.`);
+        state[riderId] = 'fresh';
+      } else if (was === 'fresh' && Number.isFinite(age) && age >= RIDE_DROPPED_ALERT_MS) {
+        announcements.push(`${name}’s position hasn’t updated for 2 minutes.`);
+        state[riderId] = 'dropped';
+      } else if (was) {
+        state[riderId] = was;
+      }
+    }
+    return { state, announcements };
+  }
+
+  // A rider whose position stops updating mid-ride (no signal, flat battery,
+  // a fall) is called out to the group once, and again when they're back:
+  // a toast, and spoken unless spoken directions are off or navigation is
+  // muted. Only checked after a successful refresh, so this rider's own lost
+  // signal never reads as everyone else dropping.
+  let rideDropState = {};
+  let rideDropRideId = null;
+  // Names are remembered once loaded: a refresh can land while the roster
+  // is being reloaded, and before profiles load a member's name is their ID
+  // (said as "A rider" rather than read out).
+  let rideDropNames = {};
+  function announceDroppedRiders(locations) {
+    const ride = state.activeRide;
+    if (!ride) return;
+    if (rideDropRideId !== ride.rideId) {
+      rideDropRideId = ride.rideId;
+      rideDropState = {};
+      rideDropNames = {};
+    }
+    for (const member of ride.members || []) {
+      if (member.displayName && member.displayName !== member.riderId) rideDropNames[member.riderId] = member.displayName;
+    }
+    const names = rideDropNames;
+    const others = locations.filter((entry) => entry.riderId !== state.profile.riderId);
+    const step = rideDropAnnouncements(rideDropState, others, names, Date.now());
+    rideDropState = step.state;
+    if (!step.announcements.length) return;
+    const message = step.announcements.join(' ');
+    showToast(message);
+    if (state.spokenDirections !== false) speak(message);
+  }
+
   /** A new regroup point from the host: a toast, and spoken unless spoken
    * directions are off or navigation is muted (speak() checks navMuted). */
   function announceRegroup(previous, next, isHost) {
