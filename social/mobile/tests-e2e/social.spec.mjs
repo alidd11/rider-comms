@@ -463,6 +463,14 @@ test('Reels For You and Following have separate visible creator sets and Saved s
   await page.getByRole('button', { name: 'Open profile' }).click();
   await page.getByRole('tab', { name: 'Saved profile tab' }).click();
   await expect(page.getByText('No saved Reels yet')).toBeVisible();
+  // Session-only means a reload must not silently reveal a prior viewing
+  // history on a shared browser; production saves need an authenticated API.
+  await page.getByRole('tab', { name: 'Reels' }).click();
+  await page.getByRole('button', { name: 'Save Reel r2' }).click();
+  await page.reload();
+  await page.getByRole('button', { name: 'Open profile' }).click();
+  await page.getByRole('tab', { name: 'Saved profile tab' }).click();
+  await expect(page.getByText('No saved Reels yet')).toBeVisible();
   expect(errors).toEqual([]);
 });
 

@@ -861,8 +861,8 @@ function AuthenticatedSocialApp(): React.JSX.Element {
         {profileTab === 'Saved' ? <View testID="profile-saved-reels" style={{ gap: 13, paddingVertical: 12 }}>
           <Text style={[s.sectionTitle, { fontSize: 20 }]}>Saved Reels</Text>
           <Text style={[s.small, { lineHeight: 19 }]}>
-            Saved videos are private to this session. They disappear when you close the app;
-            secure account syncing is not available yet.
+            Private to this session. Saved videos disappear when you close the app;
+            account syncing is not available yet.
           </Text>
           {savedReelPreviews.length ? <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
             {savedReelPreviews.map(reel => <Pressable key={reel.id}
@@ -875,14 +875,22 @@ function AuthenticatedSocialApp(): React.JSX.Element {
               <Text numberOfLines={2} style={{ color: C.ink, fontSize: 13,
                 fontWeight: '800', lineHeight: 18, padding: 9 }}>{reel.title}</Text>
             </Pressable>)}
-          </View> : <View style={{ alignItems: 'center', paddingVertical: 30, gap: 12 }}>
-            <Ionicons name="bookmark-outline" size={37} color={C.accent}/>
-            <Text style={s.cardHeading}>No saved Reels yet</Text>
-            <Text style={[s.small, { textAlign: 'center', maxWidth: 290, lineHeight: 20 }]}>
-              Save videos you want to revisit while testing this app.
-            </Text>
+          </View> : <View style={{ gap: 12, paddingTop: 7 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 13,
+              borderRadius: 16, backgroundColor: C.panel, padding: 15 }}>
+              <View style={{ width: 48, height: 48, borderRadius: 15,
+                backgroundColor: C.accentDark, alignItems: 'center', justifyContent: 'center' }}>
+                <Ionicons name="bookmark-outline" size={26} color={C.accent}/>
+              </View>
+              <View style={{ flex: 1, gap: 4 }}>
+                <Text style={[s.cardHeading, { fontSize: 15 }]}>No saved Reels yet</Text>
+                <Text style={[s.small, { fontSize: 12, lineHeight: 18 }]}>
+                  Bookmark videos to revisit them during testing.
+                </Text>
+              </View>
+            </View>
             <Pressable accessibilityRole="button" accessibilityLabel="Explore Reels from Saved"
-              style={[s.cta, { minWidth: 180 }]}
+              style={[s.cta, { minHeight: 46 }]}
               onPress={() => { setReelStartId(null); navigate('Reels'); }}>
               <Text style={s.ctaText}>Explore Reels</Text>
             </Pressable>
