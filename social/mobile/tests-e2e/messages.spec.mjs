@@ -38,7 +38,11 @@ async function installFixture(page, { onRequest = async () => {} } = {}) {
     }
     let body;
     let status = 200;
-    if (path === '/auth/me') {
+    if (path === '/social/bootstrap') {
+      body = { entitlement: 'pilot', policyVersion: 'social-pilot-v1', capabilities: {
+  mediaUpload: false, privatePosting: false, publicPosting: false,
+  liveStreaming: false, marketplaceCheckout: false, creatorPayouts: false } };
+    } else if (path === '/auth/me') {
       body = { riderId: ownId, username: 'message-test', emailVerified: true,
         termsAccepted: true, termsVersion: 'terms-test' };
     } else if (path === '/riders/' + ownId + '/friends') {
