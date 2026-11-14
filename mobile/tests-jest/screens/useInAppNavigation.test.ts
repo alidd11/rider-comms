@@ -9,6 +9,7 @@ import {
   NAV_GPS_STALE_AFTER_MS,
   NAV_GPS_STALE_NOTICE,
 } from '../../src/navigationGpsHealth';
+import { FASTER_ROUTE_CHECK_MS } from '@rider-comms/shared';
 import { NAVIGATION_KEEP_AWAKE_TAG, useInAppNavigation } from '../../src/screens/useInAppNavigation';
 
 const mockSpeakNavigationPrompt = jest.fn();
@@ -397,6 +398,34 @@ test('offers the other ways there before setting off, and switches on a tap', as
 
   await act(async () => { result.current.finishInAppNavigation(); });
   expect(result.current.routeChoices).toEqual([]);
+});
+
+test('switches to a faster route found in live traffic, and says so', async () => {
+  const slow: InAppNavigationRoute = { ...ROUTE, durationSeconds: 2700, steps: ROUTE.steps.map((step) => ({ ...step, durationSeconds: 900 })) };
+  const faster: InAppNavigationRoute = { ...ROUTE, durationSeconds: 1500, steps: ROUTE.steps.map((step) => ({ ...step, durationSeconds: 500 })) };
+  const client = {
+    getDrivingRoute: jest.fn()
+      .mockResolvedValueOnce(slow)
+      .mockRejectedValueOnce(new Error('no signal'))
+      .mockResolvedValueOnce({ ...slow, durationSeconds: 2600 })
+      .mockResolvedValueOnce(faster),
+  };
+  const { result } = await startNavigation({ client: client as never });
+  await sendFix(51.5, -0.1);
+  mockSpeakNavigationPrompt.mockClear();
+
+  // No answer, then a route that saves too little: stay put.
+  await act(async () => { await jest.advanceTimersByTimeAsync(FASTER_ROUTE_CHECK_MS); });
+  await act(async () => { await jest.advanceTimersByTimeAsync(FASTER_ROUTE_CHECK_MS); });
+  expect(result.current.activeRoute).toBe(slow);
+  expect(mockSpeakNavigationPrompt).not.toHaveBeenCalled();
+
+  await act(async () => { await jest.advanceTimersByTimeAsync(FASTER_ROUTE_CHECK_MS); });
+  expect(client.getDrivingRoute).toHaveBeenLastCalledWith({ lat: 51.5, lon: -0.1 }, DESTINATION, expect.anything());
+  expect(result.current.activeRoute).toBe(faster);
+  // (The test sends no GPS for 15 minutes, so the card's notice has moved
+  // on to the lost-signal warning by now; what was said is what counts.)
+  expect(mockSpeakNavigationPrompt).toHaveBeenCalledWith(expect.stringMatching(/^Faster route found\. Saves \d+ min\.$/));
 });
 
 test('reroutes only after staying off route for the grace period', async () => {

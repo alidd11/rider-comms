@@ -149,6 +149,26 @@
     return delay >= 120 ? `+${formatNavigationDuration(delay)} traffic` : '';
   }
 
+  /** How often a route in progress is checked against live traffic. */
+  const FASTER_ROUTE_CHECK_MS = 5 * 60_000;
+
+  /**
+   * Seconds a freshly asked-for route saves over the rest of the current one,
+   * when that's worth switching for: at least 3 minutes, and at least 10% of
+   * what's left, so a long trip doesn't hop roads to save a minute. 0 means
+   * stay on the current route.
+   */
+  function fasterRouteSavingSeconds(remainingSeconds, newRouteSeconds) {
+    if (!Number.isFinite(remainingSeconds) || !Number.isFinite(newRouteSeconds) || newRouteSeconds <= 0) return 0;
+    const saving = remainingSeconds - newRouteSeconds;
+    return saving >= Math.max(180, remainingSeconds * 0.1) ? saving : 0;
+  }
+
+  /** What the rider hears: "Faster route found. Saves 6 min." */
+  function fasterRouteAnnouncement(savingSeconds) {
+    return `Faster route found. Saves ${formatNavigationDuration(savingSeconds)}.`;
+  }
+
   const NAVIGATION_CONTINUE_PROMPT_METERS = 2000;
 
   function navigationStepStartPrompt(instruction, stepMeters, unit, alreadySpokenAtTurn) {
@@ -236,6 +256,9 @@
     routeTwistiness,
     routeChoices,
     routeTrafficDelayText,
+    FASTER_ROUTE_CHECK_MS,
+    fasterRouteSavingSeconds,
+    fasterRouteAnnouncement,
     navigationSpeedUnit,
   });
 })(typeof window === 'undefined' ? globalThis : window);

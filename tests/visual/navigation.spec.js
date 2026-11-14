@@ -16,16 +16,17 @@ async function provideRoute(page, steps = [
       instructions: step.instructions,
       maneuver: step.maneuver,
       distance: { value: step.meters, text: `${step.meters} m` },
-      duration: { value: Math.round(step.meters / 15), text: '' },
+      duration: { value: step.seconds ?? Math.round(step.meters / 15), text: '' },
       start_location: latLng(step.from),
       end_location: latLng(step.to),
       path: [latLng(step.from), latLng(step.to)],
     }));
     const meters = stepList.reduce((sum, step) => sum + step.meters, 0);
+    const seconds = built.reduce((sum, step) => sum + step.duration.value, 0);
     window.__riderCommsTestRoute = { routes: [{ legs: [{
       steps: built,
       distance: { value: meters, text: '' },
-      duration: { value: Math.round(meters / 15), text: '' },
+      duration: { value: seconds, text: '' },
       start_location: built[0].start_location,
       end_location: built.at(-1).end_location,
     }] }] };
@@ -135,4 +136,40 @@ test('PWA asks for live traffic, offers the other ways there while parked, and s
 
   await page.locator('#endNavBtn').click();
   await expect(page.locator('#navRouteChoices')).toBeHidden();
+});
+
+test('PWA switches to a faster route found in live traffic, and says so', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__spoken = [];
+    window.SpeechSynthesisUtterance = function SpeechSynthesisUtterance(text) { this.text = text; };
+    Object.defineProperty(window, 'speechSynthesis', { value: { cancel() {}, speak(utterance) { window.__spoken.push(utterance.text); } } });
+  });
+  await page.clock.install();
+  await mockAuthenticatedApi(page, 'stationary');
+  await page.addInitScript(({ riderId, home }) => {
+    localStorage.setItem(`riderComms.savedPlaces:${riderId}`, JSON.stringify({ home }));
+    localStorage.setItem(`rider-comms-pwa-v4:${riderId}`, JSON.stringify({ navigationProvider: 'in_app', spokenDirections: true }));
+  }, { riderId: RIDER_ID, home: HOME });
+  await page.goto('/');
+  await page.waitForFunction(() => Boolean(window.google?.maps?.LatLng && window.__riderCommsTestMap));
+  const slowSteps = [
+    { from: [51.5, -0.1], to: [51.51, -0.1], instructions: 'Head <b>north</b>', maneuver: '', meters: 1100, seconds: 1500 },
+    { from: [51.51, -0.1], to: [51.52, -0.1], instructions: 'Turn <b>left</b>', maneuver: 'turn-left', meters: 1100, seconds: 1500 },
+  ];
+  await provideRoute(page, slowSteps);
+  await page.locator('[data-saved-place="home"]').click();
+  await expect(page.locator('#app')).toHaveClass(/nav-mode/);
+
+  // Five minutes on, a route that saves too little changes nothing...
+  await provideRoute(page, slowSteps.map((step) => ({ ...step, seconds: 1450 })));
+  await page.evaluate(() => { window.__spoken = []; });
+  await page.clock.runFor(5 * 60_000 + 1000);
+  await expect.poll(() => page.evaluate(() => (window.__riderCommsTestRouteRequests || []).length)).toBeGreaterThanOrEqual(2);
+  expect(await page.evaluate(() => window.__spoken.filter((text) => text.startsWith('Faster')))).toEqual([]);
+
+  // ...and five minutes later a much quicker one is taken, and said.
+  await provideRoute(page, slowSteps.map((step) => ({ ...step, seconds: 600 })));
+  await page.clock.runFor(5 * 60_000 + 1000);
+  await expect.poll(() => page.evaluate(() => window.__spoken.find((text) => text.startsWith('Faster')))).toMatch(/^Faster route found\. Saves \d+ min\.$/);
+  await expect(page.locator('#navGpsNotice')).toContainText('Faster route found');
 });

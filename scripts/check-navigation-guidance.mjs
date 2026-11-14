@@ -11,6 +11,9 @@ import {
   navigationPromptText,
   navigationSpeedUnit,
   navigationStepStartPrompt,
+  FASTER_ROUTE_CHECK_MS,
+  fasterRouteAnnouncement,
+  fasterRouteSavingSeconds,
   routeChoices,
   routeTrafficDelayText,
   routeTwistiness,
@@ -141,3 +144,9 @@ console.log('Navigation guidance PWA/native parity valid');
     assert.equal(browser.routeTrafficDelayText(duration, typical), routeTrafficDelayText(duration, typical));
   }
 }
+
+assert.equal(browser.FASTER_ROUTE_CHECK_MS, FASTER_ROUTE_CHECK_MS);
+for (const [remaining, fresh] of [[1800, 1400], [1800, 1650], [7200, 6600], [7200, 6400], [600, 400], [600, 0], [Number.NaN, 100], [600, Number.NaN]]) {
+  assert.equal(browser.fasterRouteSavingSeconds(remaining, fresh), fasterRouteSavingSeconds(remaining, fresh));
+}
+for (const saving of [180, 360, 3700]) assert.equal(browser.fasterRouteAnnouncement(saving), fasterRouteAnnouncement(saving));

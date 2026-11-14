@@ -769,6 +769,7 @@
     // rider actually needs mid-drive (report hazard, mute guidance, route overview/follow, end nav).
     $('#app').classList.add('nav-mode');
     void keepScreenOnForNavigation(true);
+    if (!fasterRouteTimer) fasterRouteTimer = setInterval(checkForFasterRoute, navigationGuidance.FASTER_ROUTE_CHECK_MS);
     renderMapChrome();
     watchNavigationOverlayGeometry();
     setNavigationTrafficVisible(true);
@@ -1010,6 +1011,25 @@
     );
   }
 
+  // Like Waze: every few minutes, ask for the way from here with live
+  // traffic, and switch when it saves enough (shared fasterRouteSavingSeconds),
+  // saying so rather than asking for a tap (native: useInAppNavigation).
+  let fasterRouteTimer = null;
+  function checkForFasterRoute() {
+    if (navRerouting || !navDestination || !navCurrentPosition || !Number.isFinite(navRemainingSeconds)) return;
+    const destination = { lat: navDestination.lat, lng: navDestination.lng };
+    const remaining = navRemainingSeconds;
+    const label = navDestination.label;
+    getDirectionsService().route(navigationRouteRequest(navCurrentPosition, destination), (result, status) => {
+      if (status !== 'OK' || !result || navRerouting || !navDestination) return;
+      const saving = navigationGuidance.fasterRouteSavingSeconds(remaining, routeLegSeconds(result.routes[0]?.legs?.[0]));
+      if (saving <= 0) return;
+      const announcement = navigationGuidance.fasterRouteAnnouncement(saving);
+      applyRoute(result, destination, label, { preserveMute: true, routeNotice: announcement });
+      if (!navMuted) speak(announcement);
+    });
+  }
+
   function finishNavigation(arrived) {
     const announceArrival = Boolean(arrived && !navMuted);
     const arrival = arrived && navTrip ? {
@@ -1062,6 +1082,8 @@
     $('#app').style.removeProperty('--nav-banner-height');
     $('#app').classList.remove('nav-mode');
     void keepScreenOnForNavigation(false);
+    clearInterval(fasterRouteTimer);
+    fasterRouteTimer = null;
     navRouteResult = null;
     navTrafficScale = 1;
     renderNavRouteChoices();

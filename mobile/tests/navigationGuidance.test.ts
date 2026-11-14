@@ -11,7 +11,7 @@ import {
   navigationSpeedUnit,
   navigationStepStartPrompt,
 } from '../src/navigationGuidance.ts';
-import { routeChoices, routeTrafficDelayText, routeTwistiness } from '@rider-comms/shared';
+import { fasterRouteAnnouncement, fasterRouteSavingSeconds, routeChoices, routeTrafficDelayText, routeTwistiness } from '@rider-comms/shared';
 
 describe('navigation guidance presentation', () => {
   it('formats metric and imperial distances consistently for navigation', () => {
@@ -152,5 +152,16 @@ describe('navigationInstructionRoad', () => {
     assert.equal(routeTrafficDelayText(1800, 1750), '');
     assert.equal(routeTrafficDelayText(1800, null), '');
     assert.equal(routeTrafficDelayText(1800, Number.NaN), '');
+  });
+
+  it('switches to a faster route only when it saves 3 minutes and a tenth of the trip', () => {
+    assert.equal(fasterRouteSavingSeconds(1800, 1400), 400);
+    assert.equal(fasterRouteSavingSeconds(1800, 1650), 0);
+    // Two hours left: a tenth is 12 minutes, so 10 minutes saved isn't enough.
+    assert.equal(fasterRouteSavingSeconds(7200, 6600), 0);
+    assert.equal(fasterRouteSavingSeconds(7200, 6400), 800);
+    assert.equal(fasterRouteSavingSeconds(600, 0), 0);
+    assert.equal(fasterRouteSavingSeconds(Number.NaN, 100), 0);
+    assert.equal(fasterRouteAnnouncement(360), 'Faster route found. Saves 6 min.');
   });
 });
