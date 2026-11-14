@@ -354,7 +354,7 @@ export function ReelsScreen({ items, followingItems, initialReelId, savedReelIds
         </Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel="Next Reel" disabled={activeIndex >= activeItems.length - 1}
           onPress={() => moveTo(activeIndex + 1)}
-          style={{ width: 34, height: 34, justifyContent: 'center', alignItems: 'center', opacity: activeIndex >= items.length - 1 ? 0.3 : 0.82 }}>
+          style={{ width: 34, height: 34, justifyContent: 'center', alignItems: 'center', opacity: activeIndex >= activeItems.length - 1 ? 0.3 : 0.82 }}>
           <Ionicons name="chevron-down" size={22} color="#FFFFFF" style={reelTextShadow} />
         </Pressable>
       </View> : null}

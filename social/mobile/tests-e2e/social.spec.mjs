@@ -445,6 +445,11 @@ test('Reels For You and Following have separate visible creator sets and Saved s
   await expect(page.locator('#social-reel-panel-r1')).toHaveCount(0);
   await expect(page.locator('#social-reel-panel-r2')).toHaveCount(1);
   await expect(page.locator('#social-reel-panel-r3')).toHaveCount(1);
+  // With fewer followed Reels than discovery Reels, the final pager control
+  // must be visibly dimmed whenever it is disabled.
+  await page.getByRole('button', { name: 'Next Reel' }).click();
+  await expect(page.getByRole('button', { name: 'Next Reel' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Next Reel' })).toHaveCSS('opacity', '0.3');
   await page.getByRole('tab', { name: 'For You videos' }).click();
   await page.getByRole('button', { name: 'Save Reel r2' }).click();
   await page.getByRole('tab', { name: 'Home' }).click();
