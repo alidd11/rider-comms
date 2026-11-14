@@ -126,6 +126,12 @@ test('production: every major route and empty state is visible, navigable and er
   await expect(page.getByTestId('reels-empty-state')).toBeVisible();
   await expect(page.getByTestId('reels-empty-studio-art')).toBeVisible();
   await expect(page.getByText('No Reels yet')).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'For You videos' })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Following videos' })).toBeVisible();
+  await page.getByRole('tab', { name: 'Following videos' }).click();
+  await expect(page.getByText('No followed Reels yet')).toBeVisible();
+  await page.getByRole('button', { name: 'Explore For You Reels' }).click();
+  await expect(page.getByText('No Reels yet')).toBeVisible();
   await expect(page.getByText(/Nothing is published yet/)).toBeVisible();
   await verifyScreen(page, testInfo, 'reels-empty');
   await page.getByRole('button', { name: 'Create Reel' }).click();
@@ -179,6 +185,24 @@ test('production: every major route and empty state is visible, navigable and er
   await page.getByRole('tab', { name: 'Reels profile tab' }).click();
   await expect(page.getByText('Your Reels will appear here')).toBeVisible();
   await verifyScreen(page, testInfo, 'profile-reels');
+  await page.getByRole('tab', { name: 'Saved profile tab' }).click();
+  await expect(page.getByTestId('profile-saved-reels')).toBeVisible();
+  await expect(page.getByText('No saved Reels yet')).toBeVisible();
+  const exploreSaved = page.getByRole('button', { name: 'Explore Reels from Saved' });
+  await expect(exploreSaved).toBeVisible();
+  const savedBounds = await exploreSaved.boundingBox();
+  const tabBarBounds = await page.getByRole('tab', { name: 'Shop', exact: true }).boundingBox();
+  expect(savedBounds).not.toBeNull();
+  expect(tabBarBounds).not.toBeNull();
+  // On iPhone WebKit the empty-state CTA must fit above the fixed bottom bar.
+  expect((savedBounds?.y ?? 9999) + (savedBounds?.height ?? 9999))
+    .toBeLessThanOrEqual((tabBarBounds?.y ?? 0) + 2);
+  await verifyScreen(page, testInfo, 'profile-saved');
+  await exploreSaved.click();
+  await expect(page.getByTestId('reels-empty-state')).toBeVisible();
+  // Immersive Reels intentionally hides the global header; Home restores it.
+  await page.getByRole('tab', { name: 'Home', exact: true }).click();
+  await page.getByRole('button', { name: 'Open profile' }).click();
   await page.getByRole('tab', { name: 'Garage profile tab' }).click();
   await expect(page.getByText('Your garage starts here')).toBeVisible();
   await verifyScreen(page, testInfo, 'profile-garage');

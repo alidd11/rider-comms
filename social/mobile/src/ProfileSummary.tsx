@@ -8,7 +8,7 @@ import type { RiderProfile } from './authClient';
 import { handleWithAt } from './identityDisplay';
 import { IdentityAvatar } from './IdentityAvatar';
 
-export type ProfileContentTab = 'Posts' | 'Reels' | 'Garage';
+export type ProfileContentTab = 'Posts' | 'Reels' | 'Saved' | 'Garage';
 
 export function ProfileSummary({
   profile, accountProfile, username, tab, friendCount, followingCount, onTab, onConnections, onEdit, onSettings,
@@ -32,6 +32,7 @@ export function ProfileSummary({
   const tabs: { name: ProfileContentTab; icon: React.ComponentProps<typeof Ionicons>['name'] }[] = [
     {name:'Posts',icon:'grid-outline'},
     {name:'Reels',icon:'play-outline'},
+    {name:'Saved',icon:'bookmark-outline'},
     {name:'Garage',icon:'car-sport-outline'},
   ];
   return <View testID="social-profile-summary" style={{ gap: 15 }}>
@@ -85,7 +86,7 @@ export function ProfileSummary({
         }}>
         <Ionicons name={item.icon} color={tab===item.name?C.ink:C.muted} size={22}/>
         <Text style={{color:tab===item.name?C.ink:C.muted,
-          fontSize:12,fontWeight:tab===item.name?'800':'600'}}>{item.name}</Text>
+          fontSize:11,fontWeight:tab===item.name?'800':'600'}}>{item.name}</Text>
       </Pressable>)}
     </View>
   </View>;

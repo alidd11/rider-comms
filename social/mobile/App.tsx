@@ -221,6 +221,9 @@ function AuthenticatedSocialApp(): React.JSX.Element {
   const [liked, setLiked] = useState<Set<string>>(() => new Set());
   const [followed, setFollowed] = useState<Set<string>>(() => new Set(followingIds));
   const [saved, setSaved] = useState<Set<string>>(() => new Set());
+  // A private, in-memory preview: never place a rider's saved-video history in
+  // plaintext AsyncStorage/localStorage or pretend it has synced to the server.
+  const [savedReelIds, setSavedReelIds] = useState<Set<string>>(() => new Set());
   // Shop selections are session-only, but must survive navigating to Home,
   // Profile or Messages and back; ShopScreen itself unmounts between tabs.
   const [shopSaved, setShopSaved] = useState<Set<string>>(() => new Set());
@@ -235,6 +238,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
   const [profileEditor, setProfileEditor] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [profileTab, setProfileTab] = useState<ProfileContentTab>('Posts');
+  const [reelStartId, setReelStartId] = useState<string | null>(null);
   const [connectionSheet, setConnectionSheet] = useState<ConnectionKind | null>(null);
   const [profileDraft, setProfileDraft] = useState<SocialProfileDraft>(DEFAULT_PROFILE);
   const [garageEditor, setGarageEditor] = useState(false);
@@ -330,6 +334,36 @@ function AuthenticatedSocialApp(): React.JSX.Element {
       category: (reel.id === 'r1' ? 'CARS' : reel.id === 'r2' ? 'MOTORCYCLES' : 'CYCLING') as ReelPreview['category'],
     }];
   }), [recommendedReels]);
+  // Following is a separate, access-filtered video timeline, not the For You
+  // order with cosmetic labels. Server-side follows/visibility must replace
+  // these fixture candidates before public UGC is permitted.
+  const followingReelPreviews = useMemo<ReelPreview[]>(() =>
+    rankFollowing(reelCandidates, viewer, previewNow, 'newest')
+      .flatMap(({ item }) => {
+        // Following must not depend on public-discovery eligibility: a future
+        // follower-only Reel is shown only after the privacy check in rankFollowing.
+        const reel = reels.find(candidate => candidate.id === item.id);
+        if (!reel) return [];
+        return [{
+          id: reel.id, authorId: reel.creator.replace(/^@/, ''), handle: reel.creator,
+          title: reel.headline, imageUrl: reel.imageUrl, theme: reel.theme,
+          category: (reel.id === 'r1' ? 'CARS' : reel.id === 'r2' ? 'MOTORCYCLES' : 'CYCLING') as ReelPreview['category'],
+        }];
+      }), [viewer]);
+  const savedReelPreviews = useMemo(
+    () => reelPreviews.filter(reel => savedReelIds.has(reel.id)),
+    [reelPreviews, savedReelIds],
+  );
+  // Deep-linking from Saved puts the selected eligible Reel first for that
+  // viewing session. A pixel scroll on the first WebKit layout is unreliable
+  // and can clamp to zero before the virtualised content has sized itself.
+  const viewingReelPreviews = useMemo(() => {
+    if (!reelStartId) return reelPreviews;
+    const selected = reelPreviews.find(reel => reel.id === reelStartId);
+    return selected
+      ? [selected, ...reelPreviews.filter(reel => reel.id !== reelStartId)]
+      : reelPreviews;
+  }, [reelPreviews, reelStartId]);
   const recommendedClubs = useMemo(() =>
     rankClubs(clubCandidates, viewer).flatMap(({item}) => {
       const club = demoClubs.find((c) => c.id === item.id);
@@ -364,6 +398,9 @@ function AuthenticatedSocialApp(): React.JSX.Element {
   }
 
   function navigate(to: Screen) {
+    // Leaving the saved-video player restores normal For You ranking on the
+    // next ordinary Reels visit. A fresh Saved deep link sets its own target.
+    if (screen === 'Reels' && to !== 'Reels') setReelStartId(null);
     setScreen(to);
     if (to === 'Create') setCreateMode('Post');
     // Opening another section dismisses the Home feed settings panel.
@@ -821,6 +858,42 @@ function AuthenticatedSocialApp(): React.JSX.Element {
             <Text style={s.ctaText}>Create Reel</Text>
           </Pressable>
         </View> : null}
+        {profileTab === 'Saved' ? <View testID="profile-saved-reels" style={{ gap: 13, paddingVertical: 12 }}>
+          <Text style={[s.sectionTitle, { fontSize: 20 }]}>Saved Reels</Text>
+          <Text style={[s.small, { lineHeight: 19 }]}>
+            Private to this session. Saved videos disappear when you close the app;
+            account syncing is not available yet.
+          </Text>
+          {savedReelPreviews.length ? <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+            {savedReelPreviews.map(reel => <Pressable key={reel.id}
+              accessibilityRole="button" accessibilityLabel={'Watch saved Reel ' + reel.id}
+              onPress={() => { setReelStartId(reel.id); navigate('Reels'); }}
+              style={{ width: '47%', minHeight: 225, backgroundColor: C.panel,
+                borderRadius: 16, overflow: 'hidden' }}>
+              <Image source={{ uri: reel.imageUrl }} accessibilityLabel={reel.title}
+                resizeMode="cover" style={{ width: '100%', height: 174, backgroundColor: reel.theme }}/>
+              <Text numberOfLines={2} style={{ color: C.ink, fontSize: 13,
+                fontWeight: '800', lineHeight: 18, padding: 9 }}>{reel.title}</Text>
+            </Pressable>)}
+          </View> : <Pressable accessibilityRole="button"
+            accessibilityLabel="Explore Reels from Saved"
+            onPress={() => { setReelStartId(null); navigate('Reels'); }}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 13,
+              backgroundColor: C.panel, borderRadius: 16,
+              paddingHorizontal: 15, paddingVertical: 14, minHeight: 78 }}>
+            <View style={{ width: 48, height: 48, borderRadius: 15,
+              backgroundColor: C.accentDark, alignItems: 'center', justifyContent: 'center' }}>
+              <Ionicons name="bookmark-outline" size={26} color={C.accent}/>
+            </View>
+            <View style={{ flex: 1, gap: 4 }}>
+              <Text style={[s.cardHeading, { fontSize: 15 }]}>No saved Reels yet</Text>
+              <Text style={[s.small, { fontSize: 12, lineHeight: 18 }]}>
+                Explore videos and bookmark them for later.
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={22} color={C.accent}/>
+          </Pressable>}
+        </View> : null}
         {profileTab === 'Garage' ? <>
         <View style={s.rowBetween}>
           <HeaderLine heading="Personal garage" meta={String(garage.length) + ' / 12'} />
@@ -984,7 +1057,9 @@ function AuthenticatedSocialApp(): React.JSX.Element {
               </CreateRecoveryBoundary>
             ) : screen === 'Reels' ? (
               <View testID="fixed-reels-screen" style={{ flex: 1, minHeight: 0, width: '100%', backgroundColor: '#020406' }}>
-                <ReelsScreen items={reelPreviews} followedAuthors={followed}
+                <ReelsScreen items={viewingReelPreviews} followingItems={followingReelPreviews}
+                  initialReelId={reelStartId} followedAuthors={followed}
+                  savedReelIds={savedReelIds} onToggleSavedReel={(id) => toggle(setSavedReelIds, id)}
                   onToggleFollow={toggleFollow}
                   onOpenComments={(id, title) => openComments('reel:' + id, title)}
                   onOpenCreator={openCreator}

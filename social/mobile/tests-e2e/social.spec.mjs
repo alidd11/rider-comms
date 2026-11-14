@@ -432,6 +432,53 @@ test('media editor has a dominant fixed canvas, real edit actions and a separate
 });
 
 
+
+test('Reels For You and Following have separate visible creator sets and Saved survives navigation', async ({ page }) => {
+  const errors = [];
+  page.on('pageerror', e => errors.push(e.message));
+  await page.goto('/');
+  await page.getByRole('tab', { name: 'Reels', exact: true }).click();
+  await expect(page.getByRole('tab', { name: 'For You videos' })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Following videos' })).toBeVisible();
+  await expect(page.locator('#social-reel-panel-r1')).toHaveCount(1);
+  await page.getByRole('tab', { name: 'Following videos' }).click();
+  await expect(page.locator('#social-reel-panel-r1')).toHaveCount(0);
+  await expect(page.locator('#social-reel-panel-r2')).toHaveCount(1);
+  await expect(page.locator('#social-reel-panel-r3')).toHaveCount(1);
+  // With fewer followed Reels than discovery Reels, the final pager control
+  // must be visibly dimmed whenever it is disabled.
+  await page.getByRole('button', { name: 'Next Reel' }).click();
+  await expect(page.getByRole('button', { name: 'Next Reel' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Next Reel' })).toHaveCSS('opacity', '0.3');
+  await page.getByRole('tab', { name: 'For You videos' }).click();
+  await page.getByRole('button', { name: 'Save Reel r2' }).click();
+  await page.getByRole('tab', { name: 'Home' }).click();
+  await page.getByRole('button', { name: 'Open profile' }).click();
+  await page.getByRole('tab', { name: 'Saved profile tab' }).click();
+  await expect(page.getByRole('button', { name: 'Watch saved Reel r2' })).toBeVisible();
+  await page.getByRole('button', { name: 'Watch saved Reel r2' }).click();
+  await expect(page.getByTestId('reels-viewport')).toBeVisible();
+  // A saved-video deep link must show the intended item first without
+  // relying on a WebKit scrollTo before the first layout completes.
+  await expect(page.locator('#social-reel-panel-r2')).toHaveAttribute('data-testid', 'reel-slide-0');
+  await expect.poll(() => page.locator('#social-reels-feed').evaluate(el =>
+    Math.abs(el.scrollTop))).toBeLessThan(5);
+  await page.getByRole('button', { name: 'Save Reel r2' }).click();
+  await page.getByRole('tab', { name: 'Home' }).click();
+  await page.getByRole('button', { name: 'Open profile' }).click();
+  await page.getByRole('tab', { name: 'Saved profile tab' }).click();
+  await expect(page.getByText('No saved Reels yet')).toBeVisible();
+  // Session-only means a reload must not silently reveal a prior viewing
+  // history on a shared browser; production saves need an authenticated API.
+  await page.getByRole('tab', { name: 'Reels', exact: true }).click();
+  await page.getByRole('button', { name: 'Save Reel r2' }).click();
+  await page.reload();
+  await page.getByRole('button', { name: 'Open profile' }).click();
+  await page.getByRole('tab', { name: 'Saved profile tab' }).click();
+  await expect(page.getByText('No saved Reels yet')).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
 test('Reels keeps the selected page aligned when the iPhone viewport height changes', async ({ page }) => {
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
@@ -1086,8 +1133,9 @@ test('Social profile has tabs, follower/friend panels and separately managed dem
   await expect(page.getByTestId('social-profile-summary')).toBeVisible();
   await expect(page.getByRole('tab', { name: 'Posts profile tab' })).toBeVisible();
   await expect(page.getByRole('tab', { name: 'Reels profile tab' })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Saved profile tab' })).toBeVisible();
   await expect(page.getByRole('tab', { name: 'Garage profile tab' })).toBeVisible();
-  for (const name of ['Posts', 'Reels', 'Garage']) {
+  for (const name of ['Posts', 'Reels', 'Saved', 'Garage']) {
     const tab = page.getByRole('tab', { name: name + ' profile tab' });
     await expect(tab).toContainText(name);
     const rect = await tab.boundingBox();
@@ -1109,6 +1157,8 @@ test('Social profile has tabs, follower/friend panels and separately managed dem
   await page.getByRole('button', { name: 'Close connections' }).click();
   await page.getByRole('tab', { name: 'Reels profile tab' }).click();
   await expect(page.getByText('Your Reels will appear here')).toBeVisible();
+  await page.getByRole('tab', { name: 'Saved profile tab' }).click();
+  await expect(page.getByText('No saved Reels yet')).toBeVisible();
   await page.getByRole('tab', { name: 'Garage profile tab' }).click();
   await expect(page.getByText('Personal garage')).toBeVisible();
   await mkdir('test-results/screenshots', { recursive: true });
@@ -1162,6 +1212,8 @@ test('visual inventory captures each Social screen at mobile and desktop sizes',
   await capture('profile-posts');
   await page.getByRole('tab', { name: 'Reels profile tab' }).click();
   await capture('profile-reels');
+  await page.getByRole('tab', { name: 'Saved profile tab' }).click();
+  await capture('profile-saved');
   await page.getByRole('tab', { name: 'Garage profile tab' }).click();
   await capture('profile-garage');
 
