@@ -434,7 +434,7 @@ test('PWA Settings sets Home and Work without moving the map, and can remove the
   await expect(page.locator('#searchScreen')).toBeHidden();
   await expect(page.locator('[data-saved-place-setting="home"]')).toContainText('Ace Cafe London');
   await expect(page.locator('#destinationCard')).toBeHidden();
-  await expect(page.locator('[data-saved-place="home"]')).toHaveAttribute('aria-label', 'Home, Ace Cafe London');
+  await expect(page.locator('[data-saved-place="home"]')).toHaveAttribute('aria-label', /^Home, Ace Cafe London(, [\d.]+ (mi|km|ft|m))?$/);
 
   // Search shows the current place and can remove it.
   await page.locator('[data-saved-place-setting="home"]').click();

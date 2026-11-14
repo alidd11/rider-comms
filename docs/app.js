@@ -5322,6 +5322,12 @@
     deviceFixReceivedAt.set(position, Date.now());
     latestDevicePosition = position;
     locationPermissionReady = true;
+    // Home and Work say how far they are: refresh that on the first fix and
+    // then every half minute, not on every one.
+    if (Date.now() - shortcutDistancesAt > 30_000) {
+      shortcutDistancesAt = Date.now();
+      renderSavedPlaceShortcuts();
+    }
     // A restored ride may have rendered before the first already-authorised
     // GPS fix. Resume its consented sharing as soon as that fix arrives.
     if (state.activeRide?.shareRideLocation && !rideLocationTimer) syncRideLocationSharing();
@@ -5790,13 +5796,19 @@
     if (currentSettingsPage === 'mapNavigation') openSheet('mapNavigation');
   }
 
+  let shortcutDistancesAt = 0;
   function renderSavedPlaceShortcuts() {
     const saved = loadSavedPlaces();
     $$('[data-saved-place]').forEach((button) => {
       const slot = button.dataset.savedPlace;
       const place = saved[slot];
       const label = SAVED_PLACE_LABELS[slot];
-      button.setAttribute('aria-label', place ? `${label}, ${place.name}` : `Set ${label}`);
+      // Like Google Maps: how far it is, or that it still needs setting.
+      const here = latestDevicePosition?.coords;
+      const distance = place && here ? formatNavDistance(metersBetween({ lat: here.latitude, lng: here.longitude }, { lat: place.lat, lng: place.lng })) : '';
+      const detail = $('[data-shortcut-detail]', button);
+      if (detail) detail.textContent = place ? distance || place.secondary || '' : `Set ${label.toLowerCase()}`;
+      button.setAttribute('aria-label', place ? `${label}, ${place.name}${distance ? `, ${distance}` : ''}` : `Set ${label}`);
       button.title = place ? `Route to ${place.name}. Press and hold to change ${label}.` : `Choose your ${label.toLowerCase()} address`;
     });
   }
@@ -5874,8 +5886,8 @@
     $('#searchSaveBanner').hidden = !savingPlaceSlot;
     $('#searchSaveBanner').textContent = savingPlaceSlot ? `Choose your ${saveLabel}` : '';
     $('#poiChipRow').hidden = Boolean(savingPlaceSlot);
-    $('#searchScreenInput').placeholder = savingPlaceSlot ? `Your ${saveLabel.toLowerCase()} address` : 'Search for a place';
-    $('#searchScreenInput').setAttribute('aria-label', savingPlaceSlot ? `Search for your ${saveLabel.toLowerCase()} address` : 'Search for a place');
+    $('#searchScreenInput').placeholder = savingPlaceSlot ? `Your ${saveLabel.toLowerCase()} address` : 'Where to?';
+    $('#searchScreenInput').setAttribute('aria-label', savingPlaceSlot ? `Search for your ${saveLabel.toLowerCase()} address` : 'Where to?');
     clearPoiMarkers();
     pushOverlayGuard();
     $('#searchScreen').hidden = false;
@@ -5892,6 +5904,74 @@
     input.focus();
     searchScreenPosition = undefined;
     void acquireSearchPosition();
+    $('#searchScreenVoice').hidden = !voiceSearchSupported();
+  }
+
+  // Voice search, like the mic in Google Maps and Waze: say where to and the
+  // words land in the search box. The browser's own speech recognition; an
+  // installed iPhone app has none that works, so the mic only shows where it
+  // can listen (native: expo-speech-recognition).
+  let voiceRecognition = null;
+
+  function voiceSearchSupported() {
+    const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    // Hidden while a voice room is connected: the room keeps the microphone
+    // (native: voiceConnected).
+    const inVoice = Boolean(voiceRoom) || proximityVoiceRooms.size > 0;
+    return typeof Recognition === 'function' && window.navigator.standalone !== true && !inVoice;
+  }
+
+  function setVoiceListening(listening) {
+    const button = $('#searchScreenVoice');
+    button.setAttribute('aria-pressed', String(listening));
+    button.setAttribute('aria-label', listening ? 'Stop listening' : 'Search by voice');
+    $('#searchScreenInput').placeholder = listening ? 'Listening…' : (savingPlaceSlot ? `Your ${SAVED_PLACE_LABELS[savingPlaceSlot].toLowerCase()} address` : 'Where to?');
+  }
+
+  function stopVoiceSearch() {
+    const recognition = voiceRecognition;
+    voiceRecognition = null;
+    if (recognition) {
+      try { recognition.abort(); } catch { /* already stopped */ }
+    }
+    setVoiceListening(false);
+  }
+
+  function startVoiceSearch() {
+    if (voiceRecognition) { stopVoiceSearch(); return; }
+    const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (typeof Recognition !== 'function') return;
+    const recognition = new Recognition();
+    recognition.lang = navigator.language || 'en-GB';
+    recognition.interimResults = true;
+    recognition.maxAlternatives = 1;
+    recognition.onresult = (event) => {
+      if (voiceRecognition !== recognition) return;
+      const words = Array.from(event.results || []).map((result) => result[0]?.transcript || '').join('').trim();
+      if (!words) return;
+      const input = $('#searchScreenInput');
+      input.value = words;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    };
+    recognition.onerror = (event) => {
+      if (voiceRecognition !== recognition) return;
+      stopVoiceSearch();
+      if (event?.error === 'not-allowed' || event?.error === 'service-not-allowed') {
+        showToast('Allow the microphone to search by voice');
+      } else if (event?.error !== 'no-speech' && event?.error !== 'aborted') {
+        showToast('Couldn’t hear that. Try again or type instead.');
+      }
+    };
+    recognition.onend = () => {
+      if (voiceRecognition === recognition) stopVoiceSearch();
+    };
+    voiceRecognition = recognition;
+    setVoiceListening(true);
+    try {
+      recognition.start();
+    } catch {
+      stopVoiceSearch();
+    }
   }
 
   function closeSearchScreen() {
@@ -5901,6 +5981,7 @@
     if (returnTo) queueMicrotask(() => openSheet(returnTo));
     searchRequestToken += 1;
     clearTimeout(searchDebounceTimer);
+    stopVoiceSearch();
     $('#searchScreen').hidden = true;
     $('#searchScreenInput').blur();
   }
@@ -5923,10 +6004,10 @@
       return;
     }
     results.innerHTML = `
-      <div class="search-results-heading"><div><span>History</span><strong>Recent places</strong></div><button class="search-recent-clear" id="searchRecentClearBtn" type="button">Clear</button></div>
+      <div class="search-results-heading"><div><strong>Recent</strong></div><button class="search-recent-clear" id="searchRecentClearBtn" type="button">Clear</button></div>
       ${recent.map((item, index) => `
         <button class="search-result-row" data-recent-index="${index}">
-          <span class="search-result-icon"><svg><use href="#i-history"/></svg></span>
+          <span class="place-badge place-badge-recent" aria-hidden="true"><svg><use href="#i-recent-fill"/></svg></span>
           <span class="search-result-copy">
             <strong>${escapeHtml(item.name)}</strong>
             <span>${escapeHtml(item.secondary || '')}</span>
@@ -6047,7 +6128,7 @@
     }
     list.innerHTML = `<div class="search-results-heading"><div><strong>Recent</strong></div></div>${recent.map((item, index) => `
         <button class="search-result-row" type="button" data-drawer-recent="${index}">
-          <span class="search-result-icon"><svg><use href="#i-history"/></svg></span>
+          <span class="place-badge place-badge-recent" aria-hidden="true"><svg><use href="#i-recent-fill"/></svg></span>
           <span class="search-result-copy"><strong>${escapeHtml(item.name)}</strong><span>${escapeHtml(item.secondary || '')}</span></span>
         </button>`).join('')}`;
     $$('[data-drawer-recent]', list).forEach((row) => row.addEventListener('click', () => {
@@ -6345,6 +6426,7 @@
   function initPlaceSearch() {
     $('#mapSearchSlot').addEventListener('click', openSearchScreen);
     $('#searchScreenBack').addEventListener('click', closeSearchScreen);
+    $('#searchScreenVoice').addEventListener('click', startVoiceSearch);
     $('#searchScreenInput').addEventListener('input', (event) => {
       const query = event.target.value.trim();
       $('#searchScreenClear').hidden = !query;
@@ -6384,7 +6466,14 @@
     restaurant: { label: 'Restaurants', plural: 'restaurants', icon: 'i-food', types: ['restaurant'] },
     cafe: { label: 'Coffee', plural: 'coffee shops', icon: 'i-coffee', types: ['cafe', 'coffee_shop'] },
     car_repair: { label: 'Repair', plural: 'repair shops', icon: 'i-wrench', types: ['car_repair'] },
+    // Google has no place type for these, so they search by name and are
+    // sorted by distance here, over a wider area (native: the same CATEGORIES).
+    moto_parking: { label: 'Bike parking', plural: 'motorcycle parking places', icon: 'i-motorbike', query: 'motorcycle parking' },
+    moto_shop: { label: 'Bike shops', plural: 'motorcycle shops', icon: 'i-motorbike', query: 'motorcycle shop' },
+    ev_charging: { label: 'EV charging', plural: 'charging points', icon: 'i-ev', types: ['electric_vehicle_charging_station'] },
   };
+  const POI_RADIUS_M = 5000;
+  const POI_QUERY_RADIUS_M = 15000;
   let poiMarkers = [];
 
   function clearPoiMarkers() {
@@ -6434,7 +6523,7 @@
   }
 
   /**
-   * "Petrol"/"Parking"/"Food"/"Coffee"/"Repair" chips below the search bar
+   * "Petrol"/"Bike parking"/"Parking"/"Food"/"Coffee"/"Repair" chips below the search bar
    * — real POI lookup via the backend's /places/nearby (Places API (New)
    * Nearby Search, nearest first within 5 km). Free-text search alone
    * technically could already find e.g. "petrol station near me", but a
@@ -6466,7 +6555,9 @@
     }
     let found;
     try {
-      ({ places: found } = await apiFetch('POST', '/places/nearby', { includedTypes: category.types, near: { lat, lon: lng } }));
+      ({ places: found } = category.query
+        ? await apiFetch('POST', '/places/search', { query: category.query, near: { lat, lon: lng } })
+        : await apiFetch('POST', '/places/nearby', { includedTypes: category.types, near: { lat, lon: lng } }));
     } catch (error) {
       if (requestToken !== searchRequestToken || activePoiType !== type) return;
       renderSearchMessage(category.icon, 'Nearby search is unavailable', placeSearchErrorCopy(error), 'search-error-state');
@@ -6487,7 +6578,7 @@
           distanceLabel: formatNavDistance(distance),
         };
       })
-      .filter((place) => place.distance <= 5000)
+      .filter((place) => place.distance <= (category.query ? POI_QUERY_RADIUS_M : POI_RADIUS_M))
       .sort((a, b) => a.distance - b.distance)
       .slice(0, 8);
     if (poiResultCache.size >= POI_CACHE_MAX_ENTRIES) {

@@ -62,7 +62,7 @@ export class PlacesCache {
 }
 
 export function nearbySearchCacheKey(category: PlaceCategory, near: { lat: number; lon: number }): string {
-  return `nearby|${category.includedTypes.join(',')}|${nearKey(near)}`;
+  return `nearby|${category.query ? `q:${category.query}` : category.includedTypes.join(',')}|${nearKey(near)}`;
 }
 
 export function wrapPlacesSearchWithCache<Args extends unknown[]>(

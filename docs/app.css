@@ -2815,3 +2815,30 @@ html.map-day .nav-route-choices button[aria-checked="true"]{border-color:var(--a
   .nav-mode .map-actions{flex-direction:row;bottom:calc(var(--nav-summary-height,104px) + var(--navigation-control-inset) + 10px)}
   .nav-route-choices{right:calc(max(14px,var(--safe-right)) + 330px)}
 }
+/* Place badges: filled icons on a colour per kind of place, so Home, Work
+   and Petrol read at a glance (as in Google Maps and Waze). Every colour
+   keeps at least 3:1 contrast with the white icon. */
+:root{--place-home:#2f7fd3;--place-work:#8a5cd6;--place-fuel:#1f9d63;--place-parking:#3b5bdb;--place-food:#d9480f;--place-coffee:#8d5a3b;--place-moto:#c2410c;--place-ev:#0e7c86}
+.place-badge{flex:none;width:32px;height:32px;border-radius:50%;display:grid;place-items:center;color:#fff;background:var(--accent)}
+.place-badge svg{width:18px;height:18px}
+.place-badge-home{background:var(--place-home)}
+.place-badge-work{background:var(--place-work)}
+.place-badge-fuel{background:var(--place-fuel)}
+.place-badge-recent{background:var(--surface-raised);color:var(--text-secondary)}
+.place-badge-pin{background:var(--accent)}
+.map-drawer-shortcuts button{gap:9px}
+.map-drawer-shortcuts .shortcut-text{min-width:0;display:grid;text-align:left;line-height:1.15}
+.map-drawer-shortcuts .shortcut-text span{font-weight:800}
+.map-drawer-shortcuts .shortcut-text small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-muted);font-size:.72rem;font-weight:650}
+.search-result-row>.place-badge{margin-right:2px}
+.poi-chip svg{color:var(--place,var(--accent))}
+.poi-chip[aria-pressed="true"] svg{color:inherit}
+/* One search bar: the back arrow sits inside it. */
+.search-slot-with-back{padding-left:4px}
+.search-slot-with-back input{min-width:0}
+.search-back{flex:none;width:44px;height:44px;display:grid;place-items:center;border:0;border-radius:50%;background:transparent;color:var(--text)}
+.search-back svg{width:22px;height:22px}
+/* Voice search: the mic glows while it listens. */
+.search-voice[aria-pressed="true"]{background:var(--accent);color:var(--accent-text)}
+.search-voice[aria-pressed="true"] svg{color:inherit}
+.map-drawer-shortcuts .place-badge svg{width:18px;height:18px;color:#fff}

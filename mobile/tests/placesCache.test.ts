@@ -62,6 +62,10 @@ describe('PlacesCache', () => {
       nearbySearchCacheKey({ includedTypes: ['gas_station'] }, near),
       nearbySearchCacheKey({ includedTypes: ['parking'] }, near),
     );
+    assert.notEqual(
+      nearbySearchCacheKey({ includedTypes: [], query: 'motorcycle parking' }, near),
+      nearbySearchCacheKey({ includedTypes: [], query: 'motorcycle shop' }, near),
+    );
   });
 });
 

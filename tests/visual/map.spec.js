@@ -252,7 +252,7 @@ test('PWA map drawer slides up to recent places and holds Home, Work and Petrol'
   await expect(page.locator('#poiChipRow')).toBeHidden();
   await page.locator('#searchScreenResults [data-recent-index="0"]').click();
   await expect(page.locator('#searchScreen')).toBeHidden();
-  await expect(home).toHaveAttribute('aria-label', 'Home, Ace Cafe London');
+  await expect(home).toHaveAttribute('aria-label', /^Home, Ace Cafe London(, [\d.]+ (mi|km|ft|m))?$/);
   await page.locator('[data-dismiss-destination]').click();
   // Then one tap starts the route, with the rider's navigation app
   // (Google Maps unless they chose another).
@@ -416,6 +416,64 @@ test('PWA place search and the category chips use the backend Places endpoints, 
   await expect(page.locator('#searchScreenResults .nearby-result-row strong')).toHaveText(['Near Fuel', 'Far Fuel']);
   const nearby = calls.find((call) => call.path === '/places/nearby');
   expect(nearby.body.includedTypes).toEqual(['gas_station']);
+
+  // Bike parking has no Google type: a search by name, still nearest first.
+  await page.locator('.poi-chip[data-poi-type="moto_parking"]').click();
+  await expect(page.locator('.poi-chip[data-poi-type="moto_parking"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#searchScreenResults .nearby-result-row strong')).toHaveText(['Near Fuel', 'Far Fuel']);
+  const byName = calls.find((call) => call.path === '/places/search');
+  expect(byName.body).toEqual({ query: 'motorcycle parking', near: { lat: 51.5074, lon: -0.1278 } });
+});
+
+test('PWA voice search: the mic fills the search box, and stays hidden without speech recognition', async ({ page }) => {
+  const calls = [];
+  await page.addInitScript(() => {
+    class FakeRecognition {
+      constructor() { window.__voice = this; this.started = false; }
+      start() { this.started = true; }
+      abort() { this.started = false; this.onend?.(); }
+      say(words) { this.onresult?.({ results: [[{ transcript: words }]] }); this.onend?.(); }
+    }
+    window.SpeechRecognition = FakeRecognition;
+    window.webkitSpeechRecognition = FakeRecognition;
+  });
+  await mockAuthenticatedApi(page, 'stationary', async ({ request, url }) => {
+    if (url.pathname !== '/places/autocomplete') return null;
+    calls.push(JSON.parse(request.postData() || '{}'));
+    return { body: { suggestions: [{ id: 'place-ace', name: 'Ace Cafe London', address: 'North Circular Road, London' }] } };
+  });
+  await page.goto('/');
+  await page.locator('#mapSearchSlot').click();
+  const mic = page.locator('#searchScreenVoice');
+  await expect(mic).toBeVisible();
+  await mic.click();
+  await expect(mic).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#searchScreenInput')).toHaveAttribute('placeholder', 'Listening…');
+  expect(await page.evaluate(() => window.__voice.started)).toBe(true);
+  await page.evaluate(() => window.__voice.say('ace cafe'));
+  await expect(page.locator('#searchScreenInput')).toHaveValue('ace cafe');
+  await expect(mic).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.locator('#searchScreenResults [data-place-id="place-ace"]')).toContainText('Ace Cafe London');
+  expect(calls.at(-1).input).toBe('ace cafe');
+
+  // Tapping the mic again while it listens stops it.
+  await mic.click();
+  await expect(mic).toHaveAttribute('aria-pressed', 'true');
+  await mic.click();
+  await expect(mic).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.locator('#searchScreenInput')).toHaveAttribute('placeholder', 'Where to?');
+
+  // A refused microphone says so.
+  await mic.click();
+  await page.evaluate(() => window.__voice.onerror({ error: 'not-allowed' }));
+  await expect(page.getByText('Allow the microphone to search by voice')).toBeVisible();
+  await expect(mic).toHaveAttribute('aria-pressed', 'false');
+
+  // Without speech recognition there is no mic.
+  await page.evaluate(() => { window.SpeechRecognition = undefined; window.webkitSpeechRecognition = undefined; });
+  await page.locator('#searchScreenBack').click();
+  await page.locator('#mapSearchSlot').click();
+  await expect(mic).toBeHidden();
 });
 
 test('PWA map and navigation cards turn dark when sunset passes while the app stays open', async ({ page }) => {

@@ -16,6 +16,31 @@ jest.mock('expo-iap', () => ({
   purchaseErrorListener: jest.fn(() => ({ remove: jest.fn() })),
 }));
 
+// Speech recognition is native. Off by default, so screens show no mic; a
+// test turns it on and plays recognition events through __emit.
+jest.mock('expo-speech-recognition', () => {
+  const React = require('react');
+  const listeners = new Map();
+  const ExpoSpeechRecognitionModule = {
+    isRecognitionAvailable: jest.fn(() => false),
+    requestPermissionsAsync: jest.fn(async () => ({ granted: true })),
+    start: jest.fn(),
+    abort: jest.fn(),
+    __emit: (name, event) => [...(listeners.get(name) || [])].forEach((listener) => listener(event)),
+  };
+  function useSpeechRecognitionEvent(name, handler) {
+    const ref = React.useRef(handler);
+    ref.current = handler;
+    React.useEffect(() => {
+      const listener = (event) => ref.current(event);
+      if (!listeners.has(name)) listeners.set(name, new Set());
+      listeners.get(name).add(listener);
+      return () => listeners.get(name).delete(listener);
+    }, [name]);
+  }
+  return { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent };
+});
+
 // Haptics are native; tests only need the calls to resolve.
 jest.mock('expo-haptics', () => ({ selectionAsync: jest.fn(async () => undefined) }));
 

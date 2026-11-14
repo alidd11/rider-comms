@@ -27,6 +27,10 @@ import { addRecentPlace, parseRecentPlaces, recentPlacesStorageKey } from '../se
 import { SAVED_PLACE_LABELS } from '../search/savedPlaces';
 import type { SavedPlaceSlot } from '../search/savedPlaces';
 import { useSettings } from '../settings/SettingsContext';
+import { PLACE_BADGES, PlaceBadge } from '../components/PlaceBadge';
+import { useVoiceSearch } from '../search/voiceSearch';
+import { useVoiceMute } from '../voice/VoiceMuteContext';
+import type { PlaceBadgeKind } from '../components/PlaceBadge';
 
 // Module-level so the cache survives across searches within a session
 // (retyping, re-toggling a category chip) without persisting between app
@@ -34,15 +38,20 @@ import { useSettings } from '../settings/SettingsContext';
 const placesCache = new PlacesCache();
 const cachedSearchNearbyPlaces = wrapPlacesSearchWithCache(searchNearbyPlaces, placesCache, nearbySearchCacheKey);
 
-const CATEGORIES = [
-  { label: 'Petrol', types: ['gas_station'], icon: 'gas-station-outline' },
-  { label: 'Parking', types: ['parking'], icon: 'parking' },
-  { label: 'Restaurants', types: ['restaurant'], icon: 'silverware-fork-knife' },
-  { label: 'Coffee', types: ['cafe', 'coffee_shop'], icon: 'coffee-outline' },
-  { label: 'Repair', types: ['car_repair'], icon: 'wrench-outline' },
-] as const;
+export type SearchCategoryLabel = 'Petrol' | 'Bike parking' | 'Bike shops' | 'EV charging' | 'Parking' | 'Restaurants' | 'Coffee' | 'Repair';
 
-export type SearchCategoryLabel = (typeof CATEGORIES)[number]['label'];
+// Google has no place type for motorcycle parking or shops, so those search
+// by name and are sorted by distance over a wider area (PWA: POI_CATEGORIES).
+const CATEGORIES: readonly { label: SearchCategoryLabel; types: readonly string[]; query?: string; icon: 'gas-station' | 'motorbike' | 'ev-station' | 'parking' | 'silverware-fork-knife' | 'coffee' | 'wrench'; badge: PlaceBadgeKind }[] = [
+  { label: 'Petrol', types: ['gas_station'], icon: 'gas-station', badge: 'fuel' },
+  { label: 'Bike parking', types: [], query: 'motorcycle parking', icon: 'motorbike', badge: 'moto' },
+  { label: 'Bike shops', types: [], query: 'motorcycle shop', icon: 'motorbike', badge: 'moto' },
+  { label: 'EV charging', types: ['electric_vehicle_charging_station'], icon: 'ev-station', badge: 'ev' },
+  { label: 'Parking', types: ['parking'], icon: 'parking', badge: 'parking' },
+  { label: 'Restaurants', types: ['restaurant'], icon: 'silverware-fork-knife', badge: 'food' },
+  { label: 'Coffee', types: ['cafe', 'coffee_shop'], icon: 'coffee', badge: 'coffee' },
+  { label: 'Repair', types: ['car_repair'], icon: 'wrench', badge: 'repair' },
+];
 
 /** Opens search from elsewhere: on a category, or to choose Home or Work. */
 export interface PlaceSearchHandle {
@@ -129,7 +138,7 @@ export const PlaceSearchBar = React.forwardRef<PlaceSearchHandle, {
     const category = CATEGORIES.find((item) => item.label === activeCategory);
     debounceRef.current = setTimeout(() => {
       if (category) {
-        cachedSearchNearbyPlaces({ includedTypes: category.types }, near, client)
+        cachedSearchNearbyPlaces({ includedTypes: category.types, query: category.query }, near, client)
           .then((result) => {
             if (requestId !== requestRef.current) return;
             setResults(result.places);
@@ -226,6 +235,21 @@ export const PlaceSearchBar = React.forwardRef<PlaceSearchHandle, {
     setQuery(value);
   }
 
+  const { voiceConnected } = useVoiceMute();
+  const [voiceProblem, setVoiceProblem] = React.useState<string | null>(null);
+  const voice = useVoiceSearch(
+    React.useCallback((words: string) => { setVoiceProblem(null); setActiveCategory(null); setQuery(words); }, []),
+    setVoiceProblem,
+  );
+  // Hidden while a voice room is connected: the room keeps the microphone.
+  const showMic = voice.available && !voiceConnected;
+  const { listening: voiceListening, toggle: toggleVoice } = voice;
+  // Stop listening when search closes or a voice room connects.
+  React.useEffect(() => {
+    if ((!open || voiceConnected) && voiceListening) toggleVoice();
+    if (!open) setVoiceProblem(null);
+  }, [open, toggleVoice, voiceConnected, voiceListening]);
+
   return (
     <>
       {showBar ? (
@@ -271,9 +295,22 @@ export const PlaceSearchBar = React.forwardRef<PlaceSearchHandle, {
                   <Ionicons name="close-circle" size={20} color={colors.textMuted} />
                 </Pressable>
               ) : null}
+              {showMic ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={voice.listening ? 'Stop listening' : 'Search by voice'}
+                  accessibilityState={{ selected: voice.listening }}
+                  onPress={() => { setVoiceProblem(null); voice.toggle(); }}
+                  hitSlop={8}
+                  style={[styles.micButton, voice.listening && styles.micButtonListening]}
+                >
+                  <Ionicons name="mic" size={20} color={voice.listening ? colors.accentText : colors.textSecondary} />
+                </Pressable>
+              ) : null}
             </View>
           </View>
 
+          {voiceProblem ? <Text style={styles.voiceProblem} accessibilityLiveRegion="polite">{voiceProblem}</Text> : null}
           {saveAs ? (
             <Text style={styles.saveBanner} accessibilityRole="header">Choose your {SAVED_PLACE_LABELS[saveAs]}</Text>
           ) : null}
@@ -307,7 +344,7 @@ export const PlaceSearchBar = React.forwardRef<PlaceSearchHandle, {
                   accessibilityRole="button"
                   accessibilityState={{ selected: active }}
                 >
-                  <MaterialCommunityIcons name={category.icon} size={17} color={active ? colors.accentText : colors.textSecondary} />
+                  <MaterialCommunityIcons name={category.icon} size={17} color={active ? colors.accentText : PLACE_BADGES[category.badge].color} />
                   <Text style={[styles.categoryText, active && styles.categoryTextActive]}>{category.label}</Text>
                 </Pressable>
               );
@@ -344,9 +381,7 @@ export const PlaceSearchBar = React.forwardRef<PlaceSearchHandle, {
                   onPress={() => choose(item)}
                   accessibilityLabel={`Recent place: ${item.name}, ${item.address}${near ? `, ${formatPlaceDistance(item.distanceMeters, unitSystem)} away` : ''}`}
                 >
-                  <View style={styles.resultIcon}>
-                    <Ionicons name="time-outline" size={19} color={colors.accent} />
-                  </View>
+                  <PlaceBadge kind="recent" />
                   <View style={styles.resultInfo}>
                     <Text style={styles.resultName} numberOfLines={1}>{item.name}</Text>
                     {item.address ? <Text style={styles.resultAddress} numberOfLines={1}>{item.address}</Text> : null}
@@ -414,9 +449,7 @@ export const PlaceSearchBar = React.forwardRef<PlaceSearchHandle, {
                     accessibilityState={{ busy: picking, disabled: Boolean(pickingId) && !picking }}
                     accessibilityLabel={`${item.name}${item.address ? `, ${item.address}` : ''}`}
                   >
-                    <View style={styles.resultIcon}>
-                      <Ionicons name="location-outline" size={19} color={colors.accent} />
-                    </View>
+                    <PlaceBadge kind="pin" />
                     <View style={styles.resultInfo}>
                       <Text style={styles.resultName} numberOfLines={1}>{item.name}</Text>
                       {item.address ? <Text style={styles.resultAddress} numberOfLines={1}>{item.address}</Text> : null}

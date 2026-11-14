@@ -4,7 +4,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { LayoutChangeEvent, StyleProp, ViewStyle } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import type { PlaceResult } from '../api/places';
 import { useAuth } from '../auth/AuthContext';
 import { parseRecentPlaces, recentPlacesStorageKey } from '../search/recentPlaces';
@@ -13,6 +12,9 @@ import type { SavedPlaceSlot } from '../search/savedPlaces';
 import { useSavedPlaces } from '../search/useSavedPlaces';
 import { colors, MIN_TOUCH_TARGET, spacing, type, pressedFeedback } from '../theme';
 import { PlaceSearchBar } from './PlaceSearchBar';
+import { PlaceBadge } from '../components/PlaceBadge';
+import { distanceBetweenMeters, formatPlaceDistance } from '../api/places';
+import { useSettings } from '../settings/SettingsContext';
 import type { PlaceSearchHandle } from './PlaceSearchBar';
 
 /** How far a slide has to travel before the drawer opens or closes. */
@@ -51,6 +53,7 @@ export function MapDrawer({
   near, onRequestLocation, onSelectPlace, onRouteToPlace, open, onOpenChange, onPeekHeight, bottomInset, style,
 }: MapDrawerProps): React.JSX.Element {
   const { riderId } = useAuth();
+  const { unitSystem } = useSettings();
   const [recentPlaces, setRecentPlaces] = React.useState<PlaceResult[]>([]);
   const { savedPlaces, setSavedPlace: saveSavedPlace } = useSavedPlaces(riderId);
   const searchRef = React.useRef<PlaceSearchHandle>(null);
@@ -190,11 +193,14 @@ export function MapDrawer({
         {SAVED_PLACE_SLOTS.map((slot) => {
           const label = SAVED_PLACE_LABELS[slot];
           const place = savedPlaces[slot];
+          // Like Google Maps: how far it is, or that it still needs setting.
+          const distance = place && near ? formatPlaceDistance(distanceBetweenMeters(near, place), unitSystem) : '';
+          const detail = place ? distance || place.address : `Set ${label.toLowerCase()}`;
           return (
             <Pressable
               key={slot}
               accessibilityRole="button"
-              accessibilityLabel={place ? `${label}, ${place.name}` : `Set ${label}`}
+              accessibilityLabel={place ? `${label}, ${place.name}${distance ? `, ${distance}` : ''}` : `Set ${label}`}
               accessibilityHint={place ? `Starts the route to ${label.toLowerCase()}. Press and hold to change it.` : `Choose your ${label.toLowerCase()} address`}
               accessibilityActions={place ? [{ name: 'longpress', label: `Change or remove ${label}` }] : undefined}
               onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === 'longpress') editSavedPlace(slot); }}
@@ -203,8 +209,11 @@ export function MapDrawer({
               style={({ pressed }) => [styles.shortcut, pressed && styles.pressed]}
               testID={`drawer-${slot}`}
             >
-              <Ionicons name={slot === 'home' ? 'home-outline' : 'briefcase-outline'} size={20} color={colors.accentInk} />
-              <Text style={styles.shortcutText}>{label}</Text>
+              <PlaceBadge kind={slot} size={30} />
+              <View style={styles.shortcutCopy}>
+                <Text style={styles.shortcutText} numberOfLines={1}>{label}</Text>
+                {detail ? <Text style={styles.shortcutDetail} numberOfLines={1}>{detail}</Text> : null}
+              </View>
             </Pressable>
           );
         })}
@@ -215,8 +224,11 @@ export function MapDrawer({
           style={({ pressed }) => [styles.shortcut, pressed && styles.pressed]}
           testID="drawer-petrol"
         >
-          <MaterialCommunityIcons name="gas-station-outline" size={21} color={colors.accentInk} />
-          <Text style={styles.shortcutText}>Petrol</Text>
+          <PlaceBadge kind="fuel" size={30} />
+          <View style={styles.shortcutCopy}>
+            <Text style={styles.shortcutText} numberOfLines={1}>Petrol</Text>
+            <Text style={styles.shortcutDetail} numberOfLines={1}>Nearby</Text>
+          </View>
         </Pressable>
       </View>
 
@@ -243,7 +255,7 @@ export function MapDrawer({
                   }}
                   style={({ pressed }) => [styles.recentRow, pressed && styles.pressed]}
                 >
-                  <Ionicons name="time-outline" size={20} color={colors.textMuted} />
+                  <PlaceBadge kind="recent" />
                   <View style={styles.recentCopy}>
                     <Text numberOfLines={1} style={styles.recentName}>{place.name}</Text>
                     <Text numberOfLines={1} style={styles.recentAddress}>{place.address}</Text>
@@ -286,12 +298,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 7,
     paddingHorizontal: spacing.xs,
+    paddingVertical: 6,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: colors.border,
   },
   pressed: { opacity: 0.7 },
-  shortcutText: { ...type.body, fontSize: 16, fontWeight: '700', color: colors.textPrimary },
+  shortcutCopy: { flexShrink: 1, minWidth: 0 },
+  shortcutText: { ...type.body, fontSize: 16, lineHeight: 19, fontWeight: '700', color: colors.textPrimary },
+  shortcutDetail: { ...type.caption, fontSize: 12, lineHeight: 15, fontWeight: '600', color: colors.textMuted },
   recentClip: { overflow: 'hidden' },
   recent: { position: 'absolute', top: 0, left: 0, right: 0, paddingTop: spacing.md },
   recentScroll: { flex: 1 },

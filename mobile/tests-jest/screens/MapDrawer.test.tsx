@@ -73,7 +73,7 @@ it('chooses Home the first time, then starts the route there in one tap', async 
   expect(JSON.parse(await AsyncStorage.getItem(savedPlacesStorageKey('rider-1')) ?? '{}').home.id).toBe('ace');
 
   onSelectPlace.mockClear();
-  await fireEvent.press(screen.getByLabelText('Home, Ace Cafe London'));
+  await fireEvent.press(screen.getByLabelText(/^Home, Ace Cafe London(, .+)?$/));
   expect(onRouteToPlace).toHaveBeenCalledWith(expect.objectContaining({ id: 'ace' }));
   expect(onSelectPlace).not.toHaveBeenCalled();
   expect(screen.queryByText('Choose your Home')).toBeNull();
@@ -84,7 +84,7 @@ it('changes or removes a saved place on a long press', async () => {
   const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
   await render(<Harness />);
 
-  await fireEvent(await screen.findByLabelText('Work, Ace Cafe London'), 'longPress');
+  await fireEvent(await screen.findByLabelText(/^Work, Ace Cafe London(, .+)?$/), 'longPress');
   const buttons = alert.mock.calls[0][2] ?? [];
   expect(buttons.map((button) => button.text)).toEqual(['Change Work', 'Remove Work', 'Cancel']);
   await act(async () => { buttons[1].onPress?.(); });
@@ -96,7 +96,8 @@ it('changes or removes a saved place on a long press', async () => {
 it('Petrol opens search on nearby petrol stations', async () => {
   await render(<Harness />);
   await fireEvent.press(screen.getByLabelText('Petrol stations nearby'));
-  expect(screen.getByText('Nearby')).toBeTruthy();
+  // The search's Nearby heading, as well as the Petrol shortcut's own line.
+  expect(screen.getAllByText('Nearby')).toHaveLength(2);
   expect(screen.getByDisplayValue('Petrol')).toBeTruthy();
 });
 
@@ -209,7 +210,7 @@ it('press and hold on an empty Home goes straight to choosing it, and Change reo
   await fireEvent.press(screen.getByLabelText('Back to map'));
 
   // Screen readers reach the same choice through an accessibility action.
-  await fireEvent(await screen.findByLabelText('Work, Ace Cafe London'), 'accessibilityAction', { nativeEvent: { actionName: 'longpress' } });
+  await fireEvent(await screen.findByLabelText(/^Work, Ace Cafe London(, .+)?$/), 'accessibilityAction', { nativeEvent: { actionName: 'longpress' } });
   const buttons = alert.mock.calls[0][2] ?? [];
   await act(async () => { buttons[0].onPress?.(); });
   expect(screen.getByText('Choose your Work')).toBeTruthy();
