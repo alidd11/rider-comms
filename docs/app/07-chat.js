@@ -498,7 +498,7 @@
         details: `Reported from ${source}`,
       });
       closeSheet();
-      showToast('Report received. Thank you.');
+      showToast('Report received. We review reports within 24 hours.');
     } catch {
       error.textContent = 'Couldn’t send that report. Check your connection and try again.';
       error.hidden = false;

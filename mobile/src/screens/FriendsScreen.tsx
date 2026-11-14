@@ -334,7 +334,7 @@ function FriendProfileModal({
   };
   const report = (reason: 'harassment' | 'unsafe' | 'spam') => {
     void client.reportRider(friend.riderId, reason, 'Reported from the friend profile')
-      .then(() => Alert.alert('Report received', 'Thank you. The report has been recorded for review.'))
+      .then(() => Alert.alert('Report received', 'Thank you. Our team reviews reports within 24 hours and acts on anything that breaks the Community Guidelines.'))
       .catch(() => Alert.alert('Couldn’t send report', 'Try again when you have a connection.'));
   };
   const confirmRemove = () => Alert.alert('Remove friend?', `${friend.displayName} will be removed from your friends list.`, [
