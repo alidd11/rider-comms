@@ -12,33 +12,45 @@ export AWS_DEFAULT_REGION="${REGION:-auto}"
 retention_days="${BACKUP_RETENTION_DAYS:-30}"
 s3() { aws --endpoint-url "$ENDPOINT" s3 "$@"; }
 
-# Throwaway Postgres for the verify restore (db-backup.sh's
-# BACKUP_VERIFY_DATABASE_URL). initdb refuses to run as root.
-scratch=/tmp/verify-pg
-mkdir -p "$scratch" && chown postgres:postgres "$scratch"
+# Every Railway cron invocation must be independent, even when Railway reuses
+# a filesystem across scheduled runs. A fixed /tmp/verify-pg previously caused
+# initdb to fail on alternate days after a successful previous backup.
+# Keep both the restored production data and encrypted staging files inside
+# unique, private workspaces and remove them on success OR any failure.
+workdir="$(mktemp -d "${TMPDIR:-/tmp}/rider-comms-backup.XXXXXXXX")"
+scratch=""
+cleanup() {
+  if [[ -n "$scratch" ]]; then
+    su-exec postgres pg_ctl -D "$scratch" -m fast stop > /dev/null 2>&1 || true
+    rm -rf -- "$scratch"
+  fi
+  rm -rf -- "$workdir"
+}
+trap cleanup EXIT
+scratch="$(mktemp -d "${TMPDIR:-/tmp}/rider-comms-verify.XXXXXXXX")"
+chown postgres:postgres "$scratch"
 # Their chatter goes to a log file, not stderr: Railway marks stderr lines as
 # errors, and on Alpine (no `locale` command) a healthy start prints locale
 # warnings there. The log is shown only if startup fails.
-setup_log=/tmp/verify-pg-setup.log
+setup_log="$workdir/verify-setup.log"
 if ! su-exec postgres initdb -D "$scratch" -A trust -U postgres --no-locale > "$setup_log" 2>&1 ||
    ! su-exec postgres pg_ctl -D "$scratch" -l "$scratch/server.log" -o "-c listen_addresses=127.0.0.1 -p 5433" -w start >> "$setup_log" 2>&1; then
   cat "$setup_log" "$scratch/server.log" >&2 2>/dev/null || true
   echo "Could not start the scratch Postgres for the verify restore" >&2
   exit 1
 fi
-trap 'su-exec postgres pg_ctl -D "$scratch" -m fast stop > /dev/null 2>&1 || true' EXIT
 su-exec postgres createdb -h 127.0.0.1 -p 5433 -U postgres verify
 export BACKUP_VERIFY_DATABASE_URL="postgres://postgres@127.0.0.1:5433/verify"
 
 # db-backup.sh prints the verify report on stderr (stdout is just the
 # backup path). Railway marks stderr lines as errors, so route the report to
 # stdout here; real failures still exit non-zero.
-if ! /app/db-backup.sh /tmp/backups > /tmp/backup-path 2> /tmp/backup-report; then
-  cat /tmp/backup-report
+if ! /app/db-backup.sh "$workdir/out" > "$workdir/backup-path" 2> "$workdir/backup-report"; then
+  cat "$workdir/backup-report"
   exit 1
 fi
-cat /tmp/backup-report
-file="$(cat /tmp/backup-path)"
+cat "$workdir/backup-report"
+file="$(cat "$workdir/backup-path")"
 name="$(basename "$file")"
 s3 cp --only-show-errors "$file" "s3://$BUCKET/daily/$name"
 s3 cp --only-show-errors "$file.sha256" "s3://$BUCKET/daily/$name.sha256"

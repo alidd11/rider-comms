@@ -22,3 +22,13 @@ assert.match(pages, /- run: npm ci(?:\n|$)/, 'Pages deployment must install the 
 assert.doesNotMatch(pages, /- run: npm install(?:\n|$)/, 'Pages deployment must not mutate dependency resolution');
 
 console.log('Workflow action pins and deterministic installs valid');
+
+// Keep the Railway cron workspace independent between invocations. A fixed
+// directory caused real production backup failures on alternating days.
+const cron = await readFile(new URL('../ops/backup/run.sh', import.meta.url), 'utf8');
+assert.ok(cron.includes('scratch="$(mktemp -d'), 'backup cron needs a unique scratch cluster');
+assert.ok(cron.includes('workdir="$(mktemp -d'), 'backup cron needs a unique private staging directory');
+assert.ok(cron.includes('trap cleanup EXIT'), 'backup cron must clean up after failure and success');
+assert.ok(cron.includes('rm -rf -- "$scratch"'), 'backup cron must remove the restored database');
+assert.ok(cron.includes('rm -rf -- "$workdir"'), 'backup cron must remove temporary dump artifacts');
+assert.ok(!cron.includes('scratch=/tmp/verify-pg'), 'backup cron must never reuse fixed scratch cluster');
