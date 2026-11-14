@@ -71,7 +71,11 @@ test('installed PWA asks for a portrait lock where the browser allows one; a tab
     Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' });
     document.dispatchEvent(new Event('visibilitychange'));
   });
-  expect(await page.evaluate(() => window.lockCalls)).toEqual(['portrait-primary', 'portrait-primary']);
+  // WebKit can dispatch the resume handler on the next event-loop turn.
+  // Assert that it actually relocks, without racing the synthetic event.
+  await expect.poll(() => page.evaluate(() => window.lockCalls)).toEqual(
+    ['portrait-primary', 'portrait-primary'],
+  );
   await expect(page.locator('#mapDrawer')).toBeVisible();
 });
 
