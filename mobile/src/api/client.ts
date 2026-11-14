@@ -34,6 +34,8 @@ export interface RideResponse { rideId: string; createdBy: string; createdAt: nu
 export interface RideMemberLocation { riderId: string; lat: number; lon: number; updatedAt: number; batteryLow?: boolean }
 export interface PresenceResponse { inZoneWith: string[]; transitions: Array<{ a: string; b: string; type: 'entered' | 'left' }>; radiusMiles: number }
 export interface PlaceSummary { id: string; name: string; address: string; lat: number; lon: number }
+/** A place along the route; travelSeconds is the time via it to the end. */
+export interface PlaceAlongRoute extends PlaceSummary { travelSeconds?: number }
 
 export interface PlaceSuggestionSummary {
   id: string;
@@ -120,12 +122,18 @@ export class RiderCommsClient {
     origin: RouteCoordinate,
     destination: RouteCoordinate,
     avoid: { highways: boolean; tolls: boolean; ferries?: boolean } = { highways: false, tolls: false, ferries: false },
+    via?: RouteCoordinate | null,
   ): Promise<InAppNavigationRoute> {
     return this.request('POST', '/directions', {
       origin: { lat: origin.lat, lon: origin.lon },
       destination: { lat: destination.lat, lon: destination.lon },
       avoid: { highways: avoid.highways, tolls: avoid.tolls, ferries: avoid.ferries === true },
+      ...(via ? { via: { lat: via.lat, lon: via.lon } } : {}),
     }, 12_000);
+  }
+  /** Petrol (or a café) along the rest of the route, with the time via each. */
+  searchAlongRoute(query: string, path: readonly RouteCoordinate[]): Promise<{ places: PlaceAlongRoute[] }> {
+    return this.request('POST', '/places/along-route', { query, path: path.map((point) => ({ lat: point.lat, lon: point.lon })) });
   }
   searchNearbyPlaces(includedTypes: readonly string[], near: RouteCoordinate): Promise<{ places: PlaceSummary[] }> {
     return this.request('POST', '/places/nearby', { includedTypes, near: { lat: near.lat, lon: near.lon } });

@@ -11,7 +11,7 @@ import type { LiveKitCredentials } from '../liveKitToken.ts';
 import type { MessageStore } from '../messageStore.ts';
 import type { ModerationStore } from '../moderationStore.ts';
 import type { AdminStatsStore } from '../adminStatsStore.ts';
-import type { PlaceAutocompleteRequest, PlaceSearchRequest, PlaceSuggestion, PlaceSummary } from '../placesProvider.ts';
+import type { PlaceAlongRoute, PlaceAlongRouteRequest, PlaceAutocompleteRequest, PlaceSearchRequest, PlaceSuggestion, PlaceSummary } from '../placesProvider.ts';
 import type { PresenceStore } from '../presenceStore.ts';
 import type { ProfileStore } from '../profileStore.ts';
 import type { PushNotifier } from '../pushNotifier.ts';
@@ -93,6 +93,7 @@ export interface RouteDeps {
   readinessCheck: () => Promise<void>;
   directionsProvider: DirectionsProvider;
   placesProvider: (request: PlaceSearchRequest) => Promise<PlaceSummary[]>;
+  placesAlongRouteProvider: (request: PlaceAlongRouteRequest) => Promise<PlaceAlongRoute[]>;
   placeSuggestionsProvider: (request: PlaceAutocompleteRequest) => Promise<PlaceSuggestion[]>;
   placeDetailsProvider: (placeId: string, sessionToken: string) => Promise<PlaceSummary>;
   liveKitCredentials: LiveKitCredentials | null | undefined;

@@ -9,7 +9,11 @@ import {
   normalizeSessionToken,
   normalizePlaceTypes,
   PlacesProviderError,
+  encodeGooglePolyline,
+  fetchGooglePlacesAlongRoute,
+  normalizeRoutePath,
 } from '../src/placesProvider.ts';
+import { decodeGooglePolyline } from '../src/directionsProvider.ts';
 
 const near = { lat: 51.5, lon: -0.1 };
 
@@ -236,5 +240,66 @@ describe('Google place suggestions and details', () => {
     assert.equal(normalizeSessionToken(42), null);
     assert.equal(normalizePlaceId('ChIJ_abc-123'), 'ChIJ_abc-123');
     assert.equal(normalizePlaceId('../etc'), null);
+  });
+});
+
+describe('Google places along the route', () => {
+  const path = [{ lat: 51.5, lon: -0.1 }, { lat: 51.51, lon: -0.11 }, { lat: 51.52, lon: -0.125 }];
+
+  it('encodes the route the way Google decodes it', () => {
+    assert.deepEqual(decodeGooglePolyline(encodeGooglePolyline(path)), path);
+    assert.equal(encodeGooglePolyline([{ lat: 38.5, lon: -120.2 }, { lat: 40.7, lon: -120.95 }, { lat: 43.252, lon: -126.453 }]), '_p~iF~ps|U_ulLnnqC_mqNvxq`@');
+    assert.equal(encodeGooglePolyline([]), '');
+  });
+
+  it('accepts 2 to 400 valid points only', () => {
+    assert.deepEqual(normalizeRoutePath(path), path);
+    assert.equal(normalizeRoutePath(path.slice(0, 1)), null);
+    assert.equal(normalizeRoutePath(Array.from({ length: 401 }, () => path[0])), null);
+    assert.equal(normalizeRoutePath([path[0], { lat: 0, lon: 200 }]), null);
+    assert.equal(normalizeRoutePath([path[0], null]), null);
+    assert.equal(normalizeRoutePath('route'), null);
+  });
+
+  it('searches along the route from the rider, with the time via each place', async () => {
+    let sent: { url: string; init?: RequestInit } | null = null;
+    const fetchImpl = (async (url: string | URL | Request, init?: RequestInit) => {
+      sent = { url: String(url), init };
+      return new Response(JSON.stringify({
+        places: [
+          { id: 'a', displayName: { text: 'Shell' }, formattedAddress: 'A3', location: { latitude: 51.505, longitude: -0.105 } },
+          { id: 'b', displayName: { text: 'Gone' }, location: { latitude: 51.506, longitude: -0.106 }, businessStatus: 'CLOSED_PERMANENTLY' },
+          { id: 'c', location: { latitude: 99, longitude: 0 } },
+          { location: { latitude: 51.507, longitude: -0.107 } },
+        ],
+        routingSummaries: [
+          { legs: [{ duration: '300s' }, { duration: '620.5s' }] },
+          { legs: [{ duration: '10s' }] },
+          {},
+          { legs: [{ duration: 'later' }] },
+        ],
+      }), { status: 200 });
+    }) as typeof fetch;
+    const places = await fetchGooglePlacesAlongRoute({ query: 'petrol station', path }, { apiKey: 'k', fetchImpl });
+    assert.equal(sent!.url, 'https://places.googleapis.com/v1/places:searchText');
+    assert.match((sent!.init!.headers as Record<string, string>)['X-Goog-FieldMask']!, /routingSummaries/);
+    const body = JSON.parse(String(sent!.init!.body));
+    assert.equal(body.textQuery, 'petrol station');
+    assert.deepEqual(decodeGooglePolyline(body.searchAlongRouteParameters.polyline.encodedPolyline), path);
+    assert.deepEqual(body.routingParameters.origin, { latitude: 51.5, longitude: -0.1 });
+    assert.deepEqual(places, [
+      { id: 'a', name: 'Shell', address: 'A3', lat: 51.505, lon: -0.105, travelSeconds: 921 },
+      { id: '51.507,-0.107', name: 'Unnamed place', address: '', lat: 51.507, lon: -0.107 },
+    ]);
+  });
+
+  it('handles no results, bad answers and bad requests', async () => {
+    const answer = (body: unknown) => (async () => new Response(JSON.stringify(body), { status: 200 })) as typeof fetch;
+    assert.deepEqual(await fetchGooglePlacesAlongRoute({ query: 'petrol', path }, { apiKey: 'k', fetchImpl: answer({}) }), []);
+    assert.deepEqual(await fetchGooglePlacesAlongRoute({ query: 'petrol', path }, { apiKey: 'k', fetchImpl: answer({ places: [{ location: { latitude: 51.5, longitude: -0.1 } }], routingSummaries: 'x' }) }),
+      [{ id: '51.5,-0.1', name: 'Unnamed place', address: '', lat: 51.5, lon: -0.1 }]);
+    await assert.rejects(fetchGooglePlacesAlongRoute({ query: 'petrol', path }, { apiKey: 'k', fetchImpl: answer({ places: 'x' }) }), { code: 'places_invalid_response' });
+    await assert.rejects(fetchGooglePlacesAlongRoute({ query: 'p', path }, { apiKey: 'k', fetchImpl: answer({}) }), { code: 'places_invalid_request' });
+    await assert.rejects(fetchGooglePlacesAlongRoute({ query: 'petrol', path: [] }, { apiKey: 'k', fetchImpl: answer({}) }), { code: 'places_invalid_request' });
   });
 });

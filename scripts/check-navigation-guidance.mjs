@@ -10,6 +10,15 @@ import {
   navigationPromptStageForDistance,
   navigationPromptText,
   navigationSpeedUnit,
+  navigationStepStartPrompt,
+  FASTER_ROUTE_CHECK_MS,
+  fasterRouteAnnouncement,
+  fasterRouteSavingSeconds,
+  routeAheadPath,
+  routeChoices,
+  routeTrafficDelayText,
+  stopsOnTheWay,
+  routeTwistiness,
 } from '../shared/src/navigationGuidance.ts';
 
 await import('../docs/navigation-guidance.js');
@@ -31,7 +40,7 @@ const fixtures = {
     'roundabout-right', 'ferry', 'ferry-train', 'depart', 'name-change',
     'arrive', 'provider-future-value',
   ],
-  promptDistance: [Number.NaN, 800, 501, 500, 151, 150, 41, 40, 0],
+  promptDistance: [Number.NaN, 4000, 3200, 1600, 940, 800, 501, 500, 320, 151, 150, 100, 41, 40, 0],
   prompt: [
     ['Turn left onto A1', 480, 'km', 1],
     ['Turn left onto A1', 140, 'mi', 2],
@@ -82,10 +91,22 @@ for (const maneuver of fixtures.maneuver) {
 }
 
 for (const metres of fixtures.promptDistance) {
-  assert.equal(
-    browser.navigationPromptStageForDistance(metres),
-    navigationPromptStageForDistance(metres),
-  );
+  for (const speed of [undefined, null, -1, 0, 8, 31.3, 60, Number.NaN]) {
+    assert.equal(
+      browser.navigationPromptStageForDistance(metres, speed),
+      navigationPromptStageForDistance(metres, speed),
+    );
+  }
+}
+for (const args of [
+  ['Turn left onto A3', 19_312, 'mi', false],
+  ['Turn left onto A3.', 19_312, 'km', true],
+  ['Turn left onto A3', 900, 'mi', false],
+  ['', 900, 'mi', false],
+  ['  Keep   right  ', 2000, 'mi', false],
+  ['Turn right', Number.NaN, 'km', false],
+]) {
+  assert.equal(browser.navigationStepStartPrompt(...args), navigationStepStartPrompt(...args));
 }
 
 for (const [instruction, metres, unit, stage] of fixtures.prompt) {
@@ -104,3 +125,41 @@ for (const instruction of fixtures.instruction) {
 }
 
 console.log('Navigation guidance PWA/native parity valid');
+
+{
+  const straight = Array.from({ length: 40 }, (_, i) => ({ lat: 51.5 + i * 0.001, lon: -0.1 }));
+  const zigzag = Array.from({ length: 40 }, (_, i) => ({ lat: 51.5 + i * 0.001, lon: -0.1 + (i % 2) * 0.0008 }));
+  const jitter = Array.from({ length: 40 }, (_, i) => ({ lat: 51.5 + i * 0.00005, lon: -0.1 + (i % 2) * 0.00001 }));
+  for (const points of [straight, zigzag, jitter, [], [straight[0]]]) {
+    assert.equal(browser.routeTwistiness(points), routeTwistiness(points));
+  }
+  for (const routes of [
+    [],
+    [{ durationSeconds: 1380, coordinates: straight }],
+    [{ durationSeconds: 1380, coordinates: straight }, { durationSeconds: 1740, coordinates: zigzag }, { durationSeconds: 1500, coordinates: straight }],
+    [{ durationSeconds: 1740, coordinates: zigzag }, { durationSeconds: 1380, coordinates: zigzag }],
+    [{ durationSeconds: 1400, coordinates: straight }, { durationSeconds: 1420, coordinates: straight }],
+  ]) {
+    assert.deepEqual(browser.routeChoices(routes), routeChoices(routes));
+  }
+  for (const [duration, typical] of [[1800, 1200], [1800, 1750], [1800, null], [1800, undefined], [1800, Number.NaN]]) {
+    assert.equal(browser.routeTrafficDelayText(duration, typical), routeTrafficDelayText(duration, typical));
+  }
+}
+
+assert.equal(browser.FASTER_ROUTE_CHECK_MS, FASTER_ROUTE_CHECK_MS);
+for (const [remaining, fresh] of [[1800, 1400], [1800, 1650], [7200, 6600], [7200, 6400], [600, 400], [600, 0], [Number.NaN, 100], [600, Number.NaN]]) {
+  assert.equal(browser.fasterRouteSavingSeconds(remaining, fresh), fasterRouteSavingSeconds(remaining, fresh));
+}
+for (const saving of [180, 360, 3700]) assert.equal(browser.fasterRouteAnnouncement(saving), fasterRouteAnnouncement(saving));
+
+{
+  const line = Array.from({ length: 500 }, (_, i) => ({ lat: 51.5 + i * 0.0005, lon: -0.1 }));
+  for (const [points, here, max] of [[line, { lat: 51.55, lon: -0.1001 }, 200], [line, line[0], 50], [line.slice(0, 5), line[4], 200], [[], line[0], 200], [line, line.at(-1), 200]]) {
+    assert.deepEqual(browser.routeAheadPath(points, here, max), routeAheadPath(points, here, max));
+  }
+  const places = [{ id: 'a', travelSeconds: 1300 }, { id: 'b' }, { id: 'c', travelSeconds: 1230 }, { id: 'd', travelSeconds: 1000 }];
+  for (const remaining of [1200, null, Number.NaN]) {
+    assert.deepEqual(browser.stopsOnTheWay(places, remaining), stopsOnTheWay(places, remaining));
+  }
+}

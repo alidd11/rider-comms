@@ -324,3 +324,112 @@ export async function fetchGooglePlaceDetails(
     lon,
   };
 }
+
+// --- Search along the route ---------------------------------------------
+// Petrol (or a café) on the way, not just near the rider: Google's search
+// along a route, given the rest of the route as a line. Each place comes with
+// the time to ride there and on to the end of the line, so the app can say
+// how much it adds ("+3 min") against the time it has left.
+
+export interface PlaceAlongRoute extends PlaceSummary {
+  /** Seconds from the rider, via this place, to the end of the route. */
+  travelSeconds?: number;
+}
+
+export interface PlaceAlongRouteRequest {
+  query: string;
+  /** The rest of the route, from the rider onwards. */
+  path: RouteCoordinate[];
+}
+
+export const MAX_ROUTE_PATH_POINTS = 400;
+const ALONG_ROUTE_RESULTS = 5;
+
+/** The rest of a route as sent by the apps: 2 to 400 valid coordinates. */
+export function normalizeRoutePath(value: unknown): RouteCoordinate[] | null {
+  if (!Array.isArray(value) || value.length < 2 || value.length > MAX_ROUTE_PATH_POINTS) return null;
+  const path: RouteCoordinate[] = [];
+  for (const point of value) {
+    const lat = (point as { lat?: unknown })?.lat;
+    const lon = (point as { lon?: unknown })?.lon;
+    if (typeof lat !== 'number' || typeof lon !== 'number' || !isLatitude(lat) || !isLongitude(lon)) return null;
+    path.push({ lat, lon });
+  }
+  return path;
+}
+
+/** Google's encoded polyline format (the inverse of decodeGooglePolyline). */
+export function encodeGooglePolyline(points: readonly RouteCoordinate[]): string {
+  let lastLat = 0;
+  let lastLon = 0;
+  let encoded = '';
+  const encodeValue = (value: number) => {
+    let shifted = value < 0 ? ~(value << 1) : value << 1;
+    while (shifted >= 0x20) {
+      encoded += String.fromCharCode((0x20 | (shifted & 0x1f)) + 63);
+      shifted >>= 5;
+    }
+    encoded += String.fromCharCode(shifted + 63);
+  };
+  for (const point of points) {
+    const lat = Math.round(point.lat * 1e5);
+    const lon = Math.round(point.lon * 1e5);
+    encodeValue(lat - lastLat);
+    encodeValue(lon - lastLon);
+    lastLat = lat;
+    lastLon = lon;
+  }
+  return encoded;
+}
+
+function routingSummarySeconds(summary: unknown): number | undefined {
+  const legs = (summary as { legs?: Array<{ duration?: unknown }> } | null)?.legs;
+  if (!Array.isArray(legs) || legs.length === 0) return undefined;
+  let total = 0;
+  for (const leg of legs) {
+    const match = typeof leg?.duration === 'string' ? /^(\d+(?:\.\d+)?)s$/.exec(leg.duration) : null;
+    if (!match) return undefined;
+    total += Number(match[1]);
+  }
+  return Math.round(total);
+}
+
+export async function fetchGooglePlacesAlongRoute(
+  request: PlaceAlongRouteRequest,
+  options: GooglePlacesOptions = {},
+): Promise<PlaceAlongRoute[]> {
+  const query = normalizePlaceQuery(request.query);
+  const path = normalizeRoutePath(request.path);
+  if (!query || !path) throw new PlacesProviderError('places_invalid_request');
+  const origin = path[0]!;
+  const payload = await callPlaces(TEXT_SEARCH_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Goog-FieldMask': `${FIELD_MASK},routingSummaries` },
+    body: JSON.stringify({
+      textQuery: query,
+      maxResultCount: ALONG_ROUTE_RESULTS,
+      searchAlongRouteParameters: { polyline: { encodedPolyline: encodeGooglePolyline(path) } },
+      routingParameters: { origin: { latitude: origin.lat, longitude: origin.lon }, travelMode: 'DRIVE' },
+    }),
+  }, options);
+  const places = (payload as { places?: unknown })?.places;
+  const summaries = (payload as { routingSummaries?: unknown })?.routingSummaries;
+  if (places !== undefined && !Array.isArray(places)) throw new PlacesProviderError('places_invalid_response');
+  const results: PlaceAlongRoute[] = [];
+  (places ?? []).forEach((raw: GooglePlace, index: number) => {
+    if (raw.businessStatus === 'CLOSED_PERMANENTLY') return;
+    const lat = raw.location?.latitude;
+    const lon = raw.location?.longitude;
+    if (typeof lat !== 'number' || typeof lon !== 'number' || !isLatitude(lat) || !isLongitude(lon)) return;
+    const travelSeconds = Array.isArray(summaries) ? routingSummarySeconds(summaries[index]) : undefined;
+    results.push({
+      id: typeof raw.id === 'string' && raw.id ? raw.id : `${lat},${lon}`,
+      name: typeof raw.displayName?.text === 'string' && raw.displayName.text ? raw.displayName.text : 'Unnamed place',
+      address: typeof raw.formattedAddress === 'string' ? raw.formattedAddress : '',
+      lat,
+      lon,
+      ...(travelSeconds !== undefined ? { travelSeconds } : {}),
+    });
+  });
+  return results;
+}

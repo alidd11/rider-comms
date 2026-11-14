@@ -1,12 +1,12 @@
 import { DirectionsProviderError, routeAvoidance } from '../directionsProvider.ts';
-import { PlacesProviderError, normalizePlaceId, normalizePlaceQuery, normalizePlaceTypes, normalizeSessionToken } from '../placesProvider.ts';
+import { PlacesProviderError, normalizePlaceId, normalizePlaceQuery, normalizePlaceTypes, normalizeRoutePath, normalizeSessionToken } from '../placesProvider.ts';
 import type { PlaceSearchRequest } from '../placesProvider.ts';
 import { consumeRateLimit, rateLimitSubject, readJsonBody, routeCoordinate, sendJson } from '../serverHttp.ts';
 import { NOT_HANDLED } from './context.ts';
 import type { RouteContext } from './context.ts';
 
 export async function handleNavigationRoutes(ctx: RouteContext): Promise<unknown> {
-  const { req, res, url, actorId, rateLimitStore, directionsProvider, placesProvider, placeSuggestionsProvider, placeDetailsProvider } = ctx;
+  const { req, res, url, actorId, rateLimitStore, directionsProvider, placesProvider, placesAlongRouteProvider, placeSuggestionsProvider, placeDetailsProvider } = ctx;
   if (req.method === 'POST' && url.pathname === '/directions') {
     const body = await readJsonBody(req);
     const origin = routeCoordinate(body.origin);
@@ -14,9 +14,12 @@ export async function handleNavigationRoutes(ctx: RouteContext): Promise<unknown
     if (!origin || !destination) {
       return sendJson(res, 400, { error: 'valid origin and destination coordinates are required' });
     }
+    // An optional stop on the way (petrol found along the route).
+    const via = body.via === undefined ? undefined : routeCoordinate(body.via);
+    if (via === null) return sendJson(res, 400, { error: 'via must be a valid coordinate' });
     if (!(await consumeRateLimit(res, rateLimitStore, rateLimitSubject('rider', actorId), 'directions'))) return;
     try {
-      return sendJson(res, 200, await directionsProvider(origin, destination, routeAvoidance(body.avoid)));
+      return sendJson(res, 200, await directionsProvider(origin, destination, { ...routeAvoidance(body.avoid), ...(via ? { via } : {}) }));
     } catch (error) {
       if (!(error instanceof DirectionsProviderError)) throw error;
       if (error.code === 'directions_invalid_request') return sendJson(res, 400, { error: error.code });
@@ -50,6 +53,21 @@ export async function handleNavigationRoutes(ctx: RouteContext): Promise<unknown
     if (!(await consumeRateLimit(res, rateLimitStore, rateLimitSubject('rider', actorId), 'places'))) return;
     try {
       return sendJson(res, 200, { place: await placeDetailsProvider(placeId, sessionToken) });
+    } catch (error) {
+      return placesError(res, error);
+    }
+  }
+  // Petrol (or a café) on the way: the rest of the route from the rider.
+  if (req.method === 'POST' && url.pathname === '/places/along-route') {
+    const body = await readJsonBody(req);
+    const query = normalizePlaceQuery(body.query);
+    const path = normalizeRoutePath(body.path);
+    if (!query || !path) {
+      return sendJson(res, 400, { error: 'a 2-200 character query and a route of 2-400 coordinates are required' });
+    }
+    if (!(await consumeRateLimit(res, rateLimitStore, rateLimitSubject('rider', actorId), 'places'))) return;
+    try {
+      return sendJson(res, 200, { places: await placesAlongRouteProvider({ query, path }) });
     } catch (error) {
       return placesError(res, error);
     }

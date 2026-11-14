@@ -51,10 +51,11 @@ import { RidingHud } from './RidingHud';
 import { NavigationBanner, NavigationControls, NavigationSpeedBadge, NavigationTripSummary } from './NavigationOverlay';
 import { GLANCE_TEXT_MAX_SCALE, NavigationNightContext } from '../navigationTone';
 import { ArrivalCard, DestinationCard } from './MapPlaceCards';
-import { RIDE_LOCATION_FRESH_MS, navigationManeuverArrow, regroupAnnouncement, rideBatteryAnnouncements, rideDropAnnouncements, rideMemberLastSeenAgo, type RegroupPoint, type RideBatteryState, type RideDropState } from '@rider-comms/shared';
+import { RIDE_LOCATION_FRESH_MS, navigationManeuverArrow, regroupAnnouncement, rideBatteryAnnouncements, rideDropAnnouncements, routeTrafficDelayText, rideMemberLastSeenAgo, type RegroupPoint, type RideBatteryState, type RideDropState } from '@rider-comms/shared';
 import { speakNavigationPrompt } from '../audio/navigationSpeech';
 import { useRideProfiles } from './useRideProfiles';
 import { queuedReportsText, useHazardReports } from './useHazardReports';
+import { StopsOnTheWaySheet } from './StopsOnTheWaySheet';
 import { useNavigationSummary } from './useNavigationSummary';
 import { usePresence } from './usePresence';
 import { useInAppNavigation } from './useInAppNavigation';
@@ -216,6 +217,7 @@ export function MapScreen(): React.JSX.Element {
   const hudSpeed = speedMps == null ? null : Math.round(speedMps * (unitSystem === 'km' ? 3.6 : 2.23694));
 
   const hasCurrentLocation = currentLocation !== null;
+  const [stopsSheetOpen, setStopsSheetOpen] = React.useState(false);
   // Report confirmations are spoken too, like other riding prompts, since
   // riders often report from the riding display without looking down.
   const hazardSpeech = React.useRef({ speak: spokenDirections });
@@ -261,6 +263,11 @@ export function MapScreen(): React.JSX.Element {
     startInAppNavigation,
     stopFollowingRoute,
     resumeFollowingRoute,
+    routeChoices: navigationRouteChoices,
+    chosenRouteIndex,
+    chooseRoute,
+    findStopsOnTheWay,
+    addNavigationStop,
   } = useInAppNavigation(
     client,
     mapRef,
@@ -875,6 +882,7 @@ export function MapScreen(): React.JSX.Element {
           muted={navigationMuted}
           following={navigationFollowing}
           onReport={() => void openReportSheet()}
+          onFindStops={() => setStopsSheetOpen(true)}
           onToggleMute={() => setNavigationMuted((current) => !current)}
           onOverviewOrFollow={() => {
             if (navigationFollowing) fitRoute(activeRoute);
@@ -882,6 +890,16 @@ export function MapScreen(): React.JSX.Element {
           }}
         />
       )}
+
+      <StopsOnTheWaySheet
+        visible={stopsSheetOpen && Boolean(activeRoute) && !lockedForSafety}
+        onClose={() => setStopsSheetOpen(false)}
+        findStops={findStopsOnTheWay}
+        onChoose={(place) => {
+          setStopsSheetOpen(false);
+          void addNavigationStop(place);
+        }}
+      />
 
       <HazardReportSheet
         visible={reportSheetOpen}
@@ -958,6 +976,11 @@ export function MapScreen(): React.JSX.Element {
             remainingMeters={remainingNavigationMeters}
             unitSystem={unitSystem}
             onHeight={setNavigationSummaryHeight}
+            // Choosing a way is for when parked: Ride Safe hides it on the move.
+            routeChoices={lockedForSafety ? [] : navigationRouteChoices}
+            chosenRouteIndex={chosenRouteIndex}
+            onChooseRoute={chooseRoute}
+            trafficText={activeRoute ? routeTrafficDelayText(activeRoute.durationSeconds, activeRoute.typicalDurationSeconds) : ''}
           />
         </NavigationNightContext.Provider>
       )}

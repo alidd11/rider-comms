@@ -9,7 +9,9 @@ import {
   navigationPromptStageForDistance,
   navigationPromptText,
   navigationSpeedUnit,
+  navigationStepStartPrompt,
 } from '../src/navigationGuidance.ts';
+import { fasterRouteAnnouncement, fasterRouteSavingSeconds, routeAheadPath, stopsOnTheWay, routeChoices, routeTrafficDelayText, routeTwistiness } from '@rider-comms/shared';
 
 describe('navigation guidance presentation', () => {
   it('formats metric and imperial distances consistently for navigation', () => {
@@ -54,10 +56,34 @@ describe('navigation guidance presentation', () => {
     assert.equal(navigationPromptStageForDistance(150), 2);
     assert.equal(navigationPromptStageForDistance(40), 3);
 
-    assert.equal(navigationPromptText('Turn left onto A1', 480, 'km', 1), 'In 480 m, Turn left onto A1');
-    assert.equal(navigationPromptText('Turn left onto A1', 140, 'mi', 2), 'In 460 ft, Turn left onto A1');
+    assert.equal(navigationPromptText('Turn left onto A1', 480, 'km', 1), 'In 480 m, turn left onto A1');
+    assert.equal(navigationPromptText('Turn left onto A1', 140, 'mi', 2), 'In 460 ft, turn left onto A1');
+    // A road name first keeps its capitals.
+    assert.equal(navigationPromptText('A1 towards Barnet', 140, 'mi', 2), 'In 460 ft, A1 towards Barnet');
     assert.equal(navigationPromptText('Turn left onto A1', 30, 'mi', 3), 'Turn left onto A1');
     assert.equal(navigationPromptText('Turn left onto A1', 800, 'mi', 0), '');
+  });
+
+  it('warns earlier at speed, as Google Maps and Waze do', () => {
+    // 70 mph: the first warning about a mile out, not 500 m.
+    assert.equal(navigationPromptStageForDistance(1600, 31.3), 0);
+    assert.equal(navigationPromptStageForDistance(1500, 31.3), 1);
+    assert.equal(navigationPromptStageForDistance(460, 31.3), 2);
+    assert.equal(navigationPromptStageForDistance(90, 31.3), 3);
+    // Never earlier than 2 miles, however fast.
+    assert.equal(navigationPromptStageForDistance(3300, 200), 0);
+    // Slow or unknown speed keeps the distance thresholds.
+    assert.equal(navigationPromptStageForDistance(800, 5), 0);
+    assert.equal(navigationPromptStageForDistance(500, null), 1);
+    assert.equal(navigationPromptStageForDistance(500, -1), 1);
+  });
+
+  it('says how far a long road goes when its step begins', () => {
+    assert.equal(navigationStepStartPrompt('Turn left onto A3', 19_312, 'mi', false), 'Turn left onto A3. Continue for 12 mi.');
+    assert.equal(navigationStepStartPrompt('Turn left onto A3.', 19_312, 'km', true), 'Continue for 19 km.');
+    assert.equal(navigationStepStartPrompt('Turn left onto A3', 900, 'mi', false), 'Turn left onto A3');
+    assert.equal(navigationStepStartPrompt('Turn left onto A3', 900, 'mi', true), '');
+    assert.equal(navigationStepStartPrompt('', Number.NaN, 'mi', false), '');
   });
 
   it('maps Google maneuver values to directional native icons', () => {
@@ -89,5 +115,70 @@ describe('navigationInstructionRoad', () => {
     assert.equal(navigationInstructionRoad('Turn left'), null);
     assert.equal(navigationInstructionRoad('Your destination is on the left'), null);
     assert.equal(navigationInstructionRoad(''), null);
+  });
+
+  it('scores how twisty a route is, ignoring GPS-scale wiggles', () => {
+    const straight = Array.from({ length: 40 }, (_, i) => ({ lat: 51.5 + i * 0.001, lon: -0.1 }));
+    const zigzag = Array.from({ length: 40 }, (_, i) => ({ lat: 51.5 + i * 0.001, lon: -0.1 + (i % 2) * 0.0008 }));
+    const jitter = Array.from({ length: 40 }, (_, i) => ({ lat: 51.5 + i * 0.00005, lon: -0.1 + (i % 2) * 0.00001 }));
+    assert.ok(routeTwistiness(straight) < 1);
+    assert.ok(routeTwistiness(zigzag) > 200);
+    // Under 200 m measured: too short to judge.
+    assert.equal(routeTwistiness(jitter), 0);
+    assert.equal(routeTwistiness([]), 0);
+  });
+
+  it('labels the fastest way, a twisty one and the rest, with how much longer', () => {
+    const straight = Array.from({ length: 40 }, (_, i) => ({ lat: 51.5 + i * 0.001, lon: -0.1 }));
+    const zigzag = Array.from({ length: 40 }, (_, i) => ({ lat: 51.5 + i * 0.001, lon: -0.1 + (i % 2) * 0.0008 }));
+    assert.deepEqual(routeChoices([
+      { durationSeconds: 1380, coordinates: straight },
+      { durationSeconds: 1740, coordinates: zigzag },
+      { durationSeconds: 1500, coordinates: straight },
+    ]).map((choice) => choice.text), ['Fastest · 23 min', 'Twisty · 29 min · +6 min', 'Alternative · 25 min · +2 min']);
+    // Only one route: just the fastest.
+    assert.deepEqual(routeChoices([{ durationSeconds: 600, coordinates: straight }]), [{ index: 0, label: 'Fastest', text: 'Fastest · 10 min' }]);
+    // The fastest is itself the twisty one: no separate Twisty label, and
+    // under a minute longer says no extra time.
+    assert.deepEqual(routeChoices([
+      { durationSeconds: 1740, coordinates: zigzag },
+      { durationSeconds: 1720, coordinates: zigzag },
+    ]).map((choice) => choice.text), ['Alternative · 29 min', 'Fastest · 29 min']);
+    assert.deepEqual(routeChoices([]), []);
+  });
+
+  it('says how much today\'s traffic adds, from two minutes up', () => {
+    assert.equal(routeTrafficDelayText(1800, 1200), '+10 min traffic');
+    assert.equal(routeTrafficDelayText(1800, 1750), '');
+    assert.equal(routeTrafficDelayText(1800, null), '');
+    assert.equal(routeTrafficDelayText(1800, Number.NaN), '');
+  });
+
+  it('switches to a faster route only when it saves 3 minutes and a tenth of the trip', () => {
+    assert.equal(fasterRouteSavingSeconds(1800, 1400), 400);
+    assert.equal(fasterRouteSavingSeconds(1800, 1650), 0);
+    // Two hours left: a tenth is 12 minutes, so 10 minutes saved isn't enough.
+    assert.equal(fasterRouteSavingSeconds(7200, 6600), 0);
+    assert.equal(fasterRouteSavingSeconds(7200, 6400), 800);
+    assert.equal(fasterRouteSavingSeconds(600, 0), 0);
+    assert.equal(fasterRouteSavingSeconds(Number.NaN, 100), 0);
+    assert.equal(fasterRouteAnnouncement(360), 'Faster route found. Saves 6 min.');
+  });
+
+  it('sends only the rest of the route, thinned, to search along', () => {
+    const line = Array.from({ length: 500 }, (_, i) => ({ lat: 51.5 + i * 0.0005, lon: -0.1 }));
+    const ahead = routeAheadPath(line, { lat: 51.55, lon: -0.1001 });
+    assert.equal(ahead.length, 200);
+    assert.deepEqual(ahead[0], { lat: 51.55, lon: -0.1001 });
+    assert.deepEqual(ahead.at(-1), line.at(-1));
+    assert.equal(routeAheadPath(line.slice(0, 5), line[4]!).length, 0);
+    assert.equal(routeAheadPath([], line[0]!).length, 0);
+    assert.equal(routeAheadPath(line.slice(0, 5), line[0]!).length, 5);
+  });
+
+  it('orders stops on the way by what they add', () => {
+    const stops = stopsOnTheWay([{ id: 'a', travelSeconds: 1500 }, { id: 'b' }, { id: 'c', travelSeconds: 1230 }, { id: 'd', travelSeconds: 1000 }], 1200);
+    assert.deepEqual(stops.map((stop) => [stop.place.id, stop.text]), [['d', 'On the way'], ['c', 'On the way'], ['a', '+5 min'], ['b', '']]);
+    assert.deepEqual(stopsOnTheWay([{ id: 'a', travelSeconds: 10 }], null).map((stop) => stop.text), ['']);
   });
 });

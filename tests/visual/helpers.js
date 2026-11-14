@@ -158,12 +158,36 @@ export async function mockAuthenticatedApi(page, movement = 'stationary', backen
         setTitle(title) { this.title = title; }
         setLabel(label) { this.label = label; }
       }
+      // Routes: a test sets window.__riderCommsTestRoute to the
+      // DirectionsResult it wants, and reads window.__riderCommsTestRouteRequests.
+      class DirectionsServiceMock {
+        route(request, callback) {
+          (window.__riderCommsTestRouteRequests ||= []).push(request);
+          const result = window.__riderCommsTestRoute;
+          setTimeout(() => callback(result || null, result ? 'OK' : 'ZERO_RESULTS'), 0);
+        }
+      }
+      class OverlayMock {
+        constructor(options = {}) { this.options = { ...options }; this.map = options.map ?? null; }
+        setMap(map) { this.map = map; }
+        getMap() { return this.map; }
+        setOptions(options) { this.options = { ...this.options, ...options }; }
+        setPath(path) { this.options.path = path; }
+        getPath() { return { getArray: () => this.options.path || [] }; }
+        setDirections(result) { this.directions = result; }
+      }
       class PlacesServiceMock {}
       class AutocompleteServiceMock {}
       class AutocompleteSessionTokenMock {}
       window.google = { maps: {
         Map: MapMock,
         Marker: MarkerMock,
+        DirectionsService: DirectionsServiceMock,
+        DirectionsRenderer: OverlayMock,
+        Polyline: OverlayMock,
+        TrafficLayer: OverlayMock,
+        TravelMode: { DRIVING: 'DRIVING' },
+        TrafficModel: { BEST_GUESS: 'bestguess' },
         RenderingType: { VECTOR: 'VECTOR', RASTER: 'RASTER' },
         Size: class Size { constructor(width, height) { this.width = width; this.height = height; } },
         Point: class Point { constructor(x, y) { this.x = x; this.y = y; } },

@@ -1,7 +1,7 @@
 import http from 'node:http';
 import { createLiveKitRoomAdmin, getLiveKitCredentialsFromEnv } from './liveKitToken.ts';
 import type { LiveKitCredentials, LiveKitRoomAdmin } from './liveKitToken.ts';
-import { fetchGoogleDrivingRoute } from './directionsProvider.ts';
+import { fetchDrivingRoute } from './directionsProvider.ts';
 import { DirectionsCache, wrapDirectionsProviderWithCache } from './directionsCache.ts';
 import type { DirectionsProvider } from './directionsCache.ts';
 import { RetentionStore } from './retentionStore.ts';
@@ -9,8 +9,8 @@ import { configureErrorAlerts, ErrorAlerter, flushErrorAlerts, reportOperational
 import { DEFAULT_PUBLIC_APP_URL, sendOperationalEmail } from './email.ts';
 import { SITE_CHECK_INTERVAL_MS, SiteMonitor } from './siteMonitor.ts';
 import { createShutdown, errorMessage, installCrashHandlers, runMaintenance, scheduleMaintenance } from './processLifecycle.ts';
-import { fetchGooglePlaceDetails, fetchGooglePlaces, fetchGooglePlaceSuggestions } from './placesProvider.ts';
-import type { PlaceAutocompleteRequest, PlaceSearchRequest, PlaceSuggestion, PlaceSummary } from './placesProvider.ts';
+import { fetchGooglePlaceDetails, fetchGooglePlaces, fetchGooglePlacesAlongRoute, fetchGooglePlaceSuggestions } from './placesProvider.ts';
+import type { PlaceAlongRoute, PlaceAlongRouteRequest, PlaceAutocompleteRequest, PlaceSearchRequest, PlaceSuggestion, PlaceSummary } from './placesProvider.ts';
 import { AuthStore } from './authStore.ts';
 import { RideStore } from './rideStore.ts';
 import type { RideMemberLocation } from './rideStore.ts';
@@ -91,6 +91,7 @@ export interface ApiServerOptions {
   directionsProvider?: DirectionsProvider;
   directionsCache?: Pick<DirectionsCache, 'get' | 'set'>;
   placesProvider?: (request: PlaceSearchRequest) => Promise<PlaceSummary[]>;
+  placesAlongRouteProvider?: (request: PlaceAlongRouteRequest) => Promise<PlaceAlongRoute[]>;
   placeSuggestionsProvider?: (request: PlaceAutocompleteRequest) => Promise<PlaceSuggestion[]>;
   placeDetailsProvider?: (placeId: string, sessionToken: string) => Promise<PlaceSummary>;
   socialRateLimitStore?: Pick<SocialRateLimitStore, 'consume'>;
@@ -214,10 +215,11 @@ export function createApp(options: CreateAppOptions = {}): http.Server {
   const readinessCheck = options.readinessCheck ?? checkDatabaseReady;
   const directionsCache = options.directionsCache ?? new DirectionsCache();
   const directionsProvider = wrapDirectionsProviderWithCache(
-    options.directionsProvider ?? ((origin, destination, avoid) => fetchGoogleDrivingRoute(origin, destination, { avoid })),
+    options.directionsProvider ?? ((origin, destination, avoid) => fetchDrivingRoute(origin, destination, { avoid })),
     directionsCache,
   );
   const placesProvider = options.placesProvider ?? ((request: PlaceSearchRequest) => fetchGooglePlaces(request));
+  const placesAlongRouteProvider = options.placesAlongRouteProvider ?? ((request: PlaceAlongRouteRequest) => fetchGooglePlacesAlongRoute(request));
   const placeSuggestionsProvider = options.placeSuggestionsProvider ?? ((request: PlaceAutocompleteRequest) => fetchGooglePlaceSuggestions(request));
   const placeDetailsProvider = options.placeDetailsProvider ?? ((placeId: string, sessionToken: string) => fetchGooglePlaceDetails(placeId, sessionToken));
   const revokeRideVoiceParticipants = async (rideId: string, riderIds: Iterable<string>): Promise<void> => {
@@ -274,7 +276,7 @@ export function createApp(options: CreateAppOptions = {}): http.Server {
     rideStore, pushStore, pushNotifier, presenceStore, profileStore, friendStore, messageStore, hideoutStore, authStore,
     moderationStore, adminStatsStore, hazardStore, scenicRouteStore, billingStore, accountDeletionStore, rateLimitStore,
     socialRateLimitStore, socialActivityStore, socialEventStore, readinessCheck, directionsProvider,
-    placesProvider, placeSuggestionsProvider, placeDetailsProvider, liveKitCredentials, revokeRideVoiceParticipants, revokeProximityVoiceParticipants,
+    placesProvider, placesAlongRouteProvider, placeSuggestionsProvider, placeDetailsProvider, liveKitCredentials, revokeRideVoiceParticipants, revokeProximityVoiceParticipants,
     visibleRideLocationsFor,
   };
   const app = http.createServer(async (req, res) => {

@@ -3,8 +3,11 @@ import assert from 'node:assert/strict';
 import {
   DirectionsProviderError,
   decodeGooglePolyline,
+  fetchDrivingRoute,
   fetchGoogleDrivingRoute,
+  fetchGoogleRoutes,
   routeAvoidance,
+  routesManeuver,
   stripGoogleNavigationInstruction,
 } from '../src/directionsProvider.ts';
 
@@ -143,5 +146,157 @@ describe('Google directions provider', () => {
       () => fetchGoogleDrivingRoute(origin, destination, { apiKey: 'server-secret', fetchImpl }),
       (error: unknown) => error instanceof DirectionsProviderError && error.code === 'directions_no_route',
     );
+  });
+});
+
+function routesStep(overrides: Record<string, unknown> = {}) {
+  return {
+    distanceMeters: 600,
+    staticDuration: '100s',
+    polyline: { encodedPolyline },
+    startLocation: { latLng: { latitude: 51.5, longitude: -0.1 } },
+    endLocation: { latLng: { latitude: 51.51, longitude: -0.11 } },
+    navigationInstruction: { maneuver: 'TURN_SLIGHT_LEFT', instructions: 'Turn slightly left onto A1' },
+    ...overrides,
+  };
+}
+
+function routesRoute(duration: string, staticDuration: string, steps = [routesStep(), routesStep({ navigationInstruction: undefined })]) {
+  return { distanceMeters: 1200, duration, staticDuration, polyline: { encodedPolyline }, legs: [{ steps }] };
+}
+
+describe('Google Routes API provider', () => {
+  it('asks for live traffic and alternatives, and spreads the delay over the steps', async () => {
+    let request: { url: string; init?: RequestInit } | null = null;
+    const fetchImpl = (async (url: string | URL | Request, init?: RequestInit) => {
+      request = { url: String(url), init };
+      return new Response(JSON.stringify({ routes: [
+        routesRoute('300s', '200s'),
+        routesRoute('360s', '330s'),
+        routesRoute('400s', '400s'),
+        routesRoute('500s', '500s'),
+      ] }), { status: 200 });
+    }) as typeof fetch;
+
+    const route = await fetchGoogleRoutes(origin, destination, { apiKey: 'server-secret', fetchImpl, avoid: { tolls: true } });
+
+    assert.equal(request!.url, 'https://routes.googleapis.com/directions/v2:computeRoutes');
+    const headers = request!.init!.headers as Record<string, string>;
+    assert.equal(headers['X-Goog-Api-Key'], 'server-secret');
+    assert.match(headers['X-Goog-FieldMask']!, /routes\.legs\.steps\.navigationInstruction/);
+    const body = JSON.parse(String(request!.init!.body));
+    assert.equal(body.routingPreference, 'TRAFFIC_AWARE');
+    assert.equal(body.computeAlternativeRoutes, true);
+    assert.deepEqual(body.routeModifiers, { avoidHighways: false, avoidTolls: true, avoidFerries: false });
+    assert.deepEqual(body.origin, { location: { latLng: { latitude: 51.5, longitude: -0.1 } } });
+
+    assert.equal(route.durationSeconds, 300);
+    assert.equal(route.typicalDurationSeconds, 200);
+    // 200 s of steps stretched to the 300 s the traffic says.
+    assert.deepEqual(route.steps.map((step) => step.durationSeconds), [150, 150]);
+    assert.equal(route.steps[0]?.instruction, 'Turn slightly left onto A1');
+    assert.equal(route.steps[0]?.maneuver, 'turn-slight-left');
+    // A step Google gives no instruction for still reads as something.
+    assert.equal(route.steps[1]?.instruction, 'Continue');
+    assert.equal(route.steps[1]?.maneuver, undefined);
+    // At most two alternatives, without nesting.
+    assert.deepEqual(route.alternatives?.map((alt) => alt.durationSeconds), [360, 400]);
+    assert.equal(route.alternatives?.[0]?.alternatives, undefined);
+    assert.equal(JSON.stringify(route).includes('server-secret'), false);
+  });
+
+  it('works without traffic figures, and with no alternatives', async () => {
+    const steps = [routesStep({ staticDuration: '0s' })];
+    const fetchImpl = (async () => new Response(JSON.stringify({ routes: [
+      { polyline: { encodedPolyline }, legs: [{ steps }] },
+    ] }), { status: 200 })) as typeof fetch;
+    const route = await fetchGoogleRoutes(origin, destination, { apiKey: 'k', fetchImpl });
+    assert.equal(route.durationSeconds, 0);
+    assert.equal(route.distanceMeters, 600);
+    assert.equal(route.alternatives, undefined);
+  });
+
+  it('maps Routes API maneuvers to the names both apps draw', () => {
+    assert.equal(routesManeuver('UTURN_RIGHT'), 'uturn-right');
+    assert.equal(routesManeuver('ROUNDABOUT_LEFT'), 'roundabout-left');
+    assert.equal(routesManeuver('MANEUVER_UNSPECIFIED'), undefined);
+    assert.equal(routesManeuver(''), undefined);
+    assert.equal(routesManeuver(42), undefined);
+  });
+
+  it('falls back to the legacy Directions API while the Routes API is not enabled', async () => {
+    const urls: string[] = [];
+    const fetchImpl = (async (url: string | URL | Request) => {
+      urls.push(String(url));
+      if (String(url).startsWith('https://routes.googleapis.com')) {
+        return new Response(JSON.stringify({ error: { status: 'PERMISSION_DENIED' } }), { status: 403 });
+      }
+      return new Response(JSON.stringify({ status: 'OK', routes: [{
+        overview_polyline: { points: encodedPolyline },
+        legs: [{ distance: { value: 900 }, duration: { value: 120 }, steps: [{
+          html_instructions: 'Head north', distance: { value: 900 }, duration: { value: 120 },
+          start_location: { lat: 51.5, lng: -0.1 }, end_location: { lat: 51.51, lng: -0.11 }, polyline: { points: encodedPolyline },
+        }] }],
+      }] }), { status: 200 });
+    }) as typeof fetch;
+    const route = await fetchDrivingRoute(origin, destination, { apiKey: 'k', fetchImpl });
+    assert.equal(urls.length, 2);
+    assert.match(urls[1]!, /maps\/api\/directions\/json/);
+    assert.equal(route.durationSeconds, 120);
+  });
+
+  it('passes other failures through rather than falling back', async () => {
+    const fail = (status: number, body: unknown = {}) => (async () => new Response(JSON.stringify(body), { status })) as typeof fetch;
+    const code = async (promise: Promise<unknown>) => {
+      try { await promise; return 'ok'; } catch (error) { return error instanceof DirectionsProviderError ? error.code : String(error); }
+    };
+    assert.equal(await code(fetchDrivingRoute(origin, destination, { apiKey: 'k', fetchImpl: fail(500) })), 'directions_unavailable');
+    assert.equal(await code(fetchDrivingRoute(origin, destination, { apiKey: 'k', fetchImpl: fail(200, {}) })), 'directions_no_route');
+    assert.equal(await code(fetchGoogleRoutes(origin, destination, { apiKey: 'k', fetchImpl: (async () => new Response('not json', { status: 200 })) as typeof fetch })), 'directions_invalid_response');
+    assert.equal(await code(fetchGoogleRoutes(origin, destination, { apiKey: 'k', fetchImpl: fail(200, { routes: [{ polyline: { encodedPolyline } }] }) })), 'directions_invalid_response');
+    assert.equal(await code(fetchGoogleRoutes(origin, destination, { apiKey: 'k', fetchImpl: fail(200, { routes: [{ polyline: { encodedPolyline: '' }, legs: [{ steps: [routesStep()] }] }] }) })), 'directions_invalid_response');
+    assert.equal(await code(fetchGoogleRoutes(origin, destination, { apiKey: 'k', fetchImpl: fail(200, { routes: [routesRoute('1s', '1s', [routesStep({ staticDuration: 'soon' })])] }) })), 'directions_invalid_response');
+    assert.equal(await code(fetchGoogleRoutes(origin, destination, { apiKey: '', fetchImpl: fail(200) })), 'directions_not_configured');
+    assert.equal(await code(fetchGoogleRoutes({ lat: 99, lon: 0 }, destination, { apiKey: 'k', fetchImpl: fail(200) })), 'directions_invalid_request');
+    assert.equal(await code(fetchGoogleRoutes(origin, destination, { apiKey: 'k', fetchImpl: (async () => { throw new TypeError('offline'); }) as typeof fetch })), 'directions_unavailable');
+    const hang = ((_url: unknown, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')));
+    })) as typeof fetch;
+    assert.equal(await code(fetchGoogleRoutes(origin, destination, { apiKey: 'k', fetchImpl: hang, timeoutMs: 5 })), 'directions_timeout');
+  });
+});
+
+describe('a stop on the way', () => {
+  it('asks the Routes API to go through it, without alternatives, and rides its legs as one', async () => {
+    let body: Record<string, unknown> = {};
+    const fetchImpl = (async (_url: string | URL | Request, init?: RequestInit) => {
+      body = JSON.parse(String(init!.body));
+      return new Response(JSON.stringify({ routes: [{
+        distanceMeters: 1200, duration: '200s', staticDuration: '200s', polyline: { encodedPolyline },
+        legs: [{ steps: [routesStep()] }, { steps: [routesStep({ navigationInstruction: { maneuver: 'TURN_RIGHT', instructions: 'Turn right' } })] }],
+      }] }), { status: 200 });
+    }) as typeof fetch;
+    const route = await fetchGoogleRoutes(origin, destination, { apiKey: 'k', fetchImpl, avoid: { via: { lat: 51.505, lon: -0.105 } } });
+    assert.deepEqual(body.intermediates, [{ location: { latLng: { latitude: 51.505, longitude: -0.105 } } }]);
+    assert.equal(body.computeAlternativeRoutes, false);
+    assert.deepEqual(route.steps.map((step) => step.instruction), ['Turn slightly left onto A1', 'Turn right']);
+  });
+
+  it('asks the Directions API to stop there too, adding up its legs', async () => {
+    let requested = '';
+    const leg = (instruction: string) => ({
+      distance: { value: 500 }, duration: { value: 60 },
+      steps: [{ html_instructions: instruction, distance: { value: 500 }, duration: { value: 60 },
+        start_location: { lat: 51.5, lng: -0.1 }, end_location: { lat: 51.51, lng: -0.11 }, polyline: { points: encodedPolyline } }],
+    });
+    const fetchImpl = (async (url: string | URL | Request) => {
+      requested = String(url);
+      return new Response(JSON.stringify({ status: 'OK', routes: [{ overview_polyline: { points: encodedPolyline }, legs: [leg('Head north'), leg('Turn left')] }] }), { status: 200 });
+    }) as typeof fetch;
+    const route = await fetchGoogleDrivingRoute(origin, destination, { apiKey: 'k', fetchImpl, avoid: { via: { lat: 51.505, lon: -0.105 } } });
+    assert.match(requested, /waypoints=51\.505%2C-0\.105/);
+    assert.equal(route.distanceMeters, 1000);
+    assert.equal(route.durationSeconds, 120);
+    assert.deepEqual(route.steps.map((step) => step.instruction), ['Head north', 'Turn left']);
   });
 });

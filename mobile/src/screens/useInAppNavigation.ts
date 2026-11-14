@@ -1,9 +1,10 @@
 import * as React from 'react';
 import { Alert } from 'react-native';
 import * as Location from 'expo-location';
+import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import type MapView from 'react-native-maps';
 import { ApiError } from '../api/client';
-import type { RiderCommsClient } from '../api/client';
+import type { PlaceAlongRoute, RiderCommsClient } from '../api/client';
 import type { NavigationTarget } from '../navigationLinks';
 import {
   distanceToPathMeters,
@@ -14,6 +15,7 @@ import {
 } from '../api/directions';
 import {
   navigationPromptStageForDistance,
+  navigationStepStartPrompt,
   navigationPromptText,
 } from '../navigationGuidance';
 import {
@@ -45,8 +47,16 @@ import {
   navigationRouteStatus,
   navigationTripSeconds,
   recordNavigationTripFix,
+  routeAheadPath,
+  routeChoices,
+  stopsOnTheWay,
+  FASTER_ROUTE_CHECK_MS,
+  fasterRouteAnnouncement,
+  fasterRouteSavingSeconds,
   startNavigationTrip,
   type NavigationTrip,
+  type RouteChoice,
+  type StopOnTheWay,
   predictNavigationPuck,
 } from '@rider-comms/shared';
 import { bearingDegrees } from './mapMarkers';
@@ -106,6 +116,15 @@ export interface InAppNavigation {
   startInAppNavigation: (target: NavigationTarget) => Promise<void>;
   stopFollowingRoute: () => void;
   resumeFollowingRoute: () => void;
+  /** The ways there, labelled; empty with only one, or once rerouted. */
+  routeChoices: RouteChoice[];
+  /** Which of routeChoices is being followed. */
+  chosenRouteIndex: number;
+  chooseRoute: (index: number) => void;
+  /** The stop on the way the route goes through, if any. */
+  navigationStop: NavigationStop | null;
+  findStopsOnTheWay: (query: string) => Promise<StopOnTheWay<PlaceAlongRoute>[]>;
+  addNavigationStop: (place: { lat: number; lon: number; name: string }) => Promise<boolean>;
 }
 
 /**
@@ -117,6 +136,12 @@ export interface InAppNavigation {
  * further, to avoid restructuring the callback wiring between pieces that
  * depend tightly on each other's timing.
  */
+export const NAVIGATION_KEEP_AWAKE_TAG = 'rider-comms-navigation';
+/** Within this of a stop on the way, the rider has reached it. */
+const NAV_STOP_REACHED_RADIUS_M = 80;
+
+export interface NavigationStop { lat: number; lon: number; label: string }
+
 export function useInAppNavigation(
   client: RiderCommsClient,
   mapRef: React.RefObject<MapView | null>,
@@ -145,6 +170,16 @@ export function useInAppNavigation(
   const routeAvoidanceRef = React.useRef(routeAvoidance);
   routeAvoidanceRef.current = routeAvoidance;
   const [activeRoute, setActiveRoute] = React.useState<InAppNavigationRoute | null>(null);
+  const [routeOptions, setRouteOptions] = React.useState<InAppNavigationRoute[]>([]);
+  // The screen stays on while navigating, as in Google Maps, Waze and Apple
+  // Maps: a rider glancing down mustn't find a locked phone (PWA: Screen
+  // Wake Lock in 17-navigation.js).
+  const navigating = activeRoute !== null;
+  React.useEffect(() => {
+    if (!navigating) return;
+    activateKeepAwakeAsync(NAVIGATION_KEEP_AWAKE_TAG).catch(() => {});
+    return () => { deactivateKeepAwake(NAVIGATION_KEEP_AWAKE_TAG).catch(() => {}); };
+  }, [navigating]);
   const [navigationDestination, setNavigationDestination] = React.useState<NavigationTarget | null>(null);
   const [navigationStepIndex, setNavigationStepIndex] = React.useState(0);
   const [navigationLoading, setNavigationLoading] = React.useState(false);
@@ -155,6 +190,19 @@ export function useInAppNavigation(
   const [navigationPuck, setNavigationPuck] = React.useState<NavigationPuckPlacement | null>(null);
   const navOffRouteSince = React.useRef<number | null>(null);
   const navRerouting = React.useRef(false);
+  // A stop on the way (petrol found along the route); every route asked for
+  // goes through it until the rider gets there.
+  const navigationStopRef = React.useRef<NavigationStop | null>(null);
+  const [navigationStop, setNavigationStopState] = React.useState<NavigationStop | null>(null);
+  const setNavigationStop = React.useCallback((stop: NavigationStop | null) => {
+    navigationStopRef.current = stop;
+    setNavigationStopState(stop);
+  }, []);
+  // The stop, as the last argument of a route request, only when there is one.
+  const withStop = (): [NavigationStop] | [] => (navigationStopRef.current ? [navigationStopRef.current] : []);
+  // Where the rider is and how long is left there, from the latest fix, for
+  // the faster-route check.
+  const latestRouteProgress = React.useRef<{ route: InAppNavigationRoute; here: { lat: number; lon: number }; remainingSeconds: number } | null>(null);
   const navigationFollowingRef = React.useRef(true);
   // Read inside the GPS watchPositionAsync callback below instead of closing
   // over the state values directly, so that effect's own dependency array
@@ -357,6 +405,8 @@ export function useInAppNavigation(
     setNavigationMuted(false);
     setNavigationSpeedMps(null);
     setNavigationNotice(arrived ? 'You’ve arrived.' : null);
+    setRouteOptions([]);
+    setNavigationStop(null);
     const trip = tripRef.current;
     tripRef.current = null;
     setNavigationArrival(arrived && trip ? {
@@ -368,33 +418,121 @@ export function useInAppNavigation(
     void stopNavigationPrompt().finally(() => {
       if (arrived && !navigationMutedRef.current) speakNavigationPrompt('You’ve arrived.');
     });
-  }, [mapRef]);
+  }, [mapRef, setNavigationStop]);
+
+  const applyInAppRoute = React.useCallback((nextRoute: InAppNavigationRoute, origin: { lat: number; lon: number }, target: NavigationTarget, rerouting: boolean, notice: string = ROUTE_UPDATED_NOTICE) => {
+    // The ways there, offered before setting off; a reroute offers none.
+    const withoutAlternatives = ({ alternatives: _others, ...route }: InAppNavigationRoute): InAppNavigationRoute => route;
+    const alternatives = nextRoute.alternatives ?? [];
+    const chosen = nextRoute.alternatives ? withoutAlternatives(nextRoute) : nextRoute;
+    setRouteOptions(rerouting || alternatives.length === 0 ? [] : [chosen, ...alternatives.map(withoutAlternatives)]);
+    setActiveRoute(chosen);
+    setNavigationDestination(target);
+    setNavigationStepIndex(0);
+    announcedNavigationStep.current = null;
+    navigationPromptProgress.current = null;
+    finalNavigationPrompt.current = null;
+    setNavigationNotice(rerouting ? notice : null);
+    navOffRouteSince.current = null;
+    if (!rerouting) {
+      navigationCameraHeading.current = null;
+      setNavigationMuted(!spokenDirectionsRef.current);
+      tripRef.current = { trip: startNavigationTrip(Date.now()), label: target.label ?? null };
+      setNavigationArrival(null);
+    }
+    navigationFollowingRef.current = true;
+    setNavigationFollowing(true);
+    if (chosen.steps[0]) focusNavigationCamera(origin, chosen, 0);
+  }, [focusNavigationCamera]);
 
   const requestInAppRoute = React.useCallback(async (origin: { lat: number; lon: number }, target: NavigationTarget, rerouting = false) => {
     if (rerouting) navRerouting.current = true;
     try {
-      const nextRoute = await client.getDrivingRoute(origin, target, routeAvoidanceRef.current);
-      setActiveRoute(nextRoute);
-      setNavigationDestination(target);
-      setNavigationStepIndex(0);
-      announcedNavigationStep.current = null;
-      navigationPromptProgress.current = null;
-      finalNavigationPrompt.current = null;
-      setNavigationNotice(rerouting ? ROUTE_UPDATED_NOTICE : null);
-      navOffRouteSince.current = null;
-      if (!rerouting) {
-        navigationCameraHeading.current = null;
-        setNavigationMuted(!spokenDirectionsRef.current);
-        tripRef.current = { trip: startNavigationTrip(Date.now()), label: target.label ?? null };
-        setNavigationArrival(null);
-      }
-      navigationFollowingRef.current = true;
-      setNavigationFollowing(true);
-      if (nextRoute.steps[0]) focusNavigationCamera(origin, nextRoute, 0);
+      applyInAppRoute(await client.getDrivingRoute(origin, target, routeAvoidanceRef.current, ...withStop()), origin, target, rerouting);
     } finally {
       if (rerouting) navRerouting.current = false;
     }
-  }, [client, focusNavigationCamera]);
+  }, [applyInAppRoute, client]);
+
+  // Like Waze: every few minutes, ask for the way from here with live
+  // traffic, and switch when it saves enough (shared fasterRouteSavingSeconds),
+  // saying so rather than asking for a tap the rider can't make.
+  const navigatingTo = activeRoute ? navigationDestination : null;
+  React.useEffect(() => {
+    if (!navigatingTo) return;
+    let checking = false;
+    const timer = setInterval(() => {
+      const progress = latestRouteProgress.current;
+      if (checking || navRerouting.current || !progress) return;
+      checking = true;
+      void client.getDrivingRoute(progress.here, navigatingTo, routeAvoidanceRef.current, ...withStop())
+        .then((candidate) => {
+          const latest = latestRouteProgress.current;
+          if (!latest || latest.route !== progress.route || navRerouting.current) return;
+          const saving = fasterRouteSavingSeconds(latest.remainingSeconds, candidate.durationSeconds);
+          if (saving <= 0) return;
+          const announcement = fasterRouteAnnouncement(saving);
+          applyInAppRoute(candidate, latest.here, navigatingTo, true, announcement);
+          if (!navigationMutedRef.current) speakNavigationPrompt(announcement);
+        })
+        .catch(() => { /* No answer: keep the route the rider is on. */ })
+        .finally(() => { checking = false; });
+    }, FASTER_ROUTE_CHECK_MS);
+    return () => clearInterval(timer);
+  }, [applyInAppRoute, client, navigatingTo]);
+
+  /** Petrol (or a café) along the rest of the route, ordered by what each
+   * adds (shared routeAheadPath and stopsOnTheWay). */
+  const findStopsOnTheWay = React.useCallback(async (query: string): Promise<StopOnTheWay<PlaceAlongRoute>[]> => {
+    const route = activeRoute;
+    const progress = latestRouteProgress.current;
+    const here = progress?.route === route ? progress.here : currentLocation;
+    if (!route || !here) return [];
+    const path = routeAheadPath(route.coordinates, here);
+    if (path.length < 2) return [];
+    const { places } = await client.searchAlongRoute(query, path);
+    return stopsOnTheWay(places, progress?.route === route ? progress.remainingSeconds : route.durationSeconds);
+  }, [activeRoute, client, currentLocation]);
+
+  /** Routes through a stop on the way, keeping the destination. */
+  const addNavigationStop = React.useCallback(async (place: { lat: number; lon: number; name: string }): Promise<boolean> => {
+    const progress = latestRouteProgress.current;
+    const here = progress?.here ?? currentLocation;
+    const target = navigationDestination;
+    if (!here || !target) return false;
+    const previous = navigationStopRef.current;
+    setNavigationStop({ lat: place.lat, lon: place.lon, label: place.name });
+    try {
+      navRerouting.current = true;
+      const route = await client.getDrivingRoute(here, target, routeAvoidanceRef.current, ...withStop());
+      const added = `Stop added: ${place.name}.`;
+      applyInAppRoute(route, here, target, true, added);
+      if (!navigationMutedRef.current) speakNavigationPrompt(added);
+      return true;
+    } catch {
+      setNavigationStop(previous);
+      setNavigationNotice('Couldn’t add that stop. Try again.');
+      return false;
+    } finally {
+      navRerouting.current = false;
+    }
+  }, [applyInAppRoute, client, currentLocation, navigationDestination, setNavigationStop]);
+
+  /** Switches to another of the offered ways there, before setting off. */
+  const chooseRoute = React.useCallback((index: number) => {
+    const route = routeOptions[index];
+    if (!route || route === activeRoute) return;
+    setActiveRoute(route);
+    setNavigationStepIndex(0);
+    announcedNavigationStep.current = null;
+    navigationPromptProgress.current = null;
+    finalNavigationPrompt.current = null;
+    navOffRouteSince.current = null;
+    navigationFollowingRef.current = true;
+    setNavigationFollowing(true);
+    const here = currentLocation ?? route.steps[0]?.start;
+    if (here && route.steps[0]) focusNavigationCamera(here, route, 0);
+  }, [activeRoute, currentLocation, focusNavigationCamera, routeOptions]);
 
   const startInAppNavigation = React.useCallback(async (target: NavigationTarget): Promise<void> => {
     const origin = currentLocation ?? await requestCurrentLocation(true);
@@ -431,7 +569,12 @@ export function useInAppNavigation(
     announcedNavigationStep.current = { route: activeRoute, index: navigationStepIndex };
     const finalPrompt = finalNavigationPrompt.current;
     const alreadySpokenAtTurn = finalPrompt?.route === activeRoute && finalPrompt.index === navigationStepIndex;
-    if (!alreadySpokenAtTurn) speakNavigationPrompt(currentNavigationStep.instruction);
+    // The instruction (unless said at the turn), then "Continue for 12 mi."
+    // on a long road (shared navigationStepStartPrompt).
+    const prompt = navigationStepStartPrompt(currentNavigationStep.instruction, currentNavigationStep.distanceMeters, unitSystem, alreadySpokenAtTurn);
+    if (prompt) speakNavigationPrompt(prompt);
+    // A change of units mid-route isn't a new step to announce.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeRoute, currentNavigationStep, navigationMuted, navigationStepIndex]);
 
   React.useEffect(() => {
@@ -564,6 +707,23 @@ export function useInAppNavigation(
         }
 
         const effectiveStep = activeRoute.steps[effectiveIndex]!;
+        const stepLeft = effectiveStep.distanceMeters > 0
+          ? Math.min(1, remainingDistanceOnPathMeters(here, effectiveStep.coordinates) / effectiveStep.distanceMeters)
+          : 0;
+        latestRouteProgress.current = {
+          route: activeRoute,
+          here: raw,
+          remainingSeconds: effectiveStep.durationSeconds * stepLeft
+            + activeRoute.steps.slice(effectiveIndex + 1).reduce((sum, step) => sum + step.durationSeconds, 0),
+        };
+        // At the stop: say so, and route straight on from here.
+        const stop = navigationStopRef.current;
+        if (stop && metersBetween(raw, stop) <= NAV_STOP_REACHED_RADIUS_M) {
+          setNavigationStop(null);
+          const reached = `You’ve reached ${stop.label}.`;
+          setNavigationNotice(reached);
+          if (!navigationMutedRef.current) speakNavigationPrompt(reached);
+        }
         focusNavigationCamera(
           target,
           activeRoute,
@@ -585,7 +745,8 @@ export function useInAppNavigation(
             navigationPromptProgress.current = progress;
           }
           const maneuverDistance = remainingDistanceOnPathMeters(here, effectiveStep.coordinates);
-          const promptStage = navigationPromptStageForDistance(maneuverDistance);
+          // Earlier at speed (shared): about a mile ahead at 70 mph.
+          const promptStage = navigationPromptStageForDistance(maneuverDistance, speed);
           if (!navigationMutedRef.current && promptStage > progress.stage) {
             navigationPromptProgress.current = { ...progress, stage: promptStage };
             if (promptStage === 3) finalNavigationPrompt.current = { route: activeRoute, index: upcomingIndex };
@@ -679,5 +840,12 @@ export function useInAppNavigation(
     startInAppNavigation,
     stopFollowingRoute,
     resumeFollowingRoute,
+    /** The ways there, labelled (shared routeChoices); empty once rerouted. */
+    routeChoices: routeOptions.length > 1 ? routeChoices(routeOptions) : [],
+    chosenRouteIndex: activeRoute ? routeOptions.indexOf(activeRoute) : -1,
+    chooseRoute,
+    navigationStop,
+    findStopsOnTheWay,
+    addNavigationStop,
   };
 }

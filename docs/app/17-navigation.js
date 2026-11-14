@@ -43,7 +43,8 @@
 
 
   function navigationPromptStageForDistance(meters) {
-    return navigationGuidance.navigationPromptStageForDistance(meters);
+    // Earlier at speed (shared): about a mile ahead at 70 mph.
+    return navigationGuidance.navigationPromptStageForDistance(meters, navCurrentSpeedMps);
   }
 
   function navigationPromptText(instruction, meters, stage) {
@@ -145,8 +146,68 @@
       avoidHighways: state.avoidHighways === true,
       avoidTolls: state.avoidTolls === true,
       avoidFerries: state.avoidFerries === true,
+      // Live traffic and the other ways there, as in Google Maps and Waze
+      // (native: the backend's Routes API request).
+      // Google offers no alternatives for a trip with a stop.
+      provideRouteAlternatives: !navStop,
+      drivingOptions: { departureTime: new Date(), trafficModel: google.maps.TrafficModel?.BEST_GUESS ?? 'bestguess' },
+      ...(navStop ? { waypoints: [{ location: { lat: navStop.lat, lng: navStop.lng }, stopover: true }] } : {}),
     };
   }
+
+  // A stop on the way (petrol found along the route): every route asked for
+  // goes through it until the rider gets there (native: navigationStop).
+  let navStop = null;
+  const NAV_STOP_REACHED_RADIUS_M = 80;
+
+  /** A trip with a stop comes back in legs: ride them as one. */
+  function routeTrip(route) {
+    const legs = route?.legs || [];
+    if (legs.length <= 1) return legs[0];
+    const sum = (field) => legs.reduce((total, leg) => total + (leg[field]?.value ?? leg.duration?.value ?? 0), 0);
+    return {
+      ...legs[0],
+      steps: legs.flatMap((leg) => leg.steps || []),
+      distance: { value: legs.reduce((total, leg) => total + (leg.distance?.value || 0), 0) },
+      duration: { value: sum('duration') },
+      duration_in_traffic: { value: sum('duration_in_traffic') },
+      end_location: legs.at(-1).end_location,
+    };
+  }
+
+  // The ways Google offered when navigation began (shared routeChoices),
+  // shown above the trip card while parked; a reroute clears them.
+  let navRouteResult = null;
+  let navRouteIndex = 0;
+  // Google times each step in normal traffic: stretch them by today's delay
+  // so the arrival time matches the route's live-traffic duration.
+  let navTrafficScale = 1;
+
+  function routeLegSeconds(leg) {
+    return (leg?.duration_in_traffic?.value ?? leg?.duration?.value) || 0;
+  }
+
+  function renderNavRouteChoices() {
+    const box = $('#navRouteChoices');
+    if (!box) return;
+    const routes = navRouteResult?.routes || [];
+    if (routes.length < 2) { box.hidden = true; box.innerHTML = ''; return; }
+    const choices = navigationGuidance.routeChoices(routes.map((route) => ({
+      durationSeconds: routeLegSeconds(routeTrip(route)),
+      coordinates: (route.overview_path || []).map((point) => ({ lat: point.lat(), lon: point.lng() })),
+    })));
+    box.innerHTML = choices.map((choice) => `<button type="button" role="radio" aria-checked="${choice.index === navRouteIndex}" data-route-choice="${choice.index}">${escapeHtml(choice.text)}</button>`).join('');
+    box.hidden = false;
+  }
+
+  $('#navRouteChoices')?.addEventListener('click', (event) => {
+    const button = event.target.closest?.('[data-route-choice]');
+    if (!button || !navRouteResult || !navDestination) return;
+    const index = Number(button.dataset.routeChoice);
+    if (index === navRouteIndex || !navRouteResult.routes[index]) return;
+    const { label, ...destination } = navDestination;
+    applyRoute(navRouteResult, destination, label, { preserveMute: true, routeIndex: index });
+  });
 
   function getDirectionsService() {
     if (!directionsService) directionsService = new google.maps.DirectionsService();
@@ -301,6 +362,7 @@
       remainingMeters += navSteps[i].distance.value;
       remainingSeconds += navSteps[i].duration.value;
     }
+    remainingSeconds *= navTrafficScale;
     $('#navDistance').textContent = formatNavDistance(remainingMeters);
     $('#navEta').textContent = formatNavDuration(remainingSeconds);
     navRemainingSeconds = remainingSeconds;
@@ -310,7 +372,10 @@
     requestAnimationFrame(syncNavigationOverlayGeometry);
     if (!navMuted && navLastAnnouncedStep !== navStepIndex) {
       navLastAnnouncedStep = navStepIndex;
-      if (navLastNowPromptStep !== navStepIndex) speak(stripHtml(step.instructions));
+      // The instruction (unless said at the turn), then "Continue for 12 mi."
+      // on a long road (shared navigationStepStartPrompt).
+      const prompt = navigationGuidance.navigationStepStartPrompt(stripHtml(step.instructions), step.distance?.value, state.unit, navLastNowPromptStep === navStepIndex);
+      if (prompt) speak(prompt);
     }
   }
 
@@ -383,6 +448,30 @@
       navPuckKey: key,
     };
   }
+
+  // The screen stays on while navigating, as in Google Maps, Waze and Apple
+  // Maps (native: expo-keep-awake in useInAppNavigation). Browsers drop the
+  // lock whenever the app is hidden, so it's taken again on return. Where the
+  // browser has no Screen Wake Lock, the screen just sleeps as before.
+  let navWakeLock = null;
+  async function keepScreenOnForNavigation(on) {
+    if (!on) {
+      const lock = navWakeLock;
+      navWakeLock = null;
+      try { await lock?.release(); } catch { /* Already released. */ }
+      return;
+    }
+    if (navWakeLock || document.visibilityState !== 'visible' || !navigator.wakeLock?.request) return;
+    try {
+      const lock = await navigator.wakeLock.request('screen');
+      if (!$('#app').classList.contains('nav-mode')) { await lock.release(); return; }
+      navWakeLock = lock;
+      lock.addEventListener?.('release', () => { if (navWakeLock === lock) navWakeLock = null; });
+    } catch { /* Low battery mode or no permission: the screen sleeps as usual. */ }
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && $('#app').classList.contains('nav-mode')) void keepScreenOnForNavigation(true);
+  });
 
   function stopNavigationCameraAnimation() {
     navCameraAnimationToken += 1;
@@ -638,11 +727,23 @@
 
   // Navigation now extends the real app surface through the installed-iPhone
   // bottom safe area. Do not recolour browser/system chrome to hide a gap.
-  function applyRoute(result, destination, label, { preserveMute = false, routeNotice = null } = {}) {
-    const leg = result.routes[0]?.legs[0];
+  function applyRoute(result, destination, label, { preserveMute = false, routeNotice = null, routeIndex = 0 } = {}) {
+    const leg = routeTrip(result.routes[routeIndex]);
     if (!leg) { showToast('Couldn’t calculate a route. Try again.'); return; }
     stopNavigationCameraAnimation();
     getDirectionsRenderer().setDirections(result);
+    getDirectionsRenderer().setRouteIndex?.(routeIndex);
+    // Choices are offered when navigation begins; a reroute doesn't offer them.
+    navRouteResult = routeNotice ? null : result;
+    navRouteIndex = routeIndex;
+    navTrafficScale = leg.duration?.value > 0 && leg.duration_in_traffic?.value > 0 ? leg.duration_in_traffic.value / leg.duration.value : 1;
+    const traffic = $('#navTraffic');
+    if (traffic) {
+      const text = navigationGuidance.routeTrafficDelayText(routeLegSeconds(leg), leg.duration?.value);
+      traffic.textContent = text;
+      traffic.hidden = !text;
+    }
+    renderNavRouteChoices();
     navSteps = leg.steps;
     const routePath = combineNavigationCameraPaths(...navSteps.map((step) => navigationStepPath(step)));
     renderNavigationRouteLine(routePath);
@@ -689,6 +790,8 @@
     // screen are the route, the turn card, the ETA bar, and the controls a
     // rider actually needs mid-drive (report hazard, mute guidance, route overview/follow, end nav).
     $('#app').classList.add('nav-mode');
+    void keepScreenOnForNavigation(true);
+    if (!fasterRouteTimer) fasterRouteTimer = setInterval(checkForFasterRoute, navigationGuidance.FASTER_ROUTE_CHECK_MS);
     renderMapChrome();
     watchNavigationOverlayGeometry();
     setNavigationTrafficVisible(true);
@@ -815,6 +918,7 @@
     // (see shared/src/navigationPuck.ts). Off-route checks keep the raw fix.
     const placed = placeNavigationPuck(position);
     const here = placed.now;
+    checkNavStopReached(here);
     navCurrentPosition = here;
 
     let effectiveIndex = navStepIndex;
@@ -930,6 +1034,99 @@
     );
   }
 
+  // Like Waze: every few minutes, ask for the way from here with live
+  // traffic, and switch when it saves enough (shared fasterRouteSavingSeconds),
+  // saying so rather than asking for a tap (native: useInAppNavigation).
+  let fasterRouteTimer = null;
+  function checkForFasterRoute() {
+    if (navRerouting || !navDestination || !navCurrentPosition || !Number.isFinite(navRemainingSeconds)) return;
+    const destination = { lat: navDestination.lat, lng: navDestination.lng };
+    const remaining = navRemainingSeconds;
+    const label = navDestination.label;
+    getDirectionsService().route(navigationRouteRequest(navCurrentPosition, destination), (result, status) => {
+      if (status !== 'OK' || !result || navRerouting || !navDestination) return;
+      const saving = navigationGuidance.fasterRouteSavingSeconds(remaining, routeLegSeconds(routeTrip(result.routes[0])));
+      if (saving <= 0) return;
+      const announcement = navigationGuidance.fasterRouteAnnouncement(saving);
+      applyRoute(result, destination, label, { preserveMute: true, routeNotice: announcement });
+      if (!navMuted) speak(announcement);
+    });
+  }
+
+  const STOP_KINDS = [
+    { key: 'petrol', label: 'Petrol', query: 'petrol station' },
+    { key: 'cafes', label: 'Cafés', query: 'cafe' },
+    { key: 'food', label: 'Food', query: 'restaurant' },
+  ];
+  let stopSearch = 0;
+
+  function navHere() {
+    if (navCurrentPosition) return navCurrentPosition;
+    return latestDevicePosition ? { lat: latestDevicePosition.coords.latitude, lng: latestDevicePosition.coords.longitude } : null;
+  }
+
+  /** Petrol, cafés or food along the rest of the route, ordered by what each
+   * adds (shared routeAheadPath and stopsOnTheWay). */
+  async function renderStopsOnTheWay(kindKey) {
+    const list = $('#stopList');
+    const kind = STOP_KINDS.find((entry) => entry.key === kindKey) || STOP_KINDS[0];
+    if (!list || !navSteps.length) return;
+    const search = ++stopSearch;
+    list.innerHTML = '<p class="caption">Searching along the route…</p>';
+    const here = navHere();
+    const points = navSteps.flatMap((step) => navigationStepPath(step)).map((point) => ({ lat: point.lat, lon: point.lng }));
+    const path = here ? navigationGuidance.routeAheadPath(points, { lat: here.lat, lon: here.lng }) : [];
+    let stops = [];
+    try {
+      if (path.length >= 2) ({ places: stops } = await apiFetch('POST', '/places/along-route', { query: kind.query, path }));
+    } catch {
+      if (search === stopSearch) list.innerHTML = '<p class="caption">Couldn’t search along the route. Try again.</p>';
+      return;
+    }
+    if (search !== stopSearch || !$('#stopList')) return;
+    const ordered = navigationGuidance.stopsOnTheWay(stops || [], navRemainingSeconds);
+    if (!ordered.length) {
+      list.innerHTML = `<p class="caption">No ${escapeHtml(kind.label.toLowerCase())} found along the rest of the route.</p>`;
+      return;
+    }
+    list.innerHTML = ordered.map(({ place, text }, index) => `<button type="button" data-stop-index="${index}" aria-label="${escapeHtml([place.name, place.address, text].filter(Boolean).join(', '))}"><span><strong>${escapeHtml(place.name)}</strong>${place.address ? `<small>${escapeHtml(place.address)}</small>` : ''}</span>${text ? `<em>${escapeHtml(text)}</em>` : ''}</button>`).join('');
+    $$('[data-stop-index]', list).forEach((button) => button.addEventListener('click', () => {
+      closeSheet();
+      addNavStop(ordered[Number(button.dataset.stopIndex)].place);
+    }));
+  }
+
+  /** Routes through a stop on the way, keeping the destination. */
+  function addNavStop(place) {
+    const here = navHere();
+    if (!navDestination || !here) return;
+    const previous = navStop;
+    navStop = { lat: place.lat, lng: place.lon, label: place.name };
+    const destination = { lat: navDestination.lat, lng: navDestination.lng };
+    const label = navDestination.label;
+    navRerouting = true;
+    getDirectionsService().route(navigationRouteRequest(here, destination), (result, status) => {
+      navRerouting = false;
+      if (status !== 'OK' || !result) {
+        navStop = previous;
+        setNavStatusNotice('Couldn’t add that stop. Try again.');
+        return;
+      }
+      const added = `Stop added: ${place.name}.`;
+      applyRoute(result, destination, label, { preserveMute: true, routeNotice: added });
+      if (!navMuted) speak(added);
+    });
+  }
+
+  /** At the stop: say so, and route straight on from here. */
+  function checkNavStopReached(here) {
+    if (!navStop || distanceToPathMeters(here, [navStop, navStop]) > NAV_STOP_REACHED_RADIUS_M) return;
+    const reached = `You’ve reached ${navStop.label}.`;
+    navStop = null;
+    setNavStatusNotice(reached, { tone: 'info', clearAfterMs: 6000 });
+    if (!navMuted) speak(reached);
+  }
+
   function finishNavigation(arrived) {
     const announceArrival = Boolean(arrived && !navMuted);
     const arrival = arrived && navTrip ? {
@@ -981,6 +1178,15 @@
     $('#navSummary').hidden = true;
     $('#app').style.removeProperty('--nav-banner-height');
     $('#app').classList.remove('nav-mode');
+    void keepScreenOnForNavigation(false);
+    clearInterval(fasterRouteTimer);
+    fasterRouteTimer = null;
+    navRouteResult = null;
+    navTrafficScale = 1;
+    navStop = null;
+    renderNavRouteChoices();
+    const traffic = $('#navTraffic');
+    if (traffic) traffic.hidden = true;
     renderMapChrome();
     if (arrived) {
       if (arrival) showArrivalCard(arrival);

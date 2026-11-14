@@ -9,7 +9,8 @@ import {
   NAV_GPS_STALE_AFTER_MS,
   NAV_GPS_STALE_NOTICE,
 } from '../../src/navigationGpsHealth';
-import { useInAppNavigation } from '../../src/screens/useInAppNavigation';
+import { FASTER_ROUTE_CHECK_MS } from '@rider-comms/shared';
+import { NAVIGATION_KEEP_AWAKE_TAG, useInAppNavigation } from '../../src/screens/useInAppNavigation';
 
 const mockSpeakNavigationPrompt = jest.fn();
 const mockStopNavigationPrompt = jest.fn(async () => undefined);
@@ -33,6 +34,13 @@ const mockWatchNavigationLocation = jest.fn();
 const mockGetForegroundPermissionsAsync = jest.fn();
 const mockAcquireNavigationAudioSession = jest.fn(async () => undefined);
 const mockReleaseNavigationAudioSession = jest.fn(async () => undefined);
+
+const mockActivateKeepAwake = jest.fn(async (_tag: string) => undefined);
+const mockDeactivateKeepAwake = jest.fn(async (_tag: string) => undefined);
+jest.mock('expo-keep-awake', () => ({
+  activateKeepAwakeAsync: (tag: string) => mockActivateKeepAwake(tag),
+  deactivateKeepAwake: (tag: string) => mockDeactivateKeepAwake(tag),
+}));
 
 jest.mock('expo-location', () => ({
   getForegroundPermissionsAsync: (...args: unknown[]) => mockGetForegroundPermissionsAsync(...args),
@@ -216,6 +224,23 @@ test('starts navigation from the current location and announces the first step',
   expect(mockAcquireNavigationAudioSession).toHaveBeenCalledTimes(1);
 });
 
+test('a long first road says how far it goes', async () => {
+  const longRoute = { ...ROUTE, steps: [{ ...ROUTE.steps[0]!, distanceMeters: 19_312 }, ...ROUTE.steps.slice(1)] };
+  await startNavigation({ client: { getDrivingRoute: jest.fn(async () => longRoute) } as never });
+  expect(mockSpeakNavigationPrompt).toHaveBeenCalledWith('Head north on Mill Lane. Continue for 19 km.');
+});
+
+test('keeps the screen on while navigating, and lets it sleep again after', async () => {
+  mockActivateKeepAwake.mockClear();
+  mockDeactivateKeepAwake.mockClear();
+  mockActivateKeepAwake.mockRejectedValueOnce(new Error('unavailable'));
+  const { result } = await startNavigation();
+  expect(mockActivateKeepAwake).toHaveBeenCalledWith(NAVIGATION_KEEP_AWAKE_TAG);
+  expect(mockDeactivateKeepAwake).not.toHaveBeenCalled();
+  await act(async () => { result.current.finishInAppNavigation(); });
+  expect(mockDeactivateKeepAwake).toHaveBeenCalledWith(NAVIGATION_KEEP_AWAKE_TAG);
+});
+
 test('asks for a location fix when none is known, and stops if none is available', async () => {
   const requestCurrentLocation = jest.fn(async () => null);
   const { result, props } = await startNavigation({ currentLocation: null, requestCurrentLocation });
@@ -271,7 +296,7 @@ test('speaks staged distance prompts for the upcoming turn once per stage', asyn
   // ~222m to the turn: stage 1.
   await sendFix(51.5, -0.1);
   expect(mockSpeakNavigationPrompt).toHaveBeenCalledTimes(1);
-  expect(mockSpeakNavigationPrompt.mock.calls[0]![0]).toMatch(/^In .*Turn right onto High Street$/);
+  expect(mockSpeakNavigationPrompt.mock.calls[0]![0]).toMatch(/^In .*turn right onto High Street$/);
 
   // Still stage 1: no repeat.
   await sendFix(51.5001, -0.1);
@@ -280,7 +305,7 @@ test('speaks staged distance prompts for the upcoming turn once per stage', asyn
   // ~89m to the turn: stage 2.
   await sendFix(51.5012, -0.1);
   expect(mockSpeakNavigationPrompt).toHaveBeenCalledTimes(2);
-  expect(mockSpeakNavigationPrompt.mock.calls[1]![0]).toMatch(/^In .*Turn right onto High Street$/);
+  expect(mockSpeakNavigationPrompt.mock.calls[1]![0]).toMatch(/^In .*turn right onto High Street$/);
 });
 
 test('advances steps as the rider reaches each maneuver, and arrives at the destination', async () => {
@@ -354,6 +379,105 @@ test('muting silences prompts and stops speech without re-subscribing GPS', asyn
   expect(mockWatchNavigationLocation).toHaveBeenCalledTimes(1);
 });
 
+test('offers the other ways there before setting off, and switches on a tap', async () => {
+  const twisty: InAppNavigationRoute = { ...ROUTE, durationSeconds: 400, steps: ROUTE.steps.slice(1) };
+  const client = { getDrivingRoute: jest.fn(async () => ({ ...ROUTE, alternatives: [{ ...twisty, alternatives: [] }] })) };
+  const { result } = await startNavigation({ client: client as never });
+  expect(result.current.routeChoices.map((choice) => choice.label)).toEqual(['Fastest', 'Alternative']);
+  expect(result.current.chosenRouteIndex).toBe(0);
+  expect(result.current.activeRoute).not.toHaveProperty('alternatives');
+
+  await act(async () => { result.current.chooseRoute(1); });
+  expect(result.current.chosenRouteIndex).toBe(1);
+  expect(result.current.activeRoute?.steps).toEqual(twisty.steps);
+  expect(result.current.navigationStepIndex).toBe(0);
+  // The same one again, or one that doesn't exist, changes nothing.
+  const current = result.current.activeRoute;
+  await act(async () => { result.current.chooseRoute(1); result.current.chooseRoute(5); });
+  expect(result.current.activeRoute).toBe(current);
+
+  await act(async () => { result.current.finishInAppNavigation(); });
+  expect(result.current.routeChoices).toEqual([]);
+});
+
+test('switches to a faster route found in live traffic, and says so', async () => {
+  const slow: InAppNavigationRoute = { ...ROUTE, durationSeconds: 2700, steps: ROUTE.steps.map((step) => ({ ...step, durationSeconds: 900 })) };
+  const faster: InAppNavigationRoute = { ...ROUTE, durationSeconds: 1500, steps: ROUTE.steps.map((step) => ({ ...step, durationSeconds: 500 })) };
+  const client = {
+    getDrivingRoute: jest.fn()
+      .mockResolvedValueOnce(slow)
+      .mockRejectedValueOnce(new Error('no signal'))
+      .mockResolvedValueOnce({ ...slow, durationSeconds: 2600 })
+      .mockResolvedValueOnce(faster),
+  };
+  const { result } = await startNavigation({ client: client as never });
+  await sendFix(51.5, -0.1);
+  mockSpeakNavigationPrompt.mockClear();
+
+  // No answer, then a route that saves too little: stay put.
+  await act(async () => { await jest.advanceTimersByTimeAsync(FASTER_ROUTE_CHECK_MS); });
+  await act(async () => { await jest.advanceTimersByTimeAsync(FASTER_ROUTE_CHECK_MS); });
+  expect(result.current.activeRoute).toBe(slow);
+  expect(mockSpeakNavigationPrompt).not.toHaveBeenCalled();
+
+  await act(async () => { await jest.advanceTimersByTimeAsync(FASTER_ROUTE_CHECK_MS); });
+  expect(client.getDrivingRoute).toHaveBeenLastCalledWith({ lat: 51.5, lon: -0.1 }, DESTINATION, expect.anything());
+  expect(result.current.activeRoute).toBe(faster);
+  // (The test sends no GPS for 15 minutes, so the card's notice has moved
+  // on to the lost-signal warning by now; what was said is what counts.)
+  expect(mockSpeakNavigationPrompt).toHaveBeenCalledWith(expect.stringMatching(/^Faster route found\. Saves \d+ min\.$/));
+});
+
+test('finds stops along the rest of the route and routes through one until the rider gets there', async () => {
+  const viaRoute: InAppNavigationRoute = { ...ROUTE, durationSeconds: 400 };
+  const client = {
+    getDrivingRoute: jest.fn().mockResolvedValueOnce(ROUTE).mockResolvedValueOnce(viaRoute).mockRejectedValueOnce(new Error('no signal')),
+    searchAlongRoute: jest.fn(async () => ({ places: [
+      { id: 'far', name: 'BP', address: '', lat: 51.503, lon: -0.097, travelSeconds: 900 },
+      { id: 'near', name: 'Shell', address: '', lat: 51.502, lon: -0.099, travelSeconds: 100 },
+    ] })),
+  };
+  const { result } = await startNavigation({ client: client as never });
+  await sendFix(51.5, -0.1);
+
+  let stops: Awaited<ReturnType<typeof result.current.findStopsOnTheWay>> = [];
+  await act(async () => { stops = await result.current.findStopsOnTheWay('petrol station'); });
+  expect(client.searchAlongRoute).toHaveBeenCalledWith('petrol station', expect.arrayContaining([{ lat: 51.5, lon: -0.1 }]));
+  expect(stops.map((stop) => stop.place.name)).toEqual(['Shell', 'BP']);
+
+  mockSpeakNavigationPrompt.mockClear();
+  let added = false;
+  await act(async () => { added = await result.current.addNavigationStop({ lat: 51.502, lon: -0.099, name: 'Shell' }); });
+  expect(added).toBe(true);
+  expect(client.getDrivingRoute).toHaveBeenLastCalledWith({ lat: 51.5, lon: -0.1 }, DESTINATION, expect.anything(), { lat: 51.502, lon: -0.099, label: 'Shell' });
+  expect(result.current.activeRoute).toBe(viaRoute);
+  expect(result.current.navigationStop).toEqual({ lat: 51.502, lon: -0.099, label: 'Shell' });
+  expect(mockSpeakNavigationPrompt).toHaveBeenCalledWith('Stop added: Shell.');
+
+  // Reaching it says so and clears it.
+  await sendFix(51.502, -0.099);
+  expect(result.current.navigationStop).toBeNull();
+  expect(mockSpeakNavigationPrompt).toHaveBeenCalledWith('You’ve reached Shell.');
+
+  // A stop that can't be routed leaves things as they were.
+  await act(async () => { added = await result.current.addNavigationStop({ lat: 51.503, lon: -0.097, name: 'BP' }); });
+  expect(added).toBe(false);
+  expect(result.current.navigationStop).toBeNull();
+  expect(result.current.navigationNotice).toBe('Couldn’t add that stop. Try again.');
+});
+
+test('finding or adding stops needs a route and a position', async () => {
+  const { result } = await renderNavigation({ currentLocation: null });
+  let stops: unknown[] = ['x'];
+  let added = true;
+  await act(async () => {
+    stops = await result.current.findStopsOnTheWay('cafe');
+    added = await result.current.addNavigationStop({ lat: 1, lon: 1, name: 'X' });
+  });
+  expect(stops).toEqual([]);
+  expect(added).toBe(false);
+});
+
 test('reroutes only after staying off route for the grace period', async () => {
   const rerouted: InAppNavigationRoute = { ...ROUTE, steps: ROUTE.steps.slice(1) };
   const client = { getDrivingRoute: jest.fn().mockResolvedValueOnce(ROUTE).mockResolvedValueOnce(rerouted) };
@@ -372,7 +496,9 @@ test('reroutes only after staying off route for the grace period', async () => {
   expect(mockSpeakNavigationPrompt).toHaveBeenCalledWith('Rerouting.');
   expect(client.getDrivingRoute).toHaveBeenCalledTimes(2);
   expect(client.getDrivingRoute).toHaveBeenLastCalledWith({ lat: 51.5005, lon: -0.097 }, DESTINATION, { highways: false, tolls: false, ferries: false });
-  expect(result.current.activeRoute).toBe(rerouted);
+  expect(result.current.activeRoute).toStrictEqual(rerouted);
+  // A reroute takes Google's best way; it doesn't offer choices mid-ride.
+  expect(result.current.routeChoices).toEqual([]);
   expect(result.current.navigationStepIndex).toBe(0);
   expect(result.current.navigationNotice).toBe('Route updated.');
   // The new route restarts the GPS feed, but the prompt audio session stays up.
